@@ -161,6 +161,7 @@ class PhotoMapResponse(BaseModel):
 
 class PhotoMapCountResponse(BaseModel):
     count: int
+    bounds: Optional[tuple[float, float, float, float]] = None
 
 
 class PhotoSearchResponse(BaseModel):

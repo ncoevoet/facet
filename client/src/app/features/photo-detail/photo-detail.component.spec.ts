@@ -469,6 +469,15 @@ describe('PhotoDetailComponent', () => {
     expect(root.querySelector('span.truncate')!.classList.contains('min-w-0')).toBe(true);
   });
 
+  it('uses distinct icons for face visibility and drawing a manual face box', () => {
+    localStorage.removeItem('facet_face_box_mode');
+    const view = renderDetail(); view.componentInstance.photo.set(makePhoto({})); view.detectChanges();
+    const root = view.nativeElement as HTMLElement;
+    const visibility = root.querySelector('[data-face-box-mode] mat-icon')?.textContent?.trim();
+    const drawing = root.querySelector('[aria-label="manual_faces.title"] mat-icon')?.textContent?.trim();
+    expect(drawing).toBe('add_box'); expect(drawing).not.toBe(visibility);
+  });
+
   it('cycles the face-box button hover, always, off, remembering each and telling the layer', () => {
     localStorage.removeItem('facet_face_box_mode');
     localStorage.removeItem('facet_show_face_boxes');

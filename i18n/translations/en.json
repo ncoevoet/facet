@@ -1693,7 +1693,8 @@
     "zero_stars": "0 stars",
     "zero_stars_clear": "0 stars only. Click to clear the star filter.",
     "zero_stars_help_title": "About zero stars",
-    "zero_stars_help": "Matches a numeric zero in the current rating scope, including an absent personal rating. Unknown catalog ratings stay unavailable. This does not mean never rated. Personal accounts do not fall back to catalog or other people’s ratings; Metadata sources shows the recorded origin."
+    "zero_stars_help": "Matches a numeric zero in the current rating scope, including an absent personal rating. Unknown catalog ratings stay unavailable. This does not mean never rated. Personal accounts do not fall back to catalog or other people’s ratings; Metadata sources shows the recorded origin.",
+    "semantic_search_help": "About visual search"
   },
   "composition_patterns": {
     "none": "None",
@@ -2894,7 +2895,10 @@
       "reject_all": "Reject all photos…",
       "reject_all_title": "Reject every photo in this group?",
       "reject_all_body": "Mark all {count} photos in this group as rejected. No files are deleted. The pending confirmation can still be cancelled before it is saved.",
-      "restore": "Show comparison panels"
+      "restore": "Show comparison panels",
+      "reject_sequence_title": "Reject these sequence frames?",
+      "reject_sequence_body": "Of these {count} photos, {sequence_count} belong to {kinds} sets whose frames normally stay together. Rejecting them overrides that default. No files are deleted. You can still cancel the pending confirmation before it is saved.",
+      "reject_sequence_confirm": "Reject all these photos"
     }
   },
   "scenes": {

@@ -1708,6 +1708,7 @@ export const I18N = {
     zero_stars_clear: "gallery.zero_stars_clear",
     zero_stars_help_title: "gallery.zero_stars_help_title",
     zero_stars_help: "gallery.zero_stars_help",
+    semantic_search_help: "gallery.semantic_search_help",
   },
   composition_patterns: {
     none: "composition_patterns.none",
@@ -2909,6 +2910,9 @@ export const I18N = {
       reject_all_title: "culling.workspace.reject_all_title",
       reject_all_body: "culling.workspace.reject_all_body",
       restore: "culling.workspace.restore",
+      reject_sequence_title: "culling.workspace.reject_sequence_title",
+      reject_sequence_body: "culling.workspace.reject_sequence_body",
+      reject_sequence_confirm: "culling.workspace.reject_sequence_confirm",
     },
   },
   scenes: {

@@ -191,7 +191,7 @@ async def api_photos_map(
 async def api_photos_map_count(
     user: Optional[CurrentUser] = Depends(get_optional_user),
 ):
-    """Return count of photos with GPS data, for nav badge visibility."""
+    """Return the authorized geotagged count and full extent, independent of viewport."""
     existing_cols = get_existing_columns()
     if 'gps_latitude' not in existing_cols or 'gps_longitude' not in existing_cols:
         return {'count': 0}
@@ -201,14 +201,15 @@ async def api_photos_map_count(
         vis_sql, vis_params = get_visibility_clause(user_id)
 
         cur = await conn.execute(
-            f"SELECT COUNT(*) AS cnt FROM photos "
-            f"WHERE gps_latitude IS NOT NULL AND gps_longitude IS NOT NULL AND {vis_sql}",
+            f"SELECT COUNT(*) AS cnt, MIN(gps_latitude) AS south, MAX(gps_latitude) AS north, "
+            f"MIN(gps_longitude) AS west, MAX(gps_longitude) AS east FROM photos "
+            f"WHERE gps_latitude BETWEEN -90 AND 90 AND gps_longitude BETWEEN -180 AND 180 AND {vis_sql}",
             vis_params,
         )
         row = await cur.fetchone()
         await cur.close()
 
-        return {'count': row['cnt']}
+        return {'count': row['cnt'], 'bounds': [row['south'], row['west'], row['north'], row['east']] if row['cnt'] else None}
 
 
 class GpsUpdateRequest(BaseModel):

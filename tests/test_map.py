@@ -193,6 +193,7 @@ class TestPhotosMapCount:
 
         assert resp.status_code == 200
         assert resp.json()["count"] == 42
+        assert resp.json()["bounds"] == [40.0, -73.0, 40.41, -73.0]
 
     def test_returns_zero_when_no_gps_photos(self, client, tmp_path):
         db = str(tmp_path / "empty.db")
@@ -206,3 +207,20 @@ class TestPhotosMapCount:
 
         assert resp.status_code == 200
         assert resp.json()["count"] == 0
+
+
+def test_map_initial_extent_excludes_hidden_and_invalid_coordinates(edition_client, seed_photos_prefix, monkeypatch):
+    from api.config import _FULL_CONFIG
+
+    prefix = '/map-initial-extent/'
+    seed_photos_prefix(prefix, [
+        {'path': prefix + 'allowed/a.jpg', 'filename': 'a.jpg', 'gps_latitude': 38.5, 'gps_longitude': 68.8},
+        {'path': prefix + 'allowed/b.jpg', 'filename': 'b.jpg', 'gps_latitude': 43.2, 'gps_longitude': 76.9},
+        {'path': prefix + 'hidden.jpg', 'filename': 'hidden.jpg', 'gps_latitude': -40, 'gps_longitude': -120},
+        {'path': prefix + 'allowed/invalid.jpg', 'filename': 'invalid.jpg', 'gps_latitude': 999, 'gps_longitude': 50},
+    ])
+    monkeypatch.setattr('api.db_helpers.is_multi_user_enabled', lambda: True)
+    monkeypatch.setitem(_FULL_CONFIG, 'users', {'test': {'directories': [prefix + 'allowed']}})
+    response = edition_client.get('/api/photos/map/count')
+    assert response.status_code == 200, response.text
+    assert response.json() == {'count': 2, 'bounds': [38.5, 68.8, 43.2, 76.9]}

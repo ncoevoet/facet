@@ -1,5 +1,5 @@
 import {
-  Component, OnInit, OnDestroy, inject, signal, effect, viewChild, ElementRef, TemplateRef,
+  Component, OnInit, OnDestroy, inject, signal, effect, viewChild, ElementRef,
   ChangeDetectionStrategy
 } from '@angular/core';
 import { Router } from '@angular/router';
@@ -12,7 +12,6 @@ import { I18nService } from '../../core/services/i18n.service';
 import { PageHelpService } from '../../core/services/page-help.service';
 import { MapFiltersService } from './map-filters.service';
 import { registerPageContext } from '../../core/agent/page-context.service';
-import { HeaderSlotService } from '../../core/services/header-slot.service';
 import { DateRangeFilterComponent } from '../../shared/components/date-range-filter/date-range-filter.component';
 import { TranslatePipe } from '../../shared/pipes/translate.pipe';
 import * as L from 'leaflet';
@@ -49,14 +48,19 @@ interface MapResponse {
   standalone: true,
   imports: [MatIconModule, MatButtonModule, MatProgressSpinnerModule, DateRangeFilterComponent, TranslatePipe],
   template: `
-    <ng-template #mapToolbar>
-      <app-date-range-filter
-        [from]="mapFilters.dateFrom()" [to]="mapFilters.dateTo()"
-        fromLabel="map.date_from" toLabel="map.date_to"
-        fromClass="!hidden lg:!inline-flex w-44 ml-2" toClass="!hidden lg:!inline-flex w-44"
-        (fromChange)="mapFilters.dateFrom.set($event)" (toChange)="mapFilters.dateTo.set($event)" />
-    </ng-template>
     <div class="relative h-full">
+      <details class="absolute right-3 top-3 z-[1000] rounded bg-[var(--mat-sys-surface-container)] text-sm shadow-md" data-map-dates>
+        <summary class="flex min-h-10 cursor-pointer list-none items-center gap-2 rounded px-3 focus-visible:outline-2">
+          <mat-icon aria-hidden="true" class="!h-5 !w-5 !text-xl">date_range</mat-icon>
+          {{ I18N.gallery.sidebar.date | translate }}
+          @if (mapFilters.dateFrom() || mapFilters.dateTo()) { <span class="font-semibold">{{ (mapFilters.dateFrom() ? 1 : 0) + (mapFilters.dateTo() ? 1 : 0) }}</span> }
+        </summary>
+        <div class="flex flex-col gap-2 border-t border-[var(--mat-sys-outline-variant)] p-3">
+          <app-date-range-filter [compact]="true" [from]="mapFilters.dateFrom()" [to]="mapFilters.dateTo()"
+            fromLabel="map.date_from" toLabel="map.date_to"
+            (fromChange)="mapFilters.dateFrom.set($event)" (toChange)="mapFilters.dateTo.set($event)" />
+        </div>
+      </details>
       @if (loading()) {
         <div class="absolute inset-0 flex items-center justify-center z-[1000] bg-black/20">
           <mat-spinner diameter="40" [attr.aria-label]="I18N.ui.labels.loading | translate" />
@@ -119,16 +123,10 @@ export class MapComponent implements OnInit, OnDestroy {
   private readonly router = inject(Router);
   protected readonly mapFilters = inject(MapFiltersService);
   private readonly pageHelp = inject(PageHelpService);
-  private readonly headerSlot = inject(HeaderSlotService);
   private readonly mapContainer = viewChild.required<ElementRef<HTMLDivElement>>('mapContainer');
-  private readonly mapToolbar = viewChild<TemplateRef<unknown>>('mapToolbar');
 
   constructor() {
     registerPageContext('map', () => ({ date_from: this.mapFilters.dateFrom(), date_to: this.mapFilters.dateTo() }));
-    effect(() => {
-      const t = this.mapToolbar();
-      if (t) this.headerSlot.set(t);
-    });
   }
 
   /**
@@ -178,6 +176,7 @@ export class MapComponent implements OnInit, OnDestroy {
   private initTimeout: ReturnType<typeof setTimeout> | null = null;
   private moveEndDebounce: ReturnType<typeof setTimeout> | null = null;
   private loadMarkersRequestId = 0;
+  private initialViewChanged = false;
 
   // Reload markers when date filters change
   private dateFilterEffect = effect(() => {
@@ -200,8 +199,6 @@ export class MapComponent implements OnInit, OnDestroy {
 
   ngOnDestroy(): void {
     this.pageHelp.setDescription(null);
-    const t = this.mapToolbar();
-    if (t) this.headerSlot.clear(t);
     if (this.initTimeout !== null) {
       clearTimeout(this.initTimeout);
     }
@@ -221,11 +218,12 @@ export class MapComponent implements OnInit, OnDestroy {
     const container = this.mapContainer().nativeElement;
     this.map = createLeafletMap(container, undefined, () => {
       if (!this.tileErrorDismissed) this.tileError.set(true);
-    }).setView([48.8566, 2.3522], 5);
+    }).setView([0, 0], 2);
 
     this.markersLayer.addTo(this.map);
 
     this.moveEndHandler = () => {
+      this.initialViewChanged = true;
       if (this.moveEndDebounce !== null) {
         clearTimeout(this.moveEndDebounce);
       }
@@ -242,11 +240,17 @@ export class MapComponent implements OnInit, OnDestroy {
   }
 
   private async checkForGeotaggedPhotos(): Promise<void> {
+    const map = this.map;
     try {
-      const data = await firstValueFrom(this.api.get<{ count: number }>('/photos/map/count'));
+      const data = await firstValueFrom(this.api.get<{ count: number; bounds?: [number, number, number, number] | null }>('/photos/map/count'));
+      if (!map || this.map !== map) return;
       this.noGpsResults.set(data.count === 0);
+      if (!this.initialViewChanged && data.bounds?.length === 4 && data.bounds.every(Number.isFinite)) {
+        const [south, west, north, east] = data.bounds;
+        map.fitBounds([[south, west], [north, east]], { padding: [32, 32], maxZoom: 12, animate: false });
+      }
     } catch {
-      this.noGpsResults.set(false);
+      if (this.map === map) this.noGpsResults.set(false);
     }
   }
 
@@ -277,7 +281,7 @@ export class MapComponent implements OnInit, OnDestroy {
         this.api.get<MapResponse>('/photos/map', params),
       );
 
-      if (requestId !== this.loadMarkersRequestId) return;
+      if (requestId !== this.loadMarkersRequestId || !this.map) return;
 
       this.markersLayer.clearLayers();
 

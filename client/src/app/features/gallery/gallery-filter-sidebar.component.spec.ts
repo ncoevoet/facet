@@ -194,6 +194,17 @@ describe('GalleryFilterSidebarComponent', () => {
       expect(store.updateFilter.mock.calls).toEqual([['search', 'IMG_2']]);
     });
 
+    it('clearing semantic search cancels its pending query without cancelling the filename debounce', () => {
+      vi.useFakeTimers();
+      component.onSemanticSearch(input('new query'));
+      component.onSidebarSearchChange(input('IMG'));
+      component.clearSemanticSearch();
+      vi.advanceTimersByTime(1000);
+      expect(mockStore['updateFilter']).toHaveBeenCalledTimes(2);
+      expect(mockStore['updateFilter']).toHaveBeenNthCalledWith(1, 'semanticQuery', '');
+      expect(mockStore['updateFilter']).toHaveBeenNthCalledWith(2, 'search', 'IMG');
+    });
+
     it('a semantic keystroke does not cancel a pending filename update', () => {
       vi.useFakeTimers();
       const store = (component as any).store;
@@ -1319,6 +1330,21 @@ describe('GalleryFilterSidebarComponent', () => {
       expect(control).toBeTruthy();
       (control.querySelector('input') as HTMLInputElement).click();
       expect(mockStore['updateFilter']).toHaveBeenCalledWith('no_gps', '1');
+    });
+
+    it('uses one visible semantic heading and reveals explanatory copy only on request', () => {
+      const panel = fixture.nativeElement.querySelector('[data-semantic-search]') as HTMLElement;
+      expect(panel.querySelector('mat-form-field')).toBeNull();
+      const input = panel.querySelector<HTMLInputElement>('#semantic-search-input')!;
+      expect(input.labels?.[0]?.classList.contains('sr-only')).toBe(true);
+      const help = panel.querySelector<HTMLButtonElement>('[data-semantic-help]')!;
+      expect(help.getAttribute('aria-expanded')).toBe('false');
+      expect(panel.querySelector('#semantic-search-help')).toBeNull();
+      help.click(); fixture.detectChanges();
+      expect(help.getAttribute('aria-expanded')).toBe('true');
+      expect(panel.querySelector('#semantic-search-help')?.textContent).toContain('gallery.semantic_search_info');
+      help.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true })); fixture.detectChanges();
+      expect(panel.querySelector('#semantic-search-help')).toBeNull();
     });
 
     it('renders the thumb seeded from the config default, announced with its unit', () => {

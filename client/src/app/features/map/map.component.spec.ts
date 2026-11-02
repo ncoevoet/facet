@@ -1,6 +1,6 @@
 import { TestBed } from '@angular/core/testing';
 import type { Mock } from 'vitest';
-import { of, throwError } from 'rxjs';
+import { of, throwError, Subject } from 'rxjs';
 import { ApiService } from '../../core/services/api.service';
 import { I18nService } from '../../core/services/i18n.service';
 import { PageContextService } from '../../core/agent/page-context.service';
@@ -104,8 +104,38 @@ describe('MapComponent', () => {
       const tileUrl = new URL(tileTemplate.replace('{z}/{x}/{y}', '5/17/11'));
       expect(tileUrl.searchParams.get('ngsw-bypass')).toBe('1');
       expect(tileUrl.origin).toBe('https://tile.openstreetmap.org');
-      expect(mockMap.setView).toHaveBeenCalledWith([48.8566, 2.3522], 5);
+      expect(mockMap.setView).toHaveBeenCalledWith([0, 0], 2);
       expect(mockMap.on).toHaveBeenCalledWith('moveend', expect.any(Function));
+    });
+
+    it('fits all authorized photo coordinates, including a single-location zoom cap', async () => {
+      mockApi.get.mockImplementation((url: string) => url === '/photos/map/count'
+        ? of({ count: 4, bounds: [37.5, 66.8, 43.2, 76.9] }) : of({ photos: [], clusters: [] }));
+      component.initMap(); await Promise.resolve();
+      expect(mockMap.fitBounds).toHaveBeenCalledWith([[37.5, 66.8], [43.2, 76.9]], { padding: [32, 32], maxZoom: 12, animate: false });
+    });
+
+    it('caps initial zoom for one photo location', async () => {
+      mockApi.get.mockImplementation((url: string) => url === '/photos/map/count'
+        ? of({ count: 1, bounds: [40, 70, 40, 70] }) : of({ photos: [], clusters: [] }));
+      component.initMap(); await Promise.resolve();
+      expect(mockMap.fitBounds).toHaveBeenCalledWith([[40, 70], [40, 70]], { padding: [32, 32], maxZoom: 12, animate: false });
+    });
+
+    it('preserves a user pan made before the initial extent arrives', async () => {
+      const pending = new Subject<{ count: number; bounds: number[] }>();
+      mockApi.get.mockImplementation((url: string) => url === '/photos/map/count' ? pending : of({ photos: [], clusters: [] }));
+      component.initMap(); component.moveEndHandler(); mockMap.fitBounds.mockClear();
+      pending.next({ count: 1, bounds: [40, 70, 40, 70] }); pending.complete(); await Promise.resolve();
+      expect(mockMap.fitBounds).not.toHaveBeenCalled();
+    });
+
+    it('discards a late initial extent after the map is destroyed', async () => {
+      const pending = new Subject<{ count: number; bounds: number[] }>();
+      mockApi.get.mockImplementation((url: string) => url === '/photos/map/count' ? pending : of({ photos: [], clusters: [] }));
+      component.initMap(); component.ngOnDestroy(); mockMap.fitBounds.mockClear();
+      pending.next({ count: 1, bounds: [40, 70, 40, 70] }); pending.complete(); await Promise.resolve();
+      expect(mockMap.fitBounds).not.toHaveBeenCalled();
     });
 
     it('should trigger loadMarkers on init', () => {

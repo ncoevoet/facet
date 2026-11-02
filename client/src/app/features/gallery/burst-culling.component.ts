@@ -1,5 +1,5 @@
 import { FilenamePipe } from '../../shared/pipes/filename.pipe';
-import { SEQUENCE_KINDS_KEPT_WHOLE } from '../../shared/pipes/sequence-kind.pipe';
+import { SEQUENCE_KINDS_KEPT_WHOLE, SEQUENCE_KIND_LABELS } from '../../shared/pipes/sequence-kind.pipe';
 import { Component, DestroyRef, inject, signal, linkedSignal, computed, effect, untracked, viewChild, ElementRef, OnDestroy, HostListener, TemplateRef, ChangeDetectionStrategy } from '@angular/core';
 import { NavigationStart, NavigationEnd, NavigationCancel, NavigationCancellationCode, NavigationError, NavigationSkipped, Router, ActivatedRoute } from '@angular/router';
 import { ViewActionRegistry } from '../../core/agent/view-action-registry.service';
@@ -1762,13 +1762,22 @@ export class BurstCullingComponent implements OnDestroy {
       && this.auth.identity() === owner && this.auth.status() === status && this.auth.token === token
       && !this.cull.replanning() && !this.cull.confirmedGroups().has(this.cull.groupKey(captured))
       && this.visibleGroups().some(item => this.cull.groupKey(item) === this.cull.groupKey(captured)
-        && JSON.stringify(item.photos.map(photo => photo.path)) === JSON.stringify(captured.photos.map(photo => photo.path)));
+        && item.sequence_kind === captured.sequence_kind
+        && JSON.stringify(item.photos.map(photo => [photo.path, photo.sequence_kind, photo.sequence_override, photo.sequence_override_pending])) === JSON.stringify(captured.photos.map(photo => [photo.path, photo.sequence_kind, photo.sequence_override, photo.sequence_override_pending])));
     const { ConfirmDialogComponent } = await import('../../shared/components/confirm-dialog/confirm-dialog.component');
     if (!current()) return;
+    const wholeKind = SEQUENCE_KINDS_KEPT_WHOLE.includes(captured.type) ? captured.type
+      : captured.sequence_kind && SEQUENCE_KINDS_KEPT_WHOLE.includes(captured.sequence_kind) ? captured.sequence_kind : null;
+    const memberKinds = captured.photos.flatMap(photo => photo.sequence_kind && SEQUENCE_KINDS_KEPT_WHOLE.includes(photo.sequence_kind) ? [photo.sequence_kind] : []);
+    const sequenceCount = wholeKind ? captured.photos.length : memberKinds.length;
+    const sequence = sequenceCount > 0;
+    const kinds = [...new Set(wholeKind ? [wholeKind] : memberKinds)].sort().map(kind => this.i18n.t(SEQUENCE_KIND_LABELS[kind])).join(', ');
     const ref = this.dialog.open(ConfirmDialogComponent, { width: '95vw', maxWidth: '30rem', data: {
-      title: this.i18n.t(I18N.culling.workspace.reject_all_title),
-      message: this.i18n.t(I18N.culling.workspace.reject_all_body, { count: captured.photos.length }),
-      confirmLabel: this.i18n.t(I18N.culling.workspace.reject_all),
+      title: this.i18n.t(sequence ? I18N.culling.workspace.reject_sequence_title : I18N.culling.workspace.reject_all_title),
+      message: sequence
+        ? this.i18n.t(I18N.culling.workspace.reject_sequence_body, { count: captured.photos.length, sequence_count: sequenceCount, kinds })
+        : this.i18n.t(I18N.culling.workspace.reject_all_body, { count: captured.photos.length }),
+      confirmLabel: this.i18n.t(sequence ? I18N.culling.workspace.reject_sequence_confirm : I18N.culling.workspace.reject_all),
     } });
     if (!await firstValueFrom(ref.afterClosed()) || !current()) return;
     if (this.cull.rejectEntireGroup(captured) && this.lightboxGroup()) {

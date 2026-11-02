@@ -376,33 +376,43 @@ export function loadActiveTab(): SidebarTabId {
               {{ I18N.gallery.sidebar.semantic_search | translate }}
             </mat-panel-title>
           </mat-expansion-panel-header>
-          <div class="flex flex-col gap-2 pb-2">
-            <mat-form-field subscriptSizing="dynamic" class="w-full">
-              <mat-label>{{ I18N.gallery.semantic_search | translate }}</mat-label>
-              <mat-icon matPrefix class="mr-1 opacity-60">image_search</mat-icon>
-              <input #semanticSearchInput matInput
-                [value]="store.filters().semanticQuery"
-                (input)="onSemanticSearch($event)"
-                [placeholder]="I18N.gallery.semantic_search_placeholder | translate" />
-              @if (store.filters().semanticQuery) {
-                <button matSuffix mat-icon-button class="!w-6 !h-6 !p-0" (click)="store.updateFilter('semanticQuery', '')" [attr.aria-label]="I18N.gallery.clear_semantic_search | translate">
-                  <mat-icon class="!text-sm !w-4 !h-4">close</mat-icon>
-                </button>
-              }
-            </mat-form-field>
-            <p class="text-xs opacity-50 px-1">{{ I18N.gallery.semantic_search_info | translate }}</p>
-            <div class="flex items-center gap-2 px-1">
-              <span class="text-sm opacity-70 shrink-0">{{ I18N.gallery.semantic_search_threshold | translate }}</span>
-              <mat-slider [min]="0" [max]="SEARCH_THRESHOLD_MAX" [step]="1" [displayWith]="formatThresholdPercent" class="flex-1">
-                <input matSliderThumb
-                  [value]="searchThresholdValue()"
-                  (valueChange)="onSearchThresholdChange($event)"
-                  [attr.aria-label]="I18N.gallery.semantic_search_threshold | translate"
-                  aria-describedby="semantic-search-threshold-hint" />
-              </mat-slider>
-              <span class="text-xs opacity-60 w-10 text-right">{{ searchThresholdValue() }}%</span>
+          <div class="flex min-w-0 flex-col gap-1 pb-1" data-semantic-search>
+            <div class="flex min-w-0 items-center gap-1">
+              <label class="sr-only" for="semantic-search-input">{{ I18N.gallery.semantic_search | translate }}</label>
+              <div class="relative min-w-0 flex-1">
+                <input #semanticSearchInput id="semantic-search-input" type="text" role="searchbox" enterkeyhint="search"
+                  class="h-10 w-full min-w-0 rounded border border-[var(--mat-sys-outline)] bg-[var(--mat-sys-surface-container-lowest)] pl-3 pr-10 text-sm text-[var(--mat-sys-on-surface)] focus-visible:outline-2 focus-visible:outline-[var(--mat-sys-primary)]"
+                  [value]="store.filters().semanticQuery" (input)="onSemanticSearch($event)"
+                  [placeholder]="I18N.gallery.semantic_search_placeholder | translate" />
+                @if (store.filters().semanticQuery) {
+                  <button type="button" class="absolute inset-y-0 right-0 flex w-10 items-center justify-center rounded cursor-pointer hover:bg-[var(--mat-sys-surface-container-high)] focus-visible:outline-2"
+                    (click)="clearSemanticSearch()" [attr.aria-label]="I18N.gallery.clear_semantic_search | translate">
+                    <mat-icon class="!text-xl !w-5 !h-5">close</mat-icon>
+                  </button>
+                }
+              </div>
+              <button type="button" class="flex h-10 w-10 shrink-0 cursor-pointer items-center justify-center rounded text-[var(--mat-sys-on-surface-variant)] hover:bg-[var(--mat-sys-surface-container-high)] focus-visible:outline-2"
+                data-semantic-help [attr.aria-label]="I18N.gallery.semantic_search_help | translate"
+                [attr.aria-expanded]="semanticHelpOpen()" aria-controls="semantic-search-help"
+                (click)="semanticHelpOpen.set(!semanticHelpOpen())" (keydown.escape)="semanticHelpOpen.set(false); $event.stopPropagation()">
+                <mat-icon aria-hidden="true" class="!h-5 !w-5 !text-xl">info_outline</mat-icon>
+              </button>
             </div>
-            <p id="semantic-search-threshold-hint" class="text-xs opacity-50 px-1">{{ I18N.gallery.semantic_search_threshold_hint | translate }}</p>
+            <div class="flex min-w-0 items-center gap-2">
+              <span class="shrink-0 text-xs text-[var(--mat-sys-on-surface-variant)]">{{ I18N.gallery.semantic_search_threshold | translate }}</span>
+              <mat-slider [min]="0" [max]="SEARCH_THRESHOLD_MAX" [step]="1" [displayWith]="formatThresholdPercent" class="!mx-1 min-w-0 flex-1">
+                <input matSliderThumb [value]="searchThresholdValue()" (valueChange)="onSearchThresholdChange($event)"
+                  [attr.aria-label]="I18N.gallery.semantic_search_threshold | translate" aria-describedby="semantic-search-threshold-hint" />
+              </mat-slider>
+              <span class="w-8 shrink-0 text-right text-xs tabular-nums">{{ searchThresholdValue() }}%</span>
+            </div>
+            @if (semanticHelpOpen()) {
+              <div id="semantic-search-help" class="space-y-2 rounded border border-[var(--mat-sys-outline-variant)] p-3 text-xs text-[var(--mat-sys-on-surface-variant)]">
+                <p class="m-0">{{ I18N.gallery.semantic_search_info | translate }}</p>
+                <p class="m-0">{{ I18N.gallery.semantic_search_threshold_hint | translate }}</p>
+              </div>
+            }
+            <p id="semantic-search-threshold-hint" class="sr-only">{{ I18N.gallery.semantic_search_threshold_hint | translate }}</p>
           </div>
         </mat-expansion-panel>
       }
@@ -1443,6 +1453,7 @@ export class GalleryFilterSidebarComponent {
       : { no_capture_date: '' });
   }
 
+  protected readonly semanticHelpOpen = signal(false);
   private readonly semanticSearchInput = viewChild<ElementRef<HTMLInputElement>>('semanticSearchInput');
   private searchTimeout: ReturnType<typeof setTimeout> | null = null;
   // Kept separate from searchTimeout so a slider drag can't cancel a pending
@@ -1531,8 +1542,17 @@ export class GalleryFilterSidebarComponent {
     const value = (event.target as HTMLInputElement).value;
     if (this.searchTimeout) clearTimeout(this.searchTimeout);
     this.searchTimeout = setTimeout(() => {
+      this.searchTimeout = null;
       this.store.updateFilter('semanticQuery', value);
     }, 400);
+  }
+
+  clearSemanticSearch(): void {
+    if (this.searchTimeout) clearTimeout(this.searchTimeout);
+    this.searchTimeout = null;
+    const input = this.semanticSearchInput()?.nativeElement;
+    if (input) { input.value = ''; input.focus(); }
+    this.store.updateFilter('semanticQuery', '');
   }
 
   onSearchThresholdChange(value: number): void {

@@ -620,6 +620,61 @@ describe('BurstCullingComponent', () => {
       expect(mockApi.post.mock.calls.filter(([url]) => url === '/culling-groups/confirm')).toHaveLength(0);
     });
 
+    it.each([
+      ['bracket', 'culling.bracket.label'],
+      ['panorama', 'culling.panorama.label'],
+      ['hdr_panorama', 'culling.panorama.hdr_label'],
+    ])('requires an explicit whole-set override for %s and preserves cancellation', async (kind, label) => {
+      const first = { ...store.groups()[0], sequence_kind: kind };
+      store.groups.set([first, ...store.groups().slice(1)]);
+      const closed = new Subject<boolean>();
+      const open = vi.spyOn(TestBed.inject(MatDialog), 'open').mockReturnValue({ afterClosed: () => closed } as never);
+      let pending = component['rejectEntireGroup'](first);
+      await vi.waitFor(() => expect(open).toHaveBeenCalledTimes(1));
+      expect(open.mock.calls[0][1]?.data).toEqual({
+        title: 'culling.workspace.reject_sequence_title',
+        message: 'culling.workspace.reject_sequence_body',
+        confirmLabel: 'culling.workspace.reject_sequence_confirm',
+      });
+      expect(mockI18n.t).toHaveBeenCalledWith('culling.workspace.reject_sequence_body', { count: first.photos.length, sequence_count: first.photos.length, kinds: label });
+      closed.next(false); await pending;
+      expect(store.confirmedGroups().size).toBe(0);
+      pending = component['rejectEntireGroup'](first);
+      await vi.waitFor(() => expect(open).toHaveBeenCalledTimes(2));
+      closed.next(true); await pending;
+      expect(store.confirmedGroups().has(store.groupKey(first))).toBe(true);
+      expect(store.selectionsMap().get(store.groupKey(first))?.size).toBe(0);
+      expect(mockApi.post.mock.calls.filter(([url]) => url === '/culling-groups/confirm')).toHaveLength(0);
+    });
+
+    it.each(['mixed', 'declared'])('warns for protected frames in a %s group', async mode => {
+      const original = store.groups()[0];
+      const first = mode === 'declared' ? { ...original, type: 'bracket' as const }
+        : { ...original, photos: original.photos.map((photo, index) => index === 0 ? { ...photo, sequence_kind: 'bracket' } : photo) };
+      store.groups.set([first]);
+      const closed = new Subject<boolean>();
+      const open = vi.spyOn(TestBed.inject(MatDialog), 'open').mockReturnValue({ afterClosed: () => closed } as never);
+      const pending = component['rejectEntireGroup'](first);
+      await vi.waitFor(() => expect(open).toHaveBeenCalled());
+      expect(mockI18n.t).toHaveBeenCalledWith('culling.workspace.reject_sequence_body', {
+        count: first.photos.length, sequence_count: mode === 'declared' ? first.photos.length : 1, kinds: 'culling.bracket.label',
+      });
+      closed.next(false); await pending;
+      expect(store.confirmedGroups().size).toBe(0);
+    });
+
+    it('refuses a sequence correction made while Reject all confirmation is open', async () => {
+      const first = store.groups()[0];
+      const closed = new Subject<boolean>();
+      const open = vi.spyOn(TestBed.inject(MatDialog), 'open').mockReturnValue({ afterClosed: () => closed } as never);
+      const pending = component['rejectEntireGroup'](first);
+      await vi.waitFor(() => expect(open).toHaveBeenCalled());
+      store.patchOverrides(first.photos.map(photo => photo.path), 'bracket');
+      closed.next(true); await pending;
+      expect(store.confirmedGroups().size).toBe(0);
+      expect(mockApi.post.mock.calls.filter(([url]) => url === '/culling-groups/confirm')).toHaveLength(0);
+    });
+
     it('confirms the open group and opens the next group fullscreen', async () => {
       const [first, second] = store.groups();
       component['openLightbox'](first, 0);
@@ -4011,6 +4066,8 @@ describe('BurstCullingComponent modals (rendered)', () => {
   // never render the template — only this test can catch that.
   it('face-strip slider focus release: every face-strip slider thumb refocuses the dialog on dragEnd', () => {
     openDarkroom();
+    const closeups = Array.from(fixture.nativeElement.querySelectorAll('button') as NodeListOf<HTMLButtonElement>).find(button => button.textContent?.includes('culling.workspace.closeups'))!;
+    closeups.click();
     component['faceMap'].set(new Map([
       ['/p1.jpg', [{ id: 1, face_index: 0, eyes_open_score: 5, smile_score: 5 }]],
     ]));
@@ -4030,6 +4087,8 @@ describe('BurstCullingComponent modals (rendered)', () => {
 
   it('face strip: outlines the current frame and follows the arrow keys', () => {
     openDarkroom();
+    const closeups = Array.from(fixture.nativeElement.querySelectorAll('button') as NodeListOf<HTMLButtonElement>).find(button => button.textContent?.includes('culling.workspace.closeups'))!;
+    closeups.click();
     component['faceMap'].set(new Map([
       ['/p1.jpg', [{ id: 1, face_index: 0, eyes_open_score: 5, smile_score: 5 }]],
       ['/p2.jpg', [{ id: 2, face_index: 0, eyes_open_score: 5, smile_score: 5 }]],

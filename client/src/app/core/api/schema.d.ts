@@ -4042,7 +4042,7 @@ export interface paths {
         };
         /**
          * Api Photos Map Count
-         * @description Return count of photos with GPS data, for nav badge visibility.
+         * @description Return the authorized geotagged count and full extent, independent of viewport.
          */
         get: operations["api_photos_map_count_api_photos_map_count_get"];
         put?: never;
@@ -9156,6 +9156,13 @@ export interface components {
         };
         /** PhotoMapCountResponse */
         PhotoMapCountResponse: {
+            /** Bounds */
+            bounds?: [
+                number,
+                number,
+                number,
+                number
+            ] | null;
             /** Count */
             count: number;
         };

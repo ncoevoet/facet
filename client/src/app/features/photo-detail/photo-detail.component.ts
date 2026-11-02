@@ -158,7 +158,7 @@ const SOCIAL_SOURCE_KEYS: Record<string, string> = {
         @if (auth.isEdition()) {
           <button mat-icon-button class="max-md:!hidden" (click)="openManualFaces(p)"
             [matTooltip]="I18N.manual_faces.title | translate" [attr.aria-label]="I18N.manual_faces.title | translate">
-            <mat-icon>crop_free</mat-icon>
+            <mat-icon>add_box</mat-icon>
           </button>
         }
 
@@ -248,7 +248,7 @@ const SOCIAL_SOURCE_KEYS: Record<string, string> = {
             }
             @if (auth.isEdition()) {
               <button mat-menu-item [matMenuTriggerFor]="categoryOverrideMenu"><mat-icon>category</mat-icon> {{ I18N.photo.category_override.menu_tooltip | translate }}</button>
-              <button mat-menu-item (click)="openManualFaces(p)"><mat-icon>crop_free</mat-icon> {{ I18N.manual_faces.title | translate }}</button>
+              <button mat-menu-item (click)="openManualFaces(p)"><mat-icon>add_box</mat-icon> {{ I18N.manual_faces.title | translate }}</button>
             }
             @if (auth.isEdition() && p.unassigned_faces > 0) {
               <button mat-menu-item (click)="openAddPerson(p)"><mat-icon>person_add</mat-icon> {{ I18N.manage_persons.assign_face | translate }}</button>
