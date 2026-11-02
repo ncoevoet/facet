@@ -1,7 +1,7 @@
 import { noticeLiftPx } from './selection-bar-layout.util';
 
 describe('noticeLiftPx', () => {
-  const base = { hostBottom: 800, barTop: 740, barLeft: 16 };
+  const base = { hostBottom: 800, barTop: 740, barBottom: 784, noticeTop: 700, noticeBottom: 784, barLeft: 16 };
 
   it('does not lift when a narrow card sits clear of the notices', () => {
     expect(noticeLiftPx({ ...base, barRight: 300, noticeLeft: 768, noticeRight: 1184 })).toBe(0);
@@ -16,11 +16,15 @@ describe('noticeLiftPx', () => {
   });
 
   it('lifts on a full-width mobile card', () => {
-    expect(noticeLiftPx({ hostBottom: 700, barTop: 640, barLeft: 8, barRight: 392, noticeLeft: 8, noticeRight: 392 })).toBe(60);
+    expect(noticeLiftPx({ hostBottom: 700, barTop: 640, barBottom: 692, noticeTop: 620, noticeBottom: 692, barLeft: 8, barRight: 392, noticeLeft: 8, noticeRight: 392 })).toBe(60);
   });
 
   it('never returns a negative lift', () => {
     expect(noticeLiftPx({ ...base, barTop: 900, barRight: 1000, noticeLeft: 768, noticeRight: 1184 })).toBe(0);
+  });
+
+  it('does not lift bottom notices when the card has moved above them', () => {
+    expect(noticeLiftPx({ ...base, barTop: 200, barBottom: 260, barRight: 1000, noticeLeft: 768, noticeRight: 1184 })).toBe(0);
   });
 
   it('is zero when the notice stack is absent', () => {

@@ -1254,6 +1254,8 @@ export const I18N = {
     active_filters: "gallery.active_filters",
     unknown_person: "gallery.unknown_person",
     selection: {
+      move_bar: "gallery.selection.move_bar",
+      move_bar_help: "gallery.selection.move_bar_help",
       select: "gallery.selection.select",
       outside_loaded: "gallery.selection.outside_loaded",
       compare_loaded: "gallery.selection.compare_loaded",

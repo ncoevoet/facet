@@ -4,6 +4,10 @@ export interface NoticeLiftInput {
   hostBottom: number;
   /** Card top edge, in the same space as hostBottom. */
   barTop: number;
+  barBottom: number;
+  /** Notice bounds at its ordinary bottom position, before applying any lift. */
+  noticeTop: number | null;
+  noticeBottom: number | null;
   /** Card left/right, relative to the host's left edge. */
   barLeft: number;
   barRight: number;
@@ -21,7 +25,8 @@ export interface NoticeLiftInput {
  */
 export function noticeLiftPx(input: NoticeLiftInput): number {
   const { hostBottom, barTop, barLeft, barRight, noticeLeft, noticeRight } = input;
-  if (noticeLeft === null || noticeRight === null) return 0;
+  if (noticeLeft === null || noticeRight === null || input.noticeTop === null || input.noticeBottom === null) return 0;
+  if (input.barBottom <= input.noticeTop || barTop >= input.noticeBottom) return 0;
   if (barRight <= noticeLeft || noticeRight <= barLeft) return 0;
   return Math.max(0, Math.ceil(hostBottom - barTop));
 }

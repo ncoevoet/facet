@@ -1240,6 +1240,8 @@
     "active_filters": "{count} active filters",
     "unknown_person": "Unknown",
     "selection": {
+      "move_bar": "Move selection toolbar",
+      "move_bar_help": "Drag this handle or use the arrow keys to move the toolbar. Hold Shift for larger steps. Home resets its position. Escape cancels a drag.",
       "select": "Select",
       "outside_loaded": "Selected outside loaded tiles: {count}. Actions apply to the entire selection.",
       "compare_loaded": "Compare needs 2–4 explicitly selected photos present in the loaded tiles.",
