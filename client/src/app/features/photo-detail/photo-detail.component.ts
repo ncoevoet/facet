@@ -1,3 +1,4 @@
+import { PhotoCollectionSidebarComponent } from './photo-collection-sidebar.component';
 import { LogicalReviewService, LogicalReviewAction, LogicalReviewWriteError } from '../../core/services/logical-review.service';
 import { PhotoAnalysisComponent } from '../gallery/photo-analysis.component';
 import { PhotoProvenanceComponent } from './photo-provenance.component';
@@ -74,7 +75,7 @@ const SOCIAL_SOURCE_KEYS: Record<string, string> = {
 
 @Component({
   selector: 'app-photo-detail',
-  imports: [ContextHelpComponent, PhotoAnalysisComponent, PhotoProvenanceComponent, PhotoRelatedFilesComponent,
+  imports: [PhotoCollectionSidebarComponent, ContextHelpComponent, PhotoAnalysisComponent, PhotoProvenanceComponent, PhotoRelatedFilesComponent,
     StackNavigatorComponent,
     ZoomPanDirective,
     PhotoMetricSectionComponent, AssessmentValuePipe, MetricRankComponent,
@@ -264,8 +265,13 @@ const SOCIAL_SOURCE_KEYS: Record<string, string> = {
       <app-stack-navigator [path]="p.path" [allowedPaths]="store.pinnedPaths()" [stacked]="!!p.stack_id"
         (memberOpened)="openSetMember($event)" />
 
-      <!-- Main content: image + info -->
+      <!-- Main content: originating collection + image + info -->
       <div class="flex flex-col lg:flex-row lg:flex-1 lg:min-h-0 lg:overflow-hidden">
+        @if (collectionSidebarAvailable()) {
+          <app-photo-collection-sidebar [photos]="store.photos()" [currentPath]="p.path"
+            [title]="collectionSidebarTitle()" [total]="store.total()" [hasMore]="store.hasMore()" [loading]="store.loading()"
+            (choose)="openCollectionPhoto($event)" (more)="loadCollectionPage()" />
+        }
         <!-- Image panel -->
         <div class="flex min-h-40 max-h-[62dvh] min-w-0 shrink-0 flex-col lg:!aspect-auto lg:max-h-none lg:min-h-0 lg:flex-1"
              [style.aspect-ratio]="photoAspect()">
@@ -687,6 +693,22 @@ export class PhotoDetailComponent extends PhotoDetailBase implements OnInit {
   private readonly timelineOrigin = (this.router.currentNavigation()?.extras.state?.['photoOrigin'] ?? history.state?.['photoOrigin']) === 'timeline';
   private readonly timeline = this.timelineOrigin ? inject(TimelineFeedCache) : null;
   private readonly openedFromGallery = this.timelineOrigin || !!(this.router.currentNavigation()?.extras.state?.['photo'] ?? history.state?.['photo']);
+
+  protected readonly collectionSidebarAvailable = computed(() => this.openedFromGallery && !this.timelineOrigin
+    && this.viewerOwner === this.auth.identity() && this.store.photos().length > 0);
+  protected readonly collectionSidebarTitle = computed(() => this.store.currentAlbum?.()?.name ?? '');
+
+  protected openCollectionPhoto(path: string): void {
+    if (!this.collectionSidebarAvailable() || path === this.photo()?.path || !this.memberAllowed(path)) return;
+    const photo = this.store.photos().find(item => item.path === path);
+    if (!photo) return;
+    void this.router.navigate(['/photo'], { queryParams: { path }, state: { photo }, replaceUrl: true });
+  }
+
+  protected loadCollectionPage(): void {
+    if (!this.collectionSidebarAvailable() || this.store.loading() || !this.store.hasMore()) return;
+    void this.store.nextPage(undefined, { whileParked: true });
+  }
 
   readonly photo = signal<Photo | null>(null);
   protected readonly photoMissing = signal(false);

@@ -132,11 +132,65 @@ describe('manual stack browsing through rendered viewer, Router and HTTP', () =>
     localStorage.clear(); sessionStorage.clear();
   });
 
+  it('browses the originating collection without changing filters, selection, or Back destination', async () => {
+    await open();
+    const beforeFilters = { ...store.filters() };
+    const beforeSelection = new Set(store.selectedPaths());
+    const navigation = arrived();
+    const sidebar = root().querySelector('app-photo-collection-sidebar')!;
+    const thumbnails = sidebar.querySelectorAll<HTMLButtonElement>('button[title]');
+    expect(thumbnails).toHaveLength(2);
+    thumbnails[1].click();
+    await navigation;
+    await membership(null);
+    expect(router.url).toContain(encodeURIComponent('/outside.jpg'));
+    expect(sidebar.querySelector('[aria-current="true"]')).not.toBeNull();
+    expect(store.filters()).toEqual(beforeFilters);
+    expect(store.selectedPaths()).toEqual(beforeSelection);
+    const returned = arrived();
+    button('button[aria-label="photo_detail.back"]').click();
+    await returned;
+    expect(router.url).toBe('/?no_gps=true');
+  });
+
+  it('does not navigate from a stale collection button after the account changes', async () => {
+    await open();
+    const thumbnail = root().querySelectorAll<HTMLButtonElement>('app-photo-collection-sidebar button[title]')[1];
+    auth.status.update(status => ({ ...status!, user_id: 'bob' }));
+    thumbnail.click();
+    await initialPhoto();
+    expect(router.url).toContain(encodeURIComponent(paths[1]));
+    expect(root().querySelector('app-photo-collection-sidebar')).toBeNull();
+  });
+
+  it('loads and retries the next collection page using the preserved query', async () => {
+    await open();
+    store.hasMore.set(true); store.total.set(3);
+    await render();
+    const load = () => button('app-photo-collection-sidebar div[tabindex] > button').click();
+    load();
+    const failed = http.expectOne(request => request.url === '/api/photos');
+    expect(failed.request.params.get('no_gps')).toBe('true');
+    expect(failed.request.params.get('page')).toBe('2');
+    failed.flush({}, { status: 503, statusText: 'Offline' });
+    await render();
+    expect(store.photos()).toHaveLength(2);
+    expect(store.filters().page).toBe(1);
+    load();
+    const retry = http.expectOne(request => request.url === '/api/photos');
+    expect(retry.request.params.get('page')).toBe('2');
+    retry.flush({ photos: [makePhoto({ path: '/next.jpg' })], total: 3, photo_total: 3, has_more: false });
+    await render();
+    expect(store.photos().map(photo => photo.path)).toEqual([paths[1], '/outside.jpg', '/next.jpg']);
+    expect(router.url).toContain(encodeURIComponent(paths[1]));
+    expect(store.filters().no_gps).toBe('true');
+  });
+
   it('ordinary cover opens ordered visible strip; buttons and arrows stay inside stack without pinning or replacing gallery filters', async () => {
     await open();
     expect(root().querySelector('[data-stack-position]')?.textContent).toContain('2 of 3');
     expect(root().querySelectorAll('[data-stack-thumbnail]')).toHaveLength(3);
-    expect(root().querySelector('[aria-current="true"]')?.getAttribute('aria-label')).toContain(paths[1]);
+    expect(root().querySelector('app-stack-navigator [aria-current="true"]')?.getAttribute('aria-label')).toContain(paths[1]);
     expect(store.pinnedPaths()).toBeNull();
     await clickMember('[data-stack-next]', paths[2]);
     expect(button('[data-stack-next]').disabled).toBe(true);
