@@ -6234,6 +6234,27 @@ describe('GalleryComponent', () => {
       expect(scrollTo).not.toHaveBeenCalled();
     });
 
+    it.each(['wheel', 'touchstart', 'identity'] as const)('cancels the final anchor frame after %s changes', interruption => {
+      const frames: FrameRequestCallback[] = [];
+      vi.spyOn(globalThis, 'requestAnimationFrame').mockImplementation(callback => { frames.push(callback); return frames.length; });
+      const host = fixture.nativeElement.querySelector('[data-pidx="1"]') as HTMLElement;
+      const viewport = (content as any).getElementRef().nativeElement as HTMLElement;
+      vi.spyOn(viewport, 'getBoundingClientRect').mockReturnValue({ top: 0, width: 1000, height: 800 } as DOMRect);
+      const rect = vi.spyOn(host, 'getBoundingClientRect').mockReturnValue({ top: 100, height: 200 } as DOMRect);
+      openPhoto(1);
+      rect.mockReturnValue({ top: 180, height: 200 } as DOMRect);
+      outletMock.attachEvents.next(gallery);
+      for (const callback of frames.splice(0)) callback(0);
+      const tile = host.querySelector<HTMLElement>('[tabindex]')!;
+      const focus = vi.spyOn(tile, 'focus');
+      scrollTo.mockClear();
+      if (interruption === 'identity') (mockAuth['identity'] as Mock).mockReturnValue('bob');
+      else document.dispatchEvent(new Event(interruption, { bubbles: true }));
+      for (const callback of frames.splice(0)) callback(0);
+      expect(scrollTo).not.toHaveBeenCalled();
+      expect(focus).not.toHaveBeenCalled();
+    });
+
     it('does not apply a deferred anchor after another navigation starts', () => {
       const frames: FrameRequestCallback[] = [];
       vi.spyOn(globalThis, 'requestAnimationFrame').mockImplementation(callback => { frames.push(callback); return frames.length; });

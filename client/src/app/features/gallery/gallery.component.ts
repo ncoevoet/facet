@@ -1,3 +1,4 @@
+import { GalleryVisitPositions, GalleryHistoryPosition } from './gallery-visit-positions.service';
 import { TagNavigation } from '../../shared/models/tag-navigation';
 import { refineTagQuery } from './tag-query.util';
 import { buildSyncParams } from './gallery-filters.util';
@@ -107,6 +108,8 @@ function assertNever(action: never): never {
 
 /** Where the focused card sat in the viewport when the gallery parked. */
 interface ReturnAnchor { offset: number; width: number; height: number }
+
+
 
 /** What the gallery restores on return; an anchor implies a photo path to re-anchor to. */
 type ReturnTarget = { scroll: number; focus: Element | null } & (
@@ -1014,6 +1017,7 @@ type ReturnTarget = { scroll: number; focus: Element | null } & (
   changeDetection: ChangeDetectionStrategy.Eager,
   host: {
     class: 'block h-full',
+    '(focusin)': 'saveCurrentHistoryPosition()',
     // meta.a is Cmd+A: macOS's select-all, the key a Mac user actually presses.
     // control.a keeps working on Windows/Linux (and on macOS for Ctrl+A).
     '(document:keydown.control.a)': 'onSelectAllShortcut($event)',
@@ -1043,6 +1047,11 @@ export class GalleryComponent implements OnInit, OnDestroy {
   private readonly sequenceOverrides = inject(SequenceOverrideService);
   private readonly route = inject(ActivatedRoute);
   private readonly router = inject(Router);
+  private readonly positions = inject(GalleryVisitPositions);
+  private readonly visitOwner = this.auth.identity();
+  private readonly historyPosition = this.readHistoryPosition();
+  private positionInterrupted = false;
+
   // Router.currentNavigation may be cleared before ngOnInit's first render.
   private readonly revisit = this.router.currentNavigation?.()?.extras.info === GALLERY_REVISIT
     || this.router.currentNavigation?.()?.trigger === 'popstate';
@@ -1761,23 +1770,24 @@ export class GalleryComponent implements OnInit, OnDestroy {
     });
 
     // Capture before the outlet detaches the DOM and loses scroll and focus.
-    this.router.events.pipe(filter(e => e instanceof NavigationStart), takeUntilDestroyed()).subscribe(() => {
+    this.router.events.pipe(filter(e => e instanceof NavigationStart), takeUntilDestroyed()).subscribe(event => {
       const options = this.collectionOptions();
       if (options) options.nativeElement.open = false;
       for (const disclosure of this.selectionDisclosures()) disclosure.nativeElement.open = false;
       if (!this.router.currentNavigation?.()?.extras?.state?.[REVIEW_RESUME_NAVIGATION]) this.resumeNavigation++;
       if (this.parked) return;
-      const focus = document.activeElement;
-      const index = Number((focus?.closest('[data-pidx]') as HTMLElement | null)?.dataset['pidx']);
-      // The photo the focused card belongs to, or the cursor's when focus is elsewhere.
-      const path = Number.isInteger(index) ? this.store.photos()[index]?.path ?? null : this.activePath();
-      const viewport = this.scrollContent()?.getElementRef().nativeElement.getBoundingClientRect();
-      const card = path === null ? null : this.cardRect(this.indexOfPath(path));
-      const scroll = this.scrollContent()?.measureScrollOffset('top') ?? 0;
-      this.returnTo = path !== null && viewport && card && viewport.width > 0 && viewport.height > 0
-        ? { scroll, focus, path, anchor: { offset: card.top - viewport.top, width: viewport.width, height: viewport.height } }
-        : { scroll, focus, path, anchor: null };
+      this.returnTo = this.captureReturnTarget();
+      // On popstate the browser already points at the destination entry.
+      if (event.navigationTrigger !== 'popstate') this.saveHistoryPosition(this.returnTo);
     });
+    if (this.historyPosition) {
+      const interrupt = () => { this.positionInterrupted = true; };
+      const events = ['pointerdown', 'keydown', 'wheel', 'touchstart'] as const;
+      for (const event of events) this.document.addEventListener(event, interrupt, { capture: true, passive: true });
+      this.destroyRef.onDestroy(() => {
+        for (const event of events) this.document.removeEventListener(event, interrupt, true);
+      });
+    }
     this.outlet?.detachEvents.pipe(takeUntilDestroyed()).subscribe(component => {
       if (component !== this) return;
       this.parked = true;
@@ -1939,6 +1949,7 @@ export class GalleryComponent implements OnInit, OnDestroy {
     await this.store.loadPhotos();
     this.store.initializing.set(false);
     this.refreshSideData();
+    await this.restoreHistoryPosition();
     // IntersectionObserver fires too early before DOM paint — defer recheck
     requestAnimationFrame(() => setTimeout(() => this.scrollDirective()?.recheck()));
     if (this.store.config()?.features?.show_albums) {
@@ -2008,20 +2019,26 @@ export class GalleryComponent implements OnInit, OnDestroy {
   }
 
   /** Re-anchor after drawer margins and card heights settle, including parked resizes. */
-  private restoreReturnAnchor(path: string, anchor: ReturnAnchor): void {
+  private restoreReturnAnchor(path: string, anchor: ReturnAnchor, current: () => boolean = () => true): void {
+    const url = this.router.url;
     const navigation = this.resumeNavigation;
     let interacted = false;
     const veto = () => { interacted = true; };
     const cleanup = () => {
       document.removeEventListener('pointerdown', veto, true);
       document.removeEventListener('keydown', veto, true);
+      document.removeEventListener('wheel', veto, true);
+      document.removeEventListener('touchstart', veto, true);
     };
     document.addEventListener('pointerdown', veto, true);
     document.addEventListener('keydown', veto, true);
+    document.addEventListener('wheel', veto, { capture: true, passive: true });
+    document.addEventListener('touchstart', veto, { capture: true, passive: true });
     const unregister = this.destroyRef.onDestroy(cleanup);
     requestAnimationFrame(() => requestAnimationFrame(() => {
       try {
-        if (interacted || this.parked || this.destroyRef.destroyed || navigation !== this.resumeNavigation) return;
+        if (interacted || !current() || this.parked || this.destroyRef.destroyed || navigation !== this.resumeNavigation
+          || this.visitOwner !== this.auth.identity() || this.router.url !== url) return;
         // Responsive DOM removal can passively clear the cursor; explicit new input vetoes restoration.
         if (this.activePath() !== null && this.activePath() !== path) return;
         const index = this.indexOfPath(path);
@@ -2066,6 +2083,67 @@ export class GalleryComponent implements OnInit, OnDestroy {
     this.resizeObserver?.disconnect();
     this.desktop.cleanup();
     this.railWide.cleanup();
+  }
+
+  private captureReturnTarget(geometry = true): ReturnTarget {
+    const focus = this.document.activeElement;
+    const index = Number((focus?.closest('[data-pidx]') as HTMLElement | null)?.dataset['pidx']);
+    const path = Number.isInteger(index) ? this.store.photos()[index]?.path ?? null : this.activePath();
+    const viewport = geometry ? this.scrollContent()?.getElementRef().nativeElement.getBoundingClientRect() : null;
+    const card = !geometry || path === null ? null : this.cardRect(this.indexOfPath(path));
+    const scroll = this.scrollContent()?.measureScrollOffset('top') ?? 0;
+    return path !== null && viewport && card && viewport.width > 0 && viewport.height > 0
+      ? { scroll, focus, path, anchor: { offset: card.top - viewport.top, width: viewport.width, height: viewport.height } }
+      : { scroll, focus, path, anchor: null };
+  }
+
+  protected saveCurrentHistoryPosition(geometry = false): void {
+    if (this.parked || this.destroyRef.destroyed || this.router.currentNavigation?.()) return;
+    this.saveHistoryPosition(this.captureReturnTarget(geometry));
+  }
+
+  private readHistoryPosition(): GalleryHistoryPosition | null {
+    const navigation = this.router.currentNavigation?.();
+    if (navigation?.trigger !== 'popstate') return null;
+    return this.positions.restore(this.visitOwner, this.router.serializeUrl(navigation.extractedUrl), navigation.id);
+  }
+
+  private saveHistoryPosition(back: ReturnTarget): void {
+    if (this.visitOwner !== this.auth.identity() || this.store.initializing() || this.store.loading()) return;
+    const position: GalleryHistoryPosition = { owner: this.visitOwner, url: this.router.url,
+      scroll: back.scroll, path: back.path, page: this.store.filters().page, anchor: back.anchor };
+    this.positions.remember(position);
+  }
+
+  private async restoreHistoryPosition(): Promise<void> {
+    const position = this.historyPosition;
+    if (!position) return;
+    const revision = this.resumeNavigation;
+    const current = () => !this.positionInterrupted && !this.destroyRef.destroyed && !this.parked
+      && revision === this.resumeNavigation && this.visitOwner === this.auth.identity() && this.router.url === position.url;
+    // A fresh visit must reload its authorized collection. Fetch only as far as
+    // its former anchor, never beyond the pages that visit had already loaded.
+    while (current() && position.path && this.indexOfPath(position.path) < 0
+      && this.store.hasMore() && this.store.filters().page < position.page) {
+      const page = this.store.filters().page;
+      await this.store.nextPage();
+      if (this.store.filters().page <= page || this.store.loadError()) return;
+    }
+    if (!current() || this.store.loadError()) return;
+    afterNextRender(() => {
+      if (!current()) return;
+      this.scrollContent()?.scrollTo({ top: position.scroll });
+      this.updateWindowPosition();
+      requestAnimationFrame(() => {
+        if (!current()) return;
+        const at = position.path === null ? -1 : this.indexOfPath(position.path);
+        this.setCursor(at);
+        if (at >= 0) {
+          this.focusCard(at, false, false);
+          if (position.anchor) this.restoreReturnAnchor(position.path!, position.anchor, current);
+        }
+      });
+    }, { injector: this.injector });
   }
 
   /** Capture scroll + query state so back-navigation can skip the reload. */
@@ -3674,11 +3752,13 @@ export class GalleryComponent implements OnInit, OnDestroy {
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe(() => {
         this.showScrollTop.set(content.measureScrollOffset('top') > 800);
+        this.saveCurrentHistoryPosition();
         if (!rafPending) {
           rafPending = true;
           requestAnimationFrame(() => {
             rafPending = false;
             this.updateWindowPosition();
+            this.saveCurrentHistoryPosition(true);
           });
         }
       });

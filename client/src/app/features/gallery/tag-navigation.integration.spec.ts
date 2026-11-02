@@ -7,6 +7,7 @@ import { provideLocationMocks } from '@angular/common/testing';
 import { NavigationEnd, provideRouter, Router, RouteReuseStrategy } from '@angular/router';
 import { RouterTestingHarness } from '@angular/router/testing';
 import { MATERIAL_ANIMATIONS, provideNativeDateAdapter } from '@angular/material/core';
+import { MatSidenavContent } from '@angular/material/sidenav';
 import { MatSnackBar } from '@angular/material/snack-bar';
 import { NEVER, Subject, filter, firstValueFrom, take } from 'rxjs';
 import { AuthService } from '../../core/services/auth.service';
@@ -54,10 +55,10 @@ describe('tag pivots through actual gallery, photo, menus, Router and HTTP', () 
   const render = async () => {
     harness.detectChanges(); sideData(); await Promise.resolve(); harness.detectChanges(); sideData();
   };
-  const flushPage = async (status = 200) => {
+  const flushPage = async (status = 200, hasMore = false) => {
     const request = http.expectOne(request => request.url === '/api/photos');
     const ready = requested('/api/type_counts');
-    if (status === 200) request.flush({ photos: [photo], total: 1, page: 1, per_page: 64, total_pages: 1, has_more: false });
+    if (status === 200) request.flush({ photos: [photo], total: hasMore ? 2 : 1, page: 1, per_page: 64, total_pages: hasMore ? 2 : 1, has_more: hasMore });
     else request.flush({}, { status, statusText: status === 403 ? 'Forbidden' : 'Not Found' });
     await ready;
     await render(); sideData(); await render();
@@ -92,20 +93,37 @@ describe('tag pivots through actual gallery, photo, menus, Router and HTTP', () 
     await flushPage();
   });
   afterEach(() => {
-    sideData(); harness.fixture.destroy(); TestBed.resetTestingModule(); http.verify({ ignoreCancelled: true });
+    sideData(); harness.fixture.destroy(); TestBed.resetTestingModule(); vi.restoreAllMocks(); http.verify({ ignoreCancelled: true });
     localStorage.clear(); sessionStorage.clear();
   });
 
-  it.each([200, 403, 404])('retains the dated album query after a library tag pivot and Back (response=%s)', async status => {
+  it.each([{ status: 200, interrupt: null }, { status: 200, interrupt: 'wheel' }, { status: 200, interrupt: 'page_failure' }, { status: 403, interrupt: null }, { status: 404, interrupt: null }])('retains the dated album query after a library tag pivot and Back (%j)', async ({ status, interrupt }) => {
     expect(harness.routeNativeElement!.querySelector('h1')!.textContent).toContain(album.name);
-    const card = harness.routeNativeElement!.querySelector<HTMLElement>('app-photo-card [role="button"]')!;
-    expect(card).not.toBeNull();
+    const selectedPhoto = status === 200 ? { ...photo, path: '/trip/b.jpg' } : photo;
+    if (status === 200) {
+      store.hasMore.set(true);
+      const paging = store.nextPage();
+      http.expectOne(request => request.url === '/api/photos').flush({
+        photos: [selectedPhoto], total: 2, page: 2, per_page: 64, total_pages: 2, has_more: false,
+      });
+      await paging; await render();
+    }
+    const card = harness.routeNativeElement!.querySelectorAll<HTMLElement>('app-photo-card [role="button"]')[status === 200 ? 1 : 0];
+    expect(card).not.toBeUndefined();
+    document.body.appendChild(harness.fixture.nativeElement);
+    const initialScroll = harness.routeNativeElement!.querySelector<HTMLElement>('mat-sidenav-content')!;
+    initialScroll.scrollTop = 260;
+    vi.spyOn(MatSidenavContent.prototype, 'scrollTo').mockImplementation(function (this: MatSidenavContent, options) {
+      if (options.top !== undefined) this.getElementRef().nativeElement.scrollTop = options.top;
+    });
+    card.focus();
+    expect(document.activeElement).toBe(card);
     const navigation = arrived();
     card.dispatchEvent(new MouseEvent('dblclick', { bubbles: true }));
     await navigation; harness.detectChanges();
     await vi.waitFor(() => {
       harness.detectChanges();
-      http.match(request => request.url === '/api/photo').forEach(request => request.flush(photo));
+      http.match(request => request.url === '/api/photo').forEach(request => request.flush(selectedPhoto));
       http.match(request => request.url === '/api/stacks/by-photo').forEach(request => request.flush(null));
       sideData();
       expect(harness.routeNativeElement!.querySelector('[data-testid="ai-tag-chip"] button')).not.toBeNull();
@@ -131,12 +149,78 @@ describe('tag pivots through actual gallery, photo, menus, Router and HTTP', () 
     const returned = arrived(); TestBed.inject(Location).back(); await returned; harness.detectChanges();
     await vi.waitFor(() => {
       harness.detectChanges();
-      http.match(request => request.url === '/api/photo').forEach(request => request.flush(photo));
+      http.match(request => request.url === '/api/photo').forEach(request => request.flush(selectedPhoto));
       http.match(request => request.url === '/api/stacks/by-photo').forEach(request => request.flush(null));
       sideData();
       expect(harness.routeNativeElement!.querySelector('[data-testid="ai-tag-chip"] button')).not.toBeNull();
     });
     await render();
+    if (status === 200) {
+      const originalAlbumStarted = requested('/api/albums/7');
+      const back = arrived(); TestBed.inject(Location).back(); await back; harness.detectChanges();
+      http.expectOne('/api/config').flush(config);
+      await originalAlbumStarted;
+      const originalPhotosStarted = requested('/api/photos');
+      http.expectOne('/api/albums/7').flush(album);
+      await originalPhotosStarted;
+      const anchorPageStarted = requested('/api/photos');
+      await flushPage(200, true);
+      await anchorPageStarted;
+      const anchorPage = http.expectOne(request => request.url === '/api/photos');
+      expect(anchorPage.request.params.get('page')).toBe('2');
+      expect(anchorPage.request.params.get('album_id')).toBe('7');
+      const restoringScroll = harness.routeNativeElement!.querySelector<HTMLElement>('mat-sidenav-content')!;
+      if (interrupt === 'wheel') {
+        restoringScroll.scrollTop = 91;
+        document.dispatchEvent(new WheelEvent('wheel', { bubbles: true }));
+      }
+      if (interrupt === 'page_failure') {
+        anchorPage.flush({}, { status: 503, statusText: 'Unavailable' });
+        await vi.waitFor(() => {
+          sideData(); harness.detectChanges();
+          expect(store.loading()).toBe(false);
+          expect(store.filters().page).toBe(1);
+        });
+        expect(restoringScroll.scrollTop).toBe(0);
+        expect(document.activeElement?.closest('[data-pidx]')).toBeNull();
+        http.expectNone(request => request.url === '/api/photos');
+        return;
+      }
+      anchorPage.flush({ photos: [selectedPhoto], total: 2, page: 2, per_page: 64, total_pages: 2, has_more: false });
+      if (interrupt === 'wheel') {
+        await vi.waitFor(() => {
+          sideData(); harness.detectChanges();
+          expect(store.photos()).toHaveLength(2);
+        });
+        expect(restoringScroll.scrollTop).toBe(91);
+        expect(document.activeElement?.closest('[data-pidx]')).toBeNull();
+        return;
+      }
+      await vi.waitFor(() => {
+        harness.detectChanges();
+        expect(harness.routeNativeElement!.querySelector<HTMLElement>('mat-sidenav-content')!.scrollTop).toBe(260);
+        expect(document.activeElement?.closest('[data-pidx]')?.getAttribute('data-pidx')).toBe('1');
+      });
+      const scrolled = harness.routeNativeElement!.querySelector<HTMLElement>('mat-sidenav-content')!;
+      scrolled.scrollTop = 333;
+      scrolled.dispatchEvent(new Event('scroll'));
+      const historyWrite = vi.spyOn(TestBed.inject(Location), 'replaceState')
+        .mockImplementation(() => { throw new DOMException('History writes refused', 'SecurityError'); });
+      for (let event = 0; event < 1000; event++) scrolled.dispatchEvent(new Event('scroll'));
+      expect(historyWrite).not.toHaveBeenCalled();
+      historyWrite.mockRestore();
+      const reopen = arrived();
+      harness.routeNativeElement!.querySelectorAll<HTMLElement>('app-photo-card [role="button"]')[1]
+        .dispatchEvent(new MouseEvent('dblclick', { bubbles: true }));
+      await reopen;
+      await vi.waitFor(() => {
+        harness.detectChanges();
+        http.match(request => request.url === '/api/photo').forEach(request => request.flush(selectedPhoto));
+        http.match(request => request.url === '/api/stacks/by-photo').forEach(request => request.flush(null));
+        sideData();
+        expect(harness.routeNativeElement!.querySelector('[data-testid="manual-tag-chip"] button')).not.toBeNull();
+      });
+    }
     harness.routeNativeElement!.querySelector<HTMLButtonElement>('[data-testid="manual-tag-chip"] button')!.click(); await render();
     const refine = [...document.querySelectorAll<HTMLButtonElement>('[role="menuitem"]')]
       .find(button => button.textContent!.includes('photo_detail.tag_refine_collection'))!;
