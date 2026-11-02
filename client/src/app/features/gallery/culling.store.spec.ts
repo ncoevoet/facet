@@ -262,6 +262,78 @@ describe('CullingStore', () => {
       expect(store.confirmedGroups().has('1_burst')).toBe(false);
     });
 
+    it('restores the exact draft and plan mirror when Reject entire group is cancelled', async () => {
+      vi.useFakeTimers();
+      const group = store.groups()[0];
+      const previous = new Set(['/a.jpg', '/b.jpg']);
+      store.selectionsMap.set(new Map([['1_burst', previous]]));
+      store.planActive.set(true);
+      const mirror = vi.spyOn(TestBed.inject(AssistantCullPlanService), 'recordSelection');
+      expect(store.rejectEntireGroup(group)).toBe(true);
+      store.cancelPass(group);
+      await vi.advanceTimersByTimeAsync(store.passCountdownSeconds * 1000);
+      expect(store.selectionsMap().get('1_burst')).toEqual(previous);
+      expect(mirror).toHaveBeenLastCalledWith('1_burst', previous);
+      expect(store.confirmedGroups().has('1_burst')).toBe(false);
+      expect(store.passingGroups().has('1_burst')).toBe(false);
+      expect(store.touchedGroups().has('1_burst')).toBe(false);
+      expect(api.post).not.toHaveBeenCalled();
+      expect(store.confirmGroup(group)).toBe(true);
+      store.cancelPass(group);
+    });
+
+    it.each(['absent', 'empty', 'touched'])('restores the %s pre-rejection draft state on cancellation', async kind => {
+      vi.useFakeTimers();
+      const group = store.groups()[0];
+      if (kind === 'absent') store.selectionsMap.set(new Map());
+      if (kind === 'empty') store.selectionsMap.set(new Map([['1_burst', new Set<string>()]]));
+      if (kind === 'touched') store.touchedGroups.set(new Set(['1_burst']));
+      const before = new Map(store.selectionsMap());
+      store.rejectEntireGroup(group); store.cancelPass(group);
+      await vi.advanceTimersByTimeAsync(store.passCountdownSeconds * 1000);
+      expect(store.selectionsMap()).toEqual(before);
+      expect(store.touchedGroups().has('1_burst')).toBe(kind === 'touched');
+      expect(api.post).not.toHaveBeenCalled();
+    });
+
+    it.each(['elapsed', 'flushed'])('commits an uncancelled Reject entire group when %s', async mode => {
+      vi.useFakeTimers();
+      store.rejectEntireGroup(store.groups()[0]);
+      if (mode === 'flushed') store.clearAllPassTimers();
+      await vi.advanceTimersByTimeAsync(store.passCountdownSeconds * 1000);
+      expect(api.post).toHaveBeenCalledExactlyOnceWith('/culling-groups/confirm', {
+        group_id: 1, type: 'burst', paths: ['/a.jpg', '/b.jpg'], keep_paths: [],
+      });
+      expect(store.selectionsMap().get('1_burst')).toEqual(new Set());
+      expect(store.hiddenGroups().has('1_burst')).toBe(true);
+    });
+
+    it('restores a rejected draft after a failed commit', async () => {
+      vi.useFakeTimers();
+      const before = new Map(store.selectionsMap());
+      api.post.mockReturnValue(throwError(() => new Error('refused')));
+      store.rejectEntireGroup(store.groups()[0]);
+      await vi.advanceTimersByTimeAsync(store.passCountdownSeconds * 1000);
+      expect(store.selectionsMap()).toEqual(before);
+      expect(store.touchedGroups().has('1_burst')).toBe(false);
+      expect(store.confirmedGroups().has('1_burst')).toBe(false);
+      expect(notices).toEqual([{ key: 'culling.error_confirming', duration: 2000 }]);
+    });
+
+    it.each(['decision', 'feed'])('does not overwrite a newer %s on a late rejected commit', async change => {
+      vi.useFakeTimers();
+      const response = new Subject<unknown>(); api.post.mockReturnValue(response);
+      const group = store.groups()[0]; store.rejectEntireGroup(group);
+      await vi.advanceTimersByTimeAsync(store.passCountdownSeconds * 1000);
+      if (change === 'feed') store.resetFeed();
+      store.selectionsMap.set(new Map([['1_burst', new Set(['/b.jpg'])]]));
+      store.touchedGroups.set(new Set(['1_burst']));
+      response.error(new Error('late refusal'));
+      await vi.advanceTimersByTimeAsync(0);
+      expect(store.selectionsMap().get('1_burst')).toEqual(new Set(['/b.jpg']));
+      expect(store.touchedGroups().has('1_burst')).toBe(true);
+    });
+
     it('flushes a pending confirm instead of dropping it when the timers are cleared', () => {
       vi.useFakeTimers();
       store.confirmGroup(store.groups()[0]);

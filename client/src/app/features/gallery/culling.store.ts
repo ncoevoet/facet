@@ -717,7 +717,7 @@ export class CullingStore {
     () => new Set([...this.pendingCorrectionKeys(), ...this.droppedApplied()]).size);
 
   /** Active timers for passing groups (for cleanup) */
-  private readonly passTimers = new Map<string, { timeoutId: ReturnType<typeof setTimeout>; intervalId: ReturnType<typeof setInterval>; onElapsed: () => Promise<void> | void; commit: boolean }>();
+  private readonly passTimers = new Map<string, { timeoutId: ReturnType<typeof setTimeout>; intervalId: ReturnType<typeof setInterval>; onElapsed: () => Promise<void> | void; commit: boolean; onCancel?: () => void }>();
 
   /** Active preset id ('' = custom / none). Persisted; re-applied on open. */
   readonly selectedProfile = signal<string>(localStorage.getItem(CULL_PROFILE_KEY) ?? '');
@@ -1392,28 +1392,35 @@ export class CullingStore {
     };
   }
 
-  /**
-   * Grey the group and start the cancellable cooldown; the commit only happens
-   * when it elapses, so cancelling within the window fully reverts it. Returns
-   * false when the group has nothing kept (nothing to confirm).
-   */
+  /** Reject every frame after the cooldown; cancellation or refusal restores the captured draft. */
   rejectEntireGroup(group: CullingGroup): boolean {
     if (!this.cullWritesAllowed() || this.replanning() || !group.photos.length
       || this.confirmedGroups().has(this.groupKey(group))) return false;
     const key = this.groupKey(group);
     const previous = this.selectionsMap().get(key);
-    this.selectionsMap.set(new Map(this.selectionsMap()).set(key, new Set()));
-    if (!this.confirmGroup(group, true)) {
+    const saved = previous === undefined ? undefined : new Set(previous);
+    const wasTouched = this.touchedGroups().has(key);
+    const generation = this.loadGenerationId;
+    const rejected = new Set<string>();
+    const restoreDraft = () => {
+      // An obsolete completion must not replace a newer visit or manual decision.
+      if (!this.cullLoadCurrent(generation) || this.selectionsMap().get(key) !== rejected) return;
       const restored = new Map(this.selectionsMap());
-      if (previous) restored.set(key, previous); else restored.delete(key);
+      if (saved === undefined) restored.delete(key); else restored.set(key, saved);
       this.selectionsMap.set(restored);
+      if (!wasTouched) this.touchedGroups.update(keys => { const next = new Set(keys); next.delete(key); return next; });
+      this.reportSelection(key, saved ?? []);
+    };
+    this.selectionsMap.set(new Map(this.selectionsMap()).set(key, rejected));
+    if (!this.confirmGroup(group, true, restoreDraft)) {
+      restoreDraft();
       return false;
     }
-    this.reportSelection(key, new Set());
+    this.reportSelection(key, rejected);
     return true;
   }
 
-  confirmGroup(group: CullingGroup, explicitRejectAll = false): boolean {
+  confirmGroup(group: CullingGroup, explicitRejectAll = false, restoreDraft?: () => void): boolean {
     if (!this.cullWritesAllowed()) return false;
     // Paused while a re-plan is in flight: the plan it would land on is about to be replaced.
     if (this.replanning()) return false;
@@ -1439,12 +1446,13 @@ export class CullingStore {
         .catch(() => {
           if (!this.cullLoadCurrent(gen)) return;
           this.unconfirmGroup(key);
+          restoreDraft?.();
           this.notice$.next({ key: I18N.culling.error_confirming, duration: 2000 });
         });
       this.inFlightCommits.add(commit);
       void commit.finally(() => this.inFlightCommits.delete(commit));
       return commit;
-    }, true);
+    }, true, restoreDraft);
     return true;
   }
 
@@ -1529,8 +1537,10 @@ export class CullingStore {
 
   cancelPass(group: CullingGroup): void {
     const key = this.groupKey(group);
+    const onCancel = this.passTimers.get(key)?.onCancel;
     this.clearPassTimer(key);
     this.unconfirmGroup(key);
+    onCancel?.();
   }
 
   /**
@@ -1538,7 +1548,7 @@ export class CullingStore {
    * timer that runs onElapsed (hide for skip; commit + hide for confirm). Cancel
    * via cancelPass before it fires fully reverts the action.
    */
-  private startCountdown(key: string, onElapsed: () => Promise<void> | void, commit = false): void {
+  private startCountdown(key: string, onElapsed: () => Promise<void> | void, commit = false, onCancel?: () => void): void {
     this.clearPassTimer(key);
     updateMapSignal(this.passingGroups, key, this.passCountdownSeconds);
     const intervalId = setInterval(() => {
@@ -1554,7 +1564,7 @@ export class CullingStore {
       this.clearPassTimer(key);
       void onElapsed();
     }, this.passCountdownSeconds * 1000);
-    this.passTimers.set(key, { timeoutId, intervalId, onElapsed, commit });
+    this.passTimers.set(key, { timeoutId, intervalId, onElapsed, commit, onCancel });
   }
 
   private clearPassTimer(key: string): void {
