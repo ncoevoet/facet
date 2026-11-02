@@ -3313,11 +3313,9 @@ export interface paths {
          *     on a corrupted database), not a silent inconsistency.
          *
          *     A trashed companion (``include_companions``'s RAW/``.xmp``) that is ITSELF
-         *     a separate ``photos`` row is folded into ``deleted`` too, not a distinct
-         *     field: its file is gone the moment ``send2trash`` succeeds regardless of
-         *     whether the caller ever named or could see that row, so it is exactly as
-         *     deleted as any path the caller requested directly -- `deleted` already
-         *     means "row removed," not "row the caller named."
+         *     a separate authorized ``photos`` row is folded into ``deleted`` too.
+         *     Companion visibility and inventory are checked before any file write;
+         *     hidden, linked, unavailable or ambiguous companions refuse the request.
          *
          *     ``skipped`` carries a path that was visible, in ``photos``, and never
          *     refused as a bracket lead, but whose file ``_resolve_cull_files`` could

@@ -55,6 +55,8 @@ All notable changes to Facet are documented in this file.
 
 ### Fixed
 
+- Cull and Delete validate companion access before previews or writes, including mapped aliases. Hidden indexed companions and unsafe inventories refuse the whole request without changing files or catalog rows.
+
 - Text search and review-progress reads retain full-text index identity when RAW/JPEG groups are present.
 - Logical-photo reviews reconcile filtered results and refreshed revision receipts after single and batch edits.
 - Indexed logical album, semantic-hit and stack membership avoid library-by-membership scans.

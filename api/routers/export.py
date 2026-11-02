@@ -700,6 +700,28 @@ def _resolve_cull_files(paths, include_companions):
     return items, skipped
 
 
+def _authorize_cull_companions(conn, items, user_id):
+    """Validate every bundle before exposing a preview or performing any write.
+
+    CLI copy-keepers retains its operator-owned file scope. HTTP callers must
+    authorize companion expansion against the same indexed visibility policy
+    as RAW downloads, including aliases introduced by path mappings.
+    """
+    from api.related_files import related_files
+
+    visibility, params = get_visibility_clause(user_id)
+    for path, files in items:
+        if not conn.execute(f'SELECT 1 FROM photos WHERE path=? AND {visibility}', [path, *params]).fetchone():
+            raise HTTPException(404, 'Photo not available')
+        inventory = related_files(conn, path, user_id)
+        if (inventory['inventory_state'] != 'checked' or inventory['multiple_raw_candidates']
+                or any(entry['state'] != 'available' for entry in inventory['files'])):
+            raise HTTPException(409, 'Companion files could not be verified; inspect the source files')
+        permitted = {entry['name'] for entry in inventory['files']}
+        if any(os.path.basename(candidate) not in permitted for candidate in files[1:]):
+            raise HTTPException(403, 'A companion file is not available to this account')
+
+
 def _reconcilable_missing(paths):
     """The ``paths`` whose file is genuinely gone, safe for ``remove_missing``.
 
@@ -1351,7 +1373,11 @@ def api_cull_apply(
     sequence_siblings = len(sibling_paths)
 
     action_paths = matching + sibling_matching if body.include_sequence_siblings else matching
-    items, skipped = _resolve_cull_files(action_paths, body.include_companions)
+    with get_db() as conn:
+        conn.execute('BEGIN')
+        items, skipped = _resolve_cull_files(action_paths, body.include_companions)
+        if body.include_companions:
+            _authorize_cull_companions(conn, items, user_id)
     files = [f for _, fs in items for f in fs]
 
     preview_digest = None
@@ -1488,11 +1514,9 @@ def api_photo_delete(
     on a corrupted database), not a silent inconsistency.
 
     A trashed companion (``include_companions``'s RAW/``.xmp``) that is ITSELF
-    a separate ``photos`` row is folded into ``deleted`` too, not a distinct
-    field: its file is gone the moment ``send2trash`` succeeds regardless of
-    whether the caller ever named or could see that row, so it is exactly as
-    deleted as any path the caller requested directly -- `deleted` already
-    means "row removed," not "row the caller named."
+    a separate authorized ``photos`` row is folded into ``deleted`` too.
+    Companion visibility and inventory are checked before any file write;
+    hidden, linked, unavailable or ambiguous companions refuse the request.
 
     ``skipped`` carries a path that was visible, in ``photos``, and never
     refused as a bracket lead, but whose file ``_resolve_cull_files`` could
@@ -1563,7 +1587,18 @@ def api_photo_delete(
             sequence_siblings = _sequence_siblings(conn, group_keys, set(action_paths), user_id)
             action_paths.extend(sequence_siblings)
 
-        items, skipped = _resolve_cull_files(action_paths, body.include_companions)
+        # Keep visibility checks in one read snapshot, then release it before
+        # filesystem work and the later catalog write transaction.
+        conn.execute('SAVEPOINT companion_preflight')
+        try:
+            items, skipped = _resolve_cull_files(action_paths, body.include_companions)
+            if body.include_companions:
+                _authorize_cull_companions(conn, items, user_id)
+        except Exception:
+            conn.execute('ROLLBACK TO companion_preflight')
+            raise
+        finally:
+            conn.execute('RELEASE companion_preflight')
         files = [f for _, fs in items for f in fs]
 
         # With `remove_missing`, a skipped path (visible, in `photos`, file
@@ -1598,18 +1633,9 @@ def api_photo_delete(
         # whose trash failed keeps its row.
         removed_db_paths = {db_path for db_path, fs in items if fs[0] in succeeded}
 
-        # A companion (RAW/.xmp) that trashed successfully may itself be a
-        # SEPARATE `photos` row (a RAW variant scanned independently of its
-        # JPEG) -- its file is gone the instant send2trash succeeds, whether
-        # or not ITS path was ever visible to this caller: visibility gated
-        # only the PRIMARY path the request named, and the companion follows
-        # the shot. `_photo_membership` ignores visibility for exactly this
-        # reason, so a companion belonging to another user's scope is still
-        # matched here and still removed -- its file is gone regardless of
-        # who could see it. Leaving such a row behind would strand it
-        # pointing at a trashed file, contradicting this endpoint's own
-        # "row deleted immediately" contract (no --cleanup-missing-photos
-        # needed).
+        # Authorized companions can have independent catalog rows. Remove
+        # those rows only after their file was successfully trashed. All
+        # bundles were authorized before the first filesystem write.
         companion_files_trashed = {f for _, fs in items for f in fs[1:] if f in succeeded}
         if companion_files_trashed:
             removed_db_paths |= _photo_membership(conn, list(companion_files_trashed))

@@ -380,7 +380,7 @@ Shared by `POST /api/export/sidecars`, `POST /api/lightroom/manifest` and `POST 
 
 - With a `filters` body, `filters.hide_brackets` / `filters.hide_panoramas` decide the scope, not `viewer.defaults`.
 - `action`: `copy_keeps \| trash_rejects \| move_rejects`.
-- `include_companions` (default `false`): add each file's same-stem companion RAW and `.xmp`.
+- `include_companions` (default `false`): add each file's same-stem companion RAW and `.xmp`. Before preview or apply, all companion bundles must be accessible to the account and have a checked, unambiguous inventory; hidden indexed aliases return `403`, and linked/unavailable/ambiguous inventories return `409`, before any file or catalog changes.
 - `include_sequence_siblings` (default `false`): add every other frame sharing a matched photo's `(sequence_kind, sequence_group_id)` **whose own reject state matches the action**. Excluded paths are never re-added as siblings.
 - `dry_run` (default `true`) returns `preview_digest`, a 64-character digest of the resolved files and settings. Send it with Apply: `409` before any write if the preview changed.
 - Response adds `matched` and `sequence_siblings` (count, reported even when the flag is off) to `skipped` / `excluded_by_state` / `not_visible`.
@@ -389,7 +389,7 @@ Shared by `POST /api/export/sidecars`, `POST /api/lightroom/manifest` and `POST 
 
 - Needs `viewer.cull.allow_trash` (same flag as `/api/cull/apply`): `403` when off; `400` when `send2trash` is not installed.
 - `paths` only (max 10000); no `filters`/`exclude`, so select-all-in-view cannot use it. Default scope is the named file only.
-- `include_companions` (default `false`): add the same-stem RAW and `.xmp`; a companion with its own `photos` row is removed once it trashes.
+- `include_companions` (default `false`): add the same-stem RAW and `.xmp`; a companion with its own `photos` row is removed once it trashes. Before preview or apply, all companion bundles must be accessible to the account and have a checked, unambiguous inventory; hidden indexed aliases return `403`, and linked/unavailable/ambiguous inventories return `409`, before any file or catalog changes.
 - `include_sequence_siblings` (default `false`): widen to every frame sharing `(sequence_kind, sequence_group_id)`, as on `/api/cull/apply`.
 - A bracket's base exposure (`sequence_ev_offset = 0`) is refused (`refused_bracket_lead`) unless `include_sequence_siblings` deletes the whole bracket. A panorama lead deleted alone hands the lead to a surviving sibling.
 - A trashed file's row is deleted at once (no `--cleanup-missing-photos` needed).
