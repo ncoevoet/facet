@@ -3445,6 +3445,20 @@
     "restore_failed": "Rückgängig machen fehlgeschlagen"
   },
   "cull": {
+    "file_preview": {
+      "title": "Dateien für diesen Vorgang",
+      "help": "Prüfen Sie die Dateien vor dem Anwenden. Klicken Sie zum Vergrößern auf ein Bild. Brechen Sie ab, um Ihre Fotoentscheidungen zu ändern.",
+      "back": "Zurück zu den Dateien",
+      "unavailable": "Vorschau nicht verfügbar",
+      "sidecar": "XMP-Begleitdatei",
+      "enlarge": "{name} vergrößern",
+      "pages": "Seiten der Dateivorschau",
+      "previous": "Zurück",
+      "next": "Weiter",
+      "range": "Dateien {start}–{end} von {total}",
+      "trash": "{count} Dateien in den Systempapierkorb verschieben",
+      "trash_one": "1 Datei in den Systempapierkorb verschieben"
+    },
     "action": "In Ordner aussortieren…",
     "title": "In Ordner aussortieren",
     "selected": "ausgewählt",

@@ -3445,6 +3445,20 @@
     "restore_failed": "No se pudo deshacer"
   },
   "cull": {
+    "file_preview": {
+      "title": "Archivos de esta operación",
+      "help": "Revise los archivos antes de aplicar. Pulse una imagen para ampliarla. Cancele para cambiar sus decisiones sobre las fotos.",
+      "back": "Volver a los archivos",
+      "unavailable": "Vista previa no disponible",
+      "sidecar": "Archivo auxiliar XMP",
+      "enlarge": "Ampliar {name}",
+      "pages": "Páginas de la vista previa de archivos",
+      "previous": "Anterior",
+      "next": "Siguiente",
+      "range": "Archivos {start}–{end} de {total}",
+      "trash": "Mover {count} archivos a la papelera del sistema",
+      "trash_one": "Mover 1 archivo a la papelera del sistema"
+    },
     "action": "Descartar a carpeta…",
     "title": "Descartar a carpeta",
     "selected": "seleccionados",

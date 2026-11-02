@@ -388,6 +388,7 @@ Quando um assistente ligado através de [Agentes de IA (MCP)](AGENTS.md) lhe mos
 **Selecionar para pasta…** na barra de ações em lote (modo de edição) copia as mantidas, ou move/descarta as rejeitadas, para uma pasta de destino. Descartar significa a lixeira do sistema, nunca uma exclusão permanente, e exige `viewer.cull.allow_trash`.
 
 - **Toda execução começa como simulação.** Você vê uma prévia antes de qualquer gravação; mover/descartar só rodam com um `dry_run=false` explícito.
+- A pré-visualização lista os ficheiros afetados, 24 por página, com miniaturas e nomes. Clique numa imagem para a ampliar. Os ficheiros XMP e as imagens indisponíveis continuam na lista. Cancele para alterar as decisões sobre as fotos; alterar uma opção exige uma nova pré-visualização. A confirmação do lixo indica o número de ficheiros, incluindo os auxiliares ativados.
 - **O servidor escolhe os arquivos a partir do estado de cada foto.** Copiar age apenas sobre as mantidas, mover/descartar apenas sobre as rejeitadas. Tudo o mais é reportado como `excluded_by_state`. O cliente não pode entregar uma lista de arquivos a excluir.
 - **Os acompanhantes são opcionais.** Rejeitar um JPEG não leva o seu RAW, a menos que você marque **Incluir RAW/XMP acompanhante** (`include_companions`).
 - No macOS e no Windows, os arquivos RAW acompanhantes mantêm os nomes no disco, incluindo extensões em maiúsculas; no Windows, os sidecars `.xmp` também.

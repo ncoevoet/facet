@@ -388,6 +388,7 @@ Quand un assistant connecté via [Agents IA (MCP)](AGENTS.md) vous montre une li
 **Trier vers un dossier…** dans la barre d'actions groupées (mode édition) copie les gardées, ou déplace/met à la corbeille les rejetées, vers un dossier cible. La corbeille est celle du système, jamais une suppression définitive, et exige `viewer.cull.allow_trash`.
 
 - **Chaque exécution commence en simulation.** Vous voyez un aperçu avant que quoi que ce soit soit écrit ; déplacer/mettre à la corbeille ne s'exécutent qu'avec un `dry_run=false` explicite.
+- L’aperçu présente les fichiers concernés, 24 par page, avec miniatures et noms. Cliquez sur une image pour l’agrandir. Les fichiers annexes XMP et les images indisponibles restent dans la liste. Annulez pour modifier les décisions sur les photos ; toute modification d’une option nécessite un nouvel aperçu. La confirmation de mise à la corbeille indique le nombre de fichiers, y compris les fichiers annexes activés.
 - **Le serveur choisit les fichiers d'après l'état propre de chaque photo.** Copier n'agit que sur les gardées, déplacer/corbeille que sur les rejetées. Tout le reste est signalé comme `excluded_by_state`. Le client ne peut pas fournir une liste de fichiers à supprimer.
 - **Les compagnons sont optionnels.** Rejeter un JPEG n'emporte pas son RAW, sauf si vous cochez **Inclure le RAW / XMP associé** (`include_companions`).
 - Sous macOS et Windows, les fichiers RAW compagnons gardent leurs noms sur disque, y compris les extensions en majuscules ; sous Windows, les sidecars `.xmp` aussi.

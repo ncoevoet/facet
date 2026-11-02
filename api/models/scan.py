@@ -215,6 +215,8 @@ class CullApplyResponse(BaseModel):
     action: str
     dry_run: bool
     preview_digest: Optional[str] = None
+    thumbnail_paths: Optional[dict[str, str]] = Field(default=None,
+        description="Dry-run disk file paths mapped to authorized library identities for thumbnail requests. Companions without their own entry may have no thumbnail.")
     would_copy: Optional[list[str]] = None
     would_move: Optional[list[str]] = None
     would_trash: Optional[list[str]] = None

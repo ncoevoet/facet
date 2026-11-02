@@ -389,6 +389,7 @@ Cuando un asistente conectado mediante [Agentes de IA (MCP)](AGENTS.md) te muest
 **Descartar a carpeta…** en la barra de acciones masivas (modo de edición) copia las conservadas, o mueve/envía a la papelera las rechazadas, a una carpeta de destino. Papelera significa la papelera del sistema, nunca un borrado permanente, y requiere `viewer.cull.allow_trash`.
 
 - **Toda ejecución empieza como simulación.** Ves una vista previa antes de que se escriba nada; mover/enviar a la papelera solo se ejecuta con un `dry_run=false` explícito.
+- La vista previa muestra los archivos afectados, 24 por página, con miniaturas y nombres. Pulse una imagen para ampliarla. Los archivos XMP y las imágenes no disponibles siguen en la lista. Cancele para cambiar las decisiones sobre las fotos; cambiar una opción requiere otra vista previa. La confirmación de la papelera indica el número de archivos, incluidos los auxiliares activados.
 - **El servidor elige los archivos según el estado de cada foto.** Copiar actúa solo sobre las conservadas, mover/papelera solo sobre las rechazadas. Todo lo demás se informa como `excluded_by_state`. El cliente no puede entregar una lista de archivos que eliminar.
 - **Los acompañantes son opcionales.** Rechazar un JPEG no se lleva su RAW salvo que marques **Incluir RAW / XMP acompañante** (`include_companions`).
 - En macOS y Windows, los RAW acompañantes conservan sus nombres en disco, incluidas las extensiones en mayúsculas; en Windows, los sidecars `.xmp` también.

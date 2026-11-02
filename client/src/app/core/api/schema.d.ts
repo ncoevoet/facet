@@ -6936,6 +6936,13 @@ export interface components {
             sequence_siblings: number;
             /** Skipped */
             skipped: string[];
+            /**
+             * Thumbnail Paths
+             * @description Dry-run disk file paths mapped to authorized library identities for thumbnail requests. Companions without their own entry may have no thumbnail.
+             */
+            thumbnail_paths?: {
+                [key: string]: string;
+            } | null;
             /** Trashed */
             trashed?: number | null;
             /** Would Copy */

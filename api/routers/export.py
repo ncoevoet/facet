@@ -1358,7 +1358,8 @@ def api_cull_apply(
 
     def respond(dry_run, errors, **verb):
         return {
-            **({'preview_digest': preview_digest} if dry_run else {}),
+            **({'preview_digest': preview_digest,
+                'thumbnail_paths': {fs[0]: db_path for db_path, fs in items}} if dry_run else {}),
             "action": body.action,
             "dry_run": dry_run,
             **verb,

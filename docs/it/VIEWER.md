@@ -388,6 +388,7 @@ Quando un assistente collegato tramite [Assistenti IA (MCP)](AGENTS.md) ti mostr
 **Scarta in cartella…** nella barra delle azioni di gruppo (modalità di modifica) copia le foto conservate, o sposta/cestina quelle scartate, in una cartella di destinazione. Cestino significa il cestino del sistema, mai un'eliminazione permanente, e richiede `viewer.cull.allow_trash`.
 
 - **Ogni esecuzione parte come esecuzione a vuoto.** Vedi un'anteprima prima che venga scritto qualcosa; sposta/cestina partono solo con un `dry_run=false` esplicito.
+- L’anteprima elenca i file interessati, 24 per pagina, con miniature e nomi. Fai clic su un’immagine per ingrandirla. I file XMP e le immagini non disponibili restano elencati. Annulla per modificare le decisioni sulle foto; cambiare un’opzione richiede una nuova anteprima. La conferma del cestino indica il numero di file, inclusi i file associati abilitati.
 - **Il server sceglie i file dallo stato di ogni foto.** La copia agisce solo sulle conservate, sposta/cestina solo sulle scartate. Tutto il resto è riportato come `excluded_by_state`. Il client non può passare un elenco di file da eliminare.
 - **I file collegati sono opzionali.** Rifiutare un JPEG non porta con sé il suo RAW, a meno che tu spunti **Includi RAW compagno / XMP** (`include_companions`).
 - Su macOS e Windows, i file RAW collegati mantengono i nomi su disco, comprese le estensioni maiuscole; su Windows, anche i sidecar `.xmp`.
