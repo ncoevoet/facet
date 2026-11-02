@@ -8820,7 +8820,7 @@ export interface components {
              * Kind
              * @enum {string}
              */
-            kind: "gps" | "date" | "review" | "stack";
+            kind: "gps" | "date" | "review" | "stack" | "logical_review";
             /** Part */
             part: number;
             /** Parts */

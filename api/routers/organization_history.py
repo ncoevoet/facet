@@ -26,6 +26,29 @@ def _visible(conn: sqlite3.Connection, user: CurrentUser, changes: list[dict[str
     return len(stacks.visible_paths(conn, paths, clause, params)) == len(paths)
 
 
+def _logical_context(conn, user, entry, changes):
+    from api import logical_reviews
+
+    labels, visible_changes = {}, []
+    owner = None
+    for change in changes:
+        try:
+            _, current_owner, current_labels, visibility, params = logical_reviews.snapshot(conn, change['asset_id'], user.user_id)
+        except HTTPException as error:
+            if error.status_code == 404:
+                return None
+            raise
+        if current_owner != entry['scope']:
+            return None
+        owner = current_owner
+        labels.update(current_labels)
+        path = conn.execute('SELECT photo_path FROM logical_asset_members WHERE asset_id=? ORDER BY position LIMIT 1',
+                            (change['asset_id'],)).fetchone()[0]
+        # Internal overrides/tokens and historical native paths stay private.
+        visible_changes.append(dict(path=path, before=change['before'], after=change['after'], revision=change['revision']))
+    return (owner, labels, visibility, params, visible_changes) if owner is not None else None
+
+
 @router.get('/api/organization_history', response_model=OrganizationHistory)
 def list_history(response: Response, user: CurrentUser = Depends(require_edition)) -> dict[str, Any]:
     response.headers['Cache-Control'] = 'no-store'
@@ -34,7 +57,12 @@ def list_history(response: Response, user: CurrentUser = Depends(require_edition
         entries = []
         for row in conn.execute("SELECT * FROM organization_history WHERE (owner=? AND kind!='stack') OR (owner=? AND kind='stack') ORDER BY id DESC LIMIT 50", (user.user_id or '', stack_owner(user.user_id))):
             changes = json.loads(row['payload'])
-            if _visible(conn, user, changes):
+            if row['kind'] == 'logical_review':
+                context = _logical_context(conn, user, row, changes)
+                if context is None:
+                    continue
+                changes = context[4]
+            if row['kind'] == 'logical_review' or _visible(conn, user, changes):
                 entries.append({**{key: row[key] for key in ('id', 'kind', 'created_at', 'part', 'parts', 'reverted')}, 'changes': changes})
         return {'entries': entries}
 
@@ -62,6 +90,22 @@ def _revert(entry_id: int, user: CurrentUser, kind_filter: Optional[str] = None)
         if not entry or (kind_filter is not None and entry['kind'] != kind_filter):
             raise HTTPException(404, 'History entry not found', headers=headers)
         changes = json.loads(entry['payload'])
+        if entry['kind'] == 'logical_review':
+            from db import logical_history
+            from db.logical_assets import AssetConflict
+            context = _logical_context(conn, user, entry, changes)
+            if context is None:
+                raise HTTPException(404, 'History entry not available', headers=headers)
+            owner, labels, visibility, params, _ = context
+            try:
+                changed = logical_history.restore(conn, user.user_id or '', owner, entry_id, labels,
+                                                  visibility_sql=visibility, visibility_params=params)
+            except AssetConflict:
+                raise HTTPException(409, 'Photos changed since this action; nothing was restored', headers=headers) from None
+            evict_derived_stats_cache(conn)
+            conn.commit()
+            after_commit()
+            return {'changed': changed}
         if not _visible(conn, user, changes):
             if entry['kind'] == 'stack':
                 raise HTTPException(409, 'Stack unavailable', headers=headers)

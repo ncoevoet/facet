@@ -33,18 +33,26 @@ def read(conn, asset_id, user_id):
     return snapshot(conn, asset_id, user_id)[0]
 
 
-def apply(conn, body, user):
+def apply(conn, body, user, *, record_history=True):
+    from db import logical_history
+
     _, owner, labels, visibility, params = snapshot(conn, body.asset_id, user.user_id)
     try:
-        options = dict(visibility_sql=visibility, visibility_params=params, file_labels=labels, input_token=body.input_token)
-        if body.reset:
-            logical_review.reset_fields(conn, body.asset_id, owner, body.group_revision, body.revision, body.reset, **options)
-        else:
-            logical_review.set_fields(conn, body.asset_id, owner, body.group_revision, body.revision, body.patch,
-                                      origin='agent' if user.is_agent_request else 'user', **options)
+        with logical_review._transaction(conn):
+            before = logical_history.capture(conn, body.asset_id, owner, labels) if record_history else None
+            options = dict(visibility_sql=visibility, visibility_params=params, file_labels=labels, input_token=body.input_token)
+            if body.reset:
+                logical_review.reset_fields(conn, body.asset_id, owner, body.group_revision, body.revision, body.reset, **options)
+            else:
+                logical_review.set_fields(conn, body.asset_id, owner, body.group_revision, body.revision, body.patch,
+                                          origin='agent' if user.is_agent_request else 'user', **options)
+            result = read(conn, body.asset_id, user.user_id)
+            if before is not None:
+                after = logical_history.capture(conn, body.asset_id, owner, labels)
+                logical_history.record(conn, user.user_id or '', owner, {body.asset_id: before}, {body.asset_id: after})
     except AssetConflict as error:
         raise HTTPException(409, str(error)) from None
-    return read(conn, body.asset_id, user.user_id)
+    return result
 
 
 async def attach_async(conn, photos, user_id):

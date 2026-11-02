@@ -46,7 +46,7 @@ const REVERT_ERROR_BY_STATUS: Record<number, 'conflict' | 'unavailable'> = { 409
             @if (expanded().has(entry.id)) {
             @for (change of entry.changes; track change.path) {
               <p class="text-sm break-all font-medium mt-3">{{ change.path }}</p>
-              @if (entry.kind === 'review') {
+              @if (entry.kind === 'review' || entry.kind === 'logical_review') {
                 <p class="text-sm">{{ I18N.organization_history.review | translate }}:
                   {{ change.before | reviewStateKey | translate }}
                   → {{ change.after | reviewStateKey | translate }}
@@ -104,11 +104,13 @@ export class OrganizationHistoryDialogComponent implements OnInit {
   readonly restorePlan = signal<Entry | null>(null);
   private loadGeneration = 0;
   readonly busy = signal(false);
+  private readonly reviewFields = [{ key: this.I18N.organization_history.stars, flag: false }, { key: this.I18N.organization_history.favorite, flag: true }, { key: this.I18N.organization_history.rejected, flag: true }, { key: this.I18N.organization_history.kept, flag: true }];
   readonly fields = {
     stack: [{ key: this.I18N.stacks.stack_id, flag: false }, { key: this.I18N.stacks.cover, flag: false }, { key: this.I18N.stacks.position, flag: false }],
     gps: [{ key: this.I18N.organization_history.latitude, flag: false }, { key: this.I18N.organization_history.longitude, flag: false }, { key: this.I18N.organization_history.manual_gps, flag: true }],
     date: [{ key: this.I18N.organization_history.capture_date, flag: false }, { key: this.I18N.organization_history.manual_date, flag: true }],
-    review: [{ key: this.I18N.organization_history.stars, flag: false }, { key: this.I18N.organization_history.favorite, flag: true }, { key: this.I18N.organization_history.rejected, flag: true }, { key: this.I18N.organization_history.kept, flag: true }],
+    review: this.reviewFields,
+    logical_review: this.reviewFields,
   };
 
   constructor() {

@@ -14,7 +14,7 @@ type Entry = components['schemas']['OrganizationEntry'];
 const messages = {
   preview_action: 'Review restore…', limits_title: 'What history can restore', limits: 'Up to 50 recent entries.', reload: 'Reload history', restore_preview: 'Restore {count} photos', restore_boundary: 'Conflicts restore nothing.',
   title: 'Organization history', hint: 'History belongs to this account.', gps: 'Location', date: 'Capture date',
-  review: 'Review', revert: 'Revert this entry', reverted: 'Already reverted', empty: 'No available history entries.',
+  review: 'Review', logical_review: 'Grouped photo review', revert: 'Revert this entry', reverted: 'Already reverted', empty: 'No available history entries.',
   success: 'Photos restored: {count}', error: 'Could not load or restore history.',
   conflict: 'Photos changed since this action. Nothing was restored.',
   unavailable: 'This entry is no longer available. Nothing was restored.',
@@ -82,6 +82,18 @@ describe('Organization history rendered controls and HTTP', () => {
     expect(fixture.componentInstance.changed()).toBeNull();
   }
   afterEach(() => { try { http?.verify(); } finally { TestBed.resetTestingModule(); } });
+
+  it('renders grouped review values and requires an explicit restore confirmation', async () => {
+    await create([entry({ kind: 'logical_review', changes: [{ path: '/history/a.CR2', before: [5, 0, 0, 1], after: [3, 0, 1, 0], revision: 4 }] })]);
+    expect(root.textContent).toContain('Grouped photo review');
+    const details = sections()[0].querySelector('details')!;
+    details.open = true; details.dispatchEvent(new Event('toggle')); await settle();
+    expect(root.textContent).toContain('Stars');
+    expect(root.textContent).toContain('/history/a.CR2');
+    revert().click(); await settle();
+    http.expectNone('/api/organization_history/901/revert');
+    expect(root.querySelector('[data-history-preview]')).not.toBeNull();
+  });
 
   it('previews and cancels a restore without writing, then explicitly applies the captured entry', async () => {
     await create();

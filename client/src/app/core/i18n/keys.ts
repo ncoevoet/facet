@@ -3778,6 +3778,7 @@ export const I18N = {
     gps: "organization_history.gps",
     date: "organization_history.date",
     review: "organization_history.review",
+    logical_review: "organization_history.logical_review",
     revert: "organization_history.revert",
     reverted: "organization_history.reverted",
     empty: "organization_history.empty",

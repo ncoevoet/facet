@@ -3764,6 +3764,7 @@
     "gps": "Location",
     "date": "Capture date",
     "review": "Review",
+    "logical_review": "Grouped photo review",
     "revert": "Revert this entry",
     "reverted": "Already reverted",
     "empty": "No available history entries.",

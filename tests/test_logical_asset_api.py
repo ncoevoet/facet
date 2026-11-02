@@ -749,3 +749,40 @@ def test_direct_favorite_storage_failure_rolls_back_logical_values_and_clock(edi
     finally:
         with sqlite3.connect(DEFAULT_DB_PATH) as conn:
             conn.execute('DROP TRIGGER fail_direct_review')
+
+
+def test_logical_history_http_capture_list_and_revert_never_exposes_internal_state(edition_client, bundle, monkeypatch):
+    from api import config
+    monkeypatch.setitem(config.VIEWER_CONFIG, 'edition_password', 'test-only')
+    key = submit(edition_client, bundle, draft(edition_client, bundle), acknowledge_review_conflicts=True).json()['asset_id']
+    state = edition_client.get('/api/logical_assets/review', params={'asset_id': key}).json()
+    body = {field: state[field] for field in ('asset_id', 'group_revision', 'revision', 'input_token')}
+    assert edition_client.post('/api/logical_assets/review', json={**body, 'patch': {'star_rating': 4}}).status_code == 200
+    response = edition_client.get('/api/organization_history')
+    assert response.status_code == 200, response.text
+    entry = next(entry for entry in response.json()['entries'] if entry['kind'] == 'logical_review' and entry['changes'][0]['path'] in bundle['paths'])
+    change = entry['changes'][0]
+    assert change['before'] == [5, 0, 0, 1] and change['after'] == [4, 0, 0, 1]
+    assert set(change) == {'path', 'before', 'after', 'revision'}
+    assert 'input_token' not in response.text and 'override_before' not in response.text
+    restored = edition_client.post(f"/api/organization_history/{entry['id']}/revert")
+    assert restored.status_code == 200 and restored.json()['changed'] == 1
+    current = edition_client.get('/api/logical_assets/review', params={'asset_id': key}).json()
+    assert current['values']['star_rating'] == 5 and current['origins']['star_rating'] == 'file'
+    assert edition_client.post(f"/api/organization_history/{entry['id']}/revert").status_code == 409
+    with sqlite3.connect(DEFAULT_DB_PATH) as conn:
+        assert conn.execute('SELECT star_rating FROM photos WHERE path=?', (bundle['primary_path'],)).fetchone()[0] == 5
+
+
+def test_logical_history_hidden_companion_hides_and_refuses_receipt(edition_client, bundle, monkeypatch):
+    from api import config, logical_reviews
+    monkeypatch.setitem(config.VIEWER_CONFIG, 'edition_password', 'test-only')
+    submit(edition_client, bundle, draft(edition_client, bundle), acknowledge_review_conflicts=True)
+    assert edition_client.post('/api/photo/set_rating', json={'photo_path': bundle['primary_path'], 'rating': 4}).status_code == 200
+    with sqlite3.connect(DEFAULT_DB_PATH) as conn:
+        entry_id = conn.execute("SELECT MAX(id) FROM organization_history WHERE kind='logical_review'").fetchone()[0]
+    monkeypatch.setattr(logical_reviews, 'get_visibility_clause', lambda user: ('photos.path != ?', [bundle['paths'][1]]))
+    listed = edition_client.get('/api/organization_history')
+    assert listed.status_code == 200
+    assert entry_id not in {entry['id'] for entry in listed.json()['entries']}
+    assert edition_client.post(f'/api/organization_history/{entry_id}/revert').status_code == 404

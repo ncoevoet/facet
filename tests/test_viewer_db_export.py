@@ -842,3 +842,37 @@ def test_logical_review_export_preserves_viewer_edits_and_omits_retired_history(
         assert current['values']['star_rating'] == 5
         assert current['origins']['star_rating'] == 'file'
         assert current['values']['is_favorite'] == 1
+
+
+def test_logical_history_receipts_stay_private_and_viewer_history_survives_reexport(tmp_path):
+    from db import logical_assets as assets, logical_review as review, logical_history as history
+
+    src, out = str(tmp_path / 'logical-history-source.db'), str(tmp_path / 'logical-history-viewer.db')
+    _make_source_db(src)
+    raw = '/photos/a.CR2'
+    with sqlite3.connect(src) as conn:
+        conn.execute('INSERT INTO photos(path,filename,star_rating) VALUES (?,?,?)', (raw, 'a.CR2', 2))
+        key = assets.create(conn, [_A, raw], _A, visibility_sql='1=1')
+        review.seed(conn, key, _A, 1, visibility_sql='1=1')
+
+    def edit(filename, actor, rating):
+        with sqlite3.connect(filename) as conn:
+            conn.execute('BEGIN IMMEDIATE')
+            labels = {row[0]: dict(zip(history.FIELDS, row[1:])) for row in conn.execute(
+                'SELECT path,star_rating,is_favorite,is_rejected,is_kept FROM photos')}
+            before = history.capture(conn, key, '', labels)
+            review.set_fields(conn, key, '', before['group_revision'], before['revision'], {'star_rating': rating}, origin='user',
+                              visibility_sql='1=1', file_labels=labels, input_token=before['input_token'])
+            after = history.capture(conn, key, '', labels)
+            history.record(conn, actor, '', {key: before}, {key: after})
+
+    edit(src, 'private-logical-source-history-actor', 4)
+    export_viewer_db(src, out, verbose=False)
+    assert b'private-logical-source-history-actor' not in Path(out).read_bytes()
+    assert b'override_before' not in Path(out).read_bytes()
+    init_database(out)
+    edit(out, 'private-viewer-logical-history-actor', 3)
+    export_viewer_db(src, out, verbose=False)
+    with sqlite3.connect(out) as conn:
+        assert conn.execute("SELECT owner,kind FROM organization_history").fetchall() == [('private-viewer-logical-history-actor', 'logical_review')]
+    assert b'private-logical-source-history-actor' not in Path(out).read_bytes()

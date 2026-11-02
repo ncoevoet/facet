@@ -42,7 +42,7 @@ def apply(conn, body, user, sql, patch, review_rejected):
     keys = sorted({row[1] for row in rows if row[1] is not None})
     # Capture every logical precondition before the first label mutation.
     states = [logical_reviews.read(conn, key, user.user_id) for key in keys]
-    history = organization_capture.begin(conn, user.user_id, 'review', paths)
+    history = organization_capture.begin(conn, user.user_id, 'review', paths if not keys else [])
     before = snapshot_labels(conn, user.is_agent_request, user.user_id, paths)
     origin_paths = paths
     if review_rejected is not None and not user.is_agent_request:
@@ -54,7 +54,7 @@ def apply(conn, body, user, sql, patch, review_rejected):
             change.update(is_kept=int(bool(state['values']['is_kept'])), is_rejected=0)
         body_state = SimpleNamespace(asset_id=state['asset_id'], group_revision=state['group_revision'],
                                      revision=state['revision'], input_token=state['input_token'], patch=change, reset=[])
-        logical_reviews.apply(conn, body_state, user)
+        logical_reviews.apply(conn, body_state, user, record_history=False)
     for offset in range(0, len(paths), 900):
         _write_paths(conn, paths[offset:offset + 900], user, sql)
     record_label_origin(conn, user.is_agent_request, user.user_id, origin_paths, before)
