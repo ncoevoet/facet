@@ -287,7 +287,7 @@ describe('GalleryComponent', () => {
     const closed = new Subject<number | undefined>();
     const ref = { afterClosed: () => closed, close: vi.fn(() => { closed.next(undefined); closed.complete(); }) };
     const open = TestBed.inject(MatDialog).open as Mock; open.mockReturnValue(ref);
-    const operation = component['batchRate'](3);
+    const operation = component.selectionActions.batchRate(3);
     await vi.waitFor(() => expect(open).toHaveBeenCalled()); TestBed.tick();
     if (ending === 'navigation') (TestBed.inject(Router).events as Subject<RouterEvent>).next(new NavigationStart(22, '/albums'));
     else { (mockAuth['isEdition'] as Mock).mockReturnValue(false); (mockAuth['status'] as WritableSignal<unknown>).update(value => ({ ...(value as object), edition_authenticated: false })); TestBed.tick(); }
@@ -311,7 +311,7 @@ describe('GalleryComponent', () => {
     const open = TestBed.inject(MatDialog).open as Mock;
     open.mockReturnValue({ afterClosed: () => closed, close: vi.fn() });
 
-    const operation = component['batchRate'](3);
+    const operation = component.selectionActions.batchRate(3);
     await vi.waitFor(() => expect(open).toHaveBeenCalled());
     expect(open.mock.calls[0][1].data).toEqual(expect.objectContaining({
       paths, rating: 3, loaded: 2, wholeView: false,
@@ -757,9 +757,9 @@ describe('GalleryComponent', () => {
       it('keeps with the user-mapped key', () => {
         keymap().setKey('keep', 'j');
         const reviewSingle = vi.spyOn(
-          component as unknown as { reviewSingle: (path: string, decision: 'kept' | 'undecided') => Promise<unknown> },
+          component.selectionActions,
           'reviewSingle',
-        ).mockResolvedValue(undefined);
+        ).mockResolvedValue(null);
         fire(keyEvent('j'));
         expect(reviewSingle).toHaveBeenCalledWith('/a.jpg', 'kept');
         reviewSingle.mockClear();
@@ -1074,7 +1074,7 @@ describe('GalleryComponent', () => {
       click({ path: '/b.jpg' }, 1);
       bar.focus();
 
-      await (component as unknown as { batchFavorite(): Promise<void> }).batchFavorite();
+      await component.selectionActions.batchFavorite();
 
       expect(mockStore.clearSelection).toHaveBeenCalled();
       expect(document.activeElement).toBe(tileAt(1));
@@ -2778,7 +2778,7 @@ describe('GalleryComponent', () => {
       const dialog = TestBed.inject(MatDialog);
       (dialog.open as Mock).mockReturnValue({ afterClosed: () => of(null) });
 
-      await component.openCullDialog();
+      await component.selectionActions.openCullDialog();
 
       const data = (dialog.open as Mock).mock.calls[0][1].data;
       expect(data.trashAvailable).toBe(true);
@@ -2791,7 +2791,7 @@ describe('GalleryComponent', () => {
       const dialog = TestBed.inject(MatDialog);
       (dialog.open as Mock).mockReturnValue({ afterClosed: () => of(null) });
 
-      await component.openCullDialog();
+      await component.selectionActions.openCullDialog();
 
       const data = (dialog.open as Mock).mock.calls[0][1].data;
       expect(data.trashAvailable).toBe(false);
@@ -2804,7 +2804,7 @@ describe('GalleryComponent', () => {
       const dialog = TestBed.inject(MatDialog);
       (dialog.open as Mock).mockReturnValue({ afterClosed: () => of(null) });
 
-      await component.openCullDialog();
+      await component.selectionActions.openCullDialog();
 
       const data = (dialog.open as Mock).mock.calls[0][1].data;
       expect(data.trashAvailable).toBe(false);
@@ -2826,7 +2826,7 @@ describe('GalleryComponent', () => {
       });
       mockStore.clearSelection.mockImplementation(() => order.push('clear'));
 
-      await component.openCullDialog();
+      await component.selectionActions.openCullDialog();
 
       expect(order).toEqual(['load', 'clear']);
     });
@@ -2838,7 +2838,7 @@ describe('GalleryComponent', () => {
         const result = new Subject<boolean>();
         const dialog = TestBed.inject(MatDialog);
         (dialog.open as Mock).mockReturnValue({ afterClosed: () => result });
-        const pending = component.openCullDialog();
+        const pending = component.selectionActions.openCullDialog();
         await vi.waitFor(() => expect(dialog.open).toHaveBeenCalled());
         if (loss === 'navigation')
           (TestBed.inject(Router).events as Subject<RouterEvent>).next(new NavigationStart(1, '/other'));
@@ -2860,7 +2860,7 @@ describe('GalleryComponent', () => {
       (dialog.open as Mock).mockReturnValue({ afterClosed: () => of(true) });
       let finish!: () => void;
       mockStore.reloadPhotos.mockImplementation(() => new Promise<void>(resolve => { finish = resolve; }));
-      const pending = component.openCullDialog();
+      const pending = component.selectionActions.openCullDialog();
       await vi.waitFor(() => expect(mockStore.reloadPhotos).toHaveBeenCalled());
       (TestBed.inject(Router).events as Subject<RouterEvent>).next(new NavigationStart(1, '/other'));
       select(['/new.jpg']); finish(); await pending;
@@ -2880,7 +2880,7 @@ describe('GalleryComponent', () => {
       const dialog = TestBed.inject(MatDialog);
       (dialog.open as Mock).mockReturnValue({ afterClosed: () => of(null) });
 
-      await component.openCullDialog();
+      await component.selectionActions.openCullDialog();
 
       expect(dialog.open).toHaveBeenCalled();
       const data = (dialog.open as Mock).mock.calls[0][1].data;
@@ -2895,7 +2895,7 @@ describe('GalleryComponent', () => {
     it.each(['identity', 'edition', 'navigation', 'destroy'])('does not open after lazy date launch loses %s', async loss => {
       mockStore.selectedPaths.set(new Set(['/a'])); mockStore.selectionCount.set(1);
       const dialog = TestBed.inject(MatDialog);
-      const task = component.openCaptureDateDialog();
+      const task = component.selectionActions.openCaptureDateDialog();
       if (loss === 'identity') (mockAuth['status'] as ReturnType<typeof signal>).set({ user_id: 'bob' });
       if (loss === 'edition') mockAuth['isEdition'] = vi.fn(() => false);
       if (loss === 'navigation') {
@@ -2912,7 +2912,7 @@ describe('GalleryComponent', () => {
       mockStore.selectionCount.set(12);
       mockStore.filterPayload.mockReturnValue({ camera: 'Canon' });
       const dialog = TestBed.inject(MatDialog);
-      const pending = component.openCaptureDateDialog();
+      const pending = component.selectionActions.openCaptureDateDialog();
       mockStore.filterPayload.mockReturnValue({ camera: 'Nikon' });
       mockStore.excludedPaths.set(new Set(['/new.jpg']));
       await pending;
@@ -2925,7 +2925,7 @@ describe('GalleryComponent', () => {
       ] as never);
       mockStore.selectedPaths.set(new Set(['/undated.jpg', '/b.jpg'])); mockStore.selectionCount.set(2);
       const dialog = TestBed.inject(MatDialog);
-      await component.openCaptureDateDialog();
+      await component.selectionActions.openCaptureDateDialog();
       expect((dialog.open as Mock).mock.calls[0][1].data.reference).toEqual({ path: '/b.jpg', date: '2024:05:06 07:08:09' });
     });
   });
@@ -2935,7 +2935,7 @@ describe('GalleryComponent', () => {
       mockAuth['isEdition'] = vi.fn(() => true);
       mockStore.selectedPaths.set(new Set(['/a'])); mockStore.selectionCount.set(1);
       const dialog = TestBed.inject(MatDialog);
-      const task = component.openBatchGpsDialog();
+      const task = component.selectionActions.openBatchGpsDialog();
       if (loss === 'identity') (mockAuth['status'] as ReturnType<typeof signal>).set({ user_id: 'bob' });
       if (loss === 'edition') mockAuth['isEdition'] = vi.fn(() => false);
       if (loss === 'navigation') {
@@ -2954,7 +2954,7 @@ describe('GalleryComponent', () => {
       mockStore.excludedPaths.set(new Set(['/skip.jpg']));
       const filters = { no_gps: '1', camera: 'Canon' };
       (mockStore.filterPayload as Mock).mockReturnValue(filters);
-      const pending = component.openBatchGpsDialog();
+      const pending = component.selectionActions.openBatchGpsDialog();
       filters.camera = 'Nikon';
       mockStore.excludedPaths.set(new Set(['/later.jpg']));
       await pending;
@@ -2967,7 +2967,7 @@ describe('GalleryComponent', () => {
       mockStore.selectionCount.set(2);
       mockStore.selectedPaths.set(new Set(['/a.jpg', '/b.jpg']));
       const dialog = TestBed.inject(MatDialog);
-      await component.openBatchGpsDialog();
+      await component.selectionActions.openBatchGpsDialog();
       const applied = (dialog.open as Mock).mock.calls[0][1].data.onBatchApplied;
       applied();
       expect(mockStore.clearSelection).toHaveBeenCalledTimes(1);
@@ -2981,17 +2981,17 @@ describe('GalleryComponent', () => {
       mockStore.selectionCount.set(2);
       mockStore.selectedPaths.set(new Set(['/a.jpg', '/b.jpg']));
       const dialog = TestBed.inject(MatDialog);
-      await component.openBatchGpsDialog();
+      await component.selectionActions.openBatchGpsDialog();
       expect(dialog.open).not.toHaveBeenCalled();
       mockAuth['isEdition'] = vi.fn(() => true);
-      await component.openBatchGpsDialog();
+      await component.selectionActions.openBatchGpsDialog();
       expect((dialog.open as Mock).mock.calls[0][1].data.batch).toEqual({ photo_paths: ['/a.jpg', '/b.jpg'] });
     });
   });
 
   describe('openManualTagsDialog', () => {
     beforeEach(() => { mockAuth['isEdition'] = vi.fn(() => true); mockStore.refreshPaths = vi.fn(() => Promise.resolve()); mockStore.pathsInView = vi.fn(async () => ['/matching-cover', '/matching-member']); });
-    const open = () => (component as unknown as { openManualTagsDialog(): Promise<void> }).openManualTagsDialog();
+    const open = () => component.selectionActions.openManualTagsDialog();
     function select(paths: string[]) {
       mockStore.selectedPaths.set(new Set(paths));
       mockStore.selectionCount.set(paths.length);
@@ -3206,7 +3206,7 @@ describe('GalleryComponent', () => {
 
     it('opens the dialog when clicked', () => {
       const f = render(true);
-      const open = vi.spyOn(f.componentInstance as unknown as { openManualTagsDialog(): Promise<void> }, 'openManualTagsDialog')
+      const open = vi.spyOn(f.componentInstance.selectionActions, 'openManualTagsDialog')
         .mockResolvedValue(undefined);
 
       tagsButton(f)!.click();
@@ -3248,7 +3248,7 @@ describe('GalleryComponent', () => {
       mockStore.viewScopeSelected.set(true);
       const dialog = TestBed.inject(MatDialog);
 
-      await component.deleteSelected();
+      await component.selectionActions.deleteSelected();
 
       expect(dialog.open).not.toHaveBeenCalled();
     });
@@ -3257,7 +3257,7 @@ describe('GalleryComponent', () => {
       select([]);
       const dialog = TestBed.inject(MatDialog);
 
-      await component.deleteSelected();
+      await component.selectionActions.deleteSelected();
 
       expect(dialog.open).not.toHaveBeenCalled();
     });
@@ -3267,7 +3267,7 @@ describe('GalleryComponent', () => {
       const dialog = TestBed.inject(MatDialog);
       (dialog.open as Mock).mockReturnValue({ afterClosed: () => of(null) });
 
-      await component.deleteSelected();
+      await component.selectionActions.deleteSelected();
 
       const data = (dialog.open as Mock).mock.calls[0][1].data;
       expect(data.surface).toBe('bulk');
@@ -3287,7 +3287,7 @@ describe('GalleryComponent', () => {
       const dialog = TestBed.inject(MatDialog);
       (dialog.open as Mock).mockReturnValue({ afterClosed: () => of(null) });
 
-      await component.deleteSelected();
+      await component.selectionActions.deleteSelected();
 
       expect((dialog.open as Mock).mock.calls[0][1].data.hasSiblings).toBe(true);
     });
@@ -3298,7 +3298,7 @@ describe('GalleryComponent', () => {
       const dialog = TestBed.inject(MatDialog);
       (dialog.open as Mock).mockReturnValue({ afterClosed: () => of(null) });
 
-      await component.deleteSelected();
+      await component.selectionActions.deleteSelected();
 
       expect((dialog.open as Mock).mock.calls[0][1].data.hasSiblings).toBe(false);
     });
@@ -3308,7 +3308,7 @@ describe('GalleryComponent', () => {
       const dialog = TestBed.inject(MatDialog);
       (dialog.open as Mock).mockReturnValue({ afterClosed: () => of(null) });
 
-      await component.deleteSelected();
+      await component.selectionActions.deleteSelected();
 
       expect(mockApi.post).not.toHaveBeenCalledWith('/photo/delete', expect.anything());
       expect(mockStore.removePhotos).not.toHaveBeenCalled();
@@ -3324,7 +3324,7 @@ describe('GalleryComponent', () => {
         deleteResponse({ deleted: ['/a.jpg'], refused_bracket_lead: ['/b.jpg'], trashed: 1 }),
       );
 
-      await component.deleteSelected();
+      await component.selectionActions.deleteSelected();
 
       expect(mockApi.post).toHaveBeenCalledWith('/photo/delete', {
         paths: ['/a.jpg', '/b.jpg'],
@@ -3353,7 +3353,7 @@ describe('GalleryComponent', () => {
       );
       const snackBar = TestBed.inject(MatSnackBar);
 
-      await component.deleteSelected();
+      await component.selectionActions.deleteSelected();
 
       expect(snackBar.open).toHaveBeenCalledWith(
         mockI18n.t(I18N.cull.delete_partial_result, { deleted: 1, failed: 1 }),
@@ -3377,7 +3377,7 @@ describe('GalleryComponent', () => {
       );
       const snackBar = TestBed.inject(MatSnackBar);
 
-      await component.deleteSelected();
+      await component.selectionActions.deleteSelected();
 
       expect(snackBar.open).toHaveBeenCalledWith(
         mockI18n.t(I18N.cull.delete_failed), '', { duration: 4000 },
@@ -3395,7 +3395,7 @@ describe('GalleryComponent', () => {
           deleted: ['/a.jpg'], not_found: ['/b.jpg'], not_visible: ['/c.jpg'], skipped: ['/d.jpg'], trashed: 1,
         }),
       );
-      await component.deleteSelected();
+      await component.selectionActions.deleteSelected();
 
       // Asserted on the i18n mock's own call args, not on the snackbar's
       // resolved text: `mockI18n.t` ignores its `vars` argument and echoes
@@ -3414,7 +3414,7 @@ describe('GalleryComponent', () => {
       });
       mockApi.post.mockReturnValueOnce(deleteResponse({ removed_missing: ['/a.jpg', '/b.jpg'] }));
 
-      await component.deleteSelected();
+      await component.selectionActions.deleteSelected();
 
       expect(mockApi.post).toHaveBeenCalledWith('/photo/delete', expect.objectContaining({ remove_missing: true }));
       expect(mockStore.removePhotos).toHaveBeenCalledWith(['/a.jpg', '/b.jpg']);
@@ -3429,7 +3429,7 @@ describe('GalleryComponent', () => {
       });
       mockApi.post.mockReturnValueOnce(throwError(() => new Error('boom')));
 
-      await component.deleteSelected();
+      await component.selectionActions.deleteSelected();
 
       expect(mockStore.removePhotos).not.toHaveBeenCalled();
       expect(mockStore.clearSelection).not.toHaveBeenCalled();
@@ -3606,7 +3606,7 @@ describe('GalleryComponent', () => {
     it('natively disables every download entry point while a download runs', () => {
       for (const profiles of [[], ['web']]) {
         const f = render({ profiles });
-        (f.componentInstance as unknown as { downloading: { set(v: boolean): void } }).downloading.set(true);
+        f.componentInstance.selectionActions.downloading.set(true);
         f.detectChanges();
         expect(labelled(f, I18N.photo_detail.downloading)!.disabled).toBe(true);
         expect(labelled(f, I18N.gallery.selection.actions)!.disabled).toBe(true);
@@ -3644,10 +3644,10 @@ describe('GalleryComponent', () => {
 
     it('calls the same handlers as before for favorite, reject and copy', () => {
       const f = render();
-      const inst = f.componentInstance as unknown as { batchFavorite(): void; batchReject(): void; copyPaths(): void };
-      const fav = vi.spyOn(inst, 'batchFavorite').mockImplementation(() => undefined);
-      const rej = vi.spyOn(inst, 'batchReject').mockImplementation(() => undefined);
-      const copy = vi.spyOn(inst, 'copyPaths').mockImplementation(() => undefined);
+      const inst = f.componentInstance.selectionActions;
+      const fav = vi.spyOn(inst, 'batchFavorite').mockResolvedValue(undefined);
+      const rej = vi.spyOn(inst, 'batchReject').mockResolvedValue(undefined);
+      const copy = vi.spyOn(inst, 'copyPaths').mockResolvedValue(undefined);
       labelled(f, I18N.gallery.selection.favorite)!.click();
       labelled(f, I18N.gallery.selection.reject)!.click();
       labelled(f, I18N.gallery.selection.copy_filenames)!.click();
@@ -3743,7 +3743,7 @@ describe('GalleryComponent', () => {
       (mockAuth as { isEdition: unknown }).isEdition = vi.fn(() => true);
       const bottomSheet = TestBed.inject(MatBottomSheet);
       (bottomSheet.open as Mock).mockReturnValue({ afterDismissed: () => of({ kind: 'delete' }) });
-      const spy = vi.spyOn(component, 'deleteSelected').mockResolvedValue();
+      const spy = vi.spyOn(component.selectionActions, 'deleteSelected').mockResolvedValue();
 
       await (component as unknown as { openActionsSheet(): Promise<void> }).openActionsSheet();
 
@@ -3761,7 +3761,7 @@ describe('GalleryComponent', () => {
       routeMock.snapshot.paramMap.get = vi.fn(() => '42');
       const dialog = TestBed.inject(MatDialog);
 
-      component.openExportDialog();
+      component.selectionActions.openExportDialog();
 
       expect((dialog.open as Mock).mock.calls[0][1].data).toEqual({ albumId: 42 });
     });
@@ -3773,7 +3773,7 @@ describe('GalleryComponent', () => {
       mockStore.selectionCount.set(650);
       const dialog = TestBed.inject(MatDialog);
 
-      component.openExportDialog();
+      component.selectionActions.openExportDialog();
 
       const data = (dialog.open as Mock).mock.calls[0][1].data;
       expect(data).toEqual({ filters: { page: '1' }, exclude: ['/skip.jpg'], count: 650 });
@@ -3784,7 +3784,7 @@ describe('GalleryComponent', () => {
       select(['/a.jpg', '/b.jpg']);
       const dialog = TestBed.inject(MatDialog);
 
-      component.openExportDialog();
+      component.selectionActions.openExportDialog();
 
       const data = (dialog.open as Mock).mock.calls[0][1].data;
       expect(data).toEqual({ paths: ['/a.jpg', '/b.jpg'] });
@@ -4009,7 +4009,7 @@ describe('GalleryComponent', () => {
       });
 
       const favorite = () =>
-        (component as unknown as { batchFavorite: () => Promise<void> }).batchFavorite();
+        component.selectionActions.batchFavorite();
 
       it('counts the view from the server, then asks, before writing anything', async () => {
         (dialog.open as Mock).mockReturnValue({ afterClosed: () => of(true) });
@@ -4125,7 +4125,7 @@ describe('GalleryComponent', () => {
       mockStore.viewScopeSelected.set(true);
       mockStore.selectionCount.set(650);
 
-      await (component as unknown as { markAsPanorama: (k: string) => Promise<void> })
+      await component.selectionActions
         .markAsPanorama('panorama');
 
       expect(mockApi.post).not.toHaveBeenCalled();
@@ -4144,13 +4144,13 @@ describe('GalleryComponent', () => {
       snackOpen = TestBed.inject(MatSnackBar).open as Mock;
     });
 
-    const reject = () => (component as unknown as { batchReject: () => Promise<void> }).batchReject();
+    const reject = () => component.selectionActions.batchReject();
 
     it.each(['kept', 'undecided'] as const)('offers Undo for a single %s decision without changing selection', async decision => {
       const snapshot = new Map([['/a.jpg', { ...snap, is_kept: false }]]);
       mockStore.batchReview = vi.fn().mockResolvedValue({ snapshot, targeted: 1, count: 1 });
       mockStore.restoreSnapshot.mockResolvedValue(undefined);
-      await (component as unknown as { reviewSingle: (path: string, decision: 'kept' | 'undecided') => Promise<unknown> }).reviewSingle('/a.jpg', decision);
+      await component.selectionActions.reviewSingle('/a.jpg', decision);
       expect(mockStore.batchReview).toHaveBeenCalledWith(['/a.jpg'], decision, false);
       expect(undoRegister).toHaveBeenCalledWith(expect.objectContaining({ labelKey: 'review.updated', labelParams: { count: 1 } }));
       await undoRegister.mock.calls[0][0].undo();
@@ -4211,7 +4211,7 @@ describe('GalleryComponent', () => {
     }
 
     const mark = (kind: SequenceKind = 'panorama') =>
-      (component as unknown as { markAsPanorama: (k: SequenceKind) => Promise<void> }).markAsPanorama(kind);
+      component.selectionActions.markAsPanorama(kind);
 
     // The gallery is the only surface that can correct a MISS: an undetected
     // sweep is in no culling group, so it can only be named where its frames
@@ -4314,7 +4314,7 @@ describe('GalleryComponent', () => {
     }
 
     const download = () =>
-      (component as unknown as { downloadSelected: () => Promise<void> }).downloadSelected();
+      component.selectionActions.downloadSelected();
 
     // Past DOWNLOAD_CONFIRM_PHOTOS (50), a download is one blob fetch plus one
     // synthetic anchor click PER PHOTO, serially -- confirm before starting
@@ -4385,10 +4385,10 @@ describe('GalleryComponent', () => {
       else delete (navigator as unknown as { clipboard?: unknown }).clipboard;
     });
 
-    const copy = () => (component as unknown as { copyPaths: () => Promise<void> }).copyPaths();
+    const copy = () => component.selectionActions.copyPaths();
     const download = () =>
-      (component as unknown as { downloadSelected: () => Promise<void> }).downloadSelected();
-    const addToAlbum = () => component.addToAlbum(3);
+      component.selectionActions.downloadSelected();
+    const addToAlbum = () => component.selectionActions.addToAlbum(3);
 
     describe('copy filenames', () => {
       it('copies the paths the server resolved, not the empty local selection', async () => {
@@ -4618,13 +4618,13 @@ describe('GalleryComponent', () => {
     });
 
     const copy = (paths?: string[]) =>
-      (component as unknown as { copyPaths: (p?: string[]) => Promise<void> }).copyPaths(paths);
+      component.selectionActions.copyPaths(paths);
     const download = (paths?: string[]) =>
-      (component as unknown as { downloadSelected: (t?: string, pr?: string, p?: string[]) => Promise<void> })
+      component.selectionActions
         .downloadSelected('original', undefined, paths);
 
     it('addToAlbum adds exactly the given paths and leaves the selection alone', async () => {
-      await component.addToAlbum(3, ['/x.jpg']);
+      await component.selectionActions.addToAlbum(3, ['/x.jpg']);
 
       expect(addPhotos).toHaveBeenCalledWith(3, ['/x.jpg']);
       expect(mockStore.clearSelection).not.toHaveBeenCalled();
@@ -4633,7 +4633,7 @@ describe('GalleryComponent', () => {
     });
 
     it('an empty paths list is a no-op, never a fall-back to the selection', async () => {
-      await component.addToAlbum(3, []);
+      await component.selectionActions.addToAlbum(3, []);
       await copy([]);
 
       expect(addPhotos).not.toHaveBeenCalled();
@@ -4641,7 +4641,7 @@ describe('GalleryComponent', () => {
     });
 
     it('addToAlbum without paths still adds the selection and clears it', async () => {
-      await component.addToAlbum(3);
+      await component.selectionActions.addToAlbum(3);
 
       expect(addPhotos).toHaveBeenCalledWith(3, ['/a.jpg', '/b.jpg', '/c.jpg']);
       expect(mockStore.clearSelection).toHaveBeenCalled();
@@ -4650,7 +4650,7 @@ describe('GalleryComponent', () => {
     it('createAlbumAndAdd forwards the paths to addToAlbum', async () => {
       (dialog.open as Mock).mockReturnValue({ afterClosed: () => of({ id: 9, name: 'N' }) });
 
-      await component.createAlbumAndAdd(['/x.jpg']);
+      await component.selectionActions.createAlbumAndAdd(['/x.jpg']);
 
       expect(addPhotos).toHaveBeenCalledWith(9, ['/x.jpg']);
       expect(mockStore.clearSelection).not.toHaveBeenCalled();
@@ -4663,7 +4663,7 @@ describe('GalleryComponent', () => {
       });
 
       it('addToAlbum, copyPaths and downloadSelected use the given paths without asking the server', async () => {
-        await component.addToAlbum(3, ['/x.jpg']);
+        await component.selectionActions.addToAlbum(3, ['/x.jpg']);
         await copy(['/x.jpg']);
         await download(['/x.jpg']);
 
@@ -4694,7 +4694,7 @@ describe('GalleryComponent', () => {
       it('opens the dialog for the given paths even on an album route', () => {
         routeMock.snapshot.paramMap.get = vi.fn(() => '42');
 
-        component.openExportDialog(['/x.jpg']);
+        component.selectionActions.openExportDialog(['/x.jpg']);
 
         expect((dialog.open as Mock).mock.calls[0][1].data).toEqual({ paths: ['/x.jpg'] });
       });
@@ -4702,7 +4702,7 @@ describe('GalleryComponent', () => {
       it('still exports the whole album on an album route when no paths are given', () => {
         routeMock.snapshot.paramMap.get = vi.fn(() => '42');
 
-        component.openExportDialog();
+        component.selectionActions.openExportDialog();
 
         expect((dialog.open as Mock).mock.calls[0][1].data).toEqual({ albumId: 42 });
       });
@@ -4710,7 +4710,7 @@ describe('GalleryComponent', () => {
       it('ignores view scope when paths are given', () => {
         selectView();
 
-        component.openExportDialog(['/x.jpg']);
+        component.selectionActions.openExportDialog(['/x.jpg']);
 
         expect((dialog.open as Mock).mock.calls[0][1].data).toEqual({ paths: ['/x.jpg'] });
       });
@@ -4745,7 +4745,7 @@ describe('GalleryComponent', () => {
         selectView();
         (dialog.open as Mock).mockReturnValue({ afterClosed: () => of(true) });
 
-        await component.openCullDialog(['/x.jpg']);
+        await component.selectionActions.openCullDialog(['/x.jpg']);
 
         const data = (dialog.open as Mock).mock.calls[0][1].data;
         expect(data.paths).toEqual(['/x.jpg']);
@@ -4761,7 +4761,7 @@ describe('GalleryComponent', () => {
         mockStore.excludedPaths.set(new Set(['/e.jpg']));
         (dialog.open as Mock).mockReturnValue({ afterClosed: () => of(true) });
 
-        await component.openCullDialog(['/x.jpg']);
+        await component.selectionActions.openCullDialog(['/x.jpg']);
 
         expect(mockStore.viewScopeSelected()).toBe(true);
         expect(mockStore.selectionScope()).toBe('view');
@@ -4773,7 +4773,7 @@ describe('GalleryComponent', () => {
         mockStore.selectionCount.set(2);
         (dialog.open as Mock).mockReturnValue({ afterClosed: () => of(true) });
 
-        await component.openCullDialog(['/x.jpg']);
+        await component.selectionActions.openCullDialog(['/x.jpg']);
 
         expect([...mockStore.selectedPaths()]).toEqual(['/a.jpg']);
         expect(mockStore.selectionScope()).toBe('paths');
@@ -4783,7 +4783,7 @@ describe('GalleryComponent', () => {
       it('leaves a path selection alone when the target was not selected', async () => {
         (dialog.open as Mock).mockReturnValue({ afterClosed: () => of(true) });
 
-        await component.openCullDialog(['/x.jpg']);
+        await component.selectionActions.openCullDialog(['/x.jpg']);
 
         expect([...mockStore.selectedPaths()].sort()).toEqual(['/a.jpg', '/b.jpg', '/c.jpg']);
         expect(mockStore.clearSelection).not.toHaveBeenCalled();
@@ -4793,7 +4793,7 @@ describe('GalleryComponent', () => {
         mockStore.selectedPaths.set(new Set(['/x.jpg']));
         (dialog.open as Mock).mockReturnValue({ afterClosed: () => of(null) });
 
-        await component.openCullDialog(['/x.jpg']);
+        await component.selectionActions.openCullDialog(['/x.jpg']);
 
         expect(mockStore.loadPhotos).not.toHaveBeenCalled();
         expect(mockStore.toggleSelection).not.toHaveBeenCalled();
@@ -4811,7 +4811,7 @@ describe('GalleryComponent', () => {
         selectView();
         (dialog.open as Mock).mockReturnValue({ afterClosed: () => of(null) });
 
-        await component.deleteSelected(['/x.jpg']);
+        await component.selectionActions.deleteSelected(['/x.jpg']);
 
         const data = (dialog.open as Mock).mock.calls[0][1].data;
         expect(data.surface).toBe('photo_detail');
@@ -4823,7 +4823,7 @@ describe('GalleryComponent', () => {
         (dialog.open as Mock).mockReturnValue({ afterClosed: () => of(confirmed) });
         mockApi.post.mockReturnValueOnce(deleted(['/x.jpg']));
 
-        await component.deleteSelected(['/x.jpg']);
+        await component.selectionActions.deleteSelected(['/x.jpg']);
 
         expect(mockApi.post).toHaveBeenCalledWith('/photo/delete', expect.objectContaining({ paths: ['/x.jpg'] }));
         expect(mockStore.removePhotos).toHaveBeenCalledWith(['/x.jpg']);
@@ -4831,7 +4831,7 @@ describe('GalleryComponent', () => {
       });
 
       it('returns without a dialog when the photo is no longer loaded', async () => {
-        await component.deleteSelected(['/gone.jpg']);
+        await component.selectionActions.deleteSelected(['/gone.jpg']);
 
         expect(dialog.open).not.toHaveBeenCalled();
       });
@@ -4845,7 +4845,7 @@ describe('GalleryComponent', () => {
         (dialog.open as Mock).mockReturnValue({ afterClosed: () => of(null) });
         const leadOf = async (path: string) => {
           (dialog.open as Mock).mockClear();
-          await component.deleteSelected([path]);
+          await component.selectionActions.deleteSelected([path]);
           return (dialog.open as Mock).mock.calls[0][1].data;
         };
 
@@ -4859,7 +4859,7 @@ describe('GalleryComponent', () => {
       it('without paths still refuses under view scope', async () => {
         selectView();
 
-        await component.deleteSelected();
+        await component.selectionActions.deleteSelected();
 
         expect(dialog.open).not.toHaveBeenCalled();
       });
@@ -4874,7 +4874,7 @@ describe('GalleryComponent', () => {
     const menu = () => component as unknown as Menu;
     const target = { path: '/x.jpg', filename: 'x.jpg' };
     const spy = (name: string) =>
-      vi.spyOn(component as unknown as Record<string, (...a: unknown[]) => unknown>, name)
+      vi.spyOn((name in component.selectionActions ? component.selectionActions : component) as unknown as Record<string, (...a: unknown[]) => unknown>, name)
         .mockResolvedValue(undefined);
 
     beforeEach(() => {
@@ -5243,7 +5243,7 @@ describe('GalleryComponent', () => {
     it('has the card focused at the moment a picked action opens its dialog', () => {
       const cards = render('grid', false);
       let focusedCard = false;
-      vi.spyOn(fixture!.componentInstance as unknown as Record<string, (...a: unknown[]) => unknown>, 'openExportDialog')
+      vi.spyOn(fixture!.componentInstance.selectionActions, 'openExportDialog')
         .mockImplementation(() => { focusedCard = cards[4].contains(document.activeElement); });
       rightClick(cards[4]);
 

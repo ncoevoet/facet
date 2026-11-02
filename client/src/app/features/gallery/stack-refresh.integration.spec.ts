@@ -637,7 +637,7 @@ describe('stack representative repairs through rendered gallery and HTTP', () =>
     const target = scenario === 'hidden-member' ? paths[1] : paths[0];
     store.restoreSelection([target]); fixture.detectChanges();
     vi.spyOn(fixture.debugElement.injector.get(MatDialog), 'open').mockReturnValue({ afterClosed: () => of({ includeCompanions: false, includeSequenceSiblings: false, removeMissing: true }) } as never);
-    const deletion = vi.spyOn(fixture.componentInstance, 'deleteSelected');
+    const deletion = vi.spyOn(fixture.componentInstance.selectionActions, 'deleteSelected');
     const refresh = vi.spyOn(store, 'refreshPaths');
     const started = requested('/api/photo/delete');
     const deleteButton = [...(fixture.nativeElement as HTMLElement).querySelectorAll<HTMLButtonElement>('[data-selection-bar] button')]
