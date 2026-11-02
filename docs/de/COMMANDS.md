@@ -34,7 +34,7 @@
 
 ### Scan-Buchhaltung
 
-Facet zeichnet jeden Scan (Status, Modus, Verzeichnisse, Zähler) und jeden Fehler pro Datei auf. Strg+C markiert den Lauf als `interrupted`, sodass `--resume` ihn fortsetzen kann. Fehlgeschlagene Dateien werden aufgelistet und nur mit `--retry-failed` erneut versucht. Der Viewer zeigt den Scan-Fortschritt anhand der `@FACET_PROGRESS`-Zeilen der CLI.
+Facet zeichnet jeden Scan (Status, Modus, Verzeichnisse, Zähler) und jeden Fehler pro Datei auf. Strg+C markiert den Lauf als `interrupted`, sodass `--resume` ihn fortsetzen kann. Fehlgeschlagene Dateien werden aufgelistet und nur mit `--retry-failed` erneut versucht. Der Viewer zeigt den Scan-Fortschritt anhand der `@FACET_PROGRESS`-Zeilen der CLI. Ein Scan, der kein einziges Foto gespeichert hat, endet mit Code 4 (jede Datei ist fehlgeschlagen, etwa weil ein erforderliches Modell nicht lud); ein Scan ohne Arbeit endet mit 0, und `--watch` überwacht nach Code 4 weiter.
 
 ### Verarbeitungsmodi
 

@@ -730,7 +730,7 @@ class TestNullHonestFaces:
 
         results = {'/a': {}}
         proc = ChunkedMultiPassProcessor.__new__(ChunkedMultiPassProcessor)
-        proc.metrics = {'rebuild_time': 0.0}
+        proc.metrics = {'rebuild_time': 0.0, 'photos_saved': 0}
         proc._pass_insightface(Boom(), {'/a': _face_image()}, results)
         assert Boom.reached  # the failure below is the analyzer's, not a missing fixture key
         r = results['/a']
@@ -749,7 +749,7 @@ class TestNullHonestFaces:
                 raise LicenceError('no')
 
         proc = ChunkedMultiPassProcessor.__new__(ChunkedMultiPassProcessor)
-        proc.metrics = {'rebuild_time': 0.0}
+        proc.metrics = {'rebuild_time': 0.0, 'photos_saved': 0}
         with pytest.raises(LicenceError):
             proc._pass_insightface(Boom(), {'/a': _face_image()}, {'/a': {}})
 
@@ -1307,7 +1307,7 @@ class TestMultiPassSuccessPathGoldens:
         proc = ChunkedMultiPassProcessor.__new__(ChunkedMultiPassProcessor)
         proc.scorer, proc.restricted, proc.pass_groups, proc.on_error = facet, False, [['clip']], None
         # _compute_aggregates rebuilds the gray plane for a photo with faces (silhouette rule)
-        proc.metrics = {'rebuild_time': 0.0, 'thumbnail_time': 0.0}
+        proc.metrics = {'rebuild_time': 0.0, 'thumbnail_time': 0.0, 'photos_saved': 0}
 
         arr = np.full((64, 64, 3), 120, dtype=np.uint8)
         path = str(tmp_path / 'a.jpg')

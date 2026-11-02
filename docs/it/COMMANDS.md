@@ -34,7 +34,7 @@
 
 ### Registrazione delle scansioni
 
-Facet registra ogni scansione (stato, modalità, directory, contatori) e ogni errore per singolo file. Ctrl+C contrassegna l'esecuzione come `interrupted`, così `--resume` può riprenderla. I file falliti vengono elencati e ritentati solo con `--retry-failed`. Il visualizzatore mostra l'avanzamento della scansione dalle righe `@FACET_PROGRESS` della CLI.
+Facet registra ogni scansione (stato, modalità, directory, contatori) e ogni errore per singolo file. Ctrl+C contrassegna l'esecuzione come `interrupted`, così `--resume` può riprenderla. I file falliti vengono elencati e ritentati solo con `--retry-failed`. Il visualizzatore mostra l'avanzamento della scansione dalle righe `@FACET_PROGRESS` della CLI. Una scansione che non ha salvato nessuna foto termina con il codice 4 (tutti i file sono falliti, per esempio perché un modello richiesto non si è caricato); una scansione senza nulla da fare termina con 0, e `--watch` continua a osservare dopo un codice 4.
 
 ### Modalità di elaborazione
 

@@ -12,6 +12,7 @@ All notable changes to Facet are documented in this file.
 - Captured rating Set/Clear and manual-tag Add/Remove/Replace/Clear previews disclose mixed values and exact targets, including matching folded members and whole-view exclusions. Account or access changes stop later write chunks; unrelated fields and AI tags are preserved.
 - Organization history has explicit Preview/Apply/Cancel and per-entry conflict recovery. Processing and export receipts expose actual operation state, counts, cancellation and supported retry behavior.
 - Stack explicit unstacked selections in selection order with Cmd+Shift+S or Ctrl+Shift+S, using the first selected photo as cover. Existing stack members open the editor for review, and Undo restores the selection the stack cleared.
+- **The docked side panel gains a Why This Score? entry** pinned at its bottom edge, opening the score explainer (the critique dialog) for the photo the panel holds, without hunting for the card's hover bar.
 
 ### Changed
 
@@ -53,6 +54,7 @@ All notable changes to Facet are documented in this file.
 - Token rotation immediately suspends stale editing controls, status reads share a credential-scoped request, and late status or edition-lock responses cannot restore a previous account's state.
 - Escape on a directly opened photo returns to the saved gallery query instead of leaving the application through browser history. Gallery-opened photos retain normal history return.
 
+- **A scan that saved nothing exited 0.** A scan whose every photo failed (a required model failing to load, for instance) logged the failures, saved 0 of N photos and still exited with status 0. It now logs `Scan failed: saved 0 of N photos` and exits 4 (so `--watch`, which runs each scan as a child process, keeps watching without counting it toward, or resetting, its failure streak); a scan with nothing to do (no input, or every file already scanned) still exits 0.
 - Preserve the gallery view when returning from the stack editor, support Escape as Back, and clear the committed selection after a successful stack save.
 - Refresh photo face boxes after saving, editing or removing a manual face, without reopening the photo.
 

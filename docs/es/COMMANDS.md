@@ -34,7 +34,7 @@
 
 ### Registro de escaneos
 
-Facet registra cada escaneo (estado, modo, directorios, contadores) y cada error por archivo. Ctrl+C marca la ejecución como `interrupted`, para que `--resume` pueda continuarla. Los archivos fallidos se listan y solo se reintentan con `--retry-failed`. El visor muestra el progreso del escaneo a partir de las líneas `@FACET_PROGRESS` de la CLI.
+Facet registra cada escaneo (estado, modo, directorios, contadores) y cada error por archivo. Ctrl+C marca la ejecución como `interrupted`, para que `--resume` pueda continuarla. Los archivos fallidos se listan y solo se reintentan con `--retry-failed`. El visor muestra el progreso del escaneo a partir de las líneas `@FACET_PROGRESS` de la CLI. Un escaneo que no guardó ninguna foto termina con el código 4 (todos los archivos fallaron, por ejemplo porque un modelo necesario no se cargó); un escaneo sin nada que hacer termina con 0, y `--watch` sigue vigilando tras un código 4.
 
 ### Modos de procesamiento
 

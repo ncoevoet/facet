@@ -14,6 +14,7 @@ import sys
 import threading
 import time
 
+from utils.exit_codes import SAVED_NOTHING_EXIT_CODE
 from utils.image_loading import SCANNABLE_IMAGE_EXTENSIONS, WATCHABLE_IMAGE_EXTENSIONS
 
 logger = logging.getLogger("facet.watcher")
@@ -133,6 +134,12 @@ def run_watch_loop(directories, db_path, config_path=None, debounce_seconds=30,
         if result.returncode == 0:
             logger.info("Scan finished.")
             return True
+        if result.returncode == SAVED_NOTHING_EXIT_CODE:
+            # Neither a success nor a crash: the failure counter is left exactly as it was, so a
+            # 4 between real crashes neither hides the streak nor adds to it.
+            logger.warning("Scan saved 0 photos (exit code %d); see the scan log for the cause. "
+                           "Watching continues.", result.returncode)
+            return None
         logger.warning("Scan exited with code %d", result.returncode)
         return False
 
@@ -153,7 +160,10 @@ def run_watch_loop(directories, db_path, config_path=None, debounce_seconds=30,
                         len(batch),
                     )
                     continue
-                if _run_scan(f'{len(batch)} changed files'):
+                outcome = _run_scan(f'{len(batch)} changed files')
+                if outcome is None:
+                    continue
+                if outcome:
                     consecutive_failures = 0
                 else:
                     consecutive_failures += 1

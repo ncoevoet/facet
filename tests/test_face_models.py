@@ -682,7 +682,7 @@ class TestCommercialFacesPopulated:
         assert isinstance(analyzer, face_permissive.PermissiveFaceAnalyzer)
 
         proc = ChunkedMultiPassProcessor.__new__(ChunkedMultiPassProcessor)
-        proc.metrics = {'rebuild_time': 0.0}
+        proc.metrics = {'rebuild_time': 0.0, 'photos_saved': 0}
         images = {'p.jpg': {'pil': Image.fromarray(np.full((64, 64, 3), 128, dtype=np.uint8)),
                             'height': 64, 'width': 64, 'cache': None}}
         results = {'p.jpg': {}}
