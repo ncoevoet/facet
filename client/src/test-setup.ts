@@ -58,16 +58,20 @@ afterEach(() => {
 });
 
 // jsdom does not implement window.matchMedia
+// A plain function, NOT a vi.fn(): vitest's restoreAllMocks/resetAllMocks
+// (called from other spec files' afterEach) would strip a vi.fn's
+// implementation, leaving every later App in this shared worker with a
+// matchMedia that returns undefined.
 Object.defineProperty(window, 'matchMedia', {
   writable: true,
-  value: vi.fn().mockImplementation((query: string) => ({
+  value: (query: string) => ({
     matches: false,
     media: query,
     onchange: null,
-    addListener: vi.fn(),
-    removeListener: vi.fn(),
-    addEventListener: vi.fn(),
-    removeEventListener: vi.fn(),
-    dispatchEvent: vi.fn(),
-  })),
+    addListener() {},
+    removeListener() {},
+    addEventListener() {},
+    removeEventListener() {},
+    dispatchEvent: () => false,
+  }),
 });

@@ -10,10 +10,13 @@ All notable changes to Facet are documented in this file.
 
 ### Changed
 
+- **Language and theme submenus mark their current entry** with the same check the tooltip-mode radio uses, and no longer wrap their labels when the check squeezes them.
 - **A missing optional metric no longer scores as a neutral 5.0 in the aggregate.** A NULL `subject_sharpness`, `subject_prominence`, `subject_placement`, `bg_separation` or `face_quality_iqa` is left out and its weight is redistributed over the metrics that are present; with all of them missing the aggregate stays neutral. Aggregates change only where a category gives one of these five a positive weight (the shipped weights are unchanged), so run `--recompute-average` after upgrading if you set one. `--optimize-weights` keeps such a weight at its current value when the comparison set has no data for that metric, instead of writing 0%.
 
 ### Fixed
 
+- **Photo cards fill their tile on phones.** With details hidden (the default), cards below 768 px kept the photo at its natural height over a dead background strip; the tile now fills as a square at every width.
+- **Dialog headers share one style.** The shortcuts reference, the cull dialog and the customize-shortcuts dialog now carry the same icon-tile header — title with its description as a subtitle, aligned with the content below.
 - Preserve the gallery view when returning from the stack editor, support Escape as Back, and clear the committed selection after a successful stack save.
 - Refresh photo face boxes after saving, editing or removing a manual face, without reopening the photo.
 
