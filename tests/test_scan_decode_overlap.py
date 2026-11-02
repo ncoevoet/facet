@@ -216,7 +216,7 @@ class TestDecodeRunsWhileGroupZeroLoads:
             log.append('decode-end')
             return {p: _image_entry() for p in paths}
 
-        def load_pass_models(group, supplementary, failed_stages):
+        def load_pass_models(group, supplementary, failed_stages, **kw):
             log.append(('load-start', tuple(group)))
             if group == ['clip', 'topiq']:
                 barrier.wait(timeout=TIMEOUT)
@@ -618,7 +618,7 @@ class TestWarmupRunsOnTheMainThreadFirst:
         monkeypatch.setattr('analyzers.form_facet.warmup', warmup)
         monkeypatch.setattr(proc, '_load_images', _stub_decode(proc))
 
-        def load_pass_models(group, supplementary, failed_stages):
+        def load_pass_models(group, supplementary, failed_stages, **kw):
             log.append('load-models')
             return {name: object() for name in group}
 
@@ -771,7 +771,7 @@ class TestKeyboardInterruptDoesNotWaitForTheChunk:
         proc = _processor(manager, [['clip']], monkeypatch, chunk=6, workers=2,
                           on_error=lambda *a: errors.append(a))
 
-        def load_pass_models(group, supplementary, failed_stages):
+        def load_pass_models(group, supplementary, failed_stages, **kw):
             assert two_started.wait(TIMEOUT)
             raise KeyboardInterrupt()
 
@@ -904,7 +904,7 @@ class TestMetrics:
             clock.advance(3.0)          # the part of the decode the load did not hide
             return {p: _image_entry() for p in paths}
 
-        def load_pass_models(group, supplementary, failed_stages):
+        def load_pass_models(group, supplementary, failed_stages, **kw):
             assert decode_started.wait(TIMEOUT)
             clock.advance(7.0)          # group 0's load, overlapped with the decode
             return {name: object() for name in group}
