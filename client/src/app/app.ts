@@ -438,7 +438,7 @@ export class App implements OnInit {
     await this.i18n.loadLanguages();
     await this.i18n.load();
     this.store.loadTypeCounts();
-    this.store.loadConfig();
+    void this.store.loadConfig(() => this.store.galleryMounts() === 0);
     try {
       await this.auth.checkStatus();
       const promises: Promise<void>[] = [];

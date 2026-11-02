@@ -844,6 +844,47 @@ describe('GalleryStore', () => {
   });
 
   describe('loadConfig()', () => {
+    it('applies startup defaults before the first gallery mount', async () => {
+      apiGet.mockReturnValue(of(makeConfig({ defaults: { ...makeConfig().defaults, hide_blinks: false } })));
+      expect(await store.loadConfig(() => store.galleryMounts() === 0)).toBe(true);
+      expect(store.filters().hide_blinks).toBe(false);
+    });
+
+    it('does not let late startup invalidate a pending gallery config read', async () => {
+      const pending = new Subject<ViewerConfig>();
+      store.galleryMounts.set(1);
+      apiGet.mockReturnValue(pending);
+      const gallery = store.loadConfig();
+      expect(await store.loadConfig(() => store.galleryMounts() === 0)).toBe(false);
+      pending.next(makeConfig());
+      expect(await gallery).toBe(true);
+      expect(apiGet).toHaveBeenCalledTimes(1);
+    });
+
+    it('ignores an earlier startup response once a gallery has mounted', async () => {
+      const pending = new Subject<ViewerConfig>();
+      apiGet.mockReturnValue(pending);
+      const startup = store.loadConfig(() => store.galleryMounts() === 0);
+      store.galleryMounts.set(1);
+      const filters = store.filters();
+      pending.next(makeConfig());
+      expect(await startup).toBe(false);
+      expect(store.filters()).toBe(filters);
+    });
+
+    it.each(['success', 'failure'] as const)('ignores a superseded config %s from another startup caller', async outcome => {
+      const old = new Subject<ViewerConfig>();
+      apiGet.mockReturnValueOnce(old).mockReturnValueOnce(of(makeConfig({ defaults: { ...makeConfig().defaults, sort: 'filename' } })));
+      const previous = store.loadConfig();
+      expect(await store.loadConfig()).toBe(true);
+      const filters = store.filters();
+      if (outcome === 'success') old.next(makeConfig());
+      else old.error(new Error('obsolete failure'));
+      expect(await previous).toBe(false);
+      expect(store.filters()).toBe(filters);
+      expect(store.filters().sort).toBe('filename');
+    });
+
     it('leaves the gallery session query untouched (the albums page shares loadConfig)', async () => {
       sessionStorage.setItem('facet_gallery_session_query', '{"sort":"date_taken"}');
       apiGet.mockReturnValue(of(makeConfig({})));

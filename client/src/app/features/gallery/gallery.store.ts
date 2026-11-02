@@ -1006,13 +1006,22 @@ export class GalleryStore {
     }
   }
 
-  /** Load viewer config and apply defaults */
-  async loadConfig(): Promise<void> {
+  private configLoadSequence = 0;
+
+  /** Load defaults only while this caller and request still own initialization. */
+  async loadConfig(acceptResult: () => boolean = () => true): Promise<boolean> {
+    if (!acceptResult()) return false;
+    const sequence = ++this.configLoadSequence;
+    const owner = this.auth.identity(), token = this.auth.token;
+    const current = () => sequence === this.configLoadSequence && !this.destroyRef.destroyed
+      && owner === this.auth.identity() && token === this.auth.token && acceptResult();
+    if (!current()) return false;
     this.transientReviewStatus.set(this.route.snapshot.queryParams['review_queue'] === '1');
     // loadConfig replaces `filters` wholesale, so an explicit list shown under the old ones is stale.
     this.pinnedPaths.set(null);
     try {
       const cfg = await firstValueFrom(this.api.get<ViewerConfig>('/config'));
+      if (!current()) return false;
       this.config.set(cfg);
 
       // Initialize card width from localStorage or config default
@@ -1066,10 +1075,12 @@ export class GalleryStore {
       const merged = applyQueryParams(base, params);
       this.filters.set(merged);
     } catch {
-      // Use defaults if config fails
+      // An obsolete failure must not replace a newer visit with defaults.
+      if (!current()) return false;
       const params = this.route.snapshot.queryParams;
       this.filters.set(applyQueryParams({ ...DEFAULT_FILTERS }, params));
     }
+    return true;
   }
 
   private syncReadOwner(owner = this.auth.identity()): void {
@@ -2941,7 +2952,7 @@ export class GalleryStore {
    * Snapshot the CURRENT filters' query form into sessionStorage for the
    * nav-icon return. Only the gallery itself calls this — its init (a URL
    * entry must record its own filters, syncUrl never runs for one) and
-   * syncUrl (every user-driven change). Other pages share loadConfig but
+   * syncUrl (every user-driven change). Startup also loads defaults but
    * must never touch this memory: the albums page used to overwrite it with
    * that page's default query on every visit.
    */

@@ -55,6 +55,11 @@ All notable changes to Facet are documented in this file.
 
 ### Fixed
 
+- Late album and configuration responses cannot overwrite a newer gallery visit; startup defaults no longer reset an active gallery.
+
+- Saved album rules and query previews translate their field names, while preserving literal camera, tag and search values.
+- Retrying a developed preview keeps its cache bypass scoped to that photo and style.
+
 - Retrying a darkroom image no longer bypasses the thumbnail cache for later photos viewed in the same pane.
 
 - Cancel pending sidebar filename searches when opening a photo, so a delayed filter update cannot replace the photo URL.

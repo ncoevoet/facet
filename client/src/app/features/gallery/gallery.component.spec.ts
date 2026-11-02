@@ -132,7 +132,7 @@ describe('GalleryComponent', () => {
       cardWidth: signal(300),
       virtualScroll: signal(false),
       setFilterDrawerOpen: vi.fn(),
-      loadConfig: vi.fn(() => Promise.resolve()),
+      loadConfig: vi.fn(() => Promise.resolve(true)),
       loadFilterOptions: vi.fn(() => Promise.resolve()),
       loadTypeCounts: vi.fn(() => Promise.resolve()),
       loadPhotos: vi.fn(() => Promise.resolve()),
@@ -1329,7 +1329,7 @@ describe('GalleryComponent', () => {
       const callOrder: string[] = [];
       mockStore.loadConfig.mockImplementation(() => {
         callOrder.push('loadConfig');
-        return Promise.resolve();
+        return Promise.resolve(true);
       });
       mockStore.loadFilterOptions.mockImplementation(() => {
         callOrder.push('loadFilterOptions');
@@ -1358,7 +1358,7 @@ describe('GalleryComponent', () => {
       const callOrder: string[] = [];
       mockStore.loadConfig.mockImplementation(() => {
         callOrder.push('loadConfig');
-        return Promise.resolve();
+        return Promise.resolve(true);
       });
       mockStore.loadFilterOptions.mockImplementation(() => {
         callOrder.push('loadFilterOptions');
@@ -1451,7 +1451,7 @@ describe('GalleryComponent', () => {
     it('records its own filters in the session query after loadConfig on a plain init', async () => {
       routeMock.snapshot.queryParams = {};
       const order: string[] = [];
-      mockStore.loadConfig.mockImplementation(async () => { order.push('loadConfig'); });
+      mockStore.loadConfig.mockImplementation(async () => { order.push('loadConfig'); return true; });
       mockStore.saveSessionQuery.mockImplementation(() => { order.push('saveSessionQuery'); });
 
       await component.ngOnInit();

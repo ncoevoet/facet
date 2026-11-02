@@ -1955,6 +1955,11 @@ export class GalleryComponent implements OnInit, OnDestroy {
 
   async ngOnInit(): Promise<void> {
     this.store.galleryMounts.update(n => n + 1);
+    const mount = this.store.galleryMounts();
+    const owner = this.auth.identity(), token = this.auth.token;
+    // A detached gallery still owns its visit; a destroyed/replaced one does not.
+    const current = () => !this.destroyRef.destroyed && mount === this.store.galleryMounts()
+      && owner === this.auth.identity() && token === this.auth.token;
     this.setGalleryChrome(true);
     // Read (and clear) BEFORE tryRestoreView: a scoped "open this set" request
     // means the user wants that new scoped view, never a resumed previous one.
@@ -1976,53 +1981,62 @@ export class GalleryComponent implements OnInit, OnDestroy {
     // Reset album state to avoid stale singleton data; loadConfig() resets filters from scratch
     this.store.currentAlbum.set(null);
     this.store.initializing.set(true);
-    await this.store.loadConfig();
-    // Record what THIS init resolved to: a plain URL entry must write its own
-    // filters (syncUrl never runs for one), and the albums page shares
-    // loadConfig but must never touch this memory. An album route skips the
-    // write -- its filters belong to the album view, not the plain gallery.
-    if (!routeAlbumId) {
-      this.store.saveSessionQuery();
-    }
-    if (savedQuery) {
-      this.store.applySessionQuery(savedQuery);
-    }
-    // Apply the ephemeral set scope AFTER loadConfig, which replaces `filters`
-    // wholesale -- applying it before would just be discarded. Never in the
-    // URL: sequence_group_id is renumbered on every detection pass, so a
-    // bookmarked/shared/reloaded link must never resolve to a different set.
-    if (setScope) {
-      this.store.filters.update(current => ({ ...current, ...setScope }));
-    }
-    // Set album_id from route path param (for /album/:albumId route)
-    const albumId = this.store.filters().album_id === '0' ? null
-      : this.store.filters().album_id || this.route.snapshot.paramMap.get('albumId');
-    if (albumId) {
-      try {
-        const album = await firstValueFrom(this.albumService.get(+albumId));
-        if (album.smart_filter_json) {
-          // Apply saved filters BEFORE setting currentAlbum (avoids effect saving defaults)
-          const savedJson = album.smart_filter_json;
-          this.store.filters.update(current => applyQueryParams(applySavedAlbumFilters(current, savedJson, albumId), this.route.snapshot.queryParams));
-        } else {
+    try {
+      if (!await this.store.loadConfig(current)) return;
+      if (!current()) return;
+      // Record what THIS init resolved to: a plain URL entry must write its own
+      // filters (syncUrl never runs for one); startup also loads defaults
+      // but must never touch this memory. An album route skips the
+      // write -- its filters belong to the album view, not the plain gallery.
+      if (!routeAlbumId) {
+        this.store.saveSessionQuery();
+      }
+      if (savedQuery) {
+        this.store.applySessionQuery(savedQuery);
+      }
+      // Apply the ephemeral set scope AFTER loadConfig, which replaces `filters`
+      // wholesale -- applying it before would just be discarded. Never in the
+      // URL: sequence_group_id is renumbered on every detection pass, so a
+      // bookmarked/shared/reloaded link must never resolve to a different set.
+      if (setScope) {
+        this.store.filters.update(current => ({ ...current, ...setScope }));
+      }
+      // Set album_id from route path param (for /album/:albumId route)
+      const albumId = this.store.filters().album_id === '0' ? null
+        : this.store.filters().album_id || this.route.snapshot.paramMap.get('albumId');
+      if (albumId) {
+        try {
+          const album = await firstValueFrom(this.albumService.get(+albumId).pipe(takeUntilDestroyed(this.destroyRef)));
+          if (!current()) return;
+          if (album.smart_filter_json) {
+            // Apply saved filters BEFORE setting currentAlbum (avoids effect saving defaults)
+            const savedJson = album.smart_filter_json;
+            this.store.filters.update(current => applyQueryParams(applySavedAlbumFilters(current, savedJson, albumId), this.route.snapshot.queryParams));
+          } else {
+            this.store.filters.update(current => ({ ...current, album_id: albumId }));
+          }
+          this.store.currentAlbum.set(album);
+        } catch {
+          if (!current()) return;
           this.store.filters.update(current => ({ ...current, album_id: albumId }));
         }
-        this.store.currentAlbum.set(album);
-      } catch {
-        this.store.filters.update(current => ({ ...current, album_id: albumId }));
       }
-    }
-    // Photos first — a slow filter-option endpoint must never hold back the grid
-    await this.store.loadPhotos();
-    this.store.initializing.set(false);
-    this.refreshSideData();
-    await this.restoreHistoryPosition();
-    // IntersectionObserver fires too early before DOM paint — defer recheck
-    requestAnimationFrame(() => setTimeout(() => this.scrollDirective()?.recheck()));
-    if (this.store.config()?.features?.show_albums) {
-      firstValueFrom(this.albumService.list()).then(res =>
-        this.albumOptions.set(res.albums.filter(a => !a.is_smart)),
-      ).catch(() => {});
+      // Photos first — a slow filter-option endpoint must never hold back the grid
+      await this.store.loadPhotos(current);
+      if (!current()) return;
+      this.store.initializing.set(false);
+      this.refreshSideData();
+      await this.restoreHistoryPosition();
+      if (!current()) return;
+      // IntersectionObserver fires too early before DOM paint — defer recheck
+      requestAnimationFrame(() => setTimeout(() => this.scrollDirective()?.recheck()));
+      if (this.store.config()?.features?.show_albums) {
+        firstValueFrom(this.albumService.list().pipe(takeUntilDestroyed(this.destroyRef))).then(res => {
+          if (current()) this.albumOptions.set(res.albums.filter(a => !a.is_smart));
+        }).catch(() => {});
+      }
+    } finally {
+      if (mount === this.store.galleryMounts()) this.store.initializing.set(false);
     }
   }
 
