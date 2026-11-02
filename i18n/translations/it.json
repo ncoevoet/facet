@@ -1064,7 +1064,8 @@
       "reason_blinks": "{n} occhi chiusi",
       "reason_duplicates": "{n} duplicato/i",
       "reason_brackets": "{n} fotogramma/i di bracketing",
-      "reason_panoramas": "{n} fotogramma/i di panorama"
+      "reason_panoramas": "{n} fotogramma/i di panorama",
+      "reason_rejected": "{n} scartata/e"
     },
     "filters_notice": {
       "message": "{count} filtro attivo",
@@ -1129,6 +1130,9 @@
     "hide_details": "Nascondi dettagli",
     "tooltip_mode": {
       "label": "Tooltip",
+      "show_in": "Mostra in",
+      "popup": "Popup",
+      "show_on": "Mostra con",
       "hover": "Hover",
       "click": "Clic",
       "panel": "Pannello laterale",
@@ -1137,9 +1141,6 @@
       "panel_deselect": "Deseleziona"
     },
     "panel_activation": {
-      "label": "Attivazione pannello",
-      "hover": "Hover",
-      "click": "Clic",
       "both": "Hover o clic"
     },
     "hide_blinks": "Nascondi occhi chiusi",

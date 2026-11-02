@@ -164,7 +164,7 @@ class TestBundleParity:
         root = os.path.dirname(os.path.dirname(TRANSLATIONS_DIR))
         pipe = os.path.join(root, 'client', 'src', 'app', 'shared', 'pipes', 'sort-option-icon.pipe.ts')
         with open(pipe, encoding='utf-8') as handle:
-            mapped = set(re.findall(r"^  (\w+): '", handle.read(), re.MULTILINE))
+            mapped = set(re.findall(r"^  (\w+): (?:'|FEATURE_MARK)", handle.read(), re.MULTILINE))
         with open(os.path.join(root, 'config', 'scoring_config.default.json'), encoding='utf-8') as handle:
             groups = json.load(handle)['viewer']['sort_options']
         columns = {option['column'] for options in groups.values() for option in options}

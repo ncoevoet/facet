@@ -1079,6 +1079,7 @@ export const I18N = {
       reason_duplicates: "gallery.hidden_banner.reason_duplicates",
       reason_brackets: "gallery.hidden_banner.reason_brackets",
       reason_panoramas: "gallery.hidden_banner.reason_panoramas",
+      reason_rejected: "gallery.hidden_banner.reason_rejected",
     },
     filters_notice: {
       message: "gallery.filters_notice.message",
@@ -1143,6 +1144,9 @@ export const I18N = {
     hide_details: "gallery.hide_details",
     tooltip_mode: {
       label: "gallery.tooltip_mode.label",
+      show_in: "gallery.tooltip_mode.show_in",
+      popup: "gallery.tooltip_mode.popup",
+      show_on: "gallery.tooltip_mode.show_on",
       hover: "gallery.tooltip_mode.hover",
       click: "gallery.tooltip_mode.click",
       panel: "gallery.tooltip_mode.panel",
@@ -1151,9 +1155,6 @@ export const I18N = {
       panel_deselect: "gallery.tooltip_mode.panel_deselect",
     },
     panel_activation: {
-      label: "gallery.panel_activation.label",
-      hover: "gallery.panel_activation.hover",
-      click: "gallery.panel_activation.click",
       both: "gallery.panel_activation.both",
     },
     hide_blinks: "gallery.hide_blinks",

@@ -1720,7 +1720,11 @@ def _run_scan(args, resumed_run):
     False when it was interrupted, so ``--auto-cull`` culls only a finished scan.
     """
     from processing.scorer import Facet, process_bursts, process_single_photo
+    from processing.stage_timing import PhaseLedger
     from config import ScoringConfig
+
+    # Measurement only: where the wall a user waits for goes (see PhaseLedger).
+    ledger = PhaseLedger.for_process()
 
     # Resolve the EFFECTIVE processing mode from config before building Facet.
     # `processing.mode: "single-pass"` in the JSON (with no --single-pass CLI flag)
@@ -1950,6 +1954,7 @@ def _run_scan(args, resumed_run):
         emit_progress('scoring', processed, total, eta_seconds=eta)
 
     emit_progress('scoring', 0, len(todo_list), force=True)
+    ledger.begin('scoring', group='scoring')
     try:
         # Check for single-pass mode or specific pass
         if route == 'pass':
@@ -2097,9 +2102,13 @@ def _run_scan(args, resumed_run):
                     [(p, scan_run.run_id) for p in retried_paths],
                 )
                 conn.commit()
+    finally:
+        ledger.end('scoring')
 
     # 3. Finalization
+    ledger.begin('finalize')
     scorer.commit()
+    ledger.end('finalize')
 
     # 3b. Caption newly scanned AI edits: the original's caption plus "AI: <note>".
     from db.ai_edits import apply_ai_edit_captions
@@ -2110,16 +2119,21 @@ def _run_scan(args, resumed_run):
     # 4. Process bursts
     # Note: Run --cluster-faces-incremental separately if person_ids are needed for grouping
     emit_progress('bursts', force=True)
+    ledger.begin('bursts')
     process_bursts(scorer.db_path, scorer.config.config_path)
+    ledger.end('bursts')
 
     # 5. Name the deliberate multi-exposure sets burst grouping just swallowed,
     # and move each group's lead onto its base exposure. Must follow the bursts
     # step: it is that grouping it corrects.
     emit_progress('sequences', force=True)
+    ledger.begin('sequences')
     detect_all_sequences(scorer.db_path, scorer.config.config_path, incremental=True)
+    ledger.end('sequences')
 
     # 6. Auto-tag photos using stored CLIP/SigLIP embeddings
     emit_progress('tagging', force=True)
+    ledger.begin('tagging')
     from tag_existing import run_tagging, resolve_scan_tagger, count_untagged, tagging_enabled
 
     # Decide BEFORE resolve_scan_tagger: it loads the profile's embedding model,
@@ -2140,12 +2154,14 @@ def _run_scan(args, resumed_run):
             logger.info("Tagged %d photos with missing tags.", tagged)
         elif tagged == 0:
             logger.info("No new tags assigned (all photos already tagged, or none cleared the similarity threshold).")
+    ledger.end('tagging')
 
     # 7. Narrative moments — cheap (cosine over the embeddings just computed),
     # so label newly-scanned photos automatically. Reuses the scorer's
     # RAM-cached embedding model; no-ops when narrative_moments is disabled.
     if scorer.config.get_narrative_moments_config().get('enabled', False):
         emit_progress('moments', force=True)
+        ledger.begin('moments')
         try:
             result = run_moment_detection(
                 scorer.db_path, scorer.config,
@@ -2155,12 +2171,14 @@ def _run_scan(args, resumed_run):
                 logger.info("Labeled %d new photos with narrative moments.", result['labeled'])
         except Exception:
             logger.warning("Narrative-moment detection failed (non-fatal)", exc_info=True)
+        ledger.end('moments')
 
     # 8. Junk sweep — cheap cosine over the same embeddings, so flag non-photo
     # junk (screenshots/documents/receipts/memes/slides) on newly-scanned
     # photos automatically. No-ops when junk_sweep is disabled.
     if scorer.config.get_junk_sweep_config().get('enabled', False):
         emit_progress('junk', force=True)
+        ledger.begin('junk')
         try:
             result = run_junk_detection(
                 scorer.db_path, scorer.config,
@@ -2170,22 +2188,28 @@ def _run_scan(args, resumed_run):
                 logger.info("Flagged %d new photos as junk.", result['junk_count'])
         except Exception:
             logger.warning("Junk detection failed (non-fatal)", exc_info=True)
+        ledger.end('junk')
 
+    ledger.begin('summary')
     _print_scan_summary(scorer.db_path, todo_list, raw_paired_skipped)
+    ledger.end('summary')
 
     # Auto-populate sqlite-vec table so semantic search is fast on first viewer
     # load after a scan. Idempotent: skips when already up-to-date, no-ops when
     # sqlite-vec isn't installed.
     emit_progress('vec', force=True)
+    ledger.begin('vec')
     try:
         from db.vec import populate_vec_table
         populate_vec_table(scorer.db_path)
     except Exception:
         logger.warning("Auto-populate of photos_vec failed (non-fatal)", exc_info=True)
+    ledger.end('vec')
 
     _log_scan_db_destination(scorer.db_path)
     emit_progress('done', force=True)
     logger.info("All tasks complete.")
+    logger.info(ledger.summary_line())
     return True
 
 

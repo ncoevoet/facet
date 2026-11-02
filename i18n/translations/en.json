@@ -1064,7 +1064,8 @@
       "reason_blinks": "{n} blink(s)",
       "reason_duplicates": "{n} duplicate(s)",
       "reason_brackets": "{n} bracket frame(s)",
-      "reason_panoramas": "{n} panorama frame(s)"
+      "reason_panoramas": "{n} panorama frame(s)",
+      "reason_rejected": "{n} rejected"
     },
     "filters_notice": {
       "message": "{count} filter active",
@@ -1129,6 +1130,9 @@
     "hide_details": "Hide Details",
     "tooltip_mode": {
       "label": "Tooltip",
+      "show_in": "Show in",
+      "popup": "Popup",
+      "show_on": "Show on",
       "hover": "Hover",
       "click": "Click",
       "panel": "Side panel",
@@ -1137,9 +1141,6 @@
       "panel_deselect": "Deselect"
     },
     "panel_activation": {
-      "label": "Panel activation",
-      "hover": "Hover",
-      "click": "Click",
       "both": "Hover or click"
     },
     "hide_blinks": "Hide Blinks",
