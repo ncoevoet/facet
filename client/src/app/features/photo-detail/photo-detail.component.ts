@@ -530,6 +530,9 @@ const SOCIAL_SOURCE_KEYS: Record<string, string> = {
                   <mat-icon class="!text-base !w-4 !h-4 !leading-4 opacity-70">{{ set.kind | photoSetKindIcon }}</mat-icon>
                   <span class="font-medium">{{ set.kind | photoSetKindLabel | translate }}</span>
                   <span class="text-xs text-[var(--mat-sys-on-surface-variant)]">{{ I18N.capsules.photos_count | translate:{ count: set.count } }}</span>
+                  @if (setBlinkCount(); as blinks) {
+                    <span class="text-xs text-[var(--mat-sys-on-surface-variant)]">· {{ I18N.gallery.hidden_banner.reason_blinks | translate:{ n: blinks } }}</span>
+                  }
                   @if (set.ev_span !== null) {
                     <span class="text-xs text-[var(--mat-sys-on-surface-variant)]">{{ I18N.photo_detail.set.ev_span | translate }}: {{ set.ev_span | fixed:1 }} EV</span>
                   }
@@ -542,11 +545,14 @@ const SOCIAL_SOURCE_KEYS: Record<string, string> = {
                   @for (member of set.members; track member.path) {
                     <button class="relative rounded-lg overflow-hidden w-16 h-16 shrink-0 cursor-pointer hover:opacity-80 transition-opacity ring-[var(--mat-sys-primary)]"
                             [class.ring-2]="member.path === p.path"
-                            [attr.aria-label]="(I18N.photo_detail.set.member_position | translate:{ position: $index + 1, count: set.members.length }) + (member.ev_offset !== null ? ', ' + (member.ev_offset | evOffset) : '')"
+                            [attr.aria-label]="(I18N.photo_detail.set.member_position | translate:{ position: $index + 1, count: set.members.length }) + (member.ev_offset !== null ? ', ' + (member.ev_offset | evOffset) : '') + (member.is_blink ? ', ' + (I18N.ui.badges.blink | translate) : '')"
                             (click)="openSetMember(member.path)">
                       <img [src]="member.path | thumbnailUrl:96:member.preview_revision" alt="" class="w-full h-full object-cover" />
                       @if (member.ev_offset !== null) {
                         <span class="absolute bottom-0 inset-x-0 text-center text-[0.625rem] leading-4 bg-black/60 text-white">{{ member.ev_offset | evOffset }}</span>
+                      }
+                      @if (member.is_blink) {
+                        <span class="absolute top-0 inset-x-0 text-center text-[0.625rem] leading-4 font-bold bg-yellow-600 text-white">{{ I18N.ui.badges.blink | translate }}</span>
                       }
                     </button>
                   }
@@ -686,6 +692,9 @@ export class PhotoDetailComponent extends PhotoDetailBase implements OnInit {
 
   // Set membership (bracket/panorama/hdr_panorama/burst/duplicate)
   protected readonly photoSet = signal<PhotoSet | null>(null);
+  /** Blink frames in the set: the gallery hides them by default, so saying so here
+   *  explains why "Open in gallery" can list fewer photos than the set holds. */
+  protected readonly setBlinkCount = computed(() => this.photoSet()?.members.filter(m => m.is_blink).length ?? 0);
   private photoSetEffect = effect(() => {
     const p = this.photo();
     this.photoSet.set(null);

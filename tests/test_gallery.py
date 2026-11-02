@@ -395,6 +395,53 @@ class TestGalleryHideBursts:
         assert data["hidden_summary"]["total"] == 1
 
 
+class TestSetScopeRejectedSummary:
+    """An opened set under the default hide_rejected: the rejected frames are counted."""
+
+    _PHOTOS = [
+        _photo("/lead.jpg", "2024:06:15 12:00:00", is_burst_lead=1, burst_group_id=1),
+        _photo("/blink.jpg", "2024:06:15 12:00:01", is_burst_lead=0, burst_group_id=1, is_blink=1),
+        _photo("/rej.jpg", "2024:06:15 12:00:02", is_burst_lead=0, burst_group_id=1, is_rejected=1),
+        _photo("/other.jpg", "2024:06:15 13:00:00", is_rejected=1),
+    ]
+
+    def _fetch(self, tmp_path, query):
+        db_path = str(tmp_path / "test.db")
+        _make_db(db_path, self._PHOTOS)
+        app = _create_app_no_auth()
+        with (
+            mock.patch("api.routers.gallery.get_db", _conn_factory(db_path)),
+            mock.patch("api.routers.gallery.get_async_db", _async_conn_factory(db_path)),
+            mock.patch("api.routers.gallery.VIEWER_CONFIG", _VIEWER_CONFIG),
+            mock.patch("api.db_helpers._existing_columns_cache", _existing_columns(db_path)),
+            mock.patch.dict("api.config._count_cache", {}, clear=True),
+        ):
+            resp = TestClient(app).get(f"/api/photos?page=1&{query}")
+        assert resp.status_code == 200
+        return resp.json()
+
+    def test_rejected_frames_of_the_set_are_counted(self, tmp_path):
+        data = self._fetch(tmp_path, "burst_group_id=1&hide_rejected=1&hide_blinks=1&hide_bursts=0")
+        assert {p["path"] for p in data["photos"]} == {"/lead.jpg"}
+        assert data["hidden_summary"]["rejected"] == 1
+        assert data["hidden_summary"]["blinks"] == 1
+        assert data["hidden_summary"]["total"] == 1
+
+    def test_rejected_is_counted_with_no_other_toggle_on(self, tmp_path):
+        data = self._fetch(tmp_path, "burst_group_id=1&hide_rejected=1&hide_blinks=0&hide_bursts=0")
+        assert data["hidden_summary"]["rejected"] == 1
+        assert data["hidden_summary"]["total"] == 0
+
+    def test_lifting_hide_rejected_leaves_nothing_to_count(self, tmp_path):
+        data = self._fetch(tmp_path, "burst_group_id=1&hide_rejected=0&hide_blinks=0&hide_bursts=0")
+        assert {p["path"] for p in data["photos"]} == {"/lead.jpg", "/blink.jpg", "/rej.jpg"}
+        assert data["hidden_summary"]["rejected"] == 0
+
+    def test_outside_a_set_scope_rejected_is_not_counted(self, tmp_path):
+        data = self._fetch(tmp_path, "hide_rejected=1&hide_blinks=1")
+        assert data["hidden_summary"]["rejected"] == 0
+
+
 class TestGalleryHideBrackets:
     """GET /api/photos?hide_brackets=1 — a bracket contributes its base frame only.
 
@@ -1284,7 +1331,8 @@ class TestPhotoSetEndpoint:
     _PHOTOS = [
         _photo("/lone.jpg", "2024:06:15 10:00:00"),
         _photo("/b-under.jpg", "2024:06:15 12:00:00",
-               sequence_group_id=1, sequence_kind="bracket", sequence_ev_offset=-2.0, is_sequence_lead=0),
+               sequence_group_id=1, sequence_kind="bracket", sequence_ev_offset=-2.0, is_sequence_lead=0,
+               is_blink=1),
         _photo("/b-base.jpg", "2024:06:15 12:00:01",
                sequence_group_id=1, sequence_kind="bracket", sequence_ev_offset=0.0, is_sequence_lead=1),
         _photo("/b-over.jpg", "2024:06:15 12:00:02",
@@ -1295,10 +1343,11 @@ class TestPhotoSetEndpoint:
                sequence_group_id=2, sequence_kind="panorama", is_sequence_lead=1),
         _photo("/p-c.jpg", "2024:06:15 13:00:01",
                sequence_group_id=2, sequence_kind="panorama", is_sequence_lead=0),
-        _photo("/burst-a.jpg", "2024:06:15 14:00:01", burst_group_id=5, is_burst_lead=0),
+        _photo("/burst-a.jpg", "2024:06:15 14:00:01", burst_group_id=5, is_burst_lead=0, is_blink=1),
         _photo("/burst-b.jpg", "2024:06:15 14:00:00", burst_group_id=5, is_burst_lead=1),
         _photo("/dup-a.jpg", "2024:06:15 15:00:00", duplicate_group_id=9, is_duplicate_lead=1),
-        _photo("/dup-b.jpg", "2024:06:15 15:00:01", duplicate_group_id=9, is_duplicate_lead=0),
+        _photo("/dup-b.jpg", "2024:06:15 15:00:01", duplicate_group_id=9, is_duplicate_lead=0,
+               is_blink=1),
         # A sequence AND a burst group -- sequence must win.
         _photo("/seq-over-burst.jpg", "2024:06:15 16:00:00",
                sequence_group_id=3, sequence_kind="bracket", sequence_ev_offset=0.0, is_sequence_lead=1,
@@ -1365,6 +1414,24 @@ class TestPhotoSetEndpoint:
         assert [m["path"] for m in data["members"]] == ["/burst-b.jpg", "/burst-a.jpg"]
         lead = next(m for m in data["members"] if m["path"] == "/burst-b.jpg")
         assert lead["is_lead"] is True
+
+    def test_members_carry_the_blink_flag(self, tmp_path):
+        """The gallery hides blinks by default, so the photo page names them: a
+        burst of two that opens in the gallery as one must say why."""
+        data = self._fetch(tmp_path, "/burst-b.jpg").json()
+        assert {m["path"]: m["is_blink"] for m in data["members"]} == {
+            "/burst-b.jpg": False, "/burst-a.jpg": True}
+
+    def test_bracket_members_carry_the_blink_flag(self, tmp_path):
+        """The sequence-set path maps is_blink separately from the burst path."""
+        data = self._fetch(tmp_path, "/b-base.jpg").json()
+        assert {m["path"]: m["is_blink"] for m in data["members"]} == {
+            "/b-base.jpg": False, "/b-over.jpg": False, "/b-under.jpg": True}
+
+    def test_duplicate_members_carry_the_blink_flag(self, tmp_path):
+        data = self._fetch(tmp_path, "/dup-a.jpg").json()
+        assert {m["path"]: m["is_blink"] for m in data["members"]} == {
+            "/dup-a.jpg": False, "/dup-b.jpg": True}
 
     def test_duplicate_set(self, tmp_path):
         data = self._fetch(tmp_path, "/dup-b.jpg").json()

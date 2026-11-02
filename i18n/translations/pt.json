@@ -1064,7 +1064,8 @@
       "reason_blinks": "{n} olhos fechados",
       "reason_duplicates": "{n} duplicata(s)",
       "reason_brackets": "{n} quadro(s) de bracketing",
-      "reason_panoramas": "{n} quadro(s) de panorama"
+      "reason_panoramas": "{n} quadro(s) de panorama",
+      "reason_rejected": "{n} rejeitada(s)"
     },
     "filters_notice": {
       "message": "{count} filtro ativo",
@@ -1076,7 +1077,8 @@
       "command_hint": "Execute {command} para atualizar todas de uma vez."
     },
     "set_scope": {
-      "message": "A mostrar um grupo de fotos: {kind}"
+      "message": "A mostrar um grupo de fotos: {kind}",
+      "partial": "a mostrar {shown} de {total} ({reasons} ocultas)"
     },
     "pinned": {
       "chip": "{count} foto escolhida pelo seu assistente",

@@ -12,6 +12,9 @@ class PhotoSetMember(BaseModel):
     path: str
     ev_offset: Optional[float] = None
     is_lead: bool
+    # Flagged so the photo page can say why the gallery, which hides blinks
+    # by default, opens this set with fewer frames than it holds.
+    is_blink: bool = False
     preview_revision: Optional[str] = None
 
 

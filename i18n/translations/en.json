@@ -1064,7 +1064,8 @@
       "reason_blinks": "{n} blink(s)",
       "reason_duplicates": "{n} duplicate(s)",
       "reason_brackets": "{n} bracket frame(s)",
-      "reason_panoramas": "{n} panorama frame(s)"
+      "reason_panoramas": "{n} panorama frame(s)",
+      "reason_rejected": "{n} rejected"
     },
     "filters_notice": {
       "message": "{count} filter active",
@@ -1076,7 +1077,8 @@
       "command_hint": "Run {command} to refresh them all at once."
     },
     "set_scope": {
-      "message": "Showing one photo set: {kind}"
+      "message": "Showing one photo set: {kind}",
+      "partial": "showing {shown} of {total} ({reasons} hidden)"
     },
     "pinned": {
       "chip": "{count} photo chosen by your assistant",
