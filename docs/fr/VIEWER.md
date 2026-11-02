@@ -526,6 +526,8 @@ Enregistrer, modifier ou supprimer un visage manuel actualise les cadres et les 
 
 L'ancien réglage `viewer.performance.face_cache_size` est ignoré et peut être retiré.
 
+**Objets.** Le même éditeur peut marquer un objet à la place : choisissez **Objet**, tracez le rectangle, saisissez un libellé (par exemple « gâteau d'anniversaire ») et enregistrez. Les objets s'affichent en rectangles bleus légendés sur la photo, la recherche de la galerie les trouve par leur libellé, et les assistants peuvent les lire (`GET /api/photo/objects`, ou le champ `objects` de l'outil `get_photo`) pour savoir quelle zone est visée. Les marques sont toujours tracées par vous, jamais détectées automatiquement : elles indiquent à un assistant où agir, par exemple un rectangle libellé « supprimer » sur l'une des trois bouteilles d'une photo. Un objet n'est jamais un visage : il ne touche ni la détection, ni le regroupement, ni les personnes, ni les scores de visage.
+
 ## Déclenchement d'un scan
 
 Lancez un scan depuis le navigateur. Le bouton Scan apparaît quand **les deux** conditions sont réunies :

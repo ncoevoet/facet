@@ -346,6 +346,12 @@ def register_read_tools(server: MCPServer, client: InternalClient, status_extra,
                                          timeout=settings["call_timeout_s"])
             if upstream["ok"] and isinstance(upstream["data"], dict):
                 upstream["data"].pop("histogram_data", None)
+                # Regions the user drew on the photo (never auto-detected), each a label and a
+                # [x1, y1, x2, y2] box in 0-1 image fractions: where to act when an edit names one.
+                marked = await client.call(grant, "photo_objects", query={"path": chosen[0]},
+                                           timeout=settings["call_timeout_s"])
+                if marked["ok"] and isinstance(marked["data"], dict):
+                    upstream["data"]["objects"] = marked["data"].get("objects", [])
             return with_target(upstream, meta)
         return await run_tool(ctx, "get_photo", handler)
 
@@ -622,7 +628,9 @@ def register_read_tools(server: MCPServer, client: InternalClient, status_extra,
         + SHOW_RULE + " The exact rows returned (similarity order, at most `limit`) are shown as an "
         "assistant-chosen list (`shown_in_tab.mode` 'paths'), with or without `filters`.")
     add(get_photo, "get_photo",
-        "Full detail of one photo by its path. " + READ_SELECTION_RULE.format(
+        "Full detail of one photo by its path, including `objects`: the labelled boxes the user drew "
+        "on it to point at something (for example label \"remove\"), as [x1, y1, x2, y2] fractions of the "
+        "image. " + READ_SELECTION_RULE.format(
             what="`path`", how="exactly one photo must be selected"))
     add(get_thumbnail, "get_thumbnail",
         "Look at one photo: its thumbnail as an image (size 160 to 640, default 512; a smaller size is "

@@ -3042,7 +3042,7 @@
     }
   },
   "manual_faces": {
-    "title": "Marcar um rosto ausente / Gerir rostos manuais",
+    "title": "Marcar um rosto ausente ou um objeto / Gerir marcas",
     "instructions": "Desenhe um retângulo ou introduza as margens em percentagens. Escolha uma pessoa e guarde.",
     "unavailable": "Original indisponível. Pode remover as marcas guardadas.",
     "preview": "Fotografia orientada para marcar rostos",
@@ -3064,7 +3064,15 @@
     "save_failed": "Falha ao guardar. Rascunho mantido. Se a origem mudou ou a sessão expirou, recarregue a pré-visualização.",
     "reload": "Recarregar editor",
     "refresh_failed": "A alteração foi guardada, mas não foi possível atualizar as informações das pessoas. Recarregue a fotografia.",
-    "detected_overlap": "Já foi detetado um rosto aqui. Feche este editor e use a ação de atribuição de rostos detetados. O rascunho foi mantido."
+    "detected_overlap": "Já foi detetado um rosto aqui. Feche este editor e use a ação de atribuição de rostos detetados. O rascunho foi mantido.",
+    "mark_kind": "O que o retângulo marca",
+    "kind_face": "Rosto",
+    "kind_object": "Objeto",
+    "object_instructions": "Desenhe um retângulo à volta do objeto ou introduza as margens em percentagens. Dê-lhe uma etiqueta e guarde. A pesquisa da galeria encontra os objetos; nunca contam como rostos.",
+    "object_label": "Etiqueta",
+    "object_placeholder": "ex. bolo de aniversário",
+    "objects": "Objetos marcados",
+    "objects_empty": "Nenhum objeto marcado."
   },
   "assistant_activity": {
     "chip": "Assistente ativo",

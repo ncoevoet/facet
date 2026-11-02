@@ -183,3 +183,69 @@ class TestViewerDbMerge:
         c.close()
         export_viewer_db(src, out, thumbnail_size=64, verbose=False)
         assert os.path.exists(out)
+
+
+class TestViewerDbObjectsMerge:
+    """photo_objects follows the same additive contract as photo_manual_tags."""
+
+    _INS = ("INSERT INTO photo_objects (photo_path, label, x1, y1, x2, y2) "
+            "VALUES (?, ?, 0.1, 0.2, 0.4, 0.5)")
+
+    def _pair(self, tmp_path):
+        src = _db(tmp_path, 'scan.db', photos=[('a.jpg', 'x'), ('b.jpg', 'y')])
+        s = sqlite3.connect(src)
+        s.execute(self._INS, (str(tmp_path / 'a.jpg'), 'remove'))
+        s.commit()
+        s.close()
+        out = str(tmp_path / 'viewer.db')
+        export_viewer_db(src, out, thumbnail_size=64, verbose=False)
+        return src, out
+
+    @staticmethod
+    def _rows(out):
+        v = sqlite3.connect(out)
+        rows = v.execute("SELECT photo_path, label, x1, y1, x2, y2 FROM photo_objects").fetchall()
+        v.close()
+        return rows
+
+    def test_object_marked_after_the_first_export_reaches_the_viewer_db(self, tmp_path):
+        src, out = self._pair(tmp_path)
+        a, b = str(tmp_path / 'a.jpg'), str(tmp_path / 'b.jpg')
+        s = sqlite3.connect(src)
+        s.execute(self._INS, (b, 'cake'))
+        s.commit()
+        s.close()
+        export_viewer_db(src, out, thumbnail_size=64, verbose=False)
+        assert sorted(r[:2] for r in self._rows(out)) == [(a, 'remove'), (b, 'cake')]
+
+    def test_reexport_does_not_duplicate_and_keeps_viewer_only_rows(self, tmp_path):
+        src, out = self._pair(tmp_path)
+        b = str(tmp_path / 'b.jpg')
+        v = sqlite3.connect(out)
+        v.execute(self._INS, (b, 'viewer-only'))
+        v.commit()
+        v.close()
+        export_viewer_db(src, out, thumbnail_size=64, verbose=False)
+        export_viewer_db(src, out, thumbnail_size=64, verbose=False)
+        labels = sorted(r[1] for r in self._rows(out))
+        assert labels == ['remove', 'viewer-only']
+
+    def test_orphan_source_row_is_skipped(self, tmp_path):
+        src, out = self._pair(tmp_path)
+        s = sqlite3.connect(src)
+        s.execute("PRAGMA foreign_keys = OFF")
+        s.execute(self._INS, ('/gone.jpg', 'ghost'))
+        s.commit()
+        s.close()
+        export_viewer_db(src, out, thumbnail_size=64, verbose=False)
+        assert all(r[0] != '/gone.jpg' for r in self._rows(out))
+
+    @pytest.mark.parametrize("drop", ["src", "dest"])
+    def test_missing_table_on_either_side_does_not_abort(self, tmp_path, drop):
+        src, out = self._pair(tmp_path)
+        c = sqlite3.connect(src if drop == "src" else out)
+        c.execute("DROP TABLE photo_objects")
+        c.commit()
+        c.close()
+        export_viewer_db(src, out, thumbnail_size=64, verbose=False)
+        assert os.path.exists(out)

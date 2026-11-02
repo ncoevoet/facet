@@ -3042,7 +3042,7 @@
     }
   },
   "manual_faces": {
-    "title": "Marcar una cara ausente / Gestionar caras manuales",
+    "title": "Marcar una cara ausente o un objeto / Gestionar marcas",
     "instructions": "Dibuje un rectángulo o introduzca sus bordes en porcentajes. Elija una persona y guarde.",
     "unavailable": "Original no disponible. Puede eliminar las marcas guardadas.",
     "preview": "Foto orientada para marcar caras",
@@ -3064,7 +3064,15 @@
     "save_failed": "Error al guardar. Borrador conservado. Si cambió la imagen o caducó la sesión, recargue la vista previa.",
     "reload": "Recargar editor",
     "refresh_failed": "El cambio se guardó, pero no se pudo actualizar la información de las personas. Recargue la foto.",
-    "detected_overlap": "Ya se ha detectado una cara aquí. Cierre este editor y use la acción de asignación de caras detectadas. Se conserva el borrador."
+    "detected_overlap": "Ya se ha detectado una cara aquí. Cierre este editor y use la acción de asignación de caras detectadas. Se conserva el borrador.",
+    "mark_kind": "Qué marca el rectángulo",
+    "kind_face": "Cara",
+    "kind_object": "Objeto",
+    "object_instructions": "Dibuje un rectángulo alrededor del objeto o introduzca sus bordes en porcentajes. Póngale una etiqueta y guarde. La búsqueda de la galería encuentra los objetos; nunca cuentan como caras.",
+    "object_label": "Etiqueta",
+    "object_placeholder": "p. ej. tarta de cumpleaños",
+    "objects": "Objetos marcados",
+    "objects_empty": "No hay objetos marcados."
   },
   "assistant_activity": {
     "chip": "Asistente activo",
