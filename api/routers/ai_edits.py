@@ -207,7 +207,12 @@ def import_ai_edit(body: AiEditImport, user: CurrentUser = Depends(require_editi
         recorded = [r[0] for r in conn.execute(
             'SELECT revision FROM photo_ai_edits WHERE source_path = ?', (body.original_path,))]
 
-    data = _decode_image_data(body.image_data) if body.image_data is not None else _read_drop_file(body.source_file)
+    if body.image_data is not None:
+        data = _decode_image_data(body.image_data)
+    elif body.source_file is not None:
+        data = _read_drop_file(body.source_file)
+    else:
+        raise HTTPException(status_code=422, detail='Send image_data or source_file')
     ext = _image_extension(data)
     mod = _path_module(body.original_path)
     folder = mod.dirname(body.original_path)
