@@ -90,3 +90,33 @@ def test_unreviewed_count_matches_the_feed_total(catalog):
     conn.execute('DELETE FROM photos WHERE path=?', (other,))
     conn.commit()
     assert _count_unreviewed_burst_groups(conn, '1=1', []) == 0
+
+
+def _embed(conn, paths):
+    import struct
+    blob = struct.pack('3f', 1.0, 0.0, 0.0)
+    conn.executemany('UPDATE photos SET clip_embedding=? WHERE path=?', [(blob, p) for p in paths])
+    conn.commit()
+
+
+def test_similar_groups_hold_one_representation_per_capture(catalog):
+    from api.similarity_groups import compute_similarity_groups
+    conn, _, jpg, raw, other = catalog
+    conn.execute('UPDATE photos SET burst_group_id=NULL')
+    conn.commit()
+    _embed(conn, [jpg, raw, other])
+    groups = compute_similarity_groups(conn, threshold=0.9, user_id=None, use_cache=False)
+    assert len(groups) == 1
+    assert set(groups[0]['paths']) == {raw, other}
+    assert groups[0]['count'] == 2
+
+
+def test_two_representations_of_one_capture_are_not_a_similar_group(catalog):
+    from api.similarity_groups import compute_similarity_groups
+    conn, _, jpg, raw, other = catalog
+    conn.execute('UPDATE photos SET burst_group_id=NULL')
+    conn.commit()
+    conn.execute('DELETE FROM photos WHERE path=?', (other,))
+    conn.commit()
+    _embed(conn, [jpg, raw])
+    assert compute_similarity_groups(conn, threshold=0.9, user_id=None, use_cache=False) == []

@@ -6,6 +6,7 @@ import time
 from unittest import mock
 
 import numpy as np
+import pytest
 
 from api.similarity_groups import compute_similarity_groups
 from utils.embedding import bytes_to_normalized_embedding as decode_embedding
@@ -54,6 +55,12 @@ class TestDecodeEmbedding:
 
 class TestComputeSimilarityGroups:
     """Tests for compute_similarity_groups."""
+
+    @pytest.fixture(autouse=True)
+    def _physical_catalog(self):
+        # A MagicMock connection answers every probe, so it would look logical.
+        with mock.patch("api.logical_culling.has_groups", return_value=False):
+            yield
 
     def _make_embedding_blob(self, values):
         """Helper to pack float values into a blob."""
