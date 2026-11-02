@@ -1574,7 +1574,8 @@
       "queue_total": "本次比较包含 {count} 张照片",
       "pane_c": "面板 C",
       "pane_d": "面板 D",
-      "assign_pane_hint": "先选择面板，再选择缩略图。正在分配：{target}。"
+      "assign_pane_hint": "先选择面板，再选择缩略图。正在分配：{target}。",
+      "zoom_overview": "缩放概览：高亮区域为照片当前可见的部分"
     },
     "clipping": {
       "badge_highlight": "高光溢出：{percent}% 的像素",

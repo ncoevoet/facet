@@ -1,6 +1,8 @@
 import { ChangeDetectionStrategy, Component, afterRenderEffect, DestroyRef, ElementRef, computed, effect, inject, input, output, signal, untracked, viewChild } from '@angular/core';
 import { LoupeDirective } from '../../shared/directives/loupe.directive';
 import { normalizedInspectionBox } from './comparison-inspection.util';
+import { TranslatePipe } from '../../shared/pipes/translate.pipe';
+import { I18N } from '../../core/i18n/keys';
 
 export interface ZoomState {
   scale: number;
@@ -75,7 +77,7 @@ export class LoadedSources {
 @Component({
   selector: 'app-synced-zoom',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [LoupeDirective],
+  imports: [LoupeDirective, TranslatePipe],
   host: {
     class: 'block relative overflow-hidden bg-black focus-visible:outline-2 focus-visible:outline-inset focus-visible:outline-white',
     '[class.touch-none]': 'keyboardInspection()',
@@ -99,9 +101,20 @@ export class LoadedSources {
          [style.transform]="transform()" draggable="false" (load)="onFrameLoad()" (error)="onFrameError()"
          [appLoupe]="loupeSrc() ?? effectiveSrc()" [loupeActive]="loupeActive()"
          [loupeZoom]="loupeZoom()" loupeFit="contain" />
+    @if (overview(); as area) {
+      <div data-zoom-overview role="img" [attr.aria-label]="I18N.gallery.compare.zoom_overview | translate"
+           class="pointer-events-none absolute bottom-3 right-3 overflow-hidden rounded border border-white/70 bg-black/70 shadow-lg"
+           [style.width.px]="area.width" [style.height.px]="area.height">
+        <img [src]="effectiveSrc()" alt="" class="h-full w-full object-fill" draggable="false" />
+        <div data-zoom-viewport class="absolute border-2 border-red-500 bg-red-500/10 ring-1 ring-black/60"
+             [style.left.%]="area.left" [style.top.%]="area.top"
+             [style.width.%]="area.visibleWidth" [style.height.%]="area.visibleHeight"></div>
+      </div>
+    }
   `,
 })
 export class SyncedZoomComponent {
+  protected readonly I18N = I18N;
   readonly src = input.required<string>();
   readonly fullResSrc = input<string | null>(null);
   readonly zoom = input.required<ZoomState>();
@@ -159,6 +172,25 @@ export class SyncedZoomComponent {
    *  change detection by whatever chrome traces the image. */
   private readonly paneSize = signal<{ w: number; h: number }>({ w: 0, h: 0 });
   private readonly naturalSize = signal<{ w: number; h: number }>({ w: 0, h: 0 });
+
+  protected readonly overview = computed(() => {
+    const z = this.zoom();
+    const { w, h } = this.paneSize();
+    const { w: iw, h: ih } = this.naturalSize();
+    if (this.hidden() || z.scale <= 1 || !w || !h || !iw || !ih || ![z.scale, z.tx, z.ty].every(Number.isFinite)) return null;
+    const fit = this.containFitScale(w, h, iw, ih);
+    const width = iw * fit * z.scale;
+    const height = ih * fit * z.scale;
+    const x = (w - width) / 2 + z.tx;
+    const y = (h - height) / 2 + z.ty;
+    const percent = (value: number) => Math.max(0, Math.min(100, value * 100));
+    const left = percent(-x / width);
+    const top = percent(-y / height);
+    const miniature = Math.min(112 / iw, 80 / ih, w / 4 / iw, h / 4 / ih);
+    return { width: iw * miniature, height: ih * miniature, left, top,
+      visibleWidth: percent((w - x) / width) - left,
+      visibleHeight: percent((h - y) / height) - top };
+  });
 
   /** The `src` whose preload has finished; the pane shows the placeholder until
    *  it equals the current `src`. */

@@ -1574,7 +1574,8 @@
       "queue_total": "{count} photos dans cette comparaison",
       "pane_c": "Volet C",
       "pane_d": "Volet D",
-      "assign_pane_hint": "Choisissez un volet, puis une vignette. Affectation : {target}."
+      "assign_pane_hint": "Choisissez un volet, puis une vignette. Affectation : {target}.",
+      "zoom_overview": "Vue d’ensemble du zoom : la zone encadrée correspond à la partie visible de la photo"
     },
     "clipping": {
       "badge_highlight": "Hautes lumières écrêtées : {percent} % des pixels",

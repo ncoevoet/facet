@@ -1574,7 +1574,8 @@
       "queue_total": "{count} foto in questo confronto",
       "pane_c": "Riquadro C",
       "pane_d": "Riquadro D",
-      "assign_pane_hint": "Scegli un riquadro, poi una miniatura. Assegnazione: {target}."
+      "assign_pane_hint": "Scegli un riquadro, poi una miniatura. Assegnazione: {target}.",
+      "zoom_overview": "Panoramica dello zoom: l’area evidenziata è la parte visibile della foto"
     },
     "clipping": {
       "badge_highlight": "Alte luci tagliate: {percent}% dei pixel",

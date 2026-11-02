@@ -4,7 +4,7 @@
 
 The viewer is a FastAPI + Angular web app for browsing, filtering, culling and managing your photos.
 
-On desktop (1024 px and wider), destination tabs keep Gallery, Albums, Capsules, Timeline, Folders and Persons visible when enabled. **More** holds secondary destinations such as Statistics and editing-only Culling and Weight Tuning. Contextual page actions appear in a row below the destinations. The gallery owns its collection header, which shows the source, query, count, sort and removable active-filter chips. On narrower screens, the hamburger opens the same available destinations.
+On desktop (1024 px and wider), enabled destinations appear directly in the top bar as space allows. **More** appears only when destinations do not fit and contains the overflow. Resizing, translated labels and account controls are included in the fit calculation. Contextual page actions appear in a row below the destinations. The gallery owns its collection header, which shows the source, query, count, sort and removable active-filter chips. On narrower screens, the hamburger opens the same available destinations.
 
 The collection header groups its name, matching-photo and displayed-item counts, exact text search and view controls. On phones, the first row contains the title, Search and Select; the second contains Sort, direction, Filters, Grid/Mosaic and View options (…). Search expands on request, while a committed query remains visible. View options contains display presets, photo-information behavior, slideshow, quick filters and visibility rules. Active criteria remain outside that disclosure. Desktop exposes the same controls directly. Account, editing access and permitted scan actions stay in the global navigation area, without a duplicate gallery toolbar.
 
@@ -365,6 +365,8 @@ Batch previews freeze the target paths before Apply, including matching folded/o
 Rating offers Set or Clear. Manual tags offer Add, Remove, Replace and Clear; unrelated fields and AI tags remain untouched. Replace/Clear cannot be blindly retried after an uncertain response: reload and inspect the result first. Access or account changes stop new chunks.
 
 Inspection belongs to the displayed photo, independently of the selected batch. AI assessments, personal stars, Keep/Reject and a group's suggested best are separate. Missing measurements say Unavailable; zero is a valid measurement. Rendition labels report the decoded image and dimensions, with loading, failure and Retry states. Magnification and the loupe inspect displayed pixels, not RAW sensor data. Histogram provenance distinguishes stored renders from thumbnail estimates. Stored face/subject crops can help manual inspection; unavailable or ambiguous correspondence leaves manual framing available. Linking movement is not subject alignment.
+
+When a comparison image is zoomed in, a small overview shows the whole photo with a red box marking the visible region. The box follows panning and zooming, including linked panes, and disappears at Fit.
 
 ### Keep Top N%
 

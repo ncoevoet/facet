@@ -17,13 +17,13 @@
   </mat-menu>
   <mat-menu #secondaryNavigationMenu="matMenu">
     <ng-template matMenuContent>
-    @for (destination of secondaryDestinations(); track destination.path) {
+    @for (destination of overflowDestinations(); track destination.path) {
       <a mat-menu-item [routerLink]="destination.path" [attr.aria-current]="destination.active ? 'page' : null"
          [class.!text-[var(--mat-sys-primary)]]="destination.active">
         <mat-icon>{{ destination.icon }}</mat-icon>{{ destination.label | translate }}
       </a>
     }
-    @if (store.config()?.features?.show_memories && hasMemories()) {
+    @if (memoriesNavigationAvailable() && !memoriesInTabs()) {
       <button mat-menu-item (click)="playMemories()"><mat-icon>auto_awesome</mat-icon>{{ I18N.nav.memories | translate }}</button>
     }
     </ng-template>
@@ -33,17 +33,35 @@
             [class.!border-b-2]="auth.isEdition()" [style.border-bottom-color]="auth.isEdition() ? 'var(--facet-accent)' : null">
       <button mat-icon-button class="lg:!hidden" data-mobile-navigation [matMenuTriggerFor]="applicationNavigationMenu" [attr.aria-label]="I18N.nav.navigation | translate"><mat-icon>menu</mat-icon></button>
       <a routerLink="/" class="flex flex-1 items-center gap-2 px-2 text-sm font-medium no-underline lg:hidden" [attr.aria-label]="I18N.nav.gallery_tooltip | translate" (dblclick)="resetAllFilters()"><mat-icon aria-hidden="true">diamond</mat-icon>Facet</a>
-      <nav data-destination-tabs class="hidden min-w-0 flex-1 items-stretch self-stretch overflow-x-auto lg:flex" [attr.aria-label]="I18N.nav.navigation | translate">
-        @for (destination of primaryDestinations(); track destination.path) {
-          <a [routerLink]="destination.path" [attr.aria-current]="destination.active ? 'page' : null"
-             class="inline-flex shrink-0 items-center gap-2 whitespace-nowrap border-b-2 border-transparent px-3 text-sm font-medium text-[var(--mat-sys-on-surface-variant)] no-underline hover:bg-[var(--mat-sys-surface-container)] focus-visible:outline-2 focus-visible:outline-[var(--mat-sys-primary)]"
-             [class.!border-[var(--mat-sys-primary)]]="destination.active" [class.!text-[var(--mat-sys-primary)]]="destination.active">
-            <mat-icon aria-hidden="true" class="hidden xl:inline-flex">{{ destination.icon }}</mat-icon>{{ destination.label | translate }}
-          </a>
+      <div #navigationSpace data-navigation-space class="relative hidden overflow-hidden min-w-0 flex-1 items-stretch self-stretch gap-1 lg:flex">
+        <div #navigationMeasurements aria-hidden="true" inert class="pointer-events-none invisible absolute left-0 top-0 flex w-max">
+          @for (destination of navigationDestinations(); track destination.path) {
+            <span data-navigation-measure class="inline-flex shrink-0 items-center gap-2 whitespace-nowrap border-b-2 border-transparent px-3 text-sm font-medium">
+              <mat-icon aria-hidden="true" class="hidden xl:inline-flex">{{ destination.icon }}</mat-icon>{{ destination.label | translate }}
+            </span>
+          }
+          @if (memoriesNavigationAvailable()) {
+            <button mat-button data-navigation-measure class="shrink-0 self-center"><mat-icon>auto_awesome</mat-icon>{{ I18N.nav.memories | translate }}</button>
+          }
+          <button mat-button data-more-measure class="shrink-0"><mat-icon>more_horiz</mat-icon>{{ I18N.nav.more | translate }}</button>
+        </div>
+        <nav data-destination-tabs class="hidden min-w-0 flex-1 items-stretch self-stretch overflow-hidden lg:flex" [attr.aria-label]="I18N.nav.navigation | translate">
+          @for (destination of desktopDestinations(); track destination.path) {
+            <a [routerLink]="destination.path" [attr.aria-current]="destination.active ? 'page' : null"
+               class="inline-flex shrink-0 items-center gap-2 whitespace-nowrap border-b-2 border-transparent px-3 text-sm font-medium text-[var(--mat-sys-on-surface-variant)] no-underline hover:bg-[var(--mat-sys-surface-container)] focus-visible:outline-2 focus-visible:outline-[var(--mat-sys-primary)]"
+               [class.!border-[var(--mat-sys-primary)]]="destination.active" [class.!text-[var(--mat-sys-primary)]]="destination.active">
+              <mat-icon aria-hidden="true" class="hidden xl:inline-flex">{{ destination.icon }}</mat-icon>{{ destination.label | translate }}
+            </a>
+          }
+          @if (memoriesInTabs()) {
+            <button mat-button class="shrink-0 self-center" (click)="playMemories()"><mat-icon>auto_awesome</mat-icon>{{ I18N.nav.memories | translate }}</button>
+          }
+        </nav>
+        @if (showMoreDestinations()) {
+        <button mat-button data-more-destinations class="!hidden lg:!inline-flex shrink-0" [matMenuTriggerFor]="secondaryNavigationMenu" [attr.aria-label]="I18N.nav.more | translate"
+                [class.!text-[var(--mat-sys-primary)]]="overflowDestinationActive()"><mat-icon>more_horiz</mat-icon>{{ I18N.nav.more | translate }}</button>
         }
-      </nav>
-      <button mat-button data-more-destinations class="!hidden lg:!inline-flex shrink-0" [matMenuTriggerFor]="secondaryNavigationMenu" [attr.aria-label]="I18N.nav.more | translate"
-              [class.!text-[var(--mat-sys-primary)]]="secondaryDestinationActive()"><mat-icon>more_horiz</mat-icon>{{ I18N.nav.more | translate }}</button>
+      </div>
       @if (auth.isEdition()) {
         <button mat-icon-button (click)="openOrganizationHistory()" [matTooltip]="I18N.organization_history.title | translate" [attr.aria-label]="I18N.organization_history.title | translate"><mat-icon>history</mat-icon></button>
       }

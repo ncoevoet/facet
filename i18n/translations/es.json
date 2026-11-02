@@ -1574,7 +1574,8 @@
       "queue_total": "{count} fotos en esta comparación",
       "pane_c": "Panel C",
       "pane_d": "Panel D",
-      "assign_pane_hint": "Elige un panel y después una miniatura. Asignando: {target}."
+      "assign_pane_hint": "Elige un panel y después una miniatura. Asignando: {target}.",
+      "zoom_overview": "Vista general del zoom: el área resaltada es la parte visible de la foto"
     },
     "clipping": {
       "badge_highlight": "Altas luces recortadas: {percent}% de los píxeles",

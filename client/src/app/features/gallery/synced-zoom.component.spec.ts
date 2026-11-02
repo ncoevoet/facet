@@ -1,7 +1,12 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { SyncedZoomComponent, ZoomState, DisplayedRendition, FIT_ZOOM, LoadedSources, SHARP_PRELOAD_DEBOUNCE_MS } from './synced-zoom.component';
+import { signal } from '@angular/core';
+import { I18nService } from '../../core/services/i18n.service';
 
 describe('SyncedZoomComponent', () => {
+  beforeEach(() => TestBed.configureTestingModule({ providers: [
+    { provide: I18nService, useValue: { translations: signal({}), t: (key: string) => key } },
+  ] }));
   function make(zoom: ZoomState = FIT_ZOOM): ComponentFixture<SyncedZoomComponent> {
     const fixture = TestBed.createComponent(SyncedZoomComponent);
     fixture.componentRef.setInput('src', '/thumb.jpg');
@@ -52,6 +57,32 @@ describe('SyncedZoomComponent', () => {
     fixture.componentRef.setInput('zoom', zoom);
     fixture.detectChanges();
   }
+
+  it('shows the visible image region while zooming and panning, and hides it at Fit', () => {
+    const f = make(); measure(f); f.componentInstance.measurePane(); f.detectChanges();
+    const root = f.nativeElement as HTMLElement;
+    const region = () => root.querySelector<HTMLElement>('[data-zoom-viewport]');
+    expect(root.querySelector('[data-zoom-overview]')).toBeNull();
+    apply(f, { scale: 2, tx: 0, ty: 0 });
+    expect(region()!.style.left).toBe('25%'); expect(region()!.style.top).toBe('25%');
+    expect(region()!.style.width).toBe('50%'); expect(region()!.style.height).toBe('50%');
+    apply(f, { scale: 2, tx: 200, ty: -150 });
+    expect(region()!.style.left).toBe('12.5%'); expect(region()!.style.top).toBe('37.5%');
+    apply(f, FIT_ZOOM);
+    expect(root.querySelector('[data-zoom-overview]')).toBeNull();
+  });
+
+  it.each([
+    [{ width: 4000, height: 2000 }, ['25%', '12.5%', '50%', '75%']],
+    [{ width: 2000, height: 4000 }, ['0%', '25%', '100%', '50%']],
+  ])('accounts for contained-image letterboxing in its overview (%o)', (natural, expected) => {
+    const f = make({ scale: 2, tx: 0, ty: 0 }); measure(f, natural);
+    f.componentInstance.measurePane(); f.detectChanges();
+    const region = (f.nativeElement as HTMLElement).querySelector<HTMLElement>('[data-zoom-viewport]')!;
+    expect([region.style.left, region.style.top, region.style.width, region.style.height]).toEqual(expected);
+    apply(f, { scale: 2, tx: 2000, ty: 0 });
+    expect(region.style.width).toBe('0%');
+  });
 
   it('builds a translate+scale transform from the shared zoom', () => {
     const f = make({ scale: 2, tx: 10, ty: -5 });

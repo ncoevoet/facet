@@ -20,6 +20,8 @@ All notable changes to Facet are documented in this file.
 
 ### Changed
 
+- Top-bar destinations use available space; More contains only the overflow. Zoomed comparison images show an overview with the visible region outlined in red.
+
 - Photo-detail sets label their counts and member positions as files, keeping every RAW/JPEG representation inspectable. Gallery set counts explicitly refer to photos, where a grouped RAW/JPEG pair counts once.
 
 - The selection bar has a drag handle (arrow keys work too) that moves it off the photos you are working on; each account's position is remembered in the browser.

@@ -1616,6 +1616,7 @@ export const I18N = {
       pane_c: "gallery.compare.pane_c",
       pane_d: "gallery.compare.pane_d",
       assign_pane_hint: "gallery.compare.assign_pane_hint",
+      zoom_overview: "gallery.compare.zoom_overview",
     },
     clipping: {
       badge_highlight: "gallery.clipping.badge_highlight",

@@ -1574,7 +1574,8 @@
       "queue_total": "{count} fotos nesta comparação",
       "pane_c": "Painel C",
       "pane_d": "Painel D",
-      "assign_pane_hint": "Escolha um painel e depois uma miniatura. A atribuir: {target}."
+      "assign_pane_hint": "Escolha um painel e depois uma miniatura. A atribuir: {target}.",
+      "zoom_overview": "Visão geral do zoom: a área destacada é a parte visível da foto"
     },
     "clipping": {
       "badge_highlight": "Altas luzes cortadas: {percent}% dos pixels",

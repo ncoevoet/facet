@@ -1601,7 +1601,8 @@
       "queue_total": "{count} photos in this comparison",
       "pane_c": "Pane C",
       "pane_d": "Pane D",
-      "assign_pane_hint": "Choose a pane, then a thumbnail. Assigning: {target}."
+      "assign_pane_hint": "Choose a pane, then a thumbnail. Assigning: {target}.",
+      "zoom_overview": "Zoom overview: the highlighted area is the visible part of the photo"
     },
     "clipping": {
       "badge_highlight": "Clipped highlights: {percent}% of pixels",

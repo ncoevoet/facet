@@ -4,7 +4,7 @@
 
 Die Galerie ist eine Web-App aus FastAPI und Angular zum Durchsuchen, Filtern, Aussortieren und Verwalten Ihrer Fotos.
 
-Am Desktop (ab 1024 px) erscheinen die Hauptziele — Galerie, Alben, Kapseln, Zeitleiste, Ordner und Personen — als Register. **Mehr** enthält weitere Ziele wie Statistik sowie bei Bearbeitungszugang Auswahl und Gewichtung; jeder Eintrag berücksichtigt aktivierte Funktionen und Ihre Zugriffsrechte. Seitenspezifische Aktionen stehen in einer eigenen Zeile direkt unter den Registern. Die Galerie behält ihren Sammlungskopf mit Quelle, aktiver Abfrage, Fotoanzahl, Sortierung und aktiven Filterchips, die auch bei geschlossenem Filterpanel sichtbar bleiben. Auf schmalen Bildschirmen führt das Hamburger-Menü zu den Zielen.
+Auf dem Desktop (ab 1024 px) erscheinen aktivierte Ziele direkt in der oberen Leiste, soweit sie Platz haben. **Mehr** erscheint nur bei Platzmangel und enthält die übrigen Ziele. Fenstergröße, übersetzte Beschriftungen und Kontosteuerungen werden berücksichtigt. Kontextaktionen der aktuellen Seite stehen darunter. Die Galerie besitzt einen eigenen Sammlungskopf mit Quelle, Suchanfrage, Anzahl, Sortierung und entfernbaren Filterchips. Auf schmaleren Bildschirmen öffnet das Hamburger-Menü dieselben verfügbaren Ziele.
 
 Der Sammlungskopf bündelt den Namen, die Anzahl passender Fotos und angezeigter Elemente, die Textsuche und die Ansichtssteuerung. Auf dem Telefon enthält die erste Zeile Titel, Suche und Auswählen; die zweite enthält Sortierung, Richtung, Filter, Raster/Mosaik und Ansichtsoptionen. Die Suche wird bei Bedarf aufgeklappt; eine bestätigte Suchabfrage bleibt sichtbar. Ansichtsoptionen enthält Anzeigevorgaben, das Verhalten der Fotoinformationen, Diashow, Schnellfilter und Sichtbarkeitsregeln. Aktive Kriterien bleiben außerhalb dieses aufklappbaren Bereichs. Am Desktop sind dieselben Steuerelemente direkt zugänglich. Konto, Bearbeitungszugang und erlaubte Scan-Aktionen bleiben im globalen Navigationsbereich, ohne doppelte Galeriewerkzeugleiste.
 
@@ -365,6 +365,8 @@ Sammelvorschauen legen vor Anwenden die Zielpfade fest. Bei einer Auswahl der ge
 Bei Bewertungen stehen Setzen und Löschen zur Verfügung. Manuelle Tags bieten Hinzufügen, Entfernen, Ersetzen und Löschen; andere Felder und KI-Tags bleiben unverändert. Ersetzen/Löschen darf nach einer ungewissen Antwort nicht blind wiederholt werden: Laden Sie das Ergebnis neu und prüfen Sie es zuerst. Änderungen an Zugriff oder Konto stoppen neue Teilmengen.
 
 Die Inspektion gehört zum angezeigten Foto, unabhängig von der ausgewählten Sammelbearbeitung. KI-Beurteilungen, persönliche Sterne, Behalten/Ablehnen und der Vorschlag für das beste Gruppenfoto sind getrennt. Fehlende Messwerte heißen Nicht verfügbar; null ist ein gültiger Messwert. Darstellungsbeschriftungen nennen das dekodierte Bild und seine Abmessungen sowie Lade-, Fehler- und Wiederholungszustände. Vergrößerung und Lupe prüfen angezeigte Pixel, keine RAW-Sensordaten. Die Histogrammherkunft unterscheidet gespeicherte Darstellungen von Schätzungen aus Miniaturen. Gespeicherte Gesichts-/Motivausschnitte können die manuelle Prüfung unterstützen; bei fehlender oder mehrdeutiger Zuordnung bleibt manuelles Ausrichten verfügbar. Gekoppelte Bewegungen sind keine Motivausrichtung.
+
+Beim Vergrößern eines Vergleichsbilds zeigt eine kleine Übersicht das ganze Foto mit einem roten Rahmen um den sichtbaren Bereich. Der Rahmen folgt Schwenken und Zoomen, auch bei gekoppelten Ansichten, und verschwindet bei „Einpassen“.
 
 ### Top N% behalten
 

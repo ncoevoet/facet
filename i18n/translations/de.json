@@ -1574,7 +1574,8 @@
       "queue_total": "{count} Fotos in diesem Vergleich",
       "pane_c": "Bereich C",
       "pane_d": "Bereich D",
-      "assign_pane_hint": "Wählen Sie einen Bereich und dann ein Vorschaubild. Zuweisung: {target}."
+      "assign_pane_hint": "Wählen Sie einen Bereich und dann ein Vorschaubild. Zuweisung: {target}.",
+      "zoom_overview": "Zoomübersicht: Der markierte Bereich ist der sichtbare Teil des Fotos"
     },
     "clipping": {
       "badge_highlight": "Beschnittene Lichter: {percent}% der Pixel",

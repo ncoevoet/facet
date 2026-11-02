@@ -597,17 +597,46 @@ describe('App', () => {
       expect(link.getAttribute('aria-current')).toBeNull();
     });
 
-    it('shows destination tabs and keeps secondary destinations in More', async () => {
+    it('fits all destinations, overflows only the tail, and remeasures changed label widths', async () => {
+      let available = 600;
+      let labelWidth = 100;
+      const callbacks: (() => void)[] = [];
+      const disconnect = vi.fn();
+      const originalRect = HTMLElement.prototype.getBoundingClientRect;
+      const rect = vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockImplementation(function (this: HTMLElement) {
+        const width = this.matches('[data-navigation-space]') ? available
+          : this.matches('[data-navigation-measure]') ? labelWidth
+          : this.matches('[data-more-measure]') ? 60 : null;
+        return width === null ? originalRect.call(this) : new DOMRect(0, 0, width, 48);
+      });
+      vi.stubGlobal('ResizeObserver', class {
+        constructor(callback: () => void) { callbacks.push(callback); }
+        observe() {} disconnect = disconnect;
+      });
       const { fixture, root } = render(true);
-      const tabs = root.querySelector('[data-destination-tabs]')!;
-      expect(tabs.querySelector('a[href="/"]')).not.toBeNull();
-      expect(tabs.querySelector('a[href="/persons"]')).not.toBeNull();
-      expect(tabs.querySelector('a[href="/culling"]')).toBeNull();
-      expect(root.querySelector('[data-expandable-navigation]')).toBeNull();
-      root.querySelector<HTMLButtonElement>('[data-more-destinations]')!.click();
-      fixture.detectChanges(); await fixture.whenStable();
-      expect(document.querySelector('.mat-mdc-menu-panel a[href="/culling"]')).not.toBeNull();
-      expect(document.querySelector('.mat-mdc-menu-panel a[href="/stats"]')).not.toBeNull();
+      try {
+        await fixture.whenStable(); fixture.detectChanges();
+        const tabs = () => root.querySelector('[data-destination-tabs]')!;
+        expect(tabs().querySelectorAll('a').length).toBe(5);
+        expect(root.querySelector('[data-more-destinations]')).toBeNull();
+        available = 350; callbacks.forEach(callback => callback()); fixture.detectChanges();
+        expect(tabs().querySelectorAll('a').length).toBe(2);
+        expect(tabs().querySelector('a[href="/culling"]')).toBeNull();
+        root.querySelector<HTMLButtonElement>('[data-more-destinations]')!.click();
+        fixture.detectChanges(); await fixture.whenStable();
+        const menu = document.querySelector('.mat-mdc-menu-panel')!;
+        expect(menu.querySelector('a[href="/culling"]')).not.toBeNull();
+        expect(menu.querySelector('a[href="/"]')).toBeNull();
+        available = 600; callbacks.forEach(callback => callback()); fixture.detectChanges();
+        expect(tabs().querySelectorAll('a').length).toBe(5);
+        expect(root.querySelector('[data-more-destinations]')).toBeNull();
+        labelWidth = 150; callbacks.forEach(callback => callback()); fixture.detectChanges();
+        expect(tabs().querySelectorAll('a').length).toBe(3);
+        expect(root.querySelector('[data-more-destinations]')).not.toBeNull();
+      } finally {
+        fixture.destroy(); rect.mockRestore(); vi.unstubAllGlobals();
+      }
+      expect(disconnect).toHaveBeenCalled();
     });
 
     it('updates primary destination tabs when configured features change', () => {

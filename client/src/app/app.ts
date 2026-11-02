@@ -1,4 +1,4 @@
-import { Component, inject, computed, signal, effect, untracked, OnInit, ChangeDetectionStrategy, DestroyRef } from '@angular/core';
+import { Component, inject, computed, signal, effect, untracked, OnInit, ChangeDetectionStrategy, DestroyRef, ElementRef, viewChild, afterRenderEffect } from '@angular/core';
 import { DecimalPipe, NgTemplateOutlet } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { Router, RouterOutlet, RouterLink, NavigationEnd } from '@angular/router';
@@ -217,24 +217,30 @@ export class App implements OnInit {
     const features = this.store.config()?.features;
     const path = this.url().split(/[?#]/)[0];
     return [
-      { path: '/', icon: 'diamond', label: I18N.nav.gallery, primary: true, visible: true },
-      { path: '/albums', icon: 'photo_album', label: I18N.nav.albums, primary: true, visible: features?.show_albums },
-      { path: '/capsules', icon: 'auto_stories', label: I18N.nav.capsules, primary: true, visible: features?.show_capsules },
-      { path: '/timeline', icon: 'view_timeline', label: I18N.nav.timeline, primary: true, visible: features?.show_timeline },
-      { path: '/folders', icon: 'folder', label: I18N.nav.folders, primary: true, visible: features?.show_folders },
-      { path: '/persons', icon: 'people', label: I18N.nav.persons, primary: true, visible: true },
-      { path: '/map', icon: 'map', label: I18N.nav.map, primary: false, visible: features?.show_map && this.hasGeoPhotos() },
-      { path: '/culling', icon: 'burst_mode', label: I18N.nav.culling, primary: false, visible: this.auth.isEdition() },
-      { path: '/junk', icon: 'delete_sweep', label: I18N.nav.junk_sweep, primary: false, visible: this.auth.isEdition() && features?.show_junk_sweep },
-      { path: '/stats', icon: 'bar_chart', label: I18N.nav.stats, primary: false, visible: true },
-      { path: '/compare', icon: 'compare', label: I18N.nav.compare, primary: false, visible: this.auth.isEdition() },
+      { path: '/', icon: 'diamond', label: I18N.nav.gallery, visible: true },
+      { path: '/albums', icon: 'photo_album', label: I18N.nav.albums, visible: features?.show_albums },
+      { path: '/capsules', icon: 'auto_stories', label: I18N.nav.capsules, visible: features?.show_capsules },
+      { path: '/timeline', icon: 'view_timeline', label: I18N.nav.timeline, visible: features?.show_timeline },
+      { path: '/folders', icon: 'folder', label: I18N.nav.folders, visible: features?.show_folders },
+      { path: '/persons', icon: 'people', label: I18N.nav.persons, visible: true },
+      { path: '/map', icon: 'map', label: I18N.nav.map, visible: features?.show_map && this.hasGeoPhotos() },
+      { path: '/culling', icon: 'burst_mode', label: I18N.nav.culling, visible: this.auth.isEdition() },
+      { path: '/junk', icon: 'delete_sweep', label: I18N.nav.junk_sweep, visible: this.auth.isEdition() && features?.show_junk_sweep },
+      { path: '/stats', icon: 'bar_chart', label: I18N.nav.stats, visible: true },
+      { path: '/compare', icon: 'compare', label: I18N.nav.compare, visible: this.auth.isEdition() },
     ].filter(item => item.visible).map(item => ({ ...item,
       active: item.path === '/' ? this.isGalleryRoute() : path === item.path || path.startsWith(item.path + '/'),
     }));
   });
-  protected readonly primaryDestinations = computed(() => this.navigationDestinations().filter(item => item.primary));
-  protected readonly secondaryDestinations = computed(() => this.navigationDestinations().filter(item => !item.primary));
-  protected readonly secondaryDestinationActive = computed(() => this.secondaryDestinations().some(item => item.active));
+  private readonly navigationSpace = viewChild<ElementRef<HTMLElement>>('navigationSpace');
+  private readonly navigationMeasurements = viewChild<ElementRef<HTMLElement>>('navigationMeasurements');
+  protected readonly desktopTabCount = signal(Number.MAX_SAFE_INTEGER);
+  protected readonly desktopDestinations = computed(() => this.navigationDestinations().slice(0, this.desktopTabCount()));
+  protected readonly overflowDestinations = computed(() => this.navigationDestinations().slice(this.desktopTabCount()));
+  protected readonly memoriesNavigationAvailable = computed(() => !!this.store.config()?.features?.show_memories && this.hasMemories());
+  protected readonly memoriesInTabs = computed(() => this.memoriesNavigationAvailable() && this.desktopTabCount() > this.navigationDestinations().length);
+  protected readonly showMoreDestinations = computed(() => this.overflowDestinations().length > 0 || (this.memoriesNavigationAvailable() && !this.memoriesInTabs()));
+  protected readonly overflowDestinationActive = computed(() => this.overflowDestinations().some(item => item.active));
 
   protected readonly mobileAlbumsSearchOpen = signal(false);
   protected readonly mobilePersonsSearchOpen = signal(false);
@@ -375,6 +381,37 @@ export class App implements OnInit {
   private lastAuthKey: string | null = null;
 
   constructor() {
+    afterRenderEffect(cleanup => {
+      const space = this.navigationSpace()?.nativeElement;
+      const measurements = this.navigationMeasurements()?.nativeElement;
+      if (!space || !measurements) return;
+      const fit = () => {
+        const available = space.getBoundingClientRect().width;
+        if (!available) return; // The mobile shell has its own navigation menu.
+        const widths = Array.from(measurements.querySelectorAll<HTMLElement>('[data-navigation-measure]'))
+          .map(item => item.getBoundingClientRect().width);
+        let count = widths.length;
+        if (widths.reduce((sum, width) => sum + width, 0) > available) {
+          let used = measurements.querySelector<HTMLElement>('[data-more-measure]')!.getBoundingClientRect().width + 4;
+          count = 0;
+          for (const width of widths) {
+            if (used + width > available) break;
+            used += width;
+            count++;
+          }
+        }
+        this.desktopTabCount.set(count);
+      };
+      const resize = new ResizeObserver(fit);
+      resize.observe(space);
+      resize.observe(measurements);
+      // Labels and feature/access changes can alter the prefix widths even
+      // when their combined width happens to stay the same.
+      const content = new MutationObserver(fit);
+      content.observe(measurements, { childList: true, characterData: true, subtree: true });
+      fit();
+      cleanup(() => { resize.disconnect(); content.disconnect(); });
+    });
     // When the signed-in identity or its rights change (login, edition grant or
     // drop), re-fetch the viewer config so config-derived nav/features reflect the
     // new rights immediately — refreshConfig() leaves the user's filters intact.

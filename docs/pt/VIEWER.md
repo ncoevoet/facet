@@ -4,7 +4,7 @@
 
 O visualizador é uma aplicação web em FastAPI + Angular para navegar, filtrar, fazer a triagem e gerenciar suas fotos.
 
-No computador, a partir de 1024 px, separadores dão acesso à Galeria, Álbuns, Cápsulas, Linha do tempo, Pastas e Pessoas, conforme as funcionalidades e permissões disponíveis. Os destinos secundários, como Estatísticas, ficam em **Mais**; Triagem e Ajuste de Pesos só aparecem com acesso de edição. As ações próprias da página aparecem numa linha abaixo dos separadores. Na galeria, o cabeçalho da coleção mantém a origem, a consulta, a contagem e a ordenação junto das fotos; os filtros ativos continuam visíveis como chips quando o painel fecha. Em ecrãs mais estreitos, os destinos ficam no menu de hambúrguer.
+No computador (a partir de 1024 px), os destinos ativados aparecem diretamente na barra superior enquanto houver espaço. **Mais** aparece apenas quando alguns destinos não cabem e contém os restantes. O cálculo considera o tamanho da janela, os rótulos traduzidos e os controlos da conta. As ações contextuais da página aparecem na linha abaixo. A galeria tem o seu próprio cabeçalho de coleção com origem, pesquisa, contagem, ordenação e filtros ativos removíveis. Em ecrãs mais estreitos, o menu de navegação apresenta os mesmos destinos disponíveis.
 
 O cabeçalho da coleção agrupa o nome, as contagens de fotos correspondentes e itens apresentados, a pesquisa de texto exato e os controlos de vista. No telefone, a primeira linha contém o título, Pesquisar e Selecionar; a segunda contém Ordenar, direção, Filtros, Grelha/Mosaico e Opções de vista. A pesquisa expande-se quando pedida e uma consulta confirmada permanece visível. Opções de vista contém as vistas de trabalho, o comportamento da informação da foto, a apresentação, os filtros rápidos e as regras de visibilidade. Os critérios ativos permanecem fora desse painel. No computador, os mesmos controlos aparecem diretamente. A conta, o acesso de edição e as ações de análise permitidas ficam na navegação global, sem uma barra duplicada na galeria.
 
@@ -364,6 +364,8 @@ As pré-visualizações em lote fixam os caminhos de destino antes de Aplicar, i
 A avaliação oferece Definir ou Limpar. As etiquetas manuais oferecem Adicionar, Remover, Substituir e Limpar; os campos não relacionados e as etiquetas de IA mantêm-se. Substituir/Limpar não pode ser repetido às cegas após uma resposta incerta: primeiro recarregue e inspecione o resultado. As alterações de acesso ou de conta impedem novos blocos.
 
 A inspeção pertence à foto apresentada, independentemente do lote selecionado. As avaliações de IA, as estrelas pessoais, Manter/Rejeitar e a melhor foto sugerida de um grupo são conceitos separados. As medições em falta indicam Indisponível; zero é uma medição válida. Os rótulos de versão indicam a imagem descodificada e as dimensões, com estados de carregamento, falha e Repetir. A ampliação e a lupa inspecionam píxeis apresentados, não dados do sensor RAW. A origem do histograma distingue imagens renderizadas guardadas de estimativas de miniaturas. Os recortes guardados de rostos/sujeitos podem ajudar na inspeção manual; se a correspondência estiver indisponível ou for ambígua, o enquadramento manual continua disponível. Ligar movimentos não alinha sujeitos.
+
+Ao ampliar uma imagem na comparação, uma miniatura mostra a fotografia inteira com um retângulo vermelho a marcar a região visível. O retângulo acompanha o deslocamento e o zoom, incluindo nos painéis ligados, e desaparece ao ajustar a imagem.
 
 ### Manter Top N%
 
