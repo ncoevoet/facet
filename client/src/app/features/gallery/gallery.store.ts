@@ -2399,6 +2399,7 @@ export class GalleryStore {
     this.patchPhotos(new Set(loaded), patch);
     const persisted = new Set<string>();
     let count = 0;
+    let logicalTouched = false;
     for (const body of this.batchBodies(paths, useSelectionScope)) {
       if (originIdentity !== this.auth.identity() || originSession !== this.auth.status() || originToken !== this.auth.token || !this.auth.isEdition()) {
         if (current()) this.revertSnapshot(new Map([...snapshot].filter(([path]) => !persisted.has(path))));
@@ -2411,8 +2412,9 @@ export class GalleryStore {
       const chunk = body['photo_paths'] as string[] | undefined;
       try {
         const res = await firstValueFrom(
-          this.api.post<{ count?: number }>(endpoint, { ...body, ...extraBody }),
+          this.api.post<{ count?: number; logical_asset_ids?: string[] }>(endpoint, { ...body, ...extraBody }),
         );
+        logicalTouched ||= !!res?.logical_asset_ids?.length;
         count += res?.count ?? chunk?.length ?? targeted;
         chunk?.forEach(p => persisted.add(p));
       } catch {
@@ -2430,8 +2432,10 @@ export class GalleryStore {
       }
     }
     const kind = BATCH_ACTIVITY[endpoint];
-    if (kind && originIdentity === this.auth.identity()) this.journal.record(kind.kind, paths, kind.value(extraBody));
+    if (kind && !logicalTouched && originIdentity === this.auth.identity()) this.journal.record(kind.kind, paths, kind.value(extraBody));
     await refreshConfirmed();
+    // Physical flag snapshots cannot undo logical review authority.
+    if (logicalTouched) snapshot.clear();
     return { snapshot, targeted, count };
   }
 

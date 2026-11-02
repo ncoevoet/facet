@@ -585,3 +585,93 @@ def test_http_manual_stack_counts_logical_pair_once(edition_client, bundle, seed
     assert page['photos'][0]['stack_count'] == page['photos'][0]['stack_total_count'] == 2
     count = edition_client.get('/api/photos/count', params=filters)
     assert count.status_code == 200 and count.json()['total'] == 2
+
+
+@pytest.mark.parametrize('route,extra,field,value', [
+    ('batch_rating', {'rating': 4}, 'star_rating', 4),
+    ('batch_favorite', {}, 'is_favorite', 1),
+    ('batch_reject', {}, 'is_rejected', 1),
+    ('batch_review', {'decision': 'undecided'}, 'is_kept', 0),
+])
+def test_logical_batch_writes_once_without_changing_original_files(edition_client, bundle, route, extra, field, value):
+    key = submit(edition_client, bundle, draft(edition_client, bundle), acknowledge_review_conflicts=True).json()['asset_id']
+    response = edition_client.post('/api/photos/' + route, json={'photo_paths': bundle['paths'], **extra})
+    assert response.status_code == 200, response.text
+    assert response.json()['count'] == 1 and response.json()['logical_asset_ids'] == [key]
+    state = edition_client.get('/api/logical_assets/review', params={'asset_id': key}).json()
+    assert state['values'][field] == value
+    with sqlite3.connect(DEFAULT_DB_PATH) as conn:
+        assert conn.execute('SELECT star_rating,is_kept,is_rejected FROM photos WHERE path=?', (bundle['paths'][0],)).fetchone() == (5, 1, 0)
+        assert conn.execute('SELECT star_rating,is_kept,is_rejected FROM photos WHERE path=?', (bundle['paths'][1],)).fetchone() == (2, 0, 1)
+
+
+def test_filter_scoped_batch_uses_logical_review_filter_and_alias_exclusion(edition_client, bundle):
+    key = submit(edition_client, bundle, draft(edition_client, bundle), acknowledge_review_conflicts=True).json()['asset_id']
+    filters = {'type': '', 'hide_blinks': 'false', 'hide_bursts': 'false', 'hide_duplicates': 'false',
+               'hide_brackets': 'false', 'hide_panoramas': 'false', 'hide_rejected': 'false',
+               'path_prefix': str(Path(bundle['primary_path']).parent), 'min_rating': '4'}
+    excluded = edition_client.post('/api/photos/batch_rating', json={'filters': filters, 'exclude': [bundle['paths'][1]], 'rating': 1})
+    assert excluded.status_code == 200 and excluded.json()['count'] == 0
+    response = edition_client.post('/api/photos/batch_rating', json={'filters': filters, 'rating': 1})
+    assert response.status_code == 200, response.text
+    assert response.json()['count'] == 1
+    # Physical JPEG still has five stars, but logical min-rating no longer matches.
+    again = edition_client.post('/api/photos/batch_rating', json={'filters': filters, 'rating': 4})
+    assert again.status_code == 200 and again.json()['count'] == 0
+    assert edition_client.get('/api/logical_assets/review', params={'asset_id': key}).json()['values']['star_rating'] == 1
+
+
+def test_mixed_batch_failure_rolls_back_logical_and_physical_reviews(edition_client, bundle, seed_photos_prefix):
+    key = submit(edition_client, bundle, draft(edition_client, bundle), acknowledge_review_conflicts=True).json()['asset_id']
+    other = str(Path(bundle['primary_path']).with_name('other.jpg'))
+    seed_photos_prefix(str(Path(other).parent), [{'path': other, 'filename': 'other.jpg', 'star_rating': 2}])
+    state = edition_client.get('/api/logical_assets/review', params={'asset_id': key}).json()
+    with sqlite3.connect(DEFAULT_DB_PATH) as conn:
+        conn.execute("CREATE TRIGGER fail_mixed_review BEFORE UPDATE OF star_rating ON photos "
+                     "BEGIN SELECT RAISE(ABORT,'injected physical failure'); END")
+    try:
+        response = edition_client.post('/api/photos/batch_rating', json={'photo_paths': [bundle['primary_path'], other], 'rating': 4})
+        assert response.status_code == 500
+        assert 'injected' not in response.text
+        assert edition_client.get('/api/logical_assets/review', params={'asset_id': key}).json() == state
+        with sqlite3.connect(DEFAULT_DB_PATH) as conn:
+            assert conn.execute('SELECT star_rating FROM photos WHERE path=?', (other,)).fetchone()[0] == 2
+            assert conn.execute('SELECT COUNT(*) FROM logical_review_fields WHERE asset_id=?', (key,)).fetchone()[0] == 0
+    finally:
+        with sqlite3.connect(DEFAULT_DB_PATH) as conn:
+            conn.execute('DROP TRIGGER fail_mixed_review')
+
+
+@pytest.mark.parametrize('filtered', [False, True])
+def test_batch_hidden_companion_never_falls_back_to_physical_write(edition_client, bundle, monkeypatch, filtered):
+    from api import logical_batch
+    from api.routers import gallery
+
+    key = submit(edition_client, bundle, draft(edition_client, bundle), acknowledge_review_conflicts=True).json()['asset_id']
+    def visibility(user):
+        return 'photos.path != ?', [bundle['paths'][1]]
+    monkeypatch.setattr(logical_batch, 'get_visibility_clause', visibility)
+    monkeypatch.setattr(gallery, 'get_visibility_clause', visibility)
+    body = {'rating': 1, 'photo_paths': [bundle['primary_path']]}
+    if filtered:
+        body = {'rating': 1, 'filters': {'type': '', 'hide_blinks': 'false', 'hide_bursts': 'false',
+                'hide_duplicates': 'false', 'hide_brackets': 'false', 'hide_panoramas': 'false', 'hide_rejected': 'false',
+                'path_prefix': str(Path(bundle['primary_path']).parent)}}
+    response = edition_client.post('/api/photos/batch_rating', json=body)
+    assert response.status_code == 404, response.text
+    assert bundle['paths'][1] not in response.text
+    with sqlite3.connect(DEFAULT_DB_PATH) as conn:
+        assert conn.execute('SELECT star_rating FROM photos WHERE path=?', (bundle['primary_path'],)).fetchone()[0] == 5
+        assert conn.execute('SELECT COUNT(*) FROM logical_review_fields WHERE asset_id=?', (key,)).fetchone()[0] == 0
+
+
+def test_mixed_batch_success_counts_logical_and_independent_photos(edition_client, bundle, seed_photos_prefix):
+    key = submit(edition_client, bundle, draft(edition_client, bundle), acknowledge_review_conflicts=True).json()['asset_id']
+    other = str(Path(bundle['primary_path']).with_name('other.jpg'))
+    seed_photos_prefix(str(Path(other).parent), [{'path': other, 'filename': 'other.jpg', 'star_rating': 2}])
+    response = edition_client.post('/api/photos/batch_rating', json={'photo_paths': [*bundle['paths'], other], 'rating': 4})
+    assert response.status_code == 200, response.text
+    assert response.json()['count'] == 2 and response.json()['logical_asset_ids'] == [key]
+    with sqlite3.connect(DEFAULT_DB_PATH) as conn:
+        assert conn.execute('SELECT star_rating FROM photos WHERE path=?', (other,)).fetchone()[0] == 4
+        assert conn.execute('SELECT star_rating FROM photos WHERE path=?', (bundle['primary_path'],)).fetchone()[0] == 5

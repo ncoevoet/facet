@@ -6365,6 +6365,8 @@ export interface components {
         BatchReviewResponse: {
             /** Count */
             count: number;
+            /** Logical Asset Ids */
+            logical_asset_ids?: string[] | null;
             /** Success */
             success: boolean;
             /**

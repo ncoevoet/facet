@@ -1,0 +1,68 @@
+"""Atomic batch review split between logical identities and independent files."""
+import json
+from types import SimpleNamespace
+
+from fastapi import HTTPException
+
+from api import logical_reviews, organization_capture
+from api.config import is_multi_user_enabled
+from api.db_helpers import get_existing_columns, get_visibility_clause, snapshot_labels, read_labels, record_label_origin
+from api.logical_collection import source, membership
+
+
+def apply(conn, body, user, sql, patch, review_rejected):
+    from api.routers.faces import _write_paths, BatchReviewRequest, logger
+    from api.routers.gallery import gallery_scope_sql, _raise_422_for_invalid_gallery_params
+    from pydantic import ValidationError
+
+    if body.filters is not None:
+        try:
+            collection, where, params = gallery_scope_sql(conn, body.filters, user.user_id, body.exclude, logical=True)
+        except ValidationError as error:
+            _raise_422_for_invalid_gallery_params(error, logger, 'Logical batch filter validation failed: %s')
+    else:
+        visibility, values = get_visibility_clause(user.user_id)
+        multi_user = is_multi_user_enabled()
+        query = source(sorted(get_existing_columns(conn)), owner=(user.user_id or '') if multi_user else '',
+                       multi_user=multi_user, visibility_sql=visibility, visibility_params=values)
+        selected = membership('SELECT value AS photo_path FROM json_each(?)', [json.dumps(body.photo_paths)])
+        collection, where, params = query.sql, f' WHERE {selected.sql}', [*query.params, *selected.params]
+        if body.exclude:
+            excluded = membership('SELECT value AS photo_path FROM json_each(?)', [json.dumps(body.exclude)])
+            where += f' AND NOT ({excluded.sql})'
+            params.extend(excluded.params)
+    rows = conn.execute(f'SELECT photos.path,photos._logical_asset_id FROM {collection}{where}', params).fetchall()
+    paths = [row[0] for row in rows if row[1] is None]
+    if paths and conn.execute(
+            'SELECT 1 FROM logical_asset_members WHERE photo_path IN (SELECT value FROM json_each(?)) LIMIT 1',
+            [json.dumps(paths)]).fetchone():
+        # A partially authorized group is redacted in collection reads. Never
+        # reinterpret that redaction as permission to write its physical files.
+        raise HTTPException(404, 'Photo review unavailable')
+    keys = sorted({row[1] for row in rows if row[1] is not None})
+    # Capture every logical precondition before the first label mutation.
+    states = [logical_reviews.read(conn, key, user.user_id) for key in keys]
+    history = organization_capture.begin(conn, user.user_id, 'review', paths)
+    before = snapshot_labels(conn, user.is_agent_request, user.user_id, paths)
+    origin_paths = paths
+    if review_rejected is not None and not user.is_agent_request:
+        labels = read_labels(conn, user.user_id, paths)
+        origin_paths = [path for path in paths if labels[path].rejected != review_rejected]
+    for state in states:
+        change = dict(patch)
+        if change.get('is_favorite') == 1 and 'is_kept' not in change:
+            change.update(is_kept=int(bool(state['values']['is_kept'])), is_rejected=0)
+        body_state = SimpleNamespace(asset_id=state['asset_id'], group_revision=state['group_revision'],
+                                     revision=state['revision'], input_token=state['input_token'], patch=change, reset=[])
+        logical_reviews.apply(conn, body_state, user)
+    for offset in range(0, len(paths), 900):
+        _write_paths(conn, paths[offset:offset + 900], user, sql)
+    record_label_origin(conn, user.is_agent_request, user.user_id, origin_paths, before)
+    entries = organization_capture.finish(conn, user.user_id, 'review', history)
+    result = {'success': True, 'count': len(paths) + len(keys)}
+    if keys:
+        result['logical_asset_ids'] = keys
+    elif (isinstance(body, BatchReviewRequest) and body.decision == 'rejected'
+          and body.filters is None and len(body.photo_paths or ()) == 1 and len(entries) == 1):
+        result['undo_entry_id'] = entries[0]
+    return result

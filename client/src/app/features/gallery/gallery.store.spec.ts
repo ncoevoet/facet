@@ -157,6 +157,19 @@ describe('GalleryStore', () => {
   });
 
   describe('logical review actions', () => {
+    it('does not offer a physical snapshot or journal entry for a logical batch', async () => {
+      vi.mocked(TestBed.inject(AuthService).isEdition).mockReturnValue(true);
+      store.photos.set([makePhoto({ path: '/a.jpg', star_rating: 3 })]);
+      apiPost.mockReturnValue(of({ success: true, count: 1, logical_asset_ids: ['asset'] }));
+      vi.spyOn(store, 'refreshReviewResults').mockResolvedValue();
+      const record = vi.spyOn(TestBed.inject(UserActivityJournal), 'record');
+      const result = await store.batchRating(['/a.jpg'], 4);
+      expect(result?.count).toBe(1);
+      expect(result?.snapshot.size).toBe(0);
+      expect(record).not.toHaveBeenCalled();
+      expect(apiPost).toHaveBeenCalledExactlyOnceWith('/photos/batch_rating', { photo_paths: ['/a.jpg'], rating: 4 });
+    });
+
     it('shares a write lock across RAW/JPEG rows and reconciles both loaded values', async () => {
       const state = { asset_id: 'asset', group_revision: 1, revision: 0, input_token: 'old', source_path: '/a.jpg',
         values: { star_rating: 3, is_favorite: 0, is_kept: 0, is_rejected: 0 },
