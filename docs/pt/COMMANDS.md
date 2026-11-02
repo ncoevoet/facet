@@ -34,7 +34,7 @@
 
 ### Registro de Escaneamento
 
-O Facet registra cada escaneamento (estado, modo, diretórios, contadores) e cada erro por arquivo. Ctrl+C marca a execução como `interrupted`, para que `--resume` possa continuá-la. Os arquivos com falha são listados e reprocessados somente com `--retry-failed`. O visualizador mostra o progresso do escaneamento a partir das linhas `@FACET_PROGRESS` da CLI.
+O Facet registra cada escaneamento (estado, modo, diretórios, contadores) e cada erro por arquivo. Ctrl+C marca a execução como `interrupted`, para que `--resume` possa continuá-la. Os arquivos com falha são listados e reprocessados somente com `--retry-failed`. O visualizador mostra o progresso do escaneamento a partir das linhas `@FACET_PROGRESS` da CLI. Um escaneamento que não salvou nenhuma foto termina com o código 4 (todos os arquivos falharam, por exemplo porque um modelo necessário não carregou); um escaneamento sem nada a fazer termina com 0, e `--watch` continua vigiando após um código 4.
 
 ### Modos de Processamento
 

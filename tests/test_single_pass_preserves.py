@@ -98,7 +98,7 @@ def _processor(facet, pass_groups, restricted=True):
     proc.restricted = restricted
     proc.pass_groups = pass_groups
     proc.on_error = None
-    proc.metrics = {'thumbnail_time': 0.0}
+    proc.metrics = {'thumbnail_time': 0.0, 'photos_saved': 0}
     return proc
 
 
@@ -131,6 +131,7 @@ def test_saliency_pass_preserves_scored_columns_and_faces(seeded):
     proc = _processor(facet, [['saliency']])
 
     _persist(proc, {path: dict(_SALIENCY)}, _images(path))
+    assert proc.metrics['photos_saved'] == 1   # the restricted save counts what it wrote
 
     with get_connection(db, row_factory=True) as conn:
         row = conn.execute(

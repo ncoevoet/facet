@@ -99,7 +99,7 @@ class TestFaceWeightsLoadFailure:
         analyzer = PermissiveFaceAnalyzer()
         analyzer.available = False
         proc = ChunkedMultiPassProcessor.__new__(ChunkedMultiPassProcessor)
-        proc.metrics = {'rebuild_time': 0.0}
+        proc.metrics = {'rebuild_time': 0.0, 'photos_saved': 0}
         images = {'p.jpg': {'pil': Image.fromarray(np.full((8, 8, 3), 9, dtype=np.uint8)),
                             'height': 8, 'width': 8, 'cache': None}}
         results = {'p.jpg': {}}

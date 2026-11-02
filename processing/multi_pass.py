@@ -238,6 +238,8 @@ class ChunkedMultiPassProcessor:
             'model_load_overlapped_by_model': {},
             'thumbnail_time': 0.0,
             'save_time': 0.0,
+            # Photos the chunk saves wrote (a scan that saves 0 of N > 0 is a failure).
+            'photos_saved': 0,
         }
 
         # Decode overlap (see _overlap_allowed) and RAM-cache trim state, per scan.
@@ -1840,6 +1842,7 @@ class ChunkedMultiPassProcessor:
         if batch:
             self.scorer.save_photos_batch(batch, phase_metrics=self.metrics)
             self.scorer.commit()
+            self.metrics['photos_saved'] += len(batch)
 
     def _save_results_restricted(self, results: Dict, images: Dict):
         """Save a single restricted pass, updating only the columns it computed.
@@ -1888,6 +1891,7 @@ class ChunkedMultiPassProcessor:
         if batch:
             self.scorer.save_photos_partial(batch, refresh_faces)
             self.scorer.commit()
+            self.metrics['photos_saved'] += len(batch)
 
     @staticmethod
     def _print_stage_timers(m: Dict[str, Any], total: float):
