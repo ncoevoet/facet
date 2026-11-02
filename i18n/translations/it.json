@@ -2860,6 +2860,20 @@
     "restore_failed": "Impossibile annullare"
   },
   "cull": {
+    "file_preview": {
+      "title": "File interessati",
+      "help": "Controlla i file prima di applicare. Fai clic su un’immagine per ingrandirla. Annulla per modificare le decisioni sulle foto.",
+      "back": "Torna ai file",
+      "unavailable": "Anteprima non disponibile",
+      "sidecar": "File associato XMP",
+      "enlarge": "Ingrandisci {name}",
+      "pages": "Pagine dell’anteprima dei file",
+      "previous": "Precedente",
+      "next": "Successiva",
+      "range": "File {start}–{end} di {total}",
+      "trash": "Sposta {count} file nel cestino di sistema",
+      "trash_one": "Sposta 1 file nel cestino di sistema"
+    },
     "action": "Scarta in cartella…",
     "title": "Scarta in cartella",
     "selected": "selezionati",

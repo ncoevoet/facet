@@ -2860,6 +2860,20 @@
     "restore_failed": "Could not undo"
   },
   "cull": {
+    "file_preview": {
+      "title": "Files in this operation",
+      "help": "Review the files before applying. Click an image to enlarge it. Cancel to change your photo decisions.",
+      "back": "Back to files",
+      "unavailable": "Preview unavailable",
+      "sidecar": "XMP sidecar",
+      "enlarge": "Enlarge {name}",
+      "pages": "File preview pages",
+      "previous": "Previous",
+      "next": "Next",
+      "range": "Files {start}–{end} of {total}",
+      "trash": "Move {count} files to OS Trash",
+      "trash_one": "Move 1 file to OS Trash"
+    },
     "action": "Cull to folder…",
     "title": "Cull to folder",
     "selected": "selected",

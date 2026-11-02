@@ -362,6 +362,7 @@ When an assistant connected through [AI Agents (MCP)](AGENTS.md) shows you an ex
 **Cull to folder…** on the bulk-action bar (edition mode) copies keeps, or moves/trashes rejects, to a target folder. Trash means the OS trash, never a permanent delete, and needs `viewer.cull.allow_trash`.
 
 - **Every run starts as a dry run.** You see a preview before anything is written; move/trash run only with an explicit `dry_run=false`.
+- The preview lists the exact affected files, 24 per page, with thumbnails and filenames. Click an image to enlarge it. XMP sidecars and unavailable images remain listed. Cancel to change photo decisions; changing an option requires a new preview. The trash confirmation states the number of files, including enabled companions.
 - **The server picks the files from each photo's own state.** Copy acts only on keeps, move/trash only on rejects. Anything else is reported as `excluded_by_state`. The client cannot hand over a list of files to delete.
 - **Companions are opt-in.** Rejecting a JPEG does not take its RAW unless you tick **Include companion RAW / XMP** (`include_companions`).
 - On macOS and Windows, companion RAW files keep their on-disk names, including uppercase extensions; on Windows, `.xmp` sidecars do too.

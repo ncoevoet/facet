@@ -2860,6 +2860,20 @@
     "restore_failed": "Não foi possível desfazer"
   },
   "cull": {
+    "file_preview": {
+      "title": "Ficheiros desta operação",
+      "help": "Reveja os ficheiros antes de aplicar. Clique numa imagem para a ampliar. Cancele para alterar as decisões sobre as fotos.",
+      "back": "Voltar aos ficheiros",
+      "unavailable": "Pré-visualização indisponível",
+      "sidecar": "Ficheiro auxiliar XMP",
+      "enlarge": "Ampliar {name}",
+      "pages": "Páginas da pré-visualização de ficheiros",
+      "previous": "Anterior",
+      "next": "Seguinte",
+      "range": "Ficheiros {start}–{end} de {total}",
+      "trash": "Mover {count} ficheiros para o lixo do sistema",
+      "trash_one": "Mover 1 ficheiro para o lixo do sistema"
+    },
     "action": "Selecionar para pasta…",
     "title": "Selecionar para pasta",
     "selected": "selecionado(s)",

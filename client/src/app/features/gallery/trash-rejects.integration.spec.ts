@@ -49,8 +49,7 @@ describe('all rejected photos preview and apply through HTTP', () => {
     http.verify();
   });
 
-  const applyButton = () => [...fixture.nativeElement.querySelectorAll('button')]
-    .find((button: HTMLButtonElement) => button.textContent?.trim() === 'cull.apply') as HTMLButtonElement;
+  const applyButton = () => fixture.nativeElement.querySelector('button[mat-flat-button]') as HTMLButtonElement;
 
   async function preview(digest: string | undefined = DIGEST) {
     const request = http.expectOne('/api/cull/apply');
@@ -82,6 +81,21 @@ describe('all rejected photos preview and apply through HTTP', () => {
     expect(applyButton().disabled).toBe(true);
     await fixture.componentInstance.apply();
     http.expectNone('/api/cull/apply');
+  });
+
+  it('shows exactly the HTTP dry-run targets, including companions, before applying the same digest', async () => {
+    const request = http.expectOne('/api/cull/apply');
+    request.flush({ preview_digest: DIGEST, would_trash: ['/r.jpg', '/r.CR3', '/r.XMP'], matched: 1 });
+    await fixture.whenStable(); fixture.detectChanges();
+    const rows = fixture.nativeElement.querySelectorAll('app-cull-file-preview li') as NodeListOf<HTMLElement>;
+    expect([...rows].map(row => row.querySelector('p')?.textContent?.trim())).toEqual(['/r.jpg', '/r.CR3', '/r.XMP']);
+    expect(applyButton().textContent?.trim()).toBe('cull.file_preview.trash');
+    http.expectNone('/api/cull/apply');
+    applyButton().click();
+    const apply = http.expectOne('/api/cull/apply');
+    expect(apply.request.body).toMatchObject({ dry_run: false, preview_digest: DIGEST, filters: FILTERS });
+    apply.flush({ trashed: 3 }); await fixture.whenStable();
+    expect(close).toHaveBeenCalledWith(true);
   });
 
   it('does not apply without a successful preview, even if the method is called directly', async () => {
@@ -229,8 +243,8 @@ describe('trash Apply with a real Material dialog', () => {
     const heading = container.querySelector('h2')!;
     const button = (label: string) => [...container.querySelectorAll('button')]
       .find(item => item.textContent?.trim() === label) as HTMLButtonElement;
-    await vi.waitFor(() => expect(button('cull.apply').disabled).toBe(false));
-    button('cull.apply').click();
+    await vi.waitFor(() => expect(button('cull.file_preview.trash_one').disabled).toBe(false));
+    button('cull.file_preview.trash_one').click();
     const apply = http.expectOne('/api/cull/apply');
     expect(ref.disableClose).toBe(true);
     await TestBed.inject(Router).navigateByUrl('/?duringApply=1');

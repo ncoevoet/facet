@@ -2860,6 +2860,20 @@
     "restore_failed": "无法撤销"
   },
   "cull": {
+    "file_preview": {
+      "title": "本次操作的文件",
+      "help": "应用前请检查文件。点击图片可放大。取消操作后可更改照片决定。",
+      "back": "返回文件列表",
+      "unavailable": "预览不可用",
+      "sidecar": "XMP 附属文件",
+      "enlarge": "放大 {name}",
+      "pages": "文件预览分页",
+      "previous": "上一页",
+      "next": "下一页",
+      "range": "文件 {start}–{end}，共 {total} 个",
+      "trash": "将 {count} 个文件移至系统回收站",
+      "trash_one": "将 1 个文件移至系统回收站"
+    },
     "action": "选片后导出／清理…",
     "title": "选片后导出／清理",
     "selected": "已选",

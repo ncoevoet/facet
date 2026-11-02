@@ -362,6 +362,7 @@ Zeigt Ihnen ein über [KI-Agenten (MCP)](AGENTS.md) verbundener Assistent eine e
 **In Ordner aussortieren…** in der Sammelaktionsleiste (Bearbeitungsmodus) kopiert Behaltene oder verschiebt/entsorgt Abgelehnte in einen Zielordner. Papierkorb bedeutet den Systempapierkorb, nie ein endgültiges Löschen, und erfordert `viewer.cull.allow_trash`.
 
 - **Jeder Lauf beginnt als Trockenlauf.** Sie sehen eine Vorschau, bevor etwas geschrieben wird; Verschieben/Papierkorb laufen nur mit einem ausdrücklichen `dry_run=false`.
+- Die Vorschau zeigt die tatsächlich betroffenen Dateien mit Miniaturbildern und Dateinamen, 24 pro Seite. Klicken Sie zum Vergrößern auf ein Bild. XMP-Begleitdateien und nicht verfügbare Bilder bleiben aufgelistet. Brechen Sie ab, um Fotoentscheidungen zu ändern; nach einer Optionsänderung ist eine neue Vorschau nötig. Die Papierkorb-Bestätigung nennt die Anzahl der Dateien einschließlich aktivierter Begleitdateien.
 - **Der Server wählt die Dateien anhand des Status jedes Fotos.** Kopieren wirkt nur auf Behaltene, Verschieben/Papierkorb nur auf Abgelehnte. Alles andere wird als `excluded_by_state` gemeldet. Der Client kann keine Liste zu löschender Dateien übergeben.
 - **Begleitdateien sind optional.** Das Ablehnen eines JPEGs nimmt sein RAW nicht mit, solange Sie nicht **RAW/XMP-Begleitdatei einbeziehen** (`include_companions`) ankreuzen.
 - Unter macOS und Windows behalten RAW-Begleitdateien ihre Dateinamen auf dem Datenträger, einschließlich großgeschriebener Erweiterungen; unter Windows gilt das auch für `.xmp`-Sidecars.
