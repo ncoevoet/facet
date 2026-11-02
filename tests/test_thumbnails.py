@@ -785,3 +785,45 @@ def test_heif_conversion_matches_what_the_scanner_scored():
     # JPEG at quality 100 is still lossy; the two must agree to within it, and
     # nowhere near the gulf a missing tone map would open.
     assert np.abs(served - scored).mean() < 2.0
+
+
+def test_resize_eviction_tolerates_concurrent_photo_invalidation(monkeypatch):
+    from api.routers import thumbnails
+    from PIL import Image
+
+    selected, resume = threading.Event(), threading.Event()
+
+    class PausingCache(dict):
+        def keys(self):
+            candidates = list(super().keys())
+            selected.set()
+            assert resume.wait(5)
+            return candidates
+
+    old_path = '/fixture/removed.jpg'
+    cache = PausingCache({(old_path, 48, b'old'): b'old thumbnail'})
+    monkeypatch.setattr(thumbnails, '_resize_cache', cache)
+    monkeypatch.setattr(thumbnails, '_thumbnail_cache_size', 1)
+    blob = _make_jpeg_bytes((100, 100))
+    result, errors = [], []
+
+    def resize():
+        try:
+            result.append(thumbnails._get_or_resize('/fixture/current.jpg', blob, 48))
+        except BaseException as error:
+            errors.append(error)
+
+    worker = threading.Thread(target=resize)
+    worker.start()
+    try:
+        assert selected.wait(5)
+        thumbnails.clear_photo_image_caches({old_path})
+    finally:
+        resume.set()
+        worker.join(5)
+    assert not worker.is_alive()
+    assert not errors
+    assert len(result) == 1
+    with Image.open(BytesIO(result[0])) as image:
+        assert image.size == (48, 48)
+    assert all(key[0] != old_path for key in cache)

@@ -202,7 +202,7 @@ def _get_or_resize(photo_path: str, thumbnail_bytes: bytes, size: int) -> bytes:
         # Remove first ~10% of entries
         evict_count = max(1, _thumbnail_cache_size // 10)
         for old_key in list(_resize_cache.keys())[:evict_count]:
-            del _resize_cache[old_key]
+            _resize_cache.pop(old_key, None)
     _resize_cache[key] = resized
     return resized
 
