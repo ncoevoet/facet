@@ -72,6 +72,7 @@ class BatchProcessor:
             'total_load_time': 0.0,
             'total_bytes_loaded': 0,
             'queue_timeouts': 0,
+            'photos_saved': 0,
             'start_time': None,
             'elapsed_time': 0.0,
         }
@@ -564,6 +565,7 @@ class BatchProcessor:
                             # Batch save every batch_save_size items
                             if len(pending_saves) >= self.batch_save_size:
                                 self.scorer.save_photos_batch(pending_saves)
+                                self.metrics['photos_saved'] += len(pending_saves)
                                 pending_saves = []
 
                                 # Update metrics reporter
@@ -593,6 +595,7 @@ class BatchProcessor:
                 # Save any remaining items
                 if pending_saves:
                     self.scorer.save_photos_batch(pending_saves)
+                    self.metrics['photos_saved'] += len(pending_saves)
 
             # Finalize metrics
             self.metrics['elapsed_time'] = time.time() - start_time
@@ -725,6 +728,7 @@ class BatchProcessor:
                             # Batch save every batch_save_size items
                             if len(pending_saves) >= self.batch_save_size:
                                 self.scorer.save_photos_batch(pending_saves)
+                                self.metrics['photos_saved'] += len(pending_saves)
                                 pending_saves = []
 
                                 # Update metrics reporter
@@ -754,6 +758,7 @@ class BatchProcessor:
                 # Save any remaining items
                 if pending_saves:
                     self.scorer.save_photos_batch(pending_saves)
+                    self.metrics['photos_saved'] += len(pending_saves)
 
             # Finalize metrics
             self.metrics['elapsed_time'] = time.time() - start_time

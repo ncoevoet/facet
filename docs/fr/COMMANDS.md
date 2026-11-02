@@ -34,7 +34,7 @@
 
 ### Suivi des analyses
 
-Facet enregistre chaque analyse (statut, mode, répertoires, compteurs) et chaque erreur par fichier. Ctrl+C marque l'exécution `interrupted`, ce qui permet à `--resume` de la poursuivre. Les fichiers en échec sont listés et ne sont retentés qu'avec `--retry-failed`. La visionneuse affiche la progression de l'analyse à partir des lignes `@FACET_PROGRESS` de la CLI.
+Facet enregistre chaque analyse (statut, mode, répertoires, compteurs) et chaque erreur par fichier. Ctrl+C marque l'exécution `interrupted`, ce qui permet à `--resume` de la poursuivre. Les fichiers en échec sont listés et ne sont retentés qu'avec `--retry-failed`. La visionneuse affiche la progression de l'analyse à partir des lignes `@FACET_PROGRESS` de la CLI. Une analyse qui n'a enregistré aucune photo se termine avec le code 4 (tous les fichiers ont échoué, par exemple parce qu'un modèle requis ne s'est pas chargé) ; une analyse sans rien à faire se termine avec 0, et `--watch` continue de surveiller après un code 4.
 
 ### Modes de traitement
 
