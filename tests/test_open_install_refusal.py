@@ -76,6 +76,16 @@ EDITION_ROUTES = _routes_requiring(require_edition)
 # Pinned on purpose: dropping require_edition from a route (or adding a new
 # edition route) must fail here with a readable diff, not slip under a count.
 EXPECTED_EDITION_ROUTES = frozenset({
+    ('POST', '/api/export/apply'),
+    ('POST', '/api/export/preview'),
+    ('POST', '/api/export/sidecar_jobs/{job_id}/preview'),
+    ('POST', '/api/faces/review/feedback'),
+    ('POST', '/api/faces/review/feedback/undo'),
+    ('POST', '/api/logical_assets/apply'),
+    ('POST', '/api/manual_tags/hierarchy/apply'),
+    ('POST', '/api/manual_tags/hierarchy/preview'),
+    ('POST', '/api/manual_tags/manage/apply'),
+    ('POST', '/api/manual_tags/manage/preview'),
     ('POST', '/api/stacks/regroup/apply'),
     ('POST', '/api/stacks'),
     ('PUT', '/api/stacks/{stack_id}'),

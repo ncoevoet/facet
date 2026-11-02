@@ -51,6 +51,7 @@ describe('tag pivots through actual gallery, photo, menus, Router and HTTP', () 
     http.match('/api/photos/review_progress').forEach(request => request.flush({ total: 1, undecided: 1, kept: 0, rejected: 0 }));
     http.match(request => request.url === '/api/photo/set').forEach(request => request.flush({ kind: null, members: [] }));
     http.match(request => request.url === '/api/photo/faces').forEach(request => request.flush({ faces: [] }));
+    http.match(request => request.url === '/api/photo/objects').forEach(request => request.flush({ objects: [] }));
   };
   const render = async () => {
     harness.detectChanges(); sideData(); await Promise.resolve(); harness.detectChanges(); sideData();

@@ -65,6 +65,24 @@ def test_create_primary_and_dissolve_preserve_file_and_review_values(edition_cli
     assert Path(bundle['paths'][1]).read_bytes() == b'RAW fixture'
 
 
+def test_marked_object_search_keeps_logical_pair_and_fts_identity(edition_client, bundle):
+    created = submit(edition_client, bundle, draft(edition_client, bundle), acknowledge_review_conflicts=True)
+    assert created.status_code == 200, created.text
+    marked = edition_client.post('/api/photo/objects', json={
+        'path': bundle['primary_path'], 'label': 'café subject', 'box': [0.1, 0.2, 0.4, 0.6],
+    })
+    assert marked.status_code == 201, marked.text
+    query = {'search': 'café subject', 'hide_rejected': False, 'hide_bursts': False,
+             'hide_duplicates': False, 'hide_brackets': False, 'hide_panoramas': False}
+    gallery = edition_client.get('/api/photos', params=query)
+    assert gallery.status_code == 200, gallery.text
+    assert gallery.json()['total'] == 1
+    assert [photo['path'] for photo in gallery.json()['photos']] == [bundle['primary_path']]
+    progress = edition_client.get('/api/photos/review_progress', params=query)
+    assert progress.status_code == 200, progress.text
+    assert progress.json()['total'] == 1
+
+
 @pytest.mark.parametrize('changed', ['file', 'review', 'permission', 'request', 'secret'])
 def test_changed_preview_refuses_without_partial_membership(edition_client, bundle, monkeypatch, changed):
     from api import config, logical_asset_changes

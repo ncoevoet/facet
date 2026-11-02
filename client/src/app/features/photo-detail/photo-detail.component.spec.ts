@@ -477,7 +477,7 @@ describe('PhotoDetailComponent', () => {
     const root = view.nativeElement as HTMLElement;
     const visibility = root.querySelector('[data-face-box-mode] mat-icon')?.textContent?.trim();
     const drawing = root.querySelector('[aria-label="manual_faces.title"] mat-icon')?.textContent?.trim();
-    expect(drawing).toBe('add_box'); expect(drawing).not.toBe(visibility);
+    expect(drawing).toBe('highlight_alt'); expect(drawing).not.toBe(visibility);
   });
 
   it('cycles the face-box button hover, always, off, remembering each and telling the layer', () => {
