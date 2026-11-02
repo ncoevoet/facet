@@ -262,3 +262,34 @@ def test_start_retry_returns_same_receipt_without_spawning_again(update_api):
     assert len(spawned)==1
     assert client.post('/api/scan/faces/start',json={**body,'expected_model':'wrong'}).status_code==409
     assert len(spawned)==1
+
+
+@pytest.mark.parametrize('operation', ['delete', 'move'])
+def test_photo_cascade_does_not_scan_unrelated_face_update_receipts(library, operation):
+    db, paths = library
+    with sqlite3.connect(db) as conn:
+        conn.execute('PRAGMA foreign_keys=ON')
+        conn.executemany('INSERT INTO photos(path,filename) VALUES (?,?)',
+                         [(f'/archive/{i}.jpg', f'{i}.jpg') for i in range(5000)])
+        conn.execute("INSERT INTO face_update_jobs(job_id,owner,model,total) VALUES (?, 'root', 'fixture', 5003)", (JOB,))
+        conn.execute("INSERT INTO face_update_items(job_id,path,state) SELECT ?,path,'empty' FROM photos", (JOB,))
+        conn.commit()
+        steps = 0
+
+        def budget():
+            nonlocal steps
+            steps += 100
+            return int(steps > 10000)
+
+        conn.set_progress_handler(budget, 100)
+        moved = paths[0] + '.moved'
+        try:
+            if operation == 'delete':
+                conn.execute('DELETE FROM photos WHERE path=?', (paths[0],))
+            else:
+                conn.execute('UPDATE photos SET path=? WHERE path=?', (moved, paths[0]))
+        finally:
+            conn.set_progress_handler(None, 0)
+        assert conn.execute('SELECT COUNT(*) FROM face_update_items WHERE path=?', (paths[0],)).fetchone() == (0,)
+        assert conn.execute('SELECT COUNT(*) FROM face_update_items WHERE path=?', (moved,)).fetchone() == (int(operation == 'move'),)
+        assert conn.execute("SELECT COUNT(*) FROM face_update_items WHERE path LIKE '/archive/%'").fetchone() == (5000,)

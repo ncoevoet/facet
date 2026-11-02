@@ -918,6 +918,7 @@ MANUAL_FACE_INDEXES = [
 
 FACE_UPDATE_INDEXES = [
     ('idx_face_update_pending', 'face_update_items', 'job_id,state,path'),
+    ('idx_face_update_path', 'face_update_items', 'path'),
 ]
 
 # Identity constraints share the registry used by schema diagnostics. Manual

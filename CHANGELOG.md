@@ -55,6 +55,8 @@ All notable changes to Facet are documented in this file.
 
 ### Fixed
 
+- Photo deletion and relinking use an indexed lookup for retained face-update receipts, avoiding a full job-history scan per photo.
+
 - Shared-album slideshows use the album’s authorized image URLs and load subsequent shared pages. Refine collection from a photo preserves cleared smart-album criteria. Late rating and favorite responses no longer update another account’s gallery or activity history.
 
 - Older People searches cannot replace newer results. Manual face and object deletion refuses actions from a dialog opened by another account and ignores stale completions.
