@@ -525,7 +525,7 @@ Beim Speichern, Bearbeiten oder Entfernen eines manuellen Gesichts werden die Ge
 
 Die veraltete Einstellung `viewer.performance.face_cache_size` wird ignoriert und kann entfernt werden.
 
-**Objekte.** Derselbe Editor kann stattdessen ein Objekt markieren: **Objekt** wählen, das Rechteck ziehen, eine Bezeichnung eingeben (zum Beispiel „Geburtstagstorte“) und speichern. Objekte erscheinen als blaue, beschriftete Rechtecke auf dem Foto, die Galeriesuche findet sie über die Bezeichnung, und Assistenten können sie lesen (`GET /api/photo/objects`), um zu wissen, welcher Bereich gemeint ist. Ein Objekt ist nie ein Gesicht: Es berührt weder Erkennung, Clustering, Personen noch Gesichtswertungen.
+**Objekte.** Derselbe Editor kann stattdessen ein Objekt markieren: **Objekt** wählen, das Rechteck ziehen, eine Bezeichnung eingeben (zum Beispiel „Geburtstagstorte“) und speichern. Objekte erscheinen als blaue, beschriftete Rechtecke auf dem Foto, die Galeriesuche findet sie über die Bezeichnung, und Assistenten können sie lesen (`GET /api/photo/objects` oder das Feld `objects` des Tools `get_photo`), um zu wissen, welcher Bereich gemeint ist. Markierungen zeichnen immer Sie selbst, sie werden nie automatisch erkannt: Sie zeigen einem Assistenten, wo er handeln soll, zum Beispiel ein Rechteck mit der Bezeichnung „entfernen“ um eine von drei Flaschen auf einem Foto. Ein Objekt ist nie ein Gesicht: Es berührt weder Erkennung, Clustering, Personen noch Gesichtswertungen.
 
 ## Scan auslösen
 

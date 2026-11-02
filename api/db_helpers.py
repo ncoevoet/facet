@@ -36,6 +36,7 @@ from api.change_token import db_change_token
 from api.database import get_db_connection
 from comparison.comparison_manager import record_culling_pairs
 from db import DEFAULT_DB_PATH
+from db.schema import table_exists
 from db.person_centroids import recompute_person_centroid
 from db.manual_tags import TAG_SEPARATOR, normalize_manual_tag, ManualTagError
 from utils.detection import DEFAULT_PHOTO_THUMBNAIL_SIZE
@@ -195,7 +196,7 @@ def _schema_caches_warm(now: float) -> bool:
                 or now - _config_mod._photo_tags_checked_at >= PHOTO_TAGS_CACHE_TTL / 2):
             return False
     # Refreshed at half its lifetime, like photo_tags above.
-    if _manual_tags_cached(str(DEFAULT_DB_PATH), now, PHOTO_TAGS_CACHE_TTL / 2) is None:
+    if _side_table_cached((str(DEFAULT_DB_PATH), 'photo_manual_tags'), now, PHOTO_TAGS_CACHE_TTL / 2) is None:
         return False
     from api.change_token import change_token_sentinel_open
     return change_token_sentinel_open(DEFAULT_DB_PATH)
@@ -208,9 +209,9 @@ def _warm_schema_caches() -> None:
         if time.monotonic() - _config_mod._photo_tags_checked_at >= PHOTO_TAGS_CACHE_TTL / 2:
             # Expire it so the call below re-probes instead of answering from cache.
             _config_mod._photo_tags_checked_at = 0.0
-    key = str(DEFAULT_DB_PATH)
-    if _manual_tags_cached(key, time.monotonic(), PHOTO_TAGS_CACHE_TTL / 2) is None:
-        _manual_tags_present.pop(key, None)
+    key = (str(DEFAULT_DB_PATH), 'photo_manual_tags')
+    if _side_table_cached(key, time.monotonic(), PHOTO_TAGS_CACHE_TTL / 2) is None:
+        _side_table_present.pop(key, None)
     is_photo_tags_available()
     is_manual_tags_available()
     db_change_token(DEFAULT_DB_PATH)
@@ -692,8 +693,7 @@ def invalidate_existing_columns_cache():
     with _existing_columns_lock:
         _existing_columns_cache = None
         _config_mod._existing_columns_cache = None
-    _manual_tags_present.clear()
-    _photo_objects_present.clear()
+    _side_table_present.clear()
 
 
 def is_photo_tags_available(conn=None):
@@ -749,20 +749,20 @@ def is_photo_tags_available(conn=None):
     return _photo_tags_available
 
 
-# Keyed by database file: (found, checked_at). A True never expires -- once
-# photo_manual_tags exists it does not go away -- while a False is re-checked
+# Keyed by (database file, table): (found, checked_at). A True never expires --
+# once a side table exists it does not go away -- while a False is re-checked
 # after PHOTO_TAGS_CACHE_TTL, because a CLI upgrade can create the table while the
 # server is up (a lifespan init_database clears this through
 # invalidate_existing_columns_cache). Caching the False too keeps a library
 # without the table from opening a connection on every request. Table existence
 # is the whole check -- no row count -- so a manual-only library and a first-ever
 # write are both seen at once.
-_manual_tags_present: dict[str, tuple[bool, float]] = {}
+_side_table_present: dict[tuple[str, str], tuple[bool, float]] = {}
 
 
-def _manual_tags_cached(key: str, now: float, max_age: float):
+def _side_table_cached(key: tuple[str, str], now: float, max_age: float):
     """The cached answer for ``key`` when it is still fresh at ``now``, else None."""
-    entry = _manual_tags_present.get(key)
+    entry = _side_table_present.get(key)
     if entry is None:
         return None
     found, checked_at = entry
@@ -771,8 +771,8 @@ def _manual_tags_cached(key: str, now: float, max_age: float):
     return None
 
 
-def is_manual_tags_available(conn=None):
-    """True when the ``photo_manual_tags`` table exists (existence only, no row count).
+def _side_table_available(name: str, conn=None) -> bool:
+    """True when the side table ``name`` exists (existence only, no row count).
 
     Readers that touch the table check this first, because a lifespan
     ``init_database`` failure only logs: a server can run against an older
@@ -780,9 +780,9 @@ def is_manual_tags_available(conn=None):
     connection that is not a synchronous ``sqlite3.Connection`` is replaced by a
     short-lived one of our own on a cache miss.
     """
-    key = str(DEFAULT_DB_PATH)
+    key = (str(DEFAULT_DB_PATH), name)
     now = time.monotonic()
-    cached = _manual_tags_cached(key, now, PHOTO_TAGS_CACHE_TTL)
+    cached = _side_table_cached(key, now, PHOTO_TAGS_CACHE_TTL)
     if cached is not None:
         return cached
     close_conn = False
@@ -790,47 +790,25 @@ def is_manual_tags_available(conn=None):
         conn = get_db_connection()
         close_conn = True
     try:
-        found = conn.execute(
-            "SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'photo_manual_tags'"
-        ).fetchone() is not None
+        found = table_exists(conn, name)
     except sqlite3.OperationalError:
-        logger.debug("photo_manual_tags availability check failed", exc_info=True)
+        logger.debug("%s availability check failed", name, exc_info=True)
         found = False
     finally:
         if close_conn:
             conn.close()
-    _manual_tags_present[key] = (found, now)
+    _side_table_present[key] = (found, now)
     return found
 
 
-# Same contract as _manual_tags_present, for the user-marked objects table.
-_photo_objects_present: dict[str, tuple[bool, float]] = {}
+def is_manual_tags_available(conn=None):
+    """True when the ``photo_manual_tags`` table exists."""
+    return _side_table_available('photo_manual_tags', conn)
 
 
 def is_photo_objects_available(conn=None):
-    """True when the ``photo_objects`` table exists; same caching and connection rules
-    as :func:`is_manual_tags_available`."""
-    key = str(DEFAULT_DB_PATH)
-    now = time.monotonic()
-    entry = _photo_objects_present.get(key)
-    if entry is not None and (entry[0] or now - entry[1] < PHOTO_TAGS_CACHE_TTL):
-        return entry[0]
-    close_conn = False
-    if not isinstance(conn, sqlite3.Connection):
-        conn = get_db_connection()
-        close_conn = True
-    try:
-        found = conn.execute(
-            "SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'photo_objects'"
-        ).fetchone() is not None
-    except sqlite3.OperationalError:
-        logger.debug("photo_objects availability check failed", exc_info=True)
-        found = False
-    finally:
-        if close_conn:
-            conn.close()
-    _photo_objects_present[key] = (found, now)
-    return found
+    """True when the ``photo_objects`` table exists."""
+    return _side_table_available('photo_objects', conn)
 
 
 def _manual_tag_match_key(tag):

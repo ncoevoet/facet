@@ -56,13 +56,16 @@ def create_photo_object(body: PhotoObjectCreate, user: CurrentUser = Depends(req
     x1, y1, x2, y2 = body.box
     with get_db() as conn:
         _require_writable_photo(conn, user, body.path)
-        count = conn.execute('SELECT COUNT(*) FROM photo_objects WHERE photo_path = ?', (body.path,)).fetchone()[0]
-        if count >= MAX_OBJECTS_PER_PHOTO:
-            raise HTTPException(status_code=409, detail=f'At most {MAX_OBJECTS_PER_PHOTO} objects per photo')
         created_by = user.user_id if user and is_multi_user_enabled() else None
+        # One statement checks the cap and inserts, so two concurrent marks at 49 cannot both land.
         cur = conn.execute(
-            'INSERT INTO photo_objects (photo_path, label, x1, y1, x2, y2, created_by) VALUES (?, ?, ?, ?, ?, ?, ?)',
-            (body.path, label, x1, y1, x2, y2, created_by))
+            'INSERT INTO photo_objects (photo_path, label, x1, y1, x2, y2, created_by) '
+            'SELECT ?, ?, ?, ?, ?, ?, ? '
+            'WHERE (SELECT COUNT(*) FROM photo_objects WHERE photo_path = ?) < ?',
+            (body.path, label, x1, y1, x2, y2, created_by, body.path, MAX_OBJECTS_PER_PHOTO))
+        if cur.rowcount == 0:
+            conn.rollback()
+            raise HTTPException(status_code=409, detail=f'At most {MAX_OBJECTS_PER_PHOTO} objects per photo')
         conn.commit()
         return PhotoObject(id=cur.lastrowid, label=label, box=[x1, y1, x2, y2])
 

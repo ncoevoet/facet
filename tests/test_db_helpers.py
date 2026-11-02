@@ -252,7 +252,7 @@ class TestManualTagsProbeCache:
 
         monkeypatch.setattr(db_helpers, "DEFAULT_DB_PATH", db_path)
         monkeypatch.setattr(db_helpers, "get_db_connection", connect)
-        monkeypatch.setattr(db_helpers, "_manual_tags_present", {})
+        monkeypatch.setattr(db_helpers, "_side_table_present", {})
         return types.SimpleNamespace(db_path=db_path, opened=opened, clock=clock)
 
     def test_a_missing_table_is_cached_for_the_ttl(self, probe):
@@ -274,3 +274,9 @@ class TestManualTagsProbeCache:
         probe.clock.now += 10 * db_helpers.PHOTO_TAGS_CACHE_TTL
         assert db_helpers.is_manual_tags_available() is True
         assert probe.opened == [1]
+
+    def test_each_side_table_has_its_own_answer(self, probe):
+        with sqlite3.connect(probe.db_path) as conn:
+            conn.execute("CREATE TABLE photo_objects (photo_path TEXT, label TEXT)")
+        assert db_helpers.is_photo_objects_available() is True
+        assert db_helpers.is_manual_tags_available() is False

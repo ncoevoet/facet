@@ -80,3 +80,56 @@ def test_gallery_search_finds_the_label(edition_client, photo):
     paths = [p["path"] for p in edition_client.get("/api/photos", params={"search": "cake"}).json()["photos"]]
     assert photo in paths
     assert PREFIX + "beach.jpg" not in paths
+
+
+def _count(path):
+    with sqlite3.connect(_TEST_DB_FILE.name) as conn:
+        return conn.execute("SELECT COUNT(*) FROM photo_objects WHERE photo_path = ?", (path,)).fetchone()[0]
+
+
+def test_cap_is_enforced_by_the_insert_itself(edition_client, photo):
+    from api.routers.photo_objects import MAX_OBJECTS_PER_PHOTO
+    with sqlite3.connect(_TEST_DB_FILE.name) as conn:
+        conn.executemany(
+            "INSERT INTO photo_objects (photo_path, label, x1, y1, x2, y2) VALUES (?, ?, 0, 0, 1, 1)",
+            [(photo, f"o{i}") for i in range(MAX_OBJECTS_PER_PHOTO - 1)])
+    ok = edition_client.post("/api/photo/objects", json={"path": photo, "label": "last", "box": [0, 0, 1, 1]})
+    assert ok.status_code == 201, ok.text
+    full = edition_client.post("/api/photo/objects", json={"path": photo, "label": "extra", "box": [0, 0, 1, 1]})
+    assert full.status_code == 409
+    assert _count(photo) == MAX_OBJECTS_PER_PHOTO
+
+
+def test_cap_is_one_conditional_insert_not_check_then_insert(edition_client, photo, monkeypatch):
+    """A row landing between a count and the insert must not get past the cap."""
+    from api.routers import photo_objects as mod
+    monkeypatch.setattr(mod, "MAX_OBJECTS_PER_PHOTO", 1)
+    real = mod.get_db
+
+    class Racer:
+        """Lets a rival insert in right after any COUNT(*) read, as a concurrent request would."""
+        def __init__(self, conn):
+            self._c = conn
+
+        def __getattr__(self, name):
+            return getattr(self._c, name)
+
+        def execute(self, sql, params=()):
+            cur = self._c.execute(sql, params)
+            if sql.lstrip().startswith("SELECT COUNT(*)"):
+                with sqlite3.connect(_TEST_DB_FILE.name) as other:
+                    other.execute("INSERT INTO photo_objects (photo_path, label, x1, y1, x2, y2) "
+                                  "VALUES (?, 'rival', 0, 0, 1, 1)", (photo,))
+            return cur
+
+    class Ctx:
+        def __enter__(self):
+            self._cm = real()
+            return Racer(self._cm.__enter__())
+
+        def __exit__(self, *a):
+            return self._cm.__exit__(*a)
+
+    monkeypatch.setattr(mod, "get_db", lambda: Ctx())
+    r = edition_client.post("/api/photo/objects", json={"path": photo, "label": "mine", "box": [0, 0, 1, 1]})
+    assert r.status_code == 201 and _count(photo) == 1

@@ -6,7 +6,7 @@ All notable changes to Facet are documented in this file.
 
 ### Added
 
-- **Mark an object.** The mark editor on the photo page can mark an object instead of a face: pick **Object**, draw the box and give it a label. Objects show as blue labelled boxes, the gallery search finds them by label, and `GET /api/photo/objects` lets assistants see which region is meant. They live in a new `photo_objects` side table and never touch faces, clustering or people.
+- **Mark an object.** The mark editor on the photo page can mark an object instead of a face: pick **Object**, draw the box and give it a label. Objects show as blue labelled boxes, the gallery search finds them by label, and assistants read them (`GET /api/photo/objects`, and `objects` in the `get_photo` tool) to know which region to act on; marks are always user-drawn, never detected. They live in a new `photo_objects` side table and never touch faces, clustering or people.
 - Stack explicit unstacked selections in selection order with Cmd+Shift+S or Ctrl+Shift+S, using the first selected photo as cover. Existing stack members open the editor for review, and Undo restores the selection the stack cleared.
 
 ### Changed
