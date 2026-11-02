@@ -1064,7 +1064,8 @@
       "reason_blinks": "{n} ojos cerrados",
       "reason_duplicates": "{n} duplicado(s)",
       "reason_brackets": "{n} fotograma(s) de horquillado",
-      "reason_panoramas": "{n} fotograma(s) de panorámica"
+      "reason_panoramas": "{n} fotograma(s) de panorámica",
+      "reason_rejected": "{n} rechazada(s)"
     },
     "filters_notice": {
       "message": "{count} filtro activo",

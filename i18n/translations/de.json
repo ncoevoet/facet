@@ -1064,7 +1064,8 @@
       "reason_blinks": "{n} Blinzeln",
       "reason_duplicates": "{n} Duplikat(e)",
       "reason_brackets": "{n} Belichtungsreihen-Bild(er)",
-      "reason_panoramas": "{n} Panorama-Bild(er)"
+      "reason_panoramas": "{n} Panorama-Bild(er)",
+      "reason_rejected": "{n} abgelehnt"
     },
     "filters_notice": {
       "message": "{count} Filter aktiv",

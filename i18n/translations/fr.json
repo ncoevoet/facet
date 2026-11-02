@@ -1064,7 +1064,8 @@
       "reason_blinks": "{n} yeux fermés",
       "reason_duplicates": "{n} doublon(s)",
       "reason_brackets": "{n} image(s) de bracketing",
-      "reason_panoramas": "{n} image(s) de panorama"
+      "reason_panoramas": "{n} image(s) de panorama",
+      "reason_rejected": "{n} rejetée(s)"
     },
     "filters_notice": {
       "message": "{count} filtre actif",

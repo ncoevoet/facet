@@ -1079,6 +1079,7 @@ export const I18N = {
       reason_duplicates: "gallery.hidden_banner.reason_duplicates",
       reason_brackets: "gallery.hidden_banner.reason_brackets",
       reason_panoramas: "gallery.hidden_banner.reason_panoramas",
+      reason_rejected: "gallery.hidden_banner.reason_rejected",
     },
     filters_notice: {
       message: "gallery.filters_notice.message",

@@ -6564,6 +6564,11 @@ export interface components {
             duplicates: number;
             /** Panoramas */
             panoramas: number;
+            /**
+             * Rejected
+             * @default 0
+             */
+            rejected?: number;
             /** Total */
             total: number;
         };

@@ -149,6 +149,7 @@ describe('GalleryComponent', () => {
       hiddenSummary: signal({ total: 0, blinks: 0, bursts: 0, duplicates: 0 }),
       hiddenFiltersStash: signal(null),
       showAllHidden: vi.fn(),
+      takeTransientRestore: vi.fn((): Record<string, boolean> => ({})),
       restoreHidden: vi.fn(),
       readGallerySessionQuery: vi.fn(() => null),
       applySessionQuery: vi.fn(),
@@ -1167,23 +1168,47 @@ describe('GalleryComponent', () => {
       });
     });
 
-    it('puts back the hide toggles a set-bar Show all lifted, keeping the set\'s own restore', () => {
-      const before = { hide_blinks: true, hide_bursts: false, hide_duplicates: true, hide_brackets: true, hide_panoramas: true };
-      mockStore.filters.set({ ...DEFAULT_FILTERS, ...before, burst_group_id: '161' });
+    const CLEARED = { sequence_group_id: '', sequence_kind: '', burst_group_id: '', duplicate_group_id: '' };
+    const STASH = { hide_blinks: true, hide_bursts: true, hide_duplicates: true, hide_brackets: true, hide_panoramas: true };
+
+    it('puts back what a set-bar Show all lifted, keeping the set\'s own restore', () => {
+      mockStore.filters.set({ ...DEFAULT_FILTERS, burst_group_id: '161' });
       localStorage.setItem(DISPLAY_OPTIONS_KEY, JSON.stringify({ hide_bursts: true }));
-      // The real Show all saves every toggle off, the set's own included.
-      mockStore.showAllHidden.mockImplementation(() => {
-        mockStore.hiddenFiltersStash.set(before);
-        localStorage.setItem(DISPLAY_OPTIONS_KEY, JSON.stringify({ hide_bursts: false, hide_blinks: false }));
-      });
+      mockStore.showAllHidden.mockImplementation(() => mockStore.hiddenFiltersStash.set(STASH));
+      mockStore.takeTransientRestore.mockReturnValueOnce({ hide_blinks: true, hide_bursts: false, hide_rejected: true });
 
       component.showWholeSet();
       component.clearSetScope();
 
+      expect(mockStore.showAllHidden).toHaveBeenCalledWith({ persist: false, includeRejected: true });
       expect(mockStore.updateFilters).toHaveBeenCalledWith({
-        sequence_group_id: '', sequence_kind: '', burst_group_id: '', duplicate_group_id: '',
-        ...before, hide_bursts: true,
+        ...CLEARED, hide_blinks: true, hide_bursts: true, hide_rejected: true,
       });
+      expect(mockStore.hiddenFiltersStash()).toBeNull();
+    });
+
+    it('restores only what the store reports still lifted, so a manual toggle is not fought', () => {
+      mockStore.filters.set({ ...DEFAULT_FILTERS, burst_group_id: '161' });
+      mockStore.takeTransientRestore.mockReturnValueOnce({ hide_duplicates: true });
+
+      component.clearSetScope();
+
+      const [updates] = mockStore.updateFilters.mock.calls.at(-1)!;
+      expect(updates).toEqual({ ...CLEARED, hide_duplicates: true, hide_bursts: true });
+      expect(updates).not.toHaveProperty('hide_blinks');
+    });
+
+    it('ends the Show all when the set scope goes away by another route', () => {
+      mockStore.filters.set({ ...DEFAULT_FILTERS, burst_group_id: '161' });
+      mockStore.showAllHidden.mockImplementation(() => mockStore.hiddenFiltersStash.set(STASH));
+      TestBed.flushEffects();
+      component.showWholeSet();
+      mockStore.takeTransientRestore.mockReturnValueOnce({ hide_blinks: true, hide_rejected: true });
+
+      mockStore.filters.set({ ...mockStore.filters(), burst_group_id: '' });
+      TestBed.flushEffects();
+
+      expect(mockStore.updateFilters).toHaveBeenCalledWith({ hide_blinks: true, hide_rejected: true });
       expect(mockStore.hiddenFiltersStash()).toBeNull();
     });
 
@@ -1589,6 +1614,27 @@ describe('GalleryComponent', () => {
       expect(bar.textContent).toContain(I18N.gallery.set_scope.partial);
       Array.from(bar.querySelectorAll('button')).find(b => b.textContent?.includes(I18N.gallery.hidden_banner.show_all))!.click();
       expect(mockStore.showAllHidden).toHaveBeenCalled();
+    });
+
+    it('the set-scope bar counts rejected frames, names them, and drops them once hide_rejected is off', () => {
+      mockStore.total.set(2);
+      mockStore.hiddenSummary.set({ total: 1, blinks: 1, bursts: 0, duplicates: 0, brackets: 0, panoramas: 0, rejected: 1 });
+      mockStore.filters.set({ ...DEFAULT_FILTERS, hide_blinks: true, hide_rejected: true, burst_group_id: '161' });
+      const html = render();
+      const bar = () => Array.from(html.querySelectorAll('mat-sidenav-content > div'))
+        .find(el => el.textContent?.includes(I18N.gallery.set_scope.message))!;
+      expect(mockI18n.t).toHaveBeenCalledWith(I18N.gallery.hidden_banner.reason_rejected, { n: 1 });
+      expect(mockI18n.t).toHaveBeenCalledWith(I18N.gallery.set_scope.partial, expect.objectContaining({ shown: 2, total: 4 }));
+      expect(bar().textContent).toContain(I18N.gallery.set_scope.partial);
+    });
+
+    it('the set-scope bar offers Show all for rejected frames alone', () => {
+      mockStore.hiddenSummary.set({ total: 0, blinks: 0, bursts: 0, duplicates: 0, brackets: 0, panoramas: 0, rejected: 2 });
+      mockStore.filters.set({ ...DEFAULT_FILTERS, hide_blinks: false, hide_bursts: false, hide_rejected: true, burst_group_id: '161' });
+      const html = render();
+      const bar = Array.from(html.querySelectorAll('mat-sidenav-content > div'))
+        .find(el => el.textContent?.includes(I18N.gallery.set_scope.message))!;
+      expect(Array.from(bar.querySelectorAll('button')).some(b => b.textContent?.includes(I18N.gallery.hidden_banner.show_all))).toBe(true);
     });
 
     it('names only the kinds whose hide toggle is on', () => {
