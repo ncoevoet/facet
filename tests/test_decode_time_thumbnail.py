@@ -7,14 +7,22 @@ They are compared here, never recomputed from this tree's own formula.
 import hashlib
 import json
 import sqlite3
+import sys
 from unittest import mock
 
 import pytest
 
 from tests import thumbnail_inputs as ti
 from utils import image_loading
+from utils.image_transforms import generate_photo_thumbnail
 
 GOLDENS = json.loads(ti.GOLDENS_PATH.read_text(encoding='utf-8'))
+
+# Camera HDR PQ files are tone-mapped from what the platform's libheif build decodes,
+# so their bytes differ between the Windows capture and Linux CI. Their branch-vs-master
+# identity is covered on every platform by TestMatchesTheUnchangedMasterPath.
+GOLDENS_PLATFORM = 'win32'
+PLATFORM_DECODED_CASES = {'hif_pq', 'hif_pq_rotated'}
 
 
 def _skip_unavailable(name):
@@ -41,13 +49,32 @@ class TestByteIdentityWithMaster:
     @pytest.mark.parametrize('name', ti.ALL_CASES)
     def test_thumbnail_bytes_and_render_version_match_master(self, name, tmp_path):
         _skip_unavailable(name)
+        if name in PLATFORM_DECODED_CASES and sys.platform != GOLDENS_PLATFORM:
+            pytest.skip('golden captured with the Windows libheif build')
         (sha, version), _, _ = _scan_and_save(name, tmp_path)
         assert sha == GOLDENS[name]['sha256']
         assert version == GOLDENS[name]['render_version']
 
     def test_every_input_has_a_golden(self):
+        assert PLATFORM_DECODED_CASES <= set(ti.NONRAW_CASES)
         expected = {n for n in ti.ALL_CASES if n != 'jxl' or ti.jxl_available()}
         assert expected <= set(GOLDENS)
+
+
+class TestMatchesTheUnchangedMasterPath:
+    """Same environment, master's own non-RAW thumbnail path, which this change leaves
+    untouched (``load_image_from_path`` then ``thumbnail_source``)."""
+
+    @pytest.mark.parametrize('name', tuple(ti.NONRAW_CASES))
+    def test_scan_thumbnail_equals_the_save_time_path(self, name, tmp_path):
+        _skip_unavailable(name)
+        (sha, _), _, _ = _scan_and_save(name, tmp_path)
+        old_dir = tmp_path / 'old'
+        old_dir.mkdir()
+        with ti.scan_input(name, old_dir) as (path, _):
+            pil, _ = image_loading.load_image_from_path(path)
+            old = generate_photo_thumbnail(image_loading.thumbnail_source(path, pil))
+        assert sha == hashlib.sha256(old).hexdigest()
 
 
 class TestSingleOpen:
