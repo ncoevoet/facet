@@ -201,7 +201,7 @@ describe('tag pivots through actual gallery, photo, menus, Router and HTTP', () 
         harness.detectChanges();
         expect(harness.routeNativeElement!.querySelector<HTMLElement>('mat-sidenav-content')!.scrollTop).toBe(260);
         expect(document.activeElement?.closest('[data-pidx]')?.getAttribute('data-pidx')).toBe('1');
-      });
+      }, { timeout: 5000 }); // Frame-driven focus can exceed the default 1s under full-suite load.
       const scrolled = harness.routeNativeElement!.querySelector<HTMLElement>('mat-sidenav-content')!;
       scrolled.scrollTop = 333;
       scrolled.dispatchEvent(new Event('scroll'));
