@@ -5,6 +5,8 @@ from types import SimpleNamespace
 from fastapi import HTTPException
 
 from api import logical_reviews, organization_capture
+from db import logical_history
+from db.logical_assets import AssetConflict
 from api.config import is_multi_user_enabled
 from api.db_helpers import get_existing_columns, get_visibility_clause, snapshot_labels, read_labels, record_label_origin
 from api.logical_collection import source, membership
@@ -42,7 +44,14 @@ def apply(conn, body, user, sql, patch, review_rejected):
     keys = sorted({row[1] for row in rows if row[1] is not None})
     # Capture every logical precondition before the first label mutation.
     states = [logical_reviews.read(conn, key, user.user_id) for key in keys]
-    history = organization_capture.begin(conn, user.user_id, 'review', paths if not keys else [])
+    history = organization_capture.begin(conn, user.user_id, 'review', paths)
+    captured = {}
+    owner = history[0]
+    for key in keys:
+        _, group_owner, labels, _, _ = logical_reviews.snapshot(conn, key, user.user_id)
+        if group_owner != owner:
+            raise HTTPException(409, 'Review scope changed')
+        captured[key] = logical_history.capture(conn, key, owner, labels)
     before = snapshot_labels(conn, user.is_agent_request, user.user_id, paths)
     origin_paths = paths
     if review_rejected is not None and not user.is_agent_request:
@@ -58,7 +67,17 @@ def apply(conn, body, user, sql, patch, review_rejected):
     for offset in range(0, len(paths), 900):
         _write_paths(conn, paths[offset:offset + 900], user, sql)
     record_label_origin(conn, user.is_agent_request, user.user_id, origin_paths, before)
-    entries = organization_capture.finish(conn, user.user_id, 'review', history)
+    if keys:
+        after = {}
+        for key in keys:
+            _, _, labels, _, _ = logical_reviews.snapshot(conn, key, user.user_id)
+            after[key] = logical_history.capture(conn, key, owner, labels)
+        try:
+            entries = logical_history.record(conn, user.user_id or '', owner, captured, after, physical_before=history[1])
+        except AssetConflict as error:
+            raise HTTPException(409, str(error)) from None
+    else:
+        entries = organization_capture.finish(conn, user.user_id, 'review', history)
     result = {'success': True, 'count': len(paths) + len(keys)}
     if keys:
         result['logical_asset_ids'] = keys

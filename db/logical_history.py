@@ -8,7 +8,7 @@ import json
 
 from db import logical_review as review
 from db.logical_assets import AssetConflict, _members
-from db.organization_history import MAX_BYTES, MAX_ENTRIES, MAX_PHOTOS, encode
+from db.organization_history import MAX_BYTES, MAX_ENTRIES, MAX_PHOTOS, encode, snapshot, FIELDS as PHYSICAL_FIELDS
 
 FIELDS = ('star_rating', 'is_favorite', 'is_rejected', 'is_kept')
 
@@ -27,7 +27,7 @@ def capture(conn, asset_id, owner, file_labels):
                 values=[state['values'][field] for field in FIELDS], overrides=overrides)
 
 
-def record(conn, actor, owner, before, after):
+def record(conn, actor, owner, before, after, *, physical_before=None):
     if not conn.in_transaction or not isinstance(actor, str) or not isinstance(owner, str):
         raise AssetConflict('A scoped history transaction is required')
     changes = []
@@ -40,6 +40,14 @@ def record(conn, actor, owner, before, after):
         changes.append(dict(path=new['path'], asset_id=key, before=old['values'], after=new['values'],
                             override_before=old['overrides'], override_after=new['overrides'],
                             group_revision=new['group_revision'], revision=new['revision'], input_token=new['input_token']))
+    physical_before = physical_before or {}
+    physical_after = snapshot(conn, 'review', owner, list(physical_before))
+    for path, old in physical_before.items():
+        new = physical_after.get(path)
+        if new is None:
+            raise AssetConflict('Physical review disappeared')
+        if old['values'] != new['values']:
+            changes.append(dict(path=path, before=old['values'], after=new['values'], revision=new['revision']))
     if not changes:
         return []
     parts, part, size = [], [], 2
@@ -75,7 +83,20 @@ def restore(conn, actor, owner, entry_id, file_labels, *, visibility_sql, visibi
         raise AssetConflict('Logical history entry unavailable')
     changes = json.loads(entry[0])
     current = {}
+    physical = [change for change in changes if 'asset_id' not in change]
+    paths = [change['path'] for change in physical]
+    physical_current = snapshot(conn, 'review', owner, paths)
+    for change in physical:
+        now = physical_current.get(change['path'])
+        visible = conn.execute(f'SELECT 1 FROM photos WHERE path=? AND ({visibility_sql})',
+                               [change['path'], *visibility_params]).fetchone()
+        grouped = conn.execute('SELECT 1 FROM logical_asset_members WHERE photo_path=?', [change['path']]).fetchone()
+        if (not visible or grouped or now is None or now['values'] != change['after']
+                or now['revision'] != change['revision']):
+            raise AssetConflict('Physical review changed; nothing was restored')
     for change in changes:
+        if 'asset_id' not in change:
+            continue
         key = change['asset_id']
         _members(conn, key, change['group_revision'], visibility_sql, visibility_params)
         now = capture(conn, key, owner, file_labels)
@@ -85,6 +106,8 @@ def restore(conn, actor, owner, entry_id, file_labels, *, visibility_sql, visibi
         current[key] = now
     with review._transaction(conn):
         for change in changes:
+            if 'asset_id' not in change:
+                continue
             key = change['asset_id']
             now = current[key]
             review.reset_fields(conn, key, owner, now['group_revision'], now['revision'], list(review.FIELDS),
@@ -92,7 +115,18 @@ def restore(conn, actor, owner, entry_id, file_labels, *, visibility_sql, visibi
                                 file_labels=file_labels, input_token=now['input_token'])
             conn.executemany('INSERT INTO logical_review_fields VALUES (?,?,?,?,?)',
                              [(key, owner, field, value, origin) for field, value, origin in change['override_before']])
+        fields = PHYSICAL_FIELDS['review']
+        for change in physical:
+            if owner:
+                marks = ','.join('?' for _ in range(2 + len(fields)))
+                updates = ','.join(f'{field}=excluded.{field}' for field in fields)
+                conn.execute(f'INSERT INTO user_preferences(user_id,photo_path,{",".join(fields)}) VALUES ({marks}) '
+                             f'ON CONFLICT(user_id,photo_path) DO UPDATE SET {updates}',
+                             [owner, change['path'], *change['before']])
+            else:
+                conn.execute(f'UPDATE photos SET {",".join(f"{field}=?" for field in fields)} WHERE path=?',
+                             [*change['before'], change['path']])
         restored = {key: capture(conn, key, owner, file_labels) for key in current}
-        record(conn, actor, owner, current, restored)
+        record(conn, actor, owner, current, restored, physical_before=physical_current)
         conn.execute('UPDATE organization_history SET reverted=1 WHERE id=?', (entry_id,))
     return len(changes)

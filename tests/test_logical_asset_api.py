@@ -786,3 +786,41 @@ def test_logical_history_hidden_companion_hides_and_refuses_receipt(edition_clie
     assert listed.status_code == 200
     assert entry_id not in {entry['id'] for entry in listed.json()['entries']}
     assert edition_client.post(f'/api/organization_history/{entry_id}/revert').status_code == 404
+
+
+@pytest.mark.parametrize('conflict', [None, 'physical', 'logical'])
+@pytest.mark.parametrize('multi_user', [False, True])
+def test_mixed_batch_history_restores_both_authorities_or_neither(edition_client, bundle, seed_photos_prefix, monkeypatch, conflict, multi_user):
+    from api import config
+    monkeypatch.setitem(config.VIEWER_CONFIG, 'edition_password', 'test-only')
+    if multi_user:
+        monkeypatch.setitem(config._FULL_CONFIG, 'users', {'test': {'directories': [str(Path(bundle['primary_path']).parent)]}})
+    key = submit(edition_client, bundle, draft(edition_client, bundle), acknowledge_review_conflicts=True).json()['asset_id']
+    other = str(Path(bundle['primary_path']).with_name('independent.jpg'))
+    seed_photos_prefix(str(Path(other).parent), [{'path': other, 'filename': 'independent.jpg', 'star_rating': 2}])
+    result = edition_client.post('/api/photos/batch_rating', json={'photo_paths': [bundle['primary_path'], other], 'rating': 4})
+    assert result.status_code == 200, result.text
+    listing = edition_client.get('/api/organization_history')
+    assert listing.status_code == 200, listing.text
+    entries = [entry for entry in listing.json()['entries'] if entry['kind'] == 'logical_review'
+               and other in {change['path'] for change in entry['changes']}]
+    assert entries, listing.text
+    entry = entries[0]
+    assert len(entry['changes']) == 2
+    assert {change['path'] for change in entry['changes']} & set(bundle['paths'])
+    assert all(set(change) == {'path', 'before', 'after', 'revision'} for change in entry['changes'])
+    if conflict == 'physical':
+        assert edition_client.post('/api/photo/set_rating', json={'photo_path': other, 'rating': 3}).status_code == 200
+    elif conflict == 'logical':
+        assert edition_client.post('/api/photo/set_rating', json={'photo_path': bundle['primary_path'], 'rating': 3}).status_code == 200
+    restored = edition_client.post(f"/api/organization_history/{entry['id']}/revert")
+    assert restored.status_code == (409 if conflict else 200), restored.text
+    if not conflict:
+        assert restored.json()['changed'] == 2
+    state = edition_client.get('/api/logical_assets/review', params={'asset_id': key}).json()
+    assert state['values']['star_rating'] == (3 if conflict == 'logical' else 4 if conflict else 0 if multi_user else 5)
+    with sqlite3.connect(DEFAULT_DB_PATH) as conn:
+        physical = (conn.execute("SELECT star_rating FROM user_preferences WHERE user_id='test' AND photo_path=?", (other,)).fetchone()[0]
+                    if multi_user else conn.execute('SELECT star_rating FROM photos WHERE path=?', (other,)).fetchone()[0])
+        assert physical == (3 if conflict == 'physical' else 4 if conflict else 0 if multi_user else 2)
+        assert conn.execute('SELECT star_rating FROM photos WHERE path=?', (bundle['primary_path'],)).fetchone()[0] == 5

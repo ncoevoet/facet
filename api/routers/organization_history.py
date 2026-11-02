@@ -30,8 +30,17 @@ def _logical_context(conn, user, entry, changes):
     from api import logical_reviews
 
     labels, visible_changes = {}, []
-    owner = None
+    from api.config import is_multi_user_enabled
+    owner = (user.user_id or '') if is_multi_user_enabled() else ''
+    if owner != entry['scope']:
+        return None
+    visibility, params = get_visibility_clause(user.user_id)
     for change in changes:
+        if 'asset_id' not in change:
+            if not _visible(conn, user, [change]):
+                return None
+            visible_changes.append({key: change[key] for key in ('path', 'before', 'after', 'revision')})
+            continue
         try:
             _, current_owner, current_labels, visibility, params = logical_reviews.snapshot(conn, change['asset_id'], user.user_id)
         except HTTPException as error:
@@ -102,6 +111,9 @@ def _revert(entry_id: int, user: CurrentUser, kind_filter: Optional[str] = None)
                                                   visibility_sql=visibility, visibility_params=params)
             except AssetConflict:
                 raise HTTPException(409, 'Photos changed since this action; nothing was restored', headers=headers) from None
+            physical_paths = [change['path'] for change in changes if 'asset_id' not in change]
+            if physical_paths:
+                record_label_origin(conn, user.is_agent_request, user.user_id, physical_paths)
             evict_derived_stats_cache(conn)
             conn.commit()
             after_commit()

@@ -181,3 +181,77 @@ def test_changed_inherited_file_labels_refuse_undo_without_rewinding_scanner(cat
         history.restore(conn, 'alice', 'alice', entry, labels, visibility_sql='1=1')
     assert conn.execute('SELECT star_rating FROM photos WHERE path=?', ('/a.jpg',)).fetchone()[0] == 3
     assert review.read(conn, key, 'alice', labels)['values']['star_rating'] == 4
+
+
+@pytest.mark.parametrize('ending', ['restore', 'physical_conflict', 'logical_conflict', 'inverse_failure'])
+def test_mixed_receipt_survives_reopen_and_has_one_atomic_boundary(catalog, ending):
+    from db.organization_history import snapshot
+
+    conn, filename, key = catalog
+    conn.execute('BEGIN IMMEDIATE')
+    conn.execute("INSERT INTO photos(path,star_rating,is_favorite,is_rejected,is_kept) VALUES ('/ordinary.jpg',2,0,0,0)")
+    physical_before = snapshot(conn, 'review', '', ['/ordinary.jpg'])
+    before = history.capture(conn, key, '', LABELS)
+    review.set_fields(conn, key, '', 1, before['revision'], {'star_rating': 4}, origin='user',
+                      visibility_sql='1=1', file_labels=LABELS, input_token=before['input_token'])
+    conn.execute("UPDATE photos SET star_rating=4 WHERE path='/ordinary.jpg'")
+    entry = history.record(conn, '', '', {key: before}, {key: history.capture(conn, key, '', LABELS)},
+                           physical_before=physical_before)[0]
+    conn.commit()
+    conn.close()
+    with sqlite3.connect(filename) as reopened:
+        reopened.execute('BEGIN IMMEDIATE')
+        if ending == 'physical_conflict':
+            reopened.execute("UPDATE photos SET star_rating=3 WHERE path='/ordinary.jpg'")
+        elif ending == 'logical_conflict':
+            now = history.capture(reopened, key, '', LABELS)
+            review.set_fields(reopened, key, '', 1, now['revision'], {'star_rating': 3}, origin='user',
+                              visibility_sql='1=1', file_labels=LABELS, input_token=now['input_token'])
+        elif ending == 'inverse_failure':
+            reopened.execute("CREATE TRIGGER fail_mixed_inverse BEFORE INSERT ON organization_history BEGIN SELECT RAISE(ABORT,'injected'); END")
+        previous = history.capture(reopened, key, '', LABELS)
+        physical = snapshot(reopened, 'review', '', ['/ordinary.jpg'])
+        if ending == 'restore':
+            assert history.restore(reopened, '', '', entry, LABELS, visibility_sql='1=1') == 2
+            assert review.read(reopened, key, '', LABELS)['values']['star_rating'] == 5
+            assert reopened.execute("SELECT star_rating FROM photos WHERE path='/ordinary.jpg'").fetchone()[0] == 2
+        else:
+            error = sqlite3.IntegrityError if ending == 'inverse_failure' else assets.AssetConflict
+            with pytest.raises(error):
+                history.restore(reopened, '', '', entry, LABELS, visibility_sql='1=1')
+            assert history.capture(reopened, key, '', LABELS) == previous
+            assert snapshot(reopened, 'review', '', ['/ordinary.jpg']) == physical
+            assert reopened.execute('SELECT reverted FROM organization_history WHERE id=?', (entry,)).fetchone()[0] == 0
+
+
+def test_mixed_receipt_can_contain_only_physical_changes_after_logical_noop(catalog):
+    from db.organization_history import snapshot
+    conn, _, key = catalog
+    conn.execute('BEGIN IMMEDIATE')
+    conn.execute("INSERT INTO photos(path,star_rating,is_favorite,is_rejected,is_kept) VALUES ('/ordinary.jpg',2,0,0,0)")
+    physical = snapshot(conn, 'review', '', ['/ordinary.jpg'])
+    same = history.capture(conn, key, '', LABELS)
+    conn.execute("UPDATE photos SET star_rating=4 WHERE path='/ordinary.jpg'")
+    entry = history.record(conn, '', '', {key: same}, {key: same}, physical_before=physical)[0]
+    assert history.restore(conn, '', '', entry, LABELS, visibility_sql='1=1') == 1
+    assert conn.execute("SELECT star_rating FROM photos WHERE path='/ordinary.jpg'").fetchone()[0] == 2
+    assert history.capture(conn, key, '', LABELS) == same
+
+
+def test_hidden_physical_target_refuses_all_logical_restore(catalog):
+    from db.organization_history import snapshot
+    conn, _, key = catalog
+    conn.execute('BEGIN IMMEDIATE')
+    conn.execute("INSERT INTO photos(path,star_rating,is_favorite,is_rejected,is_kept) VALUES ('/ordinary.jpg',2,0,0,0)")
+    physical = snapshot(conn, 'review', '', ['/ordinary.jpg'])
+    before = history.capture(conn, key, '', LABELS)
+    review.set_fields(conn, key, '', 1, before['revision'], {'star_rating': 4}, origin='user',
+                      visibility_sql='1=1', file_labels=LABELS, input_token=before['input_token'])
+    after = history.capture(conn, key, '', LABELS)
+    conn.execute("UPDATE photos SET star_rating=4 WHERE path='/ordinary.jpg'")
+    entry = history.record(conn, '', '', {key: before}, {key: after}, physical_before=physical)[0]
+    with pytest.raises(assets.AssetConflict):
+        history.restore(conn, '', '', entry, LABELS, visibility_sql='photos.path != ?',
+                        visibility_params=['/ordinary.jpg'])
+    assert history.capture(conn, key, '', LABELS) == after
+    assert conn.execute("SELECT star_rating FROM photos WHERE path='/ordinary.jpg'").fetchone()[0] == 4
