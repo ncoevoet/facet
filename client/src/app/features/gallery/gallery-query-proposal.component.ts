@@ -1,6 +1,7 @@
 import { ChangeDetectionStrategy, Component, DestroyRef, ElementRef, computed, effect, inject, input, signal, untracked, viewChild } from '@angular/core';
 import { NavigationCancel, NavigationCancellationCode, NavigationEnd, NavigationError, NavigationSkipped, NavigationStart, Router } from '@angular/router';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
+import { galleryFilterLabel } from './gallery-filter-label.pipe';
 import { ADDITIONAL_FILTERS } from './gallery-metric-filters';
 import { I18nService } from '../../core/services/i18n.service';
 import { AuthService } from '../../core/services/auth.service';
@@ -33,10 +34,6 @@ interface Calculation {
   changes: { key: string; label: string; before: string; after: string }[];
   conflicts: string[];
   conflictText: string;
-}
-
-function fieldLabel(key: string): string {
-  return key.replace(/([a-z])([A-Z])/g, '$1 $2').replace(/^min_/, 'Minimum ').replace(/^max_/, 'Maximum ').replace(/_/g, ' ').replace(/^./, letter => letter.toUpperCase());
 }
 
 @Component({
@@ -111,10 +108,7 @@ export class GalleryQueryProposalComponent {
   private readonly auth = inject(AuthService);
   private readonly i18n = inject(I18nService);
   private fieldLabel(key: string): string {
-    const metric = ADDITIONAL_FILTERS.find(row => row.minKey === key || row.maxKey === key);
-    if (!metric) return fieldLabel(key);
-    const unit = (metric.displaySuffix ?? metric.displayPrefix ?? '').trim();
-    return `${this.i18n.t(metric.labelKey)}${unit ? ' (' + unit + ')' : ''} ${key === metric.minKey ? '≥' : '≤'}`;
+    return galleryFilterLabel(key, value => this.i18n.t(value));
   }
   private readonly router = inject(Router);
   private readonly actions = inject(ViewActionRegistry);
@@ -136,7 +130,8 @@ export class GalleryQueryProposalComponent {
     kind: typeof value === 'boolean' ? 'boolean' : typeof value === 'number' ? 'number' : ['date_from', 'date_to'].includes(key) ? 'date' : 'text',
   })));
   readonly calculation = computed<Calculation | null>(() => {
-    if (this.accepted()) return this.accepted();
+    const accepted = this.accepted();
+    if (accepted) return { ...accepted, changes: accepted.changes.map(change => ({ ...change, label: this.fieldLabel(change.key) })) };
     const plan = this.proposal();
     if (!plan || (!plan.replace && !Object.keys(plan.patch).length) || validateAgainstSchema(plan.schema, plan.patch).length) return null;
     try {

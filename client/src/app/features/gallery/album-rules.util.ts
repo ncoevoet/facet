@@ -1,6 +1,6 @@
 import { DEFAULT_FILTERS, GalleryFilters, SMART_ALBUM_EXCLUDE_KEYS, exclusiveHidePatch, reviewStatusPatch, smartAlbumFilterJson } from './gallery-filters.util';
 
-export interface AlbumRuleRow { key: string; label: string; saved: string; working: string; changed: boolean; }
+export interface AlbumRuleRow { key: string; saved: string; working: string; changed: boolean; }
 
 /** Reset only the fields the existing smart-album serializer can persist. */
 export function restoreAlbumRuleFields(current: GalleryFilters, savedJson: string, sort = DEFAULT_FILTERS.sort, direction = DEFAULT_FILTERS.sort_direction, type = DEFAULT_FILTERS.type): GalleryFilters {
@@ -22,7 +22,7 @@ export function albumRuleRows(saved: GalleryFilters, working: GalleryFilters): A
   const before = JSON.parse(smartAlbumFilterJson(saved)) as Record<string, unknown>;
   const after = JSON.parse(smartAlbumFilterJson(working)) as Record<string, unknown>;
   return [...new Set([...Object.keys(before), ...Object.keys(after)])].sort().map(key => ({
-    key, label: key.replace(/^min_/, 'Minimum ').replace(/^max_/, 'Maximum ').replaceAll('_', ' ').replace(/^\w/, c => c.toUpperCase()),
+    key,
     saved: before[key] === undefined ? '' : String(before[key]), working: after[key] === undefined ? '' : String(after[key]),
     changed: before[key] !== after[key],
   }));

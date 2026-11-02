@@ -1,3 +1,6 @@
+import { HttpClient } from '@angular/common/http';
+import fr from '../../../../../i18n/translations/fr.json';
+import en from '../../../../../i18n/translations/en.json';
 import { signal } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
 import { provideRouter, Router, NavigationStart } from '@angular/router';
@@ -10,7 +13,7 @@ import { DEFAULT_FILTERS } from './gallery-filters.util';
 import { GalleryAlbumRulesComponent } from './gallery-album-rules.component';
 
 const album: Album = { id: 7, name: 'Keepers', description: '', is_smart: true, smart_filter_json: JSON.stringify({ camera: 'Canon' }), cover_photo_path: null, first_photo_path: null, is_shared: false, scoring_context: null, photo_count: 3, created_at: '', updated_at: '' };
-function build(defaultType = '') {
+function build(defaultType = '', localized = false) {
   let token = 'session-a';
   const status = signal({ user_id: 'alice' });
   const edition = signal(true);
@@ -21,7 +24,7 @@ function build(defaultType = '') {
   TestBed.configureTestingModule({ imports: [GalleryAlbumRulesComponent], providers: [
     provideRouter([]), { provide: GalleryStore, useValue: store }, { provide: AlbumService, useValue: albums },
     { provide: AuthService, useValue: { status, isEdition: edition, identity: () => status().user_id, get token() { return token; } } },
-    { provide: I18nService, useValue: { translations: () => ({}), t: (key: string) => key } },
+    ...(localized ? [I18nService, { provide: HttpClient, useValue: { get: vi.fn(() => of(fr)) } }] : [{ provide: I18nService, useValue: { translations: () => ({}), t: (key: string) => key } }]),
   ] });
   const fixture = TestBed.createComponent(GalleryAlbumRulesComponent); fixture.componentRef.setInput('active', true); fixture.detectChanges();
   const root: HTMLElement = fixture.nativeElement;
@@ -107,5 +110,32 @@ describe('Captured album rule editing', () => {
     click('[data-album-rules] summary'); expect(root.querySelector('[data-album-preview]')).toBeNull();
     store.currentAlbum.set({ ...album, is_smart: false }); await settle();
     expect(root.textContent).toContain('albums.rules.manual_hint'); expect(root.querySelector('[data-album-reset]')).toBeNull();
+  });
+});
+
+// Real bundles and translation service: labels and literal rule values have different authority.
+describe('Localized saved album rules', () => {
+  afterEach(() => TestBed.resetTestingModule());
+  it('updates table and captured preview labels on language changes without translating user text', async () => {
+    const { fixture, root, store, click, settle } = build('', true);
+    const i18n = TestBed.inject(I18nService); i18n.locale.set('fr'); await i18n.load();
+    store.currentAlbum.update(album => ({ ...album!, smart_filter_json: JSON.stringify({ camera: 'Canon', tag: 'true', search: 'gallery.camera', min_aesthetic: '3', favorites_only: true }) }));
+    store.filters.update(f => ({ ...f, camera: 'gallery.camera', tag: 'false', search: 'albums.title', min_aesthetic: '6', favorites_only: false }));
+    await settle(); click('[data-album-rules] summary'); click('[data-album-preview]'); await settle();
+    const headers = () => Array.from(root.querySelectorAll('tbody th')).map(node => node.textContent!.trim());
+    expect(headers()).toContain(fr.gallery.camera);
+    expect(headers()).toContain(fr.gallery.aesthetic_range + ' ≥');
+    const preview = () => root.querySelector('[data-album-rule-preview] ul')!.textContent!;
+    expect(preview()).toContain(fr.gallery.camera + ': Canon');
+    expect(preview()).toContain(fr.gallery.aesthetic_range + ' ≥: 3');
+    expect(preview()).toContain('gallery.camera'); expect(preview()).toContain('albums.title');
+    expect(preview()).toContain('true → false');
+    expect(root.querySelector('tbody')!.textContent).toContain(fr.organization_history.yes);
+    vi.mocked(TestBed.inject(HttpClient).get).mockReturnValue(of(en)); i18n.locale.set('en'); await i18n.load(); await settle();
+    expect(headers()).toContain(en.gallery.camera); expect(headers()).not.toContain(fr.gallery.camera);
+    expect(preview()).toContain(en.gallery.camera + ': Canon');
+    expect(preview()).toContain(en.gallery.aesthetic_range + ' ≥: 3');
+    expect(preview()).toContain('true → false'); expect(preview()).toContain('gallery.camera');
+    fixture.destroy();
   });
 });

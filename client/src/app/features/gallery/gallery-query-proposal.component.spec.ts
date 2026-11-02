@@ -1,3 +1,7 @@
+import { HttpClient } from '@angular/common/http';
+import { of } from 'rxjs';
+import fr from '../../../../../i18n/translations/fr.json';
+import en from '../../../../../i18n/translations/en.json';
 import { computed, signal } from '@angular/core';
 import { TestBed, type ComponentFixture } from '@angular/core/testing';
 import { NavigationStart, Router } from '@angular/router';
@@ -19,7 +23,7 @@ describe('User-owned query proposal', () => {
   let token: string;
   let owner: ReturnType<typeof signal<{ name: string }>>;
 
-  function build(): void {
+  function build(localized = false): void {
     token = 'initial'; owner = signal({ name: 'alice' }); events = new Subject();
     filters = signal({ ...DEFAULT_FILTERS, camera: 'Canon' }); selected = signal(new Set(['/a.jpg'])); wholeView = signal(false);
     apply = vi.fn(async updates => { filters.update(current => ({ ...current, ...updates, page: 1 })); });
@@ -29,7 +33,7 @@ describe('User-owned query proposal', () => {
       { provide: GalleryStore, useValue: { filters, config: signal({}), currentAlbum: signal(null), pinnedPaths: signal(null), selectedPaths: selected,
         viewScopeSelected: wholeView, filterKey: (value: unknown) => JSON.stringify(value), updateFilters: apply, loadError: signal(false),
         previewFilters: (updates: unknown) => ({ ...filters(), ...updates as object, page: 1 }) } },
-      { provide: I18nService, useValue: { translations: signal({}), t: (key: string) => key } },
+      ...(localized ? [I18nService, { provide: HttpClient, useValue: { get: vi.fn(() => of(fr)) } }] : [{ provide: I18nService, useValue: { translations: signal({}), t: (key: string) => key } }]),
     ] });
     fixture = TestBed.createComponent(GalleryQueryProposalComponent); fixture.componentRef.setInput('active', true); fixture.detectChanges();
     actions = TestBed.inject(ViewActionRegistry);
@@ -40,6 +44,28 @@ describe('User-owned query proposal', () => {
     await fixture.whenStable(); fixture.detectChanges();
   }
   afterEach(() => fixture.destroy());
+
+  it('localizes ordinary fields and accepted changes live while preserving proposed text', async () => {
+    build(true);
+    const i18n = TestBed.inject(I18nService); i18n.locale.set('fr'); await i18n.load();
+    await actions.get('gallery_filter_proposal')!({ patch: { camera: 'gallery.camera', date_from: '2024-03-01', min_dynamic_range: 6 },
+      proposal: { source_query: 'literal query', unrepresented: [] }, replace: false, reset: {}, normalize: (patch: unknown) => patch });
+    await fixture.whenStable(); fixture.detectChanges();
+    const root = fixture.nativeElement as HTMLElement;
+    const label = () => root.querySelector('label[for="query-proposal-camera"]')!.textContent!;
+    expect(label()).toContain(fr.gallery.camera);
+    expect(root.querySelector<HTMLInputElement>('#query-proposal-camera')!.value).toBe('gallery.camera');
+    expect(root.querySelector('[data-effective-field="camera"] dt')!.textContent).toBe(fr.gallery.camera);
+    expect(root.textContent).toContain(fr.gallery.dynamic_range + ' (EV) ≥');
+    // Retain the accepted preview after a result load fails, then switch locale.
+    (TestBed.inject(GalleryStore).loadError as ReturnType<typeof signal<boolean>>).set(true);
+    await fixture.componentInstance.apply(); fixture.detectChanges();
+    vi.mocked(TestBed.inject(HttpClient).get).mockReturnValue(of(en)); i18n.locale.set('en'); await i18n.load();
+    fixture.detectChanges();
+    expect(root.querySelector('[data-effective-field="camera"] dt')!.textContent).toBe(en.gallery.camera);
+    expect(root.querySelector('[data-effective-field="camera"] dd')!.textContent).toContain('gallery.camera');
+    expect(root.textContent).toContain(en.gallery.dynamic_range + ' (EV) ≥');
+  });
 
   it('uses shared metric names and units with explicit input-label associations', async () => {
     build();

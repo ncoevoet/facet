@@ -9,13 +9,14 @@ import { TranslatePipe } from '../../shared/pipes/translate.pipe';
 import { I18N } from '../../core/i18n/keys';
 import { smartAlbumFilterJson } from './gallery-filters.util';
 import { albumRuleRows, AlbumRuleRow, hasUnsavableAlbumMode, restoreAlbumRuleFields } from './album-rules.util';
+import { GalleryFilterLabelPipe } from './gallery-filter-label.pipe';
 import { AlbumRuleValuePipe } from './album-rule-value.pipe';
 
 interface RulePlan { id: number; before: string | null; after: string; rows: AlbumRuleRow[]; }
 
 @Component({
   selector: 'app-gallery-album-rules', changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [MatButtonModule, TranslatePipe, AlbumRuleValuePipe], host: { class: 'block' },
+  imports: [MatButtonModule, TranslatePipe, AlbumRuleValuePipe, GalleryFilterLabelPipe], host: { class: 'block' },
   template: `
     @if (store.currentAlbum(); as album) {
       <details data-album-rules class="my-1 max-h-[45dvh] overflow-y-auto text-xs text-[var(--mat-sys-on-surface-variant)]">
@@ -25,7 +26,7 @@ interface RulePlan { id: number; before: string | null; after: string; rows: Alb
           @if (baseline()) {
             <div class="max-h-60 overflow-auto">
               <table class="w-full text-left text-xs"><thead><tr><th scope="col" class="p-1">{{ I18N.organization_history.field | translate }}</th><th scope="col" class="p-1">{{ I18N.albums.rules.saved | translate }}</th><th scope="col" class="p-1">{{ I18N.albums.rules.working | translate }}</th></tr></thead>
-                <tbody>@for (row of rows(); track row.key) { <tr [class.font-semibold]="row.changed"><th scope="row" class="p-1">{{ row.label }}</th><td class="p-1 break-all">{{ row.saved | albumRuleValue:row.key | translate }}</td><td class="p-1 break-all">{{ row.working | albumRuleValue:row.key | translate }}</td></tr> }</tbody>
+                <tbody>@for (row of rows(); track row.key) { <tr [class.font-semibold]="row.changed"><th scope="row" class="p-1">{{ row.key | galleryFilterLabel }}</th><td class="p-1 break-all">{{ row.saved | albumRuleValue:row.key }}</td><td class="p-1 break-all">{{ row.working | albumRuleValue:row.key }}</td></tr> }</tbody>
               </table>
             </div>
           } @else { <p role="alert">{{ I18N.albums.rules.invalid | translate }}</p><button mat-button data-album-reload [disabled]="!active() || busy()" (click)="reload()">{{ I18N.albums.rules.reload | translate }}</button> }
@@ -38,7 +39,7 @@ interface RulePlan { id: number; before: string | null; after: string; rows: Alb
           @if (plan(); as captured) {
             <section data-album-rule-preview class="my-2 rounded border border-[var(--mat-sys-outline-variant)] p-2">
               <p>{{ I18N.albums.rules.confirm | translate:{ count: captured.rows.length, name: album.name } }}</p>
-              <ul class="m-0 max-h-48 overflow-auto pl-4">@for (row of captured.rows; track row.key) { <li>{{ row.label }}: {{ row.saved | albumRuleValue:row.key | translate }} → {{ row.working | albumRuleValue:row.key | translate }}</li> }</ul>
+              <ul class="m-0 max-h-48 overflow-auto pl-4">@for (row of captured.rows; track row.key) { <li>{{ row.key | galleryFilterLabel }}: {{ row.saved | albumRuleValue:row.key }} → {{ row.working | albumRuleValue:row.key }}</li> }</ul>
               <button mat-button [disabled]="busy()" (click)="cancel()">{{ I18N.ui.buttons.cancel | translate }}</button>
               <button mat-flat-button data-album-apply [disabled]="!active() || busy() || uncertain()" (click)="save()">{{ I18N.albums.rules.save | translate }}</button>
             </section>
