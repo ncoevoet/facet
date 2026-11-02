@@ -30,15 +30,25 @@ _PLAIN_REFS = {
     ('face_reextract_snapshot', 'photo_path'),
     ('photo_stacks', 'cover_path'), ('photo_stack_members', 'photo_path'),
     ('stack_suggestion_dismissals', 'photo_path'),
+    ('photo_keyword_nodes', 'photo_path'),
+    ('keyword_assignment_deletions', 'photo_path'),
 }
 _NON_ASSET_PATHS = {
     ('photos', 'path'), ('photos_fts', 'path'), ('scan_failures', 'path'),
+    ('photo_keyword_nodes', 'imported_path'),
+    ('keyword_assignment_deletions', 'path_key'),
 }
 
 # Organization history owns these tables outside db.schema's column catalog.
 # Historical payload JSON and the global revision clock are not asset links.
 # Keep the exact column inventory so future additions still require review.
 _AUXILIARY_COLUMNS = {
+    'face_review_feedback': {'owner', 'face_id', 'person_id', 'identity_token', 'receipt_id'},
+    'keyword_nodes': {'id', 'parent_id', 'name', 'name_key'},
+    'photo_keyword_nodes': {'photo_path', 'node_id', 'source', 'origin_source', 'created_by', 'created_at', 'imported_path', 'imported_signature'},
+    'keyword_assignment_deletions': {'photo_path', 'path_key', 'node_id', 'created_at'},
+    'keyword_node_edits': {'node_id', 'action', 'changed_at'},
+    'keyword_node_baselines': {'node_id', 'signature'},
     'photo_stacks': {'id', 'owner', 'cover_path', 'revision'},
     'immich_stack_links': {'scope', 'local_stack_id', 'remote_stack_id', 'local_fingerprint', 'remote_fingerprint'},
     'immich_stack_send_claims': {'admission_scope', 'asset_id', 'operation_id'},

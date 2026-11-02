@@ -1387,6 +1387,8 @@ def init_database(db_path='photo_scores_pro.db', build_photo_indexes=True):
             PHOTO_MANUAL_TAGS_COLUMNS,
             constraints=['PRIMARY KEY (photo_path, tag)']
         ))
+        from db.keyword_hierarchy import create_keyword_hierarchy_schema
+        create_keyword_hierarchy_schema(conn)
 
         # Create mcp_tokens (agent bearer tokens, hash only; side table)
         conn.execute(_build_create_table_sql('mcp_tokens', MCP_TOKENS_COLUMNS))

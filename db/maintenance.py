@@ -10,6 +10,7 @@ import logging
 import os
 import shutil
 import sqlite3
+from contextlib import ExitStack
 from datetime import datetime
 from io import BytesIO
 
@@ -632,6 +633,13 @@ def _normalize_review_decisions(conn: sqlite3.Connection) -> None:
 
 
 def _incremental_update_viewer_db(source_db, output_path, thumbnail_size, verbose):
+    # TEMP hierarchy snapshots must be removed even if another export phase
+    # fails before their merge. Closing the owning connection removes them.
+    with ExitStack() as resources:
+        return _incremental_update_viewer_data(source_db, output_path, thumbnail_size, verbose, resources)
+
+
+def _incremental_update_viewer_data(source_db, output_path, thumbnail_size, verbose, resources):
     """Incrementally sync changes from source_db into the existing viewer database.
 
     Processes only new/deleted photos; preserves existing thumbnails.
@@ -654,8 +662,16 @@ def _incremental_update_viewer_db(source_db, output_path, thumbnail_size, verbos
 
     src_escaped = source_db.replace("'", "''")
     dest_conn = sqlite3.connect(output_path)
+    resources.callback(dest_conn.close)
     dest_conn.execute("PRAGMA foreign_keys = ON")
     dest_conn.execute(f"ATTACH DATABASE '{src_escaped}' AS src")
+
+    from db.keyword_hierarchy_sync import prepare_hierarchy_sync
+    try:
+        hierarchy_sync = prepare_hierarchy_sync(dest_conn)
+    except BaseException:
+        dest_conn.close()
+        raise
 
     from db.manual_face_export import prepare_person_sync, merge_manual_faces
     source_face_columns = prepare_person_sync(dest_conn)
@@ -925,6 +941,19 @@ def _incremental_update_viewer_db(source_db, output_path, thumbnail_size, verbos
                 count = dest_conn.execute("SELECT COUNT(*) FROM main.photo_manual_tags").fetchone()[0]
                 logger.info("  Merged manual tags (%d rows)", count)
 
+    if hierarchy_sync is not None:
+        try:
+            hierarchy_sync.apply(dest_conn)
+            dest_conn.commit()
+            hierarchy_sync.close(dest_conn)
+        except BaseException:
+            try:
+                hierarchy_sync.close(dest_conn)
+            except Exception:
+                logger.warning('Could not clean hierarchy export snapshot', exc_info=True)
+            dest_conn.close()
+            raise
+
     # --- Sync photos_vec (sqlite-vec KNN index; no FK/trigger, hand-synced) ---
     # The viewer DB nulls out photos.clip_embedding, so photos_vec is the ONLY
     # place embeddings survive on the deployment — the NumPy search fallback has
@@ -1089,6 +1118,12 @@ def export_viewer_db(source_db='photo_scores_pro.db', output_path=None, thumbnai
     dst_conn = sqlite3.connect(output_path)
     src_conn.backup(dst_conn)
     src_conn.close()
+    from db.keyword_hierarchy_sync import reset_viewer_hierarchy_authority
+    try:
+        reset_viewer_hierarchy_authority(dst_conn)
+    except BaseException:
+        dst_conn.close()
+        raise
     _normalize_review_decisions(dst_conn)
     dst_conn.commit()
 

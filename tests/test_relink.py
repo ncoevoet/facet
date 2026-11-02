@@ -85,6 +85,10 @@ def test_all_current_associations_survive_and_manual_marks_require_review(librar
                      "VALUES (7,?,-1,X'',1,'stable-uuid',?,40,30,3,1,2,9,10)", (old, source))
         conn.execute('INSERT INTO photo_tags VALUES (?,?)', (old, 'ai-tag'))
         conn.execute("INSERT INTO photo_manual_tags(photo_path,tag,source,created_by) VALUES (?, 'manual','user','alice')", (old,))
+        from db.keyword_hierarchy import assign_path, remove_assignment
+        hierarchy, _ = assign_path(conn, old, ['Animals', 'Cat'], source='xmp', imported_path='ANIMALS|Cat')
+        removed_keyword, _ = assign_path(conn, old, ['Old', 'Keyword'])
+        remove_assignment(conn, old, removed_keyword)
         conn.execute("INSERT INTO comparisons(photo_a_path,photo_b_path,winner,user_id) VALUES (?,?,'a','alice')", (old, other))
         conn.execute('INSERT INTO learned_scores(photo_path,learned_score) VALUES (?,7)', (old,))
         conn.execute("INSERT INTO iqa_declined VALUES (?,'model','scan-stamp')", (old,))
@@ -131,6 +135,10 @@ def test_all_current_associations_survive_and_manual_marks_require_review(librar
         assert conn.execute('SELECT representative_face_id FROM persons WHERE id=3').fetchone()[0] == 7
         assert conn.execute('SELECT override_group_key FROM photo_sequence_overrides').fetchone()[0] == old
         assert conn.execute('SELECT path FROM scan_failures').fetchone()[0] == old  # historical location
+        from db.keyword_hierarchy import photo_hierarchies
+        assert photo_hierarchies(conn, new) == [
+            {'node_id': hierarchy, 'segments': ['Animals', 'Cat'], 'source': 'xmp', 'exported_path': 'ANIMALS|Cat'}]
+        assert conn.execute('SELECT path_key FROM keyword_assignment_deletions WHERE photo_path=?', (new,)).fetchone()[0] == '["old","keyword"]'
         assert old in json.loads(conn.execute("SELECT value FROM stats_cache WHERE key='immich_synced_paths:global'").fetchone()[0])
         assert conn.execute("SELECT value FROM stats_cache WHERE key='auto_retrain_pending:alice'").fetchone()[0] == '9'
         assert conn.execute("SELECT 1 FROM stats_cache WHERE key='count_all'").fetchone() is None
