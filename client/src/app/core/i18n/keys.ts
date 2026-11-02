@@ -1176,6 +1176,7 @@ export const I18N = {
     unknown_person: "gallery.unknown_person",
     selection: {
       count: "gallery.selection.count",
+      cleared_by_view: "gallery.selection.cleared_by_view",
       clear: "gallery.selection.clear",
       copy_filenames: "gallery.selection.copy_filenames",
       copy_filename: "gallery.selection.copy_filename",

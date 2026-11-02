@@ -14,6 +14,7 @@ All notable changes to Facet are documented in this file.
 - **✨ now marks only what an assistant chose.** Facet's own features (aesthetic quality, My Taste, moments, Memories and smart albums) use a coloured ✦ instead, so they no longer read as AI output. Icon-only change; nothing is rescored.
 - **Language and theme submenus mark their current entry** with the same check the tooltip-mode radio uses, and no longer wrap their labels when the check squeezes them.
 - **A missing optional metric no longer scores as a neutral 5.0 in the aggregate.** A NULL `subject_sharpness`, `subject_prominence`, `subject_placement`, `bg_separation` or `face_quality_iqa` is left out and its weight is redistributed over the metrics that are present; with all of them missing the aggregate stays neutral. Aggregates change only where a category gives one of these five a positive weight (the shipped weights are unchanged), so run `--recompute-average` after upgrading if you set one. `--optimize-weights` keeps such a weight at its current value when the comparison set has no data for that metric, instead of writing 0%.
+- Changing the filters, search or album clears the gallery selection and says so, so a selection hidden by the new view cannot be the target of the next action. Changing only the sort keeps it.
 
 ### Fixed
 

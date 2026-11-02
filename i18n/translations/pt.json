@@ -1162,6 +1162,7 @@
     "unknown_person": "Desconhecido",
     "selection": {
       "count": "{count} selecionadas",
+      "cleared_by_view": "Seleção limpa porque a visualização mudou.",
       "clear": "Limpar",
       "copy_filenames": "Copiar nomes dos arquivos",
       "copy_filename": "Copiar nome do arquivo",

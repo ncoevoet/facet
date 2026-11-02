@@ -1162,6 +1162,7 @@
     "unknown_person": "未知",
     "selection": {
       "count": "已选 {count} 张",
+      "cleared_by_view": "视图已更改，已清除选择。",
       "clear": "清除",
       "copy_filenames": "复制文件名",
       "copy_filename": "复制文件名",

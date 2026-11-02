@@ -328,7 +328,7 @@ Click photos to select; Shift+Click selects a range. An action bar appears at th
 - **Cull to folder** — copy keeps, or move/trash rejects, to a folder (see [Cull to folder](#cull-to-folder))
 - **Delete** — send photos to the OS trash (see [Delete](#delete)). Shown only when `viewer.cull.allow_trash` is on. Disabled for a "select all in view" selection: select photos explicitly.
 - **Download** — download the selected photos
-- Clear the selection with Escape or the Clear button.
+- Clear the selection with Escape or the Clear button. Changing the filters, search or album also clears it, with a notice, so no hidden selection stays the target of an action. Changing only the sort keeps it.
 
 Double-click a photo to open it.
 

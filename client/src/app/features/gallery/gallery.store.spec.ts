@@ -155,6 +155,43 @@ describe('GalleryStore', () => {
     });
   });
 
+  describe('selection across a changed view', () => {
+    beforeEach(async () => {
+      apiGet.mockImplementation((path: string) => of(path === '/config' ? makeConfig() : makePhotosResponse()));
+      await store.loadPhotos();
+      snackOpen.mockClear();
+    });
+
+    it('clears an explicit selection when a filter changes and says why', async () => {
+      store.selectedPaths.set(new Set(['/a.jpg', '/b.jpg']));
+      await store.updateFilter('camera', 'Gamma');
+      expect(store.selectedPaths().size).toBe(0);
+      expect(snackOpen).toHaveBeenCalledWith(I18N.gallery.selection.cleared_by_view, '', expect.anything());
+    });
+
+    it('clears a whole-view selection and its exclusions too', async () => {
+      store.selectionScope.set('view');
+      store.excludedPaths.set(new Set(['/x.jpg']));
+      await store.updateFilter('camera', 'Gamma');
+      expect(store.viewScopeSelected()).toBe(false);
+      expect(store.excludedPaths().size).toBe(0);
+      expect(snackOpen).toHaveBeenCalledTimes(1);
+    });
+
+    it('stays silent when a changed filter finds nothing selected', async () => {
+      await store.updateFilter('camera', 'Gamma');
+      expect(snackOpen).not.toHaveBeenCalled();
+    });
+
+    it('keeps the selection across a sort change, a reload and a page append', async () => {
+      store.selectedPaths.set(new Set(['/a.jpg']));
+      await store.updateFilter('sort', 'date_taken');
+      await store.reloadPhotos();
+      expect([...store.selectedPaths()]).toEqual(['/a.jpg']);
+      expect(snackOpen).not.toHaveBeenCalled();
+    });
+  });
+
   describe('manual stack display and action scope', () => {
     it('keeps representative paging separate from matching-photo selection', async () => {
       apiGet.mockReturnValue(of(makePhotosResponse({ total: 2, photo_total: 5, has_more: true })));

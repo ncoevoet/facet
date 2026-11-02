@@ -1162,6 +1162,7 @@
     "unknown_person": "Unknown",
     "selection": {
       "count": "{count} selected",
+      "cleared_by_view": "Selection cleared because the view changed.",
       "clear": "Clear",
       "copy_filenames": "Copy filenames",
       "copy_filename": "Copy filename",

@@ -1162,6 +1162,7 @@
     "unknown_person": "Inconnu",
     "selection": {
       "count": "{count} sélectionné(s)",
+      "cleared_by_view": "Sélection effacée : la vue a changé.",
       "clear": "Effacer",
       "copy_filenames": "Copier les noms",
       "copy_filename": "Copier le nom du fichier",
