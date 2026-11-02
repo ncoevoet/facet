@@ -118,4 +118,18 @@ describe('PhotoProvenanceComponent', () => {
     http.expectOne('/api/photo/provenance?path=/a.jpg').flush(response); fixture.detectChanges();
     expect(root.textContent).toContain('from xmp');
   });
+
+  it('shows an unknown catalog rating as unavailable while keeping an explicit zero numeric', () => {
+    const { fixture, root, trigger } = render();
+    trigger.click(); fixture.detectChanges();
+    http.expectOne('/api/photo/provenance?path=/a.jpg').flush({ ...response, review_scope: 'catalog',
+      review: [{ field: 'star_rating', value: null, source: 'unrecorded', changed_at: null, source_at: null }] });
+    fixture.detectChanges();
+    expect(root.textContent).toContain('photo_detail.assessment.unavailable');
+    expect(root.textContent).not.toContain('rating.stars 0');
+    trigger.click(); fixture.detectChanges(); trigger.click(); fixture.detectChanges();
+    http.expectOne('/api/photo/provenance?path=/a.jpg').flush(response); fixture.detectChanges();
+    expect(root.textContent).toContain('rating.stars 0');
+    expect(root.textContent).not.toContain('photo_detail.assessment.unavailable');
+  });
 });

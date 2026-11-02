@@ -1221,6 +1221,17 @@ describe('GalleryFilterSidebarComponent', () => {
       expect(ratingBadge()).toBe('2');
     });
 
+    it('shows an explicit zero-star bound as active and clears both bounds instead of creating an impossible range', () => {
+      showTab('review');
+      toggleFilters({ min_star_rating: '0', max_star_rating: '0' });
+      expect(ratingBadge()).toBe('0');
+      expect(ratingButton().getAttribute('aria-label')).toBe('gallery.zero_stars_clear');
+      expect((fixture.nativeElement as HTMLElement).querySelector('[data-test="rating-max"]')?.textContent?.trim()).toBe('≤ 0');
+      ratingButton().click();
+      expect(mockStore['updateFilters']).toHaveBeenCalledWith({ min_star_rating: '', max_star_rating: '' });
+      expect(mockStore['updateFilter']).not.toHaveBeenCalled();
+    });
+
     it('toggles favorites and monochrome as pressed buttons', () => {
       showTab('review');
       const fav = fixture.nativeElement.querySelector('[data-toggle="favorites_only"]') as HTMLButtonElement;

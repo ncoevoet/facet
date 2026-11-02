@@ -18,7 +18,7 @@ def photo_provenance(conn, path, *, review_user_id, values, personal):
         source = source if source in ('local', 'xmp') else 'unrecorded'
         review.append({
             'field': field,
-            'value': int(values[field] or 0),
+            'value': None if field == 'star_rating' and values[field] is None else int(values[field] or 0),
             'source': source,
             'changed_at': receipt.get('changed_at'),
             'source_at': receipt.get('source_at') if source == 'xmp' else None,

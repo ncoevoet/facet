@@ -7,7 +7,7 @@ from pydantic import BaseModel
 
 class ReviewFieldSource(BaseModel):
     field: Literal['star_rating', 'is_favorite', 'is_rejected', 'is_kept']
-    value: int
+    value: int | None
     source: Literal['local', 'xmp', 'unrecorded']
     changed_at: str | None
     source_at: str | None

@@ -27,7 +27,7 @@ import { AdditionalFilterDef } from '../../shared/models/filter-def.model';
 import { computeRangeFilterUpdate } from '../../shared/utils/range-filter';
 import { useCoarsePointerSignal } from '../../shared/utils/media-query';
 import { MOBILE_MIN_CARD_WIDTH_PX } from './gallery-rows.util';
-import { GalleryFilters, PERSON_FILTER_LIMIT, SEARCH_THRESHOLD_MAX, activeFilterUnits, countActiveFilters, filterUnit, seededSearchThreshold, smartAlbumFilterJson } from './gallery-filters.util';
+import { GalleryFilters, PERSON_FILTER_LIMIT, SEARCH_THRESHOLD_MAX, activeFilterUnits, countActiveFilters, filterUnit, hasZeroStarFilter, seededSearchThreshold, smartAlbumFilterJson } from './gallery-filters.util';
 import { AlbumService, Album } from '../../core/services/album.service';
 import { AuthService } from '../../core/services/auth.service';
 import { I18nService } from '../../core/services/i18n.service';
@@ -806,13 +806,13 @@ export function loadActiveTab(): SidebarTabId {
           @if (!pinnedIds().has('star_rating_range')) {
           <span class="relative inline-flex">
             <button #reviewRating type="button" mat-stroked-button class="!min-w-0 !w-10 !h-8 !px-0" data-row="rating"
-              [class.!bg-[var(--mat-sys-primary-container)]]="ratingMin() > 0"
+              [class.!bg-[var(--mat-sys-primary-container)]]="ratingMin() > 0 || zeroStars()"
               [attr.aria-label]="ratingKey() | translate:ratingVars()"
               [appHelpTip]="ratingKey() | translate:ratingVars()"
               (click)="cycleRating()">
               <mat-icon class="!text-xl !w-5 !h-5 !leading-5 !m-0">{{ ratingMin() > 0 ? 'star' : 'star_border' }}</mat-icon>
             </button>
-            @if (ratingMin() > 0) {
+            @if (ratingMin() > 0 || zeroStars()) {
               <span aria-hidden="true" data-test="rating-badge" class="pointer-events-none absolute -top-1.5 -right-1.5 text-[0.625rem] rounded-full min-w-[1rem] h-4 px-1 flex items-center justify-center bg-[var(--mat-sys-primary)] text-[var(--mat-sys-on-primary)] leading-none">{{ ratingMin() }}</span>
             }
           </span>
@@ -1305,18 +1305,20 @@ export class GalleryFilterSidebarComponent {
   readonly qualityAdvancedGroups = computed(() => this.advancedFilterGroups().filter(g => TAB_SECTIONS.quality.includes(g.sectionKey)));
   readonly subjectGroups = computed(() => this.advancedFilterGroups().filter(g => TAB_SECTIONS.subject.includes(g.sectionKey)));
   readonly ratingMin = computed(() => Number(this.store.filters().min_star_rating) || 0);
+  readonly zeroStars = computed(() => hasZeroStarFilter(this.store.filters()));
   private readonly ratingMax = computed(() => Number(this.store.filters().max_star_rating) || 0);
   /** The minimum the next click sets: one more star, and nothing (off) after 5 or after a max bound. */
   private readonly ratingNext = computed(() => {
     const next = Math.floor(this.ratingMin()) + 1;
-    if (next > 5 || (this.ratingMax() && next > this.ratingMax())) return 0;
+    if (next > 5 || (this.store.filters().max_star_rating !== '' && next > this.ratingMax())) return 0;
     return next;
   });
   /** "≤ 4" when a max bound came in from a link or smart album (the button only sets the min). */
-  readonly ratingMaxLabel = computed(() => this.ratingMax() ? `≤ ${this.ratingMax()}` : '');
+  readonly ratingMaxLabel = computed(() => this.store.filters().max_star_rating !== '' ? `≤ ${this.ratingMax()}` : '');
   /** The sentence for the button's tooltip and accessible name: the current state, and what a click does. */
   readonly ratingKey = computed(() => {
     const rv = this.I18N.gallery.sidebar.review;
+    if (this.zeroStars()) return this.I18N.gallery.zero_stars_clear;
     if (this.ratingMin() === 0) return rv.rating_off;
     if (this.ratingNext() === 0) return rv.rating_last;
     return rv.rating_step;
@@ -1413,6 +1415,10 @@ export class GalleryFilterSidebarComponent {
 
   /** Each click raises the minimum star rating by one; the click after 5 clears it. */
   cycleRating(): void {
+    if (this.zeroStars()) {
+      void this.store.updateFilters({ min_star_rating: '', max_star_rating: '' });
+      return;
+    }
     const next = this.ratingNext();
     void this.store.updateFilter('min_star_rating', next ? String(next) : '');
   }

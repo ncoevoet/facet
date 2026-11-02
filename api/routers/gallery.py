@@ -627,7 +627,7 @@ EXIF_RANGE_COLUMNS = [
 ]
 
 
-def _apply_score_range_filters(where_clauses, sql_params, params):
+def _apply_score_range_filters(where_clauses, sql_params, params, user_id=None):
     """Apply all score/metric range filters."""
     try:
         policies = score_presence_policies(params.get('score_presence', ''))
@@ -635,6 +635,10 @@ def _apply_score_range_filters(where_clauses, sql_params, params):
         where_clauses.append('0=1')
         return
     for column, min_key, max_key, is_float in SCORE_RANGE_COLUMNS:
+        if column == 'star_rating':
+            # Range predicates must use the same current-account authority as
+            # the selected values, including zero for an absent personal row.
+            column = get_preference_columns(user_id)['star_rating']
         policy = policies.get(min_key)
         if policy == 'missing_only':
             where_clauses.append(f'{column} IS NULL')
@@ -720,7 +724,7 @@ def _build_gallery_where(params, conn=None, user_id=None, include_manual=True, *
     _apply_visibility_and_hide_filters(where_clauses, sql_params, params, user_id, stack_owner)
     _apply_text_filters(where_clauses, sql_params, params, conn, include_manual=include_manual, hierarchy_available=hierarchy_available)
     _apply_preference_filters(where_clauses, sql_params, params, user_id)
-    _apply_score_range_filters(where_clauses, sql_params, params)
+    _apply_score_range_filters(where_clauses, sql_params, params, user_id)
     _apply_exif_range_filters(where_clauses, sql_params, params)
     _apply_color_quality_filters(where_clauses, sql_params, params)
     _apply_date_album_geo_filters(where_clauses, sql_params, params)

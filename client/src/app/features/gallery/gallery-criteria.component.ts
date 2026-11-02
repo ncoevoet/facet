@@ -19,7 +19,8 @@ import { isUnavailableKey, unavailableSet } from '../../shared/utils/unavailable
 import { CaptureDatePipe } from '../../shared/pipes/capture-date.pipe';
 import { GalleryAlbumRulesComponent } from './gallery-album-rules.component';
 import { GalleryVisit, GalleryVisitHistoryService } from './gallery-visit-history.service';
-import { filterUnit } from './gallery-filters.util';
+import { filterUnit, hasZeroStarFilter } from './gallery-filters.util';
+import { ContextHelpComponent } from '../../shared/components/context-help/context-help.component';
 import { KeywordBranchLabelPipe } from './keyword-hierarchy-labels.service';
 import { GalleryQueryProposalComponent } from './gallery-query-proposal.component';
 import { GALLERY_REVISIT } from '../../core/gallery-reuse.strategy';
@@ -27,7 +28,7 @@ import { GALLERY_REVISIT } from '../../core/gallery-reuse.strategy';
 // Credential expiry/rotation is a live storage getter; refresh its label guard
 // on renders even when the memoized filter collection has not changed.
 @Component({selector:'app-gallery-criteria', changeDetection:ChangeDetectionStrategy.Eager,
- imports:[NgTemplateOutlet, MatIconModule, MatSliderModule, MatTooltipModule, PersonFilterChipComponent, TranslatePipe, ThumbnailUrlPipe, GalleryAlbumRulesComponent, KeywordBranchLabelPipe, GalleryQueryProposalComponent],
+ imports:[NgTemplateOutlet, MatIconModule, MatSliderModule, MatTooltipModule, PersonFilterChipComponent, TranslatePipe, ThumbnailUrlPipe, GalleryAlbumRulesComponent, KeywordBranchLabelPipe, GalleryQueryProposalComponent, ContextHelpComponent],
  host:{class:'block'}, template:`
  @let currentKeywordBranchLabel = store.filters().keyword_branch | keywordBranchLabel;
  @if (store.currentAlbum()) { <app-gallery-album-rules [active]="canAct()" /> }
@@ -42,9 +43,11 @@ import { GALLERY_REVISIT } from '../../core/gallery-reuse.strategy';
      <div class="absolute top-full left-0 z-30 min-w-56 max-w-[80vw] rounded-md border border-[var(--mat-sys-outline-variant)] bg-[var(--mat-sys-surface)] p-2 shadow-lg flex flex-wrap gap-1" [class.!static]="portShortcuts()" [class.!w-full]="portShortcuts()" [class.!min-w-0]="portShortcuts()" [class.!max-w-full]="portShortcuts()">
        <p class="m-0 basis-full p-1 text-xs text-[var(--mat-sys-on-surface-variant)]">{{ I18N.gallery.criteria.quick_help | translate }}</p>
        <button type="button" class="px-3 py-2 rounded hover:bg-[var(--mat-sys-surface-container)]" [class.bg-[var(--mat-sys-secondary-container)]]="store.filters().favorites_only" [attr.aria-pressed]="store.filters().favorites_only" (click)="quickFilter('favorites')">{{ I18N.gallery.favorites_only | translate }}</button>
+       <button type="button" data-quick-zero-stars class="min-h-11 rounded px-3 py-2 hover:bg-[var(--mat-sys-surface-container)]" [class.bg-[var(--mat-sys-secondary-container)]]="zeroStars()" [attr.aria-pressed]="zeroStars()" (click)="quickFilter('zero-stars')">{{ I18N.gallery.zero_stars | translate }}</button>
        @for (status of statuses; track status.id) {
          <button type="button" class="px-3 py-2 rounded hover:bg-[var(--mat-sys-surface-container)]" [class.bg-[var(--mat-sys-secondary-container)]]="store.filters().review_status === status.id" [attr.aria-pressed]="store.filters().review_status === status.id" (click)="quickFilter(status.id)">{{ status.label | translate }}</button>
        }
+       <app-context-help [label]="I18N.gallery.zero_stars_help_title" [keys]="[I18N.gallery.zero_stars_help]" class="basis-full" />
      </div>
    </details>
    @if (visibilityRules().length) {
@@ -220,9 +223,11 @@ export class GalleryCriteriaComponent {
    { id: 'kept', label: I18N.review.kept },
    { id: 'rejected', label: I18N.review.rejected },
  ] as const;
- protected quickFilter(value: 'favorites' | 'undecided' | 'kept' | 'rejected'): void {
+ protected readonly zeroStars = computed(() => hasZeroStarFilter(this.store.filters()));
+ protected quickFilter(value: 'favorites' | 'zero-stars' | 'undecided' | 'kept' | 'rejected'): void {
    if (!this.canAct()) return;
-   if (value === 'favorites') void this.store.updateFilter('favorites_only', !this.store.filters().favorites_only);
+   if (value === 'zero-stars') void this.store.updateFilters({ min_star_rating: this.zeroStars() ? '' : '0', max_star_rating: this.zeroStars() ? '' : '0' });
+   else if (value === 'favorites') void this.store.updateFilter('favorites_only', !this.store.filters().favorites_only);
    else void this.store.updateFilter('review_status', this.store.filters().review_status === value ? '' : value);
  }
  protected readonly visibilityRules = computed(() => this.store.filters().similar_to ? [] : this.storedVisibilityRules());

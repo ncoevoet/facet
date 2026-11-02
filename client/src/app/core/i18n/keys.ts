@@ -1704,6 +1704,10 @@ export const I18N = {
       retry: "gallery.proposal.retry",
       invalid: "gallery.proposal.invalid",
     },
+    zero_stars: "gallery.zero_stars",
+    zero_stars_clear: "gallery.zero_stars_clear",
+    zero_stars_help_title: "gallery.zero_stars_help_title",
+    zero_stars_help: "gallery.zero_stars_help",
   },
   composition_patterns: {
     none: "composition_patterns.none",

@@ -32,6 +32,21 @@ function createCriteria(edition = false) {
  return {app:fixture.componentInstance,fixture,filtersSignal,personsSignal,mockStore,mockRouter,navigation,api,authStatus};
 }
 afterEach(()=>TestBed.resetTestingModule());
+describe('zero-star quick refinement', () => {
+ it('sets and clears only the two star bounds atomically and refuses parked commands', () => {
+  const {app,fixture,filtersSignal,mockStore,navigation}=createCriteria(); fixture.detectChanges();
+  const button=fixture.nativeElement.querySelector('[data-quick-zero-stars]') as HTMLButtonElement;
+  button.click();
+  expect(mockStore.updateFilters).toHaveBeenLastCalledWith({min_star_rating:'0',max_star_rating:'0'});
+  expect(mockStore.updateFilter).not.toHaveBeenCalled();
+  filtersSignal.set({...DEFAULT_FILTERS,camera:'Canon',min_star_rating:'0',max_star_rating:'0'});fixture.detectChanges();
+  expect(button.getAttribute('aria-pressed')).toBe('true');
+  button.click();expect(mockStore.updateFilters).toHaveBeenLastCalledWith({min_star_rating:'',max_star_rating:''});
+  mockStore.updateFilters.mockClear();
+  navigation.next(new NavigationStart(1,'/persons'));button.click();expect(mockStore.updateFilters).not.toHaveBeenCalled();
+  app.setActive(false);button.click();expect(mockStore.updateFilters).not.toHaveBeenCalled();
+ });
+});
 describe('recent collection visits',()=>{
  it('lets Escape leave a closed inner disclosure so the enclosing mobile menu can close',()=>{
   const {fixture}=createCriteria();fixture.detectChanges();

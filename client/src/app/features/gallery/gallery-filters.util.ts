@@ -9,6 +9,11 @@ import { parseScorePresence, serializeScorePresence } from './score-presence.uti
 
 export type GalleryMode = 'grid' | 'mosaic' | 'list';
 
+/** Numeric zero, not a claim that a rating has never been assigned. */
+export function hasZeroStarFilter(filters: Pick<GalleryFilters, 'min_star_rating' | 'max_star_rating'>): boolean {
+  return filters.max_star_rating === '0' && (filters.min_star_rating === '' || filters.min_star_rating === '0');
+}
+
 export function parseGalleryMode(value: string | null | undefined): GalleryMode {
   return value === 'mosaic' || value === 'list' ? value : 'grid';
 }

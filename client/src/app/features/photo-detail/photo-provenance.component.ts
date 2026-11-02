@@ -33,7 +33,7 @@ import { ContextHelpComponent } from '../../shared/components/context-help/conte
             <dl class="m-0 space-y-2">
               @for (row of rows(); track row.field) {
                 <div class="grid grid-cols-[minmax(0,1fr)_auto] gap-x-2">
-                  <dt>{{ row.label | translate }} <span class="tabular-nums">{{ row.field === 'star_rating' ? row.value : (row.valueLabel | translate) }}</span></dt>
+                  <dt>{{ row.label | translate }} <span class="tabular-nums">{{ row.value === null ? (I18N.photo_detail.assessment.unavailable | translate) : row.field === 'star_rating' ? row.value : (row.valueLabel | translate) }}</span></dt>
                   <dd class="m-0 text-[var(--mat-sys-on-surface-variant)]">{{ row.sourceLabel | translate }}</dd>
                 </div>
               }

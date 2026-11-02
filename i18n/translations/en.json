@@ -1689,7 +1689,11 @@
       "conflict": "These criteria cannot hold together. Omit or correct the conflicting fields:",
       "retry": "Retry results",
       "invalid": "Check the criteria and their allowed values before applying."
-    }
+    },
+    "zero_stars": "0 stars",
+    "zero_stars_clear": "0 stars only. Click to clear the star filter.",
+    "zero_stars_help_title": "About zero stars",
+    "zero_stars_help": "Matches a numeric zero in the current rating scope, including an absent personal rating. Unknown catalog ratings stay unavailable. This does not mean never rated. Personal accounts do not fall back to catalog or other people’s ratings; Metadata sources shows the recorded origin."
   },
   "composition_patterns": {
     "none": "None",

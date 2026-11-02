@@ -9794,7 +9794,7 @@ export interface components {
             /** Source At */
             source_at: string | null;
             /** Value */
-            value: number;
+            value: number | null;
         };
         /**
          * ReviewProgressResponse
