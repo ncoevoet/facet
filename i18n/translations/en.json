@@ -1,4 +1,28 @@
 {
+  "logical_assets": {
+      "title": "RAW/JPEG photo",
+      "preserve": "Grouping gives the RAW/JPEG files one chosen primary without overwriting existing file metadata.",
+      "choose_files": "Files",
+      "member_limit": "Choose at most 16 files for one photo.",
+      "primary": "Primary",
+      "primary_missing": "The previous primary is no longer in this photo. A new primary has not been chosen.",
+      "primary_for": "Use {name} as primary",
+      "review_group": "Review grouping",
+      "review_primary": "Review primary change",
+      "ungroup": "Review ungrouping",
+      "preview_ungroup": "Restore separate photo identities",
+      "confirm_group": "Group files",
+      "confirm_primary": "Set primary",
+      "confirm_ungroup": "Ungroup files",
+      "rating": "Rating",
+      "favorite": "Favorite",
+      "acknowledge": "I have reviewed the differing file ratings and decisions. Existing values stay intact.",
+      "updated": "Logical photo updated.",
+      "no_candidates": "No unambiguous indexed RAW/JPEG pair is available for grouping.",
+      "load_error": "Could not load logical photo details. Retry to check current membership.",
+      "review_error": "Could not prepare this change. Check the file choices and review again.",
+      "apply_error": "The change could not be confirmed. Check current membership and review before trying again."
+  },
   "photo_refresh": {
     "limit": "Select between 1 and 100 photos.",
     "reasons": {

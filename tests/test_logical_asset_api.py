@@ -186,3 +186,66 @@ def test_storage_failure_rolls_back_the_entire_apply(edition_client, bundle):
     finally:
         with sqlite3.connect(DEFAULT_DB_PATH) as conn:
             conn.execute('DROP TRIGGER fail_logical_apply')
+
+
+def test_context_discovers_only_visible_indexed_candidates(edition_client, bundle, monkeypatch):
+    from api import related_files, logical_asset_changes
+
+    response = edition_client.get('/api/logical_assets/by-photo', params={'path': bundle['paths'][0]})
+    assert response.status_code == 200
+    body = response.json()
+    assert body['can_group'] is True
+    assert {item['path'] for item in body['candidates']} == set(bundle['paths'])
+    def visibility(user):
+        return 'photos.path != ?', [bundle['paths'][1]]
+    monkeypatch.setattr(logical_asset_changes, 'get_visibility_clause', visibility)
+    monkeypatch.setattr(related_files, 'get_visibility_clause', visibility)
+    response = edition_client.get('/api/logical_assets/by-photo', params={'path': bundle['paths'][0]})
+    assert response.status_code == 200
+    assert response.json()['can_group'] is False
+    assert bundle['paths'][1] not in response.text
+
+
+def test_hidden_group_context_does_not_expose_any_membership(edition_client, bundle, monkeypatch):
+    from api import logical_asset_changes
+
+    created = submit(edition_client, bundle, draft(edition_client, bundle), acknowledge_review_conflicts=True).json()
+    response = edition_client.get('/api/logical_assets/by-photo', params={'path': bundle['paths'][0]})
+    assert response.json()['asset']['asset_id'] == created['asset_id']
+    monkeypatch.setattr(logical_asset_changes, 'get_visibility_clause',
+                        lambda user: ('photos.path != ?', [bundle['paths'][1]]))
+    response = edition_client.get('/api/logical_assets/by-photo', params={'path': bundle['paths'][0]})
+    assert response.status_code == 200
+    assert response.json() == {'asset': None, 'candidates': [], 'can_group': False}
+
+
+def test_context_omits_ambiguous_indexed_aliases(edition_client, bundle, seed_photos_prefix, monkeypatch):
+    from api import config
+
+    root = str(Path(bundle['paths'][0]).parent)
+    monkeypatch.setitem(config.VIEWER_CONFIG, 'path_mapping', {'/raw-alias': root})
+    seed_photos_prefix('/raw-alias/', [{'path': '/raw-alias/capture.CR2', 'filename': 'capture.CR2'}])
+    response = edition_client.get('/api/logical_assets/by-photo', params={'path': bundle['paths'][0]})
+    assert response.status_code == 200
+    assert response.json()['can_group'] is False
+    assert response.json()['candidates'] == [{'path': bundle['paths'][0], 'name': 'capture.jpg', 'kind': 'jpeg'}]
+
+
+def test_assigned_alias_does_not_make_an_unassigned_alias_unique(edition_client, bundle, seed_photos_prefix, monkeypatch):
+    from api import config
+    from db import logical_assets
+
+    root = str(Path(bundle['paths'][0]).parent)
+    other = str(Path(root) / 'previously-renamed.jpg')
+    seed_photos_prefix(root, [{'path': other, 'filename': 'previously-renamed.jpg'}])
+    with sqlite3.connect(DEFAULT_DB_PATH) as conn:
+        conn.execute('BEGIN')
+        logical_assets.create(conn, [other, bundle['paths'][1]], other, visibility_sql='1=1')
+    monkeypatch.setitem(config.VIEWER_CONFIG, 'path_mapping', {'/raw-alias': root})
+    seed_photos_prefix('/raw-alias/', [{'path': '/raw-alias/capture.CR2', 'filename': 'capture.CR2'}])
+    response = edition_client.get('/api/logical_assets/by-photo', params={'path': bundle['paths'][0]})
+    assert response.status_code == 200
+    assert response.json()['can_group'] is False
+    assert [candidate['path'] for candidate in response.json()['candidates']] == [bundle['paths'][0]]
+    change = {**bundle, 'paths': [bundle['paths'][0], '/raw-alias/capture.CR2']}
+    assert edition_client.post('/api/logical_assets/preview', json=change).status_code == 409

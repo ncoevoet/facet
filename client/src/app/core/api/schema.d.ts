@@ -2405,6 +2405,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/logical_assets/by-photo": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Photo Context */
+        get: operations["photo_context_api_logical_assets_by_photo_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/logical_assets/preview": {
         parameters: {
             query?: never;
@@ -7955,6 +7972,18 @@ export interface components {
             /** Preview Token */
             preview_token: string;
         };
+        /** LogicalAssetCandidate */
+        LogicalAssetCandidate: {
+            /**
+             * Kind
+             * @enum {string}
+             */
+            kind: "raw" | "jpeg";
+            /** Name */
+            name: string;
+            /** Path */
+            path: string;
+        };
         /** LogicalAssetChange */
         LogicalAssetChange: {
             /** Asset Id */
@@ -7970,6 +7999,25 @@ export interface components {
             primary_path?: string | null;
             /** Revision */
             revision?: number | null;
+        };
+        /** LogicalAssetContext */
+        LogicalAssetContext: {
+            asset: components["schemas"]["LogicalAssetInfo"] | null;
+            /** Can Group */
+            can_group: boolean;
+            /** Candidates */
+            candidates: components["schemas"]["LogicalAssetCandidate"][];
+        };
+        /** LogicalAssetInfo */
+        LogicalAssetInfo: {
+            /** Asset Id */
+            asset_id: string;
+            /** Members */
+            members: components["schemas"]["LogicalAssetMember"][];
+            /** Primary Path */
+            primary_path: string | null;
+            /** Revision */
+            revision: number;
         };
         /** LogicalAssetMember */
         LogicalAssetMember: {
@@ -14903,6 +14951,37 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["LogicalAssetResult"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    photo_context_api_logical_assets_by_photo_get: {
+        parameters: {
+            query: {
+                path: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LogicalAssetContext"];
                 };
             };
             /** @description Validation Error */

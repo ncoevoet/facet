@@ -2,12 +2,12 @@
 import logging
 import sqlite3
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query
 
 from api.auth import CurrentUser, require_authenticated, require_edition
 from api.database import get_db
 from api import logical_asset_changes
-from api.models.logical_assets import LogicalAssetApply, LogicalAssetChange, LogicalAssetPreview, LogicalAssetResult
+from api.models.logical_assets import LogicalAssetApply, LogicalAssetChange, LogicalAssetPreview, LogicalAssetResult, LogicalAssetContext
 
 router = APIRouter(prefix='/api/logical_assets', tags=['logical_assets'])
 logger = logging.getLogger(__name__)
@@ -35,3 +35,14 @@ def apply_change(body: LogicalAssetApply, user: CurrentUser = Depends(require_ed
     except sqlite3.Error:
         logger.exception('Logical photo change failed')
         raise HTTPException(503, 'Logical photo change was not accepted') from None
+
+
+@router.get('/by-photo', response_model=LogicalAssetContext)
+def photo_context(path: str = Query(...), user: CurrentUser = Depends(require_authenticated)):
+    try:
+        with get_db() as conn:
+            conn.execute('BEGIN')
+            return logical_asset_changes.context(conn, path, user.user_id)
+    except sqlite3.Error:
+        logger.exception('Logical photo context failed')
+        raise HTTPException(503, 'Logical photo context is unavailable') from None

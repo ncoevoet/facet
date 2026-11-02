@@ -37,6 +37,17 @@ def _signature(payload):
     return hmac.new(secret, _DOMAIN + payload, hashlib.sha256).hexdigest()
 
 
+def _indexed_aliases(conn, path, disk):
+    from api.related_files import _catalog_roots, _catalog_aliases
+
+    roots = _catalog_roots(path)
+    if roots is None:
+        raise HTTPException(409, 'Catalog relationships could not be verified')
+    aliases = _catalog_aliases(str(disk), roots)
+    return {row[0] for row in conn.execute(
+        f"SELECT path FROM photos WHERE path IN ({','.join('?' for _ in aliases)})", aliases)}
+
+
 def snapshot(conn, change: LogicalAssetChange, user_id):
     visibility, params = get_visibility_clause(user_id)
     group = None
@@ -84,6 +95,8 @@ def snapshot(conn, change: LogicalAssetChange, user_id):
             observations.append([path, disk, info.st_dev, info.st_ino, info.st_size, info.st_mtime_ns, info.st_ctime_ns])
             actual.append(Path(disk))
     if change.operation == 'create':
+        if any(_indexed_aliases(conn, path, disk) != {path} for path, disk in zip(paths, actual)):
+            raise HTTPException(409, 'Catalog file aliases are ambiguous; review the indexed records')
         extensions = {path.suffix.lower() for path in actual}
         if (not extensions <= RAW_EXTENSIONS | JPEG_EXTENSIONS
                 or not extensions & RAW_EXTENSIONS or not extensions & JPEG_EXTENSIONS):
@@ -147,3 +160,49 @@ def apply(conn, body, user_id):
         return {'asset_id': change.asset_id, 'revision': None, 'dissolved': True}
     except assets.AssetConflict as error:
         raise HTTPException(409, str(error)) from None
+
+
+def context(conn, path, user_id):
+    """Bounded, authorized candidate discovery; never infer durable membership."""
+    from api.related_files import related_files, _catalog_roots, _catalog_aliases
+
+    visibility, params = get_visibility_clause(user_id)
+    if not conn.execute(f'SELECT 1 FROM photos WHERE path=? AND ({visibility})', [path, *params]).fetchone():
+        raise HTTPException(404, 'Logical photo unavailable')
+    membership = conn.execute('SELECT asset_id FROM logical_asset_members WHERE photo_path=?', (path,)).fetchone()
+    if membership:
+        row = conn.execute('SELECT primary_path,revision FROM logical_assets WHERE id=?', (membership[0],)).fetchone()
+        if row:
+            try:
+                state = snapshot(conn, LogicalAssetChange(operation='dissolve', asset_id=membership[0], revision=row[1]), user_id)
+            except HTTPException as error:
+                if error.status_code == 404:
+                    return {'asset': None, 'candidates': [], 'can_group': False}
+                raise
+            return {'asset': {'asset_id': membership[0], 'primary_path': row[0], 'revision': row[1], 'members': state['members']},
+                    'candidates': [], 'can_group': False}
+        return {'asset': None, 'candidates': [], 'can_group': False}
+    inventory = related_files(conn, path, user_id)
+    if inventory['inventory_state'] != 'checked' or Path(path).suffix.lower() not in RAW_EXTENSIONS | JPEG_EXTENSIONS:
+        return {'asset': None, 'candidates': [], 'can_group': False}
+    disk = resolve_photo_disk_path(path)
+    if _indexed_aliases(conn, path, disk) != {path}:
+        return {'asset': None, 'candidates': [], 'can_group': False}
+    roots = _catalog_roots(path)
+    candidates = [{'path': path, 'name': inventory['files'][0]['name'],
+                   'kind': 'raw' if Path(path).suffix.lower() in RAW_EXTENSIONS else 'jpeg'}]
+    if roots is None:
+        return {'asset': None, 'candidates': [], 'can_group': False}
+    for entry in inventory['files'][1:]:
+        if entry['kind'] not in ('raw', 'jpeg') or not entry['indexed'] or entry['state'] != 'available':
+            continue
+        aliases = _catalog_aliases(str(Path(disk).parent / entry['name']), roots)
+        rows = conn.execute(f"SELECT path FROM photos WHERE path IN ({','.join('?' for _ in aliases)}) AND ({visibility})",
+                            [*aliases, *params]).fetchall()
+        # Multiple indexed aliases are distinct catalog records, not a license
+        # to guess which metadata record the user intended to group.
+        if len(rows) == 1 and not conn.execute('SELECT 1 FROM logical_asset_members WHERE photo_path=?', (rows[0][0],)).fetchone():
+            candidates.append({'path': rows[0][0], 'name': entry['name'], 'kind': entry['kind']})
+    extensions = {Path(candidate['path']).suffix.lower() for candidate in candidates}
+    return {'asset': None, 'candidates': candidates,
+            'can_group': bool(extensions & RAW_EXTENSIONS and extensions & JPEG_EXTENSIONS)}

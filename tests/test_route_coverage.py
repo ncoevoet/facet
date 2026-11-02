@@ -102,6 +102,7 @@ PARAMETERISED_ROUTES = [
     ('/api/shared/album/1/media/thumbnail', {'asset_id': '1.' + '0' * 64, 'token': 'invalid'}),
     ('/api/shared/album/1/media/image', {'asset_id': '1.' + '0' * 64, 'token': 'invalid'}),
     ('/api/shared/album/1/media/download', {'asset_id': '1.' + '0' * 64, 'token': 'invalid'}),
+    ('/api/logical_assets/by-photo', {'path': '/nonexistent.jpg'}),
     ('/api/stacks/by-photo', {'path': '/nonexistent.jpg'}),
     ('/api/stacks/nonexistent', {}),
     ('/api/export/sidecar_jobs/not-a-job', {}),

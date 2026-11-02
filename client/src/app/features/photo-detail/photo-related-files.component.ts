@@ -1,3 +1,4 @@
+import { PhotoLogicalAssetComponent } from './photo-logical-asset.component';
 import { ChangeDetectionStrategy, Component, DestroyRef, computed, effect, inject, input, signal } from '@angular/core';
 import { NavigationCancel, NavigationEnd, NavigationError, NavigationStart, Router } from '@angular/router';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
@@ -13,7 +14,7 @@ import { ContextHelpComponent } from '../../shared/components/context-help/conte
 
 @Component({
   selector: 'app-photo-related-files',
-  imports: [MatIconModule, TranslatePipe, ContextHelpComponent],
+  imports: [MatIconModule, TranslatePipe, ContextHelpComponent, PhotoLogicalAssetComponent],
   changeDetection: ChangeDetectionStrategy.OnPush,
   host: { class: 'block min-w-0' },
   template: `
@@ -47,6 +48,7 @@ import { ContextHelpComponent } from '../../shared/components/context-help/conte
             }
             @if (result.multiple_raw_candidates) { <p class="m-0">{{ I18N.related_files.multiple_raw | translate }}</p> }
             @if (result.basename_sidecar_unverified) { <p class="m-0">{{ I18N.related_files.basename_unverified | translate }}</p> }
+            <app-photo-logical-asset [photo]="photo()" />
             <app-context-help [label]="I18N.related_files.help_title" [keys]="helpKeys()" />
           }
         </div>

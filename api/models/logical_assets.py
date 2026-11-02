@@ -57,3 +57,22 @@ class LogicalAssetResult(BaseModel):
     asset_id: str
     revision: int | None
     dissolved: bool
+
+
+class LogicalAssetCandidate(BaseModel):
+    path: str
+    name: str
+    kind: Literal['raw', 'jpeg']
+
+
+class LogicalAssetInfo(BaseModel):
+    asset_id: str
+    revision: int
+    primary_path: str | None
+    members: list[LogicalAssetMember]
+
+
+class LogicalAssetContext(BaseModel):
+    asset: LogicalAssetInfo | None
+    candidates: list[LogicalAssetCandidate]
+    can_group: bool

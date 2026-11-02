@@ -13,6 +13,30 @@
 // A call is rewritten to a live namespace access and runs at construction, after init.
 
 export const I18N = {
+  logical_assets: {
+    title: "logical_assets.title",
+    preserve: "logical_assets.preserve",
+    choose_files: "logical_assets.choose_files",
+    member_limit: "logical_assets.member_limit",
+    primary: "logical_assets.primary",
+    primary_missing: "logical_assets.primary_missing",
+    primary_for: "logical_assets.primary_for",
+    review_group: "logical_assets.review_group",
+    review_primary: "logical_assets.review_primary",
+    ungroup: "logical_assets.ungroup",
+    preview_ungroup: "logical_assets.preview_ungroup",
+    confirm_group: "logical_assets.confirm_group",
+    confirm_primary: "logical_assets.confirm_primary",
+    confirm_ungroup: "logical_assets.confirm_ungroup",
+    rating: "logical_assets.rating",
+    favorite: "logical_assets.favorite",
+    acknowledge: "logical_assets.acknowledge",
+    updated: "logical_assets.updated",
+    no_candidates: "logical_assets.no_candidates",
+    load_error: "logical_assets.load_error",
+    review_error: "logical_assets.review_error",
+    apply_error: "logical_assets.apply_error",
+  },
   photo_refresh: {
     limit: "photo_refresh.limit",
     reasons: {
