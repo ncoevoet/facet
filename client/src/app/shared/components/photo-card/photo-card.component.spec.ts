@@ -176,14 +176,29 @@ describe('PhotoCardComponent', () => {
     expect(img.parentElement!.classList.contains('h-full')).toBe(true);
   });
 
-  it('leaves the image at its natural height below md outside mosaic', () => {
+  it('fills the tile below md when the parent sizes it (fillTile) and details are hidden', () => {
+    const cardFixture = TestBed.createComponent(PhotoCardComponent);
+    cardFixture.componentRef.setInput('photo', makePhoto());
+    cardFixture.componentRef.setInput('hideDetails', true);
+    cardFixture.componentRef.setInput('fillTile', true);
+    cardFixture.detectChanges();
+    const el = cardFixture.nativeElement as HTMLElement;
+    const img = el.querySelector('img')!;
+    expect(img.classList.contains('h-full')).toBe(true);
+    expect(img.classList.contains('object-cover')).toBe(true);
+    expect(el.querySelector('[role="button"]')!.classList.contains('aspect-square')).toBe(true);
+  });
+
+  it('shows the photo whole in the shared view single-column list (hideDetails, no fillTile, no mosaic)', () => {
     const cardFixture = TestBed.createComponent(PhotoCardComponent);
     cardFixture.componentRef.setInput('photo', makePhoto());
     cardFixture.componentRef.setInput('hideDetails', true);
     cardFixture.detectChanges();
-    const img = (cardFixture.nativeElement as HTMLElement).querySelector('img')!;
-    expect(img.classList.contains('h-full')).toBe(false);
+    const el = cardFixture.nativeElement as HTMLElement;
+    const img = el.querySelector('img')!;
     expect(img.classList.contains('object-cover')).toBe(false);
+    expect(img.classList.contains('h-full')).toBe(false);
+    expect(el.querySelector('[role="button"]')!.classList.contains('aspect-square')).toBe(false);
   });
 
   it('never asks for a thumbnail above the stored 640 px', () => {

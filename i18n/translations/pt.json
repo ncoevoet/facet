@@ -1128,6 +1128,9 @@
     "hide_details": "Ocultar detalhes",
     "tooltip_mode": {
       "label": "Dica",
+      "show_in": "Mostrar em",
+      "popup": "Pop-up",
+      "show_on": "Mostrar com",
       "hover": "Passar o mouse",
       "click": "Clicar",
       "panel": "Painel lateral",
@@ -1136,9 +1139,6 @@
       "panel_deselect": "Desmarcar"
     },
     "panel_activation": {
-      "label": "Ativação do painel",
-      "hover": "Passar o mouse",
-      "click": "Clicar",
       "both": "Passar o mouse ou clicar"
     },
     "hide_blinks": "Ocultar piscadas",

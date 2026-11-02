@@ -1128,6 +1128,9 @@
     "hide_details": "Ocultar detalles",
     "tooltip_mode": {
       "label": "Tooltip",
+      "show_in": "Mostrar en",
+      "popup": "Ventana emergente",
+      "show_on": "Mostrar con",
       "hover": "Hover",
       "click": "Clic",
       "panel": "Panel lateral",
@@ -1136,9 +1139,6 @@
       "panel_deselect": "Deseleccionar"
     },
     "panel_activation": {
-      "label": "Activación del panel",
-      "hover": "Hover",
-      "click": "Clic",
       "both": "Hover o clic"
     },
     "hide_blinks": "Ocultar parpadeos",
