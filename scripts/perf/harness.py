@@ -345,6 +345,9 @@ import imagehash  # noqa: E402
 import exiftool  # noqa: E402
 
 utils.load_image_from_path = timed_acc('io.decode')(utils.load_image_from_path)
+# The full scan decodes AND makes the stored thumbnail here (one RAW open); the save no
+# longer generates one, so there is no save.thumbnail timer.
+utils.load_image_and_thumbnail = timed_acc('io.decode_thumbnail')(utils.load_image_and_thumbnail)
 TA = analyzers.TechnicalAnalyzer
 for nm in ('get_sharpness_data', 'get_color_harmony_data', 'get_histogram_data', 'detect_monochrome',
            'get_dynamic_range', 'get_noise_estimate', 'get_contrast_score'):
@@ -356,8 +359,6 @@ exiftool.get_exif_batch = timed_acc('io.exif_batch')(exiftool.get_exif_batch)
 import processing.scorer as psc  # noqa: E402
 
 psc.Facet.get_exif_data = timed_acc('io.exif_single')(psc.Facet.get_exif_data)
-psc.generate_photo_thumbnail = timed_acc('save.thumbnail')(psc.generate_photo_thumbnail)
-psc.thumbnail_source = timed_acc('save.thumbnail_source')(psc.thumbnail_source)
 psc.Facet.save_photos_batch = timed_acc('save.save_photos_batch')(psc.Facet.save_photos_batch)
 
 # --- inference sub-components ---

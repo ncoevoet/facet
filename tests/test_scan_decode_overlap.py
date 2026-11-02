@@ -763,7 +763,8 @@ class TestKeyboardInterruptDoesNotWaitForTheChunk:
             release.wait(30)
             return None, None
 
-        monkeypatch.setattr('utils.load_image_from_path', blocking_load)
+        monkeypatch.setattr('utils.load_image_and_thumbnail',
+                            lambda path: (*blocking_load(path), None, 0.0))
         monkeypatch.setattr('exiftool.get_exif_batch', lambda paths, chunk_size=100, stop_event=None: {})
         errors = []
         manager = _Manager()
@@ -812,7 +813,8 @@ class TestKeyboardInterruptDoesNotWaitForTheChunk:
 class TestStopFlagInLoadImages:
 
     def _patch_io(self, monkeypatch, load):
-        monkeypatch.setattr('utils.load_image_from_path', load)
+        monkeypatch.setattr('utils.load_image_and_thumbnail',
+                            lambda path: (*load(path), None, 0.0))
         monkeypatch.setattr('exiftool.get_exif_batch', lambda paths, chunk_size=100, stop_event=None: {})
 
     @pytest.mark.parametrize('workers', [1, 3])
@@ -950,8 +952,6 @@ def test_post_inference_phase_accounting(monkeypatch, restricted):
 
     def save(results, images):
         clock.advance(3)
-        if not restricted:
-            proc.metrics['thumbnail_time'] += 3
         clock.advance(5)
 
     monkeypatch.setattr(proc, '_compute_aggregates', aggregate)
@@ -959,5 +959,4 @@ def test_post_inference_phase_accounting(monkeypatch, restricted):
     monkeypatch.setattr(proc, '_save_results_restricted', save)
     proc.process_directory(PATHS[:2], show_progress=False)
     assert proc.metrics['aggregate_time'] == (0 if restricted else 2)
-    assert proc.metrics['thumbnail_time'] == (0 if restricted else 3)
-    assert proc.metrics['save_time'] == (8 if restricted else 5)
+    assert proc.metrics['save_time'] == 8

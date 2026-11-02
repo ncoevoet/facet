@@ -570,7 +570,6 @@ class TestExplicitModelWrite:
     @staticmethod
     def _save(db, path, faces):
         """Drive the REAL batch save: Facet.save_photos_batch, not a re-run of its row builder."""
-        from PIL import Image
         from processing.scorer import Facet
 
         class Res(dict):            # the INSERT binds ~70 named columns; absent ones are NULL
@@ -580,8 +579,9 @@ class TestExplicitModelWrite:
         facet = Facet.__new__(Facet)
         facet.db_path = db
         facet._pending_centroid_persons = set()
-        res = Res(path=path, filename=Path(path).name, face_details=faces)
-        facet.save_photos_batch([(res, Image.new('RGB', (32, 32)))])
+        res = Res(path=path, filename=Path(path).name, face_details=faces,
+                  thumbnail=b'thumb')
+        facet.save_photos_batch([res])
         facet.flush_person_centroids()  # what every scan does when it ends
 
     @staticmethod
@@ -794,7 +794,6 @@ class TestCentroidsAreRebuiltOncePerScan:
 
     @staticmethod
     def _save(facet, photo, bbox, vec):
-        from PIL import Image
 
         class Res(dict):
             def __missing__(self, key):
@@ -802,8 +801,8 @@ class TestCentroidsAreRebuiltOncePerScan:
 
         face = {'index': 0, 'embedding': vec.tobytes(), 'bbox': list(bbox)}
         facet.save_photos_batch(
-            [(Res(path=photo, filename=Path(photo).name, face_details=[face]),
-              Image.new('RGB', (32, 32)))])
+            [Res(path=photo, filename=Path(photo).name, face_details=[face],
+                 thumbnail=b'thumb')])
 
     def _library(self, tmp_path, name):
         db = _db(tmp_path, name)

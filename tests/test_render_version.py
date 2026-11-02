@@ -54,10 +54,8 @@ class TestScanStampsCurrentVersion:
         facet = Facet.__new__(Facet)
         facet._pending_centroid_persons = set()
         facet.db_path = db_path
-        with mock.patch('processing.scorer.generate_photo_thumbnail', return_value=b'thumb'), \
-             mock.patch('processing.scorer.thumbnail_source', return_value=None), \
-             mock.patch('processing.scorer.get_plugin_manager', return_value=None, create=True):
-            facet.save_photos_batch([(_base_result(_RAW_PATH, 7.0), None)])
+        with mock.patch('processing.scorer.get_plugin_manager', return_value=None, create=True):
+            facet.save_photos_batch([_base_result(_RAW_PATH, 7.0)])
 
         conn = sqlite3.connect(db_path)
         stamp = conn.execute(
@@ -77,10 +75,8 @@ class TestScanStampsCurrentVersion:
         facet = Facet.__new__(Facet)
         facet._pending_centroid_persons = set()
         facet.db_path = library_db
-        with mock.patch('processing.scorer.generate_photo_thumbnail', return_value=b'new-thumb'), \
-             mock.patch('processing.scorer.thumbnail_source', return_value=None), \
-             mock.patch('processing.scorer.get_plugin_manager', return_value=None, create=True):
-            facet.save_photos_batch([(_base_result(_RAW_PATH, 8.0), None)])
+        with mock.patch('processing.scorer.get_plugin_manager', return_value=None, create=True):
+            facet.save_photos_batch([dict(_base_result(_RAW_PATH, 8.0), thumbnail=b'new-thumb')])
 
         conn = sqlite3.connect(library_db)
         assert conn.execute("SELECT render_version FROM photos").fetchone()[0] == DISPLAY_RENDER_VERSION
