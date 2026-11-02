@@ -666,7 +666,7 @@ export class App implements OnInit {
     const trigger = this.detailsTrigger();
     if (trigger === 'off') return;
     if (place === 'panel') {
-      void this.store.updateFilter('tooltip_mode', 'panel');
+      void this.store.updateFilters({ tooltip_mode: 'panel', panel_activation: trigger });
     } else {
       void this.store.updateFilter('tooltip_mode', trigger === 'click' ? 'click' : 'hover');
     }
@@ -676,6 +676,9 @@ export class App implements OnInit {
     event.stopPropagation();
     if (trigger === this.detailsTrigger()) return;
     if (trigger === 'off') {
+      const place = this.detailsPlace();
+      this.lastDetailsPlace.set(place);
+      writeTooltipPlace(place);
       void this.store.updateFilter('tooltip_mode', 'off');
     } else if (this.detailsPlace() === 'panel') {
       void this.store.updateFilters({ tooltip_mode: 'panel', panel_activation: trigger });

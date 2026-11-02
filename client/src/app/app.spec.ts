@@ -1025,6 +1025,29 @@ describe('App', () => {
       expect(store.updateFilter).toHaveBeenLastCalledWith('tooltip_mode', 'click');
     });
 
+    it('returns a popup user to the popup after Click, Off, Click', async () => {
+      localStorage.removeItem('facet_tooltip_place');
+      const { fixture, root, store } = render();
+      store.filters.update(filters => ({ ...filters, tooltip_mode: 'click' }));
+      fixture.detectChanges();
+      await openMenu(fixture, byLabel(root, I18N.gallery.tooltip_mode.label)[0] as HTMLButtonElement);
+      menuItems()[2].click();
+      expect(store.updateFilter).toHaveBeenLastCalledWith('tooltip_mode', 'off');
+      store.filters.update(filters => ({ ...filters, tooltip_mode: 'off' }));
+      fixture.detectChanges();
+      menuItems()[4].click();
+      expect(store.updateFilter).toHaveBeenLastCalledWith('tooltip_mode', 'click');
+    });
+
+    it('keeps the hover trigger when a popup user picks the side panel', () => {
+      const { fixture, store } = render();
+      store.filters.update(filters => ({ ...filters, tooltip_mode: 'hover', panel_activation: 'click' }));
+      fixture.detectChanges();
+      const app = fixture.componentInstance as unknown as { setDetailsPlace(event: Event, place: 'popup' | 'panel'): void };
+      app.setDetailsPlace(new Event('click'), 'panel');
+      expect(store.updateFilters).toHaveBeenLastCalledWith({ tooltip_mode: 'panel', panel_activation: 'hover' });
+    });
+
     it('is one shared menu for both triggers', () => {
       const { fixture, root } = render();
       const buttons = sortButtons(root);
