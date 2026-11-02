@@ -173,12 +173,6 @@ describe('App', () => {
   });
 
   describe('mobile bottom bar vs selection (issue #73)', () => {
-    ;
-
-    ;
-
-    ;
-
     it('shows the persons bottom bar when nothing is selected', () => {
       const { app } = createApp('/persons');
       expect((app as any).mobilePersonsBarVisible()).toBe(true);
@@ -204,9 +198,6 @@ describe('App', () => {
       expect(compareCategorySig()).toBe('portrait');
     });
   });
-
-  ;
-
   describe('resetAllFilters', () => {
     it('navigates to / and calls store.resetFilters', () => {
       const { app, mockStore, mockRouter } = createApp('/');
@@ -460,9 +451,6 @@ describe('App', () => {
       const buttons = Array.from(root.querySelectorAll<HTMLButtonElement>(`button[aria-label="${I18N.gallery.scan_action}"]`));
       return { fixture, root, buttons, store, openLauncher };
     }
-
-    ;
-
     it('renders one scan button in the application bar immediately before the account menu', () => {
       const { buttons } = render(true);
       const desktop = buttons;
@@ -471,9 +459,6 @@ describe('App', () => {
       expect(desktop[0].closest('[data-workspace-navigation]')).not.toBeNull();
       for (const cls of TONAL) expect(desktop[0].classList.contains(cls)).toBe(true);
     });
-
-    ;
-
     it('labels the button with the scan action (tooltip message and aria-label)', () => {
       const { fixture, buttons } = render(true);
       expect(buttons.length).toBe(1);
@@ -486,9 +471,6 @@ describe('App', () => {
         expect(b.textContent).toContain('add_photo_alternate');
       }
     });
-
-    ;
-
     it('reloads the type counts and the photos when the launcher reports a completed scan', async () => {
       const { buttons, store, openLauncher } = render(true, true);
       buttons[0].click();
@@ -512,10 +494,6 @@ describe('App', () => {
       expect(render(false).buttons).toHaveLength(0);
     });
   });
-
-  ;
-
-
   describe('lockEdition', () => {
     it('leaves a page the route table flags data.edition, and only those', async () => {
       const config = [{ path: 'compare', data: { edition: true } }, { path: 'stats' }];
