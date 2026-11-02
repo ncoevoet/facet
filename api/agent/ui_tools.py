@@ -184,6 +184,16 @@ class UiNavigate(UiArgs):
         return self
 
 
+class UiFilterProposal(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    source_query: str = Field(min_length=1, max_length=4000,
+                              description="The user's original request, shown verbatim as untrusted text.")
+    unrepresented: list[Annotated[str, Field(min_length=1, max_length=300)]] = Field(
+        max_length=20, description="Clauses this patch cannot represent; explicitly give [] when none are known. "
+                                   "Never silently drop unsupported media, negation, date or rating clauses.")
+
+
 class UiSetGalleryFilters(UiArgs):
     patch: BaseModel = Field(
         description="Filters to change, keyed like the `search_photos` filters plus `sort` and "
@@ -192,9 +202,16 @@ class UiSetGalleryFilters(UiArgs):
                     "silhouette, junk, moment) are not offered: use `search_photos`. "
                     "Explicit `review_status` takes precedence over `show_rejected` and `hide_rejected`.")
     replace: bool = Field(default=False, description="true: reset every other filter first.")
+    proposal: Optional[UiFilterProposal] = Field(
+        default=None, description="For natural-language interpretations, present this editable proposal in the "
+                                  "active gallery instead of applying. Only the user's Apply changes filters. "
+                                  "Does not navigate; absent: apply the explicitly requested patch directly.")
 
     def forward(self) -> dict:
-        return {"patch": self.patch.model_dump(mode="json", exclude_unset=True), "replace": self.replace}
+        result = {"patch": self.patch.model_dump(mode="json", exclude_unset=True), "replace": self.replace}
+        if self.proposal is not None:
+            result['proposal'] = self.proposal.model_dump(mode='json')
+        return result
 
 
 # `UiFilterPatch` is built at import time, so it cannot be named in an annotation.
@@ -355,6 +372,9 @@ UI_TOOLS: tuple[UiTool, ...] = (
     UiTool("ui_set_gallery_filters",
            "Change the gallery filters and sort in the user's open tab. `patch` merges into the "
            "current filters (null removes one); `replace: true` starts from none."
+           " When interpreting natural language, include `proposal` with the original request and all known "
+           "unrepresented clauses: the active gallery shows editable criteria and waits for the user's Apply. "
+           "A proposal does not change filters, selection or saved albums and does not navigate."
            " Refused with `invalid_input` when `show_rejected` and `favorites_only` are both true;"
            " the tab cannot represent that intersection. Explicit `review_status` takes precedence"
            " over `show_rejected` and `hide_rejected`."
@@ -498,9 +518,12 @@ def _simplify(node: Any, defs: dict, keep_null: bool = False) -> Any:
         rest = {k: v for k, v in node.items() if k != "anyOf"}
         nullable = [b for b in branches if b.get("type") == "null"]
         others = [b for b in branches if b.get("type") != "null"]
-        if nullable and len(others) == 1 and "enum" in others[0]:
-            merged = {**others[0], "type": [others[0]["type"], "null"],
-                      "enum": [*others[0]["enum"], None]}
+        if nullable and len(others) == 1 and others[0].get('type') in ('string', 'integer', 'number', 'boolean'):
+            # Type-specific bounds still apply to the non-null scalar. Keeping
+            # anyOf here would silently bypass the tab's flat-schema checker.
+            merged = {**others[0], "type": [others[0]["type"], "null"]}
+            if 'enum' in others[0]:
+                merged['enum'] = [*others[0]['enum'], None]
             return _simplify({**rest, **merged}, defs, keep_null)
         if len(branches) == 1:
             return _simplify({**rest, **branches[0]}, defs, keep_null)

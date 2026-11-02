@@ -425,6 +425,12 @@ export function createUiToolHandlers(deps: UiToolDeps): Record<string, UiToolHan
     ui_set_gallery_filters: async args => {
       const patch = (args['patch'] ?? {}) as Record<string, unknown>;
       patchToUpdates(patch);
+      if (args['proposal'] !== undefined) {
+        requireGalleryView();
+        const present = viewActions.get('gallery_filter_proposal');
+        if (!present) throw new UiToolError('no_active_view', 'The active gallery cannot review a query proposal.');
+        return present({ ...args, normalize: patchToUpdates, reset: clearedFilters() });
+      }
       // On an album page the store saves every filter change as that album's smart filter (edition sessions),
       // which a readonly-granted agent must never cause: leave the album for any change, not only a replace.
       await leaveAlbum();

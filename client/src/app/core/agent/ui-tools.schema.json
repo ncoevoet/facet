@@ -679,7 +679,7 @@
         "readOnlyHint": false,
         "untrustedContentHint": true
       },
-      "description": "Change the gallery filters and sort in the user's open tab. `patch` merges into the current filters (null removes one); `replace: true` starts from none. Refused with `invalid_input` when `show_rejected` and `favorites_only` are both true; the tab cannot represent that intersection. Explicit `review_status` takes precedence over `show_rejected` and `hide_rejected`. Refused with `unsaved_decisions` when it would leave /culling while the user holds unconfirmed decisions; `navigation_refused` when the tab declines. Refused with `modal_open` while a dialog, bottom sheet or slideshow is open in the tab; read-only tools are not affected.",
+      "description": "Change the gallery filters and sort in the user's open tab. `patch` merges into the current filters (null removes one); `replace: true` starts from none. When interpreting natural language, include `proposal` with the original request and all known unrepresented clauses: the active gallery shows editable criteria and waits for the user's Apply. A proposal does not change filters, selection or saved albums and does not navigate. Refused with `invalid_input` when `show_rejected` and `favorites_only` are both true; the tab cannot represent that intersection. Explicit `review_status` takes precedence over `show_rejected` and `hide_rejected`. Refused with `unsaved_decisions` when it would leave /culling while the user holds unconfirmed decisions; `navigation_refused` when the tab declines. Refused with `modal_open` while a dialog, bottom sheet or slideshow is open in the tab; read-only tools are not affected.",
       "inputSchema": {
         "additionalProperties": false,
         "properties": {
@@ -897,16 +897,12 @@
                 ]
               },
               "keyword_branch": {
-                "anyOf": [
-                  {
-                    "maxLength": 36,
-                    "type": "string"
-                  },
-                  {
-                    "type": "null"
-                  }
-                ],
-                "description": "Explicit hierarchy node UUID including descendant assignments; null clears."
+                "description": "Explicit hierarchy node UUID including descendant assignments; null clears.",
+                "maxLength": 36,
+                "type": [
+                  "string",
+                  "null"
+                ]
               },
               "lens": {
                 "description": "Gallery filter `lens`.",
@@ -1592,16 +1588,12 @@
                 ]
               },
               "score_presence": {
-                "anyOf": [
-                  {
-                    "maxLength": 5000,
-                    "type": "string"
-                  },
-                  {
-                    "type": "null"
-                  }
-                ],
-                "description": "JSON map from min_metric keys to include_missing, missing_only or measured_only; null clears."
+                "description": "JSON map from min_metric keys to include_missing, missing_only or measured_only; null clears.",
+                "maxLength": 5000,
+                "type": [
+                  "string",
+                  "null"
+                ]
               },
               "search": {
                 "description": "Gallery filter `search`.",
@@ -1705,16 +1697,12 @@
                 ]
               },
               "tag_groups": {
-                "anyOf": [
-                  {
-                    "maxLength": 20000,
-                    "type": "string"
-                  },
-                  {
-                    "type": "null"
-                  }
-                ],
-                "description": "JSON string with any/all/none arrays of literal tags, at most 50 total; null clears."
+                "description": "JSON string with any/all/none arrays of literal tags, at most 50 total; null clears.",
+                "maxLength": 20000,
+                "type": [
+                  "string",
+                  "null"
+                ]
               },
               "type": {
                 "description": "Gallery filter `type`.",
@@ -1727,6 +1715,32 @@
                 ]
               }
             },
+            "type": "object"
+          },
+          "proposal": {
+            "additionalProperties": false,
+            "properties": {
+              "source_query": {
+                "description": "The user's original request, shown verbatim as untrusted text.",
+                "maxLength": 4000,
+                "minLength": 1,
+                "type": "string"
+              },
+              "unrepresented": {
+                "description": "Clauses this patch cannot represent; explicitly give [] when none are known. Never silently drop unsupported media, negation, date or rating clauses.",
+                "items": {
+                  "maxLength": 300,
+                  "minLength": 1,
+                  "type": "string"
+                },
+                "maxItems": 20,
+                "type": "array"
+              }
+            },
+            "required": [
+              "source_query",
+              "unrepresented"
+            ],
             "type": "object"
           },
           "replace": {
@@ -2210,5 +2224,5 @@
       "name": "ui_show_comparison"
     }
   ],
-  "version": "bc188751f5c442aa"
+  "version": "ca5d80340f4473bd"
 }

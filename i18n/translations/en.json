@@ -1669,6 +1669,26 @@
       "photo_actions": "Photo actions",
       "unrated": "Unrated",
       "undecided": "Undecided"
+    },
+    "proposal": {
+      "title": "Review suggested filters",
+      "replace": "Replace current refinements with configured defaults plus these criteria.",
+      "merge": "Add these criteria to the current collection. Existing filter rules still apply.",
+      "reset": "Reset this filter to its configured default",
+      "remove_named": "Omit {name} from this proposal",
+      "remove": "Omit",
+      "unrepresented": "Not translated into filters",
+      "acknowledge": "Use only the represented criteria; leave these clauses out",
+      "whole_view": "Clear whole-view selection before changing its query. Explicit photo selections stay selected.",
+      "apply": "Apply filters",
+      "changed": "The collection or account changed. Ask for a fresh proposal.",
+      "load_error": "The filters were applied, but results could not be loaded. Use the gallery retry.",
+      "fraction": "Fraction from 0 to 1; semantic threshold is at most 0.5.",
+      "effective": "Changes to the current view",
+      "empty": "None",
+      "conflict": "These criteria cannot hold together. Omit or correct the conflicting fields:",
+      "retry": "Retry results",
+      "invalid": "Check the criteria and their allowed values before applying."
     }
   },
   "composition_patterns": {

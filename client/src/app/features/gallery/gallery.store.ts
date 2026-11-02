@@ -1572,17 +1572,23 @@ export class GalleryStore {
   }
 
   /** An explicit sidebar edit leaves temporary album review mode before saving. */
-  private leaveTemporaryReview(): void {
-    if (!this.transientReviewStatus()) return;
+  private withoutTemporaryReview(current: GalleryFilters): GalleryFilters {
+    if (!this.transientReviewStatus()) return current;
     const album = this.currentAlbum();
     if (album) {
       try {
         const saved = JSON.parse(album.smart_filter_json ?? '{}') as Partial<GalleryFilters>;
-        this.filters.update(current => ({ ...current, review_status: saved.review_status ?? '',
+        return { ...current, review_status: saved.review_status ?? '',
           sort: saved.sort ?? this.config()?.defaults.sort ?? DEFAULT_FILTERS.sort,
-          sort_direction: saved.sort_direction ?? this.config()?.defaults.sort_direction ?? DEFAULT_FILTERS.sort_direction }));
+          sort_direction: saved.sort_direction ?? this.config()?.defaults.sort_direction ?? DEFAULT_FILTERS.sort_direction };
       } catch { /* Existing malformed album handling remains responsible for reporting it. */ }
     }
+    return current;
+  }
+
+  private leaveTemporaryReview(): void {
+    if (!this.transientReviewStatus()) return;
+    this.filters.set(this.withoutTemporaryReview(this.filters()));
     this.transientReviewStatus.set(false);
   }
 
@@ -1590,8 +1596,7 @@ export class GalleryStore {
   /** Similar Photos is a separate library-wide ranking endpoint, not a
    * gallery query. A deliberate refinement must resume the real gallery
    * rather than silently storing a value that this ranking ignores. */
-  private similarRefinementPatch(updates: Partial<GalleryFilters>): Partial<GalleryFilters> {
-    const current = this.filters();
+  private similarRefinementPatch(updates: Partial<GalleryFilters>, current: GalleryFilters): Partial<GalleryFilters> {
     if (!current.similar_to || updates.similar_to) return {};
     const rankingKeys: ReadonlySet<keyof GalleryFilters> = new Set(['similar_to', 'similarity_mode', 'min_similarity', 'page', 'per_page']);
     return (Object.keys(updates) as (keyof GalleryFilters)[]).some(key => !this.isDisplayOnlyFilter(key) && !rankingKeys.has(key) && updates[key] !== current[key])
@@ -1618,7 +1623,7 @@ export class GalleryStore {
     const extra: Partial<GalleryFilters> = {
       ...gpsPatch,
       ...(('person_id' in update && !update.person_id) ? { person_match: 'all' as const } : {}),
-      ...this.similarRefinementPatch(update),
+      ...this.similarRefinementPatch(update, this.filters()),
       ...semanticSortPatch(this.filters(), { ...update, ...gpsPatch, ...reviewPatch }, this.config()?.defaults),
       ...reviewPatch,
       ...exclusiveHidePatch(update),
@@ -1648,7 +1653,7 @@ export class GalleryStore {
     this.leaveTemporaryReview();
     const before = this.filters();
     const update = { [key]: value } as Partial<GalleryFilters>;
-    const similarityPatch = this.similarRefinementPatch(update);
+    const similarityPatch = this.similarRefinementPatch(update, this.filters());
     this.filters.update(current => ({ ...current, ...update, ...similarityPatch, page: 1 }));
     this.journalFilters(before, this.filters());
     this.syncUrl();
@@ -1723,11 +1728,16 @@ export class GalleryStore {
     await this.updateFilter('sort', sort);
   }
 
-  /** Update multiple filters; reload only when the query changes. */
-  async updateFilters(updates: Partial<GalleryFilters>): Promise<void> {
+  /** The same normalization as Apply, without changing query, history or reads. */
+  previewFilters(updates: Partial<GalleryFilters>): GalleryFilters {
+    return this.prepareFilterUpdates(updates).next;
+  }
+
+  private prepareFilterUpdates(updates: Partial<GalleryFilters>) {
     const keys = Object.keys(updates) as (keyof GalleryFilters)[];
     const isDisplayOnly = keys.length > 0 && keys.every(key => this.isDisplayOnlyFilter(key));
-    if (keys.some(key => !this.isDisplayOnlyFilter(key) && !GalleryStore.SORT_KEYS.has(key))) this.leaveTemporaryReview();
+    const leaveReview = keys.some(key => !this.isDisplayOnlyFilter(key) && !GalleryStore.SORT_KEYS.has(key));
+    const before = leaveReview ? this.withoutTemporaryReview(this.filters()) : this.filters();
     const gpsPatch: Partial<GalleryFilters> = {};
     const reviewPatch = reviewStatusPatch(updates);
     if (updates.no_gps) {
@@ -1739,13 +1749,19 @@ export class GalleryStore {
     const extra: Partial<GalleryFilters> = {
       ...gpsPatch,
       ...(('person_id' in updates && !updates.person_id) ? { person_match: 'all' as const } : {}),
-      ...this.similarRefinementPatch(updates),
-      ...semanticSortPatch(this.filters(), { ...updates, ...gpsPatch, ...reviewPatch }, this.config()?.defaults),
+      ...this.similarRefinementPatch(updates, before),
+      ...semanticSortPatch(before, { ...updates, ...gpsPatch, ...reviewPatch }, this.config()?.defaults),
       ...reviewPatch,
       ...exclusiveHidePatch(updates),
     };
-    const before = this.filters();
-    this.filters.update(current => ({ ...current, ...updates, ...extra, ...(isDisplayOnly ? {} : { page: 1 }) }));
+    return { before, next: { ...before, ...updates, ...extra, ...(isDisplayOnly ? {} : { page: 1 }) }, isDisplayOnly, leaveReview };
+  }
+
+  /** Update multiple filters; reload only when the query changes. */
+  async updateFilters(updates: Partial<GalleryFilters>): Promise<void> {
+    const { before, next, isDisplayOnly, leaveReview } = this.prepareFilterUpdates(updates);
+    if (leaveReview) this.transientReviewStatus.set(false);
+    this.filters.set(next);
     this.journalFilters(before, this.filters());
     if (Object.keys(updates).some(k => (DISPLAY_OPTION_KEYS as string[]).includes(k))) {
       saveDisplayOptionsToStorage(this.filters());

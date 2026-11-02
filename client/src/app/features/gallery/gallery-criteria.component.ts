@@ -21,15 +21,17 @@ import { GalleryAlbumRulesComponent } from './gallery-album-rules.component';
 import { GalleryVisit, GalleryVisitHistoryService } from './gallery-visit-history.service';
 import { filterUnit } from './gallery-filters.util';
 import { KeywordBranchLabelPipe } from './keyword-hierarchy-labels.service';
+import { GalleryQueryProposalComponent } from './gallery-query-proposal.component';
 import { GALLERY_REVISIT } from '../../core/gallery-reuse.strategy';
 
 // Credential expiry/rotation is a live storage getter; refresh its label guard
 // on renders even when the memoized filter collection has not changed.
 @Component({selector:'app-gallery-criteria', changeDetection:ChangeDetectionStrategy.Eager,
- imports:[NgTemplateOutlet, MatIconModule, MatSliderModule, MatTooltipModule, PersonFilterChipComponent, TranslatePipe, ThumbnailUrlPipe, GalleryAlbumRulesComponent, KeywordBranchLabelPipe],
+ imports:[NgTemplateOutlet, MatIconModule, MatSliderModule, MatTooltipModule, PersonFilterChipComponent, TranslatePipe, ThumbnailUrlPipe, GalleryAlbumRulesComponent, KeywordBranchLabelPipe, GalleryQueryProposalComponent],
  host:{class:'block'}, template:`
  @let currentKeywordBranchLabel = store.filters().keyword_branch | keywordBranchLabel;
  @if (store.currentAlbum()) { <app-gallery-album-rules [active]="canAct()" /> }
+ <app-gallery-query-proposal [active]="canAct()" />
  @if (pinned()) {
    <p data-criteria-pinned class="text-xs my-2 text-[var(--mat-sys-on-surface-variant)]">{{ I18N.gallery.criteria.pinned | translate }}</p>
  } @else {

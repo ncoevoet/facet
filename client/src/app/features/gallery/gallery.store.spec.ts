@@ -120,6 +120,41 @@ describe('GalleryStore', () => {
     store = TestBed.inject(GalleryStore);
   });
 
+  describe('nonmutating filter preview', () => {
+    it('shows actual dependent GPS, search, review and visibility changes before applying the same result', async () => {
+      store.config.set(makeConfig());
+      store.filters.set({ ...DEFAULT_FILTERS, semanticQuery: 'sunset', similar_to: '/reference.jpg',
+        gps_lat: '12', gps_lng: '30', gps_radius_km: '5', hide_rejected: true });
+      const before = store.filters(), selection = store.selectedPaths();
+      const updates = { no_gps: '1', review_status: 'undecided' as const, favorites_only: true };
+      const proposed = store.previewFilters(updates);
+      expect(proposed).toMatchObject({ no_gps: '1', gps_lat: '', gps_lng: '', gps_radius_km: '',
+        semanticQuery: '', similar_to: '', review_status: 'undecided', sort: 'date_taken', sort_direction: 'ASC', favorites_only: true, hide_rejected: false });
+      expect(store.filters()).toBe(before); expect(store.selectedPaths()).toBe(selection);
+      expect(apiGet).not.toHaveBeenCalled(); expect(apiPost).not.toHaveBeenCalled(); expect(routerNavigate).not.toHaveBeenCalled();
+      apiGet.mockReturnValue(of(makePhotosResponse()));
+      await store.updateFilters(updates);
+      expect(store.filters()).toEqual(proposed); expect(store.selectedPaths()).toBe(selection);
+      expect(apiGet.mock.calls.some(([path]) => path === '/photos')).toBe(true);
+    });
+
+    it('previews restored saved review/sort when leaving a temporary album queue without changing the queue', async () => {
+      store.config.set(makeConfig());
+      store.currentAlbum.set({ id: 4, is_smart: true, name: 'Favorites', smart_filter_json: JSON.stringify({ review_status: 'kept', sort: 'date_taken', sort_direction: 'DESC' }) } as Album);
+      store.filters.set({ ...DEFAULT_FILTERS, album_id: '4', review_status: 'undecided', sort: 'aggregate', sort_direction: 'ASC' });
+      apiGet.mockReturnValue(of(makePhotosResponse()));
+      await store.startReviewQueue();
+      apiGet.mockClear();
+      const before = store.filters();
+      const proposed = store.previewFilters({ camera: 'Canon' });
+      expect(proposed).toMatchObject({ camera: 'Canon', review_status: 'kept', sort: 'date_taken', sort_direction: 'DESC' });
+      expect(store.filters()).toBe(before); expect(store.previewFilters({ camera: 'Canon' })).toEqual(proposed); expect(apiGet).not.toHaveBeenCalled();
+      apiGet.mockReturnValue(of(makePhotosResponse()));
+      await store.updateFilters({ camera: 'Canon' });
+      expect(store.filters()).toEqual(proposed);
+    });
+  });
+
   describe('rating-only preview Undo', () => {
     it('writes stars only and preserves a newer favorite and Keep decision', async () => {
       vi.mocked(TestBed.inject(AuthService).isEdition).mockReturnValue(true);

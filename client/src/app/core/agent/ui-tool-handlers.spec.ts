@@ -137,6 +137,28 @@ describe('UI tool registry and handlers', () => {
   });
 
   describe('registry', () => {
+    it('presents a filter proposal without navigation, selection or gallery mutation', async () => {
+      const present = vi.fn(async () => ({ proposal_id: 1, status: 'awaiting_user', applied: false }));
+      viewActions.register('gallery_filter_proposal', present);
+      const before = store.filters(); const selected = store.selectedPaths();
+      const result = await run('ui_set_gallery_filters', { patch: { date_from: '2024-03-01', tag: 'Birds' },
+        proposal: { source_query: 'birds last spring except videos', unrepresented: ['except videos'] } });
+      expect(result).toEqual({ ok: true, data: { proposal_id: 1, status: 'awaiting_user', applied: false } });
+      expect(present).toHaveBeenCalledOnce();
+      const args = present.mock.calls[0] as unknown as [Record<string, unknown>];
+      expect(args[0]['patch']).toEqual({ date_from: '2024-03-01', tag: 'Birds' });
+      expect(typeof args[0]['normalize']).toBe('function');
+      expect(store.filters()).toBe(before); expect(store.selectedPaths()).toBe(selected);
+      expect(apiGet).not.toHaveBeenCalled(); expect(navigate).not.toHaveBeenCalled();
+    });
+
+    it('refuses an incomplete interpretation and an unavailable proposal surface without applying', async () => {
+      const before = store.filters();
+      expect(await run('ui_set_gallery_filters', { patch: { tag: 'Birds' }, proposal: { source_query: 'birds' } })).toMatchObject({ ok: false, error: 'invalid_input' });
+      expect(await run('ui_set_gallery_filters', { patch: { tag: 'Birds' }, proposal: { source_query: 'birds', unrepresented: [] } })).toMatchObject({ ok: false, error: 'no_active_view' });
+      expect(store.filters()).toBe(before); expect(apiGet).not.toHaveBeenCalled(); expect(navigate).not.toHaveBeenCalled();
+    });
+
     it('has a handler for every contract entry and a contract entry for every handler', () => {
       const handlers = createUiToolHandlers({
         gallery: store, router: router as unknown as Router,
