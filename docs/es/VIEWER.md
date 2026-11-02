@@ -292,7 +292,7 @@ La insignia o una foto apilada abre el visor con miniaturas, botones anterior/si
 
 **En la galería.** Una pila se pliega en una sola miniatura; **Expandir todas las pilas** es una preferencia recordada. Los filtros y la pertenencia a álbumes se aplican a las fotos individuales: la portada se muestra si coincide; si no, el primer miembro que coincide. La exploración de pilas omite el ocultado automático de ráfagas/duplicados. La línea de tiempo y el mapa muestran fotos individuales.
 
-**Selección.** Seleccionar una miniatura plegada selecciona solo la foto mostrada. Abre la pila y usa **Seleccionar los N miembros** para todos. **Seleccionar todo en la vista**, la selección por percentil y `target:view` del asistente incluyen todas las fotos coincidentes, también los miembros plegados, y las acciones sobre toda la vista muestran antes el número real de fotos. En los resúmenes de la API y del asistente, `total` cuenta las miniaturas mostradas y `photo_total` cuenta las fotos.
+**Selección.** Seleccionar una miniatura plegada selecciona solo la foto mostrada, y la barra de selección lo indica mientras haya una seleccionada. Abre la pila y usa **Seleccionar los N miembros** para todos. **Seleccionar todo en la vista**, la selección por percentil y `target:view` del asistente incluyen todas las fotos coincidentes, también los miembros plegados, y las acciones sobre toda la vista muestran antes el número real de fotos. En los resúmenes de la API y del asistente, `total` cuenta las miniaturas mostradas y `photo_total` cuenta las fotos.
 
 **Privacidad y persistencia.**
 
@@ -423,11 +423,11 @@ Campos de respuesta y códigos de estado: [API.md](../API.md).
 - **Modo de diseño**: **Cuadrícula** (tarjetas uniformes) o **Mosaico** (filas justificadas que conservan las proporciones), en cualquier ancho de pantalla.
 - **Tamaño de miniatura**: control deslizante de altura de tarjeta/fila (120–400 px, guardado en localStorage)
 - **Ocultar detalles**: oculta los metadatos de las tarjetas (solo en modo cuadrícula)
-- **Información emergente**: cómo aparecen los detalles de la foto: **Panel lateral** (por defecto), **Al pasar el cursor**, **Clic** o **Desactivada**.
-  - El panel lateral muestra los detalles completos en el cajón de la derecha, con la misma disposición que el detalle de la foto. Sigue tanto al cursor como al clic, así que funciona en pantallas táctiles. Conserva la última foto cuando el cursor sale de la cuadrícula.
+- **Información emergente**: dos filas. **Mostrar en**: **Ventana emergente** o **Panel lateral** (por defecto). **Mostrar con**: **Desactivado**, **Hover**, **Clic** o **Hover o clic** (por defecto; solo panel lateral). El menú sigue abierto entre elecciones, y **Desactivado** conserva el lugar para cuando los detalles vuelvan.
+  - El panel lateral muestra los detalles completos en el cajón de la derecha, con la misma disposición que el detalle de la foto. Con **Hover o clic** sigue tanto al cursor como al clic, así que funciona en pantallas táctiles. Conserva la última foto cuando el cursor sale de la cuadrícula.
   - Hacer clic en una foto mantiene el panel en ella hasta que pulsas **Deseleccionar** (que también deselecciona la foto). **Escape** hace lo mismo y borra la selección.
   - El panel comparte el cajón con los filtros; abrir los filtros lo oculta. Necesita una ventana de al menos 1280 px de ancho.
-  - **Al pasar el cursor** y **Clic** muestran una burbuja breve: categoría, agregada y posición, estética, composición, nitidez, exposición y una línea de EXIF.
+  - La **Ventana emergente** muestra una burbuja breve: categoría, agregada y posición, estética, composición, nitidez, exposición y una línea de EXIF.
 - **Personalizar los botones de la tarjeta**: reordena y muestra/oculta los botones de la fila que aparece al pasar el cursor sobre una tarjeta. Hay nueve acciones: buscar similares, por qué esta puntuación, escribir metadatos, asignar un rostro, abrir el grupo de duplicados, el grupo de ráfaga, el conjunto de bracketing/panorámica o la pila de fotos, y abrir la página de la foto. Los botones de grupo solo aparecen en las fotos de un grupo así. Los botones de grupo de duplicados y de pila de fotos están activados por defecto; los demás son opcionales. Se guarda por navegador.
 - **Ocultar parpadeos**: oculta las fotos con parpadeos detectados
 - **Solo parpadeos / Solo duplicados**: muestra solo las fotos con parpadeo, o todos los miembros de cada grupo de duplicados. Los interruptores de ocultar se suspenden en esa vista.

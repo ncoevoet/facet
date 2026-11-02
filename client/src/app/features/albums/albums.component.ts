@@ -29,12 +29,14 @@ import { ConfirmDialogComponent } from '../../shared/components/confirm-dialog/c
 import { PageHelpService } from '../../core/services/page-help.service';
 import { HeaderSlotService } from '../../core/services/header-slot.service';
 import { onPageQuery } from '../../shared/utils/page-query';
+import { MarkTonePipe } from '../../shared/pipes/mark-tone.pipe';
 
 @Component({
   selector: 'app-albums',
   standalone: true,
   host: { class: 'block px-4 pt-4 pb-4' },
   imports: [
+    MarkTonePipe,
     RouterLink, MatButtonModule, MatIconModule, MatFormFieldModule, MatInputModule,
     MatSelectModule, MatDialogModule, MatTooltipModule,
     MatProgressSpinnerModule, MatMenuModule,

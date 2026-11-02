@@ -3888,6 +3888,16 @@ describe('GalleryComponent', () => {
         expect(document.activeElement).not.toBe(document.body);
       });
 
+      it('names the exclusions when the whole view is selected minus some photos', () => {
+        mockStore.viewScopeSelected.set(true);
+        mockStore.selectionCount.set(648);
+        mockStore.excludedPaths.set(new Set(['/a.jpg', '/b.jpg']));
+
+        (component as unknown as { selectWholeView: () => void }).selectWholeView();
+
+        expect(liveAnnouncer.announce).toHaveBeenCalledWith('gallery.selection.view_scope_except');
+      });
+
       it('announces the new whole-view selection state', () => {
         mockStore.viewScopeSelected.set(true);
         mockStore.selectionCount.set(650);
@@ -5375,6 +5385,17 @@ describe('GalleryComponent', () => {
       });
     });
 
+    it('fills the grid card as a square when details are hidden (fillTile set by the gallery)', () => {
+      pin();
+      mockStore.filters.set({ ...DEFAULT_FILTERS, hide_details: true });
+      render('grid', false);
+      const card = fixture!.nativeElement.querySelector('app-photo-card') as HTMLElement;
+      const tile = card.querySelector('[role="button"]') as HTMLElement;
+      expect(tile.classList.contains('aspect-square')).toBe(true);
+      expect(card.querySelector('img')!.classList.contains('object-cover')).toBe(true);
+      mockStore.filters.set({ ...DEFAULT_FILTERS });
+    });
+
     it('builds rows with the real hide_details setting', () => {
       pin();
       mockStore.filters.set({ ...DEFAULT_FILTERS, hide_details: false });
@@ -6009,6 +6030,50 @@ describe('GalleryComponent', () => {
       button.click();
       TestBed.tick();
       expect(document.activeElement).toBe(card(host)!.querySelector('[data-notice-close]'));
+    });
+  });
+
+  describe('leaving panel mode (rendered)', () => {
+    it('releases the held photo when the mode switches away from panel', () => {
+      mockStore.photos.set([{ path: '/a.jpg' }]);
+      mockStore.filters.set({ ...DEFAULT_FILTERS, tooltip_mode: 'panel' });
+      const fixture = TestBed.createComponent(GalleryComponent);
+      fixture.detectChanges();
+      const comp = fixture.componentInstance as unknown as { activeIndex: WritableSignal<number>; releasePanel(): void };
+      comp.activeIndex.set(0);
+      const release = vi.spyOn(comp, 'releasePanel').mockImplementation(() => {});
+      mockStore.filters.set({ ...DEFAULT_FILTERS, tooltip_mode: 'hover' });
+      fixture.detectChanges();
+      expect(release).toHaveBeenCalledOnce();
+      fixture.destroy();
+    });
+
+    it('does not release on Hover -> Click: activeIndex is the keyboard cursor in every mode', () => {
+      mockStore.photos.set([{ path: '/a.jpg' }]);
+      mockStore.filters.set({ ...DEFAULT_FILTERS, tooltip_mode: 'hover' });
+      const fixture = TestBed.createComponent(GalleryComponent);
+      fixture.detectChanges();
+      const comp = fixture.componentInstance as unknown as { activeIndex: WritableSignal<number>; releasePanel(): void };
+      comp.activeIndex.set(0);
+      const release = vi.spyOn(comp, 'releasePanel').mockImplementation(() => {});
+      mockStore.filters.set({ ...DEFAULT_FILTERS, tooltip_mode: 'click' });
+      fixture.detectChanges();
+      expect(release).not.toHaveBeenCalled();
+      fixture.destroy();
+    });
+
+    it('releases on Panel -> Click with a live cursor', () => {
+      mockStore.photos.set([{ path: '/a.jpg' }]);
+      mockStore.filters.set({ ...DEFAULT_FILTERS, tooltip_mode: 'panel' });
+      const fixture = TestBed.createComponent(GalleryComponent);
+      fixture.detectChanges();
+      const comp = fixture.componentInstance as unknown as { activeIndex: WritableSignal<number>; releasePanel(): void };
+      comp.activeIndex.set(0);
+      const release = vi.spyOn(comp, 'releasePanel').mockImplementation(() => {});
+      mockStore.filters.set({ ...DEFAULT_FILTERS, tooltip_mode: 'click' });
+      fixture.detectChanges();
+      expect(release).toHaveBeenCalledOnce();
+      fixture.destroy();
     });
   });
 

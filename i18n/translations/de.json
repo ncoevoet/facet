@@ -1160,6 +1160,9 @@
     "hide_details": "Details ausblenden",
     "tooltip_mode": {
       "label": "Tooltip",
+      "show_in": "Anzeigen in",
+      "popup": "Popup",
+      "show_on": "Anzeigen bei",
       "hover": "Hover",
       "click": "Klick",
       "panel": "Seitenleiste",
@@ -1169,9 +1172,6 @@
       "details": "Fotodetails"
     },
     "panel_activation": {
-      "label": "Panel-Aktivierung",
-      "hover": "Hover",
-      "click": "Klick",
       "both": "Hover oder Klick"
     },
     "hide_blinks": "Blinzler ausblenden",

@@ -244,7 +244,14 @@
         </button>
         <mat-menu #langMenuAnon="matMenu">
           @for (lang of i18n.languages(); track lang.code) {
-            <button mat-menu-item (click)="switchLang(lang.code)">{{ lang.name }}</button>
+            <button mat-menu-item role="menuitemradio" [attr.aria-checked]="i18n.locale() === lang.code" (click)="switchLang(lang.code)">
+              <span class="flex items-center gap-3 whitespace-nowrap">
+                <span class="grow">{{ lang.name }}</span>
+                @if (i18n.locale() === lang.code) {
+                  <span class="flex shrink-0"><mat-icon aria-hidden="true">check</mat-icon></span>
+                }
+              </span>
+            </button>
           }
         </mat-menu>
         <!-- Dark mode toggle (not authenticated) -->
@@ -257,9 +264,14 @@
         </button>
         <mat-menu #themeMenuAnon="matMenu">
           @for (t of themeService.THEMES; track t.id) {
-            <button mat-menu-item (click)="themeService.setTheme(t.id)">
-              <span class="inline-block w-4 h-4 rounded-full mr-2 align-middle" [style.background]="t.swatch"></span>
-              {{ t.label }}
+            <button mat-menu-item role="menuitemradio" [attr.aria-checked]="themeService.theme() === t.id" (click)="themeService.setTheme(t.id)">
+              <span class="flex items-center gap-3 whitespace-nowrap grow">
+                <span class="inline-block w-4 h-4 rounded-full shrink-0" [style.background]="t.swatch"></span>
+                <span class="grow">{{ t.label }}</span>
+                @if (themeService.theme() === t.id) {
+                  <span class="flex shrink-0"><mat-icon aria-hidden="true">check</mat-icon></span>
+                }
+              </span>
             </button>
           }
         </mat-menu>

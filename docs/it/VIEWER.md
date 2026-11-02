@@ -292,7 +292,7 @@ Il badge o una foto impilata apre il visualizzatore con miniature, pulsanti prec
 
 **Nella galleria.** Una pila si ripiega in una tessera; **Espandi tutte le pile** è una preferenza ricordata. Filtri e appartenenza agli album si applicano alle singole foto: la copertina compare se corrisponde, altrimenti compare il primo membro che corrisponde. Sfogliare una pila aggira il nascondimento automatico di raffiche/duplicati. Cronologia e mappa mostrano le singole foto.
 
-**Selezione.** Selezionare una tessera ripiegata seleziona solo la foto mostrata. Apri la pila e usa **Seleziona tutti i N membri** per selezionarli tutti. **Seleziona tutta la vista**, la selezione per percentile e `target:view` dell'assistente includono ogni foto corrispondente, anche i membri ripiegati, e le azioni sull'intera vista mostrano prima il numero reale di foto. Nei riepiloghi API/assistente, `total` conta le tessere mostrate e `photo_total` conta le foto.
+**Selezione.** Selezionare una tessera ripiegata seleziona solo la foto mostrata, e la barra di selezione lo segnala finché ne è selezionata una. Apri la pila e usa **Seleziona tutti i N membri** per selezionarli tutti. **Seleziona tutta la vista**, la selezione per percentile e `target:view` dell'assistente includono ogni foto corrispondente, anche i membri ripiegati, e le azioni sull'intera vista mostrano prima il numero reale di foto. Nei riepiloghi API/assistente, `total` conta le tessere mostrate e `photo_total` conta le foto.
 
 **Privacy e persistenza.**
 
@@ -422,11 +422,11 @@ Campi della risposta e codici di stato: [API.md](../API.md).
 - **Modalità layout** — **Griglia** (schede uniformi) o **Mosaico** (righe giustificate che mantengono le proporzioni), a ogni larghezza dello schermo.
 - **Dimensione miniatura** — cursore dell'altezza di scheda/riga (120–400px, salvato in localStorage)
 - **Nascondi dettagli** — nasconde i metadati sulle schede (solo modalità griglia)
-- **Tooltip** — come appaiono i dettagli della foto: **Pannello laterale** (predefinito), **Al passaggio**, **Al clic** o **Disattivato**.
-  - Il pannello laterale mostra i dettagli completi nel cassetto di destra, organizzato come il dettaglio della foto. Segue passaggio e clic, quindi funziona sugli schermi touch. Mantiene l'ultima foto quando il cursore lascia la griglia.
+- **Tooltip** — due righe. **Mostra in**: **Popup** o **Pannello laterale** (predefinito). **Mostra con**: **Disattivato**, **Hover**, **Clic** o **Hover o clic** (predefinito; solo pannello laterale). Il menu resta aperto tra una scelta e l'altra, e **Disattivato** conserva la posizione per quando i dettagli tornano.
+  - Il pannello laterale mostra i dettagli completi nel cassetto di destra, organizzato come il dettaglio della foto. Con **Hover o clic** segue passaggio e clic, quindi funziona sugli schermi touch. Mantiene l'ultima foto quando il cursore lascia la griglia.
   - Cliccare una foto tiene il pannello su di essa finché non premi **Deseleziona** (che deseleziona anche la foto). **Esc** fa lo stesso e cancella la selezione.
   - Il pannello condivide il cassetto con i filtri; aprire i filtri lo nasconde. Richiede una finestra larga almeno 1280px.
-  - **Al passaggio** e **Al clic** mostrano un breve fumetto: categoria, aggregato e posizione, estetica, composizione, nitidezza, esposizione e una riga EXIF.
+  - Il **Popup** mostra un breve fumetto: categoria, aggregato e posizione, estetica, composizione, nitidezza, esposizione e una riga EXIF.
 - **Personalizza i pulsanti della scheda** — riordina e mostra/nascondi i pulsanti nella riga al passaggio di una scheda. Sono disponibili nove azioni: trova simili, perché-questo-punteggio, scrivi metadati, assegna un volto, apri il gruppo di duplicati, la raffica, la serie bracket/panorama o la pila di foto, e apri la pagina della foto. I pulsanti di gruppo compaiono solo sulle foto che appartengono a un tale gruppo. I pulsanti del gruppo di duplicati e della pila di foto sono attivi per impostazione predefinita; gli altri sono facoltativi. Salvato per browser.
 - **Nascondi occhi chiusi** — nasconde le foto con occhi chiusi rilevati
 - **Solo occhi chiusi / Solo duplicati** — mostra solo le foto con occhi chiusi, o ogni membro di ciascun gruppo di duplicati. Gli interruttori di nascondimento sono sospesi per quella vista.

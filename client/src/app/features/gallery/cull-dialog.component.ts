@@ -62,7 +62,12 @@ interface CullResponse {
   imports: [MatDialogModule, MatButtonModule, MatIconModule, MatCheckboxModule,
             MatProgressSpinnerModule, TranslatePipe],
   template: `
-    <h2 mat-dialog-title>{{ (data.allRejects ? I18N.cull.trash_all_rejects : data.action ? 'cull.' + data.action : I18N.cull.title) | translate }}</h2>
+    <h2 mat-dialog-title class="!flex !items-center !gap-3 !text-base !font-semibold !m-0 !px-6 !pt-5 !pb-4 before:!content-none">
+      <span class="w-9 h-9 rounded-lg bg-[var(--mat-sys-primary-container)] flex items-center justify-center shrink-0">
+        <mat-icon aria-hidden="true" class="!text-xl !leading-none !w-5 !h-5 text-[var(--mat-sys-on-primary-container)]">delete_sweep</mat-icon>
+      </span>
+      {{ (data.allRejects ? I18N.cull.trash_all_rejects : data.action ? 'cull.' + data.action : I18N.cull.title) | translate }}
+    </h2>
     <mat-dialog-content class="!pt-2 min-w-[22rem] max-w-[32rem]">
       @if (data.allRejects) {
         <p class="text-sm mb-3">{{ I18N.cull.all_rejects_scope | translate }}</p>

@@ -1221,6 +1221,9 @@ export const I18N = {
     hide_details: "gallery.hide_details",
     tooltip_mode: {
       label: "gallery.tooltip_mode.label",
+      show_in: "gallery.tooltip_mode.show_in",
+      popup: "gallery.tooltip_mode.popup",
+      show_on: "gallery.tooltip_mode.show_on",
       hover: "gallery.tooltip_mode.hover",
       click: "gallery.tooltip_mode.click",
       panel: "gallery.tooltip_mode.panel",
@@ -1230,9 +1233,6 @@ export const I18N = {
       details: "gallery.tooltip_mode.details",
     },
     panel_activation: {
-      label: "gallery.panel_activation.label",
-      hover: "gallery.panel_activation.hover",
-      click: "gallery.panel_activation.click",
       both: "gallery.panel_activation.both",
     },
     hide_blinks: "gallery.hide_blinks",

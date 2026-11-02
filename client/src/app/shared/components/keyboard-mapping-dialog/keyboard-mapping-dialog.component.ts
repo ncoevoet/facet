@@ -22,10 +22,12 @@ import { KEYMAP_ACTIONS, KeymapConfig, KeyboardMappingService } from '../../../c
       <span class="w-9 h-9 rounded-lg bg-[var(--mat-sys-primary-container)] flex items-center justify-center shrink-0">
         <mat-icon aria-hidden="true" class="!text-xl !leading-none !w-5 !h-5 text-[var(--mat-sys-on-primary-container)]">keyboard</mat-icon>
       </span>
-      {{ I18N.shortcuts.keymap_title | translate }}
+      <span class="flex flex-col">
+        <span class="!text-base !font-semibold">{{ I18N.shortcuts.keymap_title | translate }}</span>
+        <span class="!text-xs !font-normal opacity-60 mt-0.5">{{ I18N.shortcuts.keymap_hint | translate }}</span>
+      </span>
     </h2>
     <mat-dialog-content class="!px-6 !pb-1 !overflow-hidden">
-      <p class="text-xs opacity-60 mt-4 mb-4">{{ I18N.shortcuts.keymap_hint | translate }}</p>
       <div class="flex flex-col gap-0.5">
         @for (action of KEYMAP_ACTIONS; track action.id) {
           <button type="button" data-keymap-row

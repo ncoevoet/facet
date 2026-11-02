@@ -820,11 +820,7 @@ export class GalleryStore {
    * reset: appending a page does not change what the view is.
    */
   private resetViewScope(): void {
-    if (!this.viewScopeSelected()) return;
-    this.selectedPaths.set(new Set());
-    this.excludedPaths.set(new Set());
-    this.selectionScope.set('paths');
-    this.lastSelectedIndex = -1;
+    if (this.viewScopeSelected()) this.clearSelection();
   }
 
   /** Restore a previously captured selection (used by undo). */

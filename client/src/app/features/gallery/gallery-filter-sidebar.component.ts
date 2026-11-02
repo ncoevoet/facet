@@ -81,7 +81,7 @@ export const SECTION_ICONS: Record<string, string> = {
   'gallery.sidebar.face': 'face',
   'gallery.sidebar.composition': 'grid_3x3',
   'gallery.sidebar.saliency': 'center_focus_strong',
-  'gallery.sidebar.moments': 'auto_awesome',
+  'gallery.sidebar.moments': FEATURE_MARK,
   'gallery.sidebar.technical': 'tune',
   'gallery.sidebar.exposure_range': 'exposure',
   'gallery.sidebar.ratings': 'grade',
@@ -217,6 +217,7 @@ export function loadActiveTab(): SidebarTabId {
   standalone: true,
   host: { class: 'flex flex-col h-full bg-[var(--mat-sys-surface-container-lowest)] [&_.mat-expansion-panel]:!shadow-none [&_.mat-expansion-panel]:!rounded-none [&_.mat-expansion-panel]:!bg-transparent [&_.mat-expansion-panel]:!mx-0 [&_.mat-expansion-panel]:!my-0 [&_.mat-expansion-panel]:border-b [&_.mat-expansion-panel]:border-[var(--mat-sys-outline-variant)]' },
   imports: [
+    MarkTonePipe,
     DecimalPipe,
     MetricSparklineComponent,
     NgTemplateOutlet,
@@ -370,7 +371,7 @@ export function loadActiveTab(): SidebarTabId {
         @for (group of metricFilterGroups(); track group.sectionKey) {
           <div class="px-1 pt-2 pb-1">
             <div class="flex items-center gap-2 text-xs font-medium opacity-70 mb-1">
-              <mat-icon class="!text-xl !w-5 !h-5 !leading-none opacity-80">{{ sectionIcons[group.sectionKey] || 'tune' }}</mat-icon>
+              <mat-icon class="!text-xl !w-5 !h-5 !leading-none opacity-80" [class]="group.sectionKey | markTone">{{ sectionIcons[group.sectionKey] || 'tune' }}</mat-icon>
               {{ group.sectionKey | translate }}
             </div>
             @for (def of group.filters; track def.id) {
@@ -977,7 +978,7 @@ export function loadActiveTab(): SidebarTabId {
                              [style.background-color]="sectionStates()[group.sectionKey] === true ? 'var(--mat-sys-surface-container)' : null">
           <mat-expansion-panel-header class="!px-4">
             <mat-panel-title class="flex items-center gap-2">
-              <mat-icon class="!text-xl !w-5 !h-5 !leading-none opacity-80">{{ sectionIcons[group.sectionKey] || 'tune' }}</mat-icon>
+              <mat-icon class="!text-xl !w-5 !h-5 !leading-none opacity-80" [class]="group.sectionKey | markTone">{{ sectionIcons[group.sectionKey] || 'tune' }}</mat-icon>
               {{ group.sectionKey | translate }}
               @if (sectionActiveCounts()[group.sectionKey]) {
                 <span class="text-xs rounded-full min-w-[1.25rem] h-5 px-1.5 flex items-center justify-center bg-[var(--mat-sys-primary)] text-[var(--mat-sys-on-primary)] leading-none">{{ sectionActiveCounts()[group.sectionKey] }}</span>

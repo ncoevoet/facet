@@ -1,7 +1,8 @@
 import { Pipe, PipeTransform } from '@angular/core';
+import { FEATURE_MARK } from '../../shared/pipes/mark-tone.pipe';
 
-const WEIGHT_ICONS: Record<string, string> = {
-  aesthetic_percent: 'auto_awesome',
+export const WEIGHT_ICONS: Record<string, string> = {
+  aesthetic_percent: FEATURE_MARK,
   composition_percent: 'grid_on',
   face_quality_percent: 'face',
   face_sharpness_percent: 'face_retouching_natural',

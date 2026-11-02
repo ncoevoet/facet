@@ -41,6 +41,7 @@ import { InfiniteScrollDirective } from '../../directives/infinite-scroll.direct
 import { PluralKeyPipe } from '../../pipes/plural-key.pipe';
 import { I18N, i18nKeys } from '../../../core/i18n/keys';
 import type { ViewerConfig, SortOption } from '../../../features/gallery/gallery.store';
+import { MarkTonePipe } from '../../pipes/mark-tone.pipe';
 
 interface FilterOption {
   value: string;
@@ -102,6 +103,7 @@ const HIDE_TOGGLE_KEYS = ['hide_blinks', 'hide_bursts', 'hide_duplicates'] as co
   standalone: true,
   host: { class: 'block h-full' },
   imports: [
+    MarkTonePipe,
     NgTemplateOutlet, NgClass,
     MatIconModule, MatButtonModule, MatProgressSpinnerModule, MatMenuModule,
     MatSelectModule, MatFormFieldModule, MatSnackBarModule, MatTooltipModule,
@@ -319,7 +321,7 @@ const HIDE_TOGGLE_KEYS = ['hide_blinks', 'hide_bursts', 'hide_duplicates'] as co
               <mat-expansion-panel class="!mb-1">
                 <mat-expansion-panel-header>
                   <mat-panel-title class="flex items-center gap-2">
-                    <mat-icon class="!text-base !w-5 !h-5 !leading-5 opacity-60">{{ sectionIcons[group.sectionKey] || 'tune' }}</mat-icon>
+                    <mat-icon class="!text-base !w-5 !h-5 !leading-5 opacity-60" [class]="group.sectionKey | markTone">{{ sectionIcons[group.sectionKey] || 'tune' }}</mat-icon>
                     {{ group.sectionKey | translate }}
                     @if (rangeSectionActiveCounts()[group.sectionKey]) {
                       <span class="text-xs rounded-full min-w-[1.25rem] h-5 px-1.5 flex items-center justify-center bg-[var(--mat-sys-primary)] text-[var(--mat-sys-on-primary)] leading-none">{{ rangeSectionActiveCounts()[group.sectionKey] }}</span>

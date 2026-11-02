@@ -292,7 +292,7 @@ Le badge ou une photo empilée ouvre la visionneuse : bande de vignettes, bouton
 
 **Dans la galerie.** Une pile se replie en une seule vignette ; **Développer toutes les piles** est une préférence mémorisée. Les filtres et l'appartenance aux albums s'appliquent aux photos individuelles : la couverture s'affiche si elle correspond, sinon le premier membre correspondant. Le parcours d'une pile contourne le masquage automatique des rafales/doublons. La chronologie et la carte affichent les photos individuelles.
 
-**Sélection.** Sélectionner une vignette repliée ne sélectionne que la photo affichée. Ouvrez la pile et utilisez **Sélectionner les N membres** pour tous les sélectionner. **Tout sélectionner dans la vue**, la sélection par percentile et `target:view` de l'assistant incluent toutes les photos correspondantes, membres repliés compris, et les actions sur toute la vue affichent d'abord le nombre réel de photos. Dans les résumés API/assistant, `total` compte les vignettes affichées et `photo_total` les photos.
+**Sélection.** Sélectionner une vignette repliée ne sélectionne que la photo affichée, et la barre de sélection le signale tant qu'une est sélectionnée. Ouvrez la pile et utilisez **Sélectionner les N membres** pour tous les sélectionner. **Tout sélectionner dans la vue**, la sélection par percentile et `target:view` de l'assistant incluent toutes les photos correspondantes, membres repliés compris, et les actions sur toute la vue affichent d'abord le nombre réel de photos. Dans les résumés API/assistant, `total` compte les vignettes affichées et `photo_total` les photos.
 
 **Confidentialité et persistance.**
 
@@ -422,11 +422,11 @@ Champs de réponse et codes de statut : [API.md](../API.md).
 - **Mode de disposition** — **Grille** (cartes uniformes) ou **Mosaïque** (rangées justifiées conservant les proportions), à toutes les largeurs d'écran.
 - **Taille des vignettes** — curseur de hauteur des cartes/rangées (120–400 px, enregistré dans localStorage)
 - **Masquer détails** — masque les métadonnées sur les cartes (mode grille uniquement)
-- **Infobulle** — comment les détails d'une photo s'affichent : **Panneau latéral** (par défaut), **Survol**, **Clic** ou **Désactivée**.
-  - Le panneau latéral montre tous les détails dans le tiroir de droite, disposés comme le détail de la photo. Il suit le survol et le clic, donc il fonctionne sur écran tactile. Il garde la dernière photo quand le curseur quitte la grille.
+- **Infobulle** — deux lignes. **Afficher dans** : **Infobulle flottante** ou **Panneau latéral** (par défaut). **Afficher au** : **Désactivée**, **Survol**, **Clic** ou **Survol ou clic** (par défaut ; panneau latéral seulement). Le menu reste ouvert entre deux choix, et **Désactivée** garde l'emplacement pour le retour des détails.
+  - Le panneau latéral montre tous les détails dans le tiroir de droite, disposés comme le détail de la photo. Avec **Survol ou clic**, il suit le survol et le clic, donc il fonctionne sur écran tactile. Il garde la dernière photo quand le curseur quitte la grille.
   - Cliquer sur une photo maintient le panneau sur elle jusqu'à ce que vous appuyiez sur **Désélectionner** (ce qui désélectionne aussi la photo). **Échap** fait la même chose et efface la sélection.
   - Le panneau partage le tiroir avec les filtres ; ouvrir les filtres le masque. Il exige une fenêtre d'au moins 1280 px de large.
-  - **Survol** et **Clic** affichent une courte bulle : catégorie, agrégat et rang, esthétique, composition, netteté, exposition et une ligne EXIF.
+  - L'**Infobulle flottante** affiche une courte bulle : catégorie, agrégat et rang, esthétique, composition, netteté, exposition et une ligne EXIF.
 - **Personnaliser les boutons des cartes** — réordonnez et affichez/masquez les boutons de la ligne qui apparaît au survol d'une carte. Neuf actions sont disponibles : trouver des similaires, pourquoi ce score, écrire les métadonnées, assigner un visage, ouvrir le groupe de doublons, le groupe de rafale, la série bracketing/panorama ou la pile de photos, et ouvrir la page de la photo. Les boutons de groupe n'apparaissent que sur les photos d'un tel groupe. Les boutons de groupe de doublons et de pile de photos sont activés par défaut ; les autres sont optionnels. Enregistré par navigateur.
 - **Masquer clignements** — masque les photos avec clignements détectés
 - **Clignements uniquement / Doublons uniquement** — n'affiche que les photos avec clignement, ou tous les membres de chaque groupe de doublons. Les bascules de masquage sont suspendues pour cette vue.
