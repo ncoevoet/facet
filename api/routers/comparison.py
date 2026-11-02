@@ -227,6 +227,32 @@ def _validate_and_resolve(path: str, user: Optional[CurrentUser]):
     return db_path, real_disk, row['sequence_kind']
 
 
+def _authorized_download_raw(db_path: str, real_disk: str, user: Optional[CurrentUser]) -> str | None:
+    """Use the related-file visibility policy before offering or opening a RAW.
+
+    A visible JPEG does not grant access to an independently indexed companion.
+    Unindexed companions are permitted only by the existing single-user policy.
+    """
+    from api.related_files import related_files
+
+    user_id = user.user_id if user else None
+    with get_db() as conn:
+        conn.execute('BEGIN')
+        vis_sql, vis_params = get_visibility_clause(user_id)
+        if not conn.execute(f'SELECT 1 FROM photos WHERE path = ? AND {vis_sql}',
+                            [db_path, *vis_params]).fetchone():
+            raise HTTPException(404, 'File not found')
+        if Path(real_disk).suffix.lower() in RAW_EXTENSIONS:
+            return real_disk
+        inventory = related_files(conn, db_path, user_id)
+        if inventory['inventory_state'] != 'checked':
+            return None
+        for entry in inventory['files']:
+            if entry['kind'] == 'raw' and entry['state'] == 'available' and entry['raw_download']:
+                return str(Path(real_disk).parent / entry['name'])
+    return None
+
+
 @router.get("/api/download/options", response_model=DownloadOptionsResponse, response_model_exclude_unset=True)
 def api_download_options(
     path: str = Query(...),
@@ -234,13 +260,13 @@ def api_download_options(
     user: Optional[CurrentUser] = Depends(get_optional_user),
 ):
     """Return available download types for a photo."""
-    from api.raw_processing import find_companion_raw, get_darktable_profiles
+    from api.raw_processing import get_darktable_profiles
 
     db_path, real_disk, _ = _validate_and_resolve(path, user)
 
     options: list[dict] = [{'type': 'original', 'label': 'original'}]
 
-    raw_path = find_companion_raw(real_disk)
+    raw_path = _authorized_download_raw(db_path, real_disk, user)
     if raw_path:
         for profile_name in get_darktable_profiles():
             options.append({'type': 'darktable', 'profile': profile_name, 'label': profile_name})
@@ -266,7 +292,7 @@ async def api_download_single(
     - ``darktable`` — convert companion RAW with a named darktable profile.
     - ``raw`` — serve the companion RAW file as-is.
     """
-    from api.raw_processing import convert_raw_darktable_async, find_companion_raw
+    from api.raw_processing import convert_raw_darktable_async
 
     db_path, real_disk, sequence_kind = await asyncio.to_thread(_validate_and_resolve, path, user)
 
@@ -275,11 +301,9 @@ async def api_download_single(
 
     # --- Darktable profile export ---
     if type == 'darktable':
-        raw_path = await asyncio.to_thread(find_companion_raw, real_disk)
+        raw_path = await asyncio.to_thread(_authorized_download_raw, db_path, real_disk, user)
         if not raw_path:
-            # Fall back to original when no RAW companion exists
-            return await asyncio.to_thread(
-                _serve_original, real_disk, db_path, quality, sequence_kind)
+            raise HTTPException(404, 'RAW file not found')
 
         try:
             jpeg_bytes = await convert_raw_darktable_async(raw_path, profile, quality)
@@ -299,10 +323,9 @@ async def api_download_single(
 
     # --- RAW file download ---
     if type == 'raw':
-        raw_path = await asyncio.to_thread(find_companion_raw, real_disk)
+        raw_path = await asyncio.to_thread(_authorized_download_raw, db_path, real_disk, user)
         if not raw_path:
-            return await asyncio.to_thread(
-                _serve_original, real_disk, db_path, quality, sequence_kind)
+            raise HTTPException(404, 'RAW file not found')
 
         return FileResponse(
             raw_path,
