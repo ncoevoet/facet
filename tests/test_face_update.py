@@ -117,6 +117,29 @@ def test_missing_model_and_unknown_detection_never_become_false_empty_results(li
     assert (result['state'],result['failed'],result['empty'],result['added_faces']) == ('partial',3,0,0)
 
 
+@pytest.mark.parametrize('during_load', [True, False])
+def test_licence_refusal_propagates_after_recording_failed_job(library, during_load):
+    import licensing
+
+    db, _ = library
+    capture(db)
+    refusal = licensing.LicenceError('fixture policy refusal')
+
+    def refuse(*args):
+        raise refusal
+
+    factory = refuse if during_load else lambda: analyzer(refuse)
+    with pytest.raises(licensing.LicenceError) as caught:
+        update.run_face_update(db, None, JOB, analyzer_factory=factory,
+                               loader=lambda path: (object(), object()))
+    assert caught.value is refusal
+    result = record(db)
+    assert (result['state'], result['error_code'], result['processed']) == ('failed', 'update_failed', 0)
+    assert result['finished_at'] is not None
+    with sqlite3.connect(db) as conn:
+        assert conn.execute('SELECT COUNT(*) FROM faces').fetchone() == (0,)
+
+
 def test_deleted_captured_path_is_cascaded_and_counted_as_skipped(library):
     db, paths = library
     capture(db)

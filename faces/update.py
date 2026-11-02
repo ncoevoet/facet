@@ -10,6 +10,7 @@ import logging
 from pathlib import Path
 
 import numpy as np
+import licensing
 
 from db import get_connection
 from db.embedding_space import active_embedding_model, expected_dim, tag_matches
@@ -132,7 +133,6 @@ def run_face_update(db_path, config, job_id, *, analyzer_factory=None, loader=No
             _finish(db_path, job_id, 'completed')
             return 0
         if analyzer_factory is None:
-            import licensing
             from models.model_manager import build_face_analyzer, build_permissive_face_analyzer
             from utils.device import get_device
             analyzer = (build_face_analyzer(config, get_device()) if licensing.loader_allowed('insightface')
@@ -210,7 +210,6 @@ def run_face_update(db_path, config, job_id, *, analyzer_factory=None, loader=No
                             _record(conn, job_id, path, 'added' if records else 'empty', added=len(records))
                     conn.commit()
             except Exception:
-                import licensing
                 licensing.reraise_if_refused()
                 logger.exception('Face update could not process a captured photo')
                 with get_connection(db_path, row_factory=False) as conn:

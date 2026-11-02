@@ -164,15 +164,18 @@ class TestPathScope:
         messy = f"{dirs}/shoot//./"
         assert build_path_scope([messy]).prefixes == build_path_scope([str(dirs / 'shoot')]).prefixes
 
-    def test_a_case_variant_scope_collapses_where_the_filesystem_folds_case(self, dirs):
+    def test_case_folding_filesystem_does_not_change_stored_path_matching(self, dirs):
         probe = dirs / 'CaseProbe'
         probe.mkdir()
         if not (dirs / 'caseprobe').exists():
             pytest.skip('filesystem is case-sensitive')
-        # `shoot` and `Shoot` are one directory here, so both spellings must
-        # normalise to the single on-disk form the scanner would have stored.
-        assert (build_path_scope([str(dirs / 'Shoot')]).prefixes
-                == build_path_scope([str(dirs / 'shoot')]).prefixes)
+        # POSIX resolve preserves lexical case, including on default APFS.
+        # Scope SQL must match those stored strings, not broaden write targets.
+        for spelling in ('Shoot', 'shoot'):
+            directory = dirs / spelling
+            scope = build_path_scope([str(directory)])
+            assert scope.prefixes == (str(directory.resolve()) + os.sep,)
+            assert scope.matches(str(directory.resolve() / 'a.jpg'))
 
     def test_a_missing_entry_raises(self, dirs):
         with pytest.raises(ValueError):

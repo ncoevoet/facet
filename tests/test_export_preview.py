@@ -163,13 +163,19 @@ def test_byte_copy_preview_does_not_materialize_unwritten_hierarchy_metadata(edi
     paths, target = library
     with sqlite3.connect(DEFAULT_DB_PATH) as conn:
         node, _ = assign_path(conn, str(paths[0]), ['Places', 'Coast'])
+        original_key = conn.execute('SELECT name_key FROM keyword_nodes WHERE id=?', (node,)).fetchone()[0]
         conn.execute("UPDATE keyword_nodes SET name_key='invalid' WHERE id=?", (node,))
-    before = bytes_in(target.parent)
-    refused = edition_client.post('/api/export/preview', json={'paths': [str(paths[0])]})
-    assert refused.status_code == 409
-    copied = preview(edition_client, paths=[str(paths[0])], mode='copy', target_dir=str(target))
-    assert copied['ready'] == 1 and copied['items'][0]['metadata'] is None
-    assert bytes_in(target.parent) == before
+    try:
+        before = bytes_in(target.parent)
+        refused = edition_client.post('/api/export/preview', json={'paths': [str(paths[0])]})
+        assert refused.status_code == 409
+        copied = preview(edition_client, paths=[str(paths[0])], mode='copy', target_dir=str(target))
+        assert copied['ready'] == 1 and copied['items'][0]['metadata'] is None
+        assert bytes_in(target.parent) == before
+    finally:
+        # Photo cleanup leaves vocabulary in the shared session database.
+        with sqlite3.connect(DEFAULT_DB_PATH) as conn:
+            conn.execute('UPDATE keyword_nodes SET name_key=? WHERE id=?', (original_key, node))
 
 
 def test_unavailable_selection_refuses_before_face_or_file_probes(edition_client, library, monkeypatch):

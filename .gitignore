@@ -129,3 +129,6 @@ installer/out/
 # Local design and browser verification artifacts
 /.hallmark/
 /.playwright-mcp/
+playwright-report/
+blob-report/
+test-results/
