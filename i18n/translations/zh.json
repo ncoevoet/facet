@@ -1189,6 +1189,7 @@
       "mark_too_many": "一组最多包含 {max} 张照片，当前已选 {count} 张",
       "view_scope_active": "已选中整个视图，共 {count} 张照片",
       "view_scope_except": "所有匹配的照片，不含 {excluded} 张 — 共 {count} 张",
+      "cover_only": "此选择中的堆叠图块仅作用于所显示的照片。打开堆叠即可选择其中的其他成员。",
       "view_scope_offer": "已加载的 {count} 张照片已全部选中。",
       "view_scope_select_all": "选择此视图中的全部 {total} 张",
       "view_scope_confirm_title": "应用于整个视图？",

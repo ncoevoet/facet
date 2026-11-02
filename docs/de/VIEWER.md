@@ -282,7 +282,7 @@ Das Zählabzeichen oder ein gestapeltes Foto öffnet die Fotoansicht mit Vorscha
 
 **In der Galerie.** Ein Stapel klappt zu einer Kachel zusammen; **Alle Stapel aufklappen** ist eine gemerkte Einstellung. Filter und Albummitgliedschaft gelten für einzelne Fotos: Das Titelbild erscheint, wenn es passt, sonst das erste passende Mitglied. Das Durchblättern eines Stapels umgeht das automatische Ausblenden von Serien/Duplikaten. Zeitleiste und Karte zeigen einzelne Fotos.
 
-**Auswählen.** Eine eingeklappte Kachel wählt nur das angezeigte Foto. Öffnen Sie den Stapel und nutzen Sie **Alle N Mitglieder auswählen**, um alle zu wählen. **Alle in der Ansicht auswählen**, die Prozent-Auswahl und `target:view` des Assistenten umfassen jedes passende Foto, auch eingeklappte Mitglieder, und Aktionen für die ganze Ansicht zeigen vorher die tatsächliche Fotozahl. In API-/Assistenten-Zusammenfassungen zählt `total` angezeigte Kacheln und `photo_total` Fotos.
+**Auswählen.** Eine eingeklappte Kachel wählt nur das angezeigte Foto, und die Auswahlleiste weist darauf hin, solange eine ausgewählt ist. Öffnen Sie den Stapel und nutzen Sie **Alle N Mitglieder auswählen**, um alle zu wählen. **Alle in der Ansicht auswählen**, die Prozent-Auswahl und `target:view` des Assistenten umfassen jedes passende Foto, auch eingeklappte Mitglieder, und Aktionen für die ganze Ansicht zeigen vorher die tatsächliche Fotozahl. In API-/Assistenten-Zusammenfassungen zählt `total` angezeigte Kacheln und `photo_total` Fotos.
 
 **Datenschutz und Persistenz.**
 

@@ -10,6 +10,7 @@ All notable changes to Facet are documented in this file.
 
 ### Changed
 
+- The selection bar notes when a selected folded stack tile acts on its displayed photo only, matching the existing whole-view note about folded members.
 - The selection bar status names a whole-view selection's exclusions: "All matching photos, except N".
 - **✨ now marks only what an assistant chose.** Facet's own features (aesthetic quality, My Taste, moments, Memories and smart albums) use a coloured ✦ instead, so they no longer read as AI output. Icon-only change; nothing is rescored.
 - **Language and theme submenus mark their current entry** with the same check the tooltip-mode radio uses, and no longer wrap their labels when the check squeezes them.

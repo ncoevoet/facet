@@ -1189,6 +1189,7 @@
       "mark_too_many": "Une série contient au plus {max} photos, et {count} sont sélectionnées",
       "view_scope_active": "Vue entière sélectionnée — {count} photos",
       "view_scope_except": "Toutes les photos correspondantes, sauf {excluded} — {count} photos",
+      "cover_only": "Les vignettes empilées de cette sélection n’agissent que sur leur photo affichée. Ouvrez une pile pour sélectionner ses autres membres.",
       "view_scope_offer": "Les {count} photos chargées jusqu'ici sont toutes sélectionnées.",
       "view_scope_select_all": "Sélectionner les {total} photos de cette vue",
       "view_scope_confirm_title": "Appliquer à toute la vue ?",

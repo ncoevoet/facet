@@ -282,7 +282,7 @@ Il badge o una foto impilata apre il visualizzatore con miniature, pulsanti prec
 
 **Nella galleria.** Una pila si ripiega in una tessera; **Espandi tutte le pile** è una preferenza ricordata. Filtri e appartenenza agli album si applicano alle singole foto: la copertina compare se corrisponde, altrimenti compare il primo membro che corrisponde. Sfogliare una pila aggira il nascondimento automatico di raffiche/duplicati. Cronologia e mappa mostrano le singole foto.
 
-**Selezione.** Selezionare una tessera ripiegata seleziona solo la foto mostrata. Apri la pila e usa **Seleziona tutti i N membri** per selezionarli tutti. **Seleziona tutta la vista**, la selezione per percentile e `target:view` dell'assistente includono ogni foto corrispondente, anche i membri ripiegati, e le azioni sull'intera vista mostrano prima il numero reale di foto. Nei riepiloghi API/assistente, `total` conta le tessere mostrate e `photo_total` conta le foto.
+**Selezione.** Selezionare una tessera ripiegata seleziona solo la foto mostrata, e la barra di selezione lo segnala finché ne è selezionata una. Apri la pila e usa **Seleziona tutti i N membri** per selezionarli tutti. **Seleziona tutta la vista**, la selezione per percentile e `target:view` dell'assistente includono ogni foto corrispondente, anche i membri ripiegati, e le azioni sull'intera vista mostrano prima il numero reale di foto. Nei riepiloghi API/assistente, `total` conta le tessere mostrate e `photo_total` conta le foto.
 
 **Privacy e persistenza.**
 

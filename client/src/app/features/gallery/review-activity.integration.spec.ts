@@ -167,6 +167,18 @@ describe('manual activity from rendered gallery menus and stacks', () => {
     button.click(); http.expectNone('/api/stacks');
   });
 
+  it('tells an explicit selection of a folded stack tile that it acts on the cover only', () => {
+    store.photos.set([{ ...rows[0], stack_id: 's1', stack_count: 3, stack_total_count: 3 }, rows[1]]);
+    const note = () => (fixture.nativeElement as HTMLElement).querySelector('[data-selection-cover-only]');
+    store.restoreSelection([rows[1].path]); fixture.detectChanges();
+    expect(note()).toBeNull();
+    store.restoreSelection([rows[0].path]); fixture.detectChanges();
+    expect(note()?.textContent).toContain('gallery.selection.cover_only');
+    store.selectWholeView(); fixture.detectChanges();
+    expect(note()).toBeNull();
+    expect(fixture.nativeElement.textContent).toContain('stacks.folded_scope');
+  });
+
   it.each([
     ['kept', false], ['undecided', false], ['kept', true], ['undecided', true],
   ] as const)('reports %s from the real %s-bulk context-menu dispatch after HTTP success', async (decision, bulk) => {

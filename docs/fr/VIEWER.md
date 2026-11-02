@@ -282,7 +282,7 @@ Le badge ou une photo empilée ouvre la visionneuse : bande de vignettes, bouton
 
 **Dans la galerie.** Une pile se replie en une seule vignette ; **Développer toutes les piles** est une préférence mémorisée. Les filtres et l'appartenance aux albums s'appliquent aux photos individuelles : la couverture s'affiche si elle correspond, sinon le premier membre correspondant. Le parcours d'une pile contourne le masquage automatique des rafales/doublons. La chronologie et la carte affichent les photos individuelles.
 
-**Sélection.** Sélectionner une vignette repliée ne sélectionne que la photo affichée. Ouvrez la pile et utilisez **Sélectionner les N membres** pour tous les sélectionner. **Tout sélectionner dans la vue**, la sélection par percentile et `target:view` de l'assistant incluent toutes les photos correspondantes, membres repliés compris, et les actions sur toute la vue affichent d'abord le nombre réel de photos. Dans les résumés API/assistant, `total` compte les vignettes affichées et `photo_total` les photos.
+**Sélection.** Sélectionner une vignette repliée ne sélectionne que la photo affichée, et la barre de sélection le signale tant qu'une est sélectionnée. Ouvrez la pile et utilisez **Sélectionner les N membres** pour tous les sélectionner. **Tout sélectionner dans la vue**, la sélection par percentile et `target:view` de l'assistant incluent toutes les photos correspondantes, membres repliés compris, et les actions sur toute la vue affichent d'abord le nombre réel de photos. Dans les résumés API/assistant, `total` compte les vignettes affichées et `photo_total` les photos.
 
 **Confidentialité et persistance.**
 

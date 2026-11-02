@@ -282,7 +282,7 @@ O indicador ou uma foto empilhada abre o visualizador com miniaturas, botões an
 
 **Na galeria.** Uma pilha se recolhe em um cartão; **Expandir todas as pilhas** é uma preferência salva. Filtros e álbuns se aplicam às fotos individuais: a capa aparece se corresponder, senão o primeiro membro correspondente. A navegação por pilha ignora o ocultamento automático de rajadas/duplicatas. Linha do tempo e mapa exibem fotos individuais.
 
-**Seleção.** Selecionar um cartão recolhido seleciona apenas a foto exibida. Abra a pilha e use **Selecionar os N membros** para todos. **Selecionar toda a visualização**, a seleção percentual e `target:view` do assistente incluem todas as fotos correspondentes, inclusive as recolhidas, e as ações de toda a visualização mostram antes a contagem real de fotos. Nos resumos da API e do assistente, `total` conta os cartões exibidos e `photo_total` conta as fotos.
+**Seleção.** Selecionar um cartão recolhido seleciona apenas a foto exibida, e a barra de seleção avisa enquanto houver um selecionado. Abra a pilha e use **Selecionar os N membros** para todos. **Selecionar toda a visualização**, a seleção percentual e `target:view` do assistente incluem todas as fotos correspondentes, inclusive as recolhidas, e as ações de toda a visualização mostram antes a contagem real de fotos. Nos resumos da API e do assistente, `total` conta os cartões exibidos e `photo_total` conta as fotos.
 
 **Privacidade e persistência.**
 

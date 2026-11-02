@@ -707,6 +707,8 @@ type ReturnTarget = { scroll: number; focus: Element | null } & (
           }
           @if (viewScoped()) {
             <p class="text-xs basis-full opacity-80">{{ I18N.stacks.folded_scope | translate }}</p>
+          } @else if (selectedStackTiles()) {
+            <p data-selection-cover-only class="text-xs basis-full opacity-80">{{ I18N.gallery.selection.cover_only | translate }}</p>
           }
           <span data-selection-status tabindex="-1" class="text-sm font-medium shrink-0 px-1">{{ selectionStatus().key | translate:selectionStatus().params }}</span>
           <button mat-icon-button disabledInteractive (click)="clearSelection()" [matTooltip]="I18N.gallery.selection.clear | translate" [attr.aria-label]="I18N.gallery.selection.clear | translate"><mat-icon>close</mat-icon></button>
@@ -977,6 +979,12 @@ export class GalleryComponent implements OnInit, OnDestroy {
   protected readonly selectionCount = this.store.selectionCount;
   /** True while the selection means "the whole filtered view", not a path list. */
   protected readonly viewScoped = this.store.viewScopeSelected;
+  /** Folded stack tiles in an explicit selection: acting on one touches its displayed photo, not the other members. */
+  protected readonly selectedStackTiles = computed(() => {
+    if (this.viewScoped()) return 0;
+    const selected = this.selectedPaths();
+    return this.store.photos().filter(photo => selected.has(photo.path) && photo.stack_id && (photo.stack_count ?? 0) > 1).length;
+  });
   /** How the bar names its target: explicit photos, the whole view, or the whole view minus exclusions. */
   protected readonly selectionStatus = computed(() => {
     const count = this.selectionCount(), excluded = this.excludedPaths().size;

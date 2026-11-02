@@ -282,7 +282,7 @@ Open the count badge or a stacked photo to browse permitted members in the photo
 
 **In the gallery.** A stack folds into one tile; **Expand all stacks** is a remembered preference. Filters and album membership apply to individual photos: the cover shows if it matches, otherwise the first matching member does. Stack browsing bypasses automatic burst/duplicate hiding. Timeline and map show individual photos.
 
-**Selecting.** Selecting a folded tile selects only the displayed photo. Open the stack and use **Select all N members** for all of them. **Select all in view**, percentile selection and assistant `target:view` include every matching photo, folded members too, and whole-view actions show the real photo count first. In API/assistant summaries, `total` counts displayed tiles and `photo_total` counts photos.
+**Selecting.** Selecting a folded tile selects only the displayed photo, and the selection bar says so while one is selected. Open the stack and use **Select all N members** for all of them. **Select all in view**, percentile selection and assistant `target:view` include every matching photo, folded members too, and whole-view actions show the real photo count first. In API/assistant summaries, `total` counts displayed tiles and `photo_total` counts photos.
 
 **Privacy and persistence.**
 

@@ -1189,6 +1189,7 @@
       "mark_too_many": "A set holds at most {max} frames, and {count} are selected",
       "view_scope_active": "Whole view selected — {count} photos",
       "view_scope_except": "All matching photos, except {excluded} — {count} photos",
+      "cover_only": "Stacked tiles in this selection act on their displayed photo only. Open a stack to select its other members.",
       "view_scope_offer": "All {count} photos loaded so far are selected.",
       "view_scope_select_all": "Select all {total} in this view",
       "view_scope_confirm_title": "Apply to the whole view?",

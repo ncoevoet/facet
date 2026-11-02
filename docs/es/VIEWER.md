@@ -282,7 +282,7 @@ La insignia o una foto apilada abre el visor con miniaturas, botones anterior/si
 
 **En la galería.** Una pila se pliega en una sola miniatura; **Expandir todas las pilas** es una preferencia recordada. Los filtros y la pertenencia a álbumes se aplican a las fotos individuales: la portada se muestra si coincide; si no, el primer miembro que coincide. La exploración de pilas omite el ocultado automático de ráfagas/duplicados. La línea de tiempo y el mapa muestran fotos individuales.
 
-**Selección.** Seleccionar una miniatura plegada selecciona solo la foto mostrada. Abre la pila y usa **Seleccionar los N miembros** para todos. **Seleccionar todo en la vista**, la selección por percentil y `target:view` del asistente incluyen todas las fotos coincidentes, también los miembros plegados, y las acciones sobre toda la vista muestran antes el número real de fotos. En los resúmenes de la API y del asistente, `total` cuenta las miniaturas mostradas y `photo_total` cuenta las fotos.
+**Selección.** Seleccionar una miniatura plegada selecciona solo la foto mostrada, y la barra de selección lo indica mientras haya una seleccionada. Abre la pila y usa **Seleccionar los N miembros** para todos. **Seleccionar todo en la vista**, la selección por percentil y `target:view` del asistente incluyen todas las fotos coincidentes, también los miembros plegados, y las acciones sobre toda la vista muestran antes el número real de fotos. En los resúmenes de la API y del asistente, `total` cuenta las miniaturas mostradas y `photo_total` cuenta las fotos.
 
 **Privacidad y persistencia.**
 
