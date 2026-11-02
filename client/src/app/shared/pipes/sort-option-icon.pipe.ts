@@ -1,14 +1,13 @@
 import { Pipe, PipeTransform } from '@angular/core';
-import { MarkTonePipe } from './mark-tone.pipe';
+import { FEATURE_MARK, MarkTonePipe } from './mark-tone.pipe';
 
 /** Decorative hints only: translated option text remains the sort's label. */
-const SORT_ICONS: Readonly<Record<string, string>> = {
+export const SORT_ICONS: Readonly<Record<string, string>> = {
   relevance: 'search',
   learned_score: 'psychology',
   top_picks_score: 'recommend',
   aggregate: 'leaderboard',
-  // A literal, not FEATURE_MARK: tests/test_i18n.py reads this table as text.
-  aesthetic: '✦',
+  aesthetic: FEATURE_MARK,
   quality_score: 'high_quality',
   date_taken: 'event',
   star_rating: 'star',
