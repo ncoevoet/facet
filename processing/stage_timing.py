@@ -73,8 +73,11 @@ def build_stages(metrics: Dict[str, Any], load_workers: int) -> Dict[str, Dict[s
     decode_wall = float(metrics.get("io_decode_time") or 0.0)
     for name, key in POOL_STAGES:
         stages[name] = _stage(float(metrics.get(key) or 0.0), 0.0, None, load_workers, decode_wall)
-    # The batched exiftool call is one process, not a pool member.
-    stages["exif_batch"] = _stage(float(metrics.get("exif_batch_time") or 0.0), 0.0, None, 1, decode_wall)
+    # The batched exiftool call is one process, not a pool member. It runs on the EXIF
+    # prefetch thread beside the previous chunk (plus the synchronous call for chunk 0
+    # and any missing path), so its wall is the scan's, not the decode's. The time the
+    # decode was blocked on it is ``exif_wait_time``, a part of the decode wall.
+    stages["exif_batch"] = _stage(float(metrics.get("exif_batch_time") or 0.0), 0.0, None, 1, total)
     return stages
 
 

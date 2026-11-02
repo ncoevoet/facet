@@ -764,7 +764,7 @@ class TestKeyboardInterruptDoesNotWaitForTheChunk:
             return None, None
 
         monkeypatch.setattr('utils.load_image_from_path', blocking_load)
-        monkeypatch.setattr('exiftool.get_exif_batch', lambda paths, chunk_size=100: {})
+        monkeypatch.setattr('exiftool.get_exif_batch', lambda paths, chunk_size=100, stop_event=None: {})
         errors = []
         manager = _Manager()
         paths = [f'/p/{i}.jpg' for i in range(6)]
@@ -813,7 +813,7 @@ class TestStopFlagInLoadImages:
 
     def _patch_io(self, monkeypatch, load):
         monkeypatch.setattr('utils.load_image_from_path', load)
-        monkeypatch.setattr('exiftool.get_exif_batch', lambda paths, chunk_size=100: {})
+        monkeypatch.setattr('exiftool.get_exif_batch', lambda paths, chunk_size=100, stop_event=None: {})
 
     @pytest.mark.parametrize('workers', [1, 3])
     def test_a_set_stop_flag_starts_no_photo_and_records_nothing(self, workers, monkeypatch):
