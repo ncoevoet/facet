@@ -134,6 +134,27 @@ def test_effective_metadata_and_file_changes_change_the_confirmation_snapshot(ed
         assert _digest(build_export_snapshot(conn, request, 'test')) != claims['snapshot']
 
 
+@pytest.mark.parametrize('credential', ['actor', 'password', 'edition_password'])
+def test_credential_rotation_refuses_confirmation_without_writing(edition_client, library, monkeypatch, credential):
+    paths, target = library
+    request = ExportPreviewRequest(paths=[str(paths[0])])
+    body = preview(edition_client, **request.model_dump())
+    before = bytes_in(target.parent)
+    with sqlite3.connect(DEFAULT_DB_PATH) as conn:
+        conn.row_factory = sqlite3.Row
+        confirm_export_snapshot(conn, request, body['preview_token'], 'test')
+        if credential == 'actor':
+            users = config._FULL_CONFIG.get('users', {})
+            monkeypatch.setitem(config._FULL_CONFIG, 'users', {
+                **users, 'test': {**users.get('test', {}), 'password': 'rotated actor credential'}})
+        else:
+            monkeypatch.setitem(config.VIEWER_CONFIG, credential, 'rotated viewer credential')
+        with pytest.raises(HTTPException) as error:
+            confirm_export_snapshot(conn, request, body['preview_token'], 'test')
+        assert error.value.status_code == 409
+    assert bytes_in(target.parent) == before
+
+
 def test_explicit_hierarchy_is_in_preview_and_structure_changes_invalidate_confirmation(edition_client, library):
     from db.keyword_hierarchy import assign_path, change_node
     paths, target = library
