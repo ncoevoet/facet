@@ -270,7 +270,6 @@ def trigger_auto_retrain(db_path, user_id, added=1, conn=None):
         logger.debug("Auto-retrain trigger skipped", exc_info=True)
 
 
-@organization_capture.grouped
 def record_culling_decision(conn, keep_paths, reject_paths, sequence_members,
                             user_id=None, group_type='burst', commit=True, record=True):
     """Persist keepers, record ranker training pairs, commit, nudge retrain.
@@ -303,19 +302,19 @@ def record_culling_decision(conn, keep_paths, reject_paths, sequence_members,
 
     Returns the number of comparison rows inserted.
     """
-    set_photos_kept(conn, keep_paths, user_id, agent=not record)
-    if not record:
-        if commit:
-            conn.commit()
-        return 0
-    pairable_keep = [p for p in keep_paths if p not in sequence_members]
-    pairable_reject = [p for p in reject_paths if p not in sequence_members]
-    added = record_culling_pairs(
-        conn, pairable_keep, pairable_reject, user_id=user_id, group_type=group_type,
-    )
+    with organization_capture.action(conn, user_id):
+        set_photos_kept(conn, keep_paths, user_id, agent=not record)
+        added = 0
+        if record:
+            pairable_keep = [p for p in keep_paths if p not in sequence_members]
+            pairable_reject = [p for p in reject_paths if p not in sequence_members]
+            added = record_culling_pairs(
+                conn, pairable_keep, pairable_reject, user_id=user_id, group_type=group_type,
+            )
     if commit:
         conn.commit()
-        trigger_auto_retrain(DEFAULT_DB_PATH, user_id, added, conn=conn)
+        if record:
+            trigger_auto_retrain(DEFAULT_DB_PATH, user_id, added, conn=conn)
     return added
 
 
@@ -1867,6 +1866,19 @@ def clear_label_origin_for_scope(conn, user_id, from_clause, where_str, scope_pa
         [_label_scope(user_id), *scope_params])
 
 
+def _logical_culling_decision(conn, paths, user_id, agent, rejected):
+    # Acquire write authority before checking membership: grouping cannot race
+    # the physical fallback. The caller still owns commit/rollback.
+    if not conn.in_transaction:
+        conn.execute('BEGIN IMMEDIATE')
+    grouped = any(select_in_chunks(conn,
+        'SELECT 1 FROM logical_asset_members WHERE photo_path IN ({placeholders})', list(paths)))
+    if not grouped:
+        return None
+    from api.logical_batch import culling_decision
+    return culling_decision(conn, paths, user_id, agent, rejected)
+
+
 def set_photos_rejected(conn, paths, user_id, agent=False):
     """Mark photos as rejected, honoring multi-user per-user preferences and visibility.
 
@@ -1877,8 +1889,12 @@ def set_photos_rejected(conn, paths, user_id, agent=False):
     toggle in ``api/routers/faces.py``. Returns the number of photos affected. ``agent`` says an
     assistant made the call, which :func:`record_label_origin` records for the taste model.
     """
+    paths = list(paths or ())
     if not paths:
         return 0
+    logical_count = _logical_culling_decision(conn, paths, user_id, agent, True)
+    if logical_count is not None:
+        return logical_count
     vis_sql, vis_params = get_visibility_clause(user_id)
     placeholders = ','.join('?' * len(paths))
     visible = [r[0] for r in conn.execute(
@@ -1910,8 +1926,12 @@ def set_photos_kept(conn, paths, user_id, agent=False):
     Records the label origin for an assistant's call, or for a person's only on a photo that was
     rejected (the write changes its labels); other human keeps just stay theirs.
     """
+    paths = list(paths or ())
     if not paths:
         return 0
+    logical_count = _logical_culling_decision(conn, paths, user_id, agent, False)
+    if logical_count is not None:
+        return logical_count
     vis_sql, vis_params = get_visibility_clause(user_id)
     visible = [row[0] for row in select_in_chunks(
         conn, f"SELECT path FROM photos WHERE path IN ({{placeholders}}) AND {vis_sql}",

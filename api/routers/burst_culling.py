@@ -29,7 +29,7 @@ from api.database import get_db
 from api.subject_bbox import parse_subject_bbox
 from api.db_helpers import (
     get_visibility_clause, paginate, is_multi_user_enabled, get_photos_from_clause,
-    get_preference_columns, read_labels,
+    get_preference_columns,
     trigger_auto_retrain, record_culling_decision, set_photos_rejected, set_photos_kept,
     album_filter_clause, time_window_clauses, window_or_400,
     select_in_chunks, scope_cache_key, scope_sql as path_scope_sql, NO_VISIBILITY_SQL,
@@ -2502,7 +2502,8 @@ def _reconcile_plan(conn, user_id, plan, result, expected_digest, rest, state_gu
     changed = set()
     tags = _plan_tags(plan)
     if snapshot is not None:
-        fresh = read_labels(conn, user_id, snapshot.labels, include_kept=True)
+        from api.logical_culling import read_culling_labels
+        fresh = read_culling_labels(conn, user_id, snapshot.labels, include_kept=True)
         changed |= {path for path, labels in snapshot.labels.items() if fresh[path] != labels}
     if expected_digest is not None and expected_digest != result.plan_digest:
         if snapshot is None or snapshot.rest != rest or \
@@ -2857,7 +2858,10 @@ def run_auto_cull(conn, db_path, user_id, *, group_by, strictness, min_keep,
     # earlier group keeps/rejects is never re-decided by a later one.
     groups.sort(key=lambda g: _AUTO_CULL_TYPE_ORDER.get(g['type'], 99))
 
-    labels = read_labels(conn, user_id, sorted({p['path'] for group in groups for p in group['photos']}), include_kept=has_keep)
+    from api.logical_culling import read_culling_labels, authority_snapshot
+    if not conn.in_transaction:
+        conn.execute('BEGIN')
+    labels = read_culling_labels(conn, user_id, sorted({p['path'] for group in groups for p in group['photos']}), include_kept=has_keep)
     existing = {path: value for path, value in labels.items() if any(value)}
     result.existing_labels_count = len(existing)
     protected = set(existing) if decision_policy == 'preserve' else set()
@@ -2882,6 +2886,7 @@ def run_auto_cull(conn, db_path, user_id, *, group_by, strictness, min_keep,
         revision_snapshot = organization_capture.snapshot(conn, 'review', review_scope, sorted(labels))
         state = json.dumps({'user': user_id, 'plan': result.plan_digest,
                             'labels': sorted(labels.items()),
+                            'logical': authority_snapshot(conn, user_id, labels),
                             'highlights': _auto_cull_highlights(plan, highlights_album, cfg['highlights_min']),
                             'revisions': sorted((path, value['revision']) for path, value in revision_snapshot.items())},
                            sort_keys=True, separators=(',', ':'), ensure_ascii=False)
@@ -3143,7 +3148,6 @@ def culling_plan(
 _STANDALONE_REJECT_CHUNK = 500
 
 
-@organization_capture.grouped
 def reject_standalone_below(conn, user_id, scope, min_score, exclude_paths, dry_run):
     """Reject standalone photos scoring under ``min_score``; returns the affected paths.
 
@@ -3166,16 +3170,33 @@ def reject_standalone_below(conn, user_id, scope, min_score, exclude_paths, dry_
     no comparison pairs: a score threshold says nothing about which of two
     photos the user prefers. The caller invalidates caches.
     """
+    if not conn.in_transaction:
+        conn.execute('BEGIN' if dry_run else 'BEGIN IMMEDIATE')
     from_clause, from_params, is_rejected_col = _rejected_clause(user_id)
     prefs = get_preference_columns(user_id)
+    from api.logical_culling import standalone_source
+    logical = standalone_source(conn, user_id)
+    if logical is not None:
+        from_clause, from_params = logical.sql, logical.params
+        is_rejected_col = 'photos.is_rejected'
+        prefs = {field: f'photos.{field}' for field in prefs}
     vis_sql, vis_params = get_visibility_clause(user_id)
     scope_fragment, scope_params = path_scope_sql(scope, 'photos.path')
     per_user = bool(user_id and is_multi_user_enabled())
     # A released read-only schema predating Keep cannot hold Keep decisions.
     # Applies still require the initialized schema and its real column.
     kept_predicate = '1' if dry_run and not _has_keep_decisions(conn, user_id) else f"COALESCE({prefs['is_kept']}, 0) = 0"
+    comparison_match = '(c.photo_a_path = photos.path OR c.photo_b_path = photos.path)'
+    burst_count = 'COUNT(*) FROM photos g'
+    if logical is not None:
+        comparison_match = f'''({comparison_match} OR EXISTS (
+            SELECT 1 FROM logical_asset_members cm WHERE cm.asset_id=photos._logical_asset_id
+              AND cm.photo_path IN (c.photo_a_path,c.photo_b_path)))'''
+        burst_count = ("COUNT(DISTINCT CASE WHEN gm.asset_id IS NULL THEN 'file:'||g.path ELSE 'asset:'||gm.asset_id END) "
+                       'FROM photos g LEFT JOIN logical_asset_members gm ON gm.photo_path=g.path')
+    identity_columns = 'photos.path,photos._logical_asset_id' if logical is not None else 'photos.path'
     rows = conn.execute(
-        f"""SELECT photos.path
+        f"""SELECT {identity_columns}
             FROM {from_clause}
             WHERE {vis_sql}
               AND COALESCE({is_rejected_col}, 0) = 0
@@ -3188,18 +3209,24 @@ def reject_standalone_below(conn, user_id, scope, min_score, exclude_paths, dry_
               AND {scope_fragment}
               AND NOT EXISTS (SELECT 1 FROM comparisons c
                               WHERE c.source = 'culling'{' AND c.user_id = ?' if per_user else ''}
-                                AND (c.photo_a_path = photos.path OR c.photo_b_path = photos.path))
+                                AND {comparison_match})
               AND (photos.burst_group_id IS NULL
-                   OR (SELECT COUNT(*) FROM photos g
+                   OR (SELECT {burst_count}
                        WHERE g.burst_group_id = photos.burst_group_id) < 2)
             ORDER BY photos.path""",
         from_params + vis_params + [min_score] + scope_params + ([user_id] if per_user else []),
     ).fetchall()
     excluded = set(exclude_paths)
-    paths = [r['path'] for r in rows if r['path'] not in excluded]
+    excluded_assets = set()
+    if logical is not None and excluded:
+        excluded_assets = {row[0] for row in select_in_chunks(conn,
+            'SELECT asset_id FROM logical_asset_members WHERE photo_path IN ({placeholders})', excluded)}
+    paths = [r['path'] for r in rows if r['path'] not in excluded
+             and (logical is None or r['_logical_asset_id'] not in excluded_assets)]
     if not dry_run:
-        for i in range(0, len(paths), _STANDALONE_REJECT_CHUNK):
-            set_photos_rejected(conn, paths[i:i + _STANDALONE_REJECT_CHUNK], user_id)
+        with organization_capture.action(conn, user_id):
+            for i in range(0, len(paths), _STANDALONE_REJECT_CHUNK):
+                set_photos_rejected(conn, paths[i:i + _STANDALONE_REJECT_CHUNK], user_id)
         conn.commit()
     return paths
 

@@ -2,6 +2,56 @@
 from tests.test_auto_cull import _db, _post
 
 
+def _logical_keep_pair(conn):
+    from db import logical_assets, logical_review
+    jpg, raw = '/g1c.jpg', '/g1c.cr2'
+    conn.execute('INSERT INTO photos(path,star_rating,is_favorite,is_rejected,is_kept) VALUES (?,0,0,0,0)', (raw,))
+    key = logical_assets.create(conn, [jpg, raw], jpg, visibility_sql='1=1')
+    logical_review.seed(conn, key, jpg, 1, visibility_sql='1=1')
+    labels = {p: dict(star_rating=0, is_favorite=0, is_rejected=0, is_kept=0) for p in (jpg, raw)}
+    state = logical_review.read(conn, key, '', labels)
+    logical_review.set_fields(conn, key, '', 1, state['revision'], {'is_kept': 1, 'is_rejected': 0},
+        origin='user', visibility_sql='1=1', file_labels=labels, input_token=state['input_token'])
+    conn.commit()
+    return key, jpg, labels
+
+
+def test_preserve_discloses_logical_keep_instead_of_member_file_labels(edition_client):
+    conn = _db()
+    _, jpg, _ = _logical_keep_pair(conn)
+    response, _ = _post(edition_client, conn, {'group_by': 'burst', 'strictness': 100})
+    assert response.status_code == 200, response.text
+    data = response.json()
+    assert data['preserved_labels_count'] == 1
+    assert data['existing_labels'][0]['path'] == jpg
+    assert data['existing_labels'][0]['is_kept'] is True
+    assert all(jpg not in row['keep_paths'] + row['reject_paths'] for row in data['preview'])
+
+
+def test_logical_decision_change_and_restore_invalidates_auto_preview(edition_client):
+    from db import logical_review
+    conn = _db()
+    key, _, labels = _logical_keep_pair(conn)
+    body = {'group_by': 'burst', 'strictness': 100, 'decision_policy': 'replace'}
+    response, _ = _post(edition_client, conn, body)
+    assert response.status_code == 200, response.text
+    preview = response.json()
+    if not conn.in_transaction:
+        conn.execute('BEGIN IMMEDIATE')
+    for kept in (0, 1):
+        state = logical_review.read(conn, key, '', labels)
+        logical_review.set_fields(conn, key, '', 1, state['revision'], {'is_kept': kept, 'is_rejected': 1-kept},
+            origin='user', visibility_sql='1=1', file_labels=labels, input_token=state['input_token'])
+    conn.commit()
+    refused, retrain = _post(edition_client, conn, {
+        **body, 'dry_run': False, 'expected_digest': preview['plan_digest'],
+        'expected_state_digest': preview['decision_state_digest'],
+    })
+    assert refused.status_code == 412, refused.text
+    retrain.assert_not_called()
+    assert conn.execute('SELECT COUNT(*) FROM photos WHERE burst_reviewed=1 OR is_rejected=1 OR is_kept=1').fetchone()[0] == 0
+
+
 def test_default_preserves_existing_rating_and_previews_exact_labels(edition_client):
     conn = _db()
     conn.execute("UPDATE photos SET star_rating=5, is_favorite=1 WHERE path='/g1c.jpg'")
