@@ -1,7 +1,7 @@
 import { Component, inject, computed, signal, effect, untracked, OnInit, ChangeDetectionStrategy, DestroyRef } from '@angular/core';
 import { DecimalPipe, NgTemplateOutlet } from '@angular/common';
 import { FormsModule } from '@angular/forms';
-import { Router, RouterOutlet, RouterLink, RouterLinkActive, NavigationEnd } from '@angular/router';
+import { Router, RouterOutlet, RouterLink, RouterLinkActive, NavigationEnd, IsActiveMatchOptions } from '@angular/router';
 import { toSignal } from '@angular/core/rxjs-interop';
 import { filter, map, firstValueFrom } from 'rxjs';
 import { MatSnackBar } from '@angular/material/snack-bar';
@@ -321,12 +321,12 @@ export class App implements OnInit {
   protected readonly mobileGalleryBarVisible = computed(() => this.isGalleryRoute() && !this.store.selectionCount());
   protected readonly mobilePersonsBarVisible = computed(() => this.isPersonsRoute() && !this.personsFilters.selectedIds().size);
 
-  /** True on routes that render their own per-route header controls, so the
-   *  header separator only shows when both the nav and those controls are present. */
-  protected readonly hasHeaderControls = computed(() =>
-    this.isGalleryRoute() || this.isCompareRoute() || this.isStatsRoute()
-    || this.isAlbumsRoute() || this.isTimelineRoute() || this.isMapRoute()
-    || this.isCapsuleRoute() || this.isPersonsRoute() || !!this.headerSlot.template(),
+  /** Gallery is active on `/` whatever its filters in the query string; `exact` alone also compared the query. */
+  protected readonly galleryLinkActive: IsActiveMatchOptions = { paths: 'exact', queryParams: 'ignored', matrixParams: 'ignored', fragment: 'ignored' };
+  /** Routes with their own desktop controls get the page-actions row below the destination tabs. */
+  protected readonly hasPageActions = computed(() =>
+    this.isGalleryRoute() || this.isCompareRoute() || (this.isStatsRoute() && !!this.statsFilters.overview())
+    || !!this.headerSlot.template(),
   );
 
   protected readonly sortGroups = computed(() => {

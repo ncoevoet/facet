@@ -1040,7 +1040,8 @@
     "capsules": "照片胶囊",
     "junk_sweep": "废片清理",
     "help": "帮助",
-    "more": "更多"
+    "more": "更多",
+    "page_actions": "页面操作"
   },
   "auth": {
     "logout": "退出登录",

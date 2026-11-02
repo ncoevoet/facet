@@ -264,6 +264,8 @@ Utilisez **Décision de tri → À examiner** dans la galerie pour parcourir les
 
 ## Fonctionnalités de la galerie
 
+**En-tête.** Sur les écrans de 1024 px et plus, l’en-tête compte deux rangées. La première porte des onglets nommés pour les destinations principales ; sous 1680 px, les secondaires (Carte, Tri, Statistiques…) passent dans **Plus**. La rangée suivante contient les commandes de la page courante : dans la galerie, type, recherche, nombre de photos, tri, filtres, affichage et diaporama. Les écrans plus étroits gardent la rangée unique d’icônes.
+
 ### Piles de photos manuelles
 
 Sélectionnez **2 à 1000 photos explicites**, puis **Empiler les photos** dans la barre de sélection ou appuyez sur **S** pour ouvrir l’éditeur pleine page à `/stacks/edit`. Une sélection de toute la vue ne crée pas de pile. S ouvre un aperçu sans enregistrer. Le menu utilisateur → **Personnaliser les raccourcis** permet de modifier cette touche ; l’infobulle, l’Aide et la référence `?` affichent la touche actuelle. Si un ancien réglage utilise déjà S, il est conservé et l’action Empiler reste **Non attribuée** jusqu’au choix d’une touche libre. Les droits d’édition sont nécessaires. Une photo appartient à une seule pile par propriétaire. La page centre un aperçu avec zoom au-dessus d’une bande de vignettes permanente. Cliquez sur une vignette ou utilisez `←`/`→` pour cibler une photo, puis ses commandes de couverture, d’ordre ou de retrait. Le bouton de zoom, la molette ou un double-clic permettent d’examiner les détails.

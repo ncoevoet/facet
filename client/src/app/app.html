@@ -8,7 +8,7 @@
   <mat-toolbar class="shrink-0 !px-2 !bg-[var(--mat-sys-surface-container)] border-b border-[var(--mat-sys-outline-variant)]"
                [class.!border-b-2]="auth.isEdition()"
                [style.border-bottom-color]="auth.isEdition() ? 'var(--facet-accent)' : null">
-    <div class="flex items-center gap-3 w-full">
+    <div class="flex items-center gap-3 w-full self-stretch">
       <!-- Nav links -->
       @if (auth.isAuthenticated()) {
         <!-- max-lg:px-1.5 is not spacing: each Material icon button hangs its
@@ -20,8 +20,8 @@
              unstyled overflow-y would grow a stray vertical scrollbar next to the icons
              (auto comes from the overflow-x side of the pair); the 2px crop per edge is
              inside the button's own padding, never through the glyph. -->
-        <nav class="flex items-center gap-0 lg:gap-1 max-lg:min-w-0 max-lg:overflow-x-auto max-lg:overflow-y-hidden max-lg:[scrollbar-width:none] max-lg:px-1.5">
-          <a mat-icon-button class="lg:!hidden" routerLink="/" routerLinkActive #rlGalleryM="routerLinkActive" [routerLinkActiveOptions]="{exact:true}" [style.color]="rlGalleryM.isActive ? 'var(--mat-sys-primary)' : ''" [matTooltip]="I18N.nav.gallery_tooltip | translate" [attr.aria-label]="I18N.nav.gallery_tooltip | translate" (dblclick)="resetAllFilters()">
+        <nav class="flex items-center gap-0 lg:gap-1 lg:self-stretch max-lg:min-w-0 max-lg:overflow-x-auto max-lg:overflow-y-hidden max-lg:[scrollbar-width:none] max-lg:px-1.5">
+          <a mat-icon-button class="lg:!hidden" routerLink="/" routerLinkActive #rlGalleryM="routerLinkActive" [routerLinkActiveOptions]="galleryLinkActive" [style.color]="rlGalleryM.isActive ? 'var(--mat-sys-primary)' : ''" [matTooltip]="I18N.nav.gallery_tooltip | translate" [attr.aria-label]="I18N.nav.gallery_tooltip | translate" (dblclick)="resetAllFilters()">
             <mat-icon>diamond</mat-icon>
           </a>
           @if (store.config()?.features?.show_albums) {
@@ -78,53 +78,53 @@
               <mat-icon>history</mat-icon>
             </button>
           }
-          <a mat-icon-button class="!hidden lg:!inline-flex" routerLink="/" routerLinkActive #rlGallery="routerLinkActive" [routerLinkActiveOptions]="{exact:true}" [style.color]="rlGallery.isActive ? 'var(--mat-sys-primary)' : ''" [matTooltip]="I18N.nav.gallery_tooltip | translate" [attr.aria-label]="I18N.nav.gallery_tooltip | translate" (dblclick)="resetAllFilters()">
-            <mat-icon>diamond</mat-icon>
+          <a class="!hidden lg:!inline-flex items-center gap-2 self-stretch px-3 border-b-2 border-transparent text-sm font-medium whitespace-nowrap text-[var(--mat-sys-on-surface-variant)] hover:bg-[var(--mat-sys-surface-container-high)] focus-visible:outline-2 focus-visible:outline-[var(--mat-sys-primary)]" routerLink="/" routerLinkActive="!border-[var(--mat-sys-primary)] !text-[var(--mat-sys-primary)]" ariaCurrentWhenActive="page" [routerLinkActiveOptions]="galleryLinkActive" [matTooltip]="I18N.nav.gallery_tooltip | translate" (dblclick)="resetAllFilters()">
+            <mat-icon aria-hidden="true">diamond</mat-icon>{{ I18N.nav.gallery | translate }}
           </a>
           @if (store.config()?.features?.show_albums) {
-            <a mat-icon-button class="!hidden lg:!inline-flex" routerLink="/albums" routerLinkActive #rlAlbums="routerLinkActive" [style.color]="rlAlbums.isActive ? 'var(--mat-sys-primary)' : ''" [matTooltip]="I18N.nav.albums | translate" [attr.aria-label]="I18N.nav.albums | translate">
-              <mat-icon>photo_album</mat-icon>
+            <a class="!hidden lg:!inline-flex items-center gap-2 self-stretch px-3 border-b-2 border-transparent text-sm font-medium whitespace-nowrap text-[var(--mat-sys-on-surface-variant)] hover:bg-[var(--mat-sys-surface-container-high)] focus-visible:outline-2 focus-visible:outline-[var(--mat-sys-primary)]" routerLink="/albums" routerLinkActive="!border-[var(--mat-sys-primary)] !text-[var(--mat-sys-primary)]" ariaCurrentWhenActive="page">
+              <mat-icon aria-hidden="true">photo_album</mat-icon>{{ I18N.nav.albums | translate }}
             </a>
           }
           @if (store.config()?.features?.show_capsules) {
-            <a mat-icon-button class="!hidden lg:!inline-flex" routerLink="/capsules" routerLinkActive #rlCapsules="routerLinkActive" [style.color]="rlCapsules.isActive ? 'var(--mat-sys-primary)' : ''" [matTooltip]="I18N.nav.capsules | translate" [attr.aria-label]="I18N.nav.capsules | translate">
-              <mat-icon>auto_stories</mat-icon>
+            <a class="!hidden lg:!inline-flex items-center gap-2 self-stretch px-3 border-b-2 border-transparent text-sm font-medium whitespace-nowrap text-[var(--mat-sys-on-surface-variant)] hover:bg-[var(--mat-sys-surface-container-high)] focus-visible:outline-2 focus-visible:outline-[var(--mat-sys-primary)]" routerLink="/capsules" routerLinkActive="!border-[var(--mat-sys-primary)] !text-[var(--mat-sys-primary)]" ariaCurrentWhenActive="page">
+              <mat-icon aria-hidden="true">auto_stories</mat-icon>{{ I18N.nav.capsules | translate }}
             </a>
           }
           @if (store.config()?.features?.show_timeline) {
-            <a mat-icon-button class="!hidden lg:!inline-flex" routerLink="/timeline" routerLinkActive #rlTimeline="routerLinkActive" [style.color]="rlTimeline.isActive ? 'var(--mat-sys-primary)' : ''" [matTooltip]="I18N.nav.timeline | translate" [attr.aria-label]="I18N.nav.timeline | translate">
-              <mat-icon>view_timeline</mat-icon>
+            <a class="!hidden lg:!inline-flex items-center gap-2 self-stretch px-3 border-b-2 border-transparent text-sm font-medium whitespace-nowrap text-[var(--mat-sys-on-surface-variant)] hover:bg-[var(--mat-sys-surface-container-high)] focus-visible:outline-2 focus-visible:outline-[var(--mat-sys-primary)]" routerLink="/timeline" routerLinkActive="!border-[var(--mat-sys-primary)] !text-[var(--mat-sys-primary)]" ariaCurrentWhenActive="page">
+              <mat-icon aria-hidden="true">view_timeline</mat-icon>{{ I18N.nav.timeline | translate }}
             </a>
           }
           @if (store.config()?.features?.show_folders) {
-            <a mat-icon-button class="!hidden lg:!inline-flex" routerLink="/folders" routerLinkActive #rlFolders="routerLinkActive" [style.color]="rlFolders.isActive ? 'var(--mat-sys-primary)' : ''" [matTooltip]="I18N.nav.folders | translate" [attr.aria-label]="I18N.nav.folders | translate">
-              <mat-icon>folder</mat-icon>
+            <a class="!hidden lg:!inline-flex items-center gap-2 self-stretch px-3 border-b-2 border-transparent text-sm font-medium whitespace-nowrap text-[var(--mat-sys-on-surface-variant)] hover:bg-[var(--mat-sys-surface-container-high)] focus-visible:outline-2 focus-visible:outline-[var(--mat-sys-primary)]" routerLink="/folders" routerLinkActive="!border-[var(--mat-sys-primary)] !text-[var(--mat-sys-primary)]" ariaCurrentWhenActive="page">
+              <mat-icon aria-hidden="true">folder</mat-icon>{{ I18N.nav.folders | translate }}
             </a>
           }
-          <a mat-icon-button class="!hidden lg:!inline-flex" routerLink="/persons" routerLinkActive #rlPersons="routerLinkActive" [style.color]="rlPersons.isActive ? 'var(--mat-sys-primary)' : ''" [matTooltip]="I18N.nav.persons | translate" [attr.aria-label]="I18N.nav.persons | translate">
-            <mat-icon>people</mat-icon>
+          <a class="!hidden lg:!inline-flex items-center gap-2 self-stretch px-3 border-b-2 border-transparent text-sm font-medium whitespace-nowrap text-[var(--mat-sys-on-surface-variant)] hover:bg-[var(--mat-sys-surface-container-high)] focus-visible:outline-2 focus-visible:outline-[var(--mat-sys-primary)]" routerLink="/persons" routerLinkActive="!border-[var(--mat-sys-primary)] !text-[var(--mat-sys-primary)]" ariaCurrentWhenActive="page">
+            <mat-icon aria-hidden="true">people</mat-icon>{{ I18N.nav.persons | translate }}
           </a>
           @if (store.config()?.features?.show_map && hasGeoPhotos()) {
-            <a mat-icon-button class="!hidden min-[1680px]:!inline-flex" routerLink="/map" routerLinkActive #rlMap="routerLinkActive" [style.color]="rlMap.isActive ? 'var(--mat-sys-primary)' : ''" [matTooltip]="I18N.nav.map | translate" [attr.aria-label]="I18N.nav.map | translate">
-              <mat-icon>map</mat-icon>
+            <a class="!hidden min-[1680px]:!inline-flex items-center gap-2 self-stretch px-3 border-b-2 border-transparent text-sm font-medium whitespace-nowrap text-[var(--mat-sys-on-surface-variant)] hover:bg-[var(--mat-sys-surface-container-high)] focus-visible:outline-2 focus-visible:outline-[var(--mat-sys-primary)]" routerLink="/map" routerLinkActive="!border-[var(--mat-sys-primary)] !text-[var(--mat-sys-primary)]" ariaCurrentWhenActive="page">
+              <mat-icon aria-hidden="true">map</mat-icon>{{ I18N.nav.map | translate }}
             </a>
           }
           @if (auth.isEdition()) {
-            <a mat-icon-button class="!hidden min-[1680px]:!inline-flex" routerLink="/culling" routerLinkActive #rlCulling="routerLinkActive" [style.color]="rlCulling.isActive ? 'var(--mat-sys-primary)' : ''" [matTooltip]="I18N.nav.culling | translate" [attr.aria-label]="I18N.nav.culling | translate">
-              <mat-icon>burst_mode</mat-icon>
+            <a class="!hidden min-[1680px]:!inline-flex items-center gap-2 self-stretch px-3 border-b-2 border-transparent text-sm font-medium whitespace-nowrap text-[var(--mat-sys-on-surface-variant)] hover:bg-[var(--mat-sys-surface-container-high)] focus-visible:outline-2 focus-visible:outline-[var(--mat-sys-primary)]" routerLink="/culling" routerLinkActive="!border-[var(--mat-sys-primary)] !text-[var(--mat-sys-primary)]" ariaCurrentWhenActive="page">
+              <mat-icon aria-hidden="true">burst_mode</mat-icon>{{ I18N.nav.culling | translate }}
             </a>
             @if (store.config()?.features?.show_junk_sweep) {
-              <a mat-icon-button class="!hidden min-[1680px]:!inline-flex" routerLink="/junk" routerLinkActive #rlJunk="routerLinkActive" [style.color]="rlJunk.isActive ? 'var(--mat-sys-primary)' : ''" [matTooltip]="I18N.nav.junk_sweep | translate" [attr.aria-label]="I18N.nav.junk_sweep | translate">
-                <mat-icon>delete_sweep</mat-icon>
+              <a class="!hidden min-[1680px]:!inline-flex items-center gap-2 self-stretch px-3 border-b-2 border-transparent text-sm font-medium whitespace-nowrap text-[var(--mat-sys-on-surface-variant)] hover:bg-[var(--mat-sys-surface-container-high)] focus-visible:outline-2 focus-visible:outline-[var(--mat-sys-primary)]" routerLink="/junk" routerLinkActive="!border-[var(--mat-sys-primary)] !text-[var(--mat-sys-primary)]" ariaCurrentWhenActive="page">
+                <mat-icon aria-hidden="true">delete_sweep</mat-icon>{{ I18N.nav.junk_sweep | translate }}
               </a>
             }
           }
-          <a mat-icon-button class="!hidden min-[1680px]:!inline-flex" routerLink="/stats" routerLinkActive #rlStats="routerLinkActive" [style.color]="rlStats.isActive ? 'var(--mat-sys-primary)' : ''" [matTooltip]="I18N.nav.stats | translate" [attr.aria-label]="I18N.nav.stats | translate">
-            <mat-icon>bar_chart</mat-icon>
+          <a class="!hidden min-[1680px]:!inline-flex items-center gap-2 self-stretch px-3 border-b-2 border-transparent text-sm font-medium whitespace-nowrap text-[var(--mat-sys-on-surface-variant)] hover:bg-[var(--mat-sys-surface-container-high)] focus-visible:outline-2 focus-visible:outline-[var(--mat-sys-primary)]" routerLink="/stats" routerLinkActive="!border-[var(--mat-sys-primary)] !text-[var(--mat-sys-primary)]" ariaCurrentWhenActive="page">
+            <mat-icon aria-hidden="true">bar_chart</mat-icon>{{ I18N.nav.stats | translate }}
           </a>
           @if (auth.isEdition()) {
-            <a mat-icon-button class="!hidden min-[1680px]:!inline-flex" routerLink="/compare" routerLinkActive #rlCompare="routerLinkActive" [style.color]="rlCompare.isActive ? 'var(--mat-sys-primary)' : ''" [matTooltip]="I18N.nav.compare | translate" [attr.aria-label]="I18N.nav.compare | translate">
-              <mat-icon>compare</mat-icon>
+            <a class="!hidden min-[1680px]:!inline-flex items-center gap-2 self-stretch px-3 border-b-2 border-transparent text-sm font-medium whitespace-nowrap text-[var(--mat-sys-on-surface-variant)] hover:bg-[var(--mat-sys-surface-container-high)] focus-visible:outline-2 focus-visible:outline-[var(--mat-sys-primary)]" routerLink="/compare" routerLinkActive="!border-[var(--mat-sys-primary)] !text-[var(--mat-sys-primary)]" ariaCurrentWhenActive="page">
+              <mat-icon aria-hidden="true">compare</mat-icon>{{ I18N.nav.compare | translate }}
             </a>
           }
           @if (store.config()?.features?.show_memories && hasMemories()) {
@@ -166,97 +166,13 @@
         </nav>
       }
 
-      <!-- Separator between the nav cluster and the per-route header controls -->
-      @if (auth.isAuthenticated() && hasHeaderControls()) {
-        <div class="hidden lg:block w-px h-6 bg-[var(--mat-sys-outline-variant)] mx-1 shrink-0"></div>
-      }
-
-      <!-- Compare category selector (visible only on compare route, lg+) -->
-      @if (auth.isAuthenticated() && isCompareRoute()) {
-        <mat-form-field class="!hidden lg:!inline-flex w-52 ml-2" subscriptSizing="dynamic">
-          <mat-label>{{ I18N.ui.filters.type | translate }}</mat-label>
-          <mat-select panelWidth="auto" panelClass="nowrap-panel" [value]="compareFilters.selectedCategory()" (selectionChange)="onCompareCategoryChange($event.value)">
-            @for (t of store.types(); track t.id) {
-              <mat-option [value]="t.id">{{ (t.id === 'top_picks' ? 'photo_types.top_picks' : 'category_names.' + t.id) | translate }} ({{ t.count }})</mat-option>
-            }
-          </mat-select>
-        </mat-form-field>
-      }
-
-<!-- Header-slot projection: a feature page (culling, merge suggestions…) renders its
-           toolbar in the global header on lg+; on small screens the page renders it itself. -->
-      @if (auth.isAuthenticated() && headerSlot.template(); as tpl) {
-        <!-- overflow-x-clip (not hidden/auto) so a wide page toolbar can never paint
-             over the shell controls to its right, while a slider's value bubble can
-             still overflow vertically. The projected toolbar owns its own scrolling. -->
-        <div class="!hidden lg:!flex items-center gap-1 ml-2 min-w-0 overflow-x-clip">
-          <ng-container [ngTemplateOutlet]="tpl" />
-        </div>
-      }
-
       <div class="flex-1"></div>
 
       @if (auth.isAuthenticated()) {
         <app-assistant-activity-chip />
       }
 
-      <!-- Stats overview (right side, lg+ only) -->
-      @if (auth.isAuthenticated() && isStatsRoute() && statsFilters.overview(); as ov) {
-        <span class="!hidden lg:!inline-flex items-center gap-3 text-sm opacity-80">
-          <span class="inline-flex items-center gap-1" [matTooltip]="I18N.stats.total_photos | translate">
-            <mat-icon class="!text-xl !w-5 !h-5 !leading-5 text-blue-400">photo_library</mat-icon>
-            {{ ov.total_photos | number }}
-          </span>
-          <span class="inline-flex items-center gap-1" [matTooltip]="I18N.stats.total_persons | translate">
-            <mat-icon class="!text-xl !w-5 !h-5 !leading-5 text-purple-400">people</mat-icon>
-            {{ ov.total_persons | number }}
-          </span>
-          <span class="inline-flex items-center gap-1" [matTooltip]="I18N.stats.avg_score | translate">
-            <mat-icon class="!text-xl !w-5 !h-5 !leading-5 text-amber-400">star</mat-icon>
-            {{ ov.avg_score | number:'1.1-1' }}
-          </span>
-          <span class="inline-flex items-center gap-1" [matTooltip]="I18N.stats.total_faces | translate">
-            <mat-icon class="!text-xl !w-5 !h-5 !leading-5">face</mat-icon>
-            {{ ov.total_faces | number }}
-          </span>
-        </span>
-      }
-
-      <!-- Gallery: photo count + active filters + filter toggle (right side, lg+ only) -->
       @if (auth.isAuthenticated() && isGalleryRoute()) {
-        <span class="!hidden min-[1360px]:!inline text-sm opacity-70">{{ I18N.gallery.photo_count | translate:{ count: pinned() ? store.total() : store.photoTotal() } }}</span>
-
-        @if (!pinned()) {
-          @let sortTooltip = I18N.gallery.sort_current | translate:{ label: (currentSortLabelKey() | translate) };
-          <button mat-icon-button class="!hidden lg:!inline-flex" [matMenuTriggerFor]="sortMenu" [matTooltip]="sortTooltip" [attr.aria-label]="sortTooltip">
-            @let currentIcon = store.filters().sort | sortOptionIcon;
-            <mat-icon aria-hidden="true" class="!w-8 -mx-1 text-center" [class]="currentIcon.classes">{{ currentIcon.text }}</mat-icon>
-          </button>
-          <button
-            class="!hidden lg:!inline-flex"
-            mat-icon-button
-            (click)="toggleSortDirection()"
-            [matTooltip]="store.filters().sort_direction === 'DESC' ? (I18N.gallery.sort_desc | translate) : (I18N.gallery.sort_asc | translate)"
-            [attr.aria-label]="store.filters().sort_direction === 'DESC' ? (I18N.gallery.sort_desc | translate) : (I18N.gallery.sort_asc | translate)"
-          >
-            <mat-icon>{{
-              store.filters().sort_direction === 'DESC' ? 'arrow_downward' : 'arrow_upward'
-            }}</mat-icon>
-          </button>
-          <button
-            class="!hidden lg:!inline-flex"
-            mat-icon-button
-            (click)="store.setFilterDrawerOpen(!store.filterDrawerOpen())"
-            [matBadge]="store.activeFilterCount() || null"
-            matBadgeColor="primary"
-            matBadgeSize="small"
-            [matTooltip]="I18N.gallery.filters | translate"
-            [attr.aria-label]="I18N.gallery.filters | translate"
-          >
-            <mat-icon [style.color]="store.filterDrawerOpen() ? 'var(--mat-sys-primary)' : ''">filter_alt</mat-icon>
-          </button>
-        }
-
         <!-- "My Taste" confidence indicator — held-out accuracy of the personal ranker.
              A button, not a bare icon: the accuracy lives only in the tooltip, which a
              keyboard or screen-reader user can only reach through a focusable host. -->
@@ -268,39 +184,6 @@
             <mat-icon class="!text-xl !w-5 !h-5 !leading-5" [class]="'taste' | markTone">✦</mat-icon>
           </button>
         }
-
-        <!-- Tooltip-mode menu — first item in the gallery icon cluster -->
-        <button
-          class="!hidden lg:!inline-flex"
-          mat-icon-button
-          [matMenuTriggerFor]="tooltipModeMenu"
-          [matTooltip]="I18N.gallery.tooltip_mode.label | translate"
-          [attr.aria-label]="I18N.gallery.tooltip_mode.label | translate"
-        >
-          <mat-icon>{{
-            store.filters().tooltip_mode === 'click' ? 'touch_app'
-            : store.filters().tooltip_mode === 'off' ? 'visibility_off'
-            : store.filters().tooltip_mode === 'panel' ? 'view_sidebar'
-            : 'chat_bubble_outline'
-          }}</mat-icon>
-        </button>
-
-        <button
-          class="!hidden lg:!inline-flex"
-          mat-icon-button
-          (click)="store.slideshowActive.set(!store.slideshowActive())"
-          [matTooltip]="I18N.slideshow.start | translate"
-          [attr.aria-label]="I18N.slideshow.start | translate"
-        >
-          <mat-icon [style.color]="store.slideshowActive() ? 'var(--mat-sys-primary)' : ''">slideshow</mat-icon>
-        </button>
-      }
-
-      <!-- Scan for new photos (gallery only), last before the account menu. -->
-      @if (auth.isAuthenticated() && isGalleryRoute() && scan.canLaunch()) {
-        <button mat-icon-button class="!hidden lg:!inline-flex !bg-[var(--mat-sys-primary-container)] !text-[var(--mat-sys-on-primary-container)]" (click)="openScanLauncher()" [matTooltip]="I18N.gallery.scan_action | translate" [attr.aria-label]="I18N.gallery.scan_action | translate">
-          <mat-icon>add_photo_alternate</mat-icon>
-        </button>
       }
 
       <!-- User menu (authenticated: account + language + edition + logout).
@@ -456,6 +339,123 @@
 
     </div>
   </mat-toolbar>
+  <!-- Page actions: the current page's own controls, in a row below the destinations (lg+). -->
+  @if (auth.isAuthenticated() && hasPageActions()) {
+    <div data-page-actions role="toolbar" [attr.aria-label]="I18N.nav.page_actions | translate"
+         class="!hidden lg:!flex shrink-0 items-center gap-1 min-h-12 px-2 bg-[var(--mat-sys-surface-container)] border-b border-[var(--mat-sys-outline-variant)]">
+        <!-- Compare category selector (visible only on compare route, lg+) -->
+        @if (auth.isAuthenticated() && isCompareRoute()) {
+          <mat-form-field class="!hidden lg:!inline-flex w-52 ml-2" subscriptSizing="dynamic">
+            <mat-label>{{ I18N.ui.filters.type | translate }}</mat-label>
+            <mat-select panelWidth="auto" panelClass="nowrap-panel" [value]="compareFilters.selectedCategory()" (selectionChange)="onCompareCategoryChange($event.value)">
+              @for (t of store.types(); track t.id) {
+                <mat-option [value]="t.id">{{ (t.id === 'top_picks' ? 'photo_types.top_picks' : 'category_names.' + t.id) | translate }} ({{ t.count }})</mat-option>
+              }
+            </mat-select>
+          </mat-form-field>
+        }
+        <!-- Header-slot projection: a feature page (culling, merge suggestions…) renders its
+             toolbar in the global header on lg+; on small screens the page renders it itself. -->
+        @if (auth.isAuthenticated() && headerSlot.template(); as tpl) {
+          <!-- overflow-x-clip (not hidden/auto) so a wide page toolbar can never paint
+               over the shell controls to its right, while a slider's value bubble can
+               still overflow vertically. The projected toolbar owns its own scrolling. -->
+          <div class="!hidden lg:!flex items-center gap-1 ml-2 min-w-0 overflow-x-clip">
+            <ng-container [ngTemplateOutlet]="tpl" />
+          </div>
+        }
+        <div class="flex-1"></div>
+        <!-- Stats overview (right side, lg+ only) -->
+        @if (auth.isAuthenticated() && isStatsRoute() && statsFilters.overview(); as ov) {
+          <span class="!hidden lg:!inline-flex items-center gap-3 text-sm opacity-80">
+            <span class="inline-flex items-center gap-1" [matTooltip]="I18N.stats.total_photos | translate">
+              <mat-icon class="!text-xl !w-5 !h-5 !leading-5 text-blue-400">photo_library</mat-icon>
+              {{ ov.total_photos | number }}
+            </span>
+            <span class="inline-flex items-center gap-1" [matTooltip]="I18N.stats.total_persons | translate">
+              <mat-icon class="!text-xl !w-5 !h-5 !leading-5 text-purple-400">people</mat-icon>
+              {{ ov.total_persons | number }}
+            </span>
+            <span class="inline-flex items-center gap-1" [matTooltip]="I18N.stats.avg_score | translate">
+              <mat-icon class="!text-xl !w-5 !h-5 !leading-5 text-amber-400">star</mat-icon>
+              {{ ov.avg_score | number:'1.1-1' }}
+            </span>
+            <span class="inline-flex items-center gap-1" [matTooltip]="I18N.stats.total_faces | translate">
+              <mat-icon class="!text-xl !w-5 !h-5 !leading-5">face</mat-icon>
+              {{ ov.total_faces | number }}
+            </span>
+          </span>
+        }
+
+        <!-- Gallery: photo count + active filters + filter toggle (right side, lg+ only) -->
+        @if (auth.isAuthenticated() && isGalleryRoute()) {
+          <span class="!hidden min-[1360px]:!inline text-sm opacity-70">{{ I18N.gallery.photo_count | translate:{ count: pinned() ? store.total() : store.photoTotal() } }}</span>
+
+          @if (!pinned()) {
+            @let sortTooltip = I18N.gallery.sort_current | translate:{ label: (currentSortLabelKey() | translate) };
+            <button mat-icon-button class="!hidden lg:!inline-flex" [matMenuTriggerFor]="sortMenu" [matTooltip]="sortTooltip" [attr.aria-label]="sortTooltip">
+              @let currentIcon = store.filters().sort | sortOptionIcon;
+              <mat-icon aria-hidden="true" class="!w-8 -mx-1 text-center" [class]="currentIcon.classes">{{ currentIcon.text }}</mat-icon>
+            </button>
+            <button
+              class="!hidden lg:!inline-flex"
+              mat-icon-button
+              (click)="toggleSortDirection()"
+              [matTooltip]="store.filters().sort_direction === 'DESC' ? (I18N.gallery.sort_desc | translate) : (I18N.gallery.sort_asc | translate)"
+              [attr.aria-label]="store.filters().sort_direction === 'DESC' ? (I18N.gallery.sort_desc | translate) : (I18N.gallery.sort_asc | translate)"
+            >
+              <mat-icon>{{
+                store.filters().sort_direction === 'DESC' ? 'arrow_downward' : 'arrow_upward'
+              }}</mat-icon>
+            </button>
+            <button
+              class="!hidden lg:!inline-flex"
+              mat-icon-button
+              (click)="store.setFilterDrawerOpen(!store.filterDrawerOpen())"
+              [matBadge]="store.activeFilterCount() || null"
+              matBadgeColor="primary"
+              matBadgeSize="small"
+              [matTooltip]="I18N.gallery.filters | translate"
+              [attr.aria-label]="I18N.gallery.filters | translate"
+            >
+              <mat-icon [style.color]="store.filterDrawerOpen() ? 'var(--mat-sys-primary)' : ''">filter_alt</mat-icon>
+            </button>
+          }
+          <!-- Tooltip-mode menu — first item in the gallery icon cluster -->
+          <button
+            class="!hidden lg:!inline-flex"
+            mat-icon-button
+            [matMenuTriggerFor]="tooltipModeMenu"
+            [matTooltip]="I18N.gallery.tooltip_mode.label | translate"
+            [attr.aria-label]="I18N.gallery.tooltip_mode.label | translate"
+          >
+            <mat-icon>{{
+              store.filters().tooltip_mode === 'click' ? 'touch_app'
+              : store.filters().tooltip_mode === 'off' ? 'visibility_off'
+              : store.filters().tooltip_mode === 'panel' ? 'view_sidebar'
+              : 'chat_bubble_outline'
+            }}</mat-icon>
+          </button>
+
+          <button
+            class="!hidden lg:!inline-flex"
+            mat-icon-button
+            (click)="store.slideshowActive.set(!store.slideshowActive())"
+            [matTooltip]="I18N.slideshow.start | translate"
+            [attr.aria-label]="I18N.slideshow.start | translate"
+          >
+            <mat-icon [style.color]="store.slideshowActive() ? 'var(--mat-sys-primary)' : ''">slideshow</mat-icon>
+          </button>
+        }
+
+        <!-- Scan for new photos (gallery only), last before the account menu. -->
+        @if (auth.isAuthenticated() && isGalleryRoute() && scan.canLaunch()) {
+          <button mat-icon-button class="!hidden lg:!inline-flex !bg-[var(--mat-sys-primary-container)] !text-[var(--mat-sys-on-primary-container)]" (click)="openScanLauncher()" [matTooltip]="I18N.gallery.scan_action | translate" [attr.aria-label]="I18N.gallery.scan_action | translate">
+            <mat-icon>add_photo_alternate</mat-icon>
+          </button>
+        }
+    </div>
+  }
   }
 
   @if (auth.isReadOnlyInstall()) {

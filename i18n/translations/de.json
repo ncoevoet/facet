@@ -1040,7 +1040,8 @@
     "capsules": "Kapseln",
     "junk_sweep": "Aufräumen",
     "help": "Hilfe",
-    "more": "Mehr"
+    "more": "Mehr",
+    "page_actions": "Seitenaktionen"
   },
   "auth": {
     "logout": "Abmelden",

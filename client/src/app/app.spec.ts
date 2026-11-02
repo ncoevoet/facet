@@ -706,11 +706,12 @@ describe('App', () => {
       expect(root.textContent).toContain('2 photos');
     });
 
-    it('renders one desktop button just before the account menu, in the tonal colour', () => {
+    it('renders one desktop button at the end of the page-actions row, in the tonal colour', () => {
       const { buttons } = render(true);
       const desktop = buttons.filter((b) => b.classList.contains('lg:!inline-flex'));
       expect(desktop).toHaveLength(1);
-      expect(desktop[0].nextElementSibling?.getAttribute('aria-label')).toBe(I18N.auth.user_menu);
+      expect(desktop[0].closest('[data-page-actions]')).not.toBeNull();
+      expect(desktop[0].nextElementSibling).toBeNull();
       expect(desktop[0].classList.contains('!hidden')).toBe(true);
       for (const cls of TONAL) expect(desktop[0].classList.contains(cls)).toBe(true);
     });
@@ -1139,10 +1140,27 @@ describe('App', () => {
       const more = root.querySelector<HTMLButtonElement>(`nav button[aria-label="${I18N.nav.more}"]`)!;
       expect(more.classList.contains('!hidden')).toBe(true);
       expect(more.classList.contains('lg:max-[1679px]:!inline-flex')).toBe(true);
-      const stats = root.querySelector<HTMLElement>(`nav a[aria-label="${I18N.nav.stats}"].\\!hidden`)!;
+      const stats = root.querySelector<HTMLElement>('nav a[href="/stats"].\\!hidden')!;
       expect(stats.classList.contains('min-[1680px]:!inline-flex')).toBe(true);
-      const persons = root.querySelector<HTMLElement>(`nav a[aria-label="${I18N.nav.persons}"].\\!hidden`)!;
+      const persons = root.querySelector<HTMLElement>('nav a[href="/persons"].\\!hidden')!;
       expect(persons.classList.contains('lg:!inline-flex')).toBe(true);
+    });
+
+    it('labels every desktop destination tab with its name', () => {
+      const { root } = render(true);
+      const tabs = [...root.querySelectorAll<HTMLElement>('nav a.lg\\:\\!inline-flex, nav a.min-\\[1680px\\]\\:\\!inline-flex')];
+      const label = (tab: HTMLElement) => [...tab.childNodes].filter(node => node.nodeType === Node.TEXT_NODE).map(node => node.textContent).join('').trim();
+      expect(tabs.map(label)).toEqual([
+        I18N.nav.gallery, I18N.nav.persons, I18N.nav.culling, I18N.nav.stats, I18N.nav.compare,
+      ]);
+    });
+
+    it('puts the gallery controls in a page-actions row below the destination tabs', () => {
+      const { root } = render(true);
+      const row = root.querySelector<HTMLElement>('[data-page-actions]')!;
+      expect(row.previousElementSibling?.tagName).toBe('MAT-TOOLBAR');
+      expect(row.querySelector(`button[aria-label="${I18N.gallery.filters}"]`)).not.toBeNull();
+      expect(root.querySelector('mat-toolbar')!.querySelector(`button[aria-label="${I18N.gallery.filters}"]`)).toBeNull();
     });
 
     it.each([['kept', 1], ['lost', 0]])('opens the history dialog after the lazy load only while edition is %s', async (state, opens) => {

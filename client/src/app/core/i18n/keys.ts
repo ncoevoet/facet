@@ -1055,6 +1055,7 @@ export const I18N = {
     junk_sweep: "nav.junk_sweep",
     help: "nav.help",
     more: "nav.more",
+    page_actions: "nav.page_actions",
   },
   auth: {
     logout: "auth.logout",

@@ -264,6 +264,8 @@ Use **Review status → Needs review** in the gallery to work through undecided 
 
 ## Gallery Features
 
+**Header.** On screens 1024 px and wider the header has two rows. The top row holds labelled tabs for the main destinations; below 1680 px the secondary ones (Map, Culling, Statistics…) fold into **More**. The row below holds the current page's own controls: in the gallery, type, search, photo count, sort, filters, display and slideshow. Narrower screens keep the single row of icons.
+
 ### Manual photo stacks
 
 Select **2–1000 explicit photos**, then choose **Stack photos** on the selection bar or press **S** to open the full-page editor at `/stacks/edit`. A whole-view selection cannot create a stack. S opens a preview; it never saves directly. User menu → **Customize shortcuts** changes the gallery binding, and the toolbar tooltip, Help and `?` reference show the current key. If an older saved mapping already uses S, that binding is preserved and Stack starts **Unassigned** until you choose a free key. Editing access is required. A photo belongs to one manual stack per owner. The page centers a zoomable preview above a persistent thumbnail strip. Click a thumbnail or use `←`/`→` to focus a photo, then choose its cover, order or remove controls. Use the zoom button, wheel or double-click to inspect details.

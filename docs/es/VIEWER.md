@@ -264,6 +264,8 @@ Usa **Estado de revisión → Por revisar** en la galería para recorrer las fot
 
 ## Funciones de la galería
 
+**Cabecera.** En pantallas de 1024 px o más la cabecera tiene dos filas. La superior muestra pestañas con nombre para los destinos principales; por debajo de 1680 px los secundarios (Mapa, Selección, Estadísticas…) pasan a **Más**. La fila inferior contiene los controles de la página actual: en la galería, tipo, búsqueda, número de fotos, orden, filtros, visualización y presentación. Las pantallas más estrechas conservan la fila única de iconos.
+
 ### Pilas de fotos manuales
 
 Selecciona **2–1000 fotos explícitas** y elige **Apilar fotos** en la barra o pulsa **S** para abrir el editor de página completa en `/stacks/edit`. Una selección de toda la vista no crea pilas. S abre una vista previa; nunca guarda directamente. Menú de usuario → **Personalizar atajos** cambia la tecla de la galería; la ayuda emergente, Ayuda y la referencia `?` muestran la tecla actual. Si una configuración anterior ya usa S, se conserva y Apilar queda **Sin asignar** hasta elegir una tecla libre. Se requieren permisos de edición. Cada foto pertenece a una pila por propietario. La página centra una vista previa con zoom sobre una tira de miniaturas permanente. Pulsa una miniatura o usa `←`/`→` para enfocar una foto y sus controles de portada, orden o eliminación de la pila. El botón de zoom, la rueda o un doble clic permiten examinar los detalles.

@@ -264,6 +264,8 @@ Usa **Stato revisione → Da esaminare** nella galleria per smaltire le foto non
 
 ## Funzionalità della galleria
 
+**Intestazione.** Sugli schermi da 1024 px in su l’intestazione ha due righe. In alto ci sono schede con nome per le destinazioni principali; sotto i 1680 px quelle secondarie (Mappa, Selezione, Statistiche…) finiscono in **Altro**. La riga sotto contiene i comandi della pagina corrente: nella galleria tipo, ricerca, numero di foto, ordinamento, filtri, visualizzazione e presentazione. Gli schermi più stretti mantengono la singola riga di icone.
+
 ### Pile di foto manuali
 
 Seleziona **2–1000 foto esplicite**, poi **Impila foto** nella barra di selezione o premi **S** per aprire l’editor a pagina intera in `/stacks/edit`. La selezione dell’intera vista non crea pile. S apre un’anteprima, senza salvare direttamente. Menu utente → **Personalizza le scorciatoie** cambia il tasto della galleria; il suggerimento, Aiuto e il riferimento `?` mostrano quello attuale. Se una configurazione precedente usa già S, viene mantenuta e Impila rimane **Non assegnato** finché non scegli un tasto libero. Servono permessi di modifica. Una foto appartiene a una sola pila per proprietario. La pagina centra un’anteprima con zoom sopra una striscia di miniature permanente. Fai clic su una miniatura o usa `←`/`→` per selezionare una foto, poi i suoi comandi di copertina, ordine o rimozione dalla pila. Pulsante zoom, rotellina o doppio clic mostrano i dettagli.

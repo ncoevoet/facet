@@ -264,6 +264,8 @@ Use **Estado de revisão → Precisa de revisão** na galeria para percorrer fot
 
 ## Recursos da Galeria
 
+**Cabeçalho.** Em ecrãs a partir de 1024 px o cabeçalho tem duas linhas. A de cima mostra separadores com nome para os destinos principais; abaixo de 1680 px os secundários (Mapa, Seleção, Estatísticas…) passam para **Mais**. A linha de baixo contém os controlos da página atual: na galeria, tipo, pesquisa, número de fotos, ordenação, filtros, visualização e apresentação. Ecrãs mais estreitos mantêm a linha única de ícones.
+
 ### Pilhas de fotos manuais
 
 Selecione **2–1000 fotos explícitas** e escolha **Empilhar fotos** na barra ou prima **S** para abrir o editor de página inteira em `/stacks/edit`. Selecionar toda a visualização não cria pilhas. S abre uma pré-visualização, sem guardar diretamente. Menu do utilizador → **Personalizar atalhos** muda a tecla da galeria; a dica, a Ajuda e a referência `?` mostram a tecla atual. Se uma configuração anterior já usa S, é preservada e Empilhar fica **Não atribuído** até escolher uma tecla livre. São necessárias permissões de edição. Cada foto pertence a uma pilha por proprietário. A página centra uma pré-visualização com zoom sobre uma faixa de miniaturas permanente. Clique numa miniatura ou use `←`/`→` para focar uma foto e os seus controlos de capa, ordem ou remoção da pilha. O botão de zoom, a roda ou um duplo clique permitem examinar detalhes.

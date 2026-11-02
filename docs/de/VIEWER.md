@@ -264,6 +264,8 @@ Wählen Sie in der Galerie **Auswahlstatus → Zu prüfen**, um unentschiedene F
 
 ## Galeriefunktionen
 
+**Kopfzeile.** Auf Bildschirmen ab 1024 px hat die Kopfzeile zwei Reihen. Oben stehen beschriftete Tabs für die Hauptbereiche; unter 1680 px landen die weiteren (Karte, Auswahl, Statistiken…) unter **Mehr**. Die Reihe darunter enthält die Bedienelemente der aktuellen Seite: in der Galerie Typ, Suche, Fotoanzahl, Sortierung, Filter, Anzeige und Diashow. Schmalere Bildschirme behalten die einzelne Symbolreihe.
+
 ### Manuelle Fotostapel
 
 Wählen Sie **2–1000 konkrete Fotos**, dann **Fotos stapeln** in der Auswahlleiste oder drücken Sie **S**, um den ganzseitigen Editor unter `/stacks/edit` zu öffnen. Eine Gesamtauswahl der Ansicht erstellt keinen Stapel. S öffnet nur die Vorschau und speichert nicht. Benutzermenü → **Tastenkürzel anpassen** ändert die Galeriebelegung; Tooltip, Hilfe und `?` zeigen die aktuelle Taste. Belegt eine ältere gespeicherte Einstellung bereits S, bleibt sie erhalten und Stapeln ist **Nicht zugewiesen**, bis Sie eine freie Taste wählen. Bearbeitungsrechte sind erforderlich. Jedes Foto gehört je Eigentümer höchstens einem Stapel. Die Seite zeigt mittig eine zoombare Vorschau über einem dauerhaften Miniaturstreifen. Klicken Sie auf eine Miniatur oder verwenden Sie `←`/`→`, um ein Foto zu fokussieren; die zugehörigen Schaltflächen wählen das Titelbild, ändern die Reihenfolge oder entfernen es. Zoomtaste, Mausrad oder Doppelklick zeigen Details.

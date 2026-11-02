@@ -1040,7 +1040,8 @@
     "capsules": "Cápsulas",
     "junk_sweep": "Limpeza",
     "help": "Ajuda",
-    "more": "Mais"
+    "more": "Mais",
+    "page_actions": "Ações da página"
   },
   "auth": {
     "logout": "Sair",
