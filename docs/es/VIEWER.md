@@ -266,13 +266,15 @@ Usa **Estado de revisión → Por revisar** en la galería para recorrer las fot
 - Los grupos temporales de ráfaga/secuencia no se marcan, porque un reescaneo puede renumerarlos.
 - Cerrar sesión borra todos los marcadores de colas de revisión de este navegador.
 
-**Avisos flotantes.** El progreso de revisión, **Continuar revisión**, el aviso de fotos ocultas, el aviso de filtros activos (con **Restablecer todos los filtros**) y el aviso de migración de miniaturas se apilan abajo a la derecha.
+**Avisos flotantes.** El progreso de revisión, **Continuar revisión**, el aviso de fotos ocultas y el aviso de migración de miniaturas se apilan abajo a la derecha.
 
-- La × de cada tarjeta la oculta durante la pestaña actual del navegador. Vuelve en una pestaña nueva, o cuando el aviso cambia (otro ámbito, un recuento de ocultas distinto, un filtro añadido o quitado).
+- La × de cada tarjeta la oculta durante la pestaña actual del navegador. Vuelve en una pestaña nueva, o cuando el aviso cambia (otro ámbito o un recuento de ocultas distinto).
 - Para ocultar el progreso de revisión de forma permanente, usa **Ocultar el progreso de revisión** / **Mostrar el progreso de revisión** del menú de usuario. Se guarda por navegador y también oculta el botón **Revisar sin decidir**.
 - Tras unos segundos de inactividad, la pila se pliega en una pequeña píldora con un recuento. Pasa el cursor o haz clic para desplegarla.
 
 ## Funciones de la galería
+
+**Cabecera.** En pantallas de 1024 px o más la cabecera tiene dos filas. La superior muestra pestañas con nombre para los destinos principales; por debajo de 1680 px los secundarios (Mapa, Selección, Estadísticas…) pasan a **Más**. La fila inferior contiene los controles de la página actual: en la galería, tipo, búsqueda, número de fotos, orden, filtros, visualización y presentación. Las pantallas más estrechas conservan la fila única de iconos.
 
 ### Pilas de fotos manuales
 
@@ -450,7 +452,7 @@ El **control deslizante del umbral de similitud** (0–90 %) define lo estricta 
 
 ### Chips de filtro
 
-Los filtros activos aparecen como chips que se pueden quitar, con recuentos, en la parte superior de la galería.
+Una cabecera de colección en la parte superior de la galería indica siempre qué estás viendo: el origen (un álbum o carpeta, con × para salir, si no **Todas las fotos**), el número de fotos y el orden. Cada filtro activo restante aparece como un chip que se puede quitar, así nada restringe la vista mientras el panel de filtros está cerrado. Los chips de búsqueda indican cómo coinciden: las **Coincidencias visuales** se ordenan por similitud semántica con tus palabras, mientras que las **Coincidencias de texto** solo conservan las fotos cuyo nombre de archivo, descripción, etiquetas o personas contienen el texto, en el orden elegido.
 
 ### Tags manuales
 

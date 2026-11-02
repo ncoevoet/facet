@@ -1097,11 +1097,6 @@
       "reason_brackets": "{n} 张包围曝光帧",
       "reason_panoramas": "{n} 张全景帧"
     },
-    "filters_notice": {
-      "message": "已启用 {count} 个筛选",
-      "message_plural": "已启用 {count} 个筛选",
-      "reset": "重置全部筛选"
-    },
     "render_migration": {
       "message": "仍有 {n} 张 RAW 照片显示上一次渲染的缩略图。",
       "command_hint": "运行 {command} 可一次性刷新全部缩略图。"
@@ -1129,8 +1124,13 @@
     "sort_asc": "升序",
     "filters": "筛选",
     "search_placeholder": "搜索文件名、描述…",
-    "search_chip": "搜索",
-    "semantic_search_chip": "语义搜索",
+    "search_chip": "文本匹配",
+    "semantic_search_chip": "视觉匹配",
+    "collection": {
+      "all_photos": "所有照片",
+      "label": "集合",
+      "remove_filter": "移除{label}"
+    },
     "semantic_search": "语义搜索",
     "semantic_search_placeholder": "海边的日落…",
     "clear_search": "清空搜索",

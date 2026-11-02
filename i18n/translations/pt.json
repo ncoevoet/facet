@@ -1097,11 +1097,6 @@
       "reason_brackets": "{n} quadro(s) de bracketing",
       "reason_panoramas": "{n} quadro(s) de panorama"
     },
-    "filters_notice": {
-      "message": "{count} filtro ativo",
-      "message_plural": "{count} filtros ativos",
-      "reset": "Redefinir todos os filtros"
-    },
     "render_migration": {
       "message": "{n} fotos RAW ainda mostram uma miniatura da renderização anterior.",
       "command_hint": "Execute {command} para atualizar todas de uma vez."
@@ -1129,8 +1124,13 @@
     "sort_asc": "Crescente",
     "filters": "Filtros",
     "search_placeholder": "Buscar nome do arquivo, legenda...",
-    "search_chip": "Pesquisa",
-    "semantic_search_chip": "Pesquisa semântica",
+    "search_chip": "Correspondências de texto",
+    "semantic_search_chip": "Correspondências visuais",
+    "collection": {
+      "all_photos": "Todas as fotos",
+      "label": "Coleção",
+      "remove_filter": "Remover {label}"
+    },
     "semantic_search": "Busca semântica",
     "semantic_search_placeholder": "pôr do sol na praia...",
     "clear_search": "Limpar pesquisa",

@@ -1097,11 +1097,6 @@
       "reason_brackets": "{n} fotograma(s) de horquillado",
       "reason_panoramas": "{n} fotograma(s) de panorámica"
     },
-    "filters_notice": {
-      "message": "{count} filtro activo",
-      "message_plural": "{count} filtros activos",
-      "reset": "Restablecer todos los filtros"
-    },
     "render_migration": {
       "message": "{n} fotos RAW aún muestran una miniatura del renderizado anterior.",
       "command_hint": "Ejecuta {command} para actualizarlas todas de una vez."
@@ -1129,8 +1124,13 @@
     "sort_asc": "Ascendente",
     "filters": "Filtros",
     "search_placeholder": "Buscar nombre, leyenda...",
-    "search_chip": "Búsqueda",
-    "semantic_search_chip": "Búsqueda semántica",
+    "search_chip": "Coincidencias de texto",
+    "semantic_search_chip": "Coincidencias visuales",
+    "collection": {
+      "all_photos": "Todas las fotos",
+      "label": "Colección",
+      "remove_filter": "Quitar {label}"
+    },
     "semantic_search": "Busqueda semantica",
     "semantic_search_placeholder": "atardecer en la playa...",
     "clear_search": "Limpiar búsqueda",

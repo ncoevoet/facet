@@ -745,18 +745,6 @@ type ReturnTarget = { scroll: number; focus: Element | null } & (
                 <ng-container *ngTemplateOutlet="noticeClose; context: { $implicit: 'restore_hidden' }" />
               </div>
             }
-            @if (activeFiltersNoticeShown()) {
-              <div role="status" [class]="NOTICE_CARD_CLASS">
-                <mat-icon class="opacity-70 !text-base !w-5 !h-5">filter_alt</mat-icon>
-                <span id="notice-text-active_filters" class="flex-1">
-                  {{ store.activeFilterCount() | pluralKey:I18N.gallery.filters_notice.message:I18N.gallery.filters_notice.message_plural | translate:{ count: store.activeFilterCount() } }}
-                </span>
-                <button mat-button class="!min-w-0" (click)="store.resetFilters()">
-                  {{ I18N.gallery.filters_notice.reset | translate }}
-                </button>
-                <ng-container *ngTemplateOutlet="noticeClose; context: { $implicit: 'active_filters' }" />
-              </div>
-            }
             @if (showRenderMigrationBanner()) {
               <div role="status" [class]="NOTICE_CARD_CLASS">
                 <mat-icon class="opacity-70 !text-base !w-5 !h-5">auto_fix_high</mat-icon>
@@ -1482,7 +1470,6 @@ export class GalleryComponent implements OnInit, OnDestroy {
     review_bookmark: JSON.stringify(this.store.reviewBookmark()?.filters ?? null),
     hidden: JSON.stringify([this.store.reviewProgressKey(), this.store.hiddenSummary().total]),
     restore_hidden: JSON.stringify(this.store.hiddenFiltersStash()),
-    active_filters: JSON.stringify(activeFilterKeys(this.store.filters())),
     render_migration: String(this.renderMigrationPending()),
   }));
 
@@ -1514,18 +1501,12 @@ export class GalleryComponent implements OnInit, OnDestroy {
   protected readonly hiddenNoticeShown = computed(() => this.showHiddenBanner() && !this.noticeClosed('hidden'));
   protected readonly restoreNoticeShown = computed(() => this.canRestoreHidden() && !this.noticeClosed('restore_hidden'));
 
-  /** The active-filters card: any filter on, outside an album. An album view is skipped because a
-   *  smart album's saved filters are always "active" there (a permanent card), and the reset would
-   *  also leave the album -- the sidebar's reset stays the way out. The album id itself is never counted. */
-  protected readonly activeFiltersNoticeShown = computed(() =>
-    this.store.activeFilterCount() > 0 && !this.store.currentAlbum() && !this.noticeClosed('active_filters'));
-
   /** The cards that are up right now, in stack order: the one list the stack's presence,
    *  the collapsed pill's count and the collapse lifecycle all derive from. */
   private readonly shownNoticeKinds = computed<NoticeKind[]>(() => ([
     ['review_progress', this.reviewProgressShown()], ['review_bookmark', this.reviewBookmarkShown()],
     ['hidden', this.hiddenNoticeShown()], ['restore_hidden', this.restoreNoticeShown()],
-    ['active_filters', this.activeFiltersNoticeShown()], ['render_migration', this.showRenderMigrationBanner()],
+    ['render_migration', this.showRenderMigrationBanner()],
   ] as [NoticeKind, boolean][]).filter(([, shown]) => shown).map(([kind]) => kind));
 
   /** Whether the floating notice stack has at least one card to show. */

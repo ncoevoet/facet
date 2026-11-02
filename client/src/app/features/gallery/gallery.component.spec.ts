@@ -5896,8 +5896,7 @@ describe('GalleryComponent', () => {
       const host = render();
       vi.advanceTimersByTime(4000);
       // A second notice joins before the window closes.
-      mockStore.filters.set({ ...DEFAULT_FILTERS, tag: 'beach' });
-      mockStore.activeFilterCount.set(1);
+      mockStore.reviewBookmark.set({ path: '/p1.jpg', filters: { tag: 'a' } });
       fixture.detectChanges();
       expect(card(host)).not.toBeNull();
       expect(pill(host)).toBeNull();
@@ -5912,8 +5911,7 @@ describe('GalleryComponent', () => {
     });
 
     it('counts the folded cards in the pill label', () => {
-      mockStore.filters.set({ ...DEFAULT_FILTERS, tag: 'beach' });
-      mockStore.activeFilterCount.set(1);
+      mockStore.reviewBookmark.set({ path: '/p1.jpg', filters: { tag: 'a' } });
       const host = render();
       collapseAfterFullWindow();
       expect(pill(host)!.textContent).toContain('gallery.notices.collapsed_plural');
@@ -5978,8 +5976,7 @@ describe('GalleryComponent', () => {
       expect(pill(host)).not.toBeNull();
       mockStore.filterDrawerOpen.set(true);
       fixture.detectChanges();
-      mockStore.filters.set({ ...DEFAULT_FILTERS, tag: 'beach' });
-      mockStore.activeFilterCount.set(1);
+      mockStore.reviewBookmark.set({ path: '/p1.jpg', filters: { tag: 'a' } });
       fixture.detectChanges();
 
       mockStore.filterDrawerOpen.set(false);
@@ -5989,8 +5986,7 @@ describe('GalleryComponent', () => {
     });
 
     it('grants a fresh window when a card is dismissed', () => {
-      mockStore.filters.set({ ...DEFAULT_FILTERS, tag: 'beach' });
-      mockStore.activeFilterCount.set(1);
+      mockStore.reviewBookmark.set({ path: '/p1.jpg', filters: { tag: 'a' } });
       const host = render();
       vi.advanceTimersByTime(4000);
       card(host)!.querySelector<HTMLElement>('[data-notice-close]')!.click();

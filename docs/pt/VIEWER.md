@@ -266,13 +266,15 @@ Use **Estado de revisão → Precisa de revisão** na galeria para percorrer fot
 - Grupos temporários de rajada/sequência não são salvos, porque uma nova varredura pode renumerá-los.
 - Encerrar a sessão apaga todos os marcadores de fila de revisão neste navegador.
 
-**Avisos flutuantes.** O progresso da revisão, **Continuar revisão**, o aviso de fotos ocultas, o aviso de filtros ativos (com **Redefinir todos os filtros**) e o aviso de migração de miniaturas se empilham no canto inferior direito.
+**Avisos flutuantes.** O progresso da revisão, **Continuar revisão**, o aviso de fotos ocultas e o aviso de migração de miniaturas se empilham no canto inferior direito.
 
-- O × de cada cartão o oculta na aba atual do navegador. Ele volta em uma nova aba, ou quando o aviso muda (outro escopo, outro número de ocultas, um filtro adicionado ou removido).
+- O × de cada cartão o oculta na aba atual do navegador. Ele volta em uma nova aba, ou quando o aviso muda (outro escopo ou outro número de ocultas).
 - Para ocultar o progresso da revisão de vez, use **Ocultar progresso da revisão** / **Mostrar progresso da revisão** no menu do usuário. A escolha é salva por navegador e também oculta o botão **Rever por decidir**.
 - Após alguns segundos sem interação, a pilha se recolhe em uma pequena pílula de contagem. Passe o ponteiro ou clique nela para abrir.
 
 ## Recursos da Galeria
+
+**Cabeçalho.** Em ecrãs a partir de 1024 px o cabeçalho tem duas linhas. A de cima mostra separadores com nome para os destinos principais; abaixo de 1680 px os secundários (Mapa, Seleção, Estatísticas…) passam para **Mais**. A linha de baixo contém os controlos da página atual: na galeria, tipo, pesquisa, número de fotos, ordenação, filtros, visualização e apresentação. Ecrãs mais estreitos mantêm a linha única de ícones.
 
 ### Pilhas de fotos manuais
 
@@ -449,7 +451,7 @@ O **controle deslizante de limiar de similaridade** (0–90%) define o rigor da 
 
 ### Chips de Filtro
 
-Os filtros ativos aparecem como chips removíveis com contagens no topo da galeria.
+Um cabeçalho de coleção no topo da galeria indica sempre o que está a ver: a origem (um álbum ou pasta, com × para sair, caso contrário **Todas as fotos**), o número de fotos e a ordenação. Cada outro filtro ativo segue como chip removível, para que nada restrinja a vista com o painel de filtros fechado. Os chips de pesquisa dizem como correspondem: as **Correspondências visuais** são ordenadas por semelhança semântica com as suas palavras, enquanto as **Correspondências de texto** só mantêm fotos cujo nome de ficheiro, legenda, etiquetas ou pessoas contêm o texto, na ordenação escolhida.
 
 ### Tags manuais
 

@@ -266,13 +266,15 @@ Wählen Sie in der Galerie **Auswahlstatus → Zu prüfen**, um unentschiedene F
 - Temporäre Serien-/Sequenzgruppen werden nicht gemerkt, da ein erneuter Scan sie neu nummerieren kann.
 - Das Abmelden löscht alle Warteschlangen-Lesezeichen in diesem Browser.
 
-**Schwebende Hinweise.** Bewertungsfortschritt, **Sichtung fortsetzen**, der Hinweis zu ausgeblendeten Fotos, der Hinweis zu aktiven Filtern (mit **Alle Filter zurücksetzen**) und der Hinweis zur Vorschaubild-Migration stapeln sich unten rechts.
+**Schwebende Hinweise.** Bewertungsfortschritt, **Sichtung fortsetzen**, der Hinweis zu ausgeblendeten Fotos und der Hinweis zur Vorschaubild-Migration stapeln sich unten rechts.
 
-- Das × jeder Karte blendet sie für den aktuellen Browser-Tab aus. Sie kehrt in einem neuen Tab zurück oder wenn sich der Hinweis ändert (anderer Bereich, geänderte Zahl ausgeblendeter Fotos, hinzugefügter oder entfernter Filter).
+- Das × jeder Karte blendet sie für den aktuellen Browser-Tab aus. Sie kehrt in einem neuen Tab zurück oder wenn sich der Hinweis ändert (anderer Bereich oder geänderte Zahl ausgeblendeter Fotos).
 - Um den Bewertungsfortschritt dauerhaft auszublenden, nutzen Sie im Benutzermenü **Bewertungsfortschritt ausblenden** / **Bewertungsfortschritt anzeigen**. Das wird pro Browser gespeichert und blendet auch die Schaltfläche **Unentschiedene sichten** aus.
 - Nach einigen Sekunden ohne Interaktion faltet sich der Stapel zu einer kleinen Zählpille zusammen. Zeiger darüber oder ein Klick darauf entfaltet ihn.
 
 ## Galeriefunktionen
+
+**Kopfzeile.** Auf Bildschirmen ab 1024 px hat die Kopfzeile zwei Reihen. Oben stehen beschriftete Tabs für die Hauptbereiche; unter 1680 px landen die weiteren (Karte, Auswahl, Statistiken…) unter **Mehr**. Die Reihe darunter enthält die Bedienelemente der aktuellen Seite: in der Galerie Typ, Suche, Fotoanzahl, Sortierung, Filter, Anzeige und Diashow. Schmalere Bildschirme behalten die einzelne Symbolreihe.
 
 ### Manuelle Fotostapel
 
@@ -450,7 +452,7 @@ Der **Ähnlichkeitsschwellen-Regler** (0–90%) legt fest, wie streng der Abglei
 
 ### Filter-Chips
 
-Aktive Filter erscheinen als entfernbare Chips mit Zählern oben in der Galerie.
+Eine Sammlungskopfzeile oben in der Galerie nennt immer, was Sie sehen: die Quelle (ein Album oder Ordner, mit × zum Verlassen, sonst **Alle Fotos**), die Fotoanzahl und die Sortierung. Jeder weitere aktive Filter folgt als entfernbarer Chip, sodass nichts die Ansicht einschränkt, während das Filterfeld geschlossen ist. Such-Chips sagen, wie sie treffen: **Visuelle Treffer** sind nach semantischer Ähnlichkeit zu Ihren Worten gereiht, **Texttreffer** behalten nur Fotos, deren Dateiname, Beschreibung, Tags oder Personen den Text enthalten, in der gewählten Sortierung.
 
 ### Manuelle Tags
 

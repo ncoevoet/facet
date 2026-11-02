@@ -1097,11 +1097,6 @@
       "reason_brackets": "{n} Belichtungsreihen-Bild(er)",
       "reason_panoramas": "{n} Panorama-Bild(er)"
     },
-    "filters_notice": {
-      "message": "{count} Filter aktiv",
-      "message_plural": "{count} Filter aktiv",
-      "reset": "Alle Filter zurücksetzen"
-    },
     "render_migration": {
       "message": "{n} RAW-Fotos zeigen noch eine Miniatur aus der vorherigen Darstellung.",
       "command_hint": "Führen Sie {command} aus, um alle auf einmal aufzufrischen."
@@ -1129,8 +1124,13 @@
     "sort_asc": "Aufsteigend",
     "filters": "Filter",
     "search_placeholder": "Dateiname, Beschreibung suchen...",
-    "search_chip": "Suche",
-    "semantic_search_chip": "Semantische Suche",
+    "search_chip": "Texttreffer",
+    "semantic_search_chip": "Visuelle Treffer",
+    "collection": {
+      "all_photos": "Alle Fotos",
+      "label": "Sammlung",
+      "remove_filter": "{label} entfernen"
+    },
     "semantic_search": "Semantische Suche",
     "semantic_search_placeholder": "Sonnenuntergang am Strand...",
     "clear_search": "Suche löschen",

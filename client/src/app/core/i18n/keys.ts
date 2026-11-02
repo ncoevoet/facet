@@ -1156,11 +1156,6 @@ export const I18N = {
       reason_brackets: "gallery.hidden_banner.reason_brackets",
       reason_panoramas: "gallery.hidden_banner.reason_panoramas",
     },
-    filters_notice: {
-      message: "gallery.filters_notice.message",
-      message_plural: "gallery.filters_notice.message_plural",
-      reset: "gallery.filters_notice.reset",
-    },
     render_migration: {
       message: "gallery.render_migration.message",
       command_hint: "gallery.render_migration.command_hint",
@@ -1192,6 +1187,11 @@ export const I18N = {
     search_placeholder: "gallery.search_placeholder",
     search_chip: "gallery.search_chip",
     semantic_search_chip: "gallery.semantic_search_chip",
+    collection: {
+      all_photos: "gallery.collection.all_photos",
+      label: "gallery.collection.label",
+      remove_filter: "gallery.collection.remove_filter",
+    },
     semantic_search: "gallery.semantic_search",
     semantic_search_placeholder: "gallery.semantic_search_placeholder",
     clear_search: "gallery.clear_search",

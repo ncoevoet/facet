@@ -266,13 +266,15 @@ Usa **Stato revisione → Da esaminare** nella galleria per smaltire le foto non
 - I gruppi temporanei di raffica/serie non vengono salvati come segnalibro, perché una nuova scansione può rinumerarli.
 - Il logout cancella ogni segnalibro delle code di revisione su questo browser.
 
-**Avvisi fluttuanti.** L'avanzamento della revisione, **Continua revisione**, l'avviso delle foto nascoste, l'avviso dei filtri attivi (con **Reimposta tutti i filtri**) e l'avviso di migrazione delle miniature si impilano in basso a destra.
+**Avvisi fluttuanti.** L'avanzamento della revisione, **Continua revisione**, l'avviso delle foto nascoste e l'avviso di migrazione delle miniature si impilano in basso a destra.
 
-- La × di ogni scheda la nasconde per la scheda corrente del browser. Ritorna in una nuova scheda, o quando l'avviso cambia (altro ambito, conteggio di nascoste cambiato, filtro aggiunto o rimosso).
+- La × di ogni scheda la nasconde per la scheda corrente del browser. Ritorna in una nuova scheda, o quando l'avviso cambia (altro ambito o conteggio di nascoste cambiato).
 - Per nascondere per sempre l'avanzamento della revisione, usa **Nascondi avanzamento revisione** / **Mostra avanzamento revisione** nel menu utente. È memorizzato per browser e nasconde anche il pulsante **Rivedi le indecise**.
 - Dopo qualche secondo di inattività la pila si ripiega in una piccola pillola con il conteggio. Passaci sopra o cliccala per aprirla.
 
 ## Funzionalità della galleria
+
+**Intestazione.** Sugli schermi da 1024 px in su l’intestazione ha due righe. In alto ci sono schede con nome per le destinazioni principali; sotto i 1680 px quelle secondarie (Mappa, Selezione, Statistiche…) finiscono in **Altro**. La riga sotto contiene i comandi della pagina corrente: nella galleria tipo, ricerca, numero di foto, ordinamento, filtri, visualizzazione e presentazione. Gli schermi più stretti mantengono la singola riga di icone.
 
 ### Pile di foto manuali
 
@@ -449,7 +451,7 @@ Il **cursore della soglia di somiglianza** (0–90%) imposta quanto è rigoroso 
 
 ### Chip dei filtri
 
-I filtri attivi compaiono come chip rimovibili con i conteggi in cima alla galleria.
+Un’intestazione della raccolta in cima alla galleria indica sempre cosa stai guardando: l’origine (un album o una cartella, con × per uscirne, altrimenti **Tutte le foto**), il numero di foto e l’ordinamento. Ogni altro filtro attivo segue come chip rimovibile, così nulla restringe la vista mentre il pannello dei filtri è chiuso. I chip di ricerca dicono come corrispondono: le **Corrispondenze visive** sono ordinate per somiglianza semantica con le tue parole, mentre le **Corrispondenze testuali** tengono solo le foto il cui nome file, didascalia, tag o persone contengono il testo, nell’ordinamento scelto.
 
 ### Tag manuali
 

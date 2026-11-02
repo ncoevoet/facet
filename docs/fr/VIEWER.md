@@ -266,13 +266,15 @@ Utilisez **Décision de tri → À examiner** dans la galerie pour parcourir les
 - Les groupes temporaires de rafales/séries ne sont pas mis en signet, car un rescan peut les renuméroter.
 - La déconnexion efface tous les signets de files de tri sur ce navigateur.
 
-**Notifications flottantes.** La progression du tri, **Continuer le tri**, la notification de photos masquées, celle des filtres actifs (avec **Réinitialiser tous les filtres**) et celle de migration des miniatures s'empilent en bas à droite.
+**Notifications flottantes.** La progression du tri, **Continuer le tri**, la notification de photos masquées et celle de migration des miniatures s'empilent en bas à droite.
 
-- Le × de chaque carte la masque pour l'onglet courant du navigateur. Elle revient dans un nouvel onglet, ou quand la notification change (autre périmètre, nombre de photos masquées modifié, filtre ajouté ou retiré).
+- Le × de chaque carte la masque pour l'onglet courant du navigateur. Elle revient dans un nouvel onglet, ou quand la notification change (autre périmètre ou nombre de photos masquées modifié).
 - Pour masquer définitivement la progression du tri, utilisez **Masquer la progression du tri** / **Afficher la progression du tri** du menu utilisateur. Ce choix est enregistré par navigateur et masque aussi le bouton **Trier les indécises**.
 - Après quelques secondes d'inactivité, la pile se replie en une petite pastille avec un compteur. Survolez-la ou cliquez dessus pour la déplier.
 
 ## Fonctionnalités de la galerie
+
+**En-tête.** Sur les écrans de 1024 px et plus, l’en-tête compte deux rangées. La première porte des onglets nommés pour les destinations principales ; sous 1680 px, les secondaires (Carte, Tri, Statistiques…) passent dans **Plus**. La rangée suivante contient les commandes de la page courante : dans la galerie, type, recherche, nombre de photos, tri, filtres, affichage et diaporama. Les écrans plus étroits gardent la rangée unique d’icônes.
 
 ### Piles de photos manuelles
 
@@ -449,7 +451,7 @@ Le **curseur de seuil de similarité** (0–90 %) règle la rigueur de la corres
 
 ### Puces de filtre
 
-Les filtres actifs apparaissent comme des puces amovibles avec compteurs en haut de la galerie.
+Un en-tête de collection en haut de la galerie indique toujours ce que vous regardez : la source (un album ou un dossier, avec × pour en sortir, sinon **Toutes les photos**), le nombre de photos et le tri. Chaque autre filtre actif suit sous forme de puce amovible, si bien que rien ne restreint la vue lorsque le panneau de filtres est fermé. Les puces de recherche disent comment elles correspondent : les **Correspondances visuelles** sont classées par similarité sémantique avec vos mots, tandis que les **Correspondances textuelles** ne gardent que les photos dont le nom de fichier, la légende, les tags ou les personnes contiennent le texte, dans le tri choisi.
 
 ### Tags manuels
 

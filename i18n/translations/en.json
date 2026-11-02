@@ -1142,11 +1142,6 @@
       "reason_brackets": "{n} bracket frame(s)",
       "reason_panoramas": "{n} panorama frame(s)"
     },
-    "filters_notice": {
-      "message": "{count} filter active",
-      "message_plural": "{count} filters active",
-      "reset": "Reset all filters"
-    },
     "render_migration": {
       "message": "{n} RAW photos still show a thumbnail from the previous rendering.",
       "command_hint": "Run {command} to refresh them all at once."
@@ -1176,8 +1171,13 @@
     "sort_asc": "Ascending",
     "filters": "Filters",
     "search_placeholder": "Search filename, caption...",
-    "search_chip": "Search",
-    "semantic_search_chip": "Semantic search",
+    "search_chip": "Text matches",
+    "semantic_search_chip": "Visual matches",
+    "collection": {
+      "all_photos": "All photos",
+      "label": "Collection",
+      "remove_filter": "Remove {label}"
+    },
     "semantic_search": "Semantic Search",
     "semantic_search_placeholder": "sunset at the beach...",
     "clear_search": "Clear search",

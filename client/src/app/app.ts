@@ -2,7 +2,7 @@ import { afterNextRender, Component, inject, computed, signal, effect, untracked
 import { useDesktopSignal } from './shared/utils/media-query';
 import { DecimalPipe, NgTemplateOutlet } from '@angular/common';
 import { FormsModule } from '@angular/forms';
-import { Router, RouterOutlet, RouterLink, RouterLinkActive, NavigationEnd } from '@angular/router';
+import { Router, RouterOutlet, RouterLink, RouterLinkActive, NavigationEnd, IsActiveMatchOptions } from '@angular/router';
 import { toSignal } from '@angular/core/rxjs-interop';
 import { filter, map, firstValueFrom } from 'rxjs';
 import { MatSnackBar } from '@angular/material/snack-bar';
