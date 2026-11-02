@@ -1095,14 +1095,16 @@
       "reason_blinks": "{n} 张闭眼",
       "reason_duplicates": "{n} 张重复",
       "reason_brackets": "{n} 张包围曝光帧",
-      "reason_panoramas": "{n} 张全景帧"
+      "reason_panoramas": "{n} 张全景帧",
+      "reason_rejected": "{n} 张已拒绝"
     },
     "render_migration": {
       "message": "仍有 {n} 张 RAW 照片显示上一次渲染的缩略图。",
       "command_hint": "运行 {command} 可一次性刷新全部缩略图。"
     },
     "set_scope": {
-      "message": "正在显示一组照片：{kind}"
+      "message": "正在显示一组照片：{kind}",
+      "partial": "显示 {shown}/{total}（已隐藏：{reasons}）"
     },
     "pinned": {
       "chip": "助手挑选了 {count} 张照片",

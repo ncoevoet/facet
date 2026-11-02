@@ -398,7 +398,7 @@ Quando um assistente ligado através de [Agentes de IA (MCP)](AGENTS.md) lhe mos
 - **Incluir irmãos de sequência** (`include_sequence_siblings`) acrescenta os outros quadros da série, mas somente aqueles cujo estado de manter/rejeitar corresponde à ação. Quadros mantidos nunca vão para a lixeira porque um irmão foi rejeitado. Um quadro que você desselecionou nunca é readicionado.
 - A prévia sempre informa quantos quadros irmãos existem (`sequence_siblings`). `matched` distingue "nada se qualificou" de um resultado vazio.
 - Mover ou descartar o líder de uma série promove um irmão sobrevivente, de modo que a série continua visível.
-- Para escolher um subconjunto exato de uma série, abra-a antes pela ação "abrir esta série na galeria" do detalhe da foto. Essa visualização mostra todos os quadros.
+- Para escolher um subconjunto exato de uma série, abra-a antes pela ação "abrir esta série na galeria" do detalhe da foto. Essa visualização mostra todos os quadros que as opções de ocultar deixam passar (as piscadelas e os quadros rejeitados ficam ocultos por omissão); a sua barra indica quantos estão ocultos e porquê, e «Mostrar tudo» repõe-nos até fechar a série, só nesta vista (as preferências de visualização guardadas não mudam). O cabeçalho da série no detalhe da foto conta as piscadelas e assinala cada uma.
 
 Uma triagem com escopo de filtro segue as mesmas regras de filtro da galeria, Tipo de Foto incluído. Uma visualização com mais de 10 000 fotos é recusada em vez de truncada, mesmo em uma simulação: refine (álbum, data, pessoa…) e tente de novo. Detalhes: [API.md](../API.md).
 

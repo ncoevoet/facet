@@ -49,7 +49,7 @@ import { MatTooltip, MatTooltipModule } from '@angular/material/tooltip';
 import { ActivatedRoute, NavigationStart, Router, RouterOutlet } from '@angular/router';
 import { filter, firstValueFrom, takeUntil } from 'rxjs';
 import { ComparisonSessionService } from './comparison-session.service';
-import { GalleryStore, BatchResult, REVIEW_RESUME_NAVIGATION } from './gallery.store';
+import { GalleryStore, BatchResult, HiddenFilterFlags, REVIEW_RESUME_NAVIGATION } from './gallery.store';
 import { NoticeDismissals, NoticeKind, readNoticeDismissals, saveNoticeDismissals, withDismissal } from './notice-dismiss.util';
 import { Photo } from '../../shared/models/photo.model';
 import { isImeOrRepeat, isPageShortcutBlocked, isShortcutContextBlocked, isTypingContext } from '../../shared/utils/keyboard';
@@ -115,6 +115,11 @@ interface ReturnAnchor { offset: number; width: number; height: number }
 type ReturnTarget = { scroll: number; focus: Element | null } & (
   | { path: string | null; anchor: null }
   | { path: string; anchor: ReturnAnchor });
+
+/** The hide toggle that collapses each kind of set; any other sequence kind is a panorama variant. */
+const SET_KIND_TOGGLE: Record<string, keyof HiddenFilterFlags> = {
+  burst: 'hide_bursts', duplicate: 'hide_duplicates', bracket: 'hide_brackets', panorama: 'hide_panoramas',
+};
 
 @Component({
   selector: 'app-gallery',
@@ -354,7 +359,17 @@ type ReturnTarget = { scroll: number; focus: Element | null } & (
             <mat-icon class="opacity-70 !text-base !w-5 !h-5">{{ kind | photoSetKindIcon }}</mat-icon>
             <span class="flex-1">
               {{ I18N.gallery.set_scope.message | translate:{ kind: (kind | photoSetKindLabel | translate) } }}
+              <!-- The hide toggles still apply inside a set (blinks above all), so say
+                   what is missing rather than list fewer frames than the photo page counted. -->
+              @if (setBarCounts().hidden > 0) {
+                · {{ I18N.gallery.set_scope.partial | translate:{ shown: setBarCounts().shown, total: setBarCounts().total, reasons: hiddenReasons() } }}
+              }
             </span>
+            @if (setBarCounts().hidden > 0) {
+              <button mat-button class="!min-w-0" (click)="showWholeSet()">
+                {{ I18N.gallery.hidden_banner.show_all | translate }}
+              </button>
+            }
             <button mat-button class="!min-w-0" (click)="clearSetScope()">
               {{ I18N.ui.buttons.clear | translate }}
             </button>
@@ -1428,18 +1443,29 @@ export class GalleryComponent implements OnInit, OnDestroy {
     });
   });
 
-  /** Why photos are hidden, in words: "287 burst repeat(s), 23 blink(s)...". */
+  /** Why photos are hidden, in words: "287 burst repeat(s), 23 blink(s)...". The summary counts
+   *  every kind in scope, so a kind whose toggle is off is left out: an opened burst would
+   *  otherwise list its own repeats as hidden while all of them are on screen. */
   protected readonly hiddenReasons = computed(() => {
     this.i18n.translations();
     const h = this.store.hiddenSummary();
-    const reasons: [number, string][] = [
-      [h.bursts, I18N.gallery.hidden_banner.reason_bursts],
-      [h.blinks, I18N.gallery.hidden_banner.reason_blinks],
-      [h.duplicates, I18N.gallery.hidden_banner.reason_duplicates],
-      [h.brackets, I18N.gallery.hidden_banner.reason_brackets],
-      [h.panoramas, I18N.gallery.hidden_banner.reason_panoramas],
+    const f = this.store.filters();
+    const reasons: [boolean, number, string][] = [
+      [f.hide_bursts, h.bursts, I18N.gallery.hidden_banner.reason_bursts],
+      [f.hide_blinks, h.blinks, I18N.gallery.hidden_banner.reason_blinks],
+      [f.hide_duplicates, h.duplicates, I18N.gallery.hidden_banner.reason_duplicates],
+      [f.hide_brackets, h.brackets, I18N.gallery.hidden_banner.reason_brackets],
+      [f.hide_panoramas, h.panoramas, I18N.gallery.hidden_banner.reason_panoramas],
+      [f.hide_rejected, h.rejected ?? 0, I18N.gallery.hidden_banner.reason_rejected],
     ];
-    return reasons.filter(([n]) => n > 0).map(([n, key]) => this.i18n.t(key, { n })).join(', ');
+    return reasons.filter(([on, n]) => on && n > 0).map(([, n, key]) => this.i18n.t(key, { n })).join(', ');
+  });
+
+  /** The set-scope bar's "showing X of Y": the summary's total plus the rejected frames, which
+   *  count only while `hide_rejected` is on (the summary reports them apart from its total). */
+  protected readonly setBarCounts = computed(() => {
+    const hidden = this.store.hiddenSummary().total + (this.store.filters().hide_rejected ? (this.store.hiddenSummary().rejected ?? 0) : 0);
+    return { hidden, shown: this.store.photoTotal(), total: this.store.photoTotal() + hidden };
   });
 
   /** Show the hidden-photos banner when filters are hiding rows and at least one is on. */
@@ -1655,21 +1681,50 @@ export class GalleryComponent implements OnInit, OnDestroy {
   clearSetScope(): void {
     const kind = this.setScopeKind();
     if (!kind) return;
+    const own = SET_KIND_TOGGLE[kind] ?? 'hide_panoramas';
     const updates: Partial<GalleryFilters> = {
       sequence_group_id: '', sequence_kind: '', burst_group_id: '', duplicate_group_id: '',
     };
     const stored = loadDisplayOptionsFromStorage();
     const defaults = this.store.config()?.defaults;
-    if (kind === 'burst') updates.hide_bursts = stored.hide_bursts ?? (defaults?.hide_bursts ?? true);
-    else if (kind === 'duplicate') updates.hide_duplicates = stored.hide_duplicates ?? (defaults?.hide_duplicates ?? true);
-    else if (kind === 'bracket') updates.hide_brackets = stored.hide_brackets ?? (defaults?.hide_brackets ?? true);
-    else updates.hide_panoramas = stored.hide_panoramas ?? (defaults?.hide_panoramas ?? true);
+    // A Show all pressed on the set bar was for the set alone: leaving puts back the options it
+    // lifted, each only while still at its lifted value, so a toggle the user turned back on
+    // in the meantime is never overwritten (the rule canRestoreHidden applies).
+    Object.assign(updates, this.endSetShowAll(), { [own]: stored[own] ?? (defaults?.[own] ?? true) });
     void this.store.updateFilters(updates);
   }
 
   private readonly rootFontSize = signal(16);
   private readonly listContentWidth = computed(() => Math.max(0, this.containerWidth() - this.rootFontSize() * (this.isDesktop() ? 2 : 1)));
   protected readonly listRowHeight = computed(() => metadataRowHeight(this.listContentWidth(), this.rootFontSize()));
+
+  /** Ends a set-bar Show all and returns the updates that undo it. */
+  private endSetShowAll(): Partial<GalleryFilters> {
+    const setShowAll = this.setShowAll;
+    this.setShowAll = null;
+    if (setShowAll && this.store.hiddenFiltersStash() === setShowAll.stash) this.store.hiddenFiltersStash.set(null);
+    return this.store.takeTransientRestore();
+  }
+
+  /** The stash a set-bar Show all left in the store, to drop it together with the lift. */
+  private setShowAll: { stash: HiddenFilterFlags | null } | null = null;
+
+  /** Leaving the set by any other route (back, a sidebar change) ends its Show all too. */
+  private readonly endSetShowAllOnLeave = effect(() => {
+    if (this.setScopeKind()) return;
+    untracked(() => {
+      const restore = this.endSetShowAll();
+      if (Object.keys(restore).length > 0) void this.store.updateFilters(restore);
+    });
+  });
+
+  /** Show every frame of the open set, blinks and rejected frames included, until the set is
+   *  cleared. Nothing is saved to the display preferences: a reload must not keep the lift. */
+  showWholeSet(): void {
+    this.store.showAllHidden({ persist: false, includeRejected: true });
+    this.setShowAll = { stash: this.store.hiddenFiltersStash() };
+  }
+
   /** Container width for mosaic layout (updated via ResizeObserver) */
   protected readonly containerWidth = signal(0);
 

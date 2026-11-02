@@ -89,6 +89,8 @@ export interface HiddenSummary {
   duplicates: number;
   brackets: number;
   panoramas: number;
+  /** Frames `hide_rejected` removes from an opened set; absent outside a set scope. */
+  rejected?: number;
 }
 
 export interface PhotosResponse {
@@ -1684,7 +1686,7 @@ export class GalleryStore {
     }));
     this.journalFilters(before, this.filters());
     if ((DISPLAY_OPTION_KEYS as string[]).includes(key as string)) {
-      saveDisplayOptionsToStorage(this.filters());
+      this.saveDisplayOptions([key as string]);
     }
     this.syncUrl();
     if (!isDisplayOnly) {
@@ -1805,14 +1807,22 @@ export class GalleryStore {
     return { before, next: { ...before, ...updates, ...extra, ...(isDisplayOnly ? {} : { page: 1 }) }, isDisplayOnly, leaveReview };
   }
 
-  /** Update multiple filters; reload only when the query changes. */
-  async updateFilters(updates: Partial<GalleryFilters>): Promise<void> {
+  /** Update multiple filters; reload only when the query changes. A transient update
+   *  leaves saved display preferences intact while sharing the preview normalization. */
+  async updateFilters(updates: Partial<GalleryFilters>, options: { persist?: boolean } = {}): Promise<void> {
     const { before, next, isDisplayOnly, leaveReview } = this.prepareFilterUpdates(updates);
     if (leaveReview) this.transientReviewStatus.set(false);
+    const keys = Object.keys(updates) as (keyof GalleryFilters)[];
+    const displayKeys = keys.filter(k => (DISPLAY_OPTION_KEYS as string[]).includes(k as string));
+    if (options.persist === false) {
+      const saved = (this.transientDisplay ??= {}) as Record<string, unknown>;
+      const stored = loadDisplayOptionsFromStorage() as Record<string, unknown>;
+      for (const k of displayKeys) if (!(k in saved)) saved[k] = stored[k] ?? before[k];
+    }
     this.filters.set(next);
     this.journalFilters(before, this.filters());
-    if (Object.keys(updates).some(k => (DISPLAY_OPTION_KEYS as string[]).includes(k))) {
-      saveDisplayOptionsToStorage(this.filters());
+    if (options.persist !== false && displayKeys.length > 0) {
+      this.saveDisplayOptions(displayKeys as string[]);
     }
     this.syncUrl();
     if (!isDisplayOnly) {
@@ -1821,9 +1831,37 @@ export class GalleryStore {
     }
   }
 
+  /** The saved values of display options lifted with `persist: false` (a set-bar Show all),
+   *  so every save writes those instead of the lifted state. Null while nothing is lifted. */
+  private transientDisplay: Partial<DisplayOptions> | null = null;
+
+  /** The one place display options reach storage. An option the caller names was changed
+   *  explicitly: that value wins and the option leaves the transient lift. */
+  private saveDisplayOptions(named: string[] = []): void {
+    const transient = this.transientDisplay as Record<string, unknown> | null;
+    if (transient) {
+      for (const k of named) delete transient[k];
+      if (Object.keys(transient).length === 0) this.transientDisplay = null;
+    }
+    saveDisplayOptionsToStorage({ ...this.filters(), ...(this.transientDisplay ?? {}) } as GalleryFilters);
+  }
+
+  /** Ends the transient lift: the updates putting back every lifted option still at its lifted
+   *  (off) value, so a toggle the user turned on meanwhile is never fought. Clears the lift. */
+  takeTransientRestore(): Partial<GalleryFilters> {
+    const transient = this.transientDisplay as Record<string, boolean> | null;
+    this.transientDisplay = null;
+    if (!transient) return {};
+    const current = this.filters() as unknown as Record<string, unknown>;
+    const restore: Record<string, boolean> = {};
+    for (const [k, saved] of Object.entries(transient)) if (current[k] === false) restore[k] = saved;
+    return restore as Partial<GalleryFilters>;
+  }
+
   /** Clear all five hide toggles, stashing their prior state so restoreHidden()
-   *  can bring them back. */
-  showAllHidden(): void {
+   *  can bring them back. `persist: false` leaves the saved display preferences alone;
+   *  `includeRejected` lifts `hide_rejected` too (it is not part of the stash). */
+  showAllHidden(options: { persist?: boolean; includeRejected?: boolean } = {}): void {
     const f = this.filters();
     this.hiddenFiltersStash.set({
       hide_blinks: f.hide_blinks,
@@ -1838,7 +1876,8 @@ export class GalleryStore {
       hide_duplicates: false,
       hide_brackets: false,
       hide_panoramas: false,
-    });
+      ...(options.includeRejected ? { hide_rejected: false } : {}),
+    }, { persist: options.persist });
   }
 
   /** Restore the hide toggles stashed by showAllHidden(), if any. */
@@ -1879,6 +1918,7 @@ export class GalleryStore {
     if (!localStorage.getItem(GALLERY_MODE_KEY)) {
       this.setGalleryMode(defaults?.gallery_mode ?? 'grid');
     }
+    this.transientDisplay = null;
     saveDisplayOptionsToStorage(this.filters());
     this.cancelRangeLoad();
     this.syncUrl();

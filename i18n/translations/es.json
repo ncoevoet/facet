@@ -1095,14 +1095,16 @@
       "reason_blinks": "{n} ojos cerrados",
       "reason_duplicates": "{n} duplicado(s)",
       "reason_brackets": "{n} fotograma(s) de horquillado",
-      "reason_panoramas": "{n} fotograma(s) de panorámica"
+      "reason_panoramas": "{n} fotograma(s) de panorámica",
+      "reason_rejected": "{n} rechazada(s)"
     },
     "render_migration": {
       "message": "{n} fotos RAW aún muestran una miniatura del renderizado anterior.",
       "command_hint": "Ejecuta {command} para actualizarlas todas de una vez."
     },
     "set_scope": {
-      "message": "Se muestra un grupo de fotos: {kind}"
+      "message": "Se muestra un grupo de fotos: {kind}",
+      "partial": "se muestran {shown} de {total} ({reasons} ocultas)"
     },
     "pinned": {
       "chip": "{count} foto elegida por tu asistente",

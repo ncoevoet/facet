@@ -399,7 +399,7 @@ When an assistant connected through [AI Agents (MCP)](AGENTS.md) shows you an ex
 - **Include sequence siblings** (`include_sequence_siblings`) adds the set's other frames, but only those whose own keep/reject state matches the action. Kept frames are never trashed because a sibling was rejected. A frame you deselected is never pulled back in.
 - The preview always reports how many sibling frames exist (`sequence_siblings`). `matched` tells "nothing qualified" apart from an empty result.
 - Moving or trashing a set's lead promotes a surviving sibling, so the set stays visible.
-- To pick an exact subset of a set, open it with the photo detail's "open this set in the gallery" action first. That view shows every frame.
+- To pick an exact subset of a set, open it with the photo detail's "open this set in the gallery" action first. That view shows every frame the hide toggles leave in (blinks and rejected frames are hidden by default); its bar says how many are hidden and why, and its Show all brings them back until you clear the set, for this view only (the saved display preferences are not changed). The photo detail's set header counts blink frames and labels each one.
 
 A filter-scoped cull follows the same filter rules as the gallery, Photo Type included. A view over 10 000 photos is refused rather than truncated, even for a dry run: narrow it (album, date, person…) and retry. Details: [API.md](API.md).
 

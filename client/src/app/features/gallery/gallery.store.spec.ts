@@ -1970,6 +1970,81 @@ describe('gallery session query (nav-icon return)', () => {
       expect(store.filters().hide_panoramas).toBe(false);
     });
 
+    it('persist: false lifts the toggles in memory without writing the saved display preferences', () => {
+      localStorage.removeItem(DISPLAY_OPTIONS_KEY);
+      store.filters.set({ ...DEFAULT_FILTERS, hide_blinks: true, hide_bursts: true, hide_rejected: true });
+
+      store.showAllHidden({ persist: false, includeRejected: true });
+
+      expect(store.filters().hide_blinks).toBe(false);
+      expect(store.filters().hide_rejected).toBe(false);
+      expect(localStorage.getItem(DISPLAY_OPTIONS_KEY)).toBeNull();
+    });
+
+    describe('a set-bar Show all (persist: false) never reaches the saved preferences', () => {
+      const saved = () => JSON.parse(localStorage.getItem(DISPLAY_OPTIONS_KEY)!) as Record<string, unknown>;
+      beforeEach(() => {
+        store.filters.set({ ...DEFAULT_FILTERS, hide_blinks: true, hide_bursts: true, hide_duplicates: true,
+          hide_brackets: true, hide_panoramas: true, hide_rejected: true });
+        localStorage.setItem(DISPLAY_OPTIONS_KEY, JSON.stringify({
+          hide_blinks: true, hide_bursts: true, hide_duplicates: true, hide_brackets: true,
+          hide_panoramas: true, hide_rejected: true, hide_details: true,
+        }));
+        store.showAllHidden({ persist: false, includeRejected: true });
+      });
+      afterEach(() => localStorage.removeItem(DISPLAY_OPTIONS_KEY));
+
+      it('a later unrelated display change saves the original hide toggles', async () => {
+        await store.updateFilter('hide_details', false);
+        expect(saved()['hide_details']).toBe(false);
+        for (const k of ['hide_blinks', 'hide_bursts', 'hide_duplicates', 'hide_brackets', 'hide_panoramas', 'hide_rejected']) {
+          expect(saved()[k]).toBe(true);
+        }
+        await store.updateFilters({ favorites_only: true });
+        expect(saved()['hide_rejected']).toBe(true);
+      });
+
+      it('restoreHidden() leaves the saved hide_rejected alone', () => {
+        store.restoreHidden();
+        expect(store.filters().hide_rejected).toBe(false);
+        expect(saved()['hide_rejected']).toBe(true);
+        expect(saved()['hide_blinks']).toBe(true);
+      });
+
+      it('takeTransientRestore() returns every lifted option still at its lifted value', () => {
+        expect(store.takeTransientRestore()).toEqual({
+          hide_blinks: true, hide_bursts: true, hide_duplicates: true, hide_brackets: true,
+          hide_panoramas: true, hide_rejected: true,
+        });
+        expect(store.takeTransientRestore()).toEqual({});
+      });
+
+      it('an option the user turns on meanwhile is saved as chosen and not restored over', async () => {
+        await store.updateFilter('hide_blinks', true);
+        expect(saved()['hide_blinks']).toBe(true);
+        const restore = store.takeTransientRestore();
+        expect(restore).not.toHaveProperty('hide_blinks');
+        expect(restore).toHaveProperty('hide_rejected', true);
+      });
+
+      it('an explicit save of a lifted option wins over the transient value', async () => {
+        await store.updateFilter('hide_bursts', false);
+        expect(saved()['hide_bursts']).toBe(false);
+        expect(saved()['hide_rejected']).toBe(true);
+      });
+    });
+
+    it('keeps hide_rejected on, and saves, for the banner\'s plain Show all', () => {
+      localStorage.removeItem(DISPLAY_OPTIONS_KEY);
+      store.filters.set({ ...DEFAULT_FILTERS, hide_blinks: true, hide_rejected: true });
+
+      store.showAllHidden();
+
+      expect(store.filters().hide_rejected).toBe(true);
+      expect(JSON.parse(localStorage.getItem(DISPLAY_OPTIONS_KEY)!).hide_blinks).toBe(false);
+      localStorage.removeItem(DISPLAY_OPTIONS_KEY);
+    });
+
     it('restoreHidden() brings back the stashed toggles and clears the stash', () => {
       store.filters.set({
         ...DEFAULT_FILTERS,

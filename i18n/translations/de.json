@@ -1095,14 +1095,16 @@
       "reason_blinks": "{n} Blinzeln",
       "reason_duplicates": "{n} Duplikat(e)",
       "reason_brackets": "{n} Belichtungsreihen-Bild(er)",
-      "reason_panoramas": "{n} Panorama-Bild(er)"
+      "reason_panoramas": "{n} Panorama-Bild(er)",
+      "reason_rejected": "{n} abgelehnt"
     },
     "render_migration": {
       "message": "{n} RAW-Fotos zeigen noch eine Miniatur aus der vorherigen Darstellung.",
       "command_hint": "Führen Sie {command} aus, um alle auf einmal aufzufrischen."
     },
     "set_scope": {
-      "message": "Eine Fotogruppe wird angezeigt: {kind}"
+      "message": "Eine Fotogruppe wird angezeigt: {kind}",
+      "partial": "{shown} von {total} angezeigt ({reasons} ausgeblendet)"
     },
     "pinned": {
       "chip": "{count} vom Assistenten ausgewähltes Foto",
