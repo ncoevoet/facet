@@ -20,11 +20,15 @@ import { CaptureDatePipe } from '../../shared/pipes/capture-date.pipe';
 import { GalleryAlbumRulesComponent } from './gallery-album-rules.component';
 import { GalleryVisit, GalleryVisitHistoryService } from './gallery-visit-history.service';
 import { filterUnit } from './gallery-filters.util';
+import { KeywordBranchLabelPipe } from './keyword-hierarchy-labels.service';
 import { GALLERY_REVISIT } from '../../core/gallery-reuse.strategy';
 
-@Component({selector:'app-gallery-criteria', changeDetection:ChangeDetectionStrategy.OnPush,
- imports:[NgTemplateOutlet, MatIconModule, MatSliderModule, MatTooltipModule, PersonFilterChipComponent, TranslatePipe, ThumbnailUrlPipe, GalleryAlbumRulesComponent],
+// Credential expiry/rotation is a live storage getter; refresh its label guard
+// on renders even when the memoized filter collection has not changed.
+@Component({selector:'app-gallery-criteria', changeDetection:ChangeDetectionStrategy.Eager,
+ imports:[NgTemplateOutlet, MatIconModule, MatSliderModule, MatTooltipModule, PersonFilterChipComponent, TranslatePipe, ThumbnailUrlPipe, GalleryAlbumRulesComponent, KeywordBranchLabelPipe],
  host:{class:'block'}, template:`
+ @let currentKeywordBranchLabel = store.filters().keyword_branch | keywordBranchLabel;
  @if (store.currentAlbum()) { <app-gallery-album-rules [active]="canAct()" /> }
  @if (pinned()) {
    <p data-criteria-pinned class="text-xs my-2 text-[var(--mat-sys-on-surface-variant)]">{{ I18N.gallery.criteria.pinned | translate }}</p>
@@ -82,7 +86,7 @@ import { GALLERY_REVISIT } from '../../core/gallery-reuse.strategy';
          @if (logicRows().length) {
            <ul class="my-2 pl-4 list-disc">
              @for (row of logicRows(); track row.id) {
-               <li [attr.data-logic-row]="row.id" class="py-1 break-words"><span class="font-medium">{{ row.labelKey | translate }}</span>@if (row.value) { : {{ row.value }} }</li>
+               <li [attr.data-logic-row]="row.id" class="py-1 break-words"><span class="font-medium">{{ row.labelKey | translate }}</span>@if (row.value) { : {{ row.id === 'keyword_branch' ? currentKeywordBranchLabel : row.value }} }</li>
              }
            </ul>
          }
@@ -156,6 +160,7 @@ import { GALLERY_REVISIT } from '../../core/gallery-reuse.strategy';
       }
       @if (!store.filters().similar_to && logicPeople().length > 1) { <span data-person-match-summary class="text-xs font-semibold">{{ (store.filters().person_match === 'any' ? I18N.gallery.people_match.any : I18N.gallery.people_match.all) | translate }}</span> }
       @for (chip of visibleFilterChips(); track chip.id) {
+        @let displayValue = chip.id === 'keyword_branch' ? currentKeywordBranchLabel : chip.value;
         @if (chip.personId) {
           @if (canAct()) {
             <app-person-filter-chip [personId]="chip.personId" [canEdit]="auth.isEdition()" (remove)="clearFilterChip(chip)" />
@@ -166,7 +171,7 @@ import { GALLERY_REVISIT } from '../../core/gallery-reuse.strategy';
           <div class="inline-flex items-center gap-1 pl-2.5 pr-1 py-0.5 rounded-full bg-[var(--mat-sys-secondary-container)] text-[var(--mat-sys-on-secondary-container)] text-xs font-medium">
             <span class="opacity-70">{{ chip.labelKey | translate }}</span>
             @if (chip.value) {
-              <span class="mx-0.5 max-w-64 truncate" [title]="chip.value">{{ chip.value }}</span>
+              <span class="mx-0.5 max-w-64 truncate" [title]="displayValue">{{ displayValue }}</span>
             }
             <button
               class="inline-flex items-center justify-center min-w-8 min-h-8 max-sm:min-w-11 max-sm:min-h-11 rounded-full hover:bg-black/20 transition-colors"
@@ -378,6 +383,8 @@ protected readonly activeFilterChips = computed<{ id: string; labelKey: string; 
 
     // Simple string/select filters
     if (f.tag) chips.push({ id: 'tag', labelKey: 'gallery.tag', value: f.tag, clearKeys: ['tag'] });
+    if (f.keyword_branch) chips.push({ id: 'keyword_branch', labelKey: I18N.keyword_hierarchy.title,
+      value: f.keyword_branch, clearKeys: ['keyword_branch'] });
     if (f.tag_groups) {
       const groups = parseTagQuery(f.tag_groups);
       const value = groups ? TAG_QUERY_GROUPS.filter(key => groups[key].length).map(key => `${this.i18n.t(I18N.gallery.tag_groups[key])}: ${groups[key].map(tag => JSON.stringify(tag)).join(', ')}`).join('; ') : this.i18n.t(I18N.gallery.tag_groups.invalid);

@@ -17,6 +17,19 @@ class KeywordCatalogResponse(BaseModel):
     next_after: str | None
 
 
+class KeywordTreeNode(BaseModel):
+    id: str
+    parent_id: str | None
+    name: str
+    segments: list[str]
+    direct_count: int
+    branch_count: int
+
+
+class KeywordTreeResponse(BaseModel):
+    nodes: list[KeywordTreeNode]
+
+
 class KeywordChangeRequest(BaseModel):
     model_config = ConfigDict(extra='forbid')
     source: str = Field(min_length=1, max_length=64)

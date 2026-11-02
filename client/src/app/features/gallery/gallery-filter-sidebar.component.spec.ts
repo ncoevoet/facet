@@ -224,12 +224,14 @@ describe('GalleryFilterSidebarComponent', () => {
       expect(component.sectionActiveCounts()['date']).toBe(2);
     });
 
-    it('counts tag and composition_pattern for content section', () => {
+    it('counts flat tags, hierarchy branches and composition for Content', () => {
       const mockStore = (component as any).store;
       mockStore.filters.set({ ...mockStore.filters(), tag: 'landscape' });
       expect(component.sectionActiveCounts()['content']).toBe(1);
       mockStore.filters.set({ ...mockStore.filters(), composition_pattern: 'rule_of_thirds' });
       expect(component.sectionActiveCounts()['content']).toBe(2);
+      mockStore.filters.set({ ...mockStore.filters(), keyword_branch: '11111111-1111-4111-8111-111111111111' });
+      expect(component.sectionActiveCounts()['content']).toBe(3);
     });
 
     it('counts camera and lens for equipment section', () => {

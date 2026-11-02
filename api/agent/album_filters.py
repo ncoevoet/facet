@@ -21,6 +21,7 @@ from api.models.gallery import query_value
 from api.types import TYPE_FILTERS
 from tag_query import tag_query_groups, serialized_tag_query
 from score_presence import validated_score_presence
+from db.keyword_hierarchy import keyword_node_id
 
 # Flags the client store holds as booleans (``GalleryFilters``); every other value is a string.
 BOOLEAN_KEYS = frozenset({"favorites_only", "is_monochrome", "manual_faces_need_review", "faces_need_names", "show_rejected"})
@@ -68,6 +69,13 @@ def to_stored(filters: dict) -> tuple[Optional[dict], dict]:
                 return err("invalid_input", f"`{key}` {value!r} is not a configured category or photo type; "
                            "see the facet://categories resource"), {}
             stored[name] = str(value)
+        elif name == 'keyword_branch':
+            try:
+                branch = keyword_node_id(value)
+            except ValueError:
+                return err('invalid_input', 'Invalid keyword branch identity'), {}
+            if branch:
+                stored[name] = branch
         elif name == 'score_presence':
             try:
                 policy = validated_score_presence(value)

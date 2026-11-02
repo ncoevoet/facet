@@ -3912,6 +3912,16 @@ export const I18N = {
     boundary: "keyword_catalog.boundary",
     literal: "keyword_catalog.literal",
   },
+  keyword_hierarchy: {
+    title: "keyword_hierarchy.title",
+    error: "keyword_hierarchy.error",
+    expand: "keyword_hierarchy.expand",
+    filter: "keyword_hierarchy.filter",
+    empty: "keyword_hierarchy.empty",
+    more: "keyword_hierarchy.more",
+    unavailable: "keyword_hierarchy.unavailable",
+    help: "keyword_hierarchy.help",
+  },
 } as const;
 
 /** Returns {@link I18N}; use it to initialize class fields -- see the header comment above. */

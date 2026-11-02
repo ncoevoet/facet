@@ -11,7 +11,7 @@ import hashlib
 import json
 import re
 import unicodedata
-from uuid import uuid4
+from uuid import UUID, uuid4
 
 MAX_DEPTH = 16
 MAX_PATH_LENGTH = 1024
@@ -22,6 +22,17 @@ _UNCHANGED = object()
 
 class HierarchyError(ValueError):
     """A hierarchy operation cannot safely preserve its identity contract."""
+
+
+def keyword_node_id(value):
+    if value == '':
+        return ''
+    if not isinstance(value, str):
+        raise HierarchyError('Keyword branch must be a node identity')
+    try:
+        return str(UUID(value))
+    except ValueError as exc:
+        raise HierarchyError('Keyword branch must be a node identity') from exc
 
 
 def create_keyword_hierarchy_schema(conn):

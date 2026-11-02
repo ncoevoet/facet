@@ -34,6 +34,25 @@ function filters(overrides: Partial<GalleryFilters> = {}): GalleryFilters {
   return { ...DEFAULT_FILTERS, ...overrides };
 }
 
+describe('explicit keyword branch scope', () => {
+  it.each([false, null, 0, [], {}, 'not-a-node'])('refuses malformed saved branch rules instead of broadening the collection: %j', value => {
+    expect(() => applySavedAlbumFilters(DEFAULT_FILTERS, JSON.stringify({ keyword_branch: value }), '7')).toThrow('Invalid keyword branch identity');
+  });
+  it('round trips branch identity across API, URL and saved rules, including a cleared album override', () => {
+    const id = '11111111-1111-4111-8111-111111111111';
+    const active = filters({ keyword_branch: id, album_id: '7' });
+    expect(buildApiParams(active, false, undefined)['keyword_branch']).toBe(id);
+    expect(buildByPathsFilters(active, false, undefined)['keyword_branch']).toBe(id);
+    const opened = applySavedAlbumFilters(DEFAULT_FILTERS, smartAlbumFilterJson(active), '7');
+    expect(opened.keyword_branch).toBe(id); expect(countActiveFilters(active)).toBe(1);
+    const cleared = { ...opened, keyword_branch: '' };
+    const url = buildSyncParams(cleared, undefined);
+    expect(url['keyword_branch']).toBe('');
+    expect(applyQueryParams(opened, url).keyword_branch).toBe('');
+    expect(applySavedAlbumFilters(active, '{}', '8').keyword_branch).toBe('');
+  });
+});
+
 describe('activeFilterKeys', () => {
   it('is empty for defaults', () => {
     expect(activeFilterKeys(DEFAULT_FILTERS)).toEqual([]);

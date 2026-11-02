@@ -30,6 +30,7 @@
   "is_monochrome",
   "is_silhouette",
   "junk_kind",
+  "keyword_branch",
   "lens",
   "manual_faces_need_review",
   "max_aesthetic",

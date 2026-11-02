@@ -53,6 +53,7 @@ export interface GalleryFilters {
   lens: string;
   tag: string;
   tag_groups: string;
+  keyword_branch: string;
   score_presence: string;
   person_id: string;
   person_match: 'all' | 'any';
@@ -309,7 +310,9 @@ export function applySavedAlbumFilters(current: GalleryFilters, savedJson: strin
   if (saved.person_match !== undefined && !['all', 'any'].includes(saved.person_match)) throw new Error('Invalid person match');
   if (saved.tag_groups !== undefined && !parseTagQuery(saved.tag_groups)) throw new Error('Invalid tag groups');
   if (saved.score_presence !== undefined && !parseScorePresence(saved.score_presence)) throw new Error('Invalid measurement policies');
-  return { ...current, person_match: 'all', tag_groups: '', score_presence: '', ...saved, ...exclusiveHidePatch(saved), album_id: albumId };
+  if (saved.keyword_branch !== undefined && (typeof saved.keyword_branch !== 'string'
+    || (saved.keyword_branch !== '' && !/^[0-9a-f]{8}-(?:[0-9a-f]{4}-){3}[0-9a-f]{12}$/.test(saved.keyword_branch)))) throw new Error('Invalid keyword branch identity');
+  return { ...current, person_match: 'all', tag_groups: '', score_presence: '', keyword_branch: '', ...saved, ...exclusiveHidePatch(saved), album_id: albumId };
 }
 
 /** The store's mutual-exclusion rule: "hide rejected" and "favourites only" cannot both hold, so
@@ -377,7 +380,7 @@ export function setScopePatch(
 
 /** Common string-typed filter keys shared across URL sync, API params, and filter counting. */
 export const RANGE_AND_SELECT_KEYS: (keyof GalleryFilters)[] = [
-  'type', 'camera', 'lens', 'tag', 'tag_groups', 'score_presence', 'person_id', 'person_match', 'composition_pattern', 'search',
+  'type', 'camera', 'lens', 'tag', 'tag_groups', 'keyword_branch', 'score_presence', 'person_id', 'person_match', 'composition_pattern', 'search',
   'color_temp', 'hue_bucket', 'quality_tier', 'sequence_override', 'review_status',
   'min_score', 'max_score', 'min_aesthetic', 'max_aesthetic',
   'min_quality_score', 'max_quality_score', 'min_topiq', 'max_topiq',
@@ -417,6 +420,7 @@ export const DEFAULT_FILTERS: GalleryFilters = {
   lens: '',
   tag: '',
   tag_groups: '',
+  keyword_branch: '',
   score_presence: '',
   person_id: '',
   person_match: 'all',
@@ -625,6 +629,7 @@ export function applyQueryParams(
     const policy = parseScorePresence(params['score_presence']);
     result.score_presence = policy ? serializeScorePresence(policy) : params['score_presence'];
   }
+  if (Object.hasOwn(params, 'keyword_branch')) result.keyword_branch = params['keyword_branch'];
   if (Object.hasOwn(params, 'person_id')) result.person_id = params['person_id'];
   if (Object.hasOwn(params, 'type')) result.type = params['type'];
   if (Object.hasOwn(params, 'review_status')) result.review_status = params['review_status'] as GalleryFilters['review_status'];
@@ -728,6 +733,7 @@ export function buildSyncParams(
   }
   if (f.album_id || hasTagQuery(f.tag_groups)) params['tag_groups'] = f.tag_groups;
   if (f.album_id || f.score_presence) params['score_presence'] = f.score_presence;
+  if (f.album_id || f.keyword_branch) params['keyword_branch'] = f.keyword_branch;
   if (f.album_id) {
     params['no_capture_date'] = f.no_capture_date;
     params['date_from'] = f.date_from;

@@ -77,7 +77,7 @@ def _normalize_smart_filters(filters):
     # A malformed literal rule is a restriction that must fail closed, rather
     # than disappear and broaden a saved album (including a public share).
     result = {key: ('1' if value is True else value) for key, value in filters.items()
-              if key in ('tag_groups', 'score_presence') or (value is not None and value is not False and value != '')}
+              if key in ('tag_groups', 'score_presence', 'keyword_branch') or (value is not None and value is not False and value != '')}
     if 'person_id' in result:
         result['person'] = result.pop('person_id')
     if isinstance(result.get('sort_direction'), str):
@@ -179,10 +179,12 @@ async def _fetch_album_photos(conn, album_row, user_id, page, per_page, sort_col
         saved_filters = json.loads(album_row['smart_filter_json'])
         saved_filters = _normalize_smart_filters(saved_filters)
         from api.stack_gallery import enabled_owner_async
+        from api.keyword_tree import hierarchy_schema_available_async
         stack_owner = await enabled_owner_async(conn, owner_id) if include_manual else None
         where_clauses, sql_params = _build_gallery_where(
             saved_filters, conn, user_id=owner_id, stack_owner=stack_owner,
             include_stacks=include_manual,
+            hierarchy_available=await hierarchy_schema_available_async(conn) if saved_filters.get('keyword_branch') else None,
         )
         if member_path is not None:
             where_clauses.append('photos.path = ?')
@@ -224,9 +226,11 @@ async def _fetch_album_photos(conn, album_row, user_id, page, per_page, sort_col
         if filters:
             from api.routers.gallery import _build_gallery_where
             from api.stack_gallery import enabled_owner_async
+            from api.keyword_tree import hierarchy_schema_available_async
             stack_owner = await enabled_owner_async(conn, user_id) if include_manual else None
             extra_clauses, extra_params = _build_gallery_where(
-                filters, conn, user_id=user_id, include_manual=include_manual, stack_owner=stack_owner)
+                filters, conn, user_id=user_id, include_manual=include_manual, stack_owner=stack_owner,
+                hierarchy_available=await hierarchy_schema_available_async(conn) if filters.get('keyword_branch') else None)
             base_where.extend(extra_clauses)
             base_params.extend(extra_params)
 

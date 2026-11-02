@@ -280,7 +280,7 @@ def _add_range_filter(where_clauses, sql_params, params, column, min_key, max_ke
             pass
 
 
-def _apply_text_filters(where_clauses, sql_params, params, conn, include_manual=True):
+def _apply_text_filters(where_clauses, sql_params, params, conn, include_manual=True, *, hierarchy_available=None):
     """Apply camera, lens, search, tag, composition, person, category filters."""
     if params.get('camera'):
         where_clauses.append("camera_model = ?")
@@ -304,6 +304,25 @@ def _apply_text_filters(where_clauses, sql_params, params, conn, include_manual=
     )
 
     _add_tag_groups(where_clauses, sql_params, params.get('tag_groups', ''), conn, include_manual=include_manual)
+
+    if 'keyword_branch' in params and params['keyword_branch'] != '':
+        from db.keyword_hierarchy import HierarchyError, keyword_node_id
+        try:
+            branch = keyword_node_id(params['keyword_branch'])
+        except HierarchyError:
+            branch = None
+        if hierarchy_available is None and isinstance(conn, sqlite3.Connection):
+            hierarchy_available = conn.execute("SELECT 1 FROM sqlite_master WHERE type='table' AND name='photo_keyword_nodes'").fetchone() is not None
+        if not include_manual or not branch or hierarchy_available is not True:
+            where_clauses.append('0=1')
+        else:
+            # UNION deduplicates IDs and terminates even on a damaged cycle.
+            where_clauses.append('photos.path IN (WITH RECURSIVE branch(id) AS ('
+                                 'SELECT id FROM keyword_nodes WHERE id=? UNION '
+                                 'SELECT n.id FROM keyword_nodes n JOIN branch ON n.parent_id=branch.id) '
+                                 'SELECT a.photo_path FROM photo_keyword_nodes a '
+                                 'WHERE a.node_id IN (SELECT id FROM branch))')
+            sql_params.append(branch)
 
     if params.get('composition_pattern'):
         where_clauses.append("composition_pattern = ?")
@@ -684,7 +703,7 @@ def _apply_date_album_geo_filters(where_clauses, sql_params, params):
         sql_params.append(escaped + '%')
 
 
-def _build_gallery_where(params, conn=None, user_id=None, include_manual=True, *, stack_owner=None, include_stacks=True):
+def _build_gallery_where(params, conn=None, user_id=None, include_manual=True, *, stack_owner=None, include_stacks=True, hierarchy_available=None):
     """Build WHERE clauses for gallery queries.
 
     ``include_manual=False`` makes the tag filter and the text search AI-only:
@@ -699,7 +718,7 @@ def _build_gallery_where(params, conn=None, user_id=None, include_manual=True, *
     where_clauses = []
     sql_params = []
     _apply_visibility_and_hide_filters(where_clauses, sql_params, params, user_id, stack_owner)
-    _apply_text_filters(where_clauses, sql_params, params, conn, include_manual=include_manual)
+    _apply_text_filters(where_clauses, sql_params, params, conn, include_manual=include_manual, hierarchy_available=hierarchy_available)
     _apply_preference_filters(where_clauses, sql_params, params, user_id)
     _apply_score_range_filters(where_clauses, sql_params, params)
     _apply_exif_range_filters(where_clauses, sql_params, params)
@@ -733,7 +752,7 @@ def _scoped_album_id(filters):
     return album_params[0] if album_params else None
 
 
-def _gallery_scope_sql_checked(conn, filters, user_id, exclude, prepared, stack_owner=None):
+def _gallery_scope_sql_checked(conn, filters, user_id, exclude, prepared, stack_owner=None, *, hierarchy_available=None):
     """The scope tuple, with the album access check ALREADY performed.
 
     Private on purpose: the two public entry points below each run the access
@@ -746,7 +765,8 @@ def _gallery_scope_sql_checked(conn, filters, user_id, exclude, prepared, stack_
     if prepared is None:
         _, prepared = _prepare_gallery_params(dict(filters or {}))
     from_clause, from_params = get_photos_from_clause(user_id)
-    where_clauses, sql_params = _build_gallery_where(prepared, conn, user_id=user_id, stack_owner=stack_owner)
+    where_clauses, sql_params = _build_gallery_where(prepared, conn, user_id=user_id, stack_owner=stack_owner,
+                                                   hierarchy_available=hierarchy_available)
     all_params = list(from_params) + list(sql_params)
     if exclude:
         placeholders = ','.join('?' * len(exclude))
@@ -819,7 +839,12 @@ async def gallery_scope_sql_async(conn, filters, user_id, exclude=None, prepared
     owner = await stack_gallery.enabled_owner_async(conn, user_id)
     if (filters or {}).get('stack_id'):
         await stack_gallery.check_stack_scope_async(conn, owner, filters['stack_id'], user_id)
-    return _gallery_scope_sql_checked(conn, filters, user_id, exclude, prepared, owner)
+    hierarchy_available = None
+    if (filters or {}).get('keyword_branch') or (prepared or {}).get('keyword_branch'):
+        from api.keyword_tree import hierarchy_schema_available_async
+        hierarchy_available = await hierarchy_schema_available_async(conn)
+    return _gallery_scope_sql_checked(conn, filters, user_id, exclude, prepared, owner,
+                                      hierarchy_available=hierarchy_available)
 
 
 @router.get("/api/photo", response_model=Photo, response_model_exclude_unset=True)

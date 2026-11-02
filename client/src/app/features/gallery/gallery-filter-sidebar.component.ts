@@ -40,6 +40,7 @@ import { closeOverlayDirectives } from '../../shared/utils/overlays';
 import { MetricSparklineComponent } from '../../shared/components/metric-sparkline/metric-sparkline.component';
 import { TagGroupsComponent } from './tag-groups.component';
 import { KeywordCatalogComponent } from './keyword-catalog.component';
+import { KeywordTreeComponent } from './keyword-tree.component';
 import { ScorePresenceComponent } from './score-presence.component';
 import { SCORE_PRESENCE_KEYS } from './score-presence.util';
 import { FilterPinsService, FILTER_PIN_LIMIT } from './filter-pins.service';
@@ -216,7 +217,7 @@ export const UNIT_PANEL: Record<string, string> = {
   score_presence: 'score_presence',
   person_id: 'persons', faces_need_names: 'persons',
   date_from: 'date', date_to: 'date', no_capture_date: 'date',
-  type: 'content', tag: 'content', composition_pattern: 'content',
+  type: 'content', tag: 'content', keyword_branch: 'content', composition_pattern: 'content',
   camera: 'equipment', lens: 'equipment',
   review_status: 'refine', favorites_only: 'refine', is_monochrome: 'refine', show_rejected: 'refine',
   blinks_only: 'refine', duplicates_only: 'refine', sequence_override: 'refine', manual_faces_need_review: 'refine',
@@ -290,7 +291,7 @@ export function loadActiveTab(): SidebarTabId {
     MatDialogModule,
     TranslatePipe,
     FilterDisplayPipe,
-    TagGroupsComponent, KeywordCatalogComponent,
+    TagGroupsComponent, KeywordCatalogComponent, KeywordTreeComponent,
     ScorePresenceComponent,
     PersonThumbnailUrlPipe,
   ],
@@ -603,6 +604,7 @@ export function loadActiveTab(): SidebarTabId {
             }
             <app-tag-groups />
             <app-keyword-catalog />
+            <app-keyword-tree />
             @if (store.patterns().length) {
               <mat-form-field subscriptSizing="dynamic" class="w-full">
                 <mat-label>{{ I18N.gallery.composition_pattern | translate }}</mat-label>

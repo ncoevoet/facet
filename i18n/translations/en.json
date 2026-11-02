@@ -3897,5 +3897,15 @@
     "help": "Keyword identity and ownership",
     "boundary": "Manual keywords are shared catalog metadata. Management affects only photos currently visible to you, not hidden photos. Existing destination assignments keep their origin. AI labels and image files stay unchanged. These changes have no Undo; inspect the preview before applying.",
     "literal": "Full keyword names are identities. Slashes stay literal: animals/cat and zoo/cat are different keywords. Removing an assignment does not delete a photo. Export metadata separately to send changes to other applications."
+  },
+  "keyword_hierarchy": {
+    "title": "Keyword hierarchy",
+    "error": "Could not read the keyword hierarchy. Reload to try again.",
+    "expand": "Expand or collapse {name}",
+    "filter": "Show branch: {name}. Matches: {count}.",
+    "empty": "No matching hierarchy keywords.",
+    "more": "Show more keywords",
+    "unavailable": "Keyword unavailable",
+    "help": "Counts cover photos visible to you across the library. Choosing a branch filters by direct assignments to that keyword or its descendants; other active filters still apply. Parents are not automatically assigned. Flat keywords, including names containing slashes, stay separate."
   }
 }

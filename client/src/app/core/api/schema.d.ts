@@ -2408,6 +2408,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/manual_tags/hierarchy": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Api Keyword Tree
+         * @description Visible assigned concepts and ancestors, with distinct photo counts.
+         */
+        get: operations["api_keyword_tree_api_manual_tags_hierarchy_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/manual_tags/manage/apply": {
         parameters: {
             query?: never;
@@ -7649,6 +7669,26 @@ export interface components {
             source: string;
             /** Target */
             target: string | null;
+        };
+        /** KeywordTreeNode */
+        KeywordTreeNode: {
+            /** Branch Count */
+            branch_count: number;
+            /** Direct Count */
+            direct_count: number;
+            /** Id */
+            id: string;
+            /** Name */
+            name: string;
+            /** Parent Id */
+            parent_id: string | null;
+            /** Segments */
+            segments: string[];
+        };
+        /** KeywordTreeResponse */
+        KeywordTreeResponse: {
+            /** Nodes */
+            nodes: components["schemas"]["KeywordTreeNode"][];
         };
         /** LanguageEntry */
         LanguageEntry: {
@@ -14453,6 +14493,26 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    api_keyword_tree_api_manual_tags_hierarchy_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["KeywordTreeResponse"];
                 };
             };
         };

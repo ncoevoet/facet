@@ -11,6 +11,7 @@ import { I18nService } from '../../core/services/i18n.service';
 import { AuthService } from '../../core/services/auth.service';
 import { I18N } from '../../core/i18n/keys';
 import { GALLERY_REVISIT } from '../../core/gallery-reuse.strategy';
+import { KeywordHierarchyLabels } from './keyword-hierarchy-labels.service';
 function createCriteria(edition = false) {
  const navigation = new Subject<Event>();
  const filtersSignal=signal<GalleryFilters>({...DEFAULT_FILTERS});
@@ -93,6 +94,27 @@ describe('recent collection visits',()=>{
  });
 });
 describe('activeFilterChips', () => {;
+    it('resolves keyword labels at rendering after token-only changes even when the criteria array is cached', () => {
+      const { app, fixture, filtersSignal, authStatus } = createCriteria();
+      authStatus.set({ authenticated: true });
+      const id = '11111111-1111-4111-8111-111111111111';
+      filtersSignal.set({ ...DEFAULT_FILTERS, keyword_branch: id });
+      TestBed.inject(KeywordHierarchyLabels).remember([{ id, segments: ['Private', 'Family'] }]);
+      const readNames = vi.spyOn(TestBed.inject(KeywordHierarchyLabels), 'names');
+      fixture.detectChanges();
+      const cached = (app as any).activeFilterChips();
+      expect(fixture.nativeElement.querySelector('[data-active-criteria]').textContent).toContain('Private › Family');
+      Object.assign(TestBed.inject(AuthService), { token: 'rotated-only' });
+      expect(TestBed.inject(KeywordHierarchyLabels).names()).toEqual({});
+      const callsBefore = readNames.mock.calls.length;
+      fixture.detectChanges();
+      expect(readNames.mock.calls.length, 'render must execute the impure label guard').toBeGreaterThan(callsBefore);
+      expect((app as any).activeFilterChips()).toBe(cached);
+      expect(fixture.nativeElement.querySelector('[data-active-criteria]').textContent).not.toContain('Private › Family');
+      expect(fixture.nativeElement.textContent).not.toContain('Private › Family');
+      expect(fixture.nativeElement.querySelector('[data-active-criteria] [title]')?.getAttribute('title')).not.toBe('Private › Family');
+      expect(fixture.nativeElement.querySelector('[data-active-criteria]').textContent).toContain(I18N.keyword_hierarchy.unavailable);
+    });
 
     it('returns empty array when no active filters', () => {
       const { app } = createCriteria();

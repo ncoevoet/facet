@@ -47,6 +47,7 @@ PUBLIC_ROUTES = [
 # user; a few (e.g. /api/plugins, the comparison reads) are edition-only since an
 # install without viewer.edition_password became read-only.
 AUTH_ROUTES = [
+    '/api/manual_tags/hierarchy',
     '/api/export/sidecar_jobs',
     '/api/organization_history',
     '/api/photos',

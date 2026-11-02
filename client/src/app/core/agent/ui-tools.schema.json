@@ -896,6 +896,18 @@
                   "null"
                 ]
               },
+              "keyword_branch": {
+                "anyOf": [
+                  {
+                    "maxLength": 36,
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "description": "Explicit hierarchy node UUID including descendant assignments; null clears."
+              },
               "lens": {
                 "description": "Gallery filter `lens`.",
                 "type": [
@@ -2198,5 +2210,5 @@
       "name": "ui_show_comparison"
     }
   ],
-  "version": "0cdd1181a441cc1e"
+  "version": "bc188751f5c442aa"
 }

@@ -23,7 +23,7 @@ from pydantic import BaseModel, ConfigDict, Field, create_model, field_validator
 
 from api.agent.tools_common import MCP_FILTER_KEYS, FilterValue, SortColumn
 from api.models.culling import CullPlanRequest
-from api.models.gallery import ScorePresence, TagQuery
+from api.models.gallery import KeywordBranch, ScorePresence, TagQuery
 
 TAB_ID_PATTERN = r"^[A-Za-z0-9_-]{1,64}$"
 MAX_SELECT_PATHS = 1000
@@ -105,6 +105,8 @@ _PATCH_FIELDS["tag_groups"] = (Optional[TagQuery], Field(
     default=None, description='JSON string with any/all/none arrays of literal tags, at most 50 total; null clears.'))
 _PATCH_FIELDS['score_presence'] = (Optional[ScorePresence], Field(
     default=None, description='JSON map from min_metric keys to include_missing, missing_only or measured_only; null clears.'))
+_PATCH_FIELDS['keyword_branch'] = (Optional[KeywordBranch], Field(
+    default=None, description='Explicit hierarchy node UUID including descendant assignments; null clears.'))
 _PATCH_FIELDS["person_match"] = (Optional[Literal["all", "any"]], Field(
     default=None, description="Match all selected people (default) or any selected person. Null resets to all."))
 _PATCH_FIELDS["review_status"] = (Optional[Literal["", "undecided", "kept", "rejected"]], Field(

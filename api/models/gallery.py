@@ -7,9 +7,11 @@ from typing import Any, Literal, Optional, Union
 from api.models.common import CoercedInt, PaginationEnvelope
 from tag_query import TAG_QUERY_JSON_LIMIT, validated_tag_query
 from score_presence import SCORE_PRESENCE_JSON_LIMIT, validated_score_presence
+from db.keyword_hierarchy import keyword_node_id
 
 TagQuery = Annotated[str, Field(max_length=TAG_QUERY_JSON_LIMIT), AfterValidator(validated_tag_query)]
 ScorePresence = Annotated[str, Field(max_length=SCORE_PRESENCE_JSON_LIMIT), AfterValidator(validated_score_presence)]
+KeywordBranch = Annotated[str, Field(max_length=36), AfterValidator(keyword_node_id)]
 
 
 class PhotoPerson(BaseModel):
@@ -281,6 +283,7 @@ class GalleryParams(BaseModel):
     search: str = ''
     tag: str = ''
     tag_groups: TagQuery = ''
+    keyword_branch: KeywordBranch = ''  # Direct assignments to this node or descendants, not inherited assignments.
     person: str = Field(default='', max_length=4096)
     person_match: Literal['all', 'any'] = 'all'
 

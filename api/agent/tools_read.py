@@ -24,7 +24,7 @@ from api.agent.tools_common import (
     unavailable_tools,
 )
 from api.agent.ui_tools import TAB_ID_PATTERN
-from api.models.gallery import ScorePresence, TagQuery, query_value
+from api.models.gallery import KeywordBranch, ScorePresence, TagQuery, query_value
 from api.routers.face_matches import FACE_SCAN_TIMEOUT_S
 from api.config import CORRELATION_X_AXES, CORRELATION_Y_METRICS, VIEWER_CONFIG
 from api.db_helpers import PHOTO_BASE_COLS, PHOTO_OPTIONAL_COLS, to_day_granularity
@@ -50,6 +50,8 @@ _FILTER_FIELDS["tag_groups"] = (Optional[TagQuery], Field(
     default=None, description='JSON string with any/all/none arrays of literal tag names, at most 50 total; commas are data.'))
 _FILTER_FIELDS['score_presence'] = (Optional[ScorePresence], Field(
     default=None, description='JSON map from min_metric keys to include_missing, missing_only or measured_only. Missing means NULL stored measurement, not zero.'))
+_FILTER_FIELDS['keyword_branch'] = (Optional[KeywordBranch], Field(
+    default=None, description='Explicit hierarchy node UUID; matches assignments to it or descendants, never flat tag names.'))
 SearchFilters = create_model("SearchFilters", __config__=ConfigDict(extra="forbid"), **_FILTER_FIELDS)
 
 # Every column the gallery routes serve is requestable, except the BLOBs (a guard: none is

@@ -24,6 +24,7 @@ from api.models.manual_tags import (
 from api.models.keyword_catalog import (
     KeywordCatalogResponse, KeywordChangeApply, KeywordChangePreview,
     KeywordChangeRequest, KeywordChangeResult,
+    KeywordTreeResponse,
 )
 from api.routers.faces import _batch_scope_sql, _require_writable_photo, _writable_photo_paths
 from db.manual_tags import (
@@ -51,6 +52,22 @@ def _created_by(user):
 def _drop_tag_caches(conn):
     """Clear the DB-persisted tag dropdown row, then the in-process stats cache."""
     conn.execute("DELETE FROM stats_cache WHERE key = 'tags'")
+
+
+@router.get('/api/manual_tags/hierarchy', response_model=KeywordTreeResponse)
+def api_keyword_tree(response: Response, user: Optional[CurrentUser] = Depends(get_optional_user)):
+    """Visible assigned concepts and ancestors, with distinct photo counts."""
+    from api.keyword_tree import keyword_tree
+    from db.keyword_hierarchy import HierarchyError
+    response.headers['Cache-Control'] = 'no-store'
+    try:
+        with get_db() as conn:
+            conn.execute('PRAGMA query_only=ON')
+            conn.execute('BEGIN')
+            return keyword_tree(conn, user.user_id if user else None)
+    except (sqlite3.Error, HierarchyError) as exc:
+        logger.exception('Keyword hierarchy read failed')
+        raise HTTPException(503, 'Keyword hierarchy could not be read', headers={'Cache-Control': 'no-store'}) from exc
 
 
 @router.get('/api/manual_tags/catalog', response_model=KeywordCatalogResponse)
