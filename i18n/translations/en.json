@@ -2941,6 +2941,7 @@
     "capture_scope": "Capture dates · visible library",
     "scope_help": "Counts use capture dates and your visibility settings across the library. Album, tag and search filters are not applied. Photos without a capture date are listed separately. Opening a period shows all matching photos, including rejected photos; manual stacks can group their tiles.",
     "open_range": "Open range in gallery",
+    "empty_range": "Choose a start date on or before the end date within the selected calendar period, or choose All dates.",
     "all_dates": "All dates",
     "photo_feed": "Photos",
     "calendar": "Calendar",
@@ -2965,7 +2966,9 @@
     "range_end": "End",
     "apply_range": "Apply range",
     "clear_range": "Clear selection",
-    "explore_period": "Explore period"
+    "explore_period": "Explore period",
+    "density_unit": "Period",
+    "density_weeks": "Weeks (Monday–Sunday)"
   },
   "folders": {
     "help": "Browse photos by their on-disk folder structure. Open a folder to see the photos it contains.",
@@ -3594,6 +3597,7 @@
     }
   },
   "manual_faces": {
+    "same_person_overlap": "This box overlaps another manual box assigned to the same person. Check whether you meant to edit the existing box.",
     "title": "Mark a missing face / Manage manual faces",
     "instructions": "Draw a rectangle or enter its edges as percentages. Choose a person, then save.",
     "unavailable": "Original unavailable. Saved marks can still be removed.",

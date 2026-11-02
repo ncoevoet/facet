@@ -64,6 +64,44 @@ describe('Timeline date density', () => {
     expect(v.filters.dateFrom()).toBe('2024-02-29'); expect(v.filters.dateTo()).toBe('2024-02-29'); v.fixture.destroy();
   });
 
+  it('offers ISO weeks with exact clipped year-boundary dates and applies only the selected period', async () => {
+    const v = await render(); v.fixture.componentRef.setInput('year', '2021');
+    v.api.get.mockReturnValueOnce(of({ months: [] })); await v.open();
+    v.api.get.mockReturnValue(of({ dates: [{ date: '2021-01-01', count: 1 }, { date: '2021-01-03', count: 3 }, { date: '2021-01-04', count: 4 }] }));
+    const select = v.root.querySelector<HTMLSelectElement>('[data-density-unit]')!;
+    select.value = 'week'; select.dispatchEvent(new Event('change')); await v.settle();
+    expect(v.api.get).toHaveBeenLastCalledWith('/timeline/dates', expect.objectContaining({ year: 2021 }));
+    expect(v.bars()).toHaveLength(53);
+    expect(v.bars()[0].textContent).toContain('2020-W53');
+    expect(v.bars()[0].getAttribute('aria-label')).toContain('"period":"01/01/2021 – 03/01/2021","count":4');
+    v.bars()[0].click(); await v.settle();
+    expect(v.filters.dateFrom()).toBe(''); expect(v.filters.dateTo()).toBe('');
+    expect(v.button('timeline.explore_period')).toBeUndefined();
+    v.button('timeline.apply_range').click(); await v.settle();
+    expect(v.filters.dateFrom()).toBe('2021-01-01'); expect(v.filters.dateTo()).toBe('2021-01-03');
+    v.fixture.destroy();
+  });
+
+  it('restores year exploration after returning from weekly density to all years', async () => {
+    const v = await render(); v.fixture.componentRef.setInput('year', '2021');
+    await v.open();
+    const select = v.root.querySelector<HTMLSelectElement>('[data-density-unit]')!;
+    select.value = 'week'; select.dispatchEvent(new Event('change')); await v.settle();
+    v.fixture.componentRef.setInput('year', ''); await v.settle();
+    expect(v.root.querySelector('[data-density-unit]')).toBeNull();
+    v.bars()[0].click(); await v.settle();
+    expect(v.button('timeline.explore_period')).toBeDefined();
+    v.fixture.destroy();
+  });
+
+  it('clips partial week counts and empty weeks to the typed range, including leap day', () => {
+    const rows = densityBuckets({ dates: [{ date: '2024-02-28', count: 2 }, { date: '2024-02-29', count: 3 }, { date: '2024-02-01', count: 99 }] }, '2024', '2', { unit: 'week', from: '2024-02-20', to: '2024-02-29' });
+    expect(rows).toEqual([
+      { key: '2024-W08', label: '2024-W08', from: '2024-02-20', to: '2024-02-25', count: 0 },
+      { key: '2024-W09', label: '2024-W09', from: '2024-02-26', to: '2024-02-29', count: 5 },
+    ]);
+  });
+
   it('cancels reads on navigation and clears prior-account counts and draft selection', async () => {
     const v = await render(); const pending = new Subject<DensityResponse>(); v.api.get.mockReturnValueOnce(pending); await v.open();
     expect(pending.observed).toBe(true); await v.router.navigateByUrl('/elsewhere'); await v.settle();

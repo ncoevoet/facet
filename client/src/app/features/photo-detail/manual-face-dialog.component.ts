@@ -45,6 +45,9 @@ export function dragBox(start: [number, number], end: [number, number]): FaceBox
         <p role="status">{{ I18N.manual_faces.unavailable | translate }}</p>
       }
 
+      @if (overlappingPersonBox()) {
+        <p role="status">{{ I18N.manual_faces.same_person_overlap | translate }}</p>
+      }
       @if (error()) {
         <p role="alert">{{ error() | translate }}</p>
       }
@@ -184,6 +187,18 @@ export class ManualFaceDialogComponent implements OnInit {
     this.I18N.manual_faces.right,
     this.I18N.manual_faces.bottom,
   ];
+  readonly overlappingPersonBox = computed(() => {
+    const personId = this.person()?.person_id;
+    if (personId == null) return false;
+    const [left, top, right, bottom] = this.bbox();
+    if (right <= left || bottom <= top) return false;
+    return this.regions().some(region => {
+      if (region.id === this.editingId() || region.person_id !== personId || region.source_changed) return false;
+      const [x1, y1, x2, y2] = region.bbox;
+      return Math.min(right, x2) > Math.max(left, x1) && Math.min(bottom, y2) > Math.max(top, y1);
+    });
+  });
+
   readonly valid = computed(() => {
     const f = this.frame(),
       b = this.bbox(),

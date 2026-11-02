@@ -55,6 +55,24 @@ describe('manual face editor', () => {
     component.bbox.set([0.1, 0.2, 0.8, 0.9]);
     component.person.set({ person_id: 5 });
   });
+  it('warns for overlapping boxes of the same person, excluding self and other people', () => {
+    component.regions.set([region]);
+    expect(component.overlappingPersonBox()).toBe(true);
+    component.edit(region);
+    expect(component.overlappingPersonBox()).toBe(false);
+    component.newRegion();
+    component.person.set({ person_id: 5 });
+    component.bbox.set([0.2, 0.3, 0.4, 0.5]);
+    expect(component.overlappingPersonBox()).toBe(true);
+    component.person.set({ person_id: 6 });
+    expect(component.overlappingPersonBox()).toBe(false);
+    component.person.set({ person_id: 5 });
+    component.bbox.set([0.8, 0.2, 1, 0.9]);
+    expect(component.overlappingPersonBox()).toBe(false);
+    component.bbox.set([0.2, 0.3, 0.4, 0.5]);
+    component.regions.set([{ ...region, source_changed: true }]);
+    expect(component.overlappingPersonBox()).toBe(false);
+  });
   it('records the committed resolved person ID, including newly created people', async () => {
     const record = vi.spyOn(TestBed.inject(PersonAssignmentHistoryService), 'record');
     component.person.set({ new_person_name: 'Ada' });
@@ -157,6 +175,33 @@ describe('manual face editor', () => {
     component.bbox.set([0.09999999999999998, 0.2, 0.8, 0.9]);
     expect(component.percentages()[0]).toBe(10);
     expect(component.bbox()[0]).toBe(0.09999999999999998);
+  });
+  it('renders the overlap warning while permitting save and clears it after a native coordinate edit', async () => {
+    api.get.mockImplementation((path: string) => of(path.endsWith('frame')
+      ? { image_base64: 'jpeg', width: 100, height: 200, frame_token: 'frame' }
+      : { regions: [region] }));
+    const view = TestBed.createComponent(ManualFaceDialogComponent);
+    const editor = view.componentInstance;
+    view.detectChanges();
+    await view.whenStable();
+    editor.person.set({ person_id: 5 });
+    [20, 30, 40, 50].forEach((value, index) => editor.setCoordinate(index, value));
+    view.detectChanges();
+    expect(view.nativeElement.textContent).toContain('manual_faces.same_person_overlap');
+    const save = Array.from(view.nativeElement.querySelectorAll('button')).find(
+      (button: any) => button.textContent.includes('ui.buttons.save')) as HTMLButtonElement;
+    view.detectChanges();
+    expect(save.disabled).toBe(false);
+    const inputs = view.nativeElement.querySelectorAll('input[type=number]') as NodeListOf<HTMLInputElement>;
+    inputs[2].value = '95';
+    inputs[2].dispatchEvent(new Event('input'));
+    inputs[0].value = '90';
+    inputs[0].dispatchEvent(new Event('input'));
+    view.detectChanges();
+    await view.whenStable();
+    expect(view.nativeElement.textContent).not.toContain('manual_faces.same_person_overlap');
+    view.detectChanges();
+    expect(save.disabled).toBe(false);
   });
   it('renders saved-list failure without falsely presenting an empty successful list', () => {
     const view = TestBed.createComponent(ManualFaceDialogComponent);

@@ -13,6 +13,42 @@ from api.auth import get_optional_user
 from db.schema import init_database
 
 
+def test_iso_week_boundaries_and_calendar_date_limits_use_capture_days(tmp_path):
+    path = str(tmp_path / 'iso-weeks.db')
+    dates = ['2020:12:28 12:00:00', '2021-01-01T12:00:00', '2021:01:03 12:00:00',
+             '2021:01:04 12:00:00', '2021-01-10T12:00:00', '2021:01:11 12:00:00']
+    _make_db(path, [_photo(f'/week/{index}.jpg', day) for index, day in enumerate(dates)])
+    with ExitStack() as stack:
+        for patch in _timeline_hide_defaults_patches(path, {}):
+            stack.enter_context(patch)
+        client = TestClient(_app_no_auth())
+        params = {'granularity': 'week', 'direction': 'newer'}
+        result = client.get('/api/timeline', params=params)
+        assert result.status_code == 200, result.text
+        assert [(group['date'], group['count']) for group in result.json()['groups']] == [('2020-W53', 3), ('2021-W01', 2), ('2021-W02', 1)]
+        narrowed = client.get('/api/timeline', params={**params, 'date_from': '2021-01-02', 'date_to': '2021-01-04'})
+        assert narrowed.status_code == 200, narrowed.text
+        assert [(group['date'], group['count']) for group in narrowed.json()['groups']] == [('2020-W53', 1), ('2021-W01', 1)]
+        assert {photo['path'] for group in narrowed.json()['groups'] for photo in group['photos']} == {'/week/2.jpg', '/week/3.jpg'}
+        later = client.get('/api/timeline', params={**params, 'cursor': '2020-W53'})
+        assert later.status_code == 200, later.text
+        assert [group['date'] for group in later.json()['groups']] == ['2021-W01', '2021-W02']
+
+
+def test_month_groups_apply_partial_calendar_day_bounds(tmp_path):
+    path = str(tmp_path / 'month-limits.db')
+    _make_db(path, [_photo('/month/early.jpg', '2024:02:01 12:00:00'), _photo('/month/middle.jpg', '2024-02-15T12:00:00'),
+                    _photo('/month/late.jpg', '2024:02:29 12:00:00')])
+    with ExitStack() as stack:
+        for patch in _timeline_hide_defaults_patches(path, {}):
+            stack.enter_context(patch)
+        response = TestClient(_app_no_auth()).get('/api/timeline', params={'granularity': 'month', 'date_from': '2024-02-10', 'date_to': '2024-02-20'})
+        assert response.status_code == 200, response.text
+        groups = response.json()['groups']
+        assert [(group['date'], group['count']) for group in groups] == [('2024-02', 1)]
+        assert [photo['path'] for photo in groups[0]['photos']] == ['/month/middle.jpg']
+
+
 def _cm(conn):
     @contextmanager
     def _ctx():

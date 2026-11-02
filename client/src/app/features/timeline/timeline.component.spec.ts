@@ -199,6 +199,31 @@ describe('TimelineComponent', () => {
 
 
 describe('Timeline missing-date and range transitions', () => {
+  it.each([
+    ['2024-02-20', '2024-02-10'],
+    ['2024-03-01', '2024-03-31'],
+  ])('keeps an empty date intersection on the timeline until corrected (%s, %s)', (from, to) => {
+    const navigate = vi.fn();
+    const dateFrom = signal(from); const dateTo = signal(to);
+    TestBed.configureTestingModule({ providers: [
+      { provide: Router, useValue: { navigate } },
+      { provide: ActivatedRoute, useValue: { paramMap: of({ get: (key: string) => key === 'year' ? '2024' : key === 'month' ? '2' : null }) } },
+      { provide: TimelineFiltersService, useValue: { dateFrom, dateTo, sortDirection: signal('older') } },
+      { provide: GalleryStore, useValue: { viewFilterParams: signal({ hide_bursts: '1' }) } },
+    ] });
+    const component: any = TestBed.runInInjectionContext(() => new TimelineComponent());
+    component.viewRange();
+    expect(navigate).not.toHaveBeenCalled();
+    expect(component.emptyRange()).toBe(true);
+    dateFrom.set('2024-02-29'); dateTo.set('2024-02-29');
+    expect(component.emptyRange()).toBe(false);
+    component.viewRange();
+    expect(navigate).toHaveBeenCalledWith(['/'], { queryParams: {
+      ...timelinePersonalReset, hide_bursts: 'true', date_from: '2024-02-29', date_to: '2024-02-29',
+      sort: 'date_taken', sort_direction: 'DESC',
+    } });
+  });
+
   it('opens the selected route month intersected with the typed range instead of widening to the whole library', () => {
     const navigate = vi.fn();
     TestBed.configureTestingModule({ providers: [

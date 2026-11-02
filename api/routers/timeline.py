@@ -105,14 +105,18 @@ async def api_timeline(
         if limit > max_limit:
             limit = max_limit
 
-    # Build date expression based on granularity
+    capture_day = "DATE(REPLACE(SUBSTR(date_taken,1,10),':','-'))"
+    # Grouping keys and calendar bounds have different jobs. The Thursday of
+    # an ISO week determines both its ISO year and its week number, including
+    # dates near New Year. Avoid newer SQLite-only %G/%V specifiers.
     if granularity == 'week':
-        # ISO week: group by year + week number (Monday-based)
-        date_expr = "STRFTIME('%Y-W%W', REPLACE(SUBSTR(date_taken,1,10),':','-'))"
+        thursday = f"DATE({capture_day}, '-3 days', 'weekday 4')"
+        date_expr = (f"STRFTIME('%Y', {thursday}) || '-W' || "
+                     f"PRINTF('%02d', (CAST(STRFTIME('%j', {thursday}) AS INTEGER) - 1) / 7 + 1)")
     elif granularity == 'month':
         date_expr = "SUBSTR(REPLACE(SUBSTR(date_taken,1,10),':','-'),1,7)"
     else:
-        date_expr = "DATE(REPLACE(SUBSTR(date_taken,1,10),':','-'))"
+        date_expr = capture_day
 
     user_id = user.user_id if user else None
     try:
@@ -122,17 +126,14 @@ async def api_timeline(
             from_clause, from_params = get_photos_from_clause(user_id)
             vis_sql, vis_params = get_visibility_clause(user_id)
 
-            where_clauses = [vis_sql, f"NOT {CAPTURE_DATE_MISSING_SQL}"]
+            where_clauses = [vis_sql, f"NOT {CAPTURE_DATE_MISSING_SQL}", f"{capture_day} IS NOT NULL"]
             sql_params = list(from_params) + list(vis_params)
 
             where_clauses.extend(hide_clauses_from_toggles(hide_toggles))
 
-            if date_from:
-                where_clauses.append(f"{date_expr} >= ?")
-                sql_params.append(date_from)
-            if date_to:
-                where_clauses.append(f"{date_expr} <= ?")
-                sql_params.append(date_to)
+            date_clauses, date_params = build_date_range_clauses(date_from, date_to)
+            where_clauses.extend(date_clauses)
+            sql_params.extend(date_params)
 
             if cursor:
                 if direction == "newer":
@@ -192,9 +193,10 @@ async def api_timeline(
                 else:
                     inner_order = "aggregate DESC, path ASC"
 
-                batch_where = [vis_sql, f"NOT {CAPTURE_DATE_MISSING_SQL}"]
-                batch_params = list(from_params) + list(vis_params)
-                batch_where.extend(hide_clauses_from_toggles(hide_toggles))
+                # Group counts and rendered previews must use the identical
+                # captured scope, including partial-week/month date bounds.
+                batch_where = list(where_clauses)
+                batch_params = list(sql_params)
                 batch_where.append(f"{date_expr} IN ({placeholders})")
                 batch_params.extend(date_list)
 

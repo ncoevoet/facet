@@ -22,7 +22,14 @@ import { densityBuckets, densityRange, type DensityBucket, type DensityResponse 
       <summary class="min-h-11 cursor-pointer py-3 text-sm">{{ I18N.timeline.density | translate }}</summary>
       @if (open()) {
         <div class="flex flex-wrap items-center justify-between gap-x-3 gap-y-1 text-sm">
-          <span>{{ unitLabel() | translate }}</span>
+          @if (year()) {
+            <label class="flex min-h-11 items-center gap-2">{{ I18N.timeline.density_unit | translate }}
+              <select data-density-unit class="min-h-11 rounded border border-[var(--mat-sys-outline)] bg-[var(--mat-sys-surface)] px-2" [value]="unit()" (change)="unit.set($any($event.target).value)">
+                <option value="auto" [selected]="unit() === 'auto'">{{ (month() ? I18N.timeline.density_days : I18N.timeline.density_months) | translate }}</option>
+                <option value="week" [selected]="unit() === 'week'">{{ I18N.timeline.density_weeks | translate }}</option>
+              </select>
+            </label>
+          } @else { <span>{{ unitLabel() | translate }}</span> }
           <label class="flex min-h-11 items-center gap-2">
             <input type="checkbox" [checked]="logScale()" (change)="logScale.set(!logScale())" />
             {{ I18N.timeline.log_scale | translate }}
@@ -36,7 +43,7 @@ import { densityBuckets, densityRange, type DensityBucket, type DensityResponse 
           <div class="flex gap-1 overflow-x-auto pb-2" role="group" [attr.aria-label]="I18N.timeline.density | translate" [attr.aria-describedby]="helpId">
             @for (bucket of rendered(); track bucket.key) {
               <button type="button" class="flex min-h-28 min-w-11 flex-1 flex-col items-center gap-1 rounded px-1 py-1 text-xs hover:bg-[var(--mat-sys-surface-container)] focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-[var(--mat-sys-primary)]"
-                [attr.aria-label]="I18N.timeline.period_count | translate: { period: bucket.key, count: bucket.count }"
+                [attr.aria-label]="I18N.timeline.period_count | translate: { period: unit() === 'week' ? (bucket.from | captureDate) + ' – ' + (bucket.to | captureDate) : bucket.key, count: bucket.count }"
                 [attr.aria-pressed]="bucket.selected" [class]="bucket.selected ? 'bg-[var(--mat-sys-surface-container-high)]' : ''"
                 (click)="choose(bucket)">
                 <span class="flex h-16 w-full items-end justify-center border-b border-[var(--mat-sys-outline-variant)]" aria-hidden="true">
@@ -55,7 +62,7 @@ import { densityBuckets, densityRange, type DensityBucket, type DensityResponse 
               <span role="status" class="px-2 text-sm tabular-nums">{{ selected.from | captureDate }} – {{ selected.to | captureDate }}</span>
               <button mat-stroked-button [disabled]="!active()" (click)="applyRange()">{{ I18N.timeline.apply_range | translate }}</button>
               <button mat-button (click)="clearDraft()">{{ I18N.timeline.clear_range | translate }}</button>
-              @if (single() && !month()) {
+              @if (single() && !month() && (!year() || unit() !== 'week')) {
                 <button mat-button (click)="explore()">{{ I18N.timeline.explore_period | translate }}</button>
               }
             }
@@ -79,6 +86,7 @@ export class TimelineDensityComponent {
   protected readonly open = signal(false);
   protected readonly active = signal(true);
   protected readonly logScale = signal(false);
+  protected readonly unit = signal<'auto' | 'week'>('auto');
   protected readonly loading = signal(false);
   protected readonly failed = signal(false);
   protected readonly retry = signal(0);
@@ -104,21 +112,21 @@ export class TimelineDensityComponent {
   constructor() {
     effect(onCleanup => {
       const open = this.open(); const active = this.active(); const owner = this.auth.status(); const token = this.auth.token;
-      const year = this.year(); const month = this.month(); const visibility = this.store.viewFilterParams();
+      const year = this.year(); const month = this.month(); const unit = this.unit(); const visibility = this.store.viewFilterParams();
       const from = this.filters.dateFrom(); const to = this.filters.dateTo();
       const photos = this.store.photos(); this.retry();
       untracked(() => { this.currentRead = null; this.buckets.set([]); this.clearDraft(); this.failed.set(false); this.loading.set(false); });
       if (!open || !active || !owner) return;
-      const path = month ? '/timeline/dates' : year ? '/timeline/months' : '/timeline/years';
+      const path = month || (unit === 'week' && year) ? '/timeline/dates' : year ? '/timeline/months' : '/timeline/years';
       const params = { ...visibility, ...(year ? { year: +year } : {}), ...(month ? { month: +month } : {}), date_from: from, date_to: to };
       this.loading.set(true);
       let valid = true;
       const current = () => valid && token === this.auth.token && owner === this.auth.status() && this.active() && this.open()
-        && year === this.year() && month === this.month() && photos === this.store.photos()
+        && year === this.year() && month === this.month() && unit === this.unit() && photos === this.store.photos()
         && visibility === this.store.viewFilterParams() && from === this.filters.dateFrom() && to === this.filters.dateTo();
       this.currentRead = current;
       const request = this.api.get<DensityResponse>(path, params).subscribe({
-        next: response => { if (current()) { this.buckets.set(densityBuckets(response, year, month)); this.loading.set(false); } },
+        next: response => { if (current()) { this.buckets.set(densityBuckets(response, year, month, { unit, from, to })); this.loading.set(false); } },
         error: () => { if (current()) { this.failed.set(true); this.loading.set(false); } },
       });
       onCleanup(() => { valid = false; request.unsubscribe(); });

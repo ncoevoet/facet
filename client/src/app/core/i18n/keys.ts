@@ -2955,6 +2955,7 @@ export const I18N = {
     capture_scope: "timeline.capture_scope",
     scope_help: "timeline.scope_help",
     open_range: "timeline.open_range",
+    empty_range: "timeline.empty_range",
     all_dates: "timeline.all_dates",
     photo_feed: "timeline.photo_feed",
     calendar: "timeline.calendar",
@@ -2980,6 +2981,8 @@ export const I18N = {
     apply_range: "timeline.apply_range",
     clear_range: "timeline.clear_range",
     explore_period: "timeline.explore_period",
+    density_unit: "timeline.density_unit",
+    density_weeks: "timeline.density_weeks",
   },
   folders: {
     help: "folders.help",
@@ -3608,6 +3611,7 @@ export const I18N = {
     },
   },
   manual_faces: {
+    same_person_overlap: "manual_faces.same_person_overlap",
     title: "manual_faces.title",
     instructions: "manual_faces.instructions",
     unavailable: "manual_faces.unavailable",

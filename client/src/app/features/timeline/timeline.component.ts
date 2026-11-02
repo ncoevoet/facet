@@ -68,10 +68,13 @@ import { GalleryStore, anyHideToggleActive } from '../gallery/gallery.store';
           [from]="filters.dateFrom()" [to]="filters.dateTo()"
           fromClass="w-40" toClass="w-40"
           (fromChange)="filters.dateFrom.set($event)" (toChange)="filters.dateTo.set($event)" />
-        <button mat-button (click)="viewRange()">{{ I18N.timeline.open_range | translate }}</button>
+        <button mat-button [disabled]="emptyRange()" [attr.aria-describedby]="emptyRange() ? 'timeline-empty-range' : null" (click)="viewRange()">{{ I18N.timeline.open_range | translate }}</button>
         <button mat-button (click)="resetDates()">{{ I18N.timeline.all_dates | translate }}</button>
         <button mat-button (click)="viewUnknownDates()">{{ I18N.gallery.no_capture_date | translate }}</button>
       </div>
+      @if (emptyRange()) {
+        <p id="timeline-empty-range" role="status" class="mt-2 text-sm text-[var(--mat-sys-on-surface-variant)]">{{ I18N.timeline.empty_range | translate }}</p>
+      }
     </details>
     <!-- Breadcrumb navigation -->
     @if (level() !== 'years') {
@@ -225,8 +228,16 @@ export class TimelineComponent {
     });
   }
 
+  private readonly selectedRange = computed(() =>
+    timelineWindow(this.year(), this.month(), this.filters.dateFrom(), this.filters.dateTo()));
+  protected readonly emptyRange = computed(() => {
+    const { from, to } = this.selectedRange();
+    return !!from && !!to && from > to;
+  });
+
   protected viewRange(): void {
-    const range = timelineWindow(this.year(), this.month(), this.filters.dateFrom(), this.filters.dateTo());
+    if (this.emptyRange()) return;
+    const range = this.selectedRange();
     this.router.navigate(['/'], { queryParams: {
       ...this.galleryVisibility(),
       date_from: range.from, date_to: range.to,

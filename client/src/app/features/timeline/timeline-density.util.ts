@@ -21,7 +21,9 @@ export function timelineWindow(year: string, month: string, from: string, to: st
   return { from: from > start ? from : start, to: to && to < end ? to : end };
 }
 
-export function densityBuckets(response: DensityResponse, year: string, month: string): DensityBucket[] {
+export function densityBuckets(response: DensityResponse, year: string, month: string,
+  options: { unit?: 'auto' | 'week'; from?: string; to?: string } = {}): DensityBucket[] {
+  if (options.unit === 'week' && year) return weekBuckets(response, year, month, options.from ?? '', options.to ?? '');
   if (!year) return (response.years ?? []).map(row => ({ key: row.year, label: row.year,
     from: `${row.year}-01-01`, to: `${row.year}-12-31`, count: row.count })).sort((a, b) => a.key.localeCompare(b.key));
   if (!month) {
@@ -38,6 +40,29 @@ export function densityBuckets(response: DensityResponse, year: string, month: s
     const key = `${year}-${month.padStart(2, '0')}-${String(index + 1).padStart(2, '0')}`;
     return { key, label: String(index + 1), from: key, to: key, count: counts.get(key) ?? 0 };
   });
+}
+
+/** ISO Monday–Sunday groups, clipped to the actual calendar/query window.
+ * Work from at most366 day counts, never loading photos or inferring dates. */
+function weekBuckets(response: DensityResponse, year: string, month: string, from: string, to: string): DensityBucket[] {
+  const window = timelineWindow(year, month, from, to);
+  const counts = new Map((response.dates ?? []).map(row => [row.date, row.count]));
+  const start = new Date(Date.UTC(+year, month ? +month - 1 : 0, 1));
+  const end = new Date(Date.UTC(+year, month ? +month : 12, 0));
+  const weeks = new Map<string, DensityBucket>();
+  for (const date = start; date <= end; date.setUTCDate(date.getUTCDate() + 1)) {
+    const day = date.toISOString().slice(0, 10);
+    if (day < window.from || day > window.to) continue;
+    const thursday = new Date(date);
+    thursday.setUTCDate(date.getUTCDate() + 4 - (date.getUTCDay() || 7));
+    const isoYear = thursday.getUTCFullYear();
+    const number = Math.ceil(((thursday.getTime() - Date.UTC(isoYear, 0, 1)) / 86_400_000 + 1) / 7);
+    const key = `${isoYear}-W${String(number).padStart(2, '0')}`;
+    const previous = weeks.get(key);
+    if (previous) { previous.to = day; previous.count += counts.get(day) ?? 0; }
+    else weeks.set(key, { key, label: key, from: day, to: day, count: counts.get(day) ?? 0 });
+  }
+  return [...weeks.values()];
 }
 
 export function densityRange(first: DensityBucket, last: DensityBucket): { from: string; to: string } {
