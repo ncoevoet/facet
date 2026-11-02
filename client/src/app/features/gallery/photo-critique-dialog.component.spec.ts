@@ -214,12 +214,19 @@ describe('PhotoAnalysisComponent current calculation DOM', () => {
   });
   it.each(['persisted_percentiles', 'stored_metrics'] as const)('states the %s normalization basis', async (basis) => {
     const fixture = await render({ normalization_basis: basis });
-    expect(fixture.nativeElement.querySelector('[data-testid="normalization-basis"]').textContent)
-      .toContain('critique.normalization_basis.' + basis);
+    expect(fixture.nativeElement.textContent).not.toContain('critique.normalization_basis.' + basis);
+    const help = fixture.nativeElement.querySelector('[data-context-help]') as HTMLDetailsElement;
+    help.querySelector<HTMLElement>('summary')!.click();
+    help.dispatchEvent(new Event('toggle')); fixture.detectChanges();
+    expect(help.textContent).toContain('critique.normalization_basis.' + basis);
   });
   it('omits the normalization basis when none is reported', async () => {
     const fixture = await render({ normalization_basis: null });
-    expect(fixture.nativeElement.querySelector('[data-testid="normalization-basis"]')).toBeNull();
+    const help = fixture.nativeElement.querySelector('[data-context-help]') as HTMLDetailsElement;
+    help.querySelector<HTMLElement>('summary')!.click();
+    help.dispatchEvent(new Event('toggle')); fixture.detectChanges();
+    expect(help.textContent).toContain('critique.calculation_note');
+    expect(help.textContent).not.toContain('critique.normalization_basis.');
   });
   it('marks cached commentary without claiming verified scoring context', async () => {
     const fixture = await render({ vlm_critique: 'Synthetic cached commentary', vlm_source: 'cached' });

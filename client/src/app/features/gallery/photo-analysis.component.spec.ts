@@ -56,6 +56,33 @@ describe('PhotoAnalysisComponent ownership', () => {
     expect(api.post).not.toHaveBeenCalled();
   });
 
+  it('labels the score columns and keeps calculation background behind dismissible help', async () => {
+    const { fixture, root, reads, api } = render();
+    reads[0].next({ ...evidence, current_formula_score: 7,
+      normalization_basis: 'persisted_percentiles',
+      breakdown: [{ metric_key: 'aesthetic', value: 8, weight: 0.5, contribution: 4 }],
+    });
+    await fixture.whenStable(); fixture.detectChanges();
+    expect(Array.from(root.querySelectorAll('thead th')).map(cell => cell.textContent?.trim())).toEqual([
+      'critique.metric', 'critique.value', 'critique.weight', 'critique.contribution_label',
+    ]);
+    expect(root.querySelector('tbody th[scope="row"]')?.textContent).toContain('critique.metrics.aesthetic');
+    expect(root.querySelector('tbody')?.textContent).toContain('50%');
+    expect(root.querySelector('tbody')?.textContent).toContain('4.00');
+    expect(root.textContent).not.toContain('critique.calculation_note');
+    const help = root.querySelector<HTMLDetailsElement>('[data-context-help]')!;
+    const trigger = help.querySelector<HTMLElement>('summary')!;
+    trigger.click(); help.dispatchEvent(new Event('toggle'));
+    fixture.detectChanges();
+    expect(root.textContent).toContain('critique.calculation_note');
+    expect(root.textContent).toContain('critique.normalization_basis.persisted_percentiles');
+    help.querySelector<HTMLButtonElement>('[data-context-help-close]')!.click(); fixture.detectChanges();
+    expect(help.open).toBe(false);
+    expect(document.activeElement).toBe(trigger);
+    expect(root.textContent).not.toContain('critique.calculation_note');
+    expect(api.post).not.toHaveBeenCalled();
+  });
+
   it('cancels old-photo reads and old-owner generation without adopting a different account', async () => {
     const { fixture, root, reads, api, auth, generation } = render();
     fixture.componentRef.setInput('photoPath', '/second.jpg'); fixture.detectChanges();

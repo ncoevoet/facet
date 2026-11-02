@@ -14,6 +14,7 @@ import { TranslatePipe } from '../../shared/pipes/translate.pipe';
 import { ThumbnailUrlPipe, STORED_THUMBNAIL_EDGE } from '../../shared/pipes/thumbnail-url.pipe';
 import { I18N, i18nKeys } from '../../core/i18n/keys';
 import type { MediaCritiqueResponse } from '../../core/api/types';
+import { ContextHelpComponent } from '../../shared/components/context-help/context-help.component';
 
 interface FaceMarker {
   bbox: number[] | null;
@@ -40,9 +41,9 @@ type CritiqueResponse = Omit<MediaCritiqueResponse, 'penalties'> & {
 export class ContributionColorPipe implements PipeTransform {
   transform(value: number, weight: number): string {
     const score = weight > 0 ? value / weight : 0;
-    if (score >= 7.5) return 'text-green-400';
-    if (score < 5.0) return 'text-red-400';
-    return 'text-[var(--mat-sys-primary)]';
+    if (score >= 7.5) return 'text-[var(--mat-sys-primary)]';
+    if (score < 5.0) return 'text-[var(--mat-sys-error)]';
+    return 'text-[var(--mat-sys-on-surface)]';
   }
 }
 
@@ -135,17 +136,18 @@ const STORED_EDGE = STORED_THUMBNAIL_EDGE;
   selector: 'app-photo-analysis',
   standalone: true,
   imports: [
-    MatButtonModule, MatIconModule, MatProgressSpinnerModule,
+    MatButtonModule, MatIconModule, MatProgressSpinnerModule, ContextHelpComponent,
     DecimalPipe, PercentPipe, TranslatePipe, ThumbnailUrlPipe, ContributionColorPipe, CategoryReasonPipe, MismatchReasonPipe, DistortionLabelPipe,
   ],
   changeDetection: ChangeDetectionStrategy.Eager,
+  host: { class: '@container block min-w-0' },
   template: `
       @if (loading()) {
         <div class="flex items-center justify-center py-8">
           <mat-spinner diameter="32" [attr.aria-label]="I18N.ui.labels.loading | translate" />
         </div>
       } @else if (error(); as e) {
-        <div class="flex flex-col items-center gap-2 py-8 text-red-400">
+        <div class="flex flex-col items-center gap-2 py-8 text-[var(--mat-sys-error)]">
           <mat-icon class="!text-4xl !w-10 !h-10">error_outline</mat-icon>
           <p class="text-sm">{{ e }}</p>
           <button mat-button data-analysis-retry (click)="retry()">{{ I18N.gallery.load_error.retry | translate }}</button>
@@ -181,10 +183,11 @@ const STORED_EDGE = STORED_THUMBNAIL_EDGE;
 
         <!-- Category reason -->
         <div class="text-sm mb-4 p-3 rounded-lg bg-[var(--mat-sys-surface-container)]">
-          <div class="text-xs uppercase tracking-wider opacity-50 mb-1">{{ I18N.critique.category_reason | translate }}</div>
+          <div class="text-xs font-medium text-[var(--mat-sys-on-surface-variant)] mb-1">{{ I18N.critique.category_reason | translate }}</div>
           <div>{{ c.category_reason | categoryReason }}</div>
           @if (c.category_reason.rejected?.length) {
-            <button class="mt-2 text-xs opacity-50 hover:opacity-80 flex items-center gap-1 cursor-pointer"
+            <button class="mt-2 text-xs text-[var(--mat-sys-on-surface-variant)] hover:underline flex items-center gap-1 cursor-pointer"
+                    [attr.aria-expanded]="showRejected()"
                     (click)="showRejected.set(!showRejected())">
               <mat-icon class="!text-sm !w-4 !h-4 !leading-4">{{ showRejected() ? 'expand_less' : 'expand_more' }}</mat-icon>
               {{ I18N.critique.reason.rejected_header | translate:{ count: '' + c.category_reason.rejected!.length } }}
@@ -192,10 +195,10 @@ const STORED_EDGE = STORED_THUMBNAIL_EDGE;
             @if (showRejected()) {
               <ul class="mt-1 space-y-0.5 text-xs">
                 @for (r of c.category_reason.rejected; track r.category) {
-                  <li class="flex items-center gap-1.5 opacity-70">
-                    <mat-icon class="!text-xs !w-3.5 !h-3.5 !leading-3.5 text-red-400/60 shrink-0">close</mat-icon>
+                  <li class="flex items-center gap-1.5">
+                    <mat-icon class="!text-xs !w-3.5 !h-3.5 !leading-3.5 text-[var(--mat-sys-error)] shrink-0">close</mat-icon>
                     <span class="font-medium">{{ r.category }}</span>
-                    <span class="opacity-60">— {{ r.mismatch | mismatchReason }}</span>
+                    <span class="text-[var(--mat-sys-on-surface-variant)]">— {{ r.mismatch | mismatchReason }}</span>
                   </li>
                 }
               </ul>
@@ -211,31 +214,36 @@ const STORED_EDGE = STORED_THUMBNAIL_EDGE;
             @else { {{ I18N.critique.stored_unavailable | translate }} }
           </div>
           @if (c.current_formula_score !== null && c.current_formula_score !== undefined) {
-            <p class="text-xs opacity-60">{{ I18N.critique.calculation_note | translate }}</p>
-            @if (c.normalization_basis; as basis) {
-              <p class="text-xs opacity-60" data-testid="normalization-basis">{{ 'critique.normalization_basis.' + basis | translate }}</p>
-            }
+            <app-context-help [label]="I18N.critique.current_formula" [keys]="calculationHelp()" />
             @if (c.stored_score_matches_current_formula === false) {
-              <p class="text-xs text-amber-400">{{ I18N.critique.different_score | translate }}</p>
+              <p class="text-xs text-[var(--mat-sys-on-surface)]">{{ I18N.critique.different_score | translate }}</p>
             }
           } @else {
             @if (c.explanation_unavailable_reason; as reason) {
-              <p class="text-xs opacity-60" data-testid="unavailable-reason">{{ 'critique.unavailable_reason.' + reason | translate }}</p>
+              <p class="text-xs text-[var(--mat-sys-on-surface-variant)]" data-testid="unavailable-reason">{{ 'critique.unavailable_reason.' + reason | translate }}</p>
             } @else {
-              <p class="text-xs opacity-60">{{ I18N.critique.calculation_unavailable | translate }}</p>
+              <p class="text-xs text-[var(--mat-sys-on-surface-variant)]">{{ I18N.critique.calculation_unavailable | translate }}</p>
             }
           }
         </div>
 
         <!-- Score breakdown table -->
-        <div class="text-xs uppercase tracking-wider opacity-50 mb-2">{{ I18N.critique.breakdown | translate }}</div>
-        <table class="w-full text-sm mb-4">
+        <div class="text-xs font-medium text-[var(--mat-sys-on-surface-variant)] mb-2">{{ I18N.critique.breakdown | translate }}</div>
+        <table class="w-full table-fixed text-sm mb-4" [attr.aria-label]="I18N.critique.breakdown | translate">
+          <thead class="text-xs text-[var(--mat-sys-on-surface-variant)]">
+            <tr>
+              <th scope="col" class="w-[40%] pb-2 text-start font-medium">{{ I18N.critique.metric | translate }}</th>
+              <th scope="col" class="pb-2 text-end font-medium break-words">{{ I18N.critique.value | translate }}</th>
+              <th scope="col" class="pb-2 text-end font-medium break-words">{{ I18N.critique.weight | translate }}</th>
+              <th scope="col" class="pb-2 text-end font-medium break-words">{{ I18N.critique.contribution_label | translate }}</th>
+            </tr>
+          </thead>
           <tbody>
             @for (item of c.breakdown; track item.metric_key) {
               <tr class="border-b border-[var(--mat-sys-outline-variant)]/30">
-                <td class="py-1">{{ 'critique.metrics.' + item.metric_key | translate }}</td>
+                <th scope="row" class="py-2 pe-2 text-start font-normal break-words">{{ 'critique.metrics.' + item.metric_key | translate }}</th>
                 <td class="text-right py-1" [class]="item.value | contributionColor:1">{{ item.value }}</td>
-                <td class="text-right py-1 opacity-60">{{ item.weight | percent:'1.0-0' }}</td>
+                <td class="text-right py-1 text-[var(--mat-sys-on-surface-variant)]">{{ item.weight | percent:'1.0-0' }}</td>
                 <td class="text-right py-1 font-medium" [class]="item.contribution | contributionColor:item.weight">{{ item.contribution | number:'1.2-2' }}</td>
               </tr>
             }
@@ -252,14 +260,14 @@ const STORED_EDGE = STORED_THUMBNAIL_EDGE;
 
         <!-- Strengths & Weaknesses side by side -->
         @if (c.strengths?.length || c.weaknesses?.length) {
-          <div class="grid grid-cols-2 gap-4 mb-3">
+          <div class="grid grid-cols-1 gap-3 mb-3 @min-[440px]:grid-cols-2">
             <div>
               @if (c.strengths?.length) {
-                <div class="text-xs uppercase tracking-wider text-green-400 mb-1">{{ I18N.critique.strengths | translate }}</div>
+                <div class="text-xs uppercase tracking-wider text-[var(--mat-sys-primary)] mb-1">{{ I18N.critique.strengths | translate }}</div>
                 <ul class="text-sm space-y-0.5">
                   @for (s of c.strengths; track s.metric_key) {
                     <li class="flex items-center gap-1.5">
-                      <mat-icon class="!text-sm !w-4 !h-4 !leading-4 text-green-400 shrink-0">check_circle</mat-icon>
+                      <mat-icon class="!text-sm !w-4 !h-4 !leading-4 text-[var(--mat-sys-primary)] shrink-0">check_circle</mat-icon>
                       {{ 'critique.metrics.' + s.metric_key | translate }} ({{ s.value }})
                     </li>
                   }
@@ -268,11 +276,11 @@ const STORED_EDGE = STORED_THUMBNAIL_EDGE;
             </div>
             <div>
               @if (c.weaknesses?.length) {
-                <div class="text-xs uppercase tracking-wider text-red-400 mb-1">{{ I18N.critique.weaknesses | translate }}</div>
+                <div class="text-xs uppercase tracking-wider text-[var(--mat-sys-error)] mb-1">{{ I18N.critique.weaknesses | translate }}</div>
                 <ul class="text-sm space-y-0.5">
                   @for (w of c.weaknesses; track w.metric_key) {
                     <li class="flex items-center gap-1.5">
-                      <mat-icon class="!text-sm !w-4 !h-4 !leading-4 text-red-400 shrink-0">warning</mat-icon>
+                      <mat-icon class="!text-sm !w-4 !h-4 !leading-4 text-[var(--mat-sys-error)] shrink-0">warning</mat-icon>
                       {{ 'critique.metrics.' + w.metric_key | translate }} ({{ w.value }})
                     </li>
                   }
@@ -285,10 +293,10 @@ const STORED_EDGE = STORED_THUMBNAIL_EDGE;
         <!-- Detected distortions (advisory, zero-shot) -->
         @if (c.distortions?.length) {
           <div class="mb-3">
-            <div class="text-xs uppercase tracking-wider text-amber-400 mb-1">{{ I18N.critique.distortions | translate }}</div>
+            <div class="text-xs uppercase tracking-wider text-[var(--mat-sys-on-surface)] mb-1">{{ I18N.critique.distortions | translate }}</div>
             <div class="flex flex-wrap gap-1.5">
               @for (d of c.distortions; track d) {
-                <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs bg-amber-400/10 text-amber-400">
+                <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs bg-amber-400/10 text-[var(--mat-sys-on-surface)]">
                   <mat-icon class="!text-xs !w-3.5 !h-3.5 !leading-3.5">warning_amber</mat-icon>
                   {{ d | distortionLabel }}
                 </span>
@@ -300,11 +308,11 @@ const STORED_EDGE = STORED_THUMBNAIL_EDGE;
         <!-- Suggestions -->
         @if (c.suggestions?.length) {
           <div class="mb-3">
-            <div class="text-xs uppercase tracking-wider opacity-50 mb-1">{{ I18N.critique.suggestions | translate }}</div>
+            <div class="text-xs font-medium text-[var(--mat-sys-on-surface-variant)] mb-1">{{ I18N.critique.suggestions | translate }}</div>
             <ul class="text-sm space-y-0.5">
               @for (tip of c.suggestions; track tip) {
                 <li class="flex items-center gap-1.5">
-                  <mat-icon class="!text-sm !w-4 !h-4 !leading-4 text-blue-400 shrink-0">lightbulb</mat-icon>
+                  <mat-icon class="!text-sm !w-4 !h-4 !leading-4 text-[var(--mat-sys-primary)] shrink-0">lightbulb</mat-icon>
                   {{ 'critique.suggestion.' + tip | translate }}
                 </li>
               }
@@ -315,15 +323,15 @@ const STORED_EDGE = STORED_THUMBNAIL_EDGE;
         <!-- VLM Critique -->
         @if (c.vlm_critique) {
           @if (c.vlm_source === 'cached') {
-            <p class="text-xs opacity-60">{{ I18N.critique.cached_commentary | translate }}</p>
+            <p class="text-xs text-[var(--mat-sys-on-surface-variant)]">{{ I18N.critique.cached_commentary | translate }}</p>
           }
           <div class="mt-4 p-3 rounded-lg bg-[var(--mat-sys-surface-container)]">
             <div class="flex items-center mb-1">
-              <div class="flex-1 text-xs uppercase tracking-wider opacity-50">{{ I18N.critique.vlm_title | translate }}</div>
+              <div class="flex-1 text-xs font-medium text-[var(--mat-sys-on-surface-variant)]">{{ I18N.critique.vlm_title | translate }}</div>
               @if (vlmRefreshing()) {
                 <mat-spinner diameter="16" [attr.aria-label]="I18N.ui.labels.loading | translate" />
               } @else if (auth.isEdition() && vlmAvailable()) {
-                <button mat-icon-button class="!w-6 !h-6 !p-0 opacity-50 hover:opacity-90"
+                <button mat-icon-button class="!min-w-11 !min-h-11 shrink-0"
                         [attr.aria-label]="I18N.critique.vlm_refresh | translate"
                         [title]="I18N.critique.vlm_refresh | translate"
                         (click)="refreshVlm()">
@@ -344,10 +352,10 @@ const STORED_EDGE = STORED_THUMBNAIL_EDGE;
 
         <!-- Penalties -->
         @if (hasPenalties()) {
-          <div class="mt-3 text-xs opacity-60">
+          <div class="mt-3 text-xs text-[var(--mat-sys-on-surface-variant)]">
             <span class="uppercase tracking-wider">{{ I18N.critique.advisories | translate }}:</span>
-            @if (c.penalties.blink) { <span class="ml-2 text-red-400">{{ I18N.critique.penalty.blink | translate }}</span> }
-            @if (skinTone(); as st) { <span class="ml-2 text-amber-400">{{ I18N.critique.penalty.skin_tone | translate:{ cast: ('critique.skin_cast.' + st.cast | translate), delta: '' + st.delta } }}</span> }
+            @if (c.penalties.blink) { <span class="ml-2 text-[var(--mat-sys-error)]">{{ I18N.critique.penalty.blink | translate }}</span> }
+            @if (skinTone(); as st) { <span class="ml-2 text-[var(--mat-sys-on-surface)]">{{ I18N.critique.penalty.skin_tone | translate:{ cast: ('critique.skin_cast.' + st.cast | translate), delta: '' + st.delta } }}</span> }
           </div>
         }
       }
@@ -420,6 +428,12 @@ export class PhotoAnalysisComponent {
 
   protected readonly loading = signal(true);
   protected readonly critique = signal<CritiqueResponse | null>(null);
+  protected readonly calculationHelp = computed(() => {
+    const basis = this.critique()?.normalization_basis;
+    return basis
+      ? [I18N.critique.calculation_note, `critique.normalization_basis.${basis}`]
+      : [I18N.critique.calculation_note];
+  });
   protected readonly error = signal<string | null>(null);
   protected readonly showRejected = signal(false);
   protected readonly overlayOn = signal(false);
