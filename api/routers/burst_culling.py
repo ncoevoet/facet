@@ -311,16 +311,10 @@ def attach_user_marks(conn, groups, user_id):
     paths = [p['path'] for g in groups for p in g.get('photos') or [] if p.get('path')]
     if not paths:
         return
-    from_clause, from_params = get_photos_from_clause(user_id)
-    cols = get_preference_columns(user_id)
-    marks = {
-        row[0]: (row[1] or 0, row[2] or 0, row[3] or 0, row[4] or 0)
-        for row in select_in_chunks(
-            conn,
-            f"SELECT photos.path, {cols['is_rejected']}, {cols['is_favorite']}, {cols['star_rating']}, {cols['is_kept']} "
-            f"FROM {from_clause} WHERE photos.path IN ({{placeholders}})",
-            set(paths), before=from_params)
-    }
+    from api.logical_culling import read_culling_labels
+    labels = read_culling_labels(conn, user_id, set(paths), include_kept=True)
+    marks = {path: (value.rejected, value.favorite, value.star, value.kept)
+             for path, value in labels.items()}
     for group in groups:
         for photo in group.get('photos') or []:
             rejected, favorite, rating, kept = marks.get(photo.get('path'), (0, 0, 0, 0))
@@ -510,7 +504,80 @@ def _group_sequence_kind(photos):
 
 # --- Shared burst query logic ---
 
+@dataclass(frozen=True)
+class _LogicalBurstSelection:
+    source_sql: str
+    source_params: list
+    member_where: str
+    member_params: list
+    groups_sql: str
+    group_params: list
+
+
+def _logical_burst_selection(conn, user_id, vis_sql, vis_params, exclude_rejected,
+                             album_id=None, date_from=None, date_to=None):
+    from api.logical_culling import has_groups
+    if not has_groups(conn):
+        return None
+    from api.logical_collection import source, membership
+    columns = list(dict.fromkeys(['path', *_CULLING_PHOTO_COLS, 'star_rating', 'is_favorite',
+                                 'is_kept', 'is_rejected', 'is_burst_lead', 'burst_group_id', 'burst_reviewed']))
+    personal = is_multi_user_enabled()
+    collection = source(columns, owner=(user_id or '') if personal else '', multi_user=personal,
+                        visibility_sql=vis_sql, visibility_params=vis_params)
+    album_sql, album_params = album_filter_clause(album_id)
+    if album_params:
+        selected = membership('SELECT photo_path FROM album_photos WHERE album_id=?', album_params)
+        album_sql, album_params = selected.sql, selected.params
+    window, window_params = time_window_clauses(date_from, date_to)
+    qualifier = ' AND '.join(['burst_reviewed IS NOT 1', *window])
+    member_where = f'burst_group_id IS NOT NULL AND ({vis_sql}) AND ({album_sql})'
+    if exclude_rejected:
+        member_where += ' AND COALESCE(photos.is_rejected,0)=0'
+    member_params = [*vis_params, *album_params]
+    # A window qualifies a group; its tail remains available outside the window.
+    # Count complete logical membership before deciding whether the group exists.
+    groups_sql = (f'SELECT burst_group_id FROM {collection.sql} WHERE {member_where} '
+                  f'GROUP BY burst_group_id HAVING COUNT(*)>=2 AND MAX(CASE WHEN {qualifier} THEN 1 ELSE 0 END)=1')
+    return _LogicalBurstSelection(collection.sql, collection.params, member_where, member_params,
+                                  groups_sql, [*collection.params, *member_params, *window_params])
+
+
+def _query_logical_bursts(conn, selection, page, per_page):
+    total = conn.execute(f'SELECT COUNT(*) FROM ({selection.groups_sql})', selection.group_params).fetchone()[0]
+    ordered = selection.groups_sql + ' ORDER BY burst_group_id'
+    params = list(selection.group_params)
+    pages = 1
+    if page is not None and per_page is not None:
+        pages, offset = paginate(total, page, per_page)
+        ordered += ' LIMIT ? OFFSET ?'
+        params.extend([per_page, offset])
+    ids = [row[0] for row in conn.execute(ordered, params)]
+    if not ids:
+        return [], total, pages
+    placeholders = ','.join('?' for _ in ids)
+    rows = conn.execute(
+        f'SELECT {_culling_photo_columns("photos.path", burst=True)} FROM {selection.source_sql} '
+        f'WHERE {selection.member_where} AND burst_group_id IN ({placeholders}) ORDER BY burst_group_id,date_taken,photos.path',
+        [*selection.source_params, *selection.member_params, *ids]).fetchall()
+    groups = [_format_group([dict(row) for row in members], key)
+              for key, members in groupby(rows, key=lambda row: row['burst_group_id'])]
+    return groups, total, pages
+
+
 def _query_burst_groups(conn, vis_sql, vis_params, page=None, per_page=None, exclude_rejected=False,
+                        user_id=None, album_id=None, date_from=None, date_to=None):
+    from comparison.training_scope import read_snapshot
+    with read_snapshot(conn):
+        logical = _logical_burst_selection(conn, user_id, vis_sql, vis_params, exclude_rejected,
+                                           album_id, date_from, date_to)
+        if logical is not None:
+            return _query_logical_bursts(conn, logical, page, per_page)
+        return _query_physical_burst_groups(conn, vis_sql, vis_params, page, per_page, exclude_rejected,
+                                            user_id, album_id, date_from, date_to)
+
+
+def _query_physical_burst_groups(conn, vis_sql, vis_params, page=None, per_page=None, exclude_rejected=False,
                         user_id=None, album_id=None, date_from=None, date_to=None):
     """Query unreviewed burst groups and their photos.
 
@@ -610,7 +677,7 @@ def get_burst_groups(
             user_id = user.user_id if user else None
             vis_sql, vis_params = get_visibility_clause(user_id)
             formatted, total_groups, total_pages = _query_burst_groups(
-                conn, vis_sql, vis_params, page=page, per_page=per_page,
+                conn, vis_sql, vis_params, page=page, per_page=per_page, user_id=user_id,
             )
             return {
                 'groups': formatted,
@@ -1580,7 +1647,9 @@ def api_culling_groups(
                              user_id, album_id, date_from, date_to, group_by,
                              _library_change_token(conn))
                 now = time.time()
-                cached_groups, generation = _cached_culling_groups(cache_key, now)
+                from api.logical_culling import has_groups
+                cacheable = not has_groups(conn)
+                cached_groups, generation = _cached_culling_groups(cache_key, now) if cacheable else (None, None)
                 if cached_groups is not None:
                     all_groups = cached_groups
                 elif group_by in _KEEP_WHOLE_KINDS:
@@ -1610,7 +1679,8 @@ def api_culling_groups(
                                     reverse=_culling_sort_reverse(sort, direction))
                     if sort == 'chronological':
                         _order_group_photos_by_capture(all_groups)
-                    _store_culling_groups(cache_key, now, all_groups, generation)
+                    if cacheable:
+                        _store_culling_groups(cache_key, now, all_groups, generation)
                 else:
                     burst_groups = []
                     if group_by in ('all', 'burst'):
@@ -1650,7 +1720,8 @@ def api_culling_groups(
                     if sort == 'chronological':
                         _order_group_photos_by_capture(all_groups)
 
-                    _store_culling_groups(cache_key, now, all_groups, generation)
+                    if cacheable:
+                        _store_culling_groups(cache_key, now, all_groups, generation)
 
             total_groups = len(all_groups)
             total_pages, offset = paginate(total_groups, page, per_page)
