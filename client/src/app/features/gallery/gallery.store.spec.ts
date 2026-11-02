@@ -91,6 +91,7 @@ describe('GalleryStore', () => {
   let authIdentity: ReturnType<typeof signal<string>>;
 
   beforeEach(() => {
+    localStorage.clear();
     authIdentity = signal('0|');
     apiGet = vi.fn();
     apiPost = vi.fn(() => of({}));
@@ -1908,6 +1909,15 @@ describe('gallery session query (nav-icon return)', () => {
     });
   });
 
+  it('does not clear newer type counts when an older count request fails', async () => {
+    const previous = new Subject<object>();
+    apiGet.mockReturnValueOnce(previous).mockReturnValueOnce(of({ types: [{ id: 'portrait', label: 'Portrait', count: 2 }] }));
+    const oldLoad = store.loadTypeCounts();
+    await store.loadTypeCounts();
+    previous.error(new Error('old read failed')); await oldLoad;
+    expect(store.types()).toEqual([{ id: 'portrait', label: 'Portrait', count: 2 }]);
+  });
+
   describe('loadFilterOptions()', () => {
     it('should load all options in parallel', async () => {
       apiGet.mockImplementation((path: string) => {
@@ -1938,6 +1948,107 @@ describe('gallery session query (nav-icon return)', () => {
       expect(store.tags()).toEqual([{ value: 'landscape', count: 20 }]);
       expect(store.persons()).toEqual([{ id: 1, name: 'Alice', face_count: 15 }]);
       expect(store.patterns()).toEqual([{ value: 'rule_of_thirds', count: 40 }]);
+    });
+
+    it('does not replace the next account options with a late previous-account response', async () => {
+      const previous = new Subject<{ cameras: [string, number][] }>();
+      apiGet.mockImplementation((path: string) => path === '/filter_options/cameras' ? previous : of({}));
+      const oldLoad = store.loadFilterOptions();
+      authIdentity.set('bob');
+      apiGet.mockImplementation((path: string) => of(path === '/filter_options/cameras' ? { cameras: [['Bob camera', 1]] } : {}));
+      await store.loadFilterOptions();
+      previous.next({ cameras: [['Alice private camera', 50]] }); previous.complete(); await oldLoad;
+      expect(store.cameras()).toEqual([{ value: 'Bob camera', count: 1 }]);
+    });
+
+    it('does not let an older full option load undo a later person-only refresh', async () => {
+      const previous = new Subject<{ persons: [number, string, number][] }>();
+      apiGet.mockImplementation((path: string) => path === '/filter_options/persons' ? previous : of({}));
+      const oldLoad = store.loadFilterOptions();
+      apiGet.mockReturnValue(of({ persons: [[1, 'Renamed person', 3]] }));
+      await store.reloadPersonOptions();
+      previous.next({ persons: [[1, 'Old name', 3]] }); previous.complete(); await oldLoad;
+      expect(store.persons()).toEqual([{ id: 1, name: 'Renamed person', face_count: 3 }]);
+    });
+
+    it('clears previously loaded private options and ranges on an account change', () => {
+      TestBed.tick();
+      store.cameras.set([{ value: 'Alice camera', count: 10 }]);
+      store.persons.set([{ id: 1, name: 'Alice person', face_count: 10 }]);
+      store.metricRanges.set({ min_aesthetic: { column: 'aesthetic', min: 1, max: 9, buckets: [1] } });
+      authIdentity.set('bob'); TestBed.tick();
+      expect(store.cameras()).toEqual([]); expect(store.persons()).toEqual([]); expect(store.metricRanges()).toEqual({});
+    });
+
+    it('refuses stale options after credentials change without changing the account identity', async () => {
+      const previous = new Subject<object>();
+      apiGet.mockImplementation((path: string) => path === '/filter_options/cameras' ? previous : of({}));
+      const oldLoad = store.loadFilterOptions();
+      const auth = TestBed.inject(AuthService);
+      auth.status.set({ ...auth.status()!, edition_authenticated: false });
+      apiGet.mockImplementation((path: string) => of(path === '/filter_options/cameras' ? { cameras: [['Current scope', 1]] } : {}));
+      await store.loadFilterOptions();
+      previous.next({ cameras: [['Previous scope', 50]] }); previous.complete(); await oldLoad;
+      expect(store.cameras()).toEqual([{ value: 'Current scope', count: 1 }]);
+    });
+
+    it('retains a newly created person when a preceding options request completes', async () => {
+      const previous = new Subject<object>();
+      apiGet.mockImplementation((path: string) => path === '/filter_options/persons' ? previous : of({}));
+      const oldLoad = store.loadFilterOptions();
+      apiPost.mockReturnValue(of({ id: 4, name: 'New person', face_count: 0 }));
+      expect(await store.createPerson('New person')).not.toBeNull();
+      previous.next({ persons: [[1, 'Old catalog', 3]] }); previous.complete(); await oldLoad;
+      expect(store.persons()).toEqual([{ id: 4, name: 'New person', face_count: 0 }]);
+    });
+
+    it('refreshes active dropdowns after a session transition instead of leaving them empty', async () => {
+      TestBed.tick();
+      apiGet.mockImplementation((path: string) => of(path === '/filter_options/cameras' ? { cameras: [['Before', 1]] } : {}));
+      await store.loadFilterOptions();
+      apiGet.mockImplementation((path: string) => of(path === '/filter_options/cameras' ? { cameras: [['After', 2]] } : {}));
+      const reload = vi.spyOn(store, 'loadFilterOptions');
+      TestBed.inject(AuthService).status.set({ ...TestBed.inject(AuthService).status()!, edition_authenticated: false });
+      TestBed.tick();
+      expect(reload).toHaveBeenCalledTimes(1);
+      await reload.mock.results[0].value;
+      expect(store.cameras()).toEqual([{ value: 'After', count: 2 }]);
+    });
+
+    it('retains refresh debt for other families when a metric read observes the new session first', async () => {
+      TestBed.tick();
+      apiGet.mockImplementation((path: string) => of(path === '/type_counts' ? { types: [] }
+        : path === '/filter_options/cameras' ? { cameras: [['Before', 1]] } : {}));
+      await Promise.all([store.loadFilterOptions(), store.loadTypeCounts()]);
+      const reloadOptions = vi.spyOn(store, 'loadFilterOptions'), reloadTypes = vi.spyOn(store, 'loadTypeCounts');
+      apiGet.mockImplementation((path: string) => of(path === '/type_counts' ? { types: [] }
+        : path === '/filter_options/cameras' ? { cameras: [['After', 2]] } : {}));
+      TestBed.inject(AuthService).status.set({ ...TestBed.inject(AuthService).status()!, edition_authenticated: false });
+      const rangeRead = store.ensureMetricRanges();
+      TestBed.tick();
+      expect(reloadOptions).toHaveBeenCalledTimes(1); expect(reloadTypes).toHaveBeenCalledTimes(1);
+      await Promise.all([rangeRead, reloadOptions.mock.results[0].value, reloadTypes.mock.results[0].value]);
+      expect(store.cameras()).toEqual([{ value: 'After', count: 2 }]);
+    });
+
+    it('keeps parked dropdown reads stopped during session changes while refreshing photo metric ranges', async () => {
+      TestBed.tick();
+      apiGet.mockReturnValue(of({})); await store.loadFilterOptions();
+      store.parkListingReads(); apiGet.mockClear();
+      TestBed.inject(AuthService).status.set({ ...TestBed.inject(AuthService).status()!, edition_authenticated: false });
+      TestBed.tick(); await store.ensureMetricRanges();
+      expect(apiGet.mock.calls.map(call => call[0])).toEqual(['/filter_options/metric_ranges']);
+    });
+
+    it('cancels pending option reads when the store is destroyed', async () => {
+      const previous = new Subject<object>();
+      apiGet.mockImplementation((path: string) => path === '/filter_options/cameras' ? previous : of({}));
+      const oldLoad = store.loadFilterOptions();
+      expect(previous.observed).toBe(true);
+      TestBed.resetTestingModule(); await oldLoad;
+      expect(previous.observed).toBe(false);
+      previous.next({ cameras: [['Obsolete', 50]] }); previous.complete();
+      expect(store.cameras()).toEqual([]);
     });
 
     it('should use empty array for individual failures', async () => {
@@ -2005,6 +2116,21 @@ describe('gallery session query (nav-icon return)', () => {
       await Promise.all([store.ensureMetricRanges(), store.ensureMetricRanges()]);
       expect(apiGet.mock.calls.filter(c => c[0] === '/filter_options/metric_ranges')).toHaveLength(1);
       expect(store.metricRangesByColumn()).toEqual({ aesthetic: range });
+    });
+
+    it('starts a new account range request and keeps it coalesced when the old request settles', async () => {
+      const previous = new Subject<object>(), current = new Subject<object>();
+      apiGet.mockReturnValueOnce(previous).mockReturnValueOnce(current);
+      const oldLoad = store.ensureMetricRanges();
+      authIdentity.set('bob');
+      const newLoad = store.ensureMetricRanges();
+      await oldLoad;
+      const sameLoad = store.ensureMetricRanges();
+      expect(apiGet.mock.calls.filter(c => c[0] === '/filter_options/metric_ranges')).toHaveLength(2);
+      previous.next({ ranges: { min_aesthetic: range } }); previous.complete();
+      current.next({ ranges: { min_aesthetic: { ...range, min: 4 } } }); current.complete();
+      await Promise.all([newLoad, sameLoad]);
+      expect(store.metricRangesByColumn()).toEqual({ aesthetic: { ...range, min: 4 } });
     });
 
     it('does not refetch ranges the gallery already loaded', async () => {
@@ -2154,11 +2280,11 @@ describe('gallery session query (nav-icon return)', () => {
       apiGet.mockReturnValue(of(makePhotosResponse()));
     });
 
-    it('should only include non-default params in URL, plus the always-written sort', async () => {
+    it('writes visibility and type defaults explicitly so reopened links retain the view', async () => {
       await store.updateFilter('camera', 'Canon');
 
       expect(routerNavigate).toHaveBeenCalledWith([], {
-        queryParams: { sort: 'aggregate', camera: 'Canon' },
+        queryParams: { sort: 'aggregate', camera: 'Canon', type: '', hide_blinks: 'true', hide_bursts: 'true', hide_duplicates: 'true', hide_brackets: 'true', hide_panoramas: 'true', hide_rejected: 'true', favorites_only: 'false', is_monochrome: 'false' },
         replaceUrl: true,
       });
     });
@@ -2187,14 +2313,14 @@ describe('gallery session query (nav-icon return)', () => {
       });
     });
 
-    it('should not include hide_blinks when it matches config default', async () => {
+    it('writes hide_blinks even when it matches the current config default', async () => {
       const cfg = makeConfig();
       store.config.set(cfg);
 
       await store.updateFilter('camera', 'Canon');
 
       const params = routerNavigate.mock.calls[0][1].queryParams;
-      expect(params).not.toHaveProperty('hide_blinks');
+      expect(params).toHaveProperty('hide_blinks', 'true');
     });
   });
   describe('refreshPaths (assistant writes, in place)', () => {
@@ -2298,11 +2424,11 @@ describe('gallery session query (nav-icon return)', () => {
         for (const key of ['page', 'per_page', 'sort', 'sort_direction']) expect(body.filters).not.toHaveProperty(key);
       });
 
-      it('sends the viewer default type explicitly when the filter has none', async () => {
+      it('preserves explicit All Photos rather than substituting the viewer default type', async () => {
         store.config.set(makeConfig({ defaults: { ...makeConfig().defaults, type: 'top_picks' } }));
         store.filters.update(f => ({ ...f, type: '' }));
         await store.refreshPaths(['/p1.jpg']);
-        expect(byPathsBodies()[0].filters).toMatchObject({ type: 'top_picks' });
+        expect(byPathsBodies()[0].filters).toMatchObject({ type: '' });
       });
 
       it('chunks 600 loaded paths into two requests of at most 500', async () => {

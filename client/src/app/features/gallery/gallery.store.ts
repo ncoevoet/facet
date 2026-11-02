@@ -284,6 +284,8 @@ const BATCH_ACTIVITY: Record<string, { kind: UserActivityKind; value: (extra: Re
   '/photos/batch_rating': { kind: 'rating', value: extra => extra['rating'] ?? null },
 };
 
+type FilterReadFamily = 'types' | 'options' | 'persons' | 'ranges';
+
 @Injectable({ providedIn: 'root' })
 export class GalleryStore {
   private api = inject(ApiService);
@@ -295,6 +297,12 @@ export class GalleryStore {
   /** An Organization history restore landed; a view holding its own photo copy refetches it. */
   readonly organizationRestored$ = this.organizationRestoredSubject.asObservable();
   private readOwner = this.auth.identity();
+  private filterReadScope = { owner: this.auth.identity(), status: this.auth.status(), token: this.auth.token };
+  private readonly filterReadCancelled = new Subject<void>();
+  private filterOptionsSeq = 0;
+  private typeOptionsSeq = 0;
+  private personOptionsSeq = 0;
+  private readonly filterFamilyScopes = new Map<FilterReadFamily, typeof this.filterReadScope>();
   private listingReadsActive = true;
   private listingViewParked = false;
   private listingRefreshOwed = false;
@@ -916,10 +924,22 @@ export class GalleryStore {
   readonly activeFilterCount = computed(() => countActiveFilters(this.filters()));
 
   constructor() {
-    this.destroyRef.onDestroy(() => this.cancelListingReads());
+    this.destroyRef.onDestroy(() => { this.cancelListingReads(); this.filterReadCancelled.next(); });
     effect(() => {
       const owner = this.auth.identity();
-      untracked(() => this.syncReadOwner(owner));
+      this.auth.status();
+      untracked(() => {
+        this.syncReadOwner(owner);
+        this.syncFilterReadScope();
+        const status = this.auth.status();
+        if (!status || !status.authenticated && status.login_password_required) return;
+        if (this.listingReadsActive && !this.listingViewParked) {
+          if (this.needsFilterRefresh('types')) void this.loadTypeCounts();
+          if (this.needsFilterRefresh('options')) void this.loadFilterOptions();
+          else if (this.needsFilterRefresh('persons')) void this.reloadPersonOptions();
+        }
+        if (this.needsFilterRefresh('ranges')) void this.ensureMetricRanges();
+      });
     });
     effect(() => { this.auth.identity(); untracked(() => this.clearForeignReviewedPhotos()); });
     this.router.events.pipe(takeUntilDestroyed()).subscribe(event => {
@@ -1886,24 +1906,54 @@ export class GalleryStore {
 
   private metricRangesLoad: Promise<void> | null = null;
 
+  private syncFilterReadScope(): void {
+    const next = { owner: this.auth.identity(), status: this.auth.status(), token: this.auth.token };
+    const old = this.filterReadScope;
+    if (old.owner === next.owner && old.status === next.status && old.token === next.token) return;
+    this.filterReadScope = next;
+    this.filterReadCancelled.next();
+    this.metricRangesLoad = null;
+    this.types.set([]); this.cameras.set([]); this.lenses.set([]); this.tags.set([]);
+    this.persons.set([]); this.patterns.set([]); this.colorTemps.set([]); this.hueBuckets.set([]);
+    this.metricRanges.set({});
+  }
+
+  private needsFilterRefresh(family: FilterReadFamily): boolean {
+    const prior = this.filterFamilyScopes.get(family);
+    return !!prior && prior !== this.filterReadScope;
+  }
+
+  private currentFilterRead(scope: typeof this.filterReadScope): boolean {
+    return !this.destroyRef.destroyed && scope === this.filterReadScope
+      && scope.owner === this.auth.identity() && scope.status === this.auth.status() && scope.token === this.auth.token;
+  }
+
+
   /** Fetch a filter-option endpoint, giving up after FILTER_OPTIONS_TIMEOUT_MS. */
   private fetchFilterOption<T>(path: string, params?: Record<string, string | number | boolean>): Promise<T> {
     const request = params ? this.api.get<T>(path, params) : this.api.get<T>(path);
-    return firstValueFrom(request.pipe(timeout(FILTER_OPTIONS_TIMEOUT_MS)));
+    return firstValueFrom(request.pipe(timeout(FILTER_OPTIONS_TIMEOUT_MS), takeUntil(this.filterReadCancelled)));
   }
 
   /** Load type counts (for the type toggle bar) */
   async loadTypeCounts(): Promise<void> {
+    this.syncFilterReadScope();
+    const scope = this.filterReadScope, seq = ++this.typeOptionsSeq;
+    this.filterFamilyScopes.set('types', scope);
     try {
       const res = await this.fetchFilterOption<{types: TypeCount[]}>('/type_counts', { ...this.viewFilterParams() });
-      this.types.set(res.types.filter(t => t.id).sort((a, b) => b.count - a.count));
+      if (this.currentFilterRead(scope) && seq === this.typeOptionsSeq) this.types.set(res.types.filter(t => t.id).sort((a, b) => b.count - a.count));
     } catch {
-      this.types.set([]);
+      if (this.currentFilterRead(scope) && seq === this.typeOptionsSeq) this.types.set([]);
     }
   }
 
   /** Load all filter dropdown options in parallel */
   async loadFilterOptions(): Promise<void> {
+    this.syncFilterReadScope();
+    const scope = this.filterReadScope, seq = ++this.filterOptionsSeq, personSeq = ++this.personOptionsSeq;
+    this.filterFamilyScopes.set('options', scope);
+    this.filterFamilyScopes.set('persons', scope);
     const [camerasRes, lensesRes, tagsRes, personsRes, patternsRes, colorsRes] = await Promise.all([
       this.fetchFilterOption<{cameras: [string, number][]}>('/filter_options/cameras').catch(() => ({cameras: []})),
       this.fetchFilterOption<{lenses: [string, number][]}>('/filter_options/lenses').catch(() => ({lenses: []})),
@@ -1915,10 +1965,11 @@ export class GalleryStore {
         .catch(() => ({temps: [], hue_buckets: []})),
       this.loadMetricRanges(),
     ]);
+    if (!this.currentFilterRead(scope) || seq !== this.filterOptionsSeq) return;
     this.cameras.set((camerasRes.cameras ?? []).map(([value, count]: [string, number]) => ({value, count})));
     this.lenses.set((lensesRes.lenses ?? []).map(([value, count]: [string, number]) => ({value, count})));
     this.tags.set((tagsRes.tags ?? []).map(([value, count]: [string, number]) => ({value, count})));
-    this.persons.set(
+    if (personSeq === this.personOptionsSeq) this.persons.set(
       (personsRes.persons ?? [])
         .map(([id, name, face_count]: [number, string | null, number]) => ({id, name, face_count})),
     );
@@ -1929,24 +1980,32 @@ export class GalleryStore {
 
   /** Load the metric ranges unless they already are: a deep-linked photo page never ran the gallery's load. */
   async ensureMetricRanges(): Promise<void> {
+    this.syncFilterReadScope();
     if (Object.keys(this.metricRanges()).length) return;
     await this.loadMetricRanges();
   }
 
   /** One request at a time, shared by both loaders; a failed one keeps the ranges already shown. */
   private loadMetricRanges(): Promise<void> {
-    this.metricRangesLoad ??= this.fetchFilterOption<{ranges: Record<string, MetricDistribution>}>('/filter_options/metric_ranges')
-      .then(res => this.metricRanges.set(res.ranges ?? {}), () => undefined)
-      .finally(() => { this.metricRangesLoad = null; });
-    return this.metricRangesLoad;
+    this.syncFilterReadScope();
+    if (this.metricRangesLoad) return this.metricRangesLoad;
+    const scope = this.filterReadScope;
+    this.filterFamilyScopes.set('ranges', scope);
+    const request: Promise<void> = this.fetchFilterOption<{ranges: Record<string, MetricDistribution>}>('/filter_options/metric_ranges')
+      .then(res => { if (this.currentFilterRead(scope)) this.metricRanges.set(res.ranges ?? {}); }, () => undefined)
+      .finally(() => { if (this.metricRangesLoad === request) this.metricRangesLoad = null; });
+    this.metricRangesLoad = request;
+    return request;
   }
 
   /** Reload person dropdown without filter restriction */
   async reloadPersonOptions(): Promise<void> {
+    this.syncFilterReadScope();
+    const scope = this.filterReadScope, seq = ++this.personOptionsSeq;
+    this.filterFamilyScopes.set('persons', scope);
     try {
-      const res = await firstValueFrom(
-        this.api.get<{persons: [number, string | null, number][]}>('/filter_options/persons'),
-      );
+      const res = await this.fetchFilterOption<{persons: [number, string | null, number][]}>('/filter_options/persons');
+      if (!this.currentFilterRead(scope) || seq !== this.personOptionsSeq) return;
       this.persons.set(
         (res.persons ?? []).map(([id, name, face_count]: [number, string | null, number]) => ({id, name, face_count})),
       );
@@ -2653,6 +2712,7 @@ export class GalleryStore {
         action: 'create', person_id: res.id, name: activityName(trimmed), count: faceIds.length,
       });
       const newPerson: PersonOption = { id: res.id, name: res.name, face_count: res.face_count };
+      this.personOptionsSeq++;
       this.persons.update(list => [newPerson, ...list]);
       if (photoPath && faceIds.length > 0) {
         this.photos.update(photos =>

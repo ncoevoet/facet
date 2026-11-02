@@ -205,6 +205,17 @@ describe('GalleryFilterSidebarComponent', () => {
       expect(mockStore['updateFilter']).toHaveBeenNthCalledWith(2, 'search', 'IMG');
     });
 
+    it('clearing the filename query cancels its debounce while preserving a pending semantic query', () => {
+      vi.useFakeTimers();
+      component.onSidebarSearchChange(input('IMG_2'));
+      component.onSemanticSearch(input('sunset'));
+      component.clearSidebarSearch();
+      vi.advanceTimersByTime(1000);
+      expect(mockStore['updateFilter']).toHaveBeenCalledTimes(2);
+      expect(mockStore['updateFilter']).toHaveBeenNthCalledWith(1, 'search', '');
+      expect(mockStore['updateFilter']).toHaveBeenNthCalledWith(2, 'semanticQuery', 'sunset');
+    });
+
     it('a semantic keystroke does not cancel a pending filename update', () => {
       vi.useFakeTimers();
       const store = (component as any).store;
@@ -679,6 +690,10 @@ describe('GalleryFilterSidebarComponent', () => {
       expect(fixture.nativeElement.querySelectorAll('[data-metric="score_range"]')).toHaveLength(1);
       expect(fixture.nativeElement.querySelectorAll('#metric-help-score_range')).toHaveLength(1);
       expect(fixture.nativeElement.querySelector('[data-pinned-filters] [data-metric="score_range"]')).not.toBeNull();
+      const help = fixture.nativeElement.querySelector('[data-pins-help]') as HTMLDetailsElement;
+      expect(help.open).toBe(false);
+      help.querySelector('summary')!.click();
+      expect(help.open).toBe(true);
       component.selectTab('browse'); settle();
       expect(fixture.nativeElement.querySelectorAll('[data-metric="score_range"]')).toHaveLength(1);
       store['filters'].update((f: object) => ({ ...f, min_score: '6' })); settle();
@@ -1330,6 +1345,21 @@ describe('GalleryFilterSidebarComponent', () => {
       expect(control).toBeTruthy();
       (control.querySelector('input') as HTMLInputElement).click();
       expect(mockStore['updateFilter']).toHaveBeenCalledWith('no_gps', '1');
+    });
+
+    it('opens the filename disclosure for its keyboard shortcut and keeps the finder clear action in its input', () => {
+      fixture.componentInstance.focusSearch();
+      const filename = fixture.nativeElement.querySelector('#sidebar-filename-search') as HTMLInputElement;
+      expect(filename.closest('details')?.open).toBe(true);
+      expect(document.activeElement).toBe(filename);
+      expect(filename.type).toBe('text');
+      const finder = fixture.nativeElement.querySelector('#filter-finder-input') as HTMLInputElement;
+      expect(finder.labels?.[0]?.classList.contains('sr-only')).toBe(true);
+      finder.value = 'score'; finder.dispatchEvent(new Event('input')); fixture.detectChanges();
+      const clear = fixture.nativeElement.querySelector('[aria-label="gallery.sidebar.clear_find_filter"]') as HTMLButtonElement;
+      clear.click(); fixture.detectChanges();
+      expect(finder.value).toBe('');
+      expect(document.activeElement).toBe(finder);
     });
 
     it('uses one visible semantic heading and reveals explanatory copy only on request', () => {

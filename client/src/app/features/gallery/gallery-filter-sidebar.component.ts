@@ -280,36 +280,35 @@ export function loadActiveTab(): SidebarTabId {
       <!-- Search (visible below 2xl, hidden on 2xl+ where header search is shown) -->
       <details class="2xl:!hidden mb-1">
         <summary class="cursor-pointer py-2 text-sm text-[var(--mat-sys-on-surface-variant)]">{{ I18N.ui.filters.search | translate }}</summary>
-        <mat-form-field subscriptSizing="dynamic" class="w-full">
-          <mat-label>{{ I18N.ui.filters.search | translate }}</mat-label>
-          <mat-icon matPrefix class="mr-1 opacity-60">search</mat-icon>
-          <input matInput #sidebarSearch
-            [placeholder]="I18N.gallery.search_placeholder | translate"
-            [value]="store.filters().search"
-            (input)="onSidebarSearchChange($event)"
-            (keyup.enter)="onSidebarSearchCommit($event)" />
+        <label class="sr-only" for="sidebar-filename-search">{{ I18N.gallery.search_placeholder | translate }}</label>
+        <div class="relative min-w-0">
+          <input #sidebarSearch id="sidebar-filename-search" type="text" role="searchbox" enterkeyhint="search"
+            class="h-10 w-full min-w-0 rounded border border-[var(--mat-sys-outline)] bg-[var(--mat-sys-surface-container-lowest)] pl-3 pr-10 text-sm text-[var(--mat-sys-on-surface)] focus-visible:outline-2 focus-visible:outline-[var(--mat-sys-primary)]"
+            [placeholder]="I18N.gallery.search_placeholder | translate" [value]="store.filters().search"
+            (input)="onSidebarSearchChange($event)" (keyup.enter)="onSidebarSearchCommit($event)" />
           @if (store.filters().search) {
-            <button matSuffix mat-icon-button class="!w-6 !h-6 !p-0" (click)="store.updateFilter('search', '')" [attr.aria-label]="I18N.gallery.clear_search | translate">
-              <mat-icon class="!text-sm !w-4 !h-4">close</mat-icon>
+            <button type="button" class="absolute inset-y-0 right-0 flex w-10 cursor-pointer items-center justify-center rounded hover:bg-[var(--mat-sys-surface-container-high)] focus-visible:outline-2"
+              (click)="clearSidebarSearch()" [attr.aria-label]="I18N.gallery.clear_search | translate">
+              <mat-icon class="!text-xl !w-5 !h-5">close</mat-icon>
             </button>
           }
-        </mat-form-field>
+        </div>
       </details>
 
       <!-- Find a filter -->
-      <label class="relative block mb-2">
-        <span class="sr-only">{{ I18N.gallery.sidebar.find_filter | translate }}</span>
-        <input matInput [placeholder]="I18N.gallery.sidebar.find_filter | translate"
-               type="search" autocomplete="off"
-               class="h-10 w-full min-w-0 rounded border border-[var(--mat-sys-outline)] bg-[var(--mat-sys-surface-container-lowest)] py-2 pl-3 pr-11 text-base text-[var(--mat-sys-on-surface)] placeholder:text-[var(--mat-sys-on-surface-variant)]"
-               [attr.aria-label]="I18N.gallery.sidebar.find_filter | translate"
+      <div class="relative mb-2">
+        <label class="sr-only" for="filter-finder-input">{{ I18N.gallery.sidebar.find_filter | translate }}</label>
+        <input #filterFinder id="filter-finder-input" [placeholder]="I18N.gallery.sidebar.find_filter | translate"
+               type="text" role="searchbox" autocomplete="off"
+               class="h-10 w-full min-w-0 rounded border border-[var(--mat-sys-outline)] bg-[var(--mat-sys-surface-container-lowest)] py-2 pl-3 pr-10 text-sm text-[var(--mat-sys-on-surface)] placeholder:text-[var(--mat-sys-on-surface-variant)] focus-visible:outline-2 focus-visible:outline-[var(--mat-sys-primary)]"
                [value]="filterQuery()" (input)="filterQuery.set($any($event.target).value)" />
         @if (filterQuery()) {
-          <button type="button" mat-icon-button class="!absolute right-0 top-0" (click)="filterQuery.set('')" [attr.aria-label]="I18N.gallery.sidebar.clear_find_filter | translate">
-            <mat-icon class="!text-sm !w-4 !h-4">close</mat-icon>
+          <button type="button" class="absolute inset-y-0 right-0 flex w-10 cursor-pointer items-center justify-center rounded hover:bg-[var(--mat-sys-surface-container-high)] focus-visible:outline-2"
+            (click)="clearFilterQuery()" [attr.aria-label]="I18N.gallery.sidebar.clear_find_filter | translate">
+            <mat-icon class="!text-xl !w-5 !h-5">close</mat-icon>
           </button>
         }
-      </label>
+      </div>
 
       @if (!filterQuery().trim()) {
         <nav mat-tab-nav-bar mat-stretch-tabs="true" animationDuration="0ms" [tabPanel]="tabPanel"
@@ -339,8 +338,13 @@ export function loadActiveTab(): SidebarTabId {
 
       @if (!filterQuery().trim() && pinnedFilters().length) {
         <section data-pinned-filters class="mb-3 border-b border-[var(--mat-sys-outline-variant)] pb-2" [attr.aria-label]="I18N.gallery.sidebar.pins.title | translate">
-          <h2 class="m-0 px-1 text-xs font-semibold">{{ I18N.gallery.sidebar.pins.title | translate }}</h2>
-          <p class="m-0 px-1 pb-1 text-xs text-[var(--mat-sys-on-surface-variant)]">{{ I18N.gallery.sidebar.pins.hint | translate:{ max: pinLimit } }}</p>
+          <details class="mb-1" data-pins-help>
+            <summary class="flex min-h-8 cursor-pointer list-none items-center gap-2 rounded px-1 text-xs font-semibold focus-visible:outline-2">
+              <span>{{ I18N.gallery.sidebar.pins.title | translate }}</span>
+              <mat-icon aria-hidden="true" class="!h-4 !w-4 !text-base text-[var(--mat-sys-on-surface-variant)]">info_outline</mat-icon>
+            </summary>
+            <p class="m-0 px-1 pb-1 text-xs text-[var(--mat-sys-on-surface-variant)]">{{ I18N.gallery.sidebar.pins.hint | translate:{ max: pinLimit } }}</p>
+          </details>
           @for (def of pinnedFilters(); track def.id) {
             <ng-container [ngTemplateOutlet]="metricRow" [ngTemplateOutletContext]="{ $implicit: def }" />
           }
@@ -1514,6 +1518,8 @@ export class GalleryFilterSidebarComponent {
   /** The `/` shortcut's target when the toolbar search is hidden (below 1360 px). */
   focusSearch(): void {
     const input = this.sidebarSearch()?.nativeElement;
+    const disclosure = input?.closest('details');
+    if (disclosure) disclosure.open = true;
     input?.focus();
     input?.select();
   }
@@ -1536,6 +1542,22 @@ export class GalleryFilterSidebarComponent {
       this.filenameTimeout = null;
     }
     this.store.updateFilter('search', (event.target as HTMLInputElement).value);
+  }
+
+  clearSidebarSearch(): void {
+    if (this.filenameTimeout) clearTimeout(this.filenameTimeout);
+    this.filenameTimeout = null;
+    const input = this.sidebarSearch()?.nativeElement;
+    if (input) { input.value = ''; input.focus(); }
+    this.store.updateFilter('search', '');
+  }
+
+  private readonly filterFinder = viewChild<ElementRef<HTMLInputElement>>('filterFinder');
+
+  protected clearFilterQuery(): void {
+    this.filterQuery.set('');
+    const input = this.filterFinder()?.nativeElement;
+    if (input) { input.value = ''; input.focus(); }
   }
 
   onSemanticSearch(event: Event): void {
