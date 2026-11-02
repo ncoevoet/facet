@@ -55,6 +55,8 @@ All notable changes to Facet are documented in this file.
 
 ### Fixed
 
+- Similar-group caches recheck current authorized photo inputs before returning group summaries, so revoked photos cannot remain in cover paths or counts. Thumbnail cache invalidation no longer races eviction into a request error.
+
 - Cull and Delete validate companion access before previews or writes, including mapped aliases. Hidden indexed companions and unsafe inventories refuse the whole request without changing files or catalog rows.
 
 - Text search and review-progress reads retain full-text index identity when RAW/JPEG groups are present.

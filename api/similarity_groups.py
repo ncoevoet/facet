@@ -1,5 +1,6 @@
 """Similarity group computation using CLIP/SigLIP embeddings."""
 
+import hashlib
 import logging
 import sqlite3
 import time
@@ -31,6 +32,21 @@ def _get_similarity_config():
         return {'default_threshold': 0.85, 'min_group_size': 2, 'max_photos': 10000, 'max_group_size': 50}
 
 
+def _candidate_fingerprint(rows, settings):
+    """Bind cached groups to the actual authorized inputs, including restored DBs."""
+    digest = hashlib.sha256()
+
+    def add(value):
+        digest.update(len(value).to_bytes(8, 'big'))
+        digest.update(value)
+
+    add(json.dumps(settings, ensure_ascii=True).encode('utf-8'))
+    for row in rows:
+        add(json.dumps([row['path'], row['aggregate']], ensure_ascii=True).encode('utf-8'))
+        add(row['clip_embedding'])
+    return digest.hexdigest()
+
+
 def compute_similarity_groups(conn=None, threshold=None, min_size=None, user_id=None,
                               album_id=None, date_from=None, date_to=None, *,
                               use_cache=True, path_scope=None):
@@ -38,7 +54,7 @@ def compute_similarity_groups(conn=None, threshold=None, min_size=None, user_id=
     Compute groups of visually similar photos using stored CLIP/SigLIP embeddings.
 
     Uses cosine similarity on embeddings, then connected components to form groups.
-    Results cached in stats_cache table with TTL.
+    Results cached in stats_cache with TTL and current candidate validation.
 
     Args:
         conn: SQLite connection (creates one if None)
@@ -89,16 +105,12 @@ def compute_similarity_groups(conn=None, threshold=None, min_size=None, user_id=
         use_cache = use_cache and logical is None
 
         cache_key = f"similarity_groups_{threshold}_{min_size}_{user_id}_{album_id}_{date_from}_{date_to}_10k"
+        cached = None
         if use_cache:
             cached = conn.execute(
                 "SELECT value, updated_at FROM stats_cache WHERE key = ?",
                 (cache_key,)
             ).fetchone()
-            if cached and (time.time() - cached['updated_at']) < 3600:  # 1 hour TTL
-                try:
-                    return json.loads(cached['value'])
-                except (json.JSONDecodeError, TypeError):
-                    pass  # Cache corrupted, recompute
 
         # Load embeddings — cap for performance (O(n²) computation)
         # Exclude burst non-leads to avoid overlap with burst culling. The
@@ -124,6 +136,26 @@ def compute_similarity_groups(conn=None, threshold=None, min_size=None, user_id=
 
         if len(rows) < 2:
             return []
+
+        # Visibility can change without deleting persistent stats, and a restored
+        # catalog can carry old stats with it. Validate the exact current inputs
+        # before returning any cached paths, best_path or count. Reading/hashing
+        # the capped candidates is linear; the quadratic grouping remains cached.
+        fingerprint = None
+        if use_cache:
+            fingerprint = _candidate_fingerprint(
+                rows, [threshold, min_size, max_photos, max_group_size,
+                       vis_sql, vis_params, album_sql, album_params,
+                       window_clauses, window_params])
+            if cached and (time.time() - cached['updated_at']) < 3600:
+                try:
+                    payload = json.loads(cached['value'])
+                    if (isinstance(payload, dict)
+                            and payload.get('fingerprint') == fingerprint
+                            and isinstance(payload.get('groups'), list)):
+                        return payload['groups']
+                except (json.JSONDecodeError, TypeError):
+                    pass  # Cache corrupted, recompute.
 
         paths = [r['path'] for r in rows]
         aggregates = {r['path']: r['aggregate'] or 0 for r in rows}
@@ -185,7 +217,9 @@ def compute_similarity_groups(conn=None, threshold=None, min_size=None, user_id=
         if not use_cache:
             return groups
         try:
-            cache_stats_best_effort(conn, [(cache_key, json.dumps(groups))])
+            cache_stats_best_effort(conn, [(cache_key, json.dumps({
+                'fingerprint': fingerprint, 'groups': groups,
+            }))])
         except sqlite3.Error as e:
             logger.debug("Failed to cache similarity groups: %s", e)
 

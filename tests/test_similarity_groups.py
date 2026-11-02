@@ -66,17 +66,15 @@ class TestComputeSimilarityGroups:
         """Helper to pack float values into a blob."""
         return struct.pack(f"{len(values)}f", *values)
 
-    def test_returns_cached_result(self):
-        """Returns cached groups when cache is fresh."""
-        cached_groups = [{"paths": ["/a.jpg", "/b.jpg"], "best_path": "/a.jpg", "count": 2}]
+    def test_unvalidated_legacy_cache_recomputes(self):
+        """A fresh pre-validation cache cannot authorize paths."""
         mock_conn = mock.MagicMock()
         mock_conn.execute.return_value.fetchone.return_value = {
-            "value": json.dumps(cached_groups),
-            "updated_at": time.time(),  # Fresh cache
+            "value": json.dumps([{"paths": ["/private.jpg"], "best_path": "/private.jpg", "count": 1}]),
+            "updated_at": time.time(),
         }
-
-        result = compute_similarity_groups(conn=mock_conn)
-        assert result == cached_groups
+        mock_conn.execute.return_value.fetchall.return_value = []
+        assert compute_similarity_groups(conn=mock_conn) == []
 
     def test_stale_cache_recomputes(self):
         """Recomputes groups when cache is stale (>1 hour)."""
