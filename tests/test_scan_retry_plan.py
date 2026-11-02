@@ -58,10 +58,12 @@ def scanner_spies(monkeypatch):
     class Processor:
         def __init__(self, *args, **kwargs):
             self.db_path = args[0].db_path
+            self.metrics = {'photos_saved': 0}
 
         def process_directory(self, paths):
             assert facet.library_job_holder(self.db_path) is not None
             calls['paths'] += paths
+            self.metrics['photos_saved'] += len(paths) if calls.get('save', True) else 0
 
     def bursts(*args):
         calls['bursts'] += 1
@@ -105,6 +107,27 @@ def test_manifest_scores_only_captured_files_without_library_tail(failed_run, sc
             assert conn.execute('SELECT path FROM scan_failures').fetchall() == [(str(second),)]
             args = conn.execute('SELECT args_json FROM scan_runs ORDER BY id DESC LIMIT 1').fetchone()[0]
             assert 'retry_of' in args and 'skip_library_passes' in args
+    finally:
+        Path(filename).unlink()
+
+
+@pytest.mark.parametrize('captured', [True, False])
+def test_zero_saved_retry_retains_source_failure_receipts(failed_run, scanner_spies, monkeypatch, captured):
+    db, first, second = failed_run
+    scanner_spies['save'] = False
+    filename, digest = write_retry_manifest(capture_retry_plan(db, None, 1), first.parent)
+    try:
+        command = (['--retry-plan', filename, '--retry-plan-sha256', digest]
+                   if captured else ['--retry-failed', '1'])
+        monkeypatch.setattr(sys, 'argv', ['facet.py', *command, '--db', db])
+        with pytest.raises(SystemExit) as error:
+            facet.main()
+        assert error.value.code == 4
+        with sqlite3.connect(db) as conn:
+            assert conn.execute('SELECT path FROM scan_failures ORDER BY scan_run_id').fetchall() == [
+                (str(first),), (str(second),),
+            ]
+            assert conn.execute('SELECT status FROM scan_runs ORDER BY id DESC LIMIT 1').fetchone()[0] == 'failed'
     finally:
         Path(filename).unlink()
 
@@ -249,6 +272,7 @@ def test_failed_bookkeeping_cannot_erase_last_failure_receipt(failed_run, scanne
     class FailedReceiptProcessor:
         def __init__(self, *args, **kwargs):
             self.on_error = kwargs['on_error']
+            self.metrics = {'photos_saved': 0}
 
         def process_directory(self, paths):
             @contextmanager

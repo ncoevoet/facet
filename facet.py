@@ -2144,17 +2144,17 @@ def _run_scan_pipeline(args, resumed_run, lifecycle):
         scan_run.finish('failed')
         raise
     else:
-        if route != 'pass' and _photos_saved(processor) + calibration_saved == 0:
-            logger.error("Scan failed: saved 0 of %d photos (see the model load and pass "
-                         "errors above, or `--retry-failed` after fixing them).", len(todo_list))
-            scan_run.finish('failed')
-            exit(SAVED_NOTHING_EXIT_CODE)
-        recorded = scan_run.finish('completed')
+        saved_nothing = route != 'pass' and _photos_saved(processor) + calibration_saved == 0
+        recorded = scan_run.finish('failed' if saved_nothing else 'completed')
         if not recorded:
             scorer.commit()
             logger.error('Scan bookkeeping could not be saved. Existing failure records '
                          'were retained; inspect the library before creating a new preview.')
             raise SystemExit(1)
+        if saved_nothing:
+            logger.error("Scan failed: saved 0 of %d photos (see the model load and pass "
+                         "errors above, or `--retry-failed` after fixing them).", len(todo_list))
+            exit(SAVED_NOTHING_EXIT_CODE)
         if retry_plan is not None:
             # Clear only this confirmed source run's old records. Preserve
             # failures in every other run, including the newly recorded retry.
