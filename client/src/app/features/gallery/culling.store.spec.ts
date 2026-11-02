@@ -2273,7 +2273,7 @@ describe('CullingStore suggested stacks HTTP isolation', () => {
     { name: 'patchOverrides', run: s => s.patchOverrides(['/a.jpg'], 'bracket') },
     { name: 'restoreOverrides', run: s => s.restoreOverrides(new Map([['/a.jpg', 'bracket']])) },
     { name: 'openAutoCull', run: s => s.openAutoCull() },
-    { name: 'confirmAutoCull', run: s => s.confirmAutoCull(() => undefined) },
+    { name: 'confirmAutoCull', run: async s => { await s.openAutoCull(); await s.confirmAutoCull(() => undefined); } },
     { name: 'onTrimBracketsChange', run: s => s.onTrimBracketsChange(true) },
     { name: 'applyProfile', run: s => s.applyProfile({ id: 'sports', label_key: 'sports', strictness: 50, similarity_threshold: null, eyes_closed_max: null, poor_expression_min: null, keep_min_per_group: 1 }) },
     { name: 'applySuggestedProfile', run: s => s.applySuggestedProfile() },

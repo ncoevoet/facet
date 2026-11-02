@@ -517,7 +517,7 @@ describe('UI tool registry and handlers', () => {
           { provide: HttpBackend, useValue: { handle } },
           { provide: Router, useValue: router },
           { provide: ActivatedRoute, useValue: { snapshot: { queryParams: {} } } },
-          { provide: AuthService, useValue: { token: 'tok', identity: () => '0|', isEdition: () => false, isMultiUser: () => false, isAuthenticated: () => true, revalidate } },
+          { provide: AuthService, useValue: { status: signal(null), token: 'tok', identity: () => '0|', isEdition: () => false, isMultiUser: () => false, isAuthenticated: () => true, revalidate } },
           { provide: AssistantChangesService, useValue: { batch$: assistantBatches } },
           { provide: AlbumService, useValue: { list: vi.fn(() => of({ albums: [] })) } },
           { provide: ApiService, useValue: { get: apiGet, post: vi.fn(() => of({})) } },

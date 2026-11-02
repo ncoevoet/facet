@@ -23,7 +23,7 @@ import { SameNameMergeDialogComponent } from './same-name-merge.service';
 describe('ManagePersonsComponent', () => {
   let component: ManagePersonsComponent;
   let mockApi: { get: Mock; post: Mock };
-  let mockAuth: { isEdition: Mock; identity: () => string };
+  let mockAuth: { isEdition: Mock; identity: () => string; status: () => null };
   let mockI18n: { t: Mock; translations: () => object };
   let mockDialog: { open: Mock };
   let mockSnackBar: { open: Mock };
@@ -46,7 +46,7 @@ describe('ManagePersonsComponent', () => {
       get: vi.fn(() => of(mockPersonsResponse)),
       post: vi.fn(() => of({})),
     };
-    mockAuth = { isEdition: vi.fn(() => true), identity: () => 'test' };
+    mockAuth = { status: () => null, isEdition: vi.fn(() => true), identity: () => 'test' };
     mockI18n = { t: vi.fn((key: string) => key), translations: () => ({}) };
     mockDialog = {
       open: vi.fn(() => ({ afterClosed: () => of(true) })),
@@ -118,10 +118,10 @@ describe('ManagePersonsComponent', () => {
   describe('page context', () => {
     it('registers the persons page and reads its filters live, without the selection', () => {
       const context = TestBed.inject(PageContextService);
-      expect(context.snapshot()).toEqual({ id: 'persons', search: '', sort: 'count', sort_direction: 'desc', show_hidden: false });
+      expect(context.snapshot()).toEqual({ id: 'persons', tab: 'named', search: '', sort: 'count', sort_direction: 'desc', show_hidden: false });
       TestBed.inject(PersonsFiltersService).search.set('ann');
       TestBed.inject(PersonsFiltersService).selectedIds.set(new Set([1]));
-      expect(context.snapshot()).toEqual({ id: 'persons', search: 'ann', sort: 'count', sort_direction: 'desc', show_hidden: false });
+      expect(context.snapshot()).toEqual({ id: 'persons', tab: 'named', search: 'ann', sort: 'count', sort_direction: 'desc', show_hidden: false });
     });
   });
 

@@ -2,7 +2,7 @@ import { afterNextRender, Component, inject, computed, signal, effect, untracked
 import { useDesktopSignal } from './shared/utils/media-query';
 import { DecimalPipe, NgTemplateOutlet } from '@angular/common';
 import { FormsModule } from '@angular/forms';
-import { Router, RouterOutlet, RouterLink, RouterLinkActive, NavigationEnd, IsActiveMatchOptions } from '@angular/router';
+import { Router, RouterOutlet, RouterLink, RouterLinkActive, NavigationEnd } from '@angular/router';
 import { toSignal } from '@angular/core/rxjs-interop';
 import { filter, map, firstValueFrom } from 'rxjs';
 import { MatSnackBar } from '@angular/material/snack-bar';
@@ -52,22 +52,6 @@ import { I18N, i18nKeys } from './core/i18n/keys';
 
 /** When the "a newer Facet is out" notice was last shown, so it stays weekly. */
 const RELEASE_NOTICE_KEY = 'facet_release_notice_shown';
-const TOOLTIP_PLACE_KEY = 'facet_tooltip_place';
-
-/** The tooltip menu's remembered place while details are off; panel is the default mode. */
-function readTooltipPlace(): 'popup' | 'panel' {
-  try {
-    return localStorage.getItem(TOOLTIP_PLACE_KEY) === 'popup' ? 'popup' : 'panel';
-  } catch {
-    return 'panel';
-  }
-}
-
-function writeTooltipPlace(place: 'popup' | 'panel'): void {
-  try {
-    localStorage.setItem(TOOLTIP_PLACE_KEY, place);
-  } catch { /* storage blocked: the place is only remembered for this page */ }
-}
 const RELEASE_NOTICE_INTERVAL_MS = 7 * 24 * 60 * 60 * 1000;
 
 /** Response of GET /api/updates/check. */

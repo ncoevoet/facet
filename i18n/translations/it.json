@@ -1172,6 +1172,9 @@
       "details": "Dettagli della foto"
     },
     "panel_activation": {
+      "label": "Attivazione pannello",
+      "hover": "Hover",
+      "click": "Clic",
       "both": "Hover o clic"
     },
     "hide_blinks": "Nascondi occhi chiusi",
@@ -1194,6 +1197,7 @@
     "active_filters": "{count} filtri attivi",
     "unknown_person": "Sconosciuto",
     "selection": {
+      "cover_only": "Le miniature impilate in questa selezione riguardano solo la foto mostrata. Apri una pila per selezionarne gli altri membri.",
       "outside_loaded": "Selezione fuori dalle miniature caricate: {count}. Le azioni riguardano l’intera selezione.",
       "compare_loaded": "Confronta richiede 2–4 foto selezionate esplicitamente presenti nelle miniature caricate.",
       "exclusions": "Esclusioni dall’intera vista: {count}.",

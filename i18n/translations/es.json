@@ -1172,6 +1172,9 @@
       "details": "Detalles de la foto"
     },
     "panel_activation": {
+      "label": "Activación del panel",
+      "hover": "Hover",
+      "click": "Clic",
       "both": "Hover o clic"
     },
     "hide_blinks": "Ocultar parpadeos",
@@ -1194,6 +1197,7 @@
     "active_filters": "{count} filtros activos",
     "unknown_person": "Desconocido",
     "selection": {
+      "cover_only": "Las miniaturas apiladas de esta selección solo afectan a la foto mostrada. Abre una pila para seleccionar sus demás miembros.",
       "outside_loaded": "Selección fuera de los elementos cargados: {count}. Las acciones se aplican a toda la selección.",
       "compare_loaded": "Comparar requiere 2–4 fotos seleccionadas explícitamente presentes en los elementos cargados.",
       "exclusions": "Exclusiones de toda la vista: {count}.",

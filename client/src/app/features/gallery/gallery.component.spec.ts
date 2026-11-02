@@ -26,7 +26,7 @@ import { MatSnackBar } from '@angular/material/snack-bar';
 import { MatSidenav, MatSidenavContainer, MatSidenavContent } from '@angular/material/sidenav';
 import { LiveAnnouncer } from '@angular/cdk/a11y';
 import { GalleryStore, GalleryFilters, DEFAULT_FILTERS } from './gallery.store';
-import { buildApiParams, buildSyncParams, countActiveFilters, DISPLAY_OPTIONS_KEY } from './gallery-filters.util';
+import { buildApiParams, buildSyncParams, DISPLAY_OPTIONS_KEY } from './gallery-filters.util';
 import { ApiService } from '../../core/services/api.service';
 import { AuthService } from '../../core/services/auth.service';
 import { I18nService } from '../../core/services/i18n.service';
@@ -2109,100 +2109,6 @@ describe('GalleryComponent', () => {
       expect(stack(render())).toBeNull();
     });
 
-    describe('active-filters notice', () => {
-      const activate = (filters: Partial<GalleryFilters>) => {
-        const next = { ...DEFAULT_FILTERS, ...filters };
-        mockStore.filters.set(next);
-        mockStore.activeFilterCount.set(countActiveFilters(next));
-      };
-      const renderFixture = () => {
-        const fixture = TestBed.createComponent(GalleryComponent);
-      Object.defineProperty(fixture.componentInstance, 'isDesktop', { value: signal(true), configurable: true });
-        fixture.detectChanges();
-        return fixture;
-      };
-      const reset = (html: HTMLElement) => button(html, I18N.gallery.filters_notice.reset);
-
-      beforeEach(() => {
-        mockStore.hiddenSummary.set({ total: 0, blinks: 0, bursts: 0, duplicates: 0, brackets: 0, panoramas: 0 });
-        mockStore.filters.set({ ...DEFAULT_FILTERS });
-        mockStore.activeFilterCount.set(0);
-        mockStore.currentAlbum.set(null);
-        mockStore.resetFilters.mockClear();
-      });
-
-      afterEach(() => {
-        mockStore.activeFilterCount.set(0);
-        mockStore.currentAlbum.set(null);
-      });
-
-      it('is absent while no filter is active', () => {
-        const html = renderFixture().nativeElement as HTMLElement;
-        expect(stack(html)).toBeNull();
-        expect(reset(html)).toBeUndefined();
-      });
-
-      it('shows the count, singular then plural, when a filter is active', () => {
-        activate({ camera: 'Canon' });
-        const fixture = renderFixture();
-        const html = fixture.nativeElement as HTMLElement;
-        expect(stack(html)!.textContent).toContain(I18N.gallery.filters_notice.message);
-        expect(stack(html)!.textContent).not.toContain(I18N.gallery.filters_notice.message_plural);
-        expect(mockI18n.t).toHaveBeenCalledWith(I18N.gallery.filters_notice.message, { count: 1 });
-        activate({ camera: 'Canon', tag: 'beach' });
-        fixture.detectChanges();
-        expect(stack(html)!.textContent).toContain(I18N.gallery.filters_notice.message_plural);
-        expect(mockI18n.t).toHaveBeenCalledWith(I18N.gallery.filters_notice.message_plural, { count: 2 });
-      });
-
-      it('resets every filter from its action', () => {
-        activate({ camera: 'Canon' });
-        mockStore.resetFilters.mockImplementationOnce(() => {
-          activate({});
-          return Promise.resolve();
-        });
-        const fixture = renderFixture();
-        const html = fixture.nativeElement as HTMLElement;
-        reset(html)!.click();
-        fixture.detectChanges();
-        expect(mockStore.resetFilters).toHaveBeenCalledOnce();
-        expect(stack(html)).toBeNull();
-      });
-
-      it('closes without resetting, and returns when the set of active filters changes', () => {
-        activate({ camera: 'Canon' });
-        const fixture = renderFixture();
-        const html = fixture.nativeElement as HTMLElement;
-        closeFor(html, I18N.gallery.filters_notice.message).click();
-        fixture.detectChanges();
-        expect(stack(html)).toBeNull();
-        expect(mockStore.resetFilters).not.toHaveBeenCalled();
-        activate({ camera: 'Canon', tag: 'beach' });
-        fixture.detectChanges();
-        expect(stack(html)).toBeTruthy();
-      });
-
-      it('stays closed when only a filter value changes', () => {
-        activate({ camera: 'Canon' });
-        const fixture = renderFixture();
-        const html = fixture.nativeElement as HTMLElement;
-        closeFor(html, I18N.gallery.filters_notice.message).click();
-        activate({ camera: 'Nikon' });
-        fixture.detectChanges();
-        expect(stack(html)).toBeNull();
-      });
-
-      it('is not offered inside an album, whose saved filters are always active', () => {
-        activate({ camera: 'Canon' });
-        const fixture = renderFixture();
-        const html = fixture.nativeElement as HTMLElement;
-        expect(stack(html)).toBeTruthy();
-        // ngOnInit clears the album, so it is opened after the first render, as the album route does.
-        mockStore.currentAlbum.set({ id: 3, name: 'Trip', is_smart: true });
-        fixture.detectChanges();
-        expect(stack(html)).toBeNull();
-      });
-    });
   });
 
   describe('docked details panel (tooltip_mode = panel)', () => {
@@ -5383,17 +5289,6 @@ describe('GalleryComponent', () => {
         }
         expect((f.componentInstance as unknown as { containerWidth: () => number }).containerWidth()).toBe(800);
       });
-    });
-
-    it('fills the grid card as a square when details are hidden (fillTile set by the gallery)', () => {
-      pin();
-      mockStore.filters.set({ ...DEFAULT_FILTERS, hide_details: true });
-      render('grid', false);
-      const card = fixture!.nativeElement.querySelector('app-photo-card') as HTMLElement;
-      const tile = card.querySelector('[role="button"]') as HTMLElement;
-      expect(tile.classList.contains('aspect-square')).toBe(true);
-      expect(card.querySelector('img')!.classList.contains('object-cover')).toBe(true);
-      mockStore.filters.set({ ...DEFAULT_FILTERS });
     });
 
     it('builds rows with the real hide_details setting', () => {

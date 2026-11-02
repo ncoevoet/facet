@@ -1172,6 +1172,9 @@
       "details": "照片详情"
     },
     "panel_activation": {
+      "label": "面板触发方式",
+      "hover": "悬停",
+      "click": "点击",
       "both": "悬停或点击"
     },
     "hide_blinks": "隐藏闭眼照片",
@@ -1194,6 +1197,7 @@
     "active_filters": "{count} 个筛选条件已生效",
     "unknown_person": "未知",
     "selection": {
+      "cover_only": "此选择中的堆叠图块仅作用于所显示的照片。打开堆叠即可选择其中的其他成员。",
       "outside_loaded": "已加载图块以外的选择：{count}。操作适用于整个选择。",
       "compare_loaded": "比较需要明确选中 2–4 张已加载图块中的照片。",
       "exclusions": "整个视图的排除数量：{count}。",

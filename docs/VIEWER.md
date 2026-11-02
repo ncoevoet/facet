@@ -274,8 +274,6 @@ Use **Review status → Needs review** in the gallery to work through undecided 
 
 ## Gallery Features
 
-**Header.** On screens 1024 px and wider the header has two rows. The top row holds labelled tabs for the main destinations; below 1680 px the secondary ones (Map, Culling, Statistics…) fold into **More**. The row below holds the current page's own controls: in the gallery, type, search, photo count, sort, filters, display and slideshow. Narrower screens keep the single row of icons.
-
 ### Manual photo stacks
 
 Select **2–1000 explicit photos**, then choose **Stack photos** on the selection bar or press **S** to open the full-page editor at `/stacks/edit`. A whole-view selection cannot create a stack. S opens a preview; it never saves directly. User menu → **Customize shortcuts** changes the gallery binding, and the toolbar tooltip, Help and `?` reference show the current key. If an older saved mapping already uses S, that binding is preserved and Stack starts **Unassigned** until you choose a free key. Editing access is required. A photo belongs to one manual stack per owner. The page centers a zoomable preview above a persistent thumbnail strip. Click a thumbnail or use `←`/`→` to focus a photo, then choose its cover, order or remove controls. Use the zoom button, wheel or double-click to inspect details.
@@ -294,7 +292,7 @@ Open the count badge or a stacked photo to browse permitted members in the photo
 
 **In the gallery.** A stack folds into one tile; **Expand all stacks** is a remembered preference. Filters and album membership apply to individual photos: the cover shows if it matches, otherwise the first matching member does. Stack browsing bypasses automatic burst/duplicate hiding. Timeline and map show individual photos.
 
-**Selecting.** Selecting a folded tile selects only the displayed photo, and the selection bar says so while one is selected. Open the stack and use **Select all N members** for all of them. **Select all in view**, percentile selection and assistant `target:view` include every matching photo, folded members too, and whole-view actions show the real photo count first. In API/assistant summaries, `total` counts displayed tiles and `photo_total` counts photos.
+**Selecting.** Selecting a folded tile selects only the displayed photo. Open the stack and use **Select all N members** for all of them. **Select all in view**, percentile selection and assistant `target:view` include every matching photo, folded members too, and whole-view actions show the real photo count first. In API/assistant summaries, `total` counts displayed tiles and `photo_total` counts photos.
 
 **Privacy and persistence.**
 
@@ -328,8 +326,6 @@ In photo detail, metrics sit in icon tabs: EXIF data (when present), Quality, Co
 ### Multi-Select & Bulk Actions
 
 Select photos using the selection controls or Space; Shift+Click selects a range on desktop. On a phone, tap Select before tapping photos, and Cancel to leave selection mode. The contextual bar names its targets and offers Clear and Compare; editing access adds Keep/Reject and other write actions. Actions opens labeled secondary commands on desktop and the action sheet on phones. Read-only commands retain their ordinary access controls.
-
-The comparison thumbnail strip identifies the reference and lets you choose a candidate directly. The active pane is highlighted independently. Remove from comparison changes this view only, never Keep/Reject or the gallery selection; Restore returns removed photos. One remaining photo stays inspectable. Grid cards with details fit the entire photo into a uniform 4:3 frame; Mosaic keeps justified aspect-ratio rows.
 
 The comparison thumbnail strip identifies the reference and lets you choose a candidate directly. The active pane is highlighted independently. Remove from comparison changes this view only, never Keep/Reject or the gallery selection; Restore returns removed photos. One remaining photo stays inspectable. Grid cards with details fit the entire photo into a uniform 4:3 frame; Mosaic keeps justified aspect-ratio rows.
 
@@ -429,11 +425,11 @@ Response fields and status codes: [API.md](API.md).
 - **Layout Mode** — **Grid** (uniform cards) or **Mosaic** (justified rows keeping aspect ratios), at every screen width.
 - **Thumbnail Size** — card/row height slider (120–400px, saved in localStorage)
 - **Hide Details** — hide metadata on cards (grid mode only)
-- **Tooltip** — two rows. **Show in**: **Popup** or **Side panel** (default). **Show on**: **Off**, **Hover**, **Click** or **Hover or click** (default; side panel only). The menu stays open between picks, and **Off** keeps the place for when details come back on.
-  - The side panel shows full details in the right-hand drawer, laid out like photo detail. With **Hover or click** it follows both, so it works on touch screens. It keeps the last photo when the cursor leaves the grid.
+- **Tooltip** — how photo details appear: **Side panel** (default), **Hover**, **Click** or **Off**.
+  - The side panel shows full details in the right-hand drawer, laid out like photo detail. It follows hover and click, so it works on touch screens. It keeps the last photo when the cursor leaves the grid.
   - Clicking a photo holds the panel on it until you press **Deselect** (which also deselects the photo). **Escape** does the same and clears the selection.
   - The panel shares the drawer with the filters; opening the filters hides it. It needs a viewport at least 1280px wide.
-  - The **Popup** shows a short bubble: category, aggregate and rank, aesthetic, composition, sharpness, exposure, and one EXIF line.
+  - **Hover** and **Click** show a short bubble: category, aggregate and rank, aesthetic, composition, sharpness, exposure, and one EXIF line.
 - **Customize card buttons** — reorder and show/hide the buttons on a card's hover row. Nine actions are available: find similar, why-this-score, write metadata, assign a face, open the duplicate group, burst group, bracket/panorama set or photo stack, and open the photo page. Group buttons appear only on photos in such a group. Duplicate-group and photo-stack buttons are on by default; the others are opt-in. Saved per browser.
 - **Hide Blinks** — hide photos with detected blinks
 - **Blinks Only / Duplicates Only** — show only blinked photos, or every member of each duplicate group. The hide toggles are suspended for that view.
@@ -456,7 +452,7 @@ The **similarity threshold slider** (0–90%) sets how strict matching is (not i
 
 ### Filter Chips
 
-A collection header at the top of the gallery always states what you are looking at: the source (an album or folder, with × to leave it, otherwise **All photos**), the photo count and the sort. Every other active filter follows as a removable chip, so nothing narrows the view while the filter panel is closed. Search chips say how they match: **Visual matches** are ranked by semantic similarity to your words, while **Text matches** only keep photos whose filename, caption, tags or people contain the text, in your chosen sort.
+Active filters appear as removable chips with counts at the top of the gallery.
 
 ### Manual Tags
 

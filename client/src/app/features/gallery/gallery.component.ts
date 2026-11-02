@@ -91,7 +91,7 @@ import {
   gridColumnCount, totalRowsHeight, windowRange, MOBILE_MIN_COLUMNS, MOBILE_DETAILS_MIN_COLUMNS,
 } from './gallery-rows.util';
 import { noticeLiftPx } from './selection-bar-layout.util';
-import { GalleryFilters, activeFilterKeys, applyQueryParams, applySavedAlbumFilters, loadDisplayOptionsFromStorage, nextGalleryMode } from './gallery-filters.util';
+import { GalleryFilters, applyQueryParams, applySavedAlbumFilters, loadDisplayOptionsFromStorage, nextGalleryMode } from './gallery-filters.util';
 import { UserActivityJournal } from '../../core/agent/user-activity-journal.service';
 import { AlbumService, Album } from '../../core/services/album.service';
 import { CreateAlbumDialogComponent } from '../albums/create-album-dialog.component';
@@ -425,7 +425,6 @@ type ReturnTarget = { scroll: number; focus: Element | null } & (
                     [style.height.px]="row.height"
                       [style.content-visibility]="'auto'"
                     class="shrink-0"
-                    [fillTile]="true"
                     [hideDetails]="rowCardHideDetails()"
                     [mosaicMode]="effectiveGalleryMode() === 'mosaic'"
                     [listMode]="effectiveGalleryMode() === 'list'"
@@ -496,7 +495,6 @@ type ReturnTarget = { scroll: number; focus: Element | null } & (
                   [showSelectionIndicators]="selectionAffordance() || (selectingPhotos() && !isDesktop())"
                   [isActive]="i === activeIndex()"
                   [gridHasActiveCard]="hasActivePhoto()"
-                  [fillTile]="true"
                   [hideDetails]="effectiveHideDetails()"
                   [listMode]="effectiveGalleryMode() === 'list'"
                   [style.height.px]="effectiveGalleryMode() === 'list' ? listRowHeight() : null"
@@ -791,6 +789,9 @@ type ReturnTarget = { scroll: number; focus: Element | null } & (
             }
           } @else if (selectionOutsideLoaded()) {
             <p data-selection-outside class="text-xs basis-full m-0" aria-live="polite">{{ I18N.gallery.selection.outside_loaded | translate:{ count: selectionOutsideLoaded() } }}</p>
+          }
+          @if (!viewScoped() && selectedStackTiles()) {
+            <p data-selection-cover-only class="text-xs basis-full m-0">{{ I18N.gallery.selection.cover_only | translate }}</p>
           }
           <span data-selection-status tabindex="-1" class="text-sm font-medium shrink-0 px-1">{{ selectionStatus().key | translate:selectionStatus().params }}</span>
           @if (viewScoped() || selectionGroupTargets().total) {
@@ -1158,6 +1159,8 @@ export class GalleryComponent implements OnInit, OnDestroy {
   /** True while the selection means "the whole filtered view", not a path list. */
   protected readonly viewScoped = this.store.viewScopeSelected;
   /** How the bar names its target: explicit photos, the whole view, or the whole view minus exclusions. */
+  protected readonly selectedStackTiles = computed(() => this.store.photos().filter(photo =>
+    this.selectedPaths().has(photo.path) && photo.stack_id && (photo.stack_count ?? 0) > 1).length);
   protected readonly selectionStatus = computed(() => {
     const count = this.selectionCount(), excluded = this.excludedPaths().size;
     const params: Record<string, number> = { count };
@@ -1270,7 +1273,7 @@ export class GalleryComponent implements OnInit, OnDestroy {
       untracked(() => {
         const left = previous === 'panel' && mode !== 'panel';
         previous = mode;
-        if (left && this.hasActivePhoto()) this.releasePanel();
+        if (left && this.hasActivePhoto()) this.releasePanel(false);
       });
     });
   })();
@@ -3554,7 +3557,7 @@ export class GalleryComponent implements OnInit, OnDestroy {
    *  dimming, and take it out of the batch selection its click put it in.
    *  The rail keeps showing it until the next hover rather than jumping to
    *  whichever card the pointer crossed last. */
-  protected releasePanel(): void {
+  protected releasePanel(deselect = true): void {
     const photo = this.panelPhoto();
     if (!this.hasActivePhoto() || !photo) return;
     this.tooltipPhoto.set(photo);
@@ -3562,7 +3565,7 @@ export class GalleryComponent implements OnInit, OnDestroy {
     const selected = this.viewScoped()
       ? !this.excludedPaths().has(photo.path)
       : this.selectedPaths().has(photo.path);
-    if (selected) this.store.toggleSelection(photo);
+    if (selected && deselect) this.store.toggleSelection(photo);
     this.setCursor(-1);
   }
 

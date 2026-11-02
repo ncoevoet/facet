@@ -1172,6 +1172,9 @@
       "details": "Détails de la photo"
     },
     "panel_activation": {
+      "label": "Activation du panneau",
+      "hover": "Survol",
+      "click": "Clic",
       "both": "Survol ou clic"
     },
     "hide_blinks": "Masquer clignements",
@@ -1194,6 +1197,7 @@
     "active_filters": "{count} filtres actifs",
     "unknown_person": "Inconnu",
     "selection": {
+      "cover_only": "Les vignettes empilées de cette sélection n’agissent que sur leur photo affichée. Ouvrez une pile pour sélectionner ses autres membres.",
       "outside_loaded": "Sélection hors des vignettes chargées : {count}. Les actions concernent toute la sélection.",
       "compare_loaded": "Comparer nécessite 2 à 4 photos explicitement sélectionnées parmi les vignettes chargées.",
       "exclusions": "Exclusions de toute la vue : {count}.",

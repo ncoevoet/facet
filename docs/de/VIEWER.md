@@ -274,8 +274,6 @@ Wählen Sie in der Galerie **Auswahlstatus → Zu prüfen**, um unentschiedene F
 
 ## Galeriefunktionen
 
-**Kopfzeile.** Auf Bildschirmen ab 1024 px hat die Kopfzeile zwei Reihen. Oben stehen beschriftete Tabs für die Hauptbereiche; unter 1680 px landen die weiteren (Karte, Auswahl, Statistiken…) unter **Mehr**. Die Reihe darunter enthält die Bedienelemente der aktuellen Seite: in der Galerie Typ, Suche, Fotoanzahl, Sortierung, Filter, Anzeige und Diashow. Schmalere Bildschirme behalten die einzelne Symbolreihe.
-
 ### Manuelle Fotostapel
 
 Wählen Sie **2–1000 konkrete Fotos**, dann **Fotos stapeln** in der Auswahlleiste oder drücken Sie **S**, um den ganzseitigen Editor unter `/stacks/edit` zu öffnen. Eine Gesamtauswahl der Ansicht erstellt keinen Stapel. S öffnet nur die Vorschau und speichert nicht. Benutzermenü → **Tastenkürzel anpassen** ändert die Galeriebelegung; Tooltip, Hilfe und `?` zeigen die aktuelle Taste. Belegt eine ältere gespeicherte Einstellung bereits S, bleibt sie erhalten und Stapeln ist **Nicht zugewiesen**, bis Sie eine freie Taste wählen. Bearbeitungsrechte sind erforderlich. Jedes Foto gehört je Eigentümer höchstens einem Stapel. Die Seite zeigt mittig eine zoombare Vorschau über einem dauerhaften Miniaturstreifen. Klicken Sie auf eine Miniatur oder verwenden Sie `←`/`→`, um ein Foto zu fokussieren; die zugehörigen Schaltflächen wählen das Titelbild, ändern die Reihenfolge oder entfernen es. Zoomtaste, Mausrad oder Doppelklick zeigen Details.
@@ -294,7 +292,7 @@ Das Zählabzeichen oder ein gestapeltes Foto öffnet die Fotoansicht mit Vorscha
 
 **In der Galerie.** Ein Stapel klappt zu einer Kachel zusammen; **Alle Stapel aufklappen** ist eine gemerkte Einstellung. Filter und Albummitgliedschaft gelten für einzelne Fotos: Das Titelbild erscheint, wenn es passt, sonst das erste passende Mitglied. Das Durchblättern eines Stapels umgeht das automatische Ausblenden von Serien/Duplikaten. Zeitleiste und Karte zeigen einzelne Fotos.
 
-**Auswählen.** Eine eingeklappte Kachel wählt nur das angezeigte Foto, und die Auswahlleiste weist darauf hin, solange eine ausgewählt ist. Öffnen Sie den Stapel und nutzen Sie **Alle N Mitglieder auswählen**, um alle zu wählen. **Alle in der Ansicht auswählen**, die Prozent-Auswahl und `target:view` des Assistenten umfassen jedes passende Foto, auch eingeklappte Mitglieder, und Aktionen für die ganze Ansicht zeigen vorher die tatsächliche Fotozahl. In API-/Assistenten-Zusammenfassungen zählt `total` angezeigte Kacheln und `photo_total` Fotos.
+**Auswählen.** Eine eingeklappte Kachel wählt nur das angezeigte Foto. Öffnen Sie den Stapel und nutzen Sie **Alle N Mitglieder auswählen**, um alle zu wählen. **Alle in der Ansicht auswählen**, die Prozent-Auswahl und `target:view` des Assistenten umfassen jedes passende Foto, auch eingeklappte Mitglieder, und Aktionen für die ganze Ansicht zeigen vorher die tatsächliche Fotozahl. In API-/Assistenten-Zusammenfassungen zählt `total` angezeigte Kacheln und `photo_total` Fotos.
 
 **Datenschutz und Persistenz.**
 
@@ -328,8 +326,6 @@ In der Fotodetailansicht liegen die Messwerte in Symbol-Tabs: EXIF-Daten (sofern
 ### Mehrfachauswahl & Sammelaktionen
 
 Wählen Sie Fotos über die Auswahlsteuerung oder die Leertaste aus; Umschalt+Klick wählt am Desktop einen Bereich. Tippen Sie auf dem Telefon zuerst auf Auswählen und dann auf die Fotos; Abbrechen beendet den Auswahlmodus. Die kontextbezogene Leiste benennt ihre Zielfotos und bietet Leeren und Vergleichen; mit Bearbeitungszugang kommen Behalten/Ablehnen und weitere Schreibaktionen hinzu. Aktionen öffnet am Desktop beschriftete weitere Befehle und auf dem Telefon das Aktionsblatt. Für lesende Befehle gelten weiterhin ihre üblichen Zugriffsregeln.
-
-Der Vergleichsfilmstreifen zeigt die Referenz und erlaubt die direkte Kandidatenwahl. Das aktive Fenster ist unabhängig markiert. Aus Vergleich entfernen ändert nur diese Ansicht, nie Behalten/Ablehnen oder die Galerieauswahl; Wiederherstellen bringt entfernte Fotos zurück. Ein einzelnes verbleibendes Foto bleibt prüfbar. Rasterkarten mit Details zeigen das ganze Foto in einem einheitlichen 4:3-Rahmen; Mosaik behält justierte Zeilen.
 
 Der Vergleichsfilmstreifen zeigt die Referenz und erlaubt die direkte Kandidatenwahl. Das aktive Fenster ist unabhängig markiert. Aus Vergleich entfernen ändert nur diese Ansicht, nie Behalten/Ablehnen oder die Galerieauswahl; Wiederherstellen bringt entfernte Fotos zurück. Ein einzelnes verbleibendes Foto bleibt prüfbar. Rasterkarten mit Details zeigen das ganze Foto in einem einheitlichen 4:3-Rahmen; Mosaik behält justierte Zeilen.
 
@@ -429,11 +425,11 @@ Antwortfelder und Statuscodes: [API.md](../API.md).
 - **Layout-Modus** — **Raster** (einheitliche Karten) oder **Mosaik** (justierte Zeilen, die Seitenverhältnisse beibehalten), bei jeder Bildschirmbreite.
 - **Vorschaubildgröße** — Regler für die Karten-/Zeilenhöhe (120–400px, in localStorage gespeichert)
 - **Details ausblenden** — Metadaten auf Karten ausblenden (nur im Rastermodus)
-- **Tooltip** — zwei Zeilen. **Anzeigen in**: **Popup** oder **Seitenleiste** (Standard). **Anzeigen bei**: **Aus**, **Hover**, **Klick** oder **Hover oder Klick** (Standard; nur Seitenleiste). Das Menü bleibt zwischen den Auswahlen offen, und **Aus** behält den Ort für das spätere Wiedereinschalten.
-  - Die Seitenleiste zeigt alle Details in der rechten Schublade, angeordnet wie in der Fotodetailansicht. Mit **Hover oder Klick** folgt sie beidem und funktioniert so auch auf Touch-Bildschirmen. Sie behält das letzte Foto, wenn der Zeiger das Raster verlässt.
+- **Tooltip** — Wie Fotodetails erscheinen: **Seitenleiste** (Standard), **Hover**, **Klick** oder **Aus**.
+  - Die Seitenleiste zeigt alle Details in der rechten Schublade, angeordnet wie in der Fotodetailansicht. Sie folgt Hover und Klick und funktioniert so auch auf Touch-Bildschirmen. Sie behält das letzte Foto, wenn der Zeiger das Raster verlässt.
   - Ein Klick auf ein Foto hält die Leiste darauf fest, bis Sie **Auswahl aufheben** drücken (das auch das Foto abwählt). **Escape** wirkt genauso und hebt die Auswahl auf.
   - Die Leiste teilt sich die Schublade mit den Filtern; das Öffnen der Filter blendet sie aus. Erfordert ein Fenster von mindestens 1280px.
-  - Das **Popup** zeigt eine kurze Blase: Kategorie, Gesamtwertung und Rang, Ästhetik, Komposition, Schärfe, Belichtung und eine EXIF-Zeile.
+  - **Hover** und **Klick** zeigen eine kurze Blase: Kategorie, Gesamtwertung und Rang, Ästhetik, Komposition, Schärfe, Belichtung und eine EXIF-Zeile.
 - **Kartenknöpfe anpassen** — Knöpfe in der Hover-Zeile einer Karte umsortieren und ein-/ausblenden. Neun Aktionen stehen bereit: Ähnliche finden, Warum diese Bewertung, Metadaten schreiben, Gesicht zuweisen, die Duplikatgruppe, Seriengruppe, Belichtungsreihe/das Panorama oder den Fotostapel öffnen und die Fotoseite öffnen. Gruppenknöpfe erscheinen nur bei Fotos in einer solchen Gruppe. Die Knöpfe für Duplikatgruppe und Fotostapel sind standardmäßig an; die übrigen müssen Sie einschalten. Pro Browser gespeichert.
 - **Blinzler ausblenden** — Fotos mit erkanntem Blinzeln ausblenden
 - **Nur Blinker / Nur Duplikate** — Nur Fotos mit Blinzeln bzw. jedes Mitglied jeder Duplikatgruppe zeigen. Die Ausblend-Schalter ruhen für diese Ansicht.
@@ -456,7 +452,7 @@ Der **Ähnlichkeitsschwellen-Regler** (0–90%) legt fest, wie streng der Abglei
 
 ### Filter-Chips
 
-Eine Sammlungskopfzeile oben in der Galerie nennt immer, was Sie sehen: die Quelle (ein Album oder Ordner, mit × zum Verlassen, sonst **Alle Fotos**), die Fotoanzahl und die Sortierung. Jeder weitere aktive Filter folgt als entfernbarer Chip, sodass nichts die Ansicht einschränkt, während das Filterfeld geschlossen ist. Such-Chips sagen, wie sie treffen: **Visuelle Treffer** sind nach semantischer Ähnlichkeit zu Ihren Worten gereiht, **Texttreffer** behalten nur Fotos, deren Dateiname, Beschreibung, Tags oder Personen den Text enthalten, in der gewählten Sortierung.
+Aktive Filter erscheinen als entfernbare Chips mit Zählern oben in der Galerie.
 
 ### Manuelle Tags
 

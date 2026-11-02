@@ -154,7 +154,7 @@ interface SceneSummary {
 
 @Component({
   selector: 'app-burst-culling',
-  imports: [
+  imports: [MarkTonePipe,
     AssessmentValuePipe, PhotoAssessmentComponent, RenditionReadoutComponent, FilenamePipe,
     DecimalPipe,
     PercentPipe,
@@ -3082,16 +3082,6 @@ export class BurstCullingComponent implements OnDestroy {
       this.comparisonPaths.set(assignComparisonSlot(this.compareFrames().map(photo => photo.path), this.comparisonSlot(), group.photos[target].path));
     }
     this.lightboxIndex.set(target);
-  }
-
-  protected selectComparisonSlot(slot: number): void {
-    const frames = this.compareFrames();
-    const photo = frames[slot];
-    const group = this.lightboxGroup();
-    if (!photo || !group || !this.pageAlive || this.pageNavigating || this.auth.identity() !== this.pageOwner || !this.auth.isEdition()) return;
-    this.comparisonPaths.set(frames.map(frame => frame.path));
-    this.comparisonSlotIndex.set(slot);
-    this.lightboxIndex.set(group.photos.findIndex(frame => frame.path === photo.path));
   }
 
   protected selectComparisonSlot(slot: number): void {

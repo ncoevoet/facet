@@ -274,8 +274,6 @@ Utilisez **Décision de tri → À examiner** dans la galerie pour parcourir les
 
 ## Fonctionnalités de la galerie
 
-**En-tête.** Sur les écrans de 1024 px et plus, l’en-tête compte deux rangées. La première porte des onglets nommés pour les destinations principales ; sous 1680 px, les secondaires (Carte, Tri, Statistiques…) passent dans **Plus**. La rangée suivante contient les commandes de la page courante : dans la galerie, type, recherche, nombre de photos, tri, filtres, affichage et diaporama. Les écrans plus étroits gardent la rangée unique d’icônes.
-
 ### Piles de photos manuelles
 
 Sélectionnez **2 à 1000 photos explicites**, puis **Empiler les photos** dans la barre de sélection ou appuyez sur **S** pour ouvrir l’éditeur pleine page à `/stacks/edit`. Une sélection de toute la vue ne crée pas de pile. S ouvre un aperçu sans enregistrer. Le menu utilisateur → **Personnaliser les raccourcis** permet de modifier cette touche ; l’infobulle, l’Aide et la référence `?` affichent la touche actuelle. Si un ancien réglage utilise déjà S, il est conservé et l’action Empiler reste **Non attribuée** jusqu’au choix d’une touche libre. Les droits d’édition sont nécessaires. Une photo appartient à une seule pile par propriétaire. La page centre un aperçu avec zoom au-dessus d’une bande de vignettes permanente. Cliquez sur une vignette ou utilisez `←`/`→` pour cibler une photo, puis ses commandes de couverture, d’ordre ou de retrait. Le bouton de zoom, la molette ou un double-clic permettent d’examiner les détails.
@@ -294,7 +292,7 @@ Le badge ou une photo empilée ouvre la visionneuse : bande de vignettes, bouton
 
 **Dans la galerie.** Une pile se replie en une seule vignette ; **Développer toutes les piles** est une préférence mémorisée. Les filtres et l'appartenance aux albums s'appliquent aux photos individuelles : la couverture s'affiche si elle correspond, sinon le premier membre correspondant. Le parcours d'une pile contourne le masquage automatique des rafales/doublons. La chronologie et la carte affichent les photos individuelles.
 
-**Sélection.** Sélectionner une vignette repliée ne sélectionne que la photo affichée, et la barre de sélection le signale tant qu'une est sélectionnée. Ouvrez la pile et utilisez **Sélectionner les N membres** pour tous les sélectionner. **Tout sélectionner dans la vue**, la sélection par percentile et `target:view` de l'assistant incluent toutes les photos correspondantes, membres repliés compris, et les actions sur toute la vue affichent d'abord le nombre réel de photos. Dans les résumés API/assistant, `total` compte les vignettes affichées et `photo_total` les photos.
+**Sélection.** Sélectionner une vignette repliée ne sélectionne que la photo affichée. Ouvrez la pile et utilisez **Sélectionner les N membres** pour tous les sélectionner. **Tout sélectionner dans la vue**, la sélection par percentile et `target:view` de l'assistant incluent toutes les photos correspondantes, membres repliés compris, et les actions sur toute la vue affichent d'abord le nombre réel de photos. Dans les résumés API/assistant, `total` compte les vignettes affichées et `photo_total` les photos.
 
 **Confidentialité et persistance.**
 
@@ -332,10 +330,6 @@ Sélectionnez les photos avec les commandes de sélection ou la barre d’espace
 La bande de miniatures identifie la référence et permet de choisir directement une candidate. Le volet actif est signalé séparément. Retirer de la comparaison ne change que cette vue, jamais Garder/Rejeter ni la sélection de galerie ; Restaurer rétablit les photos retirées. Une photo restante reste consultable. Avec détails, la grille ajuste toute la photo dans un cadre uniforme 4:3 ; Mosaïque conserve ses rangées justifiées.
 
 La barre compte les photos sélectionnées hors des vignettes chargées ; les actions concernent toute la sélection explicite. La ligne d’état nomme les exclusions de toute la vue : « Toutes les photos correspondantes, sauf N ». Comparer nécessite 2 à 4 photos explicitement sélectionnées et toutes chargées, sans ouvrir silencieusement une sélection partielle.
-
-La bande de miniatures identifie la référence et permet de choisir directement une candidate. Le volet actif est signalé séparément. Retirer de la comparaison ne change que cette vue, jamais Garder/Rejeter ni la sélection de galerie ; Restaurer rétablit les photos retirées. Une photo restante reste consultable. Avec détails, la grille ajuste toute la photo dans un cadre uniforme 4:3 ; Mosaïque conserve ses rangées justifiées.
-
-La barre compte les photos sélectionnées hors des vignettes chargées ; les actions concernent toute la sélection explicite. Les exclusions de toute la vue apparaissent séparément. Comparer nécessite 2 à 4 photos explicitement sélectionnées et toutes chargées, sans ouvrir silencieusement une sélection partielle.
 
 - **Favori** — marque toutes les photos comme favorites (efface le rejet)
 - **Rejeter** — marque toutes les photos comme rejetées (efface le favori et la note)
@@ -430,11 +424,11 @@ Champs de réponse et codes de statut : [API.md](../API.md).
 - **Mode de disposition** — **Grille** (cartes uniformes) ou **Mosaïque** (rangées justifiées conservant les proportions), à toutes les largeurs d'écran.
 - **Taille des vignettes** — curseur de hauteur des cartes/rangées (120–400 px, enregistré dans localStorage)
 - **Masquer détails** — masque les métadonnées sur les cartes (mode grille uniquement)
-- **Infobulle** — deux lignes. **Afficher dans** : **Infobulle flottante** ou **Panneau latéral** (par défaut). **Afficher au** : **Désactivée**, **Survol**, **Clic** ou **Survol ou clic** (par défaut ; panneau latéral seulement). Le menu reste ouvert entre deux choix, et **Désactivée** garde l'emplacement pour le retour des détails.
-  - Le panneau latéral montre tous les détails dans le tiroir de droite, disposés comme le détail de la photo. Avec **Survol ou clic**, il suit le survol et le clic, donc il fonctionne sur écran tactile. Il garde la dernière photo quand le curseur quitte la grille.
+- **Infobulle** — comment les détails d'une photo s'affichent : **Panneau latéral** (par défaut), **Survol**, **Clic** ou **Désactivée**.
+  - Le panneau latéral montre tous les détails dans le tiroir de droite, disposés comme le détail de la photo. Il suit le survol et le clic, donc il fonctionne sur écran tactile. Il garde la dernière photo quand le curseur quitte la grille.
   - Cliquer sur une photo maintient le panneau sur elle jusqu'à ce que vous appuyiez sur **Désélectionner** (ce qui désélectionne aussi la photo). **Échap** fait la même chose et efface la sélection.
   - Le panneau partage le tiroir avec les filtres ; ouvrir les filtres le masque. Il exige une fenêtre d'au moins 1280 px de large.
-  - L'**Infobulle flottante** affiche une courte bulle : catégorie, agrégat et rang, esthétique, composition, netteté, exposition et une ligne EXIF.
+  - **Survol** et **Clic** affichent une courte bulle : catégorie, agrégat et rang, esthétique, composition, netteté, exposition et une ligne EXIF.
 - **Personnaliser les boutons des cartes** — réordonnez et affichez/masquez les boutons de la ligne qui apparaît au survol d'une carte. Neuf actions sont disponibles : trouver des similaires, pourquoi ce score, écrire les métadonnées, assigner un visage, ouvrir le groupe de doublons, le groupe de rafale, la série bracketing/panorama ou la pile de photos, et ouvrir la page de la photo. Les boutons de groupe n'apparaissent que sur les photos d'un tel groupe. Les boutons de groupe de doublons et de pile de photos sont activés par défaut ; les autres sont optionnels. Enregistré par navigateur.
 - **Masquer clignements** — masque les photos avec clignements détectés
 - **Clignements uniquement / Doublons uniquement** — n'affiche que les photos avec clignement, ou tous les membres de chaque groupe de doublons. Les bascules de masquage sont suspendues pour cette vue.
@@ -457,7 +451,7 @@ Le **curseur de seuil de similarité** (0–90 %) règle la rigueur de la corres
 
 ### Puces de filtre
 
-Un en-tête de collection en haut de la galerie indique toujours ce que vous regardez : la source (un album ou un dossier, avec × pour en sortir, sinon **Toutes les photos**), le nombre de photos et le tri. Chaque autre filtre actif suit sous forme de puce amovible, si bien que rien ne restreint la vue lorsque le panneau de filtres est fermé. Les puces de recherche disent comment elles correspondent : les **Correspondances visuelles** sont classées par similarité sémantique avec vos mots, tandis que les **Correspondances textuelles** ne gardent que les photos dont le nom de fichier, la légende, les tags ou les personnes contiennent le texte, dans le tri choisi.
+Les filtres actifs apparaissent comme des puces amovibles avec compteurs en haut de la galerie.
 
 ### Tags manuels
 

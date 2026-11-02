@@ -274,8 +274,6 @@ Usa **Estado de revisión → Por revisar** en la galería para recorrer las fot
 
 ## Funciones de la galería
 
-**Cabecera.** En pantallas de 1024 px o más la cabecera tiene dos filas. La superior muestra pestañas con nombre para los destinos principales; por debajo de 1680 px los secundarios (Mapa, Selección, Estadísticas…) pasan a **Más**. La fila inferior contiene los controles de la página actual: en la galería, tipo, búsqueda, número de fotos, orden, filtros, visualización y presentación. Las pantallas más estrechas conservan la fila única de iconos.
-
 ### Pilas de fotos manuales
 
 Selecciona **2–1000 fotos explícitas** y elige **Apilar fotos** en la barra o pulsa **S** para abrir el editor de página completa en `/stacks/edit`. Una selección de toda la vista no crea pilas. S abre una vista previa; nunca guarda directamente. Menú de usuario → **Personalizar atajos** cambia la tecla de la galería; la ayuda emergente, Ayuda y la referencia `?` muestran la tecla actual. Si una configuración anterior ya usa S, se conserva y Apilar queda **Sin asignar** hasta elegir una tecla libre. Se requieren permisos de edición. Cada foto pertenece a una pila por propietario. La página centra una vista previa con zoom sobre una tira de miniaturas permanente. Pulsa una miniatura o usa `←`/`→` para enfocar una foto y sus controles de portada, orden o eliminación de la pila. El botón de zoom, la rueda o un doble clic permiten examinar los detalles.
@@ -294,7 +292,7 @@ La insignia o una foto apilada abre el visor con miniaturas, botones anterior/si
 
 **En la galería.** Una pila se pliega en una sola miniatura; **Expandir todas las pilas** es una preferencia recordada. Los filtros y la pertenencia a álbumes se aplican a las fotos individuales: la portada se muestra si coincide; si no, el primer miembro que coincide. La exploración de pilas omite el ocultado automático de ráfagas/duplicados. La línea de tiempo y el mapa muestran fotos individuales.
 
-**Selección.** Seleccionar una miniatura plegada selecciona solo la foto mostrada, y la barra de selección lo indica mientras haya una seleccionada. Abre la pila y usa **Seleccionar los N miembros** para todos. **Seleccionar todo en la vista**, la selección por percentil y `target:view` del asistente incluyen todas las fotos coincidentes, también los miembros plegados, y las acciones sobre toda la vista muestran antes el número real de fotos. En los resúmenes de la API y del asistente, `total` cuenta las miniaturas mostradas y `photo_total` cuenta las fotos.
+**Selección.** Seleccionar una miniatura plegada selecciona solo la foto mostrada. Abre la pila y usa **Seleccionar los N miembros** para todos. **Seleccionar todo en la vista**, la selección por percentil y `target:view` del asistente incluyen todas las fotos coincidentes, también los miembros plegados, y las acciones sobre toda la vista muestran antes el número real de fotos. En los resúmenes de la API y del asistente, `total` cuenta las miniaturas mostradas y `photo_total` cuenta las fotos.
 
 **Privacidad y persistencia.**
 
@@ -328,8 +326,6 @@ En el detalle de la foto, las métricas se organizan en pestañas con icono: dat
 ### Selección múltiple y acciones masivas
 
 Selecciona fotos con los controles de selección o con Espacio; Mayús+clic selecciona un rango en escritorio. En un teléfono, toca Seleccionar antes de tocar las fotos y Cancelar para salir del modo de selección. La barra contextual identifica sus destinos y ofrece Limpiar y Comparar; el acceso de edición añade Mantener/Rechazar y otras acciones de escritura. Acciones abre comandos secundarios con nombre en escritorio y la hoja de acciones en teléfonos. Los comandos de solo lectura conservan sus controles de acceso habituales.
-
-La tira de miniaturas identifica la referencia y permite elegir una candidata directamente. El panel activo se destaca por separado. Quitar de la comparación solo cambia esta vista, nunca Conservar/Rechazar ni la selección de galería; Restaurar devuelve las fotos quitadas. Una foto restante sigue disponible para inspección. La cuadrícula con detalles encaja la foto completa en un marco uniforme 4:3; Mosaico mantiene filas justificadas.
 
 La tira de miniaturas identifica la referencia y permite elegir una candidata directamente. El panel activo se destaca por separado. Quitar de la comparación solo cambia esta vista, nunca Conservar/Rechazar ni la selección de galería; Restaurar devuelve las fotos quitadas. Una foto restante sigue disponible para inspección. La cuadrícula con detalles encaja la foto completa en un marco uniforme 4:3; Mosaico mantiene filas justificadas.
 
@@ -429,11 +425,11 @@ Campos de respuesta y códigos de estado: [API.md](../API.md).
 - **Modo de diseño**: **Cuadrícula** (tarjetas uniformes) o **Mosaico** (filas justificadas que conservan las proporciones), en cualquier ancho de pantalla.
 - **Tamaño de miniatura**: control deslizante de altura de tarjeta/fila (120–400 px, guardado en localStorage)
 - **Ocultar detalles**: oculta los metadatos de las tarjetas (solo en modo cuadrícula)
-- **Información emergente**: dos filas. **Mostrar en**: **Ventana emergente** o **Panel lateral** (por defecto). **Mostrar con**: **Desactivado**, **Hover**, **Clic** o **Hover o clic** (por defecto; solo panel lateral). El menú sigue abierto entre elecciones, y **Desactivado** conserva el lugar para cuando los detalles vuelvan.
-  - El panel lateral muestra los detalles completos en el cajón de la derecha, con la misma disposición que el detalle de la foto. Con **Hover o clic** sigue tanto al cursor como al clic, así que funciona en pantallas táctiles. Conserva la última foto cuando el cursor sale de la cuadrícula.
+- **Información emergente**: cómo aparecen los detalles de la foto: **Panel lateral** (por defecto), **Al pasar el cursor**, **Clic** o **Desactivada**.
+  - El panel lateral muestra los detalles completos en el cajón de la derecha, con la misma disposición que el detalle de la foto. Sigue tanto al cursor como al clic, así que funciona en pantallas táctiles. Conserva la última foto cuando el cursor sale de la cuadrícula.
   - Hacer clic en una foto mantiene el panel en ella hasta que pulsas **Deseleccionar** (que también deselecciona la foto). **Escape** hace lo mismo y borra la selección.
   - El panel comparte el cajón con los filtros; abrir los filtros lo oculta. Necesita una ventana de al menos 1280 px de ancho.
-  - La **Ventana emergente** muestra una burbuja breve: categoría, agregada y posición, estética, composición, nitidez, exposición y una línea de EXIF.
+  - **Al pasar el cursor** y **Clic** muestran una burbuja breve: categoría, agregada y posición, estética, composición, nitidez, exposición y una línea de EXIF.
 - **Personalizar los botones de la tarjeta**: reordena y muestra/oculta los botones de la fila que aparece al pasar el cursor sobre una tarjeta. Hay nueve acciones: buscar similares, por qué esta puntuación, escribir metadatos, asignar un rostro, abrir el grupo de duplicados, el grupo de ráfaga, el conjunto de bracketing/panorámica o la pila de fotos, y abrir la página de la foto. Los botones de grupo solo aparecen en las fotos de un grupo así. Los botones de grupo de duplicados y de pila de fotos están activados por defecto; los demás son opcionales. Se guarda por navegador.
 - **Ocultar parpadeos**: oculta las fotos con parpadeos detectados
 - **Solo parpadeos / Solo duplicados**: muestra solo las fotos con parpadeo, o todos los miembros de cada grupo de duplicados. Los interruptores de ocultar se suspenden en esa vista.
@@ -456,7 +452,7 @@ El **control deslizante del umbral de similitud** (0–90 %) define lo estricta 
 
 ### Chips de filtro
 
-Una cabecera de colección en la parte superior de la galería indica siempre qué estás viendo: el origen (un álbum o carpeta, con × para salir, si no **Todas las fotos**), el número de fotos y el orden. Cada filtro activo restante aparece como un chip que se puede quitar, así nada restringe la vista mientras el panel de filtros está cerrado. Los chips de búsqueda indican cómo coinciden: las **Coincidencias visuales** se ordenan por similitud semántica con tus palabras, mientras que las **Coincidencias de texto** solo conservan las fotos cuyo nombre de archivo, descripción, etiquetas o personas contienen el texto, en el orden elegido.
+Los filtros activos aparecen como chips que se pueden quitar, con recuentos, en la parte superior de la galería.
 
 ### Tags manuales
 

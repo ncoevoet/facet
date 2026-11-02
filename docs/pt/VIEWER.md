@@ -274,8 +274,6 @@ Use **Estado de revisão → Precisa de revisão** na galeria para percorrer fot
 
 ## Recursos da Galeria
 
-**Cabeçalho.** Em ecrãs a partir de 1024 px o cabeçalho tem duas linhas. A de cima mostra separadores com nome para os destinos principais; abaixo de 1680 px os secundários (Mapa, Seleção, Estatísticas…) passam para **Mais**. A linha de baixo contém os controlos da página atual: na galeria, tipo, pesquisa, número de fotos, ordenação, filtros, visualização e apresentação. Ecrãs mais estreitos mantêm a linha única de ícones.
-
 ### Pilhas de fotos manuais
 
 Selecione **2–1000 fotos explícitas** e escolha **Empilhar fotos** na barra ou prima **S** para abrir o editor de página inteira em `/stacks/edit`. Selecionar toda a visualização não cria pilhas. S abre uma pré-visualização, sem guardar diretamente. Menu do utilizador → **Personalizar atalhos** muda a tecla da galeria; a dica, a Ajuda e a referência `?` mostram a tecla atual. Se uma configuração anterior já usa S, é preservada e Empilhar fica **Não atribuído** até escolher uma tecla livre. São necessárias permissões de edição. Cada foto pertence a uma pilha por proprietário. A página centra uma pré-visualização com zoom sobre uma faixa de miniaturas permanente. Clique numa miniatura ou use `←`/`→` para focar uma foto e os seus controlos de capa, ordem ou remoção da pilha. O botão de zoom, a roda ou um duplo clique permitem examinar detalhes.
@@ -294,7 +292,7 @@ O indicador ou uma foto empilhada abre o visualizador com miniaturas, botões an
 
 **Na galeria.** Uma pilha se recolhe em um cartão; **Expandir todas as pilhas** é uma preferência salva. Filtros e álbuns se aplicam às fotos individuais: a capa aparece se corresponder, senão o primeiro membro correspondente. A navegação por pilha ignora o ocultamento automático de rajadas/duplicatas. Linha do tempo e mapa exibem fotos individuais.
 
-**Seleção.** Selecionar um cartão recolhido seleciona apenas a foto exibida, e a barra de seleção avisa enquanto houver um selecionado. Abra a pilha e use **Selecionar os N membros** para todos. **Selecionar toda a visualização**, a seleção percentual e `target:view` do assistente incluem todas as fotos correspondentes, inclusive as recolhidas, e as ações de toda a visualização mostram antes a contagem real de fotos. Nos resumos da API e do assistente, `total` conta os cartões exibidos e `photo_total` conta as fotos.
+**Seleção.** Selecionar um cartão recolhido seleciona apenas a foto exibida. Abra a pilha e use **Selecionar os N membros** para todos. **Selecionar toda a visualização**, a seleção percentual e `target:view` do assistente incluem todas as fotos correspondentes, inclusive as recolhidas, e as ações de toda a visualização mostram antes a contagem real de fotos. Nos resumos da API e do assistente, `total` conta os cartões exibidos e `photo_total` conta as fotos.
 
 **Privacidade e persistência.**
 
@@ -332,10 +330,6 @@ Selecione fotos com os controlos de seleção ou com Espaço; Shift+clique selec
 A faixa de miniaturas identifica a referência e permite escolher uma candidata diretamente. O painel ativo é destacado separadamente. Remover da comparação altera apenas esta vista, nunca Manter/Rejeitar nem a seleção da galeria; Restaurar devolve as fotos removidas. Uma foto restante continua disponível para inspeção. A grade com detalhes encaixa a foto inteira numa moldura uniforme 4:3; Mosaico mantém linhas justificadas.
 
 A barra conta fotos selecionadas fora das miniaturas carregadas; as ações abrangem toda a seleção explícita. A linha de estado indica as exclusões de toda a vista: «Todas as fotos correspondentes, exceto N». Comparar requer 2–4 fotos selecionadas explicitamente e todas carregadas, sem abrir apenas parte silenciosamente.
-
-A faixa de miniaturas identifica a referência e permite escolher uma candidata diretamente. O painel ativo é destacado separadamente. Remover da comparação altera apenas esta vista, nunca Manter/Rejeitar nem a seleção da galeria; Restaurar devolve as fotos removidas. Uma foto restante continua disponível para inspeção. A grade com detalhes encaixa a foto inteira numa moldura uniforme 4:3; Mosaico mantém linhas justificadas.
-
-A barra conta fotos selecionadas fora das miniaturas carregadas; as ações abrangem toda a seleção explícita. As exclusões de toda a vista aparecem separadamente. Comparar requer 2–4 fotos selecionadas explicitamente e todas carregadas, sem abrir apenas parte silenciosamente.
 
 - **Favoritar** — marca todas como favoritas (limpa rejeição)
 - **Rejeitar** — marca todas como rejeitadas (limpa favorito e avaliação)
@@ -430,11 +424,11 @@ Campos de resposta e códigos de status: [API.md](../API.md).
 - **Modo de Layout** — **Grade** (cartões uniformes) ou **Mosaico** (linhas justificadas que preservam as proporções), em qualquer largura de tela.
 - **Tamanho da Miniatura** — controle deslizante de altura do cartão/linha (120–400px, salvo no localStorage)
 - **Ocultar Detalhes** — oculta os metadados nos cartões (apenas no modo grade)
-- **Dica** — duas linhas. **Mostrar em**: **Pop-up** ou **Painel lateral** (padrão). **Mostrar com**: **Desligado**, **Passar o mouse**, **Clicar** ou **Passar o mouse ou clicar** (padrão; só painel lateral). O menu fica aberto entre as escolhas, e **Desligado** mantém o lugar para quando os detalhes voltarem.
-  - O painel lateral mostra todos os detalhes na gaveta da direita, com a mesma disposição do detalhe da foto. Com **Passar o mouse ou clicar** ele acompanha o ponteiro e o clique, então funciona em telas de toque. Mantém a última foto quando o cursor sai da grade.
+- **Dica** — como os detalhes das fotos aparecem: **Painel lateral** (padrão), **Passar o mouse**, **Clicar** ou **Desligado**.
+  - O painel lateral mostra todos os detalhes na gaveta da direita, com a mesma disposição do detalhe da foto. Ele acompanha o ponteiro e o clique, então funciona em telas de toque. Mantém a última foto quando o cursor sai da grade.
   - Clicar em uma foto mantém o painel nela até você pressionar **Desselecionar** (que também desseleciona a foto). **Escape** faz o mesmo e limpa a seleção.
   - O painel divide a gaveta com os filtros; abrir os filtros o oculta. Exige uma janela de pelo menos 1280px de largura.
-  - O **Pop-up** mostra um balão curto: categoria, agregada e posição, estética, composição, nitidez, exposição e uma linha de EXIF.
+  - **Passar o mouse** e **Clicar** mostram um balão curto: categoria, agregada e posição, estética, composição, nitidez, exposição e uma linha de EXIF.
 - **Personalizar botões do cartão** — reordene e mostre/oculte os botões da linha que aparece ao passar o cursor em um cartão. Há nove ações: encontrar semelhantes, por que esta pontuação, gravar metadados, atribuir um rosto, abrir o grupo de duplicatas, o grupo de rajada, a série de bracketing/panorâmica ou a pilha de fotos, e abrir a página da foto. Os botões de grupo só aparecem em fotos que pertencem a um grupo. Os botões de grupo de duplicatas e de pilha de fotos vêm ligados; os demais são opcionais. Salvo por navegador.
 - **Ocultar Piscadas** — oculta fotos com piscadas detectadas
 - **Somente piscadas / Somente duplicadas** — mostra apenas as fotos com piscada, ou todos os membros de cada grupo de duplicatas. Os alternadores de ocultação ficam suspensos nessa visualização.
@@ -457,7 +451,7 @@ O **controle deslizante de limiar de similaridade** (0–90%) define o rigor da 
 
 ### Chips de Filtro
 
-Um cabeçalho de coleção no topo da galeria indica sempre o que está a ver: a origem (um álbum ou pasta, com × para sair, caso contrário **Todas as fotos**), o número de fotos e a ordenação. Cada outro filtro ativo segue como chip removível, para que nada restrinja a vista com o painel de filtros fechado. Os chips de pesquisa dizem como correspondem: as **Correspondências visuais** são ordenadas por semelhança semântica com as suas palavras, enquanto as **Correspondências de texto** só mantêm fotos cujo nome de ficheiro, legenda, etiquetas ou pessoas contêm o texto, na ordenação escolhida.
+Os filtros ativos aparecem como chips removíveis com contagens no topo da galeria.
 
 ### Tags manuais
 

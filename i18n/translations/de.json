@@ -1172,6 +1172,9 @@
       "details": "Fotodetails"
     },
     "panel_activation": {
+      "label": "Panel-Aktivierung",
+      "hover": "Hover",
+      "click": "Klick",
       "both": "Hover oder Klick"
     },
     "hide_blinks": "Blinzler ausblenden",
@@ -1194,6 +1197,7 @@
     "active_filters": "{count} aktive Filter",
     "unknown_person": "Unbekannt",
     "selection": {
+      "cover_only": "Gestapelte Kacheln in dieser Auswahl betreffen nur das angezeigte Foto. Öffnen Sie einen Stapel, um seine übrigen Mitglieder auszuwählen.",
       "outside_loaded": "Außerhalb der geladenen Kacheln ausgewählt: {count}. Aktionen gelten für die gesamte Auswahl.",
       "compare_loaded": "Vergleichen benötigt 2–4 ausdrücklich ausgewählte Fotos in den geladenen Kacheln.",
       "exclusions": "Ausschlüsse aus der gesamten Ansicht: {count}.",

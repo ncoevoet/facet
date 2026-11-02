@@ -1233,6 +1233,9 @@ export const I18N = {
       details: "gallery.tooltip_mode.details",
     },
     panel_activation: {
+      label: "gallery.panel_activation.label",
+      hover: "gallery.panel_activation.hover",
+      click: "gallery.panel_activation.click",
       both: "gallery.panel_activation.both",
     },
     hide_blinks: "gallery.hide_blinks",
@@ -1255,6 +1258,7 @@ export const I18N = {
     active_filters: "gallery.active_filters",
     unknown_person: "gallery.unknown_person",
     selection: {
+      cover_only: "gallery.selection.cover_only",
       move_bar: "gallery.selection.move_bar",
       move_bar_help: "gallery.selection.move_bar_help",
       select: "gallery.selection.select",

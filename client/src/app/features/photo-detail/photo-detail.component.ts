@@ -63,7 +63,6 @@ import { isPageShortcutBlocked, isTypingContext } from '../../shared/utils/keybo
 import { KeyboardMappingService } from '../../core/services/keyboard-mapping.service';
 import type { CategoryOverrideResult } from './category-override-dialog.component';
 import { StackNavigatorComponent } from './stack-navigator.component';
-import { PhotoCollectionSidebarComponent } from './photo-collection-sidebar.component';
 import { PhotoStackService } from '../../core/services/photo-stack.service';
 import { PhotoFaceLayerComponent } from './photo-face-layer.component';
 import { PersonFaceMenuComponent } from '../persons/person-face-menu.component';
@@ -713,8 +712,8 @@ export class PhotoDetailComponent extends PhotoDetailBase implements OnInit {
   private readonly timeline = this.timelineOrigin ? inject(TimelineFeedCache) : null;
   private readonly openedFromGallery = this.timelineOrigin || !!(this.router.currentNavigation()?.extras.state?.['photo'] ?? history.state?.['photo']);
 
-  protected readonly collectionSidebarAvailable = computed(() => this.openedFromGallery && !this.timelineOrigin
-    && this.viewerOwner === this.auth.identity() && this.store.photos().length > 0);
+  protected readonly collectionSidebarAvailable = computed(() => !this.timelineOrigin && this.viewerOwner === this.auth.identity()
+    && this.store.photos().some(photo => photo.path === this.photo()?.path));
   protected readonly collectionSidebarTitle = computed(() => this.store.currentAlbum?.()?.name ?? '');
   // A later library search replaces the singleton store. Keep the query owned
   // by this history entry, including when Back recreates the photo component.
@@ -1139,19 +1138,6 @@ export class PhotoDetailComponent extends PhotoDetailBase implements OnInit {
     }
   }
 
-  /** The gallery's loaded pages, beside the photo whenever arrow keys would step through them. */
-  protected readonly collectionSidebarAvailable = computed(() => this.viewerOwner === this.auth.identity()
-    && this.store.photos().some(photo => photo.path === this.photo()?.path));
-
-  protected openCollectionPhoto(path: string): void {
-    const next = this.store.photos().find(photo => photo.path === path);
-    if (next && path !== this.photo()?.path && this.collectionSidebarAvailable()) this.openStorePhoto(next);
-  }
-
-  protected loadCollectionPage(): void {
-    if (this.collectionSidebarAvailable() && !this.store.loading() && this.store.hasMore()) void this.store.nextPage(undefined, { whileParked: true });
-  }
-
   private async navigateAdjacentPhoto(delta: number): Promise<void> {
     if (this.timelineOrigin) {
       const path = this.photo()?.path;
@@ -1178,10 +1164,7 @@ export class PhotoDetailComponent extends PhotoDetailBase implements OnInit {
       if (idx === -1) return;
     }
     const next = this.store.photos()[idx + delta];
-    if (next) this.openStorePhoto(next);
-  }
-
-  private openStorePhoto(next: Photo): void {
+    if (!next) return;
     // Replace, so Escape (history back) leaves the photo page instead of stepping back through every photo.
     this.router.navigate(['/photo'], {
       queryParams: { path: next.path },

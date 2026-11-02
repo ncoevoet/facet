@@ -274,8 +274,6 @@ Usa **Stato revisione → Da esaminare** nella galleria per smaltire le foto non
 
 ## Funzionalità della galleria
 
-**Intestazione.** Sugli schermi da 1024 px in su l’intestazione ha due righe. In alto ci sono schede con nome per le destinazioni principali; sotto i 1680 px quelle secondarie (Mappa, Selezione, Statistiche…) finiscono in **Altro**. La riga sotto contiene i comandi della pagina corrente: nella galleria tipo, ricerca, numero di foto, ordinamento, filtri, visualizzazione e presentazione. Gli schermi più stretti mantengono la singola riga di icone.
-
 ### Pile di foto manuali
 
 Seleziona **2–1000 foto esplicite**, poi **Impila foto** nella barra di selezione o premi **S** per aprire l’editor a pagina intera in `/stacks/edit`. La selezione dell’intera vista non crea pile. S apre un’anteprima, senza salvare direttamente. Menu utente → **Personalizza le scorciatoie** cambia il tasto della galleria; il suggerimento, Aiuto e il riferimento `?` mostrano quello attuale. Se una configurazione precedente usa già S, viene mantenuta e Impila rimane **Non assegnato** finché non scegli un tasto libero. Servono permessi di modifica. Una foto appartiene a una sola pila per proprietario. La pagina centra un’anteprima con zoom sopra una striscia di miniature permanente. Fai clic su una miniatura o usa `←`/`→` per selezionare una foto, poi i suoi comandi di copertina, ordine o rimozione dalla pila. Pulsante zoom, rotellina o doppio clic mostrano i dettagli.
@@ -294,7 +292,7 @@ Il badge o una foto impilata apre il visualizzatore con miniature, pulsanti prec
 
 **Nella galleria.** Una pila si ripiega in una tessera; **Espandi tutte le pile** è una preferenza ricordata. Filtri e appartenenza agli album si applicano alle singole foto: la copertina compare se corrisponde, altrimenti compare il primo membro che corrisponde. Sfogliare una pila aggira il nascondimento automatico di raffiche/duplicati. Cronologia e mappa mostrano le singole foto.
 
-**Selezione.** Selezionare una tessera ripiegata seleziona solo la foto mostrata, e la barra di selezione lo segnala finché ne è selezionata una. Apri la pila e usa **Seleziona tutti i N membri** per selezionarli tutti. **Seleziona tutta la vista**, la selezione per percentile e `target:view` dell'assistente includono ogni foto corrispondente, anche i membri ripiegati, e le azioni sull'intera vista mostrano prima il numero reale di foto. Nei riepiloghi API/assistente, `total` conta le tessere mostrate e `photo_total` conta le foto.
+**Selezione.** Selezionare una tessera ripiegata seleziona solo la foto mostrata. Apri la pila e usa **Seleziona tutti i N membri** per selezionarli tutti. **Seleziona tutta la vista**, la selezione per percentile e `target:view` dell'assistente includono ogni foto corrispondente, anche i membri ripiegati, e le azioni sull'intera vista mostrano prima il numero reale di foto. Nei riepiloghi API/assistente, `total` conta le tessere mostrate e `photo_total` conta le foto.
 
 **Privacy e persistenza.**
 
@@ -332,10 +330,6 @@ Seleziona le foto con i comandi di selezione o con Spazio; sul desktop, Maiusc+c
 La striscia di miniature identifica il riferimento e permette di scegliere una candidata. Il riquadro attivo è evidenziato separatamente. Rimuovere dal confronto cambia solo la vista, mai Mantieni/Scarta o la selezione della galleria; Ripristina riporta le foto rimosse. Una sola foto rimasta resta ispezionabile. La griglia con dettagli mostra tutta la foto in un riquadro uniforme 4:3; Mosaico mantiene righe giustificate.
 
 La barra conta le foto selezionate fuori dalle miniature caricate; le azioni riguardano l’intera selezione esplicita. La riga di stato indica le esclusioni dell’intera vista: «Tutte le foto corrispondenti, tranne N». Confronta richiede 2–4 foto selezionate esplicitamente e tutte caricate, senza aprire solo una parte della selezione.
-
-La striscia di miniature identifica il riferimento e permette di scegliere una candidata. Il riquadro attivo è evidenziato separatamente. Rimuovere dal confronto cambia solo la vista, mai Mantieni/Scarta o la selezione della galleria; Ripristina riporta le foto rimosse. Una sola foto rimasta resta ispezionabile. La griglia con dettagli mostra tutta la foto in un riquadro uniforme 4:3; Mosaico mantiene righe giustificate.
-
-La barra conta le foto selezionate fuori dalle miniature caricate; le azioni riguardano l’intera selezione esplicita. Le esclusioni dell’intera vista sono mostrate separatamente. Confronta richiede 2–4 foto selezionate esplicitamente e tutte caricate, senza aprire solo una parte della selezione.
 
 - **Preferito** — segna tutte come preferite (cancella lo scarto)
 - **Rifiuta** — segna tutte come scartate (cancella preferito e valutazione)
@@ -430,11 +424,11 @@ Campi della risposta e codici di stato: [API.md](../API.md).
 - **Modalità layout** — **Griglia** (schede uniformi) o **Mosaico** (righe giustificate che mantengono le proporzioni), a ogni larghezza dello schermo.
 - **Dimensione miniatura** — cursore dell'altezza di scheda/riga (120–400px, salvato in localStorage)
 - **Nascondi dettagli** — nasconde i metadati sulle schede (solo modalità griglia)
-- **Tooltip** — due righe. **Mostra in**: **Popup** o **Pannello laterale** (predefinito). **Mostra con**: **Disattivato**, **Hover**, **Clic** o **Hover o clic** (predefinito; solo pannello laterale). Il menu resta aperto tra una scelta e l'altra, e **Disattivato** conserva la posizione per quando i dettagli tornano.
-  - Il pannello laterale mostra i dettagli completi nel cassetto di destra, organizzato come il dettaglio della foto. Con **Hover o clic** segue passaggio e clic, quindi funziona sugli schermi touch. Mantiene l'ultima foto quando il cursore lascia la griglia.
+- **Tooltip** — come appaiono i dettagli della foto: **Pannello laterale** (predefinito), **Al passaggio**, **Al clic** o **Disattivato**.
+  - Il pannello laterale mostra i dettagli completi nel cassetto di destra, organizzato come il dettaglio della foto. Segue passaggio e clic, quindi funziona sugli schermi touch. Mantiene l'ultima foto quando il cursore lascia la griglia.
   - Cliccare una foto tiene il pannello su di essa finché non premi **Deseleziona** (che deseleziona anche la foto). **Esc** fa lo stesso e cancella la selezione.
   - Il pannello condivide il cassetto con i filtri; aprire i filtri lo nasconde. Richiede una finestra larga almeno 1280px.
-  - Il **Popup** mostra un breve fumetto: categoria, aggregato e posizione, estetica, composizione, nitidezza, esposizione e una riga EXIF.
+  - **Al passaggio** e **Al clic** mostrano un breve fumetto: categoria, aggregato e posizione, estetica, composizione, nitidezza, esposizione e una riga EXIF.
 - **Personalizza i pulsanti della scheda** — riordina e mostra/nascondi i pulsanti nella riga al passaggio di una scheda. Sono disponibili nove azioni: trova simili, perché-questo-punteggio, scrivi metadati, assegna un volto, apri il gruppo di duplicati, la raffica, la serie bracket/panorama o la pila di foto, e apri la pagina della foto. I pulsanti di gruppo compaiono solo sulle foto che appartengono a un tale gruppo. I pulsanti del gruppo di duplicati e della pila di foto sono attivi per impostazione predefinita; gli altri sono facoltativi. Salvato per browser.
 - **Nascondi occhi chiusi** — nasconde le foto con occhi chiusi rilevati
 - **Solo occhi chiusi / Solo duplicati** — mostra solo le foto con occhi chiusi, o ogni membro di ciascun gruppo di duplicati. Gli interruttori di nascondimento sono sospesi per quella vista.
@@ -457,7 +451,7 @@ Il **cursore della soglia di somiglianza** (0–90%) imposta quanto è rigoroso 
 
 ### Chip dei filtri
 
-Un’intestazione della raccolta in cima alla galleria indica sempre cosa stai guardando: l’origine (un album o una cartella, con × per uscirne, altrimenti **Tutte le foto**), il numero di foto e l’ordinamento. Ogni altro filtro attivo segue come chip rimovibile, così nulla restringe la vista mentre il pannello dei filtri è chiuso. I chip di ricerca dicono come corrispondono: le **Corrispondenze visive** sono ordinate per somiglianza semantica con le tue parole, mentre le **Corrispondenze testuali** tengono solo le foto il cui nome file, didascalia, tag o persone contengono il testo, nell’ordinamento scelto.
+I filtri attivi compaiono come chip rimovibili con i conteggi in cima alla galleria.
 
 ### Tag manuali
 
