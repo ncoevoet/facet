@@ -130,6 +130,21 @@ All endpoints here use the [batch target contract](#conventions).
 | `GET /api/shared/album/{id}/picks` | Client reads their own picks (proofing session) |
 | `GET /api/albums/{id}/picks` | `[Edition]` Owner reads all client picks for the album |
 
+**Shared-album client migration.** Shared photo responses and client picks use opaque
+`asset_id` values instead of filesystem `path` values. Fetch the current shared album
+and send its `asset_id` in `PUT /api/shared/album/{id}/picks`; do not construct an ID
+from a filename or reuse a path-based request. The client picks response also returns
+`asset_id`. Owner-only album APIs retain their existing path-based contracts.
+Album covers use `cover_asset_id`. Fetch photo metadata at
+`GET /api/shared/album/{id}/photo` and image bytes at
+`GET /api/shared/album/{id}/media/{thumbnail,image,download}`, passing `token` and
+`asset_id` as query parameters.
+
+Proofing sessions issued before this change must be exchanged again through
+`POST /api/shared/album/{id}/session`, using the current share token and PIN if required.
+Sessions are bound to the share-token generation; rotating or revoking the share
+invalidates them. Reload the shared album after rotation to obtain current asset IDs.
+
 ## Memories, Timeline, Map & Captions
 
 | Endpoint | Description |
