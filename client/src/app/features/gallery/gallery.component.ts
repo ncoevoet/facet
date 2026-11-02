@@ -771,7 +771,7 @@ type ReturnTarget = { scroll: number; focus: Element | null } & (
         <div #selectionBar data-selection-bar appMovableToolbar
              [toolbarBoundary]="selectionToolbarBoundary()" [toolbarRightInset]="noticeRightPx()" [toolbarOwner]="auth.identity()"
              role="region" [attr.aria-label]="(viewScoped() ? I18N.gallery.selection.view_scope_active : I18N.gallery.selection.count) | translate:{ count: selectionCount() }" [attr.aria-describedby]="viewScoped() ? 'whole-view-target-note' : null"
-             class="absolute bottom-2 md:bottom-4 left-2 md:left-4 z-20 w-fit max-h-[calc(100%_-_2rem)] overflow-y-auto flex flex-wrap items-center gap-1 px-2 py-1 rounded-lg bg-[var(--mat-sys-surface-container)] border border-[var(--mat-sys-primary)] shadow-lg max-md:mb-[env(safe-area-inset-bottom)]"
+             class="absolute bottom-2 md:bottom-4 left-2 md:left-4 z-20 w-fit group/selection flex flex-wrap items-center gap-1 px-2 py-1 rounded-lg bg-[var(--mat-sys-surface-container)] border border-[var(--mat-sys-primary)] shadow-lg max-md:mb-[env(safe-area-inset-bottom)]"
              [style.right.px]="noticeRightPx()">
           <button mat-icon-button type="button" data-toolbar-drag-handle class="touch-none cursor-grab active:cursor-grabbing shrink-0"
                   [attr.aria-label]="I18N.gallery.selection.move_bar | translate" aria-describedby="selection-bar-move-help"
@@ -801,7 +801,7 @@ type ReturnTarget = { scroll: number; focus: Element | null } & (
             <details #selectionTargets #selectionDisclosure name="gallery-selection-disclosures" data-selection-targets tabindex="-1"
               (keydown.escape)="selectionTargets.open = false; targetsSummary.focus(); $event.preventDefault(); $event.stopPropagation()">
               <summary #targetsSummary class="flex min-h-10 cursor-pointer list-none items-center gap-1 rounded-md px-2 text-sm focus-visible:outline-2 focus-visible:outline-[var(--mat-sys-primary)]"><mat-icon aria-hidden="true">ads_click</mat-icon>{{ I18N.gallery.selection.targets.title | translate }}</summary>
-              <div class="absolute bottom-full left-0 mb-3 max-h-[60vh] w-full max-w-160 overflow-y-auto rounded-lg border border-[var(--mat-sys-outline-variant)] bg-[var(--mat-sys-surface-container)] p-3 shadow-lg text-sm">
+              <div data-toolbar-panel class="absolute bottom-full left-0 mb-3 group-data-[toolbar-down=true]/selection:bottom-auto group-data-[toolbar-down=true]/selection:top-full group-data-[toolbar-down=true]/selection:mb-0 group-data-[toolbar-down=true]/selection:mt-3 max-h-[60vh] w-full max-w-160 overflow-y-auto rounded-lg border border-[var(--mat-sys-outline-variant)] bg-[var(--mat-sys-surface-container)] p-3 shadow-lg text-sm">
                 <p class="mt-0">{{ (viewScoped() ? I18N.gallery.selection.targets.view : I18N.gallery.selection.targets.explicit) | translate }}</p>
                 @if (!viewScoped()) {
                   <p class="text-xs text-[var(--mat-sys-on-surface-variant)]">{{ I18N.gallery.selection.targets.loaded | translate:{ shown: selectionGroupTargets().rows.length, total: selectionGroupTargets().total } }}</p>
@@ -841,7 +841,7 @@ type ReturnTarget = { scroll: number; focus: Element | null } & (
           </button>
           <details #selectionMore #selectionDisclosure name="gallery-selection-disclosures" data-selection-more tabindex="-1" class="max-md:hidden" (keydown.escape)="selectionMore.open = false; selectionMoreSummary.focus(); $event.preventDefault(); $event.stopPropagation()">
             <summary #selectionMoreSummary class="flex min-h-10 cursor-pointer list-none items-center gap-2 rounded-md px-3 text-sm font-medium hover:bg-[var(--mat-sys-surface-container-high)] focus-visible:outline-2 focus-visible:outline-[var(--mat-sys-primary)]"><mat-icon aria-hidden="true">more_horiz</mat-icon>{{ I18N.gallery.selection.actions | translate }}</summary>
-            <div class="absolute bottom-full left-0 mb-3 flex max-h-[60vh] w-full max-w-160 flex-wrap items-center gap-2 overflow-y-auto rounded-lg border border-[var(--mat-sys-outline-variant)] bg-[var(--mat-sys-surface-container)] p-3 shadow-lg">
+            <div data-toolbar-panel class="absolute bottom-full left-0 mb-3 group-data-[toolbar-down=true]/selection:bottom-auto group-data-[toolbar-down=true]/selection:top-full group-data-[toolbar-down=true]/selection:mb-0 group-data-[toolbar-down=true]/selection:mt-3 flex max-h-[60vh] w-full max-w-160 flex-wrap items-center gap-2 overflow-y-auto rounded-lg border border-[var(--mat-sys-outline-variant)] bg-[var(--mat-sys-surface-container)] p-3 shadow-lg">
           @if (!allLoadedSelected()) {
             <button mat-button disabledInteractive (click)="selectAll()" [matTooltip]="I18N.gallery.selection.select_all | translate" [attr.aria-label]="I18N.gallery.selection.select_all | translate"><mat-icon>select_all</mat-icon><span>{{ I18N.gallery.selection.select_all | translate }}</span></button>
           }

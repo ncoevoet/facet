@@ -5,7 +5,7 @@ import { MovableToolbarDirective } from './movable-toolbar.directive';
 @Component({
   imports: [MovableToolbarDirective],
   template: `<section #area><div appMovableToolbar [toolbarBoundary]="area" [toolbarOwner]="owner()" [toolbarRightInset]="inset()">
-    <button data-toolbar-drag-handle>Move</button><button class="action">Rate</button>
+    <button data-toolbar-drag-handle>Move</button><button class="action">Rate</button><div data-toolbar-panel></div>
   </div></section>`,
 })
 class HostComponent { readonly owner = signal('alice'); readonly inset = signal(8); }
@@ -20,10 +20,10 @@ describe('MovableToolbarDirective', () => {
     const area: HTMLElement = fixture.nativeElement.querySelector('section');
     const bar: HTMLElement = area.querySelector('div')!;
     const handle: HTMLElement = bar.querySelector('button')!;
-    vi.spyOn(area, 'getBoundingClientRect').mockReturnValue({ top: 0, right: 800 } as DOMRect);
+    vi.spyOn(area, 'getBoundingClientRect').mockReturnValue({ top: 0, right: 800, bottom: 600 } as DOMRect);
     vi.spyOn(bar, 'getBoundingClientRect').mockImplementation(() => {
       const values = /translate3d\(([-.\d]+)px, ([-.\d]+)px/.exec(bar.style.transform);
-      return { top: 500 + Number(values?.[2] ?? 0), right: 300 + Number(values?.[1] ?? 0) } as DOMRect;
+      return { top: 500 + Number(values?.[2] ?? 0), bottom: 550 + Number(values?.[2] ?? 0), right: 300 + Number(values?.[1] ?? 0) } as DOMRect;
     });
     flush();
     const key = (key: string) => handle.dispatchEvent(new KeyboardEvent('keydown', { key, bubbles: true }));
@@ -117,7 +117,7 @@ describe('MovableToolbarDirective', () => {
     vi.mocked(area.getBoundingClientRect).mockReturnValue({ top: 500, right: 300 } as DOMRect);
     resized(); flush();
     expect(bar.style.transform).toBe('translate3d(0px, 0px, 0)');
-    vi.mocked(area.getBoundingClientRect).mockReturnValue({ top: 0, right: 800 } as DOMRect);
+    vi.mocked(area.getBoundingClientRect).mockReturnValue({ top: 0, right: 800, bottom: 600 } as DOMRect);
     fixture.componentInstance.inset.set(8); fixture.detectChanges(); flush();
     expect(bar.style.transform).toBe('translate3d(492px, -492px, 0)');
   });
@@ -128,6 +128,17 @@ describe('MovableToolbarDirective', () => {
     expect(frame).toBeDefined();
     fixture.destroy();
     expect(frame).toBeUndefined();
+  });
+
+  it('opens disclosure panels into available space and bounds their height', () => {
+    const { bar, handle, pointer } = setup();
+    const panel = bar.querySelector<HTMLElement>('[data-toolbar-panel]')!;
+    expect(bar.dataset['toolbarDown']).toBe('false');
+    expect(panel.style.maxHeight).toBe('480px');
+    pointer(handle, 'pointerdown', 0, 0);
+    pointer(bar, 'pointermove', 0, -492); flush();
+    expect(bar.dataset['toolbarDown']).toBe('true');
+    expect(panel.style.maxHeight).toBe('522px');
   });
 
 });

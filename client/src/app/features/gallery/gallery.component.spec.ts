@@ -912,9 +912,12 @@ describe('GalleryComponent', () => {
         expect(activeIndex()).toBe(2);
       });
 
-      it('follows a cursor the rate-and-advance keys left behind', () => {
+      it('follows a cursor the rate-and-advance keys left behind', async () => {
+        TestBed.inject(GalleryReviewNavigationService).setEnabled(true);
+        mockStore.setRating.mockResolvedValue(true);
         click({ path: '/a.jpg' }, 0);
         press('3');
+        await Promise.resolve();
         expect(activeIndex()).toBe(1);
 
         mockStore.photos.set([{ path: '/b.jpg' }, { path: '/a.jpg' }, { path: '/c.jpg' }]);
@@ -3479,6 +3482,20 @@ describe('GalleryComponent', () => {
       expect(el.classList.contains('left-2')).toBe(true);
       expect(el.classList.contains('md:left-4')).toBe(true);
       expect(el.classList.contains('md:bottom-4')).toBe(true);
+    });
+
+    it('keeps disclosure panels outside clipping and supplies movement help', () => {
+      const f = render();
+      const root = bar(f)!;
+      expect(root.classList.contains('overflow-y-auto')).toBe(false);
+      const handle = root.querySelector<HTMLElement>('[data-toolbar-drag-handle]')!;
+      expect(handle.getAttribute('aria-describedby')).toBe('selection-bar-move-help');
+      expect(root.querySelector('#selection-bar-move-help')?.textContent).toContain(I18N.gallery.selection.move_bar_help);
+      const panels = root.querySelectorAll('[data-toolbar-panel]');
+      expect(panels.length).toBeGreaterThan(0);
+      for (const panel of panels) {
+        expect(panel.classList.contains('group-data-[toolbar-down=true]/selection:top-full')).toBe(true);
+      }
     });
 
     it('preserves every edition action with matching tooltip and accessible name', () => {
@@ -6683,7 +6700,7 @@ describe('GalleryComponent', () => {
         (gallery as unknown as { containerWidth: WritableSignal<number> }).containerWidth.set(800);
         mockStore.galleryMode.set('mosaic');
         expect(key({ key: 'l' }).defaultPrevented).toBe(true);
-        expect(mockStore.setGalleryMode).toHaveBeenCalledWith('grid');
+        expect(mockStore.setGalleryMode).toHaveBeenCalledWith('list');
         const mode = mockStore.setGalleryMode as unknown as ReturnType<typeof vi.fn>;
         mode.mockClear();
         key({ key: 'v' });
