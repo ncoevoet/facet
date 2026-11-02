@@ -374,7 +374,7 @@ Quando un assistente collegato tramite [Assistenti IA (MCP)](AGENTS.md) ti mostr
 - **Includi fotogrammi della serie** (`include_sequence_siblings`) aggiunge gli altri fotogrammi della serie, ma solo quelli il cui stato conserva/scarta corrisponde all'azione. I fotogrammi conservati non vengono mai cestinati perché un fratello è stato scartato. Un fotogramma che hai deselezionato non viene mai riportato dentro.
 - L'anteprima riporta sempre quanti fotogrammi fratelli esistono (`sequence_siblings`). `matched` distingue "nessuno idoneo" da un risultato vuoto.
 - Spostare o cestinare il capofila di una serie promuove un fratello rimasto, così la serie resta visibile.
-- Per scegliere un sottoinsieme esatto di una serie, aprila prima con l'azione "apri questa serie nella galleria" del dettaglio foto. Quella vista mostra ogni fotogramma.
+- Per scegliere un sottoinsieme esatto di una serie, aprila prima con l'azione "apri questa serie nella galleria" del dettaglio foto. Quella vista mostra ogni fotogramma lasciato dai filtri di occultamento (gli occhi chiusi e i fotogrammi scartati sono nascosti per impostazione predefinita); la sua barra dice quanti sono nascosti e perché, e «Mostra tutto» li riporta finché non chiudi la serie, solo per questa vista (le preferenze di visualizzazione salvate non cambiano). L'intestazione della serie nel dettaglio foto conta gli occhi chiusi e li contrassegna uno per uno.
 
 Una selezione legata ai filtri segue le stesse regole di filtro della galleria, Tipo di foto incluso. Una vista oltre 10 000 foto viene rifiutata invece che troncata, anche per un'esecuzione a vuoto: restringila (album, data, persona…) e riprova. Dettagli: [API.md](../API.md).
 
@@ -400,11 +400,11 @@ Campi della risposta e codici di stato: [API.md](../API.md).
 - **Modalità layout** — **Griglia** (schede uniformi) o **Mosaico** (righe giustificate che mantengono le proporzioni), a ogni larghezza dello schermo.
 - **Dimensione miniatura** — cursore dell'altezza di scheda/riga (120–400px, salvato in localStorage)
 - **Nascondi dettagli** — nasconde i metadati sulle schede (solo modalità griglia)
-- **Tooltip** — come appaiono i dettagli della foto: **Pannello laterale** (predefinito), **Al passaggio**, **Al clic** o **Disattivato**.
-  - Il pannello laterale mostra i dettagli completi nel cassetto di destra, organizzato come il dettaglio della foto. Segue passaggio e clic, quindi funziona sugli schermi touch. Mantiene l'ultima foto quando il cursore lascia la griglia.
+- **Tooltip** — due righe. **Mostra in**: **Popup** o **Pannello laterale** (predefinito). **Mostra con**: **Disattivato**, **Hover**, **Clic** o **Hover o clic** (predefinito; solo pannello laterale). Il menu resta aperto tra una scelta e l'altra, e **Disattivato** conserva la posizione per quando i dettagli tornano.
+  - Il pannello laterale mostra i dettagli completi nel cassetto di destra, organizzato come il dettaglio della foto. Con **Hover o clic** segue passaggio e clic, quindi funziona sugli schermi touch. Mantiene l'ultima foto quando il cursore lascia la griglia.
   - Cliccare una foto tiene il pannello su di essa finché non premi **Deseleziona** (che deseleziona anche la foto). **Esc** fa lo stesso e cancella la selezione.
   - Il pannello condivide il cassetto con i filtri; aprire i filtri lo nasconde. Richiede una finestra larga almeno 1280px.
-  - **Al passaggio** e **Al clic** mostrano un breve fumetto: categoria, aggregato e posizione, estetica, composizione, nitidezza, esposizione e una riga EXIF.
+  - Il **Popup** mostra un breve fumetto: categoria, aggregato e posizione, estetica, composizione, nitidezza, esposizione e una riga EXIF.
 - **Personalizza i pulsanti della scheda** — riordina e mostra/nascondi i pulsanti nella riga al passaggio di una scheda. Sono disponibili nove azioni: trova simili, perché-questo-punteggio, scrivi metadati, assegna un volto, apri il gruppo di duplicati, la raffica, la serie bracket/panorama o la pila di foto, e apri la pagina della foto. I pulsanti di gruppo compaiono solo sulle foto che appartengono a un tale gruppo. I pulsanti del gruppo di duplicati e della pila di foto sono attivi per impostazione predefinita; gli altri sono facoltativi. Salvato per browser.
 - **Nascondi occhi chiusi** — nasconde le foto con occhi chiusi rilevati
 - **Solo occhi chiusi / Solo duplicati** — mostra solo le foto con occhi chiusi, o ogni membro di ciascun gruppo di duplicati. Gli interruttori di nascondimento sono sospesi per quella vista.

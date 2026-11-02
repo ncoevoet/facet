@@ -31,7 +31,7 @@ Developers: `cd client && npm run gen:api` regenerates the client types in `clie
 | `GET /api/photo/objects?path=` | Objects marked on one photo: `{objects: [{id, label, box}]}`, `box` = `[x1, y1, x2, y2]` normalised to the upright frame. Empty for a photo the caller cannot see |
 | `POST /api/photo/objects` | Mark an object (edition-gated). Body `{path, label, box}`; the label is normalised like a manual tag; at most 50 per photo (409) |
 | `DELETE /api/photo/objects/{id}` | Remove a marked object (edition-gated) |
-| `GET /api/photo/set?path=` | The bracket/panorama/hdr_panorama/burst/duplicate set a photo belongs to (sequence over burst, burst over duplicate). Keyed on `path`, not a group id (ids are renumbered every run) |
+| `GET /api/photo/set?path=` | The bracket/panorama/hdr_panorama/burst/duplicate set a photo belongs to (sequence over burst, burst over duplicate). Keyed on `path`, not a group id (ids are renumbered every run). Each member carries `is_blink`, so a client can say why a gallery view under `hide_blinks` lists fewer frames than `count` |
 | `GET /api/photo/histogram?path=&bins=` | Draw-ready luminance + R/G/B bins from the full-resolution image at scan time; `bins` ∈ 32/64/128/256, default 64. All channels share one global max. `r`/`g`/`b` are `null` for rows stored before the per-channel format; `404` when the row has no histogram |
 | `GET /api/type_counts?hide_blinks=&hide_bursts=&hide_duplicates=&hide_brackets=&hide_panoramas=` | Photo counts per type for the sidebar chips (`hide_*` fallback applies) |
 | `GET /api/similar_photos/{path}` | Similar photos (modes: `visual`, `color`, `person`). Errors: `422` for `limit` outside 1–500, negative `offset`, or `min_similarity` outside 0–1 |

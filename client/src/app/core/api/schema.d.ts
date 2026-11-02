@@ -6608,6 +6608,11 @@ export interface components {
             duplicates: number;
             /** Panoramas */
             panoramas: number;
+            /**
+             * Rejected
+             * @default 0
+             */
+            rejected?: number;
             /** Total */
             total: number;
         };
@@ -8177,6 +8182,11 @@ export interface components {
         PhotoSetMember: {
             /** Ev Offset */
             ev_offset?: number | null;
+            /**
+             * Is Blink
+             * @default false
+             */
+            is_blink?: boolean;
             /** Is Lead */
             is_lead: boolean;
             /** Path */

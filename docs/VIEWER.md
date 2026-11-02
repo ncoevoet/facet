@@ -374,7 +374,7 @@ When an assistant connected through [AI Agents (MCP)](AGENTS.md) shows you an ex
 - **Include sequence siblings** (`include_sequence_siblings`) adds the set's other frames, but only those whose own keep/reject state matches the action. Kept frames are never trashed because a sibling was rejected. A frame you deselected is never pulled back in.
 - The preview always reports how many sibling frames exist (`sequence_siblings`). `matched` tells "nothing qualified" apart from an empty result.
 - Moving or trashing a set's lead promotes a surviving sibling, so the set stays visible.
-- To pick an exact subset of a set, open it with the photo detail's "open this set in the gallery" action first. That view shows every frame.
+- To pick an exact subset of a set, open it with the photo detail's "open this set in the gallery" action first. That view shows every frame the hide toggles leave in (blinks and rejected frames are hidden by default); its bar says how many are hidden and why, and its Show all brings them back until you clear the set, for this view only (the saved display preferences are not changed). The photo detail's set header counts blink frames and labels each one.
 
 A filter-scoped cull follows the same filter rules as the gallery, Photo Type included. A view over 10 000 photos is refused rather than truncated, even for a dry run: narrow it (album, date, person…) and retry. Details: [API.md](API.md).
 
@@ -400,11 +400,11 @@ Response fields and status codes: [API.md](API.md).
 - **Layout Mode** — **Grid** (uniform cards) or **Mosaic** (justified rows keeping aspect ratios), at every screen width.
 - **Thumbnail Size** — card/row height slider (120–400px, saved in localStorage)
 - **Hide Details** — hide metadata on cards (grid mode only)
-- **Tooltip** — how photo details appear: **Side panel** (default), **Hover**, **Click** or **Off**.
-  - The side panel shows full details in the right-hand drawer, laid out like photo detail. It follows hover and click, so it works on touch screens. It keeps the last photo when the cursor leaves the grid.
+- **Tooltip** — two rows. **Show in**: **Popup** or **Side panel** (default). **Show on**: **Off**, **Hover**, **Click** or **Hover or click** (default; side panel only). The menu stays open between picks, and **Off** keeps the place for when details come back on.
+  - The side panel shows full details in the right-hand drawer, laid out like photo detail. With **Hover or click** it follows both, so it works on touch screens. It keeps the last photo when the cursor leaves the grid.
   - Clicking a photo holds the panel on it until you press **Deselect** (which also deselects the photo). **Escape** does the same and clears the selection.
   - The panel shares the drawer with the filters; opening the filters hides it. It needs a viewport at least 1280px wide.
-  - **Hover** and **Click** show a short bubble: category, aggregate and rank, aesthetic, composition, sharpness, exposure, and one EXIF line.
+  - The **Popup** shows a short bubble: category, aggregate and rank, aesthetic, composition, sharpness, exposure, and one EXIF line.
 - **Customize card buttons** — reorder and show/hide the buttons on a card's hover row. Nine actions are available: find similar, why-this-score, write metadata, assign a face, open the duplicate group, burst group, bracket/panorama set or photo stack, and open the photo page. Group buttons appear only on photos in such a group. Duplicate-group and photo-stack buttons are on by default; the others are opt-in. Saved per browser.
 - **Hide Blinks** — hide photos with detected blinks
 - **Blinks Only / Duplicates Only** — show only blinked photos, or every member of each duplicate group. The hide toggles are suspended for that view.

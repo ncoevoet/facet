@@ -159,6 +159,8 @@ class HiddenSummary(BaseModel):
     duplicates: int
     brackets: int
     panoramas: int
+    # Frames `hide_rejected` removes from an opened set; 0 outside a set scope.
+    rejected: int = 0
 
 
 class PhotosResponse(PaginationEnvelope):

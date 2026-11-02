@@ -1,12 +1,13 @@
 import { Pipe, PipeTransform } from '@angular/core';
+import { FEATURE_MARK, MarkTonePipe } from './mark-tone.pipe';
 
 /** Decorative hints only: translated option text remains the sort's label. */
-const SORT_ICONS: Readonly<Record<string, string>> = {
+export const SORT_ICONS: Readonly<Record<string, string>> = {
   relevance: 'search',
   learned_score: 'psychology',
   top_picks_score: 'recommend',
   aggregate: 'leaderboard',
-  aesthetic: 'auto_awesome',
+  aesthetic: FEATURE_MARK,
   quality_score: 'high_quality',
   date_taken: 'event',
   star_rating: 'star',
@@ -51,9 +52,11 @@ const MODEL_LABELS: Readonly<Record<string, string>> = {
 /** A model label is short text set in the icon slot, so it drops the icon font and shrinks to fit. */
 const MODEL_LABEL_CLASSES = '!font-sans !text-[11px] !font-semibold !leading-6';
 
+const MARK_TONE = new MarkTonePipe();
+
 export interface SortOptionIcon {
   text: string;
-  /** Extra classes for the `mat-icon` showing `text`: empty for a Material icon. */
+  /** Extra classes for the `mat-icon` showing `text`: the colour of a feature's ✦, else empty for a Material icon. */
   classes: string;
 }
 
@@ -61,6 +64,7 @@ export interface SortOptionIcon {
 export class SortOptionIconPipe implements PipeTransform {
   transform(column: string): SortOptionIcon {
     if (Object.hasOwn(MODEL_LABELS, column)) return { text: MODEL_LABELS[column], classes: MODEL_LABEL_CLASSES };
-    return { text: Object.hasOwn(SORT_ICONS, column) ? SORT_ICONS[column] : 'sort', classes: '' };
+    if (!Object.hasOwn(SORT_ICONS, column)) return { text: 'sort', classes: '' };
+    return { text: SORT_ICONS[column], classes: MARK_TONE.transform(column) };
   }
 }

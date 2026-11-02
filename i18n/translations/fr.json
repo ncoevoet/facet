@@ -1064,7 +1064,8 @@
       "reason_blinks": "{n} yeux fermés",
       "reason_duplicates": "{n} doublon(s)",
       "reason_brackets": "{n} image(s) de bracketing",
-      "reason_panoramas": "{n} image(s) de panorama"
+      "reason_panoramas": "{n} image(s) de panorama",
+      "reason_rejected": "{n} rejetée(s)"
     },
     "filters_notice": {
       "message": "{count} filtre actif",
@@ -1076,7 +1077,8 @@
       "command_hint": "Lancez {command} pour toutes les rafraîchir d'un coup."
     },
     "set_scope": {
-      "message": "Un groupe de photos est affiché : {kind}"
+      "message": "Un groupe de photos est affiché : {kind}",
+      "partial": "{shown} sur {total} affichées ({reasons} masquées)"
     },
     "pinned": {
       "chip": "{count} photo choisie par votre assistant",
@@ -1128,6 +1130,9 @@
     "hide_details": "Masquer détails",
     "tooltip_mode": {
       "label": "Infobulle",
+      "show_in": "Afficher dans",
+      "popup": "Infobulle flottante",
+      "show_on": "Afficher au",
       "hover": "Survol",
       "click": "Clic",
       "panel": "Panneau latéral",
@@ -1136,9 +1141,6 @@
       "panel_deselect": "Désélectionner"
     },
     "panel_activation": {
-      "label": "Activation du panneau",
-      "hover": "Survol",
-      "click": "Clic",
       "both": "Survol ou clic"
     },
     "hide_blinks": "Masquer clignements",

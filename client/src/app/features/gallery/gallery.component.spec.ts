@@ -149,6 +149,7 @@ describe('GalleryComponent', () => {
       hiddenSummary: signal({ total: 0, blinks: 0, bursts: 0, duplicates: 0 }),
       hiddenFiltersStash: signal(null),
       showAllHidden: vi.fn(),
+      takeTransientRestore: vi.fn((): Record<string, boolean> => ({})),
       restoreHidden: vi.fn(),
       readGallerySessionQuery: vi.fn(() => null),
       applySessionQuery: vi.fn(),
@@ -1167,6 +1168,64 @@ describe('GalleryComponent', () => {
       });
     });
 
+    const CLEARED = { sequence_group_id: '', sequence_kind: '', burst_group_id: '', duplicate_group_id: '' };
+    const STASH = { hide_blinks: true, hide_bursts: true, hide_duplicates: true, hide_brackets: true, hide_panoramas: true };
+
+    it('puts back what a set-bar Show all lifted, keeping the set\'s own restore', () => {
+      mockStore.filters.set({ ...DEFAULT_FILTERS, burst_group_id: '161' });
+      localStorage.setItem(DISPLAY_OPTIONS_KEY, JSON.stringify({ hide_bursts: true }));
+      mockStore.showAllHidden.mockImplementation(() => mockStore.hiddenFiltersStash.set(STASH));
+      mockStore.takeTransientRestore.mockReturnValueOnce({ hide_blinks: true, hide_bursts: false, hide_rejected: true });
+
+      component.showWholeSet();
+      component.clearSetScope();
+
+      expect(mockStore.showAllHidden).toHaveBeenCalledWith({ persist: false, includeRejected: true });
+      expect(mockStore.updateFilters).toHaveBeenCalledWith({
+        ...CLEARED, hide_blinks: true, hide_bursts: true, hide_rejected: true,
+      });
+      expect(mockStore.hiddenFiltersStash()).toBeNull();
+    });
+
+    it('restores only what the store reports still lifted, so a manual toggle is not fought', () => {
+      mockStore.filters.set({ ...DEFAULT_FILTERS, burst_group_id: '161' });
+      mockStore.takeTransientRestore.mockReturnValueOnce({ hide_duplicates: true });
+
+      component.clearSetScope();
+
+      const [updates] = mockStore.updateFilters.mock.calls.at(-1)!;
+      expect(updates).toEqual({ ...CLEARED, hide_duplicates: true, hide_bursts: true });
+      expect(updates).not.toHaveProperty('hide_blinks');
+    });
+
+    it('ends the Show all when the set scope goes away by another route', () => {
+      mockStore.filters.set({ ...DEFAULT_FILTERS, burst_group_id: '161' });
+      mockStore.showAllHidden.mockImplementation(() => mockStore.hiddenFiltersStash.set(STASH));
+      TestBed.flushEffects();
+      component.showWholeSet();
+      mockStore.takeTransientRestore.mockReturnValueOnce({ hide_blinks: true, hide_rejected: true });
+
+      mockStore.filters.set({ ...mockStore.filters(), burst_group_id: '' });
+      TestBed.flushEffects();
+
+      expect(mockStore.updateFilters).toHaveBeenCalledWith({ hide_blinks: true, hide_rejected: true });
+      expect(mockStore.hiddenFiltersStash()).toBeNull();
+    });
+
+    it('leaves a gallery-wide Show all alone when the set is cleared', () => {
+      const stash = { hide_blinks: true, hide_bursts: true, hide_duplicates: true, hide_brackets: true, hide_panoramas: true };
+      mockStore.hiddenFiltersStash.set(stash);
+      mockStore.filters.set({ ...DEFAULT_FILTERS, hide_blinks: false, burst_group_id: '161', hide_bursts: false });
+
+      component.clearSetScope();
+
+      expect(mockStore.updateFilters).toHaveBeenCalledWith({
+        sequence_group_id: '', sequence_kind: '', burst_group_id: '', duplicate_group_id: '', hide_bursts: true,
+      });
+      expect(mockStore.hiddenFiltersStash()).toBe(stash);
+      mockStore.hiddenFiltersStash.set(null);
+    });
+
     it('falls back to the config default when nothing is stored in localStorage', () => {
       mockStore.config.set({ defaults: { hide_panoramas: false } });
       mockStore.filters.set({
@@ -1541,6 +1600,60 @@ describe('GalleryComponent', () => {
       expect(text).not.toContain(reasons.reason_blinks);
       expect(text).not.toContain(reasons.reason_duplicates);
       expect(text).not.toContain(reasons.reason_panoramas);
+    });
+
+    it('the set-scope bar says what the hide toggles left out, so its count matches the photo page', () => {
+      // A burst of 3 whose blink frame hide_blinks still filters out: the bar must
+      // not leave the user to reconcile 2 tiles with "3 photos" on the photo page.
+      mockStore.total.set(2);
+      mockStore.hiddenSummary.set({ total: 1, blinks: 1, bursts: 0, duplicates: 0, brackets: 0, panoramas: 0 });
+      mockStore.filters.set({ ...DEFAULT_FILTERS, hide_blinks: true, burst_group_id: '161' });
+      const html = render();
+      const bar = Array.from(html.querySelectorAll('mat-sidenav-content > div'))
+        .find(el => el.textContent?.includes(I18N.gallery.set_scope.message))!;
+      expect(bar.textContent).toContain(I18N.gallery.set_scope.partial);
+      Array.from(bar.querySelectorAll('button')).find(b => b.textContent?.includes(I18N.gallery.hidden_banner.show_all))!.click();
+      expect(mockStore.showAllHidden).toHaveBeenCalled();
+    });
+
+    it('the set-scope bar counts rejected frames, names them, and drops them once hide_rejected is off', () => {
+      mockStore.total.set(2);
+      mockStore.hiddenSummary.set({ total: 1, blinks: 1, bursts: 0, duplicates: 0, brackets: 0, panoramas: 0, rejected: 1 });
+      mockStore.filters.set({ ...DEFAULT_FILTERS, hide_blinks: true, hide_rejected: true, burst_group_id: '161' });
+      const html = render();
+      const bar = () => Array.from(html.querySelectorAll('mat-sidenav-content > div'))
+        .find(el => el.textContent?.includes(I18N.gallery.set_scope.message))!;
+      expect(mockI18n.t).toHaveBeenCalledWith(I18N.gallery.hidden_banner.reason_rejected, { n: 1 });
+      expect(mockI18n.t).toHaveBeenCalledWith(I18N.gallery.set_scope.partial, expect.objectContaining({ shown: 2, total: 4 }));
+      expect(bar().textContent).toContain(I18N.gallery.set_scope.partial);
+    });
+
+    it('the set-scope bar offers Show all for rejected frames alone', () => {
+      mockStore.hiddenSummary.set({ total: 0, blinks: 0, bursts: 0, duplicates: 0, brackets: 0, panoramas: 0, rejected: 2 });
+      mockStore.filters.set({ ...DEFAULT_FILTERS, hide_blinks: false, hide_bursts: false, hide_rejected: true, burst_group_id: '161' });
+      const html = render();
+      const bar = Array.from(html.querySelectorAll('mat-sidenav-content > div'))
+        .find(el => el.textContent?.includes(I18N.gallery.set_scope.message))!;
+      expect(Array.from(bar.querySelectorAll('button')).some(b => b.textContent?.includes(I18N.gallery.hidden_banner.show_all))).toBe(true);
+    });
+
+    it('names only the kinds whose hide toggle is on', () => {
+      // An opened burst lifts hide_bursts: its repeats are on screen, so only the blink is hidden.
+      mockStore.hiddenSummary.set({ total: 1, blinks: 1, bursts: 2, duplicates: 0, brackets: 0, panoramas: 0 });
+      mockStore.filters.set({ ...DEFAULT_FILTERS, hide_bursts: false, hide_blinks: true });
+      const text = stack(render())!.querySelector('[role="status"]')!.textContent!;
+      expect(text).toContain(I18N.gallery.hidden_banner.reason_blinks);
+      expect(text).not.toContain(I18N.gallery.hidden_banner.reason_bursts);
+    });
+
+    it('the set-scope bar adds nothing when the whole set is on screen', () => {
+      mockStore.hiddenSummary.set({ total: 0, blinks: 0, bursts: 0, duplicates: 0, brackets: 0, panoramas: 0 });
+      mockStore.filters.set({ ...DEFAULT_FILTERS, burst_group_id: '161' });
+      const html = render();
+      const bar = Array.from(html.querySelectorAll('mat-sidenav-content > div'))
+        .find(el => el.textContent?.includes(I18N.gallery.set_scope.message))!;
+      expect(bar.textContent).not.toContain(I18N.gallery.set_scope.partial);
+      expect(Array.from(bar.querySelectorAll('button')).some(b => b.textContent?.includes(I18N.gallery.hidden_banner.show_all))).toBe(false);
     });
 
     it('renders the restore twin once Show all has been used', () => {
@@ -4654,6 +4767,17 @@ describe('GalleryComponent', () => {
       });
     });
 
+    it('fills the grid card as a square when details are hidden (fillTile set by the gallery)', () => {
+      pin();
+      mockStore.filters.set({ ...DEFAULT_FILTERS, hide_details: true });
+      render('grid', false);
+      const card = fixture!.nativeElement.querySelector('app-photo-card') as HTMLElement;
+      const tile = card.querySelector('[role="button"]') as HTMLElement;
+      expect(tile.classList.contains('aspect-square')).toBe(true);
+      expect(card.querySelector('img')!.classList.contains('object-cover')).toBe(true);
+      mockStore.filters.set({ ...DEFAULT_FILTERS });
+    });
+
     it('builds rows with the real hide_details setting', () => {
       pin();
       mockStore.filters.set({ ...DEFAULT_FILTERS, hide_details: false });
@@ -5253,6 +5377,50 @@ describe('GalleryComponent', () => {
       button.click();
       TestBed.tick();
       expect(document.activeElement).toBe(card(host)!.querySelector('[data-notice-close]'));
+    });
+  });
+
+  describe('leaving panel mode (rendered)', () => {
+    it('releases the held photo when the mode switches away from panel', () => {
+      mockStore.photos.set([{ path: '/a.jpg' }]);
+      mockStore.filters.set({ ...DEFAULT_FILTERS, tooltip_mode: 'panel' });
+      const fixture = TestBed.createComponent(GalleryComponent);
+      fixture.detectChanges();
+      const comp = fixture.componentInstance as unknown as { activeIndex: WritableSignal<number>; releasePanel(): void };
+      comp.activeIndex.set(0);
+      const release = vi.spyOn(comp, 'releasePanel').mockImplementation(() => {});
+      mockStore.filters.set({ ...DEFAULT_FILTERS, tooltip_mode: 'hover' });
+      fixture.detectChanges();
+      expect(release).toHaveBeenCalledOnce();
+      fixture.destroy();
+    });
+
+    it('does not release on Hover -> Click: activeIndex is the keyboard cursor in every mode', () => {
+      mockStore.photos.set([{ path: '/a.jpg' }]);
+      mockStore.filters.set({ ...DEFAULT_FILTERS, tooltip_mode: 'hover' });
+      const fixture = TestBed.createComponent(GalleryComponent);
+      fixture.detectChanges();
+      const comp = fixture.componentInstance as unknown as { activeIndex: WritableSignal<number>; releasePanel(): void };
+      comp.activeIndex.set(0);
+      const release = vi.spyOn(comp, 'releasePanel').mockImplementation(() => {});
+      mockStore.filters.set({ ...DEFAULT_FILTERS, tooltip_mode: 'click' });
+      fixture.detectChanges();
+      expect(release).not.toHaveBeenCalled();
+      fixture.destroy();
+    });
+
+    it('releases on Panel -> Click with a live cursor', () => {
+      mockStore.photos.set([{ path: '/a.jpg' }]);
+      mockStore.filters.set({ ...DEFAULT_FILTERS, tooltip_mode: 'panel' });
+      const fixture = TestBed.createComponent(GalleryComponent);
+      fixture.detectChanges();
+      const comp = fixture.componentInstance as unknown as { activeIndex: WritableSignal<number>; releasePanel(): void };
+      comp.activeIndex.set(0);
+      const release = vi.spyOn(comp, 'releasePanel').mockImplementation(() => {});
+      mockStore.filters.set({ ...DEFAULT_FILTERS, tooltip_mode: 'click' });
+      fixture.detectChanges();
+      expect(release).toHaveBeenCalledOnce();
+      fixture.destroy();
     });
   });
 

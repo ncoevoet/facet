@@ -374,7 +374,7 @@ Quand un assistant connecté via [Agents IA (MCP)](AGENTS.md) vous montre une li
 - **Inclure les vues de la série** (`include_sequence_siblings`) ajoute les autres vues de la série, mais seulement celles dont l'état garder/rejeter correspond à l'action. Les vues gardées ne sont jamais mises à la corbeille parce qu'une voisine a été rejetée. Une vue que vous avez désélectionnée n'est jamais réintégrée.
 - L'aperçu indique toujours combien de vues voisines existent (`sequence_siblings`). `matched` distingue « rien n'était éligible » d'un résultat vide.
 - Déplacer ou mettre à la corbeille la tête d'une série promeut une voisine survivante, de sorte que la série reste visible.
-- Pour choisir un sous-ensemble exact d'une série, ouvrez-la d'abord avec l'action « ouvrir cette série dans la galerie » du détail de la photo. Cette vue montre chaque image.
+- Pour choisir un sous-ensemble exact d'une série, ouvrez-la d'abord avec l'action « ouvrir cette série dans la galerie » du détail de la photo. Cette vue montre chaque image que les options de masquage laissent passer (les clignements et les images rejetées sont masqués par défaut) ; sa barre indique combien sont masquées et pourquoi, et « Tout afficher » les fait revenir jusqu'à ce que vous quittiez la série, pour cette vue seulement (les préférences d'affichage enregistrées ne changent pas). L'en-tête de série du détail de la photo compte les clignements et marque chacun.
 
 Un tri limité par un filtre suit les mêmes règles de filtre que la galerie, Type de photo compris. Une vue de plus de 10 000 photos est refusée plutôt que tronquée, même pour une simulation : restreignez-la (album, date, personne…) et réessayez. Détails : [API.md](../API.md).
 
@@ -400,11 +400,11 @@ Champs de réponse et codes de statut : [API.md](../API.md).
 - **Mode de disposition** — **Grille** (cartes uniformes) ou **Mosaïque** (rangées justifiées conservant les proportions), à toutes les largeurs d'écran.
 - **Taille des vignettes** — curseur de hauteur des cartes/rangées (120–400 px, enregistré dans localStorage)
 - **Masquer détails** — masque les métadonnées sur les cartes (mode grille uniquement)
-- **Infobulle** — comment les détails d'une photo s'affichent : **Panneau latéral** (par défaut), **Survol**, **Clic** ou **Désactivée**.
-  - Le panneau latéral montre tous les détails dans le tiroir de droite, disposés comme le détail de la photo. Il suit le survol et le clic, donc il fonctionne sur écran tactile. Il garde la dernière photo quand le curseur quitte la grille.
+- **Infobulle** — deux lignes. **Afficher dans** : **Infobulle flottante** ou **Panneau latéral** (par défaut). **Afficher au** : **Désactivée**, **Survol**, **Clic** ou **Survol ou clic** (par défaut ; panneau latéral seulement). Le menu reste ouvert entre deux choix, et **Désactivée** garde l'emplacement pour le retour des détails.
+  - Le panneau latéral montre tous les détails dans le tiroir de droite, disposés comme le détail de la photo. Avec **Survol ou clic**, il suit le survol et le clic, donc il fonctionne sur écran tactile. Il garde la dernière photo quand le curseur quitte la grille.
   - Cliquer sur une photo maintient le panneau sur elle jusqu'à ce que vous appuyiez sur **Désélectionner** (ce qui désélectionne aussi la photo). **Échap** fait la même chose et efface la sélection.
   - Le panneau partage le tiroir avec les filtres ; ouvrir les filtres le masque. Il exige une fenêtre d'au moins 1280 px de large.
-  - **Survol** et **Clic** affichent une courte bulle : catégorie, agrégat et rang, esthétique, composition, netteté, exposition et une ligne EXIF.
+  - L'**Infobulle flottante** affiche une courte bulle : catégorie, agrégat et rang, esthétique, composition, netteté, exposition et une ligne EXIF.
 - **Personnaliser les boutons des cartes** — réordonnez et affichez/masquez les boutons de la ligne qui apparaît au survol d'une carte. Neuf actions sont disponibles : trouver des similaires, pourquoi ce score, écrire les métadonnées, assigner un visage, ouvrir le groupe de doublons, le groupe de rafale, la série bracketing/panorama ou la pile de photos, et ouvrir la page de la photo. Les boutons de groupe n'apparaissent que sur les photos d'un tel groupe. Les boutons de groupe de doublons et de pile de photos sont activés par défaut ; les autres sont optionnels. Enregistré par navigateur.
 - **Masquer clignements** — masque les photos avec clignements détectés
 - **Clignements uniquement / Doublons uniquement** — n'affiche que les photos avec clignement, ou tous les membres de chaque groupe de doublons. Les bascules de masquage sont suspendues pour cette vue.

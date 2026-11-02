@@ -1064,7 +1064,8 @@
       "reason_blinks": "{n} olhos fechados",
       "reason_duplicates": "{n} duplicata(s)",
       "reason_brackets": "{n} quadro(s) de bracketing",
-      "reason_panoramas": "{n} quadro(s) de panorama"
+      "reason_panoramas": "{n} quadro(s) de panorama",
+      "reason_rejected": "{n} rejeitada(s)"
     },
     "filters_notice": {
       "message": "{count} filtro ativo",
@@ -1076,7 +1077,8 @@
       "command_hint": "Execute {command} para atualizar todas de uma vez."
     },
     "set_scope": {
-      "message": "A mostrar um grupo de fotos: {kind}"
+      "message": "A mostrar um grupo de fotos: {kind}",
+      "partial": "a mostrar {shown} de {total} ({reasons} ocultas)"
     },
     "pinned": {
       "chip": "{count} foto escolhida pelo seu assistente",
@@ -1128,6 +1130,9 @@
     "hide_details": "Ocultar detalhes",
     "tooltip_mode": {
       "label": "Dica",
+      "show_in": "Mostrar em",
+      "popup": "Pop-up",
+      "show_on": "Mostrar com",
       "hover": "Passar o mouse",
       "click": "Clicar",
       "panel": "Painel lateral",
@@ -1136,9 +1141,6 @@
       "panel_deselect": "Desmarcar"
     },
     "panel_activation": {
-      "label": "Ativação do painel",
-      "hover": "Passar o mouse",
-      "click": "Clicar",
       "both": "Passar o mouse ou clicar"
     },
     "hide_blinks": "Ocultar piscadas",
