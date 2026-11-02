@@ -25,6 +25,7 @@ MAX_FILE_BYTES = 512 * 1024 * 1024
 MAX_TOTAL_BYTES = 2 * 1024 * 1024 * 1024
 MAX_PLAN_BYTES = 2 * 1024 * 1024
 _PLAIN_REFS = {
+    ('logical_assets', 'primary_path'), ('logical_asset_members', 'photo_path'),
     ('albums', 'cover_photo_path'), ('album_photos', 'photo_path'),
     ('album_client_picks', 'photo_path'), ('rating_provenance', 'photo_path'),
     ('face_reextract_snapshot', 'photo_path'),
@@ -43,6 +44,9 @@ _NON_ASSET_PATHS = {
 # Historical payload JSON and the global revision clock are not asset links.
 # Keep the exact column inventory so future additions still require review.
 _AUXILIARY_COLUMNS = {
+    'logical_assets': {'id', 'primary_path', 'revision'},
+    'logical_asset_members': {'asset_id', 'photo_path', 'position'},
+    'logical_asset_imports': {'asset_id', 'signature', 'members_json'},
     'face_review_feedback': {'owner', 'face_id', 'person_id', 'identity_token', 'receipt_id'},
     'keyword_nodes': {'id', 'parent_id', 'name', 'name_key'},
     'photo_keyword_nodes': {'photo_path', 'node_id', 'source', 'origin_source', 'created_by', 'created_at', 'imported_path', 'imported_signature'},

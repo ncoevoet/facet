@@ -777,7 +777,7 @@ def test_composite_or_non_path_photo_foreign_key_is_refused(library, foreign_key
 def test_unregistered_path_column_referencing_photos_is_refused(library, monkeypatch):
     db, _, _, _ = library
     # scan_failures.path is a historical location, registered only by this set.
-    monkeypatch.setattr(relink, '_NON_ASSET_PATHS', {('photos', 'path'), ('photos_fts', 'path')})
+    monkeypatch.setattr(relink, '_NON_ASSET_PATHS', relink._NON_ASSET_PATHS - {('scan_failures', 'path')})
     before = _photo_rows(db)
     with pytest.raises(ValueError, match=r'Unregistered path dependency: scan_failures\.path'):
         preview(library)
@@ -1012,3 +1012,40 @@ def test_cli_refuses_arguments_that_belong_to_the_other_mode(library, tmp_path, 
     assert refusal.value.code == 1
     assert f'Relink refused: {message}' in capsys.readouterr().err
     assert _photo_rows(db) == before
+
+
+def test_logical_asset_membership_and_primary_follow_relink(library):
+    from db import logical_assets as assets
+
+    db, old, new, _ = library
+    raw = str(Path(old).with_suffix('.CR2'))
+    with sqlite3.connect(db) as conn:
+        conn.execute('INSERT INTO photos(path,filename) VALUES (?,?)', (raw, 'a.CR2'))
+        key = assets.create(conn, [old, raw], old, visibility_sql='1=1')
+    plan = preview(library)
+    bytes_before = Path(new).read_bytes()
+    apply(library, plan)
+    with sqlite3.connect(db) as conn:
+        assert conn.execute('SELECT id,primary_path,revision FROM logical_assets').fetchall() == [(key, new, 2)]
+        assert conn.execute('SELECT photo_path FROM logical_asset_members ORDER BY position').fetchall() == [(new,), (raw,)]
+        assert conn.execute('PRAGMA foreign_key_check').fetchall() == []
+    assert Path(new).read_bytes() == bytes_before
+
+
+def test_primary_change_after_relink_preview_refuses_stale_apply(library):
+    from db import logical_assets as assets
+
+    db, old, new, _ = library
+    raw = str(Path(old).with_suffix('.CR2'))
+    with sqlite3.connect(db) as conn:
+        conn.execute('INSERT INTO photos(path,filename) VALUES (?,?)', (raw, 'a.CR2'))
+        key = assets.create(conn, [old, raw], old, visibility_sql='1=1')
+    plan = preview(library)
+    with sqlite3.connect(db) as conn:
+        conn.execute('BEGIN')
+        assets.set_primary(conn, key, raw, 1, visibility_sql='1=1')
+    with pytest.raises(ValueError):
+        apply(library, plan)
+    with sqlite3.connect(db) as conn:
+        assert conn.execute('SELECT primary_path,revision FROM logical_assets WHERE id=?', (key,)).fetchone() == (raw, 2)
+        assert conn.execute('SELECT path FROM photos WHERE path=?', (old,)).fetchone() == (old,)

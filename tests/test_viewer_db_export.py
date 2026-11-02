@@ -726,3 +726,43 @@ def test_retry_submission_receipts_are_private_and_viewer_local_receipts_survive
     export_viewer_db(src, out, verbose=False)
     with sqlite3.connect(out) as conn:
         assert conn.execute('SELECT plan_id,actor,receipt FROM scan_retry_receipts').fetchall() == [('viewer-plan','viewer-actor','viewer-receipt')]
+
+
+def test_logical_assets_full_and_repeated_export_preserve_viewer_authority(tmp_path):
+    from db import logical_assets as assets
+
+    src, out = str(tmp_path / 'logical-source.db'), str(tmp_path / 'logical-viewer.db')
+    _make_source_db(src)
+    raw = '/photos/a.CR2'
+    with sqlite3.connect(src) as conn:
+        conn.execute('INSERT INTO photos(path,filename,thumbnail) VALUES (?,?,?)',
+                     (raw, 'a.CR2', _thumb_bytes()))
+        key = assets.create(conn, [_A, raw], _A, visibility_sql='1=1')
+        conn.execute('INSERT INTO logical_asset_imports VALUES (?,?,?)', (key, 'private-source-receipt', '["private-source-history"]'))
+    export_viewer_db(src, out, verbose=False)
+    with sqlite3.connect(out) as conn:
+        assert conn.execute('SELECT primary_path,revision FROM logical_assets WHERE id=?', (key,)).fetchone() == (_A, 1)
+        assert conn.execute('SELECT signature FROM logical_asset_imports').fetchone()[0] != 'private-source-receipt'
+    for revision, selected in [(1, raw), (2, _A)]:
+        with sqlite3.connect(src) as conn:
+            conn.execute('BEGIN')
+            assets.set_primary(conn, key, selected, revision, visibility_sql='1=1')
+        export_viewer_db(src, out, verbose=False)
+        with sqlite3.connect(out) as conn:
+            assert conn.execute('SELECT primary_path,revision FROM logical_assets WHERE id=?', (key,)).fetchone() == (selected, revision + 1)
+    with sqlite3.connect(out) as conn:
+        conn.execute('BEGIN')
+        assets.set_primary(conn, key, raw, 3, visibility_sql='1=1')
+    with sqlite3.connect(src) as conn:
+        conn.execute('BEGIN')
+        assets.set_primary(conn, key, _A, 3, visibility_sql='1=1')
+    export_viewer_db(src, out, verbose=False)
+    with sqlite3.connect(out) as conn:
+        assert conn.execute('SELECT primary_path,revision FROM logical_assets WHERE id=?', (key,)).fetchone() == (raw, 4)
+        conn.execute('BEGIN')
+        assets.dissolve(conn, key, 4, visibility_sql='1=1')
+    export_viewer_db(src, out, verbose=False)
+    export_viewer_db(src, out, verbose=False)
+    with sqlite3.connect(out) as conn:
+        assert conn.execute('SELECT * FROM logical_assets').fetchall() == []
+        assert conn.execute('SELECT path FROM photos WHERE path IN (?,?) ORDER BY path', (_A, raw)).fetchall() == [(raw,), (_A,)]

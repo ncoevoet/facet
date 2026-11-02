@@ -666,6 +666,9 @@ def _incremental_update_viewer_data(source_db, output_path, thumbnail_size, verb
     dest_conn.execute("PRAGMA foreign_keys = ON")
     dest_conn.execute(f"ATTACH DATABASE '{src_escaped}' AS src")
 
+    from db.logical_asset_sync import prepare_sync as prepare_asset_sync, sync_imports as sync_asset_imports
+    preserved_assets = prepare_asset_sync(dest_conn)
+
     from db.keyword_hierarchy_sync import prepare_hierarchy_sync
     try:
         hierarchy_sync = prepare_hierarchy_sync(dest_conn)
@@ -994,6 +997,11 @@ def _incremental_update_viewer_data(source_db, output_path, thumbnail_size, verb
                 "Could not sync photos_vec in viewer export "
                 "(rebuild with --populate-vec): %s", ex)
 
+    # Catalog logical groups ship, unlike owner-private manual stacks. Capture
+    # viewer intent before photo cleanup and retain it through every re-export.
+    sync_asset_imports(dest_conn, preserved_assets)
+    dest_conn.commit()
+
     # --- Clear stats_cache (viewer regenerates on demand) ---
     if 'stats_cache' in dest_tables:
         dest_conn.execute("DELETE FROM main.stats_cache")
@@ -1020,7 +1028,7 @@ def _incremental_update_viewer_data(source_db, output_path, thumbnail_size, verb
 
 
 # Tables a viewer database export must not carry (the DROP list of the full export).
-VIEWER_EXPORT_EXCLUDED_TABLES = ('mcp_tokens', 'rating_provenance', 'organization_history',
+VIEWER_EXPORT_EXCLUDED_TABLES = ('logical_asset_imports', 'mcp_tokens', 'rating_provenance', 'organization_history',
                                  'face_review_feedback',
                                  'face_update_items', 'face_update_jobs',
                                  'person_centroid_dirty',
@@ -1169,6 +1177,12 @@ def export_viewer_db(source_db='photo_scores_pro.db', output_path=None, thumbnai
     # destination's own triggers keep advancing.
     for table in VIEWER_EXPORT_EXCLUDED_TABLES:
         dst_conn.execute(f"DROP TABLE IF EXISTS {table}")
+    dst_conn.commit()
+
+    # Imported asset baselines belong to this viewer, never to the source DB.
+    # Catalog memberships themselves are durable catalog data and remain copied.
+    from db.logical_asset_sync import capture_imports as capture_asset_imports
+    capture_asset_imports(dst_conn)
     dst_conn.commit()
 
     # Receipt authority and private source paths belong to this database only.
