@@ -437,7 +437,7 @@ def test_gallery_and_targeted_rows_carry_logical_snapshot(edition_client, bundle
     listing = edition_client.get('/api/photos', params={**filters, 'per_page': 100})
     assert listing.status_code == 200, listing.text
     found = [photo for photo in listing.json()['photos'] if photo['path'] in bundle['paths']]
-    assert len(found) == 2
+    assert len(found) == 1
     assert all(photo['logical_review'] == state for photo in found)
 
 
@@ -512,3 +512,76 @@ def test_logical_count_cache_hits_and_invalidates_after_shared_review_edit(editi
     assert hits[-1] is False
     assert asyncio.run(count()) == 0
     assert hits[-1] is True
+
+
+def test_logical_read_endpoints_agree_on_primary_shared_rating_and_count(edition_client, bundle):
+    key = submit(edition_client, bundle, draft(edition_client, bundle), acknowledge_review_conflicts=True).json()['asset_id']
+    primary = {'operation': 'primary', 'asset_id': key, 'revision': 1, 'primary_path': bundle['paths'][1]}
+    assert submit(edition_client, primary, draft(edition_client, primary), acknowledge_review_conflicts=True).status_code == 200
+    filters = {'type': '', 'hide_blinks': 'false', 'hide_bursts': 'false', 'hide_duplicates': 'false',
+               'hide_brackets': 'false', 'hide_panoramas': 'false', 'hide_rejected': 'false',
+               'path_prefix': str(Path(bundle['primary_path']).parent), 'min_rating': '4'}
+    listing = edition_client.get('/api/photos', params=filters)
+    assert listing.status_code == 200, listing.text
+    page = listing.json()
+    assert page['total'] == page['photo_total'] == 1
+    assert [(photo['path'], photo['star_rating']) for photo in page['photos']] == [(bundle['paths'][1], 5)]
+    count = edition_client.get('/api/photos/count', params=filters)
+    paths = edition_client.get('/api/photos/paths', params=filters)
+    assert count.status_code == paths.status_code == 200
+    assert count.json()['total'] == paths.json()['total'] == 1
+    assert paths.json()['paths'] == [bundle['paths'][1]]
+    repair = edition_client.post('/api/photos/by_paths', json={'paths': bundle['paths'], 'filters': filters})
+    assert repair.status_code == 200, repair.text
+    assert repair.json()['missing'] == []
+    assert [(photo['path'], photo['star_rating']) for photo in repair.json()['photos']] == [(path, 5) for path in bundle['paths']]
+
+
+def test_semantic_companion_hits_resolve_one_primary_across_read_endpoints(edition_client, bundle, monkeypatch):
+    from api import config
+    from api.routers import gallery
+    from api.routers.search import Candidates
+
+    monkeypatch.setitem(config.VIEWER_CONFIG['features'], 'show_semantic_search', True)
+    submit(edition_client, bundle, draft(edition_client, bundle), acknowledge_review_conflicts=True)
+    # Only the non-primary RAW passes the semantic threshold.
+    candidates = Candidates({bundle['paths'][1]: 0.9}, {bundle['paths'][1]: 0.9}, json.dumps([bundle['paths'][1]]))
+    async def semantic(*args):
+        return candidates
+    monkeypatch.setattr(gallery, 'semantic_candidates', semantic)
+    params = {'type': '', 'hide_blinks': 'false', 'hide_bursts': 'false', 'hide_duplicates': 'false',
+              'hide_brackets': 'false', 'hide_panoramas': 'false', 'hide_rejected': 'false',
+              'path_prefix': str(Path(bundle['primary_path']).parent), 'semantic_q': 'test capture', 'sort': 'relevance'}
+    response = edition_client.get('/api/photos', params=params)
+    assert response.status_code == 200, response.text
+    page = response.json()
+    assert page['total'] == 1
+    assert [photo['path'] for photo in page['photos']] == [bundle['primary_path']]
+    assert page['photos'][0]['similarity'] == 0.9
+    for route in ('/api/photos/count', '/api/photos/paths'):
+        result = edition_client.get(route, params=params)
+        assert result.status_code == 200, result.text
+        assert result.json()['total'] == 1
+    assert candidates.blended == {bundle['paths'][1]: 0.9}
+    assert candidates._ordered_json == {}
+
+
+def test_http_manual_stack_counts_logical_pair_once(edition_client, bundle, seed_photos_prefix):
+    key = submit(edition_client, bundle, draft(edition_client, bundle), acknowledge_review_conflicts=True).json()['asset_id']
+    primary = {'operation': 'primary', 'asset_id': key, 'revision': 1, 'primary_path': bundle['paths'][1]}
+    assert submit(edition_client, primary, draft(edition_client, primary), acknowledge_review_conflicts=True).status_code == 200
+    other = str(Path(bundle['primary_path']).with_name('other.jpg'))
+    seed_photos_prefix(str(Path(other).parent), [{'path': other, 'filename': 'other.jpg', 'aggregate': 5.0}])
+    stack = edition_client.post('/api/stacks', json={'paths': [*bundle['paths'], other], 'cover_path': bundle['primary_path']})
+    assert stack.status_code == 201, stack.text
+    filters = {'type': '', 'hide_blinks': 'false', 'hide_bursts': 'false', 'hide_duplicates': 'false',
+               'hide_brackets': 'false', 'hide_panoramas': 'false', 'hide_rejected': 'false',
+               'path_prefix': str(Path(other).parent)}
+    response = edition_client.get('/api/photos', params=filters)
+    assert response.status_code == 200, response.text
+    page = response.json()
+    assert page['total'] == 1 and page['photo_total'] == 2
+    assert page['photos'][0]['path'] == bundle['paths'][1]
+    assert page['photos'][0]['stack_count'] == page['photos'][0]['stack_total_count'] == 2
+    count = edition_client.get('/api/photos/count', params=filters)
+    assert count.status_code == 200 and count.json()['total'] == 2

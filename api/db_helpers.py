@@ -1047,7 +1047,7 @@ async def get_cached_count_async(conn, where_str, sql_params, from_clause="photo
 
 
 async def get_cached_hidden_aggregates_async(conn, where_str, sql_params, from_clause="photos", *,
-                                             stack_owner=None, token=None):
+                                             stack_owner=None, token=None, logical=False):
     """Cached blink/burst/duplicate/bracket aggregates over the no-hide set.
 
     The gallery builds its hidden_summary from a full-table aggregate (~100ms on a
@@ -1062,7 +1062,11 @@ async def get_cached_hidden_aggregates_async(conn, where_str, sql_params, from_c
     aggregate_params = list(sql_params)
     if stack_owner is not None:
         from api.stack_gallery import membership_clause
-        auto_exclusion = f' AND NOT ({membership_clause()})'
+        membership = membership_clause()
+        if logical:
+            from api.logical_collection import membership as logical_membership
+            membership = logical_membership('SELECT photo_path FROM photo_stack_members WHERE owner=?').sql
+        auto_exclusion = f' AND NOT ({membership})'
         aggregate_params = [stack_owner, stack_owner, *sql_params]
     cache_key = await asyncio.to_thread(
         _count_cache_key, "hs:", from_clause, where_str + auto_exclusion, aggregate_params, token)

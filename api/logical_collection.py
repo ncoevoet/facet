@@ -17,7 +17,7 @@ class CollectionSource:
     params: list
 
 
-def source(columns, *, owner, multi_user, visibility_sql, visibility_params=()):
+def source(columns, *, owner, multi_user, visibility_sql, visibility_params=(), collapse=True):
     """Build an aliased photos source from trusted schema column names.
 
     Partially visible groups stay separate authorized file rows: no hidden
@@ -70,6 +70,7 @@ def source(columns, *, owner, multi_user, visibility_sql, visibility_params=()):
         else:
             select.append(f"p.{quoted}")
     params.extend([owner, owner, owner])
+    representative_filter = "g.id IS NULL OR p.path=g.representative" if collapse else "1=1"
     sql = f"""(WITH authorized_groups AS (
         SELECT a.id,a.primary_path,a.revision,
                CASE WHEN EXISTS(SELECT 1 FROM logical_asset_members x
@@ -93,7 +94,7 @@ def source(columns, *, owner, multi_user, visibility_sql, visibility_params=()):
       LEFT JOIN logical_review_fields rating ON rating.asset_id=g.id AND rating.owner=? AND rating.field='star_rating'
       LEFT JOIN logical_review_fields favorite ON favorite.asset_id=g.id AND favorite.owner=? AND favorite.field='is_favorite'
       LEFT JOIN logical_review_fields decision ON decision.asset_id=g.id AND decision.owner=? AND decision.field='decision'
-      WHERE g.id IS NULL OR p.path=g.representative) AS photos"""
+      WHERE {representative_filter}) AS photos"""
     # The source itself enforces visibility; callers cannot accidentally expose
     # hidden singleton rows by omitting an outer visibility predicate.
     sql = f"(SELECT * FROM {sql} WHERE ({visibility_sql})) AS photos"
@@ -124,3 +125,50 @@ def membership(path_query, params=()):
                       AND selected_logical.photo_path=selected_members.photo_path)))""",
         list(params),
     )
+
+
+async def enabled_async(conn):
+    cursor = await conn.execute('SELECT 1 FROM logical_assets LIMIT 1')
+    try:
+        return await cursor.fetchone() is not None
+    finally:
+        await cursor.close()
+
+
+async def for_user_async(conn, user_id, *, collapse=True):
+    from api.config import is_multi_user_enabled
+    from api.db_helpers import get_visibility_clause
+
+    cursor = await conn.execute('PRAGMA table_info(photos)')
+    try:
+        columns = [row[1] for row in await cursor.fetchall()]
+    finally:
+        await cursor.close()
+    visibility, params = get_visibility_clause(user_id)
+    multi_user = is_multi_user_enabled()
+    return source(columns, owner=(user_id or '') if multi_user else '', multi_user=multi_user,
+                  visibility_sql=visibility, visibility_params=params, collapse=collapse)
+
+
+async def remap_candidates(conn, candidates, user_id):
+    """Map authorized semantic hits to representatives without changing shared caches."""
+    import json
+    from api.routers.search import Candidates
+
+    collection = await for_user_async(conn, user_id)
+    cursor = await conn.execute(
+        f'SELECT photos.path,hits.value FROM {collection.sql} JOIN json_each(?) hits '
+        'ON hits.value=photos.path OR (photos._logical_asset_id IS NOT NULL AND EXISTS('
+        'SELECT 1 FROM logical_asset_members lm WHERE lm.asset_id=photos._logical_asset_id AND lm.photo_path=hits.value))',
+        [*collection.params, candidates.paths_json])
+    try:
+        mapped = await cursor.fetchall()
+    finally:
+        await cursor.close()
+    blended, embedding = {}, {}
+    for representative, original in mapped:
+        if original in candidates.blended:
+            blended[representative] = max(blended.get(representative, float('-inf')), candidates.blended[original])
+        if original in candidates.embedding:
+            embedding[representative] = max(embedding.get(representative, float('-inf')), candidates.embedding[original])
+    return Candidates(embedding, blended, json.dumps(sorted(blended)))

@@ -859,7 +859,7 @@ def gallery_scope_sql(conn, filters, user_id, exclude=None, prepared=None, *, lo
     return _gallery_scope_sql_checked(conn, filters, user_id, exclude, prepared, owner, collection_source=collection_source)
 
 
-async def gallery_scope_sql_async(conn, filters, user_id, exclude=None, prepared=None, *, logical=False):
+async def gallery_scope_sql_async(conn, filters, user_id, exclude=None, prepared=None, *, logical=False, logical_collapse=True):
     """:func:`gallery_scope_sql` for an aiosqlite connection.
 
     Two entry points rather than one, because the album access check is the
@@ -881,15 +881,8 @@ async def gallery_scope_sql_async(conn, filters, user_id, exclude=None, prepared
         hierarchy_available = await hierarchy_schema_available_async(conn)
     collection_source = None
     if logical:
-        from api.logical_collection import source
-        from api.config import is_multi_user_enabled
-        cursor = await conn.execute('PRAGMA table_info(photos)')
-        columns = [row[1] for row in await cursor.fetchall()]
-        await cursor.close()
-        visibility, values = get_visibility_clause(user_id)
-        multi_user = is_multi_user_enabled()
-        collection_source = source(columns, owner=(user_id or '') if multi_user else '', multi_user=multi_user,
-                                   visibility_sql=visibility, visibility_params=values)
+        from api.logical_collection import for_user_async
+        collection_source = await for_user_async(conn, user_id, collapse=logical_collapse)
     return _gallery_scope_sql_checked(conn, filters, user_id, exclude, prepared, owner,
                                       hierarchy_available=hierarchy_available, collection_source=collection_source)
 
@@ -1239,14 +1232,17 @@ async def api_review_progress(
     qp['show_rejected'] = '0'
     try:
         async with get_async_db() as conn:
+            await conn.execute('BEGIN')
+            from api.logical_collection import enabled_async
+            logical = await enabled_async(conn)
             user_id = user.user_id if user else None
-            from_clause, where_str, params = await gallery_scope_sql_async(conn, qp, user_id)
+            from_clause, where_str, params = await gallery_scope_sql_async(conn, qp, user_id, logical=logical)
             semantic_q, threshold = _semantic_params(qp)
             if semantic_q is not None:
                 _require_semantic_search_enabled()
                 _, where_str, params = await _apply_semantic_gate(
-                    conn, semantic_q, threshold, user_id, where_str, params, "review progress")
-            pref = get_preference_columns(user_id)
+                    conn, semantic_q, threshold, user_id, where_str, params, "review progress", logical=logical)
+            pref = {field: f'photos.{field}' for field in ('is_kept', 'is_rejected')} if logical else get_preference_columns(user_id)
             rejected = f"COALESCE({pref['is_rejected']}, 0)"
             kept = f"COALESCE({pref['is_kept']}, 0)"
             cur = await conn.execute(
@@ -1282,11 +1278,20 @@ async def api_photos_count(
     """
     qp = dict(request.query_params)
     try:
+        token = await snapshot_count_token()
         async with get_async_db() as conn:
+            await conn.execute('BEGIN')
+            from api.logical_collection import enabled_async
+            logical = await enabled_async(conn)
             user_id = user.user_id if user else None
-            from_clause, where_str, all_params = await gallery_scope_sql_async(conn, qp, user_id)
+            from_clause, where_str, all_params = await gallery_scope_sql_async(conn, qp, user_id, logical=logical)
+            semantic_q, threshold = _semantic_params(qp)
+            if semantic_q is not None:
+                _require_semantic_search_enabled()
+                _, where_str, all_params = await _apply_semantic_gate(
+                    conn, semantic_q, threshold, user_id, where_str, all_params, 'gallery selection', logical=logical)
             total = await get_cached_count_async(
-                conn, where_str, all_params, from_clause=from_clause
+                conn, where_str, all_params, from_clause=from_clause, token=token
             )
     except ValidationError as e:
         _raise_422_for_invalid_gallery_params(e, logger, "Gallery count parameter validation failed: %s")
@@ -1341,9 +1346,18 @@ async def api_photos_paths(
     """
     qp = dict(request.query_params)
     try:
+        token = await snapshot_count_token()
         async with get_async_db() as conn:
+            await conn.execute('BEGIN')
+            from api.logical_collection import enabled_async
+            logical = await enabled_async(conn)
             user_id = user.user_id if user else None
-            from_clause, where_str, all_params = await gallery_scope_sql_async(conn, qp, user_id)
+            from_clause, where_str, all_params = await gallery_scope_sql_async(conn, qp, user_id, logical=logical)
+            semantic_q, threshold = _semantic_params(qp)
+            if semantic_q is not None:
+                _require_semantic_search_enabled()
+                _, where_str, all_params = await _apply_semantic_gate(
+                    conn, semantic_q, threshold, user_id, where_str, all_params, 'gallery selection', logical=logical)
             # LIMIT one past the cap: enough to KNOW the view is oversized
             # without ever materialising the list it would have returned. The
             # exact count for the message is only paid for on the refusal path.
@@ -1355,7 +1369,7 @@ async def api_photos_paths(
             await cur.close()
             if len(rows) > _VIEW_PATHS_MAX:
                 total = await get_cached_count_async(
-                    conn, where_str, all_params, from_clause=from_clause
+                    conn, where_str, all_params, from_clause=from_clause, token=token
                 )
                 raise HTTPException(
                     status_code=412,
@@ -1416,7 +1430,7 @@ def _require_semantic_search_enabled():
         raise HTTPException(status_code=400, detail="Semantic search is disabled")
 
 
-async def _apply_semantic_gate(conn, semantic_q, threshold, user_id, where_str, params, label):
+async def _apply_semantic_gate(conn, semantic_q, threshold, user_id, where_str, params, label, *, logical=False):
     """Narrow a scope to the semantic candidates: ``(candidates, where_str, params)``.
 
     Never degrades to the whole library: a gate that cannot be resolved is a 503 (busy accelerator or any
@@ -1425,6 +1439,9 @@ async def _apply_semantic_gate(conn, semantic_q, threshold, user_id, where_str, 
     """
     try:
         candidates = await semantic_candidates(conn, semantic_q, threshold, user_id)
+        if logical:
+            from api.logical_collection import remap_candidates
+            candidates = await remap_candidates(conn, candidates, user_id)
     except AcceleratorBusy:
         logger.warning("Semantic %s gave up waiting for the MPS lock: %s", label, semantic_q)
         raise HTTPException(status_code=503, detail="Search model is busy with another task, try again in a moment")
@@ -1489,24 +1506,24 @@ async def api_photos(
         _require_semantic_search_enabled()
 
     try:
+        token = await snapshot_count_token()
         async with get_async_db() as conn:
+            await conn.execute('BEGIN')
+            from api.logical_collection import enabled_async, for_user_async
+            logical = await enabled_async(conn)
             user_id = user.user_id if user else None
             owner = await stack_gallery.enabled_owner_async(conn, user_id)
-            token = None
-            if owner is not None:
-                token = await snapshot_count_token()
-            await conn.execute('BEGIN')
             # The listing's own scope, from the same builder every whole-view
             # surface uses -- album access check included. `params` is already
             # prepared above for the sort and paging, so it is handed over
             # rather than prepared again.
             from_clause, where_str, all_params = await gallery_scope_sql_async(
-                conn, qp, user_id, prepared=params
+                conn, qp, user_id, prepared=params, logical=logical
             )
             candidates = None
             if semantic_q is not None:
                 candidates, where_str, all_params = await _apply_semantic_gate(
-                    conn, semantic_q, semantic_threshold, user_id, where_str, all_params, "gallery search")
+                    conn, semantic_q, semantic_threshold, user_id, where_str, all_params, "gallery search", logical=logical)
 
             total_count = await get_cached_count_async(
                 conn, where_str, all_params, from_clause=from_clause, token=token)
@@ -1515,7 +1532,7 @@ async def api_photos(
             if owner is not None:
                 display = stack_gallery.projection(
                     from_clause, where_str, all_params, owner,
-                    collapse=params.get('collapse_stacks') not in ('0', 'false') and not params.get('stack_id'),
+                    collapse=params.get('collapse_stacks') not in ('0', 'false') and not params.get('stack_id'), logical=logical,
                 )
                 total_count = await display.count(conn, photo_total)
             total_pages, offset = paginate(total_count, page, per_page)
@@ -1531,14 +1548,14 @@ async def api_photos(
                           'hide_panoramas', 'no_blink', 'burst_only'):
                     params_no_hide[k] = ''
                 _, where_str_no_hide, all_params_no_hide = await gallery_scope_sql_async(
-                    conn, qp, user_id, prepared=params_no_hide,
+                    conn, qp, user_id, prepared=params_no_hide, logical=logical,
                 )
                 if candidates is not None:
                     where_str_no_hide = _with_semantic_clause(where_str_no_hide)
                     all_params_no_hide = all_params_no_hide + [candidates.paths_json]
                 agg = await get_cached_hidden_aggregates_async(
                     conn, where_str_no_hide, all_params_no_hide, from_clause=from_clause,
-                    stack_owner=owner, token=token,
+                    stack_owner=owner, token=token, logical=logical,
                 )
                 hidden_summary = {
                     'total': max(0, agg['unhidden'] - photo_total),
@@ -1553,7 +1570,7 @@ async def api_photos(
                                   'brackets': 0, 'panoramas': 0}
 
             # cache hit, no PRAGMA — same select-cols logic as other endpoints
-            select_cols = build_photo_select_columns(conn=None, user_id=user_id)
+            select_cols = build_photo_select_columns(conn=None, user_id=user_id, logical=logical)
 
             needs_top_picks_score = (
                 params.get('top_picks_filter') == '1' or
@@ -1591,7 +1608,8 @@ async def api_photos(
 
             photos = await _assemble_gallery_rows(rows, conn, user_id)
             if owner is not None:
-                await stack_gallery.enrich_counts(photos, conn, owner, user_id)
+                await stack_gallery.enrich_counts(photos, conn, owner, user_id,
+                                                   logical_source=await for_user_async(conn, user_id) if logical else None)
             if candidates is not None:
                 for photo in photos:
                     photo['similarity'] = round(candidates.blended.get(photo['path'], 0.0), 4)
@@ -1645,10 +1663,12 @@ async def api_photos_by_paths(
     try:
         async with get_async_db() as conn:
             await conn.execute('BEGIN')
+            from api.logical_collection import enabled_async
+            logical = await enabled_async(conn)
             user_id = user.user_id if user else None
             from_clause, where_str, all_params = await gallery_scope_sql_async(
-                conn, qp, user_id, prepared=params)
-            select_cols = build_photo_select_columns(conn=None, user_id=user_id)
+                conn, qp, user_id, prepared=params, logical=logical, logical_collapse=False)
+            select_cols = build_photo_select_columns(conn=None, user_id=user_id, logical=logical)
             select_cols = with_top_picks_alias(select_cols, params.get('top_picks_filter') == '1')
             marks = ','.join('?' * len(wanted))
             cur = await conn.execute(
