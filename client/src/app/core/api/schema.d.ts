@@ -2388,6 +2388,66 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/manual_tags/catalog": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Api Keyword Catalog
+         * @description Search all visible manual keyword identities; counts never include hidden photos.
+         */
+        get: operations["api_keyword_catalog_api_manual_tags_catalog_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/manual_tags/manage/apply": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Api Keyword Change Apply
+         * @description Revalidate all assignment preconditions inside the one write transaction.
+         */
+        post: operations["api_keyword_change_apply_api_manual_tags_manage_apply_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/manual_tags/manage/preview": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Api Keyword Change Preview
+         * @description Inspect an explicit rename/merge or removal of currently visible assignments.
+         */
+        post: operations["api_keyword_change_preview_api_manual_tags_manage_preview_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/mcp/call": {
         parameters: {
             query?: never;
@@ -7519,6 +7579,74 @@ export interface components {
         KeySubjectsBody: {
             /** Paths */
             paths: string[];
+        };
+        /** KeywordCatalogItem */
+        KeywordCatalogItem: {
+            /** Count */
+            count: number;
+            /** Imported */
+            imported: number;
+            /** Tag */
+            tag: string;
+            /** Typed */
+            typed: number;
+            /** Unrecorded */
+            unrecorded: number;
+        };
+        /** KeywordCatalogResponse */
+        KeywordCatalogResponse: {
+            /** Items */
+            items: components["schemas"]["KeywordCatalogItem"][];
+            /** Next After */
+            next_after: string | null;
+            /** Total */
+            total: number;
+        };
+        /** KeywordChangeApply */
+        KeywordChangeApply: {
+            /** Preview Token */
+            preview_token: string;
+            /** Source */
+            source: string;
+            /** Target */
+            target?: string | null;
+        };
+        /** KeywordChangePreview */
+        KeywordChangePreview: {
+            /** Ai Matches */
+            ai_matches: number;
+            /** Expires At */
+            expires_at: number;
+            /** Merged */
+            merged: number;
+            /** Paths */
+            paths: string[];
+            /** Preview Token */
+            preview_token: string;
+            /** Removed */
+            removed: number;
+            /** Renamed */
+            renamed: number;
+            /** Source */
+            source: string;
+            /** Target */
+            target: string | null;
+        };
+        /** KeywordChangeRequest */
+        KeywordChangeRequest: {
+            /** Source */
+            source: string;
+            /** Target */
+            target?: string | null;
+        };
+        /** KeywordChangeResult */
+        KeywordChangeResult: {
+            /** Changed */
+            changed: number;
+            /** Source */
+            source: string;
+            /** Target */
+            target: string | null;
         };
         /** LanguageEntry */
         LanguageEntry: {
@@ -14281,6 +14409,105 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["LightroomManifest"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    api_keyword_catalog_api_manual_tags_catalog_get: {
+        parameters: {
+            query?: {
+                search?: string;
+                after?: string;
+                limit?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["KeywordCatalogResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    api_keyword_change_apply_api_manual_tags_manage_apply_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["KeywordChangeApply"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["KeywordChangeResult"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    api_keyword_change_preview_api_manual_tags_manage_preview_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["KeywordChangeRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["KeywordChangePreview"];
                 };
             };
             /** @description Validation Error */

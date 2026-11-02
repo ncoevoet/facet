@@ -3874,5 +3874,27 @@
     "help_title": "About related files",
     "help": "Photo display requests this indexed file; the rendition indicator reports what actually decoded. Gallery thumbnails are stored previews. Same-stem RAW/JPEG and XMP names are candidates, not proof of identity. Manual stacks are separate. RAW download follows the existing companion rule; sidecar import and export use their own naming policies. This list is a read-time check, not a file-write preview. Linked targets are not inspected. Only supported lower/upper-case RAW/JPEG extensions and the three shown XMP naming patterns are checked.",
     "multi_user_scope": "On multi-user installations, image companions must also be indexed and visible to this account. A filesystem match alone does not grant access."
+  },
+  "keyword_catalog": {
+    "title": "Browse manual keywords",
+    "search": "Find a keyword",
+    "find": "Find",
+    "error": "Could not complete the keyword operation. Reload and check the current assignments.",
+    "count": "{count} manual keywords in your visible library",
+    "manage_named": "Manage {name}",
+    "manage": "Manage",
+    "reload": "Reload keywords",
+    "next": "Next",
+    "previous": "Previous",
+    "target": "Rename or merge into keyword",
+    "preview": "{count} photos · {renamed} renamed · {merged} merged · {ai} already AI-tagged · {removed} removed",
+    "targets": "Inspect {count} affected photos",
+    "rename_preview": "Preview rename / merge",
+    "remove_preview": "Preview removal",
+    "uncertain": "The result is unconfirmed. Reload keywords before choosing another change.",
+    "changed": "Updated {count} photo assignments",
+    "help": "Keyword identity and ownership",
+    "boundary": "Manual keywords are shared catalog metadata. Management affects only photos currently visible to you, not hidden photos. Existing destination assignments keep their origin. AI labels and image files stay unchanged. These changes have no Undo; inspect the preview before applying.",
+    "literal": "Full keyword names are identities. Slashes stay literal: animals/cat and zoo/cat are different keywords. Removing an assignment does not delete a photo. Export metadata separately to send changes to other applications."
   }
 }

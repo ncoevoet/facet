@@ -453,13 +453,13 @@ describe('GalleryFilterSidebarComponent', () => {
       const panels = allPanels();
       for (const key of SECTION_ORDER) expect(panels, key).toContain(key);
       for (const key of BROWSE_PANELS) expect(TAB_SECTIONS.browse).toContain(key);
-      expect(panels).toEqual(expect.arrayContaining(['refine', 'color_quality', 'view']));
-      expect(panels).toHaveLength(SECTION_ORDER.length + BROWSE_PANELS.length + 3);
+      expect(panels).toEqual(expect.arrayContaining(['refine', 'color_quality', 'view', 'score_presence']));
+      expect(panels).toHaveLength(SECTION_ORDER.length + BROWSE_PANELS.length + 4);
     });
 
     it('splits the metric sections between Quality (image quality) and Subject (what is in the frame)', () => {
       expect(TAB_SECTIONS.quality).toEqual([
-        'gallery.sidebar.quality', 'color_quality', 'gallery.sidebar.extended_quality',
+        'score_presence', 'gallery.sidebar.quality', 'color_quality', 'gallery.sidebar.extended_quality',
         'gallery.sidebar.technical', 'gallery.sidebar.exposure_range',
       ]);
       expect(TAB_SECTIONS.subject).toEqual([

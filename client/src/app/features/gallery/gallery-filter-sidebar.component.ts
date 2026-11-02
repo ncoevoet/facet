@@ -39,6 +39,7 @@ import { isUnavailableKey, unavailableSet } from '../../shared/utils/unavailable
 import { closeOverlayDirectives } from '../../shared/utils/overlays';
 import { MetricSparklineComponent } from '../../shared/components/metric-sparkline/metric-sparkline.component';
 import { TagGroupsComponent } from './tag-groups.component';
+import { KeywordCatalogComponent } from './keyword-catalog.component';
 import { ScorePresenceComponent } from './score-presence.component';
 import { SCORE_PRESENCE_KEYS } from './score-presence.util';
 import { FilterPinsService, FILTER_PIN_LIMIT } from './filter-pins.service';
@@ -289,7 +290,7 @@ export function loadActiveTab(): SidebarTabId {
     MatDialogModule,
     TranslatePipe,
     FilterDisplayPipe,
-    TagGroupsComponent,
+    TagGroupsComponent, KeywordCatalogComponent,
     ScorePresenceComponent,
     PersonThumbnailUrlPipe,
   ],
@@ -601,6 +602,7 @@ export function loadActiveTab(): SidebarTabId {
               </mat-form-field>
             }
             <app-tag-groups />
+            <app-keyword-catalog />
             @if (store.patterns().length) {
               <mat-form-field subscriptSizing="dynamic" class="w-full">
                 <mat-label>{{ I18N.gallery.composition_pattern | translate }}</mat-label>

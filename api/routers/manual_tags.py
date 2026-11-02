@@ -9,16 +9,21 @@ dropdown (both cache layers).
 
 import logging
 import sqlite3
+from typing import Optional
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query, Response
 
-from api.auth import CurrentUser, require_edition
+from api.auth import CurrentUser, get_optional_user, require_edition
 from api.config import is_multi_user_enabled
 from api.database import get_db
 from api.db_helpers import after_commit, is_locked_error, retry_on_locked
 from api.models.manual_tags import (
     BatchManualTagRequest, BatchManualTagResponse, ManualTagDeleteResponse,
     ManualTagRequest, ManualTagResponse,
+)
+from api.models.keyword_catalog import (
+    KeywordCatalogResponse, KeywordChangeApply, KeywordChangePreview,
+    KeywordChangeRequest, KeywordChangeResult,
 )
 from api.routers.faces import _batch_scope_sql, _require_writable_photo, _writable_photo_paths
 from db.manual_tags import (
@@ -46,6 +51,59 @@ def _created_by(user):
 def _drop_tag_caches(conn):
     """Clear the DB-persisted tag dropdown row, then the in-process stats cache."""
     conn.execute("DELETE FROM stats_cache WHERE key = 'tags'")
+
+
+@router.get('/api/manual_tags/catalog', response_model=KeywordCatalogResponse)
+def api_keyword_catalog(response: Response, search: str = Query(default='', max_length=64),
+                        after: str = Query(default='', max_length=64), limit: int = Query(default=50, ge=1, le=100),
+                        user: Optional[CurrentUser] = Depends(get_optional_user)):
+    """Search all visible manual keyword identities; counts never include hidden photos."""
+    from api.keyword_catalog import keyword_catalog
+    response.headers['Cache-Control'] = 'no-store'
+    try:
+        with get_db() as conn:
+            conn.execute('PRAGMA query_only=ON')
+            conn.execute('BEGIN')
+            return keyword_catalog(conn, user.user_id if user else None, search, after, limit)
+    except sqlite3.Error as exc:
+        logger.exception('Keyword catalog read failed')
+        raise HTTPException(503, 'Keywords could not be read', headers={'Cache-Control': 'no-store'}) from exc
+
+
+@router.post('/api/manual_tags/manage/preview', response_model=KeywordChangePreview)
+def api_keyword_change_preview(body: KeywordChangeRequest, response: Response, user: CurrentUser = Depends(require_edition)):
+    """Inspect an explicit rename/merge or removal of currently visible assignments."""
+    from api.keyword_catalog import keyword_preview
+    response.headers['Cache-Control'] = 'no-store'
+    try:
+        with get_db() as conn:
+            conn.execute('PRAGMA query_only=ON')
+            conn.execute('BEGIN')
+            return keyword_preview(conn, user.user_id, body)
+    except sqlite3.Error as exc:
+        logger.exception('Keyword management preview failed')
+        raise HTTPException(503, 'Keyword assignments could not be read', headers={'Cache-Control': 'no-store'}) from exc
+
+
+@router.post('/api/manual_tags/manage/apply', response_model=KeywordChangeResult)
+@retry_on_locked()
+def api_keyword_change_apply(body: KeywordChangeApply, response: Response, user: CurrentUser = Depends(require_edition)):
+    """Revalidate all assignment preconditions inside the one write transaction."""
+    from api.keyword_catalog import apply_keyword_change
+    response.headers['Cache-Control'] = 'no-store'
+    try:
+        with get_db() as conn:
+            conn.execute('BEGIN IMMEDIATE')
+            result = apply_keyword_change(conn, user.user_id, body, created_by=_created_by(user))
+            _drop_tag_caches(conn)
+            conn.commit()
+    except sqlite3.Error as exc:
+        if is_locked_error(exc):
+            raise
+        logger.exception('Keyword management apply failed')
+        raise HTTPException(503, 'Keyword assignments could not be updated', headers={'Cache-Control': 'no-store'}) from exc
+    after_commit()
+    return result
 
 
 @router.put("/api/photo/manual_tags", response_model=ManualTagResponse)
