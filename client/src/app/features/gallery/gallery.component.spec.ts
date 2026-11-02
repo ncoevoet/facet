@@ -2162,12 +2162,9 @@ describe('GalleryComponent', () => {
         it('the score-explainer entry opens the critique for the held photo', () => {
           mockStore.config.set({ features: { show_critique: true } });
           fixture.detectChanges();
-          const openCritique = vi.spyOn(
-            fixture.componentInstance as unknown as { openCritique: (p: unknown) => void },
-            'openCritique',
-          );
+          const openCritique = vi.spyOn(fixture.componentInstance, 'openCritique');
           const entry = Array.from(rail.querySelectorAll('button'))
-            .find(b => b.textContent!.includes(I18N.gallery.tooltip_mode.panel_why)) as HTMLElement | undefined;
+            .find(b => b.textContent!.includes(I18N.critique.title)) as HTMLElement | undefined;
           expect(entry).toBeTruthy();
           entry!.click();
           expect(openCritique).toHaveBeenLastCalledWith(mockStore.photos()[0]);
@@ -2177,7 +2174,7 @@ describe('GalleryComponent', () => {
           mockStore.config.set({ features: { show_critique: false } });
           fixture.detectChanges();
           const entry = Array.from(rail.querySelectorAll('button'))
-            .find(b => b.textContent!.includes(I18N.gallery.tooltip_mode.panel_why));
+            .find(b => b.textContent!.includes(I18N.critique.title));
           expect(entry).toBeUndefined();
         });
       });

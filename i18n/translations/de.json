@@ -1138,8 +1138,7 @@
       "panel": "Seitenleiste",
       "off": "Aus",
       "panel_empty": "Fahre über ein Foto oder klicke es an, um seine Details hier zu sehen",
-      "panel_deselect": "Auswahl aufheben",
-      "panel_why": "Warum diese Bewertung?"
+      "panel_deselect": "Auswahl aufheben"
     },
     "panel_activation": {
       "both": "Hover oder Klick"

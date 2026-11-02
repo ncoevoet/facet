@@ -1153,7 +1153,6 @@ export const I18N = {
       off: "gallery.tooltip_mode.off",
       panel_empty: "gallery.tooltip_mode.panel_empty",
       panel_deselect: "gallery.tooltip_mode.panel_deselect",
-      panel_why: "gallery.tooltip_mode.panel_why",
     },
     panel_activation: {
       both: "gallery.panel_activation.both",

@@ -1138,8 +1138,7 @@
       "panel": "Pannello laterale",
       "off": "Disattivato",
       "panel_empty": "Passa il cursore su una foto o fai clic per vederne qui i dettagli",
-      "panel_deselect": "Deseleziona",
-      "panel_why": "Perché questo punteggio?"
+      "panel_deselect": "Deseleziona"
     },
     "panel_activation": {
       "both": "Hover o clic"

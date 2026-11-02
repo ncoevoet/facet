@@ -267,8 +267,8 @@ const SET_KIND_TOGGLE: Record<string, keyof HiddenFilterFlags> = {
                    dead space below the metrics gets a job. Gated on the same
                    show_critique flag as the card's and detail's entries. -->
               <button mat-button class="!min-w-0 shrink-0 self-start mx-2 mb-2" (click)="openRailCritique()">
-                <mat-icon class="!text-base !w-4 !h-4 !leading-4">psychology</mat-icon>
-                {{ I18N.gallery.tooltip_mode.panel_why | translate }}
+                <mat-icon class="!text-base !w-4 !h-4 !leading-4">analytics</mat-icon>
+                {{ I18N.critique.title | translate }}
               </button>
             }
           </div>

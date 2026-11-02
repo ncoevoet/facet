@@ -1138,8 +1138,7 @@
       "panel": "Panneau latéral",
       "off": "Désactivée",
       "panel_empty": "Survolez une photo ou cliquez dessus pour voir ses détails ici",
-      "panel_deselect": "Désélectionner",
-      "panel_why": "Pourquoi ce score ?"
+      "panel_deselect": "Désélectionner"
     },
     "panel_activation": {
       "both": "Survol ou clic"
