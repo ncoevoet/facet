@@ -2848,7 +2848,8 @@
     },
     "peaking": {
       "label": "Focus peaking",
-      "tooltip": "Highlight the sharpest edges of the displayed frame"
+      "tooltip": "Highlight edges in the displayed image",
+      "help": "Focus peaking highlights edges in the base display image. At Fit it uses a reduced image; zooming changes the pixels measured. Texture, noise and sharpening can create highlights. The overlay supports inspection, not a Keep/Reject verdict; intentional blur can still be worth keeping."
     },
     "legend": {
       "label": "Keyboard shortcuts",

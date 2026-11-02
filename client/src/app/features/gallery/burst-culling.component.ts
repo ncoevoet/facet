@@ -1010,6 +1010,7 @@ interface SceneSummary {
                     [attr.aria-pressed]="peakingActive()"
                     [matTooltip]="I18N.culling.peaking.tooltip | translate"
                     [attr.aria-label]="I18N.culling.peaking.label | translate"
+                    aria-describedby="darkroom-peaking-help"
                     (click)="togglePeaking()"><mat-icon>filter_center_focus</mat-icon></button>
             <button mat-icon-button [class.!text-white]="gridMode() === ''"
                     [class.!text-[var(--mat-sys-primary)]]="gridMode() !== ''"
@@ -1028,7 +1029,10 @@ interface SceneSummary {
             <details #renditionHelp data-rendition-help tabindex="-1" class="shrink-0" (keydown)="$event.stopPropagation()" (keydown.escape)="onRenditionHelpEscape($event, renditionHelp, renditionHelpSummary)">
               <summary #renditionHelpSummary class="flex h-10 w-10 cursor-pointer items-center justify-center rounded-full hover:bg-white/15" [attr.aria-label]="I18N.gallery.compare.rendition.sources | translate"><mat-icon aria-hidden="true">info</mat-icon></summary>
               <div class="fixed inset-x-2 top-14 z-[120] flex max-h-40 gap-2 overflow-y-auto rounded border border-white/30 bg-neutral-900 p-3 text-xs text-white">
-                <p class="m-0 flex-1">{{ I18N.photo_detail.rendition.note | translate }}</p>
+                <div class="min-w-0 flex-1 space-y-2">
+                  <p class="m-0">{{ I18N.photo_detail.rendition.note | translate }}</p>
+                  <p id="darkroom-peaking-help" class="m-0">{{ I18N.culling.peaking.help | translate }}</p>
+                </div>
                 <button type="button" data-rendition-help-close class="min-h-11 min-w-11 self-start" [attr.aria-label]="I18N.dialog.close | translate"
                         (click)="renditionHelp.open = false; renditionHelpSummary.focus()"><mat-icon>close</mat-icon></button>
               </div>

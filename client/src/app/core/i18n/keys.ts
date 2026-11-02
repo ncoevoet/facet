@@ -2863,6 +2863,7 @@ export const I18N = {
     peaking: {
       label: "culling.peaking.label",
       tooltip: "culling.peaking.tooltip",
+      help: "culling.peaking.help",
     },
     legend: {
       label: "culling.legend.label",
