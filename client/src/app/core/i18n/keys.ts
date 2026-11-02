@@ -2395,6 +2395,11 @@ export const I18N = {
     help: "albums.help",
     title: "albums.title",
     create: "albums.create",
+    creation: {
+      help: "albums.creation.help",
+      manual: "albums.creation.manual",
+      smart: "albums.creation.smart",
+    },
     empty: "albums.empty",
     name: "albums.name",
     description_label: "albums.description_label",

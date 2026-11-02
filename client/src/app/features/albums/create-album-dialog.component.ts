@@ -1,3 +1,4 @@
+import { ContextHelpComponent } from '../../shared/components/context-help/context-help.component';
 import { Component, inject, signal, ChangeDetectionStrategy } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { MatDialogModule, MatDialogRef } from '@angular/material/dialog';
@@ -16,7 +17,7 @@ import { i18nKeys } from '../../core/i18n/keys';
   standalone: true,
   imports: [
     FormsModule, MatDialogModule, MatFormFieldModule, MatInputModule,
-    MatButtonModule, MatTooltipModule, TranslatePipe,
+    MatButtonModule, MatTooltipModule, TranslatePipe, ContextHelpComponent,
   ],
   changeDetection: ChangeDetectionStrategy.Eager,
   template: `
@@ -24,12 +25,13 @@ import { i18nKeys } from '../../core/i18n/keys';
     <mat-dialog-content>
       <mat-form-field class="w-full">
         <mat-label>{{ I18N.albums.name | translate }}</mat-label>
-        <input matInput [(ngModel)]="name" maxlength="100" (keydown.enter)="save()" />
+        <input matInput [(ngModel)]="name" maxlength="200" (keydown.enter)="save()" />
       </mat-form-field>
       <mat-form-field class="w-full">
         <mat-label>{{ I18N.albums.description_label | translate }}</mat-label>
         <textarea matInput [(ngModel)]="description" maxlength="500" rows="2"></textarea>
       </mat-form-field>
+      <app-context-help [label]="I18N.albums.creation.help" [keys]="helpKeys" />
     </mat-dialog-content>
     <mat-dialog-actions align="end">
       <button mat-button mat-dialog-close>{{ I18N.ui.buttons.cancel | translate }}</button>
@@ -41,6 +43,7 @@ import { i18nKeys } from '../../core/i18n/keys';
 })
 export class CreateAlbumDialogComponent {
   protected readonly I18N = i18nKeys();
+  protected readonly helpKeys = [this.I18N.albums.creation.manual];
   private albumService = inject(AlbumService);
   private journal = inject(UserActivityJournal);
   private dialogRef = inject(MatDialogRef<CreateAlbumDialogComponent>);

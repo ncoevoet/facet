@@ -2381,6 +2381,11 @@
     "help": "Group photos into albums. Manual albums hold a fixed set; smart albums auto-collect photos matching a saved filter. Open an album to view, cull or share it.",
     "title": "Albums",
     "create": "New Album",
+    "creation": {
+      "help": "How this album works",
+      "manual": "A manual album holds photos you choose. Adding or removing a member changes this collection; original files stay in their folders. Filters narrow the view without changing membership.",
+      "smart": "A smart album saves filter rules, not a fixed photo list. New or edited photos can enter or leave it as they match those rules. Original files stay in their folders. For a fixed delivery, review an explicit photo set and export it."
+    },
     "empty": "No albums yet. Create one to organize your photos.",
     "name": "Album Name",
     "description_label": "Description",
@@ -3008,7 +3013,7 @@
     "density_weeks": "Weeks (Monday–Sunday)"
   },
   "folders": {
-    "help": "Browse photos by their on-disk folder structure. Open a folder to see the photos it contains.",
+    "help": "Folders follow where original files are stored on disk. Albums organize photos without moving those files. Open a folder to browse its photos or filter the gallery to that location.",
     "title": "Folders",
     "empty": "No folders found.",
     "root": "Root",
