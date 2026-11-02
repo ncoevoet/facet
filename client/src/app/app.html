@@ -831,7 +831,7 @@
           }
         </span>
       </button>
-      <!-- 常驻：面板关闭时灰显而不是消失，菜单结构不跳变 -->
+      <!-- Always present: greyed out while the panel is closed instead of disappearing, so the menu layout does not jump -->
       <button mat-menu-item [matMenuTriggerFor]="panelActivationMenu" [disabled]="store.filters().tooltip_mode !== 'panel'">
         <mat-icon aria-hidden="true">{{
           store.filters().panel_activation === 'hover' ? 'chat_bubble_outline'

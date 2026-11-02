@@ -979,7 +979,7 @@ describe('App', () => {
       expect(store.updateFilter).toHaveBeenCalledWith('tooltip_mode', 'off');
     });
 
-    it('toggles the docked rail: clicking the checked 侧边面板 hands details back to hover', async () => {
+    it('toggles the docked rail: clicking the checked Side panel hands details back to hover', async () => {
       const { fixture, root, store } = render();
       // Dock capability without stubbing matchMedia (a broken stub here poisons
       // every later App in the shared jsdom window): set the signal directly.

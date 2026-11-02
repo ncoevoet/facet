@@ -400,8 +400,9 @@ Response fields and status codes: [API.md](API.md).
 - **Layout Mode** — **Grid** (uniform cards) or **Mosaic** (justified rows keeping aspect ratios), at every screen width.
 - **Thumbnail Size** — card/row height slider (120–400px, saved in localStorage)
 - **Hide Details** — hide metadata on cards (grid mode only)
-- **Tooltip** — how photo details appear: **Side panel** (default), **Hover**, **Click** or **Off**.
+- **Tooltip** — how photo details appear: **Side panel** (default), **Hover**, **Click** or **No details**.
   - The side panel shows full details in the right-hand drawer, laid out like photo detail. It follows hover and click, so it works on touch screens. It keeps the last photo when the cursor leaves the grid.
+  - **Side panel** is a switch: clicking the checked item collapses the rail and hands details back to hover bubbles; the panel-activation item is greyed out instead of hidden while the rail is collapsed.
   - Clicking a photo holds the panel on it until you press **Deselect** (which also deselects the photo). **Escape** does the same and clears the selection.
   - The panel shares the drawer with the filters; opening the filters hides it. It needs a viewport at least 1280px wide.
   - **Hover** and **Click** show a short bubble: category, aggregate and rank, aesthetic, composition, sharpness, exposure, and one EXIF line.

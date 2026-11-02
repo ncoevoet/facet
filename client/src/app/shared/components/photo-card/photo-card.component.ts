@@ -136,7 +136,7 @@ const DEFAULT_CLIPPING_BADGE_PERCENT = 5;
       role="button"
       tabindex="0"
       class="relative rounded-lg overflow-hidden cursor-pointer bg-[var(--mat-sys-surface-container)] transition-all h-full focus-visible:outline-2 focus-visible:outline-[var(--mat-sys-primary)] focus-visible:outline-offset-2"
-      [class.aspect-square]="hideDetails() && !mosaicMode()"
+      [class.aspect-square]="fillTile() && hideDetails() && !mosaicMode()"
       [class.ring-2]="isSelected()"
       [class.ring-[var(--mat-sys-primary)]]="isSelected()"
       [class.md:hover:ring-2]="!isSelected()"
@@ -153,15 +153,15 @@ const DEFAULT_CLIPPING_BADGE_PERCENT = 5;
     >
       <!-- Image wrapper with hover overlay scoped to image only -->
       <div class="group/img relative"
-           [class.h-full]="mosaicMode() || hideDetails()">
+           [class.h-full]="mosaicMode() || (fillTile() && hideDetails())">
         <img
           [src]="photo().path | thumbnailUrl:thumbSize():photo().preview_revision"
           [alt]="photo().caption || photo().filename"
           loading="lazy"
           decoding="async"
           class="w-full bg-[var(--mat-sys-surface-container)] transition-opacity duration-500"
-          [class.h-full]="mosaicMode() || hideDetails()"
-          [class.object-cover]="mosaicMode() || hideDetails()"
+          [class.h-full]="mosaicMode() || (fillTile() && hideDetails())"
+          [class.object-cover]="mosaicMode() || (fillTile() && hideDetails())"
           [class.grayscale]="isEditionMode() && photo().is_rejected"
           [class.opacity-60]="isEditionMode() && photo().is_rejected"
           [style.opacity]="imageLoaded() ? (isEditionMode() && photo().is_rejected ? '0.6' : '1') : '0'"
@@ -640,6 +640,8 @@ export class PhotoCardComponent {
   readonly filterLinks = input(true);
   readonly hideDetails = input(false);
   readonly mosaicMode = input(false);
+  /** The parent sizes the tile (gallery grid): fill it as a square when details are hidden. */
+  readonly fillTile = input(false);
   readonly currentSort = input('aggregate');
   /** Library distributions keyed by photo column; empty where none were loaded (a shared view). */
   readonly metricRanges = input<Record<string, MetricDistribution>>({});

@@ -400,8 +400,9 @@ Antwortfelder und Statuscodes: [API.md](../API.md).
 - **Layout-Modus** — **Raster** (einheitliche Karten) oder **Mosaik** (justierte Zeilen, die Seitenverhältnisse beibehalten), bei jeder Bildschirmbreite.
 - **Vorschaubildgröße** — Regler für die Karten-/Zeilenhöhe (120–400px, in localStorage gespeichert)
 - **Details ausblenden** — Metadaten auf Karten ausblenden (nur im Rastermodus)
-- **Tooltip** — Wie Fotodetails erscheinen: **Seitenleiste** (Standard), **Hover**, **Klick** oder **Aus**.
+- **Tooltip** — Wie Fotodetails erscheinen: **Seitenleiste** (Standard), **Hover**, **Klick** oder **Keine Details**.
   - Die Seitenleiste zeigt alle Details in der rechten Schublade, angeordnet wie in der Fotodetailansicht. Sie folgt Hover und Klick und funktioniert so auch auf Touch-Bildschirmen. Sie behält das letzte Foto, wenn der Zeiger das Raster verlässt.
+  - **Seitenleiste** ist ein Schalter: Ein Klick auf den markierten Eintrag klappt die Leiste ein und übergibt die Details wieder an die Hover-Blasen; der Aktivierungseintrag der Leiste ist dann ausgegraut statt ausgeblendet.
   - Ein Klick auf ein Foto hält die Leiste darauf fest, bis Sie **Auswahl aufheben** drücken (das auch das Foto abwählt). **Escape** wirkt genauso und hebt die Auswahl auf.
   - Die Leiste teilt sich die Schublade mit den Filtern; das Öffnen der Filter blendet sie aus. Erfordert ein Fenster von mindestens 1280px.
   - **Hover** und **Klick** zeigen eine kurze Blase: Kategorie, Gesamtwertung und Rang, Ästhetik, Komposition, Schärfe, Belichtung und eine EXIF-Zeile.

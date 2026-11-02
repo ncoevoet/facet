@@ -400,8 +400,9 @@ Campos de resposta e códigos de status: [API.md](../API.md).
 - **Modo de Layout** — **Grade** (cartões uniformes) ou **Mosaico** (linhas justificadas que preservam as proporções), em qualquer largura de tela.
 - **Tamanho da Miniatura** — controle deslizante de altura do cartão/linha (120–400px, salvo no localStorage)
 - **Ocultar Detalhes** — oculta os metadados nos cartões (apenas no modo grade)
-- **Dica** — como os detalhes das fotos aparecem: **Painel lateral** (padrão), **Passar o mouse**, **Clicar** ou **Desligado**.
+- **Dica** — como os detalhes das fotos aparecem: **Painel lateral** (padrão), **Passar o mouse**, **Clicar** ou **Sem detalhes**.
   - O painel lateral mostra todos os detalhes na gaveta da direita, com a mesma disposição do detalhe da foto. Ele acompanha o ponteiro e o clique, então funciona em telas de toque. Mantém a última foto quando o cursor sai da grade.
+  - **Painel lateral** funciona como um interruptor: clicar no item marcado recolhe a barra e devolve os detalhes aos balões ao passar o mouse; o item de ativação do painel fica esmaecido em vez de oculto enquanto a barra está recolhida.
   - Clicar em uma foto mantém o painel nela até você pressionar **Desselecionar** (que também desseleciona a foto). **Escape** faz o mesmo e limpa a seleção.
   - O painel divide a gaveta com os filtros; abrir os filtros o oculta. Exige uma janela de pelo menos 1280px de largura.
   - **Passar o mouse** e **Clicar** mostram um balão curto: categoria, agregada e posição, estética, composição, nitidez, exposição e uma linha de EXIF.

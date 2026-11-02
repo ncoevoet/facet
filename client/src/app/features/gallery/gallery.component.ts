@@ -349,6 +349,7 @@ type ReturnTarget = { scroll: number; focus: Element | null } & (
                     [style.width.px]="row.widths[i]"
                     [style.height.px]="row.height"
                     class="shrink-0"
+                    [fillTile]="true"
                     [hideDetails]="rowCardHideDetails()"
                     [mosaicMode]="effectiveGalleryMode() === 'mosaic'"
                     [config]="store.config()"
@@ -412,6 +413,7 @@ type ReturnTarget = { scroll: number; focus: Element | null } & (
                   [isSelected]="photo.path | isSelected:viewScoped():selectedPaths():excludedPaths()"
                   [isActive]="i === activeIndex()"
                   [gridHasActiveCard]="hasActivePhoto()"
+                  [fillTile]="true"
                   [hideDetails]="effectiveHideDetails()"
                   [currentSort]="store.filters().sort"
                   [metricRanges]="store.metricRangesByColumn()"
@@ -1066,14 +1068,20 @@ export class GalleryComponent implements OnInit, OnDestroy {
   /** Tooltip mode signal — 'hover' | 'click' | 'off' */
   readonly tooltipMode = computed(() => this.store.filters().tooltip_mode);
   /** Leaving panel mode releases the held photo: the docked rail is going away
-   *  (the 侧边面板 switch hands the surface back to hover bubbles), so the dimming
-   *  and the framed card cannot outlive the panel they belong to. */
-  private readonly releaseOnModeLeave = effect(() => {
-    const mode = this.tooltipMode();
-    untracked(() => {
-      if (mode !== 'panel' && this.hasActivePhoto()) this.releasePanel();
+   *  (the Side panel switch hands the surface back to hover bubbles), so the dimming
+   *  and the framed card cannot outlive the panel they belong to. Only a
+   *  'panel' -> other transition releases: activeIndex is the keyboard cursor in every mode. */
+  private readonly releaseOnModeLeave = (() => {
+    let previous: string | undefined;
+    return effect(() => {
+      const mode = this.tooltipMode();
+      untracked(() => {
+        const left = previous === 'panel' && mode !== 'panel';
+        previous = mode;
+        if (left && this.hasActivePhoto()) this.releasePanel();
+      });
     });
-  });
+  })();
   /** Which gesture(s) retarget the docked panel — only meaningful when tooltipMode is 'panel'. */
   readonly panelActivation = computed(() => this.store.filters().panel_activation);
   /** Whether tooltip is fully disabled (off mode) — used for skipping rendering and hover handlers */
