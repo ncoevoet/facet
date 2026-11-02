@@ -256,9 +256,9 @@ Wählen Sie in der Galerie **Auswahlstatus → Zu prüfen**, um unentschiedene F
 - Temporäre Serien-/Sequenzgruppen werden nicht gemerkt, da ein erneuter Scan sie neu nummerieren kann.
 - Das Abmelden löscht alle Warteschlangen-Lesezeichen in diesem Browser.
 
-**Schwebende Hinweise.** Bewertungsfortschritt, **Sichtung fortsetzen**, der Hinweis zu ausgeblendeten Fotos, der Hinweis zu aktiven Filtern (mit **Alle Filter zurücksetzen**) und der Hinweis zur Vorschaubild-Migration stapeln sich unten rechts.
+**Schwebende Hinweise.** Bewertungsfortschritt, **Sichtung fortsetzen**, der Hinweis zu ausgeblendeten Fotos und der Hinweis zur Vorschaubild-Migration stapeln sich unten rechts.
 
-- Das × jeder Karte blendet sie für den aktuellen Browser-Tab aus. Sie kehrt in einem neuen Tab zurück oder wenn sich der Hinweis ändert (anderer Bereich, geänderte Zahl ausgeblendeter Fotos, hinzugefügter oder entfernter Filter).
+- Das × jeder Karte blendet sie für den aktuellen Browser-Tab aus. Sie kehrt in einem neuen Tab zurück oder wenn sich der Hinweis ändert (anderer Bereich oder geänderte Zahl ausgeblendeter Fotos).
 - Um den Bewertungsfortschritt dauerhaft auszublenden, nutzen Sie im Benutzermenü **Bewertungsfortschritt ausblenden** / **Bewertungsfortschritt anzeigen**. Das wird pro Browser gespeichert und blendet auch die Schaltfläche **Unentschiedene sichten** aus.
 - Nach einigen Sekunden ohne Interaktion faltet sich der Stapel zu einer kleinen Zählpille zusammen. Zeiger darüber oder ein Klick darauf entfaltet ihn.
 

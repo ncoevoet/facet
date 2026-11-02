@@ -1067,11 +1067,6 @@
       "reason_brackets": "{n} bracket frame(s)",
       "reason_panoramas": "{n} panorama frame(s)"
     },
-    "filters_notice": {
-      "message": "{count} filter active",
-      "message_plural": "{count} filters active",
-      "reset": "Reset all filters"
-    },
     "render_migration": {
       "message": "{n} RAW photos still show a thumbnail from the previous rendering.",
       "command_hint": "Run {command} to refresh them all at once."

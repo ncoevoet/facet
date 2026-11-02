@@ -256,9 +256,9 @@ Usa **Estado de revisión → Por revisar** en la galería para recorrer las fot
 - Los grupos temporales de ráfaga/secuencia no se marcan, porque un reescaneo puede renumerarlos.
 - Cerrar sesión borra todos los marcadores de colas de revisión de este navegador.
 
-**Avisos flotantes.** El progreso de revisión, **Continuar revisión**, el aviso de fotos ocultas, el aviso de filtros activos (con **Restablecer todos los filtros**) y el aviso de migración de miniaturas se apilan abajo a la derecha.
+**Avisos flotantes.** El progreso de revisión, **Continuar revisión**, el aviso de fotos ocultas y el aviso de migración de miniaturas se apilan abajo a la derecha.
 
-- La × de cada tarjeta la oculta durante la pestaña actual del navegador. Vuelve en una pestaña nueva, o cuando el aviso cambia (otro ámbito, un recuento de ocultas distinto, un filtro añadido o quitado).
+- La × de cada tarjeta la oculta durante la pestaña actual del navegador. Vuelve en una pestaña nueva, o cuando el aviso cambia (otro ámbito o un recuento de ocultas distinto).
 - Para ocultar el progreso de revisión de forma permanente, usa **Ocultar el progreso de revisión** / **Mostrar el progreso de revisión** del menú de usuario. Se guarda por navegador y también oculta el botón **Revisar sin decidir**.
 - Tras unos segundos de inactividad, la pila se pliega en una pequeña píldora con un recuento. Pasa el cursor o haz clic para desplegarla.
 

@@ -1067,11 +1067,6 @@
       "reason_brackets": "{n} image(s) de bracketing",
       "reason_panoramas": "{n} image(s) de panorama"
     },
-    "filters_notice": {
-      "message": "{count} filtre actif",
-      "message_plural": "{count} filtres actifs",
-      "reset": "Réinitialiser tous les filtres"
-    },
     "render_migration": {
       "message": "{n} photos RAW affichent encore une miniature issue du rendu précédent.",
       "command_hint": "Lancez {command} pour toutes les rafraîchir d'un coup."

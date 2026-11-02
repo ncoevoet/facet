@@ -256,9 +256,9 @@ Use **Estado de revisão → Precisa de revisão** na galeria para percorrer fot
 - Grupos temporários de rajada/sequência não são salvos, porque uma nova varredura pode renumerá-los.
 - Encerrar a sessão apaga todos os marcadores de fila de revisão neste navegador.
 
-**Avisos flutuantes.** O progresso da revisão, **Continuar revisão**, o aviso de fotos ocultas, o aviso de filtros ativos (com **Redefinir todos os filtros**) e o aviso de migração de miniaturas se empilham no canto inferior direito.
+**Avisos flutuantes.** O progresso da revisão, **Continuar revisão**, o aviso de fotos ocultas e o aviso de migração de miniaturas se empilham no canto inferior direito.
 
-- O × de cada cartão o oculta na aba atual do navegador. Ele volta em uma nova aba, ou quando o aviso muda (outro escopo, outro número de ocultas, um filtro adicionado ou removido).
+- O × de cada cartão o oculta na aba atual do navegador. Ele volta em uma nova aba, ou quando o aviso muda (outro escopo ou outro número de ocultas).
 - Para ocultar o progresso da revisão de vez, use **Ocultar progresso da revisão** / **Mostrar progresso da revisão** no menu do usuário. A escolha é salva por navegador e também oculta o botão **Rever por decidir**.
 - Após alguns segundos sem interação, a pilha se recolhe em uma pequena pílula de contagem. Passe o ponteiro ou clique nela para abrir.
 

@@ -1067,11 +1067,6 @@
       "reason_brackets": "{n} fotograma(s) de horquillado",
       "reason_panoramas": "{n} fotograma(s) de panorámica"
     },
-    "filters_notice": {
-      "message": "{count} filtro activo",
-      "message_plural": "{count} filtros activos",
-      "reset": "Restablecer todos los filtros"
-    },
     "render_migration": {
       "message": "{n} fotos RAW aún muestran una miniatura del renderizado anterior.",
       "command_hint": "Ejecuta {command} para actualizarlas todas de una vez."

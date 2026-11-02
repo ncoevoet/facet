@@ -256,9 +256,9 @@ Utilisez **Décision de tri → À examiner** dans la galerie pour parcourir les
 - Les groupes temporaires de rafales/séries ne sont pas mis en signet, car un rescan peut les renuméroter.
 - La déconnexion efface tous les signets de files de tri sur ce navigateur.
 
-**Notifications flottantes.** La progression du tri, **Continuer le tri**, la notification de photos masquées, celle des filtres actifs (avec **Réinitialiser tous les filtres**) et celle de migration des miniatures s'empilent en bas à droite.
+**Notifications flottantes.** La progression du tri, **Continuer le tri**, la notification de photos masquées et celle de migration des miniatures s'empilent en bas à droite.
 
-- Le × de chaque carte la masque pour l'onglet courant du navigateur. Elle revient dans un nouvel onglet, ou quand la notification change (autre périmètre, nombre de photos masquées modifié, filtre ajouté ou retiré).
+- Le × de chaque carte la masque pour l'onglet courant du navigateur. Elle revient dans un nouvel onglet, ou quand la notification change (autre périmètre ou nombre de photos masquées modifié).
 - Pour masquer définitivement la progression du tri, utilisez **Masquer la progression du tri** / **Afficher la progression du tri** du menu utilisateur. Ce choix est enregistré par navigateur et masque aussi le bouton **Trier les indécises**.
 - Après quelques secondes d'inactivité, la pile se replie en une petite pastille avec un compteur. Survolez-la ou cliquez dessus pour la déplier.
 

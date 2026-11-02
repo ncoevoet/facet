@@ -1081,11 +1081,6 @@ export const I18N = {
       reason_brackets: "gallery.hidden_banner.reason_brackets",
       reason_panoramas: "gallery.hidden_banner.reason_panoramas",
     },
-    filters_notice: {
-      message: "gallery.filters_notice.message",
-      message_plural: "gallery.filters_notice.message_plural",
-      reset: "gallery.filters_notice.reset",
-    },
     render_migration: {
       message: "gallery.render_migration.message",
       command_hint: "gallery.render_migration.command_hint",

@@ -11,6 +11,7 @@ All notable changes to Facet are documented in this file.
 ### Changed
 
 - **A collection header states what the gallery shows.** The source (album or folder, else All photos), the photo count and the sort are always visible above the gallery, followed by every active filter as a chip. Search chips now read **Visual matches** (ranked by semantic similarity) or **Text matches** (filtered, in your sort). Chip remove buttons are labelled for screen readers.
+- **The floating active-filters notice is gone.** The collection header now shows every active filter as a chip, with its own × and a reset, so the card only repeated it.
 - **The desktop header has two rows.** Labelled tabs for the main destinations sit on top, with the current page's own controls (gallery type, search, count, sort, filters, display) in a row below. The Gallery tab stays highlighted when its filters are in the address. Narrow screens are unchanged.
 - **✨ now marks only what an assistant chose.** Facet's own features (aesthetic quality, My Taste, moments, Memories and smart albums) use a coloured ✦ instead, so they no longer read as AI output. Icon-only change; nothing is rescored.
 - **Language and theme submenus mark their current entry** with the same check the tooltip-mode radio uses, and no longer wrap their labels when the check squeezes them.
