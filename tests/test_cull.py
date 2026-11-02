@@ -96,6 +96,165 @@ def _make_file(tmp_path, name, content=b"DATA"):
 
 
 class TestCullApply:
+    @pytest.mark.parametrize('logical_rejected', [False, True])
+    @pytest.mark.parametrize('filtered', [False, True])
+    @pytest.mark.parametrize('personal', [False, True])
+    @pytest.mark.parametrize('action', ['move_rejects', 'copy_keeps'])
+    def test_cull_uses_logical_decision_without_rewriting_file_labels(self, client, tmp_path, monkeypatch, logical_rejected, filtered, personal, action):
+        from db import logical_assets, logical_review
+        from api import config as api_config
+
+        owner = 'test' if personal else ''
+        if personal:
+            monkeypatch.setitem(api_config._FULL_CONFIG, 'users', {
+                'test': {'role': 'admin', 'directories': [str(tmp_path)]},
+                'other': {'role': 'user', 'directories': [str(tmp_path)]},
+            })
+
+        path = _make_file(tmp_path, 'logical.jpg', b'JPEG')
+        raw = _make_file(tmp_path, 'logical.cr2', b'RAW')
+        physical_rejected = int(not logical_rejected)
+        db = _db(tmp_path, [(path, physical_rejected), (raw, physical_rejected)])
+        labels = {p: dict(star_rating=0, is_favorite=0, is_rejected=physical_rejected, is_kept=0) for p in (path, raw)}
+        with sqlite3.connect(db) as conn:
+            conn.execute('BEGIN IMMEDIATE')
+            key = logical_assets.create(conn, [path, raw], path, visibility_sql='1=1')
+            logical_review.seed(conn, key, path, 1, visibility_sql='1=1')
+            state = logical_review.read(conn, key, owner, labels)
+            logical_review.set_fields(conn, key, owner, 1, state['revision'],
+                {'is_rejected': int(logical_rejected), 'is_kept': int(not logical_rejected)},
+                origin='user', visibility_sql='1=1', file_labels=labels, input_token=state['input_token'])
+        target = tmp_path / 'rejects'
+        with (
+            mock.patch(f'{_EXPORT_MODULE}.get_db', _db_cm(db)),
+            mock.patch(f'{_EXPORT_MODULE}._allowed_export_roots', return_value=[str(tmp_path)]),
+        ):
+            response = client.post('/api/cull/apply', json={
+                **({'filters': {'type': '', 'hide_rejected': 'false'}} if filtered else {'paths': [path]}),
+                'action': action, 'target_dir': str(target),
+                'dry_run': False, 'include_companions': False,
+            })
+        assert response.status_code == 200, response.text
+        qualifies = logical_rejected if action == 'move_rejects' else not logical_rejected
+        assert response.json()['matched'] == int(qualifies)
+        assert response.json()['excluded_by_state'] == int(not qualifies)
+        assert response.json()['moved' if action == 'move_rejects' else 'copied'] == int(qualifies)
+        assert Path(path).exists() is (not qualifies or action == 'copy_keeps')
+        assert (target / 'logical.jpg').exists() is qualifies
+        assert Path(raw).read_bytes() == b'RAW'
+        with sqlite3.connect(db) as conn:
+            assert dict(conn.execute('SELECT path,is_rejected FROM photos')) == {path: physical_rejected, raw: physical_rejected}
+
+    def test_logical_cull_refuses_hidden_companion_before_moving_any_file(self, client, tmp_path, monkeypatch):
+        from api import config as api_config
+        from db import logical_assets
+
+        visible = tmp_path / 'visible'
+        hidden = tmp_path / 'hidden'
+        visible.mkdir()
+        hidden.mkdir()
+        path = _make_file(visible, 'pair.jpg', b'JPEG')
+        raw = _make_file(hidden, 'private.cr2', b'RAW')
+        db = _db(tmp_path, [(path, 1), (raw, 1)])
+        with sqlite3.connect(db) as conn:
+            conn.execute('BEGIN IMMEDIATE')
+            logical_assets.create(conn, [path, raw], path, visibility_sql='1=1')
+        monkeypatch.setitem(api_config._FULL_CONFIG, 'users', {
+            'test': {'role': 'user', 'directories': [str(visible)]},
+            'other': {'role': 'admin', 'directories': [str(tmp_path)]},
+        })
+        with (
+            mock.patch(f'{_EXPORT_MODULE}.get_db', _db_cm(db)),
+            mock.patch(f'{_EXPORT_MODULE}._allowed_export_roots', return_value=[str(tmp_path)]),
+        ):
+            response = client.post('/api/cull/apply', json={
+                'paths': [path], 'action': 'move_rejects', 'target_dir': str(tmp_path / 'out'),
+                'dry_run': False, 'include_companions': False,
+            })
+        assert response.status_code == 404, response.text
+        assert raw not in response.text and 'private.cr2' not in response.text
+        assert Path(path).read_bytes() == b'JPEG'
+        assert Path(raw).read_bytes() == b'RAW'
+        assert not (tmp_path / 'out').exists()
+
+    @pytest.mark.parametrize('exclude_alias', [False, True])
+    def test_sequence_expansion_uses_primaries_and_respects_alias_exclusion(self, client, tmp_path, exclude_alias):
+        from db import logical_assets, logical_review
+
+        paths = [_make_file(tmp_path, name, name.encode()) for name in ('a.jpg', 'a.cr2', 'b.jpg', 'b.cr2')]
+        extra = {'sequence_kind': 'panorama', 'sequence_group_id': 7, 'is_sequence_lead': 1}
+        db = _db(tmp_path, [(path, 1, extra) for path in paths])
+        with sqlite3.connect(db) as conn:
+            conn.execute('BEGIN IMMEDIATE')
+            for jpg, raw in (paths[:2], paths[2:]):
+                key = logical_assets.create(conn, [jpg, raw], jpg, visibility_sql='1=1')
+                logical_review.seed(conn, key, jpg, 1, visibility_sql='1=1')
+        target = tmp_path / 'out'
+        with (
+            mock.patch(f'{_EXPORT_MODULE}.get_db', _db_cm(db)),
+            mock.patch(f'{_EXPORT_MODULE}._allowed_export_roots', return_value=[str(tmp_path)]),
+        ):
+            response = client.post('/api/cull/apply', json={
+                'paths': [paths[0]], 'exclude': [paths[3]] if exclude_alias else [],
+                'action': 'move_rejects', 'target_dir': str(target), 'dry_run': False,
+                'include_companions': False, 'include_sequence_siblings': True,
+            })
+        assert response.status_code == 200, response.text
+        assert response.json()['moved'] == (1 if exclude_alias else 2)
+        assert (target / 'a.jpg').read_bytes() == b'a.jpg'
+        assert (target / 'b.jpg').exists() is not exclude_alias
+        assert Path(paths[1]).read_bytes() == b'a.cr2'
+        assert Path(paths[3]).read_bytes() == b'b.cr2'
+        if exclude_alias:
+            assert Path(paths[2]).read_bytes() == b'b.jpg'
+
+    @pytest.mark.parametrize('reason', ['hidden', 'missing_primary'])
+    @pytest.mark.parametrize('expand', [False, True])
+    def test_declined_sequence_expansion_needs_no_sibling_write_authority(self, client, tmp_path, monkeypatch, reason, expand):
+        from api import config as api_config
+        from db import logical_assets, logical_review
+
+        visible = tmp_path / 'visible'
+        other = tmp_path / 'other'
+        visible.mkdir()
+        other.mkdir()
+        selected = _make_file(visible, 'selected.jpg', b'SELECTED')
+        jpg = _make_file(visible, 'sibling.jpg', b'JPEG')
+        raw = _make_file(other if reason == 'hidden' else visible, 'sibling.cr2', b'RAW')
+        extra = {'sequence_kind': 'panorama', 'sequence_group_id': 7, 'is_sequence_lead': 1}
+        db = _db(tmp_path, [(path, 1, extra) for path in (selected, jpg, raw)])
+        with sqlite3.connect(db) as conn:
+            conn.execute('BEGIN IMMEDIATE')
+            conn.executemany('INSERT INTO user_preferences(user_id,photo_path,is_rejected,is_kept) VALUES (?,?,1,0)',
+                             [('test', path) for path in (selected, jpg, raw)])
+            key = logical_assets.create(conn, [jpg, raw], jpg, visibility_sql='1=1')
+            logical_review.seed(conn, key, jpg, 1, visibility_sql='1=1')
+            if reason == 'missing_primary':
+                conn.execute('UPDATE logical_assets SET primary_path=NULL,revision=revision+1 WHERE id=?', (key,))
+        monkeypatch.setitem(api_config._FULL_CONFIG, 'users', {
+            'test': {'role': 'user', 'directories': [str(visible)]},
+            'other': {'role': 'admin', 'directories': [str(tmp_path)]},
+        })
+        target = tmp_path / 'out'
+        with (
+            mock.patch(f'{_EXPORT_MODULE}.get_db', _db_cm(db)),
+            mock.patch(f'{_EXPORT_MODULE}._allowed_export_roots', return_value=[str(tmp_path)]),
+        ):
+            response = client.post('/api/cull/apply', json={
+                'paths': [selected], 'action': 'move_rejects', 'target_dir': str(target),
+                'dry_run': False, 'include_companions': False, 'include_sequence_siblings': expand,
+            })
+        if expand:
+            assert response.status_code == (404 if reason == 'hidden' else 409), response.text
+            assert Path(selected).read_bytes() == b'SELECTED'
+            assert not target.exists()
+        else:
+            assert response.status_code == 200, response.text
+            assert response.json()['moved'] == 1
+            assert (target / 'selected.jpg').read_bytes() == b'SELECTED'
+        assert Path(jpg).read_bytes() == b'JPEG'
+        assert Path(raw).read_bytes() == b'RAW'
+
     def test_copy_keeps_dry_run_writes_nothing(self, client, tmp_path):
         path = _make_file(tmp_path, "a.jpg")
         db = _db(tmp_path, [(path, 0)])

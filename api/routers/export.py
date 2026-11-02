@@ -350,7 +350,7 @@ def _resolve_filter_paths(conn, filters, user_id, exclude=None, max_paths=None,
     if logical:
         for key in {row['_logical_asset_id'] for row in rows if row['_logical_asset_id'] is not None}:
             if conn.execute('SELECT primary_path FROM logical_assets WHERE id=?', (key,)).fetchone()[0] is None:
-                raise HTTPException(409, 'Choose a primary representation before exporting this collection')
+                raise HTTPException(409, 'Choose a primary representation before using this collection')
     return [row["path"] for row in rows]
 
 
@@ -764,7 +764,7 @@ def _sequence_group_keys(conn, paths, user_id):
     return {r["path"]: (r["sequence_kind"], r["sequence_group_id"]) for r in rows}
 
 
-def _sequence_siblings(conn, group_keys, exclude_paths, user_id):
+def _sequence_siblings(conn, group_keys, exclude_paths, user_id, *, logical=False, require_primary=False):
     """Every visible sibling sharing a ``(sequence_kind, sequence_group_id)``
     found in ``group_keys``, excluding ``exclude_paths`` and de-duplicated
     across groups.
@@ -786,15 +786,31 @@ def _sequence_siblings(conn, group_keys, exclude_paths, user_id):
         return []
     vis_sql, vis_params = get_visibility_clause(user_id)
     exclude = set(exclude_paths)
+    from_sql, source_params = 'photos', []
+    exclude_sql, exclude_params = '', []
+    columns = 'path'
+    if logical:
+        from api.logical_collection import source, membership, REVIEW_FIELDS
+        from api.config import is_multi_user_enabled
+        multi_user = is_multi_user_enabled()
+        collection = source(['path', *REVIEW_FIELDS, 'sequence_kind', 'sequence_group_id'],
+                            owner=(user_id or '') if multi_user else '', multi_user=multi_user,
+                            visibility_sql=vis_sql, visibility_params=vis_params)
+        from_sql, source_params = collection.sql, collection.params
+        excluded = membership('SELECT value AS photo_path FROM json_each(?)', [json.dumps(sorted(exclude))])
+        exclude_sql, exclude_params = f' AND NOT ({excluded.sql})', excluded.params
+        columns = 'path,_logical_asset_id,_logical_primary_path'
     seen = set()
     siblings = []
     for kind, group_id in set(group_keys.values()):
         rows = conn.execute(
-            "SELECT path FROM photos WHERE sequence_kind = ? AND sequence_group_id = ? "
-            f"AND {vis_sql}",
-            [kind, group_id] + vis_params,
+            f"SELECT {columns} FROM {from_sql} WHERE sequence_kind = ? AND sequence_group_id = ? "
+            f"AND {vis_sql}{exclude_sql}",
+            source_params + [kind, group_id] + vis_params + exclude_params,
         ).fetchall()
         for r in rows:
+            if logical and require_primary and r['_logical_asset_id'] is not None and r['_logical_primary_path'] is None:
+                raise HTTPException(409, 'Choose a primary representation before using this collection')
             p = r["path"]
             if p in exclude or p in seen:
                 continue
@@ -969,7 +985,9 @@ def _reject_state_map(conn, paths, user_id):
     """Map each visible, in-DB path to its per-user ``is_rejected`` bool.
 
     Used to bound a destructive cull to the user's actual reject set: paths not
-    visible / not in the DB are simply absent from the map.
+    visible / not in the DB are simply absent from the map. Fully visible
+    logical groups use their account decision; partially visible groups refuse
+    the action rather than falling back to a conflicting physical label.
     """
     if not paths:
         return {}
@@ -984,7 +1002,10 @@ def _reject_state_map(conn, paths, user_id):
         ),
         params_fn=lambda chunk: from_params + chunk + vis_params,
     )
-    return {r["path"]: bool(r["is_rejected"]) for r in rows}
+    from api import logical_export
+    states = {row['path']: dict(row) for row in rows}
+    logical_export.attach(conn, states, user_id)
+    return {path: bool(row['is_rejected']) for path, row in states.items()}
 
 
 def _move_into(files, target_dir):
@@ -1300,8 +1321,9 @@ def api_cull_apply(
     # rejects are rejected. Photos in the selection that don't match are skipped.
     want_rejected = body.action != "copy_keeps"
     with get_db() as conn:
+        conn.execute('BEGIN')
         paths = _selected_paths(conn, body, user_id, max_filter_paths=_CULL_FILTER_MAX,
-                                 filter_label="cull")
+                                 filter_label="cull", logical=True)
         state = _reject_state_map(conn, paths, user_id)
         matching = [p for p in paths if state.get(p) == want_rejected]
         group_keys = _sequence_group_keys(conn, matching, user_id)
@@ -1310,12 +1332,13 @@ def api_cull_apply(
         # database, so an excluded frame sharing a bracket/panorama group with
         # a matching one returned as a sibling and was acted on.
         sibling_paths = _sequence_siblings(
-            conn, group_keys, set(matching) | set(body.exclude or ()), user_id)
+            conn, group_keys, set(matching) | set(body.exclude or ()), user_id,
+            logical=True, require_primary=body.include_sequence_siblings)
         # Siblings are auto-added, not requested directly -- bound them to the
         # SAME reject-state check as `matching` (Finding 1, 2026-08-17 review)
         # rather than acting on a whole group regardless of each frame's own
         # state.
-        sibling_state = _reject_state_map(conn, sibling_paths, user_id)
+        sibling_state = _reject_state_map(conn, sibling_paths, user_id) if body.include_sequence_siblings else {}
     sibling_matching = [p for p in sibling_paths if sibling_state.get(p) == want_rejected]
     excluded_by_state = sum(1 for p in paths if p in state and state[p] != want_rejected)
     if body.include_sequence_siblings:
