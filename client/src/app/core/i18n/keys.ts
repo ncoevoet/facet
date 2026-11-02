@@ -14,6 +14,7 @@
 
 export const I18N = {
   logical_assets: {
+    refresh_error: "logical_assets.refresh_error",
     title: "logical_assets.title",
     preserve: "logical_assets.preserve",
     choose_files: "logical_assets.choose_files",
@@ -3190,6 +3191,14 @@ export const I18N = {
     no_gps_hint: "map.no_gps_hint",
   },
   photo_detail: {
+    collection: {
+      title: "photo_detail.collection.title",
+      show: "photo_detail.collection.show",
+      hide: "photo_detail.collection.hide",
+      resize: "photo_detail.collection.resize",
+      loaded: "photo_detail.collection.loaded",
+      more: "photo_detail.collection.more",
+    },
     back: "photo_detail.back",
     download: "photo_detail.download",
     downloading: "photo_detail.downloading",
@@ -3312,14 +3321,6 @@ export const I18N = {
     analysis: "photo_detail.analysis",
     info: "photo_detail.info",
     unassigned_faces: "photo_detail.unassigned_faces",
-    collection: {
-      title: "photo_detail.collection.title",
-      show: "photo_detail.collection.show",
-      hide: "photo_detail.collection.hide",
-      resize: "photo_detail.collection.resize",
-      loaded: "photo_detail.collection.loaded",
-      more: "photo_detail.collection.more",
-    },
   },
   manual_tags: {
     batch: {

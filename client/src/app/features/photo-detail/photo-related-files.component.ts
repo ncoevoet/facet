@@ -1,5 +1,6 @@
+import { LogicalAssetApplied } from '../../shared/models/logical-asset-change';
 import { PhotoLogicalAssetComponent } from './photo-logical-asset.component';
-import { ChangeDetectionStrategy, Component, DestroyRef, computed, effect, inject, input, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, DestroyRef, computed, effect, inject, input, output, signal } from '@angular/core';
 import { NavigationCancel, NavigationEnd, NavigationError, NavigationStart, Router } from '@angular/router';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { Subscription } from 'rxjs';
@@ -48,7 +49,7 @@ import { ContextHelpComponent } from '../../shared/components/context-help/conte
             }
             @if (result.multiple_raw_candidates) { <p class="m-0">{{ I18N.related_files.multiple_raw | translate }}</p> }
             @if (result.basename_sidecar_unverified) { <p class="m-0">{{ I18N.related_files.basename_unverified | translate }}</p> }
-            <app-photo-logical-asset [photo]="photo()" />
+            <app-photo-logical-asset [photo]="photo()" (applied)="logicalApplied.emit($event)" />
             <app-context-help [label]="I18N.related_files.help_title" [keys]="helpKeys()" />
           }
         </div>
@@ -58,6 +59,7 @@ import { ContextHelpComponent } from '../../shared/components/context-help/conte
 })
 export class PhotoRelatedFilesComponent {
   readonly photo = input.required<Photo>();
+  readonly logicalApplied = output<LogicalAssetApplied>();
   private readonly api = inject(ApiService);
   private readonly auth = inject(AuthService);
   private readonly router = inject(Router);

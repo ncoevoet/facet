@@ -186,6 +186,85 @@ describe('manual stack browsing through rendered viewer, Router and HTTP', () =>
     expect(store.filters().no_gps).toBe('true');
   });
 
+  it('refreshes and follows an explicitly changed primary without changing the gallery query', async () => {
+    await open();
+    store.selectedPaths.set(new Set([paths[1]]));
+    const component = harness.routeDebugElement!.componentInstance as { onLogicalAssetApplied(change: object): Promise<void> };
+    const applying = component.onLogicalAssetApplied({ operation: 'primary', assetId: 'asset', primaryPath: '/outside.jpg', members: [paths[1], '/outside.jpg'] });
+    const read = http.expectOne(request => request.url === '/api/photo');
+    expect(read.request.params.get('path')).toBe('/outside.jpg');
+    read.flush(makePhoto({ path: '/outside.jpg', filename: 'chosen-primary.jpg' }));
+    await applying;
+    await membership(null);
+    expect(router.url).toContain(encodeURIComponent('/outside.jpg'));
+    expect(root().querySelector('[data-photo-detail-header]')?.textContent).toContain('chosen-primary.jpg');
+    expect([...store.selectedPaths()]).toEqual(['/outside.jpg']);
+    expect(store.filters().no_gps).toBe('true');
+  });
+
+  it('does not follow an obsolete primary refresh after navigating away', async () => {
+    await open();
+    const component = harness.routeDebugElement!.componentInstance as { onLogicalAssetApplied(change: object): Promise<void> };
+    const applying = component.onLogicalAssetApplied({ operation: 'primary', assetId: 'asset', primaryPath: '/outside.jpg', members: [paths[1], '/outside.jpg'] });
+    const read = http.expectOne(request => request.url === '/api/photo');
+    await router.navigateByUrl('/away');
+    read.flush(makePhoto({ path: '/outside.jpg' }));
+    await applying;
+    expect(router.url).toBe('/away');
+  });
+
+  it('reports a failed primary refresh without undoing the committed choice or navigating', async () => {
+    await open();
+    const notice = vi.spyOn(harness.routeDebugElement!.injector.get(MatSnackBar), 'open').mockReturnValue(snack.open() as never);
+    const component = harness.routeDebugElement!.componentInstance as { onLogicalAssetApplied(change: object): Promise<void> };
+    const applying = component.onLogicalAssetApplied({ operation: 'primary', assetId: 'asset', primaryPath: '/outside.jpg', members: [paths[1], '/outside.jpg'] });
+    http.expectOne(request => request.url === '/api/photo').flush({}, { status: 503, statusText: 'Offline' });
+    await applying;
+    expect(router.url).toContain(encodeURIComponent(paths[1]));
+    expect(notice).toHaveBeenCalledWith('logical_assets.refresh_error', '', { duration: 5000 });
+  });
+
+  it('only follows the latest confirmed primary when refreshes complete out of order', async () => {
+    await open();
+    const component = harness.routeDebugElement!.componentInstance as { onLogicalAssetApplied(change: object): Promise<void> };
+    const change = { operation: 'primary', assetId: 'asset', members: [paths[1], '/outside.jpg', paths[0]] };
+    const first = component.onLogicalAssetApplied({ ...change, primaryPath: '/outside.jpg' });
+    const old = http.expectOne(request => request.url === '/api/photo');
+    const second = component.onLogicalAssetApplied({ ...change, primaryPath: paths[0] });
+    http.expectOne(request => request.url === '/api/photo').flush(makePhoto({ path: paths[0] }));
+    await second;
+    await membership(null);
+    old.flush(makePhoto({ path: '/outside.jpg' }));
+    await first;
+    expect(router.url).toContain(encodeURIComponent(paths[0]));
+  });
+
+  it('invalidates a pending primary refresh across same-component navigation ABA', async () => {
+    await open();
+    const component = harness.routeDebugElement!.componentInstance as { onLogicalAssetApplied(change: object): Promise<void> };
+    const applying = component.onLogicalAssetApplied({ operation: 'primary', assetId: 'asset', primaryPath: '/outside.jpg', members: [paths[1], '/outside.jpg'] });
+    const old = http.expectOne(request => request.url === '/api/photo');
+    await router.navigate(['/photo'], { queryParams: { path: paths[0] }, state: { photo: makePhoto({ path: paths[0] }) } });
+    await membership(null);
+    await router.navigate(['/photo'], { queryParams: { path: paths[1] }, state: { photo: makePhoto({ path: paths[1] }) } });
+    await membership(null);
+    old.flush(makePhoto({ path: '/outside.jpg' }));
+    await applying;
+    expect(router.url).toContain(encodeURIComponent(paths[1]));
+  });
+
+  it('releases the temporary primary row so a later revisit reads current store metadata', async () => {
+    await open();
+    const component = harness.routeDebugElement!.componentInstance as { onLogicalAssetApplied(change: object): Promise<void> };
+    const applying = component.onLogicalAssetApplied({ operation: 'primary', assetId: 'asset', primaryPath: '/outside.jpg', members: [paths[1], '/outside.jpg'] });
+    http.expectOne(request => request.url === '/api/photo').flush(makePhoto({ path: '/outside.jpg', filename: 'old-primary.jpg' }));
+    await applying; await membership(null);
+    store.photos.update(photos => photos.map(photo => photo.path === '/outside.jpg' ? { ...photo, filename: 'fresh-primary.jpg' } : photo));
+    await router.navigate(['/photo'], { queryParams: { path: paths[1] } }); await membership(null);
+    await router.navigate(['/photo'], { queryParams: { path: '/outside.jpg' } }); await membership(null);
+    expect(root().querySelector('[data-photo-detail-header]')?.textContent).toContain('fresh-primary.jpg');
+  });
+
   it('ordinary cover opens ordered visible strip; buttons and arrows stay inside stack without pinning or replacing gallery filters', async () => {
     await open();
     expect(root().querySelector('[data-stack-position]')?.textContent).toContain('2 of 3');

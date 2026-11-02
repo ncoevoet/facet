@@ -1,3 +1,4 @@
+import { LogicalAssetApplied } from '../../shared/models/logical-asset-change';
 import { PhotoCollectionSidebarComponent } from './photo-collection-sidebar.component';
 import { LogicalReviewService, LogicalReviewAction, LogicalReviewWriteError } from '../../core/services/logical-review.service';
 import { PhotoAnalysisComponent } from '../gallery/photo-analysis.component';
@@ -420,7 +421,7 @@ const SOCIAL_SOURCE_KEYS: Record<string, string> = {
                 <app-photo-metric-section kind="exif" [photo]="p" [histogramHeight]="HISTOGRAM_PANEL_HEIGHT" />
               }
               <app-photo-provenance [photo]="p" />
-              <app-photo-related-files [photo]="p" />
+              <app-photo-related-files [photo]="p" (logicalApplied)="onLogicalAssetApplied($event)" />
           <!-- Caption -->
           <div>
             <div class="flex items-center justify-between mb-1">
@@ -698,6 +699,36 @@ export class PhotoDetailComponent extends PhotoDetailBase implements OnInit {
     && this.viewerOwner === this.auth.identity() && this.store.photos().length > 0);
   protected readonly collectionSidebarTitle = computed(() => this.store.currentAlbum?.()?.name ?? '');
 
+  private logicalChangeRevision = 0;
+
+  protected async onLogicalAssetApplied(change: LogicalAssetApplied): Promise<void> {
+    const previous = this.photo()?.path;
+    if (!previous || this.viewerOwner !== this.auth.identity() || !change.members.includes(previous)) return;
+    const revision = ++this.logicalChangeRevision;
+    const token = this.auth.token;
+    this.store.reconcileLogicalAssetChange(change);
+    const target = change.operation !== 'dissolve' && change.primaryPath && this.memberAllowed(change.primaryPath)
+      ? change.primaryPath : previous;
+    const photo = await this.fetchPhoto(target).catch(() => undefined);
+    if (revision !== this.logicalChangeRevision || this.destroyRef.destroyed || this.viewerOwner !== this.auth.identity() || token !== this.auth.token
+      || this.photo()?.path !== previous || this.route.snapshot.queryParamMap.get('path') !== previous
+      || this.router.currentNavigation?.()) return;
+    if (!photo) {
+      this.snackBar.open(this.i18n.t(I18N.logical_assets.refresh_error), '', { duration: 5000 });
+      return;
+    }
+    if (target === previous) this.photo.set(photo);
+    else {
+      const member = { photo, owner: this.auth.identity() };
+      this.memberPhoto = member;
+      try {
+        await this.router.navigate(['/photo'], { queryParams: { path: target }, state: { photo }, replaceUrl: true });
+      } finally {
+        if (this.memberPhoto === member) this.memberPhoto = null;
+      }
+    }
+  }
+
   protected openCollectionPhoto(path: string): void {
     if (!this.collectionSidebarAvailable() || path === this.photo()?.path || !this.memberAllowed(path)) return;
     const photo = this.store.photos().find(item => item.path === path);
@@ -862,6 +893,9 @@ export class PhotoDetailComponent extends PhotoDetailBase implements OnInit {
 
   constructor() {
     super();
+    this.router.events.pipe(takeUntilDestroyed(this.destroyRef)).subscribe(event => {
+      if (event instanceof NavigationStart) this.logicalChangeRevision++;
+    });
     this.destroyRef.onDestroy(() => {
       if (this.locationMapTimeout !== null) clearTimeout(this.locationMapTimeout);
       if (this.locationMap) { this.locationMap.remove(); this.locationMap = null; }

@@ -59,11 +59,13 @@ describe('PhotoLogicalAssetComponent', () => {
     const apply = root.querySelector<HTMLButtonElement>('[data-apply-group]')!;
     expect(apply.disabled).toBe(true);
     root.querySelector<HTMLInputElement>('[data-conflict-ack]')!.click(); fixture.detectChanges(); apply.click();
+    const applied = vi.fn(); fixture.componentInstance.applied.subscribe(applied);
     const write = http.expectOne('/api/logical_assets/apply');
     expect(write.request.body).toEqual({ change: request.request.body, preview_token: 'signed-plan', acknowledge_review_conflicts: true });
     write.flush({ asset_id: 'a'.repeat(32), revision: 1, dissolved: false });
     http.expectOne('/api/logical_assets/by-photo?path=/shot.jpg').flush({ asset: { asset_id: 'a'.repeat(32), revision: 1, primary_path: '/shot.jpg', members }, candidates: [], can_group: false });
     fixture.detectChanges(); expect(root.textContent).toContain('logical_assets.updated');
+    expect(applied).toHaveBeenCalledExactlyOnceWith({ operation: 'create', assetId: 'a'.repeat(32), primaryPath: '/shot.jpg', members: ['/shot.jpg', '/shot.CR2'] });
   });
 
   it('invalidates a preview when file or primary choices change', () => {

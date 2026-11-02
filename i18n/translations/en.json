@@ -1,5 +1,6 @@
 {
   "logical_assets": {
+    "refresh_error": "Grouping updated, but the photo could not be refreshed. Return to the collection to retry.",
       "title": "RAW/JPEG photo",
       "preserve": "Grouping gives the RAW/JPEG files one chosen primary without overwriting existing file metadata.",
       "choose_files": "Files",

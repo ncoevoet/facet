@@ -157,6 +157,25 @@ describe('GalleryStore', () => {
   });
 
   describe('logical review actions', () => {
+    it('keeps selection and exclusions attached to a changed logical representative', () => {
+      vi.spyOn(store, 'refreshPaths').mockResolvedValue();
+      store.selectedPaths.set(new Set(['/pair.jpg', '/outside.jpg']));
+      store.excludedPaths.set(new Set(['/pair.jpg', '/other.jpg']));
+      store.focusedPath.set('/pair.jpg');
+      store.reconcileLogicalAssetChange({ operation: 'primary', assetId: 'asset', primaryPath: '/pair.CR2', members: ['/pair.jpg', '/pair.CR2'] });
+      expect([...store.selectedPaths()]).toEqual(['/outside.jpg', '/pair.CR2']);
+      expect([...store.excludedPaths()]).toEqual(['/other.jpg', '/pair.CR2']);
+      expect(store.focusedPath()).toBe('/pair.CR2');
+      expect(store.refreshPaths).toHaveBeenCalledWith(null);
+    });
+
+    it('does not widen a selection when a logical group is dissolved', () => {
+      vi.spyOn(store, 'refreshPaths').mockResolvedValue();
+      store.selectedPaths.set(new Set(['/pair.jpg']));
+      store.reconcileLogicalAssetChange({ operation: 'dissolve', assetId: 'asset', primaryPath: null, members: ['/pair.jpg', '/pair.CR2'] });
+      expect([...store.selectedPaths()]).toEqual(['/pair.jpg']);
+    });
+
     it('does not offer a physical snapshot or journal entry for a logical batch', async () => {
       vi.mocked(TestBed.inject(AuthService).isEdition).mockReturnValue(true);
       store.photos.set([makePhoto({ path: '/a.jpg', star_rating: 3 })]);

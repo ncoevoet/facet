@@ -1,3 +1,4 @@
+import { LogicalAssetApplied } from '../../shared/models/logical-asset-change';
 import { LogicalReviewService, LogicalReviewState, LogicalReviewWriteError } from '../../core/services/logical-review.service';
 import { Injectable, inject, signal, computed, effect, untracked, DestroyRef } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
@@ -2014,6 +2015,23 @@ export class GalleryStore {
   }
 
   private readonly logicalReviews = inject(LogicalReviewService);
+
+  /** Preserve logical selection ownership when the representative path changes. */
+  reconcileLogicalAssetChange(change: LogicalAssetApplied): void {
+    if (change.operation !== 'dissolve' && change.primaryPath) {
+      const members = new Set(change.members);
+      const primary = change.primaryPath;
+      for (const selection of [this.selectedPaths, this.excludedPaths]) {
+        const current = selection();
+        if (![...members].some(path => current.has(path))) continue;
+        const next = new Set([...current].filter(path => !members.has(path)));
+        next.add(primary);
+        selection.set(next);
+      }
+      if (members.has(this.focusedPath() ?? '')) this.focusedPath.set(primary);
+    }
+    void this.refreshPaths(null);
+  }
 
   applyLogicalReview(state: LogicalReviewState): void {
     this.photos.update(photos => photos.map(photo =>

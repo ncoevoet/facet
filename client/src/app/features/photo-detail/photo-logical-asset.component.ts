@@ -1,4 +1,5 @@
-import { ChangeDetectionStrategy, Component, DestroyRef, ElementRef, computed, effect, inject, input, signal, untracked } from '@angular/core';
+import { LogicalAssetApplied } from '../../shared/models/logical-asset-change';
+import { ChangeDetectionStrategy, Component, DestroyRef, ElementRef, computed, effect, inject, input, output, signal, untracked } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { NavigationCancel, NavigationEnd, NavigationError, NavigationSkipped, NavigationStart, Router } from '@angular/router';
 import { Subscription } from 'rxjs';
@@ -86,6 +87,7 @@ type Result = components['schemas']['LogicalAssetResult'];
 })
 export class PhotoLogicalAssetComponent {
   readonly photo = input.required<Photo>();
+  readonly applied = output<LogicalAssetApplied>();
   protected readonly auth = inject(AuthService);
   private readonly api = inject(ApiService);
   private readonly router = inject(Router);
@@ -194,7 +196,9 @@ export class PhotoLogicalAssetComponent {
     const document = this.host.nativeElement.ownerDocument, focused = document.activeElement;
     const restoreFocus = () => { if (document.activeElement === focused || document.activeElement === document.body) trigger.focus(); };
     this.request = this.api.post<Result>('/logical_assets/apply', { change, preview_token: plan.preview_token, acknowledge_review_conflicts: this.acknowledged() }).subscribe({
-      next: () => { if (current()) { restoreFocus(); this.updated.set(true); this.load(); } },
+      next: result => { if (current()) { restoreFocus(); this.updated.set(true); this.load();
+        this.applied.emit({ operation: change.operation, assetId: result.asset_id, primaryPath: plan.primary_path, members: plan.members.map(member => member.path) });
+      } },
       error: () => { if (current()) { restoreFocus(); this.load(I18N.logical_assets.apply_error); } },
     });
   }
