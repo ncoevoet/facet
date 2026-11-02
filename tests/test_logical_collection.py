@@ -217,3 +217,69 @@ def test_private_stack_membership_is_scoped_before_logical_mapping(catalog):
         rows = conn.execute(f'SELECT path FROM {query.sql} WHERE {selected.sql}',
                             [*query.params, *selected.params]).fetchall()
         assert [row[0] for row in rows] == [expected]
+
+
+def stack_tables(conn):
+    conn.execute('CREATE TABLE photo_stacks(id TEXT,owner TEXT,cover_path TEXT,revision INTEGER)')
+    conn.execute('CREATE TABLE photo_stack_members(stack_id TEXT,owner TEXT,photo_path TEXT,position INTEGER)')
+
+
+def test_logical_stack_projection_counts_pair_once_and_preserves_jpeg_cover(catalog):
+    from api.stack_gallery import projection
+
+    conn, _ = catalog
+    stack_tables(conn)
+    conn.execute('INSERT INTO photo_stacks VALUES (?,?,?,?)', ('stack', 'alice', '/a.jpg', 1))
+    conn.executemany('INSERT INTO photo_stack_members VALUES (?,?,?,?)',
+                     [('stack', 'alice', '/a.jpg', 0), ('stack', 'alice', '/a.CR2', 1), ('stack', 'alice', '/b.jpg', 2)])
+    query = collection(conn)
+    display = projection(query.sql, '', query.params, 'alice', logical=True)
+    sql, values = display.page_query(['photos.path'], query.sql, '', query.params, 'photos.path', 10, 0)
+    rows = conn.execute(sql, values).fetchall()
+    assert [(row['path'], row['stack_id'], row['stack_count']) for row in rows] == [('/a.CR2', 'stack', 2)]
+    reductions = conn.execute(display.cte + ' SELECT COUNT(*)-COUNT(DISTINCT _stack_id) FROM stack_ranked', display.params).fetchone()[0]
+    assert reductions == 1
+    assert conn.execute('SELECT cover_path FROM photo_stacks').fetchone()[0] == '/a.jpg'
+    assert conn.execute('SELECT COUNT(*) FROM photo_stack_members').fetchone()[0] == 3
+
+
+def test_conflicting_logical_stack_membership_stays_one_standalone_tile(catalog):
+    from api.stack_gallery import projection
+
+    conn, _ = catalog
+    stack_tables(conn)
+    conn.executemany('INSERT INTO photo_stacks VALUES (?,?,?,?)',
+                     [('one', 'alice', '/a.jpg', 1), ('two', 'alice', '/a.CR2', 1), ('foreign', 'bob', '/b.jpg', 1)])
+    conn.executemany('INSERT INTO photo_stack_members VALUES (?,?,?,?)',
+                     [('one', 'alice', '/a.jpg', 0), ('two', 'alice', '/a.CR2', 0), ('foreign', 'bob', '/b.jpg', 0)])
+    query = collection(conn)
+    display = projection(query.sql, '', query.params, 'alice', logical=True)
+    sql, values = display.page_query(['photos.path'], query.sql, '', query.params, 'photos.path', 10, 0)
+    rows = conn.execute(sql, values).fetchall()
+    assert [row['path'] for row in rows] == ['/a.CR2', '/b.jpg']
+    assert all(row['stack_id'] is None for row in rows)
+
+
+def test_logical_stack_total_count_uses_unique_collection_members(catalog, tmp_path):
+    import asyncio
+    import aiosqlite
+    from api.stack_gallery import enrich_counts
+
+    conn, _ = catalog
+    stack_tables(conn)
+    conn.execute('INSERT INTO photo_stacks VALUES (?,?,?,?)', ('stack', 'alice', '/a.jpg', 1))
+    conn.executemany('INSERT INTO photo_stack_members VALUES (?,?,?,?)',
+                     [('stack', 'alice', '/a.jpg', 0), ('stack', 'alice', '/a.CR2', 1), ('stack', 'alice', '/b.jpg', 2)])
+    query = collection(conn)
+    conn.commit()
+    filename = tmp_path / 'stack-count.db'
+    with sqlite3.connect(filename) as destination:
+        conn.backup(destination)
+    photos = [{'path': '/a.CR2', 'stack_id': 'stack', 'stack_count': 2}]
+    async def read_counts():
+        async with aiosqlite.connect(filename) as db:
+            db.row_factory = aiosqlite.Row
+            await db.execute('BEGIN')
+            await enrich_counts(photos, db, 'alice', None, logical_source=query)
+    asyncio.run(read_counts())
+    assert photos[0]['stack_total_count'] == 2

@@ -474,3 +474,41 @@ def test_opt_in_logical_gallery_scope_matches_sync_async_without_changing_physic
             finally:
                 await cursor.close()
     assert asyncio.run(read_async()) == expected
+
+
+def test_logical_count_cache_hits_and_invalidates_after_shared_review_edit(edition_client, bundle, monkeypatch):
+    import asyncio
+    from api import config, db_helpers
+    from api.database import get_async_db
+    from api.routers.gallery import gallery_scope_sql_async
+
+    monkeypatch.setitem(config.VIEWER_CONFIG, 'edition_password', 'test-only')
+    key = submit(edition_client, bundle, draft(edition_client, bundle), acknowledge_review_conflicts=True).json()['asset_id']
+    filters = {'type': '', 'hide_blinks': 'false', 'hide_bursts': 'false', 'hide_duplicates': 'false',
+               'hide_brackets': 'false', 'hide_panoramas': 'false', 'hide_rejected': 'false',
+               'path_prefix': str(Path(bundle['primary_path']).parent), 'min_rating': '4'}
+    hits = []
+    lookup = db_helpers._count_cache_lookup
+    def record_lookup(cache_key):
+        result = lookup(cache_key)
+        hits.append(result is not None)
+        return result
+    monkeypatch.setattr(db_helpers, '_count_cache_lookup', record_lookup)
+
+    async def count():
+        token = await db_helpers.snapshot_count_token()
+        async with get_async_db() as conn:
+            await conn.execute('BEGIN')
+            source, where, params = await gallery_scope_sql_async(conn, filters, 'test', logical=True)
+            return await db_helpers.get_cached_count_async(conn, where, params, source, token=token)
+    assert asyncio.run(count()) == 1
+    assert asyncio.run(count()) == 1
+    assert hits[-1] is True
+    state = edition_client.get('/api/logical_assets/review', params={'asset_id': key}).json()
+    body = {field: state[field] for field in ('asset_id', 'group_revision', 'revision', 'input_token')}
+    response = edition_client.post('/api/logical_assets/review', json={**body, 'patch': {'star_rating': 2}})
+    assert response.status_code == 200, response.text
+    assert asyncio.run(count()) == 0
+    assert hits[-1] is False
+    assert asyncio.run(count()) == 0
+    assert hits[-1] is True
