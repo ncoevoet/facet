@@ -35,6 +35,9 @@ _PLAIN_REFS = {
     ('keyword_assignment_deletions', 'photo_path'),
 }
 _NON_ASSET_PATHS = {
+    # The conditional seed trigger follows only current members, never an old
+    # path later reused by an unrelated photo. Retired seeds are private history.
+    ('logical_review_seeds', 'photo_path'),
     ('photos', 'path'), ('photos_fts', 'path'), ('scan_failures', 'path'),
     ('photo_keyword_nodes', 'imported_path'),
     ('keyword_assignment_deletions', 'path_key'),
@@ -44,6 +47,11 @@ _NON_ASSET_PATHS = {
 # Historical payload JSON and the global revision clock are not asset links.
 # Keep the exact column inventory so future additions still require review.
 _AUXILIARY_COLUMNS = {
+    'logical_review_seeds': {'asset_id', 'photo_path'},
+    'logical_review_fields': {'asset_id', 'owner', 'field', 'value', 'origin'},
+    'logical_review_versions': {'asset_id', 'owner', 'revision'},
+    'logical_review_field_versions': {'asset_id', 'owner', 'field', 'revision'},
+    'logical_review_imports': {'asset_id', 'owner', 'field', 'signature', 'local_revision'},
     'logical_assets': {'id', 'primary_path', 'revision'},
     'logical_asset_members': {'asset_id', 'photo_path', 'position'},
     'logical_asset_imports': {'asset_id', 'signature', 'members_json'},

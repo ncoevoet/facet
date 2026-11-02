@@ -152,6 +152,8 @@ def apply(conn, body, user_id):
     try:
         if change.operation == 'create':
             key = assets.create(conn, current['paths'], change.primary_path, **policy)
+            from db.logical_review import seed as seed_review
+            seed_review(conn, key, change.primary_path, 1, **policy)
             return {'asset_id': key, 'revision': 1, 'dissolved': False}
         if change.operation == 'primary':
             revision = assets.set_primary(conn, change.asset_id, change.primary_path, change.revision, **policy)

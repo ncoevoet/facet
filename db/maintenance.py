@@ -999,7 +999,9 @@ def _incremental_update_viewer_data(source_db, output_path, thumbnail_size, verb
 
     # Catalog logical groups ship, unlike owner-private manual stacks. Capture
     # viewer intent before photo cleanup and retain it through every re-export.
-    sync_asset_imports(dest_conn, preserved_assets)
+    imported_assets = sync_asset_imports(dest_conn, preserved_assets)
+    from db.logical_review_sync import sync_imports as sync_logical_review_imports
+    sync_logical_review_imports(dest_conn, imported_assets, preserved_assets)
     dest_conn.commit()
 
     # --- Clear stats_cache (viewer regenerates on demand) ---
@@ -1028,7 +1030,7 @@ def _incremental_update_viewer_data(source_db, output_path, thumbnail_size, verb
 
 
 # Tables a viewer database export must not carry (the DROP list of the full export).
-VIEWER_EXPORT_EXCLUDED_TABLES = ('logical_asset_imports', 'mcp_tokens', 'rating_provenance', 'organization_history',
+VIEWER_EXPORT_EXCLUDED_TABLES = ('logical_review_imports', 'logical_asset_imports', 'mcp_tokens', 'rating_provenance', 'organization_history',
                                  'face_review_feedback',
                                  'face_update_items', 'face_update_jobs',
                                  'person_centroid_dirty',
@@ -1183,6 +1185,9 @@ def export_viewer_db(source_db='photo_scores_pro.db', output_path=None, thumbnai
     # Catalog memberships themselves are durable catalog data and remain copied.
     from db.logical_asset_sync import capture_imports as capture_asset_imports
     capture_asset_imports(dst_conn)
+    from db.logical_review_sync import omit_retired as omit_retired_reviews, capture_imports as capture_review_imports
+    omit_retired_reviews(dst_conn)
+    capture_review_imports(dst_conn)
     dst_conn.commit()
 
     # Receipt authority and private source paths belong to this database only.

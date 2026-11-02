@@ -1049,3 +1049,31 @@ def test_primary_change_after_relink_preview_refuses_stale_apply(library):
     with sqlite3.connect(db) as conn:
         assert conn.execute('SELECT primary_path,revision FROM logical_assets WHERE id=?', (key,)).fetchone() == (raw, 2)
         assert conn.execute('SELECT path FROM photos WHERE path=?', (old,)).fetchone() == (old,)
+
+
+def test_logical_review_source_and_private_review_follow_relink_without_file_edits(library):
+    from db import logical_assets as assets, logical_review as review
+
+    db, old, new, _ = library
+    raw = str(Path(old).with_suffix('.CR2'))
+    labels = {old: {'star_rating': 5, 'is_kept': 1, 'is_rejected': 0, 'is_favorite': 0},
+              raw: {'star_rating': 2, 'is_kept': 0, 'is_rejected': 0, 'is_favorite': 0}}
+    with sqlite3.connect(db) as conn:
+        conn.execute('INSERT INTO photos(path,filename,star_rating) VALUES (?,?,2)', (raw, 'a.CR2'))
+        key = assets.create(conn, [old, raw], old, visibility_sql='1=1')
+        review.seed(conn, key, old, 1, visibility_sql='1=1')
+        current = review.read(conn, key, 'alice', labels)
+        review.set_fields(conn, key, 'alice', 1, current['revision'], {'star_rating': 3}, origin='user',
+                          visibility_sql='1=1', file_labels=labels, input_token=current['input_token'])
+    plan = preview(library)
+    before = Path(new).read_bytes()
+    apply(library, plan)
+    with sqlite3.connect(db) as conn:
+        conn.execute('BEGIN')
+        moved_labels = {new: labels[old], raw: labels[raw]}
+        current = review.read(conn, key, 'alice', moved_labels)
+        assert current['source_path'] == new
+        assert current['values']['star_rating'] == 3 and current['origins']['star_rating'] == 'user'
+        assert current['revision'] == 1
+        assert conn.execute('SELECT star_rating FROM photos WHERE path=?', (new,)).fetchone()[0] == 5
+    assert Path(new).read_bytes() == before

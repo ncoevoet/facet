@@ -766,3 +766,79 @@ def test_logical_assets_full_and_repeated_export_preserve_viewer_authority(tmp_p
     with sqlite3.connect(out) as conn:
         assert conn.execute('SELECT * FROM logical_assets').fetchall() == []
         assert conn.execute('SELECT path FROM photos WHERE path IN (?,?) ORDER BY path', (_A, raw)).fetchall() == [(raw,), (_A,)]
+
+
+def test_logical_review_export_preserves_viewer_edits_and_omits_retired_history(tmp_path):
+    from db import logical_assets as assets, logical_review as review
+
+    src, out = str(tmp_path / 'review-source.db'), str(tmp_path / 'review-viewer.db')
+    _make_source_db(src)
+    raw, other_raw = '/photos/a.CR2', '/photos/b.CR2'
+
+    def labels(conn, paths):
+        return {path: dict(zip(('star_rating', 'is_kept', 'is_rejected', 'is_favorite'), row))
+                for path in paths for row in conn.execute(
+                    'SELECT star_rating,is_kept,is_rejected,is_favorite FROM photos WHERE path=?', (path,))}
+
+    def edit(database, key, paths, patch, owner=''):
+        with sqlite3.connect(database) as conn:
+            conn.execute('BEGIN')
+            data = labels(conn, paths)
+            state = review.read(conn, key, owner, data)
+            revision = conn.execute('SELECT revision FROM logical_assets WHERE id=?', (key,)).fetchone()[0]
+            review.set_fields(conn, key, owner, revision, state['revision'], patch, origin='user',
+                              visibility_sql='1=1', file_labels=data, input_token=state['input_token'])
+
+    with sqlite3.connect(src) as conn:
+        conn.executemany('INSERT INTO photos(path,filename,thumbnail,star_rating) VALUES (?,?,?,?)',
+                         [(raw, 'a.CR2', _thumb_bytes(), 2), (other_raw, 'b.CR2', _thumb_bytes(), 1)])
+        conn.execute('UPDATE photos SET star_rating=5 WHERE path=?', (_A,))
+        key = assets.create(conn, [_A, raw], _A, visibility_sql='1=1')
+        review.seed(conn, key, _A, 1, visibility_sql='1=1')
+        retired = assets.create(conn, [_B, other_raw], _B, visibility_sql='1=1')
+        review.seed(conn, retired, _B, 1, visibility_sql='1=1')
+    edit(src, key, [_A, raw], {'star_rating': 3})
+    edit(src, retired, [_B, other_raw], {'star_rating': 4}, 'private-retired-review-owner')
+    with sqlite3.connect(src) as conn:
+        conn.execute('BEGIN')
+        assets.dissolve(conn, retired, 1, visibility_sql='1=1')
+        conn.execute('INSERT INTO logical_review_imports VALUES (?,?,?,?,?)',
+                     (key, '', 'star_rating', 'private-source-import-receipt', 999))
+    export_viewer_db(src, out, verbose=False)
+    with sqlite3.connect(out) as conn:
+        assert conn.execute('SELECT owner,value FROM logical_review_fields').fetchall() == [('', 3)]
+        assert conn.execute('SELECT signature FROM logical_review_imports').fetchone()[0] != 'private-source-import-receipt'
+    assert b'private-retired-review-owner' not in Path(out).read_bytes()
+    assert b'private-source-import-receipt' not in Path(out).read_bytes()
+
+    for rating in (4, 1):
+        edit(src, key, [_A, raw], {'star_rating': rating})
+        export_viewer_db(src, out, verbose=False)
+        with sqlite3.connect(out) as conn:
+            conn.execute('BEGIN')
+            assert review.read(conn, key, '', labels(conn, [_A, raw]))['values']['star_rating'] == rating
+    edit(out, key, [_A, raw], {'star_rating': 4})
+    with sqlite3.connect(src) as conn:
+        conn.execute('BEGIN')
+        assets.set_primary(conn, key, raw, 1, visibility_sql='1=1')
+    edit(src, key, [_A, raw], {'star_rating': 2, 'is_favorite': 1})
+    export_viewer_db(src, out, verbose=False)
+    with sqlite3.connect(out) as conn:
+        conn.execute('BEGIN')
+        current = review.read(conn, key, '', labels(conn, [_A, raw]))
+        assert current['values']['star_rating'] == 4
+        assert current['values']['is_favorite'] == 1
+        assert current['source_path'] == _A
+        assert conn.execute('SELECT primary_path FROM logical_assets WHERE id=?', (key,)).fetchone()[0] == raw
+        assert labels(conn, [_A, raw])[_A]['star_rating'] == 5
+        assert labels(conn, [_A, raw])[raw]['star_rating'] == 2
+        review.reset_fields(conn, key, '', 2, current['revision'], ['star_rating'], visibility_sql='1=1',
+                            file_labels=labels(conn, [_A, raw]), input_token=current['input_token'])
+    export_viewer_db(src, out, verbose=False)
+    export_viewer_db(src, out, verbose=False)
+    with sqlite3.connect(out) as conn:
+        conn.execute('BEGIN')
+        current = review.read(conn, key, '', labels(conn, [_A, raw]))
+        assert current['values']['star_rating'] == 5
+        assert current['origins']['star_rating'] == 'file'
+        assert current['values']['is_favorite'] == 1

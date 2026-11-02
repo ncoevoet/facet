@@ -1375,6 +1375,16 @@ def init_database(db_path='photo_scores_pro.db', build_photo_indexes=True):
         from db.logical_asset_sync import init_receipts as init_logical_asset_receipts
         init_logical_assets(conn)
         init_logical_asset_receipts(conn)
+        from db.logical_review import init_schema as init_logical_review
+        from db.logical_review_sync import init_receipts as init_logical_review_receipts
+        new_review_authority = not table_exists(conn, 'logical_review_seeds')
+        init_logical_review(conn)
+        init_logical_review_receipts(conn)
+        if new_review_authority:
+            # One-time adoption for pre-review groups. No logical rating had
+            # existed yet; future primary changes never replace this source.
+            conn.execute('INSERT INTO logical_review_seeds(asset_id,photo_path) '
+                         'SELECT id,primary_path FROM logical_assets')
 
         # Create faces table with unique constraint
         conn.execute(_build_create_table_sql(

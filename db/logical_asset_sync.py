@@ -48,6 +48,7 @@ def capture_imports(conn):
 class AssetSyncPlan:
     preserved: set[str]
     before: dict
+    review_seeds: dict
 
 
 def prepare_sync(conn):
@@ -60,7 +61,10 @@ def prepare_sync(conn):
     preserved = {asset_id for asset_id in set(current) | set(baseline)
                  if asset_id not in baseline or asset_id not in current
                  or _signature(current[asset_id]) != baseline[asset_id]}
-    return AssetSyncPlan(preserved, current)
+    has_seeds = conn.execute("SELECT 1 FROM sqlite_master WHERE type='table' AND name='logical_review_seeds'").fetchone()
+    seeds = dict(conn.execute('SELECT s.asset_id,s.photo_path FROM logical_review_seeds s '
+                              'JOIN logical_assets a ON a.id=s.asset_id')) if has_seeds else {}
+    return AssetSyncPlan(preserved, current, seeds)
 
 
 def sync_imports(conn, preserved=None):
@@ -74,16 +78,19 @@ def sync_imports(conn, preserved=None):
         conn.execute('BEGIN')
     source = _snapshot(conn, 'src')
     if source is None:
-        return
+        return set()
     init_schema(conn)
     init_receipts(conn)
     current = _snapshot(conn, 'main')
     baseline = dict(conn.execute('SELECT asset_id,signature FROM logical_asset_imports'))
     conn.execute('SAVEPOINT logical_asset_sync')
+    imported_assets: set[str] = set()
     try:
         # Only unchanged imported groups can be replaced or removed.
         plan = prepare_sync(conn) if preserved is None else preserved
         protected = set(plan.preserved)
+        from db.logical_review_sync import protected_retirements
+        protected.update(protected_retirements(conn, set(source)))
         available = {row[0] for row in conn.execute('SELECT path FROM photos')}
         # The exporter commits photo batches. Protect edits made during those
         # batches too; only predict the effects of mechanical deleted-photo cleanup.
@@ -125,6 +132,7 @@ def sync_imports(conn, preserved=None):
             conn.execute('DELETE FROM logical_assets WHERE id=?', (asset_id,))
             conn.execute('DELETE FROM logical_asset_imports WHERE asset_id=?', (asset_id,))
             if value is not None:
+                imported_assets.add(asset_id)
                 conn.execute('INSERT INTO logical_assets VALUES (?,NULL,?)', (asset_id, revision))
                 conn.executemany('INSERT INTO logical_asset_members VALUES (?,?,?)',
                                  [(asset_id, path, position) for path, position in members])
@@ -137,3 +145,5 @@ def sync_imports(conn, preserved=None):
         raise
     else:
         conn.execute('RELEASE logical_asset_sync')
+
+    return imported_assets
