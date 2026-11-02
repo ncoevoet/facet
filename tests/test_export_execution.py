@@ -303,7 +303,7 @@ def test_preview_and_apply_keep_folded_matching_members_and_explicit_exclusions(
     if scope_kind == 'smart_album':
         with sqlite3.connect(DEFAULT_DB_PATH) as conn:
             album = conn.execute('INSERT INTO albums(name,user_id,is_smart,smart_filter_json) VALUES(?,?,1,?)',
-                                 ('delivery fixture', 'test', json.dumps({'category': 'different-working-rule'}))).lastrowid
+                                 ('delivery fixture', 'test', json.dumps(filters))).lastrowid
             conn.executemany('INSERT INTO album_photos(album_id,photo_path) VALUES(?,?)', [(album, str(path)) for path in paths])
         filters['album_id'] = str(album)
         scope = {'album_id': album}
@@ -436,3 +436,115 @@ def test_logical_primary_change_between_files_stops_remaining_sidecar(edition_cl
     assert result['processed'] == result['written'] == 1
     assert Path(str(first) + '.xmp').is_file()
     assert not Path(str(path) + '.xmp').exists()
+
+
+def test_filter_delivery_matches_logical_gallery_and_uses_chosen_primary(edition_client, library, logical_pair):
+    _, path, raw = logical_pair
+    filters = {'path_prefix': str(path.parent) + '/'}
+    result = edition_client.post('/api/export/preview', json={'filters': filters, 'mode': 'copy', 'target_dir': str(library[1])})
+    assert result.status_code == 200, result.text
+    preview = result.json()
+    assert set(preview['selected_paths']) == {str(raw), str(library[0][1])}
+    assert preview['ready'] == 2
+    assert not list(library[1].iterdir())
+    response = edition_client.post('/api/export/apply', json={**preview['request'], 'preview_token': preview['preview_token'], 'selected_paths': preview['selected_paths']})
+    assert response.status_code == 202, response.text
+    result = done(response.json())
+    assert result['state'] == 'completed' and result['written'] == 2, result
+    assert {item.name for item in library[1].iterdir()} == {raw.name, library[0][1].name}
+    assert (library[1] / raw.name).read_bytes() == raw.read_bytes()
+
+
+def test_logical_collection_export_excludes_entire_group_by_either_alias(edition_client, library, logical_pair):
+    _, path, raw = logical_pair
+    for alias in (path, raw):
+        result = edition_client.post('/api/export/preview', json={'filters': {'path_prefix': str(path.parent) + '/'},
+            'exclude': [str(alias)], 'mode': 'copy', 'target_dir': str(library[1])})
+        assert result.status_code == 200, result.text
+        assert result.json()['selected_paths'] == [str(library[0][1])]
+
+
+@pytest.mark.parametrize('smart', [False, True])
+def test_album_delivery_uses_logical_membership_and_explicit_primary(edition_client, library, logical_pair, album_factory, smart):
+    _, path, raw = logical_pair
+    album = album_factory(str(path.parent) + '/', 'logical-album-export', 'Chosen')(
+        smart_filter={'path_prefix': str(path.parent) + '/', 'min_star_rating': '4'} if smart else None,
+        member_names=('alpha.jpg',))
+    result = edition_client.post('/api/export/preview', json={'album_id': album, 'mode': 'copy', 'target_dir': str(library[1])})
+    assert result.status_code == 200, result.text
+    expected = {str(raw), str(library[0][1])} if smart else {str(raw)}
+    assert set(result.json()['selected_paths']) == expected
+
+
+def test_missing_primary_refuses_collection_export_but_keeps_explicit_file_export(edition_client, library, logical_pair):
+    key, path, raw = logical_pair
+    with sqlite3.connect(DEFAULT_DB_PATH) as conn:
+        conn.execute('DELETE FROM photos WHERE path=?', (str(raw),))
+    result = edition_client.post('/api/export/preview', json={'filters': {'path_prefix': str(path.parent) + '/'},
+        'mode': 'copy', 'target_dir': str(library[1])})
+    assert result.status_code == 409, result.text
+    explicit = edition_client.post('/api/export/preview', json={'paths': [str(path)], 'mode': 'copy', 'target_dir': str(library[1])})
+    assert explicit.status_code == 200, explicit.text
+    assert explicit.json()['selected_paths'] == [str(path)]
+    assert not list(library[1].iterdir())
+
+
+def test_collection_primary_change_between_copy_files_stops_the_old_representation(
+        edition_client, library, logical_pair, seed_photos_prefix, monkeypatch):
+    from api import export_execution
+    from db import logical_assets
+    key, path, raw = logical_pair
+    first = path.with_name('0-first.jpg')
+    first.write_bytes(b'first independent file')
+    seed_photos_prefix(str(path.parent) + '/', [{'path': str(first), 'filename': first.name, 'star_rating': 4}])
+    apply, preview = confirmed_body(edition_client, {'filters': {'path_prefix': str(path.parent) + '/'},
+        'mode': 'copy', 'target_dir': str(library[1])})
+    assert preview['selected_paths'][0] == str(first)
+    entered, release = threading.Event(), threading.Event()
+    real_deliver = export_execution._deliver
+
+    def deliver_then_pause(*args, **kwargs):
+        result = real_deliver(*args, **kwargs)
+        entered.set()
+        assert release.wait(5)
+        return result
+
+    monkeypatch.setattr(export_execution, '_deliver', deliver_then_pause)
+    response = edition_client.post('/api/export/apply', json=apply)
+    try:
+        assert response.status_code == 202 and entered.wait(3)
+        with sqlite3.connect(DEFAULT_DB_PATH) as conn:
+            conn.execute('BEGIN IMMEDIATE')
+            logical_assets.set_primary(conn, key, str(path), 1, visibility_sql='1=1')
+    finally:
+        release.set()
+    result = done(response.json())
+    assert result['state'] == 'failed' and result['first_error_code'] == 'preview_changed', result
+    assert result['written'] == result['processed'] == 1
+    assert {item.name for item in library[1].iterdir()} == {first.name}
+    assert not (library[1] / raw.name).exists()
+
+
+def test_smart_album_export_does_not_fall_back_to_stale_manual_members(edition_client, library, logical_pair, album_factory):
+    _, path, _ = logical_pair
+    album = album_factory(str(path.parent) + '/', 'stale-smart-export', 'Chosen')(
+        smart_filter={'path_prefix': str(path.parent) + '/', 'category': 'no-match-fixture'}, member_names=('alpha.jpg',))
+    result = edition_client.post('/api/export/preview', json={'album_id': album, 'mode': 'copy', 'target_dir': str(library[1])})
+    assert result.status_code == 422, result.text
+    assert not list(library[1].iterdir())
+
+
+@pytest.mark.parametrize('owner', ['', 'someone-else'])
+@pytest.mark.parametrize('smart', [False, True])
+def test_album_export_uses_normal_album_ownership_on_protected_install(
+        edition_client, library, album_factory, monkeypatch, owner, smart):
+    path = library[0][0]
+    album = album_factory(str(path.parent) + '/', 'private-export-album', 'Private')(
+        smart_filter={'path_prefix': str(path.parent) + '/'} if smart else None, member_names=(path.name,))
+    with sqlite3.connect(DEFAULT_DB_PATH) as conn:
+        conn.execute('UPDATE albums SET user_id=? WHERE id=?', (owner, album))
+    monkeypatch.setitem(config.VIEWER_CONFIG, 'password', 'protected-fixture')
+    response = edition_client.post('/api/export/preview', json={'album_id': album, 'mode': 'copy', 'target_dir': str(library[1])})
+    assert response.status_code == 403, response.text
+    assert str(path) not in response.text
+    assert not list(library[1].iterdir())

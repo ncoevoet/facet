@@ -313,7 +313,7 @@ def _fetch_file_rating_rows(conn, paths, user_id, *, include_metadata=True):
 
 
 def _resolve_filter_paths(conn, filters, user_id, exclude=None, max_paths=None,
-                          filter_label="this action"):
+                          filter_label="this action", *, logical=False):
     """Resolve a gallery filter set to a list of photo paths.
 
     ``gallery_scope_sql`` is the gallery's own definition of "the current
@@ -332,7 +332,7 @@ def _resolve_filter_paths(conn, filters, user_id, exclude=None, max_paths=None,
     """
     from api.routers.gallery import gallery_scope_sql
 
-    from_clause, where_str, params = gallery_scope_sql(conn, filters, user_id, exclude)
+    from_clause, where_str, params = gallery_scope_sql(conn, filters, user_id, exclude, logical=logical)
     if max_paths is not None:
         total = conn.execute(
             f"SELECT COUNT(*) FROM {from_clause}{where_str}", params
@@ -345,13 +345,16 @@ def _resolve_filter_paths(conn, filters, user_id, exclude=None, max_paths=None,
                     f"{max_paths}. Narrow the filters and try again."
                 ),
             )
-    rows = conn.execute(
-        f"SELECT photos.path FROM {from_clause}{where_str}", params
-    ).fetchall()
+    columns = 'photos.path,photos._logical_asset_id' if logical else 'photos.path'
+    rows = conn.execute(f"SELECT {columns} FROM {from_clause}{where_str}", params).fetchall()
+    if logical:
+        for key in {row['_logical_asset_id'] for row in rows if row['_logical_asset_id'] is not None}:
+            if conn.execute('SELECT primary_path FROM logical_assets WHERE id=?', (key,)).fetchone()[0] is None:
+                raise HTTPException(409, 'Choose a primary representation before exporting this collection')
     return [row["path"] for row in rows]
 
 
-def _selected_paths(conn, body, user_id, max_filter_paths=None, filter_label="this action"):
+def _selected_paths(conn, body, user_id, max_filter_paths=None, filter_label="this action", *, logical=False):
     """The paths a ``paths``-or-``filters`` request acts on.
 
     Explicit paths win; otherwise the filter set is resolved through the
@@ -382,7 +385,7 @@ def _selected_paths(conn, body, user_id, max_filter_paths=None, filter_label="th
         return [p for p in body.paths if p not in excluded]
     try:
         return _resolve_filter_paths(conn, body.filters, user_id, body.exclude,
-                                     max_paths=max_filter_paths, filter_label=filter_label)
+                                     max_paths=max_filter_paths, filter_label=filter_label, logical=logical)
     except ValidationError as e:
         from api.routers.gallery import _raise_422_for_invalid_gallery_params
         _raise_422_for_invalid_gallery_params(e, logger, "Export filter validation failed: %s")

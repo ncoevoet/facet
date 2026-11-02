@@ -23,7 +23,7 @@ from api.models.export_preview import ExportPreviewRequest
 from api.path_validation import PhotoFileMissing, resolve_photo_disk_path
 from api.related_files import related_files
 from processing.xmp_export import preview_metadata_write
-from api.logical_export import guard as logical_guard, provenance as export_provenance
+from api.logical_export import guard as logical_guard, provenance as export_provenance, representation
 
 MAX_PLAN_BYTES = 8 * 1024 * 1024
 PREVIEW_TTL_SECONDS = 600
@@ -135,15 +135,22 @@ def _paths(conn, body, user_id):
     if body.album_id is not None:
         # Perform the album owner check, then use the gallery's current scope
         # semantics (including smart rules) rather than a client display count.
-        album = conn.execute('SELECT user_id FROM albums WHERE id=?', (body.album_id,)).fetchone()
-        if album is None:
-            raise HTTPException(404, 'Album not found')
-        if album['user_id'] and album['user_id'] != user_id:
-            raise HTTPException(403, 'Access denied')
-        scope = ExportSidecarsRequest(filters={'album_id': str(body.album_id)}, exclude=body.exclude)
+        from api.routers.albums import _check_album_access
+        album = _check_album_access(conn, body.album_id, user_id)
+        filters = {'album_id': str(body.album_id)}
+        if album['is_smart']:
+            from api.routers.albums import _normalize_smart_filters
+            try:
+                saved = json.loads(album['smart_filter_json'] or '{}')
+                if not isinstance(saved, dict):
+                    raise ValueError('Invalid saved criteria')
+                filters = _normalize_smart_filters(saved)
+            except (ValueError, TypeError):
+                raise HTTPException(422, 'Saved album criteria cannot be exported') from None
+        scope = ExportSidecarsRequest(filters=filters, exclude=body.exclude)
     else:
         scope = ExportSidecarsRequest(paths=body.paths, filters=body.filters, exclude=body.exclude)
-    paths = sorted(set(_selected_paths(conn, scope, user_id, max_filter_paths=10000, filter_label='export preview')))
+    paths = sorted(set(_selected_paths(conn, scope, user_id, max_filter_paths=10000, filter_label='export preview', logical=True)))
     if not paths:
         raise HTTPException(422, 'No photos remain in the export scope')
     return paths
@@ -267,6 +274,7 @@ def build_export_snapshot(conn, body: ExportPreviewRequest, user_id, *, stop_req
             files.append(item)
             size += len(_json(item))
         else:
+            collection_guard = representation(conn, path, user_id) if body.paths is None else None
             sources = [disk]
             if body.include_companions:
                 sources += _companions(conn, path, disk, user_id, directories, budget)
@@ -278,6 +286,7 @@ def build_export_snapshot(conn, body: ExportPreviewRequest, user_id, *, stop_req
                 seen_files.add(source)
                 item = {'photo_path': path, 'source': source, 'source_identity': _identity(source),
                         'target': None, 'target_identity': None, 'metadata': None,
+                        'collection_guard': collection_guard,
                         'companion': source != disk, 'bundle': [os.path.dirname(disk), Path(disk).stem],
                         'filename_tail': _filename_tail(Path(source).name, Path(disk).stem)}
                 if item['source_identity'] is None:

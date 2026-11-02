@@ -146,6 +146,10 @@ class _Execution:
                 _changed()
             _packet_ownership(original['path'], [item['target']], {}, [20000])
             return rating
+        if self.request.paths is None:
+            from api.logical_export import representation
+            if 'collection_guard' not in item or representation(conn, path, self.owner) != item['collection_guard']:
+                _changed()
         if item['companion']:
             if item['source'] not in _companions(conn, path, original['path'], self.owner, {}, [20000]):
                 _changed()

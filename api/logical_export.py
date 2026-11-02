@@ -39,3 +39,18 @@ def provenance(conn, row, user_id, personal):
         else:
             item.update(source='local' if origin in ('user', 'agent') else 'unrecorded', changed_at=None, source_at=None)
     return result
+
+
+def representation(conn, path, user_id):
+    """Bind collection delivery to an authorized group, without disclosing partial groups."""
+    from fastapi import HTTPException
+    member = conn.execute('SELECT asset_id FROM logical_asset_members WHERE photo_path=?', (path,)).fetchone()
+    if member is None:
+        return None
+    try:
+        state = logical_reviews.read(conn, member[0], user_id)
+    except HTTPException as error:
+        if error.status_code == 404:
+            return None
+        raise
+    return {key: state[key] for key in ('asset_id', 'group_revision')}
