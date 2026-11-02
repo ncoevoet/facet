@@ -41,4 +41,20 @@ describe('PhotoAssessmentComponent', () => {
     expect(el.textContent).not.toContain('photo_detail.assessment.unavailable_help');
     expect(el.querySelector('app-context-help')).not.toBeNull();
   });
+  it('distinguishes a current model decline from unknown missing evidence and real zero', () => {
+    const fixture = render({ aggregate: 7, face_quality_iqa: null,
+      assessment_states: { face_quality_iqa: 'not_applicable' } });
+    const el: HTMLElement = fixture.nativeElement;
+    expect(el.querySelector('dd')?.textContent).toContain('photo_detail.assessment.not_applicable');
+    expect(el.querySelector('dd span')?.getAttribute('title')).toBe('photo_detail.assessment.face_iqa_declined_help');
+    fixture.componentRef.setInput('photo', { aggregate: 7, face_quality_iqa: null });
+    fixture.detectChanges();
+    expect(el.querySelector('dd')?.textContent).toContain('photo_detail.assessment.unavailable');
+    fixture.componentRef.setInput('photo', { aggregate: 7, face_quality_iqa: 0,
+      assessment_states: { face_quality_iqa: 'not_applicable' } });
+    fixture.detectChanges();
+    expect(el.querySelector('dd')?.textContent).toContain('0.0');
+    expect(el.querySelector('dd')?.textContent).not.toContain('photo_detail.assessment.not_applicable');
+  });
+
 });

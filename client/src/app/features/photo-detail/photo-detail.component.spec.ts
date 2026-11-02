@@ -663,6 +663,28 @@ describe('PhotoDetailComponent', () => {
     expect(view.nativeElement.querySelectorAll('app-extended-quality [data-testid$="-row"]').length).toBe(0);
   });
 
+  it('shows an explicit face-IQA decline in the normal quality section, without hiding a real zero', () => {
+    localStorage.setItem('facet_photo_detail_tab', 'quality');
+    const observed = makePhoto({ face_quality_iqa: null, assessment_states: { face_quality_iqa: 'not_applicable' } });
+    mockApi.get.mockImplementation((url: string) => of(url === '/photo' ? observed : {}));
+    const view = renderDetail();
+    view.componentInstance.photo.set(observed); view.detectChanges();
+    const analysis = view.nativeElement.querySelector('[data-photo-analysis]') as HTMLDetailsElement;
+    analysis.open = true; analysis.dispatchEvent(new Event('toggle')); view.detectChanges();
+    const quality = analysis.querySelector('[data-section-kind="quality"]') as HTMLDetailsElement;
+    if (!quality.open) { quality.querySelector<HTMLElement>('summary')!.click(); view.detectChanges(); }
+    const decline = quality.querySelector<HTMLDetailsElement>('[data-face-iqa-decline]')!;
+    expect(decline.querySelector('summary')?.textContent).toContain('photo_detail.assessment.not_applicable');
+    decline.open = true; decline.dispatchEvent(new Event('toggle')); view.detectChanges();
+    expect(decline.textContent).toContain('photo_detail.assessment.face_iqa_declined_help');
+    view.componentInstance.photo.set({ ...observed, face_quality_iqa: 0 }); view.detectChanges();
+    expect(quality.querySelector('[data-face-iqa-decline]')).toBeNull();
+    const row = Array.from(quality.querySelectorAll('app-metric-score-row')).find(node => node.textContent?.includes('tooltip.face_quality_iqa'));
+    expect(row?.textContent).toContain('0.0');
+    view.componentInstance.photo.set({ ...observed, assessment_states: {} }); view.detectChanges();
+    expect(quality.querySelector('[data-face-iqa-decline]')).toBeNull();
+  });
+
   it('should create', () => {
     createComponent();
     expect(component).toBeTruthy();

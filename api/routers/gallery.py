@@ -866,6 +866,7 @@ async def api_photo(
     """
     try:
         async with get_async_db() as conn:
+            await conn.execute('BEGIN')
             user_id = user.user_id if user else None
             from_clause, from_params = get_photos_from_clause(user_id)
             vis_sql, vis_params = get_visibility_clause(user_id)
@@ -892,6 +893,19 @@ async def api_photo(
             override = await cur.fetchone()
             await cur.close()
             photo['category_override'] = override['category_override'] if override else None
+
+            # A deliberate model decline is evidence only for the stored scan
+            # fingerprint, never a guess based on face_count or a NULL score.
+            from db.schema import IQA_SCAN_FINGERPRINT_SQL
+            cur = await conn.execute(
+                "SELECT 1 FROM photos JOIN iqa_declined d ON d.photo_path=photos.path "
+                "WHERE photos.path=? AND photos.face_quality_iqa IS NULL "
+                "AND d.model='topiq_nr_face' AND d.scan_fingerprint=" + IQA_SCAN_FINGERPRINT_SQL,
+                [path],
+            )
+            declined = await cur.fetchone()
+            await cur.close()
+            photo['assessment_states'] = {'face_quality_iqa': 'not_applicable'} if declined else {}
 
             sanitize_float_values([photo])
 

@@ -6,6 +6,8 @@ export interface KeeperHint {
 }
 
 export interface Photo {
+  /** Explicit receipt for this stored scan; absent means no known reason. */
+  assessment_states?: { face_quality_iqa?: 'not_applicable' } | null;
   preview_revision?: string | null;
   path: string;
   filename: string;

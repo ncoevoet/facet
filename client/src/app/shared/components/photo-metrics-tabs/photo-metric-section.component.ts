@@ -1,3 +1,4 @@
+import { I18N } from '../../../core/i18n/keys';
 import { MatIconModule } from '@angular/material/icon';
 import { ChangeDetectionStrategy, Component, input } from '@angular/core';
 import { Photo } from '../../models/photo.model';
@@ -76,8 +77,16 @@ import { MetricScoreRowComponent } from '../metric-score-row/metric-score-row.co
           @if (p.aesthetic_iaa !== null) {
             <app-metric-score-row [label]="'tooltip.aesthetic_iaa' | translate" [range]="ranges()['aesthetic_iaa']" [value]="p.aesthetic_iaa">{{ p.aesthetic_iaa | fixed:1 }}</app-metric-score-row>
           }
-          @if (p.face_quality_iqa !== null) {
+          @if (p.face_quality_iqa !== null && p.face_quality_iqa !== undefined) {
             <app-metric-score-row [label]="'tooltip.face_quality_iqa' | translate" [range]="ranges()['face_quality_iqa']" [value]="p.face_quality_iqa">{{ p.face_quality_iqa | fixed:1 }}</app-metric-score-row>
+          } @else if (p.assessment_states?.face_quality_iqa === 'not_applicable') {
+            <details data-face-iqa-decline>
+              <summary class="flex min-h-9 cursor-pointer items-center justify-between gap-3 rounded py-1 text-xs focus-visible:outline-2">
+                <span class="text-[var(--mat-sys-on-surface-variant)]">{{ I18N.tooltip.face_quality_iqa | translate }}</span>
+                <span class="font-medium">{{ I18N.photo_detail.assessment.not_applicable | translate }}</span>
+              </summary>
+              <p class="m-0 pb-2 text-xs text-[var(--mat-sys-on-surface-variant)]">{{ I18N.photo_detail.assessment.face_iqa_declined_help | translate }}</p>
+            </details>
           }
           @if (p.liqe_score !== null) {
             <app-metric-score-row [label]="'tooltip.liqe_score' | translate" [range]="ranges()['liqe_score']" [value]="p.liqe_score">{{ p.liqe_score | fixed:1 }}</app-metric-score-row>
@@ -192,6 +201,7 @@ import { MetricScoreRowComponent } from '../metric-score-row/metric-score-row.co
       } }`,
 })
 export class PhotoMetricSectionComponent {
+ protected readonly I18N = I18N;
  readonly kind = input.required<MetricsTab>();
  readonly photo = input.required<Photo>();
  readonly ranges = input<Record<string, MetricDistribution>>({});

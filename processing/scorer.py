@@ -2976,6 +2976,10 @@ class Facet:
                         :gps_latitude, :gps_longitude, datetime('now'), {DISPLAY_RENDER_VERSION}
                     )
                 '''), res)
+                # A full save replaces the observation even when two scans land
+                # in the same timestamp second with equal thumbnail lengths.
+                # Do not let the old intentional decline survive that collision.
+                conn.execute('DELETE FROM iqa_declined WHERE photo_path=?', (res['path'],))
 
             # Refresh faces for every photo we just wrote (the UPSERT no longer
             # cascade-deletes them) — this also clears stale faces on a photo

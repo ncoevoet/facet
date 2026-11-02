@@ -8811,6 +8811,7 @@ export interface components {
             aesthetic_v25?: number | null;
             /** Aggregate */
             aggregate?: number | null;
+            assessment_states?: components["schemas"]["PhotoAssessmentStates"] | null;
             /** Bg Separation */
             bg_separation?: number | null;
             /** Burst Group Id */
@@ -9014,6 +9015,14 @@ export interface components {
             topiq_score?: number | null;
             /** Unassigned Faces */
             unassigned_faces?: number | null;
+        };
+        /**
+         * PhotoAssessmentStates
+         * @description Explicit reasons backed by receipts for the current stored scan.
+         */
+        PhotoAssessmentStates: {
+            /** Face Quality Iqa */
+            face_quality_iqa?: "not_applicable" | null;
         };
         /**
          * PhotoCountResponse

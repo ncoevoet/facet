@@ -734,10 +734,10 @@ SCAN_RUNS_INDEXES = [
 # pyiqa's own detector on the thumbnail, though InsightFace found a face on the
 # full image). A side table, not a photos column, because a full-row save rewrites
 # photos wholesale. For the opposite reason it cannot simply be trusted: the save
-# is an UPSERT, which never cascades, so a row here SURVIVES a rescan. It is
-# therefore valid only while scan_fingerprint still equals the photo's current
-# IQA_SCAN_FINGERPRINT_SQL; a rescan rewrites scanned_at and the thumbnail and so
-# invalidates every decline for that photo without anyone deleting a row. The
+# is an UPSERT, which never cascades, so a row here would survive a rescan without explicit invalidation. It is
+# therefore cleared by the full save when it replaces an observation, including
+# same-second / equal-length thumbnail collisions. Other readers also require
+# scan_fingerprint to equal the current IQA_SCAN_FINGERPRINT_SQL. The
 # fingerprint is nullable on purpose: NULL never equals anything, so a photo with
 # no scanned_at is never "declined" (fails open, it is simply retried).
 IQA_DECLINED_COLUMNS = [

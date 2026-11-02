@@ -3242,7 +3242,9 @@
       "unavailable_help": "Unavailable means no usable measurement was returned. It is not a zero or a low score; the reason is not supplied here.",
       "group_pick": "Suggested in this group",
       "group_pick_help": "The group suggestion ranks these alternatives. It is not your rating and does not automatically mean Keep.",
-      "help": "About these measurements"
+      "help": "About these measurements",
+      "not_applicable": "Not applicable",
+      "face_iqa_declined_help": "For Face Quality (IQA), “Not applicable” means TOPIQ NR-Face found no face in the stored preview. Other face measurements may still be available."
     },
     "rendition": {
       "edited": "Developed preview",

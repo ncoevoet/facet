@@ -3257,6 +3257,8 @@ export const I18N = {
       group_pick: "photo_detail.assessment.group_pick",
       group_pick_help: "photo_detail.assessment.group_pick_help",
       help: "photo_detail.assessment.help",
+      not_applicable: "photo_detail.assessment.not_applicable",
+      face_iqa_declined_help: "photo_detail.assessment.face_iqa_declined_help",
     },
     rendition: {
       edited: "photo_detail.rendition.edited",

@@ -156,10 +156,18 @@ class PhotoMetadata(BaseModel):
     model_config = {'from_attributes': True}
 
 
+class PhotoAssessmentStates(BaseModel):
+    """Explicit reasons backed by receipts for the current stored scan."""
+
+    face_quality_iqa: Optional[Literal['not_applicable']] = None
+
+
 class Photo(PhotoMetadata):
     """Authenticated catalog photo identity and metadata."""
 
     path: str
+    # Only explicit current-scan receipts support a missing-score reason.
+    assessment_states: Optional[PhotoAssessmentStates] = None
 
 
 class SharedPhoto(PhotoMetadata):
