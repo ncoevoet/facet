@@ -1083,6 +1083,12 @@ class TestKeepWholeKindVisibilityLeak:
 class TestFilterSimilarGroups:
     """Unit tests for read-time rejected-photo filtering of cached similar groups."""
 
+    @pytest.fixture(autouse=True)
+    def _physical_catalog(self):
+        # A MagicMock connection answers every probe, so it would look logical.
+        with mock.patch("api.logical_culling.has_groups", return_value=False):
+            yield
+
     def _conn_with_rejected(self, rejected_paths):
         conn = mock.MagicMock()
         conn.execute.return_value.fetchall.return_value = [

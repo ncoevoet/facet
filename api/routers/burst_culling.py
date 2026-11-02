@@ -1039,6 +1039,10 @@ def _fetch_similar_group_photos(conn, groups, vis_sql="1=1", vis_params=None, ma
                   AND {is_rejected_col} = 0""",
             from_params + unique_paths + vis_params,
         ).fetchall()
+        from api.logical_culling import has_groups, read_culling_labels
+        if has_groups(conn):
+            labels = read_culling_labels(conn, user_id, [r['path'] for r in rows])
+            rows = [r for r in rows if not (r['path'] in labels and labels[r['path']].rejected)]
     else:
         rows = conn.execute(
             f"""SELECT {_culling_photo_columns()}
@@ -1123,6 +1127,12 @@ def _fetch_scene_groups(conn, user_id=None, album_id=None, date_from=None, date_
 
 def _get_rejected_paths(conn, user_id):
     """Fetch set of rejected paths for the current user."""
+    from api.logical_culling import standalone_source
+    logical = standalone_source(conn, user_id)
+    if logical is not None:
+        # Representative rows carry the logical photo's shared decision.
+        rows = conn.execute(f"SELECT photos.path FROM {logical.sql} WHERE photos.is_rejected = 1", logical.params)
+        return {r[0] for r in rows}
     from_clause, from_params, is_rejected_col = _rejected_clause(user_id)
     rows = conn.execute(
         f"SELECT photos.path FROM {from_clause} WHERE {is_rejected_col} = 1",

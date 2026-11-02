@@ -120,3 +120,14 @@ def test_two_representations_of_one_capture_are_not_a_similar_group(catalog):
     conn.commit()
     _embed(conn, [jpg, raw])
     assert compute_similarity_groups(conn, threshold=0.9, user_id=None, use_cache=False) == []
+
+
+def test_similar_feed_drops_a_logically_rejected_photo(catalog):
+    from api.routers.burst_culling import _fetch_similar_group_photos, _filter_similar_groups
+    conn, key, _, raw, other = catalog
+    conn.execute("INSERT INTO logical_review_fields VALUES (?, '', 'decision', 2, 'user')", (key,))
+    conn.commit()
+    groups = [{'paths': [raw, other], 'best_path': raw, 'count': 2}]
+    assert _filter_similar_groups(conn, groups, None) == []
+    photos = _fetch_similar_group_photos(conn, groups, exclude_rejected=True)
+    assert [p['path'] for p in photos[0]] == [other]
