@@ -173,7 +173,7 @@ class ExifPrefetcher:
             paths, self._planned = self._planned, []
             if not paths or self._closed:
                 return
-            request = {'paths': paths, 'keys': set(paths), 'result': None, 'error': None,
+            request: Dict[str, Any] = {'paths': paths, 'keys': set(paths), 'result': None, 'error': None,
                        'done': threading.Event(), 'stop': threading.Event()}
             request['thread'] = threading.Thread(
                 target=self._run, args=(request,), name='facet-exif-prefetch', daemon=True)
