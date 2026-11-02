@@ -1187,6 +1187,7 @@
       "mark_needs_paths": "Seleziona le foto stesse — una selezione dell'intera vista non può essere una serie",
       "mark_too_many": "Una serie contiene al massimo {max} foto, e {count} sono selezionate",
       "view_scope_active": "Intera vista selezionata — {count} foto",
+      "view_scope_except": "Tutte le foto corrispondenti, tranne {excluded} — {count} foto",
       "view_scope_offer": "Tutte le {count} foto caricate finora sono selezionate.",
       "view_scope_select_all": "Seleziona tutte le {total} foto di questa vista",
       "view_scope_confirm_title": "Applicare all'intera vista?",

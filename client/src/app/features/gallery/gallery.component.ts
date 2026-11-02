@@ -708,7 +708,7 @@ type ReturnTarget = { scroll: number; focus: Element | null } & (
           @if (viewScoped()) {
             <p class="text-xs basis-full opacity-80">{{ I18N.stacks.folded_scope | translate }}</p>
           }
-          <span data-selection-status tabindex="-1" class="text-sm font-medium shrink-0 px-1">{{ (viewScoped() ? I18N.gallery.selection.view_scope_active : I18N.gallery.selection.count) | translate:{ count: selectionCount() } }}</span>
+          <span data-selection-status tabindex="-1" class="text-sm font-medium shrink-0 px-1">{{ selectionStatus().key | translate:selectionStatus().params }}</span>
           <button mat-icon-button disabledInteractive (click)="clearSelection()" [matTooltip]="I18N.gallery.selection.clear | translate" [attr.aria-label]="I18N.gallery.selection.clear | translate"><mat-icon>close</mat-icon></button>
           @if (!allLoadedSelected()) {
             <button mat-icon-button disabledInteractive (click)="selectAll()" [matTooltip]="I18N.gallery.selection.select_all | translate" [attr.aria-label]="I18N.gallery.selection.select_all | translate"><mat-icon>select_all</mat-icon></button>
@@ -977,6 +977,14 @@ export class GalleryComponent implements OnInit, OnDestroy {
   protected readonly selectionCount = this.store.selectionCount;
   /** True while the selection means "the whole filtered view", not a path list. */
   protected readonly viewScoped = this.store.viewScopeSelected;
+  /** How the bar names its target: explicit photos, the whole view, or the whole view minus exclusions. */
+  protected readonly selectionStatus = computed(() => {
+    const count = this.selectionCount(), excluded = this.excludedPaths().size;
+    const params: Record<string, number> = { count };
+    if (!this.viewScoped()) return { key: I18N.gallery.selection.count, params };
+    if (!excluded) return { key: I18N.gallery.selection.view_scope_active, params };
+    return { key: I18N.gallery.selection.view_scope_except, params: { ...params, excluded } };
+  });
 
   /** True when every loaded photo is already selected. */
   protected readonly allLoadedSelected = computed(() => {
@@ -1985,8 +1993,8 @@ export class GalleryComponent implements OnInit, OnDestroy {
    * their own button also move focus, below.
    */
   private announceSelectionStatus(): void {
-    const key = this.viewScoped() ? I18N.gallery.selection.view_scope_active : I18N.gallery.selection.count;
-    void this.liveAnnouncer.announce(this.i18n.t(key, { count: this.selectionCount() }));
+    const { key, params } = this.selectionStatus();
+    void this.liveAnnouncer.announce(this.i18n.t(key, params));
   }
 
   /**

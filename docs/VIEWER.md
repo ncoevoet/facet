@@ -320,7 +320,7 @@ Click photos to select; Shift+Click selects a range. An action bar appears at th
 - **Rate** — set or clear a 1–5 star rating
 - **Add to album** — add to an existing or new album
 - **Edit tags** — add or remove a [manual tag](#manual-tags) on every selected photo
-- **Select all** — with an empty selection, selects every photo the filters match, not just loaded pages. With photos already selected, it adds the loaded photos and offers to widen to the whole view. Whole-view actions confirm the exact photo count first.
+- **Select all** — with an empty selection, selects every photo the filters match, not just loaded pages. With photos already selected, it adds the loaded photos and offers to widen to the whole view. Whole-view actions confirm the exact photo count first. Unticking photos from a whole-view selection reads “All matching photos, except N” in the selection bar.
 - **Invert** — swap the selection for its complement. From an empty selection that is the whole view. From a non-empty selection it stays within loaded photos: pick keepers, invert, reject.
 - **Compare** — open 2–4 photos side by side with synced pan and zoom (scroll to zoom, drag to pan, double-click to reset). Panes switch to full resolution when zoomed.
 - **Copy filenames** — copy filenames to the clipboard. A whole-view copy confirms first; over 10 000 photos is refused.

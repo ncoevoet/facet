@@ -320,7 +320,7 @@ Clicca le foto per selezionarle; Maiusc+clic seleziona un intervallo. In basso a
 - **Valuta** — imposta o cancella una valutazione da 1 a 5 stelle
 - **Aggiungi all'album** — aggiungi a un album esistente o nuovo
 - **Modifica tag** — aggiungi o rimuovi un [tag manuale](#tag-manuali) su ogni foto selezionata
-- **Seleziona tutto** — con una selezione vuota, seleziona ogni foto che i filtri trovano, non solo le pagine caricate. Con foto già selezionate, aggiunge quelle caricate e propone di estendere all'intera vista. Le azioni sull'intera vista confermano prima il numero esatto di foto.
+- **Seleziona tutto** — con una selezione vuota, seleziona ogni foto che i filtri trovano, non solo le pagine caricate. Con foto già selezionate, aggiunge quelle caricate e propone di estendere all'intera vista. Le azioni sull'intera vista confermano prima il numero esatto di foto. Se deselezioni foto da una selezione dell'intera vista, la barra indica «Tutte le foto corrispondenti, tranne N».
 - **Inverti** — sostituisce la selezione con il suo complemento. Da una selezione vuota è l'intera vista. Da una selezione non vuota resta tra le foto caricate: scegli le foto da conservare, inverti, rifiuta.
 - **Confronta** — apri 2–4 foto affiancate con pan e zoom sincronizzati (scorri per fare zoom, trascina per spostare, doppio clic per reimpostare). I riquadri passano alla piena risoluzione quando ingranditi.
 - **Copia nomi file** — copia i nomi file negli appunti. Una copia dell'intera vista chiede prima conferma; oltre 10 000 foto viene rifiutata.

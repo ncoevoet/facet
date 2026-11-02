@@ -1187,6 +1187,7 @@
       "mark_needs_paths": "Wählen Sie die Fotos selbst aus — eine Auswahl der gesamten Ansicht kann keine Serie sein",
       "mark_too_many": "Eine Serie enthält höchstens {max} Fotos, aber {count} sind ausgewählt",
       "view_scope_active": "Gesamte Ansicht ausgewählt — {count} Fotos",
+      "view_scope_except": "Alle passenden Fotos außer {excluded} — {count} Fotos",
       "view_scope_offer": "Alle {count} bisher geladenen Fotos sind ausgewählt.",
       "view_scope_select_all": "Alle {total} in dieser Ansicht auswählen",
       "view_scope_confirm_title": "Auf die gesamte Ansicht anwenden?",

@@ -320,7 +320,7 @@ Haz clic en las fotos para seleccionarlas; Shift+clic selecciona un rango. Abajo
 - **Calificar**: define o borra una valoración de 1–5 estrellas
 - **Añadir al álbum**: añade a un álbum existente o nuevo
 - **Editar etiquetas**: añade o quita un [tag manual](#tags-manuales) en cada foto seleccionada
-- **Seleccionar todo**: con una selección vacía, selecciona todas las fotos que coinciden con los filtros, no solo las páginas cargadas. Con fotos ya seleccionadas, añade las cargadas y ofrece ampliar a toda la vista. Las acciones sobre toda la vista confirman antes el número exacto de fotos.
+- **Seleccionar todo**: con una selección vacía, selecciona todas las fotos que coinciden con los filtros, no solo las páginas cargadas. Con fotos ya seleccionadas, añade las cargadas y ofrece ampliar a toda la vista. Las acciones sobre toda la vista confirman antes el número exacto de fotos. Si deseleccionas fotos de una selección de toda la vista, la barra indica «Todas las fotos coincidentes, excepto N».
 - **Invertir**: cambia la selección por su complemento. Desde una selección vacía es toda la vista. Desde una selección no vacía se queda dentro de las fotos cargadas: elige las que conservas, invierte, rechaza.
 - **Comparar**: abre de 2 a 4 fotos en paralelo con desplazamiento y zoom sincronizados (rueda para el zoom, arrastrar para desplazar, doble clic para restablecer). Los paneles pasan a resolución completa al ampliar.
 - **Copiar nombres**: copia los nombres de archivo al portapapeles. Una copia de toda la vista pide confirmación antes; más de 10 000 fotos se rechaza.
