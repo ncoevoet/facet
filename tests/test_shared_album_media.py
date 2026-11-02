@@ -177,3 +177,53 @@ def test_signed_asset_refuses_tampering_cross_album_and_changed_row_path(shared_
     with sqlite3.connect(_TEST_DB_FILE.name) as conn:
         conn.execute('UPDATE photos SET path=? WHERE rowid=?', (other + '.replacement', row_id))
     assert anonymous_client.get(url, params={**scope, 'asset_id': asset}).status_code == 404
+
+
+@pytest.mark.parametrize('primary_raw', [False, True])
+def test_logical_group_never_expands_a_public_album_file_grant(
+        shared_media, seed_photos_prefix, anonymous_client, primary_raw):
+    from db import logical_assets
+
+    album, path, _, data = shared_media
+    raw = str(Path(path).with_suffix('.CR2'))
+    Path(raw).write_bytes(b'private-unshared-raw')
+    seed_photos_prefix(str(Path(path).parent) + '/', [
+        {'path': raw, 'filename': Path(raw).name, 'star_rating': 2},
+    ])
+    with sqlite3.connect(_TEST_DB_FILE.name) as conn:
+        conn.execute('BEGIN IMMEDIATE')
+        key = logical_assets.create(conn, [path, raw], raw if primary_raw else path,
+                                    visibility_sql='1=1')
+        conn.execute("INSERT INTO logical_review_fields VALUES (?, 'private-review-owner', 'star_rating', 5, 'user')", (key,))
+    try:
+        scope = {'token': 'fixture-album-media'}
+        response = anonymous_client.get(f'/api/shared/album/{album}', params=scope)
+        assert response.status_code == 200, response.text
+        body = response.json()
+        assert body['total'] == 1
+        assert [photo['filename'] for photo in body['photos']] == ['chosen.jpg']
+        asset_id = body['photos'][0]['asset_id']
+        detail = anonymous_client.get(f'/api/shared/album/{album}/photo', params={**scope, 'asset_id': asset_id})
+        assert detail.status_code == 200, detail.text
+        for public in (response, detail):
+            assert key not in public.text
+            assert raw not in public.text and Path(raw).name not in public.text
+            assert 'private-review-owner' not in public.text
+            assert 'logical_review' not in public.text
+            assert 'input_token' not in public.text
+            assert 'primary_path' not in public.text
+        for kind in ('thumbnail', 'image', 'download'):
+            member = anonymous_client.get(f'/api/shared/album/{album}/media/{kind}',
+                                          params={**scope, 'asset_id': asset_id})
+            assert member.status_code == 200, member.text
+            assert member.content == data
+            companion = anonymous_client.get(f'/api/shared/album/{album}/media/{kind}',
+                                             params={**scope, 'asset_id': _asset(album, raw)})
+            assert companion.status_code == 404
+        # Audit must not rewrite durable identity or the private review authority.
+        with sqlite3.connect(_TEST_DB_FILE.name) as conn:
+            assert conn.execute('SELECT primary_path FROM logical_assets WHERE id=?', (key,)).fetchone()[0] == (raw if primary_raw else path)
+            assert conn.execute('SELECT value FROM logical_review_fields WHERE asset_id=?', (key,)).fetchone()[0] == 5
+    finally:
+        with sqlite3.connect(_TEST_DB_FILE.name) as conn:
+            conn.execute('DELETE FROM logical_assets WHERE id=?', (key,))
