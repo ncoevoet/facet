@@ -125,3 +125,7 @@ bench/results/*.json
 
 # MSI build output (installer/build-msi.ps1)
 installer/out/
+
+# Local design and browser verification artifacts
+/.hallmark/
+/.playwright-mcp/
