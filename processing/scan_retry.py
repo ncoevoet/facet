@@ -13,6 +13,7 @@ from pathlib import Path
 import re
 import sqlite3
 import stat
+import sys
 import tempfile
 
 from config_resolve import load_resolved
@@ -173,8 +174,13 @@ def read_retry_manifest(filename, expected_sha256, db_path, config_path):
     if not isinstance(expected_sha256, str) or not re.fullmatch('[0-9a-f]{64}', expected_sha256):
         raise RetryPlanError('Retry plan requires its SHA-256')
     try:
-        with open(filename, 'rb') as stream:
-            payload = stream.read(MAX_MANIFEST_BYTES + 1)
+        if filename == '-':
+            # Viewer-owned transports use the pipe: process death closes it,
+            # so private captured paths cannot survive in a temporary file.
+            payload = sys.stdin.buffer.read(MAX_MANIFEST_BYTES + 1)
+        else:
+            with open(filename, 'rb') as stream:
+                payload = stream.read(MAX_MANIFEST_BYTES + 1)
         if len(payload) > MAX_MANIFEST_BYTES or hashlib.sha256(payload).hexdigest() != expected_sha256:
             raise RetryPlanError('Retry plan changed; create a new preview')
         plan = json.loads(payload.decode('utf-8'))

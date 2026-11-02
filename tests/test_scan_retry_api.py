@@ -2,7 +2,6 @@
 
 from collections import deque
 from concurrent.futures import ThreadPoolExecutor
-from pathlib import Path
 import sqlite3
 import subprocess
 import sys
@@ -44,7 +43,6 @@ def retry_api(tmp_path, monkeypatch):
     monkeypatch.setattr(scan, '_cross_process_job_env', lambda: {})
     monkeypatch.setitem(scan.VIEWER_CONFIG, 'features', {'show_scan_button': True})
     monkeypatch.setattr(scan_retry, '_previews', {})
-    monkeypatch.setattr(scan_retry, '_manifests', set())
     monkeypatch.setattr(scan, '_scan_state', {
         'running': False, 'process': None, 'kind': None, 'output_lines': deque(maxlen=500),
         'started_at': None, 'directories': [], 'exit_code': None, 'progress': None,
@@ -65,7 +63,6 @@ def retry_api(tmp_path, monkeypatch):
     app.dependency_overrides[require_scan_access] = lambda: CurrentUser(user_id='root', role='superadmin', edition_authenticated=True)
     client = TestClient(app, headers={'authorization': 'Bearer session-a'})
     yield SimpleNamespace(client=client, photo=photo, root=root, db=db, config=config, popen=popen, threads=threads, proc=proc, app=app)
-    scan_retry._cleanup_manifests()
     app.dependency_overrides.clear()
 
 
@@ -81,7 +78,7 @@ def test_preview_is_read_only_apply_is_captured_and_idempotent_and_exit_cleans_t
     plan = preview(ctx)
     assert plan['files'] == [str(ctx.photo)] and plan['omissions'] == []
     assert 'diagnostic' not in str(plan) and 'args_json' not in str(plan)
-    assert ctx.db.read_bytes() == before and not scan_retry._manifests
+    assert ctx.db.read_bytes() == before
     assert not ctx.popen.called
     body = {'plan_id': plan['plan_id'], 'confirm': True}
     result = ctx.client.post('/api/scan/retry/apply', json=body)
@@ -89,8 +86,9 @@ def test_preview_is_read_only_apply_is_captured_and_idempotent_and_exit_cleans_t
     assert ctx.popen.call_args.kwargs['env'][VIEWER_JOB_ID_ENV] == result.json()['job_id']
     command = ctx.popen.call_args.args[0]
     assert '--retry-failed' not in command and '--retry-plan' in command
-    manifest = Path(command[command.index('--retry-plan') + 1])
-    assert manifest.exists() and manifest.stat().st_mode & 0o077 == 0
+    assert command[command.index('--retry-plan') + 1] == '-'
+    transport = ctx.popen.call_args.kwargs['stdin']
+    assert transport.closed
     assert str(ctx.photo) not in command
     again = ctx.client.post('/api/scan/retry/apply', json=body)
     assert again.json() == result.json() and ctx.popen.call_count == 1
@@ -98,7 +96,7 @@ def test_preview_is_read_only_apply_is_captured_and_idempotent_and_exit_cleans_t
     assert receipt == {'state': 'spawned', 'job_id': result.json()['job_id']}
     reader = ctx.threads[-1]
     reader['target'](*reader['args'])
-    assert not manifest.exists() and not scan_retry._manifests
+    assert transport.closed
     assert not scan._scan_state['running']
 
 
@@ -116,7 +114,7 @@ def test_changed_preview_never_spawns_or_writes(retry_api, monkeypatch, change):
         ctx.client.headers['authorization'] = 'Bearer session-b'
     result = ctx.client.post('/api/scan/retry/apply', json={'plan_id': plan['plan_id'], 'confirm': True})
     assert result.status_code in (403, 409), result.text
-    assert not ctx.popen.called and not scan_retry._manifests
+    assert not ctx.popen.called
 
 
 def test_preview_refuses_outside_root_and_symlink_escape_without_disclosure(retry_api):
@@ -138,7 +136,7 @@ def test_permission_confirmation_expiry_capacity_and_failed_spawn_are_explicit(r
     assert refused.status_code == 400 and not ctx.popen.called
     ctx.popen.side_effect = OSError('start refused')
     failure = ctx.client.post('/api/scan/retry/apply', json={'plan_id': plan['plan_id'], 'confirm': True})
-    assert failure.status_code == 503 and not scan_retry._manifests
+    assert failure.status_code == 503
     assert ctx.client.get('/api/scan/retry/' + plan['plan_id']).json()['state'] == 'refused'
     ctx.client.post('/api/scan/retry/apply', json={'plan_id': plan['plan_id'], 'confirm': True})
     assert ctx.popen.call_count == 1
@@ -164,7 +162,7 @@ def test_oversized_manifest_is_refused_at_preview_and_apply_without_internal_err
     result = ctx.client.post('/api/scan/retry/apply', json={'plan_id': plan['plan_id'], 'confirm': True})
     assert result.status_code == 409
     assert ctx.client.get('/api/scan/retry/' + plan['plan_id']).json()['state'] == 'refused'
-    assert not ctx.popen.called and not scan_retry._manifests
+    assert not ctx.popen.called
 
 
 def test_concurrent_apply_does_not_create_a_second_worker(retry_api):
@@ -211,12 +209,12 @@ def test_real_worker_reads_utf8_manifest_and_owned_exit_removes_it(retry_api, mo
     before = library_rows()
     result = ctx.client.post('/api/scan/retry/apply', json={'plan_id': plan['plan_id'], 'confirm': True})
     assert result.status_code == 200, result.text
-    filename = next(iter(scan_retry._manifests))
+    assert ctx.popen.call_args.kwargs['stdin'].closed
     reader = ctx.threads[-1]
     reader['target'](*reader['args'])
     assert scan._scan_state['exit_code'] == 0
     assert 'captured=1' in scan._scan_state['output_lines']
-    assert not Path(filename).exists() and not scan_retry._manifests
+    assert ctx.popen.call_args.kwargs['stdin'].closed
     assert library_rows() == before
     with sqlite3.connect(ctx.db) as conn:
         state, receipt = conn.execute('SELECT state, receipt FROM scan_retry_receipts').fetchone()
@@ -251,7 +249,6 @@ def test_actual_child_records_the_job_id_returned_by_the_viewer(retry_api):
     with sqlite3.connect(ctx.db) as conn:
         assert conn.execute('SELECT viewer_job_id,job_status FROM scan_runs WHERE id=2').fetchone() == (response.json()['job_id'], 'completed')
     assert ctx.photo.read_bytes() == before
-    assert not scan_retry._manifests
 
 
 def test_submitted_receipt_survives_worker_memory_loss_without_respawn(retry_api, monkeypatch):
@@ -354,4 +351,58 @@ def test_actual_receipt_settlement_write_failure_preserves_uncertainty_after_spa
     result = ctx.client.get('/api/scan/retry/' + plan['plan_id'])
     assert result.status_code == 200 and result.json()['state'] == 'submitting'
     assert ctx.client.post('/api/scan/retry/apply', json=body).status_code == 409
+    assert ctx.popen.call_count == 1
+
+
+def test_observer_start_failure_closes_input_and_never_spawns(retry_api, monkeypatch):
+    ctx = retry_api
+    inputs = []
+    original = scan.tempfile.TemporaryFile
+    def capture(*args, **kwargs):
+        stream = original(*args, **kwargs)
+        inputs.append(stream)
+        return stream
+    def fail_start():
+        raise RuntimeError('observer allocation failed')
+    monkeypatch.setattr(scan.tempfile, 'TemporaryFile', capture)
+    monkeypatch.setattr(scan, 'threading', SimpleNamespace(
+        Thread=lambda **kwargs: SimpleNamespace(start=fail_start), Event=threading.Event))
+    plan = preview(ctx)
+    response = ctx.client.post('/api/scan/retry/apply', json={'plan_id': plan['plan_id'], 'confirm': True})
+    assert response.status_code == 503 and not ctx.popen.called
+    assert len(inputs) == 1 and inputs[0].closed
+    assert ctx.client.get('/api/scan/retry/' + plan['plan_id']).json()['state'] == 'refused'
+
+
+def test_input_storage_failure_never_spawns_or_reserves_observation(retry_api, monkeypatch):
+    ctx = retry_api
+    def unavailable(*args, **kwargs):
+        raise OSError('anonymous storage unavailable')
+    monkeypatch.setattr(scan.tempfile, 'TemporaryFile', unavailable)
+    plan = preview(ctx)
+    response = ctx.client.post('/api/scan/retry/apply', json={'plan_id': plan['plan_id'], 'confirm': True})
+    assert response.status_code == 503 and not ctx.popen.called
+    assert not ctx.threads
+
+
+def test_input_close_failure_after_popen_preserves_accepted_receipt(retry_api, monkeypatch):
+    ctx = retry_api
+    original = scan.tempfile.TemporaryFile
+    class FailingClose:
+        def __enter__(self):
+            self.stream = original(mode='w+b')
+            return self.stream
+        def __exit__(self, *args):
+            self.stream.close()
+            raise OSError('close failed after successful spawn')
+    monkeypatch.setattr(scan.tempfile, 'TemporaryFile', lambda **kwargs: FailingClose())
+    plan = preview(ctx)
+    body = {'plan_id': plan['plan_id'], 'confirm': True}
+    response = ctx.client.post('/api/scan/retry/apply', json=body)
+    assert response.status_code == 200, response.text
+    assert ctx.popen.call_count == 1 and scan._scan_state['running']
+    scan_retry._previews.clear()
+    assert ctx.client.get('/api/scan/retry/' + plan['plan_id']).json() == {
+        'state': 'spawned', 'job_id': response.json()['job_id']}
+    assert ctx.client.post('/api/scan/retry/apply', json=body).json() == response.json()
     assert ctx.popen.call_count == 1

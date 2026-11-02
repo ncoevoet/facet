@@ -1,12 +1,10 @@
 """Bounded, account-bound retry previews and worker-owned private transports."""
 
-import atexit
 from contextlib import contextmanager
 from dataclasses import dataclass
 import hashlib
 import json
 import logging
-import os
 from pathlib import Path
 import secrets
 import sqlite3
@@ -20,7 +18,7 @@ from api.auth import CurrentUser
 from api.config import get_all_scan_directories, _CONFIG_PATH
 from db.connection import DEFAULT_DB_PATH
 from db.schema import SCAN_RETRY_RECEIPTS_COLUMNS, _build_create_table_sql
-from processing.scan_retry import capture_retry_plan, RetryPlanError, retry_manifest_bytes, retry_plan_paths, write_retry_manifest
+from processing.scan_retry import capture_retry_plan, RetryPlanError, retry_manifest_bytes, retry_plan_paths
 
 PREVIEW_TTL_SECONDS = 600
 MAX_PREVIEWS = 32
@@ -41,7 +39,6 @@ class RetryPreview:
 
 
 _previews: dict[str, RetryPreview] = {}
-_manifests: set[str] = set()
 logger = logging.getLogger(__name__)
 
 
@@ -197,37 +194,3 @@ def retry_receipt(plan_id: str, request: Request, user: CurrentUser) -> dict[str
             'state': 'spawned' if preview.receipt else 'refused' if preview.refused else 'submitting' if preview.applying else 'preview',
             'job_id': preview.receipt['job_id'] if preview.receipt else None,
         }
-
-
-def create_manifest(preview: RetryPreview) -> tuple[str, str]:
-    filename, digest = write_retry_manifest(preview.plan)
-    with _lock:
-        _manifests.add(filename)
-    return filename, digest
-
-
-def remove_manifest(filename: str) -> None:
-    with _lock:
-        if filename not in _manifests:
-            return
-    try:
-        os.unlink(filename)
-    except FileNotFoundError:
-        pass
-    except OSError:
-        # Keep ownership for shutdown retry; never let cleanup turn an
-        # accepted process into a fictitious start failure.
-        logger.warning('Could not remove a private retry manifest')
-        return
-    with _lock:
-        _manifests.discard(filename)
-
-
-def _cleanup_manifests() -> None:
-    with _lock:
-        paths = list(_manifests)
-    for path in paths:
-        remove_manifest(path)
-
-
-atexit.register(_cleanup_manifests)

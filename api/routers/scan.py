@@ -4,6 +4,9 @@ Scan router — trigger and monitor photo scanning.
 """
 
 import asyncio
+from contextlib import ExitStack
+import hashlib
+import tempfile
 import json
 import logging
 import secrets
@@ -194,7 +197,7 @@ def scan_feature_refusal(user) -> Optional[str]:
     return "Scan feature not enabled"
 
 
-def _spawn_scan(cmd, directories, cleanup=None, *, kind=JOB_KIND_SCAN, job_id=None, on_exit=None):
+def _spawn_scan(cmd, directories, cleanup=None, *, kind=JOB_KIND_SCAN, job_id=None, on_exit=None, stdin_payload=None):
     """Caller holds _scan_lock. One observer for normal and captured scans."""
     job_id = job_id or secrets.token_hex(16)
     env = _cross_process_job_env()
@@ -208,14 +211,30 @@ def _spawn_scan(cmd, directories, cleanup=None, *, kind=JOB_KIND_SCAN, job_id=No
         if proc is not None:
             _read_scan_output(proc, cleanup, on_exit)
 
-    # Reserve the observer before creating a child. Resource exhaustion cannot
-    # leave an accepted scan without a reader, then delete its startup manifest.
-    threading.Thread(target=observe, args=(), daemon=True).start()
     try:
-        proc = subprocess.Popen(
-            cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
-            text=True, bufsize=1, env=env, encoding='utf-8', errors='replace',
-        )
+        try:
+            with ExitStack() as resources:
+                stdin_args = {}
+                if stdin_payload is not None:
+                    # An anonymous/delete-on-close input survives in the child only
+                    # as an OS handle. Parent/child death cannot orphan a named plan.
+                    # A seekable input also avoids stdin/stdout pipe backpressure.
+                    transport = resources.enter_context(tempfile.TemporaryFile(mode='w+b'))
+                    transport.write(stdin_payload)
+                    transport.seek(0)
+                    stdin_args['stdin'] = transport
+                # Reserve observation before spawning, and release it on any failure.
+                threading.Thread(target=observe, args=(), daemon=True).start()
+                proc = subprocess.Popen(
+                    cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
+                    text=True, bufsize=1, env=env, encoding='utf-8', errors='replace', **stdin_args,
+                )
+        except OSError:
+            if proc is None:
+                raise
+            # Closing the parent's handle cannot undo a successfully spawned
+            # child. Keep its accepted identity and receipt observable.
+            logger.warning('Could not close scan input after accepted spawn')
         _scan_state.update(
             running=True, kind=kind, process=proc,
             output_lines=deque(maxlen=500), started_at=time.time(), directories=directories,
@@ -473,30 +492,29 @@ def apply_failed_retry(body: ScanRetryApplyRequest, request: Request, user: Curr
         raise HTTPException(403, refusal)
     if not body.confirm:
         raise HTTPException(400, 'Confirm the captured failed-file retry')
-    from api.scan_retry import begin_retry, create_manifest, finish_retry, remove_manifest
+    from api.scan_retry import begin_retry, finish_retry
+    from processing.scan_retry import retry_manifest_bytes
     preview = begin_retry(body.plan_id, request, user)
     if preview.receipt is not None:
         return preview.receipt
-    filename = None
     try:
         if not _scan_lock.acquire(blocking=False):
             raise HTTPException(409, 'A library job is already running')
         try:
             if _scan_state['running'] or _library_job_conflict_detail():
                 raise HTTPException(409, 'A library job is already running')
-            filename, digest = create_manifest(preview)
+            payload = retry_manifest_bytes(preview.plan)
+            digest = hashlib.sha256(payload).hexdigest()
             from api.scan_retry import DEFAULT_DB_PATH
             cmd = [sys.executable, FACET_SCRIPT, '--db', DEFAULT_DB_PATH,
-                   '--config', _CONFIG_PATH, '--retry-plan', filename, '--retry-plan-sha256', digest]
-            receipt = _spawn_scan(cmd, [], lambda path=filename: remove_manifest(path))
+                   '--config', _CONFIG_PATH, '--retry-plan', '-', '--retry-plan-sha256', digest]
+            receipt = _spawn_scan(cmd, [], stdin_payload=payload)
             finish_retry(preview, receipt)
             return receipt
         finally:
             _scan_lock.release()
     except BaseException as exc:
         finish_retry(preview, None)
-        if filename is not None:
-            remove_manifest(filename)
         if isinstance(exc, RetryPlanError):
             raise HTTPException(409, 'Retry preview is no longer usable; create a new preview') from exc
         if isinstance(exc, (OSError, subprocess.SubprocessError, RuntimeError)):

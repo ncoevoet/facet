@@ -275,3 +275,66 @@ def test_failed_bookkeeping_cannot_erase_last_failure_receipt(failed_run, scanne
             assert conn.execute('SELECT status FROM scan_runs ORDER BY id DESC LIMIT 1').fetchone()[0] == 'failed'
     finally:
         Path(filename).unlink()
+
+
+def test_actual_child_reads_captured_utf8_plan_from_pipe_without_private_file(failed_run, tmp_path):
+    import hashlib
+    import subprocess
+    from processing.scan_retry import retry_manifest_bytes
+    db, first, _ = failed_run
+    config = tmp_path / 'config.json'
+    config.write_text('{}', encoding='utf-8')
+    plan = capture_retry_plan(db, str(config), 1)
+    payload = retry_manifest_bytes(plan)
+    digest = hashlib.sha256(payload).hexdigest()
+    before = Path(db).read_bytes()
+    script = """
+import json,sys
+from processing.scan_retry import read_retry_manifest,retry_plan_paths
+plan=read_retry_manifest('-',sys.argv[1],sys.argv[2],sys.argv[3])
+print(json.dumps([str(path) for path in retry_plan_paths(plan)],ensure_ascii=False))
+"""
+    result = subprocess.run([sys.executable, '-c', script, digest, db, str(config)],
+                            input=payload, capture_output=True, timeout=20)
+    assert result.returncode == 0, result.stderr.decode('utf-8')
+    import json
+    assert json.loads(result.stdout.decode('utf-8')) == [str(first)]
+    assert not list(tmp_path.glob('.facet-retry-*'))
+    assert Path(db).read_bytes() == before
+    truncated = subprocess.run([sys.executable, '-c', script, digest, db, str(config)],
+                               input=payload[:20], capture_output=True, timeout=20)
+    assert truncated.returncode != 0
+    assert Path(db).read_bytes() == before
+
+
+def test_os_owned_input_survives_launcher_death_without_orphan_worklist(failed_run, tmp_path):
+    import hashlib
+    import json
+    import subprocess
+    from processing.scan_retry import retry_manifest_bytes
+    db, first, _ = failed_run
+    config = tmp_path / 'config.json'
+    config.write_text('{}', encoding='utf-8')
+    payload = retry_manifest_bytes(capture_retry_plan(db, str(config), 1))
+    digest = hashlib.sha256(payload).hexdigest()
+    before = {path.name for path in tmp_path.iterdir()}
+    child = """
+import json,sys
+from processing.scan_retry import read_retry_manifest,retry_plan_paths
+plan=read_retry_manifest('-',sys.argv[1],sys.argv[2],sys.argv[3])
+print(json.dumps([str(p) for p in retry_plan_paths(plan)],ensure_ascii=False),flush=True)
+"""
+    parent = """
+import os,sys,tempfile,subprocess
+transport=tempfile.TemporaryFile(mode='w+b',dir=sys.argv[5])
+transport.write(sys.stdin.buffer.read());transport.seek(0)
+subprocess.Popen([sys.executable,'-c',sys.argv[1],*sys.argv[2:5]],stdin=transport)
+os._exit(0)
+"""
+    # Captured stdout stays open in the child: communicate waits for its EOF,
+    # independently of the launcher's abrupt exit, without timing sleeps.
+    result = subprocess.run([sys.executable, '-c', parent, child, digest, db, str(config), str(tmp_path)],
+                            input=payload, capture_output=True, timeout=20)
+    assert result.returncode == 0, result.stderr.decode('utf-8')
+    assert json.loads(result.stdout.decode('utf-8')) == [str(first)]
+    assert {path.name for path in tmp_path.iterdir()} == before
