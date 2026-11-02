@@ -323,6 +323,8 @@ Nel dettaglio della foto, le metriche stanno in schede con icona: dati EXIF (se 
 
 **Pannello della raccolta.** Sugli schermi larghi (da 1280 px), una foto aperta dalla galleria mostra alla sua sinistra le foto caricate della galleria, con gli stessi filtri e lo stesso ordinamento. Fai clic su una miniatura per aprirla; **Carica altre** recupera la pagina successiva. Trascina il divisore, oppure dagli il focus e usa Sinistra/Destra, Inizio e Fine, per ridimensionarlo: una foto per riga se stretto, fino a tre se largo. La freccia lo comprime. Il pannello non cambia mai i filtri, la selezione o la destinazione di Indietro.
 
+I set nel dettaglio foto mostrano e contano ogni file, inclusi entrambi i file di una coppia RAW/JPEG raggruppata. La galleria conta la coppia come una sola foto.
+
 ### Selezione multipla e azioni di gruppo
 
 Seleziona le foto con i comandi di selezione o con Spazio; sul desktop, Maiusc+clic seleziona un intervallo. Sul telefono, tocca Seleziona prima di toccare le foto e Annulla per uscire dalla modalità di selezione. La barra contestuale indica le foto interessate e offre Cancella e Confronta; l’accesso alla modifica aggiunge Conserva/Rifiuta e le altre azioni di scrittura. Azioni apre comandi secondari con etichette sul desktop e il pannello delle azioni sul telefono. I comandi in sola lettura mantengono i rispettivi controlli di accesso.

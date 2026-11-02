@@ -603,7 +603,7 @@ const SOCIAL_SOURCE_KEYS: Record<string, string> = {
                 <div class="flex items-center gap-2 flex-wrap mb-2 text-sm">
                   <mat-icon class="!text-base !w-4 !h-4 !leading-4 opacity-70">{{ set.kind | photoSetKindIcon }}</mat-icon>
                   <span class="font-medium">{{ set.kind | photoSetKindLabel | translate }}</span>
-                  <span class="text-xs text-[var(--mat-sys-on-surface-variant)]">{{ I18N.capsules.photos_count | translate:{ count: set.count } }}</span>
+                  <span data-set-file-count class="text-xs text-[var(--mat-sys-on-surface-variant)]" [matTooltip]="I18N.photo_detail.set.count_help | translate">{{ (set.count === 1 ? I18N.photo_detail.set.files_count : I18N.photo_detail.set.files_count_plural) | translate:{ count: set.count } }}</span>
                   @if (setBlinkCount(); as blinks) {
                     <span class="text-xs text-[var(--mat-sys-on-surface-variant)]">· {{ I18N.gallery.hidden_banner.reason_blinks | translate:{ n: blinks } }}</span>
                   }

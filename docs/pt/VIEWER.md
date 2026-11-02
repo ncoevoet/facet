@@ -323,6 +323,8 @@ No detalhe da foto, as métricas ficam em abas com ícone: dados EXIF (se houver
 
 **Painel da coleção.** Em ecrãs largos (a partir de 1280 px), uma foto aberta a partir da galeria mostra à esquerda as fotos carregadas da galeria, com os mesmos filtros e a mesma ordenação. Clique numa miniatura para abri-la; **Carregar mais** busca a página seguinte. Arraste o divisor, ou dê-lhe foco e use Esquerda/Direita, Home e End, para redimensioná-lo: uma foto por linha quando estreito, até três quando largo. A seta recolhe-o. O painel nunca altera os filtros, a seleção nem o destino de Voltar.
 
+Os conjuntos no detalhe da foto mostram e contam cada ficheiro, incluindo ambos os ficheiros de um par RAW/JPEG agrupado. A galeria conta esse par como uma só foto.
+
 ### Seleção Múltipla e Ações em Lote
 
 Selecione fotos com os controlos de seleção ou com Espaço; Shift+clique seleciona um intervalo no computador. No telefone, toque em Selecionar antes de tocar nas fotos e em Cancelar para sair do modo de seleção. A barra contextual identifica os destinos e oferece Limpar e Comparar; o acesso de edição acrescenta Manter/Rejeitar e outras ações de escrita. Ações abre comandos secundários com nome no computador e a folha de ações no telefone. Os comandos só de leitura mantêm os controlos de acesso habituais.

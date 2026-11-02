@@ -2695,10 +2695,11 @@ describe('PhotoDetailComponent', () => {
 
     it('names the blink frames, which the gallery hides when the set is opened there', async () => {
       const burst = {
-        kind: 'burst', group_id: 161, count: 3, ev_span: null, members: [
+        kind: 'burst', group_id: 161, count: 4, ev_span: null, members: [
           { path: '/photos/a.jpg', ev_offset: null, is_lead: false, is_blink: true },
           { path: '/photos/b.jpg', ev_offset: null, is_lead: false, is_blink: false },
           { path: '/photos/test.jpg', ev_offset: null, is_lead: true, is_blink: false },
+          { path: '/photos/test.CR2', ev_offset: null, is_lead: false, is_blink: false },
         ],
       };
       mockApi.get.mockImplementation((url: string) => {
@@ -2715,6 +2716,14 @@ describe('PhotoDetailComponent', () => {
       view.detectChanges();
 
       const text = view.nativeElement.textContent as string;
+      const fileCount = view.nativeElement.querySelector('[data-set-file-count]') as HTMLElement;
+      expect(fileCount.textContent).toContain('photo_detail.set.files_count_plural');
+      expect(fileCount.textContent).not.toContain('capsules.photos_count');
+      const countTooltip = view.debugElement.query(By.css('[data-set-file-count]')).injector.get(MatTooltip);
+      expect(countTooltip.message).toBe('photo_detail.set.count_help');
+      const members = view.nativeElement.querySelectorAll('button[aria-label^="photo_detail.set.member_position"]');
+      expect(members).toHaveLength(4);
+      expect(members[3].querySelector('img')).not.toBeNull();
       expect(text).toContain('gallery.hidden_banner.reason_blinks');
       expect(text.match(/ui\.badges\.blink/g)?.length).toBe(1);
     });

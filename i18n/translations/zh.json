@@ -1104,7 +1104,7 @@
     },
     "set_scope": {
       "message": "正在显示一组照片：{kind}",
-      "partial": "显示 {shown}/{total}（已隐藏：{reasons}）"
+      "partial": "已显示照片：{shown}/{total}（{reasons}已隐藏）"
     },
     "pinned": {
       "chip": "助手挑选了 {count} 张照片",
@@ -2862,7 +2862,10 @@
       "ev_span": "曝光跨度（EV）",
       "kind_duplicate": "重复照片",
       "open_in_gallery": "在照片库中打开此照片组",
-      "member_position": "第 {position} / {count} 张"
+      "files_count": "{count} 个文件",
+      "files_count_plural": "{count} 个文件",
+      "count_help": "此处显示每个文件。已分组的 RAW/JPEG 文件在图库中计为一张照片。",
+      "member_position": "第 {position} 个文件，共 {count} 个"
     },
     "delete": {
       "button_label": "删除",

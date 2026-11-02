@@ -323,6 +323,8 @@ In der Fotodetailansicht liegen die Messwerte in Symbol-Tabs: EXIF-Daten (sofern
 
 **Sammlungsleiste.** Auf breiten Bildschirmen (ab 1280 px) zeigt ein aus der Galerie geöffnetes Foto links eine Leiste mit den geladenen Galeriefotos, mit denselben Filtern und derselben Sortierung. Ein Klick auf ein Vorschaubild öffnet es; **Mehr laden** holt die nächste Seite. Die Breite ändert man durch Ziehen am Trenner oder per Fokus mit Links/Rechts, Pos1 und Ende: schmal ein Foto pro Zeile, breit bis zu drei. Der Pfeil klappt sie ein. Die Leiste ändert nie die Filter, die Auswahl oder das Ziel von Zurück.
 
+Die Sets in der Fotoansicht zeigen und zählen jede Datei, einschließlich beider Dateien eines gruppierten RAW/JPEG-Paars. Die Galerie zählt dieses Paar als ein Foto.
+
 ### Mehrfachauswahl & Sammelaktionen
 
 Wählen Sie Fotos über die Auswahlsteuerung oder die Leertaste aus; Umschalt+Klick wählt am Desktop einen Bereich. Tippen Sie auf dem Telefon zuerst auf Auswählen und dann auf die Fotos; Abbrechen beendet den Auswahlmodus. Die kontextbezogene Leiste benennt ihre Zielfotos und bietet Leeren und Vergleichen; mit Bearbeitungszugang kommen Behalten/Ablehnen und weitere Schreibaktionen hinzu. Aktionen öffnet am Desktop beschriftete weitere Befehle und auf dem Telefon das Aktionsblatt. Für lesende Befehle gelten weiterhin ihre üblichen Zugriffsregeln.

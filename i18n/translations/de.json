@@ -1104,7 +1104,7 @@
     },
     "set_scope": {
       "message": "Eine Fotogruppe wird angezeigt: {kind}",
-      "partial": "{shown} von {total} angezeigt ({reasons} ausgeblendet)"
+      "partial": "Angezeigte Fotos: {shown} von {total} ({reasons} ausgeblendet)"
     },
     "pinned": {
       "chip": "{count} vom Assistenten ausgewähltes Foto",
@@ -2862,7 +2862,10 @@
       "ev_span": "EV-Spanne",
       "kind_duplicate": "Duplikat",
       "open_in_gallery": "Diese Gruppe in der Galerie öffnen",
-      "member_position": "Bild {position} von {count}"
+      "files_count": "{count} Datei",
+      "files_count_plural": "{count} Dateien",
+      "count_help": "Hier wird jede Datei angezeigt. Gruppierte RAW/JPEG-Dateien zählen in der Galerie als ein Foto.",
+      "member_position": "Datei {position} von {count}"
     },
     "delete": {
       "button_label": "Löschen",

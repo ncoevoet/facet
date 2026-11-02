@@ -1149,7 +1149,7 @@
     },
     "set_scope": {
       "message": "Showing one photo set: {kind}",
-      "partial": "showing {shown} of {total} ({reasons} hidden)"
+      "partial": "Photos shown: {shown} of {total} ({reasons} hidden)"
     },
     "pinned": {
       "chip": "{count} photo chosen by your assistant",
@@ -3227,7 +3227,10 @@
       "ev_span": "EV span",
       "kind_duplicate": "Duplicate",
       "open_in_gallery": "Open this set in the gallery",
-      "member_position": "Frame {position} of {count}"
+      "files_count": "{count} file",
+      "files_count_plural": "{count} files",
+      "count_help": "Every file is shown here. Grouped RAW/JPEG files count as one photo in the gallery.",
+      "member_position": "File {position} of {count}"
     },
     "delete": {
       "button_label": "Delete",

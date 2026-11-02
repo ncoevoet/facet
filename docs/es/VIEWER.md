@@ -323,6 +323,8 @@ En el detalle de la foto, las métricas se organizan en pestañas con icono: dat
 
 **Panel de colección.** En pantallas anchas (desde 1280 px), una foto abierta desde la galería muestra a su izquierda las fotos cargadas de la galería, con los mismos filtros y orden. Haz clic en una miniatura para abrirla; **Cargar más** trae la página siguiente. Arrastra el divisor, o enfócalo y usa Izquierda/Derecha, Inicio y Fin, para cambiar su ancho: una foto por fila si es estrecho, hasta tres si es ancho. El chevrón lo pliega. El panel nunca cambia los filtros, la selección ni el destino de Atrás.
 
+Los conjuntos del detalle de foto muestran y cuentan cada archivo, incluidos ambos archivos de un par RAW/JPEG agrupado. La galería cuenta ese par como una sola foto.
+
 ### Selección múltiple y acciones masivas
 
 Selecciona fotos con los controles de selección o con Espacio; Mayús+clic selecciona un rango en escritorio. En un teléfono, toca Seleccionar antes de tocar las fotos y Cancelar para salir del modo de selección. La barra contextual identifica sus destinos y ofrece Limpiar y Comparar; el acceso de edición añade Mantener/Rechazar y otras acciones de escritura. Acciones abre comandos secundarios con nombre en escritorio y la hoja de acciones en teléfonos. Los comandos de solo lectura conservan sus controles de acceso habituales.

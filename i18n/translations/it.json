@@ -1104,7 +1104,7 @@
     },
     "set_scope": {
       "message": "Viene mostrato un gruppo di foto: {kind}",
-      "partial": "{shown} di {total} mostrate ({reasons} nascoste)"
+      "partial": "Foto mostrate: {shown} di {total} ({reasons} nascosti)"
     },
     "pinned": {
       "chip": "{count} foto scelta dal tuo assistente",
@@ -2862,7 +2862,10 @@
       "ev_span": "Intervallo EV",
       "kind_duplicate": "Duplicato",
       "open_in_gallery": "Apri questo gruppo nella galleria",
-      "member_position": "Fotogramma {position} di {count}"
+      "files_count": "{count} file",
+      "files_count_plural": "{count} file",
+      "count_help": "Qui viene mostrato ogni file. I file RAW/JPEG raggruppati contano come una sola foto nella galleria.",
+      "member_position": "File {position} di {count}"
     },
     "delete": {
       "button_label": "Elimina",

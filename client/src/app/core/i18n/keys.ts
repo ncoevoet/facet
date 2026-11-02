@@ -3241,6 +3241,9 @@ export const I18N = {
       ev_span: "photo_detail.set.ev_span",
       kind_duplicate: "photo_detail.set.kind_duplicate",
       open_in_gallery: "photo_detail.set.open_in_gallery",
+      files_count: "photo_detail.set.files_count",
+      files_count_plural: "photo_detail.set.files_count_plural",
+      count_help: "photo_detail.set.count_help",
       member_position: "photo_detail.set.member_position",
     },
     delete: {

@@ -323,6 +323,8 @@ In photo detail, metrics sit in icon tabs: EXIF data (when present), Quality, Co
 
 **Collection sidebar.** On wide screens (1280 px and up), a photo opened from the gallery shows the gallery's loaded photos in a sidebar on its left, in the same filters and sort. Click a thumbnail to open it; **Load more** fetches the next page. Drag the divider, or focus it and use Left/Right, Home and End, to resize it: one photo per row when narrow, up to three when wide. The chevron collapses it. The sidebar never changes the gallery's filters, selection or the Back destination.
 
+Photo-detail sets show and count every file, including both files of a grouped RAW/JPEG pair. The gallery counts that pair as one photo.
+
 ### Multi-Select & Bulk Actions
 
 Select photos using the selection controls or Space; Shift+Click selects a range on desktop. On a phone, tap Select before tapping photos, and Cancel to leave selection mode. The contextual bar names its targets and offers Clear and Compare; editing access adds Keep/Reject and other write actions. Actions opens labeled secondary commands on desktop and the action sheet on phones. Read-only commands retain their ordinary access controls.
