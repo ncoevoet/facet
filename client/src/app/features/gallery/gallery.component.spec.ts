@@ -2714,9 +2714,13 @@ describe('GalleryComponent', () => {
       select(['/c.jpg', '/a.jpg']);
       const router = TestBed.inject(Router);
       const navigate = vi.spyOn(router, 'navigateByUrl').mockResolvedValue(true);
+      const capture = vi.spyOn(TestBed.inject(ComparisonSessionService), 'start');
       await component['compareSelection']();
       const data = TestBed.inject(ComparisonSessionService).snapshot();
       expect(data.photos.map(p => p.path)).toEqual(['/a.jpg', '/c.jpg']);
+      expect(capture).toHaveBeenCalledOnce();
+      expect(capture.mock.calls[0][0].map(p => p.path)).toEqual(['/a.jpg', '/c.jpg']);
+      expect(capture.mock.calls[0][1]).toBe(router.url);
       expect(navigate).toHaveBeenCalledExactlyOnceWith('/photo-compare');
       expect(TestBed.inject(MatDialog).open).not.toHaveBeenCalled();
     });
@@ -2725,11 +2729,13 @@ describe('GalleryComponent', () => {
       const paths = Array.from({ length: MAX_COMPARE_QUEUE + 2 }, (_, i) => `/p${i}.jpg`);
       mockStore.photos.set(paths.map(photo));
       select(paths);
-      const dialog = TestBed.inject(MatDialog);
+      const capture = vi.spyOn(TestBed.inject(ComparisonSessionService), 'start');
+      const navigate = vi.spyOn(TestBed.inject(Router), 'navigateByUrl').mockResolvedValue(true);
 
       await (component as unknown as { compareSelection: () => Promise<void> }).compareSelection();
 
-      expect(dialog.open).not.toHaveBeenCalled();
+      expect(capture).not.toHaveBeenCalled();
+      expect(navigate).not.toHaveBeenCalled();
     });
 
     it('discloses unloaded selected paths and refuses partial comparison until all selected photos load', async () => {
@@ -2743,8 +2749,11 @@ describe('GalleryComponent', () => {
       const button = root.querySelector<HTMLButtonElement>(`button[aria-label="${I18N.gallery.selection.compare}"]`)!;
       expect(button.disabled).toBe(true);
       expect(button.getAttribute('aria-describedby')).toBe('compare-selection-requirements');
+      const capture = vi.spyOn(TestBed.inject(ComparisonSessionService), 'start');
+      const navigate = vi.spyOn(TestBed.inject(Router), 'navigateByUrl').mockResolvedValue(true);
       await component['compareSelection']();
-      expect(TestBed.inject(MatDialog).open).not.toHaveBeenCalled();
+      expect(capture).not.toHaveBeenCalled();
+      expect(navigate).not.toHaveBeenCalled();
       mockStore.photos.set([photo('/a.jpg'), photo('/b.jpg'), photo('/elsewhere.jpg')]);
       fixture.detectChanges();
       expect(root.querySelector('[data-selection-outside]')).toBeNull();
@@ -2755,11 +2764,13 @@ describe('GalleryComponent', () => {
     it('does nothing when fewer than two selected photos are loaded', async () => {
       mockStore.photos.set([photo('/a.jpg')]);
       select(['/a.jpg', '/gone.jpg']);
-      const dialog = TestBed.inject(MatDialog);
+      const capture = vi.spyOn(TestBed.inject(ComparisonSessionService), 'start');
+      const navigate = vi.spyOn(TestBed.inject(Router), 'navigateByUrl').mockResolvedValue(true);
 
       await (component as unknown as { compareSelection: () => Promise<void> }).compareSelection();
 
-      expect(dialog.open).not.toHaveBeenCalled();
+      expect(capture).not.toHaveBeenCalled();
+      expect(navigate).not.toHaveBeenCalled();
     });
   });
 
