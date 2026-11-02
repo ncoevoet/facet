@@ -2696,7 +2696,8 @@ export class BurstCullingComponent implements OnDestroy {
         || !this.store.config()?.cull?.trash_available || this.dialog.openDialogs.length) return;
       this.dialog.open(CullDialogComponent, {
         closeOnNavigation: false,
-        width: '32rem',
+        width: '48rem',
+        maxWidth: '95vw',
         data: { paths: [], filters: ALL_REJECTS_SCOPE, trashAvailable: true, action: 'trash_rejects', allRejects: true },
       });
     } finally {

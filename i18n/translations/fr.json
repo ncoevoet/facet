@@ -2860,6 +2860,20 @@
     "restore_failed": "Annulation impossible"
   },
   "cull": {
+    "file_preview": {
+      "title": "Fichiers concernés",
+      "help": "Vérifiez les fichiers avant de continuer. Cliquez sur une image pour l’agrandir. Annulez pour modifier vos décisions.",
+      "back": "Retour aux fichiers",
+      "unavailable": "Aperçu indisponible",
+      "sidecar": "Fichier annexe XMP",
+      "enlarge": "Agrandir {name}",
+      "pages": "Pages de l’aperçu des fichiers",
+      "previous": "Précédent",
+      "next": "Suivant",
+      "range": "Fichiers {start}–{end} sur {total}",
+      "trash": "Déplacer {count} fichiers vers la corbeille système",
+      "trash_one": "Déplacer 1 fichier vers la corbeille système"
+    },
     "action": "Trier vers un dossier…",
     "title": "Trier vers un dossier",
     "selected": "sélectionné(s)",
