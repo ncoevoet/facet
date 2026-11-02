@@ -195,7 +195,7 @@ export class SyncedZoomComponent {
   /** The `src` whose preload has finished; the pane shows the placeholder until
    *  it equals the current `src`. */
   private readonly readySrc = signal<string | null>(null);
-  private readonly retryAttempt = signal(0);
+  private readonly retryState = signal<{ frameKey: string | null; src: string; attempt: number } | null>(null);
   private readonly retrySession = crypto.randomUUID();
   private readonly requestedPreview = computed(() => this.retryUrl(this.src()));
   /** The frame whose own image last finished loading in this pane. */
@@ -374,16 +374,20 @@ export class SyncedZoomComponent {
   });
 
   private retryUrl(src: string): string {
-    const attempt = this.retryAttempt();
-    if (!attempt) return src;
+    const retry = this.retryState();
+    if (!retry || retry.frameKey !== this.frameKey() || retry.src !== this.src()) return src;
     const url = new URL(src, document.baseURI);
-    url.searchParams.set('facet_retry', `${this.retrySession}-${attempt}`);
+    url.searchParams.set('facet_retry', `${this.retrySession}-${retry.attempt}`);
     url.searchParams.set('ngsw-bypass', '1');
     return url.href;
   }
 
   /** Repeat this pane's reads only; framing and the selected photo stay intact. */
-  retry(): void { this.retryAttempt.update(attempt => attempt + 1); }
+  retry(): void {
+    this.retryState.update(previous => ({
+      frameKey: this.frameKey(), src: this.src(), attempt: (previous?.attempt ?? 0) + 1,
+    }));
+  }
 
   /** Compute every pane's proposed crop before the parent commits any of them. */
   zoomForRegion(value: unknown, expectedAspect?: number): ZoomState | null {

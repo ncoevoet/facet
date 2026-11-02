@@ -55,6 +55,8 @@ All notable changes to Facet are documented in this file.
 
 ### Fixed
 
+- Retrying a darkroom image no longer bypasses the thumbnail cache for later photos viewed in the same pane.
+
 - Cancel pending sidebar filename searches when opening a photo, so a delayed filter update cannot replace the photo URL.
 
 - Cancelling “Reject entire group” during its countdown restores the previous keeper selection instead of leaving an empty draft.

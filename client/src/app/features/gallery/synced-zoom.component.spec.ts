@@ -153,6 +153,29 @@ describe('SyncedZoomComponent', () => {
     expect(states.at(-1)?.phase).toBe('loading');
   });
 
+  it('scopes retry cache bypass to the captured frame and preview source', () => {
+    const fixture = make();
+    fixture.componentRef.setInput('frameKey', 'a');
+    fixture.detectChanges();
+    fixture.componentInstance.retry();
+    fixture.detectChanges();
+    const retried = api(fixture).effectiveSrc();
+    expect(new URL(retried).searchParams.has('ngsw-bypass')).toBe(true);
+
+    fixture.componentRef.setInput('frameKey', 'b');
+    fixture.detectChanges();
+    expect(api(fixture).effectiveSrc()).toBe('/thumb.jpg');
+    fixture.componentRef.setInput('frameKey', 'a');
+    fixture.detectChanges();
+    expect(api(fixture).effectiveSrc()).toBe(retried);
+    fixture.componentRef.setInput('src', '/new-preview.jpg');
+    fixture.detectChanges();
+    expect(api(fixture).effectiveSrc()).toBe('/new-preview.jpg');
+    fixture.componentInstance.retry();
+    fixture.detectChanges();
+    expect(new URL(api(fixture).effectiveSrc()).searchParams.get('facet_retry')).toMatch(/-2$/);
+  });
+
   it('zooms in on wheel up and clamps to the max', () => {
     const f = make({ scale: 7.5, tx: 0, ty: 0 });
     const z = emitted(f, () => api(f).onWheel({ deltaY: -1, preventDefault: () => {} }));
