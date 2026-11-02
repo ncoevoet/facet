@@ -322,3 +322,117 @@ def test_preview_and_apply_keep_folded_matching_members_and_explicit_exclusions(
     assert done(result.json())['written'] == 1
     assert [p.name for p in target.iterdir()] == [paths[1].name]
     assert (target / paths[1].name).read_bytes() == paths[1].read_bytes()
+
+
+@pytest.fixture
+def logical_pair(library, seed_photos_prefix):
+    from db import logical_assets, logical_review
+    path = library[0][0]
+    raw = path.with_suffix('.CR2')
+    raw.write_bytes(b'private RAW fixture')
+    seed_photos_prefix(str(path.parent) + '/', [{'path': str(raw), 'filename': raw.name, 'star_rating': 1}])
+    with sqlite3.connect(DEFAULT_DB_PATH) as conn:
+        conn.row_factory = sqlite3.Row
+        conn.execute('BEGIN IMMEDIATE')
+        key = logical_assets.create(conn, [str(path), str(raw)], str(raw), visibility_sql='1=1')
+        logical_review.seed(conn, key, str(path), 1, visibility_sql='1=1')
+    return key, path, raw
+
+
+@pytest.mark.parametrize('personal', [False, True])
+def test_logical_review_export_uses_shared_rating_on_explicit_file_target(edition_client, library, logical_pair, monkeypatch, personal):
+    monkeypatch.setitem(config.VIEWER_CONFIG, 'edition_password', 'test-only')
+    key, path, raw = logical_pair
+    if personal:
+        monkeypatch.setitem(config._FULL_CONFIG, 'users', {'test': {'directories': [str(path.parent)]}})
+    response = edition_client.post('/api/photo/set_rating', json={'photo_path': str(raw), 'rating': 5})
+    assert response.status_code == 200, response.text
+    apply, preview = confirmed_body(edition_client, {'paths': [str(path)]})
+    metadata = preview['items'][0]['metadata']
+    assert metadata['star_rating'] == metadata['xmp_rating'] == 5
+    assert metadata['caption'] == 'Exported caption'
+    assert metadata['review_authority'] == 'logical'
+    assert metadata['review_scope'] == ('personal' if personal else 'catalog')
+    assert next(item for item in metadata['provenance']['review'] if item['field'] == 'star_rating')['source'] == 'local'
+    assert 'logical_review_guard' not in str(preview) and key not in str(preview)
+    response = edition_client.post('/api/export/apply', json=apply)
+    assert response.status_code == 202, response.text
+    result = done(response.json())
+    assert result['state'] == 'completed', result
+    description = ET.parse(str(path) + '.xmp').find('.//{http://www.w3.org/1999/02/22-rdf-syntax-ns#}Description')
+    assert description.get('{http://ns.adobe.com/xap/1.0/}Rating') == '5'
+    assert not Path(str(raw) + '.xmp').exists()
+    with sqlite3.connect(DEFAULT_DB_PATH) as conn:
+        assert conn.execute('SELECT star_rating FROM photos WHERE path=?', (str(path),)).fetchone()[0] == 4
+        assert conn.execute('SELECT star_rating FROM photos WHERE path=?', (str(raw),)).fetchone()[0] == 1
+
+
+@pytest.mark.parametrize('change', ['review_aba', 'primary', 'dissolve'])
+def test_logical_export_guard_refuses_changed_authority_before_any_write(
+        edition_client, library, logical_pair, monkeypatch, change):
+    from db import logical_assets
+    monkeypatch.setitem(config.VIEWER_CONFIG, 'edition_password', 'test-only')
+    key, path, raw = logical_pair
+    assert edition_client.post('/api/photo/set_rating', json={'photo_path': str(raw), 'rating': 5}).status_code == 200
+    apply, _ = confirmed_body(edition_client, {'paths': [str(path)]})
+    if change == 'review_aba':
+        for value in (3, 5):
+            assert edition_client.post('/api/photo/set_rating', json={'photo_path': str(raw), 'rating': value}).status_code == 200
+    else:
+        with sqlite3.connect(DEFAULT_DB_PATH) as conn:
+            conn.execute('BEGIN IMMEDIATE')
+            if change == 'primary':
+                logical_assets.set_primary(conn, key, str(path), 1, visibility_sql='1=1')
+            else:
+                logical_assets.dissolve(conn, key, 1, visibility_sql='1=1')
+    response = edition_client.post('/api/export/apply', json=apply)
+    assert response.status_code == 202, response.text
+    result = done(response.json())
+    assert result['state'] == 'failed' and result['first_error_code'] == 'preview_changed', result
+    assert result['written'] == result['processed'] == 0
+    assert not Path(str(path) + '.xmp').exists()
+    assert not Path(str(raw) + '.xmp').exists()
+
+
+def test_logical_export_refuses_hidden_member_without_disclosing_it(edition_client, library, logical_pair, monkeypatch):
+    from api import logical_reviews
+    _, path, raw = logical_pair
+    monkeypatch.setattr(logical_reviews, 'get_visibility_clause', lambda owner: ('photos.path != ?', [str(raw)]))
+    response = edition_client.post('/api/export/preview', json={'paths': [str(path)]})
+    assert response.status_code == 404, response.text
+    assert str(raw) not in response.text
+    assert not Path(str(path) + '.xmp').exists()
+
+
+def test_logical_primary_change_between_files_stops_remaining_sidecar(edition_client, library, logical_pair, seed_photos_prefix, monkeypatch):
+    from api import export_execution
+    from db import logical_assets
+    key, path, _ = logical_pair
+    first = path.with_name('0-first.jpg')
+    first.write_bytes(b'first independent file')
+    seed_photos_prefix(str(path.parent) + '/', [{'path': str(first), 'filename': first.name, 'star_rating': 4}])
+    apply, preview = confirmed_body(edition_client, {'paths': [str(first), str(path)]})
+    assert preview['selected_paths'] == [str(first), str(path)]
+    entered, release = threading.Event(), threading.Event()
+    real_write = export_execution.write_confirmed_metadata
+
+    def write_then_pause(*args, **kwargs):
+        result = real_write(*args, **kwargs)
+        entered.set()
+        assert release.wait(5)
+        return result
+
+    monkeypatch.setattr(export_execution, 'write_confirmed_metadata', write_then_pause)
+    response = edition_client.post('/api/export/apply', json=apply)
+    try:
+        assert response.status_code == 202 and entered.wait(3)
+        with sqlite3.connect(DEFAULT_DB_PATH) as conn:
+            conn.execute('BEGIN IMMEDIATE')
+            logical_assets.set_primary(conn, key, str(path), 1, visibility_sql='1=1')
+    finally:
+        release.set()
+    result = done(response.json())
+    assert result['state'] == 'failed' and result['first_error_code'] == 'preview_changed', result
+    assert result['processed'] == result['written'] == 1
+    assert Path(str(first) + '.xmp').is_file()
+    assert not Path(str(path) + '.xmp').exists()

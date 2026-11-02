@@ -67,6 +67,7 @@ class ExportMetadata(BaseModel):
     manual_date: str | None
     gps_state: Literal['set', 'cleared'] | None
     review_scope: Literal['personal', 'catalog']
+    review_authority: Literal['file', 'logical'] = 'file'
     provenance: PhotoProvenance
     keywords: list[str]
     face_regions_supported: bool

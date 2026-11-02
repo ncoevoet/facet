@@ -250,6 +250,23 @@ class PhotoDeleteRequest(BaseModel):
 # --- Helpers ---
 
 def _fetch_rating_rows(conn, paths, user_id, *, include_metadata=True):
+    # Full-group authorization and inherited review inputs share one read snapshot,
+    # including legacy direct export callers that did not open a transaction.
+    own_snapshot = not conn.in_transaction
+    if own_snapshot:
+        conn.execute('BEGIN')
+    try:
+        rows = _fetch_file_rating_rows(conn, paths, user_id, include_metadata=include_metadata)
+        if include_metadata:
+            from api.logical_export import attach
+            attach(conn, rows, user_id)
+        return rows
+    finally:
+        if own_snapshot:
+            conn.rollback()
+
+
+def _fetch_file_rating_rows(conn, paths, user_id, *, include_metadata=True):
     """Fetch effective-rating rows (per-user resolved) for ``paths``.
 
     Returns a dict keyed by db photo path. Only paths visible to the user and

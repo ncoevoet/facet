@@ -106,6 +106,7 @@ export interface ExportEditorDialogData {
                 <p class="m-0 break-all text-[var(--mat-sys-on-surface-variant)]">{{ item.photo_path }}</p>
                 @if (item.companion) { <p class="m-0">{{ I18N.export.preview.companion | translate }}</p> }
                 @if (item.metadata; as metadata) {
+                  @if (metadata.review_authority === 'logical') { <p class="m-0 font-medium">{{ I18N.logical_assets.title | translate }}</p> }
                   <p class="m-0 font-medium">{{ I18N.export.preview.metadata | translate }} · {{ (metadata.review_scope === 'personal' ? I18N.metadata_sources.personal : I18N.metadata_sources.catalog) | translate }}</p>
                   <dl class="m-0 grid grid-cols-[minmax(0,1fr)_minmax(0,2fr)] gap-x-3 gap-y-2">
                     <dt>{{ I18N.export.preview.rating | translate }}</dt><dd class="m-0 tabular-nums">{{ metadata.xmp_rating }}</dd>

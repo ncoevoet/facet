@@ -7235,6 +7235,12 @@ export interface components {
             /** Regions */
             regions: components["schemas"]["ExportFaceRegion"][];
             /**
+             * Review Authority
+             * @default file
+             * @enum {string}
+             */
+            review_authority?: "file" | "logical";
+            /**
              * Review Decision
              * @enum {string}
              */

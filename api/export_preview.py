@@ -23,7 +23,7 @@ from api.models.export_preview import ExportPreviewRequest
 from api.path_validation import PhotoFileMissing, resolve_photo_disk_path
 from api.related_files import related_files
 from processing.xmp_export import preview_metadata_write
-from db.metadata_provenance import photo_provenance
+from api.logical_export import guard as logical_guard, provenance as export_provenance
 
 MAX_PLAN_BYTES = 8 * 1024 * 1024
 PREVIEW_TTL_SECONDS = 600
@@ -158,8 +158,8 @@ def export_metadata(conn, row, rating, user_id, *, face_regions):
                      'manual_date': rating.manual_date(), 'gps_state': rating.gps_state(),
                      'review_scope': 'personal' if personal else 'catalog', 'keywords': rating.all_keywords(),
                      'face_regions_supported': face_regions,
-                     'provenance': photo_provenance(conn, row['path'], review_user_id=user_id if personal else None,
-                                                   values=row, personal=personal)})
+                     'review_authority': 'logical' if row.get('_logical_review') else 'file',
+                     'provenance': export_provenance(conn, row, user_id, personal)})
     return metadata
 
 
@@ -260,7 +260,8 @@ def build_export_snapshot(conn, body: ExportPreviewRequest, user_id, *, stop_req
             writer = validated['writer']
             item = {'photo_path': path, 'source': disk, 'source_identity': source_identity,
                     'target': target, 'target_identity': _identity(target), 'metadata': metadata,
-                    'companion': False, 'writer': writer, 'tool_identity': validated.get('tool_identity')}
+                    'companion': False, 'writer': writer, 'tool_identity': validated.get('tool_identity'),
+                    'logical_review_guard': logical_guard(rows[path])}
             if source_identity != _identity(disk):
                 raise HTTPException(409, 'A source file changed during preview')
             files.append(item)

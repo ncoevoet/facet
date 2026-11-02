@@ -133,6 +133,9 @@ class _Execution:
             _changed()
         if self.request.mode == 'sidecars':
             rating, row = _current_rating(conn, path, self.owner)
+            from api.logical_export import guard as logical_guard
+            if 'logical_review_guard' not in item or logical_guard(row) != item['logical_review_guard']:
+                _changed()
             planned = preview_metadata_write(original['path'], rating, overwrite=self.request.overwrite)
             metadata = export_metadata(conn, row, rating, self.owner, face_regions=planned['face_regions'])
             if _digest(metadata) != _digest(item['metadata']):
