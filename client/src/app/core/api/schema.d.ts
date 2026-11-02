@@ -6367,6 +6367,11 @@ export interface components {
             count: number;
             /** Logical Asset Ids */
             logical_asset_ids?: string[] | null;
+            /**
+             * Logical Member Paths
+             * @description Fully authorized logical member paths already covered by this request; later chunks may omit them.
+             */
+            logical_member_paths?: string[] | null;
             /** Success */
             success: boolean;
             /**

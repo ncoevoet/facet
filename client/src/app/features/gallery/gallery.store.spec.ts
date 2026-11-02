@@ -170,6 +170,42 @@ describe('GalleryStore', () => {
       expect(apiPost).toHaveBeenCalledExactlyOnceWith('/photos/batch_rating', { photo_paths: ['/a.jpg'], rating: 4 });
     });
 
+    it('omits a logical companion from later chunks even when neither member is loaded', async () => {
+      vi.mocked(TestBed.inject(AuthService).isEdition).mockReturnValue(true);
+      const paths = ['/pair.jpg', ...Array.from({ length: 999 }, (_, i) => `/ordinary-${i}.jpg`), '/pair.CR2', '/last.jpg'];
+      apiPost.mockReturnValueOnce(of({ success: true, count: 1000, logical_asset_ids: ['asset'], logical_member_paths: ['/pair.jpg', '/pair.CR2'] }))
+        .mockReturnValueOnce(of({ success: true, count: 1 }));
+      vi.spyOn(store, 'refreshReviewResults').mockResolvedValue();
+      const result = await store.batchRating(paths, 4);
+      expect(apiPost).toHaveBeenCalledTimes(2);
+      expect(apiPost.mock.calls[0][1]).toEqual({ photo_paths: paths.slice(0, 1000), rating: 4 });
+      expect(apiPost.mock.calls[1][1]).toEqual({ photo_paths: ['/last.jpg'], rating: 4 });
+      expect(result?.count).toBe(1001);
+      expect(result?.snapshot.size).toBe(0);
+    });
+
+    it('does not send an empty chunk when all its targets were covered by a logical group', async () => {
+      vi.mocked(TestBed.inject(AuthService).isEdition).mockReturnValue(true);
+      const paths = ['/pair.jpg', ...Array.from({ length: 999 }, (_, i) => `/ordinary-${i}.jpg`), '/pair.CR2'];
+      apiPost.mockReturnValue(of({ success: true, count: 1000, logical_asset_ids: ['asset'], logical_member_paths: ['/pair.jpg', '/pair.CR2'] }));
+      vi.spyOn(store, 'refreshReviewResults').mockResolvedValue();
+      const result = await store.batchRating(paths, 4);
+      expect(apiPost).toHaveBeenCalledTimes(1);
+      expect(result?.count).toBe(1000);
+    });
+
+    it('keeps a confirmed companion patched when a later chunk fails', async () => {
+      vi.mocked(TestBed.inject(AuthService).isEdition).mockReturnValue(true);
+      const paths = ['/pair.jpg', ...Array.from({ length: 999 }, (_, i) => `/ordinary-${i}.jpg`), '/pair.CR2', '/failed.jpg'];
+      store.photos.set([makePhoto({ path: '/pair.CR2', star_rating: 2 }), makePhoto({ path: '/failed.jpg', star_rating: 2 })]);
+      apiPost.mockReturnValueOnce(of({ success: true, count: 1000, logical_asset_ids: ['asset'], logical_member_paths: ['/pair.jpg', '/pair.CR2'] }))
+        .mockReturnValueOnce(throwError(() => new Error('offline')));
+      vi.spyOn(store, 'refreshReviewResults').mockResolvedValue();
+      expect(await store.batchRating(paths, 4)).toBeNull();
+      expect(store.photos().find(photo => photo.path === '/pair.CR2')?.star_rating).toBe(4);
+      expect(store.photos().find(photo => photo.path === '/failed.jpg')?.star_rating).toBe(2);
+    });
+
     it('shares a write lock across RAW/JPEG rows and reconciles both loaded values', async () => {
       const state = { asset_id: 'asset', group_revision: 1, revision: 0, input_token: 'old', source_path: '/a.jpg',
         values: { star_rating: 3, is_favorite: 0, is_kept: 0, is_rejected: 0 },

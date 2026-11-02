@@ -800,6 +800,7 @@ def test_mixed_batch_history_restores_both_authorities_or_neither(edition_client
     seed_photos_prefix(str(Path(other).parent), [{'path': other, 'filename': 'independent.jpg', 'star_rating': 2}])
     result = edition_client.post('/api/photos/batch_rating', json={'photo_paths': [bundle['primary_path'], other], 'rating': 4})
     assert result.status_code == 200, result.text
+    assert set(result.json()['logical_member_paths']) == set(bundle['paths'])
     listing = edition_client.get('/api/organization_history')
     assert listing.status_code == 200, listing.text
     entries = [entry for entry in listing.json()['entries'] if entry['kind'] == 'logical_review'

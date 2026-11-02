@@ -108,6 +108,7 @@ class BatchUpdateResponse(BaseModel):
     success: bool
     count: int
     logical_asset_ids: list[str] | None = None
+    logical_member_paths: list[str] | None = Field(default=None, description='Fully authorized logical member paths already covered by this request; later chunks may omit them.')
 
 
 class BatchReviewResponse(BatchUpdateResponse):

@@ -81,6 +81,8 @@ def apply(conn, body, user, sql, patch, review_rejected):
     result = {'success': True, 'count': len(paths) + len(keys)}
     if keys:
         result['logical_asset_ids'] = keys
+        result['logical_member_paths'] = sorted({path for key in keys for (path,) in conn.execute(
+            'SELECT photo_path FROM logical_asset_members WHERE asset_id=?', (key,))})
     elif (isinstance(body, BatchReviewRequest) and body.decision == 'rejected'
           and body.filters is None and len(body.photo_paths or ()) == 1 and len(entries) == 1):
         result['undo_entry_id'] = entries[0]

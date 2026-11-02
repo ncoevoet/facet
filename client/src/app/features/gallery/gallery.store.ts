@@ -2400,7 +2400,12 @@ export class GalleryStore {
     const persisted = new Set<string>();
     let count = 0;
     let logicalTouched = false;
-    for (const body of this.batchBodies(paths, useSelectionScope)) {
+    const coveredMembers = new Set<string>();
+    for (const originalBody of this.batchBodies(paths, useSelectionScope)) {
+      const originalChunk = originalBody['photo_paths'] as string[] | undefined;
+      const remaining = originalChunk?.filter(path => !coveredMembers.has(path));
+      if (remaining && !remaining.length) continue;
+      const body = remaining ? { ...originalBody, photo_paths: remaining } : originalBody;
       if (originIdentity !== this.auth.identity() || originSession !== this.auth.status() || originToken !== this.auth.token || !this.auth.isEdition()) {
         if (current()) this.revertSnapshot(new Map([...snapshot].filter(([path]) => !persisted.has(path))));
         if (count > 0 && originIdentity === this.auth.identity()) {
@@ -2412,9 +2417,13 @@ export class GalleryStore {
       const chunk = body['photo_paths'] as string[] | undefined;
       try {
         const res = await firstValueFrom(
-          this.api.post<{ count?: number; logical_asset_ids?: string[] }>(endpoint, { ...body, ...extraBody }),
+          this.api.post<{ count?: number; logical_asset_ids?: string[]; logical_member_paths?: string[] }>(endpoint, { ...body, ...extraBody }),
         );
         logicalTouched ||= !!res?.logical_asset_ids?.length;
+        for (const path of res?.logical_member_paths ?? []) {
+          coveredMembers.add(path);
+          persisted.add(path);
+        }
         count += res?.count ?? chunk?.length ?? targeted;
         chunk?.forEach(p => persisted.add(p));
       } catch {
