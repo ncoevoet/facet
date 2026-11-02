@@ -1128,17 +1128,17 @@
     "hide_details": "Ocultar detalles",
     "tooltip_mode": {
       "label": "Tooltip",
+      "show_in": "Mostrar en",
+      "popup": "Ventana emergente",
+      "show_on": "Mostrar con",
       "hover": "Hover",
       "click": "Clic",
       "panel": "Panel lateral",
-      "off": "Sin detalles",
+      "off": "Desactivado",
       "panel_empty": "Pasa el cursor sobre una foto o haz clic en ella para ver aquí sus detalles",
       "panel_deselect": "Deseleccionar"
     },
     "panel_activation": {
-      "label": "Activación del panel",
-      "hover": "Hover",
-      "click": "Clic",
       "both": "Hover o clic"
     },
     "hide_blinks": "Ocultar parpadeos",

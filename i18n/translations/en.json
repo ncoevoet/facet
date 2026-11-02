@@ -1128,17 +1128,17 @@
     "hide_details": "Hide Details",
     "tooltip_mode": {
       "label": "Tooltip",
+      "show_in": "Show in",
+      "popup": "Popup",
+      "show_on": "Show on",
       "hover": "Hover",
       "click": "Click",
       "panel": "Side panel",
-      "off": "No details",
+      "off": "Off",
       "panel_empty": "Hover or click a photo to see its details here",
       "panel_deselect": "Deselect"
     },
     "panel_activation": {
-      "label": "Panel activation",
-      "hover": "Hover",
-      "click": "Click",
       "both": "Hover or click"
     },
     "hide_blinks": "Hide Blinks",
