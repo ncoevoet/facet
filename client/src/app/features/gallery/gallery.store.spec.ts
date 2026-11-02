@@ -2568,6 +2568,61 @@ describe('gallery session query (nav-icon return)', () => {
     });
   });
 
+  describe('Keep top selection lifetime', () => {
+    const result = { total: 4, keep: 2, cut: 2, truncated: false, paths: ['/old.jpg', '/other.jpg'] };
+
+    it.each(['query', 'sort', 'selection', 'owner', 'token', 'navigation', 'park', 'back', 'destroy'] as const)('ignores a response after %s changes', async change => {
+      const response = new Subject<typeof result>();
+      apiGet.mockReturnValue(response);
+      store.restoreSelection(['/original.jpg']);
+      const pending = store.selectBottomPercent(50);
+      if (change === 'query') store.filters.update(f => ({ ...f, album_id: '2' }));
+      if (change === 'sort') store.filters.update(f => ({ ...f, sort_direction: 'ASC' }));
+      if (change === 'selection') store.restoreSelection(['/new.jpg']);
+      if (change === 'owner') authIdentity.set('new-owner');
+      if (change === 'token') Object.defineProperty(TestBed.inject(AuthService), 'token', { value: 'new-token', configurable: true });
+      if (change === 'navigation') routerEvents.next(new NavigationStart(77, '/photo?path=a'));
+      if (change === 'park') store.parkListingReads();
+      if (change === 'back') { store.parkListingReads(); await store.resumeListingReads(); }
+      if (change === 'destroy') TestBed.resetTestingModule();
+      const selection = store.selectedPaths();
+      response.next(result); response.complete();
+      expect(await pending).toBeNull();
+      expect(store.selectedPaths()).toBe(selection);
+      expect(snackOpen).not.toHaveBeenCalled();
+    });
+
+    it('publishes the active response across pagination and preserves exact returned paths', async () => {
+      const response = new Subject<typeof result>(); apiGet.mockReturnValue(response);
+      const pending = store.selectBottomPercent(50);
+      store.filters.update(f => ({ ...f, page: 2 }));
+      response.next(result); response.complete();
+      expect(await pending).toEqual(result);
+      expect(store.selectedPaths()).toEqual(new Set(result.paths));
+    });
+
+    it('lets only the newest request publish, even when the older one finishes first', async () => {
+      const old = new Subject<typeof result>(), latest = new Subject<typeof result>();
+      apiGet.mockReturnValueOnce(old).mockReturnValueOnce(latest);
+      const first = store.selectBottomPercent(50), second = store.selectBottomPercent(25);
+      old.next(result); old.complete();
+      expect(await first).toBeNull();
+      const newer = { ...result, paths: ['/latest.jpg'] };
+      latest.next(newer); latest.complete();
+      expect(await second).toEqual(newer);
+      expect(store.selectedPaths()).toEqual(new Set(newer.paths));
+    });
+
+    it.each([false, true])('reports a failure only for its current selection (changed=%s)', async changed => {
+      const response = new Subject<typeof result>(); apiGet.mockReturnValue(response);
+      const pending = store.selectBottomPercent(50);
+      if (changed) store.clearSelection();
+      response.error(new Error('failed'));
+      expect(await pending).toBeNull();
+      expect(snackOpen).toHaveBeenCalledTimes(changed ? 0 : 1);
+    });
+  });
+
   describe('syncUrl (via updateFilter)', () => {
     beforeEach(() => {
       apiGet.mockReturnValue(of(makePhotosResponse()));

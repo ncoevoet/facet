@@ -512,6 +512,7 @@ export class GalleryStore {
   /** Bumped each time the gallery page initialises, so a caller that navigated to it can await a real mount rather than a delay. */
   readonly galleryMounts = signal(0);
   private rangeLoadTimer: ReturnType<typeof setTimeout> | null = null;
+  private rangeLoadCurrent: (() => boolean) | null = null;
   readonly photos = signal<Photo[]>([]);
   /** Number of display items, used only for paging/layout. */
   readonly total = signal(0);
@@ -611,7 +612,7 @@ export class GalleryStore {
   // --- Selection state (store-level so it survives navigation and is visible to services) ---
   //
   // Two scopes, because the gallery paginates. A 'paths' selection names
-  // photos, so it deliberately survives navigation and filter changes. A 'view'
+  // photos and survives photo navigation, but a different query clears it. A 'view'
   // selection names the VIEW: nothing is enumerated, mutations send the filter
   // and the server derives the rows, which is what makes "select all" mean all
   // 650 rather than the 64 fetched so far. `excludedPaths` carries the few the
@@ -621,6 +622,7 @@ export class GalleryStore {
   /** Photos unticked out of a 'view'-scoped selection. Always empty under 'paths'. */
   readonly excludedPaths = signal<Set<string>>(new Set());
   private lastSelectedIndex = -1;
+  private bottomSelectionRequest = 0;
 
   readonly selectionCount = computed(() =>
     this.viewScopeSelected()
@@ -954,7 +956,7 @@ export class GalleryStore {
   readonly activeFilterCount = computed(() => countActiveFilters(this.filters()));
 
   constructor() {
-    this.destroyRef.onDestroy(() => { this.cancelListingReads(); this.filterReadCancelled.next(); });
+    this.destroyRef.onDestroy(() => { this.cancelRangeLoad(); this.cancelListingReads(); this.filterReadCancelled.next(); });
     effect(() => {
       const owner = this.auth.identity();
       this.auth.status();
@@ -1086,6 +1088,8 @@ export class GalleryStore {
   private syncReadOwner(owner = this.auth.identity()): void {
     if (owner === this.readOwner) return;
     this.readOwner = owner;
+    this.bottomSelectionRequest++;
+    this.cancelRangeLoad();
     this.cancelListingReads();
     this.resumeSeq++;
     this.reviewProgressSnapshot.set(null);
@@ -1104,6 +1108,10 @@ export class GalleryStore {
   }
 
   private pauseListingReads(): void {
+    this.bottomSelectionRequest++;
+    // Keep the committed filter edit, but defer its first-page load until Back.
+    if (this.rangeLoadTimer !== null) clearTimeout(this.rangeLoadTimer);
+    this.rangeLoadTimer = null;
     let loaded: Set<string> | null = null;
     for (const repair of this.pendingViewRepairs) {
       if (repair.loadSeq !== this._loadSeq) continue;
@@ -1128,6 +1136,10 @@ export class GalleryStore {
     this.suspendedNavigation = null;
     if (this.listingReadsActive) return;
     this.listingReadsActive = true;
+    if (this.rangeLoadCurrent) {
+      if (this.rangeLoadCurrent()) { await this.loadPhotos(); return; }
+      this.cancelRangeLoad();
+    }
     if (!this.loadedOnce) return;
     const seq = this._loadSeq;
     const identity = this.auth.identity();
@@ -1214,6 +1226,7 @@ export class GalleryStore {
   /** Load photos based on current filters (replaces list) */
   async loadPhotos(acceptResult: () => boolean = () => true, { retainRows = false }: { retainRows?: boolean } = {}): Promise<void> {
     if (this.destroyRef.destroyed) return;
+    this.cancelRangeLoad();
     this.syncReadOwner();
     this.listingReadsActive = true;
     this.listingViewParked = false;
@@ -1736,14 +1749,19 @@ export class GalleryStore {
   }
 
   private scheduleRangeLoad(): void {
-    if (this.rangeLoadTimer) clearTimeout(this.rangeLoadTimer);
+    this.cancelRangeLoad();
+    const owner = this.auth.identity(), token = this.auth.token;
+    this.rangeLoadCurrent = () => !this.destroyRef.destroyed && owner === this.auth.identity() && token === this.auth.token;
     this.rangeLoadTimer = setTimeout(() => {
       this.rangeLoadTimer = null;
+      if (!this.rangeLoadCurrent?.()) { this.cancelRangeLoad(); return; }
+      if (!this.listingReadsActive) return;
       void this.loadPhotos();
     }, 300);
   }
 
   private cancelRangeLoad(): void {
+    this.rangeLoadCurrent = null;
     if (this.rangeLoadTimer) {
       clearTimeout(this.rangeLoadTimer);
       this.rangeLoadTimer = null;
@@ -2695,22 +2713,32 @@ export class GalleryStore {
   async selectBottomPercent(
     keepPercent: number,
   ): Promise<{ total: number; keep: number; cut: number; truncated: boolean; paths: string[] } | null> {
+    if (this.destroyRef.destroyed || !this.listingReadsActive || this.listingViewParked) return null;
     const f = this.filters();
     if (!this.canScopeSelectionToView()) {
       this.notifyActionFailed();
       return null;
     }
     const params = buildApiParams(f, this.currentAlbum()?.is_smart ?? false, this.config()?.search_threshold_default);
+    const request = ++this.bottomSelectionRequest;
+    const owner = this.auth.identity(), token = this.auth.token;
+    const query = this.reviewViewKey();
+    const selected = this.selectedPaths(), excluded = this.excludedPaths(), scope = this.selectionScope();
+    const current = () => !this.destroyRef.destroyed && this.listingReadsActive && !this.listingViewParked
+      && request === this.bottomSelectionRequest && owner === this.auth.identity() && token === this.auth.token
+      && query === this.reviewViewKey() && this.canScopeSelectionToView()
+      && selected === this.selectedPaths() && excluded === this.excludedPaths() && scope === this.selectionScope();
     try {
       const res = await firstValueFrom(
         this.api.get<{ total: number; keep: number; cut: number; truncated: boolean; paths: string[] }>(
           '/photos/select_bottom_percent', { ...params, keep_percent: keepPercent },
         ),
       );
+      if (!current()) return null;
       this.restoreSelection(res.paths);
       return res;
     } catch {
-      this.notifyActionFailed();
+      if (current()) this.notifyActionFailed();
       return null;
     }
   }

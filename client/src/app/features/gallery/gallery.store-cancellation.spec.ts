@@ -87,6 +87,78 @@ describe('GalleryStore read cancellation with HttpClient', () => {
     http.verify();
   });
 
+  it.each(['parked', 'cancelled'] as const)('defers a pending range filter through %s navigation and resumes page one', async outcome => {
+    vi.useFakeTimers();
+    try {
+      const initial = store.loadPhotos();
+      request('/photos').flush(EMPTY_PAGE);
+      request('/photos/review_progress').flush(COUNTS);
+      await initial;
+      store.filters.update(filters => ({ ...filters, page: 3 }));
+      store.updateFilterDebounced('min_score', '7');
+      events.next(new NavigationStart(51, '/photo?path=a'));
+      if (outcome === 'parked') store.parkListingReads();
+      await vi.advanceTimersByTimeAsync(300);
+      const background = http.match(r => r.url === '/api/photos' || r.url === '/api/photos/review_progress');
+      for (const read of background) read.flush(read.request.url.endsWith('/photos') ? EMPTY_PAGE : COUNTS);
+      expect(background).toHaveLength(0);
+      let resumed: Promise<void> | undefined;
+      if (outcome === 'parked') resumed = store.resumeListingReads();
+      else events.next(new NavigationCancel(51, '/photo?path=a', 'guard refused'));
+      await Promise.resolve();
+      const page = request('/photos');
+      expect(page.request.params.get('min_score')).toBe('7');
+      expect(page.request.params.get('page')).toBe('1');
+      page.flush(EMPTY_PAGE);
+      request('/photos/review_progress').flush(COUNTS);
+      await resumed;
+      await vi.advanceTimersByTimeAsync(300);
+      http.expectNone(r => r.url === '/api/photos');
+    } finally { vi.useRealTimers(); }
+  });
+
+  it.each(['pin', 'replacement', 'owner', 'token', 'destroy'] as const)('keeps deferred range intent scoped through %s', async outcome => {
+    vi.useFakeTimers();
+    try {
+      const initial = outcome === 'pin' ? store.showPaths(['/pinned.jpg']) : store.loadPhotos();
+      if (outcome === 'pin') request('/photos/by_paths').flush({ photos: [makePhoto({ path: '/pinned.jpg' })] });
+      else {
+        request('/photos').flush({ ...EMPTY_PAGE, photos: [makePhoto({ path: '/old.jpg' })], total: 1 });
+        request('/photos/review_progress').flush(COUNTS);
+      }
+      await initial;
+      http.match(r => r.url === '/api/photos/keeper_hints').forEach(read => read.flush({}));
+      const rows = store.photos();
+      store.updateFilterDebounced('min_score', '7');
+      store.parkListingReads();
+      expect(store.photos()).toBe(rows);
+      if (outcome === 'owner') { identity.set('bob'); TestBed.tick(); }
+      if (outcome === 'token') Object.defineProperty(TestBed.inject(AuthService), 'token', { value: 'rotated', configurable: true });
+      if (outcome === 'destroy') destroyStore();
+      if (outcome === 'replacement') {
+        const replacement = store.showPaths(['/replacement.jpg']);
+        request('/photos/by_paths').flush({ photos: [makePhoto({ path: '/replacement.jpg' })] });
+        await replacement;
+      }
+      await vi.advanceTimersByTimeAsync(300);
+      http.expectNone(r => r.url === '/api/photos' || r.url === '/api/photos/review_progress');
+      if (outcome === 'pin') {
+        const resumed = store.resumeListingReads();
+        const page = request('/photos');
+        expect(page.request.params.get('min_score')).toBe('7');
+        expect(page.request.params.get('page')).toBe('1');
+        expect(store.pinnedPaths()).toBeNull();
+        page.flush(EMPTY_PAGE); request('/photos/review_progress').flush(COUNTS);
+        await resumed;
+      } else if (outcome !== 'destroy') {
+        await store.resumeListingReads();
+        http.expectNone(r => r.url === '/api/photos');
+      }
+      http.match(r => r.url === '/api/photos/keeper_hints').forEach(read => read.flush({}));
+      if (outcome === 'replacement') expect(store.pinnedPaths()).toEqual(['/replacement.jpg']);
+    } finally { vi.useRealTimers(); }
+  });
+
   it('bounds a burst of 30 filter changes to one active page and one progress request', async () => {
     const pages: TestRequest[] = [];
     const progress: TestRequest[] = [];
