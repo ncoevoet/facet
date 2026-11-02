@@ -1066,6 +1066,9 @@ export class GalleryComponent implements OnInit, OnDestroy {
   private readonly changeDetector = inject(ChangeDetectorRef);
   private readonly ngZone = inject(NgZone);
   private parked = false;
+  // Initial config/album setup cannot resume a previous visit's loaded pages.
+  private awaitingInitialScope = false;
+  private resumeInitialization: (() => void) | null = null;
   private readonly reviewNavigation = inject(GalleryReviewNavigationService);
   private keyboardDecisionPending = false;
   private cursorRevision = 0;
@@ -1880,7 +1883,8 @@ export class GalleryComponent implements OnInit, OnDestroy {
     this.outlet?.attachEvents.pipe(takeUntilDestroyed()).subscribe(component => {
       if (component !== this) return;
       this.parked = false;
-      void this.store.resumeListingReads();
+      this.resumeInitialization?.();
+      if (!this.awaitingInitialScope) void this.store.resumeListingReads();
       // Returning from a photo restarts the notice countdown: the reviewer is
       // looking again, so the stack earns a fresh window before folding.
       if (!this.noticesCollapsed()) this.armNoticeCollapse();
@@ -1912,7 +1916,7 @@ export class GalleryComponent implements OnInit, OnDestroy {
           if (at >= 0 && back.anchor) this.restoreReturnAnchor(back.path, back.anchor);
         }
       }
-      this.refreshSideData();
+      if (!this.awaitingInitialScope) this.refreshSideData();
     });
 
     // Sync store.filterDrawerOpen signal → mat-sidenav. The details rail shares
@@ -1981,6 +1985,7 @@ export class GalleryComponent implements OnInit, OnDestroy {
     // Reset album state to avoid stale singleton data; loadConfig() resets filters from scratch
     this.store.currentAlbum.set(null);
     this.store.initializing.set(true);
+    this.awaitingInitialScope = true;
     try {
       if (!await this.store.loadConfig(current)) return;
       if (!current()) return;
@@ -2021,6 +2026,12 @@ export class GalleryComponent implements OnInit, OnDestroy {
           this.store.filters.update(current => ({ ...current, album_id: albumId }));
         }
       }
+      // Scope setup may finish after the outlet detached us. The first listing
+      // belongs to this visit, but must wait for its own attachment to start.
+      while (this.parked && current()) await new Promise<void>(resolve => { this.resumeInitialization = resolve; });
+      this.resumeInitialization = null;
+      if (!current()) return;
+      this.awaitingInitialScope = false;
       // Photos first — a slow filter-option endpoint must never hold back the grid
       await this.store.loadPhotos(current);
       if (!current()) return;
@@ -2036,6 +2047,8 @@ export class GalleryComponent implements OnInit, OnDestroy {
         }).catch(() => {});
       }
     } finally {
+      this.awaitingInitialScope = false;
+      this.resumeInitialization = null;
       if (mount === this.store.galleryMounts()) this.store.initializing.set(false);
     }
   }
@@ -2150,6 +2163,7 @@ export class GalleryComponent implements OnInit, OnDestroy {
   }
 
   ngOnDestroy(): void {
+    this.resumeInitialization?.();
     this.cancelToolbarSearch();
     this.disarmNoticeCollapse();
     this.setGalleryChrome(false);

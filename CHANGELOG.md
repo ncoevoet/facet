@@ -56,6 +56,7 @@ All notable changes to Facet are documented in this file.
 ### Fixed
 
 - Late album and configuration responses cannot overwrite a newer gallery visit; startup defaults no longer reset an active gallery.
+- Album setup that finishes while a photo is open waits for Back before loading the gallery, without losing the album scope or retrying old collection pages.
 
 - Saved album rules and query previews translate their field names, while preserving literal camera, tag and search values.
 - Retrying a developed preview keeps its cache bypass scoped to that photo and style.

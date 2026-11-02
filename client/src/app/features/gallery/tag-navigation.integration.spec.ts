@@ -1,7 +1,7 @@
 import { signal } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
 import { HttpRequest, provideHttpClient, withInterceptors, withXhr } from '@angular/common/http';
-import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
+import { HttpTestingController, provideHttpClientTesting, TestRequest } from '@angular/common/http/testing';
 import { Location } from '@angular/common';
 import { provideLocationMocks } from '@angular/common/testing';
 import { NavigationEnd, provideRouter, Router, RouteReuseStrategy } from '@angular/router';
@@ -126,7 +126,7 @@ describe('tag pivots through actual gallery, photo, menus, Router and HTTP', () 
     expect(obsoletePages).toHaveLength(0);
   });
 
-  it('finishes a parked album initialization and loads its scope on Back', async () => {
+  it.each(['ready', 'config-ready', 'early-back', 'page-started', 'failed-page', 'identity', 'destroy'] as const)('defers parked initialization and preserves its lifecycle (%s)', async outcome => {
     vi.spyOn(MatSidenavContent.prototype, 'scrollTo').mockImplementation(function (this: MatSidenavContent, options) {
       if (options.top !== undefined) this.getElementRef().nativeElement.scrollTop = options.top;
     });
@@ -134,32 +134,92 @@ describe('tag pivots through actual gallery, photo, menus, Router and HTTP', () 
     Object.defineProperty(HTMLElement.prototype, 'scrollIntoView', { configurable: true, value: vi.fn() });
     try {
       await harness.navigateByUrl('/album/1', GalleryComponent);
-      const albumStarted = requested('/api/albums/1');
-      http.expectOne('/api/config').flush(config);
-      await albumStarted;
-      const pendingAlbum = http.expectOne('/api/albums/1');
+      const pendingConfig = http.expectOne('/api/config');
+      let pendingAlbum: TestRequest;
+      if (outcome !== 'config-ready') {
+        const albumStarted = requested('/api/albums/1');
+        pendingConfig.flush(config);
+        await albumStarted;
+        pendingAlbum = http.expectOne('/api/albums/1');
+      }
+      let interruptedPage: TestRequest | undefined;
+      if (outcome === 'page-started') {
+        const pageStarted = requested('/api/photos');
+        pendingAlbum!.flush({ ...album, id: 1, name: 'Parked album' });
+        await pageStarted;
+        interruptedPage = http.expectOne(request => request.url === '/api/photos');
+      }
       await harness.navigateByUrl('/photo?path=%2Ftrip%2Fa.jpg', PhotoDetailComponent);
       http.match(request => request.url === '/api/photo').forEach(request => request.flush(photo));
       http.match(request => request.url === '/api/stacks/by-photo').forEach(request => request.flush(null));
       await render();
-      expect(pendingAlbum.cancelled).toBe(false);
-      pendingAlbum.flush({ ...album, id: 1, name: 'Parked album' });
+      if (outcome === 'config-ready') {
+        const albumStarted = requested('/api/albums/1');
+        pendingConfig.flush(config);
+        await albumStarted;
+        pendingAlbum = http.expectOne('/api/albums/1');
+      }
+      if (interruptedPage) expect(interruptedPage.cancelled).toBe(true);
+      else expect(pendingAlbum!.cancelled).toBe(false);
+      if (outcome === 'early-back') {
+        const back = arrived(); TestBed.inject(Location).back(); await back; harness.detectChanges();
+        await render();
+        http.expectNone(request => request.url === '/api/photos');
+      }
+      if (!interruptedPage) pendingAlbum!.flush({ ...album, id: 1, name: 'Parked album' });
       await render();
       expect(store.currentAlbum()?.id).toBe(1);
+      if (outcome !== 'early-back') http.expectNone(request => request.url === '/api/photos');
+      if (outcome === 'identity') TestBed.inject(AuthService).status.set({ ...TestBed.inject(AuthService).status()!, user_id: 'bob' });
+      if (outcome === 'destroy') {
+        await harness.navigateByUrl('/album/2', GalleryComponent);
+        const albumStarted = requested('/api/albums/2');
+        http.expectOne('/api/config').flush(config);
+        await albumStarted;
+        const pageStarted = requested('/api/photos');
+        http.expectOne('/api/albums/2').flush({ ...album, id: 2 });
+        await pageStarted;
+        const page = http.expectOne(request => request.url === '/api/photos');
+        expect(page.request.params.get('album_id')).toBe('2');
+        page.flush({ photos: [photo], total: 1, page: 1, per_page: 64, total_pages: 1, has_more: false });
+        await render();
+        expect(store.initializing()).toBe(false);
+        expect(store.currentAlbum()?.id).toBe(2);
+        http.expectNone(request => request.url === '/api/photos');
+        return;
+      }
+      let successfulPages = 0;
       const settlePages = () => {
         for (const page of http.match(request => request.url === '/api/photos')) {
+          successfulPages++;
           expect(page.request.params.get('album_id')).toBe('1');
           page.flush({ photos: [photo], total: 1, page: 1, per_page: 64, total_pages: 1, has_more: false });
         }
       };
       settlePages();
       await render();
-      const back = arrived(); TestBed.inject(Location).back(); await back; harness.detectChanges();
-      await render(); settlePages(); await render();
+      if (outcome !== 'early-back') {
+        const back = arrived(); TestBed.inject(Location).back(); await back; harness.detectChanges();
+      }
+      await render();
+      if (outcome === 'identity') {
+        http.expectNone(request => request.url === '/api/photos');
+        expect(store.initializing()).toBe(false);
+        return;
+      }
+      if (outcome === 'failed-page') {
+        http.expectOne(request => request.url === '/api/photos').flush({}, { status: 500, statusText: 'Failed' });
+        await render();
+        expect(store.loadError()).toBe(true);
+        const retry = store.reloadPhotos();
+        settlePages(); await retry;
+      } else settlePages();
+      await render();
       expect(store.initializing()).toBe(false);
       expect(router.url).toBe('/album/1');
       expect(store.currentAlbum()?.id).toBe(1);
       expect(store.photos().map(item => item.path)).toEqual([photo.path]);
+      expect(successfulPages).toBe(1);
     } finally {
       if (scrollIntoView) Object.defineProperty(HTMLElement.prototype, 'scrollIntoView', scrollIntoView);
       else Reflect.deleteProperty(HTMLElement.prototype, 'scrollIntoView');
