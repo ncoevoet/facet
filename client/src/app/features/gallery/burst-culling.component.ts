@@ -1,3 +1,4 @@
+import { DarkroomRenditions } from './darkroom-renditions';
 import { FilenamePipe } from '../../shared/pipes/filename.pipe';
 import { SEQUENCE_KINDS_KEPT_WHOLE, SEQUENCE_KIND_LABELS } from '../../shared/pipes/sequence-kind.pipe';
 import { Component, DestroyRef, inject, signal, linkedSignal, computed, effect, untracked, viewChild, ElementRef, OnDestroy, HostListener, TemplateRef, ChangeDetectionStrategy } from '@angular/core';
@@ -38,7 +39,7 @@ import { CULL_DATE_PRESETS, presetRange, type CullDatePresetId } from './culling
 import { isBracketLadderRejection } from '../../shared/utils/sequence-ladder';
 import { createLoupeState } from '../../shared/utils/loupe-state';
 import { useCoarsePointerSignal } from '../../shared/utils/media-query';
-import { SyncedZoomComponent, ZoomState, FIT_ZOOM, LoadedSources, SHARP_PRELOAD_DEBOUNCE_MS, DisplayedRendition } from './synced-zoom.component';
+import { SyncedZoomComponent, ZoomState, FIT_ZOOM } from './synced-zoom.component';
 import { RenditionReadoutComponent } from '../../shared/components/rendition-readout/rendition-readout.component';
 import { CompareFiltersService } from '../comparison/compare-filters.service';
 import { PanoramaSettingsService } from '../comparison/panorama-settings.service';
@@ -55,10 +56,7 @@ import { PageContextService, registerPageContext } from '../../core/agent/page-c
 import { AssistantCullPlanService, type CullPlanPin } from '../../core/agent/assistant-cull-plan.service';
 import { firstValueFrom } from 'rxjs';
 import { DARKROOM_SHORTCUTS, STACK_DARKROOM_SHORTCUTS } from './culling-shortcuts';
-import {
-  CullingStore, RunGeneration, GroupBy, GROUP_BY_VALUES,
-  CULL_GROUP_BY_KEY, CULL_SORT_KEY, CULL_SORT_DIR_KEY, updateMapSignal,
-} from './culling.store';
+import { CullingStore, GroupBy, GROUP_BY_VALUES, CULL_GROUP_BY_KEY, CULL_SORT_KEY, CULL_SORT_DIR_KEY } from './culling.store';
 import { I18N, i18nKeys } from '../../core/i18n/keys';
 import {
   CullGroupKeyPipe, CullPlanGroupReasonPipe, PlanDiffersPipe, PlanRejectCountPipe,
@@ -70,11 +68,9 @@ import {
   SubjectForPathPipe, SubjectRingClassPipe, EvOffsetPipe, GroupOverridePipe,
   GroupOverridePendingPipe, PeakingOverlayPipe, FrameViewBoxPipe, GridLinesPipe,
   KeySubjectForPathPipe, IsKeyFacePipe, CanMarkBracketPipe, CanStackGroupPipe, canStackGroup,
-  cullPreviewUrl, computePeakingOverlay, computePooledPeakingOverlays, loadFrameImage, GRID_MODES,
-  PEAKING_FIT_EDGE,
-  KEY_SUBJECT_COORDINATE_SPACE,
+  GRID_MODES, KEY_SUBJECT_COORDINATE_SPACE,
   CullingGroup, CullingPhoto, CullingFace, CullingSubject, FaceThresholds, CullStyle,
-  FrameSize, GridMode, KeySubject,
+  GridMode, KeySubject,
 } from './burst-culling.pipes';
 import { MarkTonePipe } from '../../shared/pipes/mark-tone.pipe';
 
@@ -134,14 +130,6 @@ const ALL_REJECTS_SCOPE = {
   hide_duplicates: 'false', hide_brackets: 'false', hide_panoramas: 'false',
 };
 
-/** Stable empty overlay map, so clearing an already-empty one is a no-op
- *  instead of a change-detection round for every darkroom navigation. */
-const NO_PEAKING_OVERLAYS = new Map<string, string>();
-
-/** How many edge maps stay cached beyond the frames on screen. Stepping back
- *  through a group is then instant, while a long culling session cannot pile up
- *  a data URL per frame it ever showed. */
-const PEAKING_CACHE_MAX = 8;
 
 /** Lightweight scene shape for the album→scene scope cascade (GET /scenes?summary=true). */
 interface SceneSummary {
@@ -1052,19 +1040,19 @@ interface SceneSummary {
             }
             @if (!stacksMode() && cullStyleCapable() && compareMode() === 'single') {
               <button mat-icon-button [matMenuTriggerFor]="cullStyleMenu"
-                      [class.!text-white]="activeStyle() === ''"
-                      [class.!text-[var(--mat-sys-primary)]]="activeStyle() !== ''"
+                      [class.!text-white]="renditions.activeStyle() === ''"
+                      [class.!text-[var(--mat-sys-primary)]]="renditions.activeStyle() !== ''"
                       [matTooltip]="I18N.culling.cull_style.tooltip | translate"
                       [attr.aria-label]="I18N.culling.cull_style.tooltip | translate">
                 <mat-icon>palette</mat-icon>
               </button>
               <mat-menu #cullStyleMenu="matMenu">
-                <button mat-menu-item (click)="selectCullStyle('')">
-                  <span [class.font-bold]="activeStyle() === ''">{{ I18N.photo_detail.rendition.base_render | translate }}</span>
+                <button mat-menu-item (click)="renditions.selectCullStyle('')">
+                  <span [class.font-bold]="renditions.activeStyle() === ''">{{ I18N.photo_detail.rendition.base_render | translate }}</span>
                 </button>
                 @for (s of cullStyles(); track s.name) {
-                  <button mat-menu-item (click)="selectCullStyle(s.name)">
-                    <span [class.font-bold]="activeStyle() === s.name">{{ s.label_key | translate }}</span>
+                  <button mat-menu-item (click)="renditions.selectCullStyle(s.name)">
+                    <span [class.font-bold]="renditions.activeStyle() === s.name">{{ s.label_key | translate }}</span>
                   </button>
                 }
               </mat-menu>
@@ -1090,14 +1078,14 @@ interface SceneSummary {
         <!-- Per-pane overlays: the peaking edge map rides the image's own
              transform, the composition grid stays fixed to the frame box. -->
         <ng-template #frameOverlays let-path="path">
-          @if (path | peakingOverlay:peakingOverlays(); as overlay) {
+          @if (path | peakingOverlay:renditions.peakingOverlays(); as overlay) {
             <img [src]="overlay" alt="" aria-hidden="true"
                  class="absolute inset-0 w-full h-full object-contain origin-center
                         pointer-events-none opacity-60 will-change-transform"
                  [style.transform]="frameTransforms().get(path)" />
           }
           @if (gridMode(); as grid) {
-            @if (path | frameViewBox:frameSizes(); as viewBox) {
+            @if (path | frameViewBox:renditions.frameSizes(); as viewBox) {
               <svg class="absolute inset-0 w-full h-full pointer-events-none"
                    [attr.viewBox]="viewBox" preserveAspectRatio="xMidYMid meet" aria-hidden="true">
                 @for (line of grid | gridLines; track line) {
@@ -1148,24 +1136,24 @@ interface SceneSummary {
                  (click)="$event.stopPropagation()"
                  (keydown)="onDarkroomKeydown($event)">
               <app-synced-zoom #singlePane class="w-full h-full"
-                               [src]="(activeStyle() && !previewLoading()) ? developedPreviewUrl() : (lbPhoto.path | thumbnailUrl:darkroomThumbSize:lbPhoto.preview_revision)"
-                               [placeholderSrc]="activeStyle() ? null : (lbPhoto.path | thumbnailUrl:storedEdge:lbPhoto.preview_revision)"
+                               [src]="(renditions.activeStyle() && !renditions.previewLoading()) ? renditions.developedPreviewUrl() : (lbPhoto.path | thumbnailUrl:darkroomThumbSize:lbPhoto.preview_revision)"
+                               [placeholderSrc]="renditions.activeStyle() ? null : (lbPhoto.path | thumbnailUrl:storedEdge:lbPhoto.preview_revision)"
                                [frameKey]="lbPhoto.path"
-                               [loadedSources]="loadedRenders"
-                               (sharpLoaded)="onSharpLoaded($event)"
-                               (sharpFailed)="onSharpFailed($event)"
-                               (sharpPending)="onSharpPending($event)"
-                               [fullResSrc]="activeStyle() ? null : (lbPhoto.path | imageUrl:false:lbPhoto.preview_revision)"
+                               [loadedSources]="renditions.loadedRenders"
+                               (sharpLoaded)="renditions.onSharpLoaded($event)"
+                               (sharpFailed)="renditions.onSharpFailed($event)"
+                               (sharpPending)="renditions.onSharpPending($event)"
+                               [fullResSrc]="renditions.activeStyle() ? null : (lbPhoto.path | imageUrl:false:lbPhoto.preview_revision)"
                                [zoom]="zoom()"
                                [focusPoint]="(lbPhoto.path | keySubjectForPath:keySubjectMap())?.center ?? null"
                                (zoomChange)="onDarkroomZoom($event)"
-                               [loupeSrc]="activeStyle() && !previewLoading() ? developedPreviewUrl() : (lbPhoto.path | imageUrl:false:lbPhoto.preview_revision)"
+                               [loupeSrc]="renditions.activeStyle() && !renditions.previewLoading() ? renditions.developedPreviewUrl() : (lbPhoto.path | imageUrl:false:lbPhoto.preview_revision)"
                                [loupeActive]="darkroomLoupeEffective()"
                                [loupeZoom]="darkroomLoupeZoom()"
                                [alt]="lbPhoto.filename"
-                               (renditionChange)="onDisplayedRendition($event, lbPhoto.path, activeStyle())" />
+                               (renditionChange)="renditions.onDisplayedRendition($event, lbPhoto.path, renditions.activeStyle())" />
               <div class="absolute inset-x-2 bottom-2 z-10 rounded bg-black/80 px-2 py-1 text-white" role="presentation" (click)="$event.stopPropagation()" (pointerdown)="$event.stopPropagation()" (keydown)="onDarkroomKeydown($event)">
-                <app-rendition-readout [state]="displayedRenditions().get(lbPhoto.path) ?? RENDITION_PENDING" [edited]="!!activeStyle() && !previewLoading()" [pending]="previewLoading() || pendingRenderPaths().has(lbPhoto.path)" [attemptFailed]="failedRenderPaths().has(lbPhoto.path) || developedFailure()?.path === lbPhoto.path" [failureLabel]="developedFailure()?.path === lbPhoto.path ? I18N.photo_detail.rendition.edited_failed : I18N.gallery.compare.rendition.fallback" (retry)="retryDarkroomPane(singlePane)" [scale]="zoom().scale" (zoomStep)="stepDarkroomZoom($event)" (fit)="fitDarkroom()" />
+                <app-rendition-readout [state]="renditions.displayedRenditions().get(lbPhoto.path) ?? renditions.RENDITION_PENDING" [edited]="!!renditions.activeStyle() && !renditions.previewLoading()" [pending]="renditions.previewLoading() || renditions.pendingRenderPaths().has(lbPhoto.path)" [attemptFailed]="renditions.failedRenderPaths().has(lbPhoto.path) || renditions.developedFailure()?.path === lbPhoto.path" [failureLabel]="renditions.developedFailure()?.path === lbPhoto.path ? I18N.photo_detail.rendition.edited_failed : I18N.gallery.compare.rendition.fallback" (retry)="renditions.retryDarkroomPane(singlePane)" [scale]="zoom().scale" (zoomStep)="stepDarkroomZoom($event)" (fit)="fitDarkroom()" />
               </div>
               <ng-container [ngTemplateOutlet]="frameOverlays"
                             [ngTemplateOutletContext]="{ path: lbPhoto.path }" />
@@ -1179,7 +1167,7 @@ interface SceneSummary {
                                 kept: (lbPhoto.path | isKept:cull.selectionsMap():lbKey),
                                 decided: (lbPhoto.path | isDecided:cull.selectionsMap():lbKey) }" />
               </div>
-              @if (previewLoading()) {
+              @if (renditions.previewLoading()) {
                 <div class="absolute inset-0 flex items-center justify-center bg-black/40 pointer-events-none"
                      [attr.aria-label]="I18N.culling.cull_style.loading | translate">
                   <mat-spinner diameter="40" [attr.aria-label]="I18N.ui.labels.loading | translate" />
@@ -1254,10 +1242,10 @@ interface SceneSummary {
                                    [src]="photo.path | thumbnailUrl:darkroomThumbSize:photo.preview_revision"
                                    [placeholderSrc]="photo.path | thumbnailUrl:storedEdge:photo.preview_revision"
                                    [frameKey]="photo.path"
-                                   [loadedSources]="loadedRenders"
-                                   (sharpLoaded)="onSharpLoaded($event, photo.path)"
-                                   (sharpFailed)="onSharpFailed($event, photo.path)"
-                                   (sharpPending)="onSharpPending($event, photo.path)"
+                                   [loadedSources]="renditions.loadedRenders"
+                                   (sharpLoaded)="renditions.onSharpLoaded($event, photo.path)"
+                                   (sharpFailed)="renditions.onSharpFailed($event, photo.path)"
+                                   (sharpPending)="renditions.onSharpPending($event, photo.path)"
                                    [fullResSrc]="photo.path | imageUrl:false:photo.preview_revision"
                                    [zoom]="paneFrames().get(photo.path) ?? FIT_ZOOM"
                                    [focusPoint]="(photo.path | keySubjectForPath:keySubjectMap())?.center ?? null"
@@ -1266,7 +1254,7 @@ interface SceneSummary {
                                    [loupeActive]="darkroomLoupeActive() && (paneFrames().get(photo.path)?.scale ?? 1) <= 1"
                                    [loupeZoom]="darkroomLoupeZoom()"
                                    [alt]="photo.filename"
-                                   (renditionChange)="onDisplayedRendition($event, photo.path, '')" />
+                                   (renditionChange)="renditions.onDisplayedRendition($event, photo.path, '')" />
                   <ng-container [ngTemplateOutlet]="frameOverlays"
                                 [ngTemplateOutletContext]="{ path: photo.path }" />
                   <!-- Every per-frame mark traces the rendered photo, not the
@@ -1283,7 +1271,7 @@ interface SceneSummary {
                   </div>
                   <div class="shrink-0 bg-neutral-950 p-1 text-white" role="presentation" (click)="$event.stopPropagation()" (pointerdown)="$event.stopPropagation()" (keydown)="onDarkroomKeydown($event)">
                     @if (!cleanComparison()) {
-                    <app-rendition-readout [state]="displayedRenditions().get(photo.path) ?? RENDITION_PENDING" [pending]="pendingRenderPaths().has(photo.path)" [attemptFailed]="failedRenderPaths().has(photo.path)" [failureLabel]="I18N.gallery.compare.rendition.fallback" (retry)="retryDarkroomPane(pane)" [scale]="paneFrames().get(photo.path)?.scale ?? 1" (zoomStep)="stepDarkroomZoom($event, photo.path)" (fit)="fitDarkroom(photo.path)" />
+                    <app-rendition-readout [state]="renditions.displayedRenditions().get(photo.path) ?? renditions.RENDITION_PENDING" [pending]="renditions.pendingRenderPaths().has(photo.path)" [attemptFailed]="renditions.failedRenderPaths().has(photo.path)" [failureLabel]="I18N.gallery.compare.rendition.fallback" (retry)="renditions.retryDarkroomPane(pane)" [scale]="paneFrames().get(photo.path)?.scale ?? 1" (zoomStep)="stepDarkroomZoom($event, photo.path)" (fit)="fitDarkroom(photo.path)" />
                     }
                   </div>
                 </div>
@@ -1837,25 +1825,6 @@ export class BurstCullingComponent implements OnDestroy {
   protected readonly cullStyleCapable = computed(
     () => this.auth.isEdition() && this.cullStyles().length > 0,
   );
-  /** Selected style for this darkroom session ('' = flat Original). Not persisted. */
-  protected readonly activeStyle = signal('');
-  /** True while a developed preview renders (spinner overlay over the flat frame). */
-  protected readonly previewLoading = signal(false);
-  protected readonly developedFailure = signal<{ path: string; style: string } | null>(null);
-  private readonly developedAttempt = signal(0);
-  private readonly developedSession = crypto.randomUUID();
-  protected readonly developedPreviewUrl = computed(() => {
-    const path = this.currentPath(), style = this.activeStyle();
-    if (!path || !style) return '';
-    const src = cullPreviewUrl(path, style);
-    if (!this.developedAttempt()) return src;
-    const url = new URL(src, document.baseURI);
-    url.searchParams.set('facet_retry', `${this.developedSession}-${this.developedAttempt()}`);
-    url.searchParams.set('ngsw-bypass', '1');
-    return url.href;
-  });
-  /** In-flight developed-preview image, so its handlers can be detached when a newer frame supersedes it. */
-  private previewImg: HTMLImageElement | null = null;
 
   /** Keyboard-shortcut legend in the darkroom header. Hidden by default (it was
    *  permanent chrome noise, and the French labels reflowed to two rows at
@@ -1887,36 +1856,10 @@ export class BurstCullingComponent implements OnDestroy {
   }
   /** Composition grid: off → rule of thirds → golden ratio (G). Session-only. */
   protected readonly gridMode = signal<GridMode>('');
-  /** Frame path → generated edge-map PNG, for the frames currently on screen. */
-  protected readonly peakingOverlays = signal<Map<string, string>>(NO_PEAKING_OVERLAYS);
-  /** Frame path → natural pixel size, so the grid lands on the letterboxed
-   *  image box rather than on the pane's own (usually wider) rectangle. */
-  protected readonly frameSizes = signal<Map<string, FrameSize>>(new Map());
-  /** Guards against a superseded pass publishing over a newer one. */
-  private readonly peakingRun = new RunGeneration();
 
   protected readonly darkroomThumbSize = DARKROOM_THUMB_SIZE;
   protected readonly storedEdge = STORED_EDGE;
 
-  /** Renders already fetched into the browser cache (the panes' own preloaders
-   *  and the neighbour prefetch fill it), so a revisited frame skips the
-   *  panes' debounce. */
-  protected readonly loadedRenders = new LoadedSources();
-  /** The path whose render the single pane has finished loading. Peaking and
-   *  the neighbour prefetch wait for it, so the current frame is first in the
-   *  server's render queue. */
-  private readonly sharpPath = signal<string | null>(null);
-  /** Failed attempts belong to individual visible panes; a new attempt clears its fallback. */
-  protected readonly failedRenderPaths = signal<ReadonlySet<string>>(new Set());
-  protected readonly pendingRenderPaths = signal<ReadonlySet<string>>(new Set());
-  protected readonly RENDITION_PENDING: DisplayedRendition = { kind: 'thumbnail', phase: 'loading' };
-  protected readonly displayedRenditions = signal<ReadonlyMap<string, DisplayedRendition>>(new Map());
-
-  protected onDisplayedRendition(state: DisplayedRendition, path: string, style: string): void {
-    if (this.destroyRef.destroyed || !this.pageAlive || this.pageNavigating || this.auth.identity() !== this.pageOwner || !this.auth.isEdition()
-      || !this.darkroomFramePaths().includes(path) || style !== (this.compareMode() === 'single' ? this.activeStyle() : '')) return;
-    this.displayedRenditions.update(current => new Map([...current].filter(([key]) => this.darkroomFramePaths().includes(key))).set(path, state));
-  }
 
   protected stepDarkroomZoom(direction: number, path = this.currentPath() ?? ''): void {
     const current = this.paneFrames().get(path) ?? FIT_ZOOM;
@@ -1950,126 +1893,16 @@ export class BurstCullingComponent implements OnDestroy {
     this.paneFrames.set(frames);
   }
 
-  protected retryDarkroomPane(pane: SyncedZoomComponent): void {
-    const path = this.currentPath();
-    if (!path || !this.darkroomFramePaths().includes(pane.frameKey() ?? '') || !this.pageAlive || this.pageNavigating || this.auth.identity() !== this.pageOwner || !this.auth.isEdition()) return;
-    const failed = this.developedFailure();
-    if (this.compareMode() === 'single' && (failed?.path === path || this.activeStyle())) {
-      const style = failed?.path === path ? failed.style : this.activeStyle();
-      this.developedFailure.set(null);
-      this.developedAttempt.update(value => value + 1);
-      this.activeStyle.set(style);
-    } else pane.retry();
-  }
 
   protected onRenditionHelpEscape(event: Event, details: HTMLDetailsElement, summary: HTMLElement): void {
     event.stopPropagation();
     if (details.open) { details.open = false; summary.focus(); }
     else this.closeLightbox();
   }
-  /** Neighbour preloaders in flight, kept so they are not collected mid-fetch
-   *  and can be aborted when the frame changes. */
-  private neighbourThumbs = new Map<string, HTMLImageElement>();
-  private neighbourRenders = new Map<string, HTMLImageElement>();
-
-  protected onSharpLoaded(src: string, path = this.currentPath()): void {
-    this.onSharpState(src, path, 'loaded');
-  }
-
-  protected onSharpPending(src: string, path = this.currentPath()): void {
-    this.onSharpState(src, path, 'pending');
-  }
-
-  protected onSharpFailed(src: string, path = this.currentPath()): void {
-    this.onSharpState(src, path, 'failed');
-  }
-
-  /** Ignore obsolete panes and style previews; only the focused single pane
-   *  controls neighbour prefetch, while every pane owns its fallback source. */
-  private onSharpState(src: string, path: string | undefined, state: 'loaded' | 'pending' | 'failed'): void {
-    if (!path || !this.darkroomFramePaths().includes(path)) return;
-    const actual = new URL(src, document.baseURI);
-    const expected = new URL(this.frameThumbUrl(path, DARKROOM_THUMB_SIZE), document.baseURI);
-    // Retry URLs carry a pane-owned nonce; all frame/revision/render parameters
-    // still have to match before the old sharp/peaking pipeline can settle.
-    for (const url of [actual, expected]) { url.searchParams.delete('facet_retry'); url.searchParams.delete('ngsw-bypass'); }
-    if (actual.href !== expected.href) return;
-    const visible = this.darkroomFramePaths();
-    this.pendingRenderPaths.update(paths => {
-      const next = new Set([...paths].filter(path => visible.includes(path)));
-      if (state === 'pending') next.add(path); else next.delete(path);
-      return next;
-    });
-    this.failedRenderPaths.update(paths => {
-      const next = new Set([...paths].filter(path => visible.includes(path)));
-      if (state === 'failed') next.add(path);
-      else next.delete(path);
-      return next.size === paths.size && [...next].every(path => paths.has(path)) ? paths : next;
-    });
-    if (this.compareMode() === 'single') this.sharpPath.set(state === 'loaded' ? path : null);
-  }
-
-  /** Paths of the previous and next frame in single view; none in compare mode,
-   *  with a darktable style active (that pane waits for its own render), or on a
-   *  metered connection. */
-  private readonly neighbourPaths = computed<string[]>(() => {
-    const group = this.lightboxGroup();
-    if (!group || this.compareMode() !== 'single' || this.activeStyle()) return [];
-    const connection = (navigator as Navigator & { connection?: { saveData?: boolean } }).connection;
-    if (connection?.saveData) return [];
-    const idx = this.effectiveLightboxIndex();
-    return [group.photos[idx - 1]?.path, group.photos[idx + 1]?.path].filter((p): p is string => !!p);
-  }, { equal: (a, b) => a.length === b.length && a.every((p, i) => p === b[i]) });
 
   /** Path of the frame the single pane shows. A string, so a new group object
    *  holding the same frame does not notify the prefetch effects. */
   private readonly currentPath = computed(() => this.lightboxGroup()?.photos[this.effectiveLightboxIndex()]?.path);
-  /** Each frame's preview revision, so the URLs built here match the ones the template binds. */
-  private readonly frameRevisions = computed(() =>
-    new Map((this.lightboxGroup()?.photos ?? []).map(photo => [photo.path, photo.preview_revision] as const)));
-
-  private frameThumbUrl(path: string, size: number): string {
-    return this.thumbnailUrl.transform(path, size, this.frameRevisions().get(path));
-  }
-
-  /** Fetch `urls` into the browser cache, diffing the previous batch in `sink`
-   *  by URL: a fetch still wanted, or listed in `keep` (the frame being stepped
-   *  onto, whose own pane is about to ask for the same URL), carries on
-   *  untouched, so the browser never cancels and restarts it. The rest is
-   *  aborted (handlers cleared before `src`, so a late load is inert). */
-  private prefetch(
-    urls: string[],
-    sink: Map<string, HTMLImageElement>,
-    onLoaded?: (url: string) => void,
-    keep: readonly string[] = [],
-  ): Map<string, HTMLImageElement> {
-    const retained = new Set<string>([...urls, ...keep]);
-    const next = new Map<string, HTMLImageElement>();
-    for (const [url, img] of sink) {
-      if (retained.has(url)) next.set(url, img);
-      else this.abortImage(img);
-    }
-    for (const url of urls) {
-      if (next.has(url)) continue;
-      const img = new Image();
-      img.onload = () => onLoaded?.(url);
-      img.onerror = () => {};
-      img.src = url;
-      next.set(url, img);
-    }
-    return next;
-  }
-
-  private abortPrefetch(sink: Map<string, HTMLImageElement>): void {
-    for (const img of sink.values()) this.abortImage(img);
-    sink.clear();
-  }
-
-  private abortImage(img: HTMLImageElement): void {
-    img.onload = null;
-    img.onerror = null;
-    img.src = '';
-  }
 
   /** The image transform of every pane, shared with the peaking overlay so the
    *  edge map pans and zooms with the frame instead of being recomputed. */
@@ -2125,8 +1958,7 @@ export class BurstCullingComponent implements OnDestroy {
     const focusedIndex = this.effectiveLightboxIndex();
     if (mode !== previous) {
       // Single/compare recreate their panes; 2-up/4-up retain shared panes.
-      if (mode === 'single' || previous === 'single') this.failedRenderPaths.set(new Set());
-      this.sharpPath.set(null);
+      this.renditions.resetPaneReadiness(mode === 'single' || previous === 'single');
       const frames = previous === 'single' ? [] : this.compareFrames().map(photo => photo.path);
       this.comparisonPaths.set(frames);
       this.comparisonSlotIndex.set(0);
@@ -2140,10 +1972,6 @@ export class BurstCullingComponent implements OnDestroy {
 
   // --- Darkroom overlays (focus peaking + composition grid) ---
 
-  /** Frame path → the edge map already built for it and the source it came from. */
-  private readonly peakingCache = new Map<string, { src: string; url: string }>();
-  private readonly thumbnailUrl = new ThumbnailUrlPipe();
-  private readonly fullResUrl = new ImageUrlPipe();
 
   protected togglePeaking(): void {
     this.peakingActive.set(!this.peakingActive());
@@ -2160,118 +1988,6 @@ export class BurstCullingComponent implements OnDestroy {
     this.gridMode.set(GRID_MODES[(GRID_MODES.indexOf(this.gridMode()) + 1) % GRID_MODES.length]);
   }
 
-  /** The source peaking measures: the 1920 render at fit (the pane shows it once
-   *  loaded) or the full-resolution image past the fit scale (SyncedZoomComponent's
-   *  rule). */
-  private frameSource(path: string, hiRes: boolean): string {
-    return hiRes
-      ? this.fullResUrl.transform(path, true, this.frameRevisions().get(path))
-      : this.frameThumbUrl(path, this.failedRenderPaths().has(path) ? STORED_EDGE : DARKROOM_THUMB_SIZE);
-  }
-
-  /** Drop the overlays and everything that could still republish them: a pass
-   *  awaiting its raster work would otherwise land after the toggle went off and
-   *  paint the frames again. */
-  private clearPeaking(): void {
-    this.peakingRun.cancel();
-    this.peakingCache.clear();
-    if (this.peakingOverlays().size > 0) this.peakingOverlays.set(NO_PEAKING_OVERLAYS);
-  }
-
-  /**
-   * Rebuild the peaking overlays for the displayed frames, publishing each as it
-   * lands so a 4-up compare shows the first pane's edges without waiting on the
-   * other three. A frame already convolved from the same source is reused, and a
-   * newer pass invalidates this one rather than racing it.
-   *
-   * Panes shown together go through the pooled pass instead: side by side, the
-   * question is which frame carries more red, and that only means something when
-   * one threshold painted them both.
-   */
-  private async refreshPeaking(paths: string[], hiRes: boolean): Promise<void> {
-    const run = this.peakingRun.next();
-    if (paths.length > 1) return this.refreshPooledPeaking(paths, hiRes, run);
-    const overlays = new Map<string, string>();
-    for (const path of paths) {
-      const src = this.frameSource(path, hiRes);
-      const cached = this.peakingCache.get(path);
-      let url = cached?.src === src ? cached.url : null;
-      if (!url) {
-        url = await this.renderPeaking(src, hiRes ? undefined : PEAKING_FIT_EDGE);
-        if (!this.peakingRun.isCurrent(run)) return;
-        if (url) {
-          this.peakingCache.set(path, { src, url });
-          this.trimPeakingCache();
-        }
-      }
-      if (!url) continue;
-      overlays.set(path, url);
-      this.peakingOverlays.set(new Map(overlays));
-    }
-  }
-
-  /**
-   * One pooled pass over every visible pane, published together.
-   *
-   * Cached under the whole set's sources rather than each frame's own, because a
-   * pooled overlay is only valid for the set it was pooled over: the same frame
-   * paired with a different one is a different answer.
-   */
-  private async refreshPooledPeaking(paths: string[], hiRes: boolean, run: number): Promise<void> {
-    const srcs = paths.map(path => this.frameSource(path, hiRes));
-    const poolKey = srcs.join('|');
-    const cached = paths.map(path => this.peakingCache.get(path));
-    if (cached.every(entry => entry?.src === poolKey)) {
-      this.peakingOverlays.set(new Map(paths.map((path, i) => [path, cached[i]!.url])));
-      return;
-    }
-    const urls = await this.renderPooledPeaking(srcs, hiRes ? undefined : PEAKING_FIT_EDGE);
-    if (!this.peakingRun.isCurrent(run)) return;
-    const overlays = new Map<string, string>();
-    paths.forEach((path, i) => {
-      const url = urls.get(srcs[i]);
-      if (!url) return;
-      this.peakingCache.set(path, { src: poolKey, url });
-      overlays.set(path, url);
-    });
-    this.trimPeakingCache();
-    this.peakingOverlays.set(overlays);
-  }
-
-  /** Drop the oldest edge maps once the cache is over its bound (insertion
-   *  order, which for a walk through a group is also least-recently-shown). */
-  private trimPeakingCache(): void {
-    while (this.peakingCache.size > PEAKING_CACHE_MAX) {
-      const oldest = this.peakingCache.keys().next().value;
-      if (oldest === undefined) return;
-      this.peakingCache.delete(oldest);
-    }
-  }
-
-  /** Seam over the raster pipeline, so it can be stubbed where no canvas exists. */
-  private renderPeaking(src: string, maxEdge?: number): Promise<string | null> {
-    return computePeakingOverlay(src, maxEdge).catch(() => null);
-  }
-
-  /** The same seam for the pooled pass. */
-  private renderPooledPeaking(srcs: string[], maxEdge?: number): Promise<Map<string, string>> {
-    return computePooledPeakingOverlays(srcs, maxEdge).catch(() => new Map<string, string>());
-  }
-
-  /** Measure a frame once, for the composition grid's viewBox. */
-  private async ensureFrameSize(path: string): Promise<void> {
-    const current = this.pageSession();
-    if (this.frameSizes().has(path)) return;
-    const size = await this.measureFrame(this.frameSource(path, false));
-    if (size && current()) updateMapSignal(this.frameSizes, path, size);
-  }
-
-  /** Seam over the image load, for the same reason as renderPeaking. */
-  private measureFrame(src: string): Promise<FrameSize | null> {
-    return loadFrameImage(src)
-      .then(img => ({ w: img.naturalWidth || img.width, h: img.naturalHeight || img.height }))
-      .catch(() => null);
-  }
 
   /** True Fullscreen API on the darkroom overlay (mirrors the slideshow pattern). */
   protected toggleFullscreen(): void {
@@ -2431,12 +2147,7 @@ export class BurstCullingComponent implements OnDestroy {
     this.faceMap.set(new Map());
     this.subjectMap.set(new Map());
     this.keySubjectMap.set(new Map());
-    this.frameSizes.set(new Map());
-    this.failedRenderPaths.set(new Set());
-    this.sharpPath.set(null);
-    this.clearPeaking();
-    this.abortPrefetch(this.neighbourThumbs);
-    this.abortPrefetch(this.neighbourRenders);
+    this.renditions.resetStackView();
   }
 
   private setStackReturnUrl(target: string): void {
@@ -2500,6 +2211,20 @@ export class BurstCullingComponent implements OnDestroy {
 
   protected backToGallery(): void { void this.router.navigateByUrl(this.stackReturnUrl); }
 
+
+  readonly renditions = new DarkroomRenditions({
+    group: () => this.lightboxGroup(),
+    focusedIndex: () => this.effectiveLightboxIndex(),
+    compareMode: () => this.compareMode(),
+    visiblePaths: () => this.darkroomFramePaths(),
+    highResolution: () => this.darkroomHiRes(),
+    peakingActive: () => this.peakingActive(),
+    gridActive: () => !!this.gridMode(),
+    current: () => this.pageAlive && !this.pageNavigating
+      && this.auth.identity() === this.pageOwner && this.auth.isEdition(),
+    epoch: () => this.pageEpoch,
+    captureSession: () => this.pageSession(),
+  });
 
   constructor() {
     const qp = this.route.snapshot.queryParamMap;
@@ -2655,128 +2380,9 @@ export class BurstCullingComponent implements OnDestroy {
       const tpl = this.cullToolbar();
       if (tpl) this.headerSlot.set(tpl);
     });
-    // Render the developed preview whenever the focused single-view frame or the
-    // selected style changes; the spinner shows over the flat frame until it loads.
-    effect(onCleanup => {
-      const style = this.activeStyle();
-      const group = this.lightboxGroup();
-      const idx = this.effectiveLightboxIndex();
-      const single = this.compareMode() === 'single';
-      const photo = group?.photos[idx];
-      if (!style || !photo || !single) {
-        this.previewLoading.set(false);
-        return;
-      }
-      this.preloadDevelopedPreview(photo.path, style);
-      onCleanup(() => {
-        if (this.previewImg) {
-          this.previewImg.onload = null; this.previewImg.onerror = null; this.previewImg.src = ''; this.previewImg = null;
-        }
-      });
-    });
-    // Prefetch the neighbours' stored thumbnails at once (cheap), and their
-    // renders only after the current frame's own render has loaded.
-    effect(() => {
-      const paths = this.neighbourPaths();
-      const current = this.currentPath();
-      untracked(() => {
-        const keep = current ? [this.frameThumbUrl(current, STORED_EDGE)] : [];
-        this.neighbourThumbs = this.prefetch(paths.map(p => this.frameThumbUrl(p, STORED_EDGE)), this.neighbourThumbs, undefined, keep);
-      });
-    });
-    effect(() => {
-      const paths = this.neighbourPaths();
-      const current = this.currentPath();
-      const sharp = this.sharpPath() === current;
-      untracked(() => {
-        const urls = sharp ? paths.map(p => this.frameThumbUrl(p, DARKROOM_THUMB_SIZE)) : [];
-        // Keep already-started current/neighbor renders while revalidating a
-        // revisit; only a fresh success may start additional neighbor work.
-        const keep = [current, ...paths].filter((path): path is string => !!path)
-          .map(path => this.frameThumbUrl(path, DARKROOM_THUMB_SIZE));
-        this.neighbourRenders = this.prefetch(urls, this.neighbourRenders, url => this.loadedRenders.add(url), keep);
-      });
-    });
-    // Rebuild the peaking edge map when the toggle, the displayed frames or the
-    // pane's source resolution change. Panning never lands here: the transform
-    // moves the existing overlay, and the hi-res flag is a computed boolean, so
-    // a pan at a fixed scale notifies nothing.
-    effect(() => {
-      const active = this.peakingActive();
-      const paths = this.darkroomFramePaths();
-      const hiRes = this.darkroomHiRes();
-      // In plain single view wait for the render attempt. On failure, measure
-      // the stored thumbnail that the pane continues displaying. Compare mode and
-      // a darktable style keep their own timing.
-      // Read outside untracked so a compare pane's failure or recovery rebuilds the pool.
-      const failed = this.failedRenderPaths();
-      const awaitingSharp = this.compareMode() === 'single' && !this.activeStyle()
-        && this.sharpPath() !== paths[0] && !failed.has(paths[0]);
-      untracked(() => {
-        if (active && paths.length > 0 && awaitingSharp) {
-          // Hide, but keep the edge maps of frames already seen: stepping back to
-          // one is then served from the cache instead of re-convolved.
-          this.peakingRun.cancel();
-          if (this.peakingOverlays().size > 0) this.peakingOverlays.set(NO_PEAKING_OVERLAYS);
-          return;
-        }
-        if (!active || paths.length === 0) {
-          this.clearPeaking();
-          return;
-        }
-        void this.refreshPeaking(paths, hiRes);
-      });
-    });
-    // Measure the frames the composition grid is about to cover, so its viewBox
-    // letterboxes onto the image exactly like the pane's object-contain does.
-    // Debounced like the panes' own render requests: measuring fetches the same
-    // 1920 render, which a held arrow key must not queue per frame.
-    effect(onCleanup => {
-      if (!this.gridMode()) return;
-      const paths = this.darkroomFramePaths();
-      const timer = setTimeout(() => {
-        for (const path of paths) void this.ensureFrameSize(path);
-      }, SHARP_PRELOAD_DEBOUNCE_MS);
-      onCleanup(() => clearTimeout(timer));
-    });
+    this.renditions.connect();
   }
 
-  /** Preload the developed JPEG for a frame; swap it in on load, revert on error. */
-  private preloadDevelopedPreview(path: string, style: string): void {
-    this.previewLoading.set(true);
-    const url = this.developedPreviewUrl();
-    const epoch = this.pageEpoch;
-    if (this.previewImg) {
-      this.previewImg.onload = null;
-      this.previewImg.onerror = null;
-    }
-    const img = new Image();
-    this.previewImg = img;
-    const isStale = () =>
-      !this.pageAlive || this.pageNavigating || this.destroyRef.destroyed || epoch !== this.pageEpoch
-      || this.auth.identity() !== this.pageOwner || !this.auth.isEdition() || this.compareMode() !== 'single'
-      || path !== this.lightboxGroup()?.photos[this.effectiveLightboxIndex()]?.path
-      || style !== this.activeStyle() || url !== this.developedPreviewUrl();
-    img.onload = () => {
-      if (isStale()) return;
-      this.previewLoading.set(false);
-      this.developedFailure.set(null);
-    };
-    img.onerror = () => {
-      if (isStale()) return;
-      this.previewLoading.set(false);
-      this.developedFailure.set({ path, style });
-      this.activeStyle.set('');
-      this.snackBar.open(this.i18n.t(I18N.culling.cull_style.error), '', { duration: 2000, horizontalPosition: 'right', verticalPosition: 'bottom' });
-    };
-    img.src = url;
-  }
-
-  /** Pick a darktable style for the darkroom preview ('' = flat Original). */
-  protected selectCullStyle(style: string): void {
-    this.developedFailure.set(null);
-    this.activeStyle.set(style);
-  }
 
   ngOnDestroy(): void {
     this.pageAlive = false; this.pageEpoch++; this.secondaryEditor?.close();
@@ -2784,8 +2390,7 @@ export class BurstCullingComponent implements OnDestroy {
     this.coarsePointer.cleanup();
     this.cull.clearAllPassTimers();
     this.stopDetectionPolling();
-    this.abortPrefetch(this.neighbourThumbs);
-    this.abortPrefetch(this.neighbourRenders);
+    this.renditions.dispose();
     if (document.fullscreenElement) {
       void document.exitFullscreen().catch(() => {});
     }
@@ -3063,10 +2668,9 @@ export class BurstCullingComponent implements OnDestroy {
 
   protected openLightbox(group: CullingGroup, index: number): void {
     this.comparisonPaths.set([]); this.comparisonSlotIndex.set(0);
-    this.displayedRenditions.set(new Map());
-    this.developedFailure.set(null);
+    this.renditions.resetEvidence();
     this.paneFrames.set(new Map()); // never inherit another group's framing
-    this.activeStyle.set('');  // each darkroom session starts on the flat Original
+    this.renditions.selectCullStyle('');  // each darkroom session starts on the flat Original
     this.lightboxGroupId.set(this.cull.groupKey(group));
     this.lightboxIndex.set(index);
     const gi = this.visibleGroups().findIndex(g => this.cull.groupKey(g) === this.cull.groupKey(group));
@@ -3129,8 +2733,7 @@ export class BurstCullingComponent implements OnDestroy {
   }
 
   protected closeLightbox(): void {
-    this.displayedRenditions.set(new Map());
-    this.developedFailure.set(null);
+    this.renditions.resetEvidence();
     if (document.fullscreenElement) {
       void document.exitFullscreen().catch(() => {});
     }

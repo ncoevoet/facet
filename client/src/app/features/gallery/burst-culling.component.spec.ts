@@ -1812,17 +1812,17 @@ describe('BurstCullingComponent', () => {
     it('selecting a style updates the active style that drives the preview src swap', () => {
       component = build({ cull_styles: styles });
       store = component['cull'];
-      expect(component['activeStyle']()).toBe('');
-      component['selectCullStyle']('velvia');
-      expect(component['activeStyle']()).toBe('velvia');
+      expect(component.renditions['activeStyle']()).toBe('');
+      component.renditions['selectCullStyle']('velvia');
+      expect(component.renditions['activeStyle']()).toBe('velvia');
     });
 
     it('selecting Original clears the active style back to the flat frame', () => {
       component = build({ cull_styles: styles });
       store = component['cull'];
-      component['selectCullStyle']('velvia');
-      component['selectCullStyle']('');
-      expect(component['activeStyle']()).toBe('');
+      component.renditions['selectCullStyle']('velvia');
+      component.renditions['selectCullStyle']('');
+      expect(component.renditions['activeStyle']()).toBe('');
     });
   });
 
@@ -1839,60 +1839,60 @@ describe('BurstCullingComponent', () => {
       store.groups.set([grp]);
       component['lightboxGroupId'].set(store.groupKey(grp));
       component['lightboxIndex'].set(idx);
-      component['activeStyle'].set(style);
+      component.renditions['activeStyle'].set(style);
     };
 
     it('detaches the previous in-flight image handlers before spawning a new one', () => {
       focus(0, 'velvia');
-      (component as any).preloadDevelopedPreview('/photo1.jpg', 'velvia');
-      const first = component['previewImg']!;
+      (component.renditions as any).preloadDevelopedPreview('/photo1.jpg', 'velvia');
+      const first = component.renditions['previewImg']!;
       expect(first).toBeTruthy();
 
-      (component as any).preloadDevelopedPreview('/photo1.jpg', 'velvia');
+      (component.renditions as any).preloadDevelopedPreview('/photo1.jpg', 'velvia');
 
       expect(first.onload).toBeNull();
       expect(first.onerror).toBeNull();
-      expect(component['previewImg']).not.toBe(first);
+      expect(component.renditions['previewImg']).not.toBe(first);
     });
 
     it('onerror reverts the style and toasts for the frame still shown', () => {
       focus(0, 'velvia');
-      (component as any).preloadDevelopedPreview('/photo1.jpg', 'velvia');
+      (component.renditions as any).preloadDevelopedPreview('/photo1.jpg', 'velvia');
       mockSnackBar.open.mockClear();
 
-      component['previewImg']!.onerror!(new Event('error'));
+      component.renditions['previewImg']!.onerror!(new Event('error'));
 
-      expect(component['activeStyle']()).toBe('');
-      expect(component['previewLoading']()).toBe(false);
+      expect(component.renditions['activeStyle']()).toBe('');
+      expect(component.renditions['previewLoading']()).toBe(false);
       expect(mockSnackBar.open).toHaveBeenCalled();
-      expect(component['developedFailure']()).toEqual({ path: '/photo1.jpg', style: 'velvia' });
-      component['retryDarkroomPane']({ retry: vi.fn(), frameKey: () => '/photo1.jpg' } as unknown as SyncedZoomComponent);
-      expect(component['activeStyle']()).toBe('velvia');
-      expect(component['developedFailure']()).toBeNull();
-      expect(component['developedPreviewUrl']()).toContain('facet_retry=');
+      expect(component.renditions['developedFailure']()).toEqual({ path: '/photo1.jpg', style: 'velvia' });
+      component.renditions['retryDarkroomPane']({ retry: vi.fn(), frameKey: () => '/photo1.jpg' } as unknown as SyncedZoomComponent);
+      expect(component.renditions['activeStyle']()).toBe('velvia');
+      expect(component.renditions['developedFailure']()).toBeNull();
+      expect(component.renditions['developedPreviewUrl']()).toContain('facet_retry=');
     });
 
     it('a stale onerror (user navigated away) neither reverts the style nor toasts', () => {
       focus(0, 'velvia');
-      (component as any).preloadDevelopedPreview('/photo1.jpg', 'velvia');
+      (component.renditions as any).preloadDevelopedPreview('/photo1.jpg', 'velvia');
       component['lightboxIndex'].set(1);
       mockSnackBar.open.mockClear();
 
-      component['previewImg']!.onerror!(new Event('error'));
+      component.renditions['previewImg']!.onerror!(new Event('error'));
 
-      expect(component['activeStyle']()).toBe('velvia');
+      expect(component.renditions['activeStyle']()).toBe('velvia');
       expect(mockSnackBar.open).not.toHaveBeenCalled();
     });
 
     it('a stale onload (style changed under it) does not clear the spinner', () => {
       focus(0, 'velvia');
-      (component as any).preloadDevelopedPreview('/photo1.jpg', 'velvia');
-      component['activeStyle'].set('portra');
-      component['previewLoading'].set(true);
+      (component.renditions as any).preloadDevelopedPreview('/photo1.jpg', 'velvia');
+      component.renditions['activeStyle'].set('portra');
+      component.renditions['previewLoading'].set(true);
 
-      component['previewImg']!.onload!(new Event('load'));
+      component.renditions['previewImg']!.onload!(new Event('load'));
 
-      expect(component['previewLoading']()).toBe(true);
+      expect(component.renditions['previewLoading']()).toBe(true);
     });
   });
 
@@ -1900,13 +1900,13 @@ describe('BurstCullingComponent', () => {
     await store.loadGroups();
     component['openLightbox'](store.groups()[0], 0);
     const selections = store.selectionsMap();
-    component['onDisplayedRendition']({ kind: 'source', phase: 'ready', width: 600, height: 400 }, '/photo1.jpg', '');
-    expect(component['displayedRenditions']().get('/photo1.jpg')?.width).toBe(600);
-    component['onDisplayedRendition']({ kind: 'source', phase: 'failed' }, '/not-visible.jpg', '');
-    expect(component['displayedRenditions']().has('/not-visible.jpg')).toBe(false);
+    component.renditions['onDisplayedRendition']({ kind: 'source', phase: 'ready', width: 600, height: 400 }, '/photo1.jpg', '');
+    expect(component.renditions['displayedRenditions']().get('/photo1.jpg')?.width).toBe(600);
+    component.renditions['onDisplayedRendition']({ kind: 'source', phase: 'failed' }, '/not-visible.jpg', '');
+    expect(component.renditions['displayedRenditions']().has('/not-visible.jpg')).toBe(false);
     component['pageNavigating'] = true;
-    component['onDisplayedRendition']({ kind: 'source', phase: 'failed' }, '/photo1.jpg', '');
-    expect(component['displayedRenditions']().get('/photo1.jpg')?.phase).toBe('ready');
+    component.renditions['onDisplayedRendition']({ kind: 'source', phase: 'failed' }, '/photo1.jpg', '');
+    expect(component.renditions['displayedRenditions']().get('/photo1.jpg')?.phase).toBe('ready');
     expect(store.selectionsMap()).toEqual(selections);
   });
 
@@ -2917,7 +2917,7 @@ describe('BurstCullingComponent', () => {
     /** The single pane reports its render as loaded, which peaking waits for. */
     const markSharp = () => {
       const photo = component['lightboxGroup']()?.photos[component['lightboxIndex']()];
-      if (photo) component['sharpPath'].set(photo.path);
+      if (photo) component.renditions['sharpPath'].set(photo.path);
     };
     /** Run the overlay effects and let their async raster work settle. */
     const settle = async () => {
@@ -2931,9 +2931,9 @@ describe('BurstCullingComponent', () => {
       renderPeaking = vi.fn((src: string) => Promise.resolve(`overlay:${src}`));
       renderPooledPeaking = vi.fn((srcs: string[]) =>
         Promise.resolve(new Map(srcs.map(src => [src, `pooled:${src}`]))));
-      vi.spyOn(component as any, 'renderPeaking').mockImplementation(renderPeaking as never);
-      vi.spyOn(component as any, 'renderPooledPeaking').mockImplementation(renderPooledPeaking as never);
-      vi.spyOn(component as any, 'measureFrame').mockResolvedValue({ w: 6000, h: 4000 });
+      vi.spyOn(component.renditions as any, 'renderPeaking').mockImplementation(renderPeaking as never);
+      vi.spyOn(component.renditions as any, 'renderPooledPeaking').mockImplementation(renderPooledPeaking as never);
+      vi.spyOn(component.renditions as any, 'measureFrame').mockResolvedValue({ w: 6000, h: 4000 });
     });
 
     it('builds an overlay for the displayed frame once peaking is on', async () => {
@@ -2942,8 +2942,8 @@ describe('BurstCullingComponent', () => {
 
       await settle();
 
-      expect(component['peakingOverlays']().get('/f1.jpg')).toContain('size=1920');
-      expect(component['peakingOverlays']().size).toBe(1);
+      expect(component.renditions['peakingOverlays']().get('/f1.jpg')).toContain('size=1920');
+      expect(component.renditions['peakingOverlays']().size).toBe(1);
     });
 
     it('measures fit view at the tuned field and the full-resolution swap at full size', async () => {
@@ -2972,7 +2972,7 @@ describe('BurstCullingComponent', () => {
       component['lightboxIndex'].set(1);
       TestBed.tick();
       await flush();
-      expect(component['peakingOverlays']().size).toBe(0);
+      expect(component.renditions['peakingOverlays']().size).toBe(0);
       await settle();
       expect(renderPeaking).toHaveBeenCalledTimes(2);
 
@@ -2980,11 +2980,11 @@ describe('BurstCullingComponent', () => {
       component['lightboxIndex'].set(0);
       TestBed.tick();
       await flush();
-      expect(component['peakingOverlays']().size).toBe(0);
+      expect(component.renditions['peakingOverlays']().size).toBe(0);
       await settle();
 
       expect(renderPeaking).toHaveBeenCalledTimes(2);
-      expect(component['peakingOverlays']().get('/f1.jpg')).toBeDefined();
+      expect(component.renditions['peakingOverlays']().get('/f1.jpg')).toBeDefined();
     });
 
     it('builds nothing while peaking is off', async () => {
@@ -2993,7 +2993,7 @@ describe('BurstCullingComponent', () => {
       await settle();
 
       expect(renderPeaking).not.toHaveBeenCalled();
-      expect(component['peakingOverlays']().size).toBe(0);
+      expect(component.renditions['peakingOverlays']().size).toBe(0);
     });
 
     it('drops the overlays when peaking is switched back off', async () => {
@@ -3004,7 +3004,7 @@ describe('BurstCullingComponent', () => {
       component['peakingActive'].set(false);
       await settle();
 
-      expect(component['peakingOverlays']().size).toBe(0);
+      expect(component.renditions['peakingOverlays']().size).toBe(0);
     });
 
     it('rebuilds for the new frame when the photo changes', async () => {
@@ -3015,8 +3015,8 @@ describe('BurstCullingComponent', () => {
       component['lightboxIndex'].set(1);
       await settle();
 
-      expect(component['peakingOverlays']().has('/f2.jpg')).toBe(true);
-      expect(component['peakingOverlays']().has('/f1.jpg')).toBe(false);
+      expect(component.renditions['peakingOverlays']().has('/f2.jpg')).toBe(true);
+      expect(component.renditions['peakingOverlays']().has('/f1.jpg')).toBe(false);
     });
 
     it('covers every pane in compare mode', async () => {
@@ -3026,7 +3026,7 @@ describe('BurstCullingComponent', () => {
 
       await settle();
 
-      expect([...component['peakingOverlays']().keys()]).toEqual(['/f1.jpg', '/f2.jpg']);
+      expect([...component.renditions['peakingOverlays']().keys()]).toEqual(['/f1.jpg', '/f2.jpg']);
     });
 
     // Side by side, the frames are read against each other, so one threshold has
@@ -3041,7 +3041,7 @@ describe('BurstCullingComponent', () => {
       expect(renderPeaking).not.toHaveBeenCalled();
       expect(renderPooledPeaking).toHaveBeenCalledTimes(1);
       expect(renderPooledPeaking.mock.calls[0][0]).toHaveLength(2);
-      expect(component['peakingOverlays']().get('/f1.jpg')).toContain('pooled:');
+      expect(component.renditions['peakingOverlays']().get('/f1.jpg')).toContain('pooled:');
     });
 
     // Stepping the focus inside a pair shows the very same two frames, so the
@@ -3056,7 +3056,7 @@ describe('BurstCullingComponent', () => {
       await settle();
 
       expect(renderPooledPeaking).toHaveBeenCalledTimes(1);
-      expect(component['peakingOverlays']().size).toBe(2);
+      expect(component.renditions['peakingOverlays']().size).toBe(2);
     });
 
     // A pooled overlay is only the answer for the set it was pooled over: the
@@ -3089,7 +3089,7 @@ describe('BurstCullingComponent', () => {
       component['closeLightbox']();
       await settle();
 
-      expect(component['peakingOverlays']().size).toBe(0);
+      expect(component.renditions['peakingOverlays']().size).toBe(0);
     });
 
     // The overlay rides the image's transform, so a pan must cost nothing; only
@@ -3128,7 +3128,7 @@ describe('BurstCullingComponent', () => {
       }
 
       expect(renderPeaking).toHaveBeenCalledTimes(12);
-      expect(component['peakingCache'].size).toBe(8);
+      expect(component.renditions['peakingCache'].size).toBe(8);
     });
 
     // A pass is one await away from publishing; the toggle that switched peaking
@@ -3140,14 +3140,14 @@ describe('BurstCullingComponent', () => {
       component['peakingActive'].set(true);
       await settle();
       expect(renderPeaking).toHaveBeenCalledTimes(1);
-      expect(component['peakingOverlays']().size).toBe(0);
+      expect(component.renditions['peakingOverlays']().size).toBe(0);
 
       component['peakingActive'].set(false);
       await settle();
       land('data:image/png;base64,late');
       await settle();
 
-      expect(component['peakingOverlays']().size).toBe(0);
+      expect(component.renditions['peakingOverlays']().size).toBe(0);
     });
 
     // Same guard, the other way the frames leave the screen.
@@ -3163,7 +3163,7 @@ describe('BurstCullingComponent', () => {
       land('data:image/png;base64,late');
       await settle();
 
-      expect(component['peakingOverlays']().size).toBe(0);
+      expect(component.renditions['peakingOverlays']().size).toBe(0);
     });
 
     it('cycles the grid off → thirds → golden → off', () => {
@@ -3183,7 +3183,7 @@ describe('BurstCullingComponent', () => {
       await settle();
       await new Promise(resolve => setTimeout(resolve, SHARP_PRELOAD_DEBOUNCE_MS + 50));
 
-      expect(component['frameSizes']().get('/f1.jpg')).toEqual({ w: 6000, h: 4000 });
+      expect(component.renditions['frameSizes']().get('/f1.jpg')).toEqual({ w: 6000, h: 4000 });
     });
 
     // The signal-level tests above cannot see whether the overlays are actually
@@ -3197,8 +3197,8 @@ describe('BurstCullingComponent', () => {
       // Let this instance's own initial load land before seeding the darkroom,
       // or it would replace the seeded group and close it again.
       await flush();
-      vi.spyOn(rendered as any, 'renderPeaking').mockResolvedValue('data:image/png;base64,x');
-      vi.spyOn(rendered as any, 'measureFrame').mockResolvedValue({ w: 6000, h: 4000 });
+      vi.spyOn(rendered.renditions as any, 'renderPeaking').mockResolvedValue('data:image/png;base64,x');
+      vi.spyOn(rendered.renditions as any, 'measureFrame').mockResolvedValue({ w: 6000, h: 4000 });
       const renderedStore: CullingStore = rendered['cull'];
       renderedStore.groups.set([grp]);
       rendered['lightboxGroupId'].set(renderedStore.groupKey(grp));
@@ -4568,7 +4568,7 @@ describe('BurstCullingComponent progressive darkroom frames (rendered)', () => {
     expect(srcs()).toEqual(expect.arrayContaining([thumb('/p0.jpg'), thumb('/p2.jpg')]));
     expect(srcs()).not.toContain(render('/p0.jpg'));
 
-    component['onSharpLoaded'](render('/p1.jpg'));
+    component.renditions['onSharpLoaded'](render('/p1.jpg'));
     fixture.detectChanges();
 
     expect(srcs()).toEqual(expect.arrayContaining([render('/p0.jpg'), render('/p2.jpg')]));
@@ -4596,28 +4596,28 @@ describe('BurstCullingComponent progressive darkroom frames (rendered)', () => {
     }
     FakeImage.instances = [];
     // The render of frame 1 reports in after the user is already on frame 2.
-    component['onSharpLoaded'](render('/p1.jpg'));
+    component.renditions['onSharpLoaded'](render('/p1.jpg'));
     fixture.detectChanges();
     expect(srcs().filter(u => u.includes('size=1920'))).toEqual([]);
   });
 
   it('prefetches one neighbour at either end of the group', () => {
     open(0);
-    component['onSharpLoaded'](render('/p0.jpg'));
+    component.renditions['onSharpLoaded'](render('/p0.jpg'));
     fixture.detectChanges();
     expect(srcs().filter(u => u.includes('size=1920'))).toEqual([render('/p1.jpg')]);
 
     // The same neighbor is still wanted at the other end; reuse its request.
     component['lightboxIndex'].set(2);
     fixture.detectChanges();
-    component['onSharpLoaded'](render('/p2.jpg'));
+    component.renditions['onSharpLoaded'](render('/p2.jpg'));
     fixture.detectChanges();
     expect(srcs().filter(u => u.includes('size=1920'))).toEqual([render('/p1.jpg')]);
   });
 
   it('keeps the in-flight render of the frame stepped onto and aborts the one left behind', () => {
     open(1);
-    component['onSharpLoaded'](render('/p1.jpg'));
+    component.renditions['onSharpLoaded'](render('/p1.jpg'));
     fixture.detectChanges();
     const farSide = FakeImage.instances.find(i => i.src === render('/p0.jpg'))!;
     const stepTarget = FakeImage.instances.find(i => i.src === render('/p2.jpg'))!;
@@ -4637,7 +4637,7 @@ describe('BurstCullingComponent progressive darkroom frames (rendered)', () => {
 
   it('does not create a second image for a render still in flight when stepping back', () => {
     open(1);
-    component['onSharpLoaded'](render('/p1.jpg'));
+    component.renditions['onSharpLoaded'](render('/p1.jpg'));
     fixture.detectChanges();
     const p2Render = FakeImage.instances.find(i => i.src === render('/p2.jpg'))!;
     component['lightboxIndex'].set(2);
@@ -4664,11 +4664,11 @@ describe('BurstCullingComponent progressive darkroom frames (rendered)', () => {
 
   it('does not restart the neighbour fetches when a new group object has the same neighbours', () => {
     open(1);
-    component['onSharpLoaded'](render('/p1.jpg'));
+    component.renditions['onSharpLoaded'](render('/p1.jpg'));
     fixture.detectChanges();
     const before = [...FakeImage.instances];
     // A re-run of either prefetch effect goes through prefetch().
-    const prefetch = vi.spyOn(component as any, 'prefetch');
+    const prefetch = vi.spyOn(component.renditions as any, 'prefetch');
 
     component['cull'].groups.set([{ ...group, photos: [...group.photos] }]);
     fixture.detectChanges();
@@ -4680,17 +4680,17 @@ describe('BurstCullingComponent progressive darkroom frames (rendered)', () => {
 
   it('records a neighbour render it has fetched so the pane can skip its debounce', () => {
     open(1);
-    component['onSharpLoaded'](render('/p1.jpg'));
+    component.renditions['onSharpLoaded'](render('/p1.jpg'));
     fixture.detectChanges();
     const neighbour = FakeImage.instances.find(i => i.src === render('/p2.jpg'))!;
     neighbour.onload!();
-    expect((component['loadedRenders'] as LoadedSources).has(render('/p2.jpg'))).toBe(true);
+    expect((component.renditions['loadedRenders'] as LoadedSources).has(render('/p2.jpg'))).toBe(true);
   });
 
   it('prefetches no neighbours and shows no placeholder while a darktable style is active', () => {
-    component['activeStyle'].set('portra');
+    component.renditions['activeStyle'].set('portra');
     open(1);
-    component['onSharpLoaded'](render('/p1.jpg'));
+    component.renditions['onSharpLoaded'](render('/p1.jpg'));
     fixture.detectChanges();
 
     expect(pane().placeholderSrc()).toBeNull();
@@ -4700,7 +4700,7 @@ describe('BurstCullingComponent progressive darkroom frames (rendered)', () => {
   it('prefetches no neighbours when the browser asks to save data', () => {
     Object.defineProperty(navigator, 'connection', { value: { saveData: true }, configurable: true });
     open(1);
-    component['onSharpLoaded'](render('/p1.jpg'));
+    component.renditions['onSharpLoaded'](render('/p1.jpg'));
     fixture.detectChanges();
 
     expect(srcs().filter(u => u.includes('path=%2Fp0.jpg') || u.includes('path=%2Fp2.jpg'))).toEqual([]);
@@ -4723,21 +4723,21 @@ describe('BurstCullingComponent progressive darkroom frames (rendered)', () => {
       naturalWidth = 640;
     }
     vi.stubGlobal('Image', WarmImage);
-    component['loadedRenders'].add(render('/p0.jpg'));
+    component.renditions['loadedRenders'].add(render('/p0.jpg'));
     open(0);
-    expect(component['sharpPath']()).toBe('/p0.jpg');
+    expect(component.renditions['sharpPath']()).toBe('/p0.jpg');
     open(1);
     open(0);
-    expect(component['sharpPath']()).toBe('/p0.jpg');
-    expect(component['failedRenderPaths']().size).toBe(0);
+    expect(component.renditions['sharpPath']()).toBe('/p0.jpg');
+    expect(component.renditions['failedRenderPaths']().size).toBe(0);
   });
 
   it.each(['loaded', 'failed'])('clears %s readiness when returning to a frame whose new render attempt is pending', async state => {
-    const renderPeaking = vi.spyOn(component as any, 'renderPeaking').mockResolvedValue('overlay');
+    const renderPeaking = vi.spyOn(component.renditions as any, 'renderPeaking').mockResolvedValue('overlay');
     open(0);
     if (state === 'loaded') {
       pane().sharpLoaded.emit(render('/p0.jpg'));
-      component['loadedRenders'].add(render('/p0.jpg'));
+      component.renditions['loadedRenders'].add(render('/p0.jpg'));
     } else {
       pane().sharpFailed.emit(render('/p0.jpg'));
     }
@@ -4747,19 +4747,19 @@ describe('BurstCullingComponent progressive darkroom frames (rendered)', () => {
     component['peakingActive'].set(true);
     fixture.detectChanges();
     await new Promise(resolve => setTimeout(resolve, 0));
-    expect(component['sharpPath']()).toBeNull();
-    expect(component['failedRenderPaths']().size).toBe(0);
+    expect(component.renditions['sharpPath']()).toBeNull();
+    expect(component.renditions['failedRenderPaths']().size).toBe(0);
     expect(renderPeaking).not.toHaveBeenCalled();
     // Positive control: the new attempt's own success does restore readiness and peaking.
     pane().sharpLoaded.emit(render('/p0.jpg'));
     fixture.detectChanges();
     await new Promise(resolve => setTimeout(resolve, 0));
-    expect(component['sharpPath']()).toBe('/p0.jpg');
+    expect(component.renditions['sharpPath']()).toBe('/p0.jpg');
     expect(renderPeaking).toHaveBeenCalled();
   });
 
   it('uses the visible stored thumbnail for peaking when the current render fails', async () => {
-    const renderPeaking = vi.spyOn(component as any, 'renderPeaking').mockResolvedValue('overlay');
+    const renderPeaking = vi.spyOn(component.renditions as any, 'renderPeaking').mockResolvedValue('overlay');
     open(1);
     component['peakingActive'].set(true);
     fixture.detectChanges();
@@ -4768,12 +4768,12 @@ describe('BurstCullingComponent progressive darkroom frames (rendered)', () => {
     fixture.detectChanges();
     await new Promise(resolve => setTimeout(resolve, 0));
     expect(renderPeaking).toHaveBeenCalledWith(thumb('/p1.jpg'), expect.any(Number));
-    expect(component['sharpPath']()).toBeNull();
+    expect(component.renditions['sharpPath']()).toBeNull();
     expect(srcs().filter(u => u === render('/p0.jpg') || u === render('/p2.jpg'))).toEqual([]);
   });
 
   it('uses each compare pane’s current render attempt after a single-view failure', async () => {
-    const pooled = vi.spyOn(component, 'renderPooledPeaking').mockImplementation(async (...args: unknown[]) =>
+    const pooled = vi.spyOn(component.renditions, 'renderPooledPeaking').mockImplementation(async (...args: unknown[]) =>
       new Map((args[0] as string[]).map(src => [src, `overlay:${src}`])));
     open(1);
     pane().sharpFailed.emit(render('/p1.jpg'));
@@ -4790,17 +4790,17 @@ describe('BurstCullingComponent progressive darkroom frames (rendered)', () => {
     fixture.detectChanges();
     await fixture.whenStable();
     expect(pooled).toHaveBeenLastCalledWith([render('/p1.jpg'), thumb('/p2.jpg')], expect.any(Number));
-    expect(component['peakingOverlays']().get('/p2.jpg')).toBe(`overlay:${thumb('/p2.jpg')}`);
+    expect(component.renditions['peakingOverlays']().get('/p2.jpg')).toBe(`overlay:${thumb('/p2.jpg')}`);
 
     // Obsolete/wrong-source events and an unchanged success must leave the pool alone.
     const calls = pooled.mock.calls.length;
-    component['onSharpFailed'](render('/p0.jpg'), '/p0.jpg');
+    component.renditions['onSharpFailed'](render('/p0.jpg'), '/p0.jpg');
     panes[1].sharpLoaded.emit(thumb('/p2.jpg'));
     panes[0].sharpLoaded.emit(render('/p1.jpg'));
     fixture.detectChanges();
     await fixture.whenStable();
     expect(pooled).toHaveBeenCalledTimes(calls);
-    expect([...component['failedRenderPaths']()]).toEqual(['/p2.jpg']);
+    expect([...component.renditions['failedRenderPaths']()]).toEqual(['/p2.jpg']);
 
     component['setCompareMode']('4up');
     fixture.detectChanges();
@@ -4830,14 +4830,14 @@ describe('BurstCullingComponent progressive darkroom frames (rendered)', () => {
   });
 
   it('waits for the sharp render before building the peaking overlay in single view', async () => {
-    const renderPeaking = vi.spyOn(component as any, 'renderPeaking').mockResolvedValue('overlay');
+    const renderPeaking = vi.spyOn(component.renditions as any, 'renderPeaking').mockResolvedValue('overlay');
     open(1);
     component['peakingActive'].set(true);
     fixture.detectChanges();
     await new Promise(resolve => setTimeout(resolve, 0));
     expect(renderPeaking).not.toHaveBeenCalled();
 
-    component['onSharpLoaded'](render('/p1.jpg'));
+    component.renditions['onSharpLoaded'](render('/p1.jpg'));
     fixture.detectChanges();
     await new Promise(resolve => setTimeout(resolve, 0));
     expect(renderPeaking).toHaveBeenCalledTimes(1);
