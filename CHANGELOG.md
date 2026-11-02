@@ -8,6 +8,7 @@ All notable changes to Facet are documented in this file.
 
 - Multi-pass scans print seconds per model, a `Stages` block with a `busy / wait / occupancy` line for the scan thread and for each decode-pool stage (worker-seconds) plus the time no timer covers, and a completed `facet.py` scan logs `Post-scan <step>` lines and a `Process wall:` line splitting startup, scoring and post-scan. Measurement only.
 - Stack explicit unstacked selections in selection order with Cmd+Shift+S or Ctrl+Shift+S, using the first selected photo as cover. Existing stack members open the editor for review, and Undo restores the selection the stack cleared.
+- **The docked side panel gains a Why This Score? entry** pinned at its bottom edge, opening the score explainer (the critique dialog) for the photo the panel holds, without hunting for the card's hover bar.
 
 ### Changed
 
