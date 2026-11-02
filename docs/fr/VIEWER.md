@@ -328,7 +328,7 @@ Cliquez sur des photos pour les sélectionner ; Maj+clic sélectionne une plage
 - **Trier vers un dossier** — copie les gardées, ou déplace/met à la corbeille les rejetées, vers un dossier (voir [Trier vers un dossier](#trier-vers-un-dossier))
 - **Supprimer** — envoie les photos à la corbeille du système (voir [Supprimer](#supprimer)). Affiché seulement quand `viewer.cull.allow_trash` est activé. Désactivé pour une sélection « tout sélectionner dans la vue » : sélectionnez les photos explicitement.
 - **Télécharger** — télécharge les photos sélectionnées
-- Effacez la sélection avec Échap ou le bouton Effacer. Modifier les filtres, la recherche ou l’album l’efface aussi, avec un avis, afin qu’aucune sélection masquée ne reste la cible d’une action. Changer uniquement le tri la conserve.
+- Effacez la sélection avec Échap ou le bouton Effacer. Modifier les filtres, la recherche ou l’album l’efface aussi, avec un avis, afin qu’aucune sélection masquée ne reste la cible d’une action. Changer uniquement le tri la conserve. Faites glisser la poignée à gauche de la barre de sélection, ou donnez-lui le focus et utilisez les flèches (Maj pour de plus grands pas, Début pour réinitialiser), pour écarter la barre des photos sur lesquelles vous travaillez ; Échap annule un glissement. La position de chaque compte est mémorisée dans ce navigateur.
 
 Double-cliquez sur une photo pour l'ouvrir.
 

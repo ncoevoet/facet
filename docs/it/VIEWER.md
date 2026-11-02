@@ -328,7 +328,7 @@ Clicca le foto per selezionarle; Maiusc+clic seleziona un intervallo. In basso a
 - **Scarta in cartella** — copia le foto conservate, o sposta/cestina quelle scartate, in una cartella (vedi [Scarta in cartella](#scarta-in-cartella))
 - **Elimina** — invia le foto al cestino del sistema (vedi [Elimina](#elimina)). Mostrato solo quando `viewer.cull.allow_trash` è attivo. Disattivato per una selezione "seleziona tutta la vista": seleziona le foto esplicitamente.
 - **Scarica** — scarica le foto selezionate
-- Cancella la selezione con Esc o il pulsante Cancella. Anche cambiare filtri, ricerca o album la cancella, con un avviso, così nessuna selezione nascosta resta il bersaglio di un’azione. Cambiare solo l’ordinamento la mantiene.
+- Cancella la selezione con Esc o il pulsante Cancella. Anche cambiare filtri, ricerca o album la cancella, con un avviso, così nessuna selezione nascosta resta il bersaglio di un’azione. Cambiare solo l’ordinamento la mantiene. Trascina la maniglia a sinistra della barra di selezione, oppure dai il focus e usa le frecce (Maiusc per passi più ampi, Home per reimpostare), per spostare la barra dalle foto su cui lavori; Esc annulla il trascinamento. La posizione di ogni account viene ricordata in questo browser.
 
 Doppio clic su una foto per aprirla.
 

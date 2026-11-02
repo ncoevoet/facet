@@ -1177,6 +1177,8 @@ export const I18N = {
     selection: {
       count: "gallery.selection.count",
       cleared_by_view: "gallery.selection.cleared_by_view",
+      move_bar: "gallery.selection.move_bar",
+      move_bar_help: "gallery.selection.move_bar_help",
       clear: "gallery.selection.clear",
       copy_filenames: "gallery.selection.copy_filenames",
       copy_filename: "gallery.selection.copy_filename",

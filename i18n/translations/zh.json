@@ -1163,6 +1163,8 @@
     "selection": {
       "count": "已选 {count} 张",
       "cleared_by_view": "视图已更改，已清除选择。",
+      "move_bar": "移动选择工具栏",
+      "move_bar_help": "拖动此手柄或使用方向键移动工具栏。按住 Shift 可加大步长，Home 键恢复位置，Esc 取消拖动。",
       "clear": "清除",
       "copy_filenames": "复制文件名",
       "copy_filename": "复制文件名",

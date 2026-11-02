@@ -328,7 +328,7 @@ Clique nas fotos para selecionar; Shift+Clique seleciona um intervalo. Uma barra
 - **Selecionar para pasta** — copia as mantidas, ou move/descarta as rejeitadas, para uma pasta (veja [Selecionar para pasta](#selecionar-para-pasta))
 - **Excluir** — envia as fotos para a lixeira do sistema (veja [Excluir](#excluir)). Aparece só com `viewer.cull.allow_trash` ligado. Desabilitado para uma seleção "toda a visualização": selecione as fotos explicitamente.
 - **Baixar** — baixa as fotos selecionadas
-- Limpe a seleção com Escape ou o botão Limpar. Alterar os filtros, a pesquisa ou o álbum também a limpa, com um aviso, para que nenhuma seleção oculta continue a ser o alvo de uma ação. Alterar só a ordenação mantém-na.
+- Limpe a seleção com Escape ou o botão Limpar. Alterar os filtros, a pesquisa ou o álbum também a limpa, com um aviso, para que nenhuma seleção oculta continue a ser o alvo de uma ação. Alterar só a ordenação mantém-na. Arraste a alça à esquerda da barra de seleção, ou foque-a e use as setas (Shift para passos maiores, Home para repor), para afastar a barra das fotos em que está a trabalhar; Escape cancela o arrasto. A posição de cada conta fica memorizada neste navegador.
 
 Dê um duplo clique em uma foto para abri-la.
 

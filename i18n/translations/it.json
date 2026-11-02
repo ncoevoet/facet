@@ -1163,6 +1163,8 @@
     "selection": {
       "count": "{count} selezionati",
       "cleared_by_view": "Selezione cancellata perché la vista è cambiata.",
+      "move_bar": "Sposta la barra di selezione",
+      "move_bar_help": "Trascina questa maniglia o usa le frecce per spostare la barra. Tieni premuto Maiusc per passi più ampi. Home ripristina la posizione. Esc annulla il trascinamento.",
       "clear": "Cancella",
       "copy_filenames": "Copia nomi file",
       "copy_filename": "Copia nome file",

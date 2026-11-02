@@ -1163,6 +1163,8 @@
     "selection": {
       "count": "{count} sélectionné(s)",
       "cleared_by_view": "Sélection effacée : la vue a changé.",
+      "move_bar": "Déplacer la barre de sélection",
+      "move_bar_help": "Faites glisser cette poignée ou utilisez les flèches pour déplacer la barre. Maintenez Maj pour de plus grands pas. Début rétablit sa position. Échap annule un glissement.",
       "clear": "Effacer",
       "copy_filenames": "Copier les noms",
       "copy_filename": "Copier le nom du fichier",

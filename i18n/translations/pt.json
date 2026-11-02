@@ -1163,6 +1163,8 @@
     "selection": {
       "count": "{count} selecionadas",
       "cleared_by_view": "Seleção limpa porque a visualização mudou.",
+      "move_bar": "Mover a barra de seleção",
+      "move_bar_help": "Arraste esta alça ou use as setas para mover a barra. Mantenha Shift para passos maiores. Home repõe a posição. Escape cancela o arrasto.",
       "clear": "Limpar",
       "copy_filenames": "Copiar nomes dos arquivos",
       "copy_filename": "Copiar nome do arquivo",

@@ -328,7 +328,7 @@ Klicken Sie Fotos zum Auswählen an; Umschalt+Klick wählt einen Bereich. Unten 
 - **In Ordner aussortieren** — Behaltene kopieren oder Abgelehnte in einen Ordner verschieben/in den Papierkorb legen (siehe [In Ordner aussortieren](#in-ordner-aussortieren))
 - **Löschen** — Fotos in den Systempapierkorb legen (siehe [Löschen](#löschen)). Nur sichtbar, wenn `viewer.cull.allow_trash` an ist. Deaktiviert bei einer Auswahl „Alle in der Ansicht“: wählen Sie Fotos ausdrücklich aus.
 - **Herunterladen** — Die ausgewählten Fotos herunterladen
-- Heben Sie die Auswahl mit Escape oder der Schaltfläche „Löschen“ auf. Auch das Ändern von Filtern, Suche oder Album hebt sie mit einem Hinweis auf, damit keine verborgene Auswahl das Ziel einer Aktion bleibt. Nur die Sortierung zu ändern behält sie bei.
+- Heben Sie die Auswahl mit Escape oder der Schaltfläche „Löschen“ auf. Auch das Ändern von Filtern, Suche oder Album hebt sie mit einem Hinweis auf, damit keine verborgene Auswahl das Ziel einer Aktion bleibt. Nur die Sortierung zu ändern behält sie bei. Ziehen Sie den Griff links an der Auswahlleiste, oder fokussieren Sie ihn und nutzen Sie die Pfeiltasten (Umschalt für größere Schritte, Pos1 zum Zurücksetzen), um die Leiste von den Fotos wegzuschieben, an denen Sie arbeiten; Escape bricht das Ziehen ab. Die Position wird pro Konto in diesem Browser gemerkt.
 
 Doppelklicken Sie ein Foto, um es zu öffnen.
 

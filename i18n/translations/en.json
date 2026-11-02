@@ -1163,6 +1163,8 @@
     "selection": {
       "count": "{count} selected",
       "cleared_by_view": "Selection cleared because the view changed.",
+      "move_bar": "Move selection toolbar",
+      "move_bar_help": "Drag this handle or use the arrow keys to move the toolbar. Hold Shift for larger steps. Home resets its position. Escape cancels a drag.",
       "clear": "Clear",
       "copy_filenames": "Copy filenames",
       "copy_filename": "Copy filename",

@@ -1,3 +1,4 @@
+import { MovableToolbarDirective, TOOLBAR_POSITION_EVENT } from '../../shared/directives/movable-toolbar.directive';
 import { StackActionsService } from './stack-actions.service';
 import { STACK_EDITOR_HISTORY } from './stack-editor-history';
 import {
@@ -111,6 +112,7 @@ type ReturnTarget = { scroll: number; focus: Element | null } & (
 @Component({
   selector: 'app-gallery',
   imports: [
+    MovableToolbarDirective,
     NgTemplateOutlet,
     MatSidenavModule,
     MatProgressSpinnerModule,
@@ -693,9 +695,16 @@ type ReturnTarget = { scroll: number; focus: Element | null } & (
            running under an open drawer. Hidden while the mobile 'over' drawer is open: the drawer
            container is its own stacking context and a z-20 card would paint over it. -->
       @if (selectionCount() && !overDrawerOpen()) {
-        <div #selectionBar data-selection-bar
+        <div #selectionBar data-selection-bar appMovableToolbar
+             [toolbarBoundary]="selectionToolbarBoundary()" [toolbarRightInset]="noticeRightPx()" [toolbarOwner]="auth.identity()"
              class="absolute bottom-2 md:bottom-4 left-2 md:left-4 z-20 w-fit flex flex-wrap items-center gap-1 px-2 py-1 rounded-2xl bg-[var(--mat-sys-surface-container)] border border-[var(--mat-sys-outline-variant)] shadow-lg max-md:mb-[env(safe-area-inset-bottom)]"
              [style.right.px]="noticeRightPx()">
+          <button mat-icon-button type="button" data-toolbar-drag-handle class="touch-none cursor-grab active:cursor-grabbing shrink-0"
+                  [attr.aria-label]="I18N.gallery.selection.move_bar | translate" aria-describedby="selection-bar-move-help"
+                  [matTooltip]="I18N.gallery.selection.move_bar | translate">
+            <mat-icon>drag_indicator</mat-icon>
+          </button>
+          <span id="selection-bar-move-help" class="sr-only">{{ I18N.gallery.selection.move_bar_help | translate }}</span>
           <!-- Every loaded photo is selected, but the view runs past the pages
                fetched so far. Offer the rest explicitly on its own line (w-full
                in a wrapping row) rather than silently widening what was asked. -->
@@ -947,6 +956,7 @@ export class GalleryComponent implements OnInit, OnDestroy {
   private readonly filterDrawer = viewChild<MatSidenav>('filterDrawer');
   private readonly selectionBar = viewChild<ElementRef<HTMLElement>>('selectionBar');
   private readonly noticeHost = viewChild<ElementRef<HTMLElement>>('noticeHost');
+  protected readonly selectionToolbarBoundary = computed(() => this.noticeHost()?.nativeElement ?? null);
   private readonly destroyRef = inject(DestroyRef);
   private readonly staleness = inject(StalenessGuardFactory);
   private readonly injector = inject(Injector);
@@ -1188,10 +1198,13 @@ export class GalleryComponent implements OnInit, OnDestroy {
       const hostRect = host.getBoundingClientRect();
       const barRect = bar.getBoundingClientRect();
       const notices = host.querySelector('[data-gallery-notices]')?.getBoundingClientRect() ?? null;
-      this.selectionBarReservePx.set(Math.max(112, Math.ceil(hostRect.bottom - barRect.top)));
+      this.selectionBarReservePx.set(Math.max(112, Math.ceil(barRect.height + this.floatMarginPx())));
       this.selectionBarOverlap.set(noticeLiftPx({
         hostBottom: hostRect.bottom,
         barTop: barRect.top,
+        barBottom: barRect.bottom,
+        noticeTop: notices ? hostRect.bottom - this.floatMarginPx() - notices.height : null,
+        noticeBottom: notices ? hostRect.bottom - this.floatMarginPx() : null,
         barLeft: barRect.left - hostRect.left,
         barRight: barRect.right - hostRect.left,
         noticeLeft: notices ? notices.left - hostRect.left : null,
@@ -1200,12 +1213,14 @@ export class GalleryComponent implements OnInit, OnDestroy {
     };
     measure();
     if (noticesShown) afterNextRender(measure, { injector: this.injector });
+    bar.addEventListener(TOOLBAR_POSITION_EVENT, measure);
     const observer = new ResizeObserver(measure);
     observer.observe(bar);
     observer.observe(host);
     if (content) observer.observe(content);
     onCleanup(() => {
       observer.disconnect();
+      bar.removeEventListener(TOOLBAR_POSITION_EVENT, measure);
       this.selectionBarOverlap.set(0);
     });
   });

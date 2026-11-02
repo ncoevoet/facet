@@ -1163,6 +1163,8 @@
     "selection": {
       "count": "{count} ausgewahlt",
       "cleared_by_view": "Auswahl aufgehoben, weil sich die Ansicht geändert hat.",
+      "move_bar": "Auswahlleiste verschieben",
+      "move_bar_help": "Ziehen Sie diesen Griff oder verwenden Sie die Pfeiltasten, um die Leiste zu verschieben. Mit Umschalt sind die Schritte größer. Pos1 setzt die Position zurück. Escape bricht das Ziehen ab.",
       "clear": "Loschen",
       "copy_filenames": "Dateinamen kopieren",
       "copy_filename": "Dateinamen kopieren",
