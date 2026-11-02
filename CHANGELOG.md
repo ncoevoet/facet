@@ -6,6 +6,7 @@ All notable changes to Facet are documented in this file.
 
 ### Added
 
+- **Photo detail keeps the gallery beside it.** On wide screens a resizable, collapsible sidebar lists the gallery's loaded photos (same filters and sort) with Load more; one photo per row when narrow, up to three when wide.
 - Multi-pass scans print seconds per model, a `Stages` block with a `busy / wait / occupancy` line for the scan thread and for each decode-pool stage (worker-seconds) plus the time no timer covers, and a completed `facet.py` scan logs `Post-scan <step>` lines and a `Process wall:` line splitting startup, scoring and post-scan. Measurement only.
 - Stack explicit unstacked selections in selection order with Cmd+Shift+S or Ctrl+Shift+S, using the first selected photo as cover. Existing stack members open the editor for review, and Undo restores the selection the stack cleared.
 

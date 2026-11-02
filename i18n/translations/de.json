@@ -2676,6 +2676,14 @@
     "no_gps_hint": "Nichts im Umfang trägt GPS-Koordinaten. Öffne ein Foto und lege es über dessen Standort-Panel fest — platzierte Fotos erscheinen hier."
   },
   "photo_detail": {
+    "collection": {
+      "title": "Sammlung",
+      "show": "Sammlung einblenden",
+      "hide": "Sammlung ausblenden",
+      "resize": "Breite der Sammlungsleiste ändern",
+      "loaded": "{loaded} von {total} geladen",
+      "more": "Mehr laden"
+    },
     "back": "Zurück",
     "download": "Herunterladen",
     "downloading": "Wird heruntergeladen…",

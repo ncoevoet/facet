@@ -311,6 +311,8 @@ Le badge ou une photo empilée ouvre la visionneuse : bande de vignettes, bouton
 
 Dans le détail de la photo, les métriques sont réparties en onglets à icônes : données EXIF (si présentes), Qualité, Composition (avec la saillance du sujet), Technique et Histogramme. Le dernier onglet ouvert est mémorisé. Chaque score s'affiche à côté de sa distribution dans la bibliothèque, la barre de la photo étant mise en évidence ; survolez une barre pour voir le rang de la photo et la plage de la bibliothèque. Le placement est calculé sur toute la bibliothèque, et non sur les filtres courants, à la barre la plus proche parmi 20.
 
+**Panneau de collection.** Sur grand écran (1280 px et plus), une photo ouverte depuis la galerie affiche à sa gauche les photos chargées de la galerie, avec les mêmes filtres et le même tri. Cliquez sur une miniature pour l'ouvrir ; **Charger plus** récupère la page suivante. Faites glisser le séparateur, ou donnez-lui le focus et utilisez Gauche/Droite, Début et Fin, pour le redimensionner : une photo par ligne s'il est étroit, jusqu'à trois s'il est large. Le chevron le replie. Le panneau ne change jamais les filtres, la sélection ni la destination de Retour.
+
 ### Sélection multiple & actions groupées
 
 Cliquez sur des photos pour les sélectionner ; Maj+clic sélectionne une plage. Une barre d'actions apparaît en bas à gauche avec des boutons à icônes (survolez pour voir les libellés). Les actions groupées nécessitent le mode édition.

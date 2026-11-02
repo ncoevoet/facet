@@ -2676,6 +2676,14 @@
     "no_gps_hint": "Nothing in scope carries GPS coordinates. Open a photo and use its Location panel to place it — placed photos appear here."
   },
   "photo_detail": {
+    "collection": {
+      "title": "Collection",
+      "show": "Show collection",
+      "hide": "Hide collection",
+      "resize": "Resize collection sidebar",
+      "loaded": "{loaded} of {total} loaded",
+      "more": "Load more"
+    },
     "back": "Back",
     "download": "Download",
     "downloading": "Downloading…",

@@ -2676,6 +2676,14 @@
     "no_gps_hint": "Nada no escopo carrega coordenadas GPS. Abra uma foto e use o painel de localização dela para situá-la — fotos situadas aparecem aqui."
   },
   "photo_detail": {
+    "collection": {
+      "title": "Coleção",
+      "show": "Mostrar coleção",
+      "hide": "Ocultar coleção",
+      "resize": "Redimensionar o painel da coleção",
+      "loaded": "{loaded} de {total} carregadas",
+      "more": "Carregar mais"
+    },
     "back": "Voltar",
     "download": "Baixar",
     "downloading": "Baixando…",

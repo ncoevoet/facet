@@ -2676,6 +2676,14 @@
     "no_gps_hint": "Nulla nell'ambito porta coordinate GPS. Apri una foto e usa il suo pannello Posizione per posizionarla — le foto posizionate appaiono qui."
   },
   "photo_detail": {
+    "collection": {
+      "title": "Raccolta",
+      "show": "Mostra raccolta",
+      "hide": "Nascondi raccolta",
+      "resize": "Ridimensiona il pannello della raccolta",
+      "loaded": "{loaded} di {total} caricate",
+      "more": "Carica altre"
+    },
     "back": "Indietro",
     "download": "Scarica",
     "downloading": "Download in corso…",

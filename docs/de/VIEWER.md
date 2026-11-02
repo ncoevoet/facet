@@ -311,6 +311,8 @@ Das Zählabzeichen oder ein gestapeltes Foto öffnet die Fotoansicht mit Vorscha
 
 In der Fotodetailansicht liegen die Messwerte in Symbol-Tabs: EXIF-Daten (sofern vorhanden), Qualität, Komposition (mit Motiv-Salienz), Technik und Histogramm. Der zuletzt geöffnete Tab wird gemerkt. Jeder Wert steht neben seiner Verteilung über die Bibliothek, mit hervorgehobenem Balken des Fotos; fahren Sie über einen Balken für den Rang des Fotos und den Bereich der Bibliothek. Die Einordnung wird über die gesamte Bibliothek berechnet, nicht über die aktuellen Filter, auf einen von 20 Balken genau.
 
+**Sammlungsleiste.** Auf breiten Bildschirmen (ab 1280 px) zeigt ein aus der Galerie geöffnetes Foto links eine Leiste mit den geladenen Galeriefotos, mit denselben Filtern und derselben Sortierung. Ein Klick auf ein Vorschaubild öffnet es; **Mehr laden** holt die nächste Seite. Die Breite ändert man durch Ziehen am Trenner oder per Fokus mit Links/Rechts, Pos1 und Ende: schmal ein Foto pro Zeile, breit bis zu drei. Der Pfeil klappt sie ein. Die Leiste ändert nie die Filter, die Auswahl oder das Ziel von Zurück.
+
 ### Mehrfachauswahl & Sammelaktionen
 
 Klicken Sie Fotos zum Auswählen an; Umschalt+Klick wählt einen Bereich. Unten links erscheint eine Aktionsleiste mit Symbolschaltflächen (Maus darüber für die Beschriftung). Sammelaktionen erfordern den Bearbeitungsmodus.

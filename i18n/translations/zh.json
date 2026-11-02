@@ -2676,6 +2676,14 @@
     "no_gps_hint": "当前范围内的照片都没有 GPS 坐标。打开一张照片，用其位置面板标注地点——标注后会显示在这里。"
   },
   "photo_detail": {
+    "collection": {
+      "title": "集合",
+      "show": "显示集合",
+      "hide": "隐藏集合",
+      "resize": "调整集合侧栏宽度",
+      "loaded": "已加载 {loaded} / {total}",
+      "more": "加载更多"
+    },
     "back": "返回",
     "download": "下载",
     "downloading": "正在下载…",

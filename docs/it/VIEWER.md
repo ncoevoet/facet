@@ -311,6 +311,8 @@ Il badge o una foto impilata apre il visualizzatore con miniature, pulsanti prec
 
 Nel dettaglio della foto, le metriche stanno in schede con icona: dati EXIF (se presenti), Qualità, Composizione (con salienza del soggetto), Tecnica e Istogramma. L'ultima scheda aperta viene ricordata. Ogni punteggio si trova accanto alla sua distribuzione nella libreria, con la barra della foto evidenziata; passa sopra una barra per vedere la posizione della foto e l'intervallo della libreria. La collocazione è calcolata sull'intera libreria, non sui filtri correnti, sulla più vicina di 20 barre.
 
+**Pannello della raccolta.** Sugli schermi larghi (da 1280 px), una foto aperta dalla galleria mostra alla sua sinistra le foto caricate della galleria, con gli stessi filtri e lo stesso ordinamento. Fai clic su una miniatura per aprirla; **Carica altre** recupera la pagina successiva. Trascina il divisore, oppure dagli il focus e usa Sinistra/Destra, Inizio e Fine, per ridimensionarlo: una foto per riga se stretto, fino a tre se largo. La freccia lo comprime. Il pannello non cambia mai i filtri, la selezione o la destinazione di Indietro.
+
 ### Selezione multipla e azioni di gruppo
 
 Clicca le foto per selezionarle; Maiusc+clic seleziona un intervallo. In basso a sinistra compare una barra delle azioni con pulsanti a icona (passaci sopra per le etichette). Le azioni di gruppo richiedono la modalità di modifica.
