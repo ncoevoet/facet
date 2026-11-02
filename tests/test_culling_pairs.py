@@ -146,22 +146,18 @@ class TestSourceColumnMigration:
 
 
 class TestCullingEndpointRecordsPairs:
-    def test_burst_select_creates_culling_comparisons(self, edition_client):
+    def test_burst_select_creates_culling_comparisons(self, edition_client, seed_photos_prefix):
         """POST /api/burst-groups/select derives comparison rows from the decision."""
         import os
         db_path = os.environ["DB_PATH"]
-        conn = sqlite3.connect(db_path)
         paths = [f"/cullapi/p{i}.jpg" for i in range(3)]
-        conn.executemany(
-            "INSERT OR REPLACE INTO photos (path, filename, category, burst_group_id) "
-            "VALUES (?, ?, 'street', 991)",
-            [(p, p.rsplit("/", 1)[-1]) for p in paths],
-        )
-        conn.execute(
-            "DELETE FROM comparisons WHERE photo_a_path LIKE '/cullapi/%'"
-        )
-        conn.commit()
-        conn.close()
+        # Seeded through the shared fixture so the rows and the comparisons derived from
+        # them are removed afterwards instead of staying in the session DB.
+        seed_photos_prefix("/cullapi/", [
+            {"path": p, "filename": p.rsplit("/", 1)[-1], "category": "street",
+             "burst_group_id": 991}
+            for p in paths
+        ])
 
         resp = edition_client.post(
             "/api/burst-groups/select",
