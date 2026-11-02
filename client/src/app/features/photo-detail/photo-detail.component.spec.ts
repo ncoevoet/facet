@@ -1,6 +1,7 @@
 import { PhotoStackService } from '../../core/services/photo-stack.service';
 import { TimelineFeedCache } from '../timeline/timeline-feed-cache.service';
 import { GalleryStore } from '../gallery/gallery.store';
+import { GALLERY_REVISIT } from '../../core/gallery-reuse.strategy';
 import { makePhoto } from '../../../testing/photo.fixture';
 import type { Mock, MockInstance } from 'vitest';
 import { TestBed } from '@angular/core/testing';
@@ -2320,7 +2321,7 @@ describe('PhotoDetailComponent', () => {
       const store = TestBed.inject(GalleryStore);
       store.filters.update(f => ({ ...f, album_id: '7', date_from: '2026-10-01', tag_groups: '{"none":["private"]}' }));
       component.navigateTag('coast,ridge OR 夜景', 'collection');
-      expect(mockRouter.navigate).toHaveBeenCalledWith(['/'], { queryParams: expect.objectContaining({
+      expect(mockRouter.navigate).toHaveBeenCalledWith(['/'], { info: GALLERY_REVISIT, queryParams: expect.objectContaining({
         album_id: '7', date_from: '2026-10-01', tag_groups: '{"all":["coast,ridge OR 夜景"],"none":["private"]}',
       }) });
       expect(store.filters().tag_groups).toBe('{"none":["private"]}');
@@ -2330,7 +2331,7 @@ describe('PhotoDetailComponent', () => {
       createComponent();
       TestBed.inject(GalleryStore).filters.update(f => ({ ...f, album_id: '7', date_from: '2026-10-01' }));
       component.navigateTag('trip', 'library');
-      expect(mockRouter.navigate).toHaveBeenCalledExactlyOnceWith(['/'], { queryParams: { tag_groups: '{"all":["trip"]}' } });
+      expect(mockRouter.navigate).toHaveBeenCalledExactlyOnceWith(['/'], { info: GALLERY_REVISIT, queryParams: { tag_groups: '{"all":["trip"]}' } });
     });
 
     it('refuses a collection pivot from a direct link or a previous identity', () => {
@@ -2345,6 +2346,15 @@ describe('PhotoDetailComponent', () => {
       history.replaceState({ photo: samplePhoto }, '', location.href);
       createComponent();
       TestBed.inject(GalleryStore).pinnedPaths.set([samplePhoto.path]);
+      expect(component.tagCollectionAvailable()).toBe(false);
+      component.navigateTag('trip', 'collection');
+      expect(mockRouter.navigate).not.toHaveBeenCalled();
+    });
+
+    it('does not claim a tag can refine the separate Similar Photos ranking', () => {
+      history.replaceState({ photo: samplePhoto }, '', location.href);
+      createComponent();
+      TestBed.inject(GalleryStore).filters.update(f => ({ ...f, similar_to: '/source.jpg' }));
       expect(component.tagCollectionAvailable()).toBe(false);
       component.navigateTag('trip', 'collection');
       expect(mockRouter.navigate).not.toHaveBeenCalled();
@@ -2565,7 +2575,7 @@ describe('PhotoDetailComponent', () => {
         expect(actions.length).toBe(1);
         expect(actions[0].textContent).toContain('photo_detail.tag_search_library');
         actions[0].click();
-        expect(mockRouter.navigate).toHaveBeenLastCalledWith(['/'], { queryParams: { tag_groups: JSON.stringify({ all: [tag] }) } });
+        expect(mockRouter.navigate).toHaveBeenLastCalledWith(['/'], { info: GALLERY_REVISIT, queryParams: { tag_groups: JSON.stringify({ all: [tag] }) } });
       }
     });
   });

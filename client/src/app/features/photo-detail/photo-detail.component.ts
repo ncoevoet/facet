@@ -1,6 +1,7 @@
 import { LogicalAssetApplied } from '../../shared/models/logical-asset-change';
 import { buildSyncParams } from '../gallery/gallery-filters.util';
 import { refineTagQuery } from '../gallery/tag-query.util';
+import { GALLERY_REVISIT } from '../../core/gallery-reuse.strategy';
 import { PhotoCollectionSidebarComponent } from './photo-collection-sidebar.component';
 import { LogicalReviewService, LogicalReviewAction, LogicalReviewWriteError } from '../../core/services/logical-review.service';
 import { PhotoAnalysisComponent } from '../gallery/photo-analysis.component';
@@ -709,7 +710,7 @@ export class PhotoDetailComponent extends PhotoDetailBase implements OnInit {
     && this.viewerOwner === this.auth.identity() && this.store.photos().length > 0);
   protected readonly collectionSidebarTitle = computed(() => this.store.currentAlbum?.()?.name ?? '');
   protected readonly tagCollectionAvailable = computed(() => this.openedFromGallery && !this.timelineOrigin
-    && this.viewerOwner === this.auth.identity() && this.store.pinnedPaths() === null);
+    && this.viewerOwner === this.auth.identity() && this.store.pinnedPaths() === null && !this.store.filters().similar_to);
 
   private logicalChangeRevision = 0;
 
@@ -1396,7 +1397,7 @@ export class PhotoDetailComponent extends PhotoDetailBase implements OnInit {
     }
     const params = scope === 'collection'
       ? buildSyncParams(filters, this.store.config()?.defaults, this.store.config()?.search_threshold_default) : {};
-    this.router.navigate(['/'], { queryParams: { ...params, tag_groups: query,
+    this.router.navigate(['/'], { info: GALLERY_REVISIT, queryParams: { ...params, tag_groups: query,
       ...(scope === 'collection' && this.store.temporaryReviewQueue() ? { review_queue: '1' } : {}) } });
   }
 

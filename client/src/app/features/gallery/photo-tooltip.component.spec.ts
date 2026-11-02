@@ -10,6 +10,7 @@ import type { Photo, PhotoSet } from '../../shared/models/photo.model';
 import { GalleryStore } from './gallery.store';
 import { MetricsTabState } from '../../core/services/metrics-tab-state.service';
 import { makePhoto, makePhotoFull } from '../../../testing/photo.fixture';
+import { OverlayContainer } from '@angular/cdk/overlay';
 
 /* eslint-disable @angular-eslint/component-selector */
 @Component({
@@ -30,6 +31,28 @@ class TestHostComponent {
 }
 
 describe('PhotoTooltipComponent', () => {
+  it('keeps hover tags noninteractive and offers the same literal scope actions when docked', async () => {
+    fixture.componentInstance.photo.set(makePhoto({ tags_list: ['coast,ridge'], manual_tags: ['夜景'] }));
+    fixture.detectChanges();
+    expect(fixture.nativeElement.querySelector('[data-testid="tooltip-tag"]')).toBeNull();
+    fixture.componentInstance.docked.set(true);
+    fixture.detectChanges();
+    const tooltip = fixture.debugElement.children[0].componentInstance as PhotoTooltipComponent;
+    const emitted: unknown[] = [];
+    tooltip.tagSelected.subscribe(event => emitted.push(event));
+    const buttons = fixture.nativeElement.querySelectorAll('[data-testid="tooltip-tag"]');
+    expect(buttons.length).toBe(2);
+    buttons[1].click(); fixture.detectChanges(); await fixture.whenStable(); fixture.detectChanges();
+    const overlay = TestBed.inject(OverlayContainer).getContainerElement();
+    const library = [...overlay.querySelectorAll<HTMLButtonElement>('button')].find(button => button.textContent?.includes('photo_detail.tag_search_library'))!;
+    library.click();
+    expect(emitted).toEqual([{ tag: '夜景', scope: 'library' }]);
+    buttons[0].click(); fixture.detectChanges(); await fixture.whenStable();
+    expect(overlay.querySelector('[role="menu"]')).not.toBeNull();
+    fixture.componentInstance.photo.set(makePhoto({ path: '/new.jpg', tags_list: [] }));
+    fixture.detectChanges(); await fixture.whenStable(); fixture.detectChanges();
+    expect(overlay.querySelector('[role="menu"]')).toBeNull();
+  });
   // The open metric tab is remembered across tests otherwise.
   afterEach(() => localStorage.removeItem('facet_photo_detail_tab'));
 

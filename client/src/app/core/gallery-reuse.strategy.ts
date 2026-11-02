@@ -30,7 +30,9 @@ export class GalleryReuseStrategy extends BaseRouteReuseStrategy implements OnDe
 
   // The gallery reads its album id once on init, so another album needs a fresh instance.
   override shouldReuseRoute(future: ActivatedRouteSnapshot, curr: ActivatedRouteSnapshot): boolean {
-    if (isGallery(future) && isGallery(curr) && this.router.currentNavigation()?.extras.info === GALLERY_REVISIT) {
+    const navigation = this.router.currentNavigation();
+    if (isGallery(future) && isGallery(curr) && (navigation?.extras.info === GALLERY_REVISIT
+      || (navigation?.trigger === 'popstate' && this.keyOf(future) !== this.keyOf(curr)))) {
       // A retrieved handle can still alias the active gallery. The router owns
       // its destruction on this explicit fresh visit; do not destroy it twice.
       this.kept = null;

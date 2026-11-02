@@ -60,6 +60,7 @@ describe('GalleryReuseStrategy', () => {
     const done = firstValueFrom(TestBed.inject(Router).events.pipe(filter(e => e instanceof NavigationEnd)));
     TestBed.inject(Location).back();
     await done;
+    await harness.fixture.whenStable(); harness.detectChanges();
   };
 
   it('destroys the kept gallery when the application injector is destroyed', () => {
@@ -88,6 +89,18 @@ describe('GalleryReuseStrategy', () => {
     await back();
     expect(harness.routeDebugElement?.componentInstance).toBe(fresh);
     expect(destroyed).toBe(1);
+  });
+
+  it('reinitializes the original query on popstate between gallery visits', async () => {
+    const router = TestBed.inject(Router);
+    await router.navigateByUrl('/?tag=original', { info: GALLERY_REVISIT });
+    await router.navigateByUrl('/?tag=library', { info: GALLERY_REVISIT });
+    const fresh = harness.routeDebugElement!.componentInstance;
+    await back();
+    const restored = harness.routeDebugElement!.componentInstance as GalleryStub;
+    expect(router.url).toBe('/?tag=original');
+    expect(restored).not.toBe(fresh);
+    expect(restored.initialTag).toBe('original');
   });
 
   it('preserves the gallery instance and DOM through the stack editor Back route', async () => {

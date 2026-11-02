@@ -1,3 +1,6 @@
+import { TagNavigation } from '../../shared/models/tag-navigation';
+import { refineTagQuery } from './tag-query.util';
+import { buildSyncParams } from './gallery-filters.util';
 import { MovableToolbarDirective, TOOLBAR_POSITION_EVENT } from '../../shared/directives/movable-toolbar.directive';
 import { GalleryReviewNavigationService } from './gallery-review-navigation.service';
 import { GalleryViewControlsComponent } from './gallery-view-controls.component';
@@ -278,7 +281,7 @@ type ReturnTarget = { scroll: number; focus: Element | null } & (
               <app-photo-tooltip [photo]="p" [docked]="true" [pinned]="true"
                                  [histogramDefaultMode]="tooltipHistogramDefaultMode()"
                                  [indicatorPercent]="clippingIndicatorPercent()"
-                                 [personLinks]="!pinned()"
+                                 [personLinks]="!pinned()" [tagCollectionAvailable]="!store.filters().similar_to" (tagSelected)="navigateTag($event)"
         (personSelected)="store.updateFilter('person_id', $event)" />
             } @else {
               <div class="p-4 text-sm opacity-60 text-center">
@@ -440,7 +443,7 @@ type ReturnTarget = { scroll: number; focus: Element | null } & (
                     (tooltipShow)="showTooltip($event.event, $event.photo)"
                     (tooltipHide)="hideTooltip()"
                     [filterLinks]="!pinned()"
-                (tagClicked)="store.updateFilter('tag', $event)"
+                [tagCollectionAvailable]="!store.filters().similar_to" (tagClicked)="navigateTag($event)"
                     (personFilterClicked)="filterByPerson($event)"
                     (personRemoveClicked)="removePerson($event.photo, $event.personId)"
                     (openSimilarClicked)="openSimilar($event.photo, $event.mode)"
@@ -505,7 +508,7 @@ type ReturnTarget = { scroll: number; focus: Element | null } & (
                   (tooltipShow)="showTooltip($event.event, $event.photo)"
                   (tooltipHide)="hideTooltip()"
                   [filterLinks]="!pinned()"
-                      (tagClicked)="store.updateFilter('tag', $event)"
+                      [tagCollectionAvailable]="!store.filters().similar_to" (tagClicked)="navigateTag($event)"
                   (personFilterClicked)="filterByPerson($event)"
                   (personRemoveClicked)="removePerson($event.photo, $event.personId)"
                   (openSimilarClicked)="openSimilar($event.photo, $event.mode)"
@@ -568,7 +571,7 @@ type ReturnTarget = { scroll: number; focus: Element | null } & (
                       (tooltipShow)="showTooltip($event.event, $event.photo)"
                       (tooltipHide)="hideTooltip()"
                       [filterLinks]="!pinned()"
-                      (tagClicked)="store.updateFilter('tag', $event)"
+                      [tagCollectionAvailable]="!store.filters().similar_to" (tagClicked)="navigateTag($event)"
                       (personFilterClicked)="filterByPerson($event)"
                       (personRemoveClicked)="removePerson($event.photo, $event.personId)"
                       (openSimilarClicked)="openSimilar($event.photo, $event.mode)"
@@ -985,7 +988,7 @@ type ReturnTarget = { scroll: number; focus: Element | null } & (
         [pinned]="tooltipMode() === 'click'"
         [histogramDefaultMode]="tooltipHistogramDefaultMode()"
         [indicatorPercent]="clippingIndicatorPercent()"
-        [personLinks]="!pinned()"
+        [personLinks]="!pinned()" [tagCollectionAvailable]="!store.filters().similar_to" (tagSelected)="navigateTag($event)"
         (personSelected)="store.updateFilter('person_id', $event)"
       />
     }
@@ -1041,7 +1044,8 @@ export class GalleryComponent implements OnInit, OnDestroy {
   private readonly route = inject(ActivatedRoute);
   private readonly router = inject(Router);
   // Router.currentNavigation may be cleared before ngOnInit's first render.
-  private readonly revisit = this.router.currentNavigation?.()?.extras.info === GALLERY_REVISIT;
+  private readonly revisit = this.router.currentNavigation?.()?.extras.info === GALLERY_REVISIT
+    || this.router.currentNavigation?.()?.trigger === 'popstate';
   private readonly stacks = inject(PhotoStackService);
   private readonly stackActions = inject(StackActionsService);
   private readonly outlet = inject(RouterOutlet, { optional: true });
@@ -1061,6 +1065,29 @@ export class GalleryComponent implements OnInit, OnDestroy {
   private readonly criteria = viewChild(GalleryCriteriaComponent);
   private readonly liveAnnouncer = inject(LiveAnnouncer);
   private readonly toolbarSearch = viewChild<ElementRef<HTMLInputElement>>('toolbarSearch');
+
+  protected async navigateTag(choice: TagNavigation): Promise<void> {
+    if (choice.scope === 'library') {
+      const query = refineTagQuery('', choice.tag);
+      if (query === null) return;
+      const owner = this.auth.identity();
+      // Make the departing visit explicit before a new visit overwrites the
+      // session-query slot. Back to a bare root must not restore the new tag.
+      const params = { ...buildSyncParams(this.store.filters(), this.store.config()?.defaults, this.store.config()?.search_threshold_default),
+        ...(this.store.temporaryReviewQueue() ? { review_queue: '1' } : {}) };
+      const captured = await this.router.navigate([], { relativeTo: this.route, queryParams: params, replaceUrl: true, onSameUrlNavigation: 'reload' });
+      if (!captured || this.auth.identity() !== owner || this.destroyRef.destroyed) return;
+      await this.router.navigate(['/'], { queryParams: { tag_groups: query }, info: GALLERY_REVISIT, onSameUrlNavigation: 'reload' });
+      return;
+    }
+    if (this.store.pinnedPaths() !== null || this.store.filters().similar_to) return;
+    const query = refineTagQuery(this.store.filters().tag_groups, choice.tag);
+    if (query === null) {
+      this.snackBar.open(this.i18n.t(I18N.errors.action_failed), '', { duration: 3000 });
+      return;
+    }
+    void this.store.updateFilter('tag_groups', query);
+  }
 
   // Album options for "Add to album" menu
   protected readonly albumOptions = signal<Album[]>([]);
@@ -1088,6 +1115,7 @@ export class GalleryComponent implements OnInit, OnDestroy {
   private readonly sidenavContainer = viewChild(MatSidenavContainer);
   private readonly ownTooltips = viewChildren(MatTooltip);
   private readonly menus = viewChildren(MatMenuTrigger);
+  private readonly photoTooltips = viewChildren(PhotoTooltipComponent);
   private readonly photoMenu = viewChild(GalleryPhotoMenuComponent);
   private readonly selects = viewChildren(MatSelect);
   private readonly cards = viewChildren(PhotoCardComponent);
@@ -1768,6 +1796,7 @@ export class GalleryComponent implements OnInit, OnDestroy {
       // Context-menu triggers are separate from MatMenuTrigger; all cards share this panel.
       this.photoMenu()?.menu().closed.emit();
       for (const card of this.cards()) card.closeOverlays();
+      for (const tooltip of this.photoTooltips()) tooltip.closeOverlays();
       this.filterSidebar()?.closeOverlays();
       this.setGalleryChrome(false);
     });

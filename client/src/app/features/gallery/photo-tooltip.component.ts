@@ -1,7 +1,9 @@
-import { Component, DestroyRef, Pipe, PipeTransform, computed, effect, inject, input, output, signal, untracked, viewChild, ElementRef, ChangeDetectionStrategy } from '@angular/core';
+import { Component, DestroyRef, Pipe, PipeTransform, computed, effect, inject, input, output, signal, untracked, viewChild, viewChildren, ElementRef, ChangeDetectionStrategy } from '@angular/core';
 import { NgTemplateOutlet, TitleCasePipe } from '@angular/common';
 import { Router } from '@angular/router';
 import { MatIconModule } from '@angular/material/icon';
+import { MatMenuModule, MatMenuTrigger } from '@angular/material/menu';
+import { TagNavigation } from '../../shared/models/tag-navigation';
 import { catchError, of } from 'rxjs';
 import { Photo, PhotoSet, hasExifFields } from '../../shared/models/photo.model';
 import { ApiService } from '../../core/services/api.service';
@@ -54,7 +56,7 @@ export class CategoryLabelPipe implements PipeTransform {
 @Component({
   selector: 'app-photo-tooltip',
   imports: [
-    MatIconModule, NgTemplateOutlet, FixedPipe, ShutterSpeedPipe, TranslatePipe, ThumbnailUrlPipe, PersonThumbnailUrlPipe,
+    MatIconModule, MatMenuModule, NgTemplateOutlet, FixedPipe, ShutterSpeedPipe, TranslatePipe, ThumbnailUrlPipe, PersonThumbnailUrlPipe,
     CategoryLabelPipe, PhotoSetKindIconPipe, PhotoSetKindLabelPipe, EvOffsetPipe,
     MomentLabelPipe, PhotoMetricsTabsComponent, CaptureDatePipe, PhotoAssessmentComponent,
   ],
@@ -244,13 +246,26 @@ export class CategoryLabelPipe implements PipeTransform {
         }
 
         <!-- Zone C: Tags (full width) -->
-        @if (p.tags_list.length) {
+        @if (navigationTags().length) {
           <div class="flex gap-1 flex-wrap mt-2 pt-1.5 border-[var(--facet-tooltip-divider)]" [class.border-t]="!docked()">
-            @for (tag of p.tags_list; track tag) {
-              <span class="px-1.5 py-0.5 bg-[var(--facet-accent-badge)] text-[var(--facet-accent-text)] rounded text-[10px]">{{ tag }}</span>
+            @for (tag of navigationTags(); track tag) {
+              @if (personLinks() && showInteractiveControls()) {
+                <button data-testid="tooltip-tag" class="px-1.5 py-0.5 bg-[var(--facet-accent-badge)] text-[var(--facet-accent-text)] rounded text-[10px]"
+                  [matMenuTriggerFor]="tagMenu" [matMenuTriggerData]="{ tag: tag }">{{ tag }}</button>
+              } @else {
+                <span class="px-1.5 py-0.5 bg-[var(--facet-accent-badge)] text-[var(--facet-accent-text)] rounded text-[10px]">{{ tag }}</span>
+              }
             }
           </div>
         }
+        <mat-menu #tagMenu="matMenu">
+          <ng-template matMenuContent let-tag="tag">
+            @if (tagCollectionAvailable()) {
+              <button mat-menu-item (click)="onTagClick(tag, 'collection')"><mat-icon>filter_alt</mat-icon>{{ 'photo_detail.tag_refine_collection' | translate }}</button>
+            }
+            <button mat-menu-item (click)="onTagClick(tag, 'library')"><mat-icon>search</mat-icon>{{ 'photo_detail.tag_search_library' | translate }}</button>
+          </ng-template>
+        </mat-menu>
 
         <!-- Zone D: Person avatars. No label -- round face thumbnails are
              self-explanatory and the label was just noise competing for width
@@ -404,6 +419,10 @@ export class PhotoTooltipComponent {
   });
 
   constructor() {
+    effect(() => {
+      this.photo(); this.docked(); this.pinned(); this.personLinks();
+      untracked(() => this.closeOverlays());
+    });
     this.destroyRef.onDestroy(() => { this.destroyed = true; });
     const onResize = () => this.viewport.set({ width: window.innerWidth, height: window.innerHeight });
     window.addEventListener('resize', onResize);
@@ -469,6 +488,21 @@ export class PhotoTooltipComponent {
    *  face -- while the sidebar's own multi-select remains the place to build
    *  up a filter across several people. */
   readonly personSelected = output<string>();
+  readonly tagSelected = output<TagNavigation>();
+  private readonly menus = viewChildren(MatMenuTrigger);
+
+  closeOverlays(): void {
+    for (const menu of this.menus()) menu.closeMenu();
+  }
+  readonly tagCollectionAvailable = input(true);
+  protected readonly navigationTags = computed(() => [...new Set([
+    ...(this.photo()?.tags_list ?? []), ...(this.photo()?.manual_tags ?? []),
+  ])]);
+
+  protected onTagClick(tag: string, scope: TagNavigation['scope']): void {
+    if (!this.personLinks() || !this.showInteractiveControls() || (scope === 'collection' && !this.tagCollectionAvailable())) return;
+    this.tagSelected.emit({ tag, scope });
+  }
 
   protected onPersonClick(id: number): void {
     this.personSelected.emit(String(id));

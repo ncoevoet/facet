@@ -26,7 +26,7 @@ import { MatSnackBar } from '@angular/material/snack-bar';
 import { MatSidenav, MatSidenavContainer, MatSidenavContent } from '@angular/material/sidenav';
 import { LiveAnnouncer } from '@angular/cdk/a11y';
 import { GalleryStore, GalleryFilters, DEFAULT_FILTERS } from './gallery.store';
-import { buildApiParams, countActiveFilters, DISPLAY_OPTIONS_KEY } from './gallery-filters.util';
+import { buildApiParams, buildSyncParams, countActiveFilters, DISPLAY_OPTIONS_KEY } from './gallery-filters.util';
 import { ApiService } from '../../core/services/api.service';
 import { AuthService } from '../../core/services/auth.service';
 import { I18nService } from '../../core/services/i18n.service';
@@ -80,6 +80,21 @@ describe('GalleryComponent', () => {
     desktop.set(true);
     mockStore.filterDrawerOpen.set(false);
     expect(geometry.noticeRightPx()).toBe(16);
+  });
+
+  it('adds a literal tag constraint without replacing existing tag alternatives', () => {
+    mockStore.filters.update((f: GalleryFilters) => ({ ...f, album_id: '8', tag_groups: '{"any":["a","b"]}' }));
+    (component as any).navigateTag({ tag: 'coast,ridge OR 夜景', scope: 'collection' });
+    expect(mockStore.updateFilter).toHaveBeenCalledWith('tag_groups', '{"any":["a","b"],"all":["coast,ridge OR 夜景"]}');
+  });
+
+  it('refuses collection tag refinement for captured lists and Similar Photos', () => {
+    mockStore.pinnedPaths.set(['/a.jpg']);
+    (component as any).navigateTag({ tag: 'trip', scope: 'collection' });
+    mockStore.pinnedPaths.set(null);
+    mockStore.filters.update((f: GalleryFilters) => ({ ...f, similar_to: '/source.jpg' }));
+    (component as any).navigateTag({ tag: 'trip', scope: 'collection' });
+    expect(mockStore.updateFilter).not.toHaveBeenCalled();
   });
 
   beforeEach(async () => {
@@ -5480,6 +5495,38 @@ describe('GalleryComponent', () => {
     });
 
     const overlay = () => TestBed.inject(OverlayContainer).getContainerElement();
+    it.each([false, true])('creates a fresh library tag visit and restores query on Back (already synced: %s)', async synced => {
+      mockStore.filters.update((f: GalleryFilters) => ({ ...f, album_id: '8', date_from: '2026-10-01' }));
+      if (synced) await TestBed.inject(Router).navigate([], { queryParams: buildSyncParams(mockStore.filters(), undefined), replaceUrl: true });
+      const before = mockStore.loadConfig.mock.calls.length;
+      await (gallery as unknown as { navigateTag(choice: { tag: string; scope: 'library' }): Promise<void> }).navigateTag({ tag: 'coast,ridge OR 夜景', scope: 'library' });
+      await harness.fixture.whenStable(); harness.detectChanges();
+      expect(harness.routeDebugElement!.componentInstance).not.toBe(gallery);
+      expect(mockStore.loadConfig.mock.calls.length).toBe(before + 1);
+      const url = new URL(TestBed.inject(Router).url, 'http://fixture');
+      expect(url.searchParams.get('tag_groups')).toBe('{"all":["coast,ridge OR 夜景"]}');
+      expect(url.searchParams.has('album_id')).toBe(false);
+      expect(url.searchParams.has('date_from')).toBe(false);
+      const fresh = harness.routeDebugElement!.componentInstance;
+      const backDone = firstValueFrom(TestBed.inject(Router).events.pipe(filter(e => e instanceof NavigationEnd)));
+      TestBed.inject(Location).back(); await backDone; await harness.fixture.whenStable(); harness.detectChanges();
+      expect(harness.routeDebugElement!.componentInstance).not.toBe(fresh);
+      const restored = new URL(TestBed.inject(Router).url, 'http://fixture');
+      expect(restored.searchParams.get('album_id')).toBe('8');
+      expect(restored.searchParams.get('date_from')).toBe('2026-10-01');
+      expect(restored.searchParams.has('tag_groups')).toBe(true);
+      expect(mockStore.loadConfig.mock.calls.length).toBe(before + 2);
+    });
+
+    it('closes child-owned tooltip menus when the gallery parks', async () => {
+      mockStore.filters.update((f: GalleryFilters) => ({ ...f, tooltip_mode: 'click' }));
+      harness.detectChanges();
+      const tooltips = harness.routeDebugElement!.queryAll(By.directive(PhotoTooltipComponent));
+      const closes = tooltips.map(el => vi.spyOn(el.componentInstance as PhotoTooltipComponent, 'closeOverlays'));
+      expect(closes.length).toBeGreaterThan(0);
+      await harness.navigateByUrl('/photo', MenuPhotoRoute);
+      expect(closes.every(close => close.mock.calls.length > 0)).toBe(true);
+    });
     async function expectMenuRemoved(): Promise<void> {
       const container = overlay();
       if (container.querySelector('[role="menu"]')) {

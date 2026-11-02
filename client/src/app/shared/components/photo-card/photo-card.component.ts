@@ -4,6 +4,7 @@ import { MatIconModule } from '@angular/material/icon';
 import { MatButtonModule } from '@angular/material/button';
 import { MatTooltip, MatTooltipModule } from '@angular/material/tooltip';
 import { MatMenuModule, MatMenuTrigger } from '@angular/material/menu';
+import { TagNavigation } from '../../models/tag-navigation';
 import { Photo } from '../../models/photo.model';
 import { TranslatePipe } from '../../pipes/translate.pipe';
 import { ThumbnailUrlPipe, PersonThumbnailUrlPipe, STORED_THUMBNAIL_EDGE } from '../../pipes/thumbnail-url.pipe';
@@ -515,20 +516,21 @@ const DEFAULT_CLIPPING_BADGE_PERCENT = 5;
             @if (photo().shutter_speed) { {{ photo().shutter_speed | shutterSpeed }} }
             @if (photo().iso) { ISO {{ photo().iso }} }
           </div>
-          @if (photo().tags_list.length) {
+          @if (navigationTags().length) {
             <div class="flex gap-0.5 flex-wrap mt-0.5">
-              @for (tag of photo().tags_list; track tag) {
+              @for (tag of navigationTags(); track tag) {
                 @if (filterLinks()) {
-                  <span class="px-1.5 py-0.5 bg-[var(--facet-accent-badge)] text-[var(--facet-accent-text)] rounded text-[11px] cursor-pointer hover:bg-[var(--facet-accent-dim)] transition-colors"
+                  <button type="button" data-tag-chip class="px-1.5 py-0.5 bg-[var(--facet-accent-badge)] text-[var(--facet-accent-text)] rounded text-[11px] cursor-pointer hover:bg-[var(--facet-accent-dim)] transition-colors"
                         role="button"
                         tabindex="0"
-                        (click)="tagClicked.emit(tag); $event.stopPropagation()"
-                        (keydown.enter)="tagClicked.emit(tag); $event.stopPropagation()"
-                        (keydown.space)="tagClicked.emit(tag); $event.preventDefault(); $event.stopPropagation()">
+                        [matMenuTriggerFor]="tagMenu" [matMenuTriggerData]="{ tag: tag }"
+                        (click)="$event.stopPropagation()"
+                        (keydown.enter)="$event.stopPropagation()"
+                        (keydown.space)="$event.stopPropagation()">
                     {{ tag }}
-                  </span>
+                  </button>
                 } @else {
-                  <span class="px-1.5 py-0.5 bg-[var(--facet-accent-badge)] text-[var(--facet-accent-text)] rounded text-[11px]">
+                  <span data-tag-chip class="px-1.5 py-0.5 bg-[var(--facet-accent-badge)] text-[var(--facet-accent-text)] rounded text-[11px]">
                     {{ tag }}
                   </span>
                 }
@@ -565,6 +567,14 @@ const DEFAULT_CLIPPING_BADGE_PERCENT = 5;
       }
       }
     </div>
+    <mat-menu #tagMenu="matMenu">
+      <ng-template matMenuContent let-tag="tag">
+        @if (tagCollectionAvailable()) {
+          <button mat-menu-item (click)="tagClicked.emit({ tag: tag, scope: 'collection' })"><mat-icon>filter_alt</mat-icon>{{ I18N.photo_detail.tag_refine_collection | translate }}</button>
+        }
+        <button mat-menu-item (click)="tagClicked.emit({ tag: tag, scope: 'library' })"><mat-icon>search</mat-icon>{{ I18N.photo_detail.tag_search_library | translate }}</button>
+      </ng-template>
+    </mat-menu>
   `,
 })
 export class PhotoCardComponent {
@@ -843,7 +853,11 @@ export class PhotoCardComponent {
   }
   readonly tooltipShow = output<{ photo: Photo; event: MouseEvent }>();
   readonly tooltipHide = output<void>();
-  readonly tagClicked = output<string>();
+  readonly tagClicked = output<TagNavigation>();
+  readonly tagCollectionAvailable = input(true);
+  protected readonly navigationTags = computed(() => [...new Set([
+    ...(this.photo().tags_list ?? []), ...(this.photo().manual_tags ?? []),
+  ])]);
   readonly personFilterClicked = output<number>();
   readonly personRemoveClicked = output<{ photo: Photo; personId: number }>();
   readonly openSimilarClicked = output<{ photo: Photo; mode: 'visual' | 'color' | 'person' }>();

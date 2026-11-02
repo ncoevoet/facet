@@ -101,14 +101,16 @@ describe('PhotoCardComponent', () => {
   it('uses the album capability for a rendered shared card without changing ordinary card URLs', () => {
     const card = TestBed.createComponent(PhotoCardComponent);
     try {
-      card.componentRef.setInput('photo', makePhoto({ path: '/shared photo.jpg' }));
+      const assetId = `7.${'a'.repeat(64)}`;
+      card.componentRef.setInput('photo', makePhoto({ path: assetId }));
       card.componentRef.setInput('sharedAlbum', { albumId: 9, token: 'fixture-card-token' });
       card.detectChanges();
       const img = card.nativeElement.querySelector('img') as HTMLImageElement;
       const scoped = new URL(img.src);
       expect(scoped.pathname).toBe('/api/shared/album/9/media/thumbnail');
       expect(scoped.searchParams.get('token')).toBe('fixture-card-token');
-      expect(scoped.searchParams.get('path')).toBe('/shared photo.jpg');
+      expect(scoped.searchParams.get('asset_id')).toBe(assetId);
+      expect(scoped.searchParams.has('path')).toBe(false);
       expect(scoped.searchParams.get('ngsw-bypass')).toBe('1');
       card.componentRef.setInput('sharedAlbum', null); card.detectChanges();
       expect(new URL(img.src).pathname).toBe('/thumbnail');
@@ -1150,13 +1152,14 @@ describe('PhotoCardComponent filter links', () => {
   }
 
   const chip = (el: HTMLElement) =>
-    Array.from(el.querySelectorAll('span')).find(s => s.textContent?.trim() === 'sunset') as HTMLElement;
+    Array.from(el.querySelectorAll('[data-tag-chip]')).find(s => s.textContent?.trim() === 'sunset') as HTMLElement;
   const similar = (el: HTMLElement) => el.querySelector('button[aria-label="similar.find_similar"]');
 
   afterEach(() => TestBed.resetTestingModule());
 
   it('keeps tag chips clickable and Find similar available by default', () => {
     const el = create({});
+    expect(chip(el).tagName).toBe('BUTTON');
     expect(chip(el).getAttribute('role')).toBe('button');
     expect(chip(el).getAttribute('tabindex')).toBe('0');
     expect(similar(el)).not.toBeNull();
@@ -1171,6 +1174,11 @@ describe('PhotoCardComponent filter links', () => {
     expect(c.className).not.toContain('cursor-pointer');
     expect(c.className).not.toContain('hover:');
     expect(similar(el)).toBeNull();
+  });
+
+  it('includes manual tags in the same navigation controls without duplicate chips', () => {
+    const el = create({ photo: makePhoto({ tags_list: ['trip'], manual_tags: ['trip', '夜景'] }) });
+    expect([...el.querySelectorAll('[data-tag-chip]')].map(chip => chip.textContent?.trim())).toEqual(['trip', '夜景']);
   });
 
   it('closes an open Find similar menu when closeOverlays is called', () => {
@@ -1201,11 +1209,30 @@ describe('PhotoCardComponent filter links', () => {
     const fixture = TestBed.createComponent(PhotoCardComponent);
     fixture.componentRef.setInput('photo', makePhoto({ tags_list: ['sunset'] }));
     fixture.componentRef.setInput('filterLinks', false);
-    const emitted: string[] = [];
+    const emitted: unknown[] = [];
     fixture.componentInstance.tagClicked.subscribe(t => emitted.push(t));
     fixture.detectChanges();
     chip(fixture.nativeElement as HTMLElement).click();
     expect(emitted).toEqual([]);
+  });
+
+  it('emits explicit scope only after a tag menu action and closes it with other overlays', async () => {
+    TestBed.configureTestingModule({ imports: [PhotoCardComponent], providers: [{ provide: I18nService, useValue: mockI18n }] });
+    const fixture = TestBed.createComponent(PhotoCardComponent);
+    fixture.componentRef.setInput('photo', makePhoto({ tags_list: ['coast,ridge'] }));
+    const emitted: unknown[] = [];
+    fixture.componentInstance.tagClicked.subscribe(event => emitted.push(event));
+    fixture.detectChanges();
+    const trigger = fixture.debugElement.queryAll(By.directive(MatMenuTrigger)).find(el => el.nativeElement.textContent.trim() === 'coast,ridge')!.injector.get(MatMenuTrigger);
+    trigger.openMenu(); fixture.detectChanges(); await fixture.whenStable();
+    expect(emitted).toEqual([]);
+    const overlay = TestBed.inject(OverlayContainer).getContainerElement();
+    const action = [...overlay.querySelectorAll<HTMLButtonElement>('button')].find(button => button.textContent?.includes('photo_detail.tag_refine_collection'))!;
+    action.click();
+    expect(emitted).toEqual([{ tag: 'coast,ridge', scope: 'collection' }]);
+    trigger.openMenu(); fixture.detectChanges();
+    fixture.componentInstance.closeOverlays();
+    expect(trigger.menuOpen).toBe(false);
   });
 });
 
