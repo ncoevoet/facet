@@ -163,6 +163,27 @@ describe('buildApiParams semantic search', () => {
 });
 
 describe('buildSyncParams', () => {
+  it('round-trips cleared saved criteria, false flags and default sort direction', () => {
+    const saved = JSON.stringify({ camera: 'Canon', tag: 'birds', min_score: '7', no_gps: '1',
+      show_rejected: true, blinks_only: true, duplicates_only: true,
+      manual_faces_need_review: true, faces_need_names: true, sort_direction: 'ASC' });
+    const base = applySavedAlbumFilters({ ...DEFAULT_FILTERS }, saved, '7');
+    const current = { ...DEFAULT_FILTERS, album_id: '7' };
+    const query = buildSyncParams(current, undefined, undefined, saved);
+    expect(applyQueryParams(base, query)).toEqual(current);
+    expect(query).not.toHaveProperty('max_aperture');
+  });
+
+  it('ignores malformed, unknown and excluded saved keys in URL overrides', () => {
+    const current = { ...DEFAULT_FILTERS, album_id: '7' };
+    const ordinary = buildSyncParams(current, undefined);
+    for (const saved of ['{', 'null', '[]', '{"unknown":"x","page":42,"semanticQuery":"dog","sequence_group_id":"9"}']) {
+      expect(buildSyncParams(current, undefined, undefined, saved)).toEqual(ordinary);
+    }
+    expect(buildSyncParams(DEFAULT_FILTERS, undefined, undefined, '{"camera":"Canon"}'))
+      .toEqual(buildSyncParams(DEFAULT_FILTERS, undefined));
+  });
+
   it('captures semantic visibility even when it matches this browser defaults', () => {
     expect(buildSyncParams(DEFAULT_FILTERS, undefined)).toEqual({ sort: 'aggregate', type: '',
       hide_blinks: 'true', hide_bursts: 'true', hide_duplicates: 'true', hide_brackets: 'true', hide_panoramas: 'true',

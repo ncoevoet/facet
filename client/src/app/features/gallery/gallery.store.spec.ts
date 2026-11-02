@@ -22,7 +22,7 @@ import {
 } from './gallery.store';
 import { Photo } from '../../shared/models/photo.model';
 import { makePhoto } from '../../../testing/photo.fixture';
-import { applyQueryParams, buildSyncParams, CARD_WIDTH_KEY, DISPLAY_OPTIONS_KEY, GALLERY_MODE_KEY } from './gallery-filters.util';
+import { applyQueryParams, applySavedAlbumFilters, buildSyncParams, CARD_WIDTH_KEY, DISPLAY_OPTIONS_KEY, GALLERY_MODE_KEY } from './gallery-filters.util';
 import { PersonAssignmentHistoryService } from '../../core/services/person-assignment-history.service';
 import type { Mock } from 'vitest';
 
@@ -2626,6 +2626,19 @@ describe('gallery session query (nav-icon return)', () => {
   describe('syncUrl (via updateFilter)', () => {
     beforeEach(() => {
       apiGet.mockReturnValue(of(makePhotosResponse()));
+    });
+
+    it('preserves cleared saved album rules in both navigation and session URLs', async () => {
+      const saved = JSON.stringify({ camera: 'Canon', tag: 'birds', min_score: '7', blinks_only: true, sort_direction: 'ASC' });
+      store.currentAlbum.set({ id: 7, is_smart: true, name: 'Birds', smart_filter_json: saved } as Album);
+      store.filters.set(applySavedAlbumFilters({ ...DEFAULT_FILTERS }, saved, '7'));
+      await store.updateFilters({ camera: '', tag: '', min_score: '', blinks_only: false, sort_direction: 'DESC' });
+      const query = routerNavigate.mock.calls.at(-1)![1].queryParams;
+      const reopened = applyQueryParams(applySavedAlbumFilters({ ...DEFAULT_FILTERS }, saved, '7'), query);
+      expect(reopened).toMatchObject({ camera: '', tag: '', min_score: '', blinks_only: false, sort_direction: 'DESC' });
+      expect(store.readGallerySessionQuery()).toMatchObject({ camera: '', tag: '', min_score: '', blinks_only: 'false', sort_direction: 'DESC' });
+      expect(query).not.toHaveProperty('max_aperture');
+      expect(store.currentAlbum()?.smart_filter_json).toBe(saved);
     });
 
     it('writes visibility and type defaults explicitly so reopened links retain the view', async () => {

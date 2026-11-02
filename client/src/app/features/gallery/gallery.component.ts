@@ -1090,7 +1090,7 @@ export class GalleryComponent implements OnInit, OnDestroy {
       const owner = this.auth.identity();
       // Make the departing visit explicit before a new visit overwrites the
       // session-query slot. Back to a bare root must not restore the new tag.
-      const params = { ...buildSyncParams(this.store.filters(), this.store.config()?.defaults, this.store.config()?.search_threshold_default),
+      const params = { ...buildSyncParams(this.store.filters(), this.store.config()?.defaults, this.store.config()?.search_threshold_default, this.store.currentAlbum()?.smart_filter_json),
         ...(this.store.temporaryReviewQueue() ? { review_queue: '1' } : {}) };
       const captured = await this.router.navigate([], { relativeTo: this.route, queryParams: params, replaceUrl: true, onSameUrlNavigation: 'reload' });
       if (!captured || this.auth.identity() !== owner || this.destroyRef.destroyed) return;

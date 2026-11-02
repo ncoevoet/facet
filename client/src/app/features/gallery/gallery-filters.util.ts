@@ -620,9 +620,12 @@ export function applyQueryParams(
   const result = { ...base };
 
   const stringKeys: (keyof GalleryFilters)[] = [
-    ...RANGE_AND_SELECT_KEYS, 'sort', 'sort_direction', 'similar_to', 'min_similarity',
+    'sort', 'sort_direction', 'similar_to', 'min_similarity',
     'semanticQuery', 'album_id',
   ];
+  for (const key of RANGE_AND_SELECT_KEYS) {
+    if (Object.hasOwn(params, key)) (result as Record<string, unknown>)[key] = params[key];
+  }
   for (const key of stringKeys) {
     if (params[key]) (result as Record<string, unknown>)[key] = params[key];
   }
@@ -634,14 +637,6 @@ export function applyQueryParams(
     const policy = parseScorePresence(params['score_presence']);
     result.score_presence = policy ? serializeScorePresence(policy) : params['score_presence'];
   }
-  if (Object.hasOwn(params, 'keyword_branch')) result.keyword_branch = params['keyword_branch'];
-  if (Object.hasOwn(params, 'person_id')) result.person_id = params['person_id'];
-  if (Object.hasOwn(params, 'type')) result.type = params['type'];
-  if (Object.hasOwn(params, 'review_status')) result.review_status = params['review_status'] as GalleryFilters['review_status'];
-  for (const key of ['date_from', 'date_to'] as const) {
-    if (Object.hasOwn(params, key)) result[key] = params[key];
-  }
-  if (Object.hasOwn(params, 'no_capture_date')) result.no_capture_date = params['no_capture_date'];
   result.no_capture_date = ['1', 'true'].includes(result.no_capture_date) ? '1' : '';
   if (!result.person_id || !['all', 'any'].includes(result.person_match)) result.person_match = 'all';
   if (!['', 'undecided', 'kept', 'rejected'].includes(result.review_status)) result.review_status = '';
@@ -709,6 +704,7 @@ export function buildSyncParams(
   f: GalleryFilters,
   defaults: FilterDefaults | undefined,
   searchThresholdDefault?: number | null,
+  savedAlbumJson?: string | null,
 ): Record<string, string> {
   const params: Record<string, string> = { type: f.type,
     hide_blinks: String(f.hide_blinks), hide_bursts: String(f.hide_bursts),
@@ -766,6 +762,20 @@ export function buildSyncParams(
   if (f.manual_faces_need_review) params['manual_faces_need_review'] = 'true';
   if (f.faces_need_names) params['faces_need_names'] = 'true';
 
+  // An album URL overlays its saved rules on reload. Preserve explicit clears
+  // only for those saved keys, keeping ordinary gallery URLs compact.
+  if (f.album_id && savedAlbumJson) {
+    try {
+      const saved: unknown = JSON.parse(savedAlbumJson);
+      if (saved && typeof saved === 'object' && !Array.isArray(saved)) {
+        for (const key of Object.keys(saved)) {
+          if (Object.hasOwn(DEFAULT_FILTERS, key) && !SMART_ALBUM_EXCLUDE_KEYS.has(key)) {
+            params[key] = String(f[key as keyof GalleryFilters]);
+          }
+        }
+      }
+    } catch { /* Invalid album rules do not contribute URL overrides. */ }
+  }
   return params;
 }
 

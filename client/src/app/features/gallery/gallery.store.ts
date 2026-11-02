@@ -2962,7 +2962,7 @@ export class GalleryStore {
 
   private galleryQueryParams(): Record<string, unknown> {
     return {
-      ...buildSyncParams(this.filters(), this.config()?.defaults, this.config()?.search_threshold_default),
+      ...buildSyncParams(this.filters(), this.config()?.defaults, this.config()?.search_threshold_default, this.currentAlbum()?.smart_filter_json),
       ...(this.transientReviewStatus() ? { review_queue: '1' } : {}),
     };
   }
@@ -2987,7 +2987,7 @@ export class GalleryStore {
   saveSessionQuery(): void {
     try {
       sessionStorage.setItem(GALLERY_SESSION_QUERY_KEY, JSON.stringify(buildSyncParams(
-        this.filters(), this.config()?.defaults, this.config()?.search_threshold_default,
+        this.filters(), this.config()?.defaults, this.config()?.search_threshold_default, this.currentAlbum()?.smart_filter_json,
       )));
     } catch { /* storage unavailable: the nav return just falls back to defaults */ }
   }

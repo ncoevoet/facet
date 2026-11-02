@@ -55,6 +55,8 @@ All notable changes to Facet are documented in this file.
 
 ### Fixed
 
+- Clearing saved smart-album criteria now survives reload and Back, including camera, tag and score filters, disabled flags and reset sort direction. Saved album rules remain unchanged.
+
 - Late album and configuration responses cannot overwrite a newer gallery visit; startup defaults no longer reset an active gallery.
 - Album setup that finishes while a photo is open waits for Back before loading the gallery, without losing the album scope or retrying old collection pages.
 - Pending range-slider reloads pause when leaving the gallery and resume on Back. Late “Keep top N%” results cannot replace a newer selection or collection.
