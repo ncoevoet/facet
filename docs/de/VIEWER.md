@@ -1195,7 +1195,7 @@ Für ältere Änderungen siehe [Änderungsverlauf](#änderungsverlauf).
 
 Produktions-Builds lassen sich auf dem Startbildschirm installieren. Die App-Hülle lädt offline, und bis zu 1000 Vorschaubilder werden 7 Tage lang zwischengespeichert (größere Größen, etwa die 1920px-Renderings der Dunkelkammer, verlassen sich auf den Browser-Cache). API-Antworten werden nie zwischengespeichert, außer Übersetzungspaketen. Eine Snackbar bietet ein Neuladen an, wenn eine neue Version bereitgestellt wird.
 
-> **Warnung:** Die Abmeldung leert den Vorschaubild-Cache der App, nicht aber den HTTP-Cache des Browsers, der angesehene Bilder (Vorschaubilder, Renderings, Bilder in voller Auflösung) bis zu einem Jahr behalten kann. Konten, die die Fotos der anderen nicht sehen dürfen, sollten kein Browserprofil teilen.
+> **Warnung:** Beim Abmelden versucht die App, vorhandene Vorschaubilder aus dem Service-Worker-Cache zu entfernen. Bereits laufende Anfragen können Bilder erneut zwischenspeichern. Der HTTP-Cache des Browsers wird nicht geleert und kann angesehene Bilder (Vorschaubilder, Renderings, Bilder in voller Auflösung) bis zu einem Jahr behalten. Konten, die die Fotos der anderen nicht sehen dürfen, sollten kein Browserprofil teilen.
 
 ## Mobil
 

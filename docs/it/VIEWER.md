@@ -1194,7 +1194,7 @@ Per modifiche più vecchie, vedi [Cronologia delle modifiche](#cronologia-delle-
 
 Le build di produzione possono essere installate nella schermata iniziale. La shell dell'app si carica offline, e fino a 1000 miniature sono messe in cache per 7 giorni (le dimensioni più grandi, come i rendering da 1920 px della camera oscura, si affidano alla cache del browser). Le risposte API non vengono mai messe in cache, tranne i pacchetti di traduzione. Una snackbar propone un ricaricamento quando viene distribuita una nuova versione.
 
-> **Avviso:** il logout cancella la cache delle miniature dell'app ma non la cache HTTP del browser, che può conservare le immagini viste (miniature, rendering, immagini a piena risoluzione) fino a un anno. Gli account che non devono vedere le foto l'uno dell'altro non dovrebbero condividere un profilo del browser.
+> **Avviso:** al logout, l’app tenta di rimuovere le miniature presenti nella cache del service worker. Le richieste già in corso possono memorizzare nuovamente le immagini. Questo non cancella la cache HTTP del browser, che può conservare le immagini viste (miniature, rendering, immagini a piena risoluzione) fino a un anno. Gli account che non devono vedere le foto l’uno dell’altro non dovrebbero condividere un profilo del browser.
 
 ## Mobile
 

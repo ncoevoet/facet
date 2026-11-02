@@ -1192,7 +1192,7 @@ Para alterações mais antigas, veja o [Histórico de organização](#histórico
 
 Os builds de produção podem ser instalados na tela inicial. O shell do aplicativo carrega offline, e até 1000 miniaturas ficam em cache por 7 dias (tamanhos maiores, como as renderizações de 1920 px da câmara escura, dependem do cache do navegador). As respostas da API nunca ficam em cache, exceto os pacotes de tradução. Uma barra de aviso oferece recarregar quando uma nova versão é implantada.
 
-> **Aviso:** encerrar a sessão limpa o cache de miniaturas do aplicativo, mas não o cache HTTP do navegador, que pode manter imagens vistas (miniaturas, renderizações, imagens em resolução total) por até um ano. Contas que não devem ver as fotos umas das outras não devem compartilhar um perfil de navegador.
+> **Aviso:** ao encerrar a sessão, o aplicativo tenta remover as miniaturas existentes do cache do service worker. Solicitações já em andamento podem armazenar imagens novamente. Isso não limpa o cache HTTP do navegador, que pode manter imagens vistas (miniaturas, renderizações, imagens em resolução total) por até um ano. Contas que não devem ver as fotos umas das outras não devem compartilhar um perfil de navegador.
 
 ## Mobile
 

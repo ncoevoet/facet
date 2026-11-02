@@ -68,7 +68,7 @@ describe('explicit catalog removal', () => {
     expect(remove).not.toHaveBeenCalled();
   });
 
-  it('erases entries from already-open thumbnail Cache objects before removing namespaces', async () => {
+  it('erases entries from already-open thumbnail Cache objects and retains their namespaces', async () => {
     const bytes = new Map([['/thumbnail?path=private', 'private bytes']]);
     const request = new Request('http://localhost/thumbnail?path=private');
     const deleteEntry = vi.fn(async () => bytes.delete('/thumbnail?path=private'));
@@ -87,7 +87,7 @@ describe('explicit catalog removal', () => {
       close.next(true);
       expect(await pending).toEqual(['/private.jpg']);
       expect(deleteEntry).toHaveBeenCalledWith(request);
-      expect(deleteNamespace).toHaveBeenCalledExactlyOnceWith('ngsw:db:thumbnails:cache');
+      expect(deleteNamespace).not.toHaveBeenCalled();
       expect(bytes.size).toBe(0);
     } finally { vi.unstubAllGlobals(); }
   });

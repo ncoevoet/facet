@@ -1194,7 +1194,7 @@ Pour des changements plus anciens, voir l’[Historique des modifications](#hist
 
 Les builds de production peuvent être installées sur l'écran d'accueil. La coque de l'application se charge hors ligne, et jusqu'à 1000 miniatures sont mises en cache pendant 7 jours (les tailles plus grandes, comme les rendus 1920 px de la chambre noire, reposent sur le cache du navigateur). Les réponses de l'API ne sont jamais mises en cache, sauf les paquets de traduction. Une barre de notification propose un rechargement quand une nouvelle version est déployée.
 
-> **Avertissement :** la déconnexion vide le cache de miniatures de l'application mais pas le cache HTTP du navigateur, qui peut conserver les images consultées (miniatures, rendus, images pleine résolution) jusqu'à un an. Les comptes qui ne doivent pas voir les photos les uns des autres ne devraient pas partager un profil de navigateur.
+> **Avertissement :** à la déconnexion, l’application tente de supprimer les miniatures présentes dans le cache du service worker. Les requêtes déjà en cours peuvent remettre des images en cache. Cela ne vide pas le cache HTTP du navigateur, qui peut conserver les images consultées (miniatures, rendus, images pleine résolution) jusqu’à un an. Les comptes qui ne doivent pas voir les photos les uns des autres ne devraient pas partager un profil de navigateur.
 
 ## Mobile
 

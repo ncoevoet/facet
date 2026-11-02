@@ -53,6 +53,25 @@ describe('AuthService', () => {
     mockRouter.navigate.mockClear();
   });
 
+  it('logout clears retained thumbnail entries without delaying navigation or deleting namespaces', async () => {
+    const request = new Request('http://localhost/thumbnail?path=private');
+    const bytes = new Map([[request, 'private bytes']]);
+    const open = vi.fn(async () => ({
+      keys: async () => [...bytes.keys()],
+      delete: async (key: Request) => bytes.delete(key),
+    }));
+    const deleteNamespace = vi.fn();
+    vi.stubGlobal('caches', { keys: async () => ['ngsw:thumbnails:cache', 'unrelated'], open, delete: deleteNamespace });
+    try {
+      expect(service.logout()).toBeUndefined();
+      httpTesting.expectOne('/api/auth/logout').flush({ ok: true });
+      expect(mockRouter.navigate).toHaveBeenCalledWith(['/login']);
+      await vi.waitFor(() => expect(bytes.size).toBe(0));
+      expect(open).toHaveBeenCalledExactlyOnceWith('ngsw:thumbnails:cache');
+      expect(deleteNamespace).not.toHaveBeenCalled();
+    } finally { vi.unstubAllGlobals(); }
+  });
+
   describe('initial state', () => {
     it('should have null status initially', () => {
       expect(service.status()).toBeNull();

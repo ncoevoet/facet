@@ -1197,7 +1197,7 @@ Para cambios más antiguos, ver [Historial de organización](#historial-de-organ
 
 Las compilaciones de producción se pueden instalar en la pantalla de inicio. El armazón de la aplicación se carga sin conexión, y hasta 1000 miniaturas se guardan en caché durante 7 días (los tamaños mayores, como los renderizados de 1920 px del cuarto oscuro, dependen de la caché del navegador). Las respuestas de la API nunca se guardan en caché, salvo los paquetes de traducción. Una barra de aviso ofrece recargar cuando se despliega una versión nueva.
 
-> **Advertencia:** cerrar sesión borra la caché de miniaturas de la aplicación pero no la caché HTTP del navegador, que puede conservar las imágenes vistas (miniaturas, renderizados, imágenes a resolución completa) hasta un año. Las cuentas que no deben ver las fotos de las demás no deberían compartir un perfil de navegador.
+> **Advertencia:** al cerrar sesión, la aplicación intenta eliminar las miniaturas existentes de la caché del service worker. Las solicitudes en curso pueden volver a guardar imágenes en caché. Esto no borra la caché HTTP del navegador, que puede conservar las imágenes vistas (miniaturas, renderizados, imágenes a resolución completa) hasta un año. Las cuentas que no deben ver las fotos de las demás no deberían compartir un perfil de navegador.
 
 ## Móvil
 

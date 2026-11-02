@@ -1195,7 +1195,7 @@ For older changes, see [Organization history](#organization-history).
 
 Production builds can be installed to the home screen. The app shell loads offline, and up to 1000 thumbnails are cached for 7 days (larger sizes, such as the darkroom's 1920 px renders, rely on the browser cache). API responses are never cached, except translation bundles. A snackbar offers a reload when a new version is deployed.
 
-> **Warning:** logout clears the app's thumbnail cache but not the browser's HTTP cache, which can keep viewed images (thumbnails, renders, full-resolution images) for up to a year. Accounts that must not see each other's photos should not share a browser profile.
+> **Warning:** logout attempts to remove existing service-worker thumbnail entries. Requests already in flight can cache images again. This does not clear the browser’s HTTP cache, which can keep viewed images (thumbnails, renders, full-resolution images) for up to a year. Accounts that must not see each other’s photos should not share a browser profile.
 
 ## Mobile
 

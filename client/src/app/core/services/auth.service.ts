@@ -4,6 +4,7 @@ import { Router } from '@angular/router';
 import { firstValueFrom } from 'rxjs';
 import { clearReviewQueues, REVIEW_QUEUE_STORAGE_KEY } from './review-queue.storage';
 import { clearPersonAssignmentHistory } from './person-assignment-history.storage';
+import { clearThumbnailCaches } from './thumbnail-cache';
 
 export interface AuthStatus {
   authenticated: boolean;
@@ -241,19 +242,8 @@ export class AuthService {
     clearPersonAssignmentHistory();
     clearReviewQueues();
     this.status.set(null);
-    this.clearThumbnailCaches();
+    void clearThumbnailCaches();
     this.router.navigate(['/login']);
-  }
-
-  /** Drop service-worker thumbnail caches so they can't leak across users
-   * sharing a browser (multi-user deployments). */
-  private clearThumbnailCaches(): void {
-    if (!('caches' in window)) return;
-    caches.keys()
-      .then(keys => Promise.allSettled(
-        keys.filter(k => k.includes(':thumbnails:')).map(k => caches.delete(k)),
-      ))
-      .catch(() => { /* cache API unavailable - nothing to clear */ });
   }
 
   /** Drop edition privileges without navigating away */

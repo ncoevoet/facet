@@ -10,6 +10,7 @@ import { ApiService } from './api.service';
 import { I18N } from '../i18n/keys';
 import { AuthService } from './auth.service';
 import { StalenessGuardFactory } from './staleness-guard.service';
+import { clearThumbnailCaches } from './thumbnail-cache';
 
 /** `POST /api/photo/delete` response — per-path, see `api.routers.export.api_photo_delete`. */
 export interface PhotoDeleteResponse {
@@ -65,19 +66,7 @@ export class PhotoActionsService {
       // Service-worker thumbnail copies outlive their database rows. Clear the
       // local thumbnail cache after an accepted erase, including old revisions.
       const removed = result.removed_catalog ?? [];
-      if (removed.length && 'caches' in window) {
-        try {
-          const keys = await caches.keys();
-          await Promise.all(keys.filter(key => key.includes(':thumbnails:')).map(async key => {
-            // Angular's running worker retains open Cache objects. Removing
-            // only the namespace leaves that object able to serve old bytes.
-            const cache = await caches.open(key);
-            const requests = await cache.keys();
-            await Promise.all(requests.map(request => cache.delete(request)));
-            await caches.delete(key);
-          }));
-        } catch { /* Browser storage can be disabled; server catalog erasure still succeeded. */ }
-      }
+      if (removed.length) await clearThumbnailCaches();
       if (!guard.current()) return [];
       this.store.removePhotos(removed);
       this.snackBar.open(this.i18n.t(I18N.photo_detail.remove_catalog.result, { count: removed.length }), '', { duration: 4000 });

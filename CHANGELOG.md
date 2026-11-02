@@ -55,6 +55,8 @@ All notable changes to Facet are documented in this file.
 
 ### Fixed
 
+- Logout clears existing thumbnail entries held by a running service worker. Catalog removal uses the same cleanup and keeps cache handles reachable for later cleanup.
+
 - Similar-group caches recheck current authorized photo inputs before returning group summaries, so revoked photos cannot remain in cover paths or counts. Thumbnail cache invalidation no longer races eviction into a request error.
 
 - Cull and Delete validate companion access before previews or writes, including mapped aliases. Hidden indexed companions and unsafe inventories refuse the whole request without changing files or catalog rows.
