@@ -1,10 +1,13 @@
-import { ChangeDetectionStrategy, Component, ElementRef, Injector, afterNextRender, computed, effect, inject, input, signal, viewChild } from '@angular/core';
+import { ChangeDetectionStrategy, Component, ElementRef, Injector, afterNextRender, computed, inject, input, linkedSignal, viewChild } from '@angular/core';
 import { MatButtonModule } from '@angular/material/button';
 import { MatIconModule } from '@angular/material/icon';
 import { i18nKeys } from '../../core/i18n/keys';
 import { FilenamePipe } from '../../shared/pipes/filename.pipe';
 import { ThumbnailUrlPipe } from '../../shared/pipes/thumbnail-url.pipe';
 import { TranslatePipe } from '../../shared/pipes/translate.pipe';
+
+/** Files shown per page of the preview grid. */
+const PAGE_SIZE = 24;
 
 /** Read-only view of the server's resolved file list, including unindexed companions. */
 @Component({
@@ -69,26 +72,18 @@ export class CullFilePreviewComponent {
   private trigger: HTMLElement | null = null;
   private readonly injector = inject(Injector);
   private readonly previewBack = viewChild('previewBack', { read: ElementRef<HTMLButtonElement> });
-  protected readonly page = signal(0);
-  protected readonly selected = signal<{ path: string; thumbnailPath: string } | null>(null);
-  protected readonly failed = signal(new Set<string>());
-  protected readonly largeFailed = signal(false);
-  protected readonly start = computed(() => this.page() * 24);
-  protected readonly end = computed(() => Math.min(this.start() + 24, this.paths().length));
+  // A new file list (a new preview) resets the page, the enlarged file and the failed images.
+  private readonly files = computed(() => [this.paths(), this.thumbnailPaths()] as const);
+  protected readonly page = linkedSignal({ source: this.files, computation: () => 0 });
+  protected readonly selected = linkedSignal<unknown, { path: string; thumbnailPath: string } | null>({
+    source: this.files, computation: () => null });
+  protected readonly failed = linkedSignal({ source: this.files, computation: () => new Set<string>() });
+  protected readonly largeFailed = linkedSignal({ source: this.files, computation: () => false });
+  protected readonly start = computed(() => this.page() * PAGE_SIZE);
+  protected readonly end = computed(() => Math.min(this.start() + PAGE_SIZE, this.paths().length));
   protected readonly pageFiles = computed(() => this.paths().slice(this.start(), this.end())
     .map(path => ({ path, sidecar: path.toLowerCase().endsWith('.xmp'),
       thumbnailPath: Object.hasOwn(this.thumbnailPaths(), path) ? this.thumbnailPaths()[path] : path })));
-
-  constructor() {
-    effect(() => {
-      this.paths();
-      this.thumbnailPaths();
-      this.page.set(0);
-      this.selected.set(null);
-      this.failed.set(new Set());
-      this.largeFailed.set(false);
-    });
-  }
 
   protected showPreview(file: { path: string; thumbnailPath: string }, event: Event): void {
     this.trigger = event.currentTarget as HTMLElement;
@@ -109,7 +104,7 @@ export class CullFilePreviewComponent {
   }
 
   protected changePage(delta: number): void {
-    this.page.update(page => Math.max(0, Math.min(Math.ceil(this.paths().length / 24) - 1, page + delta)));
+    this.page.update(page => Math.max(0, Math.min(Math.ceil(this.paths().length / PAGE_SIZE) - 1, page + delta)));
     this.selected.set(null);
   }
 }
