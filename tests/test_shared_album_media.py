@@ -37,8 +37,10 @@ def _asset(album, path, token='fixture-album-media'):
     return shared_asset_reference(album, token, row_id, path)
 
 
-@pytest.mark.parametrize('kind', ['thumbnail', 'image', 'download'])
-def test_protected_anonymous_member_bytes_only(kind, shared_media, anonymous_client):
+@pytest.mark.parametrize('kind,ordinary_url', [
+    ('thumbnail', '/thumbnail'), ('image', '/image'), ('download', '/api/download'),
+])
+def test_protected_anonymous_member_bytes_only(kind, ordinary_url, shared_media, anonymous_client, edition_client):
     album, path, other, data = shared_media
     base = f'/api/shared/album/{album}/media/{kind}'
     response = anonymous_client.get(base, params={'asset_id': _asset(album, path), 'token': 'fixture-album-media'})
@@ -49,7 +51,10 @@ def test_protected_anonymous_member_bytes_only(kind, shared_media, anonymous_cli
         refused = anonymous_client.get(base, params={'asset_id': _asset(album, target), 'token': token})
         assert refused.status_code == 404
     # Public album tokens must not authenticate the ordinary library endpoints.
-    ordinary = anonymous_client.get('/api/' + kind,
+    authorized = edition_client.get(ordinary_url, params={'path': path})
+    assert authorized.status_code == 200, authorized.text
+    assert authorized.content == data
+    ordinary = anonymous_client.get(ordinary_url,
                                     params={'path': path, 'token': 'fixture-album-media'})
     assert ordinary.status_code == 404
 
