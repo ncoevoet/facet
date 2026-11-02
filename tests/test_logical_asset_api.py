@@ -249,3 +249,16 @@ def test_assigned_alias_does_not_make_an_unassigned_alias_unique(edition_client,
     assert [candidate['path'] for candidate in response.json()['candidates']] == [bundle['paths'][0]]
     change = {**bundle, 'paths': [bundle['paths'][0], '/raw-alias/capture.CR2']}
     assert edition_client.post('/api/logical_assets/preview', json=change).status_code == 409
+
+
+def test_single_surviving_representation_keeps_identity_and_can_choose_a_primary(edition_client, bundle):
+    created = submit(edition_client, bundle, draft(edition_client, bundle), acknowledge_review_conflicts=True).json()
+    with sqlite3.connect(DEFAULT_DB_PATH) as conn:
+        conn.execute('DELETE FROM photos WHERE path=?', (bundle['paths'][0],))
+    state = edition_client.get('/api/logical_assets/by-photo', params={'path': bundle['paths'][1]}).json()['asset']
+    assert state['asset_id'] == created['asset_id']
+    assert state['primary_path'] is None and state['revision'] == 2
+    assert [member['path'] for member in state['members']] == [bundle['paths'][1]]
+    change = {'operation': 'primary', 'asset_id': created['asset_id'], 'revision': 2, 'primary_path': bundle['paths'][1]}
+    response = submit(edition_client, change, draft(edition_client, change))
+    assert response.status_code == 200 and response.json()['revision'] == 3

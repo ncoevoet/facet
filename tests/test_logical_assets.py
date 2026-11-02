@@ -86,7 +86,7 @@ def test_rescan_replace_preserves_membership_and_explicit_move_updates_primary(c
     assert conn.execute('SELECT photo_path FROM logical_asset_members ORDER BY position').fetchall() == [('/renamed.jpg',), ('/a.CR2',)]
 
 
-def test_removed_primary_requires_new_choice_and_last_pair_dissolves(catalog):
+def test_removed_primary_requires_new_choice_and_single_survivor_keeps_identity(catalog):
     conn, _ = catalog
     conn.execute('BEGIN')
     asset_id = group(conn, ('/a.jpg', '/a.CR2', '/a.NEF'))
@@ -94,9 +94,12 @@ def test_removed_primary_requires_new_choice_and_last_pair_dissolves(catalog):
     assert conn.execute('SELECT * FROM logical_assets').fetchone() == (asset_id, None, 2)
     assets.set_primary(conn, asset_id, '/a.NEF', 2, visibility_sql='1=1')
     conn.execute("DELETE FROM photos WHERE path='/a.CR2'")
+    assert conn.execute('SELECT * FROM logical_assets').fetchall() == [(asset_id, '/a.NEF', 4)]
+    assert conn.execute('SELECT photo_path FROM logical_asset_members').fetchall() == [('/a.NEF',)]
+    assert conn.execute('SELECT * FROM photos').fetchall() == [('/a.NEF', 3)]
+    conn.execute("DELETE FROM photos WHERE path='/a.NEF'")
     assert conn.execute('SELECT * FROM logical_assets').fetchall() == []
     assert conn.execute('SELECT * FROM logical_asset_members').fetchall() == []
-    assert conn.execute('SELECT * FROM photos').fetchall() == [('/a.NEF', 3)]
 
 
 def test_requires_transaction_and_valid_raw_jpeg_members(catalog):
@@ -136,6 +139,8 @@ def test_explicit_delete_cleanup_does_not_require_foreign_keys(catalog):
     assert conn.execute('SELECT * FROM logical_asset_members').fetchall() == []
     group(conn)
     conn.execute("DELETE FROM photos WHERE path='/a.CR2'")
+    assert conn.execute('SELECT COUNT(*) FROM logical_assets').fetchone()[0] == 1
+    conn.execute("DELETE FROM photos WHERE path='/a.jpg'")
     assert conn.execute('SELECT * FROM logical_assets').fetchall() == []
     assert conn.execute('SELECT * FROM logical_asset_members').fetchall() == []
 

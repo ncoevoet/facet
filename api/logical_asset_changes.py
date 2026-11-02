@@ -60,7 +60,7 @@ def snapshot(conn, change: LogicalAssetChange, user_id):
         paths = [r[0] for r in conn.execute(
             'SELECT photo_path FROM logical_asset_members WHERE asset_id=? ORDER BY position', (change.asset_id,))]
         group = list(row)
-    if not 2 <= len(paths) <= assets.MAX_MEMBERS:
+    if not 1 <= len(paths) <= assets.MAX_MEMBERS:
         raise HTTPException(404, 'Logical photo unavailable')
     source, source_params = get_photos_from_clause(user_id)
     expressions = get_preference_columns(user_id)

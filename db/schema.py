@@ -1250,12 +1250,28 @@ def _migrate_comparisons_user_id(conn):
 # (_migrate_add_missing_columns) still bootstraps every DB to the current
 # column shape; this ladder exists ONLY for non-additive ops the sweep cannot
 # express — renames, type changes, data backfills, index/constraint drops.
-SCHEMA_VERSION = 1
+SCHEMA_VERSION = 2
+
+def _preserve_single_member_logical_assets(conn):
+    """Replace only the old cleanup trigger; no membership or primary is guessed."""
+    from db.logical_assets import init_schema as init_logical_assets
+
+    conn.execute('SAVEPOINT logical_asset_continuity_migration')
+    try:
+        conn.execute('DROP TRIGGER IF EXISTS logical_asset_member_delete')
+        init_logical_assets(conn)
+    except BaseException:
+        conn.execute('ROLLBACK TO logical_asset_continuity_migration')
+        conn.execute('RELEASE logical_asset_continuity_migration')
+        raise
+    else:
+        conn.execute('RELEASE logical_asset_continuity_migration')
+
 
 # Ordered ladder of non-additive migrations: (target_version, fn(conn)).
 # Each fn MUST be idempotent and SHOULD call db.maintenance.backup_database
-# before a destructive step. Empty today — the mechanism ships ahead of need.
-MIGRATIONS: list[tuple[int, Callable[[Any], None]]] = []
+# before a destructive step. The continuity migration changes trigger policy only.
+MIGRATIONS: list[tuple[int, Callable[[Any], None]]] = [(2, _preserve_single_member_logical_assets)]
 
 
 def table_exists(conn, name):

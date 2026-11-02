@@ -89,7 +89,7 @@ def sync_imports(conn, preserved=None):
         # batches too; only predict the effects of mechanical deleted-photo cleanup.
         for asset_id, (primary, revision, members) in plan.before.items():
             remaining = [(path, position) for path, position in members if path in available]
-            expected = None if len(remaining) < 2 else (
+            expected = None if len(remaining) < 1 else (
                 primary if primary in {path for path, _ in remaining} else None,
                 revision + len(members) - len(remaining), remaining)
             if current.get(asset_id) != expected:
@@ -109,7 +109,7 @@ def sync_imports(conn, preserved=None):
             if value is not None:
                 primary, revision, members = value
                 paths = [path for path, _ in members]
-                if (len(paths) < 2 or len(paths) != len(set(paths))
+                if (len(paths) < 1 or len(paths) != len(set(paths))
                         or primary is not None and primary not in paths
                         or not set(paths) <= available or set(paths) & occupied):
                     continue

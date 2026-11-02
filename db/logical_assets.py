@@ -4,7 +4,7 @@ Catalog-only membership never changes files or copies file-specific metadata.
 The API/UI integration must preview conflicts before calling these mutations.
 No photo FK: preserve legacy replacement with default nonrecursive triggers.
 Current scanner UPSERT preserves membership even with recursive triggers enabled.
-After file loss, a surviving multi-file group can contain only RAWs or JPEGs;
+After file loss, a group can retain one representation or only RAWs/JPEGs;
 its identity remains, and a removed primary requires a new explicit choice.
 """
 from contextlib import contextmanager
@@ -47,6 +47,7 @@ def init_schema(conn: sqlite3.Connection) -> None:
         AFTER DELETE ON logical_assets BEGIN
         DELETE FROM logical_asset_members WHERE asset_id=OLD.id;
         END""")
+    # Keep identity while any indexed representation survives.
     # Losing a chosen primary requires a new explicit choice. Never silently
     # promote a sibling to the user's durable primary selection.
     conn.execute("""CREATE TRIGGER IF NOT EXISTS logical_asset_member_delete
@@ -55,7 +56,7 @@ def init_schema(conn: sqlite3.Connection) -> None:
             primary_path=CASE WHEN primary_path=OLD.photo_path THEN NULL ELSE primary_path END
         WHERE id=OLD.asset_id;
         DELETE FROM logical_assets WHERE id=OLD.asset_id AND
-            (SELECT COUNT(*) FROM logical_asset_members WHERE asset_id=OLD.asset_id)<2;
+            (SELECT COUNT(*) FROM logical_asset_members WHERE asset_id=OLD.asset_id)<1;
         END""")
     conn.execute("""CREATE TRIGGER IF NOT EXISTS logical_asset_photo_delete
         BEFORE DELETE ON photos BEGIN
@@ -99,7 +100,7 @@ def _members(conn, asset_id, revision, visibility_sql, visibility_params):
         raise AssetConflict('Photo membership changed; review again')
     paths = [row[0] for row in conn.execute(
         'SELECT photo_path FROM logical_asset_members WHERE asset_id=? ORDER BY position', (asset_id,))]
-    if len(paths) < 2:
+    if len(paths) < 1:
         raise AssetConflict('Photo membership is unavailable')
     _authorized(conn, paths, visibility_sql, visibility_params)
     return paths
