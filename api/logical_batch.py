@@ -69,12 +69,12 @@ def apply(conn, body, user, sql, patch, review_rejected):
         raise HTTPException(404, 'Photo review unavailable')
     keys = sorted({row[1] for row in rows if row[1] is not None})
     # Capture every logical precondition before the first label mutation.
-    states = [logical_reviews.read(conn, key, user.user_id) for key in keys]
+    snapshots = [logical_reviews.snapshot(conn, key, user.user_id) for key in keys]
+    states = [state[0] for state in snapshots]
     history = organization_capture.begin(conn, user.user_id, 'review', paths)
     captured = {}
     owner = history[0]
-    for key in keys:
-        _, group_owner, labels, _, _ = logical_reviews.snapshot(conn, key, user.user_id)
+    for key, (_, group_owner, labels, _, _) in zip(keys, snapshots):
         if group_owner != owner:
             raise HTTPException(409, 'Review scope changed')
         captured[key] = logical_history.capture(conn, key, owner, labels)
