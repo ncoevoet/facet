@@ -3261,11 +3261,14 @@ def reject_standalone_below(conn, user_id, scope, min_score, exclude_paths, dry_
     # Applies still require the initialized schema and its real column.
     kept_predicate = '1' if dry_run and not _has_keep_decisions(conn, user_id) else f"COALESCE({prefs['is_kept']}, 0) = 0"
     comparison_match = '(c.photo_a_path = photos.path OR c.photo_b_path = photos.path)'
+    comparison_scope = "c.source = 'culling'" + (' AND c.user_id = ?' if per_user else '')
+    logical_comparison_exclusion = ''
     burst_count = 'COUNT(*) FROM photos g'
     if logical is not None:
-        comparison_match = f'''({comparison_match} OR EXISTS (
+        logical_comparison_exclusion = f'''AND NOT EXISTS (
             SELECT 1 FROM logical_asset_members cm WHERE cm.asset_id=photos._logical_asset_id
-              AND cm.photo_path IN (c.photo_a_path,c.photo_b_path)))'''
+              AND EXISTS (SELECT 1 FROM comparisons c WHERE {comparison_scope}
+                AND (c.photo_a_path=cm.photo_path OR c.photo_b_path=cm.photo_path)))'''
         burst_count = ("COUNT(DISTINCT CASE WHEN gm.asset_id IS NULL THEN 'file:'||g.path ELSE 'asset:'||gm.asset_id END) "
                        'FROM photos g LEFT JOIN logical_asset_members gm ON gm.photo_path=g.path')
     identity_columns = 'photos.path,photos._logical_asset_id' if logical is not None else 'photos.path'
@@ -3282,13 +3285,15 @@ def reject_standalone_below(conn, user_id, scope, min_score, exclude_paths, dry_
                        OR COALESCE({prefs['star_rating']}, 0) > 0)
               AND {scope_fragment}
               AND NOT EXISTS (SELECT 1 FROM comparisons c
-                              WHERE c.source = 'culling'{' AND c.user_id = ?' if per_user else ''}
+                              WHERE {comparison_scope}
                                 AND {comparison_match})
+              {logical_comparison_exclusion}
               AND (photos.burst_group_id IS NULL
                    OR (SELECT {burst_count}
                        WHERE g.burst_group_id = photos.burst_group_id) < 2)
             ORDER BY photos.path""",
-        from_params + vis_params + [min_score] + scope_params + ([user_id] if per_user else []),
+        from_params + vis_params + [min_score] + scope_params
+        + ([user_id] * (2 if logical is not None else 1) if per_user else []),
     ).fetchall()
     excluded = set(exclude_paths)
     excluded_assets = set()
