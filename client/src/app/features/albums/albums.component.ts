@@ -29,6 +29,7 @@ import { ConfirmDialogComponent } from '../../shared/components/confirm-dialog/c
 import { PageHelpService } from '../../core/services/page-help.service';
 import { HeaderSlotService } from '../../core/services/header-slot.service';
 import { onPageQuery } from '../../shared/utils/page-query';
+import { MarkTonePipe } from '../../shared/pipes/mark-tone.pipe';
 
 @Component({
   selector: 'app-albums',
@@ -37,7 +38,7 @@ import { onPageQuery } from '../../shared/utils/page-query';
   imports: [
     RouterLink, MatButtonModule, MatIconModule, MatFormFieldModule, MatInputModule,
     MatSelectModule, MatDialogModule, MatTooltipModule,
-    MatProgressSpinnerModule, MatMenuModule,
+    MatProgressSpinnerModule, MatMenuModule, MarkTonePipe,
     TranslatePipe, ThumbnailUrlPipe, InfiniteScrollDirective,
   ],
   changeDetection: ChangeDetectionStrategy.Eager,
@@ -109,9 +110,9 @@ import { onPageQuery } from '../../shared/utils/page-query';
               }
             </div>
             @if (album.is_smart) {
-              <mat-icon class="!text-base !w-4 !h-4 shrink-0 text-[var(--mat-sys-on-surface-variant)]"
+              <mat-icon class="!text-base !w-4 !h-4 shrink-0" [class]="'smart' | markTone"
                         [matTooltip]="'albums.smart_tooltip' | translate"
-                        [attr.aria-label]="'albums.smart_tooltip' | translate">auto_awesome</mat-icon>
+                        [attr.aria-label]="'albums.smart_tooltip' | translate">✦</mat-icon>
             }
           </div>
         </a>
