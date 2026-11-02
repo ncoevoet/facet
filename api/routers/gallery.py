@@ -907,6 +907,9 @@ async def api_photo(
             await cur.close()
             photo['assessment_states'] = {'face_quality_iqa': 'not_applicable'} if declined else {}
 
+            if token is None:
+                from api.logical_reviews import attach_async as attach_logical_reviews
+                await attach_logical_reviews(conn, [photo], user_id)
             sanitize_float_values([photo])
 
             return photo
@@ -1394,7 +1397,7 @@ def _with_semantic_clause(where_str: str) -> str:
     return f"{where_str} AND{_SEMANTIC_CLAUSE}" if where_str else f" WHERE{_SEMANTIC_CLAUSE}"
 
 
-async def _assemble_gallery_rows(rows, conn) -> list[dict]:
+async def _assemble_gallery_rows(rows, conn, user_id) -> list[dict]:
     """Gallery rows as the wire carries them: tags split, date formatted, persons attached.
 
     Shared by the listing and ``/api/photos/by_paths`` so the two cannot drift.
@@ -1403,6 +1406,8 @@ async def _assemble_gallery_rows(rows, conn) -> list[dict]:
     for photo in photos:
         photo['date_formatted'] = format_date(photo.get('date_taken'))
     await attach_person_data_async(photos, conn)
+    from api.logical_reviews import attach_async as attach_logical_reviews
+    await attach_logical_reviews(conn, photos, user_id)
     return photos
 
 
@@ -1447,7 +1452,7 @@ async def api_photos(
             token = None
             if owner is not None:
                 token = await snapshot_count_token()
-                await conn.execute('BEGIN')
+            await conn.execute('BEGIN')
             # The listing's own scope, from the same builder every whole-view
             # surface uses -- album access check included. `params` is already
             # prepared above for the sort and paging, so it is handed over
@@ -1541,7 +1546,7 @@ async def api_photos(
             else:
                 rows = []
 
-            photos = await _assemble_gallery_rows(rows, conn)
+            photos = await _assemble_gallery_rows(rows, conn, user_id)
             if owner is not None:
                 await stack_gallery.enrich_counts(photos, conn, owner, user_id)
             if candidates is not None:
@@ -1596,6 +1601,7 @@ async def api_photos_by_paths(
     wanted = list(dict.fromkeys(body.paths))
     try:
         async with get_async_db() as conn:
+            await conn.execute('BEGIN')
             user_id = user.user_id if user else None
             from_clause, where_str, all_params = await gallery_scope_sql_async(
                 conn, qp, user_id, prepared=params)
@@ -1609,7 +1615,7 @@ async def api_photos_by_paths(
             )
             rows = await cur.fetchall()
             await cur.close()
-            photos = await _assemble_gallery_rows(rows, conn)
+            photos = await _assemble_gallery_rows(rows, conn, user_id)
     except sqlite3.Error:
         logger.exception("Failed to fetch photos by path")
         raise HTTPException(status_code=500, detail='Internal server error')

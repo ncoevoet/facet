@@ -1,3 +1,5 @@
+import type { components } from '../../core/api/schema';
+
 /** "A better shot exists in this group" hint from the learned keeper head. */
 export interface KeeperHint {
   has_better: boolean;
@@ -6,6 +8,8 @@ export interface KeeperHint {
 }
 
 export interface Photo {
+  /** Account-scoped logical review snapshot; omitted on public/restricted views. */
+  logical_review?: components['schemas']['LogicalReviewState'] | null;
   /** Explicit receipt for this stored scan; absent means no known reason. */
   assessment_states?: { face_quality_iqa?: 'not_applicable' } | null;
   preview_revision?: string | null;

@@ -4,6 +4,7 @@ from pydantic import BaseModel, Field, StringConstraints, field_validator, After
 from typing import Annotated
 from typing import Any, Literal, Optional, Union
 
+from api.models.logical_assets import LogicalReviewState
 from api.models.common import CoercedInt, PaginationEnvelope
 from tag_query import TAG_QUERY_JSON_LIMIT, validated_tag_query
 from score_presence import SCORE_PRESENCE_JSON_LIMIT, validated_score_presence
@@ -166,6 +167,7 @@ class Photo(PhotoMetadata):
     """Authenticated catalog photo identity and metadata."""
 
     path: str
+    logical_review: Optional[LogicalReviewState] = None
     # Only explicit current-scan receipts support a missing-score reason.
     assessment_states: Optional[PhotoAssessmentStates] = None
 

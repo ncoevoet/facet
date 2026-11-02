@@ -97,23 +97,19 @@ def seed(conn, asset_id, source_path, revision, *, visibility_sql, visibility_pa
                      (asset_id, source_path))
 
 
-def read(conn, asset_id, owner, file_labels):
-    """Resolve sparse logical overrides without reading hidden file labels.
+def database_identity(filename, memory_identity=None):
+    if filename:
+        info = os.stat(filename)
+        return [os.path.realpath(filename), info.st_dev, info.st_ino]
+    return ['memory', memory_identity]
 
-    file_labels is the authorized path->field mapping read by the caller in the
-    same snapshot. Missing/hidden seed values stay unknown; no implicit primary
-    substitution or numeric-zero inference is made.
-    """
-    if not conn.in_transaction:
-        raise AssetConflict('A catalog read transaction is required')
-    if not isinstance(owner, str):
-        raise AssetConflict('Choose an account review scope')
-    members = {row[0] for row in conn.execute('SELECT photo_path FROM logical_asset_members WHERE asset_id=?', (asset_id,))}
+
+def resolve(asset_id, owner, file_labels, members, source_path, overrides, revision, database, group):
+    """Pure resolution shared by sync and async readers of one authorized snapshot."""
     allowed = members & file_labels.keys()
     if not allowed:
         raise AssetConflict('Logical review unavailable')
-    row = conn.execute('SELECT photo_path FROM logical_review_seeds WHERE asset_id=?', (asset_id,)).fetchone()
-    source = row[0] if row and row[0] in allowed else None
+    source = source_path if source_path in allowed else None
     inherited = file_labels[source] if source is not None else {}
     values = {field: inherited.get(field) for field in FIELDS}
     origins = {field: 'file' if field in inherited else 'unknown' for field in FIELDS}
@@ -123,8 +119,6 @@ def read(conn, asset_id, owner, file_labels):
         values['is_kept'], values['is_rejected'] = 0, 1
     elif values['is_kept']:
         values['is_kept'], values['is_rejected'] = 1, 0
-    overrides = [tuple(row) for row in conn.execute(
-        'SELECT field,value,origin FROM logical_review_fields WHERE asset_id=? AND owner=? ORDER BY field', (asset_id, owner))]
     for field, value, origin in overrides:
         if field == 'decision':
             values['is_kept'], values['is_rejected'] = int(value == 1), int(value == 2)
@@ -132,20 +126,30 @@ def read(conn, asset_id, owner, file_labels):
         else:
             values[field] = value
             origins[field] = origin
-    version = conn.execute('SELECT revision FROM logical_review_versions WHERE asset_id=? AND owner=?', (asset_id, owner)).fetchone()
-    filename = next(row[2] for row in conn.execute('PRAGMA database_list') if row[1] == 'main')
-    if filename:
-        info = os.stat(filename)
-        database = [os.path.realpath(filename), info.st_dev, info.st_ino]
-    else:
-        database = ['memory', id(conn)]
-    group = conn.execute('SELECT primary_path,revision FROM logical_assets WHERE id=?', (asset_id,)).fetchone()
     visible_group = [group[0] if group[0] in allowed else None, group[1]] if group else None
     inputs = [database, asset_id, owner, visible_group, sorted(allowed), source,
               {path: file_labels[path] for path in sorted(allowed)}, overrides]
     token = hashlib.sha256(json.dumps(inputs, sort_keys=True, separators=(',', ':'), ensure_ascii=False).encode('utf-8')).hexdigest()
     return {'values': values, 'origins': origins, 'source_path': source,
-            'input_token': token, 'revision': version[0] if version else 0}
+            'input_token': token, 'revision': revision}
+
+
+
+def read(conn, asset_id, owner, file_labels):
+    """Resolve sparse overrides from currently authorized labels in one transaction."""
+    if not conn.in_transaction:
+        raise AssetConflict('A catalog read transaction is required')
+    if not isinstance(owner, str):
+        raise AssetConflict('Choose an account review scope')
+    members = {row[0] for row in conn.execute('SELECT photo_path FROM logical_asset_members WHERE asset_id=?', (asset_id,))}
+    seed_row = conn.execute('SELECT photo_path FROM logical_review_seeds WHERE asset_id=?', (asset_id,)).fetchone()
+    overrides = [tuple(row) for row in conn.execute(
+        'SELECT field,value,origin FROM logical_review_fields WHERE asset_id=? AND owner=? ORDER BY field', (asset_id, owner))]
+    version = conn.execute('SELECT revision FROM logical_review_versions WHERE asset_id=? AND owner=?', (asset_id, owner)).fetchone()
+    filename = next(row[2] for row in conn.execute('PRAGMA database_list') if row[1] == 'main')
+    group = conn.execute('SELECT primary_path,revision FROM logical_assets WHERE id=?', (asset_id,)).fetchone()
+    return resolve(asset_id, owner, file_labels, members, seed_row[0] if seed_row else None,
+                   overrides, version[0] if version else 0, database_identity(filename, id(conn)), group)
 
 
 def _check_inputs(state, token):

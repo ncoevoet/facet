@@ -399,3 +399,43 @@ def test_logical_review_invalid_values_leave_authority_unchanged(edition_client,
     response = edition_client.post('/api/logical_assets/review', json={**body, 'patch': patch})
     assert response.status_code in (409, 422), response.text
     assert edition_client.get('/api/logical_assets/review', params={'asset_id': key}).json() == state
+
+
+def test_photo_response_carries_same_logical_snapshot_and_share_omits_it(edition_client, bundle, monkeypatch):
+    from api import config, logical_reviews
+    monkeypatch.setitem(config.VIEWER_CONFIG, 'edition_password', 'test-only')
+    key = submit(edition_client, bundle, draft(edition_client, bundle), acknowledge_review_conflicts=True).json()['asset_id']
+    state = edition_client.get('/api/logical_assets/review', params={'asset_id': key}).json()
+    body = {field: state[field] for field in ('asset_id', 'group_revision', 'revision', 'input_token')}
+    changed = edition_client.post('/api/logical_assets/review', json={**body, 'patch': {'star_rating': 3}}).json()
+    for path in bundle['paths']:
+        response = edition_client.get('/api/photo', params={'path': path})
+        assert response.status_code == 200, response.text
+        assert response.json()['logical_review'] == changed
+    shared = edition_client.get('/api/photo', params={'path': bundle['primary_path'], 'token': 'advisory-share'})
+    assert shared.status_code == 200
+    assert 'logical_review' not in shared.json()
+    monkeypatch.setattr(logical_reviews, 'get_visibility_clause', lambda user: ('photos.path != ?', [bundle['paths'][1]]))
+    hidden = edition_client.get('/api/photo', params={'path': bundle['primary_path']})
+    assert hidden.status_code == 200
+    assert 'logical_review' not in hidden.json()
+    targeted = edition_client.post('/api/photos/by_paths', json={'paths': [bundle['primary_path']], 'filters': {'type': '', 'hide_rejected': False}})
+    assert targeted.status_code == 200, targeted.text
+    assert len(targeted.json()['photos']) == 1
+    assert 'logical_review' not in targeted.json()['photos'][0]
+
+
+def test_gallery_and_targeted_rows_carry_logical_snapshot(edition_client, bundle):
+    key = submit(edition_client, bundle, draft(edition_client, bundle), acknowledge_review_conflicts=True).json()['asset_id']
+    state = edition_client.get('/api/logical_assets/review', params={'asset_id': key}).json()
+    filters = {'type': '', 'hide_blinks': False, 'hide_bursts': False, 'hide_duplicates': False,
+               'hide_brackets': False, 'hide_panoramas': False, 'hide_rejected': False}
+    targeted = edition_client.post('/api/photos/by_paths', json={'paths': bundle['paths'], 'filters': filters})
+    assert targeted.status_code == 200, targeted.text
+    assert len(targeted.json()['photos']) == 2
+    assert all(photo['logical_review'] == state for photo in targeted.json()['photos'])
+    listing = edition_client.get('/api/photos', params={**filters, 'per_page': 100})
+    assert listing.status_code == 200, listing.text
+    found = [photo for photo in listing.json()['photos'] if photo['path'] in bundle['paths']]
+    assert len(found) == 2
+    assert all(photo['logical_review'] == state for photo in found)

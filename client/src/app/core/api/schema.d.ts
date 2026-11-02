@@ -9149,6 +9149,7 @@ export interface components {
             lens_model?: string | null;
             /** Liqe Score */
             liqe_score?: number | null;
+            logical_review?: components["schemas"]["LogicalReviewState"] | null;
             /**
              * Manual Tags
              * @default []
