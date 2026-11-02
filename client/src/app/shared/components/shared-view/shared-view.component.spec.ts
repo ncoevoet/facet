@@ -4,6 +4,9 @@ import { ActivatedRoute } from '@angular/router';
 import { HttpErrorResponse, provideHttpClient, withXhr } from '@angular/common/http';
 import { of, throwError, Subject } from 'rxjs';
 import { signal } from '@angular/core';
+import { By } from '@angular/platform-browser';
+import { provideNativeDateAdapter } from '@angular/material/core';
+import { SlideshowComponent } from '../../../features/gallery/slideshow.component';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
 import { ApiService } from '../../../core/services/api.service';
 import { AuthService } from '../../../core/services/auth.service';
@@ -69,6 +72,7 @@ describe('SharedViewComponent', () => {
     TestBed.configureTestingModule({
       providers: [
         SharedViewComponent,
+        provideNativeDateAdapter(),
         provideHttpClient(withXhr()),
         provideHttpClientTesting(),
         { provide: ApiService, useValue: mockApi },
@@ -88,6 +92,25 @@ describe('SharedViewComponent', () => {
     mockI18n = {
       t: vi.fn((key: string) => key),
     };
+  });
+
+  it('wires shared slideshow paging and close to the shared collection', async () => {
+    Object.assign(mockI18n, { translations: () => ({}), locale: () => 'en' });
+    mockApi.get.mockReturnValue(of({ ...sharedAlbumResponse, photos: [], has_more: true }));
+    createComponent('1', 'fixture-token');
+    const fixture = TestBed.createComponent(SharedViewComponent);
+    fixture.detectChanges(); await fixture.whenStable(); fixture.detectChanges();
+    const shared = fixture.componentInstance as any;
+    shared.slideshowActive.set(true); fixture.detectChanges();
+    const slide = fixture.debugElement.query(By.directive(SlideshowComponent)).componentInstance as SlideshowComponent;
+    expect(slide.sharedAlbum()).toEqual({ albumId: 1, token: 'fixture-token' });
+    mockApi.get.mockClear();
+    slide.loadMore.emit();
+    expect(mockApi.get).toHaveBeenCalledWith('/shared/album/1', expect.objectContaining({ token: 'fixture-token', page: 2 }));
+    slide.close(); fixture.detectChanges();
+    expect(shared.slideshowActive()).toBe(false);
+    expect(fixture.debugElement.query(By.directive(SlideshowComponent))).toBeNull();
+    fixture.destroy();
   });
 
   it('rehydrates and saves proofing picks using only asset identities', async () => {

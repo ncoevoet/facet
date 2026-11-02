@@ -67,6 +67,12 @@ describe('GalleryComponent', () => {
   let routeMock: { snapshot: { paramMap: { get: Mock }; queryParams: Record<string, string> } };
   let outletMock: { attachEvents: Subject<unknown>; detachEvents: Subject<unknown> };
 
+  it('clears its slideshow state when the gallery is destroyed', () => {
+    mockStore.slideshowActive.set(true);
+    component.ngOnDestroy();
+    expect(mockStore.slideshowActive()).toBe(false);
+  });
+
   it('releases a stale side-drawer inset for mobile or a closed desktop drawer', () => {
     const desktop = signal(true);
     Object.defineProperty(component, 'isDesktop', { value: desktop });

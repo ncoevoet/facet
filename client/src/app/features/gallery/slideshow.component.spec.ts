@@ -1,9 +1,6 @@
-import type { Mock } from 'vitest';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
-import { signal } from '@angular/core';
 import { SlideshowComponent } from './slideshow.component';
 import { PageContextService } from '../../core/agent/page-context.service';
-import { GalleryStore } from './gallery.store';
 import { I18nService } from '../../core/services/i18n.service';
 import type { Photo } from '../../shared/models/photo.model';
 import { makePhoto } from '../../../testing/photo.fixture';
@@ -16,7 +13,6 @@ const portrait = (path: string): Photo => makePhoto({ path, filename: path, imag
 describe('SlideshowComponent', () => {
   let fixture: ComponentFixture<SlideshowComponent>;
   let component: SlideshowComponent;
-  let mockStore: { slideshowActive: ReturnType<typeof signal<boolean>>; nextPage: Mock };
   const mockI18n = {
     t: (key: string) => key,
     currentLang: vi.fn(() => 'en'),
@@ -68,15 +64,9 @@ describe('SlideshowComponent', () => {
     Object.defineProperty(window, 'innerWidth', { value: 1600, configurable: true, writable: true });
     Object.defineProperty(window, 'innerHeight', { value: 900, configurable: true, writable: true });
 
-    mockStore = {
-      slideshowActive: signal(true),
-      nextPage: vi.fn(() => Promise.resolve()),
-    };
-
     TestBed.configureTestingModule({
       imports: [SlideshowComponent],
       providers: [
-        { provide: GalleryStore, useValue: mockStore },
         { provide: I18nService, useValue: mockI18n },
       ],
     });
@@ -100,6 +90,73 @@ describe('SlideshowComponent', () => {
     fixture.detectChanges();
     TestBed.tick();
   }
+
+  it('renders shared slides and fallback thumbnails through the album capability', () => {
+    const asset = '1.' + 'a'.repeat(64);
+    fixture.componentRef.setInput('sharedAlbum', { albumId: 7, token: 'share-token' });
+    mount([landscape(asset)]);
+    const img = fixture.nativeElement.querySelector('img') as HTMLImageElement;
+    const full = new URL(img.src);
+    expect(full.pathname).toBe('/api/shared/album/7/media/image');
+    expect(full.searchParams.get('asset_id')).toBe(asset);
+    expect(full.searchParams.get('token')).toBe('share-token');
+    img.dispatchEvent(new Event('error'));
+    expect(new URL(img.src).pathname).toBe('/api/shared/album/7/media/thumbnail');
+    const fallback = img.src;
+    img.dispatchEvent(new Event('error'));
+    expect(img.src).toBe(fallback);
+  });
+
+  it('preloads shared images and fallback thumbnails with the captured capability', async () => {
+    const requests: { src: string; onload?: () => void; onerror?: () => void }[] = [];
+    vi.stubGlobal('Image', class {
+      src = ''; onload?: () => void; onerror?: () => void;
+      constructor() { requests.push(this); }
+    });
+    fixture.componentRef.setInput('sharedAlbum', { albumId: 7, token: 'share-token' });
+    mount([landscape('1.' + 'a'.repeat(64)), landscape('2.' + 'b'.repeat(64))]);
+    component.next();
+    expect(new URL(requests[0].src, document.baseURI).pathname).toBe('/api/shared/album/7/media/image');
+    requests[0].onerror!();
+    const fallback = new URL(requests[1].src, document.baseURI);
+    expect(fallback.pathname).toBe('/api/shared/album/7/media/thumbnail');
+    expect(fallback.searchParams.get('token')).toBe('share-token');
+    expect(fallback.searchParams.get('asset_id')).toBe('2.' + 'b'.repeat(64));
+    requests[1].onload!(); await flushMicrotasks();
+    expect(component.currentSlideIndex()).toBe(1);
+  });
+
+  it.each(['destroy', 'scope'] as const)('does not start fallback or advance after %s invalidates a preload', async ending => {
+    const requests: { src: string; onload?: () => void; onerror?: () => void }[] = [];
+    vi.stubGlobal('Image', class {
+      src = ''; onload?: () => void; onerror?: () => void;
+      constructor() { requests.push(this); }
+    });
+    fixture.componentRef.setInput('sharedAlbum', { albumId: 7, token: 'old-token' });
+    mount([landscape('one'), landscape('two')]);
+    component.next();
+    if (ending === 'destroy') component.ngOnDestroy();
+    else fixture.componentRef.setInput('sharedAlbum', { albumId: 8, token: 'new-token' });
+    requests[0].onerror!(); await flushMicrotasks();
+    expect(requests).toHaveLength(1);
+    expect(component.currentSlideIndex()).toBe(0);
+  });
+
+  it('asks its owner for the next page and advances when those photos arrive', async () => {
+    fixture.componentRef.setInput('hasMore', true);
+    mount([landscape('/first.jpg')]);
+    const load = vi.fn(() => fixture.componentRef.setInput('loading', true));
+    component.loadMore.subscribe(load);
+    component.next();
+    expect(load).toHaveBeenCalledOnce();
+    fixture.componentRef.setInput('photos', [landscape('/first.jpg'), landscape('/next.jpg')]);
+    fixture.componentRef.setInput('hasMore', false);
+    fixture.componentRef.setInput('loading', false);
+    fixture.detectChanges();
+    await vi.advanceTimersByTimeAsync(200); await flushMicrotasks();
+    expect(component.currentSlideIndex()).toBe(1);
+    expect(load).toHaveBeenCalledOnce();
+  });
 
   describe('page context', () => {
     it('registers itself as an overlay while mounted, wherever it is used', () => {
@@ -327,10 +384,11 @@ describe('SlideshowComponent', () => {
   });
 
   describe('close()', () => {
-    it('sets slideshowActive to false on the store', () => {
+    it('asks its owner to close', () => {
       mount();
+      const closed = vi.fn(); component.closed.subscribe(closed);
       component.close();
-      expect(mockStore.slideshowActive()).toBe(false);
+      expect(closed).toHaveBeenCalledOnce();
     });
   });
 
@@ -479,8 +537,9 @@ describe('SlideshowComponent', () => {
     it('Escape key closes the slideshow', () => {
       mount();
       const handler = component['onKeyDown'].bind(component);
+      const closed = vi.fn(); component.closed.subscribe(closed);
       handler(new KeyboardEvent('keydown', { key: 'Escape' }));
-      expect(mockStore.slideshowActive()).toBe(false);
+      expect(closed).toHaveBeenCalledOnce();
     });
 
     it('ArrowRight advances forward through slides, wrapping from the last slide to the first', async () => {

@@ -46,6 +46,7 @@ from api.models.sidecar_jobs import SidecarJobStatus
 from api.models.export_preview import ExportApplyRequest, ExportPreviewRequest, ExportPreviewResponse
 from api.path_validation import PhotoFileMissing, resolve_photo_disk_path
 from api.raw_processing import find_companion_raw, windows_entry_path
+from comparison.training_scope import read_snapshot
 from db.maintenance import delete_photo_rows
 from processing.xmp_export import (
     FaceRegion,
@@ -252,18 +253,12 @@ class PhotoDeleteRequest(BaseModel):
 def _fetch_rating_rows(conn, paths, user_id, *, include_metadata=True):
     # Full-group authorization and inherited review inputs share one read snapshot,
     # including legacy direct export callers that did not open a transaction.
-    own_snapshot = not conn.in_transaction
-    if own_snapshot:
-        conn.execute('BEGIN')
-    try:
+    with read_snapshot(conn):
         rows = _fetch_file_rating_rows(conn, paths, user_id, include_metadata=include_metadata)
         if include_metadata:
             from api.logical_export import attach
             attach(conn, rows, user_id)
         return rows
-    finally:
-        if own_snapshot:
-            conn.rollback()
 
 
 def _fetch_file_rating_rows(conn, paths, user_id, *, include_metadata=True):

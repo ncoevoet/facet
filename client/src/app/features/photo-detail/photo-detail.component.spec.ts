@@ -1403,6 +1403,65 @@ describe('PhotoDetailComponent', () => {
     });
   });
 
+  describe('physical review completion ownership', () => {
+    for (const action of ['setRating', 'toggleFavorite'] as const) {
+      for (const invalidation of ['owner', 'token'] as const) {
+        it.each(['success', 'error'])(`discards ${action} %s after ${invalidation} changes`, async outcome => {
+          createComponent();
+          Object.assign(mockAuth, { token: 'old-token' });
+          TestBed.tick();
+          component.photo.set({ ...samplePhoto, star_rating: 0, is_favorite: false });
+          const response = new Subject<unknown>();
+          mockApi.post.mockReturnValue(response);
+          const journal = TestBed.inject(UserActivityJournal);
+          const recorded = vi.spyOn(journal, 'record');
+          const notice = vi.spyOn(component.snackBar, 'open');
+          const pending = component[action](samplePhoto.path, 5);
+          if (invalidation === 'owner') mockAuth.status.set({ user_id: 'bob' });
+          else Object.assign(mockAuth, { token: 'new-token' });
+          component.store.photos.set([{ ...samplePhoto, star_rating: 1, is_favorite: false }]);
+          if (outcome === 'success') response.next({ is_favorite: true, is_rejected: null });
+          else response.error(new Error('old session failed'));
+          await pending;
+          expect(component.store.photos()[0]).toMatchObject({ star_rating: 1, is_favorite: false });
+          expect(recorded).not.toHaveBeenCalled();
+          expect(notice).not.toHaveBeenCalled();
+        });
+      }
+      it.each(['success', 'error'])(`settles ${action} %s after destruction without touching the old view`, async outcome => {
+        createComponent();
+        const oldPhoto = { ...samplePhoto, star_rating: 0, is_favorite: false };
+        component.photo.set(oldPhoto);
+        component.store.photos.set([oldPhoto]);
+        const response = new Subject<unknown>(); mockApi.post.mockReturnValue(response);
+        const notice = vi.spyOn(component.snackBar, 'open');
+        const pending = component[action](samplePhoto.path, 5);
+        // This test creates the component through its injector; replace only its
+        // lifetime token so the singleton store remains alive as it does on navigation.
+        component.destroyRef = { destroyed: true };
+        if (outcome === 'success') response.next({ is_favorite: true, is_rejected: null });
+        else response.error(new Error('closed view failed'));
+        await pending;
+        expect(component.photo()).toBe(oldPhoto);
+        expect(notice).not.toHaveBeenCalled();
+        expect(component.store.photos()[0]).toMatchObject(outcome === 'error'
+          ? { star_rating: 0, is_favorite: false }
+          : action === 'setRating' ? { star_rating: 5 } : { is_favorite: true });
+      });
+      it(`keeps same-session ${action} store repair after leaving the photo`, async () => {
+        createComponent();
+        component.photo.set({ ...samplePhoto, star_rating: 0, is_favorite: false });
+        component.store.photos.set([{ ...samplePhoto, star_rating: 0, is_favorite: false }]);
+        const response = new Subject<unknown>(); mockApi.post.mockReturnValue(response);
+        const pending = component[action](samplePhoto.path, 5);
+        component.photo.set({ ...samplePhoto, path: '/other.jpg', star_rating: 1, is_favorite: false });
+        response.next({ is_favorite: true, is_rejected: null }); await pending;
+        expect(component.store.photos()[0]).toMatchObject(action === 'setRating' ? { star_rating: 5 } : { is_favorite: true });
+        expect(component.photo()).toMatchObject({ path: '/other.jpg', star_rating: 1, is_favorite: false });
+      });
+    }
+  });
+
   describe('logical review actions', () => {
     it('does not apply a logical completion after a real NavigationStart', async () => {
       const events = new Subject<NavigationStart>(); mockRouter.events = events;
@@ -2336,6 +2395,20 @@ describe('PhotoDetailComponent', () => {
   });
 
   describe('manual tags', () => {
+    it('keeps cleared saved album criteria when refining from a photo', () => {
+      history.replaceState({ photo: samplePhoto }, '', location.href);
+      createComponent(store => {
+        store.currentAlbum.set({ id: 7, name: 'Birds', is_smart: true,
+          smart_filter_json: JSON.stringify({ camera: 'Canon', min_score: '7', blinks_only: true, sort_direction: 'ASC' }),
+        } as NonNullable<ReturnType<typeof store.currentAlbum>>);
+        store.filters.update(f => ({ ...f, album_id: '7', camera: '', min_score: '', blinks_only: false, sort_direction: 'DESC' }));
+      });
+      component.navigateTag('birds', 'collection');
+      expect(mockRouter.navigate).toHaveBeenCalledWith(['/'], { info: GALLERY_REVISIT, queryParams: expect.objectContaining({
+        album_id: '7', camera: '', min_score: '', blinks_only: 'false', sort_direction: 'DESC',
+      }) });
+    });
+
     it('refines the originating album and date constraints using a literal tag', () => {
       history.replaceState({ photo: samplePhoto }, '', location.href);
       createComponent(store => store.filters.update(f => ({ ...f, album_id: '7', date_from: '2026-10-01', tag_groups: '{"none":["private"]}' })));

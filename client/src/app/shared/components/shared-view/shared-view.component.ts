@@ -503,6 +503,8 @@ const HIDE_TOGGLE_KEYS = ['hide_blinks', 'hide_bursts', 'hide_duplicates'] as co
           [photos]="photos()"
           [hasMore]="hasMore()"
           [loading]="loadingMore()"
+          [sharedAlbum]="mediaScope()"
+          (loadMore)="onScrollReached()"
           (closed)="slideshowActive.set(false)"
         />
       }

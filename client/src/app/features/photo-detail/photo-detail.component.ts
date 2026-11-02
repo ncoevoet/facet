@@ -752,7 +752,7 @@ export class PhotoDetailComponent extends PhotoDetailBase implements OnInit {
     if (trigger !== 'imperative') return null;
     const filters = this.store.filters();
     return { owner: this.viewerOwner, refinable: this.store.pinnedPaths() === null && !filters.similar_to,
-      params: { ...buildSyncParams(filters, this.store.config()?.defaults, this.store.config()?.search_threshold_default),
+      params: { ...buildSyncParams(filters, this.store.config()?.defaults, this.store.config()?.search_threshold_default, this.store.currentAlbum()?.smart_filter_json),
         ...(this.store.temporaryReviewQueue() ? { review_queue: '1' } : {}) } };
   }
 
@@ -1315,12 +1315,17 @@ export class PhotoDetailComponent extends PhotoDetailBase implements OnInit {
     if (!p || p.path !== path) return;
     const newRating = p.star_rating === rating ? 0 : rating;
     if (p.logical_review) { await this.saveLogicalReview(p, { rating: newRating }); return; }
+    const owner = this.auth.identity();
+    const token = this.auth.token;
+    const sameSession = () => owner === this.auth.identity() && token === this.auth.token;
     try {
       await firstValueFrom(this.api.post('/photo/set_rating', { photo_path: path, rating: newRating }));
+      // A confirmed write still repairs the same session's gallery after navigation.
+      if (!sameSession()) return;
       this.applyConfirmed(p, { star_rating: newRating });
       this.journal.record('rating', [path], newRating);
     } catch {
-      this.snackBar.open(this.i18n.t(I18N.errors.action_failed), '', { duration: 3000 });
+      if (sameSession() && !this.destroyRef.destroyed) this.snackBar.open(this.i18n.t(I18N.errors.action_failed), '', { duration: 3000 });
     }
   }
 
@@ -1380,8 +1385,12 @@ export class PhotoDetailComponent extends PhotoDetailBase implements OnInit {
     const p = this.photo();
     if (!p || p.path !== path) return;
     if (p.logical_review) { await this.saveLogicalReview(p, 'favorite'); return; }
+    const owner = this.auth.identity();
+    const token = this.auth.token;
+    const sameSession = () => owner === this.auth.identity() && token === this.auth.token;
     try {
       const res = await firstValueFrom(this.api.post<{ is_favorite: boolean; is_rejected: boolean | null }>('/photo/toggle_favorite', { photo_path: path }));
+      if (!sameSession()) return;
       const confirmed: Partial<Photo> = { is_favorite: res.is_favorite };
       // null means "the server did not touch this one": leave both readers on
       // the value they hold rather than writing this view's belief over the
@@ -1390,7 +1399,7 @@ export class PhotoDetailComponent extends PhotoDetailBase implements OnInit {
       this.applyConfirmed(p, confirmed);
       this.journal.record('favorite', [path], res.is_favorite);
     } catch {
-      this.snackBar.open(this.i18n.t(I18N.errors.action_failed), '', { duration: 3000 });
+      if (sameSession() && !this.destroyRef.destroyed) this.snackBar.open(this.i18n.t(I18N.errors.action_failed), '', { duration: 3000 });
     }
   }
 

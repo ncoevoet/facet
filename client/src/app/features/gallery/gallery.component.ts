@@ -986,6 +986,8 @@ const SET_KIND_TOGGLE: Record<string, keyof HiddenFilterFlags> = {
         [photos]="store.photos()"
         [hasMore]="store.hasMore()"
         [loading]="store.loading()"
+        (loadMore)="store.nextPage()"
+        (closed)="store.slideshowActive.set(false)"
       />
     }
 
@@ -2163,6 +2165,7 @@ export class GalleryComponent implements OnInit, OnDestroy {
   }
 
   ngOnDestroy(): void {
+    this.store.slideshowActive.set(false);
     this.resumeInitialization?.();
     this.cancelToolbarSearch();
     this.disarmNoticeCollapse();
