@@ -28,6 +28,7 @@ import licensing
 from db.person_centroids import flush_centroids_safely
 from db.scoring_overrides import get_photo_scoring_overrides
 from models.model_manager import UNIFIED_MEMORY_ACCELERATOR, ModelManager
+from processing import stage_timing
 from processing.routing import (
     TAGGING_MODELS, face_pass_name, resolve_selected_quality, route_models,
 )
@@ -229,6 +230,12 @@ class ChunkedMultiPassProcessor:
             'exif_batch_time': 0.0,
             'exif_fallback_time': 0.0,
             'aggregate_time': 0.0,
+            # worker-seconds on the decode pool: image load, and the rest of a photo's body
+            'decode_worker_time': 0.0,
+            'analyze_worker_time': 0.0,
+            'inference_by_model': {},
+            'model_load_by_model': {},
+            'model_load_overlapped_by_model': {},
             'thumbnail_time': 0.0,
             'save_time': 0.0,
         }
@@ -492,6 +499,7 @@ class ChunkedMultiPassProcessor:
                 flush_centroids_safely(self.scorer)
 
         self.metrics['total_time'] = time.perf_counter() - start_time
+        self.metrics['stages'] = stage_timing.build_stages(self.metrics, self.load_workers)
         self._print_summary()
 
         return self.metrics
@@ -553,6 +561,7 @@ class ChunkedMultiPassProcessor:
             infer_start = time.perf_counter()
             device = getattr(self.model_manager, 'device', 'cpu')
             for model_name in list(loaded_models):
+                model_start = time.perf_counter()
                 try:
                     self._run_model_pass(model_name, loaded_models[model_name], images, results)
                 except Exception as ex:
@@ -564,6 +573,8 @@ class ChunkedMultiPassProcessor:
                                      model_name, ex)
                         failed_stages.append(model_name)
                 finally:
+                    stage_timing.add_by_model(self.metrics, 'inference_by_model', model_name,
+                                              time.perf_counter() - model_start)
                     # On unified memory (MPS), a model's activation buffers sit in
                     # the SAME pool the next model allocates from — there is no
                     # separate VRAM to leave them stranded in until the group-level
@@ -767,7 +778,8 @@ class ChunkedMultiPassProcessor:
         self._decode_future = future
 
         load_start = time.perf_counter()
-        loaded_models = self._load_pass_models(first_group, supplementary, failed_stages)
+        loaded_models = self._load_pass_models(first_group, supplementary, failed_stages,
+                                               beside_decode=True)
         self.metrics['model_load_time'] += time.perf_counter() - load_start
 
         io_start = time.perf_counter()
@@ -869,7 +881,8 @@ class ChunkedMultiPassProcessor:
         release_freed_heap()
 
     def _load_pass_models(self, model_group: List[str], supplementary: set,
-                          failed_stages: List[str]) -> Dict[str, Any]:
+                          failed_stages: List[str],
+                          beside_decode: bool = False) -> Dict[str, Any]:
         """Load one pass's models, returning those that came up.
 
         Loading has a call of its own so that the loaded objects live nowhere
@@ -888,8 +901,14 @@ class ChunkedMultiPassProcessor:
             Dict of model name -> loaded model, in pass order.
         """
         loaded_models = {}
+        by_model_key = 'model_load_overlapped_by_model' if beside_decode else 'model_load_by_model'
         for model_name in model_group:
-            model = self.model_manager.load_model_only(model_name)
+            model_start = time.perf_counter()
+            try:
+                model = self.model_manager.load_model_only(model_name)
+            finally:
+                stage_timing.add_by_model(self.metrics, by_model_key, model_name,
+                                          time.perf_counter() - model_start)
             if model is None:
                 if model_name in supplementary:
                     logger.warning("Supplementary model '%s' failed to load, skipping.", model_name)
@@ -985,9 +1004,26 @@ class ChunkedMultiPassProcessor:
             return stop_event is not None and stop_event.is_set()
 
         def _load_one(path):
+            """Run one photo's decode and CPU analysis, booking the worker-seconds."""
+            spans = {'decode': 0.0, 'fallback': 0.0}
+            worker_start = time.perf_counter()
+            try:
+                return _load_one_untimed(path, spans)
+            finally:
+                worked = time.perf_counter() - worker_start
+                with exif_lock:
+                    self.metrics['decode_worker_time'] += spans['decode']
+                    self.metrics['analyze_worker_time'] += max(
+                        0.0, worked - spans['decode'] - spans['fallback'])
+
+        def _load_one_untimed(path, spans):
             if _stopped():
                 raise _DecodeCancelled()
-            pil_img, img_cv = load_image_from_path(path)
+            decode_start = time.perf_counter()
+            try:
+                pil_img, img_cv = load_image_from_path(path)
+            finally:
+                spans['decode'] = time.perf_counter() - decode_start
             if pil_img is None:
                 return None
 
@@ -1004,6 +1040,7 @@ class ChunkedMultiPassProcessor:
                     exif_data = self.scorer.get_exif_data(path)
                 finally:
                     duration = time.perf_counter() - fallback_start
+                    spans['fallback'] = duration
                     with exif_lock:
                         self.metrics['exif_fallback_time'] += duration
 
@@ -1852,6 +1889,31 @@ class ChunkedMultiPassProcessor:
             self.scorer.save_photos_partial(batch, refresh_faces)
             self.scorer.commit()
 
+    @staticmethod
+    def _print_stage_timers(m: Dict[str, Any], total: float):
+        """Seconds per model, then busy / wait / occupancy per stage (pool stages in worker-seconds)."""
+        if m.get('inference_by_model'):
+            logger.info("Inference by model (share of inference time):")
+            for line in stage_timing.format_by_model_lines(m['inference_by_model'], m['inference_time']):
+                logger.info(line)
+        if m.get('model_load_by_model'):
+            logger.info("Model load by model (not overlapped with decode):")
+            for line in stage_timing.format_by_model_lines(m['model_load_by_model'], None):
+                logger.info(line)
+        if m.get('model_load_overlapped_by_model'):
+            logger.info("Model load by model, overlapped with decode (included in Model load):")
+            for line in stage_timing.format_by_model_lines(m['model_load_overlapped_by_model'], None):
+                logger.info(line)
+        stages = m.get('stages')
+        if stages:
+            logger.info("Stages (scan thread in seconds; decode-pool stages in worker-seconds):")
+            for line in stage_timing.format_stage_lines(stages):
+                logger.info(line)
+            acct = stage_timing.scan_thread_accounting(stages, total)
+            logger.info("    scan thread: accounted %.1fs of %.1fs, unaccounted %.1fs (%.1f%%)",
+                        acct['accounted_s'], total, acct['unaccounted_s'],
+                        100 * acct['unaccounted_share'])
+
     def _print_summary(self):
         """Print processing summary."""
         m = self.metrics
@@ -1889,6 +1951,7 @@ class ChunkedMultiPassProcessor:
             logger.info("  Aggregate wall: %.1fs", m['aggregate_time'])
             logger.info("  Thumbnail wall: %.1fs", m['thumbnail_time'])
             logger.info("  Save wall (excluding thumbnails): %.1fs", m['save_time'])
+            self._print_stage_timers(m, total)
 
             # Auto-tuning summary (only if adjustments occurred)
             monitor = getattr(self, '_ram_monitor', None)
