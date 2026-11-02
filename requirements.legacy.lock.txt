@@ -57,7 +57,7 @@ frozenlist==1.8.0
 fsspec==2026.6.0
 ftfy==6.3.1
 future==1.0.0
-grpcio==1.84.1
+grpcio==1.85.0
 h11==0.16.0
 hdbscan==0.8.44
 hf-xet==1.7.0
