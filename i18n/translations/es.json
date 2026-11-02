@@ -1198,6 +1198,7 @@
       "compare_loaded": "Comparar requiere 2–4 fotos seleccionadas explícitamente presentes en los elementos cargados.",
       "exclusions": "Exclusiones de toda la vista: {count}.",
       "count": "{count} seleccionados",
+      "cleared_by_view": "Selección borrada porque la vista cambió.",
       "clear": "Limpiar",
       "copy_filenames": "Copiar nombres",
       "copy_filename": "Copiar nombre de archivo",

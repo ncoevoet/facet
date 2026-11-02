@@ -779,15 +779,45 @@ export class GalleryStore {
     this.lastSelectedIndex = -1;
   }
 
+  private lastViewKey: string | null = null;
+
+  /** What the loaded photos are a view of: the query without sort or paging, which reorder or slice the same set. */
+  private viewKey(pinned: boolean): string {
+    if (pinned) return 'pinned';
+    const query = buildApiParams(
+      this.filters(), this.currentAlbum()?.is_smart ?? false, this.config()?.search_threshold_default);
+    for (const key of ['page', 'per_page', 'sort', 'sort_direction']) delete query[key];
+    return JSON.stringify(query);
+  }
+
+  /**
+   * A selection names photos of the view it was made in, so a different view drops it: a hidden
+   * selection would still be the target of the next batch action. A reload of the same view keeps it.
+   */
+  private dropSelectionOnViewChange(pinned: boolean, rebuild: boolean): void {
+    const key = this.viewKey(pinned);
+    // A rebuild keeps the rows on screen: it refreshes the same view, never replaces it.
+    const changed = !rebuild && this.lastViewKey !== null && key !== this.lastViewKey;
+    this.lastViewKey = key;
+    if (!changed) {
+      this.resetViewScope();
+      return;
+    }
+    const hadSelection = this.selectedPaths().size > 0 || this.viewScopeSelected();
+    this.clearSelection();
+    if (hadSelection) {
+      this.snackBar.open(this.i18n.t(I18N.gallery.selection.cleared_by_view), '', { duration: 5000 });
+    }
+  }
+
   /**
    * Drop a 'view'-scoped selection.
    *
-   * A path selection survives a filter change on purpose: it names photos, and
-   * photos do not move. A view selection names the view, so the moment the
-   * filters change it stands for a different set of photos — and the next batch
-   * action would send the NEW filter. Called from loadPhotos(), which every
-   * filter change goes through; pagination (nextPage) deliberately does not,
-   * since appending a page does not change what the view is.
+   * A view selection names the view, so it must not outlive a reload that
+   * left the query alone but changed what "the view" means (a refresh that
+   * rebuilt the rows). A different view drops every selection first, in
+   * dropSelectionOnViewChange(). Pagination (nextPage) deliberately does not
+   * reset: appending a page does not change what the view is.
    */
   private resetViewScope(): void {
     if (!this.viewScopeSelected()) return;
@@ -1190,7 +1220,7 @@ export class GalleryStore {
     if (!pinned) {
       this.pinnedPaths.set(null);
     }
-    this.resetViewScope();
+    this.dropSelectionOnViewChange(pinned !== null, retainRows);
     this.filters.update(f => ({ ...f, page: 1 }));
     const seq = ++this._loadSeq;
     this.pageReadCancelled.next();

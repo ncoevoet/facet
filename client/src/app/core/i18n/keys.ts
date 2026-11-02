@@ -1262,6 +1262,7 @@ export const I18N = {
       compare_loaded: "gallery.selection.compare_loaded",
       exclusions: "gallery.selection.exclusions",
       count: "gallery.selection.count",
+      cleared_by_view: "gallery.selection.cleared_by_view",
       clear: "gallery.selection.clear",
       copy_filenames: "gallery.selection.copy_filenames",
       copy_filename: "gallery.selection.copy_filename",

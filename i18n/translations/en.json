@@ -1248,6 +1248,7 @@
       "compare_loaded": "Compare needs 2–4 explicitly selected photos present in the loaded tiles.",
       "exclusions": "Whole-view exclusions: {count}.",
       "count": "{count} selected",
+      "cleared_by_view": "Selection cleared because the view changed.",
       "clear": "Clear",
       "copy_filenames": "Copy filenames",
       "copy_filename": "Copy filename",

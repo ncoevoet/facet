@@ -1198,6 +1198,7 @@
       "compare_loaded": "Vergleichen benötigt 2–4 ausdrücklich ausgewählte Fotos in den geladenen Kacheln.",
       "exclusions": "Ausschlüsse aus der gesamten Ansicht: {count}.",
       "count": "{count} ausgewahlt",
+      "cleared_by_view": "Auswahl aufgehoben, weil sich die Ansicht geändert hat.",
       "clear": "Loschen",
       "copy_filenames": "Dateinamen kopieren",
       "copy_filename": "Dateinamen kopieren",

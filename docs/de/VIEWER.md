@@ -343,7 +343,7 @@ Die Auswahlleiste zählt ausgewählte Fotos außerhalb der geladenen Kacheln; St
 - **In Ordner aussortieren** — Behaltene kopieren oder Abgelehnte in einen Ordner verschieben/in den Papierkorb legen (siehe [In Ordner aussortieren](#in-ordner-aussortieren))
 - **Löschen** — Fotos in den Systempapierkorb legen (siehe [Löschen](#löschen)). Nur sichtbar, wenn `viewer.cull.allow_trash` an ist. Deaktiviert bei einer Auswahl „Alle in der Ansicht“: wählen Sie Fotos ausdrücklich aus.
 - **Herunterladen** — Die ausgewählten Fotos herunterladen
-- Heben Sie die Auswahl mit Escape oder der Schaltfläche „Löschen“ auf.
+- Heben Sie die Auswahl mit Escape oder der Schaltfläche „Löschen“ auf. Auch das Ändern von Filtern, Suche oder Album hebt sie mit einem Hinweis auf, damit keine verborgene Auswahl das Ziel einer Aktion bleibt. Nur die Sortierung zu ändern behält sie bei.
 
 Doppelklicken Sie ein Foto, um es zu öffnen.
 

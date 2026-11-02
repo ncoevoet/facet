@@ -343,7 +343,7 @@ La barra cuenta las fotos seleccionadas fuera de los elementos cargados; las acc
 - **Descartar a carpeta**: copia las conservadas, o mueve/envía a la papelera las rechazadas, a una carpeta (ver [Descartar a carpeta](#descartar-a-carpeta))
 - **Eliminar**: envía las fotos a la papelera del sistema (ver [Eliminar](#eliminar)). Solo se muestra cuando `viewer.cull.allow_trash` está activado. Deshabilitado para una selección de "seleccionar todo en la vista": selecciona las fotos de forma explícita.
 - **Descargar**: descarga las fotos seleccionadas
-- Borra la selección con Escape o con el botón Borrar.
+- Borra la selección con Escape o con el botón Borrar. Cambiar los filtros, la búsqueda o el álbum también la borra, con un aviso, para que ninguna selección oculta siga siendo el destino de una acción. Cambiar solo el orden la conserva.
 
 Haz doble clic en una foto para abrirla.
 

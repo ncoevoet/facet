@@ -1198,6 +1198,7 @@
       "compare_loaded": "比较需要明确选中 2–4 张已加载图块中的照片。",
       "exclusions": "整个视图的排除数量：{count}。",
       "count": "已选 {count} 张",
+      "cleared_by_view": "视图已更改，已清除选择。",
       "clear": "清除",
       "copy_filenames": "复制文件名",
       "copy_filename": "复制文件名",
