@@ -3897,6 +3897,16 @@ describe('GalleryComponent', () => {
         expect(liveAnnouncer.announce).toHaveBeenCalledWith('gallery.selection.view_scope_active');
       });
 
+      it('names the exclusions when the whole view is selected minus some photos', () => {
+        mockStore.viewScopeSelected.set(true);
+        mockStore.selectionCount.set(648);
+        mockStore.excludedPaths.set(new Set(['/a.jpg', '/b.jpg']));
+
+        (component as unknown as { selectWholeView: () => void }).selectWholeView();
+
+        expect(liveAnnouncer.announce).toHaveBeenCalledWith('gallery.selection.view_scope_except');
+      });
+
       it('moves focus off the sibling "select all" button onto the status text', () => {
         mockStore.selectionCount.set(2);
         expect(document.activeElement).toBe(vanishingButton);

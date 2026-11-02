@@ -327,7 +327,7 @@ Sélectionnez les photos avec les commandes de sélection ou la barre d’espace
 
 La bande de miniatures identifie la référence et permet de choisir directement une candidate. Le volet actif est signalé séparément. Retirer de la comparaison ne change que cette vue, jamais Garder/Rejeter ni la sélection de galerie ; Restaurer rétablit les photos retirées. Une photo restante reste consultable. Avec détails, la grille ajuste toute la photo dans un cadre uniforme 4:3 ; Mosaïque conserve ses rangées justifiées.
 
-La barre compte les photos sélectionnées hors des vignettes chargées ; les actions concernent toute la sélection explicite. Les exclusions de toute la vue apparaissent séparément. Comparer nécessite 2 à 4 photos explicitement sélectionnées et toutes chargées, sans ouvrir silencieusement une sélection partielle.
+La barre compte les photos sélectionnées hors des vignettes chargées ; les actions concernent toute la sélection explicite. La ligne d’état nomme les exclusions de toute la vue : « Toutes les photos correspondantes, sauf N ». Comparer nécessite 2 à 4 photos explicitement sélectionnées et toutes chargées, sans ouvrir silencieusement une sélection partielle.
 
 - **Favori** — marque toutes les photos comme favorites (efface le rejet)
 - **Rejeter** — marque toutes les photos comme rejetées (efface le favori et la note)

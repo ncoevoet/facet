@@ -1288,6 +1288,7 @@ export const I18N = {
       mark_needs_paths: "gallery.selection.mark_needs_paths",
       mark_too_many: "gallery.selection.mark_too_many",
       view_scope_active: "gallery.selection.view_scope_active",
+      view_scope_except: "gallery.selection.view_scope_except",
       view_scope_offer: "gallery.selection.view_scope_offer",
       view_scope_select_all: "gallery.selection.view_scope_select_all",
       view_scope_confirm_title: "gallery.selection.view_scope_confirm_title",

@@ -327,7 +327,7 @@ Selecione fotos com os controlos de seleção ou com Espaço; Shift+clique selec
 
 A faixa de miniaturas identifica a referência e permite escolher uma candidata diretamente. O painel ativo é destacado separadamente. Remover da comparação altera apenas esta vista, nunca Manter/Rejeitar nem a seleção da galeria; Restaurar devolve as fotos removidas. Uma foto restante continua disponível para inspeção. A grade com detalhes encaixa a foto inteira numa moldura uniforme 4:3; Mosaico mantém linhas justificadas.
 
-A barra conta fotos selecionadas fora das miniaturas carregadas; as ações abrangem toda a seleção explícita. As exclusões de toda a vista aparecem separadamente. Comparar requer 2–4 fotos selecionadas explicitamente e todas carregadas, sem abrir apenas parte silenciosamente.
+A barra conta fotos selecionadas fora das miniaturas carregadas; as ações abrangem toda a seleção explícita. A linha de estado indica as exclusões de toda a vista: «Todas as fotos correspondentes, exceto N». Comparar requer 2–4 fotos selecionadas explicitamente e todas carregadas, sem abrir apenas parte silenciosamente.
 
 - **Favoritar** — marca todas como favoritas (limpa rejeição)
 - **Rejeitar** — marca todas como rejeitadas (limpa favorito e avaliação)

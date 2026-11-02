@@ -1224,6 +1224,7 @@
       "mark_needs_paths": "请逐张选择照片，整个视图的选择无法标记为一组",
       "mark_too_many": "一组最多包含 {max} 张照片，当前已选 {count} 张",
       "view_scope_active": "已选中整个视图，共 {count} 张照片",
+      "view_scope_except": "所有匹配的照片，不含 {excluded} 张 — 共 {count} 张",
       "view_scope_offer": "已加载的 {count} 张照片已全部选中。",
       "view_scope_select_all": "选择此视图中的全部 {total} 张",
       "view_scope_confirm_title": "应用于整个视图？",

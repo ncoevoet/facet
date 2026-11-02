@@ -327,7 +327,7 @@ Seleziona le foto con i comandi di selezione o con Spazio; sul desktop, Maiusc+c
 
 La striscia di miniature identifica il riferimento e permette di scegliere una candidata. Il riquadro attivo è evidenziato separatamente. Rimuovere dal confronto cambia solo la vista, mai Mantieni/Scarta o la selezione della galleria; Ripristina riporta le foto rimosse. Una sola foto rimasta resta ispezionabile. La griglia con dettagli mostra tutta la foto in un riquadro uniforme 4:3; Mosaico mantiene righe giustificate.
 
-La barra conta le foto selezionate fuori dalle miniature caricate; le azioni riguardano l’intera selezione esplicita. Le esclusioni dell’intera vista sono mostrate separatamente. Confronta richiede 2–4 foto selezionate esplicitamente e tutte caricate, senza aprire solo una parte della selezione.
+La barra conta le foto selezionate fuori dalle miniature caricate; le azioni riguardano l’intera selezione esplicita. La riga di stato indica le esclusioni dell’intera vista: «Tutte le foto corrispondenti, tranne N». Confronta richiede 2–4 foto selezionate esplicitamente e tutte caricate, senza aprire solo una parte della selezione.
 
 - **Preferito** — segna tutte come preferite (cancella lo scarto)
 - **Rifiuta** — segna tutte come scartate (cancella preferito e valutazione)

@@ -776,7 +776,7 @@ type ReturnTarget = { scroll: number; focus: Element | null } & (
       @if (selectionCount() && !overDrawerOpen()) {
         <div #selectionBar data-selection-bar appMovableToolbar
              [toolbarBoundary]="selectionToolbarBoundary()" [toolbarRightInset]="noticeRightPx()" [toolbarOwner]="auth.identity()"
-             role="region" [attr.aria-label]="(viewScoped() ? I18N.gallery.selection.view_scope_active : I18N.gallery.selection.count) | translate:{ count: selectionCount() }" [attr.aria-describedby]="viewScoped() ? 'whole-view-target-note' : null"
+             role="region" [attr.aria-label]="selectionStatus().key | translate:selectionStatus().params" [attr.aria-describedby]="viewScoped() ? 'whole-view-target-note' : null"
              class="absolute bottom-2 md:bottom-4 left-2 md:left-4 z-20 w-fit group/selection flex flex-wrap items-center gap-1 px-2 py-1 rounded-lg bg-[var(--mat-sys-surface-container)] border border-[var(--mat-sys-primary)] shadow-lg max-md:mb-[env(safe-area-inset-bottom)]"
              [style.right.px]="noticeRightPx()">
           <button mat-icon-button type="button" data-toolbar-drag-handle class="touch-none cursor-grab active:cursor-grabbing shrink-0"
@@ -802,7 +802,7 @@ type ReturnTarget = { scroll: number; focus: Element | null } & (
           } @else if (selectionOutsideLoaded()) {
             <p data-selection-outside class="text-xs basis-full m-0" aria-live="polite">{{ I18N.gallery.selection.outside_loaded | translate:{ count: selectionOutsideLoaded() } }}</p>
           }
-          <span data-selection-status tabindex="-1" class="text-sm font-medium shrink-0 px-1">{{ (viewScoped() ? I18N.gallery.selection.view_scope_active : I18N.gallery.selection.count) | translate:{ count: selectionCount() } }}</span>
+          <span data-selection-status tabindex="-1" class="text-sm font-medium shrink-0 px-1">{{ selectionStatus().key | translate:selectionStatus().params }}</span>
           @if (viewScoped() || selectionGroupTargets().total) {
             <details #selectionTargets #selectionDisclosure name="gallery-selection-disclosures" data-selection-targets tabindex="-1"
               (keydown.escape)="selectionTargets.open = false; targetsSummary.focus(); $event.preventDefault(); $event.stopPropagation()">
@@ -1167,6 +1167,14 @@ export class GalleryComponent implements OnInit, OnDestroy {
   });
   /** True while the selection means "the whole filtered view", not a path list. */
   protected readonly viewScoped = this.store.viewScopeSelected;
+  /** How the bar names its target: explicit photos, the whole view, or the whole view minus exclusions. */
+  protected readonly selectionStatus = computed(() => {
+    const count = this.selectionCount(), excluded = this.excludedPaths().size;
+    const params: Record<string, number> = { count };
+    if (!this.viewScoped()) return { key: I18N.gallery.selection.count, params };
+    if (!excluded) return { key: I18N.gallery.selection.view_scope_active, params };
+    return { key: I18N.gallery.selection.view_scope_except, params: { ...params, excluded } };
+  });
 
   /** True when every loaded photo is already selected. */
   protected readonly allLoadedSelected = computed(() => {
@@ -2319,8 +2327,8 @@ export class GalleryComponent implements OnInit, OnDestroy {
    * their own button also move focus, below.
    */
   private announceSelectionStatus(): void {
-    const key = this.viewScoped() ? I18N.gallery.selection.view_scope_active : I18N.gallery.selection.count;
-    void this.liveAnnouncer.announce(this.i18n.t(key, { count: this.selectionCount() }));
+    const { key, params } = this.selectionStatus();
+    void this.liveAnnouncer.announce(this.i18n.t(key, params));
   }
 
   /**

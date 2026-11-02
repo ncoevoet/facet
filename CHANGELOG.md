@@ -16,6 +16,7 @@ All notable changes to Facet are documented in this file.
 ### Changed
 
 - **A missing optional metric no longer scores as a neutral 5.0 in the aggregate.** A NULL `subject_sharpness`, `subject_prominence`, `subject_placement`, `bg_separation` or `face_quality_iqa` is left out and its weight is redistributed over the metrics that are present; with all of them missing the aggregate stays neutral. Aggregates change only where a category gives one of these five a positive weight (the shipped weights are unchanged), so run `--recompute-average` after upgrading if you set one. `--optimize-weights` keeps such a weight at its current value when the comparison set has no data for that metric, instead of writing 0%.
+- The selection bar status names a whole-view selection's exclusions: "All matching photos, except N".
 - Changing the filters, search or album clears the gallery selection and says so, so a selection hidden by the new view cannot be the target of the next action. Changing only the sort keeps it.
 - Album refinements stay temporary until an explicit saved-rule Preview and Save; Reset restores saved criteria. Manual membership and smart criteria are identified separately.
 - Phone collection controls use two compact rows with on-demand search, explicit Select/Cancel, direct sort/filter/layout controls and secondary View options. UI strings and Viewer guides are synchronized across all seven languages.
