@@ -119,3 +119,43 @@ async def attach_async(conn, photos, user_id):
         state = states.get(by_path.get(photo['path']))
         if state is not None:
             photo['logical_review'] = state
+
+
+def apply_path(conn, path, user, action, rating=None):
+    """Adapt direct review commands to logical authority in the caller's write lock.
+
+    None means truly ungrouped, never a hidden or partially authorized group.
+    Direct commands have absolute/set-or-current-toggle semantics; the
+    snapshot API remains the revision-guarded browser path.
+    """
+    from types import SimpleNamespace
+
+    if not conn.in_transaction:
+        raise AssetConflict('A catalog transaction is required')
+    membership = conn.execute('SELECT asset_id FROM logical_asset_members WHERE photo_path=?', (path,)).fetchone()
+    if membership is None:
+        return None
+    state = read(conn, membership[0], user.user_id)
+    values = state['values']
+    if action == 'rating':
+        patch = {'star_rating': rating}
+        response = {'success': True, 'rating': rating}
+    elif action == 'favorite':
+        enabled = int(not values['is_favorite'])
+        patch = {'is_favorite': enabled}
+        if enabled:
+            patch.update(is_kept=int(bool(values['is_kept'])), is_rejected=0)
+        response = {'success': True, 'is_favorite': bool(enabled), 'is_rejected': False if enabled else None}
+    elif action == 'reject':
+        enabled = int(not values['is_rejected'])
+        patch = {'is_rejected': enabled, 'is_kept': 0}
+        if enabled:
+            patch.update(star_rating=0, is_favorite=0)
+        response = {'success': True, 'is_rejected': bool(enabled), 'is_kept': False if enabled else None,
+                    'star_rating': 0 if enabled else None, 'is_favorite': False if enabled else None}
+    else:
+        raise ValueError('Unsupported review action')
+    change = SimpleNamespace(asset_id=state['asset_id'], group_revision=state['group_revision'],
+                             revision=state['revision'], input_token=state['input_token'], patch=patch, reset=[])
+    apply(conn, change, user)
+    return response

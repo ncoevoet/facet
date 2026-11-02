@@ -675,3 +675,77 @@ def test_mixed_batch_success_counts_logical_and_independent_photos(edition_clien
     with sqlite3.connect(DEFAULT_DB_PATH) as conn:
         assert conn.execute('SELECT star_rating FROM photos WHERE path=?', (other,)).fetchone()[0] == 4
         assert conn.execute('SELECT star_rating FROM photos WHERE path=?', (bundle['primary_path'],)).fetchone()[0] == 5
+
+
+def test_direct_review_apis_update_one_logical_authority_from_either_file(edition_client, bundle, monkeypatch):
+    from api import config
+    monkeypatch.setitem(config.VIEWER_CONFIG, 'edition_password', 'test-only')
+    key = submit(edition_client, bundle, draft(edition_client, bundle), acknowledge_review_conflicts=True).json()['asset_id']
+    rating = edition_client.post('/api/photo/set_rating', json={'photo_path': bundle['paths'][1], 'rating': 4})
+    assert rating.status_code == 200 and rating.json()['rating'] == 4
+    favorite = edition_client.post('/api/photo/toggle_favorite', json={'photo_path': bundle['paths'][0]})
+    assert favorite.status_code == 200 and favorite.json()['is_favorite'] is True
+    rejected = edition_client.post('/api/photo/toggle_rejected', json={'photo_path': bundle['paths'][1]})
+    assert rejected.status_code == 200 and rejected.json()['is_rejected'] is True
+    state = edition_client.get('/api/logical_assets/review', params={'asset_id': key}).json()
+    assert state['values'] == {'star_rating': 0, 'is_favorite': 0, 'is_kept': 0, 'is_rejected': 1}
+    # This time JPEG toggles the same decision off, rather than its original file flag.
+    undone = edition_client.post('/api/photo/toggle_rejected', json={'photo_path': bundle['paths'][0]})
+    assert undone.status_code == 200 and undone.json()['is_rejected'] is False
+    with sqlite3.connect(DEFAULT_DB_PATH) as conn:
+        assert conn.execute('SELECT star_rating,is_kept,is_rejected FROM photos WHERE path=?', (bundle['paths'][0],)).fetchone() == (5, 1, 0)
+        assert conn.execute('SELECT star_rating,is_kept,is_rejected FROM photos WHERE path=?', (bundle['paths'][1],)).fetchone() == (2, 0, 1)
+
+
+@pytest.mark.parametrize('route,extra', [('set_rating', {'rating': 4}), ('toggle_favorite', {}), ('toggle_rejected', {})])
+def test_direct_review_hidden_companion_never_writes_original(edition_client, bundle, monkeypatch, route, extra):
+    from api import config, logical_reviews
+    monkeypatch.setitem(config.VIEWER_CONFIG, 'edition_password', 'test-only')
+    key = submit(edition_client, bundle, draft(edition_client, bundle), acknowledge_review_conflicts=True).json()['asset_id']
+    monkeypatch.setattr(logical_reviews, 'get_visibility_clause', lambda user: ('photos.path != ?', [bundle['paths'][1]]))
+    response = edition_client.post('/api/photo/' + route, json={'photo_path': bundle['primary_path'], **extra})
+    assert response.status_code == 404, response.text
+    assert bundle['paths'][1] not in response.text
+    with sqlite3.connect(DEFAULT_DB_PATH) as conn:
+        assert conn.execute('SELECT star_rating,is_kept,is_rejected FROM photos WHERE path=?', (bundle['primary_path'],)).fetchone() == (5, 1, 0)
+        assert conn.execute('SELECT COUNT(*) FROM logical_review_fields WHERE asset_id=?', (key,)).fetchone()[0] == 0
+
+
+def test_direct_agent_review_does_not_claim_unchanged_human_logical_value(edition_client, bundle, monkeypatch):
+    from api import config
+    from api.auth import CurrentUser, require_auth
+    monkeypatch.setitem(config.VIEWER_CONFIG, 'edition_password', 'test-only')
+    key = submit(edition_client, bundle, draft(edition_client, bundle), acknowledge_review_conflicts=True).json()['asset_id']
+    response = edition_client.post('/api/photo/set_rating', json={'photo_path': bundle['primary_path'], 'rating': 4})
+    assert response.status_code == 200
+    agent = CurrentUser(user_id='test', edition_authenticated=True, agent=True)
+    edition_client.app.dependency_overrides[require_auth] = lambda: agent
+    try:
+        response = edition_client.post('/api/photo/set_rating', json={'photo_path': bundle['paths'][1], 'rating': 4})
+        assert response.status_code == 200
+        with sqlite3.connect(DEFAULT_DB_PATH) as conn:
+            assert conn.execute('SELECT value,origin FROM logical_review_fields WHERE asset_id=? AND field=?', (key, 'star_rating')).fetchone() == (4, 'user')
+        response = edition_client.post('/api/photo/set_rating', json={'photo_path': bundle['paths'][1], 'rating': 3})
+        assert response.status_code == 200
+        with sqlite3.connect(DEFAULT_DB_PATH) as conn:
+            assert conn.execute('SELECT value,origin FROM logical_review_fields WHERE asset_id=? AND field=?', (key, 'star_rating')).fetchone() == (3, 'agent')
+    finally:
+        edition_client.app.dependency_overrides.pop(require_auth, None)
+
+
+def test_direct_favorite_storage_failure_rolls_back_logical_values_and_clock(edition_client, bundle, monkeypatch):
+    from api import config
+    monkeypatch.setitem(config.VIEWER_CONFIG, 'edition_password', 'test-only')
+    key = submit(edition_client, bundle, draft(edition_client, bundle), acknowledge_review_conflicts=True).json()['asset_id']
+    before = edition_client.get('/api/logical_assets/review', params={'asset_id': key}).json()
+    with sqlite3.connect(DEFAULT_DB_PATH) as conn:
+        conn.execute("CREATE TRIGGER fail_direct_review BEFORE INSERT ON logical_review_fields "
+                     "WHEN NEW.field='decision' BEGIN SELECT RAISE(ABORT,'private injected failure'); END")
+    try:
+        response = edition_client.post('/api/photo/toggle_favorite', json={'photo_path': bundle['paths'][1]})
+        assert response.status_code == 500
+        assert 'private injected' not in response.text
+        assert edition_client.get('/api/logical_assets/review', params={'asset_id': key}).json() == before
+    finally:
+        with sqlite3.connect(DEFAULT_DB_PATH) as conn:
+            conn.execute('DROP TRIGGER fail_direct_review')

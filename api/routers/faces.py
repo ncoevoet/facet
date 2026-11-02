@@ -579,7 +579,15 @@ def api_set_rating(
     """Set star rating (0-5) for a photo."""
     with get_db() as conn:
         try:
+            conn.execute('BEGIN IMMEDIATE')
             _require_writable_photo(conn, user, body.photo_path)
+            from api.logical_reviews import apply_path
+            logical_result = apply_path(conn, body.photo_path, user, 'rating', body.rating)
+            if logical_result is not None:
+                conn.commit()
+                _stats_cache.clear()
+                _invalidate_culling_groups_cache()
+                return logical_result
             history_before = organization_capture.begin(conn, user.user_id, 'review', [body.photo_path])
             before = snapshot_labels(conn, user.is_agent_request, user.user_id, [body.photo_path])
             if user.user_id and is_multi_user_enabled():
@@ -614,7 +622,15 @@ def api_toggle_favorite(
     """Toggle favorite flag for a photo."""
     with get_db() as conn:
         try:
+            conn.execute('BEGIN IMMEDIATE')
             _require_writable_photo(conn, user, body.photo_path)
+            from api.logical_reviews import apply_path
+            logical_result = apply_path(conn, body.photo_path, user, 'favorite')
+            if logical_result is not None:
+                conn.commit()
+                _stats_cache.clear()
+                _invalidate_culling_groups_cache()
+                return logical_result
             history_before = organization_capture.begin(conn, user.user_id, 'review', [body.photo_path])
             before = snapshot_labels(conn, user.is_agent_request, user.user_id, [body.photo_path])
             if user.user_id and is_multi_user_enabled():
@@ -670,7 +686,15 @@ def api_toggle_rejected(
     """Toggle rejected flag for a photo."""
     with get_db() as conn:
         try:
+            conn.execute('BEGIN IMMEDIATE')
             _require_writable_photo(conn, user, body.photo_path)
+            from api.logical_reviews import apply_path
+            logical_result = apply_path(conn, body.photo_path, user, 'reject')
+            if logical_result is not None:
+                conn.commit()
+                _stats_cache.clear()
+                _invalidate_culling_groups_cache()
+                return logical_result
             history_before = organization_capture.begin(conn, user.user_id, 'review', [body.photo_path])
             before = snapshot_labels(conn, user.is_agent_request, user.user_id, [body.photo_path])
             if user.user_id and is_multi_user_enabled():

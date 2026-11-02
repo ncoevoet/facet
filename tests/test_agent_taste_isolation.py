@@ -209,7 +209,8 @@ def test_auto_cull_apply_marks_provenance_for_an_agent_and_clears_it_for_a_perso
     marked = _marked(PATHS)
     assert marked and marked <= set(PATHS[1:]), marked
     with sqlite3.connect(_TEST_DB_FILE.name) as conn:
-        conn.execute("UPDATE photos SET is_rejected = 0 WHERE path LIKE ?", (PREFIX + "t%",))
+        # Restore the whole decision before the second run; Keep protects a frame too.
+        conn.execute("UPDATE photos SET is_rejected = 0, is_kept = 0 WHERE path LIKE ?", (PREFIX + "t%",))
         conn.execute("UPDATE photos SET burst_reviewed = 0 WHERE path LIKE ?", (PREFIX + "t%",))
     _mark(PATHS[1:])
     resp = env.client.post("/api/culling/auto", json={**scope, "dry_run": False}, headers=env.login(edition=True))
