@@ -1099,8 +1099,13 @@
     "sort_asc": "Ascending",
     "filters": "Filters",
     "search_placeholder": "Search filename, caption...",
-    "search_chip": "Search",
-    "semantic_search_chip": "Semantic search",
+    "search_chip": "Text matches",
+    "semantic_search_chip": "Visual matches",
+    "collection": {
+      "all_photos": "All photos",
+      "label": "Collection",
+      "remove_filter": "Remove {label}"
+    },
     "semantic_search": "Semantic Search",
     "semantic_search_placeholder": "sunset at the beach...",
     "clear_search": "Clear search",

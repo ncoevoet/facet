@@ -503,6 +503,13 @@ export class App implements OnInit {
     this.store.updateFilter('similarity_mode', mode);
   }
 
+  /** Where the collection comes from: an album, else a folder; everything else is a refinement of it. */
+  protected readonly collectionSource = computed(() => {
+    const chips = this.activeFilterChips();
+    return chips.find(chip => chip.id === 'album') ?? chips.find(chip => chip.id === 'path_prefix') ?? null;
+  });
+  protected readonly refinementChips = computed(() => this.activeFilterChips().filter(chip => chip !== this.collectionSource()));
+
   protected clearFilterChip(chip: { id: string; clearKeys: string[] }): void {
     for (const key of chip.clearKeys) {
       // Handle album_id chip — navigate back to gallery root

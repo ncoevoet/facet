@@ -1099,8 +1099,13 @@
     "sort_asc": "Croissant",
     "filters": "Filtres",
     "search_placeholder": "Chercher nom, légende...",
-    "search_chip": "Recherche",
-    "semantic_search_chip": "Recherche sémantique",
+    "search_chip": "Correspondances textuelles",
+    "semantic_search_chip": "Correspondances visuelles",
+    "collection": {
+      "all_photos": "Toutes les photos",
+      "label": "Collection",
+      "remove_filter": "Retirer {label}"
+    },
     "semantic_search": "Recherche sémantique",
     "semantic_search_placeholder": "coucher de soleil à la plage...",
     "clear_search": "Effacer la recherche",

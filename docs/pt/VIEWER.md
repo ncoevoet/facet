@@ -429,7 +429,7 @@ O **controle deslizante de limiar de similaridade** (0–90%) define o rigor da 
 
 ### Chips de Filtro
 
-Os filtros ativos aparecem como chips removíveis com contagens no topo da galeria.
+Um cabeçalho de coleção no topo da galeria indica sempre o que está a ver: a origem (um álbum ou pasta, com × para sair, caso contrário **Todas as fotos**), o número de fotos e a ordenação. Cada outro filtro ativo segue como chip removível, para que nada restrinja a vista com o painel de filtros fechado. Os chips de pesquisa dizem como correspondem: as **Correspondências visuais** são ordenadas por semelhança semântica com as suas palavras, enquanto as **Correspondências de texto** só mantêm fotos cujo nome de ficheiro, legenda, etiquetas ou pessoas contêm o texto, na ordenação escolhida.
 
 ### Tags manuais
 

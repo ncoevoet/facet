@@ -429,7 +429,7 @@ The **similarity threshold slider** (0–90%) sets how strict matching is (not i
 
 ### Filter Chips
 
-Active filters appear as removable chips with counts at the top of the gallery.
+A collection header at the top of the gallery always states what you are looking at: the source (an album or folder, with × to leave it, otherwise **All photos**), the photo count and the sort. Every other active filter follows as a removable chip, so nothing narrows the view while the filter panel is closed. Search chips say how they match: **Visual matches** are ranked by semantic similarity to your words, while **Text matches** only keep photos whose filename, caption, tags or people contain the text, in your chosen sort.
 
 ### Manual Tags
 

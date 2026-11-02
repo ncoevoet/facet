@@ -429,7 +429,7 @@ El **control deslizante del umbral de similitud** (0–90 %) define lo estricta 
 
 ### Chips de filtro
 
-Los filtros activos aparecen como chips que se pueden quitar, con recuentos, en la parte superior de la galería.
+Una cabecera de colección en la parte superior de la galería indica siempre qué estás viendo: el origen (un álbum o carpeta, con × para salir, si no **Todas las fotos**), el número de fotos y el orden. Cada filtro activo restante aparece como un chip que se puede quitar, así nada restringe la vista mientras el panel de filtros está cerrado. Los chips de búsqueda indican cómo coinciden: las **Coincidencias visuales** se ordenan por similitud semántica con tus palabras, mientras que las **Coincidencias de texto** solo conservan las fotos cuyo nombre de archivo, descripción, etiquetas o personas contienen el texto, en el orden elegido.
 
 ### Tags manuales
 

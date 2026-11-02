@@ -429,7 +429,7 @@ Il **cursore della soglia di somiglianza** (0–90%) imposta quanto è rigoroso 
 
 ### Chip dei filtri
 
-I filtri attivi compaiono come chip rimovibili con i conteggi in cima alla galleria.
+Un’intestazione della raccolta in cima alla galleria indica sempre cosa stai guardando: l’origine (un album o una cartella, con × per uscirne, altrimenti **Tutte le foto**), il numero di foto e l’ordinamento. Ogni altro filtro attivo segue come chip rimovibile, così nulla restringe la vista mentre il pannello dei filtri è chiuso. I chip di ricerca dicono come corrispondono: le **Corrispondenze visive** sono ordinate per somiglianza semantica con le tue parole, mentre le **Corrispondenze testuali** tengono solo le foto il cui nome file, didascalia, tag o persone contengono il testo, nell’ordinamento scelto.
 
 ### Tag manuali
 

@@ -387,9 +387,11 @@
           </span>
         }
 
-        <!-- Gallery: photo count + active filters + filter toggle (right side, lg+ only) -->
+        <!-- Gallery: sort, filters and display (right side, lg+ only); the collection header states the count -->
         @if (auth.isAuthenticated() && isGalleryRoute()) {
-          <span class="!hidden min-[1360px]:!inline text-sm opacity-70">{{ I18N.gallery.photo_count | translate:{ count: pinned() ? store.total() : store.photoTotal() } }}</span>
+          @if (pinned()) {
+            <span class="text-sm opacity-70">{{ I18N.gallery.photo_count | translate:{ count: store.total() } }}</span>
+          }
 
           @if (!pinned()) {
             @let sortTooltip = I18N.gallery.sort_current | translate:{ label: (currentSortLabelKey() | translate) };
@@ -469,9 +471,28 @@
 
   <!-- Mobile search bar is rendered as the first row of the gallery bottom stack -->
 
-  <!-- Active filter chips bar (gallery route only, when filters are active) -->
-  @if (auth.isAuthenticated() && isGalleryRoute() && !pinned() && (activeFilterChips().length || store.filters().similar_to)) {
-    <div class="flex items-center gap-2 flex-wrap px-2 lg:px-4 py-2 bg-[var(--mat-sys-surface-container)] border-b border-[var(--mat-sys-outline-variant)]">
+  <!-- Collection header: what the gallery shows (source, count, sort), then every active refinement as a chip.
+       Always visible on the gallery, so no filter hides behind a closed panel. -->
+  @if (auth.isAuthenticated() && isGalleryRoute() && !pinned()) {
+    <div data-collection-header role="region" [attr.aria-label]="I18N.gallery.collection.label | translate"
+         class="flex items-center gap-2 flex-wrap px-2 lg:px-4 py-1.5 bg-[var(--mat-sys-surface-container)] border-b border-[var(--mat-sys-outline-variant)]">
+      <span class="inline-flex items-center gap-1 text-sm font-medium">
+        @if (collectionSource(); as source) {
+          <span class="opacity-70 font-normal">{{ source.labelKey | translate }}</span>{{ source.value }}
+          <button class="inline-flex items-center justify-center w-5 h-5 rounded-full hover:bg-black/20 transition-colors"
+                  [attr.aria-label]="I18N.gallery.collection.remove_filter | translate:{ label: source.value }"
+                  (click)="clearFilterChip(source)">
+            <mat-icon class="!text-sm !w-3.5 !h-3.5 !leading-[14px]">close</mat-icon>
+          </button>
+        } @else {
+          {{ I18N.gallery.collection.all_photos | translate }}
+        }
+      </span>
+      <span data-collection-count class="text-sm opacity-70">{{ I18N.gallery.photo_count | translate:{ count: store.photoTotal() } }}</span>
+      <span data-collection-sort class="inline-flex items-center gap-0.5 text-sm opacity-70">
+        {{ I18N.gallery.sort_current | translate:{ label: (currentSortLabelKey() | translate) } }}
+        <mat-icon class="!text-base !w-4 !h-4 !leading-4" [attr.aria-label]="(store.filters().sort_direction === 'DESC' ? I18N.gallery.sort_desc : I18N.gallery.sort_asc) | translate" role="img">{{ store.filters().sort_direction === 'DESC' ? 'arrow_downward' : 'arrow_upward' }}</mat-icon>
+      </span>
       @if (store.filters().similar_to) {
         <div class="inline-flex items-center gap-1.5 pl-1 pr-1 py-0.5 rounded-full bg-[var(--mat-sys-secondary-container)] text-[var(--mat-sys-on-secondary-container)] text-xs font-medium">
           <img [src]="store.filters().similar_to | thumbnailUrl:48"
@@ -508,7 +529,7 @@
           </button>
         </div>
       }
-      @for (chip of activeFilterChips(); track chip.id) {
+      @for (chip of refinementChips(); track chip.id) {
         @if (chip.personId) {
           <app-person-filter-chip [personId]="chip.personId" [canEdit]="auth.isEdition()" (remove)="clearFilterChip(chip)" />
         } @else {
@@ -519,6 +540,7 @@
             }
             <button
               class="inline-flex items-center justify-center w-4 h-4 rounded-full hover:bg-black/20 transition-colors"
+              [attr.aria-label]="I18N.gallery.collection.remove_filter | translate:{ label: (chip.labelKey | translate) }"
               (click)="clearFilterChip(chip)"
             >
               <mat-icon class="!text-sm !w-3.5 !h-3.5 !leading-[14px]">close</mat-icon>
@@ -526,7 +548,7 @@
           </div>
         }
       }
-      @if (activeFilterChips().length > 1) {
+      @if (refinementChips().length > 1) {
         <button class="text-xs opacity-60 hover:opacity-100 transition-opacity ml-auto shrink-0" (click)="store.resetFilters()">
           {{ I18N.gallery.reset_filters | translate }}
         </button>

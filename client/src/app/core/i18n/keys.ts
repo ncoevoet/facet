@@ -1115,6 +1115,11 @@ export const I18N = {
     search_placeholder: "gallery.search_placeholder",
     search_chip: "gallery.search_chip",
     semantic_search_chip: "gallery.semantic_search_chip",
+    collection: {
+      all_photos: "gallery.collection.all_photos",
+      label: "gallery.collection.label",
+      remove_filter: "gallery.collection.remove_filter",
+    },
     semantic_search: "gallery.semantic_search",
     semantic_search_placeholder: "gallery.semantic_search_placeholder",
     clear_search: "gallery.clear_search",

@@ -1099,8 +1099,13 @@
     "sort_asc": "升序",
     "filters": "筛选",
     "search_placeholder": "搜索文件名、描述…",
-    "search_chip": "搜索",
-    "semantic_search_chip": "语义搜索",
+    "search_chip": "文本匹配",
+    "semantic_search_chip": "视觉匹配",
+    "collection": {
+      "all_photos": "所有照片",
+      "label": "集合",
+      "remove_filter": "移除{label}"
+    },
     "semantic_search": "语义搜索",
     "semantic_search_placeholder": "海边的日落…",
     "clear_search": "清空搜索",

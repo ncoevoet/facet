@@ -429,7 +429,7 @@ Der **Ähnlichkeitsschwellen-Regler** (0–90%) legt fest, wie streng der Abglei
 
 ### Filter-Chips
 
-Aktive Filter erscheinen als entfernbare Chips mit Zählern oben in der Galerie.
+Eine Sammlungskopfzeile oben in der Galerie nennt immer, was Sie sehen: die Quelle (ein Album oder Ordner, mit × zum Verlassen, sonst **Alle Fotos**), die Fotoanzahl und die Sortierung. Jeder weitere aktive Filter folgt als entfernbarer Chip, sodass nichts die Ansicht einschränkt, während das Filterfeld geschlossen ist. Such-Chips sagen, wie sie treffen: **Visuelle Treffer** sind nach semantischer Ähnlichkeit zu Ihren Worten gereiht, **Texttreffer** behalten nur Fotos, deren Dateiname, Beschreibung, Tags oder Personen den Text enthalten, in der gewählten Sortierung.
 
 ### Manuelle Tags
 

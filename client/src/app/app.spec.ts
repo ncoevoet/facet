@@ -1155,6 +1155,28 @@ describe('App', () => {
       ]);
     });
 
+    it('states the collection in a header that stays visible without any filter', () => {
+      const { root } = render(true);
+      const header = root.querySelector<HTMLElement>('[data-collection-header]')!;
+      expect(header.textContent).toContain(I18N.gallery.collection.all_photos);
+      expect(header.querySelector('[data-collection-count]')!.textContent).toContain(I18N.gallery.photo_count);
+      expect(header.querySelector('[data-collection-sort]')!.textContent).toContain(I18N.gallery.sort_current);
+    });
+
+    it('names an album as the collection source and keeps the other filters as labelled chips', () => {
+      const { fixture, root } = render(true);
+      const store = TestBed.inject(GalleryStore) as unknown as { filters: ReturnType<typeof signal<typeof DEFAULT_FILTERS>>; currentAlbum: unknown };
+      store.currentAlbum = signal({ id: 7, name: 'Trip' });
+      store.filters.set({ ...DEFAULT_FILTERS, album_id: '7', camera: 'Canon' });
+      fixture.detectChanges();
+      const header = root.querySelector<HTMLElement>('[data-collection-header]')!;
+      expect(header.textContent).toContain('Trip');
+      expect(header.textContent).not.toContain(I18N.gallery.collection.all_photos);
+      const removals = [...header.querySelectorAll('button[aria-label]')].map(button => button.getAttribute('aria-label'));
+      expect(removals).toEqual([I18N.gallery.collection.remove_filter, I18N.gallery.collection.remove_filter]);
+      expect(header.textContent).toContain('Canon');
+    });
+
     it('puts the gallery controls in a page-actions row below the destination tabs', () => {
       const { root } = render(true);
       const row = root.querySelector<HTMLElement>('[data-page-actions]')!;

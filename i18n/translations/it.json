@@ -1099,8 +1099,13 @@
     "sort_asc": "Crescente",
     "filters": "Filtri",
     "search_placeholder": "Cerca nome, didascalia...",
-    "search_chip": "Ricerca",
-    "semantic_search_chip": "Ricerca semantica",
+    "search_chip": "Corrispondenze testuali",
+    "semantic_search_chip": "Corrispondenze visive",
+    "collection": {
+      "all_photos": "Tutte le foto",
+      "label": "Raccolta",
+      "remove_filter": "Rimuovi {label}"
+    },
     "semantic_search": "Ricerca semantica",
     "semantic_search_placeholder": "tramonto in spiaggia...",
     "clear_search": "Cancella ricerca",

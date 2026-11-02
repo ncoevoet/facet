@@ -429,7 +429,7 @@ Le **curseur de seuil de similarité** (0–90 %) règle la rigueur de la corres
 
 ### Puces de filtre
 
-Les filtres actifs apparaissent comme des puces amovibles avec compteurs en haut de la galerie.
+Un en-tête de collection en haut de la galerie indique toujours ce que vous regardez : la source (un album ou un dossier, avec × pour en sortir, sinon **Toutes les photos**), le nombre de photos et le tri. Chaque autre filtre actif suit sous forme de puce amovible, si bien que rien ne restreint la vue lorsque le panneau de filtres est fermé. Les puces de recherche disent comment elles correspondent : les **Correspondances visuelles** sont classées par similarité sémantique avec vos mots, tandis que les **Correspondances textuelles** ne gardent que les photos dont le nom de fichier, la légende, les tags ou les personnes contiennent le texte, dans le tri choisi.
 
 ### Tags manuels
 
