@@ -141,6 +141,8 @@ POST_ROUTES = [
     ('/api/scan/retry/preview', {'run_id': 1}),
     ('/api/scan/retry/apply', {'plan_id': '0' * 32, 'confirm': True}),
     ('/api/stacks', {'paths': ['/none/a.jpg', '/none/b.jpg'], 'cover_path': '/none/a.jpg'}),
+    ('/api/logical_assets/preview', {'operation': 'create', 'paths': ['/none/a.jpg', '/none/a.CR2'], 'primary_path': '/none/a.jpg'}),
+    ('/api/logical_assets/apply', {'change': {'operation': 'create', 'paths': ['/none/a.jpg', '/none/a.CR2'], 'primary_path': '/none/a.jpg'}, 'preview_token': 'invalid'}),
     ('/api/stacks/regroup/preview', {'selected_paths': ['/none/a.jpg', '/none/b.jpg']}),
     ('/api/stacks/regroup/apply', {'selected_paths': ['/none/a.jpg', '/none/b.jpg'],
                                 'paths': ['/none/a.jpg', '/none/b.jpg'], 'cover_path': '/none/a.jpg',

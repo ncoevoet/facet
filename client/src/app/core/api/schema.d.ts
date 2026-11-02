@@ -2388,6 +2388,40 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/logical_assets/apply": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Apply Change */
+        post: operations["apply_change_api_logical_assets_apply_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/logical_assets/preview": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Preview Change */
+        post: operations["preview_change_api_logical_assets_preview_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/manual_tags/catalog": {
         parameters: {
             query?: never;
@@ -7909,6 +7943,81 @@ export interface components {
             } | null;
             /** Paths */
             paths?: string[] | null;
+        };
+        /** LogicalAssetApply */
+        LogicalAssetApply: {
+            /**
+             * Acknowledge Review Conflicts
+             * @default false
+             */
+            acknowledge_review_conflicts?: boolean;
+            change: components["schemas"]["LogicalAssetChange"];
+            /** Preview Token */
+            preview_token: string;
+        };
+        /** LogicalAssetChange */
+        LogicalAssetChange: {
+            /** Asset Id */
+            asset_id?: string | null;
+            /**
+             * Operation
+             * @enum {string}
+             */
+            operation: "create" | "primary" | "dissolve";
+            /** Paths */
+            paths?: string[];
+            /** Primary Path */
+            primary_path?: string | null;
+            /** Revision */
+            revision?: number | null;
+        };
+        /** LogicalAssetMember */
+        LogicalAssetMember: {
+            /** Is Favorite */
+            is_favorite: boolean;
+            /** Is Kept */
+            is_kept: boolean;
+            /** Is Rejected */
+            is_rejected: boolean;
+            /** Name */
+            name: string;
+            /** Path */
+            path: string;
+            /** Star Rating */
+            star_rating: number | null;
+        };
+        /** LogicalAssetPreview */
+        LogicalAssetPreview: {
+            /** Expires At */
+            expires_at: number;
+            /** Members */
+            members: components["schemas"]["LogicalAssetMember"][];
+            /**
+             * Operation
+             * @enum {string}
+             */
+            operation: "create" | "primary" | "dissolve";
+            /**
+             * Preserves File Metadata
+             * @default true
+             * @constant
+             */
+            preserves_file_metadata?: true;
+            /** Preview Token */
+            preview_token: string;
+            /** Primary Path */
+            primary_path: string | null;
+            /** Review Conflicts */
+            review_conflicts: ("star_rating" | "is_kept" | "is_rejected" | "is_favorite")[];
+        };
+        /** LogicalAssetResult */
+        LogicalAssetResult: {
+            /** Asset Id */
+            asset_id: string;
+            /** Dissolved */
+            dissolved: boolean;
+            /** Revision */
+            revision: number | null;
         };
         /** LoginRequest */
         LoginRequest: {
@@ -14761,6 +14870,72 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["LightroomManifest"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    apply_change_api_logical_assets_apply_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["LogicalAssetApply"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LogicalAssetResult"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    preview_change_api_logical_assets_preview_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["LogicalAssetChange"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LogicalAssetPreview"];
                 };
             };
             /** @description Validation Error */
