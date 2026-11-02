@@ -7,7 +7,7 @@ describe('WeightIconPipe', () => {
   const pipe = new WeightIconPipe();
 
   it('returns known icon for aesthetic_percent', () => {
-    expect(pipe.transform('aesthetic_percent')).toBe('auto_awesome');
+    expect(pipe.transform('aesthetic_percent')).toBe('✦');
   });
 
   it('returns fallback icon for unknown key', () => {

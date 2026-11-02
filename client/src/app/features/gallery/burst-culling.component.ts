@@ -71,6 +71,7 @@ import {
   CullingGroup, CullingPhoto, CullingFace, CullingSubject, FaceThresholds, CullStyle,
   FrameSize, GridMode, KeySubject,
 } from './burst-culling.pipes';
+import { MarkTonePipe } from '../../shared/pipes/mark-tone.pipe';
 
 // Per-user culling toolbar preferences, persisted so the page reopens the way
 // the user left it. The URL query param (deep links / "Cull this scene") still
@@ -149,6 +150,7 @@ interface SceneSummary {
 @Component({
   selector: 'app-burst-culling',
   imports: [
+    MarkTonePipe,
     DecimalPipe,
     PercentPipe,
     NgClass,
@@ -599,7 +601,7 @@ interface SceneSummary {
                   @if (group.moment | momentLabel; as ml) {
                     <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-[var(--mat-sys-primary)]/20 text-[var(--mat-sys-primary)]"
                           [class.!opacity-50]="group.moment_confidence | momentUncertain:momentConfidenceMin()">
-                      <mat-icon class="!text-sm !w-4 !h-4 !leading-4">auto_awesome</mat-icon>{{ ml }}@if (group.moment_confidence | momentUncertain:momentConfidenceMin()) { <span class="opacity-80">({{ I18N.moments.uncertain | translate }})</span> }
+                      <mat-icon class="!text-sm !w-4 !h-4 !leading-4" [class]="'moment' | markTone">✦</mat-icon>{{ ml }}@if (group.moment_confidence | momentUncertain:momentConfidenceMin()) { <span class="opacity-80">({{ I18N.moments.uncertain | translate }})</span> }
                     </span>
                   }
                 </div>

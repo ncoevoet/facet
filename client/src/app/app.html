@@ -70,7 +70,7 @@
           }
           @if (store.config()?.features?.show_memories && hasMemories()) {
             <button mat-icon-button class="lg:!hidden" (click)="playMemories()" [matTooltip]="I18N.memories.tooltip | translate" [attr.aria-label]="I18N.nav.memories | translate">
-              <mat-icon>auto_awesome</mat-icon>
+              <mat-icon [class]="'memories' | markTone">✦</mat-icon>
             </button>
           }
           @if (auth.isEdition()) {
@@ -129,7 +129,7 @@
           }
           @if (store.config()?.features?.show_memories && hasMemories()) {
             <button mat-icon-button class="!hidden min-[1680px]:!inline-flex" (click)="playMemories()" [matTooltip]="I18N.memories.tooltip | translate" [attr.aria-label]="I18N.nav.memories | translate">
-              <mat-icon>auto_awesome</mat-icon>
+              <mat-icon [class]="'memories' | markTone">✦</mat-icon>
             </button>
           }
           @if (auth.isEdition()) {
@@ -157,7 +157,7 @@
               <a mat-menu-item routerLink="/compare" routerLinkActive="!text-[var(--mat-sys-primary)]"><mat-icon>compare</mat-icon>{{ I18N.nav.compare | translate }}</a>
             }
             @if (store.config()?.features?.show_memories && hasMemories()) {
-              <button mat-menu-item (click)="playMemories()"><mat-icon>auto_awesome</mat-icon>{{ I18N.nav.memories | translate }}</button>
+              <button mat-menu-item (click)="playMemories()"><mat-icon [class]="'memories' | markTone">✦</mat-icon>{{ I18N.nav.memories | translate }}</button>
             }
             @if (auth.isEdition()) {
               <button mat-menu-item (click)="openOrganizationHistory()"><mat-icon>history</mat-icon>{{ I18N.organization_history.title | translate }}</button>
@@ -262,10 +262,10 @@
              keyboard or screen-reader user can only reach through a focusable host. -->
         @if (myTasteBadge(); as taste) {
           <button type="button"
-                  class="inline-flex items-center shrink-0 p-1 rounded-full text-amber-400 hover:bg-[var(--mat-sys-surface-container-high)] transition-colors"
+                  class="inline-flex items-center shrink-0 p-1 rounded-full hover:bg-[var(--mat-sys-surface-container-high)] transition-colors"
                   [matTooltip]="I18N.gallery.my_taste_badge_tooltip | translate:{ comparisons: taste.comparisons, accuracy: taste.accuracy ?? '—', baseline: taste.baseline ?? '—' }"
                   [attr.aria-label]="I18N.gallery.my_taste_badge_tooltip | translate:{ comparisons: taste.comparisons, accuracy: taste.accuracy ?? '—', baseline: taste.baseline ?? '—' }">
-            <mat-icon class="!text-xl !w-5 !h-5 !leading-5">auto_awesome</mat-icon>
+            <mat-icon class="!text-xl !w-5 !h-5 !leading-5" [class]="'taste' | markTone">✦</mat-icon>
           </button>
         }
 

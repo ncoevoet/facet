@@ -896,7 +896,7 @@ describe('App', () => {
       expect(items.map(item => item.textContent?.replace(iconOf(item) ?? '', '').replace('check', '').trim())).toEqual([
         I18N.gallery.sort_aggregate, I18N.gallery.sort_aesthetic, I18N.gallery.sort_date,
       ]);
-      expect(items.map(item => iconOf(item))).toEqual(['leaderboard', 'auto_awesome', 'event']);
+      expect(items.map(item => iconOf(item))).toEqual(['leaderboard', '✦', 'event']);
       expect(items.map(item => item.getAttribute('aria-checked'))).toEqual(['true', 'false', 'false']);
       expect(items.map(item => !!Array.from(item.querySelectorAll('mat-icon')).find(i => i.textContent?.trim() === 'check'))).toEqual([true, false, false]);
       items[2].click();

@@ -1,3 +1,4 @@
+import { MarkTonePipe } from './mark-tone.pipe';
 import { SortOptionIconPipe } from './sort-option-icon.pipe';
 
 describe('SortOptionIconPipe', () => {
@@ -9,6 +10,10 @@ describe('SortOptionIconPipe', () => {
 
   it('returns an icon ligature for mapped columns', () => {
     expect(pipe.transform('date_taken')).toEqual({ text: 'event', classes: '' });
+  });
+
+  it('draws the aesthetic sort with the quality mark in its colour, never the AI sparkle', () => {
+    expect(pipe.transform('aesthetic')).toEqual({ text: '✦', classes: new MarkTonePipe().transform('quality') });
   });
 
   it('falls back to sort for unknown columns', () => {

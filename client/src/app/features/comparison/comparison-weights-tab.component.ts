@@ -32,6 +32,7 @@ import {
   RecordValuePipe, FilterTagsPipe, FilterBoolValuePipe,
 } from './comparison.pipes';
 import { I18N, i18nKeys } from '../../core/i18n/keys';
+import { MarkTonePipe } from '../../shared/pipes/mark-tone.pipe';
 
 interface CategoryWeights {
   weights: Record<string, number>;
@@ -86,6 +87,7 @@ class SignalErrorMatcher {
   selector: 'app-comparison-weights-tab',
   standalone: true,
   imports: [
+    MarkTonePipe,
     NgTemplateOutlet,
     FormsModule,
     MatCardModule,
@@ -172,7 +174,7 @@ class SignalErrorMatcher {
                 <div class="flex items-center gap-3" [class.opacity-50]="unavailableWeights()[key]"
                   [matTooltip]="unavailableWeights()[key] ? (I18N.comparison.unavailable_commercial | translate) : ''"
                   [matTooltipDisabled]="!unavailableWeights()[key]">
-                  <mat-icon class="text-gray-400 shrink-0">{{ key | weightIcon }}</mat-icon>
+                  <mat-icon class="text-gray-400 shrink-0" [class]="key | markTone">{{ key | weightIcon }}</mat-icon>
                   <span class="w-40 shrink-0 text-sm">
                     {{ key | weightLabelKey | translate }}
                   </span>
