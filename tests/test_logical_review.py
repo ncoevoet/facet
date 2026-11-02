@@ -282,3 +282,31 @@ def test_input_precondition_is_bound_to_the_actual_database(catalog, tmp_path):
         assert review.read(conn, key, 'alice', LABELS)['revision'] == 0
     finally:
         copy.close()
+
+
+@pytest.mark.parametrize('operation', ['delete', 'move'])
+def test_photo_changes_do_not_scan_unrelated_review_seeds(catalog, operation):
+    conn, _, key = catalog
+    # Retired identities retain their seeds, so even a small active library can
+    # have a large archive. A single photo change must not scan that archive.
+    conn.executemany('INSERT INTO logical_review_seeds VALUES (?, ?)',
+                     [(f'archived-{i}', f'/archive/{i}.jpg') for i in range(5000)])
+    conn.commit()
+    steps = 0
+
+    def budget():
+        nonlocal steps
+        steps += 100
+        return int(steps > 5000)
+
+    conn.set_progress_handler(budget, 100)
+    try:
+        if operation == 'delete':
+            conn.execute("DELETE FROM photos WHERE path='/a.jpg'")
+        else:
+            conn.execute("UPDATE photos SET path='/moved.jpg' WHERE path='/a.jpg'")
+    finally:
+        conn.set_progress_handler(None, 0)
+    expected = None if operation == 'delete' else '/moved.jpg'
+    assert conn.execute('SELECT photo_path FROM logical_review_seeds WHERE asset_id=?', (key,)).fetchone() == (expected,)
+    assert conn.execute("SELECT COUNT(*) FROM logical_review_seeds WHERE photo_path LIKE '/archive/%'").fetchone() == (5000,)

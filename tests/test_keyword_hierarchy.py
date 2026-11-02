@@ -6,7 +6,7 @@ import pytest
 
 from db.keyword_hierarchy import (
     HierarchyError, assign_node, assign_path, change_node, create_keyword_hierarchy_schema,
-    delete_branch, ensure_path, normalize_path, photo_hierarchies, remove_assignment,
+    delete_branch, ensure_path, normalize_path, photo_hierarchies, plan_path_import, remove_assignment,
 )
 
 
@@ -131,3 +131,30 @@ def test_old_readonly_schema_is_not_migrated_and_invalid_paths_do_not_write(cata
         before = snapshot(old)
         assert photo_hierarchies(old, 'a') == []
         assert snapshot(old) == before
+
+
+@pytest.mark.parametrize('operation', ['ensure', 'preview'])
+def test_existing_keyword_path_lookup_does_not_scan_the_vocabulary(catalog, operation):
+    leaf = ensure_path(catalog, ['Animals', 'Cat'])
+    catalog.executemany('INSERT INTO keyword_nodes VALUES (?, NULL, ?, ?)',
+                        [(f'archive-{i}', f'Archive {i}', f'archive {i}') for i in range(5000)])
+    catalog.commit()
+    before = catalog.total_changes
+    steps = 0
+
+    def budget():
+        nonlocal steps
+        steps += 100
+        return int(steps > 5000)
+
+    catalog.set_progress_handler(budget, 100)
+    try:
+        if operation == 'ensure':
+            assert ensure_path(catalog, ['ANIMALS', 'cat']) == leaf
+        else:
+            proposed, diagnostics = plan_path_import(catalog, 'a', ['ANIMALS|cat'])
+            assert proposed == [(['ANIMALS', 'cat'], 'ANIMALS|cat')]
+            assert diagnostics == []
+    finally:
+        catalog.set_progress_handler(None, 0)
+    assert catalog.total_changes == before

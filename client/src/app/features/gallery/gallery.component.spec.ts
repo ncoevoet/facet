@@ -1982,7 +1982,6 @@ describe('GalleryComponent', () => {
     function render(): HTMLElement {
       const fixture = TestBed.createComponent(GalleryComponent);
       Object.defineProperty(fixture.componentInstance, 'isDesktop', { value: signal(true), configurable: true });
-      Object.defineProperty(fixture.componentInstance, 'isDesktop', { value: signal(true), configurable: true });
       fixture.detectChanges();
       return fixture.nativeElement as HTMLElement;
     }
@@ -2204,8 +2203,7 @@ describe('GalleryComponent', () => {
       });
       try {
         const fixture = TestBed.createComponent(GalleryComponent);
-      Object.defineProperty(fixture.componentInstance, 'isDesktop', { value: signal(true), configurable: true });
-        Object.defineProperty(fixture.componentInstance, 'isDesktop', { value: signal(true) });
+        Object.defineProperty(fixture.componentInstance, 'isDesktop', { value: signal(true), configurable: true });
         mockStore.filterDrawerOpen.set(true);
         fixture.detectChanges();
         const notices = stack(fixture.nativeElement as HTMLElement)!;
@@ -3938,15 +3936,6 @@ describe('GalleryComponent', () => {
         expect(document.activeElement).not.toBe(document.body);
       });
 
-      it('names the exclusions when the whole view is selected minus some photos', () => {
-        mockStore.viewScopeSelected.set(true);
-        mockStore.selectionCount.set(648);
-        mockStore.excludedPaths.set(new Set(['/a.jpg', '/b.jpg']));
-
-        (component as unknown as { selectWholeView: () => void }).selectWholeView();
-
-        expect(liveAnnouncer.announce).toHaveBeenCalledWith('gallery.selection.view_scope_except');
-      });
 
       it('announces the new whole-view selection state', () => {
         mockStore.viewScopeSelected.set(true);

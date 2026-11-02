@@ -23,6 +23,8 @@ def init_schema(conn: sqlite3.Connection) -> None:
     conn.execute('''CREATE TABLE IF NOT EXISTS logical_review_seeds (
         asset_id TEXT PRIMARY KEY,
         photo_path TEXT)''')
+    # Photo delete/relink triggers must not scan active and retired seeds.
+    conn.execute('CREATE INDEX IF NOT EXISTS logical_review_seeds_path ON logical_review_seeds(photo_path)')
     conn.execute('''CREATE TABLE IF NOT EXISTS logical_review_fields (
         asset_id TEXT NOT NULL,
         owner TEXT NOT NULL, field TEXT NOT NULL,

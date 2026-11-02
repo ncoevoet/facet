@@ -521,6 +521,13 @@ export class ManagePersonsComponent implements OnInit {
   private readonly router = inject(Router);
   private readonly route = inject(ActivatedRoute);
   private tabNavigation = 0;
+  private readonly destroyRef = inject(DestroyRef);
+  private personsLoadGeneration = 0;
+  // Status publishes credential changes; unchanged refreshes should not reload the grid.
+  private readonly personsSession = computed(() => {
+    this.auth.status();
+    return JSON.stringify([this.auth.identity(), this.auth.token, this.auth.isEdition()]);
+  });
   protected readonly personsFilters = inject(PersonsFiltersService);
   private dialog = inject(MatDialog);
   private snackBar = inject(MatSnackBar);
@@ -616,7 +623,7 @@ export class ManagePersonsComponent implements OnInit {
       this.personsFilters.showHidden();
       // Locking or unlocking edition shows or hides Needs naming, which decides
       // whether the grid lists unnamed persons too.
-      this.auth.isEdition();
+      this.personsSession();
       if (this.initialized) {
         untracked(() => this.loadPersons(true));
       }
@@ -819,9 +826,15 @@ export class ManagePersonsComponent implements OnInit {
   }
 
   async loadPersons(reset: boolean): Promise<void> {
+    if (this.destroyRef.destroyed) return;
+    const generation = ++this.personsLoadGeneration;
+    const owner = this.auth.identity(), token = this.auth.token;
+    const current = () => !this.destroyRef.destroyed && generation === this.personsLoadGeneration
+      && owner === this.auth.identity() && token === this.auth.token;
     if (reset) {
       this.page = 1;
       this.persons.set([]);
+      this.total.set(0);
     }
     this.loading.set(true);
 
@@ -840,6 +853,7 @@ export class ManagePersonsComponent implements OnInit {
         }),
       );
 
+      if (!current()) return;
       if (reset) {
         this.persons.set(res.persons);
       } else {
@@ -847,9 +861,10 @@ export class ManagePersonsComponent implements OnInit {
       }
       this.total.set(res.total);
     } catch {
-      this.snackBar.open(this.i18n.t(I18N.persons.error_loading), '', { duration: 3000 });
+      if (current()) this.snackBar.open(this.i18n.t(I18N.persons.error_loading), '', { duration: 3000 });
     } finally {
-      this.loading.set(false);
+      // An invalidated latest read still owns its spinner, but never a newer read's.
+      if (!this.destroyRef.destroyed && generation === this.personsLoadGeneration) this.loading.set(false);
     }
   }
 

@@ -42,6 +42,8 @@ def create_keyword_hierarchy_schema(conn):
         CHECK(parent_id IS NULL OR parent_id != id))''')
     conn.execute('CREATE UNIQUE INDEX IF NOT EXISTS keyword_nodes_siblings '
                  'ON keyword_nodes(COALESCE(parent_id,\'\'),name_key)')
+    # The sibling uniqueness expression does not index parent_id IS ? lookups.
+    conn.execute('CREATE INDEX IF NOT EXISTS keyword_nodes_parent_name ON keyword_nodes(parent_id,name_key)')
     conn.execute('''CREATE TABLE IF NOT EXISTS photo_keyword_nodes (
         photo_path TEXT NOT NULL REFERENCES photos(path) ON DELETE CASCADE ON UPDATE CASCADE,
         node_id TEXT NOT NULL REFERENCES keyword_nodes(id) ON DELETE RESTRICT,

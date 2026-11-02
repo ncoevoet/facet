@@ -169,6 +169,109 @@ describe('ManagePersonsComponent', () => {
   });
 
   describe('loadPersons', () => {
+    it('keeps the latest search rows and total when an older response arrives last', async () => {
+      const older = new Subject<typeof mockPersonsResponse>();
+      const newer = new Subject<typeof mockPersonsResponse>();
+      mockApi.get.mockReturnValueOnce(older).mockReturnValueOnce(newer);
+      const filters = TestBed.inject(PersonsFiltersService);
+      filters.search.set('A');
+      const first = component.loadPersons(true);
+      filters.search.set('AB');
+      const second = component.loadPersons(true);
+      const fresh = { persons: [{ id: 42, name: 'AB', face_count: 1, face_thumbnail: true }], total: 1 };
+      newer.next(fresh); await second;
+      older.next(mockPersonsResponse); await first;
+      expect(component.persons()).toEqual(fresh.persons);
+      expect(component.total()).toBe(1);
+      expect(filters.search()).toBe('AB');
+    });
+
+    it.each(['success', 'failure'])('does not let stale %s settle the newer loading state', async outcome => {
+      const older = new Subject<typeof mockPersonsResponse>();
+      const newer = new Subject<typeof mockPersonsResponse>();
+      mockApi.get.mockReturnValueOnce(older).mockReturnValueOnce(newer);
+      const first = component.loadPersons(true);
+      const second = component.loadPersons(true);
+      if (outcome === 'success') older.next(mockPersonsResponse);
+      else older.error(new Error('obsolete read'));
+      await first;
+      expect(component.loading()).toBe(true);
+      expect(component.persons()).toEqual([]);
+      expect(mockSnackBar.open).not.toHaveBeenCalled();
+      newer.next(mockPersonsResponse); await second;
+      expect(component.loading()).toBe(false);
+      expect(component.persons()).toEqual(mockPersonsResponse.persons);
+    });
+
+    it.each(['owner', 'token', 'destroy'])('refuses a late read after %s changes', async loss => {
+      const pending = new Subject<typeof mockPersonsResponse>();
+      mockApi.get.mockReturnValueOnce(pending);
+      Object.assign(mockAuth, { token: 'original' });
+      const reading = component.loadPersons(true);
+      if (loss === 'owner') mockAuth.identity = () => 'other';
+      else if (loss === 'token') Object.assign(mockAuth, { token: 'rotated' });
+      else TestBed.resetTestingModule();
+      pending.next(mockPersonsResponse); await reading;
+      expect(component.persons()).toEqual([]);
+      expect(component.total()).toBe(0);
+      expect(mockSnackBar.open).not.toHaveBeenCalled();
+    });
+
+    it.each(['success', 'failure'])('settles an invalidated latest %s without publishing stale state', async outcome => {
+      const pending = new Subject<typeof mockPersonsResponse>();
+      mockApi.get.mockReturnValueOnce(pending);
+      Object.assign(mockAuth, { token: 'original' });
+      const reading = component.loadPersons(true);
+      Object.assign(mockAuth, { token: 'rotated' });
+      if (outcome === 'success') pending.next(mockPersonsResponse);
+      else pending.error(new Error('obsolete credential'));
+      await reading;
+      expect(component.loading()).toBe(false);
+      expect(component.persons()).toEqual([]);
+      expect(mockSnackBar.open).not.toHaveBeenCalled();
+    });
+
+    it.each(['owner', 'token'])('reloads through the real effect when %s changes with edition unchanged', async change => {
+      const status = signal<object | null>({ revision: 1 });
+      const owner = signal('test');
+      Object.assign(mockAuth, { status, identity: owner, token: 'original' });
+      TestBed.tick();
+      await component.ngOnInit();
+      const pending = new Subject<typeof mockPersonsResponse>();
+      mockApi.get.mockImplementation((url: string) => url === '/persons' ? pending : of({ persons: [] }));
+      mockApi.get.mockClear();
+      if (change === 'owner') owner.set('other');
+      else Object.assign(mockAuth, { token: 'rotated' });
+      status.set({ revision: 2 }); TestBed.tick();
+      expect(mockApi.get).toHaveBeenCalledOnce();
+      expect(component.persons()).toEqual([]);
+      expect(component.total()).toBe(0);
+      expect(component.loading()).toBe(true);
+      pending.next(mockPersonsResponse); await Promise.resolve();
+      expect(component.persons()).toEqual(mockPersonsResponse.persons);
+      expect(component.loading()).toBe(false);
+      status.set({ revision: 3 }); TestBed.tick();
+      expect(mockApi.get).toHaveBeenCalledOnce();
+    });
+
+    it('discards a pending old page after a new search and preserves subsequent paging', async () => {
+      await component.loadPersons(true);
+      const oldPage = new Subject<typeof mockPersonsResponse>();
+      mockApi.get.mockReturnValueOnce(oldPage);
+      const paging = component.loadPersons(false);
+      const fresh = { persons: [{ id: 42, name: 'AB', face_count: 1, face_thumbnail: true }], total: 2 };
+      mockApi.get.mockReturnValueOnce(of(fresh));
+      TestBed.inject(PersonsFiltersService).search.set('AB');
+      await component.loadPersons(true);
+      oldPage.next(mockPersonsResponse); await paging;
+      expect(component.persons()).toEqual(fresh.persons);
+      const next = { ...fresh.persons[0], id: 43 };
+      mockApi.get.mockReturnValueOnce(of({ persons: [next], total: 2 }));
+      await component.loadPersons(false);
+      expect(component.persons()).toEqual([...fresh.persons, next]);
+      expect(component.total()).toBe(2);
+    });
+
     it('should reset page and clear persons list when reset is true', async () => {
       component.persons.set([
         { id: 99, name: 'Old', face_count: 1, face_thumbnail: false },

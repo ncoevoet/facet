@@ -55,6 +55,30 @@ describe('manual face editor', () => {
     component.bbox.set([0.1, 0.2, 0.8, 0.9]);
     component.person.set({ person_id: 5 });
   });
+  it.each(['face', 'object'] as const)('refuses %s deletion from a previous account', async kind => {
+    vi.spyOn(TestBed.inject(AuthService), 'identity').mockReturnValue('1|other');
+    if (kind === 'face') await component.remove(region);
+    else await component.removeObject({ id: 9, label: 'cake', box: [0.1, 0.2, 0.8, 0.9] });
+    expect(api.delete).not.toHaveBeenCalled();
+    expect(committed).not.toHaveBeenCalled();
+  });
+
+  it.each(['face', 'object'] as const)('ignores a late %s deletion after the account changes', async kind => {
+    const response = new Subject<{ success: boolean }>();
+    api.delete.mockReturnValue(response);
+    const object = { id: 9, label: 'cake', box: [0.1, 0.2, 0.8, 0.9] };
+    component.regions.set([region]); component.objects.set([object]);
+    const changed = vi.fn();
+    component.data.onObjectsChanged = changed;
+    const pending = kind === 'face' ? component.remove(region) : component.removeObject(object);
+    vi.spyOn(TestBed.inject(AuthService), 'identity').mockReturnValue('1|other');
+    response.next({ success: true }); response.complete();
+    await pending;
+    expect(component.regions()).toEqual([region]);
+    expect(component.objects()).toEqual([object]);
+    expect(committed).not.toHaveBeenCalled(); expect(changed).not.toHaveBeenCalled();
+  });
+
   it('warns for overlapping boxes of the same person, excluding self and other people', () => {
     component.regions.set([region]);
     expect(component.overlappingPersonBox()).toBe(true);

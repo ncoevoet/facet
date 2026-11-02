@@ -353,17 +353,18 @@ export class ManualFaceDialogComponent implements OnInit {
   }
 
   async removeObject(object: PhotoObject): Promise<void> {
-    if (this.saving()) return;
+    if (this.saving() || this.destroyRef.destroyed || this.auth.identity() !== this.owner) return;
     this.saving.set(true);
     this.error.set('');
     try {
       await firstValueFrom(this.api.delete('/photo/objects/' + object.id));
+      if (this.auth.identity() !== this.owner) return;
       if (!this.destroyRef.destroyed) this.objects.update((list) => list.filter((o) => o.id !== object.id));
       this.data.onObjectsChanged?.();
     } catch {
-      if (!this.destroyRef.destroyed) this.error.set(this.I18N.errors.action_failed);
+      if (!this.destroyRef.destroyed && this.auth.identity() === this.owner) this.error.set(this.I18N.errors.action_failed);
     } finally {
-      if (!this.destroyRef.destroyed) this.saving.set(false);
+      if (!this.destroyRef.destroyed && this.auth.identity() === this.owner) this.saving.set(false);
     }
   }
 
@@ -539,7 +540,7 @@ export class ManualFaceDialogComponent implements OnInit {
     }
   }
   async remove(region: ManualFaceRegion): Promise<void> {
-    if (this.saving() || this.loading()) return;
+    if (this.saving() || this.loading() || this.destroyRef.destroyed || this.auth.identity() !== this.owner) return;
     this.saving.set(true);
     this.error.set('');
     try {
@@ -548,6 +549,7 @@ export class ManualFaceDialogComponent implements OnInit {
           '/photo/manual-faces/' + region.id + '?path=' + encodeURIComponent(this.data.path),
         ),
       );
+      if (this.auth.identity() !== this.owner) return;
       if (!this.destroyRef.destroyed) {
         this.regions.update((list) => list.filter((row) => row.id !== region.id));
         if (this.editingId() === region.id) this.newRegion();
@@ -555,9 +557,9 @@ export class ManualFaceDialogComponent implements OnInit {
 
       await this.refreshMembership();
     } catch {
-      if (!this.destroyRef.destroyed) this.error.set(this.I18N.errors.action_failed);
+      if (!this.destroyRef.destroyed && this.auth.identity() === this.owner) this.error.set(this.I18N.errors.action_failed);
     } finally {
-      if (!this.destroyRef.destroyed) this.saving.set(false);
+      if (!this.destroyRef.destroyed && this.auth.identity() === this.owner) this.saving.set(false);
     }
   }
 }

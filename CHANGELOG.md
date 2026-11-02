@@ -55,6 +55,10 @@ All notable changes to Facet are documented in this file.
 
 ### Fixed
 
+- Older People searches cannot replace newer results. Manual face and object deletion refuses actions from a dialog opened by another account and ignores stale completions.
+
+- Photo deletion and relinking no longer scan every retained logical-review source for each affected file. Existing keyword-path imports and previews use indexed lookups instead of scanning the full vocabulary for every segment.
+
 - Clearing saved smart-album criteria now survives reload and Back, including camera, tag and score filters, disabled flags and reset sort direction. Saved album rules remain unchanged.
 
 - Late album and configuration responses cannot overwrite a newer gallery visit; startup defaults no longer reset an active gallery.
