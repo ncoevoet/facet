@@ -289,6 +289,10 @@ def record_culling_decision(conn, keep_paths, reject_paths, sequence_members,
     mixed group, so a scene holding a panorama plus ordinary frames wrote
     "pan tile 3 beat pan tile 5" pairs while looking guarded.
 
+    Logical photos train through their chosen primary only. Missing-primary,
+    sequence and contradictory alias identities do not produce training pairs;
+    their review decisions remain independent from this derived training signal.
+
     ``commit=False`` is for exactly that sweep: it batches many groups into one
     transaction and fires ONE ``trigger_auto_retrain`` for the whole run, so
     committing per group would publish a half-finished sweep and nudging per
@@ -302,12 +306,18 @@ def record_culling_decision(conn, keep_paths, reject_paths, sequence_members,
 
     Returns the number of comparison rows inserted.
     """
+    keep_paths, reject_paths = list(keep_paths or ()), list(reject_paths or ())
+    sequence_members = set(sequence_members or ())
     with organization_capture.action(conn, user_id):
+        pairable_keep, pairable_reject = [], []
+        if record and keep_paths and reject_paths:
+            from api.logical_culling import training_paths
+            if not conn.in_transaction:
+                conn.execute('BEGIN IMMEDIATE')
+            pairable_keep, pairable_reject = training_paths(conn, keep_paths, reject_paths, user_id, sequence_members)
         set_photos_kept(conn, keep_paths, user_id, agent=not record)
         added = 0
         if record:
-            pairable_keep = [p for p in keep_paths if p not in sequence_members]
-            pairable_reject = [p for p in reject_paths if p not in sequence_members]
             added = record_culling_pairs(
                 conn, pairable_keep, pairable_reject, user_id=user_id, group_type=group_type,
             )
