@@ -2439,6 +2439,24 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/logical_assets/review": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Review State */
+        get: operations["review_state_api_logical_assets_review_get"];
+        put?: never;
+        /** Change Review */
+        post: operations["change_review_api_logical_assets_review_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/manual_tags/catalog": {
         parameters: {
             query?: never;
@@ -8066,6 +8084,44 @@ export interface components {
             dissolved: boolean;
             /** Revision */
             revision: number | null;
+        };
+        /** LogicalReviewChange */
+        LogicalReviewChange: {
+            /** Asset Id */
+            asset_id: string;
+            /** Group Revision */
+            group_revision: number;
+            /** Input Token */
+            input_token: string;
+            /** Patch */
+            patch?: {
+                [key: string]: number | null;
+            };
+            /** Reset */
+            reset?: ("star_rating" | "is_favorite" | "is_kept" | "is_rejected")[];
+            /** Revision */
+            revision: number;
+        };
+        /** LogicalReviewState */
+        LogicalReviewState: {
+            /** Asset Id */
+            asset_id: string;
+            /** Group Revision */
+            group_revision: number;
+            /** Input Token */
+            input_token: string;
+            /** Origins */
+            origins: {
+                [key: string]: "file" | "unknown" | "user" | "agent";
+            };
+            /** Revision */
+            revision: number;
+            /** Source Path */
+            source_path: string | null;
+            /** Values */
+            values: {
+                [key: string]: number | null;
+            };
         };
         /** LoginRequest */
         LoginRequest: {
@@ -15015,6 +15071,70 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["LogicalAssetPreview"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    review_state_api_logical_assets_review_get: {
+        parameters: {
+            query: {
+                asset_id: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LogicalReviewState"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    change_review_api_logical_assets_review_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["LogicalReviewChange"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LogicalReviewState"];
                 };
             };
             /** @description Validation Error */

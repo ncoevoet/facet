@@ -37,6 +37,15 @@ def _signature(payload):
     return hmac.new(secret, _DOMAIN + payload, hashlib.sha256).hexdigest()
 
 
+def _private_review_digest(value):
+    # Review values have a tiny guessable domain. A plain hash would permit
+    # offline enumeration through the decoded preview snapshot fingerprint.
+    secret = config.JWT_SECRET
+    if isinstance(secret, str):
+        secret = secret.encode('utf-8')
+    return hmac.new(secret, b'facet-logical-review-private-v1\0' + _json(value), hashlib.sha256).hexdigest()
+
+
 def _indexed_aliases(conn, path, disk):
     from api.related_files import _catalog_roots, _catalog_aliases
 
@@ -110,12 +119,24 @@ def snapshot(conn, change: LogicalAssetChange, user_id):
     if change.primary_path is not None and change.primary_path not in paths:
         raise HTTPException(409, 'Choose a current member as primary')
     conflicts = [key for key in _REVIEW_FIELDS if len({_digest(member[key]) for member in members}) > 1]
+    # Identity changes affect every account's logical review authority. Bind
+    # private values and reset tombstones without returning them to the caller.
+    review_state = {}
+    if group is not None:
+        for table, columns, order in (
+            ('logical_review_seeds', 'photo_path', 'photo_path'),
+            ('logical_review_fields', 'owner,field,value,origin', 'owner,field'),
+            ('logical_review_versions', 'owner,revision', 'owner'),
+            ('logical_review_field_versions', 'owner,field,revision', 'owner,field'),
+        ):
+            review_state[table] = [tuple(row) for row in conn.execute(
+                f'SELECT {columns} FROM {table} WHERE asset_id=? ORDER BY {order}', (change.asset_id,))]
     db_file = conn.execute('PRAGMA database_list').fetchone()[2]
     identity = os.stat(db_file)
     return {'database': [os.path.realpath(db_file), identity.st_dev, identity.st_ino],
             'visibility': [visibility, params], 'multi_user': config.is_multi_user_enabled(),
             'group': group, 'paths': paths, 'members': members, 'files': observations,
-            'review_conflicts': conflicts}
+            'review_conflicts': conflicts, 'logical_review_digest': _private_review_digest(review_state)}
 
 
 def preview(conn, change, user_id):

@@ -262,3 +262,140 @@ def test_single_surviving_representation_keeps_identity_and_can_choose_a_primary
     change = {'operation': 'primary', 'asset_id': created['asset_id'], 'revision': 2, 'primary_path': bundle['paths'][1]}
     response = submit(edition_client, change, draft(edition_client, change))
     assert response.status_code == 200 and response.json()['revision'] == 3
+
+
+@pytest.mark.parametrize('operation', ['primary', 'dissolve'])
+@pytest.mark.parametrize('mutation', ['edit', 'reset'])
+def test_logical_review_change_invalidates_group_preview(edition_client, bundle, operation, mutation):
+    created = submit(edition_client, bundle, draft(edition_client, bundle), acknowledge_review_conflicts=True).json()
+    key = created['asset_id']
+    change = {'operation': operation, 'asset_id': key, 'revision': 1}
+    if operation == 'primary':
+        change['primary_path'] = bundle['paths'][1]
+    preview = draft(edition_client, change)
+    with sqlite3.connect(DEFAULT_DB_PATH) as conn:
+        if mutation == 'edit':
+            conn.execute("INSERT INTO logical_review_fields VALUES (?, 'another-owner', 'star_rating', 4, 'user')", (key,))
+        else:
+            # A reset with no surviving override still changes review authority.
+            conn.execute("INSERT INTO logical_review_field_versions VALUES (?, 'another-owner', 'star_rating', 1)", (key,))
+            conn.execute("INSERT INTO logical_review_versions VALUES (?, 'another-owner', 1)", (key,))
+    response = submit(edition_client, change, preview, acknowledge_review_conflicts=True)
+    assert response.status_code == 409, response.text
+    with sqlite3.connect(DEFAULT_DB_PATH) as conn:
+        assert conn.execute('SELECT primary_path,revision FROM logical_assets WHERE id=?', (key,)).fetchone() == (bundle['primary_path'], 1)
+        assert conn.execute('SELECT COUNT(*) FROM logical_asset_members WHERE asset_id=?', (key,)).fetchone()[0] == 2
+    fresh = draft(edition_client, change)
+    assert 'another-owner' not in json.dumps(fresh)
+    assert submit(edition_client, change, fresh, acknowledge_review_conflicts=True).status_code == 200
+
+
+def test_logical_review_http_edit_reset_and_stale_refusal(edition_client, bundle, monkeypatch):
+    from api import config
+    monkeypatch.setitem(config.VIEWER_CONFIG, 'edition_password', 'test-only')
+    key = submit(edition_client, bundle, draft(edition_client, bundle), acknowledge_review_conflicts=True).json()['asset_id']
+    state = edition_client.get('/api/logical_assets/review', params={'asset_id': key}).json()
+    assert state['values']['star_rating'] == 5
+    body = {field: state[field] for field in ('asset_id', 'group_revision', 'revision', 'input_token')}
+    response = edition_client.post('/api/logical_assets/review', json={**body, 'patch': {'star_rating': 3, 'is_kept': 0, 'is_rejected': 1}})
+    assert response.status_code == 200, response.text
+    changed = response.json()
+    assert changed['values']['star_rating'] == 3 and changed['values']['is_rejected'] == 1
+    assert changed['origins']['star_rating'] == 'user'
+    assert edition_client.post('/api/logical_assets/review', json={**body, 'patch': {'star_rating': 1}}).status_code == 409
+    reset = {field: changed[field] for field in body}
+    response = edition_client.post('/api/logical_assets/review', json={**reset, 'reset': ['star_rating', 'is_kept', 'is_rejected']})
+    assert response.status_code == 200, response.text
+    assert response.json()['values']['star_rating'] == 5
+    assert response.json()['values']['is_kept'] == 1
+    with sqlite3.connect(DEFAULT_DB_PATH) as conn:
+        assert conn.execute('SELECT star_rating,is_kept,is_rejected FROM photos WHERE path=?', (bundle['primary_path'],)).fetchone() == (5, 1, 0)
+
+
+def test_logical_review_partial_visibility_refuses_reads_and_writes(edition_client, bundle, monkeypatch):
+    from api import config, logical_reviews
+    monkeypatch.setitem(config.VIEWER_CONFIG, 'edition_password', 'test-only')
+    key = submit(edition_client, bundle, draft(edition_client, bundle), acknowledge_review_conflicts=True).json()['asset_id']
+    state = edition_client.get('/api/logical_assets/review', params={'asset_id': key}).json()
+    body = {field: state[field] for field in ('asset_id', 'group_revision', 'revision', 'input_token')}
+    monkeypatch.setattr(logical_reviews, 'get_visibility_clause', lambda user: ('photos.path != ?', [bundle['paths'][1]]))
+    assert edition_client.get('/api/logical_assets/review', params={'asset_id': key}).status_code == 404
+    assert edition_client.post('/api/logical_assets/review', json={**body, 'patch': {'star_rating': 1}}).status_code == 404
+    with sqlite3.connect(DEFAULT_DB_PATH) as conn:
+        assert conn.execute('SELECT COUNT(*) FROM logical_review_fields WHERE asset_id=?', (key,)).fetchone()[0] == 0
+
+
+def test_logical_review_read_only_and_changed_file_inputs(edition_client, regular_client, bundle, monkeypatch):
+    from api import config
+    monkeypatch.setitem(config.VIEWER_CONFIG, 'edition_password', 'test-only')
+    key = submit(edition_client, bundle, draft(edition_client, bundle), acknowledge_review_conflicts=True).json()['asset_id']
+    state = regular_client.get('/api/logical_assets/review', params={'asset_id': key})
+    assert state.status_code == 200
+    body = {field: state.json()[field] for field in ('asset_id', 'group_revision', 'revision', 'input_token')}
+    assert regular_client.post('/api/logical_assets/review', json={**body, 'patch': {'star_rating': 1}}).status_code == 403
+    with sqlite3.connect(DEFAULT_DB_PATH) as conn:
+        conn.execute('UPDATE photos SET star_rating=4 WHERE path=?', (bundle['primary_path'],))
+    assert edition_client.post('/api/logical_assets/review', json={**body, 'patch': {'star_rating': 1}}).status_code == 409
+    fresh = edition_client.get('/api/logical_assets/review', params={'asset_id': key}).json()
+    assert fresh['values']['star_rating'] == 4
+    assert fresh['revision'] == 0
+
+
+def test_logical_review_multi_user_authority_is_isolated(edition_client, regular_client, bundle, monkeypatch):
+    from api import config
+    monkeypatch.setitem(config._FULL_CONFIG, 'users', {
+        'test': {'directories': [str(Path(bundle['primary_path']).parent)]},
+        'u1': {'directories': [str(Path(bundle['primary_path']).parent)]},
+    })
+    key = submit(edition_client, bundle, draft(edition_client, bundle), acknowledge_review_conflicts=True).json()['asset_id']
+    state = regular_client.get('/api/logical_assets/review', params={'asset_id': key}).json()
+    body = {field: state[field] for field in ('asset_id', 'group_revision', 'revision', 'input_token')}
+    response = regular_client.post('/api/logical_assets/review', json={**body, 'patch': {'star_rating': 4}})
+    assert response.status_code == 200, response.text
+    own = response.json()
+    other = edition_client.get('/api/logical_assets/review', params={'asset_id': key}).json()
+    assert own['values']['star_rating'] == 4 and own['revision'] > 0
+    assert other['values']['star_rating'] == 0 and other['revision'] == 0
+    # A token from another account cannot be used with matching revision numbers.
+    foreign = {field: other[field] for field in body}
+    assert regular_client.post('/api/logical_assets/review', json={**foreign, 'patch': {'star_rating': 1}}).status_code == 409
+    with sqlite3.connect(DEFAULT_DB_PATH) as conn:
+        assert conn.execute('SELECT owner,value FROM logical_review_fields WHERE asset_id=?', (key,)).fetchall() == [('u1', 4)]
+        assert conn.execute('SELECT COUNT(*) FROM user_preferences WHERE photo_path IN (?,?)', bundle['paths']).fetchone()[0] == 0
+
+
+def test_logical_review_storage_failure_rolls_back_all_fields(edition_client, bundle, monkeypatch):
+    from api import config
+    monkeypatch.setitem(config.VIEWER_CONFIG, 'edition_password', 'test-only')
+    key = submit(edition_client, bundle, draft(edition_client, bundle), acknowledge_review_conflicts=True).json()['asset_id']
+    state = edition_client.get('/api/logical_assets/review', params={'asset_id': key}).json()
+    body = {field: state[field] for field in ('asset_id', 'group_revision', 'revision', 'input_token')}
+    with sqlite3.connect(DEFAULT_DB_PATH) as conn:
+        conn.execute("CREATE TRIGGER fail_logical_review BEFORE INSERT ON logical_review_fields "
+                     "WHEN NEW.field='decision' BEGIN SELECT RAISE(ABORT,'private injected failure'); END")
+    try:
+        response = edition_client.post('/api/logical_assets/review', json={**body, 'patch': {'star_rating': 3, 'is_kept': 1, 'is_rejected': 0}})
+        assert response.status_code == 503
+        assert 'private injected' not in response.text
+        fresh = edition_client.get('/api/logical_assets/review', params={'asset_id': key}).json()
+        assert fresh == state
+        with sqlite3.connect(DEFAULT_DB_PATH) as conn:
+            assert conn.execute('SELECT COUNT(*) FROM logical_review_fields WHERE asset_id=?', (key,)).fetchone()[0] == 0
+    finally:
+        with sqlite3.connect(DEFAULT_DB_PATH) as conn:
+            conn.execute('DROP TRIGGER fail_logical_review')
+
+
+@pytest.mark.parametrize('patch', [
+    {'star_rating': 6}, {'star_rating': True}, {'is_favorite': 2},
+    {'is_kept': 1}, {'is_kept': 1, 'is_rejected': 1}, {'is_favorite': None},
+])
+def test_logical_review_invalid_values_leave_authority_unchanged(edition_client, bundle, monkeypatch, patch):
+    from api import config
+    monkeypatch.setitem(config.VIEWER_CONFIG, 'edition_password', 'test-only')
+    key = submit(edition_client, bundle, draft(edition_client, bundle), acknowledge_review_conflicts=True).json()['asset_id']
+    state = edition_client.get('/api/logical_assets/review', params={'asset_id': key}).json()
+    body = {field: state[field] for field in ('asset_id', 'group_revision', 'revision', 'input_token')}
+    response = edition_client.post('/api/logical_assets/review', json={**body, 'patch': patch})
+    assert response.status_code in (409, 422), response.text
+    assert edition_client.get('/api/logical_assets/review', params={'asset_id': key}).json() == state

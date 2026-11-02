@@ -76,3 +76,32 @@ class LogicalAssetContext(BaseModel):
     asset: LogicalAssetInfo | None
     candidates: list[LogicalAssetCandidate]
     can_group: bool
+
+
+ReviewField = Literal['star_rating', 'is_favorite', 'is_kept', 'is_rejected']
+
+
+class LogicalReviewState(BaseModel):
+    asset_id: str
+    group_revision: int
+    revision: int
+    input_token: str
+    source_path: str | None
+    values: dict[ReviewField, int | None]
+    origins: dict[ReviewField, Literal['file', 'unknown', 'user', 'agent']]
+
+
+class LogicalReviewChange(BaseModel):
+    model_config = ConfigDict(extra='forbid')
+    asset_id: str = Field(pattern=r'^[a-f0-9]{32}$')
+    group_revision: int = Field(strict=True, ge=1)
+    revision: int = Field(strict=True, ge=0)
+    input_token: str = Field(pattern=r'^[a-f0-9]{64}$')
+    patch: dict[ReviewField, Annotated[int, Field(strict=True)] | None] = Field(default_factory=dict)
+    reset: list[ReviewField] = Field(default_factory=list, max_length=4)
+
+    @model_validator(mode='after')
+    def one_operation(self):
+        if bool(self.patch) == bool(self.reset):
+            raise ValueError('Choose review values or fields to reset')
+        return self
