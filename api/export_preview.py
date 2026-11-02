@@ -40,7 +40,8 @@ def _json(value):
 
 
 def _digest(value):
-    return hashlib.sha256(_json(value)).hexdigest()
+    # A keyed snapshot fingerprint, never a stored password verifier.
+    return _signature(_json(value))
 
 
 def _policy(user_id):
@@ -53,7 +54,7 @@ def _policy(user_id):
             'export': config.VIEWER_CONFIG.get('export', {}),
             'xmp': config.get_xmp_export_config(),
             'actor_role': actor.get('role'),
-            'actor_generation': hashlib.sha256(str(actor.get('password', '')).encode()).hexdigest(),
+            'actor_generation': _signature(str(actor.get('password', '')).encode()),
             'viewer_generation': password_generation('password'),
             'edition_generation': password_generation('edition_password'),
             'trusted_local_editing': config.VIEWER_CONFIG.get('trusted_local_editing', False)}

@@ -199,6 +199,8 @@ def scan_feature_refusal(user) -> Optional[str]:
 
 def _spawn_scan(cmd, directories, cleanup=None, *, kind=JOB_KIND_SCAN, job_id=None, on_exit=None, stdin_payload=None):
     """Caller holds _scan_lock. One observer for normal and captured scans."""
+    if cmd[:2] != [sys.executable, FACET_SCRIPT]:
+        raise ValueError('Scan commands must use the configured Facet interpreter and script')
     job_id = job_id or secrets.token_hex(16)
     env = _cross_process_job_env()
     from processing.scan_state import VIEWER_JOB_ID_ENV
@@ -226,7 +228,7 @@ def _spawn_scan(cmd, directories, cleanup=None, *, kind=JOB_KIND_SCAN, job_id=No
                 # Reserve observation before spawning, and release it on any failure.
                 threading.Thread(target=observe, args=(), daemon=True).start()
                 proc = subprocess.Popen(
-                    cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
+                    [sys.executable, FACET_SCRIPT, *cmd[2:]], stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
                     text=True, bufsize=1, env=env, encoding='utf-8', errors='replace', **stdin_args,
                 )
         except OSError:
@@ -456,7 +458,7 @@ def start_scan(
 
         # Rebuild from canonical server-side list so subprocess args are provably server-origin
         validated_dirs = [d for d in get_all_scan_directories() if d in set(directories)]
-        cmd = [sys.executable, FACET_SCRIPT] + validated_dirs
+        cmd = [sys.executable, FACET_SCRIPT, '--', *validated_dirs]
 
         return _spawn_scan(cmd, directories)
 

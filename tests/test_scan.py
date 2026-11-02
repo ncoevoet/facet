@@ -15,6 +15,8 @@ from datetime import timedelta
 from unittest import mock
 
 import pytest
+
+
 from fastapi.testclient import TestClient
 
 from api import create_app
@@ -2162,3 +2164,17 @@ class TestLibraryJobCoverage:
             holder.wait()
 
         assert result.returncode == 0
+
+
+def test_scan_spawn_refuses_a_different_executable_before_starting_threads(monkeypatch):
+    from api.routers import scan
+    from unittest.mock import Mock
+
+    popen = Mock()
+    thread = Mock()
+    monkeypatch.setattr(scan.subprocess, 'Popen', popen)
+    monkeypatch.setattr(scan.threading, 'Thread', thread)
+    with pytest.raises(ValueError, match='configured Facet interpreter'):
+        scan._spawn_scan(['/untrusted/executable', scan.FACET_SCRIPT], [])
+    popen.assert_not_called()
+    thread.assert_not_called()
