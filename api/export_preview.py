@@ -198,12 +198,17 @@ def build_export_snapshot(conn, body: ExportPreviewRequest, user_id, *, stop_req
     policy = _json(_policy(user_id))
     paths = _paths(conn, body, user_id)
     rows, regions = {}, {}
+    metadata_bytes = 0
     for start in range(0, len(paths), 500):
         if stop_requested and stop_requested():
             from api.sidecar_jobs import ExportCancelled
             raise ExportCancelled()
         chunk = paths[start:start + 500]
-        rows.update(_fetch_rating_rows(conn, chunk, user_id))
+        chunk_rows = _fetch_rating_rows(conn, chunk, user_id, include_metadata=body.mode == 'sidecars')
+        metadata_bytes += len(_json(chunk_rows))
+        if metadata_bytes > MAX_PLAN_BYTES:
+            raise HTTPException(413, 'Export metadata exceeds the preview budget; select fewer photos')
+        rows.update(chunk_rows)
     if set(rows) != set(paths):
         raise HTTPException(409, 'Selected photos are no longer available; preview again')
     # Visibility must precede manual-face filesystem validation as well.

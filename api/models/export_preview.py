@@ -55,6 +55,7 @@ class ExportMetadata(BaseModel):
     tags: list[str]
     ai_tags: list[str]
     manual_tags: list[str]
+    hierarchy_paths: list[str] = Field(default_factory=list)
     caption: str
     category: str
     person_names: list[str]

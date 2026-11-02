@@ -134,6 +134,44 @@ def test_effective_metadata_and_file_changes_change_the_confirmation_snapshot(ed
         assert _digest(build_export_snapshot(conn, request, 'test')) != claims['snapshot']
 
 
+def test_explicit_hierarchy_is_in_preview_and_structure_changes_invalidate_confirmation(edition_client, library):
+    from db.keyword_hierarchy import assign_path, change_node
+    paths, target = library
+    with sqlite3.connect(DEFAULT_DB_PATH) as conn:
+        leaf, _ = assign_path(conn, str(paths[0]), ['Places', 'City, Coast'])
+        assign_path(conn, str(paths[1]), ['Other', 'Cat'])
+    before = bytes_in(target.parent)
+    request = ExportPreviewRequest(paths=[str(paths[0])])
+    body = preview(edition_client, **request.model_dump())
+    metadata = body['items'][0]['metadata']
+    assert metadata['hierarchy_paths'] == ['Places|City, Coast']
+    assert 'Places|City, Coast' in metadata['keywords']
+    assert 'Other|Cat' not in metadata['keywords']
+    assert bytes_in(target.parent) == before
+    claims = verify_export_preview(body['preview_token'], request, 'test')
+    with sqlite3.connect(DEFAULT_DB_PATH) as conn:
+        conn.row_factory = sqlite3.Row
+        assert _digest(build_export_snapshot(conn, request, 'test')) == claims['snapshot']
+        change_node(conn, leaf, writable_paths={str(paths[0])}, name='New name')
+        conn.commit()
+        assert _digest(build_export_snapshot(conn, request, 'test')) != claims['snapshot']
+    assert bytes_in(target.parent) == before
+
+
+def test_byte_copy_preview_does_not_materialize_unwritten_hierarchy_metadata(edition_client, library):
+    from db.keyword_hierarchy import assign_path
+    paths, target = library
+    with sqlite3.connect(DEFAULT_DB_PATH) as conn:
+        node, _ = assign_path(conn, str(paths[0]), ['Places', 'Coast'])
+        conn.execute("UPDATE keyword_nodes SET name_key='invalid' WHERE id=?", (node,))
+    before = bytes_in(target.parent)
+    refused = edition_client.post('/api/export/preview', json={'paths': [str(paths[0])]})
+    assert refused.status_code == 409
+    copied = preview(edition_client, paths=[str(paths[0])], mode='copy', target_dir=str(target))
+    assert copied['ready'] == 1 and copied['items'][0]['metadata'] is None
+    assert bytes_in(target.parent) == before
+
+
 def test_unavailable_selection_refuses_before_face_or_file_probes(edition_client, library, monkeypatch):
     paths, _ = library
     monkeypatch.setattr('api.routers.export._fetch_regions_map', lambda *args: pytest.fail('inspected unauthorized regions'))

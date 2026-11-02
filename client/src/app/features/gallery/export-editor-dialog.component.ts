@@ -113,6 +113,9 @@ export interface ExportEditorDialogData {
                     <dt>{{ I18N.rating.favorite | translate }}</dt><dd class="m-0">{{ (metadata.is_favorite ? I18N.organization_history.yes : I18N.organization_history.no) | translate }}</dd>
                     <dt>{{ I18N.export.preview.decision | translate }}</dt><dd class="m-0">{{ item.decisionLabel | translate }}</dd>
                     <dt>{{ I18N.export.preview.keywords | translate }}</dt><dd class="m-0 break-words">{{ item.keywordsText || '—' }}</dd>
+                    @if (item.hierarchyText) {
+                      <dt>{{ I18N.export.preview.hierarchical_keywords | translate }}</dt><dd data-export-hierarchy class="m-0 whitespace-pre-line break-words">{{ item.hierarchyText }}</dd>
+                    }
                     <dt>{{ I18N.photo_detail.caption | translate }}</dt><dd class="m-0 whitespace-pre-wrap break-words">{{ metadata.caption || '—' }}</dd>
                     @if (metadata.manual_date) { <dt>{{ I18N.organization_history.capture_date | translate }}</dt><dd class="m-0">{{ metadata.manual_date | captureDate }}</dd> }
                     @if (metadata.gps_state) { <dt>{{ I18N.organization_history.manual_gps | translate }}</dt><dd class="m-0">{{ metadata.gps_state }}@if (metadata.gps_state === 'set') { · {{ metadata.gps_latitude }}, {{ metadata.gps_longitude }} }</dd> }
@@ -274,6 +277,7 @@ export class ExportEditorDialogComponent {
   readonly previewPages = computed(() => Math.max(1, Math.ceil((this.preview()?.items.length ?? 0) / 25)));
   readonly previewItems = computed(() => (this.preview()?.items ?? []).slice(this.previewPage() * 25, (this.previewPage() + 1) * 25).map(item => ({
     ...item, keywordsText: item.metadata?.keywords.join(', '),
+    hierarchyText: item.metadata?.hierarchy_paths?.join('\n') ?? '',
     decisionLabel: item.metadata ? ({ kept: I18N.review.kept, rejected: I18N.review.rejected, undecided: I18N.gallery.metadata.undecided })[item.metadata.review_decision] : '',
     sources: (item.metadata?.provenance.review ?? []).map(source => ({ ...source,
       label: ({ star_rating: I18N.rating.stars, is_favorite: I18N.rating.favorite, is_kept: I18N.review.kept, is_rejected: I18N.review.rejected })[source.field],

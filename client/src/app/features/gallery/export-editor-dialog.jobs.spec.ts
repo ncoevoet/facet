@@ -566,7 +566,7 @@ describe('Export editor background jobs with HttpClient', () => {
     http.expectNone(request => request.method === 'GET');
   });
 
-  it('renders the actual mapped XMP rating, favorite and color label inside the captured file preview', async () => {
+  it('renders mapped XMP values and distinguishes two full hierarchy paths from flat keywords', async () => {
     build(); const pending = component.previewExport();
     const request = http.expectOne('/api/export/preview');
     const captured = preview(request.request.body);
@@ -574,9 +574,10 @@ describe('Export editor background jobs with HttpClient', () => {
       state: 'ready', companion: false, target_exists: false, metadata: {
         star_rating: 0, is_favorite: true, is_rejected: false, is_kept: true, date_taken: null,
         date_manually_set: false, gps_manually_set: false, gps_latitude: null, gps_longitude: null,
-        tags: [], ai_tags: [], manual_tags: [], caption: '', category: '', person_names: [], regions: [],
+        tags: ['literal/slash'], ai_tags: [], manual_tags: ['literal/slash'],
+        hierarchy_paths: ['Animals|Domestic|Cat', 'Animals|Wild|Cat'], caption: '', category: '', person_names: [], regions: [],
         aggregate: null, xmp_rating: 0, xmp_label: 'Yellow', review_decision: 'kept', manual_date: null,
-        gps_state: null, review_scope: 'personal', keywords: [], face_regions_supported: false,
+        gps_state: null, review_scope: 'personal', keywords: ['literal/slash', 'Animals|Domestic|Cat', 'Animals|Wild|Cat'], face_regions_supported: false,
         provenance: { review_scope: 'personal', review: [], manual_tags: [], manual_tags_truncated: false,
           capture_date_override: false, gps_override: false },
       } }];
@@ -588,6 +589,8 @@ describe('Export editor background jobs with HttpClient', () => {
     expect(values).toContainEqual(['export.preview.color_label {}', 'Yellow']);
     expect(values).toContainEqual(['rating.favorite {}', 'organization_history.yes {}']);
     expect(values).toContainEqual(['export.preview.decision {}', 'review.kept {}']);
+    expect(values).toContainEqual(['export.preview.hierarchical_keywords {}', 'Animals|Domestic|Cat\nAnimals|Wild|Cat']);
+    expect(details.querySelector('[data-export-hierarchy]')?.textContent).not.toContain('literal/slash');
     http.expectNone('/api/export/apply');
   });
 });

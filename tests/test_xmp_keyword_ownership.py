@@ -361,14 +361,14 @@ def test_embedded_marker_and_unicode_case_normalization_preserve_foreign_collisi
     result = run_exiftool_process(['exiftool', '-overwrite_original', '-XMP-dc:Subject=CAFÉ', str(image)], timeout=30)
     assert result.returncode == 0, result.stderr
     write_metadata(str(image), XmpRating(tags=['Cafe\u0301', 'Straße'], manual_tags=['Straße']), embed_original=True)
-    state = xe._read_keyword_state(str(image), xe._resolve_exiftool(), timeout=30)
+    state, _ = xe._read_keyword_states(str(image), xe._resolve_exiftool(), timeout=30)
     assert state['owned'] == ['Straße']  # NFC/case-equal foreign CAFÉ is never claimed.
     result = run_exiftool_process(['exiftool', '-overwrite_original', '-XMP-dc:Subject=CAFÉ', '-XMP-dc:Subject=STRASSE', str(image)], timeout=30)
     assert result.returncode == 0, result.stderr
     write_metadata(str(image), XmpRating(), embed_original=True, reconcile_keywords=True)
     flat, _, _ = xe._read_existing_metadata(str(image), xe._resolve_exiftool(), timeout=30, strict=True)
     assert flat == ['CAFÉ']
-    state = xe._read_keyword_state(str(image), xe._resolve_exiftool(), timeout=30)
+    state, _ = xe._read_keyword_states(str(image), xe._resolve_exiftool(), timeout=30)
     assert state['deleted'] == ['Straße']
 
 

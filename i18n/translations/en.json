@@ -3373,7 +3373,8 @@
       "change": "Change options",
       "confirm": "Confirm export",
       "action": "Preview export",
-      "color_label": "XMP color label"
+      "color_label": "XMP color label",
+      "hierarchical_keywords": "Hierarchical keywords"
     }
   },
   "undo": {

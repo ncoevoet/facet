@@ -249,13 +249,14 @@ class PhotoDeleteRequest(BaseModel):
 
 # --- Helpers ---
 
-def _fetch_rating_rows(conn, paths, user_id):
+def _fetch_rating_rows(conn, paths, user_id, *, include_metadata=True):
     """Fetch effective-rating rows (per-user resolved) for ``paths``.
 
     Returns a dict keyed by db photo path. Only paths visible to the user and
     present in the DB are returned. ``get_preference_columns`` resolves
     star_rating/is_favorite/is_rejected to the user_preferences COALESCE
-    expressions in multi-user mode, so per-user overrides are honored.
+    expressions in multi-user mode, so per-user overrides are honored. Byte-copy
+    delivery needs only the authorized path projection, not metadata to rewrite.
     """
     if not paths:
         return {}
@@ -270,6 +271,8 @@ def _fetch_rating_rows(conn, paths, user_id):
         f"{pref_cols['is_favorite']} as is_favorite, "
         f"{pref_cols['is_rejected']} as is_rejected, {pref_cols['is_kept']} as is_kept"
     )
+    if not include_metadata:
+        select = 'photos.path as path'
     placeholders = ",".join("?" * len(paths))
     query = (
         f"SELECT {select} FROM {from_clause} "
@@ -277,10 +280,18 @@ def _fetch_rating_rows(conn, paths, user_id):
     )
     rows = conn.execute(query, from_params + list(paths) + vis_params).fetchall()
     result = {row["path"]: dict(row) for row in rows}
+    if not include_metadata:
+        return result
     from db.manual_tags import enrich_effective_tags, load_manual_tags_map
+    from db.keyword_hierarchy import HierarchyError, load_hierarchy_map
     manual = load_manual_tags_map(conn, list(result))
+    try:
+        hierarchy = load_hierarchy_map(conn, list(result))
+    except HierarchyError as exc:
+        raise HTTPException(409, 'Keyword hierarchy metadata cannot be exported safely') from exc
     for data in result.values():
         enrich_effective_tags(data, manual)
+        data['hierarchy_paths'] = [item['exported_path'] for item in hierarchy.get(data['path'], [])]
     return result
 
 

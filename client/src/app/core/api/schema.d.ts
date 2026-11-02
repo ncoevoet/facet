@@ -7113,6 +7113,8 @@ export interface components {
             gps_manually_set: boolean;
             /** Gps State */
             gps_state: ("set" | "cleared") | null;
+            /** Hierarchy Paths */
+            hierarchy_paths?: string[];
             /** Is Favorite */
             is_favorite: boolean;
             /** Is Kept */

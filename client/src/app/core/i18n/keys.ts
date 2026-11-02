@@ -3388,6 +3388,7 @@ export const I18N = {
       confirm: "export.preview.confirm",
       action: "export.preview.action",
       color_label: "export.preview.color_label",
+      hierarchical_keywords: "export.preview.hierarchical_keywords",
     },
   },
   undo: {

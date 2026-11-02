@@ -229,18 +229,101 @@ def assign_path(conn, photo_path, segments, *, source='user', created_by=None, i
 
 def photo_hierarchies(conn, photo_path):
     """Read old schemas without migrating; no invented hierarchy from flat tags."""
+    return load_hierarchy_map(conn, [photo_path]).get(photo_path, [])
+
+
+def plan_path_import(conn, photo_path, paths, *, pending_prefixes=None):
+    """Read-only additive import plan, also valid on released schemas.
+
+    Do not create speculative nodes for protected removals. The caller applies
+    this plan under its writer transaction; previews never allocate identities.
+    """
+    tables = {row[0] for row in conn.execute("SELECT name FROM sqlite_master WHERE type='table'")}
+    supported = 'photo_keyword_nodes' in tables
+    current = photo_hierarchies(conn, photo_path) if supported else []
+    assigned = {tuple(name.casefold() for name in item['segments']): item for item in current}
+    tombstones = list(conn.execute('SELECT path_key,node_id FROM keyword_assignment_deletions WHERE photo_path=?',
+                                   (photo_path,))) if supported else []
+    deleted_paths = {row[0] for row in tombstones}
+    deleted_ids = {row[1] for row in tombstones if row[1] is not None}
+    new_prefixes, seen, proposed, diagnostics = set(), set(), [], []
+    added = 0
+    for raw in paths:
+        try:
+            names = parse_imported_path(raw)
+        except HierarchyError as exc:
+            diagnostics.append({'field': 'hierarchy', 'value': raw, 'reason': 'invalid_hierarchy', 'detail': str(exc)})
+            continue
+        key = tuple(name.casefold() for name in names)
+        if key in seen:
+            continue
+        seen.add(key)
+        node_id, candidate_prefixes = None, set()
+        missing = not supported
+        for index, name in enumerate(names):
+            row = None if missing else conn.execute('SELECT id FROM keyword_nodes WHERE parent_id IS ? AND name_key=?',
+                                                    (node_id, name.casefold())).fetchone()
+            if row is None:
+                missing = True
+                candidate_prefixes.add(key[:index + 1])
+            else:
+                node_id = row[0]
+        path_key = json.dumps(key, ensure_ascii=True, separators=(',', ':'))
+        existing = assigned.get(key)
+        if path_key in deleted_paths or (not missing and node_id in deleted_ids) or (existing and existing['source'] == 'user'):
+            diagnostics.append({'field': 'hierarchy', 'value': raw, 'reason': 'local_hierarchy_edit'})
+            continue
+        if existing and existing['source'] == 'xmp' and existing['exported_path'] == raw:
+            continue
+        if not existing:
+            added += 1
+        # Count only missing prefixes of accepted paths, shared across siblings.
+        new_prefixes.update(candidate_prefixes)
+        proposed.append((names, raw))
+    node_count = conn.execute('SELECT COUNT(*) FROM keyword_nodes').fetchone()[0] if supported else 0
+    projected = new_prefixes | (pending_prefixes or set())
+    if len(current) + added > MAX_ASSIGNMENTS or node_count + len(projected) > MAX_NODES:
+        diagnostics.append({'field': 'hierarchy', 'reason': 'hierarchy_cap', 'proposed': len(proposed)})
+        return [], diagnostics
+    if pending_prefixes is not None:
+        pending_prefixes.update(new_prefixes)
+    return proposed, diagnostics
+
+
+def load_hierarchy_map(conn, photo_paths, *, max_bytes=8 * 1024 * 1024):
+    """Materialize only requested assignments and their ancestors, in chunks.
+
+    Callers authorize photo paths first. API callers retain a bounded response
+    budget; CLI exports may opt out while passing a bounded photo chunk.
+    """
     if not conn.execute("SELECT 1 FROM sqlite_master WHERE type='table' AND name='photo_keyword_nodes'").fetchone():
-        return []
-    rows = conn.execute('SELECT node_id,source,imported_path,imported_signature FROM photo_keyword_nodes '
-                        'WHERE photo_path=? ORDER BY node_id', (photo_path,)).fetchall()
-    graph = _graph(conn, [row[0] for row in rows])
-    result = []
-    for node_id, source, imported, signature in rows:
-        chain = _ancestry(graph, node_id)
-        names = [node['name'] for node in chain]
-        exported = imported if imported is not None and signature == _signature(chain) else '|'.join(names)
-        result.append({'node_id': node_id, 'segments': names, 'source': source, 'exported_path': exported})
-    return sorted(result, key=lambda item: (item['exported_path'].casefold(), item['node_id']))
+        return {}
+    paths = list(dict.fromkeys(photo_paths))
+    result, size = {}, 0
+    for start in range(0, len(paths), 500):
+        chunk = paths[start:start + 500]
+        marks = ','.join('?' * len(chunk))
+        rows = conn.execute('SELECT photo_path,node_id,source,imported_path,imported_signature '
+                            f'FROM photo_keyword_nodes WHERE photo_path IN ({marks}) ORDER BY photo_path,node_id LIMIT ?',
+                            [*chunk, len(chunk) * MAX_ASSIGNMENTS + 1]).fetchall()
+        if len(rows) > len(chunk) * MAX_ASSIGNMENTS:
+            raise HierarchyError('Stored keyword assignments exceed their supported limit')
+        graph = _graph(conn, {row[1] for row in rows})
+        for path, node_id, source, imported, signature in rows:
+            assigned = result.setdefault(path, [])
+            if len(assigned) >= MAX_ASSIGNMENTS:
+                raise HierarchyError('Stored keyword assignments exceed their supported limit')
+            chain = _ancestry(graph, node_id)
+            names = [node['name'] for node in chain]
+            exported = imported if imported is not None and signature == _signature(chain) else '|'.join(names)
+            item = {'node_id': node_id, 'segments': names, 'source': source, 'exported_path': exported}
+            size += len(json.dumps(item, ensure_ascii=True).encode())
+            if max_bytes is not None and size > max_bytes:
+                raise HierarchyError('Keyword hierarchy preview exceeds its response budget')
+            assigned.append(item)
+    for assigned in result.values():
+        assigned.sort(key=lambda item: (item['exported_path'].casefold(), item['node_id']))
+    return result
 
 
 def _subtree(graph, node_id):
