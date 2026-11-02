@@ -187,7 +187,7 @@ jobs:
     # added its ~12 min to every pull request's critical path. The whole suite is
     # ~31 min on one runner, so it is sharded four ways like the Linux job
     # (FACET_TEST_SHARD, tests/_sharding.py). The job only runs for a full-scope
-    # change, so there is no single-job fallback here.
+    # change; "Python Tests (Windows)" below is the status branch protection requires.
     needs: changes
     if: needs.changes.outputs.scope == 'full'
     runs-on: windows-latest
@@ -227,6 +227,23 @@ jobs:
         env:
           FACET_TEST_SHARD: ${{ format('{0}/4', matrix.shard) }}
         run: python -m pytest -n 4 --durations=30 --tb=short -q --timeout=600
+
+  windows-tests-result:
+    name: Python Tests (Windows)
+    # Required by branch protection, so it keeps this name and reports the shards'
+    # outcome. A skipped matrix job never reports its per-shard names, so without
+    # this job a pull request that does not need the full suite would wait forever.
+    needs: [changes, windows-tests]
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - name: Every shard passed, or the suite was not needed
+        env:
+          RESULT: ${{ needs.windows-tests.result }}
+          SCOPE: ${{ needs.changes.outputs.scope }}
+        run: |
+          echo "scope: $SCOPE, shards: $RESULT"
+          if [ "$SCOPE" = "full" ]; then [ "$RESULT" = "success" ]; else [ "$RESULT" = "skipped" ]; fi
 
   lock-resolve:
     name: Dependency locks resolve (${{ matrix.lock }})

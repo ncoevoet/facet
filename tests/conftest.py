@@ -67,9 +67,10 @@ init_database(_TEST_DB_FILE.name)
 # table runs the session DB's first ANALYZE on its index-build thread, and creating
 # sqlite_stat1 is a schema change: a connection preparing its first INSERT on photos at
 # that moment (FTS5 connects photos_fts inside the prepare) fails "no such table: photos".
-# ANALYZE sqlite_schema writes the table without touching photos (#446).
+# ANALYZE sqlite_master writes the table without touching photos (#446); the
+# sqlite_schema alias would need SQLite 3.33, above the suite's 3.31.1 floor.
 with contextlib.closing(sqlite3.connect(_TEST_DB_FILE.name)) as _conn:
-    _conn.execute("ANALYZE sqlite_schema")
+    _conn.execute("ANALYZE sqlite_master")
 
 
 def pytest_collection_modifyitems(config, items):
