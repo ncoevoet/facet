@@ -1493,7 +1493,6 @@ export class GalleryFilterSidebarComponent {
     });
     inject(DestroyRef).onDestroy(() => {
       this.cancelPendingSearch();
-      if (this.filenameTimeout) clearTimeout(this.filenameTimeout);
       this.coarsePointer.cleanup();
     });
   }
@@ -1515,9 +1514,13 @@ export class GalleryFilterSidebarComponent {
   cancelPendingSearch(): void {
     if (this.searchTimeout) clearTimeout(this.searchTimeout);
     if (this.thresholdTimeout) clearTimeout(this.thresholdTimeout);
+    if (this.filenameTimeout) clearTimeout(this.filenameTimeout);
     this.searchTimeout = null;
     this.thresholdTimeout = null;
+    this.filenameTimeout = null;
     this.thresholdDraft.set(null);
+    const filenameInput = this.sidebarSearch()?.nativeElement;
+    if (filenameInput) filenameInput.value = this.store.filters().search;
     const input = this.semanticSearchInput()?.nativeElement;
     if (input) input.value = this.store.filters().semanticQuery;
   }

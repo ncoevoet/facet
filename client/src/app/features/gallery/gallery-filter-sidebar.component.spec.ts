@@ -185,6 +185,19 @@ describe('GalleryFilterSidebarComponent', () => {
       expect(store.updateFilter).toHaveBeenCalledWith('search', 'IMG_1');
     });
 
+    it('cancels pending filename and semantic queries when the gallery parks', () => {
+      vi.useFakeTimers();
+      component.onSidebarSearchChange(input('pending filename'));
+      component.onSemanticSearch(input('pending semantic'));
+      component.cancelPendingSearch();
+      vi.advanceTimersByTime(1000);
+      expect(mockStore['updateFilter']).not.toHaveBeenCalled();
+
+      component.onSidebarSearchChange(input('after returning'));
+      vi.advanceTimersByTime(400);
+      expect(mockStore['updateFilter']).toHaveBeenCalledExactlyOnceWith('search', 'after returning');
+    });
+
     it('Enter commits at once and drops the pending debounce', () => {
       vi.useFakeTimers();
       const store = (component as any).store;

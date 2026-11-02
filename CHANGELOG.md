@@ -55,6 +55,8 @@ All notable changes to Facet are documented in this file.
 
 ### Fixed
 
+- Cancel pending sidebar filename searches when opening a photo, so a delayed filter update cannot replace the photo URL.
+
 - Cancelling “Reject entire group” during its countdown restores the previous keeper selection instead of leaving an empty draft.
 
 - Logout clears existing thumbnail entries held by a running service worker. Catalog removal uses the same cleanup and keeps cache handles reachable for later cleanup.
