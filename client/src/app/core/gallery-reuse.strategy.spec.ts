@@ -14,6 +14,7 @@ let destroyed = 0;
 @Component({ template: 'gallery' })
 class GalleryStub implements OnDestroy {
   readonly initialTag = inject(ActivatedRoute).snapshot.queryParams['tag'];
+  readonly initialAsset = inject(ActivatedRoute).snapshot.queryParams['asset_id'];
   page = 1;
   ngOnDestroy(): void {
     destroyed++;
@@ -196,8 +197,11 @@ describe('GalleryReuseStrategy', () => {
     expect(second).not.toBe(first);
     const third = await harness.navigateByUrl('/shared/album/2?token=two', GalleryStub);
     expect(third).not.toBe(second);
-    const photo = await harness.navigateByUrl('/shared/album/2/photo?token=two&path=a', GalleryStub);
-    expect(await harness.navigateByUrl('/shared/album/2/photo?token=two&path=b', GalleryStub)).not.toBe(photo);
+    const photo = await harness.navigateByUrl('/shared/album/2/photo?token=two&asset_id=a', GalleryStub);
+    const nextPhoto = await harness.navigateByUrl('/shared/album/2/photo?token=two&asset_id=b', GalleryStub);
+    expect(nextPhoto).not.toBe(photo);
+    expect(nextPhoto.initialAsset).toBe('b');
+    expect(await harness.navigateByUrl('/shared/album/2/photo?token=two&asset_id=b', GalleryStub)).toBe(nextPhoto);
   });
 
   it('does not reattach a gallery with different query parameters', async () => {

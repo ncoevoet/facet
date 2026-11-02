@@ -44,7 +44,7 @@ export class GalleryReuseStrategy extends BaseRouteReuseStrategy implements OnDe
       && ['shared/album/:albumId', 'shared/album/:albumId/photo'].includes(future.routeConfig?.path ?? '')
       && (future.paramMap.get('albumId') !== curr.paramMap.get('albumId')
         || future.queryParamMap.get('token') !== curr.queryParamMap.get('token')
-        || future.queryParamMap.get('path') !== curr.queryParamMap.get('path'))) return false;
+        || future.queryParamMap.get('asset_id') !== curr.queryParamMap.get('asset_id'))) return false;
     return super.shouldReuseRoute(future, curr);
   }
 
