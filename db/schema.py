@@ -895,6 +895,10 @@ MANUAL_FACE_INDEXES = [
     ('idx_faces_manual_review', 'faces', 'photo_path, is_manual, manual_review_required'),
 ]
 
+FACE_UPDATE_INDEXES = [
+    ('idx_face_update_pending', 'face_update_items', 'job_id,state,path'),
+]
+
 # Identity constraints share the registry used by schema diagnostics. Manual
 # UUIDs identify annotations only; automatic rows do not own this namespace.
 IDENTITY_INDEXES = [
@@ -975,6 +979,7 @@ ALL_INDEX_GROUPS = [
     USER_PREFERENCES_INDEXES,
     IDENTITY_INDEXES,
     MANUAL_FACE_INDEXES,
+    FACE_UPDATE_INDEXES,
     MCP_TOKENS_INDEXES,
 ]
 
@@ -1401,7 +1406,6 @@ def init_database(db_path='photo_scores_pro.db', build_photo_indexes=True):
         conn.execute(_build_create_table_sql('face_update_jobs', FACE_UPDATE_JOBS_COLUMNS))
         conn.execute(_build_create_table_sql('face_update_items', FACE_UPDATE_ITEMS_COLUMNS,
                                             constraints=['PRIMARY KEY(job_id,path)']))
-        conn.execute('CREATE INDEX IF NOT EXISTS idx_face_update_pending ON face_update_items(job_id,state,path)')
 
         # Private per-account suggestion feedback. Geometry/embedding tokens make
         # feedback obsolete after a face is edited or extracted again.
