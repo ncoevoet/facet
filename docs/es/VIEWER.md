@@ -555,6 +555,8 @@ Al guardar, editar o eliminar un rostro manual, los recuadros y las personas de 
 
 El ajuste heredado `viewer.performance.face_cache_size` se ignora y se puede quitar.
 
+**Objetos.** El mismo editor puede marcar un objeto en su lugar: elija **Objeto**, dibuje el rectángulo, escriba una etiqueta (por ejemplo «tarta de cumpleaños») y guarde. Los objetos se muestran como rectángulos azules con etiqueta sobre la foto, la búsqueda de la galería los encuentra por su etiqueta y los asistentes pueden leerlos (`GET /api/photo/objects`, o el campo `objects` de la herramienta `get_photo`) para saber a qué zona se refiere. Las marcas siempre las dibuja usted, nunca se detectan automáticamente: indican a un asistente dónde actuar, por ejemplo un rectángulo con la etiqueta «quitar» sobre una de tres botellas de una foto. Un objeto nunca es una cara: no afecta a la detección, al agrupamiento, a las personas ni a las puntuaciones de cara.
+
 ## Activador de escaneo
 
 Inicia un escaneo desde el navegador. El botón Escanear aparece cuando se cumplen **ambas** condiciones:

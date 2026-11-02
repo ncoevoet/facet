@@ -552,6 +552,8 @@ Salvare, modificare o rimuovere un volto manuale aggiorna i riquadri e le person
 
 L'impostazione legacy `viewer.performance.face_cache_size` viene ignorata e si può rimuovere.
 
+**Oggetti.** Lo stesso editor può segnare invece un oggetto: scegli **Oggetto**, disegna il rettangolo, scrivi un'etichetta (per esempio «torta di compleanno») e salva. Gli oggetti appaiono come rettangoli blu con etichetta sulla foto, la ricerca della galleria li trova per etichetta e gli assistenti possono leggerli (`GET /api/photo/objects`, o il campo `objects` dello strumento `get_photo`) per sapere quale zona si intende. I segni li disegni sempre tu, non vengono mai rilevati automaticamente: indicano a un assistente dove intervenire, per esempio un rettangolo con l'etichetta «rimuovi» su una di tre bottiglie in una foto. Un oggetto non è mai un volto: non tocca rilevamento, raggruppamento, persone né punteggi dei volti.
+
 ## Avvio scansione
 
 Avvia una scansione dal browser. Il pulsante Scansione compare quando **entrambe** le condizioni valgono:

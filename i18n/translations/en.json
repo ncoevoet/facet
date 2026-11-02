@@ -3658,7 +3658,7 @@
   },
   "manual_faces": {
     "same_person_overlap": "This box overlaps another manual box assigned to the same person. Check whether you meant to edit the existing box.",
-    "title": "Mark a missing face / Manage manual faces",
+    "title": "Mark a missing face or an object / Manage marks",
     "instructions": "Draw a rectangle or enter its edges as percentages. Choose a person, then save.",
     "unavailable": "Original unavailable. Saved marks can still be removed.",
     "preview": "Upright photo for marking faces",
@@ -3680,7 +3680,15 @@
     "save_failed": "Save failed. Your draft is retained. If the source changed or the frame expired, reload the preview.",
     "reload": "Reload editor",
     "refresh_failed": "The change was saved, but person information could not refresh. Reload the photo to see the latest information.",
-    "detected_overlap": "A face is already detected here. Close this editor and use the existing detected-face assignment action. Your draft is retained."
+    "detected_overlap": "A face is already detected here. Close this editor and use the existing detected-face assignment action. Your draft is retained.",
+    "mark_kind": "What the box marks",
+    "kind_face": "Face",
+    "kind_object": "Object",
+    "object_instructions": "Draw a rectangle around the object or enter its edges as percentages. Give it a label, then save. Objects are found by the gallery search and never count as faces.",
+    "object_label": "Label",
+    "object_placeholder": "e.g. birthday cake",
+    "objects": "Marked objects",
+    "objects_empty": "No objects marked."
   },
   "assistant_activity": {
     "chip": "Assistant active",

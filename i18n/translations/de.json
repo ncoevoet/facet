@@ -3632,7 +3632,7 @@
     }
   },
   "manual_faces": {
-    "title": "Fehlendes Gesicht markieren / Manuelle Gesichter verwalten",
+    "title": "Fehlendes Gesicht oder Objekt markieren / Markierungen verwalten",
     "instructions": "Ziehen Sie ein Rechteck oder geben Sie die Ränder in Prozent ein. Wählen Sie eine Person und speichern Sie.",
     "unavailable": "Original nicht verfügbar. Gespeicherte Markierungen können entfernt werden.",
     "preview": "Aufgerichtetes Foto zum Markieren von Gesichtern",
@@ -3655,7 +3655,15 @@
     "reload": "Editor neu laden",
     "refresh_failed": "Die Änderung wurde gespeichert, aber Personeninformationen konnten nicht aktualisiert werden. Laden Sie das Foto neu.",
     "detected_overlap": "Hier wurde bereits ein Gesicht erkannt. Schließen Sie diesen Editor und verwenden Sie die Zuweisung erkannter Gesichter. Ihr Entwurf bleibt erhalten.",
-    "same_person_overlap": "Dieser Rahmen überschneidet sich mit einem anderen manuellen Rahmen derselben Person. Prüfen Sie, ob Sie den vorhandenen Rahmen bearbeiten wollten."
+    "same_person_overlap": "Dieser Rahmen überschneidet sich mit einem anderen manuellen Rahmen derselben Person. Prüfen Sie, ob Sie den vorhandenen Rahmen bearbeiten wollten.",
+    "mark_kind": "Was das Rechteck markiert",
+    "kind_face": "Gesicht",
+    "kind_object": "Objekt",
+    "object_instructions": "Ziehen Sie ein Rechteck um das Objekt oder geben Sie die Ränder in Prozent ein. Geben Sie eine Bezeichnung ein und speichern Sie. Objekte findet die Galeriesuche; sie zählen nie als Gesichter.",
+    "object_label": "Bezeichnung",
+    "object_placeholder": "z. B. Geburtstagstorte",
+    "objects": "Markierte Objekte",
+    "objects_empty": "Keine Objekte markiert."
   },
   "assistant_activity": {
     "chip": "Assistent aktiv",

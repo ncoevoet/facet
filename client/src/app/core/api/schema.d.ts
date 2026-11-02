@@ -3592,6 +3592,50 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/photo/objects": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Photo Objects
+         * @description The objects marked on one photo; empty for a photo the caller cannot see.
+         */
+        get: operations["list_photo_objects_api_photo_objects_get"];
+        put?: never;
+        /**
+         * Create Photo Object
+         * @description Mark one object on a photo.
+         */
+        post: operations["create_photo_object_api_photo_objects_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/photo/objects/{object_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /**
+         * Delete Photo Object
+         * @description Remove one marked object.
+         */
+        delete: operations["delete_photo_object_api_photo_objects__object_id__delete"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/photo/provenance": {
         parameters: {
             query?: never;
@@ -9413,6 +9457,39 @@ export interface components {
              * @default []
              */
             photos?: components["schemas"]["MapPhotoPoint"][];
+        };
+        /** PhotoObject */
+        PhotoObject: {
+            /** Box */
+            box: number[];
+            /** Id */
+            id: number;
+            /** Label */
+            label: string;
+        };
+        /**
+         * PhotoObjectCreate
+         * @description One labelled box. ``box`` is ``[x1, y1, x2, y2]``, normalised to the upright frame.
+         */
+        PhotoObjectCreate: {
+            /** Box */
+            box: number[];
+            /** Label */
+            label: string;
+            /** Path */
+            path: string;
+        };
+        /** PhotoObjectDelete */
+        PhotoObjectDelete: {
+            /** Removed */
+            removed: boolean;
+            /** Success */
+            success: boolean;
+        };
+        /** PhotoObjectsResponse */
+        PhotoObjectsResponse: {
+            /** Objects */
+            objects: components["schemas"]["PhotoObject"][];
         };
         /**
          * PhotoPathsResponse
@@ -17061,6 +17138,101 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ManualTagDeleteResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_photo_objects_api_photo_objects_get: {
+        parameters: {
+            query: {
+                path: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PhotoObjectsResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    create_photo_object_api_photo_objects_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PhotoObjectCreate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PhotoObject"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    delete_photo_object_api_photo_objects__object_id__delete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                object_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PhotoObjectDelete"];
                 };
             };
             /** @description Validation Error */

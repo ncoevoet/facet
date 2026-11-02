@@ -550,6 +550,8 @@ Salvar, editar ou remover um rosto manual atualiza as caixas e as pessoas da fot
 
 A configuração antiga `viewer.performance.face_cache_size` é ignorada e pode ser removida.
 
+**Objetos.** O mesmo editor pode marcar um objeto em vez disso: escolha **Objeto**, desenhe o retângulo, escreva uma etiqueta (por exemplo «bolo de aniversário») e guarde. Os objetos aparecem como retângulos azuis com etiqueta na foto, a pesquisa da galeria encontra-os pela etiqueta e os assistentes podem lê-los (`GET /api/photo/objects`, ou o campo `objects` da ferramenta `get_photo`) para saber a que zona se refere. As marcas são sempre desenhadas por si, nunca detetadas automaticamente: indicam a um assistente onde atuar, por exemplo um retângulo com a etiqueta «remover» numa de três garrafas de uma foto. Um objeto nunca é um rosto: não mexe na deteção, no agrupamento, nas pessoas nem nas pontuações de rosto.
+
 ## Disparo de Varredura
 
 Inicie uma varredura pelo navegador. O botão Varrer aparece quando **ambas** as condições valem:

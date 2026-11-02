@@ -582,6 +582,7 @@ def create_app() -> FastAPI:
     from api.routers.memories import router as memories_router
     from api.routers.caption import router as caption_router
     from api.routers.manual_tags import router as manual_tags_router
+    from api.routers.photo_objects import router as photo_objects_router
     from api.routers.timeline import router as timeline_router
     from api.routers.places import router as places_router
     from api.routers.map import router as map_router
@@ -638,6 +639,7 @@ def create_app() -> FastAPI:
     from api.routers.stacks import router as stacks_router
     app.include_router(stacks_router)
     app.include_router(manual_tags_router)
+    app.include_router(photo_objects_router)
     app.include_router(timeline_router)
     app.include_router(map_router)
     app.include_router(manual_faces_router)
