@@ -3094,6 +3094,16 @@ export class BurstCullingComponent implements OnDestroy {
     this.lightboxIndex.set(group.photos.findIndex(frame => frame.path === photo.path));
   }
 
+  protected selectComparisonSlot(slot: number): void {
+    const frames = this.compareFrames();
+    const photo = frames[slot];
+    const group = this.lightboxGroup();
+    if (!photo || !group || !this.pageAlive || this.pageNavigating || this.auth.identity() !== this.pageOwner || !this.auth.isEdition()) return;
+    this.comparisonPaths.set(frames.map(frame => frame.path));
+    this.comparisonSlotIndex.set(slot);
+    this.lightboxIndex.set(group.photos.findIndex(frame => frame.path === photo.path));
+  }
+
   /**
    * Keydown shield for everything inside the darkroom.
    *

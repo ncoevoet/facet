@@ -331,6 +331,8 @@ Select photos using the selection controls or Space; Shift+Click selects a range
 
 The comparison thumbnail strip identifies the reference and lets you choose a candidate directly. The active pane is highlighted independently. Remove from comparison changes this view only, never Keep/Reject or the gallery selection; Restore returns removed photos. One remaining photo stays inspectable. Grid cards with details fit the entire photo into a uniform 4:3 frame; Mosaic keeps justified aspect-ratio rows.
 
+The comparison thumbnail strip identifies the reference and lets you choose a candidate directly. The active pane is highlighted independently. Remove from comparison changes this view only, never Keep/Reject or the gallery selection; Restore returns removed photos. One remaining photo stays inspectable. Grid cards with details fit the entire photo into a uniform 4:3 frame; Mosaic keeps justified aspect-ratio rows.
+
 - **Favorite** — mark all as favorite (clears rejected)
 - **Reject** — mark all as rejected (clears favorite and rating)
 - **Rate** — set or clear a 1–5 star rating

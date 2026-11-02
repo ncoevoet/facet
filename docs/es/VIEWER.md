@@ -331,6 +331,8 @@ Selecciona fotos con los controles de selección o con Espacio; Mayús+clic sele
 
 La tira de miniaturas identifica la referencia y permite elegir una candidata directamente. El panel activo se destaca por separado. Quitar de la comparación solo cambia esta vista, nunca Conservar/Rechazar ni la selección de galería; Restaurar devuelve las fotos quitadas. Una foto restante sigue disponible para inspección. La cuadrícula con detalles encaja la foto completa en un marco uniforme 4:3; Mosaico mantiene filas justificadas.
 
+La tira de miniaturas identifica la referencia y permite elegir una candidata directamente. El panel activo se destaca por separado. Quitar de la comparación solo cambia esta vista, nunca Conservar/Rechazar ni la selección de galería; Restaurar devuelve las fotos quitadas. Una foto restante sigue disponible para inspección. La cuadrícula con detalles encaja la foto completa en un marco uniforme 4:3; Mosaico mantiene filas justificadas.
+
 - **Favorito**: marca todas como favoritas (borra el rechazo)
 - **Rechazar**: marca todas como rechazadas (borra el favorito y la valoración)
 - **Calificar**: define o borra una valoración de 1–5 estrellas

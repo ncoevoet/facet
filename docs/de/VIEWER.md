@@ -331,6 +331,8 @@ Wählen Sie Fotos über die Auswahlsteuerung oder die Leertaste aus; Umschalt+Kl
 
 Der Vergleichsfilmstreifen zeigt die Referenz und erlaubt die direkte Kandidatenwahl. Das aktive Fenster ist unabhängig markiert. Aus Vergleich entfernen ändert nur diese Ansicht, nie Behalten/Ablehnen oder die Galerieauswahl; Wiederherstellen bringt entfernte Fotos zurück. Ein einzelnes verbleibendes Foto bleibt prüfbar. Rasterkarten mit Details zeigen das ganze Foto in einem einheitlichen 4:3-Rahmen; Mosaik behält justierte Zeilen.
 
+Der Vergleichsfilmstreifen zeigt die Referenz und erlaubt die direkte Kandidatenwahl. Das aktive Fenster ist unabhängig markiert. Aus Vergleich entfernen ändert nur diese Ansicht, nie Behalten/Ablehnen oder die Galerieauswahl; Wiederherstellen bringt entfernte Fotos zurück. Ein einzelnes verbleibendes Foto bleibt prüfbar. Rasterkarten mit Details zeigen das ganze Foto in einem einheitlichen 4:3-Rahmen; Mosaik behält justierte Zeilen.
+
 - **Favorit** — Alle als Favorit markieren (hebt Ablehnung auf)
 - **Ablehnen** — Alle als abgelehnt markieren (hebt Favorit und Bewertung auf)
 - **Bewerten** — Sternebewertung (1–5) setzen oder löschen
