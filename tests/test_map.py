@@ -14,20 +14,12 @@ import pytest
 from fastapi.testclient import TestClient
 
 from api import create_app
-
-
-_MAP_SCHEMA = """
-    CREATE TABLE photos (
-        path TEXT PRIMARY KEY, filename TEXT, date_taken TEXT,
-        gps_latitude REAL, gps_longitude REAL,
-        aggregate REAL, category TEXT, is_rejected INTEGER DEFAULT 0
-    );
-"""
+from db.schema import init_database
 
 
 def _make_map_db(path, photos):
+    init_database(path)
     conn = sqlite3.connect(path)
-    conn.executescript(_MAP_SCHEMA)
     for p in photos:
         cols = list(p.keys())
         placeholders = ", ".join("?" for _ in cols)
@@ -224,3 +216,19 @@ def test_map_initial_extent_excludes_hidden_and_invalid_coordinates(edition_clie
     response = edition_client.get('/api/photos/map/count')
     assert response.status_code == 200, response.text
     assert response.json() == {'count': 2, 'bounds': [38.5, 68.8, 43.2, 76.9]}
+
+
+def test_cluster_representative_stays_inside_its_exact_viewport(client, tmp_path):
+    db_path = str(tmp_path / 'cluster-viewport.db')
+    _make_map_db(db_path, [
+        {'path': '/inside.jpg', 'filename': 'inside.jpg', 'gps_latitude': 48.0, 'gps_longitude': 2.0, 'aggregate': 1},
+        {'path': '/outside.jpg', 'filename': 'outside.jpg', 'gps_latitude': 48.1, 'gps_longitude': 2.1, 'aggregate': 10},
+    ])
+    with mock.patch('api.routers.map.get_async_db', _async_conn_factory(db_path)), \
+         mock.patch('api.routers.map.get_existing_columns', return_value=_GPS_COLS), \
+         mock.patch('api.routers.map.get_visibility_clause', side_effect=_fake_vis):
+        result = client.get('/api/photos/map', params={'bounds': '47.99,1.99,48.05,2.05', 'zoom': 3})
+    assert result.status_code == 200, result.text
+    assert len(result.json()['clusters']) == 1
+    assert result.json()['clusters'][0]['count'] == 1
+    assert result.json()['clusters'][0]['representative_path'] == '/inside.jpg'

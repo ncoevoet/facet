@@ -19,6 +19,7 @@ from api import organization_capture
 from api.database import get_async_db, get_db
 from api.db_helpers import get_existing_columns, get_visibility_clause, select_in_chunks, to_exif_date
 from api.models.discovery import PhotoMapCountResponse, PhotoMapResponse
+from api.logical_collection import read_source_async
 from api.path_validation import resolve_photo_disk_path
 from api.routers.faces import BatchPhotoRequest, _batch_scope_sql
 from api.routers.places import Latitude, Longitude, place_owner
@@ -40,42 +41,27 @@ def _get_cluster_zoom_threshold():
         return 10
 
 
-async def _get_clustered_photos(conn, zoom, date_from, date_to, user_id,
-                                base_where, base_params, limit):
-    """Return clustered photo locations grouped into grid cells for low zoom levels."""
+async def _get_clustered_photos(conn, zoom, base_where, base_params, limit, from_clause, from_params):
+    """Cluster and choose representatives from the identical authorized viewport."""
     effective_zoom = max(zoom, 2)
     cell_size = 180.0 / (2 ** effective_zoom)
 
-    # Build subquery filter for the representative photo (same bounds + dates + visibility)
-    p2_vis_sql, p2_vis_params = get_visibility_clause(user_id, table_alias='p2')
-    p2_where = f"p2.gps_latitude IS NOT NULL AND {p2_vis_sql}"
-    p2_params = list(p2_vis_params)
-    if date_from:
-        p2_where += " AND p2.date_taken >= ?"
-        p2_params.append(to_exif_date(date_from))
-    if date_to:
-        p2_where += " AND p2.date_taken <= ?"
-        p2_params.append(to_exif_date(date_to) + " 23:59:59")
-
     cur = await conn.execute(
+        f"WITH visible_map AS (SELECT path,gps_latitude,gps_longitude,aggregate FROM {from_clause} WHERE {base_where}) "
         f"SELECT "
         f"  AVG(gps_latitude) AS avg_lat, "
         f"  AVG(gps_longitude) AS avg_lng, "
         f"  COUNT(*) AS count, "
-        f"  (SELECT p2.path FROM photos p2 "
-        f"   WHERE {p2_where} "
-        f"   AND ROUND(p2.gps_latitude / ?, 0) = ROUND(photos.gps_latitude / ?, 0) "
+        f"  (SELECT p2.path FROM visible_map p2 "
+        f"   WHERE ROUND(p2.gps_latitude / ?, 0) = ROUND(photos.gps_latitude / ?, 0) "
         f"   AND ROUND(p2.gps_longitude / ?, 0) = ROUND(photos.gps_longitude / ?, 0) "
         f"   ORDER BY p2.aggregate DESC, p2.path ASC LIMIT 1) AS representative_path "
-        f"FROM photos "
-        f"WHERE {base_where} "
+        f"FROM visible_map photos "
         f"GROUP BY ROUND(gps_latitude / ?, 0), ROUND(gps_longitude / ?, 0) "
         f"ORDER BY count DESC "
         f"LIMIT ?",
-        p2_params
-        + [cell_size, cell_size, cell_size, cell_size]
-        + base_params
-        + [cell_size, cell_size, limit],
+        from_params + base_params
+        + [cell_size, cell_size, cell_size, cell_size, cell_size, cell_size, limit],
     )
     rows = await cur.fetchall()
     await cur.close()
@@ -93,16 +79,16 @@ async def _get_clustered_photos(conn, zoom, date_from, date_to, user_id,
     return {'clusters': clusters, 'photos': []}
 
 
-async def _get_individual_photos(conn, base_where, base_params, limit):
+async def _get_individual_photos(conn, base_where, base_params, limit, from_clause, from_params):
     """Return individual photo locations for high zoom levels."""
     cur = await conn.execute(
         f"SELECT path, gps_latitude AS lat, gps_longitude AS lng, "
         f"  aggregate, filename, date_taken, category "
-        f"FROM photos "
+        f"FROM {from_clause} "
         f"WHERE {base_where} "
         f"ORDER BY aggregate DESC, path ASC "
         f"LIMIT ?",
-        base_params + [limit],
+        from_params + base_params + [limit],
     )
     rows = await cur.fetchall()
     await cur.close()
@@ -147,8 +133,10 @@ async def api_photos_map(
         raise HTTPException(status_code=400, detail='Invalid bounds format. Expected: sw_lat,sw_lng,ne_lat,ne_lng')
 
     async with get_async_db() as conn:
+        await conn.execute("BEGIN")
         user_id = user.user_id if user else None
         vis_sql, vis_params = get_visibility_clause(user_id)
+        from_clause, from_params, _ = await read_source_async(conn, user_id)
 
         # Handle antimeridian wrap-around: when sw_lng > ne_lng, the bounds
         # cross the antimeridian so we use OR instead of BETWEEN for longitude.
@@ -178,12 +166,11 @@ async def api_photos_map(
 
         if zoom < _get_cluster_zoom_threshold():
             return await _get_clustered_photos(
-                conn, zoom, date_from, date_to, user_id,
-                base_where, base_params, limit,
+                conn, zoom, base_where, base_params, limit, from_clause, from_params,
             )
         else:
             return await _get_individual_photos(
-                conn, base_where, base_params, limit,
+                conn, base_where, base_params, limit, from_clause, from_params,
             )
 
 
@@ -197,14 +184,16 @@ async def api_photos_map_count(
         return {'count': 0}
 
     async with get_async_db() as conn:
+        await conn.execute("BEGIN")
         user_id = user.user_id if user else None
         vis_sql, vis_params = get_visibility_clause(user_id)
+        from_clause, from_params, _ = await read_source_async(conn, user_id)
 
         cur = await conn.execute(
             f"SELECT COUNT(*) AS cnt, MIN(gps_latitude) AS south, MAX(gps_latitude) AS north, "
-            f"MIN(gps_longitude) AS west, MAX(gps_longitude) AS east FROM photos "
+            f"MIN(gps_longitude) AS west, MAX(gps_longitude) AS east FROM {from_clause} "
             f"WHERE gps_latitude BETWEEN -90 AND 90 AND gps_longitude BETWEEN -180 AND 180 AND {vis_sql}",
-            vis_params,
+            from_params + vis_params,
         )
         row = await cur.fetchone()
         await cur.close()

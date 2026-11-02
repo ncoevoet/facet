@@ -16,9 +16,10 @@ from api.db_helpers import (
     build_date_range_clauses,
     build_photo_select_columns, sanitize_float_values,
     split_photo_tags, attach_person_data_async,
-    get_visibility_clause, get_photos_from_clause,
+    get_visibility_clause,
     format_date, hide_toggle_params, hide_clauses_from_toggles,
 )
+from api.logical_collection import read_source_async
 from api.models.discovery import (
     TimelineDatesResponse, TimelineMonthsResponse, TimelineYearsResponse,
 )
@@ -123,7 +124,7 @@ async def api_timeline(
         async with get_async_db() as conn:
             # Counts, rendered membership and preview revisions share a read snapshot.
             await conn.execute("BEGIN")
-            from_clause, from_params = get_photos_from_clause(user_id)
+            from_clause, from_params, logical = await read_source_async(conn, user_id)
             vis_sql, vis_params = get_visibility_clause(user_id)
 
             where_clauses = [vis_sql, f"NOT {CAPTURE_DATE_MISSING_SQL}", f"{capture_day} IS NOT NULL"]
@@ -165,7 +166,7 @@ async def api_timeline(
             # build_photo_select_columns reads the startup-warmed
             # _existing_columns_cache and never touches conn — safe to call
             # with an aiosqlite Connection.
-            select_cols = build_photo_select_columns(conn, user_id)
+            select_cols = build_photo_select_columns(conn, user_id, logical=logical)
 
             tags_limit = VIEWER_CONFIG['display']['tags_per_photo']
             groups = []
@@ -223,6 +224,9 @@ async def api_timeline(
                 for photo in all_photos:
                     photo['date_formatted'] = format_date(photo.get('date_taken'))
 
+                if logical:
+                    from api.logical_reviews import attach_async
+                    await attach_async(conn, all_photos, user_id)
                 await attach_person_data_async(all_photos, conn)
                 sanitize_float_values(all_photos)
 
@@ -273,7 +277,8 @@ async def api_timeline_dates(
     user_id = user.user_id if user else None
     try:
         async with get_async_db() as conn:
-            from_clause, from_params = get_photos_from_clause(user_id)
+            await conn.execute("BEGIN")
+            from_clause, from_params, logical = await read_source_async(conn, user_id)
             vis_sql, vis_params = get_visibility_clause(user_id)
 
             where_clauses = [vis_sql, f"NOT {CAPTURE_DATE_MISSING_SQL}"]
@@ -330,7 +335,8 @@ async def api_timeline_years(
     user_id = user.user_id if user else None
     try:
         async with get_async_db() as conn:
-            from_clause, from_params = get_photos_from_clause(user_id)
+            await conn.execute("BEGIN")
+            from_clause, from_params, logical = await read_source_async(conn, user_id)
             vis_sql, vis_params = get_visibility_clause(user_id)
 
             where_clauses = [vis_sql, f"NOT {CAPTURE_DATE_MISSING_SQL}"]
@@ -373,7 +379,8 @@ async def api_timeline_months(
     user_id = user.user_id if user else None
     try:
         async with get_async_db() as conn:
-            from_clause, from_params = get_photos_from_clause(user_id)
+            await conn.execute("BEGIN")
+            from_clause, from_params, logical = await read_source_async(conn, user_id)
             vis_sql, vis_params = get_visibility_clause(user_id)
 
             where_clauses = [vis_sql, f"NOT {CAPTURE_DATE_MISSING_SQL}",

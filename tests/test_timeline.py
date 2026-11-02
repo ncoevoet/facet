@@ -188,7 +188,7 @@ def _timeline_hide_defaults_patches(db_path, defaults):
     return (
         mock.patch("api.routers.timeline.get_async_db", _async_conn_factory(db_path)),
         mock.patch("api.routers.timeline.get_visibility_clause", return_value=("1=1", [])),
-        mock.patch("api.routers.timeline.get_photos_from_clause", return_value=("photos", [])),
+        mock.patch("api.routers.timeline.read_source_async", return_value=("photos", [], False)),
         mock.patch("api.db_helpers.VIEWER_CONFIG", {"defaults": defaults}),
         mock.patch("api.db_helpers._existing_columns_cache", _existing_columns(db_path)),
     )
@@ -545,7 +545,7 @@ class TestTimelineEndpoint:
         with (
             mock.patch("api.routers.timeline.get_async_db", _async_cm(async_conn)),
             mock.patch("api.routers.timeline.get_visibility_clause", return_value=("1=1", [])),
-            mock.patch("api.routers.timeline.get_photos_from_clause", return_value=("photos", [])),
+            mock.patch("api.routers.timeline.read_source_async", return_value=("photos", [], False)),
             mock.patch("api.routers.timeline.build_photo_select_columns", return_value=["path", "date_taken", "aggregate", "tags"]),
             mock.patch("api.routers.timeline.VIEWER_CONFIG", {"display": {"tags_per_photo": 10}}),
             mock.patch("api.routers.timeline.split_photo_tags", side_effect=lambda rows, limit: [dict(r) for r in rows]),
@@ -570,7 +570,7 @@ class TestTimelineEndpoint:
         with (
             mock.patch("api.routers.timeline.get_async_db", _async_cm(async_conn)),
             mock.patch("api.routers.timeline.get_visibility_clause", return_value=("1=1", [])),
-            mock.patch("api.routers.timeline.get_photos_from_clause", return_value=("photos", [])),
+            mock.patch("api.routers.timeline.read_source_async", return_value=("photos", [], False)),
             mock.patch("api.routers.timeline.build_photo_select_columns", return_value=["path"]),
             mock.patch("api.routers.timeline.VIEWER_CONFIG", {"display": {"tags_per_photo": 10}}),
         ):
@@ -604,7 +604,7 @@ class TestTimelineEndpoint:
         with (
             mock.patch("api.routers.timeline.get_async_db", _async_cm(async_conn)),
             mock.patch("api.routers.timeline.get_visibility_clause", return_value=("1=1", [])),
-            mock.patch("api.routers.timeline.get_photos_from_clause", return_value=("photos", [])),
+            mock.patch("api.routers.timeline.read_source_async", return_value=("photos", [], False)),
             mock.patch("api.routers.timeline.build_photo_select_columns", return_value=["path", "date_taken", "aggregate", "tags"]),
             mock.patch("api.routers.timeline.VIEWER_CONFIG", {"display": {"tags_per_photo": 10}}),
             mock.patch("api.routers.timeline.split_photo_tags", side_effect=lambda rows, limit: [dict(r) for r in rows]),
@@ -633,7 +633,7 @@ class TestTimelineEndpoint:
         with (
             mock.patch("api.routers.timeline.get_async_db", _async_cm(async_conn)),
             mock.patch("api.routers.timeline.get_visibility_clause", return_value=("1=1", [])),
-            mock.patch("api.routers.timeline.get_photos_from_clause", return_value=("photos", [])),
+            mock.patch("api.routers.timeline.read_source_async", return_value=("photos", [], False)),
             mock.patch("api.routers.timeline.build_photo_select_columns", return_value=["path", "date_taken", "aggregate", "tags"]),
             mock.patch("api.routers.timeline.VIEWER_CONFIG", {"display": {"tags_per_photo": 10}}),
             mock.patch("api.routers.timeline.split_photo_tags", side_effect=lambda rows, limit: [dict(r) for r in rows]),
@@ -664,7 +664,7 @@ class TestTimelineEndpoint:
         with (
             mock.patch("api.routers.timeline.get_async_db", _async_cm(async_conn)),
             mock.patch("api.routers.timeline.get_visibility_clause", return_value=("1=1", [])),
-            mock.patch("api.routers.timeline.get_photos_from_clause", return_value=("photos", [])),
+            mock.patch("api.routers.timeline.read_source_async", return_value=("photos", [], False)),
             mock.patch("api.routers.timeline.build_photo_select_columns", return_value=["path", "date_taken", "aggregate", "tags"]),
             mock.patch("api.routers.timeline.VIEWER_CONFIG", {"display": {"tags_per_photo": 10}}),
             mock.patch("api.routers.timeline.split_photo_tags", side_effect=lambda rows, limit: [dict(r) for r in rows]),
@@ -693,7 +693,7 @@ class TestTimelineEndpoint:
         with (
             mock.patch("api.routers.timeline.get_async_db", _async_cm(_BrokenConn())),
             mock.patch("api.routers.timeline.get_visibility_clause", return_value=("1=1", [])),
-            mock.patch("api.routers.timeline.get_photos_from_clause", return_value=("photos", [])),
+            mock.patch("api.routers.timeline.read_source_async", return_value=("photos", [], False)),
         ):
             resp = client.get("/api/timeline")
 
@@ -713,7 +713,7 @@ class TestTimelineDates:
         with (
             mock.patch("api.routers.timeline.get_async_db", _async_cm(async_conn)),
             mock.patch("api.routers.timeline.get_visibility_clause", return_value=("1=1", [])),
-            mock.patch("api.routers.timeline.get_photos_from_clause", return_value=("photos", [])),
+            mock.patch("api.routers.timeline.read_source_async", return_value=("photos", [], False)),
         ):
             resp = client.get("/api/timeline/dates", params={"year": 2025})
 
@@ -732,7 +732,7 @@ class TestTimelineDates:
         with (
             mock.patch("api.routers.timeline.get_async_db", _async_cm(async_conn)),
             mock.patch("api.routers.timeline.get_visibility_clause", return_value=("1=1", [])),
-            mock.patch("api.routers.timeline.get_photos_from_clause", return_value=("photos", [])),
+            mock.patch("api.routers.timeline.read_source_async", return_value=("photos", [], False)),
         ):
             resp = client.get("/api/timeline/dates", params={"year": 2025, "month": 6})
 
@@ -754,7 +754,7 @@ class TestTimelineDates:
         with (
             mock.patch("api.routers.timeline.get_async_db", _async_cm(_BrokenConn())),
             mock.patch("api.routers.timeline.get_visibility_clause", return_value=("1=1", [])),
-            mock.patch("api.routers.timeline.get_photos_from_clause", return_value=("photos", [])),
+            mock.patch("api.routers.timeline.read_source_async", return_value=("photos", [], False)),
         ):
             resp = client.get(f"/api/timeline/{endpoint}", params=params)
 

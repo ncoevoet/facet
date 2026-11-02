@@ -172,3 +172,13 @@ async def remap_candidates(conn, candidates, user_id):
         if original in candidates.embedding:
             embedding[representative] = max(embedding.get(representative, float('-inf')), candidates.embedding[original])
     return Candidates(embedding, blended, json.dumps(sorted(blended)))
+
+
+async def read_source_async(conn, user_id):
+    """An explicit discovery read source, with the no-group physical fast path."""
+    if await enabled_async(conn):
+        collection = await for_user_async(conn, user_id)
+        return collection.sql, collection.params, True
+    from api.db_helpers import get_photos_from_clause
+    sql, params = get_photos_from_clause(user_id)
+    return sql, params, False

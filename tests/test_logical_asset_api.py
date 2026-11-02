@@ -825,3 +825,63 @@ def test_mixed_batch_history_restores_both_authorities_or_neither(edition_client
                     if multi_user else conn.execute('SELECT star_rating FROM photos WHERE path=?', (other,)).fetchone()[0])
         assert physical == (3 if conflict == 'physical' else 4 if conflict else 0 if multi_user else 2)
         assert conn.execute('SELECT star_rating FROM photos WHERE path=?', (bundle['primary_path'],)).fetchone()[0] == 5
+
+
+def test_timeline_and_map_share_one_logical_primary_and_count(edition_client, bundle):
+    key = submit(edition_client, bundle, draft(edition_client, bundle), acknowledge_review_conflicts=True).json()['asset_id']
+    count_before = edition_client.get('/api/photos/map/count').json()['count']
+    summary_params = {'date_from': '2025-01-01', 'date_to': '2026-12-31', 'hide_rejected': 'false'}
+    year_before = sum(row['count'] for row in edition_client.get('/api/timeline/years', params=summary_params).json()['years'])
+    with sqlite3.connect(DEFAULT_DB_PATH) as conn:
+        conn.execute('UPDATE photos SET date_taken=?,gps_latitude=1,gps_longitude=2 WHERE path=?', ('2026:01:02 12:00:00', bundle['paths'][0]))
+        conn.execute('UPDATE photos SET date_taken=?,gps_latitude=40,gps_longitude=70 WHERE path=?', ('2025:03:04 12:00:00', bundle['paths'][1]))
+        from db import logical_assets
+        logical_assets.set_primary(conn, key, bundle['paths'][1], 1, visibility_sql='1=1')
+    timeline = edition_client.get('/api/timeline', params={'date_from': '2025-01-01', 'date_to': '2026-12-31', 'hide_rejected': 'false'})
+    assert timeline.status_code == 200, timeline.text
+    grouped = [photo for group in timeline.json()['groups'] for photo in group['photos'] if photo['path'] in bundle['paths']]
+    assert [photo['path'] for photo in grouped] == [bundle['paths'][1]]
+    mapped = edition_client.get('/api/photos/map', params={'bounds': '-90,-180,90,180', 'zoom': 15})
+    assert mapped.status_code == 200, mapped.text
+    assert [photo['path'] for photo in mapped.json()['photos'] if photo['path'] in bundle['paths']] == [bundle['paths'][1]]
+
+    assert edition_client.get('/api/photos/map/count').json()['count'] == count_before + 1
+    years = edition_client.get('/api/timeline/years', params=summary_params)
+    assert years.status_code == 200, years.text
+    assert sum(row['count'] for row in years.json()['years']) == year_before + 1
+    clustered = edition_client.get('/api/photos/map', params={'bounds': '39.9,69.9,40.1,70.1', 'zoom': 2})
+    assert clustered.status_code == 200, clustered.text
+    clusters = clustered.json()['clusters']
+    assert len(clusters) == 1
+    assert {key: clusters[0][key] for key in ('lat', 'lng', 'count', 'representative_path')} == {
+        'lat': 40.0, 'lng': 70.0, 'count': 1, 'representative_path': bundle['paths'][1]}
+    with sqlite3.connect(DEFAULT_DB_PATH) as conn:
+        conn.execute('BEGIN IMMEDIATE')
+        logical_assets.set_primary(conn, key, bundle['paths'][0], 2, visibility_sql='1=1')
+    updated = edition_client.get('/api/timeline', params=summary_params)
+    assert updated.status_code == 200, updated.text
+    assert [photo['path'] for group in updated.json()['groups'] for photo in group['photos'] if photo['path'] in bundle['paths']] == [bundle['paths'][0]]
+    assert edition_client.get('/api/photos/map/count').json()['count'] == count_before + 1
+
+
+def test_discovery_partial_group_hides_private_members_and_review(edition_client, bundle, monkeypatch):
+    from api import config
+    submit(edition_client, bundle, draft(edition_client, bundle), acknowledge_review_conflicts=True)
+    visible = Path(bundle['paths'][0]).parent / 'visible'
+    visible.mkdir()
+    jpg = str(visible / 'capture.jpg')
+    Path(bundle['paths'][0]).rename(jpg)
+    with sqlite3.connect(DEFAULT_DB_PATH) as conn:
+        conn.execute('UPDATE photos SET date_taken=?,gps_latitude=40,gps_longitude=70 WHERE path IN (?,?)',
+                     ('2025:03:04 12:00:00', *bundle['paths']))
+        conn.execute('UPDATE photos SET path=? WHERE path=?', (jpg, bundle['paths'][0]))
+    monkeypatch.setitem(config._FULL_CONFIG, 'users', {'test': {'directories': [str(visible)]}})
+    feed = edition_client.get('/api/timeline', params={'hide_rejected': 'false'})
+    assert feed.status_code == 200, feed.text
+    assert bundle['paths'][1] not in feed.text
+    photo = next(photo for group in feed.json()['groups'] for photo in group['photos'] if photo['path'] == jpg)
+    assert 'logical_review' not in photo
+    mapped = edition_client.get('/api/photos/map', params={'bounds': '39.9,69.9,40.1,70.1', 'zoom': 2})
+    assert mapped.status_code == 200, mapped.text
+    assert bundle['paths'][1] not in mapped.text
+    assert mapped.json()['clusters'][0]['count'] == 1
