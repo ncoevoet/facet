@@ -1411,6 +1411,9 @@ export class GalleryStore {
     const fresh = new Map(rows.map(p => [p.path, p] as const));
     this.photos.update(current => current.map(p => {
       const next = fresh.get(p.path);
+      if (next?.logical_review && p.logical_review?.asset_id === next.logical_review.asset_id
+        && p.logical_review.group_revision === next.logical_review.group_revision
+        && p.logical_review.revision > next.logical_review.revision) return p;
       return next ? { ...p, ...next } : p;
     }));
   }
@@ -2099,11 +2102,21 @@ export class GalleryStore {
     void this.refreshPaths(null);
   }
 
-  applyLogicalReview(state: LogicalReviewState): void {
-    this.photos.update(photos => photos.map(photo =>
-      photo.logical_review?.asset_id === state.asset_id
-      && photo.logical_review.group_revision === state.group_revision && photo.logical_review.revision <= state.revision
-        ? normalisePhotoFlags({ ...photo, logical_review: state }) : photo));
+  async applyLogicalReview(state: LogicalReviewState): Promise<void> {
+    const isOrigin = this.captureReviewView();
+    const previous = this.photos().filter(photo => photo.logical_review?.asset_id === state.asset_id
+      && photo.logical_review.group_revision === state.group_revision && photo.logical_review.revision <= state.revision);
+    const paths = new Set(previous.map(photo => photo.path));
+    this.photos.update(photos => photos.map(photo => paths.has(photo.path)
+      ? normalisePhotoFlags({ ...photo, logical_review: state }) : photo));
+    if (!this.loadedOnce || !paths.size) return;
+    // The write is already confirmed. Repair membership/tokens without replaying it,
+    // and keep ordinary rating edits on the targeted-row path rather than every loaded page.
+    try {
+      if (this.ratingShapesView() && previous.some(photo => photo.star_rating !== state.values['star_rating'])) {
+        await this.refreshReviewResults(true);
+      } else await this.refreshPaths([...paths]);
+    } catch { if (isOrigin()) this.loadError.set(true); }
   }
 
   /** Patch one photo's fields in place. */
@@ -2251,10 +2264,10 @@ export class GalleryStore {
         const result = await this.logicalReviews.save(logical, { rating }, () =>
           this.photos().some(photo => photo.path === photoPath && photo.logical_review?.input_token === logical.input_token));
         if (!result) return false;
-        this.applyLogicalReview(result);
+        await this.applyLogicalReview(result);
         return true;
       } catch (error) {
-        if (error instanceof LogicalReviewWriteError && error.recovered) this.applyLogicalReview(error.recovered);
+        if (error instanceof LogicalReviewWriteError && error.recovered) await this.applyLogicalReview(error.recovered);
         this.notifyActionFailed(); return false;
       }
     }
@@ -2308,9 +2321,9 @@ export class GalleryStore {
       try {
         const result = await this.logicalReviews.save(logical, 'favorite', () =>
           this.photos().some(photo => photo.path === photoPath && photo.logical_review?.input_token === logical.input_token));
-        if (result) this.applyLogicalReview(result);
+        if (result) await this.applyLogicalReview(result);
       } catch (error) {
-        if (error instanceof LogicalReviewWriteError && error.recovered) this.applyLogicalReview(error.recovered);
+        if (error instanceof LogicalReviewWriteError && error.recovered) await this.applyLogicalReview(error.recovered);
         this.notifyActionFailed();
       }
       return;
@@ -2358,10 +2371,10 @@ export class GalleryStore {
         const result = await this.logicalReviews.save(logical, 'reject', () =>
           this.photos().some(photo => photo.path === photoPath && photo.logical_review?.input_token === logical.input_token));
         if (!result) return false;
-        this.applyLogicalReview(result);
+        await this.applyLogicalReview(result);
         return true;
       } catch (error) {
-        if (error instanceof LogicalReviewWriteError && error.recovered) this.applyLogicalReview(error.recovered);
+        if (error instanceof LogicalReviewWriteError && error.recovered) await this.applyLogicalReview(error.recovered);
         this.notifyActionFailed(); return false;
       }
     }
@@ -2468,7 +2481,10 @@ export class GalleryStore {
       if (originIdentity !== this.auth.identity()) return;
       const rebuild = (endpoint === '/photos/batch_rating' && this.ratingShapesView())
         || (endpoint === '/photos/batch_reject' && this.filters().review_status === 'rejected');
-      if (current()) await this.refreshReviewResults(rebuild);
+      if (current()) {
+        if (logicalTouched) await this.refreshPaths([...persisted]);
+        if (!logicalTouched || rebuild || this.filters().review_status) await this.refreshReviewResults(rebuild);
+      }
       else {
         if (!this.listingReadsActive && originIdentity === this.auth.identity() && originKey === this.filterKey()) {
           this.reviewRefreshOwed ||= rebuild || !!this.filters().review_status;

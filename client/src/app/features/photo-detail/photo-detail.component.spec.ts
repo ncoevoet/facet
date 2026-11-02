@@ -1424,6 +1424,26 @@ describe('PhotoDetailComponent', () => {
       expect(component.photo().star_rating).toBe(3);
     });
 
+    it('advances a logical Keep through the same captured review queue as a physical photo', async () => {
+      createComponent();
+      const state = { asset_id: 'asset', group_revision: 1, revision: 0, input_token: 'old', source_path: samplePhoto.path,
+        values: { star_rating: 3, is_favorite: 0, is_kept: 0, is_rejected: 0 },
+        origins: { star_rating: 'file' as const, is_favorite: 'file' as const, is_kept: 'file' as const, is_rejected: 'file' as const } };
+      const current = makePhoto({ path: samplePhoto.path, logical_review: state });
+      const next = makePhoto({ path: '/next.jpg' });
+      const store = TestBed.inject(GalleryStore);
+      store.photos.set([current, next]);
+      store.filters.update(f => ({ ...f, review_status: 'undecided' }));
+      component.photo.set(current);
+      mockApi.post.mockReturnValue(of({ ...state, revision: 1, input_token: 'kept', values: { ...state.values, is_kept: 1 } }));
+      const repair = vi.spyOn(store, 'refreshReviewResults').mockImplementation(async () => { store.photos.set([next]); });
+      await component.reviewPhoto('kept');
+      expect(repair).toHaveBeenCalledWith(false, { whileParked: true });
+      expect(component.photo().path).toBe('/next.jpg');
+      expect(mockRouter.navigate).toHaveBeenCalledWith(['/photo'], expect.objectContaining({ queryParams: { path: '/next.jpg' }, replaceUrl: true }));
+      expect(TestBed.inject(UserActivityJournal).since().items).toEqual([]);
+    });
+
     it('lets a non-edition multi-user account update both representations without physical history', async () => {
       mockAuth.isEdition.set(false);
       mockAuth.status.set({ multi_user: true, authenticated: true });

@@ -225,6 +225,47 @@ describe('GalleryStore', () => {
       expect(store.photos().find(photo => photo.path === '/failed.jpg')?.star_rating).toBe(2);
     });
 
+    it('removes a rejected logical photo from a query that hides rejected photos', async () => {
+      const state = { asset_id: 'asset', group_revision: 1, revision: 0, input_token: 'old', source_path: '/a.jpg',
+        values: { star_rating: 3, is_favorite: 0, is_kept: 0, is_rejected: 0 },
+        origins: { star_rating: 'file' as const, is_favorite: 'file' as const, is_kept: 'file' as const, is_rejected: 'file' as const } };
+      apiGet.mockReturnValue(of(makePhotosResponse({ photos: [makePhoto({ path: '/a.jpg', logical_review: state })] })));
+      await store.loadPhotos();
+      apiPost.mockImplementation((url: string) => of(url === '/logical_assets/review'
+        ? { ...state, revision: 1, input_token: 'rejected', values: { ...state.values, is_rejected: 1 } }
+        : { photos: [], missing: ['/a.jpg'] }));
+      expect(await store.toggleRejected('/a.jpg')).toBe(true);
+      expect(store.photos()).toEqual([]);
+      expect(apiPost).toHaveBeenCalledWith('/photos/by_paths', expect.objectContaining({ paths: ['/a.jpg'] }));
+    });
+
+    it('refreshes a logical batch receipt before the next single-photo write', async () => {
+      vi.mocked(TestBed.inject(AuthService).isEdition).mockReturnValue(true);
+      const state = { asset_id: 'asset', group_revision: 1, revision: 0, input_token: 'old', source_path: '/a.jpg',
+        values: { star_rating: 3, is_favorite: 0, is_kept: 0, is_rejected: 0 },
+        origins: { star_rating: 'file' as const, is_favorite: 'file' as const, is_kept: 'file' as const, is_rejected: 'file' as const } };
+      let actual = state;
+      apiGet.mockImplementation(() => of(makePhotosResponse({ photos: [makePhoto({ path: '/a.jpg', logical_review: actual })] })));
+      await store.loadPhotos();
+      apiPost.mockImplementation((url: string) => {
+        if (url === '/photos/batch_rating') {
+          actual = { ...state, revision: 1, input_token: 'rated', values: { ...state.values, star_rating: 5 } };
+          return of({ count: 1, logical_asset_ids: ['asset'], logical_member_paths: ['/a.jpg', '/a.CR2'] });
+        }
+        if (url === '/logical_assets/review') {
+          actual = { ...actual, revision: 2, input_token: 'favorite', values: { ...actual.values, is_favorite: 1 } };
+          return of(actual);
+        }
+        return of({ photos: [makePhoto({ path: '/a.jpg', logical_review: actual })] });
+      });
+      await store.batchRating(['/a.jpg'], 5);
+      expect(store.photos()[0].logical_review?.revision).toBe(1);
+      await store.toggleFavorite('/a.jpg');
+      expect(apiPost).toHaveBeenCalledWith('/logical_assets/review', expect.objectContaining({ revision: 1, input_token: 'rated' }));
+      expect(store.photos()[0]).toMatchObject({ star_rating: 5, is_favorite: true });
+      expect(store.photos()[0].logical_review?.revision).toBe(2);
+    });
+
     it('shares a write lock across RAW/JPEG rows and reconciles both loaded values', async () => {
       const state = { asset_id: 'asset', group_revision: 1, revision: 0, input_token: 'old', source_path: '/a.jpg',
         values: { star_rating: 3, is_favorite: 0, is_kept: 0, is_rejected: 0 },

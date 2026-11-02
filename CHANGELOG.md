@@ -28,7 +28,7 @@ All notable changes to Facet are documented in this file.
 - Album refinements stay temporary until an explicit saved-rule Preview and Save; Reset restores saved criteria. Manual membership and smart criteria are identified separately.
 - Phone collection controls use two compact rows with on-demand search, explicit Select/Cancel, direct sort/filter/layout controls and secondary View options. UI strings and Viewer guides are synchronized across all seven languages.
 - Assessment availability, personal ratings, review decisions and group suggestions have distinct labels. Image status and histogram provenance describe actual displayed pixels without implying RAW sensor inspection.
-- The hamburger controls hidden, compact and pinned sidebar modes. A visible desktop sidebar replaces the destination top bar and carries account controls, removing the separate Pin button and duplicated navigation row. Filter-tab counts sit within the icon row instead of overlapping its divider.
+- Desktop destination tabs separate library navigation from the current page’s actions and collection header. Secondary destinations stay in More; mobile retains the navigation menu. Filter-tab counts stay within their icon row.
 
 - Active criteria and similarity controls belong to the collection header. Review, type, location and clipping criteria are visible; paired range bounds clear in one update. Quick filters disclose the existing visual-search and review-sort transitions, effective visibility rules are inspectable, and fixed lists explain their query restrictions.
 
@@ -39,12 +39,16 @@ All notable changes to Facet are documented in this file.
 - Gallery sort, filters, inspection and slideshow use one collection-owned control group at every width. Account and scan actions follow global navigation; the duplicate gallery toolbar and mobile bottom bar are removed. Collection menus close and reject stale commands while a photo page parks the gallery.
 - Comparison has a thumbnail candidate strip, independent active-pane marking, view-only removal and restore. Two-pane comparison stacks vertically on narrow screens; command chrome follows the selected theme.
 - Grid cards with details fit whole images into equal 4:3 frames. Moving focus preserves other photos’ brightness while retaining separate current-photo and selection markers.
-- Application destinations use one hideable sidebar, with compact hover/focus expansion and optional pinning controlled by the hamburger menu. Card metadata follows the selected light or dark theme.
+- Card metadata follows the selected light or dark theme.
 - The gallery owns its collection title, counts, Grid/Mosaic controls and exact text search at every width. The selection bar keeps Clear, Compare and review decisions visible, with labeled secondary commands in Actions. Small screens retain a navigation menu and Actions sheet; filter tabs show their names.
 - Light and dark workspace surfaces use neutral colors across the accent themes, keeping color emphasis on active controls and the photos.
 - The gallery details panel names its owning photo and can be closed without clearing the batch selection.
 
 ### Fixed
+
+- Text search and review-progress reads retain full-text index identity when RAW/JPEG groups are present.
+- Logical-photo reviews reconcile filtered results and refreshed revision receipts after single and batch edits.
+- Indexed logical album, semantic-hit and stack membership avoid library-by-membership scans.
 
 - Token rotation immediately suspends stale editing controls, status reads share a credential-scoped request, and late status or edition-lock responses cannot restore a previous account's state.
 - Escape on a directly opened photo returns to the saved gallery query instead of leaving the application through browser history. Gallery-opened photos retain normal history return.

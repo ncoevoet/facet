@@ -2091,11 +2091,9 @@ export class GalleryComponent implements OnInit, OnDestroy {
     const navigation = this.resumeNavigation;
     let interacted = false;
     const veto = () => { interacted = true; };
-    const controller = new window.AbortController();
-    const cleanup = () => controller.abort();
-    for (const event of ['pointerdown', 'keydown', 'wheel', 'touchstart']) {
-      document.addEventListener(event, veto, { capture: true, passive: true, signal: controller.signal });
-    }
+    const events = ['pointerdown', 'keydown', 'wheel', 'touchstart'];
+    const cleanup = () => events.forEach(event => document.removeEventListener(event, veto, true));
+    events.forEach(event => document.addEventListener(event, veto, { capture: true, passive: true }));
     const unregister = this.destroyRef.onDestroy(cleanup);
     requestAnimationFrame(() => requestAnimationFrame(() => {
       try {

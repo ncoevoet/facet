@@ -155,17 +155,21 @@ def _logical_projection(from_clause, where_str, params, owner, collapse):
     winning stack. It remains one standalone tile until that account resolves
     membership. Stored stacks, covers and other accounts are never rewritten.
     """
+    from api.logical_collection import mapped_paths
+
+    mapping = mapped_paths("SELECT photo_path FROM owned_stack_members")
     cte = f"""WITH owned_stack_members AS (
         SELECT m.photo_path,m.stack_id,m.position,s.cover_path,s.revision
         FROM photo_stack_members m JOIN photo_stacks s ON s.id=m.stack_id AND s.owner=m.owner
         WHERE m.owner=?
-    ), stack_member_candidates AS (
+    ), mapped_stack_paths AS ({mapping}), stack_member_candidates AS (
         SELECT photos.path AS _stack_path,m.stack_id AS _stack_id,
                m.revision AS _stack_revision,m.position AS _stack_position,
                (m.photo_path=m.cover_path) AS _stack_is_cover
-        FROM {from_clause} JOIN owned_stack_members m ON m.photo_path=photos.path OR EXISTS(
-            SELECT 1 FROM logical_asset_members lm
-            WHERE lm.asset_id=photos._logical_asset_id AND lm.photo_path=m.photo_path){where_str}
+        FROM mapped_stack_paths mapped
+        JOIN owned_stack_members m ON m.photo_path=mapped.photo_path
+        JOIN {from_clause} ON photos.path=mapped.collection_path
+             AND COALESCE(photos._logical_asset_id,'')=mapped.asset_id{where_str}
     ), stack_candidates AS (
         SELECT candidate._stack_path,candidate._stack_id,
                MAX(candidate._stack_revision) AS _stack_revision,

@@ -118,21 +118,33 @@ class MembershipPredicate:
     params: list
 
 
-def membership(path_query, params=()):
-    """Map an already-authorized physical membership query to collection rows.
+def mapped_paths(path_query):
+    """Candidate-driven physical paths and their possible collection identities.
 
-    path_query must return a photo_path column. Callers own album/stack access
-    checks; naming a hidden member cannot select a partially visible group.
-    EXISTS deduplicates pairs without changing positions or stored membership.
-    Negate this predicate to exclude an entire logical identity by either path.
+    The empty identity keeps partially visible groups as physical rows. The
+    authorized collection source must match both path and identity before using
+    the grouped alternative; this mapping alone does not grant visibility.
+    CROSS JOIN keeps JSON selections outside indexed member lookups even when
+    SQLite estimates a tiny group table and would otherwise rescan each hit.
+    """
+    return f"""WITH selected_paths AS ({path_query})
+        SELECT photo_path,photo_path AS collection_path,'' AS asset_id FROM selected_paths
+        UNION ALL
+        SELECT selected.photo_path,group_member.photo_path AS collection_path,member.asset_id
+        FROM selected_paths selected
+        CROSS JOIN logical_asset_members member ON member.photo_path=selected.photo_path
+        JOIN logical_asset_members group_member ON group_member.asset_id=member.asset_id"""
+
+
+def membership(path_query, params=()):
+    """Map physical membership without expanding partially visible groups.
+
+    A tuple IN builds the selected identities once, rather than rescanning the
+    selected paths for every library row. Keep each caller's parameters once.
     """
     return MembershipPredicate(
-        f"""EXISTS (SELECT 1 FROM ({path_query}) AS selected_members
-            WHERE selected_members.photo_path=photos.path OR (
-                photos._logical_asset_id IS NOT NULL AND EXISTS (
-                    SELECT 1 FROM logical_asset_members selected_logical
-                    WHERE selected_logical.asset_id=photos._logical_asset_id
-                      AND selected_logical.photo_path=selected_members.photo_path)))""",
+        f"""(photos.path,COALESCE(photos._logical_asset_id,'')) IN (
+            SELECT collection_path,asset_id FROM ({mapped_paths(path_query)}))""",
         list(params),
     )
 
@@ -166,11 +178,12 @@ async def remap_candidates(conn, candidates, user_id):
     from api.routers.search import Candidates
 
     collection = await for_user_async(conn, user_id)
+    mapping = mapped_paths('SELECT value AS photo_path FROM json_each(?)')
     cursor = await conn.execute(
-        f'SELECT photos.path,hits.value FROM {collection.sql} JOIN json_each(?) hits '
-        'ON hits.value=photos.path OR (photos._logical_asset_id IS NOT NULL AND EXISTS('
-        'SELECT 1 FROM logical_asset_members lm WHERE lm.asset_id=photos._logical_asset_id AND lm.photo_path=hits.value))',
-        [*collection.params, candidates.paths_json])
+        f'WITH candidate_paths AS ({mapping}) '
+        f'SELECT photos.path,hits.photo_path FROM candidate_paths hits JOIN {collection.sql} '
+        "ON photos.path=hits.collection_path AND COALESCE(photos._logical_asset_id,'')=hits.asset_id",
+        [candidates.paths_json, *collection.params])
     try:
         mapped = await cursor.fetchall()
     finally:

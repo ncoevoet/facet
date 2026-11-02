@@ -1275,23 +1275,27 @@ export class PhotoDetailComponent extends PhotoDetailBase implements OnInit {
   protected readonly canReview = computed(() => this.auth.isEdition() || !!(this.auth.status()?.multi_user && this.auth.status()?.authenticated));
   private readonly logicalReviews = inject(LogicalReviewService);
 
-  private async saveLogicalReview(p: Photo, action: LogicalReviewAction): Promise<void> {
+  private async saveLogicalReview(p: Photo, action: LogicalReviewAction): Promise<boolean> {
     const state = p.logical_review;
-    if (!state) return;
+    if (!state) return false;
     const guard = this.staleness.create(this.destroyRef, { requireEdition: false, valid: () =>
       this.canReview() && this.photo()?.path === p.path && this.photo()?.logical_review?.input_token === state.input_token });
     try {
       const result = await this.logicalReviews.save(state, action, guard.current);
-      if (!result) return;
-      this.store.applyLogicalReview(result);
+      if (!result) return false;
+      await this.store.applyLogicalReview(result);
+      if (!guard.current()) return false;
       this.photo.set(normalisePhotoFlags({ ...this.photo()!, logical_review: result }));
+      return true;
     } catch (error) {
       const current = guard.current();
       if (current && error instanceof LogicalReviewWriteError && error.recovered) {
-        this.store.applyLogicalReview(error.recovered);
+        await this.store.applyLogicalReview(error.recovered);
+        if (!guard.current()) return false;
         this.photo.set(normalisePhotoFlags({ ...this.photo()!, logical_review: error.recovered }));
       }
       if (current) this.snackBar.open(this.i18n.t(I18N.errors.action_failed), '', { duration: 3000 });
+      return false;
     } finally { guard.dispose(); }
   }
 
@@ -1319,7 +1323,6 @@ export class PhotoDetailComponent extends PhotoDetailBase implements OnInit {
   protected async reviewPhoto(decision: 'kept' | 'undecided'): Promise<void> {
     const p = this.photo();
     if (!p || this.reviewSaving) return;
-    if (p.logical_review) { await this.saveLogicalReview(p, decision); return; }
     this.reviewSaving = true;
     const isOrigin = this.store.captureReviewView();
     const identity = this.auth.identity();
@@ -1327,10 +1330,14 @@ export class PhotoDetailComponent extends PhotoDetailBase implements OnInit {
     const index = photos.findIndex(photo => photo.path === p.path);
     const next = photos[index + 1];
     try {
-      await firstValueFrom(this.api.post('/photos/batch_review', { photo_paths: [p.path], decision }));
-      if (identity !== this.auth.identity()) return;
-      this.applyConfirmed(p, { is_kept: decision === 'kept', is_rejected: false });
-      this.journal.record('review', [p.path], decision);
+      if (p.logical_review) {
+        if (!await this.saveLogicalReview(p, decision)) return;
+      } else {
+        await firstValueFrom(this.api.post('/photos/batch_review', { photo_paths: [p.path], decision }));
+        if (identity !== this.auth.identity()) return;
+        this.applyConfirmed(p, { is_kept: decision === 'kept', is_rejected: false });
+        this.journal.record('review', [p.path], decision);
+      }
       if (isOrigin()) await this.advanceAfterReview(p, index, next);
     } catch {
       this.snackBar.open(this.i18n.t(I18N.errors.action_failed), '', { duration: 3000 });
