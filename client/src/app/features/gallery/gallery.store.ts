@@ -791,20 +791,12 @@ export class GalleryStore {
   }
 
   /**
-   * Drop a 'view'-scoped selection.
-   *
-   * A view selection names the view, so it must not outlive a reload that
-   * left the query alone but changed what "the view" means (a refresh that
-   * rebuilt the rows). A different view drops every selection first, in
-   * dropSelectionOnViewChange(). Pagination (nextPage) deliberately does not
-   * reset: appending a page does not change what the view is.
+   * Drop a 'view'-scoped selection on every reload; dropSelectionOnViewChange() also drops a
+   * path selection when the view itself changed. Pagination (nextPage) does not reset:
+   * appending a page does not change what the view is.
    */
   private resetViewScope(): void {
-    if (!this.viewScopeSelected()) return;
-    this.selectedPaths.set(new Set());
-    this.excludedPaths.set(new Set());
-    this.selectionScope.set('paths');
-    this.lastSelectedIndex = -1;
+    if (this.viewScopeSelected()) this.clearSelection();
   }
 
   /** Restore a previously captured selection (used by undo). */

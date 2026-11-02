@@ -78,24 +78,8 @@ export class MovableToolbarDirective {
       const limits = this.limits();
       this.offset = { x: this.position.x * limits.x, up: this.position.up * limits.up };
       this.element.style.transform = `translate3d(${this.offset.x}px, ${-this.offset.up}px, 0)`;
-      this.placePanels();
       this.element.dispatchEvent(new Event(TOOLBAR_POSITION_EVENT));
     });
-  }
-
-  /** Disclosures open into the larger available space, outside the bar itself. */
-  private placePanels(): void {
-    const boundary = this.toolbarBoundary() ?? this.element.parentElement;
-    if (!boundary) return;
-    const area = boundary.getBoundingClientRect();
-    const bar = this.element.getBoundingClientRect();
-    const above = Math.max(0, bar.top - area.top - 20);
-    const below = Math.max(0, area.bottom - bar.bottom - 20);
-    const down = below > above;
-    this.element.dataset['toolbarDown'] = String(down);
-    for (const panel of this.element.querySelectorAll<HTMLElement>('[data-toolbar-panel]')) {
-      panel.style.maxHeight = `${down ? below : above}px`;
-    }
   }
 
   private place(x: number, up: number): void {

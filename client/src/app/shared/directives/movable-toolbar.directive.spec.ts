@@ -5,7 +5,7 @@ import { MovableToolbarDirective } from './movable-toolbar.directive';
 @Component({
   imports: [MovableToolbarDirective],
   template: `<section #area><div appMovableToolbar [toolbarBoundary]="area" [toolbarOwner]="owner()" [toolbarRightInset]="inset()">
-    <button data-toolbar-drag-handle>Move</button><button class="action">Rate</button><div data-toolbar-panel></div>
+    <button data-toolbar-drag-handle>Move</button><button class="action">Rate</button>
   </div></section>`,
 })
 class HostComponent { readonly owner = signal('alice'); readonly inset = signal(8); }
@@ -129,16 +129,4 @@ describe('MovableToolbarDirective', () => {
     fixture.destroy();
     expect(frame).toBeUndefined();
   });
-
-  it('opens disclosure panels into available space and bounds their height', () => {
-    const { bar, handle, pointer } = setup();
-    const panel = bar.querySelector<HTMLElement>('[data-toolbar-panel]')!;
-    expect(bar.dataset['toolbarDown']).toBe('false');
-    expect(panel.style.maxHeight).toBe('480px');
-    pointer(handle, 'pointerdown', 0, 0);
-    pointer(bar, 'pointermove', 0, -492); flush();
-    expect(bar.dataset['toolbarDown']).toBe('true');
-    expect(panel.style.maxHeight).toBe('522px');
-  });
-
 });
