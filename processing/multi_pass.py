@@ -105,6 +105,149 @@ class _DecodeCancelled(Exception):
     """The scan's decode stop flag was set: abandon the chunk's decode, record nothing."""
 
 
+_EXIF_METRICS_LOCK = threading.Lock()
+
+EXIF_CHUNK_SIZE = 100
+EXIF_CLOSE_JOIN_SECONDS = 2.0
+
+
+def _resolved(paths) -> List[str]:
+    return [str(Path(p).resolve()) for p in paths]
+
+
+class ExifPrefetcher:
+    """Runs the next chunk's batched exiftool call on a background thread.
+
+    One daemon thread per request (not a pool: pool workers are joined at interpreter
+    exit, so Ctrl-C would hang until a running sub-batch returned). ``fetch(paths,
+    stop_event)`` returns ``{resolved_path: exif}``; ``on_exec(seconds)`` books the
+    time it ran, wherever it ran, and is never called once ``close()`` has run.
+
+    The scan loop ``plan``s the next chunk's paths; the request starts when ``take``
+    has collected the current chunk, so two exiftool processes never run at once.
+    Overlap is matched on the raw path strings (resolving costs a filesystem call per
+    path on a network share); paths are resolved on the worker thread, and in ``take``
+    only to filter the result. Results are keyed by path, never by chunk index:
+    auto-tuning may change the chunk size between ``plan`` and ``take``. ``take``
+    keeps the entries that fall in the real chunk, fetches the missing ones
+    synchronously in one batch and drops the rest. A failed or stopped request
+    degrades to that same synchronous call. Every request has its own stop event,
+    set when it is dropped or the prefetcher is closed.
+    """
+
+    WAIT_SLICE_SECONDS = 0.25
+
+    def __init__(self, fetch, on_exec=None):
+        self._fetch = fetch
+        self._on_exec = on_exec
+        self.stop_event = threading.Event()
+        self._lock = threading.Lock()
+        self._closed = False
+        self._planned: list = []
+        self._requests: list = []  # submission order
+
+    def _book(self, seconds: float) -> None:
+        with self._lock:
+            if self._closed or self._on_exec is None:
+                return
+            self._on_exec(seconds)
+
+    def _run(self, request):
+        start = time.perf_counter()
+        try:
+            request['result'] = self._fetch(request['paths'], request['stop'])
+        except Exception as ex:  # never raised on this thread; take() falls back
+            request['error'] = ex
+            logger.warning("EXIF prefetch failed, the chunk will read EXIF synchronously: %s", ex)
+        finally:
+            self._book(time.perf_counter() - start)
+            request['done'].set()
+
+    def plan(self, paths) -> None:
+        """Remember the next chunk's paths; they start fetching at the next ``take``."""
+        with self._lock:
+            self._planned = list(paths)
+
+    def _start_planned(self) -> None:
+        with self._lock:
+            paths, self._planned = self._planned, []
+            if not paths or self._closed:
+                return
+            request: Dict[str, Any] = {'paths': paths, 'keys': set(paths), 'result': None, 'error': None,
+                       'done': threading.Event(), 'stop': threading.Event()}
+            request['thread'] = threading.Thread(
+                target=self._run, args=(request,), name='facet-exif-prefetch', daemon=True)
+            self._requests.append(request)
+        request['thread'].start()
+
+    def take(self, paths):
+        """``(exif by resolved path for exactly these paths, seconds spent blocked)``.
+
+        Blocks only on the request that overlaps ``paths`` most, then stops and drops
+        it and every older request. Missing entries come from one synchronous batch,
+        counted as blocked time. A ``KeyboardInterrupt`` while waiting stops the request.
+        """
+        wanted_raw = set(paths)
+        with self._lock:
+            best, best_overlap = None, 0
+            for request in self._requests:
+                overlap = len(request['keys'] & wanted_raw)
+                if overlap > 0 and overlap >= best_overlap:
+                    best, best_overlap = request, overlap
+            dropped = []
+            if best is not None:
+                cut = self._requests.index(best)
+                dropped = self._requests[:cut]
+                self._requests = self._requests[cut + 1:]
+        for request in dropped:
+            request['stop'].set()
+        found: Dict[str, Any] = {}
+        blocked = 0.0
+        wanted = _resolved(paths)
+        wanted_set = set(wanted)
+        if best is not None:
+            wait_start = time.perf_counter()
+            try:
+                # Sliced: an untimed Event.wait cannot be interrupted on Windows
+                while not best['done'].wait(self.WAIT_SLICE_SECONDS):
+                    pass
+            except BaseException:
+                best['stop'].set()
+                raise
+            blocked += time.perf_counter() - wait_start
+            if best['result']:
+                found = {k: v for k, v in best['result'].items() if k in wanted_set}
+        missing = [p for p, key in zip(paths, wanted) if key not in found]
+        if missing:
+            sync_start = time.perf_counter()
+            try:
+                found.update(self._fetch(missing, self.stop_event) or {})
+            finally:
+                spent = time.perf_counter() - sync_start
+                blocked += spent
+                self._book(spent)
+        # Chunk collected: only now may the next one start (one exiftool at a time)
+        self._start_planned()
+        return found, blocked
+
+    def close(self) -> None:
+        """Stop the background work: no new exiftool process starts after this.
+
+        Nothing is booked afterwards. Joins for at most ``EXIF_CLOSE_JOIN_SECONDS`` in
+        total; a sub-batch already running finishes alone on its daemon thread.
+        """
+        with self._lock:
+            self._closed = True
+            requests, self._requests = self._requests, []
+            self._planned = []
+        self.stop_event.set()
+        for request in requests:
+            request['stop'].set()
+        deadline = time.perf_counter() + EXIF_CLOSE_JOIN_SECONDS
+        for request in requests:
+            request['thread'].join(max(0.0, deadline - time.perf_counter()))
+
+
 def tagging_model_to_key(tagging_model, default=None):
     """Map a profile ``tagging_model`` string to its tagger key, or ``default``."""
     entry = TAGGING_MODELS.get(tagging_model)
@@ -228,6 +371,7 @@ class ChunkedMultiPassProcessor:
             # saliency passes (they are no longer kept for the whole chunk)
             'rebuild_time': 0.0,
             'exif_batch_time': 0.0,
+            'exif_wait_time': 0.0,
             'exif_fallback_time': 0.0,
             'aggregate_time': 0.0,
             # worker-seconds on the decode pool: image load, and the rest of a photo's body
@@ -248,6 +392,7 @@ class ChunkedMultiPassProcessor:
         self._decode_executor = None
         self._decode_stop = None
         self._decode_future = None
+        self._exif_prefetcher = None
         self._overlap_refusal_logged = False
 
     def reduce_chunk_size(self):
@@ -456,6 +601,8 @@ class ChunkedMultiPassProcessor:
         self._decode_future = None
         self._decode_executor = self._make_decode_executor()
 
+        self._exif_prefetcher = ExifPrefetcher(self._fetch_exif, self._book_exif_batch)
+
         pbar = tqdm(total=total, desc="Multi-pass processing") if show_progress else None
 
         try:
@@ -471,6 +618,11 @@ class ChunkedMultiPassProcessor:
                 # gate covers it instead.
                 if chunk_idx >= 1:
                     self._trim_ram_cache_for_next_chunk(len(chunk_paths))
+
+                # Chunk N+1's EXIF starts once chunk N's is collected; chunk_size is re-read at the
+                # next iteration, so take() reconciles a boundary that moved.
+                self._exif_prefetcher.plan(
+                    photo_paths[chunk_end:chunk_end + self.chunk_size])
 
                 self._process_chunk(chunk_paths, chunk_idx, num_chunks_est)
 
@@ -489,6 +641,10 @@ class ChunkedMultiPassProcessor:
 
         finally:
             self._ram_monitor.stop()
+            # Before the decode executor: a decode still running on the worker must not
+            # find a prefetcher that can start another exiftool process.
+            prefetcher, self._exif_prefetcher = self._exif_prefetcher, None
+            prefetcher.close()
             self._shutdown_decode_executor()
             if pbar:
                 pbar.close()
@@ -937,6 +1093,20 @@ class ChunkedMultiPassProcessor:
             if self.on_error:
                 self.on_error(path, stage, f"required model pass failed: {stage}")
 
+    @staticmethod
+    def _fetch_exif(paths, stop_event) -> Dict[str, Any]:
+        """One batched exiftool call: ``{resolved path: EXIF}`` (empty without exiftool)."""
+        try:
+            from exiftool import get_exif_batch
+        except ImportError:
+            return {}
+        return get_exif_batch(paths, chunk_size=EXIF_CHUNK_SIZE, stop_event=stop_event)
+
+    def _book_exif_batch(self, seconds: float):
+        """Add exiftool execution seconds (prefetch thread or synchronous call)."""
+        with _EXIF_METRICS_LOCK:
+            self.metrics['exif_batch_time'] += seconds
+
     def _load_images(self, paths: List[str], stop_event=None,
                      report_error=None) -> Dict[str, Dict]:
         """
@@ -989,15 +1159,15 @@ class ChunkedMultiPassProcessor:
 
         # One batched exiftool call for the whole chunk instead of one
         # subprocess round-trip per image; per-image fallback below covers
-        # paths missing from the batch result
-        exif_start = time.perf_counter()
-        try:
-            from exiftool import get_exif_batch
-            chunk_exif = get_exif_batch(paths, chunk_size=100)
-        except ImportError:
-            chunk_exif = {}
-
-        self.metrics['exif_batch_time'] += time.perf_counter() - exif_start
+        # paths missing from the batch result. Normally the call already ran beside
+        # the previous chunk and this only collects it.
+        prefetcher = self._exif_prefetcher
+        if prefetcher is None:
+            # Not inside a scan (direct call): a one-shot prefetcher with nothing pending
+            prefetcher = ExifPrefetcher(self._fetch_exif, self._book_exif_batch)
+        chunk_exif, exif_blocked = prefetcher.take(paths)
+        with _EXIF_METRICS_LOCK:
+            self.metrics['exif_wait_time'] += exif_blocked
         exif_lock = threading.Lock()
 
         report = report_error if report_error is not None else self.on_error
@@ -1949,7 +2119,10 @@ class ChunkedMultiPassProcessor:
             logger.info("  Plane rebuilds (face + saliency passes): %.1fs (%.0f%%)",
                         m['rebuild_time'], 100 * m['rebuild_time'] / total)
 
-            logger.info("  EXIF batch wall (included in decode): %.1fs", m['exif_batch_time'])
+            logger.info("  EXIF batch (exiftool seconds, mostly beside the previous chunk): %.1fs",
+                        m['exif_batch_time'])
+            logger.info("  EXIF wait (decode blocked on EXIF, part of decode wall): %.1fs",
+                        m['exif_wait_time'])
             logger.info("  EXIF fallback worker-seconds (included in decode): %.1fs",
                         m['exif_fallback_time'])
             logger.info("  Aggregate wall: %.1fs", m['aggregate_time'])
