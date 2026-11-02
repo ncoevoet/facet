@@ -37,10 +37,12 @@ describe('CullFilePreviewComponent', () => {
     expect(root.querySelector('img')?.alt).toBe('24.jpg');
   });
 
-  it('enlarges an image without changing the file list and returns to its trigger', () => {
+  it('enlarges an image without changing the file list and returns to its trigger', async () => {
     const { fixture, root, button } = build(['/photos/été & #1.jpg']);
     const trigger = root.querySelector('li button') as HTMLButtonElement;
     trigger.click(); fixture.detectChanges();
+    await fixture.whenStable();
+    expect(document.activeElement).toBe(button('back'));
     const image = root.querySelector('figure img') as HTMLImageElement;
     expect(image.alt).toBe('été & #1.jpg');
     expect(image.getAttribute('src')).toContain('size=1920');
@@ -48,6 +50,18 @@ describe('CullFilePreviewComponent', () => {
     expect(root.querySelectorAll('li')).toHaveLength(1);
     button('back').click(); fixture.detectChanges();
     expect(root.querySelector('figure')).toBeNull();
+    expect(document.activeElement).toBe(trigger);
+  });
+
+  it('uses the authorized library identity for mapped thumbnails while displaying the affected disk file', () => {
+    const { fixture, root } = build(['/disk/mapped.jpg']);
+    fixture.componentRef.setInput('thumbnailPaths', { '/disk/mapped.jpg': '/remote/mapped.jpg' });
+    fixture.detectChanges();
+    expect(root.querySelector('li img')?.getAttribute('src')).toBe('/thumbnail?path=%2Fremote%2Fmapped.jpg&size=320');
+    expect(root.querySelector('li p')?.textContent).toBe('/disk/mapped.jpg');
+    (root.querySelector('li button') as HTMLButtonElement).click(); fixture.detectChanges();
+    expect(root.querySelector('figure img')?.getAttribute('src')).toContain('path=%2Fremote%2Fmapped.jpg');
+    expect(root.querySelector('figcaption')?.textContent).toBe('/disk/mapped.jpg');
   });
 
   it('keeps XMP and unavailable RAW companions visible without pretending they have a preview', () => {

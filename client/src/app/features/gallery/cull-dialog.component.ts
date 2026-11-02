@@ -39,6 +39,7 @@ interface CullRequest {
 
 interface CullResponse {
   preview_digest?: string;
+  thumbnail_paths?: Record<string, string>;
   would_copy?: string[];
   would_move?: string[];
   would_trash?: string[];
@@ -128,7 +129,7 @@ interface CullResponse {
           }
         </div>
         @if (p.affected.length) {
-          <app-cull-file-preview [paths]="p.affected" />
+          <app-cull-file-preview [paths]="p.affected" [thumbnailPaths]="p.thumbnailPaths" />
         }
       }
 
@@ -194,7 +195,7 @@ export class CullDialogComponent {
   protected readonly includeCompanions = signal(false);
   protected readonly includeSequenceSiblings = signal(false);
   protected readonly preview = signal<{
-    affected: string[]; skipped: string[]; excluded: number; matched: number; siblings: number; digest?: string;
+    affected: string[]; thumbnailPaths: Record<string, string>; skipped: string[]; excluded: number; matched: number; siblings: number; digest?: string;
   } | null>(null);
   protected readonly busy = signal(false);
   protected readonly applying = signal(false);
@@ -276,7 +277,7 @@ export class CullDialogComponent {
       }
       const affected = res.would_copy ?? res.would_move ?? res.would_trash ?? [];
       this.preview.set({
-        digest: res.preview_digest, affected, skipped: res.skipped ?? [], excluded: res.excluded_by_state ?? 0,
+        digest: res.preview_digest, affected, thumbnailPaths: res.thumbnail_paths ?? {}, skipped: res.skipped ?? [], excluded: res.excluded_by_state ?? 0,
         matched: res.matched ?? affected.length, siblings: res.sequence_siblings ?? 0,
       });
     } catch (error) {

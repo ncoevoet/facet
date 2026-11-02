@@ -2703,6 +2703,7 @@ export class GalleryComponent implements OnInit, OnDestroy {
       const ref = this.dialog.open(CullDialogComponent, {
         closeOnNavigation: false,
         width: '48rem',
+        maxWidth: '95vw',
         data: {
           paths,
           // Same trade as the export: the filter travels instead of the paths,

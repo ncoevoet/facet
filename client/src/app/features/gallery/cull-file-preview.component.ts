@@ -24,10 +24,10 @@ import { TranslatePipe } from '../../shared/pipes/translate.pipe';
           @if (largeFailed()) {
             <p class="p-6 text-center text-sm" role="status">{{ I18N.cull.file_preview.unavailable | translate }}</p>
           } @else {
-            <img [src]="file | thumbnailUrl:1920" [alt]="file | filename"
+            <img [src]="file.thumbnailPath | thumbnailUrl:1920" [alt]="file.path | filename"
                  class="w-full max-h-[45vh] object-contain" (error)="largeFailed.set(true)" />
           }
-          <figcaption class="mt-2 text-xs break-all">{{ file }}</figcaption>
+          <figcaption class="mt-2 text-xs break-all">{{ file.path }}</figcaption>
         </figure>
       }
         <ul class="grid grid-cols-2 sm:grid-cols-4 gap-3">
@@ -36,21 +36,21 @@ import { TranslatePipe } from '../../shared/pipes/translate.pipe';
               <button type="button" class="w-full rounded border border-[var(--mat-sys-outline-variant)] overflow-hidden text-left enabled:cursor-zoom-in enabled:hover:border-[var(--mat-sys-primary)] focus-visible:outline-2 focus-visible:outline-[var(--mat-sys-primary)]"
                       [disabled]="file.sidecar || failed().has(file.path)"
                       [attr.aria-label]="I18N.cull.file_preview.enlarge | translate:{ name: (file.path | filename) }"
-                      [attr.aria-pressed]="selected() === file.path"
-                      (click)="showPreview(file.path, $event)">
+                      [attr.aria-pressed]="selected()?.path === file.path"
+                      (click)="showPreview(file, $event)">
                 @if (file.sidecar || failed().has(file.path)) {
                   <span class="aspect-[4/3] flex flex-col items-center justify-center gap-1 p-2 bg-[var(--mat-sys-surface-container)]">
                     <mat-icon aria-hidden="true">{{ file.sidecar ? 'description' : 'broken_image' }}</mat-icon>
                     <span class="text-xs text-center">{{ (file.sidecar ? I18N.cull.file_preview.sidecar : I18N.cull.file_preview.unavailable) | translate }}</span>
                   </span>
                 } @else {
-                  <img [src]="file.path | thumbnailUrl:320" [alt]="file.path | filename"
+                  <img [src]="file.thumbnailPath | thumbnailUrl:320" [alt]="file.path | filename"
                        class="w-full aspect-[4/3] object-contain bg-[var(--mat-sys-surface-container)]"
                        loading="lazy" (error)="markFailed(file.path)" />
                 }
                 <span class="block text-xs p-2 break-all">{{ file.path | filename }}</span>
               </button>
-              <p class="text-[10px] opacity-60 mt-1 break-all">{{ file.path }}</p>
+              <p class="text-[10px] opacity-60 mt-1 truncate" [title]="file.path">{{ file.path }}</p>
             </li>
           }
         </ul>
@@ -64,22 +64,25 @@ import { TranslatePipe } from '../../shared/pipes/translate.pipe';
 })
 export class CullFilePreviewComponent {
   readonly paths = input.required<string[]>();
+  readonly thumbnailPaths = input<Record<string, string>>({});
   protected readonly I18N = i18nKeys();
   private trigger: HTMLElement | null = null;
   private readonly injector = inject(Injector);
   private readonly previewBack = viewChild('previewBack', { read: ElementRef<HTMLButtonElement> });
   protected readonly page = signal(0);
-  protected readonly selected = signal<string | null>(null);
+  protected readonly selected = signal<{ path: string; thumbnailPath: string } | null>(null);
   protected readonly failed = signal(new Set<string>());
   protected readonly largeFailed = signal(false);
   protected readonly start = computed(() => this.page() * 24);
   protected readonly end = computed(() => Math.min(this.start() + 24, this.paths().length));
   protected readonly pageFiles = computed(() => this.paths().slice(this.start(), this.end())
-    .map(path => ({ path, sidecar: path.toLowerCase().endsWith('.xmp') })));
+    .map(path => ({ path, sidecar: path.toLowerCase().endsWith('.xmp'),
+      thumbnailPath: Object.hasOwn(this.thumbnailPaths(), path) ? this.thumbnailPaths()[path] : path })));
 
   constructor() {
     effect(() => {
       this.paths();
+      this.thumbnailPaths();
       this.page.set(0);
       this.selected.set(null);
       this.failed.set(new Set());
@@ -87,12 +90,12 @@ export class CullFilePreviewComponent {
     });
   }
 
-  protected showPreview(path: string, event: Event): void {
+  protected showPreview(file: { path: string; thumbnailPath: string }, event: Event): void {
     this.trigger = event.currentTarget as HTMLElement;
     this.largeFailed.set(false);
-    this.selected.set(path);
+    this.selected.set(file);
     afterNextRender(() => {
-      if (this.selected() === path) this.previewBack()?.nativeElement.focus();
+      if (this.selected() === file) this.previewBack()?.nativeElement.focus();
     }, { injector: this.injector });
   }
 

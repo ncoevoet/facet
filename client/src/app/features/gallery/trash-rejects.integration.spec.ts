@@ -32,7 +32,7 @@ describe('all rejected photos preview and apply through HTTP', () => {
       imports: [CullDialogComponent],
       providers: [provideRouter([]), provideHttpClient(), provideHttpClientTesting(),
         { provide: AuthService, useValue: { identity: owner, isEdition: edition } },
-        { provide: I18nService, useValue: { t: (key: string) => key, translations: () => ({}) } },
+        { provide: I18nService, useValue: { t: (key: string, vars?: Record<string, string | number>) => key === 'cull.file_preview.trash' ? `Move ${vars?.['count']} files to OS Trash` : key, translations: () => ({}) } },
         { provide: MatSnackBar, useValue: { open: toast } },
         { provide: MatDialogRef, useValue: { close, beforeClosed: () => beforeClosed } },
         { provide: MAT_DIALOG_DATA, useValue: { paths: [], filters: FILTERS,
@@ -89,7 +89,7 @@ describe('all rejected photos preview and apply through HTTP', () => {
     await fixture.whenStable(); fixture.detectChanges();
     const rows = fixture.nativeElement.querySelectorAll('app-cull-file-preview li') as NodeListOf<HTMLElement>;
     expect([...rows].map(row => row.querySelector('p')?.textContent?.trim())).toEqual(['/r.jpg', '/r.CR3', '/r.XMP']);
-    expect(applyButton().textContent?.trim()).toBe('cull.file_preview.trash');
+    expect(applyButton().textContent?.trim()).toBe('Move 3 files to OS Trash');
     http.expectNone('/api/cull/apply');
     applyButton().click();
     const apply = http.expectOne('/api/cull/apply');
@@ -227,7 +227,7 @@ describe('trash Apply with a real Material dialog', () => {
       imports: [CullDialogComponent],
       providers: [provideRouter([]), provideLocationMocks(), provideHttpClient(), provideHttpClientTesting(),
         { provide: AuthService, useValue: { identity: () => 'alice', isEdition: () => true } },
-        { provide: I18nService, useValue: { t: (key: string) => key, translations: () => ({}) } },
+        { provide: I18nService, useValue: { t: (key: string, vars?: Record<string, string | number>) => key === 'cull.file_preview.trash' ? `Move ${vars?.['count']} files to OS Trash` : key, translations: () => ({}) } },
         { provide: MatSnackBar, useValue: { open: vi.fn() } },
       ],
     });
