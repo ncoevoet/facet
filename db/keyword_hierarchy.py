@@ -210,6 +210,7 @@ def assign_node(conn, photo_path, node_id, *, source='user', created_by=None, im
                                (photo_path, key, node_id)).fetchone()
         if deleted and source != 'user':
             return False
+        intent_changed = bool(deleted and source == 'user')
         if source == 'user':
             conn.execute('DELETE FROM keyword_assignment_deletions WHERE photo_path=? AND path_key=?', (photo_path, key))
             # Reassigning the current concept does not reinstate its old names.
@@ -218,7 +219,7 @@ def assign_node(conn, photo_path, node_id, *, source='user', created_by=None, im
                                 'WHERE photo_path=? AND node_id=?', (photo_path, node_id)).fetchone()
         if existing:
             if existing[0] == 'user' or (source == existing[0] and imported_path == existing[1] and signature == existing[2]):
-                return False
+                return intent_changed
             conn.execute('UPDATE photo_keyword_nodes SET source=?,origin_source=NULL,created_by=?,imported_path=?,imported_signature=?, '
                          "created_at=strftime('%Y-%m-%dT%H:%M:%fZ','now') WHERE photo_path=? AND node_id=?",
                          (source, created_by, imported_path, signature, photo_path, node_id))

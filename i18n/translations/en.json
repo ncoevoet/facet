@@ -3906,6 +3906,32 @@
     "empty": "No matching hierarchy keywords.",
     "more": "Show more keywords",
     "unavailable": "Keyword unavailable",
-    "help": "Counts cover photos visible to you across the library. Choosing a branch filters by direct assignments to that keyword or its descendants; other active filters still apply. Parents are not automatically assigned. Flat keywords, including names containing slashes, stay separate."
+    "help": "Counts cover photos visible to you across the library. Choosing a branch filters by direct assignments to that keyword or its descendants; other active filters still apply. Parents are not automatically assigned. Flat keywords, including names containing slashes, stay separate.",
+    "edit": {
+      "add_path": "Add hierarchy path to selection",
+      "operation": "Operation",
+      "name": "New name",
+      "parent": "Destination parent",
+      "root": "Top level",
+      "levels": "Path levels, one per line",
+      "selection": "Selected: {count}",
+      "applying": "Applying captured update. Closing will not cancel it.",
+      "before": "Current path",
+      "after": "Proposed path",
+      "summary": "Targets: {photos}. New assignments: {added}; updated: {updated}; removed: {removed}.",
+      "spelling": "Existing catalog identity may be reused. Its spelling is shown after assignment.",
+      "boundary": "Catalog metadata only. No Undo. Source images and sidecars stay unchanged.",
+      "preview": "Preview hierarchy update",
+      "uncertain": "The result is unconfirmed. Close this editor and reload the hierarchy. Start a fresh preview before applying another update.",
+      "help": "Names form a shared catalog. Renaming, moving or deleting a branch requires permission for every photo assigned anywhere below it. Removing from selection changes only this keyword's direct assignments. Add path uses one level per line, at most 16 levels and 64 characters per level; | cannot be part of a level. Existing global identity may be reused. Export metadata separately to update files. These changes have no Undo.",
+      "assign": "Assign to selected photos",
+      "remove": "Remove from selection, this keyword only",
+      "rename": "Rename shared keyword",
+      "move": "Move shared branch",
+      "delete_branch": "Delete branch and its assignments",
+      "error": "Could not complete the requested hierarchy update.",
+      "scope_changed": "The captured selection or options changed. Preview again.",
+      "changed": "Targets: {targets}. Photos changed: {photos}; assignments changed: {assignments}."
+    }
   }
 }

@@ -28,7 +28,13 @@ def hierarchy(tmp_path, seed_photos_prefix, monkeypatch):
         hidden, _ = assign_path(conn, paths[3], ['Private-' + tmp_path.name, 'Alice'])
         ensure_path(conn, ['Unused vocabulary'])
         conn.execute("UPDATE keyword_nodes SET name_key='invalid-private' WHERE id=?", (hidden,))
-    return paths, root, domestic, wild
+    try:
+        yield paths, root, domestic, wild
+    finally:
+        # The shared fixture DB retains unused vocabulary after photo cleanup.
+        # Restore our deliberately malformed private definition for later tests.
+        with sqlite3.connect(DEFAULT_DB_PATH) as conn:
+            conn.execute("UPDATE keyword_nodes SET name_key='alice' WHERE id=?", (hidden,))
 
 
 def test_tree_returns_only_visible_assignments_and_ancestors_with_distinct_branch_counts(regular_client, hierarchy):

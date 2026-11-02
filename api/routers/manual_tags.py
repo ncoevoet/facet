@@ -25,6 +25,7 @@ from api.models.keyword_catalog import (
     KeywordCatalogResponse, KeywordChangeApply, KeywordChangePreview,
     KeywordChangeRequest, KeywordChangeResult,
     KeywordTreeResponse,
+    HierarchyChangeApply, HierarchyChangePreview, HierarchyChangeRequest, HierarchyChangeResult,
 )
 from api.routers.faces import _batch_scope_sql, _require_writable_photo, _writable_photo_paths
 from db.manual_tags import (
@@ -68,6 +69,46 @@ def api_keyword_tree(response: Response, user: Optional[CurrentUser] = Depends(g
     except (sqlite3.Error, HierarchyError) as exc:
         logger.exception('Keyword hierarchy read failed')
         raise HTTPException(503, 'Keyword hierarchy could not be read', headers={'Cache-Control': 'no-store'}) from exc
+
+
+@router.post('/api/manual_tags/hierarchy/preview', response_model=HierarchyChangePreview)
+def api_hierarchy_preview(body: HierarchyChangeRequest, response: Response, user: CurrentUser = Depends(require_edition)):
+    from api.keyword_management import hierarchy_preview
+    from db.keyword_hierarchy import HierarchyError
+    response.headers['Cache-Control'] = 'no-store'
+    try:
+        with get_db() as conn:
+            conn.execute('PRAGMA query_only=ON')
+            conn.execute('BEGIN')
+            return hierarchy_preview(conn, user, body)
+    except HierarchyError as exc:
+        raise HTTPException(422, str(exc), headers={'Cache-Control': 'no-store'}) from exc
+    except sqlite3.Error as exc:
+        logger.exception('Hierarchy preview failed')
+        raise HTTPException(503, 'Hierarchy changes could not be prepared', headers={'Cache-Control': 'no-store'}) from exc
+
+
+@router.post('/api/manual_tags/hierarchy/apply', response_model=HierarchyChangeResult)
+@retry_on_locked()
+def api_hierarchy_apply(body: HierarchyChangeApply, response: Response, user: CurrentUser = Depends(require_edition)):
+    from api.keyword_management import hierarchy_apply
+    from db.keyword_hierarchy import HierarchyError
+    response.headers['Cache-Control'] = 'no-store'
+    try:
+        with get_db() as conn:
+            conn.execute('BEGIN IMMEDIATE')
+            result = hierarchy_apply(conn, user, body, created_by=_created_by(user))
+            _drop_tag_caches(conn)
+            conn.commit()
+    except HierarchyError as exc:
+        raise HTTPException(422, str(exc), headers={'Cache-Control': 'no-store'}) from exc
+    except sqlite3.Error as exc:
+        if is_locked_error(exc):
+            raise
+        logger.exception('Hierarchy update failed')
+        raise HTTPException(503, 'Hierarchy changes could not be confirmed', headers={'Cache-Control': 'no-store'}) from exc
+    after_commit()
+    return result
 
 
 @router.get('/api/manual_tags/catalog', response_model=KeywordCatalogResponse)

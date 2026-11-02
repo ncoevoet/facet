@@ -2428,6 +2428,40 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/manual_tags/hierarchy/apply": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Api Hierarchy Apply */
+        post: operations["api_hierarchy_apply_api_manual_tags_hierarchy_apply_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/manual_tags/hierarchy/preview": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Api Hierarchy Preview */
+        post: operations["api_hierarchy_preview_api_manual_tags_hierarchy_preview_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/manual_tags/manage/apply": {
         parameters: {
             query?: never;
@@ -7555,6 +7589,79 @@ export interface components {
             panoramas: number;
             /** Total */
             total: number;
+        };
+        /** HierarchyChangeApply */
+        HierarchyChangeApply: {
+            /**
+             * Action
+             * @enum {string}
+             */
+            action: "assign" | "remove" | "create_assign" | "rename" | "move" | "delete_branch";
+            /** Name */
+            name?: string | null;
+            /** Node Id */
+            node_id?: string | null;
+            /** Parent Id */
+            parent_id?: string | null;
+            /** Paths */
+            paths?: string[] | null;
+            /** Preview Token */
+            preview_token: string;
+            /** Segments */
+            segments?: string[] | null;
+        };
+        /** HierarchyChangePreview */
+        HierarchyChangePreview: {
+            /** After Path */
+            after_path: string[] | null;
+            /** Before Path */
+            before_path: string[] | null;
+            /** Definition Change */
+            definition_change: boolean | null;
+            /** Expires At */
+            expires_at: number;
+            /** New Assignments */
+            new_assignments: number;
+            /** Paths */
+            paths: string[];
+            /** Preview Token */
+            preview_token: string;
+            /** Removed Assignments */
+            removed_assignments: number;
+            request: components["schemas"]["HierarchyChangeRequest"];
+            /** Updated Assignments */
+            updated_assignments: number;
+        };
+        /** HierarchyChangeRequest */
+        HierarchyChangeRequest: {
+            /**
+             * Action
+             * @enum {string}
+             */
+            action: "assign" | "remove" | "create_assign" | "rename" | "move" | "delete_branch";
+            /** Name */
+            name?: string | null;
+            /** Node Id */
+            node_id?: string | null;
+            /** Parent Id */
+            parent_id?: string | null;
+            /** Paths */
+            paths?: string[] | null;
+            /** Segments */
+            segments?: string[] | null;
+        };
+        /** HierarchyChangeResult */
+        HierarchyChangeResult: {
+            /** Affected Photos */
+            affected_photos: number;
+            /** Changed Assignments */
+            changed_assignments: number;
+            /** Node Id */
+            node_id: string | null;
+            /** Success */
+            success: boolean;
+            /** Target Photos */
+            target_photos: number;
         };
         /** ImmichDiagnosticsResponse */
         ImmichDiagnosticsResponse: {
@@ -14513,6 +14620,72 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["KeywordTreeResponse"];
+                };
+            };
+        };
+    };
+    api_hierarchy_apply_api_manual_tags_hierarchy_apply_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["HierarchyChangeApply"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HierarchyChangeResult"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    api_hierarchy_preview_api_manual_tags_hierarchy_preview_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["HierarchyChangeRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HierarchyChangePreview"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
                 };
             };
         };

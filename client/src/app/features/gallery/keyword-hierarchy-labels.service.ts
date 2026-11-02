@@ -1,4 +1,5 @@
 import { Injectable, Pipe, PipeTransform, inject, signal } from '@angular/core';
+import { Subject } from 'rxjs';
 import { AuthService, type AuthStatus } from '../../core/services/auth.service';
 import { I18nService } from '../../core/services/i18n.service';
 import { I18N } from '../../core/i18n/keys';
@@ -7,6 +8,8 @@ import { I18N } from '../../core/i18n/keys';
 @Injectable({ providedIn: 'root' })
 export class KeywordHierarchyLabels {
   private readonly auth = inject(AuthService);
+  private readonly invalidated = new Subject<void>();
+  readonly changes = this.invalidated.asObservable();
   private readonly snapshot = signal<{ owner: string; status: AuthStatus | null; token: string | null; names: Record<string, string> } | null>(null);
   // token is a live storage getter, not a signal: never memoize this check.
   names(): Record<string, string> {
@@ -17,6 +20,11 @@ export class KeywordHierarchyLabels {
   remember(nodes: { id: string; segments: string[] }[]): void {
     this.snapshot.set({ owner: this.auth.identity(), status: this.auth.status(), token: this.auth.token,
       names: Object.fromEntries(nodes.map(node => [node.id, node.segments.join(' › ')])) });
+  }
+  invalidate(owner: string): void {
+    if (owner !== this.auth.identity()) return;
+    this.snapshot.set(null);
+    this.invalidated.next();
   }
 }
 

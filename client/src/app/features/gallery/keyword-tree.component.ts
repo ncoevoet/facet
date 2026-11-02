@@ -11,12 +11,14 @@ import { TranslatePipe } from '../../shared/pipes/translate.pipe';
 import { ContextHelpComponent } from '../../shared/components/context-help/context-help.component';
 import { GalleryStore } from './gallery.store';
 import { KeywordHierarchyLabels } from './keyword-hierarchy-labels.service';
+import { KeywordHierarchyEditorComponent } from './keyword-hierarchy-editor.component';
 
 type Node = components['schemas']['KeywordTreeNode'];
 type Tree = components['schemas']['KeywordTreeResponse'];
+type Result = components['schemas']['HierarchyChangeResult'];
 
 @Component({
-  selector: 'app-keyword-tree', imports: [MatIconModule, TranslatePipe, ContextHelpComponent],
+  selector: 'app-keyword-tree', imports: [MatIconModule, TranslatePipe, ContextHelpComponent, KeywordHierarchyEditorComponent],
   changeDetection: ChangeDetectionStrategy.OnPush, host: { class: 'block min-w-0' },
   template: `
     <details #panel data-keyword-tree tabindex="-1" (toggle)="toggle(panel.open)" (keydown.escape)="escape($event, trigger)">
@@ -44,13 +46,27 @@ type Tree = components['schemas']['KeywordTreeResponse'];
                   <bdi>{{ row.path }}</bdi><span class="ms-2 tabular-nums text-[var(--mat-sys-on-surface-variant)]">{{ row.node.branch_count }}</span>
                   @if (store.filters().keyword_branch === row.node.id) { <mat-icon aria-hidden="true" class="!h-4 !w-4 !text-base">check</mat-icon> }
                 </button>
+                @if (auth.isEdition()) {
+                  <button type="button" data-hierarchy-manage class="min-h-11 shrink-0 px-2 text-xs underline"
+                    [disabled]="editorView()?.saving() || editorView()?.uncertain()"
+                    [attr.aria-label]="I18N.keyword_catalog.manage_named | translate:{ name: row.path }" (click)="manage(row.node, $event)">{{ I18N.keyword_catalog.manage | translate }}</button>
+                }
               </li>
             }
           </ul>
           @if (!rows().length) { <p class="text-xs">{{ I18N.keyword_hierarchy.empty | translate }}</p> }
           @if (rows().length > limit()) { <button type="button" class="min-h-11 text-xs underline" (click)="limit.set(limit() + 50)">{{ I18N.keyword_hierarchy.more | translate }}</button> }
         }
-        <button type="button" class="min-h-11 text-xs underline" [disabled]="loading()" (click)="load()">{{ I18N.keyword_catalog.reload | translate }}</button>
+        <div class="flex flex-wrap gap-3">
+          <button type="button" class="min-h-11 text-xs underline" [disabled]="loading() || editorView()?.saving()" (click)="reload()">{{ I18N.keyword_catalog.reload | translate }}</button>
+          @if (auth.isEdition()) { <button type="button" data-hierarchy-add class="min-h-11 text-xs underline" [disabled]="editorView()?.saving() || editorView()?.uncertain()" (click)="manage(null, $event)">{{ I18N.keyword_hierarchy.edit.add_path | translate }}</button> }
+        </div>
+        @if (editor(); as entry) {
+          @for (item of [entry]; track item.key) {
+            <app-keyword-hierarchy-editor [node]="item.node" [nodes]="nodes() ?? []" (closed)="closeEditor()" (changed)="onChanged($event)" />
+          }
+        }
+        @if (receipt(); as result) { <p role="status" class="text-xs">{{ I18N.keyword_hierarchy.edit.changed | translate:{ targets: result.target_photos, photos: result.affected_photos, assignments: result.changed_assignments } }}</p> }
         <app-context-help [label]="I18N.keyword_catalog.help" [keys]="[I18N.keyword_hierarchy.help]" />
       }
     </details>
@@ -60,11 +76,16 @@ export class KeywordTreeComponent {
   protected readonly I18N = I18N;
   protected readonly store = inject(GalleryStore);
   private readonly api = inject(ApiService);
-  private readonly auth = inject(AuthService);
+  protected readonly auth = inject(AuthService);
   private readonly labels = inject(KeywordHierarchyLabels);
   private readonly router = inject(Router);
   private readonly destroyRef = inject(DestroyRef);
   private readonly panel = viewChild<ElementRef<HTMLDetailsElement>>('panel');
+  protected readonly editorView = viewChild(KeywordHierarchyEditorComponent);
+  readonly editor = signal<{ key: number; node: Node | null } | null>(null);
+  readonly receipt = signal<Result | null>(null);
+  private editorKey = 0;
+  private editorTrigger: HTMLElement | null = null;
   private readonly cancelled = new Subject<void>();
   private pending = false;
   private navigation = 0;
@@ -96,6 +117,9 @@ export class KeywordTreeComponent {
   readonly shownRows = computed(() => this.rows().slice(0, this.limit()));
 
   constructor() {
+    this.labels.changes.pipe(takeUntilDestroyed()).subscribe(() => {
+      if (this.current()) void this.load();
+    });
     effect(() => { this.auth.identity(); this.auth.status(); untracked(() => this.reset()); });
     effect(() => {
       const branch = this.store.filters().keyword_branch;
@@ -124,6 +148,7 @@ export class KeywordTreeComponent {
   private reset(): void {
     this.stop(); this.opened.set(false); this.nodes.set(null); this.search.set(''); this.expanded.set(new Set()); this.limit.set(50); this.error.set(false);
     const panel = this.panel()?.nativeElement; if (panel) panel.open = false;
+    this.editor.set(null); this.receipt.set(null);
   }
   toggle(open: boolean): void {
     if (!open) this.reset();
@@ -143,6 +168,25 @@ export class KeywordTreeComponent {
   }
   filter(id: string): void {
     if (this.current() && this.opened() && this.nodes()?.some(node => node.id === id)) void this.store.updateFilter('keyword_branch', id);
+  }
+  manage(node: Node | null, event?: Event): void {
+    if (!this.current() || !this.opened() || !this.auth.isEdition() || this.editorView()?.saving() || this.editorView()?.uncertain()) return;
+    if (node && !this.nodes()?.some(item => item.id === node.id)) return;
+    this.editorTrigger = event?.currentTarget instanceof HTMLElement ? event.currentTarget : null;
+    this.receipt.set(null); this.editor.set({ key: ++this.editorKey, node });
+  }
+  closeEditor(): void {
+    this.editor.set(null);
+    if (this.current() && this.editorTrigger?.isConnected) this.editorTrigger.focus();
+  }
+  reload(): void {
+    if (this.editorView()?.saving()) return;
+    this.editor.set(null); void this.load();
+  }
+  onChanged(result: Result): void {
+    if (!this.current()) return;
+    this.editor.set(null); this.receipt.set(result);
+    this.panel()?.nativeElement.querySelector<HTMLElement>('summary')?.focus();
   }
   async load(): Promise<void> {
     if (!this.current()) return;

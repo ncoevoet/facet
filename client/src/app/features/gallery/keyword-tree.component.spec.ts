@@ -29,13 +29,16 @@ describe('Explicit keyword hierarchy browsing', () => {
     { id: wild, parent_id: wildRoot, name: 'Cat', segments: ['Wild', 'Cat'], direct_count: 2, branch_count: 2 },
   ] };
 
-  function build(): void {
+  function build(edition = false): void {
     token = 'a'; owner = signal({ user: 'alice' }); events = new Subject(); updateFilter = vi.fn();
     TestBed.configureTestingModule({ imports: [KeywordTreeComponent], providers: [
       provideHttpClient(withXhr()), provideHttpClientTesting(), ApiService,
-      { provide: AuthService, useValue: { status: owner, identity: computed(() => owner().user), get token() { return token; } } },
+      { provide: AuthService, useValue: { status: owner, identity: computed(() => owner().user), isEdition: () => edition, get token() { return token; } } },
       { provide: Router, useValue: { url: '/', events } },
-      { provide: GalleryStore, useValue: { filters: signal({ keyword_branch: '' }), updateFilter } },
+      { provide: GalleryStore, useValue: { filters: signal({ keyword_branch: '' }), updateFilter,
+        selectedPaths: signal(new Set(['/photo.jpg'])), excludedPaths: signal(new Set()), viewScopeSelected: signal(false), pinnedPaths: signal(null),
+        selectionCount: signal(1), currentAlbum: signal(null), filterKey: (value: unknown) => JSON.stringify(value),
+        pathsInView: vi.fn().mockResolvedValue(['/photo.jpg']), refreshPaths: vi.fn().mockResolvedValue(undefined) } },
       { provide: I18nService, useValue: { translations: signal({}), t: (key: string) => key } },
     ] });
     http = TestBed.inject(HttpTestingController);
@@ -99,5 +102,67 @@ describe('Explicit keyword hierarchy browsing', () => {
     expect(document.activeElement).toBe(trigger);
     expect(fixture.componentInstance.opened()).toBe(false);
     http.expectNone(request => request.method !== 'GET');
+  });
+
+  it('opens the inline editor from its native control, previews before Apply and returns focus after close and success', async () => {
+    build(true); await open();
+    const page = fixture.nativeElement as HTMLElement;
+    const manage = page.querySelector<HTMLButtonElement>('[data-hierarchy-manage]')!;
+    manage.click(); await fixture.whenStable(); fixture.detectChanges();
+    const close = page.querySelector<HTMLButtonElement>('[data-hierarchy-editor] button')!;
+    close.click(); fixture.detectChanges();
+    expect(document.activeElement).toBe(manage);
+    manage.click(); await fixture.whenStable(); fixture.detectChanges();
+    const preview = page.querySelector<HTMLButtonElement>('[data-hierarchy-preview]')!;
+    expect(preview.disabled).toBe(true);
+    const name = page.querySelector<HTMLInputElement>('[data-hierarchy-name]')!;
+    name.value = 'Wildlife'; name.dispatchEvent(new Event('input')); fixture.detectChanges();
+    preview.click();
+    const read = http.expectOne('/api/manual_tags/hierarchy/preview');
+    expect(read.request.body).toEqual({ action: 'rename', node_id: root, name: 'Wildlife' });
+    http.expectNone('/api/manual_tags/hierarchy/apply');
+    read.flush({ request: read.request.body, paths: ['/photo.jpg'], before_path: ['Animals'], after_path: ['Wildlife'],
+      new_assignments: 0, removed_assignments: 0, updated_assignments: 1, definition_change: true, preview_token: 'signed', expires_at: 9999999999 });
+    await fixture.whenStable(); fixture.detectChanges();
+    const apply = page.querySelector<HTMLButtonElement>('[data-hierarchy-apply]')!;
+    expect(document.activeElement).toBe(apply);
+    apply.click(); http.expectOne('/api/manual_tags/hierarchy/apply').flush({
+      success: true, node_id: root, target_photos: 1, affected_photos: 1, changed_assignments: 1 });
+    await Promise.resolve(); await Promise.resolve(); await Promise.resolve();
+    http.expectOne('/api/manual_tags/hierarchy').flush(tree);
+    await fixture.whenStable(); fixture.detectChanges();
+    expect(page.querySelector('[data-hierarchy-editor]')).toBeNull();
+    expect(document.activeElement).toBe(page.querySelector('[data-keyword-tree] > summary'));
+    expect(page.textContent).toContain('keyword_hierarchy.edit.changed');
+  });
+
+  it('refreshes tree labels after an accepted rename settles after the editor closes', async () => {
+    build(true); await open();
+    const page = fixture.nativeElement as HTMLElement;
+    const manage = page.querySelector<HTMLButtonElement>('[data-hierarchy-manage]')!;
+    manage.click(); await fixture.whenStable(); fixture.detectChanges();
+    const name = page.querySelector<HTMLInputElement>('[data-hierarchy-name]')!;
+    name.value = 'Wildlife'; name.dispatchEvent(new Event('input')); fixture.detectChanges();
+    page.querySelector<HTMLButtonElement>('[data-hierarchy-preview]')!.click();
+    const read = http.expectOne('/api/manual_tags/hierarchy/preview');
+    read.flush({ request: read.request.body, paths: ['/photo.jpg'], before_path: ['Animals'], after_path: ['Wildlife'],
+      new_assignments: 0, removed_assignments: 0, updated_assignments: 1, definition_change: true, preview_token: 'signed', expires_at: 9999999999 });
+    await fixture.whenStable(); fixture.detectChanges();
+    page.querySelector<HTMLButtonElement>('[data-hierarchy-apply]')!.click();
+    const write = http.expectOne('/api/manual_tags/hierarchy/apply');
+    page.querySelector<HTMLButtonElement>('[data-hierarchy-editor] button')!.click(); fixture.detectChanges();
+    expect(page.querySelector('[data-hierarchy-editor]')).toBeNull();
+    write.flush({ success: true, node_id: root, target_photos: 1, affected_photos: 1, changed_assignments: 1 });
+    await Promise.resolve(); await Promise.resolve(); await Promise.resolve();
+    const refreshed = { nodes: tree.nodes.map(node => node.id === root ? { ...node, name: 'Wildlife', segments: ['Wildlife'] } : node) };
+    const refresh = http.expectOne('/api/manual_tags/hierarchy');
+    fixture.detectChanges();
+    expect(document.activeElement).toBe(manage);
+    expect(TestBed.inject(KeywordHierarchyLabels).names()).toEqual({});
+    refresh.flush(refreshed);
+    await fixture.whenStable(); fixture.detectChanges();
+    expect(page.textContent).toContain('Wildlife');
+    expect(TestBed.inject(KeywordHierarchyLabels).names()[root]).toBe('Wildlife');
+    expect(document.activeElement).toBe(manage);
   });
 });
