@@ -55,6 +55,8 @@ All notable changes to Facet are documented in this file.
 
 ### Fixed
 
+- Shared-album filename copying and original downloads retain the photo’s filename, including when the selected photo is no longer on the displayed page. Shift-selection follows its photo after sorting and starts a new range if filtering removes that photo.
+
 - Photo deletion and relinking use an indexed lookup for retained face-update receipts, avoiding a full job-history scan per photo.
 
 - Shared-album slideshows use the album’s authorized image URLs and load subsequent shared pages. Refine collection from a photo preserves cleared smart-album criteria. Late rating and favorite responses no longer update another account’s gallery or activity history.

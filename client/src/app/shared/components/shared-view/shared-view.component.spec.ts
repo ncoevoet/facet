@@ -22,8 +22,9 @@ function observeDownloads() {
   const revoke = Object.getOwnPropertyDescriptor(URL, 'revokeObjectURL');
   Object.defineProperty(URL, 'createObjectURL', { configurable: true, value: vi.fn(() => 'blob:fixture') });
   Object.defineProperty(URL, 'revokeObjectURL', { configurable: true, value: vi.fn() });
-  const save = vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(() => undefined);
-  return { save, restore: () => {
+  const filenames: string[] = [];
+  const save = vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(function (this: HTMLAnchorElement) { filenames.push(this.download); });
+  return { save, filenames, restore: () => {
     save.mockRestore();
     if (create) Object.defineProperty(URL, 'createObjectURL', create);
     else Reflect.deleteProperty(URL, 'createObjectURL');
@@ -135,8 +136,8 @@ describe('SharedViewComponent', () => {
 
   it('downloads the captured selection using only the album-scoped original endpoint', async () => {
     createComponent('1', 'fixture-token'); await component.ngOnInit();
-    component.selectedPaths.set(new Set([asset1, asset2]));
-    const { save, restore } = observeDownloads();
+    for (const photo of component.photos()) component.toggleSelection(photo);
+    const { save, filenames, restore } = observeDownloads();
     try {
       await component.downloadSelected();
       expect(mockApi.getRaw).toHaveBeenCalledTimes(2);
@@ -147,14 +148,61 @@ describe('SharedViewComponent', () => {
         expect(parsed.searchParams.has('profile')).toBe(false);
       }
       expect(save).toHaveBeenCalledTimes(2);
+      expect(filenames).toEqual(['p1.jpg', 'p2.jpg']);
       await component.downloadSelected('raw');
       expect(mockApi.getRaw).toHaveBeenCalledTimes(2);
     } finally { restore(); }
   });
 
+  it('retains selected filenames after the displayed page changes', async () => {
+    createComponent('1', 'fixture-token'); await component.ngOnInit();
+    const photo = { ...component.photos()[0], filename: 'Holiday 夜景.jpg' };
+    component.toggleSelection(photo);
+    component.photos.set([{ path: asset3, filename: 'other.jpg' }]);
+    const clipboard = Object.getOwnPropertyDescriptor(navigator, 'clipboard');
+    const writeText = vi.fn().mockResolvedValue(undefined);
+    Object.defineProperty(navigator, 'clipboard', { configurable: true, value: { writeText } });
+    const { filenames, restore } = observeDownloads();
+    try {
+      component.copyPaths();
+      await Promise.resolve();
+      expect(writeText).toHaveBeenCalledWith('Holiday 夜景.jpg');
+      await component.downloadSelected();
+      expect(filenames).toEqual(['Holiday 夜景.jpg']);
+      expect(new URL(mockApi.getRaw.mock.calls[0][0], 'http://facet.test').searchParams.get('asset_id')).toBe(asset1);
+      component.clearSelection();
+      expect(component.selectionCount()).toBe(0);
+    } finally {
+      restore();
+      if (clipboard) Object.defineProperty(navigator, 'clipboard', clipboard);
+      else Reflect.deleteProperty(navigator, 'clipboard');
+    }
+  });
+
+  it('uses the selected photo as the shift anchor after rows reorder', async () => {
+    createComponent('1', 'fixture-token'); await component.ngOnInit();
+    const [first, second] = component.photos();
+    const third = { ...first, path: asset3, filename: 'third.jpg' };
+    component.toggleSelection(first);
+    component.photos.set([second, first, third]);
+    component.toggleSelection(third, { shiftKey: true });
+    expect([...component.selectedPaths()]).toEqual([asset1, asset3]);
+    component.toggleSelection(third);
+    expect([...component.selectedPaths()]).toEqual([asset1]);
+  });
+
+  it('starts a new shift range when filtering removes its anchor', async () => {
+    createComponent('1', 'fixture-token'); await component.ngOnInit();
+    component.toggleSelection(component.photos()[1]);
+    mockApi.get.mockReturnValue(of({ ...sharedAlbumResponse, photos: [{ asset_id: asset3, filename: 'new.jpg' }] }));
+    await component.refreshFiltered();
+    expect(() => component.toggleSelection(component.photos()[0], { shiftKey: true })).not.toThrow();
+    expect([...component.selectedPaths()]).toEqual([asset2, asset3]);
+  });
+
   it('does not save a late blob or fetch the next file after the shared link changes', async () => {
     createComponent('1', 'fixture-token'); await component.ngOnInit();
-    component.selectedPaths.set(new Set([asset1, asset2]));
+    for (const photo of component.photos()) component.toggleSelection(photo);
     const pending = new Subject<Blob>(); mockApi.getRaw.mockReturnValueOnce(pending);
     const { save, restore } = observeDownloads();
     try {

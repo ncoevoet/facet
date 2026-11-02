@@ -30,7 +30,7 @@ import { computeRangeFilterUpdate } from '../../utils/range-filter';
 import { useDesktopSignal } from '../../utils/media-query';
 import { downloadBlob } from '../../utils/download';
 import { SharedAlbumMediaScope, sharedAlbumMediaUrl } from '../../utils/shared-album-media';
-import { basename, copyLines } from '../../utils/clipboard';
+import { copyLines } from '../../utils/clipboard';
 import {
   SECTION_ORDER, FILTERS_BY_SECTION,
   FilterGroup, SECTION_ICONS,
@@ -689,9 +689,10 @@ export class SharedViewComponent implements OnInit {
   protected readonly slideshowActive = signal(false);
 
   // Multi-select
-  protected readonly selectedPaths = signal<Set<string>>(new Set());
+  private readonly selectedFiles = signal<Map<string, string>>(new Map());
+  protected readonly selectedPaths = computed(() => new Set(this.selectedFiles().keys()));
   protected readonly selectionCount = computed(() => this.selectedPaths().size);
-  private lastSelectedIndex = -1;
+  private lastSelectedPath: string | null = null;
 
   // Client proofing (session JWT scoped to this album, carried explicitly —
   // the shared page has no logged-in user)
@@ -849,32 +850,32 @@ export class SharedViewComponent implements OnInit {
   protected toggleSelection(photo: Photo, event?: MouseEvent): void {
     const photos = this.photos();
     const clickedIndex = photos.findIndex(p => p.path === photo.path);
-    const current = this.selectedPaths();
-    const next = new Set(current);
+    const next = new Map(this.selectedFiles());
 
-    if (event?.shiftKey && this.lastSelectedIndex >= 0 && clickedIndex >= 0) {
-      const start = Math.min(this.lastSelectedIndex, clickedIndex);
-      const end = Math.max(this.lastSelectedIndex, clickedIndex);
+    const anchorIndex = photos.findIndex(p => p.path === this.lastSelectedPath);
+    if (event?.shiftKey && anchorIndex >= 0 && clickedIndex >= 0) {
+      const start = Math.min(anchorIndex, clickedIndex);
+      const end = Math.max(anchorIndex, clickedIndex);
       for (let i = start; i <= end; i++) {
-        next.add(photos[i].path);
+        next.set(photos[i].path, photos[i].filename);
       }
     } else if (next.has(photo.path)) {
       next.delete(photo.path);
     } else {
-      next.add(photo.path);
+      next.set(photo.path, photo.filename);
     }
 
-    if (clickedIndex >= 0) this.lastSelectedIndex = clickedIndex;
-    this.selectedPaths.set(next);
+    if (clickedIndex >= 0) this.lastSelectedPath = photo.path;
+    this.selectedFiles.set(next);
   }
 
   protected clearSelection(): void {
-    this.selectedPaths.set(new Set());
-    this.lastSelectedIndex = -1;
+    this.selectedFiles.set(new Map());
+    this.lastSelectedPath = null;
   }
 
   protected copyPaths(): void {
-    const filenames = [...this.selectedPaths()].map(basename);
+    const filenames = [...this.selectedFiles().values()];
     copyLines(filenames).then(() => {
       this.snackBar.open(this.i18n.t(I18N.gallery.selection.copied), '', { duration: 2000 });
     });
@@ -885,14 +886,14 @@ export class SharedViewComponent implements OnInit {
     if (!scope || type !== 'original' || profile || this.downloading()) return;
     const current = () => this.mediaCurrent(scope);
     if (!current()) return;
-    const paths = [...this.selectedPaths()];
+    const files = [...this.selectedFiles()];
     this.downloading.set(true);
     try {
-      for (const path of paths) {
+      for (const [path, filename] of files) {
         if (!current()) break;
         const blob = await firstValueFrom(this.api.getRaw(sharedAlbumMediaUrl(scope, 'download', path)));
         if (!current()) break;
-        downloadBlob(blob, path.split(/[\\/]/).pop() ?? '');
+        downloadBlob(blob, filename);
       }
     } catch {
       if (current()) this.error.set(this.i18n.t(I18N.albums.load_error));

@@ -1,3 +1,4 @@
+import { pathOf } from './shared/utils/url-path';
 import { Component, inject, computed, signal, effect, untracked, OnInit, ChangeDetectionStrategy, DestroyRef, ElementRef, viewChild, afterRenderEffect } from '@angular/core';
 import { DecimalPipe, NgTemplateOutlet } from '@angular/common';
 import { FormsModule } from '@angular/forms';
@@ -215,7 +216,7 @@ export class App implements OnInit {
   protected readonly capsuleFilters = inject(CapsuleFiltersService);
   protected readonly navigationDestinations = computed(() => {
     const features = this.store.config()?.features;
-    const path = this.url().split(/[?#]/)[0];
+    const path = pathOf(this.url());
     return [
       { path: '/', icon: 'diamond', label: I18N.nav.gallery, visible: true },
       { path: '/albums', icon: 'photo_album', label: I18N.nav.albums, visible: features?.show_albums },
