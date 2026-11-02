@@ -10,6 +10,7 @@ import { MatSnackBar } from '@angular/material/snack-bar';
 import { NEVER, Subject, filter, firstValueFrom, take } from 'rxjs';
 import { AuthService } from '../../core/services/auth.service';
 import { I18nService } from '../../core/services/i18n.service';
+import { I18N } from '../../core/i18n/keys';
 import { AssistantChangesService, type AssistantChangeBatch } from '../../core/agent/assistant-changes.service';
 import { WebMcpToolRegistry } from '../../core/agent/webmcp-registry.service';
 import { GalleryStore, type ViewerConfig } from './gallery.store';
@@ -103,7 +104,7 @@ describe('Query proposal with real Router, Store and HTTP', () => {
     store.filters.update(value => ({ ...value, gps_lat: '12', gps_lng: '30', gps_radius_km: '5' }));
     await propose({ no_gps: '1', semantic_query: 'sunset' });
     expect(root().querySelector('[data-effective-field="gps_lat"]')?.textContent).toContain('12');
-    expect(root().querySelector('[role="alert"]')?.textContent).toContain('Semantic Query');
+    expect(root().querySelector('[role="alert"]')?.textContent).toContain(I18N.gallery.semantic_search);
     expect(root().querySelector<HTMLButtonElement>('[data-apply-query-proposal]')!.disabled).toBe(true);
     http.expectNone(request => request.url === '/api/photos' || request.method !== 'GET');
     expect(store.filters().gps_lat).toBe('12');
