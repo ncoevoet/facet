@@ -11,7 +11,7 @@ import { TimelineFeedCache } from '../timeline/timeline-feed-cache.service';
 import { ContextHelpComponent } from '../../shared/components/context-help/context-help.component';
 import { Component, inject, signal, computed, effect, OnInit, HostListener, DestroyRef, ElementRef, viewChild, ChangeDetectionStrategy } from '@angular/core';
 import { Location } from '@angular/common';
-import { ActivatedRoute, Router, NavigationStart } from '@angular/router';
+import { ActivatedRoute, Router, NavigationStart, NavigationEnd } from '@angular/router';
 import { MatIconModule } from '@angular/material/icon';
 import { MatButtonModule } from '@angular/material/button';
 import { MatTooltipModule } from '@angular/material/tooltip';
@@ -69,6 +69,12 @@ import { PersonFaceMenuComponent } from '../persons/person-face-menu.component';
 import {
   FaceBoxMode, FACE_BOX_MODE_ICONS, FACE_BOX_MODE_LABELS, nextFaceBoxMode, readFaceBoxMode, writeFaceBoxMode,
 } from './face-box-mode';
+
+interface PhotoTagOrigin {
+  owner: string;
+  params: Record<string, string>;
+  refinable: boolean;
+}
 
 const SOCIAL_SOURCE_KEYS: Record<string, string> = {
   saliency: I18N.social_export.source.saliency,
@@ -709,8 +715,42 @@ export class PhotoDetailComponent extends PhotoDetailBase implements OnInit {
   protected readonly collectionSidebarAvailable = computed(() => this.openedFromGallery && !this.timelineOrigin
     && this.viewerOwner === this.auth.identity() && this.store.photos().length > 0);
   protected readonly collectionSidebarTitle = computed(() => this.store.currentAlbum?.()?.name ?? '');
-  protected readonly tagCollectionAvailable = computed(() => this.openedFromGallery && !this.timelineOrigin
-    && this.viewerOwner === this.auth.identity() && this.store.pinnedPaths() === null && !this.store.filters().similar_to);
+  // A later library search replaces the singleton store. Keep the query owned
+  // by this history entry, including when Back recreates the photo component.
+  private readonly tagOrigin = signal(this.readTagOrigin());
+  protected readonly tagCollectionAvailable = computed(() => this.tagOrigin()?.refinable === true
+    && this.viewerOwner === this.auth.identity());
+
+  private readTagOrigin(
+    state = this.router.currentNavigation()?.extras.state ?? history.state,
+    trigger = this.router.currentNavigation()?.trigger ?? 'imperative',
+  ): PhotoTagOrigin | null {
+    if (this.viewerOwner !== this.auth.identity()) return null;
+    if (state && Object.hasOwn(state, 'photoTagOrigin')) {
+      const origin = state['photoTagOrigin'] as PhotoTagOrigin | null;
+      return origin?.owner === this.viewerOwner && typeof origin.refinable === 'boolean'
+        && origin.params && typeof origin.params === 'object' && !Array.isArray(origin.params)
+        && Object.values(origin.params).every(value => typeof value === 'string') ? origin : null;
+    }
+    if (!state?.['photo'] || state?.['photoOrigin'] === 'timeline') return null;
+    // An old/unowned history entry must never capture a different account's
+    // current collection when restored through Back/Forward.
+    if (trigger !== 'imperative') return null;
+    const filters = this.store.filters();
+    return { owner: this.viewerOwner, refinable: this.store.pinnedPaths() === null && !filters.similar_to,
+      params: { ...buildSyncParams(filters, this.store.config()?.defaults, this.store.config()?.search_threshold_default),
+        ...(this.store.temporaryReviewQueue() ? { review_queue: '1' } : {}) } };
+  }
+
+  private rememberTagOrigin(): void {
+    this.location.replaceState(this.location.path(true), '', {
+      ...this.location.getState() as Record<string, unknown>, photoTagOrigin: this.tagOrigin(),
+    });
+  }
+
+  private photoNavigationState(photo: Photo | undefined): Record<string, unknown> {
+    return { photo, photoTagOrigin: this.tagOrigin() };
+  }
 
   private logicalChangeRevision = 0;
 
@@ -735,7 +775,7 @@ export class PhotoDetailComponent extends PhotoDetailBase implements OnInit {
       const member = { photo, owner: this.auth.identity() };
       this.memberPhoto = member;
       try {
-        await this.router.navigate(['/photo'], { queryParams: { path: target }, state: { photo }, replaceUrl: true });
+        await this.router.navigate(['/photo'], { queryParams: { path: target }, state: this.photoNavigationState(photo), replaceUrl: true });
       } finally {
         if (this.memberPhoto === member) this.memberPhoto = null;
       }
@@ -746,7 +786,7 @@ export class PhotoDetailComponent extends PhotoDetailBase implements OnInit {
     if (!this.collectionSidebarAvailable() || path === this.photo()?.path || !this.memberAllowed(path)) return;
     const photo = this.store.photos().find(item => item.path === path);
     if (!photo) return;
-    void this.router.navigate(['/photo'], { queryParams: { path }, state: { photo }, replaceUrl: true });
+    void this.router.navigate(['/photo'], { queryParams: { path }, state: this.photoNavigationState(photo), replaceUrl: true });
   }
 
   protected loadCollectionPage(): void {
@@ -906,8 +946,13 @@ export class PhotoDetailComponent extends PhotoDetailBase implements OnInit {
 
   constructor() {
     super();
+    let trigger: 'imperative' | 'popstate' | 'hashchange' = 'imperative';
     this.router.events.pipe(takeUntilDestroyed(this.destroyRef)).subscribe(event => {
-      if (event instanceof NavigationStart) this.logicalChangeRevision++;
+      if (event instanceof NavigationStart) { this.logicalChangeRevision++; trigger = event.navigationTrigger ?? 'imperative'; }
+      if (event instanceof NavigationEnd) {
+        this.tagOrigin.set(this.readTagOrigin(this.location.getState(), trigger));
+        this.rememberTagOrigin();
+      }
     });
     this.destroyRef.onDestroy(() => {
       if (this.locationMapTimeout !== null) clearTimeout(this.locationMapTimeout);
@@ -942,6 +987,7 @@ export class PhotoDetailComponent extends PhotoDetailBase implements OnInit {
   }
 
   async ngOnInit(): Promise<void> {
+    this.rememberTagOrigin();
     void this.store.ensureMetricRanges();
     // Back/Forward between two photos reuses this component instead of creating a new one.
     this.route.queryParamMap.pipe(skip(1), takeUntilDestroyed(this.destroyRef)).subscribe(params => {
@@ -1122,7 +1168,7 @@ export class PhotoDetailComponent extends PhotoDetailBase implements OnInit {
     // Replace, so Escape (history back) leaves the photo page instead of stepping back through every photo.
     this.router.navigate(['/photo'], {
       queryParams: { path: next.path },
-      state: { photo: next },
+      state: this.photoNavigationState(next),
       replaceUrl: true,
     });
     this.photo.set(next);
@@ -1297,7 +1343,7 @@ export class PhotoDetailComponent extends PhotoDetailBase implements OnInit {
       if (navigated || this.destroyRef.destroyed || this.photo()?.path !== previous.path) return;
       const target = this.store.photos().find(photo => photo.path === next?.path) ?? this.store.photos()[index] ?? this.store.photos()[0];
       if (!target) { this.router.navigate(['/']); return; }
-      this.router.navigate(['/photo'], { queryParams: { path: target.path }, state: { photo: target }, replaceUrl: true });
+      this.router.navigate(['/photo'], { queryParams: { path: target.path }, state: this.photoNavigationState(target), replaceUrl: true });
       this.photo.set(target);
 
     } finally { navigation.unsubscribe(); }
@@ -1389,16 +1435,13 @@ export class PhotoDetailComponent extends PhotoDetailBase implements OnInit {
   protected navigateTag(tag: string, scope: 'collection' | 'library'): void {
     if (this.viewerOwner !== this.auth.identity() || this.destroyRef.destroyed) return;
     if (scope === 'collection' && !this.tagCollectionAvailable()) return;
-    const filters = this.store.filters();
-    const query = refineTagQuery(scope === 'collection' ? filters.tag_groups : '', tag);
+    const query = refineTagQuery(scope === 'collection' ? this.tagOrigin()!.params['tag_groups'] ?? '' : '', tag);
     if (query === null) {
       this.snackBar.open(this.i18n.t(I18N.errors.action_failed), '', { duration: 3000 });
       return;
     }
-    const params = scope === 'collection'
-      ? buildSyncParams(filters, this.store.config()?.defaults, this.store.config()?.search_threshold_default) : {};
-    this.router.navigate(['/'], { info: GALLERY_REVISIT, queryParams: { ...params, tag_groups: query,
-      ...(scope === 'collection' && this.store.temporaryReviewQueue() ? { review_queue: '1' } : {}) } });
+    const params = scope === 'collection' ? this.tagOrigin()!.params : {};
+    this.router.navigate(['/'], { info: GALLERY_REVISIT, queryParams: { ...params, tag_groups: query } });
   }
 
   protected readonly newTag = signal('');

@@ -46,7 +46,7 @@ describe('PhotoDetailComponent', () => {
   let changes$: Subject<AssistantChangeBatch>;
   let mockApi: { get: Mock; post: Mock; put: Mock; delete: Mock; imageUrl: Mock; downloadUrl: Mock; getRaw: Mock };
   let mockRouter: { url: string; navigate: Mock; currentNavigation: () => null; events: Observable<unknown> };
-  let mockLocation: { back: Mock };
+  let mockLocation: { back: Mock; path: Mock; getState: Mock; replaceState: Mock };
   let mockRoute: { snapshot: { queryParamMap: { get: Mock } }; queryParamMap: BehaviorSubject<ParamMap> };
   let mockAuth: { status: ReturnType<typeof signal>; identity: () => string; isEdition: ReturnType<typeof signal>; downloadProfiles: ReturnType<typeof signal> };
   let mockDialog: { open: Mock; openDialogs: unknown[] };
@@ -82,7 +82,7 @@ describe('PhotoDetailComponent', () => {
     image_height: 4000,
   };
 
-  function createComponent() {
+  function createComponent(prepare?: (store: GalleryStore) => void) {
     TestBed.resetTestingModule();
     TestBed.configureTestingModule({
       providers: [
@@ -97,6 +97,7 @@ describe('PhotoDetailComponent', () => {
         { provide: I18nService, useValue: { t: (k: string) => k, locale: () => 'en', translations: () => ({}) } },
       ],
     });
+    prepare?.(TestBed.inject(GalleryStore));
     component = TestBed.inject(PhotoDetailComponent);
   }
 
@@ -150,7 +151,7 @@ describe('PhotoDetailComponent', () => {
       getRaw: vi.fn(() => of(new Blob(['test'], { type: 'image/jpeg' }))),
     };
     mockRouter = { url: '/photo', navigate: vi.fn(), currentNavigation: () => null, events: new Subject() };
-    mockLocation = { back: vi.fn() };
+    mockLocation = { back: vi.fn(), path: vi.fn(() => '/photo'), getState: vi.fn(() => history.state ?? {}), replaceState: vi.fn() };
     mockRoute = {
       snapshot: {
         queryParamMap: { get: vi.fn((key: string) => key === 'path' ? '/photos/test.jpg' : null) },
@@ -2317,14 +2318,24 @@ describe('PhotoDetailComponent', () => {
   describe('manual tags', () => {
     it('refines the originating album and date constraints using a literal tag', () => {
       history.replaceState({ photo: samplePhoto }, '', location.href);
-      createComponent();
+      createComponent(store => store.filters.update(f => ({ ...f, album_id: '7', date_from: '2026-10-01', tag_groups: '{"none":["private"]}' })));
       const store = TestBed.inject(GalleryStore);
-      store.filters.update(f => ({ ...f, album_id: '7', date_from: '2026-10-01', tag_groups: '{"none":["private"]}' }));
       component.navigateTag('coast,ridge OR 夜景', 'collection');
       expect(mockRouter.navigate).toHaveBeenCalledWith(['/'], { info: GALLERY_REVISIT, queryParams: expect.objectContaining({
         album_id: '7', date_from: '2026-10-01', tag_groups: '{"all":["coast,ridge OR 夜景"],"none":["private"]}',
       }) });
       expect(store.filters().tag_groups).toBe('{"none":["private"]}');
+    });
+
+    it.each([null, { owner: 'other', refinable: true, params: { album_id: '7' } },
+      { owner: '', refinable: true, params: [] }, { owner: '', refinable: true, params: { album_id: 7 } },
+    ])('refuses a foreign or malformed saved tag origin: %j', origin => {
+      const owned = origin && origin.owner === '' ? { ...origin, owner: mockAuth.identity() } : origin;
+      history.replaceState({ photo: samplePhoto, photoTagOrigin: owned }, '', location.href);
+      createComponent();
+      expect(component.tagCollectionAvailable()).toBe(false);
+      component.navigateTag('trip', 'collection');
+      expect(mockRouter.navigate).not.toHaveBeenCalled();
     });
 
     it('starts a deliberate library tag query without inheriting the parked album', () => {
@@ -2344,8 +2355,7 @@ describe('PhotoDetailComponent', () => {
 
     it('does not offer a query refinement that would lose an explicit captured file list', () => {
       history.replaceState({ photo: samplePhoto }, '', location.href);
-      createComponent();
-      TestBed.inject(GalleryStore).pinnedPaths.set([samplePhoto.path]);
+      createComponent(store => store.pinnedPaths.set([samplePhoto.path]));
       expect(component.tagCollectionAvailable()).toBe(false);
       component.navigateTag('trip', 'collection');
       expect(mockRouter.navigate).not.toHaveBeenCalled();
@@ -2353,8 +2363,7 @@ describe('PhotoDetailComponent', () => {
 
     it('does not claim a tag can refine the separate Similar Photos ranking', () => {
       history.replaceState({ photo: samplePhoto }, '', location.href);
-      createComponent();
-      TestBed.inject(GalleryStore).filters.update(f => ({ ...f, similar_to: '/source.jpg' }));
+      createComponent(store => store.filters.update(f => ({ ...f, similar_to: '/source.jpg' })));
       expect(component.tagCollectionAvailable()).toBe(false);
       component.navigateTag('trip', 'collection');
       expect(mockRouter.navigate).not.toHaveBeenCalled();

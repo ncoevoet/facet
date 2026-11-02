@@ -1,5 +1,6 @@
 import { StackNavigatorComponent } from './stack-navigator.component';
 import { By } from '@angular/platform-browser';
+import { Location } from '@angular/common';
 import { provideLocationMocks } from '@angular/common/testing';
 import { Component, signal } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
@@ -151,6 +152,117 @@ describe('manual stack browsing through rendered viewer, Router and HTTP', () =>
     button('button[aria-label="photo_detail.back"]').click();
     await returned;
     expect(router.url).toBe('/?no_gps=true');
+  });
+
+  it.each([false, true])('retains the photo visit collection after a library tag search and history Back (step=%s)', async step => {
+    store.filters.update(filters => ({ ...filters, album_id: '7', date_from: '2026-10-01', date_to: '2026-10-31' }));
+    await open();
+    if (step) {
+      const navigation = arrived();
+      root().querySelectorAll<HTMLButtonElement>('app-photo-collection-sidebar button[title]')[1].click();
+      await navigation;
+      await membership(null);
+    }
+    const photoPage = () => harness.routeDebugElement!.componentInstance as unknown as {
+      navigateTag(tag: string, scope: 'library' | 'collection'): void;
+    };
+    let navigation = arrived();
+    photoPage().navigateTag('coast,ridge OR 夜景', 'library');
+    await navigation;
+    // A library visit replaces the singleton store's current query. The photo
+    // visit's origin must survive independently of that later gallery state.
+    store.filters.update(filters => ({ ...filters, album_id: '', date_from: '', date_to: '', no_gps: '',
+      tag_groups: '{"all":["coast,ridge OR 夜景"]}' }));
+    navigation = arrived();
+    TestBed.inject(Location).back();
+    await navigation;
+    await membership(step ? null : stack);
+    navigation = arrived();
+    photoPage().navigateTag('夜景', 'collection');
+    await navigation;
+    const url = new URL(router.url, 'http://fixture');
+    expect(url.searchParams.get('album_id')).toBe('7');
+    expect(url.searchParams.get('date_from')).toBe('2026-10-01');
+    expect(url.searchParams.get('date_to')).toBe('2026-10-31');
+    expect(url.searchParams.get('no_gps')).toBe('true');
+    expect(url.searchParams.get('tag_groups')).toBe('{"all":["夜景"]}');
+  });
+
+  it('restores each query when history navigation reuses the photo component', async () => {
+    store.filters.update(filters => ({ ...filters, album_id: '7' }));
+    await open();
+    const instance = harness.routeDebugElement!.componentInstance;
+    store.filters.update(filters => ({ ...filters, album_id: '99' }));
+    await router.navigate(['/photo'], { queryParams: { path: '/outside.jpg' }, state: { photo: makePhoto({ path: '/outside.jpg' }) } });
+    await membership(null);
+    expect(harness.routeDebugElement!.componentInstance).toBe(instance);
+    const navigation = arrived();
+    TestBed.inject(Location).back();
+    await navigation;
+    await membership();
+    expect(harness.routeDebugElement!.componentInstance).toBe(instance);
+    const forward = arrived();
+    TestBed.inject(Location).forward();
+    await forward;
+    await membership(null);
+    expect(TestBed.inject(Location).getState()).toEqual(expect.objectContaining({
+      photoTagOrigin: expect.objectContaining({ params: expect.objectContaining({ album_id: '99' }) }),
+    }));
+    const back = arrived();
+    TestBed.inject(Location).back();
+    await back;
+    await membership();
+    const returned = arrived();
+    (instance as { navigateTag(tag: string, scope: 'collection'): void }).navigateTag('trip', 'collection');
+    await returned;
+    expect(new URL(router.url, 'http://fixture').searchParams.get('album_id')).toBe('7');
+  });
+
+  it('does not adopt an old photo visit collection after another account returns through Back', async () => {
+    store.filters.update(filters => ({ ...filters, album_id: '7' }));
+    await open();
+    let navigation = arrived();
+    await router.navigateByUrl('/away');
+    await navigation;
+    auth.status.update(status => ({ ...status!, user_id: 'bob' }));
+    store.filters.update(filters => ({ ...filters, album_id: '99' }));
+    navigation = arrived();
+    TestBed.inject(Location).back();
+    await navigation;
+    await membership();
+    const page = harness.routeDebugElement!.componentInstance as unknown as {
+      tagCollectionAvailable(): boolean;
+      navigateTag(tag: string, scope: 'collection' | 'library'): void;
+    };
+    expect(page.tagCollectionAvailable()).toBe(false);
+    page.navigateTag('trip', 'collection');
+    expect(router.url).toContain('/photo?');
+    navigation = arrived();
+    page.navigateTag('trip', 'library');
+    await navigation;
+    expect(router.url).toBe('/?tag_groups=%7B%22all%22:%5B%22trip%22%5D%7D');
+  });
+
+  it.each(['pinned', 'similar'])('keeps %s visits unavailable for query refinement after Back', async kind => {
+    if (kind === 'pinned') store.pinnedPaths.set([paths[1]]);
+    else store.filters.update(filters => ({ ...filters, similar_to: '/source.jpg' }));
+    await open();
+    const page = () => harness.routeDebugElement!.componentInstance as unknown as {
+      tagCollectionAvailable(): boolean;
+      navigateTag(tag: string, scope: 'collection' | 'library'): void;
+    };
+    let navigation = arrived();
+    page().navigateTag('trip', 'library');
+    await navigation;
+    store.pinnedPaths.set(null);
+    store.filters.update(filters => ({ ...filters, similar_to: '' }));
+    navigation = arrived();
+    TestBed.inject(Location).back();
+    await navigation;
+    await membership();
+    expect(page().tagCollectionAvailable()).toBe(false);
+    page().navigateTag('trip', 'collection');
+    expect(router.url).toContain('/photo?');
   });
 
   it('does not navigate from a stale collection button after the account changes', async () => {
