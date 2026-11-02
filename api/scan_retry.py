@@ -1,6 +1,7 @@
 """Bounded, account-bound retry previews and worker-owned private transports."""
 
 import atexit
+from contextlib import contextmanager
 from dataclasses import dataclass
 import hashlib
 import json
@@ -8,19 +9,23 @@ import logging
 import os
 from pathlib import Path
 import secrets
+import sqlite3
 import threading
 import time
-from typing import Any
+from typing import Any, Iterator
 
 from fastapi import HTTPException, Request
 
 from api.auth import CurrentUser
 from api.config import get_all_scan_directories, _CONFIG_PATH
 from db.connection import DEFAULT_DB_PATH
+from db.schema import SCAN_RETRY_RECEIPTS_COLUMNS, _build_create_table_sql
 from processing.scan_retry import capture_retry_plan, RetryPlanError, retry_manifest_bytes, retry_plan_paths, write_retry_manifest
 
 PREVIEW_TTL_SECONDS = 600
 MAX_PREVIEWS = 32
+MAX_RECEIPTS = 1000
+RECEIPT_TTL_SECONDS = 7 * 86400
 _lock = threading.Lock()
 
 
@@ -32,6 +37,7 @@ class RetryPreview:
     applying: bool = False
     receipt: dict[str, Any] | None = None
     refused: bool = False
+    plan_id: str | None = None
 
 
 _previews: dict[str, RetryPreview] = {}
@@ -72,9 +78,54 @@ def _prune() -> None:
             del _previews[key]
 
 
+@contextmanager
+def _receipt_db() -> Iterator[sqlite3.Connection]:
+    conn = sqlite3.connect(Path(DEFAULT_DB_PATH).resolve().as_uri() + '?mode=rw', uri=True, timeout=10)
+    conn.row_factory = sqlite3.Row
+    try:
+        with conn:
+            yield conn
+    finally:
+        conn.close()
+
+
+def _recover_receipt(plan_id: str) -> RetryPreview | None:
+    try:
+        with _receipt_db() as conn:
+            if not conn.execute("SELECT 1 FROM sqlite_master WHERE type='table' AND name='scan_retry_receipts'").fetchone():
+                return None
+            row = conn.execute('SELECT * FROM scan_retry_receipts WHERE plan_id=? AND expires_at>?',
+                               (plan_id, time.time())).fetchone()
+            if row is None:
+                return None
+            return RetryPreview(row['actor'], {}, float('inf'),
+                                applying=row['state'] == 'submitting',
+                                receipt=json.loads(row['receipt']) if row['receipt'] else None,
+                                refused=row['state'] == 'refused', plan_id=plan_id)
+    except sqlite3.Error:
+        raise HTTPException(503, 'Retry receipt storage is unavailable; inspect scan history before retrying') from None
+
+
+def _claim_receipt(plan_id: str, preview: RetryPreview) -> bool:
+    try:
+        with _receipt_db() as conn:
+            conn.execute('BEGIN IMMEDIATE')
+            conn.execute(_build_create_table_sql('scan_retry_receipts', SCAN_RETRY_RECEIPTS_COLUMNS))
+            conn.execute('DELETE FROM scan_retry_receipts WHERE expires_at<=?', (time.time(),))
+            if conn.execute('SELECT 1 FROM scan_retry_receipts WHERE plan_id=?', (plan_id,)).fetchone():
+                return False
+            if conn.execute('SELECT COUNT(*) FROM scan_retry_receipts').fetchone()[0] >= MAX_RECEIPTS:
+                raise HTTPException(429, 'Retry receipt capacity reached; inspect existing scan history')
+            result = conn.execute("INSERT OR IGNORE INTO scan_retry_receipts VALUES (?,?,'submitting',NULL,?)",
+                                  (plan_id, preview.actor, time.time() + RECEIPT_TTL_SECONDS))
+            return result.rowcount == 1
+    except sqlite3.Error:
+        raise HTTPException(503, 'Retry receipt storage is unavailable; no retry was started') from None
+
+
 def _owned(plan_id: str, request: Request, user: CurrentUser) -> RetryPreview:
     _prune()
-    preview = _previews.get(plan_id)
+    preview = _recover_receipt(plan_id) or _previews.get(plan_id)
     if preview is None:
         raise HTTPException(410, 'Retry preview expired; create a new preview')
     if preview.actor != _actor(request, user):
@@ -109,6 +160,9 @@ def begin_retry(plan_id: str, request: Request, user: CurrentUser) -> RetryPrevi
             return preview
         if preview.applying or preview.refused:
             raise HTTPException(409, 'Retry was already submitted; read its receipt or create a new preview')
+        if not _claim_receipt(plan_id, preview):
+            raise HTTPException(409, 'Retry submission already exists; read its receipt')
+        preview.plan_id = plan_id
         preview.applying = True
     try:
         if _capture_allowed(preview.plan['run_id']) != preview.plan:
@@ -121,6 +175,16 @@ def begin_retry(plan_id: str, request: Request, user: CurrentUser) -> RetryPrevi
 
 def finish_retry(preview: RetryPreview, receipt: dict[str, Any] | None) -> None:
     with _lock:
+        if preview.plan_id is not None:
+            try:
+                with _receipt_db() as conn:
+                    conn.execute('UPDATE scan_retry_receipts SET state=?, receipt=? WHERE plan_id=? AND actor=?',
+                                 ('spawned' if receipt else 'refused', json.dumps(receipt) if receipt else None,
+                                  preview.plan_id, preview.actor))
+            except sqlite3.Error:
+                # The durable submitting claim must remain uncertain and must
+                # never become permission to launch another process.
+                logger.exception('Could not settle retry receipt; inspect scan history')
         preview.applying = False
         preview.receipt = receipt
         preview.refused = receipt is None

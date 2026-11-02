@@ -1024,7 +1024,7 @@ VIEWER_EXPORT_EXCLUDED_TABLES = ('mcp_tokens', 'rating_provenance', 'organizatio
                                  'face_review_feedback',
                                  'face_update_items', 'face_update_jobs',
                                  'person_centroid_dirty',
-                                 'scan_failures', 'scan_runs',
+                                 'scan_failures', 'scan_runs', 'scan_retry_receipts',
                                  'photo_stack_members', 'photo_stacks', 'stack_suggestion_dismissals',
                                  'immich_stack_links', 'immich_stack_receipts', 'immich_stack_send_claims')
 

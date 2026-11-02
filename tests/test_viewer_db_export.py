@@ -708,3 +708,21 @@ def test_face_update_jobs_are_private_and_incremental_keeps_viewer_receipts(tmp_
     with sqlite3.connect(out) as conn:
         assert conn.execute('SELECT job_id,owner,state FROM face_update_jobs').fetchall()==[('b'*32,'viewer-local-owner','completed')]
         assert conn.execute('SELECT job_id,path,state FROM face_update_items').fetchall()==[('b'*32,_A,'empty')]
+
+
+def test_retry_submission_receipts_are_private_and_viewer_local_receipts_survive_incremental(tmp_path):
+    src, out = str(tmp_path / 'source.db'), str(tmp_path / 'viewer.db')
+    _make_source_db(src)
+    from db.schema import SCAN_RETRY_RECEIPTS_COLUMNS, _build_create_table_sql
+    ddl = _build_create_table_sql('scan_retry_receipts', SCAN_RETRY_RECEIPTS_COLUMNS)
+    with sqlite3.connect(src) as conn:
+        conn.execute(ddl)
+        conn.execute("INSERT INTO scan_retry_receipts VALUES ('source-plan','private-actor','spawned','private-receipt',9999999999)")
+    export_viewer_db(src, out, verbose=False)
+    with sqlite3.connect(out) as conn:
+        assert not conn.execute("SELECT 1 FROM sqlite_master WHERE name='scan_retry_receipts'").fetchone()
+        conn.execute(ddl)
+        conn.execute("INSERT INTO scan_retry_receipts VALUES ('viewer-plan','viewer-actor','spawned','viewer-receipt',9999999999)")
+    export_viewer_db(src, out, verbose=False)
+    with sqlite3.connect(out) as conn:
+        assert conn.execute('SELECT plan_id,actor,receipt FROM scan_retry_receipts').fetchall() == [('viewer-plan','viewer-actor','viewer-receipt')]

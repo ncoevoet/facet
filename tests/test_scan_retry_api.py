@@ -145,7 +145,7 @@ def test_permission_confirmation_expiry_capacity_and_failed_spawn_are_explicit(r
     monkeypatch.setattr(scan_retry, 'MAX_PREVIEWS', 1)
     assert ctx.client.post('/api/scan/retry/preview', json={'run_id': 1}).status_code == 429
     scan_retry._previews[plan['plan_id']].expires = 0
-    assert ctx.client.get('/api/scan/retry/' + plan['plan_id']).status_code == 410
+    assert ctx.client.get('/api/scan/retry/' + plan['plan_id']).json()['state'] == 'refused'
     monkeypatch.setitem(scan.VIEWER_CONFIG, 'features', {'show_scan_button': False})
     assert ctx.client.post('/api/scan/retry/preview', json={'run_id': 1}).status_code == 403
     monkeypatch.setitem(scan.VIEWER_CONFIG, 'features', {'show_scan_button': True})
@@ -204,7 +204,11 @@ def test_real_worker_reads_utf8_manifest_and_owned_exit_removes_it(retry_api, mo
         return subprocess.Popen([sys.executable, '-c', script, *command[2:]], **kwargs)
     ctx.popen.side_effect = safe_worker
     plan = preview(ctx)
-    before = ctx.db.read_bytes()
+    def library_rows():
+        with sqlite3.connect(ctx.db) as conn:
+            return {table: conn.execute('SELECT * FROM ' + table).fetchall()
+                    for table in ('photos', 'scan_runs', 'scan_failures')}
+    before = library_rows()
     result = ctx.client.post('/api/scan/retry/apply', json={'plan_id': plan['plan_id'], 'confirm': True})
     assert result.status_code == 200, result.text
     filename = next(iter(scan_retry._manifests))
@@ -213,7 +217,12 @@ def test_real_worker_reads_utf8_manifest_and_owned_exit_removes_it(retry_api, mo
     assert scan._scan_state['exit_code'] == 0
     assert 'captured=1' in scan._scan_state['output_lines']
     assert not Path(filename).exists() and not scan_retry._manifests
-    assert ctx.db.read_bytes() == before
+    assert library_rows() == before
+    with sqlite3.connect(ctx.db) as conn:
+        state, receipt = conn.execute('SELECT state, receipt FROM scan_retry_receipts').fetchone()
+        assert state == 'spawned'
+        import json
+        assert json.loads(receipt)['job_id'] == result.json()['job_id']
 
 
 def test_actual_child_records_the_job_id_returned_by_the_viewer(retry_api):
@@ -243,3 +252,106 @@ def test_actual_child_records_the_job_id_returned_by_the_viewer(retry_api):
         assert conn.execute('SELECT viewer_job_id,job_status FROM scan_runs WHERE id=2').fetchone() == (response.json()['job_id'], 'completed')
     assert ctx.photo.read_bytes() == before
     assert not scan_retry._manifests
+
+
+def test_submitted_receipt_survives_worker_memory_loss_without_respawn(retry_api, monkeypatch):
+    ctx = retry_api
+    plan = preview(ctx)
+    body = {'plan_id': plan['plan_id'], 'confirm': True}
+    accepted = ctx.client.post('/api/scan/retry/apply', json=body)
+    assert accepted.status_code == 200
+    scan_retry._previews.clear()
+    receipt = ctx.client.get('/api/scan/retry/' + plan['plan_id'])
+    assert receipt.status_code == 200
+    assert receipt.json() == {'state': 'spawned', 'job_id': accepted.json()['job_id']}
+    assert ctx.client.post('/api/scan/retry/apply', json=body).json() == accepted.json()
+    assert ctx.popen.call_count == 1
+    ctx.client.headers['authorization'] = 'Bearer another-session'
+    assert ctx.client.get('/api/scan/retry/' + plan['plan_id']).status_code == 403
+    assert ctx.client.post('/api/scan/retry/apply', json=body).status_code == 403
+
+
+def test_unsettled_durable_submission_never_authorizes_another_spawn(retry_api, monkeypatch):
+    ctx = retry_api
+    plan = preview(ctx)
+    monkeypatch.setattr(scan_retry, 'finish_retry', lambda *args: None)
+    body = {'plan_id': plan['plan_id'], 'confirm': True}
+    assert ctx.client.post('/api/scan/retry/apply', json=body).status_code == 200
+    scan_retry._previews.clear()
+    assert ctx.client.get('/api/scan/retry/' + plan['plan_id']).json()['state'] == 'submitting'
+    assert ctx.client.post('/api/scan/retry/apply', json=body).status_code == 409
+    assert ctx.popen.call_count == 1
+
+
+def test_fresh_process_recovers_receipt_and_competing_processes_claim_once(retry_api):
+    import json
+    import os
+    ctx = retry_api
+    plan = preview(ctx)
+    accepted = ctx.client.post('/api/scan/retry/apply', json={'plan_id': plan['plan_id'], 'confirm': True})
+    assert accepted.status_code == 200
+    env = dict(os.environ, DB_PATH=str(ctx.db), FACET_CONFIG=str(ctx.config))
+    script = """
+import json, sys
+from api.scan_retry import _recover_receipt, _claim_receipt, RetryPreview
+old = _recover_receipt(sys.argv[1])
+print(json.dumps(old.receipt), flush=True)
+sys.stdin.readline()
+print(json.dumps(_claim_receipt('b'*32, RetryPreview('actor', {}, 0))), flush=True)
+"""
+    children = [subprocess.Popen([sys.executable, '-c', script, plan['plan_id']],
+                env=env, stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+                encoding='utf-8') for _ in range(2)]
+    try:
+        for child in children:
+            assert json.loads(child.stdout.readline()) == accepted.json()
+        def release(child):
+            out, err = child.communicate('go\n', timeout=20)
+            assert child.returncode == 0, err
+            return json.loads(out.strip())
+        with ThreadPoolExecutor(max_workers=2) as pool:
+            assert sorted(pool.map(release, children)) == [False, True]
+    finally:
+        for child in children:
+            if child.poll() is None:
+                child.kill()
+            child.wait()
+
+
+def test_receipt_storage_failure_never_spawns(retry_api, monkeypatch):
+    ctx = retry_api
+    plan = preview(ctx)
+    monkeypatch.setattr(scan_retry, 'DEFAULT_DB_PATH', str(ctx.root / 'absent.db'))
+    response = ctx.client.post('/api/scan/retry/apply', json={'plan_id': plan['plan_id'], 'confirm': True})
+    assert response.status_code == 503
+    assert not ctx.popen.called
+    assert not (ctx.root / 'absent.db').exists()
+
+
+def test_receipt_capacity_does_not_evict_unsettled_claims(retry_api, monkeypatch):
+    ctx = retry_api
+    monkeypatch.setattr(scan_retry, 'MAX_RECEIPTS', 1)
+    assert scan_retry._claim_receipt('a'*32, scan_retry.RetryPreview('actor', {}, 0))
+    plan = preview(ctx)
+    response = ctx.client.post('/api/scan/retry/apply', json={'plan_id': plan['plan_id'], 'confirm': True})
+    assert response.status_code == 429 and not ctx.popen.called
+    assert scan_retry._recover_receipt('a'*32).applying
+
+
+def test_actual_receipt_settlement_write_failure_preserves_uncertainty_after_spawn(retry_api):
+    ctx = retry_api
+    # Initialize private storage, then fail the actual UPDATE after Popen.
+    assert scan_retry._claim_receipt('a'*32, scan_retry.RetryPreview('actor', {}, 0))
+    with sqlite3.connect(ctx.db) as conn:
+        conn.execute("CREATE TRIGGER refuse_receipt_settlement BEFORE UPDATE ON scan_retry_receipts "
+                     "BEGIN SELECT RAISE(ABORT, 'fixture storage failure'); END")
+    plan = preview(ctx)
+    body = {'plan_id': plan['plan_id'], 'confirm': True}
+    accepted = ctx.client.post('/api/scan/retry/apply', json=body)
+    assert accepted.status_code == 200, accepted.text
+    assert ctx.popen.call_count == 1
+    scan_retry._previews.clear()
+    result = ctx.client.get('/api/scan/retry/' + plan['plan_id'])
+    assert result.status_code == 200 and result.json()['state'] == 'submitting'
+    assert ctx.client.post('/api/scan/retry/apply', json=body).status_code == 409
+    assert ctx.popen.call_count == 1

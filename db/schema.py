@@ -707,6 +707,14 @@ SCAN_RUNS_COLUMNS = [
     ('job_finished_at', 'TEXT'),
 ]
 
+SCAN_RETRY_RECEIPTS_COLUMNS = [
+    ('plan_id', 'TEXT PRIMARY KEY'),
+    ('actor', 'TEXT NOT NULL'),
+    ('state', 'TEXT NOT NULL'),
+    ('receipt', 'TEXT'),
+    ('expires_at', 'REAL NOT NULL'),
+]
+
 SCAN_FAILURES_COLUMNS = [
     ('scan_run_id', 'INTEGER NOT NULL REFERENCES scan_runs(id) ON DELETE CASCADE'),
     ('path', 'TEXT NOT NULL'),
@@ -1174,6 +1182,7 @@ _MIGRATED_TABLES = [
     ('panorama_run_cache', PANORAMA_RUN_CACHE_COLUMNS),
     ('face_reextract_snapshot', FACE_REEXTRACT_SNAPSHOT_COLUMNS),
     ('scan_runs', SCAN_RUNS_COLUMNS),
+    ('scan_retry_receipts', SCAN_RETRY_RECEIPTS_COLUMNS),
     ('scan_failures', SCAN_FAILURES_COLUMNS),
     ('iqa_declined', IQA_DECLINED_COLUMNS),
 ]
@@ -1500,6 +1509,7 @@ def init_database(db_path='photo_scores_pro.db', build_photo_indexes=True):
 
         # Create scan bookkeeping tables
         conn.execute(_build_create_table_sql('scan_runs', SCAN_RUNS_COLUMNS))
+        conn.execute(_build_create_table_sql('scan_retry_receipts', SCAN_RETRY_RECEIPTS_COLUMNS))
         conn.execute(_build_create_table_sql(
             'scan_failures', SCAN_FAILURES_COLUMNS,
             constraints=['PRIMARY KEY (scan_run_id, path)']
