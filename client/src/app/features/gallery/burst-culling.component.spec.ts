@@ -1872,6 +1872,59 @@ describe('BurstCullingComponent', () => {
       expect(component.renditions['developedPreviewUrl']()).toContain('facet_retry=');
     });
 
+    it('scopes developed retries to the captured photo and style while retaining matching revisits', () => {
+      focus(0, 'velvia');
+      const original = component.renditions.developedPreviewUrl();
+      const pane = { retry: vi.fn(), frameKey: () => grp.photos[component['lightboxIndex']()].path } as unknown as SyncedZoomComponent;
+      component.renditions.retryDarkroomPane(pane);
+      const firstRetry = component.renditions.developedPreviewUrl();
+      expect(firstRetry).not.toBe(original);
+      expect(firstRetry).toContain('facet_retry=');
+      expect(firstRetry).toContain('ngsw-bypass=1');
+
+      focus(1, 'velvia');
+      expect(component.renditions.developedPreviewUrl()).not.toContain('facet_retry');
+      expect(component.renditions.developedPreviewUrl()).not.toContain('ngsw-bypass');
+      focus(0, 'portra');
+      expect(component.renditions.developedPreviewUrl()).not.toContain('facet_retry');
+      focus(0, 'velvia');
+      expect(component.renditions.developedPreviewUrl()).toBe(firstRetry);
+
+      component.renditions.retryDarkroomPane(pane);
+      const secondRetry = component.renditions.developedPreviewUrl();
+      expect(secondRetry).not.toBe(firstRetry);
+      focus(1, 'portra');
+      component.renditions.retryDarkroomPane(pane);
+      const thirdRetry = new URL(component.renditions.developedPreviewUrl()).searchParams.get('facet_retry')!;
+      expect(thirdRetry).toBe(new URL(secondRetry).searchParams.get('facet_retry')!.replace(/-2$/, '-3'));
+      focus(0, 'velvia');
+      expect(component.renditions.developedPreviewUrl()).toBe(original);
+    });
+
+    it('ignores an older developed completion after a new retry of the same photo and style', () => {
+      focus(0, 'velvia');
+      const pane = { retry: vi.fn(), frameKey: () => '/photo1.jpg' } as unknown as SyncedZoomComponent;
+      component.renditions.retryDarkroomPane(pane);
+      component.renditions['preloadDevelopedPreview']('/photo1.jpg', 'velvia');
+      const firstImage = component.renditions['previewImg']!;
+      const oldLoad = firstImage.onload!;
+      const oldError = firstImage.onerror!;
+      expect(firstImage.src).toBe(component.renditions.developedPreviewUrl());
+
+      component.renditions.retryDarkroomPane(pane);
+      component.renditions['preloadDevelopedPreview']('/photo1.jpg', 'velvia');
+      const currentImage = component.renditions['previewImg']!;
+      expect(currentImage.src).toBe(component.renditions.developedPreviewUrl());
+      expect(currentImage.src).not.toBe(firstImage.src);
+      oldLoad.call(firstImage, new Event('load'));
+      oldError.call(firstImage, new Event('error'));
+      expect(component.renditions.previewLoading()).toBe(true);
+      expect(component.renditions.activeStyle()).toBe('velvia');
+      expect(component.renditions.developedFailure()).toBeNull();
+      currentImage.onload!(new Event('load'));
+      expect(component.renditions.previewLoading()).toBe(false);
+    });
+
     it('a stale onerror (user navigated away) neither reverts the style nor toasts', () => {
       focus(0, 'velvia');
       (component.renditions as any).preloadDevelopedPreview('/photo1.jpg', 'velvia');

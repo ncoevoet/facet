@@ -46,15 +46,16 @@ export class DarkroomRenditions {
   /** True while a developed preview renders (spinner overlay over the flat frame). */
   readonly previewLoading = signal(false);
   readonly developedFailure = signal<{ path: string; style: string } | null>(null);
-  private readonly developedAttempt = signal(0);
+  private readonly developedAttempt = signal<{ path: string; style: string; attempt: number } | null>(null);
   private readonly developedSession = crypto.randomUUID();
   readonly developedPreviewUrl = computed(() => {
     const path = this.currentPath(), style = this.activeStyle();
     if (!path || !style) return '';
     const src = cullPreviewUrl(path, style);
-    if (!this.developedAttempt()) return src;
+    const retry = this.developedAttempt();
+    if (retry?.path !== path || retry.style !== style) return src;
     const url = new URL(src, document.baseURI);
-    url.searchParams.set('facet_retry', `${this.developedSession}-${this.developedAttempt()}`);
+    url.searchParams.set('facet_retry', `${this.developedSession}-${retry.attempt}`);
     url.searchParams.set('ngsw-bypass', '1');
     return url.href;
   });
@@ -96,7 +97,7 @@ export class DarkroomRenditions {
     if (this.context.compareMode() === 'single' && (failed?.path === path || this.activeStyle())) {
       const style = failed?.path === path ? failed.style : this.activeStyle();
       this.developedFailure.set(null);
-      this.developedAttempt.update(value => value + 1);
+      this.developedAttempt.update(previous => ({ path, style, attempt: (previous?.attempt ?? 0) + 1 }));
       this.activeStyle.set(style);
     } else pane.retry();
   }
