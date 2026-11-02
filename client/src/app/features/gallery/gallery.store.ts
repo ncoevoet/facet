@@ -1,3 +1,4 @@
+import { LogicalReviewService, LogicalReviewState, LogicalReviewWriteError } from '../../core/services/logical-review.service';
 import { Injectable, inject, signal, computed, effect, untracked, DestroyRef } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { pathOf } from '../../shared/utils/url-path';
@@ -12,7 +13,7 @@ import { AlbumService, Album } from '../../core/services/album.service';
 import { I18nService } from '../../core/services/i18n.service';
 import { AssistantChangesService } from '../../core/agent/assistant-changes.service';
 import { UserActivityJournal, UserActivityKind, activityName } from '../../core/agent/user-activity-journal.service';
-import { Photo, KeeperHint, normalisePhotoFlagsAll } from '../../shared/models/photo.model';
+import { Photo, KeeperHint, normalisePhotoFlags, normalisePhotoFlagsAll } from '../../shared/models/photo.model';
 import type { MetricDistribution } from '../../shared/utils/metric-distribution';
 import type { CardSetKind } from '../../shared/components/photo-card/card-actions';
 import { I18N } from '../../core/i18n/keys';
@@ -2012,6 +2013,15 @@ export class GalleryStore {
     } catch { /* keep existing list */ }
   }
 
+  private readonly logicalReviews = inject(LogicalReviewService);
+
+  applyLogicalReview(state: LogicalReviewState): void {
+    this.photos.update(photos => photos.map(photo =>
+      photo.logical_review?.asset_id === state.asset_id
+      && photo.logical_review.group_revision === state.group_revision && photo.logical_review.revision <= state.revision
+        ? normalisePhotoFlags({ ...photo, logical_review: state }) : photo));
+  }
+
   /** Patch one photo's fields in place. */
   patchPhoto(path: string, partial: Partial<Photo>): void {
     this.photos.update(photos =>
@@ -2151,6 +2161,19 @@ export class GalleryStore {
 
   /** Set star rating for a photo (0 = clear). Optimistic with revert on error. */
   async setRating(photoPath: string, rating: number): Promise<boolean> {
+    const logical = this.photos().find(photo => photo.path === photoPath)?.logical_review;
+    if (logical) {
+      try {
+        const result = await this.logicalReviews.save(logical, { rating }, () =>
+          this.photos().some(photo => photo.path === photoPath && photo.logical_review?.input_token === logical.input_token));
+        if (!result) return false;
+        this.applyLogicalReview(result);
+        return true;
+      } catch (error) {
+        if (error instanceof LogicalReviewWriteError && error.recovered) this.applyLogicalReview(error.recovered);
+        this.notifyActionFailed(); return false;
+      }
+    }
     if (this.toggleInFlight.has(photoPath)) return false;
     this.toggleInFlight.add(photoPath);
     const isOrigin = this.captureReviewView();
@@ -2196,6 +2219,18 @@ export class GalleryStore {
 
   /** Toggle favorite flag for a photo. Optimistic, reconciled with server truth. */
   async toggleFavorite(photoPath: string): Promise<void> {
+    const logical = this.photos().find(photo => photo.path === photoPath)?.logical_review;
+    if (logical) {
+      try {
+        const result = await this.logicalReviews.save(logical, 'favorite', () =>
+          this.photos().some(photo => photo.path === photoPath && photo.logical_review?.input_token === logical.input_token));
+        if (result) this.applyLogicalReview(result);
+      } catch (error) {
+        if (error instanceof LogicalReviewWriteError && error.recovered) this.applyLogicalReview(error.recovered);
+        this.notifyActionFailed();
+      }
+      return;
+    }
     const isOrigin = this.captureReviewView();
     const identity = this.auth.identity();
     if (this.toggleInFlight.has(photoPath)) return;
@@ -2233,6 +2268,19 @@ export class GalleryStore {
 
   /** Toggle rejected flag for a photo. Optimistic, reconciled with server truth. */
   async toggleRejected(photoPath: string): Promise<boolean> {
+    const logical = this.photos().find(photo => photo.path === photoPath)?.logical_review;
+    if (logical) {
+      try {
+        const result = await this.logicalReviews.save(logical, 'reject', () =>
+          this.photos().some(photo => photo.path === photoPath && photo.logical_review?.input_token === logical.input_token));
+        if (!result) return false;
+        this.applyLogicalReview(result);
+        return true;
+      } catch (error) {
+        if (error instanceof LogicalReviewWriteError && error.recovered) this.applyLogicalReview(error.recovered);
+        this.notifyActionFailed(); return false;
+      }
+    }
     const isOrigin = this.captureReviewView();
     const identity = this.auth.identity();
     const token = this.auth.token;

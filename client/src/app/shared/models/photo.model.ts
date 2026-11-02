@@ -240,6 +240,7 @@ export function hasExifFields(p: Photo): boolean {
  */
 export function normalisePhotoFlags<T extends Partial<Photo>>(photo: T): T {
   const out: Record<string, unknown> = { ...photo };
+  if (photo.logical_review) Object.assign(out, photo.logical_review.values);
   for (const field of PHOTO_FLAG_FIELDS) {
     const value = out[field];
     if (value !== null && value !== undefined) {

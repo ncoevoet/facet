@@ -156,6 +156,37 @@ describe('GalleryStore', () => {
     });
   });
 
+  describe('logical review actions', () => {
+    it('shares a write lock across RAW/JPEG rows and reconciles both loaded values', async () => {
+      const state = { asset_id: 'asset', group_revision: 1, revision: 0, input_token: 'old', source_path: '/a.jpg',
+        values: { star_rating: 3, is_favorite: 0, is_kept: 0, is_rejected: 0 },
+        origins: { star_rating: 'file' as const, is_favorite: 'file' as const, is_kept: 'file' as const, is_rejected: 'file' as const } };
+      store.photos.set([makePhoto({ path: '/a.jpg', logical_review: state }), makePhoto({ path: '/a.CR2', logical_review: state })]);
+      const pending = new Subject<any>(); apiPost.mockReturnValue(pending);
+      const first = store.setRating('/a.jpg', 5);
+      await store.toggleFavorite('/a.CR2');
+      expect(apiPost).toHaveBeenCalledTimes(1);
+      pending.next({ ...state, revision: 1, input_token: 'new', values: { ...state.values, star_rating: 5 } });
+      pending.complete();
+      expect(await first).toBe(true);
+      expect(store.photos().map(photo => photo.star_rating)).toEqual([5, 5]);
+      expect(store.photos().map(photo => photo.logical_review?.revision)).toEqual([1, 1]);
+    });
+
+    it('reconciles an uncertain write through one read, without replaying it', async () => {
+      const state = { asset_id: 'asset', group_revision: 1, revision: 0, input_token: 'old', source_path: '/a.jpg',
+        values: { star_rating: 3, is_favorite: 0, is_kept: 0, is_rejected: 0 },
+        origins: { star_rating: 'file' as const, is_favorite: 'file' as const, is_kept: 'file' as const, is_rejected: 'file' as const } };
+      store.photos.set([makePhoto({ path: '/a.jpg', logical_review: state })]);
+      apiPost.mockReturnValue(throwError(() => new Error('lost response')));
+      apiGet.mockReturnValue(of({ ...state, revision: 1, input_token: 'new', values: { ...state.values, star_rating: 5 } }));
+      expect(await store.setRating('/a.jpg', 5)).toBe(false);
+      expect(apiPost).toHaveBeenCalledTimes(1);
+      expect(apiGet).toHaveBeenCalledWith('/logical_assets/review', { asset_id: 'asset' });
+      expect(store.photos()[0].star_rating).toBe(5);
+    });
+  });
+
   describe('rating-only preview Undo', () => {
     it('writes stars only and preserves a newer favorite and Keep decision', async () => {
       vi.mocked(TestBed.inject(AuthService).isEdition).mockReturnValue(true);

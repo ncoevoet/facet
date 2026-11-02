@@ -1,3 +1,4 @@
+import { LogicalReviewService, LogicalReviewAction, LogicalReviewWriteError } from '../../core/services/logical-review.service';
 import { PhotoAnalysisComponent } from '../gallery/photo-analysis.component';
 import { PhotoProvenanceComponent } from './photo-provenance.component';
 import { PhotoRelatedFilesComponent } from './photo-related-files.component';
@@ -365,8 +366,8 @@ const SOCIAL_SOURCE_KEYS: Record<string, string> = {
             </div>
           }
 
-          <!-- Rating controls (edition only) -->
-          @if (auth.isEdition()) {
+          <!-- Account review controls -->
+          @if (canReview()) {
             <div class="flex flex-wrap items-center gap-1 border-t border-[var(--mat-sys-outline-variant)] pt-1 mb-1">
               <!-- Star rating -->
               @for (star of stars; track star) {
@@ -883,7 +884,7 @@ export class PhotoDetailComponent extends PhotoDetailBase implements OnInit {
     const statePhoto = history.state?.['photo'] as Photo | undefined;
 
     if (statePhoto) {
-      this.photo.set(statePhoto);
+      this.photo.set(normalisePhotoFlags(statePhoto));
     } else {
       // Fallback: load from API using query param
       const path = this.route.snapshot.queryParamMap.get('path');
@@ -1007,7 +1008,7 @@ export class PhotoDetailComponent extends PhotoDetailBase implements OnInit {
   @HostListener('document:keydown', ['$event'])
   protected onRatingShortcut(event: KeyboardEvent): void {
     if (isPageShortcutBlocked(event)) return;
-    if (!this.auth.isEdition() || !this.store.config()?.features?.show_rating_controls) return;
+    if (!this.canReview() || !this.store.config()?.features?.show_rating_controls) return;
     const p = this.photo();
     if (!p) return;
     if (event.key >= '1' && event.key <= '5') {
@@ -1147,10 +1148,34 @@ export class PhotoDetailComponent extends PhotoDetailBase implements OnInit {
     }
   }
 
+  protected readonly canReview = computed(() => this.auth.isEdition() || !!(this.auth.status()?.multi_user && this.auth.status()?.authenticated));
+  private readonly logicalReviews = inject(LogicalReviewService);
+
+  private async saveLogicalReview(p: Photo, action: LogicalReviewAction): Promise<void> {
+    const state = p.logical_review;
+    if (!state) return;
+    const guard = this.staleness.create(this.destroyRef, { requireEdition: false, valid: () =>
+      this.canReview() && this.photo()?.path === p.path && this.photo()?.logical_review?.input_token === state.input_token });
+    try {
+      const result = await this.logicalReviews.save(state, action, guard.current);
+      if (!result) return;
+      this.store.applyLogicalReview(result);
+      this.photo.set(normalisePhotoFlags({ ...this.photo()!, logical_review: result }));
+    } catch (error) {
+      const current = guard.current();
+      if (current && error instanceof LogicalReviewWriteError && error.recovered) {
+        this.store.applyLogicalReview(error.recovered);
+        this.photo.set(normalisePhotoFlags({ ...this.photo()!, logical_review: error.recovered }));
+      }
+      if (current) this.snackBar.open(this.i18n.t(I18N.errors.action_failed), '', { duration: 3000 });
+    } finally { guard.dispose(); }
+  }
+
   protected async setRating(path: string, rating: number): Promise<void> {
     const p = this.photo();
-    if (!p) return;
+    if (!p || p.path !== path) return;
     const newRating = p.star_rating === rating ? 0 : rating;
+    if (p.logical_review) { await this.saveLogicalReview(p, { rating: newRating }); return; }
     try {
       await firstValueFrom(this.api.post('/photo/set_rating', { photo_path: path, rating: newRating }));
       this.applyConfirmed(p, { star_rating: newRating });
@@ -1162,7 +1187,7 @@ export class PhotoDetailComponent extends PhotoDetailBase implements OnInit {
 
   @HostListener('document:keydown', ['$event'])
   protected onReviewKey(event: KeyboardEvent): void {
-    if (this.dialog.openDialogs.length || isTypingContext(event) || event.ctrlKey || event.metaKey || event.altKey || !this.keymap.matches(event, 'keep') || !this.auth.isEdition()) return;
+    if (this.dialog.openDialogs.length || isTypingContext(event) || event.ctrlKey || event.metaKey || event.altKey || !this.keymap.matches(event, 'keep') || !this.canReview()) return;
     event.preventDefault();
     void this.reviewPhoto('kept');
   }
@@ -1170,6 +1195,7 @@ export class PhotoDetailComponent extends PhotoDetailBase implements OnInit {
   protected async reviewPhoto(decision: 'kept' | 'undecided'): Promise<void> {
     const p = this.photo();
     if (!p || this.reviewSaving) return;
+    if (p.logical_review) { await this.saveLogicalReview(p, decision); return; }
     this.reviewSaving = true;
     const isOrigin = this.store.captureReviewView();
     const identity = this.auth.identity();
@@ -1210,7 +1236,8 @@ export class PhotoDetailComponent extends PhotoDetailBase implements OnInit {
 
   protected async toggleFavorite(path: string): Promise<void> {
     const p = this.photo();
-    if (!p) return;
+    if (!p || p.path !== path) return;
+    if (p.logical_review) { await this.saveLogicalReview(p, 'favorite'); return; }
     try {
       const res = await firstValueFrom(this.api.post<{ is_favorite: boolean; is_rejected: boolean | null }>('/photo/toggle_favorite', { photo_path: path }));
       const confirmed: Partial<Photo> = { is_favorite: res.is_favorite };
@@ -1227,7 +1254,8 @@ export class PhotoDetailComponent extends PhotoDetailBase implements OnInit {
 
   protected async toggleRejected(path: string): Promise<void> {
     const p = this.photo();
-    if (!p) return;
+    if (!p || p.path !== path) return;
+    if (p.logical_review) { await this.saveLogicalReview(p, 'reject'); return; }
     const isOrigin = this.store.captureReviewView();
     const identity = this.auth.identity();
     const photos = this.store.photos();

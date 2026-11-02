@@ -1401,6 +1401,50 @@ describe('PhotoDetailComponent', () => {
     });
   });
 
+  describe('logical review actions', () => {
+    it('does not apply a logical completion after a real NavigationStart', async () => {
+      const events = new Subject<NavigationStart>(); mockRouter.events = events;
+      createComponent();
+      const state = { asset_id: 'asset', group_revision: 1, revision: 0, input_token: 'old', source_path: samplePhoto.path,
+        values: { star_rating: 3, is_favorite: 0, is_kept: 0, is_rejected: 0 },
+        origins: { star_rating: 'file', is_favorite: 'file', is_kept: 'file', is_rejected: 'file' } };
+      const pending = new Subject<any>(); mockApi.post.mockReturnValue(pending);
+      component.photo.set({ ...samplePhoto, logical_review: state });
+      const store = TestBed.inject(GalleryStore);
+      const apply = vi.spyOn(store, 'applyLogicalReview');
+      const writing = component.setRating(samplePhoto.path, 4);
+      events.next(new NavigationStart(42, '/timeline'));
+      pending.next({ ...state, revision: 1, input_token: 'new', values: { ...state.values, star_rating: 4 } });
+      pending.complete();
+      await writing;
+      expect(mockApi.post).toHaveBeenCalledTimes(1);
+      expect(apply).not.toHaveBeenCalled();
+      expect(component.photo().star_rating).toBe(3);
+    });
+
+    it('lets a non-edition multi-user account update both representations without physical history', async () => {
+      mockAuth.isEdition.set(false);
+      mockAuth.status.set({ multi_user: true, authenticated: true });
+      createComponent();
+      const state = { asset_id: 'asset', group_revision: 1, revision: 0, input_token: 'old', source_path: samplePhoto.path,
+        values: { star_rating: 3, is_favorite: 0, is_kept: 0, is_rejected: 0 },
+        origins: { star_rating: 'file', is_favorite: 'file', is_kept: 'file', is_rejected: 'file' } };
+      const result = { ...state, revision: 1, input_token: 'new', values: { ...state.values, star_rating: 4 } };
+      const store = TestBed.inject(GalleryStore);
+      store.photos.set([{ ...samplePhoto, logical_review: state }, { ...samplePhoto, path: '/raw.CR2', logical_review: state }] as any);
+      component.photo.set({ ...samplePhoto, logical_review: state });
+      mockApi.post.mockReturnValue(of(result));
+      const record = vi.spyOn(TestBed.inject(UserActivityJournal), 'record');
+      await component.setRating(samplePhoto.path, 4);
+      expect(mockApi.post).toHaveBeenCalledExactlyOnceWith('/logical_assets/review', {
+        asset_id: 'asset', group_revision: 1, revision: 0, input_token: 'old', patch: { star_rating: 4 },
+      });
+      expect(component.photo().star_rating).toBe(4);
+      expect(store.photos().map(photo => photo.star_rating)).toEqual([4, 4]);
+      expect(record).not.toHaveBeenCalled();
+    });
+  });
+
   describe('setRating', () => {
     it('should set a new rating via API', async () => {
       mockApi.post.mockReturnValue(of({}));
