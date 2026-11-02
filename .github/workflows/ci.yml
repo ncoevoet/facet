@@ -470,7 +470,7 @@ jobs:
               exit 1
             fi
           done
-          assert_ignore_list pip "* mpmath pyarrow pydantic-core sympy tokenizers"
+          assert_ignore_list pip "* datasets fsspec mpmath pyarrow pydantic-core sympy tokenizers"
           assert_ignore_list docker "* pytorch/pytorch"
           echo "dependabot.yml: pip and docker ignore lists and all four ecosystems intact."
       - name: Translation bundles agree with en.json

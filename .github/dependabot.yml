@@ -39,6 +39,10 @@ updates:
       # bump both lines alike or fold them into one, bringing 24.x back to Windows, so
       # both pins move by hand, after a native Windows scan.
       - dependency-name: "pyarrow"
+      # datasets is pinned twice the same way: 5.0.1 on Windows, because 5.1.0 requires
+      # pyarrow>=24.0.0, and the current release elsewhere. A group bump moves both lines
+      # and breaks the Windows install, so both move by hand.
+      - dependency-name: "datasets"
       # Majors are a deliberate, verified upgrade — never auto-propose them.
       - dependency-name: "*"
         update-types:
