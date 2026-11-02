@@ -4,7 +4,7 @@ import sqlite3
 import pytest
 
 from api import config
-from api.routers.burst_culling import _query_burst_groups, attach_user_marks
+from api.routers.burst_culling import _count_unreviewed_burst_groups, _query_burst_groups, attach_user_marks
 from db import logical_assets, logical_review
 from db.schema import init_database
 
@@ -82,3 +82,11 @@ def test_shared_rejection_filters_the_logical_photo_and_stamps_current_marks(cat
     marks = {p['path']: p['is_rejected'] for p in groups[0]['photos']}
     assert marks == {raw: 1, other: 0}
     assert conn.execute('SELECT SUM(is_rejected) FROM photos').fetchone()[0] == 0
+
+
+def test_unreviewed_count_matches_the_feed_total(catalog):
+    conn, _, _, _, other = catalog
+    assert _count_unreviewed_burst_groups(conn, '1=1', []) == 1
+    conn.execute('DELETE FROM photos WHERE path=?', (other,))
+    conn.commit()
+    assert _count_unreviewed_burst_groups(conn, '1=1', []) == 0

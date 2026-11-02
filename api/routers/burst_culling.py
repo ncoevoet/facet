@@ -968,6 +968,9 @@ def _enrich_burst_group(group):
 
 def _count_unreviewed_burst_groups(conn, vis_sql, vis_params, exclude_rejected=False, user_id=None):
     """Return the count of unreviewed burst groups."""
+    logical = _logical_burst_selection(conn, user_id, vis_sql, vis_params, exclude_rejected)
+    if logical is not None:
+        return conn.execute(f'SELECT COUNT(*) FROM ({logical.groups_sql})', logical.group_params).fetchone()[0]
     if exclude_rejected:
         from_clause, from_params, is_rejected_col = _rejected_clause(user_id)
         row = conn.execute(
