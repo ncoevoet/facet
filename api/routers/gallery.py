@@ -3,6 +3,7 @@ Gallery router — photo listing, type counts, similar photos.
 
 """
 
+import json
 import asyncio
 import logging
 import math
@@ -505,7 +506,7 @@ def _apply_color_quality_filters(where_clauses, sql_params, params):
             sql_params.append(hi)
 
 
-def _apply_visibility_and_hide_filters(where_clauses, sql_params, params, user_id, stack_owner=None):
+def _apply_visibility_and_hide_filters(where_clauses, sql_params, params, user_id, stack_owner=None, *, logical=False):
     """Apply visibility, top picks, aggregate minimum, and hide blinks/bursts/duplicates."""
     vis_sql, vis_params = get_visibility_clause(user_id)
     where_clauses.append(vis_sql)
@@ -569,8 +570,12 @@ def _apply_visibility_and_hide_filters(where_clauses, sql_params, params, user_i
         # leads. Content/visibility filters still apply to every member.
         where_clauses.extend(build_hide_clauses(
             hide_blinks_val, '', '', hide_brackets_val, hide_panoramas_val))
+        stack_membership = stack_gallery.membership_clause()
+        if logical:
+            from api.logical_collection import membership
+            stack_membership = membership('SELECT photo_path FROM photo_stack_members WHERE owner=?').sql
         for clause in build_hide_clauses('', hide_bursts_val, hide_duplicates_val, '', ''):
-            where_clauses.append(f'({clause} OR {stack_gallery.membership_clause()})')
+            where_clauses.append(f'({clause} OR {stack_membership})')
             sql_params.append(owner)
     else:
         where_clauses.extend(build_hide_clauses(
@@ -583,9 +588,9 @@ def _apply_visibility_and_hide_filters(where_clauses, sql_params, params, user_i
         where_clauses.append("duplicate_group_id IS NOT NULL")
 
 
-def _apply_preference_filters(where_clauses, sql_params, params, user_id):
+def _apply_preference_filters(where_clauses, sql_params, params, user_id, preference_columns=None):
     """Apply star rating, favorites, and rejected filters."""
-    pref_cols = get_preference_columns(user_id)
+    pref_cols = preference_columns or get_preference_columns(user_id)
     if params.get('min_rating'):
         try:
             min_rating = int(params['min_rating'])
@@ -627,7 +632,7 @@ EXIF_RANGE_COLUMNS = [
 ]
 
 
-def _apply_score_range_filters(where_clauses, sql_params, params, user_id=None):
+def _apply_score_range_filters(where_clauses, sql_params, params, user_id=None, preference_columns=None):
     """Apply all score/metric range filters."""
     try:
         policies = score_presence_policies(params.get('score_presence', ''))
@@ -638,7 +643,7 @@ def _apply_score_range_filters(where_clauses, sql_params, params, user_id=None):
         if column == 'star_rating':
             # Range predicates must use the same current-account authority as
             # the selected values, including zero for an absent personal row.
-            column = get_preference_columns(user_id)['star_rating']
+            column = (preference_columns or get_preference_columns(user_id))['star_rating']
         policy = policies.get(min_key)
         if policy == 'missing_only':
             where_clauses.append(f'{column} IS NULL')
@@ -659,7 +664,7 @@ def _apply_exif_range_filters(where_clauses, sql_params, params):
         _add_range_filter(where_clauses, sql_params, params, column, min_key, max_key, is_float=is_float)
 
 
-def _apply_date_album_geo_filters(where_clauses, sql_params, params):
+def _apply_date_album_geo_filters(where_clauses, sql_params, params, *, logical=False):
     """Apply date range, album membership, GPS radius, and path prefix filters."""
     if params.get('no_capture_date') in ('1', 'true'):
         where_clauses.append(CAPTURE_DATE_MISSING_SQL)
@@ -680,6 +685,9 @@ def _apply_date_album_geo_filters(where_clauses, sql_params, params):
 
     album_sql, album_params = album_filter_clause(params.get('album_id'))
     if album_params:
+        if logical:
+            from api.logical_collection import membership
+            album_sql = membership('SELECT photo_path FROM album_photos WHERE album_id=?', album_params).sql
         where_clauses.append(album_sql)
         sql_params.extend(album_params)
 
@@ -707,7 +715,7 @@ def _apply_date_album_geo_filters(where_clauses, sql_params, params):
         sql_params.append(escaped + '%')
 
 
-def _build_gallery_where(params, conn=None, user_id=None, include_manual=True, *, stack_owner=None, include_stacks=True, hierarchy_available=None):
+def _build_gallery_where(params, conn=None, user_id=None, include_manual=True, *, stack_owner=None, include_stacks=True, hierarchy_available=None, logical=False):
     """Build WHERE clauses for gallery queries.
 
     ``include_manual=False`` makes the tag filter and the text search AI-only:
@@ -721,13 +729,14 @@ def _build_gallery_where(params, conn=None, user_id=None, include_manual=True, *
         stack_owner = stack_gallery.enabled_owner(conn, user_id)
     where_clauses = []
     sql_params = []
-    _apply_visibility_and_hide_filters(where_clauses, sql_params, params, user_id, stack_owner)
+    _apply_visibility_and_hide_filters(where_clauses, sql_params, params, user_id, stack_owner, logical=logical)
     _apply_text_filters(where_clauses, sql_params, params, conn, include_manual=include_manual, hierarchy_available=hierarchy_available)
-    _apply_preference_filters(where_clauses, sql_params, params, user_id)
-    _apply_score_range_filters(where_clauses, sql_params, params, user_id)
+    preference_columns = {field: f'photos.{field}' for field in ('star_rating', 'is_favorite', 'is_kept', 'is_rejected')} if logical else None
+    _apply_preference_filters(where_clauses, sql_params, params, user_id, preference_columns)
+    _apply_score_range_filters(where_clauses, sql_params, params, user_id, preference_columns)
     _apply_exif_range_filters(where_clauses, sql_params, params)
     _apply_color_quality_filters(where_clauses, sql_params, params)
-    _apply_date_album_geo_filters(where_clauses, sql_params, params)
+    _apply_date_album_geo_filters(where_clauses, sql_params, params, logical=logical)
     _apply_set_scope_filter(where_clauses, sql_params, params)
     if params.get('stack_id'):
         # Smart-album and share consumers call this builder directly too.
@@ -736,8 +745,12 @@ def _build_gallery_where(params, conn=None, user_id=None, include_manual=True, *
         if not include_manual or not include_stacks or owner is None:
             where_clauses.append('0=1')
         else:
-            where_clauses.append('EXISTS (SELECT 1 FROM photo_stack_members sm '
-                                 'WHERE sm.photo_path=photos.path AND sm.owner=? AND sm.stack_id=?)')
+            if logical:
+                from api.logical_collection import membership
+                where_clauses.append(membership('SELECT photo_path FROM photo_stack_members WHERE owner=? AND stack_id=?').sql)
+            else:
+                where_clauses.append('EXISTS (SELECT 1 FROM photo_stack_members sm '
+                                     'WHERE sm.photo_path=photos.path AND sm.owner=? AND sm.stack_id=?)')
             sql_params.extend([owner, params['stack_id']])
     return where_clauses, sql_params
 
@@ -756,7 +769,7 @@ def _scoped_album_id(filters):
     return album_params[0] if album_params else None
 
 
-def _gallery_scope_sql_checked(conn, filters, user_id, exclude, prepared, stack_owner=None, *, hierarchy_available=None):
+def _gallery_scope_sql_checked(conn, filters, user_id, exclude, prepared, stack_owner=None, *, hierarchy_available=None, collection_source=None):
     """The scope tuple, with the album access check ALREADY performed.
 
     Private on purpose: the two public entry points below each run the access
@@ -768,20 +781,31 @@ def _gallery_scope_sql_checked(conn, filters, user_id, exclude, prepared, stack_
     """
     if prepared is None:
         _, prepared = _prepare_gallery_params(dict(filters or {}))
-    from_clause, from_params = get_photos_from_clause(user_id)
+    from_clause, from_params = ((collection_source.sql, collection_source.params) if collection_source is not None
+                                else get_photos_from_clause(user_id))
     where_clauses, sql_params = _build_gallery_where(prepared, conn, user_id=user_id, stack_owner=stack_owner,
-                                                   hierarchy_available=hierarchy_available)
+                                                   hierarchy_available=hierarchy_available, logical=collection_source is not None)
     all_params = list(from_params) + list(sql_params)
     if exclude:
         placeholders = ','.join('?' * len(exclude))
-        where_clauses.append(f"photos.path NOT IN ({placeholders})")
-        all_params.extend(exclude)
+        if collection_source is not None:
+            from api.logical_collection import membership
+            selected = membership('SELECT value AS photo_path FROM json_each(?)', [json.dumps(list(exclude))])
+            where_clauses.append(f'NOT ({selected.sql})')
+            all_params.extend(selected.params)
+        else:
+            where_clauses.append(f"photos.path NOT IN ({placeholders})")
+            all_params.extend(exclude)
     where_str = f" WHERE {' AND '.join(where_clauses)}" if where_clauses else ""
     return from_clause, where_str, all_params
 
 
-def gallery_scope_sql(conn, filters, user_id, exclude=None, prepared=None):
+def gallery_scope_sql(conn, filters, user_id, exclude=None, prepared=None, *, logical=False):
     """``(from_clause, where_str, params)`` for the rows one gallery view shows.
+
+    ``logical=True`` is an explicit collection-only source. Physical mutation
+    and delivery callers retain the default file scope until their own logical
+    ownership/preflight integration. Pair it with logical SELECT columns.
 
     The single definition of "the current view" for every surface that acts on
     a whole filter set instead of a page of it — the count/paths endpoints, the
@@ -824,10 +848,18 @@ def gallery_scope_sql(conn, filters, user_id, exclude=None, prepared=None):
     owner = stack_gallery.enabled_owner(conn, user_id)
     if (filters or {}).get('stack_id'):
         stack_gallery.check_stack_scope(conn, owner, filters['stack_id'], user_id)
-    return _gallery_scope_sql_checked(conn, filters, user_id, exclude, prepared, owner)
+    collection_source = None
+    if logical:
+        from api.logical_collection import source
+        from api.config import is_multi_user_enabled
+        visibility, values = get_visibility_clause(user_id)
+        multi_user = is_multi_user_enabled()
+        collection_source = source(sorted(get_existing_columns(conn)), owner=(user_id or '') if multi_user else '',
+                                   multi_user=multi_user, visibility_sql=visibility, visibility_params=values)
+    return _gallery_scope_sql_checked(conn, filters, user_id, exclude, prepared, owner, collection_source=collection_source)
 
 
-async def gallery_scope_sql_async(conn, filters, user_id, exclude=None, prepared=None):
+async def gallery_scope_sql_async(conn, filters, user_id, exclude=None, prepared=None, *, logical=False):
     """:func:`gallery_scope_sql` for an aiosqlite connection.
 
     Two entry points rather than one, because the album access check is the
@@ -847,8 +879,19 @@ async def gallery_scope_sql_async(conn, filters, user_id, exclude=None, prepared
     if (filters or {}).get('keyword_branch') or (prepared or {}).get('keyword_branch'):
         from api.keyword_tree import hierarchy_schema_available_async
         hierarchy_available = await hierarchy_schema_available_async(conn)
+    collection_source = None
+    if logical:
+        from api.logical_collection import source
+        from api.config import is_multi_user_enabled
+        cursor = await conn.execute('PRAGMA table_info(photos)')
+        columns = [row[1] for row in await cursor.fetchall()]
+        await cursor.close()
+        visibility, values = get_visibility_clause(user_id)
+        multi_user = is_multi_user_enabled()
+        collection_source = source(columns, owner=(user_id or '') if multi_user else '', multi_user=multi_user,
+                                   visibility_sql=visibility, visibility_params=values)
     return _gallery_scope_sql_checked(conn, filters, user_id, exclude, prepared, owner,
-                                      hierarchy_available=hierarchy_available)
+                                      hierarchy_available=hierarchy_available, collection_source=collection_source)
 
 
 @router.get("/api/photo", response_model=Photo, response_model_exclude_unset=True)

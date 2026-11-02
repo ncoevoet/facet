@@ -1134,7 +1134,7 @@ def sanitize_float_values(data):
     return data
 
 
-def build_photo_select_columns(conn, user_id=None, include_manual_tags=True):
+def build_photo_select_columns(conn, user_id=None, include_manual_tags=True, *, logical=False):
     """Build the SELECT column list for photo queries.
 
     ``include_manual_tags=False`` leaves the manual-tags subquery out entirely
@@ -1145,7 +1145,8 @@ def build_photo_select_columns(conn, user_id=None, include_manual_tags=True):
     column expressions ready to join into a SELECT clause.
     """
     existing_cols = get_existing_columns(conn)
-    pref_cols = get_preference_columns(user_id)
+    pref_cols = ({field: f'photos.{field}' for field in ('star_rating', 'is_favorite', 'is_rejected', 'is_kept')}
+                 if logical else get_preference_columns(user_id))
     pref_col_names = {'star_rating', 'is_favorite', 'is_rejected', 'is_kept'}
 
     # Skip caption_translated when translation is disabled (target_language empty or "en")

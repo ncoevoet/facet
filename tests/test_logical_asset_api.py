@@ -439,3 +439,38 @@ def test_gallery_and_targeted_rows_carry_logical_snapshot(edition_client, bundle
     found = [photo for photo in listing.json()['photos'] if photo['path'] in bundle['paths']]
     assert len(found) == 2
     assert all(photo['logical_review'] == state for photo in found)
+
+
+def test_opt_in_logical_gallery_scope_matches_sync_async_without_changing_physical_scope(edition_client, bundle):
+    import asyncio
+    from api.database import get_db, get_async_db
+    from api.routers.gallery import gallery_scope_sql, gallery_scope_sql_async
+
+    key = submit(edition_client, bundle, draft(edition_client, bundle), acknowledge_review_conflicts=True).json()['asset_id']
+    primary = {'operation': 'primary', 'asset_id': key, 'revision': 1, 'primary_path': bundle['paths'][1]}
+    assert submit(edition_client, primary, draft(edition_client, primary), acknowledge_review_conflicts=True).status_code == 200
+    filters = {'type': '', 'hide_blinks': False, 'hide_bursts': False, 'hide_duplicates': False,
+               'hide_brackets': False, 'hide_panoramas': False, 'hide_rejected': False,
+               'path_prefix': str(Path(bundle['primary_path']).parent), 'min_rating': 4}
+    filters = {key: str(value).lower() for key, value in filters.items()}
+    with get_db() as conn:
+        conn.execute('BEGIN')
+        physical, where, params = gallery_scope_sql(conn, filters, 'test')
+        assert [row[0] for row in conn.execute(f'SELECT photos.path FROM {physical}{where}', params)] == [bundle['paths'][0]]
+        projected, where, params = gallery_scope_sql(conn, filters, 'test', logical=True)
+        expected = [tuple(row) for row in conn.execute(f'SELECT photos.path,photos.star_rating FROM {projected}{where}', params)]
+        assert expected == [(bundle['paths'][1], 5)]
+        for path in bundle['paths']:
+            projected, where, params = gallery_scope_sql(conn, filters, 'test', exclude=[path], logical=True)
+            assert conn.execute(f'SELECT COUNT(*) FROM {projected}{where}', params).fetchone()[0] == 0
+
+    async def read_async():
+        async with get_async_db() as conn:
+            await conn.execute('BEGIN')
+            projected, where, params = await gallery_scope_sql_async(conn, filters, 'test', logical=True)
+            cursor = await conn.execute(f'SELECT photos.path,photos.star_rating FROM {projected}{where}', params)
+            try:
+                return [tuple(row) for row in await cursor.fetchall()]
+            finally:
+                await cursor.close()
+    assert asyncio.run(read_async()) == expected
