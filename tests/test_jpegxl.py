@@ -79,11 +79,15 @@ def jxl_client():
     app = create_app()
     app.dependency_overrides[get_optional_user] = lambda: CurrentUser(user_id=None, role="admin")
     with TestClient(app) as client:
+        # The lifespan starts the photo index build on a thread; let it finish so its
+        # ANALYZE (a schema change) cannot land in the middle of a test's first
+        # statement on the shared session DB (#446).
+        client.app.state.index_build.wait()
         yield client
     app.dependency_overrides.clear()
 
 
-def test_browser_full_image_and_sharp_thumbnail_are_jpeg(tmp_path, seed_photos_prefix, jxl_client):
+def test_browser_full_image_and_sharp_thumbnail_are_jpeg(tmp_path, jxl_client, seed_photos_prefix):
     path = tmp_path / "certificate.jxl"
     _jpegxl(path, orientation=6)
     stored = BytesIO()
@@ -102,7 +106,7 @@ def test_browser_full_image_and_sharp_thumbnail_are_jpeg(tmp_path, seed_photos_p
     assert cached.status_code == 304
 
 
-def test_bad_jpegxl_can_fall_back_to_stored_thumbnail(tmp_path, seed_photos_prefix, jxl_client):
+def test_bad_jpegxl_can_fall_back_to_stored_thumbnail(tmp_path, jxl_client, seed_photos_prefix):
     path = tmp_path / "broken.jxl"
     path.write_bytes(b"not JPEG XL")
     stored = BytesIO()
@@ -152,7 +156,7 @@ def test_scanner_reads_original_capture_date(tmp_path, monkeypatch, caplog):
     ("image/jxl;q=1.5", False),
     ("image/jxl;q=NaN", False),
 ])
-def test_native_jxl_requires_explicit_browser_support(tmp_path, seed_photos_prefix, jxl_client, accept, native):
+def test_native_jxl_requires_explicit_browser_support(tmp_path, jxl_client, seed_photos_prefix, accept, native):
     path = tmp_path / "award.jxl"
     _jpegxl(path)
     seed_photos_prefix(str(tmp_path) + os.sep, [{"path": str(path), "filename": path.name}])
@@ -185,7 +189,7 @@ def test_native_request_still_requires_visible_library_row(tmp_path, jxl_client)
 
 @pytest.mark.parametrize("accept", ["image/jxl", "*/*"])
 def test_missing_original_after_resolution_uses_thumbnail_and_varies_accept(
-        tmp_path, seed_photos_prefix, jxl_client, monkeypatch, accept):
+        tmp_path, jxl_client, seed_photos_prefix, monkeypatch, accept):
     from api.routers import thumbnails
     path = tmp_path / "disappeared.jxl"
     stored = BytesIO()
@@ -203,7 +207,7 @@ def test_missing_original_after_resolution_uses_thumbnail_and_varies_accept(
 
 @pytest.mark.parametrize("accept", ["image/jxl", "*/*"])
 def test_resolution_failure_fallback_varies_accept(
-        tmp_path, seed_photos_prefix, jxl_client, monkeypatch, accept):
+        tmp_path, jxl_client, seed_photos_prefix, monkeypatch, accept):
     from fastapi import HTTPException
     from api.routers import thumbnails
     path = tmp_path / "offline.jxl"
@@ -302,7 +306,7 @@ def _linear_rgb_profile():
     return bytes(data)
 
 
-def test_color_managed_fallback_and_source_bytes_are_preserved(tmp_path, seed_photos_prefix, jxl_client):
+def test_color_managed_fallback_and_source_bytes_are_preserved(tmp_path, jxl_client, seed_photos_prefix):
     from PIL import ImageCms
     path = tmp_path / "linear.jxl"
     profile = _linear_rgb_profile()
@@ -365,7 +369,7 @@ def test_non_finite_float_samples_are_refused():
         _pixel_image(pixels, 32)
 
 
-def test_native_delivery_skips_decode_and_supports_byte_ranges(tmp_path, seed_photos_prefix, jxl_client, monkeypatch):
+def test_native_delivery_skips_decode_and_supports_byte_ranges(tmp_path, jxl_client, seed_photos_prefix, monkeypatch):
     from api.routers import thumbnails
     path = tmp_path / "native.jxl"
     _jpegxl(path)
@@ -383,7 +387,7 @@ def test_native_delivery_skips_decode_and_supports_byte_ranges(tmp_path, seed_ph
 
 
 @pytest.mark.parametrize("accept", ["image/jxl", "*/*"])
-def test_another_accounts_jxl_is_not_visible(tmp_path, seed_photos_prefix, jxl_client, monkeypatch, accept):
+def test_another_accounts_jxl_is_not_visible(tmp_path, jxl_client, seed_photos_prefix, monkeypatch, accept):
     from api import db_helpers
     alice = tmp_path / "alice"
     bob = tmp_path / "bob"
@@ -404,7 +408,7 @@ def test_another_accounts_jxl_is_not_visible(tmp_path, seed_photos_prefix, jxl_c
 
 @pytest.mark.parametrize("fail_first", [False, True])
 def test_concurrent_fallbacks_share_decode_and_retry_failures(
-        tmp_path, seed_photos_prefix, jxl_client, monkeypatch, fail_first):
+        tmp_path, jxl_client, seed_photos_prefix, monkeypatch, fail_first):
     import threading
     from concurrent.futures import Future
     from api.routers import thumbnails
@@ -464,7 +468,7 @@ def test_concurrent_fallbacks_share_decode_and_retry_failures(
     thumbnails._convert_jpegxl_cached.cache_clear()
 
 
-def test_fallback_timeout_releases_budget_and_is_retryable(tmp_path, seed_photos_prefix, jxl_client, monkeypatch):
+def test_fallback_timeout_releases_budget_and_is_retryable(tmp_path, jxl_client, seed_photos_prefix, monkeypatch):
     import threading
     from api.routers import thumbnails
     path = tmp_path / "busy.jxl"
@@ -523,7 +527,7 @@ def test_native_codestream_orientation_wins_and_exif_survives(tmp_path, compress
     assert path.read_bytes() == original
 
 
-def test_full_jxl_conversions_reserve_a_slot_for_sharp_jpegs(tmp_path, seed_photos_prefix, jxl_client, monkeypatch):
+def test_full_jxl_conversions_reserve_a_slot_for_sharp_jpegs(tmp_path, jxl_client, seed_photos_prefix, monkeypatch):
     import threading
     from api.routers import thumbnails
     paths = [tmp_path / f"held-{index}.jxl" for index in range(4)]
@@ -679,7 +683,7 @@ def test_bad_exif_does_not_discard_readable_pixels(tmp_path, monkeypatch, oversi
 
 @pytest.mark.parametrize("format_name,extension", [('TIFF', '.tiff'), ('HEIF', '.heif')])
 def test_existing_non_jxl_conversions_do_not_wait_for_jxl_slots(
-        tmp_path, seed_photos_prefix, jxl_client, monkeypatch, format_name, extension):
+        tmp_path, jxl_client, seed_photos_prefix, monkeypatch, format_name, extension):
     import threading
     from api.routers import thumbnails
     if format_name == 'HEIF' and not image_loading._heif_available:

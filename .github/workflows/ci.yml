@@ -182,13 +182,20 @@ jobs:
           coverage report -m
 
   windows-tests:
-    name: Python Tests (Windows)
+    name: Python Tests (Windows shard ${{ matrix.shard }})
     # Runs beside the Linux shards rather than after them: waiting for Linux
-    # added its ~12 min to every pull request's critical path.
+    # added its ~12 min to every pull request's critical path. The whole suite is
+    # ~31 min on one runner, so it is sharded four ways like the Linux job
+    # (FACET_TEST_SHARD, tests/_sharding.py). The job only runs for a full-scope
+    # change; "Python Tests (Windows)" below is the status branch protection requires.
     needs: changes
     if: needs.changes.outputs.scope == 'full'
     runs-on: windows-latest
     timeout-minutes: 75
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [1, 2, 3, 4]
     steps:
       - uses: actions/checkout@v7
       - uses: actions/setup-python@v7
@@ -207,15 +214,36 @@ jobs:
         # Same list as python-tests-shard, plus pytest-xdist: the suite imports tifffile,
         # imagecodecs and lupa, and jsonschema keeps tests/test_config_schema.py from skipping.
         run: pip install pytest pytest-asyncio pytest-cov fastapi[standard] httpx pyjwt mcp==2.3.0 websockets pillow pillow-heif numpy scipy scikit-learn opencv-python-headless tqdm aiosqlite sqlite-vec imagehash psutil watchdog send2trash tifffile imagecodecs lupa jsonschema==4.26.0 pytest-timeout==2.4.0 pytest-xdist==3.8.0
+      - name: Show the SQLite version under test
+        run: python -c "import sqlite3; print(sqlite3.sqlite_version)"
       - name: Show the text encoding under test
         # PYTHONUTF8 is deliberately not set: the runner's cp1252 default is what the
         # suite must survive, so the log proves it is exercised.
         run: python -c "import locale,sys; print(locale.getpreferredencoding(False), sys.flags.utf8_mode)"
-      - name: Run the whole suite
-        # Everything, as on Linux. Under pytest-timeout's Windows `thread` method a timeout
-        # kills the xdist worker instead of failing one test, so read a crashed-worker
+      - name: Run this shard
+        # This shard's files of the whole suite, as on Linux. Under pytest-timeout's Windows
+        # `thread` method a timeout kills the xdist worker instead of failing one test, so read a crashed-worker
         # report as a timeout.
+        env:
+          FACET_TEST_SHARD: ${{ format('{0}/4', matrix.shard) }}
         run: python -m pytest -n 4 --durations=30 --tb=short -q --timeout=600
+
+  windows-tests-result:
+    name: Python Tests (Windows)
+    # Required by branch protection, so it keeps this name and reports the shards'
+    # outcome. A skipped matrix job never reports its per-shard names, so without
+    # this job a pull request that does not need the full suite would wait forever.
+    needs: [changes, windows-tests]
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - name: Every shard passed, or the suite was not needed
+        env:
+          RESULT: ${{ needs.windows-tests.result }}
+          SCOPE: ${{ needs.changes.outputs.scope }}
+        run: |
+          echo "scope: $SCOPE, shards: $RESULT"
+          if [ "$SCOPE" = "full" ]; then [ "$RESULT" = "success" ]; else [ "$RESULT" = "skipped" ]; fi
 
   lock-resolve:
     name: Dependency locks resolve (${{ matrix.lock }})
