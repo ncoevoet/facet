@@ -77,15 +77,16 @@ def compute_similarity_groups(conn=None, threshold=None, min_size=None, user_id=
         close_conn = True
 
     try:
+        from api.logical_collection import album_predicate
+        from api.logical_culling import standalone_source
         vis_sql, vis_params = get_visibility_clause(user_id)
-        album_sql, album_params = album_filter_clause(album_id)
         window_clauses, window_params = time_window_clauses(date_from, date_to)
-
-        from api.logical_culling import has_groups
-        logical = has_groups(conn)
+        # One row per logical photo: a RAW+JPEG capture is not "similar" to itself.
+        logical = standalone_source(conn, user_id, extra=('clip_embedding', 'date_taken', 'is_burst_lead', 'is_sequence_lead'))
+        album_sql, album_params = (album_filter_clause if logical is None else album_predicate)(album_id)
         # The cache key does not carry logical membership, so a pairing made
         # inside the TTL would keep serving groups built from both files.
-        use_cache = use_cache and not logical
+        use_cache = use_cache and logical is None
 
         cache_key = f"similarity_groups_{threshold}_{min_size}_{user_id}_{album_id}_{date_from}_{date_to}_10k"
         if use_cache:
@@ -112,22 +113,7 @@ def compute_similarity_groups(conn=None, threshold=None, min_size=None, user_id=
             album_sql,
             scope_fragment,
         ] + window_clauses
-        from_sql, from_params = 'photos', []
-        if logical:
-            # One row per logical photo: a RAW+JPEG capture is not "similar" to itself.
-            from api.config import is_multi_user_enabled
-            from api.logical_collection import source, membership
-            personal = is_multi_user_enabled()
-            columns = ['path', 'clip_embedding', 'aggregate', 'date_taken', 'burst_group_id', 'is_burst_lead',
-                       'is_sequence_lead', 'similarity_reviewed', 'star_rating', 'is_favorite', 'is_kept',
-                       'is_rejected']
-            collection = source(columns, owner=(user_id or '') if personal else '', multi_user=personal,
-                                visibility_sql=vis_sql, visibility_params=vis_params)
-            from_sql, from_params = collection.sql, collection.params
-            if album_params:
-                selected = membership('SELECT photo_path FROM album_photos WHERE album_id=?', album_params)
-                where[where.index(album_sql)] = selected.sql
-                album_params = selected.params
+        from_sql, from_params = ('photos', []) if logical is None else (logical.sql, logical.params)
         rows = conn.execute(
             f"""SELECT path, clip_embedding, aggregate FROM {from_sql}
                WHERE {' AND '.join(where)}

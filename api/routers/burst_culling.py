@@ -519,16 +519,13 @@ def _logical_burst_selection(conn, user_id, vis_sql, vis_params, exclude_rejecte
     from api.logical_culling import has_groups
     if not has_groups(conn):
         return None
-    from api.logical_collection import source, membership
+    from api.logical_collection import source, album_predicate
     columns = list(dict.fromkeys(['path', *_CULLING_PHOTO_COLS, 'star_rating', 'is_favorite',
                                  'is_kept', 'is_rejected', 'is_burst_lead', 'burst_group_id', 'burst_reviewed']))
     personal = is_multi_user_enabled()
     collection = source(columns, owner=(user_id or '') if personal else '', multi_user=personal,
                         visibility_sql=vis_sql, visibility_params=vis_params)
-    album_sql, album_params = album_filter_clause(album_id)
-    if album_params:
-        selected = membership('SELECT photo_path FROM album_photos WHERE album_id=?', album_params)
-        album_sql, album_params = selected.sql, selected.params
+    album_sql, album_params = album_predicate(album_id)
     window, window_params = time_window_clauses(date_from, date_to)
     qualifier = ' AND '.join(['burst_reviewed IS NOT 1', *window])
     member_where = f'burst_group_id IS NOT NULL AND ({vis_sql}) AND ({album_sql})'
@@ -1030,26 +1027,17 @@ def _fetch_similar_group_photos(conn, groups, vis_sql="1=1", vis_params=None, ma
     unique_paths = list(set(all_paths))
     placeholders = ','.join('?' * len(unique_paths))
 
+    rows = conn.execute(
+        f"""SELECT {_culling_photo_columns()}
+            FROM photos
+            WHERE path IN ({placeholders}) AND {vis_sql}""",
+        unique_paths + vis_params,
+    ).fetchall()
     if exclude_rejected:
-        from_clause, from_params, is_rejected_col = _rejected_clause(user_id)
-        rows = conn.execute(
-            f"""SELECT {_culling_photo_columns('photos.path')}
-                FROM {from_clause}
-                WHERE photos.path IN ({placeholders}) AND {vis_sql}
-                  AND {is_rejected_col} = 0""",
-            from_params + unique_paths + vis_params,
-        ).fetchall()
-        from api.logical_culling import has_groups, read_culling_labels
-        if has_groups(conn):
-            labels = read_culling_labels(conn, user_id, [r['path'] for r in rows])
-            rows = [r for r in rows if not (r['path'] in labels and labels[r['path']].rejected)]
-    else:
-        rows = conn.execute(
-            f"""SELECT {_culling_photo_columns()}
-                FROM photos
-                WHERE path IN ({placeholders}) AND {vis_sql}""",
-            unique_paths + vis_params,
-        ).fetchall()
+        # Per-account marks, or a logical photo's shared decision when its files are grouped.
+        from api.logical_culling import read_culling_labels
+        labels = read_culling_labels(conn, user_id, [r['path'] for r in rows])
+        rows = [r for r in rows if not labels[r['path']].rejected]
 
     # Index by path for O(1) lookup
     photo_by_path = {r['path']: dict(r) for r in rows}
@@ -1661,6 +1649,8 @@ def api_culling_groups(
                              _library_change_token(conn))
                 now = time.time()
                 from api.logical_culling import has_groups
+                # ponytail: no memo once photos are grouped, since _library_change_token misses regrouping and
+                # primary changes; key the memo on a logical revision if large feeds page slowly.
                 cacheable = not has_groups(conn)
                 cached_groups, generation = _cached_culling_groups(cache_key, now) if cacheable else (None, None)
                 if cached_groups is not None:

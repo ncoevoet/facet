@@ -102,6 +102,16 @@ def source(columns, *, owner, multi_user, visibility_sql, visibility_params=(), 
     return CollectionSource(sql, params)
 
 
+def album_predicate(album_id):
+    """An album filter over a collection source: any member file selects its whole logical photo."""
+    from api.db_helpers import album_filter_clause
+    sql, params = album_filter_clause(album_id)
+    if not params:
+        return sql, params
+    selected = membership('SELECT photo_path FROM album_photos WHERE album_id=?', params)
+    return selected.sql, selected.params
+
+
 @dataclass(frozen=True)
 class MembershipPredicate:
     sql: str

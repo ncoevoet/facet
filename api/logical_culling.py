@@ -55,7 +55,7 @@ def has_groups(conn):
             and conn.execute('SELECT 1 FROM logical_assets LIMIT 1').fetchone() is not None)
 
 
-def standalone_source(conn, user_id):
+def standalone_source(conn, user_id, extra=()):
     if not has_groups(conn):
         return None
     from api.config import is_multi_user_enabled
@@ -63,7 +63,7 @@ def standalone_source(conn, user_id):
     visibility, params = get_visibility_clause(user_id)
     personal = is_multi_user_enabled()
     columns = ['path', 'star_rating', 'is_favorite', 'is_rejected', 'is_kept',
-               'aggregate', 'sequence_kind', 'similarity_reviewed', 'burst_group_id']
+               'aggregate', 'sequence_kind', 'similarity_reviewed', 'burst_group_id', *extra]
     return source(columns, owner=(user_id or '') if personal else '',
                   multi_user=personal, visibility_sql=visibility, visibility_params=params)
 
