@@ -117,8 +117,9 @@ def test_rename_failure_rolls_back_all_earlier_assignment_changes(edition_client
     captured = edition_client.post(ROOT + '/manage/preview', json={'source': 'source', 'target': 'new'}).json()
     before = assignments(keywords)
     with sqlite3.connect(DEFAULT_DB_PATH) as conn:
+        target = conn.execute('SELECT quote(?)', (keywords[1],)).fetchone()[0]
         conn.execute('CREATE TRIGGER fail_keyword_change BEFORE UPDATE ON photo_manual_tags '
-                     'WHEN OLD.photo_path LIKE \'%/public/1.jpg\' BEGIN SELECT RAISE(ABORT, \'fixture\'); END')
+                     f"WHEN OLD.photo_path = {target} BEGIN SELECT RAISE(ABORT, 'fixture'); END")
     try:
         response = edition_client.post(ROOT + '/manage/apply', json={
             'source': 'source', 'target': 'new', 'preview_token': captured['preview_token']})

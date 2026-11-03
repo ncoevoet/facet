@@ -96,7 +96,9 @@ def test_manifest_scores_only_captured_files_without_library_tail(failed_run, sc
     plan = capture_retry_plan(db, None, 1)
     filename, digest = write_retry_manifest(plan, first.parent)
     try:
-        assert os.stat(filename).st_mode & 0o077 == 0
+        # POSIX mode bits do not describe access-control lists on Windows.
+        if os.name != 'nt':
+            assert os.stat(filename).st_mode & 0o077 == 0
         monkeypatch.setattr(sys, 'argv', [
             'facet.py', '--retry-plan', filename, '--retry-plan-sha256', digest, '--db', db,
         ])
