@@ -1,3 +1,4 @@
+import { randomUuid } from '../../shared/utils/random-uuid';
 import { HttpErrorResponse } from '@angular/common/http';
 import { Component, inject, signal, computed, DestroyRef, OnInit } from '@angular/core';
 import { FormsModule } from '@angular/forms';
@@ -495,7 +496,7 @@ export class ManualFaceDialogComponent implements OnInit {
     // A refreshed token still represents the same create intent after a lost response.
     const signature = JSON.stringify({ path: body.path, bbox: body.bbox, ...this.person()! });
     if (!this.attempt || this.attempt.signature !== signature)
-      this.attempt = { signature, clientId: crypto.randomUUID() };
+      this.attempt = { signature, clientId: randomUuid() };
     const request =
       id === null
         ? this.api.post<ManualFaceRegion>('/photo/manual-faces', {

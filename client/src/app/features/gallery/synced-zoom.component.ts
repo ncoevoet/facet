@@ -1,3 +1,4 @@
+import { randomUuid } from '../../shared/utils/random-uuid';
 import { ChangeDetectionStrategy, Component, afterRenderEffect, DestroyRef, ElementRef, computed, effect, inject, input, output, signal, untracked, viewChild } from '@angular/core';
 import { LoupeDirective } from '../../shared/directives/loupe.directive';
 import { normalizedInspectionBox } from './comparison-inspection.util';
@@ -208,7 +209,7 @@ export class SyncedZoomComponent {
    *  it equals the current `src`. */
   private readonly readySrc = signal<string | null>(null);
   private readonly retryState = signal<{ frameKey: string | null; src: string; attempt: number } | null>(null);
-  private readonly retrySession = crypto.randomUUID();
+  private readonly retrySession = randomUuid();
   private readonly requestedPreview = computed(() => this.retryUrl(this.src()));
   /** The frame whose own image last finished loading in this pane. */
   private readonly paintedKey = signal<string | null>(null);

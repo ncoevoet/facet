@@ -106,6 +106,15 @@ describe('BurstCullingComponent', () => {
     component.ngOnDestroy();
   });
 
+  it('opens the darkroom workspace on HTTP LAN without randomUUID', () => {
+    vi.stubGlobal('crypto', { getRandomValues: crypto.getRandomValues.bind(crypto) });
+    try {
+      const workspace = TestBed.runInInjectionContext(() => new BurstCullingComponent());
+      expect(workspace.renditions.developedPreviewUrl()).toBe('');
+      workspace.ngOnDestroy();
+    } finally { vi.unstubAllGlobals(); }
+  });
+
   describe('stack mode transport isolation', () => {
     it('refuses direct sequence correction and clear calls', async () => {
       await store.loadGroups();

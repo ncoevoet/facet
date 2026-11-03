@@ -1,3 +1,4 @@
+import { randomUuid } from '../../shared/utils/random-uuid';
 import { DestroyRef, computed, effect, inject, signal, untracked } from '@angular/core';
 import { MatSnackBar } from '@angular/material/snack-bar';
 import { I18nService } from '../../core/services/i18n.service';
@@ -47,7 +48,7 @@ export class DarkroomRenditions {
   readonly previewLoading = signal(false);
   readonly developedFailure = signal<{ path: string; style: string } | null>(null);
   private readonly developedAttempt = signal<{ path: string; style: string; attempt: number } | null>(null);
-  private readonly developedSession = crypto.randomUUID();
+  private readonly developedSession = randomUuid();
   readonly developedPreviewUrl = computed(() => {
     const path = this.currentPath(), style = this.activeStyle();
     if (!path || !style) return '';

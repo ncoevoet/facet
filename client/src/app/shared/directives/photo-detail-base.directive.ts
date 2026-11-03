@@ -1,3 +1,4 @@
+import { randomUuid } from '../utils/random-uuid';
 import { Directive, computed, effect, inject, signal } from '@angular/core';
 import { firstValueFrom } from 'rxjs';
 import { Photo, hasExifFields } from '../models/photo.model';
@@ -29,7 +30,7 @@ export abstract class PhotoDetailBase {
   protected readonly thumbnailRendition = signal<DisplayedRendition>({ kind: 'thumbnail', phase: 'loading' });
   protected readonly displayedRendition = computed(() => this.fullImageLoaded() ? this.sourceRendition() : this.thumbnailRendition());
   private readonly imageAttempt = signal(0);
-  private readonly imageSession = crypto.randomUUID();
+  private readonly imageSession = randomUuid();
   protected readonly translatingCaption = signal(false);
   protected readonly translatedCaption = signal<string | null>(null);
 

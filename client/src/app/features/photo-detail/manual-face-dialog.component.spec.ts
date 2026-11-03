@@ -55,6 +55,17 @@ describe('manual face editor', () => {
     component.bbox.set([0.1, 0.2, 0.8, 0.9]);
     component.person.set({ person_id: 5 });
   });
+  it('saves a face on HTTP LAN without randomUUID', async () => {
+    vi.stubGlobal('crypto', { getRandomValues: crypto.getRandomValues.bind(crypto) });
+    try {
+      await component.save();
+      expect(api.post).toHaveBeenCalledWith('/photo/manual-faces', expect.objectContaining({
+        client_id: expect.stringMatching(/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/),
+      }));
+      expect(committed).toHaveBeenCalled();
+    } finally { vi.unstubAllGlobals(); }
+  });
+
   it.each(['face', 'object'] as const)('refuses %s deletion from a previous account', async kind => {
     vi.spyOn(TestBed.inject(AuthService), 'identity').mockReturnValue('1|other');
     if (kind === 'face') await component.remove(region);

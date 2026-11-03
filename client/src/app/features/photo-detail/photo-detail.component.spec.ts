@@ -1172,6 +1172,15 @@ describe('PhotoDetailComponent', () => {
       expect(component.fullImageLoaded()).toBe(false);
     });
 
+    it('opens and retries a photo on HTTP LAN without randomUUID', () => {
+      vi.stubGlobal('crypto', { getRandomValues: crypto.getRandomValues.bind(crypto) });
+      try {
+        createComponent(); component.photo.set(samplePhoto); TestBed.tick();
+        component.retryFullImage(); TestBed.tick();
+        expect(new URL(component.fullImageUrl()).searchParams.get('facet_retry')).toMatch(/^[0-9a-f-]{36}-1$/);
+      } finally { vi.unstubAllGlobals(); }
+    });
+
     it('keeps the measured thumbnail after source failure, retries fresh and rejects a former owner', () => {
       createComponent(); component.photo.set(samplePhoto); TestBed.tick();
       component.onThumbnailState({ target: loadedImage(component.thumbnailImageUrl(), 640, 420) });

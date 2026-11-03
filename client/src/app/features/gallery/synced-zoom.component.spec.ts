@@ -58,6 +58,15 @@ describe('SyncedZoomComponent', () => {
     fixture.detectChanges();
   }
 
+  it('constructs and retries on HTTP LAN without randomUUID', () => {
+    vi.stubGlobal('crypto', { getRandomValues: crypto.getRandomValues.bind(crypto) });
+    try {
+      const fixture = make();
+      fixture.componentInstance.retry(); fixture.detectChanges();
+      expect(new URL(api(fixture).effectiveSrc()).searchParams.get('facet_retry')).toMatch(/^[0-9a-f-]{36}-1$/);
+    } finally { vi.unstubAllGlobals(); }
+  });
+
   it('shows the visible image region while zooming and panning, and hides it at Fit', () => {
     const f = make(); measure(f); f.componentInstance.measurePane(); f.detectChanges();
     const root = f.nativeElement as HTMLElement;

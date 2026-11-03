@@ -56,6 +56,8 @@ All notable changes to Facet are documented in this file.
 
 ### Fixed
 
+- Photo detail, comparison, darkroom and manual face saving work on plain-HTTP LAN connections where the browser does not provide `crypto.randomUUID`.
+
 - Scan summaries again measure scoring and each post-scan phase. Favorite saves ignore old-session responses and retain confirmed changes when a subsequent gallery refresh fails.
 
 - Late manual-tag writes refresh grouped-tag collections so newly matching photos appear after navigation.
