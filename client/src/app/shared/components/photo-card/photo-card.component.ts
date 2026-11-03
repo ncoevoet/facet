@@ -718,12 +718,7 @@ export class PhotoCardComponent {
    *  things -- selection is a set the batch actions operate on, current is the
    *  single photo the next rating keystroke lands on. */
   readonly isActive = input(false);
-  /** Whether the grid this card sits in has a current photo at all.
-   *
-   *  Stated as a fact about the grid rather than passed as "dim yourself": a
-   *  card cannot see whether some *other* card is the current one. It stays
-   *  false until the grid's cursor first lands somewhere, which is what keeps
-   *  a gallery nobody has navigated yet from rendering every tile faded. */
+  /** Enables keyboard-rating hints after the grid cursor first lands on a photo. */
   readonly gridHasActiveCard = input(false);
   /** False hides every control that replaces the list with a new filter: tag chips render as plain text and Find similar is not offered. */
   readonly filterLinks = input(true);
@@ -751,13 +746,6 @@ export class PhotoCardComponent {
     const range = this.metricRanges()[column];
     return range ? topPercentOf(range, (photo as unknown as Record<string, number | null>)[column]) : null;
   });
-
-  /** Every card except the current one, and only once there is a current one.
-   *
-   *  Fading the rest is the half of the marker that a photograph cannot defeat:
-   *  a line drawn at the tile's own edge competes with whatever the photo puts
-   *  there, whereas a grid where one tile alone is at full strength reads from
-   *  across the room. */
 
   // Edition mode
   readonly isEditionMode = input(false);

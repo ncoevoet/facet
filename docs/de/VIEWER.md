@@ -432,7 +432,7 @@ Antwortfelder und Statuscodes: [API.md](../API.md).
 - **Vorschaubildgröße** — Regler für die Karten-/Zeilenhöhe (120–400px, in localStorage gespeichert)
 - **Details ausblenden** — Metadaten auf Karten ausblenden (nur im Rastermodus)
 - **Tooltip** — Wie Fotodetails erscheinen: **Seitenleiste** (Standard), **Hover**, **Klick** oder **Aus**.
-  - Die Seitenleiste zeigt alle Details in der rechten Schublade, angeordnet wie in der Fotodetailansicht. Sie folgt Hover und Klick und funktioniert so auch auf Touch-Bildschirmen. Sie behält das letzte Foto, wenn der Zeiger das Raster verlässt.
+  - Die Seitenleiste zeigt alle Details in der rechten Schublade, angeordnet wie in der Fotodetailansicht. Unter **Panel-Aktivierung** wählen Sie **Hover**, **Klick** oder **Hover oder Klick** (Standard). Die Ansicht Prüfen verwendet **Klick**; wählen Sie für Touch-Bildschirme eine Option mit Klick. Sie behält das letzte Foto, wenn der Zeiger das Raster verlässt.
   - Ein Klick auf ein Foto hält die Leiste darauf fest, bis Sie **Auswahl aufheben** drücken (das auch das Foto abwählt). **Escape** wirkt genauso und hebt die Auswahl auf.
   - Ein am unteren Rand der Leiste fixierter Eintrag **Warum diese Bewertung?** öffnet den Bewertungserklärer (den Kritik-Dialog) für das Foto, das die Leiste hält.
   - Die Leiste teilt sich die Schublade mit den Filtern; das Öffnen der Filter blendet sie aus. Erfordert ein Fenster von mindestens 1280px.
@@ -521,7 +521,7 @@ Klicken Sie auf den Namen einer Person, um alle ihre Fotos unter `/person/<id>` 
 
 ### Seite „Personen verwalten“
 
-Im Bearbeitungsmodus hat die Seite zwei Reiter, **Benannt (N)** und **Zu benennen (N)**, und öffnet immer auf **Benannt**. **Zu benennen** listet die unbenannten Cluster, jeweils mit einem Namensfeld; **Benannt** enthält die benannten Personen, mit den ignorierten in einem einklappbaren Abschnitt **Ignoriert** am Ende. Schreibgeschützte Benutzer sehen nur das Raster der benannten Personen. Namensvorschläge zeigen hier wie am Personen-Chip der Galerie und im Gesichtsmenü des Fotos zu jeder Person Gesicht, Namen und Fotoanzahl. Auf **Zu benennen** bietet das Sortiermenü **Gesichteranzahl** und **Neueste**. Ist niemand mehr zu benennen, zeigt der Reiter „Alle sind benannt. Neue Gesichter, die einen Namen brauchen, erscheinen hier.“
+Im Bearbeitungsmodus hat die Seite vier Reiter: **Benannt (N)**, **Zu benennen (N)**, **Zuordnungen prüfen** und **Nicht zugewiesen**. Sie öffnet auf **Benannt**, sofern der Link keinen anderen Reiter angibt. **Zu benennen** listet die unbenannten Cluster, jeweils mit einem Namensfeld; **Benannt** enthält die benannten Personen, mit den ignorierten in einem einklappbaren Abschnitt **Ignoriert** am Ende. Schreibgeschützte Benutzer sehen nur das Raster der benannten Personen. Namensvorschläge zeigen hier wie am Personen-Chip der Galerie und im Gesichtsmenü des Fotos zu jeder Person Gesicht, Namen und Fotoanzahl. Auf **Zu benennen** bietet das Sortiermenü **Gesichteranzahl** und **Neueste**. Ist niemand mehr zu benennen, zeigt der Reiter „Alle sind benannt. Neue Gesichter, die einen Namen brauchen, erscheinen hier.“
 
 Öffnen Sie sie über die Schaltfläche in der Kopfzeile oder `/persons`:
 

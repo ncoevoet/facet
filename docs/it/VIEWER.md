@@ -431,7 +431,7 @@ Campi della risposta e codici di stato: [API.md](../API.md).
 - **Dimensione miniatura** — cursore dell'altezza di scheda/riga (120–400px, salvato in localStorage)
 - **Nascondi dettagli** — nasconde i metadati sulle schede (solo modalità griglia)
 - **Tooltip** — come appaiono i dettagli della foto: **Pannello laterale** (predefinito), **Al passaggio**, **Al clic** o **Disattivato**.
-  - Il pannello laterale mostra i dettagli completi nel cassetto di destra, organizzato come il dettaglio della foto. Segue passaggio e clic, quindi funziona sugli schermi touch. Mantiene l'ultima foto quando il cursore lascia la griglia.
+  - Il pannello laterale mostra i dettagli completi nel cassetto di destra, organizzato come il dettaglio della foto. In **Attivazione pannello**, scegli **Hover**, **Clic** o **Hover o clic** (predefinito). La vista Revisione usa **Clic**; scegli un’opzione con clic per gli schermi touch. Mantiene l'ultima foto quando il cursore lascia la griglia.
   - Cliccare una foto tiene il pannello su di essa finché non premi **Deseleziona** (che deseleziona anche la foto). **Esc** fa lo stesso e cancella la selezione.
   - Una voce **Perché questo punteggio?** fissata in fondo al pannello apre la spiegazione del punteggio (la finestra di critica) per la foto che il pannello tiene.
   - Il pannello condivide il cassetto con i filtri; aprire i filtri lo nasconde. Richiede una finestra larga almeno 1280px.
@@ -520,7 +520,7 @@ Clicca il nome di una persona per vedere tutte le sue foto su `/person/<id>`. Ne
 
 ### Pagina Gestisci persone
 
-In modalità modifica la pagina ha due schede, **Con nome (N)** e **Da nominare (N)**, e si apre sempre su **Con nome**. **Da nominare** elenca i cluster senza nome, ciascuno con un campo nome; **Con nome** raccoglie le persone con un nome, con quelle ignorate in una sezione richiudibile **Ignorate** in fondo. Gli utenti in sola lettura vedono solo la griglia delle persone con nome. I suggerimenti di nome, qui come nell'etichetta persona della galleria e nel menu dei volti della foto, mostrano volto, nome e numero di foto di ogni persona. Su **Da nominare** il menu di ordinamento offre **Numero di volti** e **Più recenti**. Quando non resta nessuno da nominare, la scheda mostra «Tutti hanno un nome. I nuovi volti da nominare compariranno qui.»
+In modalità modifica la pagina ha quattro schede: **Con nome (N)**, **Da nominare (N)**, **Esamina corrispondenze** e **Non assegnati**. Si apre su **Con nome**, salvo che il collegamento indichi un’altra scheda. **Da nominare** elenca i cluster senza nome, ciascuno con un campo nome; **Con nome** raccoglie le persone con un nome, con quelle ignorate in una sezione richiudibile **Ignorate** in fondo. Gli utenti in sola lettura vedono solo la griglia delle persone con nome. I suggerimenti di nome, qui come nell'etichetta persona della galleria e nel menu dei volti della foto, mostrano volto, nome e numero di foto di ogni persona. Su **Da nominare** il menu di ordinamento offre **Numero di volti** e **Più recenti**. Quando non resta nessuno da nominare, la scheda mostra «Tutti hanno un nome. I nuovi volti da nominare compariranno qui.»
 
 Aprila dal pulsante nell'intestazione o da `/persons`:
 

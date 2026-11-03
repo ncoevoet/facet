@@ -10,6 +10,7 @@ import { firstValueFrom } from 'rxjs';
 import { ApiService } from '../../core/services/api.service';
 import { AuthService } from '../../core/services/auth.service';
 import { TranslatePipe } from '../../shared/pipes/translate.pipe';
+import { basename } from '../../shared/utils/clipboard';
 import type { ManualTagObservation } from './manual-tag-observation.util';
 import { i18nKeys } from '../../core/i18n/keys';
 import { chunkPhotoPaths } from './gallery.store';
@@ -130,7 +131,7 @@ export class ManualTagsDialogComponent {
     paths: this.input.paths, fromWholeView: this.input.fromWholeView,
     count: this.input.count, observation: this.input.observation,
   });
-  protected readonly targetNames = this.data.paths.slice(0, 3).map(path => path.split(/[\\/]/).pop() ?? path);
+  protected readonly targetNames = this.data.paths.slice(0, 3).map(basename);
   readonly tag = signal('');
   protected readonly values = computed(() => [...new Set(this.tag().split(/\r?\n/).map(value => value.trim()).filter(Boolean))]);
   readonly saving = signal(false);
