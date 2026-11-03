@@ -55,6 +55,8 @@ All notable changes to Facet are documented in this file.
 
 ### Fixed
 
+- Late manual-tag writes refresh grouped-tag collections so newly matching photos appear after navigation.
+
 - Shared-album filename copying and original downloads retain the photo’s filename, including when the selected photo is no longer on the displayed page. Shift-selection follows its photo after sorting and starts a new range if filtering removes that photo.
 
 - Photo deletion and relinking use an indexed lookup for retained face-update receipts, avoiding a full job-history scan per photo.

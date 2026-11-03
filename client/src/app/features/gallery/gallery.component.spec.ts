@@ -3109,6 +3109,19 @@ describe('GalleryComponent', () => {
       expect(mockStore.refreshPaths).not.toHaveBeenCalled();
     });
 
+    it('refreshes grouped-tag membership when a write settles in a newer view', async () => {
+      select(['/a.jpg']);
+      const dialog = TestBed.inject(MatDialog);
+      (dialog.open as Mock).mockReturnValue({ afterClosed: () => of(undefined) });
+      await open();
+      const data = (dialog.open as Mock).mock.calls[0][1].data;
+      mockStore.filters.update((filters: GalleryFilters) => ({ ...filters, tag_groups: '{"all":["trip"]}' }));
+      mockStore.photos.set([]);
+      data.onSettled({ confirmedCount: 1, tag: 'trip', action: 'add', incomplete: true, uncertain: false });
+      expect(mockStore.refreshPaths).toHaveBeenCalledExactlyOnceWith(null);
+      expect(mockStore.restoreSelection).not.toHaveBeenCalled();
+    });
+
     it('repairs tag-dependent membership even when a lost response confirms no count', async () => {
       select(['/a.jpg']);
       mockStore.filters.update((filters: GalleryFilters) => ({ ...filters, search: 'trip' }));

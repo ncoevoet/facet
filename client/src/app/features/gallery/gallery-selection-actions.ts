@@ -471,7 +471,7 @@ export class GallerySelectionActions {
         // repair debt and respects the currently authorized view without selection reset.
         const filters = this.store.filters();
         const membershipMayChange = this.store.pinnedPaths() === null
-          && (viewScoped || !!filters.tag || !!filters.search || !!this.store.currentAlbum()?.is_smart);
+          && (viewScoped || !!filters.tag || !!filters.tag_groups || !!filters.search || !!this.store.currentAlbum()?.is_smart);
         await this.store.refreshPaths(membershipMayChange ? null : paths);
       };
       const data: ManualTagsDialogData = {

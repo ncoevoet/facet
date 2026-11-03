@@ -1,5 +1,5 @@
 import { LogicalAssetApplied } from '../../shared/models/logical-asset-change';
-import { LogicalReviewService, LogicalReviewState, LogicalReviewWriteError } from '../../core/services/logical-review.service';
+import { LogicalReviewAction, LogicalReviewService, LogicalReviewState, LogicalReviewWriteError } from '../../core/services/logical-review.service';
 import { Injectable, inject, signal, computed, effect, untracked, DestroyRef } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { pathOf } from '../../shared/utils/url-path';
@@ -2285,20 +2285,24 @@ export class GalleryStore {
     return this.filterKey({ ...this.filters(), page: 1 });
   }
 
+  private async saveLogicalReview(photoPath: string, state: LogicalReviewState, action: LogicalReviewAction): Promise<boolean> {
+    try {
+      const result = await this.logicalReviews.save(state, action, () =>
+        this.photos().some(photo => photo.path === photoPath && photo.logical_review?.input_token === state.input_token));
+      if (!result) return false;
+      await this.applyLogicalReview(result);
+      return true;
+    } catch (error) {
+      if (error instanceof LogicalReviewWriteError && error.recovered) await this.applyLogicalReview(error.recovered);
+      this.notifyActionFailed(); return false;
+    }
+  }
+
   /** Set star rating for a photo (0 = clear). Optimistic with revert on error. */
   async setRating(photoPath: string, rating: number): Promise<boolean> {
     const logical = this.photos().find(photo => photo.path === photoPath)?.logical_review;
     if (logical) {
-      try {
-        const result = await this.logicalReviews.save(logical, { rating }, () =>
-          this.photos().some(photo => photo.path === photoPath && photo.logical_review?.input_token === logical.input_token));
-        if (!result) return false;
-        await this.applyLogicalReview(result);
-        return true;
-      } catch (error) {
-        if (error instanceof LogicalReviewWriteError && error.recovered) await this.applyLogicalReview(error.recovered);
-        this.notifyActionFailed(); return false;
-      }
+      return this.saveLogicalReview(photoPath, logical, { rating });
     }
     if (this.toggleInFlight.has(photoPath)) return false;
     this.toggleInFlight.add(photoPath);
@@ -2347,14 +2351,7 @@ export class GalleryStore {
   async toggleFavorite(photoPath: string): Promise<void> {
     const logical = this.photos().find(photo => photo.path === photoPath)?.logical_review;
     if (logical) {
-      try {
-        const result = await this.logicalReviews.save(logical, 'favorite', () =>
-          this.photos().some(photo => photo.path === photoPath && photo.logical_review?.input_token === logical.input_token));
-        if (result) await this.applyLogicalReview(result);
-      } catch (error) {
-        if (error instanceof LogicalReviewWriteError && error.recovered) await this.applyLogicalReview(error.recovered);
-        this.notifyActionFailed();
-      }
+      await this.saveLogicalReview(photoPath, logical, 'favorite');
       return;
     }
     const isOrigin = this.captureReviewView();
@@ -2396,16 +2393,7 @@ export class GalleryStore {
   async toggleRejected(photoPath: string): Promise<boolean> {
     const logical = this.photos().find(photo => photo.path === photoPath)?.logical_review;
     if (logical) {
-      try {
-        const result = await this.logicalReviews.save(logical, 'reject', () =>
-          this.photos().some(photo => photo.path === photoPath && photo.logical_review?.input_token === logical.input_token));
-        if (!result) return false;
-        await this.applyLogicalReview(result);
-        return true;
-      } catch (error) {
-        if (error instanceof LogicalReviewWriteError && error.recovered) await this.applyLogicalReview(error.recovered);
-        this.notifyActionFailed(); return false;
-      }
+      return this.saveLogicalReview(photoPath, logical, 'reject');
     }
     const isOrigin = this.captureReviewView();
     const identity = this.auth.identity();

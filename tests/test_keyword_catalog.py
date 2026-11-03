@@ -44,11 +44,14 @@ def test_catalog_pages_exact_literals_unicode_search_counts_and_readonly(regular
     assert first.headers['Cache-Control'] == 'no-store'
     result = first.json()
     all_items = result['items']
-    while result['next_after'] is not None:
+    # Five fixture names at two per page require exactly two further pages.
+    for _ in range(2):
+        assert result['next_after'] is not None
         response = regular_client.get(ROOT + '/catalog', params={'limit': 2, 'after': result['next_after']})
         assert response.status_code == 200, response.text
         result = response.json()
         all_items.extend(result['items'])
+    assert result['next_after'] is None
     assert [item['tag'] for item in all_items] == ['animals/cat', 'café', 'destination', 'source', 'zoo/cat']
     assert next(item for item in all_items if item['tag'] == 'source') == {
         'tag': 'source', 'count': 4, 'typed': 0, 'imported': 4, 'unrecorded': 0}
