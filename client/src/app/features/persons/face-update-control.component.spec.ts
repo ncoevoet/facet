@@ -57,6 +57,18 @@ describe('FaceUpdateControlComponent', () => {
     dispose();
   });
 
+  it('shows a running job instead of a new start preview when reopened', async () => {
+    const { root, api, open, settle, dispose } = await render();
+    await open();
+    root.querySelector('section')!.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true, cancelable: true }));
+    await settle();
+    api.get.mockImplementation((url: string) => of(url.endsWith('/preview') ? preview : url.endsWith('/jobs') ? [receipt] : receipt));
+    await open();
+    expect(root.querySelector('[data-face-update-receipt]')?.textContent).toContain('"processed":3,"total":12');
+    expect(root.querySelector('[data-start-faces]')).toBeNull(); expect(api.post).not.toHaveBeenCalled();
+    dispose();
+  });
+
   it('recovers an uncertain start by retrying exactly the same request identity', async () => {
     const { root, api, open, settle, dispose } = await render();
     await open(); api.post.mockReturnValueOnce(throwError(() => new Error('response lost')));

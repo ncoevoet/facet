@@ -244,7 +244,13 @@ export class FaceUpdateControlComponent {
       ]);
       if (!guard.current()) return;
       if (preview.mode !== mode) throw new Error('Mismatched face update scope');
-      this.preview.set(preview); this.previewContext = { ...this.context(preview.model), mode: preview.eligible_photos === 0 && preview.pending_person_matches ? 'repair' : mode }; this.history.set(jobs); this.job.set(null); this.stopTarget.set(null);
+      const active = jobs.find(job => job.state === 'queued' || job.state === 'running');
+      this.history.set(jobs); this.stopTarget.set(null);
+      if (active) {
+        this.preview.set(null); this.previewContext = null; this.job.set(active); this.armPoll();
+      } else {
+        this.preview.set(preview); this.previewContext = { ...this.context(preview.model), mode: preview.eligible_photos === 0 && preview.pending_person_matches ? 'repair' : mode }; this.job.set(null);
+      }
     } catch { if (guard.current()) this.error.set(true); }
     finally { if (generation === this.generation) this.busy.set(null); guard.dispose(); }
   }
