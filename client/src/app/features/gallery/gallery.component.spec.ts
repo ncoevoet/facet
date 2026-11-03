@@ -663,6 +663,14 @@ describe('GalleryComponent', () => {
       expect(activeIndex()).toBe(1);
     });
 
+    it('keeps and advances on K after a successful decision', async () => {
+      TestBed.inject(GalleryReviewNavigationService).setEnabled(true);
+      const keep = vi.spyOn(component.selectionActions, 'reviewSingle').mockResolvedValue({ snapshot: new Map(), targeted: 1, count: 1 });
+      fire(keyEvent('k')); await Promise.resolve();
+      expect(keep).toHaveBeenCalledWith('/a.jpg', 'kept');
+      expect(activeIndex()).toBe(1);
+    });
+
     it('keeps the current photo after a successful rating by default', async () => {
       mockStore.setRating.mockResolvedValue(true);
       fire(keyEvent('4'));

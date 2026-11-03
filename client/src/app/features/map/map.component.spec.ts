@@ -122,6 +122,16 @@ describe('MapComponent', () => {
       expect(mockMap.fitBounds).toHaveBeenCalledWith([[40, 70], [40, 70]], { padding: [32, 32], maxZoom: 12, animate: false });
     });
 
+    it.each([
+      { count: 1, bounds: [40, 70, Number.NaN, 70] },
+      { count: 0, bounds: null },
+    ])('uses the default viewport when bounds are unavailable or invalid', async data => {
+      mockApi.get.mockImplementation((url: string) => url === '/photos/map/count' ? of(data) : of({ photos: [], clusters: [] }));
+      component.initMap(); await Promise.resolve();
+      expect(mockMap.fitBounds).not.toHaveBeenCalled();
+      expect(mockApi.get.mock.calls.filter(([url]) => url === '/photos/map')).toHaveLength(1);
+    });
+
     it('preserves a user pan made before the initial extent arrives', async () => {
       const pending = new Subject<{ count: number; bounds: number[] }>();
       mockApi.get.mockImplementation((url: string) => url === '/photos/map/count' ? pending : of({ photos: [], clusters: [] }));

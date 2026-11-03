@@ -842,16 +842,16 @@ const SET_KIND_TOGGLE: Record<string, keyof HiddenFilterFlags> = {
               </div>
             </details>
           }
-          <button mat-button disabledInteractive (click)="clearSelection()" [matTooltip]="I18N.gallery.selection.clear | translate" [attr.aria-label]="I18N.gallery.selection.clear | translate"><mat-icon>close</mat-icon>{{ I18N.gallery.selection.clear | translate }}</button>
+          <button mat-button disabledInteractive class="max-md:!min-h-11 max-md:!min-w-11 max-md:!w-11 max-md:!px-2" (click)="clearSelection()" [matTooltip]="I18N.gallery.selection.clear | translate" [attr.aria-label]="I18N.gallery.selection.clear | translate"><mat-icon class="max-md:!m-0">close</mat-icon><span class="hidden md:inline">{{ I18N.gallery.selection.clear | translate }}</span></button>
           @if (selectionCount() >= 2) {
-            <button mat-button [disabled]="!canCompareSelection()" (click)="compareSelection()" [matTooltip]="I18N.gallery.selection.compare | translate" [attr.aria-label]="I18N.gallery.selection.compare | translate" [attr.aria-describedby]="canCompareSelection() ? null : 'compare-selection-requirements'"><mat-icon>compare</mat-icon>{{ I18N.gallery.selection.compare | translate }}</button>
+            <button mat-button class="max-md:!min-h-11 max-md:!min-w-11 max-md:!w-11 max-md:!px-2" [disabled]="!canCompareSelection()" (click)="compareSelection()" [matTooltip]="I18N.gallery.selection.compare | translate" [attr.aria-label]="I18N.gallery.selection.compare | translate" [attr.aria-describedby]="canCompareSelection() ? null : 'compare-selection-requirements'"><mat-icon class="max-md:!m-0">compare</mat-icon><span class="hidden md:inline">{{ I18N.gallery.selection.compare | translate }}</span></button>
             @if (!canCompareSelection()) {
               <span id="compare-selection-requirements" class="text-xs basis-full">{{ (selectionCount() > compareQueueLimit ? I18N.gallery.selection.compare_queue_limit : I18N.gallery.selection.compare_queue_requirements) | translate:{ max: compareQueueLimit } }}</span>
             }
           }
           @if (auth.isEdition()) {
-            <button mat-button data-selection-keep [matTooltip]="I18N.review.keep | translate" (click)="selectionActions.batchReview('kept')" [attr.aria-label]="I18N.review.keep | translate"><mat-icon>check_circle</mat-icon>{{ I18N.review.keep | translate }}</button>
-            <button mat-button data-selection-reject [matTooltip]="I18N.gallery.selection.reject | translate" (click)="selectionActions.batchReject()" [attr.aria-label]="I18N.gallery.selection.reject | translate"><mat-icon>thumb_down</mat-icon>{{ I18N.gallery.selection.reject | translate }}</button>
+            <button mat-button data-selection-keep class="max-md:!min-h-11 max-md:!min-w-11 max-md:!w-11 max-md:!px-2" [matTooltip]="I18N.review.keep | translate" (click)="selectionActions.batchReview('kept')" [attr.aria-label]="I18N.review.keep | translate"><mat-icon class="max-md:!m-0">check_circle</mat-icon><span class="hidden md:inline">{{ I18N.review.keep | translate }}</span></button>
+            <button mat-button data-selection-reject class="max-md:!min-h-11 max-md:!min-w-11 max-md:!w-11 max-md:!px-2" [matTooltip]="I18N.gallery.selection.reject | translate" (click)="selectionActions.batchReject()" [attr.aria-label]="I18N.gallery.selection.reject | translate"><mat-icon class="max-md:!m-0">thumb_down</mat-icon><span class="hidden md:inline">{{ I18N.gallery.selection.reject | translate }}</span></button>
           }
           <button mat-icon-button class="md:!hidden" (click)="openActionsSheet()" [disabled]="selectionActions.downloading()" [matTooltip]="I18N.gallery.selection.actions | translate" [attr.aria-label]="I18N.gallery.selection.actions | translate">
             @if (selectionActions.downloading()) { <mat-spinner diameter="18" [attr.aria-label]="I18N.ui.labels.loading | translate"></mat-spinner> } @else { <mat-icon>more_horiz</mat-icon> }
