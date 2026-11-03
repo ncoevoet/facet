@@ -94,6 +94,46 @@ def test_job_identity_and_completion_persist_only_after_the_full_tail(pipeline):
     assert any('idx_scan_runs_viewer_job' in item[3] for item in plan)
 
 
+def test_pipeline_records_scoring_and_each_post_scan_duration(pipeline, monkeypatch):
+    from processing.stage_timing import PhaseLedger
+    from processing.multi_pass import ChunkedMultiPassProcessor
+
+    now = [0.0]
+    ledger = PhaseLedger(clock=lambda: now[0], elapsed_before=2.0)
+    monkeypatch.setattr(PhaseLedger, 'for_process', classmethod(lambda cls: ledger))
+
+    def advance(seconds, result=None):
+        now[0] += seconds
+        return result
+
+    class TimedProcessor(ChunkedMultiPassProcessor):
+        def __init__(self, *args, **kwargs):
+            super().__init__(*args, **kwargs)
+            self.progress = kwargs['on_progress']
+
+        def process_directory(self, paths):
+            super().process_directory(paths)
+            advance(5)
+            self.progress(0, len(paths))
+            advance(5)
+            self.progress(len(paths), len(paths))
+
+    monkeypatch.setattr('processing.multi_pass.ChunkedMultiPassProcessor', TimedProcessor)
+    monkeypatch.setattr('processing.scorer.process_bursts', lambda *a: advance(4))
+    monkeypatch.setattr(facet, 'detect_all_sequences', lambda *a, **k: advance(3))
+    monkeypatch.setattr('tag_existing.tagging_enabled', lambda *a: True)
+    monkeypatch.setattr('tag_existing.count_untagged', lambda *a: advance(2, 0))
+    monkeypatch.setattr(ScoringConfig, 'get_narrative_moments_config', lambda self: {'enabled': True})
+    monkeypatch.setattr(ScoringConfig, 'get_junk_sweep_config', lambda self: {'enabled': True})
+    monkeypatch.setattr(facet, 'run_moment_detection', lambda *a, **k: advance(7, {}))
+    monkeypatch.setattr(facet, 'run_junk_detection', lambda *a, **k: advance(8, {}))
+    monkeypatch.setattr('db.vec.populate_vec_table', lambda *a: advance(6))
+    facet.main()
+    assert ledger.durations == {'scoring': 10, 'finalize': 0, 'bursts': 4, 'sequences': 3,
+                                'tagging': 2, 'moments': 7, 'junk': 8, 'summary': 0, 'vec': 6}
+    assert ledger.parts() == {'wall': 42, 'startup': 2, 'scoring': 10, 'post_scan': 30, 'other': 0}
+
+
 def test_tail_failure_does_not_relabel_scoring_as_failed_or_pipeline_as_complete(pipeline, monkeypatch):
     db, _ = pipeline
     def fail(*args):

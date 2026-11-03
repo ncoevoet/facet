@@ -3977,6 +3977,53 @@ describe('GalleryStore optimistic mutations', () => {
     expect(snackOpen).toHaveBeenCalledWith('errors.action_failed', '', expect.anything());
   });
 
+  it.each(['identity', 'token'] as const)('ignores favorite completions after %s changes', async change => {
+    const auth = TestBed.inject(AuthService);
+    const identity = signal(auth.identity());
+    vi.spyOn(auth, 'identity').mockImplementation(identity);
+    let token = 'original';
+    Object.defineProperty(auth, 'token', { configurable: true, get: () => token });
+    const response = new Subject<{ is_favorite: boolean }>();
+    apiPost.mockReturnValue(response);
+    const pending = store.toggleFavorite('/a.jpg');
+    if (change === 'identity') identity.set('other'); else token = 'other';
+    const current = makePhoto({ path: '/a.jpg', is_favorite: false });
+    store.photos.set([current]);
+    response.next({ is_favorite: true }); response.complete();
+    await pending;
+    expect(store.photos()[0]).toBe(current);
+    expect(TestBed.inject(UserActivityJournal).since().items).toEqual([]);
+    expect(snackOpen).not.toHaveBeenCalled();
+  });
+
+  it.each(['identity', 'token'] as const)('ignores favorite errors after %s changes', async change => {
+    const auth = TestBed.inject(AuthService);
+    const identity = signal(auth.identity());
+    vi.spyOn(auth, 'identity').mockImplementation(identity);
+    let token = 'original';
+    Object.defineProperty(auth, 'token', { configurable: true, get: () => token });
+    const response = new Subject<{ is_favorite: boolean }>();
+    apiPost.mockReturnValue(response);
+    const pending = store.toggleFavorite('/a.jpg');
+    if (change === 'identity') identity.set('other'); else token = 'other';
+    const current = makePhoto({ path: '/a.jpg', is_favorite: true });
+    store.photos.set([current]);
+    response.error(new Error('old failure'));
+    await pending;
+    expect(store.photos()[0]).toBe(current);
+    expect(snackOpen).not.toHaveBeenCalled();
+  });
+
+  it('keeps an accepted favorite when its read repair fails', async () => {
+    vi.spyOn(store, 'refreshReviewResults').mockRejectedValue(new Error('read failed'));
+    apiPost.mockReturnValue(of({ is_favorite: true }));
+    await store.toggleFavorite('/a.jpg');
+    expect(store.photos()[0].is_favorite).toBe(true);
+    expect(TestBed.inject(UserActivityJournal).since().items.map(item => item.kind)).toEqual(['favorite']);
+    expect(store.loadError()).toBe(true);
+    expect(snackOpen).not.toHaveBeenCalled();
+  });
+
   it('toggleFavorite reconciles with server truth', async () => {
     apiPost.mockReturnValue(of({ is_favorite: false }));
     await store.toggleFavorite('/a.jpg');

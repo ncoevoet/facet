@@ -2356,6 +2356,8 @@ export class GalleryStore {
     }
     const isOrigin = this.captureReviewView();
     const identity = this.auth.identity();
+    const token = this.auth.token;
+    const sameOwner = () => identity === this.auth.identity() && token === this.auth.token;
     if (this.toggleInFlight.has(photoPath)) return;
     this.toggleInFlight.add(photoPath);
     try {
@@ -2372,17 +2374,22 @@ export class GalleryStore {
           this.api.post<{ is_favorite: boolean }>('/photo/toggle_favorite', { photo_path: photoPath }),
         );
         // The write landed: only another principal's view must not see it.
-        if (identity !== this.auth.identity()) return;
+        if (!sameOwner()) return;
         this.patchPhoto(photoPath, {
           is_favorite: res.is_favorite,
           is_rejected: res.is_favorite ? false : prev.is_rejected,
         });
         this.journal.record('favorite', [photoPath], res.is_favorite);
-        if (isOrigin()) await this.refreshReviewResults(this.filters().favorites_only);
+        if (isOrigin()) {
+          try { await this.refreshReviewResults(this.filters().favorites_only); }
+          catch { if (sameOwner() && isOrigin()) this.loadError.set(true); }
+        }
         else void this.loadReviewProgress();
       } catch {
-        if (isOrigin()) this.revertSnapshot(snap);
-        this.notifyActionFailed();
+        if (sameOwner()) {
+          if (isOrigin()) this.revertSnapshot(snap);
+          this.notifyActionFailed();
+        }
       }
     } finally {
       this.toggleInFlight.delete(photoPath);

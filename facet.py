@@ -2002,6 +2002,7 @@ def _run_scan_pipeline(args, resumed_run, lifecycle):
         eta = (total - processed) * elapsed / processed if processed else None
         report_progress('scoring', processed, total, eta_seconds=eta)
 
+    ledger.begin('scoring', group='scoring')
     report_progress('scoring', 0, len(todo_list), force=True)
     processor = None
     calibration_saved = 0
@@ -2190,6 +2191,7 @@ def _run_scan_pipeline(args, resumed_run, lifecycle):
 
     # 4. Process bursts
     # Note: Run --cluster-faces-incremental separately if person_ids are needed for grouping
+    ledger.begin('bursts')
     report_progress('bursts', force=True)
     process_bursts(scorer.db_path, scorer.config.config_path)
     ledger.end('bursts')
@@ -2197,11 +2199,13 @@ def _run_scan_pipeline(args, resumed_run, lifecycle):
     # 5. Name the deliberate multi-exposure sets burst grouping just swallowed,
     # and move each group's lead onto its base exposure. Must follow the bursts
     # step: it is that grouping it corrects.
+    ledger.begin('sequences')
     report_progress('sequences', force=True)
     detect_all_sequences(scorer.db_path, scorer.config.config_path, incremental=True)
     ledger.end('sequences')
 
     # 6. Auto-tag photos using stored CLIP/SigLIP embeddings
+    ledger.begin('tagging')
     report_progress('tagging', force=True)
     from tag_existing import run_tagging, resolve_scan_tagger, count_untagged, tagging_enabled
 
@@ -2229,6 +2233,7 @@ def _run_scan_pipeline(args, resumed_run, lifecycle):
     # so label newly-scanned photos automatically. Reuses the scorer's
     # RAM-cached embedding model; no-ops when narrative_moments is disabled.
     if scorer.config.get_narrative_moments_config().get('enabled', False):
+        ledger.begin('moments')
         report_progress('moments', force=True)
         try:
             result = run_moment_detection(
@@ -2245,6 +2250,7 @@ def _run_scan_pipeline(args, resumed_run, lifecycle):
     # junk (screenshots/documents/receipts/memes/slides) on newly-scanned
     # photos automatically. No-ops when junk_sweep is disabled.
     if scorer.config.get_junk_sweep_config().get('enabled', False):
+        ledger.begin('junk')
         report_progress('junk', force=True)
         try:
             result = run_junk_detection(
@@ -2264,6 +2270,7 @@ def _run_scan_pipeline(args, resumed_run, lifecycle):
     # Auto-populate sqlite-vec table so semantic search is fast on first viewer
     # load after a scan. Idempotent: skips when already up-to-date, no-ops when
     # sqlite-vec isn't installed.
+    ledger.begin('vec')
     report_progress('vec', force=True)
     try:
         from db.vec import populate_vec_table
