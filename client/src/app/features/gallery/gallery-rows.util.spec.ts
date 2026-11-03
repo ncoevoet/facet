@@ -169,6 +169,38 @@ describe('buildGridRows', () => {
     expect(rows[0].height).toBe(Math.round(cellW / 0.5) + DETAILS_ESTIMATE_PX);
   });
 
+  it('natural fit keeps the tallest original ratio instead of squaring', () => {
+    const tallAndWide = [photo(0, 1000, 2000), photo(1, 2000, 1000)];
+    const rows = buildGridRows(tallAndWide, 1000, 400, 8, true, true, 'natural');
+    const cellW = (1000 - 8) / 2;
+    expect(rows[0].height).toBe(Math.round(cellW / 0.5));
+    expect(rows[0].height).not.toBe(Math.round(cellW));
+  });
+
+  it('natural fit gives each card its own height, square fit gives none', () => {
+    const tallAndWide = [photo(0, 1000, 2000), photo(1, 2000, 1000)];
+    const cellW = Math.floor((1000 - 8) / 2);
+    const natural = buildGridRows(tallAndWide, 1000, 400, 8, true, true, 'natural');
+    expect(natural[0].heights).toEqual([Math.round(cellW / 0.5), Math.round(cellW / 2)]);
+    expect(Math.max(...natural[0].heights!)).toBeLessThanOrEqual(natural[0].height);
+    const square = buildGridRows(tallAndWide, 1000, 400, 8, true, true, 'square');
+    expect(square[0].heights).toBeUndefined();
+  });
+
+  it('natural fit keeps offsets exact across rows', () => {
+    const rows = buildGridRows(photos(10), 1000, 168, 8, true, true, 'natural');
+    for (let i = 1; i < rows.length; i++) {
+      expect(rows[i].offset).toBe(rows[i - 1].offset + rows[i - 1].height + 8);
+    }
+  });
+
+  it('natural fit ignores the preference when details are shown (estimate branch unchanged)', () => {
+    const tallAndWide = [photo(0, 1000, 2000), photo(1, 2000, 1000)];
+    const natural = buildGridRows(tallAndWide, 1000, 400, 8, false, true, 'natural');
+    const square = buildGridRows(tallAndWide, 1000, 400, 8, false, true, 'square');
+    expect(natural).toEqual(square);
+  });
+
   it('a single natural column uses aspect-ratio height', () => {
     // width 150 < cardMinW 168 -> naturally floors to 1 column, full-width cell
     const rows = buildGridRows([photo(0, 1000, 500)], 150, 168, 8, true);

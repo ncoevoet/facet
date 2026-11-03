@@ -1479,6 +1479,11 @@
       "named": "Chiamato {name}",
       "error": "Impossibile salvare il nome",
       "remove": "Rimuovi dal filtro"
+    },
+    "tile_fit": {
+      "label": "Presentazione delle miniature",
+      "square": "Ritaglio quadrato",
+      "natural": "Proporzioni originali"
     }
   },
   "composition_patterns": {

@@ -1017,6 +1017,7 @@ export class GalleryStore {
         sort_direction: defaults?.sort_direction ?? 'DESC',
         type: defaults?.type ?? '',
         hide_details: storedDisplay.hide_details ?? (defaults?.hide_details ?? true),
+        tile_fit: storedDisplay.tile_fit ?? 'square',
         tooltip_mode: storedDisplay.tooltip_mode ?? (defaults?.tooltip_mode ?? 'panel'),
         panel_activation: storedDisplay.panel_activation ?? (defaults?.panel_activation ?? 'both'),
         hide_blinks: storedDisplay.hide_blinks ?? (defaults?.hide_blinks ?? true),
@@ -1574,7 +1575,7 @@ export class GalleryStore {
 
   /** Display-only keys that never affect the API query */
   private static readonly DISPLAY_ONLY_KEYS: ReadonlySet<keyof GalleryFilters> = new Set([
-    'hide_details', 'tooltip_mode', 'panel_activation',
+    'hide_details', 'tooltip_mode', 'panel_activation', 'tile_fit',
   ]);
 
   private static readonly JOURNAL_SKIPPED_KEYS: ReadonlySet<string> = new Set([
