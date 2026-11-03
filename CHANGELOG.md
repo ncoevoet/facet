@@ -53,6 +53,7 @@ All notable changes to Facet are documented in this file.
 - The gallery owns its collection title, counts, Grid/Mosaic controls and exact text search at every width. The selection bar keeps Clear, Compare and review decisions visible, with labeled secondary commands in Actions. Small screens retain a navigation menu and Actions sheet; filter tabs show their names.
 - Light and dark workspace surfaces use neutral colors across the accent themes, keeping color emphasis on active controls and the photos.
 - The gallery details panel names its owning photo and can be closed without clearing the batch selection.
+- **`--recompute-iqa` no longer loads every pending thumbnail into memory.** The pass lists the pending photos first, then reads, decodes (a small thread pool) and scores them one batch at a time and writes each batch with one `executemany` per score column plus one for declines, so memory no longer grows with the number of pending photos. Photos are now processed in rowid order, and a photo scored, declined or deleted while the pass runs is skipped if the change lands before its batch is read. Ctrl-C keeps every finished batch; rerun to continue. The scorers are now always unloaded, even when the pass fails.
 
 ### Fixed
 

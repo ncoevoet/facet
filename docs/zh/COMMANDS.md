@@ -172,7 +172,7 @@ Facet 会记录每次扫描（状态、模式、目录、计数器）以及每�
 | `python facet.py --recompute-saliency` | `[GPU]` 从已存储的缩略图重新计算主体显著性；`--force` 全部重做 |
 | `python facet.py --recompute-composition-cpu` | 用基于规则的方法重新计算构图（CPU，任意档位） |
 | `python facet.py --recompute-composition-gpu` | `[GPU]` 用 SAMP-Net 重新计算构图 |
-| `python facet.py --recompute-iqa` | `[GPU]` 从已存储的缩略图补齐缺失的 TOPIQ IAA、NR-Face 和 LIQE 评分。所有档位都可运行；在 CPU 上（`legacy`）慢得多 |
+| `python facet.py --recompute-iqa` | `[GPU]` 从已存储的缩略图补齐缺失的 TOPIQ IAA、NR-Face 和 LIQE 评分。所有档位都可运行；在 CPU 上（`legacy`）慢得多。按批次流式处理，因此在大型图库上内存保持平稳；可安全中断并重新运行。 |
 | `python facet.py --detect-text` | 把图像中的文字读入 `ocr_text`，使搜索能找到它（需手动开启，见说明） |
 | `python facet.py --recompute-text` | 对整个照片库重新运行 OCR |
 | `python facet.py --recompute-colors` | 提取主色调与冷暖色温，写入 `dominant_hue` / `color_temp`（CPU，快速） |

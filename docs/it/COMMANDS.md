@@ -172,7 +172,7 @@ Questi comandi aggiornano metriche o derivano nuovi dati senza rieseguire l'inte
 | `python facet.py --recompute-saliency` | `[GPU]` Ricalcola la salienza del soggetto dalle miniature memorizzate; `--force` rifà tutto |
 | `python facet.py --recompute-composition-cpu` | Ricalcola la composizione, basata su regole (CPU, qualsiasi profilo) |
 | `python facet.py --recompute-composition-gpu` | `[GPU]` Ricalcola la composizione con SAMP-Net |
-| `python facet.py --recompute-iqa` | `[GPU]` Riempie i punteggi mancanti di TOPIQ IAA, NR-Face e LIQE dalle miniature memorizzate. Attivo su ogni profilo; su CPU (`legacy`) è molto più lento |
+| `python facet.py --recompute-iqa` | `[GPU]` Riempie i punteggi mancanti di TOPIQ IAA, NR-Face e LIQE dalle miniature memorizzate. Attivo su ogni profilo; su CPU (`legacy`) è molto più lento. Elabora per lotti, quindi la memoria resta stabile sulle librerie grandi; si può interrompere e rieseguire in sicurezza. |
 | `python facet.py --detect-text` | Legge il testo presente nell'immagine in `ocr_text` perché la ricerca lo trovi (opzionale, vedi nota) |
 | `python facet.py --recompute-text` | Riesegue l'OCR sull'intera libreria |
 | `python facet.py --recompute-colors` | Estrae tonalità dominante e temperatura caldo/freddo in `dominant_hue` / `color_temp` (CPU, veloce) |
