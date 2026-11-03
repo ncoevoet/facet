@@ -287,12 +287,12 @@ def test_full_rescan_clears_decline_even_when_scan_fingerprint_is_identical(seed
     monkeypatch.setattr(scorer_module, 'get_connection', fixed_clock_connection)
     result = _scored_result(path)
     result['face_quality_iqa'] = None
-    facet.save_photos_batch([(result, _IMG)])
+    facet.save_photos_batch([result])
     with get_connection(db, row_factory=False) as conn:
         before = conn.execute('SELECT scanned_at, thumbnail FROM photos WHERE path=?', (path,)).fetchone()
         conn.execute("INSERT INTO iqa_declined SELECT path,'topiq_nr_face',scanned_at || '|' || length(thumbnail) FROM photos WHERE path=?", (path,))
         conn.commit()
-    facet.save_photos_batch([(_scored_result(path) | {'face_quality_iqa': None}, _IMG)])
+    facet.save_photos_batch([_scored_result(path) | {'face_quality_iqa': None}])
     with get_connection(db, row_factory=False) as conn:
         assert conn.execute('SELECT scanned_at, thumbnail FROM photos WHERE path=?', (path,)).fetchone() == before
         assert conn.execute('SELECT COUNT(*) FROM iqa_declined WHERE photo_path=?', (path,)).fetchone()[0] == 0
