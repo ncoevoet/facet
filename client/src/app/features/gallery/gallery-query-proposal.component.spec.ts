@@ -82,6 +82,21 @@ describe('User-owned query proposal', () => {
     expect(apply).not.toHaveBeenCalled();
   });
 
+  it('keeps a cleared numeric field editable and prevents applying it until corrected', async () => {
+    build();
+    await actions.get('gallery_filter_proposal')!({ patch: { min_dynamic_range: 6 },
+      proposal: { source_query: 'dynamic range', unrepresented: [] }, replace: false, reset: {}, normalize: (patch: unknown) => patch });
+    fixture.detectChanges();
+    const page = fixture.nativeElement as HTMLElement;
+    const input = page.querySelector<HTMLInputElement>('#query-proposal-min_dynamic_range')!;
+    input.value = ''; input.dispatchEvent(new Event('input')); fixture.detectChanges();
+    expect(page.querySelector('#query-proposal-min_dynamic_range')).not.toBeNull();
+    expect(page.querySelector<HTMLButtonElement>('[data-apply-query-proposal]')!.disabled).toBe(true);
+    input.value = '7'; input.dispatchEvent(new Event('input')); fixture.detectChanges();
+    page.querySelector<HTMLButtonElement>('[data-apply-query-proposal]')!.click(); await fixture.whenStable();
+    expect(apply).toHaveBeenCalledExactlyOnceWith({ min_dynamic_range: 7 });
+  });
+
   it('shows an editable interpretation without changing the gallery and applies a corrected date only on the user action', async () => {
     build(); const before = filters(); await propose();
     expect(apply).not.toHaveBeenCalled(); expect(filters()).toBe(before);

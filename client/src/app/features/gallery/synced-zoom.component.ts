@@ -435,7 +435,7 @@ export class SyncedZoomComponent {
     if (!next) return;
     event.preventDefault(); event.stopPropagation();
     this.markManuallyFramed();
-    this.zoomChange.emit(next);
+    this.zoomChange.emit(next.scale === SyncedZoomComponent.MIN_SCALE ? { ...FIT_ZOOM } : next);
   }
 
   private clampScale(scale: number): number {
@@ -484,7 +484,7 @@ export class SyncedZoomComponent {
     const z = this.zoom();
     const scale = this.clampScale(z.scale * (event.deltaY < 0 ? 1.15 : 1 / 1.15));
     if (scale === SyncedZoomComponent.MIN_SCALE) {
-      this.zoomChange.emit(this.keyboardInspection() ? { ...z, scale } : { ...FIT_ZOOM });
+      this.zoomChange.emit({ ...FIT_ZOOM });
       return;
     }
     // Only the fit -> zoomed step re-frames. A step taken while already zoomed

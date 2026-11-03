@@ -686,6 +686,29 @@ def test_full_export_omits_face_feedback_and_incremental_preserves_local_feedbac
         assert conn.execute('SELECT owner,identity_token,receipt_id FROM face_review_feedback').fetchall() == [('viewer-local-owner', 'c'*64, 'd'*32)]
 
 
+def test_incremental_feedback_person_counts_and_source_deletion(tmp_path):
+    src, out = str(tmp_path / 'source.db'), str(tmp_path / 'viewer.db')
+    _make_source_db(src)
+    with sqlite3.connect(src) as conn:
+        person = conn.execute("INSERT INTO persons(name,face_count) VALUES ('Alice',99)").lastrowid
+        conn.execute("INSERT INTO faces(photo_path,face_index,embedding,person_id) VALUES (?,0,X'',NULL)", (_A,))
+    export_viewer_db(src, out, verbose=False)
+    init_database(out)
+    with sqlite3.connect(out) as conn:
+        face = conn.execute('SELECT id FROM faces WHERE photo_path=?', (_A,)).fetchone()[0]
+        conn.execute('INSERT INTO face_review_feedback VALUES (?,?,?,?,?)', ('viewer', face, person, 'c'*64, 'd'*32))
+    export_viewer_db(src, out, verbose=False)
+    with sqlite3.connect(out) as conn:
+        assert conn.execute('SELECT face_count FROM persons WHERE id=?', (person,)).fetchone() == (0,)
+        assert conn.execute('SELECT COUNT(*) FROM face_review_feedback').fetchone() == (1,)
+    with sqlite3.connect(src) as conn:
+        conn.execute('DELETE FROM persons WHERE id=?', (person,))
+    export_viewer_db(src, out, verbose=False)
+    with sqlite3.connect(out) as conn:
+        assert conn.execute('SELECT COUNT(*) FROM persons WHERE id=?', (person,)).fetchone() == (0,)
+        assert conn.execute('SELECT COUNT(*) FROM face_review_feedback').fetchone() == (0,)
+
+
 def test_face_update_jobs_are_private_and_incremental_keeps_viewer_receipts(tmp_path):
     src,out=str(tmp_path/'source.db'),str(tmp_path/'viewer.db')
     _make_source_db(src)

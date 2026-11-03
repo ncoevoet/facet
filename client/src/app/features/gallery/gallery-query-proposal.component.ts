@@ -133,7 +133,7 @@ export class GalleryQueryProposalComponent {
     const accepted = this.accepted();
     if (accepted) return { ...accepted, changes: accepted.changes.map(change => ({ ...change, label: this.fieldLabel(change.key) })) };
     const plan = this.proposal();
-    if (!plan || (!plan.replace && !Object.keys(plan.patch).length) || validateAgainstSchema(plan.schema, plan.patch).length) return null;
+    if (!plan || (!plan.replace && !Object.keys(plan.patch).length) || Object.values(plan.patch).some(value => typeof value === 'number' && !Number.isFinite(value)) || validateAgainstSchema(plan.schema, plan.patch).length) return null;
     try {
       const requested = plan.normalize(plan.patch);
       const updates = { ...(plan.replace ? plan.reset : {}), ...requested };
@@ -218,7 +218,7 @@ export class GalleryQueryProposalComponent {
   }
   edit(key: string, value: unknown, kind?: string): void {
     if (this.applying() || this.applied()) return;
-    this.proposal.update(plan => plan ? { ...plan, patch: { ...plan.patch, [key]: kind === 'number' ? (value === '' ? null : Number(value)) : value } } : null);
+    this.proposal.update(plan => plan ? { ...plan, patch: { ...plan.patch, [key]: kind === 'number' ? (value === '' ? NaN : Number(value)) : value } } : null);
     this.error.set('');
   }
   remove(key: string): void {

@@ -1,6 +1,6 @@
 import { effect, inject, Injectable, signal } from '@angular/core';
 import { AuthService } from '../../core/services/auth.service';
-import { DEFAULT_FILTERS } from './gallery-filters.util';
+import { activeFilterKeys, applyQueryParams, DEFAULT_FILTERS } from './gallery-filters.util';
 
 export interface GalleryVisit {
   readonly url: string;
@@ -53,12 +53,14 @@ export class GalleryVisitHistoryService {
     for (const key of parsed.searchParams.keys()) if (!QUERY_KEYS.has(key)) return;
     for (const key of PRESENTATION_KEYS) parsed.searchParams.delete(key);
     parsed.searchParams.sort();
-    const criteria = [...parsed.searchParams.entries()].filter(([key]) => !SORT_KEYS.has(key));
-    if (!album && !criteria.length) return;
+    const filters = applyQueryParams({ ...DEFAULT_FILTERS }, Object.fromEntries(parsed.searchParams));
+    const active = new Set<string>(activeFilterKeys(filters));
+    const criteria = [...parsed.searchParams.entries()].filter(([key]) => !SORT_KEYS.has(key) && active.has(key));
     const query = parsed.searchParams.toString();
     const url = parsed.pathname + (query ? '?' + query : '');
     const queryAlbum = parsed.searchParams.get('album_id');
     const albumId = queryAlbum === '0' ? null : queryAlbum || album?.[1] || null;
+    if (!albumId && !criteria.length) return;
     const visit: GalleryVisit = { url, albumId, criteria };
     this.stored.update(items => [visit, ...items.filter(item => item.url !== url)].slice(0, LIMIT));
   }

@@ -530,6 +530,10 @@ export class ComparisonWorkspaceComponent {
       this.paneZoom.set(new Map(frames).set(path, { ...state }));
       return;
     }
+    if (state.scale === 1 && state.tx === 0 && state.ty === 0) {
+      this.resetZoom();
+      return;
+    }
     this.paneZoom.set(linkedZoomFrames(frames, this.panes().map(photo => photo.path), path, state));
   }
 
@@ -544,7 +548,8 @@ export class ComparisonWorkspaceComponent {
 
   protected stepZoom(path: string, direction: number): void {
     const frame = this.paneZoom().get(path) ?? FIT_ZOOM;
-    this.onZoom(path, { ...frame, scale: Math.max(1, Math.min(8, frame.scale * (direction > 0 ? 1.5 : 1 / 1.5))) });
+    const scale = Math.max(1, Math.min(8, frame.scale * (direction > 0 ? 1.5 : 1 / 1.5)));
+    this.onZoom(path, scale === 1 ? { ...FIT_ZOOM } : { ...frame, scale });
   }
 
   protected fitPane(path: string): void {

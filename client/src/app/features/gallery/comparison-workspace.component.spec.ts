@@ -291,7 +291,7 @@ describe('ComparisonWorkspaceComponent', () => {
     expect(fixture.nativeElement.textContent).toContain('gallery.compare.inspection.review_link');
   });
 
-  it('keeps manual alignment at linked zoom bounds and reserves explicit reset for Fit', () => {
+  it('centres linked panes when zooming back to fit', () => {
     const { fixture } = build(['/a.jpg', '/b.jpg']);
     const panes = fixture.debugElement.queryAll(By.directive(SyncedZoomComponent));
     fixture.nativeElement.querySelector('[data-link-inspection]').click(); fixture.detectChanges();
@@ -300,10 +300,9 @@ describe('ComparisonWorkspaceComponent', () => {
     const host = panes[0].nativeElement as HTMLElement;
     host.dispatchEvent(new KeyboardEvent('keydown', { key: '-', bubbles: true })); fixture.detectChanges();
     host.dispatchEvent(new WheelEvent('wheel', { deltaY: 1000, bubbles: true })); fixture.detectChanges();
-    expect(panes[0].componentInstance.zoom()).toEqual({ scale: 1.1, tx: 20, ty: 10 });
+    expect(panes[0].componentInstance.zoom()).toEqual(FIT_ZOOM);
     expect(panes[1].componentInstance.zoom()).toEqual(FIT_ZOOM);
     expect([...fixture.nativeElement.querySelectorAll('[data-zoom-out]')].every((button: any) => button.disabled)).toBe(true);
-    host.dispatchEvent(new MouseEvent('dblclick', { bubbles: true })); fixture.detectChanges();
     expect(panes.map(p => p.componentInstance.zoom())).toEqual([FIT_ZOOM, FIT_ZOOM]);
   });
 

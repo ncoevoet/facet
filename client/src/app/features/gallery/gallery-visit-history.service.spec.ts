@@ -2,6 +2,7 @@ import { signal } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
 import { AuthService } from '../../core/services/auth.service';
 import { GalleryVisitHistoryService } from './gallery-visit-history.service';
+import { buildSyncParams, DEFAULT_FILTERS } from './gallery-filters.util';
 
 describe('GalleryVisitHistoryService', () => {
   const identity = signal('1|alice');
@@ -31,6 +32,15 @@ describe('GalleryVisitHistoryService', () => {
     const before = service.visits();
     for (const url of ['https://example.org/?tag=x', '//example.org/?tag=x', '/photo?path=x', '/?token=secret', '/?sort=aggregate', '/?tag=x#section']) service.remember(url);
     expect(service.visits()).toBe(before);
+  });
+
+  it('ignores default query fields and counts only active criteria', () => {
+    const defaults = new URLSearchParams(buildSyncParams({ ...DEFAULT_FILTERS }, undefined));
+    service.remember('/?' + defaults);
+    expect(service.visits()).toHaveLength(0);
+    const filtered = new URLSearchParams(buildSyncParams({ ...DEFAULT_FILTERS, search: 'birds', min_iso: '100', max_iso: '400' }, undefined));
+    service.remember('/?' + filtered);
+    expect(service.visits()[0].criteria).toEqual([['max_iso', '400'], ['min_iso', '100'], ['search', 'birds']]);
   });
 
   it('refuses stale callbacks synchronously on account or token changes and clears on logout', () => {

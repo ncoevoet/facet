@@ -1,5 +1,5 @@
 import { NgTemplateOutlet } from '@angular/common';
-import { Component, inject, computed, signal,  DestroyRef, ChangeDetectionStrategy } from '@angular/core';
+import { Component, inject, computed, DestroyRef, ChangeDetectionStrategy } from '@angular/core';
 import { Router, ActivatedRoute } from '@angular/router';
 import { toSignal } from '@angular/core/rxjs-interop';
 import { map } from 'rxjs';
@@ -146,11 +146,11 @@ import { GalleryStore, anyHideToggleActive } from '../gallery/gallery.store';
   `,
 })
 export class TimelineComponent {
-  protected readonly showOverview = signal(false);
   protected readonly I18N = i18nKeys();
   private readonly router = inject(Router);
   private readonly route = inject(ActivatedRoute);
   protected readonly filters = inject(TimelineFiltersService);
+  protected readonly showOverview = this.filters.showOverview;
   private readonly pageHelp = inject(PageHelpService);
   protected readonly store = inject(GalleryStore);
 

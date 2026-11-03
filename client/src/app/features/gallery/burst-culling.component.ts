@@ -1019,7 +1019,7 @@ interface SceneSummary {
                     (click)="toggleDarkroomLoupe()">
               <mat-icon>{{ darkroomLoupeActive() ? 'zoom_in' : 'search' }}</mat-icon>
             </button>
-            <details #renditionHelp data-rendition-help class="shrink-0" (keydown)="$event.stopPropagation()" (keydown.escape)="onRenditionHelpEscape($event, renditionHelp, renditionHelpSummary)">
+            <details #renditionHelp data-rendition-help class="shrink-0" (keydown)="$event.key !== 'Escape' && $event.stopPropagation()" (keydown.escape)="onRenditionHelpEscape($event, renditionHelp, renditionHelpSummary)">
               <summary #renditionHelpSummary class="flex h-10 w-10 cursor-pointer items-center justify-center rounded-full hover:bg-white/15" [attr.aria-label]="I18N.gallery.compare.rendition.sources | translate"><mat-icon aria-hidden="true">info</mat-icon></summary>
               <div class="fixed inset-x-2 top-14 z-[120] flex max-h-40 gap-2 overflow-y-auto rounded border border-white/30 bg-neutral-900 p-3 text-xs text-white">
                 <div class="min-w-0 flex-1 space-y-2">
@@ -1891,9 +1891,9 @@ export class BurstCullingComponent implements OnDestroy {
 
 
   protected onRenditionHelpEscape(event: Event, details: HTMLDetailsElement, summary: HTMLElement): void {
-    event.stopPropagation();
-    if (details.open) { details.open = false; summary.focus(); }
-    else this.closeLightbox();
+    if (!details.open) return;
+    event.preventDefault(); event.stopPropagation();
+    details.open = false; summary.focus();
   }
 
   /** Path of the frame the single pane shows. A string, so a new group object
@@ -1956,13 +1956,21 @@ export class BurstCullingComponent implements OnDestroy {
       // Single/compare recreate their panes; 2-up/4-up retain shared panes.
       this.renditions.resetPaneReadiness(mode === 'single' || previous === 'single');
       const frames = previous === 'single' ? [] : this.compareFrames().map(photo => photo.path);
+      const focusedPath = this.lightboxGroup()?.photos[focusedIndex]?.path;
+      const count = mode === '4up' ? 4 : 2;
+      if (previous !== 'single' && mode !== 'single' && focusedPath && !frames.slice(0, count).includes(focusedPath)) {
+        const old = frames.indexOf(focusedPath);
+        if (old >= 0) frames.splice(old, 1);
+        frames.unshift(focusedPath);
+      }
       this.comparisonPaths.set(frames);
-      this.comparisonSlotIndex.set(0);
-      if (mode === 'single') this.lightboxIndex.set(focusedIndex);
+      this.lightboxIndex.set(focusedIndex);
       this.compareMode.set(mode);
-      if (mode !== 'single') this.comparisonPaths.set(this.compareFrames().map(photo => photo.path));
-      const first = mode === 'single' ? null : this.compareFrames()[0];
-      if (first) this.lightboxIndex.set(this.lightboxGroup()!.photos.findIndex(photo => photo.path === first.path));
+      if (mode !== 'single') {
+        const paths = this.compareFrames().map(photo => photo.path);
+        this.comparisonPaths.set(paths);
+        this.comparisonSlotIndex.set(Math.max(0, focusedPath ? paths.indexOf(focusedPath) : 0));
+      } else this.comparisonSlotIndex.set(0);
     }
   }
 
@@ -2669,6 +2677,12 @@ export class BurstCullingComponent implements OnDestroy {
     this.renditions.selectCullStyle('');  // each darkroom session starts on the flat Original
     this.lightboxGroupId.set(this.cull.groupKey(group));
     this.lightboxIndex.set(index);
+    if (this.compareMode() !== 'single') {
+      const focusedPath = group.photos[index]?.path;
+      const paths = this.compareFrames().map(photo => photo.path);
+      this.comparisonPaths.set(paths);
+      this.comparisonSlotIndex.set(Math.max(0, focusedPath ? paths.indexOf(focusedPath) : 0));
+    }
     const gi = this.visibleGroups().findIndex(g => this.cull.groupKey(g) === this.cull.groupKey(group));
     if (gi >= 0) this.selectedGroupIndex.set(gi);
     if (!this.stacksMode()) void this.loadCloseupsForGroup(group);

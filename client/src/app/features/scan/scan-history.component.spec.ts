@@ -130,6 +130,18 @@ describe('recorded scan history', () => {
     expect(apply).toHaveBeenCalledTimes(1);
   });
 
+  it('reports an accepted retry even if the history disclosure is collapsed while it starts', async () => {
+    await open();
+    button('scan.retry.preview').click(); await Promise.resolve(); fixture.detectChanges();
+    let finish!: (id: string) => void;
+    apply.mockImplementationOnce(() => new Promise<string>(resolve => { finish = resolve; }));
+    const accepted = vi.fn(); fixture.componentInstance.retryAccepted.subscribe(accepted);
+    button('scan.retry.apply').click(); fixture.detectChanges();
+    const disclosure = root.querySelector('details')!;
+    disclosure.open = false; disclosure.dispatchEvent(new Event('toggle')); fixture.detectChanges();
+    finish('b'.repeat(32)); await vi.waitFor(() => expect(accepted).toHaveBeenCalledWith('b'.repeat(32)));
+  });
+
   it('drops a late retry preview on account change and removes private targets', async () => {
     await open();
     let finish!: (value: ScanRetryPreview) => void;

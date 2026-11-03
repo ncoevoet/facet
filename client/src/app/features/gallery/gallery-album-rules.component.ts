@@ -108,6 +108,7 @@ export class GalleryAlbumRulesComponent {
     this.busy.set(true); this.error.set(null);
     let submitted = false;
     const guard = this.guard!;
+    const owner = this.auth.identity(), token = this.auth.token;
     try {
       const latest = await firstValueFrom(this.albums.get(plan.id));
       if (!this.current(plan)) return;
@@ -115,8 +116,9 @@ export class GalleryAlbumRulesComponent {
       submitted = true;
       const saved = await firstValueFrom(this.albums.update(plan.id, { smart_filter_json: plan.after }));
       // A newer working query remains theirs; only repair the saved album's metadata.
-      if (!guard.current() || this.store.currentAlbum()?.id !== plan.id || this.store.currentAlbum()?.smart_filter_json !== plan.before) return;
-      this.store.currentAlbum.set(saved); this.message.set(I18N.albums.rules.success); this.cancel();
+      if (owner !== this.auth.identity() || token !== this.auth.token || this.store.currentAlbum()?.id !== plan.id || this.store.currentAlbum()?.smart_filter_json !== plan.before) return;
+      this.store.currentAlbum.set(saved);
+      if (guard.current()) { this.message.set(I18N.albums.rules.success); this.cancel(); }
     } catch {
       if (guard.current()) { this.uncertain.set(submitted); this.error.set(submitted ? I18N.albums.rules.uncertain : I18N.albums.rules.failed); }
     } finally { if (!this.destroyRef.destroyed) this.busy.set(false); }

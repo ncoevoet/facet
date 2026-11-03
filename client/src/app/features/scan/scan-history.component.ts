@@ -123,7 +123,7 @@ export class ScanHistoryComponent {
   protected onToggle(event: Event): void {
     if (event.target !== event.currentTarget) return;
     if ((event.target as HTMLDetailsElement).open) { if (!this.loading()) void this.load(false); }
-    else { this.cancel(); this.cancelRetry(); }
+    else { this.cancel(); if (!this.submittedPlan()) this.cancelRetry(); }
   }
 
   protected cancelRetry(restoreFocus = false): void {

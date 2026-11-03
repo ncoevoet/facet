@@ -92,6 +92,18 @@ describe('Captured album rule editing', () => {
     click('[data-album-apply]'); expect(albums.update).toHaveBeenCalledOnce();
     click('[data-album-reload]'); await settle(); expect(root.querySelector('[data-album-rule-preview]')).toBeNull();
   });
+  it('reconciles a successful write after navigation without replacing the working filters', async () => {
+    const { click, settle, store, albums } = build();
+    const write = new Subject<Album & { smart_filter_json: string }>(); albums.update.mockReturnValue(write);
+    click('[data-album-rules] summary'); click('[data-album-preview]'); click('[data-album-apply]');
+    await Promise.resolve();
+    const saved = { ...album, smart_filter_json: albums.update.mock.calls[0][1].smart_filter_json };
+    store.filters.update(value => ({ ...value, camera: 'New draft' }));
+    (TestBed.inject(Router).events as Subject<unknown>).next(new NavigationStart(1, '/album/7?camera=New'));
+    write.next(saved); write.complete(); await settle();
+    expect(store.currentAlbum()?.smart_filter_json).toBe(saved.smart_filter_json);
+    expect(store.filters().camera).toBe('New draft');
+  });
   it('resets supported rules while retaining display settings, and blocks unrepresentable modes', async () => {
     const { root, click, settle, store, albums } = build();
     click('[data-album-rules] summary'); click('[data-album-reset]'); await settle();

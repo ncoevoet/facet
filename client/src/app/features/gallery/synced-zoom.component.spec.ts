@@ -128,6 +128,18 @@ describe('SyncedZoomComponent', () => {
     expect(host.classList.contains('touch-none')).toBe(true);
   });
 
+  it('centres a panned image when keyboard or wheel zoom returns to fit', () => {
+    const f = make({ scale: 1.1, tx: 80, ty: -40 });
+    f.componentRef.setInput('keyboardInspection', true); f.detectChanges();
+    const zooms: ZoomState[] = [];
+    f.componentInstance.zoomChange.subscribe(z => zooms.push(z));
+    const host = f.nativeElement as HTMLElement;
+    host.dispatchEvent(new KeyboardEvent('keydown', { key: '-', bubbles: true, cancelable: true }));
+    expect(zooms.at(-1)).toEqual(FIT_ZOOM);
+    host.dispatchEvent(new WheelEvent('wheel', { deltaY: 1, bubbles: true, cancelable: true }));
+    expect(zooms.at(-1)).toEqual(FIT_ZOOM);
+  });
+
   it('uses the thumbnail at fit scale and the full-res past it', () => {
     expect(api(make(FIT_ZOOM)).effectiveSrc()).toBe('/thumb.jpg');
     expect(api(make({ scale: 1.5, tx: 0, ty: 0 })).effectiveSrc()).toBe('/full.jpg');

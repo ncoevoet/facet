@@ -18,6 +18,7 @@ describe('TimelineComponent', () => {
     dateFrom: ReturnType<typeof signal<string>>;
     dateTo: ReturnType<typeof signal<string>>;
     sortDirection: ReturnType<typeof signal<'older' | 'newer'>>;
+    showOverview: ReturnType<typeof signal<boolean>>;
   };
   let mockStore: { viewFilterParams: ReturnType<typeof signal>; showAllHidden: Mock };
   let paramMapSubject: { get: Mock };
@@ -32,6 +33,7 @@ describe('TimelineComponent', () => {
       dateFrom: signal(''),
       dateTo: signal(''),
       sortDirection: signal<'older' | 'newer'>('older'),
+      showOverview: signal(false),
     };
     mockStore = { viewFilterParams: signal({ ...noneHidden }), showAllHidden: vi.fn() };
     paramMapSubject = { get: vi.fn().mockReturnValue(null) };
@@ -54,6 +56,14 @@ describe('TimelineComponent', () => {
       mockFilters.sortDirection.set('newer');
       expect(context.snapshot()).toMatchObject({ sort: 'newer' });
     });
+  });
+
+  it('retains calendar mode when timeline navigation recreates the component', () => {
+    component.showOverview.set(true);
+    const recreated: any = TestBed.runInInjectionContext(() => new TimelineComponent());
+    expect(recreated.showOverview()).toBe(true);
+    recreated.showOverview.set(false);
+    expect(component.showOverview()).toBe(false);
   });
 
   describe('initial state', () => {
@@ -208,7 +218,7 @@ describe('Timeline missing-date and range transitions', () => {
     TestBed.configureTestingModule({ providers: [
       { provide: Router, useValue: { navigate } },
       { provide: ActivatedRoute, useValue: { paramMap: of({ get: (key: string) => key === 'year' ? '2024' : key === 'month' ? '2' : null }) } },
-      { provide: TimelineFiltersService, useValue: { dateFrom, dateTo, sortDirection: signal('older') } },
+      { provide: TimelineFiltersService, useValue: { dateFrom, dateTo, sortDirection: signal('older'), showOverview: signal(false) } },
       { provide: GalleryStore, useValue: { viewFilterParams: signal({ hide_bursts: '1' }) } },
     ] });
     const component: any = TestBed.runInInjectionContext(() => new TimelineComponent());
@@ -229,7 +239,7 @@ describe('Timeline missing-date and range transitions', () => {
     TestBed.configureTestingModule({ providers: [
       { provide: Router, useValue: { navigate } },
       { provide: ActivatedRoute, useValue: { paramMap: of({ get: (key: string) => key === 'year' ? '2024' : key === 'month' ? '2' : null }) } },
-      { provide: TimelineFiltersService, useValue: { dateFrom: signal('2024-02-12'), dateTo: signal(''), sortDirection: signal('older') } },
+      { provide: TimelineFiltersService, useValue: { dateFrom: signal('2024-02-12'), dateTo: signal(''), sortDirection: signal('older'), showOverview: signal(false) } },
       { provide: GalleryStore, useValue: { viewFilterParams: signal({ hide_bursts: '1' }) } },
     ] });
     const component: any = TestBed.runInInjectionContext(() => new TimelineComponent());
@@ -242,7 +252,7 @@ describe('Timeline missing-date and range transitions', () => {
     TestBed.configureTestingModule({ providers: [
       { provide: Router, useValue: { navigate } },
       { provide: ActivatedRoute, useValue: { paramMap: of({ get: () => null }) } },
-      { provide: TimelineFiltersService, useValue: { dateFrom, dateTo, sortDirection: signal('older') } },
+      { provide: TimelineFiltersService, useValue: { dateFrom, dateTo, sortDirection: signal('older'), showOverview: signal(false) } },
       { provide: GalleryStore, useValue: { viewFilterParams: signal({ hide_bursts: '1' }) } },
     ] });
     const component: any = TestBed.runInInjectionContext(() => new TimelineComponent());

@@ -169,6 +169,18 @@ describe('BurstCullingComponent', () => {
   });
 
   describe('arbitrary comparison assignment', () => {
+    it.each(['2up', '4up'] as const)('keeps the current frame selected when opening %s near the end', async mode => {
+      await store.loadGroups();
+      const base = store.groups()[0];
+      const group = { ...base, photos: Array.from({ length: 6 }, (_, i) => ({ ...base.photos[0], path: `/frame${i}.jpg` })), count: 6 };
+      store.groups.set([group]);
+      component['openLightbox'](group, 5);
+      component['setCompareMode'](mode);
+      expect(group.photos[component['effectiveLightboxIndex']()].path).toBe('/frame5.jpg');
+      component['setCompareMode']('single');
+      expect(group.photos[component['effectiveLightboxIndex']()].path).toBe('/frame5.jpg');
+    });
+
     it('assigns nonconsecutive thumbnails to chosen two-up and four-up panes without review writes', async () => {
       const fixture = TestBed.createComponent(BurstCullingComponent);
       fixture.detectChanges(); await fixture.whenStable();
@@ -2223,6 +2235,22 @@ describe('BurstCullingComponent', () => {
         fixture.detectChanges();
         expect(root.querySelector('[data-stack-filmstrip]')).toBeTruthy();
         expect(rendered['compareFrames']().map((photo: { path: string }) => photo.path)).toEqual(before);
+      } finally { teardown(); }
+    });
+
+    it('closes rendition help, then Inspect, before leaving the darkroom on Escape', async () => {
+      const { fixture, teardown } = await renderDarkroom({});
+      try {
+        const root = fixture.nativeElement as HTMLElement;
+        const tools = root.querySelector<HTMLDetailsElement>('[data-darkroom-tools]')!;
+        const help = root.querySelector<HTMLDetailsElement>('[data-rendition-help]')!;
+        tools.open = true; help.open = true;
+        const summary = help.querySelector('summary')!;
+        summary.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true, cancelable: true }));
+        expect(help.open).toBe(false); expect(tools.open).toBe(true);
+        summary.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true, cancelable: true }));
+        expect(tools.open).toBe(false);
+        expect(root.querySelector('[data-darkroom-close]')).not.toBeNull();
       } finally { teardown(); }
     });
 
