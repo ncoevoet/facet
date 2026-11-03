@@ -101,6 +101,45 @@ def test_changed_assignments_or_operation_refuse_before_first_write(edition_clie
     assert assignments(keywords) == before
 
 
+def test_invalid_or_expired_preview_tokens_never_change_assignments(edition_client, keywords, monkeypatch):
+    from api import keyword_catalog
+
+    captured = edition_client.post(ROOT + '/manage/preview', json={'source': 'source', 'target': 'new'}).json()
+    before = assignments(keywords)
+    for token in ('bad', '!.bad', captured['preview_token'] + 'x'):
+        response = edition_client.post(ROOT + '/manage/apply', json={
+            'source': 'source', 'target': 'new', 'preview_token': token})
+        assert response.status_code == 409
+        assert assignments(keywords) == before
+    monkeypatch.setattr(keyword_catalog.time, 'time', lambda: captured['expires_at'] + 1)
+    response = edition_client.post(ROOT + '/manage/apply', json={
+        'source': 'source', 'target': 'new', 'preview_token': captured['preview_token']})
+    assert response.status_code == 409
+    assert assignments(keywords) == before
+
+
+@pytest.mark.parametrize(('body', 'expected'), [
+    ({'source': 'source', 'target': 'source'}, 422),
+    ({'source': 'missing', 'target': 'new'}, 404),
+    ({'source': 'source', 'target': 'bad,tag'}, 422),
+])
+def test_preview_refusals_leave_assignments_unchanged(edition_client, keywords, body, expected):
+    before = assignments(keywords)
+    assert edition_client.post(ROOT + '/manage/preview', json=body).status_code == expected
+    assert assignments(keywords) == before
+
+
+@pytest.mark.parametrize('limit', ['_MAX_PHOTOS', '_MAX_BYTES'])
+def test_preview_capacity_refusals_leave_assignments_unchanged(edition_client, keywords, monkeypatch, limit):
+    from api import keyword_catalog
+
+    before = assignments(keywords)
+    monkeypatch.setattr(keyword_catalog, limit, 1)
+    response = edition_client.post(ROOT + '/manage/preview', json={'source': 'source', 'target': 'new'})
+    assert response.status_code == 412
+    assert assignments(keywords) == before
+
+
 def test_removing_assignments_does_not_delete_photos_or_literal_siblings(edition_client, keywords):
     captured = edition_client.post(ROOT + '/manage/preview', json={'source': 'animals/cat'}).json()
     assert captured['removed'] == 1 and captured['renamed'] == 0

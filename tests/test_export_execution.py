@@ -443,6 +443,21 @@ def test_logical_review_export_uses_shared_rating_on_explicit_file_target(editio
         assert conn.execute('SELECT star_rating FROM photos WHERE path=?', (str(raw),)).fetchone()[0] == 1
 
 
+def test_logical_export_inherits_file_provenance_and_marks_unknown_fields(edition_client, library, logical_pair):
+    from db.metadata_edits import record_sidecar_receipt
+
+    _, path, _ = logical_pair
+    with sqlite3.connect(DEFAULT_DB_PATH) as conn:
+        conn.execute('UPDATE photos SET star_rating=3 WHERE path=?', (str(path),))
+        record_sidecar_receipt(conn, str(path), None, ['star_rating'], 'private.xmp', '2026-01-01')
+    _, preview = confirmed_body(edition_client, {'paths': [str(path)]})
+    provenance = {item['field']: item for item in preview['items'][0]['metadata']['provenance']['review']}
+    assert provenance['star_rating']['source'] == 'xmp'
+    assert provenance['star_rating']['source_at'] == '2026-01-01'
+    assert provenance['is_favorite']['source'] == 'unrecorded'
+    assert 'private.xmp' not in str(preview)
+
+
 @pytest.mark.parametrize('change', ['review_aba', 'primary', 'dissolve'])
 def test_logical_export_guard_refuses_changed_authority_before_any_write(
         edition_client, library, logical_pair, monkeypatch, change):
