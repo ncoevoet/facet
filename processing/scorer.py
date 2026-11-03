@@ -2882,46 +2882,47 @@ class Facet:
             logger.warning("EXIF extraction failed for %s: %s", image_path, e)
         return _sanitize_exif_numeric(exif_data)
 
-    def save_photos_batch(self, results_with_images, *, phase_metrics=None):
+    def save_photos_batch(self, results):
         """
         Batch insert multiple photos in a single transaction for better performance.
 
         Args:
-            results_with_images: List of (result_dict, pil_img) tuples
-            phase_metrics: Optional scan metrics receiving thumbnail wall seconds
+            results: List of result dicts. Each carries ``thumbnail`` (JPEG bytes),
+                which the scan makes where it decodes the photo
+                (``utils.image_loading.load_image_and_thumbnail``); this method
+                never regenerates one.
+
+        Raises:
+            ValueError: a result has no ``thumbnail``.
         """
-        if not results_with_images:
+        if not results:
             return
 
-        # Phase 1: Pre-generate thumbnails (CPU work, no DB lock held)
-        thumbnail_start = time.perf_counter()
-        try:
-            for res, pil_img in results_with_images:
-                res['thumbnail'] = generate_photo_thumbnail(
-                    thumbnail_source(res['path'], pil_img))
-        finally:
-            if phase_metrics is not None:
-                phase_metrics['thumbnail_time'] += time.perf_counter() - thumbnail_start
+        for res in results:
+            if not res.get('thumbnail'):
+                raise ValueError(
+                    f"save_photos_batch needs res['thumbnail'] (made at decode time): "
+                    f"{res.get('path')}")
 
         # Phase 2: Collect all face records for batch insert (including thumbnails,
         # landmarks and per-face quality signals — shared upsert: see db.schema)
         face_records = []
         embedding_model = active_embedding_model()
-        for res, _ in results_with_images:
+        for res in results:
             # face_details None = faces unknown (the face pass failed): not []
             face_details = res.get('face_details') or []
             for face in face_details:
                 if face.get('embedding'):
                     face_records.append(face_upsert_row(res['path'], face, embedding_model))
 
-        review_states = validate_review_paths(self.db_path, [res['path'] for res, _ in results_with_images])
+        review_states = validate_review_paths(self.db_path, [res['path'] for res in results])
 
         # Phase 3: Fast DB inserts (short transaction)
         from analyzers.form_facet import FORM_METRIC_COLUMNS
         with get_connection(self.db_path, row_factory=False) as conn:
             apply_review_states(conn, review_states)
             # Batch insert photos
-            for res, _ in results_with_images:
+            for res in results:
                 # Optional extended-IQA columns default to NULL for callers/passes
                 # that did not compute them (named-param INSERT needs every key).
                 res.setdefault('qrealign_score', None)
@@ -2986,7 +2987,7 @@ class Facet:
             # are re-attached by box overlap (db.person_carry_over).
             replace_photo_faces(
                 conn,
-                [res['path'] for res, _ in results_with_images
+                [res['path'] for res in results
                  if not ('face_details' in res and res['face_details'] is None)],
                 face_records, FACES_UPSERT_SQL,
                 defer_centroids=self._pending_centroid_persons, review_states=review_states)
@@ -2994,13 +2995,13 @@ class Facet:
             # Sync clip embeddings to photos_vec for vector search
             vec_records = [
                 (res['path'], res['clip_embedding'])
-                for res, _ in results_with_images
+                for res in results
                 if res.get('clip_embedding')
             ]
             sync_vec_batch(conn, vec_records)
 
             # Every row above rewrote `tags`; keep an in-use photo_tags lookup in step.
-            sync_photo_tags(conn, [res['path'] for res, _ in results_with_images])
+            sync_photo_tags(conn, [res['path'] for res in results])
 
             # Commit the entire batch in one transaction
             conn.commit()
@@ -3009,7 +3010,7 @@ class Facet:
         from plugins import get_plugin_manager
         pm = get_plugin_manager()
         if pm:
-            for res, _ in results_with_images:
+            for res in results:
                 event_data = {
                     'path': res.get('path'),
                     'filename': res.get('filename'),

@@ -85,7 +85,7 @@ def _parsed(db):
 
 def _populate(lib, tags_a='a, b'):
     """Photo A scanned with ``tags_a`` and the lookup bootstrapped the supported way."""
-    lib.facet.save_photos_batch([(_result(lib.a, tags_a), _IMG)])
+    lib.facet.save_photos_batch([_result(lib.a, tags_a)])
     migrate_tags_to_lookup(lib.db)
     assert _rows(lib.db) == set(db_tags.iter_tag_pairs(lib.a, tags_a))
 
@@ -93,8 +93,8 @@ def _populate(lib, tags_a='a, b'):
 def test_batch_save_syncs_photo_tags(lib):
     _populate(lib)
     lib.facet.save_photos_batch([
-        (_result(lib.a, 'c'), _IMG),
-        (_result(lib.b, 'x, y'), _IMG),
+        _result(lib.a, 'c'),
+        _result(lib.b, 'x, y'),
     ])
     assert _rows(lib.db) == {(lib.a, 'c'), (lib.b, 'x'), (lib.b, 'y')}
 
@@ -102,8 +102,8 @@ def test_batch_save_syncs_photo_tags(lib):
 def test_rescan_with_no_tags_clears_rows(lib):
     _populate(lib)
     lib.facet.save_photos_batch([
-        (_result(lib.a, None), _IMG),
-        (_result(lib.b, 'keep'), _IMG),
+        _result(lib.a, None),
+        _result(lib.b, 'keep'),
     ])
     assert _rows(lib.db) == {(lib.b, 'keep')}
 
@@ -128,10 +128,10 @@ def test_missing_or_empty_table_is_not_created_or_filled(lib):
     """The partial-table trap: a sync that bootstraps would hide un-synced photos."""
     from api import db_helpers
 
-    lib.facet.save_photos_batch([(_result(lib.a, 'a, b'), _IMG)])
+    lib.facet.save_photos_batch([_result(lib.a, 'a, b')])
 
     # Empty table: stays empty through a batch save and a direct write.
-    lib.facet.save_photos_batch([(_result(lib.b, 'x'), _IMG)])
+    lib.facet.save_photos_batch([_result(lib.b, 'x')])
     with get_connection(lib.db, row_factory=False) as conn:
         db_tags.write_photo_tags(conn, [(lib.a, 'q')])
         conn.commit()
@@ -143,7 +143,7 @@ def test_missing_or_empty_table_is_not_created_or_filled(lib):
     with get_connection(lib.db, row_factory=False) as conn:
         conn.execute("DROP TABLE photo_tags")
         conn.commit()
-    lib.facet.save_photos_batch([(_result(lib.b, 'y'), _IMG)])
+    lib.facet.save_photos_batch([_result(lib.b, 'y')])
     with get_connection(lib.db, row_factory=False) as conn:
         assert db_tags.sync_photo_tags(conn, [lib.a, lib.b]) == 0
         db_tags.write_photo_tags(conn, [(lib.b, 'w')])
@@ -160,7 +160,7 @@ def test_tag_untagged_photos_syncs(lib):
     from tag_existing import tag_untagged_photos
 
     _populate(lib)
-    lib.facet.save_photos_batch([(_result(lib.b, None), _IMG)])
+    lib.facet.save_photos_batch([_result(lib.b, None)])
     with get_connection(lib.db, row_factory=False) as conn:
         conn.execute("UPDATE photos SET clip_embedding = ? WHERE path = ?", (b'\x00' * 16, lib.b))
         conn.commit()
@@ -225,7 +225,7 @@ def test_recompute_tags_sites_sync(lib, monkeypatch, flag, tagging_model, expect
 
     monkeypatch.delenv("FACET_VRAM_PROFILE", raising=False)
     _populate(lib)
-    lib.facet.save_photos_batch([(_result(lib.b, 'old'), _IMG)])
+    lib.facet.save_photos_batch([_result(lib.b, 'old')])
     with get_connection(lib.db, row_factory=False) as conn:
         conn.execute("UPDATE photos SET clip_embedding = ?, thumbnail = ?",
                      (b'\x00' * 16, generate_photo_thumbnail(_IMG)))
@@ -248,14 +248,14 @@ def test_recompute_tags_sites_sync(lib, monkeypatch, flag, tagging_model, expect
 def test_photo_tags_equals_parsed_tags_after_mixed_writes(lib):
     c = str(Path(lib.tmp / 'c.jpg').resolve())
     _populate(lib, 'one, two')
-    lib.facet.save_photos_batch([(_result(lib.b, 'x,  y ,,x'), _IMG), (_result(c, ''), _IMG)])
+    lib.facet.save_photos_batch([_result(lib.b, 'x,  y ,,x'), _result(c, '')])
     lib.facet.save_photos_partial([(_result(c, 'p, q'), _IMG, ('tags',))], refresh_faces=False)
     lib.facet.save_photos_partial([(_result(lib.b, 'ignored'), _IMG, ('liqe_score',))],
                                   refresh_faces=False)
     with get_connection(lib.db, row_factory=False) as conn:
         db_tags.write_photo_tags(conn, [(lib.a, 'three'), (lib.b, None)])
         conn.commit()
-    lib.facet.save_photos_batch([(_result(lib.a, 'four, five'), _IMG)])  # rescan
+    lib.facet.save_photos_batch([_result(lib.a, 'four, five')])  # rescan
 
     assert _rows(lib.db) == _parsed(lib.db)
     assert _rows(lib.db) == {(lib.a, 'four'), (lib.a, 'five'), (c, 'p'), (c, 'q')}

@@ -92,8 +92,9 @@ class TestWaitAttribution:
 class TestBuildStages:
     METRICS = {
         "total_time": 100.0, "model_load_time": 20.0, "inference_time": 50.0, "model_unload_time": 5.0,
-        "aggregate_time": 2.0, "thumbnail_time": 3.0, "save_time": 4.0, "io_time": 10.0,
-        "io_decode_time": 60.0, "decode_worker_time": 120.0, "analyze_worker_time": 60.0, "exif_fallback_time": 0.0,
+        "aggregate_time": 2.0, "save_time": 4.0, "io_time": 10.0,
+        "io_decode_time": 60.0, "decode_worker_time": 120.0, "thumbnail_worker_time": 30.0,
+        "analyze_worker_time": 60.0, "exif_fallback_time": 0.0,
         "exif_batch_time": 6.0,
     }
 
@@ -102,13 +103,20 @@ class TestBuildStages:
         assert stages["decode"]["occupancy"] == pytest.approx(120.0 / (4 * 60.0))
         assert stages["inference"]["occupancy"] == pytest.approx(0.5)
         assert stages["exif_batch"]["pool"] == 1
+        assert stages["thumbnail"]["occupancy"] == pytest.approx(30.0 / (4 * 60.0))
+        assert stages["thumbnail"]["pool"] == 4
+
+    def test_the_thumbnail_is_a_decode_pool_stage_and_not_a_scan_thread_stage(self):
+        assert ("thumbnail", "thumbnail_worker_time") in stage_timing.POOL_STAGES
+        assert all(name != "thumbnail" for name, _ in stage_timing.SCAN_THREAD_STAGES)
+        assert [n for n, _ in stage_timing.POOL_STAGES][:3] == ["decode", "thumbnail", "analyze"]
 
     def test_the_scan_record_sums_the_scan_thread_stages_and_carries_the_decode_wait(self):
         stages = stage_timing.build_stages(self.METRICS, load_workers=4)
-        assert stages["scan"]["busy_s"] == pytest.approx(20 + 50 + 5 + 2 + 3 + 4)
+        assert stages["scan"]["busy_s"] == pytest.approx(20 + 50 + 5 + 2 + 4)
         assert stages["scan"]["wait_s"] == 10.0 and stages["scan"]["wait_on"] == "decode"
         acct = stage_timing.scan_thread_accounting(stages, 100.0)
-        assert acct["unaccounted_s"] == pytest.approx(6.0)
+        assert acct["unaccounted_s"] == pytest.approx(9.0)
 
     def test_zero_wall_gives_no_occupancy_instead_of_dividing_by_zero(self):
         stages = stage_timing.build_stages({"total_time": 0}, load_workers=4)

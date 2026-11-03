@@ -46,7 +46,7 @@ class _StubScorer:
     def calculate_aggregate_logic(self, metrics):
         return 7.5, "default"
 
-    def save_photos_batch(self, batch, *, phase_metrics=None):
+    def save_photos_batch(self, batch):
         self.saved.extend(batch)
 
     def commit(self):
@@ -59,7 +59,7 @@ def _img_data():
         "pil": Image.fromarray(arr), "height": 64, "width": 64,
         "phash": "0" * 16, "exif": {}, "sharpness": {}, "color": {},
         "histogram": {}, "mono": {}, "dynamic_range": {}, "noise": {},
-        "contrast": {}, "form": {}, "cache": None,
+        "contrast": {}, "form": {}, "cache": None, "thumbnail": b"thumb",
         # what _load_images now hoists into the worker for a non-restricted processor
         "composition": {"score": 7.0, "power_point_score": 5.0, "leading_lines_score": 0},
     }
@@ -180,7 +180,7 @@ def _run_face_chunk(tmp_path, monkeypatch, fail, restricted=False):
 @pytest.mark.timeout(30)
 def test_face_pass_exception_stores_unknown_not_no_face(tmp_path, monkeypatch):
     scorer = _run_face_chunk(tmp_path, monkeypatch, fail=True)
-    row = scorer.saved[0][0]
+    row = scorer.saved[0]
     assert row["face_count"] is None
     assert row["face_ratio"] is None
     assert row["is_group_portrait"] is None
@@ -194,10 +194,10 @@ def test_face_pass_exception_scores_exactly_like_a_zero_face_result(tmp_path, mo
     for key in ("face_count", "face_ratio", "is_group_portrait"):
         assert failed.metrics[0][key] == clean.metrics[0][key] == 0
     assert failed.metrics[0] == clean.metrics[0]
-    assert failed.saved[0][0]["aggregate"] == clean.saved[0][0]["aggregate"]
-    assert failed.saved[0][0]["category"] == clean.saved[0][0]["category"]
+    assert failed.saved[0]["aggregate"] == clean.saved[0]["aggregate"]
+    assert failed.saved[0]["category"] == clean.saved[0]["category"]
     # The clean zero-face result is a real "no face" and stays 0.
-    assert clean.saved[0][0]["face_count"] == 0
+    assert clean.saved[0]["face_count"] == 0
 
 
 @pytest.mark.timeout(30)

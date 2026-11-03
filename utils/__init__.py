@@ -5,7 +5,8 @@ Re-exports all public functions and classes for backwards-compatible imports.
 """
 
 from utils.image_loading import (
-    load_image_from_path, load_image_for_face_crop, load_display_image, thumbnail_source,
+    load_image_from_path, load_image_and_thumbnail, load_image_for_face_crop, load_display_image,
+    thumbnail_source,
     open_nonraw_image,
     configure_raw_decoding, configure_raw_decode_profile, raw_postprocess_kwargs,
     configure_hdr_pq_tonemap_profile,
