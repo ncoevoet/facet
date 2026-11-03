@@ -1,8 +1,10 @@
 """AI edits: import an image an AI tool made beside its original, linked and scanned."""
 
 import base64
+import json
 import os
 import sqlite3
+import stat
 import threading
 from concurrent.futures import ThreadPoolExecutor
 
@@ -116,8 +118,8 @@ def test_a_name_taken_after_the_listing_moves_on_instead_of_replacing(edition_cl
     squatter = library['folder'] / 'IMG_1_agy_1.JPG'
     real_write = ai_edits_router._write_private
 
-    def write_then_squat(folder, data):
-        temp = real_write(folder, data)
+    def write_then_squat(*args):
+        temp = real_write(*args)
         _jpeg(squatter, (9, 9, 9))
         return temp
 
@@ -137,8 +139,8 @@ def test_two_imports_at_once_take_two_revisions(edition_client, library, monkeyp
         barrier = threading.Barrier(2, timeout=10)
         real_write = ai_edits_router._write_private
 
-        def write_together(folder, data, real_write=real_write, barrier=barrier):
-            temp = real_write(folder, data)
+        def write_together(*args, real_write=real_write, barrier=barrier):
+            temp = real_write(*args)
             barrier.wait()
             return temp
 
@@ -190,6 +192,68 @@ def test_a_symlink_out_of_the_drop_folder_is_refused(edition_client, library):
     r = _import(edition_client, library, 'sym.jpg')
     assert r.status_code == 422, r.text
     assert os.path.exists(library['second'])
+
+
+def test_a_folder_swapped_for_a_symlink_after_the_check_is_refused(edition_client, library, monkeypatch):
+    """O_NOFOLLOW guards only the last name: swap a folder on the way between the check and the open."""
+    sub = library['work'] / 'sub'
+    sub.mkdir()
+    _jpeg(sub / 'IMG_2.JPG', (1, 250, 1))
+    real_open = os.open
+    target = os.path.realpath(sub / 'IMG_2.JPG')
+
+    def open_after_swap(path, flags, *rest, **kw):
+        if os.fspath(path) == target and not os.path.islink(sub):
+            os.rename(sub, library['work'] / 'sub_old')
+            try:
+                os.symlink(library['folder'], sub)
+            except (OSError, NotImplementedError):
+                pytest.skip('symlinks need a privilege on this machine')
+        return real_open(path, flags, *rest, **kw)
+
+    monkeypatch.setattr(ai_edits_router.os, 'open', open_after_swap)
+    before = _library_files(library)
+    r = _import(edition_client, library, 'sub/IMG_2.JPG')
+    monkeypatch.setattr(ai_edits_router.os, 'open', real_open)
+    assert r.status_code == 422, r.text
+    assert _library_files(library) == before
+
+
+@pytest.mark.parametrize('chunked', [False, True], ids=['content-length', 'chunked'])
+def test_a_body_over_the_cap_is_refused_while_it_streams(edition_client, library, monkeypatch, chunked):
+    monkeypatch.setattr(ai_edits_router, 'MAX_IMPORT_BODY_BYTES', 1024)
+    body = json.dumps({'original_path': library['original'], 'tool': 'antigravity-gemini',
+                       'image_data': 'A' * 4096}).encode()
+
+    def stream():  # a generator body goes out chunked, with no Content-Length to refuse up front
+        for start in range(0, len(body), 256):
+            yield body[start:start + 256]
+
+    r = edition_client.post('/api/photo/ai_edits/import', content=stream() if chunked else body,
+                            headers={'content-type': 'application/json'})
+    assert r.status_code == 413, r.text
+
+
+def test_the_edit_is_readable_like_its_original(edition_client, library):
+    os.chmod(library['original'], 0o640)
+    edit = _import(edition_client, library, _jpeg(library['work'] / 'm.jpg')).json()['edit_path']
+    assert stat.S_IMODE(os.stat(edit).st_mode) == 0o640
+
+
+def test_a_jpeg_with_an_mpf_segment_is_imported_as_a_jpeg(edition_client, library):
+    source = library['work'] / 'mpo.jpg'
+    frames = [Image.new('RGB', (16, 16), c) for c in ((200, 10, 10), (10, 10, 200))]
+    frames[0].save(source, format='MPO', save_all=True, append_images=frames[1:])
+    assert Image.open(source).format == 'MPO'
+    r = _import(edition_client, library, 'mpo.jpg')
+    assert r.status_code == 200, r.text
+    assert r.json()['edit_path'].lower().endswith('.jpg')
+
+
+def test_an_original_missing_on_this_server_is_412(edition_client, library):
+    os.remove(library['original'])
+    r = _import(edition_client, library, _jpeg(library['work'] / 'gone.jpg'))
+    assert r.status_code == 412, r.text
 
 
 def test_a_drop_folder_inside_a_scanned_folder_is_refused(edition_client, library):

@@ -23,13 +23,16 @@ import tempfile
 from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi.responses import JSONResponse
 from PIL import Image
+from starlette.datastructures import Headers
+from starlette.types import ASGIApp, Receive, Scope, Send
 
 from api.auth import CurrentUser, require_authenticated, require_edition
 from api.config import get_all_scan_directories, is_multi_user_enabled
 from api.database import get_async_db, get_db
 from api.db_helpers import get_visibility_clause
-from api.models.ai_edits import MAX_EDIT_BYTES, AiEdit, AiEditImport, AiEditImportResponse, AiEditsResponse
+from api.models.ai_edits import MAX_EDIT_BYTES, MAX_IMAGE_DATA_CHARS, AiEdit, AiEditImport, AiEditImportResponse, AiEditsResponse
 from api.routers.faces import _require_writable_photo
 from api.routers.scan import start_file_scan
 from db.ai_edits import _path_module, edit_file_name, next_revision
@@ -44,9 +47,53 @@ _EDIT_EXTENSIONS = frozenset(SCANNABLE_IMAGE_EXTENSIONS) - frozenset(RAW_EXTENSI
 _FORMAT_EXTENSIONS = {
     'JPEG': '.jpg', 'PNG': '.png', 'WEBP': '.webp', 'TIFF': '.tif', 'GIF': '.gif', 'BMP': '.bmp',
     'HEIF': '.heic', 'AVIF': '.avif', 'JXL': '.jxl',
+    # A JPEG carrying an MPF segment (a phone's depth map or preview) is still a JPEG file.
+    'MPO': '.jpg',
 }
 # A name taken by another import (or placed by hand) moves on to the next revision; this many in a row is a fault.
 _MAX_NAME_ATTEMPTS = 100
+
+IMPORT_ROUTE = '/api/photo/ai_edits/import'
+# The largest import body read: the base64 image plus room for the JSON around it.
+MAX_IMPORT_BODY_BYTES = MAX_IMAGE_DATA_CHARS + 64 * 1024
+
+
+def _body_too_large() -> HTTPException:
+    return HTTPException(status_code=413, detail=f'The edit is over the limit of {MAX_EDIT_BYTES} bytes')
+
+
+class ImportBodyLimit:
+    """Refuse an import body over ``MAX_IMPORT_BODY_BYTES`` while it streams in.
+
+    FastAPI parses the whole JSON body before the model's ``max_length`` runs, so without this
+    a body of any size is held in memory first. A declared ``Content-Length`` over the cap is
+    refused before anything is read; a chunked body is refused as soon as it crosses the cap.
+    """
+
+    def __init__(self, app: ASGIApp):
+        self.app = app
+
+    async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
+        if scope['type'] != 'http' or scope['path'] != IMPORT_ROUTE:
+            await self.app(scope, receive, send)
+            return
+        declared = Headers(scope=scope).get('content-length')
+        if declared is not None and declared.isdigit() and int(declared) > MAX_IMPORT_BODY_BYTES:
+            await JSONResponse({'detail': _body_too_large().detail}, status_code=413)(scope, receive, send)
+            return
+        seen = 0
+
+        async def limited_receive():
+            nonlocal seen
+            message = await receive()
+            if message['type'] == 'http.request':
+                seen += len(message.get('body', b''))
+                if seen > MAX_IMPORT_BODY_BYTES:
+                    # FastAPI re-raises an HTTPException met while reading the body.
+                    raise _body_too_large()
+            return message
+
+        await self.app(scope, limited_receive, send)
 
 
 def _settings() -> dict:
@@ -102,9 +149,20 @@ def _read_drop_file(source_file: str) -> bytes:
         # A second name for the same file could be a library photo or another user's file.
         if info.st_nlink > 1:
             raise HTTPException(status_code=422, detail='source_file has more than one link; import a copy')
+        # O_NOFOLLOW guards only the last name: a folder on the way swapped for a symlink between
+        # the check and the open would have reached a file outside. Resolve the path again and
+        # require it to still be inside and to be the very file that was opened.
+        again = os.path.realpath(os.path.join(root, source_file))
+        try:
+            same = os.stat(again, follow_symlinks=False)
+        except OSError:
+            same = None
+        if (not _is_within(again, root) or same is None
+                or (same.st_dev, same.st_ino) != (info.st_dev, info.st_ino)):
+            raise HTTPException(status_code=422, detail='source_file changed while it was read; retry')
         data = fh.read(MAX_EDIT_BYTES + 1)
     if len(data) > MAX_EDIT_BYTES:
-        raise HTTPException(status_code=413, detail=f'The edit is over the limit of {MAX_EDIT_BYTES} bytes')
+        raise _body_too_large()
     return data
 
 
@@ -114,7 +172,7 @@ def _decode_image_data(text: str) -> bytes:
     except (binascii.Error, ValueError):
         raise HTTPException(status_code=422, detail='image_data is not valid base64') from None
     if len(data) > MAX_EDIT_BYTES:
-        raise HTTPException(status_code=413, detail=f'The edit is over the limit of {MAX_EDIT_BYTES} bytes')
+        raise _body_too_large()
     return data
 
 
@@ -132,10 +190,15 @@ def _image_extension(data: bytes) -> str:
     return ext
 
 
-def _write_private(folder: str, data: bytes) -> str:
-    """``data`` in a new temporary file of ``folder`` that no other call can share."""
+def _write_private(folder: str, data: bytes, mode: int) -> str:
+    """``data`` in a new temporary file of ``folder`` that no other call can share, then given ``mode``.
+
+    ``mkstemp`` creates the file ``0600`` and the published name keeps it, so without the chmod an
+    edit would be unreadable to the SMB share, Lightroom or a scanner running as another user.
+    """
     fd, temp = tempfile.mkstemp(dir=folder, prefix='.ai-edit-', suffix='.importing')
     try:
+        os.chmod(temp, mode)
         with os.fdopen(fd, 'wb') as fh:
             fh.write(data)
             fh.flush()
@@ -176,9 +239,9 @@ def _remove_quietly(path: str) -> None:
         logger.warning('Could not remove %s', path)
 
 
-def _place(folder: str, data: bytes, target_for, first_revision: int) -> tuple[str, int]:
+def _place(folder: str, data: bytes, target_for, first_revision: int, mode: int) -> tuple[str, int]:
     """Write ``data`` into ``folder`` as the first free ``target_for(revision)``: (path, revision)."""
-    temp = _write_private(folder, data)
+    temp = _write_private(folder, data, mode)
     try:
         revision = first_revision
         for _ in range(_MAX_NAME_ATTEMPTS):
@@ -218,9 +281,14 @@ def import_ai_edit(body: AiEditImport, user: CurrentUser = Depends(require_editi
     folder = mod.dirname(body.original_path)
     try:
         names = os.listdir(folder)
+        # The edit is readable by whoever can read the photo it was made from.
+        mode = stat.S_IMODE(os.stat(body.original_path).st_mode)
+    except OSError:
+        raise HTTPException(status_code=412, detail="The original's folder cannot be read on this server") from None
+    try:
         target, revision = _place(
             folder, data, lambda r: mod.join(folder, edit_file_name(body.original_path, suffix, r, ext)),
-            next_revision(body.original_path, suffix, names, recorded))
+            next_revision(body.original_path, suffix, names, recorded), mode)
     except OSError:
         logger.exception('AI edit import could not write beside %s', body.original_path)
         raise HTTPException(status_code=500, detail='The edit could not be written beside the original') from None

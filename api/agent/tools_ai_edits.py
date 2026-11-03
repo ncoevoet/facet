@@ -12,7 +12,7 @@ from api.agent.internal_client import InternalClient
 from api.agent.runtime import run_tool
 from api.agent.tools_common import register_tool
 from api.agent.tools_write import WRITE_TOOL_LEVELS
-from api.models.ai_edits import _MAX_IMAGE_DATA_CHARS
+from api.models.ai_edits import MAX_IMAGE_DATA_CHARS
 
 ImportPath = Annotated[str, Field(min_length=1, max_length=4096)]
 # A second call imports a second revision, so the tool is not idempotent. It is additive only: it
@@ -55,7 +55,7 @@ def register_ai_edit_tools(server: MCPServer, client: InternalClient) -> None:
                              tool: Annotated[str, Field(min_length=1, max_length=64)],
                              source_file: Annotated[Optional[str], Field(min_length=1, max_length=4096)] = None,
                              image_data: Annotated[Optional[str],
-                                                   Field(min_length=1, max_length=_MAX_IMAGE_DATA_CHARS)] = None,
+                                                   Field(min_length=1, max_length=MAX_IMAGE_DATA_CHARS)] = None,
                              model: Annotated[Optional[str], Field(max_length=200)] = None,
                              note: Annotated[Optional[str], Field(max_length=1000)] = None) -> CallToolResult:
         async def handler(grant, resolved, settings):
