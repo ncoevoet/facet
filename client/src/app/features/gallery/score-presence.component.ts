@@ -1,9 +1,6 @@
-import { ChangeDetectionStrategy, Component, computed, DestroyRef, effect, ElementRef, inject, input, signal, viewChild } from '@angular/core';
-import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
-import { NavigationCancel, NavigationCancellationCode, NavigationEnd, NavigationError, NavigationSkipped, NavigationStart, Router } from '@angular/router';
+import { createGalleryFilterContext } from './gallery-filter-context';
+import { ChangeDetectionStrategy, Component, computed, ElementRef, inject, input, signal, viewChild } from '@angular/core';
 import { GalleryStore } from './gallery.store';
-import { AuthService } from '../../core/services/auth.service';
-import { StalenessGuardFactory } from '../../core/services/staleness-guard.service';
 import { TranslatePipe } from '../../shared/pipes/translate.pipe';
 import { I18N } from '../../core/i18n/keys';
 import { parseScorePresence, serializeScorePresence, ScorePresenceMode, SCORE_PRESENCE_KEYS } from './score-presence.util';
@@ -38,16 +35,7 @@ export class ScorePresenceComponent {
   readonly metrics = input.required<readonly { minKey: string; labelKey: string }[]>();
   protected readonly I18N = I18N;
   protected readonly store = inject(GalleryStore);
-  private readonly auth = inject(AuthService);
-  private readonly router = inject(Router);
-  private readonly guards = inject(StalenessGuardFactory);
-  private readonly destroyRef = inject(DestroyRef);
   private readonly summary = viewChild<ElementRef<HTMLElement>>('summary');
-  private session = { owner: this.auth.identity(), status: this.auth.status(), token: this.auth.token };
-  private context = this.newContext();
-  private readonly path = signal(this.router.url.split('?')[0]);
-  private readonly pending = signal(false);
-  private navigationId = 0;
   protected readonly selected = signal('');
   protected readonly selectedKey = computed(() => this.metrics().some(m => m.minKey === this.selected()) ? this.selected() : this.metrics()[0]?.minKey ?? '');
   protected readonly policies = computed(() => parseScorePresence(this.store.filters().score_presence ?? ''));
@@ -61,43 +49,11 @@ export class ScorePresenceComponent {
     modeLabel: I18N.gallery.measurements[mode],
   })));
 
-  constructor() {
-    effect(() => {
-      this.auth.identity(); this.auth.status();
-
-      this.refreshContext(true);
-    });
-    this.router.events.pipe(takeUntilDestroyed()).subscribe(event => {
-      if (event instanceof NavigationStart) {
-        if (event.id < this.navigationId) return;
-        this.navigationId = event.id; this.pending.set(true);
-      } else if (event instanceof NavigationEnd || event instanceof NavigationSkipped || event instanceof NavigationError || event instanceof NavigationCancel) {
-        if (event.id < this.navigationId) return;
-        if (event instanceof NavigationCancel && (event.code === NavigationCancellationCode.Redirect || event.code === NavigationCancellationCode.SupersededByNewNavigation)) return;
-        this.navigationId = event.id;
-        this.path.set((event instanceof NavigationEnd ? event.urlAfterRedirects : this.router.url).split('?')[0]);
-        this.pending.set(false); this.refreshContext();
-      }
-    });
-  }
-
-  private newContext() {
-    const token = this.auth.token;
-    return this.guards.create(this.destroyRef, { requireEdition: false, track: 'status', valid: () => this.auth.token === token });
-  }
-
-  private refreshContext(authChanged = false): void {
-    if (!authChanged && (this.session.owner !== this.auth.identity() || this.session.status !== this.auth.status() || this.session.token !== this.auth.token)) return;
-    this.context.dispose();
-    this.session = { owner: this.auth.identity(), status: this.auth.status(), token: this.auth.token };
-    this.context = this.newContext();
-  }
-
-  private current(): boolean { return !this.pending() && (this.path() === '/' || /^\/album\/\d+$/.test(this.path())) && this.context.current(); }
+  private readonly context = createGalleryFilterContext();
 
   protected apply(mode: string): void {
     const key = this.selectedKey();
-    if (!this.current() || !SCORE_PRESENCE_KEYS.has(key) || (mode && !this.modes.some(row => row.id === mode))) return;
+    if (!this.context.current() || !SCORE_PRESENCE_KEYS.has(key) || (mode && !this.modes.some(row => row.id === mode))) return;
     const current = this.policies();
     if (!current) return;
     const next = { ...current };
@@ -107,7 +63,7 @@ export class ScorePresenceComponent {
   }
 
   protected clear(): void {
-    if (!this.current()) return;
+    if (!this.context.current()) return;
     this.summary()?.nativeElement.focus();
     void this.store.updateFilter('score_presence', '');
   }

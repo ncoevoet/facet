@@ -1,9 +1,6 @@
-import { ChangeDetectionStrategy, Component, computed, DestroyRef, effect, ElementRef, inject, signal, viewChild } from '@angular/core';
-import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
-import { NavigationCancel, NavigationCancellationCode, NavigationEnd, NavigationError, NavigationSkipped, NavigationStart, Router } from '@angular/router';
+import { createGalleryFilterContext } from './gallery-filter-context';
+import { ChangeDetectionStrategy, Component, computed, ElementRef, inject, signal, viewChild } from '@angular/core';
 import { GalleryStore } from './gallery.store';
-import { AuthService } from '../../core/services/auth.service';
-import { StalenessGuardFactory } from '../../core/services/staleness-guard.service';
 import { TranslatePipe } from '../../shared/pipes/translate.pipe';
 import { I18N } from '../../core/i18n/keys';
 import { parseTagQuery, serializeTagQuery, TAG_QUERY_GROUPS, TAG_QUERY_LIMIT, TAG_QUERY_NAME_LIMIT, TagQueryGroup } from './tag-query.util';
@@ -55,17 +52,8 @@ import { parseTagQuery, serializeTagQuery, TAG_QUERY_GROUPS, TAG_QUERY_LIMIT, TA
 export class TagGroupsComponent {
   protected readonly I18N = I18N;
   protected readonly store = inject(GalleryStore);
-  private readonly auth = inject(AuthService);
-  private readonly router = inject(Router);
-  private readonly guards = inject(StalenessGuardFactory);
-  private readonly destroyRef = inject(DestroyRef);
   private readonly ruleInput = viewChild<ElementRef<HTMLInputElement>>('ruleInput');
   private readonly ruleSummary = viewChild<ElementRef<HTMLElement>>('ruleSummary');
-  private session = { owner: this.auth.identity(), status: this.auth.status(), token: this.auth.token };
-  private context = this.newContext();
-  private readonly path = signal(this.router.url.split('?')[0]);
-  private readonly pending = signal(false);
-  private navigationId = 0;
   protected readonly mode = signal<TagQueryGroup>('any');
   protected readonly draft = signal('');
   protected readonly error = signal(false);
@@ -75,46 +63,17 @@ export class TagGroupsComponent {
   protected readonly rows = computed(() => TAG_QUERY_GROUPS.map(id => ({ id, label: I18N.gallery.tag_groups[id], tags: this.groups()?.[id] ?? [] })));
   protected readonly total = computed(() => this.rows().reduce((sum, row) => sum + row.tags.length, 0));
   protected readonly suggestions = computed(() => this.store.tags().filter(tag => tag.value.toLowerCase().includes(this.draft().toLowerCase())));
-  protected readonly canAdd = computed(() => !!this.draft().trim() && this.total() < TAG_QUERY_LIMIT && !this.pending());
+  protected readonly canAdd = computed(() => !!this.draft().trim() && this.total() < TAG_QUERY_LIMIT && !this.context.pending());
 
-  constructor() {
-    effect(() => {
-      this.auth.identity(); this.auth.status();
-      this.draft.set(''); this.error.set(false);
-      this.refreshContext(true);
-    });
-    this.router.events.pipe(takeUntilDestroyed()).subscribe(event => {
-      if (event instanceof NavigationStart) {
-        if (event.id < this.navigationId) return;
-        this.navigationId = event.id; this.pending.set(true); this.draft.set('');
-      } else if (event instanceof NavigationEnd || event instanceof NavigationSkipped || event instanceof NavigationError || event instanceof NavigationCancel) {
-        if (event.id < this.navigationId) return;
-        if (event instanceof NavigationCancel && (event.code === NavigationCancellationCode.Redirect || event.code === NavigationCancellationCode.SupersededByNewNavigation)) return;
-        this.navigationId = event.id;
-        this.path.set((event instanceof NavigationEnd ? event.urlAfterRedirects : this.router.url).split('?')[0]);
-        this.pending.set(false); this.refreshContext();
-      }
-    });
-  }
-
-  private newContext() {
-    const token = this.auth.token;
-    return this.guards.create(this.destroyRef, { requireEdition: false, track: 'status', valid: () => this.auth.token === token });
-  }
-
-  private refreshContext(authChanged = false): void {
-    if (!authChanged && (this.session.owner !== this.auth.identity() || this.session.status !== this.auth.status() || this.session.token !== this.auth.token)) return;
-    this.context.dispose();
-    this.session = { owner: this.auth.identity(), status: this.auth.status(), token: this.auth.token };
-    this.context = this.newContext();
-  }
-
-  private current(): boolean { return !this.pending() && (this.path() === '/' || /^\/album\/\d+$/.test(this.path())) && this.context.current(); }
+  private readonly context = createGalleryFilterContext({
+    authChanged: () => { this.draft.set(''); this.error.set(false); },
+    navigationStarted: () => this.draft.set(''),
+  });
 
   protected add(event?: Event): void {
     if (event instanceof KeyboardEvent && (event.isComposing || event.repeat || event.keyCode === 229)) return;
     event?.preventDefault();
-    if (!this.current() || !this.canAdd()) return;
+    if (!this.context.current() || !this.canAdd()) return;
     const groups = this.groups();
     if (!groups) return;
     const next = { ...groups, [this.mode()]: [...new Set([...groups[this.mode()], this.draft()])] };
@@ -124,7 +83,7 @@ export class TagGroupsComponent {
   }
 
   protected remove(group: TagQueryGroup, tag: string): void {
-    if (!this.current()) return;
+    if (!this.context.current()) return;
     const groups = this.groups();
     if (groups) {
       this.ruleInput()?.nativeElement.focus();
@@ -133,7 +92,7 @@ export class TagGroupsComponent {
   }
 
   protected clear(): void {
-    if (!this.current()) return;
+    if (!this.context.current()) return;
     this.ruleSummary()?.nativeElement.focus();
     void this.store.updateFilter('tag_groups', '');
   }
