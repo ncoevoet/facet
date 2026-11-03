@@ -2019,8 +2019,8 @@
     "eta": "Restzeit",
     "starting": "Wird gestartet...",
     "running": "Läuft",
-    "completed": "Abgeschlossen",
-    "failed": "Fehlgeschlagen",
+    "completed": "Scan abgeschlossen",
+    "failed": "Scan mit einem Fehler beendet",
     "idle": "Bereit",
     "status_unavailable": "Der Scanstatus ist nicht verfügbar. Der Scan läuft möglicherweise noch. Erneutes Lesen des Status startet ihn nicht neu.",
     "retry_status": "Scanstatus erneut lesen",
@@ -2832,7 +2832,7 @@
     },
     "peaking": {
       "label": "Fokus-Peaking",
-      "tooltip": "Die schärfsten Kanten des angezeigten Bildes hervorheben",
+      "tooltip": "Kanten im angezeigten Bild hervorheben",
       "help": "Die Fokusmarkierung hebt Kanten im angezeigten Basisbild hervor. Bei Einpassen wird ein verkleinertes Bild verwendet; Zoomen ändert die gemessenen Pixel. Textur, Rauschen und Nachschärfung können Markierungen erzeugen. Die Überlagerung unterstützt die Prüfung, entscheidet aber nicht über Behalten/Ablehnen; gewollte Unschärfe kann erhaltenswert sein."
     },
     "legend": {
@@ -2950,7 +2950,7 @@
     "unavailable": "Beschriftungsgenerierung erfordert ein VLM-Modell (16 GB+ VRAM)"
   },
   "timeline": {
-    "help": "Durchsuchen Sie Ihre Bibliothek chronologisch. Navigieren Sie von Jahren über Monate bis zu Tagen; wählen Sie einen Zeitraum, um die damals aufgenommenen Fotos zu sehen.",
+    "help": "Durchsuchen Sie datierte Fotos, springen Sie zu einem Monat oder wählen Sie über die Datumsdichte einen Zeitraum. Der Kalender bleibt verfügbar; Fotos ohne Aufnahmedatum werden separat aufgeführt.",
     "title": "Zeitstrahl",
     "empty": "Keine Fotos mit Datumsangaben gefunden.",
     "years_title": "Jahre",
@@ -2992,7 +2992,7 @@
     "density_weeks": "Wochen (Montag–Sonntag)"
   },
   "folders": {
-    "help": "Durchsuchen Sie Fotos anhand ihrer Ordnerstruktur auf der Festplatte. Öffnen Sie einen Ordner, um die darin enthaltenen Fotos zu sehen.",
+    "help": "Ordner entsprechen dem Speicherort der Originaldateien auf dem Datenträger. Alben organisieren Fotos, ohne diese Dateien zu verschieben. Öffnen Sie einen Ordner, um seine Fotos zu durchsuchen, oder filtern Sie die Galerie nach diesem Speicherort.",
     "title": "Ordner",
     "empty": "Keine Ordner gefunden.",
     "root": "Stammverzeichnis",

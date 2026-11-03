@@ -2019,8 +2019,8 @@
     "eta": "Tempo restante",
     "starting": "Iniciando...",
     "running": "Em execução",
-    "completed": "Concluído",
-    "failed": "Falhou",
+    "completed": "Varredura concluída",
+    "failed": "A varredura terminou com um erro",
     "idle": "Ocioso",
     "status_unavailable": "O estado da análise está indisponível. A análise pode continuar em curso. Ler o estado novamente não a reinicia.",
     "retry_status": "Ler o estado da análise novamente",
@@ -2832,7 +2832,7 @@
     },
     "peaking": {
       "label": "Realce de foco",
-      "tooltip": "Destaca as arestas mais nítidas da imagem apresentada",
+      "tooltip": "Destaca as arestas da imagem apresentada",
       "help": "O realce de focagem destaca bordos na imagem base apresentada. Em Ajustar usa uma imagem reduzida; o zoom muda os píxeis medidos. Textura, ruído e nitidez podem gerar realces. A sobreposição ajuda à inspeção, não decide Manter/Rejeitar; um desfoque intencional pode merecer ser mantido."
     },
     "legend": {
@@ -2950,7 +2950,7 @@
     "unavailable": "A geração de legendas requer um modelo VLM (16GB+ de VRAM)"
   },
   "timeline": {
-    "help": "Navegue pela sua biblioteca em ordem cronológica. Vá dos anos aos meses e aos dias; escolha um período para ver as fotos tiradas então.",
+    "help": "Explore as fotos com data, vá para um mês ou use Densidade de datas para selecionar um período. O calendário continua disponível; as fotos sem data de captura aparecem separadamente.",
     "title": "Linha do tempo",
     "empty": "Nenhuma foto com datas encontrada.",
     "years_title": "Anos",
@@ -2992,7 +2992,7 @@
     "density_weeks": "Semanas (segunda–domingo)"
   },
   "folders": {
-    "help": "Navegue pelas fotos pela sua estrutura de pastas no disco. Abra uma pasta para ver as fotos que ela contém.",
+    "help": "As pastas correspondem ao local onde os arquivos originais estão guardados no disco. Os álbuns organizam as fotos sem mover esses arquivos. Abra uma pasta para explorar suas fotos ou filtre a galeria por esse local.",
     "title": "Pastas",
     "empty": "Nenhuma pasta encontrada.",
     "root": "Raiz",

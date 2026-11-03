@@ -2019,8 +2019,8 @@
     "eta": "Estimation",
     "starting": "Démarrage...",
     "running": "En cours",
-    "completed": "Terminé",
-    "failed": "Échec",
+    "completed": "Scan terminé",
+    "failed": "Le scan s’est terminé avec une erreur",
     "idle": "Inactif",
     "status_unavailable": "Le statut du scan est indisponible. Le scan peut être encore actif. Relire son statut ne le redémarre pas.",
     "retry_status": "Relire le statut du scan",
@@ -2832,7 +2832,7 @@
     },
     "peaking": {
       "label": "Intensification de la netteté",
-      "tooltip": "Met en évidence les contours les plus nets de l'image affichée",
+      "tooltip": "Met en évidence les contours de l’image affichée",
       "help": "L’accentuation de mise au point souligne les contours de l’image de base affichée. En mode Ajuster, elle utilise une image réduite ; le zoom change les pixels mesurés. Texture, bruit et netteté peuvent créer des surbrillances. Cette superposition aide l’inspection, sans décider Garder/Rejeter ; un flou intentionnel peut mériter d’être gardé."
     },
     "legend": {
@@ -2950,7 +2950,7 @@
     "unavailable": "La génération de légende nécessite un modèle VLM (16 Go+ VRAM)"
   },
   "timeline": {
-    "help": "Parcourez votre bibliothèque de façon chronologique. Naviguez des années aux mois puis aux jours ; choisissez une période pour voir les photos prises à ce moment-là.",
+    "help": "Parcourez les photos datées, accédez à un mois ou utilisez Densité par date pour sélectionner une période. Le calendrier reste disponible ; les photos sans date de prise de vue sont présentées séparément.",
     "title": "Chronologie",
     "empty": "Aucune photo avec des dates trouvée.",
     "years_title": "Années",
@@ -2992,7 +2992,7 @@
     "density_weeks": "Semaines (lundi–dimanche)"
   },
   "folders": {
-    "help": "Parcourez les photos selon leur arborescence de dossiers sur le disque. Ouvrez un dossier pour voir les photos qu'il contient.",
+    "help": "Les dossiers reflètent l’emplacement des fichiers originaux sur le disque. Les albums organisent les photos sans déplacer ces fichiers. Ouvrez un dossier pour parcourir ses photos ou filtrez la galerie sur cet emplacement.",
     "title": "Dossiers",
     "empty": "Aucun dossier trouvé.",
     "root": "Racine",

@@ -2019,8 +2019,8 @@
     "eta": "Restante",
     "starting": "Iniciando...",
     "running": "En ejecución",
-    "completed": "Completado",
-    "failed": "Fallido",
+    "completed": "Escaneo completado",
+    "failed": "El escaneo terminó con un error",
     "idle": "Inactivo",
     "status_unavailable": "El estado del escaneo no está disponible. El escaneo podría seguir en curso. Consultar de nuevo el estado no lo reiniciará.",
     "retry_status": "Volver a consultar el estado del escaneo",
@@ -2832,7 +2832,7 @@
     },
     "peaking": {
       "label": "Realce de enfoque",
-      "tooltip": "Resalta los bordes más nítidos de la imagen mostrada",
+      "tooltip": "Resalta los bordes de la imagen mostrada",
       "help": "El resaltado de enfoque marca bordes en la imagen base mostrada. En Ajustar usa una imagen reducida; el zoom cambia los píxeles medidos. La textura, el ruido y el enfoque pueden producir resaltados. La superposición ayuda a inspeccionar, no decide Conservar/Rechazar; un desenfoque intencionado puede merecer conservarse."
     },
     "legend": {
@@ -2950,7 +2950,7 @@
     "unavailable": "La generación de descripciones requiere un modelo VLM (16 GB+ VRAM)"
   },
   "timeline": {
-    "help": "Explora tu biblioteca cronológicamente. Navega de los años a los meses y a los días; elige un período para ver las fotos tomadas entonces.",
+    "help": "Explora las fotos con fecha, salta a un mes o usa Densidad de fechas para seleccionar un período. El calendario sigue disponible; las fotos sin fecha de captura se muestran por separado.",
     "title": "Cronología",
     "empty": "No se encontraron fotos con fechas.",
     "years_title": "Años",
@@ -2992,7 +2992,7 @@
     "density_weeks": "Semanas (lunes–domingo)"
   },
   "folders": {
-    "help": "Explora las fotos según su estructura de carpetas en el disco. Abre una carpeta para ver las fotos que contiene.",
+    "help": "Las carpetas reflejan dónde se guardan los archivos originales en el disco. Los álbumes organizan las fotos sin mover esos archivos. Abre una carpeta para explorar sus fotos o filtra la galería por esa ubicación.",
     "title": "Carpetas",
     "empty": "No se encontraron carpetas.",
     "root": "Raíz",

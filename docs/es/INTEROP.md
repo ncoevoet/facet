@@ -224,9 +224,9 @@ darktable guarda su historial de edición en su propio `<image><ext>.xmp`. El es
 Facet guarda los tags que escribes (consulta [Visor — Tags manuales](VIEWER.md#tags-manuales)) en `photo_manual_tags`, separados de los tags de IA en `photos.tags`. Un reescaneo o un nuevo etiquetado nunca los toca.
 
 - **Exportación.** Todo escritor de palabras clave emite los tags de IA, luego los tags manuales y luego los nombres de personas, sin duplicados ignorando mayúsculas. Esto cubre `--export-sidecars`, la exportación XMP de la galería y las acciones «Escribir metadatos en el archivo», y el manifiesto de Lightroom (`--export-manifest`, `/api/lightroom/manifest`).
-- **Importación.** `--import-sidecars` lee solo `dc:subject`. Las palabras clave se normalizan como los tags escritos: sin espacios en los extremos, en minúsculas, como máximo 64 caracteres, 50 tags manuales por foto. Cada una se convierte en un tag manual con origen `xmp`, salvo que:
+- **Importación.** `--import-sidecars` lee palabras clave planas de `dc:subject` y rutas jerárquicas por separado de `lr:hierarchicalSubject`. Las palabras clave planas se normalizan como los tags escritos: sin espacios en los extremos, en minúsculas, como máximo 64 caracteres, 50 tags manuales por foto. Cada una se convierte en un tag manual con origen `xmp`, salvo que:
   - ya sea uno de los tags de IA o nombres de personas de la foto,
-  - sea una ruta jerárquica `a|b`,
+  - duplique una ruta presente explícitamente en `lr:hierarchicalSubject`,
   - contenga una coma o un carácter de control, o
   - superara el límite.
 - **La eliminación de palabras clave es explícita.** Por defecto las exportaciones solo añaden. `--export-sidecars /path --reconcile-keywords` (necesita ExifTool) elimina además los nombres que Facet escribió antes y que ya no están en Facet. Las palabras clave que Facet nunca escribió nunca se eliminan, aunque el nombre coincida, y los sidecars antiguos sin marcar no dan a Facet ninguna propiedad. Si vuelves a añadir en otro editor una palabra clave eliminada, Facet puede importarla de nuevo y la trata como ajena a partir de entonces. Las palabras clave son compartidas incluso con `--user`.
@@ -234,7 +234,8 @@ Facet guarda los tags que escribes (consulta [Visor — Tags manuales](VIEWER.md
 - Los nombres como `2024`, `1.50`, `1e3`, `true`, `false` y `null` conservan su grafía.
 - Si Facet no puede leer los metadatos de un archivo existente, la exportación se detiene antes de escribir.
 - **El manifiesto de Lightroom sí propaga las eliminaciones.** La opción de palabras clave del plugin reescribe los hijos `Facet ›` de cada foto en cada Apply.
-- **Los tags de IA siguen siendo tags de IA.** Los sidecars registran qué palabras clave eran de IA y cuáles manuales, así que un nuevo etiquetado no convierte una palabra clave de IA antigua en un tag manual. Los sidecars de versiones antiguas de Facet conservan el comportamiento aditivo anterior. Las palabras clave jerárquicas son siempre aditivas.
+- **Los tags de IA siguen siendo tags de IA.** Los sidecars registran qué palabras clave eran de IA y cuáles manuales, así que un nuevo etiquetado no convierte una palabra clave de IA antigua en un tag manual. Los sidecars de versiones antiguas de Facet conservan el comportamiento aditivo anterior.
+- **Jerarquías.** Las rutas importadas se añaden a la jerarquía compartida; los nombres planos que contienen `|` o `/` no crean una jerarquía por sí solos. Las rutas marcadas como generadas por Facet no se importan como asignaciones manuales, salvo que también estén marcadas como manuales. Las exportaciones incluyen las asignaciones explícitas y las rutas generadas de categorías/personas. Por defecto, la exportación añade rutas; `--reconcile-keywords` elimina solo las rutas obsoletas propiedad de Facet y conserva las ajenas.
 - **Límites de propiedad:** 10 000 nombres por lista y 1024 caracteres por nombre. Una exportación que los superara se detiene antes de escribir. Archiva y limpia a mano un sidecar así antes de empezar de nuevo.
 - **Las palabras clave importadas por un Facet antiguo se quedan donde están.** Las versiones antiguas fusionaban las palabras clave en `photos.tags`, donde parecen tags de IA, y nada las migra. Para convertir una en un tag manual, borra o vuelve a etiquetar `photos.tags` y ejecuta `--import-sidecars` de nuevo — o añade el tag a mano.
 - **Un archivo movido o renombrado pierde sus tags manuales.** Están ligados a la ruta de la foto.
@@ -247,7 +248,7 @@ Facet guarda los tags que escribes (consulta [Visor — Tags manuales](VIEWER.md
 | Valoración por estrellas / rechazo | `xmp:Rating` (`-1` = rechazada) | `xmp:Rating` | Relojes de revisión registrados; recurso heredado con la hora del escaneo |
 | Etiqueta de color | `xmp:Label` (`Red` = rechazada, `Yellow` = favorita) | `xmp:Label` | Relojes de revisión registrados; recurso heredado con la hora del escaneo |
 | Tags / palabras clave | `dc:subject` (plano, tags de IA + tags manuales, incluye los nombres de personas de rostros con nombre) | `dc:subject` (guardado como tags manuales) | Aditivo por defecto; `--reconcile-keywords` elimina solo los nombres obsoletos propiedad de Facet; las importaciones siguen siendo aditivas ([Tags manuales y palabras clave XMP](#tags-manuales-y-palabras-clave-xmp)) |
-| Tags jerárquicos | `lr:hierarchicalSubject` (`Category\|<cat>`, `People\|<name>`) | No se reimporta | Solo exportación |
+| Tags jerárquicos | `lr:hierarchicalSubject` (asignaciones explícitas y rutas generadas de categorías/personas) | `lr:hierarchicalSubject` (asignaciones a la jerarquía compartida) | Importación aditiva; la reconciliación al exportar elimina solo rutas obsoletas de Facet |
 | Leyenda | `dc:description` en el idioma por defecto (+ `IPTC:Caption-Abstract` vía exiftool) | No se reimporta | Solo exportación |
 | Regiones de rostro con nombre | MWG `mwg-rs:RegionList` + `facet:RegionOwner=Facet` (centro normalizado, `Type=Face`) | No se reimporta | Solo exportación; lo lee digiKam de forma nativa, **no** lo lee Lightroom (una limitación conocida de Adobe: Lightroom solo consume las regiones MWG que escribió él mismo) |
 
@@ -282,7 +283,7 @@ Si la base de datos falta, es ilegible o no es válida, la vista previa termina 
 - **gps** conserva las ubicaciones manuales salvo que se indique `--overwrite-manual-gps`.
 - **keywords** son aditivas y compartidas, incluso con `--user`.
 
-**Relojes de edición.** Facet registra cuándo se cambió por última vez cada campo de revisión, por foto y cuenta, incluidos los restablecimientos. Un sidecar más antiguo que ese cambio es un conflicto `newer_local_edit`, y ese grupo de revisión se deja sin cambios. `--overwrite-sidecar-review` anula esto y la comprobación con la hora del escaneo. Un origen `local` significa un escritor desconocido, no necesariamente una persona. Las leyendas, los rostros, las palabras clave jerárquicas y el GPS externo sin marcar nunca se importan.
+**Relojes de edición.** Facet registra cuándo se cambió por última vez cada campo de revisión, por foto y cuenta, incluidos los restablecimientos. Un sidecar más antiguo que ese cambio es un conflicto `newer_local_edit`, y ese grupo de revisión se deja sin cambios. `--overwrite-sidecar-review` anula esto y la comprobación con la hora del escaneo. Un origen `local` significa un escritor desconocido, no necesariamente una persona. Las leyendas, los rostros y el GPS externo sin marcar nunca se importan.
 
 - Los campos cambiados antes de que Facet empezara a registrar ediciones no tienen hora de edición conocida. Se aplica la regla de la hora del escaneo, informada como `untracked_legacy_edit`.
 - La vista previa también abre bases de datos antiguas sin actualizarlas; un campo Conservar ausente se lee como sin decidir.

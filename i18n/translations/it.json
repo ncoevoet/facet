@@ -2019,8 +2019,8 @@
     "eta": "Stima",
     "starting": "Avvio...",
     "running": "In esecuzione",
-    "completed": "Completata",
-    "failed": "Non riuscita",
+    "completed": "Scansione completata",
+    "failed": "La scansione è terminata con un errore",
     "idle": "Inattivo",
     "status_unavailable": "Lo stato della scansione non è disponibile. La scansione potrebbe essere ancora in corso. Rileggere lo stato non la riavvierà.",
     "retry_status": "Rileggi stato della scansione",
@@ -2832,7 +2832,7 @@
     },
     "peaking": {
       "label": "Focus peaking",
-      "tooltip": "Evidenzia i bordi più nitidi dell'immagine visualizzata",
+      "tooltip": "Evidenzia i bordi dell’immagine visualizzata",
       "help": "L’evidenziazione della messa a fuoco mostra i bordi dell’immagine di base visualizzata. In Adatta usa un’immagine ridotta; lo zoom cambia i pixel misurati. Trama, rumore e nitidezza possono creare evidenziazioni. La sovrapposizione aiuta l’esame, non decide Conserva/Scarta; una sfocatura intenzionale può meritare di essere conservata."
     },
     "legend": {
@@ -2950,7 +2950,7 @@
     "unavailable": "La generazione di didascalie richiede un modello VLM (16 GB+ VRAM)"
   },
   "timeline": {
-    "help": "Sfoglia la tua libreria in ordine cronologico. Naviga dagli anni ai mesi ai giorni; scegli un periodo per vedere le foto scattate allora.",
+    "help": "Sfoglia le foto datate, passa a un mese o usa Densità delle date per selezionare un periodo. Il calendario rimane disponibile; le foto senza data di scatto sono elencate separatamente.",
     "title": "Cronologia",
     "empty": "Nessuna foto con date trovata.",
     "years_title": "Anni",
@@ -2992,7 +2992,7 @@
     "density_weeks": "Settimane (lunedì–domenica)"
   },
   "folders": {
-    "help": "Sfoglia le foto in base alla loro struttura di cartelle su disco. Apri una cartella per vedere le foto che contiene.",
+    "help": "Le cartelle corrispondono alla posizione dei file originali sul disco. Gli album organizzano le foto senza spostare quei file. Apri una cartella per sfogliarne le foto o filtra la galleria per quella posizione.",
     "title": "Cartelle",
     "empty": "Nessuna cartella trovata.",
     "root": "Radice",

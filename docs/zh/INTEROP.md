@@ -224,9 +224,9 @@ darktable 把编辑历史保存在自己的 `<image><ext>.xmp` 中。Facet 的 E
 Facet 把你自己输入的标签（参见[查看器 — 手动标签](VIEWER.md#手动标签)）保存在 `photo_manual_tags` 中，与 `photos.tags` 里的 AI 标签分开。重新扫描或重新打标不会动到它们。
 
 - **导出。** 每个写关键字的环节都按先 AI 标签、再手动标签、最后人物姓名的顺序输出，并且不区分大小写地去重。这涵盖 `--export-sidecars`、图库的 XMP 导出和“将元数据写入文件”操作，以及 Lightroom 清单（`--export-manifest`、`/api/lightroom/manifest`）。
-- **导入。** `--import-sidecars` 只读取 `dc:subject`。每个关键字都会像手动输入的标签一样被规范化：去除首尾空白、转小写、最多 64 个字符、每张照片最多 50 个手动标签。每个关键字都会成为来源为 `xmp` 的手动标签，除非它：
+- **导入。** `--import-sidecars` 从 `dc:subject` 读取扁平关键字，并从 `lr:hierarchicalSubject` 单独读取层级路径。每个扁平关键字都会像手动输入的标签一样被规范化：去除首尾空白、转小写、最多 64 个字符、每张照片最多 50 个手动标签。每个关键字都会成为来源为 `xmp` 的手动标签，除非它：
   - 已经是照片的某个 AI 标签或人物姓名，
-  - 是分层路径 `a|b`，
+  - 与 `lr:hierarchicalSubject` 中明确存在的路径重复，
   - 含逗号或控制字符，或
   - 会超出上限。
 - **删除必须明确选择。** 默认导出只添加。`--export-sidecars /path --reconcile-keywords`（需要 ExifTool）还会移除 Facet 之前写入、而现在已不在 Facet 中的名称。Facet 从未写入的关键字绝不会被移除，即使名称相同；没有标记的旧 sidecar 不授予 Facet 任何归属。如果你在其他编辑器中重新添加了被移除的关键字，Facet 可以再次导入它，此后将其视为外部名称。使用 `--user` 时关键字仍是共享的。
@@ -234,7 +234,8 @@ Facet 把你自己输入的标签（参见[查看器 — 手动标签](VIEWER.md
 - `2024`、`1.50`、`1e3`、`true`、`false` 和 `null` 等名称保留原有拼写。
 - 如果 Facet 无法读取现有文件的元数据，导出会在写入前停止。
 - **Lightroom 清单则会传播移除。** 增效工具的关键字选项会在每次 Apply 时改写每张照片的 `Facet ›` 子关键字。
-- **AI 标签仍是 AI 标签。** Sidecar 会记录哪些关键字来自 AI、哪些是手动的，因此重新打标不会把旧的 AI 关键字变成手动标签。旧版 Facet 的 sidecar 保持原来的只添加行为。层级关键字始终只添加。
+- **AI 标签仍是 AI 标签。** Sidecar 会记录哪些关键字来自 AI、哪些是手动的，因此重新打标不会把旧的 AI 关键字变成手动标签。旧版 Facet 的 sidecar 保持原来的只添加行为。
+- **层级。** 导入的路径会添加到共享关键字层级；仅在扁平名称中包含 `|` 或 `/` 不会创建层级。标记为 Facet 生成的路径不会导入为手动分配，除非也标记为手动。导出包含明确分配的路径及自动生成的类别／人物路径。导出默认只添加；`--reconcile-keywords` 仅移除属于 Facet 的过时路径，并保留外部路径。
 - **归属上限：** 每份列表最多 10,000 个名称，每个名称最多 1,024 个字符。会超出上限的导出会在写入前停止。请手动归档并清理这样的 sidecar，再重新开始。
 - **旧版 Facet 导入的关键字留在原处。** 旧版本把关键字合并进 `photos.tags`，在那里它们看起来像 AI 标签，也没有任何迁移会移动它们。要把其中一个变成手动标签，请先清空或重新打标 `photos.tags`，再重新运行 `--import-sidecars`；或者直接手动添加该标签。
 - **被移动或重命名的文件会失去它的手动标签。** 它们与照片路径绑定。
@@ -247,7 +248,7 @@ Facet 把你自己输入的标签（参见[查看器 — 手动标签](VIEWER.md
 | 星级／淘汰 | `xmp:Rating`（`-1` = 已淘汰） | `xmp:Rating` | 审核字段编辑时间；旧数据使用扫描时间 |
 | 颜色标签 | `xmp:Label`（`Red` = 已淘汰，`Yellow` = 收藏） | `xmp:Label` | 审核字段编辑时间；旧数据使用扫描时间 |
 | 标签／关键字 | `dc:subject`（扁平，AI 标签 + 手动标签，包含已命名人脸的人物姓名） | `dc:subject`（存为手动标签） | 默认只添加；`--reconcile-keywords` 仅移除属于 Facet 的过时名称；导入仍只添加 ([手动标签与 XMP 关键字](#手动标签与-xmp-关键字)) |
-| 层级标签 | `lr:hierarchicalSubject`（`Category\|<cat>`、`People\|<name>`） | 不再导入 | 仅导出 |
+| 层级标签 | `lr:hierarchicalSubject`（明确分配及生成的类别／人物路径） | `lr:hierarchicalSubject`（共享层级分配） | 导入只添加；导出协调仅移除属于 Facet 的过时路径 |
 | 照片描述 | `dc:description` 默认语言（+ 经由 exiftool 的 `IPTC:Caption-Abstract`） | 不再导入 | 仅导出 |
 | 命名的人脸区域 | MWG `mwg-rs:RegionList` + `facet:RegionOwner=Facet`（中心归一化，`Type=Face`） | 不再导入 | 仅导出；由 digiKam 原生读取，Lightroom **不**读取（一个已知的 Adobe 限制 —— Lightroom 只消费它自己写出的 MWG 区域） |
 
@@ -282,7 +283,7 @@ Facet 把你自己输入的标签（参见[查看器 — 手动标签](VIEWER.md
 - **gps** 保护手动位置，除非给出 `--overwrite-manual-gps`。
 - **keywords** 只添加且共享，使用 `--user` 时也是如此。
 
-**编辑时间。** Facet 按照片和账户记录每个审阅字段上次更改的时间，包括重置。比该更改更旧的 sidecar 属于 `newer_local_edit` 冲突，该审阅组保持不变。`--overwrite-sidecar-review` 会覆盖此检查和扫描时间检查。`local` 来源表示未知的写入者，不一定是人。说明、人脸、层级关键字和无标记的外部 GPS 绝不会被导入。
+**编辑时间。** Facet 按照片和账户记录每个审阅字段上次更改的时间，包括重置。比该更改更旧的 sidecar 属于 `newer_local_edit` 冲突，该审阅组保持不变。`--overwrite-sidecar-review` 会覆盖此检查和扫描时间检查。`local` 来源表示未知的写入者，不一定是人。说明、人脸和无标记的外部 GPS 绝不会被导入。
 
 - Facet 开始记录编辑之前更改的字段没有已知的编辑时间。此时适用扫描时间规则，报告为 `untracked_legacy_edit`。
 - 预览也能打开较旧的数据库而不升级它；缺少保留字段时视为未决定。
