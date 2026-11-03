@@ -83,9 +83,9 @@ describe('explicit catalog removal', () => {
   });
 
   it('erases entries from already-open thumbnail Cache objects and retains their namespaces', async () => {
-    const bytes = new Map([['/thumbnail?path=private', 'private bytes']]);
-    const request = new Request('http://localhost/thumbnail?path=private');
-    const deleteEntry = vi.fn(async () => bytes.delete('/thumbnail?path=private'));
+    const bytes = new Map([['/thumbnail?path=%2Fprivate.jpg', 'private bytes']]);
+    const request = new Request('http://localhost/thumbnail?path=%2Fprivate.jpg');
+    const deleteEntry = vi.fn(async () => bytes.delete('/thumbnail?path=%2Fprivate.jpg'));
     const deleteNamespace = vi.fn(async () => {
       expect(bytes.size).toBe(0);
       return true;
@@ -100,7 +100,7 @@ describe('explicit catalog removal', () => {
       await vi.waitFor(() => expect(TestBed.inject(MatDialog).open).toHaveBeenCalled());
       close.next(true);
       expect(await pending).toEqual(['/private.jpg']);
-      expect(deleteEntry).toHaveBeenCalledWith(request);
+      await vi.waitFor(() => expect(deleteEntry).toHaveBeenCalledWith(request));
       expect(deleteNamespace).not.toHaveBeenCalled();
       expect(bytes.size).toBe(0);
     } finally { vi.unstubAllGlobals(); }

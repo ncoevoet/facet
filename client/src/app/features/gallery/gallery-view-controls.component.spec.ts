@@ -116,6 +116,16 @@ describe('GalleryViewControlsComponent', () => {
       expect(byLabel(root, I18N.ui.filters.search)).toHaveLength(0);
     });
 
+    it('changes sort direction and refuses the action for a pinned collection', () => {
+      const { fixture, root, store } = render();
+      const direction = root.querySelector<HTMLButtonElement>(`button[aria-label="${I18N.gallery.sort_desc}"]`)!;
+      direction.click();
+      expect(store.updateFilter).toHaveBeenCalledExactlyOnceWith('sort_direction', 'ASC');
+      store.updateFilter.mockClear(); store.pinnedPaths.set(['/fixed']); fixture.detectChanges();
+      direction.click(); expect(store.updateFilter).not.toHaveBeenCalled();
+      fixture.destroy();
+    });
+
     it('puts the direction toggle, then the filter toggle, right after the sort button at every width', () => {
       const { root } = render();
       const [sort] = sortButtons(root);
