@@ -1905,8 +1905,7 @@ export class BurstCullingComponent implements OnDestroy {
   protected readonly frameTransforms = computed(() => new Map([...this.paneFrames()].map(([path, z]) =>
     [path, `translate(${z.tx}px, ${z.ty}px) scale(${z.scale})`])));
 
-  /** Whether the panes have swapped to their full-resolution source. A computed
-   *  boolean, so panning at a fixed scale never re-triggers the peaking pass. */
+  /** Whether any pane is zoomed beyond fit; panning alone does not retrigger peaking. */
   private readonly darkroomHiRes = computed(() => this.darkroomFramePaths().some(path => (this.paneFrames().get(path)?.scale ?? 1) > SyncedZoomComponent.MIN_SCALE));
 
   protected readonly gridModeLabel = computed(() => {
@@ -1925,7 +1924,7 @@ export class BurstCullingComponent implements OnDestroy {
     return photo ? [photo.path] : [];
   });
 
-  /** The frames shown in compare mode: N photos from the current index, clamped. */
+  /** The active pane's group index, or the single-view index. */
   protected readonly effectiveLightboxIndex = computed(() => {
     const group = this.lightboxGroup();
     if (group && this.compareMode() !== 'single' && this.comparisonPaths().length) {
@@ -2912,8 +2911,7 @@ export class BurstCullingComponent implements OnDestroy {
     return Math.max(0, Math.min(max - 1, value));
   }
 
-  /** Step the darkroom one frame and drop back to fit. The single advance the
-   *  arrow keys and a committed swipe both go through, so they cannot drift. */
+  /** Step the active darkroom frame for arrow keys and committed swipes. */
   private stepLightbox(group: CullingGroup, delta: number): void {
     this.focusPhotoInLightbox(this.clampIndex(this.effectiveLightboxIndex() + delta, group.photos.length));
   }

@@ -28,7 +28,7 @@ export interface EditAlbumDialogData {
     <mat-dialog-content>
       <mat-form-field class="w-full">
         <mat-label>{{ I18N.albums.name | translate }}</mat-label>
-        <input matInput [(ngModel)]="name" maxlength="100" (keydown.enter)="save()" />
+        <input matInput [(ngModel)]="name" maxlength="200" (keydown.enter)="save()" />
       </mat-form-field>
       <mat-form-field class="w-full">
         <mat-label>{{ I18N.albums.description_label | translate }}</mat-label>

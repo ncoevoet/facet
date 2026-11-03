@@ -254,7 +254,6 @@ export class ComparisonWorkspaceComponent {
   protected readonly storedEdge = STORED_EDGE;
   protected readonly renderedEdge = RENDERED_EDGE;
 
-  /** Each photo retains its own framing, including candidates outside two-up. */
   protected readonly linked = signal(true);
   protected readonly referencePath = signal(this.data.photos?.[0]?.path ?? null);
   protected readonly twoUp = signal(this.data.photos.length > MAX_COMPARE_PANES);
@@ -266,6 +265,7 @@ export class ComparisonWorkspaceComponent {
   protected readonly activePath = signal(this.data.photos?.[0]?.path ?? null);
   protected readonly removedPaths = signal(new Set<string>());
   private readonly candidatePath = signal(this.data.photos?.[1]?.path ?? null);
+  /** Each photo retains its own framing, including candidates outside two-up. */
   private readonly paneZoom = signal(new Map<string, ZoomState>());
   private readonly readiness = signal(new Map<string, 'loading' | 'ready' | 'failed'>());
   private readonly renditions = signal(new Map<string, DisplayedRendition>());
@@ -414,10 +414,10 @@ export class ComparisonWorkspaceComponent {
     const zoom = this.paneZoom().get(photo.path) ?? FIT_ZOOM;
     const rendition = this.renditions().get(photo.path);
     return {
-      photo, slotLabel: String.fromCharCode(65 + this.panes().findIndex(item => item.path === photo.path)), zoom, rendition, fitted: zoom.scale === 1 && zoom.tx === 0 && zoom.ty === 0,
+      photo, slotLabel: String.fromCharCode(65 + this.panes().findIndex(item => item.path === photo.path)), zoom, rendition, fitted: zoom.scale === SyncedZoomComponent.MIN_SCALE && zoom.tx === 0 && zoom.ty === 0,
       faces: (this.faceRows().get(photo.path) ?? []).filter(face => normalizedInspectionBox(face.box) && Number.isInteger(face.id) && Number.isInteger(face.face_index)), suggestion: this.suggestions().get(photo.path),
-      zoomOutDisabled: this.linked() ? this.panes().some(p => (this.paneZoom().get(p.path) ?? FIT_ZOOM).scale <= 1) : zoom.scale <= 1,
-      zoomInDisabled: this.linked() ? this.panes().some(p => (this.paneZoom().get(p.path) ?? FIT_ZOOM).scale >= 8) : zoom.scale >= 8,
+      zoomOutDisabled: this.linked() ? this.panes().some(p => (this.paneZoom().get(p.path) ?? FIT_ZOOM).scale <= SyncedZoomComponent.MIN_SCALE) : zoom.scale <= SyncedZoomComponent.MIN_SCALE,
+      zoomInDisabled: this.linked() ? this.panes().some(p => (this.paneZoom().get(p.path) ?? FIT_ZOOM).scale >= SyncedZoomComponent.MAX_SCALE) : zoom.scale >= SyncedZoomComponent.MAX_SCALE,
       previewFailed: this.readiness().get(photo.path) === 'failed',
       kindKey: this.I18N.gallery.compare.rendition[rendition?.kind ?? 'thumbnail'],
       phaseKey: this.readiness().get(photo.path) === 'failed' && rendition?.kind === 'thumbnail' ? this.I18N.gallery.compare.rendition.fallback : this.I18N.gallery.compare.rendition[rendition?.phase ?? 'loading'],
@@ -530,7 +530,7 @@ export class ComparisonWorkspaceComponent {
       this.paneZoom.set(new Map(frames).set(path, { ...state }));
       return;
     }
-    if (state.scale === 1 && state.tx === 0 && state.ty === 0) {
+    if (state.scale === SyncedZoomComponent.MIN_SCALE && state.tx === 0 && state.ty === 0) {
       this.resetZoom();
       return;
     }
@@ -548,8 +548,8 @@ export class ComparisonWorkspaceComponent {
 
   protected stepZoom(path: string, direction: number): void {
     const frame = this.paneZoom().get(path) ?? FIT_ZOOM;
-    const scale = Math.max(1, Math.min(8, frame.scale * (direction > 0 ? 1.5 : 1 / 1.5)));
-    this.onZoom(path, scale === 1 ? { ...FIT_ZOOM } : { ...frame, scale });
+    const scale = Math.max(SyncedZoomComponent.MIN_SCALE, Math.min(SyncedZoomComponent.MAX_SCALE, frame.scale * (direction > 0 ? 1.5 : 1 / 1.5)));
+    this.onZoom(path, scale === SyncedZoomComponent.MIN_SCALE ? { ...FIT_ZOOM } : { ...frame, scale });
   }
 
   protected fitPane(path: string): void {

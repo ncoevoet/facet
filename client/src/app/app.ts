@@ -20,6 +20,7 @@ import { MatInputModule } from '@angular/material/input';
 import { MatBadgeModule } from '@angular/material/badge';
 import { MatDividerModule } from '@angular/material/divider';
 import { MatDialog, MatDialogModule, MatDialogRef } from '@angular/material/dialog';
+import { FEATURE_MARK, MarkTonePipe } from './shared/pipes/mark-tone.pipe';
 import { ApiService } from './core/services/api.service';
 import { StalenessGuardFactory } from './core/services/staleness-guard.service';
 import { AuthService } from './core/services/auth.service';
@@ -136,6 +137,7 @@ export class EditionDialogComponent {
     MatBadgeModule,
     MatDividerModule,
     TranslatePipe,
+    MarkTonePipe,
     NgTemplateOutlet,
     DateRangeFilterComponent,
     SlideshowComponent,
@@ -149,6 +151,7 @@ export class EditionDialogComponent {
 })
 export class App implements OnInit {
   protected readonly I18N = i18nKeys();
+  protected readonly featureMark = FEATURE_MARK;
   private readonly router = inject(Router);
   private readonly dialog = inject(MatDialog);
   private readonly destroyRef = inject(DestroyRef);

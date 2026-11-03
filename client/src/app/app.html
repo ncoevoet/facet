@@ -32,7 +32,7 @@
     <header data-workspace-navigation class="flex min-h-12 shrink-0 items-center gap-1 border-b border-[var(--mat-sys-outline-variant)] bg-[var(--mat-sys-surface-container-low)] px-2"
             [class.!border-b-2]="auth.isEdition()" [style.border-bottom-color]="auth.isEdition() ? 'var(--facet-accent)' : null">
       <button mat-icon-button class="lg:!hidden" data-mobile-navigation [matMenuTriggerFor]="applicationNavigationMenu" [attr.aria-label]="I18N.nav.navigation | translate"><mat-icon>menu</mat-icon></button>
-      <a routerLink="/" class="flex flex-1 items-center gap-2 px-2 text-sm font-medium no-underline lg:hidden" [attr.aria-label]="I18N.nav.gallery_tooltip | translate" (dblclick)="resetAllFilters()"><mat-icon aria-hidden="true">diamond</mat-icon>Facet</a>
+      <a routerLink="/" class="flex flex-1 items-center gap-2 px-2 text-sm font-medium no-underline lg:hidden" [attr.title]="I18N.nav.gallery_tooltip | translate" (dblclick)="resetAllFilters()"><mat-icon aria-hidden="true">diamond</mat-icon>Facet</a>
       <div #navigationSpace data-navigation-space class="relative hidden overflow-hidden min-w-0 flex-1 items-stretch self-stretch gap-1 lg:flex">
         <div #navigationMeasurements aria-hidden="true" inert class="pointer-events-none invisible absolute left-0 top-0 flex w-max">
           @for (destination of navigationDestinations(); track destination.path) {
@@ -67,9 +67,9 @@
       }
       <app-assistant-activity-chip />
       @if (isGalleryRoute()) { @if (myTasteBadge(); as taste) {
-        <button type="button" class="inline-flex shrink-0 rounded-full p-1 text-amber-400 hover:bg-[var(--mat-sys-surface-container-high)]"
+        <button type="button" class="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-full hover:bg-[var(--mat-sys-surface-container-high)]"
                 [matTooltip]="I18N.gallery.my_taste_badge_tooltip | translate:{ comparisons: taste.comparisons, accuracy: taste.accuracy ?? '—', baseline: taste.baseline ?? '—' }"
-                [attr.aria-label]="I18N.gallery.my_taste_badge_tooltip | translate:{ comparisons: taste.comparisons, accuracy: taste.accuracy ?? '—', baseline: taste.baseline ?? '—' }"><mat-icon aria-hidden="true">auto_awesome</mat-icon></button>
+                [attr.aria-label]="I18N.gallery.my_taste_badge_tooltip | translate:{ comparisons: taste.comparisons, accuracy: taste.accuracy ?? '—', baseline: taste.baseline ?? '—' }"><span aria-hidden="true" class="text-xl" [class]="'taste' | markTone">{{ featureMark }}</span></button>
       } }
       <ng-container [ngTemplateOutlet]="accountControls" />
     </header>
