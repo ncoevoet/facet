@@ -58,6 +58,10 @@ class MultiPassResourceMonitor(threading.Thread):
         # Tracking. The peak is the high-water mark since the last chunk
         # boundary -- what the chunk actually had to survive.
         self._peak_percent = 0.0
+        # The peak of the last finished chunk (0.0 until one finished, or when none was
+        # read): the decode-ahead budget reads it, so that what it keeps resident cannot
+        # push a reading past ``low_threshold``. Read-only for the tuning decisions.
+        self.last_chunk_peak_percent = 0.0
         self.adjustments = []  # list of (direction, old_size, new_size)
         # A failing tick is logged once; a persistently failing one stays quiet
         # after that so it cannot flood the log every interval.
@@ -87,20 +91,33 @@ class MultiPassResourceMonitor(threading.Thread):
         """
         try:
             reading = effective_memory()
-            mem_percent = reading.percent
+            # Every decision below judges the reading without the bytes a decode-ahead
+            # actually holds for the NEXT chunk (growth peak, shrink test, eviction).
+            held = self._ahead_bytes()
+            mem_percent = reading.percent - (100.0 * held / reading.total if held and reading.total else 0.0)
             self._peak_percent = max(self._peak_percent, mem_percent)
 
             if mem_percent > self.high_threshold:
                 old = self.processor.chunk_size
                 if self.processor.reduce_chunk_size():
                     self._record('reduce', old, mem_percent)
-                self._evict_below_reserve(reading.available)
+                self._evict_below_reserve(reading.available + held)
 
         except Exception as e:
             if not self._warned_failure:
                 self._warned_failure = True
                 logger.warning("RAM monitor tick failed (chunk tuning / cache eviction may "
                                "be off for this scan): %s", e, exc_info=True)
+
+    def _ahead_bytes(self):
+        """Bytes the processor's pending decode-ahead holds (0 without one)."""
+        held_fn = getattr(type(self.processor), 'ahead_resident_bytes', None)
+        if held_fn is None:
+            return 0
+        held = held_fn(self.processor)
+        if isinstance(held, bool) or not isinstance(held, (int, float)):
+            return 0
+        return held
 
     def _evict_below_reserve(self, available):
         """Evict RAM-cached models only while ``available`` is under the reserve.
@@ -133,14 +150,17 @@ class MultiPassResourceMonitor(threading.Thread):
 
         Called once per chunk by ``ChunkedMultiPassProcessor``, which is the
         only moment a size change is safe: the images the current chunk was
-        sized for have been released, and nothing has been decoded for the
-        next one yet.
+        sized for have been released. The next chunk's first photos may already
+        be decoded (the decode-ahead); the monitor's readings leave the bytes they
+        actually hold out of every decision, so the rule below sees the peak the
+        chunk would have had without them.
 
         A peak of zero means no reading was taken -- a chunk shorter than the
         monitor's interval -- and the absence of a measurement is not a
         measurement of headroom, so it grows nothing.
         """
         peak, self._peak_percent = self._peak_percent, 0.0
+        self.last_chunk_peak_percent = peak
         if not peak or peak >= self.low_threshold:
             return
         old = self.processor.chunk_size

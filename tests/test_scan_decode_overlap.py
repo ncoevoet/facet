@@ -29,6 +29,7 @@ import pytest
 
 pytest.importorskip("torch")
 
+from models.model_manager import ModelManager  # noqa: E402
 from processing.multi_pass import ChunkedMultiPassProcessor  # noqa: E402
 
 GIB = 1024 ** 3
@@ -41,6 +42,9 @@ TIMEOUT = 5.0
 
 class _Manager:
     """Duck-types the ModelManager surface ``process_directory`` and the S4 gate read."""
+
+    CPU_CACHEABLE_MODELS = ModelManager.CPU_CACHEABLE_MODELS
+    is_cacheable_model = ModelManager.is_cacheable_model
 
     def __init__(self, device='cuda', keep_in_ram='auto', resident=(), cached=(),
                  available=1024 * GIB, reserve_gb=4.0, fail_load=(), profile=None,
@@ -162,6 +166,9 @@ def _processor(manager, groups, monkeypatch, *, chunk=2, workers=1, log=None,
         proc = ChunkedMultiPassProcessor(_scorer(), manager, config, on_error=on_error)
     proc.pass_groups = groups
     proc.restricted = restricted
+    # These tests pin the overlap of a chunk's decode with its OWN first model load; the
+    # decode-ahead has its own suite (test_decode_ahead.py).
+    proc.DECODE_AHEAD = False
     log = log if log is not None else _Log()
     proc._test_log = log
     proc._test_executor = None

@@ -758,7 +758,7 @@ GPU 批处理与多遍模式的设置。
 
 - 加载线程还会计算 EXIF、技术指标、基于规则的构图、感知哈希，以及 pyiqa 模型与 Q-ReAlign 共用的 1024 px 副本。
 - 构图出错只会让那一张照片失败。它会以 `composition` 阶段记入 `scan_failures`；用 `--retry-failed` 重试。
-- 在 CUDA GPU 上，当主机可用内存允许且 `keep_in_ram` 不是 `"never"` 时，一个分块会在下一批模型加载期间解码。否则（在 CPU 和 Apple MPS 上则总是如此）先解码。两种方式的结果完全相同。
+- 在 CUDA GPU 上，当主机可用内存允许且 `keep_in_ram` 不是 `"never"` 时，一个分块会在下一批模型加载期间解码。否则（在 CPU 和 Apple MPS 上则总是如此）先解码。两种方式的结果完全相同。 chunk 解码完成后，worker 还会在该 chunk 的模型运行期间解码下一个 chunk 的前几张照片，数量取决于可用内存、Windows commit 余量和增长阈值（第一个 chunk、启用自动调整时短于内存监视器的间隔的 chunk 之后，或 `keep_in_ram: "never"`，或 RAM 缓存无法保留该 chunk 的模型时为零）；参见 [COMMANDS.md](COMMANDS.md)。
 - 在某个分块之前内存不足时，内存缓存会先释放最晚才会再用到的模型，并保持 `ram_cache_reserve_gb` 的空闲量。
 - 扫描摘要会报告 `Plane rebuilds`、`I/O wait (scan thread blocked on decode)` 和 `Decode wall`。
 

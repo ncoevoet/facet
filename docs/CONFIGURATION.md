@@ -760,7 +760,7 @@ Each image is decoded once per chunk and shared by all passes. Passes are groupe
 
 - Loader threads also compute EXIF, technical metrics, rule-based composition, the perceptual hash and a shared 1024 px copy for the pyiqa models and Q-ReAlign.
 - A composition error fails only that photo. It is recorded in `scan_failures` under stage `composition`; retry with `--retry-failed`.
-- On a CUDA GPU, a chunk is decoded while the next models load, when free host memory allows and `keep_in_ram` is not `"never"`. Otherwise (and always on CPU and Apple MPS) it is decoded first. Results are identical either way.
+- On a CUDA GPU, a chunk is decoded while the next models load, when free host memory allows and `keep_in_ram` is not `"never"`. Otherwise (and always on CPU and Apple MPS) it is decoded first. Results are identical either way. Once a chunk is decoded, the worker also decodes the first photos of the next chunk while this chunk's models run, as many as free memory, Windows commit headroom and the growth threshold allow (none for the first chunk, with auto-tuning on after a chunk shorter than the memory-monitor interval, with `keep_in_ram: "never"`, or when the RAM cache could not keep the chunk's models); see [COMMANDS.md](COMMANDS.md).
 - When memory runs short before a chunk, the RAM cache releases the model needed farthest in the future first, and keeps `ram_cache_reserve_gb` free.
 - The scan summary reports `Plane rebuilds`, `I/O wait (scan thread blocked on decode)` and `Decode wall`.
 

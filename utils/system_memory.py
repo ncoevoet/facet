@@ -482,3 +482,36 @@ def _malloc_trim():
 
 _UNRESOLVED = object()
 _MALLOC_TRIM = _UNRESOLVED
+
+
+def commit_headroom_bytes() -> int | None:
+    """Windows commit headroom (``ullAvailPageFile`` of ``GlobalMemoryStatusEx``), else None.
+
+    Physical availability does not see the commit charge: a process can be refused
+    memory while RAM looks free. Every other platform, and any failure to read, is None
+    ("unknown", never "plenty"), which a caller treats as no commit bound.
+    """
+    if sys.platform != 'win32':
+        return None
+    try:
+        import ctypes
+        from ctypes import wintypes
+
+        class _MemoryStatusEx(ctypes.Structure):
+            _fields_ = [
+                ('dwLength', wintypes.DWORD), ('dwMemoryLoad', wintypes.DWORD),
+                ('ullTotalPhys', ctypes.c_ulonglong), ('ullAvailPhys', ctypes.c_ulonglong),
+                ('ullTotalPageFile', ctypes.c_ulonglong),
+                ('ullAvailPageFile', ctypes.c_ulonglong),
+                ('ullTotalVirtual', ctypes.c_ulonglong),
+                ('ullAvailVirtual', ctypes.c_ulonglong),
+                ('ullAvailExtendedVirtual', ctypes.c_ulonglong),
+            ]
+
+        status = _MemoryStatusEx()
+        status.dwLength = ctypes.sizeof(_MemoryStatusEx)
+        if not ctypes.windll.kernel32.GlobalMemoryStatusEx(ctypes.byref(status)):
+            return 0
+        return int(status.ullAvailPageFile)
+    except Exception:
+        return 0
