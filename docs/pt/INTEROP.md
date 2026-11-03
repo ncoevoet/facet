@@ -238,7 +238,7 @@ O Facet salva os tags que você digita (veja [Visualizador — Tags manuais](VIE
 - **Hierarquias.** Os caminhos importados são adicionados à hierarquia compartilhada; nomes planos com `|` ou `/` não criam uma hierarquia por si só. Caminhos marcados como gerados pelo Facet não são importados como atribuições manuais, a menos que também estejam marcados como manuais. As exportações incluem atribuições explícitas e caminhos gerados de categorias/pessoas. A exportação é aditiva por padrão; `--reconcile-keywords` remove apenas caminhos obsoletos pertencentes ao Facet e preserva os externos.
 - **Limites de propriedade:** 10.000 nomes por lista e 1.024 caracteres por nome. Uma exportação que os excedesse para antes de gravar. Arquive e limpe esse sidecar manualmente antes de recomeçar.
 - **As palavras-chave importadas por uma versão anterior ficam onde estão.** As versões anteriores mesclavam as palavras-chave em `photos.tags`, onde parecem tags de IA, e nada as migra. Para converter uma em tag manual, esvazie ou reetiquete `photos.tags` e rode `--import-sidecars` de novo — ou adicione o tag manualmente.
-- **Um arquivo movido ou renomeado perde seus tags manuais.** Eles estão presos ao caminho da foto.
+- **Arquivos movidos ou renomeados.** As tags manuais estão ligadas ao caminho do catálogo. Depois de mover os arquivos, use o [processo de revinculação](RELINK.md) com revisão prévia para atualizar esse caminho e preservar as tags; apenas varrer o novo local não as transfere.
 - **`--export-csv` e `--export-json` continuam somente de IA.** O valor `tags` deles não inclui tags manuais.
 
 ## Como o Facet mescla

@@ -238,7 +238,7 @@ Facet conserve les tags que vous saisissez (voir [Visionneuse — Tags manuels](
 - **Hiérarchies.** Les chemins importés sont ajoutés à la hiérarchie partagée ; un nom à plat contenant `|` ou `/` ne crée pas à lui seul de hiérarchie. Les chemins marqués comme générés par Facet ne sont pas importés comme affectations manuelles, sauf s’ils sont aussi marqués manuels. Les exports incluent les affectations explicites et les chemins de catégorie/personne générés. L’export est additif par défaut ; `--reconcile-keywords` retire uniquement les chemins obsolètes appartenant à Facet et préserve les chemins étrangers.
 - **Limites de propriété :** 10 000 noms par liste et 1 024 caractères par nom. Un export qui les dépasserait s'arrête avant d'écrire. Archivez et nettoyez un tel sidecar à la main avant de repartir de zéro.
 - **Les mots-clés importés par une ancienne version de Facet restent où ils sont.** Les anciennes versions fusionnaient les mots-clés dans `photos.tags`, où ils ressemblent à des tags IA, et rien ne les migre. Pour en convertir un en tag manuel, videz ou re-taguez `photos.tags`, puis relancez `--import-sidecars` — ou ajoutez le tag à la main.
-- **Un fichier déplacé ou renommé perd ses tags manuels.** Ils sont rattachés au chemin de la photo.
+- **Fichiers déplacés ou renommés.** Les tags manuels sont liés au chemin du catalogue. Après avoir déplacé les fichiers vous-même, utilisez la [procédure de réassociation](RELINK.md) avec examen préalable pour mettre à jour ce chemin et conserver les tags ; scanner le nouvel emplacement seul ne les transfère pas.
 - **`--export-csv` et `--export-json` restent limités à l'IA.** Leur valeur `tags` ne contient aucun tag manuel.
 
 ## Comment Facet fusionne

@@ -238,7 +238,7 @@ Facet guarda los tags que escribes (consulta [Visor — Tags manuales](VIEWER.md
 - **Jerarquías.** Las rutas importadas se añaden a la jerarquía compartida; los nombres planos que contienen `|` o `/` no crean una jerarquía por sí solos. Las rutas marcadas como generadas por Facet no se importan como asignaciones manuales, salvo que también estén marcadas como manuales. Las exportaciones incluyen las asignaciones explícitas y las rutas generadas de categorías/personas. Por defecto, la exportación añade rutas; `--reconcile-keywords` elimina solo las rutas obsoletas propiedad de Facet y conserva las ajenas.
 - **Límites de propiedad:** 10 000 nombres por lista y 1024 caracteres por nombre. Una exportación que los superara se detiene antes de escribir. Archiva y limpia a mano un sidecar así antes de empezar de nuevo.
 - **Las palabras clave importadas por un Facet antiguo se quedan donde están.** Las versiones antiguas fusionaban las palabras clave en `photos.tags`, donde parecen tags de IA, y nada las migra. Para convertir una en un tag manual, borra o vuelve a etiquetar `photos.tags` y ejecuta `--import-sidecars` de nuevo — o añade el tag a mano.
-- **Un archivo movido o renombrado pierde sus tags manuales.** Están ligados a la ruta de la foto.
+- **Archivos movidos o renombrados.** Las etiquetas manuales están vinculadas a la ruta del catálogo. Tras mover los archivos, usa el [proceso de revinculación](RELINK.md) con revisión previa para actualizar esa ruta y conservar las etiquetas; escanear solo la nueva ubicación no las transfiere.
 - **`--export-csv` y `--export-json` siguen siendo solo de IA.** Su valor `tags` no incluye tags manuales.
 
 ## Cómo fusiona Facet

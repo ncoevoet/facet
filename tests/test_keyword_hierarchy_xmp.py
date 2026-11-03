@@ -45,7 +45,7 @@ def test_explicit_paths_keep_commas_slashes_and_generated_provenance_separate():
             XmpRating.from_row({'hierarchy_paths': invalid})
 
 
-def test_bulk_loader_is_scoped_bounded_and_read_only_on_released_schema():
+def test_bulk_loader_is_scoped_bounded_and_read_only():
     with sqlite3.connect(':memory:') as conn:
         conn.execute('CREATE TABLE photos(path TEXT PRIMARY KEY)')
         before = list(conn.iterdump())
@@ -107,17 +107,20 @@ def test_released_schema_dry_run_plans_hierarchy_without_migration(tmp_path):
     Path(str(image) + '.xmp').write_text(build_xmp(XmpRating(hierarchy_paths=['Places|Coast'])), encoding='utf-8')
     db = tmp_path / 'old.db'
     with sqlite3.connect(db) as conn:
-        conn.execute('CREATE TABLE photos(path TEXT PRIMARY KEY,tags TEXT,scanned_at TEXT,star_rating INTEGER,'
-                     'is_favorite INTEGER,is_rejected INTEGER,gps_latitude REAL,gps_longitude REAL,gps_manually_set INTEGER)')
+        schema = Path(__file__).parent / 'fixtures' / 'photo_stacks_v1_23_1_schema.sql'
+        conn.executescript(schema.read_text(encoding='utf-8'))
         conn.execute('INSERT INTO photos(path) VALUES(?)', (str(image),))
         conn.commit()
+        tables_before = conn.execute(
+            "SELECT name FROM sqlite_master WHERE type='table' ORDER BY name").fetchall()
     before = db.read_bytes()
-    with sqlite3.connect(f'file:{db}?mode=ro', uri=True) as conn:
+    with sqlite3.connect(db.resolve().as_uri() + '?mode=ro', uri=True) as conn:
         conn.row_factory = sqlite3.Row
         result = import_sidecars(conn, fields=['keywords'], dry_run=True)
         assert result['hierarchy_updated'] == 1
         assert result['entries'][0]['changes']['hierarchy']['assigned'] == ['Places|Coast']
-        assert [row[0] for row in conn.execute("SELECT name FROM sqlite_master WHERE type='table'")] == ['photos']
+        assert [row[0] for row in conn.execute(
+            "SELECT name FROM sqlite_master WHERE type='table' ORDER BY name")] == [row[0] for row in tables_before]
     assert db.read_bytes() == before
 
 

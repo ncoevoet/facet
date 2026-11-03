@@ -238,7 +238,7 @@ Facet hält die Tags, die Sie eingeben (siehe [Web-Galerie — Manuelle Tags](VI
 - **Hierarchien.** Importierte Pfade werden der gemeinsamen Schlagworthierarchie hinzugefügt; flache Namen mit `|` oder `/` erzeugen allein keine Hierarchie. Als von Facet erzeugt markierte Pfade werden nicht als manuelle Zuweisungen importiert, sofern sie nicht zugleich als manuell markiert sind. Exporte enthalten explizite Zuweisungen und erzeugte Kategorie-/Personenpfade. Der Export fügt standardmäßig hinzu; `--reconcile-keywords` entfernt nur veraltete Facet-eigene Pfade und bewahrt fremde Pfade.
 - **Besitzgrenzen:** 10.000 Namen pro Liste und 1.024 Zeichen pro Name. Ein Export, der sie überschreiten würde, stoppt vor dem Schreiben. Archivieren und bereinigen Sie ein solches Sidecar von Hand, bevor Sie neu beginnen.
 - **Von einer älteren Facet-Version importierte Stichwörter bleiben, wo sie sind.** Ältere Versionen führten Stichwörter in `photos.tags` zusammen, wo sie wie KI-Tags aussehen, und keine Migration verschiebt sie. Um eines in ein manuelles Tag umzuwandeln, leeren oder taggen Sie `photos.tags` neu und führen dann `--import-sidecars` erneut aus — oder fügen Sie das Tag von Hand hinzu.
-- **Eine verschobene oder umbenannte Datei verliert ihre manuellen Tags.** Sie hängen am Pfad des Fotos.
+- **Verschobene oder umbenannte Dateien.** Manuelle Tags sind an den Katalogpfad gebunden. Nach dem eigenen Verschieben aktualisiert der geprüfte [Neu-Verknüpfungsablauf](RELINK.md) diesen Pfad und erhält die Tags; ein Scan am neuen Speicherort allein überträgt sie nicht.
 - **`--export-csv` und `--export-json` bleiben auf KI beschränkt.** Ihr `tags`-Wert enthält keine manuellen Tags.
 
 ## Wie Facet zusammenführt

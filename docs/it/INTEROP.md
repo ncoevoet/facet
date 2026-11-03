@@ -238,7 +238,7 @@ Facet conserva i tag che digiti tu (vedi [Galleria web — Tag manuali](VIEWER.m
 - **Gerarchie.** I percorsi importati vengono aggiunti alla gerarchia condivisa; i nomi piatti contenenti `|` o `/` non creano da soli una gerarchia. I percorsi contrassegnati come generati da Facet non vengono importati come assegnazioni manuali, salvo che siano anche contrassegnati come manuali. Le esportazioni includono assegnazioni esplicite e percorsi generati di categorie/persone. Per impostazione predefinita l’esportazione aggiunge percorsi; `--reconcile-keywords` rimuove solo quelli obsoleti di proprietà di Facet e conserva quelli esterni.
 - **Limiti di proprietà:** 10.000 nomi per elenco e 1.024 caratteri per nome. Un'esportazione che li superasse si interrompe prima di scrivere. Archivia e ripulisci a mano un sidecar simile prima di ricominciare.
 - **Le parole chiave importate da una versione precedente di Facet restano dove sono.** Le versioni precedenti univano le parole chiave in `photos.tags`, dove sembrano tag IA, e nulla le migra. Per trasformarne una in tag manuale, svuota o rietichetta `photos.tags`, poi esegui di nuovo `--import-sidecars` — oppure aggiungi il tag a mano.
-- **Un file spostato o rinominato perde i suoi tag manuali.** Sono legati al percorso della foto.
+- **File spostati o rinominati.** I tag manuali sono legati al percorso del catalogo. Dopo aver spostato i file, usa la [procedura di ricollegamento](RELINK.md) con revisione preliminare per aggiornare il percorso e conservare i tag; la sola scansione della nuova posizione non li trasferisce.
 - **`--export-csv` e `--export-json` restano solo IA.** Il loro valore `tags` non contiene tag manuali.
 
 ## Come fonde Facet
