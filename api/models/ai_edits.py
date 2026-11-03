@@ -7,7 +7,7 @@ from pydantic import BaseModel, Field, model_validator
 AiEditPath = Field(min_length=1, max_length=4096)
 # The largest edit an import accepts, decoded. base64 spends 4 characters per 3 bytes.
 MAX_EDIT_BYTES = 50 * 1024 * 1024
-_MAX_IMAGE_DATA_CHARS = (MAX_EDIT_BYTES + 2) // 3 * 4
+MAX_IMAGE_DATA_CHARS = (MAX_EDIT_BYTES + 2) // 3 * 4
 
 
 class AiEditImport(BaseModel):
@@ -18,7 +18,7 @@ class AiEditImport(BaseModel):
     """
 
     original_path: str = AiEditPath
-    image_data: Optional[str] = Field(default=None, min_length=1, max_length=_MAX_IMAGE_DATA_CHARS)
+    image_data: Optional[str] = Field(default=None, min_length=1, max_length=MAX_IMAGE_DATA_CHARS)
     source_file: Optional[str] = Field(default=None, min_length=1, max_length=4096)
     tool: str = Field(min_length=1, max_length=64)
     model: Optional[str] = Field(default=None, max_length=200)

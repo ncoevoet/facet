@@ -526,6 +526,12 @@ def create_app() -> FastAPI:
     pol = licensing.resolve_policy(_FULL_CONFIG)
     licensing.set_policy(pol.mode, pol.allow_unclear)
 
+    # The AI-edit import refuses an oversized body while it streams in, not after buffering it.
+    # Added first, so it is the innermost middleware: its receive is the one the route reads
+    # (a BaseHTTPMiddleware outside it would turn its 413 into a 400 parse error).
+    from api.routers.ai_edits import ImportBodyLimit
+    app.add_middleware(ImportBodyLimit)
+
     # Request logging middleware — requests slower than the configured
     # threshold (performance.slow_request_ms) are logged at WARNING.
     slow_request_ms = int(_FULL_CONFIG.get("performance", {}).get("slow_request_ms", 1000))
