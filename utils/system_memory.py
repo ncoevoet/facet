@@ -488,8 +488,8 @@ def commit_headroom_bytes() -> int | None:
     """Windows commit headroom (``ullAvailPageFile`` of ``GlobalMemoryStatusEx``), else None.
 
     Physical availability does not see the commit charge: a process can be refused
-    memory while RAM looks free. Every other platform, and any failure to read, is None
-    ("unknown", never "plenty"), which a caller treats as no commit bound.
+    memory while RAM looks free. Every other platform is None (no commit bound there); a
+    failure to read on Windows is 0, so a caller sizing an allocation by it allocates nothing.
     """
     if sys.platform != 'win32':
         return None
