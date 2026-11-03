@@ -1,6 +1,7 @@
 """Confirmed jobs: actual disposable file writes, receipts and no retargeting."""
 
 from pathlib import Path
+import os
 import sqlite3
 import threading
 from xml.etree import ElementTree as ET
@@ -516,7 +517,7 @@ def test_logical_collection_export_excludes_entire_group_by_either_alias(edition
 @pytest.mark.parametrize('smart', [False, True])
 def test_album_delivery_uses_logical_membership_and_explicit_primary(edition_client, library, logical_pair, album_factory, smart):
     _, path, raw = logical_pair
-    album = album_factory(str(path.parent) + '/', 'logical-album-export', 'Chosen')(
+    album = album_factory(str(path.parent) + os.sep, 'logical-album-export', 'Chosen')(
         smart_filter={'path_prefix': str(path.parent) + '/', 'min_star_rating': '4'} if smart else None,
         member_names=('alpha.jpg',))
     result = edition_client.post('/api/export/preview', json={'album_id': album, 'mode': 'copy', 'target_dir': str(library[1])})
