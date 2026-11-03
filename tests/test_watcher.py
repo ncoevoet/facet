@@ -519,3 +519,24 @@ class TestRunWatchLoopFailureHandling:
         watcher.run_watch_loop(["/library"], str(tmp_path / "photos.db"), debounce_seconds=0, initial_scan=True)
 
         assert len(runs) == 1 + MAX_CONSECUTIVE_FAILURES
+
+
+def test_deletion_events_feed_the_pending_set():
+    """A deletion while watch mode runs must trigger a rescan: the incremental
+    scan prunes missing files, but only if the deletion reaches the pending set
+    at all -- on_modified alone left deleted photos in the gallery until some
+    unrelated addition happened."""
+    from types import SimpleNamespace
+
+    from processing.watcher import _PendingChanges, _WatchHandler
+
+    pending = _PendingChanges()
+    handler = _WatchHandler(pending)
+
+    handler.on_deleted(SimpleNamespace(is_directory=False, src_path='/lib/a.jpg'))
+    batch = pending.take_if_settled(debounce_seconds=0)
+    assert batch == {'/lib/a.jpg'}
+
+    # Directories never matter, on any event kind.
+    handler.on_deleted(SimpleNamespace(is_directory=True, src_path='/lib/sub'))
+    assert pending.take_if_settled(debounce_seconds=0) is None

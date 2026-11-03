@@ -22,12 +22,18 @@ export const DETAILS_RAIL_MIN_WIDTH_PX = 1280;
  */
 const COARSE_POINTER_QUERY = '(pointer: coarse)';
 
+/** What the gallery's touch-device check uses: a primary pointer that cannot hover. */
+const HOVER_QUERY = '(hover: none)';
+
 /** A signal tracking one media query, live for as long as `setup`/`cleanup` bracket it. */
 function useMediaQuerySignal(
   query: string,
   onChange?: (matches: boolean) => void,
+  /** Assumed before the first real measurement; pick the assumption that
+   *  makes the feature work rather than disappear when setup() has not run. */
+  initial?: boolean,
 ): { matches: Signal<boolean>; setMatches: (v: boolean) => void; setup: () => void; cleanup: () => void } {
-  const matches = signal(false);
+  const matches = signal(initial ?? false);
   let mql: MediaQueryList | null = null;
   let handler: ((e: MediaQueryListEvent) => void) | null = null;
 
@@ -72,4 +78,21 @@ export function useCoarsePointerSignal(): {
 } {
   const query = useMediaQuerySignal(COARSE_POINTER_QUERY);
   return { isCoarsePointer: query.matches, setup: query.setup, cleanup: query.cleanup };
+}
+
+/**
+ * Whether the primary pointer can hover at all.
+ *
+ * False on pure touch devices, where a hover-opened popup can never work: the
+ * tap's synthetic mouseenter fires once and sticks, so the gallery suppresses
+ * it. A menu entry that offers Hover there is the dead-option pattern again.
+ */
+export function useHoverCapableSignal(): {
+  isHoverCapable: Signal<boolean>;
+  setMatches: (v: boolean) => void;
+  setup: () => void;
+  cleanup: () => void;
+} {
+  const query = useMediaQuerySignal(HOVER_QUERY, undefined, true);
+  return { isHoverCapable: query.matches, setMatches: query.setMatches, setup: query.setup, cleanup: query.cleanup };
 }

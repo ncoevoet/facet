@@ -26,6 +26,41 @@ WATCH_SUFFIXES = WATCHABLE_IMAGE_EXTENSIONS
 
 MAX_CONSECUTIVE_FAILURES = 3
 
+try:
+    from watchdog.events import FileSystemEventHandler as _FileSystemEventHandler
+except ImportError:
+    # watch_directories() reports the missing optional dependency when watch
+    # mode is actually requested; the module must stay importable without it.
+    _FileSystemEventHandler = object
+
+
+class _WatchHandler(_FileSystemEventHandler):
+    """Feeds every still-image event into the pending set.
+
+    Deletions feed it too: the incremental scan prunes files it can no longer
+    find, so without this a deletion while watch mode runs would sit in the
+    gallery until some unrelated addition triggered a rescan.
+    """
+
+    def __init__(self, pending):
+        self._pending = pending
+
+    def on_created(self, event):
+        if not event.is_directory:
+            self._pending.add(event.src_path)
+
+    def on_deleted(self, event):
+        if not event.is_directory:
+            self._pending.add(event.src_path)
+
+    def on_moved(self, event):
+        if not event.is_directory:
+            self._pending.add(event.dest_path)
+
+    def on_modified(self, event):
+        if not event.is_directory:
+            self._pending.add(event.src_path)
+
 
 class _PendingChanges:
     """Thread-safe accumulator of changed paths with a settle timestamp."""
@@ -90,30 +125,16 @@ def run_watch_loop(directories, db_path, config_path=None, debounce_seconds=30,
     try:
         from watchdog.observers import Observer
         from watchdog.observers.polling import PollingObserver
-        from watchdog.events import FileSystemEventHandler
     except ImportError:
         logger.error("Watch mode requires the optional 'watchdog' package: pip install watchdog")
         raise SystemExit(1)
 
     pending = _PendingChanges()
 
-    class _Handler(FileSystemEventHandler):
-        def on_created(self, event):
-            if not event.is_directory:
-                pending.add(event.src_path)
-
-        def on_moved(self, event):
-            if not event.is_directory:
-                pending.add(event.dest_path)
-
-        def on_modified(self, event):
-            if not event.is_directory:
-                pending.add(event.src_path)
-
     def _start_observer(observer_cls):
         observer = observer_cls()
         for directory in directories:
-            observer.schedule(_Handler(), directory, recursive=True)
+            observer.schedule(_WatchHandler(pending), directory, recursive=True)
         observer.start()
         return observer
 

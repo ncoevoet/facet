@@ -148,6 +148,29 @@ class TestPairwiseSuggestions:
         # ...and they are genuinely different, not one shared group average.
         assert pairs[(1, 2)] > pairs[(2, 4)]
 
+    def test_orders_by_similarity_and_caps_the_response(self, tmp_path, monkeypatch):
+        """The most similar pairs come first, and a low threshold cannot
+        serialize an unbounded hit set into one response."""
+        monkeypatch.setattr('api.routers.merge_suggestions.MAX_MERGE_SUGGESTIONS', 2)
+        from api.routers.merge_suggestions import _pairwise_suggestions
+        path = self._seed(tmp_path)
+        with mock.patch(f"{_ROUTER}.get_db", _db_cm(path)):
+            suggestions = _pairwise_suggestions(0.0)
+        assert len(suggestions) == 2
+        sims = [s['similarity'] for s in suggestions]
+        assert sims == sorted(sims, reverse=True)
+        # The planar geometry makes (1,2) at cos(10deg) the closest pair.
+        assert suggestions[0]['person1']['id'] == 1 and suggestions[0]['person2']['id'] == 2
+
+    def test_visible_scoping_skips_scoring_outside_the_set(self, tmp_path):
+        """Multi-user scoping applies before the quadratic work: a caller whose
+        visible set is small must not pay to score the whole installation."""
+        from api.routers.merge_suggestions import _pairwise_suggestions
+        path = self._seed(tmp_path)
+        with mock.patch(f"{_ROUTER}.get_db", _db_cm(path)):
+            suggestions = _pairwise_suggestions(0.6, visible={1, 2})
+        assert {tuple(sorted((s['person1']['id'], s['person2']['id']))) for s in suggestions} == {(1, 2)}
+
     def test_hidden_person_excluded(self, tmp_path):
         path = self._seed(tmp_path)
         conn = sqlite3.connect(path)

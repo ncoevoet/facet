@@ -24,7 +24,8 @@ def _async_cm(conn):
 
 
 def _make_async_conn(rows):
-    """Build a mock async conn whose execute returns a cursor with these rows."""
+    """Build a mock async conn whose execute returns a cursor with these rows;
+    executed (sql, params) pairs are recorded on ``.executed`` for assertions."""
     class _Cursor:
         async def fetchall(self):
             return rows
@@ -36,7 +37,11 @@ def _make_async_conn(rows):
             pass
 
     class _Conn:
+        def __init__(self):
+            self.executed = []
+
         async def execute(self, *a, **kw):
+            self.executed.append(a)
             return _Cursor()
 
     return _Conn()
@@ -62,6 +67,27 @@ def _make_photo_row(path, date_taken, aggregate, tags=""):
 
 class TestMemoriesEndpoint:
     """Tests for GET /api/memories."""
+
+    def test_check_compares_the_stored_fields_without_strftime(self, client):
+        """The memories check runs on every cold app open over the whole
+        library: the per-row REPLACE+strftime conversion must stay gone, with
+        the fixed-format EXIF fields compared directly and the month-day
+        parameter carrying the stored colon separators."""
+        conn = _make_async_conn([])
+        with (
+            mock.patch("api.routers.memories.get_async_db", _async_cm(conn)),
+            mock.patch("api.routers.memories.get_visibility_clause", return_value=("1=1", [])),
+            mock.patch("api.routers.memories.get_photos_from_clause", return_value=("photos", [])),
+        ):
+            resp = client.get("/api/memories/check", params={"date": "2025-03-14"})
+
+        assert resp.status_code == 200
+        sql, params = conn.executed[0]
+        assert "strftime" not in sql and "REPLACE" not in sql
+        assert "SUBSTR(date_taken, 6, 5)" in sql
+        assert "SUBSTR(date_taken, 1, 4)" in sql
+        assert "GLOB" in sql  # malformed dates stay excluded, as strftime's NULL did
+        assert params[0] == "03:14" and params[1] == "2025"
 
     def test_invalid_date_format_returns_400(self, client):
         """Non-ISO date string should return 400."""

@@ -26,9 +26,16 @@ logger = logging.getLogger(__name__)
 router = APIRouter(tags=["memories"])
 
 # date_taken is stored in EXIF format (YYYY:MM:DD HH:MM:SS); SQLite strftime only
-# parses ISO-8601 ('-' separators) and returns NULL on ':' dates, so every date
-# query must convert first. Mirrors analyzers/capsule_generator.py:_ISO_DATE.
-_ISO_DATE = "REPLACE(SUBSTR(date_taken,1,10),':','-') || SUBSTR(date_taken,11)"
+# parses ISO-8601 ('-' separators) and returns NULL on ':' dates, so date queries
+# used to convert per row first (_ISO_DATE, mirrored in
+# analyzers/capsule_generator.py). The memories endpoints run on every cold app
+# open over the whole library, so they now compare the fixed-format fields
+# directly: SUBSTR instead of REPLACE+strftime, with a GLOB that admits exactly
+# the well-formed prefixes strftime would parse (anything else returned NULL and
+# was excluded before, and stays excluded now).
+_MONTH_DAY = "SUBSTR(date_taken, 6, 5)"
+_YEAR = "SUBSTR(date_taken, 1, 4)"
+_WELL_FORMED_DATE = "date_taken GLOB '[0-9][0-9][0-9][0-9]:[0-9][0-9]:[0-9][0-9]*'"
 
 
 def _get_top_per_year():
@@ -57,7 +64,9 @@ async def check_memories(
     else:
         target = date.today()
 
-    month_day = target.strftime("%m-%d")
+    # EXIF separators: date_taken keeps ':' between the date fields, and the
+    # SUBSTR comparison below reads them straight out of the stored string.
+    month_day = target.strftime("%m:%d")
     target_year = target.strftime("%Y")
 
     try:
@@ -68,9 +77,9 @@ async def check_memories(
 
             query = f"""
                 SELECT 1 FROM {from_clause}
-                WHERE strftime('%m-%d', {_ISO_DATE}) = ?
-                  AND strftime('%Y', {_ISO_DATE}) < ?
-                  AND date_taken IS NOT NULL
+                WHERE {_WELL_FORMED_DATE}
+                  AND {_MONTH_DAY} = ?
+                  AND {_YEAR} < ?
                   AND {vis_sql}
                 LIMIT 1
             """
@@ -111,7 +120,9 @@ async def get_memories(
     else:
         target = date.today()
 
-    month_day = target.strftime("%m-%d")
+    # EXIF separators: date_taken keeps ':' between the date fields, and the
+    # SUBSTR comparison below reads them straight out of the stored string.
+    month_day = target.strftime("%m:%d")
     target_year = target.strftime("%Y")
 
     try:
@@ -134,18 +145,18 @@ async def get_memories(
             query = f"""
                 SELECT * FROM (
                     SELECT {inner_cols},
-                        strftime('%Y', {_ISO_DATE}) AS _year,
+                        {_YEAR} AS _year,
                         ROW_NUMBER() OVER (
-                            PARTITION BY strftime('%Y', {_ISO_DATE})
+                            PARTITION BY {_YEAR}
                             ORDER BY aggregate DESC, path ASC
                         ) AS _rn,
                         COUNT(*) OVER (
-                            PARTITION BY strftime('%Y', {_ISO_DATE})
+                            PARTITION BY {_YEAR}
                         ) AS _year_total
                     FROM {from_clause}
-                    WHERE strftime('%m-%d', {_ISO_DATE}) = ?
-                      AND strftime('%Y', {_ISO_DATE}) < ?
-                      AND date_taken IS NOT NULL
+                    WHERE {_WELL_FORMED_DATE}
+                      AND {_MONTH_DAY} = ?
+                      AND {_YEAR} < ?
                       AND {vis_sql}
                 ) WHERE _rn <= ?
                 ORDER BY _year DESC, aggregate DESC

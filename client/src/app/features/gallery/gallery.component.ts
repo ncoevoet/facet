@@ -875,8 +875,11 @@ const SET_KIND_TOGGLE: Record<string, keyof HiddenFilterFlags> = {
       />
     }
 
-    <!-- Photo details tooltip (single instance, repositioned on hover, hidden on small/touch devices) -->
-    @if (!tooltipDisabled() && !panelMode() && (tooltipMode() === 'click' || (isDesktop() && !isTouchDevice()))) {
+    <!-- Photo details tooltip (single instance, repositioned on hover). The docked
+         rail renders its own, so the floating one stays away while the rail is up;
+         wherever the rail cannot dock (narrow or touch viewports) the panel place
+         falls back to this bubble, and hover mode still hides on pure touch. -->
+    @if (!tooltipDisabled() && !panelMode() && (tooltipMode() === 'panel' || tooltipMode() === 'click' || (isDesktop() && !isTouchDevice()))) {
       <app-photo-tooltip
         [photo]="tooltipPhoto()"
         [x]="tooltipX()"
@@ -3270,8 +3273,9 @@ export class GalleryComponent implements OnInit, OnDestroy {
       case 'Home': next = 0; break;
       case 'End': next = photos.length - 1; break;
       case 'Escape':
-        // A click-opened tooltip is the innermost layer: close it before touching the selection.
-        if (this.tooltipMode() === 'click' && this.tooltipPhoto()) {
+        // A click-opened tooltip — and the panel place's floating fallback where
+        // the rail cannot dock — is the innermost layer: close it before touching the selection.
+        if ((this.tooltipMode() === 'click' || (this.tooltipMode() === 'panel' && !this.panelMode())) && this.tooltipPhoto()) {
           event.preventDefault();
           this.hideTooltip();
           return;
