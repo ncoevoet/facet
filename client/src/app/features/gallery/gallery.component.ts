@@ -1162,31 +1162,40 @@ export class GalleryComponent implements OnInit, OnDestroy {
 
   // Selection state lives in the store (survives navigation, visible to services)
   protected readonly selectedPaths = this.store.selectedPaths;
-  protected readonly selectionGroupTargets = computed(() => {
+  private readonly selectionDetails = computed(() => {
     const selected = this.selectedPaths();
-    const rows = this.store.photos().filter(photo => selected.has(photo.path)).map(photo => ({
-      photo,
-      kinds: [
+    const rows: { photo: Photo; kinds: string[] }[] = [];
+    if (!selected.size) return { rows, total: 0, stackTiles: 0, outside: 0 };
+    const matched = new Set<string>();
+    let stackTiles = 0, total = 0;
+    for (const photo of this.store.photos()) {
+      if (!selected.has(photo.path)) continue;
+      matched.add(photo.path);
+      if (photo.stack_id && (photo.stack_count ?? 0) > 1) stackTiles++;
+      const kinds = [
         ...(photo.sequence_kind && photo.sequence_group_id != null ? [photo.sequence_kind] : []),
         ...(photo.burst_group_id != null ? ['burst'] : []),
         ...(photo.duplicate_group_id != null ? ['duplicate'] : []),
-      ],
-    })).filter(row => row.photo.stack_id || row.kinds.length);
-    return { rows: rows.slice(0, 6), total: rows.length };
+      ];
+      if (photo.stack_id || kinds.length) {
+        total++;
+        if (rows.length < 6) rows.push({ photo, kinds });
+      }
+    }
+    return { rows, total, stackTiles, outside: selected.size - matched.size };
   });
+  protected readonly selectionGroupTargets = computed(() => this.selectionDetails());
   protected readonly excludedPaths = this.store.excludedPaths;
   protected readonly selectionCount = this.store.selectionCount;
   protected readonly compareQueueLimit = MAX_COMPARE_QUEUE;
   protected readonly selectionOutsideLoaded = computed(() => {
     if (this.viewScoped()) return 0;
-    const loaded = new Set(this.store.photos().map(photo => photo.path));
-    return [...this.selectedPaths()].filter(path => !loaded.has(path)).length;
+    return this.selectionDetails().outside;
   });
   /** True while the selection means "the whole filtered view", not a path list. */
   protected readonly viewScoped = this.store.viewScopeSelected;
   /** How the bar names its target: explicit photos, the whole view, or the whole view minus exclusions. */
-  protected readonly selectedStackTiles = computed(() => this.store.photos().filter(photo =>
-    this.selectedPaths().has(photo.path) && photo.stack_id && (photo.stack_count ?? 0) > 1).length);
+  protected readonly selectedStackTiles = computed(() => this.selectionDetails().stackTiles);
   protected readonly selectionStatus = computed(() => {
     const count = this.selectionCount(), excluded = this.excludedPaths().size;
     const params: Record<string, number> = { count };
