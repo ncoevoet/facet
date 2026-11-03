@@ -436,10 +436,14 @@ describe('GalleryComponent', () => {
     const summary = disclosure.querySelector('summary')!;
     const controls = disclosure.querySelector('app-gallery-view-controls');
     expect(disclosure.open).toBe(false);
+    const bubbled = vi.fn(); root.addEventListener('keydown', bubbled);
+    disclosure.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+    expect(bubbled).toHaveBeenCalledOnce();
     expect(root.querySelectorAll('app-gallery-view-controls')).toHaveLength(1);
     disclosure.open = true;
     disclosure.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
     expect(disclosure.open).toBe(false);
+    expect(bubbled).toHaveBeenCalledOnce();
     desktop.set(true); fixture.detectChanges();
     expect(disclosure.open).toBe(false);
     expect(summary.classList.contains('hidden')).toBe(false);

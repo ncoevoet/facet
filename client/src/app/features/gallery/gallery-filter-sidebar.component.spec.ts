@@ -693,12 +693,16 @@ describe('GalleryFilterSidebarComponent', () => {
       const summary = help.querySelector('summary')!;
       expect(help.open).toBe(false);
       expect(summary.getAttribute('aria-label')).toBe('gallery.sidebar.count_scope');
+      const bubbled = vi.fn(); fixture.nativeElement.addEventListener('keydown', bubbled);
+      summary.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+      expect(bubbled).toHaveBeenCalledOnce();
       summary.click(); settle();
       expect(help.open).toBe(true);
       expect(help.textContent).toContain('gallery.sidebar.count_scope_options');
       expect(help.textContent).toContain('gallery.sidebar.count_scope_types');
       expect(help.textContent).toContain('gallery.sidebar.count_scope_badges');
       summary.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true })); settle();
+      expect(bubbled).toHaveBeenCalledOnce();
       expect(help.open).toBe(false);
       expect(summary.ownerDocument.activeElement).toBe(summary);
       expect(store['updateFilter']).not.toHaveBeenCalled();

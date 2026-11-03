@@ -256,7 +256,7 @@ export function loadActiveTab(): SidebarTabId {
         }
         <span class="flex-1"></span>
         <details #countHelp data-count-help class="shrink-0">
-          <summary #countSummary (keydown.escape)="countHelp.open = false; countSummary.focus(); $event.stopPropagation()" class="flex h-10 w-10 cursor-pointer list-none items-center justify-center rounded-full hover:bg-[var(--mat-sys-surface-container-high)] focus-visible:outline-2 focus-visible:outline-[var(--mat-sys-primary)] [&::-webkit-details-marker]:hidden"
+          <summary #countSummary (keydown.escape)="closeCountHelp($event, countHelp, countSummary)" class="flex h-10 w-10 cursor-pointer list-none items-center justify-center rounded-full hover:bg-[var(--mat-sys-surface-container-high)] focus-visible:outline-2 focus-visible:outline-[var(--mat-sys-primary)] [&::-webkit-details-marker]:hidden"
             [attr.aria-label]="I18N.gallery.sidebar.count_scope | translate"
             [title]="I18N.gallery.sidebar.count_scope | translate">
             <mat-icon class="!text-xl !w-5 !h-5 !leading-5" aria-hidden="true">info_outline</mat-icon>
@@ -413,7 +413,7 @@ export function loadActiveTab(): SidebarTabId {
               <button type="button" class="flex h-10 w-10 shrink-0 cursor-pointer items-center justify-center rounded text-[var(--mat-sys-on-surface-variant)] hover:bg-[var(--mat-sys-surface-container-high)] focus-visible:outline-2"
                 data-semantic-help [attr.aria-label]="I18N.gallery.semantic_search_help | translate"
                 [attr.aria-expanded]="semanticHelpOpen()" aria-controls="semantic-search-help"
-                (click)="semanticHelpOpen.set(!semanticHelpOpen())" (keydown.escape)="semanticHelpOpen.set(false); $event.stopPropagation()">
+                (click)="semanticHelpOpen.set(!semanticHelpOpen())" (keydown.escape)="closeSemanticHelp($event)">
                 <mat-icon aria-hidden="true" class="!h-5 !w-5 !text-xl">info_outline</mat-icon>
               </button>
             </div>
@@ -1474,6 +1474,14 @@ export class GalleryFilterSidebarComponent {
   }
 
   protected readonly semanticHelpOpen = signal(false);
+  protected closeCountHelp(event: Event, details: HTMLDetailsElement, summary: HTMLElement): void {
+    if (!details.open) return;
+    event.preventDefault(); event.stopPropagation(); details.open = false; summary.focus();
+  }
+  protected closeSemanticHelp(event: Event): void {
+    if (!this.semanticHelpOpen()) return;
+    event.preventDefault(); event.stopPropagation(); this.semanticHelpOpen.set(false);
+  }
   private readonly semanticSearchInput = viewChild<ElementRef<HTMLInputElement>>('semanticSearchInput');
   private searchTimeout: ReturnType<typeof setTimeout> | null = null;
   // Kept separate from searchTimeout so a slider drag can't cancel a pending

@@ -341,7 +341,7 @@ const SET_KIND_TOGGLE: Record<string, keyof HiddenFilterFlags> = {
             <ng-container [ngTemplateOutlet]="galleryLayoutButtons" />
             <ng-container [ngTemplateOutlet]="collectionViewControls.filterControls()" />
             <details #collectionOptions data-collection-options class="relative shrink-0"
-                     (keydown.escape)="collectionOptions.open = false; collectionOptionsSummary.focus(); $event.preventDefault(); $event.stopPropagation()">
+                     (keydown.escape)="closeDisclosure($event, collectionOptions, collectionOptionsSummary)">
               <summary #collectionOptionsSummary class="flex min-h-11 cursor-pointer list-none items-center justify-center gap-1 rounded px-2 text-sm hover:bg-[var(--mat-sys-surface-container)]" [attr.aria-label]="I18N.gallery.collection_controls | translate"><mat-icon aria-hidden="true" class="!text-xl !h-5 !w-5">tune</mat-icon><span>{{ I18N.gallery.collection_view | translate }}</span></summary>
               <div class="absolute right-0 top-full z-30 max-h-[70dvh] w-80 max-w-[calc(100vw-2rem)] overflow-y-auto rounded border border-[var(--mat-sys-outline-variant)] bg-[var(--mat-sys-surface-container)] p-3 shadow-lg">
                 <app-gallery-view-controls #collectionViewControls [portPrimary]="true" [portFilters]="true" class="shrink-0" />
@@ -816,7 +816,7 @@ const SET_KIND_TOGGLE: Record<string, keyof HiddenFilterFlags> = {
           <span data-selection-status tabindex="-1" class="text-sm font-medium shrink-0 px-1">{{ selectionStatus().key | translate:selectionStatus().params }}</span>
           @if (viewScoped() || selectionGroupTargets().total) {
             <details #selectionTargets #selectionDisclosure name="gallery-selection-disclosures" data-selection-targets
-              (keydown.escape)="selectionTargets.open = false; targetsSummary.focus(); $event.preventDefault(); $event.stopPropagation()">
+              (keydown.escape)="closeDisclosure($event, selectionTargets, targetsSummary)">
               <summary #targetsSummary class="flex min-h-10 cursor-pointer list-none items-center gap-1 rounded-md px-2 text-sm focus-visible:outline-2 focus-visible:outline-[var(--mat-sys-primary)]"><mat-icon aria-hidden="true">ads_click</mat-icon>{{ I18N.gallery.selection.targets.title | translate }}</summary>
               <div data-toolbar-panel class="absolute bottom-full left-0 mb-3 group-data-[toolbar-down=true]/selection:bottom-auto group-data-[toolbar-down=true]/selection:top-full group-data-[toolbar-down=true]/selection:mb-0 group-data-[toolbar-down=true]/selection:mt-3 max-h-[60vh] w-full max-w-160 overflow-y-auto rounded-lg border border-[var(--mat-sys-outline-variant)] bg-[var(--mat-sys-surface-container)] p-3 shadow-lg text-sm">
                 <p class="mt-0">{{ (viewScoped() ? I18N.gallery.selection.targets.view : I18N.gallery.selection.targets.explicit) | translate }}</p>
@@ -856,7 +856,7 @@ const SET_KIND_TOGGLE: Record<string, keyof HiddenFilterFlags> = {
           <button mat-icon-button class="md:!hidden" (click)="openActionsSheet()" [disabled]="selectionActions.downloading()" [matTooltip]="I18N.gallery.selection.actions | translate" [attr.aria-label]="I18N.gallery.selection.actions | translate">
             @if (selectionActions.downloading()) { <mat-spinner diameter="18" [attr.aria-label]="I18N.ui.labels.loading | translate"></mat-spinner> } @else { <mat-icon>more_horiz</mat-icon> }
           </button>
-          <details #selectionMore #selectionDisclosure name="gallery-selection-disclosures" data-selection-more class="max-md:hidden" (keydown.escape)="selectionMore.open = false; selectionMoreSummary.focus(); $event.preventDefault(); $event.stopPropagation()">
+          <details #selectionMore #selectionDisclosure name="gallery-selection-disclosures" data-selection-more class="max-md:hidden" (keydown.escape)="closeDisclosure($event, selectionMore, selectionMoreSummary)">
             <summary #selectionMoreSummary class="flex min-h-10 cursor-pointer list-none items-center gap-2 rounded-md px-3 text-sm font-medium hover:bg-[var(--mat-sys-surface-container-high)] focus-visible:outline-2 focus-visible:outline-[var(--mat-sys-primary)]"><mat-icon aria-hidden="true">more_horiz</mat-icon>{{ I18N.gallery.selection.actions | translate }}</summary>
             <div data-toolbar-panel class="absolute bottom-full left-0 mb-3 group-data-[toolbar-down=true]/selection:bottom-auto group-data-[toolbar-down=true]/selection:top-full group-data-[toolbar-down=true]/selection:mb-0 group-data-[toolbar-down=true]/selection:mt-3 flex max-h-[60vh] w-full max-w-160 flex-wrap items-center gap-2 overflow-y-auto rounded-lg border border-[var(--mat-sys-outline-variant)] bg-[var(--mat-sys-surface-container)] p-3 shadow-lg">
           @if (!allLoadedSelected()) {
@@ -2939,6 +2939,11 @@ export class GalleryComponent implements OnInit, OnDestroy {
       this.mobileSearchOpen.set(true);
       afterNextRender(focus, { injector: this.injector });
     } else focus();
+  }
+
+  protected closeDisclosure(event: Event, details: HTMLDetailsElement, summary: HTMLElement): void {
+    if (!details.open) return;
+    details.open = false; summary.focus(); event.preventDefault(); event.stopPropagation();
   }
 
   protected closeMobileSearch(event: Event): void {
