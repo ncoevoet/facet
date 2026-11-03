@@ -289,10 +289,18 @@ const SOCIAL_SOURCE_KEYS: Record<string, string> = {
              [style.aspect-ratio]="photoAspect()">
         <div [appZoomPan]="p.path" #zoom="zoomPan" class="group/photo flex flex-1 min-h-0 items-center justify-center bg-[var(--facet-image-canvas)] relative overflow-hidden cursor-grab">
           @for (imagePhoto of [p]; track imagePhoto.path) {
+          <!-- The collection already loads this thumbnail; keep it underneath
+               the larger renditions so a cold image request doesn't flash black. -->
+          <img
+            [src]="p.path | thumbnailUrl:240:p.preview_revision"
+            alt="" aria-hidden="true"
+            class="w-full h-full max-w-full max-h-full object-contain pointer-events-none select-none"
+            [style.transform]="zoom.transform()"
+          />
           <img
             [src]="thumbnailImageUrl()"
             [alt]="p.filename"
-            class="w-full h-full max-w-full max-h-full object-contain transition-opacity duration-300 pointer-events-none select-none"
+            class="absolute inset-0 w-full h-full object-contain transition-opacity duration-300 pointer-events-none select-none"
             [class.opacity-0]="fullImageLoaded()"
             [style.transform]="zoom.transform()"
             (load)="onThumbnailState($event)" (error)="onThumbnailState($event, true)"

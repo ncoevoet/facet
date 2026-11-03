@@ -1174,19 +1174,29 @@ describe('PhotoDetailComponent', () => {
       expect(component.fullImageLoaded()).toBe(false);
     });
 
+    it('keeps a current image that loads before the scheduled reset runs', () => {
+      createComponent();
+      component.photo.set(samplePhoto);
+      component.onFullImageLoad({ target: loadedImage(component.fullImageUrl()) });
+      expect(component.fullImageLoaded()).toBe(true);
+      TestBed.tick();
+      expect(component.fullImageLoaded()).toBe(true);
+    });
+
     it('replaces both image elements when the displayed photo changes', () => {
       createComponent();
       const fixture = TestBed.createComponent(PhotoDetailComponent);
       fixture.componentInstance.photo.set(samplePhoto as never);
       fixture.detectChanges();
       const before = [...fixture.nativeElement.querySelectorAll('div.cursor-grab > img')];
-      expect(before).toHaveLength(2);
+      expect(before).toHaveLength(3);
       fixture.componentInstance.photo.set({ ...samplePhoto, path: '/new.jpg' } as never);
       fixture.detectChanges();
       const after = [...fixture.nativeElement.querySelectorAll('div.cursor-grab > img')];
-      expect(after).toHaveLength(2);
+      expect(after).toHaveLength(3);
       expect(after[0]).not.toBe(before[0]);
       expect(after[1]).not.toBe(before[1]);
+      expect(after[2]).not.toBe(before[2]);
       fixture.destroy();
     });
 

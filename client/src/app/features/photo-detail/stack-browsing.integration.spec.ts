@@ -147,6 +147,10 @@ describe('manual stack browsing through rendered viewer, Router and HTTP', () =>
     await navigation;
     await membership(null);
     expect(router.url).toContain(encodeURIComponent('/outside.jpg'));
+    const images = root().querySelectorAll<HTMLImageElement>('div.cursor-grab > img');
+    expect(new URL(images[0].src).searchParams.get('path')).toBe('/outside.jpg');
+    expect(new URL(images[1].src).searchParams.get('path')).toBe('/outside.jpg');
+    expect(new URL(images[2].src).searchParams.get('path')).toBe('/outside.jpg');
     expect(sidebar.querySelector('[aria-current="true"]')).not.toBeNull();
     expect(store.filters()).toEqual(beforeFilters);
     expect(store.selectedPaths()).toEqual(beforeSelection);

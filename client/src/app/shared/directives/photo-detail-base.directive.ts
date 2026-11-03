@@ -1,5 +1,5 @@
 import { randomUuid } from '../utils/random-uuid';
-import { Directive, computed, effect, inject, signal } from '@angular/core';
+import { Directive, computed, effect, inject, signal, untracked } from '@angular/core';
 import { firstValueFrom } from 'rxjs';
 import { Photo, hasExifFields } from '../models/photo.model';
 import { ApiService } from '../../core/services/api.service';
@@ -53,7 +53,10 @@ export abstract class PhotoDetailBase {
   });
 
   private readonly imageResetEffect = effect(() => {
-    this.fullImageUrl();
+    const url = this.fullImageUrl();
+    // A cached image can finish before this scheduled effect runs. Do not
+    // discard the load event for the very image we are resetting to.
+    if (url && untracked(this.loadedImageUrl) === url) return;
     this.loadedImageUrl.set(null);
     this.sourceRendition.set({ kind: 'source', phase: 'loading' });
   });
