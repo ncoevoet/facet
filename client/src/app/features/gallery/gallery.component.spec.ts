@@ -118,6 +118,7 @@ describe('GalleryComponent', () => {
       collapseStacks: signal(true),
       toggleStackCollapse: vi.fn(),
       loading: signal(false),
+      isPageAppending: vi.fn(() => false),
       loadError: signal(false),
       loadErrorKey: signal<string | undefined>(undefined),
       hasMore: signal(false),
@@ -642,6 +643,15 @@ describe('GalleryComponent', () => {
       await Promise.resolve();
       expect(mockStore.setRating).toHaveBeenCalledWith('/a.jpg', 3);
       expect(activeIndex()).toBe(1);
+    });
+
+    it('saves a rating during a page append without advancing while loading', async () => {
+      TestBed.inject(GalleryReviewNavigationService).setEnabled(true);
+      mockStore.loading.set(true); mockStore.isPageAppending.mockReturnValue(true);
+      mockStore.setRating.mockResolvedValue(true);
+      fire(keyEvent('3')); await Promise.resolve();
+      expect(mockStore.setRating).toHaveBeenCalledWith('/a.jpg', 3);
+      expect(activeIndex()).toBe(0);
     });
 
     it('rejects and advances on X only after accepted opt-in', async () => {

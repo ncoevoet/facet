@@ -1500,6 +1500,15 @@ describe('GalleryStore', () => {
   });
 
   describe('nextPage()', () => {
+    it('identifies a pending append and clears it when the page arrives', async () => {
+      const response = new Subject<PhotosResponse>();
+      store.hasMore.set(true); apiGet.mockReturnValue(response);
+      const pending = store.nextPage();
+      expect(store.isPageAppending()).toBe(true);
+      response.next(makePhotosResponse({ photos: [], total: 0, has_more: false })); response.complete();
+      await pending;
+      expect(store.isPageAppending()).toBe(false);
+    });
     it('should increment page and append photos', async () => {
       const existingPhotos = [makePhoto({ filename: 'a.jpg' })];
       const newPhotos = [makePhoto({ filename: 'b.jpg' })];

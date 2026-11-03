@@ -3227,7 +3227,7 @@ export class GalleryComponent implements OnInit, OnDestroy {
       return;
     } else return;
     event.preventDefault();
-    if (this.keyboardDecisionPending || this.store.loading()) return;
+    if (this.keyboardDecisionPending || (this.store.loading() && !this.store.isPageAppending())) return;
     const token = this.auth.token;
     const query = () => JSON.stringify({ ...this.store.filters(), page: 1 });
     const filters = query();

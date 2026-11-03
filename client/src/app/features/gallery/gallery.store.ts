@@ -544,6 +544,8 @@ export class GalleryStore {
    *  with nothing to compare), shown instead of the generic failure message. */
   readonly loadErrorKey = signal<string | undefined>(undefined);
   private _loadSeq = 0;
+  private pageAppendSeq: number | null = null;
+  isPageAppending(): boolean { return this.loading() && this.pageAppendSeq === this._loadSeq; }
   /** In-place refreshes run one after another so batches land in arrival order; a failure never blocks the next. */
   private refreshChain: Promise<void> = Promise.resolve();
   /** A null batch arrived while a page fetch was in flight: `nextPage` runs the view refetch when it completes. */
@@ -1590,6 +1592,7 @@ export class GalleryStore {
 
     const seq = this._loadSeq;
     const identity = this.auth.identity();
+    this.pageAppendSeq = seq;
     this.loading.set(true);
     const f = this.filters();
     const nextPage = f.page + 1;
@@ -1622,6 +1625,7 @@ export class GalleryStore {
       key = this.filterKey();
       this.snackBar.open(this.i18n.t(I18N.gallery.load_error.page_failed), '', { duration: 3000 });
     } finally {
+      if (this.pageAppendSeq === seq) this.pageAppendSeq = null;
       if (current()) {
         this.loading.set(false);
       }
