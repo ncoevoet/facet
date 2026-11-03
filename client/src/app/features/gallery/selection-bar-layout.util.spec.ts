@@ -27,7 +27,16 @@ describe('noticeLiftPx', () => {
     expect(noticeLiftPx({ ...base, barTop: 200, barBottom: 260, barRight: 1000, noticeLeft: 768, noticeRight: 1184 })).toBe(0);
   });
 
+  it('does not lift when the card is below or to the right of the notices', () => {
+    expect(noticeLiftPx({ ...base, barTop: 784, barBottom: 800, barRight: 1000, noticeLeft: 768, noticeRight: 1184 })).toBe(0);
+    expect(noticeLiftPx({ ...base, barLeft: 1200, barRight: 1300, noticeLeft: 768, noticeRight: 1184 })).toBe(0);
+  });
+
   it('is zero when the notice stack is absent', () => {
     expect(noticeLiftPx({ ...base, barRight: 1000, noticeLeft: null, noticeRight: null })).toBe(0);
+    const measured = { ...base, barRight: 1000, noticeLeft: 768, noticeRight: 1184 };
+    for (const key of ['noticeLeft', 'noticeRight', 'noticeTop', 'noticeBottom'] as const) {
+      expect(noticeLiftPx({ ...measured, [key]: null })).toBe(0);
+    }
   });
 });

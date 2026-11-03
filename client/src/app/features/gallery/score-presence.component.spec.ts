@@ -82,4 +82,15 @@ describe('rendered measurement policies', () => {
     resolveNavigation(true); await next; fixture.detectChanges();
     choose('measured_only'); expect(update).toHaveBeenCalledTimes(1);
   });
+
+  it('allows clearing an invalid policy and applies measured-only after repair', () => {
+    filters.update(current => ({ ...current, score_presence: '{invalid' }));
+    fixture.detectChanges();
+    expect(root.querySelector('[role="alert"]')).toBeTruthy();
+    root.querySelector<HTMLButtonElement>('button')!.click();
+    fixture.detectChanges();
+    expect(update).toHaveBeenLastCalledWith('score_presence', '');
+    choose('measured_only');
+    expect(update).toHaveBeenLastCalledWith('score_presence', '{"min_sharpness":"measured_only"}');
+  });
 });
