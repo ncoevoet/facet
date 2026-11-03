@@ -65,11 +65,11 @@ export class PhotoActionsService {
         paths, catalog_only: true, dry_run: false,
       }));
       // Service-worker thumbnail copies outlive their database rows. Clear the
-      // local thumbnail cache after an accepted erase, including old revisions.
+      // matching thumbnail entries after an accepted erase, including old revisions.
       const removed = result.removed_catalog ?? [];
       if (this.auth.identity() !== owner || this.auth.token !== token) return [];
       this.store.removePhotos(removed);
-      if (removed.length) await clearThumbnailCaches();
+      if (removed.length) void clearThumbnailCaches(removed);
       if (!guard.current()) return [];
       this.snackBar.open(this.i18n.t(I18N.photo_detail.remove_catalog.result, { count: removed.length }), '', { duration: 4000 });
       return removed;

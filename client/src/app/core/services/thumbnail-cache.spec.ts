@@ -45,6 +45,18 @@ describe('clearThumbnailCaches', () => {
     expect(remove).toHaveBeenCalledWith(second);
   });
 
+  it('removes every cached revision for selected paths while retaining other photos', async () => {
+    const first = new Request('http://localhost/thumbnail?path=%2Fphotos%2Fcaf%C3%A9.jpg&size=240');
+    const revision = new Request('http://localhost/thumbnail?path=%2Fphotos%2Fcaf%C3%A9.jpg&size=640&preview=2');
+    const other = new Request('http://localhost/thumbnail?path=%2Fphotos%2Fother.jpg');
+    const shared = new Request('http://localhost/api/shared/thumbnail?asset_id=opaque');
+    const entries = new Set([first, revision, other, shared]);
+    const cache = { keys: async () => [...entries], delete: vi.fn(async (request: Request) => entries.delete(request)) };
+    vi.stubGlobal('caches', { keys: async () => ['ngsw:thumbnails:cache'], open: async () => cache });
+    await clearThumbnailCaches(['/photos/café.jpg']);
+    expect(entries).toEqual(new Set([other, shared]));
+  });
+
   it('tolerates unavailable cache storage', async () => {
     vi.stubGlobal('caches', { keys: async () => { throw new Error('disabled'); } });
     await expect(clearThumbnailCaches()).resolves.toBeUndefined();
