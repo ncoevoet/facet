@@ -69,6 +69,21 @@ def test_one_logical_count_uses_explicit_primary_metadata_and_shared_review(cata
     assert conn.execute("SELECT COUNT(*) FROM photos").fetchone()[0] == 3
 
 
+def test_sequence_siblings_use_logical_representatives_and_exclude_whole_pairs(catalog, monkeypatch):
+    from api.routers import export
+    from api import config
+
+    conn, _ = catalog
+    conn.execute('ALTER TABLE photos ADD COLUMN sequence_kind TEXT')
+    conn.execute('ALTER TABLE photos ADD COLUMN sequence_group_id INTEGER')
+    conn.execute("UPDATE photos SET sequence_kind='bracket', sequence_group_id=1")
+    monkeypatch.setattr(export, 'get_visibility_clause', lambda _user: ('1=1', []))
+    monkeypatch.setattr(config, 'is_multi_user_enabled', lambda: False)
+    groups = {'/b.jpg': ('bracket', 1)}
+    assert export._sequence_siblings(conn, groups, {'/b.jpg'}, None, logical=True) == ['/a.CR2']
+    assert export._sequence_siblings(conn, groups, {'/a.jpg', '/b.jpg'}, None, logical=True) == []
+
+
 def test_sparse_null_and_atomic_decision_match_core_resolver(catalog):
     conn, key = catalog
     conn.executemany(

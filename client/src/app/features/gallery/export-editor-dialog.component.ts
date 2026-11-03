@@ -140,6 +140,7 @@ export interface ExportEditorDialogData {
       @if (uncertainReceipt()) {
         <p role="alert" class="text-sm">{{ I18N.export.preview.uncertain | translate }}</p>
         <button mat-stroked-button [disabled]="readingStatus()" (click)="recoverConfirmation()">{{ I18N.export.preview.check_receipt | translate }}</button>
+        <button mat-stroked-button data-retry-confirm [disabled]="running() || readingStatus()" (click)="retryConfirmation()">{{ I18N.export.jobs.retry | translate }}</button>
       }
 
       @if (job(); as current) {
@@ -514,6 +515,17 @@ export class ExportEditorDialogComponent {
   async confirmPreview(): Promise<void> {
     const preview = this.preview();
     if (!this.current() || !this.canConfirm() || this.readingStatus() || !preview) return;
+    await this.submitPreview(preview, false);
+  }
+
+  async retryConfirmation(): Promise<void> {
+    const preview = this.preview();
+    if (!this.current() || this.running() || this.readingStatus() || !preview
+      || this.uncertainReceipt() !== preview.receipt_id || this.auth.identity() !== this.owner || !this.auth.isEdition()) return;
+    await this.submitPreview(preview, true);
+  }
+
+  private async submitPreview(preview: ExportPreview, retryConfirmation: boolean): Promise<void> {
     const seq = this.stopReads();
     this.submitting.set(true); this.errorDetail.set(null); this.readError.set(false);
     this.uncertainReceipt.set(preview.receipt_id);
@@ -527,7 +539,7 @@ export class ExportEditorDialogComponent {
     } catch (error) {
       if (!this.current(seq)) return;
       this.errorDetail.set(extractErrorDetail(error) ?? null);
-      if (error instanceof HttpErrorResponse && error.status >= 400 && error.status < 500) {
+      if (!retryConfirmation && error instanceof HttpErrorResponse && error.status >= 400 && error.status < 500) {
         this.uncertainReceipt.set(null); this.discardPreview();
       }
     } finally { if (this.current(seq)) this.submitting.set(false); }

@@ -3352,7 +3352,7 @@
       "saving": "Applying…",
       "retry": "Retry remaining",
       "tag_list": "Manual tags",
-      "tag_list_hint": "One tag per line, up to 50. Add/Remove operates on one tag; Replace uses the whole list.",
+      "tag_list_hint": "One tag per line, up to 50. Add/Remove operates on one tag; Replace uses the whole list. Tags must be at most 64 characters and cannot contain commas or control characters.",
       "replace": "Replace all",
       "clear": "Clear all",
       "replace_preview": "Replace every manual tag on the target with these tags:",

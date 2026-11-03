@@ -3327,7 +3327,7 @@
       "saving": "Aplicando…",
       "retry": "Reintentar pendientes",
       "tag_list": "Etiquetas manuales",
-      "tag_list_hint": "Una etiqueta por línea, hasta 50. Añadir/Quitar actúa sobre una etiqueta; Reemplazar usa toda la lista.",
+      "tag_list_hint": "Una etiqueta por línea, hasta 50. Añadir/Quitar actúa sobre una etiqueta; Reemplazar usa toda la lista. Cada etiqueta admite hasta 64 caracteres y no puede contener comas ni caracteres de control.",
       "replace": "Reemplazar todas",
       "clear": "Borrar todas",
       "replace_preview": "Reemplazar todas las etiquetas manuales del destino por estas etiquetas:",

@@ -92,3 +92,21 @@ def test_catalog_removal_refuses_a_bracket_lead_in_preview_and_apply(edition_cli
             assert response.json()['refused_bracket_lead'] == [lead]
             assert response.json()['removed_catalog'] == []
             assert _remaining_paths(db) == {lead, sibling}
+
+
+def test_sequence_siblings_resolve_all_groups_in_one_query(tmp_path):
+    from api.routers.export import _sequence_siblings
+
+    db = _db(tmp_path, [
+        ('a', 0, {'sequence_kind': 'bracket', 'sequence_group_id': 1}),
+        ('b', 0, {'sequence_kind': 'bracket', 'sequence_group_id': 1}),
+        ('c', 0, {'sequence_kind': 'panorama', 'sequence_group_id': 1}),
+        ('d', 0, {'sequence_kind': 'panorama', 'sequence_group_id': 1}),
+        ('other', 0, {'sequence_kind': 'bracket', 'sequence_group_id': 2}),
+    ])
+    with _connection(db) as conn:
+        statements = []
+        conn.set_trace_callback(statements.append)
+        result = _sequence_siblings(conn, {'a': ('bracket', 1), 'c': ('panorama', 1)}, {'a', 'c'}, None)
+    assert set(result) == {'b', 'd'}
+    assert len([statement for statement in statements if statement.lstrip().upper().startswith('SELECT')]) == 1

@@ -97,9 +97,9 @@ export interface ManualTagsDialogResult {
           <mat-hint>{{ I18N.manual_tags.batch.tag_list_hint | translate }}</mat-hint>
         </mat-form-field>
         <div class="mt-4 flex flex-wrap items-center gap-2 border-t border-[var(--mat-sys-outline-variant)] pt-3">
-          <button mat-button (click)="preview('add')" [disabled]="values().length !== 1">{{ I18N.manual_tags.add_action | translate }}</button>
-          <button mat-button (click)="preview('delete')" [disabled]="values().length !== 1">{{ I18N.manual_tags.remove_action | translate }}</button>
-          <button mat-flat-button data-replace-tags (click)="preview('replace')" [disabled]="!values().length || values().length > 50">{{ I18N.manual_tags.batch.replace | translate }}</button>
+          <button mat-button (click)="preview('add')" [disabled]="invalidValues() || values().length !== 1">{{ I18N.manual_tags.add_action | translate }}</button>
+          <button mat-button (click)="preview('delete')" [disabled]="invalidValues() || values().length !== 1">{{ I18N.manual_tags.remove_action | translate }}</button>
+          <button mat-flat-button data-replace-tags (click)="preview('replace')" [disabled]="invalidValues() || !values().length || values().length > 50">{{ I18N.manual_tags.batch.replace | translate }}</button>
           <button mat-button data-clear-tags (click)="preview('clear')">{{ I18N.manual_tags.batch.clear | translate }}</button>
         </div>
       }
@@ -111,7 +111,7 @@ export interface ManualTagsDialogResult {
     <mat-dialog-actions align="end">
       <button mat-button [disabled]="saving()" (click)="cancel()">{{ (failed() ? I18N.dialog.close : I18N.ui.buttons.cancel) | translate }}</button>
       @if (plan()) {
-        @if (!failed() && !confirmed()) { <button mat-button [disabled]="saving()" (click)="edit()">{{ I18N.manual_tags.batch.edit | translate }}</button> }
+        @if (!uncertain() && !confirmed()) { <button mat-button [disabled]="saving()" (click)="edit()">{{ I18N.manual_tags.batch.edit | translate }}</button> }
         <button mat-flat-button data-apply-tags [disabled]="saving() || uncertain() && (plan()?.action === 'replace' || plan()?.action === 'clear')" (click)="apply()">{{ (saving() ? I18N.manual_tags.batch.saving : failed() ? I18N.manual_tags.batch.retry : I18N.ui.buttons.apply) | translate }}</button>
       }
     </mat-dialog-actions>
@@ -134,6 +134,7 @@ export class ManualTagsDialogComponent {
   protected readonly targetNames = this.data.paths.slice(0, 3).map(basename);
   readonly tag = signal('');
   protected readonly values = computed(() => [...new Set(this.tag().split(/\r?\n/).map(value => value.trim()).filter(Boolean))]);
+  protected readonly invalidValues = computed(() => this.values().some(value => /[,\p{Cc}\p{Cf}]/u.test(value) || [...value.normalize('NFC')].length > 64));
   readonly saving = signal(false);
   readonly failed = signal(false);
   readonly uncertain = signal(false);
@@ -167,7 +168,7 @@ export class ManualTagsDialogComponent {
   preview(action: ManualTagAction): void {
     const values = action === 'clear' ? [] : this.values();
     if (this.plan() || this.saving() || !this.live()
-      || action !== 'clear' && (!values.length || values.length > 50)
+      || action !== 'clear' && (this.invalidValues() || !values.length || values.length > 50)
       || (action === 'add' || action === 'delete') && values.length !== 1) return;
     const tag = values.join(' · ');
     const bodies = chunkPhotoPaths(this.data.paths).map(chunk => ({ photo_paths: chunk }));
@@ -176,7 +177,9 @@ export class ManualTagsDialogComponent {
   }
 
   edit(): void {
-    if (!this.saving() && !this.failed() && !this.confirmed()) this.plan.set(null);
+    if (!this.saving() && !this.uncertain() && !this.confirmed()) {
+      this.plan.set(null); this.failed.set(false); this.completedBatches.set(0);
+    }
   }
 
   cancel(): void {

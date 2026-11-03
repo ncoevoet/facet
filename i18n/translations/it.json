@@ -3327,7 +3327,7 @@
       "saving": "Applicazione…",
       "retry": "Riprova rimanenti",
       "tag_list": "Tag manuali",
-      "tag_list_hint": "Un tag per riga, fino a 50. Aggiungi/Rimuovi agisce su un solo tag; Sostituisci usa l’intero elenco.",
+      "tag_list_hint": "Un tag per riga, fino a 50. Aggiungi/Rimuovi agisce su un solo tag; Sostituisci usa l’intero elenco. Ogni tag può contenere al massimo 64 caratteri, senza virgole o caratteri di controllo.",
       "replace": "Sostituisci tutto",
       "clear": "Cancella tutto",
       "replace_preview": "Sostituisci tutti i tag manuali della destinazione con questi tag:",

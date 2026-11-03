@@ -3327,7 +3327,7 @@
       "saving": "Wird angewendet…",
       "retry": "Verbleibende wiederholen",
       "tag_list": "Manuelle Schlagwörter",
-      "tag_list_hint": "Ein Schlagwort pro Zeile, höchstens 50. Hinzufügen/Entfernen gilt für ein Schlagwort; Ersetzen verwendet die gesamte Liste.",
+      "tag_list_hint": "Ein Schlagwort pro Zeile, höchstens 50. Hinzufügen/Entfernen gilt für ein Schlagwort; Ersetzen verwendet die gesamte Liste. Tags dürfen höchstens 64 Zeichen lang sein und keine Kommas oder Steuerzeichen enthalten.",
       "replace": "Alle ersetzen",
       "clear": "Alle löschen",
       "replace_preview": "Alle manuellen Schlagwörter der Zielfotos durch diese Schlagwörter ersetzen:",

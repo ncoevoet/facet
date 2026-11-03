@@ -819,20 +819,22 @@ def _sequence_siblings(conn, group_keys, exclude_paths, user_id, *, logical=Fals
         columns = 'path,_logical_asset_id,_logical_primary_path'
     seen = set()
     siblings = []
-    for kind, group_id in set(group_keys.values()):
-        rows = conn.execute(
-            f"SELECT {columns} FROM {from_sql} WHERE sequence_kind = ? AND sequence_group_id = ? "
-            f"AND {vis_sql}{exclude_sql}",
-            source_params + [kind, group_id] + vis_params + exclude_params,
-        ).fetchall()
-        for r in rows:
-            if logical and require_primary and r['_logical_asset_id'] is not None and r['_logical_primary_path'] is None:
-                raise HTTPException(409, 'Choose a primary representation before using this collection')
-            p = r["path"]
-            if p in exclude or p in seen:
-                continue
-            seen.add(p)
-            siblings.append(p)
+    groups = json.dumps(list(set(group_keys.values())))
+    rows = conn.execute(
+        f"SELECT {columns} FROM {from_sql} "
+        "WHERE (sequence_kind, sequence_group_id) IN "
+        "(SELECT json_extract(value, '$[0]'), json_extract(value, '$[1]') FROM json_each(?)) "
+        f"AND {vis_sql}{exclude_sql}",
+        source_params + [groups] + vis_params + exclude_params,
+    ).fetchall()
+    for r in rows:
+        if logical and require_primary and r['_logical_asset_id'] is not None and r['_logical_primary_path'] is None:
+            raise HTTPException(409, 'Choose a primary representation before using this collection')
+        p = r["path"]
+        if p in exclude or p in seen:
+            continue
+        seen.add(p)
+        siblings.append(p)
     return siblings
 
 

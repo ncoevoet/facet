@@ -987,6 +987,11 @@ RATING_PROVENANCE_COLUMNS = [
 # under-reported by the scan-runs / recommendation / album / user-preference
 # groups). INDEXES stays first: the migration builds ALL_INDEX_GROUPS[1:], and
 # INDEXES is built after it commits (create_photo_indexes), one index at a time.
+FACE_REVIEW_FEEDBACK_INDEXES = [
+    ('idx_face_review_feedback_face', 'face_review_feedback', 'face_id'),
+    ('idx_face_review_feedback_person', 'face_review_feedback', 'person_id'),
+]
+
 ALL_INDEX_GROUPS = [
     INDEXES,
     PHOTO_TAGS_INDEXES,
@@ -1003,6 +1008,7 @@ ALL_INDEX_GROUPS = [
     IDENTITY_INDEXES,
     MANUAL_FACE_INDEXES,
     FACE_UPDATE_INDEXES,
+    FACE_REVIEW_FEEDBACK_INDEXES,
     MCP_TOKENS_INDEXES,
 ]
 

@@ -60,6 +60,23 @@ describe('FaceReviewQueueComponent', () => {
     fixture.destroy(); root.remove();
   });
 
+  it('appends the next page without discarding selected faces or chosen people', async () => {
+    const { fixture, root, api } = await render();
+    const queue = fixture.componentInstance as any;
+    queue.nextAfter.set(2);
+    queue.choose(1, 99, 'Zoe');
+    root.querySelector<HTMLInputElement>('input[type="checkbox"]')!.click();
+    fixture.detectChanges();
+    api.get.mockReturnValueOnce(of({ ...response, faces: [{ ...response.faces[0], face_id: 3 }], next_after_id: null }));
+    root.querySelector<HTMLButtonElement>('[data-queue-next]')!.click();
+    await fixture.whenStable(); fixture.detectChanges();
+    expect(root.querySelectorAll('[data-review-face]')).toHaveLength(3);
+    expect(root.querySelector<HTMLInputElement>('input[type="checkbox"]')!.checked).toBe(true);
+    preview(root); fixture.detectChanges();
+    expect(root.querySelector('[data-assignment-preview]')?.textContent).toContain('Zoe');
+    fixture.destroy(); root.remove();
+  });
+
   it('cancels a preview without writes and returns focus to its trigger', async () => {
     const { fixture, root, api } = await render();
     select(root); fixture.detectChanges(); preview(root); fixture.detectChanges();

@@ -3327,7 +3327,7 @@
       "saving": "Application…",
       "retry": "Réessayer le reste",
       "tag_list": "Étiquettes manuelles",
-      "tag_list_hint": "Une étiquette par ligne, jusqu’à 50. Ajouter/Retirer agit sur une seule étiquette ; Remplacer utilise toute la liste.",
+      "tag_list_hint": "Une étiquette par ligne, jusqu’à 50. Ajouter/Retirer agit sur une seule étiquette ; Remplacer utilise toute la liste. Chaque étiquette est limitée à 64 caractères, sans virgule ni caractère de contrôle.",
       "replace": "Tout remplacer",
       "clear": "Tout effacer",
       "replace_preview": "Remplacer toutes les étiquettes manuelles des photos cibles par ces étiquettes :",

@@ -87,6 +87,9 @@ describe('Explicit keyword hierarchy browsing', () => {
     expect(document.activeElement).toBe(button);
     expect(fixture.componentInstance.opened()).toBe(true);
     http.expectNone('/api/manual_tags/hierarchy');
+    filters.update(current => ({ ...current, page: 2 }));
+    fixture.detectChanges();
+    http.expectNone('/api/manual_tags/hierarchy');
     fixture.nativeElement.remove();
   });
 

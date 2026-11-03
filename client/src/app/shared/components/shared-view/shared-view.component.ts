@@ -826,10 +826,12 @@ export class SharedViewComponent implements OnInit {
 
   /** Reload photos without destroying the DOM (no loading spinner). */
   private async refreshFiltered(): Promise<void> {
-    this.loading.set(true);
-    this.loadingMore.set(false);
+    this.loadingMore.set(true);
     this.currentPage = 1;
-    await this.loadPage(1);
+    const request = this.loadPage(1);
+    const epoch = this.requestEpoch;
+    try { await request; }
+    finally { if (epoch === this.requestEpoch && !this.destroyRef.destroyed) this.loadingMore.set(false); }
   }
 
   protected onScrollReached(): void {
@@ -896,7 +898,7 @@ export class SharedViewComponent implements OnInit {
         downloadBlob(blob, filename);
       }
     } catch {
-      if (current()) this.error.set(this.i18n.t(I18N.albums.load_error));
+      if (current()) this.snackBar.open(this.i18n.t(I18N.errors.action_failed), '', { duration: 4000 });
     } finally {
       this.downloading.set(false);
     }

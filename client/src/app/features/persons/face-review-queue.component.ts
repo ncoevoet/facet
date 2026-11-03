@@ -187,14 +187,22 @@ export class FaceReviewQueueComponent {
     this.receipt.set(null); this.loading.set(false); this.busy.set(false); this.nextAfter.set(null);
   }
   protected async load(after: number): Promise<void> {
-    if (!this.allowed() || this.busy()) return;
-    this.reset(); this.after = after; this.loading.set(true); this.error.set(false); this.uncertain.set(false);
+    if (!this.allowed() || this.busy() || this.loading() || (after > 0 && (this.pending() || this.uncertain() || this.changed() || this.choosing()))) return;
+    if (after === 0) this.reset();
+    this.after = after; this.loading.set(true); this.error.set(false);
     const guard = this.capture(), generation = this.generation;
     try {
       const response = await firstValueFrom(this.api.get<Response>('/faces/review', { after_id: after, limit: 48, suggest: this.mode() === 'matches' && !this.withoutSuggestions() }));
       if (!guard.current()) return;
-      this.faces.set(response.faces); this.total.set(response.total_unassigned); this.nextAfter.set(response.next_after_id);
-      this.choices.set(new Map(response.faces.flatMap(face => face.suggestions[0] ? [[face.face_id, { personId: face.suggestions[0].person_id, name: face.suggestions[0].name }] as const] : [])));
+      const existing = after > 0 ? this.faces() : [];
+      const ids = new Set(existing.map(face => face.face_id));
+      this.faces.set([...existing, ...response.faces.filter(face => !ids.has(face.face_id))]);
+      this.total.set(response.total_unassigned); this.nextAfter.set(response.next_after_id);
+      const choices = after > 0 ? new Map(this.choices()) : new Map<number, Choice>();
+      for (const face of response.faces) if (!choices.has(face.face_id) && face.suggestions[0]) {
+        choices.set(face.face_id, { personId: face.suggestions[0].person_id, name: face.suggestions[0].name });
+      }
+      this.choices.set(choices);
     } catch { if (guard.current()) this.error.set(true); }
     finally { if (this.generation === generation) { this.loading.set(false); if (!guard.current()) this.error.set(true); } guard.dispose(); }
   }

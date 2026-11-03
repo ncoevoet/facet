@@ -6,6 +6,7 @@ import { of, throwError, Subject } from 'rxjs';
 import { signal } from '@angular/core';
 import { By } from '@angular/platform-browser';
 import { provideNativeDateAdapter } from '@angular/material/core';
+import { MatSnackBar } from '@angular/material/snack-bar';
 import { SlideshowComponent } from '../../../features/gallery/slideshow.component';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
 import { ApiService } from '../../../core/services/api.service';
@@ -152,6 +153,38 @@ describe('SharedViewComponent', () => {
       await component.downloadSelected('raw');
       expect(mockApi.getRaw).toHaveBeenCalledTimes(2);
     } finally { restore(); }
+  });
+
+  it('keeps the shared album open when a selected download fails', async () => {
+    createComponent('1', 'fixture-token'); await component.ngOnInit();
+    component.toggleSelection(component.photos()[0]);
+    const notice = vi.spyOn(TestBed.inject(MatSnackBar), 'open').mockReturnValue({} as never);
+    mockApi.getRaw.mockReturnValue(throwError(() => new Error('download failed')));
+    await component.downloadSelected();
+    expect(component.error()).toBe('');
+    expect(component.photos()).toHaveLength(2);
+    expect(notice).toHaveBeenCalled();
+  });
+
+  it('retains the filter drawer while a filter refresh is pending', async () => {
+    Object.assign(mockI18n, { translations: () => ({}), locale: () => 'en' });
+    createComponent('1', 'fixture-token');
+    const fixture = TestBed.createComponent(SharedViewComponent);
+    fixture.detectChanges(); await fixture.whenStable(); fixture.detectChanges();
+    const shared = fixture.componentInstance as any;
+    const drawer = fixture.nativeElement.querySelector('mat-sidenav');
+    expect(drawer).not.toBeNull();
+    const response = new Subject<typeof sharedAlbumResponse>();
+    mockApi.get.mockReturnValue(response);
+    shared.updateFilter('camera', 'Canon'); fixture.detectChanges();
+    expect(shared.loading()).toBe(false);
+    expect(shared.loadingMore()).toBe(true);
+    expect(fixture.nativeElement.querySelector('mat-sidenav')).toBe(drawer);
+    response.next(sharedAlbumResponse); response.complete();
+    await fixture.whenStable(); fixture.detectChanges();
+    expect(fixture.nativeElement.querySelector('mat-sidenav')).toBe(drawer);
+    expect(shared.loadingMore()).toBe(false);
+    fixture.destroy();
   });
 
   it('retains selected filenames after the displayed page changes', async () => {

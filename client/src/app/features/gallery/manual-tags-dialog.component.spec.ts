@@ -63,6 +63,24 @@ describe('ManualTagsDialogComponent', () => {
     });
   });
 
+  it.each(['too,long', 'x'.repeat(65), 'bad\u0001value', 'bad\u200bvalue'])(
+    'refuses to preview an invalid tag', value => {
+      create(pathData); component.tag.set(value); component.preview('add');
+      expect(component.plan()).toBeNull();
+      expect(mockApi.post).not.toHaveBeenCalled();
+    },
+  );
+
+  it('allows editing after a definite validation failure, but not after an uncertain write', async () => {
+    create(pathData); component.tag.set('trip'); component.preview('add');
+    mockApi.post.mockReturnValueOnce(throwError(() => new HttpErrorResponse({ status: 422 })));
+    await component.apply(); component.edit();
+    expect(component.plan()).toBeNull(); expect(component.failed()).toBe(false);
+    component.preview('add'); mockApi.post.mockReturnValueOnce(throwError(() => new HttpErrorResponse({ status: 0 })));
+    await component.apply(); component.edit();
+    expect(component.uncertain()).toBe(true); expect(component.plan()).not.toBeNull();
+  });
+
   it('refuses to replay an uncertain replacement over potentially newer tags', async () => {
     create(pathData); component.tag.set('trip'); component.preview('replace');
     mockApi.post.mockReturnValue(throwError(() => new HttpErrorResponse({ status: 0 })));

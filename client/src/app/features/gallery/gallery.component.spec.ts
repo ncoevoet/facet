@@ -2273,6 +2273,15 @@ describe('GalleryComponent', () => {
         expect(component['tooltipPhoto']()).toBe(photo);
       });
 
+      it('keeps the inspected photo and open rail when another page is appended', () => {
+        const photo = makePhoto({ path: '/a.jpg' });
+        mockStore.photos.set([photo]); TestBed.tick();
+        component.showTooltip(hoverEvent, photo);
+        mockStore.photos.set([photo, makePhoto({ path: '/b.jpg' })]); TestBed.tick();
+        expect(component['tooltipPhoto']()?.path).toBe('/a.jpg');
+        expect(component.detailsRailVisible()).toBe(true);
+      });
+
       describe('while a photo is current', () => {
         const a = { path: '/a.jpg' };
         const b = { path: '/b.jpg' };

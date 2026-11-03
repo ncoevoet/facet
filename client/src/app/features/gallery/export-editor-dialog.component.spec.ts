@@ -57,6 +57,23 @@ describe('ExportEditorDialogComponent', () => {
     expect(component.errorDetail()).toBeNull();
   });
 
+  it('retries an uncertain confirmation with the same preview and receipt', async () => {
+    build();
+    component.mode.set('copy'); component.targetDir.set('/dest');
+    await component.previewExport();
+    const preview = component.preview();
+    applyExport.mockReturnValueOnce(throwError(() => new Error('connection lost')));
+    await component.confirmPreview();
+    expect(component.uncertainReceipt()).toBe('job');
+    expect(component.preview()).toBe(preview);
+    await component.retryConfirmation();
+    expect(applyExport).toHaveBeenCalledTimes(2);
+    expect(applyExport).toHaveBeenNthCalledWith(1, preview);
+    expect(applyExport).toHaveBeenNthCalledWith(2, preview);
+    expect(component.uncertainReceipt()).toBeNull();
+    expect(dialogClose).toHaveBeenCalled();
+  });
+
   it('surfaces the server-supplied reason instead of swallowing it', async () => {
     build();
     component.mode.set('copy');
