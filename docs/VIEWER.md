@@ -428,7 +428,7 @@ Response fields and status codes: [API.md](API.md).
 
 ### Display Options
 
-- **Layout Mode** — **Grid** (uniform cards) or **Mosaic** (justified rows keeping aspect ratios), at every screen width.
+- **Layout Mode** — **Grid** (uniform cards), **Mosaic** (justified aspect-ratio rows), or **List** (metadata rows), at every screen width.
 - **Thumbnail Size** — card/row height slider (120–400px, saved in localStorage)
 - **Hide Details** — hide metadata on cards (grid mode only)
 - **Tile presentation** — square crop (the default) or the photo's original ratio for the detail-less tiles; greyed while Mosaic is active, which already keeps the ratio, or while details are shown.

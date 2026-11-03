@@ -86,8 +86,9 @@ export class TagGroupsComponent {
     if (!this.context.current()) return;
     const groups = this.groups();
     if (groups) {
-      this.ruleInput()?.nativeElement.focus();
-      void this.store.updateFilter('tag_groups', serializeTagQuery({ ...groups, [group]: groups[group].filter(value => value !== tag) }));
+      const next = serializeTagQuery({ ...groups, [group]: groups[group].filter(value => value !== tag) });
+      (next ? this.ruleInput() : this.ruleSummary())?.nativeElement.focus();
+      void this.store.updateFilter('tag_groups', next);
     }
   }
 

@@ -427,7 +427,7 @@ Champs de réponse et codes de statut : [API.md](../API.md).
 
 ### Options d'affichage
 
-- **Mode de disposition** — **Grille** (cartes uniformes) ou **Mosaïque** (rangées justifiées conservant les proportions), à toutes les largeurs d'écran.
+- **Mode de disposition** — **Grille** (cartes uniformes), **Mosaïque** (rangées respectant les proportions) ou **Liste** (lignes de métadonnées), à toutes les largeurs d’écran.
 - **Taille des vignettes** — curseur de hauteur des cartes/rangées (120–400 px, enregistré dans localStorage)
 - **Masquer détails** — masque les métadonnées sur les cartes (mode grille uniquement)
 - **Présentation des vignettes** — recadrage carré (par défaut) ou ratio d'origine de la photo pour les vignettes sans détails ; grisée tant que le mode mosaïque est actif, qui conserve déjà le ratio, ou que les détails sont affichés.

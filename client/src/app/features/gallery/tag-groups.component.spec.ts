@@ -83,6 +83,14 @@ describe('rendered literal tag rule editor', () => {
     expect(document.activeElement).toBe(root.querySelector('[data-tag-rule-input]'));
   });
 
+  it('moves focus to the summary when removing the last rule closes the editor', () => {
+    add('coast');
+    root.querySelector<HTMLButtonElement>('li button')!.click(); fixture.detectChanges();
+    expect(filters().tag_groups).toBe('');
+    expect(document.activeElement).toBe(root.querySelector('[data-tag-groups] summary'));
+    expect(root.querySelector<HTMLDetailsElement>('[data-tag-groups]')!.open).toBe(false);
+  });
+
   it('announces invalid names and recovers invalid saved rules with a single clear', () => {
     add('x'.repeat(201));
     expect(update).not.toHaveBeenCalled();

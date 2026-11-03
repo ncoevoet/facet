@@ -3522,7 +3522,7 @@
     "favorite": "切换收藏状态",
     "focus_search": "聚焦搜索框",
     "toggle_filters": "显示／隐藏筛选侧栏",
-    "toggle_layout": "切换网格／拼贴",
+    "toggle_layout": "切换网格／拼贴／列表",
     "comp_left_wins": "左侧照片更好",
     "comp_right_wins": "右侧照片更好",
     "keymap_hint": "点击一个操作，然后按下新键。",

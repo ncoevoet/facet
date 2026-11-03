@@ -428,7 +428,7 @@ Antwortfelder und Statuscodes: [API.md](../API.md).
 
 ### Anzeigeoptionen
 
-- **Layout-Modus** — **Raster** (einheitliche Karten) oder **Mosaik** (justierte Zeilen, die Seitenverhältnisse beibehalten), bei jeder Bildschirmbreite.
+- **Layout-Modus** — **Raster** (einheitliche Karten), **Mosaik** (Zeilen mit ursprünglichen Seitenverhältnissen) oder **Liste** (Metadatenzeilen), bei jeder Bildschirmbreite.
 - **Vorschaubildgröße** — Regler für die Karten-/Zeilenhöhe (120–400px, in localStorage gespeichert)
 - **Details ausblenden** — Metadaten auf Karten ausblenden (nur im Rastermodus)
 - **Kachel-Darstellung** — quadratischer Zuschnitt (Standard) oder das Originalformat der Foto-Kacheln ohne Details; ausgegraut, solange Mosaik aktiv ist, was das Format bereits bewahrt, oder Details angezeigt werden.

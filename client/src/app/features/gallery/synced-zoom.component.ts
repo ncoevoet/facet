@@ -92,7 +92,7 @@ export class LoadedSources {
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [LoupeDirective, TranslatePipe],
   host: {
-    class: 'block relative overflow-hidden bg-black focus-visible:outline-2 focus-visible:outline-inset focus-visible:outline-white',
+    class: 'block relative overflow-hidden bg-black focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-white',
     '[class.touch-none]': 'keyboardInspection()',
     '[attr.tabindex]': 'keyboardInspection() ? 0 : null',
     role: 'group',

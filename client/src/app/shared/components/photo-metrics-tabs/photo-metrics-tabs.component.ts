@@ -5,6 +5,7 @@ import { MatTabsModule } from '@angular/material/tabs';
 import { MatTooltipModule } from '@angular/material/tooltip';
 import { Photo, hasExifFields } from '../../models/photo.model';
 import { TranslatePipe } from '../../pipes/translate.pipe';
+import { FEATURE_MARK, MarkTonePipe } from '../../pipes/mark-tone.pipe';
 import { HistogramSurface } from '../../../core/services/histogram-preferences.service';
 import { METRICS_TABS, MetricsTab, MetricsTabState } from '../../../core/services/metrics-tab-state.service';
 import { HistogramMode } from '../../utils/histogram';
@@ -25,7 +26,7 @@ import { PhotoAssessmentComponent } from '../photo-assessment/photo-assessment.c
   selector: 'app-photo-metrics-tabs',
   imports: [
     MatIconModule, MatTabsModule, MatTooltipModule,
-    TranslatePipe, PhotoAssessmentComponent, PhotoMetricSectionComponent,
+    TranslatePipe, MarkTonePipe, PhotoAssessmentComponent, PhotoMetricSectionComponent,
   ],
   changeDetection: ChangeDetectionStrategy.OnPush,
   host: { class: 'block' },
@@ -44,7 +45,7 @@ import { PhotoAssessmentComponent } from '../photo-assessment/photo-assessment.c
       }
 
       <mat-tab [aria-label]="'photo_detail.quality' | translate">
-        <ng-template mat-tab-label><mat-icon aria-hidden="true" [matTooltip]="'photo_detail.quality' | translate">auto_awesome</mat-icon></ng-template><app-photo-metric-section kind="quality" [photo]="p" [ranges]="ranges()" [populated]="populated()" [histogramSrcSize]="histogramSrcSize()" [histogramHeight]="histogramHeight()" [histogramSurface]="histogramSurface()" [histogramDefaultMode]="histogramDefaultMode()" [indicatorPercent]="indicatorPercent()" /></mat-tab>
+        <ng-template mat-tab-label><span aria-hidden="true" class="text-xl" [class]="'quality' | markTone" [matTooltip]="'photo_detail.quality' | translate">{{ featureMark }}</span></ng-template><app-photo-metric-section kind="quality" [photo]="p" [ranges]="ranges()" [populated]="populated()" [histogramSrcSize]="histogramSrcSize()" [histogramHeight]="histogramHeight()" [histogramSurface]="histogramSurface()" [histogramDefaultMode]="histogramDefaultMode()" [indicatorPercent]="indicatorPercent()" /></mat-tab>
 
       <!-- Composition section -->
       <mat-tab [aria-label]="'photo_detail.composition' | translate">
@@ -60,6 +61,7 @@ import { PhotoAssessmentComponent } from '../photo-assessment/photo-assessment.c
   `,
 })
 export class PhotoMetricsTabsComponent {
+  protected readonly featureMark = FEATURE_MARK;
   readonly photo = input.required<Photo>();
   /** Library distributions keyed by photo column; a score without one shows its value only. */
   readonly ranges = input<Record<string, MetricDistribution>>({});

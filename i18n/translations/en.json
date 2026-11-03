@@ -3547,7 +3547,7 @@
     "favorite": "Toggle favorite",
     "focus_search": "Focus the search box",
     "toggle_filters": "Show / hide the filter sidebar",
-    "toggle_layout": "Switch grid / mosaic",
+    "toggle_layout": "Switch grid / mosaic / list",
     "comp_left_wins": "Left photo wins",
     "comp_right_wins": "Right photo wins",
     "keymap_hint": "Click an action, then press the new key.",

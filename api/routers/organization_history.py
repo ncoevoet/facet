@@ -55,7 +55,7 @@ def _logical_context(conn, user, entry, changes):
                             (change['asset_id'],)).fetchone()[0]
         # Internal overrides/tokens and historical native paths stay private.
         visible_changes.append(dict(path=path, before=change['before'], after=change['after'], revision=change['revision']))
-    return (owner, labels, visibility, params, visible_changes) if owner is not None else None
+    return owner, labels, visibility, params, visible_changes
 
 
 @router.get('/api/organization_history', response_model=OrganizationHistory)

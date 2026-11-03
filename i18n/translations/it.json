@@ -3522,7 +3522,7 @@
     "favorite": "Attiva/disattiva preferito",
     "focus_search": "Vai alla casella di ricerca",
     "toggle_filters": "Mostra / nascondi la barra dei filtri",
-    "toggle_layout": "Alterna griglia / mosaico",
+    "toggle_layout": "Alterna griglia / mosaico / elenco",
     "comp_left_wins": "Vince la foto a sinistra",
     "comp_right_wins": "Vince la foto a destra",
     "keymap_hint": "Clicca un'azione e premi il nuovo tasto.",

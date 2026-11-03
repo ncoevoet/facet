@@ -427,7 +427,7 @@ Campos de resposta e códigos de status: [API.md](../API.md).
 
 ### Opções de Exibição
 
-- **Modo de Layout** — **Grade** (cartões uniformes) ou **Mosaico** (linhas justificadas que preservam as proporções), em qualquer largura de tela.
+- **Modo de Layout** — **Grade** (cartões uniformes), **Mosaico** (linhas que preservam as proporções) ou **Lista** (linhas de metadados), em qualquer largura de tela.
 - **Tamanho da Miniatura** — controle deslizante de altura do cartão/linha (120–400px, salvo no localStorage)
 - **Ocultar Detalhes** — oculta os metadados nos cartões (apenas no modo grade)
 - **Apresentação dos cartões** — recorte quadrado (padrão) ou a proporção original da foto para os cartões sem detalhes; desabilitada enquanto o modo mosaico estiver ativo, que já preserva a proporção, ou enquanto os detalhes estiverem visíveis.

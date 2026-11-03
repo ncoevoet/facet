@@ -428,7 +428,7 @@ Campos de respuesta y códigos de estado: [API.md](../API.md).
 
 ### Opciones de visualización
 
-- **Modo de diseño**: **Cuadrícula** (tarjetas uniformes) o **Mosaico** (filas justificadas que conservan las proporciones), en cualquier ancho de pantalla.
+- **Modo de diseño**: **Cuadrícula** (tarjetas uniformes), **Mosaico** (filas que conservan las proporciones) o **Lista** (filas de metadatos), en cualquier ancho de pantalla.
 - **Tamaño de miniatura**: control deslizante de altura de tarjeta/fila (120–400 px, guardado en localStorage)
 - **Ocultar detalles**: oculta los metadatos de las tarjetas (solo en modo cuadrícula)
 - **Presentación de miniaturas**: recorte cuadrado (por defecto) o la proporción original de la foto para las miniaturas sin detalles; se muestra deshabilitada mientras el modo mosaico está activo, que ya conserva la proporción, o mientras se muestran los detalles.

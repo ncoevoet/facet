@@ -427,7 +427,7 @@ Campi della risposta e codici di stato: [API.md](../API.md).
 
 ### Opzioni di visualizzazione
 
-- **Modalità layout** — **Griglia** (schede uniformi) o **Mosaico** (righe giustificate che mantengono le proporzioni), a ogni larghezza dello schermo.
+- **Modalità layout** — **Griglia** (schede uniformi), **Mosaico** (righe che mantengono le proporzioni) o **Elenco** (righe di metadati), a ogni larghezza dello schermo.
 - **Dimensione miniatura** — cursore dell'altezza di scheda/riga (120–400px, salvato in localStorage)
 - **Nascondi dettagli** — nasconde i metadati sulle schede (solo modalità griglia)
 - **Presentazione delle miniature** — ritaglio quadrato (predefinito) o proporzioni originali della foto per le miniature senza dettagli; disabilitata finché il modo mosaico è attivo, che già conserva le proporzioni, o finché i dettagli sono visibili.
