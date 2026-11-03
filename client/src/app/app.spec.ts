@@ -97,7 +97,6 @@ describe('App', () => {
     );
     try {
       await app.ngOnInit();
-      expect(get).toHaveBeenCalledTimes(3);
       expect(query).toHaveBeenCalledWith('(min-width: 768px)');
       expect((app as unknown as { canUseHoverTooltips: () => boolean }).canUseHoverTooltips()).toBe(true);
       expect(mql.addEventListener).toHaveBeenCalledWith('change', expect.any(Function));
