@@ -2,6 +2,7 @@
 
 from collections import deque
 from concurrent.futures import ThreadPoolExecutor
+import queue
 import sqlite3
 import subprocess
 import sys
@@ -296,12 +297,19 @@ print(json.dumps(old.receipt), flush=True)
 sys.stdin.readline()
 print(json.dumps(_claim_receipt('b'*32, RetryPreview('actor', {}, 0))), flush=True)
 """
-    children = [subprocess.Popen([sys.executable, '-c', script, plan['plan_id']],
-                env=env, stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
-                encoding='utf-8') for _ in range(2)]
+    children = []
+    readers = []
     try:
-        for child in children:
-            assert json.loads(child.stdout.readline()) == accepted.json()
+        for _ in range(2):
+            child = subprocess.Popen([sys.executable, '-c', script, plan['plan_id']],
+                env=env, stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+                encoding='utf-8')
+            children.append(child)
+            receipt = queue.Queue()
+            reader = threading.Thread(target=lambda proc=child, result=receipt: result.put(proc.stdout.readline()), daemon=True)
+            readers.append(reader)
+            reader.start()
+            assert json.loads(receipt.get(timeout=20)) == accepted.json()
         def release(child):
             out, err = child.communicate('go\n', timeout=20)
             assert child.returncode == 0, err
@@ -312,7 +320,9 @@ print(json.dumps(_claim_receipt('b'*32, RetryPreview('actor', {}, 0))), flush=Tr
         for child in children:
             if child.poll() is None:
                 child.kill()
-            child.wait()
+            child.wait(timeout=10)
+        for reader in readers:
+            reader.join(timeout=5)
 
 
 def test_receipt_storage_failure_never_spawns(retry_api, monkeypatch):
