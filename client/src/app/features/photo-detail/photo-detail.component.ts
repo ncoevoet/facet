@@ -1342,6 +1342,8 @@ export class PhotoDetailComponent extends PhotoDetailBase implements OnInit {
     this.reviewSaving = true;
     const isOrigin = this.store.captureReviewView();
     const identity = this.auth.identity();
+    const token = this.auth.token;
+    const sameSession = () => identity === this.auth.identity() && token === this.auth.token;
     const photos = this.store.photos();
     const index = photos.findIndex(photo => photo.path === p.path);
     const next = photos[index + 1];
@@ -1350,13 +1352,13 @@ export class PhotoDetailComponent extends PhotoDetailBase implements OnInit {
         if (!await this.saveLogicalReview(p, decision)) return;
       } else {
         await firstValueFrom(this.api.post('/photos/batch_review', { photo_paths: [p.path], decision }));
-        if (identity !== this.auth.identity()) return;
+        if (!sameSession()) return;
         this.applyConfirmed(p, { is_kept: decision === 'kept', is_rejected: false });
         this.journal.record('review', [p.path], decision);
       }
       if (isOrigin()) await this.advanceAfterReview(p, index, next);
     } catch {
-      this.snackBar.open(this.i18n.t(I18N.errors.action_failed), '', { duration: 3000 });
+      if (sameSession() && !this.destroyRef.destroyed) this.snackBar.open(this.i18n.t(I18N.errors.action_failed), '', { duration: 3000 });
     } finally { this.reviewSaving = false; }
   }
 
@@ -1366,13 +1368,15 @@ export class PhotoDetailComponent extends PhotoDetailBase implements OnInit {
     // Timeline owns a captured preview sequence, not the parked Gallery queue.
     if (this.timelineOrigin) return;
     if (!this.store.filters().review_status) return;
+    const owner = this.auth.identity(), token = this.auth.token;
     let navigated = false;
     const navigation = this.router.events.subscribe(event => {
       if (event instanceof NavigationStart) navigated = true;
     });
     try {
       await this.store.refreshReviewResults(false, { whileParked: true });
-      if (navigated || this.destroyRef.destroyed || this.photo()?.path !== previous.path) return;
+      if (navigated || this.destroyRef.destroyed || this.photo()?.path !== previous.path
+        || owner !== this.auth.identity() || token !== this.auth.token) return;
       const target = this.store.photos().find(photo => photo.path === next?.path) ?? this.store.photos()[index] ?? this.store.photos()[0];
       if (!target) { this.router.navigate(['/']); return; }
       this.router.navigate(['/photo'], { queryParams: { path: target.path }, state: this.photoNavigationState(target), replaceUrl: true });
@@ -1409,6 +1413,8 @@ export class PhotoDetailComponent extends PhotoDetailBase implements OnInit {
     if (p.logical_review) { await this.saveLogicalReview(p, 'reject'); return; }
     const isOrigin = this.store.captureReviewView();
     const identity = this.auth.identity();
+    const token = this.auth.token;
+    const sameSession = () => identity === this.auth.identity() && token === this.auth.token;
     const photos = this.store.photos();
     const index = photos.findIndex(photo => photo.path === p.path);
     const next = photos[index + 1];
@@ -1417,13 +1423,13 @@ export class PhotoDetailComponent extends PhotoDetailBase implements OnInit {
       const confirmed: Partial<Photo> = { is_rejected: res.is_rejected, is_kept: false };
       if (res.is_favorite !== null) confirmed.is_favorite = res.is_favorite;
       if (res.star_rating !== null) confirmed.star_rating = res.star_rating;
-      // The write landed: only another principal's view must not see it.
-      if (identity !== this.auth.identity()) return;
+      // Repair the gallery only while the initiating credentials still own it.
+      if (!sameSession()) return;
       this.applyConfirmed(p, confirmed);
       this.journal.record('reject', [path], res.is_rejected);
       if (isOrigin()) await this.advanceAfterReview(p, index, next);
     } catch {
-      this.snackBar.open(this.i18n.t(I18N.errors.action_failed), '', { duration: 3000 });
+      if (sameSession() && !this.destroyRef.destroyed) this.snackBar.open(this.i18n.t(I18N.errors.action_failed), '', { duration: 3000 });
     }
   }
 

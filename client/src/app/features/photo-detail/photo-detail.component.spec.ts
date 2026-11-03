@@ -1404,6 +1404,62 @@ describe('PhotoDetailComponent', () => {
   });
 
   describe('physical review completion ownership', () => {
+    for (const action of ['reviewPhoto', 'toggleRejected'] as const) {
+      for (const invalidation of ['owner', 'token'] as const) {
+        it.each(['success', 'error'])(`discards ${action} %s after ${invalidation} changes`, async outcome => {
+          createComponent();
+          Object.assign(mockAuth, { token: 'old-token' }); TestBed.tick();
+          const initial = makePhoto({ path: samplePhoto.path, is_kept: false, is_rejected: false });
+          component.photo.set(initial); component.store.photos.set([initial]);
+          const response = new Subject<unknown>(); mockApi.post.mockReturnValue(response);
+          const recorded = vi.spyOn(TestBed.inject(UserActivityJournal), 'record');
+          const notice = vi.spyOn(component.snackBar, 'open');
+          const pending = action === 'reviewPhoto' ? component.reviewPhoto('kept') : component.toggleRejected(initial.path);
+          if (invalidation === 'owner') mockAuth.status.set({ user_id: 'bob' });
+          else Object.assign(mockAuth, { token: 'new-token' });
+          if (outcome === 'success') response.next({ is_rejected: true, is_favorite: null, star_rating: null });
+          else response.error(new Error('old review failed'));
+          await pending;
+          expect(component.store.photos()[0]).toMatchObject({ is_kept: false, is_rejected: false });
+          expect(recorded).not.toHaveBeenCalled(); expect(notice).not.toHaveBeenCalled();
+          expect(mockRouter.navigate).not.toHaveBeenCalled();
+        });
+      }
+      it(`does not advance ${action} after credentials change during the gallery refresh`, async () => {
+        createComponent(); Object.assign(mockAuth, { token: 'original' });
+        const initial = makePhoto({ path: samplePhoto.path });
+        component.photo.set(initial);
+        component.store.photos.set([initial, makePhoto({ path: '/next.jpg' })]);
+        component.store.filters.update((value: object) => ({ ...value, review_status: 'undecided' }));
+        let finish!: () => void;
+        const refresh = new Promise<void>(resolve => { finish = resolve; });
+        const refreshing = vi.spyOn(component.store, 'refreshReviewResults').mockReturnValue(refresh);
+        mockApi.post.mockReturnValue(of({ is_rejected: true, is_favorite: null, star_rating: null }));
+        const pending = action === 'reviewPhoto' ? component.reviewPhoto('kept') : component.toggleRejected(initial.path);
+        await vi.waitFor(() => expect(refreshing).toHaveBeenCalled());
+        Object.assign(mockAuth, { token: 'rotated' }); finish(); await pending;
+        expect(mockRouter.navigate).not.toHaveBeenCalled();
+        expect(component.photo().path).toBe(initial.path);
+      });
+      it.each(['success', 'error'])(`settles ${action} %s after destruction without touching the closed view`, async outcome => {
+        createComponent();
+        const initial = makePhoto({ path: samplePhoto.path, is_kept: false, is_rejected: false });
+        component.photo.set(initial); component.store.photos.set([initial]);
+        const response = new Subject<unknown>(); mockApi.post.mockReturnValue(response);
+        const notice = vi.spyOn(component.snackBar, 'open');
+        const pending = action === 'reviewPhoto' ? component.reviewPhoto('kept') : component.toggleRejected(initial.path);
+        component.destroyRef = { destroyed: true };
+        if (outcome === 'success') response.next({ is_rejected: true, is_favorite: null, star_rating: null });
+        else response.error(new Error('closed view failed'));
+        await pending;
+        expect(component.photo()).toBe(initial);
+        expect(notice).not.toHaveBeenCalled(); expect(mockRouter.navigate).not.toHaveBeenCalled();
+        expect(component.store.photos()[0]).toMatchObject(outcome === 'error'
+          ? { is_kept: false, is_rejected: false }
+          : action === 'reviewPhoto' ? { is_kept: true, is_rejected: false } : { is_kept: false, is_rejected: true });
+      });
+    }
+
     for (const action of ['setRating', 'toggleFavorite'] as const) {
       for (const invalidation of ['owner', 'token'] as const) {
         it.each(['success', 'error'])(`discards ${action} %s after ${invalidation} changes`, async outcome => {
