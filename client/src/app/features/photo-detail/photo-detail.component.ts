@@ -331,7 +331,7 @@ const SOCIAL_SOURCE_KEYS: Record<string, string> = {
             [transform]="zoom.transform()"
             [revision]="objectsRevision()" />
         </div>
-          <div class="shrink-0 border-t border-[var(--facet-image-rule)] bg-[var(--facet-image-chrome)] px-3 py-1 text-[var(--facet-image-ink)] cursor-auto" role="presentation" (pointerdown)="$event.stopPropagation()" (dblclick)="$event.stopPropagation()">
+          <div class="shrink-0 border-t border-[var(--facet-image-rule)] bg-[var(--facet-image-chrome)] px-4 py-1 text-[var(--facet-image-ink)] cursor-auto" role="presentation" (pointerdown)="$event.stopPropagation()" (dblclick)="$event.stopPropagation()">
             <app-rendition-readout [state]="displayedRendition()" [pending]="sourceRendition().phase === 'loading'" [attemptFailed]="sourceRendition().phase === 'failed'" [failureLabel]="I18N.photo_detail.rendition.source_failed" (retry)="retryFullImage()" />
           </div>
         </div>

@@ -269,8 +269,8 @@ const SET_KIND_TOGGLE: Record<string, keyof HiddenFilterFlags> = {
                       (click)="store.updateFilter('tooltip_mode', 'off')"><mat-icon>close</mat-icon></button>
             </header>
             @if (hasActivePhoto()) {
-              <button mat-button class="!min-w-0 shrink-0 self-start mx-2 mt-2" (click)="releasePanel()">
-                <mat-icon>arrow_back</mat-icon> {{ I18N.gallery.tooltip_mode.panel_deselect | translate }}
+              <button mat-button class="!min-w-0 !px-0 shrink-0 self-start mx-4 mt-2" (click)="releasePanel()">
+                <mat-icon class="!ml-0">arrow_back</mat-icon> {{ I18N.gallery.tooltip_mode.panel_deselect | translate }}
               </button>
             }
             <div class="min-h-0 flex-1 overflow-y-auto">
@@ -291,8 +291,8 @@ const SET_KIND_TOGGLE: Record<string, keyof HiddenFilterFlags> = {
                    buries in its hover bar, always visible here — and the rail's
                    dead space below the metrics gets a job. Gated on the same
                    show_critique flag as the card's and detail's entries. -->
-              <button mat-button class="!min-w-0 shrink-0 self-start mx-2 mb-2" (click)="openRailCritique()">
-                <mat-icon class="!text-base !w-4 !h-4 !leading-4">analytics</mat-icon>
+              <button mat-button class="!min-w-0 !px-0 shrink-0 self-start mx-4 mb-2" (click)="openRailCritique()">
+                <mat-icon class="!ml-0 !text-base !w-4 !h-4 !leading-4">analytics</mat-icon>
                 {{ I18N.critique.title | translate }}
               </button>
             }
@@ -324,9 +324,6 @@ const SET_KIND_TOGGLE: Record<string, keyof HiddenFilterFlags> = {
             }
           </p>
           </div>
-          <div data-collection-query role="search" [attr.aria-label]="I18N.gallery.search_placeholder | translate" class="order-3 flex w-full min-w-0 flex-wrap items-center gap-1 @min-[1100px]:order-none @min-[1100px]:w-auto @min-[1100px]:min-w-56 @min-[1100px]:flex-1" [class.!hidden]="!isDesktop() && !mobileSearchOpen() && !store.filters().search">
-            <ng-container [ngTemplateOutlet]="galleryToolbar" />
-          </div>
           <div class="flex shrink-0 items-center gap-0.5">
             @if (!pinned()) {
               <button #mobileSearchToggle mat-icon-button class="md:!hidden !min-h-11 !min-w-11" [attr.aria-label]="I18N.ui.filters.search | translate" [attr.aria-expanded]="mobileSearchOpen() || !!store.filters().search" (click)="focusCollectionSearch()"><mat-icon>search</mat-icon></button>
@@ -336,7 +333,10 @@ const SET_KIND_TOGGLE: Record<string, keyof HiddenFilterFlags> = {
               {{ (selectingPhotos() ? I18N.ui.buttons.cancel : I18N.gallery.selection.select) | translate }}
             </button>
           </div>
-          <div data-collection-actions class="order-4 flex w-full flex-wrap items-center gap-1 border-t border-[var(--mat-sys-outline-variant)] pt-2 @min-[600px]:order-none @min-[600px]:w-auto @min-[600px]:border-0 @min-[600px]:pt-0">
+          <div data-collection-query role="search" [attr.aria-label]="I18N.gallery.search_placeholder | translate" class="flex w-full min-w-0 flex-wrap items-center gap-1 @min-[600px]:w-auto @min-[600px]:min-w-56 @min-[600px]:flex-1" [class.!hidden]="!isDesktop() && !mobileSearchOpen() && !store.filters().search">
+            <ng-container [ngTemplateOutlet]="galleryToolbar" />
+          </div>
+          <div data-collection-actions class="flex w-full flex-wrap items-center gap-1 border-t border-[var(--mat-sys-outline-variant)] pt-2 @min-[600px]:ml-auto @min-[600px]:w-auto @min-[600px]:border-0 @min-[600px]:pt-0">
             <ng-container [ngTemplateOutlet]="collectionViewControls.primaryControls()" />
             <ng-container [ngTemplateOutlet]="galleryLayoutButtons" />
             <ng-container [ngTemplateOutlet]="collectionViewControls.filterControls()" />

@@ -74,6 +74,7 @@ export class CategoryLabelPipe implements PipeTransform {
         [style.position]="docked() ? 'static' : null"
         [style.pointer-events]="showInteractiveControls() ? 'auto' : null"
         [style.width]="docked() ? '100%' : null"
+        [style.padding]="docked() ? '16px' : null"
         [style.background]="docked() ? 'transparent' : 'var(--facet-tooltip-bg)'"
         [style.border]="docked() ? 'none' : '1px solid var(--facet-tooltip-border)'"
         [style.border-radius]="docked() ? '0' : null"

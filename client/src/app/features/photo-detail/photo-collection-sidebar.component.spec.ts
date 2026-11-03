@@ -55,9 +55,18 @@ describe('PhotoCollectionSidebarComponent', () => {
   it('cancels pointer resizing and ignores a second pointer', () => {
     const { fixture, root, divider } = render();
     const pointer = (type: string, x: number, id = 1) => { divider().dispatchEvent(new PointerEvent(type, { clientX: x, pointerId: id, isPrimary: true, bubbles: true })); fixture.detectChanges(); };
+    flush();
     pointer('pointerdown', 100); pointer('pointermove', 200, 2); expect(root.style.width).toBe('192px');
-    pointer('pointermove', 200); expect(root.style.width).toBe('292px');
+    pointer('pointermove', 200); flush(); fixture.detectChanges(); expect(root.style.width).toBe('292px');
     pointer('pointercancel', 200); expect(root.style.width).toBe('192px');
+  });
+  it('commits the latest pending pointer width on release', () => {
+    const { fixture, root, divider } = render();
+    const pointer = (type: string, x: number) => { divider().dispatchEvent(new PointerEvent(type, { clientX: x, pointerId: 1, isPrimary: true, bubbles: true })); fixture.detectChanges(); };
+    flush(); pointer('pointerdown', 100); pointer('pointermove', 150); pointer('pointermove', 170);
+    expect(root.style.width).toBe('192px');
+    pointer('pointerup', 170); expect(root.style.width).toBe('262px');
+    flush(); fixture.detectChanges(); expect(root.style.width).toBe('262px');
   });
   it('scrolls only its own collection viewport to reveal the current photo', () => {
     const { root } = render();

@@ -18,9 +18,11 @@ import { FixedPipe } from '../../pipes/fixed.pipe';
         @if (state().phase === 'ready' && state().width && state().height) { {{ state().width }} × {{ state().height }} }
       </span>
       @if (pending()) { <span>{{ I18N.photo_detail.rendition.pending | translate }}</span> }
-      @if (attemptFailed()) { <span>{{ failureLabel() | translate }}</span> }
       @if (state().phase === 'failed' || attemptFailed()) {
-        <button type="button" data-rendition-retry class="min-h-9 cursor-pointer rounded border border-current/40 px-2 font-medium hover:bg-white/15 focus-visible:outline-2" (click)="retry.emit()">{{ I18N.gallery.load_error.retry | translate }}</button>
+        <span class="inline-flex min-w-0 items-center gap-2">
+          @if (attemptFailed()) { <span>{{ failureLabel() | translate }}</span> }
+          <button type="button" data-rendition-retry class="min-h-9 shrink-0 cursor-pointer rounded border border-current/40 px-2 font-medium hover:bg-white/15 focus-visible:outline-2" (click)="retry.emit()">{{ I18N.gallery.load_error.retry | translate }}</button>
+        </span>
       }
       @if (scale(); as scale) {
         <div class="ml-auto flex shrink-0 items-center gap-1">

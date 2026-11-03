@@ -68,6 +68,8 @@ export class PhotoCollectionSidebarComponent {
   private readonly scroller = viewChild<ElementRef<HTMLElement>>('scroller');
   private drag: { id: number; x: number; width: number; target: HTMLElement } | null = null;
   private frame: number | null = null;
+  private resizeFrame: number | null = null;
+  private pendingWidth: number | null = null;
 
   constructor() {
     // Reflow and hidden-to-visible transitions must keep the same photo in view too.
@@ -114,7 +116,12 @@ export class PhotoCollectionSidebarComponent {
   protected move(event: PointerEvent): void {
     if (this.drag?.id !== event.pointerId) return;
     event.preventDefault(); event.stopPropagation();
-    this.setWidth(this.drag.width + event.clientX - this.drag.x);
+    this.pendingWidth = this.drag.width + event.clientX - this.drag.x;
+    if (this.resizeFrame === null) this.resizeFrame = requestAnimationFrame(() => {
+      this.resizeFrame = null;
+      if (this.pendingWidth !== null) this.setWidth(this.pendingWidth);
+      this.pendingWidth = null;
+    });
   }
   protected finish(event: PointerEvent, cancel = false): void {
     if (this.drag?.id === event.pointerId) this.finishPointer(cancel);
@@ -123,6 +130,10 @@ export class PhotoCollectionSidebarComponent {
     const drag = this.drag;
     this.drag = null;
     if (!drag) return;
+    if (this.resizeFrame !== null) cancelAnimationFrame(this.resizeFrame);
+    this.resizeFrame = null;
+    if (!cancel && this.pendingWidth !== null) this.setWidth(this.pendingWidth);
+    this.pendingWidth = null;
     if (cancel) this.width.set(drag.width);
     try { drag.target.releasePointerCapture(drag.id); } catch { /* Already released. */ }
   }
