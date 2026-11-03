@@ -1221,5 +1221,18 @@ describe('App', () => {
       const items = openUserMenu(fixture, root);
       expect(items.at(-1)!.textContent).toContain(I18N.auth.logout);
     });
+
+    it.each([[true, 'grid', false], [false, 'grid', true], [true, 'mosaic', true]] as const)(
+      'offers Tile presentation disabled unless details are hidden in grid (hide_details %s, %s)', (hideDetails, mode, disabled) => {
+        const { fixture, root } = render(false);
+        const store = TestBed.inject(GalleryStore) as unknown as {
+          filters: ReturnType<typeof signal<GalleryFilters>>; galleryMode: ReturnType<typeof signal<string>>;
+        };
+        store.filters.set({ ...DEFAULT_FILTERS, hide_details: hideDetails });
+        store.galleryMode.set(mode);
+        const entry = openUserMenu(fixture, root).find(i => i.textContent?.includes(I18N.gallery.tile_fit.label))!;
+        expect(entry.disabled).toBe(disabled);
+      },
+    );
   });
 });

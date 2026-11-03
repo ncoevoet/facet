@@ -12,6 +12,9 @@ export interface GalleryRow {
   /** Per-photo pixel widths (justified for mosaic, equal cells for grid). */
   widths: number[];
   height: number;
+  /** Per-photo card heights, set only when a card does not take the row height
+   *  (the natural tile fit, where each card hugs its own photo). */
+  heights?: number[];
   /** Y offset of the row's top relative to the rows container. */
   offset: number;
   /** Index of the row's first photo within the full photo list. */
@@ -75,8 +78,8 @@ export function gridColumnCount(width: number, cardMinW: number, gap: number, is
  *
  * With hideDetails (the default) cards are aspect-square, so heights are
  * exact. With the natural tile fit the row instead keeps the tallest original
- * ratio — still exact, and cards hug their own photo rather than the row
- * height. With details shown, the height is an estimate refined by the
+ * ratio — still exact, and each card's own height is returned in `heights`
+ * so it hugs its photo rather than the row height. With details shown, the height is an estimate refined by the
  * tallest image in the row plus DETAILS_ESTIMATE_PX.
  */
 export function buildGridRows(
@@ -107,7 +110,10 @@ export function buildGridRows(
       height = Math.round(maxImgH) + (hideDetails ? 0 : DETAILS_ESTIMATE_PX);
     }
     const widths = rowPhotos.map(() => Math.floor(cellW));
-    rows.push({ photos: rowPhotos, widths, height, offset, startIndex: start });
+    const heights = hideDetails && tileFit === 'natural'
+      ? rowPhotos.map((p, i) => Math.round(widths[i] / aspectOf(p)))
+      : undefined;
+    rows.push({ photos: rowPhotos, widths, ...(heights && { heights }), height, offset, startIndex: start });
     offset += height + gap;
   }
   return rows;

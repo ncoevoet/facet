@@ -340,7 +340,7 @@
             <mat-icon>palette</mat-icon>
             {{ I18N.ui.theme | translate }}
           </button>
-          <button mat-menu-item [matMenuTriggerFor]="tileFitMenu" [disabled]="store.galleryMode() === 'mosaic'">
+          <button mat-menu-item [matMenuTriggerFor]="tileFitMenu" [disabled]="store.galleryMode() === 'mosaic' || !store.filters().hide_details">
             <mat-icon>crop_square</mat-icon>
             {{ I18N.gallery.tile_fit.label | translate }}
           </button>

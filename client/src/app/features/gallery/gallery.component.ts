@@ -372,7 +372,7 @@ const SET_KIND_TOGGLE: Record<string, keyof HiddenFilterFlags> = {
                     [photo]="photo"
                     [attr.data-pidx]="row.startIndex + i"
                     [style.width.px]="row.widths[i]"
-                    [style.height.px]="naturalGridFit() ? naturalCardHeight(photo, row.widths[i]) : row.height"
+                    [style.height.px]="row.heights?.[i] ?? row.height"
                     class="shrink-0"
                     [fillTile]="!naturalGridFit()"
                     [hideDetails]="rowCardHideDetails()"
@@ -424,7 +424,7 @@ const SET_KIND_TOGGLE: Record<string, keyof HiddenFilterFlags> = {
               tabindex="0"
               [attr.aria-label]="I18N.gallery.photo_grid | translate"
               class="grid grid-cols-1 gap-2 p-2 md:p-4 outline-none"
-              [class.items-start]="store.filters().tile_fit === 'natural'"
+              [class.items-start]="naturalGridFit()"
               [style.grid-template-columns]="galleryColsStyle()"
               (keydown)="onGridKeydown($event)"
               (focusout)="onGridFocusOut($event)"
@@ -1561,19 +1561,15 @@ export class GalleryComponent implements OnInit, OnDestroy {
   );
 
   /**
-   * The natural tile fit as the row branch renders it: grid mode only, since
-   * mosaic justifies every row to one height by construction and ignores the
-   * preference (its menu entry is disabled while mosaic is active).
+   * The natural tile fit as the grid renders it: grid mode with details hidden
+   * only. Mosaic justifies every row to one height by construction, and cards
+   * with details keep their equal-height rows, so both ignore the preference
+   * (its menu entry is disabled in either case).
    */
   protected readonly naturalGridFit = computed(
-    () => this.effectiveGalleryMode() === 'grid' && this.store.filters().tile_fit === 'natural',
+    () => this.effectiveGalleryMode() === 'grid' && this.effectiveHideDetails()
+      && this.store.filters().tile_fit === 'natural',
   );
-
-  /** Height a natural-fit card takes in its row: its own ratio at the cell
-   *  width, so the card hugs the photo instead of the row's tallest one. */
-  protected naturalCardHeight(photo: Photo, cellWidth: number): number {
-    return Math.round(cellWidth / aspectOf(photo));
-  }
 
   /** Unified row model for the active mode. */
   readonly rowsModel = computed<GalleryRow[]>(() => {
