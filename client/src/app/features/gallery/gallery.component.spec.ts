@@ -6891,7 +6891,10 @@ describe('GalleryComponent', () => {
     });
 
     describe('/, B and V', () => {
-      const stubWide = (matches: boolean) => vi.stubGlobal('matchMedia', (media: string) => ({ matches, media, addEventListener() {}, removeEventListener() {} }));
+      const stubWide = (matches: boolean) => {
+        Object.defineProperty(gallery, 'isDesktop', { value: signal(matches), configurable: true });
+        fixture.detectChanges();
+      };
       afterEach(() => {
         vi.unstubAllGlobals();
         TestBed.inject(KeyboardMappingService).resetAll();
@@ -6907,6 +6910,7 @@ describe('GalleryComponent', () => {
         expect(document.activeElement).toBe(search);
         expect(search.selectionStart).toBe(0);
         expect(search.selectionEnd).toBe(3);
+        expect((gallery as unknown as { mobileSearchOpen: () => boolean }).mobileSearchOpen()).toBe(false);
       });
 
       it('/ focuses the collection search on narrow screens without opening another panel', () => {
@@ -6914,6 +6918,7 @@ describe('GalleryComponent', () => {
         expect(key({ key: '/' }).defaultPrevented).toBe(true);
         fixture.detectChanges(); TestBed.tick();
         expect(document.activeElement).toBe(search);
+        expect((gallery as unknown as { mobileSearchOpen: () => boolean }).mobileSearchOpen()).toBe(true);
         expect(mockStore.setFilterDrawerOpen).not.toHaveBeenCalled();
       });
 

@@ -58,11 +58,18 @@ describe('tab-local gallery visit positions', () => {
   });
   it('bounds retained visits and does not fabricate a position for an evicted entry', () => {
     for (let id = 1; id <= 40; id++) { entry = id; service.remember(position(id)); }
-    expect(restore(1, 41)).toBeNull();
+    expect(restore(8, 41)).toBeNull();
+    expect(restore(9, 43)?.scroll).toBe(9);
     expect(restore(40, 42)?.scroll).toBe(40);
   });
   it('ignores entries without a Router history identity', () => {
-    entry = undefined; service.remember(position(260));
-    expect(restore(10, 11)).toBeNull();
+    entry = Number.NaN; service.remember(position(260));
+    expect(restore(Number.NaN, 11)).toBeNull();
+  });
+  it('purges the previous account synchronously before recording a new account', () => {
+    service.remember(position(260));
+    owner.set('bob'); entry = 11; service.remember({ ...position(50), owner: 'bob' });
+    owner.set('alice');
+    expect(restore(10, 12)).toBeNull();
   });
 });

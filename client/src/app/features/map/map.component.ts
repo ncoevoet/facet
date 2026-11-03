@@ -57,7 +57,7 @@ interface MapResponse {
         </summary>
         <div class="flex flex-col gap-2 border-t border-[var(--mat-sys-outline-variant)] p-3">
           <app-date-range-filter [compact]="true" [from]="mapFilters.dateFrom()" [to]="mapFilters.dateTo()"
-            fromLabel="map.date_from" toLabel="map.date_to"
+            fromLabel="map.date_from" toLabel="map.date_to" fromClass="w-36"
             (fromChange)="mapFilters.dateFrom.set($event)" (toChange)="mapFilters.dateTo.set($event)" />
         </div>
       </details>

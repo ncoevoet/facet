@@ -27,6 +27,7 @@ import { makePhoto } from '../../../../testing/photo.fixture';
                              [currentSort]="currentSort()"
                              (selectionChange)="selected.push($event.photo.path)"
                              (favoriteToggled)="favorites.push($event)"
+                             (starClicked)="stars.push($event.star)"
                              (doubleClicked)="opened.push($event.path)" />`,
 })
 class TestHostComponent {
@@ -41,6 +42,7 @@ class TestHostComponent {
   selected: string[] = [];
   opened: string[] = [];
   favorites: string[] = [];
+  stars: number[] = [];
 }
 
 describe('PhotoCardComponent', () => {
@@ -96,6 +98,19 @@ describe('PhotoCardComponent', () => {
     expect(favorite).toBeDefined(); favorite.click();
     expect(fixture.componentInstance.favorites).toEqual(['/row.jpg']);
     expect(fixture.componentInstance.selected).toEqual([]); expect(fixture.componentInstance.opened).toEqual([]);
+  });
+
+  it('opens the lazily rendered rating submenu for a list row', async () => {
+    fixture.componentInstance.listMode.set(true); fixture.componentInstance.isEditionMode.set(true);
+    fixture.componentInstance.config.set({ features: { show_rating_controls: true } }); fixture.detectChanges();
+    (fixture.nativeElement.querySelector('button[aria-label="gallery.metadata.photo_actions"]') as HTMLButtonElement).click();
+    await fixture.whenStable(); fixture.detectChanges();
+    const overlay = TestBed.inject(OverlayContainer).getContainerElement();
+    const rating = [...overlay.querySelectorAll<HTMLButtonElement>('button')].find(button => button.textContent?.includes('rating.set_rating'))!;
+    rating.click(); await fixture.whenStable(); fixture.detectChanges();
+    const stars = [...overlay.querySelectorAll<HTMLButtonElement>('[role="menuitemradio"]')];
+    expect(stars).toHaveLength(6); stars[3].click();
+    expect(fixture.componentInstance.stars).toEqual([3]);
   });
 
   it('uses the album capability for a rendered shared card without changing ordinary card URLs', () => {

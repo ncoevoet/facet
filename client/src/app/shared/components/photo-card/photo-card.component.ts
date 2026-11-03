@@ -192,6 +192,7 @@ const DEFAULT_CLIPPING_BADGE_PERCENT = 5;
             <button mat-icon-button class="shrink-0 !h-11 !w-11" [matMenuTriggerFor]="listMenu" [attr.aria-label]="I18N.gallery.metadata.photo_actions | translate"><mat-icon>more_horiz</mat-icon></button>
           </div>
           <mat-menu #listMenu="matMenu">
+            <ng-template matMenuContent>
             <button mat-menu-item (click)="openDetailClicked.emit(photo())"><mat-icon>open_in_full</mat-icon>{{ I18N.photoCard.open_detail | translate }}</button>
             @if (isEditionMode()) {
               <button mat-menu-item (click)="favoriteToggled.emit(photo().path)"><mat-icon>favorite</mat-icon>{{ (photo().is_favorite ? I18N.rating.remove_favorite : I18N.rating.add_favorite) | translate }}</button>
@@ -207,18 +208,23 @@ const DEFAULT_CLIPPING_BADGE_PERCENT = 5;
                 <button mat-menu-item (click)="dispatchAction(id)"><mat-icon>{{ CARD_ACTION_META[id].icon }}</mat-icon>{{ CARD_ACTION_META[id].labelKey | translate }}</button>
               }
             }
+            </ng-template>
           </mat-menu>
           <mat-menu #listRatingMenu="matMenu">
+            <ng-template matMenuContent>
             @for (star of listRatings; track star) {
               <button mat-menu-item role="menuitemradio" [attr.aria-checked]="(photo().star_rating ?? 0) === star" (click)="starClicked.emit({ photo: photo(), star })">
                 @if (star) { {{ I18N.rating.stars_out_of_five | translate: { stars: star } }} } @else { {{ I18N.gallery.rating_preview.clear | translate }} }
               </button>
             }
+            </ng-template>
           </mat-menu>
           <mat-menu #listSimilarMenu="matMenu">
+            <ng-template matMenuContent>
             <button mat-menu-item (click)="openSimilarClicked.emit({photo: photo(), mode: 'visual'})">{{ 'similar.mode_visual' | translate }}</button>
             <button mat-menu-item (click)="openSimilarClicked.emit({photo: photo(), mode: 'color'})">{{ 'similar.mode_color' | translate }}</button>
             <button mat-menu-item (click)="openSimilarClicked.emit({photo: photo(), mode: 'person'})">{{ 'similar.mode_person' | translate }}</button>
+            </ng-template>
           </mat-menu>
         </div>
       } @else {

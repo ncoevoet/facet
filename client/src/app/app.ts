@@ -35,7 +35,6 @@ import { TimelineFiltersService } from './features/timeline/timeline-filters.ser
 import { AlbumsFiltersService } from './features/albums/albums-filters.service';
 import { PersonsFiltersService } from './features/persons/persons-filters.service';
 import { CompareFiltersService } from './features/comparison/compare-filters.service';
-import { MapFiltersService } from './features/map/map-filters.service';
 import { CapsuleFiltersService } from './features/capsules/capsule-filters.service';
 import { TranslatePipe } from './shared/pipes/translate.pipe';
 import { CardActionsDialogComponent } from './features/gallery/card-actions-dialog.component';
@@ -215,7 +214,6 @@ export class App implements OnInit {
   protected readonly albumsFilters = inject(AlbumsFiltersService);
   protected readonly personsFilters = inject(PersonsFiltersService);
   protected readonly compareFilters = inject(CompareFiltersService);
-  protected readonly mapFilters = inject(MapFiltersService);
   protected readonly capsuleFilters = inject(CapsuleFiltersService);
   protected readonly navigationDestinations = computed(() => {
     const features = this.store.config()?.features;
@@ -310,8 +308,6 @@ export class App implements OnInit {
     () => anyHideToggleActive(this.store.viewFilterParams()),
   );
 
-  /** An assistant-pinned list is on screen: the filter bar is hidden so no filter edit can drop it. */
-  protected readonly pinned = computed(() => this.store.pinnedPaths() !== null);
   protected readonly mobilePersonsBarVisible = computed(() => this.isPersonsRoute() && !this.personsFilters.selectedIds().size);
 
 
