@@ -19,9 +19,21 @@ export interface DisplayedRendition {
 
 export const FIT_ZOOM: ZoomState = { scale: 1, tx: 0, ty: 0 };
 
-/** Largest side-by-side grid the panes stay readable in. Lives here rather than
- *  in the compare dialog so a caller can enforce the bound without eagerly
- *  importing that lazily-loaded dialog. */
+/** Apply one relative gesture to the linked set, preserving independently framed crops.
+ * Stop at the first pane's scale limit; frames outside this set retain their state. */
+export function linkedZoomFrames(frames: ReadonlyMap<string, ZoomState>, paths: readonly string[],
+  sourcePath: string, state: ZoomState): Map<string, ZoomState> {
+  const source = frames.get(sourcePath) ?? FIT_ZOOM;
+  const members = paths.map(path => ({ path, frame: frames.get(path) ?? FIT_ZOOM }));
+  const minimum = Math.max(...members.map(({ frame }) => SyncedZoomComponent.MIN_SCALE / frame.scale));
+  const maximum = Math.min(...members.map(({ frame }) => SyncedZoomComponent.MAX_SCALE / frame.scale));
+  const ratio = Math.max(minimum, Math.min(maximum, state.scale / source.scale));
+  return new Map([...frames, ...members.map<[string, ZoomState]>(({ path, frame }) => [path, {
+    scale: frame.scale * ratio,
+    tx: frame.tx * ratio + state.tx - source.tx * ratio,
+    ty: frame.ty * ratio + state.ty - source.ty * ratio,
+  }])]);
+}
 
 /** How long a frame must stay current before its sharp render is requested, so
  *  a held arrow key does not queue one render per frame it passes. */

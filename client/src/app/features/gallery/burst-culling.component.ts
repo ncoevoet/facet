@@ -39,7 +39,7 @@ import { CULL_DATE_PRESETS, presetRange, type CullDatePresetId } from './culling
 import { isBracketLadderRejection } from '../../shared/utils/sequence-ladder';
 import { createLoupeState } from '../../shared/utils/loupe-state';
 import { useCoarsePointerSignal } from '../../shared/utils/media-query';
-import { SyncedZoomComponent, ZoomState, FIT_ZOOM } from './synced-zoom.component';
+import { SyncedZoomComponent, ZoomState, FIT_ZOOM, linkedZoomFrames } from './synced-zoom.component';
 import { RenditionReadoutComponent } from '../../shared/components/rendition-readout/rendition-readout.component';
 import { CompareFiltersService } from '../comparison/compare-filters.service';
 import { PanoramaSettingsService } from '../comparison/panorama-settings.service';
@@ -1874,15 +1874,7 @@ export class BurstCullingComponent implements OnDestroy {
     if (!this.darkroomLinked()) {
       this.paneFrames.set(new Map(frames).set(path, { ...state }));
     } else {
-      const source = frames.get(path) ?? FIT_ZOOM;
-      const members = this.darkroomFramePaths().map(path => ({ path, frame: frames.get(path) ?? FIT_ZOOM }));
-      const minimum = Math.max(...members.map(({ frame }) => 1 / frame.scale));
-      const maximum = Math.min(...members.map(({ frame }) => 8 / frame.scale));
-      const ratio = Math.max(minimum, Math.min(maximum, state.scale / source.scale));
-      this.paneFrames.set(new Map([...frames, ...members.map<[string, ZoomState]>(({ path, frame }) => [path, {
-        scale: frame.scale * ratio, tx: frame.tx * ratio + state.tx - source.tx * ratio,
-        ty: frame.ty * ratio + state.ty - source.ty * ratio,
-      }])]));
+      this.paneFrames.set(linkedZoomFrames(frames, this.darkroomFramePaths(), path, state));
     }
   }
 

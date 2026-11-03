@@ -10,7 +10,7 @@ import { MatTooltipModule } from '@angular/material/tooltip';
 import { i18nKeys } from '../../core/i18n/keys';
 import { ThumbnailUrlPipe, ImageUrlPipe, STORED_THUMBNAIL_EDGE, RENDERED_THUMBNAIL_EDGE } from '../../shared/pipes/thumbnail-url.pipe';
 import { TranslatePipe } from '../../shared/pipes/translate.pipe';
-import { SyncedZoomComponent, ZoomState, DisplayedRendition, FIT_ZOOM } from './synced-zoom.component';
+import { SyncedZoomComponent, ZoomState, DisplayedRendition, FIT_ZOOM, linkedZoomFrames } from './synced-zoom.component';
 import { MAX_COMPARE_PANES, assignComparisonSlot } from './comparison-slots.util';
 import { ApiService } from '../../core/services/api.service';
 import { AuthService } from '../../core/services/auth.service';
@@ -190,10 +190,10 @@ const RENDERED_EDGE = RENDERED_THUMBNAIL_EDGE;
             <button type="button" data-compare-target="reference" class="min-h-11 rounded border border-[var(--mat-sys-outline-variant)] px-2" [class.bg-[var(--mat-sys-secondary-container)]]="assignmentTarget() === 'reference'" [attr.aria-pressed]="assignmentTarget() === 'reference'" (click)="assignmentTarget.set('reference')">{{ I18N.gallery.compare.reference | translate }}</button>
             <button type="button" data-compare-target="candidate" class="min-h-11 rounded border border-[var(--mat-sys-outline-variant)] px-2" [class.bg-[var(--mat-sys-secondary-container)]]="assignmentTarget() === 'candidate'" [attr.aria-pressed]="assignmentTarget() === 'candidate'" (click)="assignmentTarget.set('candidate')">{{ I18N.gallery.compare.candidate | translate }}</button>
             @if (!twoUp() && panes().length >= 2 && queue().length > 2) {
-              <button type="button" data-compare-target="third" class="min-h-11 rounded border border-[var(--mat-sys-outline-variant)] px-2" [attr.aria-pressed]="assignmentTarget() === 'third'" (click)="assignmentTarget.set('third')">{{ I18N.gallery.compare.pane_c | translate }}</button>
+              <button type="button" data-compare-target="third" class="min-h-11 rounded border border-[var(--mat-sys-outline-variant)] px-2" [class.bg-[var(--mat-sys-secondary-container)]]="assignmentTarget() === 'third'" [attr.aria-pressed]="assignmentTarget() === 'third'" (click)="assignmentTarget.set('third')">{{ I18N.gallery.compare.pane_c | translate }}</button>
             }
             @if (!twoUp() && panes().length >= 3 && queue().length > 3) {
-              <button type="button" data-compare-target="fourth" class="min-h-11 rounded border border-[var(--mat-sys-outline-variant)] px-2" [attr.aria-pressed]="assignmentTarget() === 'fourth'" (click)="assignmentTarget.set('fourth')">{{ I18N.gallery.compare.pane_d | translate }}</button>
+              <button type="button" data-compare-target="fourth" class="min-h-11 rounded border border-[var(--mat-sys-outline-variant)] px-2" [class.bg-[var(--mat-sys-secondary-container)]]="assignmentTarget() === 'fourth'" [attr.aria-pressed]="assignmentTarget() === 'fourth'" (click)="assignmentTarget.set('fourth')">{{ I18N.gallery.compare.pane_d | translate }}</button>
             }
           </div>
           @if (removedPaths().size) {
@@ -530,20 +530,7 @@ export class ComparisonWorkspaceComponent {
       this.paneZoom.set(new Map(frames).set(path, { ...state }));
       return;
     }
-    const source = frames.get(path) ?? FIT_ZOOM;
-    const members = this.panes().map(photo => ({ path: photo.path, frame: frames.get(photo.path) ?? FIT_ZOOM }));
-    // Compose the same affine gesture over every crop: scale existing offsets,
-    // then add the source gesture's residual pan. Corresponding manually aligned
-    // points therefore move together, even when panes started at different scales.
-    // Stop the whole group at the first scale limit, preserving relative scales.
-    const minimum = Math.max(...members.map(({ frame }) => SyncedZoomComponent.MIN_SCALE / frame.scale));
-    const maximum = Math.min(...members.map(({ frame }) => SyncedZoomComponent.MAX_SCALE / frame.scale));
-    const ratio = Math.max(minimum, Math.min(maximum, state.scale / source.scale));
-    this.paneZoom.set(new Map([...frames, ...members.map<[string, ZoomState]>(({ path: memberPath, frame }) => [memberPath, {
-      scale: frame.scale * ratio,
-      tx: frame.tx * ratio + state.tx - source.tx * ratio,
-      ty: frame.ty * ratio + state.ty - source.ty * ratio,
-    }])]));
+    this.paneZoom.set(linkedZoomFrames(frames, this.panes().map(photo => photo.path), path, state));
   }
 
   protected toggleLinked(): void {
