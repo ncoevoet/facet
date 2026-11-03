@@ -4,6 +4,7 @@ Facet scoring engine.
 Facet class and supporting functions extracted from facet.py.
 """
 from typing import Any
+import array
 import os
 import sys
 import time
@@ -1033,6 +1034,30 @@ CPU_DEVICE_LABEL = "CPU"
 # a function of the stored thumbnail's geometry and is checked before decoding;
 # qrealign has no expected skip. None of those belongs here.
 _IQA_DECLINING_MODELS = {'face_quality_iqa': 'topiq_nr_face'}
+
+# Decode threads per IQA pass, and rowids per fetch query (SQLite < 3.32 caps IN (...) at 999 variables).
+_IQA_DECODE_WORKERS = min(4, os.cpu_count() or 1)
+_IQA_FETCH_CHUNK = 500
+
+
+def _decode_iqa_thumbnail(blob, null_cols):
+    """Decode one stored thumbnail for the IQA pass.
+
+    Returns ``(status, pil_image, scorable_columns)``: ``'ok'``, ``'liqe_small'``
+    (LIQE refused from the header; the other columns, if any, are still scorable) or
+    ``'error'`` (corrupt thumbnail). Never raises on a bad image, so a pool worker
+    cannot fail the pass for one; anything else (a bug) is not caught here.
+    """
+    from io import BytesIO
+    from PIL import Image
+    try:
+        img = Image.open(BytesIO(blob))
+        skip_liqe = 'liqe_score' in null_cols and liqe_input_too_small(*img.size)
+        scorable = [c for c in null_cols if not (skip_liqe and c == 'liqe_score')]
+        pil_img = img.convert('RGB') if scorable else None
+    except Exception:
+        return 'error', None, []
+    return ('liqe_small' if skip_liqe else 'ok'), pil_img, scorable
 
 
 def describe_scoring_device(accelerator, vram_gb, ram_gb):
@@ -2647,124 +2672,120 @@ class Facet:
         return scorer
 
     def _run_iqa_pass(self, model_names, batch_size, counters):
-        """Run one IQA pass with the given models loaded simultaneously."""
-        from io import BytesIO
-        from PIL import Image
+        """Run one IQA pass with the given models loaded simultaneously.
+
+        Streams: the pending rowids are listed first (no BLOB), then each batch of
+        ``batch_size`` rowids is fetched, decoded in a small thread pool, scored,
+        written with ``executemany`` and committed, so only one decoded batch is
+        resident at a time. A row no longer pending when its batch is fetched
+        (deleted, scored or declined meanwhile) is dropped, so a batch can be short.
+        """
+        from concurrent.futures import ThreadPoolExecutor as _Pool
 
         col_map = dict(self._IQA_MODELS)  # model_name -> column
         pass_columns = [col_map[m] for m in model_names]
-
-        # Load models for this pass
         scorers = {}
-        for model_name in model_names:
-            column = col_map[model_name]
-            scorers[column] = self._make_iqa_scorer(model_name)
+        try:
+            # Inside the try so a failure loading a later model still unloads the earlier ones.
+            for model_name in model_names:
+                column = col_map[model_name]
+                scorers[column] = self._make_iqa_scorer(model_name)
 
-        where_null = " OR ".join(self._iqa_needs_score_sql(c) for c in pass_columns)
-        # One flag per column: whether THIS photo still needs it. The predicate is the
-        # selector's own (face_count, a prior decline), so the loop below never
-        # re-derives it in Python.
-        need_flags = ", ".join(
-            f"({self._iqa_needs_score_sql(c)}) AS need_{c}" for c in pass_columns)
+            where_null = " OR ".join(self._iqa_needs_score_sql(c) for c in pass_columns)
+            # One flag per column: whether THIS photo still needs it, from the selector's
+            # own predicate (face_count, a prior decline), evaluated again at fetch time.
+            need_flags = ", ".join(
+                f"({self._iqa_needs_score_sql(c)}) AS need_{c}" for c in pass_columns)
 
-        with get_connection(self.db_path) as conn:
-            cursor = conn.execute(
-                f"""SELECT path, thumbnail, {need_flags}
-                    FROM photos
-                    WHERE ({where_null}) AND thumbnail IS NOT NULL"""
-            )
-            rows = list(cursor.fetchall())
+            with get_connection(self.db_path) as conn:
+                rowids = array.array('q', (
+                    r[0] for r in conn.execute(
+                        f"SELECT rowid FROM photos WHERE ({where_null}) "
+                        "AND thumbnail IS NOT NULL ORDER BY rowid").fetchall()))
+                if not rowids:
+                    return
 
-            if not rows:
-                for scorer in scorers.values():
-                    scorer.unload()
-                return
+                label = "+".join(model_names) if len(model_names) > 1 else model_names[0]
+                batch_size = max(1, int(batch_size))
 
-            label = "+".join(model_names) if len(model_names) > 1 else model_names[0]
-            batched_paths = []
-            batched_images = []
-            batched_null_cols = []
-
-            def _flush(conn, batched_paths, batched_images, batched_null_cols):
-                for column, scorer in scorers.items():
-                    indices = [i for i, nulls in enumerate(batched_null_cols) if column in nulls]
-                    if not indices:
-                        continue
-                    batch_imgs = [batched_images[i] for i in indices]
-                    batch_pths = [batched_paths[i] for i in indices]
-                    scores = scorer.score_batch(batch_imgs)
-                    written = 0
-                    for i, score in enumerate(scores):
-                        if score is None:
-                            # The model could not score this photo: leave the column
-                            # NULL (not counted) so the next run selects it again,
-                            # unless it declined on purpose (below).
+                def _write(batch):
+                    paths, images, cols = batch
+                    for column, scorer in scorers.items():
+                        indices = [i for i, nulls in enumerate(cols) if column in nulls]
+                        if not indices:
                             continue
-                        conn.execute(
-                            f"UPDATE photos SET {column} = ? WHERE path = ?",
-                            (round(score, 2), batch_pths[i])
-                        )
-                        written += 1
-                    counters['updated'][column] += written
-                    decline_model = _IQA_DECLINING_MODELS.get(column)
-                    if decline_model is not None:
-                        # Only a column of THIS pass, and only the positions the model
-                        # itself declined: an OOM or any other failure stays unrecorded
-                        # so the next run retries it. SELECT ... WHERE (not VALUES) so
-                        # the fingerprint is computed from the stored row, and so the
-                        # parser does not read ON CONFLICT as part of a join.
-                        for i in scorer.last_declined:
-                            conn.execute(
+                        scores = scorer.score_batch([images[i] for i in indices])
+                        # A None score leaves the column NULL (not counted) so the next
+                        # run selects it again, unless the model declined on purpose.
+                        rows = [(round(s, 2), paths[indices[j]])
+                                for j, s in enumerate(scores) if s is not None]
+                        conn.executemany(f"UPDATE photos SET {column} = ? WHERE path = ?", rows)
+                        counters['updated'][column] += len(rows)
+                        decline_model = _IQA_DECLINING_MODELS.get(column)
+                        if decline_model is not None:
+                            # Only the positions the model itself declined: an OOM or any
+                            # other failure stays unrecorded so the next run retries it.
+                            # SELECT ... WHERE (not VALUES) so the fingerprint is computed
+                            # from the stored row and ON CONFLICT is not read as a join.
+                            declined = [(decline_model, paths[indices[i]]) for i in scorer.last_declined]
+                            conn.executemany(
                                 "INSERT INTO iqa_declined (photo_path, model, scan_fingerprint) "
                                 f"SELECT photos.path, ?, {IQA_SCAN_FINGERPRINT_SQL} "
                                 "FROM photos WHERE photos.path = ? "
                                 "ON CONFLICT(photo_path, model) DO UPDATE SET "
                                 "scan_fingerprint = excluded.scan_fingerprint",
-                                (decline_model, batch_pths[i])
-                            )
-                            counters['declined'] += 1
-                conn.commit()
+                                declined)
+                            counters['declined'] += len(declined)
+                    conn.commit()
 
-            for row in tqdm(rows, desc=f"Scoring {label}"):
-                # Which columns still need scoring for this photo? Decided by the
-                # selector's own predicate, before the thumbnail is decoded, so a
-                # photo with nothing to score costs no decode.
-                null_cols = [col for col in pass_columns if row[f'need_{col}']]
-                if not null_cols:
-                    continue
+                def _process(chunk, pool):
+                    fetched = []
+                    for start in range(0, len(chunk), _IQA_FETCH_CHUNK):
+                        part = chunk[start:start + _IQA_FETCH_CHUNK]
+                        marks = ",".join("?" * len(part))
+                        fetched.extend(conn.execute(
+                            f"SELECT path, thumbnail, {need_flags} FROM photos "
+                            f"WHERE rowid IN ({marks}) AND thumbnail IS NOT NULL ORDER BY rowid",
+                            part).fetchall())
+                    jobs = []
+                    for row in fetched:
+                        null_cols = [c for c in pass_columns if row[f'need_{c}']]
+                        if null_cols:
+                            jobs.append((row['path'], pool.submit(
+                                _decode_iqa_thumbnail, row['thumbnail'], null_cols)))
+                    del fetched
+                    paths, images, cols = [], [], []
+                    for path, future in jobs:
+                        status, pil_img, scorable = future.result()
+                        if status == 'error':
+                            counters['errors'] += 1
+                            continue
+                        if status == 'liqe_small':
+                            counters['liqe_too_small'] += 1
+                        if not scorable:
+                            continue
+                        paths.append(path)
+                        images.append(pil_img)
+                        cols.append(scorable)
+                    del jobs
+                    if images:
+                        _write((paths, images, cols))
 
-                # Decode lazily: Image.open reads the header only, which is enough to
-                # tell that LIQE would refuse this thumbnail. Everything lazy stays
-                # inside the try so a corrupt thumbnail still counts as an error.
+                with _Pool(max_workers=_IQA_DECODE_WORKERS) as pool:
+                    pending = []
+                    for rowid in tqdm(rowids, desc=f"Scoring {label}"):
+                        pending.append(rowid)
+                        if len(pending) >= batch_size:
+                            _process(pending, pool)
+                            pending = []
+                    if pending:
+                        _process(pending, pool)
+        finally:
+            for scorer in scorers.values():
                 try:
-                    img = Image.open(BytesIO(row['thumbnail']))
-                    skip_liqe = 'liqe_score' in null_cols and liqe_input_too_small(*img.size)
-                    scorable = [c for c in null_cols if not (skip_liqe and c == 'liqe_score')]
-                    pil_img = img.convert('RGB') if scorable else None
+                    scorer.unload()
                 except Exception:
-                    counters['errors'] += 1
-                    continue
-                if skip_liqe:
-                    counters['liqe_too_small'] += 1
-                if not scorable:
-                    continue
-                null_cols = scorable
-
-                batched_paths.append(row['path'])
-                batched_images.append(pil_img)
-                batched_null_cols.append(null_cols)
-
-                if len(batched_images) >= batch_size:
-                    _flush(conn, batched_paths, batched_images, batched_null_cols)
-                    batched_paths = []
-                    batched_images = []
-                    batched_null_cols = []
-
-            if batched_images:
-                _flush(conn, batched_paths, batched_images, batched_null_cols)
-
-        for scorer in scorers.values():
-            scorer.unload()
+                    logger.exception("Could not unload an IQA scorer")
 
     def get_exif_data(self, image_path):
         """Extracts camera metadata using ExifTool (fallback to Pillow).
