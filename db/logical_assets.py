@@ -94,13 +94,6 @@ def _authorized(conn, paths, visibility_sql, visibility_params):
         raise AssetConflict('Photo membership is unavailable')
 
 
-def _refresh_planner_statistics(conn):
-    # Group counts can grow far beyond an earlier ANALYZE. Keep the planner's
-    # small logical-table statistics in the same transaction as membership.
-    conn.execute('ANALYZE logical_asset_members')
-    conn.execute('ANALYZE logical_assets')
-
-
 def _members(conn, asset_id, revision, visibility_sql, visibility_params):
     asset = conn.execute('SELECT primary_path,revision FROM logical_assets WHERE id=?', (asset_id,)).fetchone()
     if type(revision) is not int or revision < 1 or asset is None or asset[1] != revision:
@@ -137,7 +130,6 @@ def create(conn, paths, primary_path, *, visibility_sql, visibility_params=()):
         conn.executemany('INSERT INTO logical_asset_members VALUES (?,?,?)',
                          [(asset_id, path, position) for position, path in enumerate(paths)])
         conn.execute('UPDATE logical_assets SET primary_path=? WHERE id=?', (primary_path, asset_id))
-        _refresh_planner_statistics(conn)
         return asset_id
 
 
@@ -156,4 +148,3 @@ def dissolve(conn, asset_id, revision, *, visibility_sql, visibility_params=()):
     with _mutation(conn):
         _members(conn, asset_id, revision, visibility_sql, visibility_params)
         conn.execute('DELETE FROM logical_assets WHERE id=?', (asset_id,))
-        _refresh_planner_statistics(conn)

@@ -2160,7 +2160,7 @@ export class GalleryStore {
   patchPhoto(path: string, partial: Partial<Photo>): void {
     if ('date_taken' in partial || 'is_blink' in partial || 'burst_group_id' in partial
       || 'is_burst_lead' in partial || 'duplicate_group_id' in partial || 'is_duplicate_lead' in partial
-      || 'sequence_kind' in partial || 'sequence_group_id' in partial || 'is_sequence_lead' in partial
+      || 'sequence_kind' in partial || 'sequence_group_id' in partial
       || 'sequence_override' in partial) this.timelineMembershipRevision.update(value => value + 1);
     this.photos.update(photos =>
       photos.map(p => p.path === path ? { ...p, ...partial } : p),

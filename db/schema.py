@@ -1407,10 +1407,8 @@ def init_database(db_path='photo_scores_pro.db', build_photo_indexes=True):
         # Create photos table
         conn.execute(_build_create_table_sql('photos', PHOTOS_COLUMNS))
         from db.logical_assets import init_schema as init_logical_assets
-        from db.logical_assets import _refresh_planner_statistics
         from db.logical_asset_sync import init_receipts as init_logical_asset_receipts
         init_logical_assets(conn)
-        _refresh_planner_statistics(conn)
         init_logical_asset_receipts(conn)
         from db.logical_review import init_schema as init_logical_review
         from db.logical_review_sync import init_receipts as init_logical_review_receipts

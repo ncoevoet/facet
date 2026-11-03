@@ -34,7 +34,7 @@ function sameMembership(left: Photo[], right: Photo[]): boolean {
       && old.preview_revision === photo.preview_revision && old.is_blink === photo.is_blink
       && old.burst_group_id === photo.burst_group_id && old.is_burst_lead === photo.is_burst_lead
       && old.duplicate_group_id === photo.duplicate_group_id && old.is_duplicate_lead === photo.is_duplicate_lead
-      && old.sequence_kind === photo.sequence_kind && old.sequence_group_id === photo.sequence_group_id && old.is_sequence_lead === photo.is_sequence_lead
+      && old.sequence_kind === photo.sequence_kind && old.sequence_group_id === photo.sequence_group_id
       && old.sequence_override === photo.sequence_override
       && old.logical_review?.asset_id === photo.logical_review?.asset_id
       && old.logical_review?.group_revision === photo.logical_review?.group_revision;
