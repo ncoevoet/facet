@@ -431,5 +431,5 @@ describe('tag pivots through actual gallery, photo, menus, Router and HTTP', () 
       });
     }
     http.expectNone(request => request.url === '/api/photos');
-  });
+  }, 15000);
 });

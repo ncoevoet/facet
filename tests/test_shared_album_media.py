@@ -1,6 +1,7 @@
 """Real temporary files prove token-scoped media bytes and live membership refusal."""
 
 import sqlite3
+import os
 from pathlib import Path
 
 import pytest
@@ -14,7 +15,7 @@ def shared_media(tmp_path, seed_photos_prefix, album_factory, monkeypatch):
     from api.config import VIEWER_CONFIG
 
     monkeypatch.setitem(VIEWER_CONFIG, 'password', 'fixture-protected-install')
-    prefix = str(tmp_path) + '/'
+    prefix = str(tmp_path) + os.sep
     path = prefix + 'chosen.jpg'
     other = prefix + 'other.jpg'
     for target in (path, other):

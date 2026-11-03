@@ -21,7 +21,7 @@ from processing.scan_retry import (
 def failed_run(tmp_path):
     db = str(tmp_path / 'scan.db')
     init_database(db)
-    first = tmp_path / 'café "one".jpg'
+    first = tmp_path / ('café one.jpg' if os.name == 'nt' else 'café "one".jpg')
     second = tmp_path / 'two.jpg'
     first.write_bytes(b'first')
     second.write_bytes(b'second')

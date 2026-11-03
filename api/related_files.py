@@ -7,6 +7,7 @@ visibility; filesystem facts are observations, never an apply-time promise.
 
 import ntpath
 import os
+import posixpath
 from pathlib import Path
 import stat
 
@@ -56,7 +57,7 @@ def _catalog_aliases(actual, roots):
     for logical, physical in roots:
         if _inside(actual, physical):
             relative = os.path.relpath(actual, physical)
-            module = ntpath if '\\' in logical else os.path
+            module = ntpath if '\\' in logical else posixpath if '/' in logical else os.path
             aliases.add(module.join(logical, *Path(relative).parts))
     return sorted(aliases)
 

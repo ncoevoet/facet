@@ -374,9 +374,10 @@ def seed_photos_prefix():
     def seed(prefix, rows):
         # Cleanup deletes by prefix: a row outside it would leak into the shared DB
         # (a hard-coded "/" against backslash paths on Windows did exactly that).
+        normalized_prefix = prefix.replace('\\', '/')
         for row in rows:
-            assert row["path"].startswith(prefix), f"{row['path']!r} is outside the seeded prefix {prefix!r}"
-        prefixes.append(prefix)
+            assert row["path"].replace('\\', '/').startswith(normalized_prefix), f"{row['path']!r} is outside the seeded prefix {prefix!r}"
+        prefixes.append(normalized_prefix)
         for row in rows:
             cols = list(row.keys())
             placeholders = ", ".join("?" for _ in cols)
@@ -391,10 +392,10 @@ def seed_photos_prefix():
         yield seed
     finally:
         for prefix in prefixes:
-            conn.execute("DELETE FROM photos WHERE path LIKE ?", (prefix + "%",))
-            conn.execute("DELETE FROM user_preferences WHERE photo_path LIKE ?", (prefix + "%",))
-            conn.execute("DELETE FROM rating_provenance WHERE photo_path LIKE ?", (prefix + "%",))
-            conn.execute("DELETE FROM comparisons WHERE photo_a_path LIKE ? OR photo_b_path LIKE ?",
+            conn.execute("DELETE FROM photos WHERE replace(path, char(92), '/') LIKE ?", (prefix + "%",))
+            conn.execute("DELETE FROM user_preferences WHERE replace(photo_path, char(92), '/') LIKE ?", (prefix + "%",))
+            conn.execute("DELETE FROM rating_provenance WHERE replace(photo_path, char(92), '/') LIKE ?", (prefix + "%",))
+            conn.execute("DELETE FROM comparisons WHERE replace(photo_a_path, char(92), '/') LIKE ? OR replace(photo_b_path, char(92), '/') LIKE ?",
                          (prefix + "%", prefix + "%"))
         conn.commit()
         conn.close()

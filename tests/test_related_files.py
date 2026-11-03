@@ -11,6 +11,19 @@ from db import DEFAULT_DB_PATH
 from tests.conftest import symlink_or_skip
 
 
+def test_catalog_alias_keeps_logical_separator_on_windows(monkeypatch):
+    import ntpath
+    from pathlib import PureWindowsPath
+    from types import SimpleNamespace
+    from api import related_files
+
+    monkeypatch.setattr(related_files, 'os', SimpleNamespace(path=ntpath))
+    monkeypatch.setattr(related_files, 'Path', PureWindowsPath)
+    monkeypatch.setattr(related_files, '_inside', lambda actual, root: True)
+    aliases = related_files._catalog_aliases(r'C:\library\shot.CR2', [('/private-raw-alias', r'C:\library')])
+    assert '/private-raw-alias/shot.CR2' in aliases
+
+
 @pytest.fixture
 def files(tmp_path, seed_photos_prefix):
     folder = tmp_path / 'library'

@@ -378,6 +378,11 @@ def _bind(requests, photo_path, album_id, history_id, job_id, stack_paths=None):
 
 
 def _answered_as_expected(method, path, status):
+    # The seeded album id is allocated by SQLite and need not be 1.
+    if path.startswith('/api/shared/album/') and '/media/' in path:
+        parts = path.split('/')
+        parts[4] = '1'
+        path = '/'.join(parts)
     expected = EXPECTED_NON_2XX.get((method, path))
     return status == expected if expected is not None else 200 <= status < 300
 
