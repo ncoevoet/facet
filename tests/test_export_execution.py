@@ -189,6 +189,32 @@ def test_later_metadata_change_stops_new_files_and_retains_written_prefix(editio
     assert Path(str(paths[0]) + '.xmp').read_bytes() == completed_packet
 
 
+def test_copy_accepts_windows_descriptor_ctime_difference_but_checks_path(tmp_path, monkeypatch):
+    from api import export_execution
+    from api.export_preview import _identity
+    source, target = tmp_path / 'source.jpg', tmp_path / 'copy.jpg'
+    source.write_bytes(b'original')
+    item = {'source': str(source), 'target': str(target), 'source_identity': _identity(str(source))}
+    real_identity = export_execution._stat_identity
+    monkeypatch.setattr(export_execution, '_WINDOWS', True, raising=False)
+    monkeypatch.setattr(export_execution, '_stat_identity', lambda stat: [*real_identity(stat)[:4], real_identity(stat)[4] + 1])
+    export_execution._deliver(item, 'copy')
+    assert target.read_bytes() == b'original'
+
+
+def test_copy_refuses_changed_path_identity_before_creating_target(tmp_path, monkeypatch):
+    from api import export_execution
+    from api.export_preview import _identity
+    source, target = tmp_path / 'source.jpg', tmp_path / 'copy.jpg'
+    source.write_bytes(b'original')
+    item = {'source': str(source), 'target': str(target), 'source_identity': _identity(str(source))}
+    monkeypatch.setattr(export_execution, '_WINDOWS', True)
+    monkeypatch.setattr(export_execution, '_identity', lambda path: [*item['source_identity'][:4], item['source_identity'][4] + 1])
+    with pytest.raises(sidecar_jobs.ExportConditionsChanged):
+        export_execution._deliver(item, 'copy')
+    assert not target.exists()
+
+
 def test_cancellation_keeps_completed_file_and_never_starts_next(edition_client, library, monkeypatch):
     from api import export_execution
     paths, target = library

@@ -21,6 +21,7 @@ from processing.xmp_export import (
 )
 
 logger = logging.getLogger(__name__)
+_WINDOWS = os.name == 'nt'
 
 
 def _changed():
@@ -55,14 +56,20 @@ def _deliver(item, operation):
             source_fd = os.open(source, flags)
             with os.fdopen(source_fd, 'rb') as input_file:
                 source_stat = os.fstat(input_file.fileno())
-                if _stat_identity(source_stat) != item['source_identity']:
+                descriptor_identity = _stat_identity(source_stat)
+                expected = item['source_identity']
+                # On Windows fstat and lstat can report different ctime values
+                # for the same file. Compare the path in full, and track the
+                # descriptor against its own initial identity across the copy.
+                if ((descriptor_identity[:4] != expected[:4] if _WINDOWS else descriptor_identity != expected)
+                        or _identity(source) != expected):
                     _changed()
                 with open(target, 'xb') as output:
                     created = os.fstat(output.fileno())
                     shutil.copyfileobj(input_file, output)
                     output.flush()
                     os.fsync(output.fileno())
-                    if (_stat_identity(os.fstat(input_file.fileno())) != item['source_identity']
+                    if (_stat_identity(os.fstat(input_file.fileno())) != descriptor_identity
                             or _identity(source) != item['source_identity']):
                         _changed()
                     # Windows open handles deny filename replacement; POSIX
