@@ -310,7 +310,7 @@ const SET_KIND_TOGGLE: Record<string, keyof HiddenFilterFlags> = {
       <mat-sidenav-content>
         <header data-collection-header class="@container border-b border-[var(--mat-sys-outline-variant)] bg-[var(--mat-sys-surface-container-lowest)] px-3 py-2 md:px-4">
           <div class="flex flex-wrap items-center gap-x-4 gap-y-2">
-          <div class="min-w-0 flex-1 md:flex-none md:max-w-64">
+          <div class="min-w-0 flex-1 md:flex-none md:max-w-64 @min-[700px]:flex-1 @min-[700px]:basis-0">
           <h1 class="m-0 min-w-0 text-lg font-medium leading-6 text-[var(--mat-sys-on-surface)] truncate" [title]="store.currentAlbum()?.name || (I18N.gallery.all_photos | translate)">
             {{ store.currentAlbum()?.name || (I18N.gallery.all_photos | translate) }}
           </h1>
@@ -336,7 +336,7 @@ const SET_KIND_TOGGLE: Record<string, keyof HiddenFilterFlags> = {
               {{ (selectingPhotos() ? I18N.ui.buttons.cancel : I18N.gallery.selection.select) | translate }}
             </button>
           </div>
-          <div data-collection-actions class="order-4 flex w-full flex-wrap items-center gap-1 border-t border-[var(--mat-sys-outline-variant)] pt-2 lg:order-none lg:w-auto lg:border-0 lg:pt-0">
+          <div data-collection-actions class="order-4 flex w-full flex-wrap items-center gap-1 border-t border-[var(--mat-sys-outline-variant)] pt-2 @min-[700px]:order-none @min-[700px]:w-auto @min-[700px]:border-0 @min-[700px]:pt-0">
             <ng-container [ngTemplateOutlet]="collectionViewControls.primaryControls()" />
             <ng-container [ngTemplateOutlet]="galleryLayoutButtons" />
             <ng-container [ngTemplateOutlet]="collectionViewControls.filterControls()" />
