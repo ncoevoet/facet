@@ -8,7 +8,7 @@ import json
 
 from db import logical_review as review
 from db.logical_assets import AssetConflict, _members
-from db.organization_history import MAX_BYTES, MAX_ENTRIES, MAX_PHOTOS, encode, snapshot, FIELDS as PHYSICAL_FIELDS
+from db.organization_history import MAX_BYTES, MAX_ENTRIES, MAX_PHOTOS, encode, snapshot, store_parts, FIELDS as PHYSICAL_FIELDS
 
 FIELDS = ('star_rating', 'is_favorite', 'is_rejected', 'is_kept')
 
@@ -61,16 +61,8 @@ def record(conn, actor, owner, before, after, *, physical_before=None):
         size += length + bool(part)
         part.append(change)
     parts.append(part)
-    ids = []
     with review._transaction(conn):
-        for position, part in enumerate(parts, 1):
-            cursor = conn.execute('INSERT INTO organization_history(owner,kind,scope,payload,part,parts) VALUES (?,?,?,?,?,?)',
-                                  (actor, 'logical_review', owner, encode(part), position, len(parts)))
-            ids.append(cursor.lastrowid)
-        conn.execute('DELETE FROM organization_history WHERE owner=? AND id NOT IN '
-                     '(SELECT id FROM organization_history WHERE owner=? ORDER BY id DESC LIMIT ?)',
-                     (actor, actor, MAX_ENTRIES))
-    return ids
+        return store_parts(conn, actor, 'logical_review', owner, parts, max_entries=MAX_ENTRIES)
 
 
 def restore(conn, actor, owner, entry_id, file_labels, *, visibility_sql, visibility_params=()):

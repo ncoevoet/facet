@@ -158,6 +158,12 @@ def record(conn: sqlite3.Connection, owner: str, kind: str, scope: str,
             size += encoded_size + bool(part)
             part.append(change)
         parts.append(part)
+    return store_parts(conn, owner, kind, scope, parts, max_entries=MAX_ENTRIES)
+
+
+def store_parts(conn: sqlite3.Connection, owner: str, kind: str, scope: str,
+                parts: list[list[dict[str, Any]]], *, max_entries: int) -> list[int]:
+    """Store prevalidated receipt parts within the caller's transaction."""
     entries: list[int] = []
     for index, part in enumerate(parts, 1):
         cursor = conn.execute('INSERT INTO organization_history(owner,kind,scope,payload,part,parts) VALUES (?,?,?,?,?,?)',
@@ -166,5 +172,5 @@ def record(conn: sqlite3.Connection, owner: str, kind: str, scope: str,
         if entry_id is None:
             raise ValueError('Organization history entry ID is unavailable')
         entries.append(entry_id)
-    conn.execute('DELETE FROM organization_history WHERE owner=? AND id NOT IN (SELECT id FROM organization_history WHERE owner=? ORDER BY id DESC LIMIT ?)', (owner, owner, MAX_ENTRIES))
+    conn.execute('DELETE FROM organization_history WHERE owner=? AND id NOT IN (SELECT id FROM organization_history WHERE owner=? ORDER BY id DESC LIMIT ?)', (owner, owner, max_entries))
     return entries
