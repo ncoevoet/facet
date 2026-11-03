@@ -25,7 +25,8 @@ export abstract class PhotoDetailBase {
   abstract readonly photo: ReturnType<typeof signal<Photo | null>>;
   protected readonly sharedAlbumMedia = signal<SharedAlbumMediaScope | null>(null);
 
-  protected readonly fullImageLoaded = signal(false);
+  private readonly loadedImageUrl = signal<string | null>(null);
+  protected readonly fullImageLoaded = computed(() => !!this.fullImageUrl() && this.loadedImageUrl() === this.fullImageUrl());
   protected readonly sourceRendition = signal<DisplayedRendition>({ kind: 'source', phase: 'loading' });
   protected readonly thumbnailRendition = signal<DisplayedRendition>({ kind: 'thumbnail', phase: 'loading' });
   protected readonly displayedRendition = computed(() => this.fullImageLoaded() ? this.sourceRendition() : this.thumbnailRendition());
@@ -53,7 +54,7 @@ export abstract class PhotoDetailBase {
 
   private readonly imageResetEffect = effect(() => {
     this.fullImageUrl();
-    this.fullImageLoaded.set(false);
+    this.loadedImageUrl.set(null);
     this.sourceRendition.set({ kind: 'source', phase: 'loading' });
   });
   protected readonly thumbnailImageUrl = computed(() => {
@@ -115,12 +116,12 @@ export abstract class PhotoDetailBase {
     const img = this.currentImage(event, this.fullImageUrl());
     if (!img || !img.complete || !img.naturalWidth || !img.naturalHeight) return;
     this.sourceRendition.set({ kind: 'source', phase: 'ready', width: img.naturalWidth, height: img.naturalHeight });
-    this.fullImageLoaded.set(true);
+    this.loadedImageUrl.set(this.fullImageUrl());
   }
 
   protected onFullImageError(event: Event): void {
     if (!this.currentImage(event, this.fullImageUrl())) return;
-    this.fullImageLoaded.set(false);
+    this.loadedImageUrl.set(null);
     this.sourceRendition.set({ kind: 'source', phase: 'failed' });
   }
 

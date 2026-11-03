@@ -70,6 +70,7 @@ import { sharedAssetPhoto, type SharedAsset, sharedAlbumMediaUrl } from '../../u
       <div class="flex flex-col lg:flex-row lg:h-[calc(100%-49px)] lg:overflow-hidden">
         <!-- Image panel -->
         <div class="shrink-0 lg:h-auto lg:flex-1 flex items-center justify-center bg-black lg:min-h-0 relative">
+          @for (imagePhoto of [p]; track imagePhoto.path) {
           <img
             [src]="thumbnailImageUrl()"
             [alt]="p.filename"
@@ -84,6 +85,7 @@ import { sharedAssetPhoto, type SharedAsset, sharedAlbumMediaUrl } from '../../u
             [class.opacity-0]="!fullImageLoaded()"
             (load)="onFullImageLoad($event)" (error)="onFullImageError($event)"
           />
+          }
           <app-rendition-readout class="absolute inset-x-2 bottom-2 rounded bg-black/80 px-2 py-1 text-white" [state]="displayedRendition()" [pending]="sourceRendition().phase === 'loading'" [attemptFailed]="sourceRendition().phase === 'failed'" [failureLabel]="I18N.photo_detail.rendition.source_failed" (retry)="retryFullImage()" />
         </div>
 

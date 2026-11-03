@@ -288,6 +288,7 @@ const SOCIAL_SOURCE_KEYS: Record<string, string> = {
         <div class="flex min-h-40 max-h-[62dvh] min-w-0 shrink-0 flex-col lg:!aspect-auto lg:max-h-none lg:min-h-0 lg:flex-1"
              [style.aspect-ratio]="photoAspect()">
         <div [appZoomPan]="p.path" #zoom="zoomPan" class="group/photo flex flex-1 min-h-0 items-center justify-center bg-[var(--facet-image-canvas)] relative overflow-hidden cursor-grab">
+          @for (imagePhoto of [p]; track imagePhoto.path) {
           <img
             [src]="thumbnailImageUrl()"
             [alt]="p.filename"
@@ -304,6 +305,7 @@ const SOCIAL_SOURCE_KEYS: Record<string, string> = {
             (load)="onFullImageLoad($event)" (error)="onFullImageError($event)"
             [style.transform]="zoom.transform()"
           />
+          }
           <app-photo-face-layer
             [path]="p.path"
             [imageWidth]="p.image_width"

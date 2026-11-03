@@ -1165,11 +1165,29 @@ describe('PhotoDetailComponent', () => {
       expect(component.displayedRendition()).toEqual({ kind: 'source', phase: 'ready', width: 600, height: 400 });
       component.photo.set({ ...samplePhoto, aggregate: 9 }); TestBed.tick();
       expect(component.fullImageLoaded()).toBe(true);
-      component.photo.set({ ...samplePhoto, path: '/new.jpg' }); TestBed.tick();
+      component.photo.set({ ...samplePhoto, path: '/new.jpg' });
+      expect(component.fullImageLoaded()).toBe(false);
+      TestBed.tick();
       component.onFullImageLoad({ target: img });
       expect(component.fullImageLoaded()).toBe(false);
       component.onFullImageLoad({ target: loadedImage(component.fullImageUrl(), 0, 0) });
       expect(component.fullImageLoaded()).toBe(false);
+    });
+
+    it('replaces both image elements when the displayed photo changes', () => {
+      createComponent();
+      const fixture = TestBed.createComponent(PhotoDetailComponent);
+      fixture.componentInstance.photo.set(samplePhoto as never);
+      fixture.detectChanges();
+      const before = [...fixture.nativeElement.querySelectorAll('div.cursor-grab > img')];
+      expect(before).toHaveLength(2);
+      fixture.componentInstance.photo.set({ ...samplePhoto, path: '/new.jpg' } as never);
+      fixture.detectChanges();
+      const after = [...fixture.nativeElement.querySelectorAll('div.cursor-grab > img')];
+      expect(after).toHaveLength(2);
+      expect(after[0]).not.toBe(before[0]);
+      expect(after[1]).not.toBe(before[1]);
+      fixture.destroy();
     });
 
     it('opens and retries a photo on HTTP LAN without randomUUID', () => {
