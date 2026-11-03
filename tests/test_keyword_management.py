@@ -139,8 +139,10 @@ def test_late_failure_rolls_back_new_nodes_and_all_prior_assignments(edition_cli
     paths, label, _, _, _ = owned
     captured = capture(edition_client, action='create_assign', segments=[label, 'Rollback target'], paths=paths[:2])
     with sqlite3.connect(DEFAULT_DB_PATH) as conn:
+        # Trigger DDL cannot bind parameters; let SQLite quote Windows paths.
+        target = conn.execute('SELECT quote(?)', (paths[1],)).fetchone()[0]
         conn.execute('CREATE TRIGGER hierarchy_test_failure BEFORE INSERT ON photo_keyword_nodes '
-                     f"WHEN NEW.photo_path={repr(paths[1])} BEGIN SELECT RAISE({failure},'fixture'); END")
+                     f"WHEN NEW.photo_path={target} BEGIN SELECT RAISE({failure},'fixture'); END")
     try:
         before = snapshot()
         response = apply(edition_client, captured)
