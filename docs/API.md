@@ -158,6 +158,8 @@ invalidates them. Reload the shared album after rotation to obtain current asset
 | `GET /api/timeline/dates?year=&month=&hide_blinks=&hide_bursts=&hide_duplicates=&hide_brackets=&hide_panoramas=` | Available dates for navigation |
 | `GET /api/timeline/years?hide_blinks=&hide_bursts=&hide_duplicates=&hide_brackets=&hide_panoramas=` | Available years with photo counts |
 | `GET /api/timeline/months?hide_blinks=&hide_bursts=&hide_duplicates=&hide_brackets=&hide_panoramas=` | Available months for a year |
+
+Timeline routes return 503 when the query fails. Week keys use ISO 8601 week years (`YYYY-Www`), so keys and cursors from the previous week format are not comparable. Date bounds cover complete calendar days at every granularity; with `sort_by=date_taken`, photos within each group follow the requested direction.
 | `GET /api/photos/map?bounds=&zoom=&limit=` | Geotagged photos within bounds |
 | `GET /api/photos/map/count` | Count of geotagged photos |
 | `PUT /api/photo/gps` | `[Edition]` Set or clear a photo's GPS. Body `{path, gps_latitude, gps_longitude, saved_place_id?}`; both coordinates null, or finite within latitude ±90 / longitude ±180. Returns the saved coordinates |
@@ -335,7 +337,7 @@ Regrouping bounds both the result and the complete affected preview to 1000 phot
 | Endpoint | Description |
 |----------|-------------|
 | `GET /api/download/options` | Download types available for a photo (`path`, optional `is_shared`), including companion RAW and configured darktable profiles |
-| `GET /api/download` | Download a photo (`path`, `type=original\|darktable\|raw`, optional `profile`) |
+| `GET /api/download` | Download a photo (`path`, `type=original\|darktable\|raw`, optional `profile`). RAW and darktable requests return the original when no RAW companion exists; inaccessible companions return 404. |
 | `GET /api/photo/social_crop` | `[Edition]` Full-resolution JPEG cropped to a social aspect preset (`path`, `preset`) |
 | `GET /api/photo/social_crop/preview` | `[Edition]` Only the normalized crop rectangle and framing source for a preset (`path`, `preset`); no original decode |
 

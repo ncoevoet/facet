@@ -932,6 +932,8 @@ Granularity, sort and category persist in `localStorage`. Controls that don't ap
 
 ### Auto-cull
 
+Existing ratings, favorites, keep and reject decisions are preserved by default. API and MCP callers can set `decision_policy` to `replace` to reconsider them.
+
 **Auto-cull** in the toolbar culls a whole scope in one pass.
 
 1. Pick the scope: all groups, or only bursts / similars / scenes, optionally an album or date window.

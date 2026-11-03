@@ -542,6 +542,7 @@ Descarte automático sin interfaz: la versión de terminal del [descarte automá
 | `--copy-keepers DIR` | Copia en `DIR` cada foto no rechazada del ámbito, con sus acompañantes RAW / `.xmp` del mismo nombre |
 | `--cull-strictness N` | Presupuesto de fotos conservadas de 0 a 100; más alto conserva menos por grupo (por defecto: `auto_cull.default_strictness`) |
 | `--cull-min-keep N` | Mínimo de fotos conservadas por grupo (por defecto `1`) |
+| `--cull-reconsider-existing` | Vuelve a evaluar fotos ya puntuadas, favoritas, conservadas o rechazadas (se preservan por defecto). |
 | `--cull-group-by {all,burst,similar,scene}` | Qué grupos descartar (por defecto `all`) |
 | `--cull-min-score X` | Rechaza también las fotos sueltas cuya puntuación agregada sea inferior a `X` |
 | `--cull-trim-brackets` | Rechaza también los fotogramas redundantes de los bracketings de exposición (el `trim_brackets` del visor) |

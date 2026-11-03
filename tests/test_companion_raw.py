@@ -529,6 +529,19 @@ def test_download_refuses_an_invisible_indexed_raw_companion(
     assert raw.read_bytes() == b'private RAW fixture'
 
 
+@pytest.mark.parametrize('kind', ['raw', 'darktable'])
+def test_download_without_raw_falls_back_to_original(regular_client, seed_photos_prefix, tmp_path, monkeypatch, kind):
+    from api import config
+
+    photo = tmp_path / 'shot.jpg'
+    photo.write_bytes(b'original JPEG fixture')
+    monkeypatch.setitem(config.VIEWER_CONFIG, 'scan_directories', [str(tmp_path)])
+    seed_photos_prefix(str(tmp_path), [{'path': str(photo), 'filename': photo.name}])
+    response = regular_client.get('/api/download', params={'path': str(photo), 'type': kind, 'profile': 'standard'})
+    assert response.status_code == 200
+    assert response.content == b'original JPEG fixture'
+
+
 def test_visible_indexed_companion_download_and_development_remain_available(
     regular_client, seed_photos_prefix, tmp_path, monkeypatch
 ):

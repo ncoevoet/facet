@@ -932,6 +932,8 @@ Granularität, Sortierung und Kategorie bleiben im `localStorage` erhalten. Nich
 
 ### Auto-Cull
 
+Vorhandene Bewertungen, Favoriten sowie Behalten- und Ablehnen-Entscheidungen bleiben standardmäßig erhalten. API- und MCP-Clients können `decision_policy` auf `replace` setzen, um sie neu zu beurteilen.
+
 **Auto-Cull** in der Symbolleiste sortiert einen ganzen Bereich in einem Durchgang aus.
 
 1. Wählen Sie den Bereich: alle Gruppen oder nur Serien / Ähnliche / Szenen, optional ein Album oder Datumsfenster.

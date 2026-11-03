@@ -21,6 +21,10 @@ All notable changes to Facet are documented in this file.
 
 ### Changed
 
+- Timeline API failures now return 503 instead of empty results. Week buckets use ISO week years, date bounds cover whole calendar days, and photos within a date bucket follow the requested date sort direction; old week keys and cursors are not comparable.
+
+- Auto-cull preserves existing ratings, favorites, rejects and keeps by default. Use `decision_policy: 'replace'` or `--cull-reconsider-existing` to reconsider them.
+
 - Shared-album clients use opaque `asset_id` values instead of filesystem paths for photos and proofing picks. Existing clients must fetch fresh IDs and exchange older proofing sessions again; rotating a share invalidates its sessions. See [API migration notes](docs/API.md#albums).
 
 - Top-bar destinations use available space; More contains only the overflow. Zoomed comparison images show an overview with the visible region outlined in red.

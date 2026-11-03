@@ -253,6 +253,22 @@ def _authorized_download_raw(db_path: str, real_disk: str, user: Optional[Curren
     return None
 
 
+def _missing_raw_fallback(real_disk: str) -> bool:
+    """Fall back only when no RAW entry exists, including inaccessible links."""
+    photo = Path(real_disk)
+    for extension in RAW_EXTENSIONS:
+        for spelling in (extension, extension.upper()):
+            candidate = photo.with_name(photo.stem + spelling)
+            try:
+                candidate.lstat()
+            except FileNotFoundError:
+                continue
+            except OSError:
+                return False
+            return False
+    return True
+
+
 @router.get("/api/download/options", response_model=DownloadOptionsResponse, response_model_exclude_unset=True)
 def api_download_options(
     path: str = Query(...),
@@ -291,6 +307,7 @@ async def api_download_single(
     - ``original`` — serve the file as-is (JPG/HEIF) or rawpy-converted (RAW).
     - ``darktable`` — convert companion RAW with a named darktable profile.
     - ``raw`` — serve the companion RAW file as-is.
+    - If no companion RAW exists, ``raw`` and ``darktable`` return the original.
     """
     from api.raw_processing import convert_raw_darktable_async
 
@@ -303,6 +320,8 @@ async def api_download_single(
     if type == 'darktable':
         raw_path = await asyncio.to_thread(_authorized_download_raw, db_path, real_disk, user)
         if not raw_path:
+            if await asyncio.to_thread(_missing_raw_fallback, real_disk):
+                return await asyncio.to_thread(_serve_original, real_disk, db_path, quality, sequence_kind)
             raise HTTPException(404, 'RAW file not found')
 
         try:
@@ -325,6 +344,8 @@ async def api_download_single(
     if type == 'raw':
         raw_path = await asyncio.to_thread(_authorized_download_raw, db_path, real_disk, user)
         if not raw_path:
+            if await asyncio.to_thread(_missing_raw_fallback, real_disk):
+                return await asyncio.to_thread(_serve_original, real_disk, db_path, quality, sequence_kind)
             raise HTTPException(404, 'RAW file not found')
 
         return FileResponse(

@@ -542,6 +542,7 @@ Headless auto-cull: the terminal version of the viewer's [Auto-cull](VIEWER.md#a
 | `--copy-keepers DIR` | Copy every non-rejected photo in scope, with its same-stem RAW / `.xmp`, into `DIR` |
 | `--cull-strictness N` | Keeper budget 0–100, higher keeps fewer per group (default: `auto_cull.default_strictness`) |
 | `--cull-min-keep N` | Minimum photos kept per group (default `1`) |
+| `--cull-reconsider-existing` | Reconsider photos with existing ratings, favorites, keep or reject decisions (preserved by default). |
 | `--cull-group-by {all,burst,similar,scene}` | Which groups to cull (default `all`) |
 | `--cull-min-score X` | Also reject standalone photos with an aggregate score below `X` |
 | `--cull-trim-brackets` | Also reject redundant exposure-bracket frames (the viewer's `trim_brackets`) |

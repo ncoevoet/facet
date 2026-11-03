@@ -542,6 +542,7 @@ Auto-Cull ohne Oberfläche: die Terminal-Variante des [Auto-Culls](VIEWER.md#aut
 | `--copy-keepers DIR` | Jedes nicht abgelehnte Foto im Geltungsbereich mit seinen gleichnamigen RAW- / `.xmp`-Begleitdateien nach `DIR` kopieren |
 | `--cull-strictness N` | Behalte-Budget 0–100, höher behält weniger pro Gruppe (Standard: `auto_cull.default_strictness`) |
 | `--cull-min-keep N` | Mindestanzahl behaltener Fotos pro Gruppe (Standard `1`) |
+| `--cull-reconsider-existing` | Bewertete, favorisierte, behaltene oder abgelehnte Fotos erneut beurteilen (standardmäßig erhalten). |
 | `--cull-group-by {all,burst,similar,scene}` | Welche Gruppen aussortiert werden (Standard `all`) |
 | `--cull-min-score X` | Zusätzlich Einzelfotos ablehnen, deren Gesamtwertung unter `X` liegt |
 | `--cull-trim-brackets` | Zusätzlich redundante Aufnahmen von Belichtungsreihen ablehnen (das `trim_brackets` des Viewers) |

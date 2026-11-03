@@ -931,6 +931,8 @@ La granularité, le tri et la catégorie persistent dans `localStorage`. Les con
 
 ### Tri automatique
 
+Les notes, favoris et décisions de conservation ou de rejet existants sont préservés par défaut. Les clients API et MCP peuvent définir `decision_policy` sur `replace` pour les réexaminer.
+
 **Tri automatique** dans la barre d'outils trie tout un périmètre en une passe.
 
 1. Choisissez le périmètre : tous les groupes, ou seulement rafales / similaires / scènes, éventuellement un album ou une fenêtre de dates.

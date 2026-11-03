@@ -929,6 +929,8 @@ Granularidade, ordenação e categoria persistem no `localStorage`. Os controles
 
 ### Seleção automática
 
+Classificações, favoritos e decisões de manter ou rejeitar existentes são preservados por padrão. Clientes da API e do MCP podem definir `decision_policy` como `replace` para reavaliá-los.
+
 **Seleção automática** na barra de ferramentas faz a triagem de um escopo inteiro de uma só vez.
 
 1. Escolha o escopo: todos os grupos, ou só rajadas / semelhantes / cenas, opcionalmente um álbum ou janela de datas.

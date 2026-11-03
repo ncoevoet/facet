@@ -934,6 +934,8 @@ La granularidad, la ordenación y la categoría se guardan en `localStorage`. Lo
 
 ### Descarte automático
 
+Las puntuaciones, favoritos y decisiones de conservar o rechazar existentes se preservan por defecto. Los clientes de API y MCP pueden usar `decision_policy` con valor `replace` para volver a evaluarlos.
+
 El **Descarte automático** de la barra de herramientas descarta todo un ámbito de una pasada.
 
 1. Elige el ámbito: todos los grupos, o solo ráfagas / similares / escenas, opcionalmente un álbum o una ventana de fechas.

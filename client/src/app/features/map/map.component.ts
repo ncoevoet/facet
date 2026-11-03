@@ -234,8 +234,7 @@ export class MapComponent implements OnInit, OnDestroy {
     };
     this.map.on('moveend', this.moveEndHandler);
 
-    // Initial load
-    this.loadMarkers();
+    // Wait for the library extent so the first marker request uses that view.
     this.checkForGeotaggedPhotos();
   }
 
@@ -248,9 +247,17 @@ export class MapComponent implements OnInit, OnDestroy {
       if (!this.initialViewChanged && data.bounds?.length === 4 && data.bounds.every(Number.isFinite)) {
         const [south, west, north, east] = data.bounds;
         map.fitBounds([[south, west], [north, east]], { padding: [32, 32], maxZoom: 12, animate: false });
+        if (this.moveEndDebounce !== null) clearTimeout(this.moveEndDebounce);
+        this.moveEndDebounce = null;
+        this.loadMarkers();
+      } else if (this.loadMarkersRequestId === 0 && this.moveEndDebounce === null) {
+        this.loadMarkers();
       }
     } catch {
-      if (this.map === map) this.noGpsResults.set(false);
+      if (this.map === map) {
+        this.noGpsResults.set(false);
+        if (this.loadMarkersRequestId === 0 && this.moveEndDebounce === null) this.loadMarkers();
+      }
     }
   }
 

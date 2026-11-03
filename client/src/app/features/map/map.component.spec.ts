@@ -138,10 +138,14 @@ describe('MapComponent', () => {
       expect(mockMap.fitBounds).not.toHaveBeenCalled();
     });
 
-    it('should trigger loadMarkers on init', () => {
+    it('loads markers only after the initial extent has been resolved', async () => {
+      const pending = new Subject<{ count: number; bounds: number[] }>();
+      mockApi.get.mockImplementation((url: string) => url === '/photos/map/count' ? pending : of({ photos: [], clusters: [] }));
       const spy = vi.spyOn(component, 'loadMarkers');
       component.initMap();
-      expect(spy).toHaveBeenCalled();
+      expect(spy).not.toHaveBeenCalled();
+      pending.next({ count: 1, bounds: [40, 70, 40, 70] }); pending.complete(); await Promise.resolve();
+      expect(spy).toHaveBeenCalledOnce();
     });
   });
 

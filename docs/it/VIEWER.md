@@ -931,6 +931,8 @@ Granularità, ordinamento e categoria persistono in `localStorage`. I controlli 
 
 ### Selezione automatica
 
+Valutazioni, preferiti e decisioni di conservare o rifiutare esistenti sono preservati per impostazione predefinita. I client API e MCP possono impostare `decision_policy` su `replace` per rivalutarli.
+
 **Selezione automatica** nella barra degli strumenti seleziona un intero ambito in un solo passaggio.
 
 1. Scegli l'ambito: tutti i gruppi, o solo raffiche / simili / scene, facoltativamente un album o una finestra di date.
