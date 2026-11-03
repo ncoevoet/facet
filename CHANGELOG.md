@@ -23,6 +23,7 @@ All notable changes to Facet are documented in this file.
 
 ### Fixed
 
+- **`--recompute-iqa` no longer crashes when Q-ReAlign is on.** The command builds a lightweight scorer with no device, which reached the native Q-ReAlign model and failed with `Attempting to cast a BatchFeature to type None`. Q-ReAlign is on by default for the 8gb, 16gb and 24gb profiles; it now runs on the detected device.
 - **Photo cards fill their tile on phones.** With details hidden (the default), cards below 768 px kept the photo at its natural height over a dead background strip; the tile now fills as a square at every width.
 - **Dialog headers share one style.** The shortcuts reference, the cull dialog and the customize-shortcuts dialog now carry the same icon-tile header — title with its description as a subtitle, aligned with the content below.
 - **A scan that saved nothing exited 0.** A scan whose every photo failed (a required model failing to load, for instance) logged the failures, saved 0 of N photos and still exited with status 0. It now logs `Scan failed: saved 0 of N photos` and exits 4 (so `--watch`, which runs each scan as a child process, keeps watching without counting it toward, or resetting, its failure streak); a scan with nothing to do (no input, or every file already scanned) still exits 0.
