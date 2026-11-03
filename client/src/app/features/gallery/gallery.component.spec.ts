@@ -6147,7 +6147,12 @@ describe('GalleryComponent', () => {
       scrollTo = vi.spyOn(content, 'scrollTo').mockImplementation(() => {}) as unknown as Mock;
     });
 
-    afterEach(() => fixture.destroy());
+    afterEach(() => {
+      fixture.destroy();
+      // Spec files share a worker window. Release the queued animation-frame
+      // spy here so later navigation suites can restore focus normally.
+      vi.restoreAllMocks();
+    });
 
     function openPhoto(index: number): HTMLElement {
       const tile = fixture.nativeElement.querySelector(`[data-pidx="${index}"] [tabindex]`) as HTMLElement;
