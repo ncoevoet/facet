@@ -20,22 +20,22 @@ from typing import Any, Callable, Dict, List
 logger = logging.getLogger("facet.stage_timing")
 
 # Stages whose work runs on the scan thread, in pipeline order: (stage, metrics key).
-# Plane rebuilds are nested inside inference and the thumbnail is carved out of the
-# save counter by the processor, so no two of these overlap.
+# Plane rebuilds are nested inside inference, so no two of these overlap.
 SCAN_THREAD_STAGES = (
     ("model_load", "model_load_time"),
     ("inference", "inference_time"),
     ("model_unload", "model_unload_time"),
     ("aggregate", "aggregate_time"),
-    ("thumbnail", "thumbnail_time"),
     ("save", "save_time"),
 )
 
 # Stages that run on the decode pool, in worker-seconds: (stage, metrics key).
-# ``decode`` is the image load (file read, RAW open and demosaic); ``analyze`` is the
-# rest of a photo's worker body (technical metrics, composition, hash).
+# ``decode`` is the image load (file read, RAW open, embedded-preview read and demosaic);
+# ``thumbnail`` is the stored thumbnail's resize + JPEG encode, made beside the decode;
+# ``analyze`` is the rest of a photo's worker body (technical metrics, composition, hash).
 POOL_STAGES = (
     ("decode", "decode_worker_time"),
+    ("thumbnail", "thumbnail_worker_time"),
     ("analyze", "analyze_worker_time"),
     ("exif_fallback", "exif_fallback_time"),
 )

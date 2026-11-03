@@ -108,7 +108,7 @@ class FakeScorer:
         return 7.5, "others"
 
     def save_photos_batch(self, pending_saves):
-        self.saved.extend(p for p, _ in pending_saves)
+        self.saved.extend(pending_saves)
 
     def commit(self):
         self.committed = True

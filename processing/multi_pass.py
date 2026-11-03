@@ -294,6 +294,10 @@ class ChunkedMultiPassProcessor:
     # image plus the Bayer plane and the 8-bit output). That 16 B/px RAW figure is NOT
     # measured (the JPEG set cannot measure a demosaic): it is derived from the LibRaw buffer
     # layout and has not been checked against a RAW scan's peak.
+    # The stored thumbnail adds nothing here: the embedded preview is encoded and freed inside
+    # the decode slot BEFORE the demosaic (utils.image_loading._decode_raw), so the preview is
+    # never resident beside the demosaic's peak; only the ~46 KB JPEG rides with the photo.
+    # Peak RSS with the preview read in the slot is UNMEASURED (benchmark protocol).
     DECODE_INFLIGHT_BYTES_PER_PX = 16.0
 
     # Default pass configuration
@@ -374,13 +378,14 @@ class ChunkedMultiPassProcessor:
             'exif_wait_time': 0.0,
             'exif_fallback_time': 0.0,
             'aggregate_time': 0.0,
-            # worker-seconds on the decode pool: image load, and the rest of a photo's body
+            # worker-seconds on the decode pool: image load, the thumbnail made beside it
+            # (resize + JPEG encode only), and the rest of a photo's body
             'decode_worker_time': 0.0,
+            'thumbnail_worker_time': 0.0,
             'analyze_worker_time': 0.0,
             'inference_by_model': {},
             'model_load_by_model': {},
             'model_load_overlapped_by_model': {},
-            'thumbnail_time': 0.0,
             'save_time': 0.0,
             # Photos the chunk saves wrote (a scan that saves 0 of N > 0 is a failure).
             'photos_saved': 0,
@@ -760,17 +765,12 @@ class ChunkedMultiPassProcessor:
             self._compute_aggregates(results, images)
             self.metrics['aggregate_time'] += time.perf_counter() - aggregate_start
 
-        # Thumbnail generation is nested in the full save. Subtract only that
-        # interval so these two scan-thread phases do not double count.
-        thumbnail_before = self.metrics['thumbnail_time']
         save_start = time.perf_counter()
         if self.restricted:
             self._save_results_restricted(results, images)
         else:
             self._save_results(results, images)
-        self.metrics['save_time'] += (
-            time.perf_counter() - save_start
-            - (self.metrics['thumbnail_time'] - thumbnail_before))
+        self.metrics['save_time'] += time.perf_counter() - save_start
 
         # Free memory
         del images
@@ -1144,7 +1144,7 @@ class ChunkedMultiPassProcessor:
         import imagehash
         from concurrent.futures import ThreadPoolExecutor
         from pathlib import Path
-        from utils import load_image_from_path
+        from utils import load_image_and_thumbnail, load_image_from_path
         from analyzers import TechnicalAnalyzer, ImageCache, CompositionAnalyzer
         from analyzers.form_facet import compute_form_metrics, warmup
 
@@ -1156,6 +1156,9 @@ class ChunkedMultiPassProcessor:
         mono_settings = self.scorer.config.get_monochrome_settings()
         need_bounded = self._needs_bounded_image()
         need_composition = not self.restricted
+        # A restricted (--pass) run saves through save_photos_partial, which makes a
+        # thumbnail only for a file that is new to the database: it must not pay for one.
+        need_thumbnail = not self.restricted
 
         # One batched exiftool call for the whole chunk instead of one
         # subprocess round-trip per image; per-image fallback below covers
@@ -1177,14 +1180,15 @@ class ChunkedMultiPassProcessor:
 
         def _load_one(path):
             """Run one photo's decode and CPU analysis, booking the worker-seconds."""
-            spans = {'decode': 0.0, 'fallback': 0.0}
+            spans = {'decode': 0.0, 'fallback': 0.0, 'thumbnail': 0.0}
             worker_start = time.perf_counter()
             try:
                 return _load_one_untimed(path, spans)
             finally:
                 worked = time.perf_counter() - worker_start
                 with exif_lock:
-                    self.metrics['decode_worker_time'] += spans['decode']
+                    self.metrics['decode_worker_time'] += spans['decode'] - spans['thumbnail']
+                    self.metrics['thumbnail_worker_time'] += spans['thumbnail']
                     self.metrics['analyze_worker_time'] += max(
                         0.0, worked - spans['decode'] - spans['fallback'])
 
@@ -1192,8 +1196,14 @@ class ChunkedMultiPassProcessor:
             if _stopped():
                 raise _DecodeCancelled()
             decode_start = time.perf_counter()
+            thumbnail = None
             try:
-                pil_img, img_cv = load_image_from_path(path)
+                if need_thumbnail:
+                    # One decode, one open: the stored thumbnail is made here, from the
+                    # same rawpy handle the demosaic uses, and rides to the save.
+                    pil_img, img_cv, thumbnail, spans['thumbnail'] = load_image_and_thumbnail(path)
+                else:
+                    pil_img, img_cv = load_image_from_path(path)
             finally:
                 spans['decode'] = time.perf_counter() - decode_start
             if pil_img is None:
@@ -1279,6 +1289,7 @@ class ChunkedMultiPassProcessor:
 
             return {
                 'pil': pil_img,
+                'thumbnail': thumbnail,
                 'path': path,
                 'width': img_w,
                 'height': img_h,
@@ -1909,7 +1920,6 @@ class ChunkedMultiPassProcessor:
         batch = []
         for path, data in self._iter_saveable(results, images):
             img_data = images[path]
-            pil_img = img_data['pil']
 
             # Get pre-computed data from image loading phase
             sharpness = img_data.get('sharpness', {})
@@ -2002,15 +2012,16 @@ class ChunkedMultiPassProcessor:
                 # Other fields
                 'is_silhouette': data.get('is_silhouette', 0),
                 'phash': img_data.get('phash'),
+                'thumbnail': img_data.get('thumbnail'),
                 'clip_embedding': data.get('clip_embedding'),
                 'tags': data.get('tags'),
                 'config_version': self.scorer.config.version_hash,
             }
 
-            batch.append((result, pil_img))
+            batch.append(result)
 
         if batch:
-            self.scorer.save_photos_batch(batch, phase_metrics=self.metrics)
+            self.scorer.save_photos_batch(batch)
             self.scorer.commit()
             self.metrics['photos_saved'] += len(batch)
 
@@ -2126,8 +2137,9 @@ class ChunkedMultiPassProcessor:
             logger.info("  EXIF fallback worker-seconds (included in decode): %.1fs",
                         m['exif_fallback_time'])
             logger.info("  Aggregate wall: %.1fs", m['aggregate_time'])
-            logger.info("  Thumbnail wall: %.1fs", m['thumbnail_time'])
-            logger.info("  Save wall (excluding thumbnails): %.1fs", m['save_time'])
+            logger.info("  Thumbnail worker-seconds (made at decode, included in decode): %.1fs",
+                        m['thumbnail_worker_time'])
+            logger.info("  Save wall: %.1fs", m['save_time'])
             self._print_stage_timers(m, total)
 
             # Auto-tuning summary (only if adjustments occurred)

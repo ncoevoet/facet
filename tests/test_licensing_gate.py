@@ -772,10 +772,8 @@ class TestNullHonestFaces:
         facet._pending_centroid_persons = set()
         res = _base_result(path, 7.0)
         res['face_details'] = face_details
-        with mock.patch('processing.scorer.generate_photo_thumbnail', return_value=b'thumb'), \
-             mock.patch('processing.scorer.thumbnail_source', return_value=None), \
-             mock.patch('processing.scorer.get_plugin_manager', return_value=None, create=True):
-            facet.save_photos_batch([(res, None)])
+        with mock.patch('processing.scorer.get_plugin_manager', return_value=None, create=True):
+            facet.save_photos_batch([res])
 
         conn = sqlite3.connect(db_path)
         n = conn.execute("SELECT COUNT(*) FROM faces WHERE photo_path = ?", (path,)).fetchone()[0]
@@ -1307,7 +1305,7 @@ class TestMultiPassSuccessPathGoldens:
         proc = ChunkedMultiPassProcessor.__new__(ChunkedMultiPassProcessor)
         proc.scorer, proc.restricted, proc.pass_groups, proc.on_error = facet, False, [['clip']], None
         # _compute_aggregates rebuilds the gray plane for a photo with faces (silhouette rule)
-        proc.metrics = {'rebuild_time': 0.0, 'thumbnail_time': 0.0, 'photos_saved': 0}
+        proc.metrics = {'rebuild_time': 0.0, 'photos_saved': 0}
 
         arr = np.full((64, 64, 3), 120, dtype=np.uint8)
         path = str(tmp_path / 'a.jpg')
@@ -1320,7 +1318,8 @@ class TestMultiPassSuccessPathGoldens:
                           'histogram_bytes': b''},
             'mono': {'is_monochrome': 0, 'mean_saturation': 0.4}, 'noise': {'noise_sigma': 2.0},
             'contrast': {'contrast_score': 6.5}, 'dynamic_range': {'dynamic_range_stops': 8.0},
-            'exif': {'iso': 200, 'f_stop': 1.8}, 'phash': 'abc', 'form': {}}}
+            'exif': {'iso': 200, 'f_stop': 1.8}, 'phash': 'abc', 'form': {},
+            'thumbnail': b'thumb'}}
         results = {path: {
             'aesthetic': 7.2, 'scoring_model': 'topiq', 'quality_score': 7.2, 'topiq_score': 7.2,
             'clip_embedding': b'\x00' * 16, 'comp_score': 6.1, 'power_point_score': 5.5,
