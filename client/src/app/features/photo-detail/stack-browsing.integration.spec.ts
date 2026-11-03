@@ -160,6 +160,15 @@ describe('manual stack browsing through rendered viewer, Router and HTTP', () =>
     expect(router.url).toBe('/?no_gps=true');
   });
 
+  it('returns to an in-app origin even when it did not pass a photo in navigation state', async () => {
+    await router.navigate(['/photo'], { queryParams: { path: paths[1] } });
+    await membership(null);
+    const returned = arrived();
+    button('button[aria-label="photo_detail.back"]').click();
+    await returned;
+    expect(router.url).toBe('/?no_gps=true');
+  });
+
   it.each([false, true])('retains the photo visit collection after a library tag search and history Back (step=%s)', async step => {
     store.filters.update(filters => ({ ...filters, album_id: '7', date_from: '2026-10-01', date_to: '2026-10-31' }));
     await open();

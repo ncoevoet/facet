@@ -739,7 +739,8 @@ export class PhotoDetailComponent extends PhotoDetailBase implements OnInit {
    *  must not send Escape to an unrelated page or about:blank. */
   private readonly timelineOrigin = (this.router.currentNavigation()?.extras.state?.['photoOrigin'] ?? history.state?.['photoOrigin']) === 'timeline';
   private readonly timeline = this.timelineOrigin ? inject(TimelineFeedCache) : null;
-  private readonly openedFromGallery = this.timelineOrigin || !!(this.router.currentNavigation()?.extras.state?.['photo'] ?? history.state?.['photo']);
+  private readonly openedFromGallery = this.timelineOrigin || !!this.router.currentNavigation()?.previousNavigation
+    || !!(this.router.currentNavigation()?.extras.state?.['photo'] ?? history.state?.['photo']);
 
   protected readonly collectionSidebarAvailable = computed(() => !this.timelineOrigin && this.viewerOwner === this.auth.identity()
     && this.store.photos().some(photo => photo.path === this.photo()?.path));

@@ -1321,7 +1321,7 @@ export class GalleryComponent implements OnInit, OnDestroy {
    * and the rail is a standing preference to come back to once they are closed.
    */
   readonly detailsRailVisible = computed(
-    () => this.panelMode() && this.panelPhoto() !== null && (!this.store.filterDrawerOpen() || this.pinned()),
+    () => this.panelMode() && (!this.store.filterDrawerOpen() || this.pinned()),
   );
 
   /** Set kinds whose sets are currently collapsed behind one frame.
@@ -1948,13 +1948,18 @@ export class GalleryComponent implements OnInit, OnDestroy {
 
     // Re-check sentinel whenever photos, card width, gallery mode, or hide_details change
     effect(() => {
-      this.store.photos(); // track dependency
+      const photos = this.store.photos(); // track dependency
       this.store.cardWidth(); // track dependency
       this.store.galleryMode(); // track dependency
       this.effectiveHideDetails(); // track dependency — toggling details changes card height
       this.scrollDirective()?.recheck();
-      // Clear tooltip when photos change (prevents stale tooltips after filter changes)
-      untracked(() => this.tooltipPhoto.set(null));
+      // Keep a docked photo while its row remains in the collection, including
+      // when an appended page replaces the photos array.
+      untracked(() => {
+        const current = this.tooltipPhoto();
+        const updated = this.panelMode() && current ? photos.find(photo => photo.path === current.path) : null;
+        this.tooltipPhoto.set(updated ?? null);
+      });
       // Re-measure the virtual window once the new rows are in the DOM
       requestAnimationFrame(() => this.updateWindowPosition());
     });

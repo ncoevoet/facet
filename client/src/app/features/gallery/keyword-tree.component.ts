@@ -98,6 +98,7 @@ export class KeywordTreeComponent {
   readonly limit = signal(50);
   readonly loading = signal(false);
   readonly error = signal(false);
+  private readonly activeBranch = computed(() => this.store.filters().keyword_branch);
   readonly rows = computed(() => {
     const nodes = this.nodes() ?? [];
     const byId = new Map(nodes.map(node => [node.id, node]));
@@ -122,16 +123,23 @@ export class KeywordTreeComponent {
     });
     effect(() => { this.auth.identity(); this.auth.status(); untracked(() => this.reset()); });
     effect(() => {
-      const branch = this.store.filters().keyword_branch;
+      const branch = this.activeBranch();
       this.auth.identity(); this.auth.status();
       if (branch) untracked(() => {
         this.session = { owner: this.auth.identity(), status: this.auth.status(), token: this.auth.token };
-        void this.load();
+        if (!this.nodes() && !this.loading()) void this.load();
       });
     });
     this.router.events.pipe(takeUntilDestroyed()).subscribe(event => {
       if (!('id' in event) || event.id < this.navigation) return;
-      if (event instanceof NavigationStart) { this.navigation = event.id; this.pending = true; this.reset(); }
+      if (event instanceof NavigationStart) {
+        this.navigation = event.id;
+        const currentPath = this.router.url.split('?')[0];
+        const targetPath = event.url.split('?')[0];
+        const sameGallery = currentPath === targetPath && (currentPath === '/' || /^\/album\/\d+$/.test(currentPath));
+        this.pending = !sameGallery;
+        if (!sameGallery) this.reset();
+      }
       else if (event instanceof NavigationEnd || event instanceof NavigationError || event instanceof NavigationSkipped || event instanceof NavigationCancel) {
         if (event instanceof NavigationCancel && (event.code === NavigationCancellationCode.Redirect || event.code === NavigationCancellationCode.SupersededByNewNavigation)) return;
         this.navigation = event.id; this.pending = false;

@@ -2,7 +2,7 @@ import { computed, signal } from '@angular/core';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { provideHttpClient, withXhr } from '@angular/common/http';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
-import { NavigationCancel, NavigationStart, Router } from '@angular/router';
+import { NavigationCancel, NavigationEnd, NavigationStart, Router } from '@angular/router';
 import { Subject } from 'rxjs';
 import { KeywordTreeComponent } from './keyword-tree.component';
 import { KeywordHierarchyLabels } from './keyword-hierarchy-labels.service';
@@ -14,7 +14,7 @@ import { I18nService } from '../../core/services/i18n.service';
 describe('Explicit keyword hierarchy browsing', () => {
   let fixture: ComponentFixture<KeywordTreeComponent>;
   let http: HttpTestingController;
-  let events: Subject<NavigationStart | NavigationCancel>;
+  let events: Subject<NavigationStart | NavigationCancel | NavigationEnd>;
   let owner: ReturnType<typeof signal<{ user: string }>>;
   let token: string;
   let updateFilter: ReturnType<typeof vi.fn>;
@@ -69,6 +69,25 @@ describe('Explicit keyword hierarchy browsing', () => {
     expect(updateFilter).toHaveBeenCalledExactlyOnceWith('keyword_branch', domestic);
     expect(TestBed.inject(KeywordHierarchyLabels).names()[domestic]).toBe('Animals › Cat');
     http.expectNone(request => request.method !== 'GET');
+  });
+
+  it('keeps the tree open and focused when selecting a branch updates the gallery URL', async () => {
+    build(); await open();
+    document.body.appendChild(fixture.nativeElement);
+    const filters = TestBed.inject(GalleryStore).filters;
+    updateFilter.mockImplementation((_key: string, value: string) => {
+      events.next(new NavigationStart(4, '/?keyword_branch=' + value));
+      filters.update(current => ({ ...current, keyword_branch: value }));
+      events.next(new NavigationEnd(4, '/?keyword_branch=' + value, '/?keyword_branch=' + value));
+    });
+    const panel = fixture.nativeElement.querySelector('[data-keyword-tree]') as HTMLDetailsElement;
+    const button = fixture.nativeElement.querySelector('[data-keyword-branch]') as HTMLButtonElement;
+    button.focus(); button.click(); fixture.detectChanges();
+    expect(panel.open).toBe(true);
+    expect(document.activeElement).toBe(button);
+    expect(fixture.componentInstance.opened()).toBe(true);
+    http.expectNone('/api/manual_tags/hierarchy');
+    fixture.nativeElement.remove();
   });
 
   it('refuses old credential commands and cancels parked reads without adopting another account', async () => {

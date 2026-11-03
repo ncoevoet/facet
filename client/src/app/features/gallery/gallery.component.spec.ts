@@ -2420,13 +2420,14 @@ describe('GalleryComponent', () => {
         mockStore.selectionCount.set(0);
       });
 
-      it('leaves the photo canvas full-width until the inspector has an owner', () => {
+      it('keeps the inspector rail open with an empty state before a photo is chosen', () => {
         const fixture = TestBed.createComponent(GalleryComponent);
         (fixture.componentInstance as unknown as { railWide: { setup(): void } }).railWide.setup();
         fixture.detectChanges();
         expect(fixture.componentInstance.panelMode()).toBe(true);
-        expect(fixture.componentInstance.detailsRailVisible()).toBe(false);
-        expect(fixture.nativeElement.querySelector('[data-details-rail]')).toBeNull();
+        expect(fixture.componentInstance.detailsRailVisible()).toBe(true);
+        expect(fixture.nativeElement.querySelector('[data-details-rail]')).not.toBeNull();
+        expect(fixture.nativeElement.textContent).toContain('gallery.tooltip_mode.panel_empty');
         fixture.destroy();
       });
 
