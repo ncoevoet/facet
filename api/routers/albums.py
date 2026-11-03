@@ -1246,7 +1246,7 @@ async def get_shared_album(
                 'max_aperture',
                 'min_focal_length',
                 'max_focal_length',
-                *(key for _, minimum, maximum, _ in SCORE_RANGE_COLUMNS for key in (minimum, maximum)),
+                *(key for column, minimum, maximum, _ in SCORE_RANGE_COLUMNS if column != 'star_rating' for key in (minimum, maximum)),
             )
             filters = {k: qp[k] for k in _FILTER_KEYS if qp.get(k)}
 

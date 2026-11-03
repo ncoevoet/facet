@@ -1704,7 +1704,17 @@
     "zero_stars_clear": "Solo 0 stelle. Fai clic per cancellare il filtro delle stelle.",
     "zero_stars_help_title": "Informazioni sulle zero stelle",
     "zero_stars_help": "Corrisponde a uno zero numerico nell’ambito di valutazione attuale, inclusa l’assenza di una valutazione personale. Le valutazioni sconosciute del catalogo restano non disponibili. Non significa che la foto non sia mai stata valutata. Gli account personali non ricorrono alle valutazioni del catalogo o di altre persone; Origini dei metadati mostra la provenienza registrata.",
-    "semantic_search_help": "Informazioni sulla ricerca visiva"
+    "semantic_search_help": "Informazioni sulla ricerca visiva",
+    "filters_notice": {
+      "message": "{count} filtro attivo",
+      "message_plural": "{count} filtri attivi",
+      "reset": "Reimposta tutti i filtri"
+    },
+    "tile_fit": {
+      "label": "Presentazione delle miniature",
+      "square": "Ritaglio quadrato",
+      "natural": "Proporzioni originali"
+    }
   },
   "composition_patterns": {
     "none": "Nessuno",

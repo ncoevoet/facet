@@ -1704,7 +1704,17 @@
     "zero_stars_clear": "Apenas 0 estrelas. Clique para limpar o filtro de estrelas.",
     "zero_stars_help_title": "Sobre zero estrelas",
     "zero_stars_help": "Corresponde ao zero numérico no âmbito de classificação atual, incluindo uma classificação pessoal ausente. Classificações desconhecidas do catálogo continuam indisponíveis. Isto não significa nunca classificado. As contas pessoais não recorrem às classificações do catálogo nem de outras pessoas; Fontes dos metadados mostra a origem registada.",
-    "semantic_search_help": "Sobre a pesquisa visual"
+    "semantic_search_help": "Sobre a pesquisa visual",
+    "filters_notice": {
+      "message": "{count} filtro ativo",
+      "message_plural": "{count} filtros ativos",
+      "reset": "Redefinir todos os filtros"
+    },
+    "tile_fit": {
+      "label": "Apresentação dos cartões",
+      "square": "Recorte quadrado",
+      "natural": "Proporção original"
+    }
   },
   "composition_patterns": {
     "none": "Nenhum",

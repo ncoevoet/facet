@@ -431,6 +431,7 @@ Antwortfelder und Statuscodes: [API.md](../API.md).
 - **Layout-Modus** — **Raster** (einheitliche Karten) oder **Mosaik** (justierte Zeilen, die Seitenverhältnisse beibehalten), bei jeder Bildschirmbreite.
 - **Vorschaubildgröße** — Regler für die Karten-/Zeilenhöhe (120–400px, in localStorage gespeichert)
 - **Details ausblenden** — Metadaten auf Karten ausblenden (nur im Rastermodus)
+- **Kachel-Darstellung** — quadratischer Zuschnitt (Standard) oder das Originalformat der Foto-Kacheln ohne Details; ausgegraut, solange Mosaik aktiv ist, was das Format bereits bewahrt, oder Details angezeigt werden.
 - **Tooltip** — Wie Fotodetails erscheinen: **Seitenleiste** (Standard), **Hover**, **Klick** oder **Aus**.
   - Die Seitenleiste zeigt alle Details in der rechten Schublade, angeordnet wie in der Fotodetailansicht. Unter **Panel-Aktivierung** wählen Sie **Hover**, **Klick** oder **Hover oder Klick** (Standard). Die Ansicht Prüfen verwendet **Klick**; wählen Sie für Touch-Bildschirme eine Option mit Klick. Sie behält das letzte Foto, wenn der Zeiger das Raster verlässt.
   - Ein Klick auf ein Foto hält die Leiste darauf fest, bis Sie **Auswahl aufheben** drücken (das auch das Foto abwählt). **Escape** wirkt genauso und hebt die Auswahl auf.

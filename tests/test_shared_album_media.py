@@ -168,6 +168,25 @@ def test_public_asset_projection_contains_no_native_path_and_media_uses_only_ass
     assert revoked.status_code == 404
 
 
+@pytest.mark.parametrize('smart', [False, True])
+def test_public_album_does_not_disclose_private_review_fields(shared_media, album_factory, anonymous_client, smart):
+    album, path, _, _ = shared_media
+    if smart:
+        album = album_factory(str(Path(path).parent) + '/', 'smart-private-review', 'Smart')(
+            smart_filter={'path_prefix': str(Path(path).parent) + '/'})
+    token = 'smart-private-review' if smart else 'fixture-album-media'
+    with sqlite3.connect(_TEST_DB_FILE.name) as conn:
+        conn.execute('UPDATE photos SET star_rating=5, is_favorite=1, is_rejected=1, is_kept=1 WHERE path=?', (path,))
+    response = anonymous_client.get(f'/api/shared/album/{album}', params={'token': token, 'min_star_rating': '5'})
+    assert response.status_code == 200, response.text
+    photo = next(photo for photo in response.json()['photos'] if photo['filename'] == 'chosen.jpg')
+    private = ('star_rating', 'is_favorite', 'is_rejected', 'is_kept')
+    assert all(photo.get(field) is None for field in private)
+    detail = anonymous_client.get(f'/api/shared/album/{album}/photo', params={'token': token, 'asset_id': photo['asset_id']})
+    assert detail.status_code == 200, detail.text
+    assert all(detail.json().get(field) is None for field in private)
+
+
 def test_signed_asset_refuses_tampering_cross_album_and_changed_row_path(shared_media, anonymous_client):
     from api.shared_assets import shared_asset_reference
 

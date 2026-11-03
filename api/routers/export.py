@@ -1535,6 +1535,9 @@ def api_photo_delete(
             paths = list(dict.fromkeys(body.paths))
             visible = _visible_photo_paths(conn, paths, user.user_id)
             removed = [p for p in paths if p in visible]
+            bracket_leads = _bracket_lead_paths(conn, removed, user.user_id)
+            refused = [p for p in removed if p in bracket_leads]
+            removed = [p for p in removed if p not in bracket_leads]
             # Do not reveal whether an unavailable path belongs to another account.
             unavailable = [p for p in paths if p not in visible]
             if not body.dry_run:
@@ -1545,7 +1548,7 @@ def api_photo_delete(
             _invalidate_removed_photos(set(removed))
         return PhotoDeleteResponse(
             dry_run=body.dry_run, would_trash=[], deleted=[], removed_catalog=removed,
-            not_found=unavailable, not_visible=[], refused_bracket_lead=[],
+            not_found=unavailable, not_visible=[], refused_bracket_lead=refused,
             sequence_siblings=[], skipped=[], removed_missing=[], trashed=0, errors={},
         )
 

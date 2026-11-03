@@ -50,6 +50,7 @@ describe('PhotoCollectionSidebarComponent', () => {
     key('ArrowRight'); expect(root.style.width).toBe('384px');
     key('Home'); expect(root.style.width).toBe('144px');
     key('ArrowLeft'); expect(root.style.width).toBe('144px');
+    expect(key('Escape').defaultPrevented).toBe(false);
   });
   it('cancels pointer resizing and ignores a second pointer', () => {
     const { fixture, root, divider } = render();

@@ -91,7 +91,7 @@ CONTRACT_TO_CLIENT_KEY = {
 SMART_ALBUM_EXCLUDE_KEYS = frozenset({
     "page", "per_page", "semanticQuery", "search_threshold", "album_id",
     "similar_to", "similarity_mode", "min_similarity",
-    "hide_details", "tooltip_mode", "panel_activation", "hide_blinks", "hide_bursts",
+    "hide_details", "tooltip_mode", "panel_activation", "tile_fit", "hide_blinks", "hide_bursts",
     "hide_duplicates", "hide_brackets", "hide_panoramas", "hide_rejected",
     "gps_lat", "gps_lng", "gps_radius_km",
     "sequence_group_id", "sequence_kind", "burst_group_id", "duplicate_group_id",

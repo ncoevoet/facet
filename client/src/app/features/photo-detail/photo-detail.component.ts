@@ -575,7 +575,7 @@ const SOCIAL_SOURCE_KEYS: Record<string, string> = {
             }
           </details>
 
-          <details #analysisSection data-photo-analysis tabindex="-1" (keydown.escape)="closeAnalysis($event)" (toggle)="analysisOpen.set(analysisSection.open)" class="border-t border-[var(--mat-sys-outline-variant)]">
+          <details #analysisSection data-photo-analysis (keydown.escape)="closeAnalysis($event)" (toggle)="analysisOpen.set(analysisSection.open)" class="border-t border-[var(--mat-sys-outline-variant)]">
             <summary class="flex min-h-11 cursor-pointer items-center gap-2 text-sm font-medium"><mat-icon aria-hidden="true" class="!h-5 !w-5 !text-xl">analytics</mat-icon><span>{{ I18N.photo_detail.analysis | translate }}</span><span class="ml-auto text-xs font-normal tabular-nums">{{ I18N.photo_detail.assessment.score | translate }} {{ p.aggregate | assessmentValue }}</span></summary>
             @if (analysisOpen()) {
               @if (aggregateRange(); as range) {
@@ -703,6 +703,7 @@ export class PhotoDetailComponent extends PhotoDetailBase implements OnInit {
   private readonly analysisToggle = viewChild<unknown, ElementRef<HTMLButtonElement>>('analysisToggle', { read: ElementRef });
 
   protected closeAnalysis(event: Event): void {
+    if (!this.analysisSection()?.nativeElement.open) return;
     event.preventDefault(); event.stopPropagation();
     const section = this.analysisSection()?.nativeElement;
     if (section) section.open = false;
@@ -1424,7 +1425,6 @@ export class PhotoDetailComponent extends PhotoDetailBase implements OnInit {
   protected async toggleRejected(path: string): Promise<void> {
     const p = this.photo();
     if (!p || p.path !== path) return;
-    if (p.logical_review) { await this.saveLogicalReview(p, 'reject'); return; }
     const isOrigin = this.store.captureReviewView();
     const identity = this.auth.identity();
     const token = this.auth.token;
@@ -1432,6 +1432,10 @@ export class PhotoDetailComponent extends PhotoDetailBase implements OnInit {
     const photos = this.store.photos();
     const index = photos.findIndex(photo => photo.path === p.path);
     const next = photos[index + 1];
+    if (p.logical_review) {
+      if (await this.saveLogicalReview(p, 'reject') && isOrigin()) await this.advanceAfterReview(p, index, next);
+      return;
+    }
     try {
       const res = await firstValueFrom(this.api.post<{ is_rejected: boolean; is_favorite: boolean | null; star_rating: number | null }>('/photo/toggle_rejected', { photo_path: path }));
       const confirmed: Partial<Photo> = { is_rejected: res.is_rejected, is_kept: false };
@@ -1579,7 +1583,7 @@ export class PhotoDetailComponent extends PhotoDetailBase implements OnInit {
     if (!section) return;
     section.open = true;
     this.analysisOpen.set(true);
-    section.focus();
+    section.querySelector<HTMLElement>('summary')?.focus();
     section.scrollIntoView({ block: 'nearest' });
   }
 

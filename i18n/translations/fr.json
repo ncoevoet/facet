@@ -1704,7 +1704,17 @@
     "zero_stars_clear": "0 étoile uniquement. Cliquez pour effacer le filtre d’étoiles.",
     "zero_stars_help_title": "À propos de zéro étoile",
     "zero_stars_help": "Correspond à un zéro numérique dans le périmètre de note actuel, y compris l’absence de note personnelle. Les notes du catalogue inconnues restent indisponibles. Cela ne signifie pas jamais noté. Les comptes personnels ne reprennent pas les notes du catalogue ni celles d’autres personnes ; Sources des métadonnées indique l’origine enregistrée.",
-    "semantic_search_help": "À propos de la recherche visuelle"
+    "semantic_search_help": "À propos de la recherche visuelle",
+    "filters_notice": {
+      "message": "{count} filtre actif",
+      "message_plural": "{count} filtres actifs",
+      "reset": "Réinitialiser tous les filtres"
+    },
+    "tile_fit": {
+      "label": "Présentation des vignettes",
+      "square": "Recadrage carré",
+      "natural": "Ratio d'origine"
+    }
   },
   "composition_patterns": {
     "none": "Aucun",

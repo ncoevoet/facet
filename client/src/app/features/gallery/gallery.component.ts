@@ -340,7 +340,7 @@ const SET_KIND_TOGGLE: Record<string, keyof HiddenFilterFlags> = {
             <ng-container [ngTemplateOutlet]="collectionViewControls.primaryControls()" />
             <ng-container [ngTemplateOutlet]="galleryLayoutButtons" />
             <ng-container [ngTemplateOutlet]="collectionViewControls.filterControls()" />
-            <details #collectionOptions data-collection-options tabindex="-1" class="relative shrink-0"
+            <details #collectionOptions data-collection-options class="relative shrink-0"
                      (keydown.escape)="collectionOptions.open = false; collectionOptionsSummary.focus(); $event.preventDefault(); $event.stopPropagation()">
               <summary #collectionOptionsSummary class="flex min-h-11 cursor-pointer list-none items-center justify-center gap-1 rounded px-2 text-sm hover:bg-[var(--mat-sys-surface-container)]" [attr.aria-label]="I18N.gallery.collection_controls | translate"><mat-icon aria-hidden="true" class="!text-xl !h-5 !w-5">tune</mat-icon><span>{{ I18N.gallery.collection_view | translate }}</span></summary>
               <div class="absolute right-0 top-full z-30 max-h-[70dvh] w-80 max-w-[calc(100vw-2rem)] overflow-y-auto rounded border border-[var(--mat-sys-outline-variant)] bg-[var(--mat-sys-surface-container)] p-3 shadow-lg">
@@ -431,7 +431,7 @@ const SET_KIND_TOGGLE: Record<string, keyof HiddenFilterFlags> = {
             >
               <div [style.height.px]="topSpacer()" aria-hidden="true"></div>
               @for (row of visibleRows(); track row.photos[0].path) {
-              <div class="flex gap-2 mb-2" [style.height.px]="row.height" [style.margin-bottom.px]="effectiveGalleryMode() === 'list' ? 8 : null">
+              <div class="flex gap-2 mb-2" [class.items-start]="naturalGridFit()" [style.height.px]="row.height" [style.margin-bottom.px]="effectiveGalleryMode() === 'list' ? 8 : null">
                 @for (photo of row.photos; track photo.path; let i = $index) {
                   <app-photo-card
                 [collapsedSetKinds]="collapsedSetKinds()"
@@ -439,9 +439,10 @@ const SET_KIND_TOGGLE: Record<string, keyof HiddenFilterFlags> = {
                     [photo]="photo"
                     [attr.data-pidx]="row.startIndex + i"
                     [style.width.px]="row.widths[i]"
-                    [style.height.px]="row.height"
-                      [style.content-visibility]="'auto'"
+                    [style.height.px]="row.heights?.[i] ?? row.height"
+                    [style.content-visibility]="'auto'"
                     class="shrink-0"
+                    [naturalFit]="naturalGridFit()"
                     [hideDetails]="rowCardHideDetails()"
                     [mosaicMode]="effectiveGalleryMode() === 'mosaic'"
                     [listMode]="effectiveGalleryMode() === 'list'"
@@ -496,6 +497,7 @@ const SET_KIND_TOGGLE: Record<string, keyof HiddenFilterFlags> = {
               tabindex="0"
               [attr.aria-label]="(effectiveGalleryMode() === 'list' ? I18N.gallery.layout_list : I18N.gallery.photo_grid) | translate"
               class="grid grid-cols-1 gap-2 p-2 md:p-4 outline-none"
+              [class.items-start]="naturalGridFit()"
               [style.grid-template-columns]="effectiveGalleryMode() === 'list' ? 'minmax(0,1fr)' : galleryColsStyle()"
               [style.row-gap.px]="effectiveGalleryMode() === 'list' ? 8 : null"
               (keydown)="onGridKeydown($event)"
@@ -512,6 +514,7 @@ const SET_KIND_TOGGLE: Record<string, keyof HiddenFilterFlags> = {
                   [showSelectionIndicators]="selectionAffordance() || (selectingPhotos() && !isDesktop())"
                   [isActive]="i === activeIndex()"
                   [gridHasActiveCard]="hasActivePhoto()"
+                  [naturalFit]="naturalGridFit()"
                   [hideDetails]="effectiveHideDetails()"
                   [listMode]="effectiveGalleryMode() === 'list'"
                   [style.height.px]="effectiveGalleryMode() === 'list' ? listRowHeight() : null"
@@ -812,7 +815,7 @@ const SET_KIND_TOGGLE: Record<string, keyof HiddenFilterFlags> = {
           }
           <span data-selection-status tabindex="-1" class="text-sm font-medium shrink-0 px-1">{{ selectionStatus().key | translate:selectionStatus().params }}</span>
           @if (viewScoped() || selectionGroupTargets().total) {
-            <details #selectionTargets #selectionDisclosure name="gallery-selection-disclosures" data-selection-targets tabindex="-1"
+            <details #selectionTargets #selectionDisclosure name="gallery-selection-disclosures" data-selection-targets
               (keydown.escape)="selectionTargets.open = false; targetsSummary.focus(); $event.preventDefault(); $event.stopPropagation()">
               <summary #targetsSummary class="flex min-h-10 cursor-pointer list-none items-center gap-1 rounded-md px-2 text-sm focus-visible:outline-2 focus-visible:outline-[var(--mat-sys-primary)]"><mat-icon aria-hidden="true">ads_click</mat-icon>{{ I18N.gallery.selection.targets.title | translate }}</summary>
               <div data-toolbar-panel class="absolute bottom-full left-0 mb-3 group-data-[toolbar-down=true]/selection:bottom-auto group-data-[toolbar-down=true]/selection:top-full group-data-[toolbar-down=true]/selection:mb-0 group-data-[toolbar-down=true]/selection:mt-3 max-h-[60vh] w-full max-w-160 overflow-y-auto rounded-lg border border-[var(--mat-sys-outline-variant)] bg-[var(--mat-sys-surface-container)] p-3 shadow-lg text-sm">
@@ -853,7 +856,7 @@ const SET_KIND_TOGGLE: Record<string, keyof HiddenFilterFlags> = {
           <button mat-icon-button class="md:!hidden" (click)="openActionsSheet()" [disabled]="selectionActions.downloading()" [matTooltip]="I18N.gallery.selection.actions | translate" [attr.aria-label]="I18N.gallery.selection.actions | translate">
             @if (selectionActions.downloading()) { <mat-spinner diameter="18" [attr.aria-label]="I18N.ui.labels.loading | translate"></mat-spinner> } @else { <mat-icon>more_horiz</mat-icon> }
           </button>
-          <details #selectionMore #selectionDisclosure name="gallery-selection-disclosures" data-selection-more tabindex="-1" class="max-md:hidden" (keydown.escape)="selectionMore.open = false; selectionMoreSummary.focus(); $event.preventDefault(); $event.stopPropagation()">
+          <details #selectionMore #selectionDisclosure name="gallery-selection-disclosures" data-selection-more class="max-md:hidden" (keydown.escape)="selectionMore.open = false; selectionMoreSummary.focus(); $event.preventDefault(); $event.stopPropagation()">
             <summary #selectionMoreSummary class="flex min-h-10 cursor-pointer list-none items-center gap-2 rounded-md px-3 text-sm font-medium hover:bg-[var(--mat-sys-surface-container-high)] focus-visible:outline-2 focus-visible:outline-[var(--mat-sys-primary)]"><mat-icon aria-hidden="true">more_horiz</mat-icon>{{ I18N.gallery.selection.actions | translate }}</summary>
             <div data-toolbar-panel class="absolute bottom-full left-0 mb-3 group-data-[toolbar-down=true]/selection:bottom-auto group-data-[toolbar-down=true]/selection:top-full group-data-[toolbar-down=true]/selection:mb-0 group-data-[toolbar-down=true]/selection:mt-3 flex max-h-[60vh] w-full max-w-160 flex-wrap items-center gap-2 overflow-y-auto rounded-lg border border-[var(--mat-sys-outline-variant)] bg-[var(--mat-sys-surface-container)] p-3 shadow-lg">
           @if (!allLoadedSelected()) {
@@ -1763,6 +1766,17 @@ export class GalleryComponent implements OnInit, OnDestroy {
     () => this.effectiveGalleryMode() === 'mosaic' || this.effectiveHideDetails(),
   );
 
+  /**
+   * The natural tile fit as the grid renders it: grid mode with details hidden
+   * only. Mosaic justifies every row to one height by construction, and cards
+   * with details keep their equal-height rows, so both ignore the preference
+   * (its menu entry is disabled in either case).
+   */
+  protected readonly naturalGridFit = computed(
+    () => this.effectiveGalleryMode() === 'grid' && this.effectiveHideDetails()
+      && this.store.filters().tile_fit === 'natural',
+  );
+
   /** Unified row model for the active mode. */
   readonly rowsModel = computed<GalleryRow[]>(() => {
     const photos = this.store.photos();
@@ -1773,7 +1787,7 @@ export class GalleryComponent implements OnInit, OnDestroy {
     if (this.effectiveGalleryMode() === 'list') return buildListRows(photos, width, this.listRowHeight(), gap);
     const build = this.effectiveGalleryMode() === 'mosaic'
       ? (ps: Photo[]) => buildMosaicRows(ps, width, this.cardWidth(), gap)
-      : (ps: Photo[]) => buildGridRows(ps, width, this.cardWidth(), gap, this.effectiveHideDetails(), this.isDesktop());
+      : (ps: Photo[]) => buildGridRows(ps, width, this.cardWidth(), gap, this.effectiveHideDetails(), this.isDesktop(), this.store.filters().tile_fit);
     return build(photos);
   });
 

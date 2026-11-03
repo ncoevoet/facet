@@ -20,7 +20,7 @@ type Result = components['schemas']['KeywordChangeResult'];
   selector: 'app-keyword-catalog', imports: [TranslatePipe, ContextHelpComponent],
   changeDetection: ChangeDetectionStrategy.OnPush, host: { class: 'block min-w-0' },
   template: `
-    <details #panel data-keyword-catalog tabindex="-1" (toggle)="toggle(panel.open)" (keydown.escape)="escape($event, panel, trigger)">
+    <details #panel data-keyword-catalog (toggle)="toggle(panel.open)" (keydown.escape)="escape($event, panel, trigger)">
       <summary #trigger class="flex min-h-11 cursor-pointer items-center text-sm font-medium">{{ I18N.keyword_catalog.title | translate }}</summary>
       @if (opened()) {
         <form class="flex gap-2" (submit)="$event.preventDefault(); load()">

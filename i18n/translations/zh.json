@@ -1704,7 +1704,17 @@
     "zero_stars_clear": "仅显示 0 星。点击清除星级筛选。",
     "zero_stars_help_title": "关于零星评分",
     "zero_stars_help": "匹配当前评分范围中的数值零，包括未设置个人评分的情况。未知的目录评分仍为不可用。这不表示从未评分。个人账户不会回退使用目录或其他人的评分；“元数据来源”显示已记录的来源。",
-    "semantic_search_help": "关于视觉搜索"
+    "semantic_search_help": "关于视觉搜索",
+    "filters_notice": {
+      "message": "已启用 {count} 个筛选",
+      "message_plural": "已启用 {count} 个筛选",
+      "reset": "重置全部筛选"
+    },
+    "tile_fit": {
+      "label": "照片呈现方式",
+      "square": "裁切到正方形",
+      "natural": "保持原有比例"
+    }
   },
   "composition_patterns": {
     "none": "无",

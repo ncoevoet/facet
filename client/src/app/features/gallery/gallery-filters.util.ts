@@ -31,6 +31,11 @@ export const TOOLTIP_MODES: readonly TooltipMode[] = ['hover', 'click', 'off', '
  *  Default 'both' preserves the original panel behaviour exactly. */
 export type PanelActivation = 'hover' | 'click' | 'both';
 
+/** How gallery tiles present the photo when the details block is hidden:
+ *  cropped to a square, or the original aspect ratio (card hugs the photo). */
+export type TileFit = 'square' | 'natural';
+export const TILE_FITS: readonly TileFit[] = ['square', 'natural'];
+
 export const PANEL_ACTIVATIONS: readonly PanelActivation[] = ['hover', 'click', 'both'];
 
 export const GALLERY_MODE_KEY = 'facet_gallery_mode';
@@ -194,6 +199,7 @@ export interface GalleryFilters {
   hide_details: boolean;
   tooltip_mode: TooltipMode;
   panel_activation: PanelActivation;
+  tile_fit: TileFit;
   hide_blinks: boolean;
   hide_bursts: boolean;
   hide_duplicates: boolean;
@@ -287,7 +293,7 @@ export function seededSearchThreshold(searchThresholdDefault: number | null | un
 export const SMART_ALBUM_EXCLUDE_KEYS = new Set([
   'page', 'per_page', 'semanticQuery', 'search_threshold', 'album_id',
   'similar_to', 'similarity_mode', 'min_similarity',
-  'hide_details', 'tooltip_mode', 'panel_activation', 'hide_blinks', 'hide_bursts',
+  'hide_details', 'tooltip_mode', 'panel_activation', 'tile_fit', 'hide_blinks', 'hide_bursts',
   'hide_duplicates', 'hide_brackets', 'hide_panoramas', 'hide_rejected',
   'gps_lat', 'gps_lng', 'gps_radius_km',
   'sequence_group_id', 'sequence_kind', 'burst_group_id', 'duplicate_group_id',
@@ -532,6 +538,7 @@ export const DEFAULT_FILTERS: GalleryFilters = {
   hide_details: true,
   tooltip_mode: 'panel',
   panel_activation: 'both',
+  tile_fit: 'square',
   hide_blinks: true,
   hide_bursts: true,
   hide_duplicates: true,
@@ -553,11 +560,11 @@ export const DEFAULT_FILTERS: GalleryFilters = {
 };
 
 export type DisplayOptions = Pick<GalleryFilters,
-  'hide_details' | 'tooltip_mode' | 'panel_activation' | 'hide_blinks' | 'hide_bursts' | 'hide_duplicates' | 'hide_brackets' | 'hide_panoramas' |
+  'hide_details' | 'tooltip_mode' | 'panel_activation' | 'tile_fit' | 'hide_blinks' | 'hide_bursts' | 'hide_duplicates' | 'hide_brackets' | 'hide_panoramas' |
   'hide_rejected' | 'favorites_only' | 'is_monochrome'>;
 
 export const DISPLAY_OPTION_KEYS: (keyof DisplayOptions)[] = [
-  'hide_details', 'tooltip_mode', 'panel_activation', 'hide_blinks', 'hide_bursts', 'hide_duplicates', 'hide_brackets', 'hide_panoramas',
+  'hide_details', 'tooltip_mode', 'panel_activation', 'tile_fit', 'hide_blinks', 'hide_bursts', 'hide_duplicates', 'hide_brackets', 'hide_panoramas',
   'hide_rejected', 'favorites_only', 'is_monochrome',
 ];
 

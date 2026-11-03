@@ -1,6 +1,6 @@
 import { TestBed } from '@angular/core/testing';
 import { signal } from '@angular/core';
-import { provideRouter } from '@angular/router';
+import { provideRouter, Router } from '@angular/router';
 import { MatDialog } from '@angular/material/dialog';
 import { MatSnackBar } from '@angular/material/snack-bar';
 import { of, Subject } from 'rxjs';
@@ -66,6 +66,20 @@ describe('explicit catalog removal', () => {
     expect(await pending).toEqual([]);
     expect(post).not.toHaveBeenCalled();
     expect(remove).not.toHaveBeenCalled();
+  });
+
+  it('reconciles a confirmed removal after same-account navigation', async () => {
+    const response = new Subject<{ removed_catalog: string[] }>();
+    post.mockReturnValue(response);
+    const pending = TestBed.inject(PhotoActionsService).removeFromCatalog(['/private.jpg']);
+    await vi.waitFor(() => expect(TestBed.inject(MatDialog).open).toHaveBeenCalled());
+    close.next(true);
+    await vi.waitFor(() => expect(post).toHaveBeenCalled());
+    await TestBed.inject(Router).navigateByUrl('/other').catch(() => false);
+    response.next({ removed_catalog: ['/private.jpg'] });
+    response.complete();
+    expect(await pending).toEqual([]);
+    expect(remove).toHaveBeenCalledExactlyOnceWith(['/private.jpg']);
   });
 
   it('erases entries from already-open thumbnail Cache objects and retains their namespaces', async () => {

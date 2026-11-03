@@ -48,6 +48,7 @@ export class PhotoActionsService {
     if (!canProceed() || !this.auth.isEdition() || !input.length || input.length > 10000) return [];
     const paths = [...new Set(input)];
     const token = this.auth.token;
+    const owner = this.auth.identity();
     const guard = this.staleness.create(this.destroyRef, { track: 'status', valid: () => this.auth.token === token });
     try {
       const { ConfirmDialogComponent } = await import('../../shared/components/confirm-dialog/confirm-dialog.component');
@@ -66,9 +67,10 @@ export class PhotoActionsService {
       // Service-worker thumbnail copies outlive their database rows. Clear the
       // local thumbnail cache after an accepted erase, including old revisions.
       const removed = result.removed_catalog ?? [];
+      if (this.auth.identity() !== owner || this.auth.token !== token) return [];
+      this.store.removePhotos(removed);
       if (removed.length) await clearThumbnailCaches();
       if (!guard.current()) return [];
-      this.store.removePhotos(removed);
       this.snackBar.open(this.i18n.t(I18N.photo_detail.remove_catalog.result, { count: removed.length }), '', { duration: 4000 });
       return removed;
     } catch {

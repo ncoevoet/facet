@@ -557,6 +557,7 @@ describe('PhotoDetailComponent', () => {
     expect((action.mock.calls[0][0] as { path: string }).path).toBe(view.componentInstance.photo()?.path);
     expect(mockRouter.currentNavigation()).toBeNull();
     expect(section.open).toBe(true);
+    expect(document.activeElement).toBe(section.querySelector('summary'));
     view.detectChanges(); await view.whenStable(); view.detectChanges();
     expect(root.querySelector('[data-photo-analysis]')).toBe(section);
     expect(section.open).toBe(true);
@@ -1576,7 +1577,7 @@ describe('PhotoDetailComponent', () => {
       expect(component.photo().star_rating).toBe(3);
     });
 
-    it('advances a logical Keep through the same captured review queue as a physical photo', async () => {
+    it.each(['keep', 'reject'] as const)('advances a logical %s through the same captured review queue as a physical photo', async decision => {
       createComponent();
       const state = { asset_id: 'asset', group_revision: 1, revision: 0, input_token: 'old', source_path: samplePhoto.path,
         values: { star_rating: 3, is_favorite: 0, is_kept: 0, is_rejected: 0 },
@@ -1587,9 +1588,10 @@ describe('PhotoDetailComponent', () => {
       store.photos.set([current, next]);
       store.filters.update(f => ({ ...f, review_status: 'undecided' }));
       component.photo.set(current);
-      mockApi.post.mockReturnValue(of({ ...state, revision: 1, input_token: 'kept', values: { ...state.values, is_kept: 1 } }));
+      mockApi.post.mockReturnValue(of({ ...state, revision: 1, input_token: 'updated', values: { ...state.values, is_kept: decision === 'keep' ? 1 : 0, is_rejected: decision === 'reject' ? 1 : 0 } }));
       const repair = vi.spyOn(store, 'refreshReviewResults').mockImplementation(async () => { store.photos.set([next]); });
-      await component.reviewPhoto('kept');
+      if (decision === 'keep') await component.reviewPhoto('kept');
+      else await component.toggleRejected(current.path);
       expect(repair).toHaveBeenCalledWith(false, { whileParked: true });
       expect(component.photo().path).toBe('/next.jpg');
       expect(mockRouter.navigate).toHaveBeenCalledWith(['/photo'], expect.objectContaining({ queryParams: { path: '/next.jpg' }, replaceUrl: true }));

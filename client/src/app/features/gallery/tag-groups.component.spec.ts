@@ -68,6 +68,11 @@ describe('rendered literal tag rule editor', () => {
     expect(root.querySelector('label[for="tag-rule-input"]')).toBeTruthy();
   });
 
+  it('trims surrounding whitespace from a new tag rule', () => {
+    add('  coast  ');
+    expect(update).toHaveBeenCalledExactlyOnceWith('tag_groups', '{"any":["coast"]}');
+  });
+
   it('combines groups, removes one literal rule and returns focus before its button disappears', () => {
     add('coast,ridge');
     root.querySelector<HTMLInputElement>('input[value=all]')!.click(); add('夜景');

@@ -978,7 +978,7 @@ interface SceneSummary {
                     [attr.aria-label]="I18N.culling.compare['4up'] | translate"
                     [attr.aria-pressed]="compareMode() === '4up'"
                     (click)="setCompareMode('4up')"><mat-icon>grid_view</mat-icon></button>
-            <details #darkroomTools tabindex="-1" class="relative shrink-0" data-darkroom-tools
+            <details #darkroomTools class="relative shrink-0" data-darkroom-tools
                      (keydown.escape)="darkroomTools.open = false; darkroomToolsSummary.focus(); $event.preventDefault(); $event.stopPropagation()">
               <summary #darkroomToolsSummary class="flex h-11 min-w-11 cursor-pointer list-none items-center justify-center gap-2 rounded px-2 hover:bg-white/10"
                        (keydown.enter)="$event.stopPropagation()" (keydown.space)="$event.stopPropagation()"
@@ -1019,7 +1019,7 @@ interface SceneSummary {
                     (click)="toggleDarkroomLoupe()">
               <mat-icon>{{ darkroomLoupeActive() ? 'zoom_in' : 'search' }}</mat-icon>
             </button>
-            <details #renditionHelp data-rendition-help tabindex="-1" class="shrink-0" (keydown)="$event.stopPropagation()" (keydown.escape)="onRenditionHelpEscape($event, renditionHelp, renditionHelpSummary)">
+            <details #renditionHelp data-rendition-help class="shrink-0" (keydown)="$event.stopPropagation()" (keydown.escape)="onRenditionHelpEscape($event, renditionHelp, renditionHelpSummary)">
               <summary #renditionHelpSummary class="flex h-10 w-10 cursor-pointer items-center justify-center rounded-full hover:bg-white/15" [attr.aria-label]="I18N.gallery.compare.rendition.sources | translate"><mat-icon aria-hidden="true">info</mat-icon></summary>
               <div class="fixed inset-x-2 top-14 z-[120] flex max-h-40 gap-2 overflow-y-auto rounded border border-white/30 bg-neutral-900 p-3 text-xs text-white">
                 <div class="min-w-0 flex-1 space-y-2">

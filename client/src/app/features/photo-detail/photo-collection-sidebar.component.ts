@@ -128,6 +128,7 @@ export class PhotoCollectionSidebarComponent {
   }
   protected resizeKey(event: KeyboardEvent): void {
     if (!['ArrowLeft', 'ArrowRight', 'Home', 'End', 'Escape'].includes(event.key)) return;
+    if (event.key === 'Escape' && !this.drag) return;
     event.preventDefault(); event.stopPropagation();
     if (event.key === 'Escape') { this.finishPointer(true); return; }
     this.finishPointer(true);

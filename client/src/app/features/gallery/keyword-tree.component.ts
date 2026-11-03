@@ -21,7 +21,7 @@ type Result = components['schemas']['HierarchyChangeResult'];
   selector: 'app-keyword-tree', imports: [MatIconModule, TranslatePipe, ContextHelpComponent, KeywordHierarchyEditorComponent],
   changeDetection: ChangeDetectionStrategy.OnPush, host: { class: 'block min-w-0' },
   template: `
-    <details #panel data-keyword-tree tabindex="-1" (toggle)="toggle(panel.open)" (keydown.escape)="escape($event, trigger)">
+    <details #panel data-keyword-tree (toggle)="toggle(panel.open)" (keydown.escape)="escape($event, trigger)">
       <summary #trigger class="min-h-11 cursor-pointer py-2 text-sm font-medium">{{ I18N.keyword_hierarchy.title | translate }}</summary>
       @if (opened()) {
         <label class="block text-xs">{{ I18N.keyword_catalog.search | translate }}

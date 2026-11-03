@@ -21,7 +21,7 @@ type Result = components['schemas']['LogicalAssetResult'];
   host: { class: 'block min-w-0' },
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
-    <details data-logical-asset [open]="expanded()" tabindex="-1" (keydown.escape)="expanded() && close($event, trigger)">
+    <details data-logical-asset [open]="expanded()" (keydown.escape)="expanded() && close($event, trigger)">
       <summary #trigger (click)="toggle($event)" class="flex min-h-10 cursor-pointer items-center text-xs font-medium focus-visible:outline-2">{{ I18N.logical_assets.title | translate }}</summary>
       @if (expanded()) {
         <div class="space-y-2 pb-2 text-xs">

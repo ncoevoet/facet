@@ -93,6 +93,17 @@ describe('GalleryViewControlsComponent', () => {
       expect(store.applyDisplayPreset).not.toHaveBeenCalled();
     });
 
+    it.each([[true, 'grid', false], [false, 'grid', true], [true, 'mosaic', true], [true, 'list', true]] as const)(
+      'enables tile fit only for detail-less grids (%s, %s)', async (hideDetails, mode, disabled) => {
+        const { fixture, root, store } = render();
+        store.filters.update(filters => ({ ...filters, hide_details: hideDetails }));
+        store.galleryMode.set(mode);
+        fixture.detectChanges();
+        await openMenu(fixture, root.querySelector<HTMLButtonElement>('[data-display-presets]')!);
+        expect(document.querySelector<HTMLButtonElement>('[data-tile-fit]')!.disabled).toBe(disabled);
+      },
+    );
+
     ;
 
     it('shows the sort button, sort direction and filter toggle (one control group) otherwise', () => {

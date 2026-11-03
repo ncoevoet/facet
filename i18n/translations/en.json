@@ -1729,7 +1729,17 @@
     "zero_stars_clear": "0 stars only. Click to clear the star filter.",
     "zero_stars_help_title": "About zero stars",
     "zero_stars_help": "Matches a numeric zero in the current rating scope, including an absent personal rating. Unknown catalog ratings stay unavailable. This does not mean never rated. Personal accounts do not fall back to catalog or other people’s ratings; Metadata sources shows the recorded origin.",
-    "semantic_search_help": "About visual search"
+    "semantic_search_help": "About visual search",
+    "filters_notice": {
+      "message": "{count} filter active",
+      "message_plural": "{count} filters active",
+      "reset": "Reset all filters"
+    },
+    "tile_fit": {
+      "label": "Tile presentation",
+      "square": "Square crop",
+      "natural": "Original ratio"
+    }
   },
   "composition_patterns": {
     "none": "None",

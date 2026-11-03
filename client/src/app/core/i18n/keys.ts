@@ -1744,6 +1744,16 @@ export const I18N = {
     zero_stars_help_title: "gallery.zero_stars_help_title",
     zero_stars_help: "gallery.zero_stars_help",
     semantic_search_help: "gallery.semantic_search_help",
+    filters_notice: {
+      message: "gallery.filters_notice.message",
+      message_plural: "gallery.filters_notice.message_plural",
+      reset: "gallery.filters_notice.reset",
+    },
+    tile_fit: {
+      label: "gallery.tile_fit.label",
+      square: "gallery.tile_fit.square",
+      natural: "gallery.tile_fit.natural",
+    },
   },
   composition_patterns: {
     none: "composition_patterns.none",

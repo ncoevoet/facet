@@ -14,7 +14,7 @@ import { ContextHelpComponent } from '../../shared/components/context-help/conte
   changeDetection: ChangeDetectionStrategy.OnPush,
   host: { class: 'block min-w-0' },
   template: `
-    <details [open]="expanded()" data-related-files tabindex="-1" (keydown.escape)="expanded() && close($event, trigger)">
+    <details [open]="expanded()" data-related-files (keydown.escape)="expanded() && close($event, trigger)">
       <summary #trigger (click)="toggle($event)" class="flex min-h-11 cursor-pointer items-center gap-2 text-xs font-medium focus-visible:outline-2">
         <mat-icon aria-hidden="true" class="!h-5 !w-5 !text-xl">file_copy</mat-icon>{{ I18N.related_files.title | translate }}
       </summary>

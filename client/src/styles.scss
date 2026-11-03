@@ -315,12 +315,11 @@ html.light-mode ::-webkit-scrollbar-thumb {
 // Compact task controls keep Material's coordinated label/infix geometry.
 app-gallery-filter-sidebar,
 [data-collection-query] {
-  @include mat.form-field-density(-3);
+  @include mat.form-field-density(-2);
 }
 
 // Collection fields read as a search toolbar, rather than large filled forms.
 [data-collection-query] .mat-mdc-form-field {
-  --mat-form-field-container-height: 40px;
   --mat-form-field-container-vertical-padding: var(--facet-space-control);
   --mat-form-field-filled-container-shape: var(--facet-control-radius);
   --mat-form-field-filled-container-color: var(--mat-sys-surface-container-lowest);

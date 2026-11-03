@@ -1980,6 +1980,15 @@ describe('gallery session query (nav-icon return)', () => {
       expect(filterEntries()).toEqual([]);
     });
 
+    it('persists tile_fit as a display option without touching the page or the journal', async () => {
+      await store.updateFilter('tile_fit', 'natural');
+      expect(JSON.parse(localStorage.getItem('facet_display_options')!).tile_fit).toBe('natural');
+      expect(store.filters().tile_fit).toBe('natural');
+      expect(store.filters().page).toBe(1);
+      await store.updateFilter('tile_fit', 'square');
+      expect(JSON.parse(localStorage.getItem('facet_display_options')!).tile_fit).toBe('square');
+    });
+
     it('records nothing for an edit made inside a UI tool scope', async () => {
       await journal().suppress(async () => {
         await store.updateFilter('search', 'agent');

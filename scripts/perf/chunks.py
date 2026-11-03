@@ -11,6 +11,9 @@ Two runs: the same totals side by side with the B/A ratio, and the median `agg` 
 Windows: a chunk owns the events between the previous chunk's end and its own end, so work started
 just before the timed chunk body (an overlapped decode) is still charged to a chunk. Events recorded
 from a worker thread carry `thread` in their extra and are summed under `<label>@thread`.
+A decode-ahead (`ahead` event: the next chunk's first photos, decoded during the chunk that
+submitted it) is NOT charged to that chunk: its span, and the `io@thread` events inside it, are
+booked to the chunk that consumes it as `io_ahead`.
 """
 import collections
 import csv
@@ -49,6 +52,12 @@ def analyse(run):
            'post_total_s': round(sum(dur(e) for e in post), 2), 'n_chunks': len(chunks),
            'metrics': summ.get('metrics'), 'peak_swap_gib': summ.get('peak_swap_gib'),
            'peak_sys_mem_pct': summ.get('peak_sys_mem_pct')}
+    ahead = [e for e in ev if e[0] == 'ahead']
+
+    def inside_ahead(e):
+        # The scan thread's own events (infer/load/unload) run beside the ahead by design.
+        return bool(e[3].get('thread')) and any(a[1] - 1e-6 <= e[1] and e[2] <= a[2] + 1e-6 for a in ahead)
+
     per_chunk = []
     prev_end = scan[0][1] if scan else 0.0
     for c in chunks:
@@ -59,7 +68,9 @@ def analyse(run):
         loads = collections.OrderedDict()
         evicted = []
         for e in ev:
-            if e is c or e[0] in ('chunk', 'scan') or e[0].startswith('post:'):
+            if e is c or e[0] in ('chunk', 'scan', 'ahead') or e[0].startswith('post:'):
+                continue
+            if inside_ahead(e):
                 continue
             if not (e[1] >= lo - 1e-6 and e[2] <= hi + 1e-6):
                 continue
@@ -73,6 +84,10 @@ def analyse(run):
             if e[0] == 'evict_cpu_cache':
                 evicted.extend(e[3].get('cached') or [])
             d[k] = round(d.get(k, 0) + dur(e), 2)
+        consumed = [a for a in ahead if a[1] < c[1] and not any(
+            p[1] > a[1] and p[1] < c[1] for p in chunks)]
+        if consumed:
+            d['io_ahead'] = round(sum(dur(a) for a in consumed), 2)
         d['loads'] = loads
         d['evicted'] = evicted
         win = [s for s in S if lo <= s[0] <= hi]
@@ -135,8 +150,9 @@ def print_one(a):
         infer = {k[6:]: v for k, v in c.items() if k.startswith('infer:')}
         unl = sum(v for k, v in c.items() if k.startswith('unload:')) + c.get('reclaim', 0) + c.get('evict_cpu_cache', 0)
         load = sum(x[1] for x in c['loads'].values())
-        print(' chunk%d n=%d wall=%.1f load=%.1f unload+reclaim=%.1f io=%.1f agg=%.1f save=%.1f infer=%.1f'
-              ' sys%%max=%s swapmax=%s' % (i, c['n'], c['wall'], load, unl, c.get('io', 0), c.get('agg', 0),
+        print(' chunk%d n=%d wall=%.1f load=%.1f unload+reclaim=%.1f io=%.1f io_ahead=%.1f agg=%.1f '
+              'save=%.1f infer=%.1f sys%%max=%s swapmax=%s' % (i, c['n'], c['wall'], load, unl,
+                                                              c.get('io', 0), c.get('io_ahead', 0), c.get('agg', 0),
                                           c.get('save', 0), sum(infer.values()), c['max_sys_mem_pct'], c['max_swap_gib']))
         print('   infer:', ' '.join('%s=%.1f' % kv for kv in infer.items()))
         print('   loads:', ' '.join('%s=%s/%.1fs' % (m, v[0], v[1]) for m, v in c['loads'].items()))

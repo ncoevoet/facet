@@ -12,7 +12,7 @@ import { ContextHelpComponent } from '../../shared/components/context-help/conte
   changeDetection: ChangeDetectionStrategy.OnPush,
   host: { class: 'block min-w-0' },
   template: `
-    <details [open]="expanded()" data-photo-provenance tabindex="-1"
+    <details [open]="expanded()" data-photo-provenance
              (keydown.escape)="expanded() && close($event, trigger)">
       <summary #trigger (click)="toggle($event)" class="flex min-h-11 cursor-pointer items-center gap-2 text-xs font-medium focus-visible:outline-2">
         <mat-icon aria-hidden="true" class="!h-5 !w-5 !text-xl">history</mat-icon>{{ I18N.metadata_sources.title | translate }}

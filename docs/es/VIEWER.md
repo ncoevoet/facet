@@ -431,6 +431,7 @@ Campos de respuesta y códigos de estado: [API.md](../API.md).
 - **Modo de diseño**: **Cuadrícula** (tarjetas uniformes) o **Mosaico** (filas justificadas que conservan las proporciones), en cualquier ancho de pantalla.
 - **Tamaño de miniatura**: control deslizante de altura de tarjeta/fila (120–400 px, guardado en localStorage)
 - **Ocultar detalles**: oculta los metadatos de las tarjetas (solo en modo cuadrícula)
+- **Presentación de miniaturas**: recorte cuadrado (por defecto) o la proporción original de la foto para las miniaturas sin detalles; se muestra deshabilitada mientras el modo mosaico está activo, que ya conserva la proporción, o mientras se muestran los detalles.
 - **Información emergente**: cómo aparecen los detalles de la foto: **Panel lateral** (por defecto), **Al pasar el cursor**, **Clic** o **Desactivada**.
   - El panel lateral muestra los detalles completos en el cajón de la derecha, con la misma disposición que el detalle de la foto. En **Activación del panel**, elige **Hover**, **Clic** o **Hover o clic** (por defecto). La vista Revisar usa **Clic**; elige una opción con clic para las pantallas táctiles. Conserva la última foto cuando el cursor sale de la cuadrícula.
   - Hacer clic en una foto mantiene el panel en ella hasta que pulsas **Deseleccionar** (que también deselecciona la foto). **Escape** hace lo mismo y borra la selección.

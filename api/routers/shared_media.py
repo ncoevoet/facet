@@ -11,7 +11,7 @@ from starlette.types import ASGIApp, Message, Receive, Scope, Send
 from api.config import VIEWER_CONFIG
 from api.database import get_async_db
 from api.models.gallery import SharedPhoto
-from api.shared_assets import shared_asset_matches, shared_asset_row_id
+from api.shared_assets import public_photo_fields, shared_asset_matches, shared_asset_row_id
 from api.routers.albums import _fetch_album_photos
 from api.routers.comparison import _serve_original
 from api.routers.thumbnails import _image_response, _thumbnail_response
@@ -83,7 +83,7 @@ async def _member(album_id: int, token: str, asset_id: str):
         await cursor.close()
         if not row:
             raise _not_found()
-        return {key: value for key, value in result['photos'][0].items() if key != 'path'} | {'asset_id': asset_id}, dict(row)
+        return public_photo_fields(result['photos'][0]) | {'asset_id': asset_id}, dict(row)
 
 
 def _private(response: Response):

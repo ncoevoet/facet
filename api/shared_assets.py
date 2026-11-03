@@ -14,6 +14,11 @@ import re
 from api import config
 
 _REFERENCE = re.compile(r'(-?[1-9][0-9]{0,18}|0)\.([0-9a-f]{64})')
+_PRIVATE_FIELDS = frozenset({'path', 'star_rating', 'is_favorite', 'is_rejected', 'is_kept'})
+
+
+def public_photo_fields(photo: dict) -> dict:
+    return {key: value for key, value in photo.items() if key not in _PRIVATE_FIELDS}
 
 
 def shared_asset_reference(album_id: int, token: str, row_id: int, path: str) -> str:
@@ -51,6 +56,6 @@ async def project_shared_photos(conn, album_id: int, token: str, photos: list[di
     identities = {row[1]: row[0] for row in rows}
     if any(path not in identities for path in paths):
         raise ValueError('Authorized asset disappeared from snapshot')
-    return [{key: value for key, value in photo.items() if key != 'path'} | {
+    return [public_photo_fields(photo) | {
         'asset_id': shared_asset_reference(album_id, token, identities[photo['path']], photo['path'])}
             for photo in photos]

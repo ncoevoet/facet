@@ -430,6 +430,7 @@ Champs de réponse et codes de statut : [API.md](../API.md).
 - **Mode de disposition** — **Grille** (cartes uniformes) ou **Mosaïque** (rangées justifiées conservant les proportions), à toutes les largeurs d'écran.
 - **Taille des vignettes** — curseur de hauteur des cartes/rangées (120–400 px, enregistré dans localStorage)
 - **Masquer détails** — masque les métadonnées sur les cartes (mode grille uniquement)
+- **Présentation des vignettes** — recadrage carré (par défaut) ou ratio d'origine de la photo pour les vignettes sans détails ; grisée tant que le mode mosaïque est actif, qui conserve déjà le ratio, ou que les détails sont affichés.
 - **Infobulle** — comment les détails d'une photo s'affichent : **Panneau latéral** (par défaut), **Survol**, **Clic** ou **Désactivée**.
   - Le panneau latéral montre tous les détails dans le tiroir de droite, disposés comme le détail de la photo. Dans **Activation du panneau**, choisissez **Survol**, **Clic** ou **Survol ou clic** (par défaut). La vue Réviser utilise **Clic** ; choisissez une option avec clic pour les écrans tactiles. Il garde la dernière photo quand le curseur quitte la grille.
   - Cliquer sur une photo maintient le panneau sur elle jusqu'à ce que vous appuyiez sur **Désélectionner** (ce qui désélectionne aussi la photo). **Échap** fait la même chose et efface la sélection.

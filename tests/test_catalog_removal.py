@@ -74,3 +74,21 @@ def test_catalog_removal_requires_edition(regular_client):
     assert regular_client.post('/api/photo/delete', json={
         'paths': ['private.jpg'], 'catalog_only': True, 'dry_run': False,
     }).status_code == 403
+
+
+def test_catalog_removal_refuses_a_bracket_lead_in_preview_and_apply(edition_client, tmp_path):
+    lead = str(tmp_path / 'lead.jpg')
+    sibling = str(tmp_path / 'sibling.jpg')
+    db = _db(tmp_path, [
+        (lead, 0, {'sequence_kind': 'bracket', 'sequence_group_id': 1, 'sequence_ev_offset': 0.0}),
+        (sibling, 0, {'sequence_kind': 'bracket', 'sequence_group_id': 1, 'sequence_ev_offset': 2.0}),
+    ])
+    with mock.patch('api.routers.export.get_db', lambda: _connection(db)):
+        for dry_run in (True, False):
+            response = edition_client.post('/api/photo/delete', json={
+                'paths': [lead], 'catalog_only': True, 'dry_run': dry_run,
+            })
+            assert response.status_code == 200, response.text
+            assert response.json()['refused_bracket_lead'] == [lead]
+            assert response.json()['removed_catalog'] == []
+            assert _remaining_paths(db) == {lead, sibling}

@@ -430,6 +430,7 @@ Campos de resposta e códigos de status: [API.md](../API.md).
 - **Modo de Layout** — **Grade** (cartões uniformes) ou **Mosaico** (linhas justificadas que preservam as proporções), em qualquer largura de tela.
 - **Tamanho da Miniatura** — controle deslizante de altura do cartão/linha (120–400px, salvo no localStorage)
 - **Ocultar Detalhes** — oculta os metadados nos cartões (apenas no modo grade)
+- **Apresentação dos cartões** — recorte quadrado (padrão) ou a proporção original da foto para os cartões sem detalhes; desabilitada enquanto o modo mosaico estiver ativo, que já preserva a proporção, ou enquanto os detalhes estiverem visíveis.
 - **Dica** — como os detalhes das fotos aparecem: **Painel lateral** (padrão), **Passar o mouse**, **Clicar** ou **Desligado**.
   - O painel lateral mostra todos os detalhes na gaveta da direita, com a mesma disposição do detalhe da foto. Em **Ativação do painel**, escolha **Passar o mouse**, **Clicar** ou **Passar o mouse ou clicar** (padrão). A vista Revisar usa **Clicar**; escolha uma opção com clique para telas de toque. Mantém a última foto quando o cursor sai da grade.
   - Clicar em uma foto mantém o painel nela até você pressionar **Desselecionar** (que também desseleciona a foto). **Escape** faz o mesmo e limpa a seleção.

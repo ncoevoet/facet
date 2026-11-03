@@ -13,6 +13,7 @@ import { SortOptionIconPipe } from '../../shared/pipes/sort-option-icon.pipe';
 import { SortGroupKeyPipe } from '../../shared/pipes/sort-group-key.pipe';
 import { useDesktopSignal, DETAILS_RAIL_MIN_WIDTH_PX } from '../../shared/utils/media-query';
 import { GalleryFilters, GalleryStore } from './gallery.store';
+import { TILE_FITS } from './gallery-filters.util';
 import { closeOverlayDirectives } from '../../shared/utils/overlays';
 import { GalleryDisplayPreset, galleryPresentation } from './gallery-presentation.util';
 import { AuthService } from '../../core/services/auth.service';
@@ -48,6 +49,17 @@ const sortOptionLabelKey = (column: string): string => `sort_options.${column}`;
         </button>
       }
       <button mat-menu-item data-reset-display (click)="applyPreset('default')"><mat-icon>restart_alt</mat-icon>{{ I18N.gallery.presentation.reset | translate }}</button>
+      <button mat-menu-item data-tile-fit [matMenuTriggerFor]="tileFitMenu" [disabled]="store.galleryMode() !== 'grid' || !store.filters().hide_details">
+        <mat-icon>aspect_ratio</mat-icon>{{ I18N.gallery.tile_fit.label | translate }}
+      </button>
+    </mat-menu>
+    <mat-menu #tileFitMenu="matMenu">
+      @for (fit of tileFits; track fit) {
+        <button mat-menu-item role="menuitemradio" [attr.aria-checked]="store.filters().tile_fit === fit" (click)="setPresentationFilter('tile_fit', fit)">
+          <mat-icon>{{ store.filters().tile_fit === fit ? 'check' : 'crop_square' }}</mat-icon>
+          {{ (fit === 'square' ? I18N.gallery.tile_fit.square : I18N.gallery.tile_fit.natural) | translate }}
+        </button>
+      }
     </mat-menu>
     <ng-template #primaryControls>
     @if (!pinned()) {
@@ -116,7 +128,7 @@ const sortOptionLabelKey = (column: string): string => `sort_options.${column}`;
           <mat-icon [style.color]="store.slideshowActive() ? 'var(--mat-sys-primary)' : ''">slideshow</mat-icon>
         </button>
 <mat-menu #tooltipModeMenu="matMenu">
-    <button mat-menu-item role="menuitemradio" [attr.aria-checked]="store.filters().tooltip_mode === 'hover'" (click)="setPresentationFilter('tooltip_mode', 'hover')">
+    <button mat-menu-item role="menuitemradio" [disabled]="!canUseHoverTooltips() && store.filters().tooltip_mode !== 'hover'" [attr.aria-checked]="store.filters().tooltip_mode === 'hover'" (click)="setPresentationFilter('tooltip_mode', 'hover')">
       <mat-icon aria-hidden="true">chat_bubble_outline</mat-icon>
       <span class="flex items-center gap-4">
         <span class="grow">{{ I18N.gallery.tooltip_mode.hover | translate }}</span>
@@ -233,7 +245,9 @@ export class GalleryViewControlsComponent {
   private readonly menus = viewChildren(MatMenuTrigger);
   private readonly tooltips = viewChildren(MatTooltip);
   private readonly railCapable = useDesktopSignal({ breakpointPx: DETAILS_RAIL_MIN_WIDTH_PX });
+  private readonly hoverCapable = useDesktopSignal();
   protected readonly canDockDetails = this.railCapable.isDesktop;
+  protected readonly canUseHoverTooltips = this.hoverCapable.isDesktop;
   protected readonly presets: { id: GalleryDisplayPreset; label: string; icon: string }[] = [
     { id: 'browse', label: I18N.gallery.presentation.browse, icon: 'photo_library' },
     { id: 'review', label: I18N.gallery.presentation.review, icon: 'fact_check' },
@@ -257,12 +271,13 @@ export class GalleryViewControlsComponent {
   }
   protected readonly auth = inject(AuthService);
   protected readonly reviewNavigation = inject(GalleryReviewNavigationService);
+  protected readonly tileFits = TILE_FITS;
   protected setReviewAdvance(event: Event): void {
     if (this.canAct()) this.reviewNavigation.setEnabled((event.target as HTMLInputElement).checked);
   }
   constructor() {
-    afterNextRender(() => this.railCapable.setup());
-    inject(DestroyRef).onDestroy(() => this.railCapable.cleanup());
+    afterNextRender(() => { this.railCapable.setup(); this.hoverCapable.setup(); });
+    inject(DestroyRef).onDestroy(() => { this.railCapable.cleanup(); this.hoverCapable.cleanup(); });
     this.router.events.pipe(takeUntilDestroyed()).subscribe(event => {
       if (event instanceof NavigationStart) {
         this.navigationPending.set(true);

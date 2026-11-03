@@ -607,6 +607,7 @@
     "sequence_kind",
     "similar_to",
     "similarity_mode",
+    "tile_fit",
     "tooltip_mode"
   ],
   "tools": [

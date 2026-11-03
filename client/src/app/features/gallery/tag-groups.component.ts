@@ -76,7 +76,7 @@ export class TagGroupsComponent {
     if (!this.context.current() || !this.canAdd()) return;
     const groups = this.groups();
     if (!groups) return;
-    const next = { ...groups, [this.mode()]: [...new Set([...groups[this.mode()], this.draft()])] };
+    const next = { ...groups, [this.mode()]: [...new Set([...groups[this.mode()], this.draft().trim()])] };
     if (!parseTagQuery(JSON.stringify(next))) { this.error.set(true); return; }
     void this.store.updateFilter('tag_groups', serializeTagQuery(next));
     this.draft.set(''); this.error.set(false);

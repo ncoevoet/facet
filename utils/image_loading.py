@@ -1323,6 +1323,25 @@ _decode_executor = None
 _abandoned_decodes = 0
 _hung_decodes = 0
 _state_lock = threading.Lock()
+_timed_out_paths: set[str] = set()   # photos whose decode was abandoned on timeout (see consume_decode_timeout)
+
+
+def consume_decode_timeout(path) -> bool:
+    """Whether ``path``'s RAW decode timed out since the last call or ``clear_decode_timeouts``.
+
+    The timed-out decode returns None like any failed load; this tells the two apart.
+    """
+    with _state_lock:
+        if str(path) in _timed_out_paths:
+            _timed_out_paths.discard(str(path))
+            return True
+        return False
+
+
+def clear_decode_timeouts():
+    """Forget recorded timeouts (a scan start)."""
+    with _state_lock:
+        _timed_out_paths.clear()
 
 # A second, independent budget for the /image viewer path: a viewer request
 # must never queue behind library decode work holding _raw_semaphore. Built
@@ -1505,6 +1524,7 @@ def _decode_raw_with_timeout(photo, use_thumbnail, decode_budget='library', brig
         with _state_lock:
             _abandoned_decodes += 1
             _hung_decodes += 1
+            _timed_out_paths.add(str(photo))
             abandoned = _abandoned_decodes
         logger.error(
             "RAW decode timed out after %.0fs (%d hung): %s",

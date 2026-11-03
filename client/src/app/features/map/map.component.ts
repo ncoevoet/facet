@@ -49,7 +49,7 @@ interface MapResponse {
   imports: [MatIconModule, MatButtonModule, MatProgressSpinnerModule, DateRangeFilterComponent, TranslatePipe],
   template: `
     <div class="relative h-full">
-      <details class="absolute right-3 top-3 z-[1000] rounded bg-[var(--mat-sys-surface-container)] text-sm shadow-md" data-map-dates>
+      <details class="absolute right-3 top-3 z-[1001] rounded bg-[var(--mat-sys-surface-container)] text-sm shadow-md" data-map-dates>
         <summary class="flex min-h-10 cursor-pointer list-none items-center gap-2 rounded px-3 focus-visible:outline-2">
           <mat-icon aria-hidden="true" class="!h-5 !w-5 !text-xl">date_range</mat-icon>
           {{ I18N.gallery.sidebar.date | translate }}
@@ -62,7 +62,7 @@ interface MapResponse {
         </div>
       </details>
       @if (loading()) {
-        <div class="absolute inset-0 flex items-center justify-center z-[1000] bg-black/20">
+        <div class="pointer-events-none absolute inset-0 flex items-center justify-center z-[1000] bg-black/20">
           <mat-spinner diameter="40" [attr.aria-label]="I18N.ui.labels.loading | translate" />
         </div>
       }

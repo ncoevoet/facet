@@ -38,7 +38,7 @@ import { GALLERY_REVISIT } from '../../core/gallery-reuse.strategy';
  } @else {
  <ng-template #shortcuts>
  <div class="flex items-center flex-wrap gap-x-3 gap-y-1 text-xs text-[var(--mat-sys-on-surface-variant)]" [class.!items-stretch]="portShortcuts()" [class.!flex-col]="portShortcuts()">
-   <details #quickFilters tabindex="-1" class="relative" (keydown.escape)="closeDisclosure($event, quickFilters, quickSummary)">
+   <details #quickFilters class="relative" (keydown.escape)="closeDisclosure($event, quickFilters, quickSummary)">
      <summary #quickSummary class="cursor-pointer py-2 font-medium">{{ I18N.gallery.sidebar.review.quick | translate }}</summary>
      <div class="absolute top-full left-0 z-30 min-w-56 max-w-[80vw] rounded-md border border-[var(--mat-sys-outline-variant)] bg-[var(--mat-sys-surface)] p-2 shadow-lg flex flex-wrap gap-1" [class.!static]="portShortcuts()" [class.!w-full]="portShortcuts()" [class.!min-w-0]="portShortcuts()" [class.!max-w-full]="portShortcuts()">
        <p class="m-0 basis-full p-1 text-xs text-[var(--mat-sys-on-surface-variant)]">{{ I18N.gallery.criteria.quick_help | translate }}</p>
@@ -51,7 +51,7 @@ import { GALLERY_REVISIT } from '../../core/gallery-reuse.strategy';
      </div>
    </details>
    @if (visibilityRules().length) {
-     <details #visibility tabindex="-1" class="min-w-0" (keydown.escape)="closeDisclosure($event, visibility, visibilitySummary)">
+     <details #visibility class="min-w-0" (keydown.escape)="closeDisclosure($event, visibility, visibilitySummary)">
        <summary #visibilitySummary data-visibility-summary class="cursor-pointer py-2">{{ I18N.gallery.criteria.visibility | translate:{ count: visibilityRules().length } }}</summary>
        <div class="flex flex-wrap gap-2 pb-2">
          @for (rule of visibilityRules(); track rule.id) {
@@ -61,7 +61,7 @@ import { GALLERY_REVISIT } from '../../core/gallery-reuse.strategy';
      </details>
    }
    @if (history.visits().length) {
-     <details #recentCollections tabindex="-1" data-recent-collections class="relative" (keydown.escape)="closeDisclosure($event, recentCollections, recentSummary)">
+     <details #recentCollections data-recent-collections class="relative" (keydown.escape)="closeDisclosure($event, recentCollections, recentSummary)">
        <summary #recentSummary class="cursor-pointer py-2">{{ I18N.gallery.criteria.recent_collections | translate }}</summary>
        <div class="absolute left-0 top-full z-30 w-80 max-w-[80vw] max-h-[45dvh] overflow-auto rounded border border-[var(--mat-sys-outline-variant)] bg-[var(--mat-sys-surface)] p-2 shadow-lg" [class.!static]="portShortcuts()" [class.!w-full]="portShortcuts()" [class.!min-w-0]="portShortcuts()" [class.!max-w-full]="portShortcuts()">
          <details class="px-2 py-1">
@@ -79,7 +79,7 @@ import { GALLERY_REVISIT } from '../../core/gallery-reuse.strategy';
      </details>
    }
    @if (canAct() && hasMatchLogic()) {
-     <details #matchLogic tabindex="-1" data-match-logic class="relative" (keydown.escape)="closeDisclosure($event, matchLogic, logicSummary)">
+     <details #matchLogic data-match-logic class="relative" (keydown.escape)="closeDisclosure($event, matchLogic, logicSummary)">
        <summary #logicSummary class="cursor-pointer py-2">{{ I18N.gallery.criteria.logic.title | translate }}</summary>
        <div class="absolute right-0 top-full z-30 w-80 max-w-[80vw] max-h-[45dvh] overflow-auto rounded border border-[var(--mat-sys-outline-variant)] bg-[var(--mat-sys-surface)] p-3 shadow-lg" [class.!static]="portShortcuts()" [class.!w-full]="portShortcuts()" [class.!min-w-0]="portShortcuts()" [class.!max-w-full]="portShortcuts()">
          <p data-query-kind class="m-0 font-semibold">{{ (store.filters().semanticQuery || store.filters().similar_to ? I18N.gallery.criteria.ranked : I18N.gallery.criteria.logic.filtered) | translate }}</p>

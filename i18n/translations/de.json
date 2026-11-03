@@ -1704,7 +1704,17 @@
     "zero_stars_clear": "Nur 0 Sterne. Klicken Sie, um den Sternefilter zu löschen.",
     "zero_stars_help_title": "Über null Sterne",
     "zero_stars_help": "Entspricht einer numerischen Null im aktuellen Bewertungsbereich, einschließlich einer fehlenden persönlichen Bewertung. Unbekannte Katalogbewertungen bleiben nicht verfügbar. Dies bedeutet nicht „nie bewertet“. Persönliche Konten greifen nicht auf Katalogbewertungen oder Bewertungen anderer zurück; Metadatenquellen zeigt den erfassten Ursprung.",
-    "semantic_search_help": "Über die visuelle Suche"
+    "semantic_search_help": "Über die visuelle Suche",
+    "filters_notice": {
+      "message": "{count} Filter aktiv",
+      "message_plural": "{count} Filter aktiv",
+      "reset": "Alle Filter zurücksetzen"
+    },
+    "tile_fit": {
+      "label": "Kachel-Darstellung",
+      "square": "Quadratisch zugeschnitten",
+      "natural": "Originalformat"
+    }
   },
   "composition_patterns": {
     "none": "Keines",

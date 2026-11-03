@@ -12,6 +12,9 @@ export interface GalleryRow {
   /** Per-photo pixel widths (justified for mosaic, equal cells for grid). */
   widths: number[];
   height: number;
+  /** Per-photo card heights, set only when a card does not take the row height
+   *  (the natural tile fit, where each card hugs its own photo). */
+  heights?: number[];
   /** Y offset of the row's top relative to the rows container. */
   offset: number;
   /** Index of the row's first photo within the full photo list. */
@@ -88,8 +91,8 @@ export function gridColumnCount(width: number, cardMinW: number, gap: number, is
  * Row-chunk the photos the way the CSS grid lays them out.
  *
  * With hideDetails (the default) cards are aspect-square, so heights are
- * exact. With details shown, all photos fit without cropping into the same
- * 4:3 frame (matching PhotoCardComponent), plus DETAILS_ESTIMATE_PX.
+ * exact. Natural tiles use original ratios and return individual card heights.
+ * With details shown, cards use a 4:3 frame plus the details estimate.
  */
 export function buildGridRows(
   photos: Photo[],
@@ -98,6 +101,7 @@ export function buildGridRows(
   gap: number,
   hideDetails: boolean,
   isDesktop = true,
+  tileFit: 'square' | 'natural' = 'square',
 ): GalleryRow[] {
   if (!photos.length || width <= 0) return [];
   const cols = gridColumnCount(width, cardMinW, gap, isDesktop, hideDetails ? MOBILE_MIN_COLUMNS : MOBILE_DETAILS_MIN_COLUMNS);
@@ -112,11 +116,17 @@ export function buildGridRows(
       height = Math.round(cellW / (4 / 3)) + DETAILS_ESTIMATE_PX;
     } else if (cols === 1) {
       height = Math.round(cellW / aspectOf(rowPhotos[0]));
-    } else {
+    } else if (tileFit === 'square') {
       height = Math.round(cellW);
+    } else {
+      const maxImgH = Math.max(...rowPhotos.map(p => cellW / aspectOf(p)));
+      height = Math.round(maxImgH);
     }
     const widths = rowPhotos.map(() => Math.floor(cellW));
-    rows.push({ photos: rowPhotos, widths, height, offset, startIndex: start });
+    const heights = hideDetails && tileFit === 'natural'
+      ? rowPhotos.map((p, i) => Math.round(widths[i] / aspectOf(p)))
+      : undefined;
+    rows.push({ photos: rowPhotos, widths, ...(heights && { heights }), height, offset, startIndex: start });
     offset += height + gap;
   }
   return rows;
