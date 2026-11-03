@@ -458,6 +458,9 @@ def _scan_edit(library, seed_photos_prefix, target, **row):
     seed_photos_prefix(str(library['folder']) + os.sep + 'IMG_1_agy', [{
         'path': target, 'filename': os.path.basename(target), 'aggregate': 5.0,
         'category': 'default', 'date_taken': '2026:02:01 10:00:00', **row}])
+    # A burst is made of phash rows: the join leaves a phash-less pair alone.
+    with sqlite3.connect(_TEST_DB_FILE.name) as conn:
+        conn.execute("UPDATE photos SET phash = 'ffff0000ffff0000' WHERE path IN (?, ?)", (library['original'], target))
 
 
 def test_an_edit_joins_its_originals_burst_as_a_non_lead_frame(edition_client, library, seed_photos_prefix):

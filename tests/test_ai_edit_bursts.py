@@ -107,6 +107,25 @@ def test_the_import_join_lets_an_edit_that_scores_best_lead(tmp_path):
     assert _state(db_path) == {'/lib/IMG_1.JPG': (0, 7), '/lib/IMG_2.JPG': (0, 7), '/lib/IMG_1_agy_1.JPG': (1, 7)}
 
 
+def test_the_join_leaves_a_phash_less_original_and_an_unrelated_burst_alone(tmp_path, quiet_plugins):
+    """A phash-less row keeps its stored group id through the burst pass, which may then give that
+    id to a real burst: the join must neither group such a pair nor re-pick a lead across it."""
+    frames = [('/lib/O.JPG', '2026:02:01 10:00:00', None, 6.0),
+              ('/lib/O_agy_1.JPG', None, EDITED, 7.0),
+              ('/lib/D1.JPG', '2026:05:01 10:00:00', BURST, 5.0),
+              ('/lib/D2.JPG', '2026:05:01 10:00:01', BURST, 6.0)]
+    db_path = _library(tmp_path, frames, [('/lib/O_agy_1.JPG', '/lib/O.JPG')])
+    process_bursts(db_path, config_path=defaults_path())
+    d_group = _state(db_path)['/lib/D1.JPG'][1]
+    with sqlite3.connect(db_path) as conn:
+        conn.execute('UPDATE photos SET burst_group_id = ?, is_burst_lead = 1 WHERE path = ?', (d_group, '/lib/O.JPG'))
+        assert join_ai_edits_to_original_sets(conn, ['/lib/O_agy_1.JPG']) == 0
+    state = _state(db_path)
+    assert state['/lib/O.JPG'] == (1, d_group)
+    assert state['/lib/O_agy_1.JPG'][1] is None
+    assert (state['/lib/D1.JPG'], state['/lib/D2.JPG']) == ((0, d_group), (1, d_group))
+
+
 def test_the_import_join_writes_the_originals_tags_through_photo_tags(tmp_path):
     frames = [('/lib/IMG_1.JPG', '2026:02:01 10:00:00', BURST, 6.0),
               ('/lib/IMG_1_agy_1.JPG', None, EDITED, 5.0)]

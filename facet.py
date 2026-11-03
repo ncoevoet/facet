@@ -2140,8 +2140,8 @@ def _run_scan(args, resumed_run):
             conn.commit()
         logger.info("Placed %d AI edit(s) in their original's burst.", placed)
         if placed < len(scanned):
-            logger.warning("%d scanned file(s) are not recorded AI edits and stay out of any burst "
-                           "until the next full scan.", len(scanned) - placed)
+            logger.warning("%d scanned file(s) were not put in a burst: not a recorded AI edit, or "
+                           "the edit or its original is missing or has no phash.", len(scanned) - placed)
         _log_scan_db_destination(scorer.db_path)
         emit_progress('done', force=True)
         logger.info("All tasks complete.")
