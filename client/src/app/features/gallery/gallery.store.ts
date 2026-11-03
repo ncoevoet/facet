@@ -537,6 +537,8 @@ export class GalleryStore {
     this.matchingPhotoTotal.set(response.photo_total ?? null);
   }
   readonly loading = signal(false);
+  /** Invalidates timeline snapshots for changes that can affect unloaded rows. */
+  readonly timelineMembershipRevision = signal(0);
   /** Set when the current photo request failed; the grid stays empty rather than
    *  silently reinstating the previous view's photos. Cleared on every new load. */
   readonly loadError = signal(false);
@@ -1229,6 +1231,7 @@ export class GalleryStore {
   /** Load photos based on current filters (replaces list) */
   async loadPhotos(acceptResult: () => boolean = () => true, { retainRows = false }: { retainRows?: boolean } = {}): Promise<void> {
     if (this.destroyRef.destroyed) return;
+    this.timelineMembershipRevision.update(value => value + 1);
     this.cancelRangeLoad();
     this.syncReadOwner();
     this.listingReadsActive = true;
@@ -2155,6 +2158,10 @@ export class GalleryStore {
 
   /** Patch one photo's fields in place. */
   patchPhoto(path: string, partial: Partial<Photo>): void {
+    if ('date_taken' in partial || 'is_blink' in partial || 'burst_group_id' in partial
+      || 'is_burst_lead' in partial || 'duplicate_group_id' in partial || 'is_duplicate_lead' in partial
+      || 'sequence_kind' in partial || 'sequence_group_id' in partial || 'is_sequence_lead' in partial
+      || 'sequence_override' in partial) this.timelineMembershipRevision.update(value => value + 1);
     this.photos.update(photos =>
       photos.map(p => p.path === path ? { ...p, ...partial } : p),
     );
@@ -2166,6 +2173,7 @@ export class GalleryStore {
   removePhotos(paths: Iterable<string>, reconcileStacks = true): void {
     const pathSet = new Set(paths);
     if (pathSet.size === 0) return;
+    this.timelineMembershipRevision.update(value => value + 1);
     const rows = this.photos();
     const loaded = new Set(rows.map(photo => photo.path));
     const unknownMember = [...pathSet].some(path => !loaded.has(path));

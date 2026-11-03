@@ -1,4 +1,4 @@
-import { Injectable, effect, inject } from '@angular/core';
+import { Injectable, computed, effect, inject } from '@angular/core';
 import { AuthService, type AuthStatus } from '../../core/services/auth.service';
 import type { Photo } from '../../shared/models/photo.model';
 import { GalleryStore } from '../gallery/gallery.store';
@@ -21,6 +21,24 @@ export interface TimelineSnapshot extends TimelinePage {
   token: string | null;
   scrollTop: number;
   rows: Photo[];
+  membershipRevision: number;
+}
+
+/** Review marks don't change a timeline day or its thumbnail. */
+function sameMembership(left: Photo[], right: Photo[]): boolean {
+  if (left.length !== right.length) return false;
+  const previous = new Map(left.map(photo => [photo.path, photo]));
+  return right.every(photo => {
+    const old = previous.get(photo.path);
+    return !!old && old.filename === photo.filename && old.date_taken === photo.date_taken
+      && old.preview_revision === photo.preview_revision && old.is_blink === photo.is_blink
+      && old.burst_group_id === photo.burst_group_id && old.is_burst_lead === photo.is_burst_lead
+      && old.duplicate_group_id === photo.duplicate_group_id && old.is_duplicate_lead === photo.is_duplicate_lead
+      && old.sequence_kind === photo.sequence_kind && old.sequence_group_id === photo.sequence_group_id && old.is_sequence_lead === photo.is_sequence_lead
+      && old.sequence_override === photo.sequence_override
+      && old.logical_review?.asset_id === photo.logical_review?.asset_id
+      && old.logical_review?.group_revision === photo.logical_review?.group_revision;
+  });
 }
 
 /** One bounded, memory-only return position. Never shared across credentials. */
@@ -28,26 +46,30 @@ export interface TimelineSnapshot extends TimelinePage {
 export class TimelineFeedCache {
   private readonly auth = inject(AuthService);
   private readonly store = inject(GalleryStore);
+  readonly rows = computed(() => this.store.photos(), { equal: sameMembership });
   private snapshot: TimelineSnapshot | null = null;
   private photoSession: { owner: AuthStatus; token: string | null; paths: string[] } | null = null;
 
   constructor() {
     effect(() => {
       const owner = this.auth.status();
-      const rows = this.store.photos();
-      if (this.snapshot?.owner !== owner || this.snapshot?.token !== this.auth.token || rows !== this.snapshot.rows) this.snapshot = null;
+      const rows = this.rows(); const revision = this.store.timelineMembershipRevision();
+      if (this.snapshot?.owner !== owner || this.snapshot?.token !== this.auth.token || rows !== this.snapshot.rows
+        || revision !== this.snapshot.membershipRevision) this.snapshot = null;
       if (this.photoSession?.owner !== owner || this.photoSession?.token !== this.auth.token) this.photoSession = null;
     });
   }
 
   read(scope: string): TimelineSnapshot | null {
     const value = this.snapshot;
-    return value?.scope === scope && value.owner === this.auth.status() && value.token === this.auth.token && value.rows === this.store.photos()
+    return value?.scope === scope && value.owner === this.auth.status() && value.token === this.auth.token && value.rows === this.rows()
+      && value.membershipRevision === this.store.timelineMembershipRevision()
       ? value : null;
   }
 
   save(value: TimelineSnapshot): void {
-    if (value.owner === this.auth.status() && value.token === this.auth.token && value.rows === this.store.photos()) this.snapshot = value;
+    if (value.owner === this.auth.status() && value.token === this.auth.token && value.rows === this.rows()
+      && value.membershipRevision === this.store.timelineMembershipRevision()) this.snapshot = value;
   }
 
   capturePhotos(photos: TimelineGroup[]): void {

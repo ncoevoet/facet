@@ -1500,6 +1500,15 @@ describe('GalleryStore', () => {
   });
 
   describe('nextPage()', () => {
+    it('invalidates timeline membership for an unloaded removal or capture-date edit, but not a rating', () => {
+      const before = store.timelineMembershipRevision();
+      store.patchPhoto('/not-loaded.jpg', { star_rating: 4 });
+      expect(store.timelineMembershipRevision()).toBe(before);
+      store.patchPhoto('/not-loaded.jpg', { date_taken: '2026-01-01' });
+      expect(store.timelineMembershipRevision()).toBe(before + 1);
+      store.removePhotos(['/another-unloaded.jpg']);
+      expect(store.timelineMembershipRevision()).toBe(before + 2);
+    });
     it('identifies a pending append and clears it when the page arrives', async () => {
       const response = new Subject<PhotosResponse>();
       store.hasMore.set(true); apiGet.mockReturnValue(response);

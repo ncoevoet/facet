@@ -97,7 +97,7 @@ export class TimelineFeedComponent {
   private readonly nextCursor = signal<string | null>(null);
   private request: Subscription | null = null;
   private generation = 0;
-  private context: { scope: string; params: Record<string, string | number>; owner: AuthStatus; token: string | null; rows: Photo[] } | null = null;
+  private context: { scope: string; params: Record<string, string | number>; owner: AuthStatus; token: string | null; rows: Photo[]; membershipRevision: number } | null = null;
   private scrollOwner: HTMLElement | null = null;
   private restoreScroll: number | null = null;
 
@@ -109,11 +109,11 @@ export class TimelineFeedComponent {
 
   constructor() {
     effect(onCleanup => {
-      const params = this.params(); const owner = this.auth.status(); const active = this.active(); const rows = this.store.photos();
+      const params = this.params(); const owner = this.auth.status(); const active = this.active(); const rows = this.cache.rows(); const membershipRevision = this.store.timelineMembershipRevision();
       untracked(() => {
       this.cancel(); this.context = null; this.groups.set([]); this.hasMore.set(false); this.error.set(false);
       if (!owner || !active) return;
-      this.context = { params, owner, rows, token: this.auth.token, scope: JSON.stringify(params) };
+      this.context = { params, owner, rows, membershipRevision, token: this.auth.token, scope: JSON.stringify(params) };
       const cached = this.cache.read(this.context.scope);
       this.groups.set(cached?.groups ?? []); this.hasMore.set(cached?.has_more ?? false);
       this.nextCursor.set(cached?.next_cursor ?? null); this.restoreScroll = cached?.scrollTop ?? 0;
@@ -151,7 +151,8 @@ export class TimelineFeedComponent {
 
   private current(context: NonNullable<TimelineFeedComponent['context']>, generation: number): boolean {
     return generation === this.generation && this.active() && context === this.context
-      && context.owner === this.auth.status() && context.token === this.auth.token && context.rows === this.store.photos();
+      && context.owner === this.auth.status() && context.token === this.auth.token && context.rows === this.cache.rows()
+      && context.membershipRevision === this.store.timelineMembershipRevision();
   }
 
   protected openPhoto(event: MouseEvent, photo: Photo): void {

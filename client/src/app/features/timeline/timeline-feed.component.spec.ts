@@ -22,10 +22,11 @@ describe('Timeline photo feed', () => {
     const auth = { status: signal({ user_id: 'alice', authenticated: true }), token: 'a' };
     const visibility = signal({ hide_bursts: '1', hide_duplicates: '0' });
     const photos = signal<Photo[]>([]);
+    const timelineMembershipRevision = signal(0);
     TestBed.configureTestingModule({ imports: [TimelineFeedComponent], providers: [
       provideRouter([{ path: 'timeline', component: OtherPage }, { path: 'photo', component: OtherPage }]),
       { provide: ApiService, useValue: api }, { provide: AuthService, useValue: auth },
-      { provide: GalleryStore, useValue: { viewFilterParams: visibility, photos } },
+      { provide: GalleryStore, useValue: { viewFilterParams: visibility, photos, timelineMembershipRevision } },
       { provide: I18nService, useValue: { t: (key: string, params?: object) => key + (params ? JSON.stringify(params) : ''), translations: () => ({}) } },
     ] });
     const router = TestBed.inject(Router); await router.navigateByUrl('/timeline');
@@ -37,7 +38,7 @@ describe('Timeline photo feed', () => {
       return { fixture, root: fixture.nativeElement as HTMLElement, wrapper, settle, dispose };
     }
     const view = create(); await view.settle();
-    return { ...view, create, api, auth, visibility, photos, router, filters: TestBed.inject(TimelineFiltersService) };
+    return { ...view, create, api, auth, visibility, photos, timelineMembershipRevision, router, filters: TestBed.inject(TimelineFiltersService) };
   }
 
   it('renders actual dated photos, preview totals and exact visible-day links without writes', async () => {
@@ -89,6 +90,17 @@ describe('Timeline photo feed', () => {
     expect(v.api.get).toHaveBeenCalledTimes(1); returned.dispose();
   });
 
+  it('preserves the feed and scroll when a photo receives a review mark', async () => {
+    const v = await setup();
+    v.photos.set([first.groups[0].photos[0]]); await v.settle(); v.api.get.mockClear();
+    v.wrapper.scrollTop = 240; v.wrapper.dispatchEvent(new Event('scroll'));
+    await v.router.navigateByUrl('/photo?path=%2Ffirst.jpg'); v.dispose();
+    v.photos.update(rows => rows.map(photo => ({ ...photo, star_rating: 4, is_kept: true })));
+    await v.router.navigateByUrl('/timeline'); const returned = v.create(); await returned.settle();
+    expect(returned.wrapper.scrollTop).toBe(240); expect(returned.root.querySelector('img')).not.toBeNull();
+    expect(v.api.get).not.toHaveBeenCalled(); returned.dispose();
+  });
+
   it('captures the displayed preview sequence on the actual thumbnail click before navigation parks the feed', async () => {
     const v = await setup();
     const photos = [...first.groups[0].photos, { path: '/second.jpg', filename: 'second.jpg' }];
@@ -101,13 +113,14 @@ describe('Timeline photo feed', () => {
     expect(navigate).toHaveBeenCalledWith(['/photo'], expect.objectContaining({ state: expect.objectContaining({ photoOrigin: 'timeline' }) })); v.dispose();
   });
 
-  it.each(['removed', 'capture-date changed'])('re-reads instead of returning a stale tile after a photo was %s', async () => {
+  it.each(['removed', 'capture-date changed'])('re-reads instead of returning a stale tile after a photo was %s', async change => {
     const v = await setup();
+    v.photos.set([first.groups[0].photos[0]]); await v.settle(); v.api.get.mockClear();
     await v.router.navigateByUrl('/photo?path=%2Ffirst.jpg'); v.dispose();
-    // Both removePhotos and patchPhoto create a new array, including for unloaded paths.
-    v.photos.set([]);
+    if (change === 'removed') v.photos.set([]);
+    else v.photos.update(rows => rows.map(photo => ({ ...photo, date_taken: '2026-10-31' })));
     v.api.get.mockReturnValueOnce(of({ groups: [], next_cursor: null, has_more: false }));
     await v.router.navigateByUrl('/timeline'); const returned = v.create(); await returned.settle();
-    expect(v.api.get).toHaveBeenCalledTimes(2); expect(returned.root.querySelector('img')).toBeNull(); returned.dispose();
+    expect(v.api.get).toHaveBeenCalledTimes(1); expect(returned.root.querySelector('img')).toBeNull(); returned.dispose();
   });
 });
