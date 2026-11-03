@@ -266,7 +266,6 @@ def start(db_path, owner, paths, work, *, overwrite=False, job_id=None,
         lock = LibraryLock(db_path, _KIND + job_id, origin='viewer')
         path = None
         created = False
-        replayed = False
         try:
             lock.acquire()
             path = _path(db_path, job_id)
@@ -276,7 +275,6 @@ def start(db_path, owner, paths, work, *, overwrite=False, job_id=None,
                 if confirmation_digest is None:
                     raise JobNotFound('Export receipt already exists')
                 initial[0] = confirmed_status(db_path, job_id, owner, confirmation_digest)
-                replayed = True
                 lock.release()
                 return
             _prune(db_path, owner)
@@ -300,7 +298,7 @@ def start(db_path, owner, paths, work, *, overwrite=False, job_id=None,
         finally:
             # A cleanup failure must never strand the HTTP caller on wait().
             admitted.set()
-        if failures or replayed:
+        if failures:
             return
         _run(path, state, tuple(paths), work, lock, preflight)
 

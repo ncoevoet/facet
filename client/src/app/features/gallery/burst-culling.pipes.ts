@@ -591,13 +591,6 @@ export function cullPreviewUrl(path: string, style: string): string {
   return `/api/photo/cull_preview?${params}`;
 }
 
-@Pipe({ name: 'cullPreviewUrl' })
-export class CullPreviewUrlPipe implements PipeTransform {
-  transform(path: string, style: string): string {
-    return cullPreviewUrl(path, style);
-  }
-}
-
 // --- Darkroom overlays: focus peaking + composition grid ---
 
 /** Natural pixel size of a displayed frame. */

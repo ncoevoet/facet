@@ -76,11 +76,10 @@ export class ApiService {
     return `/image?path=${encodeURIComponent(path)}` + (revision ? `&preview=${encodeURIComponent(revision)}` : '');
   }
 
-  /** Build download URL with type and optional profile/token */
-  downloadUrl(path: string, type = 'original', profile = '', token = ''): string {
+  /** Build a download URL with an optional rendition profile. */
+  downloadUrl(path: string, type = 'original', profile = ''): string {
     const params = new URLSearchParams({ path, type });
     if (profile) params.set('profile', profile);
-    if (token) params.set('token', token);
     return `/api/download?${params}`;
   }
 }
