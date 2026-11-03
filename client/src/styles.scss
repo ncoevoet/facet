@@ -1,12 +1,3 @@
-/* Hallmark · v2.0.0 · scope: app · redesign: full · theme: Cobalt app adaptation
- * Existing Facet accent preferences preserved; cool neutral workbench, real photos.
- * Pre-emit critique: P4 H3 E3 S4 R4 V3; weakest hierarchy, consolidate collection controls.
- * waive 39b: photo tiles are content targets; desktop auxiliary hover tools retain
- * 28px controls for the requested dense contact sheet, not primary touch actions.
- * waive 72: icon-font glyphs and compact status badges use intentional tight padding;
- * text fields and labeled commands retain readable insets.
- * kept "Photo details": conditional on an inspected photo; owned-open browser verified.
- */
 @use '@angular/material' as mat;
 @use "tailwindcss";
 @use './fonts';
@@ -21,10 +12,6 @@
   --facet-image-ink: oklch(94% 0.004 250);
   --facet-image-rule: oklch(38% 0.006 250);
 }
-
-// Lets components cancel a translucency effect for users who set the OS
-// "reduce transparency" preference (photo-card's current-photo dimming).
-@custom-variant reduce-transparency (@media (prefers-reduced-transparency: reduce));
 
 // Default theme (orange)
 html {
