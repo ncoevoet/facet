@@ -236,8 +236,10 @@ def test_a_body_over_the_cap_is_refused_while_it_streams(edition_client, library
 
 def test_the_edit_is_readable_like_its_original(edition_client, library):
     os.chmod(library['original'], 0o640)
+    # Windows keeps only the read-only bit, so compare with what the original's mode became.
+    expected = stat.S_IMODE(os.stat(library['original']).st_mode)
     edit = _import(edition_client, library, _jpeg(library['work'] / 'm.jpg')).json()['edit_path']
-    assert stat.S_IMODE(os.stat(edit).st_mode) == 0o640
+    assert stat.S_IMODE(os.stat(edit).st_mode) == expected
 
 
 def test_a_jpeg_with_an_mpf_segment_is_imported_as_a_jpeg(edition_client, library):
