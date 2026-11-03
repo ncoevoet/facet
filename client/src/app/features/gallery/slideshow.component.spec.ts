@@ -77,8 +77,9 @@ describe('SlideshowComponent', () => {
 
   afterEach(() => {
     component.ngOnDestroy();
-    vi.useRealTimers();
+    // Restore the stub while fake timers still own the original frame function.
     vi.unstubAllGlobals();
+    vi.useRealTimers();
   });
 
   /** Mount with the given photos and let afterNextRender + constructor
