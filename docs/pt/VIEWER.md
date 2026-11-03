@@ -853,10 +853,12 @@ Encontre agrupamentos de pessoas que podem ser a mesma pessoa. Abra `/merge-sugg
 
 Grave avaliações, favoritos e rejeições em sidecars XMP para que darktable, Lightroom e outros editores os leiam. Exige o modo de edição.
 
-- **Pela galeria** — selecione fotos e então **Ações → Exportar** grava um sidecar ao lado de cada arquivo.
+- **Pela galeria** — selecione fotos e abra **Ações → Exportar**.
 - **Por um álbum** — exporte o álbum inteiro como sidecars, ou copie/crie links simbólicos dos seus arquivos para uma pasta (mesma lista de permissão de [Selecionar para pasta](#selecionar-para-pasta)). Os álbuns usam a sua composição armazenada, inclusive os inteligentes.
 - **Gravar metadados no arquivo** — no detalhe da foto, incorpora avaliação e palavras-chave no original (JPEG/HEIC/TIFF/PNG/DNG via exiftool) além de gravar o sidecar. Arquivos RAW proprietários nunca são modificados. Controlado por `viewer.features.show_embed_metadata` (padrão: `true`).
 - **Lightroom** (modo de edição) — **Baixar manifesto do Lightroom** salva `facet_manifest.json` para a seleção do diálogo, para a etapa **Facet: Apply ratings and flags...** do `facet.lrplugin`. **Importar estado do Lightroom…** lê o `facet_lightroom_state.json` do menu **Facet: Export Lightroom State to Facet...** do plug-in (o Lightroom prevalece em avaliação e escolha/rejeição) e informa as contagens de correspondidas/não correspondidas/alteradas. Não é preciso executar `--import-lightroom`. Veja [Lightroom Classic](INTEROP.md#lightroom-classic).
+
+**Prévia antes de gravar.** Escolha as opções e clique em **Pré-visualizar exportação**. Expanda as entradas dos arquivos para conferir destinos e metadados; depois escolha **Confirmar exportação** para iniciar o trabalho. A prévia não grava arquivos. Se a resposta de confirmação se perder, verifique o comprovante no diálogo antes de iniciar outra exportação.
 
 **Limites e progresso.**
 
@@ -864,7 +866,7 @@ Grave avaliações, favoritos e rejeições em sidecars XMP para que darktable, 
 - As exportações rodam em segundo plano, com progresso e contagens de gravados/ignorados/erros. **Parar após o arquivo atual** cancela entre arquivos; os sidecars concluídos permanecem.
 - Só um trabalho da biblioteca roda por vez. Enquanto uma exportação roda, varreduras, recálculos e o retreinamento automático esperam ou são recusados, e uma exportação é recusada enquanto um deles roda.
 - Fechar o diálogo deixa de acompanhar o progresso, não a exportação.
-- Reabra Exportar para o editor para ver as suas 20 exportações mais recentes. **Tentar de novo os arquivos pendentes** inicia um novo trabalho para os arquivos com falha, ignorados e não processados. Um arquivo interrompido durante a gravação pode ser gravado de novo.
+- Reabra Exportar para o editor para ver as suas 20 exportações mais recentes. **Tentar de novo os arquivos pendentes** mostra uma prévia dos arquivos com falha, ignorados e não processados. Confira essa prévia e escolha **Confirmar exportação** para iniciar um novo trabalho. Um arquivo interrompido durante a gravação pode ser gravado de novo.
 
 ## Download
 

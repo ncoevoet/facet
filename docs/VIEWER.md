@@ -856,10 +856,12 @@ Find person clusters that may be the same person. Open `/merge-suggestions` or g
 
 Write ratings, favorites and rejects to XMP sidecars so darktable, Lightroom and other editors pick them up. Requires edition mode.
 
-- **From the gallery** — select photos, then **Actions → Export** writes a sidecar next to each file.
+- **From the gallery** — select photos, then open **Actions → Export**.
 - **From an album** — export the whole album as sidecars, or copy/symlink its files to a folder (same allow-list as [Cull to folder](#cull-to-folder)). Albums use their stored membership, smart albums included.
 - **Write metadata to file** — in photo detail, embeds rating and keywords into the original (JPEG/HEIC/TIFF/PNG/DNG via exiftool) as well as writing the sidecar. Proprietary RAW files are never modified. Controlled by `viewer.features.show_embed_metadata` (default: `true`).
 - **Lightroom** (edition mode) — **Download Lightroom manifest** saves `facet_manifest.json` for the dialog's selection, for the `facet.lrplugin` **Facet: Apply ratings and flags...** step. **Import Lightroom state…** reads the `facet_lightroom_state.json` from the plug-in's **Facet: Export Lightroom State to Facet...** menu (Lightroom wins for rating and pick/reject) and reports matched/unmatched/changed counts. No `--import-lightroom` run is needed. See [Lightroom Classic](INTEROP.md#lightroom-classic).
+
+**Preview before writing.** Choose the export options, then **Preview export**. Expand the file entries to check destinations and metadata, then choose **Confirm export** to start the job. The preview itself writes no files. If the confirmation response is lost, check its receipt in the dialog before starting another export.
 
 **Limits and progress.**
 
@@ -867,7 +869,7 @@ Write ratings, favorites and rejects to XMP sidecars so darktable, Lightroom and
 - Exports run in the background, with progress and written/skipped/error counts. **Stop after current file** cancels between files; completed sidecars stay.
 - Only one library job runs at a time. While an export runs, scans, recomputes and automatic retraining wait or are refused, and an export is refused while one of them runs.
 - Closing the dialog stops watching progress, not the export.
-- Reopen Export to editor to see your 20 most recent exports. **Retry unfinished files** starts a new job for failed, skipped and unprocessed files. A file interrupted mid-write may be written again.
+- Reopen Export to editor to see your 20 most recent exports. **Retry unfinished files** previews failed, skipped and unprocessed files. Review that preview and choose **Confirm export** to start a new job. A file interrupted mid-write may be written again.
 
 ## Download
 

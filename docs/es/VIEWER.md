@@ -858,10 +858,12 @@ Encuentra grupos de personas que pueden ser la misma persona. Abre `/merge-sugge
 
 Escribe valoraciones, favoritos y rechazos en sidecars XMP para que darktable, Lightroom y otros editores los recojan. Requiere el modo de edición.
 
-- **Desde la galería**: selecciona fotos y luego **Acciones → Exportar** escribe un sidecar junto a cada archivo.
+- **Desde la galería**: selecciona fotos y abre **Acciones → Exportar**.
 - **Desde un álbum**: exporta todo el álbum como sidecars, o copia/enlaza simbólicamente sus archivos a una carpeta (misma lista de permitidas que [Descartar a carpeta](#descartar-a-carpeta)). Los álbumes usan su pertenencia almacenada, álbumes inteligentes incluidos.
 - **Escribir metadatos en el archivo**: en el detalle de la foto, incrusta la valoración y las palabras clave en el original (JPEG/HEIC/TIFF/PNG/DNG mediante exiftool) además de escribir el sidecar. Los archivos RAW propietarios nunca se modifican. Se controla con `viewer.features.show_embed_metadata` (por defecto: `true`).
 - **Lightroom** (modo de edición): **Descargar manifiesto de Lightroom** guarda `facet_manifest.json` para la selección del diálogo, para el paso **Facet: Apply ratings and flags...** de `facet.lrplugin`. **Importar estado de Lightroom…** lee el `facet_lightroom_state.json` del menú **Facet: Export Lightroom State to Facet...** del plugin (gana Lightroom en valoración y pick/rechazo) e informa de los recuentos de coincidentes/no coincidentes/cambiados. No hace falta ejecutar `--import-lightroom`. Ver [Lightroom Classic](INTEROP.md#lightroom-classic).
+
+**Previsualiza antes de escribir.** Elige las opciones y pulsa **Previsualizar exportación**. Despliega las entradas de los archivos para revisar destinos y metadatos; después pulsa **Confirmar exportación** para iniciar el trabajo. La vista previa no escribe archivos. Si se pierde la respuesta de confirmación, comprueba su comprobante en el diálogo antes de iniciar otra exportación.
 
 **Límites y progreso.**
 
@@ -869,7 +871,7 @@ Escribe valoraciones, favoritos y rechazos en sidecars XMP para que darktable, L
 - Las exportaciones se ejecutan en segundo plano, con progreso y recuentos de escritos/omitidos/errores. **Detener tras el archivo actual** cancela entre archivos; los sidecars completados permanecen.
 - Solo se ejecuta un trabajo de biblioteca a la vez. Mientras se ejecuta una exportación, los escaneos, recálculos y reentrenamientos automáticos esperan o se rechazan, y una exportación se rechaza mientras se ejecuta alguno de ellos.
 - Cerrar el diálogo deja de vigilar el progreso, no la exportación.
-- Vuelve a abrir Exportar al editor para ver tus 20 exportaciones más recientes. **Reintentar archivos sin terminar** inicia un trabajo nuevo para los archivos fallidos, omitidos y sin procesar. Un archivo interrumpido durante la escritura puede escribirse de nuevo.
+- Vuelve a abrir Exportar al editor para ver tus 20 exportaciones más recientes. **Reintentar archivos sin terminar** muestra una vista previa de los archivos fallidos, omitidos y sin procesar. Revísala y pulsa **Confirmar exportación** para iniciar un nuevo trabajo. Un archivo interrumpido durante la escritura puede escribirse de nuevo.
 
 ## Descarga
 

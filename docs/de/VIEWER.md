@@ -856,10 +856,12 @@ Finden Sie Personen-Cluster, die dieselbe Person sein könnten. Öffnen Sie `/me
 
 Schreiben Sie Bewertungen, Favoriten und Ablehnungen in XMP-Sidecars, damit darktable, Lightroom und andere Editoren sie übernehmen. Erfordert den Bearbeitungsmodus.
 
-- **Aus der Galerie** — Fotos auswählen, dann schreibt **Aktionen → Exportieren** neben jede Datei eine Sidecar.
+- **Aus der Galerie** — Fotos auswählen, dann **Aktionen → Exportieren** öffnen.
 - **Aus einem Album** — Exportieren Sie das ganze Album als Sidecars oder kopieren/verlinken Sie seine Dateien in einen Ordner (dieselbe Positivliste wie bei [In Ordner aussortieren](#in-ordner-aussortieren)). Alben verwenden ihre gespeicherte Mitgliedschaft, intelligente Alben eingeschlossen.
 - **Metadaten in Datei schreiben** — In der Fotodetailansicht bettet es Bewertung und Stichwörter in das Original ein (JPEG/HEIC/TIFF/PNG/DNG über exiftool) und schreibt zusätzlich die Sidecar. Proprietäre RAW-Dateien werden nie verändert. Gesteuert über `viewer.features.show_embed_metadata` (Standard: `true`).
 - **Lightroom** (Bearbeitungsmodus) — **Lightroom-Manifest herunterladen** speichert `facet_manifest.json` für die Auswahl des Dialogs, für den Schritt **Facet: Apply ratings and flags...** von `facet.lrplugin`. **Lightroom-Status importieren…** liest die `facet_lightroom_state.json` aus dem Menü **Facet: Export Lightroom State to Facet...** des Zusatzmoduls (Lightroom gewinnt bei Bewertung und Pick/Ablehnung) und meldet die Zähler für zugeordnet/nicht zugeordnet/geändert. Ein Lauf von `--import-lightroom` ist nicht nötig. Siehe [Lightroom Classic](INTEROP.md#lightroom-classic).
+
+**Vorschau vor dem Schreiben.** Wählen Sie die Exportoptionen und dann **Exportvorschau erstellen**. Klappen Sie die Dateieinträge auf, um Ziele und Metadaten zu prüfen. **Export bestätigen** startet den Auftrag. Die Vorschau selbst schreibt keine Dateien. Geht die Bestätigungsantwort verloren, prüfen Sie den Beleg im Dialog, bevor Sie einen weiteren Export starten.
 
 **Grenzen und Fortschritt.**
 
@@ -867,7 +869,7 @@ Schreiben Sie Bewertungen, Favoriten und Ablehnungen in XMP-Sidecars, damit dark
 - Exporte laufen im Hintergrund, mit Fortschritt und Zählern für geschrieben/übersprungen/Fehler. **Nach aktueller Datei stoppen** bricht zwischen Dateien ab; fertige Sidecars bleiben.
 - Es läuft jeweils nur ein Bibliotheksauftrag. Während ein Export läuft, warten Scans, Neuberechnungen und automatisches Nachtrainieren oder werden abgelehnt, und ein Export wird abgelehnt, solange eines davon läuft.
 - Das Schließen des Dialogs beendet nur die Fortschrittsanzeige, nicht den Export.
-- Öffnen Sie „In Editor exportieren“ erneut, um Ihre 20 letzten Exporte zu sehen. **Unfertige Dateien erneut versuchen** startet einen neuen Auftrag für fehlgeschlagene, übersprungene und unverarbeitete Dateien. Eine mitten im Schreiben unterbrochene Datei kann erneut geschrieben werden.
+- Öffnen Sie „In Editor exportieren“ erneut, um Ihre 20 letzten Exporte zu sehen. **Unfertige Dateien erneut versuchen** erstellt eine Vorschau für fehlgeschlagene, übersprungene und unverarbeitete Dateien. Prüfen Sie diese und wählen Sie **Export bestätigen**, um einen neuen Auftrag zu starten. Eine mitten im Schreiben unterbrochene Datei kann erneut geschrieben werden.
 
 ## Download
 

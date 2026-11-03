@@ -855,10 +855,12 @@ Trouvez les groupes de personnes qui pourraient être la même personne. Ouvrez 
 
 Écrivez notes, favoris et rejets dans des sidecars XMP pour que darktable, Lightroom et d'autres éditeurs les prennent en compte. Nécessite le mode édition.
 
-- **Depuis la galerie** — sélectionnez des photos, puis **Actions → Exporter** écrit un sidecar à côté de chaque fichier.
+- **Depuis la galerie** — sélectionnez des photos, puis ouvrez **Actions → Exporter**.
 - **Depuis un album** — exportez tout l'album en sidecars, ou copiez/liez symboliquement ses fichiers vers un dossier (même liste d'autorisation que [Trier vers un dossier](#trier-vers-un-dossier)). Les albums utilisent leur appartenance enregistrée, albums intelligents compris.
 - **Écrire les métadonnées dans le fichier** — dans le détail de la photo, intègre la note et les mots-clés dans l'original (JPEG/HEIC/TIFF/PNG/DNG via exiftool) en plus d'écrire le sidecar. Les fichiers RAW propriétaires ne sont jamais modifiés. Contrôlé par `viewer.features.show_embed_metadata` (par défaut : `true`).
 - **Lightroom** (mode édition) — **Télécharger le manifeste Lightroom** enregistre `facet_manifest.json` pour la sélection de la boîte de dialogue, pour l'étape **Facet: Apply ratings and flags...** de `facet.lrplugin`. **Importer l'état Lightroom…** lit le `facet_lightroom_state.json` du menu **Facet: Export Lightroom State to Facet...** du module externe (Lightroom gagne pour la note et le pick/rejet) et rapporte les compteurs apparié/non apparié/modifié. Aucune exécution de `--import-lightroom` n'est nécessaire. Voir [Lightroom Classic](INTEROP.md#lightroom-classic).
+
+**Vérifier avant d’écrire.** Choisissez les options, puis **Prévisualiser l’export**. Dépliez les entrées des fichiers pour vérifier les destinations et les métadonnées, puis choisissez **Confirmer l’export** pour lancer le travail. L’aperçu n’écrit aucun fichier. Si la réponse de confirmation est perdue, vérifiez son reçu dans la boîte de dialogue avant de lancer un autre export.
 
 **Limites et progression.**
 
@@ -866,7 +868,7 @@ Trouvez les groupes de personnes qui pourraient être la même personne. Ouvrez 
 - Les exports s'exécutent en arrière-plan, avec progression et compteurs écrits/ignorés/erreurs. **Arrêter après le fichier actuel** annule entre deux fichiers ; les sidecars terminés restent.
 - Un seul travail de bibliothèque s'exécute à la fois. Pendant un export, les scans, recalculs et réentraînements automatiques attendent ou sont refusés, et un export est refusé pendant que l'un d'eux s'exécute.
 - Fermer la boîte de dialogue arrête le suivi de la progression, pas l'export.
-- Rouvrez Export vers l'éditeur pour voir vos 20 exports les plus récents. **Réessayer les fichiers restants** lance un nouveau travail pour les fichiers en échec, ignorés et non traités. Un fichier interrompu en cours d'écriture peut être réécrit.
+- Rouvrez Export vers l'éditeur pour voir vos 20 exports les plus récents. **Réessayer les fichiers restants** affiche un aperçu des fichiers en échec, ignorés et non traités. Vérifiez cet aperçu, puis choisissez **Confirmer l’export** pour lancer un nouveau travail. Un fichier interrompu en cours d'écriture peut être réécrit.
 
 ## Téléchargement
 

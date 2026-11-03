@@ -855,10 +855,12 @@ Trova gruppi di persone che potrebbero essere la stessa persona. Apri `/merge-su
 
 Scrivi valutazioni, preferiti e scarti nei sidecar XMP così darktable, Lightroom e altri editor li recepiscono. Richiede la modalità di modifica.
 
-- **Dalla galleria** — seleziona le foto, poi **Azioni → Esporta** scrive un sidecar accanto a ogni file.
+- **Dalla galleria** — seleziona le foto, poi apri **Azioni → Esporta**.
 - **Da un album** — esporta l'intero album come sidecar, oppure copia/collega simbolicamente i suoi file in una cartella (stesso elenco consentito di [Scarta in cartella](#scarta-in-cartella)). Gli album usano la loro appartenenza memorizzata, album intelligenti compresi.
 - **Scrivi metadati nel file** — nel dettaglio foto, incorpora valutazione e parole chiave nell'originale (JPEG/HEIC/TIFF/PNG/DNG tramite exiftool) oltre a scrivere il sidecar. I file RAW proprietari non vengono mai modificati. Controllato da `viewer.features.show_embed_metadata` (predefinito: `true`).
 - **Lightroom** (modalità di modifica) — **Download Lightroom manifest** salva `facet_manifest.json` per la selezione della finestra, per il passo **Facet: Apply ratings and flags...** di `facet.lrplugin`. **Import Lightroom state…** legge `facet_lightroom_state.json` dal menu **Facet: Export Lightroom State to Facet...** del plug-in (vince Lightroom per valutazione e pick/scarto) e riporta i conteggi di corrispondenti/non corrispondenti/modificati. Non serve eseguire `--import-lightroom`. Vedi [Lightroom Classic](INTEROP.md#lightroom-classic).
+
+**Anteprima prima della scrittura.** Scegli le opzioni e poi **Anteprima esportazione**. Espandi le voci dei file per controllare destinazioni e metadati, poi scegli **Conferma esportazione** per avviare il lavoro. L’anteprima non scrive alcun file. Se la risposta di conferma va persa, controlla la ricevuta nella finestra prima di avviare un’altra esportazione.
 
 **Limiti e avanzamento.**
 
@@ -866,7 +868,7 @@ Scrivi valutazioni, preferiti e scarti nei sidecar XMP così darktable, Lightroo
 - Le esportazioni girano in background, con avanzamento e conteggi di scritti/saltati/errori. **Ferma dopo il file corrente** annulla tra un file e l'altro; i sidecar completati restano.
 - Solo un lavoro sulla libreria alla volta. Mentre un'esportazione è in corso, scansioni, ricalcoli e riaddestramento automatico attendono o vengono rifiutati, e un'esportazione viene rifiutata mentre uno di essi è in corso.
 - Chiudere la finestra smette di seguire l'avanzamento, non l'esportazione.
-- Riapri Esporta per l'editor per vedere le tue 20 esportazioni più recenti. **Riprova i file incompleti** avvia un nuovo lavoro per i file falliti, saltati e non elaborati. Un file interrotto a metà scrittura può essere riscritto.
+- Riapri Esporta per l'editor per vedere le tue 20 esportazioni più recenti. **Riprova i file incompleti** mostra un’anteprima dei file falliti, saltati e non elaborati. Controllala e scegli **Conferma esportazione** per avviare un nuovo lavoro. Un file interrotto a metà scrittura può essere riscritto.
 
 ## Download
 
