@@ -1563,6 +1563,7 @@ export interface paths {
          *     - ``original`` — serve the file as-is (JPG/HEIF) or rawpy-converted (RAW).
          *     - ``darktable`` — convert companion RAW with a named darktable profile.
          *     - ``raw`` — serve the companion RAW file as-is.
+         *     - If no companion RAW exists, ``raw`` and ``darktable`` return the original.
          */
         get: operations["api_download_single_api_download_get"];
         put?: never;
