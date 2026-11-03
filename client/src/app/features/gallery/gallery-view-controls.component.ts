@@ -273,7 +273,9 @@ export class GalleryViewControlsComponent {
   protected readonly reviewNavigation = inject(GalleryReviewNavigationService);
   protected readonly tileFits = TILE_FITS;
   protected setReviewAdvance(event: Event): void {
-    if (this.canAct()) this.reviewNavigation.setEnabled((event.target as HTMLInputElement).checked);
+    const input = event.target as HTMLInputElement;
+    if (this.canAct()) this.reviewNavigation.setEnabled(input.checked);
+    input.checked = this.reviewNavigation.enabled();
   }
   constructor() {
     afterNextRender(() => { this.railCapable.setup(); this.hoverCapable.setup(); });

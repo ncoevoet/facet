@@ -75,6 +75,7 @@ describe('GalleryViewControlsComponent', () => {
       fixture.componentInstance.setActive(false);
       checkbox.click();
       expect(TestBed.inject(GalleryReviewNavigationService).enabled()).toBe(true);
+      expect(checkbox.checked).toBe(true);
     });
 
     it('offers display-only task presets in pinned lists and blocks captured commands while parked', async () => {
@@ -157,7 +158,7 @@ describe('GalleryViewControlsComponent', () => {
         expect(icon.textContent?.trim()).toBe('DeQA');
         expect(icon.classList.contains('!w-8')).toBe(true);
         expect(icon.classList.contains('text-center')).toBe(true);
-        expect(icon.classList.contains('-mx-1')).toBe(true);
+        expect(icon.classList.contains('!m-0')).toBe(true);
         expect(icon.getAttribute('aria-hidden')).toBe('true');
         expect(button.getAttribute('aria-label')).toBe(sortLabel('sort_options.deqa_score'));
       }

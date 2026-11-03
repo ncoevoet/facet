@@ -340,12 +340,11 @@ def _resolve_filter_paths(conn, filters, user_id, exclude=None, max_paths=None,
                     f"{max_paths}. Narrow the filters and try again."
                 ),
             )
-    columns = 'photos.path,photos._logical_asset_id' if logical else 'photos.path'
+    columns = 'photos.path,photos._logical_asset_id,photos._logical_primary_path' if logical else 'photos.path'
     rows = conn.execute(f"SELECT {columns} FROM {from_clause}{where_str}", params).fetchall()
     if logical:
-        for key in {row['_logical_asset_id'] for row in rows if row['_logical_asset_id'] is not None}:
-            if conn.execute('SELECT primary_path FROM logical_assets WHERE id=?', (key,)).fetchone()[0] is None:
-                raise HTTPException(409, 'Choose a primary representation before using this collection')
+        if any(row['_logical_asset_id'] is not None and row['_logical_primary_path'] is None for row in rows):
+            raise HTTPException(409, 'Choose a primary representation before using this collection')
     return [row["path"] for row in rows]
 
 
