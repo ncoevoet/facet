@@ -119,7 +119,7 @@ export interface ExportEditorDialogData {
                     }
                     <dt>{{ I18N.photo_detail.caption | translate }}</dt><dd class="m-0 whitespace-pre-wrap break-words">{{ metadata.caption || '—' }}</dd>
                     @if (metadata.manual_date) { <dt>{{ I18N.organization_history.capture_date | translate }}</dt><dd class="m-0">{{ metadata.manual_date | captureDate }}</dd> }
-                    @if (metadata.gps_state) { <dt>{{ I18N.organization_history.manual_gps | translate }}</dt><dd class="m-0">{{ metadata.gps_state }}@if (metadata.gps_state === 'set') { · {{ metadata.gps_latitude }}, {{ metadata.gps_longitude }} }</dd> }
+                    @if (metadata.gps_state) { <dt>{{ I18N.organization_history.manual_gps | translate }}</dt><dd class="m-0">{{ (metadata.gps_state === 'set' ? I18N.photo_detail.gps.batch_title : I18N.photo_detail.gps_clear) | translate }}@if (metadata.gps_state === 'set') { · {{ metadata.gps_latitude }}, {{ metadata.gps_longitude }} }</dd> }
                     @if (metadata.regions.length) { <dt>{{ I18N.export.preview.faces | translate }}</dt><dd class="m-0">{{ metadata.face_regions_supported ? metadata.regions.length : (I18N.export.preview.faces_omitted | translate) }}</dd> }
                   </dl>
                   <details><summary class="min-h-11 cursor-pointer py-3">{{ I18N.metadata_sources.title | translate }}</summary>
