@@ -70,6 +70,50 @@ def test_untouched_baseline_definitions_and_assignments_follow_current_source(li
         assert conn.execute('SELECT COUNT(*) FROM keyword_assignment_deletions').fetchone()[0] == 0
 
 
+def test_source_deletion_and_recreation_replace_unedited_baseline(library):
+    source, viewer, leaf = library
+    export(library)
+    with sqlite3.connect(source) as conn:
+        conn.execute('DELETE FROM photo_keyword_nodes WHERE node_id=?', (leaf,))
+        conn.execute('DELETE FROM keyword_nodes WHERE id=?', (leaf,))
+        replacement, _ = assign_path(conn, 'a', ['Animals', 'Cat'])
+        assert replacement != leaf
+    export(library)
+    with sqlite3.connect(viewer) as conn:
+        assert photo_hierarchies(conn, 'a')[0]['node_id'] == replacement
+        assert conn.execute('SELECT 1 FROM keyword_nodes WHERE id=?', (leaf,)).fetchone() is None
+        assert conn.execute('SELECT 1 FROM keyword_node_baselines WHERE node_id=?', (leaf,)).fetchone() is None
+
+
+def test_source_deletion_preserves_local_assignment_and_ancestors(library):
+    source, viewer, leaf = library
+    export(library)
+    with sqlite3.connect(viewer) as conn:
+        conn.execute("UPDATE photo_keyword_nodes SET source='user' WHERE photo_path='a' AND node_id=?", (leaf,))
+    with sqlite3.connect(source) as conn:
+        conn.execute('DELETE FROM photo_keyword_nodes WHERE node_id=?', (leaf,))
+        root = conn.execute('SELECT parent_id FROM keyword_nodes WHERE id=?', (leaf,)).fetchone()[0]
+        conn.execute('DELETE FROM keyword_nodes WHERE id=?', (leaf,))
+        conn.execute('DELETE FROM keyword_nodes WHERE id=?', (root,))
+    export(library)
+    with sqlite3.connect(viewer) as conn:
+        assert photo_hierarchies(conn, 'a')[0]['segments'] == ['Animals', 'Cat']
+        assert photo_hierarchies(conn, 'b') == []
+
+
+def test_source_deletion_preserves_locally_edited_definition(library):
+    source, viewer, leaf = library
+    export(library)
+    with sqlite3.connect(viewer) as conn:
+        change_node(conn, leaf, name='Viewer cat', writable_paths={'a', 'b'})
+    with sqlite3.connect(source) as conn:
+        conn.execute('DELETE FROM photo_keyword_nodes WHERE node_id=?', (leaf,))
+        conn.execute('DELETE FROM keyword_nodes WHERE id=?', (leaf,))
+    export(library)
+    with sqlite3.connect(viewer) as conn:
+        assert conn.execute('SELECT name FROM keyword_nodes WHERE id=?', (leaf,)).fetchone() == ('Viewer cat',)
+
+
 def test_local_rename_and_id_bound_removal_survive_source_rename_and_new_photos(library):
     source, viewer, leaf = library
     export(library)

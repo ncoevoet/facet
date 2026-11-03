@@ -59,6 +59,16 @@ def _propose(conn, source):
         if node_id not in edits and (node is None or baselines.get(node_id) == _signature(node)):
             proposed[node_id] = source[node_id]
             copied.add(node_id)
+    local_assignments = {row[0] for row in conn.execute("SELECT DISTINCT node_id FROM photo_keyword_nodes WHERE source!='catalog'")}
+    deleted = {node_id for node_id, node in current.items()
+               if node_id not in source and node_id not in edits and node_id not in local_assignments
+               and baselines.get(node_id) == _signature(node)}
+    # A locally retained descendant needs its ancestors even if the source has
+    # removed them. Retain only ancestors in the proposed final graph.
+    for node_id in proposed.keys() - deleted:
+        deleted.difference_update(node['id'] for node in _ancestry(proposed, node_id))
+    for node_id in deleted:
+        del proposed[node_id]
     if len(proposed) > MAX_NODES:
         raise HierarchyError('Merged keyword vocabulary exceeds its node limit')
     siblings = set()
@@ -114,7 +124,8 @@ class HierarchySync:
             # A valid final graph may swap sibling names/positions. Reserve
             # unreachable normalization keys until all final identities fit.
             prefix = '\0facet-sync-' + uuid4().hex
-            for node_id in changed & current.keys():
+            removed = current.keys() - proposed.keys()
+            for node_id in (changed & current.keys()) | removed:
                 conn.execute('UPDATE keyword_nodes SET name_key=? WHERE id=?', (prefix + node_id, node_id))
             for node_id in sorted(changed - current.keys(), key=lambda value: len(_ancestry(proposed, value))):
                 node = proposed[node_id]
@@ -124,12 +135,17 @@ class HierarchySync:
                 node = proposed[node_id]
                 conn.execute('UPDATE keyword_nodes SET parent_id=?,name=?,name_key=? WHERE id=?',
                              (node['parent_id'], node['name'], node['name_key'], node_id))
+            # Catalog assignments are replaced below; local assignments and
+            # edited descendants have already protected their ancestors.
+            conn.execute("DELETE FROM photo_keyword_nodes WHERE source='catalog'")
+            for node_id in sorted(removed, key=lambda value: len(_ancestry(current, value)), reverse=True):
+                conn.execute('DELETE FROM keyword_nodes WHERE id=?', (node_id,))
+                conn.execute('DELETE FROM keyword_node_baselines WHERE node_id=?', (node_id,))
             conn.executemany('INSERT INTO keyword_node_baselines(node_id,signature) VALUES(?,?) '
                              'ON CONFLICT(node_id) DO UPDATE SET signature=excluded.signature',
                              [(node_id, _signature(proposed[node_id])) for node_id in copied])
             # Only baseline rows mirror the source. Local user/import edits and
             # deletion intent survive even if the scanner no longer has them.
-            conn.execute("DELETE FROM photo_keyword_nodes WHERE source='catalog'")
             conn.execute(
                 'INSERT INTO photo_keyword_nodes '
                 '(photo_path,node_id,source,origin_source,created_at,imported_path,imported_signature) '
