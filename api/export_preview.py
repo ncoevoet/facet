@@ -187,10 +187,44 @@ def _missing_retry_file(old):
             'companion': old['companion'], 'target_exists': os.path.lexists(old['target']), 'metadata': None}
 
 
+def _allocate_bundle_destinations(files, target_dir, retry_files):
+    """Reserve common bundle names and preserve unfinished retry destinations."""
+    from api.routers.export import _contained_dest
+
+    groups: dict[tuple[str, ...], list[dict]] = {}
+    reserved, probes = set(), 0
+    for item in files:
+        old = retry_files.get((item['photo_path'], item['source']))
+        if old is not None:
+            target = _contained_dest(target_dir, Path(old['target']).name)
+            if target != old['target'] or os.path.lexists(target) or _key(target) in reserved:
+                raise HTTPException(409, 'An unfinished output already exists or changed location; inspect it before starting a new export')
+            item['target'] = target
+            reserved.add(_key(target))
+            continue
+        groups.setdefault(tuple(item['bundle']), []).append(item)
+    for (_, stem), group in groups.items():
+        for suffix in range(_MAX_COLLISION_PROBES):
+            names = [f'{stem}{"_" + str(suffix) if suffix else ""}{item["filename_tail"]}' for item in group]
+            targets = [_contained_dest(target_dir, name) for name in names]
+            if len({_key(target) for target in targets}) != len(targets):
+                raise HTTPException(409, 'Export filenames collide by case or Unicode; choose distinct source names')
+            probes += len(targets)
+            if probes > _MAX_COLLISION_PROBES:
+                raise HTTPException(412, 'Export destination has too many collisions; choose another folder')
+            if all(_key(target) not in reserved and not os.path.lexists(target) for target in targets):
+                for item, target in zip(group, targets, strict=True):
+                    item['target'] = target
+                    reserved.add(_key(target))
+                break
+        else:
+            raise HTTPException(412, 'Export destination has too many collisions')
+
+
 def build_export_snapshot(conn, body: ExportPreviewRequest, user_id, *, stop_requested=None):
     """One authorized DB snapshot plus bounded observed filesystem facts."""
     from api.routers.export import (
-        _contained_dest, _fetch_rating_rows, _fetch_regions_map, _rating_from, _validate_target_dir,
+        _fetch_rating_rows, _fetch_regions_map, _rating_from, _validate_target_dir,
     )
 
     main = next(row[2] for row in conn.execute('PRAGMA database_list') if row[1] == 'main')
@@ -316,34 +350,7 @@ def build_export_snapshot(conn, body: ExportPreviewRequest, user_id, *, stop_req
             if key not in present and (old['photo_path'], Path(old['source']).name) not in missing_keys:
                 missing.append(_missing_retry_file(old))
     if target_dir is not None:
-        groups: dict[tuple[str, ...], list[dict]] = {}
-        reserved, probes = set(), 0
-        for item in files:
-            old = retry_files.get((item['photo_path'], item['source']))
-            if old is not None:
-                target = _contained_dest(target_dir, Path(old['target']).name)
-                if target != old['target'] or os.path.lexists(target) or _key(target) in reserved:
-                    raise HTTPException(409, 'An unfinished output already exists or changed location; inspect it before starting a new export')
-                item['target'] = target
-                reserved.add(_key(target))
-                continue
-            groups.setdefault(tuple(item['bundle']), []).append(item)
-        for (_, stem), group in groups.items():
-            for suffix in range(_MAX_COLLISION_PROBES):
-                names = [f'{stem}{"_" + str(suffix) if suffix else ""}{item["filename_tail"]}' for item in group]
-                targets = [_contained_dest(target_dir, name) for name in names]
-                if len({_key(target) for target in targets}) != len(targets):
-                    raise HTTPException(409, 'Export filenames collide by case or Unicode; choose distinct source names')
-                probes += len(targets)
-                if probes > _MAX_COLLISION_PROBES:
-                    raise HTTPException(412, 'Export destination has too many collisions; choose another folder')
-                if all(_key(target) not in reserved and not os.path.lexists(target) for target in targets):
-                    for item, target in zip(group, targets, strict=True):
-                        item['target'] = target
-                        reserved.add(_key(target))
-                    break
-            else:
-                raise HTTPException(412, 'Export destination has too many collisions')
+        _allocate_bundle_destinations(files, target_dir, retry_files)
     source_ids = {tuple(item['source_identity'][:2]) for item in files}
     target_ids = set()
     for item in files:
