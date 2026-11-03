@@ -3178,7 +3178,9 @@
       "hide": "Ocultar colección",
       "resize": "Cambiar el ancho del panel de colección",
       "loaded": "{loaded} de {total} elementos mostrados cargados · mismos filtros y orden",
-      "more": "Cargar más"
+      "more": "Cargar más",
+      "previous_loaded": "Fotos cargadas anteriores",
+      "next_loaded": "Fotos cargadas siguientes"
     },
     "back": "Volver",
     "download": "Descargar",

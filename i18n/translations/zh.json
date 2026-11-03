@@ -3178,7 +3178,9 @@
       "hide": "隐藏集合",
       "resize": "调整集合侧栏宽度",
       "loaded": "已加载 {loaded}/{total} 个显示项目 · 相同筛选和排序",
-      "more": "加载更多"
+      "more": "加载更多",
+      "previous_loaded": "上一批已加载的照片",
+      "next_loaded": "下一批已加载的照片"
     },
     "back": "返回",
     "download": "下载",

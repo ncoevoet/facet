@@ -3203,7 +3203,9 @@
       "hide": "Hide collection",
       "resize": "Resize collection sidebar",
       "loaded": "{loaded} of {total} displayed items loaded · same filters and sort",
-      "more": "Load more"
+      "more": "Load more",
+      "previous_loaded": "Previous loaded photos",
+      "next_loaded": "Next loaded photos"
     },
     "back": "Back",
     "download": "Download",

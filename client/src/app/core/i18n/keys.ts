@@ -3218,6 +3218,8 @@ export const I18N = {
       resize: "photo_detail.collection.resize",
       loaded: "photo_detail.collection.loaded",
       more: "photo_detail.collection.more",
+      previous_loaded: "photo_detail.collection.previous_loaded",
+      next_loaded: "photo_detail.collection.next_loaded",
     },
     back: "photo_detail.back",
     download: "photo_detail.download",

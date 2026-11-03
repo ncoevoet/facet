@@ -1,4 +1,4 @@
-import { ChangeDetectionStrategy, Component, computed, DestroyRef, effect, ElementRef, inject, input, output, signal, viewChild } from '@angular/core';
+import { afterNextRender, ChangeDetectionStrategy, Component, computed, DestroyRef, effect, ElementRef, inject, Injector, input, output, signal, untracked, viewChild } from '@angular/core';
 import { MatIconModule } from '@angular/material/icon';
 import { Photo } from '../../shared/models/photo.model';
 import { ThumbnailUrlPipe } from '../../shared/pipes/thumbnail-url.pipe';
@@ -26,8 +26,11 @@ import { I18N } from '../../core/i18n/keys';
       @if (!collapsed()) {
         <p class="m-0 px-2 pb-2 text-xs text-[var(--mat-sys-on-surface-variant)]">{{ I18N.photo_detail.collection.loaded | translate:{ loaded: photos().length, total: total() } }}</p>
         <div #scroller class="min-h-0 flex-1 overflow-y-auto overscroll-contain p-2" tabindex="0" [attr.aria-label]="I18N.photo_detail.collection.title | translate">
+          @if (windowStart() > 0) {
+            <button type="button" data-collection-previous-window class="mb-2 min-h-10 w-full rounded border border-[var(--mat-sys-outline-variant)] px-2 text-xs" (click)="pageWindow(-1)">{{ I18N.photo_detail.collection.previous_loaded | translate }}</button>
+          }
           <div class="grid gap-2" [style.grid-template-columns]="columns()">
-            @for (photo of photos(); track photo.path) {
+            @for (photo of visiblePhotos(); track photo.path) {
               <button type="button" [attr.data-collection-current]="photo.path === currentPath() ? '' : null"
                 [attr.aria-current]="photo.path === currentPath() ? 'true' : null" [attr.aria-label]="photo.filename"
                 [title]="photo.filename" (click)="choose.emit(photo.path)"
@@ -38,7 +41,10 @@ import { I18N } from '../../core/i18n/keys';
               </button>
             }
           </div>
-          @if (hasMore()) {
+          @if (windowEnd() < photos().length) {
+            <button type="button" data-collection-next-window class="mt-2 min-h-10 w-full rounded border border-[var(--mat-sys-outline-variant)] px-2 text-xs" (click)="pageWindow(1)">{{ I18N.photo_detail.collection.next_loaded | translate }}</button>
+          }
+          @if (hasMore() && windowEnd() === photos().length) {
             <button type="button" class="mt-2 min-h-10 w-full rounded border border-[var(--mat-sys-outline-variant)] px-2 text-xs"
               [disabled]="loading()" (click)="more.emit()">{{ (loading() ? I18N.ui.labels.loading : I18N.photo_detail.collection.more) | translate }}</button>
           }
@@ -65,6 +71,14 @@ export class PhotoCollectionSidebarComponent {
   protected readonly width = signal(192);
   protected readonly collapsed = signal(false);
   protected readonly columns = computed(() => `repeat(${this.width() >= 280 ? 2 : 1}, minmax(0, 1fr))`);
+  private readonly injector = inject(Injector);
+  private readonly windowSize = 200;
+  private readonly requestedStart = signal(0);
+  protected readonly windowStart = computed(() => Math.min(this.requestedStart(), Math.max(0, this.photos().length - 1)));
+  protected readonly windowEnd = computed(() => Math.min(this.photos().length, this.windowStart() + this.windowSize));
+  protected readonly visiblePhotos = computed(() => this.photos().slice(this.windowStart(), this.windowEnd()));
+  private lastPath = '';
+  private lastPathFound = false;
   private readonly scroller = viewChild<ElementRef<HTMLElement>>('scroller');
   private drag: { id: number; x: number; width: number; target: HTMLElement } | null = null;
   private frame: number | null = null;
@@ -72,6 +86,14 @@ export class PhotoCollectionSidebarComponent {
   private pendingWidth: number | null = null;
 
   constructor() {
+    effect(() => {
+      const path = this.currentPath(), index = this.photos().findIndex(photo => photo.path === path);
+      const changed = path !== this.lastPath || (!this.lastPathFound && index >= 0);
+      this.lastPath = path; this.lastPathFound = index >= 0;
+      if (!changed || index < 0) return;
+      const start = untracked(this.windowStart);
+      if (index < start || index >= start + this.windowSize) this.requestedStart.set(Math.max(0, index - Math.floor(this.windowSize / 2)));
+    });
     // Reflow and hidden-to-visible transitions must keep the same photo in view too.
     effect(cleanup => {
       this.currentPath(); this.width();
@@ -104,6 +126,19 @@ export class PhotoCollectionSidebarComponent {
   }
 
   protected toggle(): void { this.collapsed.update(value => !value); }
+  protected pageWindow(direction: -1 | 1): void {
+    const start = this.windowStart();
+    const next = Math.max(0, Math.min(this.photos().length - 1, start + direction * this.windowSize));
+    const focused = document.activeElement;
+    this.requestedStart.set(next);
+    afterNextRender(() => {
+      const viewport = this.scroller()?.nativeElement;
+      if (!viewport || this.requestedStart() !== next || (document.activeElement !== focused && document.activeElement !== document.body)) return;
+      viewport.scrollTop = direction > 0 ? 0 : viewport.scrollHeight;
+      const buttons = viewport.querySelectorAll<HTMLButtonElement>('.grid button');
+      (direction > 0 ? buttons[0] : buttons[buttons.length - 1])?.focus({ preventScroll: true });
+    }, { injector: this.injector });
+  }
   private setWidth(width: number): void { this.width.set(Math.max(144, Math.min(384, width))); }
   protected start(event: PointerEvent): void {
     if (this.drag || event.button !== 0 || !event.isPrimary) return;

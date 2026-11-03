@@ -3178,7 +3178,9 @@
       "hide": "Sammlung ausblenden",
       "resize": "Breite der Sammlungsleiste ändern",
       "loaded": "{loaded} von {total} angezeigten Elementen geladen · gleiche Filter und Sortierung",
-      "more": "Mehr laden"
+      "more": "Mehr laden",
+      "previous_loaded": "Vorherige geladene Fotos",
+      "next_loaded": "Nächste geladene Fotos"
     },
     "back": "Zurück",
     "download": "Herunterladen",

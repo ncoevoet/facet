@@ -41,6 +41,23 @@ describe('PhotoCollectionSidebarComponent', () => {
     expect(choose).toHaveBeenCalledWith('/a.jpg'); expect(more).toHaveBeenCalledOnce();
     expect(fixture.componentInstance.currentPath()).toBe('/b.jpg');
   });
+  it('bounds the rendered list while keeping later and earlier loaded photos accessible', () => {
+    const { fixture, root } = render();
+    const photos = Array.from({ length: 500 }, (_, index) => makePhoto({ path: `/p${index}.jpg`, filename: `p${index}.jpg` }));
+    fixture.componentRef.setInput('photos', photos); fixture.componentRef.setInput('currentPath', '/p350.jpg'); fixture.detectChanges();
+    expect(root.querySelectorAll('.grid button')).toHaveLength(200);
+    expect(root.querySelector('[aria-current="true"]')?.getAttribute('aria-label')).toBe('p350.jpg');
+    expect(root.querySelector('[data-collection-previous-window]')).not.toBeNull();
+    root.querySelector<HTMLButtonElement>('[data-collection-next-window]')!.click(); fixture.detectChanges();
+    expect(root.querySelectorAll('.grid button').length).toBeLessThanOrEqual(200);
+    expect(root.querySelector('[aria-label="p499.jpg"]')).not.toBeNull();
+    fixture.componentRef.setInput('photos', photos.map(photo => ({ ...photo, is_favorite: true }))); fixture.detectChanges();
+    expect(root.querySelector('[aria-label="p499.jpg"]')).not.toBeNull();
+    root.querySelector<HTMLButtonElement>('[data-collection-previous-window]')!.click(); fixture.detectChanges();
+    expect(root.querySelector('[aria-label="p350.jpg"]')).not.toBeNull();
+    fixture.componentRef.setInput('currentPath', '/p0.jpg'); fixture.detectChanges();
+    expect(root.querySelector('[aria-current="true"]')?.getAttribute('aria-label')).toBe('p0.jpg');
+  });
   it('resizes by keyboard within bounds without leaking photo navigation keys', () => {
     const { fixture, root, divider } = render();
     const key = (value: string) => { const event = new KeyboardEvent('keydown', { key: value, bubbles: true, cancelable: true }); divider().dispatchEvent(event); fixture.detectChanges(); return event; };

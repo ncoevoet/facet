@@ -3178,7 +3178,9 @@
       "hide": "Nascondi raccolta",
       "resize": "Ridimensiona il pannello della raccolta",
       "loaded": "{loaded} di {total} elementi visualizzati caricati · stessi filtri e ordinamento",
-      "more": "Carica altre"
+      "more": "Carica altre",
+      "previous_loaded": "Foto caricate precedenti",
+      "next_loaded": "Foto caricate successive"
     },
     "back": "Indietro",
     "download": "Scarica",
