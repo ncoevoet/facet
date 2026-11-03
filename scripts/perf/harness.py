@@ -199,6 +199,10 @@ def _chunk_label(self, paths, ci, tc, *a, **k):
 
 MPP._process_chunk = timed_phase(_chunk_label)(MPP._process_chunk)
 MPP._load_images = timed_phase(lambda self, paths, *a, **k: ('io', {'n': len(paths)}))(MPP._load_images)
+# Decode-ahead: the next chunk's first photos, decoded on the worker during THIS chunk. Its inner
+# `io` events fall inside this span; chunks.py books the span to the chunk that consumes it.
+MPP._decode_ahead_on_worker = timed_phase(
+    lambda self, first, *a, **k: ('ahead', {'n': len(first)}))(MPP._decode_ahead_on_worker)
 MPP._compute_aggregates = timed_phase(lambda self, r, i, *a, **k: ('agg', {'n': len(r)}))(MPP._compute_aggregates)
 MPP._save_results = timed_phase(lambda self, r, i, *a, **k: ('save', {'n': len(r)}))(MPP._save_results)
 MPP._reclaim_freed_memory = timed_phase(lambda self, *a, **k: ('reclaim', {}))(MPP._reclaim_freed_memory)

@@ -762,7 +762,7 @@ Ogni immagine viene decodificata una sola volta per blocco e condivisa da tutti 
 
 - I thread di caricamento calcolano anche EXIF, metriche tecniche, composizione basata su regole, hash percettivo e una copia condivisa da 1024 px per i modelli pyiqa e Q-ReAlign.
 - Un errore di composizione fa fallire solo quella foto. Viene registrato in `scan_failures` con la fase `composition`; riprova con `--retry-failed`.
-- Su una GPU CUDA, un blocco viene decodificato mentre si caricano i modelli successivi, quando la memoria libera dell'host lo consente e `keep_in_ram` non è `"never"`. Altrimenti (e sempre su CPU e Apple MPS) viene decodificato prima. I risultati sono identici in entrambi i casi.
+- Su una GPU CUDA, un blocco viene decodificato mentre si caricano i modelli successivi, quando la memoria libera dell'host lo consente e `keep_in_ram` non è `"never"`. Altrimenti (e sempre su CPU e Apple MPS) viene decodificato prima. I risultati sono identici in entrambi i casi. Una volta decodificato un chunk, il worker decodifica anche le prime foto del successivo mentre girano i modelli di questo, quante ne consentono la memoria libera, il margine di commit di Windows e la soglia di crescita (nessuna per il primo chunk, con la regolazione automatica attiva dopo un chunk più breve dell'intervallo del monitor di memoria, con `keep_in_ram: "never"` o quando la cache RAM non potrebbe tenere i modelli del chunk); vedi [COMMANDS.md](COMMANDS.md).
 - Quando la memoria scarseggia prima di un blocco, la cache RAM rilascia per primo il modello che servirà più tardi e mantiene libero `ram_cache_reserve_gb`.
 - Il riepilogo della scansione riporta `Plane rebuilds`, `I/O wait (scan thread blocked on decode)` e `Decode wall`.
 
