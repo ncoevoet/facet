@@ -1,4 +1,5 @@
 import { signal } from '@angular/core';
+import { HttpErrorResponse } from '@angular/common/http';
 import { TestBed } from '@angular/core/testing';
 import { NEVER, of, Subject, throwError } from 'rxjs';
 import { Router } from '@angular/router';
@@ -14,6 +15,7 @@ describe('ExportEditorDialogComponent', () => {
   let component: ExportEditorDialogComponent;
   let previewExport: ReturnType<typeof vi.fn>;
   let applyExport: ReturnType<typeof vi.fn>;
+  let sidecarJob: ReturnType<typeof vi.fn>;
   let dialogClose: ReturnType<typeof vi.fn>;
   let apiPost: ReturnType<typeof vi.fn>;
   let snackBarOpen: ReturnType<typeof vi.fn>;
@@ -25,12 +27,13 @@ describe('ExportEditorDialogComponent', () => {
       mode: request.mode ?? 'sidecars', target_dir: request.target_dir ?? null, writer: null,
     }));
     applyExport = vi.fn(() => of({ id: 'job', state: 'completed', started_at: 1, total: 5, processed: 5, written: 5, skipped: 0, errors: 0 }));
+    sidecarJob = vi.fn();
     dialogClose = vi.fn();
     apiPost = vi.fn(() => of({}));
     snackBarOpen = vi.fn();
     TestBed.configureTestingModule({
       providers: [
-        { provide: ExportService, useValue: { previewExport, applyExport, recentSidecarJobs: () => of([]) } },
+        { provide: ExportService, useValue: { previewExport, applyExport, sidecarJob, recentSidecarJobs: () => of([]) } },
         { provide: AuthService, useValue: { status: signal(null), identity: () => 'alice', isEdition: () => true } },
         { provide: Router, useValue: { url: '/', events: NEVER } },
         { provide: ApiService, useValue: { post: apiPost } },
@@ -72,6 +75,27 @@ describe('ExportEditorDialogComponent', () => {
     expect(applyExport).toHaveBeenNthCalledWith(2, preview);
     expect(component.uncertainReceipt()).toBeNull();
     expect(dialogClose).toHaveBeenCalled();
+  });
+
+  it('discards a definitely rejected confirmation and displays its reason', async () => {
+    build(); component.mode.set('copy'); component.targetDir.set('/dest');
+    await component.previewExport();
+    applyExport.mockReturnValueOnce(throwError(() => new HttpErrorResponse({ status: 422, error: { detail: 'Invalid destination' } })));
+    await component.confirmPreview();
+    expect(component.preview()).toBeNull(); expect(component.uncertainReceipt()).toBeNull();
+    expect(component.errorDetail()).toBe('Invalid destination'); expect(dialogClose).not.toHaveBeenCalled();
+  });
+
+  it('keeps the original receipt and preview after a failed status lookup', async () => {
+    build(); component.mode.set('copy'); component.targetDir.set('/dest');
+    await component.previewExport(); const preview = component.preview();
+    applyExport.mockReturnValueOnce(throwError(() => new Error('lost response')));
+    await component.confirmPreview();
+    sidecarJob.mockReturnValueOnce(throwError(() => new HttpErrorResponse({ status: 404 })));
+    await component.recoverConfirmation();
+    expect(sidecarJob).toHaveBeenCalledWith('job');
+    expect(component.uncertainReceipt()).toBe('job'); expect(component.preview()).toBe(preview);
+    expect(component.errorDetail()).toBe('export.jobs.read_failed');
   });
 
   it('surfaces the server-supplied reason instead of swallowing it', async () => {
