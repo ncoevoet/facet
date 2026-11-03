@@ -230,17 +230,17 @@ const SET_KIND_TOGGLE: Record<string, keyof HiddenFilterFlags> = {
     </ng-template>
 
     <ng-template #galleryLayoutButtons>
-            <button mat-button data-gallery-layout="grid" class="!min-w-0 !text-[var(--mat-sys-on-surface)] max-md:!min-h-11 max-md:!min-w-11 max-md:!w-11 max-md:!px-2"
+            <button mat-button data-gallery-layout="grid" class="!min-w-0 !text-[var(--mat-sys-on-surface)] max-lg:!min-h-11 max-lg:!min-w-11 max-lg:!w-11 max-lg:!px-2"
                     [class.!bg-[var(--mat-sys-secondary-container)]]="store.galleryMode() === 'grid'"
                     [attr.aria-pressed]="store.galleryMode() === 'grid'"
-                    [attr.aria-label]="I18N.gallery.layout_grid | translate" (click)="store.setGalleryMode('grid')">
-              <mat-icon class="max-md:!m-0">grid_view</mat-icon><span class="hidden md:inline">{{ I18N.gallery.layout_grid | translate }}</span>
+                    [attr.aria-label]="I18N.gallery.layout_grid | translate" [matTooltip]="I18N.gallery.layout_grid | translate" (click)="store.setGalleryMode('grid')">
+              <mat-icon class="max-lg:!m-0">grid_view</mat-icon><span class="hidden lg:inline">{{ I18N.gallery.layout_grid | translate }}</span>
             </button>
-            <button mat-button data-gallery-layout="mosaic" class="!min-w-0 !text-[var(--mat-sys-on-surface)] max-md:!min-h-11 max-md:!min-w-11 max-md:!w-11 max-md:!px-2"
+            <button mat-button data-gallery-layout="mosaic" class="!min-w-0 !text-[var(--mat-sys-on-surface)] max-lg:!min-h-11 max-lg:!min-w-11 max-lg:!w-11 max-lg:!px-2"
                     [class.!bg-[var(--mat-sys-secondary-container)]]="store.galleryMode() === 'mosaic'"
                     [attr.aria-pressed]="store.galleryMode() === 'mosaic'"
-                    [attr.aria-label]="I18N.gallery.layout_mosaic | translate" (click)="store.setGalleryMode('mosaic')">
-              <mat-icon class="max-md:!m-0">auto_awesome_mosaic</mat-icon><span class="hidden md:inline">{{ I18N.gallery.layout_mosaic | translate }}</span>
+                    [attr.aria-label]="I18N.gallery.layout_mosaic | translate" [matTooltip]="I18N.gallery.layout_mosaic | translate" (click)="store.setGalleryMode('mosaic')">
+              <mat-icon class="max-lg:!m-0">auto_awesome_mosaic</mat-icon><span class="hidden lg:inline">{{ I18N.gallery.layout_mosaic | translate }}</span>
             </button>
     </ng-template>
 
@@ -310,7 +310,7 @@ const SET_KIND_TOGGLE: Record<string, keyof HiddenFilterFlags> = {
       <mat-sidenav-content>
         <header data-collection-header class="@container border-b border-[var(--mat-sys-outline-variant)] bg-[var(--mat-sys-surface-container-lowest)] px-3 py-2 md:px-4">
           <div class="flex flex-wrap items-center gap-x-4 gap-y-2">
-          <div class="min-w-0 flex-1 md:flex-none md:max-w-64 @min-[700px]:flex-1 @min-[700px]:basis-0">
+          <div class="min-w-0 flex-1 md:flex-none md:max-w-64 @min-[600px]:flex-1 @min-[600px]:basis-0">
           <h1 class="m-0 min-w-0 text-lg font-medium leading-6 text-[var(--mat-sys-on-surface)] truncate" [title]="store.currentAlbum()?.name || (I18N.gallery.all_photos | translate)">
             {{ store.currentAlbum()?.name || (I18N.gallery.all_photos | translate) }}
           </h1>
@@ -336,7 +336,7 @@ const SET_KIND_TOGGLE: Record<string, keyof HiddenFilterFlags> = {
               {{ (selectingPhotos() ? I18N.ui.buttons.cancel : I18N.gallery.selection.select) | translate }}
             </button>
           </div>
-          <div data-collection-actions class="order-4 flex w-full flex-wrap items-center gap-1 border-t border-[var(--mat-sys-outline-variant)] pt-2 @min-[700px]:order-none @min-[700px]:w-auto @min-[700px]:border-0 @min-[700px]:pt-0">
+          <div data-collection-actions class="order-4 flex w-full flex-wrap items-center gap-1 border-t border-[var(--mat-sys-outline-variant)] pt-2 @min-[600px]:order-none @min-[600px]:w-auto @min-[600px]:border-0 @min-[600px]:pt-0">
             <ng-container [ngTemplateOutlet]="collectionViewControls.primaryControls()" />
             <ng-container [ngTemplateOutlet]="galleryLayoutButtons" />
             <ng-container [ngTemplateOutlet]="collectionViewControls.filterControls()" />
