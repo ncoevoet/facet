@@ -64,9 +64,9 @@ const sortOptionLabelKey = (column: string): string => `sort_options.${column}`;
     <ng-template #primaryControls>
     @if (!pinned()) {
           @let sortTooltip = I18N.gallery.sort_current | translate:{ label: (currentSortLabelKey() | translate) };
-          <button mat-button data-collection-sort class="max-md:!min-h-11 max-md:!min-w-11 max-md:!w-11 max-md:!px-2" [matMenuTriggerFor]="sortMenu" [matTooltip]="sortTooltip" [attr.aria-label]="sortTooltip">
+          <button mat-button data-collection-sort class="!min-h-11 !min-w-11 !w-11 !px-2 @[1120px]:!w-auto @[1120px]:!px-4" [matMenuTriggerFor]="sortMenu" [matTooltip]="sortTooltip" [attr.aria-label]="sortTooltip">
             @let currentIcon = store.filters().sort | sortOptionIcon;
-            <mat-icon aria-hidden="true" class="!w-8 -mx-1 text-center max-md:!m-0" [class]="currentIcon.classes">{{ currentIcon.text }}</mat-icon>
+            <mat-icon aria-hidden="true" class="!m-0 !w-8 text-center @[1120px]:!mr-2" [class]="currentIcon.classes">{{ currentIcon.text }}</mat-icon>
           <span class="hidden @[1120px]:inline">{{ currentSortLabelKey() | translate }}</span></button>
           <button
             class="max-md:!min-h-11 max-md:!min-w-11"

@@ -308,9 +308,9 @@ const SET_KIND_TOGGLE: Record<string, keyof HiddenFilterFlags> = {
       <!-- Main content. The drawer reserves its own strip, so the grid gets
            exactly the width it has whenever the filters are open. -->
       <mat-sidenav-content>
-        <header data-collection-header class="@container border-b border-[var(--mat-sys-outline-variant)] bg-[var(--mat-sys-surface-container-lowest)] px-3 py-2 md:px-4">
+        <header data-collection-header class="@container border-b border-[var(--mat-sys-outline-variant)] bg-[var(--mat-sys-surface-container-lowest)] px-2 py-2 md:px-4">
           <div class="flex flex-wrap items-center gap-x-4 gap-y-2">
-          <div class="min-w-0 flex-1 md:flex-none md:max-w-64 @min-[600px]:flex-1 @min-[600px]:basis-0">
+          <div class="min-w-0 flex-1 md:flex-none md:max-w-64 @min-[600px]:min-w-44 @min-[600px]:flex-1 @min-[600px]:basis-0">
           <h1 class="m-0 min-w-0 text-lg font-medium leading-6 text-[var(--mat-sys-on-surface)] truncate" [title]="store.currentAlbum()?.name || (I18N.gallery.all_photos | translate)">
             {{ store.currentAlbum()?.name || (I18N.gallery.all_photos | translate) }}
           </h1>
@@ -324,7 +324,7 @@ const SET_KIND_TOGGLE: Record<string, keyof HiddenFilterFlags> = {
             }
           </p>
           </div>
-          <div data-collection-query role="search" [attr.aria-label]="I18N.gallery.search_placeholder | translate" class="order-3 flex w-full min-w-0 flex-wrap items-center gap-1 @min-[1100px]:order-none @min-[1100px]:w-auto @min-[1100px]:flex-1" [class.!hidden]="!isDesktop() && !mobileSearchOpen() && !store.filters().search">
+          <div data-collection-query role="search" [attr.aria-label]="I18N.gallery.search_placeholder | translate" class="order-3 flex w-full min-w-0 flex-wrap items-center gap-1 @min-[1100px]:order-none @min-[1100px]:w-auto @min-[1100px]:min-w-56 @min-[1100px]:flex-1" [class.!hidden]="!isDesktop() && !mobileSearchOpen() && !store.filters().search">
             <ng-container [ngTemplateOutlet]="galleryToolbar" />
           </div>
           <div class="flex shrink-0 items-center gap-0.5">
