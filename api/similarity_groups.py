@@ -32,7 +32,7 @@ def _get_similarity_config():
         return {'default_threshold': 0.85, 'min_group_size': 2, 'max_photos': 10000, 'max_group_size': 50}
 
 
-def _candidate_fingerprint(rows, settings):
+def _candidate_fingerprint(rows, settings, *, logical=False):
     """Bind cached groups to the actual authorized inputs, including restored DBs."""
     digest = hashlib.sha256()
 
@@ -42,7 +42,7 @@ def _candidate_fingerprint(rows, settings):
 
     add(json.dumps(settings, ensure_ascii=True).encode('utf-8'))
     for row in rows:
-        add(json.dumps([row['path'], row['aggregate']], ensure_ascii=True).encode('utf-8'))
+        add(json.dumps([row['path'], row['aggregate'], row['_logical_asset_id'] if logical else None], ensure_ascii=True).encode('utf-8'))
         add(row['clip_embedding'])
     return digest.hexdigest()
 
@@ -100,10 +100,6 @@ def compute_similarity_groups(conn=None, threshold=None, min_size=None, user_id=
         # One row per logical photo: a RAW+JPEG capture is not "similar" to itself.
         logical = standalone_source(conn, user_id, extra=('clip_embedding', 'date_taken', 'is_burst_lead', 'is_sequence_lead'))
         album_sql, album_params = (album_filter_clause if logical is None else album_predicate)(album_id)
-        # The cache key does not carry logical membership, so a pairing made
-        # inside the TTL would keep serving groups built from both files.
-        use_cache = use_cache and logical is None
-
         cache_key = f"similarity_groups_{threshold}_{min_size}_{user_id}_{album_id}_{date_from}_{date_to}_10k"
         cached = None
         if use_cache:
@@ -127,7 +123,7 @@ def compute_similarity_groups(conn=None, threshold=None, min_size=None, user_id=
         ] + window_clauses
         from_sql, from_params = ('photos', []) if logical is None else (logical.sql, logical.params)
         rows = conn.execute(
-            f"""SELECT path, clip_embedding, aggregate FROM {from_sql}
+            f"""SELECT path, clip_embedding, aggregate, {('NULL' if logical is None else '_logical_asset_id')} AS _logical_asset_id FROM {from_sql}
                WHERE {' AND '.join(where)}
                ORDER BY date_taken DESC
                LIMIT ?""",
@@ -146,7 +142,7 @@ def compute_similarity_groups(conn=None, threshold=None, min_size=None, user_id=
             fingerprint = _candidate_fingerprint(
                 rows, [threshold, min_size, max_photos, max_group_size,
                        vis_sql, vis_params, album_sql, album_params,
-                       window_clauses, window_params])
+                       window_clauses, window_params], logical=logical is not None)
             if cached and (time.time() - cached['updated_at']) < 3600:
                 try:
                     payload = json.loads(cached['value'])

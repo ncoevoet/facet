@@ -112,3 +112,28 @@ def test_group_limit_change_invalidates_cache(catalog, monkeypatch):
     assert compute_similarity_groups(catalog, threshold=0.76, user_id='test')[0]['count'] == 3
     monkeypatch.setitem(config._FULL_CONFIG, 'similarity_groups', {'max_group_size': 2})
     assert compute_similarity_groups(catalog, threshold=0.76, user_id='test') == []
+
+
+def test_logical_groups_use_cache_and_recompute_when_pairing_changes(catalog):
+    from db import logical_assets
+
+    vector = np.array([1.0, 0.0], dtype=np.float32).tobytes()
+    catalog.execute("INSERT INTO photos(path, filename, clip_embedding, aggregate, date_taken) VALUES (?, ?, ?, ?, ?)",
+                    ('/public/a.CR2', 'a.CR2', vector, 5, '2026:01:01 12:00:00'))
+    catalog.execute("INSERT INTO photos(path, filename, clip_embedding, aggregate, date_taken) VALUES (?, ?, ?, ?, ?)",
+                    ('/public/c.CR2', 'c.CR2', vector, 6, '2026:01:01 12:00:00'))
+    asset = logical_assets.create(catalog, ['/public/a.jpg', '/public/a.CR2'], '/public/a.jpg', visibility_sql='1=1')
+    catalog.commit()
+    warm = compute_similarity_groups(catalog, threshold=0.76, user_id='test')
+    with mock.patch('api.similarity_groups.np.stack', side_effect=AssertionError('matrix rebuilt')):
+        assert compute_similarity_groups(catalog, threshold=0.76, user_id='test') == warm
+    catalog.execute('BEGIN')
+    logical_assets.create(catalog, ['/public/c.jpg', '/public/c.CR2'], '/public/c.jpg', visibility_sql='1=1')
+    catalog.commit()
+    regrouped = compute_similarity_groups(catalog, threshold=0.76, user_id='test')
+    assert all('/public/c.CR2' not in group['paths'] for group in regrouped)
+    catalog.execute('BEGIN')
+    logical_assets.dissolve(catalog, asset, 1, visibility_sql='1=1')
+    catalog.commit()
+    refreshed = compute_similarity_groups(catalog, threshold=0.76, user_id='test')
+    assert '/public/a.CR2' in refreshed[0]['paths']
