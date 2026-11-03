@@ -106,7 +106,7 @@ from metric_columns import JSON_LEGACY_SCORE_COLUMNS, JSON_SCORE_COLUMNS
 from utils.image_loading import (
     RAW_EXTENSIONS, HEIF_EXTENSIONS, JPEG_EXTENSIONS, SCANNABLE_IMAGE_EXTENSIONS,
 )
-from utils.exit_codes import LIBRARY_LOCK_HELD_EXIT_CODE
+from utils.exit_codes import LIBRARY_LOCK_HELD_EXIT_CODE, SAVED_NOTHING_EXIT_CODE
 
 
 
@@ -215,6 +215,11 @@ def _gather_scan_files(photo_paths, scanning_settings):
                     if p.suffix.lower() in valid_suffixes:
                         all_files.append(p)
     return all_files
+
+
+def _photos_saved(processor):
+    """How many photos the scan's processor saved (``metrics['photos_saved']``)."""
+    return processor.metrics['photos_saved']
 
 
 def _print_scan_summary(db_path, todo_list, raw_paired_skipped):
@@ -1955,6 +1960,8 @@ def _run_scan(args, resumed_run):
 
     emit_progress('scoring', 0, len(todo_list), force=True)
     ledger.begin('scoring', group='scoring')
+    processor = None
+    calibration_saved = 0
     try:
         # Check for single-pass mode or specific pass
         if route == 'pass':
@@ -2036,6 +2043,7 @@ def _run_scan(args, resumed_run):
             )
 
             if remaining_paths:
+                calibration_saved = _photos_saved(processor)
                 processor = BatchProcessor(
                     scorer,
                     batch_size=current_settings['batch_size'],
@@ -2093,6 +2101,11 @@ def _run_scan(args, resumed_run):
         scan_run.finish('failed')
         raise
     else:
+        if route != 'pass' and _photos_saved(processor) + calibration_saved == 0:
+            logger.error("Scan failed: saved 0 of %d photos (see the model load and pass "
+                         "errors above, or `--retry-failed` after fixing them).", len(todo_list))
+            scan_run.finish('failed')
+            exit(SAVED_NOTHING_EXIT_CODE)
         scan_run.finish('completed')
         if args.retry_failed and todo_list:
             retried_paths = [_resolved(f) for f in todo_list]

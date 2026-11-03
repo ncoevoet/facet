@@ -46,6 +46,7 @@ ROUTE_ALLOWLIST: Mapping[str, RouteSpec] = MappingProxyType({
     "search_photos": RouteSpec("GET", "/api/photos", "readonly"),
     "semantic_search": RouteSpec("GET", "/api/search", "readonly"),
     "get_photo": RouteSpec("GET", "/api/photo", "readonly"),
+    "photo_objects": RouteSpec("GET", "/api/photo/objects", "readonly"),
     "get_photo_stack": RouteSpec("GET", "/api/stacks/by-photo", "readonly"),
     "create_photo_stack": RouteSpec("POST", "/api/stacks", "edition", write=True),
     "import_ai_edit": RouteSpec("POST", "/api/photo/ai_edits/import", "edition", write=True),

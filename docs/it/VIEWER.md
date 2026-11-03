@@ -370,6 +370,7 @@ Quando un assistente collegato tramite [Assistenti IA (MCP)](AGENTS.md) ti mostr
 **Scarta in cartella…** nella barra delle azioni di gruppo (modalità di modifica) copia le foto conservate, o sposta/cestina quelle scartate, in una cartella di destinazione. Cestino significa il cestino del sistema, mai un'eliminazione permanente, e richiede `viewer.cull.allow_trash`.
 
 - **Ogni esecuzione parte come esecuzione a vuoto.** Vedi un'anteprima prima che venga scritto qualcosa; sposta/cestina partono solo con un `dry_run=false` esplicito.
+- L’anteprima elenca i file interessati, 24 per pagina, con miniature e nomi. Fai clic su un’immagine per ingrandirla. I file XMP e le immagini non disponibili restano elencati. Annulla per modificare le decisioni sulle foto; cambiare un’opzione richiede una nuova anteprima. La conferma del cestino indica il numero di file, inclusi i file associati abilitati.
 - **Il server sceglie i file dallo stato di ogni foto.** La copia agisce solo sulle conservate, sposta/cestina solo sulle scartate. Tutto il resto è riportato come `excluded_by_state`. Il client non può passare un elenco di file da eliminare.
 - **I file collegati sono opzionali.** Rifiutare un JPEG non porta con sé il suo RAW, a meno che tu spunti **Includi RAW compagno / XMP** (`include_companions`).
 - Su macOS e Windows, i file RAW collegati mantengono i nomi su disco, comprese le estensioni maiuscole; su Windows, anche i sidecar `.xmp`.
@@ -408,9 +409,11 @@ Campi della risposta e codici di stato: [API.md](../API.md).
 - **Modalità layout** — **Griglia** (schede uniformi) o **Mosaico** (righe giustificate che mantengono le proporzioni), a ogni larghezza dello schermo.
 - **Dimensione miniatura** — cursore dell'altezza di scheda/riga (120–400px, salvato in localStorage)
 - **Nascondi dettagli** — nasconde i metadati sulle schede (solo modalità griglia)
-- **Tooltip** — due righe. **Mostra in**: **Popup** o **Pannello laterale** (predefinito). **Mostra con**: **Disattivato**, **Hover**, **Clic** o **Hover o clic** (predefinito; solo pannello laterale). Il menu resta aperto tra una scelta e l'altra, e **Disattivato** conserva la posizione per quando i dettagli tornano.
+- **Presentazione delle miniature** — ritaglio quadrato (predefinito) o proporzioni originali della foto per le miniature senza dettagli; disabilitata finché il modo mosaico è attivo, che già conserva le proporzioni, o finché i dettagli sono visibili.
+- **Tooltip** — due righe. **Mostra in**: **Popup** o **Pannello laterale** (predefinito). **Mostra con**: **Disattivato**, **Hover**, **Clic** o **Hover o clic** (predefinito; solo pannello laterale). Il menu resta aperto tra una scelta e l'altra, e **Disattivato** conserva la posizione per quando i dettagli tornano. Sotto i 768px, **Hover** è disabilitato se non è già selezionato; il ridimensionamento conserva il comportamento salvato.
   - Il pannello laterale mostra i dettagli completi nel cassetto di destra, organizzato come il dettaglio della foto. Con **Hover o clic** segue passaggio e clic, quindi funziona sugli schermi touch. Mantiene l'ultima foto quando il cursore lascia la griglia.
   - Cliccare una foto tiene il pannello su di essa finché non premi **Deseleziona** (che deseleziona anche la foto). **Esc** fa lo stesso e cancella la selezione.
+  - Una voce **Perché questo punteggio?** fissata in fondo al pannello apre la spiegazione del punteggio (la finestra di critica) per la foto che il pannello tiene.
   - Il pannello condivide il cassetto con i filtri; aprire i filtri lo nasconde. Richiede una finestra larga almeno 1280px.
   - Il **Popup** mostra un breve fumetto: categoria, aggregato e posizione, estetica, composizione, nitidezza, esposizione e una riga EXIF.
 - **Personalizza i pulsanti della scheda** — riordina e mostra/nascondi i pulsanti nella riga al passaggio di una scheda. Sono disponibili nove azioni: trova simili, perché-questo-punteggio, scrivi metadati, assegna un volto, apri il gruppo di duplicati, la raffica, la serie bracket/panorama o la pila di foto, e apri la pagina della foto. I pulsanti di gruppo compaiono solo sulle foto che appartengono a un tale gruppo. I pulsanti del gruppo di duplicati e della pila di foto sono attivi per impostazione predefinita; gli altri sono facoltativi. Salvato per browser.
@@ -532,6 +535,8 @@ Salvare, modificare o rimuovere un volto manuale aggiorna i riquadri e le person
 > **Avviso:** una ricostruzione forzata del database della galleria sostituisce le modifiche presenti solo nella galleria, comprese le marcature manuali, con il database di origine. Esportale o fanne un backup prima. La normale sincronizzazione incrementale le mantiene.
 
 L'impostazione legacy `viewer.performance.face_cache_size` viene ignorata e si può rimuovere.
+
+**Oggetti.** Lo stesso editor può segnare invece un oggetto: scegli **Oggetto**, disegna il rettangolo, scrivi un'etichetta (per esempio «torta di compleanno») e salva. Gli oggetti appaiono come rettangoli blu con etichetta sulla foto, la ricerca della galleria li trova per etichetta e gli assistenti possono leggerli (`GET /api/photo/objects`, o il campo `objects` dello strumento `get_photo`) per sapere quale zona si intende. I segni li disegni sempre tu, non vengono mai rilevati automaticamente: indicano a un assistente dove intervenire, per esempio un rettangolo con l'etichetta «rimuovi» su una di tre bottiglie in una foto. Un oggetto non è mai un volto: non tocca rilevamento, raggruppamento, persone né punteggi dei volti.
 
 ## Avvio scansione
 

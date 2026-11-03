@@ -138,6 +138,7 @@ def test_process_batch_result_covers_supplementary_db_columns():
         "pil_img": mock.MagicMock(),
         "img_cv": np.zeros((10, 10, 3), dtype=np.uint8),
         "clip_input": None,
+        "thumbnail": b"thumb",
     }
 
     gray = object()

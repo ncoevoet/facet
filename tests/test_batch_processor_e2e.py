@@ -108,7 +108,7 @@ class FakeScorer:
         return 7.5, "others"
 
     def save_photos_batch(self, pending_saves):
-        self.saved.extend(p for p, _ in pending_saves)
+        self.saved.extend(pending_saves)
 
     def commit(self):
         self.committed = True
@@ -137,8 +137,17 @@ class TestBatchProcessorE2E:
 
         saved_paths = {r["filename"] for r in scorer.saved}
         assert saved_paths == {f"img_{i}.jpg" for i in range(5)}
+        # batch_save_size=2: two periodic saves and the final remainder all count
+        assert proc.metrics['photos_saved'] == 5
         assert all(r["aggregate"] == 7.5 for r in scorer.saved)
         assert scorer.committed is True
+
+    @pytest.mark.timeout(30)
+    def test_process_stream_counts_every_saved_photo(self, tmp_path):
+        paths = _tiny_jpegs(tmp_path, 5)
+        proc = _make_processor(FakeScorer(tmp_path))
+        proc.process_stream(iter(paths), len(paths), show_metrics=False)
+        assert proc.metrics['photos_saved'] == 5
 
     @pytest.mark.timeout(30)
     def test_error_isolation_one_bad_image(self, tmp_path):

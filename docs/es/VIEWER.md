@@ -370,6 +370,7 @@ Cuando un asistente conectado mediante [Agentes de IA (MCP)](AGENTS.md) te muest
 **Descartar a carpeta…** en la barra de acciones masivas (modo de edición) copia las conservadas, o mueve/envía a la papelera las rechazadas, a una carpeta de destino. Papelera significa la papelera del sistema, nunca un borrado permanente, y requiere `viewer.cull.allow_trash`.
 
 - **Toda ejecución empieza como simulación.** Ves una vista previa antes de que se escriba nada; mover/enviar a la papelera solo se ejecuta con un `dry_run=false` explícito.
+- La vista previa muestra los archivos afectados, 24 por página, con miniaturas y nombres. Pulse una imagen para ampliarla. Los archivos XMP y las imágenes no disponibles siguen en la lista. Cancele para cambiar las decisiones sobre las fotos; cambiar una opción requiere otra vista previa. La confirmación de la papelera indica el número de archivos, incluidos los auxiliares activados.
 - **El servidor elige los archivos según el estado de cada foto.** Copiar actúa solo sobre las conservadas, mover/papelera solo sobre las rechazadas. Todo lo demás se informa como `excluded_by_state`. El cliente no puede entregar una lista de archivos que eliminar.
 - **Los acompañantes son opcionales.** Rechazar un JPEG no se lleva su RAW salvo que marques **Incluir RAW / XMP acompañante** (`include_companions`).
 - En macOS y Windows, los RAW acompañantes conservan sus nombres en disco, incluidas las extensiones en mayúsculas; en Windows, los sidecars `.xmp` también.
@@ -408,9 +409,11 @@ Campos de respuesta y códigos de estado: [API.md](../API.md).
 - **Modo de diseño**: **Cuadrícula** (tarjetas uniformes) o **Mosaico** (filas justificadas que conservan las proporciones), en cualquier ancho de pantalla.
 - **Tamaño de miniatura**: control deslizante de altura de tarjeta/fila (120–400 px, guardado en localStorage)
 - **Ocultar detalles**: oculta los metadatos de las tarjetas (solo en modo cuadrícula)
-- **Información emergente**: dos filas. **Mostrar en**: **Ventana emergente** o **Panel lateral** (por defecto). **Mostrar con**: **Desactivado**, **Hover**, **Clic** o **Hover o clic** (por defecto; solo panel lateral). El menú sigue abierto entre elecciones, y **Desactivado** conserva el lugar para cuando los detalles vuelvan.
+- **Presentación de miniaturas**: recorte cuadrado (por defecto) o la proporción original de la foto para las miniaturas sin detalles; se muestra deshabilitada mientras el modo mosaico está activo, que ya conserva la proporción, o mientras se muestran los detalles.
+- **Información emergente**: dos filas. **Mostrar en**: **Ventana emergente** o **Panel lateral** (por defecto). **Mostrar con**: **Desactivado**, **Hover**, **Clic** o **Hover o clic** (por defecto; solo panel lateral). El menú sigue abierto entre elecciones, y **Desactivado** conserva el lugar para cuando los detalles vuelvan. Por debajo de 768 px, **Hover** está deshabilitado salvo si ya está seleccionado; cambiar el tamaño conserva el disparador guardado.
   - El panel lateral muestra los detalles completos en el cajón de la derecha, con la misma disposición que el detalle de la foto. Con **Hover o clic** sigue tanto al cursor como al clic, así que funciona en pantallas táctiles. Conserva la última foto cuando el cursor sale de la cuadrícula.
   - Hacer clic en una foto mantiene el panel en ella hasta que pulsas **Deseleccionar** (que también deselecciona la foto). **Escape** hace lo mismo y borra la selección.
+  - Una entrada **¿Por qué esta puntuación?** fijada en la parte inferior del panel abre el explicador de puntuación (el diálogo de crítica) para la foto que el panel mantiene.
   - El panel comparte el cajón con los filtros; abrir los filtros lo oculta. Necesita una ventana de al menos 1280 px de ancho.
   - La **Ventana emergente** muestra una burbuja breve: categoría, agregada y posición, estética, composición, nitidez, exposición y una línea de EXIF.
 - **Personalizar los botones de la tarjeta**: reordena y muestra/oculta los botones de la fila que aparece al pasar el cursor sobre una tarjeta. Hay nueve acciones: buscar similares, por qué esta puntuación, escribir metadatos, asignar un rostro, abrir el grupo de duplicados, el grupo de ráfaga, el conjunto de bracketing/panorámica o la pila de fotos, y abrir la página de la foto. Los botones de grupo solo aparecen en las fotos de un grupo así. Los botones de grupo de duplicados y de pila de fotos están activados por defecto; los demás son opcionales. Se guarda por navegador.
@@ -534,6 +537,8 @@ Al guardar, editar o eliminar un rostro manual, los recuadros y las personas de 
 > **Advertencia:** una reconstrucción forzada de la base de datos del visor sustituye las ediciones exclusivas del visor, incluidas las marcas manuales, por las de la base de datos de origen. Expórtalas o haz una copia de seguridad antes. La sincronización incremental normal las conserva.
 
 El ajuste heredado `viewer.performance.face_cache_size` se ignora y se puede quitar.
+
+**Objetos.** El mismo editor puede marcar un objeto en su lugar: elija **Objeto**, dibuje el rectángulo, escriba una etiqueta (por ejemplo «tarta de cumpleaños») y guarde. Los objetos se muestran como rectángulos azules con etiqueta sobre la foto, la búsqueda de la galería los encuentra por su etiqueta y los asistentes pueden leerlos (`GET /api/photo/objects`, o el campo `objects` de la herramienta `get_photo`) para saber a qué zona se refiere. Las marcas siempre las dibuja usted, nunca se detectan automáticamente: indican a un asistente dónde actuar, por ejemplo un rectángulo con la etiqueta «quitar» sobre una de tres botellas de una foto. Un objeto nunca es una cara: no afecta a la detección, al agrupamiento, a las personas ni a las puntuaciones de cara.
 
 ## Activador de escaneo
 

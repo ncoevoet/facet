@@ -21,6 +21,7 @@ import { StalenessGuardFactory } from '../../core/services/staleness-guard.servi
 import { PhotoActionsService } from '../../core/services/photo-actions.service';
 import { PhotoDetailBase } from '../../shared/directives/photo-detail-base.directive';
 import { ZoomPanDirective } from '../../shared/directives/zoom-pan.directive';
+import { PhotoObjectLayerComponent } from './photo-object-layer.component';
 import { FixedPipe } from '../../shared/pipes/fixed.pipe';
 import { TranslatePipe } from '../../shared/pipes/translate.pipe';
 import { ThumbnailUrlPipe } from '../../shared/pipes/thumbnail-url.pipe';
@@ -66,6 +67,7 @@ const SOCIAL_SOURCE_KEYS: Record<string, string> = {
   imports: [
     StackNavigatorComponent,
     ZoomPanDirective,
+    PhotoObjectLayerComponent,
     MetricRankComponent,
     PhotoMetricsTabsComponent,
     PhotoFaceLayerComponent,
@@ -141,7 +143,7 @@ const SOCIAL_SOURCE_KEYS: Record<string, string> = {
         @if (auth.isEdition()) {
           <button mat-icon-button class="max-md:!hidden" (click)="openManualFaces(p)"
             [matTooltip]="I18N.manual_faces.title | translate" [attr.aria-label]="I18N.manual_faces.title | translate">
-            <mat-icon>crop_free</mat-icon>
+            <mat-icon>highlight_alt</mat-icon>
           </button>
         }
 
@@ -231,7 +233,7 @@ const SOCIAL_SOURCE_KEYS: Record<string, string> = {
             }
             @if (auth.isEdition()) {
               <button mat-menu-item [matMenuTriggerFor]="categoryOverrideMenu"><mat-icon>category</mat-icon> {{ I18N.photo.category_override.menu_tooltip | translate }}</button>
-              <button mat-menu-item (click)="openManualFaces(p)"><mat-icon>crop_free</mat-icon> {{ I18N.manual_faces.title | translate }}</button>
+              <button mat-menu-item (click)="openManualFaces(p)"><mat-icon>highlight_alt</mat-icon> {{ I18N.manual_faces.title | translate }}</button>
             }
             @if (auth.isEdition() && p.unassigned_faces > 0) {
               <button mat-menu-item (click)="openAddPerson(p)"><mat-icon>person_add</mat-icon> {{ I18N.manage_persons.assign_face | translate }}</button>
@@ -275,6 +277,12 @@ const SOCIAL_SOURCE_KEYS: Record<string, string> = {
             [focusPersonIds]="focusPersonIds()"
             (changed)="refreshPeople(p.path)" />
           <app-person-face-menu [path]="p.path" [canEdit]="auth.isEdition()" (changed)="onPersonMenuChanged(p.path)" />
+          <app-photo-object-layer
+            [path]="p.path"
+            [imageWidth]="p.image_width"
+            [imageHeight]="p.image_height"
+            [transform]="zoom.transform()"
+            [revision]="objectsRevision()" />
         </div>
 
         <!-- Info panel -->
@@ -607,6 +615,8 @@ export class PhotoDetailComponent extends PhotoDetailBase implements OnInit {
   private readonly viewerOwner = this.auth.identity();
 
   readonly photo = signal<Photo | null>(null);
+  /** Bumped when the mark dialog adds or removes an object, so the object layer re-reads. */
+  protected readonly objectsRevision = signal(0);
   protected readonly photoMissing = signal(false);
   protected readonly downloading = signal(false);
   protected readonly downloadOptions = signal<DownloadOption[]>([]);
@@ -1028,7 +1038,8 @@ export class PhotoDetailComponent extends PhotoDetailBase implements OnInit {
     if (this.destroyRef.destroyed || this.photo()?.path !== path) return;
     this.dialog.open(ManualFaceDialogComponent, {
       width: '800px', maxWidth: '96vw',
-      data: { path, filename: p.filename, onCommitted: () => this.onPersonMenuChanged(path) },
+      data: { path, filename: p.filename, onCommitted: () => this.onPersonMenuChanged(path),
+        onObjectsChanged: () => this.objectsRevision.update(n => n + 1) },
     });
   }
 

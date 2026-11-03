@@ -761,7 +761,7 @@ Cada imagen se decodifica una vez por fragmento y la comparten todos los pases. 
 
 - Los hilos de carga también calculan EXIF, las métricas técnicas, la composición basada en reglas, el hash perceptual y una copia compartida de 1024 px para los modelos pyiqa y Q-ReAlign.
 - Un error de composición hace fallar solo esa foto. Se registra en `scan_failures` con la etapa `composition`; reintenta con `--retry-failed`.
-- En una GPU CUDA, un fragmento se decodifica mientras se cargan los siguientes modelos, cuando la memoria libre del host lo permite y `keep_in_ram` no es `"never"`. En caso contrario (y siempre en CPU y Apple MPS) se decodifica primero. Los resultados son idénticos en ambos casos.
+- En una GPU CUDA, un fragmento se decodifica mientras se cargan los siguientes modelos, cuando la memoria libre del host lo permite y `keep_in_ram` no es `"never"`. En caso contrario (y siempre en CPU y Apple MPS) se decodifica primero. Los resultados son idénticos en ambos casos. Una vez decodificado un chunk, el worker decodifica también las primeras fotos del siguiente mientras se ejecutan los modelos de este, tantas como permitan la memoria libre, el margen de commit de Windows y el umbral de crecimiento (ninguna en el primer chunk, con el autoajuste activado tras un chunk más corto que el intervalo del monitor de memoria, con `keep_in_ram: "never"` o cuando la caché de RAM no podría conservar los modelos del chunk); véase [COMMANDS.md](COMMANDS.md).
 - Cuando la memoria escasea antes de un fragmento, la caché de RAM libera primero el modelo que se necesitará más tarde y mantiene libre `ram_cache_reserve_gb`.
 - El resumen del escaneo informa de `Plane rebuilds`, `I/O wait (scan thread blocked on decode)` y `Decode wall`.
 

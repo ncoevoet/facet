@@ -12,11 +12,12 @@ import re
 import struct
 import subprocess
 import threading
+import time
 from concurrent.futures import ThreadPoolExecutor
 from concurrent.futures import TimeoutError as FuturesTimeoutError
 from io import BytesIO
 from pathlib import Path
-from typing import Optional
+from typing import Any, NamedTuple, Optional
 
 import numpy as np
 from PIL import features as _pil_features
@@ -27,6 +28,7 @@ from config.scoring_config import (
     merge_hdr_pq_tonemap_settings,
 )
 from utils._lazy import ensure_cv2 as _ensure_cv2, ensure_pil as _ensure_pil
+from utils.image_transforms import generate_photo_thumbnail
 
 logger = logging.getLogger("facet.image_loading")
 
@@ -1020,22 +1022,37 @@ def extract_raw_preview(photo_path, min_long_edge=0, min_sensor_ratio=0.0):
                           fraction of the sensor's
     """
     import rawpy
-    Image, _ = _ensure_pil()
     try:
         with rawpy.imread(str(photo_path)) as raw:
-            thumb = raw.extract_thumb()
-            sizes = raw.sizes
-            sensor_long_edge = max(sizes.width, sizes.height)
-            flip = sizes.flip
-            if thumb.format == rawpy.ThumbFormat.JPEG:
-                preview = Image.open(BytesIO(thumb.data))
-                preview.load()
-            else:
-                preview = Image.fromarray(np.array(thumb.data))
+            read = _read_embedded_preview(raw)
     except Exception as ex:
         logger.debug("No usable embedded preview in %s: %s", os.path.basename(photo_path), ex)
         return None
+    return _gate_preview(*read, min_long_edge, min_sensor_ratio)
 
+
+def _read_embedded_preview(raw):
+    """Read and decode the preview of an OPEN rawpy handle: (preview, flip, sensor long edge).
+
+    Raises whatever ``extract_thumb`` or the decode raises; the callers decide
+    what an unreadable preview means.
+    """
+    import rawpy
+    Image, _ = _ensure_pil()
+    thumb = raw.extract_thumb()
+    sizes = raw.sizes
+    sensor_long_edge = max(sizes.width, sizes.height)
+    flip = sizes.flip
+    if thumb.format == rawpy.ThumbFormat.JPEG:
+        preview = Image.open(BytesIO(thumb.data))
+        preview.load()
+    else:
+        preview = Image.fromarray(np.array(thumb.data))
+    return preview, flip, sensor_long_edge
+
+
+def _gate_preview(preview, flip, sensor_long_edge, min_long_edge, min_sensor_ratio):
+    """Rotate a read preview upright and apply the size gates; None when too small."""
     preview = _upright_preview(preview, flip)
     long_edge = max(preview.size)
     if long_edge < min_long_edge:
@@ -1043,6 +1060,20 @@ def extract_raw_preview(photo_path, min_long_edge=0, min_sensor_ratio=0.0):
     if sensor_long_edge > 0 and long_edge < min_sensor_ratio * sensor_long_edge:
         return None
     return preview if preview.mode == 'RGB' else preview.convert('RGB')
+
+
+def _preview_from_open_raw(raw, min_long_edge=0, min_sensor_ratio=0.0):
+    """``extract_raw_preview`` for a handle the caller already holds open.
+
+    Same read, same rotation, same gates, but no second ``rawpy.imread`` of the
+    file. None when the preview is missing, unreadable or too small.
+    """
+    try:
+        read = _read_embedded_preview(raw)
+    except Exception as ex:
+        logger.debug("No usable embedded preview: %s", ex)
+        return None
+    return _gate_preview(*read, min_long_edge, min_sensor_ratio)
 
 
 def _exiftool_preview_candidates(exe, photo_path):
@@ -1292,6 +1323,25 @@ _decode_executor = None
 _abandoned_decodes = 0
 _hung_decodes = 0
 _state_lock = threading.Lock()
+_timed_out_paths: set[str] = set()   # photos whose decode was abandoned on timeout (see consume_decode_timeout)
+
+
+def consume_decode_timeout(path) -> bool:
+    """Whether ``path``'s RAW decode timed out since the last call or ``clear_decode_timeouts``.
+
+    The timed-out decode returns None like any failed load; this tells the two apart.
+    """
+    with _state_lock:
+        if str(path) in _timed_out_paths:
+            _timed_out_paths.discard(str(path))
+            return True
+        return False
+
+
+def clear_decode_timeouts():
+    """Forget recorded timeouts (a scan start)."""
+    with _state_lock:
+        _timed_out_paths.clear()
 
 # A second, independent budget for the /image viewer path: a viewer request
 # must never queue behind library decode work holding _raw_semaphore. Built
@@ -1352,15 +1402,53 @@ def _get_viewer_semaphore():
         return _viewer_semaphore
 
 
-def _decode_raw(photo, use_thumbnail, started_event=None, decode_budget='library', bright=None):
+class DecodeOutput(NamedTuple):
+    """A RAW decode that also made its stored thumbnail (``want_thumbnail``).
+
+    ``thumbnail`` is JPEG bytes built from the embedded preview, or None when the
+    thumbnail must come from the decoded ``pil`` itself (no usable preview, or the
+    preview setting is off, or the exiftool/JXL fallback stood in for the decode).
+    ``thumb_seconds`` times only the resize and JPEG encode.
+    """
+    pil: Any
+    thumbnail: Optional[bytes]
+    thumb_seconds: float
+
+
+def _thumbnail_from_open_raw(raw):
+    """Encode the stored thumbnail from the preview of an open handle.
+
+    Returns ``(jpeg_bytes, encode_seconds)``, or ``(None, 0.0)`` when the preview
+    is unusable. The rule is ``thumbnail_source``'s: ``DISPLAY_PREVIEW_MIN_LONG_EDGE``,
+    no sensor-ratio gate, and only when ``prefer_embedded_preview`` is on. The
+    preview PIL is local, so it is freed on return.
+    """
+    if not get_raw_decode_settings()['prefer_embedded_preview']:
+        return None, 0.0
+    preview = _preview_from_open_raw(raw, DISPLAY_PREVIEW_MIN_LONG_EDGE, 0.0)
+    if preview is None:
+        return None, 0.0
+    start = time.perf_counter()
+    blob = generate_photo_thumbnail(preview)
+    return blob, time.perf_counter() - start
+
+
+def _decode_raw(photo, use_thumbnail, started_event=None, decode_budget='library', bright=None,
+                want_thumbnail=False):
     """Decode a RAW file to a PIL image. Runs under the given decode budget's semaphore.
 
     started_event, when supplied, is set the moment the semaphore is acquired
     so the caller can time only the decode, never the queue wait for a slot.
+
+    ``want_thumbnail`` makes the stored thumbnail from the SAME rawpy handle the
+    demosaic uses, so a scan opens the file once, and returns a ``DecodeOutput``
+    instead of a bare PIL image.
     """
     import rawpy
     Image, _ = _ensure_pil()
     pil_img = None
+    thumbnail = None
+    thumb_seconds = 0.0
     semaphore = _get_viewer_semaphore() if decode_budget == 'viewer' else _raw_semaphore
     with semaphore:
         if started_event is not None:
@@ -1371,6 +1459,16 @@ def _decode_raw(photo, use_thumbnail, started_event=None, decode_budget='library
         if pil_img is None:
             try:
                 with rawpy.imread(str(photo)) as raw:
+                    if want_thumbnail:
+                        # Encoded here and the preview freed BEFORE the demosaic, so the
+                        # preview (6-24 MP) is never resident beside the demosaic's
+                        # 200-400 MB peak: the in-flight decode estimate
+                        # (_decode_estimate_bytes) stays valid without a preview term.
+                        try:
+                            thumbnail, thumb_seconds = _thumbnail_from_open_raw(raw)
+                        except Exception as ex:
+                            logger.warning("Thumbnail from embedded preview failed for %s: %s",
+                                         os.path.basename(str(photo)), ex)
                     pil_img = Image.fromarray(raw.postprocess(**raw_postprocess_kwargs(bright=bright)))
             except rawpy.LibRawFileUnsupportedError as ex:
                 # Lightroom-merged floating-point DNGs (*-HDR.dng, *-Pano.dng)
@@ -1384,6 +1482,8 @@ def _decode_raw(photo, use_thumbnail, started_event=None, decode_budget='library
                 logger.info("Used embedded preview fallback for %s (%dx%d): %s",
                            os.path.basename(str(photo)), fallback.size[0], fallback.size[1], ex)
                 pil_img = fallback
+    if want_thumbnail:
+        return DecodeOutput(pil_img, thumbnail, thumb_seconds)
     return pil_img
 
 
@@ -1394,7 +1494,8 @@ def _on_hung_decode_done(_future):
         _hung_decodes = max(0, _hung_decodes - 1)
 
 
-def _decode_raw_with_timeout(photo, use_thumbnail, decode_budget='library', bright=None):
+def _decode_raw_with_timeout(photo, use_thumbnail, decode_budget='library', bright=None,
+                             want_thumbnail=False):
     """Decode a RAW file, timing only the decode itself.
 
     The wait for a free decode slot (semaphore/executor queueing) is excluded
@@ -1406,7 +1507,7 @@ def _decode_raw_with_timeout(photo, use_thumbnail, decode_budget='library', brig
     global _abandoned_decodes, _hung_decodes
     started = threading.Event()
     future = _get_decode_executor().submit(_decode_raw, photo, use_thumbnail, started,
-                                           decode_budget, bright)
+                                           decode_budget, bright, want_thumbnail)
     while not started.wait(timeout=_decode_timeout):
         if future.done():
             break
@@ -1423,6 +1524,7 @@ def _decode_raw_with_timeout(photo, use_thumbnail, decode_budget='library', brig
         with _state_lock:
             _abandoned_decodes += 1
             _hung_decodes += 1
+            _timed_out_paths.add(str(photo))
             abandoned = _abandoned_decodes
         logger.error(
             "RAW decode timed out after %.0fs (%d hung): %s",
@@ -1432,11 +1534,18 @@ def _decode_raw_with_timeout(photo, use_thumbnail, decode_budget='library', brig
         return None
 
 
-def _decode_raw_bounded(photo, use_thumbnail=False, decode_budget='library', bright=None):
-    """Decode a RAW file under the configured concurrency and timeout policy."""
+def _decode_raw_bounded(photo, use_thumbnail=False, decode_budget='library', bright=None,
+                        want_thumbnail=False):
+    """Decode a RAW file under the configured concurrency and timeout policy.
+
+    Returns a PIL image, or a ``DecodeOutput`` when ``want_thumbnail`` (None when
+    the decode timed out and was abandoned).
+    """
     if _decode_timeout > 0:
-        return _decode_raw_with_timeout(photo, use_thumbnail, decode_budget, bright)
-    return _decode_raw(photo, use_thumbnail, decode_budget=decode_budget, bright=bright)
+        return _decode_raw_with_timeout(photo, use_thumbnail, decode_budget, bright,
+                                        want_thumbnail)
+    return _decode_raw(photo, use_thumbnail, decode_budget=decode_budget, bright=bright,
+                       want_thumbnail=want_thumbnail)
 
 
 def load_display_image(photo_path, min_preview_sensor_ratio=0.0, decode_budget='library',
@@ -1562,6 +1671,43 @@ def load_image_from_path(photo_path, use_thumbnail=False):
     except Exception as e:
         logger.error("Error loading image %s: %s", photo_path, e)
         return None, None
+
+
+def load_image_and_thumbnail(photo_path):
+    """The scan's decode: ``load_image_from_path`` plus the stored thumbnail, in one open.
+
+    A RAW file is opened ONCE: the embedded preview is encoded to the thumbnail
+    and the demosaic runs on the same rawpy handle, inside one decode slot. The
+    thumbnail source rule is ``thumbnail_source``'s (usable preview, otherwise the
+    decoded image), so the bytes are the ones the save used to produce itself.
+
+    Returns:
+        ``(pil_img, img_cv, thumbnail_bytes, thumbnail_seconds)``;
+        ``(None, None, None, 0.0)`` on error. ``thumbnail_seconds`` times only the
+        resize and JPEG encode.
+    """
+    failed = (None, None, None, 0.0)
+    try:
+        photo = Path(photo_path)
+        thumbnail = None
+        thumb_seconds = 0.0
+        if photo.suffix.lower() in RAW_EXTENSIONS:
+            decoded = _decode_raw_bounded(photo, want_thumbnail=True)
+            if decoded is None:
+                return failed
+            pil_img, thumbnail, thumb_seconds = decoded
+        else:
+            pil_img = open_nonraw_image(photo)
+        if thumbnail is None:
+            start = time.perf_counter()
+            thumbnail = generate_photo_thumbnail(pil_img)
+            thumb_seconds = time.perf_counter() - start
+        return pil_img, pil_to_bgr(pil_img), thumbnail, thumb_seconds
+    except RuntimeError:
+        raise
+    except Exception as e:
+        logger.error("Error loading image %s: %s", photo_path, e)
+        return failed
 
 
 def load_image_for_face_crop(photo_path):

@@ -34,7 +34,7 @@
 
 ### 扫描记录
 
-Facet 会记录每次扫描（状态、模式、目录、计数器）以及每个文件的错误。Ctrl+C 会把该次运行标记为 `interrupted`，以便 `--resume` 接续。失败的文件会被列出，且只有 `--retry-failed` 才会重试。查看器根据命令行的 `@FACET_PROGRESS` 行显示扫描进度。
+Facet 会记录每次扫描（状态、模式、目录、计数器）以及每个文件的错误。Ctrl+C 会把该次运行标记为 `interrupted`，以便 `--resume` 接续。失败的文件会被列出，且只有 `--retry-failed` 才会重试。查看器根据命令行的 `@FACET_PROGRESS` 行显示扫描进度。若一次扫描没有保存任何照片，则以退出码 4 结束（所有文件均失败，例如必需的模型未能加载）；无事可做的扫描以 0 结束，`--watch` 在退出码 4 之后仍会继续监视。
 
 ### 处理模式
 
@@ -63,9 +63,11 @@ Facet 会记录每次扫描（状态、模式、目录、计数器）以及每�
 | `embeddings` | CLIP ViT-L-14 或 SigLIP 2 NaFlex | 用于相似度和标签标注的 `clip_embedding` | 4-5 GB |
 | `saliency` | BiRefNet_dynamic | `subject_sharpness`、`subject_prominence`、`subject_placement`、`bg_separation` | 约 3 GB |
 
-多遍扫描使用单调时钟。EXIF 批处理耗时和回退读取的工作线程累计秒数已包含在解码耗时中；并行回退可能重叠。聚合、缩略图生成（包括源文件读取）和不含缩略图的保存分别计时；保存包括结果准备和提交，不仅是 SQL。受限遍次跳过聚合和照片缩略图。现有解码与模型加载的重叠以及嵌套的图像平面重建计时保持不变：请勿累加所有计时，也不要将 EXIF 工作线程秒数解释为总耗时百分比。单遍扫描不在本次计时范围内。收集基线时，将固定的 500 张 RAW/JPEG 副本扫描到临时数据库，保留最终摘要，并记录版本、配置档、工作线程数、分块大小、存储和缓存条件。在相同条件下重复以进行比较。未提供参考照片集或前后基准测试；不声称速度提升。
+多遍扫描使用单调时钟。EXIF 批处理耗时是 exiftool 的执行秒数，主要在后台线程上，趁当前块处理时读取下一块的 EXIF（第 0 块以及预取遗漏的路径同步读取），因此不属于解码耗时；EXIF 等待是解码被阻塞于获取 EXIF 的时间，属于解码耗时的一部分，同时也计入 EXIF 批处理秒数。回退读取的工作线程累计秒数已包含在解码耗时中；并行回退可能重叠。聚合和保存是扫描线程上分别计时的区间；保存包括结果准备和提交，不仅是 SQL。完整扫描在解码照片的同一处、通过同一次打开文件来生成每张照片的缩略图（RAW 只打开一次），因此缩略图耗时是解码池的 worker 秒数（缩放和 JPEG 编码），不是扫描线程区间，而此前在扫描线程上读取内嵌预览的耗时现在计入解码耗时。受限遍次跳过聚合和照片缩略图。现有解码与模型加载的重叠以及嵌套的图像平面重建计时保持不变：请勿累加所有计时，也不要将 EXIF 工作线程秒数解释为总耗时百分比。单遍扫描不在本次计时范围内。收集基线时，将固定的 500 张 RAW/JPEG 副本扫描到临时数据库，保留最终摘要，并记录版本、配置档、工作线程数、分块大小、存储和缓存条件。在相同条件下重复以进行比较。未提供参考照片集或前后基准测试；不声称速度提升。
 
-扫描摘要还会输出每个模型的耗时（推理，以及未与解码并行的模型加载；与解码重叠的加载单独列出），并输出一个 `Stages` 块：扫描线程一行 `busy / wait / occupancy`（`scan`，为其串行阶段之和，这些阶段已在耗时明细中，外加其唯一的等待，即等待解码），以及解码池每个阶段一行（`decode` 为图像加载，`analyze` 为单张照片 worker 其余部分，`exif_fallback` 和 `exif_batch`，后者是一次批量 exiftool 调用），随后是没有任何计时器覆盖的时间。池阶段以 worker 秒计，因此占用率为 worker 秒除以池大小乘以解码墙钟时间。通过 `facet.py` 完成的扫描还会为每个扫描后步骤记录一行 `Post-scan <step>: N.Ns`，并在任何 `--auto-cull` 之前记录一行 `Process wall:`，把整个进程拆分为启动、评分、扫描后处理和其他；没有新文件、使用 `--dry-run`、或扫描被中断或失败时都不会输出。这些只是测量，不会改变扫描的评分。
+扫描摘要还会输出每个模型的耗时（推理，以及未与解码并行的模型加载；与解码重叠的加载单独列出），并输出一个 `Stages` 块：扫描线程一行 `busy / wait / occupancy`（`scan`，为其串行阶段之和，这些阶段已在耗时明细中，外加其唯一的等待，即等待解码），以及解码池每个阶段一行（`decode` 为图像加载，包括读取 RAW 的内嵌预览，`thumbnail` 为已存储缩略图的缩放和 JPEG 编码，`analyze` 为单张照片 worker 其余部分，`exif_fallback` 和 `exif_batch`，后者是与上一块并行运行的批量 exiftool 调用），随后是没有任何计时器覆盖的时间。池阶段以 worker 秒计，因此占用率为 worker 秒除以池大小乘以解码墙钟时间，`exif_batch` 除外，其占用率为 exiftool 秒数除以整个扫描的墙钟时间。通过 `facet.py` 完成的扫描还会为每个扫描后步骤记录一行 `Post-scan <step>: N.Ns`，并在任何 `--auto-cull` 之前记录一行 `Process wall:`，把整个进程拆分为启动、评分、扫描后处理和其他；没有新文件、使用 `--dry-run`、或扫描被中断或失败时都不会输出。这些只是测量，不会改变扫描的评分。
+
+在 CUDA GPU 上，一个 chunk 解码完成后，同一个解码 worker 会在当前 chunk 的模型运行期间开始解码下一个 chunk 的前几张照片，数量取决于可用内存、Windows commit 余量和内存监视器的增长阈值（第一个 chunk、启用自动调整时短于内存监视器的间隔的 chunk 之后，或 `keep_in_ram: "never"` 时为零；RAM 缓存保留的模型与没有提前解码时相同）。chunk 边界不受影响，其余照片照常解码；自动调整会拿到提前解码所占的字节数，并从其用于判断的读数中扣除，因此在增长阈值附近，一次增长可能晚一个 chunk 发生。提前解码失败的照片（加载失败，含内存不足）会在其 chunk 开始时重新解码一次，只有再次失败才会上报；提前解码时抛出超时错误的照片只上报一次，不再重新解码（加载器因超时放弃的 RAW 解码也算超时）。chunk 的 EXIF 与没有提前解码时一样在该 chunk 开始时读取。摘要中的 `Decode-ahead: X photos in Y chunks (Z re-decoded)`（仅在提交过提前解码时输出）表示以这种方式解码了多少张。它们的解码时间与上一个 chunk 的推理重叠，因此 `Decode wall` 不再是扫描线程等待时间（即 `I/O wait`）的一部分。结果完全相同。
 
 ## 预览与导出
 
@@ -172,7 +174,7 @@ Facet 会记录每次扫描（状态、模式、目录、计数器）以及每�
 | `python facet.py --recompute-saliency` | `[GPU]` 从已存储的缩略图重新计算主体显著性；`--force` 全部重做 |
 | `python facet.py --recompute-composition-cpu` | 用基于规则的方法重新计算构图（CPU，任意档位） |
 | `python facet.py --recompute-composition-gpu` | `[GPU]` 用 SAMP-Net 重新计算构图 |
-| `python facet.py --recompute-iqa` | `[GPU]` 从已存储的缩略图补齐缺失的 TOPIQ IAA、NR-Face 和 LIQE 评分。所有档位都可运行；在 CPU 上（`legacy`）慢得多 |
+| `python facet.py --recompute-iqa` | `[GPU]` 从已存储的缩略图补齐缺失的 TOPIQ IAA、NR-Face 和 LIQE 评分。所有档位都可运行；在 CPU 上（`legacy`）慢得多。按批次流式处理，因此在大型图库上内存保持平稳；可安全中断并重新运行。 |
 | `python facet.py --detect-text` | 把图像中的文字读入 `ocr_text`，使搜索能找到它（需手动开启，见说明） |
 | `python facet.py --recompute-text` | 对整个照片库重新运行 OCR |
 | `python facet.py --recompute-colors` | 提取主色调与冷暖色温，写入 `dominant_hue` / `color_temp`（CPU，快速） |

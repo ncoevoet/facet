@@ -925,6 +925,30 @@ def _incremental_update_viewer_db(source_db, output_path, thumbnail_size, verbos
                 count = dest_conn.execute("SELECT COUNT(*) FROM main.photo_manual_tags").fetchone()[0]
                 logger.info("  Merged manual tags (%d rows)", count)
 
+    # --- Merge photo_objects (user-marked labelled boxes; additive only) ---
+    # Same contract as photo_manual_tags. The table has an AUTOINCREMENT id that
+    # must not be copied (it would collide with the destination's own), so a row
+    # is identified by (photo_path, label, box) and added only when absent. The
+    # photo guard keeps an orphan source row from tripping the FK.
+    if 'photo_objects' in dest_tables and 'photo_objects' in src_tables:
+        src_obj_cols = [r[1] for r in dest_conn.execute("PRAGMA src.table_info(photo_objects)").fetchall()]
+        dest_obj_col_set = {r[1] for r in dest_conn.execute("PRAGMA main.table_info(photo_objects)").fetchall()}
+        key_cols = ['photo_path', 'label', 'x1', 'y1', 'x2', 'y2']
+        common_obj_cols = [c for c in src_obj_cols if c in dest_obj_col_set and c != 'id']
+        if all(c in common_obj_cols for c in key_cols):
+            col_list = ', '.join(common_obj_cols)
+            same = ' AND '.join(f"d.{c} = o.{c}" for c in key_cols)
+            dest_conn.execute(
+                f"INSERT INTO main.photo_objects ({col_list}) "
+                f"SELECT {', '.join('o.' + c for c in common_obj_cols)} FROM src.photo_objects o "
+                f"WHERE o.photo_path IN (SELECT path FROM main.photos) "
+                f"AND NOT EXISTS (SELECT 1 FROM main.photo_objects d WHERE {same})"
+            )
+            dest_conn.commit()
+            if verbose:
+                count = dest_conn.execute("SELECT COUNT(*) FROM main.photo_objects").fetchone()[0]
+                logger.info("  Merged marked objects (%d rows)", count)
+
     # --- Sync photos_vec (sqlite-vec KNN index; no FK/trigger, hand-synced) ---
     # The viewer DB nulls out photos.clip_embedding, so photos_vec is the ONLY
     # place embeddings survive on the deployment — the NumPy search fallback has

@@ -112,7 +112,7 @@ class _FakeFacet:
 
 class _NoopProcessor:
     def __init__(self, *args, **kwargs):
-        pass
+        self.metrics = {'photos_saved': 1}
 
     def process_directory(self, paths):
         pass

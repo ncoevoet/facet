@@ -145,6 +145,7 @@ def test_clip_profile_scan_category_matches_stored_tags(scan):
     _run_clip_pass(proc, cfg, images, results)
     proc._compute_aggregates(results, images)
     proc._save_results(results, images)
+    assert proc.metrics['photos_saved'] == len(paths)   # the full save counts what it wrote
 
     with get_connection(db, row_factory=True) as conn:
         rows = [dict(r) for r in conn.execute(

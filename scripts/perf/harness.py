@@ -199,6 +199,10 @@ def _chunk_label(self, paths, ci, tc, *a, **k):
 
 MPP._process_chunk = timed_phase(_chunk_label)(MPP._process_chunk)
 MPP._load_images = timed_phase(lambda self, paths, *a, **k: ('io', {'n': len(paths)}))(MPP._load_images)
+# Decode-ahead: the next chunk's first photos, decoded on the worker during THIS chunk. Its inner
+# `io` events fall inside this span; chunks.py books the span to the chunk that consumes it.
+MPP._decode_ahead_on_worker = timed_phase(
+    lambda self, first, *a, **k: ('ahead', {'n': len(first)}))(MPP._decode_ahead_on_worker)
 MPP._compute_aggregates = timed_phase(lambda self, r, i, *a, **k: ('agg', {'n': len(r)}))(MPP._compute_aggregates)
 MPP._save_results = timed_phase(lambda self, r, i, *a, **k: ('save', {'n': len(r)}))(MPP._save_results)
 MPP._reclaim_freed_memory = timed_phase(lambda self, *a, **k: ('reclaim', {}))(MPP._reclaim_freed_memory)
@@ -345,6 +349,9 @@ import imagehash  # noqa: E402
 import exiftool  # noqa: E402
 
 utils.load_image_from_path = timed_acc('io.decode')(utils.load_image_from_path)
+# The full scan decodes AND makes the stored thumbnail here (one RAW open); the save no
+# longer generates one, so there is no save.thumbnail timer.
+utils.load_image_and_thumbnail = timed_acc('io.decode_thumbnail')(utils.load_image_and_thumbnail)
 TA = analyzers.TechnicalAnalyzer
 for nm in ('get_sharpness_data', 'get_color_harmony_data', 'get_histogram_data', 'detect_monochrome',
            'get_dynamic_range', 'get_noise_estimate', 'get_contrast_score'):
@@ -356,8 +363,6 @@ exiftool.get_exif_batch = timed_acc('io.exif_batch')(exiftool.get_exif_batch)
 import processing.scorer as psc  # noqa: E402
 
 psc.Facet.get_exif_data = timed_acc('io.exif_single')(psc.Facet.get_exif_data)
-psc.generate_photo_thumbnail = timed_acc('save.thumbnail')(psc.generate_photo_thumbnail)
-psc.thumbnail_source = timed_acc('save.thumbnail_source')(psc.thumbnail_source)
 psc.Facet.save_photos_batch = timed_acc('save.save_photos_batch')(psc.Facet.save_photos_batch)
 
 # --- inference sub-components ---

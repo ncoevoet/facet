@@ -261,6 +261,16 @@ const SET_KIND_TOGGLE: Record<string, keyof HiddenFilterFlags> = {
               </div>
             }
             </div>
+            @if (railCritiqueVisible()) {
+              <!-- The score explainer, docked-rail edition: the entry the card
+                   buries in its hover bar, always visible here — and the rail's
+                   dead space below the metrics gets a job. Gated on the same
+                   show_critique flag as the card's and detail's entries. -->
+              <button mat-button class="!min-w-0 shrink-0 self-start mx-2 mb-2" (click)="openRailCritique()">
+                <mat-icon class="!text-base !w-4 !h-4 !leading-4">analytics</mat-icon>
+                {{ I18N.critique.title | translate }}
+              </button>
+            }
           </div>
         } @else {
           <!-- Usually closed, and heavy enough that building it eagerly holds up the grid's first paint. -->
@@ -354,7 +364,7 @@ const SET_KIND_TOGGLE: Record<string, keyof HiddenFilterFlags> = {
             >
               <div [style.height.px]="topSpacer()" aria-hidden="true"></div>
               @for (row of visibleRows(); track row.photos[0].path) {
-              <div class="flex gap-2 mb-2" [style.height.px]="row.height">
+              <div class="flex gap-2 mb-2" [class.items-start]="naturalGridFit()" [style.height.px]="row.height">
                 @for (photo of row.photos; track photo.path; let i = $index) {
                   <app-photo-card
                 [collapsedSetKinds]="collapsedSetKinds()"
@@ -362,9 +372,9 @@ const SET_KIND_TOGGLE: Record<string, keyof HiddenFilterFlags> = {
                     [photo]="photo"
                     [attr.data-pidx]="row.startIndex + i"
                     [style.width.px]="row.widths[i]"
-                    [style.height.px]="row.height"
+                    [style.height.px]="row.heights?.[i] ?? row.height"
                     class="shrink-0"
-                    [fillTile]="true"
+                    [fillTile]="!naturalGridFit()"
                     [hideDetails]="rowCardHideDetails()"
                     [mosaicMode]="effectiveGalleryMode() === 'mosaic'"
                     [config]="store.config()"
@@ -414,6 +424,7 @@ const SET_KIND_TOGGLE: Record<string, keyof HiddenFilterFlags> = {
               tabindex="0"
               [attr.aria-label]="I18N.gallery.photo_grid | translate"
               class="grid grid-cols-1 gap-2 p-2 md:p-4 outline-none"
+              [class.items-start]="naturalGridFit()"
               [style.grid-template-columns]="galleryColsStyle()"
               (keydown)="onGridKeydown($event)"
               (focusout)="onGridFocusOut($event)"
@@ -428,7 +439,7 @@ const SET_KIND_TOGGLE: Record<string, keyof HiddenFilterFlags> = {
                   [isSelected]="photo.path | isSelected:viewScoped():selectedPaths():excludedPaths()"
                   [isActive]="i === activeIndex()"
                   [gridHasActiveCard]="hasActivePhoto()"
-                  [fillTile]="true"
+                  [fillTile]="!naturalGridFit()"
                   [hideDetails]="effectiveHideDetails()"
                   [currentSort]="store.filters().sort"
                   [metricRanges]="store.metricRangesByColumn()"
@@ -1549,6 +1560,17 @@ export class GalleryComponent implements OnInit, OnDestroy {
     () => this.effectiveGalleryMode() === 'mosaic' || this.effectiveHideDetails(),
   );
 
+  /**
+   * The natural tile fit as the grid renders it: grid mode with details hidden
+   * only. Mosaic justifies every row to one height by construction, and cards
+   * with details keep their equal-height rows, so both ignore the preference
+   * (its menu entry is disabled in either case).
+   */
+  protected readonly naturalGridFit = computed(
+    () => this.effectiveGalleryMode() === 'grid' && this.effectiveHideDetails()
+      && this.store.filters().tile_fit === 'natural',
+  );
+
   /** Unified row model for the active mode. */
   readonly rowsModel = computed<GalleryRow[]>(() => {
     const photos = this.store.photos();
@@ -1558,7 +1580,7 @@ export class GalleryComponent implements OnInit, OnDestroy {
     const gap = GalleryComponent.ROW_GAP;
     const build = this.effectiveGalleryMode() === 'mosaic'
       ? (ps: Photo[]) => buildMosaicRows(ps, width, this.cardWidth(), gap)
-      : (ps: Photo[]) => buildGridRows(ps, width, this.cardWidth(), gap, this.effectiveHideDetails(), this.isDesktop());
+      : (ps: Photo[]) => buildGridRows(ps, width, this.cardWidth(), gap, this.effectiveHideDetails(), this.isDesktop(), this.store.filters().tile_fit);
     return build(photos);
   });
 
@@ -2692,7 +2714,8 @@ export class GalleryComponent implements OnInit, OnDestroy {
       if (!current()) return;
       const ref = this.dialog.open(CullDialogComponent, {
         closeOnNavigation: false,
-        width: '32rem',
+        width: '48rem',
+        maxWidth: '95vw',
         data: {
           paths,
           // Same trade as the export: the filter travels instead of the paths,
@@ -2811,6 +2834,19 @@ export class GalleryComponent implements OnInit, OnDestroy {
 
   openCritique(photo: Photo): void {
     this.photoActions.openCritique(photo);
+  }
+
+  /** The docked rail's score-explainer entry renders only while the rail holds
+   *  a photo and the install shows the explainer at all — the same show_critique
+   *  flag the card's hover bar and the photo detail toolbar gate theirs on. */
+  protected readonly railCritiqueVisible = computed(
+    () => !!this.panelPhoto() && !!this.store.config()?.features?.show_critique,
+  );
+
+  /** The docked rail's score-explainer entry: explains the photo the rail holds. */
+  protected openRailCritique(): void {
+    const p = this.panelPhoto();
+    if (p) this.openCritique(p);
   }
 
   embedMetadata(photo: Photo): void {

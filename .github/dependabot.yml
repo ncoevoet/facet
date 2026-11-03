@@ -23,6 +23,9 @@ updates:
       - dependency-name: "pydantic-core"
       - dependency-name: "mpmath"
       - dependency-name: "tokenizers"
+      # fsspec is capped by datasets (5.1.0 requires fsspec<=2026.7.0); #427 bumped
+      # it to 2026.9.0 alone and both locks stopped resolving.
+      - dependency-name: "fsspec"
       # sympy is dictated by the Docker BASE IMAGE's torch, not by this repo, and
       # the two locks disagree deliberately: 1.13.1 for the torch 2.6.0 legacy CUDA
       # image (which requires it exactly) and 1.14.0 for the torch 2.11.0 CUDA and
@@ -36,6 +39,10 @@ updates:
       # bump both lines alike or fold them into one, bringing 24.x back to Windows, so
       # both pins move by hand, after a native Windows scan.
       - dependency-name: "pyarrow"
+      # datasets is pinned twice the same way: 5.0.1 on Windows, because 5.1.0 requires
+      # pyarrow>=24.0.0, and the current release elsewhere. A group bump moves both lines
+      # and breaks the Windows install, so both move by hand.
+      - dependency-name: "datasets"
       # Majors are a deliberate, verified upgrade — never auto-propose them.
       - dependency-name: "*"
         update-types:

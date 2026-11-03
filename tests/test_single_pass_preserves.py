@@ -82,7 +82,7 @@ def seeded(tmp_path):
     # the same path on every OS (Windows turns a bare '/p/seed.jpg' into
     # 'D:\\p\\seed.jpg', which would otherwise never match ON CONFLICT(path)).
     path = str(Path(tmp_path / 'seed.jpg').resolve())
-    facet.save_photos_batch([(_scored_result(path), _IMG)])
+    facet.save_photos_batch([_scored_result(path)])
     with get_connection(db, row_factory=False) as conn:
         conn.execute(
             "UPDATE photos SET scanned_at='2020-01-01 00:00:00', star_rating=5 WHERE path=?",
@@ -98,12 +98,13 @@ def _processor(facet, pass_groups, restricted=True):
     proc.restricted = restricted
     proc.pass_groups = pass_groups
     proc.on_error = None
-    proc.metrics = {'thumbnail_time': 0.0}
+    proc.metrics = {'photos_saved': 0}
     return proc
 
 
 def _images(path):
-    return {path: {'pil': _IMG, 'width': 64, 'height': 64, 'exif': {}, 'phash': 'seedhash'}}
+    return {path: {'pil': _IMG, 'width': 64, 'height': 64, 'exif': {}, 'phash': 'seedhash',
+                  'thumbnail': b'thumb'}}
 
 
 def _persist(proc, results, images):
@@ -131,6 +132,7 @@ def test_saliency_pass_preserves_scored_columns_and_faces(seeded):
     proc = _processor(facet, [['saliency']])
 
     _persist(proc, {path: dict(_SALIENCY)}, _images(path))
+    assert proc.metrics['photos_saved'] == 1   # the restricted save counts what it wrote
 
     with get_connection(db, row_factory=True) as conn:
         row = conn.execute(

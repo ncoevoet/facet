@@ -1479,6 +1479,11 @@
       "named": "Named {name}",
       "error": "Could not save the name",
       "remove": "Remove from filter"
+    },
+    "tile_fit": {
+      "label": "Tile presentation",
+      "square": "Square crop",
+      "natural": "Original ratio"
     }
   },
   "composition_patterns": {
@@ -2864,6 +2869,20 @@
     "restore_failed": "Could not undo"
   },
   "cull": {
+    "file_preview": {
+      "title": "Files in this operation",
+      "help": "Review the files before applying. Click an image to enlarge it. Cancel to change your photo decisions.",
+      "back": "Back to files",
+      "unavailable": "Preview unavailable",
+      "sidecar": "XMP sidecar",
+      "enlarge": "Enlarge {name}",
+      "pages": "File preview pages",
+      "previous": "Previous",
+      "next": "Next",
+      "range": "Files {start}–{end} of {total}",
+      "trash": "Move {count} files to OS Trash",
+      "trash_one": "Move 1 file to OS Trash"
+    },
     "action": "Cull to folder…",
     "title": "Cull to folder",
     "selected": "selected",
@@ -3046,7 +3065,7 @@
     }
   },
   "manual_faces": {
-    "title": "Mark a missing face / Manage manual faces",
+    "title": "Mark a missing face or an object / Manage marks",
     "instructions": "Draw a rectangle or enter its edges as percentages. Choose a person, then save.",
     "unavailable": "Original unavailable. Saved marks can still be removed.",
     "preview": "Upright photo for marking faces",
@@ -3068,7 +3087,15 @@
     "save_failed": "Save failed. Your draft is retained. If the source changed or the frame expired, reload the preview.",
     "reload": "Reload editor",
     "refresh_failed": "The change was saved, but person information could not refresh. Reload the photo to see the latest information.",
-    "detected_overlap": "A face is already detected here. Close this editor and use the existing detected-face assignment action. Your draft is retained."
+    "detected_overlap": "A face is already detected here. Close this editor and use the existing detected-face assignment action. Your draft is retained.",
+    "mark_kind": "What the box marks",
+    "kind_face": "Face",
+    "kind_object": "Object",
+    "object_instructions": "Draw a rectangle around the object or enter its edges as percentages. Give it a label, then save. Objects are found by the gallery search and never count as faces.",
+    "object_label": "Label",
+    "object_placeholder": "e.g. birthday cake",
+    "objects": "Marked objects",
+    "objects_empty": "No objects marked."
   },
   "assistant_activity": {
     "chip": "Assistant active",

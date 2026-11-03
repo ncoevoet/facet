@@ -132,7 +132,7 @@ class ExifToolBatch:
                 self._restart()
                 return {}
 
-    def get_metadata_batch(self, image_paths, chunk_size=50, timeout_per_chunk=30):
+    def get_metadata_batch(self, image_paths, chunk_size=50, timeout_per_chunk=30, stop_event=None):
         """
         Get EXIF metadata for multiple images, processing in chunks.
 
@@ -143,12 +143,20 @@ class ExifToolBatch:
             image_paths: List of paths to image files
             chunk_size: Number of files to process per ExifTool call
             timeout_per_chunk: Seconds to wait per chunk before giving up
+            stop_event: Optional ``threading.Event``. It is checked before every
+                chunk and every attempt, so once it is set no further exiftool
+                process is started (a killed child exits nonzero without raising,
+                which would otherwise be retried); what was gathered so far is
+                returned. At most one already-running ``subprocess.run`` outlives it.
 
         Returns:
             Dict mapping path -> EXIF dict
         """
         if not image_paths:
             return {}
+
+        def stopped():
+            return stop_event is not None and stop_event.is_set()
 
         results = {}
         paths_list = [str(p) for p in image_paths]
@@ -161,9 +169,13 @@ class ExifToolBatch:
             chunk = paths_list[i:i + chunk_size]
             chunk_idx = i // chunk_size + 1
             chunk_success = False
+            if stopped():
+                return results
 
             # Try up to 2 times: first with normal timeout, then with doubled timeout
             for attempt in range(2):
+                if stopped():
+                    return results
                 current_timeout = timeout_per_chunk if attempt == 0 else timeout_per_chunk * 2
                 try:
                     # Run exiftool as a subprocess for this chunk
@@ -211,13 +223,20 @@ class ExifToolBatch:
 
 # Module-level singleton instance
 _exiftool_instance = None
+_exiftool_lock = threading.Lock()
 
 
 def get_exiftool():
-    """Get or create the singleton ExifToolBatch instance."""
+    """Get or create the singleton ExifToolBatch instance (thread-safe).
+
+    The scan's EXIF prefetch thread and a decode worker's per-photo fallback can
+    both reach this first, and each would otherwise start its own stay-open process.
+    """
     global _exiftool_instance
     if _exiftool_instance is None:
-        _exiftool_instance = ExifToolBatch()
+        with _exiftool_lock:
+            if _exiftool_instance is None:
+                _exiftool_instance = ExifToolBatch()
     return _exiftool_instance
 
 
@@ -283,7 +302,7 @@ def parse_exif_data(raw_data):
     }
 
 
-def get_exif_batch(image_paths, chunk_size=50, timeout_per_chunk=30):
+def get_exif_batch(image_paths, chunk_size=50, timeout_per_chunk=30, stop_event=None):
     """
     Get EXIF data for multiple images using batch ExifTool.
 
@@ -291,6 +310,8 @@ def get_exif_batch(image_paths, chunk_size=50, timeout_per_chunk=30):
         image_paths: List of image paths (strings or Paths)
         chunk_size: Number of files per ExifTool call (default 50, use 500 for NAS)
         timeout_per_chunk: Seconds to wait per chunk (default 30, use 120 for NAS)
+        stop_event: Optional ``threading.Event``; once set no further exiftool process
+            is started and the partial result is returned (see ``get_metadata_batch``)
 
     Returns:
         Dict mapping path (as resolved string) -> standardized EXIF dict
@@ -300,7 +321,8 @@ def get_exif_batch(image_paths, chunk_size=50, timeout_per_chunk=30):
 
     # Get raw metadata using chunked subprocess calls
     exiftool = get_exiftool()
-    raw_results = exiftool.get_metadata_batch(image_paths, chunk_size=chunk_size, timeout_per_chunk=timeout_per_chunk)
+    raw_results = exiftool.get_metadata_batch(image_paths, chunk_size=chunk_size, timeout_per_chunk=timeout_per_chunk,
+                                              stop_event=stop_event)
 
     # Parse into standardized format
     results = {}

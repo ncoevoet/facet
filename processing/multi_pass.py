@@ -19,8 +19,9 @@ import json
 import logging
 import threading
 import time
+from concurrent.futures import TimeoutError as FuturesTimeoutError
 from pathlib import Path
-from typing import List, Dict, Any
+from typing import List, Dict, Any, Set
 
 from tqdm import tqdm
 
@@ -35,10 +36,22 @@ from processing.routing import (
 from processing.scorer import build_scoring_metrics
 from utils.device import clear_device_cache
 from utils.image_bounds import bound_to_inference_size
-from utils.image_loading import bgr_to_gray, pil_to_bgr
-from utils.system_memory import BYTES_PER_GB
+from utils.image_loading import (
+    bgr_to_gray, clear_decode_timeouts, consume_decode_timeout, pil_to_bgr)
+from utils.system_memory import BYTES_PER_GB, commit_headroom_bytes, effective_memory
 
 logger = logging.getLogger("facet.multi_pass")
+
+
+
+def _is_timeout(error) -> bool:
+    """A timeout: the builtin, or (before Python 3.11) the class ``Future.result(timeout=)`` raises."""
+    return isinstance(error, (TimeoutError, FuturesTimeoutError))
+
+
+# Pillow's in-memory pixel size by mode: single 8-bit band 1, I;16 2, the rest (RGB is
+# padded to four bytes) 4.
+_PIL_BYTES_PER_PX = {'1': 1, 'L': 1, 'P': 1, 'I;16': 2}
 
 # Marks a chunk photo whose required model pass failed, so it is recorded in
 # scan_failures and excluded from the save rather than stamped scanned-complete
@@ -105,6 +118,149 @@ class _DecodeCancelled(Exception):
     """The scan's decode stop flag was set: abandon the chunk's decode, record nothing."""
 
 
+_EXIF_METRICS_LOCK = threading.Lock()
+
+EXIF_CHUNK_SIZE = 100
+EXIF_CLOSE_JOIN_SECONDS = 2.0
+
+
+def _resolved(paths) -> List[str]:
+    return [str(Path(p).resolve()) for p in paths]
+
+
+class ExifPrefetcher:
+    """Runs the next chunk's batched exiftool call on a background thread.
+
+    One daemon thread per request (not a pool: pool workers are joined at interpreter
+    exit, so Ctrl-C would hang until a running sub-batch returned). ``fetch(paths,
+    stop_event)`` returns ``{resolved_path: exif}``; ``on_exec(seconds)`` books the
+    time it ran, wherever it ran, and is never called once ``close()`` has run.
+
+    The scan loop ``plan``s the next chunk's paths; the request starts when ``take`` has
+    collected the current chunk, so two exiftool processes never run at once.
+    Overlap is matched on the raw path strings (resolving costs a filesystem call per
+    path on a network share); paths are resolved on the worker thread, and in ``take``
+    only to filter the result. Results are keyed by path, never by chunk index:
+    auto-tuning may change the chunk size between ``plan`` and ``take``. ``take``
+    keeps the entries that fall in the real chunk, fetches the missing ones
+    synchronously in one batch and drops the rest. A failed or stopped request
+    degrades to that same synchronous call. Every request has its own stop event,
+    set when it is dropped or the prefetcher is closed.
+    """
+
+    WAIT_SLICE_SECONDS = 0.25
+
+    def __init__(self, fetch, on_exec=None):
+        self._fetch = fetch
+        self._on_exec = on_exec
+        self.stop_event = threading.Event()
+        self._lock = threading.Lock()
+        self._closed = False
+        self._planned: list = []
+        self._requests: list = []  # submission order
+
+    def _book(self, seconds: float) -> None:
+        with self._lock:
+            if self._closed or self._on_exec is None:
+                return
+            self._on_exec(seconds)
+
+    def _run(self, request):
+        start = time.perf_counter()
+        try:
+            request['result'] = self._fetch(request['paths'], request['stop'])
+        except Exception as ex:  # never raised on this thread; take() falls back
+            request['error'] = ex
+            logger.warning("EXIF prefetch failed, the chunk will read EXIF synchronously: %s", ex)
+        finally:
+            self._book(time.perf_counter() - start)
+            request['done'].set()
+
+    def plan(self, paths) -> None:
+        """Remember the next chunk's paths; they start fetching at the next ``take``."""
+        with self._lock:
+            self._planned = list(paths)
+
+    def _start_planned(self) -> None:
+        with self._lock:
+            paths, self._planned = self._planned, []
+            if not paths or self._closed:
+                return
+            request: Dict[str, Any] = {'paths': paths, 'keys': set(paths), 'result': None, 'error': None,
+                       'done': threading.Event(), 'stop': threading.Event()}
+            request['thread'] = threading.Thread(
+                target=self._run, args=(request,), name='facet-exif-prefetch', daemon=True)
+            self._requests.append(request)
+        request['thread'].start()
+
+    def take(self, paths):
+        """``(exif by resolved path for exactly these paths, seconds spent blocked)``.
+
+        Blocks only on the request that overlaps ``paths`` most, then stops and drops
+        it and every older request. Missing entries come from one synchronous batch,
+        counted as blocked time. A ``KeyboardInterrupt`` while waiting stops the request.
+        """
+        wanted_raw = set(paths)
+        with self._lock:
+            best, best_overlap = None, 0
+            for request in self._requests:
+                overlap = len(request['keys'] & wanted_raw)
+                if overlap > 0 and overlap >= best_overlap:
+                    best, best_overlap = request, overlap
+            dropped = []
+            if best is not None:
+                cut = self._requests.index(best)
+                dropped = self._requests[:cut]
+                self._requests = self._requests[cut + 1:]
+        for request in dropped:
+            request['stop'].set()
+        found: Dict[str, Any] = {}
+        blocked = 0.0
+        wanted = _resolved(paths)
+        wanted_set = set(wanted)
+        if best is not None:
+            wait_start = time.perf_counter()
+            try:
+                # Sliced: an untimed Event.wait cannot be interrupted on Windows
+                while not best['done'].wait(self.WAIT_SLICE_SECONDS):
+                    pass
+            except BaseException:
+                best['stop'].set()
+                raise
+            blocked += time.perf_counter() - wait_start
+            if best['result']:
+                found = {k: v for k, v in best['result'].items() if k in wanted_set}
+        missing = [p for p, key in zip(paths, wanted) if key not in found]
+        if missing:
+            sync_start = time.perf_counter()
+            try:
+                found.update(self._fetch(missing, self.stop_event) or {})
+            finally:
+                spent = time.perf_counter() - sync_start
+                blocked += spent
+                self._book(spent)
+        # Chunk collected: only now may the next one start (one exiftool at a time)
+        self._start_planned()
+        return found, blocked
+
+    def close(self) -> None:
+        """Stop the background work: no new exiftool process starts after this.
+
+        Nothing is booked afterwards. Joins for at most ``EXIF_CLOSE_JOIN_SECONDS`` in
+        total; a sub-batch already running finishes alone on its daemon thread.
+        """
+        with self._lock:
+            self._closed = True
+            requests, self._requests = self._requests, []
+            self._planned = []
+        self.stop_event.set()
+        for request in requests:
+            request['stop'].set()
+        deadline = time.perf_counter() + EXIF_CLOSE_JOIN_SECONDS
+        for request in requests:
+            request['thread'].join(max(0.0, deadline - time.perf_counter()))
+
+
 def tagging_model_to_key(tagging_model, default=None):
     """Map a profile ``tagging_model`` string to its tagger key, or ``default``."""
     entry = TAGGING_MODELS.get(tagging_model)
@@ -151,7 +307,26 @@ class ChunkedMultiPassProcessor:
     # image plus the Bayer plane and the 8-bit output). That 16 B/px RAW figure is NOT
     # measured (the JPEG set cannot measure a demosaic): it is derived from the LibRaw buffer
     # layout and has not been checked against a RAW scan's peak.
+    # The stored thumbnail adds nothing here: the embedded preview is encoded and freed inside
+    # the decode slot BEFORE the demosaic (utils.image_loading._decode_raw), so the preview is
+    # never resident beside the demosaic's peak; only the ~46 KB JPEG rides with the photo.
+    # Peak RSS with the preview read in the slot is UNMEASURED (benchmark protocol).
     DECODE_INFLIGHT_BYTES_PER_PX = 16.0
+
+    # Decode-ahead master switch (a seam for tests; there is no config key, ``keep_in_ram:
+    # "never"`` is the operator's opt-out). Only the next chunk's first photos that fit the
+    # budget of ``_decode_ahead_photo_count`` are decoded during the current chunk's passes.
+    DECODE_AHEAD = True
+    # The pending ahead decode; a class default so a processor built without __init__
+    # (direct _process_chunk callers) has none.
+    _ahead = None
+    # Bytes of the photos the pending ahead decode has finished (``_count_ahead_bytes``), and
+    # the timeouts it hit for photos past a shrunk boundary, kept for the chunk that holds
+    # them (``_report_pending_timeouts``); class defaults for the same reason.
+    _ahead_held_bytes = 0
+    _pending_timeouts: Dict[str, Any] = {}
+    _ahead_failed: frozenset = frozenset()
+    _AHEAD_HELD_LOCK = threading.Lock()
 
     # Default pass configuration
     DEFAULT_PASSES = [
@@ -224,20 +399,31 @@ class ChunkedMultiPassProcessor:
             'io_decode_time': 0.0,
             # Chunks whose decode ran beside the first pass group's model load
             'decode_overlapped_chunks': 0,
+            # Decode-ahead: photos of a chunk decoded during the previous chunk's passes,
+            # the chunks that had any, and the ahead photos that failed and were decoded
+            # again in the normal path
+            'decode_ahead_submitted': 0,
+            'decode_ahead_photos': 0,
+            'decode_ahead_chunks': 0,
+            'decode_ahead_redecoded': 0,
             # BGR / gray planes rebuilt from the retained PIL image by the face and
             # saliency passes (they are no longer kept for the whole chunk)
             'rebuild_time': 0.0,
             'exif_batch_time': 0.0,
+            'exif_wait_time': 0.0,
             'exif_fallback_time': 0.0,
             'aggregate_time': 0.0,
-            # worker-seconds on the decode pool: image load, and the rest of a photo's body
+            # worker-seconds on the decode pool: image load, the thumbnail made beside it
+            # (resize + JPEG encode only), and the rest of a photo's body
             'decode_worker_time': 0.0,
+            'thumbnail_worker_time': 0.0,
             'analyze_worker_time': 0.0,
             'inference_by_model': {},
             'model_load_by_model': {},
             'model_load_overlapped_by_model': {},
-            'thumbnail_time': 0.0,
             'save_time': 0.0,
+            # Photos the chunk saves wrote (a scan that saves 0 of N > 0 is a failure).
+            'photos_saved': 0,
         }
 
         # Decode overlap (see _overlap_allowed) and RAM-cache trim state, per scan.
@@ -246,7 +432,17 @@ class ChunkedMultiPassProcessor:
         self._decode_executor = None
         self._decode_stop = None
         self._decode_future = None
+        self._exif_prefetcher = None
         self._overlap_refusal_logged = False
+        # Decode-ahead (see _submit_decode_ahead): the loop-owned ranges of the chunks
+        # after the current one, the pending ahead decode, and the injectable readers of
+        # total RAM and Windows commit headroom (tests replace them).
+        self._next_paths: List[str] = []
+        self._ahead = None
+        self._pending_timeouts = {}
+        self._ahead_failed = frozenset()
+        self._total_ram_provider = lambda: effective_memory().total
+        self._commit_provider = commit_headroom_bytes
 
     def reduce_chunk_size(self):
         """Reduce RAM chunk size when memory usage is high.
@@ -424,6 +620,7 @@ class ChunkedMultiPassProcessor:
             self.detect_and_configure()
 
         _ensure_imports()
+        clear_decode_timeouts()    # timeouts recorded by an earlier scan must not leak into this one
 
         total = len(photo_paths)
         if total == 0:
@@ -449,10 +646,14 @@ class ChunkedMultiPassProcessor:
         self._ram_monitor.start()
 
         # One decode worker per scan (the pool inside _load_images is the parallelism);
-        # used only for chunks _overlap_allowed admits, shut down in the finally below.
+        # used for chunks _overlap_allowed admits and for the decode-ahead, shut down in
+        # the finally below.
         self._decode_stop = threading.Event()
+        self._ahead = None
         self._decode_future = None
         self._decode_executor = self._make_decode_executor()
+
+        self._exif_prefetcher = ExifPrefetcher(self._fetch_exif, self._book_exif_batch)
 
         pbar = tqdm(total=total, desc="Multi-pass processing") if show_progress else None
 
@@ -468,7 +669,16 @@ class ChunkedMultiPassProcessor:
                 # Chunk 0 has no previous chunk to size from; the decode-overlap budget
                 # gate covers it instead.
                 if chunk_idx >= 1:
-                    self._trim_ram_cache_for_next_chunk(len(chunk_paths))
+                    self._trim_before_chunk(chunk_paths)
+
+                # The next chunk's range as chunk_size reads now: the decode-ahead
+                # (_submit_decode_ahead) decodes its first photos. Set on every iteration.
+                self._next_paths = photo_paths[chunk_end:chunk_end + self.chunk_size]
+
+                # Chunk N+1's EXIF starts once chunk N's is collected; chunk_size is re-read at the
+                # next iteration, so take() reconciles a boundary that moved. A decode-ahead
+                # collects no EXIF: this chunk's is taken over its real membership in _process_chunk.
+                self._exif_prefetcher.plan(self._next_paths)
 
                 self._process_chunk(chunk_paths, chunk_idx, num_chunks_est)
 
@@ -487,6 +697,16 @@ class ChunkedMultiPassProcessor:
 
         finally:
             self._ram_monitor.stop()
+            # The decoded-ahead images are dropped with the scan; the future is released
+            # before the executor shuts down (which cancels it if still pending).
+            self._ahead = None
+            self._pending_timeouts = {}
+            self._ahead_failed = frozenset()
+            self._next_paths = []
+            # Before the decode executor: a decode still running on the worker must not
+            # find a prefetcher that can start another exiftool process.
+            prefetcher, self._exif_prefetcher = self._exif_prefetcher, None
+            prefetcher.close()
             self._shutdown_decode_executor()
             if pbar:
                 pbar.close()
@@ -527,21 +747,47 @@ class ChunkedMultiPassProcessor:
         failed_stages: List[str] = []
         supplementary = self._supplementary_models()
 
-        # Load images into memory once. When _overlap_allowed admits it, the decode runs
-        # on the scan's decode worker while this thread loads the first pass group's
-        # models, which the group's inference then receives already loaded.
+        # Load images into memory once. The first photos may already be decoded (the
+        # previous chunk's _submit_decode_ahead); the others are decoded here. When
+        # _overlap_allowed admits it, that decode runs on the scan's decode worker while
+        # this thread loads the first pass group's models, which the group's inference then
+        # receives already loaded.
         first_group = self.pass_groups[0] if self.pass_groups else []
         preloaded = None
-        if self._decode_executor is not None and self._overlap_allowed(paths, first_group):
-            images, preloaded = self._decode_beside_first_load(
-                paths, first_group, supplementary, failed_stages)
+        ahead, self._ahead = self._ahead, None
+        decoded_ahead: Dict[str, Dict] = {}
+        reported: Set[str] = set()
+        if ahead is not None:
+            decoded_ahead, reported = self._take_decode_ahead(ahead, paths)
+        del ahead
+        reported |= self._report_pending_timeouts(paths)
+        # With photos decoded ahead the chunk's EXIF is taken over its REAL membership (the
+        # batch fallback for paths the prefetch missed included), by the decode worker beside
+        # the first model load when the rest overlaps, as the decode's own EXIF is without the
+        # ahead; the rest is decoded with it.
+        collect_exif = (functools.partial(self._collect_chunk_exif, paths, decoded_ahead)
+                        if decoded_ahead else None)
+        rest = [p for p in paths if p not in decoded_ahead and p not in reported]
+        decoded: Dict[str, Dict] = {}
+        # With nothing left to decode the worker still runs the EXIF collection beside the load.
+        if ((rest or collect_exif is not None) and self._decode_executor is not None
+                and self._overlap_allowed(rest, first_group)):
+            decoded, preloaded = self._decode_beside_first_load(
+                rest, first_group, supplementary, failed_stages, collect_exif=collect_exif)
         else:
-            io_start = time.perf_counter()
-            images = self._load_images(paths)
-            io_wall = time.perf_counter() - io_start
-            self.metrics['io_time'] += io_wall
-            self.metrics['io_decode_time'] += io_wall
+            exif = collect_exif() if collect_exif is not None else None
+            if rest:
+                io_start = time.perf_counter()
+                decoded = (self._load_images(rest, exif=exif) if exif is not None
+                           else self._load_images(rest))
+                io_wall = time.perf_counter() - io_start
+                self.metrics['io_time'] += io_wall
+                self.metrics['io_decode_time'] += io_wall
+        images = {p: decoded_ahead[p] if p in decoded_ahead else decoded[p]
+                  for p in paths if p in decoded_ahead or p in decoded}
+        del decoded_ahead, decoded, collect_exif
         self._record_chunk_pixels(images)
+        self._submit_decode_ahead(chunk_idx)
 
         # Track results for each photo
         results: dict[str, dict[str, Any]] = {path: {} for path in paths}
@@ -602,17 +848,12 @@ class ChunkedMultiPassProcessor:
             self._compute_aggregates(results, images)
             self.metrics['aggregate_time'] += time.perf_counter() - aggregate_start
 
-        # Thumbnail generation is nested in the full save. Subtract only that
-        # interval so these two scan-thread phases do not double count.
-        thumbnail_before = self.metrics['thumbnail_time']
         save_start = time.perf_counter()
         if self.restricted:
             self._save_results_restricted(results, images)
         else:
             self._save_results(results, images)
-        self.metrics['save_time'] += (
-            time.perf_counter() - save_start
-            - (self.metrics['thumbnail_time'] - thumbnail_before))
+        self.metrics['save_time'] += time.perf_counter() - save_start
 
         # Free memory
         del images
@@ -658,7 +899,8 @@ class ChunkedMultiPassProcessor:
         futures are cancelled, and ``wait`` is used only when nothing is in flight (a
         normal end of scan, where the join is immediate). After a KeyboardInterrupt
         the scan therefore unwinds at once and the in-flight photos finish into a
-        discarded result on the worker.
+        discarded result on the worker. A decode-ahead still pending is cancelled with the
+        rest, and one running finishes the same way, its result dropped with ``_ahead``.
         """
         executor, self._decode_executor = self._decode_executor, None
         if executor is None:
@@ -728,6 +970,8 @@ class ChunkedMultiPassProcessor:
            first-group model neither resident nor in the RAM cache;
         2. available memory >= the decode estimate + the decode's in-flight buffers
            (``_decode_inflight_bytes``) + ``ram_cache_reserve_gb``.
+        ``paths`` are the photos this chunk still has to decode: the chunk less any the
+        previous chunk's decode-ahead already decoded.
         The models' own size is not part of the budget: on CUDA their weights go to VRAM,
         and the host memory a load does use (measured on the 16gb group 0: +0.56 GiB
         private, +3.8 GiB of read-only mapped weight-file pages the OS can drop without
@@ -755,17 +999,23 @@ class ChunkedMultiPassProcessor:
             return False
         return True
 
-    def _decode_on_worker(self, paths: List[str], deferred_errors: list):
-        """Runs on the decode worker: decode the chunk, time it, defer error reports."""
+    def _decode_on_worker(self, paths: List[str], deferred_errors: list, collect_exif=None):
+        """Runs on the decode worker: decode the chunk, time it, defer error reports.
+
+        ``collect_exif``, given when photos were decoded ahead, returns the chunk's EXIF
+        (and attaches it to those photos) before the decode, on this thread.
+        """
         start = time.perf_counter()
+        exif = collect_exif() if collect_exif is not None else None
+        kwargs = {} if exif is None else {'exif': exif}
         images = self._load_images(
             paths, stop_event=self._decode_stop,
             report_error=lambda path, stage, error: deferred_errors.append(
-                (path, stage, error)))
+                (path, stage, error)), **kwargs)
         return images, time.perf_counter() - start
 
     def _decode_beside_first_load(self, paths: List[str], first_group: List[str],
-                                  supplementary: set, failed_stages: List[str]):
+                                  supplementary: set, failed_stages: List[str], collect_exif=None):
         """Decode ``paths`` on the worker while this thread loads ``first_group``.
 
         Returns ``(images, loaded_models)``. A decode failure (the abandonment
@@ -774,7 +1024,8 @@ class ChunkedMultiPassProcessor:
         to ``on_error`` from this thread, after the decode, as the synchronous path does.
         """
         deferred_errors: list = []
-        future = self._decode_executor.submit(self._decode_on_worker, paths, deferred_errors)
+        future = self._decode_executor.submit(
+            self._decode_on_worker, paths, deferred_errors, collect_exif)
         self._decode_future = future
 
         load_start = time.perf_counter()
@@ -814,6 +1065,254 @@ class ChunkedMultiPassProcessor:
                 self.on_error(path, stage, error)
 
     # ------------------------------------------------------------------
+    # Decode-ahead: the next chunk's first photos during this chunk's passes
+    # ------------------------------------------------------------------
+
+    AHEAD_WAIT_SLICE_SECONDS = 0.25
+
+    def _take_exif(self, paths: List[str]):
+        """The prefetcher's EXIF for exactly ``paths``, booking the time spent blocked."""
+        prefetcher = self._exif_prefetcher
+        if prefetcher is None:
+            # Not inside a scan (direct call): a one-shot prefetcher with nothing pending
+            prefetcher = ExifPrefetcher(self._fetch_exif, self._book_exif_batch)
+        chunk_exif, exif_blocked = prefetcher.take(paths)
+        with _EXIF_METRICS_LOCK:
+            self.metrics['exif_wait_time'] += exif_blocked
+        return chunk_exif
+
+    def _decode_ahead_photo_count(self, chunk_idx: int, n_next: int) -> int:
+        """How many of the next chunk's FIRST photos may be decoded now, ``0`` for none.
+
+        ``floor(budget / per-photo estimate)`` clamped to ``[0, n_next]``, where the
+        per-photo estimate is ``RETAINED_BYTES_PER_PX`` times the previous chunk's mean
+        pixels, and the budget is the smallest of
+        1. available physical RAM minus ``ram_cache_reserve_gb`` and minus the RAM of every
+           model the chunk's groups would cache (``_chunk_cacheable_model_bytes``), so the
+           RAM cache admits the models it admits without the ahead (this term may be <= 0);
+        2. Windows commit headroom (``commit_headroom_bytes``; no term elsewhere) minus the
+           same reserve, because physical availability does not see the commit charge;
+        3. with auto-tuning on, the room left under the monitor's growth threshold:
+           ``(low_threshold - previous chunk's peak percent) * total RAM``, so the extra
+           resident bytes cannot push a reading the monitor judges a chunk by past the
+           threshold (the tuning is handed the held bytes and subtracts them, see
+           ``ahead_resident_bytes``),
+        less the decode's in-flight buffers (``_decode_inflight_bytes``). Evaluated once,
+        at submit. Chunk 0 has no previous peak, so it gets ``0``; so does a previous chunk
+        too short for the monitor to have read.
+        """
+        if not self.DECODE_AHEAD or chunk_idx < 1 or n_next <= 0:
+            return 0
+        mm = self.model_manager
+        if getattr(mm, 'device', None) != 'cuda' or getattr(mm, 'keep_in_ram', None) == 'never':
+            return 0
+        reserve = int(mm.ram_cache_reserve_gb * BYTES_PER_GB)
+        # The RAM cache admits a model on unload only while available > its RAM + reserve
+        # (ModelManager._can_cache_to_ram), and every group of this chunk unloads with the
+        # ahead bytes resident: they must leave the room for all the models the chunk caches.
+        budgets = [mm._available_bytes() - reserve - self._chunk_cacheable_model_bytes()]
+        commit = self._commit_provider()
+        if commit is not None:
+            budgets.append(commit - reserve)
+        if self.auto_tuning_enabled:
+            monitor = getattr(self, '_ram_monitor', None)
+            peak = monitor.last_chunk_peak_percent if monitor is not None else 0.0
+            if monitor is None or not peak:
+                return 0
+            budgets.append(int((monitor.low_threshold - peak) / 100.0 * self._total_ram_provider()))
+        budget = min(budgets) - self._decode_inflight_bytes(n_next)
+        per_photo = self._previous_chunk_px() * self.RETAINED_BYTES_PER_PX
+        if budget <= 0 or per_photo <= 0:
+            return 0
+        return min(n_next, int(budget // per_photo))
+
+    def _chunk_cacheable_model_bytes(self) -> int:
+        """RAM the RAM cache wants free for every model this chunk's groups would keep.
+
+        The models ``ModelManager.is_cacheable_model`` (the rule ``_can_cache_to_ram``
+        applies first) lets the cache admit, each counted once at
+        its ``get_model_ram`` (the admission's own table, but for Q-ReAlign-Lite, whose
+        larger figure only over-reserves). Zero when every model is kept regardless
+        (``keep_in_ram: "always"``).
+        """
+        mm = self.model_manager
+        if getattr(mm, 'keep_in_ram', None) == 'always':
+            return 0
+        names = {name for group in self.pass_groups for name in group
+                 if mm.is_cacheable_model(name)}
+        return int(sum(mm.get_model_ram(name) for name in names) * BYTES_PER_GB)
+
+    def _submit_decode_ahead(self, chunk_idx: int):
+        """Hand the worker the first photos of the NEXT chunk, called once this chunk is decoded.
+
+        The next chunk's membership is the loop's (``_next_paths``), unchanged; only its
+        first ``_decode_ahead_photo_count`` photos are decoded now (without EXIF, which the
+        chunk takes over its real membership when it starts) and the rest follow in the
+        normal path. A no-op outside ``process_directory`` (no executor) and for the last
+        chunk (nothing next).
+        """
+        if getattr(self, '_decode_executor', None) is None or not self._next_paths:
+            return
+        count = self._decode_ahead_photo_count(chunk_idx, len(self._next_paths))
+        if count <= 0:
+            return
+        # A photo whose ahead decode already failed or timed out, past a shrunk boundary, is
+        # not sent to the worker again: its own chunk decodes it (or reports its timeout).
+        first = [p for p in self._next_paths[:count]
+                 if p not in self._pending_timeouts and p not in self._ahead_failed]
+        if not first:
+            return
+        deferred_errors: list = []
+        self._ahead_held_bytes = 0
+        future = self._decode_executor.submit(
+            self._decode_ahead_on_worker, first, deferred_errors)
+        self._decode_future = future
+        self._ahead = {'paths': first, 'future': future, 'errors': deferred_errors}
+        self.metrics['decode_ahead_submitted'] += len(first)
+
+    def ahead_resident_bytes(self) -> int:
+        """Bytes the pending decode-ahead actually holds so far.
+
+        The resource monitor subtracts it from every reading it judges (growth peak, shrink
+        test, eviction), so a decision is judged on what the chunk holds without the ahead (the decode's
+        in-flight buffers are not subtracted, so near a threshold a step can still shift by a chunk). It
+        is the measured size of the photos decoded so far (``_entry_bytes``), never an
+        estimate; zero once the chunk has taken the ahead over (its photos are then the
+        chunk's, as they would be without it).
+        """
+        return self._ahead_held_bytes if self._ahead is not None else 0
+
+    @staticmethod
+    def _entry_bytes(data: Dict) -> int:
+        """Bytes a decoded photo's arrays hold: its image(s) plus the stored thumbnail."""
+        total = 0
+        pil = data.get('pil')
+        for image in (pil, data.get('bounded') if data.get('bounded') is not pil else None):
+            if image is None:
+                continue
+            nbytes = getattr(image, 'nbytes', None)
+            total += nbytes if nbytes is not None else (
+                image.width * image.height * _PIL_BYTES_PER_PX.get(image.mode, 4))
+        thumbnail = data.get('thumbnail')
+        return total + (len(thumbnail) if isinstance(thumbnail, (bytes, bytearray)) else 0)
+
+    def _count_ahead_bytes(self, data: Dict):
+        """``_load_images`` ``on_decoded`` of the ahead decode: add one finished photo's bytes."""
+        held = self._entry_bytes(data)
+        with self._AHEAD_HELD_LOCK:
+            self._ahead_held_bytes += held
+
+    def _decode_ahead_on_worker(self, first: List[str], deferred_errors: list):
+        """Runs on the decode worker: decode the next chunk's first photos, without EXIF."""
+        start = time.perf_counter()
+
+        def defer(path, stage, error):
+            # A RAW decode the loader abandoned on timeout comes back as a plain failed load:
+            # the loader's record tells them apart, and a timeout is never decoded again.
+            if stage == 'load' and consume_decode_timeout(path) and not _is_timeout(error):
+                error = TimeoutError('failed to load image')
+            deferred_errors.append((path, stage, error))
+
+        images = self._load_images(first, stop_event=self._decode_stop, report_error=defer,
+                                   defer_exif=True, on_decoded=self._count_ahead_bytes)
+        return images, time.perf_counter() - start
+
+    def _collect_chunk_exif(self, paths: List[str], decoded_ahead: Dict[str, Dict]):
+        """The chunk's EXIF over its real membership, attached to the photos decoded ahead."""
+        exif = self._take_exif(paths)
+        self._attach_exif(decoded_ahead, exif)
+        return exif
+
+    def _attach_exif(self, images: Dict[str, Dict], chunk_exif: Dict[str, Any]):
+        """Give decoded-ahead photos their EXIF: the chunk's batch, else the per-photo read."""
+        for path, data in images.items():
+            exif_data = chunk_exif.get(str(Path(path).resolve()))
+            if not exif_data:
+                start = time.perf_counter()
+                try:
+                    exif_data = self.scorer.get_exif_data(path)
+                finally:
+                    with _EXIF_METRICS_LOCK:
+                        self.metrics['exif_fallback_time'] += time.perf_counter() - start
+            data['exif'] = exif_data
+
+    def _wait_ahead(self, future):
+        """The ahead future's result, waiting in slices so Ctrl-C is delivered on Windows."""
+        while True:
+            try:
+                return future.result(timeout=self.AHEAD_WAIT_SLICE_SECONDS)
+            except (TimeoutError, FuturesTimeoutError):
+                if future.done():
+                    return future.result()  # finished between the slice and the check
+
+    def _take_decode_ahead(self, ahead: dict, paths: List[str]):
+        """Collect the ahead decode for the chunk ``paths``: ``({path: image}, reported paths)``.
+
+        Only photos that are in the chunk AND decoded are returned, so a chunk whose
+        boundary moved since the submit loses nothing and keeps nothing extra. A photo whose
+        ahead decode failed (a failed load, whatever the cause; the loaders report an
+        out-of-memory decode that way too) is decoded again once, in the normal path of its
+        own chunk, which reports it if it fails again. A ``TimeoutError`` (also a RAW decode
+        the loader abandoned on timeout, see ``_decode_ahead_on_worker``) is never decoded
+        again: it is reported once, here when the photo is in this chunk, else when the chunk
+        that holds it starts (``_report_pending_timeouts``). A future that raises (the
+        abandonment ``RuntimeError``) re-raises, after its photos' errors were reported, as
+        the normal path would at this chunk; one that runs out of memory is decoded again.
+        """
+        future = ahead['future']
+        errors = ahead['errors']
+        wait_start = time.perf_counter()
+        images: Dict[str, Dict] = {}
+        decode_wall = 0.0
+        redo_all = False
+        try:
+            images, decode_wall = self._wait_ahead(future)
+        except MemoryError as ex:
+            logger.warning("Decode-ahead ran out of memory, its photos are decoded again: %s", ex)
+            redo_all = True
+        except BaseException:
+            self._report_deferred_errors(future, errors)
+            raise
+        finally:
+            self.metrics['io_time'] += time.perf_counter() - wait_start
+        if future.done():
+            self._decode_future = None
+        wanted = set(paths)
+        in_chunk = [p for p in ahead['paths'] if p in wanted]
+        reported: Set[str] = set()
+        deferred = 0
+        for path, stage, error in ([] if redo_all else errors):
+            if not _is_timeout(error):
+                if path not in wanted:
+                    self._ahead_failed = self._ahead_failed | {path}
+                continue
+            if path not in wanted:
+                self._pending_timeouts = {**self._pending_timeouts, path: (stage, error)}
+                deferred += 1
+                continue
+            reported.add(path)
+            if self.on_error:
+                self.on_error(path, stage, error)
+        reuse = {p: images[p] for p in in_chunk if p in images}
+        self.metrics['io_decode_time'] += decode_wall
+        self.metrics['decode_ahead_photos'] += len(reuse)
+        self.metrics['decode_ahead_redecoded'] += (
+            len(ahead['paths']) - len(reuse) - len(reported) - deferred)
+        if reuse:
+            self.metrics['decode_ahead_chunks'] += 1
+        return reuse, reported
+
+    def _report_pending_timeouts(self, paths: List[str]) -> Set[str]:
+        """Report, once, the ahead timeouts of photos that this chunk now holds."""
+        if not self._pending_timeouts:
+            return set()
+        due = {p: self._pending_timeouts.pop(p) for p in paths if p in self._pending_timeouts}
+        if self.on_error:
+            for path, (stage, error) in due.items():
+                self.on_error(path, stage, error)
+        return set(due)
+
+    # ------------------------------------------------------------------
     # RAM-cache trim before a chunk's decode (S6b)
     # ------------------------------------------------------------------
 
@@ -833,6 +1332,27 @@ class ChunkedMultiPassProcessor:
                 if name not in order:
                     order.append(name)
         return order
+
+    def _trim_before_chunk(self, chunk_paths: List[str]):
+        """The pre-chunk RAM-cache trim, for the photos not already decoded ahead.
+
+        Runs once the ahead decode has finished: its photos are then resident and
+        ``available`` already excludes them, so the need leaves them out rather than count
+        them again and evict a model the base path keeps.
+        """
+        ahead = self._ahead
+        decoded = set(ahead['paths']) if ahead is not None else set()
+        if ahead is not None:
+            # Counted only once they are resident: the take after this waits for the same
+            # future (its failure surfaces there).
+            wait_start = time.perf_counter()
+            try:
+                self._wait_ahead(ahead['future'])
+            except Exception:
+                pass
+            finally:
+                self.metrics['io_time'] += time.perf_counter() - wait_start
+        self._trim_ram_cache_for_next_chunk(sum(1 for p in chunk_paths if p not in decoded))
 
     def _trim_ram_cache_for_next_chunk(self, n_next: int):
         """Evict RAM-cached models when the next chunk's decode would not fit.
@@ -935,8 +1455,23 @@ class ChunkedMultiPassProcessor:
             if self.on_error:
                 self.on_error(path, stage, f"required model pass failed: {stage}")
 
+    @staticmethod
+    def _fetch_exif(paths, stop_event) -> Dict[str, Any]:
+        """One batched exiftool call: ``{resolved path: EXIF}`` (empty without exiftool)."""
+        try:
+            from exiftool import get_exif_batch
+        except ImportError:
+            return {}
+        return get_exif_batch(paths, chunk_size=EXIF_CHUNK_SIZE, stop_event=stop_event)
+
+    def _book_exif_batch(self, seconds: float):
+        """Add exiftool execution seconds (prefetch thread or synchronous call)."""
+        with _EXIF_METRICS_LOCK:
+            self.metrics['exif_batch_time'] += seconds
+
     def _load_images(self, paths: List[str], stop_event=None,
-                     report_error=None) -> Dict[str, Dict]:
+                     report_error=None, exif=None, defer_exif=False,
+                     on_decoded=None) -> Dict[str, Dict]:
         """
         Load images from disk into memory and compute CPU-based metrics.
 
@@ -964,6 +1499,14 @@ class ChunkedMultiPassProcessor:
             report_error: Optional ``(path, stage, error)`` callable that receives the
                 per-photo failures instead of ``on_error``; the overlapped decode uses
                 it to hand them to the scan thread.
+            exif: Optional ``{resolved_path: exif}`` the chunk already took from the
+                ``ExifPrefetcher`` over its whole membership (photos decoded ahead
+                included); ``paths`` missing from it read their EXIF one by one. ``None``
+                collects ``paths``' EXIF from the prefetcher here.
+            defer_exif: The decode-ahead's mode: no EXIF is looked up and each entry's
+                ``'exif'`` is ``None`` until ``_attach_exif`` sets it from the chunk's batch.
+            on_decoded: Optional callable given each photo's entry, on the worker, as soon
+                as it is complete (the decode-ahead counts the bytes it holds).
 
         Returns:
             Dict mapping path to image data including all pre-computed metrics
@@ -972,7 +1515,7 @@ class ChunkedMultiPassProcessor:
         import imagehash
         from concurrent.futures import ThreadPoolExecutor
         from pathlib import Path
-        from utils import load_image_from_path
+        from utils import load_image_and_thumbnail, load_image_from_path
         from analyzers import TechnicalAnalyzer, ImageCache, CompositionAnalyzer
         from analyzers.form_facet import compute_form_metrics, warmup
 
@@ -984,18 +1527,15 @@ class ChunkedMultiPassProcessor:
         mono_settings = self.scorer.config.get_monochrome_settings()
         need_bounded = self._needs_bounded_image()
         need_composition = not self.restricted
+        # A restricted (--pass) run saves through save_photos_partial, which makes a
+        # thumbnail only for a file that is new to the database: it must not pay for one.
+        need_thumbnail = not self.restricted
 
         # One batched exiftool call for the whole chunk instead of one
         # subprocess round-trip per image; per-image fallback below covers
-        # paths missing from the batch result
-        exif_start = time.perf_counter()
-        try:
-            from exiftool import get_exif_batch
-            chunk_exif = get_exif_batch(paths, chunk_size=100)
-        except ImportError:
-            chunk_exif = {}
-
-        self.metrics['exif_batch_time'] += time.perf_counter() - exif_start
+        # paths missing from the batch result. Normally the call already ran beside
+        # the previous chunk and this only collects it.
+        chunk_exif = exif if exif is not None else ({} if defer_exif else self._take_exif(paths))
         exif_lock = threading.Lock()
 
         report = report_error if report_error is not None else self.on_error
@@ -1005,14 +1545,15 @@ class ChunkedMultiPassProcessor:
 
         def _load_one(path):
             """Run one photo's decode and CPU analysis, booking the worker-seconds."""
-            spans = {'decode': 0.0, 'fallback': 0.0}
+            spans = {'decode': 0.0, 'fallback': 0.0, 'thumbnail': 0.0}
             worker_start = time.perf_counter()
             try:
                 return _load_one_untimed(path, spans)
             finally:
                 worked = time.perf_counter() - worker_start
                 with exif_lock:
-                    self.metrics['decode_worker_time'] += spans['decode']
+                    self.metrics['decode_worker_time'] += spans['decode'] - spans['thumbnail']
+                    self.metrics['thumbnail_worker_time'] += spans['thumbnail']
                     self.metrics['analyze_worker_time'] += max(
                         0.0, worked - spans['decode'] - spans['fallback'])
 
@@ -1020,8 +1561,14 @@ class ChunkedMultiPassProcessor:
             if _stopped():
                 raise _DecodeCancelled()
             decode_start = time.perf_counter()
+            thumbnail = None
             try:
-                pil_img, img_cv = load_image_from_path(path)
+                if need_thumbnail:
+                    # One decode, one open: the stored thumbnail is made here, from the
+                    # same rawpy handle the demosaic uses, and rides to the save.
+                    pil_img, img_cv, thumbnail, spans['thumbnail'] = load_image_and_thumbnail(path)
+                else:
+                    pil_img, img_cv = load_image_from_path(path)
             finally:
                 spans['decode'] = time.perf_counter() - decode_start
             if pil_img is None:
@@ -1034,7 +1581,7 @@ class ChunkedMultiPassProcessor:
 
             resolved = str(Path(path).resolve())
             exif_data = chunk_exif.get(resolved)
-            if not exif_data:
+            if not exif_data and not defer_exif:
                 fallback_start = time.perf_counter()
                 try:
                     exif_data = self.scorer.get_exif_data(path)
@@ -1105,8 +1652,9 @@ class ChunkedMultiPassProcessor:
             # Compute perceptual hash
             phash = str(imagehash.phash(pil_img))
 
-            return {
+            entry = {
                 'pil': pil_img,
+                'thumbnail': thumbnail,
                 'path': path,
                 'width': img_w,
                 'height': img_h,
@@ -1128,6 +1676,9 @@ class ChunkedMultiPassProcessor:
                 # Hash
                 'phash': phash,
             }
+            if on_decoded is not None:
+                on_decoded(entry)
+            return entry
 
         # Image decode + CPU analysis release the GIL (cv2/numpy/rawpy), so a
         # thread pool gives real parallelism; in-flight RAW decode memory is
@@ -1737,7 +2288,6 @@ class ChunkedMultiPassProcessor:
         batch = []
         for path, data in self._iter_saveable(results, images):
             img_data = images[path]
-            pil_img = img_data['pil']
 
             # Get pre-computed data from image loading phase
             sharpness = img_data.get('sharpness', {})
@@ -1830,16 +2380,18 @@ class ChunkedMultiPassProcessor:
                 # Other fields
                 'is_silhouette': data.get('is_silhouette', 0),
                 'phash': img_data.get('phash'),
+                'thumbnail': img_data.get('thumbnail'),
                 'clip_embedding': data.get('clip_embedding'),
                 'tags': data.get('tags'),
                 'config_version': self.scorer.config.version_hash,
             }
 
-            batch.append((result, pil_img))
+            batch.append(result)
 
         if batch:
-            self.scorer.save_photos_batch(batch, phase_metrics=self.metrics)
+            self.scorer.save_photos_batch(batch)
             self.scorer.commit()
+            self.metrics['photos_saved'] += len(batch)
 
     def _save_results_restricted(self, results: Dict, images: Dict):
         """Save a single restricted pass, updating only the columns it computed.
@@ -1888,6 +2440,7 @@ class ChunkedMultiPassProcessor:
         if batch:
             self.scorer.save_photos_partial(batch, refresh_faces)
             self.scorer.commit()
+            self.metrics['photos_saved'] += len(batch)
 
     @staticmethod
     def _print_stage_timers(m: Dict[str, Any], total: float):
@@ -1936,21 +2489,31 @@ class ChunkedMultiPassProcessor:
             logger.info("Time breakdown:")
             logger.info("  I/O wait (scan thread blocked on decode): %.1fs (%.0f%%)",
                         m['io_time'], 100 * m['io_time'] / total)
-            logger.info("  Decode wall: %.1fs (%d of %d chunks overlapped with model loading)",
+            ahead_note = ("; the decode-ahead's part ran beside the previous chunk's passes"
+                          if m['decode_ahead_submitted'] else "")
+            logger.info("  Decode wall: %.1fs (%d of %d chunks overlapped with model loading%s)",
                         m['io_decode_time'], m['decode_overlapped_chunks'],
-                        m['chunks_processed'])
+                        m['chunks_processed'], ahead_note)
+            if m['decode_ahead_submitted']:
+                logger.info("  Decode-ahead: %d photos in %d chunks (%d re-decoded)",
+                            m['decode_ahead_photos'], m['decode_ahead_chunks'],
+                            m['decode_ahead_redecoded'])
             logger.info("  Model load: %.1fs (%.0f%%)", m['model_load_time'], 100 * m['model_load_time'] / total)
             logger.info("  Inference: %.1fs (%.0f%%)", m['inference_time'], 100 * m['inference_time'] / total)
             logger.info("  Model unload: %.1fs (%.0f%%)", m['model_unload_time'], 100 * m['model_unload_time'] / total)
             logger.info("  Plane rebuilds (face + saliency passes): %.1fs (%.0f%%)",
                         m['rebuild_time'], 100 * m['rebuild_time'] / total)
 
-            logger.info("  EXIF batch wall (included in decode): %.1fs", m['exif_batch_time'])
+            logger.info("  EXIF batch (exiftool seconds, mostly beside the previous chunk): %.1fs",
+                        m['exif_batch_time'])
+            logger.info("  EXIF wait (decode blocked on EXIF, part of decode wall): %.1fs",
+                        m['exif_wait_time'])
             logger.info("  EXIF fallback worker-seconds (included in decode): %.1fs",
                         m['exif_fallback_time'])
             logger.info("  Aggregate wall: %.1fs", m['aggregate_time'])
-            logger.info("  Thumbnail wall: %.1fs", m['thumbnail_time'])
-            logger.info("  Save wall (excluding thumbnails): %.1fs", m['save_time'])
+            logger.info("  Thumbnail worker-seconds (made at decode, included in decode): %.1fs",
+                        m['thumbnail_worker_time'])
+            logger.info("  Save wall: %.1fs", m['save_time'])
             self._print_stage_timers(m, total)
 
             # Auto-tuning summary (only if adjustments occurred)

@@ -2158,6 +2158,25 @@ describe('GalleryComponent', () => {
           fixture.detectChanges();
           expect(document.activeElement).toBe(rail);
         });
+
+        it('the score-explainer entry opens the critique for the held photo', () => {
+          mockStore.config.set({ features: { show_critique: true } });
+          fixture.detectChanges();
+          const openCritique = vi.spyOn(fixture.componentInstance, 'openCritique');
+          const entry = Array.from(rail.querySelectorAll('button'))
+            .find(b => b.textContent!.includes(I18N.critique.title)) as HTMLElement | undefined;
+          expect(entry).toBeTruthy();
+          entry!.click();
+          expect(openCritique).toHaveBeenLastCalledWith(mockStore.photos()[0]);
+        });
+
+        it('the score-explainer entry stays hidden when the install hides the explainer', () => {
+          mockStore.config.set({ features: { show_critique: false } });
+          fixture.detectChanges();
+          const entry = Array.from(rail.querySelectorAll('button'))
+            .find(b => b.textContent!.includes(I18N.critique.title));
+          expect(entry).toBeUndefined();
+        });
       });
 
       it('yields the shared drawer to the filters while they are open', () => {
@@ -4775,6 +4794,42 @@ describe('GalleryComponent', () => {
       const tile = card.querySelector('[role="button"]') as HTMLElement;
       expect(tile.classList.contains('aspect-square')).toBe(true);
       expect(card.querySelector('img')!.classList.contains('object-cover')).toBe(true);
+      mockStore.filters.set({ ...DEFAULT_FILTERS });
+    });
+
+    it('keeps the original ratio when the tile fit is natural (no fill, natural row heights)', () => {
+      pin();
+      mockStore.filters.set({ ...DEFAULT_FILTERS, hide_details: true, tile_fit: 'natural' });
+      render('grid', false);
+      const card = fixture!.nativeElement.querySelector('app-photo-card') as HTMLElement;
+      const tile = card.querySelector('[role="button"]') as HTMLElement;
+      expect(tile.classList.contains('aspect-square')).toBe(false);
+      expect(card.querySelector('img')!.classList.contains('object-cover')).toBe(false);
+      const row = fixture!.componentInstance.rowsModel()[0];
+      expect(row.height).not.toBe(row.widths[0]);
+      expect(card.closest('.grid')!.classList.contains('items-start')).toBe(true);
+      mockStore.filters.set({ ...DEFAULT_FILTERS });
+    });
+
+    it('sizes each windowed natural-fit card from the row model, not the row height', () => {
+      pin();
+      mockStore.filters.set({ ...DEFAULT_FILTERS, hide_details: true, tile_fit: 'natural' });
+      render('grid', true);
+      const row = fixture!.componentInstance.rowsModel()[0];
+      const cards = Array.from(fixture!.nativeElement.querySelectorAll('app-photo-card')) as HTMLElement[];
+      expect(row.heights).toHaveLength(row.photos.length);
+      expect(cards.slice(0, row.photos.length).map(c => c.style.height))
+        .toEqual(row.heights!.map(h => `${h}px`));
+      mockStore.filters.set({ ...DEFAULT_FILTERS });
+    });
+
+    it('keeps equal-height cards when details are shown, whatever the tile fit', () => {
+      pin();
+      mockStore.filters.set({ ...DEFAULT_FILTERS, hide_details: false, tile_fit: 'natural' });
+      render('grid', false);
+      const card = fixture!.nativeElement.querySelector('app-photo-card') as HTMLElement;
+      expect(card.closest('.grid')!.classList.contains('items-start')).toBe(false);
+      expect(fixture!.componentInstance.rowsModel().every(r => r.heights === undefined)).toBe(true);
       mockStore.filters.set({ ...DEFAULT_FILTERS });
     });
 
