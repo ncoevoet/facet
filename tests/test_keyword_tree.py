@@ -86,8 +86,8 @@ def test_filtered_batch_uses_the_same_explicit_branch_membership(edition_client,
     response = edition_client.post('/api/photos/batch_rating', json={'filters': {'keyword_branch': root}, 'rating': 3})
     assert response.status_code == 200, response.text
     with sqlite3.connect(DEFAULT_DB_PATH) as conn:
-        ratings = dict(conn.execute('SELECT photo_path,star_rating FROM user_preferences WHERE user_id=? AND photo_path LIKE ?',
-                                    ('test', str(Path(paths[0]).parents[1]) + '/%')))
+        ratings = dict(conn.execute('SELECT photo_path,star_rating FROM user_preferences WHERE user_id=? AND photo_path IN (?,?,?,?)',
+                                    ['test', *paths]))
         assert ratings == {paths[0]: 3, paths[1]: 3}
 
 
