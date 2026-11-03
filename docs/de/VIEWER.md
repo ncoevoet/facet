@@ -1164,16 +1164,18 @@ Einzeltasten-Kürzel sind inaktiv, solange der Fokus in einem Textfeld, Menü od
 | `Shift+Click` | Fotos zwischen zuletzt ausgewähltem und angeklicktem als Bereich auswählen |
 | `Double-click` | Foto öffnen |
 | `Shift+F10` / `Menu` | Das Kontextmenü der fokussierten Fotokarte öffnen (Rechtsklick tut dasselbe) |
-| `1`–`5` | Das fokussierte Foto mit 1–5 Sternen bewerten (Bearbeitungsmodus; springt automatisch zum nächsten Foto) |
+| `1`–`5` | Das fokussierte Foto mit 1–5 Sternen bewerten (Bearbeitungsmodus) |
 | `K` | Das fokussierte Foto behalten (Bearbeitungsmodus) |
 | `F` | Das fokussierte Foto favorisieren / Favorit aufheben (Bearbeitungsmodus) |
-| `X` oder `0` | Das fokussierte Foto ablehnen / Ablehnung aufheben (Bearbeitungsmodus; springt automatisch weiter) |
-| `/` | Die Suche der Symbolleiste fokussieren (ab 1360 px Breite sichtbar); schmaler öffnet es die Suche der Filter-Seitenleiste |
+| `X` oder `0` | Das fokussierte Foto ablehnen / Ablehnung aufheben (Bearbeitungsmodus) |
+| `/` | Die Sammlungssuche fokussieren; auf schmalen Bildschirmen zuerst einblenden |
 | `S` | Den Stapel-Editor für die ausdrückliche Auswahl öffnen (Bearbeitungsmodus; umbelegbar, kann unbelegt bleiben) |
 | `Strg+Umschalt+S` / `Cmd+Umschalt+S` | Die ausdrückliche, ungestapelte Auswahl sofort in Auswahlreihenfolge stapeln, das erste Foto als Titelbild (Bearbeitungsmodus; vorhandene Stapelmitglieder öffnen den Editor) |
 | `B` | Die Filter-Seitenleiste ein-/ausblenden |
-| `V` | Zwischen Raster- und Mosaiklayout wechseln |
+| `V` | Zwischen Raster, Mosaik und Liste wechseln |
 | `?` | Die Tastenkürzel-Referenz anzeigen (auf jeder Seite; auch unter Benutzermenü → Hilfe) |
+
+**Nach dem Speichern weiter** ist in den Ansichtsoptionen standardmäßig ausgeschaltet. Aktivieren Sie es, um nach einer erfolgreich gespeicherten Bewertung, Behalten- oder Ablehnen-Tastenkombination zum nächsten Foto zu wechseln. Die Einstellung gilt für die aktuelle Sitzung; ein Wechsel von Foto, Sammlung oder Konto während des Speicherns verhindert das automatische Weiterspringen.
 
 **Tasten umbelegen.** `K`, `F`, `X`, `/`, `B`, `V` und `S` sind Standardwerte. Unter Benutzermenü → **Tastenkürzel anpassen** klicken Sie eine Aktion an und drücken eine neue Taste (`Esc` oder `Tab` bricht ab). Ziffern, `Space` und `?` sind reserviert, und eine bereits verwendete Taste wird abgelehnt. **Alle zurücksetzen** stellt die Standardwerte wieder her. Die Belegung wird pro Browser gespeichert (`localStorage`). Die Fotoseite verwendet dieselben Tasten, und die Referenz unter `?` zeigt immer die geltenden Tasten.
 

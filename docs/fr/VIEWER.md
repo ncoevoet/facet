@@ -1163,16 +1163,18 @@ Les raccourcis à touche unique sont inactifs quand le focus est dans un champ d
 | `Shift+Click` | Sélectionne une plage de photos entre la dernière sélectionnée et celle cliquée |
 | `Double-click` | Ouvre la photo |
 | `Shift+F10` / `Menu` | Ouvre le menu contextuel de la carte de photo ciblée (le clic droit fait de même) |
-| `1`–`5` | Note la photo ciblée de 1 à 5 étoiles (mode édition ; passe automatiquement à la photo suivante) |
+| `1`–`5` | Note la photo ciblée de 1 à 5 étoiles (mode édition) |
 | `K` | Garde la photo ciblée (mode édition) |
 | `F` | Met en favori / retire des favoris la photo ciblée (mode édition) |
-| `X` ou `0` | Rejette / annule le rejet de la photo ciblée (mode édition ; passe automatiquement à la suivante) |
-| `/` | Met le focus sur la recherche de la barre d'outils (affichée à partir de 1360 px de large) ; plus étroit, ouvre la recherche de la barre latérale de filtres |
+| `X` ou `0` | Rejette / annule le rejet de la photo ciblée (mode édition) |
+| `/` | Place le focus dans la recherche de la collection ; l’affiche d’abord sur un écran étroit |
 | `S` | Ouvre l'éditeur de piles pour la sélection explicite (mode édition ; réassignable, peut rester non assignée) |
 | `Ctrl+Maj+S` / `Cmd+Maj+S` | Empile aussitôt la sélection explicite non empilée dans l’ordre de sélection, la première photo servant de couverture (mode édition ; les membres de piles existantes ouvrent l’éditeur) |
 | `B` | Affiche / masque la barre latérale de filtres |
-| `V` | Bascule entre la disposition grille et mosaïque |
+| `V` | Parcourt les dispositions grille, mosaïque et liste |
 | `?` | Affiche la référence des raccourcis clavier (sur chaque page ; aussi dans menu utilisateur → Aide) |
+
+**Avancer après enregistrement**, dans les options d’affichage, est désactivé par défaut. Activez-le pour passer à la photo suivante après l’enregistrement réussi d’une note ou d’un raccourci de conservation ou de rejet. Ce choix vaut pour la session en cours ; changer de photo, de collection ou de compte pendant l’enregistrement empêche l’avancement automatique.
 
 **Réassigner les touches.** `K`, `F`, `X`, `/`, `B`, `V` et `S` sont les valeurs par défaut. Menu utilisateur → **Personnaliser les raccourcis** vous permet de cliquer sur une action et d'appuyer sur une nouvelle touche (`Esc` ou `Tab` annule). Les chiffres, `Space` et `?` sont réservés, et une touche déjà utilisée est refusée. **Tout réinitialiser** restaure les valeurs par défaut. L'association est enregistrée par navigateur (`localStorage`). La page de photo utilise les mêmes touches, et la référence `?` montre toujours les touches en vigueur.
 

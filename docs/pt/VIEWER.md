@@ -1161,16 +1161,18 @@ Os atalhos de uma tecla ficam inativos enquanto o foco está em um campo de text
 | `Shift+Click` | Seleciona o intervalo de fotos entre a última selecionada e a clicada |
 | `Double-click` | Abre a foto |
 | `Shift+F10` / `Menu` | Abre o menu de contexto do cartão de foto em foco (o clique direito faz o mesmo) |
-| `1`–`5` | Avalia a foto em foco com 1–5 estrelas (modo de edição; avança sozinho para a foto seguinte) |
+| `1`–`5` | Avalia a foto em foco com 1–5 estrelas (modo de edição) |
 | `K` | Mantém a foto em foco (modo de edição) |
 | `F` | Favorita / desfavorita a foto em foco (modo de edição) |
-| `X` ou `0` | Rejeita / desfaz a rejeição da foto em foco (modo de edição; avança sozinho) |
-| `/` | Foca a busca da barra de ferramentas (mostrada a partir de 1360 px de largura); em larguras menores, abre a busca da barra lateral de filtros |
+| `X` ou `0` | Rejeita / desfaz a rejeição da foto em foco (modo de edição) |
+| `/` | Foca a busca da coleção; primeiro a exibe em telas estreitas |
 | `S` | Abre o editor de pilhas para a seleção explícita (modo de edição; remapeável, pode ficar sem atribuição) |
 | `Ctrl+Shift+S` / `Cmd+Shift+S` | Empilha de imediato a seleção explícita sem pilha pela ordem de seleção, com a primeira foto como capa (modo de edição; membros de pilhas existentes abrem o editor) |
 | `B` | Mostra / oculta a barra lateral de filtros |
-| `V` | Alterna entre o layout em grade e em mosaico |
+| `V` | Alterna entre grade, mosaico e lista |
 | `?` | Mostra a referência de atalhos de teclado (em todas as páginas; também no menu do usuário → Ajuda) |
+
+**Avançar após guardar**, nos controles de visualização, vem desativado. Ative-o para passar à próxima foto após salvar uma avaliação ou usar com sucesso os atalhos de manter ou rejeitar. A escolha vale para a sessão atual; mudar de foto, coleção ou conta durante o salvamento impede o avanço automático.
 
 **Remapear teclas.** `K`, `F`, `X`, `/`, `B`, `V` e `S` são padrões. Menu do usuário → **Personalizar atalhos** permite clicar em uma ação e pressionar uma nova tecla (`Esc` ou `Tab` cancela). Dígitos, `Space` e `?` são reservados, e uma tecla já em uso é recusada. **Restaurar tudo** restaura os padrões. O mapeamento é salvo por navegador (`localStorage`). A página da foto usa as mesmas teclas, e a referência `?` sempre mostra as teclas em vigor.
 

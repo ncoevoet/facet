@@ -1164,16 +1164,18 @@ Single-key shortcuts are inactive while focus is in a text field, menu or list.
 | `Shift+Click` | Range-select photos between last selected and clicked |
 | `Double-click` | Open photo |
 | `Shift+F10` / `Menu` | Open the context menu of the focused photo card (right-click does the same) |
-| `1`–`5` | Rate the focused photo 1–5 stars (edition mode; auto-advances to the next photo) |
+| `1`–`5` | Rate the focused photo 1–5 stars (edition mode) |
 | `K` | Keep the focused photo (edition mode) |
 | `F` | Favourite / unfavourite the focused photo (edition mode) |
-| `X` or `0` | Reject / un-reject the focused photo (edition mode; auto-advances) |
-| `/` | Focus the toolbar search (shown from 1360 px wide); narrower, opens the filter sidebar's search |
+| `X` or `0` | Reject / un-reject the focused photo (edition mode) |
+| `/` | Focus collection search; reveal it first on a narrow screen |
 | `S` | Open the stack editor for the explicit selection (edition mode; remappable, can be left Unassigned) |
 | `Ctrl+Shift+S` / `Cmd+Shift+S` | Stack the explicit unstacked selection at once in selection order, the first photo as cover (edition mode; existing stack members open the editor) |
 | `B` | Show / hide the filter sidebar |
-| `V` | Switch between grid and mosaic layout |
+| `V` | Cycle through grid, mosaic and list layouts |
 | `?` | Show the keyboard shortcuts reference (every page; also in user menu → Help) |
+
+**Advance after saving** in the view controls is off by default. Turn it on to move to the next photo after a successful rating, Keep or Reject shortcut. It applies to the current session; changing the photo, collection or account while saving prevents automatic advancement.
 
 **Remap keys.** `K`, `F`, `X`, `/`, `B`, `V` and `S` are defaults. User menu → **Customize shortcuts** lets you click an action and press a new key (`Esc` or `Tab` cancels). Digits, `Space` and `?` are reserved, and a key already in use is refused. **Reset all** restores the defaults. The mapping is stored per browser (`localStorage`). The photo page uses the same keys, and the `?` reference always shows the keys in effect.
 

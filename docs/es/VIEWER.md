@@ -1166,16 +1166,18 @@ Los atajos de una sola tecla están inactivos mientras el foco está en un campo
 | `Shift+Click` | Selecciona un rango de fotos entre la última seleccionada y la pulsada |
 | `Double-click` | Abre la foto |
 | `Shift+F10` / `Menu` | Abre el menú contextual de la tarjeta de foto enfocada (el clic derecho hace lo mismo) |
-| `1`–`5` | Valora la foto enfocada con 1–5 estrellas (modo de edición; avanza automáticamente a la siguiente foto) |
+| `1`–`5` | Valora la foto enfocada con 1–5 estrellas (modo de edición) |
 | `K` | Conserva la foto enfocada (modo de edición) |
 | `F` | Marca / desmarca como favorita la foto enfocada (modo de edición) |
-| `X` o `0` | Rechaza / deshace el rechazo de la foto enfocada (modo de edición; avanza automáticamente) |
-| `/` | Enfoca la búsqueda de la barra de herramientas (se muestra desde 1360 px de ancho); más estrecho, abre la búsqueda de la barra lateral de filtros |
+| `X` o `0` | Rechaza / deshace el rechazo de la foto enfocada (modo de edición) |
+| `/` | Enfoca la búsqueda de la colección; la muestra primero en pantallas estrechas |
 | `S` | Abre el editor de pilas para la selección explícita (modo de edición; reasignable, puede quedar sin asignar) |
 | `Ctrl+Mayús+S` / `Cmd+Mayús+S` | Apila al instante la selección explícita sin pila en orden de selección, con la primera foto como portada (modo de edición; los miembros de pilas existentes abren el editor) |
 | `B` | Muestra / oculta la barra lateral de filtros |
-| `V` | Cambia entre el diseño de cuadrícula y de mosaico |
+| `V` | Alterna entre cuadrícula, mosaico y lista |
 | `?` | Muestra la referencia de atajos de teclado (todas las páginas; también en menú de usuario → Ayuda) |
+
+**Avanzar al guardar**, en los controles de vista, está desactivado por defecto. Actívalo para pasar a la siguiente foto después de guardar correctamente una valoración o usar los atajos de conservar o rechazar. Se aplica a la sesión actual; cambiar de foto, colección o cuenta mientras se guarda impide el avance automático.
 
 **Reasignar teclas.** `K`, `F`, `X`, `/`, `B`, `V` y `S` son valores por defecto. Menú de usuario → **Personalizar atajos** te permite hacer clic en una acción y pulsar una tecla nueva (`Esc` o `Tab` cancela). Los dígitos, `Space` y `?` están reservados, y una tecla ya en uso se rechaza. **Restablecer todo** restaura los valores por defecto. La asignación se guarda por navegador (`localStorage`). La página de la foto usa las mismas teclas, y la referencia `?` siempre muestra las teclas en vigor.
 
