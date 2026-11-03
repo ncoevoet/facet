@@ -295,3 +295,31 @@ def test_qrealign_sizes_match_the_schema_and_each_has_a_budget():
     assert {s for s in MODELS if s != "mini"} == {"lite"}
     assert ModelManager.QREALIGN_LITE_VRAM_GB > ModelManager.MODEL_VRAM_REQUIREMENTS["qrealign"]
     assert ModelManager.QREALIGN_LITE_RAM_GB > ModelManager.MODEL_RAM_REQUIREMENTS["qrealign"]
+
+
+def test_recompute_iqa_qrealign_gets_a_real_device(monkeypatch):
+    """--recompute-iqa builds a lightweight Facet (device None); Q-ReAlign must not get None."""
+    from types import SimpleNamespace
+
+    import licensing
+    from processing.scorer import Facet
+
+    built = []
+
+    class Stub:
+        def __init__(self, size, device):
+            built.append(device)
+
+        def load(self):
+            return self
+
+    monkeypatch.setattr(licensing, 'require', lambda feature: None)
+    monkeypatch.setattr('models.qrealign_native.QReAlignNativeScorer', Stub)
+    monkeypatch.setattr('utils.device.get_device', lambda: 'cuda')
+    facet = Facet.__new__(Facet)
+    facet.device = None
+    facet.config = SimpleNamespace(get_qrealign_size=lambda: 'mini')
+
+    facet._make_iqa_scorer('qrealign')
+
+    assert built == ['cuda']
