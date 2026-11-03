@@ -2264,7 +2264,7 @@
       "face_changed": "La cara ha cambiado después de la vista previa",
       "not_person": "No es {name}",
       "feedback_saved": "Ocultada como sugerencia para {name} en tu cuenta.",
-      "feedback_undo": "Deshacer comentario"
+      "feedback_undo": "Deshacer rechazo"
     },
     "face_update": {
       "title": "Actualizar caras",
@@ -3167,7 +3167,7 @@
       "show": "Mostrar colección",
       "hide": "Ocultar colección",
       "resize": "Cambiar el ancho del panel de colección",
-      "loaded": "{loaded} de {total} cargadas",
+      "loaded": "{loaded} de {total} elementos mostrados cargados · mismos filtros y orden",
       "more": "Cargar más"
     },
     "back": "Volver",

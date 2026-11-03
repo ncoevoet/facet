@@ -3167,7 +3167,7 @@
       "show": "Mostra raccolta",
       "hide": "Nascondi raccolta",
       "resize": "Ridimensiona il pannello della raccolta",
-      "loaded": "{loaded} di {total} caricate",
+      "loaded": "{loaded} di {total} elementi visualizzati caricati · stessi filtri e ordinamento",
       "more": "Carica altre"
     },
     "back": "Indietro",

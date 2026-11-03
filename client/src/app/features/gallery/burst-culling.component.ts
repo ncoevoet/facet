@@ -929,6 +929,7 @@ interface SceneSummary {
            toolbar button auto-capture would have landed on. -->
       <div #lightboxDialog class="fixed inset-0 z-[100] bg-[var(--facet-image-canvas)] flex flex-col"
            role="dialog"
+           [attr.aria-label]="I18N.culling.darkroom | translate"
            aria-modal="true"
            tabindex="-1"
            cdkTrapFocus
@@ -963,16 +964,19 @@ interface SceneSummary {
                     [class.!text-[var(--mat-sys-primary)]]="compareMode() === 'single'"
                     [matTooltip]="I18N.culling.compare.single | translate"
                     [attr.aria-label]="I18N.culling.compare.single | translate"
+                    [attr.aria-pressed]="compareMode() === 'single'"
                     (click)="setCompareMode('single')"><mat-icon>crop_original</mat-icon></button>
             <button mat-icon-button [class.!text-white]="compareMode() !== '2up'"
                     [class.!text-[var(--mat-sys-primary)]]="compareMode() === '2up'"
                     [matTooltip]="I18N.culling.compare['2up'] | translate"
                     [attr.aria-label]="I18N.culling.compare['2up'] | translate"
+                    [attr.aria-pressed]="compareMode() === '2up'"
                     (click)="setCompareMode('2up')"><mat-icon>splitscreen</mat-icon></button>
             <button mat-icon-button [class.!text-white]="compareMode() !== '4up'"
                     [class.!text-[var(--mat-sys-primary)]]="compareMode() === '4up'"
                     [matTooltip]="I18N.culling.compare['4up'] | translate"
                     [attr.aria-label]="I18N.culling.compare['4up'] | translate"
+                    [attr.aria-pressed]="compareMode() === '4up'"
                     (click)="setCompareMode('4up')"><mat-icon>grid_view</mat-icon></button>
             <details #darkroomTools tabindex="-1" class="relative shrink-0" data-darkroom-tools
                      (keydown.escape)="darkroomTools.open = false; darkroomToolsSummary.focus(); $event.preventDefault(); $event.stopPropagation()">

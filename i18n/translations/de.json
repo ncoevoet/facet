@@ -3167,7 +3167,7 @@
       "show": "Sammlung einblenden",
       "hide": "Sammlung ausblenden",
       "resize": "Breite der Sammlungsleiste ändern",
-      "loaded": "{loaded} von {total} geladen",
+      "loaded": "{loaded} von {total} angezeigten Elementen geladen · gleiche Filter und Sortierung",
       "more": "Mehr laden"
     },
     "back": "Zurück",

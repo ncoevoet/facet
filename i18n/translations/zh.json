@@ -3167,7 +3167,7 @@
       "show": "显示集合",
       "hide": "隐藏集合",
       "resize": "调整集合侧栏宽度",
-      "loaded": "已加载 {loaded} / {total}",
+      "loaded": "已加载 {loaded}/{total} 个显示项目 · 相同筛选和排序",
       "more": "加载更多"
     },
     "back": "返回",

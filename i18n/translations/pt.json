@@ -2264,7 +2264,7 @@
       "face_changed": "O rosto mudou após a pré-visualização",
       "not_person": "Não é {name}",
       "feedback_saved": "Ocultado como sugestão para {name} na sua conta.",
-      "feedback_undo": "Anular comentário"
+      "feedback_undo": "Anular feedback"
     },
     "face_update": {
       "title": "Atualizar rostos",
@@ -3167,7 +3167,7 @@
       "show": "Mostrar coleção",
       "hide": "Ocultar coleção",
       "resize": "Redimensionar o painel da coleção",
-      "loaded": "{loaded} de {total} carregadas",
+      "loaded": "{loaded} de {total} itens apresentados carregados · mesmos filtros e ordenação",
       "more": "Carregar mais"
     },
     "back": "Voltar",

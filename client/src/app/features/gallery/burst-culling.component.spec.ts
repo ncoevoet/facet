@@ -4016,8 +4016,22 @@ describe('BurstCullingComponent modals (rendered)', () => {
     openDarkroom();
 
     const darkroom = fixture.debugElement.query(By.css('[role="dialog"][aria-modal="true"]'));
+    expect(darkroom.nativeElement.getAttribute('aria-label')).toBe('culling.darkroom');
     expect(fixture.debugElement.queryAll(By.directive(CdkTrapFocus))
       .some(el => el.nativeElement === darkroom.nativeElement)).toBe(true);
+  });
+
+  it('announces the selected darkroom layout after switching modes', () => {
+    openDarkroom();
+    for (const mode of ['single', '2up', '4up']) {
+      const button: HTMLButtonElement = fixture.nativeElement.querySelector(`[aria-label="culling.compare.${mode}"]`);
+      button.click();
+      fixture.detectChanges();
+      for (const candidate of ['single', '2up', '4up']) {
+        expect(fixture.nativeElement.querySelector(`[aria-label="culling.compare.${candidate}"]`)
+          .getAttribute('aria-pressed')).toBe(String(candidate === mode));
+      }
+    }
   });
 
   // The darkroom's shields are the auto-cull dialog's problem one layer down:

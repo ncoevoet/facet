@@ -3167,7 +3167,7 @@
       "show": "Afficher la collection",
       "hide": "Masquer la collection",
       "resize": "Redimensionner le panneau de collection",
-      "loaded": "{loaded} sur {total} chargées",
+      "loaded": "{loaded} éléments affichés chargés sur {total} · mêmes filtres et même tri",
       "more": "Charger plus"
     },
     "back": "Retour",
