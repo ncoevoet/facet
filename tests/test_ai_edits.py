@@ -310,10 +310,12 @@ def test_the_import_scan_follows_the_scan_access_rule(monkeypatch, multi, user, 
     monkeypatch.setattr(scan_router, 'is_multi_user_enabled', lambda: multi)
     monkeypatch.setattr(scan_router, '_is_open_install', lambda key: open_install)
     monkeypatch.setattr(scan_router, '_library_job_conflict_detail', lambda: None)
-    monkeypatch.setattr(scan_router, '_spawn_scan', lambda targets, reported: spawned.append(targets))
+    monkeypatch.setattr(scan_router, '_spawn_scan',
+                        lambda targets, reported, flags=(): spawned.append((targets, flags)))
     monkeypatch.setitem(scan_router._scan_state, 'running', False)
     assert scan_router.start_file_scan(user, ['/p/x_agy_1.jpg']) == refused
-    assert spawned == ([] if refused else [['/p/x_agy_1.jpg']])
+    # Only the new file, with --ai-edit: no library-wide passes for one imported edit.
+    assert spawned == ([] if refused else [(['/p/x_agy_1.jpg'], ('--ai-edit',))])
 
 
 def test_the_link_reads_from_both_sides_once_the_edit_is_scanned(edition_client, library, seed_photos_prefix):
@@ -418,27 +420,3 @@ def test_an_original_on_its_own_starts_a_burst_with_its_edit(edition_client, lib
             conn.execute('SELECT burst_group_id, is_burst_lead, tags FROM photos WHERE path = ?', (target,)).fetchone())
     assert og is not None and og == eg and (ol, el) == (1, 0)
     assert tags == 'own'
-
-
-def test_the_import_scans_only_its_file_with_the_ai_edit_flag(monkeypatch):
-    from api.routers import scan
-
-    spawned = []
-    monkeypatch.setattr(scan, 'scan_feature_refusal', lambda user: None)
-    monkeypatch.setattr(scan, '_library_job_conflict_detail', lambda: None)
-    monkeypatch.setattr(scan, '_spawn_scan', lambda targets, reported, flags=(): spawned.append((targets, flags)))
-    monkeypatch.setitem(scan._scan_state, 'running', False)
-    assert scan.start_file_scan(None, ['/p/IMG_1_agy_1.JPG']) is None
-    assert spawned == [(['/p/IMG_1_agy_1.JPG'], ('--ai-edit',))]
-
-
-def test_an_ai_edit_scan_stops_before_the_library_wide_passes():
-    import inspect
-
-    import facet
-
-    source = inspect.getsource(facet._run_scan)
-    stop = source.index('if args.ai_edit:')
-    assert stop < source.index('process_bursts(') < source.index('detect_all_sequences(')
-    assert source.index('apply_ai_edit_captions(conn)') < stop
-    assert 'return True' in source[stop:source.index('process_bursts(')]

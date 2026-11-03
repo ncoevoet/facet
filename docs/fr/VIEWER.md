@@ -352,7 +352,7 @@ Le contrôle **Garder le top %** de la barre d'outils (mode édition) trie toute
 Un outil d'IA peut ajouter à la bibliothèque une copie retouchée d'une photo avec l'outil d'assistant `import_ai_edit` (voir [Agents IA](AGENTS.md)). L'assistant envoie l'image elle-même, et Facet écrit sa propre copie à côté de l'original sous le nom `{name}_{suffix}_{revision}{ext}`, par exemple `IMG_3533_agy_1.JPG`, puis l'analyse seule. Pendant un import, Facet ne supprime ni n'écrase jamais de fichier.
 
 - La galerie marque une retouche d'un ✨ **IA** en haut de sa vignette. ✨ est réservé à ce qu'une IA a produit ou choisi.
-- Une retouche prise au même instant rejoint en général la rafale de l'original ; « Meilleure de la rafale » montre la mieux notée.
+- Une retouche rejoint toujours la rafale de son original : l'import l'y place et chaque scan suivant l'y garde, quelle que soit son heure de prise de vue. « Meilleure de la rafale » montre la mieux notée, la retouche ou l'original.
 - Sur la page de la photo, la bande de la rafale montre d'abord les vues que la galerie garde, puis les retouches IA, marquées ✨ **IA**, et enfin les clignements qu'elle masque, marqués **CLIN**.
 
 ### Liste épinglée par l'assistant

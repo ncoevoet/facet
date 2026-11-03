@@ -2132,10 +2132,16 @@ def _run_scan(args, resumed_run):
     # An AI-edit import scans only its new file: put it in its original's burst and stop
     # here, instead of re-running the library-wide passes below for one photo.
     if args.ai_edit:
+        # The scanned files, resolved the way the scan stored them: a relative argument or a
+        # folder would otherwise match no edit_path and place nothing.
+        scanned = [_resolved(f) for f in todo_list]
         with sqlite3.connect(scorer.db_path) as conn:
-            placed = join_ai_edits_to_original_sets(conn, args.photo_paths)
+            placed = join_ai_edits_to_original_sets(conn, scanned)
             conn.commit()
         logger.info("Placed %d AI edit(s) in their original's burst.", placed)
+        if placed < len(scanned):
+            logger.warning("%d scanned file(s) are not recorded AI edits and stay out of any burst "
+                           "until the next full scan.", len(scanned) - placed)
         _log_scan_db_destination(scorer.db_path)
         emit_progress('done', force=True)
         logger.info("All tasks complete.")

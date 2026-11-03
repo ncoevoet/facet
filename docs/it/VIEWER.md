@@ -352,7 +352,7 @@ Il controllo **Tieni top %** nella barra degli strumenti (modalità di modifica)
 Uno strumento di IA può portare nella libreria una copia modificata di una foto con lo strumento dell'assistente `import_ai_edit` (vedi [Agenti IA](AGENTS.md)). L'assistente invia l'immagine stessa, e Facet scrive una propria copia accanto all'originale come `{name}_{suffix}_{revision}{ext}`, per esempio `IMG_3533_agy_1.JPG`, e la analizza da sola. Durante un'importazione Facet non cancella né sovrascrive mai un file.
 
 - La galleria segna una modifica con ✨ **IA** in cima alla sua miniatura. ✨ è riservato a ciò che un'IA ha creato o scelto.
-- Una modifica con lo stesso orario di scatto di solito entra nella raffica dell'originale; «Migliore della raffica» mostra quella con punteggio più alto.
+- Una modifica entra sempre nella raffica del suo originale: l'importazione ve la mette e ogni scansione successiva ve la tiene, qualunque sia l'orario di scatto. «Migliore della raffica» mostra quella con punteggio più alto, la modifica o l'originale.
 - Nella pagina della foto la striscia della raffica mostra prima i fotogrammi che la galleria tiene, poi le modifiche IA, segnate ✨ **IA**, e infine gli occhi chiusi che nasconde, segnati **OCCHI CHIUSI**.
 
 ### Elenco fissato dall'assistente

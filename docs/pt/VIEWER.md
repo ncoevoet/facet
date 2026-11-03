@@ -352,7 +352,7 @@ O controle **Manter top %** na barra de ferramentas (modo de edição) faz a tri
 Uma ferramenta de IA pode trazer para a biblioteca uma cópia editada de uma foto com a ferramenta do assistente `import_ai_edit` (ver [Agentes de IA](AGENTS.md)). O assistente envia a própria imagem, e o Facet escreve a sua própria cópia ao lado do original como `{name}_{suffix}_{revision}{ext}`, por exemplo `IMG_3533_agy_1.JPG`, e analisa-a sozinha. Durante uma importação o Facet nunca apaga nem substitui um ficheiro.
 
 - A galeria assinala uma edição com ✨ **IA** no topo da miniatura. ✨ fica reservado ao que uma IA criou ou escolheu.
-- Uma edição com a mesma hora de captura costuma juntar-se à rajada do original; «Melhor da rajada» mostra a de pontuação mais alta.
+- Uma edição junta-se sempre à rajada do seu original: a importação coloca-a lá e cada análise seguinte mantém-na, seja qual for a hora de captura. «Melhor da rajada» mostra a de pontuação mais alta, a edição ou o original.
 - Na página da foto, a faixa da rajada mostra primeiro as fotos que a galeria mantém, depois as edições por IA, marcadas ✨ **IA**, e por fim os piscares que oculta, marcados **PISCOU**.
 
 ### Lista fixada pelo assistente
