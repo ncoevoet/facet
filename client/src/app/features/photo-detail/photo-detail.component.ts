@@ -1079,7 +1079,6 @@ export class PhotoDetailComponent extends PhotoDetailBase implements OnInit {
     }
     this.photoMissing.set(false);
     this.photo.set(photo);
-
   }
 
   private memberAllowed(path: string): boolean {
@@ -1489,10 +1488,6 @@ export class PhotoDetailComponent extends PhotoDetailBase implements OnInit {
     await this.refreshPeople(path);
   }
 
-  protected navigateToGallery(filter: string, value: string | number): void {
-    this.router.navigate(['/'], { queryParams: { [filter]: String(value) } });
-  }
-
   protected navigateTag(tag: string, scope: 'collection' | 'library'): void {
     if (this.viewerOwner !== this.auth.identity() || this.destroyRef.destroyed) return;
     if (scope === 'collection' && !this.tagCollectionAvailable()) return;
@@ -1588,18 +1583,6 @@ export class PhotoDetailComponent extends PhotoDetailBase implements OnInit {
     section.scrollIntoView({ block: 'nearest' });
   }
 
-  /**
-   * Open the delete confirm dialog and, on confirm, call
-   * `PhotoActionsService.deletePhotos` for the single open photo.
-   *
-   * `hasSiblings`/`hasBracketLead` are read off the already-fetched
-   * `photoSet()` rather than a fresh request: a bracket/panorama/hdr_panorama
-   * set with more than one member offers the sibling checkbox, and this
-   * photo being that set's own bracket-kind lead frame is exactly the
-   * condition the endpoint refuses without `includeSequenceSiblings`
-   * (decision 7) -- known precisely here, unlike the gallery's bulk
-   * selection, which has no per-path lead signal client-side.
-   */
   protected async removeFromCatalog(): Promise<void> {
     const photo = this.photo();
     if (!photo?.is_rejected || photo.is_kept) return;
@@ -1609,6 +1592,7 @@ export class PhotoDetailComponent extends PhotoDetailBase implements OnInit {
     if (!this.destroyRef.destroyed && this.viewerOwner === this.auth.identity() && this.photo()?.path === photo.path && removed.includes(photo.path)) this.goBack();
   }
 
+  /** Open the trash dialog with sibling and bracket-lead information from the loaded set. */
   protected deletePhoto(): void {
     const p = this.photo();
     if (!p?.is_rejected || p.is_kept) return;

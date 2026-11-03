@@ -1628,13 +1628,13 @@ export class GalleryComponent implements OnInit, OnDestroy {
     }, { injector: this.injector });
   }
 
+  private noticeLayoutWide: boolean | undefined;
   /** Fold/unfold the stack as its card set changes: the first cards arm the
    *  countdown, a new or dismissed card re-expands with a fresh window, an
    *  emptied stack resets so the next arrival starts expanded. The mobile
    *  'over' drawer hides the stack entirely, so the countdown waits and starts
    *  afresh when it closes. A stack that leaves the DOM fires no pointerleave,
    *  so it also clears the pointer hold. */
-  private noticeLayoutWide: boolean | undefined;
   private readonly noticeCollapseLifecycle = effect(() => {
     const signature = this.noticesSignature();
     const drawerOpen = this.overDrawerOpen();
@@ -2480,24 +2480,6 @@ export class GalleryComponent implements OnInit, OnDestroy {
     event.preventDefault();
     this.selectAll();
   }
-
-  /**
-   * The selected paths as strings, fetched from the server when the selection
-   * is the whole view.
-   *
-   * Only for the handful of actions that genuinely need filenames on the client
-   * (copy, download, add-to-album): everything else sends the filter and lets
-   * the server derive the rows, which is the point of the view scope.
-   *
-   * Under view scope that fetch materialises the entire filtered set — a
-   * multi-megabyte response the user never explicitly asked for, and for
-   * add-to-album a write of one row per photo — so it is confirmed against the
-   * server's own count first, in whichever words fit the action. A null
-   * `confirmMessageKey` is for the caller that already asks in its own words
-   * (`downloadSelected`, past DOWNLOAD_CONFIRM_PHOTOS): two dialogs for one
-   * click is worse than one. The size bound itself lives one level down, in
-   * `pathsInView`, so all three consumers inherit it.
-   */
 
   /**
    * "Keep top N%": ask the server for the bottom (100-N)% of the current view by

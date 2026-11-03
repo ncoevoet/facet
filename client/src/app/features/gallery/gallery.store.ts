@@ -1674,7 +1674,6 @@ export class GalleryStore {
     this.transientReviewStatus.set(false);
   }
 
-  /** Update a single filter; reload from page 1 only when the query changes. */
   /** Similar Photos is a separate library-wide ranking endpoint, not a
    * gallery query. A deliberate refinement must resume the real gallery
    * rather than silently storing a value that this ranking ignores. */
@@ -1685,6 +1684,7 @@ export class GalleryStore {
       ? { similar_to: '' } : {};
   }
 
+  /** Update a single filter; reload from page 1 only when the query changes. */
   async updateFilter<K extends keyof GalleryFilters>(
     key: K,
     value: GalleryFilters[K],

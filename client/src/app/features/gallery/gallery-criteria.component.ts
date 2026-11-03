@@ -25,8 +25,6 @@ import { KeywordBranchLabelPipe } from './keyword-hierarchy-labels.service';
 import { GalleryQueryProposalComponent } from './gallery-query-proposal.component';
 import { GALLERY_REVISIT } from '../../core/gallery-reuse.strategy';
 
-// Credential expiry/rotation is a live storage getter; refresh its label guard
-// on renders even when the memoized filter collection has not changed.
 @Component({selector:'app-gallery-criteria', changeDetection:ChangeDetectionStrategy.Eager,
  imports:[NgTemplateOutlet, MatIconModule, MatSliderModule, MatTooltipModule, PersonFilterChipComponent, TranslatePipe, ThumbnailUrlPipe, GalleryAlbumRulesComponent, KeywordBranchLabelPipe, GalleryQueryProposalComponent, ContextHelpComponent],
  host:{class:'block'}, template:`

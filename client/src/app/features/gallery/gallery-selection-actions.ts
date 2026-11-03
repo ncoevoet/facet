@@ -449,9 +449,7 @@ export class GallerySelectionActions {
     } finally { dispose(); }
   }
 
-  /** Bulk add/remove of one manual tag. The dialog owns the request; the list is
-   *  refetched afterwards because a photo opened in the detail view carries the
-   *  grid row's `manual_tags`, which a bulk write has just made stale. */
+  /** Open a captured manual-tag plan and refresh affected collection rows after writes. */
   async openManualTagsDialog(): Promise<void> {
     if (!this.auth.isEdition() || !this.selectionCount()) return;
     const owner = this.auth.identity();

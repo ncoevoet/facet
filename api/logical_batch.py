@@ -1,5 +1,6 @@
 """Atomic batch review split between logical identities and independent files."""
 import json
+import logging
 from types import SimpleNamespace
 
 from fastapi import HTTPException
@@ -10,6 +11,8 @@ from db.logical_assets import AssetConflict
 from api.config import is_multi_user_enabled
 from api.db_helpers import get_existing_columns, get_visibility_clause, snapshot_labels, read_labels, record_label_origin
 from api.logical_collection import source, membership
+
+logger = logging.getLogger(__name__)
 
 
 def culling_decision(conn, paths, user_id, agent, rejected):
@@ -39,7 +42,7 @@ def culling_decision(conn, paths, user_id, agent, rejected):
 
 
 def apply(conn, body, user, sql, patch, review_rejected):
-    from api.routers.faces import _write_paths, BatchReviewRequest, logger
+    from api.routers.faces import _write_paths, BatchReviewRequest
     from api.routers.gallery import gallery_scope_sql, _raise_422_for_invalid_gallery_params
     from pydantic import ValidationError
 
