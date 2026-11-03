@@ -772,6 +772,9 @@ describe('GalleryFilterSidebarComponent', () => {
       store['filters'].update((f: object) => ({ ...f, person_id: '1,2', person_match: 'all' }));
       component.selectTab('browse'); component.onSectionToggle('persons', true); settle();
       const root = fixture.nativeElement as HTMLElement;
+      const personInput = root.querySelector<HTMLInputElement>('input[role="combobox"]')!;
+      const personLabel = root.querySelector<HTMLLabelElement>(`label[for="${personInput.id}"]`);
+      expect(personLabel?.textContent).toContain('gallery.person');
       const all = root.querySelector<HTMLInputElement>('[data-person-match="all"]')!;
       const any = root.querySelector<HTMLInputElement>('[data-person-match="any"]')!;
       expect(all.checked).toBe(true); expect(any.checked).toBe(false);
@@ -779,6 +782,23 @@ describe('GalleryFilterSidebarComponent', () => {
       expect(store['updateFilter']).toHaveBeenCalledExactlyOnceWith('person_match', 'any');
       expect(store['filters']().person_id).toBe('1,2');
       expect(component.sectionActiveCounts()['persons']).toBe(1);
+    });
+
+    it('exposes selected hue and layout states to assistive technology', () => {
+      component = fixture.componentInstance;
+      store['hueBuckets'].set([{ value: 'red', count: 2 }, { value: 'blue', count: 3 }]);
+      component.selectTab('quality'); component.onSectionToggle('color_quality', true); settle();
+      const root = fixture.nativeElement as HTMLElement;
+      const hues = () => Array.from(root.querySelectorAll<HTMLButtonElement>('[aria-label="gallery.hue"] button'));
+      expect(hues().map(button => button.getAttribute('aria-pressed'))).toEqual(['false', 'false']);
+      store['filters'].update((f: object) => ({ ...f, hue_bucket: 'red' })); settle();
+      expect(hues().map(button => button.getAttribute('aria-pressed'))).toEqual(['true', 'false']);
+      component.selectTab('display'); settle();
+      const grid = root.querySelector('[aria-label="gallery.layout_grid"]')!;
+      const mosaic = root.querySelector('[aria-label="gallery.layout_mosaic"]')!;
+      expect([grid.getAttribute('aria-pressed'), mosaic.getAttribute('aria-pressed')]).toEqual(['true', 'false']);
+      store['galleryMode'].set('mosaic'); settle();
+      expect([grid.getAttribute('aria-pressed'), mosaic.getAttribute('aria-pressed')]).toEqual(['false', 'true']);
     });
 
     it('explains the person-group cap and refuses a stale autocomplete add at the limit', () => {

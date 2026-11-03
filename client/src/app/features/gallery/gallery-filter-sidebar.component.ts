@@ -460,9 +460,7 @@ export function loadActiveTab(): SidebarTabId {
               <p id="face-naming-hint" class="text-xs text-gray-500 dark:text-gray-400">{{ (auth.isEdition() ? I18N.gallery.faces_need_names_hint : I18N.gallery.faces_need_names_readonly_hint) | translate }}</p>
             }
             <mat-form-field subscriptSizing="dynamic" class="w-full">
-              @if (!selectedPersons().length) {
-                <mat-label>{{ I18N.gallery.person | translate }}</mat-label>
-              }
+              <mat-label>{{ I18N.gallery.person | translate }}</mat-label>
               <input matInput #sidebarPersonInput
                      [matAutocomplete]="sidebarPersonAuto" [attr.aria-describedby]="selectedPersonIds().length >= personFilterLimit ? 'person-filter-limit' : null"
                      [value]="sidebarPersonQuery()"
@@ -901,6 +899,7 @@ export function loadActiveTab(): SidebarTabId {
                     class="flex items-center gap-1.5 rounded-full pl-1.5 pr-2.5 py-1 text-xs border border-[var(--mat-sys-outline-variant)] cursor-pointer"
                     [class.!border-[var(--mat-sys-primary)]]="store.filters().hue_bucket === h.value"
                     [class.bg-[var(--mat-sys-primary-container)]]="store.filters().hue_bucket === h.value"
+                    [attr.aria-pressed]="store.filters().hue_bucket === h.value"
                     [matTooltip]="('gallery.hue_buckets.' + h.value | translate) + ' (' + h.count + ')'"
                     (click)="toggleHueBucket(h.value)">
                     <span class="w-3.5 h-3.5 rounded-full shrink-0 border border-black/10" [style.background-color]="hueSwatches[h.value]"></span>
@@ -944,6 +943,7 @@ export function loadActiveTab(): SidebarTabId {
             <div class="flex gap-1 ml-auto">
               <button mat-icon-button class="!w-8 !h-8 !p-0 inline-flex items-center justify-center"
                 [class.!bg-[var(--mat-sys-primary-container)]]="store.galleryMode() === 'grid'"
+                [attr.aria-pressed]="store.galleryMode() === 'grid'"
                 [matTooltip]="I18N.gallery.layout_grid | translate"
                 [attr.aria-label]="I18N.gallery.layout_grid | translate"
                 (click)="store.setGalleryMode('grid')">
@@ -951,6 +951,7 @@ export function loadActiveTab(): SidebarTabId {
               </button>
               <button mat-icon-button class="!w-8 !h-8 !p-0 inline-flex items-center justify-center"
                 [class.!bg-[var(--mat-sys-primary-container)]]="store.galleryMode() === 'mosaic'"
+                [attr.aria-pressed]="store.galleryMode() === 'mosaic'"
                 [matTooltip]="I18N.gallery.layout_mosaic | translate"
                 [attr.aria-label]="I18N.gallery.layout_mosaic | translate"
                 (click)="store.setGalleryMode('mosaic')">
