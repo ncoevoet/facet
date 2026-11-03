@@ -100,6 +100,7 @@ interface AssignmentReport { assigned_count: number; already: number[]; missing:
   `,
 })
 export class FaceReviewQueueComponent {
+  focus(): void { this.host.nativeElement.focus(); }
   protected readonly I18N = I18N;
   readonly mode = input.required<'matches' | 'unassigned'>();
   private readonly api = inject(ApiService);

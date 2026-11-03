@@ -4,7 +4,6 @@ import { ActivatedRoute, Router } from '@angular/router';
 import { MatIconModule } from '@angular/material/icon';
 import { MatButtonModule } from '@angular/material/button';
 import { MatTooltipModule } from '@angular/material/tooltip';
-import { MatMenuModule } from '@angular/material/menu';
 import { firstValueFrom } from 'rxjs';
 import { ExtendedQualityComponent } from '../extended-quality/extended-quality.component';
 import { Photo, normalisePhotoFlags } from '../../models/photo.model';
@@ -16,8 +15,6 @@ import { RenditionReadoutComponent } from '../rendition-readout/rendition-readou
 import { PhotoAssessmentComponent } from '../photo-assessment/photo-assessment.component';
 import { CategoryLabelPipe } from '../../../features/gallery/photo-tooltip.component';
 import { IsLensNamePipe } from '../../pipes/is-lens-name.pipe';
-import { DownloadIconPipe } from '../../pipes/download-icon.pipe';
-import { DownloadOption } from '../../../core/api/types';
 import { PhotoDetailBase } from '../../directives/photo-detail-base.directive';
 import { i18nKeys } from '../../../core/i18n/keys';
 import { sharedAssetPhoto, type SharedAsset, sharedAlbumMediaUrl } from '../../utils/shared-album-media';
@@ -27,9 +24,9 @@ import { sharedAssetPhoto, type SharedAsset, sharedAlbumMediaUrl } from '../../u
   standalone: true,
   imports: [ContextHelpComponent,
     ExtendedQualityComponent,
-    MatIconModule, MatButtonModule, MatTooltipModule, MatMenuModule,
+    MatIconModule, MatButtonModule, MatTooltipModule,
     FixedPipe, ShutterSpeedPipe, TranslatePipe, CaptureDatePipe, RenditionReadoutComponent, PhotoAssessmentComponent,
-    CategoryLabelPipe, IsLensNamePipe, DownloadIconPipe,
+    CategoryLabelPipe, IsLensNamePipe,
   ],
   host: { class: 'block h-full overflow-y-auto lg:overflow-y-hidden' },
   changeDetection: ChangeDetectionStrategy.Eager,
@@ -41,29 +38,10 @@ import { sharedAssetPhoto, type SharedAsset, sharedAlbumMediaUrl } from '../../u
           <mat-icon>arrow_back</mat-icon>
         </button>
         <span class="flex-1 truncate font-medium">{{ p.filename }}</span>
-        @if (downloadOptions().length > 1) {
-          <button mat-button [matMenuTriggerFor]="downloadMenu" [matTooltip]="I18N.photo_detail.download | translate">
-            <mat-icon>download</mat-icon>
-            {{ I18N.photo_detail.download | translate }}
-          </button>
-          <mat-menu #downloadMenu="matMenu">
-            @for (opt of downloadOptions(); track opt.type + (opt.profile ?? '')) {
-              <button mat-menu-item (click)="download(p.path, opt.type, opt.profile ?? undefined)">
-                <mat-icon>{{ opt.type | downloadIcon }}</mat-icon>
-                @if (opt.type === 'darktable') {
-                  {{ opt.profile }}
-                } @else {
-                  {{ ('download.type_' + opt.type) | translate }}
-                }
-              </button>
-            }
-          </mat-menu>
-        } @else {
-          <button mat-button (click)="download(p.path)" [matTooltip]="I18N.photo_detail.download | translate">
-            <mat-icon>download</mat-icon>
-            {{ I18N.photo_detail.download | translate }}
-          </button>
-        }
+        <button mat-button (click)="download(p.path)" [matTooltip]="I18N.photo_detail.download | translate">
+          <mat-icon>download</mat-icon>
+          {{ I18N.photo_detail.download | translate }}
+        </button>
       </div>
 
       <!-- Main content: image + info -->
@@ -289,7 +267,6 @@ export class SharedPhotoDetailComponent extends PhotoDetailBase implements OnIni
   private readonly destroyRef = inject(DestroyRef);
 
   readonly photo = signal<Photo | null>(null);
-  protected readonly downloadOptions = signal<DownloadOption[]>([{ type: 'original', label: 'original' }]);
 
   private get token(): string {
     return this.route.snapshot.queryParamMap.get('token') ?? '';

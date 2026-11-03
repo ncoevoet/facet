@@ -1022,15 +1022,46 @@ describe('ManagePersonsComponent', () => {
       }) : original(url, params));
       const fixture = await render();
       const root = fixture.nativeElement as HTMLElement;
+      document.body.appendChild(root);
+      root.querySelector<HTMLInputElement>('app-face-review-queue input[type="checkbox"]')!.focus();
       root.querySelector<HTMLInputElement>('app-face-review-queue input[type="checkbox"]')!.click(); fixture.detectChanges();
       const queue = fixture.debugElement.query(By.directive(FaceReviewQueueComponent)).componentInstance;
       expect(queue.selected().has(9)).toBe(true);
       const before = mockApi.get.mock.calls.filter(([url]) => url === '/faces/review').length;
       fixture.debugElement.query(By.directive(FaceUpdateControlComponent)).componentInstance.reviewRequested.emit();
       await fixture.whenStable(); fixture.detectChanges();
+      await fixture.whenStable(); fixture.detectChanges();
       expect(mockApi.get.mock.calls.filter(([url]) => url === '/faces/review')).toHaveLength(before + 1);
       expect(queue.selected().size).toBe(0);
       expect(root.querySelector<HTMLInputElement>('app-face-review-queue input[type="checkbox"]')!.checked).toBe(false);
+      expect(document.activeElement).toBe(root.querySelector('app-face-review-queue'));
+      root.remove();
+    });
+
+    it('moves focus to the matches queue after the face-update review action changes tabs', async () => {
+      withTab(null);
+      Object.assign(mockAuth, { isEdition: signal(true), status: signal({ user_id: 'test' }), token: 'fixture' });
+      const fixture = await render(); const root = fixture.nativeElement as HTMLElement;
+      document.body.appendChild(root);
+      fixture.debugElement.query(By.directive(FaceUpdateControlComponent)).componentInstance.reviewRequested.emit();
+      await fixture.whenStable(); fixture.detectChanges(); await fixture.whenStable(); fixture.detectChanges();
+      expect(fixture.componentInstance.tab()).toBe('matches');
+      expect(document.activeElement).toBe(root.querySelector('app-face-review-queue'));
+      root.remove();
+    });
+
+    it('does not move focus when the matches navigation is refused', async () => {
+      withTab(null);
+      Object.assign(mockAuth, { isEdition: signal(true), status: signal({ user_id: 'test' }), token: 'fixture' });
+      const router = TestBed.inject(Router) as unknown as { navigate: Mock };
+      router.navigate.mockResolvedValueOnce(false);
+      const fixture = await render(); const root = fixture.nativeElement as HTMLElement;
+      document.body.appendChild(root);
+      const trigger = root.querySelector<HTMLElement>('[role="tab"]')!; trigger.focus();
+      fixture.debugElement.query(By.directive(FaceUpdateControlComponent)).componentInstance.reviewRequested.emit();
+      await fixture.whenStable(); fixture.detectChanges();
+      expect(fixture.componentInstance.tab()).toBe('named'); expect(document.activeElement).toBe(trigger);
+      root.remove();
     });
 
     it('exposes global review destinations without duplicating the Named toolbar', async () => {

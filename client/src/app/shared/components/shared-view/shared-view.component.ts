@@ -1037,7 +1037,6 @@ export class SharedViewComponent implements OnInit {
       [`/shared/album/${this.entityId}/photo`],
       {
         queryParams: { asset_id: photo.path, token: this.token },
-        state: { photo },
       },
     );
   }

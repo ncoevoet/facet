@@ -1,6 +1,6 @@
 import { FaceReviewQueueComponent } from './face-review-queue.component';
 import { FaceUpdateControlComponent } from './face-update-control.component';
-import { Component, inject, signal, computed, OnInit, effect, untracked, DestroyRef, viewChild, TemplateRef, ChangeDetectionStrategy } from '@angular/core';
+import { afterNextRender, Component, inject, Injector, signal, computed, OnInit, effect, untracked, DestroyRef, viewChild, TemplateRef, ChangeDetectionStrategy } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { FormsModule } from '@angular/forms';
 import { ActivatedRoute, NavigationEnd, Router, RouterLink } from '@angular/router';
@@ -522,6 +522,7 @@ export class ManagePersonsComponent implements OnInit {
   private readonly route = inject(ActivatedRoute);
   private tabNavigation = 0;
   private readonly destroyRef = inject(DestroyRef);
+  private readonly injector = inject(Injector);
   private personsLoadGeneration = 0;
   // Status publishes credential changes; unchanged refreshes should not reload the grid.
   private readonly personsSession = computed(() => {
@@ -539,8 +540,16 @@ export class ManagePersonsComponent implements OnInit {
 
   protected reviewUpdatedFaces(): void {
     if (!this.auth.isEdition() || this.router.currentNavigation()) return;
+    const owner = this.auth.identity(), token = this.auth.token, focused = document.activeElement;
     if (this.tab() === 'matches') this.reviewQueue()?.reload();
-    else this.selectTabIndex(PERSONS_TABS.indexOf('matches'));
+    void this.selectTab('matches').then(completed => {
+      if (!completed || this.destroyRef.destroyed) return;
+      afterNextRender(() => {
+        if (!this.destroyRef.destroyed && owner === this.auth.identity() && token === this.auth.token && this.auth.isEdition()
+          && this.tab() === 'matches' && this.router.url.split('?')[0] === '/persons' && !this.router.currentNavigation()
+          && (document.activeElement === focused || document.activeElement === document.body)) this.reviewQueue()?.focus();
+      }, { injector: this.injector });
+    });
   }
 
   readonly persons = signal<Person[]>([]);
@@ -654,13 +663,13 @@ export class ManagePersonsComponent implements OnInit {
   }
 
   /** Switch tabs and keep the choice in the URL, so a reload or Back returns to it. */
-  selectTab(tab: PersonsTab): void {
-    if (tab === this.tab()) return;
+  selectTab(tab: PersonsTab): Promise<boolean> {
+    if (tab === this.tab()) return Promise.resolve(true);
     const previous = this.tab(), navigation = ++this.tabNavigation;
     this.tab.set(tab);
-    void this.router.navigate([], { queryParams: { tab }, queryParamsHandling: 'merge', replaceUrl: true })
-      .then(completed => { if (!completed && this.tabNavigation === navigation && this.tab() === tab) this.tab.set(previous); })
-      .catch(() => { if (this.tabNavigation === navigation && this.tab() === tab) this.tab.set(previous); });
+    return this.router.navigate([], { queryParams: { tab }, queryParamsHandling: 'merge', replaceUrl: true })
+      .then(completed => { if (!completed && this.tabNavigation === navigation && this.tab() === tab) this.tab.set(previous); return completed; })
+      .catch(() => { if (this.tabNavigation === navigation && this.tab() === tab) this.tab.set(previous); return false; });
   }
 
   onPersonsSortChange(sort: string): void {
