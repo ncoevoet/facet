@@ -71,7 +71,7 @@ from typing import NamedTuple
 from xml.etree import ElementTree as ET
 
 from db.manual_tags import enrich_effective_tags, load_manual_tags_map, merge_effective_tags
-from db.keyword_hierarchy import HierarchyError, MAX_ASSIGNMENTS, load_hierarchy_map, normalize_path
+from db.keyword_hierarchy import HierarchyError, MAX_ASSIGNMENTS, load_hierarchy_map, parse_imported_path
 from processing.xmp_keywords import parse_keyword_state, reconcile_keywords as merge_keyword_state, serialize_keyword_state
 from utils.capture_dates import parse_capture_date
 from utils.image_loading import JPEG_EXTENSIONS, KNOWN_HEIF_EXTENSIONS
@@ -371,9 +371,7 @@ def _explicit_hierarchy_paths(values) -> list[str]:
     if not isinstance(values, (list, tuple)) or len(values) > MAX_ASSIGNMENTS:
         raise HierarchyError('Invalid explicit keyword hierarchy assignments')
     for path in values:
-        if not isinstance(path, str) or len(path) > 1024:
-            raise HierarchyError('Invalid explicit keyword hierarchy path')
-        normalize_path(path.split('|'))
+        parse_imported_path(path)
     return list(dict.fromkeys(values))
 
 
