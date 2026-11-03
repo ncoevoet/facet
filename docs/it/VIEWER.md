@@ -319,7 +319,7 @@ Il badge o una foto impilata apre il visualizzatore con miniature, pulsanti prec
 - Badge della categoria
 - Il clic destro (o Maiusc+F10) apre il [menu contestuale](#selezione-multipla-e-azioni-di-gruppo)
 
-Nel dettaglio della foto, le metriche stanno in schede con icona: dati EXIF (se presenti), Qualità, Composizione (con salienza del soggetto), Tecnica e Istogramma. L'ultima scheda aperta viene ricordata. Ogni punteggio si trova accanto alla sua distribuzione nella libreria, con la barra della foto evidenziata; passa sopra una barra per vedere la posizione della foto e l'intervallo della libreria. La collocazione è calcolata sull'intera libreria, non sui filtri correnti, sulla più vicina di 20 barre.
+Nel dettaglio della foto, le metriche stanno in schede con icona: dati EXIF (se presenti), Qualità, Composizione (con salienza del soggetto), Tecnica e Istogramma. L'ultima scheda aperta viene ricordata. Ogni punteggio disponibile con una distribuzione ha un’icona informativa: passa il puntatore o porta il focus sull’icona per vedere la posizione della foto e l’intervallo della libreria. Il riepilogo conserva il grafico della distribuzione del punteggio aggregato. Le posizioni si riferiscono all’intera libreria, non ai filtri correnti.
 
 **Pannello della raccolta.** Sugli schermi larghi (da 1280 px), una foto presente nella raccolta caricata della galleria (fuori dalla navigazione della Cronologia) mostra alla sua sinistra quelle foto, con gli stessi filtri e lo stesso ordinamento. Fai clic su una miniatura per aprirla; **Carica altre** recupera la pagina successiva. Trascina il divisore, oppure dagli il focus e usa Sinistra/Destra, Inizio e Fine, per ridimensionarlo: una foto per riga se stretto, due se largo. La freccia lo comprime. Il pannello non cambia mai i filtri, la selezione o la destinazione di Indietro.
 
@@ -464,7 +464,7 @@ I filtri attivi compaiono come chip rimovibili con i conteggi in cima alla galle
 
 I tag manuali sono tag che digiti tu, conservati accanto ai tag IA. Sono memorizzati a parte (`photo_manual_tags`, non nella colonna `tags` della foto), quindi nuove scansioni e nuove assegnazioni di tag non li cancellano mai.
 
-- **Dove compaiono.** Solo nel **dettaglio** della foto, come chip contrassegnati in modo diverso dai tag IA. Schede e tooltip mostrano i tag IA.
+- **Dove compaiono.** Il dettaglio della foto distingue i tag manuali dai tag IA. Le schede con dettagli e i tooltip includono entrambi nella navigazione per tag, senza etichette duplicate.
 - **Chi può modificarli.** Gli utenti con modifica. Su un'installazione senza `viewer.edition_password` sono in sola lettura. I tag IA non si possono rimuovere.
 - **Modifica di gruppo.** Seleziona le foto e usa **Modifica tag** (barra di selezione, pannello Azioni mobile o menu contestuale). Aggiungi/Rimuovi cambia un solo tag; Sostituisci accetta un tag per riga; Cancella rimuove tutti i tag manuali. L’anteprima mostra le destinazioni acquisite e i valori misti noti prima di Applica, anche per le selezioni dell’intera vista. Aggiungi salta le foto che hanno già 50 tag manuali; una sostituzione non valida viene rifiutata prima che quella richiesta scriva alcunché. `count` riporta il numero di righe di tag effettivamente modificate, non il numero di foto. I tag IA vengono conservati. Ogni richiesta è atomica, ma un gruppo di più richieste non lo è; un esito incerto di Sostituisci/Cancella richiede un’ispezione prima di un nuovo tentativo.
 - **Formato.** I tag vengono ripuliti agli estremi, messi in minuscolo e con gli spazi compattati (NFC). Massimo 64 caratteri, massimo 50 per foto. Tag vuoti, virgole e caratteri di controllo vengono rifiutati. Un tag uguale a uno dei tag IA della foto non viene memorizzato.
@@ -1180,7 +1180,7 @@ Le scorciatoie a tasto singolo sono inattive mentre il fuoco è in un campo di t
 
 **Foto corrente.** La foto su cui agiscono i tasti di valutazione, preferito e rifiuto ha un contorno di 4px; le altre schede mantengono la luminosità normale. Nulla è segnato finché non ti sposti su una foto. Cliccare una foto sposta il segnaposto su di essa. Tornando da una foto, il segnaposto resta sull'ultima visualizzata. Il suggerimento della scheda a fuoco compare solo in modalità di modifica con `viewer.features.show_rating_controls` attivo.
 
-**Nella pagina della foto**, `1`–`5`, il tasto preferito e il tasto rifiuta (`F` e `X` per impostazione predefinita; anche `0` rifiuta) agiscono sulla foto aperta, in modalità di modifica con `viewer.features.show_rating_controls` attivo. Non avanzano; usa `←` `→`. Il riferimento `?` li elenca sotto *Photo view*.
+**Nella pagina della foto**, `1`–`5`, il tasto preferito e il tasto rifiuta (`F` e `X` per impostazione predefinita; anche `0` rifiuta) agiscono sulla foto aperta, in modalità di modifica con `viewer.features.show_rating_controls` attivo. Valutazioni e preferiti mantengono la foto attuale. Conserva/Rifiuta in una coda di revisione della galleria aggiorna la coda e apre la prossima foto disponibile, oppure torna alla galleria se non ne restano. Le foto della cronologia non avanzano in questo modo. Usa `←` `→` per navigare manualmente. Il riferimento `?` li elenca sotto *Photo view*.
 
 ## Annulla
 

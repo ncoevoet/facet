@@ -1548,7 +1548,7 @@
         "zoom_in": "Agrandir",
         "zoom_out": "Réduire",
         "scale_help": "Le grossissement est relatif à la vue ajustée au cadre, pas aux pixels de la source. Ajuster rétablit l’image entière ; avec des vues liées, toutes les vues sont réinitialisées.",
-        "limit": "Si l’aperçu est indisponible, la miniature enregistrée peut être utilisée. Les images sources peuvent être converties pour le navigateur. Il ne s’agit ni d’un éditeur RAW ni d’une évaluation de l’écrêtage du capteur.",
+        "limit": "La comparaison utilise les images de base, sans les styles de l’espace de retouche. Si l’aperçu est indisponible, la miniature enregistrée peut être utilisée. Les images sources peuvent être converties pour le navigateur. Il ne s’agit ni d’un éditeur RAW ni d’une évaluation de l’écrêtage du capteur.",
         "fit_short": "Ajuster",
         "sources": "Sources des images et grossissement",
         "fallback": "Aperçu indisponible"
@@ -3383,7 +3383,7 @@
       "import_failed": "Impossible d'importer le fichier d'état Lightroom"
     },
     "jobs": {
-      "running": "Export des sidecars",
+      "running": "Export des fichiers",
       "completed": "Export terminé",
       "cancelled": "Export annulé",
       "failed": "Échec de l’export",
@@ -3398,8 +3398,8 @@
       "retry": "Aperçu des fichiers restants",
       "retry_hint": "Vérifiez les métadonnées actuelles et les destinations exactes des fichiers restants avant de confirmer. Les copies ou liens incomplets déjà présents doivent être vérifiés ; les résultats terminés sont conservés.",
       "refresh": "Actualiser l’état",
-      "recent": "Exports récents de sidecars",
-      "none": "Aucun export récent de sidecars.",
+      "recent": "Exports récents",
+      "none": "Aucun export récent.",
       "read_failed": "Impossible de lire la progression. Actualisez l’état pour réessayer.",
       "errors": {
         "metadata_repair": "Les métadonnées existantes doivent être réparées avant l’export.",

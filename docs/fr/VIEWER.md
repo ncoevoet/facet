@@ -319,7 +319,7 @@ Le badge ou une photo empilée ouvre la visionneuse : bande de vignettes, bouton
 - Badge de catégorie
 - Le clic droit (ou Maj+F10) ouvre le [menu contextuel](#sélection-multiple--actions-groupées)
 
-Dans le détail de la photo, les métriques sont réparties en onglets à icônes : données EXIF (si présentes), Qualité, Composition (avec la saillance du sujet), Technique et Histogramme. Le dernier onglet ouvert est mémorisé. Chaque score s'affiche à côté de sa distribution dans la bibliothèque, la barre de la photo étant mise en évidence ; survolez une barre pour voir le rang de la photo et la plage de la bibliothèque. Le placement est calculé sur toute la bibliothèque, et non sur les filtres courants, à la barre la plus proche parmi 20.
+Dans le détail de la photo, les métriques sont réparties en onglets à icônes : données EXIF (si présentes), Qualité, Composition (avec la saillance du sujet), Technique et Histogramme. Le dernier onglet ouvert est mémorisé. Chaque score disponible avec une distribution possède une icône d’information : survolez-la ou donnez-lui le focus pour connaître le rang de la photo et la plage de la bibliothèque. Le résumé conserve le graphique de distribution du score agrégé. Les rangs portent sur toute la bibliothèque, pas sur les filtres courants.
 
 **Panneau de collection.** Sur grand écran (1280 px et plus), une photo qui appartient à la collection chargée de la galerie (hors navigation depuis Chronologie) affiche ces photos à sa gauche, avec les mêmes filtres et le même tri. Cliquez sur une miniature pour l'ouvrir ; **Charger plus** récupère la page suivante. Faites glisser le séparateur, ou donnez-lui le focus et utilisez Gauche/Droite, Début et Fin, pour le redimensionner : une photo par ligne s'il est étroit, deux s'il est large. Le chevron le replie. Le panneau ne change jamais les filtres, la sélection ni la destination de Retour.
 
@@ -464,7 +464,7 @@ Les filtres actifs apparaissent comme des puces amovibles avec compteurs en haut
 
 Les tags manuels sont des tags que vous saisissez vous-même, conservés à côté des tags IA. Ils sont stockés à part (`photo_manual_tags`, et non la colonne `tags` de la photo), si bien que les rescans et ré-étiquetages ne les effacent jamais.
 
-- **Où ils s'affichent.** Dans le **détail** de la photo uniquement, sous forme de puces marquées différemment des tags IA. Les cartes et infobulles montrent les tags IA.
+- **Où ils s'affichent.** Le détail de la photo distingue les tags manuels des tags IA. Les cartes avec détails et les infobulles incluent les deux dans la navigation par tags, sans doublons.
 - **Qui peut les modifier.** Les utilisateurs en mode édition. Sur une installation sans `viewer.edition_password`, ils sont en lecture seule. Les tags IA ne peuvent pas être retirés.
 - **Modification groupée.** Sélectionnez des photos et utilisez **Modifier les mots-clés** (barre de sélection, feuille Actions mobile ou menu contextuel). Ajouter/Retirer change un tag ; Remplacer attend un tag par ligne ; Effacer retire tous les tags manuels. L’aperçu montre les cibles capturées et les valeurs différentes connues avant Appliquer, y compris pour les sélections de toute la vue. Ajouter ignore les photos qui ont déjà 50 tags manuels ; un remplacement invalide est refusé avant toute écriture par cette requête. `count` rapporte les lignes de tags modifiées, pas les photos. Les tags IA sont conservés. Chaque requête est atomique, mais un lot de plusieurs requêtes ne l’est pas ; un résultat incertain de Remplacer/Effacer impose d’inspecter le résultat avant un nouvel essai.
 - **Format.** Les tags sont rognés, mis en minuscules et leurs espaces réduits (NFC). 64 caractères max, 50 max par photo. Les tags vides, les virgules et les caractères de contrôle sont refusés. Un tag égal à l'un des tags IA de la photo n'est pas stocké.
@@ -1180,7 +1180,7 @@ Les raccourcis à touche unique sont inactifs quand le focus est dans un champ d
 
 **Photo courante.** La photo sur laquelle agissent les touches de note, de favori et de rejet a un contour de 4 px ; les autres cartes conservent leur luminosité normale. Rien n'est marqué tant que vous ne vous placez pas sur une photo. Cliquer sur une photo y déplace le repère. Revenir d'une photo laisse le repère sur la dernière consultée. L'indication de carte ciblée n'apparaît qu'en mode édition avec `viewer.features.show_rating_controls` activé.
 
-**Sur la page de photo**, `1`–`5`, la touche de favori et la touche de rejet (`F` et `X` par défaut ; `0` rejette aussi) agissent sur la photo ouverte, en mode édition avec `viewer.features.show_rating_controls` activé. Elles n'avancent pas ; utilisez `←` `→`. La référence `?` les liste sous *Vue photo*.
+**Sur la page de photo**, `1`–`5`, la touche de favori et la touche de rejet (`F` et `X` par défaut ; `0` rejette aussi) agissent sur la photo ouverte, en mode édition avec `viewer.features.show_rating_controls` activé. Les notes et favoris restent sur la photo actuelle. Conserver/Rejeter dans une file de révision de la galerie actualise la file et ouvre la prochaine photo disponible, ou revient à la galerie s’il n’en reste aucune. Les photos de la chronologie n’avancent pas ainsi. Utilisez `←` `→` pour naviguer manuellement. La référence `?` les liste sous *Vue photo*.
 
 ## Annuler
 

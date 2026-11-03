@@ -319,7 +319,7 @@ Das Zählabzeichen oder ein gestapeltes Foto öffnet die Fotoansicht mit Vorscha
 - Kategorieabzeichen
 - Rechtsklick (oder Shift+F10) öffnet das [Kontextmenü](#mehrfachauswahl--sammelaktionen)
 
-In der Fotodetailansicht liegen die Messwerte in Symbol-Tabs: EXIF-Daten (sofern vorhanden), Qualität, Komposition (mit Motiv-Salienz), Technik und Histogramm. Der zuletzt geöffnete Tab wird gemerkt. Jeder Wert steht neben seiner Verteilung über die Bibliothek, mit hervorgehobenem Balken des Fotos; fahren Sie über einen Balken für den Rang des Fotos und den Bereich der Bibliothek. Die Einordnung wird über die gesamte Bibliothek berechnet, nicht über die aktuellen Filter, auf einen von 20 Balken genau.
+In der Fotodetailansicht liegen die Messwerte in Symbol-Tabs: EXIF-Daten (sofern vorhanden), Qualität, Komposition (mit Motiv-Salienz), Technik und Histogramm. Der zuletzt geöffnete Tab wird gemerkt. Jeder verfügbare Messwert mit Bibliotheksverteilung hat ein Informationssymbol: Hover oder Tastaturfokus zeigt den Rang des Fotos und den Wertebereich der Bibliothek. Die Bewertungsübersicht behält das Verteilungsdiagramm des Gesamtwerts. Die Ränge beziehen sich auf die gesamte Bibliothek, nicht auf aktuelle Filter.
 
 **Sammlungsleiste.** Auf breiten Bildschirmen (ab 1280 px) zeigt ein Foto aus der geladenen Galeriesammlung (außer bei Navigation aus der Zeitleiste) links eine Leiste mit diesen Fotos, mit denselben Filtern und derselben Sortierung. Ein Klick auf ein Vorschaubild öffnet es; **Mehr laden** holt die nächste Seite. Die Breite ändert man durch Ziehen am Trenner oder per Fokus mit Links/Rechts, Pos1 und Ende: schmal ein Foto pro Zeile, breit zwei. Der Pfeil klappt sie ein. Die Leiste ändert nie die Filter, die Auswahl oder das Ziel von Zurück.
 
@@ -465,7 +465,7 @@ Aktive Filter erscheinen als entfernbare Chips mit Zählern oben in der Galerie.
 
 Manuelle Tags sind Tags, die Sie selbst eingeben und die neben den KI-Tags stehen. Sie werden getrennt gespeichert (`photo_manual_tags`, nicht die Spalte `tags` des Fotos), sodass erneute Scans und erneutes Tagging sie nie löschen.
 
-- **Wo sie erscheinen.** Nur in der **Detailansicht**, als Chips, die sich von KI-Tags unterscheiden. Karten und Tooltips zeigen KI-Tags.
+- **Wo sie erscheinen.** Die Fotodetailansicht unterscheidet manuelle Tags von KI-Tags. Galeriekarten mit Details und Foto-Tooltips zeigen beide Arten in der Tag-Navigation ohne doppelte Namen.
 - **Wer sie bearbeiten kann.** Benutzer mit Edition. Auf einer Installation ohne `viewer.edition_password` sind sie schreibgeschützt. KI-Tags lassen sich nicht entfernen.
 - **Sammelbearbeitung.** Wählen Sie Fotos aus und nutzen Sie **Schlagwörter bearbeiten** (Auswahlleiste, mobiles Aktionsblatt oder Kontextmenü). Hinzufügen/Entfernen ändert ein Tag; Ersetzen erwartet ein Schlagwort pro Zeile; Löschen entfernt alle manuellen Tags. Die Vorschau zeigt vor Anwenden die erfassten Zielfotos und bekannte unterschiedliche Werte, auch bei Auswahlen der ganzen Ansicht. Hinzufügen überspringt Fotos mit bereits 50 manuellen Tags; ein ungültiges Ersetzen wird abgelehnt, bevor die betreffende Anfrage etwas schreibt. `count` meldet geänderte Tag-Zeilen, nicht Fotos. KI-Tags bleiben erhalten. Jede Anfrage wird vollständig oder gar nicht angewendet, mehrere Anfragen zusammen jedoch nicht. Ein ungewisses Ergebnis von Ersetzen/Löschen muss vor einem erneuten Versuch geprüft werden.
 - **Format.** Tags werden getrimmt, kleingeschrieben und von mehrfachem Leerraum befreit (NFC). Höchstens 64 Zeichen, höchstens 50 pro Foto. Leere Tags, Kommas und Steuerzeichen werden abgelehnt. Ein Tag, das einem KI-Tag des Fotos entspricht, wird nicht gespeichert.
@@ -1181,7 +1181,7 @@ Einzeltasten-Kürzel sind inaktiv, solange der Fokus in einem Textfeld, Menü od
 
 **Aktuelles Foto.** Das Foto, auf das die Tasten für Bewertung, Favorit und Ablehnung wirken, hat eine 4px-Kontur; andere Karten behalten ihre normale Helligkeit. Nichts ist markiert, bis Sie sich auf ein Foto bewegen. Ein Klick auf ein Foto verschiebt die Markierung darauf. Die Rückkehr von einem Foto lässt die Markierung auf dem zuletzt betrachteten. Der Hinweis zur fokussierten Karte erscheint nur im Bearbeitungsmodus bei aktivem `viewer.features.show_rating_controls`.
 
-**Auf der Fotoseite** wirken `1`–`5`, die Favoriten-Taste und die Ablehnen-Taste (standardmäßig `F` und `X`; `0` lehnt ebenfalls ab) auf das geöffnete Foto, im Bearbeitungsmodus bei aktivem `viewer.features.show_rating_controls`. Sie springen nicht weiter; nutzen Sie `←` `→`. Die Referenz unter `?` listet sie unter *Fotoansicht*.
+**Auf der Fotoseite** wirken `1`–`5`, die Favoriten-Taste und die Ablehnen-Taste (standardmäßig `F` und `X`; `0` lehnt ebenfalls ab) auf das geöffnete Foto, im Bearbeitungsmodus bei aktivem `viewer.features.show_rating_controls`. Bewertungen und Favoriten bleiben beim aktuellen Foto. Behalten/Ablehnen in einer Prüfwarteschlange der Galerie aktualisiert diese und öffnet das nächste verfügbare Foto oder kehrt zur Galerie zurück, wenn keines mehr übrig ist. Fotos aus der Zeitleiste wechseln so nicht weiter. Mit `←` `→` navigieren Sie manuell. Die Referenz unter `?` listet sie unter *Fotoansicht*.
 
 ## Rückgängig
 

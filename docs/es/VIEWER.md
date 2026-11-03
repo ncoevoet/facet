@@ -319,7 +319,7 @@ La insignia o una foto apilada abre el visor con miniaturas, botones anterior/si
 - Insignia de categoría
 - Clic derecho (o Shift+F10) abre el [menú contextual](#selección-múltiple-y-acciones-masivas)
 
-En el detalle de la foto, las métricas se organizan en pestañas con icono: datos EXIF (cuando existen), Calidad, Composición (con la saliencia del sujeto), Técnica e Histograma. Se recuerda la última pestaña que abriste. Cada puntuación aparece junto a su distribución en la biblioteca, con la barra de la foto resaltada; pasa el cursor sobre una barra para ver el rango de la foto y el rango de la biblioteca. La posición se calcula sobre toda la biblioteca, no sobre los filtros actuales, con la precisión de 20 barras.
+En el detalle de la foto, las métricas se organizan en pestañas con icono: datos EXIF (cuando existen), Calidad, Composición (con la saliencia del sujeto), Técnica e Histograma. Se recuerda la última pestaña que abriste. Cada puntuación disponible con distribución tiene un icono de información: pasa el cursor o enfócalo con el teclado para ver la posición de la foto y el intervalo de la biblioteca. El resumen conserva el gráfico de distribución de la puntuación global. Las posiciones se calculan sobre toda la biblioteca, no sobre los filtros actuales.
 
 **Panel de colección.** En pantallas anchas (desde 1280 px), una foto presente en la colección cargada de la galería (fuera de la navegación de Línea de tiempo) muestra a su izquierda esas fotos, con los mismos filtros y orden. Haz clic en una miniatura para abrirla; **Cargar más** trae la página siguiente. Arrastra el divisor, o enfócalo y usa Izquierda/Derecha, Inicio y Fin, para cambiar su ancho: una foto por fila si es estrecho y dos si es ancho. El chevrón lo pliega. El panel nunca cambia los filtros, la selección ni el destino de Atrás.
 
@@ -465,7 +465,7 @@ Los filtros activos aparecen como chips que se pueden quitar, con recuentos, en 
 
 Los tags manuales son etiquetas que escribes tú mismo, guardadas junto a las etiquetas de IA. Se almacenan aparte (`photo_manual_tags`, no la columna `tags` de la foto), así que los reescaneos y reetiquetados nunca las borran.
 
-- **Dónde se muestran.** Solo en el **detalle** de la foto, como chips marcados de forma distinta a las etiquetas de IA. Las tarjetas y las informaciones emergentes muestran las etiquetas de IA.
+- **Dónde se muestran.** El detalle de la foto distingue las etiquetas manuales de las de IA. Las tarjetas con detalles y las informaciones emergentes incluyen ambas en la navegación por etiquetas, sin nombres duplicados.
 - **Quién puede editarlas.** Los usuarios de edición. En una instalación sin `viewer.edition_password` son de solo lectura. Las etiquetas de IA no se pueden quitar.
 - **Edición masiva.** Selecciona fotos y usa **Editar etiquetas** (barra de selección, hoja de Acciones móvil o menú contextual). Añadir/Quitar cambia una etiqueta; Reemplazar acepta una etiqueta por línea; Borrar quita todas las etiquetas manuales. Antes de Aplicar, la vista previa muestra los destinos capturados y los valores mixtos conocidos, incluidas las selecciones de toda la vista. Añadir omite las fotos que ya tienen 50 etiquetas manuales; un Reemplazar inválido se rechaza antes de que esa solicitud escriba nada. El `count` de la API informa de las filas de etiquetas modificadas, no del número de fotos. Se conservan las etiquetas de IA. Cada solicitud es atómica, pero un lote con varias solicitudes no lo es; un resultado incierto de Reemplazar/Borrar requiere inspección antes de otro intento.
 - **Formato.** Las etiquetas se recortan, se pasan a minúsculas y se colapsan los espacios (NFC). Máximo 64 caracteres, máximo 50 por foto. Se rechazan las etiquetas vacías, las comas y los caracteres de control. Una etiqueta igual a una de las etiquetas de IA de la foto no se guarda.
@@ -1183,7 +1183,7 @@ Los atajos de una sola tecla están inactivos mientras el foco está en un campo
 
 **Foto actual.** La foto sobre la que actúan las teclas de valoración, favorito y rechazo tiene un contorno de 4 px; las demás tarjetas conservan su luminosidad normal. No se marca nada hasta que te mueves a una foto. Hacer clic en una foto mueve el marcador a ella. Volver desde una foto deja el marcador en la última que viste. La pista de la tarjeta enfocada aparece solo en modo de edición con `viewer.features.show_rating_controls` activado.
 
-**En la página de la foto**, `1`–`5`, la tecla de favorito y la de rechazo (`F` y `X` por defecto; `0` también rechaza) actúan sobre la foto abierta, en modo de edición con `viewer.features.show_rating_controls` activado. No avanzan; usa `←` `→`. La referencia `?` los lista en *Vista de foto*.
+**En la página de la foto**, `1`–`5`, la tecla de favorito y la de rechazo (`F` y `X` por defecto; `0` también rechaza) actúan sobre la foto abierta, en modo de edición con `viewer.features.show_rating_controls` activado. Las puntuaciones y favoritos mantienen la foto actual. Conservar/Rechazar en una cola de revisión de la galería actualiza la cola y abre la siguiente foto disponible, o vuelve a la galería si no queda ninguna. Las fotos de la línea de tiempo no avanzan así. Usa `←` `→` para navegar manualmente. La referencia `?` los lista en *Vista de foto*.
 
 ## Deshacer
 

@@ -1548,7 +1548,7 @@
         "zoom_in": "Ingrandisci",
         "zoom_out": "Riduci",
         "scale_help": "L’ingrandimento è relativo alla vista Adatta, non ai pixel sorgente. Adatta ripristina l’intera inquadratura; con il collegamento attivo ripristina tutti i riquadri.",
-        "limit": "Se l’anteprima non è disponibile, può essere usata la miniatura salvata. Le immagini sorgente possono essere convertite per il browser; questa funzione non è un editor RAW né una valutazione della saturazione del sensore.",
+        "limit": "Il confronto usa le immagini di base, senza gli stili dell’area di modifica. Se l’anteprima non è disponibile, può essere usata la miniatura salvata. Le immagini sorgente possono essere convertite per il browser; questa funzione non è un editor RAW né una valutazione della saturazione del sensore.",
         "fit_short": "Adatta",
         "sources": "Sorgenti delle immagini e ingrandimento",
         "fallback": "Anteprima non disponibile"
@@ -3383,7 +3383,7 @@
       "import_failed": "Impossibile importare il file di stato Lightroom"
     },
     "jobs": {
-      "running": "Esportazione sidecar",
+      "running": "Esportazione dei file",
       "completed": "Esportazione completata",
       "cancelled": "Esportazione annullata",
       "failed": "Esportazione non riuscita",
@@ -3398,8 +3398,8 @@
       "retry": "Anteprima dei file incompleti",
       "retry_hint": "Controlla i metadati attuali e le destinazioni esatte dei file incompleti prima di confermare. Le copie o i collegamenti incompleti già presenti devono essere controllati; i risultati completati vengono conservati.",
       "refresh": "Aggiorna stato",
-      "recent": "Esportazioni sidecar recenti",
-      "none": "Nessuna esportazione sidecar recente.",
+      "recent": "Esportazioni recenti",
+      "none": "Nessuna esportazione recente.",
       "read_failed": "Impossibile leggere il progresso. Aggiorna lo stato per riprovare.",
       "errors": {
         "metadata_repair": "I metadati esistenti devono essere riparati prima dell’esportazione.",

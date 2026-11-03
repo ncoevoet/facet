@@ -1548,7 +1548,7 @@
         "zoom_in": "Ampliar",
         "zoom_out": "Reducir",
         "scale_help": "La ampliación es relativa a Ajustar, no a los píxeles de origen. Ajustar restaura el encuadre completo; con las vistas vinculadas, restablece todos los paneles.",
-        "limit": "Si la vista previa no está disponible, puede mostrarse la miniatura almacenada. Las imágenes de origen pueden convertirse para mostrarlas en el navegador; esto no es un editor RAW ni una evaluación del recorte de valores del sensor.",
+        "limit": "La comparación usa imágenes base, sin los estilos del espacio de edición. Si la vista previa no está disponible, puede mostrarse la miniatura almacenada. Las imágenes de origen pueden convertirse para mostrarlas en el navegador; esto no es un editor RAW ni una evaluación del recorte de valores del sensor.",
         "fit_short": "Ajustar",
         "sources": "Origen de las imágenes y ampliación",
         "fallback": "Vista previa no disponible"
@@ -3383,7 +3383,7 @@
       "import_failed": "No se pudo importar el archivo de estado de Lightroom"
     },
     "jobs": {
-      "running": "Exportando sidecars",
+      "running": "Exportando archivos",
       "completed": "Exportación completada",
       "cancelled": "Exportación cancelada",
       "failed": "Exportación fallida",
@@ -3398,8 +3398,8 @@
       "retry": "Vista previa de archivos pendientes",
       "retry_hint": "Revisa los metadatos actuales y los destinos exactos de los archivos pendientes antes de confirmar. Las copias o enlaces incompletos que ya existan requieren revisión; los resultados completados se conservan.",
       "refresh": "Actualizar estado",
-      "recent": "Exportaciones recientes de sidecars",
-      "none": "No hay exportaciones recientes de sidecars.",
+      "recent": "Exportaciones recientes",
+      "none": "No hay exportaciones recientes.",
       "read_failed": "No se pudo leer el progreso. Actualiza el estado para comprobarlo.",
       "errors": {
         "metadata_repair": "Los metadatos existentes deben repararse antes de exportar.",

@@ -1548,7 +1548,7 @@
         "zoom_in": "Vergrößern",
         "zoom_out": "Verkleinern",
         "scale_help": "Die Vergrößerung bezieht sich auf die eingepasste Ansicht, nicht auf Quellpixel. Einpassen zeigt wieder das ganze Bild; bei gekoppelten Ansichten werden alle Teilansichten zurückgesetzt.",
-        "limit": "Ist eine Vorschau nicht verfügbar, kann die gespeicherte Miniatur angezeigt werden. Quellbilder werden möglicherweise für den Browser umgewandelt. Dies ist kein RAW-Editor und erlaubt keine Beurteilung des Sensor-Clippings.",
+        "limit": "Der Vergleich verwendet Basisbilder ohne die Bildstile des Bearbeitungsbereichs. Ist eine Vorschau nicht verfügbar, kann die gespeicherte Miniatur angezeigt werden. Quellbilder werden möglicherweise für den Browser umgewandelt. Dies ist kein RAW-Editor und erlaubt keine Beurteilung des Sensor-Clippings.",
         "fit_short": "Einpassen",
         "sources": "Bildquellen und Vergrößerung",
         "fallback": "Vorschau nicht verfügbar"
@@ -3383,7 +3383,7 @@
       "import_failed": "Lightroom-Statusdatei konnte nicht importiert werden"
     },
     "jobs": {
-      "running": "Sidecars werden exportiert",
+      "running": "Dateien werden exportiert",
       "completed": "Export abgeschlossen",
       "cancelled": "Export abgebrochen",
       "failed": "Export fehlgeschlagen",
@@ -3398,8 +3398,8 @@
       "retry": "Vorschau der unerledigten Dateien",
       "retry_hint": "Prüfen Sie vor der Bestätigung die aktuellen Metadaten und die genauen Ziele der unerledigten Dateien. Bereits vorhandene unvollständige Kopien oder Verknüpfungen müssen geprüft werden; abgeschlossene Ausgaben bleiben erhalten.",
       "refresh": "Status aktualisieren",
-      "recent": "Letzte Sidecar-Exporte",
-      "none": "Keine letzten Sidecar-Exporte.",
+      "recent": "Letzte Exporte",
+      "none": "Keine letzten Exporte.",
       "read_failed": "Exportfortschritt nicht lesbar. Aktualisieren Sie den Status erneut.",
       "errors": {
         "metadata_repair": "Vorhandene Metadaten müssen vor dem Export repariert werden.",

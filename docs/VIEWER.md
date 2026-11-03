@@ -319,7 +319,7 @@ Open the count badge or a stacked photo to browse permitted members in the photo
 - Category badge
 - Right-click (or Shift+F10) opens the [context menu](#multi-select--bulk-actions)
 
-In photo detail, metrics sit in icon tabs: EXIF data (when present), Quality, Composition (with subject saliency), Technical and Histogram. The last tab you opened is remembered. Each score sits beside its library distribution, with the photo's bar highlighted; hover a bar for the photo's rank and the library range. Placement is computed over the whole library, not the current filters, to the nearest of 20 bars.
+In photo detail, metrics sit in icon tabs: EXIF data (when present), Quality, Composition (with subject saliency), Technical and Histogram. The last tab you opened is remembered. Each available score with a library distribution has an information icon: hover or focus it for the photo's rank and the library range. The assessment summary retains the aggregate distribution chart. Ranks use the whole library, not the current filters.
 
 **Collection sidebar.** On wide screens (1280 px and up), a photo that is in the gallery's loaded collection (outside Timeline navigation) shows those photos in a sidebar on its left, in the same filters and sort. Click a thumbnail to open it; **Load more** fetches the next page. Drag the divider, or focus it and use Left/Right, Home and End, to resize it: one photo per row when narrow, two when wide. The chevron collapses it. The sidebar never changes the gallery's filters, selection or the Back destination.
 
@@ -465,7 +465,7 @@ Active filters appear as removable chips with counts at the top of the gallery.
 
 Manual tags are tags you type yourself, kept next to the AI tags. They are stored apart (`photo_manual_tags`, not the photo's `tags` column), so rescans and retags never wipe them.
 
-- **Where they show.** In photo **detail** only, as chips marked differently from AI tags. Cards and tooltips show AI tags.
+- **Where they show.** Photo detail distinguishes manual tags from AI tags. Gallery cards with details and photo tooltips include both kinds in their tag navigation, without duplicate labels.
 - **Who can edit.** Edition users. On an install without `viewer.edition_password` they are read-only. AI tags cannot be removed.
 - **Bulk editing.** Select photos and use **Edit tags** (selection bar, mobile Actions sheet, or context menu). Add/Remove changes one tag; Replace takes one tag per line; Clear removes every manual tag. Preview shows the captured targets and known mixed values before Apply, including whole-view selections. Add skips photos already holding 50 manual tags; an invalid Replace is refused before that request writes anything. The API's `count` reports changed tag rows, not photos. AI tags are preserved. Each request is atomic, but a multi-request batch is not; an uncertain Replace/Clear result requires inspection before another attempt.
 - **Format.** Tags are trimmed, lowercased and whitespace-collapsed (NFC). Max 64 characters, max 50 per photo. Empty tags, commas and control characters are rejected. A tag equal to one of the photo's AI tags is not stored.
@@ -1181,7 +1181,7 @@ Single-key shortcuts are inactive while focus is in a text field, menu or list.
 
 **Current photo.** The photo that rating, favorite and reject keys act on has a 4px outline; other cards retain their normal brightness. Nothing is marked until you move onto a photo. Clicking a photo moves the marker to it. Returning from a photo leaves the marker on the last one you viewed. The focused-card hint appears only in edition mode with `viewer.features.show_rating_controls` on.
 
-**On the photo page**, `1`–`5`, the favourite key and the reject key (`F` and `X` by default; `0` also rejects) act on the open photo, in edition mode with `viewer.features.show_rating_controls` on. They do not advance; use `←` `→`. The `?` reference lists them under *Photo view*.
+**On the photo page**, `1`–`5`, the favourite key and the reject key (`F` and `X` by default; `0` also rejects) act on the open photo, in edition mode with `viewer.features.show_rating_controls` on. Ratings and favorites stay on the current photo. Keep/Reject in a gallery review queue refreshes that queue and opens the next available photo, or returns to the gallery when none remain. Timeline photos do not advance this way. Use `←` `→` for manual navigation. The `?` reference lists them under *Photo view*.
 
 ## Undo
 

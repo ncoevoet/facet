@@ -319,7 +319,7 @@ O indicador ou uma foto empilhada abre o visualizador com miniaturas, botões an
 - Selo de categoria
 - O clique direito (ou Shift+F10) abre o [menu de contexto](#seleção-múltipla-e-ações-em-lote)
 
-No detalhe da foto, as métricas ficam em abas com ícone: dados EXIF (se houver), Qualidade, Composição (com a saliência do sujeito), Técnica e Histograma. A última aba aberta é lembrada. Cada pontuação fica ao lado da sua distribuição na biblioteca, com a barra da foto destacada; passe o cursor sobre uma barra para ver a posição da foto e o intervalo da biblioteca. A posição é calculada sobre toda a biblioteca, não sobre os filtros atuais, aproximada a uma das 20 barras.
+No detalhe da foto, as métricas ficam em abas com ícone: dados EXIF (se houver), Qualidade, Composição (com a saliência do sujeito), Técnica e Histograma. A última aba aberta é lembrada. Cada pontuação disponível com distribuição tem um ícone de informação: passe o ponteiro ou dê foco ao ícone para ver a posição da foto e o intervalo da biblioteca. O resumo mantém o gráfico de distribuição da pontuação agregada. As posições usam toda a biblioteca, não os filtros atuais.
 
 **Painel da coleção.** Em ecrãs largos (a partir de 1280 px), uma foto presente na coleção carregada da galeria, fora da navegação pela Linha do tempo, mostra essas fotos num painel à esquerda, com os mesmos filtros e a mesma ordenação. Clique numa miniatura para abri-la; **Carregar mais** busca a página seguinte. Arraste o divisor, ou dê-lhe foco e use Esquerda/Direita, Home e End, para redimensioná-lo: uma foto por linha quando estreito, duas quando largo. A seta recolhe-o. O painel nunca altera os filtros, a seleção nem o destino de Voltar.
 
@@ -464,7 +464,7 @@ Os filtros ativos aparecem como chips removíveis com contagens no topo da galer
 
 Tags manuais são tags que você digita por conta própria, salvas ao lado das tags de IA. Ficam armazenadas à parte (`photo_manual_tags`, não a coluna `tags` da foto), então novas varreduras e nova etiquetagem nunca as apagam.
 
-- **Onde aparecem.** Somente no **detalhe** da foto, como chips marcados de forma diferente das tags de IA. Cartões e dicas mostram as tags de IA.
+- **Onde aparecem.** O detalhe da foto distingue tags manuais de tags de IA. Os cartões com detalhes e as dicas incluem ambas na navegação por tags, sem nomes duplicados.
 - **Quem pode editar.** Usuários com edição. Em uma instalação sem `viewer.edition_password` são somente leitura. As tags de IA não podem ser removidas.
 - **Edição em lote.** Selecione fotos e use **Editar etiquetas** (barra de seleção, folha de Ações móvel ou menu de contexto). Adicionar/Remover altera uma etiqueta; Substituir aceita uma etiqueta por linha; Limpar remove todas as etiquetas manuais. Antes de Aplicar, a pré-visualização mostra os destinos capturados e os valores mistos conhecidos, incluindo seleções de toda a vista. Adicionar ignora fotos que já têm 50 etiquetas manuais; um Substituir inválido é recusado antes de esse pedido escrever qualquer valor. O `count` da API indica as linhas de etiquetas alteradas, não o número de fotos. As etiquetas de IA são preservadas. Cada pedido é atómico, mas um lote com vários pedidos não é; um resultado incerto de Substituir/Limpar exige inspeção antes de outra tentativa.
 - **Formato.** As tags têm os espaços das pontas removidos, são passadas para minúsculas e têm os espaços colapsados (NFC). Máximo de 64 caracteres, 50 por foto. Tags vazias, vírgulas e caracteres de controle são rejeitados. Uma tag igual a uma das tags de IA da foto não é armazenada.
@@ -1178,7 +1178,7 @@ Os atalhos de uma tecla ficam inativos enquanto o foco está em um campo de text
 
 **Foto atual.** A foto sobre a qual agem as teclas de avaliação, favorito e rejeição tem um contorno de 4px; os outros cartões mantêm o brilho normal. Nada é marcado até você passar para uma foto. Clicar em uma foto leva o marcador até ela. Voltar de uma foto deixa o marcador na última que você viu. A dica do cartão em foco aparece apenas no modo de edição com `viewer.features.show_rating_controls` ligado.
 
-**Na página da foto**, `1`–`5`, a tecla de favorito e a tecla de rejeição (`F` e `X` por padrão; `0` também rejeita) agem sobre a foto aberta, no modo de edição com `viewer.features.show_rating_controls` ligado. Não avançam; use `←` `→`. A referência `?` as lista em *Visão da foto*.
+**Na página da foto**, `1`–`5`, a tecla de favorito e a tecla de rejeição (`F` e `X` por padrão; `0` também rejeita) agem sobre a foto aberta, no modo de edição com `viewer.features.show_rating_controls` ligado. Avaliações e favoritos mantêm a foto atual. Manter/Rejeitar numa fila de revisão da galeria atualiza a fila e abre a próxima foto disponível, ou volta à galeria se não restar nenhuma. As fotos da linha do tempo não avançam assim. Use `←` `→` para navegar manualmente. A referência `?` as lista em *Visão da foto*.
 
 ## Desfazer
 
