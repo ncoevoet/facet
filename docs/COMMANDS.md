@@ -172,7 +172,7 @@ These update metrics or derive new data without re-running the full scoring pipe
 | `python facet.py --recompute-saliency` | `[GPU]` Recompute subject saliency from stored thumbnails; `--force` redoes all |
 | `python facet.py --recompute-composition-cpu` | Recompute composition, rule-based (CPU, any profile) |
 | `python facet.py --recompute-composition-gpu` | `[GPU]` Recompute composition with SAMP-Net |
-| `python facet.py --recompute-iqa` | `[GPU]` Fill missing TOPIQ IAA, NR-Face and LIQE scores from stored thumbnails. Runs on every profile; on CPU (`legacy`) it is much slower |
+| `python facet.py --recompute-iqa` | `[GPU]` Fill missing TOPIQ IAA, NR-Face and LIQE scores from stored thumbnails. Runs on every profile; on CPU (`legacy`) it is much slower. Streams in batches, so memory stays flat on large libraries; safe to interrupt and re-run. |
 | `python facet.py --detect-text` | Read in-image text into `ocr_text` so search finds it (opt-in, see note) |
 | `python facet.py --recompute-text` | Re-run OCR over the whole library |
 | `python facet.py --recompute-colors` | Extract dominant hue and warm/cool temperature into `dominant_hue` / `color_temp` (CPU, fast) |

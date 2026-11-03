@@ -172,7 +172,7 @@ Diese Befehle aktualisieren Metriken oder leiten neue Daten ab, ohne die vollst�
 | `python facet.py --recompute-saliency` | `[GPU]` Motiv-Salienz aus gespeicherten Thumbnails neu berechnen; `--force` wiederholt alle |
 | `python facet.py --recompute-composition-cpu` | Komposition regelbasiert neu berechnen (CPU, beliebiges Profil) |
 | `python facet.py --recompute-composition-gpu` | `[GPU]` Komposition mit SAMP-Net neu berechnen |
-| `python facet.py --recompute-iqa` | `[GPU]` Fehlende TOPIQ-IAA-, NR-Face- und LIQE-Scores aus gespeicherten Thumbnails füllen. Läuft auf allen Profilen; auf der CPU (`legacy`) deutlich langsamer |
+| `python facet.py --recompute-iqa` | `[GPU]` Fehlende TOPIQ-IAA-, NR-Face- und LIQE-Scores aus gespeicherten Thumbnails füllen. Läuft auf allen Profilen; auf der CPU (`legacy`) deutlich langsamer. Verarbeitet in Batches, der Speicherbedarf bleibt auch bei großen Bibliotheken konstant; kann gefahrlos unterbrochen und erneut gestartet werden. |
 | `python facet.py --detect-text` | Text im Bild in `ocr_text` lesen, damit die Suche ihn findet (optional, siehe Hinweis) |
 | `python facet.py --recompute-text` | OCR für die gesamte Bibliothek erneut ausführen |
 | `python facet.py --recompute-colors` | Dominanten Farbton und warme/kalte Farbtemperatur in `dominant_hue` / `color_temp` extrahieren (CPU, schnell) |
