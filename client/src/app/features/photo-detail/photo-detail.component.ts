@@ -394,6 +394,7 @@ const SOCIAL_SOURCE_KEYS: Record<string, string> = {
           @if (canReview()) {
             <div class="flex flex-wrap items-center gap-1 border-t border-[var(--mat-sys-outline-variant)] pt-1 mb-1">
               <!-- Star rating -->
+              <div class="flex flex-nowrap">
               @for (star of stars; track star) {
                 <button type="button" class="min-w-11 min-h-11 rounded inline-flex items-center justify-center hover:bg-[var(--mat-sys-surface-container-high)] cursor-pointer"
                         [attr.aria-label]="(I18N.rating.set_rating | translate) + ': ' + star"
@@ -401,7 +402,9 @@ const SOCIAL_SOURCE_KEYS: Record<string, string> = {
                   <mat-icon class="!text-xl !w-5 !h-5 !leading-5 !text-[var(--mat-sys-primary)]">{{ p.star_rating !== null && star <= p.star_rating! ? 'star' : 'star_border' }}</mat-icon>
                 </button>
               }
+              </div>
               <div class="flex-1"></div>
+              <div class="flex flex-nowrap">
               <!-- Favorite -->
               <button mat-icon-button (click)="toggleFavorite(p.path)"
                 [matTooltip]="(p.is_favorite ? I18N.rating.remove_favorite : I18N.rating.add_favorite) | translate"
@@ -427,6 +430,7 @@ const SOCIAL_SOURCE_KEYS: Record<string, string> = {
                 [attr.aria-pressed]="!!p.is_rejected">
                 <mat-icon>{{ p.is_rejected ? 'thumb_down' : 'thumb_down_off_alt' }}</mat-icon>
               </button>
+              </div>
             </div>
           }
 
