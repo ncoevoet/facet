@@ -5,7 +5,7 @@ import { of, Subject, throwError } from 'rxjs';
 import { TimelineDensityComponent } from './timeline-density.component';
 import { TimelineYearsComponent } from './timeline-years.component';
 import { TimelineFiltersService } from './timeline-filters.service';
-import { densityBuckets, densityRange, type DensityResponse } from './timeline-density.util';
+import { densityBuckets, densityRange, timelineWindow, type DensityResponse } from './timeline-density.util';
 import { ApiService } from '../../core/services/api.service';
 import { AuthService } from '../../core/services/auth.service';
 import { I18nService } from '../../core/services/i18n.service';
@@ -15,6 +15,19 @@ import { GalleryStore } from '../gallery/gallery.store';
 const years = { years: [{ year: '2020', count: 100 }, { year: '2019', count: 1 }, { year: '2021', count: 0 }] };
 
 describe('Timeline date density', () => {
+  it('clips valid calendar periods to the requested dates and leaves invalid years alone', () => {
+    expect(timelineWindow('bad', '2', '2024-02-10', '2024-02-20'))
+      .toEqual({ from: '2024-02-10', to: '2024-02-20' });
+    expect(timelineWindow('2024', '2', '', ''))
+      .toEqual({ from: '2024-02-01', to: '2024-02-29' });
+    expect(timelineWindow('2024', '13', '2024-04-01', '2024-10-31'))
+      .toEqual({ from: '2024-04-01', to: '2024-10-31' });
+    expect(timelineWindow('2024', '02', '2024-02-10', '2024-02-20'))
+      .toEqual({ from: '2024-02-10', to: '2024-02-20' });
+    expect(timelineWindow('2024', '2', '2023-01-01', '2025-01-01'))
+      .toEqual({ from: '2024-02-01', to: '2024-02-29' });
+  });
+
   async function render(openOnArrival = false) {
     const api = { get: vi.fn().mockReturnValue(of(years)) };
     const auth = { status: signal({ user_id: 'alice' }), token: 'a' };
