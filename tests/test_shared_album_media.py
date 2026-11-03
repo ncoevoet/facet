@@ -18,12 +18,14 @@ def shared_media(tmp_path, seed_photos_prefix, album_factory, monkeypatch):
     prefix = str(tmp_path) + os.sep
     path = prefix + 'chosen.jpg'
     other = prefix + 'other.jpg'
-    for target in (path, other):
-        Image.new('RGB', (24, 16), (32, 64, 96)).save(target)
+    for target, color in ((path, (32, 64, 96)), (other, (192, 48, 16))):
+        Image.new('RGB', (24, 16), color).save(target)
     data = Path(path).read_bytes()
+    other_data = Path(other).read_bytes()
+    assert data != other_data
     seed_photos_prefix(prefix, [
         {'path': path, 'filename': 'chosen.jpg', 'thumbnail': data},
-        {'path': other, 'filename': 'other.jpg', 'thumbnail': data},
+        {'path': other, 'filename': 'other.jpg', 'thumbnail': other_data},
     ])
     album = album_factory(prefix, 'fixture-album-media', 'Chosen')(
         member_names=('chosen.jpg',))

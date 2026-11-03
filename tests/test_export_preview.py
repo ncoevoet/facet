@@ -117,7 +117,8 @@ def test_preview_token_is_owner_options_expiry_bound_and_not_an_auth_token(editi
         verify_export_preview(body['preview_token'], request, 'test')
 
 
-def test_effective_metadata_and_file_changes_change_the_confirmation_snapshot(edition_client, library):
+@pytest.mark.parametrize('change', ['metadata', 'file'])
+def test_effective_metadata_and_file_changes_change_the_confirmation_snapshot(edition_client, library, change):
     paths, _ = library
     request = ExportPreviewRequest(paths=[str(paths[0])])
     body = preview(edition_client, **request.model_dump())
@@ -125,12 +126,12 @@ def test_effective_metadata_and_file_changes_change_the_confirmation_snapshot(ed
     with sqlite3.connect(DEFAULT_DB_PATH) as conn:
         conn.row_factory = sqlite3.Row
         assert _digest(build_export_snapshot(conn, request, 'test')) == claims['snapshot']
-        conn.execute('UPDATE photos SET star_rating=1 WHERE path=?', (str(paths[0]),))
-        conn.commit()
-        assert _digest(build_export_snapshot(conn, request, 'test')) != claims['snapshot']
-    paths[0].write_bytes(b'changed source')
-    with sqlite3.connect(DEFAULT_DB_PATH) as conn:
-        conn.row_factory = sqlite3.Row
+        # Each case starts fresh so a metadata change cannot mask a broken file guard.
+        if change == 'metadata':
+            conn.execute('UPDATE photos SET star_rating=1 WHERE path=?', (str(paths[0]),))
+            conn.commit()
+        else:
+            paths[0].write_bytes(b'changed source')
         assert _digest(build_export_snapshot(conn, request, 'test')) != claims['snapshot']
 
 

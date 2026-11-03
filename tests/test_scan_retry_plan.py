@@ -314,6 +314,7 @@ def test_actual_child_reads_captured_utf8_plan_from_pipe_without_private_file(fa
     before = Path(db).read_bytes()
     script = """
 import json,sys
+sys.stdout.reconfigure(encoding='utf-8')
 from processing.scan_retry import read_retry_manifest,retry_plan_paths
 plan=read_retry_manifest('-',sys.argv[1],sys.argv[2],sys.argv[3])
 print(json.dumps([str(path) for path in retry_plan_paths(plan)],ensure_ascii=False))
@@ -344,6 +345,7 @@ def test_os_owned_input_survives_launcher_death_without_orphan_worklist(failed_r
     before = {path.name for path in tmp_path.iterdir()}
     child = """
 import json,sys
+sys.stdout.reconfigure(encoding='utf-8')
 from processing.scan_retry import read_retry_manifest,retry_plan_paths
 plan=read_retry_manifest('-',sys.argv[1],sys.argv[2],sys.argv[3])
 print(json.dumps([str(p) for p in retry_plan_paths(plan)],ensure_ascii=False),flush=True)
