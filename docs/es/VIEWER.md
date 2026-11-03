@@ -871,7 +871,7 @@ Escribe valoraciones, favoritos y rechazos en sidecars XMP para que darktable, L
 - Las exportaciones se ejecutan en segundo plano, con progreso y recuentos de escritos/omitidos/errores. **Detener tras el archivo actual** cancela entre archivos; los sidecars completados permanecen.
 - Solo se ejecuta un trabajo de biblioteca a la vez. Mientras se ejecuta una exportación, los escaneos, recálculos y reentrenamientos automáticos esperan o se rechazan, y una exportación se rechaza mientras se ejecuta alguno de ellos.
 - Cerrar el diálogo deja de vigilar el progreso, no la exportación.
-- Vuelve a abrir Exportar al editor para ver tus 20 exportaciones más recientes. **Reintentar archivos sin terminar** muestra una vista previa de los archivos fallidos, omitidos y sin procesar. Revísala y pulsa **Confirmar exportación** para iniciar un nuevo trabajo. Un archivo interrumpido durante la escritura puede escribirse de nuevo.
+- Vuelve a abrir Exportar al editor para ver tus 20 exportaciones más recientes. **Vista previa de archivos pendientes** muestra una vista previa de los archivos fallidos, omitidos y sin procesar. Revísala y pulsa **Confirmar exportación** para iniciar un nuevo trabajo. Un archivo interrumpido durante la escritura puede escribirse de nuevo.
 
 ## Descarga
 

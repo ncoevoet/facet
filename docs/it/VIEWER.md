@@ -868,7 +868,7 @@ Scrivi valutazioni, preferiti e scarti nei sidecar XMP così darktable, Lightroo
 - Le esportazioni girano in background, con avanzamento e conteggi di scritti/saltati/errori. **Ferma dopo il file corrente** annulla tra un file e l'altro; i sidecar completati restano.
 - Solo un lavoro sulla libreria alla volta. Mentre un'esportazione è in corso, scansioni, ricalcoli e riaddestramento automatico attendono o vengono rifiutati, e un'esportazione viene rifiutata mentre uno di essi è in corso.
 - Chiudere la finestra smette di seguire l'avanzamento, non l'esportazione.
-- Riapri Esporta per l'editor per vedere le tue 20 esportazioni più recenti. **Riprova i file incompleti** mostra un’anteprima dei file falliti, saltati e non elaborati. Controllala e scegli **Conferma esportazione** per avviare un nuovo lavoro. Un file interrotto a metà scrittura può essere riscritto.
+- Riapri Esporta per l'editor per vedere le tue 20 esportazioni più recenti. **Anteprima dei file incompleti** mostra un’anteprima dei file falliti, saltati e non elaborati. Controllala e scegli **Conferma esportazione** per avviare un nuovo lavoro. Un file interrotto a metà scrittura può essere riscritto.
 
 ## Download
 

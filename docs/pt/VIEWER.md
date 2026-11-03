@@ -866,7 +866,7 @@ Grave avaliações, favoritos e rejeições em sidecars XMP para que darktable, 
 - As exportações rodam em segundo plano, com progresso e contagens de gravados/ignorados/erros. **Parar após o arquivo atual** cancela entre arquivos; os sidecars concluídos permanecem.
 - Só um trabalho da biblioteca roda por vez. Enquanto uma exportação roda, varreduras, recálculos e o retreinamento automático esperam ou são recusados, e uma exportação é recusada enquanto um deles roda.
 - Fechar o diálogo deixa de acompanhar o progresso, não a exportação.
-- Reabra Exportar para o editor para ver as suas 20 exportações mais recentes. **Tentar de novo os arquivos pendentes** mostra uma prévia dos arquivos com falha, ignorados e não processados. Confira essa prévia e escolha **Confirmar exportação** para iniciar um novo trabalho. Um arquivo interrompido durante a gravação pode ser gravado de novo.
+- Reabra Exportar para o editor para ver as suas 20 exportações mais recentes. **Prévia dos arquivos pendentes** mostra uma prévia dos arquivos com falha, ignorados e não processados. Confira essa prévia e escolha **Confirmar exportação** para iniciar um novo trabalho. Um arquivo interrompido durante a gravação pode ser gravado de novo.
 
 ## Download
 

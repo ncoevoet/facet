@@ -869,7 +869,7 @@ Write ratings, favorites and rejects to XMP sidecars so darktable, Lightroom and
 - Exports run in the background, with progress and written/skipped/error counts. **Stop after current file** cancels between files; completed sidecars stay.
 - Only one library job runs at a time. While an export runs, scans, recomputes and automatic retraining wait or are refused, and an export is refused while one of them runs.
 - Closing the dialog stops watching progress, not the export.
-- Reopen Export to editor to see your 20 most recent exports. **Retry unfinished files** previews failed, skipped and unprocessed files. Review that preview and choose **Confirm export** to start a new job. A file interrupted mid-write may be written again.
+- Reopen Export to editor to see your 20 most recent exports. **Preview unfinished files** previews failed, skipped and unprocessed files. Review that preview and choose **Confirm export** to start a new job. A file interrupted mid-write may be written again.
 
 ## Download
 

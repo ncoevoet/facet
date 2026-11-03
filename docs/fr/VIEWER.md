@@ -868,7 +868,7 @@ Trouvez les groupes de personnes qui pourraient être la même personne. Ouvrez 
 - Les exports s'exécutent en arrière-plan, avec progression et compteurs écrits/ignorés/erreurs. **Arrêter après le fichier actuel** annule entre deux fichiers ; les sidecars terminés restent.
 - Un seul travail de bibliothèque s'exécute à la fois. Pendant un export, les scans, recalculs et réentraînements automatiques attendent ou sont refusés, et un export est refusé pendant que l'un d'eux s'exécute.
 - Fermer la boîte de dialogue arrête le suivi de la progression, pas l'export.
-- Rouvrez Export vers l'éditeur pour voir vos 20 exports les plus récents. **Réessayer les fichiers restants** affiche un aperçu des fichiers en échec, ignorés et non traités. Vérifiez cet aperçu, puis choisissez **Confirmer l’export** pour lancer un nouveau travail. Un fichier interrompu en cours d'écriture peut être réécrit.
+- Rouvrez Export vers l'éditeur pour voir vos 20 exports les plus récents. **Aperçu des fichiers restants** affiche un aperçu des fichiers en échec, ignorés et non traités. Vérifiez cet aperçu, puis choisissez **Confirmer l’export** pour lancer un nouveau travail. Un fichier interrompu en cours d'écriture peut être réécrit.
 
 ## Téléchargement
 

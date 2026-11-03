@@ -869,7 +869,7 @@ Schreiben Sie Bewertungen, Favoriten und Ablehnungen in XMP-Sidecars, damit dark
 - Exporte laufen im Hintergrund, mit Fortschritt und Zählern für geschrieben/übersprungen/Fehler. **Nach aktueller Datei stoppen** bricht zwischen Dateien ab; fertige Sidecars bleiben.
 - Es läuft jeweils nur ein Bibliotheksauftrag. Während ein Export läuft, warten Scans, Neuberechnungen und automatisches Nachtrainieren oder werden abgelehnt, und ein Export wird abgelehnt, solange eines davon läuft.
 - Das Schließen des Dialogs beendet nur die Fortschrittsanzeige, nicht den Export.
-- Öffnen Sie „In Editor exportieren“ erneut, um Ihre 20 letzten Exporte zu sehen. **Unfertige Dateien erneut versuchen** erstellt eine Vorschau für fehlgeschlagene, übersprungene und unverarbeitete Dateien. Prüfen Sie diese und wählen Sie **Export bestätigen**, um einen neuen Auftrag zu starten. Eine mitten im Schreiben unterbrochene Datei kann erneut geschrieben werden.
+- Öffnen Sie „In Editor exportieren“ erneut, um Ihre 20 letzten Exporte zu sehen. **Vorschau der unerledigten Dateien** erstellt eine Vorschau für fehlgeschlagene, übersprungene und unverarbeitete Dateien. Prüfen Sie diese und wählen Sie **Export bestätigen**, um einen neuen Auftrag zu starten. Eine mitten im Schreiben unterbrochene Datei kann erneut geschrieben werden.
 
 ## Download
 
