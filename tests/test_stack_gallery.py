@@ -251,7 +251,7 @@ def test_hidden_categories_exclude_only_own_restored_manual_members(
     expected_followers = 1 if scope == 'owner' else 3
     assert hidden == {'total': expected_followers + 3, 'blinks': 1,
                       'bursts': expected_followers, 'duplicates': expected_followers,
-                      'brackets': 1, 'panoramas': 1}
+                      'brackets': 1, 'panoramas': 1, 'rejected': 0}
     assert page['photo_total'] == (4 if scope == 'owner' else 2)
     # A filter on a noncover stack member counts only that authorized scope.
     subset = listing(edition_client, no_gps='1', hide_blinks='1', hide_bursts='1', hide_duplicates='1',

@@ -349,7 +349,7 @@ The **Keep top %** control in the toolbar (edition mode) culls the whole filtere
 
 ### AI edits
 
-An AI tool can bring an edited copy of a photo into the library through the assistant tool `import_ai_edit` (see [AI Agents](AGENTS.md)). The file lands beside the original as `{name}_{suffix}_{revision}{ext}`, for example `IMG_3533_agy_1.JPG`, and is scanned on its own.
+An AI tool can bring an edited copy of a photo into the library through the assistant tool `import_ai_edit` (see [AI Agents](AGENTS.md)). The assistant sends the image itself, and Facet writes its own copy beside the original as `{name}_{suffix}_{revision}{ext}`, for example `IMG_3533_agy_1.JPG`, then scans it on its own. Facet never deletes or overwrites a file during an import.
 
 - The gallery marks an edit with ✨ **AI** at the top of its tile. ✨ is kept for what an AI made or picked.
 - An edit shot at the same moment usually joins the original's burst, so the gallery's Best of Burst shows whichever scores higher.
@@ -370,6 +370,7 @@ When an assistant connected through [AI Agents (MCP)](AGENTS.md) shows you an ex
 **Cull to folder…** on the bulk-action bar (edition mode) copies keeps, or moves/trashes rejects, to a target folder. Trash means the OS trash, never a permanent delete, and needs `viewer.cull.allow_trash`.
 
 - **Every run starts as a dry run.** You see a preview before anything is written; move/trash run only with an explicit `dry_run=false`.
+- The preview lists the exact affected files, 24 per page, with thumbnails and filenames. Click an image to enlarge it. XMP sidecars and unavailable images remain listed. Cancel to change photo decisions; changing an option requires a new preview. The trash confirmation states the number of files, including enabled companions.
 - **The server picks the files from each photo's own state.** Copy acts only on keeps, move/trash only on rejects. Anything else is reported as `excluded_by_state`. The client cannot hand over a list of files to delete.
 - **Companions are opt-in.** Rejecting a JPEG does not take its RAW unless you tick **Include companion RAW / XMP** (`include_companions`).
 - On macOS and Windows, companion RAW files keep their on-disk names, including uppercase extensions; on Windows, `.xmp` sidecars do too.
@@ -382,7 +383,7 @@ When an assistant connected through [AI Agents (MCP)](AGENTS.md) shows you an ex
 - **Include sequence siblings** (`include_sequence_siblings`) adds the set's other frames, but only those whose own keep/reject state matches the action. Kept frames are never trashed because a sibling was rejected. A frame you deselected is never pulled back in.
 - The preview always reports how many sibling frames exist (`sequence_siblings`). `matched` tells "nothing qualified" apart from an empty result.
 - Moving or trashing a set's lead promotes a surviving sibling, so the set stays visible.
-- To pick an exact subset of a set, open it with the photo detail's "open this set in the gallery" action first. That view shows every frame the hide toggles leave in (blinks are hidden by default); its bar says how many are hidden and why, and its Show all brings them back until you clear the set. The photo detail's set header counts blink frames and labels each one.
+- To pick an exact subset of a set, open it with the photo detail's "open this set in the gallery" action first. That view shows every frame the hide toggles leave in (blinks and rejected frames are hidden by default); its bar says how many are hidden and why, and its Show all brings them back until you clear the set, for this view only (the saved display preferences are not changed). The photo detail's set header counts blink frames and labels each one.
 
 A filter-scoped cull follows the same filter rules as the gallery, Photo Type included. A view over 10 000 photos is refused rather than truncated, even for a dry run: narrow it (album, date, person…) and retry. Details: [API.md](API.md).
 
@@ -408,11 +409,13 @@ Response fields and status codes: [API.md](API.md).
 - **Layout Mode** — **Grid** (uniform cards) or **Mosaic** (justified rows keeping aspect ratios), at every screen width.
 - **Thumbnail Size** — card/row height slider (120–400px, saved in localStorage)
 - **Hide Details** — hide metadata on cards (grid mode only)
-- **Tooltip** — how photo details appear: **Side panel** (default), **Hover**, **Click** or **Off**.
-  - The side panel shows full details in the right-hand drawer, laid out like photo detail. It follows hover and click, so it works on touch screens. It keeps the last photo when the cursor leaves the grid.
+- **Tile presentation** — square crop (the default) or the photo's original ratio for the detail-less tiles; greyed while Mosaic is active, which already keeps the ratio, or while details are shown.
+- **Tooltip** — two rows. **Show in**: **Popup** or **Side panel** (default). **Show on**: **Off**, **Hover**, **Click** or **Hover or click** (default; side panel only). The menu stays open between picks, and **Off** keeps the place for when details come back on. Below 768px, **Hover** is disabled unless already selected; resizing preserves the saved trigger.
+  - The side panel shows full details in the right-hand drawer, laid out like photo detail. With **Hover or click** it follows both, so it works on touch screens. It keeps the last photo when the cursor leaves the grid.
   - Clicking a photo holds the panel on it until you press **Deselect** (which also deselects the photo). **Escape** does the same and clears the selection.
+  - A **Why This Score?** entry pinned at the bottom of the panel opens the score explainer (the critique dialog) for the photo the panel holds.
   - The panel shares the drawer with the filters; opening the filters hides it. It needs a viewport at least 1280px wide.
-  - **Hover** and **Click** show a short bubble: category, aggregate and rank, aesthetic, composition, sharpness, exposure, and one EXIF line.
+  - The **Popup** shows a short bubble: category, aggregate and rank, aesthetic, composition, sharpness, exposure, and one EXIF line.
 - **Customize card buttons** — reorder and show/hide the buttons on a card's hover row. Nine actions are available: find similar, why-this-score, write metadata, assign a face, open the duplicate group, burst group, bracket/panorama set or photo stack, and open the photo page. Group buttons appear only on photos in such a group. Duplicate-group and photo-stack buttons are on by default; the others are opt-in. Saved per browser.
 - **Hide Blinks** — hide photos with detected blinks
 - **Blinks Only / Duplicates Only** — show only blinked photos, or every member of each duplicate group. The hide toggles are suspended for that view.
@@ -532,6 +535,8 @@ Saving, editing or removing a manual face updates the photo’s face boxes and p
 > **Warning:** a forced viewer database rebuild replaces viewer-only edits, manual marks included, with the source database. Export or back them up first. Normal incremental synchronization keeps them.
 
 The legacy `viewer.performance.face_cache_size` setting is ignored and can be removed.
+
+**Objects.** The same editor can mark an object instead: choose **Object**, draw the box, type a label (for example "birthday cake") and save. Objects show as blue labelled boxes on the photo, the gallery search finds them by label, and assistants can read them (`GET /api/photo/objects`, or the `objects` field of the `get_photo` tool) to know which region is meant. Marks are always drawn by you, never detected automatically: they tell an assistant where to act, for example a box labelled "remove" on one of three bottles in a shot. An object is never a face: it does not touch detection, clustering, people or face scores.
 
 ## Scan Trigger
 

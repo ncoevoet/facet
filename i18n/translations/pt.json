@@ -1064,7 +1064,8 @@
       "reason_blinks": "{n} olhos fechados",
       "reason_duplicates": "{n} duplicata(s)",
       "reason_brackets": "{n} quadro(s) de bracketing",
-      "reason_panoramas": "{n} quadro(s) de panorama"
+      "reason_panoramas": "{n} quadro(s) de panorama",
+      "reason_rejected": "{n} rejeitada(s)"
     },
     "filters_notice": {
       "message": "{count} filtro ativo",
@@ -1129,6 +1130,9 @@
     "hide_details": "Ocultar detalhes",
     "tooltip_mode": {
       "label": "Dica",
+      "show_in": "Mostrar em",
+      "popup": "Pop-up",
+      "show_on": "Mostrar com",
       "hover": "Passar o mouse",
       "click": "Clicar",
       "panel": "Painel lateral",
@@ -1137,9 +1141,6 @@
       "panel_deselect": "Desmarcar"
     },
     "panel_activation": {
-      "label": "Ativação do painel",
-      "hover": "Passar o mouse",
-      "click": "Clicar",
       "both": "Passar o mouse ou clicar"
     },
     "hide_blinks": "Ocultar piscadas",
@@ -1478,6 +1479,11 @@
       "named": "Nomeado {name}",
       "error": "Não foi possível salvar o nome",
       "remove": "Remover do filtro"
+    },
+    "tile_fit": {
+      "label": "Apresentação dos cartões",
+      "square": "Recorte quadrado",
+      "natural": "Proporção original"
     }
   },
   "composition_patterns": {
@@ -2863,6 +2869,20 @@
     "restore_failed": "Não foi possível desfazer"
   },
   "cull": {
+    "file_preview": {
+      "title": "Ficheiros desta operação",
+      "help": "Reveja os ficheiros antes de aplicar. Clique numa imagem para a ampliar. Cancele para alterar as decisões sobre as fotos.",
+      "back": "Voltar aos ficheiros",
+      "unavailable": "Pré-visualização indisponível",
+      "sidecar": "Ficheiro auxiliar XMP",
+      "enlarge": "Ampliar {name}",
+      "pages": "Páginas da pré-visualização de ficheiros",
+      "previous": "Anterior",
+      "next": "Seguinte",
+      "range": "Ficheiros {start}–{end} de {total}",
+      "trash": "Mover {count} ficheiros para o lixo do sistema",
+      "trash_one": "Mover 1 ficheiro para o lixo do sistema"
+    },
     "action": "Selecionar para pasta…",
     "title": "Selecionar para pasta",
     "selected": "selecionado(s)",
@@ -3045,7 +3065,7 @@
     }
   },
   "manual_faces": {
-    "title": "Marcar um rosto ausente / Gerir rostos manuais",
+    "title": "Marcar um rosto ausente ou um objeto / Gerir marcas",
     "instructions": "Desenhe um retângulo ou introduza as margens em percentagens. Escolha uma pessoa e guarde.",
     "unavailable": "Original indisponível. Pode remover as marcas guardadas.",
     "preview": "Fotografia orientada para marcar rostos",
@@ -3067,7 +3087,15 @@
     "save_failed": "Falha ao guardar. Rascunho mantido. Se a origem mudou ou a sessão expirou, recarregue a pré-visualização.",
     "reload": "Recarregar editor",
     "refresh_failed": "A alteração foi guardada, mas não foi possível atualizar as informações das pessoas. Recarregue a fotografia.",
-    "detected_overlap": "Já foi detetado um rosto aqui. Feche este editor e use a ação de atribuição de rostos detetados. O rascunho foi mantido."
+    "detected_overlap": "Já foi detetado um rosto aqui. Feche este editor e use a ação de atribuição de rostos detetados. O rascunho foi mantido.",
+    "mark_kind": "O que o retângulo marca",
+    "kind_face": "Rosto",
+    "kind_object": "Objeto",
+    "object_instructions": "Desenhe um retângulo à volta do objeto ou introduza as margens em percentagens. Dê-lhe uma etiqueta e guarde. A pesquisa da galeria encontra os objetos; nunca contam como rostos.",
+    "object_label": "Etiqueta",
+    "object_placeholder": "ex. bolo de aniversário",
+    "objects": "Objetos marcados",
+    "objects_empty": "Nenhum objeto marcado."
   },
   "assistant_activity": {
     "chip": "Assistente ativo",

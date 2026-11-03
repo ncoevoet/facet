@@ -2334,6 +2334,38 @@ describe('PhotoDetailComponent', () => {
       const labels = view.nativeElement.querySelectorAll('[data-ai-label]');
       expect(labels.length).toBe(1);
       expect(labels[0].textContent).toContain('photo_detail.ai_edit.badge_short');
+      // The button's aria-label replaces its content, so it names the edit itself.
+      const button = labels[0].closest('button') as HTMLButtonElement;
+      expect(button.getAttribute('aria-label')).toContain('photo_detail.ai_edit.badge');
+      const plain = thumbs.find(img => img.getAttribute('src')!.includes(encodeURIComponent('/photos/b.jpg')))!;
+      expect(plain.closest('button')!.getAttribute('aria-label')).not.toContain('photo_detail.ai_edit');
+    });
+
+    it('labels a bracket\'s blink frame even though every bracket member has an EV offset', async () => {
+      const bracket = {
+        kind: 'bracket', group_id: 1, count: 3, ev_span: 4, members: [
+          { path: '/photos/test.jpg', ev_offset: 0, is_lead: true, is_blink: false },
+          { path: '/photos/under.jpg', ev_offset: -2, is_lead: false, is_blink: true },
+          { path: '/photos/over.jpg', ev_offset: 2, is_lead: false, is_blink: false },
+        ],
+      };
+      mockApi.get.mockImplementation((url: string) => {
+        if (url === '/photo/set') return of(bracket);
+        if (url === '/download/options') return of({ options: [{ type: 'original', label: 'original' }] });
+        return of(samplePhoto);
+      });
+      const view = renderDetail();
+      view.componentInstance.photo.set(makePhoto({}));
+      for (let i = 0; i < 3; i++) {
+        view.detectChanges();
+        await new Promise<void>(resolve => setTimeout(resolve, 0));
+      }
+      view.detectChanges();
+
+      const el = view.nativeElement as HTMLElement;
+      expect(el.textContent!.match(/ui\.badges\.blink/g)?.length).toBe(1);
+      const labels = Array.from(el.querySelectorAll('button[aria-label]')).map(b => b.getAttribute('aria-label')!);
+      expect(labels.filter(l => l.includes('ui.badges.blink'))).toHaveLength(1);
     });
 
     it('ignores a stale set response after navigating to another photo', async () => {

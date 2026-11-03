@@ -1064,7 +1064,8 @@
       "reason_blinks": "{n} 张闭眼",
       "reason_duplicates": "{n} 张重复",
       "reason_brackets": "{n} 张包围曝光帧",
-      "reason_panoramas": "{n} 张全景帧"
+      "reason_panoramas": "{n} 张全景帧",
+      "reason_rejected": "{n} 张已拒绝"
     },
     "filters_notice": {
       "message": "已启用 {count} 个筛选",
@@ -1129,6 +1130,9 @@
     "hide_details": "隐藏照片详情",
     "tooltip_mode": {
       "label": "提示信息",
+      "show_in": "显示位置",
+      "popup": "弹出窗口",
+      "show_on": "显示时机",
       "hover": "悬停",
       "click": "点击",
       "panel": "侧边面板",
@@ -1137,9 +1141,6 @@
       "panel_deselect": "取消选择"
     },
     "panel_activation": {
-      "label": "面板触发方式",
-      "hover": "悬停",
-      "click": "点击",
       "both": "悬停或点击"
     },
     "hide_blinks": "隐藏闭眼照片",
@@ -1478,6 +1479,11 @@
       "named": "已命名为 {name}",
       "error": "无法保存名称",
       "remove": "从筛选中移除"
+    },
+    "tile_fit": {
+      "label": "照片呈现方式",
+      "square": "裁切到正方形",
+      "natural": "保持原有比例"
     }
   },
   "composition_patterns": {
@@ -2863,6 +2869,20 @@
     "restore_failed": "无法撤销"
   },
   "cull": {
+    "file_preview": {
+      "title": "本次操作的文件",
+      "help": "应用前请检查文件。点击图片可放大。取消操作后可更改照片决定。",
+      "back": "返回文件列表",
+      "unavailable": "预览不可用",
+      "sidecar": "XMP 附属文件",
+      "enlarge": "放大 {name}",
+      "pages": "文件预览分页",
+      "previous": "上一页",
+      "next": "下一页",
+      "range": "文件 {start}–{end}，共 {total} 个",
+      "trash": "将 {count} 个文件移至系统回收站",
+      "trash_one": "将 1 个文件移至系统回收站"
+    },
     "action": "选片后导出／清理…",
     "title": "选片后导出／清理",
     "selected": "已选",
@@ -3045,7 +3065,7 @@
     }
   },
   "manual_faces": {
-    "title": "标记遗漏的人脸 / 管理手动人脸",
+    "title": "标记遗漏的人脸或物体 / 管理标记",
     "instructions": "绘制矩形或输入边缘百分比。选择人物后保存。",
     "unavailable": "原始图像不可用。仍可删除已保存的标记。",
     "preview": "用于标记人脸的正向照片",
@@ -3067,7 +3087,15 @@
     "save_failed": "保存失败，草稿已保留。如果原图已更改或会话已过期，请重新加载预览。",
     "reload": "重新加载编辑器",
     "refresh_failed": "更改已保存，但无法刷新人物信息。请重新加载照片以查看最新信息。",
-    "detected_overlap": "此处已检测到人脸。请关闭此编辑器，使用现有的已检测人脸分配操作。草稿已保留。"
+    "detected_overlap": "此处已检测到人脸。请关闭此编辑器，使用现有的已检测人脸分配操作。草稿已保留。",
+    "mark_kind": "矩形标记的内容",
+    "kind_face": "人脸",
+    "kind_object": "物体",
+    "object_instructions": "在物体周围绘制矩形或输入边缘百分比。填写标签后保存。图库搜索可以找到物体；物体永远不会算作人脸。",
+    "object_label": "标签",
+    "object_placeholder": "例如：生日蛋糕",
+    "objects": "已标记的物体",
+    "objects_empty": "尚未标记物体。"
   },
   "assistant_activity": {
     "chip": "助手运行中",

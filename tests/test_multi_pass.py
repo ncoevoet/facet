@@ -712,12 +712,18 @@ class TestLoadImagesFreesHsv:
         scorer.get_exif_data.return_value = {}
         proc = _make(_config())
         proc.scorer = scorer
-        ticks = iter([10.0, 12.0, 20.0, 23.0])
+        # exif batch (start, end), then the worker body, its decode span (which holds the
+        # thumbnail's start and end) and the fallback span
+        ticks = iter([10.0, 12.0, 20.0, 20.0, 20.0, 21.0, 21.0, 21.0, 24.0, 24.0])
         with mock.patch("exiftool.get_exif_batch", return_value={}), \
                 mock.patch("processing.multi_pass.time.perf_counter", side_effect=lambda: next(ticks)):
             images = proc._load_images([str(path)])
         assert proc.metrics['exif_batch_time'] == 2.0
         assert proc.metrics['exif_fallback_time'] == 3.0
+        # the thumbnail's second is taken out of decode, not counted twice
+        assert proc.metrics['thumbnail_worker_time'] == 1.0
+        assert proc.metrics['decode_worker_time'] == 0.0
+        assert proc.metrics['analyze_worker_time'] == 0.0
         assert len(images) == 1  # a silent per-photo load failure must not pass
         for entry in images.values():
             assert entry['cache'].hsv is None

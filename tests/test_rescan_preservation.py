@@ -65,7 +65,7 @@ def scored_db(tmp_path):
     facet.db_path = db
     facet.config = SimpleNamespace(version_hash='v1')
     # First scan: one photo.
-    facet.save_photos_batch([(_base_result('/p/a.jpg', 5.0), _IMG)])
+    facet.save_photos_batch([_base_result('/p/a.jpg', 5.0)])
     # Simulate everything a user / later pass attaches to the photo.
     with get_connection(db, row_factory=False) as conn:
         conn.execute(
@@ -94,7 +94,7 @@ def scored_db(tmp_path):
 def test_rescan_preserves_user_and_derived_data(scored_db):
     db, facet = scored_db
     # Re-scan (--force): same path, new scores.
-    facet.save_photos_batch([(_base_result('/p/a.jpg', 9.9), _IMG)])
+    facet.save_photos_batch([_base_result('/p/a.jpg', 9.9)])
 
     with get_connection(db, row_factory=True) as conn:
         row = conn.execute(
@@ -128,7 +128,7 @@ def test_rescan_preserves_sticky_scoring_override(scored_db):
 
     # Re-scan (--force): same path, new scores, same INSERT OR REPLACE call
     # that (pre-fix) cascade-deleted comparisons/learned_scores/user_preferences.
-    facet.save_photos_batch([(_base_result('/p/a.jpg', 9.9), _IMG)])
+    facet.save_photos_batch([_base_result('/p/a.jpg', 9.9)])
 
     overrides = get_photo_scoring_overrides(db)
     assert overrides['/p/a.jpg'] == {'scoring_context': None, 'category_override': 'sports'}
@@ -144,11 +144,11 @@ def test_rescan_refreshes_faces(scored_db):
     res = _base_result('/p/a.jpg', 7.0)
     res['face_count'] = 1
     res['face_details'] = [face]
-    facet.save_photos_batch([(res, _IMG)])
+    facet.save_photos_batch([res])
     with get_connection(db, row_factory=True) as conn:
         assert conn.execute("SELECT COUNT(*) FROM faces WHERE photo_path='/p/a.jpg'").fetchone()[0] == 1
     # Re-scan with zero faces must clear the stale face.
-    facet.save_photos_batch([(_base_result('/p/a.jpg', 7.5), _IMG)])
+    facet.save_photos_batch([_base_result('/p/a.jpg', 7.5)])
     with get_connection(db, row_factory=True) as conn:
         assert conn.execute("SELECT COUNT(*) FROM faces WHERE photo_path='/p/a.jpg'").fetchone()[0] == 0
 
@@ -170,7 +170,7 @@ def test_rescan_preserves_manual_tags_and_cascade_removes_them(scored_db):
             "VALUES ('/p/a.jpg', 'trip-norway-2026', 'user')"
         )
         conn.commit()
-    facet.save_photos_batch([(_base_result('/p/a.jpg', 9.9), _IMG)])
+    facet.save_photos_batch([_base_result('/p/a.jpg', 9.9)])
     with get_connection(db, row_factory=False) as conn:
         assert conn.execute(
             "SELECT tag, source FROM photo_manual_tags WHERE photo_path = '/p/a.jpg'"
@@ -219,7 +219,7 @@ def test_real_save_keeps_manual_faces(scored_db, restricted):
     if restricted:
         facet.save_photos_partial([(result, _IMG, ('aggregate',))], refresh_faces=True)
     else:
-        facet.save_photos_batch([(result, _IMG)])
+        facet.save_photos_batch([result])
     with get_connection(db, row_factory=False) as conn:
         assert conn.execute('SELECT person_id FROM faces WHERE id=?', (fid,)).fetchone() == (pid,)
 
@@ -237,7 +237,7 @@ def test_real_save_preserves_manual_gps(scored_db, coordinates, restricted):
     if restricted:
         facet.save_photos_partial([(result, _IMG, ('aggregate',))], refresh_faces=False)
     else:
-        facet.save_photos_batch([(result, _IMG)])
+        facet.save_photos_batch([result])
     with get_connection(db, row_factory=False) as conn:
         assert conn.execute('SELECT gps_latitude,gps_longitude,gps_manually_set,aggregate FROM photos WHERE path=?',
                             ('/p/a.jpg',)).fetchone() == (*coordinates, 1, 9.1)
@@ -247,7 +247,7 @@ def test_real_full_save_refreshes_unedited_exif_gps(scored_db):
     db, facet = scored_db
     result = _base_result('/p/a.jpg', 9.1)
     result.update(gps_latitude=1, gps_longitude=2)
-    facet.save_photos_batch([(result, _IMG)])
+    facet.save_photos_batch([result])
     with get_connection(db, row_factory=False) as conn:
         assert conn.execute('SELECT gps_latitude,gps_longitude,gps_manually_set FROM photos WHERE path=?',
                             ('/p/a.jpg',)).fetchone() == (1, 2, 0)
@@ -288,7 +288,7 @@ def test_scan_validates_manual_review_without_write_lock(scored_db, tmp_path, mo
     monkeypatch.setattr(manual_faces, 'is_current', unlocked)
     results = [_base_result(path, 6), _base_result('/p/a.jpg', 7)]
     if mode == 'full':
-        facet.save_photos_batch([(r, _IMG) for r in results])
+        facet.save_photos_batch(results)
     else:
         facet.save_photos_partial([(r, _IMG, ('aggregate',)) for r in results],
                                   refresh_faces=mode == 'partial_faces')

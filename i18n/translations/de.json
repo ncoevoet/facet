@@ -1064,7 +1064,8 @@
       "reason_blinks": "{n} Blinzeln",
       "reason_duplicates": "{n} Duplikat(e)",
       "reason_brackets": "{n} Belichtungsreihen-Bild(er)",
-      "reason_panoramas": "{n} Panorama-Bild(er)"
+      "reason_panoramas": "{n} Panorama-Bild(er)",
+      "reason_rejected": "{n} abgelehnt"
     },
     "filters_notice": {
       "message": "{count} Filter aktiv",
@@ -1129,6 +1130,9 @@
     "hide_details": "Details ausblenden",
     "tooltip_mode": {
       "label": "Tooltip",
+      "show_in": "Anzeigen in",
+      "popup": "Popup",
+      "show_on": "Anzeigen bei",
       "hover": "Hover",
       "click": "Klick",
       "panel": "Seitenleiste",
@@ -1137,9 +1141,6 @@
       "panel_deselect": "Auswahl aufheben"
     },
     "panel_activation": {
-      "label": "Panel-Aktivierung",
-      "hover": "Hover",
-      "click": "Klick",
       "both": "Hover oder Klick"
     },
     "hide_blinks": "Blinzler ausblenden",
@@ -1478,6 +1479,11 @@
       "named": "{name} benannt",
       "error": "Name konnte nicht gespeichert werden",
       "remove": "Aus dem Filter entfernen"
+    },
+    "tile_fit": {
+      "label": "Kachel-Darstellung",
+      "square": "Quadratisch zugeschnitten",
+      "natural": "Originalformat"
     }
   },
   "composition_patterns": {
@@ -2863,6 +2869,20 @@
     "restore_failed": "Rückgängig machen fehlgeschlagen"
   },
   "cull": {
+    "file_preview": {
+      "title": "Dateien für diesen Vorgang",
+      "help": "Prüfen Sie die Dateien vor dem Anwenden. Klicken Sie zum Vergrößern auf ein Bild. Brechen Sie ab, um Ihre Fotoentscheidungen zu ändern.",
+      "back": "Zurück zu den Dateien",
+      "unavailable": "Vorschau nicht verfügbar",
+      "sidecar": "XMP-Begleitdatei",
+      "enlarge": "{name} vergrößern",
+      "pages": "Seiten der Dateivorschau",
+      "previous": "Zurück",
+      "next": "Weiter",
+      "range": "Dateien {start}–{end} von {total}",
+      "trash": "{count} Dateien in den Systempapierkorb verschieben",
+      "trash_one": "1 Datei in den Systempapierkorb verschieben"
+    },
     "action": "In Ordner aussortieren…",
     "title": "In Ordner aussortieren",
     "selected": "ausgewählt",
@@ -3045,7 +3065,7 @@
     }
   },
   "manual_faces": {
-    "title": "Fehlendes Gesicht markieren / Manuelle Gesichter verwalten",
+    "title": "Fehlendes Gesicht oder Objekt markieren / Markierungen verwalten",
     "instructions": "Ziehen Sie ein Rechteck oder geben Sie die Ränder in Prozent ein. Wählen Sie eine Person und speichern Sie.",
     "unavailable": "Original nicht verfügbar. Gespeicherte Markierungen können entfernt werden.",
     "preview": "Aufgerichtetes Foto zum Markieren von Gesichtern",
@@ -3067,7 +3087,15 @@
     "save_failed": "Speichern fehlgeschlagen. Entwurf erhalten. Bei geänderter Quelle oder abgelaufener Sitzung die Vorschau neu laden.",
     "reload": "Editor neu laden",
     "refresh_failed": "Die Änderung wurde gespeichert, aber Personeninformationen konnten nicht aktualisiert werden. Laden Sie das Foto neu.",
-    "detected_overlap": "Hier wurde bereits ein Gesicht erkannt. Schließen Sie diesen Editor und verwenden Sie die Zuweisung erkannter Gesichter. Ihr Entwurf bleibt erhalten."
+    "detected_overlap": "Hier wurde bereits ein Gesicht erkannt. Schließen Sie diesen Editor und verwenden Sie die Zuweisung erkannter Gesichter. Ihr Entwurf bleibt erhalten.",
+    "mark_kind": "Was das Rechteck markiert",
+    "kind_face": "Gesicht",
+    "kind_object": "Objekt",
+    "object_instructions": "Ziehen Sie ein Rechteck um das Objekt oder geben Sie die Ränder in Prozent ein. Geben Sie eine Bezeichnung ein und speichern Sie. Objekte findet die Galeriesuche; sie zählen nie als Gesichter.",
+    "object_label": "Bezeichnung",
+    "object_placeholder": "z. B. Geburtstagstorte",
+    "objects": "Markierte Objekte",
+    "objects_empty": "Keine Objekte markiert."
   },
   "assistant_activity": {
     "chip": "Assistent aktiv",

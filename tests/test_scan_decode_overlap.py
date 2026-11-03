@@ -29,6 +29,7 @@ import pytest
 
 pytest.importorskip("torch")
 
+from models.model_manager import ModelManager  # noqa: E402
 from processing.multi_pass import ChunkedMultiPassProcessor  # noqa: E402
 
 GIB = 1024 ** 3
@@ -41,6 +42,9 @@ TIMEOUT = 5.0
 
 class _Manager:
     """Duck-types the ModelManager surface ``process_directory`` and the S4 gate read."""
+
+    CPU_CACHEABLE_MODELS = ModelManager.CPU_CACHEABLE_MODELS
+    is_cacheable_model = ModelManager.is_cacheable_model
 
     def __init__(self, device='cuda', keep_in_ram='auto', resident=(), cached=(),
                  available=1024 * GIB, reserve_gb=4.0, fail_load=(), profile=None,
@@ -162,6 +166,9 @@ def _processor(manager, groups, monkeypatch, *, chunk=2, workers=1, log=None,
         proc = ChunkedMultiPassProcessor(_scorer(), manager, config, on_error=on_error)
     proc.pass_groups = groups
     proc.restricted = restricted
+    # These tests pin the overlap of a chunk's decode with its OWN first model load; the
+    # decode-ahead has its own suite (test_decode_ahead.py).
+    proc.DECODE_AHEAD = False
     log = log if log is not None else _Log()
     proc._test_log = log
     proc._test_executor = None
@@ -216,7 +223,7 @@ class TestDecodeRunsWhileGroupZeroLoads:
             log.append('decode-end')
             return {p: _image_entry() for p in paths}
 
-        def load_pass_models(group, supplementary, failed_stages):
+        def load_pass_models(group, supplementary, failed_stages, **kw):
             log.append(('load-start', tuple(group)))
             if group == ['clip', 'topiq']:
                 barrier.wait(timeout=TIMEOUT)
@@ -618,7 +625,7 @@ class TestWarmupRunsOnTheMainThreadFirst:
         monkeypatch.setattr('analyzers.form_facet.warmup', warmup)
         monkeypatch.setattr(proc, '_load_images', _stub_decode(proc))
 
-        def load_pass_models(group, supplementary, failed_stages):
+        def load_pass_models(group, supplementary, failed_stages, **kw):
             log.append('load-models')
             return {name: object() for name in group}
 
@@ -763,15 +770,16 @@ class TestKeyboardInterruptDoesNotWaitForTheChunk:
             release.wait(30)
             return None, None
 
-        monkeypatch.setattr('utils.load_image_from_path', blocking_load)
-        monkeypatch.setattr('exiftool.get_exif_batch', lambda paths, chunk_size=100: {})
+        monkeypatch.setattr('utils.load_image_and_thumbnail',
+                            lambda path: (*blocking_load(path), None, 0.0))
+        monkeypatch.setattr('exiftool.get_exif_batch', lambda paths, chunk_size=100, stop_event=None: {})
         errors = []
         manager = _Manager()
         paths = [f'/p/{i}.jpg' for i in range(6)]
         proc = _processor(manager, [['clip']], monkeypatch, chunk=6, workers=2,
                           on_error=lambda *a: errors.append(a))
 
-        def load_pass_models(group, supplementary, failed_stages):
+        def load_pass_models(group, supplementary, failed_stages, **kw):
             assert two_started.wait(TIMEOUT)
             raise KeyboardInterrupt()
 
@@ -812,8 +820,9 @@ class TestKeyboardInterruptDoesNotWaitForTheChunk:
 class TestStopFlagInLoadImages:
 
     def _patch_io(self, monkeypatch, load):
-        monkeypatch.setattr('utils.load_image_from_path', load)
-        monkeypatch.setattr('exiftool.get_exif_batch', lambda paths, chunk_size=100: {})
+        monkeypatch.setattr('utils.load_image_and_thumbnail',
+                            lambda path: (*load(path), None, 0.0))
+        monkeypatch.setattr('exiftool.get_exif_batch', lambda paths, chunk_size=100, stop_event=None: {})
 
     @pytest.mark.parametrize('workers', [1, 3])
     def test_a_set_stop_flag_starts_no_photo_and_records_nothing(self, workers, monkeypatch):
@@ -904,7 +913,7 @@ class TestMetrics:
             clock.advance(3.0)          # the part of the decode the load did not hide
             return {p: _image_entry() for p in paths}
 
-        def load_pass_models(group, supplementary, failed_stages):
+        def load_pass_models(group, supplementary, failed_stages, **kw):
             assert decode_started.wait(TIMEOUT)
             clock.advance(7.0)          # group 0's load, overlapped with the decode
             return {name: object() for name in group}
@@ -950,8 +959,6 @@ def test_post_inference_phase_accounting(monkeypatch, restricted):
 
     def save(results, images):
         clock.advance(3)
-        if not restricted:
-            proc.metrics['thumbnail_time'] += 3
         clock.advance(5)
 
     monkeypatch.setattr(proc, '_compute_aggregates', aggregate)
@@ -959,5 +966,4 @@ def test_post_inference_phase_accounting(monkeypatch, restricted):
     monkeypatch.setattr(proc, '_save_results_restricted', save)
     proc.process_directory(PATHS[:2], show_progress=False)
     assert proc.metrics['aggregate_time'] == (0 if restricted else 2)
-    assert proc.metrics['thumbnail_time'] == (0 if restricted else 3)
-    assert proc.metrics['save_time'] == (8 if restricted else 5)
+    assert proc.metrics['save_time'] == 8

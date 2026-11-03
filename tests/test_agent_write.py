@@ -88,7 +88,7 @@ class TestGrantMatrix:
         "update_photo_stack": {"stack_id": "invalid", "paths": [], "expected_revision": 1},
         "unstack_photos": {"stack_id": "invalid", "expected_revision": 1},
         "undo_photo_stack": {"entry_id": 0},
-        "import_ai_edit": {"original_path": P[0], "source_file": "/edits/out.jpg", "mode": "copy",
+        "import_ai_edit": {"original_path": P[0], "source_file": "out.jpg",
                            "tool": "antigravity-gemini"},
         "set_rating": {"paths": [P[0]], "rating": 2}, "set_favorite": {"paths": [P[0]], "value": True},
         "set_rejected": {"paths": [P[0]], "value": True},

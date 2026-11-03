@@ -130,7 +130,7 @@ def _teach_taste(args: dict, visible: frozenset) -> str:
 
 
 def _edit_photo(args: dict, visible: frozenset) -> str:
-    from api.routers.ai_edits import tool_suffixes
+    from api.routers.ai_edits import drop_dir, tool_suffixes
 
     photo = _clean(args.get("photo"))
     tools = ", ".join(f"\"{name}\" (files tagged _{tag}_)" for name, tag in sorted(tool_suffixes().items()))
@@ -146,16 +146,20 @@ def _edit_photo(args: dict, visible: frozenset) -> str:
         steps.append("When a person's face or body is involved, find two to four sharp photos of that person from "
                      "the same event with `search_photos` and check them with `get_thumbnail` or `contact_sheet`; "
                      "give them to your image model as references.")
+    folder = drop_dir()
+    send = (f"the edit as source_file: save it in Facet's AI-edit drop folder {folder} and pass its file name "
+            "(Facet copies it and leaves your file; delete it from the drop folder once the import succeeds)"
+            if folder else "the edit's bytes base64-encoded as image_data")
     steps += [
         "Make the edit outside the library. Copy the original into a work folder of your own on the computer "
         "running Facet and edit the copy there; never write, rename or overwrite anything in the library's "
         "folders. Keep the framing, resolution, other people, colours and light; only the requested change "
         "differs. Show the user the result and wait for their approval.",
-        "Call `import_ai_edit` with the original's path, your edit's absolute path as the source, mode \"move\" "
-        "(\"copy\" only if the user wants to keep the work file), the model you used, a one-line note of what "
-        "changed (the edit's caption becomes the original's caption plus \"AI: \" and the note), and as `tool` the name that matches you: " + (tools or "none is configured; tell the user")
-        + ". Facet places the file beside the original as name_tag_revision with the source's extension, never "
-        "over an existing file, links it to the original and scans it.",
+        "Call `import_ai_edit` with the original's path, " + send + ", the model you used, a one-line note of what "
+        "changed (the edit's caption becomes the original's caption plus \"AI: \" and the note), and as `tool` the "
+        "name that matches you: " + (tools or "none is configured; tell the user")
+        + ". Facet writes its own copy beside the original as name_tag_revision with the image's own extension, "
+        "never over an existing file, links it to the original and scans it.",
         "The import call waits until Facet has scanned the edit (up to three minutes): tell the user it is "
         "importing, and confirm it is done only when the answer says ready, with the new path, revision, caption "
         "and photo page"

@@ -757,7 +757,7 @@ Cada imagem é decodificada uma vez por bloco e compartilhada por todas as passa
 
 - As threads de carregamento também calculam EXIF, métricas técnicas, composição baseada em regras, o hash perceptual e uma cópia compartilhada de 1024 px para os modelos pyiqa e o Q-ReAlign.
 - Um erro de composição faz falhar apenas essa foto. Ele é registrado em `scan_failures` na etapa `composition`; tente de novo com `--retry-failed`.
-- Em uma GPU CUDA, um bloco é decodificado enquanto os próximos modelos carregam, quando a memória livre do host permite e `keep_in_ram` não é `"never"`. Caso contrário (e sempre em CPU e Apple MPS), é decodificado primeiro. Os resultados são idênticos nos dois casos.
+- Em uma GPU CUDA, um bloco é decodificado enquanto os próximos modelos carregam, quando a memória livre do host permite e `keep_in_ram` não é `"never"`. Caso contrário (e sempre em CPU e Apple MPS), é decodificado primeiro. Os resultados são idênticos nos dois casos. Depois de decodificar um chunk, o worker decodifica também as primeiras fotos do próximo enquanto os modelos deste executam, tantas quanto a memória livre, a margem de commit do Windows e o limiar de crescimento permitirem (nenhuma no primeiro chunk, com o ajuste automático ativo depois de um chunk mais curto que o intervalo do monitor de memória, com `keep_in_ram: "never"` ou quando o cache de RAM não conseguiria manter os modelos do chunk); veja [COMMANDS.md](COMMANDS.md).
 - Quando a memória fica curta antes de um bloco, o cache de RAM devolve primeiro o modelo que será necessário mais tarde e mantém `ram_cache_reserve_gb` livre.
 - O resumo da varredura informa `Plane rebuilds`, `I/O wait (scan thread blocked on decode)` e `Decode wall`.
 
@@ -1110,7 +1110,8 @@ Que ferramentas de IA podem importar uma edição com `import_ai_edit` (ver [Age
 ```json
 {
   "ai_edits": {
-    "tool_suffixes": { "antigravity-gemini": "agy", "openai-chatgpt": "gpt", "anthropic-claude": "ant" }
+    "tool_suffixes": { "antigravity-gemini": "agy", "openai-chatgpt": "gpt", "anthropic-claude": "ant" },
+    "drop_dir": ""
   }
 }
 ```
@@ -1118,6 +1119,7 @@ Que ferramentas de IA podem importar uma edição com `import_ai_edit` (ver [Age
 | Definição | Predefinição | Descrição |
 |---------|---------|-------------|
 | `tool_suffixes` | `{"antigravity-gemini": "agy", "openai-chatgpt": "gpt", "anthropic-claude": "ant"}` | Nome da ferramenta → etiqueta do nome do ficheiro |
+| `drop_dir` | `""` | Uma pasta no servidor do Facet onde um assistente no mesmo computador guarda a edição e passa o nome do ficheiro como `source_file`. O Facet lê o ficheiro e escreve a sua própria cópia; nunca o apaga nem altera. Mantenha-a fora das pastas analisadas (um ficheiro aí é recusado). Vazia: os assistentes enviam a imagem como `image_data` |
 
 ---
 

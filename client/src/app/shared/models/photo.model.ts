@@ -169,8 +169,8 @@ export interface PhotoSetMember {
   /** The gallery hides blinks by default, so a set opened there can show
    *  fewer frames than `count`; the photo page names them up front. */
   is_blink?: boolean;
-  /** The original's path when this frame is an AI edit of it. */
-  ai_edit_of?: string;
+  /** The original's path when this frame is an AI edit of it; null (or absent) otherwise. */
+  ai_edit_of?: string | null;
   preview_revision?: string | null;
 }
 

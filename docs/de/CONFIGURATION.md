@@ -759,7 +759,7 @@ Jedes Bild wird einmal pro Chunk dekodiert und von allen Durchläufen gemeinsam 
 
 - Die Loader-Threads berechnen außerdem EXIF, technische Metriken, die regelbasierte Komposition, den Perceptual Hash und eine gemeinsame 1024-px-Kopie für die pyiqa-Modelle und Q-ReAlign.
 - Ein Kompositionsfehler lässt nur dieses eine Foto scheitern. Er wird in `scan_failures` unter der Stufe `composition` erfasst; Wiederholung mit `--retry-failed`.
-- Auf einer CUDA-GPU wird ein Chunk dekodiert, während die nächsten Modelle laden, sofern der freie Host-Speicher es zulässt und `keep_in_ram` nicht `"never"` ist. Andernfalls (und immer auf CPU und Apple MPS) wird er zuerst dekodiert. Die Ergebnisse sind in beiden Fällen identisch.
+- Auf einer CUDA-GPU wird ein Chunk dekodiert, während die nächsten Modelle laden, sofern der freie Host-Speicher es zulässt und `keep_in_ram` nicht `"never"` ist. Andernfalls (und immer auf CPU und Apple MPS) wird er zuerst dekodiert. Die Ergebnisse sind in beiden Fällen identisch. Ist ein Chunk dekodiert, dekodiert der Worker zusätzlich die ersten Fotos des nächsten Chunks, während die Modelle dieses Chunks laufen, so viele, wie freier Speicher, Windows-Commit-Reserve und Wachstumsschwelle erlauben (keine beim ersten Chunk, bei aktivem Auto-Tuning nach einem Chunk, der kürzer als das Intervall des Speichermonitors war, mit `keep_in_ram: "never"` oder wenn der RAM-Cache die Modelle des Chunks nicht halten könnte); siehe [COMMANDS.md](COMMANDS.md).
 - Wird der Speicher vor einem Chunk knapp, gibt der RAM-Cache zuerst das Modell ab, das am spätesten wieder benötigt wird, und hält `ram_cache_reserve_gb` frei.
 - Die Scan-Zusammenfassung meldet `Plane rebuilds`, `I/O wait (scan thread blocked on decode)` und `Decode wall`.
 
@@ -1119,7 +1119,8 @@ Welche KI-Werkzeuge mit `import_ai_edit` eine Bearbeitung importieren dürfen (s
 ```json
 {
   "ai_edits": {
-    "tool_suffixes": { "antigravity-gemini": "agy", "openai-chatgpt": "gpt", "anthropic-claude": "ant" }
+    "tool_suffixes": { "antigravity-gemini": "agy", "openai-chatgpt": "gpt", "anthropic-claude": "ant" },
+    "drop_dir": ""
   }
 }
 ```
@@ -1127,6 +1128,7 @@ Welche KI-Werkzeuge mit `import_ai_edit` eine Bearbeitung importieren dürfen (s
 | Einstellung | Standard | Beschreibung |
 |---------|---------|-------------|
 | `tool_suffixes` | `{"antigravity-gemini": "agy", "openai-chatgpt": "gpt", "anthropic-claude": "ant"}` | Werkzeugname → Kürzel im Dateinamen |
+| `drop_dir` | `""` | Ein Ordner auf dem Facet-Server, in den ein Assistent auf demselben Rechner seine Bearbeitung legt, um den Dateinamen als `source_file` zu übergeben. Facet liest die Datei und schreibt eine eigene Kopie; die Datei wird nie gelöscht oder geändert. Außerhalb der gescannten Ordner halten (eine Datei dort wird abgelehnt). Leer: Assistenten senden das Bild als `image_data` |
 
 ---
 

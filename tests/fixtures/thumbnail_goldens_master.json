@@ -1,0 +1,54 @@
+{
+  "heic_gainmap": {
+    "render_version": 1,
+    "sha256": "d1782e30c3af73678bcd5f6343b01ba46a5fa8c138fdea3272ba94b9e89b479a"
+  },
+  "hif_pq": {
+    "render_version": 1,
+    "sha256": "781b0cfa17b769cb345716f8cad456060f50ca8acffc405d40ddf830156a2a86"
+  },
+  "hif_pq_ramp": {
+    "render_version": 1,
+    "sha256": "bf2e0de5e0d842ef39f15db122aa4eb8b5d0b0e434e3fc1f88e65c0c94f73d81"
+  },
+  "hif_pq_rotated": {
+    "render_version": 1,
+    "sha256": "595ae36d0a7f2b514c8dd3a5ae8794a633ea9c8e741dc3c275004ab9e0bded3d"
+  },
+  "hif_sony_sdr": {
+    "render_version": 1,
+    "sha256": "e818bae09fed93b36983c013f4acea63128cd0f0926fbea28f171d4190329dca"
+  },
+  "jpeg_exif_rotated": {
+    "render_version": 1,
+    "sha256": "f317c9a656f0439ff443f6d8120361f6f30936af13647067927f2f57e697dc10"
+  },
+  "jxl": {
+    "render_version": 1,
+    "sha256": "063e0447f7665c5186d7d52f8072f5c78773286d5cba60839a821ec25b4ec071"
+  },
+  "raw_prefer_preview_off": {
+    "render_version": 1,
+    "sha256": "207b807ee1742cd73c7d69805da432d135c6143a488e34d558c86977057aa89b"
+  },
+  "raw_preview_missing": {
+    "render_version": 1,
+    "sha256": "207b807ee1742cd73c7d69805da432d135c6143a488e34d558c86977057aa89b"
+  },
+  "raw_preview_too_small": {
+    "render_version": 1,
+    "sha256": "207b807ee1742cd73c7d69805da432d135c6143a488e34d558c86977057aa89b"
+  },
+  "raw_preview_usable": {
+    "render_version": 1,
+    "sha256": "f4b07928524aceb15b5d5c181efed59f4d922f0e792fad76d2e091a75f7f6dda"
+  },
+  "raw_preview_usable_rotated": {
+    "render_version": 1,
+    "sha256": "2f0f01a8a802112604bb893c59d646017eaf62142224c3ddcac1158eb64de494"
+  },
+  "raw_unsupported_fallback": {
+    "render_version": 1,
+    "sha256": "43c637256e7c34fbab4d9e6bd2d064145122169d993679c5a6959d59e4a108fd"
+  }
+}

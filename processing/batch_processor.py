@@ -23,7 +23,7 @@ import licensing
 from db.person_centroids import flush_centroids_safely
 from processing.scorer import build_scoring_metrics
 from utils import (
-    load_image_from_path, get_tag_params, detect_silhouette,
+    load_image_and_thumbnail, get_tag_params, detect_silhouette,
     tags_to_string
 )
 from processing.resource_monitor import ResourceMonitor, HAS_PSUTIL
@@ -70,8 +70,12 @@ class BatchProcessor:
         self.metrics = {
             'images_processed': 0,
             'total_load_time': 0.0,
+            # Thumbnail resize + JPEG encode seconds, made beside the decode. Kept out of
+            # total_load_time, which dynamic tuning reads as storage bandwidth.
+            'total_thumbnail_time': 0.0,
             'total_bytes_loaded': 0,
             'queue_timeouts': 0,
+            'photos_saved': 0,
             'start_time': None,
             'elapsed_time': 0.0,
         }
@@ -143,7 +147,8 @@ class BatchProcessor:
         """Load and preprocess a single image (runs in worker thread).
 
         Tracks load time and file size for dynamic tuning metrics.
-        Uses shared load_image_from_path() from image_utils.
+        Uses shared load_image_and_thumbnail() from image_utils, so the stored
+        thumbnail is made here, where the file is decoded.
         """
         start_time = time.time()
         file_size = 0
@@ -156,7 +161,7 @@ class BatchProcessor:
                 pass
 
             # Use shared image loading function
-            pil_img, img_cv = load_image_from_path(photo_path)
+            pil_img, img_cv, thumbnail, thumbnail_time = load_image_and_thumbnail(photo_path)
 
             if pil_img is None:
                 return {'path': str(photo_path), 'stage': 'load', 'error': 'Failed to load image'}
@@ -166,16 +171,19 @@ class BatchProcessor:
             if not self.scorer.uses_transformers_backend:
                 clip_input = self.scorer.preprocess(pil_img)
 
-            # Track metrics (thread-safe)
-            load_time = time.time() - start_time
+            # Track metrics (thread-safe). The thumbnail's encode seconds are taken out
+            # of the load window: tuning reads total_load_time as bytes / load seconds.
+            load_time = max(0.0, time.time() - start_time - thumbnail_time)
             with self._metrics_lock:
                 self.metrics['total_load_time'] += load_time
+                self.metrics['total_thumbnail_time'] += thumbnail_time
                 self.metrics['total_bytes_loaded'] += file_size
 
             return {
                 'path': str(photo_path),
                 'pil_img': pil_img,
                 'img_cv': img_cv,
+                'thumbnail': thumbnail,
                 'clip_input': clip_input
             }
         except Exception as e:
@@ -439,6 +447,7 @@ class BatchProcessor:
                     'isolation_bonus': round(isolation_bonus, 2),
                     'is_blink': is_blink,
                     'phash': phash,
+                    'thumbnail': item['thumbnail'],
                     'aggregate': round(aggregate, 2),
                     # Raw data columns
                     'clip_embedding': clip_embedding,
@@ -491,7 +500,7 @@ class BatchProcessor:
                 }
                 res.update(exif_data)
 
-                self.result_queue.put({'result': res, 'pil_img': pil_img})
+                self.result_queue.put({'result': res})
 
             except Exception as e:
                 licensing.reraise_if_refused()
@@ -559,11 +568,12 @@ class BatchProcessor:
                                 self.on_error(item.get('path', 'unknown'),
                                               item.get('stage', 'load'), item['error'])
                         else:
-                            pending_saves.append((item['result'], item['pil_img']))
+                            pending_saves.append(item['result'])
 
                             # Batch save every batch_save_size items
                             if len(pending_saves) >= self.batch_save_size:
                                 self.scorer.save_photos_batch(pending_saves)
+                                self.metrics['photos_saved'] += len(pending_saves)
                                 pending_saves = []
 
                                 # Update metrics reporter
@@ -593,6 +603,7 @@ class BatchProcessor:
                 # Save any remaining items
                 if pending_saves:
                     self.scorer.save_photos_batch(pending_saves)
+                    self.metrics['photos_saved'] += len(pending_saves)
 
             # Finalize metrics
             self.metrics['elapsed_time'] = time.time() - start_time
@@ -720,11 +731,12 @@ class BatchProcessor:
                                 self.on_error(item.get('path', 'unknown'),
                                               item.get('stage', 'load'), item['error'])
                         else:
-                            pending_saves.append((item['result'], item['pil_img']))
+                            pending_saves.append(item['result'])
 
                             # Batch save every batch_save_size items
                             if len(pending_saves) >= self.batch_save_size:
                                 self.scorer.save_photos_batch(pending_saves)
+                                self.metrics['photos_saved'] += len(pending_saves)
                                 pending_saves = []
 
                                 # Update metrics reporter
@@ -754,6 +766,7 @@ class BatchProcessor:
                 # Save any remaining items
                 if pending_saves:
                     self.scorer.save_photos_batch(pending_saves)
+                    self.metrics['photos_saved'] += len(pending_saves)
 
             # Finalize metrics
             self.metrics['elapsed_time'] = time.time() - start_time

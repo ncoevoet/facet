@@ -3853,6 +3853,7 @@
       "antigravity-gemini": "agy",
       "openai-chatgpt": "gpt",
       "anthropic-claude": "ant"
-    }
+    },
+    "drop_dir": ""
   }
 }

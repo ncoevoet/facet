@@ -594,6 +594,22 @@ PHOTO_MANUAL_TAGS_INDEXES = [
     ('idx_photo_manual_tags_tag', 'photo_manual_tags', 'tag'),
 ]
 
+# User-marked objects: a labelled box on a photo (e.g. "cake"), for search and for
+# assistants to know which region is meant. Never a face: nothing in face detection,
+# clustering or persons reads this table. Box corners are normalised to the upright
+# frame, like a face's box. Side table, so a rescan never touches it.
+PHOTO_OBJECTS_COLUMNS = [
+    ('id', 'INTEGER PRIMARY KEY AUTOINCREMENT'),
+    ('photo_path', 'TEXT NOT NULL REFERENCES photos(path) ON DELETE CASCADE ON UPDATE CASCADE'),
+    ('label', 'TEXT NOT NULL'),
+    ('x1', 'REAL NOT NULL'),
+    ('y1', 'REAL NOT NULL'),
+    ('x2', 'REAL NOT NULL'),
+    ('y2', 'REAL NOT NULL'),
+    ('created_by', 'TEXT'),
+    ('created_at', "TEXT DEFAULT (datetime('now'))"),
+]
+
 # AI edits: a file an AI tool made from a library photo, imported through
 # POST /api/photo/ai_edits/import. The edit is keyed by its own path, which may not
 # be scanned yet (the import scans it right after), so only the original carries
@@ -611,6 +627,11 @@ PHOTO_AI_EDITS_COLUMNS = [
     ('captioned', 'INTEGER NOT NULL DEFAULT 0'),
     ('created_by', 'TEXT'),
     ('created_at', "TEXT DEFAULT (datetime('now'))"),
+]
+
+PHOTO_OBJECTS_INDEXES = [
+    ('idx_photo_objects_path', 'photo_objects', 'photo_path'),
+    ('idx_photo_objects_label', 'photo_objects', 'label'),
 ]
 
 PHOTO_AI_EDITS_INDEXES = [
@@ -949,6 +970,7 @@ ALL_INDEX_GROUPS = [
     INDEXES,
     PHOTO_TAGS_INDEXES,
     PHOTO_MANUAL_TAGS_INDEXES,
+    PHOTO_OBJECTS_INDEXES,
     PHOTO_AI_EDITS_INDEXES,
     COMPARISONS_INDEXES,
     LEARNED_SCORES_INDEXES,
@@ -1142,6 +1164,7 @@ _MIGRATED_TABLES = [
     ('persons', PERSONS_COLUMNS),
     ('photo_tags', PHOTO_TAGS_COLUMNS),
     ('photo_manual_tags', PHOTO_MANUAL_TAGS_COLUMNS),
+    ('photo_objects', PHOTO_OBJECTS_COLUMNS),
     ('photo_ai_edits', PHOTO_AI_EDITS_COLUMNS),
     ('mcp_tokens', MCP_TOKENS_COLUMNS),
     ('rating_provenance', RATING_PROVENANCE_COLUMNS),
@@ -1363,8 +1386,21 @@ def init_database(db_path='photo_scores_pro.db', build_photo_indexes=True):
             constraints=['PRIMARY KEY (photo_path, tag)']
         ))
 
+        # Create photo_objects (user-marked labelled boxes; side table, survives rescans)
+        conn.execute(_build_create_table_sql('photo_objects', PHOTO_OBJECTS_COLUMNS))
         # Create photo_ai_edits (AI-made files linked to their original; side table, survives rescans)
         conn.execute(_build_create_table_sql('photo_ai_edits', PHOTO_AI_EDITS_COLUMNS))
+        # edit_path has no foreign key (the edit is not a photo until its scan), so once it IS one,
+        # follow its photo row: a deleted edit drops its link, a moved one carries it. Otherwise a
+        # stale row would caption, badge and block an unrelated photo later saved under that name.
+        conn.execute("""CREATE TRIGGER IF NOT EXISTS photo_ai_edits_edit_delete
+            AFTER DELETE ON photos BEGIN
+            DELETE FROM photo_ai_edits WHERE edit_path=OLD.path;
+            END""")
+        conn.execute("""CREATE TRIGGER IF NOT EXISTS photo_ai_edits_edit_move
+            AFTER UPDATE OF path ON photos WHEN OLD.path IS NOT NEW.path BEGIN
+            UPDATE photo_ai_edits SET edit_path=NEW.path WHERE edit_path=OLD.path;
+            END""")
 
         # Create mcp_tokens (agent bearer tokens, hash only; side table)
         conn.execute(_build_create_table_sql('mcp_tokens', MCP_TOKENS_COLUMNS))

@@ -349,7 +349,7 @@ Das Steuerelement **Top % behalten** in der Symbolleiste (Bearbeitungsmodus) sor
 
 ### KI-Bearbeitungen
 
-Ein KI-Werkzeug kann über das Assistenten-Werkzeug `import_ai_edit` eine bearbeitete Kopie eines Fotos in die Bibliothek bringen (siehe [KI-Agenten](AGENTS.md)). Die Datei landet neben dem Original als `{name}_{suffix}_{revision}{ext}`, etwa `IMG_3533_agy_1.JPG`, und wird einzeln gescannt.
+Ein KI-Werkzeug kann über das Assistenten-Werkzeug `import_ai_edit` eine bearbeitete Kopie eines Fotos in die Bibliothek bringen (siehe [KI-Agenten](AGENTS.md)). Der Assistent sendet das Bild selbst; Facet schreibt eine eigene Kopie neben das Original als `{name}_{suffix}_{revision}{ext}`, etwa `IMG_3533_agy_1.JPG`, und scannt sie einzeln. Beim Import löscht oder überschreibt Facet nie eine Datei.
 
 - Die Galerie markiert eine Bearbeitung oben auf der Kachel mit ✨ **KI**. ✨ steht nur für das, was eine KI gemacht oder ausgewählt hat.
 - Eine Bearbeitung mit demselben Aufnahmezeitpunkt landet meist in der Serie des Originals; „Bestes der Serie“ zeigt dann die höher bewertete.
@@ -370,6 +370,7 @@ Zeigt Ihnen ein über [KI-Agenten (MCP)](AGENTS.md) verbundener Assistent eine e
 **In Ordner aussortieren…** in der Sammelaktionsleiste (Bearbeitungsmodus) kopiert Behaltene oder verschiebt/entsorgt Abgelehnte in einen Zielordner. Papierkorb bedeutet den Systempapierkorb, nie ein endgültiges Löschen, und erfordert `viewer.cull.allow_trash`.
 
 - **Jeder Lauf beginnt als Trockenlauf.** Sie sehen eine Vorschau, bevor etwas geschrieben wird; Verschieben/Papierkorb laufen nur mit einem ausdrücklichen `dry_run=false`.
+- Die Vorschau zeigt die tatsächlich betroffenen Dateien mit Miniaturbildern und Dateinamen, 24 pro Seite. Klicken Sie zum Vergrößern auf ein Bild. XMP-Begleitdateien und nicht verfügbare Bilder bleiben aufgelistet. Brechen Sie ab, um Fotoentscheidungen zu ändern; nach einer Optionsänderung ist eine neue Vorschau nötig. Die Papierkorb-Bestätigung nennt die Anzahl der Dateien einschließlich aktivierter Begleitdateien.
 - **Der Server wählt die Dateien anhand des Status jedes Fotos.** Kopieren wirkt nur auf Behaltene, Verschieben/Papierkorb nur auf Abgelehnte. Alles andere wird als `excluded_by_state` gemeldet. Der Client kann keine Liste zu löschender Dateien übergeben.
 - **Begleitdateien sind optional.** Das Ablehnen eines JPEGs nimmt sein RAW nicht mit, solange Sie nicht **RAW/XMP-Begleitdatei einbeziehen** (`include_companions`) ankreuzen.
 - Unter macOS und Windows behalten RAW-Begleitdateien ihre Dateinamen auf dem Datenträger, einschließlich großgeschriebener Erweiterungen; unter Windows gilt das auch für `.xmp`-Sidecars.
@@ -382,7 +383,7 @@ Zeigt Ihnen ein über [KI-Agenten (MCP)](AGENTS.md) verbundener Assistent eine e
 - **Sequenzgeschwister einbeziehen** (`include_sequence_siblings`) fügt die anderen Aufnahmen des Sets hinzu, aber nur jene, deren eigener Behalten-/Ablehnen-Status zur Aktion passt. Behaltene Aufnahmen werden nie entsorgt, weil ein Geschwister abgelehnt wurde. Eine Aufnahme, die Sie abgewählt haben, wird nie wieder hinzugezogen.
 - Die Vorschau meldet immer, wie viele Geschwister-Aufnahmen existieren (`sequence_siblings`). `matched` unterscheidet „nichts kam infrage“ von einem leeren Ergebnis.
 - Wird das Leitfoto eines Sets verschoben oder entsorgt, rückt ein überlebendes Geschwister nach, sodass das Set sichtbar bleibt.
-- Um eine genaue Teilmenge eines Sets zu wählen, öffnen Sie es zuerst über die Aktion „dieses Set in der Galerie öffnen“ der Fotodetailansicht. Diese Ansicht zeigt jede Aufnahme, die die Ausblende-Schalter übrig lassen (Blinzler sind standardmäßig ausgeblendet); ihre Leiste nennt, wie viele ausgeblendet sind und warum, und „Alle anzeigen“ holt sie zurück, bis Sie das Set schließen. Der Set-Kopf der Fotodetailansicht zählt Blinzler und markiert jeden.
+- Um eine genaue Teilmenge eines Sets zu wählen, öffnen Sie es zuerst über die Aktion „dieses Set in der Galerie öffnen“ der Fotodetailansicht. Diese Ansicht zeigt jede Aufnahme, die die Ausblende-Schalter übrig lassen (Blinzler und abgelehnte Aufnahmen sind standardmäßig ausgeblendet); ihre Leiste nennt, wie viele ausgeblendet sind und warum, und „Alle anzeigen“ holt sie zurück, bis Sie das Set schließen, nur für diese Ansicht (die gespeicherten Anzeigeoptionen bleiben unverändert). Der Set-Kopf der Fotodetailansicht zählt Blinzler und markiert jeden.
 
 Ein filterbasiertes Aussortieren folgt denselben Filterregeln wie die Galerie, den Fototyp eingeschlossen. Eine Ansicht mit über 10 000 Fotos wird abgelehnt statt abgeschnitten, auch bei einem Trockenlauf: Grenzen Sie sie ein (Album, Datum, Person…) und versuchen Sie es erneut. Details: [API.md](../API.md).
 
@@ -408,11 +409,13 @@ Antwortfelder und Statuscodes: [API.md](../API.md).
 - **Layout-Modus** — **Raster** (einheitliche Karten) oder **Mosaik** (justierte Zeilen, die Seitenverhältnisse beibehalten), bei jeder Bildschirmbreite.
 - **Vorschaubildgröße** — Regler für die Karten-/Zeilenhöhe (120–400px, in localStorage gespeichert)
 - **Details ausblenden** — Metadaten auf Karten ausblenden (nur im Rastermodus)
-- **Tooltip** — Wie Fotodetails erscheinen: **Seitenleiste** (Standard), **Hover**, **Klick** oder **Aus**.
-  - Die Seitenleiste zeigt alle Details in der rechten Schublade, angeordnet wie in der Fotodetailansicht. Sie folgt Hover und Klick und funktioniert so auch auf Touch-Bildschirmen. Sie behält das letzte Foto, wenn der Zeiger das Raster verlässt.
+- **Kachel-Darstellung** — quadratischer Zuschnitt (Standard) oder das Originalformat der Foto-Kacheln ohne Details; ausgegraut, solange Mosaik aktiv ist, was das Format bereits bewahrt, oder Details angezeigt werden.
+- **Tooltip** — zwei Zeilen. **Anzeigen in**: **Popup** oder **Seitenleiste** (Standard). **Anzeigen bei**: **Aus**, **Hover**, **Klick** oder **Hover oder Klick** (Standard; nur Seitenleiste). Das Menü bleibt zwischen den Auswahlen offen, und **Aus** behält den Ort für das spätere Wiedereinschalten. Unter 768px ist **Hover** deaktiviert, sofern es nicht bereits ausgewählt ist; eine Größenänderung behält den gespeicherten Auslöser bei.
+  - Die Seitenleiste zeigt alle Details in der rechten Schublade, angeordnet wie in der Fotodetailansicht. Mit **Hover oder Klick** folgt sie beidem und funktioniert so auch auf Touch-Bildschirmen. Sie behält das letzte Foto, wenn der Zeiger das Raster verlässt.
   - Ein Klick auf ein Foto hält die Leiste darauf fest, bis Sie **Auswahl aufheben** drücken (das auch das Foto abwählt). **Escape** wirkt genauso und hebt die Auswahl auf.
+  - Ein am unteren Rand der Leiste fixierter Eintrag **Warum diese Bewertung?** öffnet den Bewertungserklärer (den Kritik-Dialog) für das Foto, das die Leiste hält.
   - Die Leiste teilt sich die Schublade mit den Filtern; das Öffnen der Filter blendet sie aus. Erfordert ein Fenster von mindestens 1280px.
-  - **Hover** und **Klick** zeigen eine kurze Blase: Kategorie, Gesamtwertung und Rang, Ästhetik, Komposition, Schärfe, Belichtung und eine EXIF-Zeile.
+  - Das **Popup** zeigt eine kurze Blase: Kategorie, Gesamtwertung und Rang, Ästhetik, Komposition, Schärfe, Belichtung und eine EXIF-Zeile.
 - **Kartenknöpfe anpassen** — Knöpfe in der Hover-Zeile einer Karte umsortieren und ein-/ausblenden. Neun Aktionen stehen bereit: Ähnliche finden, Warum diese Bewertung, Metadaten schreiben, Gesicht zuweisen, die Duplikatgruppe, Seriengruppe, Belichtungsreihe/das Panorama oder den Fotostapel öffnen und die Fotoseite öffnen. Gruppenknöpfe erscheinen nur bei Fotos in einer solchen Gruppe. Die Knöpfe für Duplikatgruppe und Fotostapel sind standardmäßig an; die übrigen müssen Sie einschalten. Pro Browser gespeichert.
 - **Blinzler ausblenden** — Fotos mit erkanntem Blinzeln ausblenden
 - **Nur Blinker / Nur Duplikate** — Nur Fotos mit Blinzeln bzw. jedes Mitglied jeder Duplikatgruppe zeigen. Die Ausblend-Schalter ruhen für diese Ansicht.
@@ -532,6 +535,8 @@ Beim Speichern, Bearbeiten oder Entfernen eines manuellen Gesichts werden die Ge
 > **Warnung:** Ein erzwungener Neuaufbau der Viewer-Datenbank ersetzt reine Viewer-Änderungen, manuelle Markierungen eingeschlossen, durch die Quelldatenbank. Exportieren oder sichern Sie sie zuvor. Die normale inkrementelle Synchronisierung bewahrt sie.
 
 Die veraltete Einstellung `viewer.performance.face_cache_size` wird ignoriert und kann entfernt werden.
+
+**Objekte.** Derselbe Editor kann stattdessen ein Objekt markieren: **Objekt** wählen, das Rechteck ziehen, eine Bezeichnung eingeben (zum Beispiel „Geburtstagstorte“) und speichern. Objekte erscheinen als blaue, beschriftete Rechtecke auf dem Foto, die Galeriesuche findet sie über die Bezeichnung, und Assistenten können sie lesen (`GET /api/photo/objects` oder das Feld `objects` des Tools `get_photo`), um zu wissen, welcher Bereich gemeint ist. Markierungen zeichnen immer Sie selbst, sie werden nie automatisch erkannt: Sie zeigen einem Assistenten, wo er handeln soll, zum Beispiel ein Rechteck mit der Bezeichnung „entfernen“ um eine von drei Flaschen auf einem Foto. Ein Objekt ist nie ein Gesicht: Es berührt weder Erkennung, Clustering, Personen noch Gesichtswertungen.
 
 ## Scan auslösen
 

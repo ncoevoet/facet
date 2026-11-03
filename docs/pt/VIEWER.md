@@ -349,7 +349,7 @@ O controle **Manter top %** na barra de ferramentas (modo de edição) faz a tri
 
 ### Edições por IA
 
-Uma ferramenta de IA pode trazer para a biblioteca uma cópia editada de uma foto com a ferramenta do assistente `import_ai_edit` (ver [Agentes de IA](AGENTS.md)). O ficheiro fica ao lado do original como `{name}_{suffix}_{revision}{ext}`, por exemplo `IMG_3533_agy_1.JPG`, e é analisado sozinho.
+Uma ferramenta de IA pode trazer para a biblioteca uma cópia editada de uma foto com a ferramenta do assistente `import_ai_edit` (ver [Agentes de IA](AGENTS.md)). O assistente envia a própria imagem, e o Facet escreve a sua própria cópia ao lado do original como `{name}_{suffix}_{revision}{ext}`, por exemplo `IMG_3533_agy_1.JPG`, e analisa-a sozinha. Durante uma importação o Facet nunca apaga nem substitui um ficheiro.
 
 - A galeria assinala uma edição com ✨ **IA** no topo da miniatura. ✨ fica reservado ao que uma IA criou ou escolheu.
 - Uma edição com a mesma hora de captura costuma juntar-se à rajada do original; «Melhor da rajada» mostra a de pontuação mais alta.
@@ -370,6 +370,7 @@ Quando um assistente ligado através de [Agentes de IA (MCP)](AGENTS.md) lhe mos
 **Selecionar para pasta…** na barra de ações em lote (modo de edição) copia as mantidas, ou move/descarta as rejeitadas, para uma pasta de destino. Descartar significa a lixeira do sistema, nunca uma exclusão permanente, e exige `viewer.cull.allow_trash`.
 
 - **Toda execução começa como simulação.** Você vê uma prévia antes de qualquer gravação; mover/descartar só rodam com um `dry_run=false` explícito.
+- A pré-visualização lista os ficheiros afetados, 24 por página, com miniaturas e nomes. Clique numa imagem para a ampliar. Os ficheiros XMP e as imagens indisponíveis continuam na lista. Cancele para alterar as decisões sobre as fotos; alterar uma opção exige uma nova pré-visualização. A confirmação do lixo indica o número de ficheiros, incluindo os auxiliares ativados.
 - **O servidor escolhe os arquivos a partir do estado de cada foto.** Copiar age apenas sobre as mantidas, mover/descartar apenas sobre as rejeitadas. Tudo o mais é reportado como `excluded_by_state`. O cliente não pode entregar uma lista de arquivos a excluir.
 - **Os acompanhantes são opcionais.** Rejeitar um JPEG não leva o seu RAW, a menos que você marque **Incluir RAW/XMP acompanhante** (`include_companions`).
 - No macOS e no Windows, os arquivos RAW acompanhantes mantêm os nomes no disco, incluindo extensões em maiúsculas; no Windows, os sidecars `.xmp` também.
@@ -382,7 +383,7 @@ Quando um assistente ligado através de [Agentes de IA (MCP)](AGENTS.md) lhe mos
 - **Incluir irmãos de sequência** (`include_sequence_siblings`) acrescenta os outros quadros da série, mas somente aqueles cujo estado de manter/rejeitar corresponde à ação. Quadros mantidos nunca vão para a lixeira porque um irmão foi rejeitado. Um quadro que você desselecionou nunca é readicionado.
 - A prévia sempre informa quantos quadros irmãos existem (`sequence_siblings`). `matched` distingue "nada se qualificou" de um resultado vazio.
 - Mover ou descartar o líder de uma série promove um irmão sobrevivente, de modo que a série continua visível.
-- Para escolher um subconjunto exato de uma série, abra-a antes pela ação "abrir esta série na galeria" do detalhe da foto. Essa visualização mostra todos os quadros que as opções de ocultar deixam passar (as piscadelas ficam ocultas por omissão); a sua barra indica quantos estão ocultos e porquê, e «Mostrar tudo» repõe-nos até fechar a série. O cabeçalho da série no detalhe da foto conta as piscadelas e assinala cada uma.
+- Para escolher um subconjunto exato de uma série, abra-a antes pela ação "abrir esta série na galeria" do detalhe da foto. Essa visualização mostra todos os quadros que as opções de ocultar deixam passar (as piscadelas e os quadros rejeitados ficam ocultos por omissão); a sua barra indica quantos estão ocultos e porquê, e «Mostrar tudo» repõe-nos até fechar a série, só nesta vista (as preferências de visualização guardadas não mudam). O cabeçalho da série no detalhe da foto conta as piscadelas e assinala cada uma.
 
 Uma triagem com escopo de filtro segue as mesmas regras de filtro da galeria, Tipo de Foto incluído. Uma visualização com mais de 10 000 fotos é recusada em vez de truncada, mesmo em uma simulação: refine (álbum, data, pessoa…) e tente de novo. Detalhes: [API.md](../API.md).
 
@@ -408,11 +409,13 @@ Campos de resposta e códigos de status: [API.md](../API.md).
 - **Modo de Layout** — **Grade** (cartões uniformes) ou **Mosaico** (linhas justificadas que preservam as proporções), em qualquer largura de tela.
 - **Tamanho da Miniatura** — controle deslizante de altura do cartão/linha (120–400px, salvo no localStorage)
 - **Ocultar Detalhes** — oculta os metadados nos cartões (apenas no modo grade)
-- **Dica** — como os detalhes das fotos aparecem: **Painel lateral** (padrão), **Passar o mouse**, **Clicar** ou **Desligado**.
-  - O painel lateral mostra todos os detalhes na gaveta da direita, com a mesma disposição do detalhe da foto. Ele acompanha o ponteiro e o clique, então funciona em telas de toque. Mantém a última foto quando o cursor sai da grade.
+- **Apresentação dos cartões** — recorte quadrado (padrão) ou a proporção original da foto para os cartões sem detalhes; desabilitada enquanto o modo mosaico estiver ativo, que já preserva a proporção, ou enquanto os detalhes estiverem visíveis.
+- **Dica** — duas linhas. **Mostrar em**: **Pop-up** ou **Painel lateral** (padrão). **Mostrar com**: **Desligado**, **Passar o mouse**, **Clicar** ou **Passar o mouse ou clicar** (padrão; só painel lateral). O menu fica aberto entre as escolhas, e **Desligado** mantém o lugar para quando os detalhes voltarem. Abaixo de 768px, **Passar o mouse** fica desabilitado, exceto se já estiver selecionado; redimensionar preserva o gatilho salvo.
+  - O painel lateral mostra todos os detalhes na gaveta da direita, com a mesma disposição do detalhe da foto. Com **Passar o mouse ou clicar** ele acompanha o ponteiro e o clique, então funciona em telas de toque. Mantém a última foto quando o cursor sai da grade.
   - Clicar em uma foto mantém o painel nela até você pressionar **Desselecionar** (que também desseleciona a foto). **Escape** faz o mesmo e limpa a seleção.
+  - Uma entrada **Por que esta pontuação?** fixada na base do painel abre o explicador de pontuação (o diálogo de crítica) para a foto que o painel mantém.
   - O painel divide a gaveta com os filtros; abrir os filtros o oculta. Exige uma janela de pelo menos 1280px de largura.
-  - **Passar o mouse** e **Clicar** mostram um balão curto: categoria, agregada e posição, estética, composição, nitidez, exposição e uma linha de EXIF.
+  - O **Pop-up** mostra um balão curto: categoria, agregada e posição, estética, composição, nitidez, exposição e uma linha de EXIF.
 - **Personalizar botões do cartão** — reordene e mostre/oculte os botões da linha que aparece ao passar o cursor em um cartão. Há nove ações: encontrar semelhantes, por que esta pontuação, gravar metadados, atribuir um rosto, abrir o grupo de duplicatas, o grupo de rajada, a série de bracketing/panorâmica ou a pilha de fotos, e abrir a página da foto. Os botões de grupo só aparecem em fotos que pertencem a um grupo. Os botões de grupo de duplicatas e de pilha de fotos vêm ligados; os demais são opcionais. Salvo por navegador.
 - **Ocultar Piscadas** — oculta fotos com piscadas detectadas
 - **Somente piscadas / Somente duplicadas** — mostra apenas as fotos com piscada, ou todos os membros de cada grupo de duplicatas. Os alternadores de ocultação ficam suspensos nessa visualização.
@@ -530,6 +533,8 @@ Salvar, editar ou remover um rosto manual atualiza as caixas e as pessoas da fot
 > **Aviso:** uma reconstrução forçada do banco de dados do visualizador substitui as edições exclusivas do visualizador, marcas manuais incluídas, pelo banco de dados de origem. Exporte-as ou faça backup antes. A sincronização incremental normal as mantém.
 
 A configuração antiga `viewer.performance.face_cache_size` é ignorada e pode ser removida.
+
+**Objetos.** O mesmo editor pode marcar um objeto em vez disso: escolha **Objeto**, desenhe o retângulo, escreva uma etiqueta (por exemplo «bolo de aniversário») e guarde. Os objetos aparecem como retângulos azuis com etiqueta na foto, a pesquisa da galeria encontra-os pela etiqueta e os assistentes podem lê-los (`GET /api/photo/objects`, ou o campo `objects` da ferramenta `get_photo`) para saber a que zona se refere. As marcas são sempre desenhadas por si, nunca detetadas automaticamente: indicam a um assistente onde atuar, por exemplo um retângulo com a etiqueta «remover» numa de três garrafas de uma foto. Um objeto nunca é um rosto: não mexe na deteção, no agrupamento, nas pessoas nem nas pontuações de rosto.
 
 ## Disparo de Varredura
 

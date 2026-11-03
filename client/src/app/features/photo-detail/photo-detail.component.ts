@@ -16,12 +16,12 @@ import { UserActivityJournal } from '../../core/agent/user-activity-journal.serv
 import { AssistantChangeBatch, AssistantChangesService } from '../../core/agent/assistant-changes.service';
 import { MetricRankComponent } from '../../shared/components/metric-rank/metric-rank.component';
 import { Photo, KeeperHint, PhotoSet, PhotoSetMember, normalisePhotoFlags } from '../../shared/models/photo.model';
-import { FilenamePipe } from '../../shared/pipes/filename.pipe';
 import { AuthService } from '../../core/services/auth.service';
 import { StalenessGuardFactory } from '../../core/services/staleness-guard.service';
 import { PhotoActionsService } from '../../core/services/photo-actions.service';
 import { PhotoDetailBase } from '../../shared/directives/photo-detail-base.directive';
 import { ZoomPanDirective } from '../../shared/directives/zoom-pan.directive';
+import { PhotoObjectLayerComponent } from './photo-object-layer.component';
 import { FixedPipe } from '../../shared/pipes/fixed.pipe';
 import { TranslatePipe } from '../../shared/pipes/translate.pipe';
 import { ThumbnailUrlPipe } from '../../shared/pipes/thumbnail-url.pipe';
@@ -67,6 +67,7 @@ const SOCIAL_SOURCE_KEYS: Record<string, string> = {
   imports: [
     StackNavigatorComponent,
     ZoomPanDirective,
+    PhotoObjectLayerComponent,
     MetricRankComponent,
     PhotoMetricsTabsComponent,
     PhotoFaceLayerComponent,
@@ -83,7 +84,6 @@ const SOCIAL_SOURCE_KEYS: Record<string, string> = {
     FixedPipe,
     TranslatePipe,
     ThumbnailUrlPipe,
-    FilenamePipe,
     PersonThumbnailUrlPipe,
     CategoryLabelPipe,
     DownloadIconPipe,
@@ -143,7 +143,7 @@ const SOCIAL_SOURCE_KEYS: Record<string, string> = {
         @if (auth.isEdition()) {
           <button mat-icon-button class="max-md:!hidden" (click)="openManualFaces(p)"
             [matTooltip]="I18N.manual_faces.title | translate" [attr.aria-label]="I18N.manual_faces.title | translate">
-            <mat-icon>crop_free</mat-icon>
+            <mat-icon>highlight_alt</mat-icon>
           </button>
         }
 
@@ -233,7 +233,7 @@ const SOCIAL_SOURCE_KEYS: Record<string, string> = {
             }
             @if (auth.isEdition()) {
               <button mat-menu-item [matMenuTriggerFor]="categoryOverrideMenu"><mat-icon>category</mat-icon> {{ I18N.photo.category_override.menu_tooltip | translate }}</button>
-              <button mat-menu-item (click)="openManualFaces(p)"><mat-icon>crop_free</mat-icon> {{ I18N.manual_faces.title | translate }}</button>
+              <button mat-menu-item (click)="openManualFaces(p)"><mat-icon>highlight_alt</mat-icon> {{ I18N.manual_faces.title | translate }}</button>
             }
             @if (auth.isEdition() && p.unassigned_faces > 0) {
               <button mat-menu-item (click)="openAddPerson(p)"><mat-icon>person_add</mat-icon> {{ I18N.manage_persons.assign_face | translate }}</button>
@@ -277,6 +277,12 @@ const SOCIAL_SOURCE_KEYS: Record<string, string> = {
             [focusPersonIds]="focusPersonIds()"
             (changed)="refreshPeople(p.path)" />
           <app-person-face-menu [path]="p.path" [canEdit]="auth.isEdition()" (changed)="onPersonMenuChanged(p.path)" />
+          <app-photo-object-layer
+            [path]="p.path"
+            [imageWidth]="p.image_width"
+            [imageHeight]="p.image_height"
+            [transform]="zoom.transform()"
+            [revision]="objectsRevision()" />
         </div>
 
         <!-- Info panel -->
@@ -547,15 +553,16 @@ const SOCIAL_SOURCE_KEYS: Record<string, string> = {
                   @for (member of setStripMembers(); track member.path) {
                     <button class="relative rounded-lg overflow-hidden w-16 h-16 shrink-0 cursor-pointer hover:opacity-80 transition-opacity ring-[var(--mat-sys-primary)]"
                             [class.ring-2]="member.path === p.path"
-                            [attr.aria-label]="(I18N.photo_detail.set.member_position | translate:{ position: $index + 1, count: set.members.length }) + (member.ev_offset !== null ? ', ' + (member.ev_offset | evOffset) : '')"
+                            [attr.aria-label]="(I18N.photo_detail.set.member_position | translate:{ position: $index + 1, count: set.members.length }) + (member.ev_offset !== null ? ', ' + (member.ev_offset | evOffset) : '') + (member.ai_edit_of ? ', ' + (I18N.photo_detail.ai_edit.badge | translate) : '') + (member.is_blink ? ', ' + (I18N.ui.badges.blink | translate) : '')"
                             (click)="openSetMember(member.path)">
                       <img [src]="member.path | thumbnailUrl:96:member.preview_revision" alt="" class="w-full h-full object-cover" />
                       @if (member.ev_offset !== null) {
                         <span class="absolute bottom-0 inset-x-0 text-center text-[0.625rem] leading-4 bg-black/60 text-white">{{ member.ev_offset | evOffset }}</span>
                       } @else if (member.ai_edit_of) {
                         <span class="absolute bottom-0 inset-x-0 text-center text-[0.625rem] leading-4 font-bold bg-black/70 text-white" data-ai-label>✨ {{ I18N.photo_detail.ai_edit.badge_short | translate }}</span>
-                      } @else if (member.is_blink) {
-                        <span class="absolute bottom-0 inset-x-0 text-center text-[0.625rem] leading-4 font-bold bg-yellow-600 text-white">{{ I18N.ui.badges.blink | translate }}</span>
+                      }
+                      @if (member.is_blink) {
+                        <span class="absolute top-0 inset-x-0 text-center text-[0.625rem] leading-4 font-bold bg-yellow-600 text-white">{{ I18N.ui.badges.blink | translate }}</span>
                       }
                     </button>
                   }
@@ -608,6 +615,8 @@ export class PhotoDetailComponent extends PhotoDetailBase implements OnInit {
   private readonly viewerOwner = this.auth.identity();
 
   readonly photo = signal<Photo | null>(null);
+  /** Bumped when the mark dialog adds or removes an object, so the object layer re-reads. */
+  protected readonly objectsRevision = signal(0);
   protected readonly photoMissing = signal(false);
   protected readonly downloading = signal(false);
   protected readonly downloadOptions = signal<DownloadOption[]>([]);
@@ -1029,7 +1038,8 @@ export class PhotoDetailComponent extends PhotoDetailBase implements OnInit {
     if (this.destroyRef.destroyed || this.photo()?.path !== path) return;
     this.dialog.open(ManualFaceDialogComponent, {
       width: '800px', maxWidth: '96vw',
-      data: { path, filename: p.filename, onCommitted: () => this.onPersonMenuChanged(path) },
+      data: { path, filename: p.filename, onCommitted: () => this.onPersonMenuChanged(path),
+        onObjectsChanged: () => this.objectsRevision.update(n => n + 1) },
     });
   }
 

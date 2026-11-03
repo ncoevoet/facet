@@ -68,6 +68,7 @@ class TestFaceWeightsLoadFailure:
         """The multi-pass loader treats it like any missing required model."""
         proc = ChunkedMultiPassProcessor.__new__(ChunkedMultiPassProcessor)
         proc.model_manager = _manager(_default_config())
+        proc.metrics = {}
         failed = []
         loaded = proc._load_pass_models(['faces_permissive'], set(), failed)
         assert loaded == {}
@@ -98,7 +99,7 @@ class TestFaceWeightsLoadFailure:
         analyzer = PermissiveFaceAnalyzer()
         analyzer.available = False
         proc = ChunkedMultiPassProcessor.__new__(ChunkedMultiPassProcessor)
-        proc.metrics = {'rebuild_time': 0.0}
+        proc.metrics = {'rebuild_time': 0.0, 'photos_saved': 0}
         images = {'p.jpg': {'pil': Image.fromarray(np.full((8, 8, 3), 9, dtype=np.uint8)),
                             'height': 8, 'width': 8, 'cache': None}}
         results = {'p.jpg': {}}

@@ -349,7 +349,7 @@ Le contrôle **Garder le top %** de la barre d'outils (mode édition) trie toute
 
 ### Retouches IA
 
-Un outil d'IA peut ajouter à la bibliothèque une copie retouchée d'une photo avec l'outil d'assistant `import_ai_edit` (voir [Agents IA](AGENTS.md)). Le fichier est placé à côté de l'original sous le nom `{name}_{suffix}_{revision}{ext}`, par exemple `IMG_3533_agy_1.JPG`, puis analysé seul.
+Un outil d'IA peut ajouter à la bibliothèque une copie retouchée d'une photo avec l'outil d'assistant `import_ai_edit` (voir [Agents IA](AGENTS.md)). L'assistant envoie l'image elle-même, et Facet écrit sa propre copie à côté de l'original sous le nom `{name}_{suffix}_{revision}{ext}`, par exemple `IMG_3533_agy_1.JPG`, puis l'analyse seule. Pendant un import, Facet ne supprime ni n'écrase jamais de fichier.
 
 - La galerie marque une retouche d'un ✨ **IA** en haut de sa vignette. ✨ est réservé à ce qu'une IA a produit ou choisi.
 - Une retouche prise au même instant rejoint en général la rafale de l'original ; « Meilleure de la rafale » montre la mieux notée.
@@ -370,6 +370,7 @@ Quand un assistant connecté via [Agents IA (MCP)](AGENTS.md) vous montre une li
 **Trier vers un dossier…** dans la barre d'actions groupées (mode édition) copie les gardées, ou déplace/met à la corbeille les rejetées, vers un dossier cible. La corbeille est celle du système, jamais une suppression définitive, et exige `viewer.cull.allow_trash`.
 
 - **Chaque exécution commence en simulation.** Vous voyez un aperçu avant que quoi que ce soit soit écrit ; déplacer/mettre à la corbeille ne s'exécutent qu'avec un `dry_run=false` explicite.
+- L’aperçu présente les fichiers concernés, 24 par page, avec miniatures et noms. Cliquez sur une image pour l’agrandir. Les fichiers annexes XMP et les images indisponibles restent dans la liste. Annulez pour modifier les décisions sur les photos ; toute modification d’une option nécessite un nouvel aperçu. La confirmation de mise à la corbeille indique le nombre de fichiers, y compris les fichiers annexes activés.
 - **Le serveur choisit les fichiers d'après l'état propre de chaque photo.** Copier n'agit que sur les gardées, déplacer/corbeille que sur les rejetées. Tout le reste est signalé comme `excluded_by_state`. Le client ne peut pas fournir une liste de fichiers à supprimer.
 - **Les compagnons sont optionnels.** Rejeter un JPEG n'emporte pas son RAW, sauf si vous cochez **Inclure le RAW / XMP associé** (`include_companions`).
 - Sous macOS et Windows, les fichiers RAW compagnons gardent leurs noms sur disque, y compris les extensions en majuscules ; sous Windows, les sidecars `.xmp` aussi.
@@ -382,7 +383,7 @@ Quand un assistant connecté via [Agents IA (MCP)](AGENTS.md) vous montre une li
 - **Inclure les vues de la série** (`include_sequence_siblings`) ajoute les autres vues de la série, mais seulement celles dont l'état garder/rejeter correspond à l'action. Les vues gardées ne sont jamais mises à la corbeille parce qu'une voisine a été rejetée. Une vue que vous avez désélectionnée n'est jamais réintégrée.
 - L'aperçu indique toujours combien de vues voisines existent (`sequence_siblings`). `matched` distingue « rien n'était éligible » d'un résultat vide.
 - Déplacer ou mettre à la corbeille la tête d'une série promeut une voisine survivante, de sorte que la série reste visible.
-- Pour choisir un sous-ensemble exact d'une série, ouvrez-la d'abord avec l'action « ouvrir cette série dans la galerie » du détail de la photo. Cette vue montre chaque image que les options de masquage laissent passer (les clignements sont masqués par défaut) ; sa barre indique combien sont masquées et pourquoi, et « Tout afficher » les fait revenir jusqu'à ce que vous quittiez la série. L'en-tête de série du détail de la photo compte les clignements et marque chacun.
+- Pour choisir un sous-ensemble exact d'une série, ouvrez-la d'abord avec l'action « ouvrir cette série dans la galerie » du détail de la photo. Cette vue montre chaque image que les options de masquage laissent passer (les clignements et les images rejetées sont masqués par défaut) ; sa barre indique combien sont masquées et pourquoi, et « Tout afficher » les fait revenir jusqu'à ce que vous quittiez la série, pour cette vue seulement (les préférences d'affichage enregistrées ne changent pas). L'en-tête de série du détail de la photo compte les clignements et marque chacun.
 
 Un tri limité par un filtre suit les mêmes règles de filtre que la galerie, Type de photo compris. Une vue de plus de 10 000 photos est refusée plutôt que tronquée, même pour une simulation : restreignez-la (album, date, personne…) et réessayez. Détails : [API.md](../API.md).
 
@@ -408,11 +409,13 @@ Champs de réponse et codes de statut : [API.md](../API.md).
 - **Mode de disposition** — **Grille** (cartes uniformes) ou **Mosaïque** (rangées justifiées conservant les proportions), à toutes les largeurs d'écran.
 - **Taille des vignettes** — curseur de hauteur des cartes/rangées (120–400 px, enregistré dans localStorage)
 - **Masquer détails** — masque les métadonnées sur les cartes (mode grille uniquement)
-- **Infobulle** — comment les détails d'une photo s'affichent : **Panneau latéral** (par défaut), **Survol**, **Clic** ou **Désactivée**.
-  - Le panneau latéral montre tous les détails dans le tiroir de droite, disposés comme le détail de la photo. Il suit le survol et le clic, donc il fonctionne sur écran tactile. Il garde la dernière photo quand le curseur quitte la grille.
+- **Présentation des vignettes** — recadrage carré (par défaut) ou ratio d'origine de la photo pour les vignettes sans détails ; grisée tant que le mode mosaïque est actif, qui conserve déjà le ratio, ou que les détails sont affichés.
+- **Infobulle** — deux lignes. **Afficher dans** : **Infobulle flottante** ou **Panneau latéral** (par défaut). **Afficher au** : **Désactivée**, **Survol**, **Clic** ou **Survol ou clic** (par défaut ; panneau latéral seulement). Le menu reste ouvert entre deux choix, et **Désactivée** garde l'emplacement pour le retour des détails. En dessous de 768 px, **Survol** est désactivé sauf s’il est déjà sélectionné ; le redimensionnement conserve le déclencheur enregistré.
+  - Le panneau latéral montre tous les détails dans le tiroir de droite, disposés comme le détail de la photo. Avec **Survol ou clic**, il suit le survol et le clic, donc il fonctionne sur écran tactile. Il garde la dernière photo quand le curseur quitte la grille.
   - Cliquer sur une photo maintient le panneau sur elle jusqu'à ce que vous appuyiez sur **Désélectionner** (ce qui désélectionne aussi la photo). **Échap** fait la même chose et efface la sélection.
+  - Une entrée **Pourquoi ce score ?** épinglée en bas du panneau ouvre l'explication du score (la boîte de dialogue de critique) pour la photo que le panneau maintient.
   - Le panneau partage le tiroir avec les filtres ; ouvrir les filtres le masque. Il exige une fenêtre d'au moins 1280 px de large.
-  - **Survol** et **Clic** affichent une courte bulle : catégorie, agrégat et rang, esthétique, composition, netteté, exposition et une ligne EXIF.
+  - L'**Infobulle flottante** affiche une courte bulle : catégorie, agrégat et rang, esthétique, composition, netteté, exposition et une ligne EXIF.
 - **Personnaliser les boutons des cartes** — réordonnez et affichez/masquez les boutons de la ligne qui apparaît au survol d'une carte. Neuf actions sont disponibles : trouver des similaires, pourquoi ce score, écrire les métadonnées, assigner un visage, ouvrir le groupe de doublons, le groupe de rafale, la série bracketing/panorama ou la pile de photos, et ouvrir la page de la photo. Les boutons de groupe n'apparaissent que sur les photos d'un tel groupe. Les boutons de groupe de doublons et de pile de photos sont activés par défaut ; les autres sont optionnels. Enregistré par navigateur.
 - **Masquer clignements** — masque les photos avec clignements détectés
 - **Clignements uniquement / Doublons uniquement** — n'affiche que les photos avec clignement, ou tous les membres de chaque groupe de doublons. Les bascules de masquage sont suspendues pour cette vue.
@@ -532,6 +535,8 @@ Enregistrer, modifier ou supprimer un visage manuel actualise les cadres et les 
 > **Avertissement :** une reconstruction forcée de la base de données de la visionneuse remplace les modifications propres à la visionneuse, marques manuelles comprises, par la base source. Exportez-les ou sauvegardez-les d'abord. La synchronisation incrémentale normale les conserve.
 
 L'ancien réglage `viewer.performance.face_cache_size` est ignoré et peut être retiré.
+
+**Objets.** Le même éditeur peut marquer un objet à la place : choisissez **Objet**, tracez le rectangle, saisissez un libellé (par exemple « gâteau d'anniversaire ») et enregistrez. Les objets s'affichent en rectangles bleus légendés sur la photo, la recherche de la galerie les trouve par leur libellé, et les assistants peuvent les lire (`GET /api/photo/objects`, ou le champ `objects` de l'outil `get_photo`) pour savoir quelle zone est visée. Les marques sont toujours tracées par vous, jamais détectées automatiquement : elles indiquent à un assistant où agir, par exemple un rectangle libellé « supprimer » sur l'une des trois bouteilles d'une photo. Un objet n'est jamais un visage : il ne touche ni la détection, ni le regroupement, ni les personnes, ni les scores de visage.
 
 ## Déclenchement d'un scan
 

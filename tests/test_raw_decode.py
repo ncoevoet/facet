@@ -443,9 +443,11 @@ class TestViewerDecodeBudget:
         recorded = {}
         real_decode_raw = image_loading._decode_raw
 
-        def spy(photo, use_thumbnail, started_event=None, decode_budget='library', bright=None):
+        def spy(photo, use_thumbnail, started_event=None, decode_budget='library', bright=None,
+                want_thumbnail=False):
             recorded['decode_budget'] = decode_budget
-            return real_decode_raw(photo, use_thumbnail, started_event, decode_budget, bright)
+            return real_decode_raw(photo, use_thumbnail, started_event, decode_budget, bright,
+                                   want_thumbnail)
 
         monkeypatch.setattr(image_loading, '_decode_raw', spy)
 
@@ -677,7 +679,7 @@ class TestRefreshThumbnailsPool:
         conn.close()
 
         def _fake_decode(photo, use_thumbnail, started_event=None,
-                         decode_budget='library', bright=None):
+                         decode_budget='library', bright=None, want_thumbnail=False):
             if started_event is not None:
                 started_event.set()
             return Image.fromarray(np.full((120, 160, 3), 200, dtype=np.uint8))

@@ -42,6 +42,7 @@ function createApp(routerUrl = '/', extraProviders: Provider[] = []) {
     loadConfig: vi.fn(),
     viewFilterParams: viewFilterParamsSignal,
     pinnedPaths: signal<string[] | null>(null),
+    galleryMode: signal('grid'),
     showAllHidden: vi.fn(),
   };
 
@@ -77,6 +78,37 @@ function createApp(routerUrl = '/', extraProviders: Provider[] = []) {
 }
 
 describe('App', () => {
+  it('initializes the hover breakpoint and removes its listener on destruction', async () => {
+    const get = vi.fn(() => of({}));
+    const { app } = createApp('/', [
+      { provide: AuthService, useValue: {
+        identity: () => '0|', isAuthenticated: () => true, isEdition: () => false,
+        checkStatus: vi.fn(() => Promise.resolve()),
+      } },
+      { provide: ApiService, useValue: { get } },
+    ]);
+    const mql = {
+      matches: true,
+      addEventListener: vi.fn(),
+      removeEventListener: vi.fn(),
+    } as unknown as MediaQueryList;
+    const originalMatchMedia = window.matchMedia.bind(window);
+    const query = vi.spyOn(window, 'matchMedia').mockImplementation(value =>
+      value === '(min-width: 768px)' ? mql : originalMatchMedia(value),
+    );
+    try {
+      await app.ngOnInit();
+      expect(query).toHaveBeenCalledWith('(min-width: 768px)');
+      expect((app as unknown as { canUseHoverTooltips: () => boolean }).canUseHoverTooltips()).toBe(true);
+      expect(mql.addEventListener).toHaveBeenCalledWith('change', expect.any(Function));
+      const handler = vi.mocked(mql.addEventListener).mock.calls[0][1];
+      TestBed.resetTestingModule();
+      expect(mql.removeEventListener).toHaveBeenCalledWith('change', handler);
+    } finally {
+      query.mockRestore();
+    }
+  });
+
   describe('help dialog shortcuts', () => {
     afterEach(() => {
       TestBed.inject(KeyboardMappingService).resetAll();
@@ -634,7 +666,7 @@ describe('App', () => {
       TestBed.configureTestingModule({
         providers: [
           { provide: Router, useValue: mockRouter },
-          { provide: GalleryStore, useValue: { filters: signal({ ...DEFAULT_FILTERS }), persons: signal([]), selectionCount: signal(0), config: signal(null), types: signal([]), loadTypeCounts: vi.fn(), loadConfig: vi.fn(), viewFilterParams: signal({}), pinnedPaths: signal<string[] | null>(null) } },
+          { provide: GalleryStore, useValue: { filters: signal({ ...DEFAULT_FILTERS }), galleryMode: signal('grid'), persons: signal([]), selectionCount: signal(0), config: signal(null), types: signal([]), loadTypeCounts: vi.fn(), loadConfig: vi.fn(), viewFilterParams: signal({}), pinnedPaths: signal<string[] | null>(null) } },
           { provide: AuthService, useValue: { identity: () => '0|', isAuthenticated: signal(false), isReadOnlyInstall: signal(isReadOnlyInstall), isEdition: signal(false), status: signal(null), editionPasswordRequired: signal(false), isMultiUser: signal(false), isInstallAdmin: signal(false), loginPasswordRequired: signal(false), checkStatus: vi.fn(() => Promise.resolve()) } },
           { provide: I18nService, useValue: { load: vi.fn(() => Promise.resolve()), loadLanguages: vi.fn(() => Promise.resolve()), languages: signal([]), t: vi.fn((k: string) => k), translations: signal({}) } },
           { provide: StatsFiltersService, useValue: { filterCategory: signal(''), dateFrom: signal(''), dateTo: signal('') } },
@@ -668,7 +700,7 @@ describe('App', () => {
       const openLauncher = vi.fn(() => Promise.resolve(launched));
       const reloadPhotos = vi.fn(() => Promise.resolve());
       const store = {
-        filters: signal({ ...DEFAULT_FILTERS }), persons: signal([]), selectionCount: signal(0), config: signal(null),
+        filters: signal({ ...DEFAULT_FILTERS }), galleryMode: signal('grid'), persons: signal([]), selectionCount: signal(0), config: signal(null),
         types: signal([]), total: signal(0), photoTotal: signal(0), loadTypeCounts: vi.fn(() => Promise.resolve()), reloadPhotos, loadConfig: vi.fn(),
         viewFilterParams: signal({}), activeFilterCount: signal(0), filterDrawerOpen: signal(false), hiddenFiltersStash: signal(null),
         reviewProgressVisible: signal(true), setReviewProgressVisible: vi.fn(),
@@ -774,12 +806,12 @@ describe('App', () => {
   describe('filter bar while an assistant-pinned list is shown', () => {
     function render(config: { features?: { show_my_taste?: boolean }; sort_options_grouped?: ViewerConfig['sort_options_grouped'] } | null = null) {
       const store = {
-        filters: signal({ ...DEFAULT_FILTERS }), persons: signal([]), selectionCount: signal(0), config: signal(config),
+        filters: signal({ ...DEFAULT_FILTERS }), galleryMode: signal('grid'), persons: signal([]), selectionCount: signal(0), config: signal(config),
         types: signal([]), total: signal(0), photoTotal: signal(0), loadTypeCounts: vi.fn(() => Promise.resolve()), reloadPhotos: vi.fn(), loadConfig: vi.fn(),
         viewFilterParams: signal({}), activeFilterCount: signal(0), filterDrawerOpen: signal(true), hiddenFiltersStash: signal(null),
         reviewProgressVisible: signal(true), setReviewProgressVisible: vi.fn(),
         collapseStacks: signal(true), toggleStackCollapse: vi.fn(),
-        slideshowActive: signal(false), pinnedPaths: signal<string[] | null>(null), setFilterDrawerOpen: vi.fn(), updateFilter: vi.fn(),
+        slideshowActive: signal(false), pinnedPaths: signal<string[] | null>(null), setFilterDrawerOpen: vi.fn(), updateFilter: vi.fn(), updateFilters: vi.fn(),
         setUserSort: vi.fn(() => Promise.resolve()), resetFilters: vi.fn(), restoreHidden: vi.fn(), showAllHidden: vi.fn(),
       };
       TestBed.configureTestingModule({
@@ -961,7 +993,7 @@ describe('App', () => {
       expect(store.setUserSort).toHaveBeenLastCalledWith('aesthetic_iaa');
     });
 
-    it('offers the tooltip modes as one shared radio menu with the current mode checked', async () => {
+    it('offers the tooltip as two rows, place then trigger, in one shared menu', async () => {
       const { fixture, root, store } = render();
       store.filters.update(filters => ({ ...filters, tooltip_mode: 'click' }));
       fixture.detectChanges();
@@ -973,10 +1005,137 @@ describe('App', () => {
       expect(menus[0]).toBe(menus[1]);
       await openMenu(fixture, triggers[1]);
       const items = menuItems();
-      expect(items.map(item => item.getAttribute('aria-checked'))).toEqual(['false', 'true', 'false']);
-      expect(items.map(item => item.textContent?.includes('check'))).toEqual([false, true, false]);
+      // Show in: Popup, Side panel / Show on: Off, Hover, Click, Hover or click
+      expect(items.map(item => iconOf(item)))
+        .toEqual(['chat_bubble_outline', 'view_sidebar', 'visibility_off', 'mouse', 'touch_app', 'swap_horiz']);
+      expect(items.map(item => item.getAttribute('aria-checked')))
+        .toEqual(['true', 'false', 'false', 'false', 'true', 'false']);
+      // No side panel at this width; the popup has no "either" trigger; the
+      // hover bubble is desktop-only, so its entry is offered disabled here.
+      expect(items.map(item => (item as HTMLButtonElement).disabled))
+        .toEqual([false, true, false, true, false, true]);
+      const panel = items[0].closest('.mat-mdc-menu-panel')!;
+      const headers = Array.from(panel.querySelectorAll('[role="group"]'))
+        .map(group => document.getElementById(group.getAttribute('aria-labelledby')!)?.textContent?.trim());
+      expect(headers).toEqual([I18N.gallery.tooltip_mode.show_in, I18N.gallery.tooltip_mode.show_on]);
       items[2].click();
-      expect(store.updateFilter).toHaveBeenCalledWith('tooltip_mode', 'off');
+      expect(store.updateFilter).toHaveBeenLastCalledWith('tooltip_mode', 'off');
+      // A pick keeps the menu open for the other row.
+      expect(menuItems()).toHaveLength(6);
+    });
+
+    it('sets the side panel trigger through panel_activation and carries click back to the popup', async () => {
+      const { fixture, root, store } = render();
+      store.filters.update(filters => ({ ...filters, tooltip_mode: 'panel', panel_activation: 'click' }));
+      fixture.detectChanges();
+      await openMenu(fixture, byLabel(root, I18N.gallery.tooltip_mode.label)[0] as HTMLButtonElement);
+      const items = menuItems();
+      expect(items.map(item => item.getAttribute('aria-checked')))
+        .toEqual(['false', 'true', 'false', 'false', 'true', 'false']);
+      // A panel user sees every entry enabled except hover: the desktop-only
+      // bubble cannot serve this width, and the active trigger is click.
+      expect(items.map(item => (item as HTMLButtonElement).disabled)).toEqual([false, false, false, true, false, false]);
+      items[5].click();
+      expect(store.updateFilters).toHaveBeenLastCalledWith({ tooltip_mode: 'panel', panel_activation: 'both' });
+      items[0].click();
+      expect(store.updateFilter).toHaveBeenLastCalledWith('tooltip_mode', 'click');
+    });
+
+    it('offers the hover trigger enabled once the viewport is desktop-wide', async () => {
+      const { fixture, root, store } = render();
+      store.filters.update(filters => ({ ...filters, tooltip_mode: 'click' }));
+      (fixture.componentInstance as unknown as { tooltipCapable: { setMatches: (v: boolean) => void } })
+        .tooltipCapable.setMatches(true);
+      fixture.detectChanges();
+      await openMenu(fixture, byLabel(root, I18N.gallery.tooltip_mode.label)[0] as HTMLButtonElement);
+      const items = menuItems();
+      expect(items.map(item => (item as HTMLButtonElement).disabled)).toEqual([false, true, false, false, false, true]);
+      items[3].click();
+      expect(store.updateFilter).toHaveBeenLastCalledWith('tooltip_mode', 'hover');
+    });
+
+    it('updates the open menu on resize without writing the preference', async () => {
+      const { fixture, root, store } = render();
+      store.filters.update(filters => ({ ...filters, tooltip_mode: 'click' }));
+      fixture.detectChanges();
+      await openMenu(fixture, byLabel(root, I18N.gallery.tooltip_mode.label)[0] as HTMLButtonElement);
+      const capability = (fixture.componentInstance as unknown as {
+        tooltipCapable: { setMatches: (v: boolean) => void };
+      }).tooltipCapable;
+      const hover = () => menuItems()[3] as HTMLButtonElement;
+      expect(hover().disabled).toBe(true);
+      hover().click();
+      expect(store.updateFilter).not.toHaveBeenCalled();
+
+      capability.setMatches(true);
+      fixture.detectChanges();
+      expect(hover().disabled).toBe(false);
+      capability.setMatches(false);
+      fixture.detectChanges();
+      expect(hover().disabled).toBe(true);
+      expect(store.updateFilter).not.toHaveBeenCalled();
+      expect(store.updateFilters).not.toHaveBeenCalled();
+    });
+
+    it.each(['popup', 'panel'] as const)('keeps the selected hover trigger enabled on a narrow %s', async place => {
+      const { fixture, root, store } = render();
+      store.filters.update(filters => ({
+        ...filters, tooltip_mode: place === 'panel' ? 'panel' : 'hover', panel_activation: 'hover',
+      }));
+      fixture.detectChanges();
+      await openMenu(fixture, byLabel(root, I18N.gallery.tooltip_mode.label)[0] as HTMLButtonElement);
+      const hover = menuItems()[3] as HTMLButtonElement;
+      expect(hover.getAttribute('aria-checked')).toBe('true');
+      expect(hover.disabled).toBe(false);
+      hover.click();
+      expect(store.updateFilter).not.toHaveBeenCalled();
+      expect(store.updateFilters).not.toHaveBeenCalled();
+      menuItems()[4].click();
+      if (place === 'panel') {
+        expect(store.updateFilters).toHaveBeenLastCalledWith({ tooltip_mode: 'panel', panel_activation: 'click' });
+      } else {
+        expect(store.updateFilter).toHaveBeenLastCalledWith('tooltip_mode', 'click');
+      }
+    });
+
+    it('keeps the place while off, and turning back on uses it', async () => {
+      localStorage.removeItem('facet_tooltip_place');
+      const { fixture, root, store } = render();
+      store.filters.update(filters => ({ ...filters, tooltip_mode: 'off', panel_activation: 'hover' }));
+      fixture.detectChanges();
+      await openMenu(fixture, byLabel(root, I18N.gallery.tooltip_mode.label)[0] as HTMLButtonElement);
+      const items = menuItems();
+      expect(items.map(item => item.getAttribute('aria-checked')))
+        .toEqual(['false', 'true', 'true', 'false', 'false', 'false']);
+      items[0].click();
+      expect(store.updateFilter).not.toHaveBeenCalled();
+      fixture.detectChanges();
+      expect(menuItems()[0].getAttribute('aria-checked')).toBe('true');
+      menuItems()[4].click();
+      expect(store.updateFilter).toHaveBeenLastCalledWith('tooltip_mode', 'click');
+    });
+
+    it('returns a popup user to the popup after Click, Off, Click', async () => {
+      localStorage.removeItem('facet_tooltip_place');
+      const { fixture, root, store } = render();
+      store.filters.update(filters => ({ ...filters, tooltip_mode: 'click' }));
+      fixture.detectChanges();
+      await openMenu(fixture, byLabel(root, I18N.gallery.tooltip_mode.label)[0] as HTMLButtonElement);
+      menuItems()[2].click();
+      expect(store.updateFilter).toHaveBeenLastCalledWith('tooltip_mode', 'off');
+      store.filters.update(filters => ({ ...filters, tooltip_mode: 'off' }));
+      fixture.detectChanges();
+      menuItems()[4].click();
+      expect(store.updateFilter).toHaveBeenLastCalledWith('tooltip_mode', 'click');
+    });
+
+    it('keeps the hover trigger when a popup user picks the side panel', () => {
+      const { fixture, store } = render();
+      store.filters.update(filters => ({ ...filters, tooltip_mode: 'hover', panel_activation: 'click' }));
+      fixture.detectChanges();
+      const app = fixture.componentInstance as unknown as { setDetailsPlace(event: Event, place: 'popup' | 'panel'): void };
+      app.setDetailsPlace(new Event('click'), 'panel');
+      expect(store.updateFilters).toHaveBeenLastCalledWith({ tooltip_mode: 'panel', panel_activation: 'hover' });
     });
 
     it('is one shared menu for both triggers', () => {
@@ -1035,7 +1194,7 @@ describe('App', () => {
       TestBed.configureTestingModule({
         providers: [
           provideRouter([]),
-          { provide: GalleryStore, useValue: { filters: signal({ ...DEFAULT_FILTERS }), persons: signal([]), selectionCount: signal(0), config: signal(null), types: signal([]), total: signal(0), photoTotal: signal(0), loadTypeCounts: vi.fn(() => Promise.resolve()), loadConfig: vi.fn(), viewFilterParams: signal({}), activeFilterCount: signal(0), filterDrawerOpen: signal(false), hiddenFiltersStash: signal(null), collapseStacks: signal(true), toggleStackCollapse: vi.fn(), slideshowActive: signal(false), pinnedPaths: signal<string[] | null>(null), setFilterDrawerOpen: vi.fn(), updateFilter: vi.fn(), resetFilters: vi.fn(), restoreHidden: vi.fn(), showAllHidden: vi.fn(), reviewProgressVisible: signal(true), setReviewProgressVisible: vi.fn(), notifyOrganizationRestored: vi.fn() } },
+          { provide: GalleryStore, useValue: { filters: signal({ ...DEFAULT_FILTERS }), galleryMode: signal('grid'), persons: signal([]), selectionCount: signal(0), config: signal(null), types: signal([]), total: signal(0), photoTotal: signal(0), loadTypeCounts: vi.fn(() => Promise.resolve()), loadConfig: vi.fn(), viewFilterParams: signal({}), activeFilterCount: signal(0), filterDrawerOpen: signal(false), hiddenFiltersStash: signal(null), collapseStacks: signal(true), toggleStackCollapse: vi.fn(), slideshowActive: signal(false), pinnedPaths: signal<string[] | null>(null), setFilterDrawerOpen: vi.fn(), updateFilter: vi.fn(), resetFilters: vi.fn(), restoreHidden: vi.fn(), showAllHidden: vi.fn(), reviewProgressVisible: signal(true), setReviewProgressVisible: vi.fn(), notifyOrganizationRestored: vi.fn() } },
           { provide: ScanService, useValue: { canLaunch: signal(false), openLauncher: vi.fn() } },
           { provide: AuthService, useValue: { identity: () => '0|', isAuthenticated: signal(true), isReadOnlyInstall: signal(false), features: signal({}), user: signal(null), logout: vi.fn(), isEdition: signal(edition), status: signal(null), editionPasswordRequired: signal(false), isMultiUser: signal(multiUser), isSuperadmin: signal(superadmin), isInstallAdmin: signal(multiUser ? superadmin : edition), loginPasswordRequired: signal(false), checkStatus: vi.fn(() => Promise.resolve()) } },
           { provide: I18nService, useValue: { load: vi.fn(() => Promise.resolve()), loadLanguages: vi.fn(() => Promise.resolve()), languages: signal([]), t: vi.fn((k: string) => k), translations: signal({}) } },
@@ -1151,5 +1310,18 @@ describe('App', () => {
       const items = openUserMenu(fixture, root);
       expect(items.at(-1)!.textContent).toContain(I18N.auth.logout);
     });
+
+    it.each([[true, 'grid', false], [false, 'grid', true], [true, 'mosaic', true]] as const)(
+      'offers Tile presentation disabled unless details are hidden in grid (hide_details %s, %s)', (hideDetails, mode, disabled) => {
+        const { fixture, root } = render(false);
+        const store = TestBed.inject(GalleryStore) as unknown as {
+          filters: ReturnType<typeof signal<GalleryFilters>>; galleryMode: ReturnType<typeof signal<string>>;
+        };
+        store.filters.set({ ...DEFAULT_FILTERS, hide_details: hideDetails });
+        store.galleryMode.set(mode);
+        const entry = openUserMenu(fixture, root).find(i => i.textContent?.includes(I18N.gallery.tile_fit.label))!;
+        expect(entry.disabled).toBe(disabled);
+      },
+    );
   });
 });

@@ -15,6 +15,7 @@ import { I18nService } from '../../core/services/i18n.service';
 import { extractErrorDetail } from '../../core/utils/http-error.util';
 import { TranslatePipe } from '../../shared/pipes/translate.pipe';
 import { I18N, i18nKeys } from '../../core/i18n/keys';
+import { CullFilePreviewComponent } from './cull-file-preview.component';
 
 type CullAction = 'copy_keeps' | 'trash_rejects' | 'move_rejects';
 
@@ -38,6 +39,7 @@ interface CullRequest {
 
 interface CullResponse {
   preview_digest?: string;
+  thumbnail_paths?: Record<string, string>;
   would_copy?: string[];
   would_move?: string[];
   would_trash?: string[];
@@ -60,10 +62,15 @@ interface CullResponse {
   selector: 'app-cull-dialog',
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [MatDialogModule, MatButtonModule, MatIconModule, MatCheckboxModule,
-            MatProgressSpinnerModule, TranslatePipe],
+            MatProgressSpinnerModule, TranslatePipe, CullFilePreviewComponent],
   template: `
-    <h2 mat-dialog-title>{{ (data.allRejects ? I18N.cull.trash_all_rejects : data.action ? 'cull.' + data.action : I18N.cull.title) | translate }}</h2>
-    <mat-dialog-content class="!pt-2 min-w-[22rem] max-w-[32rem]">
+    <h2 mat-dialog-title class="!flex !items-center !gap-3 !text-base !font-semibold !m-0 !px-6 !pt-5 !pb-4 before:!content-none">
+      <span class="w-9 h-9 rounded-lg bg-[var(--mat-sys-primary-container)] flex items-center justify-center shrink-0">
+        <mat-icon aria-hidden="true" class="!text-xl !leading-none !w-5 !h-5 text-[var(--mat-sys-on-primary-container)]">delete_sweep</mat-icon>
+      </span>
+      {{ (data.allRejects ? I18N.cull.trash_all_rejects : data.action ? 'cull.' + data.action : I18N.cull.title) | translate }}
+    </h2>
+    <mat-dialog-content class="!pt-2 min-w-0 w-full">
       @if (data.allRejects) {
         <p class="text-sm mb-3">{{ I18N.cull.all_rejects_scope | translate }}</p>
       }
@@ -121,6 +128,9 @@ interface CullResponse {
             <p class="opacity-60">{{ p.skipped.length }} {{ I18N.cull.skipped | translate }}</p>
           }
         </div>
+        @if (p.affected.length) {
+          <app-cull-file-preview [paths]="p.affected" [thumbnailPaths]="p.thumbnailPaths" />
+        }
       }
 
       @if (partialFailure()) {
@@ -142,7 +152,8 @@ interface CullResponse {
               [disabled]="busy() || !preview() || (data.action && !preview()?.digest) || (needsTarget() && !targetDir())"
               (click)="apply()">
         @if (applying()) { <mat-spinner diameter="16" class="!inline-block !align-middle !mr-1" [attr.aria-label]="I18N.ui.labels.loading | translate" /> }
-        {{ I18N.cull.apply | translate }}
+        {{ (action() === 'trash_rejects' && preview()
+          ? (preview()?.affected?.length === 1 ? I18N.cull.file_preview.trash_one : I18N.cull.file_preview.trash) : I18N.cull.apply) | translate:{ count: preview()?.affected?.length ?? 0 } }}
       </button>
     </mat-dialog-actions>
   `,
@@ -184,7 +195,7 @@ export class CullDialogComponent {
   protected readonly includeCompanions = signal(false);
   protected readonly includeSequenceSiblings = signal(false);
   protected readonly preview = signal<{
-    affected: string[]; skipped: string[]; excluded: number; matched: number; siblings: number; digest?: string;
+    affected: string[]; thumbnailPaths: Record<string, string>; skipped: string[]; excluded: number; matched: number; siblings: number; digest?: string;
   } | null>(null);
   protected readonly busy = signal(false);
   protected readonly applying = signal(false);
@@ -266,7 +277,7 @@ export class CullDialogComponent {
       }
       const affected = res.would_copy ?? res.would_move ?? res.would_trash ?? [];
       this.preview.set({
-        digest: res.preview_digest, affected, skipped: res.skipped ?? [], excluded: res.excluded_by_state ?? 0,
+        digest: res.preview_digest, affected, thumbnailPaths: res.thumbnail_paths ?? {}, skipped: res.skipped ?? [], excluded: res.excluded_by_state ?? 0,
         matched: res.matched ?? affected.length, siblings: res.sequence_siblings ?? 0,
       });
     } catch (error) {

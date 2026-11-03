@@ -124,16 +124,21 @@ def _apply_search_filter(where_clauses, sql_params, term: str, conn, include_man
     person searches still work. Falls back to the legacy LIKE OR-chain if
     the FTS5 table is missing (older DB without rebuild).
 
-    Both branches also match the user's manual tags (``photo_manual_tags``),
-    which are not in the FTS index, via a companion ``IN`` subquery;
-    ``include_manual=False`` (share-link requests) leaves it out.
+    Both branches also match the user's manual tags (``photo_manual_tags``) and
+    the labels of user-marked objects (``photo_objects``), neither of which is in
+    the FTS index, via companion ``IN`` subqueries; ``include_manual=False``
+    (share-link requests) leaves both out.
     """
     from db.fts import has_fts_table
-    from api.db_helpers import is_manual_tags_available
+    from api.db_helpers import is_manual_tags_available, is_photo_objects_available
 
     use_manual = include_manual and is_manual_tags_available(conn)
     manual_clause = (
         "photos.path IN (SELECT photo_path FROM photo_manual_tags WHERE tag LIKE ? ESCAPE '\\')"
+    )
+    use_objects = include_manual and is_photo_objects_available(conn)
+    object_clause = (
+        "photos.path IN (SELECT photo_path FROM photo_objects WHERE label LIKE ? ESCAPE '\\')"
     )
 
     fts_query = _fts5_query_from(term)
@@ -151,10 +156,13 @@ def _apply_search_filter(where_clauses, sql_params, term: str, conn, include_man
             "SELECT f.photo_path FROM faces f JOIN persons p ON f.person_id = p.id"
             " WHERE p.name LIKE ? ESCAPE '\\')"
             + (f" OR {manual_clause}" if use_manual else "")
+            + (f" OR {object_clause}" if use_objects else "")
             + ")"
         )
         sql_params.extend([fts_query, person_like])
         if use_manual:
+            sql_params.append(person_like)
+        if use_objects:
             sql_params.append(person_like)
         return
 
@@ -179,6 +187,9 @@ def _apply_search_filter(where_clauses, sql_params, term: str, conn, include_man
 
     if use_manual:
         search_clauses.append(manual_clause)
+        search_params.append(f"%{escaped_term}%")
+    if use_objects:
+        search_clauses.append(object_clause)
         search_params.append(f"%{escaped_term}%")
 
     existing_cols = get_existing_columns(conn)
@@ -1347,7 +1358,17 @@ async def api_photos(
                 for k in ('hide_blinks', 'hide_bursts', 'hide_duplicates', 'hide_brackets',
                           'hide_panoramas', 'no_blink', 'burst_only')
             )
-            if any_hide_active:
+            # Rejected frames are hidden by `hide_rejected` (on by default) and the
+            # aggregate below deliberately leaves that toggle alone, so inside an
+            # opened set they would silently drop out of "showing X of Y". Count them
+            # separately, for a set scope only (the extra count is a second pass).
+            count_rejected = (
+                _active_set_scope(params)[0] is not None
+                and params.get('hide_rejected') in ('1', 'true')
+            )
+            hidden_summary = {'total': 0, 'blinks': 0, 'bursts': 0, 'duplicates': 0,
+                              'brackets': 0, 'panoramas': 0, 'rejected': 0}
+            if any_hide_active or count_rejected:
                 params_no_hide = dict(params)
                 for k in ('hide_blinks', 'hide_bursts', 'hide_duplicates', 'hide_brackets',
                           'hide_panoramas', 'no_blink', 'burst_only'):
@@ -1358,21 +1379,32 @@ async def api_photos(
                 if candidates is not None:
                     where_str_no_hide = _with_semantic_clause(where_str_no_hide)
                     all_params_no_hide = all_params_no_hide + [candidates.paths_json]
-                agg = await get_cached_hidden_aggregates_async(
-                    conn, where_str_no_hide, all_params_no_hide, from_clause=from_clause,
-                    stack_owner=owner, token=token,
-                )
-                hidden_summary = {
-                    'total': max(0, agg['unhidden'] - photo_total),
-                    'blinks': agg['blinks'],
-                    'bursts': agg['bursts'],
-                    'duplicates': agg['duplicates'],
-                    'brackets': agg['brackets'],
-                    'panoramas': agg['panoramas'],
-                }
-            else:
-                hidden_summary = {'total': 0, 'blinks': 0, 'bursts': 0, 'duplicates': 0,
-                                  'brackets': 0, 'panoramas': 0}
+                if any_hide_active:
+                    agg = await get_cached_hidden_aggregates_async(
+                        conn, where_str_no_hide, all_params_no_hide, from_clause=from_clause,
+                        stack_owner=owner, token=token,
+                    )
+                    hidden_summary.update(
+                        total=max(0, agg['unhidden'] - photo_total),
+                        blinks=agg['blinks'],
+                        bursts=agg['bursts'],
+                        duplicates=agg['duplicates'],
+                        brackets=agg['brackets'],
+                        panoramas=agg['panoramas'],
+                    )
+                if count_rejected:
+                    _, where_str_with_rejected, all_params_with_rejected = await gallery_scope_sql_async(
+                        conn, qp, user_id, prepared={**params_no_hide, 'hide_rejected': ''},
+                    )
+                    if candidates is not None:
+                        where_str_with_rejected = _with_semantic_clause(where_str_with_rejected)
+                        all_params_with_rejected = all_params_with_rejected + [candidates.paths_json]
+                    kept_count = await get_cached_count_async(
+                        conn, where_str_no_hide, all_params_no_hide, from_clause=from_clause, token=token)
+                    every_count = await get_cached_count_async(
+                        conn, where_str_with_rejected, all_params_with_rejected,
+                        from_clause=from_clause, token=token)
+                    hidden_summary['rejected'] = max(0, every_count - kept_count)
 
             # cache hit, no PRAGMA — same select-cols logic as other endpoints
             select_cols = build_photo_select_columns(conn=None, user_id=user_id)

@@ -537,6 +537,21 @@ class ModelManager:
         return self._cpu_cache_peak_gb(
             set(self._cpu_cache) | {model_name}) <= self._cpu_cache_budget_gb()
 
+    def is_cacheable_model(self, model_name: str) -> bool:
+        """Whether ``model_name`` may ever be cached to CPU RAM, before any memory check."""
+        if self.keep_in_ram == 'never':
+            return False
+        # Native Q-ReAlign is cacheable only in commercial mode: adding it to the
+        # static set would change the default-mode retained set (samp_net would
+        # drop out on a 32 GB host). Both names share one instance, so the move
+        # is idempotent.
+        if model_name in ('qrealign', 'qrealign_quality'):
+            if not licensing.is_commercial():
+                return False
+        elif model_name not in self.CPU_CACHEABLE_MODELS:
+            return False
+        return not (model_name == 'insightface' and self.device == 'cuda')
+
     def _can_cache_to_ram(self, model_name: str) -> bool:
         """Check if a model can be cached to CPU RAM between passes.
 
@@ -572,18 +587,7 @@ class ModelManager:
         Returns:
             True if the model should be cached to RAM
         """
-        if self.keep_in_ram == 'never':
-            return False
-        # Native Q-ReAlign is cacheable only in commercial mode: adding it to the
-        # static set would change the default-mode retained set (samp_net would
-        # drop out on a 32 GB host). Both names share one instance, so the move
-        # is idempotent.
-        if model_name in ('qrealign', 'qrealign_quality'):
-            if not licensing.is_commercial():
-                return False
-        elif model_name not in self.CPU_CACHEABLE_MODELS:
-            return False
-        if model_name == 'insightface' and self.device == 'cuda':
+        if not ModelManager.is_cacheable_model(self, model_name):   # unbound: callers use bare stubs
             return False
         if self.keep_in_ram == 'always':
             return True

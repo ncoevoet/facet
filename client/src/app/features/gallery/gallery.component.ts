@@ -108,6 +108,11 @@ type ReturnTarget = { scroll: number; focus: Element | null } & (
   | { path: string | null; anchor: null }
   | { path: string; anchor: ReturnAnchor });
 
+/** The hide toggle that collapses each kind of set; any other sequence kind is a panorama variant. */
+const SET_KIND_TOGGLE: Record<string, keyof HiddenFilterFlags> = {
+  burst: 'hide_bursts', duplicate: 'hide_duplicates', bracket: 'hide_brackets', panorama: 'hide_panoramas',
+};
+
 @Component({
   selector: 'app-gallery',
   imports: [
@@ -256,6 +261,16 @@ type ReturnTarget = { scroll: number; focus: Element | null } & (
               </div>
             }
             </div>
+            @if (railCritiqueVisible()) {
+              <!-- The score explainer, docked-rail edition: the entry the card
+                   buries in its hover bar, always visible here — and the rail's
+                   dead space below the metrics gets a job. Gated on the same
+                   show_critique flag as the card's and detail's entries. -->
+              <button mat-button class="!min-w-0 shrink-0 self-start mx-2 mb-2" (click)="openRailCritique()">
+                <mat-icon class="!text-base !w-4 !h-4 !leading-4">analytics</mat-icon>
+                {{ I18N.critique.title | translate }}
+              </button>
+            }
           </div>
         } @else {
           <!-- Usually closed, and heavy enough that building it eagerly holds up the grid's first paint. -->
@@ -282,11 +297,11 @@ type ReturnTarget = { scroll: number; focus: Element | null } & (
               {{ I18N.gallery.set_scope.message | translate:{ kind: (kind | photoSetKindLabel | translate) } }}
               <!-- The hide toggles still apply inside a set (blinks above all), so say
                    what is missing rather than list fewer frames than the photo page counted. -->
-              @if (store.hiddenSummary().total > 0) {
-                · {{ I18N.gallery.set_scope.partial | translate:{ shown: store.photoTotal(), total: store.photoTotal() + store.hiddenSummary().total, reasons: hiddenReasons() } }}
+              @if (setBarCounts().hidden > 0) {
+                · {{ I18N.gallery.set_scope.partial | translate:{ shown: setBarCounts().shown, total: setBarCounts().total, reasons: hiddenReasons() } }}
               }
             </span>
-            @if (store.hiddenSummary().total > 0) {
+            @if (setBarCounts().hidden > 0) {
               <button mat-button class="!min-w-0" (click)="showWholeSet()">
                 {{ I18N.gallery.hidden_banner.show_all | translate }}
               </button>
@@ -349,7 +364,7 @@ type ReturnTarget = { scroll: number; focus: Element | null } & (
             >
               <div [style.height.px]="topSpacer()" aria-hidden="true"></div>
               @for (row of visibleRows(); track row.photos[0].path) {
-              <div class="flex gap-2 mb-2" [style.height.px]="row.height">
+              <div class="flex gap-2 mb-2" [class.items-start]="naturalGridFit()" [style.height.px]="row.height">
                 @for (photo of row.photos; track photo.path; let i = $index) {
                   <app-photo-card
                 [collapsedSetKinds]="collapsedSetKinds()"
@@ -357,8 +372,9 @@ type ReturnTarget = { scroll: number; focus: Element | null } & (
                     [photo]="photo"
                     [attr.data-pidx]="row.startIndex + i"
                     [style.width.px]="row.widths[i]"
-                    [style.height.px]="row.height"
+                    [style.height.px]="row.heights?.[i] ?? row.height"
                     class="shrink-0"
+                    [fillTile]="!naturalGridFit()"
                     [hideDetails]="rowCardHideDetails()"
                     [mosaicMode]="effectiveGalleryMode() === 'mosaic'"
                     [config]="store.config()"
@@ -408,6 +424,7 @@ type ReturnTarget = { scroll: number; focus: Element | null } & (
               tabindex="0"
               [attr.aria-label]="I18N.gallery.photo_grid | translate"
               class="grid grid-cols-1 gap-2 p-2 md:p-4 outline-none"
+              [class.items-start]="naturalGridFit()"
               [style.grid-template-columns]="galleryColsStyle()"
               (keydown)="onGridKeydown($event)"
               (focusout)="onGridFocusOut($event)"
@@ -422,6 +439,7 @@ type ReturnTarget = { scroll: number; focus: Element | null } & (
                   [isSelected]="photo.path | isSelected:viewScoped():selectedPaths():excludedPaths()"
                   [isActive]="i === activeIndex()"
                   [gridHasActiveCard]="hasActivePhoto()"
+                  [fillTile]="!naturalGridFit()"
                   [hideDetails]="effectiveHideDetails()"
                   [currentSort]="store.filters().sort"
                   [metricRanges]="store.metricRangesByColumn()"
@@ -1075,6 +1093,21 @@ export class GalleryComponent implements OnInit, OnDestroy {
 
   /** Tooltip mode signal — 'hover' | 'click' | 'off' */
   readonly tooltipMode = computed(() => this.store.filters().tooltip_mode);
+  /** Leaving panel mode releases the held photo: the docked rail is going away
+   *  (the Side panel switch hands the surface back to hover bubbles), so the dimming
+   *  and the framed card cannot outlive the panel they belong to. Only a
+   *  'panel' -> other transition releases: activeIndex is the keyboard cursor in every mode. */
+  private readonly releaseOnModeLeave = (() => {
+    let previous: string | undefined;
+    return effect(() => {
+      const mode = this.tooltipMode();
+      untracked(() => {
+        const left = previous === 'panel' && mode !== 'panel';
+        previous = mode;
+        if (left && this.hasActivePhoto()) this.releasePanel();
+      });
+    });
+  })();
   /** Which gesture(s) retarget the docked panel — only meaningful when tooltipMode is 'panel'. */
   readonly panelActivation = computed(() => this.store.filters().panel_activation);
   /** Whether tooltip is fully disabled (off mode) — used for skipping rendering and hover handlers */
@@ -1229,8 +1262,16 @@ export class GalleryComponent implements OnInit, OnDestroy {
       [f.hide_duplicates, h.duplicates, I18N.gallery.hidden_banner.reason_duplicates],
       [f.hide_brackets, h.brackets, I18N.gallery.hidden_banner.reason_brackets],
       [f.hide_panoramas, h.panoramas, I18N.gallery.hidden_banner.reason_panoramas],
+      [f.hide_rejected, h.rejected ?? 0, I18N.gallery.hidden_banner.reason_rejected],
     ];
     return reasons.filter(([on, n]) => on && n > 0).map(([, n, key]) => this.i18n.t(key, { n })).join(', ');
+  });
+
+  /** The set-scope bar's "showing X of Y": the summary's total plus the rejected frames, which
+   *  count only while `hide_rejected` is on (the summary reports them apart from its total). */
+  protected readonly setBarCounts = computed(() => {
+    const hidden = this.store.hiddenSummary().total + (this.store.filters().hide_rejected ? (this.store.hiddenSummary().rejected ?? 0) : 0);
+    return { hidden, shown: this.store.photoTotal(), total: this.store.photoTotal() + hidden };
   });
 
   /** Show the hidden-photos banner when filters are hiding rows and at least one is on. */
@@ -1449,37 +1490,44 @@ export class GalleryComponent implements OnInit, OnDestroy {
   clearSetScope(): void {
     const kind = this.setScopeKind();
     if (!kind) return;
+    const own = SET_KIND_TOGGLE[kind] ?? 'hide_panoramas';
     const updates: Partial<GalleryFilters> = {
       sequence_group_id: '', sequence_kind: '', burst_group_id: '', duplicate_group_id: '',
     };
-    // A Show all pressed on the set bar was for the set alone: leaving the set puts back
-    // the toggles it lifted, and the saved preferences as they were before it wrote them.
-    const setShowAll = this.store.hiddenFiltersStash() === this.setShowAll?.stash ? this.setShowAll : null;
-    this.setShowAll = null;
-    const stored = setShowAll?.stored ?? loadDisplayOptionsFromStorage();
+    const stored = loadDisplayOptionsFromStorage();
     const defaults = this.store.config()?.defaults;
-    if (kind === 'burst') updates.hide_bursts = stored.hide_bursts ?? (defaults?.hide_bursts ?? true);
-    else if (kind === 'duplicate') updates.hide_duplicates = stored.hide_duplicates ?? (defaults?.hide_duplicates ?? true);
-    else if (kind === 'bracket') updates.hide_brackets = stored.hide_brackets ?? (defaults?.hide_brackets ?? true);
-    else updates.hide_panoramas = stored.hide_panoramas ?? (defaults?.hide_panoramas ?? true);
-    if (setShowAll) {
-      this.store.hiddenFiltersStash.set(null);
-      const own = kind === 'burst' ? 'hide_bursts' : kind === 'duplicate' ? 'hide_duplicates'
-        : kind === 'bracket' ? 'hide_brackets' : 'hide_panoramas';
-      Object.assign(updates, { ...setShowAll.stash, [own]: updates[own] });
-    }
+    // A Show all pressed on the set bar was for the set alone: leaving puts back the options it
+    // lifted, each only while still at its lifted value, so a toggle the user turned back on
+    // in the meantime is never overwritten (the rule canRestoreHidden applies).
+    Object.assign(updates, this.endSetShowAll(), { [own]: stored[own] ?? (defaults?.[own] ?? true) });
     void this.store.updateFilters(updates);
   }
 
-  /** What a set-bar Show all replaced: the store's stash, and the saved display preferences it
-   *  overwrote (the set's own toggle is restored from those, not from what Show all wrote). */
-  private setShowAll: { stash: HiddenFilterFlags | null; stored: ReturnType<typeof loadDisplayOptionsFromStorage> } | null = null;
+  /** Ends a set-bar Show all and returns the updates that undo it. */
+  private endSetShowAll(): Partial<GalleryFilters> {
+    const setShowAll = this.setShowAll;
+    this.setShowAll = null;
+    if (setShowAll && this.store.hiddenFiltersStash() === setShowAll.stash) this.store.hiddenFiltersStash.set(null);
+    return this.store.takeTransientRestore();
+  }
 
-  /** Show every frame of the open set, blinks included, until the set is cleared. */
+  /** The stash a set-bar Show all left in the store, to drop it together with the lift. */
+  private setShowAll: { stash: HiddenFilterFlags | null } | null = null;
+
+  /** Leaving the set by any other route (back, a sidebar change) ends its Show all too. */
+  private readonly endSetShowAllOnLeave = effect(() => {
+    if (this.setScopeKind()) return;
+    untracked(() => {
+      const restore = this.endSetShowAll();
+      if (Object.keys(restore).length > 0) void this.store.updateFilters(restore);
+    });
+  });
+
+  /** Show every frame of the open set, blinks and rejected frames included, until the set is
+   *  cleared. Nothing is saved to the display preferences: a reload must not keep the lift. */
   showWholeSet(): void {
-    const stored = loadDisplayOptionsFromStorage();
-    this.store.showAllHidden();
-    this.setShowAll = { stash: this.store.hiddenFiltersStash(), stored };
+    this.store.showAllHidden({ persist: false, includeRejected: true });
+    this.setShowAll = { stash: this.store.hiddenFiltersStash() };
   }
 
   /** Container width for mosaic layout (updated via ResizeObserver) */
@@ -1512,6 +1560,17 @@ export class GalleryComponent implements OnInit, OnDestroy {
     () => this.effectiveGalleryMode() === 'mosaic' || this.effectiveHideDetails(),
   );
 
+  /**
+   * The natural tile fit as the grid renders it: grid mode with details hidden
+   * only. Mosaic justifies every row to one height by construction, and cards
+   * with details keep their equal-height rows, so both ignore the preference
+   * (its menu entry is disabled in either case).
+   */
+  protected readonly naturalGridFit = computed(
+    () => this.effectiveGalleryMode() === 'grid' && this.effectiveHideDetails()
+      && this.store.filters().tile_fit === 'natural',
+  );
+
   /** Unified row model for the active mode. */
   readonly rowsModel = computed<GalleryRow[]>(() => {
     const photos = this.store.photos();
@@ -1521,7 +1580,7 @@ export class GalleryComponent implements OnInit, OnDestroy {
     const gap = GalleryComponent.ROW_GAP;
     const build = this.effectiveGalleryMode() === 'mosaic'
       ? (ps: Photo[]) => buildMosaicRows(ps, width, this.cardWidth(), gap)
-      : (ps: Photo[]) => buildGridRows(ps, width, this.cardWidth(), gap, this.effectiveHideDetails(), this.isDesktop());
+      : (ps: Photo[]) => buildGridRows(ps, width, this.cardWidth(), gap, this.effectiveHideDetails(), this.isDesktop(), this.store.filters().tile_fit);
     return build(photos);
   });
 
@@ -2655,7 +2714,8 @@ export class GalleryComponent implements OnInit, OnDestroy {
       if (!current()) return;
       const ref = this.dialog.open(CullDialogComponent, {
         closeOnNavigation: false,
-        width: '32rem',
+        width: '48rem',
+        maxWidth: '95vw',
         data: {
           paths,
           // Same trade as the export: the filter travels instead of the paths,
@@ -2774,6 +2834,19 @@ export class GalleryComponent implements OnInit, OnDestroy {
 
   openCritique(photo: Photo): void {
     this.photoActions.openCritique(photo);
+  }
+
+  /** The docked rail's score-explainer entry renders only while the rail holds
+   *  a photo and the install shows the explainer at all — the same show_critique
+   *  flag the card's hover bar and the photo detail toolbar gate theirs on. */
+  protected readonly railCritiqueVisible = computed(
+    () => !!this.panelPhoto() && !!this.store.config()?.features?.show_critique,
+  );
+
+  /** The docked rail's score-explainer entry: explains the photo the rail holds. */
+  protected openRailCritique(): void {
+    const p = this.panelPhoto();
+    if (p) this.openCritique(p);
   }
 
   embedMetadata(photo: Photo): void {

@@ -21,6 +21,7 @@ import watchdog.observers  # noqa: E402
 import watchdog.observers.polling  # noqa: E402
 
 import processing.watcher as watcher  # noqa: E402
+from utils.exit_codes import SAVED_NOTHING_EXIT_CODE  # noqa: E402
 from processing.watcher import (  # noqa: E402
     MAX_CONSECUTIVE_FAILURES,
     WATCH_SUFFIXES,
@@ -424,6 +425,66 @@ class TestRunWatchLoopFailureHandling:
         watcher.run_watch_loop(["/library"], str(tmp_path / "photos.db"), debounce_seconds=0, initial_scan=False)
 
         assert len(runs) == 6
+
+    def test_a_scan_that_saved_nothing_is_not_a_failure_that_ends_watching(self, monkeypatch, tmp_path):
+        """Exit SAVED_NOTHING_EXIT_CODE is neither a crash nor a success: it must not consume
+        the failure budget."""
+        native = _FakeObserver()
+        monkeypatch.setattr(watchdog.observers, "Observer", lambda: native)
+        monkeypatch.setattr(watchdog.observers.polling, "PollingObserver", lambda: _FakeObserver())
+
+        returncodes = iter([SAVED_NOTHING_EXIT_CODE] * 5 + [1, 1, 1])
+        runs = []
+
+        def fake_run(cmd, *a, **kw):
+            runs.append(cmd)
+            return SimpleNamespace(returncode=next(returncodes))
+
+        monkeypatch.setattr(watcher.subprocess, "run", fake_run)
+
+        calls = {"n": 0}
+
+        def fake_sleep(seconds):
+            calls["n"] += 1
+            if calls["n"] > 20:
+                raise AssertionError("watch loop did not stop after MAX_CONSECUTIVE_FAILURES")
+            handler, _, _ = native.scheduled[0]
+            handler.on_created(SimpleNamespace(is_directory=False, src_path=f"/library/f{calls['n']}.jpg"))
+
+        monkeypatch.setattr(watcher.time, "sleep", fake_sleep)
+
+        watcher.run_watch_loop(["/library"], str(tmp_path / "photos.db"), debounce_seconds=0, initial_scan=False)
+
+        assert len(runs) == 5 + MAX_CONSECUTIVE_FAILURES
+
+    def test_a_saved_nothing_scan_between_crashes_does_not_reset_the_streak(self, monkeypatch, tmp_path):
+        native = _FakeObserver()
+        monkeypatch.setattr(watchdog.observers, "Observer", lambda: native)
+        monkeypatch.setattr(watchdog.observers.polling, "PollingObserver", lambda: _FakeObserver())
+
+        returncodes = iter([1, 1, SAVED_NOTHING_EXIT_CODE, 1])
+        runs = []
+
+        def fake_run(cmd, *a, **kw):
+            runs.append(cmd)
+            return SimpleNamespace(returncode=next(returncodes))
+
+        monkeypatch.setattr(watcher.subprocess, "run", fake_run)
+
+        calls = {"n": 0}
+
+        def fake_sleep(seconds):
+            calls["n"] += 1
+            if calls["n"] > 12:
+                raise AssertionError("a 4 reset the crash streak: the watch loop kept running")
+            handler, _, _ = native.scheduled[0]
+            handler.on_created(SimpleNamespace(is_directory=False, src_path=f"/library/f{calls['n']}.jpg"))
+
+        monkeypatch.setattr(watcher.time, "sleep", fake_sleep)
+
+        watcher.run_watch_loop(["/library"], str(tmp_path / "photos.db"), debounce_seconds=0, initial_scan=False)
+
+        assert len(runs) == 4
 
     def test_a_failing_initial_scan_does_not_count_toward_max_consecutive_failures(self, monkeypatch, tmp_path):
         """Pins current intent (processing/watcher.py:125-126 discards the initial

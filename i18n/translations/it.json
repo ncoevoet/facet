@@ -1064,7 +1064,8 @@
       "reason_blinks": "{n} occhi chiusi",
       "reason_duplicates": "{n} duplicato/i",
       "reason_brackets": "{n} fotogramma/i di bracketing",
-      "reason_panoramas": "{n} fotogramma/i di panorama"
+      "reason_panoramas": "{n} fotogramma/i di panorama",
+      "reason_rejected": "{n} scartata/e"
     },
     "filters_notice": {
       "message": "{count} filtro attivo",
@@ -1129,6 +1130,9 @@
     "hide_details": "Nascondi dettagli",
     "tooltip_mode": {
       "label": "Tooltip",
+      "show_in": "Mostra in",
+      "popup": "Popup",
+      "show_on": "Mostra con",
       "hover": "Hover",
       "click": "Clic",
       "panel": "Pannello laterale",
@@ -1137,9 +1141,6 @@
       "panel_deselect": "Deseleziona"
     },
     "panel_activation": {
-      "label": "Attivazione pannello",
-      "hover": "Hover",
-      "click": "Clic",
       "both": "Hover o clic"
     },
     "hide_blinks": "Nascondi occhi chiusi",
@@ -1478,6 +1479,11 @@
       "named": "Chiamato {name}",
       "error": "Impossibile salvare il nome",
       "remove": "Rimuovi dal filtro"
+    },
+    "tile_fit": {
+      "label": "Presentazione delle miniature",
+      "square": "Ritaglio quadrato",
+      "natural": "Proporzioni originali"
     }
   },
   "composition_patterns": {
@@ -2863,6 +2869,20 @@
     "restore_failed": "Impossibile annullare"
   },
   "cull": {
+    "file_preview": {
+      "title": "File interessati",
+      "help": "Controlla i file prima di applicare. Fai clic su un’immagine per ingrandirla. Annulla per modificare le decisioni sulle foto.",
+      "back": "Torna ai file",
+      "unavailable": "Anteprima non disponibile",
+      "sidecar": "File associato XMP",
+      "enlarge": "Ingrandisci {name}",
+      "pages": "Pagine dell’anteprima dei file",
+      "previous": "Precedente",
+      "next": "Successiva",
+      "range": "File {start}–{end} di {total}",
+      "trash": "Sposta {count} file nel cestino di sistema",
+      "trash_one": "Sposta 1 file nel cestino di sistema"
+    },
     "action": "Scarta in cartella…",
     "title": "Scarta in cartella",
     "selected": "selezionati",
@@ -3045,7 +3065,7 @@
     }
   },
   "manual_faces": {
-    "title": "Segna un volto mancante / Gestisci i volti manuali",
+    "title": "Segna un volto mancante o un oggetto / Gestisci i segni",
     "instructions": "Disegna un rettangolo o inserisci i bordi in percentuale. Scegli una persona e salva.",
     "unavailable": "Originale non disponibile. Puoi rimuovere i segni salvati.",
     "preview": "Foto orientata per segnare i volti",
@@ -3067,7 +3087,15 @@
     "save_failed": "Salvataggio non riuscito. Bozza conservata. Se la sorgente è cambiata o la sessione è scaduta, ricarica l’anteprima.",
     "reload": "Ricarica editor",
     "refresh_failed": "La modifica è stata salvata, ma non è stato possibile aggiornare le informazioni delle persone. Ricarica la foto.",
-    "detected_overlap": "Qui è già stato rilevato un volto. Chiudi questo editor e usa l’azione di assegnazione dei volti rilevati. La bozza è conservata."
+    "detected_overlap": "Qui è già stato rilevato un volto. Chiudi questo editor e usa l’azione di assegnazione dei volti rilevati. La bozza è conservata.",
+    "mark_kind": "Cosa segna il rettangolo",
+    "kind_face": "Volto",
+    "kind_object": "Oggetto",
+    "object_instructions": "Disegna un rettangolo attorno all'oggetto o inserisci i bordi in percentuale. Dagli un'etichetta e salva. La ricerca della galleria trova gli oggetti; non contano mai come volti.",
+    "object_label": "Etichetta",
+    "object_placeholder": "es. torta di compleanno",
+    "objects": "Oggetti segnati",
+    "objects_empty": "Nessun oggetto segnato."
   },
   "assistant_activity": {
     "chip": "Assistente attivo",

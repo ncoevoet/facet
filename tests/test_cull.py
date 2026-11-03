@@ -96,6 +96,45 @@ def _make_file(tmp_path, name, content=b"DATA"):
 
 
 class TestCullApply:
+    def test_mapped_preview_preserves_disk_targets_and_authorized_thumbnail_identity(self, client, tmp_path):
+        from io import BytesIO
+        from PIL import Image
+        from api import config
+
+        disk = _make_file(tmp_path, 'mapped.jpg')
+        companion = _make_file(tmp_path, 'mapped.xmp')
+        stored = '/remote/library/mapped.jpg'
+        kept = '/remote/library/kept.jpg'
+        db = _db(tmp_path, [(stored, 1), (kept, 0)])
+        buffer = BytesIO()
+        Image.new('RGB', (20, 20), 'red').save(buffer, format='JPEG')
+        blob = buffer.getvalue()
+        with sqlite3.connect(db) as conn:
+            conn.execute('UPDATE photos SET thumbnail=? WHERE path=?', (blob, stored))
+        with (
+            mock.patch(f'{_EXPORT_MODULE}.get_db', _db_cm(db)),
+            mock.patch('api.routers.thumbnails.get_db', _db_cm(db)),
+            mock.patch.dict(config.VIEWER_CONFIG, {'path_mapping': {'/remote/library': str(tmp_path)},
+                                                 'scan_directories': [str(tmp_path)]}),
+            mock.patch(f'{_EXPORT_MODULE}._allowed_export_roots', return_value=[str(tmp_path)]),
+        ):
+            response = client.post('/api/cull/apply', json={
+                'paths': [stored, kept], 'action': 'move_rejects', 'target_dir': str(tmp_path / 'out'),
+                'include_companions': True,
+            })
+            assert response.status_code == 200
+            preview = response.json()
+            real = os.path.realpath(disk)
+            assert preview['would_move'] == [real, os.path.realpath(companion)]
+            assert preview['thumbnail_paths'] == {real: stored}
+            assert preview['excluded_by_state'] == 1
+            thumb = client.get('/thumbnail', params={'path': preview['thumbnail_paths'][real], 'size': 320})
+            assert thumb.status_code == 200
+            assert thumb.content == blob
+        assert Path(disk).read_bytes() == b'DATA'
+        assert Path(companion).read_bytes() == b'DATA'
+        assert not (tmp_path / 'out').exists()
+
     def test_copy_keeps_dry_run_writes_nothing(self, client, tmp_path):
         path = _make_file(tmp_path, "a.jpg")
         db = _db(tmp_path, [(path, 0)])

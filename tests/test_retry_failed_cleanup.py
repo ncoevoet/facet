@@ -36,7 +36,7 @@ class _FakeFacet:
 
 class _SucceedingProcessor:
     def __init__(self, *args, **kwargs):
-        pass
+        self.metrics = {'photos_saved': 1}
 
     def process_directory(self, paths):
         pass

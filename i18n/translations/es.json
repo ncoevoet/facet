@@ -1064,7 +1064,8 @@
       "reason_blinks": "{n} ojos cerrados",
       "reason_duplicates": "{n} duplicado(s)",
       "reason_brackets": "{n} fotograma(s) de horquillado",
-      "reason_panoramas": "{n} fotograma(s) de panorámica"
+      "reason_panoramas": "{n} fotograma(s) de panorámica",
+      "reason_rejected": "{n} rechazada(s)"
     },
     "filters_notice": {
       "message": "{count} filtro activo",
@@ -1129,6 +1130,9 @@
     "hide_details": "Ocultar detalles",
     "tooltip_mode": {
       "label": "Tooltip",
+      "show_in": "Mostrar en",
+      "popup": "Ventana emergente",
+      "show_on": "Mostrar con",
       "hover": "Hover",
       "click": "Clic",
       "panel": "Panel lateral",
@@ -1137,9 +1141,6 @@
       "panel_deselect": "Deseleccionar"
     },
     "panel_activation": {
-      "label": "Activación del panel",
-      "hover": "Hover",
-      "click": "Clic",
       "both": "Hover o clic"
     },
     "hide_blinks": "Ocultar parpadeos",
@@ -1478,6 +1479,11 @@
       "named": "Nombrado {name}",
       "error": "No se pudo guardar el nombre",
       "remove": "Quitar del filtro"
+    },
+    "tile_fit": {
+      "label": "Presentación de miniaturas",
+      "square": "Recorte cuadrado",
+      "natural": "Proporción original"
     }
   },
   "composition_patterns": {
@@ -2863,6 +2869,20 @@
     "restore_failed": "No se pudo deshacer"
   },
   "cull": {
+    "file_preview": {
+      "title": "Archivos de esta operación",
+      "help": "Revise los archivos antes de aplicar. Pulse una imagen para ampliarla. Cancele para cambiar sus decisiones sobre las fotos.",
+      "back": "Volver a los archivos",
+      "unavailable": "Vista previa no disponible",
+      "sidecar": "Archivo auxiliar XMP",
+      "enlarge": "Ampliar {name}",
+      "pages": "Páginas de la vista previa de archivos",
+      "previous": "Anterior",
+      "next": "Siguiente",
+      "range": "Archivos {start}–{end} de {total}",
+      "trash": "Mover {count} archivos a la papelera del sistema",
+      "trash_one": "Mover 1 archivo a la papelera del sistema"
+    },
     "action": "Descartar a carpeta…",
     "title": "Descartar a carpeta",
     "selected": "seleccionados",
@@ -3045,7 +3065,7 @@
     }
   },
   "manual_faces": {
-    "title": "Marcar una cara ausente / Gestionar caras manuales",
+    "title": "Marcar una cara ausente o un objeto / Gestionar marcas",
     "instructions": "Dibuje un rectángulo o introduzca sus bordes en porcentajes. Elija una persona y guarde.",
     "unavailable": "Original no disponible. Puede eliminar las marcas guardadas.",
     "preview": "Foto orientada para marcar caras",
@@ -3067,7 +3087,15 @@
     "save_failed": "Error al guardar. Borrador conservado. Si cambió la imagen o caducó la sesión, recargue la vista previa.",
     "reload": "Recargar editor",
     "refresh_failed": "El cambio se guardó, pero no se pudo actualizar la información de las personas. Recargue la foto.",
-    "detected_overlap": "Ya se ha detectado una cara aquí. Cierre este editor y use la acción de asignación de caras detectadas. Se conserva el borrador."
+    "detected_overlap": "Ya se ha detectado una cara aquí. Cierre este editor y use la acción de asignación de caras detectadas. Se conserva el borrador.",
+    "mark_kind": "Qué marca el rectángulo",
+    "kind_face": "Cara",
+    "kind_object": "Objeto",
+    "object_instructions": "Dibuje un rectángulo alrededor del objeto o introduzca sus bordes en porcentajes. Póngale una etiqueta y guarde. La búsqueda de la galería encuentra los objetos; nunca cuentan como caras.",
+    "object_label": "Etiqueta",
+    "object_placeholder": "p. ej. tarta de cumpleaños",
+    "objects": "Objetos marcados",
+    "objects_empty": "No hay objetos marcados."
   },
   "assistant_activity": {
     "chip": "Asistente activo",
