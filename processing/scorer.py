@@ -2635,7 +2635,11 @@ class Facet:
         if model_name == 'qrealign':
             licensing.require('qrealign_native')
             from models.qrealign_native import QReAlignNativeScorer
-            scorer = QReAlignNativeScorer(size=self.config.get_qrealign_size(), device=self.device)
+            from utils.device import get_device
+            # --recompute-iqa builds a lightweight Facet, whose device is None; the
+            # pyiqa scorers pick their own device, the native Q-ReAlign one does not.
+            scorer = QReAlignNativeScorer(size=self.config.get_qrealign_size(),
+                                          device=self.device or get_device())
         else:
             from models.pyiqa_scorer import PyIQAScorer
             scorer = PyIQAScorer(model_name=model_name)
