@@ -157,6 +157,7 @@ def test_a_fresh_database_has_exactly_the_specified_indexes_and_table(tmp_path):
     assert NARROW not in names, "the narrow viewer index is superseded by idx_date_asc_cover"
     assert "idx_faces_cluster" not in names
     assert set(POST_SCAN) <= names
+    assert _key_columns(db_path, 'idx_ignored_face_photo') == ['photo_path', 'active']
 
     with sqlite3.connect(db_path) as conn:
         cols = [r[1] for r in conn.execute("PRAGMA table_info(panorama_run_cache)")]

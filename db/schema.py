@@ -272,6 +272,10 @@ IGNORED_FACE_DETECTIONS_COLUMNS = [
       for name, declaration in FACES_COLUMNS if name != 'id'],
 ]
 
+IGNORED_FACE_DETECTIONS_INDEXES = [
+    ('idx_ignored_face_photo', 'ignored_face_detections', 'photo_path, active'),
+]
+
 # Single shared faces upsert used by every scan-time writer (processing/scorer.py
 # single + batch, faces/processor.py). INSERT OR REPLACE regenerates the whole
 # row on --force rescans via the UNIQUE(photo_path, face_index) constraint, so a
@@ -1045,6 +1049,7 @@ ALL_INDEX_GROUPS = [
     USER_PREFERENCES_INDEXES,
     IDENTITY_INDEXES,
     MANUAL_FACE_INDEXES,
+    IGNORED_FACE_DETECTIONS_INDEXES,
     FACE_UPDATE_INDEXES,
     FACE_REVIEW_FEEDBACK_INDEXES,
     MCP_TOKENS_INDEXES,
@@ -1445,7 +1450,6 @@ def init_database(db_path='photo_scores_pro.db', build_photo_indexes=True):
         ))
         conn.execute(_build_create_table_sql('manual_face_deletions', MANUAL_FACE_DELETIONS_COLUMNS))
         conn.execute(_build_create_table_sql('ignored_face_detections', IGNORED_FACE_DETECTIONS_COLUMNS))
-        conn.execute('CREATE INDEX IF NOT EXISTS idx_ignored_face_photo ON ignored_face_detections(photo_path, active)')
 
         # Create persons table
         conn.execute(_build_create_table_sql('persons', PERSONS_COLUMNS))
