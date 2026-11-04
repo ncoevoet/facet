@@ -632,14 +632,14 @@ def _normalize_review_decisions(conn: sqlite3.Connection) -> None:
             conn.execute(f"UPDATE {table} SET is_kept = 0 WHERE is_kept != 0 AND is_rejected != 0")
 
 
-def _incremental_update_viewer_db(source_db, output_path, thumbnail_size, verbose):
+def _incremental_update_viewer_db(source_db, output_path, thumbnail_size, verbose, path_mapping):
     # TEMP hierarchy snapshots must be removed even if another export phase
     # fails before their merge. Closing the owning connection removes them.
     with ExitStack() as resources:
-        return _incremental_update_viewer_data(source_db, output_path, thumbnail_size, verbose, resources)
+        return _incremental_update_viewer_data(source_db, output_path, thumbnail_size, verbose, resources, path_mapping)
 
 
-def _incremental_update_viewer_data(source_db, output_path, thumbnail_size, verbose, resources):
+def _incremental_update_viewer_data(source_db, output_path, thumbnail_size, verbose, resources, path_mapping):
     """Incrementally sync changes from source_db into the existing viewer database.
 
     Processes only new/deleted photos; preserves existing thumbnails.
@@ -860,6 +860,8 @@ def _incremental_update_viewer_data(source_db, output_path, thumbnail_size, verb
 
     # Stable person identities were reconciled before face synchronization.
     merge_manual_faces(dest_conn, source_face_columns)
+    from db.ignored_faces import merge_viewer_corrections
+    merge_viewer_corrections(dest_conn, path_mapping)
     dest_conn.commit()
 
     # --- Sync photo_tags (full replace — fast, no BLOBs) ---
@@ -1099,7 +1101,7 @@ def _omit_private_stack_albums(conn) -> int:
     return len(excluded)
 
 
-def export_viewer_db(source_db='photo_scores_pro.db', output_path=None, thumbnail_size=320, verbose=True, force=False):
+def export_viewer_db(source_db='photo_scores_pro.db', output_path=None, thumbnail_size=320, verbose=True, force=False, *, path_mapping=None):
     """Export a lightweight database for viewer-only deployment.
 
     Creates a stripped-down copy suitable for low-memory NAS devices by:
@@ -1135,7 +1137,16 @@ def export_viewer_db(source_db='photo_scores_pro.db', output_path=None, thumbnai
 
     # Incremental update if output already exists and force is not set
     if os.path.exists(output_path) and not force:
-        return _incremental_update_viewer_db(source_db, output_path, thumbnail_size, verbose)
+        if path_mapping is None:
+            from config_resolve import load_resolved
+            path_mapping = load_resolved().get('viewer', {}).get('path_mapping', {})
+        if not isinstance(path_mapping, dict):
+            path_mapping = {}
+        # Refuse before any destination writes: offline originals cannot prove
+        # that a source face is still the detection this viewer ignored.
+        from db.ignored_faces import preflight_viewer_corrections
+        preflight_viewer_corrections(source_db, output_path, path_mapping)
+        return _incremental_update_viewer_db(source_db, output_path, thumbnail_size, verbose, path_mapping)
 
     # Full export: remove existing output file then do a clean backup
     if os.path.exists(output_path):
@@ -1217,6 +1228,10 @@ def export_viewer_db(source_db='photo_scores_pro.db', output_path=None, thumbnai
 
     # faces: embedding (NOT NULL constraint — use empty blob), landmark_2d_106
     dst_conn.execute("UPDATE faces SET embedding = zeroblob(0), landmark_2d_106 = NULL")
+    # Detection corrections are durable annotations, not operational history.
+    # Carry their Restore data, but strip recognition vectors just as for faces.
+    if table_exists(dst_conn, 'ignored_face_detections'):
+        dst_conn.execute('UPDATE ignored_face_detections SET embedding=zeroblob(0),landmark_2d_106=NULL')
     dst_conn.commit()
 
     # Downsize photo thumbnails

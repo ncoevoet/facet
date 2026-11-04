@@ -1,3 +1,4 @@
+import { SORT_ICONS } from '../../pipes/sort-option-icon.pipe';
 import { I18N } from '../../../core/i18n/keys';
 import { MatIconModule } from '@angular/material/icon';
 import { ChangeDetectionStrategy, Component, input } from '@angular/core';
@@ -48,37 +49,37 @@ import { MetricScoreRowComponent } from '../metric-score-row/metric-score-row.co
 @case('quality') {
       <div class="pt-3">
         <div class="flex flex-col gap-0.5">
-          <app-metric-score-row [label]="'tooltip.aesthetic' | translate" [range]="ranges()['aesthetic']" [value]="p.aesthetic">{{ p.aesthetic | fixed:1 }}</app-metric-score-row>
+          <app-metric-score-row [icon]="metricIcons['aesthetic']" [label]="'tooltip.aesthetic' | translate" [range]="ranges()['aesthetic']" [value]="p.aesthetic">{{ p.aesthetic | fixed:1 }}</app-metric-score-row>
           @if (p.quality_score !== null) {
-            <app-metric-score-row [label]="'tooltip.quality_score' | translate" [range]="ranges()['quality_score']" [value]="p.quality_score">{{ p.quality_score | fixed:1 }}</app-metric-score-row>
+            <app-metric-score-row [icon]="metricIcons['quality_score']" [label]="'tooltip.quality_score' | translate" [range]="ranges()['quality_score']" [value]="p.quality_score">{{ p.quality_score | fixed:1 }}</app-metric-score-row>
           }
           @if (p.topiq_score !== null) {
-            <app-metric-score-row [label]="'tooltip.topiq_score' | translate" [range]="ranges()['topiq_score']" [value]="p.topiq_score">{{ p.topiq_score | fixed:1 }}</app-metric-score-row>
+            <app-metric-score-row [icon]="metricIcons['topiq_score']" [label]="'tooltip.topiq_score' | translate" [range]="ranges()['topiq_score']" [value]="p.topiq_score">{{ p.topiq_score | fixed:1 }}</app-metric-score-row>
           }
           @if (p.tech_sharpness !== null) {
-            <app-metric-score-row [label]="'tooltip.tech_sharpness' | translate" [range]="ranges()['tech_sharpness']" [value]="p.tech_sharpness">{{ p.tech_sharpness | fixed:1 }}</app-metric-score-row>
+            <app-metric-score-row [icon]="metricIcons['tech_sharpness']" [label]="'tooltip.tech_sharpness' | translate" [range]="ranges()['tech_sharpness']" [value]="p.tech_sharpness">{{ p.tech_sharpness | fixed:1 }}</app-metric-score-row>
           }
           @if (p.face_count > 0 && p.face_quality !== null) {
-            <app-metric-score-row [label]="'tooltip.face_quality' | translate" [range]="ranges()['face_quality']" [value]="p.face_quality">{{ p.face_quality | fixed:1 }}</app-metric-score-row>
-            <app-metric-score-row [label]="'tooltip.faces' | translate" [range]="ranges()['face_count']" [value]="p.face_count">{{ p.face_count }}</app-metric-score-row>
+            <app-metric-score-row [icon]="metricIcons['face_quality']" [label]="'tooltip.face_quality' | translate" [range]="ranges()['face_quality']" [value]="p.face_quality">{{ p.face_quality | fixed:1 }}</app-metric-score-row>
+            <app-metric-score-row [icon]="metricIcons['face_count']" [label]="'tooltip.faces' | translate" [range]="ranges()['face_count']" [value]="p.face_count">{{ p.face_count }}</app-metric-score-row>
             @if (p.face_ratio) {
-              <app-metric-score-row [label]="'tooltip.face_ratio' | translate" [range]="ranges()['face_ratio']" [value]="p.face_ratio" [percent]="true">{{ p.face_ratio * 100 | fixed:0 }}%</app-metric-score-row>
+              <app-metric-score-row [icon]="metricIcons['face_ratio']" [label]="'tooltip.face_ratio' | translate" [range]="ranges()['face_ratio']" [value]="p.face_ratio" [percent]="true">{{ p.face_ratio * 100 | fixed:0 }}%</app-metric-score-row>
             }
             @if (p.face_sharpness !== null) {
-              <app-metric-score-row [label]="'tooltip.face_sharpness' | translate" [range]="ranges()['face_sharpness']" [value]="p.face_sharpness">{{ p.face_sharpness | fixed:1 }}</app-metric-score-row>
+              <app-metric-score-row [icon]="metricIcons['face_sharpness']" [label]="'tooltip.face_sharpness' | translate" [range]="ranges()['face_sharpness']" [value]="p.face_sharpness">{{ p.face_sharpness | fixed:1 }}</app-metric-score-row>
             }
             @if (p.eye_sharpness !== null) {
-              <app-metric-score-row [label]="'tooltip.eye_sharpness' | translate" [range]="ranges()['eye_sharpness']" [value]="p.eye_sharpness">{{ p.eye_sharpness | fixed:1 }}</app-metric-score-row>
+              <app-metric-score-row [icon]="metricIcons['eye_sharpness']" [label]="'tooltip.eye_sharpness' | translate" [range]="ranges()['eye_sharpness']" [value]="p.eye_sharpness">{{ p.eye_sharpness | fixed:1 }}</app-metric-score-row>
             }
             @if (p.face_confidence !== null && p.face_confidence !== undefined) {
-              <app-metric-score-row [label]="'tooltip.face_confidence' | translate" [range]="ranges()['face_confidence']" [value]="p.face_confidence" [percent]="true">{{ p.face_confidence * 100 | fixed:0 }}%</app-metric-score-row>
+              <app-metric-score-row [icon]="metricIcons['face_confidence']" [label]="'tooltip.face_confidence' | translate" [range]="ranges()['face_confidence']" [value]="p.face_confidence" [percent]="true">{{ p.face_confidence * 100 | fixed:0 }}%</app-metric-score-row>
             }
           }
           @if (p.aesthetic_iaa !== null) {
-            <app-metric-score-row [label]="'tooltip.aesthetic_iaa' | translate" [range]="ranges()['aesthetic_iaa']" [value]="p.aesthetic_iaa">{{ p.aesthetic_iaa | fixed:1 }}</app-metric-score-row>
+            <app-metric-score-row [icon]="metricIcons['aesthetic_iaa']" [label]="'tooltip.aesthetic_iaa' | translate" [range]="ranges()['aesthetic_iaa']" [value]="p.aesthetic_iaa">{{ p.aesthetic_iaa | fixed:1 }}</app-metric-score-row>
           }
           @if (p.face_quality_iqa !== null && p.face_quality_iqa !== undefined) {
-            <app-metric-score-row [label]="'tooltip.face_quality_iqa' | translate" [range]="ranges()['face_quality_iqa']" [value]="p.face_quality_iqa">{{ p.face_quality_iqa | fixed:1 }}</app-metric-score-row>
+            <app-metric-score-row [icon]="metricIcons['face_quality_iqa']" [label]="'tooltip.face_quality_iqa' | translate" [range]="ranges()['face_quality_iqa']" [value]="p.face_quality_iqa">{{ p.face_quality_iqa | fixed:1 }}</app-metric-score-row>
           } @else if (p.assessment_states?.face_quality_iqa === 'not_applicable') {
             <details data-face-iqa-decline>
               <summary class="flex min-h-9 cursor-pointer items-center justify-between gap-3 rounded py-1 text-xs focus-visible:outline-2">
@@ -89,7 +90,7 @@ import { MetricScoreRowComponent } from '../metric-score-row/metric-score-row.co
             </details>
           }
           @if (p.liqe_score !== null) {
-            <app-metric-score-row [label]="'tooltip.liqe_score' | translate" [range]="ranges()['liqe_score']" [value]="p.liqe_score">{{ p.liqe_score | fixed:1 }}</app-metric-score-row>
+            <app-metric-score-row [icon]="metricIcons['liqe_score']" [label]="'tooltip.liqe_score' | translate" [range]="ranges()['liqe_score']" [value]="p.liqe_score">{{ p.liqe_score | fixed:1 }}</app-metric-score-row>
           }
           <app-extended-quality [photo]="p" [populated]="populated()" />
         </div>
@@ -102,16 +103,16 @@ import { MetricScoreRowComponent } from '../metric-score-row/metric-score-row.co
             <div class="flex justify-between items-baseline gap-2"><span class="text-[var(--mat-sys-on-surface-variant)]">{{ 'tooltip.pattern' | translate }}</span><span class="text-[var(--mat-sys-primary)] font-medium">{{ ('composition_patterns.' + p.composition_pattern) | translate }}</span></div>
           }
           @if (p.comp_score !== null) {
-            <app-metric-score-row [label]="'tooltip.composition' | translate" [range]="ranges()['comp_score']" [value]="p.comp_score">{{ p.comp_score | fixed:1 }}</app-metric-score-row>
+            <app-metric-score-row [icon]="metricIcons['comp_score']" [label]="'tooltip.composition' | translate" [range]="ranges()['comp_score']" [value]="p.comp_score">{{ p.comp_score | fixed:1 }}</app-metric-score-row>
           }
           @if (p.power_point_score !== null) {
-            <app-metric-score-row [label]="'tooltip.power_points' | translate" [range]="ranges()['power_point_score']" [value]="p.power_point_score">{{ p.power_point_score | fixed:1 }}</app-metric-score-row>
+            <app-metric-score-row [icon]="metricIcons['power_point_score']" [label]="'tooltip.power_points' | translate" [range]="ranges()['power_point_score']" [value]="p.power_point_score">{{ p.power_point_score | fixed:1 }}</app-metric-score-row>
           }
           @if (p.leading_lines_score !== null) {
-            <app-metric-score-row [label]="'tooltip.leading_lines' | translate" [range]="ranges()['leading_lines_score']" [value]="p.leading_lines_score">{{ p.leading_lines_score | fixed:1 }}</app-metric-score-row>
+            <app-metric-score-row [icon]="metricIcons['leading_lines_score']" [label]="'tooltip.leading_lines' | translate" [range]="ranges()['leading_lines_score']" [value]="p.leading_lines_score">{{ p.leading_lines_score | fixed:1 }}</app-metric-score-row>
           }
           @if (p.isolation_bonus !== null) {
-            <app-metric-score-row [label]="'tooltip.isolation' | translate" [range]="ranges()['isolation_bonus']" [value]="p.isolation_bonus">{{ p.isolation_bonus | fixed:1 }}</app-metric-score-row>
+            <app-metric-score-row [icon]="metricIcons['isolation_bonus']" [label]="'tooltip.isolation' | translate" [range]="ranges()['isolation_bonus']" [value]="p.isolation_bonus">{{ p.isolation_bonus | fixed:1 }}</app-metric-score-row>
           }
         </div>
       </div>
@@ -122,16 +123,16 @@ import { MetricScoreRowComponent } from '../metric-score-row/metric-score-row.co
           <div class="text-[0.625rem] uppercase tracking-wider text-[var(--mat-sys-on-surface-variant)] mb-2">{{ 'photo_detail.saliency' | translate }}</div>
           <div class="flex flex-col gap-0.5">
             @if (p.subject_sharpness !== null) {
-              <app-metric-score-row [label]="'tooltip.subject_sharpness' | translate" [range]="ranges()['subject_sharpness']" [value]="p.subject_sharpness">{{ p.subject_sharpness | fixed:1 }}</app-metric-score-row>
+              <app-metric-score-row [icon]="metricIcons['subject_sharpness']" [label]="'tooltip.subject_sharpness' | translate" [range]="ranges()['subject_sharpness']" [value]="p.subject_sharpness">{{ p.subject_sharpness | fixed:1 }}</app-metric-score-row>
             }
             @if (p.subject_prominence !== null) {
-              <app-metric-score-row [label]="'tooltip.subject_prominence' | translate" [range]="ranges()['subject_prominence']" [value]="p.subject_prominence">{{ p.subject_prominence | fixed:1 }}</app-metric-score-row>
+              <app-metric-score-row [icon]="metricIcons['subject_prominence']" [label]="'tooltip.subject_prominence' | translate" [range]="ranges()['subject_prominence']" [value]="p.subject_prominence">{{ p.subject_prominence | fixed:1 }}</app-metric-score-row>
             }
             @if (p.subject_placement !== null) {
-              <app-metric-score-row [label]="'tooltip.subject_placement' | translate" [range]="ranges()['subject_placement']" [value]="p.subject_placement">{{ p.subject_placement | fixed:1 }}</app-metric-score-row>
+              <app-metric-score-row [icon]="metricIcons['subject_placement']" [label]="'tooltip.subject_placement' | translate" [range]="ranges()['subject_placement']" [value]="p.subject_placement">{{ p.subject_placement | fixed:1 }}</app-metric-score-row>
             }
             @if (p.bg_separation !== null) {
-              <app-metric-score-row [label]="'tooltip.bg_separation' | translate" [range]="ranges()['bg_separation']" [value]="p.bg_separation">{{ p.bg_separation | fixed:1 }}</app-metric-score-row>
+              <app-metric-score-row [icon]="metricIcons['bg_separation']" [label]="'tooltip.bg_separation' | translate" [range]="ranges()['bg_separation']" [value]="p.bg_separation">{{ p.bg_separation | fixed:1 }}</app-metric-score-row>
             }
           </div>
         </div>
@@ -141,19 +142,19 @@ import { MetricScoreRowComponent } from '../metric-score-row/metric-score-row.co
           <div class="text-[0.625rem] uppercase tracking-wider text-[var(--mat-sys-on-surface-variant)] mb-2">{{ 'tooltip.form_section' | translate }}</div>
           <div class="flex flex-col gap-0.5">
             @if (p.form_symmetry !== null) {
-              <app-metric-score-row [label]="'tooltip.form_symmetry' | translate" [range]="ranges()['form_symmetry']" [value]="p.form_symmetry">{{ p.form_symmetry | fixed:1 }}</app-metric-score-row>
+              <app-metric-score-row [icon]="metricIcons['form_symmetry']" [label]="'tooltip.form_symmetry' | translate" [range]="ranges()['form_symmetry']" [value]="p.form_symmetry">{{ p.form_symmetry | fixed:1 }}</app-metric-score-row>
             }
             @if (p.form_balance !== null) {
-              <app-metric-score-row [label]="'tooltip.form_balance' | translate" [range]="ranges()['form_balance']" [value]="p.form_balance">{{ p.form_balance | fixed:1 }}</app-metric-score-row>
+              <app-metric-score-row [icon]="metricIcons['form_balance']" [label]="'tooltip.form_balance' | translate" [range]="ranges()['form_balance']" [value]="p.form_balance">{{ p.form_balance | fixed:1 }}</app-metric-score-row>
             }
             @if (p.form_edge_entropy !== null) {
-              <app-metric-score-row [label]="'tooltip.form_edge_entropy' | translate" [range]="ranges()['form_edge_entropy']" [value]="p.form_edge_entropy">{{ p.form_edge_entropy | fixed:1 }}</app-metric-score-row>
+              <app-metric-score-row [icon]="metricIcons['form_edge_entropy']" [label]="'tooltip.form_edge_entropy' | translate" [range]="ranges()['form_edge_entropy']" [value]="p.form_edge_entropy">{{ p.form_edge_entropy | fixed:1 }}</app-metric-score-row>
             }
             @if (p.form_fractal !== null) {
-              <app-metric-score-row [label]="'tooltip.form_fractal' | translate" [range]="ranges()['form_fractal']" [value]="p.form_fractal">{{ p.form_fractal | fixed:1 }}</app-metric-score-row>
+              <app-metric-score-row [icon]="metricIcons['form_fractal']" [label]="'tooltip.form_fractal' | translate" [range]="ranges()['form_fractal']" [value]="p.form_fractal">{{ p.form_fractal | fixed:1 }}</app-metric-score-row>
             }
             @if (p.color_harmony !== null) {
-              <app-metric-score-row [label]="'tooltip.color_harmony' | translate" [range]="ranges()['color_harmony']" [value]="p.color_harmony">{{ p.color_harmony | fixed:1 }}</app-metric-score-row>
+              <app-metric-score-row [icon]="metricIcons['color_harmony']" [label]="'tooltip.color_harmony' | translate" [range]="ranges()['color_harmony']" [value]="p.color_harmony">{{ p.color_harmony | fixed:1 }}</app-metric-score-row>
             }
           </div>
         </div>
@@ -202,6 +203,7 @@ import { MetricScoreRowComponent } from '../metric-score-row/metric-score-row.co
 })
 export class PhotoMetricSectionComponent {
  protected readonly I18N = I18N;
+ protected readonly metricIcons = SORT_ICONS;
  readonly kind = input.required<MetricsTab>();
  readonly photo = input.required<Photo>();
  readonly ranges = input<Record<string, MetricDistribution>>({});

@@ -258,6 +258,20 @@ FACES_COLUMNS = [
 # older active copy, and must outlive deletion of the original photo itself.
 MANUAL_FACE_DELETIONS_COLUMNS = [('manual_key', 'TEXT PRIMARY KEY NOT NULL')]
 
+# A correction removes the detection from every reader, including clustering.
+# Keep its original row for Undo separately: forced extraction replaces faces.
+IGNORED_FACE_DETECTIONS_COLUMNS = [
+    ('ignore_id', 'TEXT PRIMARY KEY NOT NULL'),
+    ('source', 'TEXT NOT NULL'),
+    ('active', 'INTEGER NOT NULL DEFAULT 1'),
+    ('updated_at', 'INTEGER NOT NULL'),
+    ('person_key', 'TEXT'),
+    ('face_id', 'INTEGER NOT NULL'),
+    *[(name, ('TEXT NOT NULL REFERENCES photos(path) ON DELETE CASCADE ON UPDATE CASCADE'
+              if name == 'photo_path' else declaration))
+      for name, declaration in FACES_COLUMNS if name != 'id'],
+]
+
 # Single shared faces upsert used by every scan-time writer (processing/scorer.py
 # single + batch, faces/processor.py). INSERT OR REPLACE regenerates the whole
 # row on --force rescans via the UNIQUE(photo_path, face_index) constraint, so a
@@ -1212,6 +1226,7 @@ _MIGRATED_TABLES = [
     ('photos', PHOTOS_COLUMNS),
     ('faces', FACES_COLUMNS),
     ('manual_face_deletions', MANUAL_FACE_DELETIONS_COLUMNS),
+    ('ignored_face_detections', IGNORED_FACE_DETECTIONS_COLUMNS),
     ('persons', PERSONS_COLUMNS),
     ('face_update_jobs', FACE_UPDATE_JOBS_COLUMNS),
     ('face_update_items', FACE_UPDATE_ITEMS_COLUMNS),
@@ -1429,6 +1444,8 @@ def init_database(db_path='photo_scores_pro.db', build_photo_indexes=True):
             constraints=['UNIQUE(photo_path, face_index)']
         ))
         conn.execute(_build_create_table_sql('manual_face_deletions', MANUAL_FACE_DELETIONS_COLUMNS))
+        conn.execute(_build_create_table_sql('ignored_face_detections', IGNORED_FACE_DETECTIONS_COLUMNS))
+        conn.execute('CREATE INDEX IF NOT EXISTS idx_ignored_face_photo ON ignored_face_detections(photo_path, active)')
 
         # Create persons table
         conn.execute(_build_create_table_sql('persons', PERSONS_COLUMNS))

@@ -167,6 +167,8 @@ POST_ROUTES = [
     ('/api/photos/key_subjects', {'paths': []}),
     ('/api/person/1/face_boxes', {'paths': ['/nonexistent.jpg']}),
     ('/api/face/987654321/unassign', {}),
+    ('/api/face/987654321/ignore', {'photo_path': '/nonexistent.jpg'}),
+    ('/api/ignored-face/00000000-0000-0000-0000-000000000000/restore', {'photo_path': '/nonexistent.jpg'}),
     ('/api/photos/batch_favorite', {'photo_paths': ['/nonexistent.jpg']}),
     ('/api/photos/batch_rating', {'photo_paths': ['/nonexistent.jpg'], 'rating': 3}),
     ('/api/lightroom/manifest', {'paths': ['/nonexistent.jpg']}),

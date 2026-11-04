@@ -1611,7 +1611,8 @@
     "help_none": "Diese Seite hat noch keinen Hilfetext.",
     "notices": {
       "collapsed": "{count} Hinweis",
-      "collapsed_plural": "{count} Hinweise"
+      "collapsed_plural": "{count} Hinweise",
+      "dismiss_all": "Alle schließen"
     },
     "person_chip": {
       "name_placeholder": "Wer ist das? Namen eingeben oder wählen",
@@ -2333,6 +2334,8 @@
     }
   },
   "photo_faces": {
+    "ignore_detection": "Diese Erkennung ignorieren",
+    "detection_ignored": "Erkennung ignoriert",
     "unknown": "Unbekannt",
     "change_person": "Person ändern…",
     "name_face": "Dieses Gesicht benennen…",

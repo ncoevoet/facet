@@ -91,6 +91,86 @@ def _manual_face(conn, path, person_id, key):
         (path, person_id, key, _thumb_bytes('blue'))).lastrowid
 
 
+def test_ignored_detections_export_without_vectors_and_local_undo_survives_old_source(tmp_path):
+    from db.ignored_faces import detection_source, ignore_detection, restore_detection
+    from utils.manual_face_frame import read_frame
+    src, out = str(tmp_path / 'source.db'), str(tmp_path / 'viewer.db')
+    init_database(src)
+    image = str(tmp_path / 'advert.jpg')
+    Image.new('RGB', (100, 80), 'red').save(image)
+    with sqlite3.connect(src) as conn:
+        conn.row_factory = sqlite3.Row
+        conn.execute('INSERT INTO photos(path,filename,thumbnail,image_width,image_height) VALUES (?, ?, ?,100,80)',
+                     (image, 'advert.jpg', _thumb_bytes()))
+        conn.execute('INSERT INTO faces(photo_path,face_index,embedding,landmark_2d_106,bbox_x1,bbox_y1,bbox_x2,bbox_y2) '
+                     'VALUES (?,0,?,?,10,10,60,60)', (image, b'private-recognition-vector', b'private-landmarks'))
+        key = ignore_detection(conn, conn.execute('SELECT * FROM faces').fetchone(), detection_source(read_frame(image)))
+    export_viewer_db(src, out, verbose=False)
+    with sqlite3.connect(out) as conn:
+        conn.row_factory = sqlite3.Row
+        archived = conn.execute('SELECT * FROM ignored_face_detections WHERE ignore_id=?', (key,)).fetchone()
+        assert archived['embedding'] == b'' and archived['landmark_2d_106'] is None
+        restore_detection(conn, archived)
+        assert conn.execute('SELECT COUNT(*) FROM faces').fetchone()[0] == 1
+    conn.close()
+    # The source clock may be ahead of the viewer's. Restore is a monotonic
+    # marker for this UUID, so wall-clock ordering must not erase the Undo.
+    with sqlite3.connect(src) as conn:
+        conn.execute('UPDATE ignored_face_detections SET updated_at=? WHERE ignore_id=?', (2**63 - 1, key))
+    pixels = Path(image).read_bytes()
+    Path(image).unlink()
+    before = Path(out).read_bytes()
+    with pytest.raises(ValueError, match='Mount the original photos'):
+        export_viewer_db(src, out, verbose=False)
+    assert Path(out).read_bytes() == before
+    Path(image).write_bytes(pixels)
+    export_viewer_db(src, out, verbose=False)
+    with sqlite3.connect(out) as conn:
+        assert conn.execute('SELECT COUNT(*) FROM faces').fetchone()[0] == 1
+        assert conn.execute('SELECT active FROM ignored_face_detections WHERE ignore_id=?', (key,)).fetchone() == (0,)
+    conn.close()
+    with sqlite3.connect(src) as conn:
+        assert conn.execute('SELECT COUNT(*) FROM faces').fetchone()[0] == 0
+        assert conn.execute('SELECT embedding FROM ignored_face_detections WHERE ignore_id=?', (key,)).fetchone() == (b'private-recognition-vector',)
+        conn.execute("INSERT INTO photos(path,filename) VALUES ('/another/advert.jpg','advert.jpg')")
+        conn.execute("UPDATE ignored_face_detections SET photo_path='/another/advert.jpg' WHERE ignore_id=?", (key,))
+    before = Path(out).read_bytes()
+    with pytest.raises(ValueError, match='different photos'):
+        export_viewer_db(src, out, verbose=False)
+    assert Path(out).read_bytes() == before
+
+
+def test_mapped_original_keeps_viewer_local_ignore_and_offline_refresh_refuses_before_writing(tmp_path):
+    from db.ignored_faces import detection_source, ignore_detection
+    from utils.manual_face_frame import read_frame
+    src, out = str(tmp_path / 'source.db'), str(tmp_path / 'viewer.db')
+    init_database(src)
+    physical = tmp_path / 'photos'
+    physical.mkdir()
+    image = physical / 'advert.jpg'
+    Image.new('RGB', (100, 80), 'red').save(image)
+    path = '/offhost-library/advert.jpg'
+    mapping = {'/offhost-library': str(physical)}
+    with sqlite3.connect(src) as conn:
+        conn.execute('INSERT INTO photos(path,filename,thumbnail,image_width,image_height) VALUES (?, ?, ?,100,80)',
+                     (path, 'advert.jpg', _thumb_bytes()))
+        conn.execute('INSERT INTO faces(photo_path,face_index,embedding,bbox_x1,bbox_y1,bbox_x2,bbox_y2) '
+                     'VALUES (?,0,X\'\',10,10,60,60)', (path,))
+    export_viewer_db(src, out, verbose=False)
+    with sqlite3.connect(out) as conn:
+        conn.row_factory = sqlite3.Row
+        key = ignore_detection(conn, conn.execute('SELECT * FROM faces').fetchone(), detection_source(read_frame(image)))
+    export_viewer_db(src, out, verbose=False, path_mapping=mapping)
+    with sqlite3.connect(out) as conn:
+        assert conn.execute('SELECT COUNT(*) FROM faces').fetchone()[0] == 0
+        assert conn.execute('SELECT active FROM ignored_face_detections WHERE ignore_id=?', (key,)).fetchone() == (1,)
+    image.unlink()
+    before = Path(out).read_bytes()
+    with pytest.raises(ValueError, match='Mount the original photos'):
+        export_viewer_db(src, out, verbose=False, path_mapping=mapping)
+    assert Path(out).read_bytes() == before
+
+
 def test_incremental_manual_faces_preserve_independent_colliding_people(tmp_path):
     src, out = str(tmp_path / 'source.db'), str(tmp_path / 'viewer.db')
     _make_source_db(src)

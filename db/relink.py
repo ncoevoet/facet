@@ -456,6 +456,15 @@ def _flag_manual_faces(conn, path):
         except (ValueError, TypeError):
             pass
         conn.execute('UPDATE faces SET manual_source=?,manual_review_required=1 WHERE id=?', (source, face_id))
+    for ignore_id, source in conn.execute(
+            'SELECT ignore_id,source FROM ignored_face_detections WHERE photo_path=?', (path,)).fetchall():
+        try:
+            stored = json.loads(source)
+            if isinstance(stored, dict) and stored.get('kind') == 'face-detection-v1':
+                conn.execute('UPDATE ignored_face_detections SET source=? WHERE ignore_id=?',
+                             (_json({**stored, 'relink_unverified': True}), ignore_id))
+        except (ValueError, TypeError):
+            pass
 
 
 def apply_relinks(db_path, plan, config, *, acknowledge_plan, acknowledge_unverified_identity=False, user=None):

@@ -1611,7 +1611,8 @@
     "help_none": "此页面暂无帮助内容。",
     "notices": {
       "collapsed": "{count} 条通知",
-      "collapsed_plural": "{count} 条通知"
+      "collapsed_plural": "{count} 条通知",
+      "dismiss_all": "全部关闭"
     },
     "person_chip": {
       "name_placeholder": "这是谁？输入或选择名称",
@@ -2333,6 +2334,8 @@
     }
   },
   "photo_faces": {
+    "ignore_detection": "忽略此检测结果",
+    "detection_ignored": "已忽略检测结果",
     "unknown": "未知",
     "change_person": "更换人物…",
     "name_face": "为此面孔命名…",

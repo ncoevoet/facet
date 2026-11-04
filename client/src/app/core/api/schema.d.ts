@@ -1778,6 +1778,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/face/{face_id}/ignore": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Api Ignore Face
+         * @description Ignore one automatic detection, retaining a durable correction for Undo.
+         */
+        post: operations["api_ignore_face_api_face__face_id__ignore_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/face/{face_id}/unassign": {
         parameters: {
             query?: never;
@@ -2266,6 +2286,26 @@ export interface paths {
         get: operations["get_translations_api_i18n__lang__get"];
         put?: never;
         post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/ignored-face/{ignore_id}/restore": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Api Restore Ignored Face
+         * @description Restore a correction only while its original image is still current.
+         */
+        post: operations["api_restore_ignored_face_api_ignored_face__ignore_id__restore_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -7519,6 +7559,11 @@ export interface components {
             /** Path */
             path: string;
         };
+        /** FaceCorrectionRequest */
+        FaceCorrectionRequest: {
+            /** Photo Path */
+            photo_path: string;
+        };
         /** FaceReviewFeedbackRequest */
         FaceReviewFeedbackRequest: {
             /** Expected Person Name */
@@ -7873,6 +7918,14 @@ export interface components {
             success: boolean;
             /** Target Photos */
             target_photos: number;
+        };
+        /** IgnoreFaceResponse */
+        IgnoreFaceResponse: {
+            /**
+             * Ignore Id
+             * Format: uuid
+             */
+            ignore_id: string;
         };
         /** ImmichDiagnosticsResponse */
         ImmichDiagnosticsResponse: {
@@ -10145,6 +10198,11 @@ export interface components {
         RenderMigrationStatus: {
             /** Pending */
             pending: number;
+        };
+        /** RestoreFaceResponse */
+        RestoreFaceResponse: {
+            /** Success */
+            success: boolean;
         };
         /** RestoreWeightsBody */
         RestoreWeightsBody: {
@@ -14460,6 +14518,41 @@ export interface operations {
             };
         };
     };
+    api_ignore_face_api_face__face_id__ignore_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                face_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["FaceCorrectionRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["IgnoreFaceResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     api_unassign_face_api_face__face_id__unassign_post: {
         parameters: {
             query?: never;
@@ -15058,6 +15151,41 @@ export interface operations {
                 };
                 content: {
                     "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    api_restore_ignored_face_api_ignored_face__ignore_id__restore_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                ignore_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["FaceCorrectionRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RestoreFaceResponse"];
                 };
             };
             /** @description Validation Error */

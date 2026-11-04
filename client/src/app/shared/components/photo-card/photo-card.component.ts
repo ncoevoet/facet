@@ -158,7 +158,7 @@ const DEFAULT_CLIPPING_BADGE_PERCENT = 5;
         <div data-metadata-row [id]="listMetadataId" class="grid h-full min-w-0 grid-cols-[3rem_minmax(0,1fr)] items-center gap-2 border-b border-[var(--mat-sys-outline-variant)] p-2 @[24rem]:grid-cols-[3rem_minmax(0,1fr)_auto] @[60rem]:grid-cols-[3rem_minmax(0,2fr)_minmax(0,1fr)_minmax(0,1fr)_auto]">
           <div class="relative h-12 w-12">
             <img [src]="photo().path | thumbnailUrl:160:photo().preview_revision:sharedAlbum()" alt="" loading="lazy" decoding="async" class="h-full w-full object-contain bg-[var(--mat-sys-surface-container)]" />
-            @if (isSelected()) { <mat-icon aria-hidden="true" class="absolute -left-1 -top-1 !text-[var(--mat-sys-primary)]">check_circle</mat-icon> }
+            @if (isSelected()) { <mat-icon aria-hidden="true" class="absolute -left-1 -top-1 !text-[var(--mat-sys-primary)]">check_box</mat-icon> }
           </div>
           <div class="min-w-0 text-sm leading-5">
             <div class="truncate font-medium" [title]="photo().filename">{{ photo().filename }}</div>
@@ -186,7 +186,7 @@ const DEFAULT_CLIPPING_BADGE_PERCENT = 5;
           </div>
           <div class="col-span-2 flex items-center justify-between gap-1 @[24rem]:col-span-1" (click)="$event.stopPropagation()" (dblclick)="$event.stopPropagation()" (keydown)="$event.stopPropagation()" tabindex="-1" role="group" [attr.aria-label]="I18N.gallery.metadata.photo_actions | translate">
             <div class="min-w-0 text-right text-xs leading-5">
-              <span class="flex min-w-0 items-center justify-end gap-1"><mat-icon aria-hidden="true" class="shrink-0 !h-4 !w-4 !text-base">{{ photo().is_rejected ? 'block' : photo().is_kept ? 'check_circle' : 'radio_button_unchecked' }}</mat-icon><span class="line-clamp-2 min-w-0 break-words">{{ listDecision() | translate }}</span></span>
+              <span class="flex min-w-0 items-center justify-end gap-1"><mat-icon aria-hidden="true" class="shrink-0 !h-4 !w-4 !text-base">{{ photo().is_rejected ? 'block' : photo().is_kept ? 'flag' : 'radio_button_unchecked' }}</mat-icon><span class="line-clamp-2 min-w-0 break-words">{{ listDecision() | translate }}</span></span>
               <span class="flex items-center justify-end gap-1 text-[var(--mat-sys-on-surface-variant)]">@if (photo().star_rating) { <mat-icon aria-hidden="true" class="!h-4 !w-4 !text-base">star</mat-icon>{{ photo().star_rating }} } @else { {{ I18N.gallery.metadata.unrated | translate }} }</span>
             </div>
             <button mat-icon-button class="shrink-0 !h-11 !w-11" [matMenuTriggerFor]="listMenu" [attr.aria-label]="I18N.gallery.metadata.photo_actions | translate"><mat-icon>more_horiz</mat-icon></button>
@@ -229,7 +229,7 @@ const DEFAULT_CLIPPING_BADGE_PERCENT = 5;
         </div>
       } @else {
       <!-- Image wrapper with hover overlay scoped to image only -->
-      <div class="group/img relative"
+      <div class="group/img relative @container/photo"
            [class.h-full]="mosaicMode() || hideDetails()"
            [class.aspect-[4/3]]="!mosaicMode() && !hideDetails()">
         <img
@@ -293,7 +293,7 @@ const DEFAULT_CLIPPING_BADGE_PERCENT = 5;
              and in edition mode it also steps clear on hover, since that is
              when the bar's own heart/reject buttons occupy those slots. -->
         @if (badges().sequence_kind && collapsedSetKind(); as kind) {
-          <div [class]="'absolute w-7 h-7 z-30 inline-flex items-center justify-center bottom-1 ' + setKindBadgePosition()"
+          <div [class]="'absolute w-7 h-7 z-30 inline-flex items-center justify-center bottom-1 rounded-full bg-black/60 ' + setKindBadgePosition()"
                [matTooltip]="kind | photoSetKindBestLabel | translate"
                [attr.aria-label]="kind | photoSetKindBestLabel | translate">
             <mat-icon class="!text-base !w-4 !h-4 !leading-4 !text-white drop-shadow-md"
@@ -311,7 +311,7 @@ const DEFAULT_CLIPPING_BADGE_PERCENT = 5;
           @let stackTotal = photo().stack_total_count ?? stackCount;
           @let stackLabel = (stackCount !== stackTotal ? I18N.stacks.badge_filtered : I18N.stacks.badge) | translate:{ count: stackCount, total: stackTotal };
           <button type="button" data-stack-badge
-            class="absolute left-9 w-7 h-7 z-30 inline-flex items-center justify-center bottom-1 rounded-full hover:bg-black/60 text-white cursor-pointer"
+            class="absolute left-9 w-7 h-7 z-30 inline-flex items-center justify-center bottom-1 rounded-full bg-black/60 hover:bg-black/80 text-white cursor-pointer"
             (click)="openStackClicked.emit(photo()); $event.stopPropagation()"
             (keydown)="$event.stopPropagation()"
             [matTooltip]="stackLabel"
@@ -336,9 +336,10 @@ const DEFAULT_CLIPPING_BADGE_PERCENT = 5;
         }
 
         @if (isEditionMode() && photo().is_kept && !photo().is_rejected) {
-          <span class="absolute top-2 left-2 flex items-center justify-center rounded-full bg-green-700 text-white w-6 h-6 z-10"
+          <span data-photo-kept class="pointer-events-none absolute top-1.5 left-10 z-10 inline-flex h-6 @max-[95px]/photo:top-1 @max-[95px]/photo:h-4 max-w-[calc(100%-3rem)] items-center gap-1 rounded bg-emerald-900 px-1 text-[11px] font-semibold text-white shadow-sm"
                 [attr.aria-label]="I18N.review.kept | translate" [matTooltip]="I18N.review.kept | translate">
-            <mat-icon class="!text-base !w-4 !h-4 !leading-4">check</mat-icon>
+            <mat-icon aria-hidden="true" class="shrink-0 !text-base !w-4 !h-4 !leading-4 !text-white">flag</mat-icon>
+            <span class="hidden truncate @[120px]/photo:inline">{{ I18N.review.kept | translate }}</span>
           </span>
         }
 
@@ -480,13 +481,13 @@ const DEFAULT_CLIPPING_BADGE_PERCENT = 5;
 
         <!-- Selection checkmark -->
         @if (showSelectionIndicators() && !isSelected()) {
-          <span data-selection-affordance class="pointer-events-none absolute top-1.5 left-1.5 z-20 flex h-7 w-7 items-center justify-center rounded bg-[var(--facet-image-canvas)] text-[var(--facet-image-ink)]" aria-hidden="true">
+          <span data-selection-affordance class="@max-[95px]/photo:top-0.5 @max-[95px]/photo:left-0.5 @max-[95px]/photo:h-5 @max-[95px]/photo:w-5 pointer-events-none absolute top-1.5 left-1.5 z-20 flex h-7 w-7 items-center justify-center rounded bg-[var(--facet-image-canvas)] text-[var(--facet-image-ink)]" aria-hidden="true">
             <mat-icon class="!text-xl !w-5 !h-5">check_box_outline_blank</mat-icon>
           </span>
         }
         @if (isSelected()) {
-          <div class="absolute top-1.5 left-1.5 w-6 h-6 rounded-full bg-[var(--mat-sys-primary)] flex items-center justify-center z-20" aria-hidden="true">
-            <mat-icon class="!text-base !w-4 !h-4 !leading-4 text-white">check</mat-icon>
+          <div data-photo-selected class="@max-[95px]/photo:top-0.5 @max-[95px]/photo:left-0.5 @max-[95px]/photo:h-5 @max-[95px]/photo:w-5 absolute top-1.5 left-1.5 w-7 h-7 rounded bg-[var(--mat-sys-primary)] flex items-center justify-center z-20 shadow-sm" aria-hidden="true">
+            <mat-icon class="!text-base !w-4 !h-4 !leading-4 !text-[var(--mat-sys-on-primary)]">check</mat-icon>
           </div>
         }
 

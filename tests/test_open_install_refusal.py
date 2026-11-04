@@ -158,6 +158,8 @@ EXPECTED_EDITION_ROUTES = frozenset({
     ('POST', '/api/export/sidecar_jobs/{job_id}/retry'),
     ('POST', '/api/face/{face_id}/assign'),
     ('POST', '/api/face/{face_id}/unassign'),
+    ('POST', '/api/face/{face_id}/ignore'),
+    ('POST', '/api/ignored-face/{ignore_id}/restore'),
     ('POST', '/api/lightroom/import'),
     ('POST', '/api/lightroom/manifest'),
     ('POST', '/api/person/{person_id}/avatar'),

@@ -1653,6 +1653,7 @@ export const I18N = {
     notices: {
       collapsed: "gallery.notices.collapsed",
       collapsed_plural: "gallery.notices.collapsed_plural",
+      dismiss_all: "gallery.notices.dismiss_all",
     },
     person_chip: {
       name_placeholder: "gallery.person_chip.name_placeholder",
@@ -2372,6 +2373,8 @@ export const I18N = {
     },
   },
   photo_faces: {
+    ignore_detection: "photo_faces.ignore_detection",
+    detection_ignored: "photo_faces.detection_ignored",
     unknown: "photo_faces.unknown",
     change_person: "photo_faces.change_person",
     name_face: "photo_faces.name_face",

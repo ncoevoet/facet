@@ -22,7 +22,7 @@ import { makePhoto } from '../../../../testing/photo.fixture';
                              [burstFramesVisible]="burstFramesVisible()"
                              [collapsedSetKinds]="collapsedSetKinds()"
                              [isEditionMode]="isEditionMode()"
-                             [listMode]="listMode()"
+                             [listMode]="listMode()" [isSelected]="selectionState()"
                              [metricRanges]="metricRanges()"
                              [currentSort]="currentSort()"
                              (selectionChange)="selected.push($event.photo.path)"
@@ -37,6 +37,7 @@ class TestHostComponent {
   collapsedSetKinds = signal<readonly string[]>([]);
   isEditionMode = signal(false);
   listMode = signal(false);
+  selectionState = signal(false);
   metricRanges = signal<Record<string, { min: number; max: number; buckets: number[] }>>({});
   currentSort = signal('aggregate');
   selected: string[] = [];
@@ -366,7 +367,23 @@ describe('PhotoCardComponent', () => {
       fixture.detectChanges();
       const badge = (fixture.nativeElement as HTMLElement).querySelector('[aria-label="review.kept"]');
       expect(badge !== null).toBe(shown);
-      if (badge) expect(badge.querySelector('mat-icon')?.textContent?.trim()).toBe('check');
+      if (badge) { expect(badge.querySelector('mat-icon')?.textContent?.trim()).toBe('flag'); expect(badge.textContent).toContain('review.kept'); }
+    });
+
+    it('keeps selection and the saved decision separate when both are present', () => {
+      fixture.componentInstance.isEditionMode.set(true);
+      fixture.componentInstance.selectionState.set(true);
+      fixture.componentInstance.photo.set(makePhoto({ is_kept: true }));
+      fixture.detectChanges();
+      const root = fixture.nativeElement as HTMLElement;
+      const selected = root.querySelector('[data-photo-selected]')!;
+      const kept = root.querySelector('[data-photo-kept]')!;
+      expect(selected).not.toBeNull(); expect(kept).not.toBeNull();
+      expect(selected.textContent).toContain('check'); expect(kept.textContent).toContain('flag');
+      expect(kept.textContent).toContain('review.kept');
+      fixture.componentInstance.selectionState.set(false); fixture.detectChanges();
+      expect(root.querySelector('[data-photo-selected]')).toBeNull();
+      expect(root.querySelector('[data-photo-kept]')).not.toBeNull();
     });
 
     it('removes an existing badge when edition access ends', () => {

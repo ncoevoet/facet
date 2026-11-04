@@ -407,7 +407,7 @@ describe('GalleryComponent', () => {
     fixture.destroy(); root.remove();
   });
 
-  it('keeps sort, layout and Filters direct with one collection controls owner', () => {
+  it('reuses one controls owner for wide and compact layouts, with Filters direct', () => {
     mockStore.selectedPaths.set(new Set(['/selected.jpg'])); mockStore.selectionCount.set(1);
     const fixture = TestBed.createComponent(GalleryComponent);
     Object.defineProperty(fixture.componentInstance, 'isDesktop', { value: signal(false) });
@@ -415,8 +415,9 @@ describe('GalleryComponent', () => {
     const root = fixture.nativeElement as HTMLElement;
     const actions = root.querySelector('[data-collection-options]')!;
     expect(root.querySelectorAll('app-gallery-view-controls')).toHaveLength(1);
-    expect(root.querySelectorAll('[data-collection-sort]')).toHaveLength(1);
-    expect(actions.querySelector('[data-collection-sort]')).toBeNull();
+    expect(root.querySelectorAll('[data-collection-sort]')).toHaveLength(2);
+    expect(root.querySelectorAll('[data-collection-primary-controls] [data-collection-sort]')).toHaveLength(1);
+    expect(actions.querySelectorAll('[data-compact-collection-controls] [data-collection-sort]')).toHaveLength(1);
     expect(root.querySelector('[data-collection-actions] [data-collection-sort]')).not.toBeNull();
     const filter = root.querySelector<HTMLButtonElement>(`button[aria-label="${I18N.gallery.filters}"]`)!;
     expect(actions.contains(filter)).toBe(false);
@@ -6239,6 +6240,27 @@ describe('GalleryComponent', () => {
       fixture.detectChanges();
       expect(card(host)).not.toBeNull();
       expect(pill(host)).toBeNull();
+    });
+
+    it.each([false, true])('dismisses all current notices without changing filters or the bookmark (collapsed=%s)', collapsed => {
+      mockStore.reviewBookmark.set({ path: '/p1.jpg', filters: { tag: 'a' } });
+      const host = render();
+      if (collapsed) collapseAfterFullWindow();
+      const filters = mockStore.filters(); const bookmark = mockStore.reviewBookmark();
+      const dismiss = host.querySelector<HTMLButtonElement>('[data-notice-dismiss-all]')!;
+      expect(dismiss).not.toBeNull(); dismiss.focus(); dismiss.click();
+      TestBed.tick();
+      expect(stack(host)).toBeNull();
+      expect(mockStore.filters()).toEqual(filters); expect(mockStore.reviewBookmark()).toEqual(bookmark);
+      expect(mockStore.showAllHidden).not.toHaveBeenCalled();
+      expect(JSON.parse(sessionStorage.getItem(NOTICE_DISMISSALS_KEY)!)).toEqual(expect.objectContaining({
+        review_progress: expect.any(Array), review_bookmark: expect.any(Array),
+      }));
+      expect(document.activeElement).toBe(fixture.componentInstance['scrollContent']()!.getElementRef().nativeElement);
+      // The dismissal applies to these notice signatures, not future scopes.
+      mockStore.reviewBookmark.set({ path: '/p2.jpg', filters: { tag: 'new' } });
+      fixture.detectChanges();
+      expect(stack(host)?.textContent).toContain('gallery.review_progress.browser');
     });
 
     it('grants a fresh window when a card is dismissed', () => {

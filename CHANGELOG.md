@@ -21,6 +21,10 @@ All notable changes to Facet are documented in this file.
 
 ### Changed
 
+- Compact collection controls on narrow screens, give photo metrics distinct icons, and add per-detection face Ignore with Undo for advertisements and false detections.
+
+- Gallery notices animate briefly on open and dismissal and offer Dismiss all. Selected photos use a square checkbox; kept photos show a separate labelled flag. Reduced-motion preferences are respected.
+
 - Timeline API failures now return 503 instead of empty results. Week buckets use ISO week years, date bounds cover whole calendar days, and photos within a date bucket follow the requested date sort direction; old week keys and cursors are not comparable.
 
 - Auto-cull preserves existing ratings, favorites, rejects and keeps by default. Use `decision_policy: 'replace'` or `--cull-reconsider-existing` to reconsider them.

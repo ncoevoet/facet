@@ -80,12 +80,12 @@ const sortOptionLabelKey = (column: string): string => `sort_options.${column}`;
     @if (!portPrimary()) { <ng-container [ngTemplateOutlet]="primaryControls" /> }
     <ng-template #filterControls>
       @if (!pinned()) {
-        <button mat-button class="!min-h-11 !px-2" (click)="toggleFilters()"
+        <button mat-button class="!min-h-11 !min-w-11 !px-2" (click)="toggleFilters()"
                 [matBadge]="store.activeFilterCount() || null" matBadgeColor="primary" matBadgeSize="small"
                 [matTooltip]="I18N.gallery.filters | translate" [attr.aria-label]="I18N.gallery.filters | translate"
                 [attr.aria-expanded]="store.filterDrawerOpen()">
-          <mat-icon [style.color]="store.filterDrawerOpen() ? 'var(--mat-sys-primary)' : ''">filter_alt</mat-icon>
-          <span>{{ I18N.gallery.filters | translate }}</span>
+          <mat-icon class="@max-[479px]:!m-0" [style.color]="store.filterDrawerOpen() ? 'var(--mat-sys-primary)' : ''">filter_alt</mat-icon>
+          <span class="hidden @min-[480px]:inline">{{ I18N.gallery.filters | translate }}</span>
         </button>
       }
     </ng-template>

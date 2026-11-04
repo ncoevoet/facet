@@ -295,8 +295,8 @@ const SET_KIND_TOGGLE: Record<string, keyof HiddenFilterFlags> = {
            exactly the width it has whenever the filters are open. -->
       <mat-sidenav-content>
         <header data-collection-header class="@container border-b border-[var(--mat-sys-outline-variant)] bg-[var(--mat-sys-surface-container-lowest)] px-2 py-2 md:px-4">
-          <div class="flex flex-wrap items-center gap-x-4 gap-y-2">
-          <div class="min-w-0 flex-1 md:flex-none md:max-w-64 @min-[600px]:min-w-44 @min-[600px]:flex-1 @min-[600px]:basis-0">
+          <div class="flex flex-wrap items-center gap-x-2 gap-y-1">
+          <div class="min-w-0 flex-1 @min-[960px]:max-w-64 @min-[960px]:min-w-44 @min-[960px]:basis-0">
           <h1 class="m-0 min-w-0 text-lg font-medium leading-6 text-[var(--mat-sys-on-surface)] truncate" [title]="store.currentAlbum()?.name || (I18N.gallery.all_photos | translate)">
             {{ store.currentAlbum()?.name || (I18N.gallery.all_photos | translate) }}
           </h1>
@@ -310,7 +310,7 @@ const SET_KIND_TOGGLE: Record<string, keyof HiddenFilterFlags> = {
             }
           </p>
           </div>
-          <div class="flex shrink-0 items-center gap-0.5">
+          <div class="flex shrink-0 items-center gap-0.5 @min-[960px]:order-none">
             @if (!pinned()) {
               <button #mobileSearchToggle mat-icon-button class="md:!hidden !min-h-11 !min-w-11" [attr.aria-label]="I18N.ui.filters.search | translate" [attr.aria-expanded]="mobileSearchOpen() || !!store.filters().search" (click)="focusCollectionSearch()"><mat-icon>search</mat-icon></button>
             }
@@ -319,17 +319,23 @@ const SET_KIND_TOGGLE: Record<string, keyof HiddenFilterFlags> = {
               {{ (selectingPhotos() ? I18N.ui.buttons.cancel : I18N.gallery.selection.select) | translate }}
             </button>
           </div>
-          <div data-collection-query role="search" [attr.aria-label]="I18N.gallery.search_placeholder | translate" class="flex w-full min-w-0 flex-wrap items-center gap-1 @min-[600px]:w-auto @min-[600px]:min-w-80 @min-[600px]:flex-1 @min-[1120px]:min-w-[30rem]" [class.!hidden]="!isDesktop() && !mobileSearchOpen() && !store.filters().search">
+          <div data-collection-query role="search" [attr.aria-label]="I18N.gallery.search_placeholder | translate" class="order-last flex w-full min-w-0 flex-wrap items-center gap-1 @min-[960px]:order-none @min-[960px]:w-auto @min-[960px]:min-w-80 @min-[960px]:flex-1 @min-[1120px]:min-w-[30rem]" [class.!hidden]="!isDesktop() && !mobileSearchOpen() && !store.filters().search">
             <ng-container [ngTemplateOutlet]="galleryToolbar" />
           </div>
-          <div data-collection-actions class="flex w-full flex-wrap items-center gap-1 border-t border-[var(--mat-sys-outline-variant)] pt-2 @min-[600px]:ml-auto @min-[600px]:w-auto @min-[600px]:border-0 @min-[600px]:pt-0">
-            <ng-container [ngTemplateOutlet]="collectionViewControls.primaryControls()" />
-            <ng-container [ngTemplateOutlet]="collectionViewControls.layoutControls()" [ngTemplateOutletContext]="{ $implicit: collectionViewControls.primaryLayouts }" />
+          <div data-collection-actions class="flex shrink-0 items-center gap-1 @min-[960px]:ml-auto">
+            <div data-collection-primary-controls class="hidden @min-[960px]:flex items-center gap-1">
+              <ng-container [ngTemplateOutlet]="collectionViewControls.primaryControls()" />
+              <ng-container [ngTemplateOutlet]="collectionViewControls.layoutControls()" [ngTemplateOutletContext]="{ $implicit: collectionViewControls.primaryLayouts }" />
+            </div>
             <ng-container [ngTemplateOutlet]="collectionViewControls.filterControls()" />
             <details #collectionOptions data-collection-options class="relative shrink-0"
                      (keydown.escape)="closeDisclosure($event, collectionOptions, collectionOptionsSummary)">
-              <summary #collectionOptionsSummary class="flex min-h-11 cursor-pointer list-none items-center justify-center gap-1 rounded px-2 text-sm hover:bg-[var(--mat-sys-surface-container)]" [attr.aria-label]="I18N.gallery.collection_controls | translate"><mat-icon aria-hidden="true" class="!text-xl !h-5 !w-5">tune</mat-icon><span>{{ I18N.gallery.collection_view | translate }}</span></summary>
+              <summary #collectionOptionsSummary class="flex min-h-11 min-w-11 cursor-pointer list-none items-center justify-center gap-1 rounded px-2 text-sm hover:bg-[var(--mat-sys-surface-container)]" [attr.aria-label]="I18N.gallery.collection_controls | translate"><mat-icon aria-hidden="true" class="!text-xl !h-5 !w-5">tune</mat-icon><span class="hidden @min-[480px]:inline">{{ I18N.gallery.collection_view | translate }}</span></summary>
               <div class="absolute right-0 top-full z-30 max-h-[70dvh] w-80 max-w-[calc(100vw-2rem)] overflow-y-auto rounded border border-[var(--mat-sys-outline-variant)] bg-[var(--mat-sys-surface-container)] p-3 shadow-lg">
+                <div data-compact-collection-controls class="@min-[960px]:hidden flex flex-wrap items-center gap-1">
+                  <ng-container [ngTemplateOutlet]="collectionViewControls.primaryControls()" />
+                  <ng-container [ngTemplateOutlet]="collectionViewControls.layoutControls()" [ngTemplateOutletContext]="{ $implicit: collectionViewControls.primaryLayouts }" />
+                </div>
                 <app-gallery-view-controls #collectionViewControls [portPrimary]="true" [portFilters]="true" class="shrink-0" />
                 <ng-container [ngTemplateOutlet]="collectionCriteria.shortcuts()" />
               </div>
@@ -683,24 +689,34 @@ const SET_KIND_TOGGLE: Record<string, keyof HiddenFilterFlags> = {
            thumbnail-migration notice. The migration notice is the only place the command that regenerates RAW thumbnails is
            surfaced: the grid reads photos.thumbnail, so browsing never regenerates it. -->
       @if (noticeStackVisible()) {
-        <div data-gallery-notices class="pointer-events-none absolute z-10 flex flex-col gap-2 w-[min(26rem,calc(100%-1rem))]"
+        <div data-gallery-notices animate.leave="motion-safe:animate-notice-stack-out pointer-events-none [&_*]:!pointer-events-none" class="pointer-events-none absolute z-10 flex flex-col gap-2 w-[min(26rem,calc(100%-1rem))]"
              (pointerenter)="noticePointerChange(true)" (pointerleave)="noticePointerChange(false)"
              (focusout)="noticeFocusLeft($event)"
              [style.bottom.px]="noticeBottomPx()" [style.right.px]="noticeRightPx()" [style.maxWidth]="noticeMaxWidth()">
           @if (scrollTopShown()) {
             <ng-container *ngTemplateOutlet="scrollTopFab; context: { $implicit: 'pointer-events-auto self-end' }" />
           }
-          @if (noticesCollapsed()) {
-            <button type="button" data-gallery-notices-pill
-                    class="pointer-events-auto self-end px-3 py-1.5 rounded-full bg-[var(--mat-sys-surface-container-high)] border border-[var(--mat-sys-outline-variant)] shadow-lg flex items-center gap-1.5 text-xs"
-                    (click)="expandNotices($event)">
-              <mat-icon class="!text-base !w-4 !h-4 !leading-4">notifications</mat-icon>
-              <span>{{ shownNoticeCount() | pluralKey:I18N.gallery.notices.collapsed:I18N.gallery.notices.collapsed_plural | translate:{ count: shownNoticeCount() } }}</span>
-            </button>
-          } @else {
+          @if (shownNoticeCount() > 1 || noticesCollapsed()) {
+            <div class="flex flex-wrap items-center justify-end gap-2">
+              @if (shownNoticeCount() > 1) {
+                <button type="button" data-notice-dismiss-all
+                        class="pointer-events-auto self-end min-h-11 rounded-full border border-[var(--mat-sys-outline-variant)] bg-[var(--mat-sys-surface-container-high)] px-3 text-xs font-medium shadow-sm hover:bg-[var(--mat-sys-surface-container-highest)] focus-visible:outline-2 focus-visible:outline-[var(--mat-sys-primary)]"
+                        (click)="dismissAllNotices()">{{ I18N.gallery.notices.dismiss_all | translate }}</button>
+              }
+              @if (noticesCollapsed()) {
+                <button type="button" data-gallery-notices-pill animate.enter="motion-safe:animate-notice-in" animate.leave="motion-safe:animate-notice-out pointer-events-none [&_*]:!pointer-events-none"
+                        class="pointer-events-auto self-end min-h-11 px-3 py-1.5 rounded-full bg-[var(--mat-sys-surface-container-high)] border border-[var(--mat-sys-outline-variant)] shadow-lg flex items-center gap-1.5 text-xs"
+                        (click)="expandNotices($event)">
+                  <mat-icon class="!text-base !w-4 !h-4 !leading-4">notifications</mat-icon>
+                  <span>{{ shownNoticeCount() | pluralKey:I18N.gallery.notices.collapsed:I18N.gallery.notices.collapsed_plural | translate:{ count: shownNoticeCount() } }}</span>
+                </button>
+              }
+            </div>
+          }
+          @if (!noticesCollapsed()) {
             @if (reviewProgressShown()) {
               @if (store.reviewProgress(); as progress) {
-                <section data-review-progress [class]="NOTICE_CARD_CLASS" [attr.aria-label]="I18N.gallery.review_progress.title | translate">
+                <section data-review-progress data-notice-kind="review_progress" animate.enter="motion-safe:animate-notice-in" animate.leave="motion-safe:animate-notice-out pointer-events-none [&_*]:!pointer-events-none" [class]="NOTICE_CARD_CLASS" [attr.aria-label]="I18N.gallery.review_progress.title | translate">
                   <mat-icon class="opacity-70 !text-base !w-5 !h-5 self-start">fact_check</mat-icon>
                   <div class="flex-1 min-w-0 flex flex-col gap-1">
                     <span id="notice-text-review_progress" class="flex flex-wrap gap-x-3 gap-y-0.5" role="status" aria-live="polite" aria-atomic="true">
@@ -717,7 +733,7 @@ const SET_KIND_TOGGLE: Record<string, keyof HiddenFilterFlags> = {
               }
             }
             @if (reviewBookmarkShown()) {
-              <div [class]="NOTICE_CARD_CLASS">
+              <div data-notice-kind="review_bookmark" animate.enter="motion-safe:animate-notice-in" animate.leave="motion-safe:animate-notice-out pointer-events-none [&_*]:!pointer-events-none" [class]="NOTICE_CARD_CLASS">
                 <mat-icon class="opacity-70 !text-base !w-5 !h-5">bookmark</mat-icon>
                 <span id="notice-text-review_bookmark" class="flex-1 opacity-80">{{ I18N.gallery.review_progress.browser | translate }}</span>
                 <button mat-button class="!min-w-0" [disabled]="store.loading()" (click)="continueReview()">{{ I18N.gallery.review_progress.resume | translate }}</button>
@@ -725,7 +741,7 @@ const SET_KIND_TOGGLE: Record<string, keyof HiddenFilterFlags> = {
               </div>
             }
             @if (hiddenNoticeShown()) {
-              <div role="status" [class]="NOTICE_CARD_CLASS">
+              <div role="status" data-notice-kind="hidden" animate.enter="motion-safe:animate-notice-in" animate.leave="motion-safe:animate-notice-out pointer-events-none [&_*]:!pointer-events-none" [class]="NOTICE_CARD_CLASS">
                 <mat-icon class="opacity-70 !text-base !w-5 !h-5">visibility_off</mat-icon>
                 <span id="notice-text-hidden" class="flex-1">
                   {{ I18N.gallery.hidden_banner.message | translate:{ n: store.hiddenSummary().total } }}
@@ -737,7 +753,7 @@ const SET_KIND_TOGGLE: Record<string, keyof HiddenFilterFlags> = {
                 <ng-container *ngTemplateOutlet="noticeClose; context: { $implicit: 'hidden' }" />
               </div>
             } @else if (restoreNoticeShown()) {
-              <div role="status" [class]="NOTICE_CARD_CLASS">
+              <div role="status" data-notice-kind="restore_hidden" animate.enter="motion-safe:animate-notice-in" animate.leave="motion-safe:animate-notice-out pointer-events-none [&_*]:!pointer-events-none" [class]="NOTICE_CARD_CLASS">
                 <mat-icon class="opacity-70 !text-base !w-5 !h-5">visibility</mat-icon>
                 <span id="notice-text-restore_hidden" class="flex-1">
                   {{ I18N.gallery.hidden_banner.showing_all | translate }}
@@ -749,7 +765,7 @@ const SET_KIND_TOGGLE: Record<string, keyof HiddenFilterFlags> = {
               </div>
             }
             @if (showRenderMigrationBanner()) {
-              <div role="status" [class]="NOTICE_CARD_CLASS">
+              <div role="status" data-notice-kind="render_migration" animate.enter="motion-safe:animate-notice-in" animate.leave="motion-safe:animate-notice-out pointer-events-none [&_*]:!pointer-events-none" [class]="NOTICE_CARD_CLASS">
                 <mat-icon class="opacity-70 !text-base !w-5 !h-5">auto_fix_high</mat-icon>
                 <span id="notice-text-render_migration" class="flex-1">
                   {{ I18N.gallery.render_migration.message | translate:{ n: renderMigrationPending() } }}
@@ -1524,14 +1540,28 @@ export class GalleryComponent implements OnInit, OnDestroy {
 
   /** Close one notice for this tab, for as long as it stays the same notice. Nothing else changes. */
   protected dismissNotice(kind: NoticeKind): void {
+    this.dismissNotices([kind]);
+  }
+
+  protected dismissAllNotices(): void {
+    this.dismissNotices(this.shownNoticeKinds());
+  }
+
+  private dismissNotices(kinds: readonly NoticeKind[]): void {
     const host = this.noticeHost()?.nativeElement;
     const hadFocus = !!host?.contains(document.activeElement);
-    const next = withDismissal(this.noticeDismissals(), kind, this.noticeSignatures()[kind]);
+    const owner = this.auth.identity();
+    let next = this.noticeDismissals();
+    for (const kind of kinds) next = withDismissal(next, kind, this.noticeSignatures()[kind]);
     this.noticeDismissals.set(next);
     saveNoticeDismissals(next);
-    // The focused × leaves the DOM with its card: hand focus to the next card's ×, else the grid.
     if (hadFocus) afterNextRender(() => {
-      const target = host?.querySelector<HTMLElement>('[data-notice-close]') ?? this.scrollContent()?.getElementRef().nativeElement;
+      if (this.destroyRef.destroyed || this.parked || owner !== this.auth.identity()) return;
+      // Leaving cards remain in the DOM during their animation; never focus one.
+      const visible = new Set(this.shownNoticeKinds());
+      const close = Array.from(host?.querySelectorAll<HTMLElement>('[data-notice-close]') ?? [])
+        .find(button => visible.has(button.closest<HTMLElement>('[data-notice-kind]')?.dataset['noticeKind'] as NoticeKind));
+      const target = close ?? this.scrollContent()?.getElementRef().nativeElement;
       if (!target) return;
       if (!target.hasAttribute('tabindex') && !target.matches('button')) target.setAttribute('tabindex', '-1');
       target.focus({ preventScroll: true });

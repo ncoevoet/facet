@@ -18,6 +18,7 @@ export interface PhotoFaceRow {
 /** A face as drawn: its box in the photo's own pixel space, the SVG's viewBox. */
 export interface DrawnFace {
   id: number;
+  automatic: boolean;
   personId: number | null;
   name: string | null;
   x: number;
@@ -194,6 +195,7 @@ export class PhotoFaceLayerComponent {
         const y = y1 * h;
         return {
           id: r.id,
+          automatic: r.face_index >= 0,
           personId: r.person_id ?? null,
           name: r.person_name ?? null,
           x: x1 * w,
@@ -271,12 +273,12 @@ export class PhotoFaceLayerComponent {
   private openMenuAt(face: DrawnFace, x: number, y: number, origin: HTMLElement | SVGElement | null = null): void {
     this.menu().open({
       person: face.personId === null ? null : { id: face.personId, name: face.name },
-      face: { id: face.id },
+      face: { id: face.id, automatic: face.automatic },
     }, x, y, origin);
   }
 
   /** The photo's face of ``personId``, the largest box when it has several; null when it has none. */
-  faceOf(personId: number): { id: number } | null {
+  faceOf(personId: number): { id: number; automatic: boolean } | null {
     let best: PhotoFaceRow | null = null;
     let bestArea = -1;
     for (const r of this.rows()) {
@@ -287,7 +289,7 @@ export class PhotoFaceLayerComponent {
         bestArea = area;
       }
     }
-    return best ? { id: best.id } : null;
+    return best ? { id: best.id, automatic: best.face_index >= 0 } : null;
   }
 
   protected async afterChange(): Promise<void> {

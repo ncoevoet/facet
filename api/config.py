@@ -1459,34 +1459,10 @@ def reload_config():
     _reset_clip_config_cache()
 
 
-def _prefix_boundary_match(path, prefix):
-    """True if ``path`` equals ``prefix`` or continues past it at a separator.
-
-    A bare ``startswith`` would let a configured prefix like ``/mnt/photos``
-    wrongly match ``/mnt/photos-backup``. Require the next character to be a
-    path separator, mirroring the ``+ os.sep`` boundary check in
-    ``api/path_validation.py``.
-    """
-    return (
-        path == prefix
-        or path.startswith(prefix + '/')
-        or path.startswith(prefix + '\\')
-    )
-
-
 def map_disk_path(db_path):
     """Map a database path to a local disk path using viewer.path_mapping config."""
-    path_mapping = VIEWER_CONFIG.get('path_mapping', {})
-    for prefix_from, prefix_to in path_mapping.items():
-        if _prefix_boundary_match(db_path, prefix_from):
-            db_path = prefix_to + db_path[len(prefix_from):]
-            break
-        normalized = db_path.replace('\\', '/')
-        prefix_normalized = prefix_from.replace('\\', '/')
-        if _prefix_boundary_match(normalized, prefix_normalized):
-            db_path = prefix_to + normalized[len(prefix_normalized):]
-            break
-    return db_path.replace('\\', os.sep).replace('/', os.sep)
+    from utils.path_mapping import mapped_disk_path
+    return mapped_disk_path(db_path, VIEWER_CONFIG.get('path_mapping', {}))
 
 
 def get_comparison_mode_settings():

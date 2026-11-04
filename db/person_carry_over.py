@@ -207,13 +207,13 @@ def replace_photo_faces(conn, photo_paths, face_records, insert_sql, defer_centr
         affected.update(r[0] for r in conn.execute(
             "SELECT DISTINCT person_id FROM faces WHERE person_id IS NOT NULL "
             f"AND photo_path IN ({','.join('?' * len(chunk))})", chunk).fetchall())
-    from db.manual_faces import without_manual_overlaps
+    from db.ignored_faces import filter_detected_faces
     filtered = []
     by_path = {}
     for record in face_records:
         by_path.setdefault(record[0], []).append(record)
     for path, records in by_path.items():
-        filtered.extend(without_manual_overlaps(conn, path, records, review_states))
+        filtered.extend(filter_detected_faces(conn, path, records, review_states))
     face_records = filtered
     conn.executemany("DELETE FROM faces WHERE photo_path = ? AND is_manual=0", [(p,) for p in photo_paths])
     if face_records:

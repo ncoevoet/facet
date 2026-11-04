@@ -14,7 +14,7 @@ import licensing
 
 from db import get_connection
 from db.embedding_space import active_embedding_model, expected_dim, tag_matches
-from db.manual_faces import without_manual_overlaps
+from db.ignored_faces import filter_detected_faces
 from db.schema import FACES_INSERT_SQL, face_upsert_row
 from processing.progress import emit_progress
 from faces.redetection import face_snapshot, apply_redetection, RedetectionRefused
@@ -194,7 +194,7 @@ def run_face_update(db_path, config, job_id, *, analyzer_factory=None, loader=No
                     else:
                         if mode == 'redetect':
                             conn.execute('SAVEPOINT face_redetect')
-                        records = without_manual_overlaps(conn, path, records)
+                        records = filter_detected_faces(conn, path, records)
                         if mode == 'redetect':
                             try:
                                 result = apply_redetection(conn, path, records, model)

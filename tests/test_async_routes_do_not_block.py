@@ -293,6 +293,8 @@ EXPECTED_NON_2XX = {
     # The route-coverage request names a face id that does not exist, so the
     # handler's visibility check answers 404 after the body has started.
     ('POST', '/api/face/987654321/unassign'): 404,
+    ('POST', '/api/face/987654321/ignore'): 404,
+    ('POST', '/api/ignored-face/00000000-0000-0000-0000-000000000000/restore'): 404,
     # VLM unavailable: the pinned legacy profile has no captioner.
     ('POST', '/api/caption'): 503,
 }

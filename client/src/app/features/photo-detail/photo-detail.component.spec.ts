@@ -564,7 +564,7 @@ describe('PhotoDetailComponent', () => {
     await view.whenStable();
     expect(mockRouter.navigate).not.toHaveBeenCalled();
     const menu = view.debugElement.query((d) => d.name === 'app-person-face-menu' && d.parent?.name !== 'app-photo-face-layer').componentInstance as { target: () => unknown };
-    expect(menu.target()).toEqual({ person: { id: 1, name: 'Alice' }, face: { id: 12 } });
+    expect(menu.target()).toEqual({ person: { id: 1, name: 'Alice' }, face: { id: 12, automatic: true } });
     const items = [...document.querySelectorAll('.mat-mdc-menu-panel [mat-menu-item]')] as HTMLElement[];
     expect(items.some((b) => b.textContent!.includes('photo_faces.not_person'))).toBe(true);
     items.find((b) => b.textContent!.includes('photo_faces.view_photos'))!.click();
