@@ -441,7 +441,7 @@ describe('PhotoDetailComponent', () => {
     expect(erase).not.toHaveBeenCalled();
   });
 
-  it('does not navigate a newer photo after a late accepted trash response', async () => {
+  it.each(['deleted', 'removed_missing'] as const)('repairs the gallery without touching the newer photo after late trash (%s)', async outcome => {
     mockApi.get.mockImplementation((url: string) => of(url === '/photo' ? makePhoto({ path: samplePhoto.path, is_rejected: true, is_kept: false }) : { faces: [] }));
     const view = renderDetail(); const detail = view.componentInstance as any;
     view.detectChanges(); await view.whenStable();
@@ -451,16 +451,49 @@ describe('PhotoDetailComponent', () => {
     const result = new Promise(resolve => { finish = resolve; });
     const erase = vi.spyOn(detail.photoActions, 'deletePhotos').mockReturnValue(result as any);
     const back = vi.spyOn(detail, 'goBack');
+    const remove = vi.spyOn(detail.store, 'removePhotos');
+    const snack = vi.spyOn(detail.snackBar, 'open');
     const original = makePhoto({ is_rejected: true, is_kept: false });
     detail.photo.set(original); detail.deletePhoto();
     await vi.waitFor(() => expect(detail.dialog.open).toHaveBeenCalled());
     closed.next({ include_companions: false });
-    expect(erase).toHaveBeenCalled();
-    detail.photo.set(makePhoto({ path: '/newer-photo.jpg' }));
-    finish({ deleted: [original.path], removed_missing: [] });
+    expect(erase).toHaveBeenCalledExactlyOnceWith([original.path], { include_companions: false });
+    const newer = makePhoto({ path: '/newer-photo.jpg' });
+    detail.photo.set(newer);
+    snack.mockClear();
+    finish({ deleted: outcome === 'deleted' ? [original.path] : [], removed_missing: outcome === 'removed_missing' ? [original.path] : [] });
     await result; await view.whenStable();
     expect(back).not.toHaveBeenCalled();
-    expect(detail.photo().path).toBe('/newer-photo.jpg');
+    expect(detail.photo()).toBe(newer);
+    expect(remove).toHaveBeenCalledExactlyOnceWith([original.path]);
+    expect(snack).not.toHaveBeenCalled();
+  });
+
+  it.each(['owner', 'token'] as const)('does not reconcile late trash into a changed %s', async invalidation => {
+    const view = renderDetail(); const detail = view.componentInstance as any;
+    view.detectChanges(); await view.whenStable();
+    Object.assign(mockAuth, { token: 'original-token' });
+    const closed = new Subject<unknown>();
+    const open = vi.spyOn(detail.dialog, 'open').mockReturnValue({ afterClosed: () => closed } as any);
+    let finish!: (value: any) => void;
+    const response = new Promise(resolve => { finish = resolve; });
+    const erase = vi.spyOn(detail.photoActions, 'deletePhotos').mockReturnValue(response as any);
+    const remove = vi.spyOn(detail.store, 'removePhotos');
+    const back = vi.spyOn(detail, 'goBack');
+    const snack = vi.spyOn(detail.snackBar, 'open');
+    const original = makePhoto({ is_rejected: true, is_kept: false });
+    detail.photo.set(original); detail.deletePhoto();
+    await vi.waitFor(() => expect(open).toHaveBeenCalled());
+    closed.next({ include_companions: false });
+    expect(erase).toHaveBeenCalledTimes(1);
+    if (invalidation === 'owner') mockAuth.status.set({ user_id: 'other-account' });
+    else Object.assign(mockAuth, { token: 'rotated-token' });
+    snack.mockClear();
+    finish({ deleted: [original.path], removed_missing: [] });
+    await response; await view.whenStable();
+    expect(remove).not.toHaveBeenCalled();
+    expect(back).not.toHaveBeenCalled();
+    expect(snack).not.toHaveBeenCalled();
   });
 
   it('folds the secondary header actions into a More menu below md while the title keeps min-w-0', () => {

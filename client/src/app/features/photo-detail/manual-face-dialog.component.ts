@@ -353,8 +353,12 @@ export class ManualFaceDialogComponent implements OnInit {
     }
   }
 
+  private isCurrentEditor(): boolean {
+    return !this.destroyRef.destroyed && this.auth.identity() === this.owner;
+  }
+
   async removeObject(object: PhotoObject): Promise<void> {
-    if (this.saving() || this.destroyRef.destroyed || this.auth.identity() !== this.owner) return;
+    if (this.saving() || !this.isCurrentEditor()) return;
     this.saving.set(true);
     this.error.set('');
     try {
@@ -363,9 +367,9 @@ export class ManualFaceDialogComponent implements OnInit {
       if (!this.destroyRef.destroyed) this.objects.update((list) => list.filter((o) => o.id !== object.id));
       this.data.onObjectsChanged?.();
     } catch {
-      if (!this.destroyRef.destroyed && this.auth.identity() === this.owner) this.error.set(this.I18N.errors.action_failed);
+      if (this.isCurrentEditor()) this.error.set(this.I18N.errors.action_failed);
     } finally {
-      if (!this.destroyRef.destroyed && this.auth.identity() === this.owner) this.saving.set(false);
+      if (this.isCurrentEditor()) this.saving.set(false);
     }
   }
 
@@ -541,7 +545,7 @@ export class ManualFaceDialogComponent implements OnInit {
     }
   }
   async remove(region: ManualFaceRegion): Promise<void> {
-    if (this.saving() || this.loading() || this.destroyRef.destroyed || this.auth.identity() !== this.owner) return;
+    if (this.saving() || this.loading() || !this.isCurrentEditor()) return;
     this.saving.set(true);
     this.error.set('');
     try {
@@ -558,9 +562,9 @@ export class ManualFaceDialogComponent implements OnInit {
 
       await this.refreshMembership();
     } catch {
-      if (!this.destroyRef.destroyed && this.auth.identity() === this.owner) this.error.set(this.I18N.errors.action_failed);
+      if (this.isCurrentEditor()) this.error.set(this.I18N.errors.action_failed);
     } finally {
-      if (!this.destroyRef.destroyed && this.auth.identity() === this.owner) this.saving.set(false);
+      if (this.isCurrentEditor()) this.saving.set(false);
     }
   }
 }

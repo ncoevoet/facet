@@ -793,7 +793,7 @@ export class PhotoDetailComponent extends PhotoDetailBase implements OnInit {
     const target = change.operation !== 'dissolve' && change.primaryPath && this.memberAllowed(change.primaryPath)
       ? change.primaryPath : previous;
     const photo = await this.fetchPhoto(target).catch(() => undefined);
-    if (revision !== this.logicalChangeRevision || this.destroyRef.destroyed || this.viewerOwner !== this.auth.identity() || token !== this.auth.token
+    if (revision !== this.logicalChangeRevision || !this.isCurrentViewer() || token !== this.auth.token
       || this.photo()?.path !== previous || this.route.snapshot.queryParamMap.get('path') !== previous
       || this.router.currentNavigation?.()) return;
     if (!photo) {
@@ -1041,7 +1041,7 @@ export class PhotoDetailComponent extends PhotoDetailBase implements OnInit {
       if (path) {
         // The user may leave, or Back may move the address, while this loads; replacing keeps a dead entry out of history.
         const photo = await this.fetchPhoto(path).catch(() => undefined);
-        if (this.destroyRef.destroyed || this.viewerOwner !== this.auth.identity() || this.route.snapshot.queryParamMap.get('path') !== path) return;
+        if (!this.isCurrentViewer() || this.route.snapshot.queryParamMap.get('path') !== path) return;
         if (photo) this.photo.set(photo);
         else this.router.navigate(['/'], { replaceUrl: true });
       } else {
@@ -1325,14 +1325,23 @@ export class PhotoDetailComponent extends PhotoDetailBase implements OnInit {
     } finally { guard.dispose(); }
   }
 
+  /** Accepted writes may repair the gallery after this view is destroyed, but never another session. */
+  private captureSession(): () => boolean {
+    const owner = this.auth.identity();
+    const token = this.auth.token;
+    return () => owner === this.auth.identity() && token === this.auth.token;
+  }
+
+  private isCurrentViewer(): boolean {
+    return !this.destroyRef.destroyed && this.viewerOwner === this.auth.identity();
+  }
+
   protected async setRating(path: string, rating: number): Promise<void> {
     const p = this.photo();
     if (!p || p.path !== path) return;
     const newRating = p.star_rating === rating ? 0 : rating;
     if (p.logical_review) { await this.saveLogicalReview(p, { rating: newRating }); return; }
-    const owner = this.auth.identity();
-    const token = this.auth.token;
-    const sameSession = () => owner === this.auth.identity() && token === this.auth.token;
+    const sameSession = this.captureSession();
     try {
       await firstValueFrom(this.api.post('/photo/set_rating', { photo_path: path, rating: newRating }));
       // A confirmed write still repairs the same session's gallery after navigation.
@@ -1356,9 +1365,7 @@ export class PhotoDetailComponent extends PhotoDetailBase implements OnInit {
     if (!p || this.reviewSaving) return;
     this.reviewSaving = true;
     const isOrigin = this.store.captureReviewView();
-    const identity = this.auth.identity();
-    const token = this.auth.token;
-    const sameSession = () => identity === this.auth.identity() && token === this.auth.token;
+    const sameSession = this.captureSession();
     const photos = this.store.photos();
     const index = photos.findIndex(photo => photo.path === p.path);
     const next = photos[index + 1];
@@ -1404,9 +1411,7 @@ export class PhotoDetailComponent extends PhotoDetailBase implements OnInit {
     const p = this.photo();
     if (!p || p.path !== path) return;
     if (p.logical_review) { await this.saveLogicalReview(p, 'favorite'); return; }
-    const owner = this.auth.identity();
-    const token = this.auth.token;
-    const sameSession = () => owner === this.auth.identity() && token === this.auth.token;
+    const sameSession = this.captureSession();
     try {
       const res = await firstValueFrom(this.api.post<{ is_favorite: boolean; is_rejected: boolean | null }>('/photo/toggle_favorite', { photo_path: path }));
       if (!sameSession()) return;
@@ -1426,9 +1431,7 @@ export class PhotoDetailComponent extends PhotoDetailBase implements OnInit {
     const p = this.photo();
     if (!p || p.path !== path) return;
     const isOrigin = this.store.captureReviewView();
-    const identity = this.auth.identity();
-    const token = this.auth.token;
-    const sameSession = () => identity === this.auth.identity() && token === this.auth.token;
+    const sameSession = this.captureSession();
     const photos = this.store.photos();
     const index = photos.findIndex(photo => photo.path === p.path);
     const next = photos[index + 1];
@@ -1489,7 +1492,7 @@ export class PhotoDetailComponent extends PhotoDetailBase implements OnInit {
   }
 
   protected navigateTag(tag: string, scope: 'collection' | 'library'): void {
-    if (this.viewerOwner !== this.auth.identity() || this.destroyRef.destroyed) return;
+    if (!this.isCurrentViewer()) return;
     if (scope === 'collection' && !this.tagCollectionAvailable()) return;
     const query = refineTagQuery(scope === 'collection' ? this.tagOrigin()!.params['tag_groups'] ?? '' : '', tag);
     if (query === null) {
@@ -1586,10 +1589,10 @@ export class PhotoDetailComponent extends PhotoDetailBase implements OnInit {
   protected async removeFromCatalog(): Promise<void> {
     const photo = this.photo();
     if (!photo?.is_rejected || photo.is_kept) return;
-    const current = () => !this.destroyRef.destroyed && this.viewerOwner === this.auth.identity()
+    const current = () => this.isCurrentViewer()
       && this.photo()?.path === photo.path && !!this.photo()?.is_rejected && !this.photo()?.is_kept;
     const removed = await this.photoActions.removeFromCatalog([photo.path], current);
-    if (!this.destroyRef.destroyed && this.viewerOwner === this.auth.identity() && this.photo()?.path === photo.path && removed.includes(photo.path)) this.goBack();
+    if (this.isCurrentViewer() && this.photo()?.path === photo.path && removed.includes(photo.path)) this.goBack();
   }
 
   /** Open the trash dialog with sibling and bracket-lead information from the loaded set. */
@@ -1600,7 +1603,7 @@ export class PhotoDetailComponent extends PhotoDetailBase implements OnInit {
     const hasSiblings = !!set?.kind && SEQUENCE_KINDS_KEPT_WHOLE.includes(set.kind) && set.count > 1;
     const hasBracketLead = set?.kind === 'bracket'
       && (set.members.find(m => m.path === p.path)?.is_lead ?? false);
-    const current = () => !this.destroyRef.destroyed && this.viewerOwner === this.auth.identity()
+    const current = () => this.isCurrentViewer()
       && this.photo()?.path === p.path && !!this.photo()?.is_rejected && !this.photo()?.is_kept;
     import('../../shared/components/photo-delete-dialog/photo-delete-dialog.component').then(m => {
       if (!current()) return;
@@ -1618,18 +1621,19 @@ export class PhotoDetailComponent extends PhotoDetailBase implements OnInit {
       });
       ref.afterClosed().subscribe(async result => {
         if (!result || !current()) return;
+        const sameSession = this.captureSession();
         const res = await this.photoActions.deletePhotos([p.path], result);
-        if (!res) return;
+        if (!res || !sameSession()) return;
         // `removed_missing` counts as deleted for this surface: the row is
         // gone either way, which is all the photo page can observe.
         const gone = res.deleted.includes(p.path) || res.removed_missing.includes(p.path);
         if (gone) {
           this.store.removePhotos([p.path]);
-          if (this.destroyRef.destroyed || this.viewerOwner !== this.auth.identity() || this.photo()?.path !== p.path) return;
+          if (!this.isCurrentViewer() || this.photo()?.path !== p.path) return;
           this.snackBar.open(this.i18n.t(I18N.photo_detail.delete.success), '', { duration: 2000 });
           this.goBack();
         } else {
-          if (this.destroyRef.destroyed || this.viewerOwner !== this.auth.identity() || this.photo()?.path !== p.path) return;
+          if (!this.isCurrentViewer() || this.photo()?.path !== p.path) return;
           this.snackBar.open(this.i18n.t(I18N.photo_detail.delete.error), '', { duration: 3000 });
         }
       });
