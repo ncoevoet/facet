@@ -83,6 +83,49 @@ describe('Captured album rule editing', () => {
     read.next({ ...album }); read.complete(); await settle();
     expect(albums.update).not.toHaveBeenCalled();
   });
+  it('keeps a failed preflight retryable without treating it as an uncertain write', async () => {
+    const { root, click, settle, albums, store } = build();
+    const before = store.currentAlbum();
+    albums.get.mockReturnValueOnce(throwError(() => new Error('read failed')));
+    click('[data-album-rules] summary'); click('[data-album-preview]'); click('[data-album-apply]'); await settle();
+    expect(albums.update).not.toHaveBeenCalled();
+    expect(store.currentAlbum()).toBe(before);
+    expect(root.querySelector('[role=alert]')?.textContent).toContain('albums.rules.failed');
+    expect(root.querySelector<HTMLButtonElement>('[data-album-apply]')!.disabled).toBe(false);
+    click('[data-album-apply]'); await settle();
+    expect(albums.update).toHaveBeenCalledTimes(1);
+    expect(root.querySelector('[data-album-rule-preview]')).toBeNull();
+    expect(root.querySelector('[role=alert]')).toBeNull();
+  });
+  it('keeps working filters and saved metadata after reload failure, then recovers on retry', async () => {
+    const { root, click, settle, albums, store } = build();
+    albums.update.mockReturnValueOnce(throwError(() => new Error('lost write response')));
+    click('[data-album-rules] summary'); click('[data-album-preview]'); click('[data-album-apply]'); await settle();
+    const before = store.currentAlbum(); const filters = store.filters();
+    albums.get.mockReturnValueOnce(throwError(() => new Error('reload failed')));
+    click('[data-album-reload]'); await settle();
+    expect(root.querySelector('[role=alert]')?.textContent).toContain('albums.rules.failed');
+    expect(store.currentAlbum()).toBe(before); expect(store.filters()).toBe(filters);
+    expect(root.querySelector<HTMLButtonElement>('[data-album-reload]')!.disabled).toBe(false);
+    const recovered = { ...album, smart_filter_json: JSON.stringify({ camera: 'Sony' }) };
+    albums.get.mockReturnValueOnce(of(recovered));
+    click('[data-album-reload]'); await settle();
+    expect(store.currentAlbum()).toEqual(recovered); expect(store.filters()).toBe(filters);
+    expect(root.querySelector('[role=alert]')).toBeNull(); expect(albums.update).toHaveBeenCalledTimes(1);
+  });
+  it.each(['parked', 'album', 'edition', 'criteria', 'blocked'] as const)('automatically closes the captured preview when %s changes', async ending => {
+    const { fixture, root, click, settle, albums, store, edition } = build();
+    click('[data-album-rules] summary'); click('[data-album-preview]');
+    expect(root.querySelector('[data-album-rule-preview]')).not.toBeNull();
+    if (ending === 'parked') fixture.componentRef.setInput('active', false);
+    if (ending === 'album') store.currentAlbum.set({ ...album, id: 8 });
+    if (ending === 'edition') edition.set(false);
+    if (ending === 'criteria') store.filters.update(value => ({ ...value, camera: 'Sony' }));
+    if (ending === 'blocked') store.temporaryReviewQueue.set(true);
+    await settle();
+    expect(root.querySelector('[data-album-rule-preview]')).toBeNull();
+    expect(albums.get).not.toHaveBeenCalled(); expect(albums.update).not.toHaveBeenCalled();
+  });
   it('requires reloading after an uncertain write and does not blindly retry', async () => {
     const { root, click, settle, albums } = build();
     albums.update.mockReturnValue(throwError(() => new Error('lost response')));

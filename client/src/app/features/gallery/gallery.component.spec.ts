@@ -1,3 +1,4 @@
+import type { Photo } from '../../shared/models/photo.model';
 import type { Mock } from 'vitest';
 import { ComponentFixture, DeferBlockState, TestBed } from '@angular/core/testing';
 import { ChangeDetectorRef, Component, computed, DebugElement, DestroyRef, signal, WritableSignal } from '@angular/core';
@@ -713,6 +714,22 @@ describe('GalleryComponent', () => {
       accept(true); await Promise.resolve();
       expect(activeIndex()).toBe(1);
       expect(mockStore.focusedPath()).toBe('/a.jpg');
+    });
+
+    it.each(['control', 'meta', 'alt', 'composition', 'parked', 'navigation', 'slideshow', 'loading', 'missing-photo'] as const)('does not write a rating during %s', state => {
+      const event = new KeyboardEvent('keydown', {
+        key: '3', cancelable: true, ctrlKey: state === 'control', metaKey: state === 'meta',
+        altKey: state === 'alt', isComposing: state === 'composition',
+      });
+      if (state === 'parked') outletMock.detachEvents.next(component);
+      if (state === 'navigation') vi.spyOn(TestBed.inject(Router), 'currentNavigation').mockReturnValue({ id: 99 } as any);
+      if (state === 'slideshow') mockStore.slideshowActive.set(true);
+      if (state === 'loading') mockStore.loading.set(true);
+      const handler = component as unknown as { handleRatingKey(event: KeyboardEvent, photos: Photo[], index: number): void };
+      handler.handleRatingKey(event, mockStore.photos(), state === 'missing-photo' ? 99 : 0);
+      expect(mockStore.setRating).not.toHaveBeenCalled();
+      expect(activeIndex()).toBe(0);
+      expect(event.defaultPrevented).toBe(state === 'loading');
     });
 
     it('ignores repeated review keys', () => {
@@ -3127,7 +3144,7 @@ describe('GalleryComponent', () => {
       expect(mockStore.restoreSelection).not.toHaveBeenCalled();
     });
 
-    it('keeps accepted-write refresh debt after real photo navigation parks the gallery', async () => {
+    it('refreshes accepted tags after photo navigation and outlet detachment park the gallery', async () => {
       select(['/a.jpg']);
       const closed = new Subject<unknown>();
       let didOpen!: () => void;
@@ -3138,6 +3155,8 @@ describe('GalleryComponent', () => {
       const router = TestBed.inject(Router);
       router.resetConfig([{ path: 'photo', component: MenuPhotoRoute }]);
       await router.navigateByUrl('/photo?path=%2Fa.jpg');
+      outletMock.detachEvents.next(component);
+      expect(mockStore.parkListingReads).toHaveBeenCalledOnce();
       closed.next({ confirmedCount: 1, tag: 'trip', action: 'add', incomplete: false, uncertain: false });
       await pending;
       expect(mockStore.refreshPaths).toHaveBeenCalledExactlyOnceWith(['/a.jpg']);
