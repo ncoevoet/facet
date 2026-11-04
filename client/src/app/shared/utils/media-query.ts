@@ -22,8 +22,8 @@ export const DETAILS_RAIL_MIN_WIDTH_PX = 1280;
  */
 const COARSE_POINTER_QUERY = '(pointer: coarse)';
 
-/** What the gallery's touch-device check uses: a primary pointer that cannot hover. */
-const HOVER_QUERY = '(hover: none)';
+/** Whether the primary pointer can hover. */
+const HOVER_QUERY = '(hover: hover)';
 
 /** A signal tracking one media query, live for as long as `setup`/`cleanup` bracket it. */
 function useMediaQuerySignal(

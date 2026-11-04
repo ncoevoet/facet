@@ -230,7 +230,7 @@ class TestMixedLibrary:
                 conn.close()
 
         with mock.patch.object(merge_suggestions, 'get_db', _get_db):
-            pairs = merge_suggestions._pairwise_suggestions(0.9)
+            pairs, _ = merge_suggestions._pairwise_suggestions(0.9)
         assert {(s['person1']['name'], s['person2']['name']) for s in pairs} == {("S1", "S2")}
 
     def test_similar_person_compares_the_active_model_only(self, tmp_path, commercial):

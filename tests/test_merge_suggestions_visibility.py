@@ -78,7 +78,7 @@ def _client(db_path, user, multi_user):
     patches = [
         mock.patch(f"{_ROUTER}.get_db", _db_cm(db_path)),
         mock.patch(f"{_ROUTER}.is_multi_user_enabled", return_value=multi_user),
-        mock.patch(f"{_ROUTER}._pairwise_suggestions", return_value=_SUGGESTIONS),
+        mock.patch(f"{_ROUTER}._pairwise_suggestions", return_value=(_SUGGESTIONS, False)),
         mock.patch(f"{_HELPERS}.is_multi_user_enabled", return_value=multi_user),
         mock.patch(f"{_HELPERS}.get_user_directories",
                    side_effect=lambda uid: dirs.get(uid, [])),

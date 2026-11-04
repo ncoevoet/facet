@@ -39,7 +39,7 @@ class TestGetMergeSuggestions:
 
     def test_returns_suggestions(self, client):
         """The endpoint surfaces the pairwise suggestions it computes."""
-        with mock.patch(f"{_ROUTER}._pairwise_suggestions", return_value=_ONE_PAIR):
+        with mock.patch(f"{_ROUTER}._pairwise_suggestions", return_value=(_ONE_PAIR, False)):
             resp = client.get("/api/merge_suggestions")
 
         assert resp.status_code == 200
@@ -53,11 +53,12 @@ class TestGetMergeSuggestions:
 
     def test_empty_persons_returns_empty(self, client):
         """No candidate pairs yields an empty suggestions list."""
-        with mock.patch(f"{_ROUTER}._pairwise_suggestions", return_value=[]):
+        with mock.patch(f"{_ROUTER}._pairwise_suggestions", return_value=([], False)):
             resp = client.get("/api/merge_suggestions")
 
         assert resp.status_code == 200
         assert resp.json()["suggestions"] == []
+        assert resp.json()["truncated"] is False
 
     def test_requires_authentication(self):
         """Unauthenticated request returns 401."""
@@ -129,7 +130,7 @@ class TestPairwiseSuggestions:
         from api.routers.merge_suggestions import _pairwise_suggestions
         path = self._seed(tmp_path)
         with mock.patch(f"{_ROUTER}.get_db", _db_cm(path)):
-            suggestions = _pairwise_suggestions(0.6)
+            suggestions, _ = _pairwise_suggestions(0.6)
         return {
             tuple(sorted((s["person1"]["id"], s["person2"]["id"]))): s["similarity"]
             for s in suggestions
@@ -155,12 +156,44 @@ class TestPairwiseSuggestions:
         from api.routers.merge_suggestions import _pairwise_suggestions
         path = self._seed(tmp_path)
         with mock.patch(f"{_ROUTER}.get_db", _db_cm(path)):
-            suggestions = _pairwise_suggestions(0.0)
+            suggestions, _ = _pairwise_suggestions(0.0)
         assert len(suggestions) == 2
         sims = [s['similarity'] for s in suggestions]
         assert sims == sorted(sims, reverse=True)
         # The planar geometry makes (1,2) at cos(10deg) the closest pair.
         assert suggestions[0]['person1']['id'] == 1 and suggestions[0]['person2']['id'] == 2
+
+    def test_dismissals_do_not_consume_the_cap(self, client, tmp_path, monkeypatch):
+        monkeypatch.setattr(f"{_ROUTER}.MAX_MERGE_SUGGESTIONS", 2)
+        monkeypatch.setattr(f"{_ROUTER}._SCORE_BLOCK_ROWS", 1)
+        path = self._seed(tmp_path)
+        with sqlite3.connect(path) as conn:
+            conn.execute(
+                "INSERT INTO rejected_merge_suggestions (person_a_id, person_b_id) VALUES (1, 2)"
+            )
+            # A legacy or hand-edited self-pair must not mask another person.
+            conn.execute(
+                "INSERT INTO rejected_merge_suggestions (person_a_id, person_b_id) VALUES (1, 1)"
+            )
+
+        with mock.patch(f"{_ROUTER}.get_db", _db_cm(path)):
+            response = client.get("/api/merge_suggestions", params={"threshold": 0.0})
+            exact = client.get("/api/merge_suggestions", params={"threshold": 0.49})
+            monkeypatch.setattr(f"{_ROUTER}.MAX_MERGE_SUGGESTIONS", 5)
+            all_eligible = client.get("/api/merge_suggestions", params={"threshold": 0.0})
+
+        assert response.status_code == 200
+        body = response.json()
+        assert [(s["person1"]["id"], s["person2"]["id"]) for s in body["suggestions"]] == [
+            (2, 4), (1, 4),
+        ]
+        assert body["truncated"] is True
+        assert exact.status_code == 200
+        assert exact.json()["suggestions"] == body["suggestions"]
+        assert exact.json()["truncated"] is False
+        assert all_eligible.status_code == 200
+        assert len(all_eligible.json()["suggestions"]) == 5
+        assert all_eligible.json()["truncated"] is False
 
     def test_visible_scoping_skips_scoring_outside_the_set(self, tmp_path):
         """Multi-user scoping applies before the quadratic work: a caller whose
@@ -168,7 +201,7 @@ class TestPairwiseSuggestions:
         from api.routers.merge_suggestions import _pairwise_suggestions
         path = self._seed(tmp_path)
         with mock.patch(f"{_ROUTER}.get_db", _db_cm(path)):
-            suggestions = _pairwise_suggestions(0.6, visible={1, 2})
+            suggestions, _ = _pairwise_suggestions(0.6, visible={1, 2})
         assert {tuple(sorted((s['person1']['id'], s['person2']['id']))) for s in suggestions} == {(1, 2)}
 
     def test_hidden_person_excluded(self, tmp_path):
@@ -179,7 +212,7 @@ class TestPairwiseSuggestions:
         conn.close()
         from api.routers.merge_suggestions import _pairwise_suggestions
         with mock.patch(f"{_ROUTER}.get_db", _db_cm(path)):
-            suggestions = _pairwise_suggestions(0.6)
+            suggestions, _ = _pairwise_suggestions(0.6)
         ids = {s["person1"]["id"] for s in suggestions} | {
             s["person2"]["id"] for s in suggestions
         }
@@ -193,13 +226,13 @@ class TestReportedThreshold:
         cfg = mock.Mock()
         cfg.get_face_clustering_settings.return_value = {"merge_threshold": 0.45}
         with mock.patch(f"{_ROUTER}.server_scoring_config", return_value=cfg), \
-                mock.patch(f"{_ROUTER}._pairwise_suggestions", return_value=[]) as pairwise:
+                mock.patch(f"{_ROUTER}._pairwise_suggestions", return_value=([], False)) as pairwise:
             body = client.get("/api/merge_suggestions").json()
         assert body["threshold"] == 0.45
         assert pairwise.call_args.args[0] == 0.45
 
     def test_reports_the_callers_threshold_when_sent(self, client):
-        with mock.patch(f"{_ROUTER}._pairwise_suggestions", return_value=[]):
+        with mock.patch(f"{_ROUTER}._pairwise_suggestions", return_value=([], False)):
             body = client.get("/api/merge_suggestions", params={"threshold": 0.7}).json()
         assert body["threshold"] == 0.7
 

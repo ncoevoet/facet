@@ -307,7 +307,7 @@ Regrouping bounds both the result and the complete affected preview to 1000 phot
 
 | Endpoint | Description |
 |----------|-------------|
-| `GET /api/merge_suggestions` | Suggested person merges based on face similarity |
+| `GET /api/merge_suggestions` | Up to 200 visible, undismissed pairs by descending face similarity; `truncated` is true when more pairs matched |
 
 ## Folders
 

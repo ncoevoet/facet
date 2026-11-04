@@ -4,6 +4,7 @@ Merge suggestions API router -- face merge group analysis.
 """
 
 import sqlite3
+from collections import defaultdict
 from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query
@@ -17,8 +18,9 @@ from api.models.albums import MergeSuggestionsResponse
 router = APIRouter(tags=["merge_suggestions"])
 
 # A low threshold can clear tens of thousands of pairs; the response takes the
-# most similar ones and leaves the rest to a stricter slider.
+# most similar ones and reports whether any eligible pairs were omitted.
 MAX_MERGE_SUGGESTIONS = 200
+_SCORE_BLOCK_ROWS = 64
 
 
 def _visible_person_ids(user: CurrentUser):
@@ -60,7 +62,7 @@ def _load_rejected_pairs():
 
 
 def _pairwise_suggestions(threshold, visible=None):
-    """Merge suggestions as true pairwise person comparisons.
+    """Return the top eligible pairs and whether the list was truncated.
 
     Loads every non-hidden person's centroid and emits each person pair whose
     OWN centroid cosine similarity clears ``threshold``, labelled with that
@@ -84,28 +86,45 @@ def _pairwise_suggestions(threshold, visible=None):
 
     persons = [{k: p[k] for k in ('id', 'name', 'face_count')} for p in loaded]
     if len(persons) < 2:
-        return []
+        return [], False
 
-    # One matmul replaces the O(n^2) Python loop of np.dot calls: at a few
-    # thousand clusters that loop costs seconds of CPU on every request.
-    centroids = np.stack([np.asarray(p['centroid'], dtype=np.float64) for p in loaded])
-    similarities = centroids @ centroids.T
+    indices = {person["id"]: i for i, person in enumerate(persons)}
+    dismissed_by_row = defaultdict(list)
+    for a, b in _load_rejected_pairs():
+        if a < b and a in indices and b in indices:
+            i, j = sorted((indices[a], indices[b]))
+            dismissed_by_row[i].append(j)
 
-    upper_i, upper_j = np.triu_indices(len(persons), k=1)
-    pair_similarities = similarities[upper_i, upper_j]
-    hits = np.nonzero(pair_similarities >= threshold)[0]
-    # Most similar first, capped so a low threshold cannot serialize the whole
-    # quadratic hit set into one response.
-    hits = hits[np.argsort(-pair_similarities[hits])][:MAX_MERGE_SUGGESTIONS]
+    centroids = np.stack([p["centroid"] for p in loaded]).astype(np.float64)
+    limit = MAX_MERGE_SUGGESTIONS
+    best = []
+    eligible = 0
+    # Score only the remaining suffix for each block. Scratch space grows
+    # linearly with the visible set, and we retain at most two blocks' worth
+    # of top results (2 * limit) while combining them.
+    for start in range(0, len(persons) - 1, _SCORE_BLOCK_ROWS):
+        stop = min(start + _SCORE_BLOCK_ROWS, len(persons) - 1)
+        scores = centroids[start:stop] @ centroids[start + 1:].T
+        hits = scores >= threshold
+        for row, i in enumerate(range(start, stop)):
+            hits[row, :row] = False  # Keep only pairs with j > i.
+            if i in dismissed_by_row:
+                hits[row, np.asarray(dismissed_by_row[i]) - start - 1] = False
+
+        rows, cols = np.nonzero(hits)
+        eligible += len(rows)
+        values = scores[rows, cols]
+        # Stable ordering within this block, then row/column order across
+        # blocks for ties. A block's lower-ranked hits cannot enter the top K.
+        for k in np.argsort(-values, kind="stable")[:limit]:
+            best.append((-float(values[k]), start + rows[k], start + 1 + cols[k]))
+        best.sort()
+        del best[limit:]
 
     return [
-        {
-            "person1": persons[upper_i[k]],
-            "person2": persons[upper_j[k]],
-            "similarity": float(pair_similarities[k]),
-        }
-        for k in hits
-    ]
+        {"person1": persons[i], "person2": persons[j], "similarity": -score}
+        for score, i, j in best
+    ], eligible > limit
 
 
 @router.get(
@@ -135,19 +154,11 @@ def get_merge_suggestions(
     # away. The post-filter below stays as the contract guard, so a caller keeps
     # its guarantee regardless of what _pairwise_suggestions does with the set.
     visible = _visible_person_ids(user)
-    suggestions = _pairwise_suggestions(threshold, visible=visible)
+    suggestions, truncated = _pairwise_suggestions(threshold, visible=visible)
     if visible is not None:
         suggestions = [
             s for s in suggestions
             if s["person1"]["id"] in visible and s["person2"]["id"] in visible
         ]
 
-    # Drop pairs the user has already dismissed so they stop reappearing.
-    rejected = _load_rejected_pairs()
-    if rejected:
-        suggestions = [
-            s for s in suggestions
-            if tuple(sorted((s["person1"]["id"], s["person2"]["id"]))) not in rejected
-        ]
-
-    return {"suggestions": suggestions, "threshold": threshold}
+    return {"suggestions": suggestions, "threshold": threshold, "truncated": truncated}

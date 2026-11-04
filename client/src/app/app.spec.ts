@@ -78,7 +78,7 @@ function createApp(routerUrl = '/', extraProviders: Provider[] = []) {
 }
 
 describe('App', () => {
-  it('initializes the hover breakpoint and removes its listener on destruction', async () => {
+  it.each([true, false])('reads pointer hover capability (%s) and cleans up listeners', async canHover => {
     const get = vi.fn(() => of({}));
     const { app } = createApp('/', [
       { provide: AuthService, useValue: {
@@ -92,18 +92,23 @@ describe('App', () => {
       addEventListener: vi.fn(),
       removeEventListener: vi.fn(),
     } as unknown as MediaQueryList;
+    const hoverMql = { ...mql, matches: canHover, addEventListener: vi.fn(), removeEventListener: vi.fn() };
     const originalMatchMedia = window.matchMedia.bind(window);
     const query = vi.spyOn(window, 'matchMedia').mockImplementation(value =>
-      value === '(min-width: 768px)' ? mql : originalMatchMedia(value),
+      value === '(hover: hover)' ? hoverMql
+        : value === '(min-width: 768px)' ? mql : originalMatchMedia(value),
     );
     try {
       await app.ngOnInit();
       expect(query).toHaveBeenCalledWith('(min-width: 768px)');
+      expect(query).toHaveBeenCalledWith('(hover: hover)');
+      expect((app as unknown as { canHoverAtAll: () => boolean }).canHoverAtAll()).toBe(canHover);
       expect((app as unknown as { canUseHoverTooltips: () => boolean }).canUseHoverTooltips()).toBe(true);
       expect(mql.addEventListener).toHaveBeenCalledWith('change', expect.any(Function));
       const handler = vi.mocked(mql.addEventListener).mock.calls[0][1];
       TestBed.resetTestingModule();
       expect(mql.removeEventListener).toHaveBeenCalledWith('change', handler);
+      expect(hoverMql.removeEventListener).toHaveBeenCalledWith('change', hoverMql.addEventListener.mock.calls[0][1]);
     } finally {
       query.mockRestore();
     }
