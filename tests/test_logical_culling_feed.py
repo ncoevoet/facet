@@ -131,3 +131,130 @@ def test_similar_feed_drops_a_logically_rejected_photo(catalog):
     assert _filter_similar_groups(conn, groups, None) == []
     photos = _fetch_similar_group_photos(conn, groups, exclude_rejected=True)
     assert [p['path'] for p in photos[0]] == [other]
+
+
+@pytest.fixture
+def feed_client(catalog, monkeypatch):
+    from fastapi.testclient import TestClient
+    from api import create_app, database
+    from api.auth import CurrentUser, get_optional_user
+    from api.routers import burst_culling
+
+    conn = catalog[0]
+    path = conn.execute('PRAGMA database_list').fetchone()[2]
+    monkeypatch.setattr(database, 'DEFAULT_DB_PATH', path)
+    app = create_app()
+    app.dependency_overrides[get_optional_user] = lambda: CurrentUser(user_id='reader')
+    burst_culling._invalidate_culling_groups_cache()
+    client = TestClient(app)
+    yield client
+    client.close()
+    app.dependency_overrides.clear()
+    burst_culling._invalidate_culling_groups_cache()
+
+
+def _feed_paths(client):
+    response = client.get('/api/culling-groups?group_by=burst')
+    assert response.status_code == 200, response.text
+    return {photo['path'] for group in response.json()['groups'] for photo in group['photos']}
+
+
+def test_grouped_feed_reuses_enrichment_then_invalidates_primary_and_membership(catalog, feed_client, monkeypatch):
+    from unittest.mock import Mock
+    from api.routers import burst_culling
+
+    conn, key, jpg, raw, other = catalog
+    fetch = Mock(wraps=burst_culling._fetch_unreviewed_burst_groups)
+    monkeypatch.setattr(burst_culling, '_fetch_unreviewed_burst_groups', fetch)
+    assert _feed_paths(feed_client) == {raw, other}
+    assert _feed_paths(feed_client) == {raw, other}
+    assert fetch.call_count == 1
+
+    # An external connection changes no photo count or scan run.
+    conn.execute('UPDATE logical_assets SET primary_path=?,revision=revision+1 WHERE id=?', (jpg, key))
+    conn.commit()
+    assert _feed_paths(feed_client) == {jpg, other}
+    assert _feed_paths(feed_client) == {jpg, other}
+    assert fetch.call_count == 2
+
+    revision = conn.execute('SELECT revision FROM logical_assets WHERE id=?', (key,)).fetchone()[0]
+    conn.execute('BEGIN')
+    logical_assets.dissolve(conn, key, revision, visibility_sql='1=1')
+    conn.commit()
+    assert _feed_paths(feed_client) == {jpg, raw, other}
+    assert fetch.call_count == 3
+
+
+def test_grouped_feed_cache_binds_actual_visibility_and_does_not_mutate_shared_pages(catalog, feed_client, monkeypatch):
+    from api.routers import burst_culling
+
+    _, _, jpg, raw, other = catalog
+    def annotate(conn, groups, user_id):
+        for group in groups:
+            for photo in group['photos']:
+                photo['keeper_prob'] = 0.5
+    monkeypatch.setattr(burst_culling, 'attach_keeper_probs', annotate)
+    assert _feed_paths(feed_client) == {raw, other}
+    cached = next(iter(burst_culling._culling_groups_cache.values()))[1]
+    assert all('keeper_prob' not in photo for group in cached for photo in group['photos'])
+    # Same user id and unchanged database, different current directory grant.
+    monkeypatch.setattr(burst_culling, 'get_visibility_clause', lambda user: ('photos.path<>?', [raw]))
+    assert _feed_paths(feed_client) == {jpg, other}
+
+
+def test_grouped_feed_does_not_store_computation_crossed_by_external_commit(catalog, feed_client, monkeypatch):
+    from api.routers import burst_culling
+
+    _, key, jpg, raw, other = catalog
+    original = burst_culling._fetch_unreviewed_burst_groups
+
+    def crossed(conn, *args, **kwargs):
+        result = original(conn, *args, **kwargs)
+        with sqlite3.connect(conn.execute('PRAGMA database_list').fetchone()[2]) as writer:
+            writer.execute('UPDATE logical_assets SET primary_path=?,revision=revision+1 WHERE id=?', (jpg, key))
+        return result
+
+    monkeypatch.setattr(burst_culling, '_fetch_unreviewed_burst_groups', crossed)
+    assert _feed_paths(feed_client) == {raw, other}
+    assert not burst_culling._culling_groups_cache
+    monkeypatch.setattr(burst_culling, '_fetch_unreviewed_burst_groups', original)
+    assert _feed_paths(feed_client) == {jpg, other}
+
+
+def test_grouped_memo_keeps_exact_similarity_threshold(catalog, feed_client):
+    import math
+    import struct
+
+    conn, _, jpg, raw, other = catalog
+    conn.execute('UPDATE photos SET burst_group_id=NULL')
+    conn.executemany('UPDATE photos SET clip_embedding=? WHERE path=?', [
+        (struct.pack('3f', 1, 0, 0), jpg), (struct.pack('3f', 1, 0, 0), raw),
+        (struct.pack('3f', 0.8502, math.sqrt(1 - 0.8502 ** 2), 0), other),
+    ])
+    conn.commit()
+    def count(threshold):
+        response = feed_client.get('/api/culling-groups', params={
+            'group_by': 'similar', 'similarity_threshold': threshold,
+        })
+        assert response.status_code == 200, response.text
+        return response.json()['total_groups']
+    # The first read may persist the similarity helper's disk cache; the
+    # second fills the enriched memo once that database write has settled.
+    assert count(0.8501) == count(0.8501) == 1
+    assert count(0.8504) == 0
+
+
+def test_grouped_memo_never_reuses_another_database(catalog, feed_client, monkeypatch, tmp_path):
+    from api import database
+
+    conn, key, jpg, raw, other = catalog
+    original_path = database.DEFAULT_DB_PATH
+    assert _feed_paths(feed_client) == {raw, other}
+    replacement = tmp_path / 'second.db'
+    with sqlite3.connect(replacement) as other_db:
+        conn.backup(other_db)
+        other_db.execute('UPDATE logical_assets SET primary_path=?,revision=revision+1 WHERE id=?', (jpg, key))
+    monkeypatch.setattr(database, 'DEFAULT_DB_PATH', str(replacement))
+    assert _feed_paths(feed_client) == {jpg, other}
+    monkeypatch.setattr(database, 'DEFAULT_DB_PATH', original_path)
+    assert _feed_paths(feed_client) == {raw, other}

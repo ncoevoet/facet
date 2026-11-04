@@ -15,6 +15,7 @@ import sqlite3
 import threading
 import time
 from collections import Counter
+from copy import deepcopy
 from dataclasses import dataclass, field
 from itertools import groupby
 from typing import Literal, Optional, Any
@@ -35,7 +36,7 @@ from api.db_helpers import (
     select_in_chunks, scope_cache_key, scope_sql as path_scope_sql, NO_VISIBILITY_SQL,
     SEQUENCE_OVERRIDE_SELECT, SEQUENCE_OVERRIDE_PENDING_SELECT,
 )
-from api.similarity_groups import compute_similarity_groups
+from api.similarity_groups import _get_similarity_config, compute_similarity_groups
 from api.routers.scenes import compute_scenes, apply_scene_cull, SceneConfirmBody
 from processing.burst_score import burst_weights_from_config, compute_burst_score
 from db.stats_cache import cache_stats_best_effort
@@ -1268,9 +1269,8 @@ def _culling_sort_reverse(sort, direction):
 # reuses one enrichment instead of re-materializing + re-scoring every group on
 # every page. Invalidated on any confirm (the unreviewed set shrinks) and on every
 # reject / favorite write (`exclude_rejected` is part of the feed). The key also
-# carries `_library_change_token`, so photos landing from another process (a scan,
-# a burst pass) miss the memo at once; the short TTL is only the backstop for what
-# neither can see.
+# carries the database's cross-process change token, including logical regrouping
+# and primary changes. Only unchanged computations enter the memo.
 _culling_groups_cache: dict = {}
 _CULLING_GROUPS_CACHE_TTL = 45.0
 _CULLING_GROUPS_CACHE_MAX = 16
@@ -1291,18 +1291,16 @@ def _invalidate_culling_groups_cache():
         _culling_groups_cache.clear()
 
 
-def _library_change_token(conn):
-    """Cheap fingerprint of the library: the latest scan run plus the photo count.
+def _library_change_token():
+    """Capture before opening the reader, so replacement cannot cache an old handle.
 
-    A scan runs in another process and cannot call ``_invalidate_culling_groups_cache``;
-    new photos or a started or finished run move this token. Grouping passes run from
-    the CLI (burst, bracket, panorama) touch neither, so they show once the memo expires.
-    ``processed_files`` is left out: it is rewritten about once a second during a scan.
+    A second observation before storage rejects computations crossed by any commit,
+    including the similarity helper's own best-effort cache write. Failed token
+    reads are unique misses. In-memory test databases simply cannot reuse the memo.
     """
-    run = conn.execute(
-        "SELECT id, status, finished_at FROM scan_runs ORDER BY id DESC LIMIT 1"
-    ).fetchone()
-    return (tuple(run) if run else None, conn.execute("SELECT COUNT(*) FROM photos").fetchone()[0])
+    from api import database
+    from api.change_token import db_change_token
+    return (str(database.DEFAULT_DB_PATH), db_change_token(database.DEFAULT_DB_PATH))
 
 
 def _cached_culling_groups(cache_key, now):
@@ -1624,6 +1622,7 @@ def api_culling_groups(
     if group_by not in _CULLING_GROUP_BY:
         group_by = 'all'
     date_from, date_to = window_or_400(date_from, date_to)
+    library_token = _library_change_token() if group_by != 'scene' else None
     with get_db() as conn:
         try:
             user_id = user.user_id if user else None
@@ -1644,15 +1643,13 @@ def api_culling_groups(
                 # Enriching + globally sorting the whole unreviewed set is identical
                 # across pages, so memo it and let pagination reuse one enrichment
                 # instead of re-materializing + re-scoring every group per page.
-                cache_key = (round(similarity_threshold, 3), seed, sort, direction, exclude_rejected,
+                cache_key = (similarity_threshold, seed, sort, direction, exclude_rejected,
                              user_id, album_id, date_from, date_to, group_by,
-                             _library_change_token(conn))
+                             vis_sql, tuple(vis_params), is_multi_user_enabled(), library_token,
+                             _get_burst_weights(), _get_face_thresholds(),
+                             tuple(sorted(_get_similarity_config().items())))
                 now = time.time()
-                from api.logical_culling import has_groups
-                # ponytail: no memo once photos are grouped, since _library_change_token misses regrouping and
-                # primary changes; key the memo on a logical revision if large feeds page slowly.
-                cacheable = not has_groups(conn)
-                cached_groups, generation = _cached_culling_groups(cache_key, now) if cacheable else (None, None)
+                cached_groups, generation = _cached_culling_groups(cache_key, now)
                 if cached_groups is not None:
                     all_groups = cached_groups
                 elif group_by in _KEEP_WHOLE_KINDS:
@@ -1682,7 +1679,7 @@ def api_culling_groups(
                                     reverse=_culling_sort_reverse(sort, direction))
                     if sort == 'chronological':
                         _order_group_photos_by_capture(all_groups)
-                    if cacheable:
+                    if library_token == _library_change_token():
                         _store_culling_groups(cache_key, now, all_groups, generation)
                 else:
                     burst_groups = []
@@ -1723,12 +1720,14 @@ def api_culling_groups(
                     if sort == 'chronological':
                         _order_group_photos_by_capture(all_groups)
 
-                    if cacheable:
+                    if library_token == _library_change_token():
                         _store_culling_groups(cache_key, now, all_groups, generation)
 
             total_groups = len(all_groups)
             total_pages, offset = paginate(total_groups, page, per_page)
-            page_groups = all_groups[offset:offset + per_page]
+            # Request-local annotations must not mutate photos shared by cached pages
+            # or another reader. Copy only this page, not the full enriched library.
+            page_groups = deepcopy(all_groups[offset:offset + per_page])
             attach_keeper_probs(conn, page_groups, user_id)
             attach_user_marks(conn, page_groups, user_id)
 
