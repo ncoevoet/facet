@@ -1,7 +1,7 @@
 import { Component, Pipe, PipeTransform, inject, signal, computed, input, effect, untracked, DestroyRef, ChangeDetectionStrategy } from '@angular/core';
 import { DecimalPipe, PercentPipe } from '@angular/common';
-import { NavigationStart, NavigationCancel, NavigationEnd, NavigationError, Router } from '@angular/router';
-import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
+import { Router } from '@angular/router';
+import { trackPendingNavigation } from '../../shared/utils/navigation-settled';
 import { MatButtonModule } from '@angular/material/button';
 import { MatIconModule } from '@angular/material/icon';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
@@ -375,7 +375,9 @@ export class PhotoAnalysisComponent {
   private readonly router = inject(Router);
   private readonly initialOwner = this.auth.identity();
   private readonly initialUrl = this.router.url;
-  private readonly pendingNavigation = signal(false);
+  private readonly pendingNavigation = trackPendingNavigation({ started: () => {
+    this.cancelRequests.next(); this.resetPhotoState();
+  } });
   private readonly reload = signal(0);
   private readonly cancelRequests = new Subject<void>();
   private epoch = 0;
@@ -383,17 +385,6 @@ export class PhotoAnalysisComponent {
   protected readonly generationError = signal(false);
 
   constructor() {
-    this.router.events.pipe(takeUntilDestroyed()).subscribe(event => {
-      if (event instanceof NavigationStart) {
-        this.pendingNavigation.set(true);
-        this.cancelRequests.next();
-        this.critique.set(null);
-        this.overlayOn.set(false);
-        this.faceMarkers.set([]);
-      } else if (event instanceof NavigationCancel || event instanceof NavigationError || event instanceof NavigationEnd) {
-        this.pendingNavigation.set(false);
-      }
-    });
     effect(onCleanup => {
       const path = this.photoPath();
       const locale = this.i18n.locale();
@@ -407,9 +398,7 @@ export class PhotoAnalysisComponent {
       const epoch = ++this.epoch;
       this.cancelRequests.next();
       this.context = null;
-      this.critique.set(null); this.error.set(null); this.generationError.set(false);
-      this.overlayOn.set(false); this.faceMarkers.set([]); this.showRejected.set(false);
-      this.vlmRefreshing.set(false); this.loading.set(false);
+      this.resetPhotoState();
       onCleanup(() => this.cancelRequests.next());
       if (pending || owner !== this.initialOwner || this.router.url !== this.initialUrl) return;
       const current = () => !this.destroyRef.destroyed && this.epoch === epoch
@@ -421,6 +410,12 @@ export class PhotoAnalysisComponent {
       untracked(() => { void this.loadEvidence(this.context!, vlm); });
     });
     this.destroyRef.onDestroy(() => { this.cancelRequests.next(); this.cancelRequests.complete(); });
+  }
+
+  private resetPhotoState(): void {
+    this.critique.set(null); this.error.set(null); this.generationError.set(false);
+    this.overlayOn.set(false); this.faceMarkers.set([]); this.showRejected.set(false);
+    this.vlmRefreshing.set(false); this.loading.set(false);
   }
 
   protected retry(): void { this.reload.update(value => value + 1); }

@@ -1,5 +1,6 @@
+import { timelineRouteActivity } from './timeline-route-activity';
 import { Component, DestroyRef, ElementRef, afterEveryRender, afterNextRender, computed, effect, inject, input, signal, untracked, ChangeDetectionStrategy } from '@angular/core';
-import { NavigationCancel, NavigationEnd, NavigationError, NavigationStart, Router, RouterLink } from '@angular/router';
+import { Router, RouterLink } from '@angular/router';
 import { Subscription } from 'rxjs';
 import { MatButtonModule } from '@angular/material/button';
 import { MatIconModule } from '@angular/material/icon';
@@ -88,7 +89,7 @@ export class TimelineFeedComponent {
   readonly year = input('');
   readonly month = input('');
   protected readonly selectedMonth = computed(() => this.year() && this.month() ? `${this.year()}-${this.month().padStart(2, '0')}` : '');
-  protected readonly active = signal(true);
+  protected readonly active = timelineRouteActivity(() => { this.remember(); this.cancel(); });
   protected readonly groups = signal<TimelineGroup[]>([]);
   protected readonly loading = signal(false);
   protected readonly error = signal(false);
@@ -136,14 +137,8 @@ export class TimelineFeedComponent {
         this.restoreScroll = null;
       }
     } });
-    const navigation = this.router.events.subscribe(event => {
-      if (event instanceof NavigationStart) { this.remember(); this.active.set(false); this.cancel(); }
-      else if (event instanceof NavigationCancel || event instanceof NavigationError || event instanceof NavigationEnd) {
-        this.active.set(this.router.url.split('?')[0].startsWith('/timeline'));
-      }
-    });
     inject(DestroyRef).onDestroy(() => {
-      navigation.unsubscribe(); this.cancel(); this.scrollOwner?.removeEventListener('scroll', this.remember);
+      this.cancel(); this.scrollOwner?.removeEventListener('scroll', this.remember);
     });
   }
 

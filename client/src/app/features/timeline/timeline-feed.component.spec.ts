@@ -24,7 +24,7 @@ describe('Timeline photo feed', () => {
     const photos = signal<Photo[]>([]);
     const timelineMembershipRevision = signal(0);
     TestBed.configureTestingModule({ imports: [TimelineFeedComponent], providers: [
-      provideRouter([{ path: 'timeline', component: OtherPage }, { path: 'photo', component: OtherPage }]),
+      provideRouter([{ path: 'timeline', component: OtherPage }, { path: 'timeline/:year/:month', component: OtherPage }, { path: 'photo', component: OtherPage }]),
       { provide: ApiService, useValue: api }, { provide: AuthService, useValue: auth },
       { provide: GalleryStore, useValue: { viewFilterParams: visibility, photos, timelineMembershipRevision } },
       { provide: I18nService, useValue: { t: (key: string, params?: object) => key + (params ? JSON.stringify(params) : ''), translations: () => ({}) } },
@@ -111,6 +111,45 @@ describe('Timeline photo feed', () => {
     expect(v.router.url).toBe('/photo?path=%2Ffirst.jpg');
     expect(TestBed.inject(TimelineFeedCache).adjacent('/first.jpg', 1)).toBe('/second.jpg');
     expect(navigate).toHaveBeenCalledWith(['/photo'], expect.objectContaining({ state: expect.objectContaining({ photoOrigin: 'timeline' }) })); v.dispose();
+  });
+
+  it.each([{ ctrlKey: true }, { metaKey: true }, { shiftKey: true }, { altKey: true }, { button: 1 }])(
+    'leaves modified thumbnail clicks to the browser: %j', async modifiers => {
+      const v = await setup(); const navigate = vi.spyOn(v.router, 'navigate');
+      const event = new MouseEvent('click', { bubbles: true, cancelable: true, ...modifiers });
+      v.root.querySelector<HTMLAnchorElement>('section .grid a')!.dispatchEvent(event);
+      expect(event.defaultPrevented).toBe(false); expect(navigate).not.toHaveBeenCalled();
+      expect(TestBed.inject(TimelineFeedCache).adjacent('/first.jpg', 1)).toBeNull(); v.dispose();
+    });
+
+  it('drives direction and month navigation from the visible controls', async () => {
+    const v = await setup();
+    v.root.querySelector<HTMLButtonElement>('div > button')!.click(); await v.settle();
+    expect(v.filters.sortDirection()).toBe('newer');
+    expect(v.api.get).toHaveBeenLastCalledWith('/timeline', expect.objectContaining({ direction: 'newer' }));
+    const month = v.root.querySelector<HTMLInputElement>('input[type=month]')!;
+    month.value = '2026-02'; month.dispatchEvent(new Event('change', { bubbles: true })); await v.settle();
+    expect(v.router.url).toBe('/timeline/2026/2'); v.dispose();
+  });
+
+  it.each(['older', 'newer'] as const)('continues after the 128-day cap in the %s direction', async direction => {
+    const v = await setup(); v.filters.sortDirection.set(direction);
+    const groups = Array.from({ length: 128 }, (_, index) => ({
+      date: new Date(Date.UTC(2026, 10, 1 - index)).toISOString().slice(0, 10), count: 0, photos: [],
+    }));
+    const cursor = groups[127].date;
+    v.api.get.mockReturnValueOnce(of({ groups, has_more: true, next_cursor: cursor }));
+    v.visibility.set({ hide_bursts: '0', hide_duplicates: '0' }); await v.settle();
+    expect(v.root.querySelectorAll('h2')).toHaveLength(128);
+    v.wrapper.scrollTop = 240;
+    const button = [...v.root.querySelectorAll<HTMLButtonElement>('button')].find(item => item.textContent?.includes('timeline.continue_dates'))!;
+    expect(button).toBeTruthy();
+    v.api.get.mockReturnValueOnce(of({ groups: [], has_more: false, next_cursor: null }));
+    button.click(); await v.settle();
+    const expected = direction === 'older' ? '2026-06-26' : '2026-06-28';
+    expect(direction === 'older' ? v.filters.dateTo() : v.filters.dateFrom()).toBe(expected);
+    expect(v.api.get).toHaveBeenLastCalledWith('/timeline', expect.objectContaining(direction === 'older' ? { date_to: expected, cursor: '' } : { date_from: expected, cursor: '' }));
+    expect(v.wrapper.scrollTop).toBe(0); v.dispose();
   });
 
   it.each(['removed', 'capture-date changed'])('re-reads instead of returning a stale tile after a photo was %s', async change => {

@@ -282,11 +282,19 @@ describe('PhotoAnalysisComponent VLM generation', () => {
     expect(component.loading()).toBe(false);
   });
 
-  it('does not POST when a critique is stored or generation is unavailable', async () => {
+  it('hides Generate for stored or unavailable commentary and for readers', async () => {
     const stored = await setup({ vlm_critique: 'Stored.', vlm_source: 'cached' });
+    expect(stored.fixture.nativeElement.querySelector('[data-analysis-generate]')).toBeNull();
     expect(stored.api.post).not.toHaveBeenCalled();
     const unavailable = await setup({ vlm_available: false });
+    expect(unavailable.fixture.nativeElement.querySelector('[data-analysis-generate]')).toBeNull();
     expect(unavailable.api.post).not.toHaveBeenCalled();
+    const reader = await setup({ vlm_available: true }, false);
+    expect(reader.fixture.nativeElement.querySelector('[data-analysis-generate]')).toBeNull();
+    const available = await setup({ vlm_available: true });
+    available.fixture.nativeElement.querySelector('[data-analysis-generate]').click();
+    await available.fixture.whenStable();
+    expect(available.api.post).toHaveBeenCalledExactlyOnceWith('/critique/vlm', { path: '/p/x.jpg', lang: 'fr', refresh: false });
   });
 
   it('translates stored commentary only on explicit edition-user request', async () => {

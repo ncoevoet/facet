@@ -1,5 +1,5 @@
 import { Directive, DestroyRef, computed, effect, inject, signal } from '@angular/core';
-import { Router, NavigationStart, NavigationEnd, NavigationCancel, NavigationError } from '@angular/router';
+import { timelineRouteActivity } from './timeline-route-activity';
 import { Subscription } from 'rxjs';
 import { ApiService } from '../../core/services/api.service';
 import { AuthService } from '../../core/services/auth.service';
@@ -9,8 +9,7 @@ import { AuthService } from '../../core/services/auth.service';
 export abstract class TimelineCollectionReader {
   private readonly api = inject(ApiService);
   private readonly auth = inject(AuthService);
-  private readonly router = inject(Router);
-  private readonly active = signal(true);
+  private readonly active = timelineRouteActivity(() => this.cancelRead());
   protected readonly loading = signal(false);
   protected readonly failed = signal(false);
   protected readonly retry = signal(0);
@@ -23,11 +22,7 @@ export abstract class TimelineCollectionReader {
 
   constructor() {
     effect(() => { if (!this.readScope()) this.cancelRead(); });
-    const navigation = this.router.events.subscribe(event => {
-      if (event instanceof NavigationStart) { this.active.set(false); this.cancelRead(); }
-      else if (event instanceof NavigationEnd || event instanceof NavigationCancel || event instanceof NavigationError) this.active.set(/^\/timeline(?:\/|$)/.test(this.router.url.split('?')[0]));
-    });
-    inject(DestroyRef).onDestroy(() => { navigation.unsubscribe(); this.cancelRead(); });
+    inject(DestroyRef).onDestroy(() => this.cancelRead());
   }
 
   protected cancelRead(): void {

@@ -1,6 +1,6 @@
-import { Component, DestroyRef, ChangeDetectionStrategy, computed, effect, inject, input, signal, untracked } from '@angular/core';
-import { ActivatedRoute, Router, NavigationStart, NavigationEnd, NavigationCancel, NavigationError } from '@angular/router';
-import { Subscription } from 'rxjs';
+import { Component, ChangeDetectionStrategy, computed, effect, inject, input, signal, untracked } from '@angular/core';
+import { ActivatedRoute, Router } from '@angular/router';
+import { timelineRouteActivity } from './timeline-route-activity';
 import { MatButtonModule } from '@angular/material/button';
 import { ApiService } from '../../core/services/api.service';
 import { AuthService } from '../../core/services/auth.service';
@@ -89,7 +89,7 @@ export class TimelineDensityComponent {
   readonly year = input('');
   readonly month = input('');
   protected readonly open = signal(inject(ActivatedRoute).snapshot.queryParamMap.get('density') === '1');
-  protected readonly active = signal(true);
+  protected readonly active = timelineRouteActivity();
   protected readonly logScale = signal(false);
   protected readonly selectingRange = signal(false);
   protected readonly unit = signal<'auto' | 'week'>('auto');
@@ -137,11 +137,7 @@ export class TimelineDensityComponent {
       });
       onCleanup(() => { valid = false; request.unsubscribe(); });
     });
-    const navigation: Subscription = this.router.events.subscribe(event => {
-      if (event instanceof NavigationStart) this.active.set(false);
-      else if (event instanceof NavigationEnd || event instanceof NavigationCancel || event instanceof NavigationError) this.active.set(/^\/timeline(?:\/|$)/.test(this.router.url.split('?')[0]));
-    });
-    inject(DestroyRef).onDestroy(() => navigation.unsubscribe());
+
   }
 
   protected toggle(event: Event): void { this.open.set((event.target as HTMLDetailsElement).open); }

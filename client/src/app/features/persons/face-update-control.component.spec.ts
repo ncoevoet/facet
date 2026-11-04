@@ -243,4 +243,57 @@ describe('FaceUpdateControlComponent', () => {
     await open(); scan.canLaunch.set(false); await settle();
     expect(root.querySelector('section')).toBeNull(); expect(root.querySelector('[data-update-faces]')).toBeNull(); dispose();
   });
+
+  it('rejects a preview for a different processing mode', async () => {
+    const { root, api, open, dispose } = await render();
+    api.get.mockImplementation((url: string) => of(url.endsWith('/preview') ? { ...preview, mode: 'redetect' } : []));
+    await open(); expect(root.querySelector('[data-start-faces]')).toBeNull();
+    expect(root.textContent).toContain('persons.face_update.read_error');
+    expect(api.post).not.toHaveBeenCalled(); dispose();
+  });
+
+  it('keeps the original request recoverable when Start returns another receipt', async () => {
+    const { root, api, open, settle, dispose } = await render(); await open();
+    api.post.mockReturnValueOnce(of({ ...receipt, job_id: 'wrong-receipt' }));
+    root.querySelector<HTMLButtonElement>('[data-start-faces]')!.click(); await settle();
+    expect(root.querySelector('[data-face-update-receipt]')).toBeNull();
+    expect(root.querySelector('[data-retry-face-start]')).not.toBeNull();
+    const request = api.post.mock.calls[0][1];
+    root.querySelector<HTMLButtonElement>('[data-retry-face-start]')!.click(); await settle();
+    expect(api.post).toHaveBeenLastCalledWith('/scan/faces/start', request); dispose();
+  });
+
+  it('refuses another job from status and Stop responses without replacing the selected receipt', async () => {
+    const { root, api, open, settle, dispose } = await render();
+    api.get.mockImplementation((url: string) => of(url.endsWith('/preview') ? preview : url.endsWith('/jobs') ? [receipt] : receipt));
+    await open();
+    api.get.mockReturnValueOnce(of({ ...receipt, job_id: 'wrong', processed: 999 }));
+    root.querySelector<HTMLButtonElement>('[data-read-face-status]')!.click(); await settle();
+    expect(root.textContent).not.toContain('"processed":999');
+    root.querySelector<HTMLButtonElement>('[data-stop-faces]')!.click(); await settle();
+    api.post.mockReturnValueOnce(of({ ...receipt, job_id: 'wrong', processed: 999 }));
+    root.querySelector<HTMLButtonElement>('[data-confirm-stop-faces]')!.click(); await settle();
+    expect(api.post).toHaveBeenCalledWith(`/scan/faces/jobs/${receipt.job_id}/cancel`, { job_id: receipt.job_id, confirm: true });
+    expect(root.textContent).toContain('persons.face_update.stop_unknown');
+    expect(root.textContent).not.toContain('"processed":999'); dispose();
+  });
+
+  it('polls a live worker receipt and stops scheduling after completion', async () => {
+    const { root, api, open, settle, dispose } = await render();
+    const realTimeout = globalThis.setTimeout;
+    let poll: (() => void) | null = null;
+    const timer = vi.spyOn(globalThis, 'setTimeout').mockImplementation((callback, delay, ...args) => {
+      if (delay === 2000) { poll = callback as () => void; return 0 as unknown as ReturnType<typeof setTimeout>; }
+      return realTimeout(callback, delay, ...args);
+    });
+    try {
+      api.get.mockImplementation((url: string) => of(url.endsWith('/preview') ? preview : url.endsWith('/jobs') ? [{ ...receipt, controlled_by_worker: true }] : receipt));
+      await open(); expect(poll).toBeTypeOf('function');
+      api.get.mockReturnValueOnce(of({ ...receipt, state: 'completed', processed: 12, controlled_by_worker: true }));
+      const callback = poll!; poll = null; callback(); await settle();
+      expect(api.get).toHaveBeenLastCalledWith(`/scan/faces/jobs/${receipt.job_id}`);
+      expect(root.querySelector('[data-face-update-receipt]')?.textContent).toContain('"processed":12,"total":12');
+      expect(poll).toBeNull();
+    } finally { dispose(); timer.mockRestore(); }
+  });
 });

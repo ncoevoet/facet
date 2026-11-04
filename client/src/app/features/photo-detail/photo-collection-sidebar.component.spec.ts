@@ -85,6 +85,24 @@ describe('PhotoCollectionSidebarComponent', () => {
     pointer('pointerup', 170); expect(root.style.width).toBe('262px');
     flush(); fixture.detectChanges(); expect(root.style.width).toBe('262px');
   });
+
+  it.each(['lostpointercapture', 'Escape'])('restores the starting width after %s during a drag', kind => {
+    const { fixture, root, divider } = render(); flush();
+    divider().dispatchEvent(new PointerEvent('pointerdown', { clientX: 100, pointerId: 1, isPrimary: true, bubbles: true }));
+    divider().dispatchEvent(new PointerEvent('pointermove', { clientX: 180, pointerId: 1, isPrimary: true, bubbles: true }));
+    flush(); fixture.detectChanges(); expect(root.style.width).toBe('272px');
+    if (kind === 'Escape') divider().dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true, cancelable: true }));
+    else divider().dispatchEvent(new PointerEvent(kind, { pointerId: 1, bubbles: true }));
+    fixture.detectChanges(); expect(root.style.width).toBe('192px');
+    flush(); fixture.detectChanges(); expect(root.style.width).toBe('192px');
+  });
+
+  it('disables loading more while a page is pending', () => {
+    const { fixture, root } = render(); const more = vi.fn(); fixture.componentInstance.more.subscribe(more);
+    fixture.componentRef.setInput('loading', true); fixture.detectChanges();
+    const button = root.querySelector<HTMLButtonElement>('div[tabindex] > button')!;
+    expect(button.disabled).toBe(true); button.click(); expect(more).not.toHaveBeenCalled();
+  });
   it('scrolls only its own collection viewport to reveal the current photo', () => {
     const { root } = render();
     const viewport = root.querySelector<HTMLElement>('div[tabindex]')!;

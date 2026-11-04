@@ -103,6 +103,27 @@ describe('ShareDialogComponent', () => {
       fixture.destroy();
     });
 
+    it('blocks copying an album link until its recipient policy has loaded', async () => {
+      createComponent({ ...albumData, autoGenerate: false });
+      const writeText = vi.fn().mockResolvedValue(undefined);
+      Object.assign(navigator, { clipboard: { writeText } });
+      component.shareUrl.set('/shared/album/1?token=abc');
+      await component.copyLink(); expect(writeText).not.toHaveBeenCalled();
+      await component.readPolicy(); await component.copyLink();
+      expect(writeText).toHaveBeenCalledExactlyOnceWith(expect.stringContaining('/shared/album/1?token=abc'));
+    });
+
+    it('shows changing smart-album membership and enabled proofing to the sender', async () => {
+      mockApi.get.mockReturnValue(of({ sharing_policy: { ...policy, membership: 'smart', proofing: true }, total: 9 }));
+      createComponent(albumData);
+      const fixture = TestBed.createComponent(ShareDialogComponent);
+      fixture.detectChanges(); await fixture.whenStable(); fixture.detectChanges();
+      expect(fixture.nativeElement.textContent).toContain('albums.share_smart_scope');
+      expect(fixture.nativeElement.textContent).toContain('albums.share_proofing_on');
+      expect(fixture.nativeElement.textContent).not.toContain('albums.share_manual_scope');
+      fixture.destroy();
+    });
+
     it('discards a prior-account link completion without reading recipient data', async () => {
       createComponent(albumData);
       const completion = new Subject<Record<string, unknown>>();

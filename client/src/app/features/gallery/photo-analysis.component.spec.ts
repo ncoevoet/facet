@@ -56,6 +56,33 @@ describe('PhotoAnalysisComponent ownership', () => {
     expect(api.post).not.toHaveBeenCalled();
   });
 
+  it('recovers a failed evidence read through the rendered retry action', async () => {
+    const { fixture, root, reads, api } = render();
+    reads[0].error(new Error('offline')); await fixture.whenStable(); fixture.detectChanges();
+    expect(root.querySelector('[data-analysis-retry]')).not.toBeNull();
+    root.querySelector<HTMLButtonElement>('[data-analysis-retry]')!.click(); fixture.detectChanges();
+    expect(reads).toHaveLength(2); reads[1].next(evidence); await fixture.whenStable(); fixture.detectChanges();
+    expect(root.textContent).toContain('7.00'); expect(root.querySelector('[data-analysis-retry]')).toBeNull();
+    expect(api.post).not.toHaveBeenCalled();
+  });
+
+  it('preserves evidence after generation fails and refreshes stored commentary explicitly', async () => {
+    const { fixture, root, reads, api, generation } = render();
+    reads[0].next(evidence); await fixture.whenStable(); fixture.detectChanges();
+    root.querySelector<HTMLButtonElement>('[data-analysis-generate]')!.click();
+    generation.error(new Error('model unavailable')); await fixture.whenStable(); fixture.detectChanges();
+    expect(root.textContent).toContain('7.00'); expect(root.textContent).toContain('critique.error_fallback');
+    api.post.mockReturnValueOnce(of({ ...evidence, vlm_critique: 'Stored commentary', vlm_source: 'cached' }));
+    root.querySelector<HTMLButtonElement>('[data-analysis-generate]')!.click(); await fixture.whenStable(); fixture.detectChanges();
+    expect(root.textContent).toContain('Stored commentary');
+    const refresh = root.querySelector<HTMLButtonElement>('[aria-label="critique.vlm_refresh"]')!;
+    expect(refresh).toBeTruthy();
+    api.post.mockReturnValueOnce(of({ ...evidence, vlm_critique: 'Fresh commentary', vlm_source: 'generated' }));
+    refresh.click(); await fixture.whenStable(); fixture.detectChanges();
+    expect(api.post).toHaveBeenLastCalledWith('/critique/vlm', { path: '/first.jpg', lang: 'en', refresh: true });
+    expect(root.textContent).toContain('Fresh commentary'); expect(root.textContent).not.toContain('Stored commentary');
+  });
+
   it('labels the score columns and keeps calculation background behind dismissible help', async () => {
     const { fixture, root, reads, api } = render();
     reads[0].next({ ...evidence, current_formula_score: 7,
