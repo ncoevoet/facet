@@ -40,7 +40,7 @@ describe('Manual keyword catalog ownership and captured changes', () => {
   async function open(): Promise<void> {
     component.toggle(true);
     http.expectOne(request => request.url === '/api/manual_tags/catalog' && request.params.get('limit') === '50').flush(catalog);
-    await Promise.resolve(); await Promise.resolve(); fixture.detectChanges();
+    await fixture.whenStable(); fixture.detectChanges();
   }
   async function capture(): Promise<void> {
     component.manage('animals/cat'); component.target.set('zoo/cat');
@@ -93,8 +93,8 @@ describe('Manual keyword catalog ownership and captured changes', () => {
     const request = http.expectOne('/api/manual_tags/manage/apply');
     expect(request.request.body).toEqual({ source: 'animals/cat', target: 'zoo/cat', preview_token: 'signed-preview' });
     request.flush({ source: 'animals/cat', target: 'zoo/cat', changed: 2 });
-    await Promise.resolve(); await Promise.resolve(); await Promise.resolve();
-    http.expectOne(request => request.url === '/api/manual_tags/catalog').flush(catalog);
+    const reload = await vi.waitFor(() => http.expectOne(request => request.url === '/api/manual_tags/catalog'));
+    reload.flush(catalog);
     await pending;
     expect(refresh).toHaveBeenCalledExactlyOnceWith(['/a.jpg', '/b.jpg']);
     expect(component.result()?.changed).toBe(2);
@@ -161,5 +161,34 @@ describe('Manual keyword catalog ownership and captured changes', () => {
     expect(refresh).toHaveBeenCalledExactlyOnceWith(['/a.jpg', '/b.jpg']);
     expect(component.result()).toBeNull(); expect(component.plan()).toBeNull();
     http.expectNone(() => true);
+  });
+
+  it('previews removal with a null target and leaves definite refusals editable', async () => {
+    build(); await open(); component.manage('animals/cat');
+    const pending = component.preview(true);
+    const read = http.expectOne('/api/manual_tags/manage/preview');
+    expect(read.request.body).toEqual({ source: 'animals/cat', target: null });
+    read.flush({ ...preview, target: null, removed: 2 }); await pending;
+    const apply = component.apply();
+    http.expectOne('/api/manual_tags/manage/apply').flush({}, { status: 422, statusText: 'Refused' });
+    await apply; http.expectNone(request => request.url === '/api/manual_tags/catalog');
+    expect(component.error()).toBe(true);
+    expect(component.uncertain()).toBe(false); expect(component.plan()).toBeNull();
+    expect(refresh).not.toHaveBeenCalled();
+    component.manage('animals/cat'); expect(component.source()).toBe('animals/cat');
+  });
+
+  it('requests the next catalog cursor and pages the captured affected paths', async () => {
+    build(); await open();
+    const paging = component.load('animals/cat');
+    const read = http.expectOne(request => request.url === '/api/manual_tags/catalog');
+    expect(read.request.params.get('after')).toBe('animals/cat');
+    read.flush({ ...catalog, items: [{ ...catalog.items[0], tag: 'zoo' }] }); await paging;
+    component.manage('zoo'); component.target.set('park');
+    const pending = component.preview(false);
+    const paths = Array.from({ length: 26 }, (_, index) => `/photo-${index}.jpg`);
+    http.expectOne('/api/manual_tags/manage/preview').flush({ ...preview, source: 'zoo', target: 'park', paths }); await pending;
+    expect(component.previewPaths()).toEqual(paths.slice(0, 25));
+    component.targetPage.set(1); expect(component.previewPaths()).toEqual([paths[25]]);
   });
 });

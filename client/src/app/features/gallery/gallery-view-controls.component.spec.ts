@@ -1,7 +1,8 @@
 import { AuthService } from '../../core/services/auth.service';
 import { GalleryReviewNavigationService } from './gallery-review-navigation.service';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
-import { signal } from '@angular/core';
+import { Component, signal, TemplateRef } from '@angular/core';
+import { NgTemplateOutlet } from '@angular/common';
 import { By } from '@angular/platform-browser';
 import { MatMenuTrigger } from '@angular/material/menu';
 import { Event, NavigationCancel, NavigationCancellationCode, NavigationEnd, NavigationError, NavigationSkipped, NavigationStart, Router } from '@angular/router';
@@ -12,6 +13,11 @@ import { I18nService } from '../../core/services/i18n.service';
 import { I18N } from '../../core/i18n/keys';
 
 afterEach(() => TestBed.resetTestingModule());
+
+@Component({ imports: [NgTemplateOutlet], template: '<ng-container [ngTemplateOutlet]="template" />' })
+class RehostedControls {
+  template: TemplateRef<unknown> | null = null;
+}
 
 describe('GalleryViewControlsComponent', () => {
     function render(config: { features?: { show_my_taste?: boolean; show_rating_controls?: boolean }; sort_options_grouped?: ViewerConfig['sort_options_grouped'] } | null = null) {
@@ -36,6 +42,37 @@ describe('GalleryViewControlsComponent', () => {
     fixture.detectChanges();
     return { fixture, root: fixture.nativeElement as HTMLElement, store, navigation, edition };
   }
+
+    it('moves primary and filter controls into a different host without duplicating commands', () => {
+      const { fixture, root, store } = render();
+      fixture.componentRef.setInput('portPrimary', true);
+      fixture.componentRef.setInput('portFilters', true); fixture.detectChanges();
+      expect(root.querySelector('[data-collection-sort]')).toBeNull();
+      expect(root.querySelector('[aria-label="gallery.filters"]')).toBeNull();
+      const primary = TestBed.createComponent(RehostedControls);
+      primary.componentInstance.template = fixture.componentInstance.primaryControls()!;
+      primary.detectChanges();
+      expect(primary.nativeElement.querySelectorAll('[data-collection-sort]')).toHaveLength(1);
+      const filters = TestBed.createComponent(RehostedControls);
+      filters.componentInstance.template = fixture.componentInstance.filterControls()!;
+      filters.detectChanges();
+      filters.nativeElement.querySelector('button').click();
+      expect(store.setFilterDrawerOpen).toHaveBeenCalledExactlyOnceWith(false);
+      fixture.componentInstance.setActive(false);
+      filters.nativeElement.querySelector('button').click();
+      expect(store.setFilterDrawerOpen).toHaveBeenCalledTimes(1);
+    });
+
+    it('does not unlock commands when an older navigation finishes', () => {
+      const { root, store, navigation } = render();
+      const list = root.querySelector<HTMLButtonElement>('[data-gallery-layout=list]')!;
+      navigation.next(new NavigationStart(2, '/photo'));
+      navigation.next(new NavigationStart(3, '/photo'));
+      navigation.next(new NavigationEnd(2, '/photo', '/photo')); list.click();
+      expect(store.setGalleryMode).not.toHaveBeenCalled();
+      navigation.next(new NavigationEnd(3, '/photo', '/photo')); list.click();
+      expect(store.setGalleryMode).toHaveBeenCalledExactlyOnceWith('list');
+    });
 
     it('selects metadata list as presentation only and refuses parked-navigation commands', () => {
       const { fixture, root, store, navigation } = render();

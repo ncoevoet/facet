@@ -147,4 +147,40 @@ describe('Captured hierarchy editor', () => {
     expect(read.cancelled).toBe(true); await pending;
     expect(fixture.componentInstance.plan()).toBeNull();
   });
+
+  it('filters self, descendants and cycles from move parents and previews the chosen parent', async () => {
+    build(); const component = fixture.componentInstance;
+    const other = { ...node, id: 'other', name: 'Other', segments: ['Other'] };
+    fixture.componentRef.setInput('nodes', [node, other,
+      { ...node, id: 'child', parent_id: id }, { ...node, id: 'cycle-a', parent_id: 'cycle-b' },
+      { ...node, id: 'cycle-b', parent_id: 'cycle-a' }]); fixture.detectChanges();
+    expect(component.parents().map(parent => parent.id)).toEqual(['other']);
+    component.setAction('move'); component.parent.set('other');
+    const pending = component.preview();
+    const request = http.expectOne('/api/manual_tags/hierarchy/preview');
+    expect(request.request.body).toEqual({ action: 'move', node_id: id, parent_id: 'other' });
+    request.flush({ request: request.request.body, paths: [], before_path: node.segments, after_path: ['Other', 'Cat'],
+      preview_token: 'move', expires_at: 9999999999 }); await pending;
+    component.setAction('delete_branch');
+    const deleting = component.preview(); const deletion = http.expectOne('/api/manual_tags/hierarchy/preview');
+    expect(deletion.request.body).toEqual({ action: 'delete_branch', node_id: id });
+    deletion.flush({ request: deletion.request.body, paths: [], preview_token: 'delete', expires_at: 9999999999 }); await deleting;
+  });
+
+  it('refuses expired previews and handles definite write rejection without recovery reads', async () => {
+    build(); const plan = await capture(); plan.expires_at = 1;
+    await fixture.componentInstance.apply(); http.expectNone('/api/manual_tags/hierarchy/apply');
+    expect(fixture.componentInstance.plan()).toBeNull();
+    await capture(); const pending = fixture.componentInstance.apply();
+    http.expectOne('/api/manual_tags/hierarchy/apply').flush({}, { status: 409, statusText: 'Changed' }); await pending;
+    expect(fixture.componentInstance.uncertain()).toBe(false);
+    expect(fixture.componentInstance.plan()).toBeNull(); expect(refresh).not.toHaveBeenCalled();
+  });
+
+  it('refreshes membership rather than only changed rows when a keyword branch is active', async () => {
+    build(); filters.update(current => ({ ...current, keyword_branch: id })); fixture.detectChanges();
+    await capture(); const pending = fixture.componentInstance.apply();
+    http.expectOne('/api/manual_tags/hierarchy/apply').flush(result); await pending;
+    expect(refresh).toHaveBeenCalledExactlyOnceWith(null);
+  });
 });

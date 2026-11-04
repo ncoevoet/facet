@@ -1,7 +1,6 @@
 import { NgTemplateOutlet } from '@angular/common';
 import { afterNextRender, ChangeDetectionStrategy, Component, computed, DestroyRef, inject, input, signal, TemplateRef, viewChild, viewChildren } from '@angular/core';
-import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
-import { NavigationCancel, NavigationCancellationCode, NavigationEnd, NavigationError, NavigationSkipped, NavigationStart, Router } from '@angular/router';
+import { trackPendingNavigation } from '../../shared/utils/navigation-settled';
 import { MatBadgeModule } from '@angular/material/badge';
 import { MatButtonModule } from '@angular/material/button';
 import { MatIconModule } from '@angular/material/icon';
@@ -13,7 +12,7 @@ import { SortOptionIconPipe } from '../../shared/pipes/sort-option-icon.pipe';
 import { SortGroupKeyPipe } from '../../shared/pipes/sort-group-key.pipe';
 import { useDesktopSignal, DETAILS_RAIL_MIN_WIDTH_PX } from '../../shared/utils/media-query';
 import { GalleryFilters, GalleryStore } from './gallery.store';
-import { TILE_FITS } from './gallery-filters.util';
+import { TILE_FITS, PanelActivation, TooltipMode } from './gallery-filters.util';
 import { closeOverlayDirectives } from '../../shared/utils/overlays';
 import { GalleryDisplayPreset, galleryPresentation } from './gallery-presentation.util';
 import { AuthService } from '../../core/services/auth.service';
@@ -119,7 +118,6 @@ const sortOptionLabelKey = (column: string): string => `sort_options.${column}`;
           }}</mat-icon>
         <span class="hidden @[1120px]:inline">{{ I18N.gallery.tooltip_mode.label | translate }}</span></button>
 <button
-          class=""
           mat-icon-button
           (click)="toggleSlideshow()"
           [matTooltip]="I18N.slideshow.start | translate"
@@ -127,85 +125,37 @@ const sortOptionLabelKey = (column: string): string => `sort_options.${column}`;
         >
           <mat-icon [style.color]="store.slideshowActive() ? 'var(--mat-sys-primary)' : ''">slideshow</mat-icon>
         </button>
-<mat-menu #tooltipModeMenu="matMenu">
-    <button mat-menu-item role="menuitemradio" [disabled]="!canUseHoverTooltips() && store.filters().tooltip_mode !== 'hover'" [attr.aria-checked]="store.filters().tooltip_mode === 'hover'" (click)="setPresentationFilter('tooltip_mode', 'hover')">
-      <mat-icon aria-hidden="true">chat_bubble_outline</mat-icon>
-      <span class="flex items-center gap-4">
-        <span class="grow">{{ I18N.gallery.tooltip_mode.hover | translate }}</span>
-        @if (store.filters().tooltip_mode === 'hover') {
-          <span class="flex"><mat-icon aria-hidden="true">check</mat-icon></span>
+    <mat-menu #tooltipModeMenu="matMenu">
+      @for (mode of tooltipModes(); track mode.id) {
+        <button mat-menu-item role="menuitemradio"
+                [disabled]="mode.id === 'hover' && !canUseHoverTooltips() && store.filters().tooltip_mode !== 'hover'"
+                [attr.aria-checked]="store.filters().tooltip_mode === mode.id"
+                (click)="setPresentationFilter('tooltip_mode', mode.id)">
+          <mat-icon aria-hidden="true">{{ mode.icon }}</mat-icon>
+          <span class="flex items-center gap-4">
+            <span class="grow">{{ mode.label | translate }}</span>
+            @if (store.filters().tooltip_mode === mode.id) { <mat-icon aria-hidden="true">check</mat-icon> }
+          </span>
+        </button>
+        @if (mode.id === 'panel' && store.filters().tooltip_mode === 'panel') {
+          <button mat-menu-item [matMenuTriggerFor]="panelActivationMenu">
+            <mat-icon aria-hidden="true">{{ panelActivationIcon() }}</mat-icon>{{ I18N.gallery.panel_activation.label | translate }}
+          </button>
         }
-      </span>
-    </button>
-    <button mat-menu-item role="menuitemradio" [attr.aria-checked]="store.filters().tooltip_mode === 'click'" (click)="setPresentationFilter('tooltip_mode', 'click')">
-      <mat-icon aria-hidden="true">touch_app</mat-icon>
-      <span class="flex items-center gap-4">
-        <span class="grow">{{ I18N.gallery.tooltip_mode.click | translate }}</span>
-        @if (store.filters().tooltip_mode === 'click') {
-          <span class="flex"><mat-icon aria-hidden="true">check</mat-icon></span>
-        }
-      </span>
-    </button>
-    @if (canDockDetails()) {
-      <button mat-menu-item role="menuitemradio" [attr.aria-checked]="store.filters().tooltip_mode === 'panel'" (click)="setPresentationFilter('tooltip_mode', 'panel')">
-        <mat-icon aria-hidden="true">view_sidebar</mat-icon>
-        <span class="flex items-center gap-4">
-          <span class="grow">{{ I18N.gallery.tooltip_mode.panel | translate }}</span>
-          @if (store.filters().tooltip_mode === 'panel') {
-            <span class="flex"><mat-icon aria-hidden="true">check</mat-icon></span>
-          }
-        </span>
-      </button>
-      @if (store.filters().tooltip_mode === 'panel') {
-        <button mat-menu-item [matMenuTriggerFor]="panelActivationMenu">
-          <mat-icon aria-hidden="true">{{
-            store.filters().panel_activation === 'hover' ? 'chat_bubble_outline'
-            : store.filters().panel_activation === 'click' ? 'touch_app'
-            : 'swap_horiz'
-          }}</mat-icon>
-          {{ I18N.gallery.panel_activation.label | translate }}
+      }
+    </mat-menu>
+    <mat-menu #panelActivationMenu="matMenu">
+      @for (mode of panelActivationModes; track mode.id) {
+        <button mat-menu-item role="menuitemradio" [attr.aria-checked]="store.filters().panel_activation === mode.id"
+                (click)="setPresentationFilter('panel_activation', mode.id)">
+          <mat-icon aria-hidden="true">{{ mode.icon }}</mat-icon>
+          <span class="flex items-center gap-4">
+            <span class="grow">{{ mode.label | translate }}</span>
+            @if (store.filters().panel_activation === mode.id) { <mat-icon aria-hidden="true">check</mat-icon> }
+          </span>
         </button>
       }
-    }
-    <button mat-menu-item role="menuitemradio" [attr.aria-checked]="store.filters().tooltip_mode === 'off'" (click)="setPresentationFilter('tooltip_mode', 'off')">
-      <mat-icon aria-hidden="true">visibility_off</mat-icon>
-      <span class="flex items-center gap-4">
-        <span class="grow">{{ I18N.gallery.tooltip_mode.off | translate }}</span>
-        @if (store.filters().tooltip_mode === 'off') {
-          <span class="flex"><mat-icon aria-hidden="true">check</mat-icon></span>
-        }
-      </span>
-    </button>
-  </mat-menu>
-<mat-menu #panelActivationMenu="matMenu">
-    <button mat-menu-item role="menuitemradio" [attr.aria-checked]="store.filters().panel_activation === 'hover'" (click)="setPresentationFilter('panel_activation', 'hover')">
-      <mat-icon aria-hidden="true">chat_bubble_outline</mat-icon>
-      <span class="flex items-center gap-4">
-        <span class="grow">{{ I18N.gallery.panel_activation.hover | translate }}</span>
-        @if (store.filters().panel_activation === 'hover') {
-          <span class="flex"><mat-icon aria-hidden="true">check</mat-icon></span>
-        }
-      </span>
-    </button>
-    <button mat-menu-item role="menuitemradio" [attr.aria-checked]="store.filters().panel_activation === 'click'" (click)="setPresentationFilter('panel_activation', 'click')">
-      <mat-icon aria-hidden="true">touch_app</mat-icon>
-      <span class="flex items-center gap-4">
-        <span class="grow">{{ I18N.gallery.panel_activation.click | translate }}</span>
-        @if (store.filters().panel_activation === 'click') {
-          <span class="flex"><mat-icon aria-hidden="true">check</mat-icon></span>
-        }
-      </span>
-    </button>
-    <button mat-menu-item role="menuitemradio" [attr.aria-checked]="store.filters().panel_activation === 'both'" (click)="setPresentationFilter('panel_activation', 'both')">
-      <mat-icon aria-hidden="true">swap_horiz</mat-icon>
-      <span class="flex items-center gap-4">
-        <span class="grow">{{ I18N.gallery.panel_activation.both | translate }}</span>
-        @if (store.filters().panel_activation === 'both') {
-          <span class="flex"><mat-icon aria-hidden="true">check</mat-icon></span>
-        }
-      </span>
-    </button>
-  </mat-menu>
+    </mat-menu>
 <mat-menu #sortMenu="matMenu">
     @for (section of sortMenuSections(); track section.header ?? section.options[0].column) {
       @let headerId = 'sort-menu-group-' + $index;
@@ -239,15 +189,30 @@ export class GalleryViewControlsComponent {
   protected readonly store = inject(GalleryStore);
   protected readonly pinned = computed(() => this.store.pinnedPaths() !== null);
   private readonly controlsActive = signal(true);
-  private readonly navigationPending = signal(false);
+  private readonly navigationPending = trackPendingNavigation({ started: () => this.closeOverlays() });
   private readonly canAct = computed(() => this.controlsActive() && !this.navigationPending());
-  private readonly router = inject(Router);
   private readonly menus = viewChildren(MatMenuTrigger);
   private readonly tooltips = viewChildren(MatTooltip);
   private readonly railCapable = useDesktopSignal({ breakpointPx: DETAILS_RAIL_MIN_WIDTH_PX });
   private readonly hoverCapable = useDesktopSignal();
   protected readonly canDockDetails = this.railCapable.isDesktop;
   protected readonly canUseHoverTooltips = this.hoverCapable.isDesktop;
+  protected readonly tooltipModes = computed(() => {
+    const modes: { id: TooltipMode; label: string; icon: string }[] = [
+      { id: 'hover', label: I18N.gallery.tooltip_mode.hover, icon: 'chat_bubble_outline' },
+      { id: 'click', label: I18N.gallery.tooltip_mode.click, icon: 'touch_app' },
+      { id: 'panel', label: I18N.gallery.tooltip_mode.panel, icon: 'view_sidebar' },
+      { id: 'off', label: I18N.gallery.tooltip_mode.off, icon: 'visibility_off' },
+    ];
+    return modes.filter(mode => mode.id !== 'panel' || this.canDockDetails());
+  });
+  protected readonly panelActivationModes: { id: PanelActivation; label: string; icon: string }[] = [
+    { id: 'hover', label: I18N.gallery.panel_activation.hover, icon: 'chat_bubble_outline' },
+    { id: 'click', label: I18N.gallery.panel_activation.click, icon: 'touch_app' },
+    { id: 'both', label: I18N.gallery.panel_activation.both, icon: 'swap_horiz' },
+  ];
+  protected readonly panelActivationIcon = computed(() =>
+    this.panelActivationModes.find(mode => mode.id === this.store.filters().panel_activation)?.icon ?? 'swap_horiz');
   protected readonly presets: { id: GalleryDisplayPreset; label: string; icon: string }[] = [
     { id: 'browse', label: I18N.gallery.presentation.browse, icon: 'photo_library' },
     { id: 'review', label: I18N.gallery.presentation.review, icon: 'fact_check' },
@@ -280,18 +245,7 @@ export class GalleryViewControlsComponent {
   constructor() {
     afterNextRender(() => { this.railCapable.setup(); this.hoverCapable.setup(); });
     inject(DestroyRef).onDestroy(() => { this.railCapable.cleanup(); this.hoverCapable.cleanup(); });
-    this.router.events.pipe(takeUntilDestroyed()).subscribe(event => {
-      if (event instanceof NavigationStart) {
-        this.navigationPending.set(true);
-        this.closeOverlays();
-      } else if (event instanceof NavigationCancel) {
-        if (event.code !== NavigationCancellationCode.Redirect && event.code !== NavigationCancellationCode.SupersededByNewNavigation) {
-          this.navigationPending.set(false);
-        }
-      } else if (event instanceof NavigationEnd || event instanceof NavigationError || event instanceof NavigationSkipped) {
-        this.navigationPending.set(false);
-      }
-    });
+
   }
 
   setActive(active: boolean): void {

@@ -1,6 +1,7 @@
+import { isNavigationSettled } from '../../shared/utils/navigation-settled';
 import { DestroyRef, effect, inject, signal } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
-import { NavigationCancel, NavigationCancellationCode, NavigationEnd, NavigationError, NavigationSkipped, NavigationStart, Router } from '@angular/router';
+import { NavigationEnd, NavigationStart, Router } from '@angular/router';
 import { AuthService } from '../../core/services/auth.service';
 import { StalenessGuardFactory } from '../../core/services/staleness-guard.service';
 
@@ -37,9 +38,8 @@ export function createGalleryFilterContext(callbacks: { authChanged?: () => void
     if (event instanceof NavigationStart) {
       if (event.id < navigationId) return;
       navigationId = event.id; pending.set(true); callbacks.navigationStarted?.();
-    } else if (event instanceof NavigationEnd || event instanceof NavigationSkipped || event instanceof NavigationError || event instanceof NavigationCancel) {
+    } else if (isNavigationSettled(event)) {
       if (event.id < navigationId) return;
-      if (event instanceof NavigationCancel && (event.code === NavigationCancellationCode.Redirect || event.code === NavigationCancellationCode.SupersededByNewNavigation)) return;
       navigationId = event.id;
       path.set((event instanceof NavigationEnd ? event.urlAfterRedirects : router.url).split('?')[0]);
       pending.set(false); refreshContext();

@@ -1,13 +1,8 @@
 import { LogicalAssetApplied } from '../../shared/models/logical-asset-change';
-import { ChangeDetectionStrategy, Component, DestroyRef, ElementRef, computed, effect, inject, input, output, signal, untracked } from '@angular/core';
-import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
-import { NavigationCancel, NavigationEnd, NavigationError, NavigationSkipped, NavigationStart, Router } from '@angular/router';
-import { Subscription } from 'rxjs';
-import { ApiService } from '../../core/services/api.service';
-import { AuthService } from '../../core/services/auth.service';
+import { ChangeDetectionStrategy, Component, ElementRef, computed, inject, output, signal } from '@angular/core';
 import { I18N } from '../../core/i18n/keys';
 import type { components } from '../../core/api/schema';
-import type { Photo } from '../../shared/models/photo.model';
+import { PhotoPanelReader } from './photo-panel-reader';
 import { TranslatePipe } from '../../shared/pipes/translate.pipe';
 
 type Context = components['schemas']['LogicalAssetContext'];
@@ -85,20 +80,15 @@ type Result = components['schemas']['LogicalAssetResult'];
     </details>
   `,
 })
-export class PhotoLogicalAssetComponent {
-  readonly photo = input.required<Photo>();
+export class PhotoLogicalAssetComponent extends PhotoPanelReader<Context> {
+  protected readonly endpoint = '/logical_assets/by-photo';
   readonly applied = output<LogicalAssetApplied>();
-  protected readonly auth = inject(AuthService);
-  private readonly api = inject(ApiService);
-  private readonly router = inject(Router);
-  private readonly destroyRef = inject(DestroyRef);
   private readonly host = inject<ElementRef<HTMLElement>>(ElementRef);
   protected readonly I18N = I18N;
-  protected readonly expanded = signal(false);
-  protected readonly context = signal<Context | null>(null);
+  protected readonly context = this.data;
   protected readonly primary = signal('');
   private readonly selected = signal(new Set<string>());
-  protected readonly busy = signal(false);
+  protected readonly busy = this.loading;
   protected readonly atLimit = computed(() => this.selected().size >= 16);
   protected readonly error = signal('');
   protected readonly updated = signal(false);
@@ -109,9 +99,6 @@ export class PhotoLogicalAssetComponent {
   protected readonly confirmLabel = computed(() => this.preview()?.operation === 'dissolve' ? I18N.logical_assets.confirm_ungroup
     : this.preview()?.operation === 'primary' ? I18N.logical_assets.confirm_primary : I18N.logical_assets.confirm_group);
   private change: Change | null = null;
-  private request?: Subscription;
-  private revision = 0;
-  private navigating = false;
   private loadedScope: (() => boolean) | null = null;
   protected readonly rows = computed(() => {
     const state = this.context();
@@ -125,34 +112,12 @@ export class PhotoLogicalAssetComponent {
     return selected.some(row => row.kind === 'raw') && selected.some(row => row.kind === 'jpeg');
   });
 
-  constructor() {
-    effect(() => { this.photo(); this.auth.status(); untracked(() => this.reset()); });
-    this.router.events.pipe(takeUntilDestroyed(this.destroyRef)).subscribe(event => {
-      if (event instanceof NavigationStart) { this.navigating = true; this.reset(); }
-      if (event instanceof NavigationEnd || event instanceof NavigationCancel || event instanceof NavigationError || event instanceof NavigationSkipped) this.navigating = false;
-    });
-    this.destroyRef.onDestroy(() => this.reset());
-  }
-
-  protected toggle(event: Event): void {
-    event.preventDefault();
-    if (this.expanded()) this.reset();
-    else if (!this.navigating && this.auth.status()) { this.expanded.set(true); this.load(); }
-  }
-  protected close(event: Event, trigger: HTMLElement): void {
-    event.preventDefault(); event.stopPropagation(); this.reset(); trigger.focus();
-  }
-  private scope(): () => boolean {
-    const revision = this.revision, photo = this.photo(), owner = this.auth.status(), token = this.auth.token;
-    return () => !this.destroyRef.destroyed && this.expanded() && !this.navigating && revision === this.revision
-      && this.photo() === photo && this.auth.status() === owner && this.auth.token === token;
-  }
-  protected load(message = ''): void {
+  protected override load(message = ''): void {
     if (!this.expanded() || this.navigating || !this.auth.status()) return;
     this.request?.unsubscribe(); this.revision++;
     const current = this.scope();
     this.loadedScope = current; this.context.set(null); this.clearPreview(); this.busy.set(true); this.error.set(message);
-    this.request = this.api.get<Context>('/logical_assets/by-photo', { path: this.photo().path }).subscribe({
+    this.request = this.api.get<Context>(this.endpoint, { path: this.photo().path }).subscribe({
       next: state => {
         if (!current()) return;
         this.context.set(state); this.selected.set(new Set(state.asset?.members.map(row => row.path) ?? [this.photo().path]));
@@ -202,8 +167,8 @@ export class PhotoLogicalAssetComponent {
       error: () => { if (current()) { restoreFocus(); this.load(I18N.logical_assets.apply_error); } },
     });
   }
-  private reset(): void {
-    this.revision++; this.request?.unsubscribe(); this.request = undefined; this.loadedScope = null;
-    this.expanded.set(false); this.context.set(null); this.clearPreview(); this.busy.set(false); this.error.set(''); this.updated.set(false);
+  protected override onReset(): void {
+    this.loadedScope = null;
+    this.clearPreview(); this.error.set(''); this.updated.set(false);
   }
 }

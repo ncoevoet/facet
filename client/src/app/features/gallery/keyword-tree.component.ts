@@ -1,6 +1,7 @@
+import { isNavigationSettled } from '../../shared/utils/navigation-settled';
 import { ChangeDetectionStrategy, Component, DestroyRef, ElementRef, computed, effect, inject, signal, untracked, viewChild } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
-import { NavigationCancel, NavigationCancellationCode, NavigationEnd, NavigationError, NavigationSkipped, NavigationStart, Router } from '@angular/router';
+import { NavigationStart, Router } from '@angular/router';
 import { MatIconModule } from '@angular/material/icon';
 import { firstValueFrom, Subject, takeUntil } from 'rxjs';
 import type { components } from '../../core/api/schema';
@@ -140,8 +141,7 @@ export class KeywordTreeComponent {
         this.pending = !sameGallery;
         if (!sameGallery) this.reset();
       }
-      else if (event instanceof NavigationEnd || event instanceof NavigationError || event instanceof NavigationSkipped || event instanceof NavigationCancel) {
-        if (event instanceof NavigationCancel && (event.code === NavigationCancellationCode.Redirect || event.code === NavigationCancellationCode.SupersededByNewNavigation)) return;
+      else if (isNavigationSettled(event)) {
         this.navigation = event.id; this.pending = false;
       }
     });

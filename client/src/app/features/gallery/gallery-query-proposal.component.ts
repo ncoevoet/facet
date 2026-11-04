@@ -1,5 +1,6 @@
+import { isNavigationSettled } from '../../shared/utils/navigation-settled';
 import { ChangeDetectionStrategy, Component, DestroyRef, ElementRef, computed, effect, inject, input, signal, untracked, viewChild } from '@angular/core';
-import { NavigationCancel, NavigationCancellationCode, NavigationEnd, NavigationError, NavigationSkipped, NavigationStart, Router } from '@angular/router';
+import { NavigationStart, Router } from '@angular/router';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { galleryFilterLabel } from './gallery-filter-label.pipe';
 import { ADDITIONAL_FILTERS } from './gallery-metric-filters';
@@ -178,8 +179,7 @@ export class GalleryQueryProposalComponent {
         const plan = this.proposal();
         if (!this.applying() || !plan?.sessionCurrent() || event.url.split('?')[0] !== plan.routePath) this.clear();
       }
-      else if (event instanceof NavigationEnd || event instanceof NavigationError || event instanceof NavigationSkipped
-        || (event instanceof NavigationCancel && event.code !== NavigationCancellationCode.Redirect && event.code !== NavigationCancellationCode.SupersededByNewNavigation)) { this.navigation = event.id; this.pending = false; }
+      else if (isNavigationSettled(event)) { this.navigation = event.id; this.pending = false; }
     });
   }
   private clear(): void { this.version++; this.proposal.set(null); this.acknowledged.set(false); this.error.set(''); this.applied.set(false); this.accepted.set(null); }

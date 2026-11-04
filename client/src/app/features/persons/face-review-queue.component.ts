@@ -1,6 +1,7 @@
+import { isNavigationSettled } from '../../shared/utils/navigation-settled';
 import { afterNextRender, ChangeDetectionStrategy, Component, computed, DestroyRef, effect, ElementRef, inject, Injector, input, signal, untracked, viewChild } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
-import { NavigationCancel, NavigationCancellationCode, NavigationEnd, NavigationError, NavigationSkipped, NavigationStart, Router, RouterLink } from '@angular/router';
+import { NavigationStart, Router, RouterLink } from '@angular/router';
 import { MatButtonModule } from '@angular/material/button';
 import { MatIconModule } from '@angular/material/icon';
 import { MatDialog, MatDialogRef } from '@angular/material/dialog';
@@ -159,7 +160,7 @@ export class FaceReviewQueueComponent {
   constructor() {
     this.router.events.pipe(takeUntilDestroyed()).subscribe(event => {
       if (event instanceof NavigationStart) { this.blocked = true; this.reset(); }
-      else if (this.blocked && (event instanceof NavigationEnd || event instanceof NavigationSkipped || event instanceof NavigationError || (event instanceof NavigationCancel && event.code !== NavigationCancellationCode.Redirect)) && this.ownsRoute()) {
+      else if (this.blocked && (isNavigationSettled(event)) && this.ownsRoute()) {
         this.blocked = false; void this.load(this.after);
       }
     });

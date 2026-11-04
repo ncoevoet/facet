@@ -153,4 +153,36 @@ describe('PhotoLogicalAssetComponent', () => {
     expect(root.textContent).toContain('shot.CR2'); expect(root.querySelector('[data-review-group]')).toBeNull();
     expect(root.querySelector('[data-review-ungroup]')).toBeNull();
   });
+
+  it('recovers from a failed context read and a refused preview without writing', () => {
+    const { fixture, root, open } = render(); open();
+    http.expectOne('/api/logical_assets/by-photo?path=/shot.jpg').flush({}, { status: 503, statusText: 'Unavailable' });
+    fixture.detectChanges(); expect(root.textContent).toContain('logical_assets.load_error');
+    root.querySelector<HTMLButtonElement>('button')!.click();
+    http.expectOne('/api/logical_assets/by-photo?path=/shot.jpg').flush(context); fixture.detectChanges();
+    choose(root); fixture.detectChanges(); root.querySelector<HTMLButtonElement>('[data-review-group]')!.click();
+    http.expectOne('/api/logical_assets/preview').flush({}, { status: 409, statusText: 'Changed' });
+    fixture.detectChanges(); expect(root.textContent).toContain('logical_assets.review_error');
+    expect(root.querySelector('[data-group-preview]')).toBeNull();
+    http.expectNone('/api/logical_assets/apply');
+  });
+
+  it('requires both RAW and JPEG and caps selection at sixteen files', () => {
+    const { fixture, root, open } = render(); open();
+    const candidates = [context.candidates[0], ...Array.from({ length: 18 }, (_, index) => ({
+      path: `/shot-${index}.CR2`, name: `shot-${index}.CR2`, kind: 'raw',
+    }))];
+    http.expectOne('/api/logical_assets/by-photo?path=/shot.jpg').flush({ ...context, candidates }); fixture.detectChanges();
+    root.querySelector<HTMLInputElement>('input[type=radio]')!.click(); fixture.detectChanges();
+    const review = root.querySelector<HTMLButtonElement>('[data-review-group]')!;
+    expect(review.disabled).toBe(true);
+    for (const checkbox of root.querySelectorAll<HTMLInputElement>('input[type=checkbox]')) { checkbox.click(); fixture.detectChanges(); }
+    expect(review.disabled).toBe(false);
+    expect(root.querySelectorAll('input[type=checkbox]:checked')).toHaveLength(16);
+    expect(root.textContent).toContain('logical_assets.member_limit');
+    review.click();
+    const request = http.expectOne('/api/logical_assets/preview');
+    expect(request.request.body.paths).toHaveLength(16);
+    request.flush({ ...plan, review_conflicts: [] });
+  });
 });

@@ -1,7 +1,8 @@
+import { isNavigationSettled } from '../../shared/utils/navigation-settled';
 import { ChangeDetectionStrategy, Component, DestroyRef, ElementRef, computed, effect, inject, signal, untracked, viewChild } from '@angular/core';
 import { HttpErrorResponse } from '@angular/common/http';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
-import { NavigationCancel, NavigationCancellationCode, NavigationEnd, NavigationError, NavigationSkipped, NavigationStart, Router } from '@angular/router';
+import { NavigationStart, Router } from '@angular/router';
 import { firstValueFrom, Subject, takeUntil } from 'rxjs';
 import type { components } from '../../core/api/schema';
 import { ApiService } from '../../core/services/api.service';
@@ -124,8 +125,7 @@ export class KeywordCatalogComponent {
       if (!('id' in event)) return;
       if (event.id < this.navigation) return;
       if (event instanceof NavigationStart) { this.navigation = event.id; this.pending = true; this.reset(); }
-      else if (event instanceof NavigationEnd || event instanceof NavigationError || event instanceof NavigationSkipped || event instanceof NavigationCancel) {
-        if (event instanceof NavigationCancel && (event.code === NavigationCancellationCode.Redirect || event.code === NavigationCancellationCode.SupersededByNewNavigation)) return;
+      else if (isNavigationSettled(event)) {
         this.navigation = event.id; this.pending = false;
       }
     });
@@ -216,7 +216,7 @@ export class KeywordCatalogComponent {
           const membership = !!filters.tag || !!filters.tag_groups || !!filters.search || !!this.store.currentAlbum()?.is_smart;
           await this.store.refreshPaths(membership ? null : plan.paths);
         }
-        if (guard.current() && !this.uncertain()) await this.load();
+        if (refresh && guard.current() && !this.uncertain()) await this.load();
       } finally { guard.dispose(); }
     }
   }

@@ -2,8 +2,8 @@ import { parseTagQuery, TAG_QUERY_GROUPS } from './tag-query.util';
 import { parseScorePresence } from './score-presence.util';
 import { NgTemplateOutlet } from '@angular/common';
 import { ChangeDetectionStrategy, Component, computed, ElementRef, inject, input, signal, TemplateRef, viewChild, viewChildren } from '@angular/core';
-import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
-import { NavigationCancel, NavigationCancellationCode, NavigationEnd, NavigationError, NavigationSkipped, NavigationStart, Router } from '@angular/router';
+import { NavigationEnd, Router } from '@angular/router';
+import { trackPendingNavigation } from '../../shared/utils/navigation-settled';
 import { MatIconModule } from '@angular/material/icon';
 import { MatSliderModule } from '@angular/material/slider';
 import { MatTooltip, MatTooltipModule } from '@angular/material/tooltip';
@@ -207,7 +207,10 @@ export class GalleryCriteriaComponent {
  protected readonly history=inject(GalleryVisitHistoryService);
  protected readonly pinned=computed(()=>this.store.pinnedPaths()!==null);
  private readonly active=signal(true);
- private readonly pending=signal(false);
+ private readonly pending=trackPendingNavigation({
+   started: () => this.closeDisclosures(),
+   settled: event => { if(event instanceof NavigationEnd && this.canAct()) this.history.remember(event.urlAfterRedirects); },
+ });
  protected readonly canAct=computed(()=>this.active()&&!this.pending()&&!this.pinned());
  private readonly date = new CaptureDatePipe();
  private readonly tooltips = viewChildren(MatTooltip);
@@ -246,17 +249,6 @@ export class GalleryCriteriaComponent {
    if (f.hide_rejected && !f.review_status && !f.show_rejected) rules.push({ id: 'hide_rejected', labelKey: labels.rejected, valueKey: labels.values.hidden, clearKeys: ['hide_rejected'] });
    return rules;
  });
- constructor(){
-  this.router.events.pipe(takeUntilDestroyed()).subscribe(event=>{
-   if(event instanceof NavigationStart){this.pending.set(true);this.closeDisclosures();}
-   else if(event instanceof NavigationCancel){
-    if(event.code!==NavigationCancellationCode.Redirect&&event.code!==NavigationCancellationCode.SupersededByNewNavigation)this.pending.set(false);
-   }else if(event instanceof NavigationEnd||event instanceof NavigationError||event instanceof NavigationSkipped){
-    this.pending.set(false);
-    if(event instanceof NavigationEnd&&this.canAct())this.history.remember(event.urlAfterRedirects);
-   }
-  });
- }
  setActive(active:boolean):void { this.active.set(active); if(!active)this.closeDisclosures(); }
  protected closeDisclosure(event:Event,details:HTMLDetailsElement,summary:HTMLElement):void {
    if(!details.open)return;

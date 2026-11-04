@@ -2,7 +2,7 @@ import { signal } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
 import { provideHttpClient } from '@angular/common/http';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
-import { NavigationCancel, NavigationStart, Router } from '@angular/router';
+import { Event as RouterEvent, NavigationCancel, NavigationCancellationCode, NavigationEnd, NavigationError, NavigationSkipped, NavigationStart, Router } from '@angular/router';
 import { Subject } from 'rxjs';
 import { AuthService } from '../../core/services/auth.service';
 import { I18nService } from '../../core/services/i18n.service';
@@ -18,7 +18,7 @@ describe('PhotoProvenanceComponent', () => {
     capture_date_override: true, gps_override: false,
   };
   let auth: { status: ReturnType<typeof signal<object | null>>; token: string };
-  let events: Subject<NavigationStart | NavigationCancel>;
+  let events: Subject<RouterEvent>;
   let http: HttpTestingController;
 
   beforeEach(() => {
@@ -44,6 +44,51 @@ describe('PhotoProvenanceComponent', () => {
     const root = fixture.nativeElement as HTMLElement;
     return { fixture, root, trigger: root.querySelector('summary')!, panel: root.querySelector('details')! };
   }
+
+  it('renders boolean decisions, source labels and metadata override notices', () => {
+    const { fixture, root, trigger } = render(); trigger.click();
+    http.expectOne('/api/photo/provenance?path=/a.jpg').flush({ ...response, manual_tags: [], manual_tags_truncated: true,
+      capture_date_override: false, gps_override: true, review: [
+        { field: 'is_kept', value: true, source: 'local', changed_at: null, source_at: null },
+        { field: 'is_rejected', value: false, source: 'unrecorded', changed_at: null, source_at: null },
+        { field: 'is_favorite', value: true, source: 'xmp', changed_at: null, source_at: null },
+      ] }); fixture.detectChanges();
+    expect(root.textContent).toContain('review.kept organization_history.yes');
+    expect(root.textContent).toContain('review.rejected organization_history.no');
+    expect(root.textContent).toContain('metadata_sources.unrecorded');
+    expect(root.textContent).toContain('metadata_sources.gps_override');
+    expect(root.textContent).not.toContain('metadata_sources.date_override');
+    expect(root.textContent).toContain('metadata_sources.no_tags');
+    expect(root.textContent).toContain('metadata_sources.tag_limit');
+  });
+
+  it.each([
+    new NavigationEnd(2, '/photo', '/photo'),
+    new NavigationError(2, '/photo', new Error('route failure')),
+    new NavigationSkipped(2, '/photo', 'same route'),
+    new NavigationCancel(2, '/photo', 'guard refused'),
+  ])('permits a new read after navigation settles: $constructor.name', event => {
+    const { fixture, trigger } = render();
+    events.next(new NavigationStart(2, '/photo'));
+    trigger.click(); http.expectNone(() => true);
+    events.next(event);
+    trigger.click(); fixture.detectChanges();
+    http.expectOne('/api/photo/provenance?path=/a.jpg').flush(response);
+  });
+
+  it('stays blocked across redirect, superseded and obsolete navigation completions', () => {
+    const { fixture, trigger } = render();
+    events.next(new NavigationStart(2, '/photo'));
+    events.next(new NavigationCancel(2, '/photo', 'redirect', NavigationCancellationCode.Redirect));
+    trigger.click(); http.expectNone(() => true);
+    events.next(new NavigationStart(3, '/photo'));
+    events.next(new NavigationCancel(2, '/photo', 'superseded', NavigationCancellationCode.SupersededByNewNavigation));
+    events.next(new NavigationEnd(2, '/photo', '/photo'));
+    trigger.click(); http.expectNone(() => true);
+    events.next(new NavigationEnd(3, '/photo', '/photo'));
+    trigger.click(); fixture.detectChanges();
+    http.expectOne('/api/photo/provenance?path=/a.jpg').flush(response);
+  });
 
   it('requests only on expansion, renders explicit zero and imported source, and closes help-first with focus return', () => {
     const { fixture, root, trigger, panel } = render();
