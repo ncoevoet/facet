@@ -875,6 +875,8 @@ Trouvez les groupes de personnes qui pourraient être la même personne. Ouvrez 
 
 Téléchargez des photos depuis le détail de la photo ou la barre de sélection. Le menu de téléchargement par photo liste les types disponibles pour cette photo, y compris les profils darktable configurés :
 
+Un fichier RAW associé nouvellement ajouté peut mettre jusqu’à cinq minutes à apparaître dans ce menu.
+
 - **Original** (`original`) — le fichier tel quel (JPG/HEIF), ou un RAW converti en JPEG avec le même rendu que celui de la visionneuse. Une vue de bracketing se télécharge donc sans correction d'exposition — voir [CONFIGURATION.md](CONFIGURATION.md#les-vues-dun-bracketing-saffichent-sans-correction).
 - **darktable** (`darktable`) — le RAW compagnon converti avec un profil darktable nommé. Se rabat sur l'original s'il n'y a pas de RAW compagnon.
 - **RAW** (`raw`) — le fichier RAW compagnon tel quel. Non disponible dans les albums partagés.

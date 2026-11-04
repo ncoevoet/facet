@@ -269,6 +269,19 @@ def _missing_raw_fallback(real_disk: str) -> bool:
     return True
 
 
+def _download_options_raw(db_path: str, real_disk: str, user: Optional[CurrentUser]) -> str | None:
+    """A cached absence can omit an option; it never grants a RAW download.
+
+    The common JPEG-only case reuses the companion resolver's bounded TTL cache.
+    Positive hints still require the current authorized inventory, and download
+    handlers keep calling that inventory directly.
+    """
+    from api.raw_processing import companion_raw_known_missing
+    if companion_raw_known_missing(real_disk):
+        return None
+    return _authorized_download_raw(db_path, real_disk, user)
+
+
 @router.get("/api/download/options", response_model=DownloadOptionsResponse, response_model_exclude_unset=True)
 def api_download_options(
     path: str = Query(...),
@@ -282,7 +295,7 @@ def api_download_options(
 
     options: list[dict] = [{'type': 'original', 'label': 'original'}]
 
-    raw_path = _authorized_download_raw(db_path, real_disk, user)
+    raw_path = _download_options_raw(db_path, real_disk, user)
     if raw_path:
         for profile_name in get_darktable_profiles():
             options.append({'type': 'darktable', 'profile': profile_name, 'label': profile_name})

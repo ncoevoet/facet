@@ -873,6 +873,8 @@ Grave avaliações, favoritos e rejeições em sidecars XMP para que darktable, 
 
 Baixe fotos pelo detalhe da foto ou pela barra de seleção. O menu de download por foto lista os tipos disponíveis para essa foto, inclusive os perfis darktable configurados:
 
+Um ficheiro RAW associado recém-adicionado pode demorar até cinco minutos a aparecer neste menu.
+
 - **Original** (`original`) — o arquivo como está (JPG/HEIF), ou um RAW convertido em JPEG com a mesma renderização que o visualizador mostra. Um quadro de bracketing baixa, portanto, sem correção de exposição — veja [CONFIGURATION.md](CONFIGURATION.md#quadros-de-bracketing-são-renderizados-sem-correção).
 - **darktable** (`darktable`) — o RAW acompanhante convertido com um perfil darktable nomeado. Recorre ao original se não houver RAW acompanhante.
 - **RAW** (`raw`) — o arquivo RAW acompanhante como está. Não disponível em álbuns compartilhados.

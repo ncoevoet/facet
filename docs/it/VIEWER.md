@@ -875,6 +875,8 @@ Scrivi valutazioni, preferiti e scarti nei sidecar XMP così darktable, Lightroo
 
 Scarica le foto dal dettaglio foto o dalla barra di selezione. Il menu di download per foto elenca i tipi disponibili per quella foto, compresi i profili darktable configurati:
 
+Un nuovo file RAW associato può impiegare fino a cinque minuti per comparire in questo menu.
+
 - **Originale** (`original`) — il file così com'è (JPG/HEIF), o un RAW convertito in JPEG con lo stesso rendering mostrato dalla galleria. Un fotogramma di un bracket viene quindi scaricato senza correzione dell'esposizione — vedi [CONFIGURATION.md](CONFIGURATION.md#i-fotogrammi-di-un-bracketing-vengono-renderizzati-senza-correzioni).
 - **darktable** (`darktable`) — il RAW collegato convertito con un profilo darktable con nome. Ripiega sull'originale se non c'è un RAW collegato.
 - **RAW** (`raw`) — il file RAW collegato così com'è. Non disponibile negli album condivisi.

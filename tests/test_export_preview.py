@@ -38,6 +38,95 @@ def bytes_in(folder):
             for path in folder.rglob('*') if path.is_file()}
 
 
+def test_current_packet_check_skips_metadata_for_unrelated_image_names(tmp_path, monkeypatch):
+    from contextlib import contextmanager
+    from api import export_preview
+
+    source = tmp_path / 'selected.jpg'
+    source.write_bytes(b'original')
+    for index in range(1000):
+        (tmp_path / f'unrelated-{index}.jpg').write_bytes(b'other')
+    original_scan = os.scandir
+    metadata_reads = []
+
+    class CountedEntry:
+        def __init__(self, entry):
+            self.entry = entry
+            self.path, self.name = entry.path, entry.name
+
+        def is_file(self, **kwargs):
+            metadata_reads.append(self.name)
+            return self.entry.is_file(**kwargs)
+
+        def is_symlink(self):
+            metadata_reads.append(self.name)
+            return self.entry.is_symlink()
+
+    @contextmanager
+    def counted_scan(path):
+        with original_scan(path) as entries:
+            yield (CountedEntry(entry) for entry in entries)
+
+    monkeypatch.setattr(export_preview.os, 'scandir', counted_scan)
+    export_preview._current_packet_ownership(str(source), [str(source) + '.xmp'])
+    assert metadata_reads == []
+    # The cached preview index still inspects the whole directory once; only
+    # the repeated per-file execution check uses the bounded metadata probe.
+    export_preview._packet_ownership(str(source), [str(source) + '.xmp'], {}, [20000])
+    assert len(metadata_reads) == 1001
+
+
+@pytest.mark.parametrize(('source_name', 'other_name', 'packet_tail'), [
+    ('shot.jpg', 'shot.jpg.CR2', '.xmp'),
+    ('shot.jpg', 'SHOT.JPG.CR2', '.xmp'),
+    ('caf\u00e9.jpg', 'cafe\u0301.jpg.CR2', '.xmp'),
+    ('shot.jpg', 'shot.jpg.facet.NEF', '.facet.xmp'),
+    ('shot.jpg', 'shot.CR2', 'basename'),
+])
+def test_current_packet_check_preserves_portable_collision_policy(tmp_path, source_name, other_name, packet_tail):
+    from api import export_preview
+
+    source = tmp_path / source_name
+    source.write_bytes(b'original')
+    (tmp_path / other_name).write_bytes(b'competing owner')
+    packet = str(source.with_suffix('.xmp')) if packet_tail == 'basename' else str(source) + packet_tail
+    for check in (lambda: export_preview._packet_ownership(str(source), [packet], {}, [20000]),
+                  lambda: export_preview._current_packet_ownership(str(source), [packet])):
+        with pytest.raises(HTTPException) as failure:
+            check()
+        assert failure.value.status_code == 409
+    assert source.read_bytes() == b'original'
+    assert not Path(packet).exists()
+
+
+def test_current_packet_check_ignores_a_matching_directory_but_refuses_a_link(tmp_path):
+    from api.export_preview import _current_packet_ownership
+
+    source = tmp_path / 'shot.jpg'
+    source.write_bytes(b'original')
+    competitor = tmp_path / 'shot.jpg.CR2'
+    competitor.mkdir()
+    _current_packet_ownership(str(source), [str(source) + '.xmp'])
+    competitor.rmdir()
+    symlink_or_skip(competitor, source)
+    with pytest.raises(HTTPException) as failure:
+        _current_packet_ownership(str(source), [str(source) + '.xmp'])
+    assert failure.value.status_code == 409
+
+
+def test_current_packet_check_keeps_the_directory_entry_budget(tmp_path, monkeypatch):
+    from api import export_preview
+
+    source = tmp_path / 'shot.jpg'
+    source.write_bytes(b'original')
+    for index in range(3):
+        (tmp_path / str(index)).write_bytes(b'unrelated')
+    monkeypatch.setattr(export_preview, '_MAX_DIRECTORY_ENTRIES', 3)
+    with pytest.raises(HTTPException) as failure:
+        export_preview._current_packet_ownership(str(source), [str(source) + '.xmp'])
+    assert failure.value.status_code == 412
+
+
 def preview(client, **body):
     response = client.post('/api/export/preview', json=body)
     assert response.status_code == 200, response.text

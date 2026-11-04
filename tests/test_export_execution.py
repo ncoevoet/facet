@@ -150,6 +150,35 @@ def test_change_before_admission_refuses_entire_scope_before_any_target_write(ed
     assert done(applied.json())['written'] == 2
 
 
+def test_new_competing_packet_owner_stops_later_files_even_with_unchanged_directory_mtime(
+        edition_client, library, monkeypatch):
+    from api import export_execution
+
+    paths, _ = library
+    apply, _ = confirmed_body(edition_client, {'paths': list(map(str, paths))})
+    before = {path: path.read_bytes() for path in paths}
+    real_write = export_execution.write_confirmed_metadata
+
+    def write_then_introduce_competitor(*args, **kwargs):
+        result = real_write(*args, **kwargs)
+        folder = paths[0].parent
+        stamp = folder.stat()
+        Path(str(paths[1]) + '.CR2').write_bytes(b'new owner of beta.jpg.xmp')
+        os.utime(folder, ns=(stamp.st_atime_ns, stamp.st_mtime_ns))
+        assert folder.stat().st_mtime_ns == stamp.st_mtime_ns
+        return result
+
+    monkeypatch.setattr(export_execution, 'write_confirmed_metadata', write_then_introduce_competitor)
+    response = edition_client.post('/api/export/apply', json=apply)
+    assert response.status_code == 202, response.text
+    result = done(response.json())
+    assert result['state'] == 'failed' and result['first_error_code'] == 'preview_changed'
+    assert result['processed'] == result['written'] == 1
+    assert Path(str(paths[0]) + '.xmp').is_file()
+    assert not Path(str(paths[1]) + '.xmp').exists()
+    assert {path: path.read_bytes() for path in paths} == before
+
+
 def test_later_metadata_change_stops_new_files_and_retains_written_prefix(edition_client, library, monkeypatch):
     from api import export_execution
     paths, _ = library

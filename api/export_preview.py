@@ -109,6 +109,33 @@ def _packet_ownership(disk, packets, directories, budget):
             raise HTTPException(409, 'XMP naming is shared or ambiguous; choose distinct per-image packet names')
 
 
+def _current_packet_ownership(disk, packets):
+    """Recheck current names without rebuilding the folder's complete claims index.
+
+    A directory timestamp cannot prove that another writer introduced no competing
+    name. Keep the fresh enumeration, but query file metadata only for names that
+    could own one of these packets, and retain no unrelated ownership sets.
+    """
+    if not packets:
+        return
+    from api.raw_processing import _companion_entry_path
+    from processing.xmp_import import _image_key, _sidecar_stems
+    from utils.image_loading import WATCHABLE_IMAGE_EXTENSIONS
+
+    wanted = {_image_key(os.path.splitext(packet)[0]) for packet in packets}
+    own_entry = os.path.abspath(_companion_entry_path(Path(disk)))
+    with os.scandir(os.path.dirname(disk)) as entries:
+        for index, entry in enumerate(entries):
+            if index >= _MAX_DIRECTORY_ENTRIES:
+                raise HTTPException(412, 'Export naming inspection exceeds the folder-entry limit')
+            if (Path(entry.name).suffix.lower() not in WATCHABLE_IMAGE_EXTENSIONS
+                    or not wanted.intersection(_sidecar_stems(entry.path))
+                    or os.path.abspath(entry.path) == own_entry):
+                continue
+            if entry.is_file(follow_symlinks=False) or entry.is_symlink():
+                raise HTTPException(409, 'XMP naming is shared or ambiguous; choose distinct per-image packet names')
+
+
 def _filename_tail(name, stem):
     normalized = unicodedata.normalize('NFC', stem).casefold()
     for end in range(1, len(name) + 1):
@@ -117,7 +144,7 @@ def _filename_tail(name, stem):
     raise HTTPException(409, 'A companion filename does not match its source bundle')
 
 
-def _companions(conn, path, disk, user_id, directories, budget):
+def _companions(conn, path, disk, user_id):
     from api.routers.export import _companion_files
 
     inventory = related_files(conn, path, user_id)
@@ -135,7 +162,6 @@ def _companions(conn, path, disk, user_id, directories, budget):
         _identity(companion)
         if os.path.basename(companion) not in permitted:
             raise HTTPException(403, 'A companion file is not available to this account')
-    _packet_ownership(disk, [packet for packet in companions if packet.lower().endswith('.xmp')], directories, budget)
     return companions
 
 
@@ -321,7 +347,10 @@ def build_export_snapshot(conn, body: ExportPreviewRequest, user_id, *, stop_req
             collection_guard = representation(conn, path, user_id) if body.paths is None else None
             sources = [disk]
             if body.include_companions:
-                sources += _companions(conn, path, disk, user_id, directories, budget)
+                companions = _companions(conn, path, disk, user_id)
+                _packet_ownership(disk, [packet for packet in companions if packet.lower().endswith('.xmp')],
+                                  directories, budget)
+                sources += companions
             if retry_units is not None:
                 sources = [source for source in sources if (path, source) in retry_files or (path in retry_missing and source == disk)]
             for source in sources:

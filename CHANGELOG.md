@@ -63,6 +63,11 @@ All notable changes to Facet are documented in this file.
 
 ### Fixed
 
+- Comparison Back returns to the collection without reopening the workspace on browser Back. Compact navigation, layout controls and review buttons keep consistent alignment, and collection filter labels remain visible.
+
+- Grouped RAW/JPEG culling pages reuse their enriched results without retaining stale primaries, membership or visibility. Similarity thresholds keep their exact value in the cache key.
+- JPEG-only download menus reuse missing-RAW hints; positive RAW options still check current file visibility. Confirmed exports avoid rebuilding a full folder ownership index before every file, while continuing to check current filenames for XMP conflicts.
+
 - Photo detail, comparison, darkroom and manual face saving work on plain-HTTP LAN connections where the browser does not provide `crypto.randomUUID`.
 
 - Scan summaries again measure scoring and each post-scan phase. Favorite saves ignore old-session responses and retain confirmed changes when a subsequent gallery refresh fails.

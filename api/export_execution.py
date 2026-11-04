@@ -11,7 +11,7 @@ from fastapi import HTTPException
 from api import config, sidecar_jobs
 from api.database import get_db
 from api.export_preview import (
-    _companions, _credential_generation, _digest, _identity, _json, _packet_ownership, _policy, confirm_export_snapshot,
+    _companions, _credential_generation, _current_packet_ownership, _digest, _identity, _json, _policy, confirm_export_snapshot,
     export_metadata, verify_export_preview,
 )
 from api.models.export_preview import ExportPreviewRequest
@@ -155,15 +155,18 @@ class _Execution:
                     or planned.get('tool_identity') != item['tool_identity']
                     or _identity(item['target']) != item['target_identity']):
                 _changed()
-            _packet_ownership(original['path'], [item['target']], {}, [20000])
+            _current_packet_ownership(original['path'], [item['target']])
             return rating
         if self.request.paths is None:
             from api.logical_export import representation
             if 'collection_guard' not in item or representation(conn, path, self.owner) != item['collection_guard']:
                 _changed()
         if item['companion']:
-            if item['source'] not in _companions(conn, path, original['path'], self.owner, {}, [20000]):
+            companions = _companions(conn, path, original['path'], self.owner)
+            if item['source'] not in companions:
                 _changed()
+            _current_packet_ownership(original['path'],
+                                      [packet for packet in companions if packet.lower().endswith('.xmp')])
         if _validate_target_dir(self.request.target_dir) != self.snapshot['target_dir']:
             _changed()
         current = _identity(self.snapshot['target_dir'], directory=True)

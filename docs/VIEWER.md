@@ -876,6 +876,8 @@ Write ratings, favorites and rejects to XMP sidecars so darktable, Lightroom and
 
 Download photos from photo detail or the selection bar. The per-photo download menu lists the types available for that photo, including configured darktable profiles:
 
+A newly added RAW companion can take up to five minutes to appear in this menu.
+
 - **Original** (`original`) — the file as-is (JPG/HEIF), or a RAW converted to JPEG with the same rendering the viewer shows. A bracketed frame therefore downloads without exposure correction — see [CONFIGURATION.md](CONFIGURATION.md#bracketed-frames-render-uncorrected).
 - **darktable** (`darktable`) — the companion RAW converted with a named darktable profile. Falls back to the original if there is no companion RAW.
 - **RAW** (`raw`) — the companion RAW file as-is. Not available in shared albums.

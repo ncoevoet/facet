@@ -878,6 +878,8 @@ Escribe valoraciones, favoritos y rechazos en sidecars XMP para que darktable, L
 
 Descarga fotos desde el detalle de la foto o la barra de selección. El menú de descarga por foto lista los tipos disponibles para esa foto, incluidos los perfiles de darktable configurados:
 
+Un archivo RAW acompañante recién añadido puede tardar hasta cinco minutos en aparecer en este menú.
+
 - **Original** (`original`): el archivo tal cual (JPG/HEIF), o un RAW convertido a JPEG con el mismo renderizado que muestra el visor. Por tanto, un fotograma de bracketing se descarga sin corrección de exposición: ver [CONFIGURATION.md](CONFIGURATION.md#las-tomas-de-un-horquillado-se-representan-sin-corrección).
 - **darktable** (`darktable`): el RAW acompañante convertido con un perfil darktable con nombre. Recurre al original si no hay RAW acompañante.
 - **RAW** (`raw`): el archivo RAW acompañante tal cual. No disponible en álbumes compartidos.

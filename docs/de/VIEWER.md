@@ -876,6 +876,8 @@ Schreiben Sie Bewertungen, Favoriten und Ablehnungen in XMP-Sidecars, damit dark
 
 Laden Sie Fotos aus der Fotodetailansicht oder der Auswahlleiste herunter. Das Download-Menü pro Foto listet die für dieses Foto verfügbaren Typen, einschließlich konfigurierter darktable-Profile:
 
+Eine neu hinzugefügte RAW-Begleitdatei kann bis zu fünf Minuten benötigen, bis sie in diesem Menü erscheint.
+
 - **Original** (`original`) — die Datei unverändert (JPG/HEIF) oder ein RAW, in JPEG konvertiert mit demselben Rendering, das der Viewer zeigt. Eine Aufnahme einer Belichtungsreihe wird daher ohne Belichtungskorrektur heruntergeladen — siehe [CONFIGURATION.md](CONFIGURATION.md#belichtungsreihen-werden-unkorrigiert-gerendert).
 - **darktable** (`darktable`) — das Begleit-RAW, mit einem benannten darktable-Profil konvertiert. Fällt auf das Original zurück, wenn es kein Begleit-RAW gibt.
 - **RAW** (`raw`) — die Begleit-RAW-Datei unverändert. In freigegebenen Alben nicht verfügbar.

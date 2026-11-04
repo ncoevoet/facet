@@ -875,6 +875,8 @@ Facet 会从你的照片库生成胶囊：
 
 从照片详情或选择栏下载照片。每张照片的下载菜单会列出该照片可用的类型，包括已配置的 darktable 配置：
 
+新添加的配套 RAW 文件可能需要最多五分钟才会出现在此菜单中。
+
 - **原图**（`original`）——原样的文件（JPG/HEIF），或以查看器所显示的同样渲染转换为 JPEG 的 RAW。因此包围曝光的帧下载时不带曝光校正——参见 [CONFIGURATION.md](CONFIGURATION.md#包围曝光照片按未校正方式渲染)。
 - **darktable**（`darktable`）——用指定的 darktable 配置转换的配套 RAW。没有配套 RAW 时回退为原图。
 - **RAW**（`raw`）——原样的配套 RAW 文件。共享相册中不可用。
