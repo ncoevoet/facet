@@ -421,17 +421,17 @@ const SET_KIND_TOGGLE: Record<string, keyof HiddenFilterFlags> = {
             <div
               id="gallery-rows-host"
               data-photo-collection
-              [attr.role]="effectiveGalleryMode() === 'list' ? 'list' : 'grid'"
+              [attr.role]="listMode() ? 'list' : 'grid'"
               tabindex="0"
-              [attr.aria-label]="(effectiveGalleryMode() === 'list' ? I18N.gallery.layout_list : I18N.gallery.photo_grid) | translate"
-              [attr.aria-rowcount]="effectiveGalleryMode() === 'list' ? null : rowsModel().length"
+              [attr.aria-label]="(listMode() ? I18N.gallery.layout_list : I18N.gallery.photo_grid) | translate"
+              [attr.aria-rowcount]="listMode() ? null : rowsModel().length"
               class="flex flex-col p-2 md:p-4 outline-none"
               (keydown)="onGridKeydown($event)"
               (focusout)="onGridFocusOut($event)"
             >
               <div [style.height.px]="topSpacer()" aria-hidden="true"></div>
               @for (row of visibleRows(); track row.photos[0].path) {
-              <div class="flex gap-2 mb-2" [class.items-start]="naturalGridFit()" [style.height.px]="row.height" [style.margin-bottom.px]="effectiveGalleryMode() === 'list' ? 8 : null">
+              <div class="flex gap-[8px] mb-[8px]" [class.items-start]="naturalGridFit()" [style.height.px]="row.height">
                 @for (photo of row.photos; track photo.path; let i = $index) {
                   <app-photo-card
                 [collapsedSetKinds]="collapsedSetKinds()"
@@ -445,12 +445,12 @@ const SET_KIND_TOGGLE: Record<string, keyof HiddenFilterFlags> = {
                     [naturalFit]="naturalGridFit()"
                     [hideDetails]="rowCardHideDetails()"
                     [mosaicMode]="effectiveGalleryMode() === 'mosaic'"
-                    [listMode]="effectiveGalleryMode() === 'list'"
-                    [attr.aria-setsize]="effectiveGalleryMode() === 'list' ? store.photos().length : null"
-                    [attr.aria-posinset]="effectiveGalleryMode() === 'list' ? row.startIndex + i + 1 : null"
+                    [listMode]="listMode()"
+                    [attr.aria-setsize]="listMode() ? store.photos().length : null"
+                    [attr.aria-posinset]="listMode() ? row.startIndex + i + 1 : null"
                     [config]="store.config()"
                     [isSelected]="photo.path | isSelected:viewScoped():selectedPaths():excludedPaths()"
-                    [showSelectionIndicators]="selectionAffordance() || (selectingPhotos() && !isDesktop())"
+                    [showSelectionIndicators]="showSelectionIndicators()"
                     [isActive]="row.startIndex + i === activeIndex()"
                     [gridHasActiveCard]="hasActivePhoto()"
                     [currentSort]="store.filters().sort"
@@ -458,7 +458,7 @@ const SET_KIND_TOGGLE: Record<string, keyof HiddenFilterFlags> = {
                     [thumbSize]="thumbSize()"
                     [isEditionMode]="auth.isEdition()"
                     [personFilterId]="store.filters().person_id"
-                    [tooltipMode]="selectionAffordance() && !isDesktop() ? 'off' : tooltipMode()"
+                    [tooltipMode]="cardTooltipMode()"
                     [panelActivation]="panelActivation()"
                     (selectionChange)="toggleSelection($event.photo, $event.event, row.startIndex + i)"
                     (tooltipShow)="showTooltip($event.event, $event.photo)"
@@ -490,16 +490,15 @@ const SET_KIND_TOGGLE: Record<string, keyof HiddenFilterFlags> = {
               }
               <div [style.height.px]="bottomSpacer()" aria-hidden="true"></div>
             </div>
-          } @else if (effectiveGalleryMode() === 'grid' || effectiveGalleryMode() === 'list') {
+          } @else if (effectiveGalleryMode() === 'grid' || listMode()) {
             <div
               data-photo-collection
-              [attr.role]="effectiveGalleryMode() === 'list' ? 'list' : 'grid'"
+              [attr.role]="listMode() ? 'list' : 'grid'"
               tabindex="0"
-              [attr.aria-label]="(effectiveGalleryMode() === 'list' ? I18N.gallery.layout_list : I18N.gallery.photo_grid) | translate"
-              class="grid grid-cols-1 gap-2 p-2 md:p-4 outline-none"
+              [attr.aria-label]="(listMode() ? I18N.gallery.layout_list : I18N.gallery.photo_grid) | translate"
+              class="grid grid-cols-1 gap-[8px] p-2 md:p-4 outline-none"
               [class.items-start]="naturalGridFit()"
-              [style.grid-template-columns]="effectiveGalleryMode() === 'list' ? 'minmax(0,1fr)' : galleryColsStyle()"
-              [style.row-gap.px]="effectiveGalleryMode() === 'list' ? 8 : null"
+              [style.grid-template-columns]="listMode() ? 'minmax(0,1fr)' : galleryColsStyle()"
               (keydown)="onGridKeydown($event)"
               (focusout)="onGridFocusOut($event)"
             >
@@ -511,21 +510,21 @@ const SET_KIND_TOGGLE: Record<string, keyof HiddenFilterFlags> = {
                   [attr.data-pidx]="i"
                   [config]="store.config()"
                   [isSelected]="photo.path | isSelected:viewScoped():selectedPaths():excludedPaths()"
-                  [showSelectionIndicators]="selectionAffordance() || (selectingPhotos() && !isDesktop())"
+                  [showSelectionIndicators]="showSelectionIndicators()"
                   [isActive]="i === activeIndex()"
                   [gridHasActiveCard]="hasActivePhoto()"
                   [naturalFit]="naturalGridFit()"
                   [hideDetails]="effectiveHideDetails()"
-                  [listMode]="effectiveGalleryMode() === 'list'"
-                  [style.height.px]="effectiveGalleryMode() === 'list' ? listRowHeight() : null"
-                  [attr.aria-setsize]="effectiveGalleryMode() === 'list' ? store.photos().length : null"
-                  [attr.aria-posinset]="effectiveGalleryMode() === 'list' ? i + 1 : null"
+                  [listMode]="listMode()"
+                  [style.height.px]="listMode() ? listRowHeight() : null"
+                  [attr.aria-setsize]="listMode() ? store.photos().length : null"
+                  [attr.aria-posinset]="listMode() ? i + 1 : null"
                   [currentSort]="store.filters().sort"
                   [metricRanges]="store.metricRangesByColumn()"
                   [thumbSize]="thumbSize()"
                   [isEditionMode]="auth.isEdition()"
                   [personFilterId]="store.filters().person_id"
-                  [tooltipMode]="selectionAffordance() && !isDesktop() ? 'off' : tooltipMode()"
+                  [tooltipMode]="cardTooltipMode()"
                       [panelActivation]="panelActivation()"
                   (selectionChange)="toggleSelection($event.photo, $event.event, i)"
                   (tooltipShow)="showTooltip($event.event, $event.photo)"
@@ -559,14 +558,14 @@ const SET_KIND_TOGGLE: Record<string, keyof HiddenFilterFlags> = {
               role="grid"
               tabindex="0"
               [attr.aria-label]="I18N.gallery.photo_grid | translate"
-              class="flex flex-col gap-2 p-2 md:p-4 outline-none"
+              class="flex flex-col gap-[8px] p-2 md:p-4 outline-none"
               (keydown)="onGridKeydown($event)"
               (focusout)="onGridFocusOut($event)"
             >
               @for (row of mosaicRows(); track row.photos[0]?.path ?? $index) {
                 <!-- Fixed row dimensions retain the layout; the current-photo
                      marker stays on the card host outside its clipped tile. -->
-                <div class="flex gap-2">
+                <div class="flex gap-[8px]">
                   @for (photo of row.photos; track photo.path; let i = $index) {
                     <app-photo-card
                   [collapsedSetKinds]="collapsedSetKinds()"
@@ -580,7 +579,7 @@ const SET_KIND_TOGGLE: Record<string, keyof HiddenFilterFlags> = {
                       [mosaicMode]="true"
                       [config]="store.config()"
                       [isSelected]="photo.path | isSelected:viewScoped():selectedPaths():excludedPaths()"
-                      [showSelectionIndicators]="selectionAffordance() || (selectingPhotos() && !isDesktop())"
+                      [showSelectionIndicators]="showSelectionIndicators()"
                       [isActive]="row.startIndex + i === activeIndex()"
                       [gridHasActiveCard]="hasActivePhoto()"
                       [currentSort]="store.filters().sort"
@@ -588,7 +587,7 @@ const SET_KIND_TOGGLE: Record<string, keyof HiddenFilterFlags> = {
                       [thumbSize]="thumbSize()"
                       [isEditionMode]="auth.isEdition()"
                       [personFilterId]="store.filters().person_id"
-                      [tooltipMode]="selectionAffordance() && !isDesktop() ? 'off' : tooltipMode()"
+                      [tooltipMode]="cardTooltipMode()"
                       [panelActivation]="panelActivation()"
                       (selectionChange)="toggleSelection($event.photo, $event.event, row.startIndex + i)"
                       (tooltipShow)="showTooltip($event.event, $event.photo)"
@@ -1292,6 +1291,14 @@ export class GalleryComponent implements OnInit, OnDestroy {
     this.store.galleryMode() === 'list' || this.containerWidth() > 0 ? this.store.galleryMode() : 'grid',
   );
 
+  readonly listMode = computed(() => this.effectiveGalleryMode() === 'list');
+  protected readonly showSelectionIndicators = computed(() =>
+    this.selectionAffordance() || (this.selectingPhotos() && !this.isDesktop()),
+  );
+  protected readonly cardTooltipMode = computed(() =>
+    this.selectionAffordance() && !this.isDesktop() ? 'off' : this.tooltipMode(),
+  );
+
   /** Whether to hide photo details below the thumbnails */
   readonly effectiveHideDetails = computed(() => this.store.filters().hide_details);
 
@@ -1750,7 +1757,7 @@ export class GalleryComponent implements OnInit, OnDestroy {
 
   // --- Virtual scrolling (row windowing with top/bottom spacers) ---
 
-  /** Gap between cards/rows in pixels (matches the gap-2 Tailwind class). */
+  /** Gap between cards/rows in pixels (matches gap-[8px] / mb-[8px], including enlarged root fonts). */
   private static readonly ROW_GAP = 8;
   /** Pixels rendered beyond the viewport in both directions. */
   private static readonly OVERSCAN = 1200;
@@ -1790,10 +1797,10 @@ export class GalleryComponent implements OnInit, OnDestroy {
   readonly rowsModel = computed<GalleryRow[]>(() => {
     const photos = this.store.photos();
     // Rows live inside the p-2 md:p-4 container - subtract its padding
-    const width = this.effectiveGalleryMode() === 'list' ? this.listContentWidth() : this.containerWidth() - (this.isDesktop() ? 32 : 16);
+    const width = this.listMode() ? this.listContentWidth() : this.containerWidth() - (this.isDesktop() ? 32 : 16);
     if (!photos.length || width <= 0) return [];
     const gap = GalleryComponent.ROW_GAP;
-    if (this.effectiveGalleryMode() === 'list') return buildListRows(photos, width, this.listRowHeight(), gap);
+    if (this.listMode()) return buildListRows(photos, width, this.listRowHeight(), gap);
     const build = this.effectiveGalleryMode() === 'mosaic'
       ? (ps: Photo[]) => buildMosaicRows(ps, width, this.cardWidth(), gap)
       : (ps: Photo[]) => buildGridRows(ps, width, this.cardWidth(), gap, this.effectiveHideDetails(), this.isDesktop(), this.store.filters().tile_fit);
@@ -1877,11 +1884,7 @@ export class GalleryComponent implements OnInit, OnDestroy {
     });
     if (this.historyPosition) {
       const interrupt = () => { this.positionInterrupted = true; };
-      const events = ['pointerdown', 'keydown', 'wheel', 'touchstart'] as const;
-      for (const event of events) this.document.addEventListener(event, interrupt, { capture: true, passive: true });
-      this.destroyRef.onDestroy(() => {
-        for (const event of events) this.document.removeEventListener(event, interrupt, true);
-      });
+      this.watchRestorationInput(interrupt);
     }
     this.outlet?.detachEvents.pipe(takeUntilDestroyed()).subscribe(component => {
       if (component !== this) return;
@@ -2110,15 +2113,12 @@ export class GalleryComponent implements OnInit, OnDestroy {
     const route = this.router.url.split('?')[0]; const query = this.store.filterKey();
     let interacted = false;
     const veto = () => { interacted = true; };
-    const events = ['pointerdown', 'keydown', 'wheel', 'touchstart'] as const;
-    const cleanup = () => { for (const event of events) document.removeEventListener(event, veto, true); };
-    for (const event of events) document.addEventListener(event, veto, { capture: true, passive: true });
-    const unregister = this.destroyRef.onDestroy(cleanup);
+    const cleanup = this.watchRestorationInput(veto);
     const current = () => !interacted && !this.parked && !this.destroyRef.destroyed
       && (navigation === this.resumeNavigation || (!this.router.currentNavigation() && this.router.url.split('?')[0] === route))
       && query === this.store.filterKey() && mode === this.effectiveGalleryMode() && photos === this.store.photos();
     requestAnimationFrame(() => {
-      if (!current()) { cleanup(); unregister(); return; }
+      if (!current()) { cleanup(); return; }
       if (this.virtualOn()) {
         this.updateWindowPosition();
         const row = this.rowsModel().find(row => row.photos.some(photo => photo.path === path));
@@ -2137,9 +2137,20 @@ export class GalleryComponent implements OnInit, OnDestroy {
           const delta = rect.top - now.top - targetOffset;
           if (Math.abs(delta) >= 1) content.scrollTo({ top: Math.max(0, content.measureScrollOffset('top') + delta) });
           if (active && this.activePath() === null) this.setCursor(this.indexOfPath(active));
-        } finally { cleanup(); unregister(); }
+        } finally { cleanup(); }
       });
     });
+  }
+
+  /** User input cancels automatic positioning; listeners end on completion or destruction. */
+  private watchRestorationInput(interrupt: () => void): () => void {
+    const events = ['pointerdown', 'keydown', 'wheel', 'touchstart'] as const;
+    const remove = () => {
+      for (const event of events) this.document.removeEventListener(event, interrupt, true);
+    };
+    for (const event of events) this.document.addEventListener(event, interrupt, { capture: true, passive: true });
+    const unregister = this.destroyRef.onDestroy(remove);
+    return () => { remove(); unregister(); };
   }
 
   /** Re-anchor after drawer margins and card heights settle, including parked resizes. */
@@ -2148,10 +2159,7 @@ export class GalleryComponent implements OnInit, OnDestroy {
     const navigation = this.resumeNavigation;
     let interacted = false;
     const veto = () => { interacted = true; };
-    const events = ['pointerdown', 'keydown', 'wheel', 'touchstart'];
-    const cleanup = () => events.forEach(event => document.removeEventListener(event, veto, true));
-    events.forEach(event => document.addEventListener(event, veto, { capture: true, passive: true }));
-    const unregister = this.destroyRef.onDestroy(cleanup);
+    const cleanup = this.watchRestorationInput(veto);
     requestAnimationFrame(() => requestAnimationFrame(() => {
       try {
         if (interacted || !current() || this.parked || this.destroyRef.destroyed || navigation !== this.resumeNavigation
@@ -2173,7 +2181,7 @@ export class GalleryComponent implements OnInit, OnDestroy {
         if (Math.abs(delta) >= 1) content.scrollTo({ top: Math.max(0, content.measureScrollOffset('top') + delta) });
         this.setCursor(index);
         this.focusCard(index, false, false);
-      } finally { cleanup(); unregister(); }
+      } finally { cleanup(); }
     }));
   }
 
@@ -3142,7 +3150,7 @@ export class GalleryComponent implements OnInit, OnDestroy {
   /** Vertical step for the active index: grid = ±columns, mosaic = same offset in adjacent row. */
   private verticalTarget(index: number, dir: 1 | -1): number {
     const count = this.store.photos().length;
-    if (this.effectiveGalleryMode() === 'list') return Math.max(0, Math.min(count - 1, index + dir));
+    if (this.listMode()) return Math.max(0, Math.min(count - 1, index + dir));
     if (this.effectiveGalleryMode() === 'grid' && !this.virtualOn()) {
       const next = index + dir * this.gridColumns();
       return Math.max(0, Math.min(count - 1, next));

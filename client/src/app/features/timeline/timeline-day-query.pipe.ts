@@ -8,9 +8,15 @@ export function timelineGalleryQuery(visibility: ViewFilterParams): Record<strin
     review_status: '', show_rejected: 'false', blinks_only: 'false', duplicates_only: 'false' };
 }
 
-export function timelineDayQuery(date: string, visibility: ViewFilterParams): Record<string, string> {
+export function timelineRangeQuery(
+  from: string, to: string, visibility: ViewFilterParams, direction: 'ASC' | 'DESC',
+): Record<string, string> {
   return { ...timelineGalleryQuery(visibility),
-    date_from: date, date_to: date, sort: 'date_taken', sort_direction: 'ASC' };
+    date_from: from, date_to: to, sort: 'date_taken', sort_direction: direction };
+}
+
+export function timelineDayQuery(date: string, visibility: ViewFilterParams): Record<string, string> {
+  return timelineRangeQuery(date, date, visibility, 'ASC');
 }
 
 @Pipe({ name: 'timelineDayQuery', standalone: true })

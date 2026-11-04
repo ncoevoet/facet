@@ -14,7 +14,7 @@ import { TimelineMonthsComponent } from './timeline-months.component';
 import { TimelineDaysComponent } from './timeline-days.component';
 import { TimelineDatePipe } from './timeline-date.pipe';
 import { TimelineFeedComponent } from './timeline-feed.component';
-import { timelineDayQuery, timelineGalleryQuery } from './timeline-day-query.pipe';
+import { timelineDayQuery, timelineGalleryQuery, timelineRangeQuery } from './timeline-day-query.pipe';
 import { TimelineDensityComponent } from './timeline-density.component';
 import { CaptureDatePipe } from '../../shared/pipes/capture-date.pipe';
 import { timelineWindow } from './timeline-density.util';
@@ -228,11 +228,9 @@ export class TimelineComponent {
   protected viewRange(): void {
     if (this.emptyRange()) return;
     const range = this.selectedRange();
-    this.router.navigate(['/'], { queryParams: {
-      ...this.galleryVisibility(),
-      date_from: range.from, date_to: range.to,
-      sort: 'date_taken', sort_direction: 'DESC',
-    } });
+    this.router.navigate(['/'], { queryParams:
+      timelineRangeQuery(range.from, range.to, this.store.viewFilterParams(), 'DESC'),
+    });
   }
 
   protected viewUnknownDates(): void {
