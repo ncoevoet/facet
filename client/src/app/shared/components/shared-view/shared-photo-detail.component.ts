@@ -13,7 +13,7 @@ import { TranslatePipe } from '../../pipes/translate.pipe';
 import { CaptureDatePipe } from '../../pipes/capture-date.pipe';
 import { RenditionReadoutComponent } from '../rendition-readout/rendition-readout.component';
 import { PhotoAssessmentComponent } from '../photo-assessment/photo-assessment.component';
-import { CategoryLabelPipe } from '../../../features/gallery/photo-tooltip.component';
+import { CategoryLabelPipe } from '../../pipes/category-label.pipe';
 import { IsLensNamePipe } from '../../pipes/is-lens-name.pipe';
 import { PhotoDetailBase } from '../../directives/photo-detail-base.directive';
 import { i18nKeys } from '../../../core/i18n/keys';

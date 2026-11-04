@@ -12,7 +12,7 @@ describe('Shared photo detail extended metric availability', () => {
     providers: [
       { provide: ApiService, useValue: { imageUrl: () => '/image', get: () => of({ options: [] }) } },
       { provide: I18nService, useValue: { t: (key: string) => key, locale: () => 'en', translations: () => ({}) } },
-      { provide: Router, useValue: { navigate: vi.fn() } },
+      { provide: Router, useValue: { navigate: vi.fn(), events: new Subject() } },
       { provide: ActivatedRoute, useValue: { snapshot: { paramMap: convertToParamMap({}), queryParamMap: convertToParamMap({}), url: [] } } },
     ],
   }));
@@ -23,6 +23,7 @@ describe('Shared photo detail extended metric availability', () => {
     view.componentInstance.photo.set(makePhoto({ aesthetic_v25: 0, qrealign_score: null, deqa_score: null }));
     view.detectChanges();
     expect(view.nativeElement.querySelector('[data-testid="aesthetic_v25-score"]').textContent.trim()).toBe('0.0');
+    expect(view.nativeElement.querySelector('app-metric-distribution')).toBeNull();
     for (const key of ['qrealign_score', 'deqa_score']) {
       expect(view.nativeElement.querySelector(`[data-testid="${key}-row"]`)).toBeNull();
     }
@@ -43,7 +44,7 @@ describe('Shared photo detail album capability transport', () => {
     TestBed.configureTestingModule({ imports: [SharedPhotoDetailComponent], providers: [
       { provide: ApiService, useValue: { get: read, imageUrl: () => '/ordinary-image' } },
       { provide: ActivatedRoute, useValue: route },
-      { provide: Router, useValue: { navigate } },
+      { provide: Router, useValue: { navigate, events: new Subject() } },
       { provide: I18nService, useValue: { t: (key: string) => key, locale: () => 'en', translations: () => ({}) } },
     ] });
     const fixture = TestBed.createComponent(SharedPhotoDetailComponent);

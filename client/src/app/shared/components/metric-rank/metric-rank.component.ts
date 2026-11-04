@@ -29,6 +29,7 @@ export class MetricRankComponent {
   /** The metric is a 0-1 fraction its row shows as a percentage; the range is shown the same way. */
   readonly percent = input(false);
   readonly compact = input(false);
+  readonly scopeLabel = input<string | null>(null);
 
   private readonly i18n = inject(I18nService);
 
@@ -38,6 +39,10 @@ export class MetricRankComponent {
     const { min, max } = this.range();
     const bound = (v: number) => this.percent() ? `${Math.round(v * 100)}%` : formatBound(v);
     const bounds = { min: bound(min), max: bound(max) };
+    const scope = this.scopeLabel();
+    if (scope) return top === null
+      ? this.i18n.t('photo_detail.distribution.scoped_range', { scope, ...bounds })
+      : this.i18n.t('photo_detail.distribution.scoped_top_in_range', { scope, pct: top, ...bounds });
     return top === null
       ? this.i18n.t('photo_detail.distribution.range', bounds)
       : this.i18n.t('photo_detail.distribution.top_in_range', { pct: top, ...bounds });

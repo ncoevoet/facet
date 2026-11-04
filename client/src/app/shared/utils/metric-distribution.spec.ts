@@ -50,3 +50,11 @@ describe('metric-distribution', () => {
     expect(percentileOf({ min: 0, max: 1, buckets: [0, 0] }, 0.5)).toBeNull();
   });
 });
+
+
+it('places finite extreme scores without overflowing the marker or rank', () => {
+  const range = {min: -1e308, max: 1e308, buckets: Array(32).fill(1)};
+  expect(bucketIndexOf(range, 0)).toBe(16);
+  expect(percentileOf(range, 0)).toBe(50);
+  expect(bucketIndexOf({min: 0, max: 1e308, buckets: Array(32).fill(1)}, 1e307)).toBe(3);
+});

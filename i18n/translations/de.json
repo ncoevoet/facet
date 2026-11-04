@@ -1055,6 +1055,7 @@
     "user_menu": "Benutzermenü"
   },
   "gallery": {
+    "face_outlines": "Gesichtsrahmen anzeigen",
     "criteria": {
       "field_labels": {
         "blinks_only": "Nur Blinzler",
@@ -1099,7 +1100,7 @@
       }
     },
     "presentation": {
-      "label": "Anzeige",
+      "label": "Voreinstellungen",
       "help": "Aufgabenlayout wählen. Filter, Sortierung, Album und Auswahl bleiben gleich.",
       "browse": "Durchsehen",
       "review": "Prüfen",
@@ -3277,6 +3278,12 @@
       "batch_hint": "Wählen Sie einen Ort und prüfen Sie die Änderungen, bevor Sie die Auswahl speichern."
     },
     "distribution": {
+      "scope": "Verteilungsbereich",
+      "library": "Deine Bibliothek",
+      "category": "Kategorie",
+      "open": "Verteilung für {metric}",
+      "scoped_range": "{scope} · Bereich {min}–{max}",
+      "scoped_top_in_range": "Beste {pct} % in {scope} · Bereich {min}–{max}",
       "top": "Top {pct} % der Bibliothek",
       "range": "Bereich der Bibliothek {min}–{max}",
       "top_in_range": "Top {pct} % der Bibliothek · Bereich der Bibliothek {min}–{max}"

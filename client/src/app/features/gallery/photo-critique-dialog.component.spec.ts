@@ -1,3 +1,4 @@
+import { OverlayContainer } from '@angular/cdk/overlay';
 import type { Mock } from 'vitest';
 import { TestBed } from '@angular/core/testing';
 import { MatSnackBar } from '@angular/material/snack-bar';
@@ -215,16 +216,14 @@ describe('PhotoAnalysisComponent current calculation DOM', () => {
   it.each(['persisted_percentiles', 'stored_metrics'] as const)('states the %s normalization basis', async (basis) => {
     const fixture = await render({ normalization_basis: basis });
     expect(fixture.nativeElement.textContent).not.toContain('critique.normalization_basis.' + basis);
-    const help = fixture.nativeElement.querySelector('[data-context-help]') as HTMLDetailsElement;
-    help.querySelector<HTMLElement>('summary')!.click();
-    help.dispatchEvent(new Event('toggle')); fixture.detectChanges();
+    fixture.nativeElement.querySelector('app-context-help button').click(); fixture.detectChanges();
+    const help = TestBed.inject(OverlayContainer).getContainerElement();
     expect(help.textContent).toContain('critique.normalization_basis.' + basis);
   });
   it('omits the normalization basis when none is reported', async () => {
     const fixture = await render({ normalization_basis: null });
-    const help = fixture.nativeElement.querySelector('[data-context-help]') as HTMLDetailsElement;
-    help.querySelector<HTMLElement>('summary')!.click();
-    help.dispatchEvent(new Event('toggle')); fixture.detectChanges();
+    fixture.nativeElement.querySelector('app-context-help button').click(); fixture.detectChanges();
+    const help = TestBed.inject(OverlayContainer).getContainerElement();
     expect(help.textContent).toContain('critique.calculation_note');
     expect(help.textContent).not.toContain('critique.normalization_basis.');
   });

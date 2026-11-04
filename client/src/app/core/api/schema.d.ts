@@ -5540,6 +5540,29 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/stats/metric_distribution": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Metric Distribution
+         * @description One metric in the caller's visible library, optionally within a category.
+         *
+         *     Intentionally uncached: each request is small and never shares a visibility
+         *     snapshot with another account. Identifiers come exclusively from the registry.
+         */
+        get: operations["metric_distribution_api_stats_metric_distribution_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/stats/overview": {
         parameters: {
             query?: never;
@@ -9003,6 +9026,23 @@ export interface components {
             threshold: number;
             /** Truncated */
             truncated: boolean;
+        };
+        /** MetricDistribution */
+        MetricDistribution: {
+            /** Buckets */
+            buckets: number[];
+            /** Column */
+            column: string;
+            /** Max */
+            max: number;
+            /** Min */
+            min: number;
+        };
+        /** MetricDistributionResponse */
+        MetricDistributionResponse: {
+            /** Count */
+            count: number;
+            distribution: components["schemas"]["MetricDistribution"] | null;
         };
         /**
          * NextPairResponse
@@ -20321,6 +20361,38 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["StatsGearResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    metric_distribution_api_stats_metric_distribution_get: {
+        parameters: {
+            query?: {
+                column?: string;
+                category?: string | null;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MetricDistributionResponse"];
                 };
             };
             /** @description Validation Error */

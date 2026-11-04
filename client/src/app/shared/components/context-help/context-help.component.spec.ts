@@ -1,9 +1,10 @@
+import { OverlayContainer } from '@angular/cdk/overlay';
 import { TestBed } from '@angular/core/testing';
 import { I18nService } from '../../../core/services/i18n.service';
 import { ContextHelpComponent } from './context-help.component';
 
 describe('ContextHelpComponent', () => {
-  it('reveals explanations only on request and restores focus for Close and Escape', () => {
+  it('reveals explanations without layout expansion and restores focus for Close, Escape and outside click', async () => {
     TestBed.configureTestingModule({
       imports: [ContextHelpComponent],
       providers: [{ provide: I18nService, useValue: { t: (key: string) => key, translations: () => ({}) } }],
@@ -14,24 +15,25 @@ describe('ContextHelpComponent', () => {
     fixture.detectChanges();
     const root = fixture.nativeElement as HTMLElement;
     document.body.appendChild(root);
-    const help = root.querySelector('details')!;
-    const trigger = root.querySelector('summary')!;
+    const trigger = root.querySelector('button')!;
+    const overlay = TestBed.inject(OverlayContainer).getContainerElement();
     expect(root.textContent).not.toContain('Display pixels, not RAW sensor pixels');
-    for (const dismissal of ['Close', 'Escape']) {
-      help.open = true;
-      help.dispatchEvent(new Event('toggle'));
-      fixture.detectChanges();
-      expect(root.textContent).toContain('Display pixels, not RAW sensor pixels');
-      const button = root.querySelector<HTMLButtonElement>('[data-context-help-close]')!;
+    for (const dismissal of ['Close', 'Escape', 'Outside']) {
+      trigger.focus(); trigger.click(); fixture.detectChanges(); await fixture.whenStable();
+      expect(root.textContent).not.toContain('Display pixels, not RAW sensor pixels');
+      expect(overlay.textContent).toContain('Display pixels, not RAW sensor pixels');
+      const button = overlay.querySelector<HTMLButtonElement>('[role="dialog"] button')!;
       button.focus();
       if (dismissal === 'Close') button.click();
+      else if (dismissal === 'Outside') overlay.querySelector<HTMLElement>('.cdk-overlay-backdrop')!.click();
       else {
         const event = new KeyboardEvent('keydown', { key: 'Escape', bubbles: true, cancelable: true });
         button.dispatchEvent(event);
         expect(event.defaultPrevented).toBe(true);
       }
       fixture.detectChanges();
-      expect(help.open).toBe(false);
+      expect(trigger.getAttribute('aria-expanded')).toBe('false');
+      expect(overlay.querySelector('[role="dialog"]')).toBeNull();
       expect(document.activeElement).toBe(trigger);
       expect(root.textContent).not.toContain('Display pixels, not RAW sensor pixels');
     }

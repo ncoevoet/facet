@@ -2,8 +2,9 @@ import type { Mock } from 'vitest';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { Component, signal, ChangeDetectionStrategy } from '@angular/core';
 import { Router } from '@angular/router';
-import { of } from 'rxjs';
-import { PhotoTooltipComponent, CategoryLabelPipe } from './photo-tooltip.component';
+import { of, Subject } from 'rxjs';
+import { PhotoTooltipComponent } from './photo-tooltip.component';
+import { CategoryLabelPipe } from '../../shared/pipes/category-label.pipe';
 import { ApiService } from '../../core/services/api.service';
 import { I18nService } from '../../core/services/i18n.service';
 import type { Photo, PhotoSet } from '../../shared/models/photo.model';
@@ -62,7 +63,7 @@ describe('PhotoTooltipComponent', () => {
     config: signal<{ populated_scores?: string[] } | null>(null),
     metricRangesByColumn: signal({}),
   };
-  const mockRouter = { navigate: vi.fn(() => Promise.resolve(true)) };
+  const mockRouter = { events: new Subject(), navigate: vi.fn(() => Promise.resolve(true)) };
 
   beforeEach(async () => {
     mockStore.config.set(null);
@@ -433,7 +434,7 @@ describe('PhotoTooltipComponent', () => {
         persons: [{ id: 1, name: 'Alice' }],
       }));
       fixture.detectChanges();
-      expect(fixture.nativeElement.querySelector('button')).toBeNull();
+      expect(fixture.nativeElement.querySelector('img[src*="person"]')?.closest('button')).toBeNull();
       const avatar = fixture.nativeElement.querySelector('img[class*="rounded-full"]');
       expect(avatar).not.toBeNull();
       expect(avatar.className).toContain('w-6');
@@ -847,7 +848,7 @@ describe('PhotoTooltipComponent', () => {
     // --- clickable, per-surface-sized person avatars --------------------------
 
     function personButton(): HTMLButtonElement | null {
-      return setFixture.nativeElement.querySelector('button[aria-label]');
+      return setFixture.nativeElement.querySelector('img[src*="person"]')?.closest('button') ?? null;
     }
 
     it('renders person avatars as clickable 44px buttons in the docked panel', () => {

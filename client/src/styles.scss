@@ -314,8 +314,8 @@ html.light-mode ::-webkit-scrollbar-thumb {
 }
 
 *:focus-visible {
-  outline: 2px solid var(--mat-sys-primary) !important;
-  outline-offset: 2px !important;
+  outline: 2px solid var(--mat-sys-primary);
+  outline-offset: 2px;
 }
 
 // Normal buttons: trade the M3 pill shape for a subtler radius.

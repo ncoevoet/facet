@@ -1,3 +1,4 @@
+import { OverlayContainer } from '@angular/cdk/overlay';
 import { signal } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
 import { NavigationCancel, NavigationStart, Router } from '@angular/router';
@@ -97,14 +98,14 @@ describe('PhotoAnalysisComponent ownership', () => {
     expect(root.querySelector('tbody')?.textContent).toContain('50%');
     expect(root.querySelector('tbody')?.textContent).toContain('4.00');
     expect(root.textContent).not.toContain('critique.calculation_note');
-    const help = root.querySelector<HTMLDetailsElement>('[data-context-help]')!;
-    const trigger = help.querySelector<HTMLElement>('summary')!;
-    trigger.click(); help.dispatchEvent(new Event('toggle'));
+    const trigger = root.querySelector<HTMLButtonElement>('app-context-help button')!;
+    trigger.focus(); trigger.click();
+    const help = TestBed.inject(OverlayContainer).getContainerElement();
     fixture.detectChanges();
-    expect(root.textContent).toContain('critique.calculation_note');
-    expect(root.textContent).toContain('critique.normalization_basis.persisted_percentiles');
-    help.querySelector<HTMLButtonElement>('[data-context-help-close]')!.click(); fixture.detectChanges();
-    expect(help.open).toBe(false);
+    expect(help.textContent).toContain('critique.calculation_note');
+    expect(help.textContent).toContain('critique.normalization_basis.persisted_percentiles');
+    help.querySelector<HTMLButtonElement>('header button')!.click(); fixture.detectChanges();
+    expect(help.querySelector('[role="dialog"]')).toBeNull();
     expect(document.activeElement).toBe(trigger);
     expect(root.textContent).not.toContain('critique.calculation_note');
     expect(api.post).not.toHaveBeenCalled();

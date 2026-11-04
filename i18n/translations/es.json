@@ -1055,6 +1055,7 @@
     "user_menu": "Menú de usuario"
   },
   "gallery": {
+    "face_outlines": "Mostrar recuadros de rostros",
     "criteria": {
       "field_labels": {
         "blinks_only": "Solo parpadeos",
@@ -1099,7 +1100,7 @@
       }
     },
     "presentation": {
-      "label": "Vista",
+      "label": "Preajustes",
       "help": "Elige un diseño de trabajo. Los filtros, el orden, el álbum y la selección se mantienen.",
       "browse": "Explorar",
       "review": "Revisar",
@@ -3277,6 +3278,12 @@
       "batch_hint": "Elige una ubicación y revisa los cambios antes de guardar la selección."
     },
     "distribution": {
+      "scope": "Ámbito de distribución",
+      "library": "Tu biblioteca",
+      "category": "Categoría",
+      "open": "Distribución de {metric}",
+      "scoped_range": "{scope} · rango {min}–{max}",
+      "scoped_top_in_range": "Mejor {pct}% en {scope} · rango {min}–{max}",
       "top": "Top {pct} % de la biblioteca",
       "range": "Rango de la biblioteca {min}–{max}",
       "top_in_range": "Top {pct} % de la biblioteca · rango de la biblioteca {min}–{max}"

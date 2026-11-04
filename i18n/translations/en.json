@@ -1080,6 +1080,7 @@
     "user_menu": "User menu"
   },
   "gallery": {
+    "face_outlines": "Show person face outlines",
     "criteria": {
       "field_labels": {
         "blinks_only": "Blinks only",
@@ -1124,7 +1125,7 @@
       }
     },
     "presentation": {
-      "label": "Display",
+      "label": "Presets",
       "help": "Choose a task layout. Filters, sort, album and selection stay the same.",
       "browse": "Browse",
       "review": "Review",
@@ -3302,6 +3303,12 @@
       "batch_hint": "Choose a location, then preview the changes before saving the selection."
     },
     "distribution": {
+      "scope": "Distribution scope",
+      "library": "Your library",
+      "category": "Category",
+      "open": "Distribution for {metric}",
+      "scoped_range": "{scope} · range {min}–{max}",
+      "scoped_top_in_range": "Top {pct}% in {scope} · range {min}–{max}",
       "top": "Top {pct}% of the library",
       "range": "Library range {min}–{max}",
       "top_in_range": "Top {pct}% of the library · library range {min}–{max}"

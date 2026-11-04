@@ -1,15 +1,21 @@
 import { createGalleryFilterContext } from './gallery-filter-context';
 import { ChangeDetectionStrategy, Component, computed, ElementRef, inject, input, signal, viewChild } from '@angular/core';
 import { GalleryStore } from './gallery.store';
+import { MatIconModule } from '@angular/material/icon';
 import { TranslatePipe } from '../../shared/pipes/translate.pipe';
 import { I18N } from '../../core/i18n/keys';
 import { parseScorePresence, serializeScorePresence, ScorePresenceMode, SCORE_PRESENCE_KEYS } from './score-presence.util';
 
 @Component({
-  selector: 'app-score-presence', imports: [TranslatePipe], changeDetection: ChangeDetectionStrategy.OnPush,
+  selector: 'app-score-presence', imports: [TranslatePipe, MatIconModule], changeDetection: ChangeDetectionStrategy.OnPush,
   host: { class: 'block' }, template: `
-    <details class="border-b border-[var(--mat-sys-outline-variant)] mb-2 pb-2" [open]="!!store.filters().score_presence">
-      <summary #summary class="cursor-pointer min-h-11 flex items-center text-sm font-medium">{{ I18N.gallery.measurements.title | translate }}</summary>
+    <details #disclosure (toggle)="expanded.set(disclosure.open)" class="border-b border-[var(--mat-sys-outline-variant)] mb-2 pb-2" [open]="!!store.filters().score_presence">
+      <summary #summary class="cursor-pointer min-h-11 flex list-none items-center gap-2 text-sm font-medium">
+        <mat-icon aria-hidden="true" class="!h-5 !w-5 !text-xl">fact_check</mat-icon>
+        <span class="flex-1">{{ I18N.gallery.measurements.title | translate }}</span>
+        @if (rows().length) { <span class="rounded-full bg-[var(--mat-sys-primary-container)] px-2 text-xs tabular-nums">{{ rows().length }}</span> }
+        <mat-icon aria-hidden="true" class="!h-5 !w-5 !text-xl">{{ expanded() ? 'expand_less' : 'expand_more' }}</mat-icon>
+      </summary>
       <p id="measurement-policy-help" class="my-1 text-xs text-[var(--mat-sys-on-surface-variant)]">{{ I18N.gallery.measurements.help | translate }}</p>
       @if (policies(); as current) {
         <label for="measurement-policy-metric" class="block text-xs mt-2">{{ I18N.gallery.measurements.metric | translate }}</label>
@@ -37,6 +43,7 @@ export class ScorePresenceComponent {
   protected readonly store = inject(GalleryStore);
   private readonly summary = viewChild<ElementRef<HTMLElement>>('summary');
   protected readonly selected = signal('');
+  protected readonly expanded = signal(false);
   protected readonly selectedKey = computed(() => this.metrics().some(m => m.minKey === this.selected()) ? this.selected() : this.metrics()[0]?.minKey ?? '');
   protected readonly policies = computed(() => parseScorePresence(this.store.filters().score_presence ?? ''));
   protected readonly modes = [

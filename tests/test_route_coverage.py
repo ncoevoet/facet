@@ -66,6 +66,7 @@ AUTH_ROUTES = [
     '/api/filter_options/patterns',
     '/api/stats/overview',
     '/api/stats/score_distribution',
+    '/api/stats/metric_distribution',
     '/api/stats/top_cameras',
     '/api/stats/categories',
     '/api/stats/gear',

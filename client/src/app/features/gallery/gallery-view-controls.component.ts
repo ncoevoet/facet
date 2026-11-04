@@ -1,5 +1,5 @@
 import { NgTemplateOutlet } from '@angular/common';
-import { afterNextRender, ChangeDetectionStrategy, Component, computed, DestroyRef, inject, input, signal, TemplateRef, viewChild, viewChildren } from '@angular/core';
+import { afterNextRender, ChangeDetectionStrategy, Component, computed, DestroyRef, inject, input, output, signal, TemplateRef, viewChild, viewChildren } from '@angular/core';
 import { trackPendingNavigation } from '../../shared/utils/navigation-settled';
 import { MatBadgeModule } from '@angular/material/badge';
 import { MatButtonModule } from '@angular/material/button';
@@ -27,6 +27,7 @@ const sortOptionLabelKey = (column: string): string => `sort_options.${column}`;
   imports: [NgTemplateOutlet, MatBadgeModule, MatButtonModule, MatIconModule, MatMenuModule, MatTooltipModule, TranslatePipe, SortOptionIconPipe, SortGroupKeyPipe],
   host: { class: 'flex flex-wrap items-center gap-1' },
   template: `
+    <ng-template #displayControls>
     @if (auth.isEdition() && store.config()?.features?.show_rating_controls) {
       <label class="inline-flex min-h-11 cursor-pointer items-center gap-2 px-2 text-xs" [matTooltip]="I18N.gallery.review_navigation.help | translate">
         <input type="checkbox" data-review-advance [checked]="reviewNavigation.enabled()"
@@ -34,10 +35,10 @@ const sortOptionLabelKey = (column: string): string => `sort_options.${column}`;
         {{ I18N.gallery.review_navigation.advance | translate }}
       </label>
     }
-    <button mat-button data-display-presets class="!min-h-11 !min-w-11 !w-11 !px-2 @[1120px]:!w-auto @[1120px]:!px-4" [matMenuTriggerFor]="displayPresetMenu"
+    <button mat-button data-display-presets [class.!w-full]="portDisplay()" [class.!justify-start]="portDisplay()" class="!min-h-11 !min-w-11 !w-11 !px-2 @[1120px]:!w-auto @[1120px]:!px-4" [matMenuTriggerFor]="displayPresetMenu"
             [attr.aria-label]="I18N.gallery.presentation.label | translate"
             [matTooltip]="I18N.gallery.presentation.help | translate">
-      <mat-icon class="!m-0 @[1120px]:!mr-2">tune</mat-icon><span class="hidden @[1120px]:inline">{{ I18N.gallery.presentation.label | translate }}</span>
+      <mat-icon class="!m-0 @[1120px]:!mr-2">tune</mat-icon><span [class.!inline]="portDisplay()" class="hidden @[1120px]:inline">{{ I18N.gallery.presentation.label | translate }}</span>
     </button>
     <mat-menu #displayPresetMenu="matMenu">
       <p class="m-0 px-4 py-2 max-w-72 text-xs text-[var(--mat-sys-on-surface-variant)]">{{ I18N.gallery.presentation.help | translate }}</p>
@@ -60,50 +61,8 @@ const sortOptionLabelKey = (column: string): string => `sort_options.${column}`;
         </button>
       }
     </mat-menu>
-    <ng-template #primaryControls>
-      @if (!pinned()) {
-        @let sortTooltip = I18N.gallery.sort_current | translate:{ label: (currentSortLabelKey() | translate) };
-        <button mat-button data-collection-sort
-                class="!min-h-11 !min-w-11 !w-11 !px-2 @[1120px]:!w-auto @[1120px]:!px-4"
-                [matMenuTriggerFor]="sortMenu" [matTooltip]="sortTooltip" [attr.aria-label]="sortTooltip">
-          @let currentIcon = store.filters().sort | sortOptionIcon;
-          <mat-icon aria-hidden="true" class="!m-0 !w-8 text-center @[1120px]:!mr-2" [class]="currentIcon.classes">{{ currentIcon.text }}</mat-icon>
-          <span class="hidden @[1120px]:inline">{{ currentSortLabelKey() | translate }}</span>
-        </button>
-        <button mat-icon-button class="!h-11 !w-11 !min-w-11 !p-2.5" (click)="toggleSortDirection()"
-                [matTooltip]="store.filters().sort_direction === 'DESC' ? (I18N.gallery.sort_desc | translate) : (I18N.gallery.sort_asc | translate)"
-                [attr.aria-label]="store.filters().sort_direction === 'DESC' ? (I18N.gallery.sort_desc | translate) : (I18N.gallery.sort_asc | translate)">
-          <mat-icon>{{ store.filters().sort_direction === 'DESC' ? 'arrow_downward' : 'arrow_upward' }}</mat-icon>
-        </button>
-      }
-    </ng-template>
-    @if (!portPrimary()) { <ng-container [ngTemplateOutlet]="primaryControls" /> }
-    <ng-template #filterControls>
-      @if (!pinned()) {
-        <button mat-button class="!min-h-11 !min-w-11 !px-2" (click)="toggleFilters()"
-                [matBadge]="store.activeFilterCount() || null" matBadgeColor="primary" matBadgeSize="small"
-                [matTooltip]="I18N.gallery.filters | translate" [attr.aria-label]="I18N.gallery.filters | translate"
-                [attr.aria-expanded]="store.filterDrawerOpen()">
-          <mat-icon class="@max-[479px]:!m-0" [style.color]="store.filterDrawerOpen() ? 'var(--mat-sys-primary)' : ''">filter_alt</mat-icon>
-          <span class="hidden @min-[480px]:inline">{{ I18N.gallery.filters | translate }}</span>
-        </button>
-      }
-    </ng-template>
-    @if (!portFilters()) { <ng-container [ngTemplateOutlet]="filterControls" /> }
-    <ng-template #layoutControls let-choices>
-      @for (layout of choices; track layout.id) {
-        <button mat-button [attr.data-gallery-layout]="layout.id"
-                class="!min-h-11 !min-w-11 !w-11 !px-2 @[1120px]:!w-auto @[1120px]:!px-4 !text-[var(--mat-sys-on-surface)]"
-                [class.!bg-[var(--mat-sys-secondary-container)]]="store.galleryMode() === layout.id"
-                [attr.aria-pressed]="store.galleryMode() === layout.id"
-                [attr.aria-label]="layout.label | translate" [matTooltip]="layout.label | translate" (click)="setLayout(layout.id)">
-          <mat-icon class="!m-0 @[1120px]:!mr-2">{{ layout.icon }}</mat-icon><span class="hidden @[1120px]:inline">{{ layout.label | translate }}</span>
-        </button>
-      }
-    </ng-template>
-    <ng-template #sidebarLayoutControls><ng-container [ngTemplateOutlet]="layoutControls" [ngTemplateOutletContext]="{ $implicit: layouts }" /></ng-template>
-    <ng-container [ngTemplateOutlet]="layoutControls" [ngTemplateOutletContext]="{ $implicit: secondaryLayouts }" />
-    <button mat-button class="!min-h-11 !min-w-11 !w-11 !px-2 @[1120px]:!w-auto @[1120px]:!px-4"
+    @if (!portDisplay()) { <ng-container [ngTemplateOutlet]="layoutControls" [ngTemplateOutletContext]="{ $implicit: secondaryLayouts }" /> }
+    <button mat-button [class.!w-full]="portDisplay()" [class.!justify-start]="portDisplay()" class="!min-h-11 !min-w-11 !w-11 !px-2 @[1120px]:!w-auto @[1120px]:!px-4"
             [matMenuTriggerFor]="tooltipModeMenu" [matTooltip]="I18N.gallery.tooltip_mode.label | translate"
             [attr.aria-label]="I18N.gallery.tooltip_mode.label | translate">
       <mat-icon class="!m-0 @[1120px]:!mr-2">{{
@@ -112,11 +71,12 @@ const sortOptionLabelKey = (column: string): string => `sort_options.${column}`;
         : store.filters().tooltip_mode === 'panel' ? 'view_sidebar'
         : 'chat_bubble_outline'
       }}</mat-icon>
-      <span class="hidden @[1120px]:inline">{{ I18N.gallery.tooltip_mode.label | translate }}</span>
+      <span [class.!inline]="portDisplay()" class="hidden @[1120px]:inline">{{ I18N.gallery.tooltip_mode.label | translate }}</span>
     </button>
-    <button mat-icon-button class="!h-11 !w-11 !min-w-11 !p-2.5" (click)="toggleSlideshow()"
+    <button mat-button class="!min-h-11 !min-w-11" [class.!w-full]="portDisplay()" [class.!justify-start]="portDisplay()" (click)="toggleSlideshow()"
             [matTooltip]="I18N.slideshow.start | translate" [attr.aria-label]="I18N.slideshow.start | translate">
       <mat-icon [style.color]="store.slideshowActive() ? 'var(--mat-sys-primary)' : ''">slideshow</mat-icon>
+      @if (portDisplay()) { <span>{{ I18N.slideshow.start | translate }}</span> }
     </button>
     <mat-menu #tooltipModeMenu="matMenu">
       @for (mode of tooltipModes(); track mode.id) {
@@ -150,6 +110,50 @@ const sortOptionLabelKey = (column: string): string => `sort_options.${column}`;
         </button>
       }
     </mat-menu>
+    </ng-template>
+    @if (!portDisplay()) { <ng-container [ngTemplateOutlet]="displayControls" /> }
+    <ng-template #primaryControls>
+      @if (!pinned()) {
+        @let sortTooltip = I18N.gallery.sort_current | translate:{ label: (currentSortLabelKey() | translate) };
+        <button mat-button data-collection-sort
+                class="!min-h-11 !min-w-11 !w-11 !px-2 @[1120px]:!w-auto @[1120px]:!px-4"
+                [matMenuTriggerFor]="sortMenu" [matTooltip]="sortTooltip" [attr.aria-label]="sortTooltip">
+          @let currentIcon = store.filters().sort | sortOptionIcon;
+          <mat-icon aria-hidden="true" class="!m-0 !w-8 text-center @[1120px]:!mr-2" [class]="currentIcon.classes">{{ currentIcon.text }}</mat-icon>
+          <span class="hidden @[1120px]:inline">{{ currentSortLabelKey() | translate }}</span>
+        </button>
+        <button mat-icon-button class="!h-11 !w-11 !min-w-11 !p-2.5" (click)="toggleSortDirection()"
+                [matTooltip]="store.filters().sort_direction === 'DESC' ? (I18N.gallery.sort_desc | translate) : (I18N.gallery.sort_asc | translate)"
+                [attr.aria-label]="store.filters().sort_direction === 'DESC' ? (I18N.gallery.sort_desc | translate) : (I18N.gallery.sort_asc | translate)">
+          <mat-icon>{{ store.filters().sort_direction === 'DESC' ? 'arrow_downward' : 'arrow_upward' }}</mat-icon>
+        </button>
+      }
+    </ng-template>
+    @if (!portPrimary()) { <ng-container [ngTemplateOutlet]="primaryControls" /> }
+    <ng-template #filterControls>
+      @if (!pinned()) {
+        <button mat-button class="!min-h-11 !min-w-11 !px-2 !text-[var(--mat-sys-on-surface)]" [class.!bg-[var(--mat-sys-secondary-container)]]="store.filterDrawerOpen()" (click)="toggleFilters()"
+                [matBadge]="store.activeFilterCount() || null" matBadgeColor="primary" matBadgeSize="medium"
+                [matTooltip]="I18N.gallery.filters | translate" [attr.aria-label]="I18N.gallery.filters | translate"
+                [attr.aria-expanded]="store.filterDrawerOpen()">
+          <mat-icon class="@max-[479px]:!m-0" >filter_alt</mat-icon>
+          <span class="hidden @min-[480px]:inline">{{ I18N.gallery.filters | translate }}</span>
+        </button>
+      }
+    </ng-template>
+    @if (!portFilters()) { <ng-container [ngTemplateOutlet]="filterControls" /> }
+    <ng-template #layoutControls let-choices>
+      @for (layout of choices; track layout.id) {
+        <button mat-button [attr.data-gallery-layout]="layout.id"
+                class="!min-h-11 !min-w-11 !w-11 !px-2 @[1120px]:!w-auto @[1120px]:!px-4 !text-[var(--mat-sys-on-surface)]"
+                [class.!bg-[var(--mat-sys-secondary-container)]]="store.galleryMode() === layout.id"
+                [attr.aria-pressed]="store.galleryMode() === layout.id"
+                [attr.aria-label]="layout.label | translate" [matTooltip]="layout.label | translate" (click)="setLayout(layout.id)">
+          <mat-icon class="!m-0 @[1120px]:!mr-2">{{ layout.icon }}</mat-icon><span class="hidden @[1120px]:inline">{{ layout.label | translate }}</span>
+        </button>
+      }
+    </ng-template>
+    <ng-template #sidebarLayoutControls><ng-container [ngTemplateOutlet]="layoutControls" [ngTemplateOutletContext]="{ $implicit: layouts }" /></ng-template>
 <mat-menu #sortMenu="matMenu">
     @for (section of sortMenuSections(); track section.header ?? section.options[0].column) {
       @let headerId = 'sort-menu-group-' + $index;
@@ -174,6 +178,9 @@ const sortOptionLabelKey = (column: string): string => `sort_options.${column}`;
   </mat-menu>`,
 })
 export class GalleryViewControlsComponent {
+  readonly portDisplay = input(false);
+  readonly slideshowRequested = output<void>();
+  readonly displayControls = viewChild<TemplateRef<unknown>>('displayControls');
   readonly portPrimary = input(false);
   readonly portFilters = input(false);
   readonly filterControls = viewChild<TemplateRef<unknown>>('filterControls');
@@ -274,7 +281,9 @@ export class GalleryViewControlsComponent {
   }
 
   protected toggleSlideshow(): void {
-    if (this.canAct()) this.store.slideshowActive.update(active => !active);
+    if (!this.canAct()) return;
+    this.slideshowRequested.emit();
+    this.store.slideshowActive.update(active => !active);
   }
   protected readonly sortGroups = computed(() => {
     const grouped = this.store.config()?.sort_options_grouped;

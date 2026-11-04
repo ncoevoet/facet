@@ -1055,6 +1055,7 @@
     "user_menu": "Menu do usuário"
   },
   "gallery": {
+    "face_outlines": "Mostrar caixas de rostos",
     "criteria": {
       "field_labels": {
         "blinks_only": "Apenas piscadas",
@@ -1099,7 +1100,7 @@
       }
     },
     "presentation": {
-      "label": "Apresentação",
+      "label": "Predefinições",
       "help": "Escolha uma disposição de trabalho. Filtros, ordenação, álbum e seleção mantêm-se.",
       "browse": "Explorar",
       "review": "Rever",
@@ -3277,6 +3278,12 @@
       "batch_hint": "Escolha uma localização e confira as alterações antes de salvar a seleção."
     },
     "distribution": {
+      "scope": "Escopo da distribuição",
+      "library": "Sua biblioteca",
+      "category": "Categoria",
+      "open": "Distribuição de {metric}",
+      "scoped_range": "{scope} · intervalo {min}–{max}",
+      "scoped_top_in_range": "Melhores {pct}% em {scope} · intervalo {min}–{max}",
       "top": "Top {pct}% da biblioteca",
       "range": "Intervalo da biblioteca {min}–{max}",
       "top_in_range": "Top {pct}% da biblioteca · intervalo da biblioteca {min}–{max}"

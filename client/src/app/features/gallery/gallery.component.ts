@@ -1,3 +1,4 @@
+import { ControlPopoverComponent } from '../../shared/components/control-popover/control-popover.component';
 import { closeDetailsOnEscape, closeOverlayDirectives } from '../../shared/utils/overlays';
 import { GallerySelectionActions } from './gallery-selection-actions';
 import { GalleryVisitPositions, GalleryHistoryPosition } from './gallery-visit-positions.service';
@@ -112,7 +113,7 @@ const SET_KIND_TOGGLE: Record<string, keyof HiddenFilterFlags> = {
 
 @Component({
   selector: 'app-gallery',
-  imports: [
+  imports: [ControlPopoverComponent,
     MovableToolbarDirective,
     NgTemplateOutlet,
     MatSidenavModule,
@@ -237,6 +238,10 @@ const SET_KIND_TOGGLE: Record<string, keyof HiddenFilterFlags> = {
            filters compete for the same strip, so opening the filters hides the
            rail and closing them brings it back, without either changing how much
            room the grid gets. -->
+      <app-gallery-view-controls #collectionViewControls (slideshowRequested)="closeCollectionPopovers(true)" [portPrimary]="true" [portFilters]="true" [portDisplay]="true" class="contents" />
+      <app-gallery-filter-sidebar #collectionSettings [portSettings]="true"
+         [layoutControls]="collectionViewControls.sidebarLayoutControls() ?? null"
+         [displayExtras]="collectionViewControls.displayControls() ?? null" />
       <mat-sidenav #filterDrawer [disableClose]="detailsRailVisible()" [mode]="isDesktop() ? 'side' : 'over'" position="end" class="w-[min(320px,100vw)] p-0"
         (openedChange)="onFilterDrawerChange($event)">
         @if (detailsRailVisible()) {
@@ -255,7 +260,7 @@ const SET_KIND_TOGGLE: Record<string, keyof HiddenFilterFlags> = {
                       (click)="store.updateFilter('tooltip_mode', 'off')"><mat-icon>close</mat-icon></button>
             </header>
             @if (hasActivePhoto()) {
-              <button mat-button class="!min-w-0 !px-0 shrink-0 self-start mx-4 mt-2" (click)="releasePanel()">
+              <button mat-button class="!min-w-0 !px-0 shrink-0 self-start mx-4 mt-2" (click)="deselectFromRail()">
                 <mat-icon class="!ml-0">arrow_back</mat-icon> {{ I18N.gallery.tooltip_mode.panel_deselect | translate }}
               </button>
             }
@@ -286,15 +291,15 @@ const SET_KIND_TOGGLE: Record<string, keyof HiddenFilterFlags> = {
         } @else {
           <!-- Usually closed, and heavy enough that building it eagerly holds up the grid's first paint. -->
           @defer (on idle; when store.filterDrawerOpen()) {
-            <app-gallery-filter-sidebar [layoutControls]="collectionViewControls.sidebarLayoutControls() ?? null" />
+            <ng-container [ngTemplateOutlet]="collectionSettings.bodyContent()" />
           }
         }
       </mat-sidenav>
 
       <!-- Main content. The drawer reserves its own strip, so the grid gets
            exactly the width it has whenever the filters are open. -->
-      <mat-sidenav-content>
-        <header data-collection-header class="@container border-b border-[var(--mat-sys-outline-variant)] bg-[var(--mat-sys-surface-container-lowest)] px-2 py-2 md:px-4">
+      <mat-sidenav-content [style.scroll-padding-top.px]="collectionHeaderHeight()">
+        <header #collectionHeader data-collection-header class="sticky top-0 z-40 @container border-b border-[var(--mat-sys-outline-variant)] bg-[var(--mat-sys-surface-container-lowest)] px-2 py-2 md:px-4">
           <div class="flex flex-wrap items-center gap-x-2 gap-y-1">
           <div class="min-w-0 flex-1 @min-[960px]:max-w-64 @min-[960px]:min-w-44 @min-[960px]:basis-0">
           <h1 class="m-0 min-w-0 text-lg font-medium leading-6 text-[var(--mat-sys-on-surface)] truncate" [title]="store.currentAlbum()?.name || (I18N.gallery.all_photos | translate)">
@@ -323,26 +328,28 @@ const SET_KIND_TOGGLE: Record<string, keyof HiddenFilterFlags> = {
             <ng-container [ngTemplateOutlet]="galleryToolbar" />
           </div>
           <div data-collection-actions class="flex shrink-0 items-center gap-1 @min-[960px]:ml-auto">
-            <div data-collection-primary-controls class="hidden @min-[960px]:flex items-center gap-1">
-              <ng-container [ngTemplateOutlet]="collectionViewControls.primaryControls()" />
-              <ng-container [ngTemplateOutlet]="collectionViewControls.layoutControls()" [ngTemplateOutletContext]="{ $implicit: collectionViewControls.primaryLayouts }" />
-            </div>
-            <ng-container [ngTemplateOutlet]="collectionViewControls.filterControls()" />
-            <details #collectionOptions data-collection-options class="relative shrink-0"
-                     (keydown.escape)="closeDisclosure($event, collectionOptions, collectionOptionsSummary)">
-              <summary #collectionOptionsSummary class="flex min-h-11 min-w-11 cursor-pointer list-none items-center justify-center gap-1 rounded px-2 text-sm hover:bg-[var(--mat-sys-surface-container)]" [attr.aria-label]="I18N.gallery.collection_controls | translate"><mat-icon aria-hidden="true" class="!text-xl !h-5 !w-5">tune</mat-icon><span class="hidden @min-[480px]:inline">{{ I18N.gallery.collection_view | translate }}</span></summary>
-              <div class="absolute right-0 top-full z-30 max-h-[70dvh] w-80 max-w-[calc(100vw-2rem)] overflow-y-auto rounded border border-[var(--mat-sys-outline-variant)] bg-[var(--mat-sys-surface-container)] p-3 shadow-lg">
-                <div data-compact-collection-controls class="@min-[960px]:hidden flex flex-wrap items-center gap-1">
-                  <ng-container [ngTemplateOutlet]="collectionViewControls.primaryControls()" />
-                  <ng-container [ngTemplateOutlet]="collectionViewControls.layoutControls()" [ngTemplateOutletContext]="{ $implicit: collectionViewControls.primaryLayouts }" />
-                </div>
-                <app-gallery-view-controls #collectionViewControls [portPrimary]="true" [portFilters]="true" class="shrink-0" />
-                <ng-container [ngTemplateOutlet]="collectionCriteria.shortcuts()" />
+            @if (!compactCollectionControls()) {
+              <div data-collection-primary-controls class="flex items-center gap-1">
+                <ng-container [ngTemplateOutlet]="collectionViewControls.primaryControls()" />
               </div>
-            </details>
+            }
+            <ng-container [ngTemplateOutlet]="collectionViewControls.filterControls()" />
+            <app-control-popover data-collection-review [compact]="true" icon="rule"
+                [label]="I18N.gallery.sidebar.tabs.review | translate" [content]="collectionSettings.reviewSettings() ?? null" />
+            <app-control-popover data-collection-options [compact]="true" icon="tune"
+                [label]="I18N.gallery.sidebar.tabs.display | translate" [content]="displaySettings" />
+            <ng-template #displaySettings>
+              @if (compactCollectionControls()) {
+                <div data-compact-collection-controls class="flex items-center gap-1">
+                  <ng-container [ngTemplateOutlet]="collectionViewControls.primaryControls()" />
+                </div>
+              }
+              <ng-container [ngTemplateOutlet]="collectionSettings.displaySettings()" />
+              <ng-container [ngTemplateOutlet]="collectionCriteria.shortcuts()" />
+            </ng-template>
           </div>
           </div>
-          <app-gallery-criteria #collectionCriteria [portShortcuts]="true" [searchPresented]="true" class="block min-w-0" />
+          <app-gallery-criteria #collectionCriteria [portShortcuts]="true" [consolidatedSettings]="true" [searchPresented]="true" class="block min-w-0" />
         </header>
 
         <!-- Set-scope chip: the photo-detail "open this set in the gallery" action.
@@ -1087,7 +1094,7 @@ export class GalleryComponent implements OnInit, OnDestroy {
   private readonly api = inject(ApiService);
   private readonly pageHelp = inject(PageHelpService);
   private readonly viewControls = viewChild(GalleryViewControlsComponent);
-  private readonly collectionOptions = viewChild<ElementRef<HTMLDetailsElement>>('collectionOptions');
+  private readonly collectionPopovers = viewChildren(ControlPopoverComponent);
   private readonly criteria = viewChild(GalleryCriteriaComponent);
   private readonly liveAnnouncer = inject(LiveAnnouncer);
   private readonly toolbarSearch = viewChild<ElementRef<HTMLInputElement>>('toolbarSearch');
@@ -1130,6 +1137,8 @@ export class GalleryComponent implements OnInit, OnDestroy {
   protected readonly keepPreviewCut = computed(() => Math.max(0, this.store.photoTotal() - this.keepPreviewKeep()));
 
   private resizeObserver: ResizeObserver | null = null;
+  private readonly collectionHeader = viewChild<ElementRef<HTMLElement>>('collectionHeader');
+  protected readonly collectionHeaderHeight = signal(0);
   private readonly scrollDirective = viewChild(InfiniteScrollDirective);
   private readonly filterSidebar = viewChild(GalleryFilterSidebarComponent);
   private readonly filterDrawer = viewChild<MatSidenav>('filterDrawer');
@@ -1773,6 +1782,7 @@ export class GalleryComponent implements OnInit, OnDestroy {
 
   /** Container width for mosaic layout (updated via ResizeObserver) */
   protected readonly containerWidth = signal(0);
+  protected readonly compactCollectionControls = computed(() => this.containerWidth() - (this.isDesktop() ? 32 : 16) < 960);
 
   // --- Virtual scrolling (row windowing with top/bottom spacers) ---
 
@@ -1892,8 +1902,7 @@ export class GalleryComponent implements OnInit, OnDestroy {
 
     // Capture before the outlet detaches the DOM and loses scroll and focus.
     this.router.events.pipe(filter(e => e instanceof NavigationStart), takeUntilDestroyed()).subscribe(event => {
-      const options = this.collectionOptions();
-      if (options) options.nativeElement.open = false;
+      this.closeCollectionPopovers();
       for (const disclosure of this.selectionDisclosures()) disclosure.nativeElement.open = false;
       if (!this.router.currentNavigation?.()?.extras?.state?.[REVIEW_RESUME_NAVIGATION]) this.resumeNavigation++;
       if (this.parked) return;
@@ -2204,10 +2213,15 @@ export class GalleryComponent implements OnInit, OnDestroy {
     }));
   }
 
+  protected closeCollectionPopovers(restoreFocus = false): void {
+    for (const popover of this.collectionPopovers()) popover.open.set(false);
+    // The slideshow must capture a durable return target, not a button in the dismissed panel.
+    if (restoreFocus) this.noticeHost()?.nativeElement.querySelector<HTMLElement>('[data-collection-options] button')?.focus({preventScroll: true});
+  }
+
   private setGalleryChrome(active: boolean): void {
     if (!active) {
-      const options = this.collectionOptions();
-      if (options) options.nativeElement.open = false;
+      this.closeCollectionPopovers();
     }
     this.pageHelp.setDescription(active ? I18N.gallery.help : null);
     this.viewControls()?.setActive(active);
@@ -2384,7 +2398,11 @@ export class GalleryComponent implements OnInit, OnDestroy {
    *  just raised over it. */
   protected toggleSelection(photo: Photo, event: MouseEvent | undefined, index: number): void {
     this.store.toggleSelection(photo, event);
-    this.setCursor(index);
+    const selected = this.viewScoped() ? !this.excludedPaths().has(photo.path) : this.selectedPaths().has(photo.path);
+    if (this.panelMode() && !selected) {
+      this.tooltipPhoto.set(photo);
+      this.setCursor(-1);
+    } else this.setCursor(index);
     this.focusCard(index);
   }
 
@@ -2515,7 +2533,7 @@ export class GalleryComponent implements OnInit, OnDestroy {
     const target = event.target as HTMLElement | null;
     if (target && ['INPUT', 'TEXTAREA', 'SELECT'].includes(target.tagName)) return;
     if (target?.isContentEditable) return;
-    if (document.querySelector('mat-dialog-container, mat-bottom-sheet-container')) return;
+    if (document.querySelector('mat-dialog-container, mat-bottom-sheet-container, [role="dialog"][aria-modal="true"]')) return;
     if (!this.store.photos().length) return;
     event.preventDefault();
     this.selectAll();
@@ -2997,8 +3015,11 @@ export class GalleryComponent implements OnInit, OnDestroy {
       // A parked gallery measures 0; keep its layout for the return.
       if (this.parked) return;
       measureListRow();
+      const header = this.collectionHeader()?.nativeElement;
       for (const entry of entries) {
-        this.containerWidth.set(Math.floor(entry.contentRect.width));
+        if (header && entry.target === header) {
+          this.collectionHeaderHeight.set(entry.target.getBoundingClientRect().height);
+        } else this.containerWidth.set(Math.floor(entry.contentRect.width));
       }
       this.updateWindowPosition();
     });
@@ -3011,6 +3032,11 @@ export class GalleryComponent implements OnInit, OnDestroy {
       const measured = Math.floor(content.clientWidth - (parseFloat(style.paddingLeft) || 0) - (parseFloat(style.paddingRight) || 0));
       if (measured > 0) this.containerWidth.set(measured);
       this.resizeObserver.observe(content);
+    }
+    const header = this.collectionHeader()?.nativeElement;
+    if (header) {
+      this.collectionHeaderHeight.set(header.getBoundingClientRect().height);
+      this.resizeObserver.observe(header);
     }
   }
 
@@ -3139,6 +3165,15 @@ export class GalleryComponent implements OnInit, OnDestroy {
       : this.selectedPaths().has(photo.path);
     if (selected && deselect) this.store.toggleSelection(photo);
     this.setCursor(-1);
+  }
+
+  protected deselectFromRail(): void {
+    const index = this.activeIndex();
+    this.releasePanel();
+    this.focusCard(index, false, false);
+    if (!document.activeElement?.closest('app-photo-card')) {
+      (this.noticeHost()?.nativeElement.querySelector('[data-details-rail]') as HTMLElement | null)?.focus();
+    }
   }
 
   /** Escape: with the docked rail, first what Deselect does -- the held photo,
@@ -3319,9 +3354,17 @@ export class GalleryComponent implements OnInit, OnDestroy {
     // row.offset is relative to the rows host - convert to viewport scrollTop
     const absolute = content.measureScrollOffset('top') + row.offset - this.relScrollTop();
     content.scrollTo({ top: Math.max(0, absolute) });
+    const revision = this.cursorRevision;
+    const path = this.store.photos()[index]?.path;
+    const owner = this.auth.identity();
+    const url = this.router.url;
+    const current = () => !this.destroyRef.destroyed && !this.parked && !this.router.currentNavigation?.()
+      && this.cursorRevision === revision && this.auth.identity() === owner && this.router.url === url
+      && this.store.photos()[index]?.path === path;
     requestAnimationFrame(() => {
+      if (!current()) return;
       this.updateWindowPosition();
-      requestAnimationFrame(() => this.focusCard(index, true));
+      requestAnimationFrame(() => { if (current()) this.focusCard(index, true); });
     });
   }
 

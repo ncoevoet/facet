@@ -1,5 +1,6 @@
-import { Component, DestroyRef, Pipe, PipeTransform, computed, effect, inject, input, output, signal, untracked, viewChild, viewChildren, ElementRef, ChangeDetectionStrategy } from '@angular/core';
-import { NgTemplateOutlet, TitleCasePipe } from '@angular/common';
+import { CategoryLabelPipe } from '../../shared/pipes/category-label.pipe';
+import { Component, DestroyRef, computed, effect, inject, input, output, signal, untracked, viewChild, viewChildren, ElementRef, ChangeDetectionStrategy } from '@angular/core';
+import { NgTemplateOutlet } from '@angular/common';
 import { Router } from '@angular/router';
 import { MatIconModule } from '@angular/material/icon';
 import { MatMenuModule, MatMenuTrigger } from '@angular/material/menu';
@@ -42,16 +43,6 @@ const KEY_SCORES = [
 // spec renders right after a Leaflet map spec, and the Angular Vitest builder shares
 // one module registry per worker -- the map spec's module mock resets it and nulls
 // this component's I18N import binding. Excluded in client/scripts/migrate-i18n.mjs.
-
-/** Replace underscores with spaces for display (e.g. "rule_of_thirds" → "Rule Of Thirds"). */
-@Pipe({ name: 'categoryLabel', standalone: true, pure: true })
-export class CategoryLabelPipe implements PipeTransform {
-  private titleCase = new TitleCasePipe();
-  transform(value: string | null): string {
-    if (!value) return '';
-    return this.titleCase.transform(value.replace(/_/g, ' '));
-  }
-}
 
 @Component({
   selector: 'app-photo-tooltip',

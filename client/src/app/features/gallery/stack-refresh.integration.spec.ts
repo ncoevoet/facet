@@ -1,3 +1,4 @@
+import { OverlayContainer } from '@angular/cdk/overlay';
 import { ApplicationRef, signal } from '@angular/core';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { HttpRequest, provideHttpClient, withInterceptors, withXhr } from '@angular/common/http';
@@ -513,9 +514,19 @@ describe('stack representative repairs through rendered gallery and HTTP', () =>
     expect((fixture.nativeElement as HTMLElement).querySelectorAll('app-photo-card')).toHaveLength(2);
     expect(button!.hasAttribute('aria-pressed')).toBe(false);
     // The collection-owned slideshow remains reachable alongside stack expansion.
-    const slideshow = root.querySelector<HTMLButtonElement>('button[aria-label^="slideshow.start"]');
-    expect(slideshow).not.toBeNull(); slideshow!.click();
+    document.body.appendChild(root);
+    const displayTrigger = root.querySelector<HTMLButtonElement>('[data-collection-options] button')!;
+    displayTrigger.focus(); displayTrigger.click(); fixture.detectChanges();
+    const slideshow = TestBed.inject(OverlayContainer).getContainerElement().querySelector<HTMLButtonElement>('button[aria-label^="slideshow.start"]');
+    expect(slideshow).not.toBeNull(); slideshow!.focus(); slideshow!.click();
+    fixture.detectChanges(); TestBed.tick();
     expect(store.slideshowActive()).toBe(true);
+    expect(TestBed.inject(OverlayContainer).getContainerElement().querySelector('[role="dialog"]')).toBeNull();
+    document.body.dispatchEvent(new KeyboardEvent('keydown', {key: 'Escape', bubbles: true, cancelable: true}));
+    fixture.detectChanges();
+    expect(store.slideshowActive()).toBe(false);
+    expect(document.activeElement).toBe(displayTrigger);
+    root.remove();
   });
 
   it.each([true, false])('refreshes projected stack counts after an assistant changes an offscreen member (collapsed=%s)', async collapsed => {

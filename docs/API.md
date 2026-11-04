@@ -187,6 +187,7 @@ Timeline routes return 503 when the query fails. Week keys use ISO 8601 week yea
 |----------|-------------|
 | `GET /api/stats/overview` | Overall scoring statistics summary |
 | `GET /api/stats/score_distribution` | Score distribution histogram data |
+| `GET /api/stats/metric_distribution?column=aesthetic&category=portrait` | Authenticated reader’s visible-library histogram for one registered metric; optional category scope, finite values only, current read snapshot; returns `distribution` (min/max/buckets) and `count` |
 | `GET /api/stats/top_cameras` | Top cameras by photo count |
 | `GET /api/stats/categories` | Category counts and averages |
 | `GET /api/stats/gear` | Camera/lens/combo counts |

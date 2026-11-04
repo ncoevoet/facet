@@ -175,7 +175,7 @@ const STORED_EDGE = STORED_THUMBNAIL_EDGE;
                 }
               </svg>
             }
-            <button mat-stroked-button class="!top-2 !right-2 !bg-[var(--mat-sys-surface)]/80" [class.!absolute]="overlayOn()" (click)="toggleOverlay()">
+            <button mat-stroked-button [class.!top-2]="overlayOn()" [class.!right-2]="overlayOn()" [class.!bg-[var(--mat-sys-surface)]/80]="overlayOn()" [class.!absolute]="overlayOn()" (click)="toggleOverlay()">
               <mat-icon>{{ overlayOn() ? 'visibility_off' : 'visibility' }}</mat-icon>
               {{ (overlayOn() ? I18N.critique.overlay_hide : I18N.critique.overlay_show) | translate }}
             </button>

@@ -1,3 +1,4 @@
+import { ControlPopoverComponent } from '../../shared/components/control-popover/control-popover.component';
 import { FEATURE_MARK, MarkTonePipe } from '../../shared/pipes/mark-tone.pipe';
 import { LogicalAssetApplied } from '../../shared/models/logical-asset-change';
 import { buildSyncParams } from '../gallery/gallery-filters.util';
@@ -39,7 +40,7 @@ import { RenditionReadoutComponent } from '../../shared/components/rendition-rea
 import { TranslatePipe } from '../../shared/pipes/translate.pipe';
 import { ThumbnailUrlPipe } from '../../shared/pipes/thumbnail-url.pipe';
 import { PersonThumbnailUrlPipe } from '../../shared/pipes/thumbnail-url.pipe';
-import { CategoryLabelPipe } from '../gallery/photo-tooltip.component';
+import { CategoryLabelPipe } from '../../shared/pipes/category-label.pipe';
 import { DownloadIconPipe } from '../../shared/pipes/download-icon.pipe';
 import { PhotoSetKindIconPipe, PhotoSetKindLabelPipe } from '../../shared/pipes/photo-set-kind.pipe';
 import { SEQUENCE_KINDS_KEPT_WHOLE } from '../../shared/pipes/sequence-kind.pipe';
@@ -61,7 +62,7 @@ import { setScopePatch } from '../gallery/gallery-filters.util';
 import * as L from 'leaflet';
 import { createLeafletMap } from '../../shared/leaflet';
 import { I18N, i18nKeys } from '../../core/i18n/keys';
-import { isPageShortcutBlocked, isTypingContext } from '../../shared/utils/keyboard';
+import { isPageShortcutBlocked } from '../../shared/utils/keyboard';
 import { KeyboardMappingService } from '../../core/services/keyboard-mapping.service';
 import type { CategoryOverrideResult } from './category-override-dialog.component';
 import { StackNavigatorComponent } from './stack-navigator.component';
@@ -87,7 +88,7 @@ const SOCIAL_SOURCE_KEYS: Record<string, string> = {
 
 @Component({
   selector: 'app-photo-detail',
-  imports: [MarkTonePipe, PhotoCollectionSidebarComponent, ContextHelpComponent, PhotoAnalysisComponent, PhotoProvenanceComponent, PhotoRelatedFilesComponent,
+  imports: [ControlPopoverComponent,MarkTonePipe, PhotoCollectionSidebarComponent, ContextHelpComponent, PhotoAnalysisComponent, PhotoProvenanceComponent, PhotoRelatedFilesComponent,
     StackNavigatorComponent,
     ZoomPanDirective,
     PhotoObjectLayerComponent,
@@ -362,14 +363,7 @@ const SOCIAL_SOURCE_KEYS: Record<string, string> = {
                   @if (p.category) { {{ p.category | categoryLabel }} }
                   <!-- Category explainer toggle: "why isn't this photo classified as X?" — kept for an uncategorized photo too. -->
                   @if (auth.isEdition()) {
-                    <button type="button" class="w-6 h-6 -my-1 -mr-1.5 inline-flex items-center justify-center rounded-full cursor-pointer hover:bg-black/15"
-                            data-explainer-toggle
-                            (click)="toggleExplainer()"
-                            [attr.aria-expanded]="explainerOpen()"
-                            [matTooltip]="I18N.photo.category_override.explainer_toggle | translate"
-                            [attr.aria-label]="I18N.photo.category_override.explainer_toggle | translate">
-                      <mat-icon class="!text-base !w-4 !h-4 !leading-4" aria-hidden="true">{{ explainerOpen() ? 'expand_less' : 'expand_more' }}</mat-icon>
-                    </button>
+                    <app-control-popover icon="help_outline" [compact]="true" [label]="I18N.photo.category_override.explainer_toggle | translate" [content]="categoryExplanation" (opened)="loadExplainerCategories()" />
                   }
                 </span>
               }
@@ -383,9 +377,7 @@ const SOCIAL_SOURCE_KEYS: Record<string, string> = {
             </div>
           </div>
 
-          <!-- Category explainer: the target-category select and its explanation -->
-          @if (auth.isEdition() && explainerOpen()) {
-            <div class="border-t border-[var(--mat-sys-outline-variant)] pt-3">
+          <ng-template #categoryExplanation>
               <mat-form-field class="w-full" subscriptSizing="dynamic">
                 <mat-label>{{ I18N.photo.category_override.target_category_label | translate }}</mat-label>
                 <mat-select [value]="explainerTargetCategory()" (selectionChange)="explainerTargetCategory.set($event.value)">
@@ -398,9 +390,7 @@ const SOCIAL_SOURCE_KEYS: Record<string, string> = {
               @if (explainerTargetCategory(); as target) {
                 <app-category-explainer [path]="p.path" [targetCategory]="target" />
               }
-            </div>
-          }
-
+          </ng-template>
           <!-- Account review controls -->
           @if (canReview()) {
             <div class="flex flex-wrap items-center gap-1 border-t border-[var(--mat-sys-outline-variant)] pt-1 mb-1">
@@ -842,7 +832,6 @@ export class PhotoDetailComponent extends PhotoDetailBase implements OnInit {
   protected readonly stars: readonly number[] = [1, 2, 3, 4, 5];
 
   // Category explainer ("why isn't this photo classified as X?")
-  protected readonly explainerOpen = signal(false);
   protected readonly explainerCategories = signal<string[]>([]);
   protected readonly explainerTargetCategory = signal<string | null>(null);
 
@@ -1370,7 +1359,7 @@ export class PhotoDetailComponent extends PhotoDetailBase implements OnInit {
 
   @HostListener('document:keydown', ['$event'])
   protected onReviewKey(event: KeyboardEvent): void {
-    if (this.dialog.openDialogs.length || isTypingContext(event) || event.ctrlKey || event.metaKey || event.altKey || !this.keymap.matches(event, 'keep') || !this.canReview()) return;
+    if (this.dialog.openDialogs.length || isPageShortcutBlocked(event) || !this.keymap.matches(event, 'keep') || !this.canReview()) return;
     event.preventDefault();
     void this.reviewPhoto('kept');
   }
@@ -1680,10 +1669,8 @@ export class PhotoDetailComponent extends PhotoDetailBase implements OnInit {
     }
   }
 
-  protected toggleExplainer(): void {
-    const next = !this.explainerOpen();
-    this.explainerOpen.set(next);
-    if (next && this.explainerCategories().length === 0) {
+  protected loadExplainerCategories(): void {
+    if (this.explainerCategories().length === 0) {
       firstValueFrom(this.api.get<{ categories: { name: string }[] }>('/config/category_priorities'))
         .then(res => this.explainerCategories.set(res.categories.map(c => c.name)))
         .catch(() => this.explainerCategories.set([]));

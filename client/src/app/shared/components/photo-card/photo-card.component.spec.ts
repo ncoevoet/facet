@@ -76,6 +76,20 @@ describe('PhotoCardComponent', () => {
     expect(row.querySelector('img')?.getAttribute('src')).toContain('size=160');
   });
 
+  it('shows the actual metadata-list sort value, including zero and text, rather than substituting another score', () => {
+    fixture.componentInstance.listMode.set(true);
+    fixture.componentInstance.photo.set(makePhoto({aggregate: 9, aesthetic: 0, filename: 'record.jpg', date_taken: null}));
+    const value = () => fixture.nativeElement.querySelector('[data-list-sort]') as HTMLElement;
+    fixture.componentInstance.currentSort.set('aesthetic'); fixture.detectChanges();
+    expect(value().textContent).toContain('sort_options.aesthetic'); expect(value().textContent).toContain('0.0');
+    fixture.componentInstance.currentSort.set('filename'); fixture.detectChanges();
+    expect(value().textContent).toContain('record.jpg'); expect(value().textContent).not.toContain('9.0');
+    fixture.componentInstance.currentSort.set('date_taken'); fixture.detectChanges();
+    expect(value().textContent).toContain('gallery.no_capture_date');
+    fixture.componentInstance.currentSort.set('face_quality'); fixture.detectChanges();
+    expect(value().textContent).toContain('—'); expect(value().textContent).not.toContain('9.0');
+  });
+
   it('keeps metadata list menu key presses separate from row selection and gates edit actions', async () => {
     fixture.componentInstance.listMode.set(true); fixture.componentInstance.photo.set(makePhoto({ path: '/row.jpg', is_rejected: true, star_rating: 0 }));
     fixture.detectChanges();

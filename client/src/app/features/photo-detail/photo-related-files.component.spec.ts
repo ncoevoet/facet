@@ -1,3 +1,4 @@
+import { OverlayContainer } from '@angular/cdk/overlay';
 import { signal } from '@angular/core';
 import { By } from '@angular/platform-browser';
 import { PhotoLogicalAssetComponent } from './photo-logical-asset.component';
@@ -53,7 +54,7 @@ describe('PhotoRelatedFilesComponent', () => {
     expect(root.querySelectorAll('li')).toHaveLength(3);
     expect(root.textContent).toContain('shot.CR2'); expect(root.textContent).toContain('related_files.raw_download');
     expect(root.textContent).toContain('related_files.basename_unverified');
-    expect(root.querySelector('a')).toBeNull(); expect(root.querySelector('button')).toBeNull();
+    expect(root.querySelector('a')).toBeNull(); expect([...root.querySelectorAll('button')].filter(button => !button.closest('app-context-help'))).toHaveLength(0);
     const event = new KeyboardEvent('keydown', { key: 'Escape', bubbles: true, cancelable: true });
     trigger.dispatchEvent(event); fixture.detectChanges();
     expect(event.defaultPrevented).toBe(true); expect(root.querySelector('details')!.open).toBe(false);
@@ -107,8 +108,8 @@ describe('PhotoRelatedFilesComponent', () => {
     for (const label of ['jpeg', 'missing', 'xmp_full', 'unavailable', 'xmp_fallback', 'link', 'indexed', 'multiple_raw']) {
       expect(text).toContain('related_files.' + label);
     }
-    const help = root.querySelector<HTMLDetailsElement>('app-context-help details')!;
-    help.open = true; help.dispatchEvent(new Event('toggle')); fixture.detectChanges();
+    root.querySelector<HTMLButtonElement>('app-context-help button')!.click(); fixture.detectChanges();
+    const help = TestBed.inject(OverlayContainer).getContainerElement();
     expect(help.textContent).toContain('related_files.multi_user_scope');
     const emitted = vi.fn(); fixture.componentInstance.logicalApplied.subscribe(emitted);
     const child = fixture.debugElement.query(By.directive(PhotoLogicalAssetComponent)).componentInstance as PhotoLogicalAssetComponent;

@@ -1055,6 +1055,7 @@
     "user_menu": "用户菜单"
   },
   "gallery": {
+    "face_outlines": "显示人物人脸框",
     "criteria": {
       "field_labels": {
         "blinks_only": "仅眨眼照片",
@@ -1099,7 +1100,7 @@
       }
     },
     "presentation": {
-      "label": "显示",
+      "label": "预设",
       "help": "选择任务布局。筛选、排序、相册和选择保持不变。",
       "browse": "浏览",
       "review": "审阅",
@@ -3277,6 +3278,12 @@
       "batch_hint": "选择一个位置，然后预览更改，再保存所选照片。"
     },
     "distribution": {
+      "scope": "分布范围",
+      "library": "你的照片库",
+      "category": "类别",
+      "open": "{metric}的分布",
+      "scoped_range": "{scope} · 范围 {min}–{max}",
+      "scoped_top_in_range": "{scope}中前 {pct}% · 范围 {min}–{max}",
       "top": "位列图库前 {pct}%",
       "range": "图库范围 {min}–{max}",
       "top_in_range": "位列图库前 {pct}% · 图库范围 {min}–{max}"

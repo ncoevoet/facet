@@ -591,3 +591,15 @@ describe('collection criteria ownership and full disclosure', () => {
   });
 
 });
+
+
+describe('collection-owned reset', () => {
+ it('keeps Reset available for a single active chip and removes it when clear', () => {
+  const {fixture,filtersSignal,mockStore}=createCriteria();
+  filtersSignal.update(filters=>({...filters,camera:'Canon'}));fixture.detectChanges();
+  const reset=[...fixture.nativeElement.querySelectorAll('button')].find((button:any)=>button.textContent.includes('gallery.reset_filters')) as HTMLButtonElement;
+  expect(reset).toBeDefined(); reset.click();expect(mockStore.resetFilters).toHaveBeenCalledOnce();
+  filtersSignal.set({...DEFAULT_FILTERS});fixture.detectChanges();
+  expect(fixture.nativeElement.textContent).not.toContain('gallery.reset_filters');
+ });
+});

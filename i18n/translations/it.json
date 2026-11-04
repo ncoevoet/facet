@@ -1055,6 +1055,7 @@
     "user_menu": "Menu utente"
   },
   "gallery": {
+    "face_outlines": "Mostra i riquadri dei volti",
     "criteria": {
       "field_labels": {
         "blinks_only": "Solo occhi chiusi",
@@ -1099,7 +1100,7 @@
       }
     },
     "presentation": {
-      "label": "Vista",
+      "label": "Preimpostazioni",
       "help": "Scegli un layout di lavoro. Filtri, ordinamento, album e selezione restano invariati.",
       "browse": "Sfoglia",
       "review": "Rivedi",
@@ -3277,6 +3278,12 @@
       "batch_hint": "Scegli una posizione e visualizza le modifiche prima di salvare la selezione."
     },
     "distribution": {
+      "scope": "Ambito della distribuzione",
+      "library": "La tua raccolta",
+      "category": "Categoria",
+      "open": "Distribuzione di {metric}",
+      "scoped_range": "{scope} · intervallo {min}–{max}",
+      "scoped_top_in_range": "Miglior {pct}% in {scope} · intervallo {min}–{max}",
       "top": "Top {pct}% della libreria",
       "range": "Intervallo della libreria {min}–{max}",
       "top_in_range": "Top {pct}% della libreria · intervallo della libreria {min}–{max}"

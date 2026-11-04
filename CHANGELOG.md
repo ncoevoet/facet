@@ -6,6 +6,8 @@ All notable changes to Facet are documented in this file.
 
 ### Added
 
+- Photo-detail score charts load on demand, highlight the current photo and switch between the reader’s visible library and the photo’s category. Multi-person gallery filters show color-matched face outlines, with a persistent Display toggle.
+
 - Browse, Review and Organize display presets change layout, density and inspection without changing the current query, sort, album, selection or loaded page. Reset display restores configured presentation separately from filters.
 
 - A dedicated selected-photo comparison workspace replaces the gallery popup: arbitrary reference/candidate assignment, promotion, candidate strip, view-only Remove/Restore, linked or independent framing, keyboard/touch inspection, stored face/subject crops and displayed-rendition status with Retry. Back preserves the originating collection and selection.
@@ -20,6 +22,8 @@ All notable changes to Facet are documented in this file.
 - **The photo tiles can keep the original ratio.** The gallery's display menu offers square crop or the photo's own ratio — the card hugs the photo instead of cropping it. The choice is stored per browser and applies to grids with details hidden.
 
 ### Changed
+
+- Keep collection controls and criteria visible while scrolling. Review and Display use separate popovers, help no longer shifts layouts, filter counts stay numeric, and Reset filters remains available for a single criterion. Wide metadata rows expose more context; deselecting releases the inspector and restores keyboard focus.
 
 - Compact collection controls on narrow screens, give photo metrics distinct icons, and add per-detection face Ignore with Undo for advertisements and false detections.
 

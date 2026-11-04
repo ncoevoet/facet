@@ -407,70 +407,60 @@ describe('GalleryComponent', () => {
     fixture.destroy(); root.remove();
   });
 
-  it('reuses one controls owner for wide and compact layouts, with Filters direct', () => {
+  it('keeps Filters direct and gives Review and Display one lazy popover each', () => {
     mockStore.selectedPaths.set(new Set(['/selected.jpg'])); mockStore.selectionCount.set(1);
     const fixture = TestBed.createComponent(GalleryComponent);
-    Object.defineProperty(fixture.componentInstance, 'isDesktop', { value: signal(false) });
     fixture.detectChanges(); TestBed.tick();
     const root = fixture.nativeElement as HTMLElement;
-    const actions = root.querySelector('[data-collection-options]')!;
-    expect(root.querySelectorAll('app-gallery-view-controls')).toHaveLength(1);
-    expect(root.querySelectorAll('[data-collection-sort]')).toHaveLength(2);
-    expect(root.querySelectorAll('[data-collection-primary-controls] [data-collection-sort]')).toHaveLength(1);
-    expect(actions.querySelectorAll('[data-compact-collection-controls] [data-collection-sort]')).toHaveLength(1);
-    expect(root.querySelector('[data-collection-actions] [data-collection-sort]')).not.toBeNull();
+    expect((fixture.componentInstance as any).viewControls()).toBeDefined();
+    expect(root.querySelectorAll('[data-collection-sort]')).toHaveLength(0);
+    expect(root.querySelector('[data-gallery-layout]')).toBeNull();
     const filter = root.querySelector<HTMLButtonElement>(`button[aria-label="${I18N.gallery.filters}"]`)!;
-    expect(actions.contains(filter)).toBe(false);
     filter.click();
     expect(mockStore.setFilterDrawerOpen).toHaveBeenCalledExactlyOnceWith(true);
-    root.querySelector<HTMLButtonElement>('[data-collection-actions] [data-gallery-layout="grid"]')!.click();
-    expect(mockStore.setGalleryMode).toHaveBeenCalledExactlyOnceWith('grid');
+    root.querySelector<HTMLButtonElement>('[data-collection-options] button')!.click();
+    fixture.detectChanges();
+    const overlay = TestBed.inject(OverlayContainer).getContainerElement();
+    expect(overlay.querySelectorAll('[data-gallery-layout="grid"]')).toHaveLength(1);
+    expect(overlay.querySelectorAll('[data-collection-sort]')).toHaveLength(1);
     expect([...mockStore.selectedPaths()]).toEqual(['/selected.jpg']);
     fixture.destroy();
   });
 
-  it('keeps one collection controls owner and closes View on Escape at either width', () => {
+  it('closes Display on Escape and navigation at either width', () => {
     const fixture = TestBed.createComponent(GalleryComponent);
     const desktop = signal(false);
     Object.defineProperty(fixture.componentInstance, 'isDesktop', { value: desktop });
     fixture.detectChanges();
     const root = fixture.nativeElement as HTMLElement;
-    const disclosure = root.querySelector<HTMLDetailsElement>('[data-collection-options]')!;
-    const summary = disclosure.querySelector('summary')!;
-    const controls = disclosure.querySelector('app-gallery-view-controls');
-    expect(disclosure.open).toBe(false);
-    const bubbled = vi.fn(); root.addEventListener('keydown', bubbled);
-    disclosure.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
-    expect(bubbled).toHaveBeenCalledOnce();
-    expect(root.querySelectorAll('app-gallery-view-controls')).toHaveLength(1);
-    disclosure.open = true;
-    disclosure.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
-    expect(disclosure.open).toBe(false);
-    expect(bubbled).toHaveBeenCalledOnce();
-    desktop.set(true); fixture.detectChanges();
-    expect(disclosure.open).toBe(false);
-    expect(summary.classList.contains('hidden')).toBe(false);
-    disclosure.open = true;
-    disclosure.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
-    expect(disclosure.open).toBe(false);
-    expect(disclosure.querySelector('app-gallery-view-controls')).toBe(controls);
-    disclosure.open = true;
+    const trigger = root.querySelector<HTMLButtonElement>('[data-collection-options] button')!;
+    const overlay = TestBed.inject(OverlayContainer).getContainerElement();
+    for (const wide of [false, true]) {
+      desktop.set(wide); fixture.detectChanges(); trigger.click(); fixture.detectChanges();
+      expect(trigger.getAttribute('aria-expanded')).toBe('true');
+      overlay.querySelector('button')!.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true, cancelable: true }));
+      fixture.detectChanges();
+      expect(trigger.getAttribute('aria-expanded')).toBe('false');
+      expect(overlay.querySelector('[role="dialog"]')).toBeNull();
+    }
+    trigger.click(); fixture.detectChanges();
     (TestBed.inject(Router).events as Subject<RouterEvent>).next(new NavigationStart(90, '/photo'));
-    expect(disclosure.open).toBe(false);
+    fixture.detectChanges();
+    expect(trigger.getAttribute('aria-expanded')).toBe('false');
     fixture.destroy();
   });
 
-  it('switches layout from the collection header without changing filters or batch selection', () => {
+  it('switches layout in Display without changing filters or batch selection', () => {
     mockStore.selectedPaths.set(new Set(['/selected.jpg']));
     const filters = mockStore.filters();
     const fixture = TestBed.createComponent(GalleryComponent);
     fixture.detectChanges();
-    const root = fixture.nativeElement as HTMLElement;
-    const grid = root.querySelector<HTMLButtonElement>('[data-gallery-layout="grid"]')!;
-    const mosaic = root.querySelector<HTMLButtonElement>('[data-gallery-layout="mosaic"]')!;
+    fixture.nativeElement.querySelector('[data-collection-options] button').click(); fixture.detectChanges();
+    const overlay = TestBed.inject(OverlayContainer).getContainerElement();
+    const grid = overlay.querySelector<HTMLButtonElement>('[data-gallery-layout="grid"]')!;
+    const mosaic = overlay.querySelector<HTMLButtonElement>('[data-gallery-layout="mosaic"]')!;
     expect(mosaic.getAttribute('aria-pressed')).toBe('true');
-    grid.click();
-    fixture.detectChanges();
+    grid.click(); fixture.detectChanges();
     expect(mockStore.setGalleryMode).toHaveBeenCalledWith('grid');
     expect(grid.getAttribute('aria-pressed')).toBe('true');
     expect(mosaic.getAttribute('aria-pressed')).toBe('false');
@@ -2429,9 +2419,48 @@ describe('GalleryComponent', () => {
         const release = () => (component as unknown as { releasePanel(): void }).releasePanel();
 
         beforeEach(() => {
+          mockStore.toggleSelection.mockImplementation((photo: Photo) => {
+            const selected = new Set<string>(mockStore.selectedPaths());
+            if (mockStore.viewScopeSelected()) {
+              const excluded = new Set<string>(mockStore.excludedPaths());
+              if (excluded.has(photo.path)) excluded.delete(photo.path); else excluded.add(photo.path);
+              mockStore.excludedPaths.set(excluded);
+            } else {
+              if (selected.has(photo.path)) selected.delete(photo.path); else selected.add(photo.path);
+              mockStore.selectedPaths.set(selected);
+              mockStore.selectionCount.set(selected.size);
+            }
+          });
           mockStore.photos.set([a, b]);
           click(a, 0);
           component.showTooltip(hoverEvent, a as never);
+        });
+
+        it('releases A when a second click actually deselects A', () => {
+          expect(mockStore.selectedPaths().has(a.path)).toBe(true);
+          click(a, 0);
+          expect(mockStore.selectedPaths().has(a.path)).toBe(false);
+          expect(hasActivePhoto()).toBe(false);
+          component.showTooltip(hoverEvent, b as never);
+          expect(panelPhoto()).toBe(b);
+        });
+
+        it('releases B after A then B then B, and follows subsequent hover', () => {
+          click(b, 1); expect(activeIndex()).toBe(1);
+          click(b, 1);
+          expect(hasActivePhoto()).toBe(false);
+          expect(mockStore.selectedPaths().has(a.path)).toBe(true);
+          expect(mockStore.selectedPaths().has(b.path)).toBe(false);
+          component.showTooltip(hoverEvent, a as never);
+          expect(panelPhoto()).toBe(a);
+        });
+
+        it('releases an excluded card in a whole-view selection', () => {
+          mockStore.viewScopeSelected.set(true);
+          mockStore.excludedPaths.set(new Set());
+          click(a, 0);
+          expect(mockStore.excludedPaths().has(a.path)).toBe(true);
+          expect(hasActivePhoto()).toBe(false);
         });
 
         it('hovering another photo does not retarget the rail', () => {
@@ -2471,6 +2500,7 @@ describe('GalleryComponent', () => {
         });
 
         it('Deselect leaves an already-unselected photo unselected', () => {
+          mockStore.selectedPaths.set(new Set());
           mockStore.toggleSelection.mockClear();
           release();
           expect(mockStore.toggleSelection).not.toHaveBeenCalled();
@@ -2488,6 +2518,8 @@ describe('GalleryComponent', () => {
         });
 
         it('Escape in the grid releases a photo the cursor holds without any selection', () => {
+          mockStore.selectedPaths.set(new Set());
+          mockStore.selectionCount.set(0);
           mockStore.toggleSelection.mockClear();
           press('Escape');
           expect(hasActivePhoto()).toBe(false);
@@ -6420,18 +6452,18 @@ describe('GalleryComponent', () => {
     });
 
     it('defers the filter sidebar until its block is rendered', async () => {
-      expect(fixture.debugElement.query(By.directive(GalleryFilterSidebarComponent))).toBeNull();
+      expect(fixture.nativeElement.querySelector('mat-sidenav input')).toBeNull();
       const blocks = await fixture.getDeferBlocks();
       expect(blocks).toHaveLength(1);
       await blocks[0].render(DeferBlockState.Complete);
-      expect(fixture.debugElement.query(By.directive(GalleryFilterSidebarComponent))).not.toBeNull();
+      expect(fixture.nativeElement.querySelector('mat-sidenav input')).not.toBeNull();
     });
 
     it('cancels pending sidebar searches when the gallery is parked', async () => {
       mockStore.config.set({ features: { show_semantic_search: true } });
       const [sidebarBlock] = await fixture.getDeferBlocks();
       await sidebarBlock.render(DeferBlockState.Complete);
-      const sidebar = fixture.debugElement.query(By.directive(GalleryFilterSidebarComponent)).componentInstance as GalleryFilterSidebarComponent;
+      const sidebar = (fixture.componentInstance as any).filterSidebar() as GalleryFilterSidebarComponent;
       vi.useFakeTimers();
       try {
         const search = fixture.nativeElement.querySelector(`input[placeholder="${I18N.gallery.semantic_search_placeholder}"]`) as HTMLInputElement;
@@ -6499,7 +6531,7 @@ describe('GalleryComponent', () => {
     it('keeps collection controls local while help and controls follow gallery parking', () => {
       const header = TestBed.inject(HeaderSlotService);
       expect(header.template()).toBeNull();
-      expect(fixture.nativeElement.querySelector('app-gallery-view-controls')).not.toBeNull();
+      expect(fixture.nativeElement.querySelector('[data-collection-actions]')).not.toBeNull();
       openPhoto(1);
       expect(header.template()).toBeNull();
       outletMock.attachEvents.next(gallery);
@@ -6813,7 +6845,7 @@ describe('GalleryComponent', () => {
       it('hides a filter sidebar tooltip when the gallery is parked', async () => {
         const [sidebarBlock] = await fixture.getDeferBlocks();
         await sidebarBlock.render(DeferBlockState.Complete);
-        const sidebar = fixture.debugElement.query(By.directive(GalleryFilterSidebarComponent));
+        const sidebar = fixture.debugElement.query(By.css('mat-sidenav'));
         await expectParkHides(tooltipsOf(sidebar)[0]);
       });
     });
@@ -6860,7 +6892,7 @@ describe('GalleryComponent', () => {
       mockStore.parkListingReads.mockClear();
       outletMock.detachEvents.next({});
       expect(mockStore.parkListingReads).not.toHaveBeenCalled();
-      expect(fixture.nativeElement.querySelector('app-gallery-view-controls')).not.toBeNull();
+      expect(fixture.nativeElement.querySelector('[data-collection-actions]')).not.toBeNull();
     });
   });
 

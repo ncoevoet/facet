@@ -769,8 +769,7 @@ describe('GalleryFilterSidebarComponent', () => {
       expect(component.pinnedFilters().map(def => def.id)).not.toContain('liqe_range');
       expect(fixture.nativeElement.querySelector('[data-metric="liqe_range"]')).toBeNull();
       expect(component.totalActiveCount()).toBeGreaterThan(0);
-      fixture.nativeElement.querySelector('[data-test="reset"]').click();
-      expect(store['resetFilters']).toHaveBeenCalledOnce();
+      expect(fixture.nativeElement.querySelector('[data-test="reset"]')).toBeNull();
     });
 
     it('offers a native ALL/ANY people group for read-only browsing without changing the selected IDs', () => {
@@ -978,23 +977,13 @@ describe('GalleryFilterSidebarComponent', () => {
         expect(badge.textContent!.trim()).toBe('1');
       });
 
-      it('tells Reset and Close apart: a labelled text button against the only bare icon button, far right', () => {
+      it('keeps Close available without duplicating the collection Reset action', () => {
         setFilters({ camera: 'Sony' });
-        const reset = header().querySelector('[data-test="reset"]') as HTMLElement;
+        expect(header().querySelector('[data-test="reset"]')).toBeNull();
         const close = header().querySelector('[data-test="close"]') as HTMLElement;
-        expect(reset.textContent).toContain('gallery.reset_filters');
-        expect(reset.querySelector('mat-icon')!.textContent!.trim()).toBe('restart_alt');
-        expect(reset.getAttribute('aria-label')).toBeNull();
         expect(close.getAttribute('aria-label')).toBe('dialog.close');
         expect(close.querySelector('mat-icon')!.textContent!.trim()).toBe('close');
-        expect(close.textContent!.trim()).toBe('close');
-        expect(close.classList.contains('md:hidden')).toBe(false);
         expect(header().lastElementChild).toBe(close);
-        const tips = fixture.debugElement.queryAll(By.directive(MatTooltip)).map(d => d.injector.get(MatTooltip).message);
-        expect(tips).toContain('gallery.sidebar.reset_tooltip');
-        expect(tips).toContain('dialog.close');
-        reset.click();
-        expect(store['resetFilters']).toHaveBeenCalledOnce();
         close.click();
         expect(store['setFilterDrawerOpen']).toHaveBeenCalledWith(false);
       });
@@ -1434,13 +1423,16 @@ describe('GalleryFilterSidebarComponent', () => {
       expect(panel.querySelector('mat-form-field')).toBeNull();
       const input = panel.querySelector<HTMLInputElement>('#semantic-search-input')!;
       expect(input.labels?.[0]?.classList.contains('sr-only')).toBe(true);
-      const help = panel.querySelector<HTMLButtonElement>('[data-semantic-help]')!;
+      const help = panel.querySelector<HTMLButtonElement>('[data-semantic-help] button')!;
       expect(help.getAttribute('aria-expanded')).toBe('false');
       expect(panel.querySelector('#semantic-search-help')).toBeNull();
       help.click(); fixture.detectChanges();
       expect(help.getAttribute('aria-expanded')).toBe('true');
-      expect(panel.querySelector('#semantic-search-help')?.textContent).toContain('gallery.semantic_search_info');
-      help.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true })); fixture.detectChanges();
+      const overlay = TestBed.inject(OverlayContainer).getContainerElement();
+      expect(panel.querySelector('#semantic-search-help')).toBeNull();
+      expect(overlay.querySelector('#semantic-search-help')?.textContent).toContain('gallery.semantic_search_info');
+      overlay.querySelector('header button')!.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true })); fixture.detectChanges();
+      expect(overlay.querySelector('#semantic-search-help')).toBeNull();
       expect(panel.querySelector('#semantic-search-help')).toBeNull();
     });
 

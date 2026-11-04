@@ -1,3 +1,4 @@
+import { OverlayContainer } from '@angular/cdk/overlay';
 import { signal } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
 import { provideHttpClient } from '@angular/common/http';
@@ -101,12 +102,13 @@ describe('PhotoProvenanceComponent', () => {
     expect(root.textContent).toContain('metadata_sources.personal');
     expect(root.textContent).toContain('from xmp');
     expect(root.textContent).not.toContain('metadata_sources.help ');
-    const help = root.querySelector<HTMLDetailsElement>('[data-context-help]')!;
-    help.open = true; help.dispatchEvent(new Event('toggle')); fixture.detectChanges();
-    expect(help.querySelector('[data-context-help-close]')).not.toBeNull();
-    help.querySelector('summary')!.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true, cancelable: true }));
+    const helpTrigger = root.querySelector<HTMLButtonElement>('app-context-help button')!;
+    helpTrigger.click(); fixture.detectChanges();
+    const help = TestBed.inject(OverlayContainer).getContainerElement();
+    expect(help.querySelector('header button')).not.toBeNull();
+    help.querySelector('header button')!.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true, cancelable: true }));
     fixture.detectChanges();
-    expect(help.open).toBe(false); expect(panel.open).toBe(true);
+    expect(help.querySelector('[role="dialog"]')).toBeNull(); expect(panel.open).toBe(true);
     const event = new KeyboardEvent('keydown', { key: 'Escape', bubbles: true, cancelable: true });
     trigger.dispatchEvent(event); fixture.detectChanges();
     expect(event.defaultPrevented).toBe(true); expect(panel.open).toBe(false);

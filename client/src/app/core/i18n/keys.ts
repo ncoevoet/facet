@@ -1094,6 +1094,7 @@ export const I18N = {
     user_menu: "auth.user_menu",
   },
   gallery: {
+    face_outlines: "gallery.face_outlines",
     criteria: {
       field_labels: {
         blinks_only: "gallery.criteria.field_labels.blinks_only",
@@ -3316,6 +3317,12 @@ export const I18N = {
       batch_hint: "photo_detail.gps.batch_hint",
     },
     distribution: {
+      scope: "photo_detail.distribution.scope",
+      library: "photo_detail.distribution.library",
+      category: "photo_detail.distribution.category",
+      open: "photo_detail.distribution.open",
+      scoped_range: "photo_detail.distribution.scoped_range",
+      scoped_top_in_range: "photo_detail.distribution.scoped_top_in_range",
       top: "photo_detail.distribution.top",
       range: "photo_detail.distribution.range",
       top_in_range: "photo_detail.distribution.top_in_range",

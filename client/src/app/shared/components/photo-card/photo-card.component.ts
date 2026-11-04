@@ -1,3 +1,4 @@
+import { PhotoListExtraComponent } from './photo-list-extra.component';
 import { i18nKeys } from '../../../core/i18n/keys';
 import { Component, computed, effect, inject, input, output, signal, untracked, viewChildren, ChangeDetectionStrategy } from '@angular/core';
 import { MatIconModule } from '@angular/material/icon';
@@ -112,7 +113,7 @@ const DEFAULT_CLIPPING_BADGE_PERCENT = 5;
     // Keep every photo at its true display strength while moving focus.
     // Selection/current markers carry state without simulating exposure changes.
   },
-  imports: [
+  imports: [PhotoListExtraComponent,
     FaceFocusOverlayComponent,
     MatIconModule,
     MatButtonModule,
@@ -155,7 +156,7 @@ const DEFAULT_CLIPPING_BADGE_PERCENT = 5;
       (mouseleave)="onMouseLeave()"
     >
       @if (listMode()) {
-        <div data-metadata-row [id]="listMetadataId" class="grid h-full min-w-0 grid-cols-[3rem_minmax(0,1fr)] items-center gap-2 border-b border-[var(--mat-sys-outline-variant)] p-2 @[24rem]:grid-cols-[3rem_minmax(0,1fr)_auto] @[60rem]:grid-cols-[3rem_minmax(0,2fr)_minmax(0,1fr)_minmax(0,1fr)_auto]">
+        <div data-metadata-row [id]="listMetadataId" class="grid h-full min-w-0 grid-cols-[3rem_minmax(0,1fr)_auto] items-center gap-3 border-b border-[var(--mat-sys-outline-variant)] p-2 @[36rem]:grid-cols-[3rem_minmax(0,2fr)_6rem_auto] @[60rem]:grid-cols-[3rem_minmax(0,2fr)_6rem_minmax(0,1fr)_minmax(0,1fr)_auto] @[80rem]:grid-cols-[3rem_minmax(0,2fr)_6rem_minmax(0,1fr)_minmax(0,1fr)_minmax(0,1.4fr)_auto] @[100rem]:grid-cols-[3rem_minmax(0,2fr)_6rem_minmax(0,1fr)_minmax(0,1fr)_minmax(0,1.4fr)_minmax(0,1.6fr)_auto]">
           <div class="relative h-12 w-12">
             <img [src]="photo().path | thumbnailUrl:160:photo().preview_revision:sharedAlbum()" alt="" loading="lazy" decoding="async" class="h-full w-full object-contain bg-[var(--mat-sys-surface-container)]" />
             @if (isSelected()) { <mat-icon aria-hidden="true" class="absolute -left-1 -top-1 !text-[var(--mat-sys-primary)]">check_box</mat-icon> }
@@ -172,6 +173,15 @@ const DEFAULT_CLIPPING_BADGE_PERCENT = 5;
               @if (photo().is_favorite) { <mat-icon class="!h-4 !w-4 !text-base" [attr.aria-label]="I18N.rating.favorite | translate">favorite</mat-icon> }
             </div>
           </div>
+          <div data-list-sort class="min-w-0 text-right text-xs tabular-nums">
+            <div class="truncate text-[var(--mat-sys-on-surface-variant)]">{{ listSortLabel() | translate }}</div>
+            <div class="font-semibold">
+              @if (currentSort() === 'date_taken') {
+                <span class="block text-xs">{{ photo().date_taken ? (photo().date_taken | captureDate) : (I18N.gallery.no_capture_date | translate) }}</span>
+              } @else if (listSortText(); as text) { <span class="block truncate" [title]="text">{{ text }}</span> }
+              @else { <span class="text-base">{{ listSortNumber() === null ? '—' : (listSortNumber() | fixed:1) }}</span> }
+            </div>
+          </div>
           <dl class="m-0 hidden min-w-0 text-xs leading-5 @[60rem]:block">
             <dt class="sr-only">{{ I18N.gallery.camera | translate }}</dt>
             <dd class="m-0 truncate" [title]="photo().camera_model || ''">{{ photo().camera_model || (I18N.gallery.metadata.not_recorded | translate) }}</dd>
@@ -184,7 +194,8 @@ const DEFAULT_CLIPPING_BADGE_PERCENT = 5;
               <div class="text-[var(--mat-sys-on-surface-variant)]">@if (photo().iso) { ISO {{ photo().iso }} } @if (photo().focal_length) { {{ photo().focal_length }}mm }</div>
             } @else { {{ I18N.gallery.metadata.not_recorded | translate }} }
           </div>
-          <div class="col-span-2 flex items-center justify-between gap-1 @[24rem]:col-span-1" (click)="$event.stopPropagation()" (dblclick)="$event.stopPropagation()" (keydown)="$event.stopPropagation()" tabindex="-1" role="group" [attr.aria-label]="I18N.gallery.metadata.photo_actions | translate">
+          <app-photo-list-extra [photo]="photo()" />
+          <div class="col-span-3 flex items-center justify-between gap-1 @[36rem]:col-span-1" (click)="$event.stopPropagation()" (dblclick)="$event.stopPropagation()" (keydown)="$event.stopPropagation()" tabindex="-1" role="group" [attr.aria-label]="I18N.gallery.metadata.photo_actions | translate">
             <div class="min-w-0 text-right text-xs leading-5">
               <span class="flex min-w-0 items-center justify-end gap-1"><mat-icon aria-hidden="true" class="shrink-0 !h-4 !w-4 !text-base">{{ photo().is_rejected ? 'block' : photo().is_kept ? 'flag' : 'radio_button_unchecked' }}</mat-icon><span class="line-clamp-2 min-w-0 break-words">{{ listDecision() | translate }}</span></span>
               <span class="flex items-center justify-end gap-1 text-[var(--mat-sys-on-surface-variant)]">@if (photo().star_rating) { <mat-icon aria-hidden="true" class="!h-4 !w-4 !text-base">star</mat-icon>{{ photo().star_rating }} } @else { {{ I18N.gallery.metadata.unrated | translate }} }</span>
@@ -745,6 +756,16 @@ export class PhotoCardComponent {
   readonly mosaicMode = input(false);
   readonly listMode = input(false);
   private static nextListId = 0;
+  protected readonly listSortLabel = computed(() => `sort_options.${this.currentSort()}`);
+  private readonly listSortValue = computed(() => (this.photo() as unknown as Record<string, unknown>)[this.currentSort()]);
+  protected readonly listSortNumber = computed(() => {
+    const value = this.listSortValue();
+    return typeof value === 'number' && Number.isFinite(value) ? value : null;
+  });
+  protected readonly listSortText = computed(() => {
+    const value = this.listSortValue();
+    return typeof value === 'string' ? value : null;
+  });
   protected readonly listMetadataId = `photo-list-metadata-${PhotoCardComponent.nextListId++}`;
   protected readonly listCaptureDate = computed(() => this.photo().date_taken?.trim() ?? '');
   protected readonly listCaptureDay = computed(() => this.listCaptureDate().slice(0, 10));

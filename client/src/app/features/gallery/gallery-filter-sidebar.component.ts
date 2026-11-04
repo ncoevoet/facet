@@ -1,3 +1,5 @@
+import { ControlPopoverComponent } from '../../shared/components/control-popover/control-popover.component';
+import { FaceOutlinePreferences } from '../../core/services/face-outline-preferences.service';
 import { closeDetailsOnEscape, closeOverlayDirectives } from '../../shared/utils/overlays';
 import { FEATURE_MARK, MarkTonePipe } from '../../shared/pipes/mark-tone.pipe';
 import { Component, computed, DestroyRef, effect, ElementRef, inject, signal, viewChild, viewChildren, ChangeDetectionStrategy, afterNextRender, Injector, input, TemplateRef } from '@angular/core';
@@ -216,8 +218,9 @@ export function loadActiveTab(): SidebarTabId {
 @Component({
   selector: 'app-gallery-filter-sidebar',
   standalone: true,
-  host: { class: 'flex flex-col h-full bg-[var(--mat-sys-surface-container-lowest)] [&_.mat-expansion-panel]:!shadow-none [&_.mat-expansion-panel]:!rounded-none [&_.mat-expansion-panel]:!bg-transparent [&_.mat-expansion-panel]:!mx-0 [&_.mat-expansion-panel]:!my-0 [&_.mat-expansion-panel]:border-b [&_.mat-expansion-panel]:border-[var(--mat-sys-outline-variant)]' },
+  host: { class: 'contents' },
   imports: [
+    ControlPopoverComponent,
     MarkTonePipe,
     DecimalPipe,
     MetricSparklineComponent,
@@ -247,6 +250,7 @@ export function loadActiveTab(): SidebarTabId {
   ],
   changeDetection: ChangeDetectionStrategy.Eager,
   template: `
+<ng-template #bodyContent><div class="flex flex-col h-full bg-[var(--mat-sys-surface-container-lowest)] [&_.mat-expansion-panel]:!shadow-none [&_.mat-expansion-panel]:!rounded-none [&_.mat-expansion-panel]:!bg-transparent [&_.mat-expansion-panel]:!mx-0 [&_.mat-expansion-panel]:!my-0 [&_.mat-expansion-panel]:border-b [&_.mat-expansion-panel]:border-[var(--mat-sys-outline-variant)]">
 <div class="shrink-0 px-4 border-b border-[var(--mat-sys-outline-variant)]">
 
       <div class="relative py-2 flex items-center gap-2">
@@ -268,14 +272,6 @@ export function loadActiveTab(): SidebarTabId {
             <p class="mb-0 mt-1">{{ I18N.gallery.sidebar.count_scope_badges | translate }}</p>
           </div>
         </details>
-        @if (totalActiveCount()) {
-          <button mat-button data-test="reset" class="!min-w-0 !px-2 !text-xs"
-            [matTooltip]="I18N.gallery.sidebar.reset_tooltip | translate"
-            (click)="store.resetFilters()">
-            <mat-icon class="!text-base !w-4 !h-4 !leading-4 mr-1">restart_alt</mat-icon>
-            {{ I18N.gallery.reset_filters | translate }}
-          </button>
-        }
         <button mat-icon-button data-test="close" class="shrink-0"
           [matTooltip]="I18N.dialog.close | translate"
           [attr.aria-label]="I18N.dialog.close | translate"
@@ -381,7 +377,7 @@ export function loadActiveTab(): SidebarTabId {
           </div>
         }
       } @else {
-        @switch (activeTab()) {
+        @switch (effectiveTab()) {
           @case ('browse') {
       <!-- Semantic Search (top of sidebar) -->
       @if (store.config()?.features?.show_semantic_search) {
@@ -410,12 +406,13 @@ export function loadActiveTab(): SidebarTabId {
                   </button>
                 }
               </div>
-              <button type="button" class="flex h-11 w-11 shrink-0 cursor-pointer items-center justify-center rounded text-[var(--mat-sys-on-surface-variant)] hover:bg-[var(--mat-sys-surface-container-high)] focus-visible:outline-2"
-                data-semantic-help [attr.aria-label]="I18N.gallery.semantic_search_help | translate"
-                [attr.aria-expanded]="semanticHelpOpen()" aria-controls="semantic-search-help"
-                (click)="semanticHelpOpen.set(!semanticHelpOpen())" (keydown.escape)="closeSemanticHelp($event)">
-                <mat-icon aria-hidden="true" class="!h-5 !w-5 !text-xl">info_outline</mat-icon>
-              </button>
+              <app-control-popover data-semantic-help [compact]="true" icon="info_outline" [label]="I18N.gallery.semantic_search_help | translate" [content]="semanticExplanation" />
+              <ng-template #semanticExplanation>
+                <div id="semantic-search-help" class="space-y-2 text-xs">
+                  <p class="m-0">{{ I18N.gallery.semantic_search_info | translate }}</p>
+                  <p class="m-0">{{ I18N.gallery.semantic_search_threshold_hint | translate }}</p>
+                </div>
+              </ng-template>
             </div>
             <div class="flex min-w-0 items-center gap-2">
               <span class="shrink-0 text-xs text-[var(--mat-sys-on-surface-variant)]">{{ I18N.gallery.semantic_search_threshold | translate }}</span>
@@ -425,12 +422,6 @@ export function loadActiveTab(): SidebarTabId {
               </mat-slider>
               <span class="w-8 shrink-0 text-right text-xs tabular-nums">{{ searchThresholdValue() }}%</span>
             </div>
-            @if (semanticHelpOpen()) {
-              <div id="semantic-search-help" class="space-y-2 rounded border border-[var(--mat-sys-outline-variant)] p-3 text-xs text-[var(--mat-sys-on-surface-variant)]">
-                <p class="m-0">{{ I18N.gallery.semantic_search_info | translate }}</p>
-                <p class="m-0">{{ I18N.gallery.semantic_search_threshold_hint | translate }}</p>
-              </div>
-            }
             <p id="semantic-search-threshold-hint" class="sr-only">{{ I18N.gallery.semantic_search_threshold_hint | translate }}</p>
           </div>
         </mat-expansion-panel>
@@ -741,7 +732,166 @@ export function loadActiveTab(): SidebarTabId {
         </mat-expansion-panel>
       }
           }
-          @case ('review') {
+          @case ('review') { <ng-container [ngTemplateOutlet]="reviewSettings" /> }
+          @case ('quality') {
+      @for (group of qualityGroups(); track group.sectionKey) {
+        <ng-container [ngTemplateOutlet]="metricPanel" [ngTemplateOutletContext]="{ $implicit: group }" />
+      }
+
+      <!-- Color & Quality tier -->
+      @if (store.colorTemps().length || store.hueBuckets().length || qualityTiers.length) {
+        <mat-expansion-panel class="!mb-1" [expanded]="sectionStates()['color_quality'] === true"
+                             (opened)="onSectionToggle('color_quality', true)"
+                             (closed)="onSectionToggle('color_quality', false)"
+                             [style.background-color]="sectionStates()['color_quality'] === true ? 'var(--mat-sys-surface-container)' : null">
+          <mat-expansion-panel-header class="!px-2">
+            <mat-panel-title class="flex items-center gap-2">
+              <mat-icon class="!text-xl !w-5 !h-5 !leading-none opacity-80">palette</mat-icon>
+              {{ I18N.gallery.sidebar.color_quality | translate }}
+              @if (sectionActiveCounts()['color_quality']) {
+                <span class="text-xs rounded-full min-w-[1.25rem] h-5 px-1.5 flex items-center justify-center bg-[var(--mat-sys-primary)] text-[var(--mat-sys-on-primary)] leading-none">{{ sectionActiveCounts()['color_quality'] }}</span>
+              }
+            </mat-panel-title>
+          </mat-expansion-panel-header>
+          <div class="flex flex-col gap-2 pb-2">
+            <!-- Quality tier -->
+            <mat-form-field subscriptSizing="dynamic" class="w-full">
+              <mat-label [appHelpTip]="I18N.gallery.sidebar.metric_help.quality_tier | translate">{{ I18N.gallery.quality_tier | translate }}</mat-label>
+              <mat-select [value]="store.filters().quality_tier" aria-describedby="metric-help-quality_tier" (selectionChange)="store.updateFilter('quality_tier', $event.value)">
+                <mat-option value="">{{ I18N.gallery.all | translate }}</mat-option>
+                @for (t of qualityTiers; track t) {
+                  <mat-option [value]="t">{{ ('gallery.quality_tiers.' + t) | translate }}</mat-option>
+                }
+              </mat-select>
+            </mat-form-field>
+            <span class="sr-only" id="metric-help-quality_tier">{{ I18N.gallery.sidebar.metric_help.quality_tier | translate }}</span>
+            <!-- Color temperature -->
+            @if (store.colorTemps().length) {
+              <mat-form-field subscriptSizing="dynamic" class="w-full">
+                <mat-label [appHelpTip]="I18N.gallery.sidebar.metric_help.color_temp | translate">{{ I18N.gallery.color_temp | translate }}</mat-label>
+                <mat-select [value]="store.filters().color_temp" aria-describedby="metric-help-color_temp" (selectionChange)="store.updateFilter('color_temp', $event.value)">
+                  <mat-option value="">{{ I18N.gallery.all | translate }}</mat-option>
+                  @for (c of store.colorTemps(); track c.value) {
+                    <mat-option [value]="c.value">{{ ('gallery.color_temps.' + c.value) | translate }} ({{ c.count }})</mat-option>
+                  }
+                </mat-select>
+              </mat-form-field>
+              <span class="sr-only" id="metric-help-color_temp">{{ I18N.gallery.sidebar.metric_help.color_temp | translate }}</span>
+            }
+            <!-- Hue buckets as colour chips -->
+            @if (store.hueBuckets().length) {
+              <span class="text-xs opacity-60 px-1" [appHelpTip]="I18N.gallery.sidebar.metric_help.hue_bucket | translate">{{ I18N.gallery.hue | translate }}</span>
+              <span class="sr-only" id="metric-help-hue_bucket">{{ I18N.gallery.sidebar.metric_help.hue_bucket | translate }}</span>
+              <div class="flex flex-wrap gap-1.5" role="group" [attr.aria-label]="I18N.gallery.hue | translate" aria-describedby="metric-help-hue_bucket">
+                @for (h of store.hueBuckets(); track h.value) {
+                  <button type="button"
+                    class="flex items-center gap-1.5 rounded-full pl-1.5 pr-2.5 py-1 text-xs border border-[var(--mat-sys-outline-variant)] cursor-pointer"
+                    [class.!border-[var(--mat-sys-primary)]]="store.filters().hue_bucket === h.value"
+                    [class.bg-[var(--mat-sys-primary-container)]]="store.filters().hue_bucket === h.value"
+                    [attr.aria-pressed]="store.filters().hue_bucket === h.value"
+                    [matTooltip]="('gallery.hue_buckets.' + h.value | translate) + ' (' + h.count + ')'"
+                    (click)="toggleHueBucket(h.value)">
+                    <span class="w-3.5 h-3.5 rounded-full shrink-0 border border-black/10" [style.background-color]="hueSwatches[h.value]"></span>
+                    {{ ('gallery.hue_buckets.' + h.value) | translate }}
+                  </button>
+                }
+              </div>
+            }
+          </div>
+        </mat-expansion-panel>
+      }
+
+      @for (group of qualityAdvancedGroups(); track group.sectionKey) {
+        <ng-container [ngTemplateOutlet]="metricPanel" [ngTemplateOutletContext]="{ $implicit: group }" />
+      }
+      <app-score-presence [metrics]="scorePresenceMetrics" />
+          }
+          @case ('subject') {
+      @for (group of subjectGroups(); track group.sectionKey) {
+        <ng-container [ngTemplateOutlet]="metricPanel" [ngTemplateOutletContext]="{ $implicit: group }" />
+      }
+          }
+          @case ('display') { <ng-container [ngTemplateOutlet]="displaySettings" /> }
+        }
+      }
+
+      <ng-template #metricPanel let-group>
+        <mat-expansion-panel class="!mb-1" [expanded]="sectionStates()[group.sectionKey] === true"
+                             (opened)="onSectionToggle(group.sectionKey, true)"
+                             (closed)="onSectionToggle(group.sectionKey, false)"
+                             [style.background-color]="sectionStates()[group.sectionKey] === true ? 'var(--mat-sys-surface-container)' : null">
+          <mat-expansion-panel-header class="!px-2">
+            <mat-panel-title class="flex items-center gap-2">
+              <mat-icon class="!text-xl !w-5 !h-5 !leading-none opacity-80" [class]="group.sectionKey | markTone">{{ sectionIcons[group.sectionKey] || 'tune' }}</mat-icon>
+              {{ group.sectionKey | translate }}
+              @if (sectionActiveCounts()[group.sectionKey]) {
+                <span class="text-xs rounded-full min-w-[1.25rem] h-5 px-1.5 flex items-center justify-center bg-[var(--mat-sys-primary)] text-[var(--mat-sys-on-primary)] leading-none">{{ sectionActiveCounts()[group.sectionKey] }}</span>
+              }
+            </mat-panel-title>
+          </mat-expansion-panel-header>
+          <div class="flex flex-col gap-1 pb-1">
+            @for (def of group.filters; track def.id) {
+              <ng-container [ngTemplateOutlet]="metricRow" [ngTemplateOutletContext]="{ $implicit: def }" />
+            }
+          </div>
+        </mat-expansion-panel>
+      </ng-template>
+
+      <span id="filter-pin-limit" class="sr-only">{{ I18N.gallery.sidebar.pins.limit | translate:{ max: pinLimit } }}</span>
+      <ng-template #metricRow let-def>
+        <div class="flex flex-col gap-0" [attr.data-metric]="def.id">
+          <div class="flex min-h-11 items-center gap-1">
+            <span class="min-w-0 flex-1 text-xs px-1" [appHelpTip]="def.helpKey | translate">{{ def.labelKey | translate }}</span>
+            <button #metricPin type="button" mat-icon-button [attr.data-pin-filter]="def.id" class="shrink-0"
+                    [disabled]="!pinnedIds().has(def.id) && pinLimitReached()"
+                    [attr.aria-pressed]="pinnedIds().has(def.id)"
+                    [attr.aria-label]="(pinnedIds().has(def.id) ? I18N.gallery.sidebar.pins.remove : I18N.gallery.sidebar.pins.add) | translate:{ name: (def.labelKey | translate) }"
+                    [attr.aria-describedby]="pinLimitReached() ? 'filter-pin-limit' : null" (click)="togglePin(def)">
+              <mat-icon>{{ pinnedIds().has(def.id) ? 'star' : 'star_border' }}</mat-icon>
+            </button>
+          </div>
+          <span class="sr-only" [id]="'metric-help-' + def.id">{{ def.helpKey | translate }}</span>
+          <div class="flex items-center gap-1">
+            <div class="flex-1 flex flex-col">
+              @if (store.metricRanges()[def.minKey]; as range) {
+                <app-metric-sparkline [range]="range" />
+              }
+              <mat-slider [min]="def.sliderMin" [max]="def.sliderMax" [step]="def.step" class="w-full">
+                <input matSliderStartThumb
+                  [value]="$any(store.filters())[def.minKey] ? +$any(store.filters())[def.minKey] : def.sliderMin"
+                  (valueChange)="onDynamicRangeChange(def, 'min', $event)"
+                  [attr.aria-label]="(def.labelKey | translate) + ' min'" [attr.aria-describedby]="'metric-help-' + def.id" />
+                <input matSliderEndThumb
+                  [value]="$any(store.filters())[def.maxKey] ? +$any(store.filters())[def.maxKey] : def.sliderMax"
+                  (valueChange)="onDynamicRangeChange(def, 'max', $event)"
+                  [attr.aria-label]="(def.labelKey | translate) + ' max'" [attr.aria-describedby]="'metric-help-' + def.id" />
+              </mat-slider>
+            </div>
+            <span class="text-xs opacity-60 text-right" [class]="def.spanWidth">
+              @if ($any(store.filters())[def.minKey] || $any(store.filters())[def.maxKey]) {
+                {{ store.filters() | filterDisplay:def }}
+              } @else {
+                {{ I18N.gallery.sidebar.any | translate }}
+              }
+            </span>
+          </div>
+        </div>
+      </ng-template>
+    </div>
+    </mat-tab-nav-panel>
+
+
+    <!-- Save as smart album (pinned footer, shown only when relevant) -->
+    @if (store.config()?.features?.show_albums && auth.isEdition() && store.activeFilterCount() > 0 && !store.filters().album_id) {
+      <div class="shrink-0 px-2 py-2 border-t border-[var(--mat-sys-outline-variant)] bg-[var(--mat-sys-surface)]">
+        <button mat-stroked-button class="w-full" [matTooltip]="I18N.albums.save_smart_tooltip | translate" (click)="saveAsSmartAlbum()">
+          <mat-icon>bookmark_add</mat-icon>
+          {{ I18N.albums.save_smart | translate }}
+        </button>
+      </div>
+    }
+</div></ng-template>
+<ng-template #reviewSettings>
       <div data-section="review" class="flex flex-col gap-2 px-1 pt-1 pb-2">
         <div class="flex flex-col">
           @for (row of reviewRows(); track row.id) {
@@ -842,88 +992,11 @@ export function loadActiveTab(): SidebarTabId {
           </mat-form-field>
         }
       </div>
-          }
-          @case ('quality') {
-      <app-score-presence [metrics]="scorePresenceMetrics" />
-      @for (group of qualityGroups(); track group.sectionKey) {
-        <ng-container [ngTemplateOutlet]="metricPanel" [ngTemplateOutletContext]="{ $implicit: group }" />
-      }
-
-      <!-- Color & Quality tier -->
-      @if (store.colorTemps().length || store.hueBuckets().length || qualityTiers.length) {
-        <mat-expansion-panel class="!mb-1" [expanded]="sectionStates()['color_quality'] === true"
-                             (opened)="onSectionToggle('color_quality', true)"
-                             (closed)="onSectionToggle('color_quality', false)"
-                             [style.background-color]="sectionStates()['color_quality'] === true ? 'var(--mat-sys-surface-container)' : null">
-          <mat-expansion-panel-header class="!px-2">
-            <mat-panel-title class="flex items-center gap-2">
-              <mat-icon class="!text-xl !w-5 !h-5 !leading-none opacity-80">palette</mat-icon>
-              {{ I18N.gallery.sidebar.color_quality | translate }}
-              @if (sectionActiveCounts()['color_quality']) {
-                <span class="text-xs rounded-full min-w-[1.25rem] h-5 px-1.5 flex items-center justify-center bg-[var(--mat-sys-primary)] text-[var(--mat-sys-on-primary)] leading-none">{{ sectionActiveCounts()['color_quality'] }}</span>
-              }
-            </mat-panel-title>
-          </mat-expansion-panel-header>
-          <div class="flex flex-col gap-2 pb-2">
-            <!-- Quality tier -->
-            <mat-form-field subscriptSizing="dynamic" class="w-full">
-              <mat-label [appHelpTip]="I18N.gallery.sidebar.metric_help.quality_tier | translate">{{ I18N.gallery.quality_tier | translate }}</mat-label>
-              <mat-select [value]="store.filters().quality_tier" aria-describedby="metric-help-quality_tier" (selectionChange)="store.updateFilter('quality_tier', $event.value)">
-                <mat-option value="">{{ I18N.gallery.all | translate }}</mat-option>
-                @for (t of qualityTiers; track t) {
-                  <mat-option [value]="t">{{ ('gallery.quality_tiers.' + t) | translate }}</mat-option>
-                }
-              </mat-select>
-            </mat-form-field>
-            <span class="sr-only" id="metric-help-quality_tier">{{ I18N.gallery.sidebar.metric_help.quality_tier | translate }}</span>
-            <!-- Color temperature -->
-            @if (store.colorTemps().length) {
-              <mat-form-field subscriptSizing="dynamic" class="w-full">
-                <mat-label [appHelpTip]="I18N.gallery.sidebar.metric_help.color_temp | translate">{{ I18N.gallery.color_temp | translate }}</mat-label>
-                <mat-select [value]="store.filters().color_temp" aria-describedby="metric-help-color_temp" (selectionChange)="store.updateFilter('color_temp', $event.value)">
-                  <mat-option value="">{{ I18N.gallery.all | translate }}</mat-option>
-                  @for (c of store.colorTemps(); track c.value) {
-                    <mat-option [value]="c.value">{{ ('gallery.color_temps.' + c.value) | translate }} ({{ c.count }})</mat-option>
-                  }
-                </mat-select>
-              </mat-form-field>
-              <span class="sr-only" id="metric-help-color_temp">{{ I18N.gallery.sidebar.metric_help.color_temp | translate }}</span>
-            }
-            <!-- Hue buckets as colour chips -->
-            @if (store.hueBuckets().length) {
-              <span class="text-xs opacity-60 px-1" [appHelpTip]="I18N.gallery.sidebar.metric_help.hue_bucket | translate">{{ I18N.gallery.hue | translate }}</span>
-              <span class="sr-only" id="metric-help-hue_bucket">{{ I18N.gallery.sidebar.metric_help.hue_bucket | translate }}</span>
-              <div class="flex flex-wrap gap-1.5" role="group" [attr.aria-label]="I18N.gallery.hue | translate" aria-describedby="metric-help-hue_bucket">
-                @for (h of store.hueBuckets(); track h.value) {
-                  <button type="button"
-                    class="flex items-center gap-1.5 rounded-full pl-1.5 pr-2.5 py-1 text-xs border border-[var(--mat-sys-outline-variant)] cursor-pointer"
-                    [class.!border-[var(--mat-sys-primary)]]="store.filters().hue_bucket === h.value"
-                    [class.bg-[var(--mat-sys-primary-container)]]="store.filters().hue_bucket === h.value"
-                    [attr.aria-pressed]="store.filters().hue_bucket === h.value"
-                    [matTooltip]="('gallery.hue_buckets.' + h.value | translate) + ' (' + h.count + ')'"
-                    (click)="toggleHueBucket(h.value)">
-                    <span class="w-3.5 h-3.5 rounded-full shrink-0 border border-black/10" [style.background-color]="hueSwatches[h.value]"></span>
-                    {{ ('gallery.hue_buckets.' + h.value) | translate }}
-                  </button>
-                }
-              </div>
-            }
-          </div>
-        </mat-expansion-panel>
-      }
-
-      @for (group of qualityAdvancedGroups(); track group.sectionKey) {
-        <ng-container [ngTemplateOutlet]="metricPanel" [ngTemplateOutletContext]="{ $implicit: group }" />
-      }
-          }
-          @case ('subject') {
-      @for (group of subjectGroups(); track group.sectionKey) {
-        <ng-container [ngTemplateOutlet]="metricPanel" [ngTemplateOutletContext]="{ $implicit: group }" />
-      }
-          }
-          @case ('display') {
+</ng-template>
+<ng-template #displaySettings>
       <!-- View (display preferences, not filters): the tab's only section, so no panel around it -->
-        <div data-section="view" class="flex flex-col gap-2 px-4 pt-1 pb-2">
+        <div data-section="view" class="flex flex-col gap-2 px-1 pt-1 pb-2">
+          <mat-checkbox data-face-outline-toggle [checked]="faceOutlines.enabled()" (change)="faceOutlines.setEnabled($event.checked)">{{ I18N.gallery.face_outlines | translate }}</mat-checkbox>
           @if (store.galleryMode() !== 'mosaic') {
             <mat-checkbox
               [checked]="store.filters().hide_details"
@@ -952,88 +1025,18 @@ export function loadActiveTab(): SidebarTabId {
             </div>
           }
         </div>
-          }
-        }
-      }
-
-      <ng-template #metricPanel let-group>
-        <mat-expansion-panel class="!mb-1" [expanded]="sectionStates()[group.sectionKey] === true"
-                             (opened)="onSectionToggle(group.sectionKey, true)"
-                             (closed)="onSectionToggle(group.sectionKey, false)"
-                             [style.background-color]="sectionStates()[group.sectionKey] === true ? 'var(--mat-sys-surface-container)' : null">
-          <mat-expansion-panel-header class="!px-2">
-            <mat-panel-title class="flex items-center gap-2">
-              <mat-icon class="!text-xl !w-5 !h-5 !leading-none opacity-80" [class]="group.sectionKey | markTone">{{ sectionIcons[group.sectionKey] || 'tune' }}</mat-icon>
-              {{ group.sectionKey | translate }}
-              @if (sectionActiveCounts()[group.sectionKey]) {
-                <span class="text-xs rounded-full min-w-[1.25rem] h-5 px-1.5 flex items-center justify-center bg-[var(--mat-sys-primary)] text-[var(--mat-sys-on-primary)] leading-none">{{ sectionActiveCounts()[group.sectionKey] }}</span>
-              }
-            </mat-panel-title>
-          </mat-expansion-panel-header>
-          <div class="flex flex-col gap-1 pb-1">
-            @for (def of group.filters; track def.id) {
-              <ng-container [ngTemplateOutlet]="metricRow" [ngTemplateOutletContext]="{ $implicit: def }" />
-            }
-          </div>
-        </mat-expansion-panel>
-      </ng-template>
-
-      <span id="filter-pin-limit" class="sr-only">{{ I18N.gallery.sidebar.pins.limit | translate:{ max: pinLimit } }}</span>
-      <ng-template #metricRow let-def>
-        <div class="flex flex-col gap-0" [attr.data-metric]="def.id">
-          <div class="flex min-h-11 items-center gap-1">
-            <span class="min-w-0 flex-1 text-xs px-1" [appHelpTip]="def.helpKey | translate">{{ def.labelKey | translate }}</span>
-            <button #metricPin type="button" mat-icon-button [attr.data-pin-filter]="def.id" class="shrink-0"
-                    [disabled]="!pinnedIds().has(def.id) && pinLimitReached()"
-                    [attr.aria-pressed]="pinnedIds().has(def.id)"
-                    [attr.aria-label]="(pinnedIds().has(def.id) ? I18N.gallery.sidebar.pins.remove : I18N.gallery.sidebar.pins.add) | translate:{ name: (def.labelKey | translate) }"
-                    [attr.aria-describedby]="pinLimitReached() ? 'filter-pin-limit' : null" (click)="togglePin(def)">
-              <mat-icon>{{ pinnedIds().has(def.id) ? 'star' : 'star_border' }}</mat-icon>
-            </button>
-          </div>
-          <span class="sr-only" [id]="'metric-help-' + def.id">{{ def.helpKey | translate }}</span>
-          <div class="flex items-center gap-1">
-            <div class="flex-1 flex flex-col">
-              @if (store.metricRanges()[def.minKey]; as range) {
-                <app-metric-sparkline [range]="range" />
-              }
-              <mat-slider [min]="def.sliderMin" [max]="def.sliderMax" [step]="def.step" class="w-full">
-                <input matSliderStartThumb
-                  [value]="$any(store.filters())[def.minKey] ? +$any(store.filters())[def.minKey] : def.sliderMin"
-                  (valueChange)="onDynamicRangeChange(def, 'min', $event)"
-                  [attr.aria-label]="(def.labelKey | translate) + ' min'" [attr.aria-describedby]="'metric-help-' + def.id" />
-                <input matSliderEndThumb
-                  [value]="$any(store.filters())[def.maxKey] ? +$any(store.filters())[def.maxKey] : def.sliderMax"
-                  (valueChange)="onDynamicRangeChange(def, 'max', $event)"
-                  [attr.aria-label]="(def.labelKey | translate) + ' max'" [attr.aria-describedby]="'metric-help-' + def.id" />
-              </mat-slider>
-            </div>
-            <span class="text-xs opacity-60 text-right" [class]="def.spanWidth">
-              @if ($any(store.filters())[def.minKey] || $any(store.filters())[def.maxKey]) {
-                {{ store.filters() | filterDisplay:def }}
-              } @else {
-                {{ I18N.gallery.sidebar.any | translate }}
-              }
-            </span>
-          </div>
-        </div>
-      </ng-template>
-    </div>
-    </mat-tab-nav-panel>
-
-
-    <!-- Save as smart album (pinned footer, shown only when relevant) -->
-    @if (store.config()?.features?.show_albums && auth.isEdition() && store.activeFilterCount() > 0 && !store.filters().album_id) {
-      <div class="shrink-0 px-2 py-2 border-t border-[var(--mat-sys-outline-variant)] bg-[var(--mat-sys-surface)]">
-        <button mat-stroked-button class="w-full" [matTooltip]="I18N.albums.save_smart_tooltip | translate" (click)="saveAsSmartAlbum()">
-          <mat-icon>bookmark_add</mat-icon>
-          {{ I18N.albums.save_smart | translate }}
-        </button>
-      </div>
-    }
+<ng-container [ngTemplateOutlet]="displayExtras()" /></ng-template>
+@if (!portSettings()) { <ng-container [ngTemplateOutlet]="bodyContent" /> }
   `,
 })
 export class GalleryFilterSidebarComponent {
+  protected readonly faceOutlines = inject(FaceOutlinePreferences);
+  readonly portSettings = input(false);
+  readonly bodyContent = viewChild<TemplateRef<unknown>>('bodyContent');
+  readonly reviewSettings = viewChild<TemplateRef<unknown>>('reviewSettings');
+  readonly displaySettings = viewChild<TemplateRef<unknown>>('displaySettings');
+  readonly displayExtras = input<TemplateRef<unknown> | null>(null);
+  readonly effectiveTab = computed(() => this.portSettings() && ['review', 'display'].includes(this.activeTab()) ? 'browse' : this.activeTab());
   readonly layoutControls = input<TemplateRef<unknown> | null>(null);
   protected readonly scorePresenceMetrics = [
     ...ADDITIONAL_FILTERS.filter(def => SCORE_PRESENCE_KEYS.has(def.minKey)),
@@ -1415,12 +1418,12 @@ export class GalleryFilterSidebarComponent {
   /** The header badge and Reset: every active control, a hidden metric's included, so Reset can always clear it. */
   readonly totalActiveCount = computed(() => countActiveFilters(this.store.filters()));
 
-  readonly tabItems = computed(() => TAB_IDS.map(id => ({
+  readonly tabItems = computed(() => TAB_IDS.filter(id => !this.portSettings() || (id !== 'review' && id !== 'display')).map(id => ({
     id,
     icon: TAB_ICONS[id],
     labelKey: this.I18N.gallery.sidebar.tabs[id],
     count: this.tabActiveCounts()[id],
-    active: this.activeTab() === id,
+    active: this.effectiveTab() === id,
   })));
 
   selectTab(id: SidebarTabId): void {
@@ -1457,12 +1460,8 @@ export class GalleryFilterSidebarComponent {
       : { no_capture_date: '' });
   }
 
-  protected readonly semanticHelpOpen = signal(false);
   protected readonly closeCountHelp = closeDetailsOnEscape;
-  protected closeSemanticHelp(event: Event): void {
-    if (!this.semanticHelpOpen()) return;
-    event.preventDefault(); event.stopPropagation(); this.semanticHelpOpen.set(false);
-  }
+
   private readonly semanticSearchInput = viewChild<ElementRef<HTMLInputElement>>('semanticSearchInput');
   private searchTimeout: ReturnType<typeof setTimeout> | null = null;
   // Kept separate from searchTimeout so a slider drag can't cancel a pending
@@ -1497,7 +1496,10 @@ export class GalleryFilterSidebarComponent {
   }
 
   /** Close overlays before the gallery parks behind a photo. */
+  private readonly popovers = viewChildren(ControlPopoverComponent);
+
   closeOverlays(): void {
+    for (const popover of this.popovers()) popover.open.set(false);
     closeOverlayDirectives(this.tooltips(), this.menuTriggers(), this.selects());
   }
 

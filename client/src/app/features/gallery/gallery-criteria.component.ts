@@ -37,6 +37,7 @@ import { GALLERY_REVISIT } from '../../core/gallery-reuse.strategy';
  } @else {
  <ng-template #shortcuts>
  <div class="flex items-center flex-wrap gap-x-3 gap-y-1 text-xs text-[var(--mat-sys-on-surface-variant)]" [class.!items-stretch]="portShortcuts()" [class.!flex-col]="portShortcuts()">
+   @if (!consolidatedSettings()) {
    <details #quickFilters class="relative" (keydown.escape)="closeDisclosure($event, quickFilters, quickSummary)">
      <summary #quickSummary class="cursor-pointer py-2 font-medium">{{ I18N.gallery.sidebar.review.quick | translate }}</summary>
      <div class="absolute top-full left-0 z-30 min-w-56 max-w-[80vw] rounded-md border border-[var(--mat-sys-outline-variant)] bg-[var(--mat-sys-surface)] p-2 shadow-lg flex flex-wrap gap-1" [class.!static]="portShortcuts()" [class.!w-full]="portShortcuts()" [class.!min-w-0]="portShortcuts()" [class.!max-w-full]="portShortcuts()">
@@ -58,6 +59,7 @@ import { GALLERY_REVISIT } from '../../core/gallery-reuse.strategy';
          }
        </div>
      </details>
+   }
    }
    @if (history.visits().length) {
      <details #recentCollections data-recent-collections class="relative" (keydown.escape)="closeDisclosure($event, recentCollections, recentSummary)">
@@ -187,7 +189,7 @@ import { GALLERY_REVISIT } from '../../core/gallery-reuse.strategy';
           </div>
         }
       }
-      @if (visibleFilterChips().length > 1) {
+      @if (visibleFilterChips().length > 0) {
         <button class="text-xs opacity-60 hover:opacity-100 transition-opacity ml-auto shrink-0" (click)="resetFilters()">
           {{ I18N.gallery.reset_filters | translate }}
         </button>
@@ -196,6 +198,7 @@ import { GALLERY_REVISIT } from '../../core/gallery-reuse.strategy';
   }
  }`})
 export class GalleryCriteriaComponent {
+ readonly consolidatedSettings = input(false);
  readonly portShortcuts = input(false);
  readonly searchPresented = input(false);
  readonly shortcuts = viewChild<TemplateRef<unknown>>('shortcuts');

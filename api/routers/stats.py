@@ -14,7 +14,7 @@ from typing import Optional, Union
 from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel
 
-from api.auth import CurrentUser, get_optional_user, require_edition
+from api.auth import CurrentUser, get_optional_user, require_edition, require_authenticated
 from api.config import (
     child_process_env,
     CORRELATION_X_AXES, CORRELATION_Y_METRICS, FACET_SCRIPT,
@@ -29,6 +29,7 @@ from api.db_helpers import (
 from api.config_writes import update_category_weights
 from api.exposure import exposure_seconds_sql
 from api.models.stats import (
+    MetricDistributionResponse,
     StatsCategoryCorrelationsResponse, StatsCategoryOverlapResponse,
     StatsCategoryRecomputeResponse, StatsCategoryStat,
     StatsCorrelationsGroupedResponse, StatsCorrelationsUngroupedResponse,
@@ -1144,3 +1145,43 @@ async def api_stats_categories_recompute(
     except Exception:
         logger.exception("Category recomputation failed for %s", body.category)
         raise HTTPException(status_code=500, detail='Recomputation failed')
+
+
+@router.get("/api/stats/metric_distribution", response_model=MetricDistributionResponse)
+def metric_distribution(column: str = Query("aggregate", max_length=80),
+                        category: Optional[str] = Query(None, max_length=200),
+                        user: CurrentUser = Depends(require_authenticated)):
+    """One metric in the caller's visible library, optionally within a category.
+
+    Intentionally uncached: each request is small and never shares a visibility
+    snapshot with another account. Identifiers come exclusively from the registry.
+    """
+    from api.routers.gallery import SCORE_RANGE_COLUMNS, EXIF_RANGE_COLUMNS
+    from metric_columns import FORM_METRIC_COLUMNS
+    # Manual ratings have account-specific authority; this endpoint describes computed metrics.
+    allowed = ({row[0] for row in SCORE_RANGE_COLUMNS + EXIF_RANGE_COLUMNS} | set(FORM_METRIC_COLUMNS)) - {'star_rating'}
+    if column not in allowed:
+        raise HTTPException(422, 'Unknown metric')
+    visibility, params = get_visibility_clause(user.user_id if user else None)
+    where = f"{visibility} AND {column} > ? AND {column} < ?"
+    params = [*params, float('-inf'), float('inf')]
+    if category is not None:
+        where += ' AND category = ?'
+        params.append(category)
+    with get_db() as conn:
+        conn.execute('BEGIN')
+        row = conn.execute(f'SELECT MIN({column}),MAX({column}),COUNT(*) FROM photos WHERE {where}', params).fetchone()
+        if not row[2]:
+            return {'distribution': None, 'count': 0}
+        lo, hi, count = float(row[0]), float(row[1]), row[2]
+        buckets = [count]
+        if hi > lo:
+            buckets = [0] * 32
+            scale = max(abs(lo), abs(hi), 1.0)
+            normalized_lo = lo / scale
+            span = hi / scale - normalized_lo
+            for bucket, total in conn.execute(
+                    f'SELECT MAX(0,MIN(31,CAST((({column}/?-?)/?)*32 AS INTEGER))),COUNT(*) '
+                    f'FROM photos WHERE {where} GROUP BY 1', [scale, normalized_lo, span, *params]):
+                buckets[int(bucket)] = total
+    return {'distribution': {'column': column, 'min': lo, 'max': hi, 'buckets': buckets}, 'count': count}

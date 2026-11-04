@@ -336,7 +336,7 @@ describe('PhotoDetailComponent', () => {
     expect(mockApi.get).toHaveBeenCalledWith('/photo', { path: samplePhoto.path });
   });
 
-  it('ranks each score that has a library distribution, and only those', () => {
+  it('offers on-demand distributions for finite scores inside expanded Analysis', () => {
     localStorage.setItem('facet_photo_detail_tab', 'quality');
     const photo = makePhoto({ path: samplePhoto.path, aesthetic: 7.2 });
     mockApi.get.mockImplementation((url: string) => of(url === '/photo' ? photo : {}));
@@ -349,10 +349,9 @@ describe('PhotoDetailComponent', () => {
     expect(view.debugElement.queryAll(By.css('app-metric-rank'))).toHaveLength(0);
     const analysis = view.nativeElement.querySelector('[data-photo-analysis]') as HTMLDetailsElement;
     analysis.open = true; analysis.dispatchEvent(new Event('toggle')); view.detectChanges();
-    const ranks = view.debugElement.queryAll(By.css('app-metric-rank'));
-    expect(ranks).toHaveLength(1);
-    expect(ranks[0].componentInstance.value()).toBe(7.2);
-    expect(ranks[0].nativeElement.querySelector('[tabindex="0"]')).not.toBeNull();
+    const charts = view.debugElement.queryAll(By.css('app-metric-distribution'));
+    expect(charts.some(row => row.componentInstance.column() === 'aesthetic' && row.componentInstance.value() === 7.2)).toBe(true);
+    expect(mockApi.get.mock.calls.some(([url]) => url === '/stats/metric_distribution')).toBe(false);
   });
 
   it('places the aggregate in its library distribution only inside expanded Analysis', () => {
@@ -1886,6 +1885,16 @@ describe('PhotoDetailComponent', () => {
         return event;
       }
 
+      it('leaves Keep to an open settings or help dialog', () => {
+        const panel = document.createElement('section');
+        panel.setAttribute('role', 'dialog'); panel.setAttribute('aria-modal', 'true');
+        document.body.append(panel);
+        try {
+          expect(pressKeep('k').defaultPrevented).toBe(false);
+          expect(reviewPhoto).not.toHaveBeenCalled();
+        } finally { panel.remove(); }
+      });
+
       it('keeps with the default k', () => {
         expect(pressKeep('k').defaultPrevented).toBe(true);
         expect(reviewPhoto).toHaveBeenCalledExactlyOnceWith('kept');
@@ -2840,8 +2849,8 @@ describe('PhotoDetailComponent', () => {
     });
   });
 
-  describe('toggleExplainer', () => {
-    it('opens the panel and lazily loads the category list once', () => {
+  describe('category explainer popover', () => {
+    it('lazily loads the category list', () => {
       mockApi.get.mockImplementation((url: string) => {
         if (url === '/config/category_priorities') {
           return of({ categories: [{ name: 'portrait' }, { name: 'sports' }] });
@@ -2850,28 +2859,27 @@ describe('PhotoDetailComponent', () => {
       });
       createComponent();
 
-      component.toggleExplainer();
+      component.loadExplainerCategories();
 
-      expect(component.explainerOpen()).toBe(true);
       expect(mockApi.get).toHaveBeenCalledWith('/config/category_priorities');
     });
 
-    it('closes without refetching categories', () => {
+    it('reuses loaded categories on subsequent openings', async () => {
       mockApi.get.mockImplementation((url: string) => {
         if (url === '/config/category_priorities') return of({ categories: [{ name: 'portrait' }] });
         return of(samplePhoto);
       });
       createComponent();
 
-      component.toggleExplainer();
+      component.loadExplainerCategories();
+      await Promise.resolve();
       mockApi.get.mockClear();
-      component.toggleExplainer();
+      component.loadExplainerCategories();
 
-      expect(component.explainerOpen()).toBe(false);
       expect(mockApi.get).not.toHaveBeenCalledWith('/config/category_priorities');
     });
 
-    it('renders a toggle inside the category chip that reveals the select below and shows its expanded state', () => {
+    it('opens a category popover without inserting an inline panel', () => {
       mockApi.get.mockImplementation((url: string) => {
         if (url === '/config/category_priorities') return of({ categories: [{ name: 'portrait' }] });
         return of(samplePhoto);
@@ -2880,17 +2888,17 @@ describe('PhotoDetailComponent', () => {
       view.componentInstance.photo.set(makePhoto({ category: 'portrait' }));
       view.detectChanges();
       const el: HTMLElement = view.nativeElement;
-      const toggle = el.querySelector<HTMLButtonElement>('[data-explainer-toggle]')!;
+      const toggle = el.querySelector<HTMLButtonElement>('app-control-popover button[aria-label="photo.category_override.explainer_toggle"]')!;
       expect(toggle.getAttribute('aria-label')).toBe('photo.category_override.explainer_toggle');
       expect(toggle.closest('span')!.textContent).toContain('Portrait');
       expect(toggle.getAttribute('aria-expanded')).toBe('false');
-      expect(toggle.textContent?.trim()).toBe('expand_more');
+      expect(toggle.textContent).toContain('help_outline');
       expect(el.querySelector('mat-select')).toBeNull();
       toggle.click();
       view.detectChanges();
       expect(toggle.getAttribute('aria-expanded')).toBe('true');
-      expect(toggle.textContent?.trim()).toBe('expand_less');
-      expect(el.querySelector('mat-select')).not.toBeNull();
+      expect(el.querySelector('mat-select')).toBeNull();
+      expect(TestBed.inject(OverlayContainer).getContainerElement().querySelector('mat-select')).not.toBeNull();
     });
 
     it('renders download as a labelled icon-only button with a tooltip', () => {
@@ -2908,9 +2916,9 @@ describe('PhotoDetailComponent', () => {
       const view = renderDetail();
       view.componentInstance.photo.set(makePhoto({ category: null }));
       view.detectChanges();
-      const toggle = view.nativeElement.querySelector('[data-explainer-toggle]') as HTMLButtonElement;
+      const toggle = view.nativeElement.querySelector('app-control-popover button[aria-label="photo.category_override.explainer_toggle"]') as HTMLButtonElement;
       expect(toggle).not.toBeNull();
-      expect(toggle.closest('span')!.textContent?.trim()).toBe('expand_more');
+      expect(toggle.textContent).toContain('help_outline');
       toggle.click();
       view.detectChanges();
       expect(toggle.isConnected).toBe(true);
@@ -2922,7 +2930,7 @@ describe('PhotoDetailComponent', () => {
       const view = renderDetail();
       view.componentInstance.photo.set(makePhoto({ category: 'portrait' }));
       view.detectChanges();
-      expect(view.nativeElement.querySelector('[data-explainer-toggle]')).toBeNull();
+      expect(view.nativeElement.querySelector('app-control-popover button[aria-label="photo.category_override.explainer_toggle"]')).toBeNull();
     });
   });
 
