@@ -2682,7 +2682,6 @@
     "exclude_rejected": "Exclude rejected",
     "no_bursts": "No groups to review",
     "group_progress": "Group {current} of {total}",
-    "auto_best": "BEST",
     "confirm": "Confirm",
     "skip": "Skip",
     "auto_select_all": "Auto-select All",
@@ -2747,7 +2746,6 @@
       "title": "Auto-cull preview",
       "updating": "Updating preview…",
       "summary": "{groups} groups: keep {kept} photos, reject {rejected}",
-      "highlights_label": "Add the {count} very best keeps to a Highlights album",
       "highlights_name": "Highlights",
       "trim_brackets": "Also trim redundant bracket exposures",
       "trim_brackets_hint": "Also propose dropping redundant bracket exposures whose base frame has no highlight clipping",
@@ -2865,7 +2863,6 @@
     "darkroom_tooltip": "Open the full-screen darkroom to compare frames and pick the keepers",
     "cull_style": {
       "tooltip": "Preview an edited look",
-      "original": "Original",
       "loading": "Rendering preview",
       "error": "Could not render the edited preview"
     },

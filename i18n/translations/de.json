@@ -2657,7 +2657,6 @@
     "exclude_rejected": "Abgelehnte ausschließen",
     "no_bursts": "Keine Gruppen zu prüfen",
     "group_progress": "Gruppe {current} von {total}",
-    "auto_best": "BESTE",
     "confirm": "Bestätigen",
     "skip": "Überspringen",
     "auto_select_all": "Alle automatisch auswählen",
@@ -2722,7 +2721,6 @@
       "title": "Vorschau der Auto-Aussortierung",
       "updating": "Vorschau wird aktualisiert…",
       "summary": "{groups} Gruppen: {kept} Fotos behalten, {rejected} ablehnen",
-      "highlights_label": "Die {count} allerbesten Fotos einem Highlights-Album hinzufügen",
       "highlights_name": "Highlights",
       "trim_brackets": "Auch redundante Belichtungsreihen-Aufnahmen aussortieren",
       "trim_brackets_hint": "Schlägt zusätzlich vor, redundante Belichtungsreihen-Aufnahmen zu verwerfen, deren Basisbelichtung keine Lichter abschneidet",
@@ -2840,7 +2838,6 @@
     "darkroom_tooltip": "Vollbild-Dunkelkammer öffnen, um Bilder zu vergleichen und auszuwählen",
     "cull_style": {
       "tooltip": "Bearbeiteten Look vorschauen",
-      "original": "Original",
       "loading": "Vorschau wird erstellt",
       "error": "Bearbeitete Vorschau konnte nicht erstellt werden"
     },

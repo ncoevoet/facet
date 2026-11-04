@@ -11,13 +11,11 @@ import { MatToolbarModule } from '@angular/material/toolbar';
 import { MatSidenavModule } from '@angular/material/sidenav';
 import { MatIconModule } from '@angular/material/icon';
 import { MatButtonModule } from '@angular/material/button';
-import { MatListModule } from '@angular/material/list';
 import { MatMenuModule } from '@angular/material/menu';
 import { MatSelectModule } from '@angular/material/select';
 import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatTooltipModule } from '@angular/material/tooltip';
 import { MatInputModule } from '@angular/material/input';
-import { MatBadgeModule } from '@angular/material/badge';
 import { MatDividerModule } from '@angular/material/divider';
 import { MatDialog, MatDialogModule, MatDialogRef } from '@angular/material/dialog';
 import { FEATURE_MARK, MarkTonePipe } from './shared/pipes/mark-tone.pipe';
@@ -127,13 +125,11 @@ export class EditionDialogComponent {
     MatSidenavModule,
     MatIconModule,
     MatButtonModule,
-    MatListModule,
     MatMenuModule,
     MatSelectModule,
     MatFormFieldModule,
     MatTooltipModule,
     MatInputModule,
-    MatBadgeModule,
     MatDividerModule,
     TranslatePipe,
     MarkTonePipe,
@@ -289,7 +285,6 @@ export class App implements OnInit {
   protected readonly isCompareRoute = computed(() => this.url().split('?')[0] === '/compare');
   protected readonly isAlbumsRoute = computed(() => this.url().split('?')[0] === '/albums');
   protected readonly isPersonsRoute = computed(() => this.url().split('?')[0] === '/persons');
-  protected readonly isMapRoute = computed(() => this.url().split('?')[0] === '/map');
   protected readonly isCapsuleRoute = computed(() => this.url().split('?')[0] === '/capsules');
   protected readonly isTimelineRoute = computed(() => this.url().split('?')[0].startsWith('/timeline'));
   protected readonly isSharedRoute = computed(() => this.url().split('?')[0].startsWith('/shared/'));

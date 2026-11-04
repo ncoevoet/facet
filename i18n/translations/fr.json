@@ -2657,7 +2657,6 @@
     "exclude_rejected": "Exclure les rejetées",
     "no_bursts": "Aucun groupe à examiner",
     "group_progress": "Groupe {current} sur {total}",
-    "auto_best": "MEILLEUR",
     "confirm": "Confirmer",
     "skip": "Passer",
     "auto_select_all": "Sélection auto complète",
@@ -2722,7 +2721,6 @@
       "title": "Aperçu de la sélection automatique",
       "updating": "Mise à jour de l'aperçu…",
       "summary": "{groups} groupes : garder {kept} photos, rejeter {rejected}",
-      "highlights_label": "Ajouter les {count} toutes meilleures photos à un album Coups de cœur",
       "highlights_name": "Coups de cœur",
       "trim_brackets": "Réduire aussi les expositions de bracketing redondantes",
       "trim_brackets_hint": "Propose aussi d'écarter les expositions de bracketing redondantes dont l'image de base n'a pas d'écrêtage des hautes lumières",
@@ -2840,7 +2838,6 @@
     "darkroom_tooltip": "Ouvrir le studio plein écran pour comparer les images et choisir",
     "cull_style": {
       "tooltip": "Prévisualiser un rendu retouché",
-      "original": "Original",
       "loading": "Génération de l'aperçu",
       "error": "Impossible de générer l'aperçu retouché"
     },

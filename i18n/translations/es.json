@@ -2657,7 +2657,6 @@
     "exclude_rejected": "Excluir rechazadas",
     "no_bursts": "No hay grupos para revisar",
     "group_progress": "Grupo {current} de {total}",
-    "auto_best": "MEJOR",
     "confirm": "Confirmar",
     "skip": "Saltar",
     "auto_select_all": "Selección automática completa",
@@ -2722,7 +2721,6 @@
       "title": "Vista previa de la selección automática",
       "updating": "Actualizando la vista previa…",
       "summary": "{groups} grupos: conservar {kept} fotos, rechazar {rejected}",
-      "highlights_label": "Añadir las {count} mejores fotos a un álbum de Destacadas",
       "highlights_name": "Destacadas",
       "trim_brackets": "Recortar también las exposiciones de bracketing redundantes",
       "trim_brackets_hint": "Propone también descartar las exposiciones de bracketing redundantes cuyo fotograma base no tiene recorte de altas luces",
@@ -2840,7 +2838,6 @@
     "darkroom_tooltip": "Abrir el cuarto oscuro a pantalla completa para comparar y elegir",
     "cull_style": {
       "tooltip": "Previsualizar un revelado",
-      "original": "Original",
       "loading": "Generando la vista previa",
       "error": "No se pudo generar la vista previa revelada"
     },

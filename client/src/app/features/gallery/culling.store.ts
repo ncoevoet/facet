@@ -1403,7 +1403,7 @@ export class CullingStore {
       this.reportSelection(key, saved ?? []);
     };
     this.selectionsMap.set(new Map(this.selectionsMap()).set(key, rejected));
-    if (!this.confirmGroup(group, true, restoreDraft)) {
+    if (!this.scheduleGroupConfirmation(group, [], restoreDraft)) {
       restoreDraft();
       return false;
     }
@@ -1411,15 +1411,18 @@ export class CullingStore {
     return true;
   }
 
-  confirmGroup(group: CullingGroup, explicitRejectAll = false, restoreDraft?: () => void): boolean {
+  confirmGroup(group: CullingGroup): boolean {
+    const kept = this.selectionsMap().get(this.groupKey(group));
+    if (!kept?.size) return false;
+    return this.scheduleGroupConfirmation(group, [...kept]);
+  }
+
+  private scheduleGroupConfirmation(group: CullingGroup, keepPaths: string[], restoreDraft?: () => void): boolean {
     if (!this.cullWritesAllowed()) return false;
     // Paused while a re-plan is in flight: the plan it would land on is about to be replaced.
     if (this.replanning()) return false;
     const key = this.groupKey(group);
     if (this.confirmedGroups().has(key)) return false;
-    const kept = this.selectionsMap().get(key);
-    if (!kept || (kept.size === 0 && !explicitRejectAll)) return false;
-    const keepPaths = [...kept];
     // A commit that lands after the feed was reset (Exit, a scope change) belongs to a feed that is gone:
     // it still reaches the server, but must not hide a same-keyed group of the new feed or journal a confirm.
     const gen = this.loadGenerationId;

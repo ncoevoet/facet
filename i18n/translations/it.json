@@ -2657,7 +2657,6 @@
     "exclude_rejected": "Escludi rifiutate",
     "no_bursts": "Nessun gruppo da esaminare",
     "group_progress": "Gruppo {current} di {total}",
-    "auto_best": "MIGLIORE",
     "confirm": "Conferma",
     "skip": "Salta",
     "auto_select_all": "Seleziona tutto automaticamente",
@@ -2722,7 +2721,6 @@
       "title": "Anteprima della selezione automatica",
       "updating": "Aggiornamento dell'anteprima…",
       "summary": "{groups} gruppi: conserva {kept} foto, rifiuta {rejected}",
-      "highlights_label": "Aggiungi le {count} migliori foto a un album Highlights",
       "highlights_name": "Highlights",
       "trim_brackets": "Riduci anche le esposizioni bracketing ridondanti",
       "trim_brackets_hint": "Propone anche di scartare le esposizioni bracketing ridondanti il cui fotogramma base non presenta tagli nelle alte luci",
@@ -2840,7 +2838,6 @@
     "darkroom_tooltip": "Apri la camera oscura a schermo intero per confrontare e scegliere",
     "cull_style": {
       "tooltip": "Anteprima con stile applicato",
-      "original": "Originale",
       "loading": "Generazione anteprima",
       "error": "Impossibile generare l'anteprima elaborata"
     },

@@ -2657,7 +2657,6 @@
     "exclude_rejected": "排除已淘汰照片",
     "no_bursts": "没有需要复核的照片组",
     "group_progress": "第 {current} / {total} 组",
-    "auto_best": "最佳",
     "confirm": "确认",
     "skip": "跳过",
     "auto_select_all": "全部自动选择",
@@ -2722,7 +2721,6 @@
       "title": "自动选片预览",
       "updating": "正在更新预览…",
       "summary": "共 {groups} 组：保留 {kept} 张，淘汰 {rejected} 张",
-      "highlights_label": "将保留照片中最好的 {count} 张加入“精选”相册",
       "highlights_name": "精选",
       "trim_brackets": "同时淘汰多余的包围曝光照片",
       "trim_brackets_hint": "若基准帧没有高光溢出，也建议淘汰同组多余的包围曝光照片",
@@ -2840,7 +2838,6 @@
     "darkroom_tooltip": "打开全屏暗房，对比照片并选出要保留的作品",
     "cull_style": {
       "tooltip": "预览后期效果",
-      "original": "原图",
       "loading": "正在渲染预览",
       "error": "无法渲染后期效果预览"
     },

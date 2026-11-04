@@ -2657,7 +2657,6 @@
     "exclude_rejected": "Excluir rejeitadas",
     "no_bursts": "Nenhum grupo para revisar",
     "group_progress": "Grupo {current} de {total}",
-    "auto_best": "MELHOR",
     "confirm": "Confirmar",
     "skip": "Pular",
     "auto_select_all": "Selecionar tudo automaticamente",
@@ -2722,7 +2721,6 @@
       "title": "Pré-visualização da seleção automática",
       "updating": "A atualizar a pré-visualização…",
       "summary": "{groups} grupos: manter {kept} fotos, rejeitar {rejected}",
-      "highlights_label": "Adicionar as {count} melhores fotos a um álbum de Destaques",
       "highlights_name": "Destaques",
       "trim_brackets": "Também reduzir exposições de bracketing redundantes",
       "trim_brackets_hint": "Também propõe descartar exposições de bracketing redundantes cujo fotograma base não tem estouro de altas-luzes",
@@ -2840,7 +2838,6 @@
     "darkroom_tooltip": "Abrir o quarto escuro em ecrã inteiro para comparar e escolher",
     "cull_style": {
       "tooltip": "Pré-visualizar um visual editado",
-      "original": "Original",
       "loading": "A gerar a pré-visualização",
       "error": "Não foi possível gerar a pré-visualização editada"
     },

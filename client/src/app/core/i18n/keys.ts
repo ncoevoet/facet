@@ -2696,7 +2696,6 @@ export const I18N = {
     exclude_rejected: "culling.exclude_rejected",
     no_bursts: "culling.no_bursts",
     group_progress: "culling.group_progress",
-    auto_best: "culling.auto_best",
     confirm: "culling.confirm",
     skip: "culling.skip",
     auto_select_all: "culling.auto_select_all",
@@ -2761,7 +2760,6 @@ export const I18N = {
       title: "culling.auto_cull.title",
       updating: "culling.auto_cull.updating",
       summary: "culling.auto_cull.summary",
-      highlights_label: "culling.auto_cull.highlights_label",
       highlights_name: "culling.auto_cull.highlights_name",
       trim_brackets: "culling.auto_cull.trim_brackets",
       trim_brackets_hint: "culling.auto_cull.trim_brackets_hint",
@@ -2879,7 +2877,6 @@ export const I18N = {
     darkroom_tooltip: "culling.darkroom_tooltip",
     cull_style: {
       tooltip: "culling.cull_style.tooltip",
-      original: "culling.cull_style.original",
       loading: "culling.cull_style.loading",
       error: "culling.cull_style.error",
     },

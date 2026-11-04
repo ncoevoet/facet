@@ -641,14 +641,13 @@ describe('App', () => {
       expect(root.querySelector('[data-mobile-navigation]')).not.toBeNull();
     });
 
-    it('removes navigation and its reserved desktop space after logout', () => {
+    it('removes authenticated navigation after logout', () => {
       const { fixture, root } = render(false);
       const auth = TestBed.inject(AuthService) as unknown as { isAuthenticated: ReturnType<typeof signal<boolean>> };
       expect(root.querySelector('[data-workspace-navigation]')).not.toBeNull();
       auth.isAuthenticated.set(false);
       fixture.detectChanges();
       expect(root.querySelector('[data-workspace-navigation]')).toBeNull();
-      expect(root.firstElementChild!.classList.contains('lg:pl-48')).toBe(false);
     });
 
     it.each([['kept', 1], ['lost', 0]])('opens the history dialog after the lazy load only while edition is %s', async (state, opens) => {
