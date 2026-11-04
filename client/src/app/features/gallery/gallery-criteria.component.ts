@@ -1,3 +1,4 @@
+import { closeDetailsOnEscape } from '../../shared/utils/overlays';
 import { parseTagQuery, TAG_QUERY_GROUPS } from './tag-query.util';
 import { parseScorePresence } from './score-presence.util';
 import { NgTemplateOutlet } from '@angular/common';
@@ -53,7 +54,7 @@ import { GALLERY_REVISIT } from '../../core/gallery-reuse.strategy';
        <summary #visibilitySummary data-visibility-summary class="cursor-pointer py-2">{{ I18N.gallery.criteria.visibility | translate:{ count: visibilityRules().length } }}</summary>
        <div class="flex flex-wrap gap-2 pb-2">
          @for (rule of visibilityRules(); track rule.id) {
-           <button type="button" class="inline-flex items-center gap-1 rounded border border-[var(--mat-sys-outline-variant)] px-2 py-1.5" [attr.aria-label]="I18N.gallery.criteria.remove | translate:{ label: (rule.labelKey | translate) }" (click)="clearFilterChip(rule)">{{ rule.labelKey | translate }}: {{ rule.valueKey | translate }}<mat-icon class="!text-sm !w-4 !h-4" aria-hidden="true">close</mat-icon></button>
+           <button type="button" class="inline-flex min-h-11 items-center gap-1 rounded border border-[var(--mat-sys-outline-variant)] px-2 py-1.5" [attr.aria-label]="I18N.gallery.criteria.remove | translate:{ label: (rule.labelKey | translate) }" (click)="clearFilterChip(rule)">{{ rule.labelKey | translate }}: {{ rule.valueKey | translate }}<mat-icon class="!text-sm !w-4 !h-4" aria-hidden="true">close</mat-icon></button>
          }
        </div>
      </details>
@@ -250,12 +251,7 @@ export class GalleryCriteriaComponent {
    return rules;
  });
  setActive(active:boolean):void { this.active.set(active); if(!active)this.closeDisclosures(); }
- protected closeDisclosure(event:Event,details:HTMLDetailsElement,summary:HTMLElement):void {
-   if(!details.open)return;
-   details.open=false;
-   summary.focus();
-   event.preventDefault();event.stopPropagation();
- }
+  protected readonly closeDisclosure = closeDetailsOnEscape;
  private closeDisclosures():void {
    for(const details of [this.quickDetails(),this.visibilityDetails(),this.recentDetails(),this.logicDetails()])if(details)details.nativeElement.open=false;
    for(const tooltip of this.tooltips())tooltip.hide(0);

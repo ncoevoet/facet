@@ -1,3 +1,4 @@
+import { Location } from '@angular/common';
 import { Injectable, inject, signal } from '@angular/core';
 import { tap } from 'rxjs';
 import { GuardsCheckEnd, NavigationStart, ResolveEnd, Router } from '@angular/router';
@@ -19,6 +20,7 @@ export class PhotoStackService {
   private readonly api = inject(ApiService);
   private readonly auth = inject(AuthService);
   private readonly router = inject(Router);
+  private readonly location = inject(Location);
   private navigation = 0;
   readonly revision = signal(0);
   private changed = () => this.revision.update(value => value + 1);
@@ -63,7 +65,8 @@ export class PhotoStackService {
       }
     });
     try {
-      return await this.router.navigate(['/photo'], { queryParams: { path }, state: { photo }, replaceUrl });
+      return await this.router.navigate(['/photo'], { queryParams: { path },
+        state: { photo, photoBack: replaceUrl ? (this.location.getState() as Record<string, unknown>)?.['photoBack'] === true : true }, replaceUrl });
     } finally { subscription.unsubscribe(); }
   }
 

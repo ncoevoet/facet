@@ -2792,7 +2792,7 @@ describe('GalleryComponent', () => {
       expect(capture).toHaveBeenCalledOnce();
       expect(capture.mock.calls[0][0].map(p => p.path)).toEqual(['/a.jpg', '/c.jpg']);
       expect(capture.mock.calls[0][1]).toBe(router.url);
-      expect(navigate).toHaveBeenCalledExactlyOnceWith('/photo-compare');
+      expect(navigate).toHaveBeenCalledExactlyOnceWith('/photo-compare', { state: { comparisonReturn: TestBed.inject(Router).url, comparisonOriginId: null } });
       expect(TestBed.inject(MatDialog).open).not.toHaveBeenCalled();
     });
 

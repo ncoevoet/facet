@@ -825,7 +825,7 @@ describe('PhotoTooltipComponent', () => {
       const img = setFixture.nativeElement.querySelector('img[src*="a.jpg"]') as HTMLElement;
       (img.closest('button') as HTMLButtonElement).click();
 
-      expect(mockRouter.navigate).toHaveBeenCalledWith(['/photo'], { queryParams: { path: '/photos/a.jpg' } });
+      expect(mockRouter.navigate).toHaveBeenCalledWith(['/photo'], { queryParams: { path: '/photos/a.jpg' }, state: { photoOrigin: 'in-app' } });
     });
 
     it('rings the current frame among its siblings', () => {

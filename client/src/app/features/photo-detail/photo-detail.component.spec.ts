@@ -1,3 +1,4 @@
+import type { Navigation } from '@angular/router';
 import { PhotoStackService } from '../../core/services/photo-stack.service';
 import { TimelineFeedCache } from '../timeline/timeline-feed-cache.service';
 import { GalleryStore } from '../gallery/gallery.store';
@@ -45,7 +46,7 @@ describe('PhotoDetailComponent', () => {
   let component: any;
   let changes$: Subject<AssistantChangeBatch>;
   let mockApi: { get: Mock; post: Mock; put: Mock; delete: Mock; imageUrl: Mock; downloadUrl: Mock; getRaw: Mock };
-  let mockRouter: { url: string; navigate: Mock; currentNavigation: () => null; events: Observable<unknown> };
+  let mockRouter: { url: string; navigate: Mock; currentNavigation: () => Navigation | null; events: Observable<unknown> };
   let mockLocation: { back: Mock; path: Mock; getState: Mock; replaceState: Mock };
   let mockRoute: { snapshot: { queryParamMap: { get: Mock } }; queryParamMap: BehaviorSubject<ParamMap> };
   let mockAuth: { status: ReturnType<typeof signal>; identity: () => string; isEdition: ReturnType<typeof signal>; downloadProfiles: ReturnType<typeof signal> };
@@ -1349,6 +1350,31 @@ describe('PhotoDetailComponent', () => {
       expect(mockRouter.navigate).toHaveBeenCalledExactlyOnceWith(['/'], { queryParams: { search: 'saved' }, replaceUrl: true });
       expect(escape.defaultPrevented).toBe(true);
     });
+    it('keeps a direct entry unowned after tag search and a popstate restoration', () => {
+      history.replaceState({}, '', location.href);
+      createComponent(); component.rememberTagOrigin();
+      const persisted = mockLocation.replaceState.mock.calls.at(-1)![2];
+      expect(persisted.photoBack).toBe(false);
+      history.replaceState(persisted, '', location.href);
+      mockRouter.currentNavigation = () => ({ trigger: 'popstate', extras: { state: persisted }, previousNavigation: { id: 4 } }) as Navigation;
+      createComponent(); component.goBack();
+      expect(mockLocation.back).not.toHaveBeenCalled();
+      expect(mockRouter.navigate).toHaveBeenCalledWith(['/'], expect.objectContaining({ replaceUrl: true }));
+    });
+
+    it.each(['in-app', 'timeline'])('preserves the in-app Back marker for %s openers', origin => {
+      history.replaceState({ photoOrigin: origin }, '', location.href);
+      createComponent(); component.goBack();
+      expect(mockLocation.back).toHaveBeenCalledOnce();
+    });
+
+    it('keeps explicit false ownership through photo replacement even with prefetched photo state', () => {
+      history.replaceState({ photoBack: false, photo: samplePhoto }, '', location.href);
+      createComponent();
+      expect(component.photoNavigationState(samplePhoto).photoBack).toBe(false);
+      component.goBack(); expect(mockLocation.back).not.toHaveBeenCalled();
+    });
+
     it('should call location.back()', () => {
       history.replaceState({ photo: samplePhoto }, '', location.href);
       createComponent();
@@ -3036,7 +3062,7 @@ describe('PhotoDetailComponent', () => {
 
       expect(mockRouter.navigate).toHaveBeenCalledWith(['/photo'], {
         queryParams: { path: '/photos/sibling.jpg' },
-        state: { photo: expect.objectContaining({ path: '/photos/sibling.jpg' }) },
+        state: { photo: expect.objectContaining({ path: '/photos/sibling.jpg' }), photoBack: false },
         replaceUrl: true,
       });
       // Navigation, not openSetMember, swaps the photo: the route's activation reloads it,

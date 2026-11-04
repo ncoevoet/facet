@@ -1225,9 +1225,6 @@ export const I18N = {
     hide_details: "gallery.hide_details",
     tooltip_mode: {
       label: "gallery.tooltip_mode.label",
-      show_in: "gallery.tooltip_mode.show_in",
-      popup: "gallery.tooltip_mode.popup",
-      show_on: "gallery.tooltip_mode.show_on",
       hover: "gallery.tooltip_mode.hover",
       click: "gallery.tooltip_mode.click",
       panel: "gallery.tooltip_mode.panel",
@@ -3343,6 +3340,7 @@ export const I18N = {
       action: "photo_detail.remove_catalog.action",
       confirm: "photo_detail.remove_catalog.confirm",
       result: "photo_detail.remove_catalog.result",
+      bracket_refused: "photo_detail.remove_catalog.bracket_refused",
     },
     analysis: "photo_detail.analysis",
     info: "photo_detail.info",

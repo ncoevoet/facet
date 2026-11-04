@@ -8,7 +8,7 @@
       </a>
     }
     @if (store.config()?.features?.show_memories && hasMemories()) {
-      <button mat-menu-item (click)="playMemories()"><mat-icon>auto_awesome</mat-icon>{{ I18N.nav.memories | translate }}</button>
+      <button mat-menu-item (click)="playMemories()"><mat-icon [class]="'memories' | markTone">{{ featureMark }}</mat-icon>{{ I18N.nav.memories | translate }}</button>
     }
     @if (auth.isEdition()) {
       <button mat-menu-item (click)="openOrganizationHistory()"><mat-icon>history</mat-icon>{{ I18N.organization_history.title | translate }}</button>
@@ -24,7 +24,7 @@
       </a>
     }
     @if (memoriesNavigationAvailable() && !memoriesInTabs()) {
-      <button mat-menu-item (click)="playMemories()"><mat-icon>auto_awesome</mat-icon>{{ I18N.nav.memories | translate }}</button>
+      <button mat-menu-item (click)="playMemories()"><mat-icon [class]="'memories' | markTone">{{ featureMark }}</mat-icon>{{ I18N.nav.memories | translate }}</button>
     }
     </ng-template>
   </mat-menu>
@@ -41,7 +41,7 @@
             </span>
           }
           @if (memoriesNavigationAvailable()) {
-            <button mat-button data-navigation-measure class="shrink-0 self-center"><mat-icon>auto_awesome</mat-icon>{{ I18N.nav.memories | translate }}</button>
+            <button mat-button data-navigation-measure class="shrink-0 self-center"><mat-icon [class]="'memories' | markTone">{{ featureMark }}</mat-icon>{{ I18N.nav.memories | translate }}</button>
           }
           <button mat-button data-more-measure class="shrink-0 self-center"><mat-icon>more_horiz</mat-icon>{{ I18N.nav.more | translate }}</button>
         </div>
@@ -54,7 +54,7 @@
             </a>
           }
           @if (memoriesInTabs()) {
-            <button mat-button class="shrink-0 self-center" (click)="playMemories()"><mat-icon>auto_awesome</mat-icon>{{ I18N.nav.memories | translate }}</button>
+            <button mat-button class="shrink-0 self-center" (click)="playMemories()"><mat-icon [class]="'memories' | markTone">{{ featureMark }}</mat-icon>{{ I18N.nav.memories | translate }}</button>
           }
         </nav>
         @if (showMoreDestinations()) {

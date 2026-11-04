@@ -71,7 +71,10 @@ export class PhotoActionsService {
       this.store.removePhotos(removed);
       if (removed.length) void clearThumbnailCaches(removed);
       if (!guard.current()) return [];
-      this.snackBar.open(this.i18n.t(I18N.photo_detail.remove_catalog.result, { count: removed.length }), '', { duration: 4000 });
+      const message = this.i18n.t(I18N.photo_detail.remove_catalog.result, { count: removed.length });
+      const refused = result.refused_bracket_lead?.length
+        ? ' ' + this.i18n.t(I18N.photo_detail.remove_catalog.bracket_refused) : '';
+      this.snackBar.open(message + refused, '', { duration: 4000 });
       return removed;
     } catch {
       if (guard.current()) this.snackBar.open(this.i18n.t(I18N.errors.action_failed), '', { duration: 3000 });

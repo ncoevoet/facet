@@ -1,7 +1,7 @@
 import { Component, signal } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
 import { HttpErrorResponse } from '@angular/common/http';
-import { provideRouter, Router } from '@angular/router';
+import { provideRouter, Router, NavigationStart, NavigationCancel, NavigationCancellationCode, NavigationEnd } from '@angular/router';
 import { of, Subject, throwError } from 'rxjs';
 import type { Mock } from 'vitest';
 import { ApiService } from '../../core/services/api.service';
@@ -54,6 +54,21 @@ describe('FaceUpdateControlComponent', () => {
     root.querySelector<HTMLButtonElement>('[data-read-face-status]')!.click(); await settle();
     expect(review).not.toHaveBeenCalled();
     root.querySelector<HTMLButtonElement>('[data-review-updated-faces]')!.click(); expect(review).toHaveBeenCalledOnce();
+    dispose();
+  });
+
+  it('keeps superseded and older navigation completions blocked until the owning navigation settles', async () => {
+    const { root, api, open, settle, dispose } = await render();
+    const events = TestBed.inject(Router).events as Subject<unknown>;
+    events.next(new NavigationStart(100, '/elsewhere'));
+    events.next(new NavigationCancel(100, '/elsewhere', 'superseded', NavigationCancellationCode.SupersededByNewNavigation));
+    await open(); expect(api.get).not.toHaveBeenCalled();
+    events.next(new NavigationStart(101, '/persons'));
+    events.next(new NavigationEnd(100, '/persons', '/persons'));
+    await open(); expect(api.get).not.toHaveBeenCalled();
+    events.next(new NavigationEnd(101, '/persons', '/persons'));
+    await settle(); await open(); await settle();
+    expect(api.get).toHaveBeenCalled(); expect(root.querySelector('section')).not.toBeNull();
     dispose();
   });
 

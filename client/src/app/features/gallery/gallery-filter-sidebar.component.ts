@@ -1,5 +1,6 @@
+import { closeDetailsOnEscape, closeOverlayDirectives } from '../../shared/utils/overlays';
 import { FEATURE_MARK, MarkTonePipe } from '../../shared/pipes/mark-tone.pipe';
-import { Component, computed, DestroyRef, effect, ElementRef, inject, signal, viewChild, viewChildren, ChangeDetectionStrategy, afterNextRender, Injector } from '@angular/core';
+import { Component, computed, DestroyRef, effect, ElementRef, inject, signal, viewChild, viewChildren, ChangeDetectionStrategy, afterNextRender, Injector, input, TemplateRef } from '@angular/core';
 import { DecimalPipe, NgTemplateOutlet } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { MatSelectModule, MatSelect } from '@angular/material/select';
@@ -37,7 +38,6 @@ import { CardActionsDialogComponent } from './card-actions-dialog.component';
 import { folderDisplayName } from '../folders/folders.util';
 import { i18nKeys } from '../../core/i18n/keys';
 import { isUnavailableKey, unavailableSet } from '../../shared/utils/unavailable-metrics';
-import { closeOverlayDirectives } from '../../shared/utils/overlays';
 import { MetricSparklineComponent } from '../../shared/components/metric-sparkline/metric-sparkline.component';
 import { TagGroupsComponent } from './tag-groups.component';
 import { KeywordCatalogComponent } from './keyword-catalog.component';
@@ -256,7 +256,7 @@ export function loadActiveTab(): SidebarTabId {
         }
         <span class="flex-1"></span>
         <details #countHelp data-count-help class="shrink-0">
-          <summary #countSummary (keydown.escape)="closeCountHelp($event, countHelp, countSummary)" class="flex h-10 w-10 cursor-pointer list-none items-center justify-center rounded-full hover:bg-[var(--mat-sys-surface-container-high)] focus-visible:outline-2 focus-visible:outline-[var(--mat-sys-primary)] [&::-webkit-details-marker]:hidden"
+          <summary #countSummary (keydown.escape)="closeCountHelp($event, countHelp, countSummary)" class="flex h-11 w-11 cursor-pointer list-none items-center justify-center rounded-full hover:bg-[var(--mat-sys-surface-container-high)] focus-visible:outline-2 focus-visible:outline-[var(--mat-sys-primary)] [&::-webkit-details-marker]:hidden"
             [attr.aria-label]="I18N.gallery.sidebar.count_scope | translate"
             [title]="I18N.gallery.sidebar.count_scope | translate">
             <mat-icon class="!text-xl !w-5 !h-5 !leading-5" aria-hidden="true">info_outline</mat-icon>
@@ -410,7 +410,7 @@ export function loadActiveTab(): SidebarTabId {
                   </button>
                 }
               </div>
-              <button type="button" class="flex h-10 w-10 shrink-0 cursor-pointer items-center justify-center rounded text-[var(--mat-sys-on-surface-variant)] hover:bg-[var(--mat-sys-surface-container-high)] focus-visible:outline-2"
+              <button type="button" class="flex h-11 w-11 shrink-0 cursor-pointer items-center justify-center rounded text-[var(--mat-sys-on-surface-variant)] hover:bg-[var(--mat-sys-surface-container-high)] focus-visible:outline-2"
                 data-semantic-help [attr.aria-label]="I18N.gallery.semantic_search_help | translate"
                 [attr.aria-expanded]="semanticHelpOpen()" aria-controls="semantic-search-help"
                 (click)="semanticHelpOpen.set(!semanticHelpOpen())" (keydown.escape)="closeSemanticHelp($event)">
@@ -940,24 +940,7 @@ export function loadActiveTab(): SidebarTabId {
           </button>
           <div class="flex items-center gap-2 mt-2">
             <span class="text-sm opacity-70 shrink-0">{{ I18N.gallery.layout_mode | translate }}</span>
-            <div class="flex gap-1 ml-auto">
-              <button mat-icon-button class="!w-8 !h-8 !p-0 inline-flex items-center justify-center"
-                [class.!bg-[var(--mat-sys-primary-container)]]="store.galleryMode() === 'grid'"
-                [attr.aria-pressed]="store.galleryMode() === 'grid'"
-                [matTooltip]="I18N.gallery.layout_grid | translate"
-                [attr.aria-label]="I18N.gallery.layout_grid | translate"
-                (click)="store.setGalleryMode('grid')">
-                <mat-icon class="!text-lg !w-5 !h-5 !leading-5">grid_view</mat-icon>
-              </button>
-              <button mat-icon-button class="!w-8 !h-8 !p-0 inline-flex items-center justify-center"
-                [class.!bg-[var(--mat-sys-primary-container)]]="store.galleryMode() === 'mosaic'"
-                [attr.aria-pressed]="store.galleryMode() === 'mosaic'"
-                [matTooltip]="I18N.gallery.layout_mosaic | translate"
-                [attr.aria-label]="I18N.gallery.layout_mosaic | translate"
-                (click)="store.setGalleryMode('mosaic')">
-                <mat-icon class="!text-lg !w-5 !h-5 !leading-5">auto_awesome_mosaic</mat-icon>
-              </button>
-            </div>
+            <div class="ml-auto flex gap-1"><ng-container [ngTemplateOutlet]="layoutControls()" /></div>
           </div>
           @if (sliderConfig(); as sc) {
             <div class="flex items-center gap-2 mt-2">
@@ -1051,6 +1034,7 @@ export function loadActiveTab(): SidebarTabId {
   `,
 })
 export class GalleryFilterSidebarComponent {
+  readonly layoutControls = input<TemplateRef<unknown> | null>(null);
   protected readonly scorePresenceMetrics = [
     ...ADDITIONAL_FILTERS.filter(def => SCORE_PRESENCE_KEYS.has(def.minKey)),
     { minKey: 'min_topiq', labelKey: 'gallery.topiq_range' },
@@ -1474,10 +1458,7 @@ export class GalleryFilterSidebarComponent {
   }
 
   protected readonly semanticHelpOpen = signal(false);
-  protected closeCountHelp(event: Event, details: HTMLDetailsElement, summary: HTMLElement): void {
-    if (!details.open) return;
-    event.preventDefault(); event.stopPropagation(); details.open = false; summary.focus();
-  }
+  protected readonly closeCountHelp = closeDetailsOnEscape;
   protected closeSemanticHelp(event: Event): void {
     if (!this.semanticHelpOpen()) return;
     event.preventDefault(); event.stopPropagation(); this.semanticHelpOpen.set(false);

@@ -1184,9 +1184,6 @@
     "hide_details": "Masquer détails",
     "tooltip_mode": {
       "label": "Infobulle",
-      "show_in": "Afficher dans",
-      "popup": "Infobulle flottante",
-      "show_on": "Afficher au",
       "hover": "Survol",
       "click": "Clic",
       "panel": "Panneau latéral",
@@ -3303,7 +3300,8 @@
       "title": "Retirer de Facet ?",
       "action": "Retirer de Facet…",
       "confirm": "Retirer définitivement de ce catalogue Facet, pour tous les utilisateurs, les {count} photos sélectionnées, leurs aperçus enregistrés, visages, étiquettes, notes et membres d’albums. Cette action est irréversible. Les fichiers originaux, la corbeille du système, sauvegardes, exports et copies dans d’autres navigateurs restent. Un scan ultérieur peut réajouter tout original encore présent. Seules les photos désignées sont retirées ; compagnons et autres membres des piles restent inchangés.",
-      "result": "{count} photos retirées de Facet."
+      "result": "{count} photos retirées de Facet.",
+      "bracket_refused": "L’image de base d’une série d’expositions ne peut pas être retirée de Facet seule."
     },
     "analysis": "Analyse",
     "info": "Infos",

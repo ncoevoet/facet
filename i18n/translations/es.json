@@ -1184,9 +1184,6 @@
     "hide_details": "Ocultar detalles",
     "tooltip_mode": {
       "label": "Tooltip",
-      "show_in": "Mostrar en",
-      "popup": "Ventana emergente",
-      "show_on": "Mostrar con",
       "hover": "Hover",
       "click": "Clic",
       "panel": "Panel lateral",
@@ -3303,7 +3300,8 @@
       "title": "¿Quitar de Facet?",
       "action": "Quitar de Facet…",
       "confirm": "Quitar permanentemente de este catálogo de Facet, para todos los usuarios, {count} fotos seleccionadas, sus vistas previas guardadas, registros de caras, etiquetas, valoraciones y pertenencias a álbumes. No se puede deshacer. Los archivos originales, la papelera del sistema, copias de seguridad, exportaciones y copias en otros navegadores permanecen. Un escaneo posterior puede volver a añadir cualquier original que aún exista. Solo se quitan las fotos indicadas; los archivos acompañantes y otros miembros de la pila no cambian.",
-      "result": "Se han quitado {count} fotos de Facet."
+      "result": "Se han quitado {count} fotos de Facet.",
+      "bracket_refused": "La toma base de una serie de exposición no se puede eliminar de Facet por separado."
     },
     "analysis": "Análisis",
     "info": "Información",

@@ -160,13 +160,38 @@ describe('manual stack browsing through rendered viewer, Router and HTTP', () =>
     expect(router.url).toBe('/?no_gps=true');
   });
 
-  it('returns to an in-app origin even when it did not pass a photo in navigation state', async () => {
-    await router.navigate(['/photo'], { queryParams: { path: paths[1] } });
+  it('returns to an explicitly marked in-app origin without a prefetched photo', async () => {
+    await router.navigate(['/photo'], { queryParams: { path: paths[1] }, state: { photoOrigin: 'in-app' } });
     await membership(null);
     const returned = arrived();
     button('button[aria-label="photo_detail.back"]').click();
     await returned;
     expect(router.url).toBe('/?no_gps=true');
+  });
+
+  it('keeps a direct photo entry safe after tag search, browser Back and viewer Escape', async () => {
+    await router.navigate(['/photo'], { queryParams: { path: paths[1] }, replaceUrl: true });
+    await membership(null);
+    expect(TestBed.inject(Location).getState()).toEqual(expect.objectContaining({ photoBack: false }));
+    const page = harness.routeDebugElement!.componentInstance as unknown as { navigateTag(tag: string, scope: 'library'): void };
+    let navigation = arrived(); page.navigateTag('coast', 'library'); await navigation;
+    navigation = arrived(); TestBed.inject(Location).back(); await navigation; await membership(null);
+    const back = vi.spyOn(TestBed.inject(Location), 'back');
+    navigation = arrived();
+    document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true, cancelable: true }));
+    await navigation;
+    expect(back).not.toHaveBeenCalled(); expect(router.url).toBe('/');
+  });
+
+  it('updates Back ownership when browser history reuses the same photo component', async () => {
+    await open();
+    const instance = harness.routeDebugElement!.componentInstance;
+    await router.navigate(['/photo'], { queryParams: { path: '/outside.jpg' }, state: { photoBack: false, photo: makePhoto({ path: '/outside.jpg' }) } });
+    await membership(null);
+    expect(harness.routeDebugElement!.componentInstance).toBe(instance);
+    const back = vi.spyOn(TestBed.inject(Location), 'back');
+    const returned = arrived(); button('button[aria-label="photo_detail.back"]').click(); await returned;
+    expect(back).not.toHaveBeenCalled(); expect(router.url).toBe('/');
   });
 
   it.each([false, true])('retains the photo visit collection after a library tag search and history Back (step=%s)', async step => {

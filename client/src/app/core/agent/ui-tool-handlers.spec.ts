@@ -902,7 +902,7 @@ describe('UI tool registry and handlers', () => {
   describe('ui_open_photo', () => {
     it('navigates to /photo?path=', async () => {
       await run('ui_open_photo', { path: '/x/y.jpg' });
-      expect(navigate).toHaveBeenCalledWith(['/photo'], { queryParams: { path: '/x/y.jpg' }, onSameUrlNavigation: 'reload' });
+      expect(navigate).toHaveBeenCalledWith(['/photo'], { queryParams: { path: '/x/y.jpg' }, onSameUrlNavigation: 'reload', state: { photoOrigin: 'in-app' } });
     });
 
     it('reports a refused navigation as navigation_refused, not not_found', async () => {

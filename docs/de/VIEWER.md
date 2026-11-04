@@ -438,6 +438,7 @@ Antwortfelder und Statuscodes: [API.md](../API.md).
   - Ein am unteren Rand der Leiste fixierter Eintrag **Warum diese Bewertung?** öffnet den Bewertungserklärer (den Kritik-Dialog) für das Foto, das die Leiste hält.
   - Die Leiste teilt sich die Schublade mit den Filtern; das Öffnen der Filter blendet sie aus. Erfordert ein Fenster von mindestens 1280px.
   - **Hover** und **Klick** zeigen eine kurze Blase: Kategorie, Gesamtwertung und Rang, Ästhetik, Komposition, Schärfe, Belichtung und eine EXIF-Zeile.
+  - Unter 768px ist **Hover** deaktiviert, sofern es nicht bereits ausgewählt ist; eine Größenänderung behält den gespeicherten Auslöser bei.
 - **Kartenknöpfe anpassen** — Knöpfe in der Hover-Zeile einer Karte umsortieren und ein-/ausblenden. Neun Aktionen stehen bereit: Ähnliche finden, Warum diese Bewertung, Metadaten schreiben, Gesicht zuweisen, die Duplikatgruppe, Seriengruppe, Belichtungsreihe/das Panorama oder den Fotostapel öffnen und die Fotoseite öffnen. Gruppenknöpfe erscheinen nur bei Fotos in einer solchen Gruppe. Die Knöpfe für Duplikatgruppe und Fotostapel sind standardmäßig an; die übrigen müssen Sie einschalten. Pro Browser gespeichert.
 - **Blinzler ausblenden** — Fotos mit erkanntem Blinzeln ausblenden
 - **Nur Blinker / Nur Duplikate** — Nur Fotos mit Blinzeln bzw. jedes Mitglied jeder Duplikatgruppe zeigen. Die Ausblend-Schalter ruhen für diese Ansicht.
@@ -876,11 +877,11 @@ Schreiben Sie Bewertungen, Favoriten und Ablehnungen in XMP-Sidecars, damit dark
 
 Laden Sie Fotos aus der Fotodetailansicht oder der Auswahlleiste herunter. Das Download-Menü pro Foto listet die für dieses Foto verfügbaren Typen, einschließlich konfigurierter darktable-Profile:
 
-Eine neu hinzugefügte RAW-Begleitdatei kann bis zu fünf Minuten benötigen, bis sie in diesem Menü erscheint.
-
 - **Original** (`original`) — die Datei unverändert (JPG/HEIF) oder ein RAW, in JPEG konvertiert mit demselben Rendering, das der Viewer zeigt. Eine Aufnahme einer Belichtungsreihe wird daher ohne Belichtungskorrektur heruntergeladen — siehe [CONFIGURATION.md](CONFIGURATION.md#belichtungsreihen-werden-unkorrigiert-gerendert).
 - **darktable** (`darktable`) — das Begleit-RAW, mit einem benannten darktable-Profil konvertiert. Fällt auf das Original zurück, wenn es kein Begleit-RAW gibt.
 - **RAW** (`raw`) — die Begleit-RAW-Datei unverändert. In freigegebenen Alben nicht verfügbar.
+
+Eine neu hinzugefügte RAW-Begleitdatei kann bis zu fünf Minuten benötigen, bis sie in diesem Menü erscheint.
 
 **Salienzbewusster Social-Zuschnitt.** Ist `viewer.features.show_social_export` an (Standard `true`) und Edition freigeschaltet, hat die Download-Leiste der Fotodetailansicht ein Menü **Social-Zuschnitt**. Es listet `social_export.presets` (standardmäßig quadratisch 1:1, Hochformat 4:5, Story 9:16). Die Wahl lädt ein JPEG in voller Auflösung herunter, auf dieses Seitenverhältnis zugeschnitten und auf das Motiv zentriert. Das Motiv stammt aus dem BiRefNet-Motivrahmen (`photos.subject_bbox`, von `--recompute-saliency`), sonst aus den erkannten Gesichtern, sonst aus der Mitte. Der Tooltip des Menüs zeigt, was verwendet wurde (`saliency` / `faces` / `center`).
 

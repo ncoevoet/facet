@@ -27,7 +27,7 @@ import { I18N } from '../../core/i18n/keys';
         <p class="m-0 px-2 pb-2 text-xs text-[var(--mat-sys-on-surface-variant)]">{{ I18N.photo_detail.collection.loaded | translate:{ loaded: photos().length, total: total() } }}</p>
         <div #scroller class="min-h-0 flex-1 overflow-y-auto overscroll-contain p-2" tabindex="0" [attr.aria-label]="I18N.photo_detail.collection.title | translate">
           @if (windowStart() > 0) {
-            <button type="button" data-collection-previous-window class="mb-2 min-h-10 w-full rounded border border-[var(--mat-sys-outline-variant)] px-2 text-xs" (click)="pageWindow(-1)">{{ I18N.photo_detail.collection.previous_loaded | translate }}</button>
+            <button type="button" data-collection-previous-window class="mb-2 min-h-11 w-full rounded border border-[var(--mat-sys-outline-variant)] px-2 text-xs" (click)="pageWindow(-1)">{{ I18N.photo_detail.collection.previous_loaded | translate }}</button>
           }
           <div class="grid gap-2" [style.grid-template-columns]="columns()">
             @for (photo of visiblePhotos(); track photo.path) {
@@ -42,10 +42,10 @@ import { I18N } from '../../core/i18n/keys';
             }
           </div>
           @if (windowEnd() < photos().length) {
-            <button type="button" data-collection-next-window class="mt-2 min-h-10 w-full rounded border border-[var(--mat-sys-outline-variant)] px-2 text-xs" (click)="pageWindow(1)">{{ I18N.photo_detail.collection.next_loaded | translate }}</button>
+            <button type="button" data-collection-next-window class="mt-2 min-h-11 w-full rounded border border-[var(--mat-sys-outline-variant)] px-2 text-xs" (click)="pageWindow(1)">{{ I18N.photo_detail.collection.next_loaded | translate }}</button>
           }
           @if (hasMore() && windowEnd() === photos().length) {
-            <button type="button" class="mt-2 min-h-10 w-full rounded border border-[var(--mat-sys-outline-variant)] px-2 text-xs"
+            <button type="button" class="mt-2 min-h-11 w-full rounded border border-[var(--mat-sys-outline-variant)] px-2 text-xs"
               [disabled]="loading()" (click)="more.emit()">{{ (loading() ? I18N.ui.labels.loading : I18N.photo_detail.collection.more) | translate }}</button>
           }
         </div>

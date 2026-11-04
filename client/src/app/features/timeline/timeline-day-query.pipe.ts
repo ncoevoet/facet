@@ -16,7 +16,7 @@ export function timelineRangeQuery(
 }
 
 export function timelineDayQuery(date: string, visibility: ViewFilterParams): Record<string, string> {
-  return timelineRangeQuery(date, date, visibility, 'ASC');
+  return timelineRangeQuery(date, date, visibility, 'DESC');
 }
 
 @Pipe({ name: 'timelineDayQuery', standalone: true })

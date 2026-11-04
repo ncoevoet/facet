@@ -49,6 +49,17 @@ describe('explicit catalog removal', () => {
     expect(remove).toHaveBeenCalledExactlyOnceWith(['/private.jpg']);
   });
 
+  it('explains refused bracket leads while reconciling successful removals', async () => {
+    post.mockReturnValue(of({ removed_catalog: ['/private.jpg'], refused_bracket_lead: ['/base.jpg'] }));
+    const pending = TestBed.inject(PhotoActionsService).removeFromCatalog(['/private.jpg', '/base.jpg']);
+    await vi.waitFor(() => expect(TestBed.inject(MatDialog).open).toHaveBeenCalled());
+    close.next(true);
+    expect(await pending).toEqual(['/private.jpg']);
+    expect(remove).toHaveBeenCalledExactlyOnceWith(['/private.jpg']);
+    expect(TestBed.inject(MatSnackBar).open).toHaveBeenCalledWith(
+      expect.stringContaining('photo_detail.remove_catalog.bracket_refused'), '', expect.any(Object));
+  });
+
   it('rechecks the caller decision after confirmation before sending a catalog write', async () => {
     let rejected = true;
     const pending = TestBed.inject(PhotoActionsService).removeFromCatalog(['/private.jpg'], () => rejected);

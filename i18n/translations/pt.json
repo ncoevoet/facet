@@ -1184,9 +1184,6 @@
     "hide_details": "Ocultar detalhes",
     "tooltip_mode": {
       "label": "Dica",
-      "show_in": "Mostrar em",
-      "popup": "Pop-up",
-      "show_on": "Mostrar com",
       "hover": "Passar o mouse",
       "click": "Clicar",
       "panel": "Painel lateral",
@@ -3303,7 +3300,8 @@
       "title": "Remover do Facet?",
       "action": "Remover do Facet…",
       "confirm": "Remover permanentemente {count} fotos selecionadas, pré-visualizações guardadas, registos de rostos, etiquetas, classificações e pertença a álbuns deste catálogo Facet para todos os utilizadores. Não é possível anular. Os originais, a reciclagem do sistema, cópias de segurança, exportações e cópias noutros navegadores mantêm-se. Uma análise posterior pode voltar a adicionar originais que ainda existam. Só são removidas as fotos indicadas; os ficheiros associados e outros membros de pilhas ficam inalterados.",
-      "result": "{count} fotos removidas do Facet."
+      "result": "{count} fotos removidas do Facet.",
+      "bracket_refused": "A imagem base de uma sequência de exposições não pode ser removida do Facet isoladamente."
     },
     "analysis": "Análise",
     "info": "Informação",

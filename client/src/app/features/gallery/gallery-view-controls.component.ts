@@ -101,6 +101,7 @@ const sortOptionLabelKey = (column: string): string => `sort_options.${column}`;
         </button>
       }
     </ng-template>
+    <ng-template #sidebarLayoutControls><ng-container [ngTemplateOutlet]="layoutControls" [ngTemplateOutletContext]="{ $implicit: layouts }" /></ng-template>
     <ng-container [ngTemplateOutlet]="layoutControls" [ngTemplateOutletContext]="{ $implicit: secondaryLayouts }" />
     <button mat-button class="!min-h-11 !min-w-11 !w-11 !px-2 @[1120px]:!w-auto @[1120px]:!px-4"
             [matMenuTriggerFor]="tooltipModeMenu" [matTooltip]="I18N.gallery.tooltip_mode.label | translate"
@@ -177,7 +178,8 @@ export class GalleryViewControlsComponent {
   readonly filterControls = viewChild<TemplateRef<unknown>>('filterControls');
   readonly primaryControls = viewChild<TemplateRef<unknown>>('primaryControls');
   readonly layoutControls = viewChild<TemplateRef<unknown>>('layoutControls');
-  private readonly layouts = [
+  readonly sidebarLayoutControls = viewChild<TemplateRef<unknown>>('sidebarLayoutControls');
+  protected readonly layouts = [
     { id: 'grid', icon: 'grid_view', label: I18N.gallery.layout_grid },
     { id: 'mosaic', icon: 'auto_awesome_mosaic', label: I18N.gallery.layout_mosaic },
     { id: 'list', icon: 'view_list', label: I18N.gallery.layout_list },

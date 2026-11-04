@@ -286,7 +286,7 @@ describe('StackDialog HTTP workflow', () => {
     const photo = { path: '/a.jpg' };
     http.expectOne(request => request.url === '/api/photo').flush(photo); await opening;
     expect(TestBed.inject(GalleryStore).showPaths).not.toHaveBeenCalled();
-    expect(TestBed.inject(Router).navigate).toHaveBeenCalledWith(['/photo'], { queryParams: { path: '/a.jpg' }, state: { photo }, replaceUrl: false });
+    expect(TestBed.inject(Router).navigate).toHaveBeenCalledWith(['/photo'], { queryParams: { path: '/a.jpg' }, state: { photo, photoBack: true }, replaceUrl: false });
   });
   it('opens a newly added draft member without saving or changing gallery scope', async () => {
     create(); await load(); await addSelected();
@@ -294,7 +294,7 @@ describe('StackDialog HTTP workflow', () => {
     const photo = { path: '/c.jpg' };
     http.expectOne(request => request.url === '/api/photo').flush(photo); await opening;
     expect(TestBed.inject(GalleryStore).showPaths).not.toHaveBeenCalled();
-    expect(TestBed.inject(Router).navigate).toHaveBeenCalledWith(['/photo'], { queryParams: { path: '/c.jpg' }, state: { photo }, replaceUrl: false });
+    expect(TestBed.inject(Router).navigate).toHaveBeenCalledWith(['/photo'], { queryParams: { path: '/c.jpg' }, state: { photo, photoBack: true }, replaceUrl: false });
     http.expectNone(request => request.method === 'PUT');
   });
   it('does not open a member outside an existing exact pinned list', async () => {

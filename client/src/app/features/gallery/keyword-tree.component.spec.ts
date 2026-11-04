@@ -93,6 +93,20 @@ describe('Explicit keyword hierarchy browsing', () => {
     fixture.nativeElement.remove();
   });
 
+  it('closes a mounted hierarchy editor when a query-only navigation keeps the tree alive', async () => {
+    build(); await open();
+    fixture.componentInstance.editor.set({ key: 1, node: fixture.componentInstance.nodes()![0] });
+    fixture.detectChanges();
+    expect(fixture.nativeElement.querySelector('[data-hierarchy-editor]')).not.toBeNull();
+    events.next(new NavigationStart(4, '/?sort_direction=ASC'));
+    events.next(new NavigationEnd(4, '/?sort_direction=ASC', '/?sort_direction=ASC'));
+    fixture.detectChanges();
+    expect(fixture.componentInstance.opened()).toBe(true);
+    expect(fixture.componentInstance.editor()).toBeNull();
+    expect(fixture.nativeElement.querySelector('[data-hierarchy-editor]')).toBeNull();
+    http.expectNone('/api/manual_tags/hierarchy');
+  });
+
   it('keeps the open tree through another control changing only the gallery query', async () => {
     build(); await open();
     const panel = fixture.nativeElement.querySelector('[data-keyword-tree]') as HTMLDetailsElement;

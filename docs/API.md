@@ -158,8 +158,6 @@ invalidates them. Reload the shared album after rotation to obtain current asset
 | `GET /api/timeline/dates?year=&month=&hide_blinks=&hide_bursts=&hide_duplicates=&hide_brackets=&hide_panoramas=` | Available dates for navigation |
 | `GET /api/timeline/years?hide_blinks=&hide_bursts=&hide_duplicates=&hide_brackets=&hide_panoramas=` | Available years with photo counts |
 | `GET /api/timeline/months?hide_blinks=&hide_bursts=&hide_duplicates=&hide_brackets=&hide_panoramas=` | Available months for a year |
-
-Timeline routes return 503 when the query fails. Week keys use ISO 8601 week years (`YYYY-Www`), so keys and cursors from the previous week format are not comparable. Date bounds cover complete calendar days at every granularity; with `sort_by=date_taken`, photos within each group follow the requested direction.
 | `GET /api/photos/map?bounds=&zoom=&limit=` | Geotagged photos within bounds |
 | `GET /api/photos/map/count` | Count of geotagged photos |
 | `PUT /api/photo/gps` | `[Edition]` Set or clear a photo's GPS. Body `{path, gps_latitude, gps_longitude, saved_place_id?}`; both coordinates null, or finite within latitude ±90 / longitude ±180. Returns the saved coordinates |
@@ -170,6 +168,8 @@ Timeline routes return 503 when the query fails. Week keys use ISO 8601 week yea
 | `POST /api/places` | `[Edition]` Save `{name, latitude, longitude}` as a private named pin. Limits: 100 places; name 1–120 characters |
 | `PUT /api/places/{id}` | `[Edition]` Update an owned pin; photos keep their coordinates |
 | `DELETE /api/places/{id}` | `[Edition]` Delete an owned pin; photos keep their coordinates |
+
+Timeline routes return 503 when the query fails. Week keys use ISO 8601 week years (`YYYY-Www`), so keys and cursors from the previous week format are not comparable. Date bounds cover complete calendar days at every granularity; with `sort_by=date_taken`, photos within each group follow the requested direction.
 
 ## Capsules
 

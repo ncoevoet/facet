@@ -190,7 +190,7 @@ export class FaceReviewQueueComponent {
     this.receipt.set(null); this.loading.set(false); this.busy.set(false); this.nextAfter.set(null);
   }
   protected async load(after: number): Promise<void> {
-    if (!this.allowed() || this.busy() || this.loading() || (after > 0 && (this.pending() || this.uncertain() || this.changed() || this.choosing()))) return;
+    if (!this.allowed() || this.busy() || (after > 0 && (this.loading() || this.pending() || this.uncertain() || this.changed() || this.choosing()))) return;
     if (after === 0) this.reset();
     this.loading.set(true); this.error.set(false);
     const guard = this.capture(), generation = this.generation;

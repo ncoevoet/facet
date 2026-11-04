@@ -1,10 +1,10 @@
 import { updateMapSignal, deleteMapKey } from '../../shared/utils/map-signal';
-import { DOCUMENT } from '@angular/common';
+import { DOCUMENT, Location } from '@angular/common';
 import { ChangeDetectionStrategy, Component, computed, effect, inject, signal, ElementRef, Injector, DestroyRef, afterNextRender, viewChildren } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { firstValueFrom, Subject, takeUntil } from 'rxjs';
-import { Router } from '@angular/router';
-import { trackPendingNavigation } from '../../shared/utils/navigation-settled';
+import { NavigationEnd, NavigationStart, Router } from '@angular/router';
+import { isNavigationSettled, trackPendingNavigation } from '../../shared/utils/navigation-settled';
 import { ComparisonSessionService } from './comparison-session.service';
 import { MatIconModule } from '@angular/material/icon';
 import { MatButtonModule } from '@angular/material/button';
@@ -230,6 +230,14 @@ export class ComparisonWorkspaceComponent {
   private readonly router = inject(Router);
   private readonly session = inject(ComparisonSessionService);
   private readonly data = this.session.snapshot();
+  private readonly location = inject(Location);
+  private popReturnEntry = (() => {
+    const navigation = this.router.currentNavigation();
+    const state = navigation?.extras.state;
+    return navigation?.trigger === 'imperative' && !navigation.extras.replaceUrl && !navigation.extras.skipLocationChange
+      && state?.['comparisonReturn'] === this.data.returnUrl && typeof state?.['comparisonOriginId'] === 'number'
+      && navigation.previousNavigation?.id === state['comparisonOriginId'];
+  })();
   private readonly injector = inject(Injector);
   private readonly document = inject(DOCUMENT);
   private readonly host = inject<ElementRef<HTMLElement>>(ElementRef);
@@ -580,9 +588,31 @@ export class ComparisonWorkspaceComponent {
   protected close(): void {
     if (this.closing || this.navigating()) return;
     this.closing = true;
-    void this.router.navigateByUrl(this.data.returnUrl, { replaceUrl: true }).then(navigated => {
+    const popReturnEntry = this.popReturnEntry;
+    // A refused pop may replace the preceding entry during router restoration.
+    // Consume the proof before moving history; retries use the captured URL.
+    this.popReturnEntry = false;
+    const navigation = popReturnEntry ? this.backToCollection()
+      : this.router.navigateByUrl(this.data.returnUrl, { replaceUrl: true });
+    void navigation.then(navigated => {
       if (navigated) this.session.clear(this.data.revision);
       else if (!this.destroyRef.destroyed) this.closing = false;
     }, () => { if (!this.destroyRef.destroyed) this.closing = false; });
+  }
+
+  private backToCollection(): Promise<boolean> {
+    // This completion watch must survive destruction of the outgoing routed view.
+    return new Promise((resolve, reject) => {
+      let id = 0;
+      const subscription = this.router.events.subscribe(event => {
+        if (event instanceof NavigationStart && event.id >= id) id = event.id;
+        else if (id && isNavigationSettled(event) && event.id >= id) {
+          subscription.unsubscribe();
+          resolve(event instanceof NavigationEnd && this.router.url !== this.initialUrl);
+        }
+      });
+      try { this.location.back(); }
+      catch (error) { subscription.unsubscribe(); reject(error); }
+    });
   }
 }

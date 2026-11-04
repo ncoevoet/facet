@@ -476,7 +476,7 @@ export class PhotoTooltipComponent {
    * page's existing query-param fallback fetches it, same as a bookmarked link.
    */
   protected openSetMember(path: string): void {
-    this.router.navigate(['/photo'], { queryParams: { path } });
+    this.router.navigate(['/photo'], { queryParams: { path }, state: { photoOrigin: 'in-app' } });
   }
 
   /** Emits the clicked person's id, comma-list-formatted the way `person_id`

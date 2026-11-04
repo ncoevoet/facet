@@ -1,3 +1,4 @@
+import { closeDetailsOnEscape } from '../../shared/utils/overlays';
 import { DarkroomRenditions } from './darkroom-renditions';
 import { FilenamePipe } from '../../shared/pipes/filename.pipe';
 import { SEQUENCE_KINDS_KEPT_WHOLE, SEQUENCE_KIND_LABELS } from '../../shared/pipes/sequence-kind.pipe';
@@ -979,7 +980,7 @@ interface SceneSummary {
                     [attr.aria-pressed]="compareMode() === '4up'"
                     (click)="setCompareMode('4up')"><mat-icon>grid_view</mat-icon></button>
             <details #darkroomTools class="relative shrink-0" data-darkroom-tools
-                     (keydown.escape)="darkroomTools.open = false; darkroomToolsSummary.focus(); $event.preventDefault(); $event.stopPropagation()">
+                     (keydown.escape)="onRenditionHelpEscape($event, darkroomTools, darkroomToolsSummary)">
               <summary #darkroomToolsSummary class="flex h-11 min-w-11 cursor-pointer list-none items-center justify-center gap-2 rounded px-2 hover:bg-white/10"
                        (keydown.enter)="$event.stopPropagation()" (keydown.space)="$event.stopPropagation()"
                        [attr.aria-label]="I18N.gallery.compare.inspection.title | translate">
@@ -1890,11 +1891,7 @@ export class BurstCullingComponent implements OnDestroy {
   }
 
 
-  protected onRenditionHelpEscape(event: Event, details: HTMLDetailsElement, summary: HTMLElement): void {
-    if (!details.open) return;
-    event.preventDefault(); event.stopPropagation();
-    details.open = false; summary.focus();
-  }
+  protected readonly onRenditionHelpEscape = closeDetailsOnEscape;
 
   /** Path of the frame the single pane shows. A string, so a new group object
    *  holding the same frame does not notify the prefetch effects. */
@@ -2634,7 +2631,7 @@ export class BurstCullingComponent implements OnDestroy {
 
   protected openDetail(event: Event, path: string): void {
     event.stopPropagation();
-    this.router.navigate(['/photo'], { queryParams: { path } });
+    this.router.navigate(['/photo'], { queryParams: { path }, state: { photoOrigin: 'in-app' } });
   }
 
   /** Open Comparison scoped to a group's category so its weights can be tuned. */

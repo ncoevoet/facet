@@ -1,3 +1,6 @@
+import { Location } from '@angular/common';
+import { provideLocationMocks } from '@angular/common/testing';
+import { RouterTestingHarness } from '@angular/router/testing';
 import { TestBed } from '@angular/core/testing';
 import { ComparisonSessionService } from './comparison-session.service';
 import { By } from '@angular/platform-browser';
@@ -8,9 +11,9 @@ import { MAX_COMPARE_PANES } from './comparison-slots.util';
 import { Photo } from '../../shared/models/photo.model';
 import { I18nService } from '../../core/services/i18n.service';
 import { ThumbnailUrlPipe } from '../../shared/pipes/thumbnail-url.pipe';
-import { signal } from '@angular/core';
-import { NavigationCancel, NavigationCancellationCode, NavigationStart, provideRouter, Router } from '@angular/router';
-import { Subject, of, throwError } from 'rxjs';
+import { Component, signal } from '@angular/core';
+import { NavigationCancel, NavigationCancellationCode, NavigationEnd, NavigationStart, provideRouter, Router } from '@angular/router';
+import { Subject, of, throwError, firstValueFrom, filter } from 'rxjs';
 import { ApiService } from '../../core/services/api.service';
 import { AuthService } from '../../core/services/auth.service';
 import { sharedInspectionPeople } from './comparison-inspection.util';
@@ -655,4 +658,62 @@ describe('ComparisonWorkspaceComponent', () => {
     expect(router.navigateByUrl).not.toHaveBeenCalled();
   });
 
+});
+
+
+@Component({ template: 'Gallery' })
+class CollectionPage {}
+
+describe('comparison history return', () => {
+  afterEach(() => TestBed.resetTestingModule());
+
+  async function render(canLeave: () => boolean = () => true) {
+    const session = { snapshot: () => ({ photos: [photo('/a.jpg'), photo('/b.jpg')], returnUrl: '/?search=captured', revision: 7 }), clear: vi.fn() };
+    TestBed.configureTestingModule({ providers: [
+      provideRouter([{ path: '', component: CollectionPage }, { path: 'photo-compare', component: ComparisonWorkspaceComponent, canDeactivate: [canLeave] }]),
+      provideLocationMocks(),
+      { provide: ComparisonSessionService, useValue: session },
+      { provide: AuthService, useValue: { status: signal({ user_id: 'alice' }), identity: () => 'alice', isEdition: () => false, token: null } },
+      { provide: ApiService, useValue: { get: vi.fn(() => of({ faces: [] })), post: vi.fn(() => of({ key_subjects_by_path: {} })) } },
+      { provide: I18nService, useValue: { t: (key: string) => key, translations: () => ({}) } },
+    ] });
+    const harness = await RouterTestingHarness.create('/?search=captured');
+    const router = TestBed.inject(Router);
+    router.setUpLocationChangeListener();
+    await router.navigateByUrl('/photo-compare', { state: { comparisonReturn: '/?search=captured', comparisonOriginId: router.lastSuccessfulNavigation()!.id } });
+    harness.detectChanges();
+    const back = vi.spyOn(TestBed.inject(Location), 'back');
+    const close = () => harness.routeNativeElement!.querySelector<HTMLButtonElement>('button')!.click();
+    return { router, back, close, session };
+  }
+
+  it('pops the known gallery entry and clears only the captured comparison revision', async () => {
+    const { router, back, close, session } = await render();
+    close();
+    await vi.waitFor(() => expect(router.url).toBe('/?search=captured'));
+    expect(back).toHaveBeenCalledOnce(); expect(session.clear).toHaveBeenCalledExactlyOnceWith(7);
+  });
+
+  it('retains the session after a refused pop and retries through the captured collection URL', async () => {
+    let allowed = false;
+    const { router, back, close, session } = await render(() => allowed);
+    const refused = firstValueFrom(router.events.pipe(filter(event => event instanceof NavigationCancel)));
+    close(); await refused;
+    expect(router.url).toBe('/photo-compare'); expect(session.clear).not.toHaveBeenCalled();
+    allowed = true;
+    const returned = firstValueFrom(router.events.pipe(filter(event => event instanceof NavigationEnd)));
+    close(); await returned;
+    await vi.waitFor(() => expect(session.clear).toHaveBeenCalledExactlyOnceWith(7));
+    expect(router.url).toBe('/?search=captured'); expect(back).toHaveBeenCalledOnce();
+  });
+
+  it('retains the session on a history error and permits a safe retry', async () => {
+    const { router, back, close, session } = await render();
+    back.mockImplementationOnce(() => { throw new Error('history unavailable'); });
+    close(); await Promise.resolve();
+    expect(router.url).toBe('/photo-compare'); expect(session.clear).not.toHaveBeenCalled();
+    close();
+    await vi.waitFor(() => expect(router.url).toBe('/?search=captured'));
+    expect(back).toHaveBeenCalledOnce(); expect(session.clear).toHaveBeenCalledExactlyOnceWith(7);
+  });
 });

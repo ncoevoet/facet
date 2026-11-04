@@ -1,4 +1,5 @@
 import { trackPendingNavigation } from '../../shared/utils/navigation-settled';
+import { isGalleryCollectionUrl } from '../../shared/utils/url-path';
 import { ChangeDetectionStrategy, Component, DestroyRef, ElementRef, computed, effect, inject, input, signal, untracked, viewChild } from '@angular/core';
 import { Router } from '@angular/router';
 import { galleryFilterLabel } from './gallery-filter-label.pipe';
@@ -183,7 +184,7 @@ export class GalleryQueryProposalComponent {
     if (this.trigger?.isConnected) this.trigger.focus();
   }
   private async present(args: Record<string, unknown>): Promise<unknown> {
-    if (this.pending() || !this.active() || !/^(\/|\/album\/\d+)$/.test(this.router.url.split('?')[0]) || this.store.pinnedPaths() !== null || this.proposal() || this.applying()) {
+    if (this.pending() || !this.active() || !isGalleryCollectionUrl(this.router.url) || this.store.pinnedPaths() !== null || this.proposal() || this.applying()) {
       throw new UiToolError('no_active_view', 'Close the current proposal and use an active, unpinned gallery.');
     }
     const owner = this.auth.identity(), status = this.auth.status(), token = this.auth.token, route = this.router.url;

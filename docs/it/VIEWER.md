@@ -437,6 +437,7 @@ Campi della risposta e codici di stato: [API.md](../API.md).
   - Una voce **Perché questo punteggio?** fissata in fondo al pannello apre la spiegazione del punteggio (la finestra di critica) per la foto che il pannello tiene.
   - Il pannello condivide il cassetto con i filtri; aprire i filtri lo nasconde. Richiede una finestra larga almeno 1280px.
   - **Al passaggio** e **Al clic** mostrano un breve fumetto: categoria, aggregato e posizione, estetica, composizione, nitidezza, esposizione e una riga EXIF.
+  - Sotto i 768px, **Al passaggio** è disabilitato se non è già selezionato; il ridimensionamento conserva il comportamento salvato.
 - **Personalizza i pulsanti della scheda** — riordina e mostra/nascondi i pulsanti nella riga al passaggio di una scheda. Sono disponibili nove azioni: trova simili, perché-questo-punteggio, scrivi metadati, assegna un volto, apri il gruppo di duplicati, la raffica, la serie bracket/panorama o la pila di foto, e apri la pagina della foto. I pulsanti di gruppo compaiono solo sulle foto che appartengono a un tale gruppo. I pulsanti del gruppo di duplicati e della pila di foto sono attivi per impostazione predefinita; gli altri sono facoltativi. Salvato per browser.
 - **Nascondi occhi chiusi** — nasconde le foto con occhi chiusi rilevati
 - **Solo occhi chiusi / Solo duplicati** — mostra solo le foto con occhi chiusi, o ogni membro di ciascun gruppo di duplicati. Gli interruttori di nascondimento sono sospesi per quella vista.
@@ -875,11 +876,11 @@ Scrivi valutazioni, preferiti e scarti nei sidecar XMP così darktable, Lightroo
 
 Scarica le foto dal dettaglio foto o dalla barra di selezione. Il menu di download per foto elenca i tipi disponibili per quella foto, compresi i profili darktable configurati:
 
-Un nuovo file RAW associato può impiegare fino a cinque minuti per comparire in questo menu.
-
 - **Originale** (`original`) — il file così com'è (JPG/HEIF), o un RAW convertito in JPEG con lo stesso rendering mostrato dalla galleria. Un fotogramma di un bracket viene quindi scaricato senza correzione dell'esposizione — vedi [CONFIGURATION.md](CONFIGURATION.md#i-fotogrammi-di-un-bracketing-vengono-renderizzati-senza-correzioni).
 - **darktable** (`darktable`) — il RAW collegato convertito con un profilo darktable con nome. Ripiega sull'originale se non c'è un RAW collegato.
 - **RAW** (`raw`) — il file RAW collegato così com'è. Non disponibile negli album condivisi.
+
+Un nuovo file RAW associato può impiegare fino a cinque minuti per comparire in questo menu.
 
 **Ritaglio social basato sulla salienza.** Con `viewer.features.show_social_export` attivo (predefinito `true`) e la modifica sbloccata, la barra di download del dettaglio foto ha un menu **Ritaglio social**. Elenca `social_export.presets` (quadrato 1:1, verticale 4:5, storia 9:16 per impostazione predefinita). Sceglierne uno scarica un JPEG a piena risoluzione ritagliato a quella proporzione e centrato sul soggetto. Il soggetto proviene dal riquadro del soggetto BiRefNet (`photos.subject_bbox`, da `--recompute-saliency`), altrimenti dai volti rilevati, altrimenti dal centro. Il tooltip del menu mostra quale è stato usato (`saliency` / `faces` / `center`).
 

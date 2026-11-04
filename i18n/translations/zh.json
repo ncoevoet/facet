@@ -1184,9 +1184,6 @@
     "hide_details": "隐藏照片详情",
     "tooltip_mode": {
       "label": "提示信息",
-      "show_in": "显示位置",
-      "popup": "弹出窗口",
-      "show_on": "显示时机",
       "hover": "悬停",
       "click": "点击",
       "panel": "侧边面板",
@@ -3303,7 +3300,8 @@
       "title": "从 Facet 移除？",
       "action": "从 Facet 移除…",
       "confirm": "为所有用户从此 Facet 目录中永久移除所选 {count} 张照片及其已保存预览、人脸记录、标签、评分和相册成员关系。此操作无法撤销。原始文件、系统回收站、备份、导出文件及其他浏览器中的副本将保留。后续扫描可重新添加仍然存在的原始文件。仅移除指定照片；配套文件和其他堆栈成员保持不变。",
-      "result": "已从 Facet 移除 {count} 张照片。"
+      "result": "已从 Facet 移除 {count} 张照片。",
+      "bracket_refused": "包围曝光组的基准帧无法单独从 Facet 中移除。"
     },
     "analysis": "分析",
     "info": "信息",

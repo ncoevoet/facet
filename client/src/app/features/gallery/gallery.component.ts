@@ -1,3 +1,4 @@
+import { closeDetailsOnEscape, closeOverlayDirectives } from '../../shared/utils/overlays';
 import { GallerySelectionActions } from './gallery-selection-actions';
 import { GalleryVisitPositions, GalleryHistoryPosition } from './gallery-visit-positions.service';
 import { TagNavigation } from '../../shared/models/tag-navigation';
@@ -53,7 +54,6 @@ import { NoticeDismissals, NoticeKind, readNoticeDismissals, saveNoticeDismissal
 import { Photo } from '../../shared/models/photo.model';
 import { isImeOrRepeat, isPageShortcutBlocked, isShortcutContextBlocked, isTypingContext } from '../../shared/utils/keyboard';
 import { KeyboardMappingService } from '../../core/services/keyboard-mapping.service';
-import { closeOverlayDirectives } from '../../shared/utils/overlays';
 import { GALLERY_REVISIT, PHOTO_PATH } from '../../core/gallery-reuse.strategy';
 import { SequenceKindIconPipe } from '../../shared/pipes/sequence-kind.pipe';
 import { IsSelectedPipe } from '../../shared/pipes/selection.pipe';
@@ -286,7 +286,7 @@ const SET_KIND_TOGGLE: Record<string, keyof HiddenFilterFlags> = {
         } @else {
           <!-- Usually closed, and heavy enough that building it eagerly holds up the grid's first paint. -->
           @defer (on idle; when store.filterDrawerOpen()) {
-            <app-gallery-filter-sidebar />
+            <app-gallery-filter-sidebar [layoutControls]="collectionViewControls.sidebarLayoutControls() ?? null" />
           }
         }
       </mat-sidenav>
@@ -842,7 +842,7 @@ const SET_KIND_TOGGLE: Record<string, keyof HiddenFilterFlags> = {
             @if (selectionActions.downloading()) { <mat-spinner diameter="18" [attr.aria-label]="I18N.ui.labels.loading | translate"></mat-spinner> } @else { <mat-icon>more_horiz</mat-icon> }
           </button>
           <details #selectionMore #selectionDisclosure name="gallery-selection-disclosures" data-selection-more class="max-md:hidden" (keydown.escape)="closeDisclosure($event, selectionMore, selectionMoreSummary)">
-            <summary #selectionMoreSummary class="flex min-h-10 cursor-pointer list-none items-center gap-2 rounded-md px-3 text-sm font-medium hover:bg-[var(--mat-sys-surface-container-high)] focus-visible:outline-2 focus-visible:outline-[var(--mat-sys-primary)]"><mat-icon aria-hidden="true">more_horiz</mat-icon>{{ I18N.gallery.selection.actions | translate }}</summary>
+            <summary #selectionMoreSummary class="flex min-h-11 cursor-pointer list-none items-center gap-1 rounded-md px-2 text-sm font-medium hover:bg-[var(--mat-sys-surface-container-high)] focus-visible:outline-2 focus-visible:outline-[var(--mat-sys-primary)]"><mat-icon aria-hidden="true">more_horiz</mat-icon>{{ I18N.gallery.selection.actions | translate }}</summary>
             <div data-toolbar-panel class="absolute bottom-full left-0 mb-3 group-data-[toolbar-down=true]/selection:bottom-auto group-data-[toolbar-down=true]/selection:top-full group-data-[toolbar-down=true]/selection:mb-0 group-data-[toolbar-down=true]/selection:mt-3 flex max-h-[60vh] w-full max-w-160 flex-wrap items-center gap-2 overflow-y-auto rounded-lg border border-[var(--mat-sys-outline-variant)] bg-[var(--mat-sys-surface-container)] p-3 shadow-lg">
           @if (!allLoadedSelected()) {
             <button mat-button disabledInteractive (click)="selectAll()" [matTooltip]="I18N.gallery.selection.select_all | translate" [attr.aria-label]="I18N.gallery.selection.select_all | translate"><mat-icon>select_all</mat-icon><span>{{ I18N.gallery.selection.select_all | translate }}</span></button>
@@ -2469,7 +2469,11 @@ export class GalleryComponent implements OnInit, OnDestroy {
     const photos = this.store.photos().filter(p => selected.has(p.path));
     if (photos.length < 2) return;
     if (this.parked || this.router.currentNavigation?.() || !this.comparisonSession.start(photos, this.router.url)) return;
-    if (!await this.router.navigateByUrl('/photo-compare')) this.comparisonSession.clear();
+    const browserUrl = location.pathname + location.search + location.hash;
+    const originId = browserUrl === this.router.url ? history.state?.navigationId ?? null : null;
+    if (!await this.router.navigateByUrl('/photo-compare', {
+      state: { comparisonReturn: this.router.url, comparisonOriginId: originId },
+    })) this.comparisonSession.clear();
   }
 
   /** Ctrl+A selects all loaded photos unless focus is in an input or a dialog is open. */
@@ -2926,10 +2930,7 @@ export class GalleryComponent implements OnInit, OnDestroy {
     } else focus();
   }
 
-  protected closeDisclosure(event: Event, details: HTMLDetailsElement, summary: HTMLElement): void {
-    if (!details.open) return;
-    details.open = false; summary.focus(); event.preventDefault(); event.stopPropagation();
-  }
+  protected readonly closeDisclosure = closeDetailsOnEscape;
 
   protected closeMobileSearch(event: Event): void {
     if (this.isDesktop()) return;

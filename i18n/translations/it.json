@@ -1184,9 +1184,6 @@
     "hide_details": "Nascondi dettagli",
     "tooltip_mode": {
       "label": "Tooltip",
-      "show_in": "Mostra in",
-      "popup": "Popup",
-      "show_on": "Mostra con",
       "hover": "Hover",
       "click": "Clic",
       "panel": "Pannello laterale",
@@ -3303,7 +3300,8 @@
       "title": "Rimuovere da Facet?",
       "action": "Rimuovi da Facet…",
       "confirm": "Rimuovi definitivamente da questo catalogo Facet, per tutti gli utenti, {count} foto selezionate, anteprime salvate, registrazioni dei volti, tag, valutazioni e appartenenze agli album. Non è possibile annullare. File originali, cestino del sistema, backup, esportazioni e copie in altri browser restano disponibili. Una scansione successiva può aggiungere nuovamente qualsiasi originale ancora esistente. Vengono rimosse solo le foto indicate; i file associati e gli altri membri della pila restano invariati.",
-      "result": "Rimosse {count} foto da Facet."
+      "result": "Rimosse {count} foto da Facet.",
+      "bracket_refused": "Il fotogramma base di una serie di esposizioni non può essere rimosso da Facet da solo."
     },
     "analysis": "Analisi",
     "info": "Informazioni",

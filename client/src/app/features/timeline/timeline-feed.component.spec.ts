@@ -48,7 +48,7 @@ describe('Timeline photo feed', () => {
     expect(v.root.textContent).toContain('"shown":1,"total":12');
     expect(v.root.querySelector('img')?.getAttribute('src')).toContain('preview=v1');
     const day = v.root.querySelector<HTMLAnchorElement>('section header a')!;
-    expect(day.href).toContain('date_from=2026-11-01'); expect(day.href).toContain('hide_bursts=true');
+    expect(day.href).toContain('sort_direction=DESC'); expect(day.href).toContain('date_from=2026-11-01'); expect(day.href).toContain('hide_bursts=true');
     expect(v.root.querySelector<HTMLAnchorElement>('section .grid a')?.href).toContain('/photo?path=%2Ffirst.jpg');
     expect(v.api.get).toHaveBeenCalledExactlyOnceWith('/timeline', expect.objectContaining({ photos_per_group: 8, limit: 8, sort_by: 'date_taken', hide_bursts: '1' }));
     v.dispose();

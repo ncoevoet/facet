@@ -1,3 +1,4 @@
+import { FEATURE_MARK, MarkTonePipe } from '../../shared/pipes/mark-tone.pipe';
 import { LogicalAssetApplied } from '../../shared/models/logical-asset-change';
 import { buildSyncParams } from '../gallery/gallery-filters.util';
 import { refineTagQuery } from '../gallery/tag-query.util';
@@ -86,7 +87,7 @@ const SOCIAL_SOURCE_KEYS: Record<string, string> = {
 
 @Component({
   selector: 'app-photo-detail',
-  imports: [PhotoCollectionSidebarComponent, ContextHelpComponent, PhotoAnalysisComponent, PhotoProvenanceComponent, PhotoRelatedFilesComponent,
+  imports: [MarkTonePipe, PhotoCollectionSidebarComponent, ContextHelpComponent, PhotoAnalysisComponent, PhotoProvenanceComponent, PhotoRelatedFilesComponent,
     StackNavigatorComponent,
     ZoomPanDirective,
     PhotoObjectLayerComponent,
@@ -586,7 +587,7 @@ const SOCIAL_SOURCE_KEYS: Record<string, string> = {
               }
               @for (section of metricSections; track section.id) {
                 <details data-metric-section [attr.data-section-kind]="section.id" [open]="activeMetricSection() === section.id" class="border-t border-[var(--mat-sys-outline-variant)]">
-                  <summary (click)="$event.preventDefault(); toggleMetricSection(section.id)" class="flex min-h-11 cursor-pointer items-center gap-2 text-xs font-medium"><mat-icon aria-hidden="true" class="!h-5 !w-5 !text-xl">{{ section.icon }}</mat-icon>{{ section.label | translate }}</summary>
+                  <summary (click)="$event.preventDefault(); toggleMetricSection(section.id)" class="flex min-h-11 cursor-pointer items-center gap-2 text-xs font-medium"><mat-icon aria-hidden="true" class="!h-5 !w-5 !text-xl" [class]="section.id | markTone">{{ section.icon }}</mat-icon>{{ section.label | translate }}</summary>
                   @if (activeMetricSection() === section.id) {
                     <app-photo-metric-section [kind]="section.id" [photo]="p" [ranges]="store.metricRangesByColumn()" [populated]="store.config()?.populated_scores" [histogramHeight]="HISTOGRAM_PANEL_HEIGHT" [histogramDefaultMode]="histogramDefaultMode()" [indicatorPercent]="clippingIndicatorPercent()" />
                   }
@@ -686,7 +687,7 @@ export class PhotoDetailComponent extends PhotoDetailBase implements OnInit {
   });
   private readonly metricState = inject(MetricsTabState);
   protected readonly metricSections = [
-    { id: 'quality', icon: 'auto_awesome', label: I18N.photo_detail.quality },
+    { id: 'quality', icon: FEATURE_MARK, label: I18N.photo_detail.quality },
     { id: 'composition', icon: 'grid_on', label: I18N.photo_detail.composition },
     { id: 'technical', icon: 'tune', label: I18N.photo_detail.technical },
     { id: 'histogram', icon: 'equalizer', label: I18N.tooltip.histogram },
@@ -739,8 +740,12 @@ export class PhotoDetailComponent extends PhotoDetailBase implements OnInit {
    *  must not send Escape to an unrelated page or about:blank. */
   private readonly timelineOrigin = (this.router.currentNavigation()?.extras.state?.['photoOrigin'] ?? history.state?.['photoOrigin']) === 'timeline';
   private readonly timeline = this.timelineOrigin ? inject(TimelineFeedCache) : null;
-  private readonly openedFromGallery = this.timelineOrigin || !!this.router.currentNavigation()?.previousNavigation
-    || !!(this.router.currentNavigation()?.extras.state?.['photo'] ?? history.state?.['photo']);
+  private openedFromGallery = this.readBackOwnership();
+
+  private readBackOwnership(state = this.router.currentNavigation()?.extras.state ?? history.state): boolean {
+    return typeof state?.['photoBack'] === 'boolean' ? state['photoBack']
+      : this.timelineOrigin || state?.['photoOrigin'] === 'in-app' || !!state?.['photo'];
+  }
 
   protected readonly collectionSidebarAvailable = computed(() => !this.timelineOrigin && this.viewerOwner === this.auth.identity()
     && this.store.photos().some(photo => photo.path === this.photo()?.path));
@@ -774,12 +779,12 @@ export class PhotoDetailComponent extends PhotoDetailBase implements OnInit {
 
   private rememberTagOrigin(): void {
     this.location.replaceState(this.location.path(true), '', {
-      ...this.location.getState() as Record<string, unknown>, photoTagOrigin: this.tagOrigin(),
+      ...this.location.getState() as Record<string, unknown>, photoTagOrigin: this.tagOrigin(), photoBack: this.openedFromGallery,
     });
   }
 
   private photoNavigationState(photo: Photo | undefined): Record<string, unknown> {
-    return { photo, photoTagOrigin: this.tagOrigin() };
+    return { photo, photoTagOrigin: this.tagOrigin(), photoBack: this.openedFromGallery };
   }
 
   private logicalChangeRevision = 0;
@@ -985,6 +990,7 @@ export class PhotoDetailComponent extends PhotoDetailBase implements OnInit {
     this.router.events.pipe(takeUntilDestroyed(this.destroyRef)).subscribe(event => {
       if (event instanceof NavigationStart) { this.logicalChangeRevision++; trigger = event.navigationTrigger ?? 'imperative'; }
       if (event instanceof NavigationEnd) {
+        this.openedFromGallery = this.readBackOwnership(this.location.getState());
         this.tagOrigin.set(this.readTagOrigin(this.location.getState(), trigger));
         this.rememberTagOrigin();
       }

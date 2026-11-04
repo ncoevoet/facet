@@ -438,6 +438,7 @@ Response fields and status codes: [API.md](API.md).
   - A **Why This Score?** entry pinned at the bottom of the panel opens the score explainer (the critique dialog) for the photo the panel holds.
   - The panel shares the drawer with the filters; opening the filters hides it. It needs a viewport at least 1280px wide.
   - **Hover** and **Click** show a short bubble: category, aggregate and rank, aesthetic, composition, sharpness, exposure, and one EXIF line.
+  - Below 768px, **Hover** is disabled unless already selected; resizing preserves the saved trigger.
 - **Customize card buttons** — reorder and show/hide the buttons on a card's hover row. Nine actions are available: find similar, why-this-score, write metadata, assign a face, open the duplicate group, burst group, bracket/panorama set or photo stack, and open the photo page. Group buttons appear only on photos in such a group. Duplicate-group and photo-stack buttons are on by default; the others are opt-in. Saved per browser.
 - **Hide Blinks** — hide photos with detected blinks
 - **Blinks Only / Duplicates Only** — show only blinked photos, or every member of each duplicate group. The hide toggles are suspended for that view.
@@ -876,11 +877,11 @@ Write ratings, favorites and rejects to XMP sidecars so darktable, Lightroom and
 
 Download photos from photo detail or the selection bar. The per-photo download menu lists the types available for that photo, including configured darktable profiles:
 
-A newly added RAW companion can take up to five minutes to appear in this menu.
-
 - **Original** (`original`) — the file as-is (JPG/HEIF), or a RAW converted to JPEG with the same rendering the viewer shows. A bracketed frame therefore downloads without exposure correction — see [CONFIGURATION.md](CONFIGURATION.md#bracketed-frames-render-uncorrected).
 - **darktable** (`darktable`) — the companion RAW converted with a named darktable profile. Falls back to the original if there is no companion RAW.
 - **RAW** (`raw`) — the companion RAW file as-is. Not available in shared albums.
+
+A newly added RAW companion can take up to five minutes to appear in this menu.
 
 **Saliency-aware social crop.** With `viewer.features.show_social_export` on (default `true`) and edition unlocked, the photo detail download bar has a **Social crop** menu. It lists `social_export.presets` (square 1:1, portrait 4:5, story 9:16 by default). Choosing one downloads a full-resolution JPEG cropped to that aspect and centered on the subject. The subject comes from the BiRefNet subject box (`photos.subject_bbox`, from `--recompute-saliency`), else the detected faces, else the center. The menu tooltip shows which was used (`saliency` / `faces` / `center`).
 

@@ -3,6 +3,7 @@ import { DestroyRef, effect, inject, signal } from '@angular/core';
 import { NavigationEnd, Router } from '@angular/router';
 import { AuthService } from '../../core/services/auth.service';
 import { StalenessGuardFactory } from '../../core/services/staleness-guard.service';
+import { isGalleryCollectionUrl } from '../../shared/utils/url-path';
 
 /** A filter editor may resume after cancelled navigation, but never under a stale session. */
 export function createGalleryFilterContext(callbacks: { authChanged?: () => void; navigationStarted?: () => void } = {}) {
@@ -42,6 +43,6 @@ export function createGalleryFilterContext(callbacks: { authChanged?: () => void
 
   return {
     pending,
-    current: () => !pending() && (path() === '/' || /^\/album\/\d+$/.test(path())) && context.current(),
+    current: () => !pending() && isGalleryCollectionUrl(path()) && context.current(),
   };
 }

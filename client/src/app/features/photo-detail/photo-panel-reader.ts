@@ -1,11 +1,9 @@
 import { Directive, DestroyRef, effect, inject, input, signal } from '@angular/core';
-import { NavigationStart, Router } from '@angular/router';
-import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { Subscription } from 'rxjs';
 import { ApiService } from '../../core/services/api.service';
 import { AuthService } from '../../core/services/auth.service';
 import type { Photo } from '../../shared/models/photo.model';
-import { isNavigationSettled } from '../../shared/utils/navigation-settled';
+import { trackPendingNavigation } from '../../shared/utils/navigation-settled';
 
 /** Lazy photo-panel reads share cancellation and account ownership. */
 @Directive()
@@ -14,7 +12,6 @@ export abstract class PhotoPanelReader<T> {
   readonly photo = input.required<Photo>();
   protected readonly api = inject(ApiService);
   protected readonly auth = inject(AuthService);
-  private readonly router = inject(Router);
   protected readonly destroyRef = inject(DestroyRef);
   protected readonly expanded = signal(false);
   protected readonly loading = signal(false);
@@ -22,19 +19,11 @@ export abstract class PhotoPanelReader<T> {
   protected readonly data = signal<T | null>(null);
   protected request?: Subscription;
   protected revision = 0;
-  protected navigating = false;
-  private navigationId = 0;
+  private readonly navigationPending = trackPendingNavigation({ started: () => this.reset() });
+  protected get navigating(): boolean { return this.navigationPending(); }
 
   constructor() {
     effect(() => { this.photo(); this.auth.status(); this.reset(); });
-    this.router.events.pipe(takeUntilDestroyed(this.destroyRef)).subscribe(event => {
-      if (event instanceof NavigationStart && event.id >= this.navigationId) {
-        this.navigationId = event.id; this.navigating = true; this.reset();
-      }
-      if (isNavigationSettled(event) && event.id >= this.navigationId) {
-        this.navigationId = event.id; this.navigating = false;
-      }
-    });
     this.destroyRef.onDestroy(() => this.reset());
   }
 

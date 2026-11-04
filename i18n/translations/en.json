@@ -1211,9 +1211,6 @@
     "hide_details": "Hide Details",
     "tooltip_mode": {
       "label": "Tooltip",
-      "show_in": "Show in",
-      "popup": "Popup",
-      "show_on": "Show on",
       "hover": "Hover",
       "click": "Click",
       "panel": "Side panel",
@@ -3328,7 +3325,8 @@
       "title": "Remove from Facet?",
       "action": "Remove from Facet…",
       "confirm": "Permanently remove {count} selected photo(s), stored previews, face records, tags, ratings and album membership from this Facet catalog for all users. This cannot be undone. Original files, OS trash, backups, exports and copies in other browsers remain. A later scan can re-add any original that still exists. Only the named photos are removed; companions and other stack members are unchanged.",
-      "result": "Removed {count} photo(s) from Facet."
+      "result": "Removed {count} photo(s) from Facet.",
+      "bracket_refused": "The base frame of a bracket cannot be removed from Facet on its own."
     },
     "analysis": "Analysis",
     "info": "Info",

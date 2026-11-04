@@ -4091,6 +4091,15 @@ describe('BurstCullingComponent modals (rendered)', () => {
     expect(component['lightboxGroup']()).toBeNull();
   });
 
+  it('closes the darkroom when Escape starts on the closed Tools summary', () => {
+    openDarkroom();
+    const tools = fixture.nativeElement.querySelector('[data-darkroom-tools]') as HTMLDetailsElement;
+    expect(tools.open).toBe(false);
+    tools.querySelector('summary')!.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true, cancelable: true }));
+    fixture.detectChanges();
+    expect(component['lightboxGroup']()).toBeNull();
+  });
+
   it('closes Inspect before the darkroom on Escape and returns focus to its summary', () => {
     openDarkroom();
     const tools = fixture.nativeElement.querySelector('[data-darkroom-tools]') as HTMLDetailsElement;

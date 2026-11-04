@@ -1,4 +1,5 @@
 import { trackPendingNavigation } from '../../shared/utils/navigation-settled';
+import { isGalleryCollectionUrl } from '../../shared/utils/url-path';
 import { ChangeDetectionStrategy, Component, DestroyRef, ElementRef, computed, effect, inject, signal, untracked, viewChild } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { Router } from '@angular/router';
@@ -91,9 +92,9 @@ export class KeywordTreeComponent {
   private readonly pending = trackPendingNavigation({
     blocks: event => {
       const path = this.router.url.split('?')[0];
-      return path !== event.url.split('?')[0] || !(path === '/' || /^\/album\/\d+$/.test(path));
+      return path !== event.url.split('?')[0] || !isGalleryCollectionUrl(path);
     },
-    started: () => { if (this.pending()) this.reset(); },
+    started: () => { if (this.pending()) this.reset(); else this.editor.set(null); },
   });
 
   private version = 0;
@@ -143,7 +144,7 @@ export class KeywordTreeComponent {
   private current(): boolean {
     return !this.destroyRef.destroyed && !this.pending() && (this.opened() || !!this.store.filters().keyword_branch)
       && this.session.owner === this.auth.identity() && this.session.status === this.auth.status() && this.session.token === this.auth.token
-      && (this.router.url.split('?')[0] === '/' || /^\/album\/\d+$/.test(this.router.url.split('?')[0]));
+      && isGalleryCollectionUrl(this.router.url);
   }
   private stop(): void { this.version++; this.cancelled.next(); this.loading.set(false); }
   private reset(): void {

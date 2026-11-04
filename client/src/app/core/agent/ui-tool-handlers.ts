@@ -492,7 +492,7 @@ export function createUiToolHandlers(deps: UiToolDeps): Record<string, UiToolHan
     ui_open_photo: async args => {
       const path = args['path'] as string;
       leaveCullingGuard();
-      await navigateOrRefuse(['/photo'], { queryParams: { path }, onSameUrlNavigation: 'reload' }, 'The tab could not open that photo.');
+      await navigateOrRefuse(['/photo'], { queryParams: { path }, onSameUrlNavigation: 'reload', state: { photoOrigin: 'in-app' } }, 'The tab could not open that photo.');
       return { route: '/photo', path };
     },
 

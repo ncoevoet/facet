@@ -1184,9 +1184,6 @@
     "hide_details": "Details ausblenden",
     "tooltip_mode": {
       "label": "Tooltip",
-      "show_in": "Anzeigen in",
-      "popup": "Popup",
-      "show_on": "Anzeigen bei",
       "hover": "Hover",
       "click": "Klick",
       "panel": "Seitenleiste",
@@ -3303,7 +3300,8 @@
       "title": "Aus Facet entfernen?",
       "action": "Aus Facet entfernen…",
       "confirm": "{count} ausgewählte Fotos, gespeicherte Vorschauen, Gesichtseinträge, Schlagwörter, Bewertungen und Albummitgliedschaften dauerhaft für alle Benutzer aus diesem Facet-Katalog entfernen. Dies kann nicht rückgängig gemacht werden. Originaldateien, Systempapierkorb, Sicherungen, Exporte und Kopien in anderen Browsern bleiben erhalten. Ein späterer Scan kann noch vorhandene Originale erneut hinzufügen. Nur die genannten Fotos werden entfernt; Begleitdateien und andere Stapelmitglieder bleiben unverändert.",
-      "result": "{count} Fotos aus Facet entfernt."
+      "result": "{count} Fotos aus Facet entfernt.",
+      "bracket_refused": "Das Basisbild einer Belichtungsreihe kann nicht einzeln aus Facet entfernt werden."
     },
     "analysis": "Analyse",
     "info": "Info",

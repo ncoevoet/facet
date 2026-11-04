@@ -437,6 +437,7 @@ Champs de réponse et codes de statut : [API.md](../API.md).
   - Une entrée **Pourquoi ce score ?** épinglée en bas du panneau ouvre l'explication du score (la boîte de dialogue de critique) pour la photo que le panneau maintient.
   - Le panneau partage le tiroir avec les filtres ; ouvrir les filtres le masque. Il exige une fenêtre d'au moins 1280 px de large.
   - **Survol** et **Clic** affichent une courte bulle : catégorie, agrégat et rang, esthétique, composition, netteté, exposition et une ligne EXIF.
+  - En dessous de 768px, **Survol** est désactivé sauf s’il est déjà sélectionné ; redimensionner la fenêtre conserve le déclencheur enregistré.
 - **Personnaliser les boutons des cartes** — réordonnez et affichez/masquez les boutons de la ligne qui apparaît au survol d'une carte. Neuf actions sont disponibles : trouver des similaires, pourquoi ce score, écrire les métadonnées, assigner un visage, ouvrir le groupe de doublons, le groupe de rafale, la série bracketing/panorama ou la pile de photos, et ouvrir la page de la photo. Les boutons de groupe n'apparaissent que sur les photos d'un tel groupe. Les boutons de groupe de doublons et de pile de photos sont activés par défaut ; les autres sont optionnels. Enregistré par navigateur.
 - **Masquer clignements** — masque les photos avec clignements détectés
 - **Clignements uniquement / Doublons uniquement** — n'affiche que les photos avec clignement, ou tous les membres de chaque groupe de doublons. Les bascules de masquage sont suspendues pour cette vue.
@@ -875,11 +876,11 @@ Trouvez les groupes de personnes qui pourraient être la même personne. Ouvrez 
 
 Téléchargez des photos depuis le détail de la photo ou la barre de sélection. Le menu de téléchargement par photo liste les types disponibles pour cette photo, y compris les profils darktable configurés :
 
-Un fichier RAW associé nouvellement ajouté peut mettre jusqu’à cinq minutes à apparaître dans ce menu.
-
 - **Original** (`original`) — le fichier tel quel (JPG/HEIF), ou un RAW converti en JPEG avec le même rendu que celui de la visionneuse. Une vue de bracketing se télécharge donc sans correction d'exposition — voir [CONFIGURATION.md](CONFIGURATION.md#les-vues-dun-bracketing-saffichent-sans-correction).
 - **darktable** (`darktable`) — le RAW compagnon converti avec un profil darktable nommé. Se rabat sur l'original s'il n'y a pas de RAW compagnon.
 - **RAW** (`raw`) — le fichier RAW compagnon tel quel. Non disponible dans les albums partagés.
+
+Un fichier RAW associé nouvellement ajouté peut mettre jusqu’à cinq minutes à apparaître dans ce menu.
 
 **Recadrage social tenant compte de la saillance.** Avec `viewer.features.show_social_export` activé (`true` par défaut) et l'édition déverrouillée, la barre de téléchargement du détail de la photo a un menu **Recadrage social**. Il liste `social_export.presets` (carré 1:1, portrait 4:5, story 9:16 par défaut). En choisir un télécharge un JPEG pleine résolution recadré à ce format et centré sur le sujet. Le sujet vient du cadre de sujet BiRefNet (`photos.subject_bbox`, issu de `--recompute-saliency`), sinon des visages détectés, sinon du centre. L'infobulle du menu indique lequel a été utilisé (`saliency` / `faces` / `center`).
 

@@ -1,3 +1,4 @@
+import { GalleryViewControlsComponent } from './gallery-view-controls.component';
 import { ADDITIONAL_FILTERS } from './gallery-metric-filters';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { signal } from '@angular/core';
@@ -663,6 +664,8 @@ describe('GalleryFilterSidebarComponent', () => {
         galleryMode: signal('grid'),
         gpsLocationName: signal(''),
         virtualScroll: signal(false),
+        pinnedPaths: signal(null), slideshowActive: signal(false),
+        setFilterDrawerOpen: vi.fn(), setUserSort: vi.fn(), applyDisplayPreset: vi.fn(),
         setCardWidth: vi.fn(),
         setGalleryMode: vi.fn(),
         setVirtualScroll: vi.fn(),
@@ -798,11 +801,19 @@ describe('GalleryFilterSidebarComponent', () => {
       store['filters'].update((f: object) => ({ ...f, hue_bucket: 'red' })); settle();
       expect(hues().map(button => button.getAttribute('aria-pressed'))).toEqual(['true', 'false']);
       component.selectTab('display'); settle();
+      const owner = TestBed.createComponent(GalleryViewControlsComponent);
+      owner.detectChanges();
+      fixture.componentRef.setInput('layoutControls', owner.componentInstance.sidebarLayoutControls()!); settle();
       const grid = root.querySelector('[aria-label="gallery.layout_grid"]')!;
       const mosaic = root.querySelector('[aria-label="gallery.layout_mosaic"]')!;
       expect([grid.getAttribute('aria-pressed'), mosaic.getAttribute('aria-pressed')]).toEqual(['true', 'false']);
       store['galleryMode'].set('mosaic'); settle();
       expect([grid.getAttribute('aria-pressed'), mosaic.getAttribute('aria-pressed')]).toEqual(['false', 'true']);
+      const list = root.querySelector<HTMLButtonElement>('[data-gallery-layout="list"]')!;
+      list.click(); expect(store['setGalleryMode']).toHaveBeenCalledWith('list');
+      store['galleryMode'].set('list'); owner.detectChanges(); settle();
+      expect(list.getAttribute('aria-pressed')).toBe('true');
+      owner.destroy();
     });
 
     it('explains the person-group cap and refuses a stale autocomplete add at the limit', () => {
@@ -1017,6 +1028,8 @@ describe('GalleryFilterSidebarComponent', () => {
         galleryMode: signal('grid'),
         gpsLocationName: signal(''),
         virtualScroll: signal(false),
+        pinnedPaths: signal(null), slideshowActive: signal(false),
+        setFilterDrawerOpen: vi.fn(), setUserSort: vi.fn(), applyDisplayPreset: vi.fn(),
         setCardWidth: vi.fn(),
         setGalleryMode: vi.fn(),
         setVirtualScroll: vi.fn(),

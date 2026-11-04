@@ -42,6 +42,24 @@ describe('FaceReviewQueueComponent', () => {
   function select(root: HTMLElement) { root.querySelectorAll<HTMLInputElement>('input[type="checkbox"]').forEach(input => input.click()); }
   function preview(root: HTMLElement) { root.querySelector<HTMLButtonElement>('[data-review-selected]')!.click(); }
 
+  it('reload supersedes a pending next page and ignores its late completion', async () => {
+    const { fixture, api } = await render();
+    const oldPage = new Subject<typeof response>();
+    const fresh = { ...response, faces: [response.faces[0]], total_unassigned: 1 };
+    api.get.mockReturnValueOnce(oldPage).mockReturnValueOnce(of(fresh));
+    const component = fixture.componentInstance as any;
+    const pending = component.load(48);
+    expect(component.loading()).toBe(true);
+    component.reload();
+    await Promise.resolve();
+    expect(api.get.mock.calls.slice(-2).map(call => call[1].after_id)).toEqual([48, 0]);
+    expect(component.faces()).toEqual(fresh.faces);
+    oldPage.next(response); oldPage.complete(); await pending;
+    expect(component.faces()).toEqual(fresh.faces);
+    expect(component.total()).toBe(1);
+    expect(component.loading()).toBe(false);
+  });
+
   it('shows the global queue and confirms captured face identities separately for each person', async () => {
     const { fixture, root, api, boxes } = await render();
     expect(root.querySelectorAll('[data-review-face]')).toHaveLength(2);

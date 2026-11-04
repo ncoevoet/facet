@@ -351,7 +351,7 @@ export class MapComponent implements OnInit, OnDestroy {
             const popup = marker.getPopup();
             const el = popup?.getElement()?.querySelector('[data-photo-path]') as HTMLElement | null;
             el?.addEventListener('click', () => {
-              this.router.navigate(['/photo'], { queryParams: { path: photo.path } });
+              this.router.navigate(['/photo'], { queryParams: { path: photo.path }, state: { photoOrigin: 'in-app' } });
             });
           });
 

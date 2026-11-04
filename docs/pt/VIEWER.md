@@ -437,6 +437,7 @@ Campos de resposta e códigos de status: [API.md](../API.md).
   - Uma entrada **Por que esta pontuação?** fixada na base do painel abre o explicador de pontuação (o diálogo de crítica) para a foto que o painel mantém.
   - O painel divide a gaveta com os filtros; abrir os filtros o oculta. Exige uma janela de pelo menos 1280px de largura.
   - **Passar o mouse** e **Clicar** mostram um balão curto: categoria, agregada e posição, estética, composição, nitidez, exposição e uma linha de EXIF.
+  - Abaixo de 768px, **Passar o mouse** fica desabilitado, exceto se já estiver selecionado; redimensionar preserva o gatilho salvo.
 - **Personalizar botões do cartão** — reordene e mostre/oculte os botões da linha que aparece ao passar o cursor em um cartão. Há nove ações: encontrar semelhantes, por que esta pontuação, gravar metadados, atribuir um rosto, abrir o grupo de duplicatas, o grupo de rajada, a série de bracketing/panorâmica ou a pilha de fotos, e abrir a página da foto. Os botões de grupo só aparecem em fotos que pertencem a um grupo. Os botões de grupo de duplicatas e de pilha de fotos vêm ligados; os demais são opcionais. Salvo por navegador.
 - **Ocultar Piscadas** — oculta fotos com piscadas detectadas
 - **Somente piscadas / Somente duplicadas** — mostra apenas as fotos com piscada, ou todos os membros de cada grupo de duplicatas. Os alternadores de ocultação ficam suspensos nessa visualização.
@@ -873,11 +874,11 @@ Grave avaliações, favoritos e rejeições em sidecars XMP para que darktable, 
 
 Baixe fotos pelo detalhe da foto ou pela barra de seleção. O menu de download por foto lista os tipos disponíveis para essa foto, inclusive os perfis darktable configurados:
 
-Um ficheiro RAW associado recém-adicionado pode demorar até cinco minutos a aparecer neste menu.
-
 - **Original** (`original`) — o arquivo como está (JPG/HEIF), ou um RAW convertido em JPEG com a mesma renderização que o visualizador mostra. Um quadro de bracketing baixa, portanto, sem correção de exposição — veja [CONFIGURATION.md](CONFIGURATION.md#quadros-de-bracketing-são-renderizados-sem-correção).
 - **darktable** (`darktable`) — o RAW acompanhante convertido com um perfil darktable nomeado. Recorre ao original se não houver RAW acompanhante.
 - **RAW** (`raw`) — o arquivo RAW acompanhante como está. Não disponível em álbuns compartilhados.
+
+Um ficheiro RAW associado recém-adicionado pode demorar até cinco minutos a aparecer neste menu.
 
 **Recorte social orientado pela saliência.** Com `viewer.features.show_social_export` ligado (padrão `true`) e a edição desbloqueada, a barra de download do detalhe da foto tem um menu **Recorte social**. Ele lista `social_export.presets` (quadrado 1:1, retrato 4:5, story 9:16 por padrão). Escolher um baixa um JPEG de resolução total recortado nessa proporção e centrado no sujeito. O sujeito vem da caixa de sujeito do BiRefNet (`photos.subject_bbox`, de `--recompute-saliency`), senão dos rostos detectados, senão do centro. A dica do menu mostra qual foi usado (`saliency` / `faces` / `center`).
 

@@ -1,6 +1,6 @@
 import { afterNextRender, ChangeDetectionStrategy, Component, computed, DestroyRef, effect, ElementRef, inject, Injector, output, signal, untracked, viewChild } from '@angular/core';
-import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
-import { NavigationCancel, NavigationCancellationCode, NavigationEnd, NavigationError, NavigationSkipped, NavigationStart, Router, RouterLink } from '@angular/router';
+import { Router, RouterLink } from '@angular/router';
+import { trackPendingNavigation } from '../../shared/utils/navigation-settled';
 import { MatButtonModule } from '@angular/material/button';
 import { MatIconModule } from '@angular/material/icon';
 import { SlicePipe } from '@angular/common';
@@ -174,15 +174,16 @@ export class FaceUpdateControlComponent {
   };
   protected readonly problemRows = computed(() => (this.problems()?.items ?? []).map(item => ({ ...item, label: this.problemLabels[item.error_code ?? ''] ?? I18N.persons.face_update.problem_failed })));
 
+  private readonly navigationPending = trackPendingNavigation({
+    started: () => { this.blocked.set(true); this.reset(true); },
+    settled: () => this.blocked.set(!this.ownsRoute()),
+  });
+
   constructor() {
-    this.router.events.pipe(takeUntilDestroyed()).subscribe(event => {
-      if (event instanceof NavigationStart) { this.blocked.set(true); this.reset(true); }
-      else if (event instanceof NavigationEnd || event instanceof NavigationSkipped || event instanceof NavigationError || (event instanceof NavigationCancel && event.code !== NavigationCancellationCode.Redirect)) this.blocked.set(!this.ownsRoute());
-    });
     effect(() => {
       if (!this.scan.canLaunch()) { untracked(() => this.reset(true)); return; }
       this.auth.identity(); this.auth.status();
-      untracked(() => { this.blocked.set(!!this.router.currentNavigation() || !this.ownsRoute()); this.reset(true); });
+      untracked(() => { this.blocked.set(this.navigationPending() || !this.ownsRoute()); this.reset(true); });
     });
     this.destroyRef.onDestroy(() => this.reset(true));
   }

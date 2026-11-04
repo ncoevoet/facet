@@ -2,6 +2,7 @@ import { Injectable, effect, inject } from '@angular/core';
 import { AuthService } from '../../core/services/auth.service';
 import { Photo } from '../../shared/models/photo.model';
 import { MAX_COMPARE_QUEUE } from './comparison-slots.util';
+import { isGalleryCollectionUrl } from '../../shared/utils/url-path';
 
 export interface ComparisonSessionData { photos: Photo[]; returnUrl: string; revision: number }
 
@@ -22,7 +23,7 @@ export class ComparisonSessionService {
 
   start(photos: Photo[], returnUrl: string): boolean {
     if (photos.length < 2 || photos.length > MAX_COMPARE_QUEUE || new Set(photos.map(photo => photo.path)).size !== photos.length) return false;
-    if (!/^\/(?:album\/\d+)?(?:\?|$)/.test(returnUrl)) return false;
+    if (!isGalleryCollectionUrl(returnUrl)) return false;
     this.session = { data: { photos: structuredClone(photos), returnUrl, revision: ++this.revision }, owner: this.auth.identity(), status: this.auth.status(), token: this.auth.token };
     return true;
   }

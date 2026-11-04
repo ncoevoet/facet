@@ -1,6 +1,6 @@
 import type { Mock } from 'vitest';
 import { TestBed } from '@angular/core/testing';
-import { provideRouter } from '@angular/router';
+import { provideRouter, Router } from '@angular/router';
 import { AuthService } from '../../core/services/auth.service';
 import { signal } from '@angular/core';
 import { of, throwError } from 'rxjs';
@@ -39,6 +39,7 @@ describe('TimelineYearsComponent', () => {
         { provide: GalleryStore, useValue: mockStore },
       ],
     });
+    vi.spyOn(TestBed.inject(Router), 'url', 'get').mockReturnValue('/timeline');
     component = TestBed.runInInjectionContext(() => new TimelineYearsComponent());
   });
 

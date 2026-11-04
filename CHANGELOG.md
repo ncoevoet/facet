@@ -63,6 +63,10 @@ All notable changes to Facet are documented in this file.
 
 ### Fixed
 
+- Public album shares cannot sort by private review fields. Photo and comparison Back navigation preserve the originating collection without leaving a direct photo link or duplicating gallery history; cancelled returns remain retryable.
+- Hierarchy editors close when filters change, and refreshed face-review queues supersede older page reads. Catalog removal explains protected bracket frames. Sidebar layouts share Grid, Mosaic and List controls, with consistent Escape handling and touch targets.
+- Export jobs reuse stable source-directory naming inventories while rechecking recent or changed directories; sequence sibling lookup uses its index after database analysis.
+
 - Comparison Back returns to the collection without reopening the workspace on browser Back. Compact navigation, layout controls and review buttons keep consistent alignment, and collection filter labels remain visible.
 
 - Grouped RAW/JPEG culling pages reuse their enriched results without retaining stale primaries, membership or visibility. Similarity thresholds keep their exact value in the cache key.
