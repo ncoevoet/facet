@@ -78,7 +78,7 @@ function createApp(routerUrl = '/', extraProviders: Provider[] = []) {
 }
 
 describe('App', () => {
-  it('initializes the hover breakpoint and removes its listener on destruction', async () => {
+  it.each([true, false])('reads pointer hover capability (%s) and cleans up listeners', async canHover => {
     const get = vi.fn(() => of({}));
     const { app } = createApp('/', [
       { provide: AuthService, useValue: {
@@ -92,18 +92,23 @@ describe('App', () => {
       addEventListener: vi.fn(),
       removeEventListener: vi.fn(),
     } as unknown as MediaQueryList;
+    const hoverMql = { ...mql, matches: canHover, addEventListener: vi.fn(), removeEventListener: vi.fn() };
     const originalMatchMedia = window.matchMedia.bind(window);
     const query = vi.spyOn(window, 'matchMedia').mockImplementation(value =>
-      value === '(min-width: 768px)' ? mql : originalMatchMedia(value),
+      value === '(hover: hover)' ? hoverMql
+        : value === '(min-width: 768px)' ? mql : originalMatchMedia(value),
     );
     try {
       await app.ngOnInit();
       expect(query).toHaveBeenCalledWith('(min-width: 768px)');
+      expect(query).toHaveBeenCalledWith('(hover: hover)');
+      expect((app as unknown as { canHoverAtAll: () => boolean }).canHoverAtAll()).toBe(canHover);
       expect((app as unknown as { canUseHoverTooltips: () => boolean }).canUseHoverTooltips()).toBe(true);
       expect(mql.addEventListener).toHaveBeenCalledWith('change', expect.any(Function));
       const handler = vi.mocked(mql.addEventListener).mock.calls[0][1];
       TestBed.resetTestingModule();
       expect(mql.removeEventListener).toHaveBeenCalledWith('change', handler);
+      expect(hoverMql.removeEventListener).toHaveBeenCalledWith('change', hoverMql.addEventListener.mock.calls[0][1]);
     } finally {
       query.mockRestore();
     }
@@ -1044,14 +1049,34 @@ describe('App', () => {
     it('offers the hover trigger enabled once the viewport is desktop-wide', async () => {
       const { fixture, root, store } = render();
       store.filters.update(filters => ({ ...filters, tooltip_mode: 'click' }));
-      (fixture.componentInstance as unknown as { tooltipCapable: { setMatches: (v: boolean) => void } })
-        .tooltipCapable.setMatches(true);
+      const capability = (fixture.componentInstance as unknown as {
+        tooltipCapable: { setMatches: (v: boolean) => void };
+        hoverCapable: { setMatches: (v: boolean) => void };
+      });
+      capability.tooltipCapable.setMatches(true);
+      capability.hoverCapable.setMatches(true);
       fixture.detectChanges();
       await openMenu(fixture, byLabel(root, I18N.gallery.tooltip_mode.label)[0] as HTMLButtonElement);
       const items = menuItems();
       expect(items.map(item => (item as HTMLButtonElement).disabled)).toEqual([false, true, false, false, false, true]);
       items[3].click();
       expect(store.updateFilter).toHaveBeenLastCalledWith('tooltip_mode', 'hover');
+    });
+
+    it('greys the hover trigger out on a pure touch device at any width', async () => {
+      const { fixture, root, store } = render();
+      store.filters.update(filters => ({ ...filters, tooltip_mode: 'off' }));
+      (fixture.componentInstance as unknown as {
+        tooltipCapable: { setMatches: (v: boolean) => void };
+        hoverCapable: { setMatches: (v: boolean) => void };
+      })
+        .hoverCapable.setMatches(false);
+      fixture.detectChanges();
+      await openMenu(fixture, byLabel(root, I18N.gallery.tooltip_mode.label)[0] as HTMLButtonElement);
+      const items = menuItems();
+      expect((items[3] as HTMLButtonElement).disabled).toBe(true);
+      items[4].click();
+      expect(store.updateFilter).toHaveBeenLastCalledWith('tooltip_mode', 'click');
     });
 
     it('updates the open menu on resize without writing the preference', async () => {
@@ -1061,16 +1086,18 @@ describe('App', () => {
       await openMenu(fixture, byLabel(root, I18N.gallery.tooltip_mode.label)[0] as HTMLButtonElement);
       const capability = (fixture.componentInstance as unknown as {
         tooltipCapable: { setMatches: (v: boolean) => void };
-      }).tooltipCapable;
+        hoverCapable: { setMatches: (v: boolean) => void };
+      });
       const hover = () => menuItems()[3] as HTMLButtonElement;
       expect(hover().disabled).toBe(true);
       hover().click();
       expect(store.updateFilter).not.toHaveBeenCalled();
 
-      capability.setMatches(true);
+      capability.tooltipCapable.setMatches(true);
+      capability.hoverCapable.setMatches(true);
       fixture.detectChanges();
       expect(hover().disabled).toBe(false);
-      capability.setMatches(false);
+      capability.tooltipCapable.setMatches(false);
       fixture.detectChanges();
       expect(hover().disabled).toBe(true);
       expect(store.updateFilter).not.toHaveBeenCalled();

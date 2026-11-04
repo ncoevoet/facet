@@ -148,6 +148,8 @@ class MergeSuggestionsResponse(BaseModel):
     # embedding model's configured default when none was sent. The client seeds its
     # slider from it, so it never has to know a per-model value.
     threshold: float
+    # More eligible, undismissed pairs matched than the response can hold.
+    truncated: bool
 
 
 class ScenePhoto(BaseModel):

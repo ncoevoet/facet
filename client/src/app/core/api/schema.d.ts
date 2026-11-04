@@ -7455,6 +7455,8 @@ export interface components {
             suggestions: components["schemas"]["MergeSuggestion"][];
             /** Threshold */
             threshold: number;
+            /** Truncated */
+            truncated: boolean;
         };
         /**
          * NextPairResponse

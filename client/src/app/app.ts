@@ -55,7 +55,7 @@ import { Photo, normalisePhotoFlagsAll } from './shared/models/photo.model';
 import { DateRangeFilterComponent } from './shared/components/date-range-filter/date-range-filter.component';
 import { I18N, i18nKeys } from './core/i18n/keys';
 import { folderDisplayName } from './features/folders/folders.util';
-import { useDesktopSignal, DETAILS_RAIL_MIN_WIDTH_PX, DEFAULT_BREAKPOINT_PX } from './shared/utils/media-query';
+import { useDesktopSignal, useHoverCapableSignal, DETAILS_RAIL_MIN_WIDTH_PX, DEFAULT_BREAKPOINT_PX } from './shared/utils/media-query';
 import { isUnavailableKey, unavailableSet } from './shared/utils/unavailable-metrics';
 import { MarkTonePipe } from './shared/pipes/mark-tone.pipe';
 
@@ -632,6 +632,10 @@ export class App implements OnInit {
    *  the tooltip-mode menu cannot do anything and is offered disabled. */
   private readonly tooltipCapable = useDesktopSignal({ breakpointPx: DEFAULT_BREAKPOINT_PX });
   protected readonly canUseHoverTooltips = this.tooltipCapable.isDesktop;
+  /** Hover is equally meaningless on a pure touch device at any width: the tap's
+   *  synthetic mouseenter fires once and sticks, so the gallery suppresses it. */
+  private readonly hoverCapable = useHoverCapableSignal();
+  protected readonly canHoverAtAll = this.hoverCapable.isHoverCapable;
 
   protected readonly TILE_FITS = TILE_FITS;
 
@@ -663,7 +667,7 @@ export class App implements OnInit {
     // Below the desktop breakpoint the floating hover bubble never renders; keep the
     // entry visible but unpickable, the same pattern as the panel place above.
     { id: 'hover' as const, icon: 'mouse', label: this.I18N.gallery.tooltip_mode.hover,
-      disabled: !this.canUseHoverTooltips() && this.detailsTrigger() !== 'hover' },
+      disabled: (!this.canUseHoverTooltips() || !this.canHoverAtAll()) && this.detailsTrigger() !== 'hover' },
     { id: 'click' as const, icon: 'touch_app', label: this.I18N.gallery.tooltip_mode.click, disabled: false },
     // The floating popup has no "either" mode; only the side panel does.
     { id: 'both' as const, icon: 'swap_horiz', label: this.I18N.gallery.panel_activation.both,
@@ -702,7 +706,11 @@ export class App implements OnInit {
   async ngOnInit(): Promise<void> {
     this.railCapable.setup();
     this.tooltipCapable.setup();
-    this.destroyRef.onDestroy(() => this.tooltipCapable.cleanup());
+    this.hoverCapable.setup();
+    this.destroyRef.onDestroy(() => {
+      this.tooltipCapable.cleanup();
+      this.hoverCapable.cleanup();
+    });
     this.setupUpdateNotifications();
     await this.i18n.loadLanguages();
     await this.i18n.load();

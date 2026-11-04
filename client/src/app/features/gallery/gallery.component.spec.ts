@@ -909,6 +909,76 @@ describe('GalleryComponent', () => {
     }
   });
 
+  describe('the panel place falls back to the floating tooltip where the rail cannot dock (rendered)', () => {
+    const photos = Array.from({ length: 4 }, (_, n) => ({
+      path: `/p${n}.jpg`, filename: `p${n}.jpg`, image_width: 4000, image_height: 3000,
+      tags_list: [], persons: [],
+    }));
+    let fixture: ComponentFixture<GalleryComponent> | null = null;
+
+    afterEach(() => {
+      fixture?.destroy();
+      fixture = null;
+      vi.unstubAllGlobals();
+    });
+
+    function renderPanel(): HTMLElement[] {
+      mockStore.photos.set(photos);
+      // The floating tooltip fetches its own extras once it renders.
+      Object.assign(mockApi, { get: vi.fn(() => of({})) });
+      mockStore.config.set({ features: { show_rating_controls: true } });
+      // The docked rail would render a full details panel these path-only
+      // stand-in photos cannot fill; the floating bubble is what is asserted on.
+      mockStore.filters.set({ ...DEFAULT_FILTERS, tooltip_mode: 'panel', panel_activation: 'both' });
+      fixture = TestBed.createComponent(GalleryComponent);
+      fixture.detectChanges();
+      return [...fixture.nativeElement.querySelectorAll('app-photo-card')] as HTMLElement[];
+    }
+
+    const floatingTooltips = (): Element[] =>
+      (Array.from(fixture!.nativeElement.querySelectorAll('app-photo-tooltip')) as Element[])
+        .filter(el => !el.closest('[data-details-rail]'));
+
+    it('shows the floating bubble when a card is tapped', () => {
+      const cards = renderPanel();
+      // jsdom's matchMedia is false, so the rail cannot dock: the panel place
+      // must come back as the floating bubble instead of rendering nothing.
+      const tile = cards[0].querySelector('[role="button"]') as HTMLElement;
+      tile.dispatchEvent(new MouseEvent('mouseenter', { bubbles: true }));
+      fixture!.detectChanges();
+      const inst = fixture!.componentInstance as unknown as {
+        tooltipPhoto(): unknown; tooltipX(): number;
+      };
+      expect(inst.tooltipPhoto()).toBeTruthy();
+      expect(inst.tooltipX()).toBeGreaterThan(0);
+      expect(floatingTooltips().length).toBe(1);
+    });
+
+    it('leaves the presentation to the docked rail once the viewport can hold it', () => {
+      // A desktop-wide viewport from the first paint, the way production meets it.
+      vi.stubGlobal('matchMedia', (media: string) => ({
+        matches: true, media, addEventListener() {}, removeEventListener() {},
+      }));
+      renderPanel();
+      const wide = fixture!.componentInstance as unknown as {
+        railWide: { setup(): void };
+        showTooltip(e: unknown, p: unknown): void;
+        tooltipPhoto(): unknown;
+      };
+      wide.railWide.setup();
+      fixture!.detectChanges();
+      // The event chain into showTooltip is bound identically in all three card
+      // loops and pinned by the narrow test; what only this rendered template can
+      // say is that the docked rail, not the floating bubble, shows the photo.
+      wide.showTooltip({ currentTarget: null } as unknown as MouseEvent, photos[0]);
+      fixture!.detectChanges();
+      expect(wide.tooltipPhoto()).toBeTruthy();
+      const floating = floatingTooltips();
+      expect(floating.length).toBe(0); // no floating bubble beside the rail
+      expect(fixture!.nativeElement.querySelector('[data-details-rail] app-photo-tooltip')).toBeTruthy(); // rail holds the photo
+    });
+  });
+
   describe('ngOnInit()', () => {
     it('should call store.loadConfig, loadFilterOptions, loadTypeCounts, and loadPhotos', async () => {
       await component.ngOnInit();
@@ -1908,6 +1978,35 @@ describe('GalleryComponent', () => {
       expect(component['tooltipMode']()).toBe('panel');
       expect(component.panelMode()).toBe(false);
     });
+
+      describe('where the rail cannot dock (narrow or touch viewport)', () => {
+        const cardEvent = () => ({
+          currentTarget: {
+            closest: () => ({
+              getBoundingClientRect: () => ({ left: 120, right: 320, top: 120, height: 160, width: 200 }),
+              querySelector: () => null,
+            }),
+          },
+        }) as unknown as MouseEvent;
+
+        it('the fallback targets a card so the placement maths run for the floating bubble', () => {
+          const photo = { path: '/a.jpg' } as never;
+          component.showTooltip(cardEvent(), photo);
+          expect(component['tooltipPhoto']()).toBe(photo);
+          expect(component['tooltipX']()).not.toBe(0);
+        });
+
+        it('Escape closes the floating fallback before touching the selection', () => {
+          const photo = { path: '/a.jpg' };
+          mockStore.photos.set([photo]);
+          component.showTooltip(cardEvent(), photo as never);
+          mockStore.selectedPaths.set(new Set([photo.path]));
+          (component as unknown as { onGridKeydown(e: unknown): void })
+            .onGridKeydown({ key: 'Escape', preventDefault: vi.fn() });
+          expect(component['tooltipPhoto']()).toBeNull();
+          expect(mockStore.clearSelection).not.toHaveBeenCalled();
+        });
+      });
 
     describe('with a viewport wide enough for the rail', () => {
       beforeEach(() => widenForRail());

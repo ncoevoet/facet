@@ -42,7 +42,7 @@ _SIG_LEN = 16
 _ID_SEP = "."
 _BEARER_SCHEME = "bearer"
 
-_META_COLS = "rowid, caption, date_taken, image_width, image_height"
+_META_COLS = "rowid, caption, date_taken, image_width, image_height, preview_revision"
 _RENDER_COLS = "rowid, path, thumbnail, image_width, image_height"
 
 _IMMUTABLE_HEADERS = {"Cache-Control": "public, max-age=31536000, immutable"}
@@ -79,22 +79,42 @@ def _resolve_token(query_token: str, header_token: Optional[str],
     return query_token
 
 
-def _sign_rowid(rowid: int) -> str:
+def _sign_rowid(rowid: int, revision: Optional[str] = None) -> str:
+    """Signed opaque id for a photo row.
+
+    The optional content revision (``preview_revision``) rides along so a
+    display's ``immutable`` cache key changes when the image is re-rendered in
+    place — photo refresh keeps the rowid, so a revision-less id would pin the
+    old pixels for a year on every client that honoured the header. Old-format
+    ids keep resolving until the display's next poll delivers revised ones."""
+    payload = str(rowid) if revision is None else f"{rowid}.{revision}"
     sig = hmac.new(
-        _secret().encode("utf-8"), str(rowid).encode("utf-8"), hashlib.sha256
+        _secret().encode("utf-8"), payload.encode("utf-8"), hashlib.sha256
     ).hexdigest()[:_SIG_LEN]
-    return f"{rowid}{_ID_SEP}{sig}"
+    return f"{payload}{_ID_SEP}{sig}"
 
 
 def _resolve_id(photo_id: str) -> Optional[int]:
-    """Return the rowid for a valid signed id, or None for a forged/malformed one."""
+    """Return the rowid for a valid signed id, or None for a forged/malformed one.
+
+    Both ``rowid`` and ``rowid.revision`` payloads resolve: the revision exists
+    to change the cache key, not the identity, so any authentic revision serves
+    the row's current image."""
     if not photo_id or _ID_SEP not in photo_id:
         return None
-    rowid_str, _, sig = photo_id.partition(_ID_SEP)
+    parts = photo_id.split(_ID_SEP)
+    if len(parts) == 3:
+        rowid_str, revision, sig = parts
+        payload = f"{rowid_str}.{revision}"
+    elif len(parts) == 2:
+        rowid_str, sig = parts
+        payload = rowid_str
+    else:
+        return None
     if not rowid_str.isdigit():
         return None
     expected = hmac.new(
-        _secret().encode("utf-8"), rowid_str.encode("utf-8"), hashlib.sha256
+        _secret().encode("utf-8"), payload.encode("utf-8"), hashlib.sha256
     ).hexdigest()[:_SIG_LEN]
     if not hmac.compare_digest(expected.encode("utf-8"), sig.encode("utf-8")):
         return None
@@ -207,7 +227,7 @@ def frame_photos(
     photos = []
     for row in rows:
         entry = {
-            "id": _sign_rowid(row["rowid"]),
+            "id": _sign_rowid(row["rowid"], row["preview_revision"]),
             "width": row["image_width"],
             "height": row["image_height"],
         }
