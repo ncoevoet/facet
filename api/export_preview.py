@@ -82,12 +82,32 @@ def _key(path):
     return unicodedata.normalize('NFC', os.path.abspath(path)).casefold()
 
 
+def _entry_packet_claims(entry, wanted=None):
+    from processing.xmp_import import _sidecar_stems
+    from utils.image_loading import WATCHABLE_IMAGE_EXTENSIONS
+
+    if Path(entry.name).suffix.lower() not in WATCHABLE_IMAGE_EXTENSIONS:
+        return ()
+    claims = _sidecar_stems(entry.path)
+    if wanted is not None and not wanted.intersection(claims):
+        return ()
+    return claims if entry.is_file(follow_symlinks=False) or entry.is_symlink() else ()
+
+
+def _check_packet_claims(disk, packets, claims):
+    from api.raw_processing import _companion_entry_path
+    from processing.xmp_import import _image_key
+
+    own_entry = os.path.abspath(_companion_entry_path(Path(disk)))
+    for packet in packets:
+        stem = _image_key(os.path.splitext(packet)[0])
+        if claims.get(stem, set()) - {own_entry}:
+            raise HTTPException(409, 'XMP naming is shared or ambiguous; choose distinct per-image packet names')
+
+
 def _packet_ownership(disk, packets, directories, budget):
     if not packets:
         return
-    from api.raw_processing import _companion_entry_path
-    from processing.xmp_import import _image_key, _sidecar_stems
-    from utils.image_loading import WATCHABLE_IMAGE_EXTENSIONS
 
     directory = os.path.dirname(disk)
     if directory not in directories:
@@ -97,43 +117,36 @@ def _packet_ownership(disk, packets, directories, budget):
                 budget[0] -= 1
                 if budget[0] < 0:
                     raise HTTPException(412, 'Export naming inspection exceeds the folder-entry limit')
-                if (Path(entry.name).suffix.lower() in WATCHABLE_IMAGE_EXTENSIONS
-                        and (entry.is_file(follow_symlinks=False) or entry.is_symlink())):
-                    for packet in _sidecar_stems(entry.path):
-                        claims.setdefault(packet, set()).add(os.path.abspath(entry.path))
+                for packet in _entry_packet_claims(entry):
+                    claims.setdefault(packet, set()).add(os.path.abspath(entry.path))
         directories[directory] = claims
-    for packet in packets:
-        stem = _image_key(os.path.splitext(packet)[0])
-        own_entry = os.path.abspath(_companion_entry_path(Path(disk)))
-        if directories[directory].get(stem, set()) - {own_entry}:
-            raise HTTPException(409, 'XMP naming is shared or ambiguous; choose distinct per-image packet names')
+    _check_packet_claims(disk, packets, directories[directory])
 
 
 def _current_packet_ownership(disk, packets):
     """Recheck current names without rebuilding the folder's complete claims index.
 
-    A directory timestamp cannot prove that another writer introduced no competing
-    name. Keep the fresh enumeration, but query file metadata only for names that
-    could own one of these packets, and retain no unrelated ownership sets.
+    Racy timestamps and Windows creation-time ctime require a fresh enumeration.
+    Query file metadata only for names that could own one of these packets, and
+    retain no unrelated ownership sets.
     """
     if not packets:
         return
     from api.raw_processing import _companion_entry_path
-    from processing.xmp_import import _image_key, _sidecar_stems
-    from utils.image_loading import WATCHABLE_IMAGE_EXTENSIONS
+    from processing.xmp_import import _image_key
 
     wanted = {_image_key(os.path.splitext(packet)[0]) for packet in packets}
     own_entry = os.path.abspath(_companion_entry_path(Path(disk)))
+    claims = {}
     with os.scandir(os.path.dirname(disk)) as entries:
         for index, entry in enumerate(entries):
             if index >= _MAX_DIRECTORY_ENTRIES:
                 raise HTTPException(412, 'Export naming inspection exceeds the folder-entry limit')
-            if (Path(entry.name).suffix.lower() not in WATCHABLE_IMAGE_EXTENSIONS
-                    or not wanted.intersection(_sidecar_stems(entry.path))
-                    or os.path.abspath(entry.path) == own_entry):
+            if os.path.abspath(entry.path) == own_entry:
                 continue
-            if entry.is_file(follow_symlinks=False) or entry.is_symlink():
-                raise HTTPException(409, 'XMP naming is shared or ambiguous; choose distinct per-image packet names')
+            for key in _entry_packet_claims(entry, wanted):
+                claims.setdefault(key, set()).add(os.path.abspath(entry.path))
+    _check_packet_claims(disk, packets, claims)
 
 
 def _filename_tail(name, stem):

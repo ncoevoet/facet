@@ -1285,29 +1285,11 @@ def _migrate_comparisons_user_id(conn):
 # (_migrate_add_missing_columns) still bootstraps every DB to the current
 # column shape; this ladder exists ONLY for non-additive ops the sweep cannot
 # express — renames, type changes, data backfills, index/constraint drops.
-SCHEMA_VERSION = 2
-
-def _preserve_single_member_logical_assets(conn):
-    """Replace only the old cleanup trigger; no membership or primary is guessed."""
-    from db.logical_assets import init_schema as init_logical_assets
-
-    conn.execute('SAVEPOINT logical_asset_continuity_migration')
-    try:
-        conn.execute('DROP TRIGGER IF EXISTS logical_asset_member_delete')
-        init_logical_assets(conn)
-    except BaseException:
-        conn.execute('ROLLBACK TO logical_asset_continuity_migration')
-        conn.execute('RELEASE logical_asset_continuity_migration')
-        raise
-    else:
-        conn.execute('RELEASE logical_asset_continuity_migration')
+SCHEMA_VERSION = 1
 
 
 # Ordered ladder of non-additive migrations: (target_version, fn(conn)).
-# Each fn MUST be idempotent and SHOULD call db.maintenance.backup_database
-# before a destructive step. The continuity migration changes trigger policy only.
-MIGRATIONS: list[tuple[int, Callable[[Any], None]]] = [(2, _preserve_single_member_logical_assets)]
-
+MIGRATIONS: list[tuple[int, Callable[[Any], None]]] = []
 
 def table_exists(conn, name):
     return conn.execute(
@@ -1412,14 +1394,8 @@ def init_database(db_path='photo_scores_pro.db', build_photo_indexes=True):
         init_logical_asset_receipts(conn)
         from db.logical_review import init_schema as init_logical_review
         from db.logical_review_sync import init_receipts as init_logical_review_receipts
-        new_review_authority = not table_exists(conn, 'logical_review_seeds')
         init_logical_review(conn)
         init_logical_review_receipts(conn)
-        if new_review_authority:
-            # One-time adoption for pre-review groups. No logical rating had
-            # existed yet; future primary changes never replace this source.
-            conn.execute('INSERT INTO logical_review_seeds(asset_id,photo_path) '
-                         'SELECT id,primary_path FROM logical_assets')
 
         # Create faces table with unique constraint
         conn.execute(_build_create_table_sql(

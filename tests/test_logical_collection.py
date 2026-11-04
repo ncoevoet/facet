@@ -6,22 +6,17 @@ import pytest
 
 from api.logical_collection import source
 from db import logical_assets as assets, logical_review as review
+from db.schema import init_database
 
 
 @pytest.fixture
-def catalog():
-    conn = sqlite3.connect(":memory:")
+def catalog(tmp_path):
+    database = str(tmp_path / "collection.db")
+    init_database(database, build_photo_indexes=False)
+    conn = sqlite3.connect(database)
     conn.row_factory = sqlite3.Row
-    conn.execute(
-        "CREATE TABLE photos(path TEXT PRIMARY KEY,star_rating INTEGER,is_favorite INTEGER,is_kept INTEGER,is_rejected INTEGER,caption TEXT)"
-    )
-    conn.execute(
-        "CREATE TABLE user_preferences(user_id TEXT,photo_path TEXT,star_rating INTEGER,is_favorite INTEGER,is_kept INTEGER,is_rejected INTEGER,PRIMARY KEY(user_id,photo_path))"
-    )
-    assets.init_schema(conn)
-    review.init_schema(conn)
     conn.executemany(
-        "INSERT INTO photos VALUES (?,?,?,?,?,?)",
+        "INSERT INTO photos(path,star_rating,is_favorite,is_kept,is_rejected,caption) VALUES (?,?,?,?,?,?)",
         [
             ("/a.jpg", 5, 0, 1, 0, "JPEG"),
             ("/a.CR2", 2, 1, 0, 1, "RAW"),
@@ -51,7 +46,7 @@ def test_collection_lookup_stays_bounded_with_stale_small_group_statistics(catal
     conn.execute('ANALYZE')
     for index in range(1000):
         paths = [f'/pair{index}.jpg', f'/pair{index}.CR2']
-        conn.executemany('INSERT INTO photos VALUES (?,0,0,0,0,?)', [(path, path) for path in paths])
+        conn.executemany('INSERT INTO photos(path,star_rating,is_favorite,is_kept,is_rejected,caption) VALUES (?,0,0,0,0,?)', [(path, path) for path in paths])
         assets.create(conn, paths, paths[0], visibility_sql='1=1')
     query = collection(conn)
     remaining = 1000
@@ -98,8 +93,6 @@ def test_sequence_siblings_use_logical_representatives_and_exclude_whole_pairs(c
     from api import config
 
     conn, _ = catalog
-    conn.execute('ALTER TABLE photos ADD COLUMN sequence_kind TEXT')
-    conn.execute('ALTER TABLE photos ADD COLUMN sequence_group_id INTEGER')
     conn.execute("UPDATE photos SET sequence_kind='bracket', sequence_group_id=1")
     monkeypatch.setattr(export, 'get_visibility_clause', lambda _user: ('1=1', []))
     monkeypatch.setattr(config, 'is_multi_user_enabled', lambda: False)
@@ -139,7 +132,7 @@ def test_sparse_null_and_atomic_decision_match_core_resolver(catalog):
 def test_multi_user_fields_never_inherit_global_or_other_account_values(catalog):
     conn, key = catalog
     conn.execute(
-        "INSERT INTO user_preferences VALUES (?,?,?,?,?,?)",
+        "INSERT INTO user_preferences(user_id,photo_path,star_rating,is_favorite,is_kept,is_rejected) VALUES (?,?,?,?,?,?)",
         ("alice", "/a.jpg", 4, 1, 0, 0),
     )
     conn.execute(
@@ -217,8 +210,7 @@ def test_album_and_explicit_exclusions_resolve_either_representation_once(catalo
     from api.logical_collection import membership
 
     conn, key = catalog
-    conn.execute('CREATE TABLE album_photos(album_id INTEGER,photo_path TEXT)')
-    conn.executemany('INSERT INTO album_photos VALUES (?,?)', [(1, '/a.jpg'), (1, '/a.CR2'), (2, '/a.jpg')])
+    conn.executemany('INSERT INTO album_photos(album_id,photo_path) VALUES (?,?)', [(1, '/a.jpg'), (1, '/a.CR2'), (2, '/a.jpg')])
     query = collection(conn)
     for album_id in (1, 2):
         selected = membership('SELECT photo_path FROM album_photos WHERE album_id=?', [album_id])
@@ -247,29 +239,24 @@ def test_private_stack_membership_is_scoped_before_logical_mapping(catalog):
     from api.logical_collection import membership
 
     conn, key = catalog
-    conn.execute('CREATE TABLE photo_stack_members(owner TEXT,stack_id TEXT,photo_path TEXT)')
-    conn.executemany('INSERT INTO photo_stack_members VALUES (?,?,?)',
-                     [('alice', 'stack', '/a.jpg'), ('bob', 'stack', '/b.jpg')])
+    conn.executemany('INSERT INTO photo_stacks(id,owner,cover_path,revision) VALUES (?,?,?,1)',
+                     [('alice-stack', 'alice', '/a.jpg'), ('bob-stack', 'bob', '/b.jpg')])
+    conn.executemany('INSERT INTO photo_stack_members(owner,stack_id,photo_path,position) VALUES (?,?,?,0)',
+                     [('alice', 'alice-stack', '/a.jpg'), ('bob', 'bob-stack', '/b.jpg')])
     query = collection(conn)
     for owner, expected in [('alice', '/a.CR2'), ('bob', '/b.jpg')]:
-        selected = membership('SELECT photo_path FROM photo_stack_members WHERE owner=? AND stack_id=?', [owner, 'stack'])
+        selected = membership('SELECT photo_path FROM photo_stack_members WHERE owner=? AND stack_id=?', [owner, owner + '-stack'])
         rows = conn.execute(f'SELECT path FROM {query.sql} WHERE {selected.sql}',
                             [*query.params, *selected.params]).fetchall()
         assert [row[0] for row in rows] == [expected]
-
-
-def stack_tables(conn):
-    conn.execute('CREATE TABLE photo_stacks(id TEXT,owner TEXT,cover_path TEXT,revision INTEGER)')
-    conn.execute('CREATE TABLE photo_stack_members(stack_id TEXT,owner TEXT,photo_path TEXT,position INTEGER)')
 
 
 def test_logical_stack_projection_counts_pair_once_and_preserves_jpeg_cover(catalog):
     from api.stack_gallery import projection
 
     conn, _ = catalog
-    stack_tables(conn)
-    conn.execute('INSERT INTO photo_stacks VALUES (?,?,?,?)', ('stack', 'alice', '/a.jpg', 1))
-    conn.executemany('INSERT INTO photo_stack_members VALUES (?,?,?,?)',
+    conn.execute('INSERT INTO photo_stacks(id,owner,cover_path,revision) VALUES (?,?,?,?)', ('stack', 'alice', '/a.jpg', 1))
+    conn.executemany('INSERT INTO photo_stack_members(stack_id,owner,photo_path,position) VALUES (?,?,?,?)',
                      [('stack', 'alice', '/a.jpg', 0), ('stack', 'alice', '/a.CR2', 1), ('stack', 'alice', '/b.jpg', 2)])
     query = collection(conn)
     display = projection(query.sql, '', query.params, 'alice', logical=True)
@@ -286,10 +273,9 @@ def test_conflicting_logical_stack_membership_stays_one_standalone_tile(catalog)
     from api.stack_gallery import projection
 
     conn, _ = catalog
-    stack_tables(conn)
-    conn.executemany('INSERT INTO photo_stacks VALUES (?,?,?,?)',
+    conn.executemany('INSERT INTO photo_stacks(id,owner,cover_path,revision) VALUES (?,?,?,?)',
                      [('one', 'alice', '/a.jpg', 1), ('two', 'alice', '/a.CR2', 1), ('foreign', 'bob', '/b.jpg', 1)])
-    conn.executemany('INSERT INTO photo_stack_members VALUES (?,?,?,?)',
+    conn.executemany('INSERT INTO photo_stack_members(stack_id,owner,photo_path,position) VALUES (?,?,?,?)',
                      [('one', 'alice', '/a.jpg', 0), ('two', 'alice', '/a.CR2', 0), ('foreign', 'bob', '/b.jpg', 0)])
     query = collection(conn)
     display = projection(query.sql, '', query.params, 'alice', logical=True)
@@ -305,9 +291,8 @@ def test_logical_stack_total_count_uses_unique_collection_members(catalog, tmp_p
     from api.stack_gallery import enrich_counts
 
     conn, _ = catalog
-    stack_tables(conn)
-    conn.execute('INSERT INTO photo_stacks VALUES (?,?,?,?)', ('stack', 'alice', '/a.jpg', 1))
-    conn.executemany('INSERT INTO photo_stack_members VALUES (?,?,?,?)',
+    conn.execute('INSERT INTO photo_stacks(id,owner,cover_path,revision) VALUES (?,?,?,?)', ('stack', 'alice', '/a.jpg', 1))
+    conn.executemany('INSERT INTO photo_stack_members(stack_id,owner,photo_path,position) VALUES (?,?,?,?)',
                      [('stack', 'alice', '/a.jpg', 0), ('stack', 'alice', '/a.CR2', 1), ('stack', 'alice', '/b.jpg', 2)])
     query = collection(conn)
     conn.commit()

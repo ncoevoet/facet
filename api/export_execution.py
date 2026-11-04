@@ -5,6 +5,7 @@ import hmac
 import logging
 import os
 import shutil
+import time
 
 from fastapi import HTTPException
 
@@ -12,7 +13,7 @@ from api import config, sidecar_jobs
 from api.database import get_db
 from api.export_preview import (
     _companions, _credential_generation, _current_packet_ownership, _digest, _identity, _json, _policy, confirm_export_snapshot,
-    export_metadata, verify_export_preview,
+    export_metadata, verify_export_preview, _packet_ownership,
 )
 from api.models.export_preview import ExportPreviewRequest
 from api.path_validation import resolve_photo_disk_path
@@ -104,9 +105,35 @@ class _Execution:
         self.snapshot = None
         self.units = []
         self.target_directory = None
+        self.naming_key = None
+        self.naming_directories = {}
         # Bound to this job: still read current credentials and signing secret
         # before every file, but derive unchanged generations only once.
         self._credential_generation = lru_cache(maxsize=3)(_credential_generation)
+
+    def check_packet_ownership(self, disk, packets):
+        if not packets:
+            return
+        directory = os.path.dirname(disk)
+        info = os.stat(directory, follow_symlinks=False)
+        identity = (info.st_dev, info.st_ino, info.st_mtime_ns, info.st_ctime_ns)
+        key = (directory, identity)
+        # Keep at most one folder index per job, and never trust a racy timestamp.
+        # Supported Windows Python reports creation time, not change time, as ctime.
+        if _WINDOWS or info.st_ctime_ns >= time.time_ns() - 2_000_000_000:
+            self.naming_key = None
+            self.naming_directories.clear()
+            _current_packet_ownership(disk, packets)
+            return
+        if key != self.naming_key:
+            self.naming_directories.clear()
+            self.naming_key = key
+        _packet_ownership(disk, packets, self.naming_directories, [20000])
+        after = os.stat(directory, follow_symlinks=False)
+        if identity != (after.st_dev, after.st_ino, after.st_mtime_ns, after.st_ctime_ns):
+            self.naming_key = None
+            self.naming_directories.clear()
+            _changed()
 
     def preflight(self):
         try:
@@ -155,7 +182,7 @@ class _Execution:
                     or planned.get('tool_identity') != item['tool_identity']
                     or _identity(item['target']) != item['target_identity']):
                 _changed()
-            _current_packet_ownership(original['path'], [item['target']])
+            self.check_packet_ownership(original['path'], [item['target']])
             return rating
         if self.request.paths is None:
             from api.logical_export import representation
@@ -165,7 +192,7 @@ class _Execution:
             companions = _companions(conn, path, original['path'], self.owner)
             if item['source'] not in companions:
                 _changed()
-            _current_packet_ownership(original['path'],
+            self.check_packet_ownership(original['path'],
                                       [packet for packet in companions if packet.lower().endswith('.xmp')])
         if _validate_target_dir(self.request.target_dir) != self.snapshot['target_dir']:
             _changed()

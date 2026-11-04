@@ -9,6 +9,40 @@ from tests.conftest import _TEST_DB_FILE
 
 
 @pytest.mark.parametrize('smart', [False, True])
+@pytest.mark.parametrize('direction', ['ASC', 'DESC'])
+@pytest.mark.parametrize('multi_user', [False, True])
+def test_public_sort_cannot_reveal_private_rating_tiers(
+        smart, direction, multi_user, seed_photos_prefix, album_factory, anonymous_client, monkeypatch):
+    from api import config
+
+    prefix = f'/recipient-rating-sort/{smart}/{direction}/{multi_user}/'
+    monkeypatch.setitem(config._FULL_CONFIG, 'users', {'test': {'directories': [prefix]}} if multi_user else {})
+    seed_photos_prefix(prefix, [
+        {'path': prefix + 'a.jpg', 'filename': 'a.jpg', 'aggregate': 9, 'star_rating': 5 if multi_user else 1},
+        {'path': prefix + 'b.jpg', 'filename': 'b.jpg', 'aggregate': 3, 'star_rating': 1 if multi_user else 5},
+    ])
+    if multi_user:
+        with sqlite3.connect(_TEST_DB_FILE.name) as conn:
+            conn.executemany('INSERT INTO user_preferences(user_id,photo_path,star_rating) VALUES (?,?,?)',
+                             [('test', prefix + 'a.jpg', 1), ('test', prefix + 'b.jpg', 5)])
+    album_id = album_factory(prefix, 'rating-sort-token', 'Shared')(
+        smart_filter={'path_prefix': prefix, 'sort': 'star_rating', 'sort_direction': direction} if smart else None,
+        member_names=('a.jpg', 'b.jpg'))
+    url = f'/api/shared/album/{album_id}'
+    scope = {'token': 'rating-sort-token', 'sort_direction': direction}
+    expected = ['a.jpg', 'b.jpg'] if direction == 'DESC' else ['b.jpg', 'a.jpg']
+    for sorting in ({'sort': 'aggregate'}, {'sort': 'star_rating'}, *([{}] if smart else [])):
+        response = anonymous_client.get(url, params={**scope, **sorting})
+        assert response.status_code == 200, response.text
+        result = response.json()
+        assert result['effective_sort'] == 'aggregate'
+        assert [photo['filename'] for photo in result['photos']] == expected
+        assert all(photo.get('star_rating') is None for photo in result['photos'])
+        assert not any(option['column'] == 'star_rating'
+                       for options in result.get('sort_options_grouped', {}).values() for option in options)
+
+
+@pytest.mark.parametrize('smart', [False, True])
 def test_recipient_policy_and_private_saved_rules(smart, seed_photos_prefix, album_factory,
                                                  anonymous_client, monkeypatch):
     from api.routers import albums

@@ -41,6 +41,69 @@ def done(job):
     return settle_sidecar_job(DEFAULT_DB_PATH, job['id'], 'test')
 
 
+@pytest.mark.parametrize('racy', [False, True])
+@pytest.mark.parametrize('windows', [False, True])
+def test_job_naming_cache_only_reuses_stable_change_timestamps(tmp_path, monkeypatch, racy, windows):
+    from api import export_execution, export_preview
+    from fastapi import HTTPException
+
+    if os.name == 'nt' and not windows:
+        pytest.skip('POSIX change-time cache requires POSIX stat semantics')
+
+    source = tmp_path / 'a.jpg'
+    source.write_bytes(b'photo')
+    now = source.parent.stat().st_ctime_ns + (0 if racy else 10_000_000_000)
+    monkeypatch.setattr(export_execution.time, 'time_ns', lambda: now)
+    monkeypatch.setattr(export_execution, '_WINDOWS', windows)
+    scans = []
+    real_scan = export_preview.os.scandir
+
+    def scan(path):
+        scans.append(path)
+        return real_scan(path)
+
+    monkeypatch.setattr(export_preview.os, 'scandir', scan)
+    job = export_execution._Execution('unused', None, None, None, 'unused')
+    packet = str(source) + '.xmp'
+    job.check_packet_ownership(str(source), [packet])
+    job.check_packet_ownership(str(source), [packet])
+    assert len(scans) == (2 if racy or windows else 1)
+    other_job = export_execution._Execution('unused', None, None, None, 'unused')
+    other_job.check_packet_ownership(str(source), [packet])
+    assert len(scans) == (3 if racy or windows else 2)
+    stamp = tmp_path.stat()
+    (tmp_path / 'a.jpg.CR2').write_bytes(b'competing owner')
+    os.utime(tmp_path, ns=(stamp.st_atime_ns, stamp.st_mtime_ns))
+    with pytest.raises(HTTPException, match='shared or ambiguous'):
+        job.check_packet_ownership(str(source), [packet])
+
+
+def test_companion_xmp_competitor_between_copy_units_refuses_next_unit(edition_client, library, monkeypatch):
+    from api import export_execution
+
+    paths, target = library
+    packet = Path(str(paths[0]) + '.xmp')
+    packet.write_bytes(b'<xmp>companion</xmp>')
+    before = {path: path.read_bytes() for path in [*paths, packet]}
+    apply, _ = confirmed_body(edition_client, {'paths': [str(paths[0])], 'mode': 'copy',
+                                             'target_dir': str(target), 'include_companions': True})
+    deliver = export_execution._deliver
+
+    def introduce_competitor(*args, **kwargs):
+        result = deliver(*args, **kwargs)
+        Path(str(paths[0]) + '.CR2').write_bytes(b'competing packet owner')
+        return result
+
+    monkeypatch.setattr(export_execution, '_deliver', introduce_competitor)
+    response = edition_client.post('/api/export/apply', json=apply)
+    assert response.status_code == 202, response.text
+    receipt = done(response.json())
+    assert receipt['state'] == 'failed' and receipt['first_error_code'] == 'preview_changed', receipt
+    assert receipt['written'] == 1
+    assert sorted(path.name for path in target.iterdir()) == [paths[0].name]
+    assert {path: path.read_bytes() for path in before} == before
+
+
 @pytest.mark.parametrize('operation', ['sidecars', 'copy', 'symlink'])
 def test_confirmed_job_writes_exact_outputs_and_replay_returns_same_receipt(edition_client, library, operation):
     paths, target = library

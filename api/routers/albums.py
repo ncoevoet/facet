@@ -23,7 +23,7 @@ from api.db_helpers import (
     get_visibility_clause, get_photos_from_clause,
     build_photo_select_columns, sanitize_float_values,
     split_photo_tags, attach_person_data_async, format_date, paginate,
-    is_access_controlled_install, resolve_hide_defaults,
+    is_access_controlled_install, resolve_hide_defaults, get_preference_columns,
 )
 from api.models.albums import AlbumPhotosResponse, SharedAlbumResponse
 from api.models.gallery import BY_PATHS_MISSING_CAP
@@ -1214,7 +1214,8 @@ async def get_shared_album(
                 pass
 
         sort = explicit_sort or saved_sort or 'aggregate'
-        if sort not in VALID_SORT_COLS:
+        private_sort_columns = get_preference_columns()
+        if sort not in VALID_SORT_COLS or sort in private_sort_columns:
             sort = 'aggregate'
         effective_sort_dir = explicit_sort_dir or saved_sort_dir or 'DESC'
         sort_dir = 'ASC' if effective_sort_dir == 'ASC' else 'DESC'
@@ -1287,7 +1288,9 @@ async def get_shared_album(
         }
         _, sort_options_grouped = available_sort_options(await populated_gated_cols_async(conn))
         if sort_options_grouped:
-            result['sort_options_grouped'] = sort_options_grouped
+            public_options = {group: [option for option in options if option['column'] not in private_sort_columns]
+                              for group, options in sort_options_grouped.items()}
+            result['sort_options_grouped'] = {group: options for group, options in public_options.items() if options}
 
         # Include filter options for manual albums (first page only to avoid repeated work)
         if is_manual and page == 1:

@@ -804,7 +804,7 @@ def _sequence_siblings(conn, group_keys, exclude_paths, user_id, *, logical=Fals
     exclude = set(exclude_paths)
     from_sql, source_params = 'photos', []
     exclude_sql, exclude_params = '', []
-    columns = 'path'
+    columns = 'photos.path'
     if logical:
         from api.logical_collection import source, membership, REVIEW_FIELDS
         from api.config import is_multi_user_enabled
@@ -815,16 +815,16 @@ def _sequence_siblings(conn, group_keys, exclude_paths, user_id, *, logical=Fals
         from_sql, source_params = collection.sql, collection.params
         excluded = membership('SELECT value AS photo_path FROM json_each(?)', [json.dumps(sorted(exclude))])
         exclude_sql, exclude_params = f' AND NOT ({excluded.sql})', excluded.params
-        columns = 'path,_logical_asset_id,_logical_primary_path'
+        columns = 'photos.path,photos._logical_asset_id,photos._logical_primary_path'
     seen = set()
     siblings = []
     groups = json.dumps(list(set(group_keys.values())))
     rows = conn.execute(
-        f"SELECT {columns} FROM {from_sql} "
-        "WHERE (sequence_kind, sequence_group_id) IN "
-        "(SELECT json_extract(value, '$[0]'), json_extract(value, '$[1]') FROM json_each(?)) "
+        f"SELECT {columns} FROM json_each(?) AS requested CROSS JOIN {from_sql} "
+        "WHERE sequence_kind = json_extract(requested.value, '$[0]') "
+        "AND sequence_group_id = json_extract(requested.value, '$[1]') "
         f"AND {vis_sql}{exclude_sql}",
-        source_params + [groups] + vis_params + exclude_params,
+        [groups] + source_params + vis_params + exclude_params,
     ).fetchall()
     for r in rows:
         if logical and require_primary and r['_logical_asset_id'] is not None and r['_logical_primary_path'] is None:

@@ -105,8 +105,15 @@ def test_sequence_siblings_resolve_all_groups_in_one_query(tmp_path):
         ('other', 0, {'sequence_kind': 'bracket', 'sequence_group_id': 2}),
     ])
     with _connection(db) as conn:
+        conn.executemany('INSERT INTO photos(path,filename,sequence_kind,sequence_group_id,thumbnail) VALUES (?,?,?,?,?)',
+                         [(f'unrelated-{i}', f'{i}.jpg', 'bracket', 100 + i, b'inline-thumbnail') for i in range(1000)])
+        conn.execute('ANALYZE')
         statements = []
         conn.set_trace_callback(statements.append)
         result = _sequence_siblings(conn, {'a': ('bracket', 1), 'c': ('panorama', 1)}, {'a', 'c'}, None)
+        query = next(statement for statement in statements if statement.lstrip().upper().startswith('SELECT'))
+        plan = [row[3] for row in conn.execute('EXPLAIN QUERY PLAN ' + query)]
+        assert any('SEARCH photos USING' in detail and 'idx_sequence_kind' in detail for detail in plan), plan
+        assert not any(detail.startswith('SCAN photos') for detail in plan), plan
     assert set(result) == {'b', 'd'}
     assert len([statement for statement in statements if statement.lstrip().upper().startswith('SELECT')]) == 1
