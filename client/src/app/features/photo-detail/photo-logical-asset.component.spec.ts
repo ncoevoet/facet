@@ -48,6 +48,7 @@ describe('PhotoLogicalAssetComponent', () => {
 
   it('reads on demand and requires an explicit primary, review and conflict acknowledgment before Apply', () => {
     const { fixture, root, open } = render();
+    document.body.appendChild(root);
     http.expectNone(() => true); open();
     http.expectOne('/api/logical_assets/by-photo?path=/shot.jpg').flush(context); fixture.detectChanges();
     const review = root.querySelector<HTMLButtonElement>('[data-review-group]')!;
@@ -58,13 +59,15 @@ describe('PhotoLogicalAssetComponent', () => {
     request.flush(plan); fixture.detectChanges();
     const apply = root.querySelector<HTMLButtonElement>('[data-apply-group]')!;
     expect(apply.disabled).toBe(true);
-    root.querySelector<HTMLInputElement>('[data-conflict-ack]')!.click(); fixture.detectChanges(); apply.click();
+    root.querySelector<HTMLInputElement>('[data-conflict-ack]')!.click(); fixture.detectChanges(); apply.focus(); apply.click();
     const applied = vi.fn(); fixture.componentInstance.applied.subscribe(applied);
     const write = http.expectOne('/api/logical_assets/apply');
     expect(write.request.body).toEqual({ change: request.request.body, preview_token: 'signed-plan', acknowledge_review_conflicts: true });
     write.flush({ asset_id: 'a'.repeat(32), revision: 1, dissolved: false });
     http.expectOne('/api/logical_assets/by-photo?path=/shot.jpg').flush({ asset: { asset_id: 'a'.repeat(32), revision: 1, primary_path: '/shot.jpg', members }, candidates: [], can_group: false });
     fixture.detectChanges(); expect(root.textContent).toContain('logical_assets.updated');
+    expect(document.activeElement).toBe(root.querySelector('summary'));
+    root.remove();
     expect(applied).toHaveBeenCalledExactlyOnceWith({ operation: 'create', assetId: 'a'.repeat(32), primaryPath: '/shot.jpg', members: ['/shot.jpg', '/shot.CR2'] });
   });
 

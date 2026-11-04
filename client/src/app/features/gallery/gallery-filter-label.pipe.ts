@@ -25,8 +25,8 @@ export function galleryFilterLabel(key: string, translate: (key: string) => stri
     path_prefix: I18N.folders.title, no_gps: I18N.gallery.no_geolocation,
     review_status: I18N.gallery.sidebar.review.decision, favorites_only: I18N.gallery.favorites_only,
     show_rejected: I18N.gallery.sidebar.review.values.only_rejected,
-    blinks_only: I18N.gallery.sidebar.review.desc.blinks_only,
-    duplicates_only: I18N.gallery.sidebar.review.desc.duplicates_only,
+    blinks_only: I18N.gallery.criteria.field_labels.blinks_only,
+    duplicates_only: I18N.gallery.criteria.field_labels.duplicates_only,
     is_monochrome: I18N.gallery.monochrome_only, manual_faces_need_review: I18N.gallery.manual_faces_need_review,
     faces_need_names: I18N.gallery.faces_need_names, search: I18N.gallery.search_chip,
     color_temp: I18N.gallery.color_temp, hue_bucket: I18N.gallery.hue, quality_tier: I18N.gallery.quality_tier,
@@ -38,7 +38,7 @@ export function galleryFilterLabel(key: string, translate: (key: string) => stri
     similar_to: I18N.similar.title, similarity_mode: I18N.similar.similarity, min_similarity: I18N.gallery.criteria.similarity,
     gps_lat: I18N.photo_detail.gps.latitude, gps_lng: I18N.photo_detail.gps.longitude, gps_radius_km: I18N.gallery.gps_radius,
     hide_blinks: I18N.gallery.hide_blinks, hide_bursts: I18N.gallery.hide_bursts, hide_duplicates: I18N.gallery.hide_duplicates,
-    hide_brackets: I18N.gallery.sidebar.refine_help.hide_brackets, hide_panoramas: I18N.gallery.sidebar.refine_help.hide_panoramas,
+    hide_brackets: I18N.gallery.criteria.field_labels.hide_brackets, hide_panoramas: I18N.gallery.criteria.field_labels.hide_panoramas,
     hide_rejected: I18N.rating.hide_rejected,
   };
   return labels[key] ? translate(labels[key]) : key;

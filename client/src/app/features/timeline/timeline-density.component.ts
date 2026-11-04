@@ -8,13 +8,15 @@ import { i18nKeys } from '../../core/i18n/keys';
 import { TranslatePipe } from '../../shared/pipes/translate.pipe';
 import { CaptureDatePipe } from '../../shared/pipes/capture-date.pipe';
 import { GalleryStore } from '../gallery/gallery.store';
+import { TimelineFeedCache } from './timeline-feed-cache.service';
 import { TimelineFiltersService } from './timeline-filters.service';
 import { densityBuckets, densityRange, type DensityBucket, type DensityResponse } from './timeline-density.util';
+import { TimelineLoadFailureComponent } from './timeline-load-failure.component';
 
 @Component({
   selector: 'app-timeline-density',
   standalone: true,
-  imports: [MatButtonModule, TranslatePipe, CaptureDatePipe],
+  imports: [TimelineLoadFailureComponent, MatButtonModule, TranslatePipe, CaptureDatePipe],
   changeDetection: ChangeDetectionStrategy.OnPush,
   host: { class: 'block min-w-0' },
   template: `
@@ -37,8 +39,7 @@ import { densityBuckets, densityRange, type DensityBucket, type DensityResponse 
         </div>
         @if (loading()) { <p role="status" class="text-sm">{{ I18N.ui.labels.loading | translate }}</p> }
         @else if (failed()) {
-          <p role="alert" class="text-sm">{{ I18N.timeline.load_failed | translate }}</p>
-          <button mat-button (click)="retry.update(value => value + 1)">{{ I18N.timeline.retry | translate }}</button>
+          <app-timeline-load-failure (retry)="retry.update(value => value + 1)" />
         } @else {
           @for (period of [year() + '-' + month()]; track period) {
           <div class="flex gap-1 overflow-x-auto pb-2 motion-safe:animate-[facet-calendar-enter_180ms_ease-out]" role="group" [attr.aria-label]="I18N.timeline.density | translate" [attr.aria-describedby]="helpId">
@@ -85,6 +86,7 @@ export class TimelineDensityComponent {
   private readonly auth = inject(AuthService);
   private readonly store = inject(GalleryStore);
   private readonly filters = inject(TimelineFiltersService);
+  private readonly membership = inject(TimelineFeedCache);
   private readonly router = inject(Router);
   readonly year = input('');
   readonly month = input('');
@@ -120,7 +122,7 @@ export class TimelineDensityComponent {
       const open = this.open(); const active = this.active(); const owner = this.auth.status(); const token = this.auth.token;
       const year = this.year(); const month = this.month(); const unit = this.unit(); const visibility = this.store.viewFilterParams();
       const from = this.filters.dateFrom(); const to = this.filters.dateTo();
-      const photos = this.store.photos(); this.retry();
+      const rows = this.membership.rows(); const revision = this.store.timelineMembershipRevision(); this.retry();
       untracked(() => { this.currentRead = null; this.buckets.set([]); this.clearDraft(); this.failed.set(false); this.loading.set(false); });
       if (!open || !active || !owner) return;
       const path = month || (unit === 'week' && year) ? '/timeline/dates' : year ? '/timeline/months' : '/timeline/years';
@@ -128,7 +130,7 @@ export class TimelineDensityComponent {
       this.loading.set(true);
       let valid = true;
       const current = () => valid && token === this.auth.token && owner === this.auth.status() && this.active() && this.open()
-        && year === this.year() && month === this.month() && unit === this.unit() && photos === this.store.photos()
+        && year === this.year() && month === this.month() && unit === this.unit() && rows === this.membership.rows() && revision === this.store.timelineMembershipRevision()
         && visibility === this.store.viewFilterParams() && from === this.filters.dateFrom() && to === this.filters.dateTo();
       this.currentRead = current;
       const request = this.api.get<DensityResponse>(path, params).subscribe({

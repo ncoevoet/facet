@@ -1081,6 +1081,12 @@
   },
   "gallery": {
     "criteria": {
+      "field_labels": {
+        "blinks_only": "Blinks only",
+        "duplicates_only": "Duplicates only",
+        "hide_brackets": "Base exposure only",
+        "hide_panoramas": "Middle frame only"
+      },
       "recent_collections": "Recent collections",
       "recent_help": "Reopens the collection and filters from page one. Keeps your current explicitly selected photos; clears whole-view selection. This tab only; cleared when your account or credentials change.",
       "recent_album": "Album #{id}",

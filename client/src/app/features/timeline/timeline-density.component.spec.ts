@@ -9,6 +9,7 @@ import { densityBuckets, densityRange, timelineWindow, type DensityResponse } fr
 import { ApiService } from '../../core/services/api.service';
 import { AuthService } from '../../core/services/auth.service';
 import { I18nService } from '../../core/services/i18n.service';
+import { makePhoto } from '../../../testing/photo.fixture';
 import { GalleryStore } from '../gallery/gallery.store';
 
 @Component({ template: '' }) class OtherPage {}
@@ -31,10 +32,12 @@ describe('Timeline date density', () => {
   async function render(openOnArrival = false) {
     const api = { get: vi.fn().mockReturnValue(of(years)) };
     const auth = { status: signal({ user_id: 'alice' }), token: 'a' };
+    const photos = signal([makePhoto({ path: '/photo.jpg', date_taken: '2020-01-01' })]);
+    const timelineMembershipRevision = signal(0);
     TestBed.configureTestingModule({ imports: [TimelineDensityComponent, TimelineYearsComponent], providers: [
       provideRouter([{ path: 'timeline', component: OtherPage }, { path: 'elsewhere', component: OtherPage }]),
       { provide: ApiService, useValue: api }, { provide: AuthService, useValue: auth },
-      { provide: GalleryStore, useValue: { viewFilterParams: signal({ hide_bursts: '1' }), photos: signal([]) } },
+      { provide: GalleryStore, useValue: { viewFilterParams: signal({ hide_bursts: '1' }), photos, timelineMembershipRevision } },
       { provide: I18nService, useValue: { t: (key: string, params?: object) => key + (params ? JSON.stringify(params) : ''), translations: () => ({}) } },
     ] });
     const router = TestBed.inject(Router); await router.navigateByUrl(openOnArrival ? '/timeline?density=1' : '/timeline');
@@ -44,8 +47,26 @@ describe('Timeline date density', () => {
     const open = async () => { const details = root.querySelector('details')!; details.open = true; details.dispatchEvent(new Event('toggle')); await settle(); const range = [...root.querySelectorAll<HTMLButtonElement>('button')].find(row => row.textContent?.includes('timeline.select_range')); range?.click(); await settle(); };
     const bars = () => [...root.querySelectorAll<HTMLButtonElement>('[aria-describedby] > button')];
     const button = (key: string) => [...root.querySelectorAll<HTMLButtonElement>('button')].find(row => row.textContent?.includes(key))!;
-    return { fixture, root, api, auth, router, settle, open, bars, button, filters: TestBed.inject(TimelineFiltersService) };
+    return { fixture, root, api, auth, photos, timelineMembershipRevision, router, settle, open, bars, button, filters: TestBed.inject(TimelineFiltersService) };
   }
+
+  it('preserves density and draft selections after review marks, but refreshes changed membership', async () => {
+    const v = await render(); await v.open();
+    v.bars()[0].click(); await v.settle();
+    v.api.get.mockClear();
+    v.photos.update(rows => rows.map(photo => ({ ...photo, star_rating: 4, is_favorite: true, is_kept: true })));
+    await v.settle();
+    expect(v.api.get).not.toHaveBeenCalled();
+    expect(v.bars()[0].getAttribute('aria-pressed')).toBe('true');
+    v.photos.update(rows => rows.map(photo => ({ ...photo, date_taken: '2021-01-01' })));
+    await v.settle();
+    expect(v.api.get).toHaveBeenCalledTimes(1);
+    expect(v.bars().every(bar => bar.getAttribute('aria-pressed') === 'false')).toBe(true);
+    v.api.get.mockClear();
+    v.timelineMembershipRevision.update(value => value + 1); await v.settle();
+    expect(v.api.get).toHaveBeenCalledTimes(1);
+    v.fixture.destroy();
+  });
 
   it('opens the actual disclosure on a drill-down arrival', async () => {
     const v = await render(true);

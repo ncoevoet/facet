@@ -195,4 +195,28 @@ describe('recorded scan history', () => {
     expect(button('scan.retry.preview').disabled).toBe(true);
     expect(apply).toHaveBeenCalledTimes(1);
   });
+  it('reports preview failures, permits a fresh read, pages targets and restores focus on Escape', async () => {
+    await open();
+    previewRead.mockRejectedValueOnce(new Error('offline'));
+    const trigger = button('scan.retry.preview'); trigger.click();
+    await vi.waitFor(() => { fixture.detectChanges(); expect(root.textContent).toContain('scan.retry.preview_error'); });
+    expect(root.querySelector('[data-retry-preview]')).toBeNull();
+    expect(apply).not.toHaveBeenCalled();
+    previewRead.mockResolvedValueOnce({ ...plan, files: Array.from({ length: 45 }, (_, index) => `/p${index}.jpg`) });
+    trigger.click();
+    await vi.waitFor(() => { fixture.detectChanges(); expect(root.querySelector('[data-retry-preview]')).not.toBeNull(); });
+    const paths = () => root.querySelectorAll('[data-retry-preview] li');
+    expect(paths()).toHaveLength(20);
+    button('scan.retry.more_files').click(); fixture.detectChanges(); expect(paths()).toHaveLength(40);
+    button('scan.retry.more_files').click(); fixture.detectChanges(); expect(paths()).toHaveLength(45);
+    expect(root.textContent).not.toContain('scan.retry.more_files');
+    const section = root.querySelector<HTMLElement>('[data-retry-preview]')!;
+    const event = new KeyboardEvent('keydown', { key: 'Escape', bubbles: true, cancelable: true });
+    section.dispatchEvent(event); fixture.detectChanges();
+    expect(event.defaultPrevented).toBe(true);
+    expect(root.querySelector('[data-retry-preview]')).toBeNull();
+    expect(document.activeElement).toBe(trigger);
+    expect(apply).not.toHaveBeenCalled();
+  });
+
 });

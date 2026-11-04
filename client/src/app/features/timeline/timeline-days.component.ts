@@ -1,12 +1,12 @@
 import { Component, inject, signal, input, effect, output, ChangeDetectionStrategy } from '@angular/core';
 import { MatIconModule } from '@angular/material/icon';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
-import { MatButtonModule } from '@angular/material/button';
 import { TimelineCollectionReader } from './timeline-collection-reader';
 import { ThumbnailUrlPipe } from '../../shared/pipes/thumbnail-url.pipe';
 import { TranslatePipe } from '../../shared/pipes/translate.pipe';
 import { TimelineFiltersService } from './timeline-filters.service';
 import { GalleryStore, type ViewFilterParams } from '../gallery/gallery.store';
+import { TimelineLoadFailureComponent } from './timeline-load-failure.component';
 
 interface DateEntry {
   date: string;
@@ -26,7 +26,7 @@ interface CalendarCell {
 @Component({
   selector: 'app-timeline-days',
   standalone: true,
-  imports: [MatIconModule, MatButtonModule, MatProgressSpinnerModule, ThumbnailUrlPipe, TranslatePipe],
+  imports: [TimelineLoadFailureComponent, MatIconModule, MatProgressSpinnerModule, ThumbnailUrlPipe, TranslatePipe],
   changeDetection: ChangeDetectionStrategy.Eager,
   template: `
     @if (loading()) {
@@ -36,8 +36,7 @@ interface CalendarCell {
     }
 
     @if (failed()) {
-      <p role="alert">{{ 'timeline.load_failed' | translate }}</p>
-      <button mat-button (click)="retry.update(value => value + 1)">{{ 'timeline.retry' | translate }}</button>
+      <app-timeline-load-failure (retry)="retry.update(value => value + 1)" />
     }
     @if (!loading() && !failed()) {
       <!-- Day-of-week headers -->

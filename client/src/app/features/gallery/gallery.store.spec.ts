@@ -4425,9 +4425,12 @@ describe('GalleryStore smart-album temporary refinements', () => {
   }
 
   it('keeps album refinements temporary without an implicit write or snackbar', async () => {
- vi.useFakeTimers(); try { await changeFiltersAndSettle(); } finally { vi.useRealTimers(); }
- expect(albumUpdate).not.toHaveBeenCalled(); expect(store.filters().camera).toBe('Canon'); expect(snackOpen).not.toHaveBeenCalled();
-});
+    vi.useFakeTimers();
+    try { await changeFiltersAndSettle(); } finally { vi.useRealTimers(); }
+    expect(albumUpdate).not.toHaveBeenCalled();
+    expect(store.filters().camera).toBe('Canon');
+    expect(snackOpen).not.toHaveBeenCalled();
+  });
 
   it('keeps the saved smart-album decision criterion during a temporary review queue', async () => {
     const get = TestBed.inject(ApiService).get as Mock;
@@ -4459,10 +4462,18 @@ describe('GalleryStore smart-album temporary refinements', () => {
   });
 
   it('keeps a sidebar edit temporary when entering a review queue', async () => {
- const get = TestBed.inject(ApiService).get as Mock; get.mockReturnValue(of(makePhotosResponse()));
- await store.updateFilter('camera', 'Nikon'); await store.startReviewQueue(); TestBed.tick();
- expect(albumUpdate).not.toHaveBeenCalled(); expect(store.filters()).toMatchObject({camera:'Nikon',review_status:'undecided'});
-});
+    const get = TestBed.inject(ApiService).get as Mock;
+    get.mockReturnValue(of(makePhotosResponse()));
+    vi.useFakeTimers();
+    try {
+      await store.updateFilter('camera', 'Nikon');
+      await store.startReviewQueue();
+      TestBed.tick();
+      await vi.advanceTimersByTimeAsync(500);
+      expect(albumUpdate).not.toHaveBeenCalled();
+      expect(store.filters()).toMatchObject({ camera: 'Nikon', review_status: 'undecided' });
+    } finally { vi.useRealTimers(); }
+  });
 
   it('preserves temporary queue mode across reload without changing the saved smart criterion', async () => {
     const get = TestBed.inject(ApiService).get as Mock;
@@ -4507,12 +4518,20 @@ describe('GalleryStore smart-album temporary refinements', () => {
   });
 
   it('leaves the review queue for a temporary sidebar refinement without rewriting saved rules', async () => {
- const get = TestBed.inject(ApiService).get as Mock; get.mockReturnValue(of(makePhotosResponse()));
- store.currentAlbum.set({...smartAlbum,smart_filter_json:JSON.stringify({camera:'Camera B',sort:'filename',sort_direction:'DESC'})});
- store.filters.set({...DEFAULT_FILTERS,camera:'Camera B',sort:'filename',sort_direction:'DESC'});
- await store.startReviewQueue(); await store.updateFilter('camera','Camera C'); TestBed.tick();
- expect(store.filters()).toMatchObject({camera:'Camera C',sort:'filename',sort_direction:'DESC',review_status:''}); expect(albumUpdate).not.toHaveBeenCalled();
-});
+    const get = TestBed.inject(ApiService).get as Mock;
+    get.mockReturnValue(of(makePhotosResponse()));
+    store.currentAlbum.set({ ...smartAlbum, smart_filter_json: JSON.stringify({ camera: 'Camera B', sort: 'filename', sort_direction: 'DESC' }) });
+    store.filters.set({ ...DEFAULT_FILTERS, camera: 'Camera B', sort: 'filename', sort_direction: 'DESC' });
+    vi.useFakeTimers();
+    try {
+      await store.startReviewQueue();
+      await store.updateFilter('camera', 'Camera C');
+      TestBed.tick();
+      await vi.advanceTimersByTimeAsync(500);
+      expect(store.filters()).toMatchObject({ camera: 'Camera C', sort: 'filename', sort_direction: 'DESC', review_status: '' });
+      expect(albumUpdate).not.toHaveBeenCalled();
+    } finally { vi.useRealTimers(); }
+  });
 
   it.each(['single', 'grouped'])('keeps display-only %s edits in the same temporary album query and selection', async mode => {
     const get = TestBed.inject(ApiService).get as Mock;

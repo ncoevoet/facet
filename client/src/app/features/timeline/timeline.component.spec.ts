@@ -182,7 +182,7 @@ describe('TimelineComponent', () => {
           date_from: '2024-06-15',
           date_to: '2024-06-15',
           sort: 'date_taken',
-          sort_direction: 'DESC',
+          sort_direction: 'ASC',
         },
       });
     });

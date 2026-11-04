@@ -2,7 +2,6 @@ import { Component, inject, signal, input, effect, output, ChangeDetectionStrate
 import { DecimalPipe } from '@angular/common';
 import { MatIconModule } from '@angular/material/icon';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
-import { MatButtonModule } from '@angular/material/button';
 import { TimelineCollectionReader } from './timeline-collection-reader';
 import { TranslatePipe } from '../../shared/pipes/translate.pipe';
 import { ThumbnailUrlPipe } from '../../shared/pipes/thumbnail-url.pipe';
@@ -10,6 +9,7 @@ import { TimelineDatePipe } from './timeline-date.pipe';
 import { TimelineFiltersService } from './timeline-filters.service';
 import { GalleryStore, type ViewFilterParams } from '../gallery/gallery.store';
 import { i18nKeys } from '../../core/i18n/keys';
+import { TimelineLoadFailureComponent } from './timeline-load-failure.component';
 
 interface MonthSummary {
   month: string;
@@ -21,7 +21,7 @@ interface MonthSummary {
 @Component({
   selector: 'app-timeline-months',
   standalone: true,
-  imports: [DecimalPipe, MatIconModule, MatButtonModule, MatProgressSpinnerModule, TranslatePipe, ThumbnailUrlPipe, TimelineDatePipe],
+  imports: [TimelineLoadFailureComponent, DecimalPipe, MatIconModule, MatProgressSpinnerModule, TranslatePipe, ThumbnailUrlPipe, TimelineDatePipe],
   changeDetection: ChangeDetectionStrategy.Eager,
   template: `
     @if (loading() && months().length === 0) {
@@ -31,8 +31,7 @@ interface MonthSummary {
     }
 
     @if (failed()) {
-      <p role="alert">{{ I18N.timeline.load_failed | translate }}</p>
-      <button mat-button (click)="retry.update(value => value + 1)">{{ I18N.timeline.retry | translate }}</button>
+      <app-timeline-load-failure (retry)="retry.update(value => value + 1)" />
     }
     @if (!loading() && !failed() && months().length === 0) {
       <div class="text-center py-16 opacity-60">

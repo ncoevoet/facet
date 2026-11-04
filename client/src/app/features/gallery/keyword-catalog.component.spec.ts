@@ -191,4 +191,16 @@ describe('Manual keyword catalog ownership and captured changes', () => {
     expect(component.previewPaths()).toEqual(paths.slice(0, 25));
     component.targetPage.set(1); expect(component.previewPaths()).toEqual([paths[25]]);
   });
+  it.each(['tag', 'tag_groups', 'search', 'smart-album'])('refreshes collection membership after changing keywords scoped by %s', async scope => {
+    build(); await open(); await capture();
+    const store = TestBed.inject(GalleryStore);
+    if (scope === 'smart-album') store.currentAlbum.set({ is_smart: true } as never);
+    else store.filters.update(filters => ({ ...filters, [scope]: scope === 'tag_groups' ? '{"all":["animals/cat"]}' : 'animals/cat' }));
+    const pending = component.apply();
+    http.expectOne('/api/manual_tags/manage/apply').flush({ source: 'animals/cat', target: 'zoo/cat', changed: 2 });
+    const reload = await vi.waitFor(() => http.expectOne(request => request.url === '/api/manual_tags/catalog'));
+    reload.flush(catalog); await pending;
+    expect(refresh).toHaveBeenCalledExactlyOnceWith(null);
+  });
+
 });

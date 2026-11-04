@@ -20,6 +20,13 @@ function translated(bundle: object, key: string): string {
 }
 
 describe('Shared filter label coverage', () => {
+  it('uses concise field labels rather than sidebar explanations in previews and chips', () => {
+    for (const key of ['blinks_only', 'duplicates_only', 'hide_brackets', 'hide_panoramas']) {
+      expect(galleryFilterLabel(key, value => translated(en, value))).toBe(
+        en.gallery.criteria.field_labels[key as keyof typeof en.gallery.criteria.field_labels]);
+    }
+  });
+
   it.each(Object.entries({ en, fr, de, es, it: italian, pt, zh }))('names every persisted and proposed field using existing %s translations', (_lang, bundle) => {
     const proposed = contract.tools.find(tool => tool.name === 'ui_set_gallery_filters')!.inputSchema.properties.patch!.properties!;
     const keys = new Set([...Object.keys(DEFAULT_FILTERS).filter(key => !SMART_ALBUM_EXCLUDE_KEYS.has(key)), ...Object.keys(proposed)]);

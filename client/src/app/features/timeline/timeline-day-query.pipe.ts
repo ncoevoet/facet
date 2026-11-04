@@ -8,11 +8,15 @@ export function timelineGalleryQuery(visibility: ViewFilterParams): Record<strin
     review_status: '', show_rejected: 'false', blinks_only: 'false', duplicates_only: 'false' };
 }
 
+export function timelineDayQuery(date: string, visibility: ViewFilterParams): Record<string, string> {
+  return { ...timelineGalleryQuery(visibility),
+    date_from: date, date_to: date, sort: 'date_taken', sort_direction: 'ASC' };
+}
+
 @Pipe({ name: 'timelineDayQuery', standalone: true })
 export class TimelineDayQueryPipe implements PipeTransform {
   transform(date: string, visibility: ViewFilterParams): Record<string, string> {
-    return { ...timelineGalleryQuery(visibility),
-      date_from: date, date_to: date, sort: 'date_taken', sort_direction: 'ASC' };
+    return timelineDayQuery(date, visibility);
   }
 }
 

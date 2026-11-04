@@ -141,4 +141,75 @@ describe('MovableToolbarDirective', () => {
     expect(panel.style.maxHeight).toBe('522px');
   });
 
+  it.each(['null', '[]', '{}', 'bad json', '{"x":"0.5","up":0}', '{"x":0}',
+    '{"x":-0.1,"up":0}', '{"x":0,"up":-0.1}', '{"x":0,"up":1.1}', '{"x":1e999,"up":0}'])('ignores invalid saved position %s', saved => {
+      localStorage.setItem('facet_selection_bar:alice', saved);
+      expect(setup().bar.style.transform).toBe('translate3d(0px, 0px, 0)');
+    });
+
+  it('loads valid boundary values and treats unavailable storage as optional', () => {
+    localStorage.setItem('facet_selection_bar:alice', '{"x":1,"up":0.5}');
+    const first = setup();
+    expect(first.bar.style.transform).toBe('translate3d(492px, -246px, 0)');
+    first.fixture.destroy();
+    vi.spyOn(Storage.prototype, 'getItem').mockImplementation(() => { throw new Error('disabled'); });
+    const second = setup();
+    expect(second.bar.style.transform).toBe('translate3d(0px, 0px, 0)');
+    vi.spyOn(Storage.prototype, 'setItem').mockImplementation(() => { throw new Error('disabled'); });
+    expect(() => second.key('ArrowRight')).not.toThrow();
+    flush(); expect(second.bar.style.transform).toBe('translate3d(16px, 0px, 0)');
+  });
+
+  it('supports reverse and accelerated keyboard movement, and lets unrelated keys bubble', () => {
+    const { bar, handle, key } = setup();
+    handle.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowRight', shiftKey: true, bubbles: true }));
+    key('ArrowUp'); key('ArrowLeft'); key('ArrowDown'); flush();
+    expect(bar.style.transform).toBe('translate3d(32px, 0px, 0)');
+    const event = new KeyboardEvent('keydown', { key: 'Enter', bubbles: true, cancelable: true });
+    handle.dispatchEvent(event); flush();
+    expect(event.defaultPrevented).toBe(false);
+    expect(bar.style.transform).toBe('translate3d(32px, 0px, 0)');
+    const actionKey = new KeyboardEvent('keydown', { key: 'ArrowRight', bubbles: true, cancelable: true });
+    bar.querySelector('.action')!.dispatchEvent(actionKey); flush();
+    expect(actionKey.defaultPrevented).toBe(false);
+    expect(bar.style.transform).toBe('translate3d(32px, 0px, 0)');
+  });
+
+  it('rejects secondary/nonprimary pointers and ignores mismatched completion', () => {
+    const { bar, handle, pointer } = setup();
+    for (const init of [{ button: 2, isPrimary: true }, { button: 0, isPrimary: false }]) {
+      handle.dispatchEvent(new PointerEvent('pointerdown', { ...init, pointerId: 1, bubbles: true }));
+      pointer(bar, 'pointermove', 100, -100); flush();
+      expect(bar.style.transform).toBe('translate3d(0px, 0px, 0)');
+    }
+    pointer(handle, 'pointerdown', 0, 0);
+    pointer(handle, 'pointerdown', 50, -50, 2);
+    pointer(bar, 'pointermove', 100, -100); flush();
+    pointer(bar, 'pointerup', 100, -100, 2);
+    pointer(bar, 'pointercancel', 100, -100, 2);
+    expect(localStorage.getItem('facet_selection_bar:alice')).toBeNull();
+    pointer(bar, 'pointerup', 100, -100);
+    expect(JSON.parse(localStorage.getItem('facet_selection_bar:alice')!)).toEqual({ x: 100 / 492, up: 100 / 492 });
+  });
+
+  it.each(['Escape', 'Home', 'ArrowRight'])('cancels a drag before the %s command', command => {
+    const { bar, handle, pointer, key } = setup();
+    key('ArrowRight'); flush();
+    pointer(handle, 'pointerdown', 0, 0);
+    pointer(bar, 'pointermove', 100, -100); flush();
+    key(command); flush();
+    expect(bar.style.transform).toBe(command === 'Home' ? 'translate3d(0px, 0px, 0)'
+      : command === 'Escape' ? 'translate3d(16px, 0px, 0)' : 'translate3d(32px, 0px, 0)');
+    pointer(bar, 'pointerup', 100, -100); flush();
+    expect(bar.style.transform).not.toBe('translate3d(116px, -100px, 0)');
+  });
+
+  it('restores a drag on lost pointer capture', () => {
+    const { bar, handle, pointer } = setup();
+    pointer(handle, 'pointerdown', 0, 0); pointer(bar, 'pointermove', 100, -100); flush();
+    pointer(bar, 'lostpointercapture', 100, -100); flush();
+    expect(bar.style.transform).toBe('translate3d(0px, 0px, 0)');
+    expect(localStorage.getItem('facet_selection_bar:alice')).toBeNull();
+  });
+
 });

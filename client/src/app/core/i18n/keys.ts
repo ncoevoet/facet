@@ -1095,6 +1095,12 @@ export const I18N = {
   },
   gallery: {
     criteria: {
+      field_labels: {
+        blinks_only: "gallery.criteria.field_labels.blinks_only",
+        duplicates_only: "gallery.criteria.field_labels.duplicates_only",
+        hide_brackets: "gallery.criteria.field_labels.hide_brackets",
+        hide_panoramas: "gallery.criteria.field_labels.hide_panoramas",
+      },
       recent_collections: "gallery.criteria.recent_collections",
       recent_help: "gallery.criteria.recent_help",
       recent_album: "gallery.criteria.recent_album",

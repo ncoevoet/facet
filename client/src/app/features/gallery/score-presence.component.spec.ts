@@ -93,4 +93,17 @@ describe('rendered measurement policies', () => {
     choose('measured_only');
     expect(update).toHaveBeenLastCalledWith('score_presence', '{"min_sharpness":"measured_only"}');
   });
+  it('refuses unknown modes, unrecognized metrics and changes while the policy is invalid', () => {
+    const component = fixture.componentInstance as unknown as { apply(mode: string): void };
+    component.apply('unknown');
+    expect(update).not.toHaveBeenCalled();
+    fixture.componentRef.setInput('metrics', [{ minKey: 'not_a_metric', labelKey: 'Unknown' }]);
+    fixture.detectChanges(); component.apply('measured_only');
+    expect(update).not.toHaveBeenCalled();
+    fixture.componentRef.setInput('metrics', [{ minKey: 'min_sharpness', labelKey: 'Sharpness' }]);
+    filters.update(current => ({ ...current, score_presence: '{invalid' })); fixture.detectChanges();
+    component.apply('measured_only');
+    expect(update).not.toHaveBeenCalled();
+  });
+
 });

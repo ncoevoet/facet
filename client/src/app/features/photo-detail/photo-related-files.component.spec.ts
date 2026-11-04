@@ -1,4 +1,6 @@
 import { signal } from '@angular/core';
+import { By } from '@angular/platform-browser';
+import { PhotoLogicalAssetComponent } from './photo-logical-asset.component';
 import { TestBed } from '@angular/core/testing';
 import { provideHttpClient } from '@angular/common/http';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
@@ -91,4 +93,28 @@ describe('PhotoRelatedFilesComponent', () => {
     trigger.click(); fixture.detectChanges(); http.expectOne('/api/photo/related_files?path=/shot.jpg').flush(response);
     fixture.detectChanges(); expect(root.textContent).toContain('shot.CR2');
   });
+  it('renders inventory warnings, every candidate label and relays logical changes', () => {
+    const { fixture, root, trigger } = render(); trigger.click(); fixture.detectChanges();
+    http.expectOne('/api/photo/related_files?path=/shot.jpg').flush({ ...response,
+      indexed_images_only: true, multiple_raw_candidates: true,
+      files: [
+        { name: 'shot.jpeg', kind: 'jpeg', state: 'missing', indexed: true, raw_download: false },
+        { name: 'shot.jpg.xmp', kind: 'xmp_full', state: 'unavailable', indexed: false, raw_download: false },
+        { name: 'fallback.xmp', kind: 'xmp_fallback', state: 'link', indexed: false, raw_download: false },
+      ],
+    }); fixture.detectChanges();
+    const text = root.textContent!;
+    for (const label of ['jpeg', 'missing', 'xmp_full', 'unavailable', 'xmp_fallback', 'link', 'indexed', 'multiple_raw']) {
+      expect(text).toContain('related_files.' + label);
+    }
+    const help = root.querySelector<HTMLDetailsElement>('app-context-help details')!;
+    help.open = true; help.dispatchEvent(new Event('toggle')); fixture.detectChanges();
+    expect(help.textContent).toContain('related_files.multi_user_scope');
+    const emitted = vi.fn(); fixture.componentInstance.logicalApplied.subscribe(emitted);
+    const child = fixture.debugElement.query(By.directive(PhotoLogicalAssetComponent)).componentInstance as PhotoLogicalAssetComponent;
+    const change = { operation: 'dissolve' as const, assetId: 'a'.repeat(32), primaryPath: null, members: ['/shot.jpg'] };
+    child.applied.emit(change);
+    expect(emitted).toHaveBeenCalledExactlyOnceWith(change);
+  });
+
 });

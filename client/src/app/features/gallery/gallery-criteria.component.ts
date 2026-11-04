@@ -420,8 +420,8 @@ protected readonly activeFilterChips = computed<{ id: string; labelKey: string; 
     if (f.manual_faces_need_review) chips.push({ id: 'manual_faces_need_review', labelKey: I18N.gallery.manual_faces_need_review, value: '', clearKeys: ['manual_faces_need_review'] });
     for (const [key, labelKey] of [
       ['show_rejected', I18N.gallery.sidebar.review.values.only_rejected],
-      ['blinks_only', I18N.gallery.sidebar.review.desc.blinks_only],
-      ['duplicates_only', I18N.gallery.sidebar.review.desc.duplicates_only],
+      ['blinks_only', I18N.gallery.criteria.field_labels.blinks_only],
+      ['duplicates_only', I18N.gallery.criteria.field_labels.duplicates_only],
       ['faces_need_names', I18N.gallery.faces_need_names],
     ] as const) if (f[key]) chips.push({ id: key, labelKey, value: '', clearKeys: [key] });
 

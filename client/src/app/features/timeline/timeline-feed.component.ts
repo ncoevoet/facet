@@ -16,11 +16,12 @@ import { GalleryStore } from '../gallery/gallery.store';
 import { TimelineFeedCache, type TimelineGroup, type TimelinePage } from './timeline-feed-cache.service';
 import type { Photo } from '../../shared/models/photo.model';
 import { timelineWindow } from './timeline-density.util';
+import { TimelineLoadFailureComponent } from './timeline-load-failure.component';
 
 @Component({
   selector: 'app-timeline-feed',
   standalone: true,
-  imports: [RouterLink, MatButtonModule, MatIconModule, TranslatePipe, ThumbnailUrlPipe, CaptureDatePipe, TimelineDayQueryPipe, TimelinePhotoLinkPipe],
+  imports: [TimelineLoadFailureComponent, RouterLink, MatButtonModule, MatIconModule, TranslatePipe, ThumbnailUrlPipe, CaptureDatePipe, TimelineDayQueryPipe, TimelinePhotoLinkPipe],
   host: { class: 'block min-w-0' },
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
@@ -64,8 +65,7 @@ import { timelineWindow } from './timeline-density.util';
     <div class="flex min-h-16 flex-wrap items-center justify-center gap-2 pb-4" aria-live="polite">
       @if (loading()) { <span role="status">{{ I18N.ui.labels.loading | translate }}</span> }
       @else if (error()) {
-        <span role="alert">{{ I18N.timeline.load_failed | translate }}</span>
-        <button mat-button (click)="loadMore()">{{ I18N.timeline.retry | translate }}</button>
+        <app-timeline-load-failure (retry)="loadMore()" />
       } @else if (groups().length === 0) { <p>{{ I18N.timeline.empty | translate }}</p> }
       @else if (hasMore()) {
         @if (groups().length < 128) {

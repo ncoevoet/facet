@@ -406,6 +406,8 @@ describe('PhotoDetailComponent', () => {
     const view = renderDetail();
     const detail = view.componentInstance as any;
     const remove = vi.spyOn(detail.photoActions, 'removeFromCatalog').mockResolvedValue([]);
+    const trash = vi.spyOn(detail.photoActions, 'deletePhotos').mockResolvedValue(null);
+    const confirmation = vi.spyOn(detail.dialog, 'open');
     for (const state of [{ is_rejected: false, is_kept: false }, { is_rejected: false, is_kept: true }, { is_rejected: true, is_kept: true }]) {
       detail.photo.set(makePhoto(state)); view.detectChanges();
       expect(view.nativeElement.querySelector('[aria-label="photo_detail.remove_catalog.action"]')).toBeNull();
@@ -413,6 +415,8 @@ describe('PhotoDetailComponent', () => {
       detail.deletePhoto();
     }
     expect(remove).not.toHaveBeenCalled();
+    expect(trash).not.toHaveBeenCalled();
+    expect(confirmation).not.toHaveBeenCalled();
     detail.photo.set(makePhoto({ is_rejected: true, is_kept: false })); view.detectChanges();
     const button = view.nativeElement.querySelector('[aria-label="photo_detail.remove_catalog.action"]') as HTMLButtonElement;
     expect(button).not.toBeNull();
@@ -555,7 +559,7 @@ describe('PhotoDetailComponent', () => {
     button.click();
     expect(action).toHaveBeenCalled();
     expect((action.mock.calls[0][0] as { path: string }).path).toBe(view.componentInstance.photo()?.path);
-    expect(mockRouter.currentNavigation()).toBeNull();
+    expect(mockRouter.navigate).not.toHaveBeenCalled();
     expect(section.open).toBe(true);
     expect(document.activeElement).toBe(section.querySelector('summary'));
     view.detectChanges(); await view.whenStable(); view.detectChanges();

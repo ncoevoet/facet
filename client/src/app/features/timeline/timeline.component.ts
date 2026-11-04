@@ -14,7 +14,7 @@ import { TimelineMonthsComponent } from './timeline-months.component';
 import { TimelineDaysComponent } from './timeline-days.component';
 import { TimelineDatePipe } from './timeline-date.pipe';
 import { TimelineFeedComponent } from './timeline-feed.component';
-import { timelineGalleryQuery } from './timeline-day-query.pipe';
+import { timelineDayQuery, timelineGalleryQuery } from './timeline-day-query.pipe';
 import { TimelineDensityComponent } from './timeline-density.component';
 import { CaptureDatePipe } from '../../shared/pipes/capture-date.pipe';
 import { timelineWindow } from './timeline-density.util';
@@ -214,13 +214,7 @@ export class TimelineComponent {
 
   protected onDaySelected(date: string): void {
     this.router.navigate(['/'], {
-      queryParams: {
-        ...this.galleryVisibility(),
-        date_from: date,
-        date_to: date,
-        sort: 'date_taken',
-        sort_direction: 'DESC',
-      },
+      queryParams: timelineDayQuery(date, this.store.viewFilterParams()),
     });
   }
 

@@ -1056,6 +1056,12 @@
   },
   "gallery": {
     "criteria": {
+      "field_labels": {
+        "blinks_only": "Solo occhi chiusi",
+        "duplicates_only": "Solo duplicati",
+        "hide_brackets": "Solo esposizione di base",
+        "hide_panoramas": "Solo fotogramma centrale"
+      },
       "recent_collections": "Raccolte recenti",
       "recent_help": "Riapre la raccolta e i filtri dalla prima pagina. Conserva le foto attualmente selezionate esplicitamente; cancella la selezione dell’intera vista. Solo in questa scheda; cancellata al cambio di account o credenziali.",
       "recent_album": "Album n. {id}",

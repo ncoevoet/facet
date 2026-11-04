@@ -2,13 +2,13 @@ import { Component, inject, signal, effect, output, ChangeDetectionStrategy } fr
 import { DecimalPipe } from '@angular/common';
 import { MatIconModule } from '@angular/material/icon';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
-import { MatButtonModule } from '@angular/material/button';
 import { TimelineCollectionReader } from './timeline-collection-reader';
 import { TranslatePipe } from '../../shared/pipes/translate.pipe';
 import { ThumbnailUrlPipe } from '../../shared/pipes/thumbnail-url.pipe';
 import { TimelineFiltersService } from './timeline-filters.service';
 import { GalleryStore, type ViewFilterParams } from '../gallery/gallery.store';
 import { i18nKeys } from '../../core/i18n/keys';
+import { TimelineLoadFailureComponent } from './timeline-load-failure.component';
 
 interface YearSummary {
   year: string;
@@ -20,7 +20,7 @@ interface YearSummary {
 @Component({
   selector: 'app-timeline-years',
   standalone: true,
-  imports: [DecimalPipe, MatIconModule, MatButtonModule, MatProgressSpinnerModule, TranslatePipe, ThumbnailUrlPipe],
+  imports: [TimelineLoadFailureComponent, DecimalPipe, MatIconModule, MatProgressSpinnerModule, TranslatePipe, ThumbnailUrlPipe],
   changeDetection: ChangeDetectionStrategy.Eager,
   template: `
     @if (loading() && years().length === 0) {
@@ -30,8 +30,7 @@ interface YearSummary {
     }
 
     @if (failed()) {
-      <p role="alert">{{ I18N.timeline.load_failed | translate }}</p>
-      <button mat-button (click)="retry.update(value => value + 1)">{{ I18N.timeline.retry | translate }}</button>
+      <app-timeline-load-failure (retry)="retry.update(value => value + 1)" />
     }
     @if (!loading() && !failed() && years().length === 0) {
       <div class="text-center py-16 opacity-60">

@@ -1056,6 +1056,12 @@
   },
   "gallery": {
     "criteria": {
+      "field_labels": {
+        "blinks_only": "仅眨眼照片",
+        "duplicates_only": "仅重复照片",
+        "hide_brackets": "仅基础曝光",
+        "hide_panoramas": "仅中间帧"
+      },
       "recent_collections": "最近的照片集",
       "recent_help": "从第一页重新打开照片集及筛选条件。保留当前明确选中的照片，清除整视图选择。仅限当前标签页；切换账户或凭据后清除记录。",
       "recent_album": "相册 #{id}",

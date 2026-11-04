@@ -1056,6 +1056,12 @@
   },
   "gallery": {
     "criteria": {
+      "field_labels": {
+        "blinks_only": "Clignements uniquement",
+        "duplicates_only": "Doublons uniquement",
+        "hide_brackets": "Exposition de base uniquement",
+        "hide_panoramas": "Image centrale uniquement"
+      },
       "recent_collections": "Collections récentes",
       "recent_help": "Rouvre la collection et les filtres à la première page. Conserve les photos actuellement sélectionnées explicitement ; efface la sélection de toute la vue. Dans cet onglet uniquement ; effacé lors d’un changement de compte ou d’identifiants.",
       "recent_album": "Album nº {id}",

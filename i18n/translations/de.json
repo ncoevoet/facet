@@ -1056,6 +1056,12 @@
   },
   "gallery": {
     "criteria": {
+      "field_labels": {
+        "blinks_only": "Nur Blinzler",
+        "duplicates_only": "Nur Duplikate",
+        "hide_brackets": "Nur Basisbelichtung",
+        "hide_panoramas": "Nur mittleres Bild"
+      },
       "recent_collections": "Letzte Sammlungen",
       "recent_help": "Öffnet Sammlung und Filter ab der ersten Seite. Behält die aktuell ausdrücklich ausgewählten Fotos; hebt eine Auswahl der ganzen Ansicht auf. Nur in diesem Tab; wird bei einem Konto- oder Anmeldedatenwechsel gelöscht.",
       "recent_album": "Album #{id}",

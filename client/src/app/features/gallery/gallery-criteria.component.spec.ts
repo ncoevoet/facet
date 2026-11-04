@@ -544,4 +544,50 @@ describe('collection criteria ownership and full disclosure', () => {
     expect(root.querySelector('[data-active-criteria]')?.textContent).toContain('red boat');
     expect(root.querySelector('[data-active-criteria]')?.textContent).toContain('holiday');
   });
+  it('renders measurement, tag, location, sequence, search and album criteria with their exact removal targets', () => {
+    const { fixture, app, filtersSignal, mockStore } = createCriteria();
+    mockStore.currentAlbum.set({ id: 9, name: 'Weekend' } as any);
+    mockStore.gpsLocationName.set('Park');
+    filtersSignal.set({ ...DEFAULT_FILTERS, album_id: '9', semanticQuery: 'red boat', search_threshold: '60',
+      score_presence: '{"min_sharpness":"missing_only"}', min_sharpness: '4',
+      tag_groups: '{"all":["coast"],"any":["ridge"],"none":["rain"]}',
+      gps_lat: '0.5', gps_lng: '12.3', gps_radius_km: '5', sequence_override: 'pending' });
+    fixture.detectChanges();
+    const chips = (app as any).activeFilterChips() as { id: string; value: string; clearKeys: string[] }[];
+    const chip = (id: string) => chips.find(row => row.id === id)!;
+    expect(chip('album')).toMatchObject({ value: 'Weekend', clearKeys: ['album_id'] });
+    expect(chip('semanticQuery').value).toBe('red boat');
+    expect(chip('search_threshold').value).toBe('60%');
+    expect(chip('score_presence').value).toContain(I18N.gallery.measurements.missing_only);
+    expect(chips.some(row => row.id === 'min_sharpness')).toBe(false);
+    expect(chip('tag_groups').value).toContain('"coast"');
+    expect(chip('tag_groups').value).toContain('"rain"');
+    expect(chip('gps')).toMatchObject({ value: 'Park — 5 km', clearKeys: ['gps_lat', 'gps_lng', 'gps_radius_km'] });
+    expect(chip('sequence_override').value).toBe('gallery.sequence_override.pending');
+    (app as any).clearFilterChip(chip('gps'));
+    expect(mockStore.updateFilters).toHaveBeenCalledExactlyOnceWith({ gps_lat: '', gps_lng: '', gps_radius_km: '' });
+    expect(fixture.nativeElement.querySelector('[data-active-criteria]').textContent).toContain('Weekend');
+    filtersSignal.update(current => ({ ...current, score_presence: 'bad json', tag_groups: 'bad json', album_id: '99', gps_radius_km: '' }));
+    mockStore.currentAlbum.set(null); mockStore.gpsLocationName.set(''); fixture.detectChanges();
+    const next = (app as any).activeFilterChips() as { id: string; value: string }[];
+    expect(next.find(row => row.id === 'album')?.value).toBe('#99');
+    expect(next.find(row => row.id === 'score_presence')?.value).toBe(I18N.gallery.measurements.invalid);
+    expect(next.find(row => row.id === 'tag_groups')?.value).toBe(I18N.gallery.tag_groups.invalid);
+    expect(next.find(row => row.id === 'gps')?.value).toBe('0.50, 12.30');
+  });
+
+  it.each(['favorites', 'undecided', 'kept', 'rejected'] as const)('toggles %s refinements without changing unrelated fields', command => {
+    const { app, fixture, filtersSignal, mockStore } = createCriteria(); fixture.detectChanges();
+    const key = command === 'favorites' ? 'favorites_only' : 'review_status';
+    (app as any).quickFilter(command);
+    expect(mockStore.updateFilter).toHaveBeenLastCalledWith(key, command === 'favorites' ? true : command);
+    filtersSignal.update(current => ({ ...current, [key]: command === 'favorites' ? true : command, camera: 'Alpha' }));
+    fixture.detectChanges(); (app as any).quickFilter(command);
+    expect(mockStore.updateFilter).toHaveBeenLastCalledWith(key, command === 'favorites' ? false : '');
+    expect(filtersSignal().camera).toBe('Alpha');
+    expect(mockStore.updateFilters).not.toHaveBeenCalled();
+    app.setActive(false); mockStore.updateFilter.mockClear(); (app as any).quickFilter(command);
+    expect(mockStore.updateFilter).not.toHaveBeenCalled();
+  });
+
 });

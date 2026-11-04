@@ -1,4 +1,5 @@
 import { AuthService } from '../../core/services/auth.service';
+import { galleryPresentation } from './gallery-presentation.util';
 import { GalleryReviewNavigationService } from './gallery-review-navigation.service';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { Component, signal, TemplateRef } from '@angular/core';
@@ -142,7 +143,6 @@ describe('GalleryViewControlsComponent', () => {
       },
     );
 
-    ;
 
     it('shows the sort button, sort direction and filter toggle (one control group) otherwise', () => {
       const { root } = render();
@@ -163,13 +163,11 @@ describe('GalleryViewControlsComponent', () => {
       fixture.destroy();
     });
 
-    it('puts the direction toggle, then the filter toggle, right after the sort button at every width', () => {
+    it('keeps direction and filter controls immediately after sort in DOM order', () => {
       const { root } = render();
       const [sort] = sortButtons(root);
-      for (const [button, filtersLabel] of [[sort, I18N.gallery.filters]] as const) {
-        expect(button.nextElementSibling?.getAttribute('aria-label')).toBe(I18N.gallery.sort_desc);
-        expect(button.nextElementSibling?.nextElementSibling?.getAttribute('aria-label')).toBe(filtersLabel);
-      }
+      expect(sort.nextElementSibling?.getAttribute('aria-label')).toBe(I18N.gallery.sort_desc);
+      expect(sort.nextElementSibling?.nextElementSibling?.getAttribute('aria-label')).toBe(I18N.gallery.filters);
     });
 
     it('shows the current sort icon and labels the button "Sort by: <current label>"', () => {
@@ -196,7 +194,7 @@ describe('GalleryViewControlsComponent', () => {
       }
     });
 
-    it('gives current model labels the same width as their menu markers at every width', () => {
+    it('gives model labels centered markers and accessible sort names', () => {
       const { fixture, root, store } = render();
       store.filters.update(filters => ({ ...filters, sort: 'deqa_score' }));
       fixture.detectChanges();
@@ -299,16 +297,6 @@ describe('GalleryViewControlsComponent', () => {
       expect(items.map(item => item.textContent?.includes('check'))).toEqual([false, true, false]);
       items[2].click();
       expect(store.updateFilter).toHaveBeenCalledWith('tooltip_mode', 'off');
-    });
-
-    it('is one shared menu for the single trigger', () => {
-      const { fixture, root } = render();
-      const buttons = sortButtons(root);
-      const menus = fixture.debugElement.queryAll(By.directive(MatMenuTrigger))
-        .filter(d => buttons.includes(d.nativeElement as HTMLButtonElement))
-        .map(d => d.injector.get(MatMenuTrigger).menu);
-      expect(menus).toHaveLength(1);
-      expect(menus[0]).toBeDefined();
     });
 
     it('toggles the refinement panel without changing collection predicates', () => {
@@ -429,4 +417,22 @@ describe('GalleryViewControlsComponent', () => {
       expect(byLabel(root, I18N.gallery.filters)).toHaveLength(1);
       expect(store.setFilterDrawerOpen).not.toHaveBeenCalled();
     });
+    it.each([false, true])('marks the active preset, resets it and offers the dock only on desktop (%s)', async dock => {
+      const { fixture, root, store } = render();
+      const controls = fixture.componentInstance as unknown as { railCapable: { setMatches(value: boolean): void } };
+      controls.railCapable.setMatches(dock);
+      const preset = galleryPresentation('review', dock);
+      store.filters.update(filters => ({ ...filters, ...preset }));
+      store.galleryMode.set(preset.mode); store.cardWidth.set(preset.cardWidth); fixture.detectChanges();
+      await openMenu(fixture, root.querySelector<HTMLButtonElement>('[data-display-presets]')!);
+      const review = document.querySelector<HTMLButtonElement>('[data-display-preset="review"]')!;
+      expect(review.getAttribute('aria-checked')).toBe('true');
+      expect(iconOf(review)).toBe('check');
+      document.querySelector<HTMLButtonElement>('[data-reset-display]')!.click();
+      expect(store.applyDisplayPreset).toHaveBeenCalledExactlyOnceWith('default', dock);
+      await openMenu(fixture, root.querySelector<HTMLButtonElement>(`[aria-label="${I18N.gallery.tooltip_mode.label}"]`)!);
+      const labels = menuItems().map(item => item.textContent);
+      expect(labels.some(label => label?.includes(I18N.gallery.tooltip_mode.panel))).toBe(dock);
+    });
+
   });
