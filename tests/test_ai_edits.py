@@ -464,6 +464,29 @@ def test_an_original_without_a_caption_gives_just_the_ai_line(edition_client, li
     assert caption == 'AI: brighten faces'
 
 
+def test_an_edit_imported_under_a_deleted_edits_name_gets_a_new_thumbnail_key(
+        edition_client, library, seed_photos_prefix):
+    """Deleting an edit frees its number, so the next import reuses the path. Clients cache
+    thumbnails by path + preview_revision; a fresh revision keeps the old picture from showing."""
+    def import_and_scan(name):
+        target = _import(edition_client, library, _jpeg(library['work'] / name)).json()['edit_path']
+        seed_photos_prefix(target, [{
+            'path': target, 'filename': os.path.basename(target), 'aggregate': 5.0,
+            'category': 'default', 'date_taken': '2026:02:01 10:00:00'}])
+        with sqlite3.connect(_TEST_DB_FILE.name) as conn:
+            apply_ai_edit_captions(conn)
+            return target, conn.execute('SELECT preview_revision FROM photos WHERE path = ?', (target,)).fetchone()[0]
+
+    first, first_key = import_and_scan('a.jpg')
+    with sqlite3.connect(_TEST_DB_FILE.name) as conn:
+        conn.execute('DELETE FROM photos WHERE path = ?', (first,))   # the delete trigger drops the link row
+    os.remove(first)
+    second, second_key = import_and_scan('b.jpg')
+
+    assert second == first
+    assert first_key and second_key and second_key != first_key
+
+
 @pytest.mark.parametrize('states,expected', [
     ([(True, False), (True, True), (False, True)], True),   # the scan finishes with the photo
     ([(True, False), (False, False)], False),               # the scan ends without it (failed)
