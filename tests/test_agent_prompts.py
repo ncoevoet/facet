@@ -11,9 +11,9 @@ import pytest
 
 from api.agent.tools_common import TOOL_LEVELS
 
-PROMPTS = {"find_photo", "cull_shoot", "build_album", "tag_people", "teach_taste"}
+PROMPTS = {"find_photo", "cull_shoot", "build_album", "tag_people", "teach_taste", "edit_photo"}
 PROMPT_ARGS = {"find_photo": {"description": "d"}, "cull_shoot": {}, "build_album": {"theme": "t"},
-               "tag_people": {}, "teach_taste": {}}
+               "tag_people": {}, "teach_taste": {}, "edit_photo": {"change": "c"}}
 # Backticked identifiers a prompt may use that are arguments or flags, not tools.
 NON_TOOL_IDENTS = ("show_false", "dry_run", "min_similarity")
 
@@ -190,6 +190,29 @@ class TestSweep:
         env, token = edition_env
         assert "undo" not in self.text(env, token, "build_album", {"theme": "t"})
         assert "undo" not in self.text(env, token, "tag_people")
+
+    def test_edit_photo_names_the_configured_tools_and_keeps_the_library_read_only(self, edition_env):
+        env, token = edition_env
+        body = self.text(env, token, "edit_photo", {"change": "unblur the boy", "photo": "/p/IMG_1.JPG"})
+        assert "`import_ai_edit`" in body and "`get_photo` on that path" in body
+        assert '"antigravity-gemini" (files tagged _agy_)' in body
+        assert '"openai-chatgpt" (files tagged _gpt_)' in body and '"anthropic-claude" (files tagged _ant_)' in body
+        assert "never write, rename or overwrite anything in the library" in body
+        assert "unblur the boy" in body
+        assert "`search_photos`" in self.text(env, token, "edit_photo", {"change": "c", "photo": "Peter laughing"})
+
+    def test_edit_photo_sends_bytes_never_a_path_to_take(self, edition_env, monkeypatch):
+        from api.routers import ai_edits
+
+        env, token = edition_env
+        args = {"change": "c", "photo": "/p/IMG_1.JPG"}
+        monkeypatch.setattr(ai_edits, "drop_dir", lambda: None)
+        body = self.text(env, token, "edit_photo", args)
+        assert "as image_data" in body and "source_file" not in body and "move" not in body
+        monkeypatch.setattr(ai_edits, "drop_dir", lambda: "/srv/facet-drop")
+        body = self.text(env, token, "edit_photo", args)
+        assert "as source_file" in body and "/srv/facet-drop" in body
+        assert "delete it from the drop folder once the import succeeds" in body
 
     def test_teach_taste_says_the_agent_cannot_answer_a_pair(self, edition_env):
         env, token = edition_env

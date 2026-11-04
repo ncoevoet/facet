@@ -277,6 +277,16 @@ const DEFAULT_CLIPPING_BADGE_PERCENT = 5;
           </div>
         }
 
+        <!-- An AI edit: ✨ is kept for what an AI made or picked. Top centre, the one
+             edge no other badge uses; like the clipping badge it fades under the hover bar. -->
+        @if (photo().ai_edit_of) {
+          <div class="absolute top-1.5 left-1/2 -translate-x-1/2 z-20 pointer-events-none flex items-center gap-1 px-1.5 py-0.5 rounded bg-black/60 text-white text-[11px] font-semibold transition-opacity md:group-hover/img:opacity-0"
+               [attr.aria-label]="'photo_detail.ai_edit.badge' | translate">
+            <mat-icon class="!text-sm !w-4 !h-4 !leading-4 !text-amber-300" aria-hidden="true">auto_awesome</mat-icon>
+            <span aria-hidden="true">{{ 'photo_detail.ai_edit.badge_short' | translate }}</span>
+          </div>
+        }
+
         <!-- Keeper hint: a better shot exists in this group (learned keeper head) -->
         @if (badges().keeper_hint && photo().keeper_hint?.has_better) {
           <div class="absolute top-1.5 left-3 z-20 pointer-events-none flex items-center gap-1 px-1.5 py-0.5 rounded bg-black/60 transition-opacity md:group-hover/img:opacity-0">

@@ -526,6 +526,12 @@ def create_app() -> FastAPI:
     pol = licensing.resolve_policy(_FULL_CONFIG)
     licensing.set_policy(pol.mode, pol.allow_unclear)
 
+    # The AI-edit import refuses an oversized body while it streams in, not after buffering it.
+    # Added first, so it is the innermost middleware: its receive is the one the route reads
+    # (a BaseHTTPMiddleware outside it would turn its 413 into a 400 parse error).
+    from api.routers.ai_edits import ImportBodyLimit
+    app.add_middleware(ImportBodyLimit)
+
     # Request logging middleware — requests slower than the configured
     # threshold (performance.slow_request_ms) are logged at WARNING.
     slow_request_ms = int(_FULL_CONFIG.get("performance", {}).get("slow_request_ms", 1000))
@@ -602,12 +608,14 @@ def create_app() -> FastAPI:
     from api.routers.immich_diagnostics import router as immich_diagnostics_router
     from api.routers.updates import router as updates_router
     from api.routers.mcp_tokens import router as mcp_tokens_router
+    from api.routers.ai_edits import router as ai_edits_router
 
     from api.routers.photo_refresh import router as photo_refresh_router
     app.include_router(photo_refresh_router)
     app.include_router(health_router)
     app.include_router(auth_router)
     app.include_router(gallery_router)
+    app.include_router(ai_edits_router)
     app.include_router(thumbnails_router)
     app.include_router(filter_options_router)
     app.include_router(faces_router)

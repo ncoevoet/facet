@@ -2713,6 +2713,10 @@
       "open_in_gallery": "Ouvrir ce groupe dans la galerie",
       "member_position": "Image {position} sur {count}"
     },
+    "ai_edit": {
+      "badge": "Retouche IA",
+      "badge_short": "IA"
+    },
     "delete": {
       "button_label": "Supprimer",
       "confirm_title": "Supprimer cette photo ?",
@@ -3134,7 +3138,8 @@
       "create_photo_stack": "Pile de photos créée",
       "update_photo_stack": "Pile de photos modifiée",
       "unstack_photos": "Pile de photos dissociée",
-      "undo_photo_stack": "Modification de pile annulée"
+      "undo_photo_stack": "Modification de pile annulée",
+      "import_ai_edit": "A importé une retouche IA"
     },
     "ui": {
       "ui_navigate": "Page ouverte",

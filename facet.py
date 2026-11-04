@@ -2123,6 +2123,12 @@ def _run_scan(args, resumed_run):
     scorer.commit()
     ledger.end('finalize')
 
+    # 3b. Caption newly scanned AI edits: the original's caption plus "AI: <note>".
+    from db.ai_edits import apply_ai_edit_captions
+    with sqlite3.connect(scorer.db_path) as conn:
+        if apply_ai_edit_captions(conn):
+            conn.commit()
+
     # 4. Process bursts
     # Note: Run --cluster-faces-incremental separately if person_ids are needed for grouping
     emit_progress('bursts', force=True)

@@ -32,7 +32,7 @@ LEVELS = ("readonly", "user", "edition")
 TOOL_ROUTES = {
     "get_photo_stack": ["get_photo_stack"], "create_photo_stack": ["create_photo_stack"],
     "update_photo_stack": ["update_photo_stack"], "unstack_photos": ["unstack_photos"],
-    "undo_photo_stack": ["undo_photo_stack"],
+    "undo_photo_stack": ["undo_photo_stack"], "import_ai_edit": ["import_ai_edit"],
     "search_photos": ["search_photos"], "semantic_search": ["semantic_search", "photos_by_paths"],
     "get_photo": ["get_photo", "photo_objects"], "possible_faces": ["possible_faces"], "assign_faces": ["assign_faces"],
     "set_caption": ["get_photo", "set_caption"], "export_metadata": ["export_metadata"], "get_thumbnail": ["thumbnail"], "contact_sheet": ["thumbnail"], "similar_photos": ["similar_photos"],

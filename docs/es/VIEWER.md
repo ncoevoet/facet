@@ -347,6 +347,14 @@ El control **Conservar el % superior** de la barra de herramientas (modo de edic
 - La selección está limitada a 5000 fotos. En una vista mayor, acota el filtro (álbum, fecha, persona…).
 - Con los valores por defecto de `hide_brackets` / `hide_panoramas`, un conjunto de bracketing o panorámica cuenta como **una** foto.
 
+### Ediciones con IA
+
+Una herramienta de IA puede traer a la biblioteca una copia editada de una foto con la herramienta del asistente `import_ai_edit` (ver [Agentes de IA](AGENTS.md)). El asistente envía la imagen misma, y Facet escribe su propia copia junto al original como `{name}_{suffix}_{revision}{ext}`, por ejemplo `IMG_3533_agy_1.JPG`, y la escanea por separado. Durante una importación Facet nunca borra ni sobrescribe un archivo.
+
+- La galería marca una edición con ✨ **IA** en la parte superior de su miniatura. ✨ se reserva para lo que una IA hizo o eligió.
+- Una edición con la misma hora de captura suele unirse a la ráfaga del original, y «Mejor de la ráfaga» muestra la de mayor puntuación.
+- En la página de la foto, la tira de la ráfaga muestra primero los fotogramas que la galería conserva, luego las ediciones con IA, marcadas ✨ **IA**, y al final los parpadeos que oculta, marcados **PARPADEO**.
+
 ### Lista fijada por el asistente
 
 Cuando un asistente conectado mediante [Agentes de IA (MCP)](AGENTS.md) te muestra una lista exacta de fotos, la galería la muestra en el orden del asistente. Una línea de estado indica cuántas fotos se eligieron; **Volver a la vista habitual** restaura tus filtros.

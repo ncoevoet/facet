@@ -347,6 +347,14 @@ Das Steuerelement **Top % behalten** in der Symbolleiste (Bearbeitungsmodus) sor
 - Die Auswahl ist auf 5000 Fotos begrenzt. Grenzen Sie bei einer größeren Ansicht den Filter ein (Album, Datum, Person…).
 - Unter den Standardwerten `hide_brackets` / `hide_panoramas` zählt eine Belichtungsreihe oder ein Panorama als **ein** Foto.
 
+### KI-Bearbeitungen
+
+Ein KI-Werkzeug kann über das Assistenten-Werkzeug `import_ai_edit` eine bearbeitete Kopie eines Fotos in die Bibliothek bringen (siehe [KI-Agenten](AGENTS.md)). Der Assistent sendet das Bild selbst; Facet schreibt eine eigene Kopie neben das Original als `{name}_{suffix}_{revision}{ext}`, etwa `IMG_3533_agy_1.JPG`, und scannt sie einzeln. Beim Import löscht oder überschreibt Facet nie eine Datei.
+
+- Die Galerie markiert eine Bearbeitung oben auf der Kachel mit ✨ **KI**. ✨ steht nur für das, was eine KI gemacht oder ausgewählt hat.
+- Eine Bearbeitung mit demselben Aufnahmezeitpunkt landet meist in der Serie des Originals; „Bestes der Serie“ zeigt dann die höher bewertete.
+- Auf der Fotoseite listet der Serienstreifen zuerst die Aufnahmen, die die Galerie behält, dann die KI-Bearbeitungen mit ✨ **KI** und zuletzt die ausgeblendeten Blinzler mit **BLINZ**.
+
 ### Vom Assistenten angeheftete Liste
 
 Zeigt Ihnen ein über [KI-Agenten (MCP)](AGENTS.md) verbundener Assistent eine exakte Fotoliste, zeigt die Galerie sie in der Reihenfolge des Assistenten. Eine Statuszeile nennt die Zahl der gewählten Fotos; **Zur üblichen Ansicht zurück** stellt Ihre Filter wieder her.

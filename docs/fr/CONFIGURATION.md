@@ -1107,6 +1107,26 @@ Poids utilisés par le tri des rafales pour choisir la meilleure prise de chaque
 
 ---
 
+## Retouches IA
+
+Les outils d'IA autorisés à importer une retouche avec `import_ai_edit` (voir [Agents IA](AGENTS.md)) et l'étiquette que chacun met dans le nom du fichier : une retouche de `IMG_3533.JPG` par `antigravity-gemini` est enregistrée sous `IMG_3533_agy_1.JPG`. Un outil absent de la liste est refusé.
+
+```json
+{
+  "ai_edits": {
+    "tool_suffixes": { "antigravity-gemini": "agy", "openai-chatgpt": "gpt", "anthropic-claude": "ant" },
+    "drop_dir": ""
+  }
+}
+```
+
+| Paramètre | Défaut | Description |
+|---------|---------|-------------|
+| `tool_suffixes` | `{"antigravity-gemini": "agy", "openai-chatgpt": "gpt", "anthropic-claude": "ant"}` | Nom de l'outil → étiquette du nom de fichier |
+| `drop_dir` | `""` | Un dossier du serveur Facet où un assistant sur le même ordinateur dépose sa retouche et passe le nom du fichier dans `source_file`. Facet lit le fichier et écrit sa propre copie ; il ne le supprime ni ne le modifie jamais. À garder hors des dossiers analysés (un fichier qui s'y trouve est refusé). Vide : les assistants envoient l'image dans `image_data` |
+
+---
+
 ## Détection de doublons
 
 Trouve les photos en double dans toute la bibliothèque : candidats pHash larges, confirmés par un contrôle de similarité d'embedding.

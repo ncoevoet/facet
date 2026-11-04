@@ -1,4 +1,4 @@
-"""MCP prompts: four short, vendor-neutral task recipes that name the exact tools to use.
+"""MCP prompts: short, vendor-neutral task recipes that name the exact tools to use.
 
 A prompt is offered to a key only if every tool it REQUIRES is visible to that key (its level
 reaches the tool's floor in ``TOOL_LEVELS``); optional steps are rendered only from the tools the
@@ -129,6 +129,47 @@ def _teach_taste(args: dict, visible: frozenset) -> str:
     return f"Teach Facet the user's taste with pairwise comparisons.\n\n{_steps(steps)}\n\n{DATA_NOTE}"
 
 
+def _edit_photo(args: dict, visible: frozenset) -> str:
+    from api.routers.ai_edits import drop_dir, tool_suffixes
+
+    photo = _clean(args.get("photo"))
+    tools = ", ".join(f"\"{name}\" (files tagged _{tag}_)" for name, tag in sorted(tool_suffixes().items()))
+    find = ("Call `get_photo` on that path." if photo.startswith(("/", "\\")) or photo[1:3] in (":\\", ":/")
+            else "Find the photo" + (f" \"{photo}\"" if photo else "") + ": "
+            + ("call `list_persons` for any person it names, then " if "list_persons" in visible else "")
+            + "search with `search_photos` or `semantic_search`; with no description, call `get_photo` with "
+            "`target: \"selection\"` for the photo the user selected in the tab. If several match, show them and "
+            "ask which one. Call `get_photo` on it: its path is the original for the import.")
+    steps = [find, f"Restate the change in one line: {_clean(args.get('change'))}. Ask if anything is unclear: "
+             "which person, which area, what must stay the same."]
+    if "list_persons" in visible and {"get_thumbnail", "contact_sheet"} & visible:
+        steps.append("When a person's face or body is involved, find two to four sharp photos of that person from "
+                     "the same event with `search_photos` and check them with `get_thumbnail` or `contact_sheet`; "
+                     "give them to your image model as references.")
+    folder = drop_dir()
+    send = (f"the edit as source_file: save it in Facet's AI-edit drop folder {folder} and pass its file name "
+            "(Facet copies it and leaves your file; delete it from the drop folder once the import succeeds)"
+            if folder else "the edit's bytes base64-encoded as image_data")
+    steps += [
+        "Make the edit outside the library. Copy the original into a work folder of your own on the computer "
+        "running Facet and edit the copy there; never write, rename or overwrite anything in the library's "
+        "folders. Keep the framing, resolution, other people, colours and light; only the requested change "
+        "differs. Show the user the result and wait for their approval.",
+        "Call `import_ai_edit` with the original's path, " + send + ", the model you used, a one-line note of what "
+        "changed (the edit's caption becomes the original's caption plus \"AI: \" and the note), and as `tool` the "
+        "name that matches you: " + (tools or "none is configured; tell the user")
+        + ". Facet writes its own copy beside the original as name_tag_revision with the image's own extension, "
+        "never over an existing file, links it to the original and scans it.",
+        "The import call waits until Facet has scanned the edit (up to three minutes): tell the user it is "
+        "importing, and confirm it is done only when the answer says ready, with the new path, revision, caption "
+        "and photo page"
+        + (", then open it with `ui_open_photo`." if "ui_open_photo" in visible else ".")
+        + " If it is not ready yet, check with `get_photo` on the new path every minute or so and confirm then. "
+        "If the scan did not start, say the file is placed and linked and will appear after the next scan.",
+    ]
+    return f"Edit a photo from the Facet library with AI and bring the edit back.\n\n{_steps(steps)}\n\n{DATA_NOTE}"
+
+
 PROMPT_SPECS: tuple[PromptSpec, ...] = (
     PromptSpec("find_photo", "Find a photo from a description", ("filter_options", "search_photos", "semantic_search"),
                (("description", "What the photo looks like", True),), _find_photo),
@@ -141,6 +182,10 @@ PROMPT_SPECS: tuple[PromptSpec, ...] = (
                (("person", "The person's name", False),), _tag_people),
     PromptSpec("teach_taste", "Teach Facet your taste with pairwise comparisons", ("ui_show_comparison", "comparison_status"),
                (("category", "Limit the pairs to one category", False),), _teach_taste),
+    PromptSpec("edit_photo", "Edit a photo with AI and bring the edit back beside its original",
+               ("search_photos", "get_photo", "import_ai_edit"),
+               (("change", "What to change", True),
+                ("photo", "The photo's path or a description; empty for the tab's selection", False)), _edit_photo),
 )
 SPECS = {spec.name: spec for spec in PROMPT_SPECS}
 
@@ -181,7 +226,7 @@ async def authorize(request: Request, name: str, audit: bool = True) -> tokens.R
 
 
 def register_prompts(server: MCPServer) -> None:
-    """Register the four prompts; levels and rate limits are enforced by ``AgentMCPServer``."""
+    """Register the prompts; levels and rate limits are enforced by ``AgentMCPServer``."""
     for spec in PROMPT_SPECS:
         server.add_prompt(_sdk_prompt(spec))
 

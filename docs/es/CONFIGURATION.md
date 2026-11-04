@@ -1109,6 +1109,26 @@ Pesos que usa el descarte de ráfagas para elegir la mejor toma de cada grupo de
 
 ---
 
+## Ediciones con IA
+
+Qué herramientas de IA pueden importar una edición con `import_ai_edit` (ver [Agentes de IA](AGENTS.md)) y la etiqueta que cada una pone en el nombre del archivo: una edición de `IMG_3533.JPG` hecha con `antigravity-gemini` se guarda como `IMG_3533_agy_1.JPG`. Una herramienta que no figure se rechaza.
+
+```json
+{
+  "ai_edits": {
+    "tool_suffixes": { "antigravity-gemini": "agy", "openai-chatgpt": "gpt", "anthropic-claude": "ant" },
+    "drop_dir": ""
+  }
+}
+```
+
+| Ajuste | Predeterminado | Descripción |
+|---------|---------|-------------|
+| `tool_suffixes` | `{"antigravity-gemini": "agy", "openai-chatgpt": "gpt", "anthropic-claude": "ant"}` | Nombre de la herramienta → etiqueta del nombre de archivo |
+| `drop_dir` | `""` | Una carpeta del servidor de Facet donde un asistente en el mismo equipo guarda su edición y pasa el nombre del archivo como `source_file`. Facet lee el archivo y escribe su propia copia; nunca lo borra ni lo cambia. Debe quedar fuera de las carpetas escaneadas (un archivo allí se rechaza). Vacía: los asistentes envían la imagen como `image_data` |
+
+---
+
 ## Detección de duplicados
 
 Encuentra fotos duplicadas en toda la biblioteca: candidatos de pHash flexible, confirmados por una comprobación de similitud de embeddings.

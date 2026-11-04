@@ -8,6 +8,8 @@ export interface KeeperHint {
 export interface Photo {
   preview_revision?: string | null;
   path: string;
+  /** The original this photo was made from, when it is a recorded AI edit. */
+  ai_edit_of?: string | null;
   filename: string;
   // Scores
   /** Null for a row the scoring pass has not reached yet (e.g. mid-scan). */
@@ -167,8 +169,11 @@ export interface PhotoSetMember {
   /** The gallery hides blinks by default, so a set opened there can show
    *  fewer frames than `count`; the photo page names them up front. */
   is_blink?: boolean;
+  /** The original's path when this frame is an AI edit of it; null (or absent) otherwise. */
+  ai_edit_of?: string | null;
   preview_revision?: string | null;
 }
+
 
 /** The bracket/panorama/hdr_panorama/burst/duplicate set a photo belongs to,
  *  resolved server-side from the photo's own row (never from a group id,

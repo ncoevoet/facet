@@ -2713,6 +2713,10 @@
       "open_in_gallery": "在照片库中打开此照片组",
       "member_position": "第 {position} / {count} 张"
     },
+    "ai_edit": {
+      "badge": "AI 编辑",
+      "badge_short": "AI"
+    },
     "delete": {
       "button_label": "删除",
       "confirm_title": "删除这张照片？",
@@ -3134,7 +3138,8 @@
       "create_photo_stack": "已创建照片堆叠",
       "update_photo_stack": "已更新照片堆叠",
       "unstack_photos": "已取消照片堆叠",
-      "undo_photo_stack": "已撤销照片堆叠更改"
+      "undo_photo_stack": "已撤销照片堆叠更改",
+      "import_ai_edit": "导入了 AI 编辑版本"
     },
     "ui": {
       "ui_navigate": "已打开页面",
