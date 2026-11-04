@@ -1,3 +1,4 @@
+import { updateMapSignal, deleteMapKey } from '../../shared/utils/map-signal';
 import { AuthService } from '../../core/services/auth.service';
 import { StalenessGuardFactory, StalenessGuard } from '../../core/services/staleness-guard.service';
 import { HttpErrorResponse } from '@angular/common/http';
@@ -115,16 +116,6 @@ export function readStoredStrictness(): number {
 export function readStoredSortDirection(): '' | 'asc' | 'desc' {
   const v = localStorage.getItem(CULL_SORT_DIR_KEY);
   return v === 'asc' || v === 'desc' ? v : '';
-}
-
-/** Replace one key of a Map held in a signal (clones, so the signal notifies). */
-export function updateMapSignal<K, V>(sig: WritableSignal<Map<K, V>>, key: K, value: V): void {
-  sig.update(m => { const next = new Map(m); next.set(key, value); return next; });
-}
-
-/** Drop one key of a Map held in a signal (clones, so the signal notifies). */
-export function deleteMapKey<K, V>(sig: WritableSignal<Map<K, V>>, key: K): void {
-  sig.update(m => { if (!m.has(key)) return m; const next = new Map(m); next.delete(key); return next; });
 }
 
 /** Add a value to a Set held in a signal (clones, so the signal notifies). */

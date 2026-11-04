@@ -14,6 +14,7 @@ import { Subject, of, throwError } from 'rxjs';
 import { ApiService } from '../../core/services/api.service';
 import { AuthService } from '../../core/services/auth.service';
 import { sharedInspectionPeople } from './comparison-inspection.util';
+import { KEY_SUBJECT_COORDINATE_SPACE } from './burst-culling.pipes';
 
 const photo = (path: string): Photo => ({ path, filename: path.slice(1) } as Photo);
 
@@ -104,6 +105,55 @@ describe('ComparisonWorkspaceComponent', () => {
     stale.next({ faces: [] });
     await fixture.whenStable();
     expect(component.inspectionState()).toBe('ready');
+  });
+
+  it('fetches only a changed slot after completed inspection reads', async () => {
+    const { fixture, api } = build(Array.from({ length: 12 }, (_, index) => `/q${index}.jpg`));
+    fixture.nativeElement.querySelector('[data-inspection-toggle]').click();
+    await fixture.whenStable(); fixture.detectChanges(); api.get.mockClear(); api.post.mockClear();
+    fixture.nativeElement.querySelectorAll('[data-candidate-thumbnail]')[11].click();
+    await fixture.whenStable(); fixture.detectChanges();
+    expect(api.get).toHaveBeenCalledExactlyOnceWith('/photo/faces', { path: '/q11.jpg' });
+    expect(api.post).toHaveBeenCalledExactlyOnceWith('/photos/key_subjects', { paths: ['/q11.jpg'] });
+    fixture.nativeElement.querySelector('[data-inspection-toggle]').click(); fixture.detectChanges();
+    fixture.nativeElement.querySelector('[data-inspection-toggle]').click(); await fixture.whenStable();
+    expect(api.get).toHaveBeenCalledTimes(5);
+  });
+
+  it('frames a validated suggestion and an explicit face, and toggles loupe with Z', async () => {
+    const { fixture, api } = build(['/a.jpg', '/b.jpg']);
+    api.post.mockReturnValue(of({ key_subjects_by_path: { '/a.jpg': { path: '/a.jpg', kind: 'subject',
+      bbox: [0.1, 0.2, 0.4, 0.6], coordinate_space: KEY_SUBJECT_COORDINATE_SPACE, image_width: 4000, image_height: 3000 } } }));
+    api.get.mockReturnValue(of({ faces: [{ id: 7, face_index: 0, person_id: 7, person_name: 'Ada', box: [0.2, 0.3, 0.5, 0.7] }] }));
+    fixture.nativeElement.querySelector('[data-inspection-toggle]').click(); await fixture.whenStable(); fixture.detectChanges();
+    const panes = fixture.debugElement.queryAll(By.directive(SyncedZoomComponent)).map(row => row.componentInstance as SyncedZoomComponent);
+    const frame = vi.spyOn(panes[0], 'zoomForRegion').mockReturnValue({ scale: 2, tx: 12, ty: -8 });
+    fixture.nativeElement.querySelector('[data-frame-suggestion]').click(); fixture.detectChanges();
+    expect(frame).toHaveBeenLastCalledWith([0.1, 0.2, 0.4, 0.6], 4 / 3);
+    expect(panes[0].zoom()).toEqual({ scale: 2, tx: 12, ty: -8 }); expect(panes[1].zoom()).toEqual(FIT_ZOOM);
+    const face = fixture.nativeElement.querySelector('[data-frame-face]') as HTMLSelectElement;
+    face.value = '7'; face.dispatchEvent(new Event('change')); fixture.detectChanges();
+    expect(frame).toHaveBeenLastCalledWith([0.2, 0.3, 0.5, 0.7], 4 / 3); expect(face.value).toBe('');
+    const event = new KeyboardEvent('keydown', { key: 'z', bubbles: true, cancelable: true });
+    fixture.nativeElement.dispatchEvent(event); fixture.detectChanges();
+    expect(event.defaultPrevented).toBe(true); expect(panes.map(pane => pane.loupeActive())).toEqual([false, true]);
+    fixture.nativeElement.dispatchEvent(new KeyboardEvent('keydown', { key: 'z', bubbles: true })); fixture.detectChanges();
+    expect(panes.every(pane => !pane.loupeActive())).toBe(true);
+  });
+
+  it('returns focus to inspection and candidate controls after closing or removing panes', async () => {
+    const { fixture } = build(['/a.jpg', '/b.jpg', '/c.jpg']);
+    const root = fixture.nativeElement as HTMLElement; document.body.appendChild(root);
+    try {
+      const toggle = root.querySelector<HTMLButtonElement>('[data-inspection-toggle]')!;
+      toggle.click(); await fixture.whenStable(); fixture.detectChanges();
+      root.querySelector('#comparison-inspection')!.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true, cancelable: true }));
+      fixture.detectChanges(); expect(document.activeElement).toBe(toggle);
+      const remove = root.querySelector<HTMLButtonElement>('[data-remove-pane]')!; remove.focus(); remove.click();
+      fixture.detectChanges(); await fixture.whenStable(); fixture.detectChanges();
+      expect(document.activeElement?.getAttribute('data-path')).toBe('/c.jpg');
+      expect(root.contains(document.activeElement)).toBe(true);
+    } finally { root.remove(); }
   });
 
   it('preserves four-up while replacing reference or candidate from the larger queue', () => {

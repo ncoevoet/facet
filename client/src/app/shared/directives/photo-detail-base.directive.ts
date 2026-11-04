@@ -1,3 +1,4 @@
+import { imageRetryUrl } from '../utils/image-retry-url';
 import { randomUuid } from '../utils/random-uuid';
 import { Directive, computed, effect, inject, signal, untracked } from '@angular/core';
 import { firstValueFrom } from 'rxjs';
@@ -46,10 +47,7 @@ export abstract class PhotoDetailBase {
     const src = scope ? sharedAlbumMediaUrl(scope, 'image', p.path, undefined, p.preview_revision)
       : this.api.imageUrl(p.path, p.preview_revision);
     if (!this.imageAttempt()) return src;
-    const url = new URL(src, document.baseURI);
-    url.searchParams.set('facet_retry', `${this.imageSession}-${this.imageAttempt()}`);
-    url.searchParams.set('ngsw-bypass', '1');
-    return url.href;
+    return imageRetryUrl(src, `${this.imageSession}-${this.imageAttempt()}`);
   });
 
   private readonly imageResetEffect = effect(() => {

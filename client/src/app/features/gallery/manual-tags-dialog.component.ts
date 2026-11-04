@@ -77,7 +77,7 @@ export interface ManualTagsDialogResult {
       @if (plan(); as preview) {
         <section data-tag-preview class="bg-[var(--mat-sys-surface-container-low)] rounded p-3 my-3">
           <h3 class="m-0 text-base font-medium">{{ I18N.manual_tags.batch.preview | translate }}</h3>
-          <p class="mb-0 break-words">{{ (preview.action === 'add' ? I18N.manual_tags.batch.add_preview : preview.action === 'delete' ? I18N.manual_tags.batch.remove_preview : preview.action === 'replace' ? I18N.manual_tags.batch.replace_preview : I18N.manual_tags.batch.clear_preview) | translate:{ tag: preview.tag, count: data.count } }}</p>
+          <p class="mb-0 break-words">{{ previewLabel() | translate:{ tag: preview.tag, count: data.count } }}</p>
           @if (preview.action === 'replace') {
             <ul class="my-2 flex list-none flex-wrap gap-1 p-0" data-replacement-values>
               @for (value of preview.values; track value) { <li class="max-w-full break-words rounded bg-[var(--mat-sys-surface-container-high)] px-2 py-1 text-sm">{{ value }}</li> }
@@ -112,7 +112,7 @@ export interface ManualTagsDialogResult {
       <button mat-button [disabled]="saving()" (click)="cancel()">{{ (failed() ? I18N.dialog.close : I18N.ui.buttons.cancel) | translate }}</button>
       @if (plan()) {
         @if (!uncertain() && !confirmed()) { <button mat-button [disabled]="saving()" (click)="edit()">{{ I18N.manual_tags.batch.edit | translate }}</button> }
-        <button mat-flat-button data-apply-tags [disabled]="saving() || uncertain() && (plan()?.action === 'replace' || plan()?.action === 'clear')" (click)="apply()">{{ (saving() ? I18N.manual_tags.batch.saving : failed() ? I18N.manual_tags.batch.retry : I18N.ui.buttons.apply) | translate }}</button>
+        <button mat-flat-button data-apply-tags [disabled]="saving() || uncertain() && (plan()?.action === 'replace' || plan()?.action === 'clear')" (click)="apply()">{{ applyLabel() | translate }}</button>
       }
     </mat-dialog-actions>
   `,
@@ -141,6 +141,19 @@ export class ManualTagsDialogComponent {
   readonly confirmed = signal(0);
   readonly completedBatches = signal(0);
   readonly plan = signal<ManualTagPlan | null>(null);
+  protected readonly previewLabel = computed(() => {
+    switch (this.plan()?.action) {
+      case 'add': return this.I18N.manual_tags.batch.add_preview;
+      case 'delete': return this.I18N.manual_tags.batch.remove_preview;
+      case 'replace': return this.I18N.manual_tags.batch.replace_preview;
+      default: return this.I18N.manual_tags.batch.clear_preview;
+    }
+  });
+  protected readonly applyLabel = computed(() => {
+    if (this.saving()) return this.I18N.manual_tags.batch.saving;
+    if (this.failed()) return this.I18N.manual_tags.batch.retry;
+    return this.I18N.ui.buttons.apply;
+  });
   private closing = false;
   private revoked = false;
   private lastSettlement: ManualTagsDialogResult | undefined;

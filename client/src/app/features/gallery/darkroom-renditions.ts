@@ -1,3 +1,4 @@
+import { imageRetryUrl } from '../../shared/utils/image-retry-url';
 import { randomUuid } from '../../shared/utils/random-uuid';
 import { DestroyRef, computed, effect, inject, signal, untracked } from '@angular/core';
 import { MatSnackBar } from '@angular/material/snack-bar';
@@ -5,7 +6,8 @@ import { I18nService } from '../../core/services/i18n.service';
 import { I18N } from '../../core/i18n/keys';
 import { ThumbnailUrlPipe, ImageUrlPipe, STORED_THUMBNAIL_EDGE, RENDERED_THUMBNAIL_EDGE } from '../../shared/pipes/thumbnail-url.pipe';
 import { SyncedZoomComponent, LoadedSources, SHARP_PRELOAD_DEBOUNCE_MS, DisplayedRendition } from './synced-zoom.component';
-import { RunGeneration, updateMapSignal } from './culling.store';
+import { RunGeneration } from './culling.store';
+import { updateMapSignal } from '../../shared/utils/map-signal';
 import { CullingGroup, FrameSize, cullPreviewUrl, computePeakingOverlay, computePooledPeakingOverlays, loadFrameImage, PEAKING_FIT_EDGE } from './burst-culling.pipes';
 
 const DARKROOM_THUMB_SIZE = RENDERED_THUMBNAIL_EDGE;
@@ -55,10 +57,7 @@ export class DarkroomRenditions {
     const src = cullPreviewUrl(path, style);
     const retry = this.developedAttempt();
     if (retry?.path !== path || retry.style !== style) return src;
-    const url = new URL(src, document.baseURI);
-    url.searchParams.set('facet_retry', `${this.developedSession}-${retry.attempt}`);
-    url.searchParams.set('ngsw-bypass', '1');
-    return url.href;
+    return imageRetryUrl(src, `${this.developedSession}-${retry.attempt}`);
   });
   /** In-flight developed-preview image, so its handlers can be detached when a newer frame supersedes it. */
   private previewImg: HTMLImageElement | null = null;

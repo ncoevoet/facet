@@ -1,3 +1,4 @@
+import { updateMapSignal, deleteMapKey } from '../../shared/utils/map-signal';
 import { DOCUMENT } from '@angular/common';
 import { ChangeDetectionStrategy, Component, computed, effect, inject, signal, ElementRef, Injector, DestroyRef, afterNextRender, viewChildren } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
@@ -25,6 +26,9 @@ import { PhotoAssessmentComponent } from '../../shared/components/photo-assessme
 // Module-level consts, not direct class-field initializers: Vite's test transform
 // snapshots an imported binding used as a field initializer before a
 // lazily-initialised shared chunk sets it.
+const COMPARISON_TARGETS = ['reference', 'candidate', 'third', 'fourth'] as const;
+const TARGET_LABELS = { reference: 'reference', candidate: 'candidate', third: 'pane_c', fourth: 'pane_d' } as const;
+
 const STORED_EDGE = STORED_THUMBNAIL_EDGE;
 const RENDERED_EDGE = RENDERED_THUMBNAIL_EDGE;
 
@@ -258,10 +262,8 @@ export class ComparisonWorkspaceComponent {
   protected readonly referencePath = signal(this.data.photos?.[0]?.path ?? null);
   protected readonly twoUp = signal(this.data.photos.length > MAX_COMPARE_PANES);
   private readonly assignedPaths = signal(this.data.photos.slice(0, MAX_COMPARE_PANES).map(photo => photo.path));
-  protected readonly assignmentTarget = signal<'reference' | 'candidate' | 'third' | 'fourth'>('candidate');
-  protected readonly assignmentLabelKey = computed(() => this.assignmentTarget() === 'reference' ? this.I18N.gallery.compare.reference
-    : this.assignmentTarget() === 'candidate' ? this.I18N.gallery.compare.candidate
-    : this.assignmentTarget() === 'third' ? this.I18N.gallery.compare.pane_c : this.I18N.gallery.compare.pane_d);
+  protected readonly assignmentTarget = signal<typeof COMPARISON_TARGETS[number]>('candidate');
+  protected readonly assignmentLabelKey = computed(() => this.I18N.gallery.compare[TARGET_LABELS[this.assignmentTarget()]]);
   protected readonly activePath = signal(this.data.photos?.[0]?.path ?? null);
   protected readonly removedPaths = signal(new Set<string>());
   private readonly candidatePath = signal(this.data.photos?.[1]?.path ?? null);
@@ -276,6 +278,7 @@ export class ComparisonWorkspaceComponent {
   protected readonly loupeZoom = signal(3);
   private readonly faceRows = signal(new Map<string, PhotoFaceRow[]>());
   private readonly suggestions = signal(new Map<string, KeySubject>());
+  private subjectReads = new Set<string>();
   protected readonly sharedPeople = computed(() => sharedInspectionPeople(this.visiblePhotos().map(photo => photo.path), this.faceRows()));
 
   constructor() {
@@ -303,28 +306,33 @@ export class ComparisonWorkspaceComponent {
     else if (this.inspectionState() === 'idle') void this.loadInspection();
   }
 
-  protected async loadInspection(): Promise<void> {
+  protected async loadInspection({ reuseLoaded = false }: { reuseLoaded?: boolean } = {}): Promise<void> {
     const context = this.context;
     if (!context.current() || this.inspectionState() === 'loading') return;
     const version = ++this.inspectionVersion;
     const membership = JSON.stringify([...this.assignedPaths()].sort());
     this.inspectionState.set('loading');
     const photos = this.panes();
-    const faces = new Map<string, PhotoFaceRow[]>();
-    const suggestions = new Map<string, KeySubject>();
+    const paths = new Set(photos.map(photo => photo.path));
+    const faces = new Map(reuseLoaded ? [...this.faceRows()].filter(([path]) => paths.has(path)) : []);
+    const suggestions = new Map(reuseLoaded ? [...this.suggestions()].filter(([path]) => paths.has(path)) : []);
+    const subjectReads = new Set(reuseLoaded ? [...this.subjectReads].filter(path => paths.has(path)) : []);
+    const missingSubjects = photos.filter(photo => !subjectReads.has(photo.path));
     let failed = false;
     await Promise.all([
       (async () => {
+        if (!missingSubjects.length) return;
         try {
-          const result = await firstValueFrom(this.api.post<{ key_subjects_by_path: Record<string, KeySubject> }>('/photos/key_subjects', { paths: photos.map(photo => photo.path) }).pipe(takeUntil(this.inspectionCancelled), takeUntil(this.cancelled), takeUntilDestroyed(this.destroyRef)));
-          for (const photo of photos) {
+          const result = await firstValueFrom(this.api.post<{ key_subjects_by_path: Record<string, KeySubject> }>('/photos/key_subjects', { paths: missingSubjects.map(photo => photo.path) }).pipe(takeUntil(this.inspectionCancelled), takeUntil(this.cancelled), takeUntilDestroyed(this.destroyRef)));
+          for (const photo of missingSubjects) {
+            subjectReads.add(photo.path);
             const target = result.key_subjects_by_path?.[photo.path];
             if (target?.path === photo.path && (target.kind === 'person' || target.kind === 'subject') && target.coordinate_space === KEY_SUBJECT_COORDINATE_SPACE && normalizedInspectionBox(target.bbox)
               && Number.isFinite(target.image_width) && Number.isFinite(target.image_height) && target.image_width! > 0 && target.image_height! > 0) suggestions.set(photo.path, target);
           }
         } catch { failed = true; }
       })(),
-      ...photos.map(async photo => {
+      ...photos.filter(photo => !faces.has(photo.path)).map(async photo => {
         try {
           const result = await firstValueFrom(this.api.get<{ faces: PhotoFaceRow[] }>('/photo/faces', { path: photo.path }).pipe(takeUntil(this.inspectionCancelled), takeUntil(this.cancelled), takeUntilDestroyed(this.destroyRef)));
           // Keep unusable occurrences too: dropping one would make a duplicate
@@ -334,7 +342,7 @@ export class ComparisonWorkspaceComponent {
       }),
     ]);
     if (!context.current() || version !== this.inspectionVersion || membership !== JSON.stringify([...this.assignedPaths()].sort())) return;
-    this.faceRows.set(faces); this.suggestions.set(suggestions);
+    this.faceRows.set(faces); this.suggestions.set(suggestions); this.subjectReads = subjectReads;
     this.inspectionState.set(failed ? 'partial' : 'ready');
   }
 
@@ -441,7 +449,7 @@ export class ComparisonWorkspaceComponent {
     if (!this.context.current()) return;
     const twoUp = !this.twoUp();
     this.twoUp.set(twoUp);
-    if (twoUp && (this.assignmentTarget() === 'third' || this.assignmentTarget() === 'fourth')) this.assignmentTarget.set('candidate');
+    if (twoUp && COMPARISON_TARGETS.indexOf(this.assignmentTarget()) >= 2) this.assignmentTarget.set('candidate');
     if (!twoUp) this.setAssignments([...new Set([...this.assignedPaths(), ...this.queue().map(photo => photo.path)])].slice(0, MAX_COMPARE_PANES));
   }
 
@@ -455,12 +463,12 @@ export class ComparisonWorkspaceComponent {
     const index = this.panes().findIndex(photo => photo.path === path);
     if (index < 0) return;
     this.activePath.set(path);
-    this.assignmentTarget.set((['reference', 'candidate', 'third', 'fourth'] as const)[index]);
+    this.assignmentTarget.set(COMPARISON_TARGETS[index]);
   }
 
   protected chooseCandidate(path: string): void {
     if (!this.context.current() || !this.queue().some(photo => photo.path === path)) return;
-    const slot = this.assignmentTarget() === 'reference' ? 0 : this.assignmentTarget() === 'candidate' ? 1 : this.assignmentTarget() === 'third' ? 2 : 3;
+    const slot = COMPARISON_TARGETS.indexOf(this.assignmentTarget());
     this.assignQueuePhoto(path, slot);
   }
 
@@ -479,12 +487,11 @@ export class ComparisonWorkspaceComponent {
     this.assignedPaths.set(paths);
     this.referencePath.set(paths[0] ?? null);
     this.candidatePath.set(paths[1] ?? null);
-    if ((this.assignmentTarget() === 'third' && (paths.length < 2 || this.queue().length < 3))
-      || (this.assignmentTarget() === 'fourth' && (paths.length < 3 || this.queue().length < 4))) this.assignmentTarget.set('candidate');
+    const targetSlot = COMPARISON_TARGETS.indexOf(this.assignmentTarget());
+    if (targetSlot >= 2 && (paths.length < targetSlot || this.queue().length <= targetSlot)) this.assignmentTarget.set('candidate');
     if (this.inspectionOpen() && membership !== JSON.stringify([...paths].sort())) {
       this.cancelInspection();
-      this.faceRows.set(new Map()); this.suggestions.set(new Map());
-      void this.loadInspection();
+      void this.loadInspection({ reuseLoaded: true });
     }
   }
 
@@ -503,9 +510,9 @@ export class ComparisonWorkspaceComponent {
     this.setAssignments(this.assignedPaths().filter(member => member !== path));
     const active = path === this.activePath() ? this.candidatePath() ?? this.referencePath() : this.activePath();
     if (active) this.activate(active);
-    this.paneZoom.update(values => { const next = new Map(values); next.delete(path); return next; });
-    this.readiness.update(values => { const next = new Map(values); next.delete(path); return next; });
-    this.renditions.update(values => { const next = new Map(values); next.delete(path); return next; });
+    deleteMapKey(this.paneZoom, path);
+    deleteMapKey(this.readiness, path);
+    deleteMapKey(this.renditions, path);
     afterNextRender(() => {
       if (!this.context.current() || (this.document.activeElement !== this.document.body && this.document.activeElement !== focusBefore)) return;
       this.candidateButtons().find(button => button.nativeElement.dataset['path'] === this.activePath())?.nativeElement.focus();
@@ -527,7 +534,7 @@ export class ComparisonWorkspaceComponent {
         state.scale < SyncedZoomComponent.MIN_SCALE || state.scale > SyncedZoomComponent.MAX_SCALE) return;
     const frames = this.paneZoom();
     if (!this.linked()) {
-      this.paneZoom.set(new Map(frames).set(path, { ...state }));
+      updateMapSignal(this.paneZoom, path, { ...state });
       return;
     }
     if (state.scale === SyncedZoomComponent.MIN_SCALE && state.tx === 0 && state.ty === 0) {
@@ -543,7 +550,7 @@ export class ComparisonWorkspaceComponent {
 
   protected setRendition(path: string, rendition: DisplayedRendition): void {
     if (!this.visiblePhotos().some(photo => photo.path === path)) return;
-    this.renditions.update(values => new Map(values).set(path, rendition));
+    updateMapSignal(this.renditions, path, rendition);
   }
 
   protected stepZoom(path: string, direction: number): void {
@@ -560,7 +567,7 @@ export class ComparisonWorkspaceComponent {
 
   protected setReadiness(path: string, state: 'loading' | 'ready' | 'failed'): void {
     if (!this.visiblePhotos().some(photo => photo.path === path)) return;
-    this.readiness.update(values => new Map(values).set(path, state));
+    updateMapSignal(this.readiness, path, state);
   }
 
   protected resetZoom(): void {

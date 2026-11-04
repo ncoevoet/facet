@@ -1,3 +1,4 @@
+import { imageRetryUrl } from '../../shared/utils/image-retry-url';
 import { randomUuid } from '../../shared/utils/random-uuid';
 import { ChangeDetectionStrategy, Component, afterRenderEffect, DestroyRef, ElementRef, computed, effect, inject, input, output, signal, untracked, viewChild } from '@angular/core';
 import { LoupeDirective } from '../../shared/directives/loupe.directive';
@@ -388,10 +389,7 @@ export class SyncedZoomComponent {
   private retryUrl(src: string): string {
     const retry = this.retryState();
     if (!retry || retry.frameKey !== this.frameKey() || retry.src !== this.src()) return src;
-    const url = new URL(src, document.baseURI);
-    url.searchParams.set('facet_retry', `${this.retrySession}-${retry.attempt}`);
-    url.searchParams.set('ngsw-bypass', '1');
-    return url.href;
+    return imageRetryUrl(src, `${this.retrySession}-${retry.attempt}`);
   }
 
   /** Repeat this pane's reads only; framing and the selected photo stay intact. */

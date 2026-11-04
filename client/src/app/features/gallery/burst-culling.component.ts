@@ -1871,7 +1871,7 @@ export class BurstCullingComponent implements OnDestroy {
   }
 
   protected onDarkroomZoom(state: ZoomState, path = this.currentPath() ?? ''): void {
-    if (!this.pageAlive || this.pageNavigating || this.auth.identity() !== this.pageOwner || !this.auth.isEdition()
+    if (!this.canEditPage()
       || !this.darkroomFramePaths().includes(path) || ![state.scale, state.tx, state.ty].every(Number.isFinite)
       || state.scale < 1 || state.scale > 8) return;
     const frames = this.paneFrames();
@@ -1883,7 +1883,7 @@ export class BurstCullingComponent implements OnDestroy {
   }
 
   protected fitDarkroom(path = this.currentPath() ?? ''): void {
-    if (!this.darkroomFramePaths().includes(path) || !this.pageAlive || this.pageNavigating || !this.auth.isEdition() || this.auth.identity() !== this.pageOwner) return;
+    if (!this.darkroomFramePaths().includes(path) || !this.canEditPage()) return;
     const frames = new Map(this.paneFrames());
     for (const member of this.darkroomLinked() ? this.darkroomFramePaths() : [path]) frames.set(member, { ...FIT_ZOOM });
     this.paneFrames.set(frames);
@@ -2139,6 +2139,10 @@ export class BurstCullingComponent implements OnDestroy {
   private pageAlive = true;
   private pageNavigating = false;
   private pageOwner = this.auth.identity();
+
+  private canEditPage(): boolean {
+    return this.pageAlive && !this.pageNavigating && this.auth.identity() === this.pageOwner && this.auth.isEdition();
+  }
   private secondaryEditor: { close: () => void } | null = null;
   private stackNavigationSource: { owner: string; filters: Record<string, string> | null } | null = null;
   private detectionGeneration = 0;
@@ -2223,8 +2227,7 @@ export class BurstCullingComponent implements OnDestroy {
     highResolution: () => this.darkroomHiRes(),
     peakingActive: () => this.peakingActive(),
     gridActive: () => !!this.gridMode(),
-    current: () => this.pageAlive && !this.pageNavigating
-      && this.auth.identity() === this.pageOwner && this.auth.isEdition(),
+    current: () => this.canEditPage(),
     epoch: () => this.pageEpoch,
     captureSession: () => this.pageSession(),
   });
@@ -2690,7 +2693,7 @@ export class BurstCullingComponent implements OnDestroy {
   /** Jump the darkroom's main view to a group photo (subject-strip click). */
   protected focusPhotoInLightbox(index: number): void {
     const group = this.lightboxGroup();
-    if (!group?.photos.length || !this.pageAlive || this.pageNavigating || this.auth.identity() !== this.pageOwner || !this.auth.isEdition()) return;
+    if (!group?.photos.length || !this.canEditPage()) return;
     const target = this.clampIndex(index, group.photos.length);
     if (this.compareMode() !== 'single') {
       this.comparisonPaths.set(assignComparisonSlot(this.compareFrames().map(photo => photo.path), this.comparisonSlot(), group.photos[target].path));
@@ -2702,7 +2705,7 @@ export class BurstCullingComponent implements OnDestroy {
     const frames = this.compareFrames();
     const photo = frames[slot];
     const group = this.lightboxGroup();
-    if (!photo || !group || !this.pageAlive || this.pageNavigating || this.auth.identity() !== this.pageOwner || !this.auth.isEdition()) return;
+    if (!photo || !group || !this.canEditPage()) return;
     this.comparisonPaths.set(frames.map(frame => frame.path));
     this.comparisonSlotIndex.set(slot);
     this.lightboxIndex.set(group.photos.findIndex(frame => frame.path === photo.path));

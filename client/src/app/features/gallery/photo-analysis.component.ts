@@ -242,51 +242,37 @@ const STORED_EDGE = STORED_THUMBNAIL_EDGE;
             @for (item of c.breakdown; track item.metric_key) {
               <tr class="border-b border-[var(--mat-sys-outline-variant)]/30">
                 <th scope="row" class="py-2 pe-2 text-start font-normal break-words">{{ 'critique.metrics.' + item.metric_key | translate }}</th>
-                <td class="text-right py-1" [class]="item.value | contributionColor:1">{{ item.value }}</td>
-                <td class="text-right py-1 text-[var(--mat-sys-on-surface-variant)]">{{ item.weight | percent:'1.0-0' }}</td>
-                <td class="text-right py-1 font-medium" [class]="item.contribution | contributionColor:item.weight">{{ item.contribution | number:'1.2-2' }}</td>
+                <td class="text-end py-2" [class]="item.value | contributionColor:1">{{ item.value }}</td>
+                <td class="text-end py-2 text-[var(--mat-sys-on-surface-variant)]">{{ item.weight | percent:'1.0-0' }}</td>
+                <td class="text-end py-2 font-medium" [class]="item.contribution | contributionColor:item.weight">{{ item.contribution | number:'1.2-2' }}</td>
               </tr>
             }
           </tbody>
           @if (c.current_formula_score !== null && c.current_formula_score !== undefined) {
             <tfoot data-testid="score-calculation-total">
-              <tr><td colspan="3">{{ I18N.critique.adjustments | translate }}</td>
-                <td class="text-right">{{ c.native_adjustment | number:'1.2-2' }}</td></tr>
-              <tr class="font-medium"><td colspan="3">{{ I18N.critique.current_formula | translate }}</td>
-                <td class="text-right">{{ c.current_formula_score | number:'1.2-2' }}</td></tr>
+              <tr><th scope="row" colspan="3" class="py-2 pe-2 text-start font-normal">{{ I18N.critique.adjustments | translate }}</th>
+                <td class="py-2 text-end">{{ c.native_adjustment | number:'1.2-2' }}</td></tr>
+              <tr class="font-medium"><th scope="row" colspan="3" class="py-2 pe-2 text-start font-medium">{{ I18N.critique.current_formula | translate }}</th>
+                <td class="py-2 text-end">{{ c.current_formula_score | number:'1.2-2' }}</td></tr>
             </tfoot>
           }
         </table>
 
-        <!-- Strengths & Weaknesses side by side -->
-        @if (c.strengths?.length || c.weaknesses?.length) {
-          <div class="grid grid-cols-1 gap-3 mb-3 @min-[440px]:grid-cols-2">
-            <div>
-              @if (c.strengths?.length) {
-                <div class="text-xs uppercase tracking-wider text-[var(--mat-sys-primary)] mb-1">{{ I18N.critique.strengths | translate }}</div>
-                <ul class="text-sm space-y-0.5">
-                  @for (s of c.strengths; track s.metric_key) {
+        @if (observationSections().length) {
+          <div class="mb-3 grid grid-cols-1 gap-3 @min-[440px]:grid-cols-2">
+            @for (section of observationSections(); track section.label) {
+              <div>
+                <div class="mb-1 text-xs uppercase tracking-wider" [class]="section.tone">{{ section.label | translate }}</div>
+                <ul class="space-y-0.5 text-sm">
+                  @for (item of section.items; track item.metric_key) {
                     <li class="flex items-center gap-1.5">
-                      <mat-icon class="!text-sm !w-4 !h-4 !leading-4 text-[var(--mat-sys-primary)] shrink-0">check_circle</mat-icon>
-                      {{ 'critique.metrics.' + s.metric_key | translate }} ({{ s.value }})
+                      <mat-icon class="!h-4 !w-4 !text-sm !leading-4 shrink-0" [class]="section.tone">{{ section.icon }}</mat-icon>
+                      {{ 'critique.metrics.' + item.metric_key | translate }} ({{ item.value }})
                     </li>
                   }
                 </ul>
-              }
-            </div>
-            <div>
-              @if (c.weaknesses?.length) {
-                <div class="text-xs uppercase tracking-wider text-[var(--mat-sys-error)] mb-1">{{ I18N.critique.weaknesses | translate }}</div>
-                <ul class="text-sm space-y-0.5">
-                  @for (w of c.weaknesses; track w.metric_key) {
-                    <li class="flex items-center gap-1.5">
-                      <mat-icon class="!text-sm !w-4 !h-4 !leading-4 text-[var(--mat-sys-error)] shrink-0">warning</mat-icon>
-                      {{ 'critique.metrics.' + w.metric_key | translate }} ({{ w.value }})
-                    </li>
-                  }
-                </ul>
-              }
-            </div>
+              </div>
+            }
           </div>
         }
 
@@ -423,6 +409,13 @@ export class PhotoAnalysisComponent {
 
   protected readonly loading = signal(true);
   protected readonly critique = signal<CritiqueResponse | null>(null);
+  protected readonly observationSections = computed(() => {
+    const critique = this.critique();
+    return [
+      { label: I18N.critique.strengths, icon: 'check_circle', tone: 'text-[var(--mat-sys-primary)]', items: critique?.strengths ?? [] },
+      { label: I18N.critique.weaknesses, icon: 'warning', tone: 'text-[var(--mat-sys-error)]', items: critique?.weaknesses ?? [] },
+    ].filter(section => section.items.length);
+  });
   protected readonly calculationHelp = computed(() => {
     const basis = this.critique()?.normalization_basis;
     return basis
