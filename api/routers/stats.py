@@ -1159,18 +1159,22 @@ def metric_distribution(column: str = Query("aggregate", max_length=80),
     from api.routers.gallery import SCORE_RANGE_COLUMNS, EXIF_RANGE_COLUMNS
     from metric_columns import FORM_METRIC_COLUMNS
     # Manual ratings have account-specific authority; this endpoint describes computed metrics.
-    allowed = ({row[0] for row in SCORE_RANGE_COLUMNS + EXIF_RANGE_COLUMNS} | set(FORM_METRIC_COLUMNS)) - {'star_rating'}
-    if column not in allowed:
+    columns = {name: name for name in
+               ({row[0] for row in SCORE_RANGE_COLUMNS + EXIF_RANGE_COLUMNS} | set(FORM_METRIC_COLUMNS))
+               if name != 'star_rating'}
+    # Interpolate the registry value, never the request's identifier.
+    sql_column = columns.get(column)
+    if sql_column is None:
         raise HTTPException(422, 'Unknown metric')
     visibility, params = get_visibility_clause(user.user_id if user else None)
-    where = f"{visibility} AND {column} > ? AND {column} < ?"
+    where = f"{visibility} AND {sql_column} > ? AND {sql_column} < ?"
     params = [*params, float('-inf'), float('inf')]
     if category is not None:
         where += ' AND category = ?'
         params.append(category)
     with get_db() as conn:
         conn.execute('BEGIN')
-        row = conn.execute(f'SELECT MIN({column}),MAX({column}),COUNT(*) FROM photos WHERE {where}', params).fetchone()
+        row = conn.execute(f'SELECT MIN({sql_column}),MAX({sql_column}),COUNT(*) FROM photos WHERE {where}', params).fetchone()
         if not row[2]:
             return {'distribution': None, 'count': 0}
         lo, hi, count = float(row[0]), float(row[1]), row[2]
@@ -1181,7 +1185,7 @@ def metric_distribution(column: str = Query("aggregate", max_length=80),
             normalized_lo = lo / scale
             span = hi / scale - normalized_lo
             for bucket, total in conn.execute(
-                    f'SELECT MAX(0,MIN(31,CAST((({column}/?-?)/?)*32 AS INTEGER))),COUNT(*) '
+                    f'SELECT MAX(0,MIN(31,CAST((({sql_column}/?-?)/?)*32 AS INTEGER))),COUNT(*) '
                     f'FROM photos WHERE {where} GROUP BY 1', [scale, normalized_lo, span, *params]):
                 buckets[int(bucket)] = total
-    return {'distribution': {'column': column, 'min': lo, 'max': hi, 'buckets': buckets}, 'count': count}
+    return {'distribution': {'column': sql_column, 'min': lo, 'max': hi, 'buckets': buckets}, 'count': count}

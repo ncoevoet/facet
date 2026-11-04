@@ -902,33 +902,32 @@ describe('GalleryFilterSidebarComponent', () => {
       const titles = () => Array.from((fixture.nativeElement as HTMLElement).querySelectorAll('mat-panel-title'))
         .map(t => t.textContent!.trim());
 
-      it('gives every metric row its own help, as a left tooltip and as the sliders\' description', () => {
+      it.each(['quality', 'subject'] as const)('gives every %s metric row its own tooltip and slider description', tab => {
         const help = I18N.gallery.sidebar.metric_help as Record<string, string>;
         for (const def of ADDITIONAL_FILTERS) expect(help[def.id], def.id).toBe(def.helpKey);
         let checked = 0;
-        for (const tab of ['quality', 'subject'] as const) {
-          fixture.componentInstance.selectTab(tab);
-          settle();
-          for (const def of ADDITIONAL_FILTERS) {
-            const rowEl = fixture.debugElement.query(By.css(`[data-metric="${def.id}"]`));
-            if (!rowEl) continue;
-            const tip = rowEl.query(By.directive(MatTooltip)).injector.get(MatTooltip);
-            expect(tip.message, def.id).toBe(def.helpKey);
-            expect(tip.position, def.id).toBe('left');
-            expect(tip.showDelay, def.id).toBe(600);
-            const description = (rowEl.nativeElement as HTMLElement).querySelector(`#metric-help-${def.id}`)!.textContent!.trim();
-            expect(description, def.id).toBe(def.helpKey);
-            for (const input of (rowEl.nativeElement as HTMLElement).querySelectorAll('input')) {
-              expect(input.getAttribute('aria-describedby'), def.id).toBe(`metric-help-${def.id}`);
-            }
-            checked++;
+        fixture.componentInstance.selectTab(tab);
+        settle();
+        const definitions = new Map(ADDITIONAL_FILTERS.map(def => [def.id, def]));
+        for (const rowEl of fixture.debugElement.queryAll(By.css('[data-metric]'))) {
+          const def = definitions.get((rowEl.nativeElement as HTMLElement).dataset['metric']!);
+          if (!def) continue;
+          const tip = rowEl.query(By.directive(MatTooltip)).injector.get(MatTooltip);
+          expect(tip.message, def.id).toBe(def.helpKey);
+          expect(tip.position, def.id).toBe('left');
+          expect(tip.showDelay, def.id).toBe(600);
+          const description = (rowEl.nativeElement as HTMLElement).querySelector(`#metric-help-${def.id}`)!.textContent!.trim();
+          expect(description, def.id).toBe(def.helpKey);
+          for (const input of (rowEl.nativeElement as HTMLElement).querySelectorAll('input')) {
+            expect(input.getAttribute('aria-describedby'), def.id).toBe(`metric-help-${def.id}`);
           }
-          if (tab === 'quality') {
-            const labelTips = fixture.debugElement.queryAll(By.directive(MatTooltip))
-              .filter(d => d.nativeElement.tagName === 'MAT-LABEL').map(d => d.injector.get(MatTooltip).message);
-            expect(labelTips).toContain('gallery.sidebar.metric_help.quality_tier');
-            expect((fixture.nativeElement as HTMLElement).querySelector('#metric-help-quality_tier')).toBeTruthy();
-          }
+          checked++;
+        }
+        if (tab === 'quality') {
+          const labelTips = fixture.debugElement.queryAll(By.directive(MatTooltip))
+            .filter(d => d.nativeElement.tagName === 'MAT-LABEL').map(d => d.injector.get(MatTooltip).message);
+          expect(labelTips).toContain('gallery.sidebar.metric_help.quality_tier');
+          expect((fixture.nativeElement as HTMLElement).querySelector('#metric-help-quality_tier')).toBeTruthy();
         }
         expect(checked).toBeGreaterThan(4);
       });
