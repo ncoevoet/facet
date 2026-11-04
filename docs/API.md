@@ -378,7 +378,7 @@ Shared by `POST /api/export/sidecars`, `POST /api/lightroom/manifest` and `POST 
 - `paths` only (max 10000); no `filters`/`exclude`, so select-all-in-view cannot use it. Default scope is the named file only.
 - `include_companions` (default `false`): add the same-stem RAW and `.xmp`; a companion with its own `photos` row is removed once it trashes.
 - `include_sequence_siblings` (default `false`): widen to every frame sharing `(sequence_kind, sequence_group_id)`, as on `/api/cull/apply`.
-- A bracket's base exposure (`sequence_ev_offset = 0`) is refused (`refused_bracket_lead`) unless `include_sequence_siblings` deletes the whole bracket. A panorama lead deleted alone hands the lead to a surviving sibling.
+- A bracket's base exposure (`sequence_ev_offset = 0`) is refused (`refused_bracket_lead`) unless `include_sequence_siblings` deletes the whole bracket. A panorama lead deleted alone hands the lead to a surviving sibling. A burst left without a lead gets one again: the best remaining frame by the burst pass's rule (`pick_lead`), so the burst stays visible under Hide bursts.
 - A trashed file's row is deleted at once (no `--cleanup-missing-photos` needed).
 - `skipped` (file already missing) keeps its row for `--cleanup-missing-photos`; with `remove_missing` (default `false`) the row is removed and listed in `removed_missing`, not `deleted`. Paths refused by the scan-directory allowlist, or in a missing or empty folder, stay in `skipped`.
 - `errors` (trash failed) keep their row.
