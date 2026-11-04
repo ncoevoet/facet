@@ -34,16 +34,21 @@ def edit_file_name(original_path: str, suffix: str, revision: int, source_ext: s
     return f'{stem}_{suffix}_{revision}{ext}'
 
 
-def next_revision(original_path: str, suffix: str, names_in_folder, recorded_revisions) -> int:
-    """One past the highest revision already used for this original and tool suffix.
+def next_revision(original_path: str, suffixes, names_in_folder, recorded_revisions) -> int:
+    """One past the highest revision already used for this original, across every tool.
 
-    Counts both the files beside the original (an edit placed by hand counts too) and
-    the recorded rows (an edit whose file was since moved still holds its number), so
-    a revision is never reused.
+    Revisions are shared by all tools (``suffixes``: every configured tool suffix), so the
+    number orders an original's edits: after ``IMG_1_agy_2``, a ChatGPT edit is ``IMG_1_gpt_3``.
+    Counts both the files beside the original (an edit placed by hand counts too) and the
+    recorded rows (an edit whose file was since moved still holds its number), so a revision
+    is never reused.
     """
     mod = _path_module(original_path)
     stem = mod.splitext(mod.basename(original_path))[0]
-    pattern = re.compile(rf'^{re.escape(stem)}_{re.escape(suffix)}_(\d+)\.[^.]+$', re.IGNORECASE)
+    tags = '|'.join(re.escape(s) for s in suffixes)
+    if not tags:
+        return max((int(r) for r in recorded_revisions), default=0) + 1
+    pattern = re.compile(rf'^{re.escape(stem)}_(?:{tags})_(\d+)\.[^.]+$', re.IGNORECASE)
     used = [int(m.group(1)) for name in names_in_folder if (m := pattern.match(name))]
     used.extend(int(r) for r in recorded_revisions)
     return max(used, default=0) + 1
