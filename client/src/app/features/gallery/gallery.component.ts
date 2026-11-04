@@ -148,7 +148,7 @@ const SET_KIND_TOGGLE: Record<string, keyof HiddenFilterFlags> = {
          Existing handlers retain debounce, pin and parked-route protections. -->
     <ng-template #galleryToolbar>
       @if (!pinned()) {
-        <mat-form-field class="!hidden md:!inline-flex md:w-40 shrink-0" subscriptSizing="dynamic">
+        <mat-form-field class="!hidden @min-[1120px]:!inline-flex @min-[1120px]:w-40 shrink-0" subscriptSizing="dynamic">
           <mat-label>{{ I18N.ui.filters.type | translate }}</mat-label>
           <mat-select panelWidth="auto" panelClass="nowrap-panel !max-h-[70vh]" [value]="store.filters().type" (selectionChange)="onTypeChange($event.value)">
             <mat-option value="">{{ I18N.gallery.all_photos | translate }}</mat-option>
@@ -159,7 +159,7 @@ const SET_KIND_TOGGLE: Record<string, keyof HiddenFilterFlags> = {
         </mat-form-field>
 
         <!-- Exact text search commits through the existing debounced handler. -->
-        <label class="relative block min-w-0 flex-1">
+        <label class="relative block min-w-40 flex-1">
           <span class="sr-only">{{ I18N.gallery.search_placeholder | translate }}</span>
           <input
             #toolbarSearch
@@ -333,7 +333,7 @@ const SET_KIND_TOGGLE: Record<string, keyof HiddenFilterFlags> = {
               {{ (selectingPhotos() ? I18N.ui.buttons.cancel : I18N.gallery.selection.select) | translate }}
             </button>
           </div>
-          <div data-collection-query role="search" [attr.aria-label]="I18N.gallery.search_placeholder | translate" class="flex w-full min-w-0 flex-wrap items-center gap-1 @min-[600px]:w-auto @min-[600px]:min-w-56 @min-[600px]:flex-1" [class.!hidden]="!isDesktop() && !mobileSearchOpen() && !store.filters().search">
+          <div data-collection-query role="search" [attr.aria-label]="I18N.gallery.search_placeholder | translate" class="flex w-full min-w-0 flex-wrap items-center gap-1 @min-[600px]:w-auto @min-[600px]:min-w-80 @min-[600px]:flex-1 @min-[1120px]:min-w-[30rem]" [class.!hidden]="!isDesktop() && !mobileSearchOpen() && !store.filters().search">
             <ng-container [ngTemplateOutlet]="galleryToolbar" />
           </div>
           <div data-collection-actions class="flex w-full flex-wrap items-center gap-1 border-t border-[var(--mat-sys-outline-variant)] pt-2 @min-[600px]:ml-auto @min-[600px]:w-auto @min-[600px]:border-0 @min-[600px]:pt-0">
@@ -787,12 +787,6 @@ const SET_KIND_TOGGLE: Record<string, keyof HiddenFilterFlags> = {
              role="region" [attr.aria-label]="selectionStatus().key | translate:selectionStatus().params" [attr.aria-describedby]="viewScoped() ? 'whole-view-target-note' : null"
              class="absolute bottom-2 md:bottom-4 left-2 md:left-4 z-20 w-fit group/selection flex flex-wrap items-center gap-1 px-2 py-1 rounded-lg bg-[var(--mat-sys-surface-container)] border border-[var(--mat-sys-primary)] shadow-lg max-md:mb-[env(safe-area-inset-bottom)]"
              [style.right.px]="noticeRightPx()">
-          <button mat-icon-button type="button" data-toolbar-drag-handle class="touch-none cursor-grab active:cursor-grabbing shrink-0"
-                  [attr.aria-label]="I18N.gallery.selection.move_bar | translate" aria-describedby="selection-bar-move-help"
-                  [matTooltip]="I18N.gallery.selection.move_bar | translate">
-            <mat-icon>drag_indicator</mat-icon>
-          </button>
-          <span id="selection-bar-move-help" class="sr-only">{{ I18N.gallery.selection.move_bar_help | translate }}</span>
           <!-- Every loaded photo is selected, but the view runs past the pages
                fetched so far. Offer the rest explicitly on its own line (w-full
                in a wrapping row) rather than silently widening what was asked. -->
@@ -805,14 +799,20 @@ const SET_KIND_TOGGLE: Record<string, keyof HiddenFilterFlags> = {
           @if (viewScoped()) {
             <p id="whole-view-target-note" class="sr-only">{{ I18N.stacks.folded_scope | translate }}</p>
             @if (excludedPaths().size) {
-              <p data-selection-exclusions class="text-xs basis-full m-0">{{ I18N.gallery.selection.exclusions | translate:{ count: excludedPaths().size } }}</p>
+              <p data-selection-exclusions class="[contain:inline-size] text-xs basis-full m-0">{{ I18N.gallery.selection.exclusions | translate:{ count: excludedPaths().size } }}</p>
             }
           } @else if (selectionOutsideLoaded()) {
-            <p data-selection-outside class="text-xs basis-full m-0" aria-live="polite">{{ I18N.gallery.selection.outside_loaded | translate:{ count: selectionOutsideLoaded() } }}</p>
+            <p data-selection-outside class="[contain:inline-size] text-xs basis-full m-0" aria-live="polite">{{ I18N.gallery.selection.outside_loaded | translate:{ count: selectionOutsideLoaded() } }}</p>
           }
           @if (!viewScoped() && selectedStackTiles()) {
-            <p data-selection-cover-only class="text-xs basis-full m-0">{{ I18N.gallery.selection.cover_only | translate }}</p>
+            <p data-selection-cover-only class="[contain:inline-size] text-xs basis-full m-0">{{ I18N.gallery.selection.cover_only | translate }}</p>
           }
+          <button mat-icon-button type="button" data-toolbar-drag-handle class="!h-11 !w-11 !min-w-11 touch-none cursor-grab active:cursor-grabbing shrink-0"
+                  [attr.aria-label]="I18N.gallery.selection.move_bar | translate" aria-describedby="selection-bar-move-help"
+                  [matTooltip]="I18N.gallery.selection.move_bar | translate">
+            <mat-icon>drag_indicator</mat-icon>
+          </button>
+          <span id="selection-bar-move-help" class="sr-only">{{ I18N.gallery.selection.move_bar_help | translate }}</span>
           <span data-selection-status tabindex="-1" class="text-sm font-medium shrink-0 px-1">{{ selectionStatus().key | translate:selectionStatus().params }}</span>
           @if (viewScoped() || selectionGroupTargets().total) {
             <details #selectionTargets #selectionDisclosure name="gallery-selection-disclosures" data-selection-targets

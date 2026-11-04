@@ -556,7 +556,7 @@ export function loadActiveTab(): SidebarTabId {
           </mat-expansion-panel-header>
           <div class="flex flex-col gap-2 pb-2">
             @if (store.types().length) {
-              <mat-form-field subscriptSizing="dynamic" class="w-full lg:!hidden">
+              <mat-form-field subscriptSizing="dynamic" class="w-full">
                 <mat-label>{{ I18N.ui.filters.type | translate }}</mat-label>
                 <mat-select panelWidth="auto" panelClass="nowrap-panel !max-h-[70vh]" [value]="store.filters().type" (selectionChange)="store.updateFilter('type', $event.value)">
                   <mat-option value="">{{ I18N.gallery.all_photos | translate }}</mat-option>
