@@ -1,8 +1,10 @@
 import type { Mock } from 'vitest';
 import { TestBed } from '@angular/core/testing';
+import { Component } from '@angular/core';
+import { MATERIAL_ANIMATIONS } from '@angular/material/core';
 import { of, throwError } from 'rxjs';
 import { Router, provideRouter } from '@angular/router';
-import { MatDialog } from '@angular/material/dialog';
+import { MatDialog, MatDialogModule } from '@angular/material/dialog';
 import { OverlayContainer } from '@angular/cdk/overlay';
 import { AlbumService } from '../../core/services/album.service';
 import { AuthService } from '../../core/services/auth.service';
@@ -11,6 +13,9 @@ import { UserActivityJournal } from '../../core/agent/user-activity-journal.serv
 import { AlbumsComponent } from './albums.component';
 import { PageContextService } from '../../core/agent/page-context.service';
 import { AlbumsFiltersService } from './albums-filters.service';
+
+@Component({ imports: [MatDialogModule], template: '<button mat-dialog-close data-cancel-dialog>Cancel</button>' })
+class CancelOnlyDialog {}
 
 describe('AlbumsComponent', () => {
   let component: AlbumsComponent;
@@ -161,6 +166,38 @@ describe('AlbumsComponent', () => {
     expect(internals().albums().find((a: { id: number }) => a.id === album.id)?.scoring_context).toBe('party_event');
   });
 
+  it.each(['albums.edit', 'albums.delete', 'albums.scoring_context.action', 'albums.portfolio', 'proofing.client_picks', 'albums.share'])(
+    'restores real dialog focus to the album menu trigger after %s closes', async label => {
+      TestBed.resetTestingModule();
+      TestBed.configureTestingModule({ imports: [AlbumsComponent, CancelOnlyDialog], providers: [
+        provideRouter([]), { provide: MATERIAL_ANIMATIONS, useValue: { animationsDisabled: true } },
+        { provide: AlbumService, useValue: mockAlbumService }, { provide: AuthService, useValue: mockAuth },
+        { provide: I18nService, useValue: mockI18n }, { provide: UserActivityJournal, useValue: journal },
+      ] });
+      const fixture = TestBed.createComponent(AlbumsComponent);
+      document.body.appendChild(fixture.nativeElement);
+      const dialog = fixture.debugElement.injector.get(MatDialog), open = dialog.open.bind(dialog);
+      // Keep Material's real close/focus lifecycle while isolating each feature's dialog contents.
+      const spy = vi.spyOn(dialog, 'open').mockImplementation((_component, config) => open(CancelOnlyDialog, config) as any);
+      fixture.detectChanges(); await fixture.whenStable(); fixture.detectChanges();
+      const trigger = fixture.nativeElement.querySelector('#album-actions-1') as HTMLButtonElement;
+      trigger.focus(); trigger.click(); fixture.detectChanges(); await fixture.whenStable();
+      const overlay = TestBed.inject(OverlayContainer).getContainerElement();
+      const action = overlay.querySelector<HTMLButtonElement>(`[role=menu] button[aria-label="${label}"]`);
+      expect(action).not.toBeNull(); action!.click();
+      fixture.detectChanges(); await fixture.whenStable(); fixture.detectChanges();
+      expect(spy).toHaveBeenCalledExactlyOnceWith(expect.anything(), expect.objectContaining({ restoreFocus: '#album-actions-1' }));
+      const cancel = overlay.querySelector<HTMLButtonElement>('[data-cancel-dialog]')!;
+      expect(cancel).not.toBeNull();
+      expect(document.activeElement?.closest('mat-dialog-container')).toBe(cancel.closest('mat-dialog-container'));
+      expect(document.activeElement).not.toBe(trigger); cancel.click();
+      fixture.detectChanges(); await fixture.whenStable(); fixture.detectChanges();
+      expect(dialog.openDialogs).toHaveLength(0); expect(document.activeElement).toBe(trigger);
+      expect(mockAlbumService.delete).not.toHaveBeenCalled();
+      fixture.destroy(); fixture.nativeElement.remove();
+    },
+  );
+
   // DEFECT F7 regression: the scoring-context button was gated on `!album.is_smart`,
   // making it unreachable for every smart album (all 16 albums in the real library
   // are smart). Asserted against the RENDERED template, not `openScoringContext()`
@@ -180,7 +217,7 @@ describe('AlbumsComponent', () => {
 
     expect(smartCard.querySelector('button')).toBeNull();
     const article = smartCard.closest('article')!;
-    article.querySelector('button')!.click();
+    article.querySelector<HTMLButtonElement>('#album-actions-2')!.click();
     fixture.detectChanges();
     await fixture.whenStable();
     const overlay = TestBed.inject(OverlayContainer).getContainerElement();

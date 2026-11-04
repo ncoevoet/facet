@@ -2,7 +2,7 @@ import { Component, signal } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
 import { provideRouter, Router, NavigationStart, NavigationEnd, NavigationCancel, NavigationCancellationCode, type Event } from '@angular/router';
 import { MatDialog } from '@angular/material/dialog';
-import { of, Subject } from 'rxjs';
+import { of, Subject, throwError } from 'rxjs';
 import type { Mock } from 'vitest';
 import { ApiService } from '../../core/services/api.service';
 import { AuthService } from '../../core/services/auth.service';
@@ -37,7 +37,7 @@ describe('FaceReviewQueueComponent', () => {
     fixture.componentRef.setInput('mode', 'matches'); fixture.detectChanges(); await fixture.whenStable(); fixture.detectChanges();
     const root = fixture.nativeElement as HTMLElement;
     document.body.appendChild(root);
-    return { fixture, root, api, auth, boxes, dialog, chooserRef };
+    return { fixture, root, api, auth, boxes, dialog, chooserRef, chooserClosed };
   }
   function select(root: HTMLElement) { root.querySelectorAll<HTMLInputElement>('input[type="checkbox"]').forEach(input => input.click()); }
   function preview(root: HTMLElement) { root.querySelector<HTMLButtonElement>('[data-review-selected]')!.click(); }
@@ -178,14 +178,17 @@ describe('FaceReviewQueueComponent', () => {
     root.remove();
   });
 
-  it('shows precise skipped-model receipts as a known refusal rather than unknown completion', async () => {
+  it.each([
+    ['already', 'already'], ['missing', 'missing'], ['skipped_model', 'model_mismatch'],
+    ['skipped_hidden', 'already_assigned'], ['skipped_assigned', 'already_assigned'], ['skipped_changed', 'face_changed'],
+  ] as const)('shows the precise %s refusal receipt', async (field, reason) => {
     const { fixture, root, api } = await render();
-    api.post.mockReturnValueOnce(of({ ...assigned, assigned_count: 0, skipped_model: [1] }));
+    api.post.mockReturnValueOnce(of({ ...assigned, assigned_count: 0, [field]: [1] }));
     select(root); fixture.detectChanges(); preview(root); fixture.detectChanges();
     root.querySelector<HTMLButtonElement>('[data-confirm-assignment]')!.click();
     await fixture.whenStable(); fixture.detectChanges();
     expect(root.querySelector('[data-assignment-receipt]')?.textContent).toContain('"assigned":1,"skipped":1');
-    expect(root.querySelector('[data-receipt-reasons]')?.textContent).toContain('persons.review_queue.model_mismatch');
+    expect(root.querySelector('[data-receipt-reasons]')?.textContent).toContain('persons.review_queue.' + reason);
     expect(root.textContent).toContain('persons.review_queue.changed');
     expect(root.textContent).not.toContain('persons.review_queue.uncertain');
     fixture.destroy(); root.remove();
@@ -246,6 +249,70 @@ describe('FaceReviewQueueComponent', () => {
     expect(root.querySelector<HTMLButtonElement>('[data-feedback-undo]')?.disabled).toBe(true);
     expect(api.post).toHaveBeenCalledTimes(1);
     fixture.destroy(); root.remove();
+  });
+
+  it('offers a read retry without suggestions after discovery fails', async () => {
+    const { fixture, root, api } = await render();
+    api.get.mockReturnValueOnce(throwError(() => new Error('suggestions offline')));
+    root.querySelector<HTMLButtonElement>('[data-queue-reload]')!.click();
+    await fixture.whenStable(); fixture.detectChanges();
+    expect(root.querySelector('[role=alert]')).not.toBeNull();
+    api.get.mockReturnValueOnce(of({ ...response, faces: response.faces.map(face => ({ ...face, suggestions: [] })) }));
+    root.querySelector<HTMLButtonElement>('[data-browse-without-matches]')!.click();
+    await fixture.whenStable(); fixture.detectChanges();
+    expect(api.get).toHaveBeenLastCalledWith('/faces/review', { after_id: 0, limit: 48, suggest: false });
+    expect(root.querySelector('[role=alert]')).toBeNull();
+    expect(root.querySelectorAll('[data-review-face]')).toHaveLength(2);
+    expect(root.querySelector('input[type=checkbox]')).toBeNull(); expect(api.post).not.toHaveBeenCalled();
+    fixture.destroy(); root.remove();
+  });
+
+  it.each(['selected', 'cancelled', 'stale'] as const)('settles a person chooser that is %s without assigning faces', async ending => {
+    const { fixture, root, api, auth, dialog, chooserClosed } = await render();
+    const trigger = [...root.querySelectorAll<HTMLButtonElement>('button')].find(button => button.textContent?.includes('persons.review_queue.choose_person'))!;
+    trigger.focus(); trigger.click();
+    await vi.waitFor(() => expect(dialog.open).toHaveBeenCalled());
+    if (ending === 'stale') auth.token = 'rotated';
+    chooserClosed.next(ending === 'cancelled' ? null : { kind: 'select', person: { id: 30, name: 'Zoe' } }); chooserClosed.complete();
+    await fixture.whenStable(); fixture.detectChanges();
+    const queue = fixture.componentInstance as any;
+    expect(queue.choices().get(1).personId).toBe(ending === 'selected' ? 30 : 10);
+    expect(queue.choosing()).toBe(false); expect(api.post).not.toHaveBeenCalled();
+    if (ending === 'selected') expect(root.textContent).toContain('Zoe');
+    if (ending === 'cancelled') expect(document.activeElement).toBe(trigger);
+    fixture.destroy(); root.remove();
+  });
+
+  it('skips a selected face locally and excludes it from the captured preview', async () => {
+    const { fixture, root, api } = await render(); select(root); fixture.detectChanges();
+    const skip = [...root.querySelectorAll<HTMLButtonElement>('[data-review-face] button')].find(button => button.textContent?.includes('persons.review_queue.skip'))!;
+    skip.click(); fixture.detectChanges(); preview(root); fixture.detectChanges();
+    expect(root.querySelectorAll('[data-review-face]')).toHaveLength(1);
+    expect(root.querySelector('[data-assignment-preview]')?.textContent).toContain('Bob');
+    expect(root.querySelector('[data-assignment-preview]')?.textContent).not.toContain('Alice');
+    expect(api.post).not.toHaveBeenCalled(); fixture.destroy(); root.remove();
+  });
+
+  it('blocks uncertain feedback retries when its write fails before a receipt arrives', async () => {
+    const { fixture, root, api } = await render(); const reads = api.get.mock.calls.length;
+    api.post.mockReturnValueOnce(throwError(() => new Error('lost feedback response')));
+    root.querySelector<HTMLButtonElement>('[data-not-person]')!.click();
+    await fixture.whenStable(); fixture.detectChanges();
+    expect(root.textContent).toContain('persons.review_queue.uncertain');
+    expect(root.querySelector('[data-feedback-receipt]')).toBeNull(); expect(api.get).toHaveBeenCalledTimes(reads);
+    expect(root.querySelector<HTMLButtonElement>('[data-not-person]')?.disabled).toBe(true);
+    expect(api.post).toHaveBeenCalledTimes(1); fixture.destroy(); root.remove();
+  });
+
+  it('refuses Undo after its captured feedback credentials change', async () => {
+    const { fixture, root, api, auth } = await render();
+    api.post.mockReturnValueOnce(of({ receipt_id: 'c'.repeat(32), rejected: true }));
+    root.querySelector<HTMLButtonElement>('[data-not-person]')!.click();
+    await fixture.whenStable(); fixture.detectChanges();
+    auth.token = 'rotated'; root.querySelector<HTMLButtonElement>('[data-feedback-undo]')!.click();
+    await fixture.whenStable(); fixture.detectChanges();
+    expect(api.post).toHaveBeenCalledTimes(1); expect(root.querySelector('[data-feedback-undo]')).toBeNull();
+    expect(root.querySelectorAll('[data-review-face]')).toHaveLength(0); fixture.destroy(); root.remove();
   });
 
   it('refuses captured confirmation after navigation starts', async () => {

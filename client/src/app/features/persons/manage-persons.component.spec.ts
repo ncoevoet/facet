@@ -1094,6 +1094,69 @@ describe('ManagePersonsComponent', () => {
       expect(component.tab()).toBe('named');
     });
 
+    it('restores the previous tab after navigation rejects', async () => {
+      const router = TestBed.inject(Router) as unknown as { navigate: Mock };
+      router.navigate.mockRejectedValueOnce(new Error('navigation failed'));
+      expect(await component.selectTab('matches')).toBe(false);
+      expect(component.tab()).toBe('named');
+    });
+
+    it.each(['refused', 'rejected'] as const)('ignores an old %s completion after tab ABA navigation', async ending => {
+      const router = TestBed.inject(Router) as unknown as { navigate: Mock };
+      let settle!: (value: boolean) => void, reject!: (error: Error) => void;
+      router.navigate.mockReturnValueOnce(new Promise<boolean>((resolve, fail) => { settle = resolve; reject = fail; }));
+      const first = component.selectTab('matches');
+      await component.selectTab('unassigned'); await component.selectTab('matches');
+      if (ending === 'refused') settle(false); else reject(new Error('obsolete navigation'));
+      expect(await first).toBe(false); expect(component.tab()).toBe('matches');
+    });
+
+    it.each(['edition', 'navigation'] as const)('does not launch updated-face review while %s blocks it', state => {
+      const router = TestBed.inject(Router) as unknown as { navigate: Mock; currentNavigation: () => unknown };
+      if (state === 'edition') mockAuth.isEdition.mockReturnValue(false);
+      else router.currentNavigation = () => ({ id: 1 });
+      (component as any).reviewUpdatedFaces();
+      expect(router.navigate).not.toHaveBeenCalled(); expect(component.tab()).toBe('named');
+    });
+
+    it('requests the matches tab from another tab without reloading a nonexistent queue', async () => {
+      const router = TestBed.inject(Router) as unknown as { navigate: Mock };
+      router.navigate.mockResolvedValueOnce(false);
+      (component as any).reviewUpdatedFaces(); await Promise.resolve();
+      expect(router.navigate).toHaveBeenCalledExactlyOnceWith([], { queryParams: { tab: 'matches' }, queryParamsHandling: 'merge', replaceUrl: true });
+      expect(component.tab()).toBe('named');
+    });
+
+    it.each(['owner', 'token', 'edition', 'focus', 'destroyed'] as const)('does not steal focus after updated-face review when %s changes during navigation', async ending => {
+      withTab(null);
+      Object.assign(mockAuth, { isEdition: signal(true), status: signal({ user_id: 'test' }), token: 'fixture' });
+      const original = mockApi.get.getMockImplementation()!;
+      mockApi.get.mockImplementation((url: string, params: unknown) => url === '/faces/review'
+        ? of({ faces: [], total_unassigned: 0, next_after_id: null, model: 'arcface_buffalo_l', compared_people: 0, suggestions_requested: true }) : original(url, params));
+      const fixture = await render(); const root = fixture.nativeElement as HTMLElement;
+      document.body.appendChild(root);
+      let finish!: (value: boolean) => void;
+      const router = TestBed.inject(Router) as unknown as { navigate: Mock };
+      router.navigate.mockReturnValueOnce(new Promise<boolean>(resolve => { finish = resolve; }));
+      fixture.debugElement.query(By.directive(FaceUpdateControlComponent)).componentInstance.reviewRequested.emit();
+      fixture.detectChanges();
+      const queue = fixture.debugElement.query(By.directive(FaceReviewQueueComponent)).componentInstance;
+      const focus = vi.spyOn(queue, 'focus');
+      const newer = document.createElement('button'); document.body.appendChild(newer);
+      if (ending === 'owner') mockAuth.identity = () => 'bob';
+      if (ending === 'token') Object.assign(mockAuth, { token: 'rotated' });
+      if (ending === 'edition') (mockAuth.isEdition as unknown as ReturnType<typeof signal<boolean>>).set(false);
+      if (ending === 'focus') newer.focus();
+      if (ending === 'destroyed') fixture.destroy();
+      finish(true);
+      if (ending !== 'destroyed') { await fixture.whenStable(); fixture.detectChanges(); await fixture.whenStable(); fixture.detectChanges(); }
+      else await Promise.resolve();
+      expect(focus).not.toHaveBeenCalled();
+      if (ending === 'focus') expect(document.activeElement).toBe(newer);
+      if (ending !== 'destroyed') fixture.destroy();
+      root.remove(); newer.remove();
+    });
+
     it('?tab=naming opens Needs naming, and switching writes ?tab back', async () => {
       withTab('naming');
       const fixture = await render();
