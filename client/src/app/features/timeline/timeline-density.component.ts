@@ -122,7 +122,7 @@ export class TimelineDensityComponent {
       const open = this.open(); const active = this.active(); const owner = this.auth.status(); const token = this.auth.token;
       const year = this.year(); const month = this.month(); const unit = this.unit(); const visibility = this.store.viewFilterParams();
       const from = this.filters.dateFrom(); const to = this.filters.dateTo();
-      const rows = this.membership.rows(); const revision = this.store.timelineMembershipRevision(); this.retry();
+      const rows = this.membership.rows(); const revision = this.membership.membershipRevision(); this.retry();
       untracked(() => { this.currentRead = null; this.buckets.set([]); this.clearDraft(); this.failed.set(false); this.loading.set(false); });
       if (!open || !active || !owner) return;
       const path = month || (unit === 'week' && year) ? '/timeline/dates' : year ? '/timeline/months' : '/timeline/years';
@@ -130,7 +130,7 @@ export class TimelineDensityComponent {
       this.loading.set(true);
       let valid = true;
       const current = () => valid && token === this.auth.token && owner === this.auth.status() && this.active() && this.open()
-        && year === this.year() && month === this.month() && unit === this.unit() && rows === this.membership.rows() && revision === this.store.timelineMembershipRevision()
+        && year === this.year() && month === this.month() && unit === this.unit() && rows === this.membership.rows() && revision === this.membership.membershipRevision()
         && visibility === this.store.viewFilterParams() && from === this.filters.dateFrom() && to === this.filters.dateTo();
       this.currentRead = current;
       const request = this.api.get<DensityResponse>(path, params).subscribe({

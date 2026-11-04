@@ -34,10 +34,11 @@ describe('Timeline date density', () => {
     const auth = { status: signal({ user_id: 'alice' }), token: 'a' };
     const photos = signal([makePhoto({ path: '/photo.jpg', date_taken: '2020-01-01' })]);
     const timelineMembershipRevision = signal(0);
+    const loading = signal(false);
     TestBed.configureTestingModule({ imports: [TimelineDensityComponent, TimelineYearsComponent], providers: [
       provideRouter([{ path: 'timeline', component: OtherPage }, { path: 'elsewhere', component: OtherPage }]),
       { provide: ApiService, useValue: api }, { provide: AuthService, useValue: auth },
-      { provide: GalleryStore, useValue: { viewFilterParams: signal({ hide_bursts: '1' }), photos, timelineMembershipRevision } },
+      { provide: GalleryStore, useValue: { viewFilterParams: signal({ hide_bursts: '1' }), photos, timelineMembershipRevision, loading } },
       { provide: I18nService, useValue: { t: (key: string, params?: object) => key + (params ? JSON.stringify(params) : ''), translations: () => ({}) } },
     ] });
     const router = TestBed.inject(Router); await router.navigateByUrl(openOnArrival ? '/timeline?density=1' : '/timeline');
@@ -47,7 +48,7 @@ describe('Timeline date density', () => {
     const open = async () => { const details = root.querySelector('details')!; details.open = true; details.dispatchEvent(new Event('toggle')); await settle(); const range = [...root.querySelectorAll<HTMLButtonElement>('button')].find(row => row.textContent?.includes('timeline.select_range')); range?.click(); await settle(); };
     const bars = () => [...root.querySelectorAll<HTMLButtonElement>('[aria-describedby] > button')];
     const button = (key: string) => [...root.querySelectorAll<HTMLButtonElement>('button')].find(row => row.textContent?.includes(key))!;
-    return { fixture, root, api, auth, photos, timelineMembershipRevision, router, settle, open, bars, button, filters: TestBed.inject(TimelineFiltersService) };
+    return { fixture, root, api, auth, photos, timelineMembershipRevision, loading, router, settle, open, bars, button, filters: TestBed.inject(TimelineFiltersService) };
   }
 
   it('preserves density and draft selections after review marks, but refreshes changed membership', async () => {
@@ -66,6 +67,16 @@ describe('Timeline date density', () => {
     v.timelineMembershipRevision.update(value => value + 1); await v.settle();
     expect(v.api.get).toHaveBeenCalledTimes(1);
     v.fixture.destroy();
+  });
+
+  it('keeps the density draft through the temporary Gallery clear and reads once at settlement', async () => {
+    const v = await render(); await v.open(); v.bars()[0].click(); await v.settle();
+    const rows = v.photos(); v.api.get.mockClear();
+    v.loading.set(true); v.photos.set([]); await v.settle();
+    expect(v.api.get).not.toHaveBeenCalled(); expect(v.bars()[0].getAttribute('aria-pressed')).toBe('true');
+    v.photos.set(rows); await v.settle(); expect(v.api.get).not.toHaveBeenCalled();
+    v.timelineMembershipRevision.update(value => value + 1); v.loading.set(false); await v.settle();
+    expect(v.api.get).toHaveBeenCalledTimes(1); v.fixture.destroy();
   });
 
   it('opens the actual disclosure on a drill-down arrival', async () => {

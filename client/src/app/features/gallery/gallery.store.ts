@@ -1231,7 +1231,6 @@ export class GalleryStore {
   /** Load photos based on current filters (replaces list) */
   async loadPhotos(acceptResult: () => boolean = () => true, { retainRows = false }: { retainRows?: boolean } = {}): Promise<void> {
     if (this.destroyRef.destroyed) return;
-    this.timelineMembershipRevision.update(value => value + 1);
     this.cancelRangeLoad();
     this.syncReadOwner();
     this.listingReadsActive = true;
@@ -1311,6 +1310,8 @@ export class GalleryStore {
       this.loadError.set(true);
     } finally {
       if (fresh()) {
+        // Timeline sees one settled reload, not its transient clear and repopulation.
+        this.timelineMembershipRevision.update(value => value + 1);
         this.loading.set(false);
       }
     }

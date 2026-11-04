@@ -1125,6 +1125,20 @@ describe('GalleryStore', () => {
   });
 
   describe('loadPhotos()', () => {
+    it.each(['success', 'failure'] as const)('publishes one Timeline reload revision after %s settles, while mutations stay immediate', async outcome => {
+      const response = new Subject<PhotosResponse>();
+      apiGet.mockImplementation((url: string) => url === '/photos' ? response : of({}));
+      const before = store.timelineMembershipRevision();
+      const pending = store.loadPhotos();
+      expect(store.loading()).toBe(true); expect(store.timelineMembershipRevision()).toBe(before);
+      store.patchPhoto('/unloaded.jpg', { date_taken: '2026-01-01' });
+      expect(store.timelineMembershipRevision()).toBe(before + 1);
+      if (outcome === 'success') { response.next(makePhotosResponse()); response.complete(); }
+      else response.error(new Error('read failed'));
+      await pending;
+      expect(store.loading()).toBe(false); expect(store.timelineMembershipRevision()).toBe(before + 2);
+    });
+
     it('should set loading, fetch photos, and update state', async () => {
       const response = makePhotosResponse({
         photos: [makePhoto({ filename: 'a.jpg' }), makePhoto({ filename: 'b.jpg' })],

@@ -46,14 +46,20 @@ function sameMembership(left: Photo[], right: Photo[]): boolean {
 export class TimelineFeedCache {
   private readonly auth = inject(AuthService);
   private readonly store = inject(GalleryStore);
-  readonly rows = computed(() => this.store.photos(), { equal: sameMembership });
+  private settledRows: Photo[] = [];
+  // A Gallery reload temporarily clears its rows; publish only the settled list.
+  readonly rows = computed(() => {
+    if (!this.store.loading()) this.settledRows = this.store.photos();
+    return this.settledRows;
+  }, { equal: sameMembership });
+  readonly membershipRevision = this.store.timelineMembershipRevision.asReadonly();
   private snapshot: TimelineSnapshot | null = null;
   private photoSession: { owner: AuthStatus; token: string | null; paths: string[] } | null = null;
 
   constructor() {
     effect(() => {
       const owner = this.auth.status();
-      const rows = this.rows(); const revision = this.store.timelineMembershipRevision();
+      const rows = this.rows(); const revision = this.membershipRevision();
       if (this.snapshot?.owner !== owner || this.snapshot?.token !== this.auth.token || rows !== this.snapshot.rows
         || revision !== this.snapshot.membershipRevision) this.snapshot = null;
       if (this.photoSession?.owner !== owner || this.photoSession?.token !== this.auth.token) this.photoSession = null;
@@ -63,13 +69,13 @@ export class TimelineFeedCache {
   read(scope: string): TimelineSnapshot | null {
     const value = this.snapshot;
     return value?.scope === scope && value.owner === this.auth.status() && value.token === this.auth.token && value.rows === this.rows()
-      && value.membershipRevision === this.store.timelineMembershipRevision()
+      && value.membershipRevision === this.membershipRevision()
       ? value : null;
   }
 
   save(value: TimelineSnapshot): void {
     if (value.owner === this.auth.status() && value.token === this.auth.token && value.rows === this.rows()
-      && value.membershipRevision === this.store.timelineMembershipRevision()) this.snapshot = value;
+      && value.membershipRevision === this.membershipRevision()) this.snapshot = value;
   }
 
   capturePhotos(photos: TimelineGroup[]): void {

@@ -23,10 +23,11 @@ describe('Timeline photo feed', () => {
     const visibility = signal({ hide_bursts: '1', hide_duplicates: '0' });
     const photos = signal<Photo[]>([]);
     const timelineMembershipRevision = signal(0);
+    const loading = signal(false);
     TestBed.configureTestingModule({ imports: [TimelineFeedComponent], providers: [
       provideRouter([{ path: 'timeline', component: OtherPage }, { path: 'timeline/:year/:month', component: OtherPage }, { path: 'photo', component: OtherPage }]),
       { provide: ApiService, useValue: api }, { provide: AuthService, useValue: auth },
-      { provide: GalleryStore, useValue: { viewFilterParams: visibility, photos, timelineMembershipRevision } },
+      { provide: GalleryStore, useValue: { viewFilterParams: visibility, photos, timelineMembershipRevision, loading } },
       { provide: I18nService, useValue: { t: (key: string, params?: object) => key + (params ? JSON.stringify(params) : ''), translations: () => ({}) } },
     ] });
     const router = TestBed.inject(Router); await router.navigateByUrl('/timeline');
@@ -38,7 +39,7 @@ describe('Timeline photo feed', () => {
       return { fixture, root: fixture.nativeElement as HTMLElement, wrapper, settle, dispose };
     }
     const view = create(); await view.settle();
-    return { ...view, create, api, auth, visibility, photos, timelineMembershipRevision, router, filters: TestBed.inject(TimelineFiltersService) };
+    return { ...view, create, api, auth, visibility, photos, timelineMembershipRevision, loading, router, filters: TestBed.inject(TimelineFiltersService) };
   }
 
   it('renders actual dated photos, preview totals and exact visible-day links without writes', async () => {
@@ -88,6 +89,35 @@ describe('Timeline photo feed', () => {
     await v.router.navigateByUrl('/timeline'); const returned = v.create(); await returned.settle();
     expect(returned.root.querySelector('h2')?.textContent).toBe('01/11/2026'); expect(returned.wrapper.scrollTop).toBe(240);
     expect(v.api.get).toHaveBeenCalledTimes(1); returned.dispose();
+  });
+
+  it('reads once after a Gallery reload settles, keeping the current feed during the temporary clear', async () => {
+    const v = await setup();
+    v.photos.set([first.groups[0].photos[0]]); await v.settle(); v.api.get.mockClear();
+    v.loading.set(true);
+    v.photos.set([]); await v.settle();
+    expect(v.api.get).not.toHaveBeenCalled();
+    expect(v.root.querySelector('h2')?.textContent).toBe('01/11/2026');
+    v.photos.set([first.groups[0].photos[0]]); await v.settle();
+    expect(v.api.get).not.toHaveBeenCalled();
+    v.timelineMembershipRevision.update(value => value + 1); v.loading.set(false); await v.settle();
+    expect(v.api.get).toHaveBeenCalledTimes(1);
+    expect(v.root.querySelector('h2')?.textContent).toBe('01/11/2026');
+    v.dispose();
+  });
+
+  it('invalidates a pending Timeline read immediately for an explicit mutation during Gallery loading', async () => {
+    const v = await setup(); const response = new Subject<TimelinePage>();
+    v.api.get.mockReturnValueOnce(response);
+    v.filters.sortDirection.set('newer'); await v.settle();
+    expect(response.observed).toBe(true);
+    v.api.get.mockClear(); v.loading.set(true); await v.settle();
+    expect(response.observed).toBe(true); expect(v.api.get).not.toHaveBeenCalled();
+    v.timelineMembershipRevision.update(value => value + 1); await v.settle();
+    expect(response.observed).toBe(false); expect(v.api.get).toHaveBeenCalledTimes(1);
+    response.next({ groups: [{ date: '1999-01-01', count: 0, photos: [] }], next_cursor: null, has_more: false });
+    expect(v.root.textContent).not.toContain('01/01/1999');
+    v.dispose();
   });
 
   it('preserves the feed and scroll when a photo receives a review mark', async () => {

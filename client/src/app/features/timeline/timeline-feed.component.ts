@@ -110,7 +110,7 @@ export class TimelineFeedComponent {
 
   constructor() {
     effect(onCleanup => {
-      const params = this.params(); const owner = this.auth.status(); const active = this.active(); const rows = this.cache.rows(); const membershipRevision = this.store.timelineMembershipRevision();
+      const params = this.params(); const owner = this.auth.status(); const active = this.active(); const rows = this.cache.rows(); const membershipRevision = this.cache.membershipRevision();
       untracked(() => {
       this.cancel(); this.context = null; this.groups.set([]); this.hasMore.set(false); this.error.set(false);
       if (!owner || !active) return;
@@ -147,7 +147,7 @@ export class TimelineFeedComponent {
   private current(context: NonNullable<TimelineFeedComponent['context']>, generation: number): boolean {
     return generation === this.generation && this.active() && context === this.context
       && context.owner === this.auth.status() && context.token === this.auth.token && context.rows === this.cache.rows()
-      && context.membershipRevision === this.store.timelineMembershipRevision();
+      && context.membershipRevision === this.cache.membershipRevision();
   }
 
   protected openPhoto(event: MouseEvent, photo: Photo): void {
