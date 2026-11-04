@@ -34,10 +34,10 @@ const sortOptionLabelKey = (column: string): string => `sort_options.${column}`;
         {{ I18N.gallery.review_navigation.advance | translate }}
       </label>
     }
-    <button mat-button data-display-presets class="max-md:!min-w-11 max-md:!w-11 max-md:!px-2" [matMenuTriggerFor]="displayPresetMenu"
+    <button mat-button data-display-presets class="!min-h-11 !min-w-11 !w-11 !px-2 @[1120px]:!w-auto @[1120px]:!px-4" [matMenuTriggerFor]="displayPresetMenu"
             [attr.aria-label]="I18N.gallery.presentation.label | translate"
             [matTooltip]="I18N.gallery.presentation.help | translate">
-      <mat-icon class="max-md:!m-0">tune</mat-icon><span class="hidden md:inline">{{ I18N.gallery.presentation.label | translate }}</span>
+      <mat-icon class="!m-0 @[1120px]:!mr-2">tune</mat-icon><span class="hidden @[1120px]:inline">{{ I18N.gallery.presentation.label | translate }}</span>
     </button>
     <mat-menu #displayPresetMenu="matMenu">
       <p class="m-0 px-4 py-2 max-w-72 text-xs text-[var(--mat-sys-on-surface-variant)]">{{ I18N.gallery.presentation.help | translate }}</p>
@@ -61,70 +61,54 @@ const sortOptionLabelKey = (column: string): string => `sort_options.${column}`;
       }
     </mat-menu>
     <ng-template #primaryControls>
-    @if (!pinned()) {
-          @let sortTooltip = I18N.gallery.sort_current | translate:{ label: (currentSortLabelKey() | translate) };
-          <button mat-button data-collection-sort class="!min-h-11 !min-w-11 !w-11 !px-2 @[1120px]:!w-auto @[1120px]:!px-4" [matMenuTriggerFor]="sortMenu" [matTooltip]="sortTooltip" [attr.aria-label]="sortTooltip">
-            @let currentIcon = store.filters().sort | sortOptionIcon;
-            <mat-icon aria-hidden="true" class="!m-0 !w-8 text-center @[1120px]:!mr-2" [class]="currentIcon.classes">{{ currentIcon.text }}</mat-icon>
-          <span class="hidden @[1120px]:inline">{{ currentSortLabelKey() | translate }}</span></button>
-          <button
-            class="max-md:!min-h-11 max-md:!min-w-11"
-            mat-icon-button
-            (click)="toggleSortDirection()"
-            [matTooltip]="store.filters().sort_direction === 'DESC' ? (I18N.gallery.sort_desc | translate) : (I18N.gallery.sort_asc | translate)"
-            [attr.aria-label]="store.filters().sort_direction === 'DESC' ? (I18N.gallery.sort_desc | translate) : (I18N.gallery.sort_asc | translate)"
-          >
-            <mat-icon>{{
-              store.filters().sort_direction === 'DESC' ? 'arrow_downward' : 'arrow_upward'
-            }}</mat-icon>
-          </button>
-        }
+      @if (!pinned()) {
+        @let sortTooltip = I18N.gallery.sort_current | translate:{ label: (currentSortLabelKey() | translate) };
+        <button mat-button data-collection-sort
+                class="!min-h-11 !min-w-11 !w-11 !px-2 @[1120px]:!w-auto @[1120px]:!px-4"
+                [matMenuTriggerFor]="sortMenu" [matTooltip]="sortTooltip" [attr.aria-label]="sortTooltip">
+          @let currentIcon = store.filters().sort | sortOptionIcon;
+          <mat-icon aria-hidden="true" class="!m-0 !w-8 text-center @[1120px]:!mr-2" [class]="currentIcon.classes">{{ currentIcon.text }}</mat-icon>
+          <span class="hidden @[1120px]:inline">{{ currentSortLabelKey() | translate }}</span>
+        </button>
+        <button mat-icon-button class="!h-11 !w-11 !min-w-11 !p-2.5" (click)="toggleSortDirection()"
+                [matTooltip]="store.filters().sort_direction === 'DESC' ? (I18N.gallery.sort_desc | translate) : (I18N.gallery.sort_asc | translate)"
+                [attr.aria-label]="store.filters().sort_direction === 'DESC' ? (I18N.gallery.sort_desc | translate) : (I18N.gallery.sort_asc | translate)">
+          <mat-icon>{{ store.filters().sort_direction === 'DESC' ? 'arrow_downward' : 'arrow_upward' }}</mat-icon>
+        </button>
+      }
     </ng-template>
     @if (!portPrimary()) { <ng-container [ngTemplateOutlet]="primaryControls" /> }
     <ng-template #filterControls>
       @if (!pinned()) {
-          <button
-            class="max-md:!min-h-11 max-md:!px-2"
-            mat-button
-            (click)="toggleFilters()"
-            [matBadge]="store.activeFilterCount() || null"
-            matBadgeColor="primary"
-            matBadgeSize="small"
-            [matTooltip]="I18N.gallery.filters | translate"
-            [attr.aria-label]="I18N.gallery.filters | translate"
-           [attr.aria-expanded]="store.filterDrawerOpen()">
-            <mat-icon [style.color]="store.filterDrawerOpen() ? 'var(--mat-sys-primary)' : ''">filter_alt</mat-icon>
-          <span>{{ I18N.gallery.filters | translate }}</span></button>
-
+        <button mat-button class="!min-h-11 !px-2" (click)="toggleFilters()"
+                [matBadge]="store.activeFilterCount() || null" matBadgeColor="primary" matBadgeSize="small"
+                [matTooltip]="I18N.gallery.filters | translate" [attr.aria-label]="I18N.gallery.filters | translate"
+                [attr.aria-expanded]="store.filterDrawerOpen()">
+          <mat-icon [style.color]="store.filterDrawerOpen() ? 'var(--mat-sys-primary)' : ''">filter_alt</mat-icon>
+          <span>{{ I18N.gallery.filters | translate }}</span>
+        </button>
       }
     </ng-template>
     @if (!portFilters()) { <ng-container [ngTemplateOutlet]="filterControls" /> }
-
-<button mat-button data-gallery-layout="list" [attr.aria-pressed]="store.galleryMode() === 'list'" (click)="showList()">
-  <mat-icon>view_list</mat-icon>{{ I18N.gallery.layout_list | translate }}
-</button>
-<button
-          class="max-md:!min-w-11 max-md:!w-11 max-md:!px-2"
-          mat-button
-          [matMenuTriggerFor]="tooltipModeMenu"
-          [matTooltip]="I18N.gallery.tooltip_mode.label | translate"
-          [attr.aria-label]="I18N.gallery.tooltip_mode.label | translate"
-        >
-          <mat-icon class="max-md:!m-0">{{
-            store.filters().tooltip_mode === 'click' ? 'touch_app'
-            : store.filters().tooltip_mode === 'off' ? 'visibility_off'
-            : store.filters().tooltip_mode === 'panel' ? 'view_sidebar'
-            : 'chat_bubble_outline'
-          }}</mat-icon>
-        <span class="hidden @[1120px]:inline">{{ I18N.gallery.tooltip_mode.label | translate }}</span></button>
-<button
-          mat-icon-button
-          (click)="toggleSlideshow()"
-          [matTooltip]="I18N.slideshow.start | translate"
-          [attr.aria-label]="I18N.slideshow.start | translate"
-        >
-          <mat-icon [style.color]="store.slideshowActive() ? 'var(--mat-sys-primary)' : ''">slideshow</mat-icon>
-        </button>
+    <button mat-button class="!min-h-11" data-gallery-layout="list"
+            [attr.aria-pressed]="store.galleryMode() === 'list'" (click)="showList()">
+      <mat-icon>view_list</mat-icon>{{ I18N.gallery.layout_list | translate }}
+    </button>
+    <button mat-button class="!min-h-11 !min-w-11 !w-11 !px-2 @[1120px]:!w-auto @[1120px]:!px-4"
+            [matMenuTriggerFor]="tooltipModeMenu" [matTooltip]="I18N.gallery.tooltip_mode.label | translate"
+            [attr.aria-label]="I18N.gallery.tooltip_mode.label | translate">
+      <mat-icon class="!m-0 @[1120px]:!mr-2">{{
+        store.filters().tooltip_mode === 'click' ? 'touch_app'
+        : store.filters().tooltip_mode === 'off' ? 'visibility_off'
+        : store.filters().tooltip_mode === 'panel' ? 'view_sidebar'
+        : 'chat_bubble_outline'
+      }}</mat-icon>
+      <span class="hidden @[1120px]:inline">{{ I18N.gallery.tooltip_mode.label | translate }}</span>
+    </button>
+    <button mat-icon-button class="!h-11 !w-11 !min-w-11 !p-2.5" (click)="toggleSlideshow()"
+            [matTooltip]="I18N.slideshow.start | translate" [attr.aria-label]="I18N.slideshow.start | translate">
+      <mat-icon [style.color]="store.slideshowActive() ? 'var(--mat-sys-primary)' : ''">slideshow</mat-icon>
+    </button>
     <mat-menu #tooltipModeMenu="matMenu">
       @for (mode of tooltipModes(); track mode.id) {
         <button mat-menu-item role="menuitemradio"

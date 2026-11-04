@@ -23,11 +23,11 @@ type Result = components['schemas']['HierarchyChangeResult'];
   changeDetection: ChangeDetectionStrategy.OnPush, host: { class: 'block min-w-0' },
   template: `
     <details #panel data-keyword-tree (toggle)="toggle(panel.open)" (keydown.escape)="escape($event, trigger)">
-      <summary #trigger class="min-h-11 cursor-pointer py-2 text-sm font-medium">{{ I18N.keyword_hierarchy.title | translate }}</summary>
+      <summary #trigger class="min-h-11 cursor-pointer py-2 text-sm text-[var(--mat-sys-on-surface-variant)]">{{ I18N.keyword_hierarchy.title | translate }}</summary>
       @if (opened()) {
         <label class="block text-xs">{{ I18N.keyword_catalog.search | translate }}
           <input type="search" [value]="search()" (input)="search.set($any($event.target).value); limit.set(50)"
-            class="mt-1 h-10 w-full min-w-0 rounded border border-[var(--mat-sys-outline)] bg-[var(--mat-sys-surface-container-lowest)] px-2 text-base" />
+            class="mt-1 min-h-11 w-full min-w-0 rounded border border-[var(--mat-sys-outline)] bg-[var(--mat-sys-surface)] px-3 text-base" />
         </label>
         @if (loading()) { <p role="status" class="text-xs">{{ I18N.ui.labels.loading | translate }}</p> }
         @if (error()) { <p role="alert" class="text-xs">{{ I18N.keyword_hierarchy.error | translate }}</p> }
@@ -45,7 +45,7 @@ type Result = components['schemas']['HierarchyChangeResult'];
                   [attr.aria-pressed]="store.filters().keyword_branch === row.node.id"
                   [attr.aria-label]="I18N.keyword_hierarchy.filter | translate:{ name: row.path, count: row.node.branch_count }" (click)="filter(row.node.id)">
                   <bdi>{{ row.path }}</bdi><span class="ms-2 tabular-nums text-[var(--mat-sys-on-surface-variant)]">{{ row.node.branch_count }}</span>
-                  @if (store.filters().keyword_branch === row.node.id) { <mat-icon aria-hidden="true" class="!h-4 !w-4 !text-base">check</mat-icon> }
+                  @if (store.filters().keyword_branch === row.node.id) { <mat-icon aria-hidden="true" class="ms-1 align-middle !h-4 !w-4 !text-base !leading-4">check</mat-icon> }
                 </button>
                 @if (auth.isEdition()) {
                   <button type="button" data-hierarchy-manage class="min-h-11 shrink-0 px-2 text-xs underline"

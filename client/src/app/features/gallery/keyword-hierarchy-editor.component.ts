@@ -29,19 +29,19 @@ type Action = Request['action'];
       </div>
       @if (node()) {
         <label class="block text-xs">{{ I18N.keyword_hierarchy.edit.operation | translate }}
-          <select data-hierarchy-action class="mt-1 min-h-11 w-full rounded border border-[var(--mat-sys-outline)] bg-[var(--mat-sys-surface)] px-2 text-sm" [value]="action()" [disabled]="saving() || uncertain()" (change)="setAction($any($event.target).value)">
+          <select data-hierarchy-action class="mt-1 min-h-11 w-full rounded border border-[var(--mat-sys-outline)] bg-[var(--mat-sys-surface)] px-3 text-sm" [value]="action()" [disabled]="saving() || uncertain()" (change)="setAction($any($event.target).value)">
             @for (option of actions; track option.id) { <option [value]="option.id" [selected]="action() === option.id">{{ option.label | translate }}</option> }
           </select>
         </label>
       }
       @if (action() === 'rename') {
         <label class="block text-xs">{{ I18N.keyword_hierarchy.edit.name | translate }}
-          <input data-hierarchy-name maxlength="64" class="mt-1 min-h-11 w-full rounded border border-[var(--mat-sys-outline)] bg-[var(--mat-sys-surface)] px-2 text-base" [value]="name()" [disabled]="saving() || uncertain()" (input)="name.set($any($event.target).value); invalidate()" />
+          <input data-hierarchy-name maxlength="64" class="mt-1 min-h-11 w-full rounded border border-[var(--mat-sys-outline)] bg-[var(--mat-sys-surface)] px-3 text-base" [value]="name()" [disabled]="saving() || uncertain()" (input)="name.set($any($event.target).value); invalidate()" />
         </label>
       }
       @if (action() === 'move') {
         <label class="block text-xs">{{ I18N.keyword_hierarchy.edit.parent | translate }}
-          <select data-hierarchy-parent class="mt-1 min-h-11 w-full rounded border border-[var(--mat-sys-outline)] bg-[var(--mat-sys-surface)] px-2 text-sm" [value]="parent()" [disabled]="saving() || uncertain()" (change)="parent.set($any($event.target).value); invalidate()">
+          <select data-hierarchy-parent class="mt-1 min-h-11 w-full rounded border border-[var(--mat-sys-outline)] bg-[var(--mat-sys-surface)] px-3 text-sm" [value]="parent()" [disabled]="saving() || uncertain()" (change)="parent.set($any($event.target).value); invalidate()">
             <option value="" [selected]="!parent()">{{ I18N.keyword_hierarchy.edit.root | translate }}</option>
             @for (option of parents(); track option.id) { <option [value]="option.id" [selected]="parent() === option.id">{{ option.path }}</option> }
           </select>

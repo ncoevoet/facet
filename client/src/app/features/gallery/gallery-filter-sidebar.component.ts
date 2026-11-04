@@ -247,7 +247,7 @@ export function loadActiveTab(): SidebarTabId {
   ],
   changeDetection: ChangeDetectionStrategy.Eager,
   template: `
-<div class="shrink-0 px-3 border-b border-[var(--mat-sys-outline-variant)]">
+<div class="shrink-0 px-4 border-b border-[var(--mat-sys-outline-variant)]">
 
       <div class="relative py-2 flex items-center gap-2">
         <span class="text-sm font-medium opacity-80">{{ I18N.gallery.filters | translate }}</span>
@@ -298,7 +298,7 @@ export function loadActiveTab(): SidebarTabId {
         <label class="sr-only" for="sidebar-filename-search">{{ I18N.gallery.search_placeholder | translate }}</label>
         <div class="relative min-w-0">
           <input #sidebarSearch id="sidebar-filename-search" type="text" role="searchbox" enterkeyhint="search"
-            class="h-10 w-full min-w-0 rounded border border-[var(--mat-sys-outline)] bg-[var(--mat-sys-surface-container-lowest)] pl-3 pr-10 text-sm text-[var(--mat-sys-on-surface)] focus-visible:outline-2 focus-visible:outline-[var(--mat-sys-primary)]"
+            class="min-h-11 w-full min-w-0 rounded border border-[var(--mat-sys-outline)] bg-[var(--mat-sys-surface-container-lowest)] pl-3 pr-10 text-base text-[var(--mat-sys-on-surface)] focus-visible:outline-2 focus-visible:outline-[var(--mat-sys-primary)]"
             [placeholder]="I18N.gallery.search_placeholder | translate" [value]="store.filters().search"
             (input)="onSidebarSearchChange($event)" (keyup.enter)="onSidebarSearchCommit($event)" />
           @if (store.filters().search) {
@@ -315,7 +315,7 @@ export function loadActiveTab(): SidebarTabId {
         <label class="sr-only" for="filter-finder-input">{{ I18N.gallery.sidebar.find_filter | translate }}</label>
         <input #filterFinder id="filter-finder-input" [placeholder]="I18N.gallery.sidebar.find_filter | translate"
                type="text" role="searchbox" autocomplete="off"
-               class="h-10 w-full min-w-0 rounded border border-[var(--mat-sys-outline)] bg-[var(--mat-sys-surface-container-lowest)] py-2 pl-3 pr-10 text-sm text-[var(--mat-sys-on-surface)] placeholder:text-[var(--mat-sys-on-surface-variant)] focus-visible:outline-2 focus-visible:outline-[var(--mat-sys-primary)]"
+               class="min-h-11 w-full min-w-0 rounded border border-[var(--mat-sys-outline)] bg-[var(--mat-sys-surface-container-lowest)] py-2 pl-3 pr-10 text-base text-[var(--mat-sys-on-surface)] placeholder:text-[var(--mat-sys-on-surface-variant)] focus-visible:outline-2 focus-visible:outline-[var(--mat-sys-primary)]"
                [value]="filterQuery()" (input)="filterQuery.set($any($event.target).value)" />
         @if (filterQuery()) {
           <button type="button" class="absolute inset-y-0 right-0 flex w-10 cursor-pointer items-center justify-center rounded hover:bg-[var(--mat-sys-surface-container-high)] focus-visible:outline-2"
@@ -400,7 +400,7 @@ export function loadActiveTab(): SidebarTabId {
               <label class="sr-only" for="semantic-search-input">{{ I18N.gallery.semantic_search | translate }}</label>
               <div class="relative min-w-0 flex-1">
                 <input #semanticSearchInput id="semantic-search-input" type="text" role="searchbox" enterkeyhint="search"
-                  class="h-10 w-full min-w-0 rounded border border-[var(--mat-sys-outline)] bg-[var(--mat-sys-surface-container-lowest)] pl-3 pr-10 text-sm text-[var(--mat-sys-on-surface)] focus-visible:outline-2 focus-visible:outline-[var(--mat-sys-primary)]"
+                  class="min-h-11 w-full min-w-0 rounded border border-[var(--mat-sys-outline)] bg-[var(--mat-sys-surface-container-lowest)] pl-3 pr-10 text-base text-[var(--mat-sys-on-surface)] focus-visible:outline-2 focus-visible:outline-[var(--mat-sys-primary)]"
                   [value]="store.filters().semanticQuery" (input)="onSemanticSearch($event)"
                   [placeholder]="I18N.gallery.semantic_search_placeholder | translate" />
                 @if (store.filters().semanticQuery) {

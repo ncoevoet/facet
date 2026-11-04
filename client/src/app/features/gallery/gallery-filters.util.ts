@@ -1,3 +1,4 @@
+import filterLimits from './gallery-filter-limits.generated.json';
 import { hasTagQuery, parseTagQuery, serializeTagQuery } from './tag-query.util';
 import { parseScorePresence, serializeScorePresence } from './score-presence.util';
 /**
@@ -50,8 +51,8 @@ export const GALLERY_SESSION_QUERY_KEY = 'facet_gallery_session_query';
  *  URL always wins — a shared or bookmarked link means what it says. */
 export const LAST_SORT_KEY = 'facet_last_sort';
 
-/** Same bounded group contract as api.models.gallery.PERSON_FILTER_LIMIT. */
-export const PERSON_FILTER_LIMIT = 200;
+/** Generated from the server contract by scripts/dump_filter_keys.py. */
+export const PERSON_FILTER_LIMIT = filterLimits.person_filter_limit;
 
 export interface GalleryFilters {
   page: number;

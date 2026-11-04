@@ -21,12 +21,12 @@ type Result = components['schemas']['KeywordChangeResult'];
   changeDetection: ChangeDetectionStrategy.OnPush, host: { class: 'block min-w-0' },
   template: `
     <details #panel data-keyword-catalog (toggle)="toggle(panel.open)" (keydown.escape)="escape($event, panel, trigger)">
-      <summary #trigger class="flex min-h-11 cursor-pointer items-center text-sm font-medium">{{ I18N.keyword_catalog.title | translate }}</summary>
+      <summary #trigger class="min-h-11 cursor-pointer py-2 text-sm text-[var(--mat-sys-on-surface-variant)]">{{ I18N.keyword_catalog.title | translate }}</summary>
       @if (opened()) {
         <form class="flex gap-2" (submit)="$event.preventDefault(); load()">
           <label class="min-w-0 flex-1 text-xs">{{ I18N.keyword_catalog.search | translate }}
             <input #searchInput data-keyword-search type="search" maxlength="64" [value]="search()" (input)="search.set($any($event.target).value); catalog.set(null)"
-              class="mt-1 h-10 w-full min-w-0 rounded border border-[var(--mat-sys-outline)] bg-[var(--mat-sys-surface-container-lowest)] px-2 text-base" />
+              class="mt-1 min-h-11 w-full min-w-0 rounded border border-[var(--mat-sys-outline)] bg-[var(--mat-sys-surface)] px-3 text-base" />
           </label>
           <button type="submit" class="self-end min-h-11 rounded border border-[var(--mat-sys-outline)] px-2 text-xs" [disabled]="busy()">{{ I18N.keyword_catalog.find | translate }}</button>
         </form>
@@ -55,7 +55,7 @@ type Result = components['schemas']['KeywordChangeResult'];
             <h3 class="m-0 break-words text-sm font-medium"><bdi>{{ name }}</bdi></h3>
             <label class="block text-xs">{{ I18N.keyword_catalog.target | translate }}
               <input #targetInput data-keyword-target type="text" maxlength="64" [disabled]="saving() || uncertain()" [value]="target()" (input)="target.set($any($event.target).value); plan.set(null)"
-                class="mt-1 h-10 w-full min-w-0 rounded border border-[var(--mat-sys-outline)] bg-[var(--mat-sys-surface-container-lowest)] px-2 text-base" />
+                class="mt-1 min-h-11 w-full min-w-0 rounded border border-[var(--mat-sys-outline)] bg-[var(--mat-sys-surface)] px-3 text-base" />
             </label>
             @if (plan(); as captured) {
               <p class="text-xs" data-keyword-preview>{{ I18N.keyword_catalog.preview | translate:{ count: captured.paths.length, renamed: captured.renamed, merged: captured.merged, ai: captured.ai_matches, removed: captured.removed } }}</p>
