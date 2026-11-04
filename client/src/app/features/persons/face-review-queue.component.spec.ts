@@ -1,6 +1,6 @@
 import { Component, signal } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
-import { provideRouter, Router } from '@angular/router';
+import { provideRouter, Router, NavigationStart, NavigationEnd, NavigationCancel, NavigationCancellationCode, type Event } from '@angular/router';
 import { MatDialog } from '@angular/material/dialog';
 import { of, Subject } from 'rxjs';
 import type { Mock } from 'vitest';
@@ -57,6 +57,43 @@ describe('FaceReviewQueueComponent', () => {
     expect(api.post).toHaveBeenNthCalledWith(2, '/persons/20/assign_faces', expect.objectContaining({ face_ids: [2], expected_person_name: 'Bob' }));
     expect(root.querySelector('[data-assignment-receipt]')?.textContent).toContain('"assigned":2,"skipped":0');
     expect(boxes.clear).toHaveBeenCalledTimes(2);
+    fixture.destroy(); root.remove();
+  });
+
+  it('keeps newer navigation blocked through an older completion and resumes once after cancellation', async () => {
+    const { fixture, root, api } = await render();
+    const router = TestBed.inject(Router); const events = router.events as Subject<Event>;
+    api.get.mockClear();
+    events.next(new NavigationStart(10, '/elsewhere'));
+    events.next(new NavigationStart(11, '/elsewhere'));
+    events.next(new NavigationEnd(10, '/elsewhere', '/elsewhere'));
+    await fixture.whenStable(); fixture.detectChanges();
+    expect(api.get).not.toHaveBeenCalled(); expect(root.querySelectorAll('[data-review-face]')).toHaveLength(0);
+    events.next(new NavigationCancel(11, '/elsewhere', 'redirect', NavigationCancellationCode.Redirect));
+    await fixture.whenStable(); expect(api.get).not.toHaveBeenCalled();
+    events.next(new NavigationStart(12, '/elsewhere'));
+    events.next(new NavigationCancel(12, '/elsewhere', 'guard', NavigationCancellationCode.GuardRejected));
+    await fixture.whenStable(); fixture.detectChanges();
+    expect(api.get).toHaveBeenCalledTimes(1); expect(root.querySelectorAll('[data-review-face]')).toHaveLength(2);
+    fixture.destroy(); root.remove();
+  });
+
+  it('restarts at the first page after navigation cancels a paged queue', async () => {
+    const { fixture, root, api } = await render();
+    const queue = fixture.componentInstance as any;
+    queue.nextAfter.set(2); fixture.detectChanges();
+    api.get.mockReturnValueOnce(of({ ...response, faces: [{ ...response.faces[0], face_id: 3 }] }));
+    root.querySelector<HTMLButtonElement>('[data-queue-next]')!.click();
+    await fixture.whenStable(); fixture.detectChanges();
+    expect(root.querySelectorAll('[data-review-face]')).toHaveLength(3);
+    api.get.mockClear();
+    const events = TestBed.inject(Router).events as Subject<Event>;
+    events.next(new NavigationStart(10, '/elsewhere'));
+    events.next(new NavigationCancel(10, '/elsewhere', 'guard', NavigationCancellationCode.GuardRejected));
+    await fixture.whenStable(); fixture.detectChanges();
+    expect(api.get).toHaveBeenCalledExactlyOnceWith('/faces/review', { after_id: 0, limit: 48, suggest: true });
+    expect(root.querySelectorAll('[data-review-face]')).toHaveLength(2);
+    expect(root.textContent).toContain('Alice'); expect(root.textContent).toContain('Bob');
     fixture.destroy(); root.remove();
   });
 

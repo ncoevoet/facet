@@ -1,11 +1,10 @@
 import { ChangeDetectionStrategy, Component, DestroyRef, ElementRef, computed, effect, inject, input, output, signal, untracked, viewChild } from '@angular/core';
 import { HttpErrorResponse } from '@angular/common/http';
-import { NavigationStart, Router } from '@angular/router';
-import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { firstValueFrom, Subject, takeUntil } from 'rxjs';
 import type { components } from '../../core/api/schema';
 import { ApiService } from '../../core/services/api.service';
 import { AuthService } from '../../core/services/auth.service';
+import { StalenessGuardFactory } from '../../core/services/staleness-guard.service';
 import { I18N } from '../../core/i18n/keys';
 import { TranslatePipe } from '../../shared/pipes/translate.pipe';
 import { ContextHelpComponent } from '../../shared/components/context-help/context-help.component';
@@ -87,7 +86,6 @@ export class KeywordHierarchyEditorComponent {
   private readonly auth = inject(AuthService);
   private readonly api = inject(ApiService);
   private readonly labels = inject(KeywordHierarchyLabels);
-  private readonly router = inject(Router);
   private readonly destroyRef = inject(DestroyRef);
   private readonly heading = viewChild<ElementRef<HTMLElement>>('editorHeading');
   private readonly applyButton = viewChild<ElementRef<HTMLButtonElement>>('applyButton');
@@ -107,11 +105,12 @@ export class KeywordHierarchyEditorComponent {
   readonly error = signal('');
   private readonly cancelled = new Subject<void>();
   private version = 0;
-  private pending = false;
   private readonly owner = this.auth.identity();
-  private readonly status = this.auth.status();
   private readonly token = this.auth.token;
-  private readonly path = this.router.url.split('?')[0];
+  private readonly guard = inject(StalenessGuardFactory).create(this.destroyRef, {
+    track: 'status', valid: () => this.auth.identity() === this.owner && this.auth.token === this.token,
+    onNavigate: () => this.invalidate(),
+  });
   private capturedScope: (() => boolean) | null = null;
   private preparedDraft = '';
   readonly actions: { id: Action; label: string }[] = [
@@ -155,12 +154,10 @@ export class KeywordHierarchyEditorComponent {
       this.store.filters(); this.store.selectedPaths(); this.store.excludedPaths(); this.store.viewScopeSelected(); this.store.pinnedPaths();
       untracked(() => { if (!this.saving() && this.plan() && this.capturedScope && !this.capturedScope()) { this.invalidate(); this.error.set(I18N.keyword_hierarchy.edit.scope_changed); } });
     });
-    this.router.events.pipe(takeUntilDestroyed()).subscribe(event => { if (event instanceof NavigationStart) { this.pending = true; this.invalidate(); } });
-    this.destroyRef.onDestroy(() => { this.cancelReads(); this.cancelled.complete(); });
+    this.destroyRef.onDestroy(() => { this.guard.dispose(); this.cancelReads(); this.cancelled.complete(); });
   }
   private current(): boolean {
-    return !this.destroyRef.destroyed && !this.pending && this.auth.isEdition() && this.auth.identity() === this.owner
-      && this.auth.status() === this.status && this.auth.token === this.token && this.router.url.split('?')[0] === this.path;
+    return this.guard.current();
   }
   private cancelReads(): void { this.version++; this.cancelled.next(); this.loading.set(false); }
   invalidate(): void { this.cancelReads(); this.plan.set(null); this.preparedDraft = ''; this.capturedScope = null; this.error.set(''); }

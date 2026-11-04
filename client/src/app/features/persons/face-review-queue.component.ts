@@ -1,7 +1,6 @@
-import { isNavigationSettled } from '../../shared/utils/navigation-settled';
+import { trackPendingNavigation } from '../../shared/utils/navigation-settled';
 import { afterNextRender, ChangeDetectionStrategy, Component, computed, DestroyRef, effect, ElementRef, inject, Injector, input, signal, untracked, viewChild } from '@angular/core';
-import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
-import { NavigationStart, Router, RouterLink } from '@angular/router';
+import { Router, RouterLink } from '@angular/router';
 import { MatButtonModule } from '@angular/material/button';
 import { MatIconModule } from '@angular/material/icon';
 import { MatDialog, MatDialogRef } from '@angular/material/dialog';
@@ -117,8 +116,15 @@ export class FaceReviewQueueComponent {
   private readonly owner = this.auth.identity();
   private readonly previewPanel = viewChild<ElementRef<HTMLElement>>('previewPanel');
   private generation = 0;
-  private blocked = false;
-  private after = 0;
+  private resumeAfterNavigation = !!this.router.currentNavigation();
+  private readonly navigationPending = trackPendingNavigation({
+    started: () => { this.resumeAfterNavigation = true; this.reset(); },
+    settled: () => {
+      const resume = this.resumeAfterNavigation;
+      this.resumeAfterNavigation = false;
+      if (resume && this.ownsRoute()) void this.load(0);
+    },
+  });
   private planGuard: StalenessGuard | null = null;
   private feedbackGuard: StalenessGuard | null = null;
   private returnFocus: HTMLElement | null = null;
@@ -158,15 +164,9 @@ export class FaceReviewQueueComponent {
   });
 
   constructor() {
-    this.router.events.pipe(takeUntilDestroyed()).subscribe(event => {
-      if (event instanceof NavigationStart) { this.blocked = true; this.reset(); }
-      else if (this.blocked && (isNavigationSettled(event)) && this.ownsRoute()) {
-        this.blocked = false; void this.load(this.after);
-      }
-    });
     effect(() => {
       this.auth.status(); this.auth.isEdition(); this.auth.identity(); this.mode();
-      untracked(() => { this.blocked = !!this.router.currentNavigation() || !this.ownsRoute(); this.reset(); if (this.allowed()) void this.load(0); });
+      untracked(() => { this.reset(); if (this.allowed()) void this.load(0); });
     });
     this.destroyRef.onDestroy(() => { this.generation++; this.chooser?.close(null); this.planGuard?.dispose(); this.feedbackGuard?.dispose(); });
   }
@@ -176,7 +176,7 @@ export class FaceReviewQueueComponent {
     return segments?.length === 1 && segments[0].path === 'persons' && url.queryParams['tab'] === this.mode();
   }
   reload(): void { void this.load(0); }
-  private allowed(): boolean { return !this.destroyRef.destroyed && !this.blocked && this.auth.isEdition() && this.auth.identity() === this.owner; }
+  private allowed(): boolean { return !this.destroyRef.destroyed && !this.navigationPending() && this.ownsRoute() && this.auth.isEdition() && this.auth.identity() === this.owner; }
   private capture(): StalenessGuard {
     const token = this.auth.token, generation = this.generation;
     return this.guards.create(this.destroyRef, { track: 'status', valid: () => this.allowed() && this.auth.token === token && this.generation === generation });
@@ -192,7 +192,7 @@ export class FaceReviewQueueComponent {
   protected async load(after: number): Promise<void> {
     if (!this.allowed() || this.busy() || this.loading() || (after > 0 && (this.pending() || this.uncertain() || this.changed() || this.choosing()))) return;
     if (after === 0) this.reset();
-    this.after = after; this.loading.set(true); this.error.set(false);
+    this.loading.set(true); this.error.set(false);
     const guard = this.capture(), generation = this.generation;
     try {
       const response = await firstValueFrom(this.api.get<Response>('/faces/review', { after_id: after, limit: 48, suggest: this.mode() === 'matches' && !this.withoutSuggestions() }));
