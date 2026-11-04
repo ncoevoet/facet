@@ -53,8 +53,8 @@ def test_foreign_dimensions_are_not_silently_reinterpreted(caplog):
 @pytest.mark.parametrize('clear', [False, True])
 def test_json_region_writes_require_supported_version_but_ratings_still_export(tmp_path, monkeypatch, version, clear):
     owned = dict(FOREIGN, Extensions={'XMP-facet:RegionOwner': 'Facet'})
-    monkeypatch.setattr(xe, '_read_existing_metadata', lambda *args, **kwargs: ([], [], False))
-    monkeypatch.setattr(xe, '_read_existing_regions', lambda *args, **kwargs: _info([owned]))
+    monkeypatch.setattr(xe, '_read_export_state',
+                        lambda *args, **kwargs: xe.ExportState(_info([owned]), [], [], False, None))
     monkeypatch.setattr(xe, '_exiftool_version', lambda exe: version)
     rating = xe.XmpRating(star_rating=4, regions=[] if clear else [_face()])
     args = xe._exiftool_write_args(str(tmp_path / 'test.xmp'), rating, 'exiftool', timeout=1)

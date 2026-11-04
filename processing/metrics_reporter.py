@@ -39,7 +39,6 @@ class MetricsReporter:
         self.print_interval = auto_tuning.get('metrics_print_interval_seconds', 30)
 
         # Accumulated metrics
-        self.metrics_history = []
         self.peak_memory_gb = 0.0
         self.peak_gpu_memory_gb = 0.0
         self.min_workers = float('inf')

@@ -274,16 +274,16 @@ def test_keyword_reconciliation_respects_user_visibility(tmp_path, monkeypatch):
         conn.close()
 
 
-@pytest.mark.parametrize('which,payload', [
-    ('keywords', '[]'), ('keywords', '{}'), ('keywords', '[null]'),
-    ('keywords', '[{"Error":"cannot read file"}]'),
-    ('keywords', '[{"Subject":{"bad":"shape"}}]'),
-    ('keywords', '[{"Subject":[["nested"]]}]'), ('keywords', '[{"Subject":null}]'),
-    ('keywords', '[{"Error":null}]'), ('keywords', 'not json'),
-    ('state', '[]'), ('state', '[null]'), ('state', '{"KeywordState":null}'),
-    ('state', '[{"Error":"cannot read state"}]'),
+@pytest.mark.parametrize('payload', [
+    '[]', '{}', '[null]', '[{"Error":"cannot read file"}]',
+    '[{"Subject":{"bad":"shape"}}]', '[{"Subject":[["nested"]]}]', '[{"Subject":null}]',
+    '[{"Error":null}]', 'not json', '{"KeywordState":null}',
+    '[{"Error":"cannot read state"}]',
 ])
-def test_failed_structured_reads_preserve_existing_packet_bytes(tmp_path, monkeypatch, which, payload):
+def test_failed_structured_reads_preserve_existing_packet_bytes(tmp_path, monkeypatch, payload):
+    """One merged read serves all families, so ANY malformed family response —
+    or a malformed record as a whole — must refuse the export before a write
+    starts and leave the existing packet bytes untouched."""
     import subprocess
     from processing import xmp_export as xe
     image = tmp_path / 'photo.jpg'
@@ -293,11 +293,9 @@ def test_failed_structured_reads_preserve_existing_packet_bytes(tmp_path, monkey
     monkeypatch.setattr(xe, '_resolve_exiftool', lambda: 'fake-exiftool')
     def run(args, **kwargs):
         assert '-overwrite_original' not in args, 'metadata write must never start after failed read'
-        state = '-XMP-facet:KeywordState' in args
-        raw = payload if (which == 'state') == state else '[{}]'
-        return subprocess.CompletedProcess(args, 0, stdout=raw, stderr='')
+        return subprocess.CompletedProcess(args, 0, stdout=payload, stderr='')
     monkeypatch.setattr(xe.subprocess, 'run', run)
-    with pytest.raises(RuntimeError, match='Cannot read'):
+    with pytest.raises(RuntimeError, match='Cannot read|Unsupported'):
         xe._run_exiftool(str(sidecar), XmpRating(tags=['own']), timeout=1, reconcile=True)
     assert sidecar.read_bytes() == before
 

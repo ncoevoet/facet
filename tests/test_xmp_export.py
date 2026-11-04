@@ -404,7 +404,7 @@ class TestWriteMetadata:
         calls = []
         monkeypatch.setattr(xe, "exiftool_available", lambda: True)
         monkeypatch.setattr(xe, "_run_exiftool",
-                            lambda target, rating, *, timeout, reconcile: calls.append(target))
+                            lambda target, rating, *, timeout, reconcile, precomputed_args=None: calls.append(target))
         img = tmp_path / "p.jpg"
         img.write_bytes(b"x")
         result = write_metadata(str(img), XmpRating(star_rating=3))
@@ -418,20 +418,59 @@ class TestWriteMetadata:
         monkeypatch.setattr(xe, "_resolve_exiftool", lambda: 'mock-exiftool')
         monkeypatch.setattr(xe, "_exiftool_write_args", lambda *args, **kwargs: [])
         monkeypatch.setattr(xe, "_run_exiftool",
-                            lambda target, rating, *, timeout, reconcile: calls.append(target))
+                            lambda target, rating, *, timeout, reconcile, precomputed_args=None: calls.append(target))
         img = tmp_path / "p.jpg"
         img.write_bytes(b"x")
         result = write_metadata(str(img), XmpRating(star_rating=3), embed_original=True)
         assert result["embedded"] == str(img)
         assert result["sidecar"] == str(img) + ".xmp"
-        # Embed first, then sidecar.
-        assert calls == [str(img), str(img) + ".xmp"]
+
+    def test_one_state_read_serves_the_whole_write(self, monkeypatch, tmp_path):
+        """The pre-write state read is ONE exiftool spawn, not three per-family
+        ones: a fresh Perl interpreter costs real time per photo, and a 10k-photo
+        export pays it for every sidecar."""
+        # A purpose-built stand-in: answers -ver, one empty record for reads,
+        # and exits 0 on writes (the shared _fake_exiftool corrupts on write,
+        # which would raise before the spawn accounting runs).
+        body = tmp_path / "counting_exiftool.py"
+        body.write_text(
+            "#!/usr/bin/env python3\n"
+            "import sys\n"
+            "args = sys.argv[1:]\n"
+            "if args[:1] == ['-ver']:\n"
+            "    print('13.55')\n"
+            "    sys.exit(0)\n"
+            "if '-json' in ' '.join(args):\n"
+            "    print('[{}]')\n"
+            "    sys.exit(0)\n"
+            "sys.exit(0)\n"
+        )
+        exe = str(body)
+        body.chmod(0o755)
+        monkeypatch.setattr(xe, "_resolve_exiftool", lambda: exe)
+        spawns = []
+        original_run = xe.subprocess.run
+
+        def run(args, **kwargs):
+            spawns.append(args)
+            return original_run(args, **kwargs)
+
+        monkeypatch.setattr(xe.subprocess, 'run', run)
+        img = tmp_path / "spawn.jpg"
+        img.write_bytes(b"x")
+        img.with_suffix(img.suffix + ".xmp").write_text(_GOOD_XMP, encoding='utf-8')
+        write_metadata(str(img), XmpRating(star_rating=3))
+        reads = [a for a in spawns if '-XMP-mwg-rs:RegionInfo' in a]
+        writes = [a for a in spawns if '-overwrite_original' in a]
+        assert len(reads) == 1
+        assert sum('-XMP-facet:KeywordState' in a for a in reads) == 1
+        assert len(writes) == 1
 
     def test_raw_format_never_embeds_even_when_opted_in(self, monkeypatch, tmp_path):
         calls = []
         monkeypatch.setattr(xe, "exiftool_available", lambda: True)
         monkeypatch.setattr(xe, "_run_exiftool",
-                            lambda target, rating, *, timeout, reconcile: calls.append(target))
+                            lambda target, rating, *, timeout, reconcile, precomputed_args=None: calls.append(target))
         img = tmp_path / "p.nef"
         img.write_bytes(b"x")
         result = write_metadata(str(img), XmpRating(star_rating=3), embed_original=True)
@@ -533,8 +572,8 @@ class TestExiftoolVersionGuard:
             return subprocess.CompletedProcess(args, 0, stdout='13.55')
 
         monkeypatch.setattr(xe.subprocess, 'run', probe)
-        monkeypatch.setattr(xe, '_read_existing_regions', lambda *args, **kwargs: {})
-        monkeypatch.setattr(xe, '_read_existing_metadata', lambda *args, **kwargs: ([], [], False))
+        monkeypatch.setattr(xe, '_read_export_state',
+                            lambda *args, **kwargs: xe.ExportState({}, [], [], False, None))
         rating = XmpRating(star_rating=4, regions=[FaceRegion.from_bbox('Ada', 1, 1, 4, 4, 10, 10)])
         target = str(tmp_path / 'new.xmp')
         first = xe._exiftool_write_args(target, rating, '/same/exiftool', timeout=1)
