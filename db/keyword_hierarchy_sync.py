@@ -11,8 +11,9 @@ import hashlib
 import json
 from uuid import uuid4
 
+from db.transactions import savepoint
 from db.keyword_hierarchy import (
-    HierarchyError, MAX_ASSIGNMENTS, MAX_NODES, _ancestry, _atomic, _graph,
+    HierarchyError, MAX_ASSIGNMENTS, MAX_NODES, _ancestry, _graph,
     _path_key, create_keyword_hierarchy_schema,
 )
 
@@ -31,7 +32,7 @@ def reset_viewer_hierarchy_authority(conn):
     if not _exists(conn, 'main', 'keyword_nodes') and not _exists(conn, 'main', 'photo_keyword_nodes'):
         return
     create_keyword_hierarchy_schema(conn)
-    with _atomic(conn):
+    with savepoint(conn):
         graph = _graph(conn)
         for node_id in graph:
             _ancestry(graph, node_id)
@@ -116,7 +117,7 @@ class HierarchySync:
 
     def apply(self, conn):
         """Re-read destination edits immediately before this atomic merge."""
-        with _atomic(conn):
+        with savepoint(conn):
             current, proposed, copied, allowed = _propose(conn, self.source)
             self._mapping(conn, proposed, allowed)
             self._check_capacity(conn)
@@ -167,7 +168,7 @@ def prepare_hierarchy_sync(conn):
     suffix = uuid4().hex
     captured = HierarchySync({}, 'keyword_source_' + suffix, 'keyword_map_' + suffix)
     try:
-        with _atomic(conn):
+        with savepoint(conn):
             source = _graph(conn, schema='src')
             for node_id in source:
                 _ancestry(source, node_id)

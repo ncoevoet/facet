@@ -11,7 +11,7 @@ from starlette.types import ASGIApp, Message, Receive, Scope, Send
 from api.config import VIEWER_CONFIG
 from api.database import get_async_db
 from api.models.gallery import SharedPhoto
-from api.shared_assets import public_photo_fields, shared_asset_matches, shared_asset_row_id
+from api.shared_assets import MAX_ASSET_REFERENCE_LENGTH, public_photo_fields, shared_asset_matches, shared_asset_row_id
 from api.routers.albums import _fetch_album_photos
 from api.routers.comparison import _serve_original
 from api.routers.thumbnails import _image_response, _thumbnail_response
@@ -93,7 +93,7 @@ def _private(response: Response):
 
 @router.get('/api/shared/album/{album_id}/photo', response_model=SharedPhoto,
             response_model_exclude_unset=True)
-async def shared_photo(album_id: int, response: Response, asset_id: str = Query(..., max_length=85),
+async def shared_photo(album_id: int, response: Response, asset_id: str = Query(..., max_length=MAX_ASSET_REFERENCE_LENGTH),
                        token: str = Query(..., max_length=256)):
     photo, _ = await _member(album_id, token, asset_id)
     response.headers.update(_PRIVATE)
@@ -101,7 +101,7 @@ async def shared_photo(album_id: int, response: Response, asset_id: str = Query(
 
 
 @router.get('/api/shared/album/{album_id}/media/thumbnail')
-async def shared_thumbnail(album_id: int, request: Request, asset_id: str = Query(..., max_length=85),
+async def shared_thumbnail(album_id: int, request: Request, asset_id: str = Query(..., max_length=MAX_ASSET_REFERENCE_LENGTH),
                            token: str = Query(..., max_length=256),
                            size: Optional[int] = Query(None)):
     _, row = await _member(album_id, token, asset_id)
@@ -109,7 +109,7 @@ async def shared_thumbnail(album_id: int, request: Request, asset_id: str = Quer
 
 
 @router.get('/api/shared/album/{album_id}/media/image')
-async def shared_image(album_id: int, request: Request, asset_id: str = Query(..., max_length=85),
+async def shared_image(album_id: int, request: Request, asset_id: str = Query(..., max_length=MAX_ASSET_REFERENCE_LENGTH),
                        token: str = Query(..., max_length=256), fallback: str = Query('')):
     _, row = await _member(album_id, token, asset_id)
     return _private(await run_in_threadpool(_image_response, request, row['path'], fallback, row))
@@ -123,7 +123,7 @@ def _download(row):
 
 
 @router.get('/api/shared/album/{album_id}/media/download')
-async def shared_download(album_id: int, asset_id: str = Query(..., max_length=85),
+async def shared_download(album_id: int, asset_id: str = Query(..., max_length=MAX_ASSET_REFERENCE_LENGTH),
                           token: str = Query(..., max_length=256),
                           type: Literal['original'] = Query('original')):
     _, row = await _member(album_id, token, asset_id)

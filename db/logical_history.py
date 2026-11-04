@@ -8,7 +8,7 @@ import json
 
 from db import logical_review as review
 from db.logical_assets import AssetConflict, _members
-from db.organization_history import MAX_BYTES, MAX_ENTRIES, MAX_PHOTOS, encode, snapshot, store_parts, FIELDS as PHYSICAL_FIELDS
+from db.organization_history import MAX_BYTES, MAX_ENTRIES, MAX_PHOTOS, snapshot, split_parts, store_parts, FIELDS as PHYSICAL_FIELDS
 
 FIELDS = ('star_rating', 'is_favorite', 'is_rejected', 'is_kept')
 
@@ -50,17 +50,10 @@ def record(conn, actor, owner, before, after, *, physical_before=None):
             changes.append(dict(path=path, before=old['values'], after=new['values'], revision=new['revision']))
     if not changes:
         return []
-    parts, part, size = [], [], 2
-    for change in changes:
-        length = len(encode(change).encode('utf-8'))
-        if length + 2 > MAX_BYTES:
-            raise AssetConflict('Logical history entry is too large')
-        if part and (len(part) >= MAX_PHOTOS or size + length + 1 > MAX_BYTES):
-            parts.append(part)
-            part, size = [], 2
-        size += length + bool(part)
-        part.append(change)
-    parts.append(part)
+    try:
+        parts = split_parts(changes, max_photos=MAX_PHOTOS, max_bytes=MAX_BYTES)
+    except ValueError as exc:
+        raise AssetConflict('Logical history entry is too large') from exc
     with review._transaction(conn):
         return store_parts(conn, actor, 'logical_review', owner, parts, max_entries=MAX_ENTRIES)
 

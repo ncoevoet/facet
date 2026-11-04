@@ -13,6 +13,8 @@ import re
 
 from api import config
 
+MAX_ASSET_REFERENCE_LENGTH = 85  # signed int64 rowid + dot + SHA-256 hex digest
+
 _REFERENCE = re.compile(r'(-?[1-9][0-9]{0,18}|0)\.([0-9a-f]{64})')
 _PRIVATE_FIELDS = frozenset({'path', 'star_rating', 'is_favorite', 'is_rejected', 'is_kept'})
 

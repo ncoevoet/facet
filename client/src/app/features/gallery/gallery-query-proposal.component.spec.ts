@@ -135,4 +135,41 @@ describe('User-owned query proposal', () => {
     fixture.componentRef.setInput('active', false); fixture.detectChanges();
     expect(actions.get('gallery_filter_proposal')).toBeUndefined();
   });
+
+  it('replaces existing criteria using the reviewed reset and patch only on Apply', async () => {
+    build();
+    await actions.get('gallery_filter_proposal')!({ patch: { tag: 'Birds' }, replace: true, reset: { camera: '' },
+      proposal: { source_query: 'only birds', unrepresented: [] }, normalize: (patch: unknown) => patch });
+    fixture.detectChanges(); expect(filters().camera).toBe('Canon'); expect(apply).not.toHaveBeenCalled();
+    await fixture.componentInstance.apply();
+    expect(apply).toHaveBeenCalledExactlyOnceWith({ camera: '', tag: 'Birds' });
+    expect(filters().camera).toBe('');
+  });
+
+  it.each(['2024-02-31', 'not-a-date', '2025-01-01'])('refuses invalid or reversed dates: %s', async from => {
+    build();
+    await actions.get('gallery_filter_proposal')!({ patch: { date_from: '2024-01-01', date_to: '2024-12-31' }, replace: false, reset: {},
+      proposal: { source_query: 'date window', unrepresented: [] }, normalize: (patch: unknown) => patch });
+    fixture.componentInstance.edit('date_from', from, 'date'); fixture.detectChanges();
+    expect(fixture.nativeElement.querySelector('[data-apply-query-proposal]').disabled).toBe(true);
+    await fixture.componentInstance.apply(); expect(apply).not.toHaveBeenCalled();
+  });
+
+  it('removes a proposed row and closes without applying, then accepts another proposal', async () => {
+    build(); await propose();
+    fixture.componentInstance.remove('tag'); fixture.detectChanges();
+    expect(fixture.componentInstance.rows().map(row => row.key)).toEqual(['date_from']);
+    fixture.componentInstance.close(); fixture.detectChanges();
+    expect(fixture.nativeElement.querySelector('[data-query-proposal]')).toBeNull(); expect(apply).not.toHaveBeenCalled();
+    await propose(); expect(fixture.componentInstance.proposal()).not.toBeNull();
+    await expect(propose()).rejects.toMatchObject({ code: 'no_active_view' });
+  });
+
+  it('refuses malformed proposals before presenting them', async () => {
+    build();
+    await expect(actions.get('gallery_filter_proposal')!({ patch: { unknown_filter: true }, reset: {},
+      proposal: { source_query: 'bad filter', unrepresented: [] }, normalize: (patch: unknown) => patch }))
+      .rejects.toMatchObject({ code: 'invalid_input' });
+    expect(fixture.componentInstance.proposal()).toBeNull(); expect(apply).not.toHaveBeenCalled();
+  });
 });

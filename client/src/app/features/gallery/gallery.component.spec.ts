@@ -1,4 +1,3 @@
-import { GalleryReviewNavigationService } from './gallery-review-navigation.service';
 import type { Mock } from 'vitest';
 import { ComponentFixture, DeferBlockState, TestBed } from '@angular/core/testing';
 import { ChangeDetectorRef, Component, computed, DebugElement, DestroyRef, signal, WritableSignal } from '@angular/core';
@@ -28,6 +27,8 @@ import { LiveAnnouncer } from '@angular/cdk/a11y';
 import { GalleryStore, GalleryFilters, DEFAULT_FILTERS } from './gallery.store';
 import { buildApiParams, buildSyncParams, DISPLAY_OPTIONS_KEY } from './gallery-filters.util';
 import { ApiService } from '../../core/services/api.service';
+import { PhotoActionsService } from '../../core/services/photo-actions.service';
+import { GalleryReviewNavigationService } from './gallery-review-navigation.service';
 import { AuthService } from '../../core/services/auth.service';
 import { I18nService } from '../../core/services/i18n.service';
 import { AlbumService } from '../../core/services/album.service';
@@ -2716,6 +2717,23 @@ describe('GalleryComponent', () => {
 
       expect(component['tooltipPhoto']()).toBeNull();
       card.remove();
+    });
+  });
+
+  describe('catalog-only selection removal', () => {
+    it('passes only the explicit captured paths to the catalog action', async () => {
+      const remove = vi.spyOn(TestBed.inject(PhotoActionsService), 'removeFromCatalog').mockResolvedValue(['/a.jpg']);
+      mockStore.selectedPaths.set(new Set(['/a.jpg', '/b.jpg']));
+      await component.selectionActions.removeSelectedFromCatalog();
+      expect(remove).toHaveBeenCalledExactlyOnceWith(['/a.jpg', '/b.jpg']);
+      expect(mockStore.selectedPaths()).toEqual(new Set(['/a.jpg', '/b.jpg']));
+    });
+
+    it('refuses whole-view scope rather than materializing it into catalog deletion', async () => {
+      const remove = vi.spyOn(TestBed.inject(PhotoActionsService), 'removeFromCatalog').mockResolvedValue([]);
+      mockStore.viewScopeSelected.set(true);
+      await component.selectionActions.removeSelectedFromCatalog();
+      expect(remove).not.toHaveBeenCalled();
     });
   });
 

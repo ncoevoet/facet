@@ -30,7 +30,7 @@ from api.auth import (
 from api.config import VIEWER_CONFIG
 from api.database import get_db
 from api.db_helpers import get_visibility_clause
-from api.shared_assets import shared_asset_matches, shared_asset_reference, shared_asset_row_id
+from api.shared_assets import MAX_ASSET_REFERENCE_LENGTH, shared_asset_matches, shared_asset_reference, shared_asset_row_id
 from api.models.albums import AlbumPicksResponse
 from api.routers.albums import _check_album_access, _get_user_id
 
@@ -65,7 +65,7 @@ class ShareSessionRequest(BaseModel):
 
 
 class PickRequest(BaseModel):
-    asset_id: str = Field(max_length=85)
+    asset_id: str = Field(max_length=MAX_ASSET_REFERENCE_LENGTH)
     picked: bool = True
     comment: Optional[str] = Field(None, max_length=2000)
 

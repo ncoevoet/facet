@@ -146,19 +146,27 @@ def record(conn: sqlite3.Connection, owner: str, kind: str, scope: str,
             raise ValueError('Organization history entry is too large')
         parts.append(changes)
     else:
-        part: list[dict[str, Any]] = []
-        size = 2
-        for change in changes:
-            encoded_size = len(encode(change).encode())
-            if encoded_size + 2 > MAX_BYTES:
-                raise ValueError('Organization history entry is too large')
-            if part and (len(part) == MAX_PHOTOS or size + encoded_size + 1 > MAX_BYTES):
-                parts.append(part)
-                part, size = [], 2
-            size += encoded_size + bool(part)
-            part.append(change)
-        parts.append(part)
+        parts = split_parts(changes, max_photos=MAX_PHOTOS, max_bytes=MAX_BYTES)
     return store_parts(conn, owner, kind, scope, parts, max_entries=MAX_ENTRIES)
+
+
+def split_parts(changes: list[dict[str, Any]], *, max_photos: int, max_bytes: int) -> list[list[dict[str, Any]]]:
+    """Bound each JSON receipt by both item count and serialized UTF-8 bytes."""
+    parts: list[list[dict[str, Any]]] = []
+    part: list[dict[str, Any]] = []
+    size = 2
+    for change in changes:
+        encoded_size = len(encode(change).encode('utf-8'))
+        if encoded_size + 2 > max_bytes:
+            raise ValueError('Organization history entry is too large')
+        if part and (len(part) >= max_photos or size + encoded_size + 1 > max_bytes):
+            parts.append(part)
+            part, size = [], 2
+        size += encoded_size + bool(part)
+        part.append(change)
+    if part:
+        parts.append(part)
+    return parts
 
 
 def store_parts(conn: sqlite3.Connection, owner: str, kind: str, scope: str,

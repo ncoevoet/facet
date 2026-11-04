@@ -6,6 +6,7 @@ Viewer synchronization owns import receipts; collection/API integration must
 use these explicit account and snapshot boundaries.
 """
 from contextlib import contextmanager
+from db.transactions import savepoint
 import hashlib
 import hmac
 import json
@@ -75,15 +76,8 @@ def init_schema(conn: sqlite3.Connection) -> None:
 def _transaction(conn):
     if not conn.in_transaction:
         raise AssetConflict('A catalog transaction is required')
-    conn.execute('SAVEPOINT logical_review_mutation')
-    try:
+    with savepoint(conn):
         yield
-    except BaseException:
-        conn.execute('ROLLBACK TO logical_review_mutation')
-        conn.execute('RELEASE logical_review_mutation')
-        raise
-    else:
-        conn.execute('RELEASE logical_review_mutation')
 
 
 def seed(conn, asset_id, source_path, revision, *, visibility_sql, visibility_params=()):

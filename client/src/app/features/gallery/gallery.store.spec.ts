@@ -157,6 +157,20 @@ describe('GalleryStore', () => {
   });
 
   describe('logical review actions', () => {
+    it('repairs a rating-sorted logical batch with one page read and no redundant targeted read', async () => {
+      vi.mocked(TestBed.inject(AuthService).isEdition).mockReturnValue(true);
+      store.filters.set({ ...DEFAULT_FILTERS, sort: 'star_rating' });
+      apiGet.mockReturnValue(of(makePhotosResponse({ photos: [makePhoto({ path: '/a.jpg', star_rating: 3 })] })));
+      await store.loadPhotos(); apiGet.mockClear(); apiPost.mockClear();
+      apiGet.mockReturnValue(of(makePhotosResponse({ photos: [makePhoto({ path: '/a.jpg', star_rating: 4 })] })));
+      apiPost.mockReturnValue(of({ success: true, count: 1, logical_asset_ids: ['asset'], logical_member_paths: ['/a.jpg'] }));
+      const targeted = vi.spyOn(store, 'refreshPaths');
+      await store.batchRating(['/a.jpg'], 4);
+      expect(targeted).not.toHaveBeenCalled();
+      expect(apiGet.mock.calls.filter(call => call[0] === '/photos')).toHaveLength(1);
+      expect(store.photos()[0].star_rating).toBe(4);
+    });
+
     it('keeps selection and exclusions attached to a changed logical representative', () => {
       vi.spyOn(store, 'refreshPaths').mockResolvedValue();
       store.selectedPaths.set(new Set(['/pair.jpg', '/outside.jpg']));

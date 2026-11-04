@@ -8,6 +8,7 @@ After file loss, a group can retain one representation or only RAWs/JPEGs;
 its identity remains, and a removed primary requires a new explicit choice.
 """
 from contextlib import contextmanager
+from db.transactions import savepoint
 import sqlite3
 import uuid
 from pathlib import PurePath
@@ -75,15 +76,8 @@ def init_schema(conn: sqlite3.Connection) -> None:
 def _mutation(conn):
     if not conn.in_transaction:
         raise AssetConflict('A catalog transaction is required')
-    conn.execute('SAVEPOINT logical_asset_mutation')
-    try:
+    with savepoint(conn):
         yield
-    except BaseException:
-        conn.execute('ROLLBACK TO logical_asset_mutation')
-        conn.execute('RELEASE logical_asset_mutation')
-        raise
-    else:
-        conn.execute('RELEASE logical_asset_mutation')
 
 
 def _authorized(conn, paths, visibility_sql, visibility_params):

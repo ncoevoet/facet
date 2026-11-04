@@ -1697,27 +1697,12 @@ export class GalleryStore {
     if (transientReview) this.transientReviewStatus.set(true);
     else if (!isDisplayOnly && !GalleryStore.SORT_KEYS.has(key)) this.leaveTemporaryReview();
     const update = { [key]: value } as Partial<GalleryFilters>;
-    const gpsPatch: Partial<GalleryFilters> = {};
-    const reviewPatch = reviewStatusPatch(update);
-    if (key === 'no_gps' && value) {
-      gpsPatch.gps_lat = ''; gpsPatch.gps_lng = ''; gpsPatch.gps_radius_km = '';
-      gpsPatch.similar_to = ''; gpsPatch.semanticQuery = '';
-    } else if (value && ['semanticQuery', 'similar_to', 'gps_lat', 'gps_lng', 'gps_radius_km'].includes(key)) {
-      gpsPatch.no_gps = '';
-    }
-    const extra: Partial<GalleryFilters> = {
-      ...gpsPatch,
-      ...(('person_id' in update && !update.person_id) ? { person_match: 'all' as const } : {}),
-      ...this.similarRefinementPatch(update, this.filters()),
-      ...semanticSortPatch(this.filters(), { ...update, ...gpsPatch, ...reviewPatch }, this.config()?.defaults),
-      ...reviewPatch,
-      ...exclusiveHidePatch(update),
-    };
+    const normalized = this.normalizedFilterPatch(update, this.filters());
     // Reload person dropdown when person filter is cleared (was seeded with filtered subset)
     const wasPersonFiltered = !!this.filters().person_id;
     const before = this.filters();
     this.filters.update(current => ({
-      ...current, [key]: value, ...extra, ...(isDisplayOnly ? {} : { page: 1 }),
+      ...current, ...normalized, ...(isDisplayOnly ? {} : { page: 1 }),
     }));
     this.journalFilters(before, this.filters());
     if ((DISPLAY_OPTION_KEYS as string[]).includes(key as string)) {
@@ -1828,6 +1813,10 @@ export class GalleryStore {
     const isDisplayOnly = keys.length > 0 && keys.every(key => this.isDisplayOnlyFilter(key));
     const leaveReview = keys.some(key => !this.isDisplayOnlyFilter(key) && !GalleryStore.SORT_KEYS.has(key));
     const before = leaveReview ? this.withoutTemporaryReview(this.filters()) : this.filters();
+    return { before, next: { ...before, ...this.normalizedFilterPatch(updates, before), ...(isDisplayOnly ? {} : { page: 1 }) }, isDisplayOnly, leaveReview };
+  }
+
+  private normalizedFilterPatch(updates: Partial<GalleryFilters>, before: GalleryFilters): Partial<GalleryFilters> {
     const gpsPatch: Partial<GalleryFilters> = {};
     const reviewPatch = reviewStatusPatch(updates);
     if (updates.no_gps) {
@@ -1844,7 +1833,7 @@ export class GalleryStore {
       ...reviewPatch,
       ...exclusiveHidePatch(updates),
     };
-    return { before, next: { ...before, ...updates, ...extra, ...(isDisplayOnly ? {} : { page: 1 }) }, isDisplayOnly, leaveReview };
+    return { ...updates, ...extra };
   }
 
   /** Update multiple filters; reload only when the query changes. A transient update
@@ -2519,7 +2508,7 @@ export class GalleryStore {
       const rebuild = (endpoint === '/photos/batch_rating' && this.ratingShapesView())
         || (endpoint === '/photos/batch_reject' && this.filters().review_status === 'rejected');
       if (current()) {
-        if (logicalTouched) await this.refreshPaths([...persisted]);
+        if (logicalTouched && !rebuild) await this.refreshPaths([...persisted]);
         if (!logicalTouched || rebuild || this.filters().review_status) await this.refreshReviewResults(rebuild);
       }
       else {

@@ -6,12 +6,13 @@ edits additionally require an explicit writable set covering every affected
 photo, so a shared definition cannot partially rename hidden assignments.
 """
 
-from contextlib import contextmanager
 import hashlib
 import json
 import re
 import unicodedata
 from uuid import UUID, uuid4
+
+from db.transactions import savepoint
 
 MAX_DEPTH = 16
 MAX_PATH_LENGTH = 1024
@@ -74,20 +75,6 @@ def create_keyword_hierarchy_schema(conn):
     conn.execute('''CREATE TRIGGER IF NOT EXISTS keyword_photo_move AFTER UPDATE OF path ON photos
         BEGIN UPDATE photo_keyword_nodes SET photo_path=NEW.path WHERE photo_path=OLD.path;
         UPDATE keyword_assignment_deletions SET photo_path=NEW.path WHERE photo_path=OLD.path; END''')
-
-
-@contextmanager
-def _atomic(conn):
-    name = 'keywords_' + uuid4().hex
-    conn.execute('SAVEPOINT ' + name)
-    try:
-        yield
-        conn.execute('RELEASE ' + name)
-    except BaseException:
-        if conn.in_transaction:
-            conn.execute('ROLLBACK TO ' + name)
-            conn.execute('RELEASE ' + name)
-        raise
 
 
 def normalize_segment(value):
@@ -174,7 +161,7 @@ def _path_key(chain):
 
 def ensure_path(conn, segments, *, local=True):
     names = normalize_path(segments)
-    with _atomic(conn):
+    with savepoint(conn):
         parent = None
         for name in names:
             row = conn.execute('SELECT id FROM keyword_nodes WHERE parent_id IS ? AND name_key=?',
@@ -197,7 +184,7 @@ def ensure_path(conn, segments, *, local=True):
 def assign_node(conn, photo_path, node_id, *, source='user', created_by=None, imported_path=None):
     if source not in {'user', 'xmp', 'catalog'} or (imported_path is not None and source != 'xmp'):
         raise HierarchyError('Unsupported keyword assignment origin')
-    with _atomic(conn):
+    with savepoint(conn):
         chain = _ancestry(_graph(conn, [node_id]), node_id)
         signature = None
         if imported_path is not None:
@@ -235,7 +222,7 @@ def assign_node(conn, photo_path, node_id, *, source='user', created_by=None, im
 
 
 def assign_path(conn, photo_path, segments, *, source='user', created_by=None, imported_path=None):
-    with _atomic(conn):
+    with savepoint(conn):
         node_id = ensure_path(conn, segments, local=source == 'user')
         changed = assign_node(conn, photo_path, node_id, source=source, created_by=created_by, imported_path=imported_path)
     return node_id, changed
@@ -372,7 +359,7 @@ def _affected_paths(conn, nodes, writable_paths):
 
 
 def change_node(conn, node_id, *, writable_paths, name=None, parent_id=_UNCHANGED, created_by=None):
-    with _atomic(conn):
+    with savepoint(conn):
         graph = _graph(conn)
         branch = _subtree(graph, node_id)
         node = graph[node_id]
@@ -402,7 +389,7 @@ def change_node(conn, node_id, *, writable_paths, name=None, parent_id=_UNCHANGE
 
 
 def remove_assignment(conn, photo_path, node_id):
-    with _atomic(conn):
+    with savepoint(conn):
         if not conn.execute('SELECT 1 FROM photo_keyword_nodes WHERE photo_path=? AND node_id=?', (photo_path, node_id)).fetchone():
             return False
         key = _path_key(_ancestry(_graph(conn, [node_id]), node_id))
@@ -412,7 +399,7 @@ def remove_assignment(conn, photo_path, node_id):
 
 
 def delete_branch(conn, node_id, *, writable_paths):
-    with _atomic(conn):
+    with savepoint(conn):
         graph = _graph(conn)
         branch = _subtree(graph, node_id)
         affected = _affected_paths(conn, branch, writable_paths)

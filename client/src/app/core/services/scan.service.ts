@@ -1,6 +1,6 @@
 import { Injectable, inject, signal, computed, OnDestroy, effect } from '@angular/core';
 import { MatDialog, MatDialogRef } from '@angular/material/dialog';
-import { firstValueFrom } from 'rxjs';
+import { firstValueFrom, type Observable } from 'rxjs';
 import { ApiService } from './api.service';
 import { AuthService, AuthStatus } from './auth.service';
 import type { components } from '../api/schema';
@@ -162,30 +162,27 @@ export class ScanService implements OnDestroy {
       ? { ...current, cancel_requested: true } : current);
   }
 
-  async loadDirectories(): Promise<ScanDirectory[]> {
+  private async sessionRead<T>(request: () => Observable<T>): Promise<T> {
     const session = this.capture();
     if (!this.authCurrent(session)) throw new Error('Scan session changed');
-    const res = await firstValueFrom(this.api.get<{ directories: ScanDirectory[] }>('/scan/directories'));
-    if (!this.authCurrent(session)) throw new Error('Scan session changed');
-    return res.directories;
-  }
-
-  async loadHistory(before?: number): Promise<ScanRunHistory> {
-    const session = this.capture();
-    if (!this.authCurrent(session)) throw new Error('Scan session changed');
-    const response = await firstValueFrom(this.api.get<ScanRunHistory>('/scan/runs', {
-      limit: 20, ...(before === undefined ? {} : { before }),
-    }));
+    const response = await firstValueFrom(request());
     if (!this.authCurrent(session)) throw new Error('Scan session changed');
     return response;
   }
 
-  async previewRetry(runId: number): Promise<ScanRetryPreview> {
-    const session = this.capture();
-    if (!this.authCurrent(session)) throw new Error('Scan session changed');
-    const result = await firstValueFrom(this.api.post<ScanRetryPreview>('/scan/retry/preview', { run_id: runId }));
-    if (!this.authCurrent(session)) throw new Error('Scan session changed');
-    return result;
+  async loadDirectories(): Promise<ScanDirectory[]> {
+    const response = await this.sessionRead(() => this.api.get<{ directories: ScanDirectory[] }>('/scan/directories'));
+    return response.directories;
+  }
+
+  loadHistory(before?: number): Promise<ScanRunHistory> {
+    return this.sessionRead(() => this.api.get<ScanRunHistory>('/scan/runs', {
+      limit: 20, ...(before === undefined ? {} : { before }),
+    }));
+  }
+
+  previewRetry(runId: number): Promise<ScanRetryPreview> {
+    return this.sessionRead(() => this.api.post<ScanRetryPreview>('/scan/retry/preview', { run_id: runId }));
   }
 
   async applyRetry(planId: string): Promise<string | null> {
@@ -200,12 +197,8 @@ export class ScanService implements OnDestroy {
     return this.authCurrent(session) ? result.job_id : null;
   }
 
-  async loadRetryReceipt(planId: string): Promise<ScanRetryReceipt> {
-    const session = this.capture();
-    if (!this.authCurrent(session)) throw new Error('Scan session changed');
-    const result = await firstValueFrom(this.api.get<ScanRetryReceipt>('/scan/retry/' + encodeURIComponent(planId)));
-    if (!this.authCurrent(session)) throw new Error('Scan session changed');
-    return result;
+  loadRetryReceipt(planId: string): Promise<ScanRetryReceipt> {
+    return this.sessionRead(() => this.api.get<ScanRetryReceipt>('/scan/retry/' + encodeURIComponent(planId)));
   }
 
   async connect(retainSameSession = true): Promise<void> {
