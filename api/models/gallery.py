@@ -53,6 +53,8 @@ class PhotoMetadata(BaseModel):
     """
 
     preview_revision: Optional[str] = None
+    # The original this photo was made from, when it is a recorded AI edit (photo_ai_edits).
+    ai_edit_of: Optional[str] = None
     filename: Optional[str] = None
     date_taken: Optional[str] = None
     camera_model: Optional[str] = None

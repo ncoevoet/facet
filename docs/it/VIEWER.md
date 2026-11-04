@@ -375,6 +375,14 @@ Il controllo **Tieni top %** nella barra degli strumenti (modalità di modifica)
 - La selezione è limitata a 5000 foto. Su una vista più grande, restringi il filtro (album, data, persona…).
 - Con i `hide_brackets` / `hide_panoramas` predefiniti, una serie di bracket o panorama conta come **una** foto.
 
+### Modifiche IA
+
+Uno strumento di IA può portare nella libreria una copia modificata di una foto con lo strumento dell'assistente `import_ai_edit` (vedi [Agenti IA](AGENTS.md)). L'assistente invia l'immagine stessa, e Facet scrive una propria copia accanto all'originale come `{name}_{suffix}_{revision}{ext}`, per esempio `IMG_3533_agy_1.JPG`, e la analizza da sola. Durante un'importazione Facet non cancella né sovrascrive mai un file.
+
+- La galleria segna una modifica con ✨ **IA** in cima alla sua miniatura. ✨ è riservato a ciò che un'IA ha creato o scelto.
+- Una modifica entra sempre nella raffica del suo originale: l'importazione ve la mette e ogni scansione successiva ve la tiene, qualunque sia l'orario di scatto. «Migliore della raffica» mostra quella con punteggio più alto, la modifica o l'originale.
+- Nella pagina della foto la striscia della raffica mostra prima i fotogrammi che la galleria tiene, poi le modifiche IA, segnate ✨ **IA**, e infine gli occhi chiusi che nasconde, segnati **OCCHI CHIUSI**.
+
 ### Elenco fissato dall'assistente
 
 Quando un assistente collegato tramite [Assistenti IA (MCP)](AGENTS.md) ti mostra un elenco esatto di foto, la galleria lo visualizza nell'ordine dell'assistente. Una riga di stato dice quante foto sono state scelte; **Torna alla vista abituale** ripristina i tuoi filtri.
@@ -435,9 +443,9 @@ Campi della risposta e codici di stato: [API.md](../API.md).
   - Il pannello laterale mostra i dettagli completi nel cassetto di destra, organizzato come il dettaglio della foto. In **Attivazione pannello**, scegli **Hover**, **Clic** o **Hover o clic** (predefinito). La vista Revisione usa **Clic**; scegli un’opzione con clic per gli schermi touch. Mantiene l'ultima foto quando il cursore lascia la griglia.
   - Cliccare una foto tiene il pannello su di essa finché non premi **Deseleziona** (che deseleziona anche la foto). **Esc** fa lo stesso e cancella la selezione.
   - Una voce **Perché questo punteggio?** fissata in fondo al pannello apre la spiegazione del punteggio (la finestra di critica) per la foto che il pannello tiene.
-  - Il pannello condivide il cassetto con i filtri; aprire i filtri lo nasconde. Richiede una finestra larga almeno 1280px.
+  - Il pannello condivide il cassetto con i filtri; aprire i filtri lo nasconde. Richiede una finestra larga almeno 1280px. Dove il pannello non può agganciarsi, un'impostazione **Pannello laterale** salvata mostra i dettagli nel fumetto flottante, ed **Esc** lo chiude.
   - **Al passaggio** e **Al clic** mostrano un breve fumetto: categoria, aggregato e posizione, estetica, composizione, nitidezza, esposizione e una riga EXIF.
-  - Sotto i 768px, **Al passaggio** è disabilitato se non è già selezionato; il ridimensionamento conserva il comportamento salvato.
+  - Sotto i 768px, **Al passaggio** è disabilitato se non è già selezionato; il ridimensionamento conserva il comportamento salvato. Sui dispositivi touch è disabilitato comunque, come **Hover** in **Attivazione pannello**, perché un tocco non può posare il puntatore.
 - **Personalizza i pulsanti della scheda** — riordina e mostra/nascondi i pulsanti nella riga al passaggio di una scheda. Sono disponibili nove azioni: trova simili, perché-questo-punteggio, scrivi metadati, assegna un volto, apri il gruppo di duplicati, la raffica, la serie bracket/panorama o la pila di foto, e apri la pagina della foto. I pulsanti di gruppo compaiono solo sulle foto che appartengono a un tale gruppo. I pulsanti del gruppo di duplicati e della pila di foto sono attivi per impostazione predefinita; gli altri sono facoltativi. Salvato per browser.
 - **Nascondi occhi chiusi** — nasconde le foto con occhi chiusi rilevati
 - **Solo occhi chiusi / Solo duplicati** — mostra solo le foto con occhi chiusi, o ogni membro di ciascun gruppo di duplicati. Gli interruttori di nascondimento sono sospesi per quella vista.

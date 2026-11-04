@@ -10,7 +10,7 @@ import { I18N, i18nKeys } from '../../core/i18n/keys';
 import { TranslatePipe } from '../../shared/pipes/translate.pipe';
 import { SortOptionIconPipe } from '../../shared/pipes/sort-option-icon.pipe';
 import { SortGroupKeyPipe } from '../../shared/pipes/sort-group-key.pipe';
-import { useDesktopSignal, DETAILS_RAIL_MIN_WIDTH_PX } from '../../shared/utils/media-query';
+import { useDesktopSignal, useHoverCapableSignal, DETAILS_RAIL_MIN_WIDTH_PX } from '../../shared/utils/media-query';
 import { GalleryFilters, GalleryStore } from './gallery.store';
 import { TILE_FITS, GalleryMode, PanelActivation, TooltipMode } from './gallery-filters.util';
 import { closeOverlayDirectives } from '../../shared/utils/overlays';
@@ -121,7 +121,7 @@ const sortOptionLabelKey = (column: string): string => `sort_options.${column}`;
     <mat-menu #tooltipModeMenu="matMenu">
       @for (mode of tooltipModes(); track mode.id) {
         <button mat-menu-item role="menuitemradio"
-                [disabled]="mode.id === 'hover' && !canUseHoverTooltips() && store.filters().tooltip_mode !== 'hover'"
+                [disabled]="mode.id === 'hover' && (!canUseHoverTooltips() || !canHoverAtAll()) && store.filters().tooltip_mode !== 'hover'"
                 [attr.aria-checked]="store.filters().tooltip_mode === mode.id"
                 (click)="setPresentationFilter('tooltip_mode', mode.id)">
           <mat-icon aria-hidden="true">{{ mode.icon }}</mat-icon>
@@ -140,6 +140,7 @@ const sortOptionLabelKey = (column: string): string => `sort_options.${column}`;
     <mat-menu #panelActivationMenu="matMenu">
       @for (mode of panelActivationModes; track mode.id) {
         <button mat-menu-item role="menuitemradio" [attr.aria-checked]="store.filters().panel_activation === mode.id"
+                [disabled]="mode.id === 'hover' && !canHoverAtAll() && store.filters().panel_activation !== 'hover'"
                 (click)="setPresentationFilter('panel_activation', mode.id)">
           <mat-icon aria-hidden="true">{{ mode.icon }}</mat-icon>
           <span class="flex items-center gap-4">
@@ -196,9 +197,14 @@ export class GalleryViewControlsComponent {
   private readonly menus = viewChildren(MatMenuTrigger);
   private readonly tooltips = viewChildren(MatTooltip);
   private readonly railCapable = useDesktopSignal({ breakpointPx: DETAILS_RAIL_MIN_WIDTH_PX });
-  private readonly hoverCapable = useDesktopSignal();
+  /** Below the desktop breakpoint the floating hover bubble never renders. */
+  private readonly tooltipCapable = useDesktopSignal();
+  /** Hover is equally meaningless on a pure touch device at any width: the tap's
+   *  synthetic mouseenter fires once and sticks, so the gallery suppresses it. */
+  private readonly hoverCapable = useHoverCapableSignal();
   protected readonly canDockDetails = this.railCapable.isDesktop;
-  protected readonly canUseHoverTooltips = this.hoverCapable.isDesktop;
+  protected readonly canUseHoverTooltips = this.tooltipCapable.isDesktop;
+  protected readonly canHoverAtAll = this.hoverCapable.isHoverCapable;
   protected readonly tooltipModes = computed(() => {
     const modes: { id: TooltipMode; label: string; icon: string }[] = [
       { id: 'hover', label: I18N.gallery.tooltip_mode.hover, icon: 'chat_bubble_outline' },
@@ -245,8 +251,8 @@ export class GalleryViewControlsComponent {
     input.checked = this.reviewNavigation.enabled();
   }
   constructor() {
-    afterNextRender(() => { this.railCapable.setup(); this.hoverCapable.setup(); });
-    inject(DestroyRef).onDestroy(() => { this.railCapable.cleanup(); this.hoverCapable.cleanup(); });
+    afterNextRender(() => { this.railCapable.setup(); this.tooltipCapable.setup(); this.hoverCapable.setup(); });
+    inject(DestroyRef).onDestroy(() => { this.railCapable.cleanup(); this.tooltipCapable.cleanup(); this.hoverCapable.cleanup(); });
 
   }
 

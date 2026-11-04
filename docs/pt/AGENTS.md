@@ -277,6 +277,7 @@ As ferramentas de escrita estão na mesma lista `/mcp` que as de leitura. Cada u
 | `update_photo_stack` | `edition` | Substituir membros/ordem explícitos e capa opcional; revisão antiga é recusada | 1000 caminhos |
 | `unstack_photos` | `edition` | Dissolver uma pilha; os originais ficam intactos |  |
 | `undo_photo_stack` | `edition` | Desfazer apenas uma entrada de pilha disponível; alterações posteriores são recusadas |  |
+| `import_ai_edit` | `edition` | Trazer para a biblioteca uma edição por IA de uma foto, ao lado dela (enviada como bytes: `image_data` (base64) ou `source_file` (um ficheiro em `ai_edits.drop_dir`, lido e deixado no lugar); o Facet escreve a sua própria cópia e nunca apaga um ficheiro; `tool` tem de estar configurada); não idempotente, cada chamada acrescenta uma revisão; `note` (o que mudou) é acrescentado à legenda do original como `AI: <note>` e torna-se a legenda da edição; a chamada espera até 3 minutos pela análise da edição e responde `ready` com a legenda e a página | 1 file |
 | `create_album` | `edition` | Cria um álbum (não idempotente: duas vezes cria dois álbuns): vazio, ou a partir de `filters` / `target: "view"` como álbum inteligente que segue esses filtros, ou a partir de `paths` / `target: "selection"` como álbum fixo preenchido na mesma chamada (`added`, `skipped`). Um álbum inteligente usa os interruptores de ocultação do visualizador e em `list_albums` mostra 0 fotos. Uns `filters` sem nenhum filtro efetivo (`{}`, ou apenas interruptores de visualização desligados) são recusados como `invalid_input`: omita `filters` para um álbum vazio | |
 | `album_add_photos` | `edition` | Adiciona fotos a um álbum (as já presentes são ignoradas) | 1000 caminhos |
 | `album_remove_photos` | `edition` | Remove fotos de um álbum; as fotos não são tocadas | 1000 caminhos |
@@ -381,7 +382,7 @@ Os assistentes podem ler os pesos de pontuação e simular uma alteração. Quat
 
 ## Prompts
 
-O servidor oferece ainda cinco prompts prontos, listados por `prompts/list` e filtrados pelo nível do token. Um prompt só nomeia ferramentas que o token pode chamar, e uma ferramenta destrutiva só depois da sua simulação e da sua confirmação. Cada chamada conta no limite de leitura e é registrada pelo nome, nunca com os seus argumentos.
+O servidor oferece ainda seis prompts prontos, listados por `prompts/list` e filtrados pelo nível do token. Um prompt só nomeia ferramentas que o token pode chamar, e uma ferramenta destrutiva só depois da sua simulação e da sua confirmação. Cada chamada conta no limite de leitura e é registrada pelo nome, nunca com os seus argumentos.
 
 | Prompt | Argumentos | O que pede ao assistente |
 |--------|------------|--------------------------|
@@ -390,6 +391,7 @@ O servidor oferece ainda cinco prompts prontos, listados por `prompts/list` e fi
 | `build_album` | `theme`, `album_name` | Reunir as fotos correspondentes em um novo álbum |
 | `tag_people` | `person` | Encontrar rostos parecidos com uma pessoa e atribuir os que confirmar |
 | `teach_taste` | `category` | Abrir a página de comparação por pares na sua aba e acompanhar quantas comparações fez; a resposta a cada par é sempre o seu próprio clique |
+| `edit_photo` | `change`, `photo` | Encontrar a foto (por caminho, descrição, pessoas nomeadas ou a seleção do separador), editar uma cópia fora da biblioteca com o modelo de imagem do assistente, mostrá-la a ti e trazê-la com `import_ai_edit`. O prompt indica os nomes de ferramenta que o servidor aceita. Assistentes com ficheiros de skill: [skill de exemplo](../examples/agent-skills/facet/SKILL.md) |
 
 ## Câmara escura (grupos de triagem)
 

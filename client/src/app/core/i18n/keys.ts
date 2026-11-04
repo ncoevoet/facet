@@ -3252,6 +3252,10 @@ export const I18N = {
       count_help: "photo_detail.set.count_help",
       member_position: "photo_detail.set.member_position",
     },
+    ai_edit: {
+      badge: "photo_detail.ai_edit.badge",
+      badge_short: "photo_detail.ai_edit.badge_short",
+    },
     delete: {
       button_label: "photo_detail.delete.button_label",
       confirm_title: "photo_detail.delete.confirm_title",
@@ -3771,6 +3775,7 @@ export const I18N = {
       update_photo_stack: "assistant_activity.tools.update_photo_stack",
       unstack_photos: "assistant_activity.tools.unstack_photos",
       undo_photo_stack: "assistant_activity.tools.undo_photo_stack",
+      import_ai_edit: "assistant_activity.tools.import_ai_edit",
     },
     ui: {
       ui_navigate: "assistant_activity.ui.ui_navigate",

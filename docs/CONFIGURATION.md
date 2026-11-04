@@ -1106,6 +1106,26 @@ Weights used by burst culling to pick the best shot in each burst group. Weights
 
 ---
 
+## AI edits
+
+Which AI tools may import an edit with `import_ai_edit` (see [AI Agents](AGENTS.md)), and the tag each puts in the file name: an edit of `IMG_3533.JPG` by `antigravity-gemini` is saved as `IMG_3533_agy_1.JPG`. A tool not listed is refused.
+
+```json
+{
+  "ai_edits": {
+    "tool_suffixes": { "antigravity-gemini": "agy", "openai-chatgpt": "gpt", "anthropic-claude": "ant" },
+    "drop_dir": ""
+  }
+}
+```
+
+| Setting | Default | Description |
+|---------|---------|-------------|
+| `tool_suffixes` | `{"antigravity-gemini": "agy", "openai-chatgpt": "gpt", "anthropic-claude": "ant"}` | Tool name → file-name tag |
+| `drop_dir` | `""` | A folder on the Facet server where an assistant on the same computer saves its edit and passes the file name as `source_file`. Facet reads the file and writes its own copy; it never deletes or changes it. Keep it outside the scanned folders (a file there is refused). Empty: assistants send the image as `image_data` |
+
+---
+
 ## Duplicate Detection
 
 Finds duplicate photos across the whole library: loose pHash candidates, confirmed by an embedding similarity check.

@@ -33,6 +33,8 @@ _PLAIN_REFS = {
     ('stack_suggestion_dismissals', 'photo_path'),
     ('photo_keyword_nodes', 'photo_path'),
     ('keyword_assignment_deletions', 'photo_path'),
+    # An AI edit's own path: no foreign key, since the link is recorded before the edit is scanned.
+    ('photo_ai_edits', 'edit_path'),
 }
 _NON_ASSET_PATHS = {
     # The conditional seed trigger follows only current members, never an old

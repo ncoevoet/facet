@@ -376,6 +376,14 @@ El control **Conservar el % superior** de la barra de herramientas (modo de edic
 - La selección está limitada a 5000 fotos. En una vista mayor, acota el filtro (álbum, fecha, persona…).
 - Con los valores por defecto de `hide_brackets` / `hide_panoramas`, un conjunto de bracketing o panorámica cuenta como **una** foto.
 
+### Ediciones con IA
+
+Una herramienta de IA puede traer a la biblioteca una copia editada de una foto con la herramienta del asistente `import_ai_edit` (ver [Agentes de IA](AGENTS.md)). El asistente envía la imagen misma, y Facet escribe su propia copia junto al original como `{name}_{suffix}_{revision}{ext}`, por ejemplo `IMG_3533_agy_1.JPG`, y la escanea por separado. Durante una importación Facet nunca borra ni sobrescribe un archivo.
+
+- La galería marca una edición con ✨ **IA** en la parte superior de su miniatura. ✨ se reserva para lo que una IA hizo o eligió.
+- Una edición siempre se une a la ráfaga de su original: la importación la coloca ahí y cada escaneo posterior la mantiene, sea cual sea su hora de captura. «Mejor de la ráfaga» muestra la de mayor puntuación, la edición o el original.
+- En la página de la foto, la tira de la ráfaga muestra primero los fotogramas que la galería conserva, luego las ediciones con IA, marcadas ✨ **IA**, y al final los parpadeos que oculta, marcados **PARPADEO**.
+
 ### Lista fijada por el asistente
 
 Cuando un asistente conectado mediante [Agentes de IA (MCP)](AGENTS.md) te muestra una lista exacta de fotos, la galería la muestra en el orden del asistente. Una línea de estado indica cuántas fotos se eligieron; **Volver a la vista habitual** restaura tus filtros.
@@ -436,9 +444,9 @@ Campos de respuesta y códigos de estado: [API.md](../API.md).
   - El panel lateral muestra los detalles completos en el cajón de la derecha, con la misma disposición que el detalle de la foto. En **Activación del panel**, elige **Hover**, **Clic** o **Hover o clic** (por defecto). La vista Revisar usa **Clic**; elige una opción con clic para las pantallas táctiles. Conserva la última foto cuando el cursor sale de la cuadrícula.
   - Hacer clic en una foto mantiene el panel en ella hasta que pulsas **Deseleccionar** (que también deselecciona la foto). **Escape** hace lo mismo y borra la selección.
   - Una entrada **¿Por qué esta puntuación?** fijada en la parte inferior del panel abre el explicador de puntuación (el diálogo de crítica) para la foto que el panel mantiene.
-  - El panel comparte el cajón con los filtros; abrir los filtros lo oculta. Necesita una ventana de al menos 1280 px de ancho.
+  - El panel comparte el cajón con los filtros; abrir los filtros lo oculta. Necesita una ventana de al menos 1280 px de ancho. Donde el panel no puede acoplarse, un **Panel lateral** guardado muestra los detalles en la burbuja flotante, y **Escape** la cierra.
   - **Al pasar el cursor** y **Clic** muestran una burbuja breve: categoría, agregada y posición, estética, composición, nitidez, exposición y una línea de EXIF.
-  - Por debajo de 768px, **Al pasar el cursor** está desactivado salvo que ya esté seleccionado; cambiar el tamaño conserva el activador guardado.
+  - Por debajo de 768px, **Al pasar el cursor** está desactivado salvo que ya esté seleccionado; cambiar el tamaño conserva el activador guardado. En dispositivos táctiles también está desactivado, igual que **Hover** en **Activación del panel**, porque un toque no puede mantener el cursor.
 - **Personalizar los botones de la tarjeta**: reordena y muestra/oculta los botones de la fila que aparece al pasar el cursor sobre una tarjeta. Hay nueve acciones: buscar similares, por qué esta puntuación, escribir metadatos, asignar un rostro, abrir el grupo de duplicados, el grupo de ráfaga, el conjunto de bracketing/panorámica o la pila de fotos, y abrir la página de la foto. Los botones de grupo solo aparecen en las fotos de un grupo así. Los botones de grupo de duplicados y de pila de fotos están activados por defecto; los demás son opcionales. Se guarda por navegador.
 - **Ocultar parpadeos**: oculta las fotos con parpadeos detectados
 - **Solo parpadeos / Solo duplicados**: muestra solo las fotos con parpadeo, o todos los miembros de cada grupo de duplicados. Los interruptores de ocultar se suspenden en esa vista.

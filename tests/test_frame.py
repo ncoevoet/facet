@@ -19,7 +19,7 @@ from io import BytesIO
 import pytest
 from PIL import Image
 
-from api.routers.frame import _sign_rowid
+from api.routers.frame import _resolve_id, _sign_rowid
 
 DB_PATH = os.environ["DB_PATH"]
 
@@ -149,6 +149,42 @@ def unrenderable_seed():
     conn.execute("DELETE FROM photos WHERE path = ?", (path,))
     conn.commit()
     conn.close()
+
+
+def test_revised_id_resolves_and_forgery_does_not():
+    """A revision rides in the signed payload: it changes the cache key, not
+    the identity, and only an authentic revision resolves."""
+    assert _resolve_id(_sign_rowid(5, "abc123")) == 5
+    assert _resolve_id(_sign_rowid(5)) == 5  # legacy revision-less ids keep resolving
+    assert _resolve_id(_sign_rowid(5, "abc123").replace("abc123", "ffffff")) is None
+    assert _resolve_id("5.abc123.deadbeef") is None
+
+    # The revision is what busts a display's immutable cache key.
+    assert _sign_rowid(5, "abc123") != _sign_rowid(5, "ffffff")
+
+
+def test_photos_ids_change_when_the_render_revision_bumps(client, frame_cfg, seed):
+    """An in-place re-render (photo refresh) keeps the rowid, so the served id
+    must change with preview_revision -- otherwise a display that honours the
+    immutable header would pin the old pixels for a year."""
+    # An eligible photo: rejected/junk/blink seeds never reach the response.
+    name = "good"
+    old_id = seed[name]
+    conn = _connect()
+    row = conn.execute(
+        f"SELECT rowid FROM photos WHERE path LIKE '{PREFIX}{name}.jpg'"
+    ).fetchone()
+    conn.execute("UPDATE photos SET preview_revision = ? WHERE rowid = ?", ("cafe1", row["rowid"]))
+    conn.commit()
+    conn.close()
+
+    # The seed set must fit one batch so the updated photo is guaranteed sampled.
+    resp = client.get("/api/frame/photos", params={"token": TOKEN, "count": 100})
+
+    assert resp.status_code == 200
+    fresh = {p["id"] for p in resp.json()["photos"]}
+    assert old_id not in fresh
+    assert any(_resolve_id(p) == row["rowid"] and ".cafe1." in p for p in fresh)
 
 
 def _returned_names(resp, ids):

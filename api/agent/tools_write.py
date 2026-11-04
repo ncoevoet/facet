@@ -50,7 +50,7 @@ EXPORT_METADATA_TIMEOUT_S = 180
 # The levels each write tool needs; the matrix test walks this table.
 WRITE_TOOL_LEVELS: dict[str, str] = {
     "create_photo_stack": "edition", "update_photo_stack": "edition", "unstack_photos": "edition",
-    "undo_photo_stack": "edition",
+    "undo_photo_stack": "edition", "import_ai_edit": "edition",
     "set_rating": "user", "set_favorite": "user", "set_rejected": "user",
     "batch_set_rating": "edition", "batch_set_favorite": "edition", "batch_set_rejected": "edition",
     "create_album": "edition", "album_add_photos": "edition", "album_remove_photos": "edition",

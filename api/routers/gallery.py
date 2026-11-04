@@ -49,6 +49,7 @@ from api.types import (
 from metric_columns import SCORE_RANGE_COLUMNS
 from score_presence import score_presence_policies
 from api.visual_similarity import find_visual_page
+from db.ai_edits import attach_ai_edit_sources_async
 from db.preview_versions import attach_preview_versions_async
 from db.metadata_provenance import photo_provenance
 from api.related_files import related_files
@@ -940,6 +941,7 @@ async def api_photo(
             override = await cur.fetchone()
             await cur.close()
             photo['category_override'] = override['category_override'] if override else None
+            await attach_ai_edit_sources_async(conn, [photo])
 
             # A deliberate model decline is evidence only for the stored scan
             # fingerprint, never a guess based on face_count or a NULL score.
@@ -998,6 +1000,7 @@ async def _fetch_sequence_set(conn, vis_sql, vis_params, kind, group_id):
         for r in rows
     ]
     await attach_preview_versions_async(conn, members)
+    await attach_ai_edit_sources_async(conn, members)
     ev_span = None
     if kind == BRACKET_KIND:
         offsets = [m['ev_offset'] for m in members if m['ev_offset'] is not None]
@@ -1022,6 +1025,7 @@ async def _fetch_grouped_set(conn, vis_sql, vis_params, kind, group_col, lead_co
         for r in rows
     ]
     await attach_preview_versions_async(conn, members)
+    await attach_ai_edit_sources_async(conn, members)
     return {'kind': kind, 'group_id': group_id, 'count': len(members), 'ev_span': None, 'members': members}
 
 
@@ -1480,6 +1484,7 @@ async def _assemble_gallery_rows(rows, conn, user_id) -> list[dict]:
     await attach_person_data_async(photos, conn)
     from api.logical_reviews import attach_async as attach_logical_reviews
     await attach_logical_reviews(conn, photos, user_id)
+    await attach_ai_edit_sources_async(conn, photos)
     return photos
 
 

@@ -1112,6 +1112,26 @@ Gewichte, die das Serienbild-Culling verwendet, um die beste Aufnahme jeder Seri
 
 ---
 
+## KI-Bearbeitungen
+
+Welche KI-Werkzeuge mit `import_ai_edit` eine Bearbeitung importieren dürfen (siehe [KI-Agenten](AGENTS.md)) und welches Kürzel jedes in den Dateinamen setzt: Eine Bearbeitung von `IMG_3533.JPG` durch `antigravity-gemini` wird als `IMG_3533_agy_1.JPG` gespeichert. Ein nicht aufgeführtes Werkzeug wird abgewiesen.
+
+```json
+{
+  "ai_edits": {
+    "tool_suffixes": { "antigravity-gemini": "agy", "openai-chatgpt": "gpt", "anthropic-claude": "ant" },
+    "drop_dir": ""
+  }
+}
+```
+
+| Einstellung | Standard | Beschreibung |
+|---------|---------|-------------|
+| `tool_suffixes` | `{"antigravity-gemini": "agy", "openai-chatgpt": "gpt", "anthropic-claude": "ant"}` | Werkzeugname → Kürzel im Dateinamen |
+| `drop_dir` | `""` | Ein Ordner auf dem Facet-Server, in den ein Assistent auf demselben Rechner seine Bearbeitung legt, um den Dateinamen als `source_file` zu übergeben. Facet liest die Datei und schreibt eine eigene Kopie; die Datei wird nie gelöscht oder geändert. Außerhalb der gescannten Ordner halten (eine Datei dort wird abgelehnt). Leer: Assistenten senden das Bild als `image_data` |
+
+---
+
 ## Duplicate Detection
 
 Findet Duplikate in der gesamten Bibliothek: lockere pHash-Kandidaten, bestätigt durch eine Embedding-Ähnlichkeitsprüfung.

@@ -376,6 +376,14 @@ The **Keep top %** control in the toolbar (edition mode) culls the whole filtere
 - The selection is capped at 5000 photos. On a larger view, narrow the filter (album, date, person…).
 - Under the default `hide_brackets` / `hide_panoramas`, a bracket or panorama set counts as **one** photo.
 
+### AI edits
+
+An AI tool can bring an edited copy of a photo into the library through the assistant tool `import_ai_edit` (see [AI Agents](AGENTS.md)). The assistant sends the image itself, and Facet writes its own copy beside the original as `{name}_{suffix}_{revision}{ext}`, for example `IMG_3533_agy_1.JPG`, then scans it on its own. Facet never deletes or overwrites a file during an import.
+
+- The gallery marks an edit with ✨ **AI** at the top of its tile. ✨ is kept for what an AI made or picked.
+- An edit always joins its original's burst: the import puts it there and every later scan keeps it there, whatever its capture time. The gallery's Best of Burst shows whichever scores higher, the edit or the original.
+- On the photo page the burst strip lists the frames the gallery keeps first, then the AI edits, labelled ✨ **AI**, then the blinks it drops, labelled **BLINK**.
+
 ### Assistant-pinned list
 
 When an assistant connected through [AI Agents (MCP)](AGENTS.md) shows you an exact list of photos, the gallery displays it in the assistant's order. A status line says how many photos were chosen; **Show the usual view** restores your filters.
@@ -436,9 +444,9 @@ Response fields and status codes: [API.md](API.md).
   - The side panel shows full details in the right-hand drawer, laid out like photo detail. Under **Panel activation**, choose **Hover**, **Click**, or **Hover or click** (default). The Review preset uses **Click**; choose a click-enabled option for touch screens. It keeps the last photo when the cursor leaves the grid.
   - Clicking a photo holds the panel on it until you press **Deselect** (which also deselects the photo). **Escape** does the same and clears the selection.
   - A **Why This Score?** entry pinned at the bottom of the panel opens the score explainer (the critique dialog) for the photo the panel holds.
-  - The panel shares the drawer with the filters; opening the filters hides it. It needs a viewport at least 1280px wide.
+  - The panel shares the drawer with the filters; opening the filters hides it. It needs a viewport at least 1280px wide. Where the panel cannot dock, a saved **Side panel** setting shows its details in the floating bubble instead, and **Escape** closes it.
   - **Hover** and **Click** show a short bubble: category, aggregate and rank, aesthetic, composition, sharpness, exposure, and one EXIF line.
-  - Below 768px, **Hover** is disabled unless already selected; resizing preserves the saved trigger.
+  - Below 768px, **Hover** is disabled unless already selected; resizing preserves the saved trigger. **Hover** is disabled on touch devices as well, here and under **Panel activation**, since a tap cannot hover.
 - **Customize card buttons** — reorder and show/hide the buttons on a card's hover row. Nine actions are available: find similar, why-this-score, write metadata, assign a face, open the duplicate group, burst group, bracket/panorama set or photo stack, and open the photo page. Group buttons appear only on photos in such a group. Duplicate-group and photo-stack buttons are on by default; the others are opt-in. Saved per browser.
 - **Hide Blinks** — hide photos with detected blinks
 - **Blinks Only / Duplicates Only** — show only blinked photos, or every member of each duplicate group. The hide toggles are suspended for that view.

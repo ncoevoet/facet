@@ -3238,6 +3238,10 @@
       "count_help": "Every file is shown here. Grouped RAW/JPEG files count as one photo in the gallery.",
       "member_position": "File {position} of {count}"
     },
+    "ai_edit": {
+      "badge": "AI edit",
+      "badge_short": "AI"
+    },
     "delete": {
       "button_label": "Delete",
       "confirm_title": "Delete this photo?",
@@ -3756,7 +3760,8 @@
       "create_photo_stack": "Created a photo stack",
       "update_photo_stack": "Updated a photo stack",
       "unstack_photos": "Unstacked photos",
-      "undo_photo_stack": "Undid a photo stack change"
+      "undo_photo_stack": "Undid a photo stack change",
+      "import_ai_edit": "Imported an AI edit"
     },
     "ui": {
       "ui_navigate": "Opened a page",

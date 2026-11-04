@@ -322,6 +322,80 @@ describe('GalleryViewControlsComponent', () => {
       expect(store.updateFilter).toHaveBeenCalledWith('tooltip_mode', 'off');
     });
 
+    it.each([true, false])('reads pointer hover capability (%s) and cleans up listeners', canHover => {
+      const mql = { matches: true, addEventListener: vi.fn(), removeEventListener: vi.fn() };
+      const hoverMql = { matches: canHover, addEventListener: vi.fn(), removeEventListener: vi.fn() };
+      const originalMatchMedia = window.matchMedia.bind(window);
+      const query = vi.spyOn(window, 'matchMedia').mockImplementation(value =>
+        value === '(hover: hover)' ? hoverMql as unknown as MediaQueryList
+          : value === '(min-width: 768px)' ? mql as unknown as MediaQueryList : originalMatchMedia(value),
+      );
+      try {
+        const { fixture } = render();
+        const controls = fixture.componentInstance as unknown as { canHoverAtAll: () => boolean; canUseHoverTooltips: () => boolean };
+        expect(query).toHaveBeenCalledWith('(min-width: 768px)');
+        expect(query).toHaveBeenCalledWith('(hover: hover)');
+        expect(controls.canHoverAtAll()).toBe(canHover);
+        expect(controls.canUseHoverTooltips()).toBe(true);
+        expect(mql.addEventListener).toHaveBeenCalledWith('change', expect.any(Function));
+        const handler = mql.addEventListener.mock.calls[0][1];
+        const hoverHandler = hoverMql.addEventListener.mock.calls[0][1];
+        TestBed.resetTestingModule();
+        expect(mql.removeEventListener).toHaveBeenCalledWith('change', handler);
+        expect(hoverMql.removeEventListener).toHaveBeenCalledWith('change', hoverHandler);
+      } finally {
+        query.mockRestore();
+      }
+    });
+
+    it('greys the hover trigger out on a pure touch device at any width', async () => {
+      const { fixture, root, store } = render();
+      const capability = fixture.componentInstance as unknown as {
+        tooltipCapable: { setMatches(value: boolean): void };
+        hoverCapable: { setMatches(value: boolean): void };
+      };
+      store.filters.update(filters => ({ ...filters, tooltip_mode: 'off' }));
+      capability.tooltipCapable.setMatches(true);
+      capability.hoverCapable.setMatches(false);
+      fixture.detectChanges();
+      await openMenu(fixture, byLabel(root, I18N.gallery.tooltip_mode.label)[0] as HTMLButtonElement);
+      const hover = () => menuItems()[0] as HTMLButtonElement;
+      expect(hover().disabled).toBe(true);
+      hover().click();
+      expect(store.updateFilter).not.toHaveBeenCalled();
+      capability.hoverCapable.setMatches(true);
+      fixture.detectChanges();
+      expect(hover().disabled).toBe(false);
+      // An already-selected Hover stays selectable, so the saved trigger is never silently replaced.
+      capability.hoverCapable.setMatches(false);
+      store.filters.update(filters => ({ ...filters, tooltip_mode: 'hover' }));
+      fixture.detectChanges();
+      expect(hover().disabled).toBe(false);
+      (menuItems()[1] as HTMLButtonElement).click();
+      expect(store.updateFilter).toHaveBeenLastCalledWith('tooltip_mode', 'click');
+    });
+
+    it('greys the side panel hover activation out on a pure touch device', async () => {
+      const { fixture, root, store } = render();
+      const capability = fixture.componentInstance as unknown as {
+        railCapable: { setMatches(value: boolean): void };
+        hoverCapable: { setMatches(value: boolean): void };
+      };
+      capability.railCapable.setMatches(true);
+      capability.hoverCapable.setMatches(false);
+      store.filters.update(filters => ({ ...filters, tooltip_mode: 'panel', panel_activation: 'click' }));
+      fixture.detectChanges();
+      await openMenu(fixture, byLabel(root, I18N.gallery.tooltip_mode.label)[0] as HTMLButtonElement);
+      const activationTrigger = Array.from(document.querySelectorAll<HTMLButtonElement>('.mat-mdc-menu-panel button'))
+        .find(button => button.textContent?.includes(I18N.gallery.panel_activation.label))!;
+      await openMenu(fixture, activationTrigger);
+      const panels = document.querySelectorAll('.mat-mdc-menu-panel');
+      const activation = Array.from(panels[panels.length - 1].querySelectorAll<HTMLButtonElement>('[role="menuitemradio"]'));
+      expect(activation.map(item => item.disabled)).toEqual([true, false, false]);
+      activation[2].click();
+      expect(store.updateFilter).toHaveBeenLastCalledWith('panel_activation', 'both');
+    });
+
     it('toggles the refinement panel without changing collection predicates', () => {
       const { fixture, root, store } = render();
       const filters = store.filters();

@@ -376,6 +376,14 @@ Das Steuerelement **Top % behalten** in der Symbolleiste (Bearbeitungsmodus) sor
 - Die Auswahl ist auf 5000 Fotos begrenzt. Grenzen Sie bei einer größeren Ansicht den Filter ein (Album, Datum, Person…).
 - Unter den Standardwerten `hide_brackets` / `hide_panoramas` zählt eine Belichtungsreihe oder ein Panorama als **ein** Foto.
 
+### KI-Bearbeitungen
+
+Ein KI-Werkzeug kann über das Assistenten-Werkzeug `import_ai_edit` eine bearbeitete Kopie eines Fotos in die Bibliothek bringen (siehe [KI-Agenten](AGENTS.md)). Der Assistent sendet das Bild selbst; Facet schreibt eine eigene Kopie neben das Original als `{name}_{suffix}_{revision}{ext}`, etwa `IMG_3533_agy_1.JPG`, und scannt sie einzeln. Beim Import löscht oder überschreibt Facet nie eine Datei.
+
+- Die Galerie markiert eine Bearbeitung oben auf der Kachel mit ✨ **KI**. ✨ steht nur für das, was eine KI gemacht oder ausgewählt hat.
+- Eine Bearbeitung landet immer in der Serie ihres Originals: Der Import legt sie dort ab, und jeder spätere Scan behält sie dort, unabhängig vom Aufnahmezeitpunkt. „Bestes der Serie“ zeigt die höher bewertete, Bearbeitung oder Original.
+- Auf der Fotoseite listet der Serienstreifen zuerst die Aufnahmen, die die Galerie behält, dann die KI-Bearbeitungen mit ✨ **KI** und zuletzt die ausgeblendeten Blinzler mit **BLINZ**.
+
 ### Vom Assistenten angeheftete Liste
 
 Zeigt Ihnen ein über [KI-Agenten (MCP)](AGENTS.md) verbundener Assistent eine exakte Fotoliste, zeigt die Galerie sie in der Reihenfolge des Assistenten. Eine Statuszeile nennt die Zahl der gewählten Fotos; **Zur üblichen Ansicht zurück** stellt Ihre Filter wieder her.
@@ -436,9 +444,9 @@ Antwortfelder und Statuscodes: [API.md](../API.md).
   - Die Seitenleiste zeigt alle Details in der rechten Schublade, angeordnet wie in der Fotodetailansicht. Unter **Panel-Aktivierung** wählen Sie **Hover**, **Klick** oder **Hover oder Klick** (Standard). Die Ansicht Prüfen verwendet **Klick**; wählen Sie für Touch-Bildschirme eine Option mit Klick. Sie behält das letzte Foto, wenn der Zeiger das Raster verlässt.
   - Ein Klick auf ein Foto hält die Leiste darauf fest, bis Sie **Auswahl aufheben** drücken (das auch das Foto abwählt). **Escape** wirkt genauso und hebt die Auswahl auf.
   - Ein am unteren Rand der Leiste fixierter Eintrag **Warum diese Bewertung?** öffnet den Bewertungserklärer (den Kritik-Dialog) für das Foto, das die Leiste hält.
-  - Die Leiste teilt sich die Schublade mit den Filtern; das Öffnen der Filter blendet sie aus. Erfordert ein Fenster von mindestens 1280px.
+  - Die Leiste teilt sich die Schublade mit den Filtern; das Öffnen der Filter blendet sie aus. Erfordert ein Fenster von mindestens 1280px. Wo die Leiste nicht andocken kann, zeigt eine gespeicherte **Seitenleiste** die Details stattdessen in der schwebenden Blase, und **Escape** schließt sie.
   - **Hover** und **Klick** zeigen eine kurze Blase: Kategorie, Gesamtwertung und Rang, Ästhetik, Komposition, Schärfe, Belichtung und eine EXIF-Zeile.
-  - Unter 768px ist **Hover** deaktiviert, sofern es nicht bereits ausgewählt ist; eine Größenänderung behält den gespeicherten Auslöser bei.
+  - Unter 768px ist **Hover** deaktiviert, sofern es nicht bereits ausgewählt ist; eine Größenänderung behält den gespeicherten Auslöser bei. Auf reinen Touch-Geräten ist **Hover** ebenfalls deaktiviert, hier wie unter **Panel-Aktivierung**, da ein Tipp nicht schweben kann.
 - **Kartenknöpfe anpassen** — Knöpfe in der Hover-Zeile einer Karte umsortieren und ein-/ausblenden. Neun Aktionen stehen bereit: Ähnliche finden, Warum diese Bewertung, Metadaten schreiben, Gesicht zuweisen, die Duplikatgruppe, Seriengruppe, Belichtungsreihe/das Panorama oder den Fotostapel öffnen und die Fotoseite öffnen. Gruppenknöpfe erscheinen nur bei Fotos in einer solchen Gruppe. Die Knöpfe für Duplikatgruppe und Fotostapel sind standardmäßig an; die übrigen müssen Sie einschalten. Pro Browser gespeichert.
 - **Blinzler ausblenden** — Fotos mit erkanntem Blinzeln ausblenden
 - **Nur Blinker / Nur Duplikate** — Nur Fotos mit Blinzeln bzw. jedes Mitglied jeder Duplikatgruppe zeigen. Die Ausblend-Schalter ruhen für diese Ansicht.

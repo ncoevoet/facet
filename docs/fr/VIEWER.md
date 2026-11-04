@@ -375,6 +375,14 @@ Le contrôle **Garder le top %** de la barre d'outils (mode édition) trie toute
 - La sélection est plafonnée à 5000 photos. Sur une vue plus grande, restreignez le filtre (album, date, personne…).
 - Avec les valeurs par défaut `hide_brackets` / `hide_panoramas`, un bracketing ou un panorama compte pour **une** photo.
 
+### Retouches IA
+
+Un outil d'IA peut ajouter à la bibliothèque une copie retouchée d'une photo avec l'outil d'assistant `import_ai_edit` (voir [Agents IA](AGENTS.md)). L'assistant envoie l'image elle-même, et Facet écrit sa propre copie à côté de l'original sous le nom `{name}_{suffix}_{revision}{ext}`, par exemple `IMG_3533_agy_1.JPG`, puis l'analyse seule. Pendant un import, Facet ne supprime ni n'écrase jamais de fichier.
+
+- La galerie marque une retouche d'un ✨ **IA** en haut de sa vignette. ✨ est réservé à ce qu'une IA a produit ou choisi.
+- Une retouche rejoint toujours la rafale de son original : l'import l'y place et chaque scan suivant l'y garde, quelle que soit son heure de prise de vue. « Meilleure de la rafale » montre la mieux notée, la retouche ou l'original.
+- Sur la page de la photo, la bande de la rafale montre d'abord les vues que la galerie garde, puis les retouches IA, marquées ✨ **IA**, et enfin les clignements qu'elle masque, marqués **CLIN**.
+
 ### Liste épinglée par l'assistant
 
 Quand un assistant connecté via [Agents IA (MCP)](AGENTS.md) vous montre une liste exacte de photos, la galerie l'affiche dans l'ordre de l'assistant. Une ligne d'état indique combien de photos ont été choisies ; **Revenir à la vue habituelle** rétablit vos filtres.
@@ -435,9 +443,9 @@ Champs de réponse et codes de statut : [API.md](../API.md).
   - Le panneau latéral montre tous les détails dans le tiroir de droite, disposés comme le détail de la photo. Dans **Activation du panneau**, choisissez **Survol**, **Clic** ou **Survol ou clic** (par défaut). La vue Réviser utilise **Clic** ; choisissez une option avec clic pour les écrans tactiles. Il garde la dernière photo quand le curseur quitte la grille.
   - Cliquer sur une photo maintient le panneau sur elle jusqu'à ce que vous appuyiez sur **Désélectionner** (ce qui désélectionne aussi la photo). **Échap** fait la même chose et efface la sélection.
   - Une entrée **Pourquoi ce score ?** épinglée en bas du panneau ouvre l'explication du score (la boîte de dialogue de critique) pour la photo que le panneau maintient.
-  - Le panneau partage le tiroir avec les filtres ; ouvrir les filtres le masque. Il exige une fenêtre d'au moins 1280 px de large.
+  - Le panneau partage le tiroir avec les filtres ; ouvrir les filtres le masque. Il exige une fenêtre d'au moins 1280 px de large. Là où le panneau ne peut pas se docker, un réglage **Panneau latéral** enregistré affiche les détails dans la bulle flottante, et **Échap** la ferme.
   - **Survol** et **Clic** affichent une courte bulle : catégorie, agrégat et rang, esthétique, composition, netteté, exposition et une ligne EXIF.
-  - En dessous de 768px, **Survol** est désactivé sauf s’il est déjà sélectionné ; redimensionner la fenêtre conserve le déclencheur enregistré.
+  - En dessous de 768px, **Survol** est désactivé sauf s’il est déjà sélectionné ; redimensionner la fenêtre conserve le déclencheur enregistré. Sur les appareils tactiles, **Survol** est aussi désactivé, ici comme dans **Activation du panneau**, car un appui ne peut pas survoler.
 - **Personnaliser les boutons des cartes** — réordonnez et affichez/masquez les boutons de la ligne qui apparaît au survol d'une carte. Neuf actions sont disponibles : trouver des similaires, pourquoi ce score, écrire les métadonnées, assigner un visage, ouvrir le groupe de doublons, le groupe de rafale, la série bracketing/panorama ou la pile de photos, et ouvrir la page de la photo. Les boutons de groupe n'apparaissent que sur les photos d'un tel groupe. Les boutons de groupe de doublons et de pile de photos sont activés par défaut ; les autres sont optionnels. Enregistré par navigateur.
 - **Masquer clignements** — masque les photos avec clignements détectés
 - **Clignements uniquement / Doublons uniquement** — n'affiche que les photos avec clignement, ou tous les membres de chaque groupe de doublons. Les bascules de masquage sont suspendues pour cette vue.
