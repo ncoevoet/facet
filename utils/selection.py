@@ -60,6 +60,16 @@ def composite_lead_score(photo):
     return score
 
 
+# The ``photos`` columns ``composite_lead_score`` reads, as a SELECT list: every caller that
+# picks a lead reads the same inputs, so the burst pass and the AI-edit join can never disagree.
+LEAD_SCORE_COLUMNS_SQL = (
+    "aggregate, face_count, eyes_open_score, expression_score, tech_sharpness, "
+    "(SELECT ls.learned_score FROM learned_scores ls "
+    " WHERE ls.photo_path = photos.path AND ls.user_id IS NULL "
+    " AND ls.category IS NULL) AS learned_score"
+)
+
+
 def pick_lead(photos):
     """Return the lead photo (dict) of a group by composite_lead_score, or None."""
     if not photos:

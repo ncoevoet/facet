@@ -2,7 +2,9 @@
 
 Rows live in ``photo_ai_edits`` (see ``db/schema.py``), written by
 ``POST /api/photo/ai_edits/import``. The viewer marks an edit with ✨ and offers
-its original beside it; nothing in scoring, grouping or export reads the table.
+its original beside it. Grouping reads it too: an edit always sits in its original's
+burst (``join_ai_edits_to_original_sets`` after an import, ``process_bursts`` on every
+later scan). Scoring and export do not read it.
 """
 
 import ntpath
@@ -95,3 +97,46 @@ def apply_ai_edit_captions(conn) -> int:
             written += 1
         conn.execute('UPDATE photo_ai_edits SET captioned = 1 WHERE edit_path = ?', (edit_path,))
     return written
+
+
+def join_ai_edits_to_original_sets(conn, edit_paths) -> int:
+    """Put each scanned AI edit in its original's burst and re-pick that burst's lead.
+
+    An edit is a version of its original, so there is nothing to detect: it joins the
+    original's burst, or starts one with the original when the original stands alone. The
+    lead is then chosen by ``pick_lead``, the rule the burst pass applies, so an edit that
+    scores best leads and the next full scan (which keeps the edit in this burst) agrees.
+    The edit takes the original's tags when its own scoring produced none. A photo without
+    a phash takes no part in bursts (the burst pass leaves it alone), so such a pair keeps
+    the tags but is not grouped: a group id given to it would outlive the next pass and be
+    handed to an unrelated burst. Returns how many edits were placed. Does not commit."""
+    from db.tags import write_photo_tags
+    from utils.selection import LEAD_SCORE_COLUMNS_SQL, pick_lead
+
+    placed = 0
+    for edit_path in edit_paths:
+        row = conn.execute(
+            "SELECT o.path, o.burst_group_id, o.tags, p.tags, o.phash IS NOT NULL AND p.phash IS NOT NULL "
+            "FROM photo_ai_edits e "
+            "JOIN photos o ON o.path = e.source_path JOIN photos p ON p.path = e.edit_path "
+            "WHERE e.edit_path = ?", (edit_path,)).fetchone()
+        if row is None:
+            continue
+        original, group, original_tags, edit_tags, groupable = row
+        if not (edit_tags or '').strip() and (original_tags or '').strip():
+            write_photo_tags(conn, [(edit_path, original_tags)])
+        if not groupable:
+            continue
+        if group is None:
+            group = conn.execute("SELECT COALESCE(MAX(burst_group_id), 0) + 1 FROM photos").fetchone()[0]
+            conn.execute("UPDATE photos SET burst_group_id = ? WHERE path = ?", (group, original))
+        conn.execute("UPDATE photos SET burst_group_id = ? WHERE path = ?", (group, edit_path))
+        # phash rows only: a phash-less row keeps whatever stale group id it carries.
+        cur = conn.execute(f"SELECT path, {LEAD_SCORE_COLUMNS_SQL} FROM photos "
+                           "WHERE burst_group_id = ? AND phash IS NOT NULL", (group,))
+        names = [d[0] for d in cur.description]
+        lead = pick_lead([dict(zip(names, r)) for r in cur.fetchall()])['path']
+        conn.execute("UPDATE photos SET is_burst_lead = (path = ?) WHERE burst_group_id = ? AND phash IS NOT NULL",
+                     (lead, group))
+        placed += 1
+    return placed

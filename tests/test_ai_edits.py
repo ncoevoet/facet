@@ -13,7 +13,7 @@ from PIL import Image
 
 from api.routers import ai_edits as ai_edits_router
 from api.routers import scan as scan_router
-from db.ai_edits import apply_ai_edit_captions, edit_file_name, next_revision
+from db.ai_edits import apply_ai_edit_captions, edit_file_name, join_ai_edits_to_original_sets, next_revision
 from tests.conftest import _TEST_DB_FILE
 
 
@@ -376,10 +376,12 @@ def test_the_import_scan_follows_the_scan_access_rule(monkeypatch, multi, user, 
     monkeypatch.setattr(scan_router, 'is_multi_user_enabled', lambda: multi)
     monkeypatch.setattr(scan_router, '_is_open_install', lambda key: open_install)
     monkeypatch.setattr(scan_router, '_library_job_conflict_detail', lambda: None)
-    monkeypatch.setattr(scan_router, '_spawn_scan', lambda targets, reported: spawned.append(targets))
+    monkeypatch.setattr(scan_router, '_spawn_scan',
+                        lambda targets, reported, flags=(): spawned.append((targets, flags)))
     monkeypatch.setitem(scan_router._scan_state, 'running', False)
     assert scan_router.start_file_scan(user, ['/p/x_agy_1.jpg']) == refused
-    assert spawned == ([] if refused else [['/p/x_agy_1.jpg']])
+    # Only the new file, with --ai-edit: no library-wide passes for one imported edit.
+    assert spawned == ([] if refused else [(['/p/x_agy_1.jpg'], ('--ai-edit',))])
 
 
 def test_the_link_reads_from_both_sides_once_the_edit_is_scanned(edition_client, library, seed_photos_prefix):
@@ -451,3 +453,39 @@ def test_the_import_waits_for_its_scan_before_saying_ready(monkeypatch, states, 
     monkeypatch.setattr(tools_ai_edits, 'READY_POLL_S', 0)
     monkeypatch.setattr(tools_ai_edits, 'READY_WAIT_S', 0 if len(states) == 50 else 60)
     assert asyncio.run(tools_ai_edits._wait_until_ready('/p/x_agy_1.jpg')) is expected
+
+
+
+def _scan_edit(library, seed_photos_prefix, target, **row):
+    seed_photos_prefix(str(library['folder']) + os.sep + 'IMG_1_agy', [{
+        'path': target, 'filename': os.path.basename(target), 'aggregate': 5.0,
+        'category': 'default', 'date_taken': '2026:02:01 10:00:00', **row}])
+    # A burst is made of phash rows: the join leaves a phash-less pair alone.
+    with sqlite3.connect(_TEST_DB_FILE.name) as conn:
+        conn.execute("UPDATE photos SET phash = 'ffff0000ffff0000' WHERE path IN (?, ?)", (library['original'], target))
+
+
+def test_an_edit_joins_its_originals_burst_as_a_non_lead_frame(edition_client, library, seed_photos_prefix):
+    with sqlite3.connect(_TEST_DB_FILE.name) as conn:
+        conn.execute('UPDATE photos SET burst_group_id = 4242, is_burst_lead = 1, tags = ? WHERE path = ?',
+                     ('party,cake', library['original']))
+    target = _import(edition_client, library, _jpeg(library['work'] / 'j.jpg')).json()['edit_path']
+    _scan_edit(library, seed_photos_prefix, target, is_burst_lead=1)
+    with sqlite3.connect(_TEST_DB_FILE.name) as conn:
+        assert join_ai_edits_to_original_sets(conn, [target, '/not/an/edit.jpg']) == 1
+        rows = dict(conn.execute('SELECT path, burst_group_id || ":" || is_burst_lead || ":" || COALESCE(tags, "") '
+                                 'FROM photos WHERE path IN (?, ?)', (library['original'], target)).fetchall())
+    assert rows == {library['original']: '4242:1:party,cake', target: '4242:0:party,cake'}
+
+
+def test_an_original_on_its_own_starts_a_burst_with_its_edit(edition_client, library, seed_photos_prefix):
+    target = _import(edition_client, library, _jpeg(library['work'] / 'k.jpg')).json()['edit_path']
+    _scan_edit(library, seed_photos_prefix, target, tags='own')
+    with sqlite3.connect(_TEST_DB_FILE.name) as conn:
+        conn.execute('UPDATE photos SET burst_group_id = NULL WHERE path = ?', (library['original'],))
+        join_ai_edits_to_original_sets(conn, [target])
+        (og, ol), (eg, el, tags) = (
+            conn.execute('SELECT burst_group_id, is_burst_lead FROM photos WHERE path = ?', (library['original'],)).fetchone(),
+            conn.execute('SELECT burst_group_id, is_burst_lead, tags FROM photos WHERE path = ?', (target,)).fetchone())
+    assert og is not None and og == eg and (ol, el) == (1, 0)
+    assert tags == 'own'

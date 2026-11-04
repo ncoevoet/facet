@@ -2124,10 +2124,28 @@ def _run_scan(args, resumed_run):
     ledger.end('finalize')
 
     # 3b. Caption newly scanned AI edits: the original's caption plus "AI: <note>".
-    from db.ai_edits import apply_ai_edit_captions
+    from db.ai_edits import apply_ai_edit_captions, join_ai_edits_to_original_sets
     with sqlite3.connect(scorer.db_path) as conn:
         if apply_ai_edit_captions(conn):
             conn.commit()
+
+    # An AI-edit import scans only its new file: put it in its original's burst and stop
+    # here, instead of re-running the library-wide passes below for one photo.
+    if args.ai_edit:
+        # The scanned files, resolved the way the scan stored them: a relative argument or a
+        # folder would otherwise match no edit_path and place nothing.
+        scanned = [_resolved(f) for f in todo_list]
+        with sqlite3.connect(scorer.db_path) as conn:
+            placed = join_ai_edits_to_original_sets(conn, scanned)
+            conn.commit()
+        logger.info("Placed %d AI edit(s) in their original's burst.", placed)
+        if placed < len(scanned):
+            logger.warning("%d scanned file(s) were not put in a burst: not a recorded AI edit, or "
+                           "the edit or its original is missing or has no phash.", len(scanned) - placed)
+        _log_scan_db_destination(scorer.db_path)
+        emit_progress('done', force=True)
+        logger.info("All tasks complete.")
+        return True
 
     # 4. Process bursts
     # Note: Run --cluster-faces-incremental separately if person_ids are needed for grouping

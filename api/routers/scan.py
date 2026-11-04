@@ -163,10 +163,10 @@ def scan_feature_refusal(user) -> Optional[str]:
     return "Scan feature not enabled"
 
 
-def _spawn_scan(targets: list[str], reported: list[str]):
+def _spawn_scan(targets: list[str], reported: list[str], flags: tuple[str, ...] = ()):
     """Start ``facet.py`` on ``targets`` and track it as the one running job. Caller holds ``_scan_lock``."""
     proc = subprocess.Popen(
-        [sys.executable, FACET_SCRIPT, *targets],
+        [sys.executable, FACET_SCRIPT, *flags, *targets],
         stdout=subprocess.PIPE,
         stderr=subprocess.STDOUT,
         text=True,
@@ -211,7 +211,8 @@ def start_file_scan(user, paths: list[str]) -> Optional[str]:
         if (conflict := _library_job_conflict_detail()):
             return conflict
         try:
-            _spawn_scan(paths, paths)
+            # Only the new files: no library-wide passes for an imported edit.
+            _spawn_scan(paths, paths, ('--ai-edit',))
         except (subprocess.SubprocessError, OSError):
             logger.exception("File scan failed to start")
             _scan_state['running'] = False

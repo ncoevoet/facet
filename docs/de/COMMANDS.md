@@ -12,6 +12,7 @@
 |---------|-------------|
 | `python facet.py /path` | Verzeichnis scannen (Multi-Pass, automatische VRAM-Erkennung) |
 | `python facet.py /path --force` | Bereits verarbeitete Dateien erneut scannen |
+| `python facet.py <file> --ai-edit` | Nur diese importierten KI-Bearbeitungen bewerten, jede in die Serie ihres Originals legen und beschriften; überspringt die bibliotheksweiten Durchläufe (der KI-Bearbeitungs-Import nutzt das) |
 | `python facet.py /path --single-pass` | Alle Modelle gleichzeitig laden; nur `legacy`/`8gb` (siehe [Verarbeitungsmodi](#verarbeitungsmodi)) |
 | `python facet.py /path --pass quality` | Nur die TOPIQ-Qualitätsbewertung ausführen |
 | `python facet.py /path --pass quality-iaa` | Nur die TOPIQ-IAA-Bewertung des ästhetischen Verdienstes ausführen |

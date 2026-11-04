@@ -40,6 +40,7 @@ from db.vec import sync_vec_batch
 from processing.progress import emit_progress
 from utils.histogram import unpack_histogram
 from utils.image_bounds import LIQE_MIN_SHORT_SIDE, liqe_input_too_small
+from utils.selection import LEAD_SCORE_COLUMNS_SQL
 
 
 def _manual_override_set(c):
@@ -3171,14 +3172,38 @@ class Facet:
 # no ORDER BY on purpose: the grouping order is pinned in Python (see ``process_bursts``), so
 # the result no longer depends on which index the planner picks.
 _BURST_ROWS_SQL = (
-    "SELECT rowid AS rid, path, date_taken, aggregate, phash, "
-    "face_count, eyes_open_score, expression_score, tech_sharpness, "
-    "is_burst_lead, burst_group_id, "
-    "(SELECT ls.learned_score FROM learned_scores ls "
-    " WHERE ls.photo_path = photos.path AND ls.user_id IS NULL "
-    " AND ls.category IS NULL) AS learned_score "
-    "FROM photos"
+    "SELECT rowid AS rid, path, date_taken, phash, is_burst_lead, burst_group_id, "
+    + LEAD_SCORE_COLUMNS_SQL + " FROM photos"
 )
+
+
+def _ai_edits_by_original(conn, photos):
+    """``{original rowid: [edit rows]}`` over ``photos`` (the rows that take part in grouping).
+
+    An edit is kept with its original only when the chain of originals it was made from ends at
+    a photo that is not itself an edit (a cycle is left to ordinary grouping). A database
+    without ``photo_ai_edits`` has no edits.
+    """
+    try:
+        source_of = dict(conn.execute("SELECT edit_path, source_path FROM photo_ai_edits").fetchall())
+    except sqlite3.OperationalError:
+        return {}
+    if not source_of:
+        return {}
+    by_path = {p['path']: p for p in photos}
+    edits_of = {}
+    for path, source in source_of.items():
+        edit, original = by_path.get(path), by_path.get(source)
+        if edit is None or original is None:
+            continue
+        seen, root = {path}, source
+        while root in source_of and root not in seen:
+            seen.add(root)
+            root = source_of[root]
+        if root in seen or root not in by_path:
+            continue
+        edits_of.setdefault(original['rid'], []).append(edit)
+    return edits_of
 
 
 def process_bursts(db_path, config_path=None):
@@ -3225,6 +3250,14 @@ def process_bursts(db_path, config_path=None):
         # Parsed once per photo, not once per pair.
         for p in photos:
             p['_date'] = parse_date(p['date_taken'])
+
+        # An imported AI edit is a version of its original, not a frame to detect: it is taken
+        # out of the time-ordered grouping (where an edit's changed phash, or a date unlike its
+        # original's, would split the original's burst) and put back into its original's burst.
+        edits_of = _ai_edits_by_original(conn, photos)
+        attached = {e['rid'] for edits in edits_of.values() for e in edits}
+        if attached:
+            photos = [p for p in photos if p['rid'] not in attached]
 
         # Build person_id lookup only if faces exist
         photo_persons = {}
@@ -3292,6 +3325,10 @@ def process_bursts(db_path, config_path=None):
         burst_groups_for_emit = []
 
         def finalize_burst(burst, burst_id):
+            """Settle one burst, with its members' AI edits; True when it is a group (2+ frames)."""
+            burst = list(burst)
+            for p in burst:  # grows as it goes, so an edit of an edit comes along too
+                burst.extend(edits_of.get(p['rid'], ()))
             # Composite best-of: aggregate dominates, eyes-open / expression /
             # sharpness break near-ties toward the better keeper frame.
             winner = pick_lead(burst)
@@ -3308,6 +3345,7 @@ def process_bursts(db_path, config_path=None):
                     'best_path': winner['path'],
                     'paths': [p['path'] for p in burst],
                 })
+            return grouped
 
         current_burst = [photos[0]]
         group_id = 0
@@ -3317,14 +3355,12 @@ def process_bursts(db_path, config_path=None):
             else:
                 # Finalize previous burst
                 if current_burst:
-                    finalize_burst(current_burst, group_id)
-                    if len(current_burst) >= 2:
+                    if finalize_burst(current_burst, group_id):
                         group_id += 1
                 current_burst = [photos[i]]
 
         # Handle final burst
-        if current_burst:
-            finalize_burst(current_burst, group_id)
+        last_grouped = bool(current_burst) and finalize_burst(current_burst, group_id)
 
         # Write only what differs from the stored pair. A row that left a group is written
         # with burst_group_id = NULL explicitly; there is no blanket reset.
@@ -3340,7 +3376,7 @@ def process_bursts(db_path, config_path=None):
             )
         conn.commit()
         logger.info("Burst state: %d rows changed", len(changes))
-        logger.info("Assigned %d burst groups", group_id + 1 if current_burst and len(current_burst) >= 2 else group_id)
+        logger.info("Assigned %d burst groups", group_id + 1 if last_grouped else group_id)
 
     # Emit plugin events for burst groups
     from plugins import get_plugin_manager
