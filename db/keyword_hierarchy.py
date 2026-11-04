@@ -58,11 +58,6 @@ def create_keyword_hierarchy_schema(conn):
         photo_path TEXT NOT NULL REFERENCES photos(path) ON DELETE CASCADE ON UPDATE CASCADE,
         path_key TEXT NOT NULL, node_id TEXT, created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now')),
         PRIMARY KEY(photo_path,path_key))''')
-    # Additive updates for a database initialized by an earlier build.
-    for table, column, definition in [('photo_keyword_nodes', 'origin_source', "TEXT CHECK(origin_source IN ('user','xmp'))"),
-                                      ('keyword_assignment_deletions', 'node_id', 'TEXT')]:
-        if column not in {row[1] for row in conn.execute(f'PRAGMA table_info({table})')}:
-            conn.execute(f'ALTER TABLE {table} ADD COLUMN {column} {definition}')
     conn.execute('''CREATE TABLE IF NOT EXISTS keyword_node_edits (
         node_id TEXT PRIMARY KEY, action TEXT NOT NULL CHECK(action IN ('edit','delete')),
         changed_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now')))''')

@@ -915,3 +915,22 @@ def test_text_search_with_logical_pair_keeps_fts_row_identity(edition_client, bu
     assert members == [bundle['primary_path']]
     progress = edition_client.get('/api/photos/review_progress', params=query)
     assert progress.status_code == 200, progress.text
+
+
+def test_context_refuses_when_catalog_roots_change_after_inventory(edition_client, bundle, monkeypatch):
+    from api import related_files
+
+    original = related_files._catalog_roots
+    calls = 0
+
+    def changing_roots(path):
+        nonlocal calls
+        calls += 1
+        # Inventory and indexed-alias checks can succeed before config changes.
+        return original(path) if calls < 3 else None
+
+    monkeypatch.setattr(related_files, '_catalog_roots', changing_roots)
+    response = edition_client.get('/api/logical_assets/by-photo', params={'path': bundle['paths'][0]})
+    assert response.status_code == 200
+    assert calls == 3
+    assert response.json() == {'asset': None, 'candidates': [], 'can_group': False}

@@ -1034,7 +1034,8 @@ def _incremental_update_viewer_data(source_db, output_path, thumbnail_size, verb
     if verbose:
         logger.info("  Running ANALYZE...")
     dest_conn.execute("ANALYZE")
-    dest_conn.close()
+    # Release the managed connection before measuring the finalized output.
+    resources.close()
 
     output_size = os.path.getsize(output_path)
     saved = source_size - output_size
@@ -1190,12 +1191,11 @@ def export_viewer_db(source_db='photo_scores_pro.db', output_path=None, thumbnai
     if table_exists(dst_conn, 'organization_revisions'):
         dst_conn.execute("DELETE FROM organization_revisions WHERE kind='stack'")
 
-    # Private side tables never ship in a viewer export: the provenance table holds user paths, the
-    # token table holds bearer-secret hashes, and organization_history holds per-owner before/after
-    # snapshots of edited photos. The viewer's own init_database re-creates them empty. (The
-    # incremental path copies none of them.) organization_revisions and organization_clock stay: they
-    # are trigger-maintained derived counters (photo paths and integers only) that the
-    # destination's own triggers keep advancing.
+    # Drop source-private jobs, credentials, owner history, stacks and import receipts.
+    # The destination builds its own import baselines below; incremental sync keeps
+    # destination-owned records instead of copying these source tables. Derived
+    # organization_revisions/organization_clock counters remain, with private stack
+    # scopes removed above, and the destination's triggers keep advancing them.
     for table in VIEWER_EXPORT_EXCLUDED_TABLES:
         dst_conn.execute(f"DROP TABLE IF EXISTS {table}")
     dst_conn.commit()
