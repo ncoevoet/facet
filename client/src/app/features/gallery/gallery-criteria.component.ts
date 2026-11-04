@@ -40,10 +40,10 @@ import { GALLERY_REVISIT } from '../../core/gallery-reuse.strategy';
      <summary #quickSummary class="cursor-pointer py-2 font-medium">{{ I18N.gallery.sidebar.review.quick | translate }}</summary>
      <div class="absolute top-full left-0 z-30 min-w-56 max-w-[80vw] rounded-md border border-[var(--mat-sys-outline-variant)] bg-[var(--mat-sys-surface)] p-2 shadow-lg flex flex-wrap gap-1" [class.!static]="portShortcuts()" [class.!w-full]="portShortcuts()" [class.!min-w-0]="portShortcuts()" [class.!max-w-full]="portShortcuts()">
        <p class="m-0 basis-full p-1 text-xs text-[var(--mat-sys-on-surface-variant)]">{{ I18N.gallery.criteria.quick_help | translate }}</p>
-       <button type="button" class="px-3 py-2 rounded hover:bg-[var(--mat-sys-surface-container)]" [class.bg-[var(--mat-sys-secondary-container)]]="store.filters().favorites_only" [attr.aria-pressed]="store.filters().favorites_only" (click)="quickFilter('favorites')">{{ I18N.gallery.favorites_only | translate }}</button>
+       <button type="button" class="min-h-11 px-3 py-2 rounded hover:bg-[var(--mat-sys-surface-container)]" [class.bg-[var(--mat-sys-secondary-container)]]="store.filters().favorites_only" [attr.aria-pressed]="store.filters().favorites_only" (click)="quickFilter('favorites')">{{ I18N.gallery.favorites_only | translate }}</button>
        <button type="button" data-quick-zero-stars class="min-h-11 rounded px-3 py-2 hover:bg-[var(--mat-sys-surface-container)]" [class.bg-[var(--mat-sys-secondary-container)]]="zeroStars()" [attr.aria-pressed]="zeroStars()" (click)="quickFilter('zero-stars')">{{ I18N.gallery.zero_stars | translate }}</button>
        @for (status of statuses; track status.id) {
-         <button type="button" class="px-3 py-2 rounded hover:bg-[var(--mat-sys-surface-container)]" [class.bg-[var(--mat-sys-secondary-container)]]="store.filters().review_status === status.id" [attr.aria-pressed]="store.filters().review_status === status.id" (click)="quickFilter(status.id)">{{ status.label | translate }}</button>
+         <button type="button" class="min-h-11 px-3 py-2 rounded hover:bg-[var(--mat-sys-surface-container)]" [class.bg-[var(--mat-sys-secondary-container)]]="store.filters().review_status === status.id" [attr.aria-pressed]="store.filters().review_status === status.id" (click)="quickFilter(status.id)">{{ status.label | translate }}</button>
        }
        <app-context-help [label]="I18N.gallery.zero_stars_help_title" [keys]="[I18N.gallery.zero_stars_help]" class="basis-full" />
      </div>

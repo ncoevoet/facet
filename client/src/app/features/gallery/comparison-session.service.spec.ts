@@ -43,6 +43,19 @@ describe('ComparisonSessionService', () => {
     expect(service.start([queue[0], queue[0]], '/')).toBe(false);
   });
 
+  it('does not let an older close clear a newer comparison, even with the same photos and URL', () => {
+    const service = TestBed.inject(ComparisonSessionService);
+    service.start(photos, '/');
+    const first = service.snapshot();
+    service.start(photos, '/');
+    const next = service.snapshot();
+    expect(next.revision).toBeGreaterThan(first.revision);
+    service.clear(first.revision);
+    expect(service.snapshot().photos).toEqual(photos);
+    service.clear(next.revision);
+    expect(service.snapshot().photos).toEqual([]);
+  });
+
   it('refuses expired credentials before cleanup runs and clears foreign membership', () => {
     const service = TestBed.inject(ComparisonSessionService);
     expect(service.start(photos, '/')).toBe(true);

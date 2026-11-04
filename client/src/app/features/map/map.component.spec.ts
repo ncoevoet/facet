@@ -123,6 +123,35 @@ describe('MapComponent', () => {
     });
 
     it.each([
+      { count: 1, bounds: [40, 70, 40, 70], capped: true },
+      { count: 4, bounds: [37.5, 66.8, 43.2, 76.9], capped: false },
+    ])('fits the initial extent with real Leaflet zoom behavior: $count locations', async ({ count, bounds, capped }) => {
+      const leaflet = await vi.importActual<typeof import('leaflet')>('leaflet');
+      const container = document.createElement('div');
+      Object.defineProperties(container, { clientWidth: { value: 800 }, clientHeight: { value: 600 } });
+      document.body.append(container);
+      const realMap = leaflet.map(container, { zoomAnimation: false, fadeAnimation: false }).setView([0, 0], 2);
+      mockMap.fitBounds.mockImplementation((extent: import('leaflet').LatLngBoundsExpression, options: import('leaflet').FitBoundsOptions) => {
+        realMap.fitBounds(extent, options);
+        return mockMap;
+      });
+      mockApi.get.mockImplementation((url: string) => url === '/photos/map/count'
+        ? of({ count, bounds }) : of({ photos: [], clusters: [] }));
+      try {
+        component.initMap();
+        await Promise.resolve();
+        expect(realMap.getZoom()).toBe(capped ? 12 : realMap.getBoundsZoom([[bounds[0], bounds[1]], [bounds[2], bounds[3]]], false, leaflet.point(64, 64)));
+        expect(realMap.getBounds().contains([bounds[0], bounds[1]])).toBe(true);
+        expect(realMap.getBounds().contains([bounds[2], bounds[3]])).toBe(true);
+        if (!capped) expect(realMap.getZoom()).toBeLessThan(12);
+      } finally {
+        mockMap.fitBounds.mockReset().mockReturnValue(mockMap);
+        realMap.remove();
+        container.remove();
+      }
+    });
+
+    it.each([
       { count: 1, bounds: [40, 70, Number.NaN, 70] },
       { count: 0, bounds: null },
     ])('uses the default viewport when bounds are unavailable or invalid', async data => {

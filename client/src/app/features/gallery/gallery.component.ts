@@ -229,20 +229,6 @@ const SET_KIND_TOGGLE: Record<string, keyof HiddenFilterFlags> = {
       }
     </ng-template>
 
-    <ng-template #galleryLayoutButtons>
-            <button mat-button data-gallery-layout="grid" class="!min-h-11 !min-w-11 !w-11 !px-2 @[1120px]:!w-auto @[1120px]:!px-4 !text-[var(--mat-sys-on-surface)]"
-                    [class.!bg-[var(--mat-sys-secondary-container)]]="store.galleryMode() === 'grid'"
-                    [attr.aria-pressed]="store.galleryMode() === 'grid'"
-                    [attr.aria-label]="I18N.gallery.layout_grid | translate" [matTooltip]="I18N.gallery.layout_grid | translate" (click)="store.setGalleryMode('grid')">
-              <mat-icon class="!m-0 @[1120px]:!mr-2">grid_view</mat-icon><span class="hidden @[1120px]:inline">{{ I18N.gallery.layout_grid | translate }}</span>
-            </button>
-            <button mat-button data-gallery-layout="mosaic" class="!min-h-11 !min-w-11 !w-11 !px-2 @[1120px]:!w-auto @[1120px]:!px-4 !text-[var(--mat-sys-on-surface)]"
-                    [class.!bg-[var(--mat-sys-secondary-container)]]="store.galleryMode() === 'mosaic'"
-                    [attr.aria-pressed]="store.galleryMode() === 'mosaic'"
-                    [attr.aria-label]="I18N.gallery.layout_mosaic | translate" [matTooltip]="I18N.gallery.layout_mosaic | translate" (click)="store.setGalleryMode('mosaic')">
-              <mat-icon class="!m-0 @[1120px]:!mr-2">auto_awesome_mosaic</mat-icon><span class="hidden @[1120px]:inline">{{ I18N.gallery.layout_mosaic | translate }}</span>
-            </button>
-    </ng-template>
 
     <div #noticeHost class="relative h-full">
     <mat-sidenav-container class="h-full !overflow-clip">
@@ -338,7 +324,7 @@ const SET_KIND_TOGGLE: Record<string, keyof HiddenFilterFlags> = {
           </div>
           <div data-collection-actions class="flex w-full flex-wrap items-center gap-1 border-t border-[var(--mat-sys-outline-variant)] pt-2 @min-[600px]:ml-auto @min-[600px]:w-auto @min-[600px]:border-0 @min-[600px]:pt-0">
             <ng-container [ngTemplateOutlet]="collectionViewControls.primaryControls()" />
-            <ng-container [ngTemplateOutlet]="galleryLayoutButtons" />
+            <ng-container [ngTemplateOutlet]="collectionViewControls.layoutControls()" [ngTemplateOutletContext]="{ $implicit: collectionViewControls.primaryLayouts }" />
             <ng-container [ngTemplateOutlet]="collectionViewControls.filterControls()" />
             <details #collectionOptions data-collection-options class="relative shrink-0"
                      (keydown.escape)="closeDisclosure($event, collectionOptions, collectionOptionsSummary)">

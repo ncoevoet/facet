@@ -93,6 +93,19 @@ describe('Explicit keyword hierarchy browsing', () => {
     fixture.nativeElement.remove();
   });
 
+  it('keeps the open tree through another control changing only the gallery query', async () => {
+    build(); await open();
+    const panel = fixture.nativeElement.querySelector('[data-keyword-tree]') as HTMLDetailsElement;
+    const filters = TestBed.inject(GalleryStore).filters;
+    events.next(new NavigationStart(8, '/?sort_direction=ASC'));
+    filters.update(current => ({ ...current, sort_direction: 'ASC' }));
+    events.next(new NavigationEnd(8, '/?sort_direction=ASC', '/?sort_direction=ASC'));
+    fixture.detectChanges();
+    expect(panel.open).toBe(true);
+    expect(fixture.componentInstance.opened()).toBe(true);
+    http.expectNone('/api/manual_tags/hierarchy');
+  });
+
   it('refuses old credential commands and cancels parked reads without adopting another account', async () => {
     build(); await open(); token = 'rotated';
     expect(TestBed.inject(KeywordHierarchyLabels).names()).toEqual({});

@@ -24,7 +24,7 @@ import { parseTagQuery, serializeTagQuery, TAG_QUERY_GROUPS, TAG_QUERY_LIMIT, TA
         <div class="flex items-center gap-2">
           <input #ruleInput id="tag-rule-input" data-tag-rule-input type="text" list="tag-rule-suggestions" autocomplete="off" [maxLength]="nameLimit * 2"
                  [attr.aria-invalid]="error() ? true : null" [attr.aria-describedby]="error() ? 'tag-rule-error' : null"
-                 class="h-10 min-w-0 flex-1 rounded border border-[var(--mat-sys-outline)] bg-[var(--mat-sys-surface-container-lowest)] px-2 text-base"
+                 class="min-h-11 min-w-0 flex-1 rounded border border-[var(--mat-sys-outline)] bg-[var(--mat-sys-surface-container-lowest)] px-2 text-base"
                  [value]="draft()" (input)="draft.set($any($event.target).value)" (keydown.enter)="add($event)" />
           <button type="button" data-tag-rule-add class="min-h-11 rounded border border-[var(--mat-sys-outline)] px-3 text-sm" [disabled]="!canAdd()" (click)="add()">{{ I18N.gallery.tag_groups.add | translate }}</button>
         </div>

@@ -12,7 +12,7 @@ import { SortOptionIconPipe } from '../../shared/pipes/sort-option-icon.pipe';
 import { SortGroupKeyPipe } from '../../shared/pipes/sort-group-key.pipe';
 import { useDesktopSignal, DETAILS_RAIL_MIN_WIDTH_PX } from '../../shared/utils/media-query';
 import { GalleryFilters, GalleryStore } from './gallery.store';
-import { TILE_FITS, PanelActivation, TooltipMode } from './gallery-filters.util';
+import { TILE_FITS, GalleryMode, PanelActivation, TooltipMode } from './gallery-filters.util';
 import { closeOverlayDirectives } from '../../shared/utils/overlays';
 import { GalleryDisplayPreset, galleryPresentation } from './gallery-presentation.util';
 import { AuthService } from '../../core/services/auth.service';
@@ -90,10 +90,18 @@ const sortOptionLabelKey = (column: string): string => `sort_options.${column}`;
       }
     </ng-template>
     @if (!portFilters()) { <ng-container [ngTemplateOutlet]="filterControls" /> }
-    <button mat-button class="!min-h-11" data-gallery-layout="list"
-            [attr.aria-pressed]="store.galleryMode() === 'list'" (click)="showList()">
-      <mat-icon>view_list</mat-icon>{{ I18N.gallery.layout_list | translate }}
-    </button>
+    <ng-template #layoutControls let-choices>
+      @for (layout of choices; track layout.id) {
+        <button mat-button [attr.data-gallery-layout]="layout.id"
+                class="!min-h-11 !min-w-11 !w-11 !px-2 @[1120px]:!w-auto @[1120px]:!px-4 !text-[var(--mat-sys-on-surface)]"
+                [class.!bg-[var(--mat-sys-secondary-container)]]="store.galleryMode() === layout.id"
+                [attr.aria-pressed]="store.galleryMode() === layout.id"
+                [attr.aria-label]="layout.label | translate" [matTooltip]="layout.label | translate" (click)="setLayout(layout.id)">
+          <mat-icon class="!m-0 @[1120px]:!mr-2">{{ layout.icon }}</mat-icon><span class="hidden @[1120px]:inline">{{ layout.label | translate }}</span>
+        </button>
+      }
+    </ng-template>
+    <ng-container [ngTemplateOutlet]="layoutControls" [ngTemplateOutletContext]="{ $implicit: secondaryLayouts }" />
     <button mat-button class="!min-h-11 !min-w-11 !w-11 !px-2 @[1120px]:!w-auto @[1120px]:!px-4"
             [matMenuTriggerFor]="tooltipModeMenu" [matTooltip]="I18N.gallery.tooltip_mode.label | translate"
             [attr.aria-label]="I18N.gallery.tooltip_mode.label | translate">
@@ -168,6 +176,14 @@ export class GalleryViewControlsComponent {
   readonly portFilters = input(false);
   readonly filterControls = viewChild<TemplateRef<unknown>>('filterControls');
   readonly primaryControls = viewChild<TemplateRef<unknown>>('primaryControls');
+  readonly layoutControls = viewChild<TemplateRef<unknown>>('layoutControls');
+  private readonly layouts = [
+    { id: 'grid', icon: 'grid_view', label: I18N.gallery.layout_grid },
+    { id: 'mosaic', icon: 'auto_awesome_mosaic', label: I18N.gallery.layout_mosaic },
+    { id: 'list', icon: 'view_list', label: I18N.gallery.layout_list },
+  ] as const;
+  readonly primaryLayouts = this.layouts.slice(0, 2);
+  protected readonly secondaryLayouts = this.layouts.slice(2);
 
   protected readonly I18N = i18nKeys();
   protected readonly store = inject(GalleryStore);
@@ -215,8 +231,8 @@ export class GalleryViewControlsComponent {
   protected applyPreset(preset: GalleryDisplayPreset | 'default'): void {
     if (this.canAct()) void this.store.applyDisplayPreset(preset, this.canDockDetails());
   }
-  protected showList(): void {
-    if (this.canAct()) this.store.setGalleryMode('list');
+  protected setLayout(mode: GalleryMode): void {
+    if (this.canAct()) this.store.setGalleryMode(mode);
   }
   protected readonly auth = inject(AuthService);
   protected readonly reviewNavigation = inject(GalleryReviewNavigationService);

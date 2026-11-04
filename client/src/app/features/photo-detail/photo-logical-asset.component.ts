@@ -4,6 +4,7 @@ import { I18N } from '../../core/i18n/keys';
 import type { components } from '../../core/api/schema';
 import { PhotoPanelReader } from './photo-panel-reader';
 import { TranslatePipe } from '../../shared/pipes/translate.pipe';
+import { MatIconModule } from '@angular/material/icon';
 
 type Context = components['schemas']['LogicalAssetContext'];
 type Change = components['schemas']['LogicalAssetChange'];
@@ -12,12 +13,12 @@ type Result = components['schemas']['LogicalAssetResult'];
 
 @Component({
   selector: 'app-photo-logical-asset',
-  imports: [TranslatePipe],
+  imports: [TranslatePipe, MatIconModule],
   host: { class: 'block min-w-0' },
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <details data-logical-asset [open]="expanded()" (keydown.escape)="expanded() && close($event, trigger)">
-      <summary #trigger (click)="toggle($event)" class="flex min-h-10 cursor-pointer items-center text-xs font-medium focus-visible:outline-2">{{ I18N.logical_assets.title | translate }}</summary>
+      <summary #trigger (click)="toggle($event)" class="flex min-h-11 cursor-pointer items-center gap-2 text-xs font-medium focus-visible:outline-2"><mat-icon aria-hidden="true" class="!h-5 !w-5 !text-xl">photo_library</mat-icon>{{ I18N.logical_assets.title | translate }}</summary>
       @if (expanded()) {
         <div class="space-y-2 pb-2 text-xs">
           @if (busy()) { <p role="status" class="m-0">{{ I18N.ui.labels.loading | translate }}</p> }

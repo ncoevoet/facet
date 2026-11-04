@@ -15,9 +15,10 @@ import { I18N } from '../../core/i18n/keys';
 
 afterEach(() => TestBed.resetTestingModule());
 
-@Component({ imports: [NgTemplateOutlet], template: '<ng-container [ngTemplateOutlet]="template" />' })
+@Component({ imports: [NgTemplateOutlet], template: '<ng-container [ngTemplateOutlet]="template" [ngTemplateOutletContext]="context" />' })
 class RehostedControls {
   template: TemplateRef<unknown> | null = null;
+  context: { $implicit?: unknown } = {};
 }
 
 describe('GalleryViewControlsComponent', () => {
@@ -43,6 +44,28 @@ describe('GalleryViewControlsComponent', () => {
     fixture.detectChanges();
     return { fixture, root: fixture.nativeElement as HTMLElement, store, navigation, edition };
   }
+
+  it('renders primary layouts and the secondary List action from the same guarded owner', () => {
+    const { fixture, root, store, navigation } = render();
+    const primary = TestBed.createComponent(RehostedControls);
+    primary.componentInstance.template = fixture.componentInstance.layoutControls()!;
+    primary.componentInstance.context = { $implicit: fixture.componentInstance.primaryLayouts };
+    primary.detectChanges();
+    for (const [mode, label] of [['grid', I18N.gallery.layout_grid], ['mosaic', I18N.gallery.layout_mosaic], ['list', I18N.gallery.layout_list]]) {
+      const host = mode === 'list' ? root : primary.nativeElement as HTMLElement;
+      const button = host.querySelector<HTMLButtonElement>(`[data-gallery-layout="${mode}"]`)!;
+      expect(button.getAttribute('aria-label')).toBe(label);
+      store.galleryMode.set(mode); fixture.detectChanges(); primary.detectChanges();
+      expect(button.getAttribute('aria-pressed')).toBe('true');
+      button.click();
+      expect(store.setGalleryMode).toHaveBeenLastCalledWith(mode);
+    }
+    store.setGalleryMode.mockClear();
+    navigation.next(new NavigationStart(1, '/persons'));
+    root.querySelector<HTMLButtonElement>('[data-gallery-layout="list"]')!.click();
+    primary.nativeElement.querySelector('[data-gallery-layout="grid"]').click();
+    expect(store.setGalleryMode).not.toHaveBeenCalled();
+  });
 
     it('moves primary and filter controls into a different host without duplicating commands', () => {
       const { fixture, root, store } = render();

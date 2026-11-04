@@ -312,10 +312,10 @@ html.light-mode ::-webkit-scrollbar-thumb {
   --mat-button-tonal-container-shape: var(--facet-control-radius);
 }
 
-// Compact task controls keep Material's coordinated label/infix geometry.
+// Filled fields keep their floating labels at -1; denser M3 fields hide them.
 app-gallery-filter-sidebar,
 [data-collection-query] {
-  @include mat.form-field-density(-2);
+  @include mat.form-field-density(-1);
 }
 
 // Collection fields read as a search toolbar, rather than large filled forms.

@@ -19,7 +19,7 @@ import { KEY_SUBJECT_COORDINATE_SPACE } from './burst-culling.pipes';
 const photo = (path: string): Photo => ({ path, filename: path.slice(1) } as Photo);
 
 function build(paths: string[]) {
-  const data = { photos: paths.map(photo), returnUrl: '/?search=captured' };
+  const data = { photos: paths.map(photo), returnUrl: '/?search=captured', revision: 1 };
   const session = { snapshot: () => data, clear: vi.fn() };
   const authStatus = signal({ user_id: 'alice' });
   const api = { get: vi.fn(), post: vi.fn() };
@@ -235,10 +235,25 @@ describe('ComparisonWorkspaceComponent', () => {
     expect(pane.componentInstance.zoom()).toEqual(FIT_ZOOM);
   });
 
-  it('returns to the exact captured collection URL without a dialog', () => {
-    const { fixture, router } = build(['/a.jpg', '/b.jpg']);
+  it('replaces the comparison history entry and clears only its captured session', async () => {
+    const { fixture, router, session } = build(['/a.jpg', '/b.jpg']);
     fixture.debugElement.nativeElement.querySelector('button[aria-label="ui.buttons.back"]').click();
-    expect(router.navigateByUrl).toHaveBeenCalledExactlyOnceWith('/?search=captured');
+    expect(router.navigateByUrl).toHaveBeenCalledExactlyOnceWith('/?search=captured', { replaceUrl: true });
+    await fixture.whenStable();
+    expect(session.clear).toHaveBeenCalledExactlyOnceWith(1);
+  });
+
+  it.each(['cancelled', 'rejected'])('permits another Back attempt after %s navigation', async outcome => {
+    const { fixture, router, session } = build(['/a.jpg', '/b.jpg']);
+    const navigate = vi.mocked(router.navigateByUrl);
+    if (outcome === 'cancelled') navigate.mockResolvedValueOnce(false);
+    else navigate.mockRejectedValueOnce(new Error('navigation failed'));
+    const back = fixture.nativeElement.querySelector('button[aria-label="ui.buttons.back"]') as HTMLButtonElement;
+    back.click(); await fixture.whenStable();
+    expect(session.clear).not.toHaveBeenCalled();
+    back.click(); await fixture.whenStable();
+    expect(navigate).toHaveBeenCalledTimes(2);
+    expect(session.clear).toHaveBeenCalledExactlyOnceWith(1);
   });
 
   it('recovers from cancelled navigation without adopting a different account', () => {
@@ -255,6 +270,28 @@ describe('ComparisonWorkspaceComponent', () => {
     fixture.detectChanges();
     expect(router.navigateByUrl).toHaveBeenCalledExactlyOnceWith('/', { replaceUrl: true });
   });
+
+  it.each([NavigationCancellationCode.GuardRejected, NavigationCancellationCode.Redirect, NavigationCancellationCode.SupersededByNewNavigation])(
+    'keeps inspection blocked after an older cancellation (%s) until the current navigation settles', async code => {
+      const { fixture, router, api } = build(['/a.jpg', '/b.jpg']);
+      const events = router.events as Subject<unknown>;
+      events.next(new NavigationStart(5, '/albums'));
+      events.next(new NavigationStart(6, '/persons'));
+      events.next(new NavigationCancel(5, '/albums', 'older request', code));
+      fixture.detectChanges();
+      const inspect = fixture.nativeElement.querySelector('[data-inspection-toggle]') as HTMLButtonElement;
+      inspect.click(); await fixture.whenStable();
+      expect(api.get).not.toHaveBeenCalled(); expect(api.post).not.toHaveBeenCalled();
+      events.next(new NavigationCancel(6, '/persons', 'redirecting', NavigationCancellationCode.Redirect));
+      fixture.detectChanges(); inspect.click(); await fixture.whenStable();
+      expect(api.get).not.toHaveBeenCalled(); expect(api.post).not.toHaveBeenCalled();
+      events.next(new NavigationStart(7, '/albums'));
+      events.next(new NavigationCancel(7, '/albums', 'staying here', NavigationCancellationCode.GuardRejected));
+      fixture.detectChanges(); inspect.click(); await fixture.whenStable();
+      expect(api.get).toHaveBeenCalledTimes(2);
+      expect(api.post).toHaveBeenCalledTimes(1);
+    },
+  );
   it('does not let a cancelled inspection overwrite a fresh retry after route cancellation', async () => {
     const { fixture, router, api } = build(['/a.jpg', '/b.jpg']);
     const old = new Subject<unknown>();
@@ -282,7 +319,7 @@ describe('ComparisonWorkspaceComponent', () => {
     expect(fixture.nativeElement.querySelector('#comparison-inspection')).toBeNull();
     expect(router.navigateByUrl).not.toHaveBeenCalled();
     fixture.nativeElement.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
-    expect(router.navigateByUrl).toHaveBeenCalledExactlyOnceWith('/?search=captured');
+    expect(router.navigateByUrl).toHaveBeenCalledExactlyOnceWith('/?search=captured', { replaceUrl: true });
   });
 
   it('loads bounded stored inspection data only on explicit Inspect and offers retry after failure', async () => {

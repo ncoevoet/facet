@@ -43,7 +43,7 @@
           @if (memoriesNavigationAvailable()) {
             <button mat-button data-navigation-measure class="shrink-0 self-center"><mat-icon>auto_awesome</mat-icon>{{ I18N.nav.memories | translate }}</button>
           }
-          <button mat-button data-more-measure class="shrink-0"><mat-icon>more_horiz</mat-icon>{{ I18N.nav.more | translate }}</button>
+          <button mat-button data-more-measure class="shrink-0 self-center"><mat-icon>more_horiz</mat-icon>{{ I18N.nav.more | translate }}</button>
         </div>
         <nav data-destination-tabs class="hidden min-w-0 flex-1 items-stretch self-stretch overflow-hidden lg:flex" [attr.aria-label]="I18N.nav.navigation | translate">
           @for (destination of desktopDestinations(); track destination.path) {
@@ -58,7 +58,7 @@
           }
         </nav>
         @if (showMoreDestinations()) {
-        <button mat-button data-more-destinations class="!hidden lg:!inline-flex shrink-0" [matMenuTriggerFor]="secondaryNavigationMenu" [attr.aria-label]="I18N.nav.more | translate"
+        <button mat-button data-more-destinations class="!hidden lg:!inline-flex shrink-0 self-center" [matMenuTriggerFor]="secondaryNavigationMenu" [attr.aria-label]="I18N.nav.more | translate"
                 [class.!text-[var(--mat-sys-primary)]]="overflowDestinationActive()"><mat-icon>more_horiz</mat-icon>{{ I18N.nav.more | translate }}</button>
         }
       </div>
@@ -82,7 +82,7 @@
        icons. The bar is there from unlock until lock, sitting exactly on the
        border the toolbar already draws, in the selected theme's accent. -->
   <mat-toolbar data-page-actions [attr.aria-label]="I18N.nav.page_actions | translate" class="shrink-0 !w-auto !px-2 !bg-[var(--mat-sys-surface-container)] border-b border-[var(--mat-sys-outline-variant)]"
-               [class.max-lg:!hidden]="auth.isAuthenticated() && isAlbumsRoute()"
+               [class.max-lg:!hidden]="auth.isAuthenticated()"
                [class.!border-b-2]="auth.isEdition()"
                [style.border-bottom-color]="auth.isEdition() ? 'var(--facet-accent)' : null">
     <div class="flex items-center gap-3 w-full">

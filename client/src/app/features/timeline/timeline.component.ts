@@ -62,7 +62,7 @@ import { GalleryStore, anyHideToggleActive } from '../gallery/gallery.store';
       }
     </ng-template>
     @if (anyHiddenByFilters() || store.hiddenFiltersStash()) {
-      <div class="px-2"><ng-container [ngTemplateOutlet]="timelineToolbar" /></div>
+      <div class="px-4"><ng-container [ngTemplateOutlet]="timelineToolbar" /></div>
     }
     <details class="mx-4 mt-1 border-b border-[var(--mat-sys-outline-variant)] pb-2">
       <summary class="cursor-pointer text-sm leading-6">{{ I18N.timeline.capture_scope | translate }}</summary>

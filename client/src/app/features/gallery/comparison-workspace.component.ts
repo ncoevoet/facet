@@ -3,7 +3,8 @@ import { DOCUMENT } from '@angular/common';
 import { ChangeDetectionStrategy, Component, computed, effect, inject, signal, ElementRef, Injector, DestroyRef, afterNextRender, viewChildren } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { firstValueFrom, Subject, takeUntil } from 'rxjs';
-import { NavigationCancel, NavigationError, Router } from '@angular/router';
+import { Router } from '@angular/router';
+import { trackPendingNavigation } from '../../shared/utils/navigation-settled';
 import { ComparisonSessionService } from './comparison-session.service';
 import { MatIconModule } from '@angular/material/icon';
 import { MatButtonModule } from '@angular/material/button';
@@ -50,7 +51,7 @@ const RENDERED_EDGE = RENDERED_THUMBNAIL_EDGE;
                 (click)="close()">
           <mat-icon>arrow_back</mat-icon>
         </button>
-        <mat-icon class="!text-base !w-5 !h-5 !leading-5">compare</mat-icon>
+        <mat-icon class="!text-base !w-4 !h-4 !leading-4">compare</mat-icon>
         <h1 class="m-0 flex-1 truncate text-sm font-semibold">{{ I18N.gallery.compare.title | translate:{ count: visiblePhotos().length } }}</h1>
         <button mat-button data-inspection-toggle class="!text-[var(--mat-sys-on-surface)] shrink-0" [attr.aria-expanded]="inspectionOpen()" aria-controls="comparison-inspection" [attr.aria-label]="I18N.gallery.compare.inspection.title | translate" (click)="toggleInspection()"><mat-icon>manage_search</mat-icon><span class="hidden sm:inline">{{ I18N.gallery.compare.inspection.title | translate }}</span></button>
         @if (queue().length > 2) {
@@ -90,7 +91,7 @@ const RENDERED_EDGE = RENDERED_THUMBNAIL_EDGE;
           @let photo = pane.photo;
           <div class="@container/pane relative flex flex-col w-full h-full min-h-0 overflow-hidden border border-[var(--facet-image-rule)]" [class.border-[var(--mat-sys-primary)]]="activePath() === photo.path" [attr.data-reference]="referencePath() === photo.path" [attr.data-active-pane]="activePath() === photo.path" (pointerdown)="activate(photo.path)" (focusin)="activate(photo.path)">
             <div class="flex shrink-0 items-center gap-2 px-2 text-[var(--facet-image-ink)] text-xs bg-[var(--facet-image-chrome)] min-h-10">
-              <mat-icon class="!text-base !w-4 !h-4 shrink-0">{{ referencePath() === photo.path ? 'push_pin' : 'photo' }}</mat-icon>
+              <mat-icon class="!text-base !w-4 !h-4 !leading-4 shrink-0">{{ referencePath() === photo.path ? 'push_pin' : 'photo' }}</mat-icon>
               <span class="shrink-0 font-semibold" aria-hidden="true">{{ pane.slotLabel }}</span><span class="sr-only @[320px]/pane:not-sr-only">{{ (referencePath() === photo.path ? I18N.gallery.compare.reference : I18N.gallery.compare.candidate) | translate }}</span>
               <span class="truncate min-w-0 flex-1">{{ photo.filename }}</span>
               @if (referencePath() !== photo.path) {
@@ -214,7 +215,7 @@ const RENDERED_EDGE = RENDERED_THUMBNAIL_EDGE;
                     [attr.aria-label]="I18N.gallery.compare.assign_photo | translate:{ target: (assignmentLabelKey() | translate), name: photo.filename }"
                     (click)="chooseCandidate(photo.path)">
               <img loading="lazy" decoding="async" [src]="photo.path | thumbnailUrl:storedEdge:photo.preview_revision" alt="" class="h-12 w-full object-contain bg-neutral-950" />
-              <span class="flex items-center gap-1 text-xs w-full"><mat-icon class="!text-sm !w-4 !h-4 shrink-0">{{ referencePath() === photo.path ? 'push_pin' : 'photo' }}</mat-icon><span class="truncate">{{ photo.filename }}</span></span>
+              <span class="flex items-center gap-1 text-xs w-full"><mat-icon class="!text-base !w-4 !h-4 !leading-4 shrink-0">{{ referencePath() === photo.path ? 'push_pin' : 'photo' }}</mat-icon><span class="truncate">{{ photo.filename }}</span></span>
             </button>
           }
         </div>
@@ -243,13 +244,21 @@ export class ComparisonWorkspaceComponent {
   private readonly owner = this.auth.identity();
   private readonly status = this.auth.status();
   private readonly guards = inject(StalenessGuardFactory);
-  private readonly navigating = signal(false);
+  private readonly initialUrl = this.router.url;
+  private readonly navigating = trackPendingNavigation({
+    started: () => this.cancelled.next(),
+    settled: () => {
+      if (this.router.url !== this.initialUrl) return;
+      this.context.dispose(); this.closing = false; this.context = this.createContext();
+      if (this.inspectionState() === 'loading') this.inspectionState.set('partial');
+    },
+  });
   private context = this.createContext();
 
   private createContext() {
     return this.guards.create(this.destroyRef, {
-      requireEdition: false, track: 'status', valid: () => !this.closing && this.token === this.auth.token && this.owner === this.auth.identity() && this.status === this.auth.status(),
-      onNavigate: () => { this.navigating.set(true); this.cancelled.next(); },
+      requireEdition: false, track: 'status', valid: () => !this.closing && !this.navigating()
+        && this.token === this.auth.token && this.owner === this.auth.identity() && this.status === this.auth.status(),
     });
   }
   private readonly imagePanes = viewChildren(SyncedZoomComponent);
@@ -284,12 +293,6 @@ export class ComparisonWorkspaceComponent {
   constructor() {
     afterNextRender(() => this.host.nativeElement.focus({ preventScroll: true }));
     this.destroyRef.onDestroy(() => { this.closing = true; this.cancelled.next(); this.context.dispose(); });
-    this.router.events.pipe(takeUntilDestroyed(this.destroyRef)).subscribe(event => {
-      if (event instanceof NavigationCancel || event instanceof NavigationError) {
-        this.context.dispose(); this.closing = false; this.context = this.createContext(); this.navigating.set(false);
-        if (this.inspectionState() === 'loading') this.inspectionState.set('partial');
-      }
-    });
     effect(() => {
       const current = this.context.current();
       if (!this.closing && !this.navigating() && !current) {
@@ -577,6 +580,9 @@ export class ComparisonWorkspaceComponent {
   protected close(): void {
     if (this.closing || this.navigating()) return;
     this.closing = true;
-    void this.router.navigateByUrl(this.data.returnUrl);
+    void this.router.navigateByUrl(this.data.returnUrl, { replaceUrl: true }).then(navigated => {
+      if (navigated) this.session.clear(this.data.revision);
+      else if (!this.destroyRef.destroyed) this.closing = false;
+    }, () => { if (!this.destroyRef.destroyed) this.closing = false; });
   }
 }
