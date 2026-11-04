@@ -9,6 +9,7 @@ import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { firstValueFrom } from 'rxjs';
 import { ApiService } from '../../core/services/api.service';
 import { AuthService } from '../../core/services/auth.service';
+import { StalenessGuardFactory } from '../../core/services/staleness-guard.service';
 import { TranslatePipe } from '../../shared/pipes/translate.pipe';
 import { basename } from '../../shared/utils/clipboard';
 import type { ManualTagObservation } from './manual-tag-observation.util';
@@ -127,6 +128,14 @@ export class ManualTagsDialogComponent {
   private readonly token = this.auth.token;
   private readonly dialogRef = inject(MatDialogRef<ManualTagsDialogComponent>);
   private readonly input = inject<ManualTagsDialogData>(MAT_DIALOG_DATA);
+  private readonly guard = inject(StalenessGuardFactory).create(this.destroyRef, {
+    track: 'status',
+    valid: () => this.auth.identity() === this.owner && this.auth.token === this.token && !this.closing && !this.revoked,
+    onNavigate: () => {
+      this.revoked = true;
+      if (!this.saving()) this.dialogRef.close(this.lastSettlement);
+    },
+  });
   readonly data: ManualTagsDialogScope = structuredClone({
     paths: this.input.paths, fromWholeView: this.input.fromWholeView,
     count: this.input.count, observation: this.input.observation,
@@ -200,7 +209,7 @@ export class ManualTagsDialogComponent {
     this.dialogRef.close(this.lastSettlement);
   }
 
-  private live(): boolean { return !this.closing && !this.revoked && !this.destroyRef.destroyed && this.ownsDialog() && this.auth.token === this.token; }
+  private live(): boolean { return this.guard.current(); }
   private receipt(incomplete: boolean): ManualTagsDialogResult | undefined {
     const plan = this.plan();
     return plan ? { confirmedCount: this.confirmed(), tag: plan.tag, action: plan.action, incomplete, uncertain: this.uncertain() } : undefined;

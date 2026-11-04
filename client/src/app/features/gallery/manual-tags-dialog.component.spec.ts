@@ -4,6 +4,7 @@ import { MatDialogRef, MAT_DIALOG_DATA } from '@angular/material/dialog';
 import { of, Subject, throwError } from 'rxjs';
 import { signal } from '@angular/core';
 import { HttpErrorResponse } from '@angular/common/http';
+import { NavigationStart, Router } from '@angular/router';
 import { AuthService } from '../../core/services/auth.service';
 import { I18nService } from '../../core/services/i18n.service';
 import { observeManualTags } from './manual-tag-observation.util';
@@ -16,6 +17,7 @@ describe('ManualTagsDialogComponent', () => {
   let mockApi: { post: Mock };
   let settled: Mock;
   let closing: Subject<unknown>;
+  let navigation: Subject<NavigationStart>;
   const owner = signal('alice');
   const edition = signal(true);
   const status = signal({ session: 1 });
@@ -26,6 +28,7 @@ describe('ManualTagsDialogComponent', () => {
     owner.set('alice'); edition.set(true);
     status.set({ session: 1 }); token.set('fixture-token');
     closing = new Subject<unknown>();
+    navigation = new Subject<NavigationStart>();
     settled = vi.fn();
     mockDialogRef = { close: vi.fn(() => closing.next(undefined)), beforeClosed: () => closing };
     mockApi = { post: vi.fn(() => of({ success: true, count: 2 })) };
@@ -35,6 +38,7 @@ describe('ManualTagsDialogComponent', () => {
         { provide: MatDialogRef, useValue: mockDialogRef },
         { provide: MAT_DIALOG_DATA, useValue: { ...data, onSettled: settled } },
         { provide: ApiService, useValue: mockApi },
+        { provide: Router, useValue: { url: '/', events: navigation } },
         { provide: AuthService, useValue: { identity: owner, isEdition: edition, status, get token() { return token(); } } },
         { provide: I18nService, useValue: { translations: signal({}), t: (key: string, vars?: Record<string, unknown>) => key + (vars ? ' ' + Object.values(vars).join(' ') : '') } },
       ],
@@ -98,6 +102,26 @@ describe('ManualTagsDialogComponent', () => {
     token.set('rotated'); response.next({ count: 1000 }); response.complete(); await work;
     expect(mockApi.post).toHaveBeenCalledOnce();
     expect(settled).toHaveBeenCalledWith(expect.objectContaining({ confirmedCount: 1000, incomplete: true }));
+  });
+
+  it('stops later chunks at navigation start and preserves the accepted receipt', async () => {
+    create({ paths: Array.from({ length: 1001 }, (_, i) => `/p${i}.jpg`), count: 1001 });
+    const response = new Subject<{ count: number }>(); mockApi.post.mockReturnValue(response);
+    component.tag.set('new'); component.preview('replace'); const work = component.apply();
+    navigation.next(new NavigationStart(1, '/photo?path=%2Fa.jpg'));
+    response.next({ count: 1000 }); response.complete(); await work;
+    expect(mockApi.post).toHaveBeenCalledOnce();
+    expect(settled).toHaveBeenCalledWith(expect.objectContaining({ confirmedCount: 1000, incomplete: true }));
+    component.cancel();
+    expect(mockDialogRef.close).toHaveBeenCalledWith(expect.objectContaining({ confirmedCount: 1000, incomplete: true }));
+  });
+
+  it('closes an idle preview when navigation starts without sending an edit', async () => {
+    create(pathData); component.tag.set('trip'); component.preview('add');
+    navigation.next(new NavigationStart(1, '/photo?path=%2Fa.jpg'));
+    expect(mockDialogRef.close).toHaveBeenCalledExactlyOnceWith(undefined);
+    await component.apply();
+    expect(mockApi.post).not.toHaveBeenCalled();
   });
 
   it('initialises idle with an empty tag and the selection count', () => {

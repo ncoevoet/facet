@@ -1,7 +1,6 @@
-import { trackPendingNavigation } from '../../shared/utils/navigation-settled';
+import { createGalleryFilterContext } from './gallery-filter-context';
 import { ChangeDetectionStrategy, Component, DestroyRef, ElementRef, computed, effect, inject, signal, untracked, viewChild } from '@angular/core';
 import { HttpErrorResponse } from '@angular/common/http';
-import { Router } from '@angular/router';
 import { firstValueFrom, Subject, takeUntil } from 'rxjs';
 import type { components } from '../../core/api/schema';
 import { ApiService } from '../../core/services/api.service';
@@ -88,7 +87,6 @@ export class KeywordCatalogComponent {
   private readonly api = inject(ApiService);
   private readonly store = inject(GalleryStore);
   private readonly guards = inject(StalenessGuardFactory);
-  private readonly router = inject(Router);
   private readonly destroyRef = inject(DestroyRef);
   private readonly panel = viewChild<ElementRef<HTMLDetailsElement>>('panel');
   private readonly searchInput = viewChild<ElementRef<HTMLInputElement>>('searchInput');
@@ -96,9 +94,11 @@ export class KeywordCatalogComponent {
   private readonly applyButton = viewChild<ElementRef<HTMLButtonElement>>('applyButton');
   private readonly cancelled = new Subject<void>();
   private version = 0;
-  private readonly pending = trackPendingNavigation({ started: () => this.reset() });
+  private readonly filterContext = createGalleryFilterContext({
+    authChanged: () => untracked(() => this.reset()),
+    navigationStarted: () => this.reset(),
+  });
   private previewInput: string | null = null;
-  private session = { owner: this.auth.identity(), status: this.auth.status(), token: this.auth.token };
   readonly opened = signal(false);
   readonly search = signal('');
   readonly catalog = signal<Catalog | null>(null);
@@ -115,16 +115,13 @@ export class KeywordCatalogComponent {
   readonly result = signal<Result | null>(null);
 
   constructor() {
-    effect(() => { this.auth.status(); this.auth.identity(); untracked(() => this.reset()); });
     effect(() => { const input = this.targetInput(); if (input && this.source() && this.current()) untracked(() => input.nativeElement.focus()); });
     effect(() => { const button = this.applyButton(); if (button && this.current()) untracked(() => button.nativeElement.focus()); });
     this.destroyRef.onDestroy(() => this.stop());
 
   }
 
-  private current(): boolean { return !this.destroyRef.destroyed && !this.pending() && this.opened()
-    && this.session.owner === this.auth.identity() && this.session.status === this.auth.status() && this.session.token === this.auth.token
-    && (this.router.url.split('?')[0] === '/' || /^\/album\/\d+$/.test(this.router.url.split('?')[0])); }
+  private current(): boolean { return this.opened() && this.filterContext.current(); }
   private stop(): void { this.version++; this.cancelled.next(); this.loading.set(false); }
   private reset(): void {
     this.stop(); this.opened.set(false); this.catalog.set(null); this.source.set(''); this.target.set('');
@@ -140,7 +137,6 @@ export class KeywordCatalogComponent {
 
   toggle(open: boolean): void {
     if (!open) { this.reset(); return; }
-    this.session = { owner: this.auth.identity(), status: this.auth.status(), token: this.auth.token };
     this.opened.set(true); void this.load();
   }
   escape(event: Event, panel: HTMLDetailsElement, trigger: HTMLElement): void {

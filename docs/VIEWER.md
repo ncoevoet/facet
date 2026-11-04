@@ -362,7 +362,7 @@ Double-click a photo to open it.
 
 Batch previews freeze the target paths before Apply, including matching folded/offscreen members and excluding deselected photos in a whole-view selection. They distinguish loaded observations from unknown values; an oversized scope is refused rather than truncated. A later selection cannot retarget an accepted edit. Requests commit in bounded chunks, not as one transaction across the entire selection.
 
-Rating offers Set or Clear. Manual tags offer Add, Remove, Replace and Clear; unrelated fields and AI tags remain untouched. Replace/Clear cannot be blindly retried after an uncertain response: reload and inspect the result first. Access or account changes stop new chunks.
+Rating offers Set or Clear. Manual tags offer Add, Remove, Replace and Clear; unrelated fields and AI tags remain untouched. Replace/Clear cannot be blindly retried after an uncertain response: reload and inspect the result first. Access or account changes stop new chunks. Starting navigation also stops new manual-tag chunks. A request already sent can still finish.
 
 Inspection belongs to the displayed photo, independently of the selected batch. AI assessments, personal stars, Keep/Reject and a group's suggested best are separate. Missing measurements say Unavailable; zero is a valid measurement. Rendition labels report the decoded image and dimensions, with loading, failure and Retry states. Magnification and the loupe inspect displayed pixels, not RAW sensor data. Histogram provenance distinguishes stored renders from thumbnail estimates. Stored face/subject crops can help manual inspection; unavailable or ambiguous correspondence leaves manual framing available. Linking movement is not subject alignment.
 

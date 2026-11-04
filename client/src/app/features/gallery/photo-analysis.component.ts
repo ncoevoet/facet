@@ -2,6 +2,7 @@ import { Component, Pipe, PipeTransform, inject, signal, computed, input, effect
 import { DecimalPipe, PercentPipe } from '@angular/common';
 import { Router } from '@angular/router';
 import { trackPendingNavigation } from '../../shared/utils/navigation-settled';
+import { StalenessGuardFactory } from '../../core/services/staleness-guard.service';
 import { MatButtonModule } from '@angular/material/button';
 import { MatIconModule } from '@angular/material/icon';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
@@ -358,6 +359,7 @@ export class PhotoAnalysisComponent {
   readonly photoPath = input.required<string>();
   readonly vlmAvailable = input(false);
   private readonly destroyRef = inject(DestroyRef);
+  private readonly guards = inject(StalenessGuardFactory);
   private readonly router = inject(Router);
   private readonly initialOwner = this.auth.identity();
   private readonly initialUrl = this.router.url;
@@ -375,7 +377,7 @@ export class PhotoAnalysisComponent {
       const path = this.photoPath();
       const locale = this.i18n.locale();
       const owner = this.auth.identity();
-      const status = this.auth.status();
+      this.auth.status();
       const token = this.auth.token;
       const edition = this.auth.isEdition();
       const vlm = this.vlmAvailable();
@@ -385,14 +387,15 @@ export class PhotoAnalysisComponent {
       this.cancelRequests.next();
       this.context = null;
       this.resetPhotoState();
-      onCleanup(() => this.cancelRequests.next());
       if (pending || owner !== this.initialOwner || this.router.url !== this.initialUrl) return;
-      const current = () => !this.destroyRef.destroyed && this.epoch === epoch
-        && !this.pendingNavigation() && this.router.url === this.initialUrl
-        && this.auth.identity() === owner && this.auth.status() === status
-        && this.auth.token === token && this.auth.isEdition() === edition
-        && this.photoPath() === path && this.i18n.locale() === locale;
-      this.context = { path, locale, current };
+      const guard = this.guards.create(this.destroyRef, {
+        track: 'status', requireEdition: false,
+        valid: () => this.epoch === epoch && !this.pendingNavigation()
+          && this.auth.identity() === owner && this.auth.token === token && this.auth.isEdition() === edition
+          && this.photoPath() === path && this.i18n.locale() === locale,
+      });
+      onCleanup(() => { this.cancelRequests.next(); guard.dispose(); });
+      this.context = { path, locale, current: guard.current };
       untracked(() => { void this.loadEvidence(this.context!, vlm); });
     });
     this.destroyRef.onDestroy(() => { this.cancelRequests.next(); this.cancelRequests.complete(); });

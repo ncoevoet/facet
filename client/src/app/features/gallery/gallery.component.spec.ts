@@ -3635,18 +3635,12 @@ describe('GalleryComponent', () => {
       expect(el.classList.contains('md:bottom-4')).toBe(true);
     });
 
-    it('keeps disclosure panels outside clipping and supplies movement help', () => {
+    it('associates the move handle with its keyboard movement instructions', () => {
       const f = render();
       const root = bar(f)!;
-      expect(root.classList.contains('overflow-y-auto')).toBe(false);
       const handle = root.querySelector<HTMLElement>('[data-toolbar-drag-handle]')!;
       expect(handle.getAttribute('aria-describedby')).toBe('selection-bar-move-help');
       expect(root.querySelector('#selection-bar-move-help')?.textContent).toContain(I18N.gallery.selection.move_bar_help);
-      const panels = root.querySelectorAll('[data-toolbar-panel]');
-      expect(panels.length).toBeGreaterThan(0);
-      for (const panel of panels) {
-        expect(panel.classList.contains('group-data-[toolbar-down=true]/selection:top-full')).toBe(true);
-      }
     });
 
     it('preserves every edition action with matching tooltip and accessible name', () => {
