@@ -246,7 +246,6 @@ export class App implements OnInit {
 
   protected readonly mobileAlbumsSearchOpen = signal(false);
   protected readonly mobilePersonsSearchOpen = signal(false);
-  protected readonly hasBurstGroups = signal(false);
   protected readonly hasMemories = signal(false);
   protected readonly hasGeoPhotos = signal(false);
 
@@ -424,7 +423,6 @@ export class App implements OnInit {
           // Edition-only indicators loaded once at startup must refresh when
           // edition is gained mid-session (otherwise they'd need an app reload).
           if (s?.edition_authenticated) {
-            this.refreshBurstGroupsIndicator();
             void this.maybeAnnounceNewRelease();
           }
         }
@@ -443,7 +441,6 @@ export class App implements OnInit {
       await this.auth.checkStatus();
       const promises: Promise<void>[] = [];
       if (this.auth.isEdition()) {
-        this.refreshBurstGroupsIndicator();
         // A page load that starts already in edition mode is not a transition,
         // so the effect below never sees it (lastAuthKey's own first resolution
         // is exempt, same as the config-refresh it guards); a later mid-session
@@ -584,14 +581,6 @@ export class App implements OnInit {
   protected closeMemories(): void {
     this.memoriesActive.set(false);
     this.memoriesPhotos.set([]);
-  }
-
-  /** Refresh the edition-only burst-groups nav indicator (best-effort). */
-  private refreshBurstGroupsIndicator(): void {
-    void firstValueFrom(
-      this.api.get<{ total_groups: number }>('/burst-groups', { page: 1, per_page: 1 }),
-    ).then(data => this.hasBurstGroups.set(data.total_groups > 0))
-      .catch(() => { /* Non-critical */ });
   }
 
   protected onPersonsSortChange(sort: string): void {

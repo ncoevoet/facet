@@ -59,6 +59,7 @@ export class GalleryVisitHistoryService {
     const query = parsed.searchParams.toString();
     const url = parsed.pathname + (query ? '?' + query : '');
     const queryAlbum = parsed.searchParams.get('album_id');
+    if (queryAlbum && !/^(?:0|[1-9]\d*)$/.test(queryAlbum)) return;
     const albumId = queryAlbum === '0' ? null : queryAlbum || album?.[1] || null;
     if (!albumId && !criteria.length) return;
     const visit: GalleryVisit = { url, albumId, criteria };

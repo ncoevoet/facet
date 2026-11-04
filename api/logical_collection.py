@@ -70,25 +70,26 @@ def source(columns, *, owner, multi_user, visibility_sql, visibility_params=(), 
         else:
             select.append(f"p.{quoted}")
     params.extend([owner, owner, owner])
-    representative_filter = "g.id IS NULL OR p.path=g.representative" if collapse else "1=1"
-    sql = f"""(WITH authorized_groups AS (
-        SELECT a.id,a.primary_path,a.revision,
-               CASE WHEN EXISTS(SELECT 1 FROM logical_asset_members x
-                                WHERE x.asset_id=a.id AND x.photo_path=a.primary_path)
-                    THEN a.primary_path
-                    ELSE (SELECT x.photo_path FROM logical_asset_members x WHERE x.asset_id=a.id
-                          ORDER BY x.position,x.photo_path LIMIT 1) END AS representative,
-               s.photo_path AS seed_path
-        FROM logical_assets a LEFT JOIN logical_review_seeds s ON s.asset_id=a.id
-        WHERE NOT EXISTS (
-            SELECT 1 FROM logical_asset_members m WHERE m.asset_id=a.id AND NOT EXISTS (
-                SELECT 1 FROM photos WHERE photos.path=m.photo_path AND ({visibility_sql})))
-    ) SELECT p.rowid AS rowid,{",".join(select)},g.id AS _logical_asset_id,
+    representative = """CASE WHEN EXISTS(
+        SELECT 1 FROM logical_asset_members x WHERE x.asset_id=g.id AND x.photo_path=g.primary_path)
+        THEN g.primary_path ELSE (
+        SELECT x.photo_path FROM logical_asset_members x WHERE x.asset_id=g.id
+        ORDER BY x.position,x.photo_path LIMIT 1) END"""
+    representative_filter = f"g.id IS NULL OR p.path=({representative})" if collapse else "1=1"
+    # Pin the durable primary-key lookup: stale small-table ANALYZE statistics
+    # can otherwise make SQLite scan every group for each physical photo.
+    # Keep authorization on this join so partially visible groups stay separate.
+    sql = f"""(SELECT p.rowid AS rowid,{",".join(select)},g.id AS _logical_asset_id,
              g.primary_path AS _logical_primary_path,g.revision AS _logical_group_revision
       FROM photos p
-      LEFT JOIN logical_asset_members membership ON membership.photo_path=p.path
-      LEFT JOIN authorized_groups g ON g.id=membership.asset_id
-      LEFT JOIN photos seed ON seed.path=g.seed_path AND EXISTS(
+      LEFT JOIN logical_assets g INDEXED BY sqlite_autoindex_logical_assets_1 ON g.id=(
+          SELECT membership.asset_id FROM logical_asset_members membership
+          WHERE membership.photo_path=p.path)
+        AND NOT EXISTS (
+            SELECT 1 FROM logical_asset_members m WHERE m.asset_id=g.id AND NOT EXISTS (
+                SELECT 1 FROM photos WHERE photos.path=m.photo_path AND ({visibility_sql})))
+      LEFT JOIN logical_review_seeds review_seed ON review_seed.asset_id=g.id
+      LEFT JOIN photos seed ON seed.path=review_seed.photo_path AND EXISTS(
           SELECT 1 FROM logical_asset_members sm WHERE sm.asset_id=g.id AND sm.photo_path=seed.path)
       {preference_joins}
       LEFT JOIN logical_review_fields rating ON rating.asset_id=g.id AND rating.owner=? AND rating.field='star_rating'

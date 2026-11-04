@@ -121,9 +121,8 @@ describe('AlbumsComponent', () => {
   it('deleteAlbum removes the album after confirmation', async () => {
     await internals().loadAlbums(true);
     const album = internals().albums()[0];
-    const event = { preventDefault: vi.fn(), stopPropagation: vi.fn() } as unknown as Event;
 
-    await internals().deleteAlbum(event, album);
+    await internals().deleteAlbum(album);
 
     expect(mockDialog.open).toHaveBeenCalled();
     expect(mockAlbumService.delete).toHaveBeenCalledWith(1);
@@ -134,13 +133,12 @@ describe('AlbumsComponent', () => {
   it('deleteAlbum journals the deletion once, and nothing when cancelled or failed', async () => {
     await internals().loadAlbums(true);
     const album = internals().albums()[0];
-    const event = { preventDefault: vi.fn(), stopPropagation: vi.fn() } as unknown as Event;
     mockDialog.open.mockReturnValueOnce({ afterClosed: () => of(false) });
-    await internals().deleteAlbum(event, album);
+    await internals().deleteAlbum(album);
     mockAlbumService.delete.mockReturnValueOnce(throwError(() => new Error('boom')));
-    await expect(internals().deleteAlbum(event, album)).rejects.toThrow('boom');
+    await expect(internals().deleteAlbum(album)).rejects.toThrow('boom');
     expect(journal.record).not.toHaveBeenCalled();
-    await internals().deleteAlbum(event, album);
+    await internals().deleteAlbum(album);
     expect(journal.record).toHaveBeenCalledTimes(1);
     expect(journal.record).toHaveBeenCalledWith('album', [], { album_id: 1, action: 'delete' });
   });
@@ -152,10 +150,9 @@ describe('AlbumsComponent', () => {
   it('openScoringContext opens the dialog with disableClose and applies the returned context', async () => {
     await internals().loadAlbums(true);
     const album = internals().albums()[0];
-    const event = { preventDefault: vi.fn(), stopPropagation: vi.fn() } as unknown as Event;
     mockDialog.open.mockReturnValueOnce({ afterClosed: () => of('party_event') });
 
-    await internals().openScoringContext(event, album);
+    await internals().openScoringContext(album);
 
     expect(mockDialog.open).toHaveBeenCalledWith(
       expect.anything(),

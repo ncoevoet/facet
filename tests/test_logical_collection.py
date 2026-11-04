@@ -46,6 +46,30 @@ def collection(conn, owner="", multi_user=False, visibility="1=1", params=()):
     )
 
 
+def test_collection_lookup_stays_bounded_with_stale_small_group_statistics(catalog):
+    conn, _ = catalog
+    conn.execute('ANALYZE')
+    for index in range(1000):
+        paths = [f'/pair{index}.jpg', f'/pair{index}.CR2']
+        conn.executemany('INSERT INTO photos VALUES (?,0,0,0,0,?)', [(path, path) for path in paths])
+        assets.create(conn, paths, paths[0], visibility_sql='1=1')
+    query = collection(conn)
+    remaining = 1000
+
+    def budget():
+        nonlocal remaining
+        remaining -= 1
+        return remaining <= 0
+
+    # A deterministic VM-instruction budget catches per-row group scans without
+    # timing assumptions. Production reads must not repair statistics by writing.
+    conn.set_progress_handler(budget, 1000)
+    try:
+        assert conn.execute(f'SELECT COUNT(*) FROM {query.sql}', query.params).fetchone()[0] == 1002
+    finally:
+        conn.set_progress_handler(None, 0)
+
+
 def test_one_logical_count_uses_explicit_primary_metadata_and_shared_review(catalog):
     conn, key = catalog
     query = collection(conn)

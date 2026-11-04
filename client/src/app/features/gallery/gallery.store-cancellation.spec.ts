@@ -22,7 +22,6 @@ import { ScanService } from '../../core/services/scan.service';
 import { PhotoActionsService } from '../../core/services/photo-actions.service';
 import { UndoService } from '../../core/services/undo.service';
 import { SequenceOverrideService } from '../../core/services/sequence-override.service';
-import { HeaderSlotService } from '../../core/services/header-slot.service';
 import { PageHelpService } from '../../core/services/page-help.service';
 
 const EMPTY_PAGE: PhotosResponse = {
@@ -68,7 +67,6 @@ describe('GalleryStore read cancellation with HttpClient', () => {
       { provide: LiveAnnouncer, useValue: { announce: vi.fn() } },
       { provide: PhotoActionsService, useValue: {} }, { provide: UndoService, useValue: {} },
       { provide: SequenceOverrideService, useValue: {} },
-      { provide: HeaderSlotService, useValue: { set: vi.fn(), clear: vi.fn() } },
       { provide: PageHelpService, useValue: { setDescription: vi.fn() } },
       { provide: AlbumService, useValue: { update: vi.fn(() => of({})) } },
       { provide: I18nService, useValue: { t: (key: string) => key } },

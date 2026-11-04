@@ -91,10 +91,10 @@ export class TimelineYearsComponent extends TimelineCollectionReader {
     });
   }
 
-  private async load(dateFrom: string, dateTo: string, viewParams: ViewFilterParams): Promise<void> {
-      const params: Record<string, string> = { ...viewParams };
-      if (dateFrom) params['date_from'] = dateFrom;
-      if (dateTo) params['date_to'] = dateTo;
-      this.loadData<{ years: YearSummary[] }>('/timeline/years', params, res => this.years.set(res.years));
+  private load(dateFrom: string, dateTo: string, viewParams: ViewFilterParams): void {
+    const params: Record<string, string> = { ...viewParams };
+    if (dateFrom) params['date_from'] = dateFrom;
+    if (dateTo) params['date_to'] = dateTo;
+    this.loadData<{ years: YearSummary[] }>('/timeline/years', params, res => this.years.set(res.years));
   }
 }

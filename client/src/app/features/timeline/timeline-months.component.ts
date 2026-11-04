@@ -94,13 +94,13 @@ export class TimelineMonthsComponent extends TimelineCollectionReader {
     });
   }
 
-  private async load(
+  private load(
     year: string, dateFrom: string, dateTo: string, viewParams: ViewFilterParams,
-  ): Promise<void> {
-      const params: Record<string, string | number> = { year: +year, ...viewParams };
-      if (dateFrom) params['date_from'] = dateFrom;
-      if (dateTo) params['date_to'] = dateTo;
-      this.loadData<{ months: MonthSummary[] }>('/timeline/months', params, res => this.months.set(res.months));
+  ): void {
+    const params: Record<string, string | number> = { year: +year, ...viewParams };
+    if (dateFrom) params['date_from'] = dateFrom;
+    if (dateTo) params['date_to'] = dateTo;
+    this.loadData<{ months: MonthSummary[] }>('/timeline/months', params, res => this.months.set(res.months));
   }
 
 }

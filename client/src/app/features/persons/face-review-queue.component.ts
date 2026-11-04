@@ -52,7 +52,7 @@ interface AssignmentReport { assigned_count: number; already: number[]; missing:
     @if (feedbackReceipt(); as result) {
       <div role="status" data-feedback-receipt class="mb-3 flex flex-wrap items-center gap-2 text-sm">
         <span>{{ I18N.persons.review_queue.feedback_saved | translate:{name: result.choice.name} }}</span>
-        <button mat-button data-feedback-undo [disabled]="busy() || !!pending() || uncertain() || changed() || choosing()" (click)="undoFeedback()">{{ I18N.persons.review_queue.feedback_undo | translate }}</button>
+        <button mat-button data-feedback-undo [disabled]="interactionLocked()" (click)="undoFeedback()">{{ I18N.persons.review_queue.feedback_undo | translate }}</button>
       </div>
     }
     @if (error()) {
@@ -74,18 +74,18 @@ interface AssignmentReport { assigned_count: number; already: number[]; missing:
                 <div class="min-w-0 flex-1">
                   <a mat-button routerLink="/photo" [queryParams]="{path:face.photo_path}" target="_blank" rel="noopener" class="!px-1">{{ I18N.persons.review_queue.open_photo | translate }}<mat-icon>open_in_new</mat-icon></a>
                   @if (choices().get(face.face_id); as choice) {
-                    <label class="flex min-h-11 cursor-pointer items-center gap-2 text-sm"><input type="checkbox" [checked]="selected().has(face.face_id)" [disabled]="busy() || !!pending() || uncertain() || changed() || choosing()" [attr.aria-label]="I18N.persons.review_queue.assign_label | translate:{id: face.face_id, name: choice.name}" (change)="toggle(face.face_id)" /><span class="min-w-0 break-words">{{ choice.name }}</span></label>
+                    <label class="flex min-h-11 cursor-pointer items-center gap-2 text-sm"><input type="checkbox" [checked]="selected().has(face.face_id)" [disabled]="interactionLocked()" [attr.aria-label]="I18N.persons.review_queue.assign_label | translate:{id: face.face_id, name: choice.name}" (change)="toggle(face.face_id)" /><span class="min-w-0 break-words">{{ choice.name }}</span></label>
                   }
                 </div>
               </div>
               @if (face.embedding_state !== 'ready') { <p class="my-1 text-xs text-[var(--mat-sys-on-surface-variant)]">{{ (face.embedding_state === 'incompatible' ? I18N.persons.review_queue.model_mismatch : I18N.persons.review_queue.matching_unavailable) | translate }}</p> }
               <div class="mt-2 flex flex-wrap items-center gap-1">
                 @for (suggestion of face.suggestions; track suggestion.person_id) {
-                  <button mat-button class="!min-h-11 !px-2" [disabled]="busy() || !!pending() || uncertain() || changed() || choosing()" [attr.aria-pressed]="choices().get(face.face_id)?.personId === suggestion.person_id" [attr.aria-label]="I18N.persons.review_queue.similarity_label | translate:{ name: suggestion.name, value: suggestion.similarity * 100 }" (click)="choose(face.face_id, suggestion.person_id, suggestion.name)"><span class="max-w-40 truncate">{{ suggestion.name }}</span> · {{ suggestion.similarity * 100 | fixed:0 }}</button>
+                  <button mat-button class="!min-h-11 !px-2" [disabled]="interactionLocked()" [attr.aria-pressed]="choices().get(face.face_id)?.personId === suggestion.person_id" [attr.aria-label]="I18N.persons.review_queue.similarity_label | translate:{ name: suggestion.name, value: suggestion.similarity * 100 }" (click)="choose(face.face_id, suggestion.person_id, suggestion.name)"><span class="max-w-40 truncate">{{ suggestion.name }}</span> · {{ suggestion.similarity * 100 | fixed:0 }}</button>
                 }
-                <button mat-button [disabled]="busy() || !!pending() || uncertain() || changed() || choosing()" (click)="chooseOther(face, $event)">{{ I18N.persons.review_queue.choose_person | translate }}</button>
+                <button mat-button [disabled]="interactionLocked()" (click)="chooseOther(face, $event)">{{ I18N.persons.review_queue.choose_person | translate }}</button>
                 @if (choices().get(face.face_id); as choice) {
-                  <button mat-button data-not-person [disabled]="busy() || !!pending() || uncertain() || changed() || choosing()" (click)="rejectSuggestion(face)">{{ I18N.persons.review_queue.not_person | translate:{name: choice.name} }}</button>
+                  <button mat-button data-not-person [disabled]="interactionLocked()" (click)="rejectSuggestion(face)">{{ I18N.persons.review_queue.not_person | translate:{name: choice.name} }}</button>
                 }
                 <button mat-button [disabled]="busy() || !!pending() || choosing()" (click)="skip(face.face_id)">{{ I18N.persons.review_queue.skip | translate }}</button>
               </div>
@@ -134,6 +134,7 @@ export class FaceReviewQueueComponent {
   protected readonly error = signal(false);
   protected readonly withoutSuggestions = signal(false);
   protected readonly pending = signal<readonly CapturedFace[] | null>(null);
+  protected readonly interactionLocked = computed(() => this.busy() || !!this.pending() || this.uncertain() || this.changed() || this.choosing());
   protected readonly receipt = signal<{ assigned: number; skipped: number; reasons: ReceiptReason[] } | null>(null);
   protected readonly feedbackReceipt = signal<FeedbackReceipt | null>(null);
   protected readonly groups = computed(() => {
@@ -216,7 +217,7 @@ export class FaceReviewQueueComponent {
     this.choices.update(value => new Map(value).set(id, { personId, name }));
   }
   protected async chooseOther(face: Face, event: Event): Promise<void> {
-    if (!this.allowed() || this.busy() || this.pending() || this.uncertain() || this.changed() || this.choosing() || this.chooser) return;
+    if (!this.allowed() || this.interactionLocked() || this.chooser) return;
     this.choosing.set(true);
     const generation = this.generation;
     const guard = this.capture();
@@ -243,7 +244,7 @@ export class FaceReviewQueueComponent {
   }
   protected async rejectSuggestion(face: Face): Promise<void> {
     const choice = this.choices().get(face.face_id);
-    if (!choice || !this.allowed() || this.busy() || this.pending() || this.uncertain() || this.changed() || this.choosing()) return;
+    if (!choice || !this.allowed() || this.interactionLocked()) return;
     if (!this.faces().some(value => value === face)) return;
     this.feedbackGuard?.dispose();
     const guard = this.capture(); this.feedbackGuard = guard;
@@ -252,7 +253,7 @@ export class FaceReviewQueueComponent {
   }
   protected async undoFeedback(): Promise<void> {
     const receipt = this.feedbackReceipt(), guard = this.feedbackGuard;
-    if (!receipt || !guard || !this.allowed() || this.busy() || this.pending() || this.uncertain() || this.changed() || this.choosing()) return;
+    if (!receipt || !guard || !this.allowed() || this.interactionLocked()) return;
     if (!guard.current()) { this.reset(); this.error.set(true); return; }
     await this.writeFeedback(receipt, true, guard);
   }
@@ -294,7 +295,7 @@ export class FaceReviewQueueComponent {
     }
   }
   protected preview(event: Event): void {
-    if (!this.allowed() || this.busy() || this.pending() || this.uncertain() || this.changed() || this.choosing()) return;
+    if (!this.allowed() || this.interactionLocked()) return;
     const captured = this.faces().flatMap(face => {
       const choice = this.choices().get(face.face_id);
       return choice && this.selected().has(face.face_id) ? [{ ...choice, faceId: face.face_id, token: face.identity_token }] : [];

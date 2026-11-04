@@ -372,19 +372,18 @@ export class SyncedZoomComponent {
     return `translate(${z.tx}px, ${z.ty}px) scale(${z.scale})`;
   });
 
-  protected readonly effectiveSrc = computed(() => {
+  private readonly selectedRendition = computed<{ src: string; kind: DisplayedRendition['kind'] }>(() => {
     const full = this.fullResSrc();
     // Past the fit scale the render is too soft to judge sharpness; swap to
     // the full-res source for the actual pixel peek.
-    if (this.zoom().scale > SyncedZoomComponent.MIN_SCALE && full) return this.retryUrl(full);
+    if (this.zoom().scale > SyncedZoomComponent.MIN_SCALE && full) return { src: this.retryUrl(full), kind: 'source' };
     const placeholder = this.placeholderSrc();
-    return placeholder && this.readySrc() !== this.requestedPreview() ? this.retryUrl(placeholder) : this.requestedPreview();
+    if (placeholder && this.readySrc() !== this.requestedPreview()) return { src: this.retryUrl(placeholder), kind: 'thumbnail' };
+    return { src: this.requestedPreview(), kind: 'preview' };
   });
 
-  private readonly displayedKind = computed<DisplayedRendition['kind']>(() => {
-    if (this.zoom().scale > SyncedZoomComponent.MIN_SCALE && this.fullResSrc()) return 'source';
-    return this.placeholderSrc() && this.readySrc() !== this.requestedPreview() ? 'thumbnail' : 'preview';
-  });
+  protected readonly effectiveSrc = computed(() => this.selectedRendition().src);
+  private readonly displayedKind = computed(() => this.selectedRendition().kind);
 
   private retryUrl(src: string): string {
     const retry = this.retryState();

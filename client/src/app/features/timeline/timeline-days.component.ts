@@ -109,13 +109,13 @@ export class TimelineDaysComponent extends TimelineCollectionReader {
     });
   }
 
-  private async load(
+  private load(
     year: number, month: number, dateFrom: string, dateTo: string, viewParams: ViewFilterParams,
-  ): Promise<void> {
-      const params: Record<string, string | number> = { year, month, ...viewParams };
-      if (dateFrom) params['date_from'] = dateFrom;
-      if (dateTo) params['date_to'] = dateTo;
-      this.loadData<{ dates: DateEntry[] }>('/timeline/dates', params, res => {
+  ): void {
+    const params: Record<string, string | number> = { year, month, ...viewParams };
+    if (dateFrom) params['date_from'] = dateFrom;
+    if (dateTo) params['date_to'] = dateTo;
+    this.loadData<{ dates: DateEntry[] }>('/timeline/dates', params, res => {
 
       // Build date lookup
       const dateMap = new Map<string, DateEntry>();
@@ -149,6 +149,6 @@ export class TimelineDaysComponent extends TimelineCollectionReader {
       }
 
       this.calendarCells.set(cells);
-      });
+    });
   }
 }

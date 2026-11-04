@@ -43,6 +43,20 @@ describe('GalleryVisitHistoryService', () => {
     expect(service.visits()[0].criteria).toEqual([['max_iso', '400'], ['min_iso', '100'], ['search', 'birds']]);
   });
 
+  it('retains a bare album, excludes invalid and oversized entries, and clears old callbacks', () => {
+    service.remember('/album/7');
+    const visit = service.visits()[0];
+    expect(visit.albumId).toBe('7');
+    expect(service.restoreUrl(visit)).toBe('/album/7');
+    for (const url of ['/?album_id=nope', '/album/nope', '/?search=' + 'x'.repeat(4096)]) service.remember(url);
+    expect(service.visits()).toEqual([visit]);
+    service.remember('/?album_id=0&search=birds');
+    expect(service.visits()[0].albumId).toBeNull();
+    service.clear();
+    expect(service.visits()).toEqual([]);
+    expect(service.restoreUrl(visit)).toBeNull();
+  });
+
   it('refuses stale callbacks synchronously on account or token changes and clears on logout', () => {
     service.remember('/?tag=private');
     const first = service.visits()[0];

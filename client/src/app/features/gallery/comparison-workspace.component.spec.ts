@@ -316,6 +316,12 @@ describe('ComparisonWorkspaceComponent', () => {
     expect(sharedInspectionPeople(['/a', '/b'], rows)).toEqual([]);
     rows.set('/b', [{ ...face, box: [0.1, 0.2, 2, 0.6] }]);
     expect(sharedInspectionPeople(['/a', '/b'], rows)).toEqual([]);
+    rows.set('/b', [{ ...face, person_name: 'Grace' }]);
+    expect(sharedInspectionPeople(['/a', '/b'], rows)).toEqual([]);
+    rows.set('/b', [{ ...face, person_name: '   ' }]);
+    expect(sharedInspectionPeople(['/a', '/b'], rows)).toEqual([]);
+    rows.set('/b', [{ ...face, box: [0.4, 0.2, 0.4, 0.6] }]);
+    expect(sharedInspectionPeople(['/a', '/b'], rows)).toEqual([]);
   });
 
   it('retains unusable face occurrences when deciding whether API-loaded correspondence is ambiguous', async () => {

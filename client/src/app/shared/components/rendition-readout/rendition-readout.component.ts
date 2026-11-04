@@ -1,4 +1,4 @@
-import { ChangeDetectionStrategy, Component, input, output } from '@angular/core';
+import { ChangeDetectionStrategy, Component, computed, input, output } from '@angular/core';
 import { I18N } from '../../../core/i18n/keys';
 import type { DisplayedRendition } from '../../../features/gallery/synced-zoom.component';
 import { TranslatePipe } from '../../pipes/translate.pipe';
@@ -13,8 +13,8 @@ import { FixedPipe } from '../../pipes/fixed.pipe';
   template: `
     <div class="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1" data-rendition-readout>
       <span role="status">
-        {{ (edited() ? I18N.photo_detail.rendition.edited : state().kind === 'source' ? I18N.gallery.compare.rendition.source : state().kind === 'thumbnail' ? I18N.gallery.compare.rendition.thumbnail : I18N.gallery.compare.rendition.preview) | translate }}
-        · {{ (state().phase === 'ready' ? I18N.gallery.compare.rendition.ready : state().phase === 'failed' ? I18N.gallery.compare.rendition.failed : I18N.gallery.compare.rendition.loading) | translate }}
+        {{ kindLabel() | translate }}
+        · {{ phaseLabel() | translate }}
         @if (state().phase === 'ready' && state().width && state().height) { {{ state().width }} × {{ state().height }} }
       </span>
       @if (pending()) { <span>{{ I18N.photo_detail.rendition.pending | translate }}</span> }
@@ -41,6 +41,17 @@ export class RenditionReadoutComponent {
   readonly attemptFailed = input(false);
   readonly failureLabel = input<string>(I18N.photo_detail.rendition.attempt_failed);
   readonly edited = input(false);
+  protected readonly kindLabel = computed(() => {
+    if (this.edited()) return I18N.photo_detail.rendition.edited;
+    if (this.state().kind === 'source') return I18N.gallery.compare.rendition.source;
+    if (this.state().kind === 'thumbnail') return I18N.gallery.compare.rendition.thumbnail;
+    return I18N.gallery.compare.rendition.preview;
+  });
+  protected readonly phaseLabel = computed(() => {
+    if (this.state().phase === 'ready') return I18N.gallery.compare.rendition.ready;
+    if (this.state().phase === 'failed') return I18N.gallery.compare.rendition.failed;
+    return I18N.gallery.compare.rendition.loading;
+  });
   readonly scale = input<number | null>(null);
   readonly retry = output<void>();
   readonly zoomStep = output<number>();

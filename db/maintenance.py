@@ -670,11 +670,7 @@ def _incremental_update_viewer_data(source_db, output_path, thumbnail_size, verb
     preserved_assets = prepare_asset_sync(dest_conn)
 
     from db.keyword_hierarchy_sync import prepare_hierarchy_sync
-    try:
-        hierarchy_sync = prepare_hierarchy_sync(dest_conn)
-    except BaseException:
-        dest_conn.close()
-        raise
+    hierarchy_sync = prepare_hierarchy_sync(dest_conn)
 
     from db.manual_face_export import prepare_person_sync, merge_manual_faces
     source_face_columns = prepare_person_sync(dest_conn)
@@ -978,7 +974,6 @@ def _incremental_update_viewer_data(source_db, output_path, thumbnail_size, verb
                 hierarchy_sync.close(dest_conn)
             except Exception:
                 logger.warning('Could not clean hierarchy export snapshot', exc_info=True)
-            dest_conn.close()
             raise
 
     # --- Sync photos_vec (sqlite-vec KNN index; no FK/trigger, hand-synced) ---

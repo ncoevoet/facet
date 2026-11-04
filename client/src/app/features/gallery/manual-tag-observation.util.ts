@@ -6,7 +6,7 @@ export interface ManualTagObservation {
   overflow: number;
 }
 
-export function observeManualTags(photos: Pick<Photo, 'manual_tags'>[]): ManualTagObservation {
+export function observeManualTags(photos: Partial<Pick<Photo, 'manual_tags'>>[]): ManualTagObservation {
   const counts = new Map<string, number>();
   for (const photo of photos) {
     for (const tag of new Set(photo.manual_tags ?? [])) counts.set(tag, (counts.get(tag) ?? 0) + 1);

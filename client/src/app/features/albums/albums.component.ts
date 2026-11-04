@@ -129,7 +129,7 @@ import { MarkTonePipe } from '../../shared/pipes/mark-tone.pipe';
                 <button mat-menu-item
                         [matTooltip]="'albums.scenes' | translate"
                         [attr.aria-label]="'albums.scenes' | translate"
-                        (click)="openScoped($event, '/scenes', album)">
+                        (click)="openScoped('/scenes', album)">
                   <mat-icon>movie_filter</mat-icon>{{ 'albums.scenes' | translate }}
                 </button>
               }
@@ -138,46 +138,46 @@ import { MarkTonePipe } from '../../shared/pipes/mark-tone.pipe';
                   <button mat-menu-item
                           [matTooltip]="'proofing.client_picks' | translate"
                           [attr.aria-label]="'proofing.client_picks' | translate"
-                          (click)="openClientPicks($event, album)">
+                          (click)="openClientPicks(album)">
                     <mat-icon>how_to_vote</mat-icon>{{ 'proofing.client_picks' | translate }}
                   </button>
                 }
                 <button mat-menu-item
                         [matTooltip]="'albums.cull' | translate"
                         [attr.aria-label]="'albums.cull' | translate"
-                        (click)="openScoped($event, '/culling', album)">
+                        (click)="openScoped('/culling', album)">
                   <mat-icon>auto_delete</mat-icon>{{ 'albums.cull' | translate }}
                 </button>
                 @if (!album.is_smart && portfolioEnabled()) {
                   <button mat-menu-item
                           [matTooltip]="'albums.portfolio' | translate"
                           [attr.aria-label]="'albums.portfolio' | translate"
-                          (click)="exportPortfolio($event, album)">
+                          (click)="exportPortfolio(album)">
                     <mat-icon>web</mat-icon>{{ 'albums.portfolio' | translate }}
                   </button>
                 }
                 <button mat-menu-item
                         [matTooltip]="'albums.scoring_context.action' | translate"
                         [attr.aria-label]="'albums.scoring_context.action' | translate"
-                        (click)="openScoringContext($event, album)">
+                        (click)="openScoringContext(album)">
                   <mat-icon>tune</mat-icon>{{ 'albums.scoring_context.action' | translate }}
                 </button>
                 <button mat-menu-item
                         [matTooltip]="'albums.edit' | translate"
                         [attr.aria-label]="'albums.edit' | translate"
-                        (click)="editAlbum($event, album)">
+                        (click)="editAlbum(album)">
                   <mat-icon>edit</mat-icon>{{ 'albums.edit' | translate }}
                 </button>
                 <button mat-menu-item
                         [matTooltip]="'albums.share' | translate"
                         [attr.aria-label]="'albums.share' | translate"
-                        (click)="shareAlbum($event, album)">
+                        (click)="shareAlbum(album)">
                   <mat-icon>{{ album.is_shared ? 'link' : 'share' }}</mat-icon>{{ 'albums.share' | translate }}
                 </button>
                 <button mat-menu-item
                         [matTooltip]="'albums.delete' | translate"
                         [attr.aria-label]="'albums.delete' | translate"
-                        (click)="deleteAlbum($event, album)">
+                        (click)="deleteAlbum(album)">
                   <mat-icon>delete</mat-icon>{{ 'albums.delete' | translate }}
                 </button>
               }
@@ -300,14 +300,12 @@ export class AlbumsComponent {
     if (album) this.loadAlbums(true);
   }
 
-  /** Open scenes/culling scoped to this album (card is an anchor — stop its nav). */
-  protected openScoped(event: Event, path: string, album: Album): void {
-    event.preventDefault();
+  /** Open scenes/culling scoped to this album. */
+  protected openScoped(path: string, album: Album): void {
     void this.router.navigate([path], { queryParams: { album: album.id } });
   }
 
-  protected async editAlbum(event: Event, album: Album): Promise<void> {
-    event.preventDefault();
+  protected async editAlbum(album: Album): Promise<void> {
     const updated = await firstValueFrom(this.dialog.open(EditAlbumDialogComponent, {
       data: { album },
       restoreFocus: `#album-actions-${album.id}`,
@@ -318,8 +316,7 @@ export class AlbumsComponent {
     }
   }
 
-  protected async deleteAlbum(event: Event, album: Album): Promise<void> {
-    event.preventDefault();
+  protected async deleteAlbum(album: Album): Promise<void> {
     const ref = this.dialog.open(ConfirmDialogComponent, {
       restoreFocus: `#album-actions-${album.id}`,
       data: {
@@ -335,8 +332,7 @@ export class AlbumsComponent {
     this.total.update(t => t - 1);
   }
 
-  protected async openScoringContext(event: Event, album: Album): Promise<void> {
-    event.preventDefault();
+  protected async openScoringContext(album: Album): Promise<void> {
     const newContext: string | null | undefined = await firstValueFrom(this.dialog.open(AlbumScoringContextDialogComponent, {
       restoreFocus: `#album-actions-${album.id}`,
       data: { albumId: album.id, albumName: album.name, currentContext: album.scoring_context } satisfies AlbumScoringContextDialogData,
@@ -349,8 +345,7 @@ export class AlbumsComponent {
     }
   }
 
-  protected exportPortfolio(event: Event, album: Album): void {
-    event.preventDefault();
+  protected exportPortfolio(album: Album): void {
     this.dialog.open(PortfolioExportDialogComponent, {
       restoreFocus: `#album-actions-${album.id}`,
       data: { albumId: album.id, albumName: album.name } satisfies PortfolioExportDialogData,
@@ -358,8 +353,7 @@ export class AlbumsComponent {
     });
   }
 
-  protected openClientPicks(event: Event, album: Album): void {
-    event.preventDefault();
+  protected openClientPicks(album: Album): void {
     this.dialog.open(ClientPicksDialogComponent, {
       restoreFocus: `#album-actions-${album.id}`,
       data: { albumId: album.id, albumName: album.name } satisfies ClientPicksDialogData,
@@ -367,8 +361,7 @@ export class AlbumsComponent {
     });
   }
 
-  protected async shareAlbum(event: Event, album: Album): Promise<void> {
-    event.preventDefault();
+  protected async shareAlbum(album: Album): Promise<void> {
     await firstValueFrom(this.dialog.open(ShareDialogComponent, {
       restoreFocus: `#album-actions-${album.id}`,
       data: {

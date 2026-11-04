@@ -50,11 +50,6 @@ export class ExportService {
     return this.api.post('/photo/embed_metadata', { path });
   }
 
-  /** Start a bounded background export; the receipt never includes photo paths. */
-  startSidecarJob(scope: SidecarJobScope, overwrite = false): Observable<SidecarJobStatus> {
-    return this.api.post('/export/sidecar_jobs', { ...scope, overwrite });
-  }
-
   recentSidecarJobs(): Observable<SidecarJobStatus[]> {
     return this.api.get('/export/sidecar_jobs');
   }
@@ -68,17 +63,4 @@ export class ExportService {
     return this.api.post(`/export/sidecar_jobs/${encodeURIComponent(id)}/cancel`);
   }
 
-  /** Explicit new job for failed/skipped/unprocessed files using current metadata. */
-  retrySidecarJob(id: string): Observable<SidecarJobStatus> {
-    return this.api.post(`/export/sidecar_jobs/${encodeURIComponent(id)}/retry`);
-  }
-
-  /** "Basket" export: an album's selects as sidecars, or copied/symlinked out. */
-  exportAlbum(albumId: number, mode: AlbumExportMode, targetDir = '', overwrite = false): Observable<AlbumExportResult> {
-    return this.api.post(`/albums/${albumId}/export`, {
-      mode,
-      target_dir: targetDir,
-      overwrite,
-    });
-  }
 }
