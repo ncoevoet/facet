@@ -230,17 +230,17 @@ const SET_KIND_TOGGLE: Record<string, keyof HiddenFilterFlags> = {
     </ng-template>
 
     <ng-template #galleryLayoutButtons>
-            <button mat-button data-gallery-layout="grid" class="!min-w-0 !text-[var(--mat-sys-on-surface)] max-lg:!min-h-11 max-lg:!min-w-11 max-lg:!w-11 max-lg:!px-2"
+            <button mat-button data-gallery-layout="grid" class="!min-h-11 !min-w-11 !w-11 !px-2 @[1120px]:!w-auto @[1120px]:!px-4 !text-[var(--mat-sys-on-surface)]"
                     [class.!bg-[var(--mat-sys-secondary-container)]]="store.galleryMode() === 'grid'"
                     [attr.aria-pressed]="store.galleryMode() === 'grid'"
                     [attr.aria-label]="I18N.gallery.layout_grid | translate" [matTooltip]="I18N.gallery.layout_grid | translate" (click)="store.setGalleryMode('grid')">
-              <mat-icon class="max-lg:!m-0">grid_view</mat-icon><span class="hidden lg:inline">{{ I18N.gallery.layout_grid | translate }}</span>
+              <mat-icon class="!m-0 @[1120px]:!mr-2">grid_view</mat-icon><span class="hidden @[1120px]:inline">{{ I18N.gallery.layout_grid | translate }}</span>
             </button>
-            <button mat-button data-gallery-layout="mosaic" class="!min-w-0 !text-[var(--mat-sys-on-surface)] max-lg:!min-h-11 max-lg:!min-w-11 max-lg:!w-11 max-lg:!px-2"
+            <button mat-button data-gallery-layout="mosaic" class="!min-h-11 !min-w-11 !w-11 !px-2 @[1120px]:!w-auto @[1120px]:!px-4 !text-[var(--mat-sys-on-surface)]"
                     [class.!bg-[var(--mat-sys-secondary-container)]]="store.galleryMode() === 'mosaic'"
                     [attr.aria-pressed]="store.galleryMode() === 'mosaic'"
                     [attr.aria-label]="I18N.gallery.layout_mosaic | translate" [matTooltip]="I18N.gallery.layout_mosaic | translate" (click)="store.setGalleryMode('mosaic')">
-              <mat-icon class="max-lg:!m-0">auto_awesome_mosaic</mat-icon><span class="hidden lg:inline">{{ I18N.gallery.layout_mosaic | translate }}</span>
+              <mat-icon class="!m-0 @[1120px]:!mr-2">auto_awesome_mosaic</mat-icon><span class="hidden @[1120px]:inline">{{ I18N.gallery.layout_mosaic | translate }}</span>
             </button>
     </ng-template>
 
@@ -816,7 +816,7 @@ const SET_KIND_TOGGLE: Record<string, keyof HiddenFilterFlags> = {
           @if (viewScoped() || selectionGroupTargets().total) {
             <details #selectionTargets #selectionDisclosure name="gallery-selection-disclosures" data-selection-targets
               (keydown.escape)="closeDisclosure($event, selectionTargets, targetsSummary)">
-              <summary #targetsSummary class="flex min-h-10 cursor-pointer list-none items-center gap-1 rounded-md px-2 text-sm focus-visible:outline-2 focus-visible:outline-[var(--mat-sys-primary)]"><mat-icon aria-hidden="true">ads_click</mat-icon>{{ I18N.gallery.selection.targets.title | translate }}</summary>
+              <summary #targetsSummary class="flex min-h-11 cursor-pointer list-none items-center gap-1 rounded-md px-2 text-sm focus-visible:outline-2 focus-visible:outline-[var(--mat-sys-primary)]"><mat-icon aria-hidden="true">ads_click</mat-icon>{{ I18N.gallery.selection.targets.title | translate }}</summary>
               <div data-toolbar-panel class="absolute bottom-full left-0 mb-3 group-data-[toolbar-down=true]/selection:bottom-auto group-data-[toolbar-down=true]/selection:top-full group-data-[toolbar-down=true]/selection:mb-0 group-data-[toolbar-down=true]/selection:mt-3 max-h-[60vh] w-full max-w-160 overflow-y-auto rounded-lg border border-[var(--mat-sys-outline-variant)] bg-[var(--mat-sys-surface-container)] p-3 shadow-lg text-sm">
                 <p class="mt-0">{{ (viewScoped() ? I18N.gallery.selection.targets.view : I18N.gallery.selection.targets.explicit) | translate }}</p>
                 @if (!viewScoped()) {
@@ -852,7 +852,7 @@ const SET_KIND_TOGGLE: Record<string, keyof HiddenFilterFlags> = {
             <button mat-button data-selection-keep class="max-md:!min-h-11 max-md:!min-w-11 max-md:!w-11 max-md:!px-2" [matTooltip]="I18N.review.keep | translate" (click)="selectionActions.batchReview('kept')" [attr.aria-label]="I18N.review.keep | translate"><mat-icon class="max-md:!m-0">check_circle</mat-icon><span class="hidden md:inline">{{ I18N.review.keep | translate }}</span></button>
             <button mat-button data-selection-reject class="max-md:!min-h-11 max-md:!min-w-11 max-md:!w-11 max-md:!px-2" [matTooltip]="I18N.gallery.selection.reject | translate" (click)="selectionActions.batchReject()" [attr.aria-label]="I18N.gallery.selection.reject | translate"><mat-icon class="max-md:!m-0">thumb_down</mat-icon><span class="hidden md:inline">{{ I18N.gallery.selection.reject | translate }}</span></button>
           }
-          <button mat-icon-button class="md:!hidden" (click)="openActionsSheet()" [disabled]="selectionActions.downloading()" [matTooltip]="I18N.gallery.selection.actions | translate" [attr.aria-label]="I18N.gallery.selection.actions | translate">
+          <button mat-icon-button class="md:!hidden !h-11 !w-11 !min-w-11 !p-2.5" (click)="openActionsSheet()" [disabled]="selectionActions.downloading()" [matTooltip]="I18N.gallery.selection.actions | translate" [attr.aria-label]="I18N.gallery.selection.actions | translate">
             @if (selectionActions.downloading()) { <mat-spinner diameter="18" [attr.aria-label]="I18N.ui.labels.loading | translate"></mat-spinner> } @else { <mat-icon>more_horiz</mat-icon> }
           </button>
           <details #selectionMore #selectionDisclosure name="gallery-selection-disclosures" data-selection-more class="max-md:hidden" (keydown.escape)="closeDisclosure($event, selectionMore, selectionMoreSummary)">

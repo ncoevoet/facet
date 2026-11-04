@@ -348,7 +348,7 @@ export function loadActiveTab(): SidebarTabId {
       }
     </div>
 
-    <mat-tab-nav-panel #tabPanel class="flex-1 min-h-0 flex flex-col [--mat-expansion-header-collapsed-state-height:40px] [--mat-expansion-header-expanded-state-height:44px] [&_.mat-expansion-panel-body]:!px-4">
+    <mat-tab-nav-panel #tabPanel class="flex-1 min-h-0 flex flex-col [--mat-expansion-header-collapsed-state-height:40px] [--mat-expansion-header-expanded-state-height:44px] [&_.mat-expansion-panel-body]:!px-2">
     <div data-scroll #scrollArea class="flex-1 min-h-0 overflow-y-auto px-2 pt-3 pb-4">
 
       @if (!filterQuery().trim() && pinnedFilters().length) {
@@ -389,7 +389,7 @@ export function loadActiveTab(): SidebarTabId {
                              (opened)="onSectionToggle('semantic', true)"
                              (closed)="onSectionToggle('semantic', false)"
                              [style.background-color]="sectionStates()['semantic'] === true ? 'var(--mat-sys-surface-container)' : null">
-          <mat-expansion-panel-header class="!px-4">
+          <mat-expansion-panel-header class="!px-2">
             <mat-panel-title class="flex items-center gap-2">
               <mat-icon class="!text-xl !w-5 !h-5 !leading-none opacity-80">image_search</mat-icon>
               {{ I18N.gallery.sidebar.semantic_search | translate }}
@@ -441,7 +441,7 @@ export function loadActiveTab(): SidebarTabId {
                              (opened)="onSectionToggle('persons', true)"
                              (closed)="onSectionToggle('persons', false)"
                              [style.background-color]="sectionStates()['persons'] !== false ? 'var(--mat-sys-surface-container)' : null">
-          <mat-expansion-panel-header class="!px-4">
+          <mat-expansion-panel-header class="!px-2">
             <mat-panel-title class="flex items-center gap-2">
               <mat-icon class="!text-xl !w-5 !h-5 !leading-none opacity-80">people</mat-icon>
               {{ I18N.gallery.sidebar.persons | translate }}
@@ -511,7 +511,7 @@ export function loadActiveTab(): SidebarTabId {
                            (opened)="onSectionToggle('date', true)"
                            (closed)="onSectionToggle('date', false)"
                            [style.background-color]="sectionStates()['date'] !== false ? 'var(--mat-sys-surface-container)' : null">
-        <mat-expansion-panel-header class="!px-4">
+        <mat-expansion-panel-header class="!px-2">
           <mat-panel-title class="flex items-center gap-2">
             <mat-icon class="!text-xl !w-5 !h-5 !leading-none opacity-80">calendar_today</mat-icon>
             {{ I18N.gallery.sidebar.date | translate }}
@@ -545,7 +545,7 @@ export function loadActiveTab(): SidebarTabId {
                              (opened)="onSectionToggle('content', true)"
                              (closed)="onSectionToggle('content', false)"
                              [style.background-color]="sectionStates()['content'] !== false ? 'var(--mat-sys-surface-container)' : null">
-          <mat-expansion-panel-header class="!px-4">
+          <mat-expansion-panel-header class="!px-2">
             <mat-panel-title class="flex items-center gap-2">
               <mat-icon class="!text-xl !w-5 !h-5 !leading-none opacity-80">label</mat-icon>
               {{ I18N.gallery.sidebar.content | translate }}
@@ -600,7 +600,7 @@ export function loadActiveTab(): SidebarTabId {
                              (opened)="onSectionToggle('albums', true)"
                              (closed)="onSectionToggle('albums', false)"
                              [style.background-color]="sectionStates()['albums'] === true ? 'var(--mat-sys-surface-container)' : null">
-          <mat-expansion-panel-header class="!px-4">
+          <mat-expansion-panel-header class="!px-2">
             <mat-panel-title class="flex items-center gap-2">
               <mat-icon class="!text-xl !w-5 !h-5 !leading-none opacity-80">photo_album</mat-icon>
               {{ I18N.albums.title | translate }}
@@ -625,7 +625,7 @@ export function loadActiveTab(): SidebarTabId {
                            (opened)="onSectionToggle('location', true)"
                            (closed)="onSectionToggle('location', false)"
                            [style.background-color]="sectionStates()['location'] === true ? 'var(--mat-sys-surface-container)' : null">
-        <mat-expansion-panel-header class="!px-4">
+        <mat-expansion-panel-header class="!px-2">
           <mat-panel-title class="flex items-center gap-2">
             <mat-icon class="!text-xl !w-5 !h-5 !leading-none opacity-80">place</mat-icon>
             {{ I18N.gallery.sidebar.location | translate }}
@@ -667,7 +667,7 @@ export function loadActiveTab(): SidebarTabId {
                              (opened)="onSectionToggle('folder', true)"
                              (closed)="onSectionToggle('folder', false)"
                              [style.background-color]="sectionStates()['folder'] === true ? 'var(--mat-sys-surface-container)' : null">
-          <mat-expansion-panel-header class="!px-4">
+          <mat-expansion-panel-header class="!px-2">
             <mat-panel-title class="flex items-center gap-2">
               <mat-icon class="!text-xl !w-5 !h-5 !leading-none opacity-80">folder</mat-icon>
               {{ I18N.gallery.sidebar.folder | translate }}
@@ -705,7 +705,7 @@ export function loadActiveTab(): SidebarTabId {
                              (opened)="onSectionToggle('equipment', true)"
                              (closed)="onSectionToggle('equipment', false)"
                              [style.background-color]="sectionStates()['equipment'] !== false ? 'var(--mat-sys-surface-container)' : null">
-          <mat-expansion-panel-header class="!px-4">
+          <mat-expansion-panel-header class="!px-2">
             <mat-panel-title class="flex items-center gap-2">
               <mat-icon class="!text-xl !w-5 !h-5 !leading-none opacity-80">photo_camera</mat-icon>
               {{ I18N.gallery.sidebar.equipment | translate }}
@@ -855,7 +855,7 @@ export function loadActiveTab(): SidebarTabId {
                              (opened)="onSectionToggle('color_quality', true)"
                              (closed)="onSectionToggle('color_quality', false)"
                              [style.background-color]="sectionStates()['color_quality'] === true ? 'var(--mat-sys-surface-container)' : null">
-          <mat-expansion-panel-header class="!px-4">
+          <mat-expansion-panel-header class="!px-2">
             <mat-panel-title class="flex items-center gap-2">
               <mat-icon class="!text-xl !w-5 !h-5 !leading-none opacity-80">palette</mat-icon>
               {{ I18N.gallery.sidebar.color_quality | translate }}
@@ -978,7 +978,7 @@ export function loadActiveTab(): SidebarTabId {
                              (opened)="onSectionToggle(group.sectionKey, true)"
                              (closed)="onSectionToggle(group.sectionKey, false)"
                              [style.background-color]="sectionStates()[group.sectionKey] === true ? 'var(--mat-sys-surface-container)' : null">
-          <mat-expansion-panel-header class="!px-4">
+          <mat-expansion-panel-header class="!px-2">
             <mat-panel-title class="flex items-center gap-2">
               <mat-icon class="!text-xl !w-5 !h-5 !leading-none opacity-80" [class]="group.sectionKey | markTone">{{ sectionIcons[group.sectionKey] || 'tune' }}</mat-icon>
               {{ group.sectionKey | translate }}

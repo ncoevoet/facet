@@ -28,7 +28,7 @@ type Result = components['schemas']['KeywordChangeResult'];
             <input #searchInput data-keyword-search type="search" maxlength="64" [value]="search()" (input)="search.set($any($event.target).value); catalog.set(null)"
               class="mt-1 min-h-11 w-full min-w-0 rounded border border-[var(--mat-sys-outline)] bg-[var(--mat-sys-surface)] px-3 text-base" />
           </label>
-          <button type="submit" class="self-end min-h-11 rounded border border-[var(--mat-sys-outline)] px-2 text-xs" [disabled]="busy()">{{ I18N.keyword_catalog.find | translate }}</button>
+          <button type="submit" class="self-end min-h-11 rounded border border-[var(--mat-sys-outline)] px-3 text-sm" [disabled]="busy()">{{ I18N.keyword_catalog.find | translate }}</button>
         </form>
         @if (error()) { <p role="alert" class="text-xs">{{ I18N.keyword_catalog.error | translate }}</p> }
         @if (loading()) { <p role="status" class="text-xs">{{ I18N.ui.labels.loading | translate }}</p> }
@@ -69,8 +69,8 @@ type Result = components['schemas']['KeywordChangeResult'];
               <button #applyButton type="button" data-keyword-apply class="min-h-11 rounded bg-[var(--mat-sys-primary)] px-3 text-sm text-[var(--mat-sys-on-primary)]" [disabled]="busy() || uncertain()" (click)="apply()">{{ I18N.ui.buttons.apply | translate }}</button>
             } @else {
               <div class="flex flex-wrap gap-2">
-                <button type="button" class="min-h-11 rounded border border-[var(--mat-sys-outline)] px-2 text-xs" [disabled]="busy() || uncertain() || !target().trim()" (click)="preview(false)">{{ I18N.keyword_catalog.rename_preview | translate }}</button>
-                <button type="button" class="min-h-11 rounded border border-[var(--mat-sys-outline)] px-2 text-xs" [disabled]="busy() || uncertain()" (click)="preview(true)">{{ I18N.keyword_catalog.remove_preview | translate }}</button>
+                <button type="button" class="min-h-11 rounded border border-[var(--mat-sys-outline)] px-3 text-sm" [disabled]="busy() || uncertain() || !target().trim()" (click)="preview(false)">{{ I18N.keyword_catalog.rename_preview | translate }}</button>
+                <button type="button" class="min-h-11 rounded border border-[var(--mat-sys-outline)] px-3 text-sm" [disabled]="busy() || uncertain()" (click)="preview(true)">{{ I18N.keyword_catalog.remove_preview | translate }}</button>
               </div>
             }
           </section>
