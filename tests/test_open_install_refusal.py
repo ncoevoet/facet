@@ -88,6 +88,7 @@ EXPECTED_EDITION_ROUTES = frozenset({
     ('POST', '/api/manual_tags/manage/preview'),
     ('POST', '/api/stacks/regroup/apply'),
     ('POST', '/api/stacks'),
+    ('POST', '/api/photo/ai_edits/import'),
     ('PUT', '/api/stacks/{stack_id}'),
     ('DELETE', '/api/stacks/{stack_id}'),
     ('POST', '/api/stacks/suggestions/dismissals'),

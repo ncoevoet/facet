@@ -12,6 +12,7 @@
 |---------|-------------|
 | `python facet.py /path` | Analyse un répertoire (multi-passes, détection automatique de la VRAM) |
 | `python facet.py /path --force` | Réanalyse les fichiers déjà traités |
+| `python facet.py <file> --ai-edit` | Note uniquement ces retouches IA importées, place chacune dans la rafale de son original et la légende ; saute les passes sur toute la bibliothèque (utilisé par l'import de retouches IA) |
 | `python facet.py /path --single-pass` | Charge tous les modèles en même temps ; profils `legacy`/`8gb` uniquement (voir [Modes de traitement](#modes-de-traitement)) |
 | `python facet.py /path --pass quality` | Exécute uniquement la notation de qualité TOPIQ |
 | `python facet.py /path --pass quality-iaa` | Exécute uniquement la notation du mérite esthétique TOPIQ IAA |

@@ -9,6 +9,8 @@ import os
 import sqlite3
 from unittest import mock
 
+import numpy as np
+
 from api.routers.persons import _resolve_merge_chains
 
 
@@ -200,19 +202,14 @@ class TestRejectMergeSuggestion:
             conn.commit()
             conn.close()
 
-            one_pair = [{
-                "person1": {"id": 9100, "name": "A", "face_count": 3},
-                "person2": {"id": 9101, "name": "B", "face_count": 2},
-                "similarity": 0.8,
-            }]
-
-            # Patch the pairwise-suggestion computation directly so the test is
-            # isolated from whatever centroids the session DB happens to hold;
-            # the endpoint's rejected-pair filtering is what we exercise here.
-            with mock.patch(
-                "api.routers.merge_suggestions._pairwise_suggestions",
-                return_value=one_pair,
-            ):
+            centroid = np.array([1.0, 0.0])
+            people = [
+                {"id": pid, "name": f"P{pid}", "face_count": 0, "centroid": centroid}
+                for pid in (9100, 9101)
+            ]
+            # Isolate these centroids from the shared test database while
+            # exercising the real ranking and dismissal lookup.
+            with mock.patch("db.person_centroids.load_person_centroids", return_value=people):
                 before = edition_client.get("/api/merge_suggestions")
                 assert before.status_code == 200
                 assert len(before.json()["suggestions"]) == 1

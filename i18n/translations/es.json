@@ -3213,6 +3213,10 @@
       "count_help": "Aquí se muestra cada archivo. Los archivos RAW/JPEG agrupados cuentan como una sola foto en la galería.",
       "member_position": "Archivo {position} de {count}"
     },
+    "ai_edit": {
+      "badge": "Edición con IA",
+      "badge_short": "IA"
+    },
     "delete": {
       "button_label": "Eliminar",
       "confirm_title": "¿Eliminar esta foto?",
@@ -3731,7 +3735,8 @@
       "create_photo_stack": "Pila de fotos creada",
       "update_photo_stack": "Pila de fotos actualizada",
       "unstack_photos": "Fotos desapiladas",
-      "undo_photo_stack": "Cambio de pila deshecho"
+      "undo_photo_stack": "Cambio de pila deshecho",
+      "import_ai_edit": "Importó una edición con IA"
     },
     "ui": {
       "ui_navigate": "Página abierta",

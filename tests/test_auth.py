@@ -1075,7 +1075,10 @@ class TestEditionLoginReportsAnUnreadableConfig:
     def test_an_unreadable_config_answers_503(self):
         import api.auth as api_auth
 
+        # The limiter is bound into the router module at import time, so the
+        # patch must replace it there (see _AUTH_MODULE above).
         with mock.patch.object(api_auth, "config_load_failed", lambda: True), \
+             mock.patch(f"{_AUTH_MODULE}._login_limiter", _fresh_limiter()), \
              mock.patch.dict(api_auth.VIEWER_CONFIG, {"edition_password": ""}), \
              mock.patch.object(api_auth, "is_multi_user_enabled", lambda: False):
             client = TestClient(create_app())
@@ -1085,10 +1088,16 @@ class TestEditionLoginReportsAnUnreadableConfig:
         assert "Configuration could not be read" in res.json()["detail"]
 
     def test_a_deliberately_open_install_still_answers_401(self):
-        """The other half: no edition gate configured is not a server fault."""
+        """The other half: no edition gate configured is not a server fault.
+
+        The shared module-level limiter is replaced with a fresh one: every
+        earlier login POST in this process counted against the same 60-second
+        window, and once a shard's fifth attempt lands inside it, this test
+        saw the limiter's 429 instead of its own 401 (Windows shard 4)."""
         import api.auth as api_auth
 
         with mock.patch.object(api_auth, "config_load_failed", lambda: False), \
+             mock.patch(f"{_AUTH_MODULE}._login_limiter", _fresh_limiter()), \
              mock.patch.dict(api_auth.VIEWER_CONFIG, {"edition_password": ""}), \
              mock.patch.object(api_auth, "is_multi_user_enabled", lambda: False):
             client = TestClient(create_app())

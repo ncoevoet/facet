@@ -26,7 +26,7 @@ import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { firstValueFrom, skip, finalize } from 'rxjs';
 import { UserActivityJournal } from '../../core/agent/user-activity-journal.service';
 import { AssistantChangeBatch, AssistantChangesService } from '../../core/agent/assistant-changes.service';
-import { Photo, KeeperHint, PhotoSet, normalisePhotoFlags } from '../../shared/models/photo.model';
+import { Photo, KeeperHint, PhotoSet, PhotoSetMember, normalisePhotoFlags } from '../../shared/models/photo.model';
 import { AuthService } from '../../core/services/auth.service';
 import { StalenessGuardFactory } from '../../core/services/staleness-guard.service';
 import { PhotoActionsService } from '../../core/services/photo-actions.service';
@@ -639,14 +639,16 @@ const SOCIAL_SOURCE_KEYS: Record<string, string> = {
                   </button>
                 </div>
                 <div class="flex gap-2 flex-wrap">
-                  @for (member of set.members; track member.path) {
+                  @for (member of setStripMembers(); track member.path) {
                     <button class="relative rounded-lg overflow-hidden w-16 h-16 shrink-0 cursor-pointer hover:opacity-80 transition-opacity ring-[var(--mat-sys-primary)]"
                             [class.ring-2]="member.path === p.path"
-                            [attr.aria-label]="(I18N.photo_detail.set.member_position | translate:{ position: $index + 1, count: set.members.length }) + (member.ev_offset !== null ? ', ' + (member.ev_offset | evOffset) : '') + (member.is_blink ? ', ' + (I18N.ui.badges.blink | translate) : '')"
+                            [attr.aria-label]="(I18N.photo_detail.set.member_position | translate:{ position: $index + 1, count: set.members.length }) + (member.ev_offset !== null ? ', ' + (member.ev_offset | evOffset) : '') + (member.ai_edit_of ? ', ' + (I18N.photo_detail.ai_edit.badge | translate) : '') + (member.is_blink ? ', ' + (I18N.ui.badges.blink | translate) : '')"
                             (click)="openSetMember(member.path)">
                       <img [src]="member.path | thumbnailUrl:96:member.preview_revision" alt="" class="w-full h-full object-cover" />
                       @if (member.ev_offset !== null) {
                         <span class="absolute bottom-0 inset-x-0 text-center text-[0.625rem] leading-4 bg-black/60 text-white">{{ member.ev_offset | evOffset }}</span>
+                      } @else if (member.ai_edit_of) {
+                        <span class="absolute bottom-0 inset-x-0 text-center text-[0.625rem] leading-4 font-bold bg-black/70 text-white" data-ai-label>✨ {{ I18N.photo_detail.ai_edit.badge_short | translate }}</span>
                       }
                       @if (member.is_blink) {
                         <span class="absolute top-0 inset-x-0 text-center text-[0.625rem] leading-4 font-bold bg-yellow-600 text-white">{{ I18N.ui.badges.blink | translate }}</span>
@@ -657,6 +659,7 @@ const SOCIAL_SOURCE_KEYS: Record<string, string> = {
               </div>
             }
           }
+
         </div>
       </div>
     } @else if (photoMissing()) {
@@ -923,6 +926,12 @@ export class PhotoDetailComponent extends PhotoDetailBase implements OnInit {
   /** Blink frames in the set: the gallery hides them by default, so saying so here
    *  explains why "Open in gallery" can list fewer photos than the set holds. */
   protected readonly setBlinkCount = computed(() => this.photoSet()?.members.filter(m => m.is_blink).length ?? 0);
+  /** The strip's order: the frames the gallery keeps, then AI edits, then the blinks it drops. */
+  protected readonly setStripMembers = computed(() => {
+    const members = this.photoSet()?.members ?? [];
+    const rank = (m: PhotoSetMember) => (m.is_blink ? 2 : m.ai_edit_of ? 1 : 0);
+    return [...members].sort((a, b) => rank(a) - rank(b));
+  });
   private photoSetEffect = effect(() => {
     const p = this.photo();
     this.photoSet.set(null);

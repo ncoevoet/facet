@@ -1111,6 +1111,26 @@ Pesi usati dalla selezione delle raffiche per scegliere lo scatto migliore in ci
 
 ---
 
+## Modifiche IA
+
+Quali strumenti di IA possono importare una modifica con `import_ai_edit` (vedi [Agenti IA](AGENTS.md)) e l'etichetta che ciascuno mette nel nome del file: una modifica di `IMG_3533.JPG` fatta con `antigravity-gemini` viene salvata come `IMG_3533_agy_1.JPG`. Uno strumento non elencato viene rifiutato.
+
+```json
+{
+  "ai_edits": {
+    "tool_suffixes": { "antigravity-gemini": "agy", "openai-chatgpt": "gpt", "anthropic-claude": "ant" },
+    "drop_dir": ""
+  }
+}
+```
+
+| Impostazione | Predefinito | Descrizione |
+|---------|---------|-------------|
+| `tool_suffixes` | `{"antigravity-gemini": "agy", "openai-chatgpt": "gpt", "anthropic-claude": "ant"}` | Nome dello strumento → etichetta nel nome del file |
+| `drop_dir` | `""` | Una cartella del server Facet in cui un assistente sullo stesso computer salva la sua modifica e passa il nome del file come `source_file`. Facet legge il file e scrive una propria copia; non lo cancella né lo modifica mai. Tenerla fuori dalle cartelle analizzate (un file lì viene rifiutato). Vuota: gli assistenti inviano l'immagine come `image_data` |
+
+---
+
 ## Duplicate Detection
 
 Trova le foto duplicate nell'intera libreria: candidati pHash permissivi, confermati da un controllo di similarità sugli embedding.

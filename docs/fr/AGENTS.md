@@ -277,6 +277,7 @@ Les outils d'écriture figurent dans la même liste `/mcp` que les outils de lec
 | `update_photo_stack` | `edition` | Remplacer membres/ordre et couverture facultative ; refuse une révision périmée | 1000 chemins |
 | `unstack_photos` | `edition` | Dissoudre une pile sans changer les originaux |  |
 | `undo_photo_stack` | `edition` | Annuler seulement une entrée de pile disponible ; refuse les changements ultérieurs |  |
+| `import_ai_edit` | `edition` | Ajouter à la bibliothèque une retouche IA d'une photo, à côté d'elle (envoyée en octets : `image_data` (base64) ou `source_file` (un fichier de `ai_edits.drop_dir`, lu et laissé en place) ; Facet écrit sa propre copie et ne supprime jamais de fichier ; `tool` doit être configuré) ; non idempotent, chaque appel ajoute une révision ; `note` (ce qui a changé) est ajouté à la légende de l'original sous la forme `AI: <note>` et devient la légende de la retouche ; l'appel attend jusqu'à 3 minutes l'analyse de la retouche et répond `ready` avec sa légende et sa page | 1 file |
 | `create_album` | `edition` | Crée un album (non idempotent : deux appels, deux albums) : vide, ou depuis `filters` / `target: "view"` comme album intelligent qui suit ces filtres, ou depuis `paths` / `target: "selection"` comme album fixe rempli dans le même appel (`added`, `skipped`). Un album intelligent applique les bascules de masquage du visualiseur et affiche 0 photo dans `list_albums`. Des `filters` sans aucun filtre effectif (`{}`, ou seulement des bascules d'affichage désactivées) sont refusés en `invalid_input` : omettez `filters` pour un album vide | |
 | `album_add_photos` | `edition` | Ajoute des photos à un album (celles déjà présentes sont ignorées) | 1000 chemins |
 | `album_remove_photos` | `edition` | Retire des photos d'un album ; les photos ne sont pas touchées | 1000 chemins |
@@ -381,7 +382,7 @@ Les assistants peuvent lire les pondérations de score et simuler un changement.
 
 ## Prompts
 
-Le serveur propose aussi cinq prompts prêts à l'emploi, listés par `prompts/list` et filtrés selon le niveau du jeton. Un prompt ne nomme que des outils que le jeton peut appeler, et un outil destructif seulement derrière son essai à blanc et sa confirmation. Chaque appel compte dans la limite de lecture et est journalisé par nom, jamais avec ses arguments.
+Le serveur propose aussi six prompts prêts à l'emploi, listés par `prompts/list` et filtrés selon le niveau du jeton. Un prompt ne nomme que des outils que le jeton peut appeler, et un outil destructif seulement derrière son essai à blanc et sa confirmation. Chaque appel compte dans la limite de lecture et est journalisé par nom, jamais avec ses arguments.
 
 | Prompt | Arguments | Ce qu'il demande à l'assistant |
 |--------|-----------|--------------------------------|
@@ -390,6 +391,7 @@ Le serveur propose aussi cinq prompts prêts à l'emploi, listés par `prompts/l
 | `build_album` | `theme`, `album_name` | Réunir les photos correspondantes dans un nouvel album |
 | `tag_people` | `person` | Trouver les visages qui ressemblent à une personne et assigner ceux que vous confirmez |
 | `teach_taste` | `category` | Ouvrir la page de comparaison par paires dans votre onglet et suivre le nombre de comparaisons faites ; la réponse à chaque paire reste toujours votre propre clic |
+| `edit_photo` | `change`, `photo` | Trouver la photo (par chemin, description, personnes nommées ou sélection de l'onglet), retoucher une copie hors de la bibliothèque avec le modèle d'image de l'assistant, te la montrer, puis la ramener avec `import_ai_edit`. Le prompt donne les noms d'outil acceptés par le serveur. Assistants à fichiers de skill : [skill d'exemple](../examples/agent-skills/facet/SKILL.md) |
 
 ## Chambre noire (groupes de tri)
 

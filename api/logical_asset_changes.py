@@ -46,10 +46,9 @@ def _private_review_digest(value):
     return hmac.new(secret, b'facet-logical-review-private-v1\0' + _json(value), hashlib.sha256).hexdigest()
 
 
-def _indexed_aliases(conn, path, disk):
-    from api.related_files import _catalog_roots, _catalog_aliases
+def _indexed_aliases(conn, disk, roots):
+    from api.related_files import _catalog_aliases
 
-    roots = _catalog_roots(path)
     if roots is None:
         raise HTTPException(409, 'Catalog relationships could not be verified')
     aliases = _catalog_aliases(str(disk), roots)
@@ -104,7 +103,9 @@ def snapshot(conn, change: LogicalAssetChange, user_id):
             observations.append([path, disk, info.st_dev, info.st_ino, info.st_size, info.st_mtime_ns, info.st_ctime_ns])
             actual.append(Path(disk))
     if change.operation == 'create':
-        if any(_indexed_aliases(conn, path, disk) != {path} for path, disk in zip(paths, actual)):
+        from api.related_files import _catalog_roots
+
+        if any(_indexed_aliases(conn, disk, _catalog_roots(path)) != {path} for path, disk in zip(paths, actual)):
             raise HTTPException(409, 'Catalog file aliases are ambiguous; review the indexed records')
         extensions = {path.suffix.lower() for path in actual}
         if (not extensions <= RAW_EXTENSIONS | JPEG_EXTENSIONS
@@ -209,13 +210,13 @@ def context(conn, path, user_id):
     if inventory['inventory_state'] != 'checked' or Path(path).suffix.lower() not in RAW_EXTENSIONS | JPEG_EXTENSIONS:
         return {'asset': None, 'candidates': [], 'can_group': False}
     disk = resolve_photo_disk_path(path)
-    if _indexed_aliases(conn, path, disk) != {path}:
-        return {'asset': None, 'candidates': [], 'can_group': False}
+    # One roots read for the alias check and the candidates, so a config reload
+    # between them cannot pair an alias verdict with different catalog roots.
     roots = _catalog_roots(path)
+    if roots is None or _indexed_aliases(conn, disk, roots) != {path}:
+        return {'asset': None, 'candidates': [], 'can_group': False}
     candidates = [{'path': path, 'name': inventory['files'][0]['name'],
                    'kind': 'raw' if Path(path).suffix.lower() in RAW_EXTENSIONS else 'jpeg'}]
-    if roots is None:
-        return {'asset': None, 'candidates': [], 'can_group': False}
     for entry in inventory['files'][1:]:
         if entry['kind'] not in ('raw', 'jpeg') or not entry['indexed'] or entry['state'] != 'available':
             continue

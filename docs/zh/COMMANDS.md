@@ -12,6 +12,7 @@
 |---------|-------------|
 | `python facet.py /path` | 扫描目录（多阶段模式，自动检测 VRAM） |
 | `python facet.py /path --force` | 重新扫描已处理过的文件 |
+| `python facet.py <file> --ai-edit` | 只为这些导入的 AI 编辑版本评分，把每个放入其原图的连拍组并写入说明；跳过整个照片库的处理步骤（AI 编辑导入会使用） |
 | `python facet.py /path --single-pass` | 一次性加载全部模型；仅限 `legacy`/`8gb`（参见[处理模式](#处理模式)） |
 | `python facet.py /path --pass quality` | 仅运行 TOPIQ 画质评分 |
 | `python facet.py /path --pass quality-iaa` | 仅运行 TOPIQ IAA 美学价值评分 |

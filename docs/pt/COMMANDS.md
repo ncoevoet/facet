@@ -12,6 +12,7 @@
 |---------|-------------|
 | `python facet.py /path` | Escaneia um diretório (multi-passo, detecção automática de VRAM) |
 | `python facet.py /path --force` | Reescaneia arquivos já processados |
+| `python facet.py <file> --ai-edit` | Pontua só estas edições por IA importadas, coloca cada uma na rajada do seu original e legenda-a; salta as passagens por toda a biblioteca (usado pela importação de edições por IA) |
 | `python facet.py /path --single-pass` | Carrega todos os modelos de uma vez; apenas `legacy`/`8gb` (veja [Modos de Processamento](#modos-de-processamento)) |
 | `python facet.py /path --pass quality` | Executa apenas a pontuação de qualidade TOPIQ |
 | `python facet.py /path --pass quality-iaa` | Executa apenas a pontuação de mérito estético TOPIQ IAA |

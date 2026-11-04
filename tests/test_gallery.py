@@ -1440,6 +1440,22 @@ class TestPhotoSetEndpoint:
         assert {m["path"]: m["is_blink"] for m in data["members"]} == {
             "/burst-b.jpg": False, "/burst-a.jpg": True}
 
+    def test_members_carry_the_original_of_an_ai_edit(self, tmp_path):
+        """An AI edit taken at the same moment joins its original's burst; the strip labels it."""
+        db_path = str(tmp_path / "test.db")
+        _make_db(db_path, self._PHOTOS)
+        with sqlite3.connect(db_path) as conn:
+            conn.execute("INSERT INTO photo_ai_edits (edit_path, source_path, tool, revision)"
+                         " VALUES ('/burst-a.jpg', '/burst-b.jpg', 'antigravity-gemini', 1)")
+        app = _create_app_no_auth()
+        with (
+            mock.patch("api.routers.gallery.get_async_db", _async_conn_factory(db_path)),
+            mock.patch("api.db_helpers._existing_columns_cache", _existing_columns(db_path)),
+        ):
+            data = TestClient(app).get("/api/photo/set?path=/burst-b.jpg").json()
+        assert {m["path"]: m.get("ai_edit_of") for m in data["members"]} == {
+            "/burst-b.jpg": None, "/burst-a.jpg": "/burst-b.jpg"}
+
     def test_bracket_members_carry_the_blink_flag(self, tmp_path):
         """The sequence-set path maps is_blink separately from the burst path."""
         data = self._fetch(tmp_path, "/b-base.jpg").json()

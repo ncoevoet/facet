@@ -277,6 +277,7 @@ Write tools are in the same `/mcp` list as the read tools. Each goes through the
 | `update_photo_stack` | `edition` | Replace explicit members/order and optional cover; stale revision refuses | 1000 paths |
 | `unstack_photos` | `edition` | Dissolve a stack; originals stay intact |  |
 | `undo_photo_stack` | `edition` | Undo an available stack entry only; later changes refuse |  |
+| `import_ai_edit` | `edition` | Bring an AI edit of a photo into the library beside it, sent as bytes: `image_data` (base64) or `source_file` (a file in `ai_edits.drop_dir`, read and left in place); Facet writes its own copy and never deletes a file; `tool` must be configured; not idempotent, each call adds a revision; `note` (what changed) is appended to the original's caption as the edit's caption, `AI: <note>`; the call waits up to 3 minutes for the edit's scan and answers `ready` with its caption and page | 1 file |
 | `create_album` | `edition` | Create an album (not idempotent: twice makes two albums): empty, or from `filters` / `target: "view"` as a smart album that follows those filters, or from `paths` / `target: "selection"` as a fixed album filled in the same call (`added`, `skipped`). Smart albums show the viewer's own hide toggles and read 0 photos in `list_albums`. `filters` that hold no effective filter (`{}`, or only display toggles set to off) are refused as `invalid_input`: omit `filters` for an empty album | |
 | `album_add_photos` | `edition` | Add photos to an album (already present ones are ignored) | 1000 paths |
 | `album_remove_photos` | `edition` | Remove photos from an album; the photos are untouched | 1000 paths |
@@ -381,7 +382,7 @@ Assistants can read the scoring weights and dry-run a change. Four tools write: 
 
 ## Prompts
 
-The server also offers five ready-made prompts, listed by `prompts/list` and filtered by the token's level. A prompt only names tools the token can call, and a destructive tool only behind its dry run and confirmation. Each call counts against the read rate limit and is logged by name, never with its arguments.
+The server also offers six ready-made prompts, listed by `prompts/list` and filtered by the token's level. A prompt only names tools the token can call, and a destructive tool only behind its dry run and confirmation. Each call counts against the read rate limit and is logged by name, never with its arguments.
 
 | Prompt | Arguments | What it asks the assistant to do |
 |--------|-----------|-----------------------------------|
@@ -390,6 +391,7 @@ The server also offers five ready-made prompts, listed by `prompts/list` and fil
 | `build_album` | `theme`, `album_name` | Collect matching photos into a new album |
 | `tag_people` | `person` | Find faces that look like a person and assign the ones you confirm |
 | `teach_taste` | `category` | Open the pairwise comparison page in your tab and track how many comparisons you have made; the answer to each pair is always your own click |
+| `edit_photo` | `change`, `photo` | Find the photo (by path, description, named people or the tab's selection), edit a copy outside the library with the assistant's image model, show it to you, then bring it back with `import_ai_edit`. The prompt lists the tool names the server accepts. Skill-file assistants: [example skill](examples/agent-skills/facet/SKILL.md) |
 
 ## Darkroom (culling groups)
 

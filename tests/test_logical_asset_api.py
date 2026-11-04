@@ -926,11 +926,12 @@ def test_context_refuses_when_catalog_roots_change_after_inventory(edition_clien
     def changing_roots(path):
         nonlocal calls
         calls += 1
-        # Inventory and indexed-alias checks can succeed before config changes.
-        return original(path) if calls < 3 else None
+        # The inventory succeeds before config changes; the grouping context then
+        # reads the roots once, for both its alias check and its candidates.
+        return original(path) if calls < 2 else None
 
     monkeypatch.setattr(related_files, '_catalog_roots', changing_roots)
     response = edition_client.get('/api/logical_assets/by-photo', params={'path': bundle['paths'][0]})
     assert response.status_code == 200
-    assert calls == 3
+    assert calls == 2
     assert response.json() == {'asset': None, 'candidates': [], 'can_group': False}

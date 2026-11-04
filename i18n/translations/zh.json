@@ -3213,6 +3213,10 @@
       "count_help": "此处显示每个文件。已分组的 RAW/JPEG 文件在图库中计为一张照片。",
       "member_position": "第 {position} 个文件，共 {count} 个"
     },
+    "ai_edit": {
+      "badge": "AI 编辑",
+      "badge_short": "AI"
+    },
     "delete": {
       "button_label": "删除",
       "confirm_title": "删除这张照片？",
@@ -3731,7 +3735,8 @@
       "create_photo_stack": "已创建照片堆叠",
       "update_photo_stack": "已更新照片堆叠",
       "unstack_photos": "已取消照片堆叠",
-      "undo_photo_stack": "已撤销照片堆叠更改"
+      "undo_photo_stack": "已撤销照片堆叠更改",
+      "import_ai_edit": "导入了 AI 编辑版本"
     },
     "ui": {
       "ui_navigate": "已打开页面",

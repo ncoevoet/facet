@@ -277,6 +277,7 @@ Schreibwerkzeuge stehen in derselben `/mcp`-Liste wie die Lesewerkzeuge. Jedes l
 | `update_photo_stack` | `edition` | Mitglieder/Reihenfolge und optionales Titelbild ersetzen; alte Revision verweigert | 1000 Pfade |
 | `unstack_photos` | `edition` | Stapel auflösen, Originale bleiben erhalten |  |
 | `undo_photo_stack` | `edition` | Nur verfügbaren Stapeleintrag rückgängig machen; spätere Änderungen verweigert |  |
+| `import_ai_edit` | `edition` | Eine KI-Bearbeitung eines Fotos neben ihm in die Bibliothek bringen (als Bytes gesendet: `image_data` (base64) oder `source_file` (eine Datei in `ai_edits.drop_dir`, gelesen und liegen gelassen); Facet schreibt eine eigene Kopie und löscht nie eine Datei; `tool` muss konfiguriert sein); nicht idempotent, jeder Aufruf fügt eine Revision hinzu; `note` (was sich geändert hat) wird als `AI: <note>` an die Bildunterschrift des Originals angehängt und so zur Bildunterschrift der Bearbeitung; der Aufruf wartet bis zu 3 Minuten auf den Scan der Bearbeitung und meldet `ready` mit Bildunterschrift und Seite | 1 file |
 | `create_album` | `edition` | Legt ein Album an (nicht idempotent: zweimal ergibt zwei Alben): leer, oder aus `filters` / `target: "view"` als Smart-Album, das diesen Filtern folgt, oder aus `paths` / `target: "selection"` als festes Album, im selben Aufruf befüllt (`added`, `skipped`). Smart-Alben nutzen die Ausblend-Schalter des Viewers und zeigen in `list_albums` 0 Fotos. `filters` ohne wirksamen Filter (`{}` oder nur ausgeschaltete Anzeige-Schalter) werden als `invalid_input` abgewiesen: lassen Sie `filters` für ein leeres Album weg | |
 | `album_add_photos` | `edition` | Fügt einem Album Fotos hinzu (bereits enthaltene werden ignoriert) | 1000 Pfade |
 | `album_remove_photos` | `edition` | Entfernt Fotos aus einem Album; die Fotos selbst bleiben unberührt | 1000 Pfade |
@@ -381,7 +382,7 @@ Assistenten können die Scoring-Gewichte lesen und eine Änderung im Probelauf p
 
 ## Prompts
 
-Der Server bietet außerdem fünf vorgefertigte Prompts an, die `prompts/list` aufführt und nach der Stufe des Tokens filtert. Ein Prompt nennt nur Werkzeuge, die das Token aufrufen kann, und ein destruktives Werkzeug nur hinter Probelauf und Bestätigung. Jeder Aufruf zählt zum Lese-Ratenlimit und wird nach Namen protokolliert, nie mit seinen Argumenten.
+Der Server bietet außerdem sechs vorgefertigte Prompts an, die `prompts/list` aufführt und nach der Stufe des Tokens filtert. Ein Prompt nennt nur Werkzeuge, die das Token aufrufen kann, und ein destruktives Werkzeug nur hinter Probelauf und Bestätigung. Jeder Aufruf zählt zum Lese-Ratenlimit und wird nach Namen protokolliert, nie mit seinen Argumenten.
 
 | Prompt | Argumente | Was er den Assistenten tun lässt |
 |--------|-----------|----------------------------------|
@@ -390,6 +391,7 @@ Der Server bietet außerdem fünf vorgefertigte Prompts an, die `prompts/list` a
 | `build_album` | `theme`, `album_name` | Passende Fotos in einem neuen Album sammeln |
 | `tag_people` | `person` | Gesichter finden, die einer Person ähneln, und die bestätigten zuweisen |
 | `teach_taste` | `category` | Die Paarvergleichsseite in Ihrem Tab öffnen und mitzählen, wie viele Vergleiche Sie gemacht haben; die Antwort auf jedes Paar ist immer Ihr eigener Klick |
+| `edit_photo` | `change`, `photo` | Das Foto finden (per Pfad, Beschreibung, genannten Personen oder der Auswahl im Tab), eine Kopie außerhalb der Bibliothek mit dem Bildmodell des Assistenten bearbeiten, sie dir zeigen und dann mit `import_ai_edit` zurückbringen. Der Prompt nennt die Werkzeugnamen, die der Server annimmt. Assistenten mit Skill-Dateien: [Beispiel-Skill](../examples/agent-skills/facet/SKILL.md) |
 
 ## Dunkelkammer (Auswahlgruppen)
 
