@@ -1,8 +1,7 @@
-import { isNavigationSettled } from '../../shared/utils/navigation-settled';
+import { trackPendingNavigation } from '../../shared/utils/navigation-settled';
 import { ChangeDetectionStrategy, Component, DestroyRef, ElementRef, computed, effect, inject, signal, untracked, viewChild } from '@angular/core';
 import { HttpErrorResponse } from '@angular/common/http';
-import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
-import { NavigationStart, Router } from '@angular/router';
+import { Router } from '@angular/router';
 import { firstValueFrom, Subject, takeUntil } from 'rxjs';
 import type { components } from '../../core/api/schema';
 import { ApiService } from '../../core/services/api.service';
@@ -97,8 +96,7 @@ export class KeywordCatalogComponent {
   private readonly applyButton = viewChild<ElementRef<HTMLButtonElement>>('applyButton');
   private readonly cancelled = new Subject<void>();
   private version = 0;
-  private navigation = 0;
-  private pending = false;
+  private readonly pending = trackPendingNavigation({ started: () => this.reset() });
   private previewInput: string | null = null;
   private session = { owner: this.auth.identity(), status: this.auth.status(), token: this.auth.token };
   readonly opened = signal(false);
@@ -121,17 +119,10 @@ export class KeywordCatalogComponent {
     effect(() => { const input = this.targetInput(); if (input && this.source() && this.current()) untracked(() => input.nativeElement.focus()); });
     effect(() => { const button = this.applyButton(); if (button && this.current()) untracked(() => button.nativeElement.focus()); });
     this.destroyRef.onDestroy(() => this.stop());
-    this.router.events.pipe(takeUntilDestroyed()).subscribe(event => {
-      if (!('id' in event)) return;
-      if (event.id < this.navigation) return;
-      if (event instanceof NavigationStart) { this.navigation = event.id; this.pending = true; this.reset(); }
-      else if (isNavigationSettled(event)) {
-        this.navigation = event.id; this.pending = false;
-      }
-    });
+
   }
 
-  private current(): boolean { return !this.destroyRef.destroyed && !this.pending && this.opened()
+  private current(): boolean { return !this.destroyRef.destroyed && !this.pending() && this.opened()
     && this.session.owner === this.auth.identity() && this.session.status === this.auth.status() && this.session.token === this.auth.token
     && (this.router.url.split('?')[0] === '/' || /^\/album\/\d+$/.test(this.router.url.split('?')[0])); }
   private stop(): void { this.version++; this.cancelled.next(); this.loading.set(false); }

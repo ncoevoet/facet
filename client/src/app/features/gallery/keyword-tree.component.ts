@@ -1,7 +1,7 @@
-import { isNavigationSettled } from '../../shared/utils/navigation-settled';
+import { trackPendingNavigation } from '../../shared/utils/navigation-settled';
 import { ChangeDetectionStrategy, Component, DestroyRef, ElementRef, computed, effect, inject, signal, untracked, viewChild } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
-import { NavigationStart, Router } from '@angular/router';
+import { Router } from '@angular/router';
 import { MatIconModule } from '@angular/material/icon';
 import { firstValueFrom, Subject, takeUntil } from 'rxjs';
 import type { components } from '../../core/api/schema';
@@ -88,8 +88,14 @@ export class KeywordTreeComponent {
   private editorKey = 0;
   private editorTrigger: HTMLElement | null = null;
   private readonly cancelled = new Subject<void>();
-  private pending = false;
-  private navigation = 0;
+  private readonly pending = trackPendingNavigation({
+    blocks: event => {
+      const path = this.router.url.split('?')[0];
+      return path !== event.url.split('?')[0] || !(path === '/' || /^\/album\/\d+$/.test(path));
+    },
+    started: () => { if (this.pending()) this.reset(); },
+  });
+
   private version = 0;
   private session = { owner: this.auth.identity(), status: this.auth.status(), token: this.auth.token };
   readonly opened = signal(false);
@@ -131,24 +137,11 @@ export class KeywordTreeComponent {
         if (!this.nodes() && !this.loading()) void this.load();
       });
     });
-    this.router.events.pipe(takeUntilDestroyed()).subscribe(event => {
-      if (!('id' in event) || event.id < this.navigation) return;
-      if (event instanceof NavigationStart) {
-        this.navigation = event.id;
-        const currentPath = this.router.url.split('?')[0];
-        const targetPath = event.url.split('?')[0];
-        const sameGallery = currentPath === targetPath && (currentPath === '/' || /^\/album\/\d+$/.test(currentPath));
-        this.pending = !sameGallery;
-        if (!sameGallery) this.reset();
-      }
-      else if (isNavigationSettled(event)) {
-        this.navigation = event.id; this.pending = false;
-      }
-    });
+
     this.destroyRef.onDestroy(() => { this.stop(); this.cancelled.complete(); });
   }
   private current(): boolean {
-    return !this.destroyRef.destroyed && !this.pending && (this.opened() || !!this.store.filters().keyword_branch)
+    return !this.destroyRef.destroyed && !this.pending() && (this.opened() || !!this.store.filters().keyword_branch)
       && this.session.owner === this.auth.identity() && this.session.status === this.auth.status() && this.session.token === this.auth.token
       && (this.router.url.split('?')[0] === '/' || /^\/album\/\d+$/.test(this.router.url.split('?')[0]));
   }

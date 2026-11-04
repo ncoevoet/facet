@@ -1,7 +1,6 @@
-import { isNavigationSettled } from '../../shared/utils/navigation-settled';
+import { trackPendingNavigation } from '../../shared/utils/navigation-settled';
 import { DestroyRef, effect, inject, signal } from '@angular/core';
-import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
-import { NavigationEnd, NavigationStart, Router } from '@angular/router';
+import { NavigationEnd, Router } from '@angular/router';
 import { AuthService } from '../../core/services/auth.service';
 import { StalenessGuardFactory } from '../../core/services/staleness-guard.service';
 
@@ -14,8 +13,7 @@ export function createGalleryFilterContext(callbacks: { authChanged?: () => void
   let session = { owner: auth.identity(), status: auth.status(), token: auth.token };
   let context = newContext();
   const path = signal(router.url.split('?')[0]);
-  const pending = signal(false);
-  let navigationId = 0;
+
 
   function newContext() {
     const token = auth.token;
@@ -34,20 +32,16 @@ export function createGalleryFilterContext(callbacks: { authChanged?: () => void
     callbacks.authChanged?.();
     refreshContext(true);
   });
-  router.events.pipe(takeUntilDestroyed()).subscribe(event => {
-    if (event instanceof NavigationStart) {
-      if (event.id < navigationId) return;
-      navigationId = event.id; pending.set(true); callbacks.navigationStarted?.();
-    } else if (isNavigationSettled(event)) {
-      if (event.id < navigationId) return;
-      navigationId = event.id;
+  const pending = trackPendingNavigation({
+    started: () => callbacks.navigationStarted?.(),
+    settled: event => {
       path.set((event instanceof NavigationEnd ? event.urlAfterRedirects : router.url).split('?')[0]);
-      pending.set(false); refreshContext();
-    }
+      refreshContext();
+    },
   });
 
   return {
-    pending: pending.asReadonly(),
+    pending,
     current: () => !pending() && (path() === '/' || /^\/album\/\d+$/.test(path())) && context.current(),
   };
 }

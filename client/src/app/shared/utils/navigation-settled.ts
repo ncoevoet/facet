@@ -11,6 +11,8 @@ export function isNavigationSettled(event: Event): event is NavigationEnd | Navi
 
 /** One navigation owner; older completions cannot unlock a newer request. */
 export function trackPendingNavigation(callbacks: {
+  /** Some panels keep working through their own query-only navigation. */
+  blocks?: (event: NavigationStart) => boolean;
   started?: (event: NavigationStart) => void;
   settled?: (event: NavigationEnd | NavigationError | NavigationSkipped | NavigationCancel) => void;
 } = {}) {
@@ -20,7 +22,7 @@ export function trackPendingNavigation(callbacks: {
   let id = current?.id ?? 0;
   router.events.pipe(takeUntilDestroyed(inject(DestroyRef))).subscribe(event => {
     if (event instanceof NavigationStart && event.id >= id) {
-      id = event.id; pending.set(true); callbacks.started?.(event);
+      id = event.id; pending.set(callbacks.blocks?.(event) ?? true); callbacks.started?.(event);
     } else if (isNavigationSettled(event) && event.id >= id) {
       id = event.id; pending.set(false); callbacks.settled?.(event);
     }

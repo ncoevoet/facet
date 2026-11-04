@@ -1,7 +1,6 @@
-import { isNavigationSettled } from '../../shared/utils/navigation-settled';
+import { trackPendingNavigation } from '../../shared/utils/navigation-settled';
 import { ChangeDetectionStrategy, Component, DestroyRef, ElementRef, computed, effect, inject, input, signal, untracked, viewChild } from '@angular/core';
-import { NavigationStart, Router } from '@angular/router';
-import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
+import { Router } from '@angular/router';
 import { galleryFilterLabel } from './gallery-filter-label.pipe';
 import { ADDITIONAL_FILTERS } from './gallery-metric-filters';
 import { I18nService } from '../../core/services/i18n.service';
@@ -122,8 +121,11 @@ export class GalleryQueryProposalComponent {
   readonly acknowledged = signal(false);
   readonly error = signal('');
   private version = 0;
-  private pending = false;
-  private navigation = 0;
+  private readonly pending = trackPendingNavigation({ started: event => {
+    const plan = this.proposal();
+    if (!this.applying() || !plan?.sessionCurrent() || event.url.split('?')[0] !== plan.routePath) this.clear();
+  } });
+
   private readonly date = new CaptureDatePipe();
   private trigger: HTMLElement | null = null;
   readonly rows = computed(() => Object.entries(this.proposal()?.patch ?? {}).map(([key, value]) => ({
@@ -172,15 +174,7 @@ export class GalleryQueryProposalComponent {
         }
       });
     });
-    this.router.events.pipe(takeUntilDestroyed()).subscribe(event => {
-      if (!('id' in event) || event.id < this.navigation) return;
-      if (event instanceof NavigationStart) {
-        this.navigation = event.id; this.pending = true;
-        const plan = this.proposal();
-        if (!this.applying() || !plan?.sessionCurrent() || event.url.split('?')[0] !== plan.routePath) this.clear();
-      }
-      else if (isNavigationSettled(event)) { this.navigation = event.id; this.pending = false; }
-    });
+
   }
   private clear(): void { this.version++; this.proposal.set(null); this.acknowledged.set(false); this.error.set(''); this.applied.set(false); this.accepted.set(null); }
   close(event?: Event): void {
@@ -189,14 +183,14 @@ export class GalleryQueryProposalComponent {
     if (this.trigger?.isConnected) this.trigger.focus();
   }
   private async present(args: Record<string, unknown>): Promise<unknown> {
-    if (this.pending || !this.active() || !/^(\/|\/album\/\d+)$/.test(this.router.url.split('?')[0]) || this.store.pinnedPaths() !== null || this.proposal() || this.applying()) {
+    if (this.pending() || !this.active() || !/^(\/|\/album\/\d+)$/.test(this.router.url.split('?')[0]) || this.store.pinnedPaths() !== null || this.proposal() || this.applying()) {
       throw new UiToolError('no_active_view', 'Close the current proposal and use an active, unpinned gallery.');
     }
     const owner = this.auth.identity(), status = this.auth.status(), token = this.auth.token, route = this.router.url;
     const config = this.store.config(), album = this.store.currentAlbum(), key = this.store.filterKey({ ...this.store.filters(), page: 1 });
     const version = ++this.version;
     const sessionCurrent = () => !this.destroyRef.destroyed && owner === this.auth.identity() && status === this.auth.status() && token === this.auth.token;
-    const current = () => !this.destroyRef.destroyed && !this.pending && this.active() && version === this.version
+    const current = () => !this.destroyRef.destroyed && !this.pending() && this.active() && version === this.version
       && owner === this.auth.identity() && status === this.auth.status() && token === this.auth.token
       && route === this.router.url && config === this.store.config() && album === this.store.currentAlbum() && this.store.pinnedPaths() === null
       && key === this.store.filterKey({ ...this.store.filters(), page: 1 });
@@ -248,7 +242,7 @@ export class GalleryQueryProposalComponent {
   }
   async retry(): Promise<void> {
     const plan = this.proposal(), result = this.accepted();
-    if (!plan || !result || !this.applied() || this.applying() || this.pending || !this.active()) return;
+    if (!plan || !result || !this.applied() || this.applying() || this.pending() || !this.active()) return;
     if (!this.settlementCurrent(plan, result)) { this.clear(); this.error.set(I18N.gallery.proposal.changed); return; }
     this.applying.set(true);
     try {
