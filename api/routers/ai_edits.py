@@ -10,7 +10,8 @@ overwritten. The link is recorded in ``photo_ai_edits`` (the file is taken back 
 fails; after the scan, the edit's caption becomes the original's caption followed by
 "AI: <note>") and the one new file is scanned. Facet never deletes or changes the file it was
 handed: removing a work file is the assistant's job. Reads follow photo visibility; the import
-is edition-gated.
+is edition-gated. An original that ``viewer.path_mapping`` maps is refused (409): the scan here
+would record the mapped path, not the library's, so the import runs only where the library was scanned.
 """
 
 import base64
@@ -29,7 +30,7 @@ from starlette.datastructures import Headers
 from starlette.types import ASGIApp, Receive, Scope, Send
 
 from api.auth import CurrentUser, require_authenticated, require_edition
-from api.config import get_all_scan_directories, is_multi_user_enabled
+from api.config import get_all_scan_directories, is_multi_user_enabled, map_disk_path
 from api.database import get_async_db, get_db
 from api.db_helpers import get_visibility_clause
 from api.models.ai_edits import MAX_EDIT_BYTES, MAX_IMAGE_DATA_CHARS, AiEdit, AiEditImport, AiEditImportResponse, AiEditsResponse
@@ -166,6 +167,17 @@ def _read_drop_file(source_file: str) -> bytes:
     return data
 
 
+def _is_path_mapped(db_path: str) -> bool:
+    """True when ``viewer.path_mapping`` sends ``db_path`` to a different place on this server.
+
+    The edit is written on this server's disk and then scanned here, and a scan records the path
+    it was given. Under a mapping that is the mapped disk path, never the library's own form, so
+    the edit's row would not sit beside its original's. Relink refuses a mapping for the same reason.
+    """
+    native = db_path.replace('\\', os.sep).replace('/', os.sep)
+    return os.path.normcase(map_disk_path(db_path)) != os.path.normcase(native)
+
+
 def _decode_image_data(text: str) -> bytes:
     try:
         data = base64.b64decode(text, validate=True)
@@ -270,6 +282,10 @@ def import_ai_edit(body: AiEditImport, user: CurrentUser = Depends(require_editi
         recorded = [r[0] for r in conn.execute(
             'SELECT revision FROM photo_ai_edits WHERE source_path = ?', (body.original_path,))]
 
+    if _is_path_mapped(body.original_path):
+        raise HTTPException(status_code=409, detail='AI edit import does not support viewer.path_mapping; '
+                                                    'import on the machine that scanned the library')
+
     if body.image_data is not None:
         data = _decode_image_data(body.image_data)
     elif body.source_file is not None:
@@ -288,7 +304,7 @@ def import_ai_edit(body: AiEditImport, user: CurrentUser = Depends(require_editi
     try:
         target, revision = _place(
             folder, data, lambda r: mod.join(folder, edit_file_name(body.original_path, suffix, r, ext)),
-            next_revision(body.original_path, suffix, names, recorded), mode)
+            next_revision(body.original_path, suffixes.values(), names, recorded), mode)
     except OSError:
         logger.exception('AI edit import could not write beside %s', body.original_path)
         raise HTTPException(status_code=500, detail='The edit could not be written beside the original') from None

@@ -70,6 +70,22 @@ def test_untouched_baseline_definitions_and_assignments_follow_current_source(li
         assert conn.execute('SELECT COUNT(*) FROM keyword_assignment_deletions').fetchone()[0] == 0
 
 
+def test_incremental_export_syncs_hierarchy_and_new_ai_edit_links_together(library):
+    source, viewer, leaf = library
+    export(library)
+    with sqlite3.connect(source) as conn:
+        change_node(conn, leaf, name='Kitten', writable_paths={'a', 'b'})
+        conn.execute("INSERT INTO photos(path,filename) VALUES('edit','edit.jpg')")
+        conn.execute("INSERT INTO photo_ai_edits(edit_path,source_path,tool,revision) VALUES('edit','a','test',1)")
+    for _ in range(2):
+        export(library)
+        with sqlite3.connect(viewer) as conn:
+            assert photo_hierarchies(conn, 'a')[0]['segments'] == ['Animals', 'Kitten']
+            assert conn.execute('SELECT edit_path,source_path,tool,revision FROM photo_ai_edits').fetchall() == [
+                ('edit', 'a', 'test', 1)]
+            assert conn.execute('SELECT COUNT(*) FROM keyword_node_edits').fetchone()[0] == 0
+
+
 def test_source_deletion_and_recreation_replace_unedited_baseline(library):
     source, viewer, leaf = library
     export(library)

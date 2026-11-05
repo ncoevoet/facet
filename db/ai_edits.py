@@ -34,16 +34,23 @@ def edit_file_name(original_path: str, suffix: str, revision: int, source_ext: s
     return f'{stem}_{suffix}_{revision}{ext}'
 
 
-def next_revision(original_path: str, suffix: str, names_in_folder, recorded_revisions) -> int:
-    """One past the highest revision already used for this original and tool suffix.
+def next_revision(original_path: str, suffixes, names_in_folder, recorded_revisions) -> int:
+    """One past the highest revision already used for this original, across every tool.
 
-    Counts both the files beside the original (an edit placed by hand counts too) and
-    the recorded rows (an edit whose file was since moved still holds its number), so
-    a revision is never reused.
+    Revisions are shared by all tools (``suffixes``: every configured tool suffix), so the
+    number orders an original's edits: after ``IMG_1_agy_2``, a ChatGPT edit is ``IMG_1_gpt_3``.
+    Counts both the files beside the original (an edit placed by hand counts too) and the
+    recorded rows (an edit whose file was since moved still holds its number), so a live
+    edit's number is never taken. A deleted edit leaves neither, so its number can come back;
+    ``apply_ai_edit_captions`` gives the new edit a fresh ``preview_revision`` so a cached
+    thumbnail of the old one is never shown under its name.
     """
     mod = _path_module(original_path)
     stem = mod.splitext(mod.basename(original_path))[0]
-    pattern = re.compile(rf'^{re.escape(stem)}_{re.escape(suffix)}_(\d+)\.[^.]+$', re.IGNORECASE)
+    tags = '|'.join(re.escape(s) for s in suffixes)
+    if not tags:
+        return max((int(r) for r in recorded_revisions), default=0) + 1
+    pattern = re.compile(rf'^{re.escape(stem)}_(?:{tags})_(\d+)\.[^.]+$', re.IGNORECASE)
     used = [int(m.group(1)) for name in names_in_folder if (m := pattern.match(name))]
     used.extend(int(r) for r in recorded_revisions)
     return max(used, default=0) + 1
@@ -77,6 +84,11 @@ def apply_ai_edit_captions(conn) -> int:
     Runs after a scan has saved its rows (a plain UPDATE, so the FTS update trigger
     keeps the search index in step). Each edit is captioned once (``captioned``); an
     edit without a note is only marked. Returns how many captions were written.
+
+    Each newly scanned edit also gets a fresh ``preview_revision``. Its file name can
+    repeat one used before (delete ``IMG_1_agy_2``, import again, and the new edit is
+    ``IMG_1_agy_2`` too), and clients cache thumbnails by path plus that revision, so
+    without it a browser would keep showing the deleted edit's picture.
     Does not commit."""
     try:
         rows = conn.execute(
@@ -95,6 +107,8 @@ def apply_ai_edit_captions(conn) -> int:
             conn.execute('UPDATE photos SET caption = ?, caption_translated = NULL WHERE path = ?',
                          (caption, edit_path))
             written += 1
+        conn.execute('UPDATE photos SET preview_revision = lower(hex(randomblob(16))) WHERE path = ?',
+                     (edit_path,))
         conn.execute('UPDATE photo_ai_edits SET captioned = 1 WHERE edit_path = ?', (edit_path,))
     return written
 

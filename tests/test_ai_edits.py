@@ -196,6 +196,13 @@ def test_a_symlink_out_of_the_drop_folder_is_refused(edition_client, library):
 
 def test_a_folder_swapped_for_a_symlink_after_the_check_is_refused(edition_client, library, monkeypatch):
     """O_NOFOLLOW guards only the last name: swap a folder on the way between the check and the open."""
+    # Probe first: a skip raised inside the request handler surfaces as an error, not a skip.
+    probe = library['work'] / 'probe'
+    try:
+        os.symlink(library['original'], probe)
+    except (OSError, NotImplementedError):
+        pytest.skip('symlinks need a privilege on this machine')
+    os.unlink(probe)
     sub = library['work'] / 'sub'
     sub.mkdir()
     _jpeg(sub / 'IMG_2.JPG', (1, 250, 1))
@@ -205,10 +212,7 @@ def test_a_folder_swapped_for_a_symlink_after_the_check_is_refused(edition_clien
     def open_after_swap(path, flags, *rest, **kw):
         if os.fspath(path) == target and not os.path.islink(sub):
             os.rename(sub, library['work'] / 'sub_old')
-            try:
-                os.symlink(library['folder'], sub)
-            except (OSError, NotImplementedError):
-                pytest.skip('symlinks need a privilege on this machine')
+            os.symlink(library['folder'], sub)
         return real_open(path, flags, *rest, **kw)
 
     monkeypatch.setattr(ai_edits_router.os, 'open', open_after_swap)
@@ -256,6 +260,24 @@ def test_an_original_missing_on_this_server_is_412(edition_client, library):
     os.remove(library['original'])
     r = _import(edition_client, library, _jpeg(library['work'] / 'gone.jpg'))
     assert r.status_code == 412, r.text
+
+
+def test_a_path_mapped_original_is_refused_and_nothing_is_written(edition_client, library, monkeypatch):
+    from api import config
+    elsewhere = library['folder'].parent / 'mounted'
+    elsewhere.mkdir()
+    monkeypatch.setitem(config.VIEWER_CONFIG, 'path_mapping', {str(library['folder']): str(elsewhere)})
+    before = _library_files(library)
+    r = _import(edition_client, library, _jpeg(library['work'] / 'x.jpg'))
+    assert r.status_code == 409 and 'path_mapping' in r.text
+    assert _library_files(library) == before and os.listdir(elsewhere) == [] and library['scans'] == []
+
+
+def test_a_mapping_for_another_folder_does_not_block_the_import(edition_client, library, monkeypatch):
+    from api import config
+    monkeypatch.setitem(config.VIEWER_CONFIG, 'path_mapping', {'//NAS/Elsewhere': '/mnt/elsewhere'})
+    r = _import(edition_client, library, _jpeg(library['work'] / 'x.jpg'))
+    assert r.status_code == 200, r.text
 
 
 def test_a_drop_folder_inside_a_scanned_folder_is_refused(edition_client, library):
@@ -405,9 +427,13 @@ def test_file_names_and_revisions():
     assert edit_file_name(r'\\nas\p\IMG_1.JPG', 'agy', 1, '.jpg') == 'IMG_1_agy_1.JPG'
     assert edit_file_name('/p/IMG_1.JPG', 'agy', 3, '.png') == 'IMG_1_agy_3.png'
     names = ['IMG_1.JPG', 'IMG_1_agy_1.JPG', 'img_1_AGY_4.png', 'IMG_1_agy_x.jpg', 'IMG_10_agy_9.jpg']
-    assert next_revision(r'\\nas\p\IMG_1.JPG', 'agy', names, []) == 5
-    assert next_revision('/p/IMG_1.JPG', 'agy', [], [2, 7]) == 8
-    assert next_revision('/p/IMG_1.JPG', 'agy', [], []) == 1
+    assert next_revision(r'\\nas\p\IMG_1.JPG', ['agy'], names, []) == 5
+    assert next_revision('/p/IMG_1.JPG', ['agy'], [], [2, 7]) == 8
+    assert next_revision('/p/IMG_1.JPG', ['agy'], [], []) == 1
+    # Shared across tools: another tool's file holds its number too, an unknown tag does not.
+    shared = ['IMG_1_agy_2.JPG', 'IMG_1_gpt_6.png', 'IMG_1_zzz_9.jpg']
+    assert next_revision('/p/IMG_1.JPG', ['agy', 'gpt'], shared, []) == 7
+    assert next_revision('/p/IMG_1.JPG', [], shared, [3]) == 4
 
 
 def test_the_edit_is_captioned_with_the_original_caption_and_the_note(edition_client, library, seed_photos_prefix):
@@ -437,6 +463,29 @@ def test_an_original_without_a_caption_gives_just_the_ai_line(edition_client, li
         apply_ai_edit_captions(conn)
         caption = conn.execute('SELECT caption FROM photos WHERE path = ?', (target,)).fetchone()[0]
     assert caption == 'AI: brighten faces'
+
+
+def test_an_edit_imported_under_a_deleted_edits_name_gets_a_new_thumbnail_key(
+        edition_client, library, seed_photos_prefix):
+    """Deleting an edit frees its number, so the next import reuses the path. Clients cache
+    thumbnails by path + preview_revision; a fresh revision keeps the old picture from showing."""
+    def import_and_scan(name):
+        target = _import(edition_client, library, _jpeg(library['work'] / name)).json()['edit_path']
+        seed_photos_prefix(target, [{
+            'path': target, 'filename': os.path.basename(target), 'aggregate': 5.0,
+            'category': 'default', 'date_taken': '2026:02:01 10:00:00'}])
+        with sqlite3.connect(_TEST_DB_FILE.name) as conn:
+            apply_ai_edit_captions(conn)
+            return target, conn.execute('SELECT preview_revision FROM photos WHERE path = ?', (target,)).fetchone()[0]
+
+    first, first_key = import_and_scan('a.jpg')
+    with sqlite3.connect(_TEST_DB_FILE.name) as conn:
+        conn.execute('DELETE FROM photos WHERE path = ?', (first,))   # the delete trigger drops the link row
+    os.remove(first)
+    second, second_key = import_and_scan('b.jpg')
+
+    assert second == first
+    assert first_key and second_key and second_key != first_key
 
 
 @pytest.mark.parametrize('states,expected', [

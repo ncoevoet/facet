@@ -978,6 +978,26 @@ def _incremental_update_viewer_data(source_db, output_path, thumbnail_size, verb
                 logger.warning('Could not clean hierarchy export snapshot', exc_info=True)
             raise
 
+    # --- Merge photo_ai_edits (AI edit -> original links; additive only) ---
+    # Same contract as photo_manual_tags. A row is keyed by edit_path, so an edit linked on the
+    # viewer deployment survives a re-export and a source link is added when absent. The guard
+    # keeps a row whose original is absent from the destination from tripping the FK.
+    if 'photo_ai_edits' in dest_tables and 'photo_ai_edits' in src_tables:
+        src_edit_cols = [r[1] for r in dest_conn.execute("PRAGMA src.table_info(photo_ai_edits)").fetchall()]
+        dest_edit_col_set = {r[1] for r in dest_conn.execute("PRAGMA main.table_info(photo_ai_edits)").fetchall()}
+        common_edit_cols = [c for c in src_edit_cols if c in dest_edit_col_set]
+        if all(c in common_edit_cols for c in ('edit_path', 'source_path', 'tool', 'revision')):
+            col_list = ', '.join(common_edit_cols)
+            dest_conn.execute(
+                f"INSERT OR IGNORE INTO main.photo_ai_edits ({col_list}) "
+                f"SELECT {col_list} FROM src.photo_ai_edits "
+                f"WHERE source_path IN (SELECT path FROM main.photos)"
+            )
+            dest_conn.commit()
+            if verbose:
+                count = dest_conn.execute("SELECT COUNT(*) FROM main.photo_ai_edits").fetchone()[0]
+                logger.info("  Merged AI edit links (%d rows)", count)
+
     # --- Sync photos_vec (sqlite-vec KNN index; no FK/trigger, hand-synced) ---
     # The viewer DB nulls out photos.clip_embedding, so photos_vec is the ONLY
     # place embeddings survive on the deployment — the NumPy search fallback has

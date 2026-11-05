@@ -839,7 +839,8 @@ def _sequence_siblings(conn, group_keys, exclude_paths, user_id, *, logical=Fals
 
 def _reassign_dead_leads(conn, removed_db_paths, user_id, commit: bool = True):
     """Re-pick a surviving frame as lead for any panorama-kind sequence group
-    whose lead was just moved/trashed.
+    whose lead was just moved/trashed, and for any burst left without a lead
+    (``_reassign_dead_burst_leads``).
 
     ``move_rejects``/``trash_rejects`` touch only the filesystem, so a removed
     panorama lead keeps satisfying ``HIDE_PANORAMAS_SQL`` -- and keeps serving
@@ -914,8 +915,49 @@ def _reassign_dead_leads(conn, removed_db_paths, user_id, commit: bool = True):
                 "UPDATE photos SET is_sequence_lead = 1 WHERE path = ?",
                 (survivors[len(survivors) // 2]["path"],),
             )
+    _reassign_dead_burst_leads(conn, removed, vis_sql, vis_params)
     if commit:
         conn.commit()
+
+
+def _reassign_dead_burst_leads(conn, removed, vis_sql, vis_params):
+    """Re-pick a burst lead when the only lead of a burst was just removed.
+
+    ``hide_bursts`` shows a burst through its lead, so a burst whose every remaining
+    frame has ``is_burst_lead = 0`` disappears from the default gallery until the next
+    scan. That became common with AI edits: an edit that outscores its original leads the
+    burst, and deleting a disappointing edit is a natural move. The new lead is chosen by
+    ``pick_lead`` over the surviving phash rows, the rule the burst pass applies. A burst
+    that still has a lead (burst culling can keep several) gets no new one, and a burst
+    removed whole is left alone. Cull to folder keeps a moved row until a rescan prunes
+    it, so a removed lead gives up its flag whenever a frame survives, as a panorama
+    lead does: otherwise the burst would show as two tiles under Hide bursts.
+    """
+    from utils.selection import LEAD_SCORE_COLUMNS_SQL, pick_lead
+
+    dead_leads = {}
+    for row in _chunked_path_rows(
+        conn, list(removed),
+        sql_fn=lambda ph: (
+            "SELECT path, burst_group_id FROM photos "
+            f"WHERE path IN ({ph}) AND is_burst_lead = 1 AND burst_group_id IS NOT NULL AND {vis_sql}"
+        ),
+        params_fn=lambda chunk: chunk + vis_params,
+    ):
+        dead_leads.setdefault(row["burst_group_id"], []).append(row["path"])
+    for group, dead_paths in dead_leads.items():
+        cur = conn.execute(
+            f"SELECT path, is_burst_lead, {LEAD_SCORE_COLUMNS_SQL} FROM photos "
+            f"WHERE burst_group_id = ? AND phash IS NOT NULL AND {vis_sql}",
+            [group] + vis_params,
+        )
+        names = [d[0] for d in cur.description]
+        survivors = [dict(zip(names, r)) for r in cur.fetchall() if r[0] not in removed]
+        if not survivors:
+            continue
+        conn.executemany("UPDATE photos SET is_burst_lead = 0 WHERE path = ?", [(p,) for p in dead_paths])
+        if not any(s["is_burst_lead"] for s in survivors):
+            conn.execute("UPDATE photos SET is_burst_lead = 1 WHERE path = ?", (pick_lead(survivors)["path"],))
 
 
 def _reassign_dead_leads_after_removal(items, succeeded, user_id):
