@@ -16,6 +16,7 @@ const WHEEL_STEP = 0.15;
   exportAs: 'zoomPan',
   host: {
     '[class.cursor-grabbing]': 'isPanning()',
+    '[class.touch-none]': 'scale() > 1',
     '(dblclick)': 'reset()',
     '(keydown)': 'onKeydown($event)',
     '(pointerdown)': 'onPanStart($event)',
@@ -81,6 +82,7 @@ export class ZoomPanDirective {
     const clamped = Math.min(MAX_SCALE, Math.max(MIN_SCALE, raw));
     if (clamped <= 1) { this.panX.set(0); this.panY.set(0); }
     this.scale.set(clamped);
+    if (clamped > 1) this.applyPan(this.panX(), this.panY());
   }
 
   private onWheel(e: WheelEvent): void {
@@ -113,9 +115,18 @@ export class ZoomPanDirective {
 
   private applyPan(x: number, y: number): void {
     const el = this.host.nativeElement;
-    const limit = Math.max(el.clientWidth, el.clientHeight) / (2 * this.scale());
-    this.panX.set(Math.max(-limit, Math.min(limit, x)));
-    this.panY.set(Math.max(-limit, Math.min(limit, y)));
+    const width = el.clientWidth, height = el.clientHeight;
+    if (!width || !height) { this.panX.set(0); this.panY.set(0); return; }
+    const image = el.querySelector('img');
+    const ratio = image?.naturalWidth && image.naturalHeight ? image.naturalWidth / image.naturalHeight : width / height;
+    // The image is object-contain, so letterboxing contributes no pannable pixels.
+    const fittedWidth = Math.min(width, height * ratio);
+    const fittedHeight = Math.min(height, width / ratio);
+    const scale = this.scale();
+    const limitX = Math.max(0, (fittedWidth * scale - width) / (2 * scale));
+    const limitY = Math.max(0, (fittedHeight * scale - height) / (2 * scale));
+    this.panX.set(limitX ? Math.max(-limitX, Math.min(limitX, x)) : 0);
+    this.panY.set(limitY ? Math.max(-limitY, Math.min(limitY, y)) : 0);
   }
 
   protected onPanStart(e: PointerEvent): void {

@@ -389,6 +389,8 @@ Le contrôle **Garder le top %** de la barre d'outils (mode édition) trie toute
 - La sélection est plafonnée à 5000 photos. Sur une vue plus grande, restreignez le filtre (album, date, personne…).
 - Avec les valeurs par défaut `hide_brackets` / `hide_panoramas`, un bracketing ou un panorama compte pour **une** photo.
 
+L’inspection agrandie réserve les gestes tactiles au déplacement de l’image ; Ajuster rétablit le défilement de la page. Les limites suivent l’image ajustée dans chaque direction pour atteindre tous les bords à fort grossissement et rester dans les limites au dézoom. Les légendes et noms longs passent à la ligne dans le panneau.
+
 ### Retouches IA
 
 Un outil d'IA peut ajouter à la bibliothèque une copie retouchée d'une photo avec l'outil d'assistant `import_ai_edit` (voir [Agents IA](AGENTS.md)). L'assistant envoie l'image elle-même, et Facet écrit sa propre copie à côté de l'original sous le nom `{name}_{suffix}_{revision}{ext}`, par exemple `IMG_3533_agy_1.JPG`, puis l'analyse seule. Pendant un import, Facet ne supprime ni n'écrase jamais de fichier.

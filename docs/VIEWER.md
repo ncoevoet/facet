@@ -382,6 +382,8 @@ When a comparison image is zoomed in, a small overview shows the whole photo wit
 
 Focus the photo canvas to inspect it with the keyboard: +/− zoom, arrow keys pan while enlarged, and Home fits the image. At Fit, arrows resume photo navigation; Tab leaves the canvas. A single image name is announced while renditions change. Stack thumbnails show the active member and use filenames rather than server paths. The collection thumbnail list has one Tab stop; arrows, Home and End move focus without opening a photo until Enter. On phones the title preserves the start and distinguishing suffix of long filenames. Review comes before Info; capture date and category are inside Info, with an explicit missing-date label. Long tags wrap within the inspector. Small rendition readouts retain the source label and expose dimensions to screen readers when those dimensions cannot fit visibly.
 
+Enlarged inspection reserves touch drags for panning; Fit restores normal page scrolling. Pan bounds follow the fitted image in each direction, so every edge is reachable at high magnification and zooming out keeps the image within bounds. Long captions and person names wrap within the inspector.
+
 ### Keep Top N%
 
 The **Keep top %** control in the toolbar (edition mode) culls the whole filtered view in one step. Set a percentage. Facet ranks the view by the **current sort** (aggregate, My Taste, Top Picks, sharpness…), keeps the top share and **selects the rest**. Reject them from the action bar, after deselecting any you want to spare.

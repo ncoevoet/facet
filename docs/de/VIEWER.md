@@ -315,6 +315,8 @@ Das Zählabzeichen oder ein gestapeltes Foto öffnet die Fotoansicht mit Vorscha
 - Die Kopfzeile zählt geladene Vorschläge, nicht die gesamte Bibliothek. Ein Durchgang umfasst höchstens 20 Vorschläge und 2000 Fotos (1000 je Gruppe). Der nächste lädt erst automatisch, wenn alle geladenen Vorschläge gestapelt oder übersprungen wurden. **Vorschläge neu laden** lädt denselben Bereich erneut; **Zurück zur Galerie** führt zum Ursprung.
 - Nicht in angehefteten Listen, Ähnliche Fotos oder der semantischen Suche verfügbar. Stapeln und Überspringen ändern weder Sichtungsentscheidungen noch Originale. Nur ausdrückliches Ablehnen ändert die Sichtungswerte.
 
+Bei vergrößerter Ansicht verschieben Touch-Gesten das Bild; Einpassen stellt normales Seitenscrollen wieder her. Verschiebegrenzen folgen dem eingepassten Bild in jeder Richtung, damit bei starker Vergrößerung alle Ränder erreichbar bleiben und Herauszoomen die Grenzen einhält. Lange Bildunterschriften und Personennamen umbrechen im Detailbereich.
+
 ### Fotokarten
 
 - Vorschaubild mit Wertungsabzeichen. Fahren Sie darüber, um zu sehen, wo der Wert in Ihrer Bibliothek liegt („Top 18 % der Bibliothek“).

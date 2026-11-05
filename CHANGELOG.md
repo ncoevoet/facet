@@ -23,6 +23,8 @@ All notable changes to Facet are documented in this file.
 
 ### Changed
 
+- Enlarged photos now pan to every fitted-image edge, retain touch drags for inspection, and clamp correctly when zooming out. Long captions and person names wrap inside photo details.
+
 - Photo inspection supports keyboard panning and one image announcement; stack thumbnails mark the active member without announcing server paths. Long filenames and tags fit phones, collection thumbnails use one Tab stop, and Review precedes capture metadata.
 
 - Photo details now labels collection position, shows disclosure chevrons, places editable content before sources/files, and provides 44-pixel editing and tag targets on phones and touch devices.

@@ -67,7 +67,7 @@ describe('ZoomPanDirective', () => {
     pointer('pointermove', 10000, 0);
     pointer('pointerup', 10000, 0);
     expect(panel.classList).not.toContain('cursor-grabbing');
-    expect(img.style.transform).toBe(`scale(${scale}) translate(${400 / (2 * scale)}px, 0px)`);
+    expect(img.style.transform).toBe(`scale(${scale}) translate(${400 * (scale - 1) / (2 * scale)}px, 0px)`);
   });
 
   it('provides bounded explicit zoom steps and centers an image below Fit', () => {
@@ -97,10 +97,10 @@ describe('ZoomPanDirective', () => {
     expect(key('ArrowRight').defaultPrevented).toBe(true);
     expect(img.style.transform).toBe('scale(1.25) translate(-32px, 0px)');
     key('ArrowLeft'); key('ArrowUp');
-    expect(img.style.transform).toBe('scale(1.25) translate(0px, 32px)');
-    key('ArrowDown');
+    expect(img.style.transform).toBe('scale(1.25) translate(0px, 30px)');
+    key('ArrowDown'); key('Home'); key('+');
     for (let i = 0; i < 20; i++) key('ArrowRight');
-    expect(img.style.transform).toBe('scale(1.25) translate(-160px, 0px)');
+    expect(img.style.transform).toBe('scale(1.25) translate(-40px, 0px)');
     expect(key('Tab').defaultPrevented).toBe(false);
     key('Home'); expect(img.style.transform).toBe('');
     key('-'); expect(img.style.transform).toBe('');
@@ -118,6 +118,22 @@ describe('ZoomPanDirective', () => {
     }
     fixture.detectChanges();
     expect(img.style.transform).toBe('scale(1.15) translate(0px, 0px)');
+  });
+
+  it('reaches every zoomed edge using the fitted aspect ratio and reclamps on zoom-out', () => {
+    const zoom = fixture.debugElement.children[0].injector.get(ZoomPanDirective);
+    Object.defineProperty(panel, 'clientWidth', { value: 400 });
+    Object.defineProperty(panel, 'clientHeight', { value: 300 });
+    Object.defineProperties(img, { naturalWidth: { value: 800 }, naturalHeight: { value: 400 } });
+    zoom.zoomStep(16); fixture.detectChanges();
+    expect(panel.classList).toContain('touch-none');
+    pointer('pointerdown', 0, 0); pointer('pointermove', -10000, -10000); pointer('pointerup', -10000, -10000);
+    expect(zoom.panX()).toBe(-160); expect(zoom.panY()).toBe(-70);
+    zoom.zoomStep(-15); fixture.detectChanges();
+    expect(zoom.scale()).toBe(1.25);
+    expect(zoom.panX()).toBe(-40); expect(zoom.panY()).toBe(0);
+    zoom.reset(); fixture.detectChanges();
+    expect(panel.classList).not.toContain('touch-none');
   });
 
   it('ends the previous drag when the displayed photo changes', () => {

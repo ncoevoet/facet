@@ -389,6 +389,8 @@ Il controllo **Tieni top %** nella barra degli strumenti (modalità di modifica)
 - La selezione è limitata a 5000 foto. Su una vista più grande, restringi il filtro (album, data, persona…).
 - Con i `hide_brackets` / `hide_panoramas` predefiniti, una serie di bracket o panorama conta come **una** foto.
 
+Nell’ispezione ingrandita i trascinamenti tattili spostano l’immagine; Adatta ripristina lo scorrimento della pagina. I limiti seguono l’immagine adattata in ogni direzione per raggiungere tutti i bordi ad alto ingrandimento e rispettare i limiti riducendo lo zoom. Didascalie e nomi lunghi vanno a capo nel pannello.
+
 ### Modifiche IA
 
 Uno strumento di IA può portare nella libreria una copia modificata di una foto con lo strumento dell'assistente `import_ai_edit` (vedi [Agenti IA](AGENTS.md)). L'assistente invia l'immagine stessa, e Facet scrive una propria copia accanto all'originale come `{name}_{suffix}_{revision}{ext}`, per esempio `IMG_3533_agy_1.JPG`, e la analizza da sola. Durante un'importazione Facet non cancella né sovrascrive mai un file.

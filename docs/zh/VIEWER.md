@@ -389,6 +389,8 @@ python database.py --migrate-user-preferences --user alice
 - 选择上限为 5000 张照片。视图过大时，请缩小筛选范围（相册、日期、人物……）。
 - 在默认的 `hide_brackets` / `hide_panoramas` 之下，一组包围曝光或全景照片只算**一张**照片。
 
+放大查看时，触控拖动用于平移图像；适应窗口后恢复正常页面滚动。各方向的平移边界根据适应窗口后的图像计算，因此高倍率下仍可查看所有边缘，缩小时也会保持在边界内。长说明和人名会在详情面板内换行。
+
 ### AI 编辑
 
 AI 工具可以通过助手工具 `import_ai_edit` 把照片的编辑版本导入照片库（参见 [AI 智能体](AGENTS.md)）。助手直接发送图像，Facet 在原图旁写入自己的副本，名称为 `{name}_{suffix}_{revision}{ext}`，例如 `IMG_3533_agy_1.JPG`，并单独扫描。导入过程中 Facet 从不删除或覆盖任何文件。

@@ -389,6 +389,8 @@ O controle **Manter top %** na barra de ferramentas (modo de edição) faz a tri
 - A seleção é limitada a 5000 fotos. Em uma visualização maior, refine o filtro (álbum, data, pessoa…).
 - Com `hide_brackets` / `hide_panoramas` por padrão, um bracketing ou uma panorâmica conta como **uma** foto.
 
+A inspeção ampliada reserva os arrastos táteis para deslocar a imagem; Ajustar restaura o deslocamento da página. Os limites seguem a imagem ajustada em cada direção para alcançar todos os bordos com grande ampliação e respeitar os limites ao reduzir. Legendas e nomes longos quebram dentro do painel.
+
 ### Edições por IA
 
 Uma ferramenta de IA pode trazer para a biblioteca uma cópia editada de uma foto com a ferramenta do assistente `import_ai_edit` (ver [Agentes de IA](AGENTS.md)). O assistente envia a própria imagem, e o Facet escreve a sua própria cópia ao lado do original como `{name}_{suffix}_{revision}{ext}`, por exemplo `IMG_3533_agy_1.JPG`, e analisa-a sozinha. Durante uma importação o Facet nunca apaga nem substitui um ficheiro.

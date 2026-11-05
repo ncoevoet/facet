@@ -382,6 +382,8 @@ Al ampliar una imagen en la comparación, una miniatura muestra la foto completa
 
 Enfoca la imagen para usar +/−, desplazarla ampliada con las flechas y ajustarla con Inicio. Una vez ajustada, las flechas vuelven a navegar; Tab sale de la imagen. Solo se anuncia un nombre de imagen al cambiar la representación. Las miniaturas de pila marcan el miembro activo y usan nombres de archivo, no rutas del servidor. La colección tiene una sola parada de Tab; flechas, Inicio y Fin mueven el foco y Enter abre la foto. En móviles se conservan el inicio y el sufijo distintivo de nombres largos. Revisión precede a Información, que contiene fecha y categoría e indica las fechas ausentes. Las etiquetas largas se ajustan al panel. La lectura pequeña conserva el tipo de imagen; las dimensiones que no caben siguen disponibles para lectores de pantalla.
 
+La imagen ampliada reserva los arrastres táctiles para desplazarla; Ajustar restaura el desplazamiento de la página. Los límites siguen la imagen ajustada en cada dirección para alcanzar todos los bordes con gran aumento y mantenerla dentro de los límites al reducir. Las descripciones y nombres largos se ajustan al panel.
+
 ### Conservar el N% superior
 
 El control **Conservar el % superior** de la barra de herramientas (modo de edición) descarta toda la vista filtrada de una vez. Define un porcentaje. Facet clasifica la vista por la **ordenación actual** (agregada, My Taste, Mejores selecciones, nitidez…), conserva la parte superior y **selecciona el resto**. Recházalas desde la barra de acciones, tras deseleccionar las que quieras salvar.
