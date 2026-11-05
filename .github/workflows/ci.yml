@@ -11,10 +11,11 @@ permissions:
 
 # A new push on a pull request supersedes the previous run: the shards take
 # ~27/31 minutes each, so letting dead revisions run to completion holds 8+
-# runners for nothing. Master pushes keep their run (the same group would
-# cancel it whenever a queued push arrives).
+# runners for nothing. Every master push gets a group of its own (keyed by
+# commit): a shared group would queue master runs behind each other and
+# cancel a pending one when a third push arrives, leaving a commit with no CI.
 concurrency:
-  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  group: ${{ github.workflow }}-${{ github.event_name == 'pull_request' && github.event.pull_request.number || github.sha }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
