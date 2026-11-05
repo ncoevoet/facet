@@ -6,6 +6,8 @@ from xml.etree import ElementTree as ET
 from types import SimpleNamespace
 
 import pytest
+
+from tests import exiftool_fake
 from PIL import Image
 
 from processing import xmp_export as xe
@@ -220,7 +222,7 @@ def test_invalid_region_read_fails_closed_without_writing(tmp_path, monkeypatch,
     target = tmp_path / "valid.xmp"
     target.write_text(xe.build_xmp(xe.XmpRating()), encoding="utf-8")
     before = target.read_bytes()
-    monkeypatch.setattr(xe.subprocess, "run", lambda *a, **k: SimpleNamespace(returncode=0, stdout=json.dumps(response)))
+    exiftool_fake.install(monkeypatch, lambda *a, **k: SimpleNamespace(returncode=0, stdout=json.dumps(response)))
     with pytest.raises(xe.MetadataPreconditionError):
         info = xe._read_existing_regions(str(target), "exiftool", timeout=1)
         xe._region_args([_face()], info)
@@ -234,7 +236,7 @@ def test_region_reader_timeout_or_io_failure_is_a_precondition(tmp_path, monkeyp
     before = target.read_bytes()
     def fail(*args, **kwargs):
         raise failure
-    monkeypatch.setattr(xe.subprocess, "run", fail)
+    exiftool_fake.install(monkeypatch, fail)
     with pytest.raises(xe.MetadataPreconditionError):
         xe._read_existing_regions(str(target), "exiftool", timeout=1)
     assert target.read_bytes() == before
@@ -255,7 +257,7 @@ def test_exact_region_read_failure_refuses_without_changing_packet(tmp_path, mon
                 raise OSError('read failed')
             return SimpleNamespace(returncode=0, stdout='not XML' if failure == 'malformed' else '<empty/>')
         return SimpleNamespace(returncode=0, stdout='[{"RegionInfo":{"RegionList":[{"Name":true}]}}]')
-    monkeypatch.setattr(xe.subprocess, 'run', run)
+    exiftool_fake.install(monkeypatch, run)
     with pytest.raises(xe.MetadataPreconditionError):
         xe._read_existing_regions(str(target), 'exiftool', timeout=1)
     assert target.read_bytes() == before
@@ -330,7 +332,7 @@ def test_region_reader_rejects_failed_or_unparseable_response(tmp_path, monkeypa
     target = tmp_path / "valid.xmp"
     target.write_text(xe.build_xmp(xe.XmpRating()), encoding="utf-8")
     before = target.read_bytes()
-    monkeypatch.setattr(xe.subprocess, "run", lambda *a, **k: SimpleNamespace(returncode=returncode, stdout=stdout))
+    exiftool_fake.install(monkeypatch, lambda *a, **k: SimpleNamespace(returncode=returncode, stdout=stdout))
     with pytest.raises(xe.MetadataPreconditionError):
         xe._read_existing_regions(str(target), "exiftool", timeout=1)
     assert target.read_bytes() == before
