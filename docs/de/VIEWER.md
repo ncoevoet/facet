@@ -376,6 +376,8 @@ Sammlungspfeile und Positionsanzeige bleiben bei jedem Stapelmitglied sichtbar u
 
 Die Positionsanzeige am Bild benennt die Sammlung ausdrücklich. Aufklappbare Abschnitte zeigen Pfeile, die sich beim Öffnen drehen. Bewertung bleibt zuerst; unter Info stehen Bildunterschrift, Standort und Tags vor den nachgeordneten Metadatenquellen und zugehörigen Dateien. Bearbeitungs- und Tag-Steuerelemente haben auf schmalen Bildschirmen und bei groben Zeigegeräten mindestens 44 Pixel große Bedienflächen; am Desktop bleiben sie kompakt.
 
+Unter 360 Pixeln erhält der Fotodateiname eine eigene Zeile über die gesamte Breite mit bis zu zwei Textzeilen; lange Namen können auch innerhalb eines Wortes umbrechen. In schmalen Bildanzeigen werden bei einem geladenen Bild die Abmessungen ohne sichtbare Quellenbezeichnung angezeigt; Screenreader erhalten den vollständigen Status, Lade- und Fehlertexte bleiben sichtbar. Favoriten- und Zoomschaltflächen haben bei groben Zeigegeräten mindestens 44 Pixel große Bedienflächen.
+
 Beim Vergrößern eines Vergleichsbilds zeigt eine kleine Übersicht das ganze Foto mit einem roten Rahmen um den sichtbaren Bereich. Der Rahmen folgt Schwenken und Zoomen, auch bei gekoppelten Ansichten, und verschwindet bei „Einpassen“.
 
 ### Top N% behalten

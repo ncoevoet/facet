@@ -376,6 +376,8 @@ Collection arrows and the position indicator remain available on every stack mem
 
 The image position pill explicitly labels the collection. Inspector disclosures show chevrons that turn when expanded. Review stays first; within Info, Caption, Location and Tags precede the secondary metadata-source and related-file disclosures. Editing and tag controls have at least 44-pixel touch targets on narrow screens and coarse pointers, while desktop controls remain compact.
 
+Below 360 pixels, the photo filename has its own full-width row with up to two lines and can break within long names. In narrow image readouts, a ready image shows dimensions without the visible source label; screen readers retain the full status, and loading and error text stays visible. Favorite and zoom controls use at least 44-pixel targets with a coarse pointer.
+
 When a comparison image is zoomed in, a small overview shows the whole photo with a red box marking the visible region. The box follows panning and zooming, including linked panes, and disappears at Fit.
 
 ### Keep Top N%

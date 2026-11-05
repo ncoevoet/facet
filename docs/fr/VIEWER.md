@@ -376,6 +376,8 @@ Les flèches et la position dans la collection restent disponibles sur chaque me
 Lorsqu’une image de comparaison est agrandie, une miniature montre la photo entière et un cadre rouge délimite la zone visible. Le cadre suit le déplacement et le zoom, y compris dans les volets liés, et disparaît en vue ajustée.
 L’indicateur de position sur l’image identifie la collection. Les sections repliables affichent des chevrons qui tournent à l’ouverture. Révision reste en premier ; dans Infos, Légende, Lieu et Étiquettes précèdent les sources de métadonnées et les fichiers associés. Les commandes d’édition et d’étiquettes offrent des cibles d’au moins 44 pixels sur les écrans étroits et avec un pointeur grossier, tout en restant compactes sur ordinateur.
 
+Sous 360 pixels, le nom du fichier photo occupe une rangée sur toute la largeur, sur deux lignes au maximum ; les noms longs peuvent être coupés dans un mot. Dans les barres d’image étroites, une image chargée affiche ses dimensions sans libellé de source visible ; les lecteurs d’écran conservent le statut complet et les textes de chargement et d’erreur restent visibles. Les commandes de favori et de zoom ont des cibles d’au moins 44 pixels avec un pointeur grossier.
+
 
 ### Garder le top N%
 

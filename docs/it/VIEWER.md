@@ -376,6 +376,8 @@ Le frecce e la posizione nella raccolta restano disponibili per ogni membro dell
 Quando si ingrandisce un’immagine nel confronto, una miniatura mostra tutta la foto con un riquadro rosso sulla regione visibile. Il riquadro segue spostamento e zoom, anche nei riquadri collegati, e scompare con Adatta.
 L’indicatore di posizione sull’immagine identifica la raccolta. Le sezioni espandibili mostrano frecce che ruotano all’apertura. Revisione resta per prima; in Informazioni, Didascalia, Posizione e Tag precedono le fonti dei metadati e i file correlati. I controlli di modifica e dei tag hanno bersagli di almeno 44 pixel su schermi stretti e con puntatori grossolani, restando compatti sul desktop.
 
+Sotto i 360 pixel, il nome del file occupa una riga a tutta larghezza con un massimo di due righe di testo; i nomi lunghi possono andare a capo anche all’interno di una parola. Nelle barre immagine strette, un’immagine caricata mostra le dimensioni senza l’etichetta visibile della sorgente; gli screen reader mantengono lo stato completo e i testi di caricamento ed errore restano visibili. I controlli Preferito e zoom hanno aree di almeno 44 pixel con un puntatore impreciso.
+
 
 ### Tieni il top N%
 

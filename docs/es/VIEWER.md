@@ -376,6 +376,8 @@ Las flechas y la posición de la colección siguen disponibles en cada miembro d
 
 El indicador de posición de la imagen identifica la colección. Los paneles desplegables muestran flechas que giran al abrirse. Revisión sigue primero; en Información, Descripción, Ubicación y Etiquetas preceden a las fuentes de metadatos y archivos relacionados. Los controles de edición y etiquetas tienen áreas táctiles de al menos 44 píxeles en pantallas estrechas y con punteros gruesos, y siguen compactos en escritorio.
 
+Por debajo de 360 píxeles, el nombre del archivo ocupa una fila de ancho completo con hasta dos líneas y puede dividirse dentro de nombres largos. En las barras de imagen estrechas, una imagen cargada muestra las dimensiones sin la etiqueta visible de origen; los lectores de pantalla conservan el estado completo y los textos de carga y error siguen visibles. Los controles de favorito y zoom tienen áreas de al menos 44 píxeles con un puntero grueso.
+
 Al ampliar una imagen en la comparación, una miniatura muestra la foto completa y un marco rojo señala la región visible. El marco sigue el desplazamiento y el zoom, también en paneles vinculados, y desaparece al ajustar la imagen.
 
 ### Conservar el N% superior

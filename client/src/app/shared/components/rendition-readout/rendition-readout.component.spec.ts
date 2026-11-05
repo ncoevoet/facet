@@ -14,7 +14,7 @@ describe('RenditionReadoutComponent', () => {
     const retry = vi.fn(); fixture.componentInstance.retry.subscribe(retry);
     expect(root.querySelector('[role="status"]')?.textContent).toContain('320 × 240');
     expect(root.textContent).toContain('photo_detail.rendition.attempt_failed');
-    const phase = root.querySelector('[role="status"] span')!;
+    const phase = root.querySelector('[role="status"] > span:nth-child(2)')!;
     expect(phase.classList.contains('sr-only')).toBe(true);
     expect(phase.textContent).toContain('gallery.compare.rendition.ready');
     fixture.componentRef.setInput('state', { kind: 'preview', phase: 'loading' }); fixture.detectChanges();

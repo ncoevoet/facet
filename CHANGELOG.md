@@ -79,6 +79,8 @@ All notable changes to Facet are documented in this file.
 
 ### Fixed
 
+- Narrow photo headers give filenames a full-width two-line row. Ready-image readouts keep dimensions and zoom together in narrow panes while retaining accessible source status; Favorite and zoom controls use 44-pixel coarse-pointer targets.
+
 - Public album shares cannot sort by private review fields. Photo and comparison Back navigation preserve the originating collection without leaving a direct photo link or duplicating gallery history; cancelled returns remain retryable.
 - Hierarchy editors close when filters change, and refreshed face-review queues supersede older page reads. Catalog removal explains protected bracket frames. Sidebar layouts share Grid, Mosaic and List controls, with consistent Escape handling and touch targets.
 - Export jobs reuse stable source-directory naming inventories while rechecking recent or changed directories; sequence sibling lookup uses its index after database analysis.

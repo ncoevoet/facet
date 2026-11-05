@@ -119,11 +119,11 @@ const SOCIAL_SOURCE_KEYS: Record<string, string> = {
   template: `
     @if (photo(); as p) {
       <!-- Header bar -->
-      <div data-photo-detail-header class="@container flex shrink-0 items-center gap-2 px-2 py-1 border-b border-[var(--mat-sys-outline-variant)] bg-[var(--mat-sys-surface-container-lowest)]">
+      <div data-photo-detail-header class="@container flex max-[360px]:flex-wrap shrink-0 items-center gap-2 px-2 py-1 border-b border-[var(--mat-sys-outline-variant)] bg-[var(--mat-sys-surface-container-lowest)]">
         <button mat-icon-button (click)="goBack()" [matTooltip]="I18N.photo_detail.back | translate" [attr.aria-label]="I18N.photo_detail.back | translate">
           <mat-icon>arrow_back</mat-icon>
         </button>
-        <h1 class="m-0 min-w-0 flex-1 truncate text-base font-medium leading-6 max-md:whitespace-normal max-md:break-words max-md:line-clamp-2" [title]="p.filename">{{ p.filename }}</h1>
+        <h1 class="m-0 min-w-0 flex-1 truncate text-base font-medium leading-6 max-md:whitespace-normal max-md:[overflow-wrap:anywhere] max-md:line-clamp-2 max-[360px]:order-last max-[360px]:basis-full" [title]="p.filename">{{ p.filename }}</h1>
         @if (auth.isEdition()) {
           <button mat-icon-button class="max-md:!hidden" (click)="refreshPhoto(p)" [matTooltip]="I18N.photo_refresh.title | translate" [attr.aria-label]="I18N.photo_refresh.title | translate"><mat-icon>refresh</mat-icon></button>
         }
@@ -406,7 +406,7 @@ const SOCIAL_SOURCE_KEYS: Record<string, string> = {
             <section data-photo-review aria-labelledby="photo-review-title" class="border-t border-[var(--mat-sys-outline-variant)] py-2 space-y-1">
               <div class="flex min-h-11 items-center gap-2">
                 <h2 id="photo-review-title" class="m-0 flex flex-1 items-center gap-2 text-sm font-medium"><mat-icon aria-hidden="true" class="!h-5 !w-5 !text-xl">rule</mat-icon>{{ I18N.gallery.sidebar.tabs.review | translate }}</h2>
-                <button mat-icon-button class="max-sm:!h-11 max-sm:!w-11" (click)="toggleFavorite(p.path)"
+                <button mat-icon-button class="max-sm:!h-11 max-sm:!w-11 pointer-coarse:!h-11 pointer-coarse:!w-11" (click)="toggleFavorite(p.path)"
                   [matTooltip]="(p.is_favorite ? I18N.rating.remove_favorite : I18N.rating.add_favorite) | translate"
                   [attr.aria-label]="I18N.rating.favorite | translate" [attr.aria-pressed]="!!p.is_favorite">
                   <mat-icon class="!text-[var(--facet-favorite)]">{{ p.is_favorite ? 'favorite' : 'favorite_border' }}</mat-icon>
