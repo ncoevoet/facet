@@ -13,6 +13,7 @@ The DB is opened ``mode=ro`` and never written. Other waves add candidates with
 :func:`register_candidate`.
 """
 
+import gc
 import json
 import logging
 import os
@@ -23,7 +24,7 @@ from typing import Callable
 
 import numpy as np
 
-from db.person_carry_over import match_boxes
+from db.person_carry_over import box_iou, match_boxes
 from optimization.eval_common import (
     append_partial,
     bootstrap_ci,
@@ -31,15 +32,23 @@ from optimization.eval_common import (
     load_original,
     load_partial_records,
     measure,
+    measure_device_vram,
     pairwise_agreement,
     partial_path,
     ro_connection,
     size_bucket,
     split_halves,
     stratified_sample_rows,
+    LABEL_AREA_BUCKETS,
+    LABEL_AREA_SMALL,
+    LABEL_AREA_SMALL_MEMBERS,
+    PIXEL_BUCKETS,
     SIZE_BUCKETS,
+    label_area_bucket,
     pairwise_f1_grid,
+    pixel_bucket,
 )
+from optimization.face_labels import load_labels
 from utils.image_bounds import bound_to_inference_size
 
 logger = logging.getLogger("facet.model_eval")
@@ -348,16 +357,20 @@ def _default_candidates(slot):
 
 
 def evaluate(db_path, slot, candidates=None, out=None, seed=DEFAULT_SEED, config_path=None, device=None,
-             limit=None):
+             limit=None, face_labels=None):
     """Run the evaluation and write the JSON report; returns the report dict.
 
     ``limit`` only applies to the face slots (photos for faces-detect, reference
-    faces for faces-recognize).
+    faces for faces-recognize). ``face_labels`` (faces-detect only) scores against a
+    hand-labelled ground-truth file instead of the stored faces; ``limit`` is then ignored.
     """
     if slot not in SLOTS:
         raise ValueError(f"unknown slot {slot!r}; expected one of {SLOTS}")
+    if face_labels and slot != 'faces-detect':
+        raise ValueError(f"--face-labels applies to the faces-detect slot only, not {slot!r}")
     if slot in FACE_REFERENCE_SLOTS:
-        return _evaluate_faces(db_path, slot, candidates, out, seed, limit)
+        return _evaluate_faces(db_path, slot, candidates, out, seed, limit, device=device,
+                               config_path=config_path, face_labels=face_labels)
     names = list(candidates) if candidates else _default_candidates(slot)
     if device is None:
         try:
@@ -659,13 +672,16 @@ def summarize_face_detection(acc, seed):
     return out
 
 
-def _build_face_runners(slot, names, device):
+def _build_face_runners(slot, names, device, filters=None):
     """{name: callable} built from the registry (closed by the caller)."""
     runners = {}
     try:
         for name in names:
             cand = resolve_candidate(slot, name)
-            runners[name] = cand.factory(device, cand.arg)
+            if getattr(cand.factory, 'uses_filters', False):
+                runners[name] = cand.factory(device, cand.arg, filters or DEFAULT_FACE_FILTERS)
+            else:
+                runners[name] = cand.factory(device, cand.arg)
     except Exception:
         _close_all(runners)
         raise
@@ -679,26 +695,37 @@ def _close_all(runners):
             close()
 
 
-def _evaluate_faces(db_path, slot, candidates, out, seed, limit, loader=None, device=None):
-    names = list(candidates) if candidates else [c.name for c in registered_candidates(slot)]
+def _evaluate_faces(db_path, slot, candidates, out, seed, limit, loader=None, device=None,
+                    config_path=None, face_labels=None):
+    if candidates:
+        names = list(candidates)
+    elif slot == 'faces-detect':
+        names = list(REFERENCE_DEFAULT_DETECTORS if face_labels else AGREEMENT_DEFAULT_DETECTORS)
+    else:
+        names = [c.name for c in registered_candidates(slot)]
     if out is None:
         out = os.path.join(DEFAULT_OUT_DIR, f"{slot}-{time.strftime('%Y%m%d-%H%M%S')}.json")
     loader = loader or _load_bgr
+    if face_labels and device is None:
+        device = _auto_device()      # ORT needs CUDA to give the baseline a meaningful time / VRAM
     device = device or 'cpu'
     conn = ro_connection(db_path)
     try:
-        if slot == 'blink':
+        if face_labels:
+            report = _run_faces_detect_labelled(names, face_labels, loader, device, seed, limit, config_path)
+        elif slot == 'blink':
             report = _run_blink(conn, loader, seed, limit)
         elif slot == 'faces-detect':
-            report = _run_faces_detect(conn, names, loader, device, seed, limit or DEFAULT_DETECT_PHOTOS)
+            report = _run_faces_detect(conn, names, loader, device, seed, limit or DEFAULT_DETECT_PHOTOS,
+                                       _face_filters(config_path) if config_path else None)
         elif slot == 'faces-centroid':
             report = _run_faces_centroid(conn, names, loader, device, seed, limit or DEFAULT_RECOGNIZE_FACES)
         else:
             report = _run_faces_recognize(conn, names, loader, device, seed, limit or DEFAULT_RECOGNIZE_FACES)
     finally:
         conn.close()
-    report.update({'slot': slot, 'db': os.path.abspath(db_path), 'seed': seed,
-                   'reference': f'stored {REFERENCE_EMBEDDING_MODEL} faces (agreement, not ground truth)'})
+    report.update({'slot': slot, 'db': os.path.abspath(db_path), 'seed': seed})
+    report.setdefault('reference', f'stored {REFERENCE_EMBEDDING_MODEL} faces (agreement, not ground truth)')
     os.makedirs(os.path.dirname(os.path.abspath(out)), exist_ok=True)
     with open(out, 'w') as f:
         json.dump(report, f, indent=2)
@@ -710,12 +737,12 @@ def _pct(v):
     return 'n/a' if v['rate'] is None else f"{v['rate']:.3f} [{v['ci_low']:.3f}, {v['ci_high']:.3f}]"
 
 
-def _run_faces_detect(conn, names, loader, device, seed, limit):
+def _run_faces_detect(conn, names, loader, device, seed, limit, filters=None):
     samples = sample_detect_photos(conn, limit, seed)
     n_ref = sum(len(r) for _, r in samples)
     logger.info("faces-detect: %d photos (%d with stored faces, %d reference faces)",
                 len(samples), sum(1 for _, r in samples if r), n_ref)
-    detectors = _build_face_runners('faces-detect', names, device)
+    detectors = _build_face_runners('faces-detect', names, device, filters)
     try:
         with measure() as run_stats:
             acc, skipped = score_face_detection(samples, loader, detectors)
@@ -1510,9 +1537,541 @@ def _run_blink(conn, loader, seed, limit, scorer=None):
     return out
 
 
+# ---------------------------------------------------------------------------
+# Hand-labelled small-face recall (faces-detect --face-labels, issue #468)
+#
+# Ground truth is a labels file (optimization/face_labels.py), not the stored faces, so
+# the numbers are recall against what is really in the frame. Candidates run one at a
+# time (build, score every photo, close) so VRAM can be attributed to each. Nothing is
+# written to the DB and no scan default changes.
+# ---------------------------------------------------------------------------
+
+AGREEMENT_DEFAULT_DETECTORS = ('yunet', 'blazeface')
+REFERENCE_BASELINE = 'insightface@640'
+REFERENCE_DEFAULT_DETECTORS = (
+    REFERENCE_BASELINE, 'insightface@1024', 'insightface@1280',
+    'insightface-tiled', 'insightface-tiled-cond', 'yunet-tiled',
+)
+CANNOT_LINK_DEFAULT_CANDIDATE = 'insightface-tiled'
+DEFAULT_FACE_FILTERS = {'min_confidence': 0.65, 'min_face_size': 20}   # shipped face_detection defaults
+
+SHIP_MIN_RECALL_GAIN = 0.10      # recall on faces < 0.5% of the frame
+SHIP_MAX_FP_DELTA = 0.05         # false positives per no-face photo
+SHIP_MAX_SLOWDOWN = 1.30         # detector time only; the real face-pass timing check is manual
+BOOTSTRAP_DRAWS = 2000
+
+TILE_SIZE = 640
+TILE_OVERLAP = 0.25
+TILE_NMS_IOU = 0.4               # SCRFD's own nms_thresh
+TILE_EDGE_EPS = 2.0              # px: a box this close to an inner tile edge is cut by it
+FRAGMENT_CONTAINMENT = 0.8
+INNER_EDGE_COVERED = 0.5
+TILE_TRIGGER_FACE_PX = 80        # -cond: tile when the full-frame pass found a face shorter than this
+YUNET_TILED_MIN_FACE_SIZE = 30   # face_permissive.py's fixed values; commercial mode has its own
+MERGE_SIM_SHIPPED = CENTROID_ARCFACE_REFERENCE_THRESHOLD            # ArcFace merge_threshold, strict >
+MERGE_SIM_AUTO = 1.0 - CENTROID_ARCFACE_REFERENCE_DISTANCE          # auto_merge_distance 0.15
+CANNOT_LINK_MIN_PAIRS = 30
+
+
+def _auto_device():
+    try:
+        import torch
+        return 'cuda' if torch.cuda.is_available() else 'cpu'
+    except ImportError:
+        return 'cpu'
+
+
+def _face_filters(config_path):
+    """Production's confidence / size filter, read from the (possibly ``--config``) face_detection block."""
+    from config import ScoringConfig
+    cfg = ScoringConfig(config_path, validate=False).get_face_detection_settings()
+    return {'min_confidence': cfg.get('min_confidence_percent', 65) / 100.0,
+            'min_face_size': cfg.get('min_face_size', 20)}
+
+
+# -- tiled detection --------------------------------------------------------
+# Internal detections are ``(x1, y1, x2, y2, conf, kps)`` in FULL-IMAGE pixels, ``kps`` a
+# (5, 2) array or None; the public candidate wrapper drops ``kps``.
+
+def _area(b):
+    return max(0.0, b[2] - b[0]) * max(0.0, b[3] - b[1])
+
+
+def _containment(a, b):
+    """Intersection over the SMALLER box's area."""
+    iw = min(a[2], b[2]) - max(a[0], b[0])
+    ih = min(a[3], b[3]) - max(a[1], b[1])
+    small = min(_area(a), _area(b))
+    return 0.0 if iw <= 0 or ih <= 0 or small <= 0 else iw * ih / small
+
+
+def _tile_starts(length, tile, stride):
+    if length <= tile:
+        return [0]
+    starts = list(range(0, length - tile, stride))
+    return starts + [length - tile]       # last window clamped to the edge
+
+
+def tiled_detect(img, detect_tile, tile=TILE_SIZE, overlap=TILE_OVERLAP, full=None):
+    """Full-frame pass plus overlapping ``tile`` x ``tile`` windows over the full-resolution image.
+
+    ``detect_tile(crop) -> [(x1, y1, x2, y2, conf, kps)]`` in the crop's pixels. Tile boxes and
+    keypoints are translated to image coordinates, a box cut by an INNER tile edge is discarded
+    when the full-frame pass already covers it, and the union is merged by NMS (highest
+    confidence wins) with contained fragments suppressed. An image no larger than a tile is a
+    single full-frame call. ``full`` reuses an already computed full-frame result.
+    """
+    h, w = img.shape[:2]
+    full_dets = list(detect_tile(img)) if full is None else list(full)
+    if h <= tile and w <= tile:
+        return full_dets
+    stride = max(1, int(round(tile * (1.0 - overlap))))
+    items = [(d, False) for d in full_dets]
+    for y0 in _tile_starts(h, tile, stride):
+        for x0 in _tile_starts(w, tile, stride):
+            crop = img[y0:y0 + tile, x0:x0 + tile]
+            th, tw = crop.shape[:2]
+            for x1, y1, x2, y2, conf, kps in detect_tile(crop):
+                cut = ((x0 > 0 and x1 <= TILE_EDGE_EPS) or (y0 > 0 and y1 <= TILE_EDGE_EPS)
+                       or (x0 + tw < w and x2 >= tw - TILE_EDGE_EPS)
+                       or (y0 + th < h and y2 >= th - TILE_EDGE_EPS))
+                box = (max(0.0, x1 + x0), max(0.0, y1 + y0), min(float(w), x2 + x0), min(float(h), y2 + y0))
+                if cut and any(_containment(box, f) >= INNER_EDGE_COVERED for f in full_dets):
+                    continue
+                moved = None if kps is None else np.asarray(kps, dtype=np.float32) + np.array([x0, y0], np.float32)
+                items.append(((*box, conf, moved), cut))
+    return _suppress_fragments(_nms(items))
+
+
+def _nms(items, iou=TILE_NMS_IOU):
+    kept = []
+    for item in sorted(items, key=lambda it: -it[0][4]):
+        if all(box_iou(item[0][:4], k[0][:4]) < iou for k in kept):
+            kept.append(item)
+    return kept
+
+
+def _suppress_fragments(items):
+    """Drop a box mostly contained in a higher- or equal-score box, or an inner-edge fragment contained in any."""
+    drop = set()
+    for i, (a, a_cut) in enumerate(items):
+        for j, (b, _) in enumerate(items):
+            if i == j or j in drop or _containment(a[:4], b[:4]) < FRAGMENT_CONTAINMENT:
+                continue
+            if _area(a) <= _area(b) and (b[4] >= a[4] or a_cut):
+                drop.add(i)
+                break
+    return [it[0] for k, it in enumerate(items) if k not in drop]
+
+
+def tiled_detect_cond(img, detect_tile, trigger_px=None, **kwargs):
+    """Tile only when the full-frame pass found a face shorter than ``TILE_TRIGGER_FACE_PX``.
+
+    ``trigger_px`` (the ``@<px>`` variant) additionally tiles an image whose longer side exceeds it;
+    left ``None`` the image size never triggers (nearly every camera photo is over any useful size).
+    """
+    full = list(detect_tile(img))
+    h, w = img.shape[:2]
+    small = any(min(d[2] - d[0], d[3] - d[1]) < TILE_TRIGGER_FACE_PX for d in full)
+    if not (small or (trigger_px is not None and max(h, w) > trigger_px)):
+        return full
+    return tiled_detect(img, detect_tile, full=full, **kwargs)
+
+
+def filter_detections(dets, frame_w, frame_h, min_conf, min_size):
+    """Confidence and size filters in ORIGINAL-image pixels, after the merge (as ``FaceAnalyzer`` does)."""
+    out = []
+    for x1, y1, x2, y2, conf, kps in dets:
+        # production tests int-truncated width / height of the UNCLIPPED box; clipping is for output only
+        if conf < min_conf or int(x2) - int(x1) < min_size or int(y2) - int(y1) < min_size:
+            continue
+        x1, x2 = max(0.0, min(float(frame_w), x1)), max(0.0, min(float(frame_w), x2))
+        y1, y2 = max(0.0, min(float(frame_h), y1)), max(0.0, min(float(frame_h), y2))
+        out.append((x1, y1, x2, y2, conf, kps))
+    return out
+
+
+def build_face_detector(detect_tile, filters, mode, trigger_px=None):
+    """Public candidate ``detect(img) -> [(x1, y1, x2, y2, conf)]`` over a raw tile detector.
+
+    ``mode``: ``'full'`` (one call), ``'tiled'`` or ``'tiled-cond'``. ``detect.internal`` is the
+    keypoint-carrying form the downstream cannot-link check uses.
+    """
+    def internal(img):
+        h, w = img.shape[:2]
+        if mode == 'full':
+            dets = detect_tile(img)
+        elif mode == 'tiled':
+            dets = tiled_detect(img, detect_tile)
+        else:
+            dets = tiled_detect_cond(img, detect_tile, trigger_px)
+        return filter_detections(dets, w, h, filters['min_confidence'], filters['min_face_size'])
+
+    def detect(img):
+        return [d[:5] for d in internal(img)]
+    detect.internal = internal
+    return detect
+
+
+def _uses_filters(factory):
+    factory.uses_filters = True
+    return factory
+
+
+def _ort_providers(device):
+    return ['CUDAExecutionProvider', 'CPUExecutionProvider'] if device == 'cuda' else ['CPUExecutionProvider']
+
+
+def _insightface_app(device, modules):
+    from insightface.app import FaceAnalysis
+    app = FaceAnalysis(name='buffalo_l', root='~/.insightface', allowed_modules=modules,
+                       providers=_ort_providers(device))
+    app.prepare(ctx_id=0 if device == 'cuda' else -1, det_size=(640, 640))
+    return app
+
+
+def _scrfd_tile_detector(device, size):
+    """``(detect_tile, close)`` over the detection-only buffalo_l SCRFD at ``size`` input."""
+    holder = [_insightface_app(device, ['detection']).det_model]
+
+    def detect_tile(img):
+        bboxes, kpss = holder[0].detect(img, input_size=(size, size), max_num=0, metric='default')
+        return [(float(b[0]), float(b[1]), float(b[2]), float(b[3]), float(b[4]),
+                 None if kpss is None else np.asarray(kpss[i], dtype=np.float32))
+                for i, b in enumerate(bboxes)]
+
+    def close():
+        holder.clear()     # drop the ORT session before the next candidate is built
+        gc.collect()
+    return detect_tile, close
+
+
+def _with_close(detect, close):
+    detect.close = close
+    return detect
+
+
+@_uses_filters
+def _insightface_detector_factory(device, arg, filters):
+    size = TILE_SIZE if arg is None else int(arg)
+    detect_tile, close = _scrfd_tile_detector(device, size)
+    return _with_close(build_face_detector(detect_tile, filters, 'full'), close)
+
+
+@_uses_filters
+def _insightface_tiled_factory(device, arg, filters):
+    detect_tile, close = _scrfd_tile_detector(device, TILE_SIZE)
+    return _with_close(build_face_detector(detect_tile, filters, 'tiled'), close)
+
+
+@_uses_filters
+def _insightface_tiled_cond_factory(device, arg, filters):
+    detect_tile, close = _scrfd_tile_detector(device, TILE_SIZE)
+    return _with_close(build_face_detector(detect_tile, filters, 'tiled-cond', None if arg is None else int(arg)), close)
+
+
+@_uses_filters
+def _yunet_tiled_factory(device, arg, filters):
+    """YuNet over the same tiling; raw rows, filtered after the merge with YuNet's own fixed values."""
+    from analyzers.face_permissive import PermissiveFaceAnalyzer
+    an = PermissiveFaceAnalyzer()
+    an.detect_boxes(np.zeros((64, 64, 3), dtype=np.uint8))
+    if not an.available:
+        raise RuntimeError("YuNet is unavailable (OpenCV lacks FaceDetectorYN or the weights failed to load)")
+
+    def detect_tile(img):
+        return [(float(r[0]), float(r[1]), float(r[0] + r[2]), float(r[1] + r[3]), float(r[14]),
+                 np.asarray(r[4:14], dtype=np.float32).reshape(5, 2)) for r in an._detect(img)]
+    yunet_filters = {'min_confidence': DEFAULT_YUNET_CONFIDENCE, 'min_face_size': YUNET_TILED_MIN_FACE_SIZE}
+    return build_face_detector(detect_tile, yunet_filters, 'tiled')
+
+
+# -- reference-mode scoring --------------------------------------------------
+
+def score_face_detection_labelled(samples, loader, detectors):
+    """Score detectors against hand labels; ``samples``: ``[(path, width, height, [box, ...])]``.
+
+    A label box is a hit when a detection matches it (IoU >= ``IOU_MATCH``, one detection per
+    box). Unmatched detections are false positives ONLY on a ``faces == []`` photo: a labelled
+    photo may be incompletely labelled, so its extras are counted separately. The loaded image
+    must have exactly the labelled width / height, else the photo is skipped. Each detector gets
+    one untimed warm-up call on the first scored image before its latencies are recorded.
+    """
+    acc = {n: {'photos': {}, 'lat': []} for n in detectors}
+    skipped = {'unreadable': 0, 'dimension_mismatch': 0}
+    warmed = set()
+    for path, w, h, faces in samples:
+        img = loader(path)
+        if img is None:
+            skipped['unreadable'] += 1
+            continue
+        if (img.shape[1], img.shape[0]) != (w, h):
+            skipped['dimension_mismatch'] += 1
+            continue
+        for name, detect in detectors.items():
+            if name not in warmed:      # untimed: the first ORT call pays the cuDNN algorithm search
+                detect(img)
+                warmed.add(name)
+            t0 = time.monotonic()
+            dets = detect(img)
+            acc[name]['lat'].append(time.monotonic() - t0)
+            boxes = [d[:4] for d in dets]
+            matched = {i for i, _, _ in match_boxes(faces, boxes, IOU_MATCH)}
+            acc[name]['photos'][path] = {
+                'faces': [(label_area_bucket(f, w, h), pixel_bucket(f), 1.0 if i in matched else 0.0)
+                          for i, f in enumerate(faces)],
+                'n_det': len(boxes), 'n_matched': len(matched), 'empty': not faces}
+    return acc, skipped
+
+
+def summarize_face_detection_labelled(acc, seed):
+    out = {}
+    for name, a in acc.items():
+        recs = list(a['photos'].values())
+        faces = [f for r in recs for f in r['faces']]
+        empty = [r for r in recs if r['empty']]
+        labelled = [r for r in recs if not r['empty']]
+        n_det = sum(r['n_det'] for r in labelled)
+        by_area = {b: _rate([v for ab, _, v in faces if ab == b], seed) for b in LABEL_AREA_BUCKETS}
+        by_area[LABEL_AREA_SMALL] = _rate([v for ab, _, v in faces if ab in LABEL_AREA_SMALL_MEMBERS], seed)
+        out[name] = {
+            'recall': _rate([v for _, _, v in faces], seed),
+            'recall_by_area': by_area,
+            'recall_by_pixels': {b: _rate([v for _, pb, v in faces if pb == b], seed) for b in PIXEL_BUCKETS},
+            'fp_per_no_face_photo': float(np.mean([r['n_det'] for r in empty])) if empty else None,
+            'fp_rate_no_face_photos': _rate([1.0 if r['n_det'] else 0.0 for r in empty], seed),
+            'extra_detections_on_labelled_photos': sum(r['n_det'] - r['n_matched'] for r in labelled),
+            # lower bound: an unlabelled real face counts as a miss of precision
+            'precision_on_labelled_photos': (sum(r['n_matched'] for r in labelled) / n_det) if n_det else None,
+            'mean_seconds_per_photo': float(np.mean(a['lat'])) if a['lat'] else None,
+            'median_seconds_per_photo': float(np.median(a['lat'])) if a['lat'] else None,
+            'n_photos': len(recs), 'n_labelled_faces': len(faces),
+        }
+    return out
+
+
+def _photo_ratio_ci(num, den, seed, base=None, n_boot=BOOTSTRAP_DRAWS):
+    """95% CI of ``(sum num - sum base) / sum den``, resampling PHOTOS (faces in one photo correlate)."""
+    num, den = np.asarray(num, float), np.asarray(den, float)
+    base = np.zeros_like(num) if base is None else np.asarray(base, float)
+    if num.size == 0:
+        return None, None
+    idx = np.random.default_rng(seed).integers(0, num.size, size=(n_boot, num.size))
+    d = den[idx].sum(axis=1)
+    ok = d > 0
+    if not ok.any():
+        return None, None
+    vals = (num[idx].sum(axis=1)[ok] - base[idx].sum(axis=1)[ok]) / d[ok]
+    lo, hi = np.percentile(vals, [2.5, 97.5])
+    return float(lo), float(hi)
+
+
+def ship_rules(recall_delta, recall_ci_low, fp_delta, time_ratio):
+    """The three ship-rule checks; a missing number never passes. FP is rounded so ``<=`` is exact."""
+    return {
+        'recall_rule': recall_delta is not None and recall_ci_low is not None
+                       and round(recall_delta, 9) >= SHIP_MIN_RECALL_GAIN and recall_ci_low > 0,
+        'fp_rule': fp_delta is not None and round(fp_delta, 9) <= SHIP_MAX_FP_DELTA,
+        'time_rule_detector_only': time_ratio is not None and time_ratio <= SHIP_MAX_SLOWDOWN,
+    }
+
+
+def vs_baseline(acc, summary, baseline, seed):
+    """Per non-baseline candidate: paired photo-level recall delta on faces < 0.5%, FP and time deltas."""
+    out = {}
+    base = acc[baseline]['photos']
+    for name, a in acc.items():
+        if name == baseline:
+            continue
+        paths = [p for p in a['photos'] if p in base]
+        num_c, num_b, den = [], [], []
+        for p in paths:
+            small_c = [v for ab, _, v in a['photos'][p]['faces'] if ab in LABEL_AREA_SMALL_MEMBERS]
+            small_b = [v for ab, _, v in base[p]['faces'] if ab in LABEL_AREA_SMALL_MEMBERS]
+            if small_c:
+                num_c.append(sum(small_c))
+                num_b.append(sum(small_b))
+                den.append(len(small_c))
+        n_faces = int(sum(den))
+        delta = (sum(num_c) - sum(num_b)) / n_faces if n_faces else None
+        lo, hi = _photo_ratio_ci(num_c, den, seed, base=num_b)
+        s, b = summary[name], summary[baseline]
+        fp_delta = (None if s['fp_per_no_face_photo'] is None or b['fp_per_no_face_photo'] is None
+                    else s['fp_per_no_face_photo'] - b['fp_per_no_face_photo'])
+        ratio = (None if not s['median_seconds_per_photo'] or not b['median_seconds_per_photo']
+                 else s['median_seconds_per_photo'] / b['median_seconds_per_photo'])
+        out[name] = {
+            'recall_lt_0.5pct_delta': delta, 'recall_delta_ci_low': lo, 'recall_delta_ci_high': hi,
+            'n_faces_lt_0.5pct': n_faces, 'ci_unit': 'photos (paired)',
+            'fp_per_no_face_photo_delta': fp_delta, 'detector_time_ratio': ratio,
+            **ship_rules(delta, lo, fp_delta, ratio),
+            'note': 'detector time only; the real face-pass timing (landmarks + recognition of the extra '
+                    'faces) is a manual check with `facet.py --pass faces` on a labelled subset',
+        }
+    return out
+
+
+# -- downstream cannot-link check (step 3 of the issue) -----------------------
+
+def _short_side(b):
+    return min(b[2] - b[0], b[3] - b[1])
+
+
+def _pair_stats(rows, seed):
+    """``{pixel bucket of the smaller face: merge shares}`` from ``(photo, bucket, similarity)`` rows."""
+    def stats(sel):
+        photos = sorted({r[0] for r in sel})
+        out = {'n_pairs': len(sel), 'insufficient_data': len(sel) < CANNOT_LINK_MIN_PAIRS}
+        for label, thr in (('merge_rate_at_0.6', MERGE_SIM_SHIPPED), ('merge_rate_at_0.85', MERGE_SIM_AUTO)):
+            hits = [sum(1 for r in sel if r[0] == p and r[2] > thr) for p in photos]
+            n = [sum(1 for r in sel if r[0] == p) for p in photos]
+            lo, hi = _photo_ratio_ci(hits, n, seed)
+            out[label] = {'rate': (sum(hits) / len(sel)) if sel else None, 'ci_low': lo, 'ci_high': hi}
+        return out
+    return {
+        'by_smaller_face_pixels': {b: stats([r for r in rows if r[1] == b]) for b in PIXEL_BUCKETS},
+        'with_small_faces': stats(rows),
+        'without_small_faces': stats([r for r in rows if r[1] == PIXEL_BUCKETS[-1]]),
+        'ci_unit': 'photos',
+    }
+
+
+def cannot_link_false_merge(samples, loader, detect_internal, embed, seed):
+    """Share of SAME-PHOTO pairs of distinct labelled faces (different people by construction)
+    whose ArcFace similarity is high enough to merge: a lower bound on false merges.
+
+    ``detect_internal(img) -> [(x1, y1, x2, y2, conf, kps)]``; ``embed(img, det) -> vector | None``.
+    Only detections matched to a label are embedded; only photos with >= 2 matched faces give pairs.
+    """
+    rows = []
+    for pi, (path, w, h, faces) in enumerate(samples):
+        if len(faces) < 2:
+            continue
+        img = loader(path)
+        if img is None or (img.shape[1], img.shape[0]) != (w, h):
+            continue
+        dets = detect_internal(img)
+        feats = {}
+        for i, j, _ in match_boxes(faces, [d[:4] for d in dets], IOU_MATCH):
+            v = embed(img, dets[j])
+            if v is not None:
+                v = np.asarray(v, dtype=np.float64).ravel()
+                feats[i] = v / (np.linalg.norm(v) or 1.0)
+        ids = sorted(feats)
+        for ai, a in enumerate(ids):
+            for b in ids[ai + 1:]:
+                small = min(faces[a], faces[b], key=_short_side)
+                rows.append((pi, pixel_bucket(small), float(feats[a] @ feats[b])))
+    out = _pair_stats(rows, seed)
+    out['note'] = ('LOWER bound on false merges: same-photo pairs only, so a small face merged with a wrong '
+                   'person in ANOTHER photo is not seen; no identity labels are needed because two labelled '
+                   'faces in one frame are different people. Buckets with n_pairs < '
+                   f'{CANNOT_LINK_MIN_PAIRS} carry insufficient_data.')
+    return out
+
+
+def _arcface_embedder(device):
+    """``(embed, close)``: ArcFace from the detector's own 5 keypoints (norm_crop + get_feat, no re-detect)."""
+    from insightface.utils import face_align
+    holder = [_insightface_app(device, ['detection', 'recognition'])]
+    rec = holder[0].models['recognition']
+
+    def embed(img, det):
+        if det[5] is None:
+            return None
+        aligned = face_align.norm_crop(img, np.asarray(det[5], dtype=np.float32), image_size=rec.input_size[0])
+        return rec.get_feat(aligned).ravel()
+
+    def close():
+        holder.clear()
+        gc.collect()
+    return embed, close
+
+
+def _log_candidate_table(name, s, vram):
+    def f(v, spec):
+        return 'n/a' if v is None else format(v, spec)
+    logger.info("%-24s recall %s  precision %s  fp/empty %s  s/photo mean %s median %s  VRAM %s GB", name,
+                _pct(s['recall']), f(s['precision_on_labelled_photos'], '.3f'), f(s['fp_per_no_face_photo'], '.3f'),
+                f(s['mean_seconds_per_photo'], '.3f'), f(s['median_seconds_per_photo'], '.3f'), f(vram, '.2f'))
+    for b, v in {**s['recall_by_area'], **s['recall_by_pixels']}.items():
+        logger.info("    %-9s recall %s (n=%d)", b, _pct(v), v['n'])
+
+
+def _run_faces_detect_labelled(names, labels_path, loader, device, seed, limit, config_path):
+    samples = load_labels(labels_path)
+    n_faces = sum(len(f) for _, _, _, f in samples)
+    if limit:
+        logger.info("faces-detect: --limit is ignored with --face-labels (the labels are the sample)")
+    filters = _face_filters(config_path)
+    if filters['min_face_size'] > 0:
+        logger.warning("faces-detect: min_face_size=%s drops every detection shorter than that, so recall in the "
+                       "<20px bucket is structurally ~0; run with a --config whose face_detection.min_face_size "
+                       "is 0 to see the unfiltered detector", filters['min_face_size'])
+    logger.info("faces-detect (labelled): %d photos, %d faces, %d without faces, device %s",
+                len(samples), n_faces, sum(1 for s in samples if not s[3]), device)
+    cl_name = next((n for n in names if n.startswith('insightface')), None)
+    if cl_name and CANNOT_LINK_DEFAULT_CANDIDATE in names:
+        cl_name = CANNOT_LINK_DEFAULT_CANDIDATE
+    acc, skipped, vram, cannot_link = {}, {'unreadable': 0, 'dimension_mismatch': 0}, {}, None
+    for name in names:
+        with measure_device_vram() as v:
+            runners = _build_face_runners('faces-detect', [name], device, filters)
+            try:
+                one, skipped = score_face_detection_labelled(samples, loader, runners)
+                acc.update(one)
+                run_cl = name == cl_name and hasattr(runners[name], 'internal')
+            except BaseException:
+                _close_all(runners)
+                raise
+        vram[name] = v['peak_vram_gb']     # the candidate's window ends before the cannot-link ArcFace load
+        try:
+            if run_cl:
+                cannot_link = _run_cannot_link(samples, loader, runners[name].internal, device, seed)
+        finally:
+            _close_all(runners)
+            del runners
+            gc.collect()
+    summary = summarize_face_detection_labelled(acc, seed)
+    for name, s in summary.items():
+        _log_candidate_table(name, s, vram[name])
+        s['peak_vram_gb'] = vram[name]
+    report = {
+        'reference': f"hand-labelled ground truth: {labels_path} ({len(samples)} photos, {n_faces} faces)",
+        'n_photos': len(samples), 'n_labelled_faces': n_faces, 'skipped': skipped,
+        'iou_match': IOU_MATCH, 'min_confidence': filters['min_confidence'],
+        'min_face_size': filters['min_face_size'], 'device': device,
+        'ci_unit': {'recall': 'faces', 'vs_baseline': 'photos (paired)'},
+        'vram_note': 'device-wide (torch.cuda.mem_get_info polled), includes ORT arena growth; other GPU '
+                     'processes inflate it',
+        'candidates': summary,
+    }
+    if REFERENCE_BASELINE in acc:
+        report['vs_baseline'] = vs_baseline(acc, summary, REFERENCE_BASELINE, seed)
+    if cannot_link is not None:
+        report['downstream_cannot_link'] = {'candidate': cl_name, **cannot_link}
+    return report
+
+
+def _run_cannot_link(samples, loader, detect_internal, device, seed):
+    try:
+        embed, close = _arcface_embedder(device)
+    except Exception as e:
+        logger.warning("downstream cannot-link check skipped: %s", e)
+        return {'error': f"ArcFace recognition model unavailable: {e}"}
+    try:
+        return cannot_link_false_merge(samples, loader, detect_internal, embed, seed)
+    finally:
+        close()
+
+
 def _register_face_candidates():
     register_candidate('faces-detect', 'yunet', _yunet_detector_factory)
     register_candidate('faces-detect', 'blazeface', _blazeface_detector_factory)
+    register_candidate('faces-detect', 'insightface', _insightface_detector_factory)
+    register_candidate('faces-detect', 'insightface-tiled', _insightface_tiled_factory)
+    register_candidate('faces-detect', 'insightface-tiled-cond', _insightface_tiled_cond_factory)
+    register_candidate('faces-detect', 'yunet-tiled', _yunet_tiled_factory)
     register_candidate('faces-recognize', 'sface', _sface_embedder_factory)
 
 

@@ -2483,6 +2483,7 @@ def main():
 
     parser = cli_args.build_parser()
     args = parser.parse_args()
+    cli_args.validate_face_labels(parser, args)
     if args.stack_plan_out and not args.immich_stacks_plan:
         parser.error('--stack-plan-out requires --immich-stacks-plan')
     if args.ack_stack_plan and not args.immich_stacks_apply:
@@ -2705,7 +2706,8 @@ def main():
         from optimization.model_eval import evaluate
         candidates = [c.strip() for c in args.candidates.split(',') if c.strip()] if args.candidates else None
         evaluate(args.db or DEFAULT_DB_PATH, args.evaluate_models, candidates=candidates,
-                 out=args.eval_out, config_path=args.config, limit=args.limit)
+                 out=args.eval_out, config_path=args.config, limit=args.limit,
+                 face_labels=args.face_labels)
         exit()
 
     # Report unreviewed burst groups (read-only, no GPU)

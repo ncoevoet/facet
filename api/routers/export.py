@@ -816,20 +816,24 @@ def _reassign_dead_burst_leads(conn, removed, vis_sql, vis_params):
     scan. That became common with AI edits: an edit that outscores its original leads the
     burst, and deleting a disappointing edit is a natural move. The new lead is chosen by
     ``pick_lead`` over the surviving phash rows, the rule the burst pass applies. A burst
-    that still has a lead (burst culling can keep several) is left alone, and so is a
-    burst removed whole.
+    that still has a lead (burst culling can keep several) gets no new one, and a burst
+    removed whole is left alone. Cull to folder keeps a moved row until a rescan prunes
+    it, so a removed lead gives up its flag whenever a frame survives, as a panorama
+    lead does: otherwise the burst would show as two tiles under Hide bursts.
     """
     from utils.selection import LEAD_SCORE_COLUMNS_SQL, pick_lead
 
-    groups = {row["burst_group_id"] for row in _chunked_path_rows(
+    dead_leads = {}
+    for row in _chunked_path_rows(
         conn, list(removed),
         sql_fn=lambda ph: (
-            "SELECT burst_group_id FROM photos "
+            "SELECT path, burst_group_id FROM photos "
             f"WHERE path IN ({ph}) AND is_burst_lead = 1 AND burst_group_id IS NOT NULL AND {vis_sql}"
         ),
         params_fn=lambda chunk: chunk + vis_params,
-    )}
-    for group in groups:
+    ):
+        dead_leads.setdefault(row["burst_group_id"], []).append(row["path"])
+    for group, dead_paths in dead_leads.items():
         cur = conn.execute(
             f"SELECT path, is_burst_lead, {LEAD_SCORE_COLUMNS_SQL} FROM photos "
             f"WHERE burst_group_id = ? AND phash IS NOT NULL AND {vis_sql}",
@@ -837,9 +841,11 @@ def _reassign_dead_burst_leads(conn, removed, vis_sql, vis_params):
         )
         names = [d[0] for d in cur.description]
         survivors = [dict(zip(names, r)) for r in cur.fetchall() if r[0] not in removed]
-        if not survivors or any(s["is_burst_lead"] for s in survivors):
+        if not survivors:
             continue
-        conn.execute("UPDATE photos SET is_burst_lead = 1 WHERE path = ?", (pick_lead(survivors)["path"],))
+        conn.executemany("UPDATE photos SET is_burst_lead = 0 WHERE path = ?", [(p,) for p in dead_paths])
+        if not any(s["is_burst_lead"] for s in survivors):
+            conn.execute("UPDATE photos SET is_burst_lead = 1 WHERE path = ?", (pick_lead(survivors)["path"],))
 
 
 def _reassign_dead_leads_after_removal(items, succeeded, user_id):
