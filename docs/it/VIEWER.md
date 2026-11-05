@@ -1047,8 +1047,8 @@ Scegli un vincitore, segna un pareggio o salta. Una barra di avanzamento conta f
 
 | Tasto | Azione |
 |-----|--------|
-| `A` | Vince la foto a sinistra |
-| `B` | Vince la foto a destra |
+| `←` | Vince la foto a sinistra |
+| `→` | Vince la foto a destra |
 | `T` | Pareggio |
 | `S` | Salta la coppia |
 | `Escape` | Chiude la finestra di sovrascrittura categoria |
