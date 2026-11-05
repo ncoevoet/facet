@@ -635,6 +635,8 @@ Os resultados informam `similarity` (a pontuação combinada) e `embedding_simil
 
 Organize fotos em álbuns nomeados em `/albums`. Controlado por `viewer.features.show_albums` (padrão: `true`).
 
+Se o carregamento dos álbuns ou da seleção do cliente falhar, aparecem um erro e Tentar novamente; uma lista vazia e um filtro sem resultados são diferenciados. Falhas ao criar, editar ou excluir são informadas sem descartar os dados digitados.
+
 ### Álbuns Manuais
 
 Crie álbuns e adicione fotos da galeria com a seleção múltipla. Os álbuns suportam:

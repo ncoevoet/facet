@@ -1,3 +1,5 @@
+import { AuthService } from '../../core/services/auth.service';
+import { provideRouter } from '@angular/router';
 import type { Mock } from 'vitest';
 import { TestBed } from '@angular/core/testing';
 import { MatDialogRef } from '@angular/material/dialog';
@@ -18,6 +20,7 @@ describe('CreateAlbumDialogComponent', () => {
     journal = { record: vi.fn() };
     TestBed.configureTestingModule({
       providers: [
+        provideRouter([]), { provide: AuthService, useValue: { identity: () => 'owner', isEdition: () => true } },
         CreateAlbumDialogComponent,
         { provide: AlbumService, useValue: albumService },
         { provide: MatDialogRef, useValue: dialogRef },
@@ -42,5 +45,7 @@ describe('CreateAlbumDialogComponent', () => {
     albumService.create.mockReturnValue(throwError(() => new Error('boom')));
     await component.save();
     expect(journal.record).not.toHaveBeenCalled();
+    expect(component.saveFailed()).toBe(true);
+    expect(component.saving()).toBe(false);
   });
 });

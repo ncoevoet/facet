@@ -2372,6 +2372,10 @@
     "fullscreen": "Pantalla completa"
   },
   "albums": {
+    "list_load_error": "No se pudieron cargar los álbumes. Inténtalo de nuevo.",
+    "no_matches": "Ningún álbum coincide con estos filtros.",
+    "save_error": "No se pudo guardar el álbum. Inténtalo de nuevo.",
+    "delete_error": "No se pudo eliminar el álbum. Inténtalo de nuevo.",
     "help": "Agrupa fotos en álbumes. Los álbumes manuales contienen un conjunto fijo; los álbumes inteligentes reúnen automáticamente las fotos que coinciden con un filtro guardado. Abre un álbum para verlo, depurarlo o compartirlo.",
     "title": "Albumes",
     "create": "Nuevo Album",
@@ -3565,6 +3569,7 @@
     "uncertain": "incierto"
   },
   "proofing": {
+    "load_error": "No se pudo cargar la selección del cliente. Inténtalo de nuevo.",
     "client_picks": "Selecciones del cliente",
     "no_picks": "Aún no hay selecciones del cliente.",
     "picks_count": "{count} selección",

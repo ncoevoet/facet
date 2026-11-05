@@ -2372,6 +2372,10 @@
     "fullscreen": "全屏"
   },
   "albums": {
+    "list_load_error": "无法加载相册。请重试。",
+    "no_matches": "没有相册符合这些筛选条件。",
+    "save_error": "无法保存相册。请重试。",
+    "delete_error": "无法删除相册。请重试。",
     "help": "将照片整理为相册。普通相册包含固定的一组照片；智能相册会自动收集符合已保存筛选条件的照片。打开相册即可浏览、选片或分享。",
     "title": "相册",
     "create": "新建相册",
@@ -3565,6 +3569,7 @@
     "uncertain": "不确定"
   },
   "proofing": {
+    "load_error": "无法加载客户的选片。请重试。",
     "client_picks": "客户选片",
     "no_picks": "客户尚未选片。",
     "picks_count": "已选 {count} 张",

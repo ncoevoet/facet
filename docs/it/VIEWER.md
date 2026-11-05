@@ -637,6 +637,8 @@ I risultati riportano `similarity` (il punteggio combinato) e `embedding_similar
 
 Organizza le foto in album con nome su `/albums`. Controllato da `viewer.features.show_albums` (predefinito: `true`).
 
+Se il caricamento degli album o della selezione cliente fallisce, appaiono un errore e Riprova; una lista vuota e un filtro senza risultati sono distinti. Gli errori di creazione, modifica o eliminazione sono segnalati senza eliminare i dati inseriti.
+
 ### Album manuali
 
 Crea album e aggiungi foto dalla galleria con la selezione multipla. Gli album supportano:

@@ -506,7 +506,7 @@ const DEFAULT_CLIPPING_BADGE_PERCENT = 5;
         @if (isActive() && isEditionMode() && config()?.features?.show_rating_controls && gridHasActiveCard() && !mosaicMode()) {
           <div class="absolute bottom-1.5 left-1.5 z-20 px-1.5 py-0.5 rounded-md
                       bg-black/60 text-white/90 text-[10px] leading-4 pointer-events-none
-                      hidden md:block whitespace-nowrap" aria-hidden="true">
+                      hidden md:block max-w-[calc(100%-0.75rem)] whitespace-normal break-words" aria-hidden="true">
             {{ 'photoCard.key_hint' | translate: keyHintVars() }}
           </div>
         }

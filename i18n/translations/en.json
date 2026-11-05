@@ -2397,6 +2397,10 @@
     "fullscreen": "Fullscreen"
   },
   "albums": {
+    "list_load_error": "Could not load albums. Please try again.",
+    "no_matches": "No albums match these filters.",
+    "save_error": "Could not save the album. Please try again.",
+    "delete_error": "Could not delete the album. Please try again.",
     "help": "Group photos into albums. Manual albums hold a fixed set; smart albums auto-collect photos matching a saved filter. Open an album to view, cull or share it.",
     "title": "Albums",
     "create": "New Album",
@@ -3590,6 +3594,7 @@
     "uncertain": "uncertain"
   },
   "proofing": {
+    "load_error": "Could not load client picks. Please try again.",
     "client_picks": "Client picks",
     "no_picks": "No client picks yet.",
     "picks_count": "{count} pick",

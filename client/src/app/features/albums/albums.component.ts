@@ -9,6 +9,7 @@ import { MatDialogModule, MatDialog } from '@angular/material/dialog';
 import { MatTooltipModule } from '@angular/material/tooltip';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { MatMenuModule } from '@angular/material/menu';
+import { MatSnackBar } from '@angular/material/snack-bar';
 import { firstValueFrom } from 'rxjs';
 import { AlbumService, Album } from '../../core/services/album.service';
 import { AuthService } from '../../core/services/auth.service';
@@ -30,6 +31,9 @@ import { PageHelpService } from '../../core/services/page-help.service';
 import { HeaderSlotService } from '../../core/services/header-slot.service';
 import { onPageQuery } from '../../shared/utils/page-query';
 import { MarkTonePipe } from '../../shared/pipes/mark-tone.pipe';
+import { I18N, i18nKeys } from '../../core/i18n/keys';
+import { StalenessGuardFactory } from '../../core/services/staleness-guard.service';
+import { AlbumDialogContext } from './album-dialog-context';
 
 @Component({
   selector: 'app-albums',
@@ -79,10 +83,15 @@ import { MarkTonePipe } from '../../shared/pipes/mark-tone.pipe';
       </div>
     }
 
-    @if (albums().length === 0 && !loading()) {
+    @if (loadFailed()) {
+      <div role="alert" class="flex flex-wrap items-center justify-center gap-3 py-6">
+        <p>{{ I18N.albums.list_load_error | translate }}</p>
+        <button mat-stroked-button data-albums-retry (click)="retryLoad()">{{ I18N.gallery.load_error.retry | translate }}</button>
+      </div>
+    } @else if (albums().length === 0 && !loading()) {
       <div class="text-center py-16 opacity-60">
         <mat-icon class="!text-5xl !w-12 !h-12 mb-4">photo_library</mat-icon>
-        <p>{{ 'albums.empty' | translate }}</p>
+        <p>{{ (albumsFilters.search() || albumsFilters.typeFilter() ? I18N.albums.no_matches : I18N.albums.empty) | translate }}</p>
       </div>
     }
 
@@ -94,7 +103,7 @@ import { MarkTonePipe } from '../../shared/pipes/mark-tone.pipe';
           @if (album.first_photo_path) {
             <div class="relative w-full aspect-[4/3] overflow-hidden">
               <img [src]="album.first_photo_path | thumbnailUrl:320:album.preview_revision"
-                   [alt]="album.name"
+                   alt=""
                    class="w-full h-full object-cover" />
             </div>
           } @else {
@@ -187,7 +196,7 @@ import { MarkTonePipe } from '../../shared/pipes/mark-tone.pipe';
     </div>
 
     <!-- Infinite scroll sentinel -->
-    @if (hasMore()) {
+    @if (hasMore() && !loadFailed()) {
       <div appInfiniteScroll (scrollReached)="onScrollReached()" class="flex justify-center py-8">
         <mat-spinner diameter="36" [attr.aria-label]="'ui.labels.loading' | translate" />
       </div>
@@ -195,6 +204,7 @@ import { MarkTonePipe } from '../../shared/pipes/mark-tone.pipe';
   `,
 })
 export class AlbumsComponent {
+  protected readonly I18N = i18nKeys();
   private readonly albumService = inject(AlbumService);
   private readonly journal = inject(UserActivityJournal);
   private readonly dialog = inject(MatDialog);
@@ -205,10 +215,16 @@ export class AlbumsComponent {
   private readonly pageHelp = inject(PageHelpService);
   private readonly headerSlot = inject(HeaderSlotService);
   private readonly albumsToolbar = viewChild<TemplateRef<unknown>>('albumsToolbar');
+  private readonly destroyRef = inject(DestroyRef);
+  private readonly staleness = inject(StalenessGuardFactory);
+  private readonly snack = inject(MatSnackBar);
 
   protected readonly albums = signal<Album[]>([]);
   protected readonly total = signal(0);
   protected readonly loading = signal(false);
+  protected readonly loadFailed = signal(false);
+  private failedReset = true;
+  private generation = 0;
   private page = 1;
   private readonly perPage = 48;
 
@@ -235,7 +251,7 @@ export class AlbumsComponent {
       const t = this.albumsToolbar();
       if (t) this.headerSlot.set(t);
     });
-    inject(DestroyRef).onDestroy(() => {
+    this.destroyRef.onDestroy(() => {
       this.pageHelp.setDescription(null);
       const t = this.albumsToolbar();
       if (t) this.headerSlot.clear(t);
@@ -245,6 +261,7 @@ export class AlbumsComponent {
       this.albumsFilters.typeFilter();
       this.albumsFilters.sort();
       this.albumsFilters.search();
+      this.auth.identity();
       untracked(() => this.loadAlbums(true));
     });
     // Open the create dialog when the shell's add button increments the counter
@@ -257,47 +274,58 @@ export class AlbumsComponent {
   }
 
   private async loadAlbums(reset: boolean): Promise<void> {
+    const generation = ++this.generation;
+    const guard = this.staleness.create(this.destroyRef, { requireEdition: false, onNavigate: () => {
+      if (generation === this.generation) { this.failedReset = reset; this.loading.set(false); this.loadFailed.set(true); }
+    } });
     if (reset) {
       this.page = 1;
       this.albums.set([]);
+      this.total.set(0);
     }
+    const requestedPage = reset ? 1 : this.page + 1;
     this.loading.set(true);
+    this.loadFailed.set(false);
     try {
       const params: Record<string, string | number> = {
-        page: this.page,
+        page: requestedPage,
         per_page: this.perPage,
         type: this.albumsFilters.typeFilter(),
         sort: this.albumsFilters.sort(),
         search: this.albumsFilters.search(),
       };
       const res = await firstValueFrom(this.albumService.list(params));
+      if (generation !== this.generation || !guard.current()) return;
       if (reset) {
         this.albums.set(res.albums);
       } else {
         this.albums.update(prev => [...prev, ...res.albums]);
       }
       this.total.set(res.total);
+      this.page = requestedPage;
     } catch {
-      if (reset) {
-        this.albums.set([]);
-        this.total.set(0);
-      }
+      if (generation !== this.generation || !guard.current()) return;
+      this.failedReset = reset;
+      this.loadFailed.set(true);
     } finally {
-      this.loading.set(false);
+      if (generation === this.generation && guard.current()) this.loading.set(false);
+      guard.dispose();
     }
   }
 
+  protected retryLoad(): void { if (!this.loading()) void this.loadAlbums(this.failedReset); }
+
   protected onScrollReached(): void {
-    if (this.hasMore() && !this.loading()) {
-      this.page++;
+    if (this.hasMore() && !this.loading() && !this.loadFailed()) {
       this.loadAlbums(false);
     }
   }
 
   protected async openCreateDialog(): Promise<void> {
+    const guard = new AlbumDialogContext(this.auth, this.router, this.destroyRef);
     const ref = this.dialog.open(CreateAlbumDialogComponent, { width: '400px' });
-    const album = await firstValueFrom(ref.afterClosed());
-    if (album) this.loadAlbums(true);
+    try { const album = await firstValueFrom(ref.afterClosed()); if (album && await guard.settled()) void this.loadAlbums(true); }
+    finally { guard.dispose(); }
   }
 
   /** Open scenes/culling scoped to this album. */
@@ -306,17 +334,21 @@ export class AlbumsComponent {
   }
 
   protected async editAlbum(album: Album): Promise<void> {
-    const updated = await firstValueFrom(this.dialog.open(EditAlbumDialogComponent, {
+    const guard = new AlbumDialogContext(this.auth, this.router, this.destroyRef);
+    try { const updated = await firstValueFrom(this.dialog.open(EditAlbumDialogComponent, {
       data: { album },
       restoreFocus: `#album-actions-${album.id}`,
       width: '400px',
     }).afterClosed());
-    if (updated) {
+    if (updated && await guard.settled()) {
       this.albums.update(list => list.map(a => a.id === updated.id ? updated : a));
     }
+    } finally { guard.dispose(); }
   }
 
   protected async deleteAlbum(album: Album): Promise<void> {
+    const guard = new AlbumDialogContext(this.auth, this.router, this.destroyRef);
+    try {
     const ref = this.dialog.open(ConfirmDialogComponent, {
       restoreFocus: `#album-actions-${album.id}`,
       data: {
@@ -325,14 +357,28 @@ export class AlbumsComponent {
       },
     });
     const confirmed = await firstValueFrom(ref.afterClosed());
-    if (!confirmed) return;
+    if (!confirmed || !await guard.settled()) return;
+    const listGeneration = this.generation;
+    const filters = [this.albumsFilters.search(), this.albumsFilters.typeFilter(), this.albumsFilters.sort()];
     await firstValueFrom(this.albumService.delete(album.id));
+    if (!await guard.settled()) return;
     this.journal.record('album', [], { album_id: album.id, action: 'delete' });
-    this.albums.update(list => list.filter(a => a.id !== album.id));
-    this.total.update(t => t - 1);
+    if (this.generation !== listGeneration || this.loading()
+        || filters[0] !== this.albumsFilters.search() || filters[1] !== this.albumsFilters.typeFilter()
+        || filters[2] !== this.albumsFilters.sort()) {
+      void this.loadAlbums(true);
+    } else {
+      const wasVisible = this.albums().some(a => a.id === album.id);
+      this.albums.update(list => list.filter(a => a.id !== album.id));
+      if (wasVisible) this.total.update(t => Math.max(0, t - 1));
+    }
+    } catch { if (await guard.settled()) this.snack.open(this.i18n.t(I18N.albums.delete_error), '', { duration: 3000 }); }
+    finally { guard.dispose(); }
   }
 
   protected async openScoringContext(album: Album): Promise<void> {
+    const guard = this.staleness.create(this.destroyRef);
+    try {
     const newContext: string | null | undefined = await firstValueFrom(this.dialog.open(AlbumScoringContextDialogComponent, {
       restoreFocus: `#album-actions-${album.id}`,
       data: { albumId: album.id, albumName: album.name, currentContext: album.scoring_context } satisfies AlbumScoringContextDialogData,
@@ -340,9 +386,10 @@ export class AlbumsComponent {
       maxWidth: '32rem',
       disableClose: true,
     }).afterClosed());
-    if (newContext !== undefined) {
+    if (newContext !== undefined && guard.current()) {
       this.albums.update(list => list.map(a => a.id === album.id ? { ...a, scoring_context: newContext } : a));
     }
+    } finally { guard.dispose(); }
   }
 
   protected exportPortfolio(album: Album): void {
@@ -362,6 +409,8 @@ export class AlbumsComponent {
   }
 
   protected async shareAlbum(album: Album): Promise<void> {
+    const guard = this.staleness.create(this.destroyRef);
+    try {
     await firstValueFrom(this.dialog.open(ShareDialogComponent, {
       restoreFocus: `#album-actions-${album.id}`,
       data: {
@@ -379,7 +428,8 @@ export class AlbumsComponent {
       } satisfies ShareDialogData,
       width: '400px',
     }).afterClosed());
-    this.loadAlbums(true);
+    if (guard.current()) void this.loadAlbums(true);
+    } finally { guard.dispose(); }
   }
 
 }

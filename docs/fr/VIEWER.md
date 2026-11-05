@@ -637,6 +637,8 @@ Les résultats rapportent `similarity` (le score mêlé) et `embedding_similarit
 
 Organisez les photos en albums nommés sur `/albums`. Contrôlé par `viewer.features.show_albums` (par défaut : `true`).
 
+Un échec de chargement des albums ou de la sélection client affiche une erreur et Réessayer ; une liste vide et un filtre sans résultat sont distingués. Les erreurs de création, modification ou suppression sont signalées sans effacer la saisie.
+
 ### Albums manuels
 
 Créez des albums et ajoutez-y des photos depuis la galerie par sélection multiple. Les albums prennent en charge :

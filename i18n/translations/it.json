@@ -2372,6 +2372,10 @@
     "fullscreen": "Schermo intero"
   },
   "albums": {
+    "list_load_error": "Impossibile caricare gli album. Riprova.",
+    "no_matches": "Nessun album corrisponde a questi filtri.",
+    "save_error": "Impossibile salvare l’album. Riprova.",
+    "delete_error": "Impossibile eliminare l’album. Riprova.",
     "help": "Raggruppa le foto in album. Gli album manuali contengono un insieme fisso; gli album intelligenti raccolgono automaticamente le foto corrispondenti a un filtro salvato. Apri un album per visualizzarlo, selezionarlo o condividerlo.",
     "title": "Album",
     "create": "Nuovo Album",
@@ -3565,6 +3569,7 @@
     "uncertain": "incerto"
   },
   "proofing": {
+    "load_error": "Impossibile caricare la selezione del cliente. Riprova.",
     "client_picks": "Selezioni del cliente",
     "no_picks": "Nessuna selezione del cliente per ora.",
     "picks_count": "{count} selezione",

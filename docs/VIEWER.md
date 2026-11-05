@@ -638,6 +638,8 @@ Results report `similarity` (the blended score) and `embedding_similarity` (the 
 
 Organize photos into named albums at `/albums`. Controlled by `viewer.features.show_albums` (default: `true`).
 
+A failed album list or client-picks read shows an error and Retry; an empty result and a filter with no matches are shown separately. Create, edit and delete failures are reported without discarding your input.
+
 ### Manual Albums
 
 Create albums and add photos from the gallery with multi-select. Albums support:

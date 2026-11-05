@@ -2411,6 +2411,10 @@ export const I18N = {
     fullscreen: "slideshow.fullscreen",
   },
   albums: {
+    list_load_error: "albums.list_load_error",
+    no_matches: "albums.no_matches",
+    save_error: "albums.save_error",
+    delete_error: "albums.delete_error",
     help: "albums.help",
     title: "albums.title",
     create: "albums.create",
@@ -3604,6 +3608,7 @@ export const I18N = {
     uncertain: "moments.uncertain",
   },
   proofing: {
+    load_error: "proofing.load_error",
     client_picks: "proofing.client_picks",
     no_picks: "proofing.no_picks",
     picks_count: "proofing.picks_count",

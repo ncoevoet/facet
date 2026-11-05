@@ -2,7 +2,7 @@ import type { Mock } from 'vitest';
 import { TestBed } from '@angular/core/testing';
 import { Component } from '@angular/core';
 import { MATERIAL_ANIMATIONS } from '@angular/material/core';
-import { of, throwError } from 'rxjs';
+import { of, Subject, throwError } from 'rxjs';
 import { Router, provideRouter } from '@angular/router';
 import { MatDialog, MatDialogModule } from '@angular/material/dialog';
 import { OverlayContainer } from '@angular/cdk/overlay';
@@ -20,7 +20,7 @@ class CancelOnlyDialog {}
 describe('AlbumsComponent', () => {
   let component: AlbumsComponent;
   let mockAlbumService: { list: Mock; delete: Mock };
-  let mockAuth: { isEdition: Mock; hasFeature: Mock };
+  let mockAuth: { isEdition: Mock; hasFeature: Mock; identity: Mock };
   let mockI18n: { t: Mock; translations: Mock };
   let mockDialog: { open: Mock };
   let journal: { record: Mock };
@@ -38,7 +38,7 @@ describe('AlbumsComponent', () => {
       list: vi.fn(() => of(mockAlbumsResponse)),
       delete: vi.fn(() => of({})),
     };
-    mockAuth = { isEdition: vi.fn(() => true), hasFeature: vi.fn(() => true) };
+    mockAuth = { identity: vi.fn(() => 'owner'), isEdition: vi.fn(() => true), hasFeature: vi.fn(() => true) };
     mockI18n = { t: vi.fn((key: string) => key), translations: vi.fn(() => ({})) };
     mockDialog = { open: vi.fn(() => ({ afterClosed: () => of(true) })) };
     journal = { record: vi.fn() };
@@ -123,6 +123,31 @@ describe('AlbumsComponent', () => {
     expect(internals().hasMore()).toBe(true); // 2 loaded < 5 total
   });
 
+  it('ignores an older filter response that arrives after the newer response', async () => {
+    const oldResponse = new Subject<any>();
+    const newResponse = new Subject<any>();
+    mockAlbumService.list.mockReturnValueOnce(oldResponse).mockReturnValueOnce(newResponse);
+    const oldLoad = internals().loadAlbums(true);
+    const newLoad = internals().loadAlbums(true);
+    newResponse.next({ albums: [{ id: 9, name: 'New' }], total: 1 });
+    await newLoad;
+    oldResponse.next({ albums: [{ id: 8, name: 'Old' }], total: 1 });
+    await oldLoad;
+    expect(internals().albums().map((a: { id: number }) => a.id)).toEqual([9]);
+  });
+
+  it('retries the failed page instead of skipping it', async () => {
+    await internals().loadAlbums(true);
+    mockAlbumService.list.mockReturnValueOnce(throwError(() => new Error('offline')));
+    await internals().loadAlbums(false);
+    expect(internals().loadFailed()).toBe(true);
+    mockAlbumService.list.mockReturnValueOnce(of({ albums: [{ id: 3 }], total: 5 }));
+    internals().retryLoad();
+    await vi.waitFor(() => expect(internals().loadFailed()).toBe(false));
+    expect(mockAlbumService.list.mock.calls.slice(-2).map(call => call[0].page)).toEqual([2, 2]);
+    expect(internals().albums().map((a: { id: number }) => a.id)).toEqual([1, 2, 3]);
+  });
+
   it('deleteAlbum removes the album after confirmation', async () => {
     await internals().loadAlbums(true);
     const album = internals().albums()[0];
@@ -135,13 +160,35 @@ describe('AlbumsComponent', () => {
     expect(internals().total()).toBe(4);
   });
 
+  it('renders a retry instead of an empty-albums message after a failed load', async () => {
+    mockAlbumService.list.mockReturnValue(throwError(() => new Error('offline')));
+    const fixture = TestBed.createComponent(AlbumsComponent);
+    fixture.detectChanges();
+    await fixture.whenStable();
+    fixture.detectChanges();
+    expect(fixture.nativeElement.querySelector('[data-albums-retry]')).not.toBeNull();
+    expect(fixture.nativeElement.textContent).not.toContain('albums.empty');
+    fixture.destroy();
+  });
+
+  it('does not delete after the account changes while confirmation is open', async () => {
+    const confirmed = new Subject<boolean>();
+    mockDialog.open.mockReturnValueOnce({ afterClosed: () => confirmed });
+    const pending = internals().deleteAlbum({ id: 1, name: 'Trip' });
+    mockAuth.identity.mockReturnValue('other-owner');
+    confirmed.next(true);
+    await pending;
+    expect(mockAlbumService.delete).not.toHaveBeenCalled();
+    expect(journal.record).not.toHaveBeenCalled();
+  });
+
   it('deleteAlbum journals the deletion once, and nothing when cancelled or failed', async () => {
     await internals().loadAlbums(true);
     const album = internals().albums()[0];
     mockDialog.open.mockReturnValueOnce({ afterClosed: () => of(false) });
     await internals().deleteAlbum(album);
     mockAlbumService.delete.mockReturnValueOnce(throwError(() => new Error('boom')));
-    await expect(internals().deleteAlbum(album)).rejects.toThrow('boom');
+    await internals().deleteAlbum(album);
     expect(journal.record).not.toHaveBeenCalled();
     await internals().deleteAlbum(album);
     expect(journal.record).toHaveBeenCalledTimes(1);

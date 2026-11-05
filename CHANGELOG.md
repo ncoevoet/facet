@@ -96,6 +96,8 @@ All notable changes to Facet are documented in this file.
 
 ### Fixed
 
+- Albums distinguish empty results from load failures, support retrying failed pages and preserve the correct account and navigation context during dialog operations.
+- Stack editor mode controls and gallery keyboard hints fit narrow cards and screens more reliably.
 - Keep Stack Editor controls accessible while scrolling, restore focus after review decisions, and improve Culling and Junk Sweep labels, touch targets and failure messages.
 
 - Junk Sweep preserves unseen candidates after decisions and failed paging, separates load failures from empty queues, and stops later bulk write batches after navigation or account changes. Named touch-sized decisions stay visible; kind counts match the reader’s remaining candidates.

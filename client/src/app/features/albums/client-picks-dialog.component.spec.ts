@@ -1,6 +1,8 @@
+import { AuthService } from '../../core/services/auth.service';
+import { provideRouter } from '@angular/router';
 import type { Mock } from 'vitest';
 import { TestBed } from '@angular/core/testing';
-import { MAT_DIALOG_DATA } from '@angular/material/dialog';
+import { MAT_DIALOG_DATA, MatDialogRef } from '@angular/material/dialog';
 import { MatSnackBar } from '@angular/material/snack-bar';
 import { of, throwError } from 'rxjs';
 import { ApiService } from '../../core/services/api.service';
@@ -33,11 +35,13 @@ describe('ClientPicksDialogComponent', () => {
     TestBed.resetTestingModule();
     TestBed.configureTestingModule({
       providers: [
+        provideRouter([]), { provide: AuthService, useValue: { identity: () => 'owner', isEdition: () => true } },
         ClientPicksDialogComponent,
         { provide: ApiService, useValue: mockApi },
         { provide: I18nService, useValue: mockI18n },
         { provide: MatSnackBar, useValue: mockSnackBar },
         { provide: MAT_DIALOG_DATA, useValue: data },
+        { provide: MatDialogRef, useValue: { close: vi.fn() } },
       ],
     });
     component = TestBed.inject(ClientPicksDialogComponent);
@@ -62,13 +66,17 @@ describe('ClientPicksDialogComponent', () => {
     expect(component.pickedCount()).toBe(2);
   });
 
-  it('empties picks and stops loading when the API fails', async () => {
+  it('reports a failed load and retries successfully', async () => {
     createComponent(() => throwError(() => new Error('boom')));
 
     await component.ngOnInit();
 
-    expect(component.picks()).toEqual([]);
+    expect(component.loadFailed()).toBe(true);
     expect(component.loading()).toBe(false);
+    mockApi.get.mockReturnValueOnce(of({ picks: [{ path: '/p.jpg', picked: true }], count: 1 }));
+    await component.load();
+    expect(component.loadFailed()).toBe(false);
+    expect(component.picks()[0].filename).toBe('p.jpg');
   });
 
   it('copyFilenames copies picked basenames newline-joined then shows a snackbar', async () => {

@@ -66,10 +66,10 @@ function captureDateKey(date: string | null | undefined): string {
           <legend class="text-sm font-medium mb-1">{{ I18N.stacks.regroup_policy | translate }}</legend>
           <div class="flex gap-2">
             <button mat-stroked-button data-stack-mode="combine" class="!min-w-0 flex-1 !h-auto !min-h-9 !whitespace-normal !px-2 max-sm:!min-h-11 pointer-coarse:!min-h-11 aria-pressed:!bg-[var(--mat-sys-secondary-container)] aria-pressed:!text-[var(--mat-sys-on-secondary-container)]" [attr.aria-pressed]="mode() === 'combine'" (click)="changeMode('combine')">
-              <mat-icon aria-hidden="true" [class]="mode() !== 'combine' ? 'invisible max-sm:!hidden' : ''">check</mat-icon>{{ I18N.stacks.regroup_combine | translate }}
+              <mat-icon aria-hidden="true" class="max-sm:!hidden" [class.invisible]="mode() !== 'combine'">check</mat-icon>{{ I18N.stacks.regroup_combine | translate }}
             </button>
             <button mat-stroked-button data-stack-mode="selected" class="!min-w-0 flex-1 !h-auto !min-h-9 !whitespace-normal !px-2 max-sm:!min-h-11 pointer-coarse:!min-h-11 aria-pressed:!bg-[var(--mat-sys-secondary-container)] aria-pressed:!text-[var(--mat-sys-on-secondary-container)]" [attr.aria-pressed]="mode() === 'selected'" (click)="changeMode('selected')">
-              <mat-icon aria-hidden="true" [class]="mode() !== 'selected' ? 'invisible max-sm:!hidden' : ''">check</mat-icon>{{ I18N.stacks.regroup_selected | translate }}
+              <mat-icon aria-hidden="true" class="max-sm:!hidden" [class.invisible]="mode() !== 'selected'">check</mat-icon>{{ I18N.stacks.regroup_selected | translate }}
             </button>
           </div>
           @if (!page) { <p class="text-sm mt-2 opacity-80">{{ (mode() === 'combine' ? I18N.stacks.regroup_combine_hint : I18N.stacks.regroup_selected_hint) | translate }}</p> }
@@ -106,7 +106,7 @@ function captureDateKey(date: string | null | undefined): string {
         }
         </div>
         @if (focused(); as path) {
-          <div class="relative bg-black/90 rounded-xl flex items-center justify-center overflow-hidden" [class]="page ? 'shrink-0 h-[55dvh] lg:max-h-[calc(100dvh-420px)] lg:min-h-40' : 'shrink-0 h-[28dvh] min-h-32 sm:h-[36dvh]'">
+          <div class="relative bg-black/90 rounded-xl flex items-center justify-center overflow-hidden" [class]="page ? 'shrink-0 h-[55dvh] lg:max-h-[calc(100dvh-560px)] lg:min-h-40' : 'shrink-0 h-[28dvh] min-h-32 sm:h-[36dvh]'">
             @if (page) {
               <app-synced-zoom #zoomPane class="block w-full h-full min-h-0" [src]="path | thumbnailUrl:1920" [placeholderSrc]="path | thumbnailUrl:640"
                 [fullResSrc]="path | imageUrl" [frameKey]="path" [alt]="path | filename" [zoom]="zoom()" [keyboardInspection]="true"

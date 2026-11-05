@@ -638,6 +638,8 @@ Ergebnisse melden `similarity` (die gemischte Wertung) und `embedding_similarity
 
 Organisieren Sie Fotos in benannten Alben unter `/albums`. Gesteuert über `viewer.features.show_albums` (Standard: `true`).
 
+Bei einem Ladefehler der Albenliste oder Kundenauswahl erscheinen eine Fehlermeldung und Wiederholen; leere Ergebnisse und Filter ohne Treffer werden getrennt angezeigt. Fehler beim Erstellen, Bearbeiten oder Löschen werden gemeldet, ohne Eingaben zu verwerfen.
+
 ### Manuelle Alben
 
 Erstellen Sie Alben und fügen Sie Fotos aus der Galerie per Mehrfachauswahl hinzu. Alben unterstützen:

@@ -1,5 +1,5 @@
 import { ContextHelpComponent } from '../../shared/components/context-help/context-help.component';
-import { Component, inject, signal, ChangeDetectionStrategy } from '@angular/core';
+import { Component, DestroyRef, inject, signal, ChangeDetectionStrategy } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { MatDialogModule, MatDialogRef } from '@angular/material/dialog';
 import { MatFormFieldModule } from '@angular/material/form-field';
@@ -11,6 +11,9 @@ import { UserActivityJournal, activityName } from '../../core/agent/user-activit
 import { AlbumService } from '../../core/services/album.service';
 import { TranslatePipe } from '../../shared/pipes/translate.pipe';
 import { i18nKeys } from '../../core/i18n/keys';
+import { AuthService } from '../../core/services/auth.service';
+import { Router } from '@angular/router';
+import { AlbumDialogContext } from './album-dialog-context';
 
 @Component({
   selector: 'app-create-album-dialog',
@@ -32,6 +35,7 @@ import { i18nKeys } from '../../core/i18n/keys';
         <textarea matInput [(ngModel)]="description" maxlength="500" rows="2"></textarea>
       </mat-form-field>
       <app-context-help [label]="I18N.albums.creation.help" [keys]="helpKeys" />
+      @if (saveFailed()) { <p role="alert">{{ I18N.albums.save_error | translate }}</p> }
     </mat-dialog-content>
     <mat-dialog-actions align="end">
       <button mat-button mat-dialog-close>{{ I18N.ui.buttons.cancel | translate }}</button>
@@ -47,20 +51,24 @@ export class CreateAlbumDialogComponent {
   private albumService = inject(AlbumService);
   private journal = inject(UserActivityJournal);
   private dialogRef = inject(MatDialogRef<CreateAlbumDialogComponent>);
+  private readonly guard = new AlbumDialogContext(inject(AuthService), inject(Router), inject(DestroyRef));
 
   name = '';
   description = '';
   readonly saving = signal(false);
+  readonly saveFailed = signal(false);
 
   async save(): Promise<void> {
-    if (!this.name.trim() || this.saving()) return;
+    if (!this.name.trim() || this.saving() || !this.guard.canStart()) return;
     this.saving.set(true);
+    this.saveFailed.set(false);
     try {
       const album = await firstValueFrom(this.albumService.create(this.name.trim(), this.description.trim()));
+      if (!await this.guard.settled()) return;
       this.journal.record('album', [], { album_id: album.id, action: 'create', name: activityName(album.name) });
       this.dialogRef.close(album);
     } catch {
-      this.saving.set(false);
+      if (await this.guard.settled()) { this.saving.set(false); this.saveFailed.set(true); }
     }
   }
 }

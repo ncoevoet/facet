@@ -1215,9 +1215,9 @@
       "cover_only": "Gestapelte Kacheln in dieser Auswahl betreffen nur das angezeigte Foto. Öffnen Sie einen Stapel, um seine übrigen Mitglieder auszuwählen.",
       "outside_loaded": "Außerhalb der geladenen Kacheln ausgewählt: {count}. Aktionen gelten für die gesamte Auswahl.",
       "exclusions": "Ausschlüsse aus der gesamten Ansicht: {count}.",
-      "count": "{count} ausgewahlt",
+      "count": "{count} ausgewählt",
       "cleared_by_view": "Auswahl aufgehoben, weil sich die Ansicht geändert hat.",
-      "clear": "Loschen",
+      "clear": "Löschen",
       "copy_filenames": "Dateinamen kopieren",
       "copy_filename": "Dateinamen kopieren",
       "download": "Herunterladen",
@@ -2372,13 +2372,17 @@
     "fullscreen": "Vollbild"
   },
   "albums": {
+    "list_load_error": "Alben konnten nicht geladen werden. Bitte versuchen Sie es erneut.",
+    "no_matches": "Keine Alben entsprechen diesen Filtern.",
+    "save_error": "Das Album konnte nicht gespeichert werden. Bitte versuchen Sie es erneut.",
+    "delete_error": "Das Album konnte nicht gelöscht werden. Bitte versuchen Sie es erneut.",
     "help": "Fassen Sie Fotos in Alben zusammen. Manuelle Alben enthalten eine feste Auswahl; intelligente Alben sammeln automatisch Fotos, die einem gespeicherten Filter entsprechen. Öffnen Sie ein Album, um es anzusehen, zu sichten oder zu teilen.",
     "title": "Alben",
     "create": "Neues Album",
     "empty": "Noch keine Alben. Erstellen Sie eines, um Ihre Fotos zu organisieren.",
     "name": "Albumname",
     "description_label": "Beschreibung",
-    "add_photos": "Zum Album hinzufugen",
+    "add_photos": "Zum Album hinzufügen",
     "photos_added": "Fotos zum Album hinzugefugt",
     "save_smart": "Als intelligentes Album speichern",
     "save_smart_tooltip": "Aktuelle Filter als intelligentes Album speichern, das laufend alle passenden Fotos sammelt",
@@ -3565,6 +3569,7 @@
     "uncertain": "unsicher"
   },
   "proofing": {
+    "load_error": "Die Kundenauswahl konnte nicht geladen werden. Bitte versuchen Sie es erneut.",
     "client_picks": "Kundenauswahl",
     "no_picks": "Noch keine Kundenauswahl.",
     "picks_count": "{count} Favorit",

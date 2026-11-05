@@ -2372,6 +2372,10 @@
     "fullscreen": "Plein écran"
   },
   "albums": {
+    "list_load_error": "Impossible de charger les albums. Veuillez réessayer.",
+    "no_matches": "Aucun album ne correspond à ces filtres.",
+    "save_error": "Impossible d’enregistrer l’album. Veuillez réessayer.",
+    "delete_error": "Impossible de supprimer l’album. Veuillez réessayer.",
     "help": "Regroupez des photos dans des albums. Les albums manuels contiennent un ensemble fixe ; les albums intelligents rassemblent automatiquement les photos correspondant à un filtre enregistré. Ouvrez un album pour le consulter, le trier ou le partager.",
     "title": "Albums",
     "create": "Nouvel Album",
@@ -3565,6 +3569,7 @@
     "uncertain": "incertain"
   },
   "proofing": {
+    "load_error": "Impossible de charger la sélection du client. Veuillez réessayer.",
     "client_picks": "Sélections client",
     "no_picks": "Aucune sélection client pour l'instant.",
     "picks_count": "{count} sélection",

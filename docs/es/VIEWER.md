@@ -640,6 +640,8 @@ Los resultados informan `similarity` (la puntuación combinada) y `embedding_sim
 
 Organiza las fotos en álbumes con nombre en `/albums`. Se controla con `viewer.features.show_albums` (por defecto: `true`).
 
+Si falla la carga de álbumes o de la selección del cliente, se muestran un error y Reintentar; una lista vacía y un filtro sin resultados se distinguen. Los errores al crear, editar o eliminar se notifican sin descartar lo escrito.
+
 ### Álbumes manuales
 
 Crea álbumes y añade fotos desde la galería con la selección múltiple. Los álbumes admiten:
