@@ -721,15 +721,20 @@ class TestCheckVramProfileCompatibility:
         assert profile == '16gb'
         assert config.config['models']['vram_profile'] == '16gb'
 
-    def test_auto_no_gpu(self, config_file):
+    def test_auto_no_gpu(self, config_file, monkeypatch):
         config = config_file('auto')
+        # "No GPU" must also mean no Metal: on a Mac mps_available() is True and
+        # auto resolves through unified memory instead of falling to legacy,
+        # which made these tests fail on any machine that runs the viewer.
+        monkeypatch.setattr('utils.device.mps_available', lambda: False)
         with mock.patch.object(ScoringConfig, 'detect_gpu_vram_gb', return_value=None):
             ok, profile, msg = config.check_vram_profile_compatibility(verbose=False)
         assert ok is True
         assert profile == 'legacy'
 
-    def test_mismatch_16gb_no_gpu(self, config_file):
+    def test_mismatch_16gb_no_gpu(self, config_file, monkeypatch):
         config = config_file('16gb')
+        monkeypatch.setattr('utils.device.mps_available', lambda: False)
         with mock.patch.object(ScoringConfig, 'detect_gpu_vram_gb', return_value=None):
             ok, profile, msg = config.check_vram_profile_compatibility(verbose=False)
         assert ok is False
