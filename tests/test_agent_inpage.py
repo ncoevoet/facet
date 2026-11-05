@@ -595,9 +595,8 @@ class TestChangedPaths:
         assert frames[0].pop("call_id")
         assert frames == [{"type": "changed", "tool": "batch_reject", "paths": P[:2], "count": 2,
                            "agent_tool": "batch_set_rejected"}]
-        import time
-        time.sleep(0.5)
-        assert changed_frames(caller) == []
+        # Bounded tolerance for a wrong caller-tab broadcast; fails fast if one lands.
+        assert frames_within(caller, 1, timeout=0.5) == []
 
     def test_a_two_photo_write_shares_one_call_id_across_other_tabs_frames(self, edition_session, fake_tab):
         env, headers = edition_session
@@ -656,9 +655,7 @@ class TestChangedPaths:
         jwt = headers["Authorization"].split(" ", 1)[1]
         other = fake_tab(env, jwt, "tab-other")
         post_json(env, headers, "delete_photos", {"paths": P[:1]}, tab_id="tab-caller")
-        import time
-        time.sleep(0.5)
-        assert changed_frames(other) == []
+        assert frames_within(other, 1, timeout=0.5) == []
 
     def test_no_tab_id_broadcasts_to_nobody(self, edition_session, fake_tab):
         env, headers = edition_session
@@ -666,9 +663,7 @@ class TestChangedPaths:
         other = fake_tab(env, jwt, "tab-other")
         out = post_json(env, headers, "batch_set_rejected", {"paths": P[:1]})
         assert out["changed_paths"] == P[:1]
-        import time
-        time.sleep(0.5)
-        assert changed_frames(other) == []
+        assert frames_within(other, 1, timeout=0.5) == []
 
     def test_a_malformed_tab_id_is_a_422(self, edition_session):
         env, headers = edition_session

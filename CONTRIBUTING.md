@@ -77,7 +77,7 @@ Other entry points: `viewer.py` (FastAPI server), `database.py` (schema migratio
 ## Tests
 
 - **A new test must fail when your fix is removed.** Check it: revert the fix, see the test fail, restore. Tests that only check a response's shape, or mock away the code they claim to cover, are sent back.
-- Build test databases with `db.schema.init_database` or the `seeded_photos` / `seed_photos_prefix` fixtures in `tests/conftest.py`, never a hand-written `CREATE TABLE photos`. See [`.claude/patterns/test-fixtures.md`](.claude/patterns/test-fixtures.md).
+- Build test databases with `db.schema.init_database` or the `seeded_photos` / `seed_photos_prefix` fixtures in `tests/conftest.py`, never a hand-written `CREATE TABLE photos`. See [`.claude/patterns/test-fixtures.md`](.claude/patterns/test-fixtures.md). The only exceptions are schema-migration tests (which must construct the *old* schema to migrate from) and minimal-schema tests that prove the schema itself; everything else — even a two-column stub — goes through the fixtures, because a hand-rolled schema keeps passing after the real one gains a column.
 - For auth, use the `edition_client` / `regular_client` / `superadmin_client` / `anonymous_client` fixtures or `app.dependency_overrides`, never `mock.patch` on a FastAPI dependency (it silently does nothing).
 
 ## Before You Open a PR

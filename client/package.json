@@ -69,5 +69,8 @@
     "openapi-typescript": {
       "typescript": "$typescript"
     }
+  },
+  "engines": {
+    "node": ">=24 <25"
   }
 }
