@@ -29,6 +29,8 @@ All notable changes to Facet are documented in this file.
 
 ### Changed
 
+- The full-page Stack Editor supports bounded keyboard image inspection, a single-stop thumbnail strip, explicit image-load Retry, and focus restoration after rejecting the focused member. Narrow controls retain touch targets and readable filenames.
+
 - Culling keeps darkroom navigation and zoom shortcuts working after toolbar focus, adds explicit single-view Keep/Reject/Confirm actions and a focused filename, and enlarges narrow-screen touch targets. Captured decisions stay locked during confirmation, Undo restores editing, and an empty keeper draft explains why Confirm is unavailable. Narrow comparison headers separate filenames and verdicts from decision controls.
 
 - Photo comparison keeps pane and assignment identities readable on phones, adds touch-sized controls and a focused Inspect panel with Close, and bounds inspection panning to fitted images. Narrow-pane source failures and Retry stay separate from zoom controls. Filmstrip keyboard focus and long-name display improve without changing ratings, gallery selection or culling framing.
@@ -92,6 +94,10 @@ All notable changes to Facet are documented in this file.
 - **`--recompute-iqa` no longer loads every pending thumbnail into memory.** The pass lists the pending photos first, then reads, decodes (a small thread pool) and scores them one batch at a time and writes each batch with one `executemany` per score column plus one for declines, so memory no longer grows with the number of pending photos. Photos are now processed in rowid order, and a photo scored, declined or deleted while the pass runs is skipped if the change lands before its batch is read. Ctrl-C keeps every finished batch; rerun to continue. The scorers are now always unloaded, even when the pass fails.
 
 ### Fixed
+
+- Junk Sweep preserves unseen candidates after decisions and failed paging, separates load failures from empty queues, and stops later bulk write batches after navigation or account changes. Named touch-sized decisions stay visible; kind counts match the reader’s remaining candidates.
+
+- Arrow keys on the opened-photo collection thumbnails now open the focused photo instead of only moving its focus outline. Home/End open the first/last photo in the visible section; collection filters, selection and Back remain intact.
 
 - Narrow photo headers give filenames a full-width two-line row. Ready-image readouts keep dimensions and zoom together in narrow panes while retaining accessible source status; Favorite and zoom controls use 44-pixel coarse-pointer targets.
 

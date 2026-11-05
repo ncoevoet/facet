@@ -282,6 +282,8 @@ Wählen Sie in der Galerie **Auswahlstatus → Zu prüfen**, um unentschiedene F
 
 Wählen Sie **2–1000 konkrete Fotos**, dann **Fotos stapeln** in der Auswahlleiste oder drücken Sie **S**, um den ganzseitigen Editor unter `/stacks/edit` zu öffnen. Eine Gesamtauswahl der Ansicht erstellt keinen Stapel. S öffnet nur die Vorschau und speichert nicht. Benutzermenü → **Tastenkürzel anpassen** ändert die Galeriebelegung; Tooltip, Hilfe und `?` zeigen die aktuelle Taste. Belegt eine ältere gespeicherte Einstellung bereits S, bleibt sie erhalten und Stapeln ist **Nicht zugewiesen**, bis Sie eine freie Taste wählen. Bearbeitungsrechte sind erforderlich. Jedes Foto gehört je Eigentümer höchstens einem Stapel. Die Seite zeigt mittig eine zoombare Vorschau über einem dauerhaften Miniaturstreifen. Klicken Sie auf eine Miniatur oder verwenden Sie `←`/`→`, um ein Foto zu fokussieren; die zugehörigen Schaltflächen wählen das Titelbild, ändern die Reihenfolge oder entfernen es. Zoomtaste, Mausrad oder Doppelklick zeigen Details.
 
+Im ganzseitigen Editor erreicht Tab die Bildfläche: +/− ändert die Vergrößerung, Pfeiltasten verschieben das vergrößerte Bild, Pos1 oder F passt es wieder ein. Der Miniaturstreifen hat einen Tab-Stopp; Links/Rechts und Pos1/Ende verschieben den Fokus und öffnen das erreichte Bild. Die Bildanzeige bietet bei einem Ladefehler Erneut versuchen, ohne zu speichern oder den Stapel zu ändern. Entfernt Ablehnen eine fokussierte Miniatur, erhält ein verbleibendes Mitglied den Fokus.
+
 Mit **Cmd+Umschalt+S** oder **Strg+Umschalt+S** stapeln Sie ausdrücklich ausgewählte, ungestapelte Fotos sofort in Auswahlreihenfolge; das erste wird Titelbild. Vorhandene Stapelmitglieder öffnen den Editor. Erfolg hebt die gespeicherte Auswahl auf, Rückgängig stellt sie wieder her; Abbruch oder Fehler behalten sie. Escape im Editor kehrt ohne Speichern zur ursprünglichen Galerie zurück.
 
 **Beim Stapeln ablehnen.** Fokussieren Sie im Seiteneditor oder Stapeldialog ein Foto und wählen Sie **Ablehnen** oder **R**. Das aktive Foto in der Dunkelkammer der Stapelvorschläge bietet dieselbe Aktion; öffnen Sie diese zuerst zur Auswahl. Ablehnen speichert sofort die gewöhnliche Sichtungsentscheidung, löscht Behalten, Favorit und Sterne und schließt nur dieses Foto aus dem vorgeschlagenen Stapel aus. Originaldateien werden weder gelöscht noch verändert. Zähler und abgedunkelte Miniaturen zeigen Ausschlüsse. Rückgängig stellt vorherige Werte und weiterhin relevante Entwurfsmitgliedschaft wieder her, ohne spätere Reihenfolge oder Titelbildwahl zu ersetzen; spätere Sichtungsänderungen können Rückgängig verhindern. Bereits abgelehnte Fotos bleiben bis zum ausdrücklichen Ausschluss enthalten, ohne weitere Sichtungsentscheidung. Gruppierung wartet auf Speichern; Verlassen ohne Speichern macht Ablehnen nicht rückgängig.
@@ -327,7 +329,7 @@ Bei vergrößerter Ansicht verschieben Touch-Gesten das Bild; Einpassen stellt n
 
 Die Fotodetails gliedern Metriken in EXIF, Qualität, Komposition, Technik und Histogramm. Der letzte Tab bleibt gespeichert. Neben jedem endlichen Wert öffnet ein Diagrammknopf dessen Verteilung bei Bedarf, markiert das aktuelle Foto und wechselt zwischen Ihrer sichtbaren Bibliothek und der aktuellen Kategorie. Galeriefilter gelten dabei nicht; unzugängliche Fotos sind ausgeschlossen. Fehler bieten Erneut versuchen. Freigegebene Alben zeigen keine Bibliotheksverteilungen.
 
-**Sammlungsleiste.** Auf breiten Bildschirmen (ab 1280 px) zeigt ein Foto aus der geladenen Galeriesammlung (außer bei Navigation aus der Zeitleiste) links eine Leiste mit diesen Fotos, mit denselben Filtern und derselben Sortierung. Ein Klick auf ein Vorschaubild öffnet es; **Mehr laden** holt die nächste Seite. Die Breite ändert man durch Ziehen am Trenner oder per Fokus mit Links/Rechts, Pos1 und Ende: schmal ein Foto pro Zeile, breit zwei. Der Pfeil klappt sie ein. Die Leiste ändert nie die Filter, die Auswahl oder das Ziel von Zurück. Bei großen geladenen Sammlungen wechseln die Schaltflächen für vorherige und nächste geladene Fotos zwischen den Abschnitten.
+**Sammlungsleiste.** Auf breiten Bildschirmen (ab 1280 px) zeigt ein Foto aus der geladenen Galeriesammlung (außer bei Navigation aus der Zeitleiste) links eine Leiste mit diesen Fotos, mit denselben Filtern und derselben Sortierung. Ein Klick auf ein Vorschaubild öffnet es. Wenn ein Vorschaubild den Fokus hat, öffnen die Pfeiltasten das angesteuerte Foto; Pos1/Ende öffnen das erste/letzte Foto im sichtbaren Abschnitt. **Mehr laden** holt die nächste Seite. Die Breite ändert man durch Ziehen am Trenner oder per Fokus mit Links/Rechts, Pos1 und Ende: schmal ein Foto pro Zeile, breit zwei. Der Pfeil klappt sie ein. Die Leiste ändert nie die Filter, die Auswahl oder das Ziel von Zurück. Bei großen geladenen Sammlungen wechseln die Schaltflächen für vorherige und nächste geladene Fotos zwischen den Abschnitten.
 
 Die Sets in der Fotoansicht zeigen und zählen jede Datei, einschließlich beider Dateien eines gruppierten RAW/JPEG-Paars. Die Galerie zählt dieses Paar als ein Foto.
 
@@ -921,6 +923,8 @@ Endpunkte: [API.md — Download](../API.md#download).
 
 Die Dunkelkammer zeigt den fokussierten Dateinamen und bietet in der Einzelansicht Behalten, Ablehnen und Bestätigen. Behalten und Ablehnen ändern den Gruppenentwurf; Bestätigen verwendet die bestehende verzögerte Bestätigung mit Rückgängig. Pfeiltasten und Zoomkürzel funktionieren auch nach dem Fokussieren einer Werkzeugtaste; Eingaben und modifizierte Tasten behalten ihr normales Verhalten. Auf schmalen Bildschirmen und bei groben Zeigegeräten sind die Ziele 44 Pixel groß. Auf dem Handy liegt Vollbild unter Prüfen.
 
+Ein leerer Behalten-Entwurf deaktiviert Bestätigen sowohl in der Übersicht als auch in der Dunkelkammer; Tastenkürzel erklären den fehlenden Schritt. Erneut geöffnete wartende Gruppen zeigen den Countdown und Abbrechen. Nach der letzten Bestätigung in der Dunkelkammer kehrt der Fokus zum Countdown zurück. Schmale Vierfachansichten haben kompakte Kopfzeilen; die Lupeneinstellung erhält auf dem Handy eine eigene Werkzeugzeile.
+
 Während des Bestätigungs-Countdowns kann die erfasste Auswahl nicht geändert werden; Rückgängig erlaubt die Bearbeitung wieder. Ohne behaltene Fotos ist Bestätigen deaktiviert und zeigt einen Hinweis. Die gesamte Gruppe abzulehnen bleibt ein eigener Bestätigungsvorgang.
 
 Die Auswahlseite (`/culling`, Bearbeitungsmodus) gruppiert beinahe identische Aufnahmen, sodass Sie von jeder das Beste behalten und den Rest ablehnen. Wählen Sie in jeder Gruppe die Behaltenen; das Bestätigen lehnt die anderen ab. Bestätigungen sind verzögert und lassen sich rückgängig machen (siehe [Rückgängig](#rückgängig)).
@@ -1081,12 +1085,14 @@ Eine schnelle Prüfwarteschlange für Screenshots, gescannte Dokumente, Belege, 
 
 Öffnen Sie **Müll aufräumen** in der Navigation (`/junk`, nur Edition):
 
-- **Chips zum Filtern nach Art** — „Alle Arten“ plus ein Chip pro Art mit ihrer Anzahl (`GET /api/filter_options/junk_kinds`).
+- **Typmenü** — „Alle Typen“ und die verbleibenden Kandidaten je Typ (`GET /api/filter_options/junk_kinds`), ohne die für diesen Benutzer abgelehnten Fotos.
 - **Kandidatenanzahl** — zählt herunter, während Sie entscheiden.
 - **Behalten** — nimmt das Foto **endgültig** aus der Warteschlange (`not_junk`); spätere `--detect-junk`-Läufe überspringen es.
 - **Ablehnen** — markiert das Foto als abgelehnt (nichts wird gelöscht).
 - **Alle angezeigten ablehnen** — lehnt nach Bestätigung jeden geladenen Kandidaten ab.
 - **Lupe** — drücken Sie **`Z`** (oder den Umschalter der Symbolleiste), um feinen Text zu vergrößern.
+
+Behalten und Ablehnen bleiben als beschriftete, berührungsgerechte Schaltflächen sichtbar. Ladefehler zeigen Erneut versuchen statt einer leeren Warteschlange. Mehr laden wiederholt die fehlgeschlagene Seite und berücksichtigt bereits entschiedene Kandidaten. Während Alle angezeigten ablehnen sind widersprüchliche Entscheidungen gesperrt. Kontowechsel oder Verlassen der Seite stoppt spätere Schreibblöcke; ein bereits vom Server angenommener Block wird nicht rückgängig gemacht.
 
 Müll-Fotos bleiben in der normalen Galerie sichtbar. Filtern Sie sie mit `?junk_kind=<kind>` oder `?junk_kind=any` (schließt `not_junk` aus).
 

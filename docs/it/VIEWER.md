@@ -282,6 +282,8 @@ Usa **Stato revisione → Da esaminare** nella galleria per smaltire le foto non
 
 Seleziona **2–1000 foto esplicite**, poi **Impila foto** nella barra di selezione o premi **S** per aprire l’editor a pagina intera in `/stacks/edit`. La selezione dell’intera vista non crea pile. S apre un’anteprima, senza salvare direttamente. Menu utente → **Personalizza le scorciatoie** cambia il tasto della galleria; il suggerimento, Aiuto e il riferimento `?` mostrano quello attuale. Se una configurazione precedente usa già S, viene mantenuta e Impila rimane **Non assegnato** finché non scegli un tasto libero. Servono permessi di modifica. Una foto appartiene a una sola pila per proprietario. La pagina centra un’anteprima con zoom sopra una striscia di miniature permanente. Fai clic su una miniatura o usa `←`/`→` per selezionare una foto, poi i suoi comandi di copertina, ordine o rimozione dalla pila. Pulsante zoom, rotellina o doppio clic mostrano i dettagli.
 
+Nell’editor a pagina intera, Tab raggiunge l’immagine: +/− cambia l’ingrandimento, le frecce spostano l’immagine ingrandita e Inizio o F ripristina l’adattamento. La striscia di miniature ha un solo punto di Tab; Sinistra/Destra e Inizio/Fine spostano il focus e aprono l’immagine raggiunta. Lo stato dell’immagine offre Riprova se il caricamento fallisce, senza salvare o cambiare la pila. Se Rifiuta rimuove la miniatura attiva, il focus passa a un membro rimasto.
+
 Usa **Cmd+Maiusc+S** o **Ctrl+Maiusc+S** per impilare subito le foto esplicite non impilate nell’ordine di selezione, con la prima come copertina. I membri di pile esistenti aprono l’editor. Il successo cancella la selezione salvata e Annulla la ripristina; annullamento o errore la conserva. Escape nell’editor torna alla galleria originale senza salvare.
 
 **Rifiutare durante l’impilamento.** Seleziona una foto nell’editor a pagina intera o nella sua finestra e usa **Rifiuta** o **R**. La foto attiva nella camera oscura delle pile suggerite ha la stessa azione; aprila prima per scegliere la foto. Rifiuta salva subito la normale decisione, cancella Conserva, preferito e stelle ed esclude solo quella foto dalla pila proposta. Non elimina né modifica file originali. Conteggio e miniature attenuate mostrano le esclusioni. Annulla ripristina i valori precedenti e l’appartenenza alla bozza pertinente senza sostituire successive scelte di ordine o copertina; modifiche successive possono impedire Annulla. Le foto già rifiutate restano fino all’esclusione esplicita, senza un’altra decisione. Il raggruppamento attende Salva; uscire senza salvare non annulla Rifiuta.
@@ -325,7 +327,7 @@ Il badge o una foto impilata apre il visualizzatore con miniature, pulsanti prec
 
 Le metriche del dettaglio foto usano schede EXIF, Qualità, Composizione, Tecnica e Istogramma; l’ultima resta memorizzata. Il pulsante grafico accanto a ogni valore finito carica la distribuzione su richiesta, indica la foto attuale e passa dalla libreria visibile alla categoria attuale. I filtri della galleria non si applicano e le foto non accessibili sono escluse. Gli errori offrono Riprova. Gli album condivisi non espongono distribuzioni della libreria.
 
-**Pannello della raccolta.** Sugli schermi larghi (da 1280 px), una foto presente nella raccolta caricata della galleria (fuori dalla navigazione della Cronologia) mostra alla sua sinistra quelle foto, con gli stessi filtri e lo stesso ordinamento. Fai clic su una miniatura per aprirla; **Carica altre** recupera la pagina successiva. Trascina il divisore, oppure dagli il focus e usa Sinistra/Destra, Inizio e Fine, per ridimensionarlo: una foto per riga se stretto, due se largo. La freccia lo comprime. Il pannello non cambia mai i filtri, la selezione o la destinazione di Indietro. Per raccolte caricate grandi, usa i pulsanti delle foto precedenti e successive per spostarti tra le sezioni.
+**Pannello della raccolta.** Sugli schermi larghi (da 1280 px), una foto presente nella raccolta caricata della galleria (fuori dalla navigazione della Cronologia) mostra alla sua sinistra quelle foto, con gli stessi filtri e lo stesso ordinamento. Fai clic su una miniatura per aprirla; quando una miniatura ha il focus, le frecce aprono la foto raggiunta e Inizio/Fine aprono la prima/ultima foto della sezione visibile. **Carica altre** recupera la pagina successiva. Trascina il divisore, oppure dagli il focus e usa Sinistra/Destra, Inizio e Fine, per ridimensionarlo: una foto per riga se stretto, due se largo. La freccia lo comprime. Il pannello non cambia mai i filtri, la selezione o la destinazione di Indietro. Per raccolte caricate grandi, usa i pulsanti delle foto precedenti e successive per spostarti tra le sezioni.
 
 I set nel dettaglio foto mostrano e contano ogni file, inclusi entrambi i file di una coppia RAW/JPEG raggruppata. La galleria conta la coppia come una sola foto.
 
@@ -920,6 +922,8 @@ Endpoint: [API.md — Download](../API.md#download).
 
 La camera oscura mostra il file attivo e offre Conserva, Rifiuta e Conferma nella vista singola. Conserva e Rifiuta cambiano la bozza del gruppo; Conferma mantiene la conferma differita e Annulla. Frecce e scorciatoie zoom funzionano dopo il focus su un pulsante, senza intercettare campi o tasti modificati. I controlli su schermi stretti e con puntatori grossolani hanno bersagli di 44 pixel. Sul telefono, Schermo intero è in Ispeziona.
 
+Una bozza senza foto conservate disabilita Conferma sia nella griglia sia nella camera oscura; le scorciatoie spiegano cosa manca. Riaprire un gruppo in attesa mostra il conto alla rovescia e Annulla. Dopo l’ultima conferma, il focus torna al conto alla rovescia. Le viste strette a quattro riquadri usano intestazioni compatte e la regolazione della lente ha una riga propria sul telefono.
+
 Durante il conto alla rovescia di conferma non si può modificare la selezione acquisita; Annulla riattiva la modifica. Senza foto conservate, Conferma è disabilitato e ne spiega il motivo. Rifiutare tutto il gruppo resta una conferma separata.
 
 La pagina di selezione (`/culling`, modalità di modifica) raggruppa scatti quasi identici così conservi il migliore di ciascuno e rifiuti il resto. Scegli la/le foto da conservare in ogni gruppo; confermare rifiuta le altre. Le conferme sono differite e si possono annullare (vedi [Annulla](#annulla)).
@@ -1080,12 +1084,14 @@ Una coda di revisione rapida per screenshot, documenti scansionati, ricevute, me
 
 Apri **Pulizia** nella navigazione (`/junk`, solo modifica):
 
-- **Chip di filtro per tipo** — "Tutti i tipi" più un chip per tipo con il suo conteggio (`GET /api/filter_options/junk_kinds`).
+- **Menu del tipo** — «Tutti i tipi» e i candidati rimasti per tipo (`GET /api/filter_options/junk_kinds`), escluse le foto rifiutate da questo utente.
 - **Conteggio candidati** — scende man mano che decidi.
 - **Conserva** — toglie la foto dalla coda **per sempre** (`not_junk`); le successive esecuzioni di `--detect-junk` la saltano.
 - **Rifiuta** — segna la foto come scartata (non viene eliminato nulla).
 - **Rifiuta tutto** — rifiuta ogni candidato caricato, dopo conferma.
 - **Lente** — premi **`Z`** (o l'interruttore nella barra degli strumenti) per ingrandire il testo fine.
+
+Conserva e Rifiuta restano visibili, con controlli nominati adatti al tocco. Un errore di lettura mostra Riprova invece di una coda vuota. Carica altre ripete la pagina fallita e considera i candidati già decisi. Durante il rifiuto di tutti quelli mostrati, le decisioni incompatibili sono disabilitate. Cambiare account o lasciare la pagina ferma i blocchi successivi; non annulla un blocco già accettato dal server.
 
 Le foto scarto restano visibili nella galleria normale. Filtrale con `?junk_kind=<kind>` o `?junk_kind=any` (esclude `not_junk`).
 

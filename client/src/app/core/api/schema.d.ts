@@ -2009,7 +2009,7 @@ export interface paths {
         };
         /**
          * Junk Kinds
-         * @description Lazy-load junk-kind options with counts (excludes the 'not_junk' sentinel).
+         * @description Count remaining Junk Sweep candidates using this reader's review state.
          */
         get: operations["junk_kinds_api_filter_options_junk_kinds_get"];
         put?: never;

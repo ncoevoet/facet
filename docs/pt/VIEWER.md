@@ -282,6 +282,8 @@ Use **Estado de revisão → Precisa de revisão** na galeria para percorrer fot
 
 Selecione **2–1000 fotos explícitas** e escolha **Empilhar fotos** na barra ou prima **S** para abrir o editor de página inteira em `/stacks/edit`. Selecionar toda a visualização não cria pilhas. S abre uma pré-visualização, sem guardar diretamente. Menu do utilizador → **Personalizar atalhos** muda a tecla da galeria; a dica, a Ajuda e a referência `?` mostram a tecla atual. Se uma configuração anterior já usa S, é preservada e Empilhar fica **Não atribuído** até escolher uma tecla livre. São necessárias permissões de edição. Cada foto pertence a uma pilha por proprietário. A página centra uma pré-visualização com zoom sobre uma faixa de miniaturas permanente. Clique numa miniatura ou use `←`/`→` para focar uma foto e os seus controlos de capa, ordem ou remoção da pilha. O botão de zoom, a roda ou um duplo clique permitem examinar detalhes.
 
+No editor de página inteira, Tab chega à imagem: +/− altera a ampliação, as setas deslocam a imagem ampliada e Home ou F restaura o ajuste. A faixa de miniaturas tem uma única parada de Tab; Esquerda/Direita e Home/End movem o foco e abrem a imagem alcançada. O estado da imagem oferece Tentar novamente se o carregamento falhar, sem salvar nem alterar a pilha. Se Rejeitar remover a miniatura focada, o foco passa para um membro restante.
+
 Use **Cmd+Shift+S** ou **Ctrl+Shift+S** para empilhar fotos explícitas sem pilha pela ordem de seleção, com a primeira como capa. Membros de pilhas existentes abrem o editor. O sucesso limpa a seleção guardada e Desfazer repõe-na; cancelar ou falhar mantém-na. Escape no editor regressa à galeria de origem sem guardar.
 
 **Rejeitar ao empilhar.** Foque uma foto no editor de página inteira ou no diálogo e use **Rejeitar** ou **R**. A foto ativa na câmara escura das pilhas sugeridas tem a mesma ação; abra-a primeiro para escolher a foto. Rejeitar guarda imediatamente a decisão habitual, limpa Manter, favorito e estrelas, e exclui só essa foto da pilha proposta. Não apaga nem modifica ficheiros originais. O contador e as miniaturas esbatidas mostram as exclusões. Desfazer restaura os valores anteriores e a pertença ao rascunho relevante sem substituir escolhas posteriores de ordem ou capa; alterações de revisão posteriores podem impedir Desfazer. Fotos já rejeitadas ficam até serem excluídas explicitamente, sem outra decisão. O agrupamento espera por Guardar; sair sem guardar não desfaz Rejeitar.
@@ -325,7 +327,7 @@ O indicador ou uma foto empilhada abre o visualizador com miniaturas, botões an
 
 As métricas do detalhe da foto usam abas EXIF, Qualidade, Composição, Técnica e Histograma; a última fica guardada. O botão de gráfico junto de cada valor finito carrega a distribuição a pedido, marca a foto atual e alterna entre a biblioteca visível e a categoria atual. Não aplica filtros da galeria e exclui fotos sem acesso. Erros oferecem Tentar novamente. Álbuns partilhados não mostram distribuições da biblioteca.
 
-**Painel da coleção.** Em ecrãs largos (a partir de 1280 px), uma foto presente na coleção carregada da galeria, fora da navegação pela Linha do tempo, mostra essas fotos num painel à esquerda, com os mesmos filtros e a mesma ordenação. Clique numa miniatura para abri-la; **Carregar mais** busca a página seguinte. Arraste o divisor, ou dê-lhe foco e use Esquerda/Direita, Home e End, para redimensioná-lo: uma foto por linha quando estreito, duas quando largo. A seta recolhe-o. O painel nunca altera os filtros, a seleção nem o destino de Voltar. Em coleções carregadas grandes, use os botões de fotos anteriores e seguintes para percorrer as seções.
+**Painel da coleção.** Em ecrãs largos (a partir de 1280 px), uma foto presente na coleção carregada da galeria, fora da navegação pela Linha do tempo, mostra essas fotos num painel à esquerda, com os mesmos filtros e a mesma ordenação. Clique numa miniatura para abri-la; com foco numa miniatura, as setas abrem a foto alcançada e Home/End abrem a primeira/última foto da seção visível. **Carregar mais** busca a página seguinte. Arraste o divisor, ou dê-lhe foco e use Esquerda/Direita, Home e End, para redimensioná-lo: uma foto por linha quando estreito, duas quando largo. A seta recolhe-o. O painel nunca altera os filtros, a seleção nem o destino de Voltar. Em coleções carregadas grandes, use os botões de fotos anteriores e seguintes para percorrer as seções.
 
 Os conjuntos no detalhe da foto mostram e contam cada ficheiro, incluindo ambos os ficheiros de um par RAW/JPEG agrupado. A galeria conta esse par como uma só foto.
 
@@ -918,6 +920,8 @@ Endpoints: [API.md — Download](../API.md#download).
 
 A câmara escura mostra o ficheiro focado e oferece Manter, Rejeitar e Confirmar na vista individual. Manter e Rejeitar alteram o rascunho do grupo; Confirmar mantém a confirmação diferida e Desfazer. As setas e os atalhos de zoom funcionam após focar um botão, sem intercetar campos ou teclas modificadas. Os controlos estreitos e táteis têm alvos de 44 píxeis. No telefone, Ecrã inteiro fica em Inspecionar.
 
+Um rascunho sem fotos mantidas desativa Confirmar tanto na grade quanto na câmara escura; os atalhos explicam o que falta. Reabrir um grupo pendente mostra a contagem regressiva e Cancelar. Após a última confirmação, o foco volta à contagem. As vistas estreitas de quatro painéis usam cabeçalhos compactos e o ajuste da lupa tem uma linha própria no telefone.
+
 Durante a contagem decrescente de confirmação, a seleção capturada não pode ser alterada; Anular permite editar novamente. Sem fotografias mantidas, Confirmar fica desativado com uma explicação. Rejeitar o grupo inteiro mantém uma confirmação separada.
 
 A página de triagem (`/culling`, modo de edição) agrupa tomadas quase idênticas para que você fique com a melhor de cada e rejeite o resto. Escolha a(s) melhor(es) de cada grupo; confirmar rejeita as outras. As confirmações são adiadas e podem ser desfeitas (veja [Desfazer](#desfazer)).
@@ -1078,12 +1082,14 @@ Uma fila de revisão rápida para capturas de tela, documentos digitalizados, re
 
 Abra **Limpeza** na navegação (`/junk`, somente edição):
 
-- **Chips de filtro por tipo** — "Todos os tipos" mais um chip por tipo com a sua contagem (`GET /api/filter_options/junk_kinds`).
+- **Menu de tipo** — «Todos os tipos» e os candidatos restantes por tipo (`GET /api/filter_options/junk_kinds`), sem as fotos rejeitadas por este usuário.
 - **Contagem de candidatas** — diminui conforme você decide.
 - **Manter** — retira a foto da fila **para sempre** (`not_junk`); as execuções seguintes de `--detect-junk` a ignoram.
 - **Rejeitar** — marca a foto como rejeitada (nada é excluído).
 - **Rejeitar todas as exibidas** — rejeita todas as candidatas carregadas, após confirmação.
 - **Lupa** — pressione **`Z`** (ou o botão da barra de ferramentas) para ampliar textos pequenos.
+
+Manter e Rejeitar permanecem visíveis, com controles nomeados adequados ao toque. Uma falha de leitura mostra Tentar novamente em vez de uma fila vazia. Carregar mais repete a página que falhou e considera candidatos já decididos. Durante Rejeitar todos os mostrados, decisões conflitantes ficam desativadas. Mudar de conta ou sair da página interrompe os próximos lotes; um lote já aceito pelo servidor não é desfeito.
 
 As fotos de lixo continuam visíveis na galeria normal. Filtre-as com `?junk_kind=<kind>` ou `?junk_kind=any` (exclui `not_junk`).
 

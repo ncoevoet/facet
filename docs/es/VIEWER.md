@@ -282,6 +282,8 @@ Usa **Estado de revisión → Por revisar** en la galería para recorrer las fot
 
 Selecciona **2–1000 fotos explícitas** y elige **Apilar fotos** en la barra o pulsa **S** para abrir el editor de página completa en `/stacks/edit`. Una selección de toda la vista no crea pilas. S abre una vista previa; nunca guarda directamente. Menú de usuario → **Personalizar atajos** cambia la tecla de la galería; la ayuda emergente, Ayuda y la referencia `?` muestran la tecla actual. Si una configuración anterior ya usa S, se conserva y Apilar queda **Sin asignar** hasta elegir una tecla libre. Se requieren permisos de edición. Cada foto pertenece a una pila por propietario. La página centra una vista previa con zoom sobre una tira de miniaturas permanente. Pulsa una miniatura o usa `←`/`→` para enfocar una foto y sus controles de portada, orden o eliminación de la pila. El botón de zoom, la rueda o un doble clic permiten examinar los detalles.
 
+En el editor de página completa, Tab llega al lienzo: +/− cambia la ampliación, las flechas desplazan la imagen ampliada e Inicio o F restaura el ajuste. La tira de miniaturas tiene una sola parada de Tab; Izquierda/Derecha e Inicio/Fin mueven el foco y abren la imagen alcanzada. El estado de la imagen ofrece Reintentar si falla la carga, sin guardar ni cambiar la pila. Si Rechazar quita la miniatura enfocada, el foco pasa a un miembro restante.
+
 Usa **Cmd+Mayús+S** o **Ctrl+Mayús+S** para apilar fotos explícitas sin pila en orden de selección; la primera será la portada. Los miembros de pilas existentes abren el editor. El éxito borra la selección guardada y Deshacer la restaura; cancelar o fallar la conserva. Escape en el editor vuelve a la galería de origen sin guardar.
 
 **Rechazar al apilar.** Enfoca una foto en el editor de página completa o su diálogo y usa **Rechazar** o **R**. La foto activa en el cuarto oscuro de pilas sugeridas tiene la misma acción; ábrelo primero para elegirla. Rechazar guarda de inmediato la decisión habitual, borra Conservar, favorito y estrellas, y excluye solo esa foto de la pila propuesta. No elimina ni modifica archivos originales. El contador y las miniaturas atenuadas muestran las exclusiones. Deshacer restaura los valores anteriores y la pertenencia al borrador vigente sin reemplazar cambios posteriores de orden o portada; una revisión posterior puede impedir Deshacer. Las fotos ya rechazadas permanecen hasta excluirlas explícitamente, sin otra decisión. La agrupación espera a Guardar; salir sin guardar no deshace Rechazar.
@@ -325,7 +327,7 @@ La insignia o una foto apilada abre el visor con miniaturas, botones anterior/si
 
 Las métricas del detalle de foto usan pestañas EXIF, Calidad, Composición, Técnica e Histograma; se recuerda la última. El botón de gráfico junto a cada valor finito carga su distribución a petición, marca la foto actual y alterna entre tu biblioteca visible y su categoría. No se aplican filtros de galería y se excluyen fotos sin acceso. Los errores ofrecen Reintentar. Los álbumes compartidos no muestran distribuciones de biblioteca.
 
-**Panel de colección.** En pantallas anchas (desde 1280 px), una foto presente en la colección cargada de la galería (fuera de la navegación de Línea de tiempo) muestra a su izquierda esas fotos, con los mismos filtros y orden. Haz clic en una miniatura para abrirla; **Cargar más** trae la página siguiente. Arrastra el divisor, o enfócalo y usa Izquierda/Derecha, Inicio y Fin, para cambiar su ancho: una foto por fila si es estrecho y dos si es ancho. El chevrón lo pliega. El panel nunca cambia los filtros, la selección ni el destino de Atrás. En colecciones cargadas grandes, usa los botones de fotos anteriores y siguientes para recorrer las secciones.
+**Panel de colección.** En pantallas anchas (desde 1280 px), una foto presente en la colección cargada de la galería (fuera de la navegación de Línea de tiempo) muestra a su izquierda esas fotos, con los mismos filtros y orden. Haz clic en una miniatura para abrirla; con el foco en una miniatura, las flechas abren la foto a la que se desplazan e Inicio/Fin abren la primera/última foto de la sección visible. **Cargar más** trae la página siguiente. Arrastra el divisor, o enfócalo y usa Izquierda/Derecha, Inicio y Fin, para cambiar su ancho: una foto por fila si es estrecho y dos si es ancho. El chevrón lo pliega. El panel nunca cambia los filtros, la selección ni el destino de Atrás. En colecciones cargadas grandes, usa los botones de fotos anteriores y siguientes para recorrer las secciones.
 
 Los conjuntos del detalle de foto muestran y cuentan cada archivo, incluidos ambos archivos de un par RAW/JPEG agrupado. La galería cuenta ese par como una sola foto.
 
@@ -923,6 +925,8 @@ Endpoints: [API.md — Descarga](../API.md#download).
 
 El cuarto oscuro muestra el nombre enfocado y ofrece Conservar, Rechazar y Confirmar en la vista individual. Conservar y Rechazar cambian el borrador del grupo; Confirmar usa la confirmación diferida y Deshacer existentes. Las flechas y los atajos de zoom siguen disponibles al enfocar un botón; los campos y las teclas modificadas conservan su comportamiento nativo. Los controles estrechos y táctiles tienen objetivos de 44 píxeles. En teléfonos, Pantalla completa está en Inspeccionar.
 
+Un borrador sin fotos conservadas desactiva Confirmar tanto en la cuadrícula como en el cuarto oscuro; los atajos explican qué falta. Reabrir un grupo pendiente muestra su cuenta atrás y Cancelar. Tras la última confirmación, el foco vuelve a esa cuenta atrás. Las vistas estrechas de cuatro paneles usan cabeceras compactas y el ajuste de lupa tiene su propia fila en teléfonos.
+
 Durante la cuenta atrás de confirmación no se puede cambiar la selección capturada; Deshacer permite editar de nuevo. Sin fotos conservadas, Confirmar queda desactivado y explica el motivo. Rechazar todo el grupo mantiene su confirmación independiente.
 
 La página de descarte (`/culling`, modo de edición) agrupa tomas casi idénticas para que conserves la mejor de cada una y rechaces el resto. Elige las mejores de cada grupo; al confirmar se rechazan las demás. Las confirmaciones se aplazan y se pueden deshacer (ver [Deshacer](#deshacer)).
@@ -1083,12 +1087,14 @@ Una cola de revisión rápida para capturas de pantalla, documentos escaneados, 
 
 Abre **Limpieza de basura** en la navegación (`/junk`, solo edición):
 
-- **Chips de filtro por tipo**: "Todos los tipos" más un chip por tipo con su recuento (`GET /api/filter_options/junk_kinds`).
+- **Menú de tipo** — «Todos los tipos» y el número de candidatos restantes por tipo (`GET /api/filter_options/junk_kinds`), sin las fotos rechazadas por este usuario.
 - **Recuento de candidatas**: baja a medida que decides.
 - **Conservar**: quita la foto de la cola **para siempre** (`not_junk`); las ejecuciones posteriores de `--detect-junk` la omiten.
 - **Rechazar**: marca la foto como rechazada (no se elimina nada).
 - **Rechazar todas las mostradas**: rechaza todas las candidatas cargadas, tras confirmar.
 - **Lupa**: pulsa **`Z`** (o el interruptor de la barra de herramientas) para ampliar texto pequeño.
+
+Conservar y Rechazar permanecen visibles, con controles nombrados y aptos para uso táctil. Un error de lectura muestra Reintentar en lugar de una cola vacía. Cargar más repite la página fallida y tiene en cuenta los candidatos ya decididos. Al rechazar todos los mostrados se desactivan las decisiones incompatibles. Cambiar de cuenta o salir detiene los lotes posteriores; no deshace un lote ya aceptado por el servidor.
 
 Las fotos basura siguen visibles en la galería normal. Filtra por ellas con `?junk_kind=<kind>` o `?junk_kind=any` (excluye `not_junk`).
 

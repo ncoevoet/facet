@@ -282,6 +282,8 @@ Use **Review status → Needs review** in the gallery to work through undecided 
 
 Select **2–1000 explicit photos**, then choose **Stack photos** on the selection bar or press **S** to open the full-page editor at `/stacks/edit`. A whole-view selection cannot create a stack. S opens a preview; it never saves directly. User menu → **Customize shortcuts** changes the gallery binding, and the toolbar tooltip, Help and `?` reference show the current key. If an older saved mapping already uses S, that binding is preserved and Stack starts **Unassigned** until you choose a free key. Editing access is required. A photo belongs to one manual stack per owner. The page centers a zoomable preview above a persistent thumbnail strip. Click a thumbnail or use `←`/`→` to focus a photo, then choose its cover, order or remove controls. Use the zoom button, wheel or double-click to inspect details.
 
+In the full-page editor, Tab reaches the image canvas: +/− changes magnification, arrows pan while zoomed, and Home or F restores Fit. The thumbnail strip has one Tab stop; Left/Right and Home/End move focus and open the reached image. The image readout offers Retry for a failed rendition without saving or changing the stack. After Reject removes a focused thumbnail, focus moves to a surviving member.
+
 Use **Cmd+Shift+S** or **Ctrl+Shift+S** to stack explicit unstacked photos immediately in selection order, with the first selected photo as cover. Existing stack members open the editor for review. Success clears the committed selection, and Undo restores it; cancellation or failure retains it. Escape in the editor returns to the originating gallery without saving.
 
 **Reject while stacking.** Focus a photo in the full-page editor or stack editor dialog and use **Reject** or **R**. The focused frame in the Suggested stacks darkroom has the same action; open the darkroom first to choose it. Reject immediately saves the ordinary review decision, clearing Keep, favorite and stars, and excludes only that photo from the proposed stack. It never deletes or writes original files. The count and dimmed darkroom thumbnails show exclusions. Undo restores prior review values and relevant draft membership without replacing later order or cover choices; later review edits can prevent Undo. Already-rejected photos remain until explicitly excluded, without another review decision. Grouping still waits for Save; leaving without saving does not undo Reject.
@@ -325,7 +327,7 @@ Open the count badge or a stacked photo to browse permitted members in the photo
 
 Photo-detail metrics use EXIF, Quality, Composition, Technical and Histogram tabs. The last tab is remembered. A chart button beside each finite score opens its distribution on demand, marks the current photo, and switches between your visible library and the current category. These scopes ignore gallery filters and exclude photos you cannot access. Failed reads offer Retry. Shared-album viewers do not expose library distribution controls.
 
-**Collection sidebar.** On wide screens (1280 px and up), a photo that is in the gallery's loaded collection (outside Timeline navigation) shows those photos in a sidebar on its left, in the same filters and sort. Click a thumbnail to open it; **Load more** fetches the next page. Drag the divider, or focus it and use Left/Right, Home and End, to resize it: one photo per row when narrow, two when wide. The chevron collapses it. The sidebar never changes the gallery's filters, selection or the Back destination. For large loaded collections, use Previous loaded photos and Next loaded photos to move between sections.
+**Collection sidebar.** On wide screens (1280 px and up), a photo that is in the gallery's loaded collection (outside Timeline navigation) shows those photos in a sidebar on its left, in the same filters and sort. Click a thumbnail to open it; with a thumbnail focused, arrow keys open the photo they move to, and Home/End open the first/last photo in the visible section. **Load more** fetches the next page. Drag the divider, or focus it and use Left/Right, Home and End, to resize it: one photo per row when narrow, two when wide. The chevron collapses it. The sidebar never changes the gallery's filters, selection or the Back destination. For large loaded collections, use Previous loaded photos and Next loaded photos to move between sections.
 
 Photo-detail sets show and count every file, including both files of a grouped RAW/JPEG pair. The gallery counts that pair as one photo.
 
@@ -921,6 +923,8 @@ Endpoints: [API.md — Download](API.md#download).
 
 The darkroom shows the focused filename and offers Keep, Reject and Confirm actions in single view. Keep and Reject update the group draft; Confirm uses the existing deferred confirmation and Undo. Arrow keys and zoom shortcuts remain available after a toolbar button takes focus, while inputs and modified keys retain their native behavior. Narrow and coarse-pointer controls have 44-pixel targets. On phones, Fullscreen is in Inspect.
 
+An empty keeper draft disables Confirm in both the contact sheet and darkroom; confirmation shortcuts explain what is missing. Reopening a pending group shows its countdown and Cancel action. After the last darkroom confirmation, focus returns to that countdown. Narrow four-up views use compact headers, and the phone loupe adjustment has its own toolbar row.
+
 During a confirmation countdown, the captured keeper set cannot be edited; Undo restores editing. With no keepers, ordinary Confirm is disabled and explains why. Reject entire group remains a separate confirmation flow.
 
 The culling page (`/culling`, edition mode) groups near-identical shots so you keep the best of each and reject the rest. Pick the keeper(s) in each group; confirming rejects the others. Confirms are deferred and can be undone (see [Undo](#undo)).
@@ -1081,12 +1085,14 @@ A quick review queue for screenshots, scanned documents, receipts, memes and sli
 
 Open **Junk Sweep** in the nav (`/junk`, edition only):
 
-- **Kind filter chips** — "All kinds" plus one chip per kind with its count (`GET /api/filter_options/junk_kinds`).
+- **Kind menu** — “All kinds” plus each kind’s remaining candidate count (`GET /api/filter_options/junk_kinds`), excluding this reader’s rejected photos.
 - **Candidate count** — counts down as you decide.
 - **Keep** — removes the photo from the queue **for good** (`not_junk`); later `--detect-junk` runs skip it.
 - **Reject** — marks the photo rejected (nothing is deleted).
 - **Reject all shown** — rejects every loaded candidate, after confirmation.
 - **Loupe** — press **`Z`** (or the toolbar toggle) to magnify fine text.
+
+Keep and Reject stay visible with named, touch-sized controls. A failed read shows Retry rather than an empty queue; Load more retries the failed page and accounts for candidates removed by your decisions. While rejecting all shown candidates, conflicting decisions are disabled. Changing the account or leaving the page stops later write batches; a batch already accepted by the server is not undone.
 
 Junk photos stay visible in the normal gallery. Filter for them with `?junk_kind=<kind>` or `?junk_kind=any` (excludes `not_junk`).
 

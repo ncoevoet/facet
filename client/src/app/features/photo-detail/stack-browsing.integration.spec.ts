@@ -181,6 +181,30 @@ describe('manual stack browsing through rendered viewer, Router and HTTP', () =>
     expect(router.url).toBe('/?no_gps=true');
   });
 
+  it('opens the adjacent collection photo when an arrow key follows a thumbnail click', async () => {
+    store.photos.set([makePhoto({ path: paths[1] }), makePhoto({ path: '/outside.jpg', filename: 'outside.jpg' })]);
+    await open();
+    const filters = { ...store.filters() };
+    const selection = new Set(store.selectedPaths());
+    const current = button('app-photo-collection-sidebar [data-collection-current]');
+    current.click(); current.focus();
+    const navigation = arrived();
+    const navigate = vi.spyOn(router, 'navigate');
+    current.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowRight', bubbles: true, cancelable: true }));
+    // Navigation reuses the loaded collection row. Assert the real Router call
+    // before waiting, so a missing action fails without timing out the test.
+    expect(navigate).toHaveBeenCalledExactlyOnceWith(['/photo'], expect.objectContaining({
+      queryParams: { path: '/outside.jpg' }, replaceUrl: true,
+    }));
+    await navigation;
+    await membership(null);
+    expect(router.url).toContain(encodeURIComponent('/outside.jpg'));
+    expect(root().querySelector('h1')?.textContent).toContain('outside.jpg');
+    expect(button('app-photo-collection-sidebar [data-collection-current]').getAttribute('aria-label')).toBe('outside.jpg');
+    expect(store.filters()).toEqual(filters);
+    expect(store.selectedPaths()).toEqual(selection);
+  });
+
   it('leaves a stack cover through collection arrows without stepping into its members', async () => {
     const cover = makePhoto({ path: paths[0], stack_id: stack.id });
     store.photos.set([cover, makePhoto({ path: '/outside.jpg', filename: 'outside.jpg' })]);

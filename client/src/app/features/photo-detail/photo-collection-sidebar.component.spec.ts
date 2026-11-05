@@ -41,7 +41,7 @@ describe('PhotoCollectionSidebarComponent', () => {
     expect(choose).toHaveBeenCalledWith('/a.jpg'); expect(more).toHaveBeenCalledOnce();
     expect(fixture.componentInstance.currentPath()).toBe('/b.jpg');
   });
-  it('uses one thumbnail Tab stop and arrow keys without changing the chosen photo', () => {
+  it('uses one thumbnail Tab stop and opens the photo reached by an arrow key', () => {
     const { fixture, root } = render();
     const buttons = [...root.querySelectorAll<HTMLButtonElement>('.grid button')];
     expect(buttons.map(button => button.tabIndex)).toEqual([-1, 0]);
@@ -52,8 +52,31 @@ describe('PhotoCollectionSidebarComponent', () => {
     expect(event.defaultPrevented).toBe(true);
     expect(document.activeElement).toBe(buttons[0]);
     expect(buttons.map(button => button.tabIndex)).toEqual([0, -1]);
-    expect(choose).not.toHaveBeenCalled();
-    buttons[0].click(); expect(choose).toHaveBeenCalledWith('/a.jpg');
+    expect(choose).toHaveBeenCalledExactlyOnceWith('/a.jpg');
+    buttons[0].dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowLeft', bubbles: true, cancelable: true }));
+    expect(choose).toHaveBeenCalledTimes(1);
+  });
+  it('opens photos with vertical and section-edge keys while preserving modified-key behavior', () => {
+    const { fixture, root } = render();
+    const photos = Array.from({ length: 4 }, (_, index) => makePhoto({ path: `/p${index}.jpg` }));
+    fixture.componentRef.setInput('photos', photos);
+    fixture.detectChanges();
+    const buttons = [...root.querySelectorAll<HTMLButtonElement>('.grid button')];
+    const choose = vi.fn(); fixture.componentInstance.choose.subscribe(choose);
+    const key = (index: number, value: string, options: KeyboardEventInit = {}) => {
+      const event = new KeyboardEvent('keydown', { key: value, bubbles: true, cancelable: true, ...options });
+      buttons[index].dispatchEvent(event); fixture.detectChanges(); return event;
+    };
+    key(0, 'ArrowDown'); expect(choose).toHaveBeenLastCalledWith('/p1.jpg');
+    key(1, 'End'); expect(choose).toHaveBeenLastCalledWith('/p3.jpg');
+    key(3, 'Home'); expect(choose).toHaveBeenLastCalledWith('/p0.jpg');
+    key(1, 'ArrowUp'); expect(choose).toHaveBeenLastCalledWith('/p0.jpg');
+    const count = choose.mock.calls.length;
+    expect(key(0, 'ArrowRight', { ctrlKey: true }).defaultPrevented).toBe(false);
+    expect(key(0, 'ArrowRight', { altKey: true }).defaultPrevented).toBe(false);
+    expect(key(0, 'ArrowRight', { metaKey: true }).defaultPrevented).toBe(false);
+    expect(key(0, 'ArrowRight', { isComposing: true }).defaultPrevented).toBe(false);
+    expect(choose).toHaveBeenCalledTimes(count);
   });
   it('bounds the rendered list while keeping later and earlier loaded photos accessible', () => {
     const { fixture, root } = render();

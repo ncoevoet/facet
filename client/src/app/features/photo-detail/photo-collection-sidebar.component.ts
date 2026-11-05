@@ -96,6 +96,9 @@ export class PhotoCollectionSidebarComponent {
       : offset === undefined ? null : Math.max(0, Math.min(buttons.length - 1, index + offset));
     if (next === null) return;
     event.preventDefault(); event.stopPropagation(); buttons[next]?.focus();
+    // A focused collection thumbnail represents the photo being viewed. Moving
+    // its focus must open that photo too, just like clicking the thumbnail.
+    if (next !== index) this.choose.emit(this.visiblePhotos()[next].path);
   }
   private lastPath = '';
   private lastPathFound = false;

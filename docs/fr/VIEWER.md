@@ -282,6 +282,8 @@ Utilisez **Décision de tri → À examiner** dans la galerie pour parcourir les
 
 Sélectionnez **2 à 1000 photos explicites**, puis **Empiler les photos** dans la barre de sélection ou appuyez sur **S** pour ouvrir l’éditeur pleine page à `/stacks/edit`. Une sélection de toute la vue ne crée pas de pile. S ouvre un aperçu sans enregistrer. Le menu utilisateur → **Personnaliser les raccourcis** permet de modifier cette touche ; l’infobulle, l’Aide et la référence `?` affichent la touche actuelle. Si un ancien réglage utilise déjà S, il est conservé et l’action Empiler reste **Non attribuée** jusqu’au choix d’une touche libre. Les droits d’édition sont nécessaires. Une photo appartient à une seule pile par propriétaire. La page centre un aperçu avec zoom au-dessus d’une bande de vignettes permanente. Cliquez sur une vignette ou utilisez `←`/`→` pour cibler une photo, puis ses commandes de couverture, d’ordre ou de retrait. Le bouton de zoom, la molette ou un double-clic permettent d’examiner les détails.
 
+Dans l’éditeur pleine page, Tab atteint l’image : +/− change le grossissement, les flèches déplacent l’image agrandie et Début ou F rétablit l’ajustement. La bande de miniatures comporte un seul arrêt Tab ; Gauche/Droite et Début/Fin déplacent le focus et ouvrent l’image atteinte. L’état de l’image propose Réessayer après un échec de chargement, sans enregistrer ni modifier la pile. Si Rejeter retire la miniature ciblée, le focus passe à un membre restant.
+
 Utilisez **Cmd+Maj+S** ou **Ctrl+Maj+S** pour empiler immédiatement les photos explicites non empilées dans l’ordre de sélection, la première servant de couverture. Les membres de piles existantes ouvrent l’éditeur. Une réussite efface la sélection validée et Annuler la rétablit ; une annulation ou un échec la conserve. Échap dans l’éditeur revient à la galerie d’origine sans enregistrer.
 
 **Rejeter pendant l’empilage.** Activez une photo dans l’éditeur pleine page ou son dialogue et utilisez **Rejeter** ou **R**. La photo active dans la chambre noire des piles suggérées propose la même action ; ouvrez-la d’abord pour choisir la photo. Rejeter enregistre immédiatement la décision habituelle, efface Conserver, favori et étoiles, et exclut uniquement cette photo de la pile proposée. Les fichiers originaux ne sont ni supprimés ni modifiés. Le compteur et les miniatures assombries montrent les exclusions. Annuler restaure les valeurs antérieures et l’appartenance au brouillon encore pertinent sans remplacer les choix ultérieurs d’ordre ou de couverture ; une décision ultérieure peut empêcher l’annulation. Les photos déjà rejetées restent présentes jusqu’à leur exclusion explicite, sans nouvelle décision. Le regroupement attend Enregistrer ; quitter sans enregistrer n’annule pas Rejeter.
@@ -325,7 +327,7 @@ Le badge ou une photo empilée ouvre la visionneuse : bande de vignettes, bouton
 
 Les métriques du détail photo sont réparties entre EXIF, Qualité, Composition, Technique et Histogramme. Le dernier onglet est mémorisé. Un bouton graphique à côté de chaque score fini charge sa distribution à la demande, marque la photo actuelle et permet de choisir votre bibliothèque visible ou sa catégorie. Les filtres de galerie sont ignorés et les photos inaccessibles exclues. Une erreur propose Réessayer. Les albums partagés ne proposent pas les distributions de bibliothèque.
 
-**Panneau de collection.** Sur grand écran (1280 px et plus), une photo qui appartient à la collection chargée de la galerie (hors navigation depuis Chronologie) affiche ces photos à sa gauche, avec les mêmes filtres et le même tri. Cliquez sur une miniature pour l'ouvrir ; **Charger plus** récupère la page suivante. Faites glisser le séparateur, ou donnez-lui le focus et utilisez Gauche/Droite, Début et Fin, pour le redimensionner : une photo par ligne s'il est étroit, deux s'il est large. Le chevron le replie. Le panneau ne change jamais les filtres, la sélection ni la destination de Retour. Pour les grandes collections chargées, utilisez les commandes de photos précédentes et suivantes pour parcourir les sections.
+**Panneau de collection.** Sur grand écran (1280 px et plus), une photo qui appartient à la collection chargée de la galerie (hors navigation depuis Chronologie) affiche ces photos à sa gauche, avec les mêmes filtres et le même tri. Cliquez sur une miniature pour l’ouvrir ; lorsqu’elle a le focus, les flèches ouvrent la photo atteinte et Début/Fin ouvrent la première/dernière photo de la section visible. **Charger plus** récupère la page suivante. Faites glisser le séparateur, ou donnez-lui le focus et utilisez Gauche/Droite, Début et Fin, pour le redimensionner : une photo par ligne s'il est étroit, deux s'il est large. Le chevron le replie. Le panneau ne change jamais les filtres, la sélection ni la destination de Retour. Pour les grandes collections chargées, utilisez les commandes de photos précédentes et suivantes pour parcourir les sections.
 
 Les ensembles du détail photo affichent et comptent chaque fichier, y compris les deux fichiers d’une paire RAW/JPEG regroupée. La galerie compte cette paire comme une seule photo.
 
@@ -920,6 +922,8 @@ Points d'accès : [API.md — Téléchargement](../API.md#download).
 
 La chambre noire affiche le fichier actif et propose Garder, Rejeter et Confirmer en vue simple. Garder et Rejeter modifient le brouillon du groupe ; Confirmer conserve la validation différée et Annuler. Les flèches et raccourcis de zoom fonctionnent après le focus sur un bouton, sans intercepter les champs ni les touches modifiées. Les cibles font 44 pixels sur écran étroit et avec un pointeur grossier. Sur téléphone, Plein écran se trouve dans Inspecter.
 
+Un brouillon sans photo gardée désactive Confirmer dans la grille comme dans la chambre noire ; les raccourcis expliquent ce qui manque. Rouvrir un groupe en attente affiche son compte à rebours et Annuler. Après la dernière confirmation, le focus revient à ce compte à rebours. Les vues quadruples étroites ont des en-têtes compacts ; le réglage de loupe dispose de sa propre ligne sur téléphone.
+
 Pendant le compte à rebours de confirmation, la sélection capturée ne peut plus être modifiée ; Annuler réactive la modification. Sans photo conservée, Confirmer est désactivé avec une explication. Rejeter tout le groupe reste une confirmation distincte.
 
 La page de tri (`/culling`, mode édition) regroupe les prises quasi identiques pour que vous gardiez la meilleure de chacune et rejetiez les autres. Choisissez la ou les photos à garder dans chaque groupe ; confirmer rejette les autres. Les confirmations sont différées et peuvent être annulées (voir [Annuler](#annuler)).
@@ -1080,12 +1084,14 @@ Une file de revue rapide pour les captures d'écran, documents numérisés, reç
 
 Ouvrez **Nettoyage** dans la navigation (`/junk`, édition uniquement) :
 
-- **Puces de filtre par type** — « Tous les types » plus une puce par type avec son compte (`GET /api/filter_options/junk_kinds`).
+- **Menu de type** — « Tous les types » et le nombre de candidats restants par type (`GET /api/filter_options/junk_kinds`), hors photos rejetées par cet utilisateur.
 - **Nombre de candidates** — décroît au fil de vos décisions.
 - **Conserver** — retire la photo de la file **définitivement** (`not_junk`) ; les exécutions ultérieures de `--detect-junk` l'ignorent.
 - **Rejeter** — marque la photo rejetée (rien n'est supprimé).
 - **Tout rejeter** — rejette chaque candidate chargée, après confirmation.
 - **Loupe** — appuyez sur **`Z`** (ou la bascule de la barre d'outils) pour agrandir un texte fin.
+
+Conserver et Rejeter restent visibles, avec des commandes nommées adaptées au tactile. Un échec de lecture affiche Réessayer plutôt qu’une file vide. Charger plus reprend la page échouée et tient compte des candidats déjà traités. Pendant le rejet de tous les candidats affichés, les décisions contradictoires sont désactivées. Changer de compte ou quitter la page arrête les lots suivants ; un lot déjà accepté par le serveur n’est pas annulé.
 
 Les photos indésirables restent visibles dans la galerie normale. Filtrez-les avec `?junk_kind=<kind>` ou `?junk_kind=any` (exclut `not_junk`).
 

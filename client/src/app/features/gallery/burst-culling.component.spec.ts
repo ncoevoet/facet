@@ -4203,6 +4203,68 @@ describe('BurstCullingComponent modals (rendered)', () => {
     expect(root.querySelector('#culling-keeper-required')).toBeNull();
   });
 
+  it('disables the contact-sheet Confirm with a linked explanation when no keepers remain', () => {
+    openDarkroom();
+    component['closeLightbox']();
+    store.selectionsMap.set(new Map([['1_burst', new Set<string>()]]));
+    fixture.detectChanges();
+    const root = fixture.nativeElement as HTMLElement;
+    const confirm = root.querySelector<HTMLButtonElement>('[data-culling-confirm]')!;
+    expect(confirm.disabled).toBe(true);
+    const explanation = root.querySelector('#' + confirm.getAttribute('aria-describedby'))!;
+    expect(explanation.textContent).toContain('culling.keep_required');
+    const write = vi.spyOn(store, 'confirmGroup');
+    confirm.click();
+    expect(write).not.toHaveBeenCalled();
+    store.setPhotoKept(store.groups()[0], '/p1.jpg', true); fixture.detectChanges();
+    expect(confirm.disabled).toBe(false);
+    expect(confirm.hasAttribute('aria-describedby')).toBe(false);
+  });
+
+  it.each([' ', 'Enter'])('announces the keeper requirement on a refused darkroom %s shortcut', key => {
+    openDarkroom();
+    store.selectionsMap.set(new Map([['1_burst', new Set<string>()]])); fixture.detectChanges();
+    const notice = vi.spyOn(component['snackBar'], 'open');
+    notice.mockClear();
+    const dialog = fixture.nativeElement.querySelector('[role="dialog"]') as HTMLElement;
+    dialog.dispatchEvent(new KeyboardEvent('keydown', { key, bubbles: true, cancelable: true }));
+    expect(notice).toHaveBeenCalledWith('culling.keep_required', '', { duration: 3000 });
+    expect(store.confirmedGroups().size).toBe(0);
+    expect(component['lightboxGroup']()).not.toBeNull();
+  });
+
+  it('announces the keeper requirement on a refused list Shift+Space shortcut', () => {
+    openDarkroom(); component['closeLightbox']();
+    store.selectionsMap.set(new Map([['1_burst', new Set<string>()]])); fixture.detectChanges();
+    const notice = vi.spyOn(component['snackBar'], 'open');
+    notice.mockClear();
+    component['onShiftSpace'](new KeyboardEvent('keydown', { key: ' ', shiftKey: true, bubbles: true, cancelable: true }));
+    expect(notice).toHaveBeenCalledWith('culling.keep_required', '', { duration: 3000 });
+    expect(store.confirmedGroups().size).toBe(0);
+  });
+
+  it.each([' ', 'Enter'])('focuses countdown Cancel after the last %s confirmation and lets a reopened darkroom undo it', async key => {
+    openDarkroom();
+    store.selectionsMap.set(new Map([['1_burst', new Set(['/p1.jpg'])]])); fixture.detectChanges();
+    const root = fixture.nativeElement as HTMLElement;
+    const post = TestBed.inject(ApiService).post as Mock;
+    post.mockClear();
+    root.querySelector<HTMLElement>('[role="dialog"]')!.dispatchEvent(new KeyboardEvent('keydown', { key, bubbles: true, cancelable: true })); fixture.detectChanges();
+    await new Promise(resolve => setTimeout(resolve, 0));
+    const cancel = root.querySelector<HTMLButtonElement>('[data-culling-cancel]')!;
+    expect(document.activeElement).toBe(cancel);
+    expect(store.passingGroups().get('1_burst')).toBe(7);
+    component['lightboxGroupId'].set('1_burst'); fixture.detectChanges();
+    expect(root.querySelector('[data-darkroom-pending]')?.textContent).toContain('culling.confirmed_badge');
+    expect(root.querySelector<HTMLButtonElement>('[data-darkroom-keep]')!.disabled).toBe(true);
+    root.querySelector<HTMLButtonElement>('[data-darkroom-cancel]')!.click(); fixture.detectChanges();
+    expect(store.passingGroups().has('1_burst')).toBe(false);
+    expect(store.confirmedGroups().has('1_burst')).toBe(false);
+    expect(root.querySelector('[data-darkroom-pending]')).toBeNull();
+    expect(root.querySelector<HTMLButtonElement>('[data-darkroom-keep]')!.disabled).toBe(false);
+    expect(post).not.toHaveBeenCalled();
+  });
+
   it('legend toggle starts hidden, shows the legend on click and flips aria-pressed', () => {
     store.groups.set([{
       group_id: 1, type: 'burst', reason: '', best_path: '/p1.jpg', count: 1,

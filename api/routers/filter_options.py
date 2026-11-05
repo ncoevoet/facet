@@ -500,27 +500,43 @@ async def narrative_moments(user: Optional[CurrentUser] = Depends(get_optional_u
 
 @router.get("/junk_kinds", response_model=MediaFilterOptionJunkKindsResponse, response_model_exclude_unset=True)
 async def junk_kinds(user: Optional[CurrentUser] = Depends(get_optional_user)):
-    """Lazy-load junk-kind options with counts (excludes the 'not_junk' sentinel)."""
-    from api.types import JUNK_NOT_JUNK
-    vis, vp = _vis_where(user)
+    """Count remaining Junk Sweep candidates using this reader's review state."""
+    from api.logical_collection import enabled_async
+    from api.routers.gallery import gallery_scope_sql_async
+
+    user_id = user.user_id if user else None
+    # Match the queue's explicit filters; the shared builder also preserves
+    # configured sequence hiding and logical-primary/review authority.
+    filters = {
+        'type': '', 'junk_kind': 'any', 'hide_rejected': '1',
+        'hide_blinks': '0', 'hide_bursts': '0', 'hide_duplicates': '0',
+        'collapse_stacks': '0',
+    }
 
     async def query(conn):
         try:
+            from_clause, where, params = await gallery_scope_sql_async(
+                conn, filters, user_id, logical=await enabled_async(conn))
             rows = await _fetch_all(
                 conn,
                 f"""
-                SELECT junk_kind, COUNT(*) as cnt FROM photos
-                WHERE junk_kind IS NOT NULL AND junk_kind != ?{vis}
-                GROUP BY junk_kind ORDER BY cnt DESC
+                SELECT photos.junk_kind, COUNT(*) as cnt FROM {from_clause}
+                {where}
+                GROUP BY photos.junk_kind ORDER BY cnt DESC
                 """,
-                [JUNK_NOT_JUNK, *vp],
+                params,
             )
             return [(r[0], r[1]) for r in rows]
         except sqlite3.Error:
             logger.exception("Failed to query junk_kinds")
             return []
 
-    return await _cached_filter_query('junk_kinds', 'junk_kinds', query, vis)
+    # The offline junk_kinds cache includes rejected rows and has no reader's
+    # preference scope. Decisions must be reflected on the next menu read.
+    async with get_async_db() as conn:
+        await conn.execute('BEGIN')
+        data = await query(conn)
+    return {'junk_kinds': data, 'cached': False}
 
 
 @router.get("/location_name", response_model=MediaLocationNameResponse, response_model_exclude_unset=True)
