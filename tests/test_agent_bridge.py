@@ -580,9 +580,11 @@ class TestTabLevels:
         token = env.token(env.login(edition=True), "edition")
         assert env.call(token, "ui_get_selection")["tab"]["tab_id"] == "edition-tab"
         api_config.VIEWER_CONFIG["edition_password"] = ""
-        time.sleep(0.5)
         registry = env.client.app.state.tab_registry
-        assert [t.level for t in registry.tabs_for("_legacy")] == ["readonly"]
+        from tests.conftest import wait_until
+        wait_until(
+            lambda: [t.level for t in registry.tabs_for("_legacy")] == ["readonly"],
+            message="tab registry did not drop to readonly after the edition password was cleared")
         # the token degrades with the password too, so it follows the tab down rather than losing it
         assert env.call(token, "ui_get_selection")["tab"]["tab_id"] == "edition-tab"
 

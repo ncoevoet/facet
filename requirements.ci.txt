@@ -1,0 +1,41 @@
+# The CI test jobs' dependency list, in one place.
+#
+# This file is the only dependency source for the CI test jobs (it does not
+# read the lock files): the shards measure the suite against fresh upstream
+# releases the way a user's install would. Three packages are pinned at their
+# lock-file versions because their absence degrades silently:
+#   - jsonschema: without it tests/test_config_schema.py skips silently.
+#   - pytest-timeout: without it the `timeout` marker is an inert unknown mark.
+#   - pytest-xdist: the shards themselves.
+# The versions are the ones verified against the suite. Everything else
+# resolves freely, exactly as the unpinned install it replaces did.
+#
+# ruff and mypy are pinned in .github/workflows/ci.yml (lint job) for the
+# same reason: the mypy ratchet is a count against mypy-baseline.txt.
+pytest
+pytest-asyncio
+pytest-cov
+fastapi[standard]
+httpx
+pyjwt
+mcp==2.3.0
+websockets
+pillow
+pillow-heif
+numpy
+scipy
+scikit-learn
+opencv-python-headless
+tqdm
+aiosqlite
+sqlite-vec
+imagehash
+psutil
+watchdog
+send2trash
+tifffile
+imagecodecs
+lupa
+jsonschema==4.26.0
+pytest-timeout==2.4.0
+pytest-xdist==3.8.0

@@ -204,7 +204,7 @@ class TestBatchProcessorStopEvent:
         worker = threading.Thread(target=proc._worker_thread, args=(["a", "b", "c"],))
         worker.start()
 
-        time.sleep(0.3)
+        worker.join(timeout=0.3)
         assert worker.is_alive()  # blocked on the full bounded queue
 
         proc.stop_event.set()
@@ -259,7 +259,11 @@ class TestBatchProcessorStopEvent:
             proc.process_files(paths, show_metrics=False)
 
         calls_after_unwind = inference_calls["n"]
-        time.sleep(1.5)
+        # A wrong extra inference inside the window fails within one poll
+        # instead of after a blind sleep.
+        deadline = time.monotonic() + 1.5
+        while time.monotonic() < deadline and inference_calls["n"] == calls_after_unwind:
+            time.sleep(0.1)
         assert inference_calls["n"] == calls_after_unwind
 
 
