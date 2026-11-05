@@ -44,7 +44,7 @@ O Facet registra cada escaneamento (estado, modo, diretórios, contadores) e cad
 **Passo único (`--single-pass`):** carrega todos os modelos de uma vez. Mais rápido, mas exige mais VRAM.
 
 - Pontua a estética com a cabeça CLIP+MLP, então se aplica aos perfis `legacy` e `8gb`.
-- Em `16gb` e `24gb` o modelo estético é o TOPIQ, que só roda em multi-passo. Um pedido de passo único (`--single-pass` ou `processing.mode: "single-pass"`) registra um aviso e roda em multi-passo.
+- Em `12gb`, `16gb` e `24gb` o modelo estético é o TOPIQ, que só roda em multi-passo. Um pedido de passo único (`--single-pass` ou `processing.mode: "single-pass"`) registra um aviso e roda em multi-passo.
 - `--pass NAME` e `--dry-run` pulam essa verificação.
 - O modo comercial mantém o passo único, porque o Q-ReAlign nativo pontua a estética ali.
 
@@ -213,7 +213,7 @@ Estes comandos atualizam métricas ou derivam novos dados sem reexecutar todo o 
 
 - `--detect-moments` codifica cada legenda nova uma vez em `caption_embedding`. O primeiro preenchimento de uma biblioteca existente é melhor em uma GPU; acrescente `--limit N` para experimentar em uma amostra.
 - Acrescente `--dry-run --verbose` a `--recompute-moments` (ou `--detect-junk`) para pré-visualizar sem gravar.
-- `narrative_moments.vlm_tiebreak` (16gb/24gb): quando `narrative_moments.vlm_tiebreak.enabled` está definido, o VLM do perfil reclassifica os quadros de baixa confiança.
+- `narrative_moments.vlm_tiebreak` (12gb/16gb/24gb): quando `narrative_moments.vlm_tiebreak.enabled` está definido, o VLM do perfil reclassifica os quadros de baixa confiança.
 - `--discover-moments` agrupa os embeddings de legenda armazenados e dá nome a cada grupo. Nunca reescreve a configuração ativa. Execute antes `--detect-moments`; ajuste com `--discover-min-cluster-size N`.
 - `--generate-captions` ignora fotos sem rótulo, `other` e de baixa confiança quando `narrative_moments.caption_min_confidence > 0`.
 
@@ -291,6 +291,7 @@ O modelo de marcação depende do perfil de VRAM:
 |---------|-------|-------------|
 | `legacy` | Similaridade CLIP | Similaridade de cosseno entre os embeddings da imagem e do texto das tags. Nenhum modelo extra. |
 | `8gb` | Similaridade CLIP | Igual ao legacy, sobre os embeddings CLIP ViT-L-14 armazenados. |
+| `12gb` | Qwen3.5-2B | Modelo multimodal para marcação de cenas. |
 | `16gb` | Qwen3.5-2B | Modelo multimodal para marcação de cenas. |
 | `24gb` | Qwen3.5-4B | Modelo multimodal maior. |
 
@@ -304,7 +305,7 @@ Dois modelos de embedding, selecionados por perfil de VRAM via `clip_config`:
 
 | Config | Modelo | Dimensões | Usado por |
 |--------|-------|-----------|---------|
-| `clip` | SigLIP 2 NaFlex SO400M | 1152 | Perfis 16gb, 24gb |
+| `clip` | SigLIP 2 NaFlex SO400M | 1152 | Perfis 12gb, 16gb, 24gb |
 | `clip_legacy` | CLIP ViT-L-14 | 768 | Perfis legacy, 8gb |
 
 Os embeddings alimentam a marcação, a detecção de duplicatas, a busca de fotos semelhantes e a estética CLIP+MLP (legacy/8gb). Trocar de modelo exige recalcular os embeddings de todas as fotos (`--force`, `--pass embeddings` ou `--recompute-embeddings`).
@@ -469,7 +470,7 @@ python /opt/facet/viewer.py      # ainda lê /opt/facet/scoring_config.json (ou 
 | `python tag_existing.py --db custom.db` | Usa um banco de dados personalizado |
 | `python tag_existing.py --config my.json` | Usa uma configuração personalizada |
 
-Em CUDA, os perfis SigLIP (`16gb`, `24gb`) agora codificam o vocabulário de tags em fp16, o que altera as tags de algumas fotos. Execute `python tag_existing.py --force` para remarcar as fotos marcadas antes. A CPU e os perfis `legacy`/`8gb` não mudam.
+Em CUDA, os perfis SigLIP (`12gb`, `16gb`, `24gb`) agora codificam o vocabulário de tags em fp16, o que altera as tags de algumas fotos. Execute `python tag_existing.py --force` para remarcar as fotos marcadas antes. A CPU e os perfis `legacy`/`8gb` não mudam.
 
 O passo de marcação ao fim de um escaneamento é pulado quando `tagging.enabled` é `false` ou nenhuma foto aguarda tags.
 

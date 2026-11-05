@@ -501,7 +501,7 @@ Seleciona quais modelos são usados por perfil de VRAM.
         "tagging_model": "qwen3.5-2b",
         "supplementary_pyiqa": ["topiq_iaa", "topiq_nr_face", "liqe"],
         "saliency_enabled": true,
-        "description": "Same models as 16gb (TOPIQ aesthetic + SigLIP 2 embeddings + Qwen3.5-2B tagging), planned as 4 passes for ~11.7GB VRAM"
+        "description": "Same models as 16gb (TOPIQ aesthetic + SigLIP 2 embeddings + Qwen3.5-2B tagging), planned as 3-4 passes for 11.5-14GB VRAM (4 below about 11.8GB)"
       },
       "16gb": {
         "aesthetic_model": "topiq",
@@ -573,7 +573,7 @@ Seleciona quais modelos são usados por perfil de VRAM.
 | `ram_cache_reserve_gb` | `4.0` (opcional, ausente do arquivo fornecido) | RAM (GB) a deixar livre ao lado de um modelo em cache sob `"auto"` |
 | `profiles.*.supplementary_pyiqa` | `["topiq_iaa", "topiq_nr_face", "liqe"]` | Modelos PyIQA a executar para este perfil (os quatro perfis executam o conjunto completo) |
 | `profiles.*.saliency_enabled` | `true` (todos os perfis) | Executa a saliência de assunto do BiRefNet para este perfil |
-| `clip.model_name` | `"google/siglip2-so400m-patch16-naflex"` | Modelo de embedding SigLIP 2 NaFlex (16gb/24gb) |
+| `clip.model_name` | `"google/siglip2-so400m-patch16-naflex"` | Modelo de embedding SigLIP 2 NaFlex (12gb/16gb/24gb) |
 | `clip.backend` | `"transformers"` | `"transformers"` (SigLIP 2 NaFlex) ou `"open_clip"` (legado) |
 | `clip.embedding_dim` | `1152` | Dimensões do embedding (1152 para SigLIP 2) |
 | `clip.tag_threshold_percent` | `8` | Similaridade mínima para uma correspondência de **tag** no tagger SigLIP 2 dos perfis 12gb/16gb/24gb (substitui `similarity_threshold_percent`) |
@@ -790,7 +790,7 @@ Quando a VRAM permite, vários modelos rodam na mesma passagem:
 | VRAM | Passagem 1 | Passagem 2 | Passagem 3 | Passagem 4 |
 |---|---|---|---|---|
 | 8GB (perfil `8gb`) | CLIP | Q-ReAlign + saliência | TOPIQ IAA + TOPIQ NR-Face + LIQE | SAMP-Net + InsightFace |
-| 12GB\* (perfil `12gb`) | Tagger Qwen3.5 + Q-ReAlign | SigLIP + saliência + TOPIQ IAA | TOPIQ + TOPIQ NR-Face + LIQE + SAMP-Net | InsightFace |
+| 12GB\* (perfil `12gb`; pico TODO_VRAM12 GiB, simulado) | Tagger Qwen3.5 + Q-ReAlign | SigLIP + saliência + TOPIQ IAA | TOPIQ + TOPIQ NR-Face + LIQE + SAMP-Net | InsightFace |
 | 16GB (perfil `16gb`) | Tagger Qwen3.5 + SigLIP + TOPIQ | Q-ReAlign + saliência + TOPIQ IAA + TOPIQ NR-Face + LIQE + SAMP-Net | InsightFace | - |
 | 24GB (perfil `24gb`) | Tagger Qwen3.5 4B + SigLIP + Q-ReAlign + saliência | TOPIQ + TOPIQ IAA + TOPIQ NR-Face + LIQE + SAMP-Net + InsightFace | - | - |
 | 35GB+ (perfil `24gb`) | Todos os modelos juntos (passagem única) | - | - | - |
@@ -805,7 +805,7 @@ As linhas são os planos para placas que informam 8,0, 11,7, 15,99 e 23,99 GiB d
 # Padrão: múltiplas passagens automáticas com agrupamento ideal
 python facet.py /path/to/photos
 
-# Força passagem única (todos os modelos carregados de uma vez; somente perfis legacy/8gb, em 16gb/24gb avisa e executa múltiplas passagens)
+# Força passagem única (todos os modelos carregados de uma vez; somente perfis legacy/8gb, em 12gb/16gb/24gb avisa e executa múltiplas passagens)
 python facet.py /path --single-pass
 
 # Executa apenas uma passagem específica
@@ -1789,7 +1789,7 @@ Ative/desative recursos opcionais para reduzir o uso de memória ou simplificar 
 | `show_semantic_search` | `true` | Mostra a barra de busca semântica (busca de texto para imagem usando embeddings CLIP/SigLIP) |
 | `show_albums` | `true` | Mostra o recurso de álbuns (criar, gerenciar e navegar por álbuns de fotos) |
 | `show_critique` | `true` | Mostra o botão de crítica por IA nos cartões de foto (detalhamento de pontuação baseado em regras) |
-| `show_vlm_critique` | `true` | Ativa a crítica com VLM (perfil 16gb/24gb); `false` quando a chave está ausente |
+| `show_vlm_critique` | `true` | Ativa a crítica com VLM (perfil 12gb/16gb/24gb); `false` quando a chave está ausente |
 | `show_embed_metadata` | `true` | Mostra "Gravar metadados no arquivo" no modo de edição (embute avaliações/palavras-chave via exiftool) |
 | `show_memories` | `true` | Mostra o diálogo de memórias "Neste Dia" (fotos tiradas na mesma data em anos anteriores) |
 | `show_captions` | `true` | Mostra as legendas geradas por IA nos cartões de foto |
@@ -2408,7 +2408,7 @@ O Facet compara a legenda por IA de cada foto, codificada uma vez e armazenada (
 | `priors.rules` | (conjunto geral) | Lista de regras `{kind, when, boost}` (veja abaixo) |
 | `priors.event_types.<et>.rules` | substituição `wedding` | Regras que **substituem** as `rules` globais quando esse vocabulário está ativo |
 | `transitions.stay_prob` / `forward_bias` / `weight` | `0.7` / `0.0` / `0.3` | Suavização da linha do tempo entre quadros vizinhos (`weight=0` = nenhuma) |
-| `vlm_tiebreak.enabled` / `min_confidence` / `min_margin` | `false` / `0.0` / `0.04` | Nos perfis 16gb/24gb, reclassifica com o VLM do perfil apenas quadros de baixa confiança ou de baixa margem |
+| `vlm_tiebreak.enabled` / `min_confidence` / `min_margin` | `false` / `0.0` / `0.04` | Nos perfis 12gb/16gb/24gb, reclassifica com o VLM do perfil apenas quadros de baixa confiança ou de baixa margem |
 | `event_types` | `general` + `wedding` | `{momento: [sinônimos de prompt]}` por tipo de evento; defina `default_event_type` para trocar de gênero ou adicionar o seu próprio |
 
 Formato de `priors.rules`:
@@ -2708,7 +2708,7 @@ Sinaliza "lixo" não fotográfico (capturas de tela, documentos escaneados, reci
 
 ## AI Critique
 
-Configurações de prompt para a crítica com VLM (perfis 16gb/24gb). A crítica alimenta o VLM com o detalhamento da pontuação, as penalidades e o EXIF, e apresenta a resposta como Observação / Avaliação / Sugestões.
+Configurações de prompt para a crítica com VLM (perfis 12gb/16gb/24gb). A crítica alimenta o VLM com o detalhamento da pontuação, as penalidades e o EXIF, e apresenta a resposta como Observação / Avaliação / Sugestões.
 
 - A Avaliação cobre composição, cor e luz, foco/PdC e execução técnica, e sujeito e momento, confrontados com as métricas.
 - Fica em cache por foto (`photos.vlm_critique`, traduções em `vlm_critique_translated`); `refresh` a regenera.
@@ -2732,7 +2732,7 @@ Veja [Visualizador Web — Crítica por IA](VIEWER.md#crítica-por-ia).
 
 ## VLM Backend
 
-Seleciona onde o modelo visão-linguagem de legendas/tags é executado. `local` (padrão) usa o modelo Qwen embutido dos perfis 16gb/24gb. Os dois backends remotos usam um servidor externo, de modo que legendas e marcação por VLM também funcionem nos **perfis legacy/8gb que não trazem VLM local**.
+Seleciona onde o modelo visão-linguagem de legendas/tags é executado. `local` (padrão) usa o modelo Qwen embutido dos perfis 12gb/16gb/24gb. Os dois backends remotos usam um servidor externo, de modo que legendas e marcação por VLM também funcionem nos **perfis legacy/8gb que não trazem VLM local**.
 
 ```json
 {

@@ -503,7 +503,7 @@ Selects which models are used per VRAM profile.
         "tagging_model": "qwen3.5-2b",
         "supplementary_pyiqa": ["topiq_iaa", "topiq_nr_face", "liqe"],
         "saliency_enabled": true,
-        "description": "Same models as 16gb (TOPIQ aesthetic + SigLIP 2 embeddings + Qwen3.5-2B tagging), planned as 4 passes for ~11.7GB VRAM"
+        "description": "Same models as 16gb (TOPIQ aesthetic + SigLIP 2 embeddings + Qwen3.5-2B tagging), planned as 3-4 passes for 11.5-14GB VRAM (4 below about 11.8GB)"
       },
       "16gb": {
         "aesthetic_model": "topiq",
@@ -575,7 +575,7 @@ Selects which models are used per VRAM profile.
 | `ram_cache_reserve_gb` | `4.0` (optional, not in the shipped file) | RAM (GB) to leave free beside a cached model under `"auto"` |
 | `profiles.*.supplementary_pyiqa` | `["topiq_iaa", "topiq_nr_face", "liqe"]` | PyIQA models to run for this profile (all four profiles run the full set) |
 | `profiles.*.saliency_enabled` | `true` (all profiles) | Run BiRefNet subject saliency for this profile |
-| `clip.model_name` | `"google/siglip2-so400m-patch16-naflex"` | SigLIP 2 NaFlex embedding model (16gb/24gb) |
+| `clip.model_name` | `"google/siglip2-so400m-patch16-naflex"` | SigLIP 2 NaFlex embedding model (12gb/16gb/24gb) |
 | `clip.backend` | `"transformers"` | `"transformers"` (SigLIP 2 NaFlex) or `"open_clip"` (legacy) |
 | `clip.embedding_dim` | `1152` | Embedding dimensions (1152 for SigLIP 2) |
 | `clip.tag_threshold_percent` | `8` | Minimum similarity for a **tag** match with the 12gb/16gb/24gb SigLIP 2 tagger (replaces `similarity_threshold_percent`) |
@@ -793,7 +793,7 @@ When VRAM allows, several models run in the same pass:
 | VRAM | Pass 1 | Pass 2 | Pass 3 | Pass 4 |
 |---|---|---|---|---|
 | 8GB (`8gb` profile) | CLIP | Q-ReAlign + saliency | TOPIQ IAA + TOPIQ NR-Face + LIQE | SAMP-Net + InsightFace |
-| 12GB\* (`12gb` profile) | Qwen3.5 tagger + Q-ReAlign | SigLIP + saliency + TOPIQ IAA | TOPIQ + TOPIQ NR-Face + LIQE + SAMP-Net | InsightFace |
+| 12GB\* (`12gb` profile; peak TODO_VRAM12 GiB, simulated) | Qwen3.5 tagger + Q-ReAlign | SigLIP + saliency + TOPIQ IAA | TOPIQ + TOPIQ NR-Face + LIQE + SAMP-Net | InsightFace |
 | 16GB (`16gb` profile) | Qwen3.5 tagger + SigLIP + TOPIQ | Q-ReAlign + saliency + TOPIQ IAA + TOPIQ NR-Face + LIQE + SAMP-Net | InsightFace | - |
 | 24GB (`24gb` profile) | Qwen3.5 4B tagger + SigLIP + Q-ReAlign + saliency | TOPIQ + TOPIQ IAA + TOPIQ NR-Face + LIQE + SAMP-Net + InsightFace | - | - |
 | 35GB+ (`24gb` profile) | All models together (single pass) | - | - | - |
@@ -808,7 +808,7 @@ The rows are the plans for cards reporting 8.0, 11.7, 15.99 and 23.99 GiB of tot
 # Default: auto multi-pass with optimal grouping
 python facet.py /path/to/photos
 
-# Force single-pass (all models loaded at once; legacy/8gb profiles only, 16gb/24gb warn and run multi-pass)
+# Force single-pass (all models loaded at once; legacy/8gb profiles only, 12gb/16gb/24gb warn and run multi-pass)
 python facet.py /path --single-pass
 
 # Run specific pass only
@@ -1794,7 +1794,7 @@ Toggle optional features to reduce memory usage or simplify the UI:
 | `show_semantic_search` | `true` | Show semantic search bar (text-to-image search using CLIP/SigLIP embeddings) |
 | `show_albums` | `true` | Show albums feature (create, manage, and browse photo albums) |
 | `show_critique` | `true` | Show AI critique button on photo cards (rule-based score breakdown) |
-| `show_vlm_critique` | `true` | Enable VLM critique (16gb/24gb profile); `false` when the key is absent |
+| `show_vlm_critique` | `true` | Enable VLM critique (12gb/16gb/24gb profile); `false` when the key is absent |
 | `show_embed_metadata` | `true` | Show "Write metadata to file" in edition mode (embeds ratings/keywords via exiftool) |
 | `show_memories` | `true` | Show "On This Day" memories dialog (photos taken on the same date in previous years) |
 | `show_captions` | `true` | Show AI-generated captions on photo cards |
@@ -2416,7 +2416,7 @@ Facet compares each photo's AI caption, encoded once and stored (`caption_embedd
 | `priors.rules` | (general set) | List of `{kind, when, boost}` rules (see below) |
 | `priors.event_types.<et>.rules` | `wedding` override | Rules that **replace** the global `rules` when that vocabulary is active |
 | `transitions.stay_prob` / `forward_bias` / `weight` | `0.7` / `0.0` / `0.3` | Timeline smoothing between neighbouring frames (`weight=0` = none) |
-| `vlm_tiebreak.enabled` / `min_confidence` / `min_margin` | `false` / `0.0` / `0.04` | On 16gb/24gb, re-classify only low-confidence or low-margin frames with the profile VLM |
+| `vlm_tiebreak.enabled` / `min_confidence` / `min_margin` | `false` / `0.0` / `0.04` | On 12gb/16gb/24gb, re-classify only low-confidence or low-margin frames with the profile VLM |
 | `event_types` | `general` + `wedding` | Per-event-type `{moment: [prompt synonyms]}`; set `default_event_type` to switch genre or add your own |
 
 `priors.rules` format:
@@ -2719,7 +2719,7 @@ Flags non-photo "junk" (screenshots, scanned documents, receipts, memes, present
 
 ## AI Critique
 
-Prompt settings for the VLM critique (16gb/24gb profiles). The critique feeds the score breakdown, penalties and EXIF to the VLM and shows its reply as Observation / Assessment / Suggestions.
+Prompt settings for the VLM critique (12gb/16gb/24gb profiles). The critique feeds the score breakdown, penalties and EXIF to the VLM and shows its reply as Observation / Assessment / Suggestions.
 
 - The Assessment covers composition, color & light, focus/DOF & technical execution, and subject & moment, checked against the metrics.
 - It is cached per photo (`photos.vlm_critique`, translations in `vlm_critique_translated`); `refresh` regenerates it.
@@ -2743,7 +2743,7 @@ See [Web Viewer — AI Critique](VIEWER.md#ai-critique).
 
 ## VLM Backend
 
-Selects where the caption/tag vision-language model runs. `local` (default) uses the built-in Qwen model of the 16gb/24gb profiles. The two remote backends use an external server, so captions and VLM tagging also work on the **legacy/8gb profiles that ship no local VLM**.
+Selects where the caption/tag vision-language model runs. `local` (default) uses the built-in Qwen model of the 12gb/16gb/24gb profiles. The two remote backends use an external server, so captions and VLM tagging also work on the **legacy/8gb profiles that ship no local VLM**.
 
 ```json
 {

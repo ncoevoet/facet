@@ -44,7 +44,7 @@ Facet records every scan (status, mode, directories, counters) and every per-fil
 **Single-pass (`--single-pass`):** loads all models at once. Faster, but needs more VRAM.
 
 - It scores aesthetics with the CLIP+MLP head, so it applies to the `legacy` and `8gb` profiles.
-- On `16gb` and `24gb` the aesthetic model is TOPIQ, which only multi-pass runs. A single-pass request (`--single-pass` or `processing.mode: "single-pass"`) logs a warning and runs multi-pass.
+- On `12gb`, `16gb` and `24gb` the aesthetic model is TOPIQ, which only multi-pass runs. A single-pass request (`--single-pass` or `processing.mode: "single-pass"`) logs a warning and runs multi-pass.
 - `--pass NAME` and `--dry-run` skip that check.
 - Commercial mode keeps single-pass, because native Q-ReAlign scores the aesthetic there.
 
@@ -213,7 +213,7 @@ These update metrics or derive new data without re-running the full scoring pipe
 
 - `--detect-moments` encodes each new caption once into `caption_embedding`. The first backfill of an existing library is best done on a GPU; add `--limit N` to try it on a sample.
 - Add `--dry-run --verbose` to `--recompute-moments` (or `--detect-junk`) to preview without writing.
-- `narrative_moments.vlm_tiebreak` (16gb/24gb): when `narrative_moments.vlm_tiebreak.enabled` is set, the profile VLM re-classifies low-confidence frames.
+- `narrative_moments.vlm_tiebreak` (12gb/16gb/24gb): when `narrative_moments.vlm_tiebreak.enabled` is set, the profile VLM re-classifies low-confidence frames.
 - `--discover-moments` clusters stored caption embeddings and names each cluster. It never rewrites the active config. Run `--detect-moments` first; tune it with `--discover-min-cluster-size N`.
 - `--generate-captions` skips unlabelled, `other` and low-confidence photos when `narrative_moments.caption_min_confidence > 0`.
 
@@ -291,6 +291,7 @@ The tagging model depends on the VRAM profile:
 |---------|-------|-------------|
 | `legacy` | CLIP similarity | Cosine similarity between image and tag-text embeddings. No extra model. |
 | `8gb` | CLIP similarity | Same as legacy, on stored CLIP ViT-L-14 embeddings. |
+| `12gb` | Qwen3.5-2B | Multimodal model for scene tagging. |
 | `16gb` | Qwen3.5-2B | Multimodal model for scene tagging. |
 | `24gb` | Qwen3.5-4B | Larger multimodal model. |
 
@@ -304,7 +305,7 @@ Two embedding models, selected per VRAM profile via `clip_config`:
 
 | Config | Model | Dimensions | Used By |
 |--------|-------|-----------|---------|
-| `clip` | SigLIP 2 NaFlex SO400M | 1152 | 16gb, 24gb profiles |
+| `clip` | SigLIP 2 NaFlex SO400M | 1152 | 12gb, 16gb, 24gb profiles |
 | `clip_legacy` | CLIP ViT-L-14 | 768 | legacy, 8gb profiles |
 
 Embeddings power tagging, duplicate detection, similar-photo search and the CLIP+MLP aesthetic (legacy/8gb). Switching models requires re-embedding all photos (`--force`, `--pass embeddings`, or `--recompute-embeddings`).
@@ -469,7 +470,7 @@ python /opt/facet/viewer.py      # still reads /opt/facet/scoring_config.json (o
 | `python tag_existing.py --db custom.db` | Use a custom database |
 | `python tag_existing.py --config my.json` | Use a custom config |
 
-On CUDA, the SigLIP profiles (`16gb`, `24gb`) now encode the tag vocabulary in fp16, which changes the tags of a few photos. Run `python tag_existing.py --force` to re-tag photos tagged earlier. CPU and the `legacy`/`8gb` profiles are unchanged.
+On CUDA, the SigLIP profiles (`12gb`, `16gb`, `24gb`) now encode the tag vocabulary in fp16, which changes the tags of a few photos. Run `python tag_existing.py --force` to re-tag photos tagged earlier. CPU and the `legacy`/`8gb` profiles are unchanged.
 
 The tagging step at the end of a scan is skipped when `tagging.enabled` is `false` or no photo is waiting for tags.
 

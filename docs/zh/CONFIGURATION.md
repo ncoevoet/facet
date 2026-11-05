@@ -501,7 +501,7 @@ penalty = min(noise_max_penalty_points, (noise_sigma - threshold) * noise_penalt
         "tagging_model": "qwen3.5-2b",
         "supplementary_pyiqa": ["topiq_iaa", "topiq_nr_face", "liqe"],
         "saliency_enabled": true,
-        "description": "Same models as 16gb (TOPIQ aesthetic + SigLIP 2 embeddings + Qwen3.5-2B tagging), planned as 4 passes for ~11.7GB VRAM"
+        "description": "Same models as 16gb (TOPIQ aesthetic + SigLIP 2 embeddings + Qwen3.5-2B tagging), planned as 3-4 passes for 11.5-14GB VRAM (4 below about 11.8GB)"
       },
       "16gb": {
         "aesthetic_model": "topiq",
@@ -573,7 +573,7 @@ penalty = min(noise_max_penalty_points, (noise_sigma - threshold) * noise_penalt
 | `ram_cache_reserve_gb` | `4.0`（可选，随附文件中没有） | 在 `"auto"` 下，缓存一个模型时要为主机留出的可用内存（GB） |
 | `profiles.*.supplementary_pyiqa` | `["topiq_iaa", "topiq_nr_face", "liqe"]` | 本配置档要运行的 PyIQA 模型（四个配置档都运行完整集合） |
 | `profiles.*.saliency_enabled` | `true`（所有配置档） | 本配置档是否运行 BiRefNet 主体显著性 |
-| `clip.model_name` | `"google/siglip2-so400m-patch16-naflex"` | SigLIP 2 NaFlex 嵌入模型（16gb/24gb） |
+| `clip.model_name` | `"google/siglip2-so400m-patch16-naflex"` | SigLIP 2 NaFlex 嵌入模型（12gb/16gb/24gb） |
 | `clip.backend` | `"transformers"` | `"transformers"`（SigLIP 2 NaFlex）或 `"open_clip"`（旧版） |
 | `clip.embedding_dim` | `1152` | 嵌入维度（SigLIP 2 为 1152） |
 | `clip.tag_threshold_percent` | `8` | 12gb/16gb/24gb 的 SigLIP 2 标签器判定**标签**匹配所需的最低相似度（取代 `similarity_threshold_percent`） |
@@ -791,7 +791,7 @@ Facet 会监控资源占用并据此调整。`memory_limit_percent` 是相对*�
 | 显存 | 第 1 遍 | 第 2 遍 | 第 3 遍 | 第 4 遍 |
 |---|---|---|---|---|
 | 8GB（`8gb` 配置档） | CLIP | Q-ReAlign + 显著性 | TOPIQ IAA + TOPIQ NR-Face + LIQE | SAMP-Net + InsightFace |
-| 12GB\*（`12gb` 配置档） | Qwen3.5 标签 VLM + Q-ReAlign | SigLIP + 显著性 + TOPIQ IAA | TOPIQ + TOPIQ NR-Face + LIQE + SAMP-Net | InsightFace |
+| 12GB\*（`12gb` 配置档；峰值 TODO_VRAM12 GiB，模拟） | Qwen3.5 标签 VLM + Q-ReAlign | SigLIP + 显著性 + TOPIQ IAA | TOPIQ + TOPIQ NR-Face + LIQE + SAMP-Net | InsightFace |
 | 16GB（`16gb` 配置档） | Qwen3.5 标签 VLM + SigLIP + TOPIQ | Q-ReAlign + 显著性 + TOPIQ IAA + TOPIQ NR-Face + LIQE + SAMP-Net | InsightFace | - |
 | 24GB（`24gb` 配置档） | Qwen3.5 4B 标签 VLM + SigLIP + Q-ReAlign + 显著性 | TOPIQ + TOPIQ IAA + TOPIQ NR-Face + LIQE + SAMP-Net + InsightFace | - | - |
 | 35GB+（`24gb` 配置档） | 所有模型一起（单遍） | - | - | - |
@@ -806,7 +806,7 @@ Facet 会监控资源占用并据此调整。`memory_limit_percent` 是相对*�
 # 默认：自动多遍，并采用最优分组
 python facet.py /path/to/photos
 
-# 强制单遍（一次加载全部模型；仅限 legacy/8gb 配置档，16gb/24gb 会警告并以多遍运行）
+# 强制单遍（一次加载全部模型；仅限 legacy/8gb 配置档，12gb/16gb/24gb 会警告并以多遍运行）
 python facet.py /path --single-pass
 
 # 只运行指定的遍次
@@ -1791,7 +1791,7 @@ python facet.py --recompute-tags-vlm   # 用 VLM 标签模型重新打标签
 | `show_semantic_search` | `true` | 显示语义搜索栏（使用 CLIP/SigLIP 嵌入进行以文搜图） |
 | `show_albums` | `true` | 显示相册功能（创建、管理和浏览照片相册） |
 | `show_critique` | `true` | 在照片卡片上显示 AI 点评按钮（基于规则的评分拆解） |
-| `show_vlm_critique` | `true` | 启用 VLM 点评（16gb/24gb 配置档）；该键缺失时为 `false` |
+| `show_vlm_critique` | `true` | 启用 VLM 点评（12gb/16gb/24gb 配置档）；该键缺失时为 `false` |
 | `show_embed_metadata` | `true` | 在编辑模式下显示“将元数据写入文件”（通过 exiftool 嵌入星级/关键词） |
 | `show_memories` | `true` | 显示“那年今日”回忆对话框（往年同一日期拍摄的照片） |
 | `show_captions` | `true` | 在照片卡片上显示 AI 生成的照片描述 |
@@ -2413,7 +2413,7 @@ Facet 会把每张照片的 AI 描述（只编码一次并存储，即 `caption_
 | `priors.rules` | （general 规则集） | `{kind, when, boost}` 规则列表（见下文） |
 | `priors.event_types.<et>.rules` | `wedding` 覆盖 | 对应词表生效时**替换**全局 `rules` 的规则 |
 | `transitions.stay_prob` / `forward_bias` / `weight` | `0.7` / `0.0` / `0.3` | 相邻帧之间的时间线平滑（`weight=0` = 不平滑） |
-| `vlm_tiebreak.enabled` / `min_confidence` / `min_margin` | `false` / `0.0` / `0.04` | 在 16gb/24gb 上，仅用配置档的 VLM 重新分类低置信度或低差距的帧 |
+| `vlm_tiebreak.enabled` / `min_confidence` / `min_margin` | `false` / `0.0` / `0.04` | 在 12gb/16gb/24gb 上，仅用配置档的 VLM 重新分类低置信度或低差距的帧 |
 | `event_types` | `general` + `wedding` | 每种事件类型的 `{moment: [提示词同义表]}`；设置 `default_event_type` 可切换题材，也可添加你自己的 |
 
 `priors.rules` 的格式：
@@ -2716,7 +2716,7 @@ python facet.py --recompute-text   # 重新读取整个图库
 
 ## AI 点评
 
-VLM 点评（16gb/24gb 配置档）的提示词设置。点评会把评分拆解、扣分项和 EXIF 提供给 VLM，并把它的回复显示为观察／评价／建议三段。
+VLM 点评（12gb/16gb/24gb 配置档）的提示词设置。点评会把评分拆解、扣分项和 EXIF 提供给 VLM，并把它的回复显示为观察／评价／建议三段。
 
 - 评价部分涵盖构图、色彩与光线、对焦/景深与技术执行、主体与瞬间，并与指标相互印证。
 - 它按照片缓存（`photos.vlm_critique`，翻译存放在 `vlm_critique_translated`）；`refresh` 可重新生成。
@@ -2740,7 +2740,7 @@ VLM 点评（16gb/24gb 配置档）的提示词设置。点评会把评分拆解
 
 ## VLM 后端
 
-选择用于生成描述/标签的视觉语言模型在哪里运行。`local`（默认）使用 16gb/24gb 配置档内置的 Qwen 模型。两种远程后端则使用外部服务器，从而让**本身不带本地 VLM 的 legacy/8gb 配置档**也能生成描述和做 VLM 打标签。
+选择用于生成描述/标签的视觉语言模型在哪里运行。`local`（默认）使用 12gb/16gb/24gb 配置档内置的 Qwen 模型。两种远程后端则使用外部服务器，从而让**本身不带本地 VLM 的 legacy/8gb 配置档**也能生成描述和做 VLM 打标签。
 
 ```json
 {

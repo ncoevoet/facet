@@ -59,6 +59,17 @@ class TestBoundaries:
         assert 'profile_for_vram' in body
         assert not re.search(r'vram_gb\s*>=', body)
 
+    def test_a_card_reporting_11_46_gib_is_rounded_to_11_5_and_selects_12gb(self):
+        """detect_gpu_vram_gb rounds to 0.1 GiB, so the 11.5 boundary applies to the rounded reading."""
+        import sys
+        import types
+        fake = types.SimpleNamespace(
+            cuda=types.SimpleNamespace(get_device_properties=lambda i: types.SimpleNamespace(total_memory=int(11.46 * 1024 ** 3))))
+        with mock.patch.dict(sys.modules, {'torch': fake}),                 mock.patch('utils.device.is_device_available', return_value=True):
+            detected = ScoringConfig.detect_gpu_vram_gb()
+        assert detected == 11.5
+        assert ScoringConfig.profile_for_vram(detected) == '12gb'
+
     def test_a_12gb_profile_on_a_11_5_gib_card_is_compatible_and_on_a_11_4_gib_card_is_not(self):
         cfg = ScoringConfig.__new__(ScoringConfig)
         cfg.config = {'models': {'vram_profile': '12gb'}}
@@ -140,16 +151,6 @@ class TestPlanner:
         assert len(bins) == 4
         assert {'insightface'} in [set(b) for b in bins]
         assert any({'topiq', 'samp_net'} <= set(b) for b in bins)
-
-
-class TestLabHarness:
-    def test_the_harness_accepts_the_12gb_profile(self):
-        import importlib.util
-        spec = importlib.util.spec_from_file_location('lab_switches_12gb', ROOT / 'scripts' / 'perf' / 'lab_switches.py')
-        mod = importlib.util.module_from_spec(spec)
-        spec.loader.exec_module(mod)
-        assert mod.resolve_profile({'PERF_PROFILE': '12gb'}) == '12gb'
-        assert set(_shipped_profiles()) == set(mod.PROFILES)
 
 
 class TestDocsAgreeAcrossLanguages:

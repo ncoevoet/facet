@@ -44,7 +44,7 @@ Facet registra ogni scansione (stato, modalità, directory, contatori) e ogni er
 **Single-pass (`--single-pass`):** carica tutti i modelli in una volta. Più veloce, ma richiede più VRAM.
 
 - Valuta l'estetica con la head CLIP+MLP, quindi si applica ai profili `legacy` e `8gb`.
-- Su `16gb` e `24gb` il modello estetico è TOPIQ, che viene eseguito solo in multi-pass. Una richiesta single-pass (`--single-pass` o `processing.mode: "single-pass"`) registra un avviso ed esegue il multi-pass.
+- Su `12gb`, `16gb` e `24gb` il modello estetico è TOPIQ, che viene eseguito solo in multi-pass. Una richiesta single-pass (`--single-pass` o `processing.mode: "single-pass"`) registra un avviso ed esegue il multi-pass.
 - `--pass NAME` e `--dry-run` saltano questo controllo.
 - La modalità commerciale mantiene il single-pass, perché lì l'estetica è valutata dal Q-ReAlign nativo.
 
@@ -213,7 +213,7 @@ Questi comandi aggiornano metriche o derivano nuovi dati senza rieseguire l'inte
 
 - `--detect-moments` codifica ogni nuova didascalia una sola volta in `caption_embedding`. Il primo backfill di una libreria esistente è meglio farlo con una GPU; aggiungi `--limit N` per provarlo su un campione.
 - Aggiungi `--dry-run --verbose` a `--recompute-moments` (o a `--detect-junk`) per l'anteprima senza scrivere.
-- `narrative_moments.vlm_tiebreak` (16gb/24gb): quando `narrative_moments.vlm_tiebreak.enabled` è impostato, il VLM del profilo riclassifica i fotogrammi a bassa confidenza.
+- `narrative_moments.vlm_tiebreak` (12gb/16gb/24gb): quando `narrative_moments.vlm_tiebreak.enabled` è impostato, il VLM del profilo riclassifica i fotogrammi a bassa confidenza.
 - `--discover-moments` raggruppa gli embedding delle didascalie memorizzati e dà un nome a ogni gruppo. Non riscrive mai la configurazione attiva. Esegui prima `--detect-moments`; regola con `--discover-min-cluster-size N`.
 - `--generate-captions` salta le foto non etichettate, `other` e a bassa confidenza quando `narrative_moments.caption_min_confidence > 0`.
 
@@ -291,6 +291,7 @@ Il modello di tagging dipende dal profilo VRAM:
 |---------|-------|-------------|
 | `legacy` | Somiglianza CLIP | Somiglianza coseno tra gli embedding dell'immagine e del testo dei tag. Nessun modello aggiuntivo. |
 | `8gb` | Somiglianza CLIP | Come legacy, sugli embedding CLIP ViT-L-14 memorizzati. |
+| `12gb` | Qwen3.5-2B | Modello multimodale per il tagging delle scene. |
 | `16gb` | Qwen3.5-2B | Modello multimodale per il tagging delle scene. |
 | `24gb` | Qwen3.5-4B | Modello multimodale più grande. |
 
@@ -304,7 +305,7 @@ Due modelli di embedding, selezionati per profilo VRAM tramite `clip_config`:
 
 | Config | Modello | Dimensioni | Usato da |
 |--------|-------|-----------|---------|
-| `clip` | SigLIP 2 NaFlex SO400M | 1152 | profili 16gb, 24gb |
+| `clip` | SigLIP 2 NaFlex SO400M | 1152 | profili 12gb, 16gb, 24gb |
 | `clip_legacy` | CLIP ViT-L-14 | 768 | profili legacy, 8gb |
 
 Gli embedding alimentano il tagging, il rilevamento dei duplicati, la ricerca di foto simili e l'estetica CLIP+MLP (legacy/8gb). Il cambio di modello richiede di ricalcolare gli embedding di tutte le foto (`--force`, `--pass embeddings` o `--recompute-embeddings`).
@@ -469,7 +470,7 @@ python /opt/facet/viewer.py      # legge comunque /opt/facet/scoring_config.json
 | `python tag_existing.py --db custom.db` | Usa un database personalizzato |
 | `python tag_existing.py --config my.json` | Usa una configurazione personalizzata |
 
-Su CUDA, i profili SigLIP (`16gb`, `24gb`) ora codificano il vocabolario dei tag in fp16, il che cambia i tag di alcune foto. Esegui `python tag_existing.py --force` per riassegnare i tag alle foto etichettate in precedenza. CPU e profili `legacy`/`8gb` restano invariati.
+Su CUDA, i profili SigLIP (`12gb`, `16gb`, `24gb`) ora codificano il vocabolario dei tag in fp16, il che cambia i tag di alcune foto. Esegui `python tag_existing.py --force` per riassegnare i tag alle foto etichettate in precedenza. CPU e profili `legacy`/`8gb` restano invariati.
 
 Il passaggio di tagging al termine di una scansione viene saltato quando `tagging.enabled` è `false` o nessuna foto è in attesa di tag.
 

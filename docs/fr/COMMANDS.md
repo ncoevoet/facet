@@ -44,7 +44,7 @@ Facet enregistre chaque analyse (statut, mode, répertoires, compteurs) et chaqu
 **Passe unique (`--single-pass`) :** charge tous les modèles en même temps. Plus rapide, mais nécessite plus de VRAM.
 
 - L'esthétique est notée par la tête CLIP+MLP, ce mode vaut donc pour les profils `legacy` et `8gb`.
-- Sur `16gb` et `24gb`, le modèle d'esthétique est TOPIQ, que seul le multi-passes exécute. Une demande de passe unique (`--single-pass` ou `processing.mode: "single-pass"`) journalise un avertissement et s'exécute en multi-passes.
+- Sur `12gb`, `16gb` et `24gb`, le modèle d'esthétique est TOPIQ, que seul le multi-passes exécute. Une demande de passe unique (`--single-pass` ou `processing.mode: "single-pass"`) journalise un avertissement et s'exécute en multi-passes.
 - `--pass NAME` et `--dry-run` ignorent cette vérification.
 - Le mode commercial conserve la passe unique, car Q-ReAlign natif y note l'esthétique.
 
@@ -213,7 +213,7 @@ Ces commandes mettent à jour des métriques ou dérivent de nouvelles données 
 
 - `--detect-moments` encode chaque nouvelle légende une seule fois dans `caption_embedding`. Le premier remplissage d'une bibliothèque existante se fait de préférence sur GPU ; ajoutez `--limit N` pour l'essayer sur un échantillon.
 - Ajoutez `--dry-run --verbose` à `--recompute-moments` (ou `--detect-junk`) pour prévisualiser sans écrire.
-- `narrative_moments.vlm_tiebreak` (16gb/24gb) : quand `narrative_moments.vlm_tiebreak.enabled` est activé, le VLM du profil reclasse les images à faible confiance.
+- `narrative_moments.vlm_tiebreak` (12gb/16gb/24gb) : quand `narrative_moments.vlm_tiebreak.enabled` est activé, le VLM du profil reclasse les images à faible confiance.
 - `--discover-moments` regroupe les embeddings de légende stockés et nomme chaque groupe. Il ne réécrit jamais la configuration active. Exécutez d'abord `--detect-moments` ; ajustez avec `--discover-min-cluster-size N`.
 - `--generate-captions` ignore les photos non étiquetées, `other` et à faible confiance quand `narrative_moments.caption_min_confidence > 0`.
 
@@ -291,6 +291,7 @@ Le modèle d'étiquetage dépend du profil VRAM :
 |---------|-------|-------------|
 | `legacy` | Similarité CLIP | Similarité cosinus entre les embeddings d'image et de texte d'étiquette. Aucun modèle supplémentaire. |
 | `8gb` | Similarité CLIP | Identique à legacy, sur les embeddings CLIP ViT-L-14 stockés. |
+| `12gb` | Qwen3.5-2B | Modèle multimodal pour l'étiquetage de scène. |
 | `16gb` | Qwen3.5-2B | Modèle multimodal pour l'étiquetage de scène. |
 | `24gb` | Qwen3.5-4B | Modèle multimodal plus grand. |
 
@@ -304,7 +305,7 @@ Deux modèles d'embedding, sélectionnés par profil VRAM via `clip_config` :
 
 | Config | Modèle | Dimensions | Utilisé par |
 |--------|-------|-----------|---------|
-| `clip` | SigLIP 2 NaFlex SO400M | 1152 | profils 16gb, 24gb |
+| `clip` | SigLIP 2 NaFlex SO400M | 1152 | profils 12gb, 16gb, 24gb |
 | `clip_legacy` | CLIP ViT-L-14 | 768 | profils legacy, 8gb |
 
 Les embeddings alimentent l'étiquetage, la détection de doublons, la recherche de photos similaires et l'esthétique CLIP+MLP (legacy/8gb). Changer de modèle nécessite de ré-embedder toutes les photos (`--force`, `--pass embeddings` ou `--recompute-embeddings`).
@@ -469,7 +470,7 @@ python /opt/facet/viewer.py      # lit toujours /opt/facet/scoring_config.json (
 | `python tag_existing.py --db custom.db` | Utilise une base de données personnalisée |
 | `python tag_existing.py --config my.json` | Utilise une configuration personnalisée |
 
-Sur CUDA, les profils SigLIP (`16gb`, `24gb`) encodent désormais le vocabulaire d'étiquettes en fp16, ce qui change les étiquettes de quelques photos. Lancez `python tag_existing.py --force` pour ré-étiqueter les photos étiquetées auparavant. Le CPU et les profils `legacy`/`8gb` ne changent pas.
+Sur CUDA, les profils SigLIP (`12gb`, `16gb`, `24gb`) encodent désormais le vocabulaire d'étiquettes en fp16, ce qui change les étiquettes de quelques photos. Lancez `python tag_existing.py --force` pour ré-étiqueter les photos étiquetées auparavant. Le CPU et les profils `legacy`/`8gb` ne changent pas.
 
 L'étape d'étiquetage en fin d'analyse est ignorée quand `tagging.enabled` vaut `false` ou qu'aucune photo n'attend d'étiquettes.
 

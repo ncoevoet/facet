@@ -972,7 +972,7 @@ class ScoringConfig:
                     'aesthetic_model': 'topiq',
                     'composition_model': 'samp-net',
                     'tagging_model': 'qwen3.5-2b',
-                    'description': 'TOPIQ aesthetic, SAMP-Net composition (same models as 16gb, 4 passes in ~11.7GB VRAM)'
+                    'description': 'TOPIQ aesthetic, SAMP-Net composition (same models as 16gb, 3-4 passes in 11.5-14GB VRAM)'
                 },
                 '16gb': {
                     'aesthetic_model': 'topiq',
@@ -1185,7 +1185,7 @@ class ScoringConfig:
         label = {
             'legacy': 'CLIP-MLP + SAMP-Net, CPU',
             '8gb': 'CLIP-MLP + SAMP-Net',
-            '12gb': 'TOPIQ + SigLIP 2 + Qwen3.5-2B, 4 passes',
+            '12gb': 'TOPIQ + SigLIP 2 + Qwen3.5-2B, 3-4 passes',
             '16gb': 'TOPIQ + SigLIP 2 + Qwen3.5-2B',
             '24gb': 'TOPIQ + SigLIP 2 + Qwen3.5-4B',
         }[profile]
@@ -1263,7 +1263,7 @@ class ScoringConfig:
 
         if vram_gb < required_vram:
             if verbose:
-                logger.warning("Profile '%s' requires ~%dGB VRAM, but only %.1fGB detected", current_profile, required_vram, vram_gb)
+                logger.warning("Profile '%s' requires ~%.1fGB VRAM, but only %.1fGB detected", current_profile, required_vram, vram_gb)
                 logger.warning("  %s", msg)
                 logger.warning("  Consider setting vram_profile to '%s' or 'auto' in scoring_config.json", suggested_profile)
             return False, suggested_profile, f"Insufficient VRAM for {current_profile}"

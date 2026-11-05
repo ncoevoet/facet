@@ -255,7 +255,7 @@ Esses modelos são executados como parte do pipeline de pontuação padrão em t
 - Um face_quality_iqa NULL segue a regra acima; as outras entradas suplementares NULL mantêm a imputação neutra 5.0.
 - **Galeria:** um filtro de intervalo em Estética (IAA), Qualidade do rosto (IQA), LIQE ou Aesthetic V2.5 não inclui uma foto sem pontuação (`min_face_quality_iqa=0` ignora uma foto sem rosto). Uma ordenação crescente por esses campos, Q-ReAlign ou DeQA coloca as fotos sem pontuação por último, na galeria e nos álbuns.
 - **Valores neutros 5.0 antigos** permanecem até que `--repair-neutral-iqa` os apague; depois execute `--recompute-iqa` e `--recompute-average`, ou faça uma nova varredura com `--force`.
-- **Falha do modelo principal** (TOPIQ nos perfis `16gb` e `24gb`): a foto é registrada como falha em vez de ser gravada com um 5.0 neutro. Uma foto nova é retomada pela próxima varredura; uma já gravada mantém a sua linha e é repetida por `--retry-failed all` (um `--retry-failed` sem argumento cobre apenas a última execução que registrou falhas) ou por outra varredura com `--force`.
+- **Falha do modelo principal** (TOPIQ nos perfis `12gb`, `16gb` e `24gb`): a foto é registrada como falha em vez de ser gravada com um 5.0 neutro. Uma foto nova é retomada pela próxima varredura; uma já gravada mantém a sua linha e é repetida por `--retry-failed all` (um `--retry-failed` sem argumento cobre apenas a última execução que registrou falhas) ou por outra varredura com `--force`.
 
 Regras de nova tentativa de cada comando: [Modelos de Qualidade Suplementares](COMMANDS.md#modelos-de-qualidade-suplementares).
 
@@ -312,6 +312,7 @@ Os pesos padrão são otimizados para **TOPIQ** (0,93 SRCC), o modelo estético 
 |---------|-----------------|-----------|--------|-----------------|
 | `24gb` | TOPIQ (0,93 SRCC) | SigLIP 2 NaFlex SO400M | Qwen3.5-4B | Melhor precisão, pesos padrão |
 | `16gb` | TOPIQ (0,93 SRCC) | SigLIP 2 NaFlex SO400M | Qwen3.5-2B | Pesos padrão |
+| `12gb` | TOPIQ (0,93 SRCC) | SigLIP 2 NaFlex SO400M | Qwen3.5-2B | Pesos padrão |
 | `8gb` | CLIP+MLP (0,76 SRCC) | CLIP ViT-L-14 | Similaridade CLIP | Pesos padrão funcionam bem |
 | `legacy` | CLIP+MLP na CPU | CLIP ViT-L-14 | Similaridade CLIP | Pesos padrão, mais lento |
 

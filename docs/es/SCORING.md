@@ -255,7 +255,7 @@ Estos modelos se ejecutan como parte de la canalización de puntuación predeter
 - Un face_quality_iqa NULL sigue la regla anterior; las demás entradas complementarias NULL conservan la imputación neutra 5.0.
 - **Galería:** un filtro de rango sobre Estética (IAA), Calidad facial (IQA), LIQE o Aesthetic V2.5 no coincide con una foto sin puntuar (`min_face_quality_iqa=0` omite una foto sin rostro). Una ordenación ascendente por esos campos, por Q-ReAlign o por DeQA coloca las fotos sin puntuar al final, en la galería y en los álbumes.
 - **Los antiguos valores neutros 5.0** permanecen hasta que `--repair-neutral-iqa` los borra; después ejecuta `--recompute-iqa` y `--recompute-average`, o reescanea con `--force`.
-- **Fallo del modelo principal** (TOPIQ en `16gb` y `24gb`): la foto se registra como fallida en lugar de guardarse con un 5.0 neutro. Una foto nueva se recoge en el siguiente escaneo; una almacenada conserva su fila y la reintenta `--retry-failed all` (un `--retry-failed` a secas cubre solo la última ejecución con fallos) u otro reescaneo con `--force`.
+- **Fallo del modelo principal** (TOPIQ en `12gb`, `16gb` y `24gb`): la foto se registra como fallida en lugar de guardarse con un 5.0 neutro. Una foto nueva se recoge en el siguiente escaneo; una almacenada conserva su fila y la reintenta `--retry-failed all` (un `--retry-failed` a secas cubre solo la última ejecución con fallos) u otro reescaneo con `--force`.
 
 Reglas de reintento de cada comando: [Modelos de calidad complementarios](COMMANDS.md#modelos-de-calidad-suplementarios).
 
@@ -312,6 +312,7 @@ Los pesos predeterminados están optimizados para **TOPIQ** (0.93 SRCC), el mode
 |---------|-----------------|-----------|--------|-----------------|
 | `24gb` | TOPIQ (0.93 SRCC) | SigLIP 2 NaFlex SO400M | Qwen3.5-4B | Mejor precisión, pesos predeterminados |
 | `16gb` | TOPIQ (0.93 SRCC) | SigLIP 2 NaFlex SO400M | Qwen3.5-2B | Pesos predeterminados |
+| `12gb` | TOPIQ (0.93 SRCC) | SigLIP 2 NaFlex SO400M | Qwen3.5-2B | Pesos predeterminados |
 | `8gb` | CLIP+MLP (0.76 SRCC) | CLIP ViT-L-14 | Similitud CLIP | Los pesos predeterminados funcionan bien |
 | `legacy` | CLIP+MLP en CPU | CLIP ViT-L-14 | Similitud CLIP | Pesos predeterminados, más lento |
 

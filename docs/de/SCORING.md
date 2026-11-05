@@ -255,7 +255,7 @@ Diese Modelle laufen auf jedem Profil als Teil der Standard-Bewertungspipeline, 
 - Ein NULL bei face_quality_iqa folgt der obigen Regel; andere ergänzende NULL-Eingaben behalten die neutrale Ersetzung 5.0.
 - **Galerie:** Ein Bereichsfilter auf Ästhetik (IAA), Gesichtsqualität (IQA), LIQE oder Aesthetic V2.5 trifft auf ein unbewertetes Foto nicht zu (`min_face_quality_iqa=0` überspringt ein Foto ohne Gesicht). Eine aufsteigende Sortierung danach, nach Q-ReAlign oder DeQA stellt unbewertete Fotos ans Ende, in der Galerie und in Alben.
 - **Alte neutrale 5.0-Werte** bleiben, bis `--repair-neutral-iqa` sie löscht; führen Sie danach `--recompute-iqa` und `--recompute-average` aus, oder scannen Sie mit `--force` neu.
-- **Ausfall des primären Modells** (TOPIQ auf `16gb` und `24gb`): Das Foto wird als fehlgeschlagen erfasst, statt mit einer neutralen 5.0 gespeichert zu werden. Ein neues Foto nimmt der nächste Scan auf; ein bereits gespeichertes behält seine Zeile und wird von `--retry-failed all` (ein bloßes `--retry-failed` erfasst nur den letzten Lauf mit Fehlern) oder einem weiteren `--force`-Neuscan erneut verarbeitet.
+- **Ausfall des primären Modells** (TOPIQ auf `12gb`, `16gb` und `24gb`): Das Foto wird als fehlgeschlagen erfasst, statt mit einer neutralen 5.0 gespeichert zu werden. Ein neues Foto nimmt der nächste Scan auf; ein bereits gespeichertes behält seine Zeile und wird von `--retry-failed all` (ein bloßes `--retry-failed` erfasst nur den letzten Lauf mit Fehlern) oder einem weiteren `--force`-Neuscan erneut verarbeitet.
 
 Wiederholungsregeln für jeden Befehl: [Ergänzende Qualitätsmodelle](COMMANDS.md#ergänzende-qualitätsmodelle).
 
@@ -312,6 +312,7 @@ Die Standardgewichte sind für **TOPIQ** (0,93 SRCC) optimiert, das Ästhetikmod
 |---------|-----------------|-----------|--------|-----------------|
 | `24gb` | TOPIQ (0,93 SRCC) | SigLIP 2 NaFlex SO400M | Qwen3.5-4B | Beste Genauigkeit, Standardgewichte |
 | `16gb` | TOPIQ (0,93 SRCC) | SigLIP 2 NaFlex SO400M | Qwen3.5-2B | Standardgewichte |
+| `12gb` | TOPIQ (0,93 SRCC) | SigLIP 2 NaFlex SO400M | Qwen3.5-2B | Standardgewichte |
 | `8gb` | CLIP+MLP (0,76 SRCC) | CLIP ViT-L-14 | CLIP-Ähnlichkeit | Standardgewichte funktionieren gut |
 | `legacy` | CLIP+MLP auf CPU | CLIP ViT-L-14 | CLIP-Ähnlichkeit | Standardgewichte, langsamer |
 

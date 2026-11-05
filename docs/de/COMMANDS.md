@@ -44,7 +44,7 @@ Facet zeichnet jeden Scan (Status, Modus, Verzeichnisse, Zähler) und jeden Fehl
 **Single-Pass (`--single-pass`):** lädt alle Modelle gleichzeitig. Schneller, benötigt aber mehr VRAM.
 
 - Die Ästhetik wird mit dem CLIP+MLP-Kopf bewertet, daher gilt der Modus für die Profile `legacy` und `8gb`.
-- Bei `16gb` und `24gb` ist das Ästhetikmodell TOPIQ, das nur Multi-Pass ausführt. Eine Single-Pass-Anforderung (`--single-pass` oder `processing.mode: "single-pass"`) protokolliert eine Warnung und läuft als Multi-Pass.
+- Bei `12gb`, `16gb` und `24gb` ist das Ästhetikmodell TOPIQ, das nur Multi-Pass ausführt. Eine Single-Pass-Anforderung (`--single-pass` oder `processing.mode: "single-pass"`) protokolliert eine Warnung und läuft als Multi-Pass.
 - `--pass NAME` und `--dry-run` überspringen diese Prüfung.
 - Im kommerziellen Modus bleibt Single-Pass verfügbar, weil dort das native Q-ReAlign die Ästhetik bewertet.
 
@@ -213,7 +213,7 @@ Diese Befehle aktualisieren Metriken oder leiten neue Daten ab, ohne die vollst�
 
 - `--detect-moments` kodiert jede neue Bildunterschrift einmal in `caption_embedding`. Den ersten Backfill einer bestehenden Bibliothek führt man am besten auf einer GPU aus; mit `--limit N` probieren Sie ihn an einer Stichprobe.
 - Fügen Sie `--dry-run --verbose` zu `--recompute-moments` (oder `--detect-junk`) hinzu, um eine Vorschau ohne Schreiben zu sehen.
-- `narrative_moments.vlm_tiebreak` (16gb/24gb): Ist `narrative_moments.vlm_tiebreak.enabled` gesetzt, klassifiziert das Profil-VLM Frames mit niedriger Konfidenz neu.
+- `narrative_moments.vlm_tiebreak` (12gb/16gb/24gb): Ist `narrative_moments.vlm_tiebreak.enabled` gesetzt, klassifiziert das Profil-VLM Frames mit niedriger Konfidenz neu.
 - `--discover-moments` clustert gespeicherte Bildunterschrift-Embeddings und benennt jedes Cluster. Es überschreibt nie die aktive Konfiguration. Führen Sie zuerst `--detect-moments` aus; die Granularität stellen Sie mit `--discover-min-cluster-size N` ein.
 - `--generate-captions` überspringt nicht gekennzeichnete, `other`- und Fotos mit niedriger Konfidenz, wenn `narrative_moments.caption_min_confidence > 0`.
 
@@ -291,6 +291,7 @@ Das Verschlagwortungsmodell hängt vom VRAM-Profil ab:
 |---------|-------|-------------|
 | `legacy` | CLIP-Ähnlichkeit | Kosinus-Ähnlichkeit zwischen Bild-Embedding und Tag-Text-Embeddings. Kein zusätzliches Modell. |
 | `8gb` | CLIP-Ähnlichkeit | Wie legacy, auf gespeicherten CLIP-ViT-L-14-Embeddings. |
+| `12gb` | Qwen3.5-2B | Multimodales Modell für die Szenenverschlagwortung. |
 | `16gb` | Qwen3.5-2B | Multimodales Modell für die Szenenverschlagwortung. |
 | `24gb` | Qwen3.5-4B | Größeres multimodales Modell. |
 
@@ -304,7 +305,7 @@ Zwei Embedding-Modelle, pro VRAM-Profil über `clip_config` ausgewählt:
 
 | Konfiguration | Modell | Dimensionen | Verwendet von |
 |--------|-------|-----------|---------|
-| `clip` | SigLIP 2 NaFlex SO400M | 1152 | 16gb-, 24gb-Profile |
+| `clip` | SigLIP 2 NaFlex SO400M | 1152 | 12gb-, 16gb-, 24gb-Profile |
 | `clip_legacy` | CLIP ViT-L-14 | 768 | legacy-, 8gb-Profile |
 
 Embeddings treiben Verschlagwortung, Duplikaterkennung, Ähnliche-Fotos-Suche und die CLIP+MLP-Ästhetik (legacy/8gb) an. Ein Modellwechsel erfordert das erneute Embedding aller Fotos (`--force`, `--pass embeddings` oder `--recompute-embeddings`).
@@ -469,7 +470,7 @@ python /opt/facet/viewer.py      # liest weiterhin /opt/facet/scoring_config.jso
 | `python tag_existing.py --db custom.db` | Benutzerdefinierte Datenbank verwenden |
 | `python tag_existing.py --config my.json` | Benutzerdefinierte Konfiguration verwenden |
 
-Auf CUDA kodieren die SigLIP-Profile (`16gb`, `24gb`) das Tag-Vokabular jetzt in fp16, was die Tags einiger weniger Fotos ändert. Führen Sie `python tag_existing.py --force` aus, um früher verschlagwortete Fotos neu zu verschlagworten. CPU und die Profile `legacy`/`8gb` bleiben unverändert.
+Auf CUDA kodieren die SigLIP-Profile (`12gb`, `16gb`, `24gb`) das Tag-Vokabular jetzt in fp16, was die Tags einiger weniger Fotos ändert. Führen Sie `python tag_existing.py --force` aus, um früher verschlagwortete Fotos neu zu verschlagworten. CPU und die Profile `legacy`/`8gb` bleiben unverändert.
 
 Der Verschlagwortungsschritt am Ende eines Scans wird übersprungen, wenn `tagging.enabled` auf `false` steht oder kein Foto auf Tags wartet.
 

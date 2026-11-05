@@ -254,7 +254,7 @@ subject_sharpness、subject_prominence、subject_placement、bg_separation 和 f
 - face_quality_iqa 为 NULL 时遵循上文的缺失值规则；其他补充指标的 NULL 输入仍使用中性值 5.0。
 - **图库：**对美学（IAA）、人脸画质（IQA）、LIQE 或 Aesthetic V2.5 的范围筛选不会匹配没有评分的照片（`min_face_quality_iqa=0` 会跳过没有人脸的照片）。按这些列、Q-ReAlign 或 DeQA 升序排序时，没有评分的照片排在最后，图库和相册中都是如此。
 - **旧的中性 5.0 值**会保留，直到 `--repair-neutral-iqa` 将其清除；之后运行 `--recompute-iqa` 和 `--recompute-average`，或用 `--force` 重新扫描。
-- **主画质模型失败**（`16gb` 与 `24gb` 上的 TOPIQ）：该照片会被记为失败，而不是以中性的 5.0 保存。新照片会在下次扫描时重新处理；已存储的照片保留其原有记录，可由 `--retry-failed all`（不带参数的 `--retry-failed` 只覆盖最近一次记录了失败的运行）或再次 `--force` 重新扫描来重试。
+- **主画质模型失败**（`12gb`、`16gb` 与 `24gb` 上的 TOPIQ）：该照片会被记为失败，而不是以中性的 5.0 保存。新照片会在下次扫描时重新处理；已存储的照片保留其原有记录，可由 `--retry-failed all`（不带参数的 `--retry-failed` 只覆盖最近一次记录了失败的运行）或再次 `--force` 重新扫描来重试。
 
 各命令的重试规则见[补充画质模型](COMMANDS.md#补充画质模型)。
 
@@ -311,6 +311,7 @@ subject_sharpness、subject_prominence、subject_placement、bg_separation 和 f
 |---------|-----------------|-----------|--------|-----------------|
 | `24gb` | TOPIQ（0.93 SRCC） | SigLIP 2 NaFlex SO400M | Qwen3.5-4B | 精度最佳，使用默认权重 |
 | `16gb` | TOPIQ（0.93 SRCC） | SigLIP 2 NaFlex SO400M | Qwen3.5-2B | 使用默认权重 |
+| `12gb` | TOPIQ（0.93 SRCC） | SigLIP 2 NaFlex SO400M | Qwen3.5-2B | 使用默认权重 |
 | `8gb` | CLIP+MLP（0.76 SRCC） | CLIP ViT-L-14 | CLIP 相似度 | 默认权重效果良好 |
 | `legacy` | CPU 上的 CLIP+MLP | CLIP ViT-L-14 | CLIP 相似度 | 使用默认权重，速度较慢 |
 

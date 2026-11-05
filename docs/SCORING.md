@@ -255,7 +255,7 @@ These models run as part of the default scoring pipeline on every profile, inclu
 - A NULL face_quality_iqa follows the missing-value rule above; other supplementary NULL inputs retain neutral 5.0 imputation.
 - **Gallery:** a range filter on Aesthetic (IAA), Face Quality (IQA), LIQE or Aesthetic V2.5 does not match an unscored photo (`min_face_quality_iqa=0` skips a faceless photo). An ascending sort on those, Q-ReAlign or DeQA puts unscored photos last, in the gallery and in albums.
 - **Old neutral 5.0 values** stay until `--repair-neutral-iqa` clears them; then run `--recompute-iqa` and `--recompute-average`, or rescan with `--force`.
-- **Primary model failure** (TOPIQ on `16gb` and `24gb`): the photo is recorded as failed instead of saved with a neutral 5.0. A new photo is picked up by the next scan; a stored one keeps its row and is retried by `--retry-failed all` (a bare `--retry-failed` covers only the latest run with failures) or another `--force` rescan.
+- **Primary model failure** (TOPIQ on `12gb`, `16gb` and `24gb`): the photo is recorded as failed instead of saved with a neutral 5.0. A new photo is picked up by the next scan; a stored one keeps its row and is retried by `--retry-failed all` (a bare `--retry-failed` covers only the latest run with failures) or another `--force` rescan.
 
 Retry rules for each command: [Supplementary Quality Models](COMMANDS.md#supplementary-quality-models).
 
@@ -312,6 +312,7 @@ Default weights are optimized for **TOPIQ** (0.93 SRCC), the aesthetic model for
 |---------|-----------------|-----------|--------|-----------------|
 | `24gb` | TOPIQ (0.93 SRCC) | SigLIP 2 NaFlex SO400M | Qwen3.5-4B | Best accuracy, default weights |
 | `16gb` | TOPIQ (0.93 SRCC) | SigLIP 2 NaFlex SO400M | Qwen3.5-2B | Default weights |
+| `12gb` | TOPIQ (0.93 SRCC) | SigLIP 2 NaFlex SO400M | Qwen3.5-2B | Default weights |
 | `8gb` | CLIP+MLP (0.76 SRCC) | CLIP ViT-L-14 | CLIP similarity | Default weights work well |
 | `legacy` | CLIP+MLP on CPU | CLIP ViT-L-14 | CLIP similarity | Default weights, slower |
 

@@ -329,7 +329,7 @@ pas d'image `arm64`. Sur un NAS ARM ou un Raspberry Pi, compilez localement avec
 - Images, décompressées : CPU ~3,34 Go, `latest-cuda` (`sm_75`-`sm_120`) ~13,1 Go,
   `latest-cuda-legacy` (`sm_50`-`sm_90`) ~13,8 Go ([Taille de l'image](#taille-de-limage)).
   `docker pull` transfère moins, compressé.
-- Modèles : `legacy` 4,69 Go, `8gb` 6,93 Go, `16gb` 14,55 Go, `24gb` 19,32 Go
+- Modèles : `legacy` 4,69 Go, `8gb` 6,93 Go, `12gb`/`16gb` 14,55 Go, `24gb` 19,32 Go
   ([Tailles de téléchargement](INSTALLATION.md#tailles-de-téléchargement)).
 - `docker compose down -v` supprime les volumes de modèles et force un nouveau téléchargement.
 
@@ -416,7 +416,7 @@ les activations s'y ajoutent. Considérez ces chiffres comme des planchers.
 | Profil VRAM | Poids des modèles (total) | Mémoire du conteneur recommandée |
 |---|---|---|
 | `legacy` / `8gb` | 15,0 Go | 12 Go (GPU) / 8 Go minimum, 12 Go recommandés (CPU) |
-| `16gb` | 22,0 Go | au moins 18 Go (provisoire) |
+| `12gb` / `16gb` | 22,0 Go | au moins 18 Go (provisoire) |
 | `24gb` | 25,0 Go | au moins 18 Go (provisoire) |
 
 - **GPU et CPU diffèrent.** Sur un GPU, les poids résident en VRAM et la RAM contient surtout les images décodées :
@@ -426,7 +426,8 @@ les activations s'y ajoutent. Considérez ces chiffres comme des planchers.
 - **8 Go est un plancher sur CPU.** Des scans de 50 photos avec `--memory=8g` ont abouti sur `legacy` (pic 7,26 Go) et
   `8gb` (7,56 Go), à moins d'un demi-gigaoctet du plafond sur des JPEG 18-20 MP. Des images plus grandes, un décodage RAW
   ou un hôte chargé demandent davantage, d'où la recommandation de 12 Go.
-- **`16gb` et `24gb` ne sont pas mesurés.** 18 Go est une valeur provisoire.
+- **`12gb`, `16gb` et `24gb` ne sont pas mesurés.** 18 Go est une valeur provisoire.
+- **Pic de VRAM de `12gb` : TODO_VRAM12 GiB (simulé).** Mesuré sous un plafond simulé de 12 GiB sur une carte de 16 Go ; les modèles ONNX Runtime (InsightFace) ignorent ce plafond ; non mesuré sur une vraie carte de 12 Go.
 - **Surveillez la mémoire anonyme.** Le MemUsage de `docker stats` et le `memory.current` du cgroup
   comptent tous deux le cache de pages récupérable, et sont donc trompeurs.
 - **Mise en cache des modèles.** Avec `models.keep_in_ram` à `"auto"`, un modèle reste en RAM entre

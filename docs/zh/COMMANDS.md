@@ -44,7 +44,7 @@ Facet 会记录每次扫描（状态、模式、目录、计数器）以及每�
 **单阶段（`--single-pass`）：** 一次性加载全部模型。速度更快，但需要更多 VRAM。
 
 - 它用 CLIP+MLP 评分头为美学评分，因此适用于 `legacy` 和 `8gb` 配置档。
-- 在 `16gb` 和 `24gb` 上，美学模型是 TOPIQ，只有多阶段运行才会使用它。单阶段请求（`--single-pass` 或 `processing.mode: "single-pass"`）会记录一条警告并改为多阶段运行。
+- 在 `12gb`、`16gb` 和 `24gb` 上，美学模型是 TOPIQ，只有多阶段运行才会使用它。单阶段请求（`--single-pass` 或 `processing.mode: "single-pass"`）会记录一条警告并改为多阶段运行。
 - `--pass NAME` 和 `--dry-run` 不做此检查。
 - 商业模式下保留单阶段，因为那里由原生 Q-ReAlign 为美学评分。
 
@@ -213,7 +213,7 @@ Facet 会记录每次扫描（状态、模式、目录、计数器）以及每�
 
 - `--detect-moments` 把每条新描述只编码一次写入 `caption_embedding`。对既有照片库的首次回填最好使用 GPU；可加 `--limit N` 先在样本上试运行。
 - 对 `--recompute-moments`（或 `--detect-junk`）加上 `--dry-run --verbose` 可预览而不写入。
-- `narrative_moments.vlm_tiebreak`（16gb/24gb）：设置了 `narrative_moments.vlm_tiebreak.enabled` 时，该档位的 VLM 会重新分类低置信度的帧。
+- `narrative_moments.vlm_tiebreak`（12gb/16gb/24gb）：设置了 `narrative_moments.vlm_tiebreak.enabled` 时，该档位的 VLM 会重新分类低置信度的帧。
 - `--discover-moments` 对已存储的描述向量聚类，并为每个簇命名。它绝不会改写正在使用的配置。请先运行 `--detect-moments`；用 `--discover-min-cluster-size N` 调整。
 - 当 `narrative_moments.caption_min_confidence > 0` 时，`--generate-captions` 会跳过未标注、`other` 和低置信度的照片。
 
@@ -291,6 +291,7 @@ Facet 会记录每次扫描（状态、模式、目录、计数器）以及每�
 |---------|-------|-------------|
 | `legacy` | CLIP 相似度 | 计算图像特征向量与标签文本特征向量之间的余弦相似度。不额外加载模型。 |
 | `8gb` | CLIP 相似度 | 与 legacy 相同，在已存储的 CLIP ViT-L-14 特征向量上进行。 |
+| `12gb` | Qwen3.5-2B | 用于场景标注的多模态模型。 |
 | `16gb` | Qwen3.5-2B | 用于场景标注的多模态模型。 |
 | `24gb` | Qwen3.5-4B | 更大的多模态模型。 |
 
@@ -304,7 +305,7 @@ Facet 会记录每次扫描（状态、模式、目录、计数器）以及每�
 
 | 配置 | 模型 | 维度 | 使用者 |
 |--------|-------|-----------|---------|
-| `clip` | SigLIP 2 NaFlex SO400M | 1152 | 16gb、24gb 档位 |
+| `clip` | SigLIP 2 NaFlex SO400M | 1152 | 12gb、16gb、24gb 档位 |
 | `clip_legacy` | CLIP ViT-L-14 | 768 | legacy、8gb 档位 |
 
 特征向量支撑着标签标注、重复检测、相似照片搜索，以及 CLIP+MLP 美学评分（legacy/8gb）。更换模型后必须为全部照片重新计算特征向量（`--force`、`--pass embeddings` 或 `--recompute-embeddings`）。
@@ -469,7 +470,7 @@ python /opt/facet/viewer.py      # 仍然读取 /opt/facet/scoring_config.json�
 | `python tag_existing.py --db custom.db` | 使用自定义数据库 |
 | `python tag_existing.py --config my.json` | 使用自定义配置 |
 
-在 CUDA 上，SigLIP 档位（`16gb`、`24gb`）现在以 fp16 编码标签词表，这会改变少数照片的标签。请运行 `python tag_existing.py --force` 重新标注之前打过标签的照片。CPU 以及 `legacy`/`8gb` 档位不受影响。
+在 CUDA 上，SigLIP 档位（`12gb`、`16gb`、`24gb`）现在以 fp16 编码标签词表，这会改变少数照片的标签。请运行 `python tag_existing.py --force` 重新标注之前打过标签的照片。CPU 以及 `legacy`/`8gb` 档位不受影响。
 
 当 `tagging.enabled` 为 `false`，或没有任何照片在等待标签时，扫描结束时的标注步骤会被跳过。
 

@@ -752,6 +752,7 @@
               <button class="ptab active" role="tab" aria-selected="true" data-p="auto" data-i18n="install.tab.auto">Auto-detect</button>
               <button class="ptab" role="tab" aria-selected="false" data-p="legacy">CPU <span class="dim">legacy</span></button>
               <button class="ptab" role="tab" aria-selected="false" data-p="8gb">8&nbsp;GB GPU</button>
+              <button class="ptab" role="tab" aria-selected="false" data-p="12gb">12&nbsp;GB GPU</button>
               <button class="ptab" role="tab" aria-selected="false" data-p="16gb">16&nbsp;GB GPU</button>
               <button class="ptab" role="tab" aria-selected="false" data-p="24gb">24&nbsp;GB GPU</button>
             </div>
@@ -812,6 +813,9 @@ python viewer.py</pre>
       auto:   'cp .env.example .env\n# edit .env: set PHOTOS_DIR to your photo folder\ndocker compose up -d\n# open http://localhost:5000',
       legacy: 'echo "PHOTOS_DIR=/path/to/photos" > .env\ndocker compose -f docker-compose.yml -f docker-compose.legacy.yml up -d\n# open http://localhost:5000',
       '8gb':  'echo "PHOTOS_DIR=/path/to/photos" > .env\ndocker compose -f docker-compose.yml -f docker-compose.8gb.yml up -d\n# open http://localhost:5000',
+      '12gb': 'echo "PHOTOS_DIR=/path/to/photos" > .env
+docker compose -f docker-compose.yml -f docker-compose.12gb.yml up -d
+# open http://localhost:5000',
       '16gb': 'echo "PHOTOS_DIR=/path/to/photos" > .env\ndocker compose -f docker-compose.yml -f docker-compose.16gb.yml up -d\n# open http://localhost:5000',
       '24gb': 'echo "PHOTOS_DIR=/path/to/photos" > .env\ndocker compose -f docker-compose.yml -f docker-compose.24gb.yml up -d\n# open http://localhost:5000'
     };
@@ -830,7 +834,8 @@ python viewer.py</pre>
       en: {
         "install.note.auto": "Auto-detects your hardware: a 16 GB graphics card uses the 16 GB profile; no graphics card falls back to CPU.",
         "install.note.legacy": "CPU only — no graphics card required. Everything runs on the processor (slower, but works anywhere).",
-        "install.note.8gb": "For a 6–14 GB NVIDIA graphics card. Requires the NVIDIA Container Toolkit.",
+        "install.note.8gb": "For a 6–11.5 GB NVIDIA graphics card. Requires the NVIDIA Container Toolkit.",
+        "install.note.12gb": "For a 12 GB NVIDIA graphics card (11.5–14 GB) — the same strong photo-understanding models as 16 GB, packed into more passes. Requires the NVIDIA Container Toolkit.",
         "install.note.16gb": "For a ~16 GB NVIDIA graphics card — unlocks the strongest photo-understanding models. Requires the NVIDIA Container Toolkit.",
         "install.note.24gb": "For a ~24 GB NVIDIA graphics card — the largest, most capable models. Requires the NVIDIA Container Toolkit.",
         "cmp.sub": "Facet next to 22 tools photographers usually weigh it against, across 57 features.",
@@ -1125,7 +1130,8 @@ python viewer.py</pre>
         "install.native": "# …ou installez nativement, sans Docker",
         "install.note.auto": "Détecte automatiquement votre matériel : une carte graphique de 16 Go utilise le profil 16 Go ; sans carte graphique, bascule sur le processeur.",
         "install.note.legacy": "Processeur uniquement — aucune carte graphique requise. Tout tourne sur le processeur (plus lent, mais fonctionne partout).",
-        "install.note.8gb": "Pour une carte graphique NVIDIA de 6 à 14 Go. Nécessite le NVIDIA Container Toolkit.",
+        "install.note.8gb": "Pour une carte graphique NVIDIA de 6 à 11,5 Go. Nécessite le NVIDIA Container Toolkit.",
+        "install.note.12gb": "Pour une carte graphique NVIDIA de 12 Go (11,5 à 14 Go) — les mêmes modèles de compréhension photo puissants que 16 Go, répartis en plus de passes. Nécessite le NVIDIA Container Toolkit.",
         "install.note.16gb": "Pour une carte graphique NVIDIA d'environ 16 Go — débloque les modèles de compréhension photo les plus puissants. Nécessite le NVIDIA Container Toolkit.",
         "install.note.24gb": "Pour une carte graphique NVIDIA d'environ 24 Go — les modèles les plus grands et les plus performants. Nécessite le NVIDIA Container Toolkit.",
         "star.text": "⭐ Facet vous plaît ? Une étoile sur GitHub aide vraiment — et fait vivre le projet.",
@@ -1467,7 +1473,8 @@ python viewer.py</pre>
         "install.native": "# …oder nativ installieren, ohne Docker",
         "install.note.auto": "Erkennt Ihre Hardware automatisch: Eine Grafikkarte mit 16 GB nutzt das 16-GB-Profil; ohne Grafikkarte wird auf die CPU zurückgegriffen.",
         "install.note.legacy": "Nur CPU — keine Grafikkarte erforderlich. Alles läuft auf dem Prozessor (langsamer, aber überall lauffähig).",
-        "install.note.8gb": "Für eine NVIDIA-Grafikkarte mit 6–14 GB. Erfordert das NVIDIA Container Toolkit.",
+        "install.note.8gb": "Für eine NVIDIA-Grafikkarte mit 6–11.5 GB. Erfordert das NVIDIA Container Toolkit.",
+        "install.note.12gb": "Für eine NVIDIA-Grafikkarte mit 12 GB (11,5–14 GB) — dieselben starken Modelle zum Bildverständnis wie bei 16 GB, auf mehr Durchläufe verteilt. Erfordert das NVIDIA Container Toolkit.",
         "install.note.16gb": "Für eine NVIDIA-Grafikkarte mit ca. 16 GB — schaltet die stärksten Modelle zum Bildverständnis frei. Erfordert das NVIDIA Container Toolkit.",
         "install.note.24gb": "Für eine NVIDIA-Grafikkarte mit ca. 24 GB — die größten, leistungsfähigsten Modelle. Erfordert das NVIDIA Container Toolkit.",
         "star.text": "⭐ Gefällt Ihnen Facet? Ein Stern auf GitHub hilft wirklich — und hält das Projekt am Leben.",
@@ -1809,7 +1816,8 @@ python viewer.py</pre>
         "install.native": "# …oppure installa in modo nativo, senza Docker",
         "install.note.auto": "Rileva automaticamente il tuo hardware: una scheda grafica da 16 GB usa il profilo 16 GB; senza scheda grafica passa alla CPU.",
         "install.note.legacy": "Solo CPU — nessuna scheda grafica richiesta. Tutto gira sul processore (più lento, ma funziona ovunque).",
-        "install.note.8gb": "Per una scheda grafica NVIDIA da 6–14 GB. Richiede il NVIDIA Container Toolkit.",
+        "install.note.8gb": "Per una scheda grafica NVIDIA da 6–11.5 GB. Richiede il NVIDIA Container Toolkit.",
+        "install.note.12gb": "Per una scheda grafica NVIDIA da 12 GB (11,5–14 GB) — gli stessi potenti modelli di comprensione delle foto del 16 GB, distribuiti in più passaggi. Richiede il NVIDIA Container Toolkit.",
         "install.note.16gb": "Per una scheda grafica NVIDIA da circa 16 GB — sblocca i modelli di comprensione delle foto più potenti. Richiede il NVIDIA Container Toolkit.",
         "install.note.24gb": "Per una scheda grafica NVIDIA da circa 24 GB — i modelli più grandi e capaci. Richiede il NVIDIA Container Toolkit.",
         "star.text": "⭐ Ti piace Facet? Una stella su GitHub aiuta davvero — e mantiene vivo il progetto.",
@@ -2151,7 +2159,8 @@ python viewer.py</pre>
         "install.native": "# …o instala de forma nativa, sin Docker",
         "install.note.auto": "Detecta automáticamente tu hardware: una tarjeta gráfica de 16 GB usa el perfil de 16 GB; sin tarjeta gráfica recurre a la CPU.",
         "install.note.legacy": "Solo CPU — no se requiere tarjeta gráfica. Todo se ejecuta en el procesador (más lento, pero funciona en cualquier lugar).",
-        "install.note.8gb": "Para una tarjeta gráfica NVIDIA de 6 a 14 GB. Requiere el NVIDIA Container Toolkit.",
+        "install.note.8gb": "Para una tarjeta gráfica NVIDIA de 6 a 11,5 GB. Requiere el NVIDIA Container Toolkit.",
+        "install.note.12gb": "Para una tarjeta gráfica NVIDIA de 12 GB (11,5 a 14 GB) — los mismos modelos potentes de comprensión de fotos que con 16 GB, repartidos en más pasadas. Requiere el NVIDIA Container Toolkit.",
         "install.note.16gb": "Para una tarjeta gráfica NVIDIA de unos 16 GB — desbloquea los modelos de comprensión de fotos más potentes. Requiere el NVIDIA Container Toolkit.",
         "install.note.24gb": "Para una tarjeta gráfica NVIDIA de unos 24 GB — los modelos más grandes y capaces. Requiere el NVIDIA Container Toolkit.",
         "star.text": "⭐ ¿Te gusta Facet? Una estrella en GitHub ayuda de verdad — y mantiene vivo el proyecto.",
@@ -2493,7 +2502,8 @@ python viewer.py</pre>
         "install.native": "# …ou instale nativamente, sem Docker",
         "install.note.auto": "Detecta automaticamente seu hardware: uma placa de vídeo de 16 GB usa o perfil de 16 GB; sem placa de vídeo, recorre à CPU.",
         "install.note.legacy": "Somente CPU — nenhuma placa de vídeo necessária. Tudo roda no processador (mais lento, mas funciona em qualquer lugar).",
-        "install.note.8gb": "Para uma placa de vídeo NVIDIA de 6 a 14 GB. Requer o NVIDIA Container Toolkit.",
+        "install.note.8gb": "Para uma placa de vídeo NVIDIA de 6 a 11,5 GB. Requer o NVIDIA Container Toolkit.",
+        "install.note.12gb": "Para uma placa de vídeo NVIDIA de 12 GB (11,5 a 14 GB) — os mesmos modelos poderosos de compreensão de fotos que com 16 GB, distribuídos em mais passagens. Requer o NVIDIA Container Toolkit.",
         "install.note.16gb": "Para uma placa de vídeo NVIDIA de cerca de 16 GB — libera os modelos de compreensão de fotos mais poderosos. Requer o NVIDIA Container Toolkit.",
         "install.note.24gb": "Para uma placa de vídeo NVIDIA de cerca de 24 GB — os modelos maiores e mais capazes. Requer o NVIDIA Container Toolkit.",
         "star.text": "⭐ Curtindo o Facet? Uma estrela no GitHub ajuda de verdade — e mantém o projeto vivo.",
@@ -2835,7 +2845,8 @@ python viewer.py</pre>
         "install.native": "# …或者不用 Docker，直接原生安装",
         "install.note.auto": "自动检测你的硬件：16 GB 显卡使用 16 GB 配置档；没有显卡则回退到 CPU。",
         "install.note.legacy": "仅使用 CPU——无需显卡。全部运算都在处理器上完成（速度较慢，但哪里都能跑）。",
-        "install.note.8gb": "适用于 6–14 GB 的 NVIDIA 显卡。需要 NVIDIA Container Toolkit。",
+        "install.note.8gb": "适用于 6–11.5 GB 的 NVIDIA 显卡。需要 NVIDIA Container Toolkit。",
+        "install.note.12gb": "适用于 12 GB（11.5–14 GB）的 NVIDIA 显卡——与 16 GB 相同的强大照片理解模型，分更多轮运行。需要 NVIDIA Container Toolkit。",
         "install.note.16gb": "适用于约 16 GB 的 NVIDIA 显卡——可解锁最强的照片理解模型。需要 NVIDIA Container Toolkit。",
         "install.note.24gb": "适用于约 24 GB 的 NVIDIA 显卡——最大、最强的模型。需要 NVIDIA Container Toolkit。",
         "star.text": "⭐ 喜欢 Facet 吗？在 GitHub 上点个星标真的很有帮助——也让这个项目继续走下去。",

@@ -329,7 +329,7 @@ un'immagine `arm64`. Su un NAS ARM o un Raspberry Pi, compila in locale con
 - Immagini, decompresse: CPU ~3,34 GB, `latest-cuda` (`sm_75`-`sm_120`) ~13,1 GB,
   `latest-cuda-legacy` (`sm_50`-`sm_90`) ~13,8 GB ([Dimensione dell'immagine](#dimensione-dellimmagine)).
   `docker pull` trasferisce meno, compresso.
-- Modelli: `legacy` 4,69 GB, `8gb` 6,93 GB, `16gb` 14,55 GB, `24gb` 19,32 GB
+- Modelli: `legacy` 4,69 GB, `8gb` 6,93 GB, `12gb`/`16gb` 14,55 GB, `24gb` 19,32 GB
   ([Dimensioni dei download](INSTALLATION.md#dimensioni-dei-download)).
 - `docker compose down -v` elimina i volumi dei modelli e impone un nuovo download.
 
@@ -416,7 +416,7 @@ attivazioni si aggiungono. Considera queste cifre come minimi.
 | Profilo VRAM | Pesi dei modelli (totale) | Memoria del container consigliata |
 |---|---|---|
 | `legacy` / `8gb` | 15,0 GB | 12 GB (GPU) / 8 GB minimo, 12 GB consigliato (CPU) |
-| `16gb` | 22,0 GB | almeno 18 GB (provvisorio) |
+| `12gb` / `16gb` | 22,0 GB | almeno 18 GB (provvisorio) |
 | `24gb` | 25,0 GB | almeno 18 GB (provvisorio) |
 
 - **GPU e CPU sono diverse.** Su una GPU i pesi stanno nella VRAM e la RAM contiene soprattutto le immagini
@@ -426,7 +426,8 @@ attivazioni si aggiungono. Considera queste cifre come minimi.
 - **8 GB sono un minimo su CPU.** Scansioni di 50 foto con `--memory=8g` completate su `legacy` (picco 7,26 GB) e
   `8gb` (7,56 GB), entro circa mezzo gigabyte dal limite su JPEG da 18-20 MP. Fotogrammi più grandi, decodifica
   RAW o un host occupato richiedono di più, da cui i 12 GB consigliati.
-- **`16gb` e `24gb` non sono misurati.** 18 GB è un segnaposto provvisorio.
+- **`12gb`, `16gb` e `24gb` non sono misurati.** 18 GB è un segnaposto provvisorio.
+- **Picco di VRAM di `12gb`: TODO_VRAM12 GiB (simulato).** Misurato con un limite simulato di 12 GiB su una scheda da 16 GB; i modelli ONNX Runtime (InsightFace) ignorano il limite; non misurato su una vera scheda da 12 GB.
 - **Tieni d'occhio la memoria anonima.** Il MemUsage di `docker stats` e il `memory.current` del cgroup
   contano entrambi la cache di pagine recuperabile, quindi sono fuorvianti.
 - **Caching dei modelli.** Con `models.keep_in_ram` su `"auto"`, un modello resta in RAM tra un chunk
