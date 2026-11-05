@@ -110,10 +110,10 @@ interface QueueView {
           </button>
           @if (loupeActive()) {
             <div class="flex items-center gap-2 max-lg:order-last max-lg:basis-full">
-            <span class="whitespace-nowrap text-xs">{{ I18N.scenes.loupe | translate }} {{ loupeZoom() }}×</span>
+            <span class="whitespace-nowrap text-xs">{{ I18N.gallery.compare.inspection.magnification | translate }} {{ loupeZoom() }}×</span>
             <mat-slider data-junk-loupe-slider class="!w-28 !min-w-0 max-lg:flex-1 max-lg:!mx-0" [min]="2" [max]="8" [step]="1" [discrete]="true">
               <input matSliderThumb [value]="loupeZoom()" (valueChange)="loupeZoom.set($event)"
-                     [attr.aria-label]="I18N.scenes.loupe | translate" />
+                     [attr.aria-label]="I18N.gallery.compare.inspection.magnification | translate" />
             </mat-slider>
             </div>
           }
@@ -134,8 +134,9 @@ interface QueueView {
       </div>
     </ng-template>
 
-    <div #junkContent class="px-4 pt-3 md:px-8 mx-auto w-full max-w-[96%] max-lg:pb-24" [class.max-lg:!pb-40]="loupeActive()">
+    <div #junkContent class="px-4 pt-3 md:px-8 mx-auto w-full max-w-[96%] max-lg:pb-32" [class.max-lg:!pb-48]="loupeActive()">
       <h1 data-junk-heading tabindex="-1" class="mb-3 text-xl font-semibold">{{ I18N.nav.junk_sweep | translate }}</h1>
+      <p class="mb-3 text-sm text-[var(--mat-sys-on-surface-variant)]">{{ I18N.junk.reject_explanation | translate }}</p>
       @if (loading() && photos().length === 0) {
         <div class="flex justify-center py-10"><mat-spinner diameter="32" [attr.aria-label]="I18N.ui.labels.loading | translate" /></div>
       } @else if (photos().length === 0 && !loadFailed()) {
@@ -158,7 +159,7 @@ interface QueueView {
                   {{ photo.junk_kind | junkKindLabel }}
                 </span>
               </div>
-              <p class="min-w-0 px-2 pt-2 text-xs truncate" [title]="photo.filename">{{ photo.filename | filename:30 }}</p>
+              <p class="min-w-0 px-2 pt-2 text-xs break-all line-clamp-2" [title]="photo.filename">{{ photo.filename | filename:18 }}</p>
               <div class="grid grid-cols-2 gap-1 p-1">
                 <button type="button" data-junk-keep
                         class="min-h-11 min-w-0 inline-flex flex-col sm:flex-row items-center justify-center gap-0.5 px-1 rounded-lg text-xs text-[var(--mat-sys-primary)] hover:bg-[var(--mat-sys-primary-container)] focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-[var(--mat-sys-primary)] disabled:opacity-50 disabled:cursor-default cursor-pointer"
@@ -460,9 +461,11 @@ export class JunkSweepComponent implements OnInit, OnDestroy {
     const origin = document.activeElement as HTMLElement | null;
     const ownedFocus = !!origin?.closest('[data-junk-card]');
     const index = this.photos().findIndex(candidate => candidate.path === photo.path);
+    const focus = { automatic: null as HTMLElement | null };
+    let failed = false;
     this.pendingPaths.update(paths => new Set([...paths, photo.path]));
     this.removeLocal(photo);
-    if (ownedFocus) this.restoreFocus(view, origin, index);
+    if (ownedFocus) this.restoreFocus(view, origin, index, focus);
     try {
       if (reject) {
         await firstValueFrom(this.api.post('/photos/batch_reject', { photo_paths: [photo.path] }));
@@ -474,7 +477,8 @@ export class JunkSweepComponent implements OnInit, OnDestroy {
       this.notify(reject ? I18N.junk.rejected : I18N.junk.kept, 1500);
     } catch {
       if (!this.isCurrentView(view)) return;
-      this.restoreLocal(photo);
+      this.restoreLocal(photo, index);
+      failed = true;
       this.notifyDecisionError();
     } finally {
       const current = this.captureView();
@@ -487,6 +491,7 @@ export class JunkSweepComponent implements OnInit, OnDestroy {
         remaining.delete(photo.path);
         return remaining;
       });
+      if (failed && ownedFocus) this.restoreFocus(view, origin, index, focus);
       const reconciliation = this.reconcileView;
       if (this.pendingPaths().size === 0 && reconciliation && this.isCurrentView(reconciliation)) {
         this.reconcileView = null;
@@ -560,13 +565,16 @@ export class JunkSweepComponent implements OnInit, OnDestroy {
     this.notify(I18N.junk.decision_error, 3000);
   }
 
-  private restoreFocus(view: QueueView, origin: HTMLElement | null, index: number): void {
+  private restoreFocus(view: QueueView, origin: HTMLElement | null, index: number, focus?: { automatic: HTMLElement | null }): void {
     if (!origin) return;
     afterNextRender(() => {
-      if (!this.isCurrentView(view) || (document.activeElement !== document.body && document.activeElement !== origin)) return;
+      if (!this.isCurrentView(view) || (document.activeElement !== document.body && document.activeElement !== origin
+          && document.activeElement !== focus?.automatic)) return;
       const root = this.element()?.nativeElement;
       const buttons = root?.querySelectorAll<HTMLElement>('[data-junk-keep]:not([disabled])');
-      (buttons?.[Math.min(index, buttons.length - 1)] ?? root?.querySelector<HTMLElement>('[data-junk-heading]'))?.focus();
+      const target = buttons?.[Math.min(index, buttons.length - 1)] ?? root?.querySelector<HTMLElement>('[data-junk-heading]');
+      if (focus) focus.automatic = target ?? null;
+      target?.focus();
     }, { injector: this.injector });
   }
 
@@ -579,10 +587,10 @@ export class JunkSweepComponent implements OnInit, OnDestroy {
     }
   }
 
-  private restoreLocal(photo: Photo): void {
+  private restoreLocal(photo: Photo, index: number): void {
     // A load since the removal may have listed it again, and its total already counts it.
     if (this.photos().some(p => p.path === photo.path)) return;
-    this.photos.update(list => [photo, ...list]);
+    this.photos.update(list => [...list.slice(0, index), photo, ...list.slice(index)]);
     this.total.update(t => t + 1);
     if (photo.junk_kind) {
       this.kinds.update(list =>

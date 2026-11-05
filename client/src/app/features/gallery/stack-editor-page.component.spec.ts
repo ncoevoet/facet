@@ -222,6 +222,17 @@ describe('manual stack workspace with Router, HTTP and Material', () => {
     await open(); http.expectOne('/api/stacks/regroup/preview').flush({}, { status: 403, statusText: 'Forbidden' }); await render();
     expect(root().querySelector('img')).toBeNull(); expect(root().textContent).not.toContain('private');
   });
+  it('returns focus to the selected mode after a failed preview is retried successfully', async () => {
+    const source = { id: 's1', members: paths.map(path => ({ path })), cover_path: paths[0], moved: 1, total: 2, remaining: 1, outcome: 'regroup_left_unstacked' };
+    await open();
+    http.expectOne('/api/stacks/regroup/preview').flush({ ...preview, source_stacks: [source] }); await render();
+    button('[data-stack-mode="selected"]').click();
+    http.expectOne('/api/stacks/regroup/preview').flush({}, { status: 500, statusText: 'Unavailable' }); await render();
+    const retry = button('[data-stack-retry]'); retry.focus(); retry.click();
+    http.expectOne('/api/stacks/regroup/preview').flush({ ...preview, mode: 'selected', source_stacks: [source] }); await render(); await render();
+    expect(root().querySelector('[data-stack-retry]')).toBeNull();
+    expect(document.activeElement).toBe(button('[data-stack-mode="selected"]'));
+  });
   it('keeps Save on the same URL, journals once, and actual snackbar Undo fetches a fresh editable preview', async () => {
     await ready(); button('[data-stack-save]').click();
     http.expectOne('/api/stacks/regroup/apply').flush({ changed: true, affected_paths: paths, undo: { entry_id: 81 } }); await render();

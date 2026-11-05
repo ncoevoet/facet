@@ -3620,6 +3620,7 @@
     "keep_hint": "Keep this photo (removes it from the queue)",
     "reject": "Reject",
     "reject_hint": "Reject this photo",
+    "reject_explanation": "Reject marks the photo as rejected; it does not delete the file.",
     "reject_all": "Reject all shown: {count}",
     "confirm_reject_all_title": "Reject all shown",
     "confirm_reject_all_message": "Reject the {count} photos shown here?",

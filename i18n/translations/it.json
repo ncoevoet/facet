@@ -3595,6 +3595,7 @@
     "keep_hint": "Conserva questa foto (la rimuove dalla coda)",
     "reject": "Rifiuta",
     "reject_hint": "Rifiuta questa foto",
+    "reject_explanation": "Rifiuta contrassegna la foto come rifiutata senza eliminare il file.",
     "reject_all": "Rifiuta tutto: {count}",
     "confirm_reject_all_title": "Rifiuta tutto",
     "confirm_reject_all_message": "Rifiutare le {count} foto mostrate?",

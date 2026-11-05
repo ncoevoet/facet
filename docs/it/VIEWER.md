@@ -282,6 +282,8 @@ Usa **Stato revisione → Da esaminare** nella galleria per smaltire le foto non
 
 Seleziona **2–1000 foto esplicite**, poi **Impila foto** nella barra di selezione o premi **S** per aprire l’editor a pagina intera in `/stacks/edit`. La selezione dell’intera vista non crea pile. S apre un’anteprima, senza salvare direttamente. Menu utente → **Personalizza le scorciatoie** cambia il tasto della galleria; il suggerimento, Aiuto e il riferimento `?` mostrano quello attuale. Se una configurazione precedente usa già S, viene mantenuta e Impila rimane **Non assegnato** finché non scegli un tasto libero. Servono permessi di modifica. Una foto appartiene a una sola pila per proprietario. La pagina centra un’anteprima con zoom sopra una striscia di miniature permanente. Fai clic su una miniatura o usa `←`/`→` per selezionare una foto, poi i suoi comandi di copertina, ordine o rimozione dalla pila. Pulsante zoom, rotellina o doppio clic mostrano i dettagli.
 
+Nell’editor delle pile, aiuto e dettagli della fonte sono inizialmente chiusi; Riprova ripristina il focus. La selezione usa lettere distinte sui pannelli stretti. In Junk Sweep, una decisione fallita ripristina la scheda nella sua posizione.
+
 L’editor usa un solo scorrimento; errori e Riprova sono accanto alle azioni inferiori. Rifiuta riporta il focus a una foto rimasta.
 
 Nell’editor a pagina intera, Tab raggiunge l’immagine: +/− cambia l’ingrandimento, le frecce spostano l’immagine ingrandita e Inizio o F ripristina l’adattamento. La striscia di miniature ha un solo punto di Tab; Sinistra/Destra e Inizio/Fine spostano il focus e aprono l’immagine raggiunta. Lo stato dell’immagine offre Riprova se il caricamento fallisce, senza salvare o cambiare la pila. Se Rifiuta rimuove la miniatura attiva, il focus passa a un membro rimasto.
@@ -924,7 +926,7 @@ Endpoint: [API.md — Download](../API.md#download).
 
 La camera oscura mostra il file attivo e offre Conserva, Rifiuta e Conferma nella vista singola. Conserva e Rifiuta cambiano la bozza del gruppo; Conferma mantiene la conferma differita e Annulla. Frecce e scorciatoie zoom funzionano dopo il focus su un pulsante, senza intercettare campi o tasti modificati. I controlli su schermi stretti e con puntatori grossolani hanno bersagli di 44 pixel. Sul telefono, Schermo intero è in Ispeziona.
 
-Annulla nel conto alla rovescia ha un bersaglio tattile e ripristina il focus. I nomi stretti conservano la fine e l’ingrandimento della lente è indicato.
+Annulla nel conto alla rovescia ha un bersaglio tattile e ripristina il focus. L’ingrandimento della lente è indicato.
 
 Una bozza senza foto conservate disabilita Conferma sia nella griglia sia nella camera oscura; le scorciatoie spiegano cosa manca. Riaprire un gruppo in attesa mostra il conto alla rovescia e Annulla. Dopo l’ultima conferma, il focus torna al conto alla rovescia. Le viste strette a quattro riquadri usano intestazioni compatte e la regolazione della lente ha una riga propria sul telefono.
 

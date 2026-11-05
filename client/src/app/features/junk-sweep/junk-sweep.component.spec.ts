@@ -682,6 +682,35 @@ describe('JunkSweepComponent HTTP, owner and recovery boundaries', () => {
     expect(paths()).toContain('/queue/1.jpg');
   });
 
+  it('restores a failed third decision in place and returns focus to that card', async () => {
+    const queue = [photo(1), photo(2), photo(3), photo(4)];
+    await boot(queue);
+    const buttons = host().querySelectorAll<HTMLButtonElement>('[data-junk-keep]');
+    buttons[2].focus(); buttons[2].click(); fixture.detectChanges();
+    const request = http.expectOne('/api/photo/clear_junk');
+    await fixture.whenStable(); fixture.detectChanges();
+    expect(document.activeElement?.getAttribute('aria-label')).toContain('4.jpg');
+    request.flush({ detail: 'failed' }, { status: 500, statusText: 'Failure' });
+    await fixture.whenStable(); fixture.detectChanges();
+    await fixture.whenStable(); fixture.detectChanges();
+    expect(paths()).toEqual(queue.map(item => item.path));
+    expect(document.activeElement?.getAttribute('aria-label')).toContain('3.jpg');
+  });
+
+  it('does not steal focus after a failed decision when the user moved elsewhere', async () => {
+    await boot([photo(1), photo(2), photo(3)]);
+    const keep = host().querySelectorAll<HTMLButtonElement>('[data-junk-keep]')[1];
+    keep.focus(); keep.click(); fixture.detectChanges();
+    const request = http.expectOne('/api/photo/clear_junk');
+    await fixture.whenStable(); fixture.detectChanges();
+    const heading = host().querySelector<HTMLElement>('[data-junk-heading]')!;
+    heading.focus();
+    request.flush({ detail: 'failed' }, { status: 500, statusText: 'Failure' });
+    await fixture.whenStable(); fixture.detectChanges();
+    expect(document.activeElement).toBe(heading);
+    expect(paths()).toEqual(['/queue/1.jpg', '/queue/2.jpg', '/queue/3.jpg']);
+  });
+
   it('moves focus to the next card after Keep succeeds', async () => {
     await boot([photo(1), photo(2)]);
     const keep = host().querySelector<HTMLButtonElement>('[data-junk-keep]')!;

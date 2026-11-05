@@ -889,7 +889,7 @@ interface SceneSummary {
                     </button>
                     <button class="max-sm:!w-11 max-sm:!h-11 pointer-coarse:!w-11 pointer-coarse:!h-11" mat-icon-button (click)="rejectEntireGroup(group)" [disabled]="cull.replanning() || cull.confirming()"
                             [matTooltip]="I18N.culling.workspace.reject_all | translate" [attr.aria-label]="I18N.culling.workspace.reject_all | translate"><mat-icon>remove_done</mat-icon></button>
-                    <button data-culling-confirm class="max-sm:!w-11 max-sm:!h-11 pointer-coarse:!w-11 pointer-coarse:!h-11" mat-icon-button (click)="cull.confirmGroup(group)" [disabled]="cull.confirming() || cull.replanning() || !(cull.selectionsMap().get(groupKey)?.size)"
+                    <button data-culling-confirm class="max-sm:!w-11 max-sm:!h-11 pointer-coarse:!w-11 pointer-coarse:!h-11" mat-icon-button (click)="confirmGroupFromRow(group, $event)" [disabled]="cull.confirming() || cull.replanning() || !(cull.selectionsMap().get(groupKey)?.size)"
                             [attr.aria-describedby]="cull.selectionsMap().get(groupKey)?.size ? null : 'culling-keeper-required-' + i"
                             [matTooltip]="(cull.selectionsMap().get(groupKey)?.size ? I18N.culling.confirm_tooltip : I18N.culling.keep_required) | translate"
                             [attr.aria-label]="I18N.culling.confirm | translate">
@@ -922,7 +922,7 @@ interface SceneSummary {
            its height (max-lg:mb-16) to avoid stacking under the fixed icon bar. -->
       @if (!stacksMode() && unconfirmedCount() > 0) {
         <div class="lg:!hidden shrink-0 flex justify-center py-1.5 max-lg:mb-20 border-t border-[var(--mat-sys-outline-variant)] bg-[var(--mat-sys-surface)]" [class.max-lg:!mb-36]="loupeActive()">
-          <button mat-flat-button (click)="confirmAllRemaining()" [disabled]="cull.confirming() || cull.replanning()" class="!px-6 !rounded-md !h-9">
+          <button mat-flat-button (click)="confirmAllRemaining()" [disabled]="cull.confirming() || cull.replanning()" class="!px-6 !rounded-md !h-9 max-sm:!h-11 pointer-coarse:!h-11">
             <mat-icon>done_all</mat-icon>
             {{ I18N.culling.confirm_all | translate }} ({{ unconfirmedCount() }})
           </button>
@@ -1225,8 +1225,8 @@ interface SceneSummary {
                   <div class="flex shrink-0 min-w-0 items-center bg-[var(--facet-image-chrome)] text-[var(--facet-image-ink)]">
                     <button type="button" data-comparison-slot class="flex min-h-11 min-w-0 flex-1 items-center gap-1 px-1 text-left text-xs focus-visible:outline-2 @[400px]/cullpane:gap-2 @[400px]/cullpane:px-2"
                             [class.bg-[var(--mat-sys-secondary-container)]]="comparisonSlot() === paneIndex" [class.text-[var(--mat-sys-on-secondary-container)]]="comparisonSlot() === paneIndex"
-                            [attr.aria-pressed]="comparisonSlot() === paneIndex" [attr.aria-label]="I18N.culling.comparison.choose_pane | translate:{ pane: comparisonSlotLabels[paneIndex], name: photo.filename }" (click)="selectComparisonSlot(paneIndex)">
-                      <span class="font-semibold shrink-0">{{ comparisonSlotLabels[paneIndex] }}</span><span data-culling-pane-name class="min-w-0 flex-1 truncate text-left [direction:rtl]" [title]="photo.filename">{{ photo.filename | filename:28 }}</span>
+                            [attr.aria-pressed]="comparisonSlot() === paneIndex" [attr.aria-label]="I18N.culling.comparison.choose_pane | translate:{ pane: comparisonSlotLabels[paneIndex], name: photo.filename }" [title]="photo.filename" (click)="selectComparisonSlot(paneIndex)">
+                      <span class="font-semibold shrink-0">{{ comparisonSlotLabels[paneIndex] }}</span><span data-culling-pane-name class="min-w-0 flex-1 truncate @max-[200px]/cullpane:sr-only" [title]="photo.filename">{{ photo.filename | filename:28 }}</span>
                       <mat-icon aria-hidden="true" class="@max-[400px]/cullpane:!hidden ml-auto !text-base !w-4 !h-4 shrink-0">{{ comparisonSlot() === paneIndex ? 'check_circle' : 'radio_button_unchecked' }}</mat-icon>
                     </button>
                     @if (!stacksMode()) {
@@ -2778,6 +2778,21 @@ export class BurstCullingComponent implements OnDestroy {
       else if (event.key.toLowerCase() === 'f') this.onFullscreenToggle(event);
     }
     if (event.key === 'Escape') this.closeLightbox();
+  }
+
+  protected confirmGroupFromRow(group: CullingGroup, event: Event): void {
+    const origin = event.currentTarget as HTMLElement | null;
+    const identity = this.auth.identity();
+    const key = this.cull.groupKey(group);
+    if (!this.cull.confirmGroup(group)) return;
+    setTimeout(() => {
+      if (!this.pageAlive || this.pageNavigating || this.lightboxGroup() || this.dialog.openDialogs.length
+        || this.auth.identity() !== identity || !this.cull.passingGroups().has(key)
+        || document.activeElement !== document.body && document.activeElement !== origin) return;
+      const row = Array.from(this.element()?.nativeElement.querySelectorAll<HTMLElement>('[data-culling-group-key]') ?? [])
+        .find(element => element.dataset['cullingGroupKey'] === key);
+      row?.querySelector<HTMLButtonElement>('[data-culling-cancel]')?.focus();
+    });
   }
 
   protected cancelGroupPass(group: CullingGroup, event: Event, darkroom = false): void {

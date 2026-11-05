@@ -3595,6 +3595,7 @@
     "keep_hint": "Manter esta foto (remove-a da fila)",
     "reject": "Rejeitar",
     "reject_hint": "Rejeitar esta foto",
+    "reject_explanation": "Rejeitar marca a foto como rejeitada; o arquivo não é excluído.",
     "reject_all": "Rejeitar tudo: {count}",
     "confirm_reject_all_title": "Rejeitar tudo",
     "confirm_reject_all_message": "Rejeitar as {count} fotos apresentadas?",

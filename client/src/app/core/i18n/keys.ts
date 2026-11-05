@@ -3634,6 +3634,7 @@ export const I18N = {
     keep_hint: "junk.keep_hint",
     reject: "junk.reject",
     reject_hint: "junk.reject_hint",
+    reject_explanation: "junk.reject_explanation",
     reject_all: "junk.reject_all",
     confirm_reject_all_title: "junk.confirm_reject_all_title",
     confirm_reject_all_message: "junk.confirm_reject_all_message",

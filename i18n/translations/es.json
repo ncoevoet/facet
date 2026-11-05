@@ -3595,6 +3595,7 @@
     "keep_hint": "Conservar esta foto (la quita de la cola)",
     "reject": "Rechazar",
     "reject_hint": "Rechazar esta foto",
+    "reject_explanation": "Rechazar marca la foto como rechazada; no elimina el archivo.",
     "reject_all": "Rechazar todo lo mostrado: {count}",
     "confirm_reject_all_title": "Rechazar todo lo mostrado",
     "confirm_reject_all_message": "¿Rechazar las {count} fotos mostradas?",

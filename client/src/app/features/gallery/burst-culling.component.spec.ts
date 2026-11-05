@@ -4221,6 +4221,31 @@ describe('BurstCullingComponent modals (rendered)', () => {
     expect(confirm.hasAttribute('aria-describedby')).toBe(false);
   });
 
+  it('moves focus from a contact-sheet Confirm to its countdown Cancel', async () => {
+    openDarkroom(); component['closeLightbox']();
+    store.selectionsMap.set(new Map([['1_burst', new Set(['/p1.jpg'])]])); fixture.detectChanges();
+    await new Promise(resolve => setTimeout(resolve, 0));
+    const root = fixture.nativeElement as HTMLElement;
+    const confirm = root.querySelector<HTMLButtonElement>('[data-culling-confirm]')!;
+    confirm.focus(); confirm.click(); fixture.detectChanges();
+    await new Promise(resolve => setTimeout(resolve, 0));
+    expect(document.activeElement).toBe(root.querySelector('[data-culling-cancel]'));
+    expect(store.passingGroups().has('1_burst')).toBe(true);
+  });
+
+  it('does not steal focus after confirming if the user moved elsewhere', async () => {
+    openDarkroom(); component['closeLightbox']();
+    store.selectionsMap.set(new Map([['1_burst', new Set(['/p1.jpg'])]])); fixture.detectChanges();
+    await new Promise(resolve => setTimeout(resolve, 0));
+    const root = fixture.nativeElement as HTMLElement;
+    const confirm = root.querySelector<HTMLButtonElement>('[data-culling-confirm]')!;
+    confirm.focus(); confirm.click(); fixture.detectChanges();
+    const elsewhere = document.createElement('button'); document.body.appendChild(elsewhere); elsewhere.focus();
+    await new Promise(resolve => setTimeout(resolve, 0));
+    expect(document.activeElement).toBe(elsewhere);
+    elsewhere.remove();
+  });
+
   it.each([' ', 'Enter'])('announces the keeper requirement on a refused darkroom %s shortcut', key => {
     openDarkroom();
     store.selectionsMap.set(new Map([['1_burst', new Set<string>()]])); fixture.detectChanges();

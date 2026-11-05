@@ -3595,6 +3595,7 @@
     "keep_hint": "保留此照片（从待处理列表移除）",
     "reject": "淘汰",
     "reject_hint": "淘汰此照片",
+    "reject_explanation": "拒绝会将照片标记为已拒绝，不会删除文件。",
     "reject_all": "淘汰当前显示的全部照片：{count}",
     "confirm_reject_all_title": "淘汰当前显示的全部照片",
     "confirm_reject_all_message": "淘汰此处显示的 {count} 张照片？",

@@ -282,6 +282,8 @@ Use **Estado de revisão → Precisa de revisão** na galeria para percorrer fot
 
 Selecione **2–1000 fotos explícitas** e escolha **Empilhar fotos** na barra ou prima **S** para abrir o editor de página inteira em `/stacks/edit`. Selecionar toda a visualização não cria pilhas. S abre uma pré-visualização, sem guardar diretamente. Menu do utilizador → **Personalizar atalhos** muda a tecla da galeria; a dica, a Ajuda e a referência `?` mostram a tecla atual. Se uma configuração anterior já usa S, é preservada e Empilhar fica **Não atribuído** até escolher uma tecla livre. São necessárias permissões de edição. Cada foto pertence a uma pilha por proprietário. A página centra uma pré-visualização com zoom sobre uma faixa de miniaturas permanente. Clique numa miniatura ou use `←`/`→` para focar uma foto e os seus controlos de capa, ordem ou remoção da pilha. O botão de zoom, a roda ou um duplo clique permitem examinar detalhes.
 
+No editor de pilhas, ajuda e detalhes da origem começam recolhidos; Tentar novamente restaura o foco. A seleção usa letras distintas em painéis estreitos. No Junk Sweep, uma decisão malsucedida devolve o cartão à posição original.
+
 O editor usa uma única rolagem; erros e Tentar novamente ficam junto às ações inferiores. Rejeitar devolve o foco a uma foto restante.
 
 No editor de página inteira, Tab chega à imagem: +/− altera a ampliação, as setas deslocam a imagem ampliada e Home ou F restaura o ajuste. A faixa de miniaturas tem uma única parada de Tab; Esquerda/Direita e Home/End movem o foco e abrem a imagem alcançada. O estado da imagem oferece Tentar novamente se o carregamento falhar, sem salvar nem alterar a pilha. Se Rejeitar remover a miniatura focada, o foco passa para um membro restante.
@@ -922,7 +924,7 @@ Endpoints: [API.md — Download](../API.md#download).
 
 A câmara escura mostra o ficheiro focado e oferece Manter, Rejeitar e Confirmar na vista individual. Manter e Rejeitar alteram o rascunho do grupo; Confirmar mantém a confirmação diferida e Desfazer. As setas e os atalhos de zoom funcionam após focar um botão, sem intercetar campos ou teclas modificadas. Os controlos estreitos e táteis têm alvos de 44 píxeis. No telefone, Ecrã inteiro fica em Inspecionar.
 
-Cancelar a contagem tem área de toque e restaura o foco. Nomes estreitos mantêm o final e a ampliação da lupa é identificada.
+Cancelar a contagem tem área de toque e restaura o foco. A ampliação da lupa é identificada.
 
 Um rascunho sem fotos mantidas desativa Confirmar tanto na grade quanto na câmara escura; os atalhos explicam o que falta. Reabrir um grupo pendente mostra a contagem regressiva e Cancelar. Após a última confirmação, o foco volta à contagem. As vistas estreitas de quatro painéis usam cabeçalhos compactos e o ajuste da lupa tem uma linha própria no telefone.
 

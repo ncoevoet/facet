@@ -50,19 +50,26 @@ function captureDateKey(date: string | null | undefined): string {
     }
     <div class="flex flex-col min-h-0 flex-1 px-3 sm:px-6 overflow-x-hidden overflow-y-auto">
       <div class="shrink-0">
-      <p class="text-sm opacity-80 mb-3">{{ (editable() ? I18N.stacks.hint : I18N.stacks.read_only) | translate }}</p>
+      @if (page) {
+        <details class="mb-2 text-sm">
+          <summary class="cursor-pointer font-medium">{{ I18N.nav.help | translate }}</summary>
+          <p class="mt-2 opacity-80">{{ (editable() ? I18N.stacks.hint : I18N.stacks.read_only) | translate }}</p>
+        </details>
+      } @else {
+        <p class="text-sm opacity-80 mb-3">{{ (editable() ? I18N.stacks.hint : I18N.stacks.read_only) | translate }}</p>
+      }
       @if (regrouping() && preview()?.source_stacks?.length) {
         <fieldset class="border-0 p-0 mb-3" [disabled]="saving() || saved() || !editable()">
           <legend class="text-sm font-medium mb-1">{{ I18N.stacks.regroup_policy | translate }}</legend>
-          <div class="flex flex-wrap gap-2">
-            <button mat-stroked-button data-stack-mode="combine" class="max-sm:!min-h-11 pointer-coarse:!min-h-11 aria-pressed:!bg-[var(--mat-sys-secondary-container)] aria-pressed:!text-[var(--mat-sys-on-secondary-container)]" [attr.aria-pressed]="mode() === 'combine'" (click)="changeMode('combine')">
+          <div class="flex gap-2">
+            <button mat-stroked-button data-stack-mode="combine" class="!min-w-0 flex-1 !h-auto !whitespace-normal !px-2 max-sm:!min-h-11 pointer-coarse:!min-h-11 aria-pressed:!bg-[var(--mat-sys-secondary-container)] aria-pressed:!text-[var(--mat-sys-on-secondary-container)]" [attr.aria-pressed]="mode() === 'combine'" (click)="changeMode('combine')">
               <mat-icon aria-hidden="true" [class.invisible]="mode() !== 'combine'">check</mat-icon>{{ I18N.stacks.regroup_combine | translate }}
             </button>
-            <button mat-stroked-button data-stack-mode="selected" class="max-sm:!min-h-11 pointer-coarse:!min-h-11 aria-pressed:!bg-[var(--mat-sys-secondary-container)] aria-pressed:!text-[var(--mat-sys-on-secondary-container)]" [attr.aria-pressed]="mode() === 'selected'" (click)="changeMode('selected')">
+            <button mat-stroked-button data-stack-mode="selected" class="!min-w-0 flex-1 !h-auto !whitespace-normal !px-2 max-sm:!min-h-11 pointer-coarse:!min-h-11 aria-pressed:!bg-[var(--mat-sys-secondary-container)] aria-pressed:!text-[var(--mat-sys-on-secondary-container)]" [attr.aria-pressed]="mode() === 'selected'" (click)="changeMode('selected')">
               <mat-icon aria-hidden="true" [class.invisible]="mode() !== 'selected'">check</mat-icon>{{ I18N.stacks.regroup_selected | translate }}
             </button>
           </div>
-          <p class="text-sm mt-2 opacity-80">{{ (mode() === 'combine' ? I18N.stacks.regroup_combine_hint : I18N.stacks.regroup_selected_hint) | translate }}</p>
+          <details class="text-sm mt-1"><summary class="cursor-pointer">{{ I18N.nav.help | translate }}</summary><p class="mt-1 opacity-80">{{ (mode() === 'combine' ? I18N.stacks.regroup_combine_hint : I18N.stacks.regroup_selected_hint) | translate }}</p></details>
         </fieldset>
       }
       @if (loading()) { <p role="status">{{ I18N.ui.labels.loading | translate }}</p> }
@@ -83,9 +90,9 @@ function captureDateKey(date: string | null | undefined): string {
         @if (extraCount()) { <p class="text-sm mb-2" role="status">{{ extraCount() | pluralKey:I18N.stacks.regroup_extra:I18N.stacks.regroup_extra_plural | translate:{ count: extraCount() } }}</p> }
         @if (sourceEffects().length) {
           <section class="rounded-lg border border-current/20 p-3 text-sm mb-3 shrink-0" [attr.aria-label]="I18N.stacks.regroup_sources | translate">
-            <p data-stack-source-summary aria-live="polite">{{ I18N.stacks.regroup_summary | translate:sourceSummary() }}</p>
             <details class="mt-1">
               <summary class="cursor-pointer font-medium">{{ I18N.stacks.regroup_sources | translate }}</summary>
+              <p data-stack-source-summary aria-live="polite">{{ I18N.stacks.regroup_summary | translate:sourceSummary() }}</p>
               <div class="mt-2">
                 @for (source of sourceEffects(); track source.id) {
                   <p data-stack-source class="mb-1"><span class="font-medium">{{ source.cover | filename }}</span>: {{ I18N.stacks.regroup_moved | translate:{ moved: source.moved, total: source.total } }} · {{ I18N.stacks[source.outcome] | translate:{ count: source.remaining } }}</p>
@@ -156,9 +163,9 @@ function captureDateKey(date: string | null | undefined): string {
         }
       }
     </div>
-    <footer class="flex flex-wrap items-center justify-end shrink-0 px-3 py-2 sm:px-6 border-t border-current/10 gap-1">
+    <footer class="flex flex-wrap items-center justify-end shrink-0 px-1 py-2 sm:px-6 border-t border-current/10 gap-0.5">
       @if (page && error(); as failure) {
-        <div role="alert" class="flex flex-1 flex-wrap items-center gap-2 text-sm">
+        <div role="alert" class="flex flex-1 max-sm:basis-full flex-wrap items-center gap-2 text-sm">
           <span>{{ I18N.stacks[failure] | translate }}</span>
           <button mat-button class="max-sm:!min-h-11 pointer-coarse:!min-h-11" data-stack-retry (click)="retry()" [disabled]="saving() || loading()">{{ (failure === 'error' ? I18N.stacks.regroup_retry : I18N.stacks.reload) | translate }}</button>
         </div>
@@ -203,6 +210,7 @@ export class StackEditorComponent implements OnInit {
   readonly zoom = signal({ ...FIT_ZOOM });
   private readonly zoomPane = viewChild<SyncedZoomComponent>('zoomPane');
   private readonly injector = inject(Injector);
+  private readonly element = inject<ElementRef<HTMLElement>>(ElementRef, { optional: true });
   readonly rendition = signal<DisplayedRendition>({ kind: 'thumbnail', phase: 'loading' });
   readonly previewPending = signal(false);
   readonly previewFailed = signal(false);
@@ -387,15 +395,31 @@ export class StackEditorComponent implements OnInit {
     if (!this.current() || !this.editable() || this.saved() || this.saving() || mode === this.mode()) return;
     this.mode.set(mode); void this.loadPreview();
   }
-  retry(): void {
-    if (typeof this.retryAction === 'object') {
-      if ('reject' in this.retryAction) void this.rejectFocused(this.retryAction.reject);
-      else void this.openMember(this.retryAction.open);
+  async retry(): Promise<void> {
+    const origin = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    const restore = this.page && !!origin?.matches('[data-stack-retry]');
+    let focusMoved = false;
+    const noteFocus = (event: FocusEvent) => { if (event.target !== origin && event.target !== document.body) focusMoved = true; };
+    if (restore) document.addEventListener('focusin', noteFocus);
+    const cleanup = this.destroyRef.onDestroy(() => document.removeEventListener('focusin', noteFocus));
+    try {
+      if (typeof this.retryAction === 'object') {
+        if ('reject' in this.retryAction) await this.rejectFocused(this.retryAction.reject);
+        else await this.openMember(this.retryAction.open);
+      }
+      else if (this.retryAction === 'add') await this.addSelected();
+      else if (this.retryAction === 'unstack' && this.error() === 'error') await this.unstack();
+      else if (this.retryAction === 'save' && this.error() === 'error') await this.save();
+      else await this.load();
+    } finally {
+      document.removeEventListener('focusin', noteFocus); cleanup();
+      if (restore && !focusMoved && this.current() && !this.error()) afterNextRender(() => {
+        if (!this.current() || this.loading() || this.saving() || this.pageContext.overlays().length
+            || document.activeElement !== document.body && document.activeElement !== origin) return;
+        const mode = this.element?.nativeElement.querySelector<HTMLElement>('[data-stack-mode][aria-pressed="true"]');
+        (mode ?? this.thumbnails()[this.paths().indexOf(this.focused())]?.nativeElement ?? this.closeButton()?.nativeElement)?.focus({ preventScroll: true });
+      }, { injector: this.injector });
     }
-    else if (this.retryAction === 'add') void this.addSelected();
-    else if (this.retryAction === 'unstack' && this.error() === 'error') void this.unstack();
-    else if (this.retryAction === 'save' && this.error() === 'error') void this.save();
-    else void this.load();
   }
   focusMember(path: string): void {
     if (this.current() && !this.saving() && this.paths().includes(path)) this.focused.set(path);
