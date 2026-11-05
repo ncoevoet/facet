@@ -4,6 +4,8 @@ All notable changes to Facet are documented in this file.
 
 ## [Unreleased]
 
+## [1.28.0] "f/64" — 2026-11-05
+
 ### Added
 
 - **A `12gb` VRAM profile.** Auto-detect now selects it for cards reporting 11.5 to under 14 GiB (a 12 GB card reports about 11.7), which previously fell to `8gb`. It runs the same models as `16gb` (SigLIP 2, TOPIQ, Qwen3.5-2B), so a library stays interchangeable between a 12 GB and a 16 GB machine, and is planned in four passes below about 11.8 GiB and three above (simulated with a capped PyTorch allocator on a 16 GB card; ONNX Runtime models such as InsightFace ignore that cap). Cards under 11.5 GiB stay on `8gb`. `FACET_VRAM_PROFILE=12gb` and `docker-compose.12gb.yml` select it explicitly. **Upgrade note:** an existing CLIP library on such a card changes embedding model (768 to 1152 dimensions) if left on `auto`; pin `vram_profile` to `8gb` to keep it, or rescan / run `--recompute-embeddings`.
