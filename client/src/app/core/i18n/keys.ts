@@ -2376,6 +2376,7 @@ export const I18N = {
     },
   },
   photo_faces: {
+    unassigned_face: "photo_faces.unassigned_face",
     ignore_detection: "photo_faces.ignore_detection",
     detection_ignored: "photo_faces.detection_ignored",
     unknown: "photo_faces.unknown",
@@ -3215,6 +3216,10 @@ export const I18N = {
     no_gps_hint: "map.no_gps_hint",
   },
   photo_detail: {
+    inspection: {
+      title: "photo_detail.inspection.title",
+      help: "photo_detail.inspection.help",
+    },
     collection: {
       previous: "photo_detail.collection.previous",
       next: "photo_detail.collection.next",

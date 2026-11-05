@@ -2337,6 +2337,7 @@
     }
   },
   "photo_faces": {
+    "unassigned_face": "Nicht zugeordnetes Gesicht",
     "ignore_detection": "Diese Erkennung ignorieren",
     "detection_ignored": "Erkennung ignoriert",
     "unknown": "Unbekannt",
@@ -3176,6 +3177,10 @@
     "no_gps_hint": "Nichts im Umfang trägt GPS-Koordinaten. Öffne ein Foto und lege es über dessen Standort-Panel fest — platzierte Fotos erscheinen hier."
   },
   "photo_detail": {
+    "inspection": {
+      "title": "Foto untersuchen",
+      "help": "Mit +/− zoomen, im vergrößerten Bild mit den Pfeiltasten verschieben und mit Pos1 einpassen. Tab wechselt zum nächsten Steuerelement."
+    },
     "collection": {
       "previous": "Vorheriges Foto in der Sammlung",
       "next": "Nächstes Foto in der Sammlung",

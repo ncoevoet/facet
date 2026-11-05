@@ -135,6 +135,27 @@ describe('manual stack browsing through rendered viewer, Router and HTTP', () =>
     localStorage.clear(); sessionStorage.clear();
   });
 
+  it('pans a zoomed photo without Router/HTTP navigation and restores navigation at Fit', async () => {
+    await open();
+    const canvas = root().querySelector<HTMLElement>('[data-photo-canvas]')!;
+    Object.defineProperty(canvas, 'clientWidth', { value: 400 });
+    Object.defineProperty(canvas, 'clientHeight', { value: 300 });
+    const key = (value: string) => {
+      canvas.dispatchEvent(new KeyboardEvent('keydown', { key: value, bubbles: true, cancelable: true }));
+      harness.detectChanges();
+    };
+    const before = router.url;
+    key('+'); key('ArrowRight');
+    expect((canvas.querySelector('img') as HTMLImageElement).style.transform).toBe('scale(1.25) translate(-32px, 0px)');
+    expect(router.url).toBe(before);
+    http.expectNone(request => request.url === '/api/photo');
+    key('Home'); expect((canvas.querySelector('img') as HTMLImageElement).style.transform).toBe('');
+    const navigation = arrived(); key('ArrowRight');
+    const request = http.expectOne(request => request.url === '/api/photo');
+    expect(request.request.params.get('path')).toBe(paths[2]);
+    request.flush(makePhoto({ path: paths[2] })); await navigation; await membership();
+  });
+
   it('browses the originating collection without changing filters, selection, or Back destination', async () => {
     await open();
     const beforeFilters = { ...store.filters() };
@@ -511,7 +532,7 @@ describe('manual stack browsing through rendered viewer, Router and HTTP', () =>
     await open();
     expect(root().querySelector('[data-stack-position]')?.textContent).toContain('2 of 3');
     expect(root().querySelectorAll('[data-stack-thumbnail]')).toHaveLength(3);
-    expect(root().querySelector('app-stack-navigator [aria-current="true"]')?.getAttribute('aria-label')).toContain(paths[1]);
+    expect(root().querySelector('app-stack-navigator [aria-current="true"]')?.getAttribute('aria-label')).toBe('stacks.open_member b.jpg · 2 of 3');
     expect(store.pinnedPaths()).toBeNull();
     await clickMember('[data-stack-next]', paths[2]);
     expect(button('[data-stack-next]').disabled).toBe(true);

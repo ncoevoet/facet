@@ -376,9 +376,11 @@ Sammlungspfeile und Positionsanzeige bleiben bei jedem Stapelmitglied sichtbar u
 
 Die Positionsanzeige am Bild benennt die Sammlung ausdrücklich. Aufklappbare Abschnitte zeigen Pfeile, die sich beim Öffnen drehen. Bewertung bleibt zuerst; unter Info stehen Bildunterschrift, Standort und Tags vor den nachgeordneten Metadatenquellen und zugehörigen Dateien. Bearbeitungs- und Tag-Steuerelemente haben auf schmalen Bildschirmen und bei groben Zeigegeräten mindestens 44 Pixel große Bedienflächen; am Desktop bleiben sie kompakt.
 
-Unter 360 Pixeln erhält der Fotodateiname eine eigene Zeile über die gesamte Breite mit bis zu zwei Textzeilen; lange Namen können auch innerhalb eines Wortes umbrechen. In schmalen Bildanzeigen werden bei einem geladenen Bild die Abmessungen ohne sichtbare Quellenbezeichnung angezeigt; Screenreader erhalten den vollständigen Status, Lade- und Fehlertexte bleiben sichtbar. Favoriten- und Zoomschaltflächen haben bei groben Zeigegeräten mindestens 44 Pixel große Bedienflächen.
+Auf dem Handy erhält der Dateiname eine eigene Zeile über die gesamte Breite mit bis zu zwei Textzeilen. Sehr lange Namen behalten Anfang und unterscheidendes Ende. Schmale Bildanzeigen behalten die Quellenbezeichnung sichtbar; nicht passende Abmessungen bleiben für Screenreader verfügbar. Lade- und Fehlertexte bleiben sichtbar. Favoriten-, Zoom- und Symbolschaltflächen im Kopfbereich haben bei groben Zeigegeräten mindestens 44 Pixel große Bedienflächen.
 
 Beim Vergrößern eines Vergleichsbilds zeigt eine kleine Übersicht das ganze Foto mit einem roten Rahmen um den sichtbaren Bereich. Der Rahmen folgt Schwenken und Zoomen, auch bei gekoppelten Ansichten, und verschwindet bei „Einpassen“.
+
+Fokussieren Sie die Bildfläche: +/− zoomt, Pfeiltasten verschieben das vergrößerte Bild und Pos1 passt es ein. Bei eingepasstem Bild wechseln die Pfeile wieder das Foto; Tab verlässt die Bildfläche. Beim Wechsel der Darstellung wird nur ein Bildname vorgelesen. Stapelminiaturen markieren das aktive Mitglied und nennen Dateinamen statt Serverpfaden. Die Sammlungsminiaturen haben einen Tab-Stopp; Pfeile, Pos1 und Ende bewegen den Fokus, Enter öffnet das Foto. Auf dem Handy bleiben Anfang und unterscheidendes Ende langer Dateinamen sichtbar. Bewertung steht vor Info; Aufnahmedatum und Kategorie befinden sich in Info, fehlende Daten werden benannt. Lange Tags umbrechen im Panel. Kleine Bildanzeigen behalten die Quellenbezeichnung; nicht sichtbare Abmessungen bleiben für Screenreader verfügbar.
 
 ### Top N% behalten
 

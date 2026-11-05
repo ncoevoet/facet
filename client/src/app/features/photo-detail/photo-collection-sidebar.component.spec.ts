@@ -41,6 +41,20 @@ describe('PhotoCollectionSidebarComponent', () => {
     expect(choose).toHaveBeenCalledWith('/a.jpg'); expect(more).toHaveBeenCalledOnce();
     expect(fixture.componentInstance.currentPath()).toBe('/b.jpg');
   });
+  it('uses one thumbnail Tab stop and arrow keys without changing the chosen photo', () => {
+    const { fixture, root } = render();
+    const buttons = [...root.querySelectorAll<HTMLButtonElement>('.grid button')];
+    expect(buttons.map(button => button.tabIndex)).toEqual([-1, 0]);
+    const choose = vi.fn(); fixture.componentInstance.choose.subscribe(choose);
+    buttons[1].focus();
+    const event = new KeyboardEvent('keydown', { key: 'ArrowLeft', bubbles: true, cancelable: true });
+    buttons[1].dispatchEvent(event); fixture.detectChanges();
+    expect(event.defaultPrevented).toBe(true);
+    expect(document.activeElement).toBe(buttons[0]);
+    expect(buttons.map(button => button.tabIndex)).toEqual([0, -1]);
+    expect(choose).not.toHaveBeenCalled();
+    buttons[0].click(); expect(choose).toHaveBeenCalledWith('/a.jpg');
+  });
   it('bounds the rendered list while keeping later and earlier loaded photos accessible', () => {
     const { fixture, root } = render();
     const photos = Array.from({ length: 500 }, (_, index) => makePhoto({ path: `/p${index}.jpg`, filename: `p${index}.jpg` }));
@@ -114,7 +128,7 @@ describe('PhotoCollectionSidebarComponent', () => {
   it('collapses without losing the current-photo input and releases scheduled work on destroy', () => {
     const { fixture, root } = render();
     root.querySelector<HTMLButtonElement>('button')!.click(); fixture.detectChanges();
-    expect(root.style.width).toBe('40px'); expect(root.querySelector('[role="separator"]')).toBeNull();
+    expect(root.style.width).toBe('52px'); expect(root.querySelector('[role="separator"]')).toBeNull();
     expect(fixture.componentInstance.currentPath()).toBe('/b.jpg');
     fixture.destroy(); expect(frame).toBeUndefined();
   });

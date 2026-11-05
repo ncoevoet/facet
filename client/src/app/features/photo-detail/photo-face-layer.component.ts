@@ -88,13 +88,13 @@ interface FacePress {
             class="group/face pointer-events-auto cursor-pointer outline-none"
             role="button"
             tabindex="0"
-            [attr.aria-label]="f.name || (I18N.photo_faces.unknown | translate)"
+            [attr.aria-label]="f.name || (I18N.photo_faces.unassigned_face | translate)"
             (pointerdown)="onFacePointerDown($event)"
             (click)="onFaceClick(f, $event)"
             (dblclick)="cancelPendingOpen()"
             (keydown.enter)="onFaceKey(f, $event)"
             (keydown.space)="onFaceKey(f, $event)">
-            <title>{{ f.name || (I18N.photo_faces.unknown | translate) }}</title>
+            <title>{{ f.name || (I18N.photo_faces.unassigned_face | translate) }}</title>
             <!-- Dark outline under the coloured stroke, so it reads on any background. -->
             <rect
               [attr.x]="f.x" [attr.y]="f.y" [attr.width]="f.w" [attr.height]="f.h"
@@ -136,7 +136,7 @@ interface FacePress {
               class="transition-opacity select-none group-hover/face:opacity-100 group-focus-visible/face:opacity-100"
               [class.opacity-0]="!showAll() && !f.focus"
               [class.opacity-100]="showAll() || f.focus">
-              {{ f.name || (I18N.photo_faces.unknown | translate) }}
+              {{ f.name || (I18N.photo_faces.unassigned_face | translate) }}
             </text>
           </g>
         }

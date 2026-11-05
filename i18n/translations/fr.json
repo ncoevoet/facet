@@ -2337,6 +2337,7 @@
     }
   },
   "photo_faces": {
+    "unassigned_face": "Visage non attribué",
     "ignore_detection": "Ignorer cette détection",
     "detection_ignored": "Détection ignorée",
     "unknown": "Inconnu",
@@ -3176,6 +3177,10 @@
     "no_gps_hint": "Rien dans le périmètre ne porte de coordonnées GPS. Ouvrez une photo et utilisez son panneau Lieu pour la placer — les photos placées apparaissent ici."
   },
   "photo_detail": {
+    "inspection": {
+      "title": "Inspection de la photo",
+      "help": "Utilisez +/− pour zoomer, les flèches pour déplacer l’image agrandie et Début pour l’ajuster. Tab passe à la commande suivante."
+    },
     "collection": {
       "previous": "Photo précédente de la collection",
       "next": "Photo suivante de la collection",

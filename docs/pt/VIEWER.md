@@ -376,10 +376,12 @@ As setas e a posição na coleção continuam disponíveis em cada membro da pil
 Ao ampliar uma imagem na comparação, uma miniatura mostra a fotografia inteira com um retângulo vermelho a marcar a região visível. O retângulo acompanha o deslocamento e o zoom, incluindo nos painéis ligados, e desaparece ao ajustar a imagem.
 O indicador de posição na imagem identifica a coleção. As secções expansíveis mostram setas que rodam ao abrir. Revisão permanece primeiro; em Informações, Legenda, Localização e Etiquetas precedem as fontes de metadados e os ficheiros relacionados. Os controlos de edição e etiquetas têm alvos de pelo menos 44 píxeis em ecrãs estreitos e com ponteiros grosseiros, mantendo-se compactos no computador.
 
-Abaixo de 360 píxeis, o nome do ficheiro ocupa uma fila a toda a largura com até duas linhas e pode quebrar dentro de nomes longos. Nas barras de imagem estreitas, uma imagem carregada mostra as dimensões sem a etiqueta visível da origem; os leitores de ecrã mantêm o estado completo e os textos de carregamento e erro continuam visíveis. Os controlos de favorito e zoom têm alvos de pelo menos 44 píxeis com um ponteiro impreciso.
+No telefone, o nome ocupa uma linha de largura total, com até duas linhas de texto. Nomes muito longos mantêm o início e o sufixo distintivo. A leitura estreita mantém visível o tipo de imagem; dimensões sem espaço continuam disponíveis para leitores de ecrã. Carregamento e erros permanecem visíveis. Favoritos, zoom e ícones do cabeçalho têm alvos de pelo menos 44 píxeis com ponteiros grosseiros.
 
 
 ### Manter Top N%
+Foque a imagem: +/− amplia, as setas deslocam a imagem ampliada e Home ajusta-a. Depois de ajustar, as setas retomam a navegação; Tab sai da imagem. Só é anunciado um nome ao mudar a apresentação. As miniaturas da pilha assinalam o membro ativo e usam nomes de ficheiro, não caminhos do servidor. A coleção tem uma só paragem Tab; setas, Home e End movem o foco e Enter abre a fotografia. No telefone ficam visíveis o início e o sufixo distintivo dos nomes longos. Revisão precede Informações, que contém data e categoria e indica datas ausentes. Etiquetas longas quebram dentro do painel. As leituras pequenas mantêm o tipo de imagem; dimensões ocultas continuam disponíveis para leitores de ecrã.
+
 
 O controle **Manter top %** na barra de ferramentas (modo de edição) faz a triagem de toda a visualização filtrada em uma única etapa. Defina uma porcentagem. O Facet classifica a visualização pela **ordenação atual** (agregada, Meu Gosto, Melhores Escolhas, nitidez…), mantém a parcela superior e **seleciona o restante**. Rejeite-as pela barra de ações, depois de desselecionar as que quiser poupar.
 

@@ -14,7 +14,7 @@ import { ContextHelpComponent } from '../../shared/components/context-help/conte
   template: `
     <details [open]="expanded()" data-photo-provenance
              (keydown.escape)="expanded() && close($event, trigger)" class="[&[open]>summary>mat-icon:last-child]:rotate-180">
-      <summary #trigger (click)="toggle($event)" class="flex min-h-9 max-sm:min-h-11 cursor-pointer items-center gap-2 text-xs font-medium focus-visible:outline-2">
+      <summary #trigger (click)="toggle($event)" class="flex min-h-9 max-sm:min-h-11 pointer-coarse:min-h-11 cursor-pointer items-center gap-2 text-xs font-medium focus-visible:outline-2">
         <mat-icon aria-hidden="true" class="!h-5 !w-5 !text-xl">history</mat-icon><h3 class="m-0 text-xs font-medium">{{ I18N.metadata_sources.title | translate }}</h3>
         <mat-icon aria-hidden="true" class="ml-auto !h-5 !w-5 shrink-0 !text-xl transition-transform motion-reduce:transition-none">expand_more</mat-icon>
       </summary>
@@ -29,7 +29,7 @@ import { ContextHelpComponent } from '../../shared/components/context-help/conte
             <dl class="m-0 space-y-2">
               @for (row of rows(); track row.field) {
                 <div class="grid grid-cols-[minmax(0,1fr)_auto] gap-x-2">
-                  <dt>{{ row.label | translate }} <span class="tabular-nums">{{ row.value === null ? (I18N.photo_detail.assessment.unavailable | translate) : row.field === 'star_rating' ? row.value : (row.valueLabel | translate) }}</span></dt>
+                  <dt class="flex flex-wrap items-baseline gap-x-2">{{ row.label | translate }} <span class="tabular-nums">{{ row.value === null ? (I18N.photo_detail.assessment.unavailable | translate) : row.field === 'star_rating' ? row.value : (row.valueLabel | translate) }}</span></dt>
                   <dd class="m-0 text-[var(--mat-sys-on-surface-variant)]">{{ row.sourceLabel | translate }}</dd>
                 </div>
               }

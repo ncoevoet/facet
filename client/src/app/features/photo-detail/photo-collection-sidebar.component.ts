@@ -10,11 +10,11 @@ import { I18N } from '../../core/i18n/keys';
   selector: 'app-photo-collection-sidebar',
   imports: [MatIconModule, ThumbnailUrlPipe, TranslatePipe],
   changeDetection: ChangeDetectionStrategy.OnPush,
-  host: { class: 'relative hidden xl:flex shrink-0 min-h-0 border-r border-[var(--mat-sys-outline-variant)]', '[style.width.px]': 'collapsed() ? 40 : width()' },
+  host: { class: 'relative hidden xl:flex shrink-0 min-h-0 border-r border-[var(--mat-sys-outline-variant)]', '[style.width.px]': 'collapsed() ? 52 : width()' },
   template: `
     <aside class="flex min-h-0 min-w-0 flex-1 flex-col" [attr.aria-label]="I18N.photo_detail.collection.title | translate">
       <div class="flex min-h-10 shrink-0 items-center gap-1 px-1">
-        <button type="button" class="flex h-8 w-8 shrink-0 items-center justify-center rounded hover:bg-[var(--mat-sys-surface-container)]"
+        <button type="button" class="flex h-8 w-8 pointer-coarse:h-11 pointer-coarse:w-11 shrink-0 items-center justify-center rounded hover:bg-[var(--mat-sys-surface-container)]"
           [attr.aria-label]="(collapsed() ? I18N.photo_detail.collection.show : I18N.photo_detail.collection.hide) | translate"
           [attr.aria-expanded]="!collapsed()" (click)="toggle()">
           <mat-icon>{{ collapsed() ? 'chevron_right' : 'chevron_left' }}</mat-icon>
@@ -33,7 +33,7 @@ import { I18N } from '../../core/i18n/keys';
             @for (photo of visiblePhotos(); track photo.path) {
               <button type="button" [attr.data-collection-current]="photo.path === currentPath() ? '' : null"
                 [attr.aria-current]="photo.path === currentPath() ? 'true' : null" [attr.aria-label]="photo.filename"
-                [title]="photo.filename" (click)="choose.emit(photo.path)"
+                (keydown)="thumbnailKey($event)" [attr.tabindex]="photo.path === tabStopPath() ? 0 : -1" (focus)="focusedPath.set(photo.path)" [title]="photo.filename" (click)="choose.emit(photo.path)"
                 class="min-w-0 overflow-hidden rounded border-2 border-transparent focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--mat-sys-primary)]"
                 [class.!border-[var(--mat-sys-primary)]]="photo.path === currentPath()">
                 <img [src]="photo.path | thumbnailUrl:240:photo.preview_revision" alt="" loading="lazy" class="aspect-square w-full object-cover" />
@@ -77,6 +77,26 @@ export class PhotoCollectionSidebarComponent {
   protected readonly windowStart = computed(() => Math.min(this.requestedStart(), Math.max(0, this.photos().length - 1)));
   protected readonly windowEnd = computed(() => Math.min(this.photos().length, this.windowStart() + this.windowSize));
   protected readonly visiblePhotos = computed(() => this.photos().slice(this.windowStart(), this.windowEnd()));
+  protected readonly focusedPath = signal('');
+  protected readonly tabStopPath = computed(() => {
+    const photos = this.visiblePhotos();
+    return photos.find(photo => photo.path === this.focusedPath())?.path
+      ?? photos.find(photo => photo.path === this.currentPath())?.path ?? photos[0]?.path;
+  });
+  protected thumbnailKey(event: KeyboardEvent): void {
+    if (event.altKey || event.ctrlKey || event.metaKey || event.isComposing) return;
+    const grid = (event.currentTarget as HTMLElement).parentElement!;
+    const buttons = [...grid.querySelectorAll<HTMLButtonElement>('button')];
+    const index = buttons.indexOf(event.target as HTMLButtonElement);
+    if (index < 0) return;
+    const columns = this.width() >= 280 ? 2 : 1;
+    const offsets: Record<string, number> = { ArrowLeft: -1, ArrowRight: 1, ArrowUp: -columns, ArrowDown: columns };
+    const offset = offsets[event.key];
+    const next = event.key === 'Home' ? 0 : event.key === 'End' ? buttons.length - 1
+      : offset === undefined ? null : Math.max(0, Math.min(buttons.length - 1, index + offset));
+    if (next === null) return;
+    event.preventDefault(); event.stopPropagation(); buttons[next]?.focus();
+  }
   private lastPath = '';
   private lastPathFound = false;
   private readonly scroller = viewChild<ElementRef<HTMLElement>>('scroller');
@@ -91,6 +111,7 @@ export class PhotoCollectionSidebarComponent {
       const changed = path !== this.lastPath || (!this.lastPathFound && index >= 0);
       this.lastPath = path; this.lastPathFound = index >= 0;
       if (!changed || index < 0) return;
+      this.focusedPath.set(path);
       const start = untracked(this.windowStart);
       if (index < start || index >= start + this.windowSize) this.requestedStart.set(Math.max(0, index - Math.floor(this.windowSize / 2)));
     });

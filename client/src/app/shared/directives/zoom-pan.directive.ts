@@ -17,6 +17,7 @@ const WHEEL_STEP = 0.15;
   host: {
     '[class.cursor-grabbing]': 'isPanning()',
     '(dblclick)': 'reset()',
+    '(keydown)': 'onKeydown($event)',
     '(pointerdown)': 'onPanStart($event)',
     '(pointermove)': 'onPanMove($event)',
     '(pointerup)': 'onPanEnd($event)',
@@ -87,6 +88,36 @@ export class ZoomPanDirective {
     this.applyZoom(this.scale() + (e.deltaY > 0 ? -WHEEL_STEP : WHEEL_STEP));
   }
 
+  /** Only the focused canvas owns these keys; nested navigation buttons keep theirs. */
+  protected onKeydown(event: KeyboardEvent): void {
+    if (event.target !== this.host.nativeElement || event.defaultPrevented
+      || event.ctrlKey || event.metaKey || event.altKey || event.isComposing) return;
+    if (event.key === 'Home') {
+      this.reset();
+    } else if (event.key === '+' || event.key === '=' || event.key === '-') {
+      this.applyZoom(Math.max(1, this.scale() + (event.key === '-' ? -0.25 : 0.25)));
+    } else {
+      if (this.scale() <= 1) return;
+      const step = 40 / this.scale();
+      const directions: Record<string, [number, number]> = {
+        ArrowLeft: [step, 0], ArrowRight: [-step, 0],
+        ArrowUp: [0, step], ArrowDown: [0, -step],
+      };
+      const delta = directions[event.key];
+      if (!delta) return;
+      this.applyPan(this.panX() + delta[0], this.panY() + delta[1]);
+    }
+    event.preventDefault();
+    event.stopPropagation();
+  }
+
+  private applyPan(x: number, y: number): void {
+    const el = this.host.nativeElement;
+    const limit = Math.max(el.clientWidth, el.clientHeight) / (2 * this.scale());
+    this.panX.set(Math.max(-limit, Math.min(limit, x)));
+    this.panY.set(Math.max(-limit, Math.min(limit, y)));
+  }
+
   protected onPanStart(e: PointerEvent): void {
     if (this.scale() <= 1) return;
     this.isPanning.set(true);
@@ -102,11 +133,8 @@ export class ZoomPanDirective {
     const scale = this.scale();
     const rawX = this.panOriginX + (e.clientX - this.panStartX) / scale;
     const rawY = this.panOriginY + (e.clientY - this.panStartY) / scale;
-    // Clamp pan so the image can't be dragged entirely off-screen
-    const el = this.host.nativeElement;
-    const limit = Math.max(el.clientWidth, el.clientHeight) / (2 * scale);
-    this.panX.set(Math.max(-limit, Math.min(limit, rawX)));
-    this.panY.set(Math.max(-limit, Math.min(limit, rawY)));
+    // Pointer and keyboard panning share the same bounds.
+    this.applyPan(rawX, rawY);
   }
 
   protected onPanEnd(e: PointerEvent): void {

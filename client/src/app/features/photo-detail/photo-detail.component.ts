@@ -40,6 +40,7 @@ import { RenditionReadoutComponent } from '../../shared/components/rendition-rea
 import { TranslatePipe } from '../../shared/pipes/translate.pipe';
 import { ThumbnailUrlPipe } from '../../shared/pipes/thumbnail-url.pipe';
 import { PersonThumbnailUrlPipe } from '../../shared/pipes/thumbnail-url.pipe';
+import { FilenamePipe } from '../../shared/pipes/filename.pipe';
 import { CategoryLabelPipe } from '../../shared/pipes/category-label.pipe';
 import { DownloadIconPipe } from '../../shared/pipes/download-icon.pipe';
 import { PhotoSetKindIconPipe, PhotoSetKindLabelPipe } from '../../shared/pipes/photo-set-kind.pipe';
@@ -109,7 +110,7 @@ const SOCIAL_SOURCE_KEYS: Record<string, string> = {
     TranslatePipe,
     ThumbnailUrlPipe,
     PersonThumbnailUrlPipe,
-    CategoryLabelPipe,
+    CategoryLabelPipe, FilenamePipe,
     DownloadIconPipe,
     PhotoSetKindIconPipe,
     PhotoSetKindLabelPipe,
@@ -119,52 +120,52 @@ const SOCIAL_SOURCE_KEYS: Record<string, string> = {
   template: `
     @if (photo(); as p) {
       <!-- Header bar -->
-      <div data-photo-detail-header class="@container flex max-[360px]:flex-wrap shrink-0 items-center gap-2 px-2 py-1 border-b border-[var(--mat-sys-outline-variant)] bg-[var(--mat-sys-surface-container-lowest)]">
-        <button mat-icon-button (click)="goBack()" [matTooltip]="I18N.photo_detail.back | translate" [attr.aria-label]="I18N.photo_detail.back | translate">
+      <div data-photo-detail-header class="@container flex max-md:flex-wrap shrink-0 items-center gap-2 px-2 py-1 border-b border-[var(--mat-sys-outline-variant)] bg-[var(--mat-sys-surface-container-lowest)]">
+        <button mat-icon-button class="max-sm:!h-11 max-sm:!w-11 pointer-coarse:!h-11 pointer-coarse:!w-11" (click)="goBack()" [matTooltip]="I18N.photo_detail.back | translate" [attr.aria-label]="I18N.photo_detail.back | translate">
           <mat-icon>arrow_back</mat-icon>
         </button>
-        <h1 class="m-0 min-w-0 flex-1 truncate text-base font-medium leading-6 max-md:whitespace-normal max-md:[overflow-wrap:anywhere] max-md:line-clamp-2 max-[360px]:order-last max-[360px]:basis-full" [title]="p.filename">{{ p.filename }}</h1>
+        <h1 class="m-0 min-w-0 flex-1 truncate text-base font-medium leading-6 max-md:whitespace-normal max-md:[overflow-wrap:anywhere] max-md:line-clamp-2 max-md:order-last max-md:basis-full" [title]="p.filename"><span class="md:hidden" aria-hidden="true">{{ p.filename | filename:64 }}</span><span class="max-md:sr-only">{{ p.filename }}</span></h1>
         @if (auth.isEdition()) {
-          <button mat-icon-button class="max-md:!hidden" (click)="refreshPhoto(p)" [matTooltip]="I18N.photo_refresh.title | translate" [attr.aria-label]="I18N.photo_refresh.title | translate"><mat-icon>refresh</mat-icon></button>
+          <button mat-icon-button class="max-sm:!h-11 max-sm:!w-11 pointer-coarse:!h-11 pointer-coarse:!w-11 max-md:!hidden" (click)="refreshPhoto(p)" [matTooltip]="I18N.photo_refresh.title | translate" [attr.aria-label]="I18N.photo_refresh.title | translate"><mat-icon>refresh</mat-icon></button>
         }
 
 
         @if (store.config()?.features?.show_similar_button) {
-          <button mat-icon-button class="max-md:!hidden" [matMenuTriggerFor]="similarMenu"
+          <button mat-icon-button class="max-sm:!h-11 max-sm:!w-11 pointer-coarse:!h-11 pointer-coarse:!w-11 max-md:!hidden" [matMenuTriggerFor]="similarMenu"
             [matTooltip]="I18N.similar.find_similar | translate" [attr.aria-label]="I18N.similar.find_similar | translate">
             <mat-icon>image_search</mat-icon>
           </button>
         }
 
         @if (store.config()?.features?.show_critique) {
-          <button #analysisToggle mat-button class="!min-w-11 !h-11 !px-2" (click)="openCritique(p)"
+          <button #analysisToggle [attr.aria-expanded]="analysisOpen()" aria-controls="photo-analysis" mat-button class="!min-w-11 !h-11 !px-2" (click)="openCritique(p)"
             [matTooltip]="I18N.photo_detail.analysis | translate" [attr.aria-label]="I18N.photo_detail.analysis | translate">
             <mat-icon class="!m-0 @min-[960px]:!mr-2">analytics</mat-icon><span class="hidden @min-[960px]:inline">{{ I18N.photo_detail.analysis | translate }}</span>
           </button>
         }
 
         @if (auth.isEdition() && p.is_rejected && !p.is_kept) {
-          <button mat-icon-button class="!text-[var(--mat-sys-error)]" (click)="removeFromCatalog()"
+          <button mat-icon-button class="max-sm:!h-11 max-sm:!w-11 pointer-coarse:!h-11 pointer-coarse:!w-11 !text-[var(--mat-sys-error)]" (click)="removeFromCatalog()"
             [matTooltip]="I18N.photo_detail.remove_catalog.action | translate" [attr.aria-label]="I18N.photo_detail.remove_catalog.action | translate">
             <mat-icon>hide_image</mat-icon>
           </button>
         }
 
         @if (auth.isEdition() && p.is_rejected && !p.is_kept && store.config()?.cull?.trash_available) {
-          <button mat-icon-button class="max-md:!hidden !text-[var(--mat-sys-error)]" (click)="deletePhoto()"
+          <button mat-icon-button class="max-sm:!h-11 max-sm:!w-11 pointer-coarse:!h-11 pointer-coarse:!w-11 max-md:!hidden !text-[var(--mat-sys-error)]" (click)="deletePhoto()"
             [matTooltip]="I18N.photo_detail.delete.button_label | translate" [attr.aria-label]="I18N.photo_detail.delete.button_label | translate">
             <mat-icon>delete</mat-icon>
           </button>
         }
 
         @if (auth.isEdition()) {
-          <button mat-icon-button class="max-md:!hidden" [matMenuTriggerFor]="categoryOverrideMenu"
+          <button mat-icon-button class="max-sm:!h-11 max-sm:!w-11 pointer-coarse:!h-11 pointer-coarse:!w-11 max-md:!hidden" [matMenuTriggerFor]="categoryOverrideMenu"
             [matTooltip]="I18N.photo.category_override.menu_tooltip | translate" [attr.aria-label]="I18N.photo.category_override.menu_tooltip | translate">
             <mat-icon>category</mat-icon>
           </button>
         }
 
-        <button mat-icon-button class="max-md:!hidden" (click)="cycleFaceBoxMode()"
+        <button mat-icon-button class="max-sm:!h-11 max-sm:!w-11 pointer-coarse:!h-11 pointer-coarse:!w-11 max-md:!hidden" (click)="cycleFaceBoxMode()"
           data-face-box-mode
           [matTooltip]="faceBoxModeLabel() | translate"
           [attr.aria-label]="faceBoxModeLabel() | translate">
@@ -172,14 +173,14 @@ const SOCIAL_SOURCE_KEYS: Record<string, string> = {
         </button>
 
         @if (auth.isEdition()) {
-          <button mat-icon-button class="max-md:!hidden" (click)="openManualFaces(p)"
+          <button mat-icon-button class="max-sm:!h-11 max-sm:!w-11 pointer-coarse:!h-11 pointer-coarse:!w-11 max-md:!hidden" (click)="openManualFaces(p)"
             [matTooltip]="I18N.manual_faces.title | translate" [attr.aria-label]="I18N.manual_faces.title | translate">
             <mat-icon>highlight_alt</mat-icon>
           </button>
         }
 
         @if (auth.isEdition() && p.unassigned_faces > 0) {
-          <button mat-icon-button class="max-md:!hidden" (click)="openAddPerson(p)"
+          <button mat-icon-button class="max-sm:!h-11 max-sm:!w-11 pointer-coarse:!h-11 pointer-coarse:!w-11 max-md:!hidden" (click)="openAddPerson(p)"
             [matTooltip]="I18N.manage_persons.assign_face | translate" [attr.aria-label]="I18N.manage_persons.assign_face | translate">
             <mat-icon>person_add</mat-icon>
           </button>
@@ -212,7 +213,7 @@ const SOCIAL_SOURCE_KEYS: Record<string, string> = {
         }
 
         @if (socialExportEnabled()) {
-          <button mat-icon-button class="max-md:!hidden" [matMenuTriggerFor]="socialMenu" [disabled]="downloading()"
+          <button mat-icon-button class="max-sm:!h-11 max-sm:!w-11 pointer-coarse:!h-11 pointer-coarse:!w-11 max-md:!hidden" [matMenuTriggerFor]="socialMenu" [disabled]="downloading()"
             [matTooltip]="(socialCropTooltipKey() | translate)" [attr.aria-label]="I18N.photo_detail.social_crop | translate">
             <mat-icon>crop</mat-icon>
           </button>
@@ -249,7 +250,7 @@ const SOCIAL_SOURCE_KEYS: Record<string, string> = {
 
         <!-- Below md the secondary actions fold into this menu so the filename keeps its room;
              back, critique and download stay in the row. Same handlers and conditions as the inline buttons. -->
-          <button mat-icon-button class="md:!hidden" [matMenuTriggerFor]="moreActionsMenu"
+          <button mat-icon-button class="max-sm:!h-11 max-sm:!w-11 pointer-coarse:!h-11 pointer-coarse:!w-11 md:!hidden" [matMenuTriggerFor]="moreActionsMenu"
             [matTooltip]="I18N.nav.more | translate" [attr.aria-label]="I18N.nav.more | translate">
             <mat-icon>more_vert</mat-icon>
           </button>
@@ -289,19 +290,19 @@ const SOCIAL_SOURCE_KEYS: Record<string, string> = {
         }
         <!-- Image panel -->
         <div class="flex min-h-40 max-h-[62dvh] min-w-0 shrink-0 flex-col lg:max-h-none lg:min-h-0 lg:flex-1">
-        <div [appZoomPan]="p.path" #zoom="zoomPan" [style.aspect-ratio]="photoAspect()" class="group/photo flex flex-auto min-h-0 items-center justify-center bg-[var(--facet-image-canvas)] relative overflow-hidden cursor-grab lg:!aspect-auto lg:flex-1">
+        <div data-photo-canvas tabindex="0" role="group" [attr.aria-label]="I18N.photo_detail.inspection.title | translate" aria-describedby="photo-inspection-help" [appZoomPan]="p.path" #zoom="zoomPan" [style.aspect-ratio]="photoAspect()" class="group/photo focus-visible:!outline-2 focus-visible:!-outline-offset-4 focus-visible:!outline-white flex flex-auto min-h-0 items-center justify-center bg-[var(--facet-image-canvas)] relative overflow-hidden cursor-grab lg:!aspect-auto lg:flex-1">
           @for (imagePhoto of [p]; track imagePhoto.path) {
           <!-- The collection already loads this thumbnail; keep it underneath
                the larger renditions so a cold image request doesn't flash black. -->
           <img
             [src]="p.path | thumbnailUrl:240:p.preview_revision"
-            alt="" aria-hidden="true"
+            [alt]="p.filename"
             class="w-full h-full max-w-full max-h-full object-contain pointer-events-none select-none"
             [style.transform]="zoom.transform()"
           />
           <img
             [src]="thumbnailImageUrl()"
-            [alt]="p.filename"
+            alt="" aria-hidden="true"
             class="absolute inset-0 w-full h-full object-contain transition-opacity duration-300 pointer-events-none select-none"
             [class.opacity-0]="fullImageLoaded()"
             [style.transform]="zoom.transform()"
@@ -309,13 +310,14 @@ const SOCIAL_SOURCE_KEYS: Record<string, string> = {
           />
           <img
             [src]="fullImageUrl()"
-            [alt]="p.filename"
+            alt="" aria-hidden="true"
             class="absolute inset-0 w-full h-full object-contain transition-opacity duration-300 pointer-events-none select-none"
             [class.opacity-0]="!fullImageLoaded()"
             (load)="onFullImageLoad($event)" (error)="onFullImageError($event)"
             [style.transform]="zoom.transform()"
           />
           }
+          <p id="photo-inspection-help" class="pointer-events-none absolute top-2 left-2 right-2 z-40 m-0 rounded bg-black/75 px-3 py-2 text-center text-xs text-white invisible group-focus/photo:visible">{{ I18N.photo_detail.inspection.help | translate }}</p>
           @if (collectionNavigation().visible) {
             <div role="group" [attr.aria-label]="I18N.photo_detail.collection.title | translate" class="pointer-events-none absolute inset-0 z-30 flex items-center justify-between px-2 opacity-0 transition-opacity group-hover/photo:opacity-100 focus-within:opacity-100 max-xl:opacity-100">
               <button type="button" data-photo-previous class="pointer-events-auto inline-flex h-11 w-11 cursor-pointer items-center justify-center rounded-full bg-black/60 text-white hover:bg-black/80 focus-visible:outline-2 focus-visible:outline-white disabled:invisible"
@@ -351,42 +353,6 @@ const SOCIAL_SOURCE_KEYS: Record<string, string> = {
 
         <!-- Info panel -->
         <aside data-photo-inspector [attr.aria-label]="I18N.photo_detail.details | translate" class="lg:w-80 xl:w-[360px] lg:shrink-0 lg:overflow-y-auto lg:border-l border-[var(--mat-sys-outline-variant)] bg-[var(--mat-sys-surface-container-lowest)] p-4 space-y-4 text-sm text-[var(--mat-sys-on-surface)]">
-          <!-- Capture date and scoring category -->
-          <div class="mb-2">
-            @if (p.date_taken || auth.isEdition()) {
-              <div class="flex items-center gap-1 text-[var(--mat-sys-on-surface-variant)] text-xs">
-                @if (auth.isEdition()) {
-                  <button mat-icon-button class="!w-7 !h-7 max-sm:!w-11 max-sm:!h-11 pointer-coarse:!w-11 pointer-coarse:!h-11 !min-w-0 !p-0 -ml-1.5 !inline-flex items-center justify-center" (click)="editCaptureDate(p)"
-                          [matTooltip]="I18N.capture_date.title | translate"
-                          [attr.aria-label]="I18N.capture_date.title | translate">
-                    <mat-icon class="!text-base !w-4 !h-4 !leading-4">edit_calendar</mat-icon>
-                  </button>
-                }
-                @if (p.date_taken) {
-              <span class="leading-4">{{ p.date_taken | captureDate }}</span>
-                }
-              </div>
-            }
-            <div class="flex items-center gap-2 mt-1">
-              @if (p.category || auth.isEdition()) {
-                <span class="inline-flex items-center gap-1 text-[var(--mat-sys-on-surface-variant)] text-xs">
-                  {{ p.category ? (p.category | categoryLabel) : (I18N.category_names.default | translate) }}
-                  <!-- Category explainer toggle: "why isn't this photo classified as X?" — kept for an uncategorized photo too. -->
-                  @if (auth.isEdition()) {
-                    <app-control-popover icon="help_outline" [compact]="true" [label]="I18N.photo.category_override.explainer_toggle | translate" [content]="categoryExplanation" (opened)="loadExplainerCategories()" />
-                  }
-                </span>
-              }
-              @if (keeperHint()?.has_better) {
-                <span class="inline-flex items-center gap-1 px-2 py-0.5 bg-black/60 text-amber-300 rounded-full text-xs font-medium"
-                      [attr.aria-label]="I18N.culling.reason.better_shot | translate">
-                  <mat-icon class="!text-sm !w-4 !h-4 !leading-4" aria-hidden="true">arrow_circle_up</mat-icon>
-                  {{ I18N.culling.reason.better_shot | translate }}
-                </span>
-              }
-            </div>
-          </div>
-
           <ng-template #categoryExplanation>
               <mat-form-field class="w-full" subscriptSizing="dynamic">
                 <mat-label>{{ I18N.photo.category_override.target_category_label | translate }}</mat-label>
@@ -423,7 +389,7 @@ const SOCIAL_SOURCE_KEYS: Record<string, string> = {
                   }
                 </div>
               </div>
-              <div data-photo-decisions class="flex items-stretch divide-x divide-[var(--mat-sys-outline-variant)] overflow-hidden rounded border border-[var(--mat-sys-outline-variant)]">
+              <div data-photo-decisions role="group" [attr.aria-label]="I18N.gallery.sidebar.review.decision | translate" class="flex items-stretch divide-x divide-[var(--mat-sys-outline-variant)] overflow-hidden rounded border border-[var(--mat-sys-outline-variant)]">
                 <button type="button" data-photo-keep class="inline-flex min-h-11 min-w-0 flex-1 cursor-pointer focus-visible:!outline-2 focus-visible:!-outline-offset-4 focus-visible:!outline-current items-center justify-center gap-1 px-1 text-xs hover:bg-[var(--mat-sys-surface-container-high)]" [class.!bg-[var(--facet-review-kept)]]="p.is_kept" [class.!text-[var(--facet-review-on-kept)]]="p.is_kept"
                   (click)="reviewPhoto(p.is_kept ? 'undecided' : 'kept')" [attr.aria-pressed]="!!p.is_kept">
                   <mat-icon aria-hidden="true" class="!w-5 !h-5 !text-xl">{{ p.is_kept ? 'flag' : 'outlined_flag' }}</mat-icon>{{ I18N.review.keep | translate }}
@@ -444,6 +410,43 @@ const SOCIAL_SOURCE_KEYS: Record<string, string> = {
             <summary (click)="$event.preventDefault(); infoOpen.set(!infoOpen())" class="flex min-h-11 cursor-pointer items-center gap-2 font-medium"><mat-icon aria-hidden="true" class="!h-5 !w-5 !text-xl">info</mat-icon><h2 class="m-0 text-sm font-medium">{{ I18N.photo_detail.info | translate }}</h2><mat-icon aria-hidden="true" class="ml-auto !h-5 !w-5 shrink-0 !text-xl transition-transform motion-reduce:transition-none">expand_more</mat-icon></summary>
             @if (infoOpen()) {
             <div class="space-y-3 pb-3">
+          <!-- Capture date and scoring category -->
+          <div class="mb-2">
+            @if (p.date_taken || auth.isEdition()) {
+              <div class="flex items-center gap-1 text-[var(--mat-sys-on-surface-variant)] text-xs">
+                @if (auth.isEdition()) {
+                  <button mat-icon-button class="!w-7 !h-7 max-sm:!w-11 max-sm:!h-11 pointer-coarse:!w-11 pointer-coarse:!h-11 !min-w-0 !p-0 -ml-1.5 !inline-flex items-center justify-center" (click)="editCaptureDate(p)"
+                          [matTooltip]="I18N.capture_date.title | translate"
+                          [attr.aria-label]="I18N.capture_date.title | translate">
+                    <mat-icon class="!text-base !w-4 !h-4 !leading-4">edit_calendar</mat-icon>
+                  </button>
+                }
+                @if (p.date_taken) {
+              <span class="leading-4">{{ p.date_taken | captureDate }}</span>
+                } @else { <span>{{ I18N.gallery.no_capture_date | translate }}</span> }
+              </div>
+            }
+            <div class="flex items-center gap-2 mt-1">
+              @if (p.category || auth.isEdition()) {
+                <span class="inline-flex items-center gap-1 text-[var(--mat-sys-on-surface-variant)] text-xs">
+                  {{ p.category ? (p.category | categoryLabel) : (I18N.category_names.default | translate) }}
+                  <!-- Category explainer toggle: "why isn't this photo classified as X?" — kept for an uncategorized photo too. -->
+                  @if (auth.isEdition()) {
+                    <app-control-popover icon="help_outline" [compact]="true" [label]="I18N.photo.category_override.explainer_toggle | translate" [content]="categoryExplanation" (opened)="loadExplainerCategories()" />
+                  }
+                </span>
+              }
+              @if (keeperHint()?.has_better) {
+                <span class="inline-flex items-center gap-1 px-2 py-0.5 bg-black/60 text-amber-300 rounded-full text-xs font-medium"
+                      [attr.aria-label]="I18N.culling.reason.better_shot | translate">
+                  <mat-icon class="!text-sm !w-4 !h-4 !leading-4" aria-hidden="true">arrow_circle_up</mat-icon>
+                  {{ I18N.culling.reason.better_shot | translate }}
+                </span>
+              }
+            </div>
+          </div>
+
+
               @if (hasExif()) {
                 <app-photo-metric-section kind="exif" [photo]="p" [histogramHeight]="HISTOGRAM_PANEL_HEIGHT" />
               }
@@ -512,24 +515,24 @@ const SOCIAL_SOURCE_KEYS: Record<string, string> = {
               <div class="text-xs text-[var(--mat-sys-on-surface-variant)] mb-2">{{ I18N.photo_detail.tags | translate }}</div>
               <div class="flex gap-1.5 flex-wrap items-center">
                 @for (tag of p.tags_list; track tag) {
-                  <span data-testid="ai-tag-chip" class="inline-flex">
-                    <button class="inline-flex items-center max-sm:min-h-11 pointer-coarse:min-h-11 px-2 py-0.5 bg-[var(--facet-accent-badge)] text-[var(--facet-accent-text)] rounded-full text-xs cursor-pointer hover:opacity-80 transition-opacity"
+                  <span data-testid="ai-tag-chip" class="inline-flex min-w-0 max-w-full">
+                    <button class="inline-flex items-center max-sm:min-h-11 pointer-coarse:min-h-11 max-sm:min-w-11 pointer-coarse:min-w-11 max-w-full [overflow-wrap:anywhere] text-left px-2 py-0.5 bg-[var(--facet-accent-badge)] text-[var(--facet-accent-text)] rounded-full text-xs cursor-pointer hover:opacity-80 transition-opacity"
                             [matMenuTriggerFor]="tagNavigationMenu" [matMenuTriggerData]="{ tag: tag }">{{ tag }}</button>
                   </span>
                 }
                 @for (tag of p.manual_tags; track tag) {
                   <span data-testid="manual-tag-chip"
-                        class="inline-flex items-center rounded-full border border-dashed border-[var(--facet-accent-text)] text-[var(--facet-accent-text)] text-xs">
-                    <button class="inline-flex items-center max-sm:min-h-11 pointer-coarse:min-h-11 gap-1 pl-2 pr-2 py-0.5 cursor-pointer hover:opacity-80 transition-opacity"
+                        class="inline-flex min-w-0 max-w-full items-center rounded-full border border-dashed border-[var(--facet-accent-text)] text-[var(--facet-accent-text)] text-xs">
+                    <button class="inline-flex items-center max-sm:min-h-11 pointer-coarse:min-h-11 max-sm:min-w-11 pointer-coarse:min-w-11 min-w-0 gap-1 pl-2 pr-2 py-0.5 cursor-pointer hover:opacity-80 transition-opacity"
                             [attr.title]="I18N.manual_tags.manual | translate"
                             [matMenuTriggerFor]="tagNavigationMenu" [matMenuTriggerData]="{ tag: tag }">
                       <mat-icon class="!text-xs !w-3 !h-3 !leading-3" aria-hidden="true">sell</mat-icon>
                       <span class="sr-only">{{ I18N.manual_tags.manual | translate }}:</span>
-                      {{ tag }}
+                      <span class="min-w-0 [overflow-wrap:anywhere] text-left">{{ tag }}</span>
                     </button>
                     @if (auth.isEdition()) {
                       <button data-testid="manual-tag-remove"
-                              class="inline-flex items-center justify-center min-w-6 min-h-6 max-sm:min-w-11 max-sm:min-h-11 pointer-coarse:min-w-11 pointer-coarse:min-h-11 -ml-1 cursor-pointer hover:opacity-80"
+                              class="inline-flex items-center justify-center shrink-0 min-w-6 min-h-6 max-sm:min-w-11 max-sm:min-h-11 pointer-coarse:min-w-11 pointer-coarse:min-h-11 -ml-1 max-sm:ml-0 pointer-coarse:ml-0 cursor-pointer hover:opacity-80"
                               [attr.aria-label]="I18N.manual_tags.remove_tag | translate:{ tag: tag }"
                               (click)="removeManualTag(p, tag)">
                         <mat-icon class="!text-xs !w-3 !h-3 !leading-3" aria-hidden="true">close</mat-icon>
@@ -573,7 +576,7 @@ const SOCIAL_SOURCE_KEYS: Record<string, string> = {
             }
           </details>
 
-          <details #analysisSection data-photo-analysis (keydown.escape)="closeAnalysis($event)" (toggle)="analysisOpen.set(analysisSection.open)" class="[&[open]>summary>mat-icon:last-child]:rotate-180 border-t border-[var(--mat-sys-outline-variant)]">
+          <details id="photo-analysis" #analysisSection data-photo-analysis (keydown.escape)="closeAnalysis($event)" (toggle)="analysisOpen.set(analysisSection.open)" class="[&[open]>summary>mat-icon:last-child]:rotate-180 border-t border-[var(--mat-sys-outline-variant)]">
             <summary class="flex min-h-11 cursor-pointer items-center gap-2 text-sm font-medium"><mat-icon aria-hidden="true" class="!h-5 !w-5 !text-xl">analytics</mat-icon><h2 class="m-0 text-sm font-medium">{{ I18N.photo_detail.analysis | translate }}</h2><span class="ml-auto text-xs font-normal tabular-nums">{{ I18N.photo_detail.assessment.score | translate }} {{ p.aggregate | assessmentValue }}</span><mat-icon aria-hidden="true" class="!h-5 !w-5 shrink-0 !text-xl transition-transform motion-reduce:transition-none">expand_more</mat-icon></summary>
             @if (analysisOpen()) {
               @if (aggregateRange(); as range) {

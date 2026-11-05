@@ -13,9 +13,9 @@ import { FixedPipe } from '../../pipes/fixed.pipe';
   template: `
     <div class="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1" data-rendition-readout>
       <span role="status">
-        <span [class]="state().phase === 'ready' && state().width && state().height ? '@max-[360px]/rendition:sr-only' : ''">{{ kindLabel() | translate }}<span aria-hidden="true"> · </span></span>
+        <span>{{ kindLabel() | translate }}<span aria-hidden="true" [class]="state().phase === 'ready' && state().width && state().height ? '@max-[320px]/rendition:hidden' : ''"> · </span></span>
         <span [class.sr-only]="state().phase === 'ready'">{{ phaseLabel() | translate }}</span>
-        @if (state().phase === 'ready' && state().width && state().height) { {{ state().width }} × {{ state().height }} }
+        @if (state().phase === 'ready' && state().width && state().height) { <span class="@max-[320px]/rendition:sr-only">{{ state().width }} × {{ state().height }}</span> }
       </span>
       @if (pending()) { <span>{{ I18N.photo_detail.rendition.pending | translate }}</span> }
       @if (state().phase === 'failed' || attemptFailed()) {

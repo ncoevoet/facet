@@ -2362,6 +2362,7 @@
     }
   },
   "photo_faces": {
+    "unassigned_face": "Unassigned face",
     "ignore_detection": "Ignore this detection",
     "detection_ignored": "Detection ignored",
     "unknown": "Unknown",
@@ -3201,6 +3202,10 @@
     "no_gps_hint": "Nothing in scope carries GPS coordinates. Open a photo and use its Location panel to place it — placed photos appear here."
   },
   "photo_detail": {
+    "inspection": {
+      "title": "Photo inspection",
+      "help": "Use +/− to zoom, arrow keys to pan when zoomed, and Home to fit. Tab moves to the next control."
+    },
     "collection": {
       "previous": "Previous photo in collection",
       "next": "Next photo in collection",

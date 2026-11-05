@@ -2337,6 +2337,7 @@
     }
   },
   "photo_faces": {
+    "unassigned_face": "Rosto não atribuído",
     "ignore_detection": "Ignorar esta detecção",
     "detection_ignored": "Detecção ignorada",
     "unknown": "Desconhecido",
@@ -3176,6 +3177,10 @@
     "no_gps_hint": "Nada no escopo carrega coordenadas GPS. Abra uma foto e use o painel de localização dela para situá-la — fotos situadas aparecem aqui."
   },
   "photo_detail": {
+    "inspection": {
+      "title": "Inspeção da fotografia",
+      "help": "Use +/− para ampliar, as setas para deslocar a imagem ampliada e Home para ajustar. Tab avança para o controlo seguinte."
+    },
     "collection": {
       "previous": "Foto anterior da coleção",
       "next": "Foto seguinte da coleção",

@@ -10,13 +10,14 @@ import { AssistantChangesService } from '../../core/agent/assistant-changes.serv
 import { PhotoStack, PhotoStackService } from '../../core/services/photo-stack.service';
 import { i18nKeys } from '../../core/i18n/keys';
 import { ThumbnailUrlPipe } from '../../shared/pipes/thumbnail-url.pipe';
+import { FilenamePipe } from '../../shared/pipes/filename.pipe';
 import { TranslatePipe } from '../../shared/pipes/translate.pipe';
 import { GalleryStore } from '../gallery/gallery.store';
 
 /** Read-only navigation: membership comes exclusively from the authorized endpoint. */
 @Component({
   selector: 'app-stack-navigator',
-  imports: [MatButtonModule, MatIconModule, ThumbnailUrlPipe, TranslatePipe],
+  imports: [MatButtonModule, MatIconModule, ThumbnailUrlPipe, TranslatePipe, FilenamePipe],
   changeDetection: ChangeDetectionStrategy.OnPush,
   host: { class: 'block shrink-0 min-w-0', '[style.min-height.px]': 'reservedHeight()' },
   template: `
@@ -42,9 +43,9 @@ import { GalleryStore } from '../gallery/gallery.store';
         <div class="flex flex-1 min-w-0 gap-2 overflow-x-auto">
           @for (member of members(); track member.path) {
             <button #thumbnail data-stack-thumbnail class="shrink-0 rounded overflow-hidden cursor-pointer focus-visible:outline-2 border-2 border-transparent"
-              [class.border-[var(--mat-sys-primary)]]="member.path === path()"
+              [class.!border-[var(--mat-sys-primary)]]="member.path === path()"
               [attr.aria-current]="member.path === path() ? 'true' : null"
-              [attr.aria-label]="I18N.stacks.open_member | translate:{ path: member.path }"
+              [attr.aria-label]="(I18N.stacks.open_member | translate:{ path: (member.path | filename) }) + ' · ' + (I18N.stacks.browse_position | translate:{ position: $index + 1, count: members().length })" [title]="member.path | filename"
               (click)="openMember(member.path)">
               <img [src]="member.path | thumbnailUrl:96:member.preview_revision" alt="" loading="lazy" decoding="async" class="w-10 h-10 object-cover" />
             </button>

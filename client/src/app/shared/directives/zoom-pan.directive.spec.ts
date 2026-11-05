@@ -85,6 +85,41 @@ describe('ZoomPanDirective', () => {
     zoom.reset(); fixture.detectChanges(); expect(img.style.transform).toBe('');
   });
 
+  it('zooms, pans in all directions within bounds, and fits from the focused canvas', () => {
+    Object.defineProperty(panel, 'clientWidth', { value: 400 });
+    Object.defineProperty(panel, 'clientHeight', { value: 300 });
+    const key = (value: string) => {
+      const event = new KeyboardEvent('keydown', { key: value, bubbles: true, cancelable: true });
+      panel.dispatchEvent(event); fixture.detectChanges(); return event;
+    };
+    expect(key('ArrowRight').defaultPrevented).toBe(false);
+    expect(key('+').defaultPrevented).toBe(true);
+    expect(key('ArrowRight').defaultPrevented).toBe(true);
+    expect(img.style.transform).toBe('scale(1.25) translate(-32px, 0px)');
+    key('ArrowLeft'); key('ArrowUp');
+    expect(img.style.transform).toBe('scale(1.25) translate(0px, 32px)');
+    key('ArrowDown');
+    for (let i = 0; i < 20; i++) key('ArrowRight');
+    expect(img.style.transform).toBe('scale(1.25) translate(-160px, 0px)');
+    expect(key('Tab').defaultPrevented).toBe(false);
+    key('Home'); expect(img.style.transform).toBe('');
+    key('-'); expect(img.style.transform).toBe('');
+  });
+
+  it('leaves nested controls, modified shortcuts and IME input alone', () => {
+    wheel(-1);
+    const button = document.createElement('button'); panel.append(button);
+    const nested = new KeyboardEvent('keydown', { key: 'ArrowRight', bubbles: true, cancelable: true });
+    button.dispatchEvent(nested);
+    expect(nested.defaultPrevented).toBe(false);
+    for (const modifiers of [{ ctrlKey: true }, { metaKey: true }, { altKey: true }, { isComposing: true }]) {
+      const event = new KeyboardEvent('keydown', { key: '+', cancelable: true, ...modifiers });
+      panel.dispatchEvent(event); expect(event.defaultPrevented).toBe(false);
+    }
+    fixture.detectChanges();
+    expect(img.style.transform).toBe('scale(1.15) translate(0px, 0px)');
+  });
+
   it('ends the previous drag when the displayed photo changes', () => {
     wheel(-1); pointer('pointerdown', 0, 0);
     expect(panel.classList).toContain('cursor-grabbing');

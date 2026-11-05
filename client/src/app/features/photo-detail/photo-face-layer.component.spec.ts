@@ -107,11 +107,11 @@ describe('PhotoFaceLayerComponent', () => {
     expect(['x', 'y', 'width', 'height'].map((a) => Math.round(Number(rects[0].getAttribute(a))))).toEqual([100, 100, 200, 200]);
   });
 
-  it('labels a named face with its name and an unnamed one as unknown', async () => {
+  it('labels a named face with its name and an unnamed one as unassigned', async () => {
     await render();
     const labels = [...fixture.nativeElement.querySelectorAll('text')].map((t) => (t as SVGTextElement).textContent?.trim());
     expect(labels[0]).toBe('Valerie');
-    expect(labels[1]).toBe('photo_faces.unknown');
+    expect(labels[1]).toBe('photo_faces.unassigned_face');
   });
 
   it('puts the label inside a box that touches the top edge', async () => {
@@ -356,12 +356,12 @@ describe('PhotoFaceLayerComponent', () => {
       expect(menuFace()?.id).toBe(1);
     });
 
-    it('each face is a focusable button named after its person, or unknown', async () => {
+    it('each face is a focusable button named after its person, or unassigned', async () => {
       await render();
       expect(fixture.nativeElement.querySelector('svg').getAttribute('aria-hidden')).toBeNull();
       expect(group(0).getAttribute('tabindex')).toBe('0');
       expect(group(0).getAttribute('aria-label')).toBe('Valerie');
-      expect(group(1).getAttribute('aria-label')).toBe('photo_faces.unknown');
+      expect(group(1).getAttribute('aria-label')).toBe('photo_faces.unassigned_face');
     });
 
     it('Enter and Space open the face menu', async () => {

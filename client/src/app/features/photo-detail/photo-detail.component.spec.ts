@@ -1253,6 +1253,22 @@ describe('PhotoDetailComponent', () => {
       expect(component.fullImageLoaded()).toBe(true);
     });
 
+    it('exposes one named image throughout loading, source success and failure', () => {
+      createComponent();
+      const fixture = TestBed.createComponent(PhotoDetailComponent);
+      const view: any = fixture.componentInstance;
+      view.photo.set(samplePhoto as never); fixture.detectChanges();
+      const assertSingleImage = () => {
+        const images = [...fixture.nativeElement.querySelectorAll('[data-photo-canvas] > img')] as HTMLImageElement[];
+        expect(images.filter(img => img.getAttribute('aria-hidden') !== 'true').map(img => img.alt)).toEqual([samplePhoto.filename]);
+        expect(images.slice(1).every(img => img.alt === '' && img.getAttribute('aria-hidden') === 'true')).toBe(true);
+      };
+      assertSingleImage();
+      view.onFullImageLoad({ target: loadedImage(view.fullImageUrl()) }); fixture.detectChanges(); assertSingleImage();
+      view.onFullImageError({ target: loadedImage(view.fullImageUrl()) }); fixture.detectChanges(); assertSingleImage();
+      fixture.destroy();
+    });
+
     it('replaces both image elements when the displayed photo changes', () => {
       createComponent();
       const fixture = TestBed.createComponent(PhotoDetailComponent);

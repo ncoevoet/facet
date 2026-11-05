@@ -23,6 +23,8 @@ All notable changes to Facet are documented in this file.
 
 ### Changed
 
+- Photo inspection supports keyboard panning and one image announcement; stack thumbnails mark the active member without announcing server paths. Long filenames and tags fit phones, collection thumbnails use one Tab stop, and Review precedes capture metadata.
+
 - Photo details now labels collection position, shows disclosure chevrons, places editable content before sources/files, and provides 44-pixel editing and tag targets on phones and touch devices.
 
 - Keep collection navigation and cover highlighting available on folded stack members. Arrow keys leave the stack at its boundaries; collection arrows show position and distinct accessible labels. Unify photo inspector headings, compact secondary disclosures, and hide redundant Ready text visually.

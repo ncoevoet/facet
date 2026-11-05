@@ -15,7 +15,7 @@ import { ContextHelpComponent } from '../../shared/components/context-help/conte
   host: { class: 'block min-w-0' },
   template: `
     <details [open]="expanded()" data-related-files (keydown.escape)="expanded() && close($event, trigger)" class="[&[open]>summary>mat-icon:last-child]:rotate-180">
-      <summary #trigger (click)="toggle($event)" class="flex min-h-9 max-sm:min-h-11 cursor-pointer items-center gap-2 text-xs font-medium focus-visible:outline-2">
+      <summary #trigger (click)="toggle($event)" class="flex min-h-9 max-sm:min-h-11 pointer-coarse:min-h-11 cursor-pointer items-center gap-2 text-xs font-medium focus-visible:outline-2">
         <mat-icon aria-hidden="true" class="!h-5 !w-5 !text-xl">file_copy</mat-icon><h3 class="m-0 text-xs font-medium">{{ I18N.related_files.title | translate }}</h3>
         <mat-icon aria-hidden="true" class="ml-auto !h-5 !w-5 shrink-0 !text-xl transition-transform motion-reduce:transition-none">expand_more</mat-icon>
       </summary>

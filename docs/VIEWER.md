@@ -376,9 +376,11 @@ Collection arrows and the position indicator remain available on every stack mem
 
 The image position pill explicitly labels the collection. Inspector disclosures show chevrons that turn when expanded. Review stays first; within Info, Caption, Location and Tags precede the secondary metadata-source and related-file disclosures. Editing and tag controls have at least 44-pixel touch targets on narrow screens and coarse pointers, while desktop controls remain compact.
 
-Below 360 pixels, the photo filename has its own full-width row with up to two lines and can break within long names. In narrow image readouts, a ready image shows dimensions without the visible source label; screen readers retain the full status, and loading and error text stays visible. Favorite and zoom controls use at least 44-pixel targets with a coarse pointer.
+On phones, the photo filename has its own full-width row, up to two lines. Very long names retain their beginning and distinguishing suffix. Narrow image readouts keep the source label visible; dimensions remain available to screen readers when they cannot fit. Loading and error text stays visible. Favorite, zoom and header icon controls use at least 44-pixel targets with a coarse pointer.
 
 When a comparison image is zoomed in, a small overview shows the whole photo with a red box marking the visible region. The box follows panning and zooming, including linked panes, and disappears at Fit.
+
+Focus the photo canvas to inspect it with the keyboard: +/− zoom, arrow keys pan while enlarged, and Home fits the image. At Fit, arrows resume photo navigation; Tab leaves the canvas. A single image name is announced while renditions change. Stack thumbnails show the active member and use filenames rather than server paths. The collection thumbnail list has one Tab stop; arrows, Home and End move focus without opening a photo until Enter. On phones the title preserves the start and distinguishing suffix of long filenames. Review comes before Info; capture date and category are inside Info, with an explicit missing-date label. Long tags wrap within the inspector. Small rendition readouts retain the source label and expose dimensions to screen readers when those dimensions cannot fit visibly.
 
 ### Keep Top N%
 

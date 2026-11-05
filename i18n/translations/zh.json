@@ -2337,6 +2337,7 @@
     }
   },
   "photo_faces": {
+    "unassigned_face": "未分配的人脸",
     "ignore_detection": "忽略此检测结果",
     "detection_ignored": "已忽略检测结果",
     "unknown": "未知",
@@ -3176,6 +3177,10 @@
     "no_gps_hint": "当前范围内的照片都没有 GPS 坐标。打开一张照片，用其位置面板标注地点——标注后会显示在这里。"
   },
   "photo_detail": {
+    "inspection": {
+      "title": "照片查看",
+      "help": "使用 +/− 缩放，放大后用方向键平移，按 Home 适应窗口。按 Tab 移至下一个控件。"
+    },
     "collection": {
       "previous": "集合中的上一张照片",
       "next": "集合中的下一张照片",
