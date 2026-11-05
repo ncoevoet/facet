@@ -249,3 +249,68 @@ class TestViewerDbObjectsMerge:
         c.close()
         export_viewer_db(src, out, thumbnail_size=64, verbose=False)
         assert os.path.exists(out)
+
+
+class TestViewerDbAiEditsMerge:
+    """photo_ai_edits follows the same additive contract as photo_manual_tags."""
+
+    _INS = ("INSERT INTO photo_ai_edits (edit_path, source_path, tool, revision) "
+            "VALUES (?, ?, 'antigravity-gemini', ?)")
+
+    def _pair(self, tmp_path):
+        src = _db(tmp_path, 'scan.db', photos=[('a.jpg', 'x'), ('a_agy_1.jpg', 'x'), ('b.jpg', 'y')])
+        s = sqlite3.connect(src)
+        s.execute(self._INS, (str(tmp_path / 'a_agy_1.jpg'), str(tmp_path / 'a.jpg'), 1))
+        s.commit()
+        s.close()
+        out = str(tmp_path / 'viewer.db')
+        export_viewer_db(src, out, thumbnail_size=64, verbose=False)
+        return src, out
+
+    @staticmethod
+    def _rows(out):
+        v = sqlite3.connect(out)
+        rows = sorted(v.execute("SELECT edit_path, source_path, revision FROM photo_ai_edits").fetchall())
+        v.close()
+        return rows
+
+    def test_a_link_made_after_the_first_export_reaches_the_viewer_db(self, tmp_path):
+        src, out = self._pair(tmp_path)
+        a, b = str(tmp_path / 'a.jpg'), str(tmp_path / 'b.jpg')
+        s = sqlite3.connect(src)
+        s.execute(self._INS, (str(tmp_path / 'b_agy_1.jpg'), b, 1))
+        s.commit()
+        s.close()
+        export_viewer_db(src, out, thumbnail_size=64, verbose=False)
+        assert self._rows(out) == [(str(tmp_path / 'a_agy_1.jpg'), a, 1), (str(tmp_path / 'b_agy_1.jpg'), b, 1)]
+
+    def test_reexport_does_not_duplicate_and_keeps_viewer_only_rows(self, tmp_path):
+        src, out = self._pair(tmp_path)
+        b = str(tmp_path / 'b.jpg')
+        v = sqlite3.connect(out)
+        v.execute(self._INS, (str(tmp_path / 'b_gpt_1.jpg'), b, 1))
+        v.commit()
+        v.close()
+        export_viewer_db(src, out, thumbnail_size=64, verbose=False)
+        export_viewer_db(src, out, thumbnail_size=64, verbose=False)
+        assert [r[0] for r in self._rows(out)] == sorted([str(tmp_path / 'a_agy_1.jpg'), str(tmp_path / 'b_gpt_1.jpg')])
+
+    def test_a_link_whose_original_is_not_exported_is_skipped(self, tmp_path):
+        src, out = self._pair(tmp_path)
+        s = sqlite3.connect(src)
+        s.execute("PRAGMA foreign_keys = OFF")
+        s.execute(self._INS, ('/gone_agy_1.jpg', '/gone.jpg', 1))
+        s.commit()
+        s.close()
+        export_viewer_db(src, out, thumbnail_size=64, verbose=False)
+        assert '/gone_agy_1.jpg' not in [r[0] for r in self._rows(out)]
+
+    @pytest.mark.parametrize("drop", ["src", "dest"])
+    def test_missing_table_on_either_side_does_not_abort(self, tmp_path, drop):
+        src, out = self._pair(tmp_path)
+        c = sqlite3.connect(src if drop == "src" else out)
+        c.execute("DROP TABLE photo_ai_edits")
+        c.commit()
+        c.close()
+        export_viewer_db(src, out, thumbnail_size=64, verbose=False)
+        assert os.path.exists(out)

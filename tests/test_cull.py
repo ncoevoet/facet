@@ -1625,6 +1625,78 @@ class TestPhotoDelete:
         assert len(leads) == 1
         assert leads[0] in (f1, f2)  # exactly one surviving frame promoted
 
+    @staticmethod
+    def _burst(db, rows):
+        """rows: (path, aggregate, is_burst_lead) of one burst, group id 7."""
+        conn = sqlite3.connect(db)
+        conn.executemany("UPDATE photos SET burst_group_id = 7, phash = 'ab', aggregate = ?, is_burst_lead = ? "
+                         "WHERE path = ?", [(agg, lead, path) for path, agg, lead in rows])
+        conn.commit()
+        conn.close()
+
+    @staticmethod
+    def _burst_leads(db):
+        conn = sqlite3.connect(db)
+        try:
+            return sorted(r[0] for r in conn.execute(
+                "SELECT path FROM photos WHERE burst_group_id = 7 AND is_burst_lead = 1"))
+        finally:
+            conn.close()
+
+    def _delete(self, client, db, paths):
+        fake_module = mock.Mock(send2trash=mock.MagicMock())
+        with (
+            mock.patch(f"{_EXPORT_MODULE}.get_db", _db_cm(db)),
+            mock.patch(f"{_EXPORT_MODULE}.VIEWER_CONFIG", {"cull": {"allow_trash": True}}),
+            mock.patch.dict("sys.modules", {"send2trash": fake_module}),
+        ):
+            resp = client.post("/api/photo/delete", json={"paths": paths, "dry_run": False})
+        assert resp.status_code == 200, resp.text
+        return resp.json()
+
+    def test_deleting_a_bursts_only_lead_hands_the_lead_to_the_best_remaining_frame(self, client, tmp_path):
+        """Deleting the lead (e.g. an AI edit that outscored its original) must not leave
+        the burst without one: Hide bursts would then hide every frame."""
+        edit, best, worst = (_make_file(tmp_path, n) for n in ("IMG_1_agy_1.jpg", "IMG_1.jpg", "IMG_2.jpg"))
+        db = _db(tmp_path, [(edit, 0), (best, 0), (worst, 0)])
+        self._burst(db, [(edit, 7.0, 1), (best, 6.0, 0), (worst, 2.0, 0)])
+        assert self._delete(client, db, [edit])["deleted"] == [edit]
+        assert self._burst_leads(db) == [best]
+
+    def test_a_burst_that_keeps_a_lead_is_left_alone(self, client, tmp_path):
+        """Burst culling can keep several leads; removing one leaves the other in charge."""
+        a, b, c = (_make_file(tmp_path, n) for n in ("a.jpg", "b.jpg", "c.jpg"))
+        db = _db(tmp_path, [(a, 0), (b, 0), (c, 0)])
+        self._burst(db, [(a, 5.0, 1), (b, 3.0, 1), (c, 9.0, 0)])
+        self._delete(client, db, [a])
+        assert self._burst_leads(db) == [b]
+
+    def test_deleting_a_whole_burst_promotes_nothing(self, client, tmp_path):
+        a, b = (_make_file(tmp_path, n) for n in ("a.jpg", "b.jpg"))
+        db = _db(tmp_path, [(a, 0), (b, 0)])
+        self._burst(db, [(a, 5.0, 1), (b, 3.0, 0)])
+        assert sorted(self._delete(client, db, [a, b])["deleted"]) == sorted([a, b])
+        assert self._burst_leads(db) == []
+
+    def test_moving_a_bursts_only_lead_leaves_exactly_one_lead(self, client, tmp_path):
+        """Cull to folder keeps the moved row until a rescan prunes it, so the moved lead
+        must give up its flag as the best remaining frame takes it: two leads would show
+        one burst as two tiles under Hide bursts."""
+        lead, best, worst = (_make_file(tmp_path, n) for n in ("IMG_1_agy_1.jpg", "IMG_1.jpg", "IMG_2.jpg"))
+        db = _db(tmp_path, [(lead, 1), (best, 0), (worst, 0)])
+        self._burst(db, [(lead, 7.0, 1), (best, 6.0, 0), (worst, 2.0, 0)])
+        with (
+            mock.patch(f"{_EXPORT_MODULE}.get_db", _db_cm(db)),
+            mock.patch(f"{_EXPORT_MODULE}._allowed_export_roots", return_value=[str(tmp_path)]),
+        ):
+            resp = client.post("/api/cull/apply", json={
+                "paths": [lead], "action": "move_rejects", "target_dir": str(tmp_path / "out"),
+                "dry_run": False, "include_companions": False, "include_sequence_siblings": False,
+            })
+        assert resp.status_code == 200, resp.text
+        assert resp.json()["moved"] == 1
+        assert self._burst_leads(db) == [best]
+
     def test_reconciling_a_missing_panorama_lead_repicks_a_surviving_lead(self, client, tmp_path):
         """A lead whose file is already gone, removed via remove_missing with no
         trash call at all, must still hand the lead to a surviving frame."""
