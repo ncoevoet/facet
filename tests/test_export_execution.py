@@ -13,6 +13,11 @@ from db import DEFAULT_DB_PATH
 from tests._sidecar_helpers import settle_sidecar_job
 
 
+# Worker preflight and fsync can be delayed on parallel Windows runners. These
+# are event deadlines, not sleeps: fast workers continue as soon as signalled.
+WORKER_EVENT_TIMEOUT = 30
+
+
 @pytest.fixture
 def library(tmp_path, seed_photos_prefix, monkeypatch):
     source = tmp_path / 'photos'
@@ -38,7 +43,7 @@ def confirmed_body(client, body):
 
 
 def done(job):
-    return settle_sidecar_job(DEFAULT_DB_PATH, job['id'], 'test')
+    return settle_sidecar_job(DEFAULT_DB_PATH, job['id'], 'test', timeout=WORKER_EVENT_TIMEOUT)
 
 
 @pytest.mark.parametrize('racy', [False, True])
@@ -252,13 +257,14 @@ def test_later_metadata_change_stops_new_files_and_retains_written_prefix(editio
     def write_then_pause(*args, **kwargs):
         result = real_write(*args, **kwargs)
         entered.set()
-        assert release.wait(5)
+        assert release.wait(WORKER_EVENT_TIMEOUT)
         return result
 
     monkeypatch.setattr(export_execution, 'write_confirmed_metadata', write_then_pause)
     response = edition_client.post('/api/export/apply', json=apply)
     try:
-        assert response.status_code == 202 and entered.wait(3)
+        assert response.status_code == 202, response.text
+        assert entered.wait(WORKER_EVENT_TIMEOUT), sidecar_jobs.status(DEFAULT_DB_PATH, response.json()["id"], "test")
         with sqlite3.connect(DEFAULT_DB_PATH) as conn:
             conn.execute('UPDATE photos SET star_rating=1 WHERE path=?', (str(paths[1]),))
     finally:
@@ -317,12 +323,13 @@ def test_cancellation_keeps_completed_file_and_never_starts_next(edition_client,
     def deliver_then_pause(*args):
         real_deliver(*args)
         entered.set()
-        assert release.wait(5)
+        assert release.wait(WORKER_EVENT_TIMEOUT)
 
     monkeypatch.setattr(export_execution, '_deliver', deliver_then_pause)
     response = edition_client.post('/api/export/apply', json=apply)
     try:
-        assert response.status_code == 202 and entered.wait(3)
+        assert response.status_code == 202, response.text
+        assert entered.wait(WORKER_EVENT_TIMEOUT), sidecar_jobs.status(DEFAULT_DB_PATH, response.json()["id"], "test")
         sidecar_jobs.cancel(DEFAULT_DB_PATH, response.json()['id'], 'test')
     finally:
         release.set()
@@ -352,12 +359,12 @@ def test_new_packet_owner_after_preflight_stops_the_next_sidecar(edition_client,
     def write_then_pause(*args, **kwargs):
         real_write(*args, **kwargs)
         entered.set()
-        assert release.wait(5)
+        assert release.wait(WORKER_EVENT_TIMEOUT)
 
     monkeypatch.setattr(export_execution, 'write_confirmed_metadata', write_then_pause)
     response = edition_client.post('/api/export/apply', json=apply)
     try:
-        assert entered.wait(3)
+        assert entered.wait(WORKER_EVENT_TIMEOUT), sidecar_jobs.status(DEFAULT_DB_PATH, response.json()["id"], "test")
         Path(str(paths[1]) + '.png').write_bytes(b'new photo claiming the packet by basename')
     finally:
         release.set()
@@ -382,12 +389,13 @@ def test_retry_preview_keeps_unfinished_companions_without_redelivering_complete
     def pause(*args):
         real_deliver(*args)
         entered.set()
-        assert release.wait(5)
+        assert release.wait(WORKER_EVENT_TIMEOUT)
 
     monkeypatch.setattr(export_execution, '_deliver', pause)
     response = edition_client.post('/api/export/apply', json=apply)
     try:
-        assert response.status_code == 202 and entered.wait(3)
+        assert response.status_code == 202, response.text
+        assert entered.wait(WORKER_EVENT_TIMEOUT), sidecar_jobs.status(DEFAULT_DB_PATH, response.json()["id"], "test")
         sidecar_jobs.cancel(DEFAULT_DB_PATH, response.json()['id'], 'test')
     finally:
         release.set()
@@ -443,12 +451,12 @@ def test_retry_preview_refuses_an_occupied_unfinished_destination(edition_client
     def pause(*args):
         real_deliver(*args)
         entered.set()
-        assert release.wait(5)
+        assert release.wait(WORKER_EVENT_TIMEOUT)
 
     monkeypatch.setattr(export_execution, '_deliver', pause)
     response = edition_client.post('/api/export/apply', json=apply)
     try:
-        assert entered.wait(3)
+        assert entered.wait(WORKER_EVENT_TIMEOUT), sidecar_jobs.status(DEFAULT_DB_PATH, response.json()["id"], "test")
         sidecar_jobs.cancel(DEFAULT_DB_PATH, response.json()['id'], 'test')
     finally:
         release.set()
@@ -602,13 +610,14 @@ def test_logical_primary_change_between_files_stops_remaining_sidecar(edition_cl
     def write_then_pause(*args, **kwargs):
         result = real_write(*args, **kwargs)
         entered.set()
-        assert release.wait(5)
+        assert release.wait(WORKER_EVENT_TIMEOUT)
         return result
 
     monkeypatch.setattr(export_execution, 'write_confirmed_metadata', write_then_pause)
     response = edition_client.post('/api/export/apply', json=apply)
     try:
-        assert response.status_code == 202 and entered.wait(3)
+        assert response.status_code == 202, response.text
+        assert entered.wait(WORKER_EVENT_TIMEOUT), sidecar_jobs.status(DEFAULT_DB_PATH, response.json()["id"], "test")
         with sqlite3.connect(DEFAULT_DB_PATH) as conn:
             conn.execute('BEGIN IMMEDIATE')
             logical_assets.set_primary(conn, key, str(path), 1, visibility_sql='1=1')
@@ -689,13 +698,14 @@ def test_collection_primary_change_between_copy_files_stops_the_old_representati
     def deliver_then_pause(*args, **kwargs):
         result = real_deliver(*args, **kwargs)
         entered.set()
-        assert release.wait(5)
+        assert release.wait(WORKER_EVENT_TIMEOUT)
         return result
 
     monkeypatch.setattr(export_execution, '_deliver', deliver_then_pause)
     response = edition_client.post('/api/export/apply', json=apply)
     try:
-        assert response.status_code == 202 and entered.wait(3)
+        assert response.status_code == 202, response.text
+        assert entered.wait(WORKER_EVENT_TIMEOUT), sidecar_jobs.status(DEFAULT_DB_PATH, response.json()["id"], "test")
         with sqlite3.connect(DEFAULT_DB_PATH) as conn:
             conn.execute('BEGIN IMMEDIATE')
             logical_assets.set_primary(conn, key, str(path), 1, visibility_sql='1=1')
