@@ -628,6 +628,7 @@
     "person_fallback": "Person {id}"
   },
   "stats": {
+    "reset_series": "Reihenauswahl zurücksetzen",
     "series_selected_count": "{selected} von {total} Reihen angezeigt",
     "more_series_scroll": "Scrollen, um alle Reihen zu sehen",
     "series_limit": "Wähle bis zu {count} Reihen zur Anzeige",

@@ -1,5 +1,5 @@
 import { Component, inject, signal, computed, viewChild, ElementRef, effect, DestroyRef, Injector, afterNextRender, untracked, ChangeDetectionStrategy, Pipe, PipeTransform } from '@angular/core';
-import { DecimalPipe, DOCUMENT, NgTemplateOutlet } from '@angular/common';
+import { DOCUMENT, NgTemplateOutlet } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { MatCardModule } from '@angular/material/card';
 import { MatTabsModule } from '@angular/material/tabs';
@@ -86,7 +86,6 @@ export class StatsNumberPipe implements PipeTransform {
 @Component({
   selector: 'app-stats',
   imports: [
-    DecimalPipe,
     NgTemplateOutlet,
     StatsNumberPipe,
     FormsModule,
@@ -206,9 +205,9 @@ export class StatsNumberPipe implements PipeTransform {
               <div class="grid grid-cols-1 lg:grid-cols-2 2xl:grid-cols-3 gap-4">
                 @if (categoryMetricData().length > 0) {
                   <mat-card>
-                    <mat-card-header class="!flex !items-center !justify-between !gap-4">
+                    <mat-card-header class="!flex !flex-wrap !items-center !justify-between !gap-x-4 !gap-y-2">
                       <h2 mat-card-title>{{ I18N.stats.category_metric_title | translate }}</h2>
-                      <mat-form-field class="flex-1 min-w-0 !-mt-2" subscriptSizing="dynamic">
+                      <mat-form-field class="min-w-40 flex-1" subscriptSizing="dynamic">
                         <mat-label>{{ I18N.stats.gear_metric_label | translate }}</mat-label>
                         <mat-select [ngModel]="categoryMetric()" (ngModelChange)="categoryMetric.set($event)">
                           @for (opt of categoryMetricOptions; track opt.key) {
@@ -306,7 +305,7 @@ export class StatsNumberPipe implements PipeTransform {
                         <caption>{{ I18N.stats.score_histogram | translate }}</caption>
                         <thead><tr><th scope="col">{{ I18N.stats.axes.score | translate }}</th><th scope="col">{{ I18N.stats.axes.photos | translate }}</th></tr></thead>
                         <tbody>
-                          @for (bin of scoreDisplayBins(); track bin.range) {
+                          @for (bin of scoreChartBins(); track bin.range) {
                             <tr><th scope="row">{{ bin.displayRange }}</th><td>{{ bin.count | statsNumber:i18n.locale() }}</td></tr>
                           }
                         </tbody>
@@ -356,9 +355,9 @@ export class StatsNumberPipe implements PipeTransform {
                             <td class="py-1.5 pr-4 font-medium" [matTooltip]="('category_names.' + cat.category) | translate">{{ ('category_names.' + cat.category) | translate }}</td>
                             <td class="py-1.5 pr-4 text-[var(--mat-sys-on-surface-variant)] truncate max-w-40" [matTooltip]="cat.top_camera || '—'">{{ cat.top_camera || '—' }}</td>
                             <td class="py-1.5 pr-4 text-[var(--mat-sys-on-surface-variant)] truncate max-w-40" [matTooltip]="cat.top_lens || '—'">{{ cat.top_lens || '—' }}</td>
-                            <td class="py-1.5 pr-4 text-[var(--mat-sys-on-surface-variant)]" [matTooltip]="cat.avg_iso > 0 ? (cat.avg_iso | number:'1.0-0') : '—'">{{ cat.avg_iso > 0 ? (cat.avg_iso | number:'1.0-0') : '—' }}</td>
-                            <td class="py-1.5 pr-4 text-[var(--mat-sys-on-surface-variant)]" [matTooltip]="cat.avg_f_stop > 0 ? (cat.avg_f_stop | number:'1.1-1') : '—'">{{ cat.avg_f_stop > 0 ? (cat.avg_f_stop | number:'1.1-1') : '—' }}</td>
-                            <td class="py-1.5 text-[var(--mat-sys-on-surface-variant)]" [matTooltip]="cat.avg_focal_length > 0 ? (cat.avg_focal_length | number:'1.0-0') : '—'">{{ cat.avg_focal_length > 0 ? (cat.avg_focal_length | number:'1.0-0') : '—' }}</td>
+                            <td class="py-1.5 pr-4 text-[var(--mat-sys-on-surface-variant)]" [matTooltip]="cat.avg_iso > 0 ? (cat.avg_iso | statsNumber:i18n.locale()) : '—'">{{ cat.avg_iso > 0 ? (cat.avg_iso | statsNumber:i18n.locale()) : '—' }}</td>
+                            <td class="py-1.5 pr-4 text-[var(--mat-sys-on-surface-variant)]" [matTooltip]="cat.avg_f_stop > 0 ? (cat.avg_f_stop | statsNumber:i18n.locale():1) : '—'">{{ cat.avg_f_stop > 0 ? (cat.avg_f_stop | statsNumber:i18n.locale():1) : '—' }}</td>
+                            <td class="py-1.5 text-[var(--mat-sys-on-surface-variant)]" [matTooltip]="cat.avg_focal_length > 0 ? (cat.avg_focal_length | statsNumber:i18n.locale()) : '—'">{{ cat.avg_focal_length > 0 ? (cat.avg_focal_length | statsNumber:i18n.locale()) : '—' }}</td>
                           </tr>
                         }
                       </tbody>
@@ -485,6 +484,27 @@ export class StatsComponent {
       return { ...bin, displayRange: bin.range.trim() && Number.isFinite(value) ? formatter.format(value) : bin.range };
     });
   });
+  /** The API omits empty rounded buckets; keep their positions on the chart. */
+  protected readonly scoreChartBins = computed(() => {
+    const bins = this.scoreDisplayBins();
+    if (!bins.length) return bins;
+    const byStep = new Map<number, (typeof bins)[number]>();
+    for (const bin of bins) {
+      const value = Number(bin.range), step = Math.round(value * 2);
+      if (!bin.range.trim() || !Number.isFinite(value) || Math.abs(value * 2 - step) > 1e-8 || byStep.has(step)) return bins;
+      byStep.set(step, bin);
+    }
+    const steps = [...byStep.keys()].sort((a, b) => a - b);
+    const first = steps[0] >= 0 && steps[steps.length - 1] <= 20 ? 0 : steps[0];
+    const last = steps[0] >= 0 && steps[steps.length - 1] <= 20 ? 20 : steps[steps.length - 1];
+    // Do not allocate an unbounded array for corrupt or unsupported values.
+    if (last - first > 400) return bins;
+    const formatter = new Intl.NumberFormat(this.i18n.locale(), { maximumFractionDigits: 1 });
+    return Array.from({ length: last - first + 1 }, (_, offset) => {
+      const step = first + offset, value = step / 2;
+      return byStep.get(step) ?? { range: String(value), min: value, max: value, count: 0, percentage: 0, displayRange: formatter.format(value) };
+    });
+  });
   protected readonly scoreLoading = signal(false);
 
   protected readonly topCameras = signal<TopCamera[]>([]);
@@ -547,7 +567,7 @@ export class StatsComponent {
 
     // Chart effects — canvas refs must be tracked so charts render on tab switch
     effect(() => {
-      const bins = this.scoreDisplayBins();
+      const bins = this.scoreChartBins();
       const accent = chartSeriesColor(this.themeService.accentColor(), this.themeService.darkMode());
       this.buildVerticalBar('score', this.scoreCanvas(), bins.map(b => b.displayRange), bins.map(b => b.count), accent);
     });

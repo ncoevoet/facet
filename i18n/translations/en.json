@@ -653,6 +653,7 @@
     "person_fallback": "Person {id}"
   },
   "stats": {
+    "reset_series": "Reset series selection",
     "series_selected_count": "{selected} of {total} series shown",
     "more_series_scroll": "Scroll to see all series",
     "series_limit": "Select up to {count} series to display",

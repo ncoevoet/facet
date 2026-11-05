@@ -167,6 +167,29 @@ describe('StatsComponent', () => {
     expect(c().scoreDisplayBins()[0]).not.toHaveProperty('displayBounds');
   });
 
+  it('retains empty score positions without changing the API data used by CSV', () => {
+    component = createComponent();
+    c().scoreBins.set([
+      { range: '1.0', min: 1, max: 1.5, count: 2, percentage: 0.5 },
+      { range: '9.5', min: 9.5, max: 10, count: 2, percentage: 0.5 },
+    ]);
+    const chart = c().scoreChartBins();
+    expect(chart).toHaveLength(21);
+    expect(chart.find((b: { range: string }) => b.range === '1.0').count).toBe(2);
+    expect(chart.find((b: { range: string }) => b.range === '5').count).toBe(0);
+    expect(chart.find((b: { range: string }) => b.range === '9.5').count).toBe(2);
+    expect(c().scoreBins()).toHaveLength(2);
+  });
+
+  it('does not allocate fabricated buckets for unsupported or extreme ranges', () => {
+    component = createComponent();
+    c().scoreBins.set([{ range: '0.3', min: 0.3, max: 0.8, count: 1, percentage: 1 }]);
+    expect(c().scoreChartBins()).toHaveLength(1);
+    c().scoreBins.set([{ range: '-1000', min: -1000, max: -999.5, count: 1, percentage: 0.5 },
+      { range: '1000', min: 1000, max: 1000.5, count: 1, percentage: 0.5 }]);
+    expect(c().scoreChartBins()).toHaveLength(2);
+  });
+
   it('uses whole values for ISO and focal length, and one decimal for scores and aperture', () => {
     component = createComponent();
     c().categoryMetric.set('avg_iso');

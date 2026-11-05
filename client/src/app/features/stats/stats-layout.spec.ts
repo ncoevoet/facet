@@ -111,7 +111,7 @@ describe('statistics page states', () => {
     const page = fixture.componentInstance as any;
     page.selectedTab.set(1);
     page.scoreBins.set([{ range: '1.5', min: 1.5, max: 2, count: 1234, percentage: 1 }]);
-    page.categoryStats.set([{ category: 'portrait', count: 1, avg_score: 6.5, avg_f_stop: 2.8, avg_iso: 400,
+    page.categoryStats.set([{ category: 'portrait', count: 1, avg_score: 6.5, avg_f_stop: 2.8, avg_iso: 1400,
       avg_focal_length: 50, avg_aesthetic: 6, avg_composition: 7, avg_sharpness: 8,
       avg_color: 6, avg_exposure: 7, avg_face_quality: 8, avg_contrast: 6 }]);
     fixture.detectChanges(); await fixture.whenStable(); fixture.detectChanges();
@@ -132,8 +132,12 @@ describe('statistics page states', () => {
     page.categoryMetric.set('avg_iso');
     fixture.detectChanges(); await fixture.whenStable(); fixture.detectChanges();
     const metric = Array.from(host.querySelectorAll('table')).find(table => table.querySelector('caption')?.textContent?.includes('stats.category_metric_title'));
-    expect(metric?.textContent).toContain('400');
-    expect(metric?.textContent).not.toContain('400,0');
+    expect(metric?.textContent).toContain('1.400');
+    expect(metric?.textContent).not.toContain('1.400,0');
+    const gearTitle = Array.from(host.querySelectorAll('h2')).find(heading => heading.textContent?.includes('stats.categories_gear_profile'));
+    const gearTable = gearTitle?.closest('mat-card')?.querySelector('table');
+    expect(gearTable?.textContent).toContain('1.400');
+    expect(gearTable?.textContent).toContain('2,8');
     vi.restoreAllMocks();
   });
 });

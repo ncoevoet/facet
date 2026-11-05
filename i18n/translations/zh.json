@@ -628,6 +628,7 @@
     "person_fallback": "人物 {id}"
   },
   "stats": {
+    "reset_series": "重置系列选择",
     "series_selected_count": "显示 {total} 个系列中的 {selected} 个",
     "more_series_scroll": "滚动查看所有系列",
     "series_limit": "最多选择 {count} 个数据系列显示",

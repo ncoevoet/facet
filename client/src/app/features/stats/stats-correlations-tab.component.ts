@@ -34,6 +34,23 @@ export function correlationSeries(data: CorrelationApiResponse, metrics: string[
   return Object.entries(data.metrics ?? {}).map(([metric, values], metricIndex) => ({ label: metricLabel(metric), values, groupIndex: metricIndex, metricIndex }));
 }
 
+/** Preserve slots for still-visible series, reusing only slots that became free. */
+export function allocateSeriesSlots(keys: string[], previous: Record<string, number>, limit = 8): Record<string, number> {
+  const slots: Record<string, number> = {};
+  const used = new Set<number>();
+  for (const key of keys) {
+    const slot = previous[key];
+    if (slot !== undefined && slot >= 0 && slot < limit && !used.has(slot)) { slots[key] = slot; used.add(slot); }
+  }
+  for (const key of keys) {
+    if (slots[key] !== undefined) continue;
+    const slot = Array.from({ length: limit }, (_, index) => index).find(index => !used.has(index));
+    if (slot === undefined) break;
+    slots[key] = slot; used.add(slot);
+  }
+  return slots;
+}
+
 @Component({
   selector: 'app-stats-correlations-tab',
   standalone: true,
@@ -125,8 +142,10 @@ export function correlationSeries(data: CorrelationApiResponse, metrics: string[
                 <div id="correlation-series-help" class="mb-1 text-xs text-[var(--mat-sys-on-surface-variant)]" aria-live="polite">
                   <span>{{ I18N.stats.series_selected_count | translate:{selected: selectedSeriesCount(), total: chartSeriesRows().length} }}</span>
                   @if (isBarChart() && chartSeriesRows().length > seriesLimit) { <span> · {{ I18N.stats.series_limit | translate:{count: seriesLimit} }}</span> }
-                  @if (chartSeriesRows().length > 4) { <span> · {{ I18N.stats.more_series_scroll | translate }}</span> }
+                  @if (chartSeriesRows().length > 3) { <span class="sm:hidden"> · {{ I18N.stats.more_series_scroll | translate }}</span> }
+                  @if (chartSeriesRows().length > 6) { <span class="hidden sm:inline"> · {{ I18N.stats.more_series_scroll | translate }}</span> }
                 </div>
+                <button type="button" mat-button class="!min-h-10 !px-2" (click)="resetSeriesSelection()">{{ I18N.stats.reset_series | translate }}</button>
                 <div class="grid max-h-32 grid-cols-1 gap-x-4 overflow-auto sm:grid-cols-2">
                   @for (series of chartSeriesRows(); track series.key) {
                     <label class="flex min-h-10 min-w-0 cursor-pointer items-center gap-2 text-sm" [class.opacity-60]="series.atLimit">
@@ -174,6 +193,7 @@ export class StatsCorrelationsTabComponent {
   private generation = 0;
   private readonly loadedKey = signal('');
   private readonly seriesVisibility = signal<Record<string, boolean>>({});
+  private readonly barColorSlots = signal<Record<string, number>>({});
 
   readonly correlationsCanvas = viewChild<ElementRef<HTMLCanvasElement>>('correlationsCanvas');
   readonly correlationRetry = viewChild('correlationRetry', { read: ElementRef<HTMLButtonElement> });
@@ -197,15 +217,17 @@ export class StatsCorrelationsTabComponent {
     const bars = this.isBarChart();
     const dashes = [[], [7, 4], [2, 3], [9, 3, 2, 3]];
     const visibility = this.seriesVisibility();
+    const barSlots = this.barColorSlots();
     let visibleIndex = 0;
     const rows = correlationSeries(data, this.corrYMetrics(), metric => this.i18n.t(`stats.correlations.metrics.${metric}`))
       .map((series, index) => {
         const key = `${series.groupIndex}:${series.metricIndex}`;
         const requested = visibility[key] ?? (!bars || index < this.seriesLimit);
         const visible = requested && (!bars || visibleIndex < this.seriesLimit);
-        const colorIndex = bars ? (visible ? visibleIndex++ : 0) : series.groupIndex;
+        const colorIndex = bars ? (visible ? (barSlots[key] ?? visibleIndex++) : 0) : series.groupIndex;
+        if (bars && visible && barSlots[key] !== undefined) visibleIndex++;
         const dash = bars ? [] : dashes[series.metricIndex % dashes.length];
-        return { ...series, key, color: colors[colorIndex % colors.length], dash, dashPattern: dash.join(' '), visible };
+        return { ...series, key, color: bars && !visible ? 'var(--mat-sys-outline)' : colors[colorIndex % colors.length], dash, dashPattern: dash.join(' '), visible };
       });
     const selected = rows.filter(row => row.visible).length;
     return rows.map(row => ({ ...row, atLimit: bars && !row.visible && selected >= this.seriesLimit }));
@@ -267,6 +289,7 @@ export class StatsCorrelationsTabComponent {
       this.generation++;
       this.corrData.set(null);
       this.seriesVisibility.set({});
+      this.barColorSlots.set({});
       this.correlationLoading.set(false);
       this.correlationFailed.set(false);
       this.correlationRetrying.set(false);
@@ -298,7 +321,20 @@ export class StatsCorrelationsTabComponent {
 
   setSeriesVisible(key: string, visible: boolean): void {
     if (visible && this.isBarChart() && this.selectedSeriesCount() >= this.seriesLimit) return;
+    if (this.isBarChart()) {
+      const keys = this.chartSeriesRows().filter(row => row.visible && row.key !== key).map(row => row.key);
+      if (visible) keys.push(key);
+      this.barColorSlots.set(allocateSeriesSlots(keys, this.barColorSlots(), this.seriesLimit));
+    }
     this.seriesVisibility.update(current => ({ ...current, [key]: visible }));
+  }
+
+  resetSeriesSelection(): void {
+    if (this.isBarChart()) {
+      const keys = this.chartSeriesRows().slice(0, this.seriesLimit).map(row => row.key);
+      this.barColorSlots.set(allocateSeriesSlots(keys, this.barColorSlots(), this.seriesLimit));
+    }
+    this.seriesVisibility.set({});
   }
 
   setChartType(type: string): void {
@@ -310,6 +346,7 @@ export class StatsCorrelationsTabComponent {
         visibility[row.key] = row.visible && selected < this.seriesLimit;
         if (visibility[row.key]) selected++;
       }
+      this.barColorSlots.set(allocateSeriesSlots(Object.keys(visibility).filter(key => visibility[key]), {}, this.seriesLimit));
       this.seriesVisibility.set(visibility);
     }
     this.corrChartType.set(type);
@@ -338,6 +375,10 @@ export class StatsCorrelationsTabComponent {
         this.api.get<CorrelationApiResponse>('/stats/correlations', params, new HttpContext().set(HANDLE_SERVER_ERROR_LOCALLY, true)),
       );
       if (generation === this.generation && key === this.requestKey()) {
+        if (this.isBarChart()) {
+          const keys = correlationSeries(data, this.corrYMetrics(), metric => metric).slice(0, this.seriesLimit).map(row => `${row.groupIndex}:${row.metricIndex}`);
+          this.barColorSlots.set(allocateSeriesSlots(keys, {}, this.seriesLimit));
+        }
         this.loadedKey.set(key); this.corrData.set(data);
         if (restoreFocus && doc?.activeElement === button) afterNextRender(() => {
           if (generation === this.generation && key === this.requestKey() && (doc.activeElement === doc.body || doc.activeElement === button)) this.correlationHeading()?.nativeElement.focus();
@@ -428,8 +469,9 @@ export class StatsCorrelationsTabComponent {
           x: {
             grid: { color: palette.grid },
             ticks: { color: palette.text, maxRotation: isHorizontal ? 0 : 45 },
+            ...(type === 'bar' && isHorizontal ? { beginAtZero: true } : {}),
           },
-          y: { grid: { color: palette.grid }, ticks: { color: palette.text, font: { size: 11 } } },
+          y: { grid: { color: palette.grid }, ticks: { color: palette.text, font: { size: 11 } }, ...(type === 'bar' && !isHorizontal ? { beginAtZero: true } : {}) },
         },
       },
     }));

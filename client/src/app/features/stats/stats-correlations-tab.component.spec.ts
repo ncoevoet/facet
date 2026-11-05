@@ -5,7 +5,7 @@ import { ApiService } from '../../core/services/api.service';
 import { AuthService } from '../../core/services/auth.service';
 import { I18nService } from '../../core/services/i18n.service';
 import { StatsFiltersService } from './stats-filters.service';
-import { correlationSeries, StatsCorrelationsTabComponent } from './stats-correlations-tab.component';
+import { allocateSeriesSlots, correlationSeries, StatsCorrelationsTabComponent } from './stats-correlations-tab.component';
 import { buildCorrelationCsvRecords } from './stats-correlations-csv';
 
 describe('StatsCorrelationsTabComponent', () => {
@@ -111,6 +111,7 @@ describe('StatsCorrelationsTabComponent', () => {
     expect(rows).toHaveLength(12);
     expect(component.selectedSeriesCount()).toBe(8);
     expect(new Set(rows.filter(row => row.visible).map(row => row.color)).size).toBe(8);
+    const originalColors = new Map(rows.filter(row => row.visible).map(row => [row.key, row.color]));
     expect(rows[8].atLimit).toBe(true);
     component.setSeriesVisible(rows[0].key, false);
     rows = component.chartSeriesRows();
@@ -120,10 +121,15 @@ describe('StatsCorrelationsTabComponent', () => {
     expect(rows[8].visible).toBe(true);
     expect(component.selectedSeriesCount()).toBe(8);
     expect(new Set(rows.filter(row => row.visible).map(row => row.color)).size).toBe(8);
+    for (const row of rows.slice(1, 8)) expect(row.color).toBe(originalColors.get(row.key));
+    expect(rows[0].color).toBe('var(--mat-sys-outline)');
     expect(component.accessibleRows()).toHaveLength(6);
     expect(buildCorrelationCsvRecords(component.currentData(), ['aggregate', 'aesthetic'])).toHaveLength(6);
     for (const row of rows.filter(row => row.visible)) component.setSeriesVisible(row.key, false);
     expect(component.selectedSeriesCount()).toBe(0);
+    component.resetSeriesSelection();
+    expect(component.selectedSeriesCount()).toBe(8);
+    expect(component.chartSeriesRows().slice(0, 8).every(row => row.visible)).toBe(true);
   });
 
   it('does not automatically select a hidden series when switching from line to bar', async () => {
@@ -301,6 +307,13 @@ describe('buildCorrelationCsvRecords', () => {
 });
 
 describe('correlationSeries', () => {
+  it('preserves visible series colors and reuses only the freed slot', () => {
+    const initial = allocateSeriesSlots(['a', 'b', 'c'], {});
+    expect(initial).toEqual({ a: 0, b: 1, c: 2 });
+    const changed = allocateSeriesSlots(['b', 'c', 'd'], initial);
+    expect(changed).toEqual({ b: 1, c: 2, d: 0 });
+  });
+
   it('shows every selected metric for every group and retains missing values', () => {
     const data = { labels: ['2024', '2025'], x_axis: 'date_year', group_by: 'camera_model', groups: {
       Canon: { '2024': { aggregate: 7, aesthetic: 6 }, '2025': { aggregate: 8 } },
