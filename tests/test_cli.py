@@ -192,6 +192,12 @@ class TestDatabaseCli:
             assert t in tables, f"{t} missing from initialised DB"
         conn.close()
 
+    def test_migrate_user_preferences_without_user_exits_1(self, tmp_path):
+        """A missing --user is a refusal: the exit code must say so, never 0."""
+        result = _run(DATABASE, '--db', str(tmp_path / 'x.db'), '--migrate-user-preferences')
+        assert result.returncode == 1
+        assert '--user USERNAME is required' in result.stdout + result.stderr
+
     def test_info_reports_schema(self, seeded_db):
         result = _run(DATABASE, '--db', seeded_db, '--info')
         assert result.returncode == 0
@@ -444,6 +450,36 @@ class TestConfigRoundTrip:
         assert _LEGACY_SECRET_KEY not in json.loads(temp_config.read_text())
         assert _A_SECRET not in temp_config.read_text()
 
+    def test_add_user_rejections_exit_non_zero(self, temp_config):
+        """A deployment script must be able to tell a created user from a
+        rejected one: bad role, duplicate user and mismatched passwords each
+        exit 1 (same contract as --rotate-secret), never a silent 0."""
+        from unittest import mock
+
+        import database as database_module
+
+        with pytest.raises(SystemExit) as bad_role:
+            with mock.patch('getpass.getpass', return_value='pw'):
+                database_module.add_user('alice', 'adminn')
+        assert bad_role.value.code == 1
+        assert 'alice' not in json.loads(temp_config.read_text())['users']
+
+        with mock.patch('getpass.getpass', return_value='pw'):
+            database_module.add_user('bob', 'user', display_name='Bob')
+        with pytest.raises(SystemExit) as duplicate:
+            with mock.patch('getpass.getpass', return_value='pw'):
+                database_module.add_user('bob', 'user')
+        assert duplicate.value.code == 1
+
+        with pytest.raises(SystemExit) as mismatch:
+            with mock.patch('getpass.getpass',
+                            side_effect=['pw', 'different']):
+                database_module.add_user('carol', 'user')
+        assert mismatch.value.code == 1
+        saved = json.loads(temp_config.read_text())['users']
+        # 'shared_directories' rides in the same mapping; only real users matter.
+        assert {k for k in saved if k != 'shared_directories'} == {'bob'}
+
     def test_add_user_writes_the_user_and_no_secret(self, temp_config):
         from unittest import mock
 
@@ -521,6 +557,18 @@ class TestExportCli:
         with out_path.open() as f:
             header = f.readline()
         assert 'path' in header.lower()
+
+    def test_export_csv_refuses_the_database_path(self, seeded_db):
+        """A one-argument typo (--export-csv <db> instead of --export-json <db>)
+        must not truncate the library: the CSV branch opens its output 'w',
+        so without the alias guard it destroyed the database mid-export."""
+        result = _run(FACET, '--db', seeded_db, '--export-csv', seeded_db)
+        assert result.returncode == 1
+        assert 'must not overwrite the source database' in result.stdout + result.stderr
+        # The library survives: a follow-up export still reads it.
+        again = _run(FACET, '--db', seeded_db, '--export-json', str(seeded_db) + '.json')
+        assert again.returncode == 0
+        assert json.loads(Path(str(seeded_db) + '.json').read_text())['count'] == 2
 
     def test_export_json_to_named_file(self, seeded_db, tmp_path):
         out_path = tmp_path / 'export.json'
@@ -948,3 +996,20 @@ def test_sidecar_naming_cli_reports_mismatch_count_without_unsafe_advice(tmp_pat
     assert '--sidecar-naming basename' not in result.stderr
     with sqlite3.connect(db) as conn:
         assert conn.execute('SELECT star_rating FROM photos ORDER BY path').fetchall() == [(2,), (2,)]
+
+
+class TestWatchExitCode:
+    """--watch exits 1 when the watch loop gave up after consecutive failures,
+    so a supervisor can tell a fault from a user's Ctrl+C (exit 0)."""
+
+    @pytest.mark.parametrize('watch_ok, code', [(False, 1), (True, 0)])
+    def test_watch_exit_code_follows_the_loop_outcome(self, monkeypatch, tmp_path, watch_ok, code):
+        import facet
+        import processing.watcher
+
+        monkeypatch.setattr(processing.watcher, 'run_watch_loop', lambda *a, **kw: watch_ok)
+        monkeypatch.setattr(sys, 'argv', ['facet.py', str(tmp_path), '--watch',
+                                          '--db', str(tmp_path / 'x.db')])
+        with pytest.raises(SystemExit) as stopped:
+            facet.main()
+        assert (stopped.value.code or 0) == code

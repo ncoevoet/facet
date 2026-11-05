@@ -1126,8 +1126,8 @@ Choisissez un gagnant, marquez une égalité ou passez. Une barre de progression
 
 | Touche | Action |
 |-----|--------|
-| `A` | La photo de gauche gagne |
-| `B` | La photo de droite gagne |
+| `←` | La photo de gauche gagne |
+| `→` | La photo de droite gagne |
 | `T` | Égalité |
 | `S` | Passer la paire |
 | `Escape` | Fermer la fenêtre de remplacement de catégorie |

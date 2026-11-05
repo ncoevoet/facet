@@ -1127,8 +1127,8 @@ Wählen Sie einen Gewinner, markieren Sie ein Unentschieden oder überspringen S
 
 | Taste | Aktion |
 |-----|--------|
-| `A` | Linkes Foto gewinnt |
-| `B` | Rechtes Foto gewinnt |
+| `←` | Linkes Foto gewinnt |
+| `→` | Rechtes Foto gewinnt |
 | `T` | Unentschieden |
 | `S` | Paar überspringen |
 | `Escape` | Dialog zur Kategorieüberschreibung schließen |

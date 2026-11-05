@@ -9,7 +9,7 @@ import { ApiService } from '../../core/services/api.service';
 import { I18nService } from '../../core/services/i18n.service';
 import { AuthService } from '../../core/services/auth.service';
 import { UserActivityJournal } from '../../core/agent/user-activity-journal.service';
-import { CompareFiltersService } from './compare-filters.service';
+import { COMPARE_TAB_INDEX, CompareFiltersService } from './compare-filters.service';
 import { ComparisonAbTabComponent } from './comparison-ab-tab.component';
 
 describe('ComparisonAbTabComponent', () => {
@@ -154,6 +154,7 @@ describe('ComparisonAbTabComponent', () => {
 
   describe('onKeydown', () => {
     beforeEach(() => {
+      compareFilters.activeTab.set(COMPARE_TAB_INDEX.ab);
       component.pairA.set('/photo1.jpg');
       component.pairB.set('/photo2.jpg');
       mockApi.post.mockReturnValue(of({}));
@@ -203,6 +204,19 @@ describe('ComparisonAbTabComponent', () => {
       const event = new KeyboardEvent('keydown', { key: 'ArrowLeft' });
       component.onKeydown(event);
       expect(spy).not.toHaveBeenCalled();
+    });
+
+    it('should ignore every key while another compare tab is active', () => {
+      // mat-tab-group keeps this tab's DOM alive, so window keydowns keep
+      // arriving: without the tab gate a hidden pair would record results.
+      compareFilters.activeTab.set(COMPARE_TAB_INDEX.snapshots);
+      const submit = vi.spyOn(component, 'submitComparison');
+      const skip = vi.spyOn(component, 'skipPair');
+      for (const key of ['ArrowLeft', 'ArrowRight', 't', 's']) {
+        component.onKeydown(new KeyboardEvent('keydown', { key }));
+      }
+      expect(submit).not.toHaveBeenCalled();
+      expect(skip).not.toHaveBeenCalled();
     });
   });
 

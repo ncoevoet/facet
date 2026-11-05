@@ -1129,8 +1129,8 @@ Elige un ganador, marca un empate u omite. Una barra de progreso cuenta hasta 50
 
 | Tecla | Acción |
 |-----|--------|
-| `A` | Gana la foto izquierda |
-| `B` | Gana la foto derecha |
+| `←` | Gana la foto izquierda |
+| `→` | Gana la foto derecha |
 | `T` | Empate |
 | `S` | Omitir el par |
 | `Escape` | Cerrar el modal de anulación de categoría |

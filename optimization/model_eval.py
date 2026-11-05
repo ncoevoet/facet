@@ -13,6 +13,7 @@ The DB is opened ``mode=ro`` and never written. Other waves add candidates with
 :func:`register_candidate`.
 """
 
+import copy
 import gc
 import json
 import logging
@@ -67,7 +68,7 @@ SLOT_TARGET_COLUMNS = {
 # Slots scored against the stored InsightFace faces, not against pairwise picks.
 FACE_REFERENCE_SLOTS = ('faces-detect', 'faces-recognize', 'faces-centroid', 'blink')
 END_TO_END = 'end-to-end'
-SLOTS = ('aesthetic', 'quality', 'faces-detect', 'faces-recognize', 'faces-centroid', 'blink', 'face-quality', END_TO_END)
+SLOTS = ('aesthetic', 'quality', 'faces-detect', 'faces-recognize', 'faces-centroid', 'blink', 'face-quality', END_TO_END, 'weights')
 
 STORED_PREFIX = 'stored:'
 _BLOB_COLUMNS = frozenset({
@@ -363,6 +364,7 @@ def evaluate(db_path, slot, candidates=None, out=None, seed=DEFAULT_SEED, config
              limit=None, face_labels=None):
     """Run the evaluation and write the JSON report; returns the report dict.
 
+    ``weights`` takes override-file paths as candidates and ignores ``limit``.
     ``limit`` only applies to the face slots (photos for faces-detect, reference
     faces for faces-recognize). ``face_labels`` (faces-detect only) scores against a
     hand-labelled ground-truth file instead of the stored faces; ``limit`` is then ignored.
@@ -371,6 +373,8 @@ def evaluate(db_path, slot, candidates=None, out=None, seed=DEFAULT_SEED, config
         raise ValueError(f"unknown slot {slot!r}; expected one of {SLOTS}")
     if face_labels and slot != 'faces-detect':
         raise ValueError(f"--face-labels applies to the faces-detect slot only, not {slot!r}")
+    if slot == 'weights':
+        return _evaluate_weights(db_path, candidates, out, seed, config_path)
     if slot in FACE_REFERENCE_SLOTS:
         return _evaluate_faces(db_path, slot, candidates, out, seed, limit, device=device,
                                config_path=config_path, face_labels=face_labels)
@@ -463,6 +467,301 @@ def log_report(report):
         logger.info("%-34s %9s %17s %7d %6s %8s %8s %8s", name, fmt(r['agreement'], '.3f'), ci,
                     r['n_pairs'], fmt(r['coverage'], '.2f'), fmt(r['mean_latency_s'], '.2f'),
                     fmt(r['peak_vram_gb'], '.2f'), fmt(r['peak_rss_gb'], '.2f'))
+
+
+# ---------------------------------------------------------------------------
+# Weights slot
+#
+# Re-scores every photo under the baseline config and under each candidate override,
+# in both licence modes, and compares how often each ranks the user's decisive picks
+# correctly. A candidate is a normal override file ({"categories": [...]}): weights
+# live inside the categories LIST, which the config merge replaces wholesale. Nothing
+# is written; no default weight changes. Votes from all users are pooled.
+# ---------------------------------------------------------------------------
+
+MIN_DECISIVE_PAIRS = 30
+LICENCE_MODES = ('default', 'commercial')
+_CATEGORY_IDENTITY_KEYS = ('name', 'priority', 'filters', 'tags')
+
+
+def _config_variant(base_cfg, config_dict, mode):
+    """A ScoringConfig sharing nothing mutable with ``base_cfg``, in licence ``mode``."""
+    cfg = copy.copy(base_cfg)
+    cfg.config = copy.deepcopy(config_dict)
+    cfg.config.setdefault('licensing', {})['mode'] = mode
+    cfg._context_order_cache = {}
+    cfg.__dict__.pop('_unavailable_metrics_cache', None)
+    return cfg
+
+
+def _category_identity(config_dict):
+    return [tuple(json.dumps(cat.get(k), sort_keys=True) for k in _CATEGORY_IDENTITY_KEYS)
+            for cat in config_dict.get('categories', [])]
+
+
+def _load_weight_candidate(path, base_config):
+    """Baseline config with the override file at ``path`` laid over it."""
+    import config_resolve
+    try:
+        with open(path, encoding='utf-8') as f:
+            override = config_resolve.require_override_mapping(json.load(f), path)
+    except OSError as e:
+        raise ValueError(f"weights candidate {path!r} cannot be read: {e}") from e
+    except json.JSONDecodeError as e:
+        raise ValueError(f"weights candidate {path!r} is not valid JSON: {e}") from e
+    if not isinstance(override.get('categories'), list):
+        raise ValueError(f"weights candidate {path!r} needs 'categories' to be a list")
+    if set(override) != {'categories'}:
+        raise ValueError(
+            f"weights candidate {path!r} must carry exactly the 'categories' key (got "
+            f"{sorted(override)}): normalisation, thresholds and licensing are built once "
+            f"from the baseline, so a candidate touching them would be scored inconsistently")
+    merged = config_resolve.deep_merge(base_config, override)
+    if _category_identity(merged) != _category_identity(base_config):
+        raise ValueError(
+            f"weights candidate {path!r} changes category names, order, priorities, filters or "
+            f"tags; only each category's 'weights' and 'modifiers' may differ from the baseline")
+    _check_candidate_weights(path, merged, base_config)
+    return merged
+
+
+def _check_candidate_weights(path, merged, base_config):
+    """Reject weight keys the baseline lacks and non-integer or negative ``*_percent`` values.
+
+    ``validate_weights`` would silently drop the first and round or clamp the second when
+    ``--recompute-average`` loads the config, so a typo here would score differently
+    from what an apply produces.
+    """
+    for cat, base in zip(merged['categories'], base_config['categories']):
+        known = set(base.get('weights', {}))
+        for key, value in cat.get('weights', {}).items():
+            if key not in known:
+                raise ValueError(f"weights candidate {path!r}: category {cat['name']!r} has "
+                                 f"unknown weight key {key!r}")
+            if key.endswith('_percent') and (
+                    isinstance(value, bool) or not isinstance(value, int) or value < 0):
+                raise ValueError(f"weights candidate {path!r}: category {cat['name']!r} key "
+                                 f"{key!r} must be a non-negative integer (got {value!r})")
+
+
+def _dist(values):
+    if len(values) == 0:
+        return None
+    arr = np.asarray(values, dtype=float)
+    p10, p50, p90 = np.percentile(arr, [10, 50, 90])
+    return {'n_photos': int(arr.size), 'mean': float(arr.mean()), 'std': float(arr.std()),
+            'p10': float(p10), 'p50': float(p50), 'p90': float(p90)}
+
+
+def _score_all_photos(conn, baseline, variants, normalizer):
+    """One pass over ``photos``: (scores, category_of, iqa_non_null, baseline match rate).
+
+    ``variants`` is {mode: {name: ScoringConfig}}; ``scores`` is {mode: {name: {path: score}}}.
+    Rows are the curated ``SERVED_ROW_COLUMNS`` (what ``--recompute-average`` scores), so the
+    baseline reproduces the stored aggregate. ``histogram_data`` is the one BLOB kept, because
+    the exposure score is rebuilt from it. Justified full-table read: offline, run on a copy,
+    once per invocation, and it serves both the pair scores and the distributions.
+    """
+    from processing.scorer import SERVED_ROW_COLUMNS, Facet
+    overrides = {r[0]: (r[1], r[2]) for r in conn.execute(
+        "SELECT photo_path, scoring_context, category_override FROM photo_scoring_overrides")}
+    scorers = {}
+    for mode, named in variants.items():
+        for name, cfg in named.items():
+            scorer = Facet.__new__(Facet)  # bypasses Facet.__init__ (a DB write); config is all it needs
+            scorer.config = cfg
+            scorers[(mode, name)] = scorer
+    own_mode = baseline.config.get('licensing', {}).get('mode')
+    scores = {mode: {name: {} for name in named} for mode, named in variants.items()}
+    category_of, iqa_non_null = {}, {}
+    hits = n_match = 0
+    n_rows = conn.execute("SELECT COUNT(*) FROM photos").fetchone()[0]
+    for i, row in enumerate(conn.execute(
+            f"SELECT {', '.join(SERVED_ROW_COLUMNS)}, aggregate FROM photos")):
+        row = dict(row)
+        stored = row.pop('aggregate')
+        row['scoring_context'], row['category_override'] = overrides.get(row['path'], (None, None))
+        prepared = Facet.prepare_scoring_row(row, baseline, normalizer)
+        for (mode, name), scorer in scorers.items():
+            score, category = scorer.calculate_aggregate_logic(dict(prepared))
+            scores[mode][name][row['path']] = score
+            if mode == own_mode and name == 'baseline':
+                base_category = category
+            if mode == own_mode and name == 'baseline' and stored is not None:
+                n_match += 1
+                hits += abs(round(score, 2) - stored) <= 0.01
+        category_of[row['path']] = base_category
+        iqa_non_null[row['path']] = prepared.get('face_quality_iqa') is not None
+        if (i + 1) % 10000 == 0:
+            logger.info("weights: scored %d / %d photos", i + 1, n_rows)
+    return scores, category_of, iqa_non_null, (hits / n_match if n_match else None)
+
+
+def _bucket_pairs(pairs, category_of):
+    """({bucket: pairs}, n_orphans): a pair joins its photos' category, else 'mixed'."""
+    buckets = {'overall': [], 'mixed': []}
+    n_orphans = 0
+    for a, b, winner in pairs:
+        if a not in category_of or b not in category_of:
+            n_orphans += 1
+            continue
+        buckets['overall'].append((a, b, winner))
+        cat = category_of[a] if category_of[a] == category_of[b] else 'mixed'
+        buckets.setdefault(cat, []).append((a, b, winner))
+    return buckets, n_orphans
+
+
+def _agreement_block(pairs, scores, seed):
+    agree = pairwise_agreement(pairs, scores)
+    lo, hi = bootstrap_ci(agree['per_pair'], seed=seed)
+    return {
+        'agreement': agree['agreement'], 'ci_low': lo, 'ci_high': hi,
+        'n_pairs': agree['n_pairs'], 'coverage': agree['coverage'],
+        'status': 'ok' if agree['n_pairs'] >= MIN_DECISIVE_PAIRS else 'insufficient_pairs',
+    }
+
+
+def _paired_delta(pairs, base_scores, cand_scores, status, seed):
+    """(delta, ci_low, ci_high) of candidate minus baseline agreement over the shared pairs."""
+    both = [p for p in pairs if all(s.get(x) is not None for s in (base_scores, cand_scores)
+                                    for x in p[:2])]
+    base = pairwise_agreement(both, base_scores)['per_pair']
+    cand = pairwise_agreement(both, cand_scores)['per_pair']
+    diff = [c - b for c, b in zip(cand, base)]
+    if not diff:
+        return None, None, None
+    lo, hi = bootstrap_ci(diff, seed=seed) if status == 'ok' else (None, None)
+    return float(np.mean(diff)), lo, hi
+
+
+def _evaluate_weights(db_path, candidates, out, seed, config_path):
+    import licensing
+    from config import ScoringConfig
+    from config.percentile_normalizer import PercentileNormalizer
+    if not candidates:
+        raise ValueError("the weights slot needs --candidates: one or more override JSON files "
+                         "carrying a full 'categories' list")
+    if len(set(candidates)) != len(candidates):
+        raise ValueError(f"duplicate weights candidates: {candidates}")
+    if licensing.env_forces_commercial():
+        raise ValueError(f"${licensing.LICENSING_MODE_ENV}=commercial forces every config into "
+                         f"commercial mode, so the default-mode block would not be default; unset it")
+    if out is None:
+        out = os.path.join(DEFAULT_OUT_DIR, f"weights-{time.strftime('%Y%m%d-%H%M%S')}.json")
+    os.makedirs(os.path.dirname(os.path.abspath(out)), exist_ok=True)
+
+    # validate=False: validate_weights can save_config, and this slot writes nothing.
+    baseline = ScoringConfig(config_path, validate=False)
+    configs = {'baseline': baseline.config}
+    for path in candidates:
+        configs[path] = _load_weight_candidate(path, baseline.config)
+    variants = {mode: {name: _config_variant(baseline, cfg, mode) for name, cfg in configs.items()}
+                for mode in LICENCE_MODES}
+    baseline_mode = baseline.config.get('licensing', {}).get('mode')
+
+    conn = ro_connection(db_path)
+    try:
+        pairs, n_ties = fetch_decisive_pairs(conn)
+        normalizer = PercentileNormalizer.from_snapshot(conn, baseline.get_normalization_settings())
+        scores, category_of, iqa_non_null, match_rate = _score_all_photos(
+            conn, baseline, variants, normalizer)
+    finally:
+        conn.close()
+    logger.info("weights: recomputed baseline reproduces the stored aggregate for %s of photos",
+                'n/a' if match_rate is None else f'{match_rate:.1%}')
+
+    buckets, n_orphans = _bucket_pairs(pairs, category_of)
+    photos_by_bucket = {'overall': list(category_of)}
+    for path, cat in category_of.items():
+        photos_by_bucket.setdefault(cat, []).append(path)
+    names = sorted(b for b in {*buckets, *photos_by_bucket} if b not in ('overall', 'mixed'))
+    bucket_names = ['overall', *names, 'mixed']
+
+    modes = {}
+    for mode in LICENCE_MODES:
+        base_scores = scores[mode]['baseline']
+        block = {'unavailable': sorted(licensing.unavailable_metrics(
+                     licensing.resolve_policy(variants[mode]['baseline'].config))),
+                 'meaningful': True, 'baseline': {}, 'candidates': {name: {} for name in candidates}}
+        if mode == 'default' and baseline_mode == 'commercial':
+            block['meaningful'] = False
+            block['reason'] = ("the baseline config is commercial mode, so liqe and aesthetic_iaa "
+                               "are NULL on this library and a default-mode run would impute 5.0 for them")
+        for bucket in bucket_names:
+            photos = photos_by_bucket.get(bucket, [])
+            iqa = {'face_quality_iqa_coverage': (sum(iqa_non_null[p] for p in photos) / len(photos)
+                                                 if photos else None)}
+            base_arr = [base_scores[p] for p in photos]
+            block['baseline'][bucket] = {**_agreement_block(buckets.get(bucket, []), base_scores, seed),
+                                         'dist': _dist(base_arr), **iqa}
+            for name in candidates:
+                cand_scores = scores[mode][name]
+                cand = _agreement_block(buckets.get(bucket, []), cand_scores, seed)
+                delta, lo, hi = _paired_delta(
+                    buckets.get(bucket, []), base_scores, cand_scores, cand['status'], seed)
+                cand_arr = [cand_scores[p] for p in photos]
+                block['candidates'][name][bucket] = {
+                    **cand, 'delta': delta, 'delta_ci_low': lo, 'delta_ci_high': hi,
+                    'dist': _dist(cand_arr),
+                    'mean_abs_delta': (float(np.mean(np.abs(np.subtract(cand_arr, base_arr))))
+                                       if photos else None),
+                    **iqa}
+        modes[mode] = block
+
+    # Report-only: point estimates, enough pairs, and not lower in every meaningful mode.
+    ship_check = {}
+    for name in candidates:
+        ship_check[name] = {}
+        for bucket in bucket_names:
+            ok = True
+            for block in modes.values():
+                if not block['meaningful']:
+                    continue
+                base, cand = block['baseline'][bucket], block['candidates'][name][bucket]
+                ok = ok and (base['n_pairs'] >= MIN_DECISIVE_PAIRS and cand['agreement'] is not None
+                             and cand['agreement'] >= base['agreement'])
+            # 'mixed' votes score each side with a different weight vector: never a verdict.
+            ship_check[name][bucket] = {'agreement_not_lower': bool(ok) and bucket != 'mixed'}
+
+    report = {
+        'slot': 'weights',
+        'db': os.path.abspath(db_path),
+        'seed': seed,
+        'n_decisive_pairs': len(pairs),
+        'n_ties': n_ties,
+        'n_orphan_pairs': n_orphans,
+        'min_decisive_pairs': MIN_DECISIVE_PAIRS,
+        'baseline_config': baseline.config_path,
+        'baseline_match_rate': match_rate,
+        'std': 'population',
+        'modes': modes,
+        'ship_check': ship_check,
+    }
+    with open(out, 'w') as f:
+        json.dump(report, f, indent=2)
+    log_weights_report(report)
+    logger.info("Report written to %s", out)
+    return report
+
+
+def log_weights_report(report):
+    def fmt(v, spec):
+        return 'n/a' if v is None else format(v, spec)
+
+    for mode, block in report['modes'].items():
+        logger.info("weights [%s mode%s] unavailable: %s", mode,
+                    '' if block['meaningful'] else ', NOT MEANINGFUL', ', '.join(block['unavailable']) or '-')
+        logger.info("%-22s %-28s %7s %7s %26s %8s %6s %s", "bucket", "candidate", "pairs", "agree",
+                    "delta [95% CI]", "mean|d|", "ship", "status")
+        for bucket, base in block['baseline'].items():
+            logger.info("%-22s %-28s %7d %7s %26s %8s %6s %s", bucket, 'baseline', base['n_pairs'],
+                        fmt(base['agreement'], '.3f'), '', '', '', base['status'])
+            for name, rows in block['candidates'].items():
+                r = rows[bucket]
+                ci = f"{fmt(r['delta'], '+.3f')} [{fmt(r['delta_ci_low'], '+.3f')}, {fmt(r['delta_ci_high'], '+.3f')}]"
+                logger.info("%-22s %-28s %7d %7s %26s %8s %6s %s", bucket, os.path.basename(name)[:28],
+                            r['n_pairs'], fmt(r['agreement'], '.3f'), ci, fmt(r['mean_abs_delta'], '.3f'),
+                            report['ship_check'][name][bucket]['agreement_not_lower'], r['status'])
 
 
 # ---------------------------------------------------------------------------

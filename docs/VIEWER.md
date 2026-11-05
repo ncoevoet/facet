@@ -1127,8 +1127,8 @@ Pick a winner, mark a tie or skip. A progress bar counts toward 50 votes, with A
 
 | Key | Action |
 |-----|--------|
-| `A` | Left photo wins |
-| `B` | Right photo wins |
+| `←` | Left photo wins |
+| `→` | Right photo wins |
 | `T` | Tie |
 | `S` | Skip pair |
 | `Escape` | Close category override modal |

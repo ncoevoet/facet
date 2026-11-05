@@ -21,7 +21,7 @@ import watchdog.observers  # noqa: E402
 import watchdog.observers.polling  # noqa: E402
 
 import processing.watcher as watcher  # noqa: E402
-from utils.exit_codes import SAVED_NOTHING_EXIT_CODE  # noqa: E402
+from utils.exit_codes import LIBRARY_LOCK_HELD_EXIT_CODE, SAVED_NOTHING_EXIT_CODE  # noqa: E402
 from processing.watcher import (  # noqa: E402
     MAX_CONSECUTIVE_FAILURES,
     WATCH_SUFFIXES,
@@ -486,17 +486,16 @@ class TestRunWatchLoopFailureHandling:
 
         assert len(runs) == 4
 
-    def test_a_failing_initial_scan_does_not_count_toward_max_consecutive_failures(self, monkeypatch, tmp_path):
-        """Pins current intent (processing/watcher.py:125-126 discards the initial
-        scan's return value), rather than changing behaviour: a failing initial
-        scan must not consume any of the MAX_CONSECUTIVE_FAILURES budget, so it
-        still takes a full MAX_CONSECUTIVE_FAILURES in-loop failures to stop.
-        """
+    def test_a_failing_initial_scan_counts_as_the_first_failure(self, monkeypatch, tmp_path):
+        """A failing initial scan consumes the first slot of the failure budget:
+        a broken install stops after MAX_CONSECUTIVE_FAILURES total scans
+        (initial included) instead of watching forever, and the loop reports the
+        give-up to the caller."""
         native = _FakeObserver()
         monkeypatch.setattr(watchdog.observers, "Observer", lambda: native)
         monkeypatch.setattr(watchdog.observers.polling, "PollingObserver", lambda: _FakeObserver())
 
-        returncodes = iter([1, 1, 1, 1])
+        returncodes = iter([1] * MAX_CONSECUTIVE_FAILURES)
         runs = []
 
         def fake_run(cmd, *a, **kw):
@@ -510,12 +509,137 @@ class TestRunWatchLoopFailureHandling:
         def fake_sleep(seconds):
             calls["n"] += 1
             if calls["n"] > MAX_CONSECUTIVE_FAILURES + 2:
-                raise AssertionError("watch loop did not stop after MAX_CONSECUTIVE_FAILURES in-loop failures")
+                raise AssertionError("watch loop did not stop after MAX_CONSECUTIVE_FAILURES")
             handler, _, _ = native.scheduled[0]
             handler.on_created(SimpleNamespace(is_directory=False, src_path=f"/library/f{calls['n']}.jpg"))
 
         monkeypatch.setattr(watcher.time, "sleep", fake_sleep)
 
-        watcher.run_watch_loop(["/library"], str(tmp_path / "photos.db"), debounce_seconds=0, initial_scan=True)
+        gave_up = not watcher.run_watch_loop(
+            ["/library"], str(tmp_path / "photos.db"), debounce_seconds=0, initial_scan=True)
 
+        assert gave_up is True
+        assert len(runs) == MAX_CONSECUTIVE_FAILURES
+
+    def test_a_lock_held_scan_does_not_count_toward_the_streak(self, monkeypatch, tmp_path):
+        """Exit LIBRARY_LOCK_HELD_EXIT_CODE is transient by definition — another
+        job holds the lock and the next settled batch rescans — so a busy
+        stretch must not accumulate toward giving up."""
+        native = _FakeObserver()
+        monkeypatch.setattr(watchdog.observers, "Observer", lambda: native)
+        monkeypatch.setattr(watchdog.observers.polling, "PollingObserver", lambda: _FakeObserver())
+
+        returncodes = iter([LIBRARY_LOCK_HELD_EXIT_CODE] * 5 + [1, 1, 1])
+        runs = []
+
+        def fake_run(cmd, *a, **kw):
+            runs.append(cmd)
+            return SimpleNamespace(returncode=next(returncodes))
+
+        monkeypatch.setattr(watcher.subprocess, "run", fake_run)
+
+        calls = {"n": 0}
+
+        def fake_sleep(seconds):
+            calls["n"] += 1
+            if calls["n"] > 20:
+                raise AssertionError("watch loop did not stop after MAX_CONSECUTIVE_FAILURES")
+            handler, _, _ = native.scheduled[0]
+            handler.on_created(SimpleNamespace(is_directory=False, src_path=f"/library/f{calls['n']}.jpg"))
+
+        monkeypatch.setattr(watcher.time, "sleep", fake_sleep)
+
+        gave_up = not watcher.run_watch_loop(
+            ["/library"], str(tmp_path / "photos.db"), debounce_seconds=0, initial_scan=False)
+
+        assert gave_up is True
+        assert len(runs) == 5 + MAX_CONSECUTIVE_FAILURES
+
+    def test_a_user_interrupted_watch_reports_success(self, monkeypatch, tmp_path):
+        """Ctrl-C is a clean stop: the loop must not ask the caller for a
+        non-zero exit."""
+        native = _FakeObserver()
+        monkeypatch.setattr(watchdog.observers, "Observer", lambda: native)
+        monkeypatch.setattr(watchdog.observers.polling, "PollingObserver", lambda: _FakeObserver())
+
+        def fake_run(cmd, *a, **kw):
+            return SimpleNamespace(returncode=0)
+
+        monkeypatch.setattr(watcher.subprocess, "run", fake_run)
+
+        def fake_sleep(seconds):
+            raise KeyboardInterrupt
+
+        monkeypatch.setattr(watcher.time, "sleep", fake_sleep)
+
+        gave_up = not watcher.run_watch_loop(
+            ["/library"], str(tmp_path / "photos.db"), debounce_seconds=0, initial_scan=False)
+
+        assert gave_up is False
+
+    def test_a_lock_held_batch_is_retried_without_new_events(self, monkeypatch, tmp_path):
+        """A batch skipped because another job held the library lock is queued
+        again: the retry runs after the next debounce window even when no new
+        file event arrives, instead of the batch's photos waiting for an
+        unrelated change."""
+        native = _FakeObserver()
+        monkeypatch.setattr(watchdog.observers, "Observer", lambda: native)
+        monkeypatch.setattr(watchdog.observers.polling, "PollingObserver", lambda: _FakeObserver())
+
+        returncodes = iter([LIBRARY_LOCK_HELD_EXIT_CODE, 0])
+        runs = []
+
+        def fake_run(cmd, *a, **kw):
+            runs.append(cmd)
+            return SimpleNamespace(returncode=next(returncodes))
+
+        monkeypatch.setattr(watcher.subprocess, "run", fake_run)
+
+        calls = {"n": 0}
+
+        def fake_sleep(seconds):
+            calls["n"] += 1
+            if calls["n"] == 1:
+                handler, _, _ = native.scheduled[0]
+                handler.on_created(SimpleNamespace(is_directory=False, src_path="/library/new.jpg"))
+            if calls["n"] > 10:
+                raise KeyboardInterrupt
+
+        monkeypatch.setattr(watcher.time, "sleep", fake_sleep)
+
+        assert watcher.run_watch_loop(
+            ["/library"], str(tmp_path / "photos.db"), debounce_seconds=0, initial_scan=False)
+        assert len(runs) == 2
+
+    @pytest.mark.parametrize("initial_code", [LIBRARY_LOCK_HELD_EXIT_CODE, SAVED_NOTHING_EXIT_CODE])
+    def test_a_neutral_initial_scan_does_not_count_as_the_first_failure(self, monkeypatch, tmp_path, initial_code):
+        """Only a real failure of the initial scan consumes the budget: an
+        initial scan that found the library lock held, or saved nothing, leaves
+        the streak at 0."""
+        native = _FakeObserver()
+        monkeypatch.setattr(watchdog.observers, "Observer", lambda: native)
+        monkeypatch.setattr(watchdog.observers.polling, "PollingObserver", lambda: _FakeObserver())
+
+        returncodes = iter([initial_code] + [1] * MAX_CONSECUTIVE_FAILURES)
+        runs = []
+
+        def fake_run(cmd, *a, **kw):
+            runs.append(cmd)
+            return SimpleNamespace(returncode=next(returncodes))
+
+        monkeypatch.setattr(watcher.subprocess, "run", fake_run)
+
+        calls = {"n": 0}
+
+        def fake_sleep(seconds):
+            calls["n"] += 1
+            if calls["n"] > MAX_CONSECUTIVE_FAILURES + 2:
+                raise AssertionError("watch loop did not stop after MAX_CONSECUTIVE_FAILURES")
+            handler, _, _ = native.scheduled[0]
+            handler.on_created(SimpleNamespace(is_directory=False, src_path=f"/library/f{calls['n']}.jpg"))
+
+        monkeypatch.setattr(watcher.time, "sleep", fake_sleep)
+
+        assert not watcher.run_watch_loop(
+            ["/library"], str(tmp_path / "photos.db"), debounce_seconds=0, initial_scan=True)
         assert len(runs) == 1 + MAX_CONSECUTIVE_FAILURES
