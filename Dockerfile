@@ -13,10 +13,12 @@
 ARG BASE_IMAGE=pytorch/pytorch:2.11.0-cuda12.8-cudnn9-runtime
 
 # ---- Stage 1: Build Angular client ----
-# Pinned to an exact patch, not the floating node:22-alpine: that tag is
-# republished with whatever npm it ships, and the npm 10.9.8 it carried on
-# 2026-08-22 could not resolve this dependency graph at all.
-FROM node:22.23.4-alpine AS client-build
+# Same Node major the CI verifies the client with (ci.yml, .nvmrc), so a
+# bundling difference between majors cannot surface only in the published
+# image. Pinned to an exact patch, not the floating node:24-alpine: that tag is
+# republished with whatever npm it ships, and the npm 10.9.8 node:22-alpine
+# carried on 2026-08-22 could not resolve this dependency graph at all.
+FROM node:24.22.2-alpine AS client-build
 
 WORKDIR /app/client
 # `npm ci` installs the locked transitive graph instead of re-resolving it from

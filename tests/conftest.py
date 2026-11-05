@@ -73,6 +73,26 @@ with contextlib.closing(sqlite3.connect(_TEST_DB_FILE.name)) as _conn:
     _conn.execute("ANALYZE sqlite_master")
 
 
+def wait_until(predicate, timeout=5.0, interval=0.05, message="condition not met in time"):
+    """Poll ``predicate`` until it is truthy or the deadline passes.
+
+    The synchronization primitive for "a background handler must have done X by
+    now" assertions: a fixed ``time.sleep`` before an assert is flaky on a slow
+    CI runner and slow on a fast one. Raises AssertionError with ``message``
+    when the deadline passes; returns the predicate's last value otherwise.
+    """
+    import time
+
+    deadline = time.monotonic() + timeout
+    value = predicate()
+    while not value and time.monotonic() < deadline:
+        time.sleep(interval)
+        value = predicate()
+    if not value:
+        raise AssertionError(f"{message} (waited {timeout}s)")
+    return value
+
+
 def pytest_collection_modifyitems(config, items):
     """Keep only this CI slice's files when ``FACET_TEST_SHARD`` is set."""
     value = os.environ.get(SHARD_ENV)

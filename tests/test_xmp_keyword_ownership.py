@@ -525,7 +525,10 @@ def test_exact_boolean_read_io_failure_refuses_before_writing(tmp_path, monkeypa
             raise failure
         return subprocess.CompletedProcess(args, 0, stdout='[{"Subject":true}]')
     exiftool_fake.install(monkeypatch, run)
+    # One budget covers every read, so the combined state read that precedes
+    # the injected failure must fit in it too: 0.05 s did not on a slow Windows
+    # runner, which then refused at that read ("Cannot read face metadata").
     with pytest.raises(RuntimeError, match='Cannot read existing keywords'):
-        xe._run_exiftool(str(sidecar), XmpRating(tags=['own']), timeout=0.05)
+        xe._run_exiftool(str(sidecar), XmpRating(tags=['own']), timeout=1)
     assert subject_reads
     assert sidecar.read_bytes() == before
