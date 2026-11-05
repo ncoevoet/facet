@@ -514,10 +514,6 @@ type RatingOption = 'any' | '1' | '2' | '3' | '4' | '5' | 'zero';
           </mat-panel-title>
         </mat-expansion-panel-header>
         <div class="flex flex-col gap-2 pb-2">
-          <mat-checkbox [checked]="!!store.filters().no_capture_date"
-                        (change)="onMissingDateChange($event.checked)">
-            {{ I18N.gallery.no_capture_date | translate }}
-          </mat-checkbox>
           <mat-form-field subscriptSizing="dynamic" class="w-full">
             <mat-label>{{ I18N.gallery.date_from | translate }}</mat-label>
             <input matInput [matDatepicker]="fromDp" [value]="store.filters().date_from" (dateChange)="onDateChange('date_from', $event)" />
@@ -530,6 +526,10 @@ type RatingOption = 'any' | '1' | '2' | '3' | '4' | '5' | 'zero';
             <mat-datepicker-toggle matIconSuffix [for]="toDp" />
             <mat-datepicker #toDp />
           </mat-form-field>
+          <mat-checkbox [checked]="!!store.filters().no_capture_date"
+                        (change)="onMissingDateChange($event.checked)">
+            {{ I18N.gallery.no_capture_date | translate }}
+          </mat-checkbox>
         </div>
       </mat-expansion-panel>
 
