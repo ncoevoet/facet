@@ -792,7 +792,7 @@ Wenn der VRAM es zulässt, laufen mehrere Modelle im selben Durchlauf:
 | VRAM | Durchlauf 1 | Durchlauf 2 | Durchlauf 3 | Durchlauf 4 |
 |---|---|---|---|---|
 | 8GB (Profil `8gb`) | CLIP | Q-ReAlign + Salienz | TOPIQ IAA + TOPIQ NR-Face + LIQE | SAMP-Net + InsightFace |
-| 12GB\* (Profil `12gb`; Spitze TODO_VRAM12 GiB, simuliert) | Qwen3.5-Tagger + Q-ReAlign | SigLIP + Salienz + TOPIQ IAA | TOPIQ + TOPIQ NR-Face + LIQE + SAMP-Net | InsightFace |
+| 12GB\* (Profil `12gb`; Spitze 9,4 GiB, simuliert) | Qwen3.5-Tagger + Q-ReAlign | SigLIP + Salienz + TOPIQ IAA | TOPIQ + TOPIQ NR-Face + LIQE + SAMP-Net | InsightFace |
 | 16GB (Profil `16gb`) | Qwen3.5-Tagger + SigLIP + TOPIQ | Q-ReAlign + Salienz + TOPIQ IAA + TOPIQ NR-Face + LIQE + SAMP-Net | InsightFace | - |
 | 24GB (Profil `24gb`) | Qwen3.5-4B-Tagger + SigLIP + Q-ReAlign + Salienz | TOPIQ + TOPIQ IAA + TOPIQ NR-Face + LIQE + SAMP-Net + InsightFace | - | - |
 | 35GB+ (Profil `24gb`) | Alle Modelle zusammen (Single-Pass) | - | - | - |

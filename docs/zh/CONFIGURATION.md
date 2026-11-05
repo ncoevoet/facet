@@ -791,7 +791,7 @@ Facet 会监控资源占用并据此调整。`memory_limit_percent` 是相对*�
 | 显存 | 第 1 遍 | 第 2 遍 | 第 3 遍 | 第 4 遍 |
 |---|---|---|---|---|
 | 8GB（`8gb` 配置档） | CLIP | Q-ReAlign + 显著性 | TOPIQ IAA + TOPIQ NR-Face + LIQE | SAMP-Net + InsightFace |
-| 12GB\*（`12gb` 配置档；峰值 TODO_VRAM12 GiB，模拟） | Qwen3.5 标签 VLM + Q-ReAlign | SigLIP + 显著性 + TOPIQ IAA | TOPIQ + TOPIQ NR-Face + LIQE + SAMP-Net | InsightFace |
+| 12GB\*（`12gb` 配置档；峰值 9.4 GiB，模拟） | Qwen3.5 标签 VLM + Q-ReAlign | SigLIP + 显著性 + TOPIQ IAA | TOPIQ + TOPIQ NR-Face + LIQE + SAMP-Net | InsightFace |
 | 16GB（`16gb` 配置档） | Qwen3.5 标签 VLM + SigLIP + TOPIQ | Q-ReAlign + 显著性 + TOPIQ IAA + TOPIQ NR-Face + LIQE + SAMP-Net | InsightFace | - |
 | 24GB（`24gb` 配置档） | Qwen3.5 4B 标签 VLM + SigLIP + Q-ReAlign + 显著性 | TOPIQ + TOPIQ IAA + TOPIQ NR-Face + LIQE + SAMP-Net + InsightFace | - | - |
 | 35GB+（`24gb` 配置档） | 所有模型一起（单遍） | - | - | - |

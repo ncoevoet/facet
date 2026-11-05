@@ -795,7 +795,7 @@ Quando la VRAM lo consente, più modelli vengono eseguiti nello stesso passaggio
 | VRAM | Passaggio 1 | Passaggio 2 | Passaggio 3 | Passaggio 4 |
 |---|---|---|---|---|
 | 8GB (profilo `8gb`) | CLIP | Q-ReAlign + salienza | TOPIQ IAA + TOPIQ NR-Face + LIQE | SAMP-Net + InsightFace |
-| 12GB\* (profilo `12gb`; picco TODO_VRAM12 GiB, simulato) | Tagger Qwen3.5 + Q-ReAlign | SigLIP + salienza + TOPIQ IAA | TOPIQ + TOPIQ NR-Face + LIQE + SAMP-Net | InsightFace |
+| 12GB\* (profilo `12gb`; picco 9,4 GiB, simulato) | Tagger Qwen3.5 + Q-ReAlign | SigLIP + salienza + TOPIQ IAA | TOPIQ + TOPIQ NR-Face + LIQE + SAMP-Net | InsightFace |
 | 16GB (profilo `16gb`) | Tagger Qwen3.5 + SigLIP + TOPIQ | Q-ReAlign + salienza + TOPIQ IAA + TOPIQ NR-Face + LIQE + SAMP-Net | InsightFace | - |
 | 24GB (profilo `24gb`) | Tagger Qwen3.5 4B + SigLIP + Q-ReAlign + salienza | TOPIQ + TOPIQ IAA + TOPIQ NR-Face + LIQE + SAMP-Net + InsightFace | - | - |
 | 35GB+ (profilo `24gb`) | Tutti i modelli insieme (single-pass) | - | - | - |

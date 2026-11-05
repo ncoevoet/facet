@@ -431,7 +431,7 @@ Aktivierungen kommen hinzu. Behandeln Sie diese Werte als Untergrenzen.
   `8gb` (7,56 GB) ab, innerhalb von etwa einem halben Gigabyte der Grenze, bei 18-20 MP JPEGs. Größere Bilder, RAW-Dekodierung
   oder ein ausgelasteter Host brauchen mehr, daher werden 12 GB empfohlen.
 - **`12gb`, `16gb` und `24gb` sind nicht gemessen.** 18 GB sind ein vorläufiger Platzhalter.
-- **`12gb`-VRAM-Spitze: TODO_VRAM12 GiB (simuliert).** Gemessen unter einer simulierten 12-GiB-Grenze auf einer 16-GB-Karte; ONNX-Runtime-Modelle (InsightFace) ignorieren die Grenze; nicht auf einer echten 12-GB-Karte gemessen.
+- **`12gb`-VRAM-Spitze: 9,4–11,3 GiB (simuliert).** Spitze der gesamten Karte unter Grenzen von 11,7 und 12,0 GiB, einschließlich etwa 2 GiB Desktop-Nutzung; die PyTorch-Spitze lag bei 6,3 GiB (Durchlauf des Qwen3.5-Taggers). Gemessen unter einer simulierten 12-GiB-Grenze auf einer 16-GB-Karte; ONNX-Runtime-Modelle (InsightFace) ignorieren die Grenze; nicht auf einer echten 12-GB-Karte gemessen.
 - **Beobachten Sie den anonymen Speicher.** Das MemUsage von `docker stats` und das `memory.current` der Cgroup
   zählen beide rückgewinnbaren Seiten-Cache mit und führen daher in die Irre.
 - **Modell-Caching.** Mit `models.keep_in_ram` auf `"auto"` bleibt ein Modell zwischen Chunks nur dann im RAM,
