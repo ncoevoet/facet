@@ -1306,12 +1306,19 @@ interface SceneSummary {
             <div class="shrink-0 flex gap-2 overflow-x-auto border-t border-white/10 px-3 py-1" data-stack-filmstrip
                  role="presentation" (click)="$event.stopPropagation()" (keydown)="onDarkroomKeydown($event)">
               @for (photo of lbGroup.photos; track photo.path; let index = $index) {
-                <button type="button" class="min-w-11 min-h-11 shrink-0 rounded border-2 border-transparent overflow-hidden cursor-pointer"
+                <button type="button" class="relative min-w-11 min-h-11 shrink-0 rounded border-2 border-transparent overflow-hidden cursor-pointer"
                         [class.!border-amber-400]="index === effectiveLightboxIndex()" [class.opacity-40]="cull.stackExcluded()[photo.path]"
                         [attr.aria-current]="index === effectiveLightboxIndex() ? 'true' : null"
                         [attr.aria-label]="compareMode() === 'single' ? photo.filename : (I18N.culling.comparison.assign_photo | translate:{ pane: comparisonSlotLabels[comparisonSlot()], name: photo.filename })" (click)="focusPhotoInLightbox(index)">
                   <img class="h-12 w-auto max-w-24 object-contain" [class.max-sm:!h-8]="compareMode() === '4up'" loading="lazy"
                        [src]="photo.path | thumbnailUrl:storedEdge:photo.preview_revision" [alt]="photo.filename" />
+                  @if (compareMode() !== 'single') {
+                    @for (frame of compareFrames(); track frame.path; let slot = $index) {
+                      @if (frame.path === photo.path) {
+                        <span data-filmstrip-pane-badge aria-hidden="true" class="absolute left-0 top-0 min-w-4 rounded-br bg-black/85 px-1 text-center text-xs font-bold leading-4 text-white">{{ comparisonSlotLabels[slot] }}</span>
+                      }
+                    }
+                  }
                   @if (cull.stackExcluded()[photo.path]) { <span class="text-xs text-white block">{{ I18N.rating.rejected_badge | translate }}</span> }
                 </button>
               }

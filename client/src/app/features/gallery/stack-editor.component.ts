@@ -54,6 +54,9 @@ function captureDateKey(date: string | null | undefined): string {
         <details class="mb-2 text-sm">
           <summary class="cursor-pointer font-medium">{{ I18N.nav.help | translate }}</summary>
           <p class="mt-2 opacity-80">{{ (editable() ? I18N.stacks.hint : I18N.stacks.read_only) | translate }}</p>
+          @if (regrouping() && preview()?.source_stacks?.length) {
+            <p class="mt-1 opacity-80">{{ (mode() === 'combine' ? I18N.stacks.regroup_combine_hint : I18N.stacks.regroup_selected_hint) | translate }}</p>
+          }
         </details>
       } @else {
         <p class="text-sm opacity-80 mb-3">{{ (editable() ? I18N.stacks.hint : I18N.stacks.read_only) | translate }}</p>
@@ -62,14 +65,14 @@ function captureDateKey(date: string | null | undefined): string {
         <fieldset class="border-0 p-0 mb-3" [disabled]="saving() || saved() || !editable()">
           <legend class="text-sm font-medium mb-1">{{ I18N.stacks.regroup_policy | translate }}</legend>
           <div class="flex gap-2">
-            <button mat-stroked-button data-stack-mode="combine" class="!min-w-0 flex-1 !h-auto !whitespace-normal !px-2 max-sm:!min-h-11 pointer-coarse:!min-h-11 aria-pressed:!bg-[var(--mat-sys-secondary-container)] aria-pressed:!text-[var(--mat-sys-on-secondary-container)]" [attr.aria-pressed]="mode() === 'combine'" (click)="changeMode('combine')">
-              <mat-icon aria-hidden="true" [class.invisible]="mode() !== 'combine'">check</mat-icon>{{ I18N.stacks.regroup_combine | translate }}
+            <button mat-stroked-button data-stack-mode="combine" class="!min-w-0 flex-1 !h-auto !min-h-9 !whitespace-normal !px-2 max-sm:!min-h-11 pointer-coarse:!min-h-11 aria-pressed:!bg-[var(--mat-sys-secondary-container)] aria-pressed:!text-[var(--mat-sys-on-secondary-container)]" [attr.aria-pressed]="mode() === 'combine'" (click)="changeMode('combine')">
+              <mat-icon aria-hidden="true" [class]="mode() !== 'combine' ? 'invisible max-sm:!hidden' : ''">check</mat-icon>{{ I18N.stacks.regroup_combine | translate }}
             </button>
-            <button mat-stroked-button data-stack-mode="selected" class="!min-w-0 flex-1 !h-auto !whitespace-normal !px-2 max-sm:!min-h-11 pointer-coarse:!min-h-11 aria-pressed:!bg-[var(--mat-sys-secondary-container)] aria-pressed:!text-[var(--mat-sys-on-secondary-container)]" [attr.aria-pressed]="mode() === 'selected'" (click)="changeMode('selected')">
-              <mat-icon aria-hidden="true" [class.invisible]="mode() !== 'selected'">check</mat-icon>{{ I18N.stacks.regroup_selected | translate }}
+            <button mat-stroked-button data-stack-mode="selected" class="!min-w-0 flex-1 !h-auto !min-h-9 !whitespace-normal !px-2 max-sm:!min-h-11 pointer-coarse:!min-h-11 aria-pressed:!bg-[var(--mat-sys-secondary-container)] aria-pressed:!text-[var(--mat-sys-on-secondary-container)]" [attr.aria-pressed]="mode() === 'selected'" (click)="changeMode('selected')">
+              <mat-icon aria-hidden="true" [class]="mode() !== 'selected' ? 'invisible max-sm:!hidden' : ''">check</mat-icon>{{ I18N.stacks.regroup_selected | translate }}
             </button>
           </div>
-          <details class="text-sm mt-1"><summary class="cursor-pointer">{{ I18N.nav.help | translate }}</summary><p class="mt-1 opacity-80">{{ (mode() === 'combine' ? I18N.stacks.regroup_combine_hint : I18N.stacks.regroup_selected_hint) | translate }}</p></details>
+          @if (!page) { <p class="text-sm mt-2 opacity-80">{{ (mode() === 'combine' ? I18N.stacks.regroup_combine_hint : I18N.stacks.regroup_selected_hint) | translate }}</p> }
         </fieldset>
       }
       @if (loading()) { <p role="status">{{ I18N.ui.labels.loading | translate }}</p> }
@@ -103,7 +106,7 @@ function captureDateKey(date: string | null | undefined): string {
         }
         </div>
         @if (focused(); as path) {
-          <div class="relative bg-black/90 rounded-xl flex items-center justify-center overflow-hidden" [class]="page ? 'shrink-0 h-[55dvh]' : 'shrink-0 h-[28dvh] min-h-32 sm:h-[36dvh]'">
+          <div class="relative bg-black/90 rounded-xl flex items-center justify-center overflow-hidden" [class]="page ? 'shrink-0 h-[55dvh] lg:max-h-[calc(100dvh-420px)] lg:min-h-40' : 'shrink-0 h-[28dvh] min-h-32 sm:h-[36dvh]'">
             @if (page) {
               <app-synced-zoom #zoomPane class="block w-full h-full min-h-0" [src]="path | thumbnailUrl:1920" [placeholderSrc]="path | thumbnailUrl:640"
                 [fullResSrc]="path | imageUrl" [frameKey]="path" [alt]="path | filename" [zoom]="zoom()" [keyboardInspection]="true"
@@ -165,7 +168,7 @@ function captureDateKey(date: string | null | undefined): string {
     </div>
     <footer class="flex flex-wrap items-center justify-end shrink-0 px-1 py-2 sm:px-6 border-t border-current/10 gap-0.5">
       @if (page && error(); as failure) {
-        <div role="alert" class="flex flex-1 max-sm:basis-full flex-wrap items-center gap-2 text-sm">
+        <div role="alert" class="flex flex-1 max-sm:basis-full max-sm:px-2 flex-wrap items-center gap-2 text-sm">
           <span>{{ I18N.stacks[failure] | translate }}</span>
           <button mat-button class="max-sm:!min-h-11 pointer-coarse:!min-h-11" data-stack-retry (click)="retry()" [disabled]="saving() || loading()">{{ (failure === 'error' ? I18N.stacks.regroup_retry : I18N.stacks.reload) | translate }}</button>
         </div>

@@ -196,9 +196,21 @@ describe('BurstCullingComponent', () => {
       const panePaths = () => [...root.querySelectorAll('[data-darkroom-pane]')].map(pane => pane.getAttribute('data-path'));
       const slots = () => root.querySelectorAll<HTMLButtonElement>('[data-comparison-slot]');
       const thumbs = () => root.querySelectorAll<HTMLButtonElement>('[data-stack-filmstrip] button');
+      const expectBadges = () => {
+        const paths = panePaths();
+        [...thumbs()].forEach((thumb, index) => {
+          const assigned = paths.indexOf(`/frame${index}.jpg`);
+          const badge = thumb.querySelector('[data-filmstrip-pane-badge]');
+          expect(badge?.textContent?.trim() ?? null).toBe(assigned < 0 ? null : ['A', 'B', 'C', 'D'][assigned]);
+          if (badge) expect(badge.getAttribute('aria-hidden')).toBe('true');
+          expect(thumb.getAttribute('aria-label')).toContain('culling.comparison.assign_photo');
+        });
+      };
       expect(thumbs()).toHaveLength(6);
+      expectBadges();
       slots()[1].click(); fixture.detectChanges(); thumbs()[5].click(); fixture.detectChanges();
       expect(panePaths()).toEqual(['/frame0.jpg', '/frame5.jpg']);
+      expectBadges();
       slots()[0].click(); fixture.detectChanges(); thumbs()[3].click(); fixture.detectChanges();
       expect(panePaths()).toEqual(['/frame3.jpg', '/frame5.jpg']);
       rendered['setCompareMode']('4up'); fixture.detectChanges();
@@ -208,6 +220,7 @@ describe('BurstCullingComponent', () => {
       slots()[3].click(); fixture.detectChanges(); thumbs()[3].click(); fixture.detectChanges();
       expect(panePaths()[3]).toBe('/frame3.jpg');
       expect(new Set(panePaths()).size).toBe(4);
+      expectBadges();
       expect(cull.selectionsMap()).toEqual(selections); expect(mockApi.post).not.toHaveBeenCalled();
       // A hidden member disappears before effects settle: review ownership must
       // still follow the chosen pane's path, not its old numeric group index.
@@ -220,6 +233,9 @@ describe('BurstCullingComponent', () => {
       rendered['setCurrentLightboxPhotoKept'](nextGroup, true);
       expect(keep).toHaveBeenCalledWith(nextGroup, chosenPath, true);
       rendered['setCompareMode']('single');
+      fixture.detectChanges();
+      expect(root.querySelector('[data-filmstrip-pane-badge]')).toBeNull();
+      expect(thumbs()[0].getAttribute('aria-label')).toBe(nextGroup.photos[0].filename);
       expect(nextGroup.photos[rendered['effectiveLightboxIndex']()].path).toBe(chosenPath);
       fixture.destroy();
     });

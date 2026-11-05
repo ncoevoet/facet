@@ -671,6 +671,14 @@ describe('JunkSweepComponent HTTP, owner and recovery boundaries', () => {
     expect(reject.disabled).toBe(false);
   });
 
+  it('keeps the full descriptive filename and distinguishing suffix available on its card', async () => {
+    const filename = 'synthetic-receipt-01.png';
+    await boot([{ ...photo(1), filename }]);
+    const label = host().querySelector<HTMLElement>('[data-junk-card] p[title]')!;
+    expect(label.textContent?.trim()).toBe(filename);
+    expect(label.getAttribute('title')).toBe(filename);
+  });
+
   it('reports a failed Keep decision accurately and restores the candidate', async () => {
     await boot([photo(1), photo(2)]);
     const keep = host().querySelector<HTMLButtonElement>('[data-junk-keep]')!;

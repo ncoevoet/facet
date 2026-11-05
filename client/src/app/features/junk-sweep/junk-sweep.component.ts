@@ -159,7 +159,7 @@ interface QueueView {
                   {{ photo.junk_kind | junkKindLabel }}
                 </span>
               </div>
-              <p class="min-w-0 px-2 pt-2 text-xs break-all line-clamp-2" [title]="photo.filename">{{ photo.filename | filename:18 }}</p>
+              <p class="min-w-0 px-2 pt-2 text-xs break-all line-clamp-2" [title]="photo.filename">{{ photo.filename | filename }}</p>
               <div class="grid grid-cols-2 gap-1 p-1">
                 <button type="button" data-junk-keep
                         class="min-h-11 min-w-0 inline-flex flex-col sm:flex-row items-center justify-center gap-0.5 px-1 rounded-lg text-xs text-[var(--mat-sys-primary)] hover:bg-[var(--mat-sys-primary-container)] focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-[var(--mat-sys-primary)] disabled:opacity-50 disabled:cursor-default cursor-pointer"
