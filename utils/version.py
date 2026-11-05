@@ -36,7 +36,8 @@ def current_version():
 def build_label():
     """Which source the running code was built from, or '' when not recorded.
 
-    Set at image build time (``--build-arg FACET_BUILD=<branch>@<commit>``) so two
+    Set at image build time (``--build-arg FACET_BUILD=<branch>@<commit>``), or on Windows
+    by ``Start-Facet.ps1`` from the ``installer\\build-label.txt`` the MSI build wrote, so two
     installs of the same release built from different branches can be told apart.
     """
     return os.environ.get('FACET_BUILD', '').strip()

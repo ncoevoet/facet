@@ -106,6 +106,9 @@ jobs:
           npm run build
           if ($LASTEXITCODE) { throw 'client build failed' }
       - name: Build the MSI (WiX 3.14, checksum pinned)
+        env:
+          # The build label names the PR head, not the merge commit the checkout packages.
+          PR_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
         run: |
           python -m pip install uv==0.10.7
           $zip = Join-Path $env:RUNNER_TEMP 'wix.zip'
