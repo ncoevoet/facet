@@ -4,7 +4,7 @@
 
 [Analyse](#analyse) · [Aperçu et export](#aperçu-et-export) · [Opérations de recalcul](#opérations-de-recalcul) · [Reconnaissance faciale](#reconnaissance-faciale) · [Gestion des miniatures](#gestion-des-miniatures) · [Diagnostics](#diagnostics) · [Informations sur les modèles](#informations-sur-les-modèles) · [Optimisation des poids](#optimisation-des-poids-comparaison-par-paires) · [Configuration](#configuration) · [Étiquetage](#étiquetage) · [Validation de la base de données](#validation-de-la-base-de-données) · [Maintenance de la base de données](#maintenance-de-la-base-de-données) · [Visionneuse web](#visionneuse-web) · [Flux de travail courants](#flux-de-travail-courants)
 
-> Étiquettes d'exigence utilisées ci-dessous : `[GPU]` · `[8gb/12gb/16gb/24gb]` / `[16gb/24gb]` / `[24gb]` (profil VRAM). Voir la [matrice des fonctionnalités](INSTALLATION.md#exigences-par-fonctionnalité).
+> Étiquettes d'exigence utilisées ci-dessous : `[GPU]` · `[8gb/12gb/16gb/24gb]` / `[12gb/16gb/24gb]` / `[24gb]` (profil VRAM). Voir la [matrice des fonctionnalités](INSTALLATION.md#exigences-par-fonctionnalité).
 
 ## Analyse
 
@@ -191,7 +191,7 @@ Ces commandes mettent à jour des métriques ou dérivent de nouvelles données 
 | `python facet.py --detect-panoramas` | Détecte les panoramas à partir des miniatures stockées (exécute d'abord la passe des bracketings ; CPU) |
 | `python facet.py --detect-duplicates` | Détecte les photos en double via pHash (journalise `Duplicate state: N rows changed`) |
 | `python facet.py --sweep-dedup-thresholds [labels.json]` | Évalue les seuils de cosinus des quasi-doublons (précision/rappel avec labels) |
-| `python facet.py --generate-captions` | `[GPU]` `[16gb/24gb]` Génère des légendes IA avec le VLM |
+| `python facet.py --generate-captions` | `[GPU]` `[12gb/16gb/24gb]` Génère des légendes IA avec le VLM |
 | `python facet.py --translate-captions` | Traduit les légendes anglaises vers la langue configurée (CPU, MarianMT) |
 | `python facet.py --extract-gps` | Copie le GPS EXIF dans la base de données ; ignore les lieux définis dans la visionneuse |
 | `python facet.py --rescan-gps` | Réextrait le GPS EXIF de toutes les photos (écrase) ; ignore les lieux définis dans la visionneuse |

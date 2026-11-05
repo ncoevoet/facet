@@ -427,7 +427,7 @@ las activaciones se suman a eso. Trata estas cifras como suelos.
   `8gb` (7,56 GB), a menos de medio gigabyte del límite con JPEG de 18-20 MP. Fotogramas más grandes, la decodificación
   RAW o un host cargado necesitan más, de ahí los 12 GB recomendados.
 - **`12gb`, `16gb` y `24gb` no están medidos.** 18 GB es un marcador provisional.
-- **Pico de VRAM de `12gb`: 9,4–11,3 GiB (simulado).** Pico de la tarjeta completa con límites de 11,7 y 12,0 GiB, incluidos unos 2 GiB de uso del escritorio; el pico de PyTorch fue de 6,3 GiB (pasada del etiquetador Qwen3.5). Medido con un límite simulado de 12 GiB en una tarjeta de 16 GB; los modelos de ONNX Runtime (InsightFace) ignoran el límite; no medido en una tarjeta real de 12 GB.
+- **Pico de VRAM de `12gb`: 9,4–11,3 GiB (simulado).** Pico de la tarjeta completa con límites de 11,7 y 12,0 GiB, incluidos unos 2 GiB de uso del escritorio; el pico de PyTorch fue de 6,3 GiB asignados, 8,8 GiB reservados (pasada del etiquetador Qwen3.5). Medido con un límite simulado de 12 GiB en una tarjeta de 16 GB; los modelos de ONNX Runtime (InsightFace) ignoran el límite; no medido en una tarjeta real de 12 GB.
 - **Vigila la memoria anónima.** El MemUsage de `docker stats` y el `memory.current` del cgroup
   cuentan ambos la caché de páginas recuperable, así que engañan.
 - **Almacenamiento en caché de modelos.** Con `models.keep_in_ram` en `"auto"`, un modelo permanece en RAM entre

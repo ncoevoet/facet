@@ -803,8 +803,7 @@ Chacun débloque une fonctionnalité ; sans lui, la fonctionnalité est ignoré
 L'essentiel de Facet fonctionne partout (CPU, n'importe quel profil). Certaines fonctionnalités nécessitent un GPU, un **profil
 VRAM** plus élevé, un paquet optionnel, ou le **mot de passe d'édition** / le rôle **superadmin** de la galerie. Étiquettes
 utilisées dans la documentation :
-`[GPU]` · `[16gb/24gb]` (profil VRAM) · `[Edition]` · `[Superadmin]` · `[Optional: pkg]`.
-`[16gb/24gb]` vaut aussi pour `12gb`, qui exécute les mêmes modèles que `16gb`.
+`[GPU]` · `[12gb/16gb/24gb]` (profil VRAM) · `[Edition]` · `[Superadmin]` · `[Optional: pkg]`.
 
 | Fonctionnalité | GPU | Profil | Auth | Paquet optionnel |
 |---------|:---:|---------|:----:|------------------|

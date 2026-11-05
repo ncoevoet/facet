@@ -4,7 +4,7 @@
 
 [扫描](#扫描) · [预览与导出](#预览与导出) · [重新计算操作](#重新计算操作) · [人脸识别](#人脸识别) · [缩略图管理](#缩略图管理) · [诊断](#诊断) · [模型信息](#模型信息) · [权重优化](#权重优化成对比较) · [配置](#配置) · [标签标注](#标签标注) · [数据库校验](#数据库校验) · [数据库维护](#数据库维护) · [网页图库](#网页图库) · [常用工作流](#常用工作流)
 
-> 下文使用的需求标签：`[GPU]` · `[8gb/12gb/16gb/24gb]` / `[16gb/24gb]` / `[24gb]`（VRAM 档位）。参见[功能需求对照表](INSTALLATION.md#各功能的要求)。
+> 下文使用的需求标签：`[GPU]` · `[8gb/12gb/16gb/24gb]` / `[12gb/16gb/24gb]` / `[24gb]`（VRAM 档位）。参见[功能需求对照表](INSTALLATION.md#各功能的要求)。
 
 ## 扫描
 
@@ -191,7 +191,7 @@ Facet 会记录每次扫描（状态、模式、目录、计数器）以及每�
 | `python facet.py --detect-panoramas` | 根据已存储的缩略图检测全景照片组（先运行包围曝光检测；CPU） |
 | `python facet.py --detect-duplicates` | 通过 pHash 检测重复照片（记录 `Duplicate state: N rows changed`） |
 | `python facet.py --sweep-dedup-thresholds [labels.json]` | 评估近似重复的余弦阈值（有标注时给出精确率/召回率） |
-| `python facet.py --generate-captions` | `[GPU]` `[16gb/24gb]` 使用 VLM 生成 AI 照片描述 |
+| `python facet.py --generate-captions` | `[GPU]` `[12gb/16gb/24gb]` 使用 VLM 生成 AI 照片描述 |
 | `python facet.py --translate-captions` | 把英文照片描述翻译成所配置的语言（CPU，MarianMT） |
 | `python facet.py --extract-gps` | 把 EXIF GPS 复制到数据库；跳过在查看器中设置过的位置 |
 | `python facet.py --rescan-gps` | 为全部照片重新提取 EXIF GPS（覆盖）；跳过在查看器中设置过的位置 |

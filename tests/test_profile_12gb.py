@@ -70,6 +70,14 @@ class TestBoundaries:
         assert detected == 11.5
         assert ScoringConfig.profile_for_vram(detected) == '12gb'
 
+    def test_the_incompatibility_message_prints_the_requirement_with_one_decimal(self, caplog):
+        cfg = ScoringConfig.__new__(ScoringConfig)
+        cfg.config = {'models': {'vram_profile': '12gb'}}
+        cfg.get_model_config = lambda: cfg.config['models']
+        with mock.patch.object(ScoringConfig, 'detect_gpu_vram_gb', return_value=11.4),                 caplog.at_level(logging.WARNING):
+            cfg.check_vram_profile_compatibility(verbose=True)
+        assert any('requires ~11.5GB VRAM, but only 11.4GB detected' in r.getMessage() for r in caplog.records)
+
     def test_a_12gb_profile_on_a_11_5_gib_card_is_compatible_and_on_a_11_4_gib_card_is_not(self):
         cfg = ScoringConfig.__new__(ScoringConfig)
         cfg.config = {'models': {'vram_profile': '12gb'}}
@@ -151,6 +159,13 @@ class TestPlanner:
         assert len(bins) == 4
         assert {'insightface'} in [set(b) for b in bins]
         assert any({'topiq', 'samp_net'} <= set(b) for b in bins)
+
+    @pytest.mark.parametrize('vram_gb, passes', [(11.79, 4), (11.8, 3)])
+    def test_the_pass_count_steps_from_four_to_three_at_11_8_gib(self, vram_gb, passes):
+        from tests.test_multi_pass import _processor_for_shipped_profile
+        proc = _processor_for_shipped_profile('config/scoring_config.default.json', '12gb')
+        bins = proc.model_manager.group_passes_by_vram(proc._select_models(), vram_gb)
+        assert len(bins) == passes
 
 
 class TestDocsAgreeAcrossLanguages:

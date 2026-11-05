@@ -800,8 +800,7 @@ Cada um desbloqueia um recurso; sem ele, o recurso é pulado ou um fallback é u
 
 A maior parte do Facet roda em qualquer lugar (CPU, qualquer perfil). Alguns recursos precisam de uma GPU, de um **perfil
 de VRAM** mais alto, de um pacote opcional, ou da **senha de edição** / função de **superadmin** do visualizador. Tags usadas na documentação:
-`[GPU]` · `[16gb/24gb]` (perfil de VRAM) · `[Edition]` · `[Superadmin]` · `[Optional: pkg]`.
-`[16gb/24gb]` vale também para `12gb`, que executa os mesmos modelos que `16gb`.
+`[GPU]` · `[12gb/16gb/24gb]` (perfil de VRAM) · `[Edition]` · `[Superadmin]` · `[Optional: pkg]`.
 
 | Recurso | GPU | Perfil | Autenticação | Pacote opcional |
 |---------|:---:|---------|:----:|------------------|

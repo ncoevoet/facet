@@ -798,8 +798,7 @@ Each unlocks a feature; without it the feature is skipped or a fallback is used.
 Most of Facet runs anywhere (CPU, any profile). Some features need a GPU, a higher **VRAM
 profile**, an optional package, or the viewer's **edition password** / **superadmin**
 role. Tags used in the docs:
-`[GPU]` · `[16gb/24gb]` (VRAM profile) · `[Edition]` · `[Superadmin]` · `[Optional: pkg]`.
-`[16gb/24gb]` also applies to `12gb`, which runs the same models as `16gb`.
+`[GPU]` · `[12gb/16gb/24gb]` (VRAM profile) · `[Edition]` · `[Superadmin]` · `[Optional: pkg]`.
 
 | Feature | GPU | Profile | Auth | Optional package |
 |---------|:---:|---------|:----:|------------------|

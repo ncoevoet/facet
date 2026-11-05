@@ -587,20 +587,20 @@ def verify_onnx_runtime():
 
 def _stored_embedding_dim(db_path):
     """Width of the library's stored embeddings (one row read, never a scan), or None."""
+    import pathlib
     import sqlite3
+
+    from db.schema import detect_embedding_dim
     if not db_path or not os.path.exists(db_path):
         return None
     try:
-        conn = sqlite3.connect(f"file:{db_path}?mode=ro", uri=True)
+        conn = sqlite3.connect(pathlib.Path(db_path).resolve().as_uri() + "?mode=ro", uri=True)
         try:
-            row = conn.execute(
-                "SELECT LENGTH(clip_embedding) FROM photos WHERE clip_embedding IS NOT NULL LIMIT 1"
-            ).fetchone()
+            return detect_embedding_dim(conn)
         finally:
             conn.close()
     except sqlite3.Error:
         return None
-    return row[0] // 4 if row and row[0] else None
 
 
 def _report_embedding_width(config, profile, db_path, configured):

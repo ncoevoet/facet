@@ -4,7 +4,7 @@
 
 [Escaneo](#escaneo) · [Vista previa y exportación](#vista-previa-y-exportación) · [Operaciones de recálculo](#operaciones-de-recálculo) · [Reconocimiento facial](#reconocimiento-facial) · [Gestión de miniaturas](#gestión-de-miniaturas) · [Diagnóstico](#diagnóstico) · [Información de modelos](#información-de-modelos) · [Optimización de pesos](#optimización-de-pesos-comparación-por-pares) · [Configuración](#configuración) · [Etiquetado](#etiquetado) · [Validación de la base de datos](#validación-de-la-base-de-datos) · [Mantenimiento de la base de datos](#mantenimiento-de-la-base-de-datos) · [Galería web](#galería-web) · [Flujos de trabajo habituales](#flujos-de-trabajo-habituales)
 
-> Etiquetas de requisitos usadas a continuación: `[GPU]` · `[8gb/12gb/16gb/24gb]` / `[16gb/24gb]` / `[24gb]` (perfil de VRAM). Consulta la [matriz de funciones](INSTALLATION.md#requisitos-por-función).
+> Etiquetas de requisitos usadas a continuación: `[GPU]` · `[8gb/12gb/16gb/24gb]` / `[12gb/16gb/24gb]` / `[24gb]` (perfil de VRAM). Consulta la [matriz de funciones](INSTALLATION.md#requisitos-por-función).
 
 ## Escaneo
 
@@ -191,7 +191,7 @@ Estos comandos actualizan métricas o derivan datos nuevos sin volver a ejecutar
 | `python facet.py --detect-panoramas` | Detecta panorámicas desde las miniaturas almacenadas (ejecuta primero la pasada de bracketing; CPU) |
 | `python facet.py --detect-duplicates` | Detecta fotos duplicadas mediante pHash (registra `Duplicate state: N rows changed`) |
 | `python facet.py --sweep-dedup-thresholds [labels.json]` | Evalúa los umbrales de coseno de casi-duplicados (precisión/exhaustividad con etiquetas) |
-| `python facet.py --generate-captions` | `[GPU]` `[16gb/24gb]` Genera leyendas de IA con el VLM |
+| `python facet.py --generate-captions` | `[GPU]` `[12gb/16gb/24gb]` Genera leyendas de IA con el VLM |
 | `python facet.py --translate-captions` | Traduce las leyendas en inglés al idioma configurado (CPU, MarianMT) |
 | `python facet.py --extract-gps` | Copia el GPS del EXIF a la base de datos; omite las ubicaciones definidas en el visor |
 | `python facet.py --rescan-gps` | Vuelve a extraer el GPS del EXIF para todas las fotos (sobrescribe); omite las ubicaciones definidas en el visor |

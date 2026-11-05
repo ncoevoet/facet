@@ -427,7 +427,7 @@ activations add to it. Treat these as floors.
   `8gb` (7.56 GB), within about half a gigabyte of the cap on 18-20 MP JPEGs. Larger frames, RAW
   decoding or a busy host need more, hence 12 GB recommended.
 - **`12gb`, `16gb` and `24gb` are unmeasured.** 18 GB is a provisional placeholder.
-- **`12gb` VRAM peak: 9.4–11.3 GiB (simulated).** Whole-card peak under 11.7 and 12.0 GiB caps, including about 2 GiB of desktop use; the PyTorch peak was 6.3 GiB (the Qwen3.5 tagger pass). Measured under a simulated 12 GiB cap on a 16 GB card; ONNX Runtime models (InsightFace) ignore the cap; not measured on a real 12 GB card.
+- **`12gb` VRAM peak: 9.4–11.3 GiB (simulated).** Whole-card peak under 11.7 and 12.0 GiB caps, including about 2 GiB of desktop use; the PyTorch peak was 6.3 GiB allocated, 8.8 GiB reserved (the Qwen3.5 tagger pass). Measured under a simulated 12 GiB cap on a 16 GB card; ONNX Runtime models (InsightFace) ignore the cap; not measured on a real 12 GB card.
 - **Watch anonymous memory.** `docker stats` MemUsage and the cgroup's `memory.current`
   both count reclaimable page cache, so they mislead.
 - **Model caching.** With `models.keep_in_ram` at `"auto"`, a model stays in RAM between

@@ -802,8 +802,7 @@ Ognuno sblocca una funzionalità; senza di esso la funzionalità viene saltata o
 La maggior parte di Facet funziona ovunque (CPU, qualsiasi profilo). Alcune funzionalità richiedono una GPU, un **profilo
 VRAM** superiore, un pacchetto opzionale, oppure la **password di modifica** del viewer o il ruolo
 **superadmin**. Tag utilizzati nella documentazione:
-`[GPU]` · `[16gb/24gb]` (profilo VRAM) · `[Edition]` · `[Superadmin]` · `[Optional: pkg]`.
-`[16gb/24gb]` vale anche per `12gb`, che esegue gli stessi modelli di `16gb`.
+`[GPU]` · `[12gb/16gb/24gb]` (profilo VRAM) · `[Edition]` · `[Superadmin]` · `[Optional: pkg]`.
 
 | Funzionalità | GPU | Profilo | Autenticazione | Pacchetto opzionale |
 |---------|:---:|---------|:----:|------------------|

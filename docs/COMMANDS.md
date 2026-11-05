@@ -4,7 +4,7 @@
 
 [Scanning](#scanning) · [Preview & Export](#preview--export) · [Recompute Operations](#recompute-operations) · [Face Recognition](#face-recognition) · [Thumbnail Management](#thumbnail-management) · [Diagnostics](#diagnostics) · [Model Information](#model-information) · [Weight Optimization](#weight-optimization-pairwise-comparison) · [Configuration](#configuration) · [Tagging](#tagging) · [Database Validation](#database-validation) · [Database Maintenance](#database-maintenance) · [Web Viewer](#web-viewer) · [Common Workflows](#common-workflows)
 
-> Requirement tags used below: `[GPU]` · `[8gb/12gb/16gb/24gb]` / `[16gb/24gb]` / `[24gb]` (VRAM profile). See the [feature matrix](INSTALLATION.md#feature-requirements).
+> Requirement tags used below: `[GPU]` · `[8gb/12gb/16gb/24gb]` / `[12gb/16gb/24gb]` / `[24gb]` (VRAM profile). See the [feature matrix](INSTALLATION.md#feature-requirements).
 
 ## Scanning
 
@@ -191,7 +191,7 @@ These update metrics or derive new data without re-running the full scoring pipe
 | `python facet.py --detect-panoramas` | Detect panorama sets from stored thumbnails (runs the bracket pass first; CPU) |
 | `python facet.py --detect-duplicates` | Detect duplicate photos via pHash (logs `Duplicate state: N rows changed`) |
 | `python facet.py --sweep-dedup-thresholds [labels.json]` | Evaluate near-duplicate cosine thresholds (precision/recall with labels) |
-| `python facet.py --generate-captions` | `[GPU]` `[16gb/24gb]` Generate AI captions with the VLM |
+| `python facet.py --generate-captions` | `[GPU]` `[12gb/16gb/24gb]` Generate AI captions with the VLM |
 | `python facet.py --translate-captions` | Translate English captions to the configured language (CPU, MarianMT) |
 | `python facet.py --extract-gps` | Copy EXIF GPS into the database; skips locations set in the viewer |
 | `python facet.py --rescan-gps` | Re-extract EXIF GPS for all photos (overwrites); skips locations set in the viewer |

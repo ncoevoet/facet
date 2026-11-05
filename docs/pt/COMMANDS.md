@@ -4,7 +4,7 @@
 
 [Escaneamento](#scanning) · [Pré-visualização e Exportação](#preview--export) · [Operações de Recálculo](#recompute-operations) · [Reconhecimento Facial](#face-recognition) · [Gerenciamento de Miniaturas](#thumbnail-management) · [Diagnósticos](#diagnostics) · [Informações dos Modelos](#model-information) · [Otimização de Pesos](#weight-optimization-pairwise-comparison) · [Configuração](#configuration) · [Marcação](#tagging) · [Validação do Banco de Dados](#database-validation) · [Manutenção do Banco de Dados](#database-maintenance) · [Visualizador Web](#web-viewer) · [Fluxos de Trabalho Comuns](#common-workflows)
 
-> Tags de requisito usadas abaixo: `[GPU]` · `[8gb/12gb/16gb/24gb]` / `[16gb/24gb]` / `[24gb]` (perfil de VRAM). Veja a [matriz de recursos](INSTALLATION.md#requisitos-por-recurso).
+> Tags de requisito usadas abaixo: `[GPU]` · `[8gb/12gb/16gb/24gb]` / `[12gb/16gb/24gb]` / `[24gb]` (perfil de VRAM). Veja a [matriz de recursos](INSTALLATION.md#requisitos-por-recurso).
 
 ## Scanning
 
@@ -191,7 +191,7 @@ Estes comandos atualizam métricas ou derivam novos dados sem reexecutar todo o 
 | `python facet.py --detect-panoramas` | Detecta conjuntos de panorâmica a partir das miniaturas armazenadas (executa antes o passo de bracketing; CPU) |
 | `python facet.py --detect-duplicates` | Detecta fotos duplicadas por pHash (registra `Duplicate state: N rows changed`) |
 | `python facet.py --sweep-dedup-thresholds [labels.json]` | Avalia limiares de cosseno de quase-duplicatas (precisão/revocação com rótulos) |
-| `python facet.py --generate-captions` | `[GPU]` `[16gb/24gb]` Gera legendas de IA com o VLM |
+| `python facet.py --generate-captions` | `[GPU]` `[12gb/16gb/24gb]` Gera legendas de IA com o VLM |
 | `python facet.py --translate-captions` | Traduz as legendas em inglês para o idioma configurado (CPU, MarianMT) |
 | `python facet.py --extract-gps` | Copia o GPS do EXIF para o banco de dados; ignora localizações definidas no visualizador |
 | `python facet.py --rescan-gps` | Reextrai o GPS do EXIF de todas as fotos (sobrescreve); ignora localizações definidas no visualizador |

@@ -838,8 +838,7 @@ Fallback verwendet.
 Der Großteil von Facet läuft überall (CPU, jedes Profil). Einige Funktionen benötigen eine
 GPU, ein höheres **VRAM-Profil**, ein optionales Paket oder das **Bearbeitungspasswort** /
 die **Superadmin**-Rolle des Viewers. In der Dokumentation verwendete Kennzeichnungen:
-`[GPU]` · `[16gb/24gb]` (VRAM-Profil) · `[Edition]` · `[Superadmin]` · `[Optional: pkg]`.
-`[16gb/24gb]` gilt auch für `12gb`, das dieselben Modelle wie `16gb` ausführt.
+`[GPU]` · `[12gb/16gb/24gb]` (VRAM-Profil) · `[Edition]` · `[Superadmin]` · `[Optional: pkg]`.
 
 | Funktion | GPU | Profil | Auth | Optionales Paket |
 |---------|:---:|---------|:----:|------------------|

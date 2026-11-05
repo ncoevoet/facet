@@ -99,14 +99,14 @@ Passa il puntatore su una foto per vedere il dettaglio del punteggio e i dati EX
 ### Comprendere
 
 - **Statistiche** — dashboard per l'utilizzo dell'attrezzatura, la suddivisione per categoria, la cronologia degli scatti e le correlazioni tra metriche
-- **Critica IA** — dettaglio del punteggio che mostra il contributo di ogni metrica; valutazione in linguaggio naturale VLM `[GPU]` `[16gb/24gb]`
+- **Critica IA** — dettaglio del punteggio che mostra il contributo di ogni metrica; valutazione in linguaggio naturale VLM `[GPU]` `[12gb/16gb/24gb]`
 - **Regolazione dei pesi** — editor dei pesi per categoria con anteprima del punteggio in tempo reale. Il confronto A/B tra foto impara dalle tue scelte e suggerisce pesi ottimizzati.
 - **Contesti di punteggio** — scegli *quale* categoria valuta una foto: riordina la priorità delle categorie, applica un contesto con nome (Azione/Palco, Sessione ritratto, Fauna selvatica, …) per album, oppure fissa una categoria su una singola foto.
 - **Ordinamento "I miei gusti"** — ordina la galleria in base al punteggio appreso dal ranker personale, con un badge di confidenza che mostra la copertura appresa e l'accuratezza su dati di validazione
 - **Apprendimento dalle etichette** — le decisioni di selezione, le valutazioni a stelle, i preferiti e i rifiuti alimentano l'ottimizzatore dei pesi (`--sync-label-comparisons`, `--mine-insights`)
 - **Snapshot** — salva, ripristina e confronta le configurazioni dei pesi
 - **Istogramma** — istogramma RGB/luminanza con indicatori di clipping, nel pannello laterale della galleria e nella vista di dettaglio
-- **Didascalie IA** `[GPU]` `[16gb/24gb]` — descrizioni testuali, modificabili `[Edition]` e traducibili in 5 lingue (la consultazione è aperta; la generazione e la modifica richiedono l'accesso di modifica)
+- **Didascalie IA** `[GPU]` `[12gb/16gb/24gb]` — descrizioni testuali, modificabili `[Edition]` e traducibili in 5 lingue (la consultazione è aperta; la generazione e la modifica richiedono l'accesso di modifica)
 
 <table><tr>
 <td><img src="docs/screenshots/stats-gear.jpg" alt="Statistiche dell'attrezzatura" width="100%"></td>

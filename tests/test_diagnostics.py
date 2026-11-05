@@ -1661,4 +1661,10 @@ class TestDoctorEmbeddingWidthOnAuto:
         import inspect
 
         from diagnostics import _stored_embedding_dim
-        assert "LIMIT 1" in inspect.getsource(_stored_embedding_dim)
+        assert "detect_embedding_dim" in inspect.getsource(_stored_embedding_dim)
+
+    def test_a_library_path_with_uri_metacharacters_still_gets_the_warning(self, capsys, tmp_path):
+        folder = tmp_path / "a#b"
+        folder.mkdir()
+        out = self._doctor(capsys, tmp_path, self._library(folder, 768))
+        assert "Embedding width" in out and "768-dim" in out

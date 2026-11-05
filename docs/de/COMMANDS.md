@@ -4,7 +4,7 @@
 
 [Scannen](#scannen) · [Vorschau & Export](#vorschau--export) · [Neuberechnungen](#neuberechnungen) · [Gesichtserkennung](#gesichtserkennung) · [Thumbnail-Verwaltung](#thumbnail-verwaltung) · [Diagnose](#diagnose) · [Modellinformationen](#modellinformationen) · [Gewichtungsoptimierung](#gewichtungsoptimierung-paarweiser-vergleich) · [Konfiguration](#konfiguration) · [Verschlagwortung](#verschlagwortung) · [Datenbankvalidierung](#datenbankvalidierung) · [Datenbankpflege](#datenbankpflege) · [Web-Viewer](#web-viewer) · [Häufige Arbeitsabläufe](#häufige-arbeitsabläufe)
 
-> Anforderungs-Tags, die nachstehend verwendet werden: `[GPU]` · `[8gb/12gb/16gb/24gb]` / `[16gb/24gb]` / `[24gb]` (VRAM-Profil). Siehe die [Funktionsmatrix](INSTALLATION.md#funktionsanforderungen).
+> Anforderungs-Tags, die nachstehend verwendet werden: `[GPU]` · `[8gb/12gb/16gb/24gb]` / `[12gb/16gb/24gb]` / `[24gb]` (VRAM-Profil). Siehe die [Funktionsmatrix](INSTALLATION.md#funktionsanforderungen).
 
 ## Scannen
 
@@ -191,7 +191,7 @@ Diese Befehle aktualisieren Metriken oder leiten neue Daten ab, ohne die vollst�
 | `python facet.py --detect-panoramas` | Panorama-Serien aus gespeicherten Thumbnails erkennen (führt zuerst den Bracket-Durchlauf aus; CPU) |
 | `python facet.py --detect-duplicates` | Doppelte Fotos via pHash erkennen (protokolliert `Duplicate state: N rows changed`) |
 | `python facet.py --sweep-dedup-thresholds [labels.json]` | Kosinus-Schwellenwerte für Beinahe-Duplikate auswerten (Präzision/Recall mit Labels) |
-| `python facet.py --generate-captions` | `[GPU]` `[16gb/24gb]` KI-Bildunterschriften mit dem VLM erzeugen |
+| `python facet.py --generate-captions` | `[GPU]` `[12gb/16gb/24gb]` KI-Bildunterschriften mit dem VLM erzeugen |
 | `python facet.py --translate-captions` | Englische Bildunterschriften in die konfigurierte Sprache übersetzen (CPU, MarianMT) |
 | `python facet.py --extract-gps` | EXIF-GPS in die Datenbank kopieren; im Viewer gesetzte Orte werden übersprungen |
 | `python facet.py --rescan-gps` | EXIF-GPS für alle Fotos neu extrahieren (überschreibt); im Viewer gesetzte Orte werden übersprungen |

@@ -99,14 +99,14 @@ Passe o cursor sobre qualquer foto para ver o detalhamento da pontuação e os d
 ### Entender
 
 - **Estatísticas** — painéis de uso de equipamentos, detalhamento por categoria, linha do tempo de capturas e correlações de métricas
-- **Crítica por IA** — detalhamento da pontuação mostrando a contribuição de cada métrica; avaliação em linguagem natural por VLM `[GPU]` `[16gb/24gb]`
+- **Crítica por IA** — detalhamento da pontuação mostrando a contribuição de cada métrica; avaliação em linguagem natural por VLM `[GPU]` `[12gb/16gb/24gb]`
 - **Ajuste de pesos** — editor de pesos por categoria com pré-visualização da pontuação em tempo real. A comparação A/B de fotos aprende com suas escolhas e sugere pesos otimizados.
 - **Contextos de pontuação** — escolha *qual* categoria pontua uma foto: reordene a prioridade das categorias, aplique um contexto nomeado (Ação/Palco, Sessão de retrato, Vida selvagem, …) por álbum, ou fixe uma categoria em uma foto.
 - **Ordenação Meu Gosto** — ordene a galeria pela pontuação aprendida do classificador pessoal, com um selo de confiança que mostra a cobertura aprendida e a precisão em dados separados
 - **Aprendizado a partir de rótulos** — decisões de seleção, classificações por estrelas, favoritos e rejeições alimentam o otimizador de pesos (`--sync-label-comparisons`, `--mine-insights`)
 - **Snapshots** — salve, restaure e compare configurações de pesos
 - **Histograma** — histograma RGB/luminância com indicadores de clipping, no painel lateral da galeria e na visualização de detalhes
-- **Legendas por IA** `[GPU]` `[16gb/24gb]` — descrições em texto, editáveis `[Edition]` e traduzíveis para 5 idiomas (a visualização é aberta; a geração e a edição exigem edição)
+- **Legendas por IA** `[GPU]` `[12gb/16gb/24gb]` — descrições em texto, editáveis `[Edition]` e traduzíveis para 5 idiomas (a visualização é aberta; a geração e a edição exigem edição)
 
 <table><tr>
 <td><img src="docs/screenshots/stats-gear.jpg" alt="Estatísticas de equipamento" width="100%"></td>

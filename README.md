@@ -99,14 +99,14 @@ Hover over any photo to see its score breakdown and EXIF data in the gallery's s
 ### Understand
 
 - **Statistics** — dashboards for equipment usage, category breakdown, shooting timeline, and metric correlations
-- **AI critique** — score breakdown showing each metric's contribution; VLM natural-language assessment `[GPU]` `[16gb/24gb]`
+- **AI critique** — score breakdown showing each metric's contribution; VLM natural-language assessment `[GPU]` `[12gb/16gb/24gb]`
 - **Weight tuning** — per-category weight editor with live score preview. A/B photo comparison learns from your choices and suggests optimized weights.
 - **Scoring contexts** — choose *which* category a photo is scored as: reorder category priority, apply a named context (Action/Stage, Portrait Session, Wildlife, …) per album, or pin a category on one photo.
 - **My Taste sort** — sort the gallery by the personal ranker's learned score, with a confidence badge showing learned coverage and held-out accuracy
 - **Learning from labels** — culling decisions, star ratings, favorites, and rejections feed the weight optimizer (`--sync-label-comparisons`, `--mine-insights`)
 - **Snapshots** — save, restore, and compare weight configurations
 - **Histogram** — RGB/luminance histogram with clipping indicators, in the gallery side panel and detail view
-- **AI captions** `[GPU]` `[16gb/24gb]` — text descriptions, editable `[Edition]` and translatable to 5 languages (viewing is open; generation and editing need edition)
+- **AI captions** `[GPU]` `[12gb/16gb/24gb]` — text descriptions, editable `[Edition]` and translatable to 5 languages (viewing is open; generation and editing need edition)
 
 <table><tr>
 <td><img src="docs/screenshots/stats-gear.jpg" alt="Equipment statistics" width="100%"></td>
