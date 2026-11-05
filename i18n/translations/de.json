@@ -3603,6 +3603,7 @@
     "rejected_bulk": "{count} Fotos verworfen",
     "load_more": "Mehr laden",
     "load_error": "Müll-Kandidaten konnten nicht geladen werden",
+    "decision_error": "Die Entscheidung konnte nicht gespeichert werden. Bitte versuchen Sie es erneut.",
     "kinds": {
       "screenshot": "Screenshots",
       "document": "Dokumente",

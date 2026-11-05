@@ -48,17 +48,17 @@ function captureDateKey(date: string | null | undefined): string {
     } @else {
       <h2 mat-dialog-title class="shrink-0">{{ (stack() ? I18N.stacks.title : I18N.stacks.create) | translate }}</h2>
     }
-    <div class="flex flex-col min-h-0 flex-1 px-3 sm:px-6 overflow-x-hidden" [class.overflow-y-auto]="!page">
-      <div class="shrink-0" [class.max-h-40]="page" [class.overflow-y-auto]="page">
+    <div class="flex flex-col min-h-0 flex-1 px-3 sm:px-6 overflow-x-hidden overflow-y-auto">
+      <div class="shrink-0">
       <p class="text-sm opacity-80 mb-3">{{ (editable() ? I18N.stacks.hint : I18N.stacks.read_only) | translate }}</p>
       @if (regrouping() && preview()?.source_stacks?.length) {
         <fieldset class="border-0 p-0 mb-3" [disabled]="saving() || saved() || !editable()">
           <legend class="text-sm font-medium mb-1">{{ I18N.stacks.regroup_policy | translate }}</legend>
           <div class="flex flex-wrap gap-2">
-            <button mat-stroked-button data-stack-mode="combine" class="aria-pressed:!bg-[var(--mat-sys-secondary-container)] aria-pressed:!text-[var(--mat-sys-on-secondary-container)]" [attr.aria-pressed]="mode() === 'combine'" (click)="changeMode('combine')">
+            <button mat-stroked-button data-stack-mode="combine" class="max-sm:!min-h-11 pointer-coarse:!min-h-11 aria-pressed:!bg-[var(--mat-sys-secondary-container)] aria-pressed:!text-[var(--mat-sys-on-secondary-container)]" [attr.aria-pressed]="mode() === 'combine'" (click)="changeMode('combine')">
               <mat-icon aria-hidden="true" [class.invisible]="mode() !== 'combine'">check</mat-icon>{{ I18N.stacks.regroup_combine | translate }}
             </button>
-            <button mat-stroked-button data-stack-mode="selected" class="aria-pressed:!bg-[var(--mat-sys-secondary-container)] aria-pressed:!text-[var(--mat-sys-on-secondary-container)]" [attr.aria-pressed]="mode() === 'selected'" (click)="changeMode('selected')">
+            <button mat-stroked-button data-stack-mode="selected" class="max-sm:!min-h-11 pointer-coarse:!min-h-11 aria-pressed:!bg-[var(--mat-sys-secondary-container)] aria-pressed:!text-[var(--mat-sys-on-secondary-container)]" [attr.aria-pressed]="mode() === 'selected'" (click)="changeMode('selected')">
               <mat-icon aria-hidden="true" [class.invisible]="mode() !== 'selected'">check</mat-icon>{{ I18N.stacks.regroup_selected | translate }}
             </button>
           </div>
@@ -66,17 +66,17 @@ function captureDateKey(date: string | null | undefined): string {
         </fieldset>
       }
       @if (loading()) { <p role="status">{{ I18N.ui.labels.loading | translate }}</p> }
-      @if (error(); as failure) {
+      @if (!page && error(); as failure) {
         <div role="alert" class="my-3">
           <p>{{ I18N.stacks[failure] | translate }}</p>
-          <button mat-button data-stack-retry (click)="retry()" [disabled]="saving() || loading()">{{ (failure === 'error' ? I18N.stacks.regroup_retry : I18N.stacks.reload) | translate }}</button>
+          <button mat-button class="max-sm:!min-h-11 pointer-coarse:!min-h-11" data-stack-retry (click)="retry()" [disabled]="saving() || loading()">{{ (failure === 'error' ? I18N.stacks.regroup_retry : I18N.stacks.reload) | translate }}</button>
         </div>
       }
       </div>
       @if (ready()) {
-        <div class="shrink-0" [class.max-h-24]="page" [class.overflow-y-auto]="page">
+        <div class="shrink-0">
         <div class="flex flex-wrap justify-between items-center gap-2 text-sm mb-2" aria-live="polite">
-          <p data-stack-member-count>{{ paths().length | pluralKey:I18N.stacks.member_count:I18N.stacks.member_count_plural | translate:{ count: paths().length } }}</p>
+          @if (!regrouping()) { <p data-stack-member-count>{{ paths().length | pluralKey:I18N.stacks.member_count:I18N.stacks.member_count_plural | translate:{ count: paths().length } }}</p> }
           @if (regrouping()) { <p>{{ I18N.stacks.regroup_counts | translate:{ selected: explicitPaths().length, effective: paths().length } }}</p> }
         </div>
         @if (rejectedCount()) { <p role="status" data-stack-excluded class="text-sm mb-1">{{ I18N.stacks.reject_count | translate:{ count: rejectedCount() } }}</p> }
@@ -86,7 +86,7 @@ function captureDateKey(date: string | null | undefined): string {
             <p data-stack-source-summary aria-live="polite">{{ I18N.stacks.regroup_summary | translate:sourceSummary() }}</p>
             <details class="mt-1">
               <summary class="cursor-pointer font-medium">{{ I18N.stacks.regroup_sources | translate }}</summary>
-              <div class="max-h-36 overflow-y-auto mt-2">
+              <div class="mt-2">
                 @for (source of sourceEffects(); track source.id) {
                   <p data-stack-source class="mb-1"><span class="font-medium">{{ source.cover | filename }}</span>: {{ I18N.stacks.regroup_moved | translate:{ moved: source.moved, total: source.total } }} · {{ I18N.stacks[source.outcome] | translate:{ count: source.remaining } }}</p>
                 }
@@ -96,10 +96,11 @@ function captureDateKey(date: string | null | undefined): string {
         }
         </div>
         @if (focused(); as path) {
-          <div class="relative bg-black/90 rounded-xl flex items-center justify-center overflow-hidden" [class]="page ? 'flex-1 min-h-0' : 'shrink-0 h-[28dvh] min-h-32 sm:h-[36dvh]'">
+          <div class="relative bg-black/90 rounded-xl flex items-center justify-center overflow-hidden" [class]="page ? 'shrink-0 h-[55dvh]' : 'shrink-0 h-[28dvh] min-h-32 sm:h-[36dvh]'">
             @if (page) {
               <app-synced-zoom #zoomPane class="block w-full h-full min-h-0" [src]="path | thumbnailUrl:1920" [placeholderSrc]="path | thumbnailUrl:640"
                 [fullResSrc]="path | imageUrl" [frameKey]="path" [alt]="path | filename" [zoom]="zoom()" [keyboardInspection]="true"
+                aria-describedby="stack-inspection-help" aria-keyshortcuts="+ - Home F ArrowLeft ArrowRight ArrowUp ArrowDown"
                 (zoomChange)="updateZoom($event)" (fitRequested)="fitZoom()" (geometryChange)="constrainZoom()"
                 (renditionChange)="setRendition(path, $event)" (sharpPending)="setPreviewPhase(path, 'loading')"
                 (sharpLoaded)="setPreviewPhase(path, 'ready')" (sharpFailed)="setPreviewPhase(path, 'failed')" />
@@ -107,6 +108,7 @@ function captureDateKey(date: string | null | undefined): string {
             <img data-stack-preview [src]="path | thumbnailUrl:1920" [alt]="path | filename" decoding="async" class="w-full h-full object-contain" />
             }
             @if (page) {
+              <span id="stack-inspection-help" class="sr-only">{{ I18N.photo_detail.inspection.help | translate }}</span>
               <button mat-icon-button data-stack-zoom class="!absolute top-2 right-2 !bg-black/75 !text-white max-sm:!h-11 max-sm:!w-11 pointer-coarse:!h-11 pointer-coarse:!w-11" (click)="toggleZoom()" [disabled]="saving() || loading()" [attr.aria-pressed]="zoom().scale > 1" [attr.aria-label]="I18N.culling.shortcuts.zoom | translate" [matTooltip]="I18N.culling.shortcuts.zoom | translate"><mat-icon aria-hidden="true">{{ zoom().scale > 1 ? 'zoom_out' : 'zoom_in' }}</mat-icon></button>
             }
             @if (path === cover()) { <span class="absolute top-2 left-2 rounded-full bg-black/75 text-white px-3 py-1 text-xs flex items-center gap-1"><mat-icon aria-hidden="true">star</mat-icon>{{ I18N.stacks.cover | translate }}</span> }
@@ -126,7 +128,7 @@ function captureDateKey(date: string | null | undefined): string {
                 <ng-container [ngTemplateOutlet]="memberActions" [ngTemplateOutletContext]="{ $implicit: path, index: focusedIndex(), first: focusedIndex() === 0, last: focusedIndex() === paths().length - 1, compact: false }" />
               </div>
             }
-            @if (!page) { <button mat-icon-button (click)="openMember(path)" [disabled]="saving()" [attr.aria-label]="I18N.stacks.open_member | translate:{ path }" [matTooltip]="I18N.stacks.open_member | translate:{ path: (path | filename) }"><mat-icon aria-hidden="true">open_in_new</mat-icon></button> }
+            @if (!page) { <button mat-icon-button (click)="openMember(path)" [disabled]="saving()" [attr.aria-label]="I18N.stacks.open_member | translate:{ path: (path | filename) }" [matTooltip]="I18N.stacks.open_member | translate:{ path: (path | filename) }"><mat-icon aria-hidden="true">open_in_new</mat-icon></button> }
           </div>
         }
         @if (paths().length < 2) { <p role="status" class="my-3">{{ (regrouping() ? I18N.stacks.regroup_minimum : I18N.stacks.dissolve_hint) | translate }}</p> }
@@ -139,7 +141,7 @@ function captureDateKey(date: string | null | undefined): string {
                 <img [src]="path | thumbnailUrl:640" alt="" loading="lazy" decoding="async" class="w-full h-[84px] sm:h-[108px] object-contain bg-black/70" />
                 @if (path === cover()) { <span class="absolute top-1 left-1 rounded bg-black/80 text-white px-1 text-xs">{{ I18N.stacks.cover | translate }}</span> }
               </button>
-              <span data-stack-filename class="block text-xs truncate px-2 pt-2" [matTooltip]="path" [title]="path" [attr.aria-label]="path">{{ path | filename }}</span>
+              <span data-stack-filename class="block text-xs truncate px-2 pt-2" [matTooltip]="path" [title]="path" [attr.aria-label]="path | filename">{{ path | filename }}</span>
               @if (editable() && !page) {
                 <ng-container [ngTemplateOutlet]="coverButton" [ngTemplateOutletContext]="{ $implicit: path }" />
                 <div class="flex flex-wrap justify-center">
@@ -155,7 +157,13 @@ function captureDateKey(date: string | null | undefined): string {
       }
     </div>
     <footer class="flex flex-wrap items-center justify-end shrink-0 px-3 py-2 sm:px-6 border-t border-current/10 gap-1">
-      <button #closeButton [attr.data-stack-back]="page ? '' : null" mat-button (click)="close()" [disabled]="saving()">{{ (page ? I18N.stacks.back_gallery : I18N.dialog.close) | translate }}</button>
+      @if (page && error(); as failure) {
+        <div role="alert" class="flex flex-1 flex-wrap items-center gap-2 text-sm">
+          <span>{{ I18N.stacks[failure] | translate }}</span>
+          <button mat-button class="max-sm:!min-h-11 pointer-coarse:!min-h-11" data-stack-retry (click)="retry()" [disabled]="saving() || loading()">{{ (failure === 'error' ? I18N.stacks.regroup_retry : I18N.stacks.reload) | translate }}</button>
+        </div>
+      }
+      <button #closeButton class="max-sm:!min-h-11 pointer-coarse:!min-h-11" [attr.data-stack-back]="page ? '' : null" mat-button (click)="close()" [disabled]="saving()">{{ (page ? I18N.stacks.back_gallery : I18N.dialog.close) | translate }}</button>
       @if (saved() && page) {
         <span role="status" data-stack-saved class="text-sm">{{ I18N.stacks.saved | translate }}</span>
         <button mat-flat-button data-stack-continue (click)="continueEditing()" [disabled]="loading() || saving()">{{ I18N.stacks.continue_editing | translate }}</button>
@@ -165,23 +173,23 @@ function captureDateKey(date: string | null | undefined): string {
         @if (stack()) { <button mat-button (click)="selectMembers()" [disabled]="saving()">{{ I18N.stacks.select_all | translate:{ count: memberCount() } }}</button> }
         @if (editable()) {
           @if (stack() && !regrouping()) { <button mat-button (click)="unstack()" [disabled]="saving()">{{ I18N.stacks.unstack | translate }}</button> }
-          <button mat-flat-button data-stack-save (click)="save()" [disabled]="saving() || loading() || !dirty() || !valid()">{{ (stack() ? I18N.ui.buttons.save : I18N.stacks.create) | translate }}</button>
+          <button mat-flat-button class="max-sm:!min-h-11 pointer-coarse:!min-h-11" data-stack-save (click)="save()" [disabled]="saving() || loading() || !dirty() || !valid()">{{ (stack() ? I18N.ui.buttons.save : I18N.stacks.create) | translate }}</button>
         }
       }
     </footer>
     <ng-template #coverButton let-path>
       @if (page) {
-        <button mat-icon-button class="max-sm:!h-11 max-sm:!w-11 pointer-coarse:!h-11 pointer-coarse:!w-11" [attr.data-stack-cover]="path" (click)="setCover(path)" [disabled]="!canEditDraft()" [attr.aria-pressed]="path === cover()" [attr.aria-label]="I18N.stacks.cover_for | translate:{ path }" [matTooltip]="I18N.stacks.cover_for | translate:{ path: (path | filename) }"><mat-icon aria-hidden="true">{{ path === cover() ? 'star' : 'star_outline' }}</mat-icon></button>
+        <button mat-icon-button class="max-sm:!h-11 max-sm:!w-11 pointer-coarse:!h-11 pointer-coarse:!w-11" [attr.data-stack-cover]="path" (click)="setCover(path)" [disabled]="!canEditDraft()" [attr.aria-pressed]="path === cover()" [attr.aria-label]="I18N.stacks.cover_for | translate:{ path: (path | filename) }" [matTooltip]="I18N.stacks.cover_for | translate:{ path: (path | filename) }"><mat-icon aria-hidden="true">{{ path === cover() ? 'star' : 'star_outline' }}</mat-icon></button>
       } @else {
-        <button mat-button class="!w-full" [attr.data-stack-cover]="path" (click)="setCover(path)" [disabled]="!canEditDraft()" [attr.aria-pressed]="path === cover()" [attr.aria-label]="I18N.stacks.cover_for | translate:{ path }" [matTooltip]="I18N.stacks.cover_for | translate:{ path: (path | filename) }">
+        <button mat-button class="!w-full" [attr.data-stack-cover]="path" (click)="setCover(path)" [disabled]="!canEditDraft()" [attr.aria-pressed]="path === cover()" [attr.aria-label]="I18N.stacks.cover_for | translate:{ path: (path | filename) }" [matTooltip]="I18N.stacks.cover_for | translate:{ path: (path | filename) }">
           <mat-icon aria-hidden="true">{{ path === cover() ? 'star' : 'star_outline' }}</mat-icon>{{ I18N.stacks.cover | translate }}
         </button>
       }
     </ng-template>
     <ng-template #memberActions let-path let-index="index" let-first="first" let-last="last" let-compact="compact">
-      <button mat-icon-button [class]="compact ? '!w-9 !h-10 !p-2 max-sm:!w-11 max-sm:!h-11 pointer-coarse:!w-11 pointer-coarse:!h-11' : 'max-sm:!w-11 max-sm:!h-11 pointer-coarse:!w-11 pointer-coarse:!h-11'" (click)="move(index, -1)" [disabled]="!canEditDraft() || first" [attr.aria-label]="I18N.stacks.move_up | translate:{ path }" [matTooltip]="I18N.stacks.move_up | translate:{ path: (path | filename) }"><mat-icon aria-hidden="true">arrow_back</mat-icon></button>
-      <button mat-icon-button [class]="compact ? '!w-9 !h-10 !p-2 max-sm:!w-11 max-sm:!h-11 pointer-coarse:!w-11 pointer-coarse:!h-11' : 'max-sm:!w-11 max-sm:!h-11 pointer-coarse:!w-11 pointer-coarse:!h-11'" (click)="move(index, 1)" [disabled]="!canEditDraft() || last" [attr.aria-label]="I18N.stacks.move_down | translate:{ path }" [matTooltip]="I18N.stacks.move_down | translate:{ path: (path | filename) }"><mat-icon aria-hidden="true">arrow_forward</mat-icon></button>
-      <button mat-icon-button [class]="compact ? '!w-9 !h-10 !p-2 max-sm:!w-11 max-sm:!h-11 pointer-coarse:!w-11 pointer-coarse:!h-11' : 'max-sm:!w-11 max-sm:!h-11 pointer-coarse:!w-11 pointer-coarse:!h-11'" [attr.data-stack-remove]="path" (click)="remove(path)" [disabled]="!canEditDraft()" [attr.aria-label]="I18N.stacks.remove | translate:{ path }" [matTooltip]="I18N.stacks.remove | translate:{ path: (path | filename) }"><mat-icon aria-hidden="true">remove_circle_outline</mat-icon></button>
+      <button mat-icon-button [class]="compact ? '!w-9 !h-10 !p-2 max-sm:!w-11 max-sm:!h-11 pointer-coarse:!w-11 pointer-coarse:!h-11' : 'max-sm:!w-11 max-sm:!h-11 pointer-coarse:!w-11 pointer-coarse:!h-11'" (click)="move(index, -1)" [disabled]="!canEditDraft() || first" [attr.aria-label]="I18N.stacks.move_up | translate:{ path: (path | filename) }" [matTooltip]="I18N.stacks.move_up | translate:{ path: (path | filename) }"><mat-icon aria-hidden="true">arrow_back</mat-icon></button>
+      <button mat-icon-button [class]="compact ? '!w-9 !h-10 !p-2 max-sm:!w-11 max-sm:!h-11 pointer-coarse:!w-11 pointer-coarse:!h-11' : 'max-sm:!w-11 max-sm:!h-11 pointer-coarse:!w-11 pointer-coarse:!h-11'" (click)="move(index, 1)" [disabled]="!canEditDraft() || last" [attr.aria-label]="I18N.stacks.move_down | translate:{ path: (path | filename) }" [matTooltip]="I18N.stacks.move_down | translate:{ path: (path | filename) }"><mat-icon aria-hidden="true">arrow_forward</mat-icon></button>
+      <button mat-icon-button [class]="compact ? '!w-9 !h-10 !p-2 max-sm:!w-11 max-sm:!h-11 pointer-coarse:!w-11 pointer-coarse:!h-11' : 'max-sm:!w-11 max-sm:!h-11 pointer-coarse:!w-11 pointer-coarse:!h-11'" [attr.data-stack-remove]="path" (click)="remove(path)" [disabled]="!canEditDraft()" [attr.aria-label]="I18N.stacks.remove | translate:{ path: (path | filename) }" [matTooltip]="I18N.stacks.remove | translate:{ path: (path | filename) }"><mat-icon aria-hidden="true">remove_circle_outline</mat-icon></button>
     </ng-template>
   `,
 })
@@ -483,7 +491,7 @@ export class StackEditorComponent implements OnInit {
     const live = () => this.current() && this.editable() && !this.saved() && (!shared || shared.current());
     if (!live() || shared && !shared.lock()) return;
     const origin = document.activeElement instanceof HTMLElement ? document.activeElement : null;
-    const restoreTileFocus = origin?.closest('[data-stack-tile]')?.querySelector('[data-stack-focus]')?.getAttribute('data-stack-focus') === path;
+    const restoreTileFocus = origin?.matches('[data-stack-reject]') || origin?.closest('[data-stack-tile]')?.querySelector('[data-stack-focus]')?.getAttribute('data-stack-focus') === path;
     let focusMoved = false;
     const noteFocus = (event: FocusEvent) => { if (event.target !== origin && event.target !== document.body) focusMoved = true; };
     if (restoreTileFocus) document.addEventListener('focusin', noteFocus);

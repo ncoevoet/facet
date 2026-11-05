@@ -95,6 +95,8 @@ All notable changes to Facet are documented in this file.
 
 ### Fixed
 
+- Keep Stack Editor controls accessible while scrolling, restore focus after review decisions, and improve Culling and Junk Sweep labels, touch targets and failure messages.
+
 - Junk Sweep preserves unseen candidates after decisions and failed paging, separates load failures from empty queues, and stops later bulk write batches after navigation or account changes. Named touch-sized decisions stay visible; kind counts match the reader’s remaining candidates.
 
 - Arrow keys on the opened-photo collection thumbnails now open the focused photo instead of only moving its focus outline. Home/End open the first/last photo in the visible section; collection filters, selection and Back remain intact.

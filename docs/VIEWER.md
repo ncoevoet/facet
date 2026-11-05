@@ -282,6 +282,8 @@ Use **Review status → Needs review** in the gallery to work through undecided 
 
 Select **2–1000 explicit photos**, then choose **Stack photos** on the selection bar or press **S** to open the full-page editor at `/stacks/edit`. A whole-view selection cannot create a stack. S opens a preview; it never saves directly. User menu → **Customize shortcuts** changes the gallery binding, and the toolbar tooltip, Help and `?` reference show the current key. If an older saved mapping already uses S, that binding is preserved and Stack starts **Unassigned** until you choose a free key. Editing access is required. A photo belongs to one manual stack per owner. The page centers a zoomable preview above a persistent thumbnail strip. Click a thumbnail or use `←`/`→` to focus a photo, then choose its cover, order or remove controls. Use the zoom button, wheel or double-click to inspect details.
 
+The editor uses one page scroll, with review errors and Retry beside the footer actions. Reject returns keyboard focus to a remaining photo.
+
 In the full-page editor, Tab reaches the image canvas: +/− changes magnification, arrows pan while zoomed, and Home or F restores Fit. The thumbnail strip has one Tab stop; Left/Right and Home/End move focus and open the reached image. The image readout offers Retry for a failed rendition without saving or changing the stack. After Reject removes a focused thumbnail, focus moves to a surviving member.
 
 Use **Cmd+Shift+S** or **Ctrl+Shift+S** to stack explicit unstacked photos immediately in selection order, with the first selected photo as cover. Existing stack members open the editor for review. Success clears the committed selection, and Undo restores it; cancellation or failure retains it. Escape in the editor returns to the originating gallery without saving.
@@ -923,6 +925,8 @@ Endpoints: [API.md — Download](API.md#download).
 
 The darkroom shows the focused filename and offers Keep, Reject and Confirm actions in single view. Keep and Reject update the group draft; Confirm uses the existing deferred confirmation and Undo. Arrow keys and zoom shortcuts remain available after a toolbar button takes focus, while inputs and modified keys retain their native behavior. Narrow and coarse-pointer controls have 44-pixel targets. On phones, Fullscreen is in Inspect.
 
+The countdown Cancel has a touch-sized target and restores focus. Narrow comparison names retain their endings; loupe magnification is labeled.
+
 An empty keeper draft disables Confirm in both the contact sheet and darkroom; confirmation shortcuts explain what is missing. Reopening a pending group shows its countdown and Cancel action. After the last darkroom confirmation, focus returns to that countdown. Narrow four-up views use compact headers, and the phone loupe adjustment has its own toolbar row.
 
 During a confirmation countdown, the captured keeper set cannot be edited; Undo restores editing. With no keepers, ordinary Confirm is disabled and explains why. Reject entire group remains a separate confirmation flow.
@@ -1086,6 +1090,9 @@ A quick review queue for screenshots, scanned documents, receipts, memes and sli
 Open **Junk Sweep** in the nav (`/junk`, edition only):
 
 - **Kind menu** — “All kinds” plus each kind’s remaining candidate count (`GET /api/filter_options/junk_kinds`), excluding this reader’s rejected photos.
+
+The page title, Reject all button and loupe magnification are visible. A failed decision reports that it was not saved; focus returns to the queue after a decision or Retry.
+
 - **Candidate count** — counts down as you decide.
 - **Keep** — removes the photo from the queue **for good** (`not_junk`); later `--detect-junk` runs skip it.
 - **Reject** — marks the photo rejected (nothing is deleted).

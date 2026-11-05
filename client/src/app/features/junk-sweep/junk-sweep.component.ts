@@ -1,4 +1,4 @@
-import { Component, inject, signal, effect, viewChild, TemplateRef, OnInit, OnDestroy, HostListener, ChangeDetectionStrategy, untracked } from '@angular/core';
+import { Component, ElementRef, Injector, afterNextRender, inject, signal, effect, viewChild, TemplateRef, OnInit, OnDestroy, HostListener, ChangeDetectionStrategy, untracked } from '@angular/core';
 import { NgTemplateOutlet } from '@angular/common';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { NavigationCancel, NavigationEnd, NavigationError, NavigationSkipped, NavigationStart, Router } from '@angular/router';
@@ -109,13 +109,16 @@ interface QueueView {
             <mat-icon>{{ loupeActive() ? 'zoom_in' : 'search' }}</mat-icon>
           </button>
           @if (loupeActive()) {
-            <mat-slider data-junk-loupe-slider class="!w-28 !min-w-0 max-lg:order-last max-lg:basis-full max-lg:!w-full max-lg:!mx-0" [min]="2" [max]="8" [step]="1" [discrete]="true">
+            <div class="flex items-center gap-2 max-lg:order-last max-lg:basis-full">
+            <span class="whitespace-nowrap text-xs">{{ I18N.scenes.loupe | translate }} {{ loupeZoom() }}×</span>
+            <mat-slider data-junk-loupe-slider class="!w-28 !min-w-0 max-lg:flex-1 max-lg:!mx-0" [min]="2" [max]="8" [step]="1" [discrete]="true">
               <input matSliderThumb [value]="loupeZoom()" (valueChange)="loupeZoom.set($event)"
                      [attr.aria-label]="I18N.scenes.loupe | translate" />
             </mat-slider>
+            </div>
           }
           @if (photos().length > 0) {
-            <button mat-icon-button class="!h-11 !w-11 shrink-0" color="warn" (click)="rejectAllShown()"
+            <button mat-stroked-button class="!h-11 !min-w-0 shrink-0" color="warn" (click)="rejectAllShown()"
                     [disabled]="bulkBusy() || loading() || pendingPaths().size > 0 || !auth.isEdition()"
                     [matTooltip]="I18N.junk.reject_all | translate:{ count: photos().length }"
                     [attr.aria-label]="I18N.junk.reject_all | translate:{ count: photos().length }">
@@ -124,13 +127,15 @@ interface QueueView {
               } @else {
                 <mat-icon>block</mat-icon>
               }
+              <span>{{ I18N.junk.reject_all | translate:{ count: photos().length } }}</span>
             </button>
           }
         </div>
       </div>
     </ng-template>
 
-    <div class="px-4 pt-3 md:px-8 mx-auto w-full max-w-[96%] max-lg:pb-24" [class.max-lg:!pb-40]="loupeActive()">
+    <div #junkContent class="px-4 pt-3 md:px-8 mx-auto w-full max-w-[96%] max-lg:pb-24" [class.max-lg:!pb-40]="loupeActive()">
+      <h1 data-junk-heading tabindex="-1" class="mb-3 text-xl font-semibold">{{ I18N.nav.junk_sweep | translate }}</h1>
       @if (loading() && photos().length === 0) {
         <div class="flex justify-center py-10"><mat-spinner diameter="32" [attr.aria-label]="I18N.ui.labels.loading | translate" /></div>
       } @else if (photos().length === 0 && !loadFailed()) {
@@ -138,7 +143,7 @@ interface QueueView {
              back to All kinds instead of telling the user to rescan. -->
         <div class="text-[var(--mat-sys-on-surface-variant)] py-10 text-center whitespace-pre-line">{{ (activeKind() === ANY_KIND ? I18N.junk.empty : I18N.junk.empty_kind) | translate }}</div>
       } @else {
-        <div class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4">
+        <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
           @for (photo of photos(); track photo.path) {
             <article data-junk-card class="min-w-0 overflow-hidden rounded-xl border border-[var(--mat-sys-outline-variant)] bg-[var(--mat-sys-surface-container-lowest)]"
                      [attr.aria-busy]="pendingPaths().has(photo.path) || bulkBusy()">
@@ -205,6 +210,8 @@ export class JunkSweepComponent implements OnInit, OnDestroy {
   private readonly pageHelp = inject(PageHelpService);
   private readonly headerSlot = inject(HeaderSlotService);
   private readonly router = inject(Router);
+  private readonly element = viewChild<ElementRef<HTMLElement>>('junkContent');
+  private readonly injector = inject(Injector);
 
   private readonly junkToolbar = viewChild<TemplateRef<unknown>>('junkToolbar');
 
@@ -418,7 +425,10 @@ export class JunkSweepComponent implements OnInit, OnDestroy {
 
   protected async retryLoad(): Promise<void> {
     if (!this.loadFailed() || this.loading() || this.bulkBusy() || this.pendingPaths().size > 0) return;
-    await this.load(this.failedPage);
+    const active = document.activeElement as HTMLElement | null;
+    const origin = active?.matches('[data-junk-retry]') ? active : null;
+    const view = this.captureView();
+    if (await this.load(this.failedPage)) this.restoreFocus(view, origin, 0);
   }
 
   protected async loadMore(): Promise<void> {
@@ -447,8 +457,12 @@ export class JunkSweepComponent implements OnInit, OnDestroy {
     const view = this.captureView();
     if (!this.isCurrentView(view) || this.bulkBusy() || this.loading() || this.pendingPaths().has(photo.path)
         || !this.photos().some(candidate => candidate.path === photo.path)) return;
+    const origin = document.activeElement as HTMLElement | null;
+    const ownedFocus = !!origin?.closest('[data-junk-card]');
+    const index = this.photos().findIndex(candidate => candidate.path === photo.path);
     this.pendingPaths.update(paths => new Set([...paths, photo.path]));
     this.removeLocal(photo);
+    if (ownedFocus) this.restoreFocus(view, origin, index);
     try {
       if (reject) {
         await firstValueFrom(this.api.post('/photos/batch_reject', { photo_paths: [photo.path] }));
@@ -461,7 +475,7 @@ export class JunkSweepComponent implements OnInit, OnDestroy {
     } catch {
       if (!this.isCurrentView(view)) return;
       this.restoreLocal(photo);
-      this.notifyError();
+      this.notifyDecisionError();
     } finally {
       const current = this.captureView();
       // A kind change can occur while a decision is pending. A matching new
@@ -521,7 +535,7 @@ export class JunkSweepComponent implements OnInit, OnDestroy {
       if (rejected.length > 0) {
         this.journal.record('junk', rejected, { action: 'reject', count: rejected.length, partial: true });
       }
-      this.notifyError();
+      this.notifyDecisionError();
       // Re-read after a failed bulk write, including when earlier chunks landed.
       this.page = 0;
       this.photos.set([]);
@@ -542,8 +556,18 @@ export class JunkSweepComponent implements OnInit, OnDestroy {
     this.snack.open(this.i18n.t(key, vars), this.i18n.t(I18N.common.dismiss), { duration });
   }
 
-  private notifyError(): void {
-    this.notify(I18N.junk.load_error, 3000);
+  private notifyDecisionError(): void {
+    this.notify(I18N.junk.decision_error, 3000);
+  }
+
+  private restoreFocus(view: QueueView, origin: HTMLElement | null, index: number): void {
+    if (!origin) return;
+    afterNextRender(() => {
+      if (!this.isCurrentView(view) || (document.activeElement !== document.body && document.activeElement !== origin)) return;
+      const root = this.element()?.nativeElement;
+      const buttons = root?.querySelectorAll<HTMLElement>('[data-junk-keep]:not([disabled])');
+      (buttons?.[Math.min(index, buttons.length - 1)] ?? root?.querySelector<HTMLElement>('[data-junk-heading]'))?.focus();
+    }, { injector: this.injector });
   }
 
   private removeLocal(photo: Photo): void {

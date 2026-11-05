@@ -282,6 +282,8 @@ Usa **Stato revisione → Da esaminare** nella galleria per smaltire le foto non
 
 Seleziona **2–1000 foto esplicite**, poi **Impila foto** nella barra di selezione o premi **S** per aprire l’editor a pagina intera in `/stacks/edit`. La selezione dell’intera vista non crea pile. S apre un’anteprima, senza salvare direttamente. Menu utente → **Personalizza le scorciatoie** cambia il tasto della galleria; il suggerimento, Aiuto e il riferimento `?` mostrano quello attuale. Se una configurazione precedente usa già S, viene mantenuta e Impila rimane **Non assegnato** finché non scegli un tasto libero. Servono permessi di modifica. Una foto appartiene a una sola pila per proprietario. La pagina centra un’anteprima con zoom sopra una striscia di miniature permanente. Fai clic su una miniatura o usa `←`/`→` per selezionare una foto, poi i suoi comandi di copertina, ordine o rimozione dalla pila. Pulsante zoom, rotellina o doppio clic mostrano i dettagli.
 
+L’editor usa un solo scorrimento; errori e Riprova sono accanto alle azioni inferiori. Rifiuta riporta il focus a una foto rimasta.
+
 Nell’editor a pagina intera, Tab raggiunge l’immagine: +/− cambia l’ingrandimento, le frecce spostano l’immagine ingrandita e Inizio o F ripristina l’adattamento. La striscia di miniature ha un solo punto di Tab; Sinistra/Destra e Inizio/Fine spostano il focus e aprono l’immagine raggiunta. Lo stato dell’immagine offre Riprova se il caricamento fallisce, senza salvare o cambiare la pila. Se Rifiuta rimuove la miniatura attiva, il focus passa a un membro rimasto.
 
 Usa **Cmd+Maiusc+S** o **Ctrl+Maiusc+S** per impilare subito le foto esplicite non impilate nell’ordine di selezione, con la prima come copertina. I membri di pile esistenti aprono l’editor. Il successo cancella la selezione salvata e Annulla la ripristina; annullamento o errore la conserva. Escape nell’editor torna alla galleria originale senza salvare.
@@ -922,6 +924,8 @@ Endpoint: [API.md — Download](../API.md#download).
 
 La camera oscura mostra il file attivo e offre Conserva, Rifiuta e Conferma nella vista singola. Conserva e Rifiuta cambiano la bozza del gruppo; Conferma mantiene la conferma differita e Annulla. Frecce e scorciatoie zoom funzionano dopo il focus su un pulsante, senza intercettare campi o tasti modificati. I controlli su schermi stretti e con puntatori grossolani hanno bersagli di 44 pixel. Sul telefono, Schermo intero è in Ispeziona.
 
+Annulla nel conto alla rovescia ha un bersaglio tattile e ripristina il focus. I nomi stretti conservano la fine e l’ingrandimento della lente è indicato.
+
 Una bozza senza foto conservate disabilita Conferma sia nella griglia sia nella camera oscura; le scorciatoie spiegano cosa manca. Riaprire un gruppo in attesa mostra il conto alla rovescia e Annulla. Dopo l’ultima conferma, il focus torna al conto alla rovescia. Le viste strette a quattro riquadri usano intestazioni compatte e la regolazione della lente ha una riga propria sul telefono.
 
 Durante il conto alla rovescia di conferma non si può modificare la selezione acquisita; Annulla riattiva la modifica. Senza foto conservate, Conferma è disabilitato e ne spiega il motivo. Rifiutare tutto il gruppo resta una conferma separata.
@@ -1085,6 +1089,9 @@ Una coda di revisione rapida per screenshot, documenti scansionati, ricevute, me
 Apri **Pulizia** nella navigazione (`/junk`, solo modifica):
 
 - **Menu del tipo** — «Tutti i tipi» e i candidati rimasti per tipo (`GET /api/filter_options/junk_kinds`), escluse le foto rifiutate da questo utente.
+
+Titolo, Rifiuta tutto e ingrandimento della lente sono visibili. Un errore indica che la decisione non è stata salvata; il focus torna alla coda dopo la decisione o Riprova.
+
 - **Conteggio candidati** — scende man mano che decidi.
 - **Conserva** — toglie la foto dalla coda **per sempre** (`not_junk`); le successive esecuzioni di `--detect-junk` la saltano.
 - **Rifiuta** — segna la foto come scartata (non viene eliminato nulla).

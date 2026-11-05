@@ -3642,6 +3642,7 @@ export const I18N = {
     rejected_bulk: "junk.rejected_bulk",
     load_more: "junk.load_more",
     load_error: "junk.load_error",
+    decision_error: "junk.decision_error",
     kinds: {
       screenshot: "junk.kinds.screenshot",
       document: "junk.kinds.document",

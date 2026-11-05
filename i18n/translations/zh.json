@@ -3603,6 +3603,7 @@
     "rejected_bulk": "已淘汰 {count} 张照片",
     "load_more": "加载更多",
     "load_error": "加载待清理图片失败",
+    "decision_error": "无法保存此决定。请重试。",
     "kinds": {
       "screenshot": "截图",
       "document": "文档",

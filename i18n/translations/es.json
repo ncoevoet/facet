@@ -3603,6 +3603,7 @@
     "rejected_bulk": "{count} fotos rechazadas",
     "load_more": "Cargar más",
     "load_error": "No se pudieron cargar los candidatos",
+    "decision_error": "No se pudo guardar la decisión. Inténtalo de nuevo.",
     "kinds": {
       "screenshot": "Capturas de pantalla",
       "document": "Documentos",

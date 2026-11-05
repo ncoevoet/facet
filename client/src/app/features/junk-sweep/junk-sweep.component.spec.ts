@@ -671,6 +671,26 @@ describe('JunkSweepComponent HTTP, owner and recovery boundaries', () => {
     expect(reject.disabled).toBe(false);
   });
 
+  it('reports a failed Keep decision accurately and restores the candidate', async () => {
+    await boot([photo(1), photo(2)]);
+    const keep = host().querySelector<HTMLButtonElement>('[data-junk-keep]')!;
+    keep.focus(); keep.click(); fixture.detectChanges();
+    const request = http.expectOne('/api/photo/clear_junk');
+    request.flush({ detail: 'write failed' }, { status: 500, statusText: 'Failure' });
+    await fixture.whenStable(); fixture.detectChanges();
+    expect(snack.open).toHaveBeenCalledWith('junk.decision_error', expect.anything(), expect.anything());
+    expect(paths()).toContain('/queue/1.jpg');
+  });
+
+  it('moves focus to the next card after Keep succeeds', async () => {
+    await boot([photo(1), photo(2)]);
+    const keep = host().querySelector<HTMLButtonElement>('[data-junk-keep]')!;
+    keep.focus(); keep.click(); fixture.detectChanges();
+    http.expectOne('/api/photo/clear_junk').flush({ success: true });
+    await fixture.whenStable(); fixture.detectChanges();
+    expect(document.activeElement?.getAttribute('aria-label')).toContain('2.jpg');
+  });
+
   it('preserves native modified, repeating and modal Z keystrokes', async () => {
     await boot([photo(1)]);
     for (const options of [{ ctrlKey: true }, { metaKey: true }, { altKey: true }, { repeat: true }, { isComposing: true }]) {

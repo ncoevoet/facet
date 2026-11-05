@@ -282,6 +282,8 @@ Wählen Sie in der Galerie **Auswahlstatus → Zu prüfen**, um unentschiedene F
 
 Wählen Sie **2–1000 konkrete Fotos**, dann **Fotos stapeln** in der Auswahlleiste oder drücken Sie **S**, um den ganzseitigen Editor unter `/stacks/edit` zu öffnen. Eine Gesamtauswahl der Ansicht erstellt keinen Stapel. S öffnet nur die Vorschau und speichert nicht. Benutzermenü → **Tastenkürzel anpassen** ändert die Galeriebelegung; Tooltip, Hilfe und `?` zeigen die aktuelle Taste. Belegt eine ältere gespeicherte Einstellung bereits S, bleibt sie erhalten und Stapeln ist **Nicht zugewiesen**, bis Sie eine freie Taste wählen. Bearbeitungsrechte sind erforderlich. Jedes Foto gehört je Eigentümer höchstens einem Stapel. Die Seite zeigt mittig eine zoombare Vorschau über einem dauerhaften Miniaturstreifen. Klicken Sie auf eine Miniatur oder verwenden Sie `←`/`→`, um ein Foto zu fokussieren; die zugehörigen Schaltflächen wählen das Titelbild, ändern die Reihenfolge oder entfernen es. Zoomtaste, Mausrad oder Doppelklick zeigen Details.
 
+Der Editor verwendet einen Seitenbildlauf; Fehler und Wiederholen stehen neben den Fußaktionen. Ablehnen setzt den Tastaturfokus auf ein verbleibendes Foto.
+
 Im ganzseitigen Editor erreicht Tab die Bildfläche: +/− ändert die Vergrößerung, Pfeiltasten verschieben das vergrößerte Bild, Pos1 oder F passt es wieder ein. Der Miniaturstreifen hat einen Tab-Stopp; Links/Rechts und Pos1/Ende verschieben den Fokus und öffnen das erreichte Bild. Die Bildanzeige bietet bei einem Ladefehler Erneut versuchen, ohne zu speichern oder den Stapel zu ändern. Entfernt Ablehnen eine fokussierte Miniatur, erhält ein verbleibendes Mitglied den Fokus.
 
 Mit **Cmd+Umschalt+S** oder **Strg+Umschalt+S** stapeln Sie ausdrücklich ausgewählte, ungestapelte Fotos sofort in Auswahlreihenfolge; das erste wird Titelbild. Vorhandene Stapelmitglieder öffnen den Editor. Erfolg hebt die gespeicherte Auswahl auf, Rückgängig stellt sie wieder her; Abbruch oder Fehler behalten sie. Escape im Editor kehrt ohne Speichern zur ursprünglichen Galerie zurück.
@@ -923,6 +925,8 @@ Endpunkte: [API.md — Download](../API.md#download).
 
 Die Dunkelkammer zeigt den fokussierten Dateinamen und bietet in der Einzelansicht Behalten, Ablehnen und Bestätigen. Behalten und Ablehnen ändern den Gruppenentwurf; Bestätigen verwendet die bestehende verzögerte Bestätigung mit Rückgängig. Pfeiltasten und Zoomkürzel funktionieren auch nach dem Fokussieren einer Werkzeugtaste; Eingaben und modifizierte Tasten behalten ihr normales Verhalten. Auf schmalen Bildschirmen und bei groben Zeigegeräten sind die Ziele 44 Pixel groß. Auf dem Handy liegt Vollbild unter Prüfen.
 
+Abbrechen im Countdown ist berührungsgerecht und stellt den Fokus wieder her. Schmale Vergleichsnamen behalten ihr Ende; die Lupenvergrößerung ist beschriftet.
+
 Ein leerer Behalten-Entwurf deaktiviert Bestätigen sowohl in der Übersicht als auch in der Dunkelkammer; Tastenkürzel erklären den fehlenden Schritt. Erneut geöffnete wartende Gruppen zeigen den Countdown und Abbrechen. Nach der letzten Bestätigung in der Dunkelkammer kehrt der Fokus zum Countdown zurück. Schmale Vierfachansichten haben kompakte Kopfzeilen; die Lupeneinstellung erhält auf dem Handy eine eigene Werkzeugzeile.
 
 Während des Bestätigungs-Countdowns kann die erfasste Auswahl nicht geändert werden; Rückgängig erlaubt die Bearbeitung wieder. Ohne behaltene Fotos ist Bestätigen deaktiviert und zeigt einen Hinweis. Die gesamte Gruppe abzulehnen bleibt ein eigener Bestätigungsvorgang.
@@ -1086,6 +1090,9 @@ Eine schnelle Prüfwarteschlange für Screenshots, gescannte Dokumente, Belege, 
 Öffnen Sie **Müll aufräumen** in der Navigation (`/junk`, nur Edition):
 
 - **Typmenü** — „Alle Typen“ und die verbleibenden Kandidaten je Typ (`GET /api/filter_options/junk_kinds`), ohne die für diesen Benutzer abgelehnten Fotos.
+
+Seitentitel, Alle ablehnen und Lupenvergrößerung sind sichtbar. Ein Fehler meldet die nicht gespeicherte Entscheidung; danach oder nach Wiederholen kehrt der Fokus zur Warteschlange zurück.
+
 - **Kandidatenanzahl** — zählt herunter, während Sie entscheiden.
 - **Behalten** — nimmt das Foto **endgültig** aus der Warteschlange (`not_junk`); spätere `--detect-junk`-Läufe überspringen es.
 - **Ablehnen** — markiert das Foto als abgelehnt (nichts wird gelöscht).

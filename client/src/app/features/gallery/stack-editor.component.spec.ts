@@ -50,7 +50,7 @@ describe('StackDialog HTTP workflow', () => {
   }
   afterEach(() => { http.verify({ ignoreCancelled: true }); TestBed.resetTestingModule(); });
 
-  it('renders compact filenames with full-path tooltips, accessible names and unchanged thumbnail identities', async () => {
+  it('renders compact accessible filenames with full-path tooltips and unchanged thumbnail identities', async () => {
     create();
     const paths = ['/a/very/long/directory/same.jpg', '/another/long/directory/same.jpg'];
     const fixture = TestBed.createComponent(StackEditorComponent); fixture.detectChanges();
@@ -59,7 +59,7 @@ describe('StackDialog HTTP workflow', () => {
     const labels = [...(fixture.nativeElement as HTMLElement).querySelectorAll<HTMLElement>('[data-stack-filename]')];
     expect(labels.map(label => label.textContent?.trim())).toEqual(['same.jpg', 'same.jpg']);
     expect(labels.map(label => label.title)).toEqual(paths);
-    expect(labels.map(label => label.getAttribute('aria-label'))).toEqual(paths);
+    expect(labels.map(label => label.getAttribute('aria-label'))).toEqual(['same.jpg', 'same.jpg']);
     const images = [...(fixture.nativeElement as HTMLElement).querySelectorAll<HTMLImageElement>('[data-stack-tile] img')];
     expect(images.map(image => new URL(image.src).searchParams.get('path'))).toEqual(paths);
     expect(labels.every(label => label.classList.contains('truncate'))).toBe(true);

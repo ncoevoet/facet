@@ -3603,6 +3603,7 @@
     "rejected_bulk": "{count} photos rejetées",
     "load_more": "Charger plus",
     "load_error": "Échec du chargement des indésirables",
+    "decision_error": "Impossible d’enregistrer la décision. Veuillez réessayer.",
     "kinds": {
       "screenshot": "Captures d'écran",
       "document": "Documents",

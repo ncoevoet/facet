@@ -442,6 +442,21 @@ describe('manual stack workspace with Router, HTTP and Material', () => {
     http.expectNone('/api/photos/batch_review'); http.expectNone('/api/stacks/regroup/apply');
   });
 
+  it.each(['success', 'failure'])('restores focus after toolbar Reject %s', async result => {
+    await ready();
+    const reject = button('[data-stack-reject]'); reject.focus(); reject.click();
+    const read = http.expectOne(request => request.url === '/api/photo');
+    if (result === 'failure') {
+      read.flush({}, { status: 500, statusText: 'Unavailable' });
+    } else {
+      read.flush({ path: paths[1], is_kept: true }); await render();
+      http.expectOne('/api/photos/batch_review').flush({ success: true, count: 1, undo_entry_id: 93 });
+    }
+    await render();
+    expect(document.activeElement).toBe(button(`[data-stack-focus="${result === 'success' ? paths[0] : paths[1]}"]`));
+    http.expectNone('/api/stacks/regroup/apply');
+  });
+
   it('does not steal focus when the user moves away before Reject completes', async () => {
     await ready();
     const focused = button('[data-stack-focus="/private/b.jpg"]'); focused.focus();

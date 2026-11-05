@@ -490,10 +490,13 @@ interface SceneSummary {
             </button>
           }
           @if (loupeActive()) {
-            <mat-slider data-culling-loupe-slider class="!w-28 !min-w-0 shrink-0 max-lg:!w-full max-lg:basis-full max-lg:!mx-0" [min]="2" [max]="8" [step]="1" [discrete]="true">
+            <div class="flex shrink-0 items-center gap-2 max-lg:basis-full">
+            <span class="text-xs whitespace-nowrap">{{ I18N.gallery.compare.inspection.magnification | translate }}: {{ loupeZoom() }}×</span>
+            <mat-slider data-culling-loupe-slider class="!w-28 !min-w-0 flex-1 max-lg:!mx-0" [min]="2" [max]="8" [step]="1" [discrete]="true">
               <input matSliderThumb [value]="loupeZoom()" (valueChange)="loupeZoom.set($event)"
-                     [attr.aria-label]="I18N.culling.loupe | translate" />
+                     [attr.aria-label]="I18N.gallery.compare.inspection.magnification | translate" />
             </mat-slider>
+            </div>
           }
         </div>
         }
@@ -766,7 +769,7 @@ interface SceneSummary {
                 @if (stacksMode()) {
                   @if (cull.stackDrafts()[groupKey].excludedCount; as count) { <span data-stack-excluded role="status" class="text-xs">{{ I18N.stacks.reject_count | translate:{ count } }}</span> }
                   <div class="flex flex-wrap gap-2 ml-auto">
-                    <button class="max-sm:!min-h-11 pointer-coarse:!min-h-11" mat-button (click)="openLightbox(group, 0)">{{ I18N.culling.darkroom | translate }}</button>
+                    <button data-culling-open class="max-sm:!min-h-11 pointer-coarse:!min-h-11" mat-button (click)="openLightbox(group, 0)">{{ I18N.culling.darkroom | translate }}</button>
                     <button class="max-sm:!min-h-11 pointer-coarse:!min-h-11" mat-button [disabled]="cull.stackBusy()" (click)="editSuggestion(group)">{{ I18N.stacks.suggestion_edit_members | translate }}</button>
                     <button class="max-sm:!min-h-11 pointer-coarse:!min-h-11" mat-button [disabled]="cull.stackBusy()" (click)="skipStackSuggestion(group)">{{ I18N.stacks.suggestion_skip | translate }}</button>
                     <button mat-flat-button [disabled]="cull.stackBusy() || cull.stackDrafts()[groupKey].paths.length < 2" (click)="stackGroup(group)">{{ I18N.stacks.stack_cover | translate }}</button>
@@ -801,7 +804,7 @@ interface SceneSummary {
                 <div class="flex gap-2 ml-auto">
                   @if (group | isPassing:cull.passingGroups()) {
                     <div class="relative overflow-hidden rounded-md">
-                      <button mat-stroked-button data-culling-cancel (click)="cull.cancelPass(group)" class="!h-8 !text-sm !rounded-md relative z-10"
+                      <button mat-stroked-button data-culling-cancel (click)="cancelGroupPass(group, $event)" class="!h-8 max-sm:!h-11 pointer-coarse:!h-11 !text-sm !rounded-md relative z-10"
                               [matTooltip]="I18N.culling.cancel_restore | translate">
                         {{ I18N.culling.cancel_pass | translate }} ({{ group | passCountdown:cull.passingGroups() }}s)
                       </button>
@@ -874,7 +877,7 @@ interface SceneSummary {
                         </button>
                       </mat-menu>
                     }
-                    <button class="max-sm:!w-11 max-sm:!h-11 pointer-coarse:!w-11 pointer-coarse:!h-11" mat-icon-button (click)="openLightbox(group, 0)"
+                    <button data-culling-open class="max-sm:!w-11 max-sm:!h-11 pointer-coarse:!w-11 pointer-coarse:!h-11" mat-icon-button (click)="openLightbox(group, 0)"
                             [matTooltip]="I18N.culling.darkroom_tooltip | translate"
                             [attr.aria-label]="I18N.culling.darkroom | translate">
                       <mat-icon>fullscreen</mat-icon>
@@ -1223,7 +1226,7 @@ interface SceneSummary {
                     <button type="button" data-comparison-slot class="flex min-h-11 min-w-0 flex-1 items-center gap-1 px-1 text-left text-xs focus-visible:outline-2 @[400px]/cullpane:gap-2 @[400px]/cullpane:px-2"
                             [class.bg-[var(--mat-sys-secondary-container)]]="comparisonSlot() === paneIndex" [class.text-[var(--mat-sys-on-secondary-container)]]="comparisonSlot() === paneIndex"
                             [attr.aria-pressed]="comparisonSlot() === paneIndex" [attr.aria-label]="I18N.culling.comparison.choose_pane | translate:{ pane: comparisonSlotLabels[paneIndex], name: photo.filename }" (click)="selectComparisonSlot(paneIndex)">
-                      <span class="font-semibold shrink-0">{{ comparisonSlotLabels[paneIndex] }}</span><span data-culling-pane-name class="min-w-0 flex-1 truncate" [title]="photo.filename">{{ photo.filename | filename:28 }}</span>
+                      <span class="font-semibold shrink-0">{{ comparisonSlotLabels[paneIndex] }}</span><span data-culling-pane-name class="min-w-0 flex-1 truncate text-left [direction:rtl]" [title]="photo.filename">{{ photo.filename | filename:28 }}</span>
                       <mat-icon aria-hidden="true" class="@max-[400px]/cullpane:!hidden ml-auto !text-base !w-4 !h-4 shrink-0">{{ comparisonSlot() === paneIndex ? 'check_circle' : 'radio_button_unchecked' }}</mat-icon>
                     </button>
                     @if (!stacksMode()) {
@@ -1344,7 +1347,7 @@ interface SceneSummary {
             </span>
             @if (lbGroup | isPassing:cull.passingGroups()) {
               <span data-darkroom-pending role="status" class="text-xs text-white/80">{{ I18N.culling.confirmed_badge | translate }}</span>
-              <button mat-stroked-button data-darkroom-cancel class="!min-h-11 !text-white !border-white/40" [matTooltip]="I18N.culling.cancel_restore | translate" (click)="cull.cancelPass(lbGroup)">{{ I18N.culling.cancel_pass | translate }} ({{ lbGroup | passCountdown:cull.passingGroups() }}s)</button>
+              <button mat-stroked-button data-darkroom-cancel class="!min-h-11 !text-white !border-white/40" [matTooltip]="I18N.culling.cancel_restore | translate" (click)="cancelGroupPass(lbGroup, $event, true)">{{ I18N.culling.cancel_pass | translate }} ({{ lbGroup | passCountdown:cull.passingGroups() }}s)</button>
             }
             <button mat-flat-button data-darkroom-confirm class="!min-h-11 disabled:!text-white/60 disabled:!bg-white/10" [disabled]="lightboxDecisionLocked() || lightboxKeptCount() === 0" [attr.aria-describedby]="lightboxKeptCount() === 0 ? 'culling-keeper-required' : null" (click)="continueCullingGroup($event)"><mat-icon>check_circle</mat-icon>{{ I18N.culling.confirm | translate }}</button>
             @if (lightboxKeptCount() === 0) { <p id="culling-keeper-required" role="status" class="m-0 basis-full text-xs text-white/80">{{ I18N.culling.keep_required | translate }}</p> }
@@ -2777,6 +2780,27 @@ export class BurstCullingComponent implements OnDestroy {
     if (event.key === 'Escape') this.closeLightbox();
   }
 
+  protected cancelGroupPass(group: CullingGroup, event: Event, darkroom = false): void {
+    const origin = event.currentTarget as HTMLElement | null;
+    const overlay = origin?.closest<HTMLElement>('[role="dialog"]');
+    const identity = this.auth.identity();
+    const key = this.cull.groupKey(group);
+    this.cull.cancelPass(group);
+    setTimeout(() => {
+      if (!this.pageAlive || this.pageNavigating || this.auth.identity() !== identity || this.dialog.openDialogs.length
+        || document.activeElement !== document.body && document.activeElement !== origin) return;
+      if (darkroom) {
+        if (this.lightboxGroupId() !== key) return;
+        overlay?.querySelector<HTMLButtonElement>('[data-darkroom-confirm]:not(:disabled)')?.focus();
+      } else {
+        if (this.lightboxGroup()) return;
+        const row = Array.from(this.element()?.nativeElement.querySelectorAll<HTMLElement>('[data-culling-group-key]') ?? [])
+          .find(element => element.dataset['cullingGroupKey'] === key);
+        (row?.querySelector<HTMLButtonElement>('[data-culling-confirm]:not(:disabled)') ?? row)?.focus();
+      }
+    });
+  }
+
   protected closeLightbox(): void {
     this.renditions.resetEvidence();
     if (document.fullscreenElement) {
@@ -2798,7 +2822,7 @@ export class BurstCullingComponent implements OnDestroy {
         || this.auth.identity() !== identity) return;
       const row = Array.from(this.element()?.nativeElement.querySelectorAll<HTMLElement>('[data-culling-group-key]') ?? [])
         .find(element => element.dataset['cullingGroupKey'] === groupKey);
-      (row?.querySelector<HTMLElement>('[data-culling-cancel]') ?? row)?.focus();
+      (row?.querySelector<HTMLElement>('[data-culling-cancel]') ?? row?.querySelector<HTMLElement>('[data-culling-open]') ?? row)?.focus();
     });
   }
 

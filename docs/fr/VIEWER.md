@@ -282,6 +282,8 @@ Utilisez **Décision de tri → À examiner** dans la galerie pour parcourir les
 
 Sélectionnez **2 à 1000 photos explicites**, puis **Empiler les photos** dans la barre de sélection ou appuyez sur **S** pour ouvrir l’éditeur pleine page à `/stacks/edit`. Une sélection de toute la vue ne crée pas de pile. S ouvre un aperçu sans enregistrer. Le menu utilisateur → **Personnaliser les raccourcis** permet de modifier cette touche ; l’infobulle, l’Aide et la référence `?` affichent la touche actuelle. Si un ancien réglage utilise déjà S, il est conservé et l’action Empiler reste **Non attribuée** jusqu’au choix d’une touche libre. Les droits d’édition sont nécessaires. Une photo appartient à une seule pile par propriétaire. La page centre un aperçu avec zoom au-dessus d’une bande de vignettes permanente. Cliquez sur une vignette ou utilisez `←`/`→` pour cibler une photo, puis ses commandes de couverture, d’ordre ou de retrait. Le bouton de zoom, la molette ou un double-clic permettent d’examiner les détails.
 
+L’éditeur utilise un seul défilement ; les erreurs et Réessayer restent près des actions de bas de page. Rejeter rend le focus à une photo restante.
+
 Dans l’éditeur pleine page, Tab atteint l’image : +/− change le grossissement, les flèches déplacent l’image agrandie et Début ou F rétablit l’ajustement. La bande de miniatures comporte un seul arrêt Tab ; Gauche/Droite et Début/Fin déplacent le focus et ouvrent l’image atteinte. L’état de l’image propose Réessayer après un échec de chargement, sans enregistrer ni modifier la pile. Si Rejeter retire la miniature ciblée, le focus passe à un membre restant.
 
 Utilisez **Cmd+Maj+S** ou **Ctrl+Maj+S** pour empiler immédiatement les photos explicites non empilées dans l’ordre de sélection, la première servant de couverture. Les membres de piles existantes ouvrent l’éditeur. Une réussite efface la sélection validée et Annuler la rétablit ; une annulation ou un échec la conserve. Échap dans l’éditeur revient à la galerie d’origine sans enregistrer.
@@ -922,6 +924,8 @@ Points d'accès : [API.md — Téléchargement](../API.md#download).
 
 La chambre noire affiche le fichier actif et propose Garder, Rejeter et Confirmer en vue simple. Garder et Rejeter modifient le brouillon du groupe ; Confirmer conserve la validation différée et Annuler. Les flèches et raccourcis de zoom fonctionnent après le focus sur un bouton, sans intercepter les champs ni les touches modifiées. Les cibles font 44 pixels sur écran étroit et avec un pointeur grossier. Sur téléphone, Plein écran se trouve dans Inspecter.
 
+Annuler le compte à rebours est adapté au tactile et rétablit le focus. Les noms étroits gardent leur fin ; le grossissement de la loupe est indiqué.
+
 Un brouillon sans photo gardée désactive Confirmer dans la grille comme dans la chambre noire ; les raccourcis expliquent ce qui manque. Rouvrir un groupe en attente affiche son compte à rebours et Annuler. Après la dernière confirmation, le focus revient à ce compte à rebours. Les vues quadruples étroites ont des en-têtes compacts ; le réglage de loupe dispose de sa propre ligne sur téléphone.
 
 Pendant le compte à rebours de confirmation, la sélection capturée ne peut plus être modifiée ; Annuler réactive la modification. Sans photo conservée, Confirmer est désactivé avec une explication. Rejeter tout le groupe reste une confirmation distincte.
@@ -1085,6 +1089,9 @@ Une file de revue rapide pour les captures d'écran, documents numérisés, reç
 Ouvrez **Nettoyage** dans la navigation (`/junk`, édition uniquement) :
 
 - **Menu de type** — « Tous les types » et le nombre de candidats restants par type (`GET /api/filter_options/junk_kinds`), hors photos rejetées par cet utilisateur.
+
+Le titre, Tout rejeter et le grossissement de la loupe sont visibles. Une décision non enregistrée est signalée ; le focus revient à la file après une décision ou Réessayer.
+
 - **Nombre de candidates** — décroît au fil de vos décisions.
 - **Conserver** — retire la photo de la file **définitivement** (`not_junk`) ; les exécutions ultérieures de `--detect-junk` l'ignorent.
 - **Rejeter** — marque la photo rejetée (rien n'est supprimé).

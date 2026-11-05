@@ -282,6 +282,8 @@ Usa **Estado de revisión → Por revisar** en la galería para recorrer las fot
 
 Selecciona **2–1000 fotos explícitas** y elige **Apilar fotos** en la barra o pulsa **S** para abrir el editor de página completa en `/stacks/edit`. Una selección de toda la vista no crea pilas. S abre una vista previa; nunca guarda directamente. Menú de usuario → **Personalizar atajos** cambia la tecla de la galería; la ayuda emergente, Ayuda y la referencia `?` muestran la tecla actual. Si una configuración anterior ya usa S, se conserva y Apilar queda **Sin asignar** hasta elegir una tecla libre. Se requieren permisos de edición. Cada foto pertenece a una pila por propietario. La página centra una vista previa con zoom sobre una tira de miniaturas permanente. Pulsa una miniatura o usa `←`/`→` para enfocar una foto y sus controles de portada, orden o eliminación de la pila. El botón de zoom, la rueda o un doble clic permiten examinar los detalles.
 
+El editor usa un solo desplazamiento; los errores y Reintentar están junto a las acciones inferiores. Rechazar devuelve el foco a una foto restante.
+
 En el editor de página completa, Tab llega al lienzo: +/− cambia la ampliación, las flechas desplazan la imagen ampliada e Inicio o F restaura el ajuste. La tira de miniaturas tiene una sola parada de Tab; Izquierda/Derecha e Inicio/Fin mueven el foco y abren la imagen alcanzada. El estado de la imagen ofrece Reintentar si falla la carga, sin guardar ni cambiar la pila. Si Rechazar quita la miniatura enfocada, el foco pasa a un miembro restante.
 
 Usa **Cmd+Mayús+S** o **Ctrl+Mayús+S** para apilar fotos explícitas sin pila en orden de selección; la primera será la portada. Los miembros de pilas existentes abren el editor. El éxito borra la selección guardada y Deshacer la restaura; cancelar o fallar la conserva. Escape en el editor vuelve a la galería de origen sin guardar.
@@ -925,6 +927,8 @@ Endpoints: [API.md — Descarga](../API.md#download).
 
 El cuarto oscuro muestra el nombre enfocado y ofrece Conservar, Rechazar y Confirmar en la vista individual. Conservar y Rechazar cambian el borrador del grupo; Confirmar usa la confirmación diferida y Deshacer existentes. Las flechas y los atajos de zoom siguen disponibles al enfocar un botón; los campos y las teclas modificadas conservan su comportamiento nativo. Los controles estrechos y táctiles tienen objetivos de 44 píxeles. En teléfonos, Pantalla completa está en Inspeccionar.
 
+Cancelar la cuenta atrás tiene un área táctil y restaura el foco. Los nombres estrechos conservan su final y la ampliación de la lupa está etiquetada.
+
 Un borrador sin fotos conservadas desactiva Confirmar tanto en la cuadrícula como en el cuarto oscuro; los atajos explican qué falta. Reabrir un grupo pendiente muestra su cuenta atrás y Cancelar. Tras la última confirmación, el foco vuelve a esa cuenta atrás. Las vistas estrechas de cuatro paneles usan cabeceras compactas y el ajuste de lupa tiene su propia fila en teléfonos.
 
 Durante la cuenta atrás de confirmación no se puede cambiar la selección capturada; Deshacer permite editar de nuevo. Sin fotos conservadas, Confirmar queda desactivado y explica el motivo. Rechazar todo el grupo mantiene su confirmación independiente.
@@ -1088,6 +1092,9 @@ Una cola de revisión rápida para capturas de pantalla, documentos escaneados, 
 Abre **Limpieza de basura** en la navegación (`/junk`, solo edición):
 
 - **Menú de tipo** — «Todos los tipos» y el número de candidatos restantes por tipo (`GET /api/filter_options/junk_kinds`), sin las fotos rechazadas por este usuario.
+
+El título, Rechazar todo y la ampliación de la lupa son visibles. Un fallo indica que la decisión no se guardó; el foco vuelve a la cola tras decidir o reintentar.
+
 - **Recuento de candidatas**: baja a medida que decides.
 - **Conservar**: quita la foto de la cola **para siempre** (`not_junk`); las ejecuciones posteriores de `--detect-junk` la omiten.
 - **Rechazar**: marca la foto como rechazada (no se elimina nada).

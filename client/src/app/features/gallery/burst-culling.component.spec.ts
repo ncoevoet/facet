@@ -4257,12 +4257,29 @@ describe('BurstCullingComponent modals (rendered)', () => {
     component['lightboxGroupId'].set('1_burst'); fixture.detectChanges();
     expect(root.querySelector('[data-darkroom-pending]')?.textContent).toContain('culling.confirmed_badge');
     expect(root.querySelector<HTMLButtonElement>('[data-darkroom-keep]')!.disabled).toBe(true);
-    root.querySelector<HTMLButtonElement>('[data-darkroom-cancel]')!.click(); fixture.detectChanges();
+    const darkroomCancel = root.querySelector<HTMLButtonElement>('[data-darkroom-cancel]')!;
+    darkroomCancel.focus(); darkroomCancel.click(); fixture.detectChanges();
+    await new Promise(resolve => setTimeout(resolve, 0));
     expect(store.passingGroups().has('1_burst')).toBe(false);
     expect(store.confirmedGroups().has('1_burst')).toBe(false);
     expect(root.querySelector('[data-darkroom-pending]')).toBeNull();
     expect(root.querySelector<HTMLButtonElement>('[data-darkroom-keep]')!.disabled).toBe(false);
+    expect(document.activeElement).toBe(root.querySelector('[data-darkroom-confirm]'));
     expect(post).not.toHaveBeenCalled();
+  });
+
+  it('returns focus to the group Confirm button after cancelling its countdown', async () => {
+    openDarkroom();
+    store.selectionsMap.set(new Map([['1_burst', new Set(['/p1.jpg'])]])); fixture.detectChanges();
+    const root = fixture.nativeElement as HTMLElement;
+    root.querySelector<HTMLElement>('[role="dialog"]')!.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true, cancelable: true }));
+    fixture.detectChanges();
+    await new Promise(resolve => setTimeout(resolve, 0));
+    const cancel = root.querySelector<HTMLButtonElement>('[data-culling-cancel]')!;
+    cancel.focus(); cancel.click(); fixture.detectChanges();
+    await new Promise(resolve => setTimeout(resolve, 0));
+    expect(document.activeElement).toBe(root.querySelector('[data-culling-confirm]'));
+    expect(store.passingGroups().has('1_burst')).toBe(false);
   });
 
   it('legend toggle starts hidden, shows the legend on click and flips aria-pressed', () => {

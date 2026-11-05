@@ -3628,6 +3628,7 @@
     "rejected_bulk": "Rejected {count} photos",
     "load_more": "Load more",
     "load_error": "Failed to load junk candidates",
+    "decision_error": "Could not save the decision. Please try again.",
     "kinds": {
       "screenshot": "Screenshots",
       "document": "Documents",
