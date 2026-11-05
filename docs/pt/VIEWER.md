@@ -272,7 +272,7 @@ Use **Estado de revisão → Precisa de revisão** na galeria para percorrer fot
 - Para ocultar o progresso da revisão de vez, use **Ocultar progresso da revisão** / **Mostrar progresso da revisão** no menu do usuário. A escolha é salva por navegador e também oculta o botão **Rever por decidir**.
 - Após alguns segundos sem interação, a pilha se recolhe em uma pequena pílula de contagem. Passe o ponteiro ou clique nela para abrir.
 
-**Dispensar todos** oculta os avisos atuais nesta aba sem alterar filtros, decisões ou a fila salva. A animação breve é desativada quando há preferência por movimento reduzido. Uma caixa quadrada e um contorno indicam a seleção; uma bandeira **Mantida** separada indica a decisão salva.
+**Dispensar todos** oculta os avisos atuais nesta aba sem alterar filtros, decisões ou a fila salva. A animação breve é desativada quando há preferência por movimento reduzido. Uma caixa quadrada e um contorno indicam a seleção; uma pequena bandeira verde identifica as fotos mantidas. **Mantida** continua na dica e para leitores de tela.
 
 ## Recursos da Galeria
 

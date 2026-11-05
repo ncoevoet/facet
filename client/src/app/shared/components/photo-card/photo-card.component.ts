@@ -347,10 +347,9 @@ const DEFAULT_CLIPPING_BADGE_PERCENT = 5;
         }
 
         @if (isEditionMode() && photo().is_kept && !photo().is_rejected) {
-          <span data-photo-kept class="pointer-events-none absolute top-1.5 left-10 z-10 inline-flex h-6 @max-[95px]/photo:top-1 @max-[95px]/photo:h-4 max-w-[calc(100%-3rem)] items-center gap-1 rounded bg-emerald-900 px-1 text-[11px] font-semibold text-white shadow-sm"
+          <span data-photo-kept role="img" class="absolute top-1.5 left-10 z-10 inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-sm bg-emerald-900/90 text-white shadow-sm @max-[95px]/photo:top-1 @max-[95px]/photo:h-4 @max-[95px]/photo:w-4"
                 [attr.aria-label]="I18N.review.kept | translate" [matTooltip]="I18N.review.kept | translate">
-            <mat-icon aria-hidden="true" class="shrink-0 !text-base !w-4 !h-4 !leading-4 !text-white">flag</mat-icon>
-            <span class="hidden truncate @[120px]/photo:inline">{{ I18N.review.kept | translate }}</span>
+            <mat-icon aria-hidden="true" class="!text-sm !w-3.5 !h-3.5 !leading-[14px] !text-white">flag</mat-icon>
           </span>
         }
 

@@ -381,7 +381,7 @@ describe('PhotoCardComponent', () => {
       fixture.detectChanges();
       const badge = (fixture.nativeElement as HTMLElement).querySelector('[aria-label="review.kept"]');
       expect(badge !== null).toBe(shown);
-      if (badge) { expect(badge.querySelector('mat-icon')?.textContent?.trim()).toBe('flag'); expect(badge.textContent).toContain('review.kept'); }
+      if (badge) { expect(badge.querySelector('mat-icon')?.textContent?.trim()).toBe('flag'); expect(badge.getAttribute('aria-label')).toBe('review.kept'); }
     });
 
     it('keeps selection and the saved decision separate when both are present', () => {
@@ -394,7 +394,9 @@ describe('PhotoCardComponent', () => {
       const kept = root.querySelector('[data-photo-kept]')!;
       expect(selected).not.toBeNull(); expect(kept).not.toBeNull();
       expect(selected.textContent).toContain('check'); expect(kept.textContent).toContain('flag');
-      expect(kept.textContent).toContain('review.kept');
+      expect(kept.textContent?.trim()).toBe('flag');
+      expect(kept.getAttribute('role')).toBe('img');
+      expect(kept.getAttribute('aria-label')).toBe('review.kept');
       fixture.componentInstance.selectionState.set(false); fixture.detectChanges();
       expect(root.querySelector('[data-photo-selected]')).toBeNull();
       expect(root.querySelector('[data-photo-kept]')).not.toBeNull();
