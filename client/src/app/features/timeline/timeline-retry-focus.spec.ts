@@ -41,6 +41,8 @@ describe('Timeline calendar retry focus', () => {
     response.next(kind === 'months' ? { months: [] } : { dates: [] });
     await v.settle(); await v.settle();
     expect(document.activeElement).toBe(v.root.querySelector('[data-timeline-empty]'));
+    expect(document.activeElement?.textContent).toContain(kind === 'months' ? 'timeline.empty' : 'timeline.no_photos_month');
+    if (kind === 'days') expect(v.root.querySelector('[role="group"] [disabled]')).not.toBeNull();
     v.fixture.destroy(); v.root.remove();
   });
 

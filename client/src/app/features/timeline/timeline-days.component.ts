@@ -42,6 +42,9 @@ interface CalendarCell {
       <app-timeline-load-failure [loading]="loading()" (retry)="retryRead()" />
     }
     @if (!loading() && !failed()) {
+      @if (!hasPhotos()) {
+        <p data-timeline-empty tabindex="-1" class="mx-auto max-w-3xl py-4 text-sm text-[var(--mat-sys-on-surface-variant)]">{{ I18N.timeline.no_photos_month | translate }}</p>
+      }
       <!-- Day-of-week headers -->
       <div class="mx-auto grid max-w-3xl grid-cols-7 gap-2 mb-2">
         @for (d of weekDays(); track $index) {
@@ -50,7 +53,7 @@ interface CalendarCell {
       </div>
 
       <!-- Calendar grid -->
-      <div data-timeline-empty tabindex="-1" role="group" [attr.aria-label]="I18N.timeline.calendar | translate" class="mx-auto grid max-w-3xl grid-cols-7 gap-2">
+      <div role="group" [attr.aria-label]="I18N.timeline.calendar | translate" class="mx-auto grid max-w-3xl grid-cols-7 gap-2">
         @for (cell of calendarCells(); track cell.date ?? $index) {
           @if (cell.date) {
             <button data-timeline-result
@@ -93,6 +96,7 @@ export class TimelineDaysComponent extends TimelineCollectionReader {
   readonly daySelected = output<string>();
 
   protected readonly calendarCells = signal<CalendarCell[]>([]);
+  protected readonly hasPhotos = computed(() => this.calendarCells().some(cell => cell.count > 0));
 
   // Generate Monday-first abbreviations in the viewer's current language.
   protected readonly weekDays = computed(() => {

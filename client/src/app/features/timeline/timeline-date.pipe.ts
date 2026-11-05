@@ -1,11 +1,13 @@
 import { inject, Pipe, PipeTransform } from '@angular/core';
 import { I18nService } from '../../core/services/i18n.service';
 import { I18N } from '../../core/i18n/keys';
+import { CaptureDatePipe } from '../../shared/pipes/capture-date.pipe';
 
-/** Formats timeline group dates: day → fullDate, week → "Week 46, 2025", month → "November 2025" */
+/** Formats capture days, localized week labels and localized month names. */
 @Pipe({ name: 'timelineDate', standalone: true, pure: false })
 export class TimelineDatePipe implements PipeTransform {
   private readonly i18n = inject(I18nService);
+  private readonly captureDate = new CaptureDatePipe();
   transform(dateStr: string): string {
     if (!dateStr) return '';
     // Week format: "2025-W46"
@@ -16,6 +18,6 @@ export class TimelineDatePipe implements PipeTransform {
       return new Intl.DateTimeFormat(this.i18n.locale(), { month: 'long', year: 'numeric' }).format(new Date(dateStr + '-15T12:00:00'));
     }
     // Day format
-    return new Intl.DateTimeFormat(this.i18n.locale(), { dateStyle: 'full' }).format(new Date(dateStr + 'T12:00:00'));
+    return this.captureDate.transform(dateStr);
   }
 }
