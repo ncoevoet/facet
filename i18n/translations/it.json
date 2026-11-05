@@ -1526,7 +1526,7 @@
       "reset_zoom": "Reimposta lo zoom",
       "linked": "Collegate",
       "independent": "Indipendenti",
-      "link_help": "Scollega per allineare ogni inquadratura, poi ricollega per conservarla. I gesti collegati applicano lo stesso rapporto di zoom e spostamento in pixel a tutti i candidati; non associano i soggetti. Ripristina adatta ogni foto al riquadro.",
+      "link_help": "Scollega per allineare ogni inquadratura, poi ricollega per conservarla. I gesti collegati applicano lo stesso rapporto di zoom e spostamento in pixel a tutti i candidati; non associano i soggetti. Ripristina adatta ogni foto al riquadro. I riquadri collegati si fermano ai propri bordi e possono perdere l’allineamento relativo. Adatta li centra e li riallinea.",
       "reference": "Riferimento",
       "candidate": "Candidata",
       "promote": "Usa {name} come riferimento",
@@ -1559,7 +1559,7 @@
       },
       "inspection": {
         "title": "Esamina",
-        "magnification": "Lente",
+        "magnification": "Ingrandimento",
         "shared_person": "Inquadra una persona salvata nei riquadri visibili…",
         "partial": "Impossibile caricare alcuni dati di rilevamento salvati.",
         "help": "L’inquadratura passa alla modalità Indipendenti. Controlla i ritagli prima di collegare i riquadri. Le assegnazioni salvate possono essere errate o obsolete. La lente ingrandisce i pixel visualizzati; aumenta lo zoom per richiedere l’immagine sorgente.",

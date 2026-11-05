@@ -535,6 +535,22 @@ describe('ComparisonWorkspaceComponent', () => {
     expect(renderer.fullResSrc()).not.toContain('fallback');
   });
 
+  it('keeps four-up failure recovery actionable without changing another pane', () => {
+    const { fixture } = build(['/a.jpg', '/b.jpg', '/c.jpg', '/d.jpg']);
+    const root = fixture.nativeElement as HTMLElement;
+    const panes = fixture.debugElement.queryAll(By.directive(SyncedZoomComponent));
+    const renderer = panes[2].componentInstance as SyncedZoomComponent;
+    renderer.renditionChange.emit({ kind: 'preview', phase: 'failed' }); fixture.detectChanges();
+    const source = root.querySelectorAll('[data-pane-source]')[2];
+    expect(source.textContent).toContain('gallery.compare.rendition.failed');
+    const retry = vi.spyOn(renderer, 'retry');
+    source.querySelector<HTMLButtonElement>('[data-retry-pane]')!.click();
+    expect(retry).toHaveBeenCalledOnce();
+    expect(panes.map(pane => (pane.componentInstance as SyncedZoomComponent).zoom())).toEqual([FIT_ZOOM, FIT_ZOOM, FIT_ZOOM, FIT_ZOOM]);
+    renderer.renditionChange.emit({ kind: 'preview', phase: 'ready', width: 1440, height: 960 }); fixture.detectChanges();
+    expect(source.querySelector('[data-retry-pane]')).toBeNull();
+  });
+
   it('commits bounded linked and independent crops after real pane geometry is available', () => {
     const { fixture } = build(['/a.jpg', '/b.jpg']);
     const nodes = fixture.debugElement.queryAll(By.directive(SyncedZoomComponent));
@@ -571,6 +587,7 @@ describe('ComparisonWorkspaceComponent', () => {
     const panes = fixture.debugElement.queryAll(By.directive(SyncedZoomComponent)).map(p => p.componentInstance as SyncedZoomComponent);
     root.querySelector<HTMLButtonElement>('[data-zoom-in]')!.click(); fixture.detectChanges();
     expect(panes.map(p => p.zoom().scale)).toEqual([1.5, 1.5]);
+    expect(root.querySelector<HTMLButtonElement>('[data-fit-pane]')!.getAttribute('aria-label')).toContain('1.5×');
     root.querySelector<HTMLButtonElement>('[data-link-inspection]')!.click(); fixture.detectChanges();
     root.querySelectorAll<HTMLButtonElement>('[data-zoom-in]')[1].click(); fixture.detectChanges();
     expect(panes.map(p => p.zoom().scale)).toEqual([1.5, 2.25]);
@@ -579,6 +596,7 @@ describe('ComparisonWorkspaceComponent', () => {
     root.querySelector<HTMLButtonElement>('[data-link-inspection]')!.click(); fixture.detectChanges();
     root.querySelector<HTMLButtonElement>('[data-fit-pane]')!.click(); fixture.detectChanges();
     expect(panes.map(p => p.zoom())).toEqual([FIT_ZOOM, FIT_ZOOM]);
+    expect(root.querySelector<HTMLButtonElement>('[data-fit-pane]')!.getAttribute('aria-label')).toBe('gallery.compare.rendition.fit');
   });
 
   it('cycles only candidates in two-up mode and swaps the old reference back into the candidate slot on promotion', () => {

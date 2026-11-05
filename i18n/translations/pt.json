@@ -1526,7 +1526,7 @@
       "reset_zoom": "Repor o zoom",
       "linked": "Ligadas",
       "independent": "Independentes",
-      "link_help": "Desligue para alinhar cada enquadramento e volte a ligar para o manter. Os gestos ligados aplicam a mesma proporção de zoom e deslocamento em píxeis a todos os candidatos; não identificam sujeitos. Repor ajusta todas as fotos ao painel.",
+      "link_help": "Desligue para alinhar cada enquadramento e volte a ligar para o manter. Os gestos ligados aplicam a mesma proporção de zoom e deslocamento em píxeis a todos os candidatos; não identificam sujeitos. Repor ajusta todas as fotos ao painel. Os painéis ligados param nas próprias bordas e podem perder o alinhamento relativo. Ajustar centra-os e volta a alinhá-los.",
       "reference": "Referência",
       "candidate": "Candidata",
       "promote": "Usar {name} como referência",
@@ -1559,7 +1559,7 @@
       },
       "inspection": {
         "title": "Inspecionar",
-        "magnification": "Lupa",
+        "magnification": "Ampliação",
         "shared_person": "Enquadrar pessoa guardada nos painéis visíveis…",
         "partial": "Não foi possível carregar alguns dados de deteção guardados.",
         "help": "O enquadramento muda para Independentes. Verifique os recortes antes de ligar. As atribuições guardadas podem estar erradas ou desatualizadas. A lupa amplia os píxeis apresentados; aumente o zoom para pedir a imagem de origem.",

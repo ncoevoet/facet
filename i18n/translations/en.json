@@ -1553,7 +1553,7 @@
       "reset_zoom": "Reset zoom",
       "linked": "Linked",
       "independent": "Independent",
-      "link_help": "Unlink to align each crop, then link to keep that alignment. Linked gestures apply the same zoom ratio and pixel pan to all candidates; they do not match subjects. Reset fits every photo.",
+      "link_help": "Unlink to align each crop, then link to keep that alignment. Linked gestures apply the same zoom ratio and pixel pan to all candidates; they do not match subjects. Reset fits every photo. Linked panes stop at their own image edges and can lose relative alignment. Fit centres and realigns them.",
       "reference": "Reference",
       "candidate": "Candidate",
       "promote": "Use {name} as reference",
@@ -1586,7 +1586,7 @@
       },
       "inspection": {
         "title": "Inspect",
-        "magnification": "Loupe",
+        "magnification": "Magnification",
         "shared_person": "Frame saved person in visible panes…",
         "partial": "Some stored detection data could not be loaded.",
         "help": "Framing switches to Independent. Check crops before linking. Saved assignments can be wrong or outdated. Loupe enlarges displayed pixels; zoom in to request the source image.",

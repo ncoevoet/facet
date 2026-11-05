@@ -1526,7 +1526,7 @@
       "reset_zoom": "Réinitialiser le zoom",
       "linked": "Liées",
       "independent": "Indépendantes",
-      "link_help": "Déliez pour aligner chaque cadrage, puis reliez pour le conserver. Les gestes liés appliquent le même rapport de zoom et déplacement en pixels à tous les candidats, sans correspondance des sujets. Réinitialiser ajuste chaque photo au cadre.",
+      "link_help": "Déliez pour aligner chaque cadrage, puis reliez pour le conserver. Les gestes liés appliquent le même rapport de zoom et déplacement en pixels à tous les candidats, sans correspondance des sujets. Réinitialiser ajuste chaque photo au cadre. Les volets liés s’arrêtent à leurs propres bords et peuvent perdre leur alignement relatif. Ajuster les recentre et les réaligne.",
       "reference": "Référence",
       "candidate": "Candidate",
       "promote": "Utiliser {name} comme référence",
@@ -1559,7 +1559,7 @@
       },
       "inspection": {
         "title": "Inspecter",
-        "magnification": "Loupe",
+        "magnification": "Grossissement",
         "shared_person": "Cadrer une personne enregistrée dans les vues visibles…",
         "partial": "Certaines données de détection enregistrées n’ont pas pu être chargées.",
         "help": "Le cadrage passe les vues en mode Indépendantes. Vérifiez les cadrages avant de lier les vues. Les attributions enregistrées peuvent être erronées ou anciennes. La loupe agrandit les pixels affichés ; zoomez pour demander l’image source.",

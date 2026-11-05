@@ -1526,7 +1526,7 @@
       "reset_zoom": "Restablecer zoom",
       "linked": "Vinculadas",
       "independent": "Independientes",
-      "link_help": "Desvincula para alinear cada encuadre y vuelve a vincular para conservarlo. Los gestos vinculados aplican la misma proporción de zoom y desplazamiento en píxeles a todos los candidatos; no identifican sujetos. Restablecer encaja todas las fotos.",
+      "link_help": "Desvincula para alinear cada encuadre y vuelve a vincular para conservarlo. Los gestos vinculados aplican la misma proporción de zoom y desplazamiento en píxeles a todos los candidatos; no identifican sujetos. Restablecer encaja todas las fotos. Los paneles enlazados se detienen en sus propios bordes y pueden perder la alineación relativa. Ajustar los centra y vuelve a alinearlos.",
       "reference": "Referencia",
       "candidate": "Candidata",
       "promote": "Usar {name} como referencia",
@@ -1559,7 +1559,7 @@
       },
       "inspection": {
         "title": "Inspeccionar",
-        "magnification": "Lupa",
+        "magnification": "Aumento",
         "shared_person": "Encuadrar persona guardada en los paneles visibles…",
         "partial": "No se pudieron cargar algunos datos de detección almacenados.",
         "help": "El encuadre cambia a Independientes. Comprueba los recortes antes de vincular. Las asignaciones guardadas pueden ser incorrectas o estar desactualizadas. La lupa amplía los píxeles mostrados; aumenta el zoom para solicitar la imagen de origen.",

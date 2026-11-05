@@ -53,7 +53,7 @@ const RENDERED_EDGE = RENDERED_THUMBNAIL_EDGE;
           <mat-icon>arrow_back</mat-icon>
         </button>
         <mat-icon aria-hidden="true" class="max-sm:!hidden !text-base !w-4 !h-4 !leading-4">compare</mat-icon>
-        <h1 class="m-0 min-w-0 flex-1 truncate text-sm font-semibold"><span class="sm:hidden" aria-hidden="true">{{ I18N.gallery.selection.compare | translate }}</span><span class="max-sm:sr-only">{{ I18N.gallery.compare.title | translate:{ count: visiblePhotos().length } }}</span></h1>
+        <h1 class="m-0 min-w-0 flex-1 truncate text-sm font-semibold"><span class="sm:hidden" aria-hidden="true">{{ I18N.gallery.selection.compare | translate }} · {{ visiblePhotos().length }}@if (queue().length > visiblePhotos().length) { / {{ queue().length }} }</span><span class="max-sm:sr-only">{{ I18N.gallery.compare.title | translate:{ count: visiblePhotos().length } }}</span></h1>
         <button mat-button data-inspection-toggle class="max-sm:!min-w-11 max-sm:!h-11 pointer-coarse:!min-w-11 pointer-coarse:!h-11 !text-[var(--mat-sys-on-surface)] shrink-0" [attr.aria-expanded]="inspectionOpen()" aria-controls="comparison-inspection" [attr.aria-label]="I18N.gallery.compare.inspection.title | translate" (click)="toggleInspection()"><mat-icon>manage_search</mat-icon><span class="hidden sm:inline">{{ I18N.gallery.compare.inspection.title | translate }}</span></button>
         @if (queue().length > 2) {
           <button mat-button data-two-up class="max-sm:!min-w-11 max-sm:!h-11 pointer-coarse:!min-w-11 pointer-coarse:!h-11 !text-[var(--mat-sys-on-surface)] shrink-0" [attr.aria-pressed]="twoUp()"
@@ -91,12 +91,14 @@ const RENDERED_EDGE = RENDERED_THUMBNAIL_EDGE;
         @for (pane of paneStates(); track pane.photo.path) {
           @let photo = pane.photo;
           <div class="@container/pane relative flex flex-col w-full h-full min-w-0 min-h-0 overflow-hidden border border-[var(--facet-image-rule)]" [class.!border-[var(--mat-sys-primary)]]="activePath() === photo.path" [attr.data-reference]="referencePath() === photo.path" [attr.data-active-pane]="activePath() === photo.path" (pointerdown)="activate(photo.path)" (focusin)="activate(photo.path)">
-            <div class="flex shrink-0 flex-wrap items-center gap-x-1 px-2 text-[var(--facet-image-ink)] text-xs bg-[var(--facet-image-chrome)] min-h-10">
-              <mat-icon class="!text-base !w-4 !h-4 !leading-4 shrink-0">{{ referencePath() === photo.path ? 'push_pin' : 'photo' }}</mat-icon>
-              <span class="shrink-0 font-semibold" aria-hidden="true">{{ pane.slotLabel }}</span><span class="min-w-0 flex-1 font-medium">{{ pane.roleKey | translate }}</span>
-              <span data-pane-filename class="order-last mb-1 basis-full min-w-0 [overflow-wrap:anywhere] @[400px]/pane:order-none @[400px]/pane:mb-0 @[400px]/pane:basis-auto @[400px]/pane:flex-1" [title]="photo.filename"><span class="@[400px]/pane:hidden" aria-hidden="true">{{ photo.filename | filename:36 }}</span><span class="hidden @[400px]/pane:inline">{{ photo.filename | filename:64 }}</span><span class="sr-only @[400px]/pane:hidden">{{ photo.filename }}</span></span>
+            <div class="flex shrink-0 items-center gap-x-1 px-2 text-[var(--facet-image-ink)] text-xs bg-[var(--facet-image-chrome)] min-h-10">
+              <mat-icon aria-hidden="true" class="@max-[400px]/pane:!hidden !text-base !w-4 !h-4 !leading-4 shrink-0">{{ referencePath() === photo.path ? 'push_pin' : 'photo' }}</mat-icon>
+              <div class="min-w-0 flex-1 py-1 @[400px]/pane:flex @[400px]/pane:items-center @[400px]/pane:gap-1">
+                <span class="hidden @[400px]/pane:inline shrink-0 font-semibold" aria-hidden="true">{{ pane.slotLabel }}</span><span class="block min-w-0 font-medium @[400px]/pane:shrink-0">{{ pane.roleKey | translate }}</span>
+                <span data-pane-filename class="block min-w-0 [overflow-wrap:anywhere] @[400px]/pane:flex-1" [title]="photo.filename"><span class="@[240px]/pane:hidden" aria-hidden="true">{{ photo.filename | filename:22 }}</span><span class="hidden @[240px]/pane:inline @[400px]/pane:hidden" aria-hidden="true">{{ photo.filename | filename:36 }}</span><span class="hidden @[400px]/pane:inline">{{ photo.filename | filename:64 }}</span><span class="sr-only @[400px]/pane:hidden">{{ photo.filename }}</span></span>
+              </div>
               @if (referencePath() !== photo.path) {
-                <button mat-icon-button data-promote-reference class="max-sm:!w-11 max-sm:!h-11 pointer-coarse:!w-11 pointer-coarse:!h-11 !text-white shrink-0"
+                <button mat-icon-button data-promote-reference class="@max-[240px]/pane:!hidden max-sm:!w-11 max-sm:!h-11 pointer-coarse:!w-11 pointer-coarse:!h-11 !text-white shrink-0"
                         [attr.aria-label]="I18N.gallery.compare.promote | translate:{ name: photo.filename }"
                         [matTooltip]="I18N.gallery.compare.promote | translate:{ name: photo.filename }"
                         (click)="promote(photo.path)"><mat-icon>push_pin</mat-icon></button>
@@ -125,8 +127,8 @@ const RENDERED_EDGE = RENDERED_THUMBNAIL_EDGE;
                              (geometryChange)="constrainPanes()"
                              [alt]="photo.filename" />
             <div class="shrink-0 flex flex-wrap items-center justify-between gap-x-1 border-t border-[var(--facet-image-rule)] bg-[var(--facet-image-chrome)] text-[var(--facet-image-ink)] px-2">
-              <div class="flex min-w-0 flex-1 items-center">
-              <span data-preview-status role="status" class="min-w-0 flex-1 truncate text-xs" [title]="I18N.gallery.compare.rendition.limit | translate">
+              <div data-pane-source class="flex min-w-0 flex-1 basis-full items-center @[320px]/pane:basis-0">
+              <span data-preview-status role="status" class="min-w-0 flex-1 [overflow-wrap:anywhere] text-xs">
                 {{ pane.kindKey | translate }}<span [class.sr-only]="pane.rendition?.phase === 'ready' && !pane.previewFailed"> · {{ pane.phaseKey | translate }}</span>
                 @if (pane.rendition?.phase === 'ready') { <span class="hidden @[400px]/pane:inline"> · {{ pane.rendition.width }} × {{ pane.rendition.height }}</span><span class="sr-only @[400px]/pane:hidden"> {{ pane.rendition.width }} × {{ pane.rendition.height }}</span> }
               </span>
@@ -134,9 +136,9 @@ const RENDERED_EDGE = RENDERED_THUMBNAIL_EDGE;
                 <button mat-icon-button data-retry-pane class="max-sm:!w-11 max-sm:!h-11 pointer-coarse:!w-11 pointer-coarse:!h-11 !text-white" [attr.aria-label]="I18N.gallery.load_error.retry | translate" (click)="imagePane.retry()"><mat-icon>refresh</mat-icon></button>
               }
               </div>
-              <div class="flex shrink-0 min-w-0 items-center justify-center">
+              <div class="ml-auto flex shrink-0 min-w-0 items-center justify-center">
               <button mat-icon-button data-zoom-out class="max-sm:!w-11 max-sm:!h-11 pointer-coarse:!w-11 pointer-coarse:!h-11 !text-white" [disabled]="pane.zoomOutDisabled" [attr.aria-label]="I18N.gallery.compare.rendition.zoom_out | translate" (click)="stepZoom(photo.path, -1)"><mat-icon>remove</mat-icon></button>
-              <button mat-button data-fit-pane class="max-sm:!min-w-11 max-sm:!h-11 pointer-coarse:!min-w-11 pointer-coarse:!h-11 !text-white !min-w-10 !px-1" [attr.aria-label]="I18N.gallery.compare.rendition.fit | translate" [matTooltip]="I18N.gallery.compare.rendition.scale_help | translate" (click)="fitPane(photo.path)">@if (pane.fitted) { {{ I18N.gallery.compare.rendition.fit_short | translate }} } @else { {{ pane.scaleLabel }} }</button>
+              <button mat-button data-fit-pane class="max-sm:!min-w-11 max-sm:!h-11 pointer-coarse:!min-w-11 pointer-coarse:!h-11 !text-white !min-w-10 !px-1" [attr.aria-label]="(I18N.gallery.compare.rendition.fit | translate) + (pane.fitted ? '' : ' (' + pane.scaleLabel + ')')" [matTooltip]="I18N.gallery.compare.rendition.scale_help | translate" (click)="fitPane(photo.path)">@if (pane.fitted) { {{ I18N.gallery.compare.rendition.fit_short | translate }} } @else { {{ pane.scaleLabel }} }</button>
               <button mat-icon-button data-zoom-in class="max-sm:!w-11 max-sm:!h-11 pointer-coarse:!w-11 pointer-coarse:!h-11 !text-white" [disabled]="pane.zoomInDisabled" [attr.aria-label]="I18N.gallery.compare.rendition.zoom_in | translate" (click)="stepZoom(photo.path, 1)"><mat-icon>add</mat-icon></button>
               </div>
             </div>
@@ -196,7 +198,7 @@ const RENDERED_EDGE = RENDERED_THUMBNAIL_EDGE;
                   (click)="moveCandidate(1)"><mat-icon>chevron_right</mat-icon></button>
         </div>
       }
-          <span data-queue-count>{{ I18N.gallery.compare.queue_total | translate:{ count: queue().length } }}</span>
+          <span data-queue-count class="sr-only sm:not-sr-only">{{ I18N.gallery.compare.queue_total | translate:{ count: queue().length } }}</span>
           <div class="flex min-w-0 flex-wrap gap-1" role="group" [attr.aria-label]="I18N.gallery.compare.assign_target | translate">
             <button type="button" data-compare-target="reference" class="min-h-11 rounded border border-[var(--mat-sys-outline-variant)] px-2" [class.bg-[var(--mat-sys-secondary-container)]]="assignmentTarget() === 'reference'" [attr.aria-pressed]="assignmentTarget() === 'reference'" (click)="assignmentTarget.set('reference')">{{ I18N.gallery.compare.reference | translate }}</button>
             <button type="button" data-compare-target="candidate" class="min-h-11 rounded border border-[var(--mat-sys-outline-variant)] px-2" [class.bg-[var(--mat-sys-secondary-container)]]="assignmentTarget() === 'candidate'" [attr.aria-pressed]="assignmentTarget() === 'candidate'" (click)="assignmentTarget.set('candidate')">{{ I18N.gallery.compare.candidate | translate }}</button>
@@ -220,8 +222,8 @@ const RENDERED_EDGE = RENDERED_THUMBNAIL_EDGE;
                     [attr.aria-pressed]="activePath() === photo.path"
                     [attr.aria-label]="I18N.gallery.compare.assign_photo | translate:{ target: (assignmentLabelKey() | translate), name: photo.filename }"
                     (click)="chooseCandidate(photo.path)">
-              <img loading="lazy" decoding="async" [src]="photo.path | thumbnailUrl:storedEdge:photo.preview_revision" alt="" class="h-12 w-full object-contain bg-neutral-950" />
-              <span class="flex items-center gap-1 text-xs w-full"><mat-icon class="!text-base !w-4 !h-4 !leading-4 shrink-0">{{ referencePath() === photo.path ? 'push_pin' : 'photo' }}</mat-icon><span class="min-w-0 line-clamp-2 [overflow-wrap:anywhere] leading-4">{{ photo.filename | filename:24 }}</span></span>
+              <img loading="lazy" decoding="async" [src]="photo.path | thumbnailUrl:storedEdge:photo.preview_revision" alt="" class="h-8 sm:h-12 w-full object-contain bg-neutral-950" />
+              <span class="flex items-center gap-1 text-xs w-full"><mat-icon class="!text-base !w-4 !h-4 !leading-4 shrink-0">{{ referencePath() === photo.path ? 'push_pin' : 'photo' }}</mat-icon><span class="min-w-0 line-clamp-2 [overflow-wrap:anywhere] leading-4">{{ photo.filename | filename:40 }}</span></span>
             </button>
           }
         </div>

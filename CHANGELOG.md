@@ -27,7 +27,7 @@ All notable changes to Facet are documented in this file.
 
 ### Changed
 
-- Photo comparison keeps pane and assignment identities readable on phones, adds touch-sized controls and a focused Inspect panel with Close, and bounds inspection panning to fitted images. Filmstrip keyboard focus and long-name display improve without changing ratings, gallery selection or culling framing.
+- Photo comparison keeps pane and assignment identities readable on phones, adds touch-sized controls and a focused Inspect panel with Close, and bounds inspection panning to fitted images. Narrow-pane source failures and Retry stay separate from zoom controls. Filmstrip keyboard focus and long-name display improve without changing ratings, gallery selection or culling framing.
 
 - Enlarged photos now pan to every fitted-image edge, retain touch drags for inspection, and clamp correctly when zooming out. Long captions and person names wrap inside photo details.
 

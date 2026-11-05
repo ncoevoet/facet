@@ -1526,7 +1526,7 @@
       "reset_zoom": "Zoom zurücksetzen",
       "linked": "Gekoppelt",
       "independent": "Unabhängig",
-      "link_help": "Entkoppeln, jeden Ausschnitt ausrichten und wieder koppeln: Die Ausrichtung bleibt erhalten. Gekoppelte Gesten wenden denselben Zoomfaktor und dieselbe Pixelverschiebung auf alle Kandidaten an; Motive werden nicht zugeordnet. Zurücksetzen passt jedes Foto ein.",
+      "link_help": "Entkoppeln, jeden Ausschnitt ausrichten und wieder koppeln: Die Ausrichtung bleibt erhalten. Gekoppelte Gesten wenden denselben Zoomfaktor und dieselbe Pixelverschiebung auf alle Kandidaten an; Motive werden nicht zugeordnet. Zurücksetzen passt jedes Foto ein. Gekoppelte Ansichten halten an ihren eigenen Bildrändern an und können dadurch ihre relative Ausrichtung verlieren. Einpassen zentriert sie und richtet sie wieder aus.",
       "reference": "Referenz",
       "candidate": "Kandidat",
       "promote": "{name} als Referenz verwenden",
@@ -1559,7 +1559,7 @@
       },
       "inspection": {
         "title": "Prüfen",
-        "magnification": "Lupe",
+        "magnification": "Vergrößerung",
         "shared_person": "Gespeicherte Person in sichtbaren Teilansichten ausrichten…",
         "partial": "Einige gespeicherte Erkennungsdaten konnten nicht geladen werden.",
         "help": "Beim Ausrichten wird auf Unabhängig umgeschaltet. Prüfen Sie die Ausschnitte vor dem Koppeln. Gespeicherte Zuordnungen können falsch oder veraltet sein. Die Lupe vergrößert die angezeigten Pixel; fordern Sie das Quellbild durch Hineinzoomen an.",
