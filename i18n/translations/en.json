@@ -3897,6 +3897,7 @@
     "next": "Next stack photo",
     "browse_position": "{position} of {count}",
     "manage": "Manage stack",
+    "manage_short": "Manage",
     "title": "Photo stack",
     "create": "Stack photos",
     "hint": "Stacking keeps each original and its review decisions. Browse photos, choose a cover and review the order before saving. R rejects the focused photo immediately and excludes it from the draft. Undo restores its review and draft membership. Grouping waits for Save; leaving without saving does not undo Reject.",

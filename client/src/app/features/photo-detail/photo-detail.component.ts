@@ -119,11 +119,11 @@ const SOCIAL_SOURCE_KEYS: Record<string, string> = {
   template: `
     @if (photo(); as p) {
       <!-- Header bar -->
-      <div data-photo-detail-header class="flex shrink-0 items-center gap-2 px-2 py-1 border-b border-[var(--mat-sys-outline-variant)] bg-[var(--mat-sys-surface-container-lowest)]">
+      <div data-photo-detail-header class="@container flex shrink-0 items-center gap-2 px-2 py-1 border-b border-[var(--mat-sys-outline-variant)] bg-[var(--mat-sys-surface-container-lowest)]">
         <button mat-icon-button (click)="goBack()" [matTooltip]="I18N.photo_detail.back | translate" [attr.aria-label]="I18N.photo_detail.back | translate">
           <mat-icon>arrow_back</mat-icon>
         </button>
-        <span class="min-w-0 flex-1 truncate font-medium">{{ p.filename }}</span>
+        <h1 class="m-0 min-w-0 flex-1 truncate text-base font-medium leading-6 max-md:whitespace-normal max-md:break-words max-md:line-clamp-2" [title]="p.filename">{{ p.filename }}</h1>
         @if (auth.isEdition()) {
           <button mat-icon-button class="max-md:!hidden" (click)="refreshPhoto(p)" [matTooltip]="I18N.photo_refresh.title | translate" [attr.aria-label]="I18N.photo_refresh.title | translate"><mat-icon>refresh</mat-icon></button>
         }
@@ -137,9 +137,9 @@ const SOCIAL_SOURCE_KEYS: Record<string, string> = {
         }
 
         @if (store.config()?.features?.show_critique) {
-          <button #analysisToggle mat-icon-button (click)="openCritique(p)"
+          <button #analysisToggle mat-button class="!min-w-11 !h-11 !px-2" (click)="openCritique(p)"
             [matTooltip]="I18N.photo_detail.analysis | translate" [attr.aria-label]="I18N.photo_detail.analysis | translate">
-            <mat-icon>analytics</mat-icon>
+            <mat-icon class="!m-0 @min-[960px]:!mr-2">analytics</mat-icon><span class="hidden @min-[960px]:inline">{{ I18N.photo_detail.analysis | translate }}</span>
           </button>
         }
 
@@ -164,7 +164,7 @@ const SOCIAL_SOURCE_KEYS: Record<string, string> = {
           </button>
         }
 
-        <button mat-icon-button (click)="cycleFaceBoxMode()"
+        <button mat-icon-button class="max-md:!hidden" (click)="cycleFaceBoxMode()"
           data-face-box-mode
           [matTooltip]="faceBoxModeLabel() | translate"
           [attr.aria-label]="faceBoxModeLabel() | translate">
@@ -186,9 +186,10 @@ const SOCIAL_SOURCE_KEYS: Record<string, string> = {
         }
 
         @if (downloadOptions().length > 1) {
-          <button mat-icon-button [matMenuTriggerFor]="downloadMenu" [disabled]="downloading()" [matTooltip]="I18N.photo_detail.download | translate"
+          <button mat-button class="!min-w-11 !h-11 !px-2" [matMenuTriggerFor]="downloadMenu" [disabled]="downloading()" [matTooltip]="I18N.photo_detail.download | translate"
             [attr.aria-label]="(downloading() ? I18N.photo_detail.downloading : I18N.photo_detail.download) | translate">
-            @if (downloading()) { <mat-spinner diameter="18" class="!inline-block" aria-hidden="true" /> } @else { <mat-icon>download</mat-icon> }
+            @if (downloading()) { <mat-spinner diameter="18" class="!inline-block" aria-hidden="true" /> } @else { <mat-icon class="!m-0 @min-[960px]:!mr-2">download</mat-icon> }
+            <span class="hidden @min-[960px]:inline">{{ I18N.photo_detail.download | translate }}</span>
           </button>
           <mat-menu #downloadMenu="matMenu">
             @for (opt of downloadOptions(); track opt.type + (opt.profile ?? '')) {
@@ -203,9 +204,10 @@ const SOCIAL_SOURCE_KEYS: Record<string, string> = {
             }
           </mat-menu>
         } @else {
-          <button mat-icon-button (click)="download(p.path)" [disabled]="downloading()" [matTooltip]="I18N.photo_detail.download | translate"
+          <button mat-button class="!min-w-11 !h-11 !px-2" (click)="download(p.path)" [disabled]="downloading()" [matTooltip]="I18N.photo_detail.download | translate"
             [attr.aria-label]="(downloading() ? I18N.photo_detail.downloading : I18N.photo_detail.download) | translate">
-            @if (downloading()) { <mat-spinner diameter="18" class="!inline-block" aria-hidden="true" /> } @else { <mat-icon>download</mat-icon> }
+            @if (downloading()) { <mat-spinner diameter="18" class="!inline-block" aria-hidden="true" /> } @else { <mat-icon class="!m-0 @min-[960px]:!mr-2">download</mat-icon> }
+            <span class="hidden @min-[960px]:inline">{{ I18N.photo_detail.download | translate }}</span>
           </button>
         }
 
@@ -247,12 +249,12 @@ const SOCIAL_SOURCE_KEYS: Record<string, string> = {
 
         <!-- Below md the secondary actions fold into this menu so the filename keeps its room;
              back, critique and download stay in the row. Same handlers and conditions as the inline buttons. -->
-        @if (auth.isEdition() || store.config()?.features?.show_similar_button || socialExportEnabled()) {
           <button mat-icon-button class="md:!hidden" [matMenuTriggerFor]="moreActionsMenu"
             [matTooltip]="I18N.nav.more | translate" [attr.aria-label]="I18N.nav.more | translate">
             <mat-icon>more_vert</mat-icon>
           </button>
           <mat-menu #moreActionsMenu="matMenu">
+            <button mat-menu-item data-photo-face-menu (click)="cycleFaceBoxMode()"><mat-icon>{{ faceBoxModeIcon() }}</mat-icon>{{ faceBoxModeLabel() | translate }}</button>
             @if (auth.isEdition()) {
               <button mat-menu-item (click)="refreshPhoto(p)"><mat-icon>refresh</mat-icon> {{ I18N.photo_refresh.title | translate }}</button>
             }
@@ -273,7 +275,6 @@ const SOCIAL_SOURCE_KEYS: Record<string, string> = {
               <button mat-menu-item [matMenuTriggerFor]="socialMenu" [disabled]="downloading()"><mat-icon>crop</mat-icon> {{ I18N.photo_detail.social_crop | translate }}</button>
             }
           </mat-menu>
-        }
       </div>
 
       <app-stack-navigator [path]="p.path" [allowedPaths]="store.pinnedPaths()" [stacked]="!!p.stack_id"
@@ -287,9 +288,8 @@ const SOCIAL_SOURCE_KEYS: Record<string, string> = {
             (choose)="openCollectionPhoto($event)" (more)="loadCollectionPage()" />
         }
         <!-- Image panel -->
-        <div class="flex min-h-40 max-h-[62dvh] min-w-0 shrink-0 flex-col lg:!aspect-auto lg:max-h-none lg:min-h-0 lg:flex-1"
-             [style.aspect-ratio]="photoAspect()">
-        <div [appZoomPan]="p.path" #zoom="zoomPan" class="group/photo flex flex-1 min-h-0 items-center justify-center bg-[var(--facet-image-canvas)] relative overflow-hidden cursor-grab">
+        <div class="flex min-h-40 max-h-[62dvh] min-w-0 shrink-0 flex-col lg:max-h-none lg:min-h-0 lg:flex-1">
+        <div [appZoomPan]="p.path" #zoom="zoomPan" [style.aspect-ratio]="photoAspect()" class="group/photo flex flex-auto min-h-0 items-center justify-center bg-[var(--facet-image-canvas)] relative overflow-hidden cursor-grab lg:!aspect-auto lg:flex-1">
           @for (imagePhoto of [p]; track imagePhoto.path) {
           <!-- The collection already loads this thumbnail; keep it underneath
                the larger renditions so a cold image request doesn't flash black. -->
@@ -316,6 +316,16 @@ const SOCIAL_SOURCE_KEYS: Record<string, string> = {
             [style.transform]="zoom.transform()"
           />
           }
+          @if (collectionNavigation().visible) {
+            <div role="group" [attr.aria-label]="I18N.photo_detail.collection.title | translate" class="pointer-events-none absolute inset-0 z-30 flex items-center justify-between px-2 opacity-0 transition-opacity group-hover/photo:opacity-100 focus-within:opacity-100 max-xl:opacity-100">
+              <button type="button" data-photo-previous class="pointer-events-auto inline-flex h-11 w-11 cursor-pointer items-center justify-center rounded-full bg-black/60 text-white hover:bg-black/80 focus-visible:outline-2 focus-visible:outline-white disabled:opacity-30"
+                [disabled]="!collectionNavigation().previous || store.loading()" [attr.aria-label]="I18N.slideshow.prev | translate"
+                (pointerdown)="$event.stopPropagation()" (dblclick)="$event.stopPropagation()" (click)="stepCollectionPhoto(-1); $event.stopPropagation()"><mat-icon aria-hidden="true">chevron_left</mat-icon></button>
+              <button type="button" data-photo-next class="pointer-events-auto inline-flex h-11 w-11 cursor-pointer items-center justify-center rounded-full bg-black/60 text-white hover:bg-black/80 focus-visible:outline-2 focus-visible:outline-white disabled:opacity-30"
+                [disabled]="!collectionNavigation().next || store.loading()" [attr.aria-label]="I18N.slideshow.next | translate"
+                (pointerdown)="$event.stopPropagation()" (dblclick)="$event.stopPropagation()" (click)="stepCollectionPhoto(1); $event.stopPropagation()"><mat-icon aria-hidden="true">chevron_right</mat-icon></button>
+            </div>
+          }
           <app-photo-face-layer
             [path]="p.path"
             [imageWidth]="p.image_width"
@@ -334,15 +344,14 @@ const SOCIAL_SOURCE_KEYS: Record<string, string> = {
             [revision]="objectsRevision()" />
         </div>
           <div class="shrink-0 border-t border-[var(--facet-image-rule)] bg-[var(--facet-image-chrome)] px-4 py-1 text-[var(--facet-image-ink)] cursor-auto" role="presentation" (pointerdown)="$event.stopPropagation()" (dblclick)="$event.stopPropagation()">
-            <app-rendition-readout [state]="displayedRendition()" [pending]="sourceRendition().phase === 'loading'" [attemptFailed]="sourceRendition().phase === 'failed'" [failureLabel]="I18N.photo_detail.rendition.source_failed" (retry)="retryFullImage()" />
+            <app-rendition-readout [state]="displayedRendition()" [pending]="sourceRendition().phase === 'loading'" [attemptFailed]="sourceRendition().phase === 'failed'" [failureLabel]="I18N.photo_detail.rendition.source_failed" [scale]="zoom.scale()" [minimumScale]="1" [maximumScale]="zoom.maximumScale" (zoomStep)="zoom.zoomStep($event)" (fit)="zoom.reset()" (retry)="retryFullImage()" />
           </div>
         </div>
 
         <!-- Info panel -->
-        <div class="lg:w-80 xl:w-[360px] lg:shrink-0 lg:overflow-y-auto lg:border-l border-[var(--mat-sys-outline-variant)] bg-[var(--mat-sys-surface-container-lowest)] p-4 space-y-4 text-sm text-[var(--mat-sys-on-surface)]">
-          <!-- Filename + Date + Category + Aggregate -->
+        <aside data-photo-inspector [attr.aria-label]="I18N.photo_detail.info | translate" class="lg:w-80 xl:w-[360px] lg:shrink-0 lg:overflow-y-auto lg:border-l border-[var(--mat-sys-outline-variant)] bg-[var(--mat-sys-surface-container-lowest)] p-4 space-y-4 text-sm text-[var(--mat-sys-on-surface)]">
+          <!-- Capture date and scoring category -->
           <div class="mb-2">
-            <div class="font-medium text-base break-words">{{ p.filename }}</div>
             @if (p.date_taken || auth.isEdition()) {
               <div class="flex items-center gap-1 text-[var(--mat-sys-on-surface-variant)] text-xs">
                 @if (auth.isEdition()) {
@@ -360,7 +369,7 @@ const SOCIAL_SOURCE_KEYS: Record<string, string> = {
             <div class="flex items-center gap-2 mt-1">
               @if (p.category || auth.isEdition()) {
                 <span class="inline-flex items-center gap-1 text-[var(--mat-sys-on-surface-variant)] text-xs">
-                  @if (p.category) { {{ p.category | categoryLabel }} }
+                  {{ p.category ? (p.category | categoryLabel) : (I18N.category_names.default | translate) }}
                   <!-- Category explainer toggle: "why isn't this photo classified as X?" — kept for an uncategorized photo too. -->
                   @if (auth.isEdition()) {
                     <app-control-popover icon="help_outline" [compact]="true" [label]="I18N.photo.category_override.explainer_toggle | translate" [content]="categoryExplanation" (opened)="loadExplainerCategories()" />
@@ -393,46 +402,41 @@ const SOCIAL_SOURCE_KEYS: Record<string, string> = {
           </ng-template>
           <!-- Account review controls -->
           @if (canReview()) {
-            <div class="flex flex-wrap items-center gap-1 border-t border-[var(--mat-sys-outline-variant)] pt-1 mb-1">
-              <!-- Star rating -->
-              <div class="flex flex-nowrap">
-              @for (star of stars; track star) {
-                <button type="button" class="min-w-11 min-h-11 rounded inline-flex items-center justify-center hover:bg-[var(--mat-sys-surface-container-high)] cursor-pointer"
-                        [attr.aria-label]="(I18N.rating.set_rating | translate) + ': ' + star"
-                        [attr.aria-pressed]="p.star_rating === star" (click)="setRating(p.path, star)">
-                  <mat-icon class="!text-xl !w-5 !h-5 !leading-5 !text-[var(--mat-sys-primary)]">{{ p.star_rating !== null && star <= p.star_rating! ? 'star' : 'star_border' }}</mat-icon>
+            <section data-photo-review aria-labelledby="photo-review-title" class="border-t border-[var(--mat-sys-outline-variant)] py-2 space-y-1">
+              <div class="flex min-h-11 items-center gap-2">
+                <h2 id="photo-review-title" class="m-0 flex flex-1 items-center gap-2 text-sm font-medium"><mat-icon aria-hidden="true" class="!h-5 !w-5 !text-xl">rule</mat-icon>{{ I18N.gallery.sidebar.tabs.review | translate }}</h2>
+                <button mat-icon-button class="max-sm:!h-11 max-sm:!w-11" (click)="toggleFavorite(p.path)"
+                  [matTooltip]="(p.is_favorite ? I18N.rating.remove_favorite : I18N.rating.add_favorite) | translate"
+                  [attr.aria-label]="(p.is_favorite ? I18N.rating.remove_favorite : I18N.rating.add_favorite) | translate" [attr.aria-pressed]="!!p.is_favorite">
+                  <mat-icon class="!text-[var(--facet-favorite)]">{{ p.is_favorite ? 'favorite' : 'favorite_border' }}</mat-icon>
                 </button>
-              }
               </div>
-              <div class="flex-1"></div>
-              <div class="flex flex-nowrap">
-              <!-- Favorite -->
-              <button mat-icon-button (click)="toggleFavorite(p.path)"
-                [matTooltip]="(p.is_favorite ? I18N.rating.remove_favorite : I18N.rating.add_favorite) | translate"
-                [attr.aria-label]="(p.is_favorite ? I18N.rating.remove_favorite : I18N.rating.add_favorite) | translate"
-                [attr.aria-pressed]="!!p.is_favorite">
-                <mat-icon class="!text-red-400">{{ p.is_favorite ? 'favorite' : 'favorite_border' }}</mat-icon>
-              </button>
-              <!-- Review decisions -->
-              <button mat-icon-button (click)="reviewPhoto(p.is_kept ? 'undecided' : 'kept')" [class.text-green-400]="p.is_kept"
-                [matTooltip]="I18N.review.keep | translate"
-                [attr.aria-label]="I18N.review.keep | translate"
-                [attr.aria-pressed]="!!p.is_kept">
-                <mat-icon>{{ p.is_kept ? 'check_circle' : 'check_circle_outline' }}</mat-icon>
-              </button>
-              <button mat-icon-button (click)="reviewPhoto('undecided')"
-                [matTooltip]="I18N.review.reset | translate"
-                [attr.aria-label]="I18N.review.reset | translate">
-                <mat-icon>restart_alt</mat-icon>
-              </button>
-              <button mat-icon-button (click)="toggleRejected(p.path)" [class.text-orange-400]="p.is_rejected"
-                [matTooltip]="(p.is_rejected ? I18N.rating.unmark_rejected : I18N.rating.mark_rejected) | translate"
-                [attr.aria-label]="(p.is_rejected ? I18N.rating.unmark_rejected : I18N.rating.mark_rejected) | translate"
-                [attr.aria-pressed]="!!p.is_rejected">
-                <mat-icon>{{ p.is_rejected ? 'thumb_down' : 'thumb_down_off_alt' }}</mat-icon>
-              </button>
+              <div role="group" [attr.aria-label]="I18N.photo_detail.rating | translate" class="flex items-center justify-between gap-2">
+                <span class="text-xs text-[var(--mat-sys-on-surface-variant)]">{{ I18N.photo_detail.rating | translate }}</span>
+                <div class="flex flex-nowrap">
+                  @for (star of stars; track star) {
+                    <button type="button" class="min-w-11 min-h-11 rounded inline-flex items-center justify-center hover:bg-[var(--mat-sys-surface-container-high)] cursor-pointer"
+                            [attr.aria-label]="(I18N.rating.set_rating | translate) + ': ' + star" [attr.aria-pressed]="p.star_rating === star" (click)="setRating(p.path, star)">
+                      <mat-icon class="!text-xl !w-5 !h-5 !leading-5 !text-[var(--mat-sys-primary)]">{{ p.star_rating !== null && star <= p.star_rating! ? 'star' : 'star_border' }}</mat-icon>
+                    </button>
+                  }
+                </div>
               </div>
-            </div>
+              <div data-photo-decisions class="flex items-stretch divide-x divide-[var(--mat-sys-outline-variant)] overflow-hidden rounded border border-[var(--mat-sys-outline-variant)]">
+                <button type="button" data-photo-keep class="inline-flex min-h-11 min-w-0 flex-1 cursor-pointer focus-visible:outline-2 focus-visible:-outline-offset-4 focus-visible:outline-current items-center justify-center gap-1 px-1 text-xs hover:bg-[var(--mat-sys-surface-container-high)]" [class.!bg-[var(--facet-review-kept)]]="p.is_kept" [class.!text-[var(--facet-review-on-kept)]]="p.is_kept"
+                  (click)="reviewPhoto(p.is_kept ? 'undecided' : 'kept')" [attr.aria-pressed]="!!p.is_kept">
+                  <mat-icon aria-hidden="true" class="!w-5 !h-5 !text-xl">{{ p.is_kept ? 'flag' : 'outlined_flag' }}</mat-icon>{{ I18N.review.keep | translate }}
+                </button>
+                <button type="button" data-photo-undecided class="inline-flex min-h-11 min-w-0 flex-1 cursor-pointer focus-visible:outline-2 focus-visible:-outline-offset-4 focus-visible:outline-current items-center justify-center px-1 text-xs hover:bg-[var(--mat-sys-surface-container-high)]" [class.!bg-[var(--mat-sys-secondary-container)]]="!p.is_kept && !p.is_rejected" [class.!text-[var(--mat-sys-on-secondary-container)]]="!p.is_kept && !p.is_rejected"
+                  (click)="reviewPhoto('undecided')" [attr.aria-pressed]="!p.is_kept && !p.is_rejected">
+                  <span class="min-w-0 break-words hyphens-auto">{{ I18N.gallery.metadata.undecided | translate }}</span>
+                </button>
+                <button type="button" data-photo-reject class="inline-flex min-h-11 min-w-0 flex-1 cursor-pointer focus-visible:outline-2 focus-visible:-outline-offset-4 focus-visible:outline-current items-center justify-center gap-1 px-1 text-xs hover:bg-[var(--mat-sys-surface-container-high)]" [class.!bg-[var(--mat-sys-error-container)]]="p.is_rejected" [class.!text-[var(--mat-sys-on-error-container)]]="p.is_rejected"
+                  (click)="toggleRejected(p.path)" [attr.aria-pressed]="!!p.is_rejected">
+                  <mat-icon aria-hidden="true" class="!w-5 !h-5 !text-xl">{{ p.is_rejected ? 'thumb_down' : 'thumb_down_off_alt' }}</mat-icon>{{ I18N.gallery.selection.reject | translate }}
+                </button>
+              </div>
+            </section>
           }
 
           <details data-photo-info [open]="infoOpen()" class="border-t border-[var(--mat-sys-outline-variant)]">
@@ -650,7 +654,7 @@ const SOCIAL_SOURCE_KEYS: Record<string, string> = {
             }
           }
 
-        </div>
+        </aside>
       </div>
     } @else if (photoMissing()) {
       <div class="flex flex-col items-center justify-center gap-2 h-full text-[var(--mat-sys-on-surface-variant)]">
@@ -742,6 +746,19 @@ export class PhotoDetailComponent extends PhotoDetailBase implements OnInit {
 
   protected readonly collectionSidebarAvailable = computed(() => !this.timelineOrigin && this.viewerOwner === this.auth.identity()
     && this.store.photos().some(photo => photo.path === this.photo()?.path));
+  protected readonly collectionNavigation = computed(() => {
+    const photos = this.store.photos();
+    const index = photos.findIndex(photo => photo.path === this.photo()?.path);
+    return {
+      visible: this.collectionSidebarAvailable(),
+      previous: index > 0,
+      next: index >= 0 && (index + 1 < photos.length || this.store.hasMore()),
+    };
+  });
+  protected stepCollectionPhoto(delta: number): void {
+    if (!this.collectionNavigation().visible || this.destroyRef.destroyed || this.router.currentNavigation?.() || this.dialog.openDialogs.length) return;
+    void this.navigateAdjacentPhoto(delta, true);
+  }
   protected readonly collectionSidebarTitle = computed(() => this.store.currentAlbum?.()?.name ?? '');
   // A later library search replaces the singleton store. Keep the query owned
   // by this history entry, including when Back recreates the photo component.
@@ -1176,7 +1193,7 @@ export class PhotoDetailComponent extends PhotoDetailBase implements OnInit {
     }
   }
 
-  private async navigateAdjacentPhoto(delta: number): Promise<void> {
+  private async navigateAdjacentPhoto(delta: number, withinCollection = false): Promise<void> {
     if (this.timelineOrigin) {
       const path = this.photo()?.path;
       const next = path ? this.timeline?.adjacent(path, delta) : null;
@@ -1186,7 +1203,7 @@ export class PhotoDetailComponent extends PhotoDetailBase implements OnInit {
       return;
     }
     // Match the visible stack buttons; its members already respect an exact list.
-    if (this.stackNavigator()?.step(delta)) return;
+    if (!withinCollection && this.stackNavigator()?.step(delta)) return;
     const current = this.photo();
     if (!current) return;
     const indexOf = () => this.store.photos().findIndex(p => p.path === current.path);
@@ -1196,7 +1213,7 @@ export class PhotoDetailComponent extends PhotoDetailBase implements OnInit {
     if (idx + delta >= this.store.photos().length && this.store.hasMore()) {
       await this.store.nextPage(undefined, { whileParked: true });
       // Back between two photos reuses this component, so the URL is checked as well as destroyed.
-      if (this.destroyRef.destroyed || this.photo()?.path !== current.path
+      if (this.destroyRef.destroyed || this.viewerOwner !== this.auth.identity() || this.photo()?.path !== current.path
         || this.route.snapshot.queryParamMap.get('path') !== current.path) return;
       idx = indexOf();
       if (idx === -1) return;

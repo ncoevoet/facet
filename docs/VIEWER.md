@@ -370,6 +370,8 @@ Rating offers Set or Clear. Manual tags offer Add, Remove, Replace and Clear; un
 
 Inspection belongs to the displayed photo, independently of the selected batch. AI assessments, personal stars, Keep/Reject and a group's suggested best are separate. Missing measurements say Unavailable; zero is a valid measurement. Rendition labels report the decoded image and dimensions, with loading, failure and Retry states. Magnification and the loupe inspect displayed pixels, not RAW sensor data. Histogram provenance distinguishes stored renders from thumbnail estimates. Stored face/subject crops can help manual inspection; unavailable or ambiguous correspondence leaves manual framing available. Linking movement is not subject alignment.
 
+On the opened-photo page, **Review** groups Keep/Undecided/Reject, favorite and rating separately from technical information. The three decision segments have visible labels and indicate the current state. The image readout offers **−**, **Fit** and **+** controls; Fit also ends an active pan. Previous/Next buttons step through the current gallery collection and load another page when needed, including when the current collection entry is a stack cover. The stack strip and arrow keys browse within a stack independently. On phones, the filename can wrap and face-box settings are in **More**.
+
 When a comparison image is zoomed in, a small overview shows the whole photo with a red box marking the visible region. The box follows panning and zooming, including linked panes, and disappears at Fit.
 
 ### Keep Top N%

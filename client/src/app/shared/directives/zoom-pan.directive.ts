@@ -30,6 +30,7 @@ export class ZoomPanDirective {
 
   readonly resetKey = input<unknown>(undefined, { alias: 'appZoomPan' });
 
+  readonly maximumScale = MAX_SCALE;
   readonly scale = signal(1);
   readonly panX = signal(0);
   readonly panY = signal(0);
@@ -63,7 +64,13 @@ export class ZoomPanDirective {
     });
   }
 
+  zoomStep(direction: number): void {
+    this.applyZoom(this.scale() + direction * 0.25);
+  }
+
   reset(): void {
+    this.isPanning.set(false);
+    this.lastPinchDist = 0;
     this.scale.set(1);
     this.panX.set(0);
     this.panY.set(0);
@@ -71,7 +78,7 @@ export class ZoomPanDirective {
 
   private applyZoom(raw: number): void {
     const clamped = Math.min(MAX_SCALE, Math.max(MIN_SCALE, raw));
-    if (clamped === 1) { this.panX.set(0); this.panY.set(0); }
+    if (clamped <= 1) { this.panX.set(0); this.panY.set(0); }
     this.scale.set(clamped);
   }
 

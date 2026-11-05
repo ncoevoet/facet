@@ -3872,6 +3872,7 @@
     "next": "Nächstes Stapelfoto",
     "browse_position": "{position} von {count}",
     "manage": "Stapel verwalten",
+    "manage_short": "Verwalten",
     "title": "Fotostapel",
     "create": "Fotos stapeln",
     "hint": "Stapel behalten Originale und Auswahlentscheidungen bei. Durchsuchen Sie Fotos, wählen Sie ein Titelbild und prüfen Sie die Reihenfolge vor dem Speichern. R lehnt das aktive Foto sofort ab und schließt es aus dem Entwurf aus. Rückgängig stellt Sichtung und Mitgliedschaft wieder her. Die Gruppierung wartet auf Speichern; Verlassen ohne Speichern macht Ablehnen nicht rückgängig.",

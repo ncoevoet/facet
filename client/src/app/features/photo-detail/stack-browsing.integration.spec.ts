@@ -160,6 +160,50 @@ describe('manual stack browsing through rendered viewer, Router and HTTP', () =>
     expect(router.url).toBe('/?no_gps=true');
   });
 
+  it('leaves a stack cover through collection arrows without stepping into its members', async () => {
+    const cover = makePhoto({ path: paths[0], stack_id: stack.id });
+    store.photos.set([cover, makePhoto({ path: '/outside.jpg', filename: 'outside.jpg' })]);
+    await router.navigate(['/photo'], { queryParams: { path: cover.path }, state: { photo: cover } });
+    await membership();
+    expect(button('[data-stack-next]').disabled).toBe(false);
+    const beforeFilters = { ...store.filters() };
+
+    const navigation = arrived();
+    button('[data-photo-next]').click();
+    await navigation;
+    await membership(null);
+
+    expect(router.url).toContain(encodeURIComponent('/outside.jpg'));
+    expect(store.filters()).toEqual(beforeFilters);
+    expect(root().querySelector('h1')?.textContent).toContain('outside.jpg');
+  });
+
+  it('reports failed Next paging and retries the same collection page', async () => {
+    store.photos.set([makePhoto({ path: '/outside.jpg' })]);
+    store.hasMore.set(true);
+    await router.navigate(['/photo'], { queryParams: { path: '/outside.jpg' }, state: { photo: store.photos()[0] } });
+    await membership(null);
+    button('[data-photo-next]').click();
+    const failed = http.expectOne(request => request.url === '/api/photos');
+    expect(failed.request.params.get('page')).toBe('2');
+    failed.flush({}, { status: 503, statusText: 'Offline' });
+    await render();
+    expect(router.url).toContain(encodeURIComponent('/outside.jpg'));
+    expect(button('[data-photo-next]').disabled).toBe(false);
+    expect(snack.open).toHaveBeenCalledWith('gallery.load_error.page_failed', '', expect.anything());
+
+    const navigation = arrived();
+    button('[data-photo-next]').click();
+    const retry = http.expectOne(request => request.url === '/api/photos');
+    expect(retry.request.params.get('page')).toBe('2');
+    expect(retry.request.params.get('no_gps')).toBe('true');
+    retry.flush({ photos: [makePhoto({ path: '/next.jpg' })], total: 2, photo_total: 2, has_more: false });
+    await navigation;
+    await membership(null);
+    expect(router.url).toContain(encodeURIComponent('/next.jpg'));
+    expect(button('[data-photo-next]').disabled).toBe(true);
+  });
+
   it('returns to an explicitly marked in-app origin without a prefetched photo', async () => {
     await router.navigate(['/photo'], { queryParams: { path: paths[1] }, state: { photoOrigin: 'in-app' } });
     await membership(null);

@@ -3872,6 +3872,7 @@
     "next": "Foto siguiente de la pila",
     "browse_position": "{position} de {count}",
     "manage": "Gestionar pila",
+    "manage_short": "Gestionar",
     "title": "Pila de fotos",
     "create": "Apilar fotos",
     "hint": "Las pilas conservan los originales y sus decisiones de revisión. Explora las fotos, elige una portada y revisa el orden antes de guardar. R rechaza la foto activa de inmediato y la excluye del borrador. Deshacer restaura su decisión y pertenencia. La agrupación espera a Guardar; salir sin guardar no deshace Rechazar.",

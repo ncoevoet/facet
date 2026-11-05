@@ -9,13 +9,13 @@ import { FixedPipe } from '../../pipes/fixed.pipe';
   selector: 'app-rendition-readout',
   imports: [TranslatePipe, FixedPipe],
   changeDetection: ChangeDetectionStrategy.OnPush,
-  host: { class: 'block min-w-0 text-xs' },
+  host: { class: '@container/rendition block min-w-0 text-xs' },
   template: `
     <div class="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1" data-rendition-readout>
       <span role="status">
         {{ kindLabel() | translate }}
-        · {{ phaseLabel() | translate }}
-        @if (state().phase === 'ready' && state().width && state().height) { {{ state().width }} × {{ state().height }} }
+        <span [class.sr-only]="state().phase === 'ready'" class="@[480px]/rendition:not-sr-only">· {{ phaseLabel() | translate }}</span>
+        @if (state().phase === 'ready' && state().width && state().height) { · {{ state().width }} × {{ state().height }} }
       </span>
       @if (pending()) { <span>{{ I18N.photo_detail.rendition.pending | translate }}</span> }
       @if (state().phase === 'failed' || attemptFailed()) {
@@ -26,9 +26,9 @@ import { FixedPipe } from '../../pipes/fixed.pipe';
       }
       @if (scale(); as scale) {
         <div class="ml-auto flex shrink-0 items-center gap-1">
-          <button type="button" class="min-h-9 min-w-9 cursor-pointer rounded hover:bg-white/15 disabled:opacity-40" [disabled]="scale <= 1" [attr.aria-label]="I18N.gallery.compare.rendition.zoom_out | translate" (click)="zoomStep.emit(-1)">−</button>
-          <button type="button" data-rendition-fit class="min-h-9 min-w-9 cursor-pointer rounded px-1 hover:bg-white/15" [attr.aria-label]="I18N.gallery.compare.rendition.fit | translate" (click)="fit.emit()">@if (scale === 1) { {{ I18N.gallery.compare.rendition.fit | translate }} } @else { {{ scale | fixed:1 }}× }</button>
-          <button type="button" class="min-h-9 min-w-9 cursor-pointer rounded hover:bg-white/15 disabled:opacity-40" [disabled]="scale >= 8" [attr.aria-label]="I18N.gallery.compare.rendition.zoom_in | translate" (click)="zoomStep.emit(1)">+</button>
+          <button type="button" class="min-h-9 min-w-9 max-sm:min-h-11 max-sm:min-w-11 cursor-pointer rounded hover:bg-white/15 disabled:opacity-40" [disabled]="scale <= minimumScale()" [attr.aria-label]="I18N.gallery.compare.rendition.zoom_out | translate" (click)="zoomStep.emit(-1)">−</button>
+          <button type="button" data-rendition-fit class="min-h-9 min-w-9 max-sm:min-h-11 max-sm:min-w-11 cursor-pointer rounded px-1 hover:bg-white/15" [attr.aria-label]="(I18N.gallery.compare.rendition.fit | translate) + (scale === 1 ? '' : ' (' + (scale | fixed:1) + '×)')" (click)="fit.emit()">@if (scale === 1) { {{ I18N.gallery.compare.rendition.fit_short | translate }} } @else { {{ scale | fixed:1 }}× }</button>
+          <button type="button" class="min-h-9 min-w-9 max-sm:min-h-11 max-sm:min-w-11 cursor-pointer rounded hover:bg-white/15 disabled:opacity-40" [disabled]="scale >= maximumScale()" [attr.aria-label]="I18N.gallery.compare.rendition.zoom_in | translate" (click)="zoomStep.emit(1)">+</button>
         </div>
       }
     </div>
@@ -53,6 +53,8 @@ export class RenditionReadoutComponent {
     return I18N.gallery.compare.rendition.loading;
   });
   readonly scale = input<number | null>(null);
+  readonly minimumScale = input(1);
+  readonly maximumScale = input(8);
   readonly retry = output<void>();
   readonly zoomStep = output<number>();
   readonly fit = output<void>();

@@ -3872,6 +3872,7 @@
     "next": "Photo suivante de la pile",
     "browse_position": "{position} sur {count}",
     "manage": "Gérer la pile",
+    "manage_short": "Gérer",
     "title": "Pile de photos",
     "create": "Empiler les photos",
     "hint": "Les piles conservent les originaux et leurs décisions de tri. Parcourez les photos, choisissez une couverture et vérifiez l’ordre avant d’enregistrer. R rejette immédiatement la photo active et l’exclut du brouillon. Annuler restaure sa décision et son appartenance. Le regroupement attend Enregistrer ; quitter sans enregistrer n’annule pas Rejeter.",

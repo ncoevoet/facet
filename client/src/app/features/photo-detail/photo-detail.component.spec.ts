@@ -282,6 +282,37 @@ describe('PhotoDetailComponent', () => {
     return view;
   }
 
+  it('names decision segments with their visible labels and updates the pressed state after confirmed edits', async () => {
+    mockApi.post.mockImplementation((url: string) => of(url === '/photo/toggle_rejected'
+      ? { is_rejected: true, is_favorite: null, star_rating: null } : {}));
+    const view = renderDetail();
+    const translations: Record<string, string> = { 'review.keep': 'Behalten', 'gallery.metadata.undecided': 'Unentschieden', 'gallery.selection.reject': 'Ablehnen' };
+    vi.spyOn(TestBed.inject(I18nService), 't').mockImplementation(key => translations[key] ?? key);
+    view.componentInstance.photo.set(makePhoto({ path: samplePhoto.path }));
+    view.detectChanges();
+    await view.whenStable();
+    const root = view.nativeElement as HTMLElement;
+    const keep = root.querySelector<HTMLButtonElement>('[data-photo-keep]')!;
+    const undecided = root.querySelector<HTMLButtonElement>('[data-photo-undecided]')!;
+    const reject = root.querySelector<HTMLButtonElement>('[data-photo-reject]')!;
+    for (const [button, label] of [[keep, 'Behalten'], [undecided, 'Unentschieden'], [reject, 'Ablehnen']] as const) {
+      expect(button.getAttribute('aria-label')).toBeNull();
+      expect(button.textContent).toContain(label);
+    }
+    keep.click(); await view.whenStable(); view.detectChanges();
+    expect(mockApi.post).toHaveBeenCalledWith('/photos/batch_review', { photo_paths: [samplePhoto.path], decision: 'kept' });
+    expect(keep.getAttribute('aria-pressed')).toBe('true');
+    expect(undecided.getAttribute('aria-pressed')).toBe('false');
+    undecided.click(); await view.whenStable(); view.detectChanges();
+    expect(mockApi.post).toHaveBeenCalledWith('/photos/batch_review', { photo_paths: [samplePhoto.path], decision: 'undecided' });
+    expect(undecided.getAttribute('aria-pressed')).toBe('true');
+    reject.click(); await view.whenStable(); view.detectChanges();
+    expect(reject.getAttribute('aria-pressed')).toBe('true');
+    expect(undecided.getAttribute('aria-pressed')).toBe('false');
+    const zoom = root.querySelector<HTMLButtonElement>('app-rendition-readout button[aria-label="gallery.compare.rendition.zoom_out"]')!;
+    expect(zoom.disabled).toBe(true);
+  });
+
   it('refreshes rendered face boxes after every committed manual edit', async () => {
     let faces: object[] = [];
     mockApi.get.mockImplementation((url: string) => {
@@ -383,14 +414,14 @@ describe('PhotoDetailComponent', () => {
   });
 
   it.each([
-    { kept: true, decision: 'undecided', icon: 'check_circle' },
-    { kept: false, decision: 'kept', icon: 'check_circle_outline' },
+    { kept: true, decision: 'undecided', icon: 'flag' },
+    { kept: false, decision: 'kept', icon: 'outlined_flag' },
   ])('Keep toggle on a photo with is_kept=$kept sends $decision, shows $icon and flips its state', async ({ kept, decision, icon }) => {
     const view = renderDetail();
     view.componentInstance.photo.set(makePhoto({ is_kept: kept, is_rejected: !kept }));
     mockApi.post.mockReturnValue(of({}));
     view.detectChanges();
-    const keep = view.nativeElement.querySelector('button[aria-label="review.keep"]') as HTMLButtonElement;
+    const keep = view.nativeElement.querySelector('[data-photo-keep]') as HTMLButtonElement;
     expect(keep.getAttribute('aria-pressed')).toBe(String(kept));
     expect(keep.querySelector('mat-icon')!.textContent!.trim()).toBe(icon);
     keep.click();
@@ -505,7 +536,8 @@ describe('PhotoDetailComponent', () => {
     expect(more.classList.contains('md:!hidden')).toBe(true);
     const refresh = root.querySelector('button[aria-label="photo_refresh.title"]') as HTMLButtonElement;
     expect(refresh.classList.contains('max-md:!hidden')).toBe(true);
-    expect(root.querySelector('span.truncate')!.classList.contains('min-w-0')).toBe(true);
+    expect(root.querySelector('h1')?.textContent).toContain(view.componentInstance.photo()!.filename);
+    expect(root.querySelector('h1')?.getAttribute('title')).toBe(view.componentInstance.photo()!.filename);
   });
 
   it('uses distinct icons for face visibility and drawing a manual face box', () => {
@@ -2138,6 +2170,44 @@ describe('PhotoDetailComponent', () => {
       expect(mockRouter.navigate).not.toHaveBeenCalled();
     });
 
+    it('does not navigate into another account after paging completes', async () => {
+      atEndOfLoadedPage(() => mockAuth.status.update(status => ({ ...(status as object), user_id: 'another-account' })));
+
+      await component.navigateAdjacentPhoto(1);
+
+      expect(mockRouter.navigate).not.toHaveBeenCalled();
+      expect(component.photo().path).toBe(last.path);
+    });
+
+    it('moves through the collection with the rendered navigation buttons', async () => {
+      mockApi.get.mockImplementation((url: string, params?: { path?: string }) => of(url === '/photo'
+        ? (params?.path === onNextPage.path ? onNextPage : last) : {}));
+      const view = renderDetail();
+      const detail = view.componentInstance as any;
+      detail.store.photos.set([last, onNextPage]);
+      detail.store.hasMore.set(false);
+      detail.photo.set(last);
+      mockRoute.snapshot.queryParamMap.get.mockReturnValue(last.path);
+      view.detectChanges();
+      await view.whenStable();
+
+      expect(view.nativeElement.querySelector('[data-photo-previous]').disabled).toBe(true);
+      view.nativeElement.querySelector('[data-photo-next]').click();
+      await Promise.resolve();
+      view.detectChanges();
+
+      expect(detail.photo().path).toBe(onNextPage.path);
+      expect(mockRouter.navigate).toHaveBeenCalledWith(['/photo'], expect.objectContaining({
+        queryParams: expect.objectContaining({ path: onNextPage.path }), replaceUrl: true,
+      }));
+      expect(view.nativeElement.querySelector('[data-photo-next]').disabled).toBe(true);
+      expect(view.nativeElement.querySelector('[data-photo-previous]').disabled).toBe(false);
+
+      detail.photo.set({ ...last, stack_id: 7 });
+      view.detectChanges();
+      expect(view.nativeElement.querySelector('[data-photo-next]')).not.toBeNull();
+    });
+
     it('steps from where the photo sits in a list reloaded while the page loaded', async () => {
       atEndOfLoadedPage(() => component.store.photos.set([samplePhoto, onNextPage, last, { ...samplePhoto, path: '/photos/c.jpg' }]));
 
@@ -2901,13 +2971,13 @@ describe('PhotoDetailComponent', () => {
       expect(TestBed.inject(OverlayContainer).getContainerElement().querySelector('mat-select')).not.toBeNull();
     });
 
-    it('renders download as a labelled icon-only button with a tooltip', () => {
+    it('keeps Download named accessibly and offers visible text when space permits', () => {
       const view = renderDetail();
       view.componentInstance.photo.set(makePhoto({ category: 'portrait' }));
       view.detectChanges();
       const download = view.nativeElement.querySelector('button[aria-label="photo_detail.download"]') as HTMLButtonElement;
-      expect(download.hasAttribute('mat-icon-button')).toBe(true);
-      expect(download.textContent?.trim()).toBe('download');
+      expect(download.querySelector('mat-icon')?.textContent?.trim()).toBe('download');
+      expect(download.textContent).toContain('photo_detail.download');
       const tooltip = view.debugElement.query(By.css('button[aria-label="photo_detail.download"]')).injector.get(MatTooltip);
       expect(tooltip.message).toBe('photo_detail.download');
     });

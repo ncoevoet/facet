@@ -369,6 +369,8 @@ A avaliação oferece Definir ou Limpar. As etiquetas manuais oferecem Adicionar
 
 A inspeção pertence à foto apresentada, independentemente do lote selecionado. As avaliações de IA, as estrelas pessoais, Manter/Rejeitar e a melhor foto sugerida de um grupo são conceitos separados. As medições em falta indicam Indisponível; zero é uma medição válida. Os rótulos de versão indicam a imagem descodificada e as dimensões, com estados de carregamento, falha e Repetir. A ampliação e a lupa inspecionam píxeis apresentados, não dados do sensor RAW. A origem do histograma distingue imagens renderizadas guardadas de estimativas de miniaturas. Os recortes guardados de rostos/sujeitos podem ajudar na inspeção manual; se a correspondência estiver indisponível ou for ambígua, o enquadramento manual continua disponível. Ligar movimentos não alinha sujeitos.
 
+Na página da foto aberta, a secção de revisão agrupa Manter/Indeciso/Rejeitar, o favorito e a classificação, separados das informações técnicas. Os três segmentos de decisão têm rótulos visíveis e indicam o estado atual. Sob a imagem estão **−**, **Ajustar** e **+**; Ajustar também termina um deslocamento ativo. Anterior/Seguinte percorre a coleção atual da galeria e carrega outra página quando necessário, incluindo a partir da capa de uma pilha. A faixa e as teclas de seta percorrem os membros da pilha separadamente. No telefone, o nome do ficheiro pode ocupar várias linhas e os ajustes dos quadros de rostos estão em **Mais**.
+
 Ao ampliar uma imagem na comparação, uma miniatura mostra a fotografia inteira com um retângulo vermelho a marcar a região visível. O retângulo acompanha o deslocamento e o zoom, incluindo nos painéis ligados, e desaparece ao ajustar a imagem.
 
 ### Manter Top N%

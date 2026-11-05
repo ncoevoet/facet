@@ -3872,6 +3872,7 @@
     "next": "Foto successiva della pila",
     "browse_position": "{position} di {count}",
     "manage": "Gestisci pila",
+    "manage_short": "Gestisci",
     "title": "Pila di foto",
     "create": "Impila foto",
     "hint": "Le pile conservano gli originali e le decisioni di revisione. Sfoglia le foto, scegli una copertina e verifica l’ordine prima di salvare. R rifiuta subito la foto attiva e la esclude dalla bozza. Annulla ripristina la decisione e l’appartenenza. Il raggruppamento attende Salva; uscire senza salvare non annulla Rifiuta.",

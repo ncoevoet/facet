@@ -3872,6 +3872,7 @@
     "next": "Foto seguinte da pilha",
     "browse_position": "{position} de {count}",
     "manage": "Gerir pilha",
+    "manage_short": "Gerir",
     "title": "Pilha de fotos",
     "create": "Empilhar fotos",
     "hint": "As pilhas preservam os originais e as decisões de revisão. Percorra as fotos, escolha uma capa e reveja a ordem antes de guardar. R rejeita imediatamente a foto ativa e exclui-a do rascunho. Desfazer restaura a decisão e a pertença. O agrupamento espera por Guardar; sair sem guardar não desfaz Rejeitar.",

@@ -70,6 +70,30 @@ describe('ZoomPanDirective', () => {
     expect(img.style.transform).toBe(`scale(${scale}) translate(${400 / (2 * scale)}px, 0px)`);
   });
 
+  it('provides bounded explicit zoom steps and centers an image below Fit', () => {
+    const zoom = fixture.debugElement.children[0].injector.get(ZoomPanDirective);
+    Object.defineProperty(panel, 'clientWidth', { value: 400 });
+    Object.defineProperty(panel, 'clientHeight', { value: 300 });
+    zoom.zoomStep(1); fixture.detectChanges();
+    expect(img.style.transform).toBe('scale(1.25) translate(0px, 0px)');
+    pointer('pointerdown', 0, 0); pointer('pointermove', 40, 20); pointer('pointerup', 40, 20);
+    expect(zoom.panX()).not.toBe(0);
+    zoom.zoomStep(-4); fixture.detectChanges();
+    expect(img.style.transform).toBe('scale(0.5) translate(0px, 0px)');
+    zoom.zoomStep(40); fixture.detectChanges();
+    expect(img.style.transform).toBe('scale(5) translate(0px, 0px)');
+    zoom.reset(); fixture.detectChanges(); expect(img.style.transform).toBe('');
+  });
+
+  it('ends the previous drag when the displayed photo changes', () => {
+    wheel(-1); pointer('pointerdown', 0, 0);
+    expect(panel.classList).toContain('cursor-grabbing');
+    fixture.componentInstance.key.set('next-photo'); fixture.detectChanges();
+    pointer('pointermove', 200, 100);
+    expect(panel.classList).not.toContain('cursor-grabbing');
+    expect(img.style.transform).toBe('');
+  });
+
   it('resets on double-click and when the bound value changes', () => {
     wheel(-1);
     panel.dispatchEvent(new MouseEvent('dblclick'));

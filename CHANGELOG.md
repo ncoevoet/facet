@@ -23,6 +23,8 @@ All notable changes to Facet are documented in this file.
 
 ### Changed
 
+- The opened-photo page groups Keep/Undecided/Reject and ratings, exposes zoom/Fit controls and collection arrows (including stack covers), and keeps the filename and stack strip readable on phones. Paging stops if the account changes; fitting or changing photos ends the previous pan. The shared image readout also gives comparison and culling shorter Fit text and larger phone controls; their zoom bounds stay unchanged.
+
 - Keep collection controls and criteria visible while scrolling. Review and Display use separate popovers, help no longer shifts layouts, filter counts stay numeric, and Reset filters remains available for a single criterion. Wide metadata rows expose more context; deselecting releases the inspector and restores keyboard focus.
 
 - Compact collection controls on narrow screens, give photo metrics distinct icons, and add per-detection face Ignore with Undo for advertisements and false detections.

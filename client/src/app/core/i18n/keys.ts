@@ -3911,6 +3911,7 @@ export const I18N = {
     next: "stacks.next",
     browse_position: "stacks.browse_position",
     manage: "stacks.manage",
+    manage_short: "stacks.manage_short",
     title: "stacks.title",
     create: "stacks.create",
     hint: "stacks.hint",
