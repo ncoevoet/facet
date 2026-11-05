@@ -17,6 +17,12 @@ DEFAULT_CHECK_RAW_SAMPLE = 20
 DEFAULT_DRY_RUN_COUNT = 10
 
 
+def validate_face_labels(parser: argparse.ArgumentParser, args: argparse.Namespace) -> None:
+    """``--face-labels`` only means something for ``--evaluate-models faces-detect``."""
+    if args.face_labels and args.evaluate_models != 'faces-detect':
+        parser.error('--face-labels requires --evaluate-models faces-detect')
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         description='Facet: AI-powered photo quality assessment',
@@ -344,6 +350,10 @@ Configuration:
     weight_group.add_argument('--candidates', type=str, default=None, metavar='A,B,...',
                         help='Comma-separated candidates for --evaluate-models '
                              '(stored:<column> or a registered name; default: all registered)')
+    weight_group.add_argument('--face-labels', type=str, default=None, metavar='PATH',
+                        help='Hand-labelled ground truth (python -m optimization.face_labels import) for '
+                             '--evaluate-models faces-detect; replaces the stored-faces reference and '
+                             'adds the downstream cannot-link check')
     weight_group.add_argument('--eval-out', type=str, default=None, metavar='PATH',
                         help='JSON report path for --evaluate-models '
                              '(default: .facet_cache/eval/<slot>-<timestamp>.json)')

@@ -289,3 +289,82 @@ def split_halves(n, seed, strata=None, groups=None):
     a = np.array([i for i in range(n) if group_of[i] in in_a], dtype=int)
     b = np.array([i for i in range(n) if group_of[i] not in in_a], dtype=int)
     return a, b
+
+
+# Finer, separate bucket sets for the hand-labelled small-face recall harness
+# (``--face-labels``). ``SIZE_BUCKETS`` above stays as is: the agreement-mode report keys
+# and ``test_size_buckets_edges`` depend on it.
+LABEL_AREA_BUCKETS = ('<0.1%', '0.1-0.5%', '0.5-1%', '1-5%', '>5%')
+LABEL_AREA_EDGES = (0.001, 0.005, 0.01, 0.05)
+LABEL_AREA_SMALL = '<0.5%'          # derived aggregate: the first two buckets
+LABEL_AREA_SMALL_MEMBERS = LABEL_AREA_BUCKETS[:2]
+PIXEL_BUCKETS = ('<20px', '20-40px', '>40px')
+PIXEL_EDGES = (20, 40)
+
+
+def label_area_bucket(bbox, frame_w, frame_h):
+    """Bucket of the box's share of the frame area; lower edges inclusive (0.1% -> ``0.1-0.5%``)."""
+    x1, y1, x2, y2 = bbox[:4]
+    share = max(0.0, x2 - x1) * max(0.0, y2 - y1) / float(frame_w * frame_h)
+    for edge, name in zip(LABEL_AREA_EDGES, LABEL_AREA_BUCKETS):
+        if share < edge:
+            return name
+    return LABEL_AREA_BUCKETS[-1]
+
+
+def pixel_bucket(bbox):
+    """Bucket of the box's shorter side in pixels; lower edges inclusive (20 px -> ``20-40px``)."""
+    x1, y1, x2, y2 = bbox[:4]
+    side = min(max(0.0, x2 - x1), max(0.0, y2 - y1))
+    for edge, name in zip(PIXEL_EDGES, PIXEL_BUCKETS):
+        if side < edge:
+            return name
+    return PIXEL_BUCKETS[-1]
+
+
+def _device_used_bytes():
+    """Device-wide used VRAM in bytes (all processes), or None without CUDA."""
+    try:
+        import torch
+        if not torch.cuda.is_available():
+            return None
+        free, total = torch.cuda.mem_get_info()
+        return int(total - free)
+    except Exception:
+        return None
+
+
+@contextlib.contextmanager
+def measure_device_vram(interval=0.05):
+    """Peak device-wide VRAM above the level at entry, polled from a thread.
+
+    ONNX Runtime allocates outside torch's allocator, so ``measure()`` cannot see an
+    InsightFace session; ``mem_get_info`` can. Device-wide: another GPU process
+    inflates the figure. Yields ``{'peak_vram_gb': float | None}`` filled on exit.
+    """
+    import threading
+    stats = {'peak_vram_gb': None}
+    base = _device_used_bytes()
+    if base is None:
+        yield stats
+        return
+    peak = [base]
+    stop = threading.Event()
+
+    def poll():
+        while not stop.wait(interval):
+            used = _device_used_bytes()
+            if used is not None:
+                peak[0] = max(peak[0], used)
+
+    thread = threading.Thread(target=poll, daemon=True)
+    thread.start()
+    try:
+        yield stats
+    finally:
+        stop.set()
+        thread.join()
+        used = _device_used_bytes()
+        if used is not None:
+            peak[0] = max(peak[0], used)
+        stats['peak_vram_gb'] = (peak[0] - base) / (1024 ** 3)

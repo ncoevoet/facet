@@ -503,3 +503,333 @@ def test_faces_centroid_slot_runs_and_leaves_db_untouched(eval_db, tmp_path, mon
     assert rep['full_sample_selection_biased']['chosen']['merge_threshold']['threshold'] == 0.3
     assert rep['results']['named_persons_only']['sface']['centroid']['n_persons'] == 1
     assert json.load(open(tmp_path / 'c.json'))['slot'] == 'faces-centroid'
+
+
+# ---------------------------------------------------------------------------
+# Hand-labelled small-face recall (--face-labels, issue #468)
+# ---------------------------------------------------------------------------
+
+def test_label_buckets_edges():
+    assert ec.label_area_bucket((0, 0, 10, 100), 1000, 1000) == '0.1-0.5%'   # exactly 0.1%
+    assert ec.label_area_bucket((0, 0, 9, 100), 1000, 1000) == '<0.1%'
+    assert ec.label_area_bucket((0, 0, 50, 100), 1000, 1000) == '0.5-1%'     # exactly 0.5%
+    assert ec.label_area_bucket((0, 0, 100, 100), 1000, 1000) == '1-5%'      # exactly 1%
+    assert ec.label_area_bucket((0, 0, 500, 100), 1000, 1000) == '>5%'       # exactly 5%
+    assert ec.pixel_bucket((0, 0, 20, 90)) == '20-40px'                       # shorter side exactly 20
+    assert ec.pixel_bucket((0, 0, 19.99, 90)) == '<20px'
+    assert ec.pixel_bucket((0, 0, 40, 90)) == '>40px'
+    assert ec.pixel_bucket((0, 0, 90, 39)) == '20-40px'
+
+
+def test_shared_size_buckets_unchanged():
+    assert ec.SIZE_BUCKETS == ('<1%', '1-5%', '>5%')
+
+
+def _tiny_frame():
+    return np.zeros((3000, 4000, 3), np.uint8)
+
+
+def test_labelled_scoring_counts_tiny_boxes_per_bucket():
+    tiny, mid, small = (100, 100, 110, 110), (500, 500, 650, 650), (900, 900, 930, 930)
+    samples = [('/a.jpg', 4000, 3000, [list(tiny), list(mid), list(small)])]
+    acc, skipped = me.score_face_detection_labelled(
+        samples, lambda p: _tiny_frame(), {'d': lambda img: [(*mid, 0.9), (*small, 0.9)]})
+    assert skipped == {'unreadable': 0, 'dimension_mismatch': 0}
+    s = me.summarize_face_detection_labelled(acc, seed=1)['d']
+    area, px = s['recall_by_area'], s['recall_by_pixels']
+    assert (area['<0.1%']['n'], area['<0.1%']['rate']) == (2, 0.5)           # 10x10 missed, 30x30 found
+    assert (area['0.1-0.5%']['n'], area['0.1-0.5%']['rate']) == (1, 1.0)     # 150x150 = 0.19%
+    assert (area['<0.5%']['n'], area['<0.5%']['rate']) == (3, pytest.approx(2 / 3))
+    assert (px['<20px']['n'], px['<20px']['rate']) == (1, 0.0)
+    assert (px['20-40px']['n'], px['20-40px']['rate']) == (1, 1.0)
+    assert (px['>40px']['n'], px['>40px']['rate']) == (1, 1.0)
+    assert area['>5%']['n'] == 0
+
+
+def test_unlabelled_detection_is_fp_only_on_no_face_photos():
+    face, extra = (100, 100, 200, 200), (1000, 1000, 1100, 1100)
+    samples = [('/labelled.jpg', 4000, 3000, [list(face)]), ('/empty.jpg', 4000, 3000, [])]
+    seen = []
+
+    def real_plus_extra_on_labelled(img):
+        seen.append(1)
+        return [(*face, 0.9), (*extra, 0.8)] if len(seen) == 1 else []   # the labelled photo is scored first
+
+    acc, _ = me.score_face_detection_labelled(samples, lambda p: _tiny_frame(),
+                                              {'d': real_plus_extra_on_labelled})
+    s = me.summarize_face_detection_labelled(acc, seed=1)['d']
+    assert s['extra_detections_on_labelled_photos'] == 1
+    assert s['fp_per_no_face_photo'] == 0.0           # the labelled photo's extra is not a false positive
+    assert s['precision_on_labelled_photos'] == 0.5
+
+    acc, _ = me.score_face_detection_labelled(samples, lambda p: _tiny_frame(),
+                                              {'d': lambda img: [(*extra, 0.8)]})
+    s = me.summarize_face_detection_labelled(acc, seed=1)['d']
+    assert s['fp_per_no_face_photo'] == 1.0 and s['fp_rate_no_face_photos']['rate'] == 1.0
+    assert s['extra_detections_on_labelled_photos'] == 1
+
+
+def test_labelled_scoring_skips_dimension_mismatch_and_unreadable():
+    samples = [('/a.jpg', 4000, 3000, [[1, 1, 50, 50]]), ('/b.jpg', 4000, 2999, []), ('/gone.jpg', 10, 10, [])]
+    acc, skipped = me.score_face_detection_labelled(
+        samples, lambda p: None if p == '/gone.jpg' else _tiny_frame(), {'d': lambda img: []})
+    assert skipped == {'unreadable': 1, 'dimension_mismatch': 1}
+    assert list(acc['d']['photos']) == ['/a.jpg']
+
+
+def _paired_acc(base_hits, cand_hits, cand_fp=0, n_empty=0):
+    def acc_for(hits, fp):
+        photos = {f'/p{i}': {'faces': [('<0.1%', '<20px', float(h))], 'n_det': int(h), 'n_matched': int(h),
+                             'empty': False} for i, h in enumerate(hits)}
+        for j in range(n_empty):
+            photos[f'/e{j}'] = {'faces': [], 'n_det': 1 if j < fp else 0, 'n_matched': 0, 'empty': True}
+        return {'photos': photos, 'lat': [0.1]}
+    return {'base': acc_for(base_hits, 0), 'cand': acc_for(cand_hits, cand_fp)}
+
+
+def _rules(base_hits, cand_hits, **kw):
+    acc = _paired_acc(base_hits, cand_hits, **kw)
+    summary = me.summarize_face_detection_labelled(acc, seed=3)
+    return me.vs_baseline(acc, summary, 'base', seed=3)['cand']
+
+
+def test_vs_baseline_flags_rule_boundaries():
+    # +0.10 exactly on 10 photos: the paired CI reaches 0, so the recall rule fails
+    r = _rules([1] * 5 + [0] * 5, [1] * 6 + [0] * 4)
+    assert r['recall_lt_0.5pct_delta'] == pytest.approx(0.1) and r['recall_delta_ci_low'] <= 0
+    assert r['recall_rule'] is False
+    # +0.10 exactly on 100 photos: CI excludes 0 and the boundary is inclusive
+    r = _rules([1] * 50 + [0] * 50, [1] * 60 + [0] * 40)
+    assert r['recall_delta_ci_low'] > 0 and r['recall_rule'] is True
+    # +0.09 with a CI above 0 is still short of the gain
+    r = _rules([1] * 50 + [0] * 50, [1] * 59 + [0] * 41)
+    assert r['recall_delta_ci_low'] > 0 and r['recall_rule'] is False
+    # a big gain on enough faces
+    assert _rules([0] * 20, [1] * 10 + [0] * 10)['recall_rule'] is True
+    # FP: 1 extra over 20 empty photos = 0.05 exactly passes, 3 over 50 = 0.06 fails
+    assert _rules([1], [1], cand_fp=1, n_empty=20)['fp_rule'] is True
+    assert _rules([1], [1], cand_fp=3, n_empty=50)['fp_rule'] is False
+    # the time rule is inclusive at 1.30
+    assert me.ship_rules(0.2, 0.1, 0.0, 1.3)['time_rule_detector_only'] is True
+    assert me.ship_rules(0.2, 0.1, 0.0, 1.31)['time_rule_detector_only'] is False
+    assert me.ship_rules(None, None, None, None) == {
+        'recall_rule': False, 'fp_rule': False, 'time_rule_detector_only': False}
+
+
+# -- tiled detection ----------------------------------------------------------
+
+def _blob_detector(calls=None):
+    """Fake tile detector: sees white rectangles, but only in a 640 px tile (never the full frame)."""
+    from scipy import ndimage
+
+    def detect_tile(img):
+        if calls is not None:
+            calls.append(img.shape[:2])
+        if img.shape[:2] != (640, 640):
+            return []
+        labelled, _ = ndimage.label(img[:, :, 0] > 0)
+        return [(float(x.start), float(y.start), float(x.stop), float(y.stop),
+                 0.5 + 0.4 * (x.stop - x.start) * (y.stop - y.start) / 1600.0, None)
+                for y, x in ndimage.find_objects(labelled)]
+    return detect_tile
+
+
+def _canvas(*rects):
+    img = np.zeros((1500, 2000, 3), np.uint8)
+    for x1, y1, x2, y2 in rects:
+        img[y1:y2, x1:x2] = 255
+    return img
+
+
+def test_tiled_detect_finds_face_missed_by_full_frame():
+    img = _canvas((1000, 1000, 1025, 1025), (475, 300, 500, 325))   # second sits on a tile seam
+    dets = me.tiled_detect(img, _blob_detector())
+    boxes = sorted(tuple(round(v) for v in d[:4]) for d in dets)
+    assert boxes == [(475, 300, 500, 325), (1000, 1000, 1025, 1025)]   # translated, each once despite overlap
+
+
+def test_tiled_detect_translates_keypoints():
+    def detect_tile(crop):
+        if crop.shape[:2] != (640, 640) or not crop[:, :, 0].any():
+            return []
+        ys, xs = np.nonzero(crop[:, :, 0])
+        return [(float(xs.min()), float(ys.min()), float(xs.max() + 1), float(ys.max() + 1), 0.9,
+                 np.array([[xs.min(), ys.min()]] * 5, np.float32))]
+    dets = me.tiled_detect(_canvas((1000, 1000, 1025, 1025)), detect_tile)
+    assert len(dets) == 1 and np.allclose(dets[0][5], [[1000, 1000]] * 5)
+
+
+def test_tiled_cond_skips_tiling_when_not_triggered():
+    img = _canvas()
+    calls = []
+    me.tiled_detect_cond(img, _blob_detector(calls), trigger_px=3000)
+    assert len(calls) == 1                                  # small image, no small face: one full-frame call
+    calls.clear()
+    me.tiled_detect_cond(img, _blob_detector(calls), trigger_px=1500)
+    assert len(calls) == 1 + 4 * 3                          # image longer than the trigger: full + 12 tiles
+    calls.clear()
+
+    def finds_small_full_frame(crop):
+        calls.append(crop.shape[:2])
+        return [(0.0, 0.0, 40.0, 40.0, 0.9, None)] if crop.shape[:2] == (1500, 2000) else []
+    me.tiled_detect_cond(img, finds_small_full_frame, trigger_px=3000)
+    assert len(calls) == 1 + 4 * 3                          # a sub-80 px face triggers the tiles
+
+
+def test_tiled_suppresses_tile_fragments():
+    # 40 px wide face cut at x=480 by the second column of tiles: that tile sees a 10 px fragment
+    dets = me.tiled_detect(_canvas((450, 300, 490, 340)), _blob_detector())
+    assert [tuple(round(v) for v in d[:4]) for d in dets] == [(450, 300, 490, 340)]
+
+
+def test_candidate_filters_use_original_pixels():
+    img = _canvas((1000, 1000, 1025, 1025), (1200, 1000, 1215, 1015))   # 25 px and 15 px, both past x=640
+    det = me.build_face_detector(_blob_detector(), {'min_confidence': 0.0, 'min_face_size': 20}, 'tiled')
+    assert [tuple(round(v) for v in d[:4]) for d in det(img)] == [(1000, 1000, 1025, 1025)]
+
+
+def test_config_min_face_size_zero_changes_filter():
+    img = _canvas((1000, 1000, 1025, 1025), (1200, 1000, 1215, 1015))
+    kept = {size: len(me.build_face_detector(_blob_detector(), {'min_confidence': 0.0, 'min_face_size': size},
+                                             'tiled')(img)) for size in (20, 0)}
+    assert kept == {20: 1, 0: 2}
+
+
+def test_filter_confidence_uses_config_threshold():
+    dets = [(0.0, 0.0, 50.0, 50.0, 0.64, None), (0.0, 0.0, 50.0, 50.0, 0.65, None)]
+    assert len(me.filter_detections(dets, 100, 100, 0.65, 20)) == 1
+
+
+def test_insightface_candidates_registered_and_parse_variant():
+    assert me.resolve_candidate('faces-detect', 'insightface@1280').arg == 1280.0
+    assert me.resolve_candidate('faces-detect', 'insightface').arg is None
+    assert me.resolve_candidate('faces-detect', 'insightface-tiled-cond@2000').arg == 2000.0
+    assert {c.name for c in me.registered_candidates('faces-detect')} >= {
+        'insightface', 'insightface-tiled', 'insightface-tiled-cond', 'yunet-tiled'}
+    assert me.REFERENCE_BASELINE in me.REFERENCE_DEFAULT_DETECTORS
+
+
+# -- reference-mode plumbing ----------------------------------------------------
+
+def _labels(tmp_path):
+    from optimization import face_labels as fl
+    path = str(tmp_path / 'labels.json')
+    fl.write_labels(path, [('/lab/a.jpg', 400, 200, [[10.0, 10.0, 60.0, 60.0]]), ('/lab/b.jpg', 400, 200, [])])
+    return path
+
+
+def test_faces_detect_reference_mode_report(eval_db, tmp_path):
+    me.register_candidate('faces-detect', 'stubdet', lambda device, arg: (lambda img: [(10, 10, 60, 60, 0.9)]))
+    before = _sha(eval_db)
+    labels = _labels(tmp_path)
+    rep = me._evaluate_faces(eval_db, 'faces-detect', ['stubdet'], str(tmp_path / 'r.json'), 5, 10,
+                             loader=lambda p: np.zeros((200, 400, 3), np.uint8), device='cpu',
+                             face_labels=labels)
+    assert _sha(eval_db) == before
+    assert rep['reference'] == f'hand-labelled ground truth: {labels} (2 photos, 1 faces)'
+    assert rep['iou_match'] == me.IOU_MATCH and rep['device'] == 'cpu'
+    assert {'min_confidence', 'min_face_size'} <= set(rep)
+    s = rep['candidates']['stubdet']
+    assert set(s['recall_by_area']) == {*ec.LABEL_AREA_BUCKETS, ec.LABEL_AREA_SMALL}
+    assert set(s['recall_by_pixels']) == set(ec.PIXEL_BUCKETS)
+    assert s['recall']['rate'] == 1.0 and s['fp_per_no_face_photo'] == 1.0
+    assert json.load(open(tmp_path / 'r.json'))['reference'] == rep['reference']
+
+
+def test_face_labels_rejected_for_other_slots(eval_db, tmp_path):
+    with pytest.raises(ValueError, match='faces-detect'):
+        me.evaluate(eval_db, 'aesthetic', face_labels=_labels(tmp_path))
+
+
+def test_agreement_default_candidates_unchanged(eval_db, tmp_path, monkeypatch):
+    _seed_faces(eval_db)
+    seen = []
+    monkeypatch.setattr(me, '_run_faces_detect', lambda conn, names, *a: seen.append(list(names)) or {})
+    me._evaluate_faces(eval_db, 'faces-detect', None, str(tmp_path / 'r.json'), 1, 10)
+    assert seen == [['yunet', 'blazeface']]
+
+
+def test_cli_passes_face_labels():
+    import inspect
+
+    import cli_args
+    import facet
+    args = build_parser().parse_args(['--evaluate-models', 'faces-detect', '--face-labels', 'l.json'])
+    assert args.face_labels == 'l.json'
+    cli_args.validate_face_labels(build_parser(), args)
+    source = inspect.getsource(facet.main)
+    assert 'face_labels=args.face_labels' in source
+    assert 'validate_face_labels(parser, args)' in source
+
+
+def test_face_labels_without_faces_detect_is_argparse_error():
+    import cli_args
+    parser = build_parser()
+    for argv in (['--face-labels', 'l.json'], ['--evaluate-models', 'aesthetic', '--face-labels', 'l.json']):
+        with pytest.raises(SystemExit):
+            cli_args.validate_face_labels(parser, parser.parse_args(argv))
+
+
+def test_device_vram_peak_tracks_samples(monkeypatch):
+    gib = 1024 ** 3
+    values = iter([1 * gib])        # baseline at entry, then the device sits at 3 GiB
+
+    def scripted():
+        return next(values, 3 * gib)
+    monkeypatch.setattr(ec, '_device_used_bytes', scripted)
+    with ec.measure_device_vram(interval=0.001) as stats:
+        pass
+    assert stats['peak_vram_gb'] == pytest.approx(2.0)
+    monkeypatch.setattr(ec, '_device_used_bytes', lambda: None)
+    with ec.measure_device_vram() as stats:
+        pass
+    assert stats['peak_vram_gb'] is None
+
+
+def test_cannot_link_false_merge_rate():
+    small_a, small_b = (0, 0, 10, 10), (50, 0, 60, 10)
+    big_a, big_b = (0, 0, 100, 100), (200, 0, 300, 100)
+    samples = [('/s.jpg', 400, 300, [list(small_a), list(small_b)]),
+               ('/b.jpg', 400, 300, [list(big_a), list(big_b)])]
+    vectors = {small_a: [1, 0], small_b: [1, 0], big_a: [1, 0], big_b: [0, 1]}
+    boxes = {'/s.jpg': [small_a, small_b], '/b.jpg': [big_a, big_b]}
+    current = []
+
+    def loader(path):
+        current[:] = [path]
+        return np.zeros((300, 400, 3), np.uint8)
+
+    def detect_internal(img):
+        return [(*b, 0.9, None) for b in boxes[current[0]]]
+
+    def embed(img, det):
+        return np.array(vectors[tuple(det[:4])], float)
+
+    out = me.cannot_link_false_merge(samples, loader, detect_internal, embed, seed=1)
+    by = out['by_smaller_face_pixels']
+    assert (by['<20px']['n_pairs'], by['<20px']['merge_rate_at_0.6']['rate']) == (1, 1.0)
+    assert (by['>40px']['n_pairs'], by['>40px']['merge_rate_at_0.6']['rate']) == (1, 0.0)
+    assert by['<20px']['insufficient_data'] is True
+    assert out['with_small_faces']['n_pairs'] == 2 and out['with_small_faces']['merge_rate_at_0.6']['rate'] == 0.5
+    assert out['without_small_faces']['n_pairs'] == 1 and out['without_small_faces']['merge_rate_at_0.6']['rate'] == 0.0
+
+
+def test_scan_detector_still_640():
+    import re
+    from pathlib import Path
+    src = (Path(__file__).resolve().parent.parent / 'analyzers' / 'face.py').read_text(encoding='utf-8')
+    assert re.findall(r'det_size\s*=\s*\([^)]*\)', src) == ['det_size=(640, 640)']
+
+
+@pytest.mark.skip(reason='MANUAL ONLY: needs the buffalo_l weights and a GPU; remove the skip to run it by hand')
+def test_insightface_640_matches_production_detector():
+    from analyzers.face import FaceAnalyzer
+    img = (np.random.default_rng(0).random((720, 1280, 3)) * 255).astype(np.uint8)
+    prod = FaceAnalyzer(device='cuda', min_confidence=0.0, min_face_size=0)
+    cand = me.resolve_candidate('faces-detect', 'insightface@640')
+    det = cand.factory('cuda', cand.arg, {'min_confidence': 0.0, 'min_face_size': 0})
+    try:
+        stored = sorted(tuple(np.round(f.bbox).astype(int)) for f in prod.face_app.get(img))
+        assert sorted(tuple(round(v) for v in d[:4]) for d in det(img)) == stored
+    finally:
+        det.close()
