@@ -628,6 +628,10 @@
     "person_fallback": "Persona {id}"
   },
   "stats": {
+    "series_selected_count": "{selected} serie mostrate su {total}",
+    "more_series_scroll": "Scorri per vedere tutte le serie",
+    "series_limit": "Seleziona fino a {count} serie da mostrare",
+    "no_series_selected": "Seleziona una serie per mostrare il grafico",
     "chart_series": "Serie del grafico",
     "show_chart_data": "Mostra i dati del grafico",
     "help": "Approfondimenti sulla tua libreria: distribuzioni dei punteggi, utilizzo di fotocamere e obiettivi, correlazioni tra le dimensioni di punteggio e tendenze nel tempo.",

@@ -667,6 +667,10 @@ export const I18N = {
     person_fallback: "merge_suggestions.person_fallback",
   },
   stats: {
+    series_selected_count: "stats.series_selected_count",
+    more_series_scroll: "stats.more_series_scroll",
+    series_limit: "stats.series_limit",
+    no_series_selected: "stats.no_series_selected",
     chart_series: "stats.chart_series",
     show_chart_data: "stats.show_chart_data",
     help: "stats.help",

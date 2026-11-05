@@ -73,7 +73,7 @@ export function formatStatsMonth(period: string, locale: string): string {
     <div class="mt-4 flex flex-col gap-4">
       <mat-card>
         <mat-card-header class="!flex !items-center !justify-between">
-          <mat-card-title #timelineHeading tabindex="-1">{{ I18N.stats.photos_over_time | translate }}</mat-card-title>
+          <mat-card-title #timelineHeading tabindex="-1" role="heading" aria-level="2">{{ I18N.stats.photos_over_time | translate }}</mat-card-title>
           <button mat-icon-button class="shrink-0" [disabled]="timeline().length === 0"
             [matTooltip]="I18N.stats.export_csv | translate"
             [attr.aria-label]="I18N.stats.export_csv | translate" (click)="exportCsv()">
@@ -109,7 +109,7 @@ export function formatStatsMonth(period: string, locale: string): string {
       @if (yearlyData().length > 0) {
         <mat-card>
           <mat-card-header>
-            <mat-card-title>{{ I18N.stats.photos_per_year | translate }}</mat-card-title>
+            <mat-card-title role="heading" aria-level="2">{{ I18N.stats.photos_per_year | translate }}</mat-card-title>
           </mat-card-header>
           <mat-card-content class="!pt-4">
             <div class="h-48 md:h-64">
@@ -124,7 +124,7 @@ export function formatStatsMonth(period: string, locale: string): string {
         @if (dayOfWeekData().length > 0) {
           <mat-card>
             <mat-card-header>
-              <mat-card-title>{{ I18N.stats.charts.day_of_week | translate }}</mat-card-title>
+              <mat-card-title role="heading" aria-level="2">{{ I18N.stats.charts.day_of_week | translate }}</mat-card-title>
             </mat-card-header>
             <mat-card-content class="!pt-4">
               <div class="h-64">
@@ -137,7 +137,7 @@ export function formatStatsMonth(period: string, locale: string): string {
         @if (hourOfDayData().length > 0) {
           <mat-card>
             <mat-card-header>
-              <mat-card-title>{{ I18N.stats.charts.hour_of_day | translate }}</mat-card-title>
+              <mat-card-title role="heading" aria-level="2">{{ I18N.stats.charts.hour_of_day | translate }}</mat-card-title>
             </mat-card-header>
             <mat-card-content class="!pt-4">
               <div class="h-64">
@@ -152,7 +152,7 @@ export function formatStatsMonth(period: string, locale: string): string {
       @if (heatmapRows().length > 0) {
         <mat-card>
           <mat-card-header>
-            <mat-card-title>{{ I18N.stats.charts.hours_heatmap | translate }}</mat-card-title>
+            <mat-card-title role="heading" aria-level="2">{{ I18N.stats.charts.hours_heatmap | translate }}</mat-card-title>
           </mat-card-header>
           <mat-card-content class="!pt-4">
             <div class="overflow-x-auto">

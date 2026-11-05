@@ -628,6 +628,10 @@
     "person_fallback": "Personne {id}"
   },
   "stats": {
+    "series_selected_count": "{selected} séries affichées sur {total}",
+    "more_series_scroll": "Faites défiler pour voir toutes les séries",
+    "series_limit": "Sélectionnez jusqu’à {count} séries à afficher",
+    "no_series_selected": "Sélectionnez une série pour afficher le graphique",
     "chart_series": "Séries du graphique",
     "show_chart_data": "Afficher les données du graphique",
     "help": "Aperçus sur votre bibliothèque : distributions des scores, utilisation des appareils et objectifs, corrélations entre les dimensions de scoring et tendances dans le temps.",

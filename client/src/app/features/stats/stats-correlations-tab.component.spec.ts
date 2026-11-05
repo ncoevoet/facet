@@ -98,6 +98,50 @@ describe('StatsCorrelationsTabComponent', () => {
     expect(buildCorrelationCsvRecords(component.currentData(), ['aggregate', 'aesthetic'])[0]).toEqual({ date_year: '2025', group: 'Canon', aggregate: 7.5, aesthetic: 6.5 });
   });
 
+  it('bounds bar series to eight distinct colors while allowing any series and retaining all data', async () => {
+    TestBed.tick();
+    component.corrGroupBy.set('camera_model');
+    component.corrChartType.set('bar');
+    TestBed.tick();
+    const groups = Object.fromEntries(Array.from({ length: 6 }, (_, i) => [`Camera ${i}`, { '2025': { aggregate: i + 1, aesthetic: i + 2 } }]));
+    const data = { labels: ['2025'], groups, x_axis: 'date_year', group_by: 'camera_model' };
+    vi.mocked(TestBed.inject(ApiService).get).mockReturnValueOnce(of(data));
+    await component.loadCorrelation();
+    let rows = component.chartSeriesRows();
+    expect(rows).toHaveLength(12);
+    expect(component.selectedSeriesCount()).toBe(8);
+    expect(new Set(rows.filter(row => row.visible).map(row => row.color)).size).toBe(8);
+    expect(rows[8].atLimit).toBe(true);
+    component.setSeriesVisible(rows[0].key, false);
+    rows = component.chartSeriesRows();
+    expect(rows[8].atLimit).toBe(false);
+    component.setSeriesVisible(rows[8].key, true);
+    rows = component.chartSeriesRows();
+    expect(rows[8].visible).toBe(true);
+    expect(component.selectedSeriesCount()).toBe(8);
+    expect(new Set(rows.filter(row => row.visible).map(row => row.color)).size).toBe(8);
+    expect(component.accessibleRows()).toHaveLength(6);
+    expect(buildCorrelationCsvRecords(component.currentData(), ['aggregate', 'aesthetic'])).toHaveLength(6);
+    for (const row of rows.filter(row => row.visible)) component.setSeriesVisible(row.key, false);
+    expect(component.selectedSeriesCount()).toBe(0);
+  });
+
+  it('does not automatically select a hidden series when switching from line to bar', async () => {
+    TestBed.tick();
+    component.corrGroupBy.set('camera_model');
+    TestBed.tick();
+    const groups = Object.fromEntries(Array.from({ length: 6 }, (_, i) => [`Camera ${i}`, { '2025': { aggregate: i + 1, aesthetic: i + 2 } }]));
+    vi.mocked(TestBed.inject(ApiService).get).mockReturnValueOnce(of({ labels: ['2025'], groups, x_axis: 'date_year', group_by: 'camera_model' }));
+    await component.loadCorrelation();
+    expect(component.selectedSeriesCount()).toBe(12);
+    component.setChartType('bar');
+    expect(component.selectedSeriesCount()).toBe(8);
+    const rows = component.chartSeriesRows();
+    component.setSeriesVisible(rows[0].key, false);
+    expect(component.selectedSeriesCount()).toBe(7);
+    expect(component.chartSeriesRows()[8].visible).toBe(false);
+  });
+
   it('ignores a late response after the owner changes', async () => {
     TestBed.tick();
     const pending = new Subject<any>();
@@ -149,6 +193,30 @@ describe('StatsCorrelationsTabComponent', () => {
 });
 
 describe('Correlation error recovery', () => {
+  it('shows an explicit status when every series is hidden without removing its data table', async () => {
+    const api = { get: vi.fn(() => of({ labels: ['2025'], metrics: { aggregate: [7], aesthetic: [6] }, x_axis: 'date_year', group_by: '' })) };
+    TestBed.configureTestingModule({
+      imports: [StatsCorrelationsTabComponent],
+      providers: [
+        { provide: ApiService, useValue: api },
+        { provide: AuthService, useValue: { status: signal({ authenticated: true }), identity: signal('owner'), isAuthenticated: signal(true), token: 'token' } },
+        { provide: I18nService, useValue: { t: (key: string) => key, translations: signal({}), locale: signal('en') } },
+        { provide: StatsFiltersService, useValue: { filterCategory: signal(''), dateFrom: signal(''), dateTo: signal('') } },
+      ],
+    });
+    const fixture = TestBed.createComponent(StatsCorrelationsTabComponent);
+    fixture.detectChanges();
+    await fixture.componentInstance.loadCorrelation();
+    fixture.detectChanges();
+    const inputs = fixture.nativeElement.querySelectorAll('fieldset input[type="checkbox"]') as NodeListOf<HTMLInputElement>;
+    expect(inputs).toHaveLength(2);
+    for (const input of inputs) { input.checked = false; input.dispatchEvent(new Event('change')); fixture.detectChanges(); }
+    expect(fixture.nativeElement.querySelector('[role="status"]')?.textContent).toContain('stats.no_series_selected');
+    expect(fixture.nativeElement.querySelector('canvas')).toBeNull();
+    expect(fixture.nativeElement.querySelector('details table')?.textContent).toContain('7');
+    fixture.destroy();
+  });
+
   it('keeps Retry focused through another failure and restores focus after success', async () => {
     const pending = new Subject<any>();
     const api = { get: vi.fn((): Observable<any> => throwError(() => new Error('offline'))) };

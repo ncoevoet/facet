@@ -628,6 +628,10 @@
     "person_fallback": "Pessoa {id}"
   },
   "stats": {
+    "series_selected_count": "{selected} de {total} séries exibidas",
+    "more_series_scroll": "Role para ver todas as séries",
+    "series_limit": "Selecione até {count} séries para mostrar",
+    "no_series_selected": "Selecione uma série para mostrar o gráfico",
     "chart_series": "Séries do gráfico",
     "show_chart_data": "Mostrar dados do gráfico",
     "help": "Informações sobre a sua biblioteca: distribuições de pontuação, uso de câmeras e lentes, correlações entre as dimensões de pontuação e tendências ao longo do tempo.",

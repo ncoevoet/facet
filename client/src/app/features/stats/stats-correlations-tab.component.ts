@@ -53,7 +53,7 @@ export function correlationSeries(data: CorrelationApiResponse, metrics: string[
     <div class="mt-4 flex flex-col gap-4">
       <mat-card>
         <mat-card-header class="!flex !items-center !justify-between">
-          <mat-card-title #correlationHeading tabindex="-1">{{ I18N.stats.metric_correlations | translate }}</mat-card-title>
+          <mat-card-title #correlationHeading tabindex="-1" role="heading" aria-level="2">{{ I18N.stats.metric_correlations | translate }}</mat-card-title>
           <button mat-icon-button class="shrink-0" [disabled]="!currentData()"
             [matTooltip]="I18N.stats.export_csv | translate"
             [attr.aria-label]="I18N.stats.export_csv | translate" (click)="exportCsv()">
@@ -93,7 +93,7 @@ export function correlationSeries(data: CorrelationApiResponse, metrics: string[
             </mat-form-field>
             <mat-form-field subscriptSizing="dynamic">
               <mat-label>{{ I18N.stats.correlations.chart_type | translate }}</mat-label>
-              <mat-select [ngModel]="corrChartType()" (ngModelChange)="corrChartType.set($event)">
+              <mat-select [ngModel]="corrChartType()" (ngModelChange)="setChartType($event)">
                 @for (ct of corrChartTypes; track ct.key) {
                   <mat-option [value]="ct.key">{{ 'stats.correlations.chart_types.' + ct.key | translate }}</mat-option>
                 }
@@ -120,22 +120,31 @@ export function correlationSeries(data: CorrelationApiResponse, metrics: string[
             <p class="py-6 text-center text-[var(--mat-sys-on-surface-variant)]">{{ I18N.stats.no_data | translate }}</p>
           } @else if (currentData()) {
             @if (chartSeriesRows().length > 1) {
-              <fieldset class="mb-3 min-w-0 rounded-lg border border-[var(--mat-sys-outline-variant)] px-3 pb-2 pt-1">
+              <fieldset aria-describedby="correlation-series-help" class="mb-3 min-w-0 rounded-lg border border-[var(--mat-sys-outline-variant)] px-3 pb-2 pt-1">
                 <legend class="px-1 text-xs font-medium text-[var(--mat-sys-on-surface-variant)]">{{ I18N.stats.chart_series | translate }}</legend>
+                <div id="correlation-series-help" class="mb-1 text-xs text-[var(--mat-sys-on-surface-variant)]" aria-live="polite">
+                  <span>{{ I18N.stats.series_selected_count | translate:{selected: selectedSeriesCount(), total: chartSeriesRows().length} }}</span>
+                  @if (isBarChart() && chartSeriesRows().length > seriesLimit) { <span> · {{ I18N.stats.series_limit | translate:{count: seriesLimit} }}</span> }
+                  @if (chartSeriesRows().length > 4) { <span> · {{ I18N.stats.more_series_scroll | translate }}</span> }
+                </div>
                 <div class="grid max-h-32 grid-cols-1 gap-x-4 overflow-auto sm:grid-cols-2">
                   @for (series of chartSeriesRows(); track series.key) {
-                    <label class="flex min-h-10 min-w-0 cursor-pointer items-center gap-2 text-sm">
-                      <input type="checkbox" class="h-4 w-4 shrink-0 accent-[var(--mat-sys-primary)]" [checked]="series.visible" (change)="setSeriesVisible(series.key, $any($event.target).checked)" />
-                      <svg aria-hidden="true" width="32" height="12" class="shrink-0"><line x1="1" y1="6" x2="31" y2="6" [attr.stroke]="series.color" stroke-width="3" [attr.stroke-dasharray]="series.dashPattern" /></svg>
+                    <label class="flex min-h-10 min-w-0 cursor-pointer items-center gap-2 text-sm" [class.opacity-60]="series.atLimit">
+                      <input type="checkbox" class="h-4 w-4 shrink-0 accent-[var(--mat-sys-primary)]" [checked]="series.visible" [disabled]="series.atLimit" (change)="setSeriesVisible(series.key, $any($event.target).checked)" />
+                      <svg aria-hidden="true" width="32" height="12" class="shrink-0" [class.opacity-30]="!series.visible"><line x1="1" y1="6" x2="31" y2="6" [attr.stroke]="series.color" stroke-width="3" [attr.stroke-dasharray]="series.dashPattern" /></svg>
                       <span class="min-w-0 break-words">{{ series.label }}</span>
                     </label>
                   }
                 </div>
               </fieldset>
             }
-            <div class="h-72 md:h-96 lg:h-[28rem]">
-              <canvas #correlationsCanvas aria-hidden="true"></canvas>
-            </div>
+            @if (selectedSeriesCount() === 0) {
+              <p role="status" class="py-8 text-center text-[var(--mat-sys-on-surface-variant)]">{{ I18N.stats.no_series_selected | translate }}</p>
+            } @else {
+              <div class="h-72 md:h-96 lg:h-[28rem]">
+                <canvas #correlationsCanvas aria-hidden="true"></canvas>
+              </div>
+            }
             <details class="mt-3 text-sm text-[var(--mat-sys-on-surface-variant)]">
               <summary class="cursor-pointer">{{ I18N.stats.show_chart_data | translate }}</summary>
               <div class="mt-2 max-h-72 overflow-auto"><table class="w-full text-left">
@@ -176,6 +185,8 @@ export class StatsCorrelationsTabComponent {
   readonly corrChartType = signal('line');
   readonly corrMinSamples = 3;
   readonly corrData = signal<CorrelationApiResponse | null>(null);
+  readonly seriesLimit = 8;
+  readonly isBarChart = computed(() => this.corrChartType() === 'bar' || this.corrChartType() === 'horizontalBar');
   readonly currentData = computed(() => this.loadedKey() === this.requestKey() ? this.corrData() : null);
   readonly corrBucketCount = computed(() => this.currentData()?.labels?.length ?? 0);
   readonly chartSeriesRows = computed(() => {
@@ -183,17 +194,23 @@ export class StatsCorrelationsTabComponent {
     if (!data) return [];
     this.i18n.locale();
     const colors = chartSeriesColors(this.themeService.darkMode());
-    const bars = this.corrChartType() === 'bar' || this.corrChartType() === 'horizontalBar';
+    const bars = this.isBarChart();
     const dashes = [[], [7, 4], [2, 3], [9, 3, 2, 3]];
     const visibility = this.seriesVisibility();
-    return correlationSeries(data, this.corrYMetrics(), metric => this.i18n.t(`stats.correlations.metrics.${metric}`))
-      .map(series => {
+    let visibleIndex = 0;
+    const rows = correlationSeries(data, this.corrYMetrics(), metric => this.i18n.t(`stats.correlations.metrics.${metric}`))
+      .map((series, index) => {
         const key = `${series.groupIndex}:${series.metricIndex}`;
-        const colorIndex = bars && data.groups ? series.groupIndex * this.corrYMetrics().length + series.metricIndex : series.groupIndex;
+        const requested = visibility[key] ?? (!bars || index < this.seriesLimit);
+        const visible = requested && (!bars || visibleIndex < this.seriesLimit);
+        const colorIndex = bars ? (visible ? visibleIndex++ : 0) : series.groupIndex;
         const dash = bars ? [] : dashes[series.metricIndex % dashes.length];
-        return { ...series, key, color: colors[colorIndex % colors.length], dash, dashPattern: dash.join(' '), visible: visibility[key] !== false };
+        return { ...series, key, color: colors[colorIndex % colors.length], dash, dashPattern: dash.join(' '), visible };
       });
+    const selected = rows.filter(row => row.visible).length;
+    return rows.map(row => ({ ...row, atLimit: bars && !row.visible && selected >= this.seriesLimit }));
   });
+  readonly selectedSeriesCount = computed(() => this.chartSeriesRows().filter(row => row.visible).length);
   private readonly accessibleRecords = computed(() => buildCorrelationCsvRecords(this.currentData(), this.corrYMetrics()));
   readonly accessibleColumns = computed(() => Object.keys(this.accessibleRecords()[0] ?? {}));
   readonly accessibleColumnLabels = computed(() => {
@@ -280,7 +297,22 @@ export class StatsCorrelationsTabComponent {
   }
 
   setSeriesVisible(key: string, visible: boolean): void {
+    if (visible && this.isBarChart() && this.selectedSeriesCount() >= this.seriesLimit) return;
     this.seriesVisibility.update(current => ({ ...current, [key]: visible }));
+  }
+
+  setChartType(type: string): void {
+    const nextIsBar = type === 'bar' || type === 'horizontalBar';
+    if (nextIsBar && !this.isBarChart()) {
+      let selected = 0;
+      const visibility: Record<string, boolean> = {};
+      for (const row of this.chartSeriesRows()) {
+        visibility[row.key] = row.visible && selected < this.seriesLimit;
+        if (visibility[row.key]) selected++;
+      }
+      this.seriesVisibility.set(visibility);
+    }
+    this.corrChartType.set(type);
   }
 
   async loadCorrelation(retry = false): Promise<void> {

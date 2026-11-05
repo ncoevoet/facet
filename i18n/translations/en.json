@@ -653,6 +653,10 @@
     "person_fallback": "Person {id}"
   },
   "stats": {
+    "series_selected_count": "{selected} of {total} series shown",
+    "more_series_scroll": "Scroll to see all series",
+    "series_limit": "Select up to {count} series to display",
+    "no_series_selected": "Select a series to show the chart",
     "chart_series": "Chart series",
     "show_chart_data": "Show chart data",
     "help": "Insights about your library: score distributions, camera and lens usage, correlations between scoring dimensions, and trends over time.",

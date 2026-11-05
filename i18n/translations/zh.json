@@ -628,6 +628,10 @@
     "person_fallback": "人物 {id}"
   },
   "stats": {
+    "series_selected_count": "显示 {total} 个系列中的 {selected} 个",
+    "more_series_scroll": "滚动查看所有系列",
+    "series_limit": "最多选择 {count} 个数据系列显示",
+    "no_series_selected": "选择一个数据系列以显示图表",
     "chart_series": "图表数据系列",
     "show_chart_data": "显示图表数据",
     "help": "了解照片库：评分分布、相机和镜头使用情况、各评分指标的相关性，以及随时间变化的趋势。",

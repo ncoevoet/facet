@@ -175,12 +175,12 @@ export class StatsNumberPipe implements PipeTransform {
         <mat-spinner diameter="48" [attr.aria-label]="I18N.ui.labels.loading | translate" />
       </div>
     } @else if (!loadFailed()) {
-      <mat-tab-group class="stats-tabs max-sm:[&_.mat-mdc-tab]:!min-w-0 max-sm:[&_.mat-mdc-tab]:!px-0 max-sm:[&_.mat-mdc-tab]:!flex-[1_1_25%] max-sm:[&_.mat-mdc-tab-labels]:!flex-[1_1_0%]" mat-stretch-tabs="false" mat-align-tabs="start" [selectedIndex]="selectedTab()" (selectedIndexChange)="selectedTab.set($event)">
+      <mat-tab-group class="stats-tabs max-sm:[&_.mat-mdc-tab]:!min-w-0 max-sm:[&_.mat-mdc-tab]:!px-0 max-sm:[&_.mat-mdc-tab]:!flex-[1_1_auto] max-sm:[&_.mat-mdc-tab-labels]:!flex-[1_1_0%]" mat-stretch-tabs="false" mat-align-tabs="start" [selectedIndex]="selectedTab()" (selectedIndexChange)="selectedTab.set($event)">
           <!-- Gear tab -->
           <mat-tab>
             <ng-template mat-tab-label>
               <mat-icon class="!hidden sm:!inline-block sm:mr-2" aria-hidden="true">camera_alt</mat-icon>
-              <span class="block whitespace-normal break-words text-center text-xs max-sm:max-w-[calc((100vw-2rem)/4)] sm:whitespace-nowrap sm:text-sm">{{ I18N.stats.gear | translate }}</span>
+              <span class="block whitespace-nowrap text-center text-[11px] sm:text-sm">{{ I18N.stats.gear | translate }}</span>
             </ng-template>
             <div class="grid grid-cols-1 xl:grid-cols-2 gap-4 mt-4">
               <app-gear-chart-card titleKey="stats.cameras" [items]="cameras()" [loading]="gearLoading()" [color]="themeService.accentColor()" />
@@ -200,7 +200,7 @@ export class StatsNumberPipe implements PipeTransform {
           <mat-tab>
             <ng-template mat-tab-label>
               <mat-icon class="!hidden sm:!inline-block sm:mr-2" aria-hidden="true">category</mat-icon>
-              <span class="block whitespace-normal break-words text-center text-xs max-sm:max-w-[calc((100vw-2rem)/4)] sm:whitespace-nowrap sm:text-sm">{{ I18N.stats.categories.tab | translate }}</span>
+              <span class="block whitespace-nowrap text-center text-[11px] sm:text-sm">{{ I18N.stats.categories.tab | translate }}</span>
             </ng-template>
             <div class="mt-4 flex flex-col gap-4">
               <div class="grid grid-cols-1 lg:grid-cols-2 2xl:grid-cols-3 gap-4">
@@ -223,12 +223,12 @@ export class StatsNumberPipe implements PipeTransform {
                       </div>
                       <details class="mt-2 text-sm">
                         <summary class="min-h-11 cursor-pointer content-center text-[var(--mat-sys-primary)]">{{ I18N.stats.show_chart_data | translate }}</summary>
-                        <table class="w-full text-left">
+                        <table class="w-full border-collapse text-left">
                           <caption class="sr-only">{{ I18N.stats.category_metric_title | translate }}</caption>
-                          <thead><tr><th scope="col">{{ I18N.stats.categories.tab | translate }}</th><th scope="col">{{ ('stats.category_metrics.' + categoryMetric()) | translate }}</th></tr></thead>
+                          <thead><tr><th scope="col" class="py-1 pr-4">{{ I18N.stats.categories.tab | translate }}</th><th scope="col" class="py-1 text-right">{{ ('stats.category_metrics.' + categoryMetric()) | translate }}</th></tr></thead>
                           <tbody>
                             @for (row of categoryMetricRows(); track row.category) {
-                              <tr><th scope="row">{{ row.label }}</th><td>{{ row.value | statsNumber:i18n.locale():1 }}</td></tr>
+                              <tr><th scope="row" class="py-1 pr-4 text-left font-medium">{{ row.label }}</th><td class="py-1 text-right tabular-nums">{{ row.value | statsNumber:i18n.locale():categoryMetricDigits() }}</td></tr>
                             }
                           </tbody>
                         </table>
@@ -251,18 +251,18 @@ export class StatsNumberPipe implements PipeTransform {
                         </div>
                         <details class="mt-2 text-sm">
                           <summary class="min-h-11 cursor-pointer content-center text-[var(--mat-sys-primary)]">{{ I18N.stats.show_chart_data | translate }}</summary>
-                          <div class="overflow-x-auto"><table class="w-full text-left">
+                          <div class="overflow-x-auto"><table class="w-full min-w-max border-collapse text-left [&_th]:whitespace-nowrap [&_th]:px-2 [&_th]:py-1 [&_td]:px-2 [&_td]:py-1 [&_td]:text-right [&_td]:tabular-nums">
                             <caption class="sr-only">{{ I18N.stats.categories_score_profile | translate }}</caption>
                             <thead><tr>
                               <th scope="col">{{ I18N.stats.categories.tab | translate }}</th>
-                              <th scope="col">{{ I18N.stats.axes.aggregate | translate }}</th>
-                              <th scope="col">{{ I18N.stats.axes.aesthetic | translate }}</th>
-                              <th scope="col">{{ I18N.stats.axes.composition | translate }}</th>
-                              <th scope="col">{{ I18N.stats.axes.sharpness | translate }}</th>
-                              <th scope="col">{{ I18N.stats.axes.color | translate }}</th>
-                              <th scope="col">{{ I18N.stats.axes.exposure | translate }}</th>
-                              <th scope="col">{{ I18N.stats.axes.face_quality | translate }}</th>
-                              <th scope="col">{{ I18N.stats.axes.contrast | translate }}</th>
+                              <th scope="col" class="text-right">{{ I18N.stats.axes.aggregate | translate }}</th>
+                              <th scope="col" class="text-right">{{ I18N.stats.axes.aesthetic | translate }}</th>
+                              <th scope="col" class="text-right">{{ I18N.stats.axes.composition | translate }}</th>
+                              <th scope="col" class="text-right">{{ I18N.stats.axes.sharpness | translate }}</th>
+                              <th scope="col" class="text-right">{{ I18N.stats.axes.color | translate }}</th>
+                              <th scope="col" class="text-right">{{ I18N.stats.axes.exposure | translate }}</th>
+                              <th scope="col" class="text-right">{{ I18N.stats.axes.face_quality | translate }}</th>
+                              <th scope="col" class="text-right">{{ I18N.stats.axes.contrast | translate }}</th>
                             </tr></thead>
                             <tbody>@for (cat of categoryProfileRows(); track cat.category) {
                               <tr>
@@ -304,6 +304,7 @@ export class StatsNumberPipe implements PipeTransform {
                       </div>
                       <table class="sr-only">
                         <caption>{{ I18N.stats.score_histogram | translate }}</caption>
+                        <thead><tr><th scope="col">{{ I18N.stats.axes.score | translate }}</th><th scope="col">{{ I18N.stats.axes.photos | translate }}</th></tr></thead>
                         <tbody>
                           @for (bin of scoreDisplayBins(); track bin.range) {
                             <tr><th scope="row">{{ bin.displayRange }}</th><td>{{ bin.count | statsNumber:i18n.locale() }}</td></tr>
@@ -372,7 +373,7 @@ export class StatsNumberPipe implements PipeTransform {
           <mat-tab>
             <ng-template mat-tab-label>
               <mat-icon class="!hidden sm:!inline-block sm:mr-2" aria-hidden="true">timeline</mat-icon>
-              <span class="block whitespace-normal break-words text-center text-xs max-sm:max-w-[calc((100vw-2rem)/4)] sm:whitespace-nowrap sm:text-sm">{{ I18N.stats.timeline | translate }}</span>
+              <span class="block whitespace-nowrap text-center text-[11px] sm:text-sm">{{ I18N.stats.timeline | translate }}</span>
             </ng-template>
             <app-stats-timeline-tab />
           </mat-tab>
@@ -381,7 +382,7 @@ export class StatsNumberPipe implements PipeTransform {
           <mat-tab>
             <ng-template mat-tab-label>
               <mat-icon class="!hidden sm:!inline-block sm:mr-2" aria-hidden="true">insights</mat-icon>
-              <span class="block whitespace-normal break-words text-center text-xs max-sm:max-w-[calc((100vw-2rem)/4)] sm:whitespace-nowrap sm:text-sm">{{ I18N.stats.tabs.correlations | translate }}</span>
+              <span class="block whitespace-nowrap text-center text-[11px] sm:text-sm">{{ I18N.stats.tabs.correlations | translate }}</span>
             </ng-template>
             <app-stats-correlations-tab />
           </mat-tab>
@@ -460,6 +461,9 @@ export class StatsComponent {
     { key: 'avg_score' }, { key: 'avg_aesthetic' }, { key: 'avg_sharpness' }, { key: 'avg_contrast' },
   ];
   protected readonly categoryMetric = signal('avg_f_stop');
+  protected readonly categoryMetricDigits = computed(() =>
+    this.categoryMetric() === 'avg_iso' || this.categoryMetric() === 'avg_focal_length' ? 0 : 1,
+  );
   protected readonly categoryMetricData = computed(() => {
     const metric = this.categoryMetric() as keyof CategoryStat;
     return [...this.categoryStats()]
@@ -477,6 +481,7 @@ export class StatsComponent {
     const formatter = new Intl.NumberFormat(this.i18n.locale(), { maximumFractionDigits: 1 });
     return this.scoreBins().map(bin => {
       const value = Number(bin.range);
+      // The API's bucket is a rounded score, not the lower edge of an interval.
       return { ...bin, displayRange: bin.range.trim() && Number.isFinite(value) ? formatter.format(value) : bin.range };
     });
   });

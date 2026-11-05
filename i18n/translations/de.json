@@ -628,6 +628,10 @@
     "person_fallback": "Person {id}"
   },
   "stats": {
+    "series_selected_count": "{selected} von {total} Reihen angezeigt",
+    "more_series_scroll": "Scrollen, um alle Reihen zu sehen",
+    "series_limit": "Wähle bis zu {count} Reihen zur Anzeige",
+    "no_series_selected": "Wähle eine Reihe, um das Diagramm anzuzeigen",
     "chart_series": "Diagrammreihen",
     "show_chart_data": "Diagrammdaten anzeigen",
     "help": "Einblicke in Ihre Bibliothek: Bewertungsverteilungen, Kamera- und Objektivnutzung, Korrelationen zwischen den Bewertungsdimensionen und Trends im Zeitverlauf.",

@@ -162,6 +162,19 @@ describe('StatsComponent', () => {
     expect(c().scoreDisplayBins()[0].displayRange).toBe('1.5');
     TestBed.inject(I18nService).locale.set('de');
     expect(c().scoreDisplayBins()[0].displayRange).toBe('1,5');
+    // The backend rounds a 1.26 score to bucket 1.5, despite reporting
+    // min=1.5 and max=2. Those numbers do not define the bucket's interval.
+    expect(c().scoreDisplayBins()[0]).not.toHaveProperty('displayBounds');
+  });
+
+  it('uses whole values for ISO and focal length, and one decimal for scores and aperture', () => {
+    component = createComponent();
+    c().categoryMetric.set('avg_iso');
+    expect(c().categoryMetricDigits()).toBe(0);
+    c().categoryMetric.set('avg_focal_length');
+    expect(c().categoryMetricDigits()).toBe(0);
+    c().categoryMetric.set('avg_f_stop');
+    expect(c().categoryMetricDigits()).toBe(1);
   });
 
   it('keeps an unknown category query visible until the matching type is available', () => {

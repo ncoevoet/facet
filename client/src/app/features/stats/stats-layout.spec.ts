@@ -117,13 +117,23 @@ describe('statistics page states', () => {
     fixture.detectChanges(); await fixture.whenStable(); fixture.detectChanges();
     const host: HTMLElement = fixture.nativeElement;
     const hist = Array.from(host.querySelectorAll('table')).find(table => table.querySelector('caption')?.textContent?.includes('stats.score_histogram'));
+    // 1.26 rounds to 1.5; the API min/max fields must not be shown as its range.
     expect(hist?.textContent).toContain('1,5');
+    expect(hist?.textContent).not.toContain('1,5–2');
     expect(hist?.textContent).toContain('1.234');
+    expect(hist?.querySelector('thead')?.textContent).toContain('stats.axes.score');
+    expect(hist?.querySelector('thead')?.textContent).not.toContain('gallery.score_range');
+    expect(hist?.querySelector('thead')?.textContent).toContain('stats.axes.photos');
     expect(host.querySelectorAll('h2[mat-card-title]').length).toBeGreaterThanOrEqual(3);
     expect(host.textContent).toContain('stats.show_chart_data');
     const tables = Array.from(host.querySelectorAll('table'));
     expect(tables.some(table => table.textContent?.includes('2,8'))).toBe(true);
     expect(tables.some(table => table.textContent?.includes('6,5'))).toBe(true);
+    page.categoryMetric.set('avg_iso');
+    fixture.detectChanges(); await fixture.whenStable(); fixture.detectChanges();
+    const metric = Array.from(host.querySelectorAll('table')).find(table => table.querySelector('caption')?.textContent?.includes('stats.category_metric_title'));
+    expect(metric?.textContent).toContain('400');
+    expect(metric?.textContent).not.toContain('400,0');
     vi.restoreAllMocks();
   });
 });
