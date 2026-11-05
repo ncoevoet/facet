@@ -10,6 +10,7 @@ import { I18nService } from '../../core/services/i18n.service';
 import { GalleryStore } from '../gallery/gallery.store';
 import { TimelineFeedCache, type TimelinePage } from './timeline-feed-cache.service';
 import type { Photo } from '../../shared/models/photo.model';
+import { HANDLE_SERVER_ERROR_LOCALLY } from '../../core/utils/http-error-context';
 
 @Component({ template: '' }) class OtherPage {}
 const first = { groups: [{ date: '2026-11-01', count: 12, photos: [
@@ -50,7 +51,8 @@ describe('Timeline photo feed', () => {
     const day = v.root.querySelector<HTMLAnchorElement>('section header a')!;
     expect(day.href).toContain('sort_direction=DESC'); expect(day.href).toContain('date_from=2026-11-01'); expect(day.href).toContain('hide_bursts=true');
     expect(v.root.querySelector<HTMLAnchorElement>('section .grid a')?.href).toContain('/photo?path=%2Ffirst.jpg');
-    expect(v.api.get).toHaveBeenCalledExactlyOnceWith('/timeline', expect.objectContaining({ photos_per_group: 8, limit: 8, sort_by: 'date_taken', hide_bursts: '1' }));
+    expect(v.api.get).toHaveBeenCalledExactlyOnceWith('/timeline', expect.objectContaining({ photos_per_group: 8, limit: 8, sort_by: 'date_taken', hide_bursts: '1' }), expect.anything());
+    expect(v.api.get.mock.calls[0][2].get(HANDLE_SERVER_ERROR_LOCALLY)).toBe(true);
     v.dispose();
   });
 
@@ -61,7 +63,7 @@ describe('Timeline photo feed', () => {
     v.api.get.mockReturnValueOnce(of({ groups: [{ date: '2026-10-31', count: 0, photos: [] }], next_cursor: null, has_more: false }));
     const retry = [...v.root.querySelectorAll('button')].find(button => button.textContent?.includes('timeline.retry'))!;
     retry.click(); await v.settle();
-    expect(v.api.get).toHaveBeenLastCalledWith('/timeline', expect.objectContaining({ cursor: '2026-11-01' }));
+    expect(v.api.get).toHaveBeenLastCalledWith('/timeline', expect.objectContaining({ cursor: '2026-11-01' }), expect.anything());
     expect(v.root.querySelectorAll('h2')).toHaveLength(2); expect(v.root.querySelector('[role=alert]')).toBeNull(); v.dispose();
   });
 
@@ -86,18 +88,21 @@ describe('Timeline photo feed', () => {
     const v = await setup(); const next = new Subject<TimelinePage>(); v.api.get.mockReturnValueOnce(next);
     const button = v.root.querySelector<HTMLButtonElement>('[data-timeline-load-more]')!;
     button.focus(); button.click(); await v.settle();
-    next.next({ groups: [{ date: '2026-10-31', count: 1, photos: [{ path: '/last.jpg', filename: 'last.jpg' }] }], next_cursor: null, has_more: false } as TimelinePage);
+    next.next({ groups: [
+      { date: '2026-10-31', count: 1, photos: [{ path: '/first-new.jpg', filename: 'first-new.jpg' }] },
+      { date: '2026-10-30', count: 1, photos: [{ path: '/last.jpg', filename: 'last.jpg' }] },
+    ], next_cursor: null, has_more: false } as TimelinePage);
     await v.settle(); await v.settle();
-    expect((document.activeElement as HTMLElement).getAttribute('aria-label')).toBe('last.jpg');
+    expect((document.activeElement as HTMLElement).getAttribute('aria-label')).toBe('first-new.jpg');
     v.dispose();
   });
 
   it('intersects month routes and capture range, and restarts when visibility changes', async () => {
     const v = await setup(); v.fixture.componentRef.setInput('year', '2026'); v.fixture.componentRef.setInput('month', '2');
     v.filters.dateFrom.set('2026-02-12'); await v.settle();
-    expect(v.api.get).toHaveBeenLastCalledWith('/timeline', expect.objectContaining({ date_from: '2026-02-12', date_to: '2026-02-28' }));
+    expect(v.api.get).toHaveBeenLastCalledWith('/timeline', expect.objectContaining({ date_from: '2026-02-12', date_to: '2026-02-28' }), expect.anything());
     v.visibility.set({ hide_bursts: '0', hide_duplicates: '0' }); await v.settle();
-    expect(v.api.get).toHaveBeenLastCalledWith('/timeline', expect.objectContaining({ hide_bursts: '0', cursor: '' })); v.dispose();
+    expect(v.api.get).toHaveBeenLastCalledWith('/timeline', expect.objectContaining({ hide_bursts: '0', cursor: '' }), expect.anything()); v.dispose();
   });
 
   it('cancels stale reads when leaving and ignores a prior account completion', async () => {
@@ -183,7 +188,7 @@ describe('Timeline photo feed', () => {
     const v = await setup();
     v.root.querySelector<HTMLButtonElement>('div > button')!.click(); await v.settle();
     expect(v.filters.sortDirection()).toBe('newer');
-    expect(v.api.get).toHaveBeenLastCalledWith('/timeline', expect.objectContaining({ direction: 'newer' }));
+    expect(v.api.get).toHaveBeenLastCalledWith('/timeline', expect.objectContaining({ direction: 'newer' }), expect.anything());
     const month = v.root.querySelector<HTMLInputElement>('input[type=month]')!;
     month.value = '2026-02'; month.dispatchEvent(new Event('change', { bubbles: true })); await v.settle();
     expect(v.router.url).toBe('/timeline/2026/2'); v.dispose();
@@ -205,7 +210,7 @@ describe('Timeline photo feed', () => {
     button.click(); await v.settle();
     const expected = direction === 'older' ? '2026-06-26' : '2026-06-28';
     expect(direction === 'older' ? v.filters.dateTo() : v.filters.dateFrom()).toBe(expected);
-    expect(v.api.get).toHaveBeenLastCalledWith('/timeline', expect.objectContaining(direction === 'older' ? { date_to: expected, cursor: '' } : { date_from: expected, cursor: '' }));
+    expect(v.api.get).toHaveBeenLastCalledWith('/timeline', expect.objectContaining(direction === 'older' ? { date_to: expected, cursor: '' } : { date_from: expected, cursor: '' }), expect.anything());
     expect(v.wrapper.scrollTop).toBe(0); v.dispose();
   });
 

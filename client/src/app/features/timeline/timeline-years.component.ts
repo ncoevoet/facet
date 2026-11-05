@@ -30,18 +30,18 @@ interface YearSummary {
     }
 
     @if (failed()) {
-      <app-timeline-load-failure (retry)="retry.update(value => value + 1)" />
+      <app-timeline-load-failure [loading]="loading()" (retry)="retryRead()" />
     }
     @if (!loading() && !failed() && years().length === 0) {
       <div class="text-center py-16 opacity-60">
         <mat-icon class="!text-5xl !w-12 !h-12 mb-4">calendar_today</mat-icon>
-        <p>{{ I18N.timeline.empty | translate }}</p>
+        <p data-timeline-empty tabindex="-1">{{ I18N.timeline.empty | translate }}</p>
       </div>
     }
 
     <div class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4">
       @for (y of years(); track y.year) {
-        <button
+        <button data-timeline-result
           class="group flex flex-col rounded-xl overflow-hidden bg-[var(--mat-sys-surface-container)] hover:shadow-lg transition-shadow cursor-pointer text-left"
           (click)="yearSelected.emit(y.year)">
           @if (y.hero_photo_path) {

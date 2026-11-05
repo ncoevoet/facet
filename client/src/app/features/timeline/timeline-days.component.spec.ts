@@ -44,7 +44,7 @@ describe('TimelineDaysComponent', () => {
   describe('API call', () => {
     it('should call /timeline/dates with year and month', async () => {
       await (component as any).load(2024, 6, '', '', { ...noneHidden });
-      expect(mockApi.get).toHaveBeenCalledWith('/timeline/dates', { year: 2024, month: 6, ...noneHidden });
+      expect(mockApi.get).toHaveBeenCalledWith('/timeline/dates', { year: 2024, month: 6, ...noneHidden }, expect.anything());
     });
 
     it('should pass date_from and date_to when provided', async () => {
@@ -54,7 +54,7 @@ describe('TimelineDaysComponent', () => {
         ...noneHidden,
         date_from: '2024-06-01',
         date_to: '2024-06-30',
-      });
+      }, expect.anything());
     });
 
     it('should set loading false after success', async () => {
@@ -187,13 +187,13 @@ describe('TimelineDaysComponent', () => {
       component.year = () => '2024';
       component.month = () => '6';
       TestBed.flushEffects();
-      expect(mockApi.get).toHaveBeenCalledWith('/timeline/dates', { year: 2024, month: 6, ...noneHidden });
+      expect(mockApi.get).toHaveBeenCalledWith('/timeline/dates', { year: 2024, month: 6, ...noneHidden }, expect.anything());
       mockApi.get.mockClear();
 
       mockStore.viewFilterParams.set({ ...noneHidden, hide_duplicates: '1' });
       TestBed.flushEffects();
 
-      expect(mockApi.get).toHaveBeenCalledWith('/timeline/dates', { year: 2024, month: 6, ...noneHidden, hide_duplicates: '1' });
+      expect(mockApi.get).toHaveBeenCalledWith('/timeline/dates', { year: 2024, month: 6, ...noneHidden, hide_duplicates: '1' }, expect.anything());
     });
   });
 });

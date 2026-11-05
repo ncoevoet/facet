@@ -12,6 +12,7 @@ import { TimelineFeedCache } from './timeline-feed-cache.service';
 import { TimelineFiltersService } from './timeline-filters.service';
 import { densityBuckets, densityRange, type DensityBucket, type DensityResponse } from './timeline-density.util';
 import { TimelineLoadFailureComponent } from './timeline-load-failure.component';
+import { timelineReadContext } from './timeline-read-context';
 
 @Component({
   selector: 'app-timeline-density',
@@ -133,7 +134,7 @@ export class TimelineDensityComponent {
         && year === this.year() && month === this.month() && unit === this.unit() && rows === this.membership.rows() && revision === this.membership.membershipRevision()
         && visibility === this.store.viewFilterParams() && from === this.filters.dateFrom() && to === this.filters.dateTo();
       this.currentRead = current;
-      const request = this.api.get<DensityResponse>(path, params).subscribe({
+      const request = this.api.get<DensityResponse>(path, params, timelineReadContext()).subscribe({
         next: response => { if (current()) { this.buckets.set(densityBuckets(response, year, month, { unit, from, to })); this.loading.set(false); } },
         error: () => { if (current()) { this.failed.set(true); this.loading.set(false); } },
       });

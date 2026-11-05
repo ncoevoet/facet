@@ -39,25 +39,25 @@ interface CalendarCell {
     }
 
     @if (failed()) {
-      <app-timeline-load-failure (retry)="retry.update(value => value + 1)" />
+      <app-timeline-load-failure [loading]="loading()" (retry)="retryRead()" />
     }
     @if (!loading() && !failed()) {
       <!-- Day-of-week headers -->
-      <div class="grid grid-cols-7 gap-2 mb-2">
+      <div class="mx-auto grid max-w-3xl grid-cols-7 gap-2 mb-2">
         @for (d of weekDays(); track $index) {
-          <div class="text-center text-sm font-medium opacity-50 py-1">{{ d }}</div>
+        <div class="text-center text-sm font-medium opacity-50 py-1">{{ d }}</div>
         }
       </div>
 
       <!-- Calendar grid -->
-      <div class="grid grid-cols-7 gap-2">
+      <div data-timeline-empty tabindex="-1" role="group" [attr.aria-label]="I18N.timeline.calendar | translate" class="mx-auto grid max-w-3xl grid-cols-7 gap-2">
         @for (cell of calendarCells(); track cell.date ?? $index) {
           @if (cell.date) {
-            <button
-              class="relative rounded-xl overflow-hidden transition-shadow cursor-pointer aspect-square"
+            <button data-timeline-result
+              class="relative rounded-xl overflow-hidden transition-shadow aspect-square"
               [disabled]="cell.count === 0"
               [attr.aria-label]="(cell.date | captureDate) + ': ' + cell.count + ' ' + (I18N.timeline.photos_count | translate)"
-              [class]="cell.count > 0 ? 'hover:shadow-lg bg-[var(--mat-sys-surface-container)]' : 'opacity-40 bg-[var(--mat-sys-surface-container)] cursor-default'"
+              [class]="cell.count > 0 ? 'cursor-pointer hover:shadow-lg bg-[var(--mat-sys-surface-container)]' : 'opacity-40 bg-[var(--mat-sys-surface-container)] cursor-default'"
               (click)="cell.count > 0 && daySelected.emit(cell.date)">
               @if (cell.hero_photo_path) {
                 <img [src]="cell.hero_photo_path | thumbnailUrl:320:cell.preview_revision"

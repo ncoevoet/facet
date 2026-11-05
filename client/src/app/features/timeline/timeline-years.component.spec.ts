@@ -46,7 +46,7 @@ describe('TimelineYearsComponent', () => {
   describe('load', () => {
     it('should call /timeline/years with just the view filter params when dates are empty', async () => {
       await component.load('', '', { ...noneHidden });
-      expect(mockApi.get).toHaveBeenCalledWith('/timeline/years', { ...noneHidden });
+      expect(mockApi.get).toHaveBeenCalledWith('/timeline/years', { ...noneHidden }, expect.anything());
     });
 
     it('should pass date_from and date_to when provided', async () => {
@@ -55,7 +55,7 @@ describe('TimelineYearsComponent', () => {
         ...noneHidden,
         date_from: '2024-01-01',
         date_to: '2024-12-31',
-      });
+      }, expect.anything());
     });
 
     it('should populate years signal', async () => {
@@ -86,13 +86,13 @@ describe('TimelineYearsComponent', () => {
   describe('reactive refetch on hide-toggle change', () => {
     it('re-fetches /timeline/years when GalleryStore.viewFilterParams changes', () => {
       TestBed.flushEffects();
-      expect(mockApi.get).toHaveBeenCalledWith('/timeline/years', { ...noneHidden });
+      expect(mockApi.get).toHaveBeenCalledWith('/timeline/years', { ...noneHidden }, expect.anything());
       mockApi.get.mockClear();
 
       mockStore.viewFilterParams.set({ ...noneHidden, hide_bursts: '1' });
       TestBed.flushEffects();
 
-      expect(mockApi.get).toHaveBeenCalledWith('/timeline/years', { ...noneHidden, hide_bursts: '1' });
+      expect(mockApi.get).toHaveBeenCalledWith('/timeline/years', { ...noneHidden, hide_bursts: '1' }, expect.anything());
     });
   });
 });

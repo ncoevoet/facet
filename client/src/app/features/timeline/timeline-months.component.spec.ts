@@ -49,7 +49,7 @@ describe('TimelineMonthsComponent', () => {
   describe('loading months for a year', () => {
     it('should call /timeline/months with the year input value', async () => {
       await (component as any).load('2024', '', '', { ...noneHidden });
-      expect(mockApi.get).toHaveBeenCalledWith('/timeline/months', { year: 2024, ...noneHidden });
+      expect(mockApi.get).toHaveBeenCalledWith('/timeline/months', { year: 2024, ...noneHidden }, expect.anything());
     });
 
     it('should pass date_from and date_to when provided', async () => {
@@ -59,7 +59,7 @@ describe('TimelineMonthsComponent', () => {
         ...noneHidden,
         date_from: '2024-01-01',
         date_to: '2024-12-31',
-      });
+      }, expect.anything());
     });
 
     it('should populate months signal', async () => {
@@ -96,13 +96,13 @@ describe('TimelineMonthsComponent', () => {
       // componentRef.setInput() through — stand it up by hand instead.
       component.year = () => '2024';
       TestBed.flushEffects();
-      expect(mockApi.get).toHaveBeenCalledWith('/timeline/months', { year: 2024, ...noneHidden });
+      expect(mockApi.get).toHaveBeenCalledWith('/timeline/months', { year: 2024, ...noneHidden }, expect.anything());
       mockApi.get.mockClear();
 
       mockStore.viewFilterParams.set({ ...noneHidden, hide_panoramas: '1' });
       TestBed.flushEffects();
 
-      expect(mockApi.get).toHaveBeenCalledWith('/timeline/months', { year: 2024, ...noneHidden, hide_panoramas: '1' });
+      expect(mockApi.get).toHaveBeenCalledWith('/timeline/months', { year: 2024, ...noneHidden, hide_panoramas: '1' }, expect.anything());
     });
   });
 });

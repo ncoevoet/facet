@@ -6,6 +6,7 @@ import { TimelineDensityComponent } from './timeline-density.component';
 import { TimelineYearsComponent } from './timeline-years.component';
 import { TimelineFiltersService } from './timeline-filters.service';
 import { densityBuckets, densityRange, timelineWindow, type DensityResponse } from './timeline-density.util';
+import { HANDLE_SERVER_ERROR_LOCALLY } from '../../core/utils/http-error-context';
 import { ApiService } from '../../core/services/api.service';
 import { AuthService } from '../../core/services/auth.service';
 import { I18nService } from '../../core/services/i18n.service';
@@ -100,7 +101,8 @@ describe('Timeline date density', () => {
 
   it('fetches only when expanded and applies the exact selected range without changing filters while drafting', async () => {
     const v = await render(); expect(v.api.get).not.toHaveBeenCalled(); await v.open();
-    expect(v.api.get).toHaveBeenCalledExactlyOnceWith('/timeline/years', expect.objectContaining({ hide_bursts: '1' }));
+    expect(v.api.get).toHaveBeenCalledExactlyOnceWith('/timeline/years', expect.objectContaining({ hide_bursts: '1' }), expect.anything());
+    expect(v.api.get.mock.calls[0][2].get(HANDLE_SERVER_ERROR_LOCALLY)).toBe(true);
     expect(v.bars()).toHaveLength(3); v.bars()[0].click(); v.bars()[2].click(); await v.settle();
     expect(v.filters.dateFrom()).toBe(''); expect(v.filters.dateTo()).toBe('');
     expect(v.root.textContent).toContain('01/01/2019 – 31/12/2021');
@@ -122,7 +124,7 @@ describe('Timeline date density', () => {
   it('shows zero-count days and leap day in the selected month', async () => {
     const v = await render(); v.fixture.componentRef.setInput('year', '2024'); v.fixture.componentRef.setInput('month', '2');
     v.api.get.mockReturnValueOnce(of({ dates: [{ date: '2024-02-28', count: 3 }] })); await v.open();
-    expect(v.api.get).toHaveBeenLastCalledWith('/timeline/dates', expect.objectContaining({ year: 2024, month: 2 }));
+    expect(v.api.get).toHaveBeenLastCalledWith('/timeline/dates', expect.objectContaining({ year: 2024, month: 2 }), expect.anything());
     expect(v.bars()).toHaveLength(29); expect(v.bars()[28].getAttribute('aria-label')).toContain('"period":"2024-02-29","count":0');
     v.bars()[28].click(); await v.settle(); v.button('timeline.apply_range').click(); await v.settle();
     expect(v.filters.dateFrom()).toBe('2024-02-29'); expect(v.filters.dateTo()).toBe('2024-02-29'); v.fixture.destroy();
@@ -134,7 +136,7 @@ describe('Timeline date density', () => {
     v.api.get.mockReturnValue(of({ dates: [{ date: '2021-01-01', count: 1 }, { date: '2021-01-03', count: 3 }, { date: '2021-01-04', count: 4 }] }));
     const select = v.root.querySelector<HTMLSelectElement>('[data-density-unit]')!;
     select.value = 'week'; select.dispatchEvent(new Event('change')); await v.settle();
-    expect(v.api.get).toHaveBeenLastCalledWith('/timeline/dates', expect.objectContaining({ year: 2021 }));
+    expect(v.api.get).toHaveBeenLastCalledWith('/timeline/dates', expect.objectContaining({ year: 2021 }), expect.anything());
     expect(v.bars()).toHaveLength(53);
     expect(v.bars()[0].textContent).toContain('2020-W53');
     expect(v.bars()[0].getAttribute('aria-label')).toContain('"period":"01/01/2021 – 03/01/2021","count":4');

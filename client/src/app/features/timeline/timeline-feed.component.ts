@@ -16,6 +16,7 @@ import { GalleryStore } from '../gallery/gallery.store';
 import { TimelineFeedCache, type TimelineGroup, type TimelinePage } from './timeline-feed-cache.service';
 import type { Photo } from '../../shared/models/photo.model';
 import { timelineWindow } from './timeline-density.util';
+import { timelineReadContext } from './timeline-read-context';
 
 @Component({
   selector: 'app-timeline-feed',
@@ -24,8 +25,8 @@ import { timelineWindow } from './timeline-density.util';
   host: { class: 'block min-w-0' },
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
-    <div class="flex items-center justify-between gap-2 py-0">
-      <label class="flex min-h-11 min-w-0 flex-1 items-center gap-2 text-sm">
+    <div class="flex flex-wrap items-center justify-between gap-2 py-0">
+      <label class="flex min-h-11 min-w-40 flex-1 items-center gap-2 text-sm">
         <mat-icon aria-hidden="true">calendar_month</mat-icon>
         <span class="sr-only">{{ I18N.timeline.jump_month | translate }}</span>
         <input type="month" class="w-full min-w-0 max-w-44 rounded border border-[var(--mat-sys-outline)] bg-[var(--mat-sys-surface)] px-2 py-1"
@@ -37,7 +38,7 @@ import { timelineWindow } from './timeline-density.util';
       </button>
     </div>
     @for (group of groups(); track group.date) {
-      <section class="mb-6" [attr.aria-label]="group.date">
+      <section class="mb-6" [attr.data-timeline-date]="group.date" [attr.aria-label]="group.date | captureDate">
         <header class="flex min-h-11 flex-wrap items-baseline justify-between gap-x-3 gap-y-1 py-0">
           <h2 class="m-0 text-base font-semibold tabular-nums">{{ group.date | captureDate }}</h2>
           <a mat-button routerLink="/" [queryParams]="group.date | timelineDayQuery:visibility()">
@@ -173,18 +174,23 @@ export class TimelineFeedComponent {
     this.manualLoading.set(!!button);
     const generation = ++this.generation;
     this.loading.set(true); this.error.set(false);
-    this.request = this.api.get<TimelinePage>('/timeline', { ...context.params, cursor: this.nextCursor() ?? '' }).subscribe({
+    this.request = this.api.get<TimelinePage>('/timeline', { ...context.params, cursor: this.nextCursor() ?? '' }, timelineReadContext()).subscribe({
       next: page => {
         if (!this.current(context, generation)) return;
         const seen = new Set(this.groups().map(group => group.date));
-        this.groups.update(groups => [...groups, ...page.groups.filter(group => !seen.has(group.date))]);
+        const added = page.groups.filter(group => !seen.has(group.date));
+        const firstAddedDate = added.find(group => group.photos.length > 0)?.date;
+        this.groups.update(groups => [...groups, ...added]);
         this.nextCursor.set(page.next_cursor); this.hasMore.set(page.has_more && !!page.next_cursor);
         this.loading.set(false); this.manualLoading.set(false); this.remember();
         if (restoreFocus && this.host.nativeElement.ownerDocument.activeElement === button && (!this.hasMore() || this.groups().length >= 128)) {
           afterNextRender(() => {
             const doc = this.host.nativeElement.ownerDocument;
             if (this.current(context, generation) && (doc.activeElement === doc.body || doc.activeElement === button)) {
-              this.host.nativeElement.querySelector<HTMLElement>('[data-timeline-continue], section:last-of-type .grid a[href]')?.focus();
+              const next = this.host.nativeElement.querySelector<HTMLElement>('[data-timeline-continue]');
+              const firstAdded = [...this.host.nativeElement.querySelectorAll<HTMLElement>('[data-timeline-date]')]
+                .find(section => section.dataset['timelineDate'] === firstAddedDate)?.querySelector<HTMLElement>('.grid a[href]');
+              (next ?? firstAdded ?? this.host.nativeElement.querySelector<HTMLElement>('section:last-of-type header a[href]'))?.focus();
             }
           }, { injector: this.injector });
         }
