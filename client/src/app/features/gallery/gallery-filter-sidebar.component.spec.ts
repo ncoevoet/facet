@@ -1102,10 +1102,10 @@ describe('GalleryFilterSidebarComponent', () => {
       expect((fixture.nativeElement as HTMLElement).querySelector('[data-section="review"]')).toBeTruthy();
     });
 
-    it('lists the decision, then the sets with Rejected last, as menu rows', () => {
+    it('lists the decision, then the sets with Rejected last, then Rating, as menu rows', () => {
       showTab('review');
       const ids = Array.from((fixture.nativeElement as HTMLElement).querySelectorAll('button[data-row][aria-haspopup="menu"]')).map(b => b.getAttribute('data-row'));
-      expect(ids).toEqual(REVIEW_ROWS);
+      expect(ids).toEqual([...REVIEW_ROWS, 'rating']);
     });
 
     it('shows the viewer defaults as the current value of every row, with nothing counted', () => {
@@ -1213,16 +1213,16 @@ describe('GalleryFilterSidebarComponent', () => {
       vi.mocked(TestBed.inject(AuthService).isEdition).mockReturnValue(true);
       showTab('review');
       const section = (fixture.nativeElement as HTMLElement).querySelector('[data-section="review"]') as HTMLElement;
-      const rowTips = fixture.debugElement.queryAll(By.css('button[data-row][aria-haspopup="menu"]')).map(d => d.injector.get(MatTooltip));
+      const rowTips = fixture.debugElement.queryAll(By.css('button[data-row]:not([data-row="rating"])[aria-haspopup="menu"]')).map(d => d.injector.get(MatTooltip));
       expect(rowTips).toHaveLength(7);
       for (const tip of rowTips) {
         expect(tip.message).toMatch(/^gallery\.sidebar\.refine_help\.\w+$/);
         expect(tip.position).toBe('left');
       }
       const ratingTip = fixture.debugElement.query(By.css('button[data-row="rating"]')).injector.get(MatTooltip);
-      expect(ratingTip.message).toBe('gallery.sidebar.review.rating_off');
+      expect(ratingTip.message).toBe('gallery.sidebar.review.rating_help');
       expect(ratingTip.position).toBe('left');
-      const toggles = fixture.debugElement.queryAll(By.css('button[data-toggle]'));
+      const toggles = fixture.debugElement.queryAll(By.css('[data-toggle]'));
       expect(toggles.map(d => d.nativeElement.getAttribute('data-toggle'))).toEqual(['favorites_only', 'is_monochrome', 'manual_faces_need_review']);
       for (const toggle of toggles) {
         const tip = toggle.injector.get(MatTooltip);
@@ -1234,94 +1234,61 @@ describe('GalleryFilterSidebarComponent', () => {
     });
 
     const ratingButton = () => fixture.nativeElement.querySelector('button[data-row="rating"]') as HTMLButtonElement;
-    const ratingBadge = () => (fixture.nativeElement as HTMLElement).querySelector('[data-test="rating-badge"]')?.textContent?.trim();
-    const ratingAria = (count: number, next: number) => `Rating ${count}>${next}`;
+    const ratingValue = () => ratingButton().querySelector('[data-value]')!.textContent!.trim();
 
-    it('shares one row between the rating button and the favorites and monochrome toggles', () => {
+    it('lists the rating row, then the favorites and monochrome checkboxes, each labelled', () => {
       showTab('review');
       const quick = row('quick');
-      expect(quick.getAttribute('role')).toBe('group');
-      expect(Array.from(quick.querySelectorAll('button')).map(b => b.getAttribute('data-row') ?? b.getAttribute('data-toggle')))
+      expect(quick.firstElementChild!.textContent!.trim()).toBe('gallery.sidebar.review.quick');
+      expect(Array.from(quick.querySelectorAll('[data-row], [data-toggle]')).map(e => e.getAttribute('data-row') ?? e.getAttribute('data-toggle')))
         .toEqual(['rating', 'favorites_only', 'is_monochrome']);
-      for (const toggle of Array.from(quick.querySelectorAll('button[data-toggle]'))) expect(toggle.getAttribute('aria-label')).toMatch(/^gallery\.\w+$/);
+      expect(quick.querySelector('[data-toggle="favorites_only"]')!.textContent).toContain('gallery.favorites_only');
+      expect(quick.querySelector('[data-toggle="is_monochrome"]')!.textContent).toContain('gallery.monochrome_only');
     });
 
-    it('shows an empty star and no badge while the rating is off', () => {
+    it('shows an empty star and Any while the rating is off', () => {
       showTab('review');
       expect(ratingButton().querySelector('mat-icon')!.textContent!.trim()).toBe('star_border');
-      expect(ratingBadge()).toBeUndefined();
-      expect(ratingButton().getAttribute('aria-label')).toBe('gallery.sidebar.review.rating_off');
+      expect(ratingValue()).toBe('gallery.sidebar.review.rating_any');
     });
 
-    it('raises the minimum by one per click, and clears it after 5', () => {
-      showTab('review');
-      const steps: [string, string][] = [['', '1'], ['1', '2'], ['2', '3'], ['3', '4'], ['4', '5'], ['5', '']];
-      for (const [from, to] of steps) {
-        toggleFilters({ min_star_rating: from });
-        ratingButton().click();
-        expect(mockStore['updateFilter'], `${from || 'off'} -> ${to || 'off'}`).toHaveBeenLastCalledWith('min_star_rating', to);
-      }
-    });
-
-    it('stops at a max bound from a link instead of setting a minimum above it', () => {
-      showTab('review');
-      toggleFilters({ min_star_rating: '3', max_star_rating: '4' });
-      ratingButton().click();
-      expect(mockStore['updateFilter']).toHaveBeenLastCalledWith('min_star_rating', '4');
-      toggleFilters({ min_star_rating: '4' });
-      expect(ratingButton().getAttribute('aria-label')).toBe('gallery.sidebar.review.rating_last');
-      ratingButton().click();
-      expect(mockStore['updateFilter']).toHaveBeenLastCalledWith('min_star_rating', '');
-    });
-
-    it.each([['2.5', '3'], ['7', ''], ['0', '1']])('steps an odd minimum %s from a link to %s', (from, to) => {
-      showTab('review');
-      toggleFilters({ min_star_rating: from, max_star_rating: '' });
-      ratingButton().click();
-      expect(mockStore['updateFilter']).toHaveBeenLastCalledWith('min_star_rating', to);
-    });
-
-    it('shows a filled star with the minimum as a badge, and says what the next click does', () => {
-      vi.mocked(TestBed.inject(I18nService).t).mockImplementation((k: string, vars?: Record<string, string | number>) =>
-        k.endsWith('review.rating_step') ? ratingAria(Number(vars!['count']), Number(vars!['next'])) : k);
-      showTab('review');
-      toggleFilters({ min_star_rating: '3' });
-      expect(ratingButton().querySelector('mat-icon')!.textContent!.trim()).toBe('star');
-      expect(ratingBadge()).toBe('3');
-      expect(ratingButton().getAttribute('aria-label')).toBe(ratingAria(3, 4));
-      expect(fixture.debugElement.query(By.css('button[data-row="rating"]')).injector.get(MatTooltip).message).toBe(ratingAria(3, 4));
-      expect(fixture.componentInstance.sectionActiveCounts()['gallery.sidebar.ratings']).toBe(1);
-      toggleFilters({ min_star_rating: '5' });
-      expect(ratingBadge()).toBe('5');
-      expect(ratingButton().getAttribute('aria-label')).toBe('gallery.sidebar.review.rating_last');
-    });
-
-    it('keeps the max rating bound visible when a link set it', () => {
+    it.each([
+      ['any', { min_star_rating: '', max_star_rating: '' }],
+      ['3', { min_star_rating: '3', max_star_rating: '' }],
+      ['5', { min_star_rating: '5', max_star_rating: '' }],
+      ['zero', { min_star_rating: '', max_star_rating: '0' }],
+    ] as const)('sets both bounds from the %s menu entry', async (option, bounds) => {
       showTab('review');
       toggleFilters({ min_star_rating: '2', max_star_rating: '4' });
-      expect((fixture.nativeElement as HTMLElement).querySelector('[data-test="rating-max"]')!.textContent!.trim()).toBe('≤ 4');
-      expect(ratingBadge()).toBe('2');
+      await openMenu('rating');
+      expect(menuItems().map(i => i.getAttribute('data-option'))).toEqual(['any', '1', '2', '3', '4', '5', 'zero']);
+      menuItem(option).click();
+      expect(mockStore['updateFilters']).toHaveBeenLastCalledWith(bounds);
     });
 
-    it('shows an explicit zero-star bound as active and clears both bounds instead of creating an impossible range', () => {
+    it('checks the entry matching the bounds, and none for a range a link set', async () => {
       showTab('review');
+      toggleFilters({ min_star_rating: '3', max_star_rating: '' });
+      expect(ratingButton().querySelector('mat-icon')!.textContent!.trim()).toBe('star');
+      expect(ratingValue()).toBe('gallery.sidebar.review.rating_min');
+      expect(fixture.componentInstance.sectionActiveCounts()['gallery.sidebar.ratings']).toBe(1);
+      await openMenu('rating');
+      expect(menuItems().filter(i => i.getAttribute('aria-checked') === 'true').map(i => i.getAttribute('data-option'))).toEqual(['3']);
+      toggleFilters({ min_star_rating: '2', max_star_rating: '4' });
+      expect(ratingValue()).toBe('gallery.sidebar.review.rating_range');
+      expect(menuItems().filter(i => i.getAttribute('aria-checked') === 'true')).toHaveLength(0);
       toggleFilters({ min_star_rating: '0', max_star_rating: '0' });
-      expect(ratingBadge()).toBe('0');
-      expect(ratingButton().getAttribute('aria-label')).toBe('gallery.zero_stars_clear');
-      expect((fixture.nativeElement as HTMLElement).querySelector('[data-test="rating-max"]')?.textContent?.trim()).toBe('≤ 0');
-      ratingButton().click();
-      expect(mockStore['updateFilters']).toHaveBeenCalledWith({ min_star_rating: '', max_star_rating: '' });
-      expect(mockStore['updateFilter']).not.toHaveBeenCalled();
+      expect(ratingValue()).toBe('gallery.zero_stars');
     });
 
-    it('toggles favorites and monochrome as pressed buttons', () => {
+    it('toggles favorites and monochrome as checkboxes', () => {
       showTab('review');
-      const fav = fixture.nativeElement.querySelector('[data-toggle="favorites_only"]') as HTMLButtonElement;
-      expect(fav.getAttribute('aria-pressed')).toBe('false');
+      const fav = fixture.nativeElement.querySelector('[data-toggle="favorites_only"] input') as HTMLInputElement;
+      expect(fav.checked).toBe(false);
       fav.click();
       expect(mockStore['updateFilter']).toHaveBeenLastCalledWith('favorites_only', true);
       toggleFilters({ favorites_only: true });
-      expect(fav.getAttribute('aria-pressed')).toBe('true');
+      expect(fav.checked).toBe(true);
       fav.click();
       expect(mockStore['updateFilter']).toHaveBeenLastCalledWith('favorites_only', false);
     });

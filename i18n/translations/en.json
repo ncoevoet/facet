@@ -1407,10 +1407,11 @@
           "rejected_only": "Show only the photos you rejected."
         },
         "quick": "Quick filters",
-        "rating_off": "Rating: any, click for 1 or more stars",
-        "rating_step": "Rating: {count}★ or more, click for {next}★",
-        "rating_last": "Rating: {count}★ or more, click to clear",
-        "rejected_locked": "Not available while a decision is selected above"
+        "rejected_locked": "Not available while a decision is selected above",
+        "rating_any": "Any",
+        "rating_min": "{count}★ and up",
+        "rating_range": "{min}–{max}★",
+        "rating_help": "Show only photos with this star rating"
       },
       "metric_help": {
         "score_range": "Overall score: the weighted aggregate of all metrics for the photo's category (0–10).",

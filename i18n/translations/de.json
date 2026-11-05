@@ -1376,10 +1376,11 @@
           "rejected_only": "Zeigt nur die von Ihnen abgelehnten Fotos."
         },
         "quick": "Schnellfilter",
-        "rating_off": "Bewertung: beliebig, Klick für mindestens 1 Stern",
-        "rating_step": "Bewertung: mindestens {count} ★, Klick für {next} ★",
-        "rating_last": "Bewertung: mindestens {count} ★, Klick zum Zurücksetzen",
-        "rejected_locked": "Nicht verfügbar, solange oben eine Entscheidung gewählt ist"
+        "rejected_locked": "Nicht verfügbar, solange oben eine Entscheidung gewählt ist",
+        "rating_any": "Alle",
+        "rating_min": "{count}★ und mehr",
+        "rating_range": "{min}–{max}★",
+        "rating_help": "Nur Fotos mit dieser Sternebewertung anzeigen"
       },
       "metric_help": {
         "score_range": "Gesamtwert: das gewichtete Aggregat aller Messwerte für die Kategorie des Fotos (0–10).",

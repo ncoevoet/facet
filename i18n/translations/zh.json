@@ -1376,10 +1376,11 @@
           "rejected_only": "只显示你已拒绝的照片。"
         },
         "quick": "快速筛选",
-        "rating_off": "评分：不限，点击设为 1 星或以上",
-        "rating_step": "评分：{count} 星或以上，点击设为 {next} 星",
-        "rating_last": "评分：{count} 星或以上，点击清除",
-        "rejected_locked": "上方已选择决定时不可用"
+        "rejected_locked": "上方已选择决定时不可用",
+        "rating_any": "全部",
+        "rating_min": "{count}★ 及以上",
+        "rating_range": "{min}–{max}★",
+        "rating_help": "仅显示具有此星级的照片"
       },
       "metric_help": {
         "score_range": "总分：照片所属类别下所有指标的加权汇总（0–10）。",

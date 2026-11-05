@@ -54,6 +54,8 @@ export class ControlPopoverComponent {
   readonly open = signal(false);
   readonly opened = output<void>();
   readonly closed = output<void>();
+  /** Stay open when a navigation only rewrites the query string, e.g. a filter this popover changed. */
+  readonly keepOnQueryChange = input(false);
   protected onDetached(): void {
     this.open.set(false);
     this.closed.emit();
@@ -63,8 +65,11 @@ export class ControlPopoverComponent {
     if (this.open()) this.opened.emit();
   }
   constructor() {
-    inject(Router, { optional: true })?.events.pipe(takeUntilDestroyed()).subscribe(event => {
-      if (event instanceof NavigationStart) this.open.set(false);
+    const router = inject(Router, { optional: true });
+    router?.events.pipe(takeUntilDestroyed()).subscribe(event => {
+      if (!(event instanceof NavigationStart)) return;
+      if (this.keepOnQueryChange() && event.url.split(/[?#]/)[0] === router.url.split(/[?#]/)[0]) return;
+      this.open.set(false);
     });
   }
   protected readonly panelId = `facet-control-popover-${++nextPopover}`;

@@ -325,13 +325,13 @@ const SET_KIND_TOGGLE: Record<string, keyof HiddenFilterFlags> = {
             }
             <ng-container [ngTemplateOutlet]="collectionViewControls.filterControls()" />
             <span aria-hidden="true" class="mx-1 h-5 border-l border-[var(--mat-sys-outline-variant)]"></span>
-            <app-control-popover data-collection-review #collectionReview icon="rule" [disclosure]="true" [hint]="auth.isEdition() ? (I18N.gallery.review_controls_hint | translate) : ''"
+            <app-control-popover data-collection-review #collectionReview [keepOnQueryChange]="true" icon="rule" [disclosure]="true" [hint]="auth.isEdition() ? (I18N.gallery.review_controls_hint | translate) : ''"
                 [label]="I18N.gallery.sidebar.tabs.review | translate" [content]="reviewSettings" (opened)="onCollectionReviewOpened()" (closed)="onCollectionReviewClosed()" />
             <ng-template #reviewSettings>
               <ng-container [ngTemplateOutlet]="collectionReviewCommands" />
               <ng-container [ngTemplateOutlet]="collectionSettings.reviewSettings()" />
             </ng-template>
-            <app-control-popover data-collection-options icon="tune" [disclosure]="true" [hint]="pinned() ? '' : (I18N.gallery.display_controls_hint | translate)"
+            <app-control-popover data-collection-options [keepOnQueryChange]="true" icon="tune" [disclosure]="true" [hint]="pinned() ? '' : (I18N.gallery.display_controls_hint | translate)"
                 [label]="I18N.gallery.sidebar.tabs.display | translate" [content]="displaySettings" />
             </div>
             <ng-template #displaySettings>
@@ -1908,7 +1908,8 @@ export class GalleryComponent implements OnInit, OnDestroy {
 
     // Capture before the outlet detaches the DOM and loses scroll and focus.
     this.router.events.pipe(filter(e => e instanceof NavigationStart), takeUntilDestroyed()).subscribe(event => {
-      this.closeCollectionPopovers();
+      // A filter change only rewrites the query string: keep the popover that made it open.
+      if (event.url.split(/[?#]/)[0] !== this.router.url.split(/[?#]/)[0]) this.closeCollectionPopovers();
       for (const disclosure of this.selectionDisclosures()) disclosure.nativeElement.open = false;
       if (!this.router.currentNavigation?.()?.extras?.state?.[REVIEW_RESUME_NAVIGATION]) this.resumeNavigation++;
       if (this.parked) return;

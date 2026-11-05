@@ -533,6 +533,20 @@ describe('GalleryComponent', () => {
     fixture.destroy();
   });
 
+  it('keeps Review open while its filters rewrite the query string', () => {
+    const fixture = TestBed.createComponent(GalleryComponent);
+    fixture.detectChanges();
+    const trigger = (fixture.nativeElement as HTMLElement).querySelector<HTMLButtonElement>('[data-collection-review] button')!;
+    const events = TestBed.inject(Router).events as Subject<RouterEvent>;
+    expect(TestBed.inject(Router).url.split('?')[0]).toBe('/');
+    trigger.click(); fixture.detectChanges();
+    events.next(new NavigationStart(91, '/?favorites_only=true')); fixture.detectChanges();
+    expect(trigger.getAttribute('aria-expanded')).toBe('true');
+    events.next(new NavigationStart(92, '/albums')); fixture.detectChanges();
+    expect(trigger.getAttribute('aria-expanded')).toBe('false');
+    fixture.destroy();
+  });
+
   it('switches layout in Display without changing filters or batch selection', () => {
     mockStore.selectedPaths.set(new Set(['/selected.jpg']));
     const filters = mockStore.filters();

@@ -1376,10 +1376,11 @@
           "rejected_only": "Affiche seulement les photos que vous avez rejetées."
         },
         "quick": "Filtres rapides",
-        "rating_off": "Note : toutes, cliquez pour 1 étoile ou plus",
-        "rating_step": "Note : {count} ★ ou plus, cliquez pour {next} ★",
-        "rating_last": "Note : {count} ★ ou plus, cliquez pour effacer",
-        "rejected_locked": "Indisponible tant qu'une décision est sélectionnée ci-dessus"
+        "rejected_locked": "Indisponible tant qu'une décision est sélectionnée ci-dessus",
+        "rating_any": "Toutes",
+        "rating_min": "{count}★ et plus",
+        "rating_range": "{min}–{max}★",
+        "rating_help": "N’afficher que les photos ayant cette note"
       },
       "metric_help": {
         "score_range": "Score global : l'agrégat pondéré de toutes les mesures pour la catégorie de la photo (0–10).",

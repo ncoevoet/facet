@@ -38,7 +38,7 @@ import { I18nService } from '../../core/services/i18n.service';
 import { SaveSmartAlbumDialogComponent } from '../albums/save-smart-album-dialog.component';
 import { CardActionsDialogComponent } from './card-actions-dialog.component';
 import { folderDisplayName } from '../folders/folders.util';
-import { i18nKeys } from '../../core/i18n/keys';
+import { I18N, i18nKeys } from '../../core/i18n/keys';
 import { isUnavailableKey, unavailableSet } from '../../shared/utils/unavailable-metrics';
 import { MetricSparklineComponent } from '../../shared/components/metric-sparkline/metric-sparkline.component';
 import { TagGroupsComponent } from './tag-groups.component';
@@ -214,6 +214,8 @@ export function loadActiveTab(): SidebarTabId {
   const raw = readStored(SIDEBAR_TAB_KEY);
   return TAB_IDS.find(id => id === raw) ?? DEFAULT_TAB;
 }
+
+type RatingOption = 'any' | '1' | '2' | '3' | '4' | '5' | 'zero';
 
 @Component({
   selector: 'app-gallery-filter-sidebar',
@@ -927,41 +929,33 @@ export function loadActiveTab(): SidebarTabId {
           }
         </div>
 
-        <div class="flex items-center gap-2 mt-1" role="group" [attr.aria-label]="I18N.gallery.sidebar.review.quick | translate" data-row="quick">
+        <div class="flex flex-col" data-row="quick">
+          <span class="text-xs uppercase opacity-60 mt-2 mb-1 px-2" data-test="quick-title">{{ I18N.gallery.sidebar.review.quick | translate }}</span>
           @if (!pinnedIds().has('star_rating_range')) {
-          <span class="relative inline-flex">
-            <button #reviewRating type="button" mat-stroked-button class="!min-w-0 !w-10 !h-8 !px-0" data-row="rating"
-              [class.!bg-[var(--mat-sys-primary-container)]]="ratingMin() > 0 || zeroStars()"
-              [attr.aria-label]="ratingKey() | translate:ratingVars()"
-              [appHelpTip]="ratingKey() | translate:ratingVars()"
-              (click)="cycleRating()">
-              <mat-icon class="!text-xl !w-5 !h-5 !leading-5 !m-0">{{ ratingMin() > 0 ? 'star' : 'star_border' }}</mat-icon>
+            <button #reviewRating type="button" matRipple class="flex w-full min-h-10 items-center gap-3 rounded-md px-2 py-1 text-left hover:bg-[var(--mat-sys-surface-container-high)] focus-visible:outline-2 focus-visible:outline-[var(--mat-sys-primary)]"
+              data-row="rating" aria-haspopup="menu" [matMenuTriggerFor]="ratingMenu"
+              [attr.aria-label]="I18N.gallery.sidebar.review.value_aria | translate:{ label: (I18N.gallery.star_rating_range | translate), value: (ratingValue().key | translate:ratingValue().vars) }"
+              [appHelpTip]="I18N.gallery.sidebar.review.rating_help | translate">
+              <mat-icon class="!text-xl !w-5 !h-5 !leading-5 shrink-0 opacity-80">{{ ratingOption() === 'any' ? 'star_border' : 'star' }}</mat-icon>
+              <span class="flex-1 min-w-0 text-sm break-words">{{ I18N.gallery.star_rating_range | translate }}</span>
+              <span class="shrink-0 text-xs opacity-70" data-value>{{ ratingValue().key | translate:ratingValue().vars }}</span>
+              <mat-icon class="!text-xl !w-5 !h-5 !leading-5 shrink-0 opacity-70">expand_more</mat-icon>
             </button>
-            @if (ratingMin() > 0 || zeroStars()) {
-              <span aria-hidden="true" data-test="rating-badge" class="pointer-events-none absolute -top-1.5 -right-1.5 text-[0.625rem] rounded-full min-w-[1rem] h-4 px-1 flex items-center justify-center bg-[var(--mat-sys-primary)] text-[var(--mat-sys-on-primary)] leading-none">{{ ratingMin() }}</span>
-            }
-          </span>
-          <span class="sr-only" aria-live="polite" data-test="rating-status">{{ ratingKey() | translate:ratingVars() }}</span>
-          @if (ratingMaxLabel()) {
-            <span class="text-xs opacity-70" data-test="rating-max">{{ ratingMaxLabel() }}</span>
+            <mat-menu #ratingMenu="matMenu">
+              @for (option of ratingOptions; track option.id) {
+                <button type="button" mat-menu-item role="menuitemradio" [attr.data-option]="option.id"
+                  [attr.aria-checked]="ratingOption() === option.id" (click)="setRating(option.id)">
+                  <mat-icon [class.invisible]="ratingOption() !== option.id">check</mat-icon>{{ option.key | translate:option.vars }}
+                </button>
+              }
+            </mat-menu>
           }
-          }
-          <button type="button" mat-stroked-button class="!min-w-0 !w-10 !h-8 !px-0" data-toggle="favorites_only"
-            [class.!bg-[var(--mat-sys-primary-container)]]="store.filters().favorites_only"
-            [attr.aria-pressed]="store.filters().favorites_only"
-            [attr.aria-label]="I18N.gallery.favorites_only | translate"
+          <mat-checkbox data-toggle="favorites_only" [checked]="store.filters().favorites_only"
             [appHelpTip]="I18N.gallery.sidebar.refine_help.favorites_only | translate"
-            (click)="store.updateFilter('favorites_only', !store.filters().favorites_only)">
-            <mat-icon class="!text-xl !w-5 !h-5 !leading-5 !m-0">favorite</mat-icon>
-          </button>
-          <button type="button" mat-stroked-button class="!min-w-0 !w-10 !h-8 !px-0" data-toggle="is_monochrome"
-            [class.!bg-[var(--mat-sys-primary-container)]]="store.filters().is_monochrome"
-            [attr.aria-pressed]="store.filters().is_monochrome"
-            [attr.aria-label]="I18N.gallery.monochrome_only | translate"
+            (change)="store.updateFilter('favorites_only', $event.checked)">{{ I18N.gallery.favorites_only | translate }}</mat-checkbox>
+          <mat-checkbox data-toggle="is_monochrome" [checked]="store.filters().is_monochrome"
             [appHelpTip]="I18N.gallery.sidebar.refine_help.monochrome_only | translate"
-            (click)="store.updateFilter('is_monochrome', !store.filters().is_monochrome)">
-            <mat-icon class="!text-xl !w-5 !h-5 !leading-5 !m-0">contrast</mat-icon>
-          </button>
+            (change)="store.updateFilter('is_monochrome', $event.checked)">{{ I18N.gallery.monochrome_only | translate }}</mat-checkbox>
         </div>
 
         <!-- A correction is invisible in the labels until the detector runs
@@ -1273,26 +1267,26 @@ export class GalleryFilterSidebarComponent {
 
   readonly qualityAdvancedGroups = computed(() => this.advancedFilterGroups().filter(g => TAB_SECTIONS.quality.includes(g.sectionKey)));
   readonly subjectGroups = computed(() => this.advancedFilterGroups().filter(g => TAB_SECTIONS.subject.includes(g.sectionKey)));
-  readonly ratingMin = computed(() => Number(this.store.filters().min_star_rating) || 0);
   readonly zeroStars = computed(() => hasZeroStarFilter(this.store.filters()));
-  private readonly ratingMax = computed(() => Number(this.store.filters().max_star_rating) || 0);
-  /** The minimum the next click sets: one more star, and nothing (off) after 5 or after a max bound. */
-  private readonly ratingNext = computed(() => {
-    const next = Math.floor(this.ratingMin()) + 1;
-    if (next > 5 || (this.store.filters().max_star_rating !== '' && next > this.ratingMax())) return 0;
-    return next;
+  protected readonly ratingOptions: { id: RatingOption; key: string; vars: Record<string, number> }[] = [
+    { id: 'any', key: I18N.gallery.sidebar.review.rating_any, vars: {} },
+    ...[1, 2, 3, 4, 5].map(count => ({ id: String(count) as RatingOption, key: I18N.gallery.sidebar.review.rating_min, vars: { count } })),
+    { id: 'zero', key: I18N.gallery.zero_stars, vars: {} },
+  ];
+  /** The menu entry matching the current bounds; `custom` for a min/max pair a link or smart album set. */
+  readonly ratingOption = computed((): RatingOption | 'custom' => {
+    const { min_star_rating: min, max_star_rating: max } = this.store.filters();
+    if (this.zeroStars()) return 'zero';
+    if (min === '' && max === '') return 'any';
+    if (max === '' && ['1', '2', '3', '4', '5'].includes(min)) return min as RatingOption;
+    return 'custom';
   });
-  /** "≤ 4" when a max bound came in from a link or smart album (the button only sets the min). */
-  readonly ratingMaxLabel = computed(() => this.store.filters().max_star_rating !== '' ? `≤ ${this.ratingMax()}` : '');
-  /** The sentence for the button's tooltip and accessible name: the current state, and what a click does. */
-  readonly ratingKey = computed(() => {
-    const rv = this.I18N.gallery.sidebar.review;
-    if (this.zeroStars()) return this.I18N.gallery.zero_stars_clear;
-    if (this.ratingMin() === 0) return rv.rating_off;
-    if (this.ratingNext() === 0) return rv.rating_last;
-    return rv.rating_step;
+  readonly ratingValue = computed(() => {
+    const option = this.ratingOption();
+    if (option !== 'custom') return this.ratingOptions.find(({ id }) => id === option)!;
+    const { min_star_rating: min, max_star_rating: max } = this.store.filters();
+    return { id: option, key: this.I18N.gallery.sidebar.review.rating_range, vars: { min: Number(min) || 0, max: max === '' ? 5 : Number(max) } };
   });
-  readonly ratingVars = computed(() => ({ count: this.ratingMin(), next: this.ratingNext() }));
 
   /**
    * The Review tab's menu rows: the decision first, then the sets. A stale "hide"
@@ -1382,14 +1376,12 @@ export class GalleryFilterSidebarComponent {
     else void this.store.updateFilters(SEGMENT_PATCHES[row][value]);
   }
 
-  /** Each click raises the minimum star rating by one; the click after 5 clears it. */
-  cycleRating(): void {
-    if (this.zeroStars()) {
-      void this.store.updateFilters({ min_star_rating: '', max_star_rating: '' });
-      return;
-    }
-    const next = this.ratingNext();
-    void this.store.updateFilter('min_star_rating', next ? String(next) : '');
+  /** Applies the star-rating bounds of the chosen menu entry. */
+  setRating(option: RatingOption): void {
+    void this.store.updateFilters({
+      min_star_rating: option === 'any' || option === 'zero' ? '' : option,
+      max_star_rating: option === 'zero' ? '0' : '',
+    });
   }
 
   readonly qualityGroups = computed(() => this.commonFilterGroups().filter(g => g.sectionKey === 'gallery.sidebar.quality'));
