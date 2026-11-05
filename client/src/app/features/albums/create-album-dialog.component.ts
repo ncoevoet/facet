@@ -1,5 +1,5 @@
 import { ContextHelpComponent } from '../../shared/components/context-help/context-help.component';
-import { Component, DestroyRef, inject, signal, ChangeDetectionStrategy } from '@angular/core';
+import { Component, DestroyRef, ElementRef, Injector, afterNextRender, inject, signal, viewChild, ChangeDetectionStrategy } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { MatDialogModule, MatDialogRef } from '@angular/material/dialog';
 import { MatFormFieldModule } from '@angular/material/form-field';
@@ -35,11 +35,13 @@ import { AlbumDialogContext } from './album-dialog-context';
         <textarea matInput [(ngModel)]="description" maxlength="500" rows="2"></textarea>
       </mat-form-field>
       <app-context-help [label]="I18N.albums.creation.help" [keys]="helpKeys" />
-      @if (saveFailed()) { <p role="alert">{{ I18N.albums.save_error | translate }}</p> }
+      @if (saveFailed()) {
+        <p #saveError role="alert" tabindex="-1" class="rounded-md bg-[var(--mat-sys-error-container)] p-3 text-[var(--mat-sys-on-error-container)]">{{ I18N.albums.save_error | translate }}</p>
+      }
     </mat-dialog-content>
     <mat-dialog-actions align="end">
-      <button mat-button mat-dialog-close>{{ I18N.ui.buttons.cancel | translate }}</button>
-      <button mat-flat-button [disabled]="!name.trim() || saving()" (click)="save()">
+      <button mat-button mat-dialog-close class="max-sm:!min-h-11">{{ I18N.ui.buttons.cancel | translate }}</button>
+      <button mat-flat-button class="max-sm:!min-h-11" [disabled]="!name.trim() || saving()" (click)="save()">
         {{ saving() ? (I18N.ui.buttons.saving | translate) : (I18N.albums.create | translate) }}
       </button>
     </mat-dialog-actions>
@@ -51,6 +53,8 @@ export class CreateAlbumDialogComponent {
   private albumService = inject(AlbumService);
   private journal = inject(UserActivityJournal);
   private dialogRef = inject(MatDialogRef<CreateAlbumDialogComponent>);
+  private readonly injector = inject(Injector);
+  private readonly errorElement = viewChild<ElementRef<HTMLElement>>('saveError');
   private readonly guard = new AlbumDialogContext(inject(AuthService), inject(Router), inject(DestroyRef));
 
   name = '';
@@ -68,7 +72,11 @@ export class CreateAlbumDialogComponent {
       this.journal.record('album', [], { album_id: album.id, action: 'create', name: activityName(album.name) });
       this.dialogRef.close(album);
     } catch {
-      if (await this.guard.settled()) { this.saving.set(false); this.saveFailed.set(true); }
+      if (await this.guard.settled()) {
+        this.saving.set(false);
+        this.saveFailed.set(true);
+        afterNextRender(() => this.errorElement()?.nativeElement.focus(), { injector: this.injector });
+      }
     }
   }
 }

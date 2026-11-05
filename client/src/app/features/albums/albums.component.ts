@@ -1,4 +1,5 @@
-import { Component, inject, signal, computed, effect, untracked, viewChild, TemplateRef, DestroyRef, ChangeDetectionStrategy } from '@angular/core';
+import { Component, inject, signal, computed, effect, untracked, viewChild, TemplateRef, DestroyRef, ChangeDetectionStrategy, afterNextRender, Injector } from '@angular/core';
+import { DOCUMENT } from '@angular/common';
 import { RouterLink, Router } from '@angular/router';
 import { MatButtonModule } from '@angular/material/button';
 import { MatIconModule } from '@angular/material/icon';
@@ -76,19 +77,19 @@ import { AlbumDialogContext } from './album-dialog-context';
       }
     </ng-template>
 
-    <h1 class="m-0 mb-4 text-lg font-medium text-[var(--mat-sys-on-surface)]">{{ 'albums.title' | translate }}</h1>
-    @if (loading() && albums().length === 0) {
+    <h1 id="albums-heading" tabindex="-1" class="m-0 mb-4 text-lg font-medium text-[var(--mat-sys-on-surface)]">{{ 'albums.title' | translate }}</h1>
+    @if (loading() && !retrying() && albums().length === 0) {
       <div class="flex justify-center py-16">
         <mat-spinner diameter="48" [attr.aria-label]="'ui.labels.loading' | translate" />
       </div>
     }
 
-    @if (loadFailed()) {
-      <div role="alert" class="flex flex-wrap items-center justify-center gap-3 py-6">
+    @if ((loadFailed() || retrying()) && albums().length === 0) {
+      <div role="alert" class="flex flex-wrap items-center justify-center gap-3 rounded-lg bg-[var(--mat-sys-error-container)] text-[var(--mat-sys-on-error-container)] p-4 mb-4">
         <p>{{ I18N.albums.list_load_error | translate }}</p>
-        <button mat-stroked-button data-albums-retry (click)="retryLoad()">{{ I18N.gallery.load_error.retry | translate }}</button>
+        <button mat-stroked-button data-albums-retry [attr.aria-disabled]="retrying()" (click)="retryLoad()">{{ I18N.gallery.load_error.retry | translate }}</button>
       </div>
-    } @else if (albums().length === 0 && !loading()) {
+    } @else if (!loadFailed() && albums().length === 0 && !loading()) {
       <div class="text-center py-16 opacity-60">
         <mat-icon class="!text-5xl !w-12 !h-12 mb-4">photo_library</mat-icon>
         <p>{{ (albumsFilters.search() || albumsFilters.typeFilter() ? I18N.albums.no_matches : I18N.albums.empty) | translate }}</p>
@@ -98,7 +99,7 @@ import { AlbumDialogContext } from './album-dialog-context';
     <div class="grid grid-cols-2 gap-x-4 gap-y-6 sm:grid-cols-3 lg:grid-cols-4 2xl:grid-cols-5">
       @for (album of albums(); track album.id) {
         <article class="min-w-0">
-        <a [routerLink]="['/album', album.id]"
+        <a [routerLink]="['/album', album.id]" [id]="'album-link-' + album.id"
            class="group block min-w-0 rounded-sm overflow-hidden cursor-pointer text-[var(--mat-sys-on-surface)]">
           @if (album.first_photo_path) {
             <div class="relative w-full aspect-[4/3] overflow-hidden">
@@ -121,7 +122,8 @@ import { AlbumDialogContext } from './album-dialog-context';
             @if (album.is_smart) {
               <mat-icon class="!text-base !w-4 !h-4 shrink-0" [class]="'smart' | markTone"
                         [matTooltip]="'albums.smart_tooltip' | translate"
-                        [attr.aria-label]="'albums.smart_tooltip' | translate">✦</mat-icon>
+                        aria-hidden="true">✦</mat-icon>
+              <span class="sr-only">{{ 'albums.smart_tooltip' | translate }}</span>
             }
           </div>
         </a>
@@ -195,6 +197,12 @@ import { AlbumDialogContext } from './album-dialog-context';
       }
     </div>
 
+    @if ((loadFailed() || retrying()) && albums().length > 0) {
+      <div role="alert" class="mt-4 flex flex-wrap items-center justify-center gap-3 rounded-lg bg-[var(--mat-sys-error-container)] p-4 text-[var(--mat-sys-on-error-container)]">
+        <p>{{ I18N.albums.list_load_error | translate }}</p>
+        <button mat-stroked-button data-albums-retry [attr.aria-disabled]="retrying()" (click)="retryLoad()">{{ I18N.gallery.load_error.retry | translate }}</button>
+      </div>
+    }
     <!-- Infinite scroll sentinel -->
     @if (hasMore() && !loadFailed()) {
       <div appInfiniteScroll (scrollReached)="onScrollReached()" class="flex justify-center py-8">
@@ -218,11 +226,14 @@ export class AlbumsComponent {
   private readonly destroyRef = inject(DestroyRef);
   private readonly staleness = inject(StalenessGuardFactory);
   private readonly snack = inject(MatSnackBar);
+  private readonly injector = inject(Injector);
+  private readonly document = inject(DOCUMENT);
 
   protected readonly albums = signal<Album[]>([]);
   protected readonly total = signal(0);
   protected readonly loading = signal(false);
   protected readonly loadFailed = signal(false);
+  protected readonly retrying = signal(false);
   private failedReset = true;
   private generation = 0;
   private page = 1;
@@ -273,10 +284,12 @@ export class AlbumsComponent {
     });
   }
 
-  private async loadAlbums(reset: boolean): Promise<void> {
+  private async loadAlbums(reset: boolean, restoreFocus = false): Promise<void> {
     const generation = ++this.generation;
+    const retryButton = restoreFocus ? this.document.querySelector<HTMLButtonElement>('[data-albums-retry]') : null;
+    this.retrying.set(restoreFocus);
     const guard = this.staleness.create(this.destroyRef, { requireEdition: false, onNavigate: () => {
-      if (generation === this.generation) { this.failedReset = reset; this.loading.set(false); this.loadFailed.set(true); }
+      if (generation === this.generation) { this.failedReset = reset; this.loading.set(false); this.loadFailed.set(true); this.retrying.set(false); }
     } });
     if (reset) {
       this.page = 1;
@@ -303,17 +316,25 @@ export class AlbumsComponent {
       }
       this.total.set(res.total);
       this.page = requestedPage;
+      if (restoreFocus && this.document.activeElement === retryButton) {
+        const target = res.albums[0]?.id;
+        afterNextRender(() => {
+          if (generation === this.generation && (this.document.activeElement === this.document.body || this.document.activeElement === retryButton))
+            this.document.getElementById(target === undefined ? 'albums-heading' : `album-link-${target}`)?.focus();
+        }, { injector: this.injector });
+      }
     } catch {
       if (generation !== this.generation || !guard.current()) return;
       this.failedReset = reset;
       this.loadFailed.set(true);
+
     } finally {
-      if (generation === this.generation && guard.current()) this.loading.set(false);
+      if (generation === this.generation && guard.current()) { this.loading.set(false); this.retrying.set(false); }
       guard.dispose();
     }
   }
 
-  protected retryLoad(): void { if (!this.loading()) void this.loadAlbums(this.failedReset); }
+  protected retryLoad(): void { if (!this.loading()) void this.loadAlbums(this.failedReset, true); }
 
   protected onScrollReached(): void {
     if (this.hasMore() && !this.loading() && !this.loadFailed()) {

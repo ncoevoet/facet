@@ -4,7 +4,7 @@ import type { Mock } from 'vitest';
 import { TestBed } from '@angular/core/testing';
 import { MAT_DIALOG_DATA, MatDialogRef } from '@angular/material/dialog';
 import { MatSnackBar } from '@angular/material/snack-bar';
-import { of, throwError } from 'rxjs';
+import { of, Subject, throwError } from 'rxjs';
 import { ApiService } from '../../core/services/api.service';
 import { I18nService } from '../../core/services/i18n.service';
 import { ClientPicksDialogComponent, ClientPicksDialogData } from './client-picks-dialog.component';
@@ -13,7 +13,7 @@ describe('ClientPicksDialogComponent', () => {
 
   let component: any;
   let mockApi: { get: Mock };
-  let mockI18n: { t: Mock };
+  let mockI18n: { t: Mock; translations: Mock };
   let mockSnackBar: { open: Mock };
 
   const data: ClientPicksDialogData = { albumId: 7, albumName: 'Wedding' };
@@ -29,7 +29,7 @@ describe('ClientPicksDialogComponent', () => {
         count: 3,
       }))),
     };
-    mockI18n = { t: vi.fn((k: string) => k) };
+    mockI18n = { t: vi.fn((k: string) => k), translations: vi.fn(() => ({})) };
     mockSnackBar = { open: vi.fn() };
 
     TestBed.resetTestingModule();
@@ -77,6 +77,24 @@ describe('ClientPicksDialogComponent', () => {
     await component.load();
     expect(component.loadFailed()).toBe(false);
     expect(component.picks()[0].filename).toBe('p.jpg');
+  });
+
+  it.each([true, false])('preserves intentional focus while retrying picks (move=%s)', async move => {
+    createComponent(() => throwError(() => new Error('offline')));
+    const fixture = TestBed.createComponent(ClientPicksDialogComponent);
+    document.body.appendChild(fixture.nativeElement);
+    fixture.detectChanges();
+    await vi.waitFor(() => { fixture.detectChanges(); expect(fixture.nativeElement.querySelector('[role=alert]')).not.toBeNull(); });
+    const pending = new Subject<any>();
+    mockApi.get.mockReturnValueOnce(pending);
+    const retry = fixture.nativeElement.querySelector('[role=alert] button') as HTMLButtonElement;
+    retry.focus(); retry.click(); fixture.detectChanges();
+    const back = fixture.nativeElement.querySelector('mat-dialog-actions button:last-child') as HTMLButtonElement;
+    if (move) back.focus();
+    pending.next({ picks: [{ path: '/a.jpg', picked: true }], count: 1 });
+    await fixture.whenStable(); fixture.detectChanges(); await fixture.whenStable();
+    await vi.waitFor(() => expect(document.activeElement).toBe(move ? back : fixture.nativeElement.querySelector('h2')));
+    fixture.destroy(); fixture.nativeElement.remove();
   });
 
   it('copyFilenames copies picked basenames newline-joined then shows a snackbar', async () => {

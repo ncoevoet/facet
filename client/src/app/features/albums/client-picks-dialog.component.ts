@@ -1,4 +1,5 @@
-import { Component, DestroyRef, inject, signal, computed, effect, OnInit, ChangeDetectionStrategy } from '@angular/core';
+import { Component, DestroyRef, ElementRef, Injector, afterNextRender, inject, signal, computed, effect, viewChild, OnInit, ChangeDetectionStrategy } from '@angular/core';
+import { DOCUMENT } from '@angular/common';
 import { MAT_DIALOG_DATA, MatDialogModule, MatDialogRef } from '@angular/material/dialog';
 import { MatButtonModule } from '@angular/material/button';
 import { MatIconModule } from '@angular/material/icon';
@@ -43,16 +44,16 @@ interface ClientPicksResponse {
   ],
   changeDetection: ChangeDetectionStrategy.Eager,
   template: `
-    <h2 mat-dialog-title class="truncate">{{ I18N.proofing.client_picks | translate }} — {{ data.albumName }}</h2>
+    <h2 #heading tabindex="-1" mat-dialog-title class="truncate">{{ I18N.proofing.client_picks | translate }} — {{ data.albumName }}</h2>
     <mat-dialog-content>
-      @if (loading()) {
+      @if (loading() && !retrying()) {
         <div class="flex justify-center py-8">
           <mat-spinner diameter="36" [attr.aria-label]="I18N.ui.labels.loading | translate" />
         </div>
-      } @else if (loadFailed()) {
+      } @else if (loadFailed() || retrying()) {
         <div role="alert" class="py-4">
           <p>{{ I18N.proofing.load_error | translate }}</p>
-          <button mat-button (click)="load()">{{ I18N.gallery.load_error.retry | translate }}</button>
+          <button #retryButton mat-button class="max-sm:!min-h-11" [attr.aria-disabled]="retrying()" (click)="load(true)">{{ I18N.gallery.load_error.retry | translate }}</button>
         </div>
       } @else if (picks().length === 0) {
         <p class="opacity-60 py-4">{{ I18N.proofing.no_picks | translate }}</p>
@@ -83,12 +84,12 @@ interface ClientPicksResponse {
     </mat-dialog-content>
     <mat-dialog-actions align="end">
       @if (pickedCount()) {
-        <button mat-button (click)="copyFilenames()">
+        <button mat-button class="max-sm:!min-h-11" (click)="copyFilenames()">
           <mat-icon>content_copy</mat-icon>
           {{ I18N.gallery.selection.copy_filenames | translate }}
         </button>
       }
-      <button mat-flat-button mat-dialog-close>{{ I18N.ui.buttons.back | translate }}</button>
+      <button mat-flat-button mat-dialog-close class="max-sm:!min-h-11">{{ I18N.ui.buttons.back | translate }}</button>
     </mat-dialog-actions>
   `,
 })
@@ -98,6 +99,10 @@ export class ClientPicksDialogComponent implements OnInit {
   private readonly api = inject(ApiService);
   private readonly i18n = inject(I18nService);
   private readonly snackBar = inject(MatSnackBar);
+  private readonly injector = inject(Injector);
+  private readonly document = inject(DOCUMENT);
+  private readonly heading = viewChild<ElementRef<HTMLElement>>('heading');
+  private readonly retryButton = viewChild('retryButton', { read: ElementRef<HTMLButtonElement> });
   private readonly auth = inject(AuthService);
   private readonly openingOwner = this.auth.identity();
   private readonly dialogRef = inject(MatDialogRef<ClientPicksDialogComponent>);
@@ -105,6 +110,7 @@ export class ClientPicksDialogComponent implements OnInit {
 
   protected readonly loading = signal(true);
   protected readonly loadFailed = signal(false);
+  protected readonly retrying = signal(false);
   protected readonly picks = signal<(ClientPick & { filename: string })[]>([]);
   protected readonly pickedCount = computed(() => this.picks().filter(p => p.picked).length);
 
@@ -122,8 +128,10 @@ export class ClientPicksDialogComponent implements OnInit {
     await this.load();
   }
 
-  protected async load(): Promise<void> {
-    if (!this.guard.canStart()) return;
+  protected async load(isRetry = false): Promise<void> {
+    if (this.loading() && isRetry || !this.guard.canStart()) return;
+    const retryButton = isRetry ? this.retryButton()?.nativeElement : undefined;
+    this.retrying.set(isRetry);
     this.loading.set(true);
     this.loadFailed.set(false);
     try {
@@ -131,14 +139,19 @@ export class ClientPicksDialogComponent implements OnInit {
         this.api.get<ClientPicksResponse>(`/albums/${this.data.albumId}/picks`),
       );
       if (!await this.guard.settled()) return;
+      const shouldRestoreFocus = !!retryButton && this.document.activeElement === retryButton;
       this.picks.set(res.picks.map(pick => ({
         ...pick,
         filename: basename(pick.path),
       })));
+      if (shouldRestoreFocus) afterNextRender(() => {
+        if (this.guard.current() && (this.document.activeElement === this.document.body || this.document.activeElement === retryButton))
+          this.heading()?.nativeElement.focus();
+      }, { injector: this.injector });
     } catch {
       if (await this.guard.settled()) this.loadFailed.set(true);
     } finally {
-      if (await this.guard.settled()) this.loading.set(false);
+      if (await this.guard.settled()) { this.loading.set(false); this.retrying.set(false); }
     }
   }
 

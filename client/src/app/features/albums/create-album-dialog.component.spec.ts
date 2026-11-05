@@ -5,6 +5,7 @@ import { TestBed } from '@angular/core/testing';
 import { MatDialogRef } from '@angular/material/dialog';
 import { of, throwError } from 'rxjs';
 import { AlbumService } from '../../core/services/album.service';
+import { I18nService } from '../../core/services/i18n.service';
 import { UserActivityJournal } from '../../core/agent/user-activity-journal.service';
 import { CreateAlbumDialogComponent } from './create-album-dialog.component';
 
@@ -22,6 +23,7 @@ describe('CreateAlbumDialogComponent', () => {
       providers: [
         provideRouter([]), { provide: AuthService, useValue: { identity: () => 'owner', isEdition: () => true } },
         CreateAlbumDialogComponent,
+        { provide: I18nService, useValue: { t: (key: string) => key, translations: () => ({}) } },
         { provide: AlbumService, useValue: albumService },
         { provide: MatDialogRef, useValue: dialogRef },
         { provide: UserActivityJournal, useValue: journal },
@@ -48,4 +50,19 @@ describe('CreateAlbumDialogComponent', () => {
     expect(component.saveFailed()).toBe(true);
     expect(component.saving()).toBe(false);
   });
+  it('moves focus to the visible error when creating fails', async () => {
+    const fixture = TestBed.createComponent(CreateAlbumDialogComponent);
+    document.body.appendChild(fixture.nativeElement);
+    fixture.componentInstance.name = 'Trip';
+    albumService.create.mockReturnValue(throwError(() => new Error('offline')));
+    fixture.detectChanges();
+    await fixture.componentInstance.save();
+    fixture.detectChanges();
+    await fixture.whenStable();
+    const error = fixture.nativeElement.querySelector('[role="alert"]');
+    expect(error?.textContent).toContain('albums.save_error');
+    await vi.waitFor(() => expect(document.activeElement).toBe(error));
+    fixture.destroy(); fixture.nativeElement.remove();
+  });
+
 });

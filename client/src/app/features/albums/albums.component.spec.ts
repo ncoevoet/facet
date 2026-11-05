@@ -171,6 +171,67 @@ describe('AlbumsComponent', () => {
     fixture.destroy();
   });
 
+  it('places later-page retry after the cards and focuses the new card after retry', async () => {
+    const fixture = TestBed.createComponent(AlbumsComponent);
+    document.body.appendChild(fixture.nativeElement);
+    fixture.detectChanges(); await fixture.whenStable(); fixture.detectChanges();
+    const page = fixture.componentInstance as any;
+    mockAlbumService.list.mockReturnValueOnce(throwError(() => new Error('offline')));
+    await page.loadAlbums(false);
+    fixture.detectChanges();
+    const retry = fixture.nativeElement.querySelector('[data-albums-retry]') as HTMLButtonElement;
+    const cards = fixture.nativeElement.querySelectorAll('article');
+    expect(cards.length).toBe(2);
+    expect(cards[1].compareDocumentPosition(retry) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(fixture.nativeElement.querySelector('#album-link-2 .sr-only')?.textContent).toContain('albums.smart_tooltip');
+    mockAlbumService.list.mockReturnValueOnce(of({ albums: [{ id: 3, name: 'New' }], total: 3 }));
+    retry.focus(); retry.click();
+    await fixture.whenStable(); fixture.detectChanges(); await fixture.whenStable();
+    expect(fixture.nativeElement.querySelector('#album-link-3')).not.toBeNull();
+    await vi.waitFor(() => expect(document.activeElement?.id).toBe('album-link-3'));
+    fixture.destroy(); fixture.nativeElement.remove();
+  });
+
+  it('does not move focus after the user leaves Retry while a page is loading', async () => {
+    const fixture = TestBed.createComponent(AlbumsComponent);
+    document.body.appendChild(fixture.nativeElement);
+    fixture.detectChanges(); await fixture.whenStable(); fixture.detectChanges();
+    const page = fixture.componentInstance as any;
+    mockAlbumService.list.mockReturnValueOnce(throwError(() => new Error('offline')));
+    await page.loadAlbums(false); fixture.detectChanges();
+    const pending = new Subject<any>();
+    mockAlbumService.list.mockReturnValueOnce(pending);
+    const retry = fixture.nativeElement.querySelector('[data-albums-retry]') as HTMLButtonElement;
+    retry.focus(); retry.click(); fixture.detectChanges();
+    const other = fixture.nativeElement.querySelector('#album-link-1') as HTMLElement;
+    other.focus();
+    pending.next({ albums: [{ id: 3, name: 'New' }], total: 3 });
+    await fixture.whenStable(); fixture.detectChanges(); await fixture.whenStable();
+    expect(document.activeElement).toBe(other);
+    fixture.destroy(); fixture.nativeElement.remove();
+  });
+
+  it('keeps focus on Retry when navigation is cancelled during a retry', async () => {
+    const router = TestBed.inject(Router);
+    router.resetConfig([{ path: 'blocked', canActivate: [() => false], children: [] }]);
+    const fixture = TestBed.createComponent(AlbumsComponent);
+    document.body.appendChild(fixture.nativeElement);
+    fixture.detectChanges(); await fixture.whenStable(); fixture.detectChanges();
+    const page = fixture.componentInstance as any;
+    mockAlbumService.list.mockReturnValueOnce(throwError(() => new Error('offline')));
+    await page.loadAlbums(false); fixture.detectChanges();
+    const pending = new Subject<any>();
+    mockAlbumService.list.mockReturnValueOnce(pending);
+    const retry = fixture.nativeElement.querySelector('[data-albums-retry]') as HTMLButtonElement;
+    retry.focus(); retry.click(); fixture.detectChanges();
+    expect(await router.navigateByUrl('/blocked')).toBe(false);
+    fixture.detectChanges();
+    expect(fixture.nativeElement.querySelector('[data-albums-retry]')).toBe(retry);
+    expect(document.activeElement).toBe(retry);
+    pending.next({ albums: [], total: 0 });
+    fixture.destroy(); fixture.nativeElement.remove();
+  });
+
   it('does not delete after the account changes while confirmation is open', async () => {
     const confirmed = new Subject<boolean>();
     mockDialog.open.mockReturnValueOnce({ afterClosed: () => confirmed });

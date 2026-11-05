@@ -2383,7 +2383,7 @@
     "name": "Albumname",
     "description_label": "Beschreibung",
     "add_photos": "Zum Album hinzufügen",
-    "photos_added": "Fotos zum Album hinzugefugt",
+    "photos_added": "Fotos zum Album hinzugefügt",
     "save_smart": "Als intelligentes Album speichern",
     "save_smart_tooltip": "Aktuelle Filter als intelligentes Album speichern, das laufend alle passenden Fotos sammelt",
     "smart_album": "Intelligentes Album",

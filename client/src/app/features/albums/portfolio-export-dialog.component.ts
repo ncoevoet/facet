@@ -51,7 +51,7 @@ export interface PortfolioExportDialogData {
       </mat-checkbox>
     </mat-dialog-content>
     <mat-dialog-actions align="end">
-      <button mat-button mat-dialog-close>{{ I18N.portfolio.cancel | translate }}</button>
+      <button mat-button mat-dialog-close class="max-sm:!min-h-11">{{ I18N.portfolio.cancel | translate }}</button>
       <button mat-flat-button color="primary" [disabled]="busy() || !targetDir()"
               (click)="exportPortfolio()">
         @if (busy()) { <mat-spinner diameter="16" class="!inline-block !align-middle !mr-1" [attr.aria-label]="I18N.ui.labels.loading | translate" /> }

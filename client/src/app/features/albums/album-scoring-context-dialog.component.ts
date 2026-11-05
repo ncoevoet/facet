@@ -82,7 +82,7 @@ const DEFAULT_CONTEXT = 'default';
               <span>
                 {{ 'albums.scoring_context.suggested_hint' | translate:{ context: suggestedLabel(), percent: '' + suggestedPercent(), moment: s.moment } }}
               </span>
-              <button mat-button class="!min-w-0 !px-2" (click)="selectedContext.set(s.suggested!)">
+              <button mat-button class="!min-w-0 !px-2 max-sm:!min-h-11" (click)="selectedContext.set(s.suggested!)">
                 {{ 'albums.scoring_context.apply_suggestion' | translate }}
               </button>
             </div>
@@ -117,8 +117,8 @@ const DEFAULT_CONTEXT = 'default';
                 </p>
               }
               <div class="flex gap-2 justify-end">
-                <button mat-button (click)="close()">{{ 'albums.scoring_context.recompute_skip' | translate }}</button>
-                <button mat-flat-button (click)="recompute()">{{ 'albums.scoring_context.recompute_button' | translate }}</button>
+                <button mat-button class="max-sm:!min-h-11" (click)="close()">{{ 'albums.scoring_context.recompute_skip' | translate }}</button>
+                <button mat-flat-button class="max-sm:!min-h-11" (click)="recompute()">{{ 'albums.scoring_context.recompute_button' | translate }}</button>
               </div>
             }
 
@@ -141,17 +141,17 @@ const DEFAULT_CONTEXT = 'default';
     </mat-dialog-content>
     <mat-dialog-actions align="end">
       @if (phase() === 'select' || phase() === 'saving') {
-        <button mat-button (click)="cancel()">{{ 'ui.buttons.cancel' | translate }}</button>
+        <button mat-button class="max-sm:!min-h-11" (click)="cancel()">{{ 'ui.buttons.cancel' | translate }}</button>
         @if (data.currentContext) {
           <button mat-button [disabled]="loading() || phase() === 'saving'" (click)="clear()">
             {{ 'albums.scoring_context.clear_button' | translate }}
           </button>
         }
-        <button mat-flat-button [disabled]="loading() || phase() === 'saving'" (click)="save()">
+        <button mat-flat-button class="max-sm:!min-h-11" [disabled]="loading() || phase() === 'saving'" (click)="save()">
           {{ phase() === 'saving' ? ('ui.buttons.saving' | translate) : ('ui.buttons.save' | translate) }}
         </button>
       } @else {
-        <button mat-button (click)="close()">{{ 'albums.scoring_context.close' | translate }}</button>
+        <button mat-button class="max-sm:!min-h-11" (click)="close()">{{ 'albums.scoring_context.close' | translate }}</button>
       }
     </mat-dialog-actions>
   `,
