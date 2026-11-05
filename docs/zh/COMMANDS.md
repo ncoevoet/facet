@@ -406,12 +406,13 @@ Facet 会记录每次扫描（状态、模式、目录、计数器）以及每�
 
 **`--train-keeper`** 从 `source='culling'` 的比较对中学习，只有当它在留出数据上胜过自动选片的启发式选择时才会保存。它为自动选片的挑选以及“这一组里还有更好的一张”标记提供支持。在积累到足够的选片比较对之前，使用启发式方法。它与 `--train-ranker` 由同一触发条件重新训练。
 
-**`--evaluate-models SLOT`** 可用槽位：`aesthetic`、`quality`、`faces-detect`、`faces-recognize`、`faces-centroid`、`blink`、`face-quality`、`end-to-end`。
+**`--evaluate-models SLOT`** 可用槽位：`aesthetic`、`quality`、`faces-detect`、`faces-recognize`、`faces-centroid`、`blink`、`face-quality`、`end-to-end`、`weights`。
 
 - `--candidates a,b` 指定候选（`stored:<列名>` 或已注册名称）。
 - `--eval-out PATH` 设置输出路径（默认 `.facet_cache/eval/<slot>-<时间戳>.json`）。
 - 人脸槽位改为与已存储的 InsightFace 人脸比较，而不是与你的选择比较，因此仅适用于默认模式的照片库：`faces-detect`（默认 `yunet`、`yunet@<conf>`、`blazeface`；使用 `--face-labels` 时还包括 `insightface@640`, `insightface@1024`, `insightface@1280`, `insightface-tiled`, `insightface-tiled-cond`, `yunet-tiled`；`insightface-tiled-cond` 仅在整帧检测发现短边小于 80 px 的人脸时才分块，`insightface-tiled-cond@<px>` 还会对长边超过 `<px>` 的图像分块）、`faces-recognize`（`sface`、`sface@<阈值>`）、`faces-centroid`（调节 SFace 的 `merge_threshold` / 自动合并）、`blink`（扫描宽松的闭眼阈值）。
 - `--face-labels PATH`（仅 `faces-detect`）以 `python -m optimization.face_labels import` 导入的手工标注框作为基准，而不是已存储的人脸，因此适用于任何图库。报告额外给出按人脸大小划分的召回率（面积分档 `<0.1% / 0.1-0.5% / 0.5-1% / 1-5% / >5%`，短边分档 `<20 / 20-40 / >40 px`）及 bootstrap 置信区间、每张无人脸照片的误检数、每张照片耗时的均值和中位数（每个候选先做一次不计时的预热调用；`detector_time_ratio` 使用中位数）、峰值显存（整块设备）以及下游 cannot-link 检查部分。不带 `--candidates` 时运行上述完整参考集；只有候选中包含 `insightface@640` 时才会出现 `vs_baseline` 差值和采用规则检查。`--limit` 被忽略。默认 `min_face_size` 为 20 时，`<20 px` 分档仍会报告，但其召回率约为 0，因为此类检测全部被过滤；传入将 `face_detection.min_face_size` 设为 0 的 `--config` 即可测量未过滤的检测器。只读，不修改数据库。标注流程见 [testdb/README.md](../../testdb/README.md)。
+- `weights` 用基线（`--config`）和每个候选重新给所有照片打分；候选是配置覆盖 JSON 文件，必须包含完整的 `categories` 列表（列表整体替换，因此无法单独携带某一类别的权重；只有各类别的 `weights` 和 `modifiers` 可以不同）：`python facet.py --evaluate-models weights --candidates a.json,b.json`。`--candidates` 为必填，`--limit` 被忽略。始终同时报告两种许可模式及各自不可用的指标（在 `commercial` 下，不可用指标的权重会被丢弃并重新分配给其余指标）。报告按类别和整体给出与你的明确选择的一致率（置信区间、`n_pairs`、`coverage`；汇总所有用户的投票，同一配对上重复的投票每次都计入 30 对的下限和自助法；跨两个类别的投票归入 `mixed`）、候选减基线一致率的配对自助法置信区间、所有照片的分数分布偏移，以及仅供参考的 `ship_check`。决定性配对少于 30 的分组标记为 `insufficient_pairs`。若基线配置本身是 commercial，`default` 块会标记为 `meaningful: false`，并被 `ship_check` 忽略。只读：不会应用任何内容，也不会更改默认权重。
 - `--limit N` 限制照片数（默认 600）或参考人脸数（默认 1200）。
 
 ## 配置

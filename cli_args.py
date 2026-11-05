@@ -344,12 +344,13 @@ Configuration:
                         help='Report Spearman SRCC of each IQA/aesthetic metric vs star ratings (read-only)')
     weight_group.add_argument('--evaluate-models', type=str, default=None, metavar='SLOT',
                         choices=['aesthetic', 'quality', 'faces-detect', 'faces-recognize', 'faces-centroid', 'blink',
-                                 'face-quality', 'end-to-end'],
+                                 'face-quality', 'end-to-end', 'weights'],
                         help='Rank candidate models for a slot by agreement with your pairwise '
                              'picks in the comparisons table (read-only)')
     weight_group.add_argument('--candidates', type=str, default=None, metavar='A,B,...',
                         help='Comma-separated candidates for --evaluate-models '
-                             '(stored:<column> or a registered name; default: all registered, except faces-detect: '
+                             '(stored:<column> or a registered name; for weights, config override JSON files with the '
+                             'full categories list, with no default so the files are required; default: all registered, except faces-detect: '
                              'yunet,blazeface, or with --face-labels the insightface/yunet-tiled reference set; '
                              'insightface* variants apply the --config face_detection filters)')
     weight_group.add_argument('--face-labels', type=str, default=None, metavar='PATH',
