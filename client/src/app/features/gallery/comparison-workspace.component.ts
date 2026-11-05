@@ -223,7 +223,7 @@ const RENDERED_EDGE = RENDERED_THUMBNAIL_EDGE;
                     [attr.aria-label]="I18N.gallery.compare.assign_photo | translate:{ target: (assignmentLabelKey() | translate), name: photo.filename }"
                     (click)="chooseCandidate(photo.path)">
               <img loading="lazy" decoding="async" [src]="photo.path | thumbnailUrl:storedEdge:photo.preview_revision" alt="" class="h-8 sm:h-12 w-full object-contain bg-neutral-950" />
-              <span class="flex items-center gap-1 text-xs w-full"><mat-icon class="!text-base !w-4 !h-4 !leading-4 shrink-0">{{ referencePath() === photo.path ? 'push_pin' : 'photo' }}</mat-icon><span class="min-w-0 line-clamp-2 break-all leading-4">{{ photo.filename | filename:32 }}</span></span>
+              <span class="flex items-center gap-1 text-xs w-full" aria-hidden="true"><mat-icon class="!text-base !w-4 !h-4 !leading-4 shrink-0">{{ referencePath() === photo.path ? 'push_pin' : 'photo' }}</mat-icon><span class="min-w-0 line-clamp-2 break-all leading-4"><span class="sm:hidden">{{ photo.filename | filename:24 }}</span><span class="hidden sm:inline">{{ photo.filename | filename:32 }}</span></span></span>
             </button>
           }
         </div>
