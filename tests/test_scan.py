@@ -2047,7 +2047,7 @@ _LOCK_EXEMPT_WRITERS = {
 _JOB_MODIFIERS = frozenset({
     "ack_stack_plan", "ai_edit", "apply", "apply_recommendations", "candidates", "config", "copy_keepers", "cull_group_by",
     "cull_min_keep", "cull_min_score", "cull_strictness", "cull_trim_brackets", "cull_reconsider_existing", "db",
-    "discover_min_cluster_size", "dry_run", "eval_out",
+    "discover_min_cluster_size", "dry_run", "eval_out", "face_labels",
     "dry_run_count", "embed_originals", "force", "force_library_lock", "force_low_space",
     "force_since", "immich_stack_ids", "limit", "merge_threshold", "optimize_category", "optimize_force",
     "optimize_sources", "overwrite_manual_gps", "overwrite_sidecar_review", "ranker_category", "refresh_thumbnails_workers", "resume",
