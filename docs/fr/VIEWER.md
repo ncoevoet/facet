@@ -272,7 +272,7 @@ Utilisez **Décision de tri → À examiner** dans la galerie pour parcourir les
 - Pour masquer définitivement la progression du tri, utilisez **Masquer la progression du tri** / **Afficher la progression du tri** du menu utilisateur. Ce choix est enregistré par navigateur et masque aussi le bouton **Trier les indécises**.
 - Après quelques secondes d'inactivité, la pile se replie en une petite pastille avec un compteur. Survolez-la ou cliquez dessus pour la déplier.
 
-**Tout fermer** masque les notifications actuelles pour cet onglet sans modifier les filtres, les décisions de tri ou la file enregistrée. Leur courte animation respecte la préférence de réduction des mouvements. Une case carrée et un contour indiquent la sélection ; un petit drapeau vert indique les photos conservées. Le libellé **Conservée** reste dans l’infobulle et pour les lecteurs d’écran.
+**Tout fermer** masque les notifications actuelles pour cet onglet sans modifier les filtres, les décisions de tri ou la file enregistrée. Leur courte animation respecte la préférence de réduction des mouvements. Une case carrée et un contour indiquent la sélection ; une fine ligne verte sur le bord inférieur indique les photos conservées. Le libellé **Conservée** reste dans l’infobulle et pour les lecteurs d’écran.
 
 ## Fonctionnalités de la galerie
 

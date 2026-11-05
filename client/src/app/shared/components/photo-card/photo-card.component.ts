@@ -347,10 +347,8 @@ const DEFAULT_CLIPPING_BADGE_PERCENT = 5;
         }
 
         @if (isEditionMode() && photo().is_kept && !photo().is_rejected) {
-          <span data-photo-kept role="img" class="absolute top-1.5 left-10 z-10 inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-sm bg-emerald-900/90 text-white shadow-sm @max-[95px]/photo:top-1 @max-[95px]/photo:h-4 @max-[95px]/photo:w-4"
-                [attr.aria-label]="I18N.review.kept | translate" [matTooltip]="I18N.review.kept | translate">
-            <mat-icon aria-hidden="true" class="!text-sm !w-3.5 !h-3.5 !leading-[14px] !text-white">flag</mat-icon>
-          </span>
+          <span data-photo-kept role="img" class="absolute inset-x-0 bottom-0 z-30 h-[3px] bg-emerald-500 shadow-[0_-1px_0_rgba(0,0,0,0.5)]"
+                [attr.aria-label]="I18N.review.kept | translate" [matTooltip]="I18N.review.kept | translate"></span>
         }
 
         <!-- Persistent rejected badge (shape + desaturation, not color alone).

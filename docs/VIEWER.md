@@ -272,7 +272,7 @@ Use **Review status → Needs review** in the gallery to work through undecided 
 - To hide review progress for good, use the user menu's **Hide review progress** / **Show review progress**. This is stored per browser and also hides the **Review undecided** button.
 - After a few seconds idle the stack folds into a small count pill. Hover or click it to unfold.
 
-**Dismiss all** closes every current notice for this tab without changing filters, review decisions or the saved queue. Cards open and close with a short animation, disabled when reduced motion is requested. A square checkbox and outline identify selected photos; a compact green flag identifies kept photos. Hover it for **Kept**; the same label is available to screen readers.
+**Dismiss all** closes every current notice for this tab without changing filters, review decisions or the saved queue. Cards open and close with a short animation, disabled when reduced motion is requested. A square checkbox and outline identify selected photos; a thin green line along the bottom edge identifies kept photos. Hover it for **Kept**; the same label is available to screen readers.
 
 ## Gallery Features
 

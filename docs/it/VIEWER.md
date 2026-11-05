@@ -272,7 +272,7 @@ Usa **Stato revisione → Da esaminare** nella galleria per smaltire le foto non
 - Per nascondere per sempre l'avanzamento della revisione, usa **Nascondi avanzamento revisione** / **Mostra avanzamento revisione** nel menu utente. È memorizzato per browser e nasconde anche il pulsante **Rivedi le indecise**.
 - Dopo qualche secondo di inattività la pila si ripiega in una piccola pillola con il conteggio. Passaci sopra o cliccala per aprirla.
 
-**Chiudi tutti** nasconde gli avvisi attuali per questa scheda senza cambiare filtri, decisioni o coda salvata. La breve animazione è disattivata quando è richiesto il movimento ridotto. Una casella quadrata e un bordo indicano la selezione; una piccola bandiera verde indica le foto da tenere. **Da tenere** resta nel suggerimento e per gli screen reader.
+**Chiudi tutti** nasconde gli avvisi attuali per questa scheda senza cambiare filtri, decisioni o coda salvata. La breve animazione è disattivata quando è richiesto il movimento ridotto. Una casella quadrata e un bordo indicano la selezione; una sottile linea verde sul bordo inferiore indica le foto da tenere. **Da tenere** resta nel suggerimento e per gli screen reader.
 
 ## Funzionalità della galleria
 

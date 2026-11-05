@@ -272,7 +272,7 @@ Usa **Estado de revisión → Por revisar** en la galería para recorrer las fot
 - Para ocultar el progreso de revisión de forma permanente, usa **Ocultar el progreso de revisión** / **Mostrar el progreso de revisión** del menú de usuario. Se guarda por navegador y también oculta el botón **Revisar sin decidir**.
 - Tras unos segundos de inactividad, la pila se pliega en una pequeña píldora con un recuento. Pasa el cursor o haz clic para desplegarla.
 
-**Descartar todos** oculta los avisos actuales en esta pestaña sin cambiar filtros, decisiones ni la cola guardada. La animación breve se desactiva al reducir el movimiento. Una casilla cuadrada y un contorno indican la selección; una pequeña bandera verde indica las fotos conservadas. **Conservada** permanece en la ayuda emergente y para lectores de pantalla.
+**Descartar todos** oculta los avisos actuales en esta pestaña sin cambiar filtros, decisiones ni la cola guardada. La animación breve se desactiva al reducir el movimiento. Una casilla cuadrada y un contorno indican la selección; una fina línea verde en el borde inferior indica las fotos conservadas. **Conservada** permanece en la ayuda emergente y para lectores de pantalla.
 
 ## Funciones de la galería
 

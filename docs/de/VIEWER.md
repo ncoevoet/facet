@@ -272,7 +272,7 @@ Wählen Sie in der Galerie **Auswahlstatus → Zu prüfen**, um unentschiedene F
 - Um den Bewertungsfortschritt dauerhaft auszublenden, nutzen Sie im Benutzermenü **Bewertungsfortschritt ausblenden** / **Bewertungsfortschritt anzeigen**. Das wird pro Browser gespeichert und blendet auch die Schaltfläche **Unentschiedene sichten** aus.
 - Nach einigen Sekunden ohne Interaktion faltet sich der Stapel zu einer kleinen Zählpille zusammen. Zeiger darüber oder ein Klick darauf entfaltet ihn.
 
-**Alle schließen** blendet die aktuellen Hinweise für diesen Tab aus, ohne Filter, Bewertungsentscheidungen oder die gespeicherte Warteschlange zu ändern. Die kurze Animation entfällt bei reduzierter Bewegung. Ein quadratisches Kontrollkästchen und ein Rahmen markieren die Auswahl; eine kleine grüne Flagge kennzeichnet behaltene Fotos. **Behalten** bleibt als Tooltip und für Screenreader verfügbar.
+**Alle schließen** blendet die aktuellen Hinweise für diesen Tab aus, ohne Filter, Bewertungsentscheidungen oder die gespeicherte Warteschlange zu ändern. Die kurze Animation entfällt bei reduzierter Bewegung. Ein quadratisches Kontrollkästchen und ein Rahmen markieren die Auswahl; eine dünne grüne Linie am unteren Rand kennzeichnet behaltene Fotos. **Behalten** bleibt als Tooltip und für Screenreader verfügbar.
 
 ## Galeriefunktionen
 
