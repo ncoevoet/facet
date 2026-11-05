@@ -6,6 +6,7 @@ All notable changes to Facet are documented in this file.
 
 ### Added
 
+- **Browser flows (Playwright).** `cd client && npm run e2e` drives the production viewer in Chrome through multi-step paths on a seeded, model-free library (`client/e2e/`): the AI-edit burst strip, Hide bursts, a reused edit name showing the new picture through the service worker's cache, and a deleted burst lead. Each flow fails on any page error, console error or 5xx, and keeps a trace of every step on failure. Not part of `npm run test`; see `client/e2e/README.md`.
 - **Culling previews show the affected files.** Review paginated thumbnails, filenames and companion files before copying, moving or trashing; click an image to enlarge it. Trash confirmation shows the file count.
 
 - **Mark an object.** The mark editor on the photo page can mark an object instead of a face: pick **Object**, draw the box and give it a label. Objects show as blue labelled boxes, the gallery search finds them by label, and assistants read them (`GET /api/photo/objects`, and `objects` in the `get_photo` tool) to know which region to act on; marks are always user-drawn, never detected. They live in a new `photo_objects` side table and never touch faces, clustering or people.
