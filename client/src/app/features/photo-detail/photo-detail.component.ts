@@ -321,7 +321,7 @@ const SOCIAL_SOURCE_KEYS: Record<string, string> = {
               <button type="button" data-photo-previous class="pointer-events-auto inline-flex h-11 w-11 cursor-pointer items-center justify-center rounded-full bg-black/60 text-white hover:bg-black/80 focus-visible:outline-2 focus-visible:outline-white disabled:invisible"
                 [disabled]="!collectionNavigation().previous || store.loading()" [attr.aria-label]="I18N.photo_detail.collection.previous | translate"
                 (pointerdown)="$event.stopPropagation()" (dblclick)="$event.stopPropagation()" (click)="stepCollectionPhoto(-1); $event.stopPropagation()"><mat-icon aria-hidden="true">chevron_left</mat-icon></button>
-              <span data-collection-position class="absolute bottom-2 left-1/2 -translate-x-1/2 whitespace-nowrap rounded-full bg-black/60 px-3 py-1 text-xs tabular-nums text-white">{{ collectionNavigation().position }} / {{ store.total() }}</span>
+              <span data-collection-position [attr.title]="I18N.photo_detail.collection.title | translate" class="absolute bottom-2 left-1/2 -translate-x-1/2 whitespace-nowrap rounded-full bg-black/60 px-3 py-1 text-xs tabular-nums text-white">{{ I18N.photo_detail.collection.position | translate:{ position: collectionNavigation().position, total: store.total() } }}</span>
               <button type="button" data-photo-next class="pointer-events-auto inline-flex h-11 w-11 cursor-pointer items-center justify-center rounded-full bg-black/60 text-white hover:bg-black/80 focus-visible:outline-2 focus-visible:outline-white disabled:invisible"
                 [disabled]="!collectionNavigation().next || store.loading()" [attr.aria-label]="I18N.photo_detail.collection.next | translate"
                 (pointerdown)="$event.stopPropagation()" (dblclick)="$event.stopPropagation()" (click)="stepCollectionPhoto(1); $event.stopPropagation()"><mat-icon aria-hidden="true">chevron_right</mat-icon></button>
@@ -356,7 +356,7 @@ const SOCIAL_SOURCE_KEYS: Record<string, string> = {
             @if (p.date_taken || auth.isEdition()) {
               <div class="flex items-center gap-1 text-[var(--mat-sys-on-surface-variant)] text-xs">
                 @if (auth.isEdition()) {
-                  <button mat-icon-button class="!w-7 !h-7 !min-w-0 !p-0 -ml-1.5 !inline-flex items-center justify-center" (click)="editCaptureDate(p)"
+                  <button mat-icon-button class="!w-7 !h-7 max-sm:!w-11 max-sm:!h-11 pointer-coarse:!w-11 pointer-coarse:!h-11 !min-w-0 !p-0 -ml-1.5 !inline-flex items-center justify-center" (click)="editCaptureDate(p)"
                           [matTooltip]="I18N.capture_date.title | translate"
                           [attr.aria-label]="I18N.capture_date.title | translate">
                     <mat-icon class="!text-base !w-4 !h-4 !leading-4">edit_calendar</mat-icon>
@@ -440,17 +440,13 @@ const SOCIAL_SOURCE_KEYS: Record<string, string> = {
             </section>
           }
 
-          <details data-photo-info [open]="infoOpen()" class="border-t border-[var(--mat-sys-outline-variant)]">
-            <summary (click)="$event.preventDefault(); infoOpen.set(!infoOpen())" class="flex min-h-11 cursor-pointer items-center gap-2 font-medium"><mat-icon aria-hidden="true" class="!h-5 !w-5 !text-xl">info</mat-icon><h2 class="m-0 text-sm font-medium">{{ I18N.photo_detail.info | translate }}</h2></summary>
+          <details data-photo-info [open]="infoOpen()" class="[&[open]>summary>mat-icon:last-child]:rotate-180 border-t border-[var(--mat-sys-outline-variant)]">
+            <summary (click)="$event.preventDefault(); infoOpen.set(!infoOpen())" class="flex min-h-11 cursor-pointer items-center gap-2 font-medium"><mat-icon aria-hidden="true" class="!h-5 !w-5 !text-xl">info</mat-icon><h2 class="m-0 text-sm font-medium">{{ I18N.photo_detail.info | translate }}</h2><mat-icon aria-hidden="true" class="ml-auto !h-5 !w-5 shrink-0 !text-xl transition-transform motion-reduce:transition-none">expand_more</mat-icon></summary>
             @if (infoOpen()) {
             <div class="space-y-3 pb-3">
               @if (hasExif()) {
                 <app-photo-metric-section kind="exif" [photo]="p" [histogramHeight]="HISTOGRAM_PANEL_HEIGHT" />
               }
-              <div>
-                <app-photo-provenance [photo]="p" />
-                <app-photo-related-files [photo]="p" (logicalApplied)="onLogicalAssetApplied($event)" />
-              </div>
           <!-- Caption -->
           <div>
             <div class="flex items-center justify-between mb-1">
@@ -458,7 +454,7 @@ const SOCIAL_SOURCE_KEYS: Record<string, string> = {
               @if (auth.isEdition()) {
                 <div class="flex gap-1">
                   @if (!p.caption && store.config()?.features?.show_captions) {
-                    <button mat-icon-button class="!w-7 !h-7 !p-0" (click)="generateCaption(p.path)" [disabled]="generatingCaption()" [matTooltip]="I18N.photo_detail.generate_caption | translate" [attr.aria-label]="I18N.photo_detail.generate_caption | translate">
+                    <button mat-icon-button class="!w-7 !h-7 max-sm:!w-11 max-sm:!h-11 pointer-coarse:!w-11 pointer-coarse:!h-11 !p-0" (click)="generateCaption(p.path)" [disabled]="generatingCaption()" [matTooltip]="I18N.photo_detail.generate_caption | translate" [attr.aria-label]="I18N.photo_detail.generate_caption | translate">
                       @if (generatingCaption()) {
                         <mat-spinner diameter="16" [attr.aria-label]="I18N.ui.labels.loading | translate" />
                       } @else {
@@ -466,7 +462,7 @@ const SOCIAL_SOURCE_KEYS: Record<string, string> = {
                       }
                     </button>
                   }
-                  <button mat-icon-button class="!w-7 !h-7 !p-0" (click)="editCaption(p)" [matTooltip]="I18N.photo_detail.edit_caption | translate" [attr.aria-label]="I18N.photo_detail.edit_caption | translate">
+                  <button mat-icon-button class="!w-7 !h-7 max-sm:!w-11 max-sm:!h-11 pointer-coarse:!w-11 pointer-coarse:!h-11 !p-0" (click)="editCaption(p)" [matTooltip]="I18N.photo_detail.edit_caption | translate" [attr.aria-label]="I18N.photo_detail.edit_caption | translate">
                     <mat-icon class="!text-base !w-4 !h-4 !leading-4">edit</mat-icon>
                   </button>
                 </div>
@@ -487,7 +483,7 @@ const SOCIAL_SOURCE_KEYS: Record<string, string> = {
               <div class="flex items-center justify-between mb-2">
                 <div class="text-xs text-[var(--mat-sys-on-surface-variant)]">{{ I18N.photo_detail.location | translate }}</div>
                 @if (auth.isEdition()) {
-                  <button mat-icon-button class="!w-7 !h-7 !p-0" (click)="editGps(p)" [matTooltip]="I18N.photo_detail.edit_location | translate" [attr.aria-label]="I18N.photo_detail.edit_location | translate">
+                  <button mat-icon-button class="!w-7 !h-7 max-sm:!w-11 max-sm:!h-11 pointer-coarse:!w-11 pointer-coarse:!h-11 !p-0" (click)="editGps(p)" [matTooltip]="I18N.photo_detail.edit_location | translate" [attr.aria-label]="I18N.photo_detail.edit_location | translate">
                     <mat-icon class="!text-base !w-4 !h-4 !leading-4">edit_location</mat-icon>
                   </button>
                 }
@@ -502,7 +498,7 @@ const SOCIAL_SOURCE_KEYS: Record<string, string> = {
             <div class="border-t border-[var(--mat-sys-outline-variant)] pt-3 mb-2">
               <div class="flex items-center justify-between">
                 <div class="text-xs text-[var(--mat-sys-on-surface-variant)]">{{ I18N.photo_detail.location | translate }}</div>
-                <button mat-icon-button class="!w-7 !h-7 !p-0" (click)="editGps(p)" [matTooltip]="I18N.photo_detail.add_location | translate" [attr.aria-label]="I18N.photo_detail.add_location | translate">
+                <button mat-icon-button class="!w-7 !h-7 max-sm:!w-11 max-sm:!h-11 pointer-coarse:!w-11 pointer-coarse:!h-11 !p-0" (click)="editGps(p)" [matTooltip]="I18N.photo_detail.add_location | translate" [attr.aria-label]="I18N.photo_detail.add_location | translate">
                   <mat-icon class="!text-base !w-4 !h-4 !leading-4">add_location</mat-icon>
                 </button>
               </div>
@@ -517,14 +513,14 @@ const SOCIAL_SOURCE_KEYS: Record<string, string> = {
               <div class="flex gap-1.5 flex-wrap items-center">
                 @for (tag of p.tags_list; track tag) {
                   <span data-testid="ai-tag-chip" class="inline-flex">
-                    <button class="px-2 py-0.5 bg-[var(--facet-accent-badge)] text-[var(--facet-accent-text)] rounded-full text-xs cursor-pointer hover:opacity-80 transition-opacity"
+                    <button class="inline-flex items-center max-sm:min-h-11 pointer-coarse:min-h-11 px-2 py-0.5 bg-[var(--facet-accent-badge)] text-[var(--facet-accent-text)] rounded-full text-xs cursor-pointer hover:opacity-80 transition-opacity"
                             [matMenuTriggerFor]="tagNavigationMenu" [matMenuTriggerData]="{ tag: tag }">{{ tag }}</button>
                   </span>
                 }
                 @for (tag of p.manual_tags; track tag) {
                   <span data-testid="manual-tag-chip"
                         class="inline-flex items-center rounded-full border border-dashed border-[var(--facet-accent-text)] text-[var(--facet-accent-text)] text-xs">
-                    <button class="inline-flex items-center gap-1 pl-2 pr-2 py-0.5 cursor-pointer hover:opacity-80 transition-opacity"
+                    <button class="inline-flex items-center max-sm:min-h-11 pointer-coarse:min-h-11 gap-1 pl-2 pr-2 py-0.5 cursor-pointer hover:opacity-80 transition-opacity"
                             [attr.title]="I18N.manual_tags.manual | translate"
                             [matMenuTriggerFor]="tagNavigationMenu" [matMenuTriggerData]="{ tag: tag }">
                       <mat-icon class="!text-xs !w-3 !h-3 !leading-3" aria-hidden="true">sell</mat-icon>
@@ -533,7 +529,7 @@ const SOCIAL_SOURCE_KEYS: Record<string, string> = {
                     </button>
                     @if (auth.isEdition()) {
                       <button data-testid="manual-tag-remove"
-                              class="inline-flex items-center justify-center min-w-6 min-h-6 -my-1.5 -ml-1 cursor-pointer hover:opacity-80"
+                              class="inline-flex items-center justify-center min-w-6 min-h-6 max-sm:min-w-11 max-sm:min-h-11 pointer-coarse:min-w-11 pointer-coarse:min-h-11 -ml-1 cursor-pointer hover:opacity-80"
                               [attr.aria-label]="I18N.manual_tags.remove_tag | translate:{ tag: tag }"
                               (click)="removeManualTag(p, tag)">
                         <mat-icon class="!text-xs !w-3 !h-3 !leading-3" aria-hidden="true">close</mat-icon>
@@ -553,13 +549,13 @@ const SOCIAL_SOURCE_KEYS: Record<string, string> = {
               @if (auth.isEdition()) {
                 <div class="flex items-center gap-1 mt-2" data-testid="manual-tag-add">
                   <input type="text" maxlength="64"
-                         class="min-w-0 flex-1 px-2 py-1 text-xs rounded border border-[var(--mat-sys-outline-variant)] bg-transparent"
+                         class="min-w-0 flex-1 max-sm:min-h-11 pointer-coarse:min-h-11 px-2 py-1 text-xs rounded border border-[var(--mat-sys-outline-variant)] bg-transparent"
                          [value]="newTag()"
                          [attr.aria-label]="I18N.manual_tags.add | translate"
                          [placeholder]="I18N.manual_tags.add | translate"
                          (input)="onNewTagInput($event)"
                          (keydown.enter)="addManualTag(p, newTag())" />
-                  <button mat-icon-button class="!w-7 !h-7 !p-0 !inline-flex !items-center !justify-center shrink-0" (click)="addManualTag(p, newTag())"
+                  <button mat-icon-button class="!w-7 !h-7 max-sm:!w-11 max-sm:!h-11 pointer-coarse:!w-11 pointer-coarse:!h-11 !p-0 !inline-flex !items-center !justify-center shrink-0" (click)="addManualTag(p, newTag())"
                           [disabled]="!newTag().trim()"
                           [matTooltip]="I18N.manual_tags.add | translate" [attr.aria-label]="I18N.manual_tags.add | translate">
                     <mat-icon class="!text-base !w-4 !h-4 !leading-4">add</mat-icon>
@@ -569,12 +565,16 @@ const SOCIAL_SOURCE_KEYS: Record<string, string> = {
             </div>
           }
 
+              <div class="border-t border-[var(--mat-sys-outline-variant)] pt-2">
+                <app-photo-provenance [photo]="p" />
+                <app-photo-related-files [photo]="p" (logicalApplied)="onLogicalAssetApplied($event)" />
+              </div>
             </div>
             }
           </details>
 
-          <details #analysisSection data-photo-analysis (keydown.escape)="closeAnalysis($event)" (toggle)="analysisOpen.set(analysisSection.open)" class="border-t border-[var(--mat-sys-outline-variant)]">
-            <summary class="flex min-h-11 cursor-pointer items-center gap-2 text-sm font-medium"><mat-icon aria-hidden="true" class="!h-5 !w-5 !text-xl">analytics</mat-icon><h2 class="m-0 text-sm font-medium">{{ I18N.photo_detail.analysis | translate }}</h2><span class="ml-auto text-xs font-normal tabular-nums">{{ I18N.photo_detail.assessment.score | translate }} {{ p.aggregate | assessmentValue }}</span></summary>
+          <details #analysisSection data-photo-analysis (keydown.escape)="closeAnalysis($event)" (toggle)="analysisOpen.set(analysisSection.open)" class="[&[open]>summary>mat-icon:last-child]:rotate-180 border-t border-[var(--mat-sys-outline-variant)]">
+            <summary class="flex min-h-11 cursor-pointer items-center gap-2 text-sm font-medium"><mat-icon aria-hidden="true" class="!h-5 !w-5 !text-xl">analytics</mat-icon><h2 class="m-0 text-sm font-medium">{{ I18N.photo_detail.analysis | translate }}</h2><span class="ml-auto text-xs font-normal tabular-nums">{{ I18N.photo_detail.assessment.score | translate }} {{ p.aggregate | assessmentValue }}</span><mat-icon aria-hidden="true" class="!h-5 !w-5 shrink-0 !text-xl transition-transform motion-reduce:transition-none">expand_more</mat-icon></summary>
             @if (analysisOpen()) {
               @if (aggregateRange(); as range) {
                 <app-metric-rank data-aggregate-distribution class="mb-2" [range]="range" [value]="p.aggregate" />
@@ -583,8 +583,8 @@ const SOCIAL_SOURCE_KEYS: Record<string, string> = {
                 @for (path of [p.path]; track path) { <app-photo-analysis [photoPath]="path" [vlmAvailable]="!!store.config()?.features?.show_vlm_critique" /> }
               }
               @for (section of metricSections; track section.id) {
-                <details data-metric-section [attr.data-section-kind]="section.id" [open]="activeMetricSection() === section.id" class="border-t border-[var(--mat-sys-outline-variant)]">
-                  <summary (click)="$event.preventDefault(); toggleMetricSection(section.id)" class="flex min-h-11 cursor-pointer items-center gap-2 text-xs font-medium"><mat-icon aria-hidden="true" class="!h-5 !w-5 !text-xl" [class]="section.id | markTone">{{ section.icon }}</mat-icon><h3 class="m-0 text-xs font-medium">{{ section.label | translate }}</h3></summary>
+                <details data-metric-section [attr.data-section-kind]="section.id" [open]="activeMetricSection() === section.id" class="[&[open]>summary>mat-icon:last-child]:rotate-180 border-t border-[var(--mat-sys-outline-variant)]">
+                  <summary (click)="$event.preventDefault(); toggleMetricSection(section.id)" class="flex min-h-11 cursor-pointer items-center gap-2 text-xs font-medium"><mat-icon aria-hidden="true" class="!h-5 !w-5 !text-xl" [class]="section.id | markTone">{{ section.icon }}</mat-icon><h3 class="m-0 text-xs font-medium">{{ section.label | translate }}</h3><mat-icon aria-hidden="true" class="ml-auto !h-5 !w-5 shrink-0 !text-xl transition-transform motion-reduce:transition-none">expand_more</mat-icon></summary>
                   @if (activeMetricSection() === section.id) {
                     <app-photo-metric-section [kind]="section.id" [photo]="p" [ranges]="store.metricRangesByColumn()" [populated]="store.config()?.populated_scores" [histogramHeight]="HISTOGRAM_PANEL_HEIGHT" [histogramDefaultMode]="histogramDefaultMode()" [indicatorPercent]="clippingIndicatorPercent()" />
                   }
@@ -596,8 +596,8 @@ const SOCIAL_SOURCE_KEYS: Record<string, string> = {
 
           <!-- Persons section -->
           @if (p.persons.length || p.unassigned_faces) {
-            <details data-photo-people class="border-t border-[var(--mat-sys-outline-variant)]">
-              <summary class="flex min-h-11 cursor-pointer items-center gap-2 font-medium"><mat-icon aria-hidden="true" class="!h-5 !w-5 !text-xl">people</mat-icon><h2 class="m-0 text-sm font-medium">{{ I18N.photo_detail.persons | translate }}</h2></summary>
+            <details data-photo-people class="[&[open]>summary>mat-icon:last-child]:rotate-180 border-t border-[var(--mat-sys-outline-variant)]">
+              <summary class="flex min-h-11 cursor-pointer items-center gap-2 font-medium"><mat-icon aria-hidden="true" class="!h-5 !w-5 !text-xl">people</mat-icon><h2 class="m-0 text-sm font-medium">{{ I18N.photo_detail.persons | translate }}</h2><mat-icon aria-hidden="true" class="ml-auto !h-5 !w-5 shrink-0 !text-xl transition-transform motion-reduce:transition-none">expand_more</mat-icon></summary>
               @if (p.unassigned_faces) { <p class="m-0 pb-2 text-xs text-[var(--mat-sys-on-surface-variant)]">{{ I18N.photo_detail.unassigned_faces | translate:{ count: p.unassigned_faces } }}</p> }
               <div class="flex gap-3 flex-wrap">
                 @for (person of p.persons; track person.id) {
@@ -630,7 +630,7 @@ const SOCIAL_SOURCE_KEYS: Record<string, string> = {
                   @if (set.ev_span !== null) {
                     <span class="text-xs text-[var(--mat-sys-on-surface-variant)]">{{ I18N.photo_detail.set.ev_span | translate }}: {{ set.ev_span | fixed:1 }} EV</span>
                   }
-                  <button mat-icon-button class="!w-7 !h-7 !p-0 !inline-flex !items-center !justify-center ml-auto" (click)="openSetInGallery()"
+                  <button mat-icon-button class="!w-7 !h-7 max-sm:!w-11 max-sm:!h-11 pointer-coarse:!w-11 pointer-coarse:!h-11 !p-0 !inline-flex !items-center !justify-center ml-auto" (click)="openSetInGallery()"
                           [matTooltip]="I18N.photo_detail.set.open_in_gallery | translate" [attr.aria-label]="I18N.photo_detail.set.open_in_gallery | translate">
                     <mat-icon class="!text-base !w-4 !h-4 !leading-4">photo_library</mat-icon>
                   </button>

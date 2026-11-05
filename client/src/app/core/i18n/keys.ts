@@ -3219,6 +3219,7 @@ export const I18N = {
       previous: "photo_detail.collection.previous",
       next: "photo_detail.collection.next",
       title: "photo_detail.collection.title",
+      position: "photo_detail.collection.position",
       show: "photo_detail.collection.show",
       hide: "photo_detail.collection.hide",
       resize: "photo_detail.collection.resize",

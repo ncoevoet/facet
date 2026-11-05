@@ -3180,6 +3180,7 @@
       "previous": "Vorheriges Foto in der Sammlung",
       "next": "Nächstes Foto in der Sammlung",
       "title": "Sammlung",
+      "position": "Sammlung {position} / {total}",
       "show": "Sammlung einblenden",
       "hide": "Sammlung ausblenden",
       "resize": "Breite der Sammlungsleiste ändern",

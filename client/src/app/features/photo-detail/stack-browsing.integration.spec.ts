@@ -111,7 +111,7 @@ describe('manual stack browsing through rendered viewer, Router and HTTP', () =>
     TestBed.configureTestingModule({ providers: [
       provideHttpClient(withXhr()), provideHttpClientTesting(), provideLocationMocks(),
       provideRouter([{ path: '', component: SourceComponent }, { path: 'photo', component: PhotoDetailComponent }, { path: 'away', component: SourceComponent }]),
-      { provide: I18nService, useValue: { translations: signal({}), locale: () => 'en', t: (key: string, params?: Record<string, unknown>) => key === 'stacks.browse_position' ? params?.['position'] + ' of ' + params?.['count'] : key === 'stacks.open_member' ? key + ' ' + params?.['path'] : key } },
+      { provide: I18nService, useValue: { translations: signal({}), locale: () => 'en', t: (key: string, params?: Record<string, unknown>) => key === 'stacks.browse_position' ? params?.['position'] + ' of ' + params?.['count'] : key === 'photo_detail.collection.position' ? 'Collection ' + params?.['position'] + ' / ' + params?.['total'] : key === 'stacks.open_member' ? key + ' ' + params?.['path'] : key } },
       { provide: AssistantChangesService, useValue: { batch$: assistantBatches.asObservable() } },
       { provide: MatSnackBar, useValue: snack },
     ] });
@@ -191,7 +191,7 @@ describe('manual stack browsing through rendered viewer, Router and HTTP', () =>
     expect(root().querySelector('app-photo-collection-sidebar [data-collection-current]')?.getAttribute('aria-label')).toBe(cover.filename);
     expect(root().querySelector('[data-photo-next]')).not.toBeNull();
     expect(root().querySelector('[data-photo-previous]')).not.toBeNull();
-    expect(root().querySelector('[data-collection-position]')?.textContent).toContain(action === 'ArrowLeft' ? '2 / 2' : '1 / 2');
+    expect(root().querySelector('[data-collection-position]')?.textContent).toContain(action === 'ArrowLeft' ? 'Collection 2 / 2' : 'Collection 1 / 2');
     if (action === 'ArrowLeft') await keyboardMember('ArrowLeft', paths[0]);
     const navigation = arrived();
     if (action === 'click' || action === 'unannotated') button('[data-photo-next]').click();

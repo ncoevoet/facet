@@ -374,6 +374,8 @@ Auf der geöffneten Fotoseite fasst der Prüfbereich Behalten/Unentschieden/Able
 
 Sammlungspfeile und Positionsanzeige bleiben bei jedem Stapelmitglied sichtbar und verwenden die Sammlungsposition des geladenen Titelbilds. Pfeiltasten durchsuchen den Stapel und wechseln am ersten oder letzten Mitglied zur Sammlung. Fotodetails gruppiert Bewertung und technische Abschnitte; der Status Bereit bleibt für Screenreader verfügbar, ohne sichtbaren Zusatztext.
 
+Die Positionsanzeige am Bild benennt die Sammlung ausdrücklich. Aufklappbare Abschnitte zeigen Pfeile, die sich beim Öffnen drehen. Bewertung bleibt zuerst; unter Info stehen Bildunterschrift, Standort und Tags vor den nachgeordneten Metadatenquellen und zugehörigen Dateien. Bearbeitungs- und Tag-Steuerelemente haben auf schmalen Bildschirmen und bei groben Zeigegeräten mindestens 44 Pixel große Bedienflächen; am Desktop bleiben sie kompakt.
+
 Beim Vergrößern eines Vergleichsbilds zeigt eine kleine Übersicht das ganze Foto mit einem roten Rahmen um den sichtbaren Bereich. Der Rahmen folgt Schwenken und Zoomen, auch bei gekoppelten Ansichten, und verschwindet bei „Einpassen“.
 
 ### Top N% behalten

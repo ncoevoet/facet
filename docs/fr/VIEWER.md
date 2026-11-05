@@ -374,6 +374,8 @@ Sur la page d’une photo ouverte, la section de révision regroupe Conserver/In
 Les flèches et la position dans la collection restent disponibles sur chaque membre de pile, à la position de sa couverture chargée. Les touches fléchées parcourent la pile, puis la collection à ses extrémités. Détails de la photo regroupe la sélection et les sections techniques ; l’état Prêt reste accessible aux lecteurs d’écran sans texte visuel supplémentaire.
 
 Lorsqu’une image de comparaison est agrandie, une miniature montre la photo entière et un cadre rouge délimite la zone visible. Le cadre suit le déplacement et le zoom, y compris dans les volets liés, et disparaît en vue ajustée.
+L’indicateur de position sur l’image identifie la collection. Les sections repliables affichent des chevrons qui tournent à l’ouverture. Révision reste en premier ; dans Infos, Légende, Lieu et Étiquettes précèdent les sources de métadonnées et les fichiers associés. Les commandes d’édition et d’étiquettes offrent des cibles d’au moins 44 pixels sur les écrans étroits et avec un pointeur grossier, tout en restant compactes sur ordinateur.
+
 
 ### Garder le top N%
 

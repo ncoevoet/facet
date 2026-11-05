@@ -3180,6 +3180,7 @@
       "previous": "集合中的上一张照片",
       "next": "集合中的下一张照片",
       "title": "集合",
+      "position": "合集 {position} / {total}",
       "show": "显示集合",
       "hide": "隐藏集合",
       "resize": "调整集合侧栏宽度",

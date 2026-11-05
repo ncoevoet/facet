@@ -374,6 +374,8 @@ Na página da foto aberta, a secção de revisão agrupa Manter/Indeciso/Rejeita
 As setas e a posição na coleção continuam disponíveis em cada membro da pilha, usando a posição da capa carregada. As teclas de seta percorrem a pilha e continuam na coleção nos seus extremos. Detalhes da foto agrupa a revisão e as secções técnicas; o estado Pronto continua disponível para leitores de ecrã sem texto visual adicional.
 
 Ao ampliar uma imagem na comparação, uma miniatura mostra a fotografia inteira com um retângulo vermelho a marcar a região visível. O retângulo acompanha o deslocamento e o zoom, incluindo nos painéis ligados, e desaparece ao ajustar a imagem.
+O indicador de posição na imagem identifica a coleção. As secções expansíveis mostram setas que rodam ao abrir. Revisão permanece primeiro; em Informações, Legenda, Localização e Etiquetas precedem as fontes de metadados e os ficheiros relacionados. Os controlos de edição e etiquetas têm alvos de pelo menos 44 píxeis em ecrãs estreitos e com ponteiros grosseiros, mantendo-se compactos no computador.
+
 
 ### Manter Top N%
 

@@ -3180,6 +3180,7 @@
       "previous": "Photo précédente de la collection",
       "next": "Photo suivante de la collection",
       "title": "Collection",
+      "position": "Collection {position} / {total}",
       "show": "Afficher la collection",
       "hide": "Masquer la collection",
       "resize": "Redimensionner le panneau de collection",

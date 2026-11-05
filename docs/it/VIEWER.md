@@ -374,6 +374,8 @@ Nella pagina della foto aperta, la sezione di revisione raggruppa Conserva/Indec
 Le frecce e la posizione nella raccolta restano disponibili per ogni membro della pila, usando la posizione della copertina caricata. I tasti freccia scorrono la pila e proseguono nella raccolta alle sue estremità. Dettagli della foto raggruppa revisione e sezioni tecniche; lo stato Pronto resta disponibile ai lettori di schermo senza testo visivo aggiuntivo.
 
 Quando si ingrandisce un’immagine nel confronto, una miniatura mostra tutta la foto con un riquadro rosso sulla regione visibile. Il riquadro segue spostamento e zoom, anche nei riquadri collegati, e scompare con Adatta.
+L’indicatore di posizione sull’immagine identifica la raccolta. Le sezioni espandibili mostrano frecce che ruotano all’apertura. Revisione resta per prima; in Informazioni, Didascalia, Posizione e Tag precedono le fonti dei metadati e i file correlati. I controlli di modifica e dei tag hanno bersagli di almeno 44 pixel su schermi stretti e con puntatori grossolani, restando compatti sul desktop.
+
 
 ### Tieni il top N%
 

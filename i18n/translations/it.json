@@ -3180,6 +3180,7 @@
       "previous": "Foto precedente nella raccolta",
       "next": "Foto successiva nella raccolta",
       "title": "Raccolta",
+      "position": "Raccolta {position} / {total}",
       "show": "Mostra raccolta",
       "hide": "Nascondi raccolta",
       "resize": "Ridimensiona il pannello della raccolta",

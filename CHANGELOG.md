@@ -23,6 +23,8 @@ All notable changes to Facet are documented in this file.
 
 ### Changed
 
+- Photo details now labels collection position, shows disclosure chevrons, places editable content before sources/files, and provides 44-pixel editing and tag targets on phones and touch devices.
+
 - Keep collection navigation and cover highlighting available on folded stack members. Arrow keys leave the stack at its boundaries; collection arrows show position and distinct accessible labels. Unify photo inspector headings, compact secondary disclosures, and hide redundant Ready text visually.
 
 - The opened-photo page groups Keep/Undecided/Reject and ratings, exposes zoom/Fit controls and collection arrows (including stack covers), and keeps the filename and stack strip readable on phones. Paging stops if the account changes; fitting or changing photos ends the previous pan. The shared image readout also gives comparison and culling shorter Fit text and larger phone controls; their zoom bounds stay unchanged.

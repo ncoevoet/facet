@@ -3205,6 +3205,7 @@
       "previous": "Previous photo in collection",
       "next": "Next photo in collection",
       "title": "Collection",
+      "position": "Collection {position} / {total}",
       "show": "Show collection",
       "hide": "Hide collection",
       "resize": "Resize collection sidebar",

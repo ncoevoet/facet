@@ -374,6 +374,8 @@ En la página de una foto abierta, la sección de revisión agrupa Conservar/Sin
 
 Las flechas y la posición de la colección siguen disponibles en cada miembro de la pila y usan la posición de su portada cargada. Las teclas de flecha recorren la pila y continúan por la colección en sus extremos. Detalles de la foto agrupa la revisión y las secciones técnicas; el estado Listo sigue disponible para lectores de pantalla sin texto visual adicional.
 
+El indicador de posición de la imagen identifica la colección. Los paneles desplegables muestran flechas que giran al abrirse. Revisión sigue primero; en Información, Descripción, Ubicación y Etiquetas preceden a las fuentes de metadatos y archivos relacionados. Los controles de edición y etiquetas tienen áreas táctiles de al menos 44 píxeles en pantallas estrechas y con punteros gruesos, y siguen compactos en escritorio.
+
 Al ampliar una imagen en la comparación, una miniatura muestra la foto completa y un marco rojo señala la región visible. El marco sigue el desplazamiento y el zoom, también en paneles vinculados, y desaparece al ajustar la imagen.
 
 ### Conservar el N% superior

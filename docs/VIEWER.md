@@ -374,6 +374,8 @@ On the opened-photo page, **Review** groups Keep/Undecided/Reject, favorite and 
 
 Collection arrows and the position indicator remain available on every stack member, using the loaded stack cover’s collection position. Arrow keys browse the stack, then continue through the collection at the first or last member. The Photo details panel groups Review and technical disclosures; Ready remains available to screen readers without adding visual text.
 
+The image position pill explicitly labels the collection. Inspector disclosures show chevrons that turn when expanded. Review stays first; within Info, Caption, Location and Tags precede the secondary metadata-source and related-file disclosures. Editing and tag controls have at least 44-pixel touch targets on narrow screens and coarse pointers, while desktop controls remain compact.
+
 When a comparison image is zoomed in, a small overview shows the whole photo with a red box marking the visible region. The box follows panning and zooming, including linked panes, and disappears at Fit.
 
 ### Keep Top N%
