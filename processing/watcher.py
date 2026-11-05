@@ -25,6 +25,8 @@ logger = logging.getLogger("facet.watcher")
 WATCH_SUFFIXES = WATCHABLE_IMAGE_EXTENSIONS
 
 MAX_CONSECUTIVE_FAILURES = 3
+# _run_scan outcome for a scan skipped because another job holds the library lock.
+_LIBRARY_BUSY = object()
 
 
 class _PendingChanges:
@@ -78,7 +80,11 @@ def _build_scan_command(directories, db_path, config_path):
 
 def run_watch_loop(directories, db_path, config_path=None, debounce_seconds=30,
                    initial_scan=True):
-    """Block forever, re-scanning whenever directory contents settle.
+    """Re-scan whenever directory contents settle, until Ctrl+C or a give-up.
+
+    Returns True when the user stopped watching (Ctrl+C) and False when
+    MAX_CONSECUTIVE_FAILURES consecutive scans failed, so the caller can exit
+    non-zero on the give-up.
 
     Args:
         directories: Directories to watch (recursive)
@@ -141,12 +147,12 @@ def run_watch_loop(directories, db_path, config_path=None, debounce_seconds=30,
                            "Watching continues.", result.returncode)
             return None
         if result.returncode == LIBRARY_LOCK_HELD_EXIT_CODE:
-            # Another job holds the library lock: transient by definition (the very
-            # next settled batch rescans), so a busy stretch must not accumulate
-            # toward giving up.
+            # Another job holds the library lock: transient by definition, so a busy
+            # stretch must not accumulate toward giving up. The caller re-queues the
+            # batch, which is otherwise already drained and would never be scanned.
             logger.warning("Scan skipped: the library lock is held by another job (exit code %d). "
-                           "Watching continues.", result.returncode)
-            return None
+                           "Retrying after the next quiet period.", result.returncode)
+            return _LIBRARY_BUSY
         logger.warning("Scan exited with code %d", result.returncode)
         return False
 
@@ -172,6 +178,10 @@ def run_watch_loop(directories, db_path, config_path=None, debounce_seconds=30,
                     )
                     continue
                 outcome = _run_scan(f'{len(batch)} changed files')
+                if outcome is _LIBRARY_BUSY:
+                    for path in batch:
+                        pending.add(path)
+                    continue
                 if outcome is None:
                     continue
                 if outcome:

@@ -576,3 +576,70 @@ class TestRunWatchLoopFailureHandling:
             ["/library"], str(tmp_path / "photos.db"), debounce_seconds=0, initial_scan=False)
 
         assert gave_up is False
+
+    def test_a_lock_held_batch_is_retried_without_new_events(self, monkeypatch, tmp_path):
+        """A batch skipped because another job held the library lock is queued
+        again: the retry runs after the next debounce window even when no new
+        file event arrives, instead of the batch's photos waiting for an
+        unrelated change."""
+        native = _FakeObserver()
+        monkeypatch.setattr(watchdog.observers, "Observer", lambda: native)
+        monkeypatch.setattr(watchdog.observers.polling, "PollingObserver", lambda: _FakeObserver())
+
+        returncodes = iter([LIBRARY_LOCK_HELD_EXIT_CODE, 0])
+        runs = []
+
+        def fake_run(cmd, *a, **kw):
+            runs.append(cmd)
+            return SimpleNamespace(returncode=next(returncodes))
+
+        monkeypatch.setattr(watcher.subprocess, "run", fake_run)
+
+        calls = {"n": 0}
+
+        def fake_sleep(seconds):
+            calls["n"] += 1
+            if calls["n"] == 1:
+                handler, _, _ = native.scheduled[0]
+                handler.on_created(SimpleNamespace(is_directory=False, src_path="/library/new.jpg"))
+            if calls["n"] > 10:
+                raise KeyboardInterrupt
+
+        monkeypatch.setattr(watcher.time, "sleep", fake_sleep)
+
+        assert watcher.run_watch_loop(
+            ["/library"], str(tmp_path / "photos.db"), debounce_seconds=0, initial_scan=False)
+        assert len(runs) == 2
+
+    @pytest.mark.parametrize("initial_code", [LIBRARY_LOCK_HELD_EXIT_CODE, SAVED_NOTHING_EXIT_CODE])
+    def test_a_neutral_initial_scan_does_not_count_as_the_first_failure(self, monkeypatch, tmp_path, initial_code):
+        """Only a real failure of the initial scan consumes the budget: an
+        initial scan that found the library lock held, or saved nothing, leaves
+        the streak at 0."""
+        native = _FakeObserver()
+        monkeypatch.setattr(watchdog.observers, "Observer", lambda: native)
+        monkeypatch.setattr(watchdog.observers.polling, "PollingObserver", lambda: _FakeObserver())
+
+        returncodes = iter([initial_code] + [1] * MAX_CONSECUTIVE_FAILURES)
+        runs = []
+
+        def fake_run(cmd, *a, **kw):
+            runs.append(cmd)
+            return SimpleNamespace(returncode=next(returncodes))
+
+        monkeypatch.setattr(watcher.subprocess, "run", fake_run)
+
+        calls = {"n": 0}
+
+        def fake_sleep(seconds):
+            calls["n"] += 1
+            if calls["n"] > MAX_CONSECUTIVE_FAILURES + 2:
+                raise AssertionError("watch loop did not stop after MAX_CONSECUTIVE_FAILURES")
+            handler, _, _ = native.scheduled[0]
+            handler.on_created(SimpleNamespace(is_directory=False, src_path=f"/library/f{calls['n']}.jpg"))
+
+        monkeypatch.setattr(watcher.time, "sleep", fake_sleep)
+
+        assert not watcher.run_watch_loop(
+            ["/library"], str(tmp_path / "photos.db"), debounce_seconds=0, initial_scan=True)
+        assert len(runs) == 1 + MAX_CONSECUTIVE_FAILURES
