@@ -349,7 +349,9 @@ Configuration:
                              'picks in the comparisons table (read-only)')
     weight_group.add_argument('--candidates', type=str, default=None, metavar='A,B,...',
                         help='Comma-separated candidates for --evaluate-models '
-                             '(stored:<column> or a registered name; default: all registered)')
+                             '(stored:<column> or a registered name; default: all registered, except faces-detect: '
+                             'yunet,blazeface, or with --face-labels the insightface/yunet-tiled reference set; '
+                             'insightface* variants apply the --config face_detection filters)')
     weight_group.add_argument('--face-labels', type=str, default=None, metavar='PATH',
                         help='Hand-labelled ground truth (python -m optimization.face_labels import) for '
                              '--evaluate-models faces-detect; replaces the stored-faces reference and '

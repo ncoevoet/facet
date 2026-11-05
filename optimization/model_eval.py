@@ -716,7 +716,8 @@ def _evaluate_faces(db_path, slot, candidates, out, seed, limit, loader=None, de
         elif slot == 'blink':
             report = _run_blink(conn, loader, seed, limit)
         elif slot == 'faces-detect':
-            report = _run_faces_detect(conn, names, loader, device, seed, limit or DEFAULT_DETECT_PHOTOS)
+            report = _run_faces_detect(conn, names, loader, device, seed, limit or DEFAULT_DETECT_PHOTOS,
+                                       _face_filters(config_path) if config_path else None)
         elif slot == 'faces-centroid':
             report = _run_faces_centroid(conn, names, loader, device, seed, limit or DEFAULT_RECOGNIZE_FACES)
         else:
@@ -736,12 +737,12 @@ def _pct(v):
     return 'n/a' if v['rate'] is None else f"{v['rate']:.3f} [{v['ci_low']:.3f}, {v['ci_high']:.3f}]"
 
 
-def _run_faces_detect(conn, names, loader, device, seed, limit):
+def _run_faces_detect(conn, names, loader, device, seed, limit, filters=None):
     samples = sample_detect_photos(conn, limit, seed)
     n_ref = sum(len(r) for _, r in samples)
     logger.info("faces-detect: %d photos (%d with stored faces, %d reference faces)",
                 len(samples), sum(1 for _, r in samples if r), n_ref)
-    detectors = _build_face_runners('faces-detect', names, device)
+    detectors = _build_face_runners('faces-detect', names, device, filters)
     try:
         with measure() as run_stats:
             acc, skipped = score_face_detection(samples, loader, detectors)
@@ -1565,8 +1566,7 @@ TILE_NMS_IOU = 0.4               # SCRFD's own nms_thresh
 TILE_EDGE_EPS = 2.0              # px: a box this close to an inner tile edge is cut by it
 FRAGMENT_CONTAINMENT = 0.8
 INNER_EDGE_COVERED = 0.5
-TILE_TRIGGER_FACE_PX = 80        # -cond: tile when the full-frame pass found a face smaller than this
-TILE_TRIGGER_IMAGE_PX = 3000     # -cond: ... or the image's longer side exceeds this
+TILE_TRIGGER_FACE_PX = 80        # -cond: tile when the full-frame pass found a face shorter than this
 YUNET_TILED_MIN_FACE_SIZE = 30   # face_permissive.py's fixed values; commercial mode has its own
 MERGE_SIM_SHIPPED = CENTROID_ARCFACE_REFERENCE_THRESHOLD            # ArcFace merge_threshold, strict >
 MERGE_SIM_AUTO = 1.0 - CENTROID_ARCFACE_REFERENCE_DISTANCE          # auto_merge_distance 0.15
@@ -1664,12 +1664,16 @@ def _suppress_fragments(items):
     return [it[0] for k, it in enumerate(items) if k not in drop]
 
 
-def tiled_detect_cond(img, detect_tile, trigger_px=TILE_TRIGGER_IMAGE_PX, **kwargs):
-    """Tile only when the full-frame pass found a small face or the image is large."""
+def tiled_detect_cond(img, detect_tile, trigger_px=None, **kwargs):
+    """Tile only when the full-frame pass found a face shorter than ``TILE_TRIGGER_FACE_PX``.
+
+    ``trigger_px`` (the ``@<px>`` variant) additionally tiles an image whose longer side exceeds it;
+    left ``None`` the image size never triggers (nearly every camera photo is over any useful size).
+    """
     full = list(detect_tile(img))
     h, w = img.shape[:2]
     small = any(min(d[2] - d[0], d[3] - d[1]) < TILE_TRIGGER_FACE_PX for d in full)
-    if not (small or max(h, w) > trigger_px):
+    if not (small or (trigger_px is not None and max(h, w) > trigger_px)):
         return full
     return tiled_detect(img, detect_tile, full=full, **kwargs)
 
@@ -1678,10 +1682,11 @@ def filter_detections(dets, frame_w, frame_h, min_conf, min_size):
     """Confidence and size filters in ORIGINAL-image pixels, after the merge (as ``FaceAnalyzer`` does)."""
     out = []
     for x1, y1, x2, y2, conf, kps in dets:
+        # production tests int-truncated width / height of the UNCLIPPED box; clipping is for output only
+        if conf < min_conf or int(x2) - int(x1) < min_size or int(y2) - int(y1) < min_size:
+            continue
         x1, x2 = max(0.0, min(float(frame_w), x1)), max(0.0, min(float(frame_w), x2))
         y1, y2 = max(0.0, min(float(frame_h), y1)), max(0.0, min(float(frame_h), y2))
-        if conf < min_conf or (x2 - x1) < min_size or (y2 - y1) < min_size:
-            continue
         out.append((x1, y1, x2, y2, conf, kps))
     return out
 
@@ -1699,7 +1704,7 @@ def build_face_detector(detect_tile, filters, mode, trigger_px=None):
         elif mode == 'tiled':
             dets = tiled_detect(img, detect_tile)
         else:
-            dets = tiled_detect_cond(img, detect_tile, trigger_px or TILE_TRIGGER_IMAGE_PX)
+            dets = tiled_detect_cond(img, detect_tile, trigger_px)
         return filter_detections(dets, w, h, filters['min_confidence'], filters['min_face_size'])
 
     def detect(img):
@@ -1789,10 +1794,12 @@ def score_face_detection_labelled(samples, loader, detectors):
     A label box is a hit when a detection matches it (IoU >= ``IOU_MATCH``, one detection per
     box). Unmatched detections are false positives ONLY on a ``faces == []`` photo: a labelled
     photo may be incompletely labelled, so its extras are counted separately. The loaded image
-    must have exactly the labelled width / height, else the photo is skipped.
+    must have exactly the labelled width / height, else the photo is skipped. Each detector gets
+    one untimed warm-up call on the first scored image before its latencies are recorded.
     """
     acc = {n: {'photos': {}, 'lat': []} for n in detectors}
     skipped = {'unreadable': 0, 'dimension_mismatch': 0}
+    warmed = set()
     for path, w, h, faces in samples:
         img = loader(path)
         if img is None:
@@ -1802,6 +1809,9 @@ def score_face_detection_labelled(samples, loader, detectors):
             skipped['dimension_mismatch'] += 1
             continue
         for name, detect in detectors.items():
+            if name not in warmed:      # untimed: the first ORT call pays the cuDNN algorithm search
+                detect(img)
+                warmed.add(name)
             t0 = time.monotonic()
             dets = detect(img)
             acc[name]['lat'].append(time.monotonic() - t0)
@@ -1834,6 +1844,7 @@ def summarize_face_detection_labelled(acc, seed):
             # lower bound: an unlabelled real face counts as a miss of precision
             'precision_on_labelled_photos': (sum(r['n_matched'] for r in labelled) / n_det) if n_det else None,
             'mean_seconds_per_photo': float(np.mean(a['lat'])) if a['lat'] else None,
+            'median_seconds_per_photo': float(np.median(a['lat'])) if a['lat'] else None,
             'n_photos': len(recs), 'n_labelled_faces': len(faces),
         }
     return out
@@ -1887,8 +1898,8 @@ def vs_baseline(acc, summary, baseline, seed):
         s, b = summary[name], summary[baseline]
         fp_delta = (None if s['fp_per_no_face_photo'] is None or b['fp_per_no_face_photo'] is None
                     else s['fp_per_no_face_photo'] - b['fp_per_no_face_photo'])
-        ratio = (None if not s['mean_seconds_per_photo'] or not b['mean_seconds_per_photo']
-                 else s['mean_seconds_per_photo'] / b['mean_seconds_per_photo'])
+        ratio = (None if not s['median_seconds_per_photo'] or not b['median_seconds_per_photo']
+                 else s['median_seconds_per_photo'] / b['median_seconds_per_photo'])
         out[name] = {
             'recall_lt_0.5pct_delta': delta, 'recall_delta_ci_low': lo, 'recall_delta_ci_high': hi,
             'n_faces_lt_0.5pct': n_faces, 'ci_unit': 'photos (paired)',
@@ -1980,9 +1991,9 @@ def _arcface_embedder(device):
 def _log_candidate_table(name, s, vram):
     def f(v, spec):
         return 'n/a' if v is None else format(v, spec)
-    logger.info("%-24s recall %s  precision %s  fp/empty %s  s/photo %s  VRAM %s GB", name,
+    logger.info("%-24s recall %s  precision %s  fp/empty %s  s/photo mean %s median %s  VRAM %s GB", name,
                 _pct(s['recall']), f(s['precision_on_labelled_photos'], '.3f'), f(s['fp_per_no_face_photo'], '.3f'),
-                f(s['mean_seconds_per_photo'], '.3f'), f(vram, '.2f'))
+                f(s['mean_seconds_per_photo'], '.3f'), f(s['median_seconds_per_photo'], '.3f'), f(vram, '.2f'))
     for b, v in {**s['recall_by_area'], **s['recall_by_pixels']}.items():
         logger.info("    %-9s recall %s (n=%d)", b, _pct(v), v['n'])
 
@@ -2009,13 +2020,18 @@ def _run_faces_detect_labelled(names, labels_path, loader, device, seed, limit, 
             try:
                 one, skipped = score_face_detection_labelled(samples, loader, runners)
                 acc.update(one)
-                if name == cl_name and hasattr(runners[name], 'internal'):
-                    cannot_link = _run_cannot_link(samples, loader, runners[name].internal, device, seed)
-            finally:
+                run_cl = name == cl_name and hasattr(runners[name], 'internal')
+            except BaseException:
                 _close_all(runners)
-                del runners
-                gc.collect()
-        vram[name] = v['peak_vram_gb']
+                raise
+        vram[name] = v['peak_vram_gb']     # the candidate's window ends before the cannot-link ArcFace load
+        try:
+            if run_cl:
+                cannot_link = _run_cannot_link(samples, loader, runners[name].internal, device, seed)
+        finally:
+            _close_all(runners)
+            del runners
+            gc.collect()
     summary = summarize_face_detection_labelled(acc, seed)
     for name, s in summary.items():
         _log_candidate_table(name, s, vram[name])

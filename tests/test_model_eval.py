@@ -553,7 +553,7 @@ def test_unlabelled_detection_is_fp_only_on_no_face_photos():
 
     def real_plus_extra_on_labelled(img):
         seen.append(1)
-        return [(*face, 0.9), (*extra, 0.8)] if len(seen) == 1 else []   # the labelled photo is scored first
+        return [(*face, 0.9), (*extra, 0.8)] if len(seen) == 2 else []   # call 1 is the untimed warm-up on the labelled photo, call 2 scores it
 
     acc, _ = me.score_face_detection_labelled(samples, lambda p: _tiny_frame(),
                                               {'d': real_plus_extra_on_labelled})
@@ -567,6 +567,19 @@ def test_unlabelled_detection_is_fp_only_on_no_face_photos():
     s = me.summarize_face_detection_labelled(acc, seed=1)['d']
     assert s['fp_per_no_face_photo'] == 1.0 and s['fp_rate_no_face_photos']['rate'] == 1.0
     assert s['extra_detections_on_labelled_photos'] == 1
+
+
+def test_labelled_scoring_warms_up_untimed_and_reports_median():
+    calls = []
+
+    def detect(img):
+        calls.append(1)
+        return []
+    samples = [('/a.jpg', 4000, 3000, []), ('/b.jpg', 4000, 3000, [])]
+    acc, _ = me.score_face_detection_labelled(samples, lambda p: _tiny_frame(), {'d': detect})
+    assert len(calls) == 3 and len(acc['d']['lat']) == 2        # one untimed warm-up, two timed
+    s = me.summarize_face_detection_labelled(acc, seed=1)['d']
+    assert s['median_seconds_per_photo'] is not None
 
 
 def test_labelled_scoring_skips_dimension_mismatch_and_unreadable():
@@ -662,8 +675,11 @@ def test_tiled_detect_translates_keypoints():
 def test_tiled_cond_skips_tiling_when_not_triggered():
     img = _canvas()
     calls = []
+    me.tiled_detect_cond(img, _blob_detector(calls))
+    assert len(calls) == 1                                  # large image, no small face: the size never triggers
+    calls.clear()
     me.tiled_detect_cond(img, _blob_detector(calls), trigger_px=3000)
-    assert len(calls) == 1                                  # small image, no small face: one full-frame call
+    assert len(calls) == 1                                  # opt-in size trigger not reached
     calls.clear()
     me.tiled_detect_cond(img, _blob_detector(calls), trigger_px=1500)
     assert len(calls) == 1 + 4 * 3                          # image longer than the trigger: full + 12 tiles
@@ -672,7 +688,7 @@ def test_tiled_cond_skips_tiling_when_not_triggered():
     def finds_small_full_frame(crop):
         calls.append(crop.shape[:2])
         return [(0.0, 0.0, 40.0, 40.0, 0.9, None)] if crop.shape[:2] == (1500, 2000) else []
-    me.tiled_detect_cond(img, finds_small_full_frame, trigger_px=3000)
+    me.tiled_detect_cond(img, finds_small_full_frame)
     assert len(calls) == 1 + 4 * 3                          # a sub-80 px face triggers the tiles
 
 
@@ -683,9 +699,28 @@ def test_tiled_suppresses_tile_fragments():
 
 
 def test_candidate_filters_use_original_pixels():
-    img = _canvas((1000, 1000, 1025, 1025), (1200, 1000, 1215, 1015))   # 25 px and 15 px, both past x=640
-    det = me.build_face_detector(_blob_detector(), {'min_confidence': 0.0, 'min_face_size': 20}, 'tiled')
-    assert [tuple(round(v) for v in d[:4]) for d in det(img)] == [(1000, 1000, 1025, 1025)]
+    # The stub sees the image shrunk 4x (2000x1500 -> 500x375) and its factory rescales the boxes back.
+    # A 40 px face is 10 px in the scaled space (< 20) but 40 px in original pixels (>= 20): kept only
+    # when the size filter runs after the rescale.
+    img = _canvas((1000, 1000, 1040, 1040), (1200, 1000, 1210, 1010))   # 40 px and 10 px
+    scale = 4
+
+    def detect_scaled(full):
+        small = full[::scale, ::scale]
+        from scipy import ndimage
+        labelled, _ = ndimage.label(small[:, :, 0] > 0)
+        return [(float(x.start * scale), float(y.start * scale), float(x.stop * scale), float(y.stop * scale),
+                 0.9, None) for y, x in ndimage.find_objects(labelled)]
+    det = me.build_face_detector(detect_scaled, {'min_confidence': 0.0, 'min_face_size': 20}, 'full')
+    assert [tuple(round(v) for v in d[:4]) for d in det(img)] == [(1000, 1000, 1040, 1040)]
+
+
+def test_filter_size_matches_production_truncation():
+    # production: bbox.astype(int) of the unclipped box, then width < min_face_size
+    kept = me.filter_detections([(0.9, 0.0, 20.8, 30.0, 0.9, None)], 100, 100, 0.0, 20)
+    assert len(kept) == 1                      # int(20.8) - int(0.9) = 20, though the float width is 19.9
+    kept = me.filter_detections([(-10.0, 0.0, 15.0, 30.0, 0.9, None)], 100, 100, 0.0, 20)
+    assert len(kept) == 1 and kept[0][0] == 0.0   # size tested unclipped (25), output clipped
 
 
 def test_config_min_face_size_zero_changes_filter():
@@ -821,7 +856,21 @@ def test_scan_detector_still_640():
     assert re.findall(r'det_size\s*=\s*\([^)]*\)', src) == ['det_size=(640, 640)']
 
 
-@pytest.mark.skip(reason='MANUAL ONLY: needs the buffalo_l weights and a GPU; remove the skip to run it by hand')
+def _scrfd_gpu_unavailable():
+    import os
+    if not os.path.isfile(os.path.expanduser('~/.insightface/models/buffalo_l/det_10g.onnx')):
+        return 'buffalo_l weights absent'
+    try:
+        import onnxruntime
+        import torch
+    except ImportError as e:
+        return str(e)
+    if not torch.cuda.is_available() or 'CUDAExecutionProvider' not in onnxruntime.get_available_providers():
+        return 'CUDA / ORT CUDA provider unavailable'
+    return None
+
+
+@pytest.mark.skipif(_scrfd_gpu_unavailable() is not None, reason=str(_scrfd_gpu_unavailable()))
 def test_insightface_640_matches_production_detector():
     from analyzers.face import FaceAnalyzer
     img = (np.random.default_rng(0).random((720, 1280, 3)) * 255).astype(np.uint8)

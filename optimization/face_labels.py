@@ -55,13 +55,16 @@ def load_labels(path):
 
     An empty face list is a reviewed no-face photo.
     """
-    with open(path) as f:
+    with open(path, encoding='utf-8') as f:
         data = json.load(f)
     if not isinstance(data, dict) or data.get('version') != LABELS_VERSION:
         raise ValueError(f"{path}: expected a labels file with version {LABELS_VERSION}")
-    out = []
+    out, seen = [], set()
     for entry in data.get('photos', []):
         p, w, h = entry['path'], int(entry['width']), int(entry['height'])
+        if p in seen:
+            raise ValueError(f"{path}: duplicate photo path {p}")
+        seen.add(p)
         faces = []
         for box in entry['faces']:
             x1, y1, x2, y2 = (float(v) for v in box)
@@ -80,7 +83,7 @@ def write_labels(path, photos):
     payload = {'version': LABELS_VERSION,
                'photos': [{'path': p, 'width': w, 'height': h, 'faces': [list(b) for b in faces]}
                           for p, w, h, faces in photos]}
-    with open(path, 'w') as f:
+    with open(path, 'w', encoding='utf-8') as f:
         json.dump(payload, f, indent=2)
 
 
@@ -154,7 +157,7 @@ def sample_photos(db_path, out_dir, n_pos=DEFAULT_POSITIVES, n_neg=DEFAULT_NEGAT
         img.convert('RGB').save(os.path.join(images, f"{index}.jpg"), quality=JPEG_QUALITY)
         manifest.append({'index': index, 'path': path, 'kind': kind,
                          'width': img.width, 'height': img.height})
-    with open(os.path.join(out_dir, 'manifest.csv'), 'w', newline='') as f:
+    with open(os.path.join(out_dir, 'manifest.csv'), 'w', newline='', encoding='utf-8') as f:
         writer = csv.DictWriter(f, fieldnames=MANIFEST_FIELDS)
         writer.writeheader()
         writer.writerows(manifest)
@@ -171,7 +174,7 @@ def import_labelme(labelme_dir, manifest_path, out_path):
     A manifest image with no JSON is an error (never silently "no faces"); a JSON with zero
     shapes is a reviewed no-face photo. Only ``rectangle`` shapes labelled ``face`` are accepted.
     """
-    with open(manifest_path, newline='') as f:
+    with open(manifest_path, newline='', encoding='utf-8') as f:
         manifest = list(csv.DictReader(f))
     missing = [m['index'] for m in manifest
                if not os.path.isfile(os.path.join(labelme_dir, f"{m['index']}.json"))]
@@ -180,7 +183,7 @@ def import_labelme(labelme_dir, manifest_path, out_path):
                          "shapes when there is no face) before importing")
     photos = []
     for m in manifest:
-        with open(os.path.join(labelme_dir, f"{m['index']}.json")) as f:
+        with open(os.path.join(labelme_dir, f"{m['index']}.json"), encoding='utf-8') as f:
             doc = json.load(f)
         w, h = int(m['width']), int(m['height'])
         if (int(doc.get('imageWidth', -1)), int(doc.get('imageHeight', -1))) != (w, h):
@@ -191,8 +194,11 @@ def import_labelme(labelme_dir, manifest_path, out_path):
             if shape.get('shape_type') != 'rectangle' or shape.get('label') != LABEL_NAME:
                 raise ValueError(f"image {m['index']}: only rectangles labelled {LABEL_NAME!r} are accepted, "
                                  f"got {shape.get('shape_type')!r} {shape.get('label')!r}")
-            (xa, ya), (xb, yb) = shape['points']
-            faces.append(clip_box([min(xa, xb), min(ya, yb), max(xa, xb), max(ya, yb)], w, h))
+            points = shape.get('points') or []
+            if len(points) < 2:
+                raise ValueError(f"image {m['index']}: a rectangle needs 2 points, got {len(points)}")
+            xs, ys = [pt[0] for pt in points], [pt[1] for pt in points]
+            faces.append(clip_box([min(xs), min(ys), max(xs), max(ys)], w, h))
         photos.append((m['path'], w, h, faces))
     write_labels(out_path, photos)
     return photos

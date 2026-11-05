@@ -77,6 +77,28 @@ def test_import_labelme_converts_rectangles(tmp_path):
     assert fl.load_labels(out) == photos
 
 
+def test_load_labels_rejects_duplicate_paths(tmp_path):
+    path = _labels_file(tmp_path, [('/a.jpg', 100, 80, []), ('/a.jpg', 100, 80, [])])
+    with pytest.raises(ValueError, match='duplicate'):
+        fl.load_labels(path)
+
+
+def test_import_uses_min_max_over_points_and_needs_two(tmp_path):
+    d, m, out = _labelme_session(tmp_path, [[_rect([[40, 5], [10, 30], [25, 2], [30, 8]])]])
+    assert fl.import_labelme(d, m, out)[0][3] == [[10.0, 2.0, 40.0, 30.0]]
+    (tmp_path / 'one').mkdir()
+    d, m, out = _labelme_session(tmp_path / 'one', [[_rect([[40, 5]])]])
+    with pytest.raises(ValueError, match='2 points'):
+        fl.import_labelme(d, m, out)
+
+
+def test_non_latin_paths_roundtrip(tmp_path):
+    path = str(tmp_path / 'l.json')
+    photos = [('/photos/été/写真.jpg', 100, 80, [[1.0, 1.0, 5.0, 5.0]])]
+    fl.write_labels(path, photos)
+    assert fl.load_labels(path) == photos
+
+
 def test_import_refuses_unlabelled_image(tmp_path):
     d, m, out = _labelme_session(tmp_path, [[], None, []])
     with pytest.raises(ValueError, match='0002'):

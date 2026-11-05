@@ -172,7 +172,9 @@ the LFW library above: LFW photos are headshots and cannot show small-face recal
    (wide focal lengths, event days, some high-resolution frames) and about 50 with no face for
    false positives. It writes the images and a `manifest.csv` under `--out`.
 2. Box every face in [labelme](https://github.com/wkentaro/labelme) with the rectangle tool,
-   label `face`, saving the JSON next to each image.
+   label `face`, saving the JSON next to each image. A photo with no face still needs a
+   saved JSON (zero shapes means "reviewed, no face"; a missing JSON is an import error). If
+   labelme greys out Save on an untouched image, draw any box, delete it, then save.
 3. `python -m optimization.face_labels import --labelme-dir $TESTDB/facelabels/images --manifest $TESTDB/facelabels/manifest.csv --out $TESTDB/facelabels/labels.json`
 4. `python facet.py --evaluate-models faces-detect --face-labels $TESTDB/facelabels/labels.json`
    (see [COMMANDS.md](../docs/COMMANDS.md)). Set `face_detection.min_face_size` to 0 in a
