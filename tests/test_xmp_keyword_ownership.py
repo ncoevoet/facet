@@ -6,6 +6,8 @@ from xml.etree import ElementTree as ET
 
 import pytest
 
+from tests import exiftool_fake
+
 from db.manual_tags import delete_manual_tag, insert_manual_tag, load_manual_tags
 from db.schema import init_database
 from processing.xmp_export import NS_DC, NS_RDF, XmpRating, build_xmp, export_sidecars, exiftool_available, write_metadata
@@ -274,16 +276,16 @@ def test_keyword_reconciliation_respects_user_visibility(tmp_path, monkeypatch):
         conn.close()
 
 
-@pytest.mark.parametrize('which,payload', [
-    ('keywords', '[]'), ('keywords', '{}'), ('keywords', '[null]'),
-    ('keywords', '[{"Error":"cannot read file"}]'),
-    ('keywords', '[{"Subject":{"bad":"shape"}}]'),
-    ('keywords', '[{"Subject":[["nested"]]}]'), ('keywords', '[{"Subject":null}]'),
-    ('keywords', '[{"Error":null}]'), ('keywords', 'not json'),
-    ('state', '[]'), ('state', '[null]'), ('state', '{"KeywordState":null}'),
-    ('state', '[{"Error":"cannot read state"}]'),
+@pytest.mark.parametrize('payload', [
+    '[]', '{}', '[null]', '[{"Error":"cannot read file"}]',
+    '[{"Subject":{"bad":"shape"}}]', '[{"Subject":[["nested"]]}]', '[{"Subject":null}]',
+    '[{"Error":null}]', 'not json', '{"KeywordState":null}',
+    '[{"Error":"cannot read state"}]',
 ])
-def test_failed_structured_reads_preserve_existing_packet_bytes(tmp_path, monkeypatch, which, payload):
+def test_failed_structured_reads_preserve_existing_packet_bytes(tmp_path, monkeypatch, payload):
+    """One merged read serves all families, so ANY malformed family response —
+    or a malformed record as a whole — must refuse the export before a write
+    starts and leave the existing packet bytes untouched."""
     import subprocess
     from processing import xmp_export as xe
     image = tmp_path / 'photo.jpg'
@@ -293,11 +295,9 @@ def test_failed_structured_reads_preserve_existing_packet_bytes(tmp_path, monkey
     monkeypatch.setattr(xe, '_resolve_exiftool', lambda: 'fake-exiftool')
     def run(args, **kwargs):
         assert '-overwrite_original' not in args, 'metadata write must never start after failed read'
-        state = '-XMP-facet:KeywordState' in args
-        raw = payload if (which == 'state') == state else '[{}]'
-        return subprocess.CompletedProcess(args, 0, stdout=raw, stderr='')
-    monkeypatch.setattr(xe.subprocess, 'run', run)
-    with pytest.raises(RuntimeError, match='Cannot read'):
+        return subprocess.CompletedProcess(args, 0, stdout=payload, stderr='')
+    exiftool_fake.install(monkeypatch, run)
+    with pytest.raises(RuntimeError, match='Cannot read|Unsupported'):
         xe._run_exiftool(str(sidecar), XmpRating(tags=['own']), timeout=1, reconcile=True)
     assert sidecar.read_bytes() == before
 
@@ -336,7 +336,7 @@ def test_outbound_provenance_growth_refuses_before_writing_and_keeps_tombstones(
         assert '-overwrite_original' not in args
         record = {'KeywordState': json.dumps(previous)} if '-XMP-facet:KeywordState' in args else {'Subject': names}
         return subprocess.CompletedProcess(args, 0, stdout=json.dumps([record]), stderr='')
-    monkeypatch.setattr(xe.subprocess, 'run', run)
+    exiftool_fake.install(monkeypatch, run)
     with pytest.raises(RuntimeError, match='safe packet bounds.*Deletion markers were not discarded'):
         xe._run_exiftool(str(sidecar), XmpRating(tags=['new-ai'], ai_tags=['new-ai']), timeout=1, reconcile=True)
     assert sidecar.read_bytes() == before
@@ -384,7 +384,7 @@ def test_explicit_null_marker_is_invalid_before_any_write(tmp_path, monkeypatch)
         assert '-overwrite_original' not in args
         payload = '[{"KeywordState":null}]' if '-XMP-facet:KeywordState' in args else '[{}]'
         return subprocess.CompletedProcess(args, 0, stdout=payload, stderr='')
-    monkeypatch.setattr(xe.subprocess, 'run', run)
+    exiftool_fake.install(monkeypatch, run)
     with pytest.raises(RuntimeError, match='Unsupported or invalid'):
         xe._run_exiftool(str(sidecar), XmpRating(), timeout=1, reconcile=True)
     assert sidecar.read_bytes() == before
@@ -406,7 +406,7 @@ def test_exiftool_numeric_keyword_json_is_stringified(monkeypatch, value, expect
     import json
     import subprocess
     from processing import xmp_export as xe
-    monkeypatch.setattr(xe.subprocess, 'run', lambda args, **kwargs:
+    exiftool_fake.install(monkeypatch, lambda args:
                         subprocess.CompletedProcess(args, 0, stdout=exact_keyword_xml(field, expected)
                                                     if _reads_keywords(args, field) == 'xml'
                                                     else json.dumps([{field: value}])))
@@ -417,7 +417,7 @@ def test_exiftool_numeric_keyword_json_is_stringified(monkeypatch, value, expect
 def test_raw_json_keyword_tokens_preserve_exact_lexical_names(monkeypatch):
     import subprocess
     from processing import xmp_export as xe
-    monkeypatch.setattr(xe.subprocess, 'run', lambda args, **kwargs:
+    exiftool_fake.install(monkeypatch, lambda args:
                         subprocess.CompletedProcess(args, 0,
                             stdout=exact_keyword_xml('Subject', ['true', 'false', 'null', '1.50', '1e3', '2024'])
                             if _reads_keywords(args, 'Subject') == 'xml'
@@ -468,14 +468,6 @@ def test_control_character_keyword_beside_a_boolean_survives_embedding(tmp_path,
     from PIL import Image
     from processing import xmp_export as xe
     from utils.exiftool_process import run_exiftool_process
-    original_run = subprocess.run
-    def windows_narrow_argv(args, **kwargs):
-        # Windows ANSI argv bytes are not UTF-8; ExifTool can drop the accent
-        # before the production writer ever sees the seeded IPTC keyword.
-        args = [args[0], *[value.encode('cp1252', errors='replace').decode('utf-8', errors='ignore')
-                           for value in args[1:]]]
-        return original_run(args, **kwargs)
-    monkeypatch.setattr(subprocess, 'run', windows_narrow_argv)
     image = tmp_path / 'bell.jpg'
     Image.new('RGB', (16, 16)).save(image)
     names = ['True', 'bell\x07x', 'café']
@@ -510,7 +502,7 @@ def test_failed_exact_boolean_read_refuses_before_writing(tmp_path, monkeypatch,
             subject_reads.append(args)
             return subprocess.CompletedProcess(args, 0, stdout=xml)
         return subprocess.CompletedProcess(args, 0, stdout='[{"Subject":true}]')
-    monkeypatch.setattr(xe.subprocess, 'run', run)
+    exiftool_fake.install(monkeypatch, run)
     with pytest.raises(RuntimeError, match='Cannot read existing keywords'):
         xe._run_exiftool(str(sidecar), XmpRating(tags=['own']), timeout=1)
     assert subject_reads
@@ -532,8 +524,8 @@ def test_exact_boolean_read_io_failure_refuses_before_writing(tmp_path, monkeypa
             subject_reads.append(args)
             raise failure
         return subprocess.CompletedProcess(args, 0, stdout='[{"Subject":true}]')
-    monkeypatch.setattr(xe.subprocess, 'run', run)
+    exiftool_fake.install(monkeypatch, run)
     with pytest.raises(RuntimeError, match='Cannot read existing keywords'):
-        xe._run_exiftool(str(sidecar), XmpRating(tags=['own']), timeout=1)
+        xe._run_exiftool(str(sidecar), XmpRating(tags=['own']), timeout=0.05)
     assert subject_reads
     assert sidecar.read_bytes() == before

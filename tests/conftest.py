@@ -141,6 +141,15 @@ def _reset_culling_groups_cache():
 
 
 @pytest.fixture(autouse=True)
+def _stop_exiftool_sessions():
+    """Persistent ExifTool processes are process-global: a session started by one
+    test (a fake in its tmp_path, a patched executable) must never serve the next."""
+    yield
+    from utils.exiftool_process import close_sessions
+    close_sessions()
+
+
+@pytest.fixture(autouse=True)
 def _reset_licensing_policy():
     """Licensing policy is process-global state: never let one test's mode leak.
 

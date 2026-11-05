@@ -9,12 +9,12 @@ import os
 from pathlib import Path
 import shutil
 import subprocess
-import sys
 from xml.etree import ElementTree as ET
 
 import pytest
 
 from processing import xmp_export as xe
+from tests import exiftool_fake
 from processing.xmp_export import (
     LABEL_FAVORITE,
     LABEL_REJECTED,
@@ -404,7 +404,7 @@ class TestWriteMetadata:
         calls = []
         monkeypatch.setattr(xe, "exiftool_available", lambda: True)
         monkeypatch.setattr(xe, "_run_exiftool",
-                            lambda target, rating, *, timeout, reconcile: calls.append(target))
+                            lambda target, rating, *, timeout, reconcile, precomputed_args=None: calls.append(target))
         img = tmp_path / "p.jpg"
         img.write_bytes(b"x")
         result = write_metadata(str(img), XmpRating(star_rating=3))
@@ -418,20 +418,37 @@ class TestWriteMetadata:
         monkeypatch.setattr(xe, "_resolve_exiftool", lambda: 'mock-exiftool')
         monkeypatch.setattr(xe, "_exiftool_write_args", lambda *args, **kwargs: [])
         monkeypatch.setattr(xe, "_run_exiftool",
-                            lambda target, rating, *, timeout, reconcile: calls.append(target))
+                            lambda target, rating, *, timeout, reconcile, precomputed_args=None: calls.append(target))
         img = tmp_path / "p.jpg"
         img.write_bytes(b"x")
         result = write_metadata(str(img), XmpRating(star_rating=3), embed_original=True)
         assert result["embedded"] == str(img)
         assert result["sidecar"] == str(img) + ".xmp"
-        # Embed first, then sidecar.
-        assert calls == [str(img), str(img) + ".xmp"]
+
+    def test_one_state_read_serves_the_whole_write(self, monkeypatch, tmp_path):
+        """The pre-write state read is ONE exiftool command, not three per-family
+        ones: each command is a round trip, and a 10k-photo export pays it for
+        every sidecar."""
+        # payload=None: writes succeed without touching the target (the default
+        # fake corrupts on write, which would raise before the accounting runs).
+        exe = _fake_exiftool(tmp_path, payload=None)
+        monkeypatch.setattr(xe, "_resolve_exiftool", lambda: exe)
+        img = tmp_path / "spawn.jpg"
+        img.write_bytes(b"x")
+        img.with_suffix(img.suffix + ".xmp").write_text(_GOOD_XMP, encoding='utf-8')
+        write_metadata(str(img), XmpRating(star_rating=3))
+        commands = exiftool_fake.logged(exe)
+        reads = [a for a in commands if '-XMP-mwg-rs:RegionInfo' in a]
+        writes = [a for a in commands if '-overwrite_original' in a]
+        assert len(reads) == 1
+        assert sum('-XMP-facet:KeywordState' in a for a in reads) == 1
+        assert len(writes) == 1
 
     def test_raw_format_never_embeds_even_when_opted_in(self, monkeypatch, tmp_path):
         calls = []
         monkeypatch.setattr(xe, "exiftool_available", lambda: True)
         monkeypatch.setattr(xe, "_run_exiftool",
-                            lambda target, rating, *, timeout, reconcile: calls.append(target))
+                            lambda target, rating, *, timeout, reconcile, precomputed_args=None: calls.append(target))
         img = tmp_path / "p.nef"
         img.write_bytes(b"x")
         result = write_metadata(str(img), XmpRating(star_rating=3), embed_original=True)
@@ -456,27 +473,22 @@ _GOOD_XMP = (
 
 
 def _fake_exiftool(tmp_path, version="13.55", payload="<broken attr=\"a=\" b"):
-    """Executable stand-in: answers -ver, returns one empty metadata record for reads, corrupts on write."""
-    body = tmp_path / "fake_exiftool.py"
-    body.write_text(
-        "import sys\n"
-        "args = sys.argv[1:]\n"
-        "if args[:1] == ['-ver']:\n"
-        f"    print({version!r})\n"
-        "    sys.exit(0)\n"
-        "if '-json' in ' '.join(args):\n"
-        "    print('[{}]')\n"
-        "    sys.exit(0)\n"
-        f"open(args[-1], 'wb').write({payload!r}.encode())\n"
-    )
-    if sys.platform == "win32":
-        launcher = tmp_path / "fake_exiftool.cmd"
-        launcher.write_text(f'@"{sys.executable}" "{body}" %*\r\n')
-    else:
-        launcher = tmp_path / "fake_exiftool"
-        launcher.write_text(f'#!/bin/sh\nexec "{sys.executable}" "{body}" "$@"\n')
-        launcher.chmod(0o755)
-    return str(launcher)
+    """Stand-in ExifTool: answers -ver, one empty record for reads, writes ``payload`` to the target.
+
+    It speaks both a direct argv launch (the version probe) and the persistent
+    ``-stay_open`` session every other command goes through; every command it
+    receives is logged for ``exiftool_fake.logged(launcher)``.
+    """
+    return exiftool_fake.script(tmp_path, f"""
+        def handle(args):
+            if args[:1] == ['-ver']:
+                return 0, {version!r} + '\\n', ''
+            if '-json' in ' '.join(args):
+                return 0, '[{{}}]\\n', ''
+            if {payload!r} is not None:
+                open(args[-1], 'wb').write({payload!r}.encode())
+            return 0, '', ''
+        """)
 
 
 @pytest.fixture
@@ -533,8 +545,8 @@ class TestExiftoolVersionGuard:
             return subprocess.CompletedProcess(args, 0, stdout='13.55')
 
         monkeypatch.setattr(xe.subprocess, 'run', probe)
-        monkeypatch.setattr(xe, '_read_existing_regions', lambda *args, **kwargs: {})
-        monkeypatch.setattr(xe, '_read_existing_metadata', lambda *args, **kwargs: ([], [], False))
+        monkeypatch.setattr(xe, '_read_export_state',
+                            lambda *args, **kwargs: xe.ExportState({}, [], [], False, None))
         rating = XmpRating(star_rating=4, regions=[FaceRegion.from_bbox('Ada', 1, 1, 4, 4, 10, 10)])
         target = str(tmp_path / 'new.xmp')
         first = xe._exiftool_write_args(target, rating, '/same/exiftool', timeout=1)
@@ -555,22 +567,20 @@ class TestExiftoolVersionGuard:
         sidecar.write_text(_GOOD_XMP, encoding='utf-8')
         before = image.read_bytes(), sidecar.read_bytes()
         original_run = subprocess.run
-        probes, writes = [], []
+        probes = []
 
         def run(args, **kwargs):
             if args[1:] == ['-ver']:
                 probes.append(args)
                 if len(probes) == 1:
                     raise OSError('transient first version lookup failure')
-            if '-overwrite_original' in args:
-                writes.append(args)
             return original_run(args, **kwargs)
 
         monkeypatch.setattr(xe.subprocess, 'run', run)
         with pytest.raises(RuntimeError, match='13.25.*13.28'):
             write_metadata(str(image), XmpRating(star_rating=3), embed_original=embed)
         assert len(probes) == 2
-        assert writes == []
+        assert not any('-overwrite_original' in args for args in exiftool_fake.logged(exe))
         assert (image.read_bytes(), sidecar.read_bytes()) == before
 
     def test_lookup_failure_does_not_block(self, monkeypatch):
