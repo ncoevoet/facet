@@ -628,6 +628,7 @@
     "person_fallback": "Personne {id}"
   },
   "stats": {
+    "chart_series": "Séries du graphique",
     "show_chart_data": "Afficher les données du graphique",
     "help": "Aperçus sur votre bibliothèque : distributions des scores, utilisation des appareils et objectifs, corrélations entre les dimensions de scoring et tendances dans le temps.",
     "title": "Statistiques EXIF",

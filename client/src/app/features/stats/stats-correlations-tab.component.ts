@@ -119,6 +119,20 @@ export function correlationSeries(data: CorrelationApiResponse, metrics: string[
           } @else if (currentData() && !corrBucketCount()) {
             <p class="py-6 text-center text-[var(--mat-sys-on-surface-variant)]">{{ I18N.stats.no_data | translate }}</p>
           } @else if (currentData()) {
+            @if (chartSeriesRows().length > 1) {
+              <fieldset class="mb-3 min-w-0 rounded-lg border border-[var(--mat-sys-outline-variant)] px-3 pb-2 pt-1">
+                <legend class="px-1 text-xs font-medium text-[var(--mat-sys-on-surface-variant)]">{{ I18N.stats.chart_series | translate }}</legend>
+                <div class="grid max-h-32 grid-cols-1 gap-x-4 overflow-auto sm:grid-cols-2">
+                  @for (series of chartSeriesRows(); track series.key) {
+                    <label class="flex min-h-10 min-w-0 cursor-pointer items-center gap-2 text-sm">
+                      <input type="checkbox" class="h-4 w-4 shrink-0 accent-[var(--mat-sys-primary)]" [checked]="series.visible" (change)="setSeriesVisible(series.key, $any($event.target).checked)" />
+                      <svg aria-hidden="true" width="32" height="12" class="shrink-0"><line x1="1" y1="6" x2="31" y2="6" [attr.stroke]="series.color" stroke-width="3" [attr.stroke-dasharray]="series.dashPattern" /></svg>
+                      <span class="min-w-0 break-words">{{ series.label }}</span>
+                    </label>
+                  }
+                </div>
+              </fieldset>
+            }
             <div class="h-72 md:h-96 lg:h-[28rem]">
               <canvas #correlationsCanvas aria-hidden="true"></canvas>
             </div>
@@ -150,6 +164,7 @@ export class StatsCorrelationsTabComponent {
   private charts = new Map<string, Chart>();
   private generation = 0;
   private readonly loadedKey = signal('');
+  private readonly seriesVisibility = signal<Record<string, boolean>>({});
 
   readonly correlationsCanvas = viewChild<ElementRef<HTMLCanvasElement>>('correlationsCanvas');
   readonly correlationRetry = viewChild('correlationRetry', { read: ElementRef<HTMLButtonElement> });
@@ -163,6 +178,22 @@ export class StatsCorrelationsTabComponent {
   readonly corrData = signal<CorrelationApiResponse | null>(null);
   readonly currentData = computed(() => this.loadedKey() === this.requestKey() ? this.corrData() : null);
   readonly corrBucketCount = computed(() => this.currentData()?.labels?.length ?? 0);
+  readonly chartSeriesRows = computed(() => {
+    const data = this.currentData();
+    if (!data) return [];
+    this.i18n.locale();
+    const colors = chartSeriesColors(this.themeService.darkMode());
+    const bars = this.corrChartType() === 'bar' || this.corrChartType() === 'horizontalBar';
+    const dashes = [[], [7, 4], [2, 3], [9, 3, 2, 3]];
+    const visibility = this.seriesVisibility();
+    return correlationSeries(data, this.corrYMetrics(), metric => this.i18n.t(`stats.correlations.metrics.${metric}`))
+      .map(series => {
+        const key = `${series.groupIndex}:${series.metricIndex}`;
+        const colorIndex = bars && data.groups ? series.groupIndex * this.corrYMetrics().length + series.metricIndex : series.groupIndex;
+        const dash = bars ? [] : dashes[series.metricIndex % dashes.length];
+        return { ...series, key, color: colors[colorIndex % colors.length], dash, dashPattern: dash.join(' '), visible: visibility[key] !== false };
+      });
+  });
   private readonly accessibleRecords = computed(() => buildCorrelationCsvRecords(this.currentData(), this.corrYMetrics()));
   readonly accessibleColumns = computed(() => Object.keys(this.accessibleRecords()[0] ?? {}));
   readonly accessibleColumnLabels = computed(() => {
@@ -218,6 +249,7 @@ export class StatsCorrelationsTabComponent {
       this.auth.status(); this.auth.identity(); this.auth.isAuthenticated();
       this.generation++;
       this.corrData.set(null);
+      this.seriesVisibility.set({});
       this.correlationLoading.set(false);
       this.correlationFailed.set(false);
       this.correlationRetrying.set(false);
@@ -245,6 +277,10 @@ export class StatsCorrelationsTabComponent {
 
   retryCorrelation(): void {
     if (!this.correlationLoading()) void this.loadCorrelation(true);
+  }
+
+  setSeriesVisible(key: string, visible: boolean): void {
+    this.seriesVisibility.update(current => ({ ...current, [key]: visible }));
   }
 
   async loadCorrelation(retry = false): Promise<void> {
@@ -323,19 +359,15 @@ export class StatsCorrelationsTabComponent {
       pointStyle?: PointStyle;
     }[] = [];
 
-    const themedColors = chartSeriesColors(this.themeService.darkMode());
-
-    const dashes = [[], [7, 4], [2, 3], [9, 3, 2, 3]];
     const points: PointStyle[] = ['circle', 'triangle', 'rect', 'rectRot', 'crossRot', 'star'];
-    for (const series of correlationSeries(apiData, this.corrYMetrics(), metric => this.i18n.t(`stats.correlations.metrics.${metric}`))) {
-        const colorIndex = type === 'bar' && apiData.groups ? series.groupIndex * this.corrYMetrics().length + series.metricIndex : series.groupIndex;
-        const color = themedColors[colorIndex % themedColors.length];
+    for (const series of this.chartSeriesRows().filter(row => row.visible)) {
+        const color = series.color;
         datasets.push({
           label: series.label, data: series.values,
           backgroundColor: color + (type === 'bar' ? 'cc' : '33'),
           borderColor: color, borderWidth: type === 'bar' ? 1 : 2,
           fill, tension: type === 'line' ? 0 : undefined,
-          borderDash: type === 'line' ? dashes[series.metricIndex % dashes.length] : undefined,
+          borderDash: type === 'line' ? series.dash : undefined,
           pointStyle: type === 'line' ? points[series.groupIndex % points.length] : undefined,
           pointRadius: type === 'line' ? 3 : undefined,
           borderRadius: type === 'bar' ? 3 : undefined,
@@ -350,7 +382,7 @@ export class StatsCorrelationsTabComponent {
         responsive: true,
         maintainAspectRatio: false,
         plugins: {
-          legend: { display: datasets.length > 1, labels: { color: palette.text, boxWidth: 12, usePointStyle: true } },
+          legend: { display: false },
           tooltip: {
             callbacks: {
               label: (tooltipCtx) => {

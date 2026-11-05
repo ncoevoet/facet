@@ -20,7 +20,7 @@ describe('statistics owner and lifecycle boundaries', () => {
       provideHttpClient(), provideHttpClientTesting(), StatsComponent,
       { provide: AuthService, useValue: auth },
       { provide: GalleryStore, useValue: { types: signal([]), loadTypeCounts: vi.fn(() => Promise.resolve()) } },
-      { provide: I18nService, useValue: { t: (key: string) => key } },
+      { provide: I18nService, useValue: { t: (key: string) => key, locale: signal('en') } },
       { provide: Router, useValue: { navigate: vi.fn(), events: NEVER } },
       { provide: ActivatedRoute, useValue: { snapshot: { queryParams: {} } } },
     ] });

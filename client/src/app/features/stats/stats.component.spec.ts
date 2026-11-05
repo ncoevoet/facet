@@ -125,7 +125,7 @@ describe('StatsComponent', () => {
         { provide: ApiService, useValue: mockApi },
         { provide: AuthService, useValue: mockAuth },
         { provide: GalleryStore, useValue: { types: signal([]), loadTypeCounts: vi.fn(() => Promise.resolve()) } },
-        { provide: I18nService, useValue: { t: (key: string) => key } },
+        { provide: I18nService, useValue: { t: (key: string) => key, locale: signal('en') } },
         { provide: Router, useValue: { navigate: vi.fn(), events: NEVER } },
         { provide: ActivatedRoute, useValue: { snapshot: { queryParams: {} } } },
       ],
@@ -153,6 +153,15 @@ describe('StatsComponent', () => {
     expect(pipe.transform(18432, 'de')).toBe('18.432');
     expect(pipe.transform(6.5, 'de', 1)).toBe('6,5');
     expect(pipe.transform(18432, 'en')).toBe('18,432');
+    expect(pipe.transform(null, 'de', 1)).toBe('—');
+  });
+
+  it('localizes score-bin labels when the viewer language changes', () => {
+    component = createComponent();
+    c().scoreBins.set([{ range: '1.5', min: 1.5, max: 2, count: 1234, percentage: 1 }]);
+    expect(c().scoreDisplayBins()[0].displayRange).toBe('1.5');
+    TestBed.inject(I18nService).locale.set('de');
+    expect(c().scoreDisplayBins()[0].displayRange).toBe('1,5');
   });
 
   it('keeps an unknown category query visible until the matching type is available', () => {

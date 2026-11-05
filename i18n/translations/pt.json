@@ -628,6 +628,7 @@
     "person_fallback": "Pessoa {id}"
   },
   "stats": {
+    "chart_series": "Séries do gráfico",
     "show_chart_data": "Mostrar dados do gráfico",
     "help": "Informações sobre a sua biblioteca: distribuições de pontuação, uso de câmeras e lentes, correlações entre as dimensões de pontuação e tendências ao longo do tempo.",
     "title": "Estatísticas EXIF",

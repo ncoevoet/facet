@@ -80,7 +80,7 @@ const GEAR_METRIC_OPTIONS = [
   template: `
     <mat-card>
       <mat-card-header class="!flex !flex-wrap !items-center !justify-between !gap-3">
-        <mat-card-title class="shrink-0">{{ titleKey() | translate }}</mat-card-title>
+        <mat-card-title role="heading" aria-level="2" class="shrink-0">{{ titleKey() | translate }}</mat-card-title>
         <mat-form-field class="flex-1 min-w-[10rem] !-mt-2 max-sm:order-last max-sm:basis-full" subscriptSizing="dynamic">
           <!-- No mat-label: the card title next to it already names the chart,
                and repeating it read as a rendering glitch. The aria-label gives

@@ -83,6 +83,21 @@ describe('StatsCorrelationsTabComponent', () => {
     expect(component.accessibleRows()[0]).toEqual(['2025', 'Canon', '7,5', '—']);
   });
 
+  it('lets users hide a chart series without removing its table or CSV values', async () => {
+    TestBed.tick();
+    component.corrGroupBy.set('camera_model');
+    TestBed.tick();
+    const data = { labels: ['2025'], groups: { Canon: { '2025': { aggregate: 7.5, aesthetic: 6.5 } } }, x_axis: 'date_year', group_by: 'camera_model' };
+    vi.mocked(TestBed.inject(ApiService).get).mockReturnValueOnce(of(data));
+    await component.loadCorrelation();
+    expect(component.chartSeriesRows().map(row => row.visible)).toEqual([true, true]);
+    expect(component.chartSeriesRows().map(row => row.dash)).toEqual([[], [7, 4]]);
+    component.setSeriesVisible(component.chartSeriesRows()[1].key, false);
+    expect(component.chartSeriesRows().map(row => row.visible)).toEqual([true, false]);
+    expect(component.accessibleRows()[0]).toEqual(['2025', 'Canon', '7.5', '6.5']);
+    expect(buildCorrelationCsvRecords(component.currentData(), ['aggregate', 'aesthetic'])[0]).toEqual({ date_year: '2025', group: 'Canon', aggregate: 7.5, aesthetic: 6.5 });
+  });
+
   it('ignores a late response after the owner changes', async () => {
     TestBed.tick();
     const pending = new Subject<any>();

@@ -77,8 +77,9 @@ interface TopCamera {
 
 @Pipe({ name: 'statsNumber', standalone: true })
 export class StatsNumberPipe implements PipeTransform {
-  transform(value: number, locale: string, digits = 0): string {
-    return new Intl.NumberFormat(locale, { minimumFractionDigits: digits, maximumFractionDigits: digits }).format(value);
+  transform(value: number | null | undefined, locale: string, digits = 0): string {
+    return value == null || !Number.isFinite(value) ? '—'
+      : new Intl.NumberFormat(locale, { minimumFractionDigits: digits, maximumFractionDigits: digits }).format(value);
   }
 }
 
@@ -108,7 +109,7 @@ export class StatsNumberPipe implements PipeTransform {
   changeDetection: ChangeDetectionStrategy.Eager,
   template: `
     <header class="mb-4 space-y-2 border-b border-[var(--mat-sys-outline-variant)] pb-3 sm:space-y-4 sm:pb-4">
-      <h1 id="stats-heading" tabindex="-1" class="m-0 text-xl font-semibold text-[var(--mat-sys-on-surface)]">{{ I18N.nav.stats | translate }}</h1>
+      <h1 id="stats-heading" tabindex="-1" class="m-0 text-2xl font-semibold tracking-tight text-[var(--mat-sys-on-surface)]">{{ I18N.nav.stats | translate }}</h1>
       @if (statsFilters.overview(); as overview) {
         <dl class="m-0 grid grid-cols-2 gap-x-3 gap-y-1 rounded-lg bg-[var(--mat-sys-surface-container-low)] px-2 py-1.5 text-sm sm:flex sm:flex-wrap sm:gap-x-5 sm:bg-transparent sm:p-0" data-stats-overview>
           <div class="flex min-w-0 items-baseline gap-1.5">
@@ -130,11 +131,11 @@ export class StatsNumberPipe implements PipeTransform {
         </dl>
       }
       <details class="group sm:hidden">
-        <summary class="flex min-h-11 cursor-pointer items-center gap-2 text-sm font-medium text-[var(--mat-sys-primary)]">
+        <summary class="flex min-h-11 cursor-pointer flex-wrap items-center gap-2 py-1 text-sm font-medium text-[var(--mat-sys-primary)]">
           <mat-icon aria-hidden="true">filter_list</mat-icon>{{ I18N.ui.buttons.filters | translate }}
           @if (statsFilters.filterCategory() || statsFilters.dateFrom() || statsFilters.dateTo()) {
             <span class="h-2 w-2 rounded-full bg-[var(--mat-sys-primary)]" aria-hidden="true"></span>
-            <span class="min-w-0 truncate font-normal text-[var(--mat-sys-on-surface-variant)]">{{ filterSummary() }}</span>
+            <span class="order-last min-w-0 basis-full break-words font-normal text-[var(--mat-sys-on-surface-variant)]">{{ filterSummary() }}</span>
           }
           <mat-icon aria-hidden="true" class="transition-transform group-open:rotate-180">expand_more</mat-icon>
         </summary>
@@ -174,12 +175,12 @@ export class StatsNumberPipe implements PipeTransform {
         <mat-spinner diameter="48" [attr.aria-label]="I18N.ui.labels.loading | translate" />
       </div>
     } @else if (!loadFailed()) {
-      <mat-tab-group class="stats-tabs max-sm:[&_.mat-mdc-tab]:!min-w-0 max-sm:[&_.mat-mdc-tab]:!px-0 max-sm:[&_.mat-mdc-tab]:!flex-[1_1_25%] max-sm:[&_.mat-mdc-tab-labels]:!flex-[1_1_0%] max-sm:[&_.mdc-tab__text-label]:!whitespace-normal max-sm:[&_.mdc-tab__text-label]:!text-center max-sm:[&_.mdc-tab__text-label]:!text-xs" mat-stretch-tabs="false" mat-align-tabs="start" [selectedIndex]="selectedTab()" (selectedIndexChange)="selectedTab.set($event)">
+      <mat-tab-group class="stats-tabs max-sm:[&_.mat-mdc-tab]:!min-w-0 max-sm:[&_.mat-mdc-tab]:!px-0 max-sm:[&_.mat-mdc-tab]:!flex-[1_1_25%] max-sm:[&_.mat-mdc-tab-labels]:!flex-[1_1_0%]" mat-stretch-tabs="false" mat-align-tabs="start" [selectedIndex]="selectedTab()" (selectedIndexChange)="selectedTab.set($event)">
           <!-- Gear tab -->
           <mat-tab>
             <ng-template mat-tab-label>
               <mat-icon class="!hidden sm:!inline-block sm:mr-2" aria-hidden="true">camera_alt</mat-icon>
-              <span>{{ I18N.stats.gear | translate }}</span>
+              <span class="block whitespace-normal break-words text-center text-xs max-sm:max-w-[calc((100vw-2rem)/4)] sm:whitespace-nowrap sm:text-sm">{{ I18N.stats.gear | translate }}</span>
             </ng-template>
             <div class="grid grid-cols-1 xl:grid-cols-2 gap-4 mt-4">
               <app-gear-chart-card titleKey="stats.cameras" [items]="cameras()" [loading]="gearLoading()" [color]="themeService.accentColor()" />
@@ -199,14 +200,14 @@ export class StatsNumberPipe implements PipeTransform {
           <mat-tab>
             <ng-template mat-tab-label>
               <mat-icon class="!hidden sm:!inline-block sm:mr-2" aria-hidden="true">category</mat-icon>
-              <span>{{ I18N.stats.categories.tab | translate }}</span>
+              <span class="block whitespace-normal break-words text-center text-xs max-sm:max-w-[calc((100vw-2rem)/4)] sm:whitespace-nowrap sm:text-sm">{{ I18N.stats.categories.tab | translate }}</span>
             </ng-template>
             <div class="mt-4 flex flex-col gap-4">
               <div class="grid grid-cols-1 lg:grid-cols-2 2xl:grid-cols-3 gap-4">
                 @if (categoryMetricData().length > 0) {
                   <mat-card>
                     <mat-card-header class="!flex !items-center !justify-between !gap-4">
-                      <mat-card-title>{{ I18N.stats.category_metric_title | translate }}</mat-card-title>
+                      <h2 mat-card-title>{{ I18N.stats.category_metric_title | translate }}</h2>
                       <mat-form-field class="flex-1 min-w-0 !-mt-2" subscriptSizing="dynamic">
                         <mat-label>{{ I18N.stats.gear_metric_label | translate }}</mat-label>
                         <mat-select [ngModel]="categoryMetric()" (ngModelChange)="categoryMetric.set($event)">
@@ -220,6 +221,18 @@ export class StatsNumberPipe implements PipeTransform {
                       <div [style.height.px]="categoryMetricData() | chartHeight">
                         <canvas #categoryMetricCanvas role="img" [attr.aria-label]="I18N.stats.category_metric_title | translate"></canvas>
                       </div>
+                      <details class="mt-2 text-sm">
+                        <summary class="min-h-11 cursor-pointer content-center text-[var(--mat-sys-primary)]">{{ I18N.stats.show_chart_data | translate }}</summary>
+                        <table class="w-full text-left">
+                          <caption class="sr-only">{{ I18N.stats.category_metric_title | translate }}</caption>
+                          <thead><tr><th scope="col">{{ I18N.stats.categories.tab | translate }}</th><th scope="col">{{ ('stats.category_metrics.' + categoryMetric()) | translate }}</th></tr></thead>
+                          <tbody>
+                            @for (row of categoryMetricRows(); track row.category) {
+                              <tr><th scope="row">{{ row.label }}</th><td>{{ row.value | statsNumber:i18n.locale():1 }}</td></tr>
+                            }
+                          </tbody>
+                        </table>
+                      </details>
                     </mat-card-content>
                   </mat-card>
                 }
@@ -227,7 +240,7 @@ export class StatsNumberPipe implements PipeTransform {
                 @if (categoryScoreProfile().length > 0) {
                   <mat-card>
                     <mat-card-header>
-                      <mat-card-title>{{ I18N.stats.categories_score_profile | translate }}</mat-card-title>
+                      <h2 mat-card-title>{{ I18N.stats.categories_score_profile | translate }}</h2>
                     </mat-card-header>
                     <mat-card-content class="!pt-4">
                       @if (categoriesLoading()) {
@@ -236,6 +249,36 @@ export class StatsNumberPipe implements PipeTransform {
                         <div [style.height.px]="categoryScoreProfile() | chartHeight:80">
                           <canvas #categoryScoreProfileCanvas role="img" [attr.aria-label]="I18N.stats.categories_score_profile | translate"></canvas>
                         </div>
+                        <details class="mt-2 text-sm">
+                          <summary class="min-h-11 cursor-pointer content-center text-[var(--mat-sys-primary)]">{{ I18N.stats.show_chart_data | translate }}</summary>
+                          <div class="overflow-x-auto"><table class="w-full text-left">
+                            <caption class="sr-only">{{ I18N.stats.categories_score_profile | translate }}</caption>
+                            <thead><tr>
+                              <th scope="col">{{ I18N.stats.categories.tab | translate }}</th>
+                              <th scope="col">{{ I18N.stats.axes.aggregate | translate }}</th>
+                              <th scope="col">{{ I18N.stats.axes.aesthetic | translate }}</th>
+                              <th scope="col">{{ I18N.stats.axes.composition | translate }}</th>
+                              <th scope="col">{{ I18N.stats.axes.sharpness | translate }}</th>
+                              <th scope="col">{{ I18N.stats.axes.color | translate }}</th>
+                              <th scope="col">{{ I18N.stats.axes.exposure | translate }}</th>
+                              <th scope="col">{{ I18N.stats.axes.face_quality | translate }}</th>
+                              <th scope="col">{{ I18N.stats.axes.contrast | translate }}</th>
+                            </tr></thead>
+                            <tbody>@for (cat of categoryProfileRows(); track cat.category) {
+                              <tr>
+                                <th scope="row">{{ cat.label }}</th>
+                                <td>{{ cat.avg_score | statsNumber:i18n.locale():1 }}</td>
+                                <td>{{ cat.avg_aesthetic | statsNumber:i18n.locale():1 }}</td>
+                                <td>{{ cat.avg_composition | statsNumber:i18n.locale():1 }}</td>
+                                <td>{{ cat.avg_sharpness | statsNumber:i18n.locale():1 }}</td>
+                                <td>{{ cat.avg_color | statsNumber:i18n.locale():1 }}</td>
+                                <td>{{ cat.avg_exposure | statsNumber:i18n.locale():1 }}</td>
+                                <td>{{ cat.avg_face_quality | statsNumber:i18n.locale():1 }}</td>
+                                <td>{{ cat.avg_contrast | statsNumber:i18n.locale():1 }}</td>
+                              </tr>
+                            }</tbody>
+                          </table></div>
+                        </details>
                       }
                     </mat-card-content>
                   </mat-card>
@@ -243,7 +286,7 @@ export class StatsNumberPipe implements PipeTransform {
 
                 <mat-card class="lg:col-span-2 2xl:col-span-1">
                   <mat-card-header class="!flex !items-center !justify-between">
-                    <mat-card-title>{{ I18N.stats.score_histogram | translate }}</mat-card-title>
+                    <h2 mat-card-title>{{ I18N.stats.score_histogram | translate }}</h2>
                     <button mat-icon-button class="shrink-0" [disabled]="scoreBins().length === 0"
                       [matTooltip]="I18N.stats.export_csv | translate"
                       [attr.aria-label]="I18N.stats.export_csv | translate" (click)="exportScoreBinsCsv()">
@@ -262,8 +305,8 @@ export class StatsNumberPipe implements PipeTransform {
                       <table class="sr-only">
                         <caption>{{ I18N.stats.score_histogram | translate }}</caption>
                         <tbody>
-                          @for (bin of scoreBins(); track bin.range) {
-                            <tr><th scope="row">{{ bin.range }}</th><td>{{ bin.count }}</td></tr>
+                          @for (bin of scoreDisplayBins(); track bin.range) {
+                            <tr><th scope="row">{{ bin.displayRange }}</th><td>{{ bin.count | statsNumber:i18n.locale() }}</td></tr>
                           }
                         </tbody>
                       </table>
@@ -276,7 +319,7 @@ export class StatsNumberPipe implements PipeTransform {
               @if (categoryScoreProfile().length > 0) {
                 <mat-card>
                   <mat-card-header class="!flex !items-center !justify-between">
-                    <mat-card-title>{{ I18N.stats.categories_gear_profile | translate }}</mat-card-title>
+                    <h2 mat-card-title>{{ I18N.stats.categories_gear_profile | translate }}</h2>
                     <div class="flex items-center shrink-0">
                       <button mat-icon-button [disabled]="categoryStats().length === 0"
                         [matTooltip]="I18N.stats.export_csv | translate"
@@ -329,7 +372,7 @@ export class StatsNumberPipe implements PipeTransform {
           <mat-tab>
             <ng-template mat-tab-label>
               <mat-icon class="!hidden sm:!inline-block sm:mr-2" aria-hidden="true">timeline</mat-icon>
-              <span>{{ I18N.stats.timeline | translate }}</span>
+              <span class="block whitespace-normal break-words text-center text-xs max-sm:max-w-[calc((100vw-2rem)/4)] sm:whitespace-nowrap sm:text-sm">{{ I18N.stats.timeline | translate }}</span>
             </ng-template>
             <app-stats-timeline-tab />
           </mat-tab>
@@ -338,7 +381,7 @@ export class StatsNumberPipe implements PipeTransform {
           <mat-tab>
             <ng-template mat-tab-label>
               <mat-icon class="!hidden sm:!inline-block sm:mr-2" aria-hidden="true">insights</mat-icon>
-              <span>{{ I18N.stats.tabs.correlations | translate }}</span>
+              <span class="block whitespace-normal break-words text-center text-xs max-sm:max-w-[calc((100vw-2rem)/4)] sm:whitespace-nowrap sm:text-sm">{{ I18N.stats.tabs.correlations | translate }}</span>
             </ng-template>
             <app-stats-correlations-tab />
           </mat-tab>
@@ -423,8 +466,20 @@ export class StatsComponent {
       .filter(c => (c[metric] as number) > 0)
       .sort((a, b) => (b[metric] as number) - (a[metric] as number));
   });
+  protected readonly categoryMetricRows = computed(() => {
+    const metric = this.categoryMetric() as keyof CategoryStat;
+    return this.categoryMetricData().map(cat => ({ category: cat.category, label: this.translateCategory(cat.category), value: cat[metric] as number }));
+  });
+  protected readonly categoryProfileRows = computed(() => this.categoryScoreProfile().map(cat => ({ ...cat, label: this.translateCategory(cat.category) })));
 
   protected readonly scoreBins = signal<ScoreBin[]>([]);
+  protected readonly scoreDisplayBins = computed(() => {
+    const formatter = new Intl.NumberFormat(this.i18n.locale(), { maximumFractionDigits: 1 });
+    return this.scoreBins().map(bin => {
+      const value = Number(bin.range);
+      return { ...bin, displayRange: bin.range.trim() && Number.isFinite(value) ? formatter.format(value) : bin.range };
+    });
+  });
   protected readonly scoreLoading = signal(false);
 
   protected readonly topCameras = signal<TopCamera[]>([]);
@@ -487,9 +542,9 @@ export class StatsComponent {
 
     // Chart effects — canvas refs must be tracked so charts render on tab switch
     effect(() => {
-      const bins = this.scoreBins();
+      const bins = this.scoreDisplayBins();
       const accent = chartSeriesColor(this.themeService.accentColor(), this.themeService.darkMode());
-      this.buildVerticalBar('score', this.scoreCanvas(), bins.map(b => b.range), bins.map(b => b.count), accent);
+      this.buildVerticalBar('score', this.scoreCanvas(), bins.map(b => b.displayRange), bins.map(b => b.count), accent);
     });
     effect(() => {
       const cats = this.categoryScoreProfile();
@@ -761,6 +816,7 @@ export class StatsComponent {
 
   private buildVerticalBar(id: string, ref: ElementRef<HTMLCanvasElement> | undefined, labels: string[], data: number[], color: string): void {
     if (!ref || data.length === 0) { this.destroyChart(id); return; }
+    const formatter = new Intl.NumberFormat(this.i18n.locale());
     const existing = this.charts.get(id);
     if (existing && this.chartRefs.get(id) === ref) {
       existing.data.labels = labels;
@@ -768,6 +824,8 @@ export class StatsComponent {
       existing.data.datasets[0].backgroundColor = color + 'cc';
       existing.data.datasets[0].borderColor = color;
       this.updateChartTheme(existing);
+      const ticks = existing.options.scales?.['y']?.ticks;
+      if (ticks) ticks.callback = value => formatter.format(Number(value));
       existing.update('none');
       return;
     }
@@ -787,11 +845,11 @@ export class StatsComponent {
         maintainAspectRatio: false,
         plugins: {
           legend: { display: false },
-          tooltip: { callbacks: { label: (ctx) => (ctx.parsed.y ?? 0).toLocaleString() } },
+          tooltip: { callbacks: { label: (ctx) => new Intl.NumberFormat(this.i18n.locale()).format(ctx.parsed.y ?? 0) } },
         },
         scales: {
           x: { grid: { display: false }, ticks: { color: text, maxRotation: 45 } },
-          y: { grid: { color: grid }, ticks: { color: text } },
+          y: { grid: { color: grid }, ticks: { color: text, callback: value => formatter.format(Number(value)) } },
         },
       },
     }));

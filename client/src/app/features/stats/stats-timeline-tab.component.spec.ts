@@ -5,7 +5,7 @@ import { ApiService } from '../../core/services/api.service';
 import { AuthService } from '../../core/services/auth.service';
 import { I18nService } from '../../core/services/i18n.service';
 import { StatsFiltersService } from './stats-filters.service';
-import { StatsTimelineTabComponent, HeatmapColorPipe, HeatmapSizePipe } from './stats-timeline-tab.component';
+import { StatsTimelineTabComponent, HeatmapColorPipe, HeatmapSizePipe, formatStatsMonth } from './stats-timeline-tab.component';
 
 describe('StatsTimelineTabComponent', () => {
   let component: StatsTimelineTabComponent;
@@ -176,6 +176,14 @@ describe('Timeline retry focus', () => {
     expect(document.activeElement?.textContent).toContain('stats.photos_over_time');
     fixture.destroy();
     fixture.nativeElement.remove();
+  });
+});
+
+describe('formatStatsMonth', () => {
+  it('formats valid months with the viewer locale and leaves unknown periods alone', () => {
+    expect(formatStatsMonth('2026-10', 'de')).toBe(new Intl.DateTimeFormat('de', { month: 'short', year: 'numeric' }).format(new Date(2026, 9, 15)));
+    expect(formatStatsMonth('2026-13', 'de')).toBe('2026-13');
+    expect(formatStatsMonth('unknown', 'de')).toBe('unknown');
   });
 });
 

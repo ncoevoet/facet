@@ -653,6 +653,7 @@
     "person_fallback": "Person {id}"
   },
   "stats": {
+    "chart_series": "Chart series",
     "show_chart_data": "Show chart data",
     "help": "Insights about your library: score distributions, camera and lens usage, correlations between scoring dimensions, and trends over time.",
     "title": "EXIF Statistics",

@@ -45,6 +45,15 @@ interface TimelineEntry {
   avg_score: number;
 }
 
+export function formatStatsMonth(period: string, locale: string): string {
+  const match = /^(\d{4})-(\d{2})$/.exec(period);
+  if (!match) return period;
+  const year = Number(match[1]);
+  const month = Number(match[2]);
+  if (year < 100 || month < 1 || month > 12) return period;
+  return new Intl.DateTimeFormat(locale, { month: 'short', year: 'numeric' }).format(new Date(year, month - 1, 15));
+}
+
 @Component({
   selector: 'app-stats-timeline-tab',
   standalone: true,
@@ -88,8 +97,8 @@ interface TimelineEntry {
             <details class="mt-3 text-sm text-[var(--mat-sys-on-surface-variant)]">
               <summary class="cursor-pointer">{{ I18N.stats.show_chart_data | translate }}</summary>
               <div class="mt-2 max-h-72 overflow-auto"><table class="w-full text-left"><tbody>
-                @for (row of timeline(); track row.period) {
-                  <tr class="border-b border-[var(--mat-sys-outline-variant)]"><th scope="row" class="py-1 pr-3 font-normal">{{ row.period }}</th><td class="py-1 text-right tabular-nums">{{ row.count | statsLocaleNumber:i18n.locale() }}</td></tr>
+                @for (row of timelineRows(); track row.period) {
+                  <tr class="border-b border-[var(--mat-sys-outline-variant)]"><th scope="row" class="py-1 pr-3 font-normal">{{ row.label }}</th><td class="py-1 text-right tabular-nums">{{ row.count | statsLocaleNumber:i18n.locale() }}</td></tr>
                 }
               </tbody></table></div>
             </details>
@@ -208,6 +217,7 @@ export class StatsTimelineTabComponent {
   timelineFailed = signal(false);
   retrying = signal(false);
   timeline = signal<TimelineEntry[]>([]);
+  readonly timelineRows = computed(() => this.timeline().map(row => ({ ...row, label: formatStatsMonth(row.period, this.i18n.locale()) })));
   yearlyData = signal<{ year: string; count: number }[]>([]);
   dayOfWeekData = signal<{ label: string; count: number }[]>([]);
   hourOfDayData = signal<{ label: string; count: number }[]>([]);
@@ -231,10 +241,10 @@ export class StatsTimelineTabComponent {
     });
 
     effect(() => {
-      const data = this.timeline();
+      const data = this.timelineRows();
       const color = chartSeriesColor(this.themeService.complementaryColor(), this.themeService.darkMode(), 1);
       this.themeService.darkMode(); this.themeService.theme();
-      this.buildAreaLine('timeline', this.timelineCanvas(), data.map(t => t.period), data.map(t => t.count), color);
+      this.buildAreaLine('timeline', this.timelineCanvas(), data.map(t => t.label), data.map(t => t.count), color);
     });
     effect(() => {
       const data = this.yearlyData();

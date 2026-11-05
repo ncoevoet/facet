@@ -103,4 +103,27 @@ describe('statistics page states', () => {
     expect(fixture.nativeElement.textContent).toContain('stats.no_data');
     expect(fixture.nativeElement.querySelector('canvas')).toBeNull();
   });
+
+  it('provides localized histogram values and category chart tables with real headings', async () => {
+    vi.spyOn(HTMLCanvasElement.prototype, 'getContext').mockReturnValue(null);
+    const fixture = TestBed.createComponent(StatsComponent);
+    fixture.detectChanges(); await fixture.whenStable(); fixture.detectChanges();
+    const page = fixture.componentInstance as any;
+    page.selectedTab.set(1);
+    page.scoreBins.set([{ range: '1.5', min: 1.5, max: 2, count: 1234, percentage: 1 }]);
+    page.categoryStats.set([{ category: 'portrait', count: 1, avg_score: 6.5, avg_f_stop: 2.8, avg_iso: 400,
+      avg_focal_length: 50, avg_aesthetic: 6, avg_composition: 7, avg_sharpness: 8,
+      avg_color: 6, avg_exposure: 7, avg_face_quality: 8, avg_contrast: 6 }]);
+    fixture.detectChanges(); await fixture.whenStable(); fixture.detectChanges();
+    const host: HTMLElement = fixture.nativeElement;
+    const hist = Array.from(host.querySelectorAll('table')).find(table => table.querySelector('caption')?.textContent?.includes('stats.score_histogram'));
+    expect(hist?.textContent).toContain('1,5');
+    expect(hist?.textContent).toContain('1.234');
+    expect(host.querySelectorAll('h2[mat-card-title]').length).toBeGreaterThanOrEqual(3);
+    expect(host.textContent).toContain('stats.show_chart_data');
+    const tables = Array.from(host.querySelectorAll('table'));
+    expect(tables.some(table => table.textContent?.includes('2,8'))).toBe(true);
+    expect(tables.some(table => table.textContent?.includes('6,5'))).toBe(true);
+    vi.restoreAllMocks();
+  });
 });
