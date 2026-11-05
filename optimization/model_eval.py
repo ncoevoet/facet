@@ -1016,7 +1016,7 @@ def _evaluate_faces(db_path, slot, candidates, out, seed, limit, loader=None, de
             report = _run_blink(conn, loader, seed, limit)
         elif slot == 'faces-detect':
             report = _run_faces_detect(conn, names, loader, device, seed, limit or DEFAULT_DETECT_PHOTOS,
-                                       _face_filters(config_path) if config_path else None)
+                                       _face_filters(config_path))
         elif slot == 'faces-centroid':
             report = _run_faces_centroid(conn, names, loader, device, seed, limit or DEFAULT_RECOGNIZE_FACES)
         else:

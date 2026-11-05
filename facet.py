@@ -2484,6 +2484,7 @@ def main():
     parser = cli_args.build_parser()
     args = parser.parse_args()
     cli_args.validate_face_labels(parser, args)
+    cli_args.validate_evaluate_models_positionals(parser, args)
     if args.stack_plan_out and not args.immich_stacks_plan:
         parser.error('--stack-plan-out requires --immich-stacks-plan')
     if args.ack_stack_plan and not args.immich_stacks_apply:
