@@ -162,7 +162,7 @@ Passe o cursor sobre qualquer foto para ver o detalhamento da pontuação e os d
 
 - **Qualquer máquina (CPU)** roda a maior parte do Facet: pontuação, rostos, seleção, a galeria, busca, álbuns e exportação de metadados.
 - **Apple Silicon** usa automaticamente o backend Metal (`mps`). O perfil `auto` acompanha a memória unificada: 32 GB chegam ao `16gb`, 48 GB chegam ao `24gb`.
-- **Uma GPU NVIDIA** nos perfis `16gb`/`24gb` libera os modelos mais robustos: TOPIQ, SigLIP 2, marcação por VLM, legendas e crítica por IA, saliência do sujeito.
+- **Uma GPU NVIDIA** nos perfis `12gb`/`16gb`/`24gb` libera os modelos mais robustos: TOPIQ, SigLIP 2, marcação por VLM, legendas e crítica por IA, saliência do sujeito.
 - **Sem GPU?** Aponte a marcação, as legendas e a crítica por VLM para um servidor **Ollama** ou **compatível com OpenAI** remoto com `vlm_backend` no `scoring_config.json`.
 - **Editar no visualizador** (classificações, rostos, seleção) exige a **senha de edição**. O botão Escanear exige `viewer.features.show_scan_button: true` e acesso de edição (a função **superadmin** no modo multiusuário).
 

@@ -126,7 +126,7 @@ External tool: `exiftool` >= 13.28 (command-line, optional — `exifread` fallba
 ### Core Components
 
 **facet.py** - Main scoring engine with model management:
-- `ModelManager` - Loads models based on VRAM profile (legacy/8gb/16gb/24gb)
+- `ModelManager` - Loads models based on VRAM profile (legacy/8gb/12gb/16gb/24gb)
 - `Facet` - Orchestrator for SQLite DB and scoring coordination
 - `BatchProcessor` - Continuous streaming producer-consumer pattern for batched GPU inference
 
@@ -149,7 +149,8 @@ External tool: `exiftool` >= 13.28 (command-line, optional — `exifread` fallba
 | Profile | Embeddings | Aesthetic | Tagger | Use Case |
 |---------|------------|-----------|--------|----------|
 | `legacy` | CLIP ViT-L-14 | CLIP+MLP | CLIP similarity | No GPU, 8GB+ RAM |
-| `8gb` | CLIP ViT-L-14 | CLIP+MLP | CLIP similarity | 6-14GB VRAM |
+| `8gb` | CLIP ViT-L-14 | CLIP+MLP | CLIP similarity | 6-11.5GB VRAM |
+| `12gb` | SigLIP 2 NaFlex SO400M | TOPIQ | Qwen3.5-2B | Same models as `16gb`, 4 passes (auto-picked 11.5 to under 14 GiB, ~11.7) |
 | `16gb` | SigLIP 2 NaFlex SO400M | TOPIQ | Qwen3.5-2B | Best accuracy (~14GB) |
 | `24gb` | SigLIP 2 NaFlex SO400M | TOPIQ | Qwen3.5-4B | Largest models (~18GB) |
 
@@ -507,13 +508,13 @@ only what reading those two will NOT tell you.
 
 ### Key Implementation Details
 
-- **Embeddings:** SigLIP 2 NaFlex SO400M (1152-dim, 16gb/24gb, native aspect ratio via `transformers`) or CLIP ViT-L-14 (768-dim, legacy/8gb via `open_clip`)
+- **Embeddings:** SigLIP 2 NaFlex SO400M (1152-dim, 12gb/16gb/24gb, native aspect ratio via `transformers`) or CLIP ViT-L-14 (768-dim, legacy/8gb via `open_clip`)
 - **Quality:** TOPIQ (0.93 SRCC), HyperIQA (0.90), DBCNN (0.90), MUSIQ (0.87)
 - **Supplementary PyIQA:** TOPIQ IAA (aesthetic merit), TOPIQ NR-Face (face quality), LIQE (quality + distortion diagnosis)
 - **Composition:** SAMP-Net for pattern detection (8 patterns: global, horizontal, vertical, triangular, surround, quarter, cross, rule_of_thirds)
 - **Subject saliency:** BiRefNet_dynamic (`ZhengPeng7/BiRefNet_dynamic`) via `transformers` — subject sharpness, prominence, placement, background separation
 - **Faces:** InsightFace buffalo_l for detection with 106-point landmarks and recognition embeddings
-- **Tagging:** CLIP similarity (legacy/8gb), Qwen3.5-2B (16gb), Qwen3.5-4B (24gb)
+- **Tagging:** CLIP similarity (legacy/8gb), Qwen3.5-2B (12gb/16gb), Qwen3.5-4B (24gb)
 - Face recognition uses HDBSCAN clustering on embeddings (standalone hdbscan library)
 - Percentile normalization: scales metrics so 90th percentile maps to 10.0
 - Burst detection groups similar photos within configurable time windows

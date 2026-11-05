@@ -4,7 +4,7 @@
 
 [Scanning](#scanning) · [Preview & Export](#preview--export) · [Recompute Operations](#recompute-operations) · [Face Recognition](#face-recognition) · [Thumbnail Management](#thumbnail-management) · [Diagnostics](#diagnostics) · [Model Information](#model-information) · [Weight Optimization](#weight-optimization-pairwise-comparison) · [Configuration](#configuration) · [Tagging](#tagging) · [Database Validation](#database-validation) · [Database Maintenance](#database-maintenance) · [Web Viewer](#web-viewer) · [Common Workflows](#common-workflows)
 
-> Requirement tags used below: `[GPU]` · `[8gb/16gb/24gb]` / `[16gb/24gb]` / `[24gb]` (VRAM profile). See the [feature matrix](INSTALLATION.md#feature-requirements).
+> Requirement tags used below: `[GPU]` · `[8gb/12gb/16gb/24gb]` / `[16gb/24gb]` / `[24gb]` (VRAM profile). See the [feature matrix](INSTALLATION.md#feature-requirements).
 
 ## Scanning
 
@@ -48,7 +48,7 @@ Facet records every scan (status, mode, directories, counters) and every per-fil
 - `--pass NAME` and `--dry-run` skip that check.
 - Commercial mode keeps single-pass, because native Q-ReAlign scores the aesthetic there.
 
-**Upgrade note:** earlier versions saved a neutral 5.0 aesthetic for every photo of a single-pass scan on `16gb`/`24gb`. Re-scan those folders with `--force` in multi-pass. To find them: `SELECT path FROM photos WHERE scoring_model = 'topiq' AND aesthetic = 5.0 AND topiq_score IS NULL`.
+**Upgrade note:** earlier versions saved a neutral 5.0 aesthetic for every photo of a single-pass scan on `12gb`/`16gb`/`24gb`. Re-scan those folders with `--force` in multi-pass. To find them: `SELECT path FROM photos WHERE scoring_model = 'topiq' AND aesthetic = 5.0 AND topiq_score IS NULL`.
 
 **Specific pass (`--pass NAME`):** runs one pass only, to update some metrics without full reprocessing.
 
@@ -102,7 +102,7 @@ On a CUDA GPU, once a chunk is decoded the same decode worker starts on the firs
 | `python facet.py --export-sidecars --embed-originals` | Also write metadata **into** JPEG/HEIC/TIFF/PNG/DNG originals |
 | `python facet.py --export-sidecars --score-to-stars` | Set `xmp:Rating` from the score for photos you have not rated |
 
-**Dry run.** On `16gb`/`24gb` the aesthetic column shows `n/a`, because TOPIQ runs only in a real scan (commercial mode shows the Q-ReAlign score). The aggregate counts it as a neutral 5.0.
+**Dry run.** On `12gb`/`16gb`/`24gb` the aesthetic column shows `n/a`, because TOPIQ runs only in a real scan (commercial mode shows the Q-ReAlign score). The aggregate counts it as a neutral 5.0.
 
 **CSV and JSON.** The `tags` column holds AI tags only; [manual tags](VIEWER.md#manual-tags) are not included. In JSON, each photo's `scores` object holds every stored metric; NULL, non-finite numbers and BLOBs become `null`. The JSON export refuses to write over the database or its `-wal`/`-shm`/`-journal` files.
 
@@ -296,7 +296,7 @@ The tagging model depends on the VRAM profile:
 
 All taggers map their output to the configured tag vocabulary. Use `--recompute-tags` to re-tag with the profile's model, or `--recompute-tags-vlm` for the VLM.
 
-**When tags are written.** On CLIP-similarity profiles (`legacy`/`8gb`, and `16gb`/`24gb` when the VLM pass is not scheduled), a multi-pass scan tags during the embeddings pass, so the scan's category and aggregate already use them. A single `--pass` run (for example `--pass embeddings`) writes no tags. `--pass tags` on a CLIP profile stops and points to `--recompute-tags`. Existing rows keep their category until `--recompute-average`.
+**When tags are written.** On CLIP-similarity profiles (`legacy`/`8gb`, and `12gb`/`16gb`/`24gb` when the VLM pass is not scheduled), a multi-pass scan tags during the embeddings pass, so the scan's category and aggregate already use them. A single `--pass` run (for example `--pass embeddings`) writes no tags. `--pass tags` on a CLIP profile stops and points to `--recompute-tags`. Existing rows keep their category until `--recompute-average`.
 
 ### Embedding Models
 

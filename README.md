@@ -162,7 +162,7 @@ Hover over any photo to see its score breakdown and EXIF data in the gallery's s
 
 - **Any machine (CPU)** runs most of Facet: scoring, faces, culling, the gallery, search, albums and metadata export.
 - **Apple Silicon** uses the Metal (`mps`) backend automatically. The `auto` profile follows unified memory: 32 GB reaches `16gb`, 48 GB reaches `24gb`.
-- **An NVIDIA GPU** on the `16gb`/`24gb` profiles unlocks the strongest models: TOPIQ, SigLIP 2, VLM tagging, AI captions and critique, subject saliency.
+- **An NVIDIA GPU** on the `12gb`/`16gb`/`24gb` profiles unlocks the strongest models: TOPIQ, SigLIP 2, VLM tagging, AI captions and critique, subject saliency.
 - **No GPU?** Point VLM tagging, captions and critique at a remote **Ollama** or **OpenAI-compatible** server with `vlm_backend` in `scoring_config.json`.
 - **Editing in the viewer** (ratings, faces, culling) needs the **edition password**. The Scan button needs `viewer.features.show_scan_button: true` and edition access (the **superadmin** role in multi-user mode).
 

@@ -39,7 +39,7 @@ Fehlende oder NULL-Werte für subject_sharpness, subject_prominence, subject_pla
 
 Weitere tag-basierte Kategorien sind `aerial`, `food`, `sports`, `vehicle`, `travel`, `fashion`, `candid`, `product`, `architecture`, `urban`, `golden_hour`, `blue_hour`, `cinematic`, `vintage`, `abstract`, `minimalist`, `dramatic` und `weather`.
 
-Auf den CLIP-Tagging-Profilen (`legacy`/`8gb` sowie `16gb`/`24gb`, wenn ihr VLM-Tagger nicht läuft) vergibt ein Scan die Tags jedes Fotos, bevor er dessen Kategorie berechnet; die gespeicherte Kategorie nutzt also die Tags. Ein einzelner `--pass NAME`-Lauf vergibt keine Tags.
+Auf den CLIP-Tagging-Profilen (`legacy`/`8gb` sowie `12gb`/`16gb`/`24gb`, wenn ihr VLM-Tagger nicht läuft) vergibt ein Scan die Tags jedes Fotos, bevor er dessen Kategorie berechnet; die gespeicherte Kategorie nutzt also die Tags. Ein einzelner `--pass NAME`-Lauf vergibt keine Tags.
 
 **Silhouette.** `is_silhouette` stammt aus einer gesichtsbezogenen Pixelregel (siehe [Boolesche Filter](#boolesche-filter)), nicht aus einem Tag.
 

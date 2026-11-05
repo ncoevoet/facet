@@ -39,7 +39,7 @@ Los valores ausentes o NULL de subject_sharpness, subject_prominence, subject_pl
 
 Otras categorías basadas en etiquetas son `aerial`, `food`, `sports`, `vehicle`, `travel`, `fashion`, `candid`, `product`, `architecture`, `urban`, `golden_hour`, `blue_hour`, `cinematic`, `vintage`, `abstract`, `minimalist`, `dramatic` y `weather`.
 
-En los perfiles con etiquetado CLIP (`legacy`/`8gb`, y `16gb`/`24gb` cuando su etiquetador VLM no se ejecuta), un escaneo etiqueta cada foto antes de calcular su categoría, así que la categoría almacenada usa las etiquetas. Una ejecución suelta con `--pass NAME` no etiqueta.
+En los perfiles con etiquetado CLIP (`legacy`/`8gb`, y `12gb`/`16gb`/`24gb` cuando su etiquetador VLM no se ejecuta), un escaneo etiqueta cada foto antes de calcular su categoría, así que la categoría almacenada usa las etiquetas. Una ejecución suelta con `--pass NAME` no etiqueta.
 
 **Silueta.** `is_silhouette` sale de una regla de píxeles basada en el rostro (ver [Filtros booleanos](#filtros-booleanos)), no de una etiqueta.
 

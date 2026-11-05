@@ -162,7 +162,7 @@ GPU 会被自动检测，并非必需。Facet 既能纯 CPU 运行，也能使�
 
 - **任何机器（CPU）**都能运行 Facet 的绝大部分功能：评分、人脸、选片、照片库、搜索、相册和元数据导出。
 - **Apple Silicon** 会自动使用 Metal（`mps`）后端。`auto` 配置档按统一内存选定：32 GB 能用上 `16gb`，48 GB 能用上 `24gb`。
-- **NVIDIA GPU** 配合 `16gb`/`24gb` 配置档可以解锁最强的模型：TOPIQ、SigLIP 2、VLM 打标签、AI 照片描述与点评、主体显著性。
+- **NVIDIA GPU** 配合 `12gb`/`16gb`/`24gb` 配置档可以解锁最强的模型：TOPIQ、SigLIP 2、VLM 打标签、AI 照片描述与点评、主体显著性。
 - **没有 GPU？**通过 `scoring_config.json` 中的 `vlm_backend`，把 VLM 打标签、照片描述和点评指向远程的 **Ollama** 或**兼容 OpenAI** 的服务器。
 - **在查看器中编辑**（星级、人脸、选片）需要**编辑密码**。扫描按钮需要 `viewer.features.show_scan_button: true` 和编辑权限（多用户模式下为 **superadmin** 角色）。
 

@@ -1317,11 +1317,11 @@
       "metric_help": {
         "score_range": "Punteggio complessivo: l'aggregato ponderato di tutte le metriche per la categoria della foto (0–10).",
         "aesthetic_range": "Quanto la foto risulta gradevole nel complesso, valutato da TOPIQ (CLIP+MLP sui profili legacy e 8gb), 0–10.",
-        "quality_score_range": "Qualità tecnica dell'immagine, valutata da TOPIQ NR sui profili 16gb e 24gb (0–10).",
+        "quality_score_range": "Qualità tecnica dell'immagine, valutata da TOPIQ NR sui profili 12gb, 16gb e 24gb (0–10).",
         "aesthetic_iaa_range": "Merito artistico, valutato da TOPIQ IAA addestrato su AVA (0–10); distinto dalla qualità tecnica. Ideale per arte e scatti creativi.",
         "face_quality_iqa_range": "Qualità dell'area del volto, valutata da TOPIQ NR-Face (0–10). Una foto senza volto non ha valore.",
         "liqe_range": "Qualità complessiva dell'immagine, valutata da LIQE (0–10), che diagnostica anche difetti come mosso, sovraesposizione e rumore.",
-        "qrealign_range": "Punteggio estetico di Q-ReAlign (0–10). Attivo per impostazione predefinita sui profili 8gb, 16gb e 24gb.",
+        "qrealign_range": "Punteggio estetico di Q-ReAlign (0–10). Attivo per impostazione predefinita sui profili 8gb, 12gb, 16gb e 24gb.",
         "aesthetic_v25_range": "Attrattiva estetica, valutata da Aesthetic Predictor v2.5 (0–10). Disattivato per impostazione predefinita e deprecato a favore di Q-ReAlign.",
         "deqa_range": "Qualità dell'immagine, valutata da DeQA-Score (0–10). Disattivato per impostazione predefinita.",
         "face_count_range": "Numero di volti rilevati da InsightFace nella foto.",
@@ -2500,7 +2500,7 @@
     "title": "Didascalia",
     "generate": "Genera didascalia",
     "generating": "Generazione in corso...",
-    "unavailable": "La generazione di didascalie richiede un modello VLM (16 GB+ VRAM)"
+    "unavailable": "La generazione di didascalie richiede un modello VLM (profilo 12gb o superiore, o un backend VLM remoto)"
   },
   "timeline": {
     "help": "Sfoglia la tua libreria in ordine cronologico. Naviga dagli anni ai mesi ai giorni; scegli un periodo per vedere le foto scattate allora.",

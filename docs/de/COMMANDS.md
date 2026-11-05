@@ -4,7 +4,7 @@
 
 [Scannen](#scannen) · [Vorschau & Export](#vorschau--export) · [Neuberechnungen](#neuberechnungen) · [Gesichtserkennung](#gesichtserkennung) · [Thumbnail-Verwaltung](#thumbnail-verwaltung) · [Diagnose](#diagnose) · [Modellinformationen](#modellinformationen) · [Gewichtungsoptimierung](#gewichtungsoptimierung-paarweiser-vergleich) · [Konfiguration](#konfiguration) · [Verschlagwortung](#verschlagwortung) · [Datenbankvalidierung](#datenbankvalidierung) · [Datenbankpflege](#datenbankpflege) · [Web-Viewer](#web-viewer) · [Häufige Arbeitsabläufe](#häufige-arbeitsabläufe)
 
-> Anforderungs-Tags, die nachstehend verwendet werden: `[GPU]` · `[8gb/16gb/24gb]` / `[16gb/24gb]` / `[24gb]` (VRAM-Profil). Siehe die [Funktionsmatrix](INSTALLATION.md#funktionsanforderungen).
+> Anforderungs-Tags, die nachstehend verwendet werden: `[GPU]` · `[8gb/12gb/16gb/24gb]` / `[16gb/24gb]` / `[24gb]` (VRAM-Profil). Siehe die [Funktionsmatrix](INSTALLATION.md#funktionsanforderungen).
 
 ## Scannen
 
@@ -48,7 +48,7 @@ Facet zeichnet jeden Scan (Status, Modus, Verzeichnisse, Zähler) und jeden Fehl
 - `--pass NAME` und `--dry-run` überspringen diese Prüfung.
 - Im kommerziellen Modus bleibt Single-Pass verfügbar, weil dort das native Q-ReAlign die Ästhetik bewertet.
 
-**Hinweis zum Upgrade:** Frühere Versionen speicherten bei einem Single-Pass-Scan unter `16gb`/`24gb` für jedes Foto eine neutrale Ästhetik von 5,0. Scannen Sie diese Ordner im Multi-Pass-Modus mit `--force` neu. So finden Sie sie: `SELECT path FROM photos WHERE scoring_model = 'topiq' AND aesthetic = 5.0 AND topiq_score IS NULL`.
+**Hinweis zum Upgrade:** Frühere Versionen speicherten bei einem Single-Pass-Scan unter `12gb`/`16gb`/`24gb` für jedes Foto eine neutrale Ästhetik von 5,0. Scannen Sie diese Ordner im Multi-Pass-Modus mit `--force` neu. So finden Sie sie: `SELECT path FROM photos WHERE scoring_model = 'topiq' AND aesthetic = 5.0 AND topiq_score IS NULL`.
 
 **Bestimmter Pass (`--pass NAME`):** führt nur einen Pass aus, um einzelne Metriken ohne vollständige Neuverarbeitung zu aktualisieren.
 
@@ -102,7 +102,7 @@ Auf einer CUDA-GPU beginnt der Decode-Worker, sobald ein Chunk dekodiert ist, mi
 | `python facet.py --export-sidecars --embed-originals` | Metadaten zusätzlich **in** JPEG/HEIC/TIFF/PNG/DNG-Originale schreiben |
 | `python facet.py --export-sidecars --score-to-stars` | `xmp:Rating` aus dem Score für Fotos setzen, die Sie nicht bewertet haben |
 
-**Probelauf.** Bei `16gb`/`24gb` zeigt die Ästhetikspalte `n/a`, weil TOPIQ nur in einem echten Scan läuft (der kommerzielle Modus zeigt den Q-ReAlign-Wert). Der Gesamtwert zählt sie als neutrale 5.0.
+**Probelauf.** Bei `12gb`/`16gb`/`24gb` zeigt die Ästhetikspalte `n/a`, weil TOPIQ nur in einem echten Scan läuft (der kommerzielle Modus zeigt den Q-ReAlign-Wert). Der Gesamtwert zählt sie als neutrale 5.0.
 
 **CSV und JSON.** Die Spalte `tags` enthält nur KI-Tags; [manuelle Tags](VIEWER.md#manuelle-tags) sind nicht enthalten. In der JSON enthält das Objekt `scores` jedes Fotos jede gespeicherte Metrik; NULL, nicht endliche Zahlen und BLOBs werden zu `null`. Der JSON-Export weigert sich, die Datenbank oder ihre `-wal`/`-shm`/`-journal`-Dateien zu überschreiben.
 
@@ -296,7 +296,7 @@ Das Verschlagwortungsmodell hängt vom VRAM-Profil ab:
 
 Alle Tagger ordnen ihre Ausgabe dem konfigurierten Tag-Vokabular zu. Mit `--recompute-tags` verschlagworten Sie mit dem Modell des Profils neu, mit `--recompute-tags-vlm` mit dem VLM.
 
-**Wann Tags geschrieben werden.** Auf den CLIP-Ähnlichkeitsprofilen (`legacy`/`8gb` sowie `16gb`/`24gb`, wenn der VLM-Durchgang nicht eingeplant ist) vergibt ein Multi-Pass-Scan die Tags im Embedding-Durchgang; Kategorie und Gesamtwert des Scans nutzen sie also bereits. Ein einzelner `--pass`-Lauf (etwa `--pass embeddings`) schreibt keine Tags. `--pass tags` auf einem CLIP-Profil bricht ab und verweist auf `--recompute-tags`. Bestehende Zeilen behalten ihre Kategorie bis `--recompute-average`.
+**Wann Tags geschrieben werden.** Auf den CLIP-Ähnlichkeitsprofilen (`legacy`/`8gb` sowie `12gb`/`16gb`/`24gb`, wenn der VLM-Durchgang nicht eingeplant ist) vergibt ein Multi-Pass-Scan die Tags im Embedding-Durchgang; Kategorie und Gesamtwert des Scans nutzen sie also bereits. Ein einzelner `--pass`-Lauf (etwa `--pass embeddings`) schreibt keine Tags. `--pass tags` auf einem CLIP-Profil bricht ab und verweist auf `--recompute-tags`. Bestehende Zeilen behalten ihre Kategorie bis `--recompute-average`.
 
 ### Embedding-Modelle
 

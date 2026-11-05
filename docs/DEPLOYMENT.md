@@ -13,7 +13,7 @@ Facet has two workloads:
 
 | Component | Hardware | Purpose |
 |-----------|----------|---------|
-| **Scoring** (`facet.py`) | GPU (6-24GB VRAM) or CPU (8GB RAM minimum, 12GB recommended; more for `16gb`/`24gb`, see [Container Memory Limits](#container-memory-limits)) | Analyze and score photos |
+| **Scoring** (`facet.py`) | GPU (6-24GB VRAM) or CPU (8GB RAM minimum, 12GB recommended; more for `12gb`/`16gb`/`24gb`, see [Container Memory Limits](#container-memory-limits)) | Analyze and score photos |
 | **Viewer** (`viewer.py`) | Any machine (low resources) | Serve the web gallery |
 
 Only the viewer needs to run on the server. Score on a workstation, then sync the database.
@@ -527,7 +527,7 @@ curl -s localhost:5000/health          # -> ok
 ```
 
 Add `--build` to build from the checkout instead of pulling. GPU profiles
-(`8gb`/`16gb`/`24gb`) cluster faces on the GPU via the bundled RAPIDS cuML; `legacy`
+(`8gb`/`12gb`/`16gb`/`24gb`) cluster faces on the GPU via the bundled RAPIDS cuML; `legacy`
 clusters on CPU. The first run downloads models into the named volumes; reset them with
 `docker compose down -v`.
 

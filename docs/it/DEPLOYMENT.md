@@ -13,7 +13,7 @@ Facet ha due carichi di lavoro:
 
 | Componente | Hardware | Scopo |
 |-----------|----------|---------|
-| **Scoring** (`facet.py`) | GPU (6-24GB VRAM) o CPU (8GB minimo di RAM, 12GB consigliato; di più per `16gb`/`24gb`, vedi [Limiti di memoria del container](#limiti-di-memoria-del-container)) | Analizza e valuta le foto |
+| **Scoring** (`facet.py`) | GPU (6-24GB VRAM) o CPU (8GB minimo di RAM, 12GB consigliato; di più per `12gb`/`16gb`/`24gb`, vedi [Limiti di memoria del container](#limiti-di-memoria-del-container)) | Analizza e valuta le foto |
 | **Viewer** (`viewer.py`) | Qualsiasi macchina (poche risorse) | Serve la galleria web |
 
 Solo il viewer deve essere eseguito sul server. Esegui lo scoring su una workstation, poi sincronizza il database.
@@ -527,7 +527,7 @@ curl -s localhost:5000/health          # -> ok
 ```
 
 Aggiungi `--build` per compilare dal checkout invece di scaricare. I profili GPU
-(`8gb`/`16gb`/`24gb`) eseguono il clustering dei volti sulla GPU tramite RAPIDS cuML incluso; `legacy`
+(`8gb`/`12gb`/`16gb`/`24gb`) eseguono il clustering dei volti sulla GPU tramite RAPIDS cuML incluso; `legacy`
 lo esegue su CPU. Il primo avvio scarica i modelli nei volumi con nome; reimpostali con
 `docker compose down -v`.
 

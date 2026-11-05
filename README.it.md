@@ -162,7 +162,7 @@ Passa il puntatore su una foto per vedere il dettaglio del punteggio e i dati EX
 
 - **Qualsiasi macchina (CPU)** esegue la maggior parte di Facet: punteggio, volti, selezione, galleria, ricerca, album ed esportazione dei metadati.
 - **Apple Silicon** usa automaticamente il backend Metal (`mps`). Il profilo `auto` segue la memoria unificata: 32 GB arrivano a `16gb`, 48 GB a `24gb`.
-- **Una GPU NVIDIA** con i profili `16gb`/`24gb` sblocca i modelli più potenti: TOPIQ, SigLIP 2, tagging VLM, didascalie e critica IA, salienza del soggetto.
+- **Una GPU NVIDIA** con i profili `12gb`/`16gb`/`24gb` sblocca i modelli più potenti: TOPIQ, SigLIP 2, tagging VLM, didascalie e critica IA, salienza del soggetto.
 - **Niente GPU?** Indirizza il tagging, le didascalie e la critica VLM verso un server **Ollama** o **compatibile OpenAI** remoto con `vlm_backend` in `scoring_config.json`.
 - **Le modifiche nel viewer** (valutazioni, volti, selezione) richiedono la **password di modifica**. Il pulsante Scansione richiede `viewer.features.show_scan_button: true` e l'accesso di modifica (il ruolo **superadmin** in modalità multiutente).
 

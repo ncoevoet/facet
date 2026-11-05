@@ -4,7 +4,7 @@
 
 [Escaneamento](#scanning) · [Pré-visualização e Exportação](#preview--export) · [Operações de Recálculo](#recompute-operations) · [Reconhecimento Facial](#face-recognition) · [Gerenciamento de Miniaturas](#thumbnail-management) · [Diagnósticos](#diagnostics) · [Informações dos Modelos](#model-information) · [Otimização de Pesos](#weight-optimization-pairwise-comparison) · [Configuração](#configuration) · [Marcação](#tagging) · [Validação do Banco de Dados](#database-validation) · [Manutenção do Banco de Dados](#database-maintenance) · [Visualizador Web](#web-viewer) · [Fluxos de Trabalho Comuns](#common-workflows)
 
-> Tags de requisito usadas abaixo: `[GPU]` · `[8gb/16gb/24gb]` / `[16gb/24gb]` / `[24gb]` (perfil de VRAM). Veja a [matriz de recursos](INSTALLATION.md#requisitos-por-recurso).
+> Tags de requisito usadas abaixo: `[GPU]` · `[8gb/12gb/16gb/24gb]` / `[16gb/24gb]` / `[24gb]` (perfil de VRAM). Veja a [matriz de recursos](INSTALLATION.md#requisitos-por-recurso).
 
 ## Scanning
 
@@ -48,7 +48,7 @@ O Facet registra cada escaneamento (estado, modo, diretórios, contadores) e cad
 - `--pass NAME` e `--dry-run` pulam essa verificação.
 - O modo comercial mantém o passo único, porque o Q-ReAlign nativo pontua a estética ali.
 
-**Nota de atualização:** versões anteriores salvavam uma estética neutra de 5.0 para cada foto de um escaneamento de passo único em `16gb`/`24gb`. Reescaneie essas pastas com `--force` em multi-passo. Para encontrá-las: `SELECT path FROM photos WHERE scoring_model = 'topiq' AND aesthetic = 5.0 AND topiq_score IS NULL`.
+**Nota de atualização:** versões anteriores salvavam uma estética neutra de 5.0 para cada foto de um escaneamento de passo único em `12gb`/`16gb`/`24gb`. Reescaneie essas pastas com `--force` em multi-passo. Para encontrá-las: `SELECT path FROM photos WHERE scoring_model = 'topiq' AND aesthetic = 5.0 AND topiq_score IS NULL`.
 
 **Passo específico (`--pass NAME`):** roda um único passo, para atualizar algumas métricas sem reprocessar tudo.
 
@@ -102,7 +102,7 @@ Numa GPU CUDA, assim que um chunk é decodificado, o mesmo worker de decodifica�
 | `python facet.py --export-sidecars --embed-originals` | Grava também metadados **dentro** dos originais JPEG/HEIC/TIFF/PNG/DNG |
 | `python facet.py --export-sidecars --score-to-stars` | Define `xmp:Rating` a partir da pontuação nas fotos que você não avaliou |
 
-**Simulação (dry run).** Em `16gb`/`24gb` a coluna de estética mostra `n/a`, porque o TOPIQ roda apenas em um escaneamento real (o modo comercial mostra a pontuação Q-ReAlign). O agregado a conta como um 5.0 neutro.
+**Simulação (dry run).** Em `12gb`/`16gb`/`24gb` a coluna de estética mostra `n/a`, porque o TOPIQ roda apenas em um escaneamento real (o modo comercial mostra a pontuação Q-ReAlign). O agregado a conta como um 5.0 neutro.
 
 **CSV e JSON.** A coluna `tags` contém apenas tags de IA; as [tags manuais](VIEWER.md#tags-manuais) não são incluídas. No JSON, o objeto `scores` de cada foto contém todas as métricas armazenadas; NULL, números não finitos e BLOBs viram `null`. A exportação JSON se recusa a gravar sobre o banco de dados ou os seus arquivos `-wal`/`-shm`/`-journal`.
 
@@ -296,7 +296,7 @@ O modelo de marcação depende do perfil de VRAM:
 
 Todos os marcadores mapeiam a sua saída para o vocabulário de tags configurado. Use `--recompute-tags` para remarcar com o modelo do perfil, ou `--recompute-tags-vlm` para o VLM.
 
-**Quando as tags são gravadas.** Nos perfis de similaridade CLIP (`legacy`/`8gb`, e `16gb`/`24gb` quando o passo VLM não está agendado), um escaneamento multi-passo marca durante o passo de embeddings, então a categoria e o agregado do escaneamento já as usam. Uma execução com um único `--pass` (por exemplo `--pass embeddings`) não grava tags. `--pass tags` em um perfil CLIP para e aponta para `--recompute-tags`. As linhas existentes mantêm a categoria até `--recompute-average`.
+**Quando as tags são gravadas.** Nos perfis de similaridade CLIP (`legacy`/`8gb`, e `12gb`/`16gb`/`24gb` quando o passo VLM não está agendado), um escaneamento multi-passo marca durante o passo de embeddings, então a categoria e o agregado do escaneamento já as usam. Uma execução com um único `--pass` (por exemplo `--pass embeddings`) não grava tags. `--pass tags` em um perfil CLIP para e aponta para `--recompute-tags`. As linhas existentes mantêm a categoria até `--recompute-average`.
 
 ### Modelos de Embedding
 

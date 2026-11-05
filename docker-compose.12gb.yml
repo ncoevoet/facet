@@ -1,0 +1,16 @@
+# "12gb" profile override (GPU, 11.5 to under 14 GB VRAM, same models as 16gb in a 4-pass plan: SigLIP2 embeddings + TOPIQ aesthetic +
+# Qwen3.5-2B VLM tagging + SAMP-Net + InsightFace + BiRefNet saliency).
+# Requires the NVIDIA Container Toolkit. Compose with the base file:
+#   docker compose -f docker-compose.yml -f docker-compose.12gb.yml up -d
+services:
+  facet:
+    image: ghcr.io/ncoevoet/facet:latest-cuda
+    environment:
+      - FACET_VRAM_PROFILE=12gb
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]

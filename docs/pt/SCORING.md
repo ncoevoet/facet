@@ -39,7 +39,7 @@ Os valores ausentes ou NULL de subject_sharpness, subject_prominence, subject_pl
 
 Outras categorias baseadas em tags incluem `aerial`, `food`, `sports`, `vehicle`, `travel`, `fashion`, `candid`, `product`, `architecture`, `urban`, `golden_hour`, `blue_hour`, `cinematic`, `vintage`, `abstract`, `minimalist`, `dramatic` e `weather`.
 
-Nos perfis com tagging CLIP (`legacy`/`8gb`, e `16gb`/`24gb` quando o seu tagger VLM não roda), uma varredura etiqueta cada foto antes de calcular a sua categoria, de modo que a categoria armazenada usa as tags. Uma execução com um único `--pass NAME` não etiqueta.
+Nos perfis com tagging CLIP (`legacy`/`8gb`, e `12gb`/`16gb`/`24gb` quando o seu tagger VLM não roda), uma varredura etiqueta cada foto antes de calcular a sua categoria, de modo que a categoria armazenada usa as tags. Uma execução com um único `--pass NAME` não etiqueta.
 
 **Silhueta.** `is_silhouette` vem de uma regra de pixels baseada no rosto (veja [Filtros Booleanos](#filtros-booleanos)), não de uma tag.
 

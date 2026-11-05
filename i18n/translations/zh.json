@@ -1317,11 +1317,11 @@
       "metric_help": {
         "score_range": "总分：照片所属类别下所有指标的加权汇总（0–10）。",
         "aesthetic_range": "照片整体的美观程度，由 TOPIQ 评分（legacy 和 8gb 配置档使用 CLIP+MLP），0–10。",
-        "quality_score_range": "图像技术质量，在 16gb 和 24gb 配置档上由 TOPIQ NR 评分（0–10）。",
+        "quality_score_range": "图像技术质量，在 12gb、16gb 和 24gb 配置档上由 TOPIQ NR 评分（0–10）。",
         "aesthetic_iaa_range": "艺术价值，由在 AVA 上训练的 TOPIQ IAA 评分（0–10）；与技术质量无关。最适合艺术和创意类照片。",
         "face_quality_iqa_range": "人脸区域的质量，由 TOPIQ NR-Face 评分（0–10）。没有人脸的照片没有数值。",
         "liqe_range": "整体画质，由 LIQE 评分（0–10），同时诊断运动模糊、过曝和噪点等失真。",
-        "qrealign_range": "Q-ReAlign 给出的美学分（0–10）。在 8gb、16gb 和 24gb 配置档上默认开启。",
+        "qrealign_range": "Q-ReAlign 给出的美学分（0–10）。在 8gb、12gb、16gb 和 24gb 配置档上默认开启。",
         "aesthetic_v25_range": "美学吸引力，由 Aesthetic Predictor v2.5 评分（0–10）。默认关闭，已被 Q-ReAlign 取代。",
         "deqa_range": "画质，由 DeQA-Score 评分（0–10）。默认关闭。",
         "face_count_range": "InsightFace 在照片中检测到的人脸数量。",
@@ -2500,7 +2500,7 @@
     "title": "照片描述",
     "generate": "生成照片描述",
     "generating": "正在生成照片描述…",
-    "unavailable": "生成照片描述需要视觉语言模型（至少 16GB 显存）"
+    "unavailable": "生成照片描述需要视觉语言模型（12gb 及以上配置档，或远程 VLM 后端）"
   },
   "timeline": {
     "help": "按时间浏览照片库。从年逐级展开到月、日，选择时间段即可查看当时拍摄的照片。",

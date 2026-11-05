@@ -39,7 +39,7 @@ subject_sharpness、subject_prominence、subject_placement、bg_separation 和 f
 
 其他基于标签的类别还包括 `aerial`、`food`、`sports`、`vehicle`、`travel`、`fashion`、`candid`、`product`、`architecture`、`urban`、`golden_hour`、`blue_hour`、`cinematic`、`vintage`、`abstract`、`minimalist`、`dramatic` 和 `weather`。
 
-在使用 CLIP 打标签的配置档上（`legacy`/`8gb`，以及其 VLM 标签器不运行时的 `16gb`/`24gb`），扫描会在计算每张照片的类别之前先为其打标签，因此存储的类别会用到这些标签。只带单个 `--pass NAME` 的运行不打标签。
+在使用 CLIP 打标签的配置档上（`legacy`/`8gb`，以及其 VLM 标签器不运行时的 `12gb`/`16gb`/`24gb`），扫描会在计算每张照片的类别之前先为其打标签，因此存储的类别会用到这些标签。只带单个 `--pass NAME` 的运行不打标签。
 
 **剪影。** `is_silhouette` 来自一条基于人脸的像素规则（参见[布尔筛选条件](#布尔筛选条件)），不是来自标签。
 

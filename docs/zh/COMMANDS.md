@@ -4,7 +4,7 @@
 
 [扫描](#扫描) · [预览与导出](#预览与导出) · [重新计算操作](#重新计算操作) · [人脸识别](#人脸识别) · [缩略图管理](#缩略图管理) · [诊断](#诊断) · [模型信息](#模型信息) · [权重优化](#权重优化成对比较) · [配置](#配置) · [标签标注](#标签标注) · [数据库校验](#数据库校验) · [数据库维护](#数据库维护) · [网页图库](#网页图库) · [常用工作流](#常用工作流)
 
-> 下文使用的需求标签：`[GPU]` · `[8gb/16gb/24gb]` / `[16gb/24gb]` / `[24gb]`（VRAM 档位）。参见[功能需求对照表](INSTALLATION.md#各功能的要求)。
+> 下文使用的需求标签：`[GPU]` · `[8gb/12gb/16gb/24gb]` / `[16gb/24gb]` / `[24gb]`（VRAM 档位）。参见[功能需求对照表](INSTALLATION.md#各功能的要求)。
 
 ## 扫描
 
@@ -48,7 +48,7 @@ Facet 会记录每次扫描（状态、模式、目录、计数器）以及每�
 - `--pass NAME` 和 `--dry-run` 不做此检查。
 - 商业模式下保留单阶段，因为那里由原生 Q-ReAlign 为美学评分。
 
-**升级说明：** 旧版本在 `16gb`/`24gb` 上做单阶段扫描时，会为每张照片保存中性的 5.0 美学评分。请用 `--force` 以多阶段重新扫描这些文件夹。找出它们：`SELECT path FROM photos WHERE scoring_model = 'topiq' AND aesthetic = 5.0 AND topiq_score IS NULL`。
+**升级说明：** 旧版本在 `12gb`/`16gb`/`24gb` 上做单阶段扫描时，会为每张照片保存中性的 5.0 美学评分。请用 `--force` 以多阶段重新扫描这些文件夹。找出它们：`SELECT path FROM photos WHERE scoring_model = 'topiq' AND aesthetic = 5.0 AND topiq_score IS NULL`。
 
 **指定阶段（`--pass NAME`）：** 只运行一个阶段，用于更新部分指标而无需完整重新处理。
 
@@ -102,7 +102,7 @@ Facet 会记录每次扫描（状态、模式、目录、计数器）以及每�
 | `python facet.py --export-sidecars --embed-originals` | 同时把元数据写入 JPEG/HEIC/TIFF/PNG/DNG 原始文件**本身** |
 | `python facet.py --export-sidecars --score-to-stars` | 对你没有评过分的照片，由评分推导出 `xmp:Rating` |
 
-**试运行。** 在 `16gb`/`24gb` 上，美学一列显示 `n/a`，因为 TOPIQ 只在真实扫描中运行（商业模式下显示 Q-ReAlign 评分）。综合评分把它按中性的 5.0 计算。
+**试运行。** 在 `12gb`/`16gb`/`24gb` 上，美学一列显示 `n/a`，因为 TOPIQ 只在真实扫描中运行（商业模式下显示 Q-ReAlign 评分）。综合评分把它按中性的 5.0 计算。
 
 **CSV 与 JSON。** `tags` 列只含 AI 标签；不包含[手动标签](VIEWER.md#手动标签)。在 JSON 中，每张照片的 `scores` 对象包含每个已存储的指标；NULL、非有限数字与 BLOB 均为 `null`。JSON 导出会拒绝覆盖数据库本身或其 `-wal`/`-shm`/`-journal` 文件。
 
@@ -296,7 +296,7 @@ Facet 会记录每次扫描（状态、模式、目录、计数器）以及每�
 
 所有标注器都会把输出映射到所配置的标签词表。用 `--recompute-tags` 以该档位的模型重新标注，或用 `--recompute-tags-vlm` 使用 VLM。
 
-**标签何时写入。** 在 CLIP 相似度档位（`legacy`/`8gb`，以及未安排 VLM 遍的 `16gb`/`24gb`）上，多阶段扫描在特征向量阶段就完成打标签，因此扫描时的类别和综合评分已经能看到标签。只带单个 `--pass` 的运行（例如 `--pass embeddings`）不写入标签。在 CLIP 档位上运行 `--pass tags` 会停止并指向 `--recompute-tags`。已有的行保留其类别，直到运行 `--recompute-average`。
+**标签何时写入。** 在 CLIP 相似度档位（`legacy`/`8gb`，以及未安排 VLM 遍的 `12gb`/`16gb`/`24gb`）上，多阶段扫描在特征向量阶段就完成打标签，因此扫描时的类别和综合评分已经能看到标签。只带单个 `--pass` 的运行（例如 `--pass embeddings`）不写入标签。在 CLIP 档位上运行 `--pass tags` 会停止并指向 `--recompute-tags`。已有的行保留其类别，直到运行 `--recompute-average`。
 
 ### 特征向量模型
 

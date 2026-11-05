@@ -14,7 +14,7 @@ Facet hat zwei Arbeitslasten:
 
 | Komponente | Hardware | Zweck |
 |-----------|----------|---------|
-| **Bewertung** (`facet.py`) | GPU (6-24 GB VRAM) oder CPU (8 GB RAM Minimum, 12 GB empfohlen; mehr für `16gb`/`24gb`, siehe [Speicherlimits für Container](#speicherlimits-für-container)) | Fotos analysieren und bewerten |
+| **Bewertung** (`facet.py`) | GPU (6-24 GB VRAM) oder CPU (8 GB RAM Minimum, 12 GB empfohlen; mehr für `12gb`/`16gb`/`24gb`, siehe [Speicherlimits für Container](#speicherlimits-für-container)) | Fotos analysieren und bewerten |
 | **Viewer** (`viewer.py`) | Beliebige Maschine (geringe Ressourcen) | Web-Galerie bereitstellen |
 
 Nur der Viewer muss auf dem Server laufen. Bewerten Sie auf einer Workstation und synchronisieren Sie dann die Datenbank.
@@ -531,7 +531,7 @@ curl -s localhost:5000/health          # -> ok
 ```
 
 Fügen Sie `--build` hinzu, um aus dem Checkout zu bauen, statt zu ziehen. GPU-Profile
-(`8gb`/`16gb`/`24gb`) clustern Gesichter über das mitgelieferte RAPIDS cuML auf der GPU; `legacy`
+(`8gb`/`12gb`/`16gb`/`24gb`) clustern Gesichter über das mitgelieferte RAPIDS cuML auf der GPU; `legacy`
 clustert auf der CPU. Der erste Lauf lädt Modelle in die benannten Volumes herunter; setzen Sie sie mit
 `docker compose down -v` zurück.
 

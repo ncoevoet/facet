@@ -4,7 +4,7 @@
 
 [Escaneo](#escaneo) · [Vista previa y exportación](#vista-previa-y-exportación) · [Operaciones de recálculo](#operaciones-de-recálculo) · [Reconocimiento facial](#reconocimiento-facial) · [Gestión de miniaturas](#gestión-de-miniaturas) · [Diagnóstico](#diagnóstico) · [Información de modelos](#información-de-modelos) · [Optimización de pesos](#optimización-de-pesos-comparación-por-pares) · [Configuración](#configuración) · [Etiquetado](#etiquetado) · [Validación de la base de datos](#validación-de-la-base-de-datos) · [Mantenimiento de la base de datos](#mantenimiento-de-la-base-de-datos) · [Galería web](#galería-web) · [Flujos de trabajo habituales](#flujos-de-trabajo-habituales)
 
-> Etiquetas de requisitos usadas a continuación: `[GPU]` · `[8gb/16gb/24gb]` / `[16gb/24gb]` / `[24gb]` (perfil de VRAM). Consulta la [matriz de funciones](INSTALLATION.md#requisitos-por-función).
+> Etiquetas de requisitos usadas a continuación: `[GPU]` · `[8gb/12gb/16gb/24gb]` / `[16gb/24gb]` / `[24gb]` (perfil de VRAM). Consulta la [matriz de funciones](INSTALLATION.md#requisitos-por-función).
 
 ## Escaneo
 
@@ -48,7 +48,7 @@ Facet registra cada escaneo (estado, modo, directorios, contadores) y cada error
 - `--pass NAME` y `--dry-run` omiten esa comprobación.
 - El modo comercial mantiene el modo de un solo paso, porque allí el Q-ReAlign nativo puntúa la estética.
 
-**Nota de actualización:** las versiones anteriores guardaban una estética neutra de 5,0 para cada foto de un escaneo de un solo paso en `16gb`/`24gb`. Vuelve a escanear esas carpetas con `--force` en multipaso. Para encontrarlas: `SELECT path FROM photos WHERE scoring_model = 'topiq' AND aesthetic = 5.0 AND topiq_score IS NULL`.
+**Nota de actualización:** las versiones anteriores guardaban una estética neutra de 5,0 para cada foto de un escaneo de un solo paso en `12gb`/`16gb`/`24gb`. Vuelve a escanear esas carpetas con `--force` en multipaso. Para encontrarlas: `SELECT path FROM photos WHERE scoring_model = 'topiq' AND aesthetic = 5.0 AND topiq_score IS NULL`.
 
 **Paso específico (`--pass NAME`):** ejecuta un único paso, para actualizar algunas métricas sin reprocesar todo.
 
@@ -102,7 +102,7 @@ En una GPU CUDA, en cuanto un chunk está decodificado, el mismo worker de decod
 | `python facet.py --export-sidecars --embed-originals` | Escribe además los metadatos **dentro** de los originales JPEG/HEIC/TIFF/PNG/DNG |
 | `python facet.py --export-sidecars --score-to-stars` | Define `xmp:Rating` a partir de la puntuación para las fotos que no has valorado |
 
-**Simulación (dry run).** En `16gb`/`24gb` la columna de estética muestra `n/a`, porque TOPIQ solo se ejecuta en un escaneo real (el modo comercial muestra la puntuación de Q-ReAlign). El agregado la cuenta como un 5,0 neutro.
+**Simulación (dry run).** En `12gb`/`16gb`/`24gb` la columna de estética muestra `n/a`, porque TOPIQ solo se ejecuta en un escaneo real (el modo comercial muestra la puntuación de Q-ReAlign). El agregado la cuenta como un 5,0 neutro.
 
 **CSV y JSON.** La columna `tags` contiene solo los tags de IA; los [tags manuales](VIEWER.md#tags-manuales) no se incluyen. En el JSON, el objeto `scores` de cada foto contiene todas las métricas almacenadas; NULL, los números no finitos y los BLOB pasan a `null`. La exportación JSON se niega a escribir sobre la base de datos o sus archivos `-wal`/`-shm`/`-journal`.
 
@@ -296,7 +296,7 @@ El modelo de etiquetado depende del perfil de VRAM:
 
 Todos los etiquetadores asignan su salida al vocabulario de etiquetas configurado. Usa `--recompute-tags` para volver a etiquetar con el modelo del perfil, o `--recompute-tags-vlm` para el VLM.
 
-**Cuándo se escriben las etiquetas.** En los perfiles de similitud CLIP (`legacy`/`8gb`, y `16gb`/`24gb` cuando no está programada la pasada VLM), un escaneo multipaso etiqueta durante la pasada de embeddings, así que la categoría y el agregado del escaneo ya las usan. Una ejecución con un solo `--pass` (por ejemplo `--pass embeddings`) no escribe etiquetas. `--pass tags` en un perfil CLIP se detiene y remite a `--recompute-tags`. Las filas existentes conservan su categoría hasta `--recompute-average`.
+**Cuándo se escriben las etiquetas.** En los perfiles de similitud CLIP (`legacy`/`8gb`, y `12gb`/`16gb`/`24gb` cuando no está programada la pasada VLM), un escaneo multipaso etiqueta durante la pasada de embeddings, así que la categoría y el agregado del escaneo ya las usan. Una ejecución con un solo `--pass` (por ejemplo `--pass embeddings`) no escribe etiquetas. `--pass tags` en un perfil CLIP se detiene y remite a `--recompute-tags`. Las filas existentes conservan su categoría hasta `--recompute-average`.
 
 ### Modelos de embeddings
 

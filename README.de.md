@@ -162,7 +162,7 @@ Bewegen Sie den Mauszeiger über ein beliebiges Foto, um die Wertungsaufschlüss
 
 - **Jeder Rechner (CPU)** führt den Großteil von Facet aus: Bewertung, Gesichter, Auswahl, die Galerie, Suche, Alben und Metadaten-Export.
 - **Apple Silicon** nutzt automatisch das Metal-Backend (`mps`). Das Profil `auto` folgt dem Unified Memory: 32 GB erreichen `16gb`, 48 GB erreichen `24gb`.
-- **Eine NVIDIA-GPU** schaltet mit den Profilen `16gb`/`24gb` die leistungsstärksten Modelle frei: TOPIQ, SigLIP 2, VLM-Tagging, KI-Beschreibungen und -Kritik, Motiverkennung.
+- **Eine NVIDIA-GPU** schaltet mit den Profilen `12gb`/`16gb`/`24gb` die leistungsstärksten Modelle frei: TOPIQ, SigLIP 2, VLM-Tagging, KI-Beschreibungen und -Kritik, Motiverkennung.
 - **Keine GPU?** Richten Sie VLM-Tagging, Beschreibungen und Kritik über `vlm_backend` in `scoring_config.json` auf einen entfernten **Ollama**- oder **OpenAI-kompatiblen** Server.
 - **Bearbeiten im Viewer** (Bewertungen, Gesichter, Auswahl) benötigt das **Bearbeitungspasswort**. Der Scan-Button benötigt `viewer.features.show_scan_button: true` und Edition-Zugriff (die **Superadmin**-Rolle im Mehrbenutzermodus).
 

@@ -98,7 +98,7 @@ COMPONENTS: dict[str, Component] = {c.id: c for c in (
     # --- pyiqa-backed scorers (every key of models.pyiqa_scorer.PYIQA_MODELS) ---
     _pyiqa('pyiqa', 'pyiqa (package)', 'every pyiqa-backed scorer below', 'qrealign_native',
            'The package itself: importing it is refused in commercial mode.'),
-    _pyiqa('topiq', 'TOPIQ NR', 'aesthetic / quality_score (16gb, 24gb)', 'qrealign_native'),
+    _pyiqa('topiq', 'TOPIQ NR', 'aesthetic / quality_score (12gb, 16gb, 24gb)', 'qrealign_native'),
     _pyiqa('hyperiqa', 'HyperIQA', 'quality (optional)', 'qrealign_native'),
     _pyiqa('dbcnn', 'DBCNN', 'quality (optional)', 'qrealign_native'),
     _pyiqa('musiq', 'MUSIQ', 'quality (optional)', 'qrealign_native'),
@@ -133,7 +133,7 @@ COMPONENTS: dict[str, Component] = {c.id: c for c in (
     # --- embeddings / tagging / saliency ---
     _c('siglip2', 'SigLIP 2 NaFlex SO400M', 'weights', 'Apache-2.0', 'Apache-2.0', 'yes',
        'https://huggingface.co/google/siglip2-so400m-patch16-naflex',
-       'embeddings (16gb, 24gb)'),
+       'embeddings (12gb, 16gb, 24gb)'),
     _c('clip', 'OpenCLIP ViT-L-14 (laion2b)', 'weights', 'MIT', 'MIT', 'yes',
        'https://github.com/mlfoundations/open_clip', 'embeddings + tagging (legacy, 8gb)'),
     _c('qwen2_vl', 'Qwen2-VL-2B', 'weights', 'Apache-2.0', 'Apache-2.0', 'yes',
@@ -143,7 +143,7 @@ COMPONENTS: dict[str, Component] = {c.id: c for c in (
     _c('qwen3_vl_2b', 'Qwen3-VL-2B', 'weights', 'Apache-2.0', 'Apache-2.0', 'yes',
        'https://huggingface.co/Qwen/Qwen3-VL-2B-Instruct', 'tagging (deprecated)'),
     _c('qwen3_5_2b', 'Qwen3.5-2B', 'weights', 'Apache-2.0', 'Apache-2.0', 'yes',
-       'https://huggingface.co/Qwen/Qwen3.5-2B', 'tagging (16gb)'),
+       'https://huggingface.co/Qwen/Qwen3.5-2B', 'tagging (12gb, 16gb)'),
     _c('qwen3_5_4b', 'Qwen3.5-4B', 'weights', 'Apache-2.0', 'Apache-2.0', 'yes',
        'https://huggingface.co/Qwen/Qwen3.5-4B', 'tagging (24gb)'),
     _c('birefnet', 'BiRefNet_dynamic', 'weights', 'MIT', 'MIT', 'yes',

@@ -3279,7 +3279,20 @@
           "liqe"
         ],
         "saliency_enabled": true,
-        "description": "CLIP-MLP aesthetic + SAMP-Net composition + CLIP tagging + TOPIQ IAA/NR-Face/LIQE + BiRefNet saliency (6-14GB VRAM)"
+        "description": "CLIP-MLP aesthetic + SAMP-Net composition + CLIP tagging + TOPIQ IAA/NR-Face/LIQE + BiRefNet saliency (6-11.5GB VRAM)"
+      },
+      "12gb": {
+        "aesthetic_model": "topiq",
+        "clip_config": "clip",
+        "composition_model": "samp-net",
+        "tagging_model": "qwen3.5-2b",
+        "supplementary_pyiqa": [
+          "topiq_iaa",
+          "topiq_nr_face",
+          "liqe"
+        ],
+        "saliency_enabled": true,
+        "description": "Same models as 16gb (TOPIQ aesthetic + SigLIP 2 embeddings + Qwen3.5-2B tagging), planned as 4 passes for ~11.7GB VRAM"
       },
       "16gb": {
         "aesthetic_model": "topiq",

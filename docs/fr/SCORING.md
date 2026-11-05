@@ -39,7 +39,7 @@ Les valeurs absentes ou NULL de subject_sharpness, subject_prominence, subject_p
 
 Les autres catégories basées sur les tags incluent `aerial`, `food`, `sports`, `vehicle`, `travel`, `fashion`, `candid`, `product`, `architecture`, `urban`, `golden_hour`, `blue_hour`, `cinematic`, `vintage`, `abstract`, `minimalist`, `dramatic` et `weather`.
 
-Sur les profils à étiquetage CLIP (`legacy`/`8gb`, et `16gb`/`24gb` quand leur tagger VLM ne s'exécute pas), un scan étiquette chaque photo avant de calculer sa catégorie : la catégorie stockée utilise donc les étiquettes. Une exécution avec un seul `--pass NAME` n'étiquette pas.
+Sur les profils à étiquetage CLIP (`legacy`/`8gb`, et `12gb`/`16gb`/`24gb` quand leur tagger VLM ne s'exécute pas), un scan étiquette chaque photo avant de calculer sa catégorie : la catégorie stockée utilise donc les étiquettes. Une exécution avec un seul `--pass NAME` n'étiquette pas.
 
 **Silhouette.** `is_silhouette` provient d'une règle de pixels fondée sur le visage (voir [Filtres booléens](#filtres-booléens)), pas d'une étiquette.
 

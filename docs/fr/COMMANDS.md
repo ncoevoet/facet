@@ -4,7 +4,7 @@
 
 [Analyse](#analyse) · [Aperçu et export](#aperçu-et-export) · [Opérations de recalcul](#opérations-de-recalcul) · [Reconnaissance faciale](#reconnaissance-faciale) · [Gestion des miniatures](#gestion-des-miniatures) · [Diagnostics](#diagnostics) · [Informations sur les modèles](#informations-sur-les-modèles) · [Optimisation des poids](#optimisation-des-poids-comparaison-par-paires) · [Configuration](#configuration) · [Étiquetage](#étiquetage) · [Validation de la base de données](#validation-de-la-base-de-données) · [Maintenance de la base de données](#maintenance-de-la-base-de-données) · [Visionneuse web](#visionneuse-web) · [Flux de travail courants](#flux-de-travail-courants)
 
-> Étiquettes d'exigence utilisées ci-dessous : `[GPU]` · `[8gb/16gb/24gb]` / `[16gb/24gb]` / `[24gb]` (profil VRAM). Voir la [matrice des fonctionnalités](INSTALLATION.md#exigences-par-fonctionnalité).
+> Étiquettes d'exigence utilisées ci-dessous : `[GPU]` · `[8gb/12gb/16gb/24gb]` / `[16gb/24gb]` / `[24gb]` (profil VRAM). Voir la [matrice des fonctionnalités](INSTALLATION.md#exigences-par-fonctionnalité).
 
 ## Analyse
 
@@ -48,7 +48,7 @@ Facet enregistre chaque analyse (statut, mode, répertoires, compteurs) et chaqu
 - `--pass NAME` et `--dry-run` ignorent cette vérification.
 - Le mode commercial conserve la passe unique, car Q-ReAlign natif y note l'esthétique.
 
-**Note de mise à jour :** les versions antérieures enregistraient une esthétique neutre de 5,0 pour chaque photo d'une analyse en passe unique sur `16gb`/`24gb`. Réanalysez ces dossiers avec `--force` en multi-passes. Pour les retrouver : `SELECT path FROM photos WHERE scoring_model = 'topiq' AND aesthetic = 5.0 AND topiq_score IS NULL`.
+**Note de mise à jour :** les versions antérieures enregistraient une esthétique neutre de 5,0 pour chaque photo d'une analyse en passe unique sur `12gb`/`16gb`/`24gb`. Réanalysez ces dossiers avec `--force` en multi-passes. Pour les retrouver : `SELECT path FROM photos WHERE scoring_model = 'topiq' AND aesthetic = 5.0 AND topiq_score IS NULL`.
 
 **Passe spécifique (`--pass NAME`) :** exécute une seule passe, pour mettre à jour certaines métriques sans retraitement complet.
 
@@ -102,7 +102,7 @@ Sur un GPU CUDA, dès qu'un chunk est décodé, le même worker de décodage com
 | `python facet.py --export-sidecars --embed-originals` | Écrit aussi les métadonnées **dans** les originaux JPEG/HEIC/TIFF/PNG/DNG |
 | `python facet.py --export-sidecars --score-to-stars` | Définit `xmp:Rating` à partir du score pour les photos que vous n'avez pas notées |
 
-**Simulation.** Sur `16gb`/`24gb`, la colonne d'esthétique affiche `n/a`, car TOPIQ ne s'exécute que dans une vraie analyse (le mode commercial affiche le score Q-ReAlign). L'agrégat la compte comme un 5,0 neutre.
+**Simulation.** Sur `12gb`/`16gb`/`24gb`, la colonne d'esthétique affiche `n/a`, car TOPIQ ne s'exécute que dans une vraie analyse (le mode commercial affiche le score Q-ReAlign). L'agrégat la compte comme un 5,0 neutre.
 
 **CSV et JSON.** La colonne `tags` ne contient que les tags IA ; les [tags manuels](VIEWER.md#tags-manuels) n'y figurent pas. Dans le JSON, l'objet `scores` de chaque photo porte toutes les métriques stockées ; NULL, les nombres non finis et les BLOB deviennent `null`. L'export JSON refuse d'écrire sur la base de données ou sur ses fichiers `-wal`/`-shm`/`-journal`.
 
@@ -296,7 +296,7 @@ Le modèle d'étiquetage dépend du profil VRAM :
 
 Tous les étiqueteurs mappent leur sortie vers le vocabulaire d'étiquettes configuré. Utilisez `--recompute-tags` pour ré-étiqueter avec le modèle du profil, ou `--recompute-tags-vlm` pour le VLM.
 
-**Quand les étiquettes sont écrites.** Sur les profils de similarité CLIP (`legacy`/`8gb`, et `16gb`/`24gb` quand la passe VLM n'est pas planifiée), une analyse multi-passes étiquette pendant la passe d'embeddings : la catégorie et l'agrégat de l'analyse les utilisent donc déjà. Une exécution avec un seul `--pass` (par exemple `--pass embeddings`) n'écrit aucune étiquette. `--pass tags` sur un profil CLIP s'arrête en renvoyant vers `--recompute-tags`. Les lignes existantes gardent leur catégorie jusqu'à `--recompute-average`.
+**Quand les étiquettes sont écrites.** Sur les profils de similarité CLIP (`legacy`/`8gb`, et `12gb`/`16gb`/`24gb` quand la passe VLM n'est pas planifiée), une analyse multi-passes étiquette pendant la passe d'embeddings : la catégorie et l'agrégat de l'analyse les utilisent donc déjà. Une exécution avec un seul `--pass` (par exemple `--pass embeddings`) n'écrit aucune étiquette. `--pass tags` sur un profil CLIP s'arrête en renvoyant vers `--recompute-tags`. Les lignes existantes gardent leur catégorie jusqu'à `--recompute-average`.
 
 ### Modèles d'embedding
 

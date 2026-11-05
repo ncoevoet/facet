@@ -9,12 +9,12 @@ The viewer is a FastAPI + Angular web app for browsing, filtering, culling and m
 - [Starting the Viewer](#starting-the-viewer) · [Authentication](#authentication) · [Filtering Options](#filtering-options) · [Sorting](#sorting) · [Review decisions](#review-decisions) · [Gallery Features](#gallery-features)
 - [Panoramas and exposure brackets](#panoramas-and-exposure-brackets)
 - [Person Management](#person-management) · [Scan Trigger](#scan-trigger) · [Semantic Search](#semantic-search) · [Albums](#albums)
-- [AI Critique](#ai-critique) · [AI Captioning](#ai-captioning-gpu-16gb24gb-edition) · [Memories ("On This Day")](#memories-on-this-day) · [Timeline View](#timeline-view) · [Map View](#map-view) · [Capsules](#capsules)
+- [AI Critique](#ai-critique) · [AI Captioning](#ai-captioning-gpu-12gb16gb24gb-edition) · [Memories ("On This Day")](#memories-on-this-day) · [Timeline View](#timeline-view) · [Map View](#map-view) · [Capsules](#capsules)
 - [Folders View](#folders-view) · [GPS Filter Dialog](#gps-filter-dialog) · [Merge Suggestions](#merge-suggestions) · [Editor Export](#editor-export) · [Download](#download) · [Culling](#culling) · [Junk Sweep](#junk-sweep) · [Pairwise Comparison Mode](#pairwise-comparison-mode)
 - [EXIF Statistics](#exif-statistics) · [Keyboard Shortcuts](#keyboard-shortcuts-gallery) · [Undo](#undo) · [Progressive Web App](#progressive-web-app) · [Mobile](#mobile) · [Photo Frame / Kiosk Endpoint](#photo-frame--kiosk-endpoint) · [Phone Auto-Upload](#phone-auto-upload)
 - [Configuration](#configuration-2) · [Performance](#performance) · [API Endpoints](#api-endpoints) · [JPEG XL photos](#jpeg-xl-photos) · [Troubleshooting](#troubleshooting)
 
-> **Feature requirements** are tagged inline: `[GPU]` · `[16gb/24gb]` (VRAM profile) · `[Edition]` (edition password) · `[Superadmin]`. See the [feature matrix](INSTALLATION.md#feature-requirements).
+> **Feature requirements** are tagged inline: `[GPU]` · `[12gb/16gb/24gb]` (VRAM profile) · `[Edition]` (edition password) · `[Superadmin]`. See the [feature matrix](INSTALLATION.md#feature-requirements).
 
 > **AI assistants**: Facet can serve its tools to MCP-capable assistants. With the right token level they can search, change and cull the library. See [AI Agents (MCP)](AGENTS.md).
 
@@ -563,7 +563,7 @@ To rescore existing photos without scanning new files, use `POST /api/scan/recom
 Type a query like "sunset over mountains" and get matching photos. Ranking blends CLIP/SigLIP embedding similarity (70%) with FTS5 BM25 text matching on captions and tags (30%).
 
 - **Requirements.** Photos need stored `clip_embedding` data (computed during scoring). Run `database.py --rebuild-fts` to enable the caption/tag text part.
-- **Model.** Uses the active VRAM profile's embedding model (SigLIP 2 for 16gb/24gb, CLIP ViT-L-14 for legacy/8gb), or whichever of `models.clip`/`clip_legacy` matches the stored embeddings (see [CONFIGURATION.md](CONFIGURATION.md)).
+- **Model.** Uses the active VRAM profile's embedding model (SigLIP 2 for 12gb/16gb/24gb, CLIP ViT-L-14 for legacy/8gb), or whichever of `models.clip`/`clip_legacy` matches the stored embeddings (see [CONFIGURATION.md](CONFIGURATION.md)).
 - **Speed.** Installing sqlite-vec speeds up search; otherwise Facet keeps an in-memory matrix. The first query on a large library can take several seconds.
 - **Threshold.** The match threshold defaults to `models.clip.search_threshold_percent` (`5%`) or `models.clip_legacy.search_threshold_percent` (15%), separate from `tag_threshold_percent`. The gallery slider spans 0–50%; `/api/config`'s `search_threshold_default` sets its start. Even `0%` rejects negative similarity. The 5% SigLIP default favours recall — see `clip.search_threshold_percent` in [CONFIGURATION.md](CONFIGURATION.md).
 - **Text only.** `scope=text` restricts the query to literal FTS5 matches in OCR/caption text.
@@ -661,9 +661,9 @@ If the calculation is unavailable, only the stored score is shown, with the fix:
 
 The dialog also tells a photo that is *not scored yet* from one whose *stored score is unusable*.
 
-### VLM Critique `[GPU]` `[16gb/24gb]`
+### VLM Critique `[GPU]` `[12gb/16gb/24gb]`
 
-Uses the configured VLM (Qwen3.5-2B or Qwen3.5-4B) for a context-aware critique. Needs the 16gb or 24gb profile, `viewer.features.show_vlm_critique` set to `true` (the default) and an edition session to generate. Without edition, only a cached critique is shown and `vlm_available` is `false`. The dialog generates through `POST /api/critique/vlm` (edition only; concurrent requests for one photo share a single generation); `GET /api/critique` only reads what is cached and never generates, translates or writes.
+Uses the configured VLM (Qwen3.5-2B or Qwen3.5-4B) for a context-aware critique. Needs the 12gb, 16gb or 24gb profile, `viewer.features.show_vlm_critique` set to `true` (the default) and an edition session to generate. Without edition, only a cached critique is shown and `vlm_available` is `false`. The dialog generates through `POST /api/critique/vlm` (edition only; concurrent requests for one photo share a single generation); `GET /api/critique` only reads what is cached and never generates, translates or writes.
 
 - The prompt (`critique.vlm`) includes the score breakdown, stored and recalculated scores, detected conditions and EXIF.
 - The reply reads **Observation / Assessment / Suggestions**. It is cached per photo (`photos.vlm_critique`), translated when an edition session opens it in the target language (stored then, and served as stored thereafter), and **Regenerate** recomputes it. Without an edition session you see the untranslated text unless a stored translation already exists.
@@ -671,7 +671,7 @@ Uses the configured VLM (Qwen3.5-2B or Qwen3.5-4B) for a context-aware critique.
 
 **Visual "why this score" overlay.** With `viewer.features.show_saliency_overlay` on (default `true`), the critique dialog has **Show overlay**. It draws the BiRefNet saliency map as a heatmap (`GET /api/saliency_overlay`), plus face boxes and eye markers from stored landmarks (`GET /api/photo/face_markers`). Boxes are green for open eyes, amber for a blink. The heatmap is thumbnail-resolution, so it is approximate. The toggle hides on profiles that cannot produce a saliency mask.
 
-## AI Captioning `[GPU]` `[16gb/24gb]` `[Edition]`
+## AI Captioning `[GPU]` `[12gb/16gb/24gb]` `[Edition]`
 
 Get a natural-language caption for any photo. An edition session generates it on first request; it is then cached in the `caption` column. Edit captions in photo detail (edition mode). An open, read-only install never generates one. `POST /api/caption` generates (and translates) it; `GET /api/caption` only returns the stored caption or translation and never generates, translates or writes.
 
@@ -684,7 +684,7 @@ python facet.py --translate-captions     # Translate captions to configured targ
 
 Translation uses MarianMT on CPU (no GPU needed). Set the language with `translation.target_language` (default: `"fr"`). Supported: French, German, Spanish, Italian.
 
-Controlled by `viewer.features.show_captions` (default: `true`). Without the 16gb/24gb profile or a remote `vlm_backend`, the Generate caption button is hidden and critiques stay rule-based.
+Controlled by `viewer.features.show_captions` (default: `true`). Without the 12gb/16gb/24gb profile or a remote `vlm_backend`, the Generate caption button is hidden and critiques stay rule-based.
 
 ## Memories ("On This Day")
 
@@ -1003,7 +1003,7 @@ Controlled by `viewer.features.show_scenes` (default: `true`). See [Configuratio
 Facet labels each photo with the activity it shows. The default **general** vocabulary: celebration, dining, beach, water activity, mountains, nature & wildlife, cityscape, travel landmark, concert, sports, group gathering, portrait, children, pets, nightlife, ceremony, scenic landscape, snow & winter, home indoor, road & vehicle, or `other`. A `wedding` vocabulary is available as an opt-in genre.
 
 - It runs locally, with no extra model pass: each photo's AI caption is matched against each moment's text prompts (the image embedding is used when there is no caption). Timeline smoothing fixes isolated misreads.
-- An optional VLM tie-breaker (16gb/24gb) re-checks low-confidence frames.
+- An optional VLM tie-breaker (12gb/16gb/24gb) re-checks low-confidence frames.
 - It **runs automatically at the end of every scan**. The first pass over an existing library encodes every caption (GPU recommended). Relabel everything with `python facet.py --recompute-moments`.
 - Moments appear as scene titles and a gallery filter (`GET /api/photos?narrative_moment=beach`, options from `GET /api/filter_options/narrative_moments`).
 - The vocabulary is configurable — see [Configuration — Narrative Moments](CONFIGURATION.md#narrative-moments).
@@ -1432,9 +1432,9 @@ Facet scans JPEG XL (`.jxl`) with the core `imagecodecs` dependency, included in
 | Scan button missing | Needs `viewer.features.show_scan_button: true` plus scan access — see [Scan Trigger](#scan-trigger) |
 | Search returns no results | Ensure photos have `clip_embedding` data (run scoring first) |
 | Search says Apple Silicon acceleration is busy | Retry once the current model task finishes |
-| VLM critique unavailable | Needs the 16gb/24gb profile, `viewer.features.show_vlm_critique: true` and an edition session |
+| VLM critique unavailable | Needs the 12gb/16gb/24gb profile, `viewer.features.show_vlm_critique: true` and an edition session |
 | Map shows no photos | Run `--extract-gps`; check photos have EXIF GPS data |
-| Captions not generating | Requires 16gb/24gb VRAM profile for VLM captioning |
+| Captions not generating | Requires 12gb/16gb/24gb VRAM profile for VLM captioning |
 | Timeline empty | Ensure photos have `date_taken` values |
 | Port 5000 in use | Run `python viewer.py --port 5001` (or set `PORT=5001`). On macOS, AirPlay Receiver uses 5000: pick another port or turn it off in System Settings → General → AirDrop & Handoff. |
 

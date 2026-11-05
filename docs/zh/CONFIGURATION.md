@@ -492,7 +492,16 @@ penalty = min(noise_max_penalty_points, (noise_sigma - threshold) * noise_penalt
         "tagging_model": "clip",
         "supplementary_pyiqa": ["topiq_iaa", "topiq_nr_face", "liqe"],
         "saliency_enabled": true,
-        "description": "CLIP-MLP aesthetic + SAMP-Net composition + CLIP tagging + TOPIQ IAA/NR-Face/LIQE + BiRefNet saliency (6-14GB VRAM)"
+        "description": "CLIP-MLP aesthetic + SAMP-Net composition + CLIP tagging + TOPIQ IAA/NR-Face/LIQE + BiRefNet saliency (6-11.5GB VRAM)"
+      },
+      "12gb": {
+        "aesthetic_model": "topiq",
+        "clip_config": "clip",
+        "composition_model": "samp-net",
+        "tagging_model": "qwen3.5-2b",
+        "supplementary_pyiqa": ["topiq_iaa", "topiq_nr_face", "liqe"],
+        "saliency_enabled": true,
+        "description": "Same models as 16gb (TOPIQ aesthetic + SigLIP 2 embeddings + Qwen3.5-2B tagging), planned as 4 passes for ~11.7GB VRAM"
       },
       "16gb": {
         "aesthetic_model": "topiq",
@@ -559,7 +568,7 @@ penalty = min(noise_max_penalty_points, (noise_sigma - threshold) * noise_penalt
 
 | 设置 | 默认值 | 说明 |
 |---------|---------|-------------|
-| `vram_profile` | `"auto"` | 生效的配置档（`auto`、`legacy`、`8gb`、`16gb`、`24gb`）；`FACET_VRAM_PROFILE` 可覆盖它（见下文） |
+| `vram_profile` | `"auto"` | 生效的配置档（`auto`、`legacy`、`8gb`、`12gb`、`16gb`、`24gb`）；`FACET_VRAM_PROFILE` 可覆盖它（见下文） |
 | `keep_in_ram` | `"auto"` | 在多遍处理的各分块之间把模型留在内存中（`"auto"`、`"always"`、`"never"`）；`auto` 会先检查可用内存 |
 | `ram_cache_reserve_gb` | `4.0`（可选，随附文件中没有） | 在 `"auto"` 下，缓存一个模型时要为主机留出的可用内存（GB） |
 | `profiles.*.supplementary_pyiqa` | `["topiq_iaa", "topiq_nr_face", "liqe"]` | 本配置档要运行的 PyIQA 模型（四个配置档都运行完整集合） |
@@ -567,7 +576,7 @@ penalty = min(noise_max_penalty_points, (noise_sigma - threshold) * noise_penalt
 | `clip.model_name` | `"google/siglip2-so400m-patch16-naflex"` | SigLIP 2 NaFlex 嵌入模型（16gb/24gb） |
 | `clip.backend` | `"transformers"` | `"transformers"`（SigLIP 2 NaFlex）或 `"open_clip"`（旧版） |
 | `clip.embedding_dim` | `1152` | 嵌入维度（SigLIP 2 为 1152） |
-| `clip.tag_threshold_percent` | `8` | 16gb/24gb 的 SigLIP 2 标签器判定**标签**匹配所需的最低相似度（取代 `similarity_threshold_percent`） |
+| `clip.tag_threshold_percent` | `8` | 12gb/16gb/24gb 的 SigLIP 2 标签器判定**标签**匹配所需的最低相似度（取代 `similarity_threshold_percent`） |
 | `clip.search_threshold_percent` | `5` | 语义搜索（`GET /api/search`）所需的最低相似度；取 `0-50` 的整数 |
 | `clip_legacy.model_name` | `"ViT-L-14"` | 旧版 CLIP 模型（legacy/8gb 配置档） |
 | `clip_legacy.pretrained` | `"laion2b_s32b_b82k"` | 旧版预训练权重 |
@@ -575,7 +584,7 @@ penalty = min(noise_max_penalty_points, (noise_sigma - threshold) * noise_penalt
 | `clip_legacy.tag_threshold_percent` | `8` | legacy/8gb 的 CLIP 标签器使用同样的标签门槛；`tagging.max_tags` 限制标签数量 |
 | `clip_legacy.search_threshold_percent` | `15` | legacy/8gb 配置档的语义搜索门槛；取 `0-50` 的整数 |
 | `qwen2_vl.model_path` | `"Qwen/Qwen2-VL-2B-Instruct"` | 手动选用 `composition_model: "qwen2-vl-2b"` 时使用的模型（没有配置档使用它） |
-| `qwen3_5_2b.model_path` | `"Qwen/Qwen3.5-2B"` | 16gb 配置档的标签模型 |
+| `qwen3_5_2b.model_path` | `"Qwen/Qwen3.5-2B"` | 12gb/16gb 配置档的标签模型 |
 | `qwen3_5_2b.vlm_batch_size` | `4` | 每个 VLM 推理批次的图片数 |
 | `qwen3_5_4b.model_path` | `"Qwen/Qwen3.5-4B"` | 24gb 配置档的标签模型 |
 | `qwen3_5_4b.vlm_batch_size` | `2` | 每个 VLM 推理批次的图片数 |
@@ -598,18 +607,19 @@ penalty = min(noise_max_penalty_points, (noise_sigma - threshold) * noise_penalt
 |---------------|------------------|
 | ≥ 20GB | `24gb` |
 | ≥ 14GB | `16gb` |
+| ≥ 11.5GB | `12gb` |
 | ≥ 6GB | `8gb` |
 | 无 GPU | `legacy`（使用系统内存） |
 
 只有当 PyTorch 能看到 CUDA GPU 时它才算数。没有可见设备时（例如 `CUDA_VISIBLE_DEVICES=''`），扫描改用 CPU，报告 0 GB 显存并选择 `legacy`。没有可见设备时设置 `FACET_DEVICE=cuda`，会以 “FACET_DEVICE=cuda was requested, but that device is not available” 中止。
 
-**10-14GB 的显卡可以自行启用完整功能集。** 自动检测在低于 14GB 时仍会选择 `8gb`。设置 `"vram_profile": "16gb"` 或 `FACET_VRAM_PROFILE=16gb` 即可运行 SigLIP 2、TOPIQ、Qwen3.5-2B 标签、Q-ReAlign 和显著性。此时各模型分四个遍次运行，显卡报告 11.8 GiB 或更多时为三个（见[动态遍次分组](#动态遍次分组)）。显著性仍无法评分的照片会存入 NULL 并记录一条 ERROR。
+**12GB 显卡会被自动选中。** 从 11.5GB 起、不到 14GB 时，自动检测会选择 `12gb`，它运行与 `16gb` 相同的模型（SigLIP 2、TOPIQ、Qwen3.5-2B 标签、Q-ReAlign 和显著性），因此 12GB 与 16GB 的机器之间照片库可以互换使用。低于 11.5GB 的显卡，例如 11.0GB 的 GTX 1080 Ti 或 10GB 显卡，仍使用 `8gb`。此时各模型分四个遍次运行，显卡报告 11.8 GiB 或更多时为三个（见[动态遍次分组](#动态遍次分组)）。显著性仍无法评分的照片会存入 NULL 并记录一条 ERROR。
 
-> **警告：** 把已有的 `8gb` 照片库切换到 `16gb` 会更换嵌入模型（CLIP ViT-L-14 的 768 维 → SigLIP 2 的 1152 维）。请重新扫描或运行 `--recompute-embeddings`，否则照片库里会混入两种嵌入维度。在此之前搜索的行为见[模型](#模型)一节中的*语义搜索与在不同配置档下建立索引的照片库*。
+> **警告：** 把已有的 `8gb` 照片库切换到 `12gb` / `16gb` 会更换嵌入模型（CLIP ViT-L-14 的 768 维 → SigLIP 2 的 1152 维）。请重新扫描或运行 `--recompute-embeddings`，否则照片库里会混入两种嵌入维度。在此之前搜索的行为见[模型](#模型)一节中的*语义搜索与在不同配置档下建立索引的照片库*。
 
 ### `FACET_VRAM_PROFILE` 环境变量覆盖
 
-`FACET_VRAM_PROFILE` 会在加载时覆盖 `models.vram_profile`，因此一份挂载进去的配置就能服务于每个 Docker 配置档。可接受的取值：`auto`、`legacy`、`8gb`、`16gb`、`24gb`；其他取值会被忽略并给出警告。Docker Compose 覆盖文件（`docker-compose.{legacy,8gb,16gb,24gb}.yml`）已经替你设置好了它。
+`FACET_VRAM_PROFILE` 会在加载时覆盖 `models.vram_profile`，因此一份挂载进去的配置就能服务于每个 Docker 配置档。可接受的取值：`auto`、`legacy`、`8gb`、`16gb`、`24gb`；其他取值会被忽略并给出警告。Docker Compose 覆盖文件（`docker-compose.{legacy,8gb,12gb,16gb,24gb}.yml`）已经替你设置好了它。
 
 这项覆盖绝不会被写回 `scoring_config.json`。你在文件里自己设置的 `vram_profile` 在变量未设置时依然生效。
 
@@ -744,7 +754,7 @@ GPU 批处理与多遍模式的设置。
 | `multi-pass` | 顺序加载模型（显存有限时可用） |
 | `single-pass` | 一次加载全部模型（需要大显存）；仅适用于 `legacy`/`8gb` 配置档 |
 
-在 `16gb`/`24gb`（美学使用 TOPIQ）上，`single-pass` 会记录警告并以多遍运行，商业模式除外（参见[许可](#许可licensing)）。
+在 `12gb`/`16gb`/`24gb`（美学使用 TOPIQ）上，`single-pass` 会记录警告并以多遍运行，商业模式除外（参见[许可](#许可licensing)）。
 
 ### 多遍处理的工作方式
 
@@ -781,12 +791,12 @@ Facet 会监控资源占用并据此调整。`memory_limit_percent` 是相对*�
 | 显存 | 第 1 遍 | 第 2 遍 | 第 3 遍 | 第 4 遍 |
 |---|---|---|---|---|
 | 8GB（`8gb` 配置档） | CLIP | Q-ReAlign + 显著性 | TOPIQ IAA + TOPIQ NR-Face + LIQE | SAMP-Net + InsightFace |
-| 12GB\*（`16gb` 配置档，需手动启用） | Qwen3.5 标签 VLM + Q-ReAlign | SigLIP + 显著性 + TOPIQ IAA | TOPIQ + TOPIQ NR-Face + LIQE + SAMP-Net | InsightFace |
+| 12GB\*（`12gb` 配置档） | Qwen3.5 标签 VLM + Q-ReAlign | SigLIP + 显著性 + TOPIQ IAA | TOPIQ + TOPIQ NR-Face + LIQE + SAMP-Net | InsightFace |
 | 16GB（`16gb` 配置档） | Qwen3.5 标签 VLM + SigLIP + TOPIQ | Q-ReAlign + 显著性 + TOPIQ IAA + TOPIQ NR-Face + LIQE + SAMP-Net | InsightFace | - |
 | 24GB（`24gb` 配置档） | Qwen3.5 4B 标签 VLM + SigLIP + Q-ReAlign + 显著性 | TOPIQ + TOPIQ IAA + TOPIQ NR-Face + LIQE + SAMP-Net + InsightFace | - | - |
 | 35GB+（`24gb` 配置档） | 所有模型一起（单遍） | - | - | - |
 
-这几行是显卡报告总显存分别为 8.0、11.7、15.99 和 23.99 GiB 时的分组；报告 34.8 GiB 或更多时只规划一遍。规划器会留出 1.3 GiB 给 CUDA、ONNX Runtime 和桌面。12GB 显卡不会被自动选中（见[显存自动检测](#显存自动检测)）：请设置 `"vram_profile": "16gb"` 或 `FACET_VRAM_PROFILE=16gb`。
+这几行是显卡报告总显存分别为 8.0、11.7、15.99 和 23.99 GiB 时的分组；报告 34.8 GiB 或更多时只规划一遍。规划器会留出 1.3 GiB 给 CUDA、ONNX Runtime 和桌面。报告 11.5 至不足 14 GiB 的显卡会被自动选为 `12gb`（见[显存自动检测](#显存自动检测)）。
 
 \* 12GB 一行是报告 11.7 GiB 的显卡的分组。报告 11.8 GiB 或更多（例如 11.99 GiB）的显卡则规划三遍：Qwen3.5 标签 VLM + Q-ReAlign；SigLIP + 显著性 + TOPIQ；TOPIQ IAA + TOPIQ NR-Face + LIQE + SAMP-Net + InsightFace。
 
@@ -1153,7 +1163,7 @@ IEC 61966-2-1。NCLX 传递特征值 16：ISO/IEC 23001-8 / ITU-T H.273。
 
 额外的画质评分器，它们会写入各自的列；它们绝不会取代 TOPIQ。它们在普通扫描过程中运行。加载或显存失败会被记入日志，对应的列留作 `NULL`；扫描会继续。
 
-- `qrealign` 默认为 `"auto"`：在 `8gb`/`16gb`/`24gb` 配置档下**开启**，在 `legacy`/CPU 下**关闭**。
+- `qrealign` 默认为 `"auto"`：在 `8gb`/`12gb`/`16gb`/`24gb` 配置档下**开启**，在 `legacy`/CPU 下**关闭**。
 - `aesthetic_v25` 和 `deqa` **默认关闭**。
 
 ```json
@@ -1405,7 +1415,7 @@ InsightFace 人脸检测设置。
 | `enabled` | `true` | 启用打标签 |
 | `max_tags` | `5` | 每张照片最多的标签数 |
 
-**注意：** CLIP/SigLIP 的标签阈值是当前配置档所在块中的 `tag_threshold_percent`：`16gb`/`24gb` 用 `models.clip`，`legacy`/`8gb` 用 `models.clip_legacy`。旧键 `similarity_threshold_percent` 已不再读取。如果你自定义过它，请把值复制到 `tag_threshold_percent`；加载配置时和 `python facet.py --doctor` 都会点名这个旧键。
+**注意：** CLIP/SigLIP 的标签阈值是当前配置档所在块中的 `tag_threshold_percent`：`12gb`/`16gb`/`24gb` 用 `models.clip`，`legacy`/`8gb` 用 `models.clip_legacy`。旧键 `similarity_threshold_percent` 已不再读取。如果你自定义过它，请把值复制到 `tag_threshold_percent`；加载配置时和 `python facet.py --doctor` 都会点名这个旧键。
 
 扫描结束时，当 `enabled` 为 `false`，或没有任何照片同时具有嵌入向量和空的标签列表时，标注步骤会跳过（并输出一行日志）。任何标签都无法匹配的照片会一直处于待处理状态，因此每次扫描仍会加载该模型。`python tag_existing.py`（无论是否带 `--force`）和 `python facet.py --tag-untagged` 总是会运行。
 
@@ -1425,6 +1435,7 @@ InsightFace 人脸检测设置。
 |---------|---------------|-----------------|
 | `legacy` | `clip` | CLIP ViT-L-14（768 维） |
 | `8gb` | `clip` | CLIP ViT-L-14（768 维） |
+| `12gb` | `qwen3.5-2b` | SigLIP 2 NaFlex SO400M（1152 维） |
 | `16gb` | `qwen3.5-2b` | SigLIP 2 NaFlex SO400M（1152 维） |
 | `24gb` | `qwen3.5-4b` | SigLIP 2 NaFlex SO400M（1152 维） |
 

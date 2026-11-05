@@ -39,7 +39,7 @@ Missing subject_sharpness, subject_prominence, subject_placement, bg_separation 
 
 Other tag-based categories include `aerial`, `food`, `sports`, `vehicle`, `travel`, `fashion`, `candid`, `product`, `architecture`, `urban`, `golden_hour`, `blue_hour`, `cinematic`, `vintage`, `abstract`, `minimalist`, `dramatic`, and `weather`.
 
-On the CLIP-tagging profiles (`legacy`/`8gb`, and `16gb`/`24gb` when their VLM tagger does not run), a scan tags each photo before computing its category, so the stored category uses the tags. A single `--pass NAME` run does not tag.
+On the CLIP-tagging profiles (`legacy`/`8gb`, and `12gb`/`16gb`/`24gb` when their VLM tagger does not run), a scan tags each photo before computing its category, so the stored category uses the tags. A single `--pass NAME` run does not tag.
 
 **Silhouette.** `is_silhouette` comes from a face-aware pixel rule (see [Boolean Filters](#boolean-filters)), not from a tag.
 

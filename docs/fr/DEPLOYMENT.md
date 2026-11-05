@@ -13,7 +13,7 @@ Facet comporte deux charges de travail :
 
 | Composant | Matériel | Rôle |
 |-----------|----------|---------|
-| **Scoring** (`facet.py`) | GPU (6-24 Go VRAM) ou CPU (8 Go de RAM minimum, 12 Go recommandés ; davantage pour `16gb`/`24gb`, voir [Limites de mémoire du conteneur](#limites-de-mémoire-du-conteneur)) | Analyser et noter les photos |
+| **Scoring** (`facet.py`) | GPU (6-24 Go VRAM) ou CPU (8 Go de RAM minimum, 12 Go recommandés ; davantage pour `12gb`/`16gb`/`24gb`, voir [Limites de mémoire du conteneur](#limites-de-mémoire-du-conteneur)) | Analyser et noter les photos |
 | **Galerie web** (`viewer.py`) | Toute machine (peu de ressources) | Servir la galerie web |
 
 Seule la galerie web doit tourner sur le serveur. Notez les photos sur un poste de travail, puis synchronisez la base de données.
@@ -527,7 +527,7 @@ curl -s localhost:5000/health          # -> ok
 ```
 
 Ajoutez `--build` pour compiler depuis le clone plutôt que de récupérer l'image. Les profils GPU
-(`8gb`/`16gb`/`24gb`) regroupent les visages sur le GPU via le RAPIDS cuML intégré ; `legacy`
+(`8gb`/`12gb`/`16gb`/`24gb`) regroupent les visages sur le GPU via le RAPIDS cuML intégré ; `legacy`
 regroupe sur CPU. Le premier lancement télécharge les modèles dans les volumes nommés ; réinitialisez-les avec
 `docker compose down -v`.
 
