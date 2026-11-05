@@ -706,7 +706,7 @@ class TestSafeEmbedExtsDispatch:
         monkeypatch.setattr(xmp_export, "exiftool_available", lambda: True)
         monkeypatch.setattr(
             xmp_export, "_run_exiftool",
-            lambda target, rating, timeout, reconcile=False: calls.append(target),
+            lambda target, rating, timeout, reconcile=False, precomputed_args=None: calls.append(target),
         )
         return calls
 

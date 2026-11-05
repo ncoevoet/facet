@@ -220,6 +220,14 @@ def test_real_exiftool_reconciles_only_owned_hierarchy_and_preserves_foreign_pac
     write_metadata(str(image), XmpRating(), reconcile_keywords=True)
     root = ET.parse(sidecar).getroot()
     assert values(root, NS_LR, 'hierarchicalSubject') == ['Animals|Domestic|Cat', 'Foreign|001', 'Foreign|TRUE']
+    # A later edit/export must still reconcile against both ownership markers.
+    write_metadata(str(image), rating)
+    assert values(ET.parse(sidecar).getroot(), NS_LR, 'hierarchicalSubject') == [
+        'Animals|Domestic|Cat', 'Foreign|001', 'Foreign|TRUE',
+        'Category|portrait', 'People|Alice', 'Places|City, Coast']
+    write_metadata(str(image), XmpRating(), reconcile_keywords=True)
+    root = ET.parse(sidecar).getroot()
+    assert values(root, NS_LR, 'hierarchicalSubject') == ['Animals|Domestic|Cat', 'Foreign|001', 'Foreign|TRUE']
     history = '{http://darktable.sf.net/}history_end'
     assert any(node.get(history) == '7' or (node.tag == history and node.text == '7') for node in root.iter())
     assert hashlib.sha256(image.read_bytes()).hexdigest() == original

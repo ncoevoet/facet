@@ -66,8 +66,8 @@ import stat
 import subprocess
 import tempfile
 from dataclasses import dataclass, field
-from datetime import datetime, timezone
 from typing import NamedTuple
+from datetime import datetime, timezone
 from xml.etree import ElementTree as ET
 
 from db.manual_tags import enrich_effective_tags, load_manual_tags_map, merge_effective_tags
@@ -729,6 +729,26 @@ def _exiftool_config() -> str:
     return config
 
 
+def _regions_from_record(record: dict, target: str, exe: str, *, timeout: int,
+                         config: str | None = None) -> dict:
+    """Validate the RegionInfo of a parsed record; booleans need lossless readback."""
+    info = record.get("RegionInfo", {})
+    if not isinstance(info, dict):
+        raise ValueError("invalid MWG structure")
+    if _has_boolean(info):
+        exact = run_exiftool_process(
+            [exe, '-config', config or _exiftool_config(), '-X', '-struct', '-XMP-mwg-rs:RegionInfo', target],
+            timeout=timeout)
+        root = ET.fromstring(exact.stdout)
+        nodes = root.findall('.//{http://ns.exiftool.org/XMP/XMP-mwg-rs/1.0/}RegionInfo')
+        if (exact.returncode or root.tag != f'{{{NS_RDF}}}RDF'
+                or len(root.findall(f'{{{NS_RDF}}}Description')) != 1 or len(nodes) != 1
+                or any(node.tag.rsplit('}', 1)[-1] == 'Error' for node in root.iter())):
+            raise ValueError('cannot read exact region literals')
+        info = _restore_region_boolean_case(info, nodes[0])
+    return _raw_json_literals(info)
+
+
 def _read_existing_regions(target: str, exe: str, *, timeout: int) -> dict:
     """Read structured MWG metadata before writing; fail closed on read errors."""
     if not os.path.exists(target):
@@ -749,20 +769,7 @@ def _read_existing_regions(target: str, exe: str, *, timeout: int) -> dict:
             raise ValueError("invalid metadata response")
         if 'Error' in records[0]:
             raise ValueError("metadata read failed")
-        info = records[0].get("RegionInfo", {})
-        if not isinstance(info, dict):
-            raise ValueError("invalid MWG structure")
-        if _has_boolean(info):
-            exact = run_exiftool_process(
-                [exe, '-config', config, '-X', '-struct', '-XMP-mwg-rs:RegionInfo', target], timeout=timeout)
-            root = ET.fromstring(exact.stdout)
-            nodes = root.findall('.//{http://ns.exiftool.org/XMP/XMP-mwg-rs/1.0/}RegionInfo')
-            if (exact.returncode or root.tag != f'{{{NS_RDF}}}RDF'
-                    or len(root.findall(f'{{{NS_RDF}}}Description')) != 1 or len(nodes) != 1
-                    or any(node.tag.rsplit('}', 1)[-1] == 'Error' for node in root.iter())):
-                raise ValueError('cannot read exact region literals')
-            info = _restore_region_boolean_case(info, nodes[0])
-        return _raw_json_literals(info)
+        return _regions_from_record(records[0], target, exe, timeout=timeout)
     except (OSError, subprocess.TimeoutExpired, ValueError, TypeError, AttributeError, ET.ParseError) as ex:
         raise MetadataPreconditionError(f"Cannot read face metadata for {target}; repair it before exporting") from ex
 
@@ -869,7 +876,7 @@ def _exiftool_record(raw: str) -> dict:
 def _read_exact_boolean_names(target: str, exe: str, fields: list[str], *, timeout: int) -> dict[str, list[str]]:
     """JSON booleans erase original case; RDF/XML retains the literal names."""
     result = run_exiftool_process(
-        [exe, '-q', '-m', '-X', '-XMP-dc:Subject', '-IPTC:Keywords',
+        [exe, '-config', _exiftool_config(), '-q', '-m', '-X', '-XMP-dc:Subject', '-IPTC:Keywords',
          '-XMP-lr:HierarchicalSubject', target], timeout=timeout)
     if result.returncode:
         raise RuntimeError('Cannot read exact keyword names; export refused')
@@ -907,6 +914,25 @@ def _read_exact_boolean_names(target: str, exe: str, fields: list[str], *, timeo
         raise RuntimeError('Cannot read exact keyword names; export refused') from ex
 
 
+def _keywords_from_record(record: dict, target: str, exe: str, *, timeout: int) -> tuple[list[str], list[str], bool]:
+    """Validate the keyword-family fields of a parsed record and normalise them."""
+    for key in ('Subject', 'Keywords', 'HierarchicalSubject'):
+        value = record.get(key)
+        # ExifTool emits numeric and true/false tokens for literal names.
+        # Numbers retain lexical spelling in _exiftool_record; booleans
+        # need lossless XML readback below. Null/nested containers stay invalid.
+        if key in record and not (type(value) in (str, bool)
+                or isinstance(value, list) and all(type(item) in (str, bool) for item in value)):
+            raise RuntimeError('Cannot read existing keywords: malformed list; export refused')
+    boolean_fields = [key for key in ('Subject', 'Keywords', 'HierarchicalSubject')
+                      if type(record.get(key)) is bool or isinstance(record.get(key), list)
+                      and any(type(value) is bool for value in record[key])]
+    if boolean_fields:
+        record.update(_read_exact_boolean_names(target, exe, boolean_fields, timeout=timeout))
+    flat = _union(_listify(record.get('Subject')), _listify(record.get('Keywords')))
+    return flat, _listify(record.get('HierarchicalSubject')), record.get('DateState') == 'set'
+
+
 def _read_existing_metadata(target: str, exe: str, *, timeout: int, strict=False) -> tuple[list[str], list[str], bool]:
     """Read flat/hierarchical names; existing-file failures must not clear them."""
     try:
@@ -918,35 +944,31 @@ def _read_existing_metadata(target: str, exe: str, *, timeout: int, strict=False
         )
         if result.returncode != 0:
             raise RuntimeError('Cannot read existing keywords; export refused')
-        record = _exiftool_record(result.stdout)
-        for key in ('Subject', 'Keywords', 'HierarchicalSubject'):
-            value = record.get(key)
-            # ExifTool emits numeric and true/false tokens for literal names.
-            # Numbers retain lexical spelling in _exiftool_record; booleans
-            # need lossless XML readback below. Null/nested containers stay invalid.
-            if key in record and not (type(value) in (str, bool)
-                    or isinstance(value, list) and all(type(item) in (str, bool) for item in value)):
-                raise RuntimeError('Cannot read existing keywords: malformed list; export refused')
-        boolean_fields = [key for key in ('Subject', 'Keywords', 'HierarchicalSubject')
-                          if type(record.get(key)) is bool or isinstance(record.get(key), list)
-                          and any(type(value) is bool for value in record[key])]
-        if boolean_fields:
-            record.update(_read_exact_boolean_names(target, exe, boolean_fields, timeout=timeout))
-        flat = _union(_listify(record.get('Subject')), _listify(record.get('Keywords')))
-        return flat, _listify(record.get('HierarchicalSubject')), record.get('DateState') == 'set'
+        flat, hier, dated = _keywords_from_record(_exiftool_record(result.stdout), target, exe, timeout=timeout)
+        return flat, hier, dated
     except (subprocess.TimeoutExpired, OSError, RuntimeError) as ex:
         if strict:
             raise RuntimeError('Cannot read existing keywords; export refused before clearing metadata') from ex
         return [], [], False
 
 
+def _keyword_state_from_record(record: dict, marker_name: str = 'KeywordState') -> dict | None:
+    """Validate a private ownership marker; absent markers grant no ownership."""
+    raw = record.get(marker_name)
+    if marker_name in record and not isinstance(raw, str):
+        raise RuntimeError('Unsupported or invalid Facet keyword ownership; export refused')
+    state = parse_keyword_state(raw)
+    if raw is not None and state is None:
+        raise RuntimeError('Unsupported or invalid Facet keyword ownership; export refused')
+    return state
+
+
 def _read_keyword_states(target: str, exe: str, *, timeout: int) -> tuple[dict | None, dict | None]:
     """Read both field ownership markers in one ExifTool invocation."""
     if not os.path.exists(target):
         return None, None
-    config = _exiftool_config()
     try:
-        result = run_exiftool_process([exe, '-config', config, '-json',
+        result = run_exiftool_process([exe, '-config', _exiftool_config(), '-json',
                                       '-XMP-facet:KeywordState', '-XMP-facet:HierarchyState', target],
                                      timeout=timeout)
     except (subprocess.TimeoutExpired, OSError) as ex:
@@ -954,16 +976,72 @@ def _read_keyword_states(target: str, exe: str, *, timeout: int) -> tuple[dict |
     if result.returncode:
         raise RuntimeError('Cannot read keyword ownership before export')
     record = _exiftool_record(result.stdout)
-    states = []
-    for marker_name in ('KeywordState', 'HierarchyState'):
-        raw = record.get(marker_name)
-        if marker_name in record and not isinstance(raw, str):
-            raise RuntimeError('Unsupported or invalid Facet keyword ownership; export refused')
-        state = parse_keyword_state(raw)
-        if raw is not None and state is None:
-            raise RuntimeError('Unsupported or invalid Facet keyword ownership; export refused')
-        states.append(state)
-    return states[0], states[1]
+    return (_keyword_state_from_record(record),
+            _keyword_state_from_record(record, 'HierarchyState'))
+
+
+class ExportState(NamedTuple):
+    """Everything one pre-write state read yields, from a single ExifTool command.
+
+    ``regions`` and both ownership markers fail closed (a precondition error / an
+    ownership refusal); ``flat``/``hier``/``facet_dated`` follow the keyword
+    read's own contract — an existing file whose keywords cannot be read never
+    gets them cleared, so non-strict callers receive empty lists instead.
+    """
+    regions: dict
+    flat: list[str]
+    hier: list[str]
+    facet_dated: bool
+    keyword_state: dict | None
+    hierarchy_state: dict | None = None
+
+
+def _read_export_state(target: str, exe: str, *, timeout: int,
+                       strict_keywords: bool) -> ExportState:
+    """Read every family the pre-write merge needs in ONE ExifTool command.
+
+    Replaces the three per-family reads (regions, keywords, keyword state),
+    each a round trip to ExifTool per photo; the per-family error
+    contracts are unchanged and enforced on the shared record. A file-level
+    failure answers with the strictest of them (the face precondition), which
+    is what the separate reads converged on for unreadable files anyway.
+    """
+    if not os.path.exists(target):
+        return ExportState({}, [], [], False, None)
+    config = _exiftool_config()
+    try:
+        if target.lower().endswith(".xmp"):
+            _assert_well_formed_xmp(target)
+        result = run_exiftool_process(
+            [exe, "-config", config, "-q", "-m", "-struct", "-json",
+             "-XMP-mwg-rs:RegionInfo", "-XMP-dc:Subject", "-IPTC:Keywords",
+             "-XMP-lr:HierarchicalSubject", "-XMP-facet:DateState",
+             "-XMP-facet:KeywordState", "-XMP-facet:HierarchyState", target],
+            timeout=timeout,
+        )
+        if result.returncode != 0:
+            raise MetadataPreconditionError(f"Cannot read face metadata for {target}; repair it before exporting")
+        records = json.loads(result.stdout, parse_int=str, parse_float=str)
+        if not isinstance(records, list) or len(records) != 1 or not isinstance(records[0], dict):
+            raise MetadataPreconditionError(f"Cannot read face metadata for {target}; repair it before exporting")
+        record = records[0]
+        if 'Error' in record:
+            raise MetadataPreconditionError(f"Cannot read face metadata for {target}; repair it before exporting")
+        try:
+            regions = _regions_from_record(record, target, exe, timeout=timeout, config=config)
+        except (OSError, subprocess.TimeoutExpired, ValueError, TypeError, AttributeError, ET.ParseError) as ex:
+            raise MetadataPreconditionError(f"Cannot read face metadata for {target}; repair it before exporting") from ex
+        try:
+            flat, hier, facet_dated = _keywords_from_record(record, target, exe, timeout=timeout)
+        except (subprocess.TimeoutExpired, OSError, RuntimeError) as ex:
+            if strict_keywords:
+                raise RuntimeError('Cannot read existing keywords; export refused before clearing metadata') from ex
+            flat, hier, facet_dated = [], [], False
+        state = _keyword_state_from_record(record)
+        hierarchy_state = _keyword_state_from_record(record, 'HierarchyState')
+        return ExportState(regions, flat, hier, facet_dated, state, hierarchy_state)
+    except (OSError, subprocess.TimeoutExpired, ValueError, TypeError, AttributeError, ET.ParseError) as ex:
+        raise MetadataPreconditionError(f"Cannot read face metadata for {target}; repair it before exporting") from ex
 
 
 def _exiftool_write_args(target: str, rating: XmpRating, exe: str, *, timeout: int,
@@ -972,10 +1050,12 @@ def _exiftool_write_args(target: str, rating: XmpRating, exe: str, *, timeout: i
     config = _exiftool_config()
     # Validate structural metadata first so malformed existing packets retain
     # the metadata-precondition contract before any original/companion write.
-    existing_regions = _read_existing_regions(target, exe, timeout=timeout)
-    existing_flat, existing_hier, facet_dated = _read_existing_metadata(
-        target, exe, timeout=timeout, strict=os.path.exists(target))
-    keyword_state, hierarchy_state = _read_keyword_states(target, exe, timeout=timeout)
+    # Read all families together while preserving both ownership markers.
+    state = _read_export_state(target, exe, timeout=timeout,
+                               strict_keywords=os.path.exists(target))
+    existing_regions = state.regions
+    existing_flat, existing_hier, facet_dated = state.flat, state.hier, state.facet_dated
+    keyword_state, hierarchy_state = state.keyword_state, state.hierarchy_state
     tag_args = _exiftool_tag_args(rating, existing_flat, existing_hier, facet_dated,
                                   keyword_state=keyword_state, hierarchy_state=hierarchy_state, reconcile=reconcile)
     version = _exiftool_version(exe)
@@ -1008,8 +1088,13 @@ def _require_exiftool() -> str:
     return exe
 
 
-def _run_exiftool(target: str, rating: XmpRating, *, timeout: int, reconcile=False) -> None:
-    """Re-read a target immediately before its write, preserving foreign state."""
+def _run_exiftool(target: str, rating: XmpRating, *, timeout: int, reconcile=False,
+                  precomputed_args: list[str] | None = None) -> None:
+    """Re-read a target immediately before its write, preserving foreign state.
+
+    ``precomputed_args`` supplies the merge plan when the caller already read
+    this exact target's state (the embed path reads the sidecar once as its
+    precondition and reuses that read for the sidecar write)."""
     exe = _require_exiftool()
     sidecar = (_contained_sidecar(target[:-4], target[-4:])
                if target.lower().endswith(".xmp") else None)
@@ -1017,7 +1102,8 @@ def _run_exiftool(target: str, rating: XmpRating, *, timeout: int, reconcile=Fal
     if sidecar and os.path.exists(sidecar):
         with open(sidecar, "rb") as handle:
             snapshot = handle.read()
-    args = _exiftool_write_args(target, rating, exe, timeout=timeout, reconcile=reconcile)
+    args = precomputed_args if precomputed_args is not None else \
+        _exiftool_write_args(target, rating, exe, timeout=timeout, reconcile=reconcile)
     try:
         result = run_exiftool_process(args, timeout=timeout)
     except subprocess.TimeoutExpired as ex:
@@ -1154,13 +1240,17 @@ def write_metadata(image_path: str, rating: XmpRating, *, overwrite: bool = Fals
     ext = os.path.splitext(image_path)[1].lower().lstrip(".")
     sidecar = _contained_sidecar(image_path, ".xmp")
     embedded = None
+    sidecar_args = None
     if embed_original and ext in SAFE_EMBED_EXTS:
         # Validate all companion fields, including keyword ownership and face
-        # structures, before embedding into the original. Re-read before writes.
-        _exiftool_write_args(sidecar, rating, _require_exiftool(), timeout=timeout, reconcile=reconcile_keywords)
+        # structures, before embedding into the original. Re-read before writes:
+        # the sidecar read doubles as the precondition and the sidecar write's
+        # merge plan (the image write cannot change the sidecar in between).
+        sidecar_args = _exiftool_write_args(sidecar, rating, _require_exiftool(), timeout=timeout, reconcile=reconcile_keywords)
         _run_exiftool(image_path, rating, timeout=timeout, reconcile=reconcile_keywords)
         embedded = image_path
-    _run_exiftool(sidecar, rating, timeout=timeout, reconcile=reconcile_keywords)
+    _run_exiftool(sidecar, rating, timeout=timeout, reconcile=reconcile_keywords,
+                  precomputed_args=sidecar_args)
     return {"ok": True, "embedded": embedded, "sidecar": sidecar, "skipped": False}
 
 
@@ -1247,6 +1337,43 @@ def _cli_face_regions(conn, path: str, width, height) -> list[FaceRegion]:
             for r in rows if (dimensions := export_dimensions(r, width, height))]
 
 
+# Chunked IN clauses stay far below SQLite's variable limit (the codebase's
+# other batched reads use the same margin).
+_REGION_BATCH = 450
+
+
+def _cli_face_regions_bulk(conn, paths: list[str], dims: dict[str, tuple],
+                           *, failures: dict[str, Exception] | None = None) -> dict[str, list[FaceRegion]]:
+    """Named face regions for a whole export batch in one query per chunk.
+
+    The per-photo query made a 10k-photo export pay 10k indexed lookups; one
+    chunked IN (...) per 450 paths collapses that to ~22 queries total."""
+    by_path: dict[str, list[FaceRegion]] = {path: [] for path in paths}
+    from db.manual_faces import export_dimensions
+    for start in range(0, len(paths), _REGION_BATCH):
+        chunk = paths[start:start + _REGION_BATCH]
+        placeholders = ','.join('?' * len(chunk))
+        rows = conn.execute(
+            "SELECT pe.name AS name, f.bbox_x1, f.bbox_y1, f.bbox_x2, f.bbox_y2, "
+            "f.photo_path,f.is_manual,f.manual_source,f.manual_width,f.manual_height "
+            "FROM faces f JOIN persons pe ON f.person_id = pe.id "
+            f"WHERE f.photo_path IN ({placeholders}) AND pe.name IS NOT NULL AND f.bbox_x1 IS NOT NULL",
+            chunk,
+        ).fetchall()
+        for r in rows:
+            path = r['photo_path']
+            width, height = dims.get(path, (None, None))
+            try:
+                if (dimensions := export_dimensions(r, width, height)) is not None:
+                    by_path[path].append(
+                        FaceRegion.from_bbox(r['name'], r['bbox_x1'], r['bbox_y1'], r['bbox_x2'], r['bbox_y2'], *dimensions))
+            except (ValueError, TypeError, OverflowError) as ex:
+                if failures is None:
+                    raise
+                failures[path] = ex
+    return by_path
+
+
 def export_sidecars(conn, root: str | None = None, *, embed_original: bool = False,
                     timeout: int = 60, user_id: str | None = None,
                     xmp_export_cfg: dict | None = None, derive_stars: bool = False,
@@ -1274,6 +1401,10 @@ def export_sidecars(conn, root: str | None = None, *, embed_original: bool = Fal
         sr["enabled"] = True
         cfg["score_to_rating"] = sr
     manual_map = load_manual_tags_map(conn, [r["path"] for r in rows])
+    on_disk = [r["path"] for r in rows if os.path.exists(r["path"])]
+    dims = {r["path"]: (r["image_width"], r["image_height"]) for r in rows}
+    region_failures: dict[str, Exception] = {}
+    regions_by_path = _cli_face_regions_bulk(conn, on_disk, dims, failures=region_failures)
     written = embedded = missing = errors = 0
     hierarchy_map = None
     for index, row in enumerate(rows):
@@ -1289,12 +1420,14 @@ def export_sidecars(conn, root: str | None = None, *, embed_original: bool = Fal
             missing += 1
             continue
         try:
+            if path in region_failures:
+                raise RuntimeError('Invalid face metadata; export refused') from region_failures[path]
             assigned = hierarchy_map if hierarchy_map is not None else load_hierarchy_map(conn, [path])
             data = dict(row)
             data['hierarchy_paths'] = [item['exported_path'] for item in assigned.get(path, [])]
             rating = XmpRating.from_row(enrich_effective_tags(data, manual_map))
             rating.apply_score_mapping(cfg)
-            rating.regions = _cli_face_regions(conn, path, row["image_width"], row["image_height"])
+            rating.regions = regions_by_path.get(path, [])
             rating.person_names = person_names_from_regions(rating.regions)
             result = write_metadata(path, rating, embed_original=embed_original, timeout=timeout,
                                     reconcile_keywords=reconcile_keywords)
