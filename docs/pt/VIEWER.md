@@ -1045,8 +1045,8 @@ Escolha um vencedor, marque um empate ou pule. Uma barra de progresso conta até
 
 | Tecla | Ação |
 |-----|--------|
-| `A` | A foto da esquerda vence |
-| `B` | A foto da direita vence |
+| `←` | A foto da esquerda vence |
+| `→` | A foto da direita vence |
 | `T` | Empate |
 | `S` | Pular par |
 | `Escape` | Fechar o modal de substituição de categoria |

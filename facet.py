@@ -4131,6 +4131,11 @@ def main():
         else:
             output_file = args.export_csv
 
+        # The JSON export refuses the same thing one branch above: 'w' truncates,
+        # so a database-path typo here would destroy the library mid-export.
+        if _refuse_db_alias(output_file, args.db):
+            logger.error("CSV output %s must not overwrite the source database %s", output_file, args.db)
+            sys.exit(1)
         with get_connection(args.db) as conn:
             cursor = conn.execute(
                 'SELECT ' + ', '.join(_CSV_COLUMNS) + ' FROM photos ORDER BY aggregate DESC')
@@ -4140,7 +4145,8 @@ def main():
                 writer.writerow(_CSV_COLUMNS)
                 for row in cursor:
                     writer.writerow([row[column] for column in _CSV_COLUMNS])
-        row_count = sum(1 for _ in open(output_file, encoding='utf-8')) - 1
+        with open(output_file, encoding='utf-8') as f:
+            row_count = sum(1 for _ in f) - 1
         logger.info("Exported %d photos to %s", row_count, output_file)
         exit()
 
@@ -4259,20 +4265,22 @@ def main():
                 logger.info("Resuming scan run #%d (%s)", resumed_run['id'], resumed_run['started_at'])
 
     if not args.photo_paths and not args.retry_failed:
-        logger.error("photo_paths is required unless using --recompute-average or --compute-percentiles")
+        logger.error("photo_paths is required unless using --recompute-average or --compute-recommendations")
         parser.print_help()
         exit(1)
 
     # Watch mode: long-running daemon spawning incremental scans on changes
     if args.watch:
         from processing.watcher import run_watch_loop
-        run_watch_loop(
+        # Giving up after consecutive failures is a fault, not a clean stop:
+        # supervisors (and --watch's own restart story) need a non-zero exit.
+        watch_ok = run_watch_loop(
             [str(Path(p).resolve()) for p in args.photo_paths],
             db_path=args.db,
             config_path=args.config,
             debounce_seconds=args.watch_debounce,
         )
-        exit()
+        exit(0 if watch_ok else 1)
 
     lock = _acquire_library_lock(args, LIBRARY_JOB_SCAN) if _scan_writes_to_library(args) else None
     try:

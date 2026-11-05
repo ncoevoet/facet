@@ -35,7 +35,7 @@
 
 ### Scan Bookkeeping
 
-Facet records every scan (status, mode, directories, counters) and every per-file error. Ctrl+C marks the run `interrupted`, so `--resume` can continue it. Failed files are listed and retried only with `--retry-failed`. The viewer shows scan progress from the CLI's `@FACET_PROGRESS` lines. A scan that saved none of its photos exits with code 4 (every file failed, for example a required model that would not load); a scan with nothing to do exits 0, and `--watch` keeps watching after a code 4.
+Facet records every scan (status, mode, directories, counters) and every per-file error. Ctrl+C marks the run `interrupted`, so `--resume` can continue it. Failed files are listed and retried only with `--retry-failed`. The viewer shows scan progress from the CLI's `@FACET_PROGRESS` lines. A scan that saved none of its photos exits with code 4 (every file failed, for example a required model that would not load); a scan with nothing to do exits 0, and `--watch` keeps watching after a code 4. A scan skipped because another job holds the library lock exits 75; `--watch` does not count it as a failure and retries the batch after the next quiet period. After 3 consecutive failed scans, the initial scan included, `--watch` stops and exits 1.
 
 ### Processing Modes
 

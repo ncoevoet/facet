@@ -14,7 +14,7 @@ import sys
 import threading
 import time
 
-from utils.exit_codes import SAVED_NOTHING_EXIT_CODE
+from utils.exit_codes import LIBRARY_LOCK_HELD_EXIT_CODE, SAVED_NOTHING_EXIT_CODE
 from utils.image_loading import SCANNABLE_IMAGE_EXTENSIONS, WATCHABLE_IMAGE_EXTENSIONS
 
 logger = logging.getLogger("facet.watcher")
@@ -25,6 +25,8 @@ logger = logging.getLogger("facet.watcher")
 WATCH_SUFFIXES = WATCHABLE_IMAGE_EXTENSIONS
 
 MAX_CONSECUTIVE_FAILURES = 3
+# _run_scan outcome for a scan skipped because another job holds the library lock.
+_LIBRARY_BUSY = object()
 
 
 class _PendingChanges:
@@ -78,7 +80,11 @@ def _build_scan_command(directories, db_path, config_path):
 
 def run_watch_loop(directories, db_path, config_path=None, debounce_seconds=30,
                    initial_scan=True):
-    """Block forever, re-scanning whenever directory contents settle.
+    """Re-scan whenever directory contents settle, until Ctrl+C or a give-up.
+
+    Returns True when the user stopped watching (Ctrl+C) and False when
+    MAX_CONSECUTIVE_FAILURES consecutive scans failed, so the caller can exit
+    non-zero on the give-up.
 
     Args:
         directories: Directories to watch (recursive)
@@ -140,13 +146,24 @@ def run_watch_loop(directories, db_path, config_path=None, debounce_seconds=30,
             logger.warning("Scan saved 0 photos (exit code %d); see the scan log for the cause. "
                            "Watching continues.", result.returncode)
             return None
+        if result.returncode == LIBRARY_LOCK_HELD_EXIT_CODE:
+            # Another job holds the library lock: transient by definition, so a busy
+            # stretch must not accumulate toward giving up. The caller re-queues the
+            # batch, which is otherwise already drained and would never be scanned.
+            logger.warning("Scan skipped: the library lock is held by another job (exit code %d). "
+                           "Retrying after the next quiet period.", result.returncode)
+            return _LIBRARY_BUSY
         logger.warning("Scan exited with code %d", result.returncode)
         return False
 
     consecutive_failures = 0
+    gave_up = False
     try:
         if initial_scan:
-            _run_scan('initial')
+            # A failing initial scan counts as the streak's first failure, so a
+            # broken install cannot watch forever while every scan crashes.
+            if _run_scan('initial') is False:
+                consecutive_failures = 1
         logger.info("Watch mode active - new files trigger a scan after %ds of quiet "
                     "(Ctrl+C to stop)", debounce_seconds)
         while True:
@@ -161,6 +178,10 @@ def run_watch_loop(directories, db_path, config_path=None, debounce_seconds=30,
                     )
                     continue
                 outcome = _run_scan(f'{len(batch)} changed files')
+                if outcome is _LIBRARY_BUSY:
+                    for path in batch:
+                        pending.add(path)
+                    continue
                 if outcome is None:
                     continue
                 if outcome:
@@ -171,9 +192,11 @@ def run_watch_loop(directories, db_path, config_path=None, debounce_seconds=30,
                         logger.error(
                             "Stopping watch mode: %d consecutive scans failed. Fix the "
                             "underlying error and restart.", consecutive_failures)
+                        gave_up = True
                         break
     except KeyboardInterrupt:
         logger.info("Watch mode stopped.")
     finally:
         observer.stop()
         observer.join(timeout=5)
+    return not gave_up
