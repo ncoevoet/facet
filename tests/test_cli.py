@@ -192,6 +192,12 @@ class TestDatabaseCli:
             assert t in tables, f"{t} missing from initialised DB"
         conn.close()
 
+    def test_migrate_user_preferences_without_user_exits_1(self, tmp_path):
+        """A missing --user is a refusal: the exit code must say so, never 0."""
+        result = _run(DATABASE, '--db', str(tmp_path / 'x.db'), '--migrate-user-preferences')
+        assert result.returncode == 1
+        assert '--user USERNAME is required' in result.stdout + result.stderr
+
     def test_info_reports_schema(self, seeded_db):
         result = _run(DATABASE, '--db', seeded_db, '--info')
         assert result.returncode == 0
@@ -990,3 +996,20 @@ def test_sidecar_naming_cli_reports_mismatch_count_without_unsafe_advice(tmp_pat
     assert '--sidecar-naming basename' not in result.stderr
     with sqlite3.connect(db) as conn:
         assert conn.execute('SELECT star_rating FROM photos ORDER BY path').fetchall() == [(2,), (2,)]
+
+
+class TestWatchExitCode:
+    """--watch exits 1 when the watch loop gave up after consecutive failures,
+    so a supervisor can tell a fault from a user's Ctrl+C (exit 0)."""
+
+    @pytest.mark.parametrize('watch_ok, code', [(False, 1), (True, 0)])
+    def test_watch_exit_code_follows_the_loop_outcome(self, monkeypatch, tmp_path, watch_ok, code):
+        import facet
+        import processing.watcher
+
+        monkeypatch.setattr(processing.watcher, 'run_watch_loop', lambda *a, **kw: watch_ok)
+        monkeypatch.setattr(sys, 'argv', ['facet.py', str(tmp_path), '--watch',
+                                          '--db', str(tmp_path / 'x.db')])
+        with pytest.raises(SystemExit) as stopped:
+            facet.main()
+        assert (stopped.value.code or 0) == code
