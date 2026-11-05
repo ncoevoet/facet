@@ -13,6 +13,7 @@ import { CreateAlbumDialogComponent } from './create-album-dialog.component';
 import { EditAlbumDialogComponent } from './edit-album-dialog.component';
 import { AlbumsComponent } from './albums.component';
 import { AlbumsFiltersService } from './albums-filters.service';
+import { HANDLE_SERVER_ERROR_LOCALLY } from '../../core/utils/http-error-context';
 import { ClientPicksDialogComponent } from './client-picks-dialog.component';
 
 @Component({ template: '' }) class Page {}
@@ -90,7 +91,9 @@ describe('album dialogs and cancelled navigation', () => {
   it('refreshes the enclosing list once when create succeeds through a cancelled navigation', async () => {
     const albums = TestBed.inject(AlbumsComponent) as any;
     TestBed.tick();
-    http.expectOne(req => req.url === '/api/albums' && req.method === 'GET').flush({ albums: [], total: 0 });
+    const initialList = http.expectOne(req => req.url === '/api/albums' && req.method === 'GET');
+    expect(initialList.request.context.get(HANDLE_SERVER_ERROR_LOCALLY)).toBe(true);
+    initialList.flush({ albums: [], total: 0 });
     const opening = albums.openCreateDialog();
     const dialog = TestBed.inject(CreateAlbumDialogComponent);
     dialog.name = 'Trip';

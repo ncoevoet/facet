@@ -244,6 +244,15 @@ export class App implements OnInit {
   protected readonly overflowDestinationActive = computed(() => this.overflowDestinations().some(item => item.active));
 
   protected readonly mobileAlbumsSearchOpen = signal(false);
+  private readonly mobileAlbumsSearchInput = viewChild<ElementRef<HTMLInputElement>>('mobileAlbumsSearchInput');
+  private readonly mobileAlbumsSearchTrigger = viewChild('mobileAlbumsSearchTrigger', { read: ElementRef<HTMLButtonElement> });
+  private readonly restoreAlbumsSearchFocus = signal(false);
+
+  protected closeMobileAlbumsSearch(): void {
+    this.albumsFilters.search.set('');
+    this.mobileAlbumsSearchOpen.set(false);
+    this.restoreAlbumsSearchFocus.set(true);
+  }
   protected readonly mobilePersonsSearchOpen = signal(false);
   protected readonly hasMemories = signal(false);
   protected readonly hasGeoPhotos = signal(false);
@@ -378,6 +387,13 @@ export class App implements OnInit {
   private lastAuthKey: string | null = null;
 
   constructor() {
+    afterRenderEffect(() => {
+      if (this.mobileAlbumsSearchOpen()) this.mobileAlbumsSearchInput()?.nativeElement.focus();
+      else if (this.restoreAlbumsSearchFocus()) {
+        this.mobileAlbumsSearchTrigger()?.nativeElement.focus();
+        this.restoreAlbumsSearchFocus.set(false);
+      }
+    });
     afterRenderEffect(cleanup => {
       const space = this.navigationSpace()?.nativeElement;
       const measurements = this.navigationMeasurements()?.nativeElement;

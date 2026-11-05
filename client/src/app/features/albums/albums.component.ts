@@ -1,4 +1,5 @@
 import { Component, inject, signal, computed, effect, untracked, viewChild, TemplateRef, DestroyRef, ChangeDetectionStrategy, afterNextRender, Injector } from '@angular/core';
+import { HttpContext } from '@angular/common/http';
 import { DOCUMENT } from '@angular/common';
 import { RouterLink, Router } from '@angular/router';
 import { MatButtonModule } from '@angular/material/button';
@@ -35,6 +36,7 @@ import { MarkTonePipe } from '../../shared/pipes/mark-tone.pipe';
 import { I18N, i18nKeys } from '../../core/i18n/keys';
 import { StalenessGuardFactory } from '../../core/services/staleness-guard.service';
 import { AlbumDialogContext } from './album-dialog-context';
+import { HANDLE_SERVER_ERROR_LOCALLY } from '../../core/utils/http-error-context';
 
 @Component({
   selector: 'app-albums',
@@ -87,7 +89,7 @@ import { AlbumDialogContext } from './album-dialog-context';
     @if ((loadFailed() || retrying()) && albums().length === 0) {
       <div role="alert" class="flex flex-wrap items-center justify-center gap-3 rounded-lg bg-[var(--mat-sys-error-container)] text-[var(--mat-sys-on-error-container)] p-4 mb-4">
         <p>{{ I18N.albums.list_load_error | translate }}</p>
-        <button mat-stroked-button data-albums-retry [attr.aria-disabled]="retrying()" (click)="retryLoad()">{{ I18N.gallery.load_error.retry | translate }}</button>
+        <button mat-stroked-button data-albums-retry class="max-sm:!min-h-11" [attr.aria-disabled]="retrying()" (click)="retryLoad()">{{ (retrying() ? I18N.ui.labels.loading : I18N.gallery.load_error.retry) | translate }}</button>
       </div>
     } @else if (!loadFailed() && albums().length === 0 && !loading()) {
       <div class="text-center py-16 opacity-60">
@@ -200,7 +202,7 @@ import { AlbumDialogContext } from './album-dialog-context';
     @if ((loadFailed() || retrying()) && albums().length > 0) {
       <div role="alert" class="mt-4 flex flex-wrap items-center justify-center gap-3 rounded-lg bg-[var(--mat-sys-error-container)] p-4 text-[var(--mat-sys-on-error-container)]">
         <p>{{ I18N.albums.list_load_error | translate }}</p>
-        <button mat-stroked-button data-albums-retry [attr.aria-disabled]="retrying()" (click)="retryLoad()">{{ I18N.gallery.load_error.retry | translate }}</button>
+        <button mat-stroked-button data-albums-retry class="max-sm:!min-h-11" [attr.aria-disabled]="retrying()" (click)="retryLoad()">{{ (retrying() ? I18N.ui.labels.loading : I18N.gallery.load_error.retry) | translate }}</button>
       </div>
     }
     <!-- Infinite scroll sentinel -->
@@ -307,7 +309,7 @@ export class AlbumsComponent {
         sort: this.albumsFilters.sort(),
         search: this.albumsFilters.search(),
       };
-      const res = await firstValueFrom(this.albumService.list(params));
+      const res = await firstValueFrom(this.albumService.list(params, new HttpContext().set(HANDLE_SERVER_ERROR_LOCALLY, true)));
       if (generation !== this.generation || !guard.current()) return;
       if (reset) {
         this.albums.set(res.albums);

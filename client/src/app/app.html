@@ -198,11 +198,9 @@
       @if (mobileAlbumsSearchOpen()) {
         <div class="px-4 py-1 border-t border-[var(--mat-sys-outline-variant)]">
           <mat-form-field class="w-full" subscriptSizing="dynamic" appearance="outline">
-            <!-- Focus the field only after the user opens mobile search. -->
-            <!-- eslint-disable-next-line @angular-eslint/template/no-autofocus -->
-            <input matInput autofocus [value]="albumsFilters.search()" (input)="albumsFilters.search.set($any($event.target).value)" [placeholder]="I18N.albums.search | translate" />
+            <input #mobileAlbumsSearchInput matInput [value]="albumsFilters.search()" (input)="albumsFilters.search.set($any($event.target).value)" [placeholder]="I18N.albums.search | translate" />
             <mat-icon matPrefix class="opacity-60">search</mat-icon>
-            <button matSuffix mat-icon-button (click)="albumsFilters.search.set(''); mobileAlbumsSearchOpen.set(false)" [attr.aria-label]="I18N.albums.clear_search | translate">
+            <button matSuffix mat-icon-button class="!w-11 !h-11" (click)="closeMobileAlbumsSearch()" [attr.aria-label]="I18N.albums.clear_search | translate">
               <mat-icon>close</mat-icon>
             </button>
           </mat-form-field>
@@ -237,7 +235,7 @@
             <span [class.font-bold]="albumsFilters.sort() === 'photo_count'">{{ I18N.albums.sort_photos | translate }}</span>
           </button>
         </mat-menu>
-        <button mat-icon-button class="!w-11 !h-11" (click)="mobileAlbumsSearchOpen.set(!mobileAlbumsSearchOpen())" [matTooltip]="I18N.ui.filters.search | translate" [matTooltipDisabled]="mobileAlbumsSearchOpen()" [attr.aria-label]="I18N.ui.filters.search | translate">
+        <button #mobileAlbumsSearchTrigger mat-icon-button class="!w-11 !h-11" (click)="mobileAlbumsSearchOpen.set(!mobileAlbumsSearchOpen())" [matTooltip]="I18N.ui.filters.search | translate" [matTooltipDisabled]="mobileAlbumsSearchOpen()" [attr.aria-label]="I18N.ui.filters.search | translate">
           <mat-icon>search</mat-icon>
         </button>
         @if (auth.isEdition()) {

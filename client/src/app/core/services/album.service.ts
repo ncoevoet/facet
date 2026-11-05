@@ -1,4 +1,5 @@
 import { sharedAssetPhoto, type SharedAsset } from '../../shared/utils/shared-album-media';
+import { HttpContext } from '@angular/common/http';
 import { Injectable, inject } from '@angular/core';
 import { Observable, map } from 'rxjs';
 import { ApiService } from './api.service';
@@ -53,8 +54,8 @@ type SharedAlbum = Omit<Album, 'cover_photo_path' | 'first_photo_path' | 'smart_
 export class AlbumService {
   private api = inject(ApiService);
 
-  list(params?: Record<string, string | number>): Observable<{ albums: Album[]; total: number; has_more: boolean }> {
-    return this.api.get('/albums', params);
+  list(params?: Record<string, string | number>, context?: HttpContext): Observable<{ albums: Album[]; total: number; has_more: boolean }> {
+    return this.api.get('/albums', params, context);
   }
 
   /** Manual (non-smart) albums only — the set used by the scope pickers. */
