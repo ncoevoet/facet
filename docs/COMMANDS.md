@@ -211,6 +211,7 @@ These update metrics or derive new data without re-running the full scoring pipe
 
 **Moments.**
 
+- `--face-labels PATH` (`faces-detect` only) scores against hand-labelled boxes from `python -m optimization.face_labels import` instead of the stored faces, so it works on any library. The report adds recall per face size (area buckets `<0.1% / 0.1-0.5% / 0.5-1% / 1-5% / >5%`, shorter-side buckets `<20 / 20-40 / >40 px`) with bootstrap CIs, false positives per no-face photo, seconds per photo, peak VRAM (device-wide) and a downstream cannot-link section. Default candidates: `insightface@640`, `insightface@1024`, `insightface@1280`, `insightface-tiled`, `insightface-tiled-cond`, `yunet-tiled`; `vs_baseline` deltas and the ship-rule checks appear only when `insightface@640` is among them. `--limit` is ignored. With the default `min_face_size` of 20 the `<20 px` bucket is hidden, so pass a `--config` with `face_detection.min_face_size` set to 0 to see it. Read-only; nothing in the database changes. Labelling workflow: [testdb/README.md](../testdb/README.md).
 - `--detect-moments` encodes each new caption once into `caption_embedding`. The first backfill of an existing library is best done on a GPU; add `--limit N` to try it on a sample.
 - Add `--dry-run --verbose` to `--recompute-moments` (or `--detect-junk`) to preview without writing.
 - `narrative_moments.vlm_tiebreak` (16gb/24gb): when `narrative_moments.vlm_tiebreak.enabled` is set, the profile VLM re-classifies low-confidence frames.

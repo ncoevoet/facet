@@ -211,6 +211,7 @@ Facet 会记录每次扫描（状态、模式、目录、计数器）以及每�
 
 **时刻。**
 
+- `--face-labels PATH`（仅 `faces-detect`）以 `python -m optimization.face_labels import` 导入的手工标注框作为基准，而不是已存储的人脸，因此适用于任何图库。报告额外给出按人脸大小划分的召回率（面积分档 `<0.1% / 0.1-0.5% / 0.5-1% / 1-5% / >5%`，短边分档 `<20 / 20-40 / >40 px`）及 bootstrap 置信区间、每张无人脸照片的误检数、每张照片耗时、峰值显存（整块设备）以及下游 cannot-link 检查部分。默认候选：`insightface@640`、`insightface@1024`、`insightface@1280`、`insightface-tiled`、`insightface-tiled-cond`、`yunet-tiled`；只有候选中包含 `insightface@640` 时才会出现 `vs_baseline` 差值和采用规则检查。`--limit` 被忽略。默认 `min_face_size` 为 20 时 `<20 px` 分档不可见；传入将 `face_detection.min_face_size` 设为 0 的 `--config` 即可看到。只读，不修改数据库。标注流程见 [testdb/README.md](../../testdb/README.md)。
 - `--detect-moments` 把每条新描述只编码一次写入 `caption_embedding`。对既有照片库的首次回填最好使用 GPU；可加 `--limit N` 先在样本上试运行。
 - 对 `--recompute-moments`（或 `--detect-junk`）加上 `--dry-run --verbose` 可预览而不写入。
 - `narrative_moments.vlm_tiebreak`（16gb/24gb）：设置了 `narrative_moments.vlm_tiebreak.enabled` 时，该档位的 VLM 会重新分类低置信度的帧。

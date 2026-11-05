@@ -6,6 +6,8 @@ All notable changes to Facet are documented in this file.
 
 ### Added
 
+- **`--evaluate-models faces-detect --face-labels PATH` measures small-face recall against hand-labelled boxes.** `python -m optimization.face_labels sample|import` builds the labelled set from your own library (labelme workflow, kept local, see `testdb/README.md`); the report gives recall per face-size bucket with bootstrap CIs, false positives per no-face photo, seconds per photo, peak VRAM and a downstream cannot-link check, for `insightface@640/1024/1280`, `insightface-tiled`, `insightface-tiled-cond` and `yunet-tiled` candidates. Measurement only: no scan default changes.
+
 - **Culling previews show the affected files.** Review paginated thumbnails, filenames and companion files before copying, moving or trashing; click an image to enlarge it. Trash confirmation shows the file count.
 
 - **Mark an object.** The mark editor on the photo page can mark an object instead of a face: pick **Object**, draw the box and give it a label. Objects show as blue labelled boxes, the gallery search finds them by label, and assistants read them (`GET /api/photo/objects`, and `objects` in the `get_photo` tool) to know which region to act on; marks are always user-drawn, never detected. They live in a new `photo_objects` side table and never touch faces, clustering or people.

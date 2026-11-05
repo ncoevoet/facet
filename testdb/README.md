@@ -162,6 +162,34 @@ No primary face was given the wrong name at any T; raising T only turns right an
 Unknown. On this easy set the open-set test is saturated: it can catch a regression, not show
 an improvement.
 
+## Small-face labelled set (issue #468)
+
+A hand-labelled set for measuring how many small faces a detector finds. It is separate from
+the LFW library above: LFW photos are headshots and cannot show small-face recall.
+
+1. `python -m optimization.face_labels sample --db photo_scores.db --out $TESTDB/facelabels`
+   draws candidate photos from your library (opened read-only): about 150 with several faces
+   (wide focal lengths, event days, some high-resolution frames) and about 50 with no face for
+   false positives. It writes the images and a `manifest.csv` under `--out`.
+2. Box every face in [labelme](https://github.com/wkentaro/labelme) with the rectangle tool,
+   label `face`, saving the JSON next to each image.
+3. `python -m optimization.face_labels import --labelme-dir $TESTDB/facelabels/images --manifest $TESTDB/facelabels/manifest.csv --out $TESTDB/facelabels/labels.json`
+4. `python facet.py --evaluate-models faces-detect --face-labels $TESTDB/facelabels/labels.json`
+   (see [COMMANDS.md](../docs/COMMANDS.md)). Set `face_detection.min_face_size` to 0 in a
+   `--config` to see the `<20 px` bucket.
+
+The images and labels stay local under `$TESTDB` and are never committed: they are your own
+photos. The sample is drawn from photos where the shipped detector already found several
+faces, so it is biased toward easy scenes; read recall as a comparison between candidates on
+the same set, not an absolute rate.
+
+Ship rule (fixed before the run): change a default only if, on this set, recall on faces under
+0.5% of the frame rises by at least 10 points with the confidence interval excluding 0, false
+positives per no-face photo rise by no more than 0.05, and the face pass on the 16gb profile
+gets no more than 30% slower. Otherwise record a null result and keep `det_size` 640. The
+report prints the first two checks per candidate and a detector-time slowdown; the real
+face-pass timing check is manual.
+
 ## Known failures
 
 - **One name on two faces in the same photo.** A person cannot appear twice in one photo, yet
