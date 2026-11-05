@@ -1286,7 +1286,7 @@ export class CullingStore {
     if (!this.cullWritesAllowed()) return;
     // The plan's keepers are the assistant's decision, not a strictness derivation.
     if (this.planActive()) return;
-    const confirmed = this.confirmedGroups();
+    const confirmed = this.closedGroupKeys();
     const map = new Map<string, Set<string>>();
     for (const group of this.groups()) {
       const key = this.groupKey(group);
@@ -1304,8 +1304,9 @@ export class CullingStore {
   /** The one write behind every darkroom decision: the ↑ / ↓ keys, a swipe, and
    *  the per-pane buttons a compare grid needs. */
   setPhotoKept(group: CullingGroup, path: string, keep: boolean): void {
-    if (!this.cullWritesAllowed()) return;
+    if (!this.cullWritesAllowed() || this.confirming()) return;
     const key = this.groupKey(group);
+    if (this.closedGroupKeys().has(key)) return;
     addToSetSignal(this.touchedGroups, key);
     const map = new Map(this.selectionsMap());
     const kept = new Set(map.get(key) ?? []);
@@ -1348,8 +1349,9 @@ export class CullingStore {
 
   /** Put a group's keepers back to an earlier set (a swipe's Undo); not a new decision, so `touchedGroups` is left alone. */
   restoreSelection(group: CullingGroup, kept: Set<string>): void {
-    if (!this.cullWritesAllowed()) return;
+    if (!this.cullWritesAllowed() || this.confirming()) return;
     const key = this.groupKey(group);
+    if (this.closedGroupKeys().has(key)) return;
     updateMapSignal(this.selectionsMap, key, kept);
     this.reportSelection(key, kept);
   }
@@ -1365,9 +1367,10 @@ export class CullingStore {
    * the hidden auto-cull button -- already protects that.
    */
   selectExclusive(path: string, group: CullingGroup): void {
-    if (!this.cullWritesAllowed()) return;
+    if (!this.cullWritesAllowed() || this.confirming()) return;
     if (group.sequence_kind && SEQUENCE_KINDS_KEPT_WHOLE.includes(group.sequence_kind)) return;
     const key = this.groupKey(group);
+    if (this.closedGroupKeys().has(key)) return;
     addToSetSignal(this.touchedGroups, key);
     updateMapSignal(this.selectionsMap, key, new Set([path]));
     this.reportSelection(key, [path]);
@@ -1386,7 +1389,7 @@ export class CullingStore {
   /** Reject every frame after the cooldown; cancellation or refusal restores the captured draft. */
   rejectEntireGroup(group: CullingGroup): boolean {
     if (!this.cullWritesAllowed() || this.replanning() || !group.photos.length
-      || this.confirmedGroups().has(this.groupKey(group))) return false;
+      || this.confirming() || this.closedGroupKeys().has(this.groupKey(group))) return false;
     const key = this.groupKey(group);
     const previous = this.selectionsMap().get(key);
     const saved = previous === undefined ? undefined : new Set(previous);

@@ -2664,6 +2664,7 @@
     "confirm": "Bestätigen",
     "skip": "Überspringen",
     "auto_select_all": "Alle automatisch auswählen",
+    "keep_required": "Behalten Sie mindestens ein Foto, um diese Gruppe zu bestätigen.",
     "confirm_tooltip": "Ausgewählte Fotos behalten, Rest verwerfen",
     "skip_tooltip": "Zur nächsten Gruppe wechseln ohne Entscheidung",
     "auto_select_all_tooltip": "Automatisch das beste Foto jeder verbleibenden Gruppe behalten",

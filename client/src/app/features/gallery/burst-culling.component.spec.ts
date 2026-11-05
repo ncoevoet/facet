@@ -4189,6 +4189,20 @@ describe('BurstCullingComponent modals (rendered)', () => {
     expect(component['lightboxGroup']()).not.toBeNull();
   });
 
+  it('explains an empty keeper draft and enables Confirm again after keeping a photo', () => {
+    openDarkroom();
+    const root = fixture.nativeElement as HTMLElement;
+    store.selectionsMap.set(new Map([['1_burst', new Set(['/p1.jpg'])]])); fixture.detectChanges();
+    root.querySelector<HTMLButtonElement>('[data-darkroom-reject]')!.click(); fixture.detectChanges();
+    expect(root.querySelector('[data-darkroom-reject]')!.getAttribute('aria-pressed')).toBe('true');
+    const confirm = root.querySelector<HTMLButtonElement>('[data-darkroom-confirm]')!;
+    expect(confirm.disabled).toBe(true);
+    expect(root.querySelector('#culling-keeper-required')?.textContent).toContain('culling.keep_required');
+    root.querySelector<HTMLButtonElement>('[data-darkroom-keep]')!.click(); fixture.detectChanges();
+    expect(confirm.disabled).toBe(false);
+    expect(root.querySelector('#culling-keeper-required')).toBeNull();
+  });
+
   it('legend toggle starts hidden, shows the legend on click and flips aria-pressed', () => {
     store.groups.set([{
       group_id: 1, type: 'burst', reason: '', best_path: '/p1.jpg', count: 1,
@@ -4595,7 +4609,7 @@ describe('BurstCullingComponent compare panes (rendered)', () => {
     fixture.detectChanges();
 
     const host: HTMLElement = fixture.nativeElement;
-    const headings = host.querySelectorAll('[data-comparison-slot]');
+    const headings = host.querySelectorAll('[data-darkroom-pane]');
     expect(headings[0].textContent).toContain('culling.lightbox.kept');
     expect(headings[1].textContent).toContain('culling.lightbox.rejected');
     expect(buttonFor('c1.jpg, culling.lightbox.keep')!.getAttribute('aria-pressed')).toBe('true');

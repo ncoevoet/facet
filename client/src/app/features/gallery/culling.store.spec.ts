@@ -262,6 +262,28 @@ describe('CullingStore', () => {
       expect(store.confirmedGroups().has('1_burst')).toBe(false);
     });
 
+    it('freezes captured keepers across late manual edits and permits editing again after Undo', async () => {
+      vi.useFakeTimers();
+      const group = store.groups()[0];
+      store.setPhotoKept(group, '/b.jpg', true);
+      expect(store.confirmGroup(group)).toBe(true);
+      store.setPhotoKept(group, '/a.jpg', false);
+      store.selectExclusive('/b.jpg', group);
+      store.restoreSelection(group, new Set(['/b.jpg']));
+      store.reselectFromStrictness();
+      expect(store.selectionsMap().get('1_burst')).toEqual(new Set(['/a.jpg', '/b.jpg']));
+      expect(store.rejectEntireGroup(group)).toBe(false);
+      store.cancelPass(group);
+      store.setPhotoKept(group, '/a.jpg', false);
+      expect(store.selectionsMap().get('1_burst')).toEqual(new Set(['/b.jpg']));
+      expect(store.confirmGroup(group)).toBe(true);
+      store.setPhotoKept(group, '/a.jpg', true);
+      await vi.advanceTimersByTimeAsync(store.passCountdownSeconds * 1000);
+      expect(api.post).toHaveBeenCalledWith('/culling-groups/confirm', {
+        group_id: 1, type: 'burst', paths: ['/a.jpg', '/b.jpg'], keep_paths: ['/b.jpg'],
+      });
+    });
+
     it('restores the exact draft and plan mirror when Reject entire group is cancelled', async () => {
       vi.useFakeTimers();
       const group = store.groups()[0];
@@ -318,6 +340,12 @@ describe('CullingStore', () => {
       expect(store.touchedGroups().has('1_burst')).toBe(false);
       expect(store.confirmedGroups().has('1_burst')).toBe(false);
       expect(notices).toEqual([{ key: 'culling.error_confirming', duration: 2000 }]);
+      store.setPhotoKept(store.groups()[0], '/b.jpg', true);
+      expect(store.selectionsMap().get('1_burst')).toEqual(new Set(['/a.jpg', '/b.jpg']));
+      api.post.mockReturnValue(of({}));
+      expect(store.confirmGroup(store.groups()[0])).toBe(true);
+      await vi.advanceTimersByTimeAsync(store.passCountdownSeconds * 1000);
+      expect(api.post).toHaveBeenLastCalledWith('/culling-groups/confirm', expect.objectContaining({ keep_paths: ['/a.jpg', '/b.jpg'] }));
     });
 
     it.each(['decision', 'feed'])('does not overwrite a newer %s on a late rejected commit', async change => {

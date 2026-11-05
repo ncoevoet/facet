@@ -29,7 +29,7 @@ All notable changes to Facet are documented in this file.
 
 ### Changed
 
-- Culling keeps darkroom navigation and zoom shortcuts working after toolbar focus, adds explicit single-view Keep/Reject/Confirm actions and a focused filename, and enlarges narrow-screen touch targets. Draft decisions and deferred confirmation keep their existing behavior.
+- Culling keeps darkroom navigation and zoom shortcuts working after toolbar focus, adds explicit single-view Keep/Reject/Confirm actions and a focused filename, and enlarges narrow-screen touch targets. Captured decisions stay locked during confirmation, Undo restores editing, and an empty keeper draft explains why Confirm is unavailable. Narrow comparison headers separate filenames and verdicts from decision controls.
 
 - Photo comparison keeps pane and assignment identities readable on phones, adds touch-sized controls and a focused Inspect panel with Close, and bounds inspection panning to fitted images. Narrow-pane source failures and Retry stay separate from zoom controls. Filmstrip keyboard focus and long-name display improve without changing ratings, gallery selection or culling framing.
 

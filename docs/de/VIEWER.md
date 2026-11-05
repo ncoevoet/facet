@@ -921,6 +921,8 @@ Endpunkte: [API.md — Download](../API.md#download).
 
 Die Dunkelkammer zeigt den fokussierten Dateinamen und bietet in der Einzelansicht Behalten, Ablehnen und Bestätigen. Behalten und Ablehnen ändern den Gruppenentwurf; Bestätigen verwendet die bestehende verzögerte Bestätigung mit Rückgängig. Pfeiltasten und Zoomkürzel funktionieren auch nach dem Fokussieren einer Werkzeugtaste; Eingaben und modifizierte Tasten behalten ihr normales Verhalten. Auf schmalen Bildschirmen und bei groben Zeigegeräten sind die Ziele 44 Pixel groß. Auf dem Handy liegt Vollbild unter Prüfen.
 
+Während des Bestätigungs-Countdowns kann die erfasste Auswahl nicht geändert werden; Rückgängig erlaubt die Bearbeitung wieder. Ohne behaltene Fotos ist Bestätigen deaktiviert und zeigt einen Hinweis. Die gesamte Gruppe abzulehnen bleibt ein eigener Bestätigungsvorgang.
+
 Die Auswahlseite (`/culling`, Bearbeitungsmodus) gruppiert beinahe identische Aufnahmen, sodass Sie von jeder das Beste behalten und den Rest ablehnen. Wählen Sie in jeder Gruppe die Behaltenen; das Bestätigen lehnt die anderen ab. Bestätigungen sind verzögert und lassen sich rückgängig machen (siehe [Rückgängig](#rückgängig)).
 
 **Granularität** (das erste Steuerelement der Symbolleiste) legt fest, wie Fotos gruppiert werden:

@@ -225,9 +225,9 @@ export class IsKeptPipe implements PipeTransform {
 
 @Pipe({ name: 'isDecided' })
 export class IsDecidedPipe implements PipeTransform {
-  transform(path: string, selectionsMap: Map<string, Set<string>>, groupKey: string): boolean {
+  transform(path: string, selectionsMap: Map<string, Set<string>>, groupKey: string, touched = false): boolean {
     const kept = selectionsMap.get(groupKey);
-    return kept !== undefined && kept.size > 0 && !kept.has(path);
+    return kept !== undefined && (kept.size > 0 || touched) && !kept.has(path);
   }
 }
 

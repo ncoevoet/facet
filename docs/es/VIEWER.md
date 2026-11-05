@@ -923,6 +923,8 @@ Endpoints: [API.md — Descarga](../API.md#download).
 
 El cuarto oscuro muestra el nombre enfocado y ofrece Conservar, Rechazar y Confirmar en la vista individual. Conservar y Rechazar cambian el borrador del grupo; Confirmar usa la confirmación diferida y Deshacer existentes. Las flechas y los atajos de zoom siguen disponibles al enfocar un botón; los campos y las teclas modificadas conservan su comportamiento nativo. Los controles estrechos y táctiles tienen objetivos de 44 píxeles. En teléfonos, Pantalla completa está en Inspeccionar.
 
+Durante la cuenta atrás de confirmación no se puede cambiar la selección capturada; Deshacer permite editar de nuevo. Sin fotos conservadas, Confirmar queda desactivado y explica el motivo. Rechazar todo el grupo mantiene su confirmación independiente.
+
 La página de descarte (`/culling`, modo de edición) agrupa tomas casi idénticas para que conserves la mejor de cada una y rechaces el resto. Elige las mejores de cada grupo; al confirmar se rechazan las demás. Las confirmaciones se aplazan y se pueden deshacer (ver [Deshacer](#deshacer)).
 
 La **Granularidad** (el primer control de la barra de herramientas) elige cómo se agrupan las fotos:

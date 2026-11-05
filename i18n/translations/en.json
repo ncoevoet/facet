@@ -2689,6 +2689,7 @@
     "confirm": "Confirm",
     "skip": "Skip",
     "auto_select_all": "Auto-select All",
+    "keep_required": "Keep at least one photo to confirm this group.",
     "confirm_tooltip": "Keep selected photos, discard the rest",
     "skip_tooltip": "Move to next group without deciding",
     "auto_select_all_tooltip": "Automatically keep the best photo in each remaining group",

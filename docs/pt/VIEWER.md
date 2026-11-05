@@ -918,6 +918,8 @@ Endpoints: [API.md — Download](../API.md#download).
 
 A câmara escura mostra o ficheiro focado e oferece Manter, Rejeitar e Confirmar na vista individual. Manter e Rejeitar alteram o rascunho do grupo; Confirmar mantém a confirmação diferida e Desfazer. As setas e os atalhos de zoom funcionam após focar um botão, sem intercetar campos ou teclas modificadas. Os controlos estreitos e táteis têm alvos de 44 píxeis. No telefone, Ecrã inteiro fica em Inspecionar.
 
+Durante a contagem decrescente de confirmação, a seleção capturada não pode ser alterada; Anular permite editar novamente. Sem fotografias mantidas, Confirmar fica desativado com uma explicação. Rejeitar o grupo inteiro mantém uma confirmação separada.
+
 A página de triagem (`/culling`, modo de edição) agrupa tomadas quase idênticas para que você fique com a melhor de cada e rejeite o resto. Escolha a(s) melhor(es) de cada grupo; confirmar rejeita as outras. As confirmações são adiadas e podem ser desfeitas (veja [Desfazer](#desfazer)).
 
 A **Granularidade** (o primeiro controle da barra de ferramentas) escolhe como as fotos são agrupadas:

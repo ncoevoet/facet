@@ -920,6 +920,8 @@ Endpoint: [API.md — Download](../API.md#download).
 
 La camera oscura mostra il file attivo e offre Conserva, Rifiuta e Conferma nella vista singola. Conserva e Rifiuta cambiano la bozza del gruppo; Conferma mantiene la conferma differita e Annulla. Frecce e scorciatoie zoom funzionano dopo il focus su un pulsante, senza intercettare campi o tasti modificati. I controlli su schermi stretti e con puntatori grossolani hanno bersagli di 44 pixel. Sul telefono, Schermo intero è in Ispeziona.
 
+Durante il conto alla rovescia di conferma non si può modificare la selezione acquisita; Annulla riattiva la modifica. Senza foto conservate, Conferma è disabilitato e ne spiega il motivo. Rifiutare tutto il gruppo resta una conferma separata.
+
 La pagina di selezione (`/culling`, modalità di modifica) raggruppa scatti quasi identici così conservi il migliore di ciascuno e rifiuti il resto. Scegli la/le foto da conservare in ogni gruppo; confermare rifiuta le altre. Le conferme sono differite e si possono annullare (vedi [Annulla](#annulla)).
 
 La **granularità** (il primo controllo della barra degli strumenti) sceglie come vengono raggruppate le foto:

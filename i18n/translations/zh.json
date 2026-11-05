@@ -2664,6 +2664,7 @@
     "confirm": "确认",
     "skip": "跳过",
     "auto_select_all": "全部自动选择",
+    "keep_required": "请至少保留一张照片，再确认此组。",
     "confirm_tooltip": "保留选中的照片，淘汰其余照片",
     "skip_tooltip": "暂不决定，跳到下一组",
     "auto_select_all_tooltip": "自动保留其余每组中最好的一张照片",
