@@ -8,11 +8,13 @@ import { ApiService } from '../../core/services/api.service';
 import { TimelineFiltersService } from './timeline-filters.service';
 import { GalleryStore } from '../gallery/gallery.store';
 import { TimelineDaysComponent } from './timeline-days.component';
+import { I18nService } from '../../core/services/i18n.service';
 
 describe('TimelineDaysComponent', () => {
   let component: any;
   let mockApi: { get: Mock };
   let mockStore: { viewFilterParams: ReturnType<typeof signal> };
+  const locale = signal('en');
 
   const noneHidden = {
     hide_blinks: '0', hide_bursts: '0', hide_duplicates: '0', hide_brackets: '0', hide_panoramas: '0',
@@ -20,6 +22,7 @@ describe('TimelineDaysComponent', () => {
 
   beforeEach(() => {
     mockApi = { get: vi.fn(() => of({ dates: [] })) };
+    locale.set('en');
     mockStore = { viewFilterParams: signal({ ...noneHidden }) };
 
     TestBed.configureTestingModule({
@@ -29,6 +32,7 @@ describe('TimelineDaysComponent', () => {
         { provide: ApiService, useValue: mockApi },
         TimelineFiltersService,
         { provide: GalleryStore, useValue: mockStore },
+        { provide: I18nService, useValue: { locale, translations: () => ({}), t: (key: string) => key } },
       ],
     });
     vi.spyOn(TestBed.inject(Router), 'url', 'get').mockReturnValue('/timeline');
@@ -66,6 +70,21 @@ describe('TimelineDaysComponent', () => {
   });
 
   describe('calendar cell building', () => {
+    it('disables days with no photos and labels populated days with the date and count', async () => {
+      component.year = () => '2024'; component.month = () => '6';
+      mockApi.get.mockReturnValue(of({ dates: [{ date: '2024-06-15', count: 3, hero_photo_path: null }] }));
+      const fixture = TestBed.createComponent(TimelineDaysComponent);
+      fixture.componentRef.setInput('year', '2024'); fixture.componentRef.setInput('month', '6');
+      fixture.detectChanges(); await fixture.whenStable(); fixture.detectChanges();
+      const buttons = [...fixture.nativeElement.querySelectorAll('button')] as HTMLButtonElement[];
+      const empty = buttons.find(button => button.textContent?.trim() === '1')!;
+      const populated = buttons.find(button => button.textContent?.includes('15'))!;
+      expect(empty.disabled).toBe(true);
+      expect(populated.disabled).toBe(false);
+      expect(populated.getAttribute('aria-label')).toContain('15/06/2024');
+      expect(populated.getAttribute('aria-label')).toContain('3');
+      fixture.destroy();
+    });
     it('should create correct number of cells for a known month', async () => {
       // June 2024 has 30 days, starts on Saturday → 5 padding cells (Mon-Fri)
       mockApi.get.mockReturnValue(of({ dates: [] }));
@@ -133,14 +152,21 @@ describe('TimelineDaysComponent', () => {
 
   describe('weekDays', () => {
     it('should have exactly 7 entries', () => {
-      expect(component.weekDays).toHaveLength(7);
+      expect(component.weekDays()).toHaveLength(7);
     });
 
     it('should be non-empty strings', () => {
-      for (const d of component.weekDays) {
+      for (const d of component.weekDays()) {
         expect(typeof d).toBe('string');
         expect(d.length).toBeGreaterThan(0);
       }
+    });
+
+    it('updates weekday names when the viewer language changes', () => {
+      const english = component.weekDays()[0];
+      locale.set('de');
+      expect(component.weekDays()[0]).toBe(new Intl.DateTimeFormat('de', { weekday: 'short' }).format(new Date(2026, 0, 5)));
+      expect(component.weekDays()[0]).not.toBe(english);
     });
   });
 

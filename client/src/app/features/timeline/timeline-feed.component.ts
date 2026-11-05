@@ -1,5 +1,5 @@
 import { timelineRouteActivity } from './timeline-route-activity';
-import { Component, DestroyRef, ElementRef, afterEveryRender, afterNextRender, computed, effect, inject, input, signal, untracked, ChangeDetectionStrategy } from '@angular/core';
+import { Component, DestroyRef, ElementRef, Injector, afterEveryRender, afterNextRender, computed, effect, inject, input, signal, untracked, ChangeDetectionStrategy } from '@angular/core';
 import { Router, RouterLink } from '@angular/router';
 import { Subscription } from 'rxjs';
 import { MatButtonModule } from '@angular/material/button';
@@ -16,12 +16,11 @@ import { GalleryStore } from '../gallery/gallery.store';
 import { TimelineFeedCache, type TimelineGroup, type TimelinePage } from './timeline-feed-cache.service';
 import type { Photo } from '../../shared/models/photo.model';
 import { timelineWindow } from './timeline-density.util';
-import { TimelineLoadFailureComponent } from './timeline-load-failure.component';
 
 @Component({
   selector: 'app-timeline-feed',
   standalone: true,
-  imports: [TimelineLoadFailureComponent, RouterLink, MatButtonModule, MatIconModule, TranslatePipe, ThumbnailUrlPipe, CaptureDatePipe, TimelineDayQueryPipe, TimelinePhotoLinkPipe],
+  imports: [RouterLink, MatButtonModule, MatIconModule, TranslatePipe, ThumbnailUrlPipe, CaptureDatePipe, TimelineDayQueryPipe, TimelinePhotoLinkPipe],
   host: { class: 'block min-w-0' },
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
@@ -63,16 +62,15 @@ import { TimelineLoadFailureComponent } from './timeline-load-failure.component'
       </section>
     }
     <div class="flex min-h-16 flex-wrap items-center justify-center gap-2 pb-4" aria-live="polite">
-      @if (loading()) { <span role="status">{{ I18N.ui.labels.loading | translate }}</span> }
-      @else if (error()) {
-        <app-timeline-load-failure (retry)="loadMore()" />
-      } @else if (groups().length === 0) { <p>{{ I18N.timeline.empty | translate }}</p> }
-      @else if (hasMore()) {
-        @if (groups().length < 128) {
-          <button mat-stroked-button (click)="loadMore()">{{ I18N.timeline.more_days | translate }}</button>
-        } @else {
-          <button mat-stroked-button (click)="continueWindow()">{{ I18N.timeline.continue_dates | translate }}</button>
-        }
+      @if (error()) { <p role="alert">{{ I18N.timeline.load_failed | translate }}</p> }
+      @if (loading() && !manualLoading()) { <span role="status">{{ I18N.ui.labels.loading | translate }}</span> }
+      @else if (!loading() && !error() && groups().length === 0) { <p>{{ I18N.timeline.empty | translate }}</p> }
+      @if (error() || manualLoading() || (hasMore() && groups().length < 128)) {
+        <button mat-stroked-button data-timeline-load-more [attr.aria-disabled]="loading()" (click)="loadMore()">
+          {{ (loading() ? I18N.ui.labels.loading : error() ? I18N.timeline.retry : I18N.timeline.more_days) | translate }}
+        </button>
+      } @else if (!loading() && hasMore()) {
+          <button mat-stroked-button data-timeline-continue (click)="continueWindow()">{{ I18N.timeline.continue_dates | translate }}</button>
       }
     </div>
   `,
@@ -86,12 +84,14 @@ export class TimelineFeedComponent {
   private readonly cache = inject(TimelineFeedCache);
   private readonly router = inject(Router);
   private readonly host = inject<ElementRef<HTMLElement>>(ElementRef);
+  private readonly injector = inject(Injector);
   readonly year = input('');
   readonly month = input('');
   protected readonly selectedMonth = computed(() => this.year() && this.month() ? `${this.year()}-${this.month().padStart(2, '0')}` : '');
   protected readonly active = timelineRouteActivity(() => { this.remember(); this.cancel(); });
   protected readonly groups = signal<TimelineGroup[]>([]);
   protected readonly loading = signal(false);
+  protected readonly manualLoading = signal(false);
   protected readonly error = signal(false);
   protected readonly hasMore = signal(false);
   protected readonly visibility = computed(() => this.store.viewFilterParams());
@@ -142,7 +142,7 @@ export class TimelineFeedComponent {
     });
   }
 
-  private cancel(): void { this.generation++; this.request?.unsubscribe(); this.request = null; this.loading.set(false); }
+  private cancel(): void { this.generation++; this.request?.unsubscribe(); this.request = null; this.loading.set(false); this.manualLoading.set(false); }
 
   private current(context: NonNullable<TimelineFeedComponent['context']>, generation: number): boolean {
     return generation === this.generation && this.active() && context === this.context
@@ -168,6 +168,9 @@ export class TimelineFeedComponent {
   protected loadMore(): void {
     const context = this.context;
     if (!context || this.loading() || !this.current(context, this.generation)) return;
+    const button = this.host.nativeElement.querySelector<HTMLButtonElement>('[data-timeline-load-more]');
+    const restoreFocus = !!button && this.host.nativeElement.ownerDocument.activeElement === button;
+    this.manualLoading.set(!!button);
     const generation = ++this.generation;
     this.loading.set(true); this.error.set(false);
     this.request = this.api.get<TimelinePage>('/timeline', { ...context.params, cursor: this.nextCursor() ?? '' }).subscribe({
@@ -176,9 +179,17 @@ export class TimelineFeedComponent {
         const seen = new Set(this.groups().map(group => group.date));
         this.groups.update(groups => [...groups, ...page.groups.filter(group => !seen.has(group.date))]);
         this.nextCursor.set(page.next_cursor); this.hasMore.set(page.has_more && !!page.next_cursor);
-        this.loading.set(false); this.remember();
+        this.loading.set(false); this.manualLoading.set(false); this.remember();
+        if (restoreFocus && this.host.nativeElement.ownerDocument.activeElement === button && (!this.hasMore() || this.groups().length >= 128)) {
+          afterNextRender(() => {
+            const doc = this.host.nativeElement.ownerDocument;
+            if (this.current(context, generation) && (doc.activeElement === doc.body || doc.activeElement === button)) {
+              this.host.nativeElement.querySelector<HTMLElement>('[data-timeline-continue], section:last-of-type .grid a[href]')?.focus();
+            }
+          }, { injector: this.injector });
+        }
       },
-      error: () => { if (this.current(context, generation)) { this.loading.set(false); this.error.set(true); } },
+      error: () => { if (this.current(context, generation)) { this.loading.set(false); this.manualLoading.set(false); this.error.set(true); } },
     });
   }
 

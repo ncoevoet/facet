@@ -44,6 +44,7 @@ import { GalleryStore, anyHideToggleActive } from '../gallery/gallery.store';
   host: { class: 'block h-full overflow-auto' },
   changeDetection: ChangeDetectionStrategy.Eager,
   template: `
+    <h1 class="sr-only">{{ I18N.timeline.title | translate }}</h1>
     <ng-template #timelineToolbar>
       @if (anyHiddenByFilters()) {
         <button mat-button class="!min-w-0"
@@ -82,7 +83,7 @@ import { GalleryStore, anyHideToggleActive } from '../gallery/gallery.store';
     </details>
     <!-- Breadcrumb navigation -->
     @if (level() !== 'years') {
-    <nav class="sticky top-0 z-10 bg-[var(--mat-sys-surface)] flex items-center gap-1 px-4 pt-4 pb-2 text-sm flex-wrap">
+    <nav [attr.aria-label]="I18N.timeline.title | translate" class="sticky top-0 z-10 bg-[var(--mat-sys-surface)] flex items-center gap-1 px-4 pt-4 pb-2 text-sm flex-wrap">
       @switch (level()) {
         @case ('months') {
           <button mat-button class="!min-w-0 !px-2" (click)="goToYears()">
@@ -115,10 +116,10 @@ import { GalleryStore, anyHideToggleActive } from '../gallery/gallery.store';
       }
       <app-timeline-density [year]="year()" [month]="month()" />
       <div class="flex items-center justify-end gap-1" role="group" [attr.aria-label]="I18N.timeline.title | translate">
-        <button mat-button [attr.aria-pressed]="!showOverview()" (click)="showOverview.set(false)">
+        <button mat-button [class]="!showOverview() ? '!bg-[var(--mat-sys-secondary-container)]' : ''" [attr.aria-pressed]="!showOverview()" (click)="showOverview.set(false)">
           <mat-icon>photo_library</mat-icon>{{ I18N.timeline.photo_feed | translate }}
         </button>
-        <button mat-button [attr.aria-pressed]="showOverview()" (click)="showOverview.set(true)">
+        <button mat-button [class]="showOverview() ? '!bg-[var(--mat-sys-secondary-container)]' : ''" [attr.aria-pressed]="showOverview()" (click)="showOverview.set(true)">
           <mat-icon>calendar_month</mat-icon>{{ I18N.timeline.calendar | translate }}
         </button>
       </div>

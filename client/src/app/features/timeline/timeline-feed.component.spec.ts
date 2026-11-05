@@ -65,6 +65,33 @@ describe('Timeline photo feed', () => {
     expect(v.root.querySelectorAll('h2')).toHaveLength(2); expect(v.root.querySelector('[role=alert]')).toBeNull(); v.dispose();
   });
 
+  it('keeps pagination focus through a failed request and retry without stealing it', async () => {
+    const v = await setup(); const pending = new Subject<TimelinePage>();
+    v.api.get.mockReturnValueOnce(pending);
+    const button = v.root.querySelector<HTMLButtonElement>('[data-timeline-load-more]')!;
+    button.focus(); button.click(); await v.settle();
+    expect(document.activeElement).toBe(button);
+    expect(button.getAttribute('aria-disabled')).toBe('true');
+    pending.error(new Error('offline')); await v.settle();
+    expect(document.activeElement).toBe(button);
+    expect(button.textContent).toContain('timeline.retry');
+    const next = new Subject<TimelinePage>(); v.api.get.mockReturnValueOnce(next);
+    button.click(); await v.settle();
+    const other = v.root.querySelector<HTMLInputElement>('input[type=month]')!; other.focus();
+    next.next({ groups: [], next_cursor: null, has_more: false }); await v.settle();
+    expect(document.activeElement).toBe(other); v.dispose();
+  });
+
+  it('moves focus to the final loaded photo when the pagination control disappears', async () => {
+    const v = await setup(); const next = new Subject<TimelinePage>(); v.api.get.mockReturnValueOnce(next);
+    const button = v.root.querySelector<HTMLButtonElement>('[data-timeline-load-more]')!;
+    button.focus(); button.click(); await v.settle();
+    next.next({ groups: [{ date: '2026-10-31', count: 1, photos: [{ path: '/last.jpg', filename: 'last.jpg' }] }], next_cursor: null, has_more: false } as TimelinePage);
+    await v.settle(); await v.settle();
+    expect((document.activeElement as HTMLElement).getAttribute('aria-label')).toBe('last.jpg');
+    v.dispose();
+  });
+
   it('intersects month routes and capture range, and restarts when visibility changes', async () => {
     const v = await setup(); v.fixture.componentRef.setInput('year', '2026'); v.fixture.componentRef.setInput('month', '2');
     v.filters.dateFrom.set('2026-02-12'); await v.settle();

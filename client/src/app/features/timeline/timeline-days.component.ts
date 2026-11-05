@@ -1,4 +1,4 @@
-import { Component, inject, signal, input, effect, output, ChangeDetectionStrategy } from '@angular/core';
+import { Component, inject, signal, input, effect, output, computed, ChangeDetectionStrategy } from '@angular/core';
 import { MatIconModule } from '@angular/material/icon';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { TimelineCollectionReader } from './timeline-collection-reader';
@@ -7,6 +7,9 @@ import { TranslatePipe } from '../../shared/pipes/translate.pipe';
 import { TimelineFiltersService } from './timeline-filters.service';
 import { GalleryStore, type ViewFilterParams } from '../gallery/gallery.store';
 import { TimelineLoadFailureComponent } from './timeline-load-failure.component';
+import { I18nService } from '../../core/services/i18n.service';
+import { CaptureDatePipe } from '../../shared/pipes/capture-date.pipe';
+import { i18nKeys } from '../../core/i18n/keys';
 
 interface DateEntry {
   date: string;
@@ -26,7 +29,7 @@ interface CalendarCell {
 @Component({
   selector: 'app-timeline-days',
   standalone: true,
-  imports: [TimelineLoadFailureComponent, MatIconModule, MatProgressSpinnerModule, ThumbnailUrlPipe, TranslatePipe],
+  imports: [TimelineLoadFailureComponent, MatIconModule, MatProgressSpinnerModule, ThumbnailUrlPipe, TranslatePipe, CaptureDatePipe],
   changeDetection: ChangeDetectionStrategy.Eager,
   template: `
     @if (loading()) {
@@ -41,7 +44,7 @@ interface CalendarCell {
     @if (!loading() && !failed()) {
       <!-- Day-of-week headers -->
       <div class="grid grid-cols-7 gap-2 mb-2">
-        @for (d of weekDays; track d) {
+        @for (d of weekDays(); track $index) {
           <div class="text-center text-sm font-medium opacity-50 py-1">{{ d }}</div>
         }
       </div>
@@ -52,6 +55,8 @@ interface CalendarCell {
           @if (cell.date) {
             <button
               class="relative rounded-xl overflow-hidden transition-shadow cursor-pointer aspect-square"
+              [disabled]="cell.count === 0"
+              [attr.aria-label]="(cell.date | captureDate) + ': ' + cell.count + ' ' + (I18N.timeline.photos_count | translate)"
               [class]="cell.count > 0 ? 'hover:shadow-lg bg-[var(--mat-sys-surface-container)]' : 'opacity-40 bg-[var(--mat-sys-surface-container)] cursor-default'"
               (click)="cell.count > 0 && daySelected.emit(cell.date)">
               @if (cell.hero_photo_path) {
@@ -78,6 +83,8 @@ interface CalendarCell {
   `,
 })
 export class TimelineDaysComponent extends TimelineCollectionReader {
+  protected readonly I18N = i18nKeys();
+  private readonly i18n = inject(I18nService);
   private readonly filters = inject(TimelineFiltersService);
   private readonly store = inject(GalleryStore);
 
@@ -87,12 +94,12 @@ export class TimelineDaysComponent extends TimelineCollectionReader {
 
   protected readonly calendarCells = signal<CalendarCell[]>([]);
 
-  // Generate Mon–Sun abbreviations from the browser locale (Monday-first)
-  protected readonly weekDays = (() => {
-    const fmt = new Intl.DateTimeFormat(undefined, { weekday: 'short' });
+  // Generate Monday-first abbreviations in the viewer's current language.
+  protected readonly weekDays = computed(() => {
+    const fmt = new Intl.DateTimeFormat(this.i18n.locale(), { weekday: 'short' });
     // Jan 5 2026 is a Monday; generate 7 consecutive days
     return Array.from({ length: 7 }, (_, i) => fmt.format(new Date(2026, 0, 5 + i)));
-  })();
+  });
 
   constructor() {
     super();
