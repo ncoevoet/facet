@@ -39,7 +39,7 @@ Les valeurs absentes ou NULL de subject_sharpness, subject_prominence, subject_p
 
 Les autres catégories basées sur les tags incluent `aerial`, `food`, `sports`, `vehicle`, `travel`, `fashion`, `candid`, `product`, `architecture`, `urban`, `golden_hour`, `blue_hour`, `cinematic`, `vintage`, `abstract`, `minimalist`, `dramatic` et `weather`.
 
-Sur les profils à étiquetage CLIP (`legacy`/`8gb`, et `16gb`/`24gb` quand leur tagger VLM ne s'exécute pas), un scan étiquette chaque photo avant de calculer sa catégorie : la catégorie stockée utilise donc les étiquettes. Une exécution avec un seul `--pass NAME` n'étiquette pas.
+Sur les profils à étiquetage CLIP (`legacy`/`8gb`, et `12gb`/`16gb`/`24gb` quand leur tagger VLM ne s'exécute pas), un scan étiquette chaque photo avant de calculer sa catégorie : la catégorie stockée utilise donc les étiquettes. Une exécution avec un seul `--pass NAME` n'étiquette pas.
 
 **Silhouette.** `is_silhouette` provient d'une règle de pixels fondée sur le visage (voir [Filtres booléens](#filtres-booléens)), pas d'une étiquette.
 
@@ -255,7 +255,7 @@ Ces modèles s'exécutent dans le cadre du pipeline de scoring par défaut sur c
 - Un face_quality_iqa NULL suit la règle ci-dessus ; les autres entrées supplémentaires NULL restent imputées à la valeur neutre 5,0.
 - **Galerie :** un filtre de plage sur Esthétique (IAA), Qualité du visage (IQA), LIQE ou Aesthetic V2.5 ne retient pas une photo sans score (`min_face_quality_iqa=0` écarte une photo sans visage). Un tri croissant sur ces colonnes, sur Q-ReAlign ou sur DeQA place les photos sans score en dernier, dans la galerie comme dans les albums.
 - **Anciennes valeurs neutres de 5,0 :** elles restent tant que `--repair-neutral-iqa` ne les a pas effacées ; lancez ensuite `--recompute-iqa` puis `--recompute-average`, ou rescannez avec `--force`.
-- **Échec du modèle principal** (TOPIQ sur `16gb` et `24gb`) : la photo est enregistrée comme échouée au lieu d'être sauvegardée avec un 5,0 neutre. Une nouvelle photo est reprise par le scan suivant ; une photo déjà stockée garde sa ligne et est retentée par `--retry-failed all` (un `--retry-failed` sans argument ne couvre que le dernier scan ayant enregistré des échecs) ou par un nouveau scan avec `--force`.
+- **Échec du modèle principal** (TOPIQ sur `12gb`, `16gb` et `24gb`) : la photo est enregistrée comme échouée au lieu d'être sauvegardée avec un 5,0 neutre. Une nouvelle photo est reprise par le scan suivant ; une photo déjà stockée garde sa ligne et est retentée par `--retry-failed all` (un `--retry-failed` sans argument ne couvre que le dernier scan ayant enregistré des échecs) ou par un nouveau scan avec `--force`.
 
 Règles de reprise de chaque commande : [Modèles de qualité supplémentaires](COMMANDS.md#modèles-de-qualité-supplémentaires).
 
@@ -312,6 +312,7 @@ Les poids par défaut sont optimisés pour **TOPIQ** (SRCC 0,93), le modèle est
 |---------|-----------------|-----------|--------|-----------------|
 | `24gb` | TOPIQ (SRCC 0,93) | SigLIP 2 NaFlex SO400M | Qwen3.5-4B | Meilleure précision, poids par défaut |
 | `16gb` | TOPIQ (SRCC 0,93) | SigLIP 2 NaFlex SO400M | Qwen3.5-2B | Poids par défaut |
+| `12gb` | TOPIQ (SRCC 0,93) | SigLIP 2 NaFlex SO400M | Qwen3.5-2B | Poids par défaut |
 | `8gb` | CLIP+MLP (SRCC 0,76) | CLIP ViT-L-14 | Similarité CLIP | Les poids par défaut fonctionnent bien |
 | `legacy` | CLIP+MLP sur CPU | CLIP ViT-L-14 | Similarité CLIP | Poids par défaut, plus lent |
 

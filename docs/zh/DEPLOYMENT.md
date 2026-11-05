@@ -13,7 +13,7 @@ Facet 有两类工作负载：
 
 | 组件 | 硬件 | 用途 |
 |-----------|----------|---------|
-| **评分**（`facet.py`） | GPU（6-24 GB 显存）或 CPU（最低 8 GB 内存，推荐 12 GB，`16gb`/`24gb` 配置档还要更多 —— 见[容器内存限制](#容器内存限制)） | 分析照片并给出评分 |
+| **评分**（`facet.py`） | GPU（6-24 GB 显存）或 CPU（最低 8 GB 内存，推荐 12 GB，`12gb`/`16gb`/`24gb` 配置档还要更多 —— 见[容器内存限制](#容器内存限制)） | 分析照片并给出评分 |
 | **查看器**（`viewer.py`） | 任意机器（资源占用低） | 提供网页照片库服务 |
 
 只有查看器需要跑在服务器上。在工作站上完成评分，然后把数据库同步过去。
@@ -321,7 +321,7 @@ Plus/x86、UGREEN、UnifyDrive，以及在 Intel/AMD 上运行的 Coolify、Port
 - 解压后的镜像：CPU 约 3.34 GB，`latest-cuda`（`sm_75`-`sm_120`）约 13.1 GB，
   `latest-cuda-legacy`（`sm_50`-`sm_90`）约 13.8 GB（[镜像大小](#镜像大小)）。
   `docker pull` 传输的是压缩数据，比这更小。
-- 模型：`legacy` 4.69 GB、`8gb` 6.93 GB、`16gb` 14.55 GB、`24gb` 19.32 GB
+- 模型：`legacy` 4.69 GB、`8gb` 6.93 GB、`12gb`/`16gb` 14.55 GB、`24gb` 19.32 GB
   （[下载体积](INSTALLATION.md#下载体积)）。
 - `docker compose down -v` 会删除模型卷并强制重新下载。
 
@@ -407,7 +407,7 @@ v1 上是 `memory.limit_in_bytes`），而不是宿主机的内存。它据此�
 | VRAM 配置档 | 模型权重（合计） | 推荐容器内存 |
 |---|---|---|
 | `legacy` / `8gb` | 15.0 GB | 12 GB（GPU）／最低 8 GB、推荐 12 GB（CPU） |
-| `16gb` | 22.0 GB | 至少 18 GB（暂定） |
+| `12gb` / `16gb` | 22.0 GB | 至少 18 GB（暂定） |
 | `24gb` | 25.0 GB | 至少 18 GB（暂定） |
 
 - **GPU 和 CPU 不同。** 在 GPU 上，权重待在显存里，内存主要装解码后的
@@ -417,7 +417,8 @@ v1 上是 `memory.limit_in_bytes`），而不是宿主机的内存。它据此�
 - **在 CPU 上，8 GB 是下限。** 在 `--memory=8g` 下扫描 50 张照片，`legacy`（峰值 7.26 GB）和
   `8gb`（7.56 GB）都跑完了，对于 18-20 MP 的 JPEG，离上限只差约半个 GB。更大的画幅、RAW
   解码或更繁忙的宿主机需要更多，所以推荐 12 GB。
-- **`16gb` 和 `24gb` 没有实测。** 18 GB 是暂定的占位值。
+- **`12gb`、`16gb` 和 `24gb` 没有实测。** 18 GB 是暂定的占位值。
+- **`12gb` 显存峰值：9.4–11.3 GiB（模拟）。** 在 11.7 与 12.0 GiB 上限下的整卡峰值，含约 2 GiB 桌面占用；PyTorch 峰值为已分配 6.3 GiB、已预留 8.8 GiB（Qwen3.5 标签 VLM 阶段）。 在 16 GB 显卡上以模拟的 12 GiB 上限测得；ONNX Runtime 模型（InsightFace）不受该上限约束；未在真实的 12 GB 显卡上测量。
 - **留意匿名内存。** `docker stats` 的 MemUsage 和 cgroup 的 `memory.current`
   都把可回收的页缓存算了进去，因此会产生误导。
 - **模型缓存。** 当 `models.keep_in_ram` 为 `"auto"` 时，只有该模型的大小加上
@@ -519,7 +520,7 @@ curl -s localhost:5000/health          # -> ok
 ```
 
 加上 `--build` 可以从当前签出的代码构建，而不是拉取镜像。GPU 配置档
-（`8gb`/`16gb`/`24gb`）借助内置的 RAPIDS cuML 在 GPU 上做人脸聚类；`legacy`
+（`8gb`/`12gb`/`16gb`/`24gb`）借助内置的 RAPIDS cuML 在 GPU 上做人脸聚类；`legacy`
 在 CPU 上聚类。首次运行会把模型下载到命名卷里；用
 `docker compose down -v` 可以重置它们。
 

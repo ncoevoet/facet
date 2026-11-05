@@ -36,6 +36,6 @@ Facet 是一个多维度的照片分析引擎：它为本地照片库评分、�
 |-------|--------|
 | 我该使用哪种配置档？ | [安装 › 哪种配置档适合我的硬件？](INSTALLATION.md#哪种配置档适合我的硬件) |
 | 安装时出现“externally-managed-environment” | 使用虚拟环境（或 Docker）——参见[安装](INSTALLATION.md) |
-| 处理速度慢 | 检查配置档。`--single-pass` 在显存充足的 `legacy`/`8gb` 配置档上可能有帮助；`16gb`/`24gb` 始终以多阶段运行（商业模式除外） |
+| 处理速度慢 | 检查配置档。`--single-pass` 在显存充足的 `legacy`/`8gb` 配置档上可能有帮助；`12gb`/`16gb`/`24gb` 始终以多阶段运行（商业模式除外） |
 | 人脸检测未使用 GPU | 运行 `python facet.py --doctor`（ONNX Runtime 一节），然后安装 `onnxruntime-gpu` 来替换 `onnxruntime`，不要并存——参见[安装](INSTALLATION.md#用于人脸检测的-onnx-runtime) |
 | 缺少 exiftool | 可选——参见[安装 › exiftool](INSTALLATION.md#exiftool) |

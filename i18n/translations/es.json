@@ -1317,11 +1317,11 @@
       "metric_help": {
         "score_range": "Puntuación global: el agregado ponderado de todas las métricas para la categoría de la foto (0–10).",
         "aesthetic_range": "Cuán atractiva resulta la foto en conjunto, puntuada por TOPIQ (CLIP+MLP en los perfiles legacy y 8gb), 0–10.",
-        "quality_score_range": "Calidad técnica de la imagen, puntuada por TOPIQ NR en los perfiles 16gb y 24gb (0–10).",
+        "quality_score_range": "Calidad técnica de la imagen, puntuada por TOPIQ NR en los perfiles 12gb, 16gb y 24gb (0–10).",
         "aesthetic_iaa_range": "Mérito artístico, puntuado por TOPIQ IAA entrenado con AVA (0–10); distinto de la calidad técnica. Ideal para arte y tomas creativas.",
         "face_quality_iqa_range": "Calidad de la zona del rostro, puntuada por TOPIQ NR-Face (0–10). Una foto sin rostro no tiene valor.",
         "liqe_range": "Calidad general de la imagen, puntuada por LIQE (0–10), que también diagnostica defectos como desenfoque de movimiento, sobreexposición y ruido.",
-        "qrealign_range": "Puntuación estética de Q-ReAlign (0–10). Activado por defecto en los perfiles 8gb, 16gb y 24gb.",
+        "qrealign_range": "Puntuación estética de Q-ReAlign (0–10). Activado por defecto en los perfiles 8gb, 12gb, 16gb y 24gb.",
         "aesthetic_v25_range": "Atractivo estético, puntuado por Aesthetic Predictor v2.5 (0–10). Desactivado por defecto y obsoleto en favor de Q-ReAlign.",
         "deqa_range": "Calidad de la imagen, puntuada por DeQA-Score (0–10). Desactivado por defecto.",
         "face_count_range": "Número de rostros que InsightFace detectó en la foto.",
@@ -2500,7 +2500,7 @@
     "title": "Descripción",
     "generate": "Generar descripción",
     "generating": "Generando descripción...",
-    "unavailable": "La generación de descripciones requiere un modelo VLM (16 GB+ VRAM)"
+    "unavailable": "La generación de descripciones requiere un modelo VLM (perfil 12gb o superior, o un backend VLM remoto)"
   },
   "timeline": {
     "help": "Explora tu biblioteca cronológicamente. Navega de los años a los meses y a los días; elige un período para ver las fotos tomadas entonces.",

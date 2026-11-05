@@ -9,12 +9,12 @@ La galleria è un'app web FastAPI + Angular per sfogliare, filtrare, selezionare
 - [Avvio della galleria](#avvio-della-galleria) · [Autenticazione](#autenticazione) · [Opzioni di filtraggio](#opzioni-di-filtraggio) · [Ordinamento](#ordinamento) · [Decisioni di revisione](#decisioni-di-revisione) · [Funzionalità della galleria](#funzionalità-della-galleria)
 - [Panorami e bracket di esposizione](#panorami-e-bracket-di-esposizione)
 - [Gestione delle persone](#gestione-delle-persone) · [Avvio scansione](#avvio-scansione) · [Ricerca semantica](#ricerca-semantica) · [Album](#album)
-- [Critica IA](#critica-ia) · [Didascalie IA](#didascalie-ia-gpu-16gb24gb-edition) · [Ricordi ("In questo giorno")](#ricordi-in-questo-giorno) · [Vista cronologia](#vista-cronologia) · [Vista mappa](#vista-mappa) · [Capsule](#capsule)
+- [Critica IA](#critica-ia) · [Didascalie IA](#didascalie-ia-gpu-12gb16gb24gb-edition) · [Ricordi ("In questo giorno")](#ricordi-in-questo-giorno) · [Vista cronologia](#vista-cronologia) · [Vista mappa](#vista-mappa) · [Capsule](#capsule)
 - [Vista cartelle](#vista-cartelle) · [Finestra filtro GPS](#finestra-filtro-gps) · [Suggerimenti di unione](#suggerimenti-di-unione) · [Esportazione per editor](#esportazione-per-editor) · [Download](#download) · [Selezione](#selezione) · [Pulizia degli scarti](#pulizia-degli-scarti) · [Modalità di confronto a coppie](#modalità-di-confronto-a-coppie)
 - [Statistiche EXIF](#statistiche-exif) · [Scorciatoie da tastiera](#scorciatoie-da-tastiera-galleria) · [Annulla](#annulla) · [Progressive Web App](#progressive-web-app) · [Mobile](#mobile) · [Cornice digitale / Chiosco](#cornice-digitale--chiosco) · [Caricamento automatico dal telefono](#caricamento-automatico-dal-telefono)
 - [Configurazione](#configurazione-3) · [Prestazioni](#prestazioni) · [Endpoint API](#endpoint-api) · [Foto JPEG XL](#foto-jpeg-xl) · [Risoluzione dei problemi](#risoluzione-dei-problemi)
 
-> **I requisiti delle funzionalità** sono indicati in linea: `[GPU]` · `[16gb/24gb]` (profilo VRAM) · `[Edition]` (password di modifica) · `[Superadmin]`. Vedi la [matrice delle funzionalità](INSTALLATION.md#requisiti-delle-funzionalità).
+> **I requisiti delle funzionalità** sono indicati in linea: `[GPU]` · `[12gb/16gb/24gb]` (profilo VRAM) · `[Edition]` (password di modifica) · `[Superadmin]`. Vedi la [matrice delle funzionalità](INSTALLATION.md#requisiti-delle-funzionalità).
 
 > **Assistenti IA**: Facet può mettere i suoi strumenti a disposizione degli assistenti compatibili con MCP. Con il livello di token giusto possono cercare, modificare e selezionare la libreria. Vedi [Assistenti IA (MCP)](AGENTS.md).
 
@@ -563,7 +563,7 @@ Per rivalutare foto esistenti senza scansionare nuovi file, usa `POST /api/scan/
 Digita una query come "sunset over mountains" e ottieni le foto corrispondenti. Il ranking combina la somiglianza degli embedding CLIP/SigLIP (70%) con la corrispondenza testuale FTS5 BM25 su didascalie e tag (30%).
 
 - **Requisiti.** Le foto devono avere dati `clip_embedding` memorizzati (calcolati durante la valutazione). Esegui `database.py --rebuild-fts` per abilitare la parte testuale di didascalie/tag.
-- **Modello.** Usa il modello di embedding del profilo VRAM attivo (SigLIP 2 per 16gb/24gb, CLIP ViT-L-14 per legacy/8gb), o quello tra `models.clip`/`clip_legacy` che corrisponde agli embedding memorizzati (vedi [CONFIGURATION.md](CONFIGURATION.md)).
+- **Modello.** Usa il modello di embedding del profilo VRAM attivo (SigLIP 2 per 12gb/16gb/24gb, CLIP ViT-L-14 per legacy/8gb), o quello tra `models.clip`/`clip_legacy` che corrisponde agli embedding memorizzati (vedi [CONFIGURATION.md](CONFIGURATION.md)).
 - **Velocità.** Installare sqlite-vec accelera la ricerca; altrimenti Facet mantiene una matrice in memoria. La prima query su una libreria grande può richiedere alcuni secondi.
 - **Soglia.** La soglia di corrispondenza è per impostazione predefinita `models.clip.search_threshold_percent` (`5%`) o `models.clip_legacy.search_threshold_percent` (15%), separata da `tag_threshold_percent`. Il cursore della galleria copre 0–50%; `search_threshold_default` di `/api/config` ne imposta l'inizio. Anche `0%` rifiuta la somiglianza negativa. Il 5% predefinito di SigLIP favorisce il richiamo — vedi `clip.search_threshold_percent` in [CONFIGURATION.md](CONFIGURATION.md).
 - **Solo testo.** `scope=text` limita la query alle corrispondenze FTS5 letterali nel testo OCR/delle didascalie.
@@ -661,9 +661,9 @@ Se il calcolo non è disponibile, viene mostrato solo il punteggio salvato, con 
 
 La finestra distingue anche una foto *non ancora valutata* da una il cui *punteggio salvato è inutilizzabile*.
 
-### Critica VLM `[GPU]` `[16gb/24gb]`
+### Critica VLM `[GPU]` `[12gb/16gb/24gb]`
 
-Usa il VLM configurato (Qwen3.5-2B o Qwen3.5-4B) per una critica sensibile al contesto. Richiede il profilo 16gb o 24gb, `viewer.features.show_vlm_critique` impostato su `true` (il valore predefinito) e una sessione di modifica per generarla. Senza modifica, viene mostrata solo una critica in cache e `vlm_available` è `false`. La finestra genera tramite `POST /api/critique/vlm` (solo modifica; le richieste simultanee per una stessa foto condividono una sola generazione); `GET /api/critique` legge soltanto la cache e non genera, non traduce e non scrive mai.
+Usa il VLM configurato (Qwen3.5-2B o Qwen3.5-4B) per una critica sensibile al contesto. Richiede il profilo 12gb, 16gb o 24gb, `viewer.features.show_vlm_critique` impostato su `true` (il valore predefinito) e una sessione di modifica per generarla. Senza modifica, viene mostrata solo una critica in cache e `vlm_available` è `false`. La finestra genera tramite `POST /api/critique/vlm` (solo modifica; le richieste simultanee per una stessa foto condividono una sola generazione); `GET /api/critique` legge soltanto la cache e non genera, non traduce e non scrive mai.
 
 - Il prompt (`critique.vlm`) include la scomposizione del punteggio, i punteggi salvati e ricalcolati, le condizioni rilevate e l'EXIF.
 - La risposta si legge come **Osservazione / Valutazione / Suggerimenti**. Viene messa in cache per foto (`photos.vlm_critique`), tradotta quando una sessione di modifica la apre nella lingua di destinazione (poi salvata e servita così com'è), e **Rigenera** la ricalcola. Senza una sessione di modifica vedi il testo non tradotto, a meno che non esista già una traduzione salvata.
@@ -671,7 +671,7 @@ Usa il VLM configurato (Qwen3.5-2B o Qwen3.5-4B) per una critica sensibile al co
 
 **Overlay visivo "perché questo punteggio".** Con `viewer.features.show_saliency_overlay` attivo (predefinito `true`), la finestra della critica ha **Mostra overlay**. Disegna la mappa di salienza BiRefNet come mappa di calore (`GET /api/saliency_overlay`), più i riquadri dei volti e i segnalini degli occhi dai punti di riferimento memorizzati (`GET /api/photo/face_markers`). I riquadri sono verdi per occhi aperti, ambra per occhi chiusi. La mappa di calore ha la risoluzione della miniatura, quindi è approssimativa. L'interruttore si nasconde sui profili che non possono produrre una maschera di salienza.
 
-## Didascalie IA `[GPU]` `[16gb/24gb]` `[Edition]`
+## Didascalie IA `[GPU]` `[12gb/16gb/24gb]` `[Edition]`
 
 Ottieni una didascalia in linguaggio naturale per qualsiasi foto. Una sessione di modifica la genera alla prima richiesta; poi viene messa in cache nella colonna `caption`. Modifica le didascalie nel dettaglio foto (modalità di modifica). Un'installazione aperta in sola lettura non ne genera mai. `POST /api/caption` la genera (e la traduce); `GET /api/caption` restituisce solo la didascalia o la traduzione salvata e non genera, non traduce e non scrive mai.
 
@@ -684,7 +684,7 @@ python facet.py --translate-captions     # Traduce le didascalie nella lingua di
 
 La traduzione usa MarianMT su CPU (non serve la GPU). Imposta la lingua con `translation.target_language` (predefinito: `"fr"`). Supportate: francese, tedesco, spagnolo, italiano.
 
-Controllato da `viewer.features.show_captions` (predefinito: `true`). Senza il profilo 16gb/24gb o un `vlm_backend` remoto, il pulsante Genera didascalia è nascosto e le critiche restano basate su regole.
+Controllato da `viewer.features.show_captions` (predefinito: `true`). Senza il profilo 12gb/16gb/24gb o un `vlm_backend` remoto, il pulsante Genera didascalia è nascosto e le critiche restano basate su regole.
 
 ## Ricordi ("In questo giorno")
 
@@ -1003,7 +1003,7 @@ Controllato da `viewer.features.show_scenes` (predefinito: `true`). Vedi [Config
 Facet etichetta ogni foto con l'attività che mostra. Il vocabolario **general** predefinito: celebration, dining, beach, water activity, mountains, nature & wildlife, cityscape, travel landmark, concert, sports, group gathering, portrait, children, pets, nightlife, ceremony, scenic landscape, snow & winter, home indoor, road & vehicle, oppure `other`. Un vocabolario `wedding` è disponibile come genere facoltativo.
 
 - Gira in locale, senza un passaggio di modello aggiuntivo: la didascalia IA di ogni foto viene confrontata con i prompt testuali di ogni momento (si usa l'embedding dell'immagine quando non c'è una didascalia). La regolarizzazione lungo la cronologia corregge le letture errate isolate.
-- Un tie-breaker VLM facoltativo (16gb/24gb) ricontrolla i fotogrammi a bassa confidenza.
+- Un tie-breaker VLM facoltativo (12gb/16gb/24gb) ricontrolla i fotogrammi a bassa confidenza.
 - **Viene eseguito automaticamente al termine di ogni scansione.** Il primo passaggio su una libreria esistente codifica ogni didascalia (GPU consigliata). Rietichetta tutto con `python facet.py --recompute-moments`.
 - I momenti compaiono come titoli delle scene e come filtro della galleria (`GET /api/photos?narrative_moment=beach`, opzioni da `GET /api/filter_options/narrative_moments`).
 - Il vocabolario è configurabile — vedi [Configurazione — Momenti narrativi](CONFIGURATION.md#narrative-moments).
@@ -1432,9 +1432,9 @@ Facet scansiona JPEG XL (`.jxl`) con la dipendenza principale `imagecodecs`, inc
 | Pulsante Scansione mancante | Richiede `viewer.features.show_scan_button: true` più l'accesso alla scansione — vedi [Avvio scansione](#avvio-scansione) |
 | La ricerca non restituisce risultati | Assicurati che le foto abbiano dati `clip_embedding` (esegui prima la valutazione) |
 | La ricerca dice che l'accelerazione Apple Silicon è occupata | Riprova quando l'attività del modello in corso termina |
-| Critica VLM non disponibile | Richiede il profilo 16gb/24gb, `viewer.features.show_vlm_critique: true` e una sessione di modifica |
+| Critica VLM non disponibile | Richiede il profilo 12gb/16gb/24gb, `viewer.features.show_vlm_critique: true` e una sessione di modifica |
 | La mappa non mostra foto | Esegui `--extract-gps`; controlla che le foto abbiano dati GPS EXIF |
-| Le didascalie non vengono generate | Richiede il profilo VRAM 16gb/24gb per le didascalie VLM |
+| Le didascalie non vengono generate | Richiede il profilo VRAM 12gb/16gb/24gb per le didascalie VLM |
 | Cronologia vuota | Assicurati che le foto abbiano valori `date_taken` |
 | Porta 5000 in uso | Esegui `python viewer.py --port 5001` (o imposta `PORT=5001`). Su macOS, AirPlay Receiver usa la 5000: scegli un'altra porta o disattivalo in Impostazioni di Sistema → Generali → AirDrop e Handoff. |
 

@@ -294,7 +294,7 @@ class ModelManager:
         """Load CLIP/SigLIP model for embeddings and tagging.
 
         For legacy/8gb profiles: uses open_clip (ViT-L-14).
-        For 16gb/24gb profiles: uses transformers Siglip2Model (NaFlex).
+        For 12gb/16gb/24gb profiles: uses transformers Siglip2Model (NaFlex).
         """
         if 'clip' in self.models:
             return self.models['clip']
@@ -335,7 +335,7 @@ class ModelManager:
             return None
 
     def _load_clip_transformers(self, clip_config):
-        """Load SigLIP 2 NaFlex via transformers (16gb/24gb profiles)."""
+        """Load SigLIP 2 NaFlex via transformers (12gb/16gb/24gb profiles)."""
         logger.info("Loading SigLIP 2 NaFlex model (transformers)...")
         try:
             from transformers import AutoProcessor
@@ -1287,16 +1287,10 @@ class ModelManager:
             vram_gb: Available VRAM in GB
 
         Returns:
-            Profile name: 'legacy', '8gb', '16gb', or '24gb'
+            Profile name: 'legacy', '8gb', '12gb', '16gb', or '24gb'
         """
-        if vram_gb >= 20:
-            return "24gb"
-        elif vram_gb >= 14:
-            return "16gb"
-        elif vram_gb >= 6:
-            return "8gb"
-        else:
-            return "legacy"
+        from config.scoring_config import ScoringConfig
+        return ScoringConfig.profile_for_vram(vram_gb)
 
     # VRAM requirements for each model (in GB)
     # Note: These are runtime estimates including inference memory, not just model weights

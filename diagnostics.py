@@ -585,6 +585,40 @@ def verify_onnx_runtime():
         return VERIFY_COULD_NOT_RUN
 
 
+def _stored_embedding_dim(db_path):
+    """Width of the library's stored embeddings (one row read, never a scan), or None."""
+    import pathlib
+    import sqlite3
+
+    from db.schema import detect_embedding_dim
+    if not db_path or not os.path.exists(db_path):
+        return None
+    try:
+        conn = sqlite3.connect(pathlib.Path(db_path).resolve().as_uri() + "?mode=ro", uri=True)
+        try:
+            return detect_embedding_dim(conn)
+        finally:
+            conn.close()
+    except sqlite3.Error:
+        return None
+
+
+def _report_embedding_width(config, profile, db_path, configured):
+    """Warn when the profile this run resolves to embeds at a different width than the library stores."""
+    model_config = config.get_model_config()
+    clip_key = model_config.get('profiles', {}).get(profile, {}).get('clip_config')
+    wanted = model_config.get(clip_key, {}).get('embedding_dim') if clip_key else None
+    stored = _stored_embedding_dim(db_path)
+    if not wanted or not stored or wanted == stored:
+        return
+    fix = ("pin `models.vram_profile` (or FACET_VRAM_PROFILE) to the profile that wrote the library, "
+           "or rescan / run --recompute-embeddings")
+    _warn("Embedding width",
+          f"the library stores {stored}-dim embeddings but profile '{profile}'"
+          f"{' (resolved from auto)' if configured == 'auto' else ''} embeds at {wanted}-dim: "
+          f"new photos would mix two widths. Fix: {fix}")
+
+
 def run_doctor(config_path=None, db_path=None, simulate_gpu=None, simulate_vram=None):
     """Run full diagnostic report.
 
@@ -782,9 +816,11 @@ def run_doctor(config_path=None, db_path=None, simulate_gpu=None, simulate_vram=
         _ok("Configured", current)
         resolved_profile = suggested if current == 'auto' else current
         if current == 'auto':
+            _ok("Resolved profile", f"{resolved_profile} (auto)")
             _info("Note", "auto mode will select the recommended profile at runtime")
         elif current != suggested:
             _warn("Mismatch", f"configured '{current}' but recommended '{suggested}'")
+        _report_embedding_width(config, resolved_profile, db_path, current)
     except Exception as e:
         _warn("Profile detection", str(e))
 
@@ -792,7 +828,7 @@ def run_doctor(config_path=None, db_path=None, simulate_gpu=None, simulate_vram=
     _section("Optional Dependencies")
     optional_deps = [
         ('transformers', 'BiRefNet saliency, SigLIP 2 NaFlex, VLM tagging'),
-        ('accelerate', 'VLM tagging (16gb/24gb profiles)'),
+        ('accelerate', 'VLM tagging (12gb/16gb/24gb profiles)'),
         ('rawpy', 'RAW file support'),
     ]
     for module, purpose in optional_deps:

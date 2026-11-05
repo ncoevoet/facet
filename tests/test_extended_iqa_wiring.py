@@ -86,7 +86,7 @@ def test_qrealign_auto_follows_the_resolved_vram_profile(tmp_path):
     assert _settings(tmp_path, {"qrealign": "auto"}, profile="legacy")["qrealign"] is False
     assert _settings(tmp_path, {}, profile="legacy")["qrealign"] is False
 
-    for profile in ("8gb", "16gb", "24gb"):
+    for profile in ("8gb", "12gb", "16gb", "24gb"):
         assert _settings(tmp_path, {"qrealign": "auto"}, profile=profile)["qrealign"] is True
         assert _settings(tmp_path, {}, profile=profile)["qrealign"] is True
 

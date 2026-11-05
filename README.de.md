@@ -99,14 +99,14 @@ Bewegen Sie den Mauszeiger über ein beliebiges Foto, um die Wertungsaufschlüss
 ### Verstehen
 
 - **Statistiken** — Dashboards für Ausrüstungsnutzung, Kategorieaufschlüsselung, Aufnahme-Zeitverlauf und Metrik-Korrelationen
-- **KI-Kritik** — Wertungsaufschlüsselung, die den Beitrag jeder Metrik zeigt; VLM-Bewertung in natürlicher Sprache `[GPU]` `[16gb/24gb]`
+- **KI-Kritik** — Wertungsaufschlüsselung, die den Beitrag jeder Metrik zeigt; VLM-Bewertung in natürlicher Sprache `[GPU]` `[12gb/16gb/24gb]`
 - **Gewichtungsfeinabstimmung** — Editor für kategoriespezifische Gewichte mit Live-Wertungsvorschau. Der A/B-Fotovergleich lernt aus Ihren Entscheidungen und schlägt optimierte Gewichte vor.
 - **Bewertungskontexte** — legen Sie fest, *welche* Kategorie ein Foto bewertet: die Kategoriepriorität neu ordnen, einen benannten Kontext (Action/Bühne, Porträtsitzung, Wildtiere, …) pro Album anwenden oder bei einem Foto eine Kategorie festlegen.
 - **Sortierung „Mein Geschmack“** — sortieren Sie die Galerie nach der gelernten Wertung des persönlichen Rankers, mit einem Konfidenz-Badge, das die gelernte Abdeckung und die Holdout-Genauigkeit anzeigt
 - **Lernen aus Labels** — Auswahlentscheidungen, Sternebewertungen, Favoriten und Ablehnungen fließen in den Gewichtsoptimierer ein (`--sync-label-comparisons`, `--mine-insights`)
 - **Snapshots** — Gewichtskonfigurationen speichern, wiederherstellen und vergleichen
 - **Histogramm** — RGB-/Helligkeitshistogramm mit Clipping-Indikatoren, in der Seitenleiste der Galerie und in der Detailansicht
-- **KI-Beschreibungen** `[GPU]` `[16gb/24gb]` — Textbeschreibungen, bearbeitbar `[Edition]` und in 5 Sprachen übersetzbar (Ansehen ist offen; Erzeugen und Bearbeiten benötigen Edition)
+- **KI-Beschreibungen** `[GPU]` `[12gb/16gb/24gb]` — Textbeschreibungen, bearbeitbar `[Edition]` und in 5 Sprachen übersetzbar (Ansehen ist offen; Erzeugen und Bearbeiten benötigen Edition)
 
 <table><tr>
 <td><img src="docs/screenshots/stats-gear.jpg" alt="Ausrüstungsstatistiken" width="100%"></td>
@@ -162,7 +162,7 @@ Bewegen Sie den Mauszeiger über ein beliebiges Foto, um die Wertungsaufschlüss
 
 - **Jeder Rechner (CPU)** führt den Großteil von Facet aus: Bewertung, Gesichter, Auswahl, die Galerie, Suche, Alben und Metadaten-Export.
 - **Apple Silicon** nutzt automatisch das Metal-Backend (`mps`). Das Profil `auto` folgt dem Unified Memory: 32 GB erreichen `16gb`, 48 GB erreichen `24gb`.
-- **Eine NVIDIA-GPU** schaltet mit den Profilen `16gb`/`24gb` die leistungsstärksten Modelle frei: TOPIQ, SigLIP 2, VLM-Tagging, KI-Beschreibungen und -Kritik, Motiverkennung.
+- **Eine NVIDIA-GPU** schaltet mit den Profilen `12gb`/`16gb`/`24gb` die leistungsstärksten Modelle frei: TOPIQ, SigLIP 2, VLM-Tagging, KI-Beschreibungen und -Kritik, Motiverkennung.
 - **Keine GPU?** Richten Sie VLM-Tagging, Beschreibungen und Kritik über `vlm_backend` in `scoring_config.json` auf einen entfernten **Ollama**- oder **OpenAI-kompatiblen** Server.
 - **Bearbeiten im Viewer** (Bewertungen, Gesichter, Auswahl) benötigt das **Bearbeitungspasswort**. Der Scan-Button benötigt `viewer.features.show_scan_button: true` und Edition-Zugriff (die **Superadmin**-Rolle im Mehrbenutzermodus).
 

@@ -36,6 +36,6 @@ una libreria fotografica locale, poi serve una galleria per sfogliarla. Inizia d
 |-------|--------|
 | Quale profilo dovrei usare? | [Installazione › Quale profilo si adatta al mio hardware?](INSTALLATION.md#quale-profilo-si-adatta-al-mio-hardware) |
 | "externally-managed-environment" all'installazione | Usa un ambiente virtuale (o Docker) — vedi [Installazione](INSTALLATION.md) |
-| Elaborazione lenta | Verifica il profilo. `--single-pass` può aiutare sui profili `legacy`/`8gb` con molta VRAM; `16gb`/`24gb` eseguono sempre il multi-pass (tranne in modalità commerciale) |
+| Elaborazione lenta | Verifica il profilo. `--single-pass` può aiutare sui profili `legacy`/`8gb` con molta VRAM; `12gb`/`16gb`/`24gb` eseguono sempre il multi-pass (tranne in modalità commerciale) |
 | Il rilevamento dei volti non usa la GPU | Esegui `python facet.py --doctor` (sezione ONNX Runtime), poi installa `onnxruntime-gpu` al posto di `onnxruntime`, mai accanto — vedi [Installazione](INSTALLATION.md#onnx-runtime-per-il-rilevamento-dei-volti) |
 | exiftool mancante | Opzionale — vedi [Installazione › exiftool](INSTALLATION.md#exiftool) |

@@ -99,14 +99,14 @@ Hover over any photo to see its score breakdown and EXIF data in the gallery's s
 ### Understand
 
 - **Statistics** — dashboards for equipment usage, category breakdown, shooting timeline, and metric correlations
-- **AI critique** — score breakdown showing each metric's contribution; VLM natural-language assessment `[GPU]` `[16gb/24gb]`
+- **AI critique** — score breakdown showing each metric's contribution; VLM natural-language assessment `[GPU]` `[12gb/16gb/24gb]`
 - **Weight tuning** — per-category weight editor with live score preview. A/B photo comparison learns from your choices and suggests optimized weights.
 - **Scoring contexts** — choose *which* category a photo is scored as: reorder category priority, apply a named context (Action/Stage, Portrait Session, Wildlife, …) per album, or pin a category on one photo.
 - **My Taste sort** — sort the gallery by the personal ranker's learned score, with a confidence badge showing learned coverage and held-out accuracy
 - **Learning from labels** — culling decisions, star ratings, favorites, and rejections feed the weight optimizer (`--sync-label-comparisons`, `--mine-insights`)
 - **Snapshots** — save, restore, and compare weight configurations
 - **Histogram** — RGB/luminance histogram with clipping indicators, in the gallery side panel and detail view
-- **AI captions** `[GPU]` `[16gb/24gb]` — text descriptions, editable `[Edition]` and translatable to 5 languages (viewing is open; generation and editing need edition)
+- **AI captions** `[GPU]` `[12gb/16gb/24gb]` — text descriptions, editable `[Edition]` and translatable to 5 languages (viewing is open; generation and editing need edition)
 
 <table><tr>
 <td><img src="docs/screenshots/stats-gear.jpg" alt="Equipment statistics" width="100%"></td>
@@ -162,7 +162,7 @@ Hover over any photo to see its score breakdown and EXIF data in the gallery's s
 
 - **Any machine (CPU)** runs most of Facet: scoring, faces, culling, the gallery, search, albums and metadata export.
 - **Apple Silicon** uses the Metal (`mps`) backend automatically. The `auto` profile follows unified memory: 32 GB reaches `16gb`, 48 GB reaches `24gb`.
-- **An NVIDIA GPU** on the `16gb`/`24gb` profiles unlocks the strongest models: TOPIQ, SigLIP 2, VLM tagging, AI captions and critique, subject saliency.
+- **An NVIDIA GPU** on the `12gb`/`16gb`/`24gb` profiles unlocks the strongest models: TOPIQ, SigLIP 2, VLM tagging, AI captions and critique, subject saliency.
 - **No GPU?** Point VLM tagging, captions and critique at a remote **Ollama** or **OpenAI-compatible** server with `vlm_backend` in `scoring_config.json`.
 - **Editing in the viewer** (ratings, faces, culling) needs the **edition password**. The Scan button needs `viewer.features.show_scan_button: true` and edition access (the **superadmin** role in multi-user mode).
 

@@ -9,12 +9,12 @@ Die Galerie ist eine Web-App aus FastAPI und Angular zum Durchsuchen, Filtern, A
 - [Galerie starten](#galerie-starten) · [Authentifizierung](#authentifizierung) · [Filteroptionen](#filteroptionen) · [Sortierung](#sortierung) · [Sichtungsentscheidungen](#sichtungsentscheidungen) · [Galeriefunktionen](#galeriefunktionen)
 - [Panoramen und Belichtungsreihen](#panoramen-und-belichtungsreihen)
 - [Personenverwaltung](#personenverwaltung) · [Scan auslösen](#scan-auslösen) · [Semantische Suche](#semantische-suche) · [Alben](#alben)
-- [KI-Kritik](#ki-kritik) · [KI-Bildbeschreibung](#ki-bildbeschreibung-gpu-16gb24gb-edition) · [Erinnerungen ("Heute vor Jahren")](#erinnerungen-heute-vor-jahren) · [Zeitleisten-Ansicht](#zeitleisten-ansicht) · [Kartenansicht](#kartenansicht) · [Kapseln](#kapseln)
+- [KI-Kritik](#ki-kritik) · [KI-Bildbeschreibung](#ki-bildbeschreibung-gpu-12gb16gb24gb-edition) · [Erinnerungen ("Heute vor Jahren")](#erinnerungen-heute-vor-jahren) · [Zeitleisten-Ansicht](#zeitleisten-ansicht) · [Kartenansicht](#kartenansicht) · [Kapseln](#kapseln)
 - [Ordner-Ansicht](#ordner-ansicht) · [GPS-Filterdialog](#gps-filterdialog) · [Zusammenführungsvorschläge](#zusammenführungsvorschläge) · [Editor-Export](#editor-export) · [Download](#download) · [Auswahl](#auswahl) · [Müll aufräumen](#müll-aufräumen) · [Paarweiser Vergleichsmodus](#paarweiser-vergleichsmodus)
 - [EXIF-Statistiken](#exif-statistiken) · [Tastenkürzel](#tastenkürzel-galerie) · [Rückgängig](#rückgängig) · [Progressive Web App](#progressive-web-app) · [Mobil](#mobil) · [Bilderrahmen / Kiosk](#bilderrahmen--kiosk) · [Automatischer Upload vom Telefon](#automatischer-upload-vom-telefon)
 - [Konfiguration](#konfiguration-2) · [Performance](#performance) · [API-Endpunkte](#api-endpunkte) · [JPEG-XL-Fotos](#jpeg-xl-fotos) · [Fehlerbehebung](#fehlerbehebung)
 
-> **Funktionsanforderungen** sind inline gekennzeichnet: `[GPU]` · `[16gb/24gb]` (VRAM-Profil) · `[Edition]` (Bearbeitungspasswort) · `[Superadmin]`. Siehe die [Funktionsmatrix](INSTALLATION.md#funktionsanforderungen).
+> **Funktionsanforderungen** sind inline gekennzeichnet: `[GPU]` · `[12gb/16gb/24gb]` (VRAM-Profil) · `[Edition]` (Bearbeitungspasswort) · `[Superadmin]`. Siehe die [Funktionsmatrix](INSTALLATION.md#funktionsanforderungen).
 
 > **KI-Assistenten**: Facet kann seine Werkzeuge MCP-fähigen Assistenten bereitstellen. Mit der passenden Token-Stufe können sie die Bibliothek durchsuchen, ändern und aussortieren. Siehe [KI-Agenten (MCP)](AGENTS.md).
 
@@ -563,7 +563,7 @@ Um vorhandene Fotos ohne Scan neuer Dateien neu zu bewerten, nutzen Sie `POST /a
 Geben Sie eine Anfrage wie „Sonnenuntergang über Bergen“ ein und erhalten Sie passende Fotos. Die Rangfolge mischt die Ähnlichkeit der CLIP/SigLIP-Embeddings (70 %) mit FTS5-BM25-Textabgleich auf Bildunterschriften und Tags (30 %).
 
 - **Voraussetzungen.** Fotos brauchen gespeicherte `clip_embedding`-Daten (beim Bewerten berechnet). Führen Sie `database.py --rebuild-fts` aus, um den Text-Teil für Bildunterschriften/Tags zu aktivieren.
-- **Modell.** Verwendet das Embedding-Modell des aktiven VRAM-Profils (SigLIP 2 für 16gb/24gb, CLIP ViT-L-14 für legacy/8gb) oder dasjenige von `models.clip`/`clip_legacy`, das zu den gespeicherten Embeddings passt (siehe [CONFIGURATION.md](CONFIGURATION.md)).
+- **Modell.** Verwendet das Embedding-Modell des aktiven VRAM-Profils (SigLIP 2 für 12gb/16gb/24gb, CLIP ViT-L-14 für legacy/8gb) oder dasjenige von `models.clip`/`clip_legacy`, das zu den gespeicherten Embeddings passt (siehe [CONFIGURATION.md](CONFIGURATION.md)).
 - **Geschwindigkeit.** Die Installation von sqlite-vec beschleunigt die Suche; sonst hält Facet eine Matrix im Arbeitsspeicher. Die erste Anfrage bei einer großen Bibliothek kann einige Sekunden dauern.
 - **Schwellenwert.** Der Trefferschwellenwert ist standardmäßig `models.clip.search_threshold_percent` (`5%`) bzw. `models.clip_legacy.search_threshold_percent` (15%), getrennt von `tag_threshold_percent`. Der Galerie-Regler reicht von 0–50 %; `search_threshold_default` aus `/api/config` legt seinen Start fest. Selbst `0%` lehnt negative Ähnlichkeit ab. Der SigLIP-Standard von 5 % bevorzugt den Recall — siehe `clip.search_threshold_percent` in [CONFIGURATION.md](CONFIGURATION.md).
 - **Nur Text.** `scope=text` beschränkt die Anfrage auf wörtliche FTS5-Treffer in OCR-/Bildunterschrifttext.
@@ -661,9 +661,9 @@ Ist die Berechnung nicht verfügbar, wird nur die gespeicherte Wertung samt Abhi
 
 Der Dialog unterscheidet außerdem ein Foto, das *noch nicht bewertet* ist, von einem, dessen *gespeicherte Wertung unbrauchbar* ist.
 
-### VLM-Kritik `[GPU]` `[16gb/24gb]`
+### VLM-Kritik `[GPU]` `[12gb/16gb/24gb]`
 
-Nutzt das konfigurierte VLM (Qwen3.5-2B oder Qwen3.5-4B) für eine kontextbezogene Kritik. Erfordert das Profil 16gb oder 24gb, `viewer.features.show_vlm_critique` auf `true` (der Standard) und eine Bearbeitungssitzung zum Erzeugen. Ohne Edition wird nur eine zwischengespeicherte Kritik gezeigt, und `vlm_available` ist `false`. Der Dialog erzeugt über `POST /api/critique/vlm` (nur Edition; gleichzeitige Anfragen für ein Foto teilen sich eine einzige Erzeugung); `GET /api/critique` liest nur den Cache und erzeugt, übersetzt oder schreibt nie.
+Nutzt das konfigurierte VLM (Qwen3.5-2B oder Qwen3.5-4B) für eine kontextbezogene Kritik. Erfordert das Profil 12gb, 16gb oder 24gb, `viewer.features.show_vlm_critique` auf `true` (der Standard) und eine Bearbeitungssitzung zum Erzeugen. Ohne Edition wird nur eine zwischengespeicherte Kritik gezeigt, und `vlm_available` ist `false`. Der Dialog erzeugt über `POST /api/critique/vlm` (nur Edition; gleichzeitige Anfragen für ein Foto teilen sich eine einzige Erzeugung); `GET /api/critique` liest nur den Cache und erzeugt, übersetzt oder schreibt nie.
 
 - Der Prompt (`critique.vlm`) enthält die Wertungsaufschlüsselung, gespeicherte und neu berechnete Wertungen, erkannte Bedingungen und EXIF.
 - Die Antwort lautet **Beobachtung / Bewertung / Vorschläge**. Sie wird pro Foto zwischengespeichert (`photos.vlm_critique`), übersetzt, wenn eine Bearbeitungssitzung sie in der Zielsprache öffnet (dann gespeichert und danach unverändert ausgeliefert), und **Neu erzeugen** berechnet sie neu. Ohne Bearbeitungssitzung sehen Sie den unübersetzten Text, es sei denn, es liegt bereits eine gespeicherte Übersetzung vor.
@@ -671,7 +671,7 @@ Nutzt das konfigurierte VLM (Qwen3.5-2B oder Qwen3.5-4B) für eine kontextbezoge
 
 **Visuelles „Warum diese Bewertung“-Overlay.** Ist `viewer.features.show_saliency_overlay` an (Standard `true`), hat der Kritikdialog **Overlay anzeigen**. Es zeichnet die BiRefNet-Salienzkarte als Heatmap (`GET /api/saliency_overlay`) sowie Gesichtsrahmen und Augenmarker aus gespeicherten Landmarken (`GET /api/photo/face_markers`). Rahmen sind grün bei offenen Augen, bernsteinfarben bei einem Blinzeln. Die Heatmap hat Vorschaubild-Auflösung und ist daher ungefähr. Der Schalter ist bei Profilen ausgeblendet, die keine Salienzmaske erzeugen können.
 
-## KI-Bildbeschreibung `[GPU]` `[16gb/24gb]` `[Edition]`
+## KI-Bildbeschreibung `[GPU]` `[12gb/16gb/24gb]` `[Edition]`
 
 Erhalten Sie für jedes Foto eine Bildunterschrift in natürlicher Sprache. Eine Bearbeitungssitzung erzeugt sie bei der ersten Anfrage; danach liegt sie in der Spalte `caption` im Cache. Bearbeiten Sie Bildunterschriften in der Fotodetailansicht (Bearbeitungsmodus). Eine offene, schreibgeschützte Installation erzeugt nie eine. `POST /api/caption` erzeugt (und übersetzt) sie; `GET /api/caption` liefert nur die gespeicherte Bildunterschrift oder Übersetzung und erzeugt, übersetzt oder schreibt nie.
 
@@ -684,7 +684,7 @@ python facet.py --translate-captions     # Bildunterschriften in die konfigurier
 
 Die Übersetzung nutzt MarianMT auf der CPU (keine GPU nötig). Legen Sie die Sprache mit `translation.target_language` fest (Standard: `"fr"`). Unterstützt: Französisch, Deutsch, Spanisch, Italienisch.
 
-Gesteuert über `viewer.features.show_captions` (Standard: `true`). Ohne das Profil 16gb/24gb oder ein entferntes `vlm_backend` ist die Schaltfläche „Bildunterschrift erzeugen“ ausgeblendet, und Kritiken bleiben regelbasiert.
+Gesteuert über `viewer.features.show_captions` (Standard: `true`). Ohne das Profil 12gb/16gb/24gb oder ein entferntes `vlm_backend` ist die Schaltfläche „Bildunterschrift erzeugen“ ausgeblendet, und Kritiken bleiben regelbasiert.
 
 ## Erinnerungen ("Heute vor Jahren")
 
@@ -1003,7 +1003,7 @@ Gesteuert über `viewer.features.show_scenes` (Standard: `true`). Siehe [Konfigu
 Facet kennzeichnet jedes Foto mit der Aktivität, die es zeigt. Das **allgemeine** Standardvokabular: Feier, Essen, Strand, Wasseraktivität, Berge, Natur & Wildtiere, Stadtansicht, Reisesehenswürdigkeit, Konzert, Sport, Gruppentreffen, Porträt, Kinder, Haustiere, Nachtleben, Zeremonie, Landschaft, Schnee & Winter, Wohnen drinnen, Straße & Fahrzeug oder `other`. Ein `wedding`-Vokabular steht als optionales Genre bereit.
 
 - Es läuft lokal, ohne zusätzlichen Modelldurchlauf: Die KI-Bildunterschrift jedes Fotos wird mit den Text-Prompts jedes Moments abgeglichen (das Bild-Embedding dient, wenn es keine Bildunterschrift gibt). Eine zeitliche Glättung behebt vereinzelte Fehllesungen.
-- Ein optionaler VLM-Tiebreaker (16gb/24gb) prüft Frames mit niedriger Konfidenz erneut.
+- Ein optionaler VLM-Tiebreaker (12gb/16gb/24gb) prüft Frames mit niedriger Konfidenz erneut.
 - Er **läuft automatisch am Ende jedes Scans**. Der erste Durchlauf über eine bestehende Bibliothek kodiert jede Bildunterschrift (GPU empfohlen). Alles neu kennzeichnen mit `python facet.py --recompute-moments`.
 - Momente erscheinen als Szenentitel und als Galeriefilter (`GET /api/photos?narrative_moment=beach`, Optionen aus `GET /api/filter_options/narrative_moments`).
 - Das Vokabular ist konfigurierbar — siehe [Konfiguration — Narrative Momente](CONFIGURATION.md#narrative-moments).
@@ -1432,9 +1432,9 @@ Facet scannt JPEG XL (`.jxl`) mit der Kernabhängigkeit `imagecodecs`, die in St
 | Scan-Schaltfläche fehlt | Erfordert `viewer.features.show_scan_button: true` plus Scan-Zugriff — siehe [Scan auslösen](#scan-auslösen) |
 | Suche liefert keine Ergebnisse | Sicherstellen, dass Fotos `clip_embedding`-Daten haben (zuerst Bewertung ausführen) |
 | Suche meldet, die Apple-Silicon-Beschleunigung sei ausgelastet | Erneut versuchen, sobald die aktuelle Modellaufgabe endet |
-| VLM-Kritik nicht verfügbar | Erfordert das Profil 16gb/24gb, `viewer.features.show_vlm_critique: true` und eine Bearbeitungssitzung |
+| VLM-Kritik nicht verfügbar | Erfordert das Profil 12gb/16gb/24gb, `viewer.features.show_vlm_critique: true` und eine Bearbeitungssitzung |
 | Karte zeigt keine Fotos | `--extract-gps` ausführen; prüfen, ob Fotos EXIF-GPS-Daten haben |
-| Bildunterschriften werden nicht erzeugt | Erfordert das VRAM-Profil 16gb/24gb für VLM-Bildbeschreibung |
+| Bildunterschriften werden nicht erzeugt | Erfordert das VRAM-Profil 12gb/16gb/24gb für VLM-Bildbeschreibung |
 | Zeitleiste leer | Sicherstellen, dass Fotos `date_taken`-Werte haben |
 | Port 5000 belegt | `python viewer.py --port 5001` ausführen (oder `PORT=5001` setzen). Unter macOS belegt der AirPlay-Empfänger 5000: Wählen Sie einen anderen Port oder schalten Sie ihn unter Systemeinstellungen → Allgemein → AirDrop & Handoff aus. |
 

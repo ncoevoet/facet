@@ -1317,11 +1317,11 @@
       "metric_help": {
         "score_range": "Pontuação global: o agregado ponderado de todas as métricas para a categoria da foto (0–10).",
         "aesthetic_range": "Quão agradável a foto parece no conjunto, pontuada pelo TOPIQ (CLIP+MLP nos perfis legacy e 8gb), 0–10.",
-        "quality_score_range": "Qualidade técnica da imagem, pontuada pelo TOPIQ NR nos perfis 16gb e 24gb (0–10).",
+        "quality_score_range": "Qualidade técnica da imagem, pontuada pelo TOPIQ NR nos perfis 12gb, 16gb e 24gb (0–10).",
         "aesthetic_iaa_range": "Mérito artístico, pontuado pelo TOPIQ IAA treinado no AVA (0–10); distinto da qualidade técnica. Ideal para arte e fotos criativas.",
         "face_quality_iqa_range": "Qualidade da zona do rosto, pontuada pelo TOPIQ NR-Face (0–10). Uma foto sem rosto não tem valor.",
         "liqe_range": "Qualidade geral da imagem, pontuada pelo LIQE (0–10), que também diagnostica defeitos como desfoque de movimento, sobre-exposição e ruído.",
-        "qrealign_range": "Pontuação estética do Q-ReAlign (0–10). Ativo por predefinição nos perfis 8gb, 16gb e 24gb.",
+        "qrealign_range": "Pontuação estética do Q-ReAlign (0–10). Ativo por predefinição nos perfis 8gb, 12gb, 16gb e 24gb.",
         "aesthetic_v25_range": "Apelo estético, pontuado pelo Aesthetic Predictor v2.5 (0–10). Desativado por predefinição e obsoleto em favor do Q-ReAlign.",
         "deqa_range": "Qualidade da imagem, pontuada pelo DeQA-Score (0–10). Desativado por predefinição.",
         "face_count_range": "Número de rostos que o InsightFace detetou na foto.",
@@ -2500,7 +2500,7 @@
     "title": "Legenda",
     "generate": "Gerar Legenda",
     "generating": "Gerando legenda...",
-    "unavailable": "A geração de legendas requer um modelo VLM (16GB+ de VRAM)"
+    "unavailable": "A geração de legendas requer um modelo VLM (perfil 12gb ou superior, ou um backend VLM remoto)"
   },
   "timeline": {
     "help": "Navegue pela sua biblioteca em ordem cronológica. Vá dos anos aos meses e aos dias; escolha um período para ver as fotos tiradas então.",

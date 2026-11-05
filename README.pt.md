@@ -99,14 +99,14 @@ Passe o cursor sobre qualquer foto para ver o detalhamento da pontuação e os d
 ### Entender
 
 - **Estatísticas** — painéis de uso de equipamentos, detalhamento por categoria, linha do tempo de capturas e correlações de métricas
-- **Crítica por IA** — detalhamento da pontuação mostrando a contribuição de cada métrica; avaliação em linguagem natural por VLM `[GPU]` `[16gb/24gb]`
+- **Crítica por IA** — detalhamento da pontuação mostrando a contribuição de cada métrica; avaliação em linguagem natural por VLM `[GPU]` `[12gb/16gb/24gb]`
 - **Ajuste de pesos** — editor de pesos por categoria com pré-visualização da pontuação em tempo real. A comparação A/B de fotos aprende com suas escolhas e sugere pesos otimizados.
 - **Contextos de pontuação** — escolha *qual* categoria pontua uma foto: reordene a prioridade das categorias, aplique um contexto nomeado (Ação/Palco, Sessão de retrato, Vida selvagem, …) por álbum, ou fixe uma categoria em uma foto.
 - **Ordenação Meu Gosto** — ordene a galeria pela pontuação aprendida do classificador pessoal, com um selo de confiança que mostra a cobertura aprendida e a precisão em dados separados
 - **Aprendizado a partir de rótulos** — decisões de seleção, classificações por estrelas, favoritos e rejeições alimentam o otimizador de pesos (`--sync-label-comparisons`, `--mine-insights`)
 - **Snapshots** — salve, restaure e compare configurações de pesos
 - **Histograma** — histograma RGB/luminância com indicadores de clipping, no painel lateral da galeria e na visualização de detalhes
-- **Legendas por IA** `[GPU]` `[16gb/24gb]` — descrições em texto, editáveis `[Edition]` e traduzíveis para 5 idiomas (a visualização é aberta; a geração e a edição exigem edição)
+- **Legendas por IA** `[GPU]` `[12gb/16gb/24gb]` — descrições em texto, editáveis `[Edition]` e traduzíveis para 5 idiomas (a visualização é aberta; a geração e a edição exigem edição)
 
 <table><tr>
 <td><img src="docs/screenshots/stats-gear.jpg" alt="Estatísticas de equipamento" width="100%"></td>
@@ -162,7 +162,7 @@ Passe o cursor sobre qualquer foto para ver o detalhamento da pontuação e os d
 
 - **Qualquer máquina (CPU)** roda a maior parte do Facet: pontuação, rostos, seleção, a galeria, busca, álbuns e exportação de metadados.
 - **Apple Silicon** usa automaticamente o backend Metal (`mps`). O perfil `auto` acompanha a memória unificada: 32 GB chegam ao `16gb`, 48 GB chegam ao `24gb`.
-- **Uma GPU NVIDIA** nos perfis `16gb`/`24gb` libera os modelos mais robustos: TOPIQ, SigLIP 2, marcação por VLM, legendas e crítica por IA, saliência do sujeito.
+- **Uma GPU NVIDIA** nos perfis `12gb`/`16gb`/`24gb` libera os modelos mais robustos: TOPIQ, SigLIP 2, marcação por VLM, legendas e crítica por IA, saliência do sujeito.
 - **Sem GPU?** Aponte a marcação, as legendas e a crítica por VLM para um servidor **Ollama** ou **compatível com OpenAI** remoto com `vlm_backend` no `scoring_config.json`.
 - **Editar no visualizador** (classificações, rostos, seleção) exige a **senha de edição**. O botão Escanear exige `viewer.features.show_scan_button: true` e acesso de edição (a função **superadmin** no modo multiusuário).
 

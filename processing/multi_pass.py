@@ -2660,7 +2660,7 @@ def list_available_models():
     logger.info("-" * 70)
     logger.info("  %-15s %-8s %-8s Embedding similarity (reuses CLIP/SigLIP, no extra model)", "clip", "~0GB", "--")
     logger.info("  %-15s %-8s %-8s Vision-language model (structured scene tags)", "qwen3-vl-2b", "~4GB", "--")
-    logger.info("  %-15s %-8s %-8s Vision-language model (Qwen3.5, default 16gb)", "qwen3.5-2b", "~6GB", "--")
+    logger.info("  %-15s %-8s %-8s Vision-language model (Qwen3.5, default 12gb/16gb)", "qwen3.5-2b", "~6GB", "--")
     logger.info("  %-15s %-8s %-8s Vision-language model (Qwen3.5, default 24gb)", "qwen3.5-4b", "~10GB", "--")
     logger.info("  %-15s %-8s %-8s Vision-language model (most capable)", "qwen2.5-vl-7b", "~16GB", "--")
 

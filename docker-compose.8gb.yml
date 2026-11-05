@@ -1,4 +1,4 @@
-# "8gb" profile override (GPU, 6-14 GB VRAM: CLIP ViT-L-14 + CLIP-MLP aesthetic +
+# "8gb" profile override (GPU, 6-11.5 GB VRAM: CLIP ViT-L-14 + CLIP-MLP aesthetic +
 # CLIP tagging + TOPIQ/LIQE + SAMP-Net + InsightFace + saliency).
 # Requires the NVIDIA Container Toolkit. Compose with the base file:
 #   docker compose -f docker-compose.yml -f docker-compose.8gb.yml up -d

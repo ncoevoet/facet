@@ -29,7 +29,8 @@ Facet 在你自己的机器上运行。挑选与你的情况相符的章节，�
 | 你的硬件 | 配置档 | 你会得到什么 |
 |---------------|---------|--------------|
 | 没有显卡 | `legacy` | 所有功能都可用，只是慢一些。 |
-| NVIDIA 显卡，6–14 GB | `8gb` | 与 `legacy` 相同的模型，只是跑在显卡上。 |
+| NVIDIA 显卡，6–11.5 GB | `8gb` | 与 `legacy` 相同的模型，只是跑在显卡上。 |
+| NVIDIA 显卡，11.5–14 GB | `12gb` | 与 `16gb` 相同的模型，分更多遍次运行。 |
 | NVIDIA 显卡，14–20 GB | `16gb` | 最强的照片评分，外加 AI 标签和照片描述。 |
 | NVIDIA 显卡，20 GB 或更多 | `24gb` | 最大的模型，外加对构图的文字解读。 |
 | Apple Silicon Mac（M1–M4） | 自动为你选择 | 使用 Mac 的图形核心；按内存容量选定配置档。 |
@@ -103,7 +104,7 @@ docker compose -f docker-compose.yml -f docker-compose.24gb.yml up -d
 
 对于 Maxwell、Pascal（GTX 900/10 系列）或 Volta（例如 Titan V）显卡，请在执行
 `docker compose up -d` 之前，修改你所用 compose 文件（`docker-compose.8gb.yml`、
-`.16gb.yml`、`.24gb.yml` 或 `.gpu.yml`）中的 `image:` 行：
+`.12gb.yml`、`.16gb.yml`、`.24gb.yml` 或 `.gpu.yml`）中的 `image:` 行：
 
 - 由 `ghcr.io/ncoevoet/facet:latest-cuda`
 - 改为 `ghcr.io/ncoevoet/facet:latest-cuda-legacy`（`sm_50`-`sm_90`，Maxwell 到 Hopper）
@@ -233,7 +234,7 @@ Docker 同样可以在 Windows 上使用；如需使用 NVIDIA 显卡，请按 [
 ## 首次运行会遇到什么
 
 - **一次下载。** 首次扫描会拉取你所选配置档的模型：`legacy` 约 4.7 GB、
-  `8gb` 约 6.9 GB、`16gb` 约 14.6 GB、`24gb` 约 19.3 GB
+  `8gb` 约 6.9 GB、`12gb`/`16gb` 约 14.6 GB、`24gb` 约 19.3 GB
   （[下载体积](#下载体积)）。这只发生一次。
 - **扫描无需设置。** Facet 会在首次扫描时创建数据库。
 - **设置密码之前为只读。** 若要编辑（评分、选片、相册、人物），请在 `scoring_config.json` 中设置
@@ -286,7 +287,7 @@ docker compose exec facet python facet.py --doctor   # 使用 Docker 时
 |-----|---------|---------|
 | `PHOTOS_DIR` | `./photos` | 以读写方式挂载到 `/data/photos` 的宿主机文件夹（这样才能写入 XMP 附属文件） |
 | `PORT` | `5000` | 照片库使用的宿主机端口 |
-| `FACET_VRAM_PROFILE` | `auto` | `auto`、`legacy`、`8gb`、`16gb`、`24gb`；覆盖 `models.vram_profile` |
+| `FACET_VRAM_PROFILE` | `auto` | `auto`、`legacy`、`8gb`、`12gb`、`16gb`、`24gb`；覆盖 `models.vram_profile` |
 | `DB_PATH` | `/app/data/photo_scores_pro.db` | 容器内的数据库路径，保存在 `./data` 绑定挂载上 |
 | `FACET_RETRAIN_THRESHOLD` / `FACET_RETRAIN_IDLE_S` | 配置中的 `auto_retrain` | 个人排序模型的重训练触发条件，面向高频评分的用户 |
 
@@ -354,7 +355,7 @@ chmod 664 facet-config/scoring_config.json
 
 ## 自行选择配置档
 
-- `docker-compose.legacy.yml`、`docker-compose.8gb.yml`、`docker-compose.16gb.yml`、
+- `docker-compose.legacy.yml`、`docker-compose.8gb.yml`、`docker-compose.12gb.yml`、`docker-compose.16gb.yml`、
   `docker-compose.24gb.yml` 各自设置 `FACET_VRAM_PROFILE`；GPU 的那几个还会预留
   NVIDIA 设备。
 - `docker-compose.gpu.yml` 预留 GPU，并把配置档交给配置文件自身的
@@ -365,7 +366,7 @@ chmod 664 facet-config/scoring_config.json
 | 镜像 | 内容 | 解包后 |
 |-------|----------|----------|
 | `ghcr.io/ncoevoet/facet:latest` | 精简的 CPU 构建 | 3.34 GB |
-| `ghcr.io/ncoevoet/facet:latest-cuda` | CUDA 12.8、RAPIDS cuML、PyTorch `sm_75`-`sm_120`（Turing–Blackwell，含 RTX 50 系列）；`8gb`/`16gb`/`24gb` 的默认镜像 | 13.1 GB |
+| `ghcr.io/ncoevoet/facet:latest-cuda` | CUDA 12.8、RAPIDS cuML、PyTorch `sm_75`-`sm_120`（Turing–Blackwell，含 RTX 50 系列）；`8gb`/`12gb`/`16gb`/`24gb` 的默认镜像 | 13.1 GB |
 | `ghcr.io/ncoevoet/facet:latest-cuda-legacy` | CUDA 12.6、PyTorch `sm_50`-`sm_90`（Maxwell、Pascal、Volta–Hopper）；参见[较旧的 NVIDIA 显卡](#较旧的-nvidia-显卡-maxwell-pascal-volta) | 13.8 GB |
 
 - 两个 CUDA 镜像都内置 `onnxruntime-gpu`（1.26.0，CUDA 12）来取代 `onnxruntime`，因此
@@ -588,7 +589,7 @@ pip install --no-deps "opencv-python-headless==$CV_VER"
 ```
 
 安装了 cuML 后，聚类会自动使用 GPU（`scoring_config.json` 中的
-`face_clustering.use_gpu`）。CUDA Docker 镜像已内置它，因此 `8gb`/`16gb`/`24gb` 容器
+`face_clustering.use_gpu`）。CUDA Docker 镜像已内置它，因此 `8gb`/`12gb`/`16gb`/`24gb` 容器
 在 GPU 上聚类。`legacy` 始终在处理器上聚类。
 
 ## Apple Silicon (Metal/MPS)
@@ -683,27 +684,27 @@ Mac 对应的配置档键名：32-47GB 用 `"16gb"`，48GB 及以上用 `"24gb"`
 |-------|------|----------|
 | CLIP ViT-L-14 laion2b（嵌入向量 + CLIP 标签 + CLIP-MLP 美学评分） | 1.711 GB | `legacy`/`8gb` |
 | 美学 MLP 头（`sac+logos+ava1-l14-linearMSE.pth`） | 3.7 MB | 仅 `legacy`/`8gb` |
-| SigLIP 2 NaFlex SO400M（嵌入向量） | 4.581 GB | `16gb`/`24gb` |
-| Qwen3.5-2B（VLM 标签） | 4.571 GB | `16gb` |
+| SigLIP 2 NaFlex SO400M（嵌入向量） | 4.581 GB | `12gb`/`16gb`/`24gb` |
+| Qwen3.5-2B（VLM 标签） | 4.571 GB | `12gb`/`16gb` |
 | Qwen3.5-4B（VLM 标签） | 9.343 GB | `24gb` |
 | Qwen2-VL-2B（构图） | 4.430 GB | 默认不使用；见注 1 |
 | InsightFace buffalo_l（人脸） | 下载 289 MB / 磁盘 630 MB（zip 包会与解压出的 `.onnx` 文件一同保留） | 全部 |
 | SAMP-Net 权重（构图） | 183 MB | 全部 |
 | U2-Net-P（SAMP-Net 的显著性子模型） | 4.7 MB | 与 SAMP-Net 相同 |
 | BiRefNet_dynamic（主体显著性） | 445 MB | 全部 |
-| TOPIQ NR（美学模型） | 181 MB | `16gb`/`24gb` |
+| TOPIQ NR（美学模型） | 181 MB | `12gb`/`16gb`/`24gb` |
 | TOPIQ IAA（补充美学评分） | 873 MB | 全部 |
 | TOPIQ NR-Face（补充人脸画质） | 376 MB | 全部 |
 | LIQE（补充画质/失真诊断） | 708 MB | 全部 |
 | timm resnet50.a1_in1k（PyIQA 共用骨干网络） | 102 MB | 全部 |
-| Q-ReAlign-Mini-0.8B（`iqa_extended.qrealign`） | 2.235 GB | `8gb`/`16gb`/`24gb`，**默认开启**（`"auto"`） |
+| Q-ReAlign-Mini-0.8B（`iqa_extended.qrealign`） | 2.235 GB | `8gb`/`12gb`/`16gb`/`24gb`，**默认开启**（`"auto"`） |
 
 1. 只有当你设置 `composition_model: "qwen2-vl-2b"` **并且**
    `processing.mode: "single-pass"` 时才会加载 Qwen2-VL-2B，它会取代 SAMP-Net/U2-Net-P。在非商业模式下，
-   这只在 `legacy`/`8gb` 上可行：在 `16gb`/`24gb` 上单阶段会回退到多阶段，
+   这只在 `legacy`/`8gb` 上可行：在 `12gb`/`16gb`/`24gb` 上单阶段会回退到多阶段，
    而多阶段没有 Qwen2-VL 阶段。
 
-各配置档的下载总量：`legacy` 4.69 GB · `8gb` 6.93 GB · `16gb` 14.55 GB ·
+各配置档的下载总量：`legacy` 4.69 GB · `8gb` 6.93 GB · `12gb`/`16gb` 14.55 GB ·
 `24gb` 19.32 GB · `24gb` 搭配 Qwen2-VL 构图为 23.56 GB（仅限商业模式，见注 1）。
 
 Docker 镜像本身（尚未下载任何模型时）解包后：`latest` 为 3.34 GB、
@@ -777,20 +778,20 @@ SAMP-Net 权重来自
 Facet 的大部分功能在哪里都能跑（CPU、任意配置档）。少数功能需要 GPU、更高的**显存
 配置档**、某个可选软件包，或查看器的**编辑密码** / **超级管理员**
 角色。文档中使用的标记：
-`[GPU]` · `[16gb/24gb]`（显存配置档）· `[Edition]` · `[Superadmin]` · `[Optional: pkg]`。
+`[GPU]` · `[12gb/16gb/24gb]`（显存配置档）· `[Edition]` · `[Superadmin]` · `[Optional: pkg]`。
 
 | 功能 | GPU | 配置档 | 权限 | 可选软件包 |
 |---------|:---:|---------|:----:|------------------|
 | 评分/扫描（基础） | 可选 | 任意（`legacy` = CPU） | — | — |
-| TOPIQ 美学评分 | 是 | `16gb`/`24gb` | — | — |
+| TOPIQ 美学评分 | 是 | `12gb`/`16gb`/`24gb` | — | — |
 | 补充 IQA（TOPIQ IAA、NR-Face、LIQE） | 可选 | 任意（`legacy` = CPU） | — | — |
-| SigLIP 2 嵌入向量 | 是 | `16gb`/`24gb` | — | — |
-| VLM 标签（Qwen3.5） | 是 | `16gb`/`24gb` | — | — |
+| SigLIP 2 嵌入向量 | 是 | `12gb`/`16gb`/`24gb` | — | — |
+| VLM 标签（Qwen3.5） | 是 | `12gb`/`16gb`/`24gb` | — | — |
 | 构图模式（SAMP-Net） | 可选 | 任意（`legacy` = CPU） | — | — |
 | 主体显著性（BiRefNet） | 可选 | 任意（`legacy` = CPU） | — | — |
-| AI 照片描述（生成/查看） | 是 | `16gb`/`24gb` | 编辑模式 (生成) | — |
-| AI 照片描述（编辑） | 是 | `16gb`/`24gb` | 编辑模式 | — |
-| VLM 点评 | 是 | `16gb`/`24gb` | 编辑模式 (生成) | — |
+| AI 照片描述（生成/查看） | 是 | `12gb`/`16gb`/`24gb` | 编辑模式 (生成) | — |
+| AI 照片描述（编辑） | 是 | `12gb`/`16gb`/`24gb` | 编辑模式 | — |
+| VLM 点评 | 是 | `12gb`/`16gb`/`24gb` | 编辑模式 (生成) | — |
 | 人脸检测/提取（InsightFace） | 推荐（CPU 也行，但慢） | 任意 | — | — |
 | 人脸聚类（HDBSCAN） | 否（CPU） | 任意 | — | `cuml`/`cupy`（可选的 GPU 加速） |
 | 语义搜索 | 否 | 任意 | — | `sqlite-vec`（可回退到 NumPy） |
