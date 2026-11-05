@@ -1031,7 +1031,7 @@ describe('manual stack browsing through rendered viewer, Router and HTTP', () =>
     route.runGuardsAndResolvers = 'always';
     document.querySelector<HTMLButtonElement>('app-stack-dialog button[data-stack-focus="/c.jpg"]')!.click();
     await render();
-    document.querySelector<HTMLButtonElement>('app-stack-dialog button[aria-label="stacks.open_member /c.jpg"]')!.click();
+    document.querySelector<HTMLButtonElement>('app-stack-dialog button[aria-label="stacks.open_member c.jpg"]')!.click();
     http.expectOne(request => request.url === '/api/photo').flush(makePhoto({ path: paths[2] }));
     await guardEntered;
     store.pinnedPaths.set([paths[1]]);
