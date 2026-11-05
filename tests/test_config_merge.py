@@ -26,7 +26,6 @@ from config_resolve import (
 )
 
 
-
 class TestDeepMerge:
     """Dicts merge by key; everything else, lists included, replaces."""
 
@@ -279,11 +278,8 @@ class TestPathIsNamed:
         assert path_is_named(None) is False
 
     def test_the_install_root_default_is_not_named(self, monkeypatch):
-        # Through the module attribute: the autouse fixture re-points
-        # default_config_path, and this test is about the fallback agreeing
-        # with itself, not about whichever path the importing name froze.
         monkeypatch.delenv("FACET_CONFIG", raising=False)
-        assert path_is_named(config_resolve.default_config_path()) is False
+        assert path_is_named(default_config_path()) is False
 
     def test_any_other_path_is_named(self, monkeypatch, tmp_path):
         monkeypatch.delenv("FACET_CONFIG", raising=False)

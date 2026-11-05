@@ -93,7 +93,6 @@ def wait_until(predicate, timeout=5.0, interval=0.05, message="condition not met
     return value
 
 
-
 def pytest_collection_modifyitems(config, items):
     """Keep only this CI slice's files when ``FACET_TEST_SHARD`` is set."""
     value = os.environ.get(SHARD_ENV)

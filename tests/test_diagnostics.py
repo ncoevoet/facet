@@ -65,7 +65,6 @@ def _configure_diagnostics_logger():
     logger.removeHandler(handler)
 
 
-
 class TestOutputHelpers:
     """Test the formatted output helpers."""
 
