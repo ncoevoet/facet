@@ -26,6 +26,7 @@ from config_resolve import (
 )
 
 
+
 class TestDeepMerge:
     """Dicts merge by key; everything else, lists included, replaces."""
 
@@ -157,13 +158,20 @@ class TestDeltaForWrite:
         delta = delta_for_write(merged, defaults)
         assert deep_merge(defaults, delta) == deep_merge(defaults, merged)
 
-    def test_the_shipped_config_needs_no_override_at_all(self):
+    def test_the_shipped_config_needs_no_override_at_all(self, tmp_path, monkeypatch):
         """The shipped state is the defaults, so the delta is empty.
 
         This is the drift guard. The two files were independently hand-edited
         and diverged by fourteen key paths; a non-empty delta here means they
         have started to diverge again.
+
+        load_resolved() is pointed at an absent operator config: on a checkout
+        that actually runs Facet the repo-root scoring_config.json exists, and
+        layering its real overrides over the shipped defaults would defeat the
+        drift guard this test exists to be.
         """
+        operator = tmp_path / "operator-config" / "scoring_config.json"
+        monkeypatch.setattr(config_resolve, "default_config_path", lambda: str(operator))
         assert delta_for_write(load_resolved()) == {}
 
     def test_it_keeps_a_key_the_defaults_do_not_have(self):
@@ -216,11 +224,18 @@ class TestLoadResolved:
         assert len(resolved["categories"]) == len(load_defaults()["categories"])
 
     def test_namedness_falls_back_to_the_environment_when_not_given(self, tmp_path, monkeypatch):
-        """``named=None`` is what every caller without an explicit --config uses."""
+        """``named=None`` is what every caller without an explicit --config uses.
+
+        default_config_path is re-pointed at an absent file for the first leg:
+        the unnamed-absent fallback is what it exercises, and on a
+        Facet-running checkout the real default path holds the operator's
+        live overrides."""
         absent = str(tmp_path / "nope.json")
+        operator = tmp_path / "operator-config" / "scoring_config.json"
+        monkeypatch.setattr(config_resolve, "default_config_path", lambda: str(operator))
 
         monkeypatch.delenv("FACET_CONFIG", raising=False)
-        assert load_resolved(default_config_path()) == load_defaults()
+        assert load_resolved(config_resolve.default_config_path()) == load_defaults()
 
         monkeypatch.setenv("FACET_CONFIG", absent)
         with pytest.raises(FileNotFoundError):
@@ -264,8 +279,11 @@ class TestPathIsNamed:
         assert path_is_named(None) is False
 
     def test_the_install_root_default_is_not_named(self, monkeypatch):
+        # Through the module attribute: the autouse fixture re-points
+        # default_config_path, and this test is about the fallback agreeing
+        # with itself, not about whichever path the importing name froze.
         monkeypatch.delenv("FACET_CONFIG", raising=False)
-        assert path_is_named(default_config_path()) is False
+        assert path_is_named(config_resolve.default_config_path()) is False
 
     def test_any_other_path_is_named(self, monkeypatch, tmp_path):
         monkeypatch.delenv("FACET_CONFIG", raising=False)

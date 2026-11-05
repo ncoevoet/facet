@@ -100,13 +100,9 @@ jobs:
           sudo apt-get install --yes libimage-exiftool-perl
           exiftool -ver
       - name: Install test dependencies
-        # This line is the only dependency source for the job (it does not read
-        # the lock files). jsonschema and pytest-timeout are the two exceptions
-        # that are pinned, at their lock-file versions: without jsonschema the
-        # schema tests in tests/test_config_schema.py skip silently, and without
-        # pytest-timeout the `timeout` marker is an inert unknown mark. The
-        # versions are the ones verified against the suite.
-        run: pip install pytest pytest-asyncio pytest-cov fastapi[standard] httpx pyjwt mcp==2.3.0 websockets pillow pillow-heif numpy scipy scikit-learn opencv-python-headless tqdm aiosqlite sqlite-vec imagehash psutil watchdog send2trash tifffile imagecodecs lupa jsonschema==4.26.0 pytest-timeout==2.4.0 pytest-xdist==3.8.0
+        # One shared list (requirements.ci.txt): the pins and the policy live
+        # there, so the two jobs cannot drift apart.
+        run: pip install -r requirements.ci.txt
       - name: Run tests
         env:
           SCOPE: ${{ needs.changes.outputs.scope }}
@@ -217,17 +213,21 @@ jobs:
           python-version: "3.12"
           cache: "pip"
       - name: Install ExifTool for real metadata round trips
+        # Pinned: the floor check below only refuses the 13.23-13.27 corruption
+        # window, so an unpinned install could ship a future defective 13.x and
+        # pass. 13.55 is the version the metadata suites are verified against;
+        # bump the pin deliberately alongside them.
         run: |
-          choco install exiftool --yes --no-progress
+          # choco matches package versions exactly: the feed lists 13.55.0, not 13.55.
+          choco install exiftool --yes --no-progress --version 13.55.0
           exiftool -ver
       - name: ExifTool is new enough
         # 13.23 to 13.27 corrupt darktable XMP sidecars and Facet refuses to write with them.
         shell: bash
         run: python -c "import subprocess,sys; v=tuple(map(int,subprocess.check_output(['exiftool','-ver'],text=True).strip().split('.')[:2])); sys.exit(0 if v>=(13,28) else 1)"
       - name: Install test dependencies
-        # Same list as python-tests-shard, plus pytest-xdist: the suite imports tifffile,
-        # imagecodecs and lupa, and jsonschema keeps tests/test_config_schema.py from skipping.
-        run: pip install pytest pytest-asyncio pytest-cov fastapi[standard] httpx pyjwt mcp==2.3.0 websockets pillow pillow-heif numpy scipy scikit-learn opencv-python-headless tqdm aiosqlite sqlite-vec imagehash psutil watchdog send2trash tifffile imagecodecs lupa jsonschema==4.26.0 pytest-timeout==2.4.0 pytest-xdist==3.8.0
+        # Same shared list as python-tests-shard (requirements.ci.txt).
+        run: pip install -r requirements.ci.txt
       - name: Show the SQLite version under test
         run: python -c "import sqlite3; print(sqlite3.sqlite_version)"
       - name: Show the text encoding under test
@@ -326,7 +326,12 @@ jobs:
       - uses: actions/setup-python@v7
         with:
           python-version: "3.12"
-      - run: pip install ruff mypy
+          cache: "pip"
+      # Pinned: ruff's rule behaviour and mypy's error count move between
+      # releases, and the ratchet below compares against a committed count —
+      # an unpinned bump can break the job overnight, unrelated to any PR.
+      # Bump the two pins deliberately together with mypy-baseline.txt.
+      - run: pip install ruff==0.16.5 mypy==2.4.1
       - run: ruff check . --select E,F,W --ignore E501
       - name: Type check (ratchet against mypy-baseline.txt)
         # Not advisory: fails when the error count exceeds the committed
