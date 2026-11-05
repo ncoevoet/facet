@@ -480,8 +480,13 @@ describe('stack representative repairs through rendered gallery and HTTP', () =>
     progressRequests().forEach(req => req.flush({ ...counts, total: 4 }));
     await loading; flushSideData(); fixture.detectChanges();
     const root = fixture.nativeElement as HTMLElement;
-    const button = root.querySelector<HTMLButtonElement>('[data-collection-query] [data-stack-collapse]');
+    document.body.appendChild(root);
+    const displayTrigger = root.querySelector<HTMLButtonElement>('[data-collection-options] button')!;
+    displayTrigger.focus(); displayTrigger.click(); fixture.detectChanges();
+    const overlay = TestBed.inject(OverlayContainer).getContainerElement();
+    const button = overlay.querySelector<HTMLButtonElement>('[data-stack-collapse]');
     expect(button).not.toBeNull();
+    expect(button!.getAttribute('aria-label')).toContain('stacks.expand_all');
     expect(fixture.componentInstance.effectiveGalleryMode()).toBe(mode);
     expect((fixture.nativeElement as HTMLElement).querySelectorAll('app-photo-card')).toHaveLength(2);
     button!.click();
@@ -494,6 +499,7 @@ describe('stack representative repairs through rendered gallery and HTTP', () =>
     await fixture.whenStable(); flushSideData(); fixture.detectChanges();
     expect(store.total()).toBe(4); expect(store.photoTotal()).toBe(4);
     expect(button!.hasAttribute('aria-pressed')).toBe(false);
+    expect(button!.getAttribute('aria-label')).toContain('stacks.collapse');
     const paging = store.nextPage();
     const next = http.expectOne(req => req.url === '/api/photos');
     expect(next.request.params.get('collapse_stacks')).toBe('0');
@@ -513,11 +519,9 @@ describe('stack representative repairs through rendered gallery and HTTP', () =>
     expect(store.photos().map(photo => photo.path)).toEqual(['/a.jpg', '/d.jpg']);
     expect((fixture.nativeElement as HTMLElement).querySelectorAll('app-photo-card')).toHaveLength(2);
     expect(button!.hasAttribute('aria-pressed')).toBe(false);
+    expect(button!.getAttribute('aria-label')).toContain('stacks.expand_all');
     // The collection-owned slideshow remains reachable alongside stack expansion.
-    document.body.appendChild(root);
-    const displayTrigger = root.querySelector<HTMLButtonElement>('[data-collection-options] button')!;
-    displayTrigger.focus(); displayTrigger.click(); fixture.detectChanges();
-    const slideshow = TestBed.inject(OverlayContainer).getContainerElement().querySelector<HTMLButtonElement>('button[aria-label^="slideshow.start"]');
+    const slideshow = overlay.querySelector<HTMLButtonElement>('button[aria-label^="slideshow.start"]');
     expect(slideshow).not.toBeNull(); slideshow!.focus(); slideshow!.click();
     fixture.detectChanges(); TestBed.tick();
     expect(store.slideshowActive()).toBe(true);
