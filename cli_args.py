@@ -23,6 +23,13 @@ def validate_face_labels(parser: argparse.ArgumentParser, args: argparse.Namespa
         parser.error('--face-labels requires --evaluate-models faces-detect')
 
 
+def validate_evaluate_models_positionals(parser: argparse.ArgumentParser, args: argparse.Namespace) -> None:
+    """``--evaluate-models`` takes no photo paths; a stray one means ``--candidates a b`` was split."""
+    if args.evaluate_models and args.photo_paths:
+        parser.error(f"unexpected extra argument(s) with --evaluate-models: {' '.join(map(str, args.photo_paths))}; "
+                     '--candidates takes ONE comma-separated value (e.g. --candidates a.json,b.json)')
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         description='Facet: AI-powered photo quality assessment',
