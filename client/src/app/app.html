@@ -194,7 +194,7 @@
 
   <!-- Mobile albums bottom bars (search row stacks over the toolbar) -->
   @if (auth.isAuthenticated() && isAlbumsRoute()) {
-    <div class="lg:hidden fixed bottom-0 left-0 right-0 z-50 flex flex-col bg-[var(--mat-sys-surface-container)] safe-area-pb">
+    <div class="lg:hidden fixed bottom-0 left-0 right-0 z-50 flex flex-col bg-[var(--mat-sys-surface-container)] safe-area-pb" (keydown.escape)="onMobileAlbumsSearchEscape($event)">
       @if (mobileAlbumsSearchOpen()) {
         <div class="px-4 py-1 border-t border-[var(--mat-sys-outline-variant)]">
           <mat-form-field class="w-full" subscriptSizing="dynamic" appearance="outline">

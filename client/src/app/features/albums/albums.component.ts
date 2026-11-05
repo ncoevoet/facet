@@ -88,8 +88,8 @@ import { HANDLE_SERVER_ERROR_LOCALLY } from '../../core/utils/http-error-context
 
     @if ((loadFailed() || retrying()) && albums().length === 0) {
       <div role="alert" class="flex flex-wrap items-center justify-center gap-3 rounded-lg bg-[var(--mat-sys-error-container)] text-[var(--mat-sys-on-error-container)] p-4 mb-4">
-        <p>{{ I18N.albums.list_load_error | translate }}</p>
-        <button mat-stroked-button data-albums-retry class="max-sm:!min-h-11" [attr.aria-disabled]="retrying()" (click)="retryLoad()">{{ (retrying() ? I18N.ui.labels.loading : I18N.gallery.load_error.retry) | translate }}</button>
+        <p>{{ (retrying() ? I18N.ui.labels.loading : I18N.albums.list_load_error) | translate }}</p>
+        <button mat-stroked-button class="max-lg:!min-h-11" data-albums-retry [attr.aria-disabled]="retrying()" (click)="retryLoad()">{{ (retrying() ? I18N.ui.labels.loading : I18N.gallery.load_error.retry) | translate }}</button>
       </div>
     } @else if (!loadFailed() && albums().length === 0 && !loading()) {
       <div class="text-center py-16 opacity-60">
@@ -201,8 +201,8 @@ import { HANDLE_SERVER_ERROR_LOCALLY } from '../../core/utils/http-error-context
 
     @if ((loadFailed() || retrying()) && albums().length > 0) {
       <div role="alert" class="mt-4 flex flex-wrap items-center justify-center gap-3 rounded-lg bg-[var(--mat-sys-error-container)] p-4 text-[var(--mat-sys-on-error-container)]">
-        <p>{{ I18N.albums.list_load_error | translate }}</p>
-        <button mat-stroked-button data-albums-retry class="max-sm:!min-h-11" [attr.aria-disabled]="retrying()" (click)="retryLoad()">{{ (retrying() ? I18N.ui.labels.loading : I18N.gallery.load_error.retry) | translate }}</button>
+        <p>{{ (retrying() ? I18N.ui.labels.loading : I18N.albums.list_load_error) | translate }}</p>
+        <button mat-stroked-button class="max-lg:!min-h-11" data-albums-retry [attr.aria-disabled]="retrying()" (click)="retryLoad()">{{ (retrying() ? I18N.ui.labels.loading : I18N.gallery.load_error.retry) | translate }}</button>
       </div>
     }
     <!-- Infinite scroll sentinel -->

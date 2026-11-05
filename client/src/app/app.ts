@@ -248,8 +248,15 @@ export class App implements OnInit {
   private readonly mobileAlbumsSearchTrigger = viewChild('mobileAlbumsSearchTrigger', { read: ElementRef<HTMLButtonElement> });
   private readonly restoreAlbumsSearchFocus = signal(false);
 
-  protected closeMobileAlbumsSearch(): void {
-    this.albumsFilters.search.set('');
+  protected onMobileAlbumsSearchEscape(event: Event): void {
+    if (!this.mobileAlbumsSearchOpen()) return;
+    event.preventDefault();
+    event.stopPropagation();
+    this.closeMobileAlbumsSearch(false);
+  }
+
+  protected closeMobileAlbumsSearch(clear = true): void {
+    if (clear) this.albumsFilters.search.set('');
     this.mobileAlbumsSearchOpen.set(false);
     this.restoreAlbumsSearchFocus.set(true);
   }

@@ -192,6 +192,26 @@ describe('AlbumsComponent', () => {
     fixture.destroy(); fixture.nativeElement.remove();
   });
 
+  it('announces a repeated page failure while keeping Retry focused', async () => {
+    const fixture = TestBed.createComponent(AlbumsComponent);
+    document.body.appendChild(fixture.nativeElement);
+    fixture.detectChanges(); await fixture.whenStable(); fixture.detectChanges();
+    const page = fixture.componentInstance as any;
+    mockAlbumService.list.mockReturnValueOnce(throwError(() => new Error('offline')));
+    await page.loadAlbums(false); fixture.detectChanges();
+    const retry = fixture.nativeElement.querySelector('[data-albums-retry]') as HTMLButtonElement;
+    const alert = retry.closest('[role=alert]')!;
+    expect(alert.textContent).toContain('albums.list_load_error');
+    const pending = new Subject<any>(); mockAlbumService.list.mockReturnValueOnce(pending);
+    retry.focus(); retry.click(); fixture.detectChanges();
+    expect(alert.textContent).toContain('ui.labels.loading');
+    pending.error(new Error('offline again'));
+    await fixture.whenStable(); fixture.detectChanges();
+    expect(alert.textContent).toContain('albums.list_load_error');
+    expect(document.activeElement).toBe(retry);
+    fixture.destroy(); fixture.nativeElement.remove();
+  });
+
   it('does not move focus after the user leaves Retry while a page is loading', async () => {
     const fixture = TestBed.createComponent(AlbumsComponent);
     document.body.appendChild(fixture.nativeElement);

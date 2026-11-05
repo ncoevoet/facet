@@ -52,8 +52,8 @@ interface ClientPicksResponse {
         </div>
       } @else if (loadFailed() || retrying()) {
         <div role="alert" class="py-4">
-          <p>{{ I18N.proofing.load_error | translate }}</p>
-          <button #retryButton mat-button class="max-sm:!min-h-11" [attr.aria-disabled]="retrying()" (click)="load(true)">{{ I18N.gallery.load_error.retry | translate }}</button>
+          <p>{{ (retrying() ? I18N.ui.labels.loading : I18N.proofing.load_error) | translate }}</p>
+          <button #retryButton mat-button class="max-lg:!min-h-11" [attr.aria-disabled]="retrying()" (click)="load(true)">{{ I18N.gallery.load_error.retry | translate }}</button>
         </div>
       } @else if (picks().length === 0) {
         <p class="opacity-60 py-4">{{ I18N.proofing.no_picks | translate }}</p>

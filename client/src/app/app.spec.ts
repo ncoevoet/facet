@@ -11,6 +11,7 @@ import { ThemeService } from './core/services/theme.service';
 import { CompareFiltersService } from './features/comparison/compare-filters.service';
 import { StatsFiltersService } from './features/stats/stats-filters.service';
 import { PersonsFiltersService } from './features/persons/persons-filters.service';
+import { AlbumsFiltersService } from './features/albums/albums-filters.service';
 import { MatDialog } from '@angular/material/dialog';
 import { MatSnackBar } from '@angular/material/snack-bar';
 import { SwUpdate } from '@angular/service-worker';
@@ -616,6 +617,30 @@ describe('App', () => {
         fixture.destroy(); rect.mockRestore(); vi.unstubAllGlobals();
       }
       expect(disconnect).toHaveBeenCalled();
+    });
+
+    it('opens mobile album search and Escape closes it with focus returned to the trigger', async () => {
+      const { fixture, root } = render(true);
+      document.body.appendChild(root);
+      const router = TestBed.inject(Router);
+      router.resetConfig([{ path: 'albums', component: NavigationFixturePage }]);
+      await router.navigateByUrl('/albums'); fixture.detectChanges(); await fixture.whenStable(); fixture.detectChanges();
+      const trigger = root.querySelector<HTMLButtonElement>(`button[aria-label="${I18N.ui.filters.search}"]`)!;
+      trigger.focus(); trigger.click(); fixture.detectChanges(); await fixture.whenStable(); fixture.detectChanges();
+      const input = root.querySelector<HTMLInputElement>(`input[placeholder="${I18N.albums.search}"]`)!;
+      expect(input).not.toBeNull();
+      expect(document.activeElement).toBe(input);
+      input.value = 'Family'; input.dispatchEvent(new Event('input', { bubbles: true })); fixture.detectChanges();
+      input.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true, cancelable: true }));
+      fixture.detectChanges(); await fixture.whenStable(); fixture.detectChanges();
+      expect(root.querySelector(`input[placeholder="${I18N.albums.search}"]`)).toBeNull();
+      expect(document.activeElement).toBe(trigger);
+      expect(TestBed.inject(AlbumsFiltersService).search()).toBe('Family');
+      trigger.click(); fixture.detectChanges(); await fixture.whenStable(); fixture.detectChanges();
+      root.querySelector<HTMLButtonElement>(`button[aria-label="${I18N.albums.clear_search}"]`)!.click();
+      fixture.detectChanges();
+      expect(TestBed.inject(AlbumsFiltersService).search()).toBe('');
+      fixture.destroy(); root.remove();
     });
 
     it('updates primary destination tabs when configured features change', () => {
