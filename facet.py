@@ -2562,6 +2562,7 @@ def main():
 
     parser = cli_args.build_parser()
     args = parser.parse_args()
+    cli_args.validate_face_labels(parser, args)
     if args.update_faces_job:
         if len(args.update_faces_job) != 32 or any(c not in '0123456789abcdef' for c in args.update_faces_job):
             parser.error('--update-faces-job requires a valid job identity')
@@ -2807,7 +2808,8 @@ def main():
         from optimization.model_eval import evaluate
         candidates = [c.strip() for c in args.candidates.split(',') if c.strip()] if args.candidates else None
         evaluate(args.db or DEFAULT_DB_PATH, args.evaluate_models, candidates=candidates,
-                 out=args.eval_out, config_path=args.config, limit=args.limit)
+                 out=args.eval_out, config_path=args.config, limit=args.limit,
+                 face_labels=args.face_labels)
         exit()
 
     # Report unreviewed burst groups (read-only, no GPU)
