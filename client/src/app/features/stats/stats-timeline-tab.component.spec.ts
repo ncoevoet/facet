@@ -18,7 +18,7 @@ describe('StatsTimelineTabComponent', () => {
         StatsTimelineTabComponent,
         { provide: ApiService, useValue: { get: vi.fn(() => of({})) } },
         { provide: AuthService, useValue: { status: signal({ authenticated: true }), identity: owner, isAuthenticated: signal(true), token: 'token-a' } },
-        { provide: I18nService, useValue: { t: vi.fn((k: string) => k), currentLang: vi.fn(() => 'en') } },
+        { provide: I18nService, useValue: { t: vi.fn((k: string) => k), locale: signal('en'), currentLang: vi.fn(() => 'en') } },
         { provide: StatsFiltersService, useValue: { filterCategory: signal(''), dateFrom: signal(''), dateTo: signal('') } },
       ],
     });
@@ -128,7 +128,7 @@ describe('Timeline retry focus', () => {
       providers: [
         { provide: ApiService, useValue: api },
         { provide: AuthService, useValue: { status: signal({ authenticated: true }), identity: signal('owner'), isAuthenticated: signal(true), token: 'token' } },
-        { provide: I18nService, useValue: { t: (key: string) => key, translations: signal({}) } },
+        { provide: I18nService, useValue: { t: (key: string) => key, translations: signal({}), locale: signal('en') } },
         { provide: StatsFiltersService, useValue: { filterCategory: signal(''), dateFrom: signal(''), dateTo: signal('') } },
       ],
     });

@@ -1,6 +1,7 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { NoopAnimationsModule } from '@angular/platform-browser/animations';
-import { Pipe, PipeTransform } from '@angular/core';
+import { Pipe, PipeTransform, signal } from '@angular/core';
+import { I18nService } from '../../core/services/i18n.service';
 import { GearChartCardComponent, GearItem, truncateLegendLabel } from './gear-chart-card.component';
 import { TranslatePipe } from '../../shared/pipes/translate.pipe';
 
@@ -58,6 +59,7 @@ describe('GearChartCardComponent', () => {
   beforeEach(async () => {
     await TestBed.configureTestingModule({
       imports: [GearChartCardComponent, NoopAnimationsModule],
+      providers: [{ provide: I18nService, useValue: { locale: signal('en') } }],
     })
     .overrideComponent(GearChartCardComponent, {
       remove: { imports: [TranslatePipe] },

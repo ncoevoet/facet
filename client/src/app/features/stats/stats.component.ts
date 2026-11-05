@@ -104,13 +104,13 @@ export class StatsNumberPipe implements PipeTransform {
     StatsTimelineTabComponent,
     StatsCorrelationsTabComponent,
   ],
-  host: { class: 'block p-4 md:p-6' },
+  host: { class: 'block p-4 md:p-6 [&_mat-card]:border [&_mat-card]:border-[var(--mat-sys-outline-variant)]' },
   changeDetection: ChangeDetectionStrategy.Eager,
   template: `
-    <header class="mb-3 space-y-2 sm:space-y-4">
+    <header class="mb-4 space-y-2 border-b border-[var(--mat-sys-outline-variant)] pb-3 sm:space-y-4 sm:pb-4">
       <h1 id="stats-heading" tabindex="-1" class="m-0 text-xl font-semibold text-[var(--mat-sys-on-surface)]">{{ I18N.nav.stats | translate }}</h1>
       @if (statsFilters.overview(); as overview) {
-        <dl class="m-0 flex flex-wrap gap-x-5 gap-y-1 text-sm" data-stats-overview>
+        <dl class="m-0 grid grid-cols-2 gap-x-3 gap-y-1 rounded-lg bg-[var(--mat-sys-surface-container-low)] px-2 py-1.5 text-sm sm:flex sm:flex-wrap sm:gap-x-5 sm:bg-transparent sm:p-0" data-stats-overview>
           <div class="flex min-w-0 items-baseline gap-1.5">
             <dt class="text-[var(--mat-sys-on-surface-variant)]">{{ I18N.stats.total_photos | translate }}</dt>
             <dd class="m-0 font-semibold tabular-nums">{{ overview.total_photos | statsNumber:i18n.locale() }}</dd>
@@ -134,7 +134,7 @@ export class StatsNumberPipe implements PipeTransform {
           <mat-icon aria-hidden="true">filter_list</mat-icon>{{ I18N.ui.buttons.filters | translate }}
           @if (statsFilters.filterCategory() || statsFilters.dateFrom() || statsFilters.dateTo()) {
             <span class="h-2 w-2 rounded-full bg-[var(--mat-sys-primary)]" aria-hidden="true"></span>
-            <span class="sr-only">{{ statsFilters.filterCategory() }} {{ statsFilters.dateFrom() }} {{ statsFilters.dateTo() }}</span>
+            <span class="min-w-0 truncate font-normal text-[var(--mat-sys-on-surface-variant)]">{{ filterSummary() }}</span>
           }
           <mat-icon aria-hidden="true" class="transition-transform group-open:rotate-180">expand_more</mat-icon>
         </summary>
@@ -148,7 +148,7 @@ export class StatsNumberPipe implements PipeTransform {
         <mat-select panelWidth="auto" panelClass="nowrap-panel" [value]="statsFilters.filterCategory()" (selectionChange)="onStatsCategoryChange($event.value)">
           <mat-option value="">{{ I18N.gallery.all_photos | translate }}</mat-option>
           @if (unknownCategory(); as category) {
-            <mat-option [value]="category">{{ category }}</mat-option>
+            <mat-option [value]="category">{{ unknownCategoryLabel() }}</mat-option>
           }
           @for (t of store.types(); track t.id) {
             <mat-option [value]="t.id">{{ (t.id === 'top_picks' ? 'photo_types.top_picks' : 'category_names.' + t.id) | translate }} ({{ t.count }})</mat-option>
@@ -174,7 +174,7 @@ export class StatsNumberPipe implements PipeTransform {
         <mat-spinner diameter="48" [attr.aria-label]="I18N.ui.labels.loading | translate" />
       </div>
     } @else if (!loadFailed()) {
-      <mat-tab-group class="stats-tabs" mat-stretch-tabs="false" mat-align-tabs="start" [selectedIndex]="selectedTab()" (selectedIndexChange)="selectedTab.set($event)">
+      <mat-tab-group class="stats-tabs max-sm:[&_.mat-mdc-tab]:!min-w-0 max-sm:[&_.mat-mdc-tab]:!px-0 max-sm:[&_.mat-mdc-tab]:!flex-[1_1_25%] max-sm:[&_.mat-mdc-tab-labels]:!flex-[1_1_0%] max-sm:[&_.mdc-tab__text-label]:!whitespace-normal max-sm:[&_.mdc-tab__text-label]:!text-center max-sm:[&_.mdc-tab__text-label]:!text-xs" mat-stretch-tabs="false" mat-align-tabs="start" [selectedIndex]="selectedTab()" (selectedIndexChange)="selectedTab.set($event)">
           <!-- Gear tab -->
           <mat-tab>
             <ng-template mat-tab-label>
@@ -208,7 +208,7 @@ export class StatsNumberPipe implements PipeTransform {
                     <mat-card-header class="!flex !items-center !justify-between !gap-4">
                       <mat-card-title>{{ I18N.stats.category_metric_title | translate }}</mat-card-title>
                       <mat-form-field class="flex-1 min-w-0 !-mt-2" subscriptSizing="dynamic">
-                        <mat-label>{{ I18N.stats.category_metric_title | translate }}</mat-label>
+                        <mat-label>{{ I18N.stats.gear_metric_label | translate }}</mat-label>
                         <mat-select [ngModel]="categoryMetric()" (ngModelChange)="categoryMetric.set($event)">
                           @for (opt of categoryMetricOptions; track opt.key) {
                             <mat-option [value]="opt.key">{{ 'stats.category_metrics.' + opt.key | translate }}</mat-option>
@@ -362,6 +362,20 @@ export class StatsComponent {
     const category = this.statsFilters.filterCategory();
     return category && !this.store.types().some(t => t.id === category) ? category : null;
   });
+  protected readonly unknownCategoryLabel = computed(() => {
+    const category = this.unknownCategory();
+    return category ? this.translateCategory(category) : '';
+  });
+  protected readonly filterSummary = computed(() => {
+    const category = this.statsFilters.filterCategory();
+    const displayDate = (date: string) => {
+      const parts = /^(\d{4})-(\d{2})-(\d{2})$/.exec(date);
+      return parts ? `${parts[3]}/${parts[2]}/${parts[1]}` : date;
+    };
+    const from = this.statsFilters.dateFrom();
+    const to = this.statsFilters.dateTo();
+    return [category ? this.translateCategory(category) : '', from ? displayDate(from) : '', to ? displayDate(to) : ''].filter(Boolean).join(' · ');
+  });
   readonly themeService = inject(ThemeService);
   private readonly pageHelp = inject(PageHelpService);
   private charts = new Map<string, Chart>();
@@ -453,6 +467,14 @@ export class StatsComponent {
         if (authenticated) void this.loadAll();
         else this.clearStats();
       });
+    });
+
+    // Category choices are consumed by Statistics even while gallery listing
+    // reads are parked. Refresh them explicitly after the auth scope settles.
+    effect(() => {
+      this.auth.status();
+      const authenticated = this.auth.isAuthenticated();
+      untracked(() => { if (authenticated) void this.store.loadTypeCounts(); });
     });
 
     // Destroy Chart.js instances and clear shared state on component teardown
@@ -630,7 +652,7 @@ export class StatsComponent {
   }
 
   private translateCategory(name: string): string {
-    const key = `category_names.${name}`;
+    const key = name === 'top_picks' ? 'photo_types.top_picks' : `category_names.${name}`;
     const translated = this.i18n.t(key);
     return translated === key ? name : translated;
   }

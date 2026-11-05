@@ -124,7 +124,7 @@ describe('StatsComponent', () => {
       providers: [
         { provide: ApiService, useValue: mockApi },
         { provide: AuthService, useValue: mockAuth },
-        { provide: GalleryStore, useValue: { types: signal([]) } },
+        { provide: GalleryStore, useValue: { types: signal([]), loadTypeCounts: vi.fn(() => Promise.resolve()) } },
         { provide: I18nService, useValue: { t: (key: string) => key } },
         { provide: Router, useValue: { navigate: vi.fn(), events: NEVER } },
         { provide: ActivatedRoute, useValue: { snapshot: { queryParams: {} } } },
@@ -157,10 +157,14 @@ describe('StatsComponent', () => {
 
   it('keeps an unknown category query visible until the matching type is available', () => {
     component = createComponent();
+    vi.spyOn(TestBed.inject(I18nService), 't').mockImplementation(key => key === 'category_names.astro' ? 'Astrofotografie' : key);
     const types = TestBed.inject(GalleryStore).types as ReturnType<typeof signal<{ id: string; count: number }[]>>;
-    component.statsFilters.filterCategory.set('unknown-category');
-    expect(c().unknownCategory()).toBe('unknown-category');
-    types.set([{ id: 'unknown-category', count: 1 }]);
+    component.statsFilters.filterCategory.set('astro');
+    component.statsFilters.dateFrom.set('2026-11-06');
+    expect(c().unknownCategory()).toBe('astro');
+    expect(c().unknownCategoryLabel()).toBe('Astrofotografie');
+    expect(c().filterSummary()).toBe('Astrofotografie · 06/11/2026');
+    types.set([{ id: 'astro', count: 1 }]);
     expect(c().unknownCategory()).toBeNull();
   });
 

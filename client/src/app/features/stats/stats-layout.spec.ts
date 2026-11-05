@@ -33,7 +33,7 @@ describe('statistics page states', () => {
           return of([]);
         } } },
         { provide: AuthService, useValue: { identity: owner, isAuthenticated: () => true, status: () => ({}), token: 'token' } },
-        { provide: GalleryStore, useValue: { types: signal([]) } },
+        { provide: GalleryStore, useValue: { types: signal([]), loadTypeCounts: vi.fn(() => Promise.resolve()) } },
         { provide: I18nService, useValue: { t: (key: string) => key, locale, translations: () => ({}) } },
         { provide: ThemeService, useValue: { accentColor: () => '#123456', complementaryColor: () => '#123456', darkMode: () => false } },
         { provide: Router, useValue: { navigate: vi.fn(), events: NEVER } },
@@ -57,6 +57,23 @@ describe('statistics page states', () => {
     expect(host.querySelector('details summary')?.textContent).toContain('ui.buttons.filters');
     expect(host.querySelector('details [data-stats-filters]')).not.toBeNull();
     expect(host.querySelector('h1')?.textContent).toContain('nav.stats');
+    const tabs = Array.from(host.querySelectorAll('[role="tab"]')).map(tab => tab.textContent ?? '');
+    expect(tabs).toHaveLength(4);
+    expect(tabs.join(' ')).toContain('stats.gear');
+    expect(tabs.join(' ')).toContain('stats.categories.tab');
+    expect(tabs.join(' ')).toContain('stats.timeline');
+    expect(tabs.join(' ')).toContain('stats.tabs.correlations');
+  });
+
+  it('shows a readable active filter summary while the mobile filter disclosure is closed', async () => {
+    const fixture = TestBed.createComponent(StatsComponent);
+    fixture.detectChanges(); await fixture.whenStable(); fixture.detectChanges();
+    fixture.componentInstance.statsFilters.filterCategory.set('astro');
+    fixture.componentInstance.statsFilters.dateFrom.set('2026-11-06');
+    fixture.detectChanges(); await fixture.whenStable(); fixture.detectChanges();
+    const summary = fixture.nativeElement.querySelector('details summary');
+    expect(summary.textContent).toContain('astro');
+    expect(summary.textContent).toContain('06/11/2026');
   });
 
   it('shows only the page failure instead of empty chart states when the overview fails', async () => {

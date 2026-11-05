@@ -8,7 +8,7 @@ import { MatIconModule } from '@angular/material/icon';
 import { MatTooltipModule } from '@angular/material/tooltip';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { firstValueFrom } from 'rxjs';
-import { Chart } from 'chart.js';
+import { Chart, type PointStyle } from 'chart.js';
 import { HttpContext } from '@angular/common/http';
 import { ApiService } from '../../core/services/api.service';
 import { ThemeService } from '../../core/services/theme.service';
@@ -21,6 +21,18 @@ import { CorrelationApiResponse, buildCorrelationCsvRecords } from './stats-corr
 import { i18nKeys } from '../../core/i18n/keys';
 import { chartSeriesColors, chartTheme } from './chart-theme';
 import { HANDLE_SERVER_ERROR_LOCALLY } from '../../core/utils/http-error-context';
+
+/** Preserve every requested metric for each group, including missing buckets. */
+export function correlationSeries(data: CorrelationApiResponse, metrics: string[], metricLabel: (key: string) => string): { label: string; values: (number | null)[]; groupIndex: number; metricIndex: number }[] {
+  if (data.groups && Object.keys(data.groups).length) {
+    return Object.keys(data.groups).flatMap((group, groupIndex) => metrics.map((metric, metricIndex) => ({
+      label: `${group} · ${metricLabel(metric)}`,
+      values: data.labels.map(label => data.groups![group]?.[label]?.[metric] ?? null),
+      groupIndex, metricIndex,
+    })));
+  }
+  return Object.entries(data.metrics ?? {}).map(([metric, values], metricIndex) => ({ label: metricLabel(metric), values, groupIndex: metricIndex, metricIndex }));
+}
 
 @Component({
   selector: 'app-stats-correlations-tab',
@@ -157,10 +169,16 @@ export class StatsCorrelationsTabComponent {
     this.i18n.locale();
     const xAxis = this.currentData()?.x_axis;
     return this.accessibleColumns().map(column => column === 'group'
-      ? this.i18n.t(this.I18N.stats.correlations.group_by)
+      ? this.i18n.t(`stats.correlations.dimensions.${this.currentData()?.group_by}`)
       : this.i18n.t(column === xAxis ? `stats.correlations.dimensions.${column}` : `stats.correlations.metrics.${column}`));
   });
-  readonly accessibleRows = computed(() => this.accessibleRecords().map(row => this.accessibleColumns().map(column => row[column])));
+  readonly accessibleRows = computed(() => {
+    const formatter = new Intl.NumberFormat(this.i18n.locale(), { maximumFractionDigits: 6 });
+    return this.accessibleRecords().map(row => this.accessibleColumns().map(column => {
+      const value = row[column];
+      return typeof value === 'number' ? formatter.format(value) : value ?? '—';
+    }));
+  });
   readonly correlationLoading = signal(false);
   readonly correlationFailed = signal(false);
   readonly correlationRetrying = signal(false);
@@ -301,41 +319,27 @@ export class StatsCorrelationsTabComponent {
       tension?: number;
       pointRadius?: number;
       borderRadius?: number;
+      borderDash?: number[];
+      pointStyle?: PointStyle;
     }[] = [];
 
     const themedColors = chartSeriesColors(this.themeService.darkMode());
 
-    if (apiData.groups && Object.keys(apiData.groups).length > 0) {
-      const groupNames = Object.keys(apiData.groups);
-      for (let gi = 0; gi < groupNames.length; gi++) {
-        const grp = groupNames[gi];
-        const color = themedColors[gi % themedColors.length];
-        const yMetric = this.corrYMetrics()[0] ?? 'aggregate';
-        const data = labels.map(lbl => apiData.groups![grp]?.[lbl]?.[yMetric] ?? null);
+    const dashes = [[], [7, 4], [2, 3], [9, 3, 2, 3]];
+    const points: PointStyle[] = ['circle', 'triangle', 'rect', 'rectRot', 'crossRot', 'star'];
+    for (const series of correlationSeries(apiData, this.corrYMetrics(), metric => this.i18n.t(`stats.correlations.metrics.${metric}`))) {
+        const colorIndex = type === 'bar' && apiData.groups ? series.groupIndex * this.corrYMetrics().length + series.metricIndex : series.groupIndex;
+        const color = themedColors[colorIndex % themedColors.length];
         datasets.push({
-          label: grp, data,
+          label: series.label, data: series.values,
           backgroundColor: color + (type === 'bar' ? 'cc' : '33'),
           borderColor: color, borderWidth: type === 'bar' ? 1 : 2,
           fill, tension: type === 'line' ? 0 : undefined,
-          pointRadius: type === 'line' ? 2 : undefined,
+          borderDash: type === 'line' ? dashes[series.metricIndex % dashes.length] : undefined,
+          pointStyle: type === 'line' ? points[series.groupIndex % points.length] : undefined,
+          pointRadius: type === 'line' ? 3 : undefined,
           borderRadius: type === 'bar' ? 3 : undefined,
         });
-      }
-    } else if (apiData.metrics) {
-      const metricNames = Object.keys(apiData.metrics);
-      for (let mi = 0; mi < metricNames.length; mi++) {
-        const metric = metricNames[mi];
-        const color = themedColors[mi % themedColors.length];
-        const values = apiData.metrics[metric] ?? [];
-        datasets.push({
-          label: this.i18n.t(`stats.correlations.metrics.${metric}`), data: values,
-          backgroundColor: color + (type === 'bar' ? 'cc' : '33'),
-          borderColor: color, borderWidth: type === 'bar' ? 1 : 2,
-          fill, tension: type === 'line' ? 0 : undefined,
-          pointRadius: type === 'line' ? 2 : undefined,
-          borderRadius: type === 'bar' ? 3 : undefined,
-        });
-      }
     }
 
     this.charts.set('correlations', new Chart(ctx, {
@@ -346,12 +350,12 @@ export class StatsCorrelationsTabComponent {
         responsive: true,
         maintainAspectRatio: false,
         plugins: {
-          legend: { display: datasets.length > 1, labels: { color: palette.text, boxWidth: 12 } },
+          legend: { display: datasets.length > 1, labels: { color: palette.text, boxWidth: 12, usePointStyle: true } },
           tooltip: {
             callbacks: {
               label: (tooltipCtx) => {
                 const val = isHorizontal ? (tooltipCtx.parsed.x ?? 0) : (tooltipCtx.parsed.y ?? 0);
-                return `${tooltipCtx.dataset.label}: ${val.toFixed(2)}`;
+                return `${tooltipCtx.dataset.label}: ${new Intl.NumberFormat(this.i18n.locale(), { maximumFractionDigits: 2 }).format(val)}`;
               },
             },
           },

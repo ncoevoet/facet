@@ -17,6 +17,7 @@ import { downloadCsv } from '../../shared/utils/csv';
 import { i18nKeys } from '../../core/i18n/keys';
 import { chartSeriesColor, chartTheme } from './chart-theme';
 import { HANDLE_SERVER_ERROR_LOCALLY } from '../../core/utils/http-error-context';
+import { StatsLocaleNumberPipe } from './stats-locale-number.pipe';
 
 /** Pipe to compute heatmap circle color from count:max. */
 @Pipe({ name: 'heatmapColor', standalone: true })
@@ -56,6 +57,7 @@ interface TimelineEntry {
     TranslatePipe,
     HeatmapColorPipe,
     HeatmapSizePipe,
+    StatsLocaleNumberPipe,
   ],
   changeDetection: ChangeDetectionStrategy.Eager,
   template: `
@@ -87,7 +89,7 @@ interface TimelineEntry {
               <summary class="cursor-pointer">{{ I18N.stats.show_chart_data | translate }}</summary>
               <div class="mt-2 max-h-72 overflow-auto"><table class="w-full text-left"><tbody>
                 @for (row of timeline(); track row.period) {
-                  <tr class="border-b border-[var(--mat-sys-outline-variant)]"><th scope="row" class="py-1 pr-3 font-normal">{{ row.period }}</th><td class="py-1 text-right tabular-nums">{{ row.count }}</td></tr>
+                  <tr class="border-b border-[var(--mat-sys-outline-variant)]"><th scope="row" class="py-1 pr-3 font-normal">{{ row.period }}</th><td class="py-1 text-right tabular-nums">{{ row.count | statsLocaleNumber:i18n.locale() }}</td></tr>
                 }
               </tbody></table></div>
             </details>
@@ -104,7 +106,7 @@ interface TimelineEntry {
             <div class="h-48 md:h-64">
               <canvas #yearlyCanvas aria-hidden="true"></canvas>
             </div>
-            <details class="mt-3 text-sm"><summary class="cursor-pointer">{{ I18N.stats.show_chart_data | translate }}</summary><table class="mt-2 w-full text-left"><tbody>@for (row of yearlyData(); track row.year) {<tr><th scope="row" class="font-normal">{{ row.year }}</th><td class="text-right">{{ row.count }}</td></tr>}</tbody></table></details>
+            <details class="mt-3 text-sm"><summary class="cursor-pointer">{{ I18N.stats.show_chart_data | translate }}</summary><table class="mt-2 w-full text-left"><tbody>@for (row of yearlyData(); track row.year) {<tr><th scope="row" class="font-normal">{{ row.year }}</th><td class="text-right">{{ row.count | statsLocaleNumber:i18n.locale() }}</td></tr>}</tbody></table></details>
           </mat-card-content>
         </mat-card>
       }
@@ -119,7 +121,7 @@ interface TimelineEntry {
               <div class="h-64">
                 <canvas #dayOfWeekCanvas aria-hidden="true"></canvas>
               </div>
-              <details class="mt-3 text-sm"><summary class="cursor-pointer">{{ I18N.stats.show_chart_data | translate }}</summary><table class="mt-2 w-full text-left"><tbody>@for (row of dayOfWeekData(); track $index) {<tr><th scope="row" class="font-normal">{{ row.label }}</th><td class="text-right">{{ row.count }}</td></tr>}</tbody></table></details>
+              <details class="mt-3 text-sm"><summary class="cursor-pointer">{{ I18N.stats.show_chart_data | translate }}</summary><table class="mt-2 w-full text-left"><tbody>@for (row of dayOfWeekData(); track $index) {<tr><th scope="row" class="font-normal">{{ row.label }}</th><td class="text-right">{{ row.count | statsLocaleNumber:i18n.locale() }}</td></tr>}</tbody></table></details>
             </mat-card-content>
           </mat-card>
         }
@@ -132,7 +134,7 @@ interface TimelineEntry {
               <div class="h-64">
                 <canvas #hourOfDayCanvas aria-hidden="true"></canvas>
               </div>
-              <details class="mt-3 text-sm"><summary class="cursor-pointer">{{ I18N.stats.show_chart_data | translate }}</summary><table class="mt-2 w-full text-left"><tbody>@for (row of hourOfDayData(); track $index) {<tr><th scope="row" class="font-normal">{{ row.label }}</th><td class="text-right">{{ row.count }}</td></tr>}</tbody></table></details>
+              <details class="mt-3 text-sm"><summary class="cursor-pointer">{{ I18N.stats.show_chart_data | translate }}</summary><table class="mt-2 w-full text-left"><tbody>@for (row of hourOfDayData(); track $index) {<tr><th scope="row" class="font-normal">{{ row.label }}</th><td class="text-right">{{ row.count | statsLocaleNumber:i18n.locale() }}</td></tr>}</tbody></table></details>
             </mat-card-content>
           </mat-card>
         }
@@ -183,7 +185,7 @@ interface TimelineEntry {
 export class StatsTimelineTabComponent {
   protected readonly I18N = i18nKeys();
   private api = inject(ApiService);
-  private i18n = inject(I18nService);
+  protected i18n = inject(I18nService);
   private destroyRef = inject(DestroyRef);
   private injector = inject(Injector);
   private statsFilters = inject(StatsFiltersService);
@@ -224,6 +226,7 @@ export class StatsTimelineTabComponent {
       this.statsFilters.dateFrom();
       this.statsFilters.dateTo();
       this.auth.status(); this.auth.identity(); this.auth.isAuthenticated();
+      this.i18n.locale();
       void this.loadTimeline();
     });
 
@@ -366,7 +369,7 @@ export class StatsTimelineTabComponent {
         maintainAspectRatio: false,
         plugins: {
           legend: { display: false },
-          tooltip: { callbacks: { label: (ctx) => (ctx.parsed.y ?? 0).toLocaleString() } },
+          tooltip: { callbacks: { label: (ctx) => (ctx.parsed.y ?? 0).toLocaleString(this.i18n.locale()) } },
         },
         scales: {
           x: { grid: { display: false }, ticks: { color: palette.text, maxRotation: 45, autoSkip: true, maxTicksLimit: 24 } },
@@ -399,7 +402,7 @@ export class StatsTimelineTabComponent {
         maintainAspectRatio: false,
         plugins: {
           legend: { display: false },
-          tooltip: { callbacks: { label: (ctx) => (ctx.parsed.y ?? 0).toLocaleString() } },
+          tooltip: { callbacks: { label: (ctx) => (ctx.parsed.y ?? 0).toLocaleString(this.i18n.locale()) } },
         },
         scales: {
           x: { grid: { display: false }, ticks: { color: palette.text, maxRotation: 45 } },

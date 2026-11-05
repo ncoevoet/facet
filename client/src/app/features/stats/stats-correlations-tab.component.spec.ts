@@ -5,7 +5,7 @@ import { ApiService } from '../../core/services/api.service';
 import { AuthService } from '../../core/services/auth.service';
 import { I18nService } from '../../core/services/i18n.service';
 import { StatsFiltersService } from './stats-filters.service';
-import { StatsCorrelationsTabComponent } from './stats-correlations-tab.component';
+import { correlationSeries, StatsCorrelationsTabComponent } from './stats-correlations-tab.component';
 import { buildCorrelationCsvRecords } from './stats-correlations-csv';
 
 describe('StatsCorrelationsTabComponent', () => {
@@ -69,6 +69,18 @@ describe('StatsCorrelationsTabComponent', () => {
       'stats.correlations.dimensions.date_year', 'stats.correlations.metrics.aggregate', 'stats.correlations.metrics.aesthetic',
     ]);
     expect(buildCorrelationCsvRecords(component.currentData(), ['aggregate', 'aesthetic'])[0]).toEqual({ date_year: '2025', aggregate: 7, aesthetic: 6 });
+  });
+
+  it('labels grouped tables with the actual dimension and formats numbers in the selected locale', async () => {
+    TestBed.tick();
+    component.corrGroupBy.set('camera_model');
+    TestBed.tick();
+    const i18n = TestBed.inject(I18nService);
+    (i18n.locale as ReturnType<typeof signal<string>>).set('de');
+    vi.mocked(TestBed.inject(ApiService).get).mockReturnValueOnce(of({ labels: ['2025'], groups: { Canon: { '2025': { aggregate: 7.5 } } }, x_axis: 'date_year', group_by: 'camera_model' }));
+    await component.loadCorrelation();
+    expect(component.accessibleColumnLabels()).toEqual(['stats.correlations.dimensions.date_year', 'stats.correlations.dimensions.camera_model', 'stats.correlations.metrics.aggregate', 'stats.correlations.metrics.aesthetic']);
+    expect(component.accessibleRows()[0]).toEqual(['2025', 'Canon', '7,5', '—']);
   });
 
   it('ignores a late response after the owner changes', async () => {
@@ -202,5 +214,18 @@ describe('buildCorrelationCsvRecords', () => {
       { date_year: '2023', group: 'nikon', aggregate: 6.8 },
       { date_year: '2024', group: 'nikon', aggregate: 7.2 },
     ]);
+  });
+});
+
+describe('correlationSeries', () => {
+  it('shows every selected metric for every group and retains missing values', () => {
+    const data = { labels: ['2024', '2025'], x_axis: 'date_year', group_by: 'camera_model', groups: {
+      Canon: { '2024': { aggregate: 7, aesthetic: 6 }, '2025': { aggregate: 8 } },
+      Nikon: { '2024': { aggregate: 5, aesthetic: 4 } },
+    } };
+    const series = correlationSeries(data, ['aggregate', 'aesthetic'], metric => `translated ${metric}`);
+    expect(series.map(row => row.label)).toEqual(['Canon · translated aggregate', 'Canon · translated aesthetic', 'Nikon · translated aggregate', 'Nikon · translated aesthetic']);
+    expect(series.map(row => row.values)).toEqual([[7, 8], [6, null], [5, null], [4, null]]);
+    expect(series.map(row => [row.groupIndex, row.metricIndex])).toEqual([[0, 0], [0, 1], [1, 0], [1, 1]]);
   });
 });
