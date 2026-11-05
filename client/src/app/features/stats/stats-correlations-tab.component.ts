@@ -1,4 +1,4 @@
-import { Component, inject, signal, computed, viewChild, ElementRef, effect, DestroyRef, ChangeDetectionStrategy } from '@angular/core';
+import { Component, inject, signal, computed, viewChild, ElementRef, effect, DestroyRef, Injector, afterNextRender, ChangeDetectionStrategy } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { MatCardModule } from '@angular/material/card';
 import { MatButtonModule } from '@angular/material/button';
@@ -13,15 +13,14 @@ import { HttpContext } from '@angular/common/http';
 import { ApiService } from '../../core/services/api.service';
 import { ThemeService } from '../../core/services/theme.service';
 import { AuthService } from '../../core/services/auth.service';
+import { I18nService } from '../../core/services/i18n.service';
 import { TranslatePipe } from '../../shared/pipes/translate.pipe';
 import { StatsFiltersService } from './stats-filters.service';
 import { downloadCsv } from '../../shared/utils/csv';
 import { CorrelationApiResponse, buildCorrelationCsvRecords } from './stats-correlations-csv';
 import { i18nKeys } from '../../core/i18n/keys';
-import { chartTheme } from './chart-theme';
+import { chartSeriesColors, chartTheme } from './chart-theme';
 import { HANDLE_SERVER_ERROR_LOCALLY } from '../../core/utils/http-error-context';
-
-const COLORS = ['#22c55e', '#3b82f6', '#a855f7', '#f59e0b', '#ef4444', '#06b6d4', '#ec4899', '#84cc16'];
 
 @Component({
   selector: 'app-stats-correlations-tab',
@@ -42,7 +41,7 @@ const COLORS = ['#22c55e', '#3b82f6', '#a855f7', '#f59e0b', '#ef4444', '#06b6d4'
     <div class="mt-4 flex flex-col gap-4">
       <mat-card>
         <mat-card-header class="!flex !items-center !justify-between">
-          <mat-card-title>{{ I18N.stats.metric_correlations | translate }}</mat-card-title>
+          <mat-card-title #correlationHeading tabindex="-1">{{ I18N.stats.metric_correlations | translate }}</mat-card-title>
           <button mat-icon-button class="shrink-0" [disabled]="!currentData()"
             [matTooltip]="I18N.stats.export_csv | translate"
             [attr.aria-label]="I18N.stats.export_csv | translate" (click)="exportCsv()">
@@ -98,10 +97,13 @@ const COLORS = ['#22c55e', '#3b82f6', '#a855f7', '#f59e0b', '#ef4444', '#06b6d4'
           @if (corrYMetrics().length === 0) {
             <div class="text-sm text-[var(--mat-sys-on-surface-variant)] mb-4">{{ I18N.stats.correlations.select_metric | translate }}</div>
           }
-          @if (correlationLoading()) {
+          @if (correlationLoading() && !correlationRetrying()) {
             <div class="flex justify-center py-4"><mat-spinner diameter="32" [attr.aria-label]="I18N.ui.labels.loading | translate" /></div>
-          } @else if (correlationFailed()) {
-            <div role="alert" class="rounded-lg bg-[var(--mat-sys-error-container)] p-4 text-[var(--mat-sys-on-error-container)]">{{ I18N.stats.correlations.error | translate }}</div>
+          } @else if (correlationFailed() || correlationRetrying()) {
+            <div role="alert" class="flex flex-wrap items-center gap-3 rounded-lg bg-[var(--mat-sys-error-container)] p-4 text-[var(--mat-sys-on-error-container)]">
+              <span>{{ (correlationRetrying() ? I18N.ui.labels.loading : I18N.stats.correlations.error) | translate }}</span>
+              <button #correlationRetry mat-stroked-button class="!min-h-11" [attr.aria-disabled]="correlationRetrying()" (click)="retryCorrelation()">{{ (correlationRetrying() ? I18N.ui.labels.loading : I18N.gallery.load_error.retry) | translate }}</button>
+            </div>
           } @else if (currentData() && !corrBucketCount()) {
             <p class="py-6 text-center text-[var(--mat-sys-on-surface-variant)]">{{ I18N.stats.no_data | translate }}</p>
           } @else if (currentData()) {
@@ -111,7 +113,7 @@ const COLORS = ['#22c55e', '#3b82f6', '#a855f7', '#f59e0b', '#ef4444', '#06b6d4'
             <details class="mt-3 text-sm text-[var(--mat-sys-on-surface-variant)]">
               <summary class="cursor-pointer">{{ I18N.stats.show_chart_data | translate }}</summary>
               <div class="mt-2 max-h-72 overflow-auto"><table class="w-full text-left">
-                <thead><tr>@for (column of accessibleColumns(); track column) {<th scope="col" class="p-1">{{ column }}</th>}</tr></thead>
+                <thead><tr>@for (column of accessibleColumnLabels(); track $index) {<th scope="col" class="p-1">{{ column }}</th>}</tr></thead>
                 <tbody>@for (row of accessibleRows(); track $index) {<tr class="border-t border-[var(--mat-sys-outline-variant)]">@for (value of row; track $index) {<td class="p-1">{{ value }}</td>}</tr>}</tbody>
               </table></div>
             </details>
@@ -131,11 +133,15 @@ export class StatsCorrelationsTabComponent {
   private statsFilters = inject(StatsFiltersService);
   private themeService = inject(ThemeService);
   private auth = inject(AuthService);
+  private i18n = inject(I18nService);
+  private injector = inject(Injector);
   private charts = new Map<string, Chart>();
   private generation = 0;
   private readonly loadedKey = signal('');
 
   readonly correlationsCanvas = viewChild<ElementRef<HTMLCanvasElement>>('correlationsCanvas');
+  readonly correlationRetry = viewChild('correlationRetry', { read: ElementRef<HTMLButtonElement> });
+  readonly correlationHeading = viewChild('correlationHeading', { read: ElementRef<HTMLElement> });
 
   readonly corrXAxis = signal('date_year');
   readonly corrYMetrics = signal<string[]>(['aggregate', 'aesthetic']);
@@ -147,9 +153,17 @@ export class StatsCorrelationsTabComponent {
   readonly corrBucketCount = computed(() => this.currentData()?.labels?.length ?? 0);
   private readonly accessibleRecords = computed(() => buildCorrelationCsvRecords(this.currentData(), this.corrYMetrics()));
   readonly accessibleColumns = computed(() => Object.keys(this.accessibleRecords()[0] ?? {}));
+  readonly accessibleColumnLabels = computed(() => {
+    this.i18n.locale();
+    const xAxis = this.currentData()?.x_axis;
+    return this.accessibleColumns().map(column => column === 'group'
+      ? this.i18n.t(this.I18N.stats.correlations.group_by)
+      : this.i18n.t(column === xAxis ? `stats.correlations.dimensions.${column}` : `stats.correlations.metrics.${column}`));
+  });
   readonly accessibleRows = computed(() => this.accessibleRecords().map(row => this.accessibleColumns().map(column => row[column])));
   readonly correlationLoading = signal(false);
   readonly correlationFailed = signal(false);
+  readonly correlationRetrying = signal(false);
 
   readonly corrDimensions = [
     { key: 'iso' }, { key: 'f_stop' }, { key: 'focal_length' },
@@ -188,10 +202,11 @@ export class StatsCorrelationsTabComponent {
       this.corrData.set(null);
       this.correlationLoading.set(false);
       this.correlationFailed.set(false);
+      this.correlationRetrying.set(false);
     });
     effect(() => {
       const data = this.currentData();
-      this.themeService.darkMode(); this.themeService.theme(); this.corrChartType();
+      this.themeService.darkMode(); this.themeService.theme(); this.corrChartType(); this.i18n.locale();
       if (data) this.buildCorrelationChart(data);
     });
 
@@ -210,11 +225,19 @@ export class StatsCorrelationsTabComponent {
     return params;
   }
 
-  async loadCorrelation(): Promise<void> {
+  retryCorrelation(): void {
+    if (!this.correlationLoading()) void this.loadCorrelation(true);
+  }
+
+  async loadCorrelation(retry = false): Promise<void> {
     if (!this.auth.isAuthenticated() || this.corrYMetrics().length === 0) return;
     const generation = ++this.generation;
     const key = this.requestKey();
+    const button = retry ? this.correlationRetry()?.nativeElement : undefined;
+    const doc = button?.ownerDocument;
+    const restoreFocus = !!button && doc?.activeElement === button;
     this.correlationLoading.set(true);
+    this.correlationRetrying.set(retry);
     this.correlationFailed.set(false);
     this.corrData.set(null);
     try {
@@ -228,9 +251,14 @@ export class StatsCorrelationsTabComponent {
       const data = await firstValueFrom(
         this.api.get<CorrelationApiResponse>('/stats/correlations', params, new HttpContext().set(HANDLE_SERVER_ERROR_LOCALLY, true)),
       );
-      if (generation === this.generation && key === this.requestKey()) { this.loadedKey.set(key); this.corrData.set(data); }
+      if (generation === this.generation && key === this.requestKey()) {
+        this.loadedKey.set(key); this.corrData.set(data);
+        if (restoreFocus && doc?.activeElement === button) afterNextRender(() => {
+          if (generation === this.generation && key === this.requestKey() && (doc.activeElement === doc.body || doc.activeElement === button)) this.correlationHeading()?.nativeElement.focus();
+        }, { injector: this.injector });
+      }
     } catch { if (generation === this.generation && key === this.requestKey()) this.correlationFailed.set(true); }
-    finally { if (generation === this.generation) this.correlationLoading.set(false); }
+    finally { if (generation === this.generation) { this.correlationLoading.set(false); this.correlationRetrying.set(false); } }
   }
 
   /** Export the loaded correlation buckets as CSV (one row per bucket, or per bucket+group). */
@@ -275,7 +303,7 @@ export class StatsCorrelationsTabComponent {
       borderRadius?: number;
     }[] = [];
 
-    const themedColors = [this.themeService.accentColor(), ...COLORS.slice(1)];
+    const themedColors = chartSeriesColors(this.themeService.darkMode());
 
     if (apiData.groups && Object.keys(apiData.groups).length > 0) {
       const groupNames = Object.keys(apiData.groups);
@@ -300,7 +328,7 @@ export class StatsCorrelationsTabComponent {
         const color = themedColors[mi % themedColors.length];
         const values = apiData.metrics[metric] ?? [];
         datasets.push({
-          label: metric, data: values,
+          label: this.i18n.t(`stats.correlations.metrics.${metric}`), data: values,
           backgroundColor: color + (type === 'bar' ? 'cc' : '33'),
           borderColor: color, borderWidth: type === 'bar' ? 1 : 2,
           fill, tension: type === 'line' ? 0 : undefined,

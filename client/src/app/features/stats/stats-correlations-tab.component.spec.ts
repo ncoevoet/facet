@@ -1,6 +1,6 @@
 import { TestBed } from '@angular/core/testing';
 import { signal } from '@angular/core';
-import { of, Subject, throwError } from 'rxjs';
+import { Observable, of, Subject, throwError } from 'rxjs';
 import { ApiService } from '../../core/services/api.service';
 import { AuthService } from '../../core/services/auth.service';
 import { I18nService } from '../../core/services/i18n.service';
@@ -19,7 +19,7 @@ describe('StatsCorrelationsTabComponent', () => {
         StatsCorrelationsTabComponent,
         { provide: ApiService, useValue: { get: vi.fn(() => of({})) } },
         { provide: AuthService, useValue: { status: signal({ authenticated: true }), identity: owner, isAuthenticated: signal(true), token: 'token-a' } },
-        { provide: I18nService, useValue: { t: vi.fn((k: string) => k), currentLang: vi.fn(() => 'en') } },
+        { provide: I18nService, useValue: { t: vi.fn((k: string) => k), locale: signal('en'), currentLang: vi.fn(() => 'en') } },
         { provide: StatsFiltersService, useValue: { filterCategory: signal(''), dateFrom: signal(''), dateTo: signal('') } },
       ],
     });
@@ -59,6 +59,16 @@ describe('StatsCorrelationsTabComponent', () => {
     owner.set('owner-b');
     expect(component.currentData()).toBeNull();
     expect(component.corrBucketCount()).toBe(0);
+  });
+
+  it('uses translation keys for chart-table headers while retaining raw CSV keys', async () => {
+    TestBed.tick();
+    vi.mocked(TestBed.inject(ApiService).get).mockReturnValueOnce(of({ labels: ['2025'], metrics: { aggregate: [7], aesthetic: [6] }, x_axis: 'date_year', group_by: '' }));
+    await component.loadCorrelation();
+    expect(component.accessibleColumnLabels()).toEqual([
+      'stats.correlations.dimensions.date_year', 'stats.correlations.metrics.aggregate', 'stats.correlations.metrics.aesthetic',
+    ]);
+    expect(buildCorrelationCsvRecords(component.currentData(), ['aggregate', 'aesthetic'])[0]).toEqual({ date_year: '2025', aggregate: 7, aesthetic: 6 });
   });
 
   it('ignores a late response after the owner changes', async () => {
@@ -108,6 +118,47 @@ describe('StatsCorrelationsTabComponent', () => {
     expect(component.currentData()).toBeNull();
     TestBed.tick();
     expect(component.corrData()).toBeNull();
+  });
+});
+
+describe('Correlation error recovery', () => {
+  it('keeps Retry focused through another failure and restores focus after success', async () => {
+    const pending = new Subject<any>();
+    const api = { get: vi.fn((): Observable<any> => throwError(() => new Error('offline'))) };
+    TestBed.configureTestingModule({
+      imports: [StatsCorrelationsTabComponent],
+      providers: [
+        { provide: ApiService, useValue: api },
+        { provide: AuthService, useValue: { status: signal({ authenticated: true }), identity: signal('owner'), isAuthenticated: signal(true), token: 'token' } },
+        { provide: I18nService, useValue: { t: (key: string) => key, translations: signal({}), locale: signal('en') } },
+        { provide: StatsFiltersService, useValue: { filterCategory: signal(''), dateFrom: signal(''), dateTo: signal('') } },
+      ],
+    });
+    const fixture = TestBed.createComponent(StatsCorrelationsTabComponent);
+    document.body.appendChild(fixture.nativeElement);
+    fixture.detectChanges();
+    await fixture.componentInstance.loadCorrelation();
+    fixture.detectChanges();
+    const retry = fixture.nativeElement.querySelector('[role="alert"] button') as HTMLButtonElement;
+    expect(retry).toBeTruthy();
+    retry.focus();
+    api.get.mockReturnValueOnce(pending);
+    retry.click();
+    fixture.detectChanges();
+    expect(document.activeElement).toBe(retry);
+    expect(retry.getAttribute('aria-disabled')).toBe('true');
+    pending.error(new Error('offline'));
+    await fixture.whenStable();
+    fixture.detectChanges();
+    expect(document.activeElement).toBe(retry);
+    api.get.mockReturnValueOnce(of({ labels: [], metrics: {}, x_axis: 'date_year', group_by: '' }));
+    retry.click();
+    await fixture.whenStable();
+    fixture.detectChanges();
+    await fixture.whenStable();
+    expect(document.activeElement?.textContent).toContain('stats.metric_correlations');
+    fixture.destroy();
+    fixture.nativeElement.remove();
   });
 });
 

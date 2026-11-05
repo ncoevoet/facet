@@ -15,7 +15,7 @@ import { TranslatePipe } from '../../shared/pipes/translate.pipe';
 import { StatsFiltersService } from './stats-filters.service';
 import { downloadCsv } from '../../shared/utils/csv';
 import { i18nKeys } from '../../core/i18n/keys';
-import { chartTheme } from './chart-theme';
+import { chartSeriesColor, chartTheme } from './chart-theme';
 import { HANDLE_SERVER_ERROR_LOCALLY } from '../../core/utils/http-error-context';
 
 /** Pipe to compute heatmap circle color from count:max. */
@@ -73,9 +73,9 @@ interface TimelineEntry {
           @if (timelineLoading() && !retrying()) {
             <div class="flex justify-center py-4"><mat-spinner diameter="32" [attr.aria-label]="I18N.ui.labels.loading | translate" /></div>
           } @else if (timelineFailed() || retrying()) {
-            <div role="alert" class="rounded-lg bg-[var(--mat-sys-error-container)] p-4 text-[var(--mat-sys-on-error-container)]">
-              {{ (retrying() ? I18N.ui.labels.loading : I18N.stats.correlations.error) | translate }}
-              <button #timelineRetry mat-stroked-button class="ml-3 max-lg:!min-h-11" [attr.aria-disabled]="retrying()" (click)="retryTimeline()">{{ (retrying() ? I18N.ui.labels.loading : I18N.gallery.load_error.retry) | translate }}</button>
+            <div role="alert" class="flex flex-wrap items-center gap-3 rounded-lg bg-[var(--mat-sys-error-container)] p-4 text-[var(--mat-sys-on-error-container)]">
+              <span>{{ (retrying() ? I18N.ui.labels.loading : I18N.stats.correlations.error) | translate }}</span>
+              <button #timelineRetry mat-stroked-button class="!min-h-11" [attr.aria-disabled]="retrying()" (click)="retryTimeline()">{{ (retrying() ? I18N.ui.labels.loading : I18N.gallery.load_error.retry) | translate }}</button>
             </div>
           } @else if (!timeline().length) {
             <p class="py-6 text-center text-[var(--mat-sys-on-surface-variant)]">{{ I18N.stats.no_data | translate }}</p>
@@ -229,25 +229,25 @@ export class StatsTimelineTabComponent {
 
     effect(() => {
       const data = this.timeline();
-      const color = this.themeService.complementaryColor();
+      const color = chartSeriesColor(this.themeService.complementaryColor(), this.themeService.darkMode(), 1);
       this.themeService.darkMode(); this.themeService.theme();
       this.buildAreaLine('timeline', this.timelineCanvas(), data.map(t => t.period), data.map(t => t.count), color);
     });
     effect(() => {
       const data = this.yearlyData();
-      const accent = this.themeService.accentColor();
+      const accent = chartSeriesColor(this.themeService.accentColor(), this.themeService.darkMode());
       this.themeService.darkMode(); this.themeService.theme();
       this.buildVerticalBar('yearly', this.yearlyCanvas(), data.map(y => y.year), data.map(y => y.count), accent);
     });
     effect(() => {
       const data = this.dayOfWeekData();
-      const color = this.themeService.complementaryColor();
+      const color = chartSeriesColor(this.themeService.complementaryColor(), this.themeService.darkMode(), 1);
       this.themeService.darkMode(); this.themeService.theme();
       this.buildVerticalBar('dayOfWeek', this.dayOfWeekCanvas(), data.map(d => d.label), data.map(d => d.count), color);
     });
     effect(() => {
       const data = this.hourOfDayData();
-      const color = this.themeService.complementaryColor();
+      const color = chartSeriesColor(this.themeService.complementaryColor(), this.themeService.darkMode(), 1);
       this.themeService.darkMode(); this.themeService.theme();
       this.buildVerticalBar('hourOfDay', this.hourOfDayCanvas(), data.map(d => d.label), data.map(d => d.count), color);
     });

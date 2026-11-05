@@ -13,7 +13,7 @@ import { ThemeService } from '../../core/services/theme.service';
 import { TranslatePipe } from '../../shared/pipes/translate.pipe';
 import { ChartHeightPipe } from './chart-height.pipe';
 import { downloadCsv } from '../../shared/utils/csv';
-import { chartTheme } from './chart-theme';
+import { chartSeriesColor, chartSeriesColors, chartTheme } from './chart-theme';
 
 export const GEAR_LEGEND_MAX_CHARS = 24;
 
@@ -171,8 +171,8 @@ export class GearChartCardComponent {
       const items = this.sortedItems();
       const metric = this.selectedMetric();
       const canvas = this.chartCanvas();
-      const color = this.color() || this.themeService.accentColor();
-      this.themeService.darkMode();
+      const dark = this.themeService.darkMode();
+      const color = chartSeriesColor(this.color() || this.themeService.accentColor(), dark, this.titleKey() === 'stats.lenses' ? 1 : 0);
       this.themeService.theme();
 
       if (!canvas) return;
@@ -184,7 +184,7 @@ export class GearChartCardComponent {
 
       if (metric === 'usage_timeline') {
         const topItems = items.slice(0, 8); // Limit to top 8 to avoid clutter
-        const colors = ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899', '#06b6d4', '#eab308'];
+        const colors = chartSeriesColors(dark);
         
         this.chart = new Chart(ctx, {
           type: 'line',

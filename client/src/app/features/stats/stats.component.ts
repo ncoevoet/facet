@@ -1,5 +1,5 @@
-import { Component, inject, signal, computed, viewChild, ElementRef, effect, DestroyRef, Injector, afterNextRender, untracked, ChangeDetectionStrategy } from '@angular/core';
-import { DecimalPipe, DOCUMENT } from '@angular/common';
+import { Component, inject, signal, computed, viewChild, ElementRef, effect, DestroyRef, Injector, afterNextRender, untracked, ChangeDetectionStrategy, Pipe, PipeTransform } from '@angular/core';
+import { DecimalPipe, DOCUMENT, NgTemplateOutlet } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { MatCardModule } from '@angular/material/card';
 import { MatTabsModule } from '@angular/material/tabs';
@@ -26,7 +26,7 @@ import { StatsFiltersService, StatsOverviewData } from './stats-filters.service'
 import { registerPageContext } from '../../core/agent/page-context.service';
 import { GearChartCardComponent, GearItem } from './gear-chart-card.component';
 import { ChartHeightPipe } from './chart-height.pipe';
-import { chartTheme } from './chart-theme';
+import { chartTheme, chartSeriesColor, chartSeriesColors } from './chart-theme';
 import { StatsTimelineTabComponent } from './stats-timeline-tab.component';
 import { StatsCorrelationsTabComponent } from './stats-correlations-tab.component';
 import { downloadCsv } from '../../shared/utils/csv';
@@ -75,12 +75,19 @@ interface TopCamera {
   avg_aesthetic: number;
 }
 
-const COLORS = ['#22c55e', '#3b82f6', '#a855f7', '#f59e0b', '#ef4444', '#06b6d4', '#ec4899', '#84cc16'];
+@Pipe({ name: 'statsNumber', standalone: true })
+export class StatsNumberPipe implements PipeTransform {
+  transform(value: number, locale: string, digits = 0): string {
+    return new Intl.NumberFormat(locale, { minimumFractionDigits: digits, maximumFractionDigits: digits }).format(value);
+  }
+}
 
 @Component({
   selector: 'app-stats',
   imports: [
     DecimalPipe,
+    NgTemplateOutlet,
+    StatsNumberPipe,
     FormsModule,
     MatCardModule,
     MatTabsModule,
@@ -100,33 +107,49 @@ const COLORS = ['#22c55e', '#3b82f6', '#a855f7', '#f59e0b', '#ef4444', '#06b6d4'
   host: { class: 'block p-4 md:p-6' },
   changeDetection: ChangeDetectionStrategy.Eager,
   template: `
-    <header class="mb-4 space-y-4">
+    <header class="mb-3 space-y-2 sm:space-y-4">
       <h1 id="stats-heading" tabindex="-1" class="m-0 text-xl font-semibold text-[var(--mat-sys-on-surface)]">{{ I18N.nav.stats | translate }}</h1>
       @if (statsFilters.overview(); as overview) {
-        <dl class="m-0 grid grid-cols-2 gap-2 sm:grid-cols-4" data-stats-overview>
-          <div class="min-w-0 rounded-lg bg-[var(--mat-sys-surface-container)] px-3 py-2">
-            <dt class="text-xs text-[var(--mat-sys-on-surface-variant)]">{{ I18N.stats.total_photos | translate }}</dt>
-            <dd class="m-0 text-lg font-semibold tabular-nums">{{ overview.total_photos | number }}</dd>
+        <dl class="m-0 flex flex-wrap gap-x-5 gap-y-1 text-sm" data-stats-overview>
+          <div class="flex min-w-0 items-baseline gap-1.5">
+            <dt class="text-[var(--mat-sys-on-surface-variant)]">{{ I18N.stats.total_photos | translate }}</dt>
+            <dd class="m-0 font-semibold tabular-nums">{{ overview.total_photos | statsNumber:i18n.locale() }}</dd>
           </div>
-          <div class="min-w-0 rounded-lg bg-[var(--mat-sys-surface-container)] px-3 py-2">
-            <dt class="text-xs text-[var(--mat-sys-on-surface-variant)]">{{ I18N.stats.total_persons | translate }}</dt>
-            <dd class="m-0 text-lg font-semibold tabular-nums">{{ overview.total_persons | number }}</dd>
+          <div class="flex min-w-0 items-baseline gap-1.5">
+            <dt class="text-[var(--mat-sys-on-surface-variant)]">{{ I18N.stats.total_persons | translate }}</dt>
+            <dd class="m-0 font-semibold tabular-nums">{{ overview.total_persons | statsNumber:i18n.locale() }}</dd>
           </div>
-          <div class="min-w-0 rounded-lg bg-[var(--mat-sys-surface-container)] px-3 py-2">
-            <dt class="text-xs text-[var(--mat-sys-on-surface-variant)]">{{ I18N.stats.avg_score | translate }}</dt>
-            <dd class="m-0 text-lg font-semibold tabular-nums">{{ overview.avg_score | number:'1.1-1' }}</dd>
+          <div class="flex min-w-0 items-baseline gap-1.5">
+            <dt class="text-[var(--mat-sys-on-surface-variant)]">{{ I18N.stats.avg_score | translate }}</dt>
+            <dd class="m-0 font-semibold tabular-nums">{{ overview.total_photos ? (overview.avg_score | statsNumber:i18n.locale():1) : '—' }}</dd>
           </div>
-          <div class="min-w-0 rounded-lg bg-[var(--mat-sys-surface-container)] px-3 py-2">
-            <dt class="text-xs text-[var(--mat-sys-on-surface-variant)]">{{ I18N.stats.total_faces | translate }}</dt>
-            <dd class="m-0 text-lg font-semibold tabular-nums">{{ overview.total_faces | number }}</dd>
+          <div class="flex min-w-0 items-baseline gap-1.5">
+            <dt class="text-[var(--mat-sys-on-surface-variant)]">{{ I18N.stats.total_faces | translate }}</dt>
+            <dd class="m-0 font-semibold tabular-nums">{{ overview.total_faces | statsNumber:i18n.locale() }}</dd>
           </div>
         </dl>
       }
+      <details class="group sm:hidden">
+        <summary class="flex min-h-11 cursor-pointer items-center gap-2 text-sm font-medium text-[var(--mat-sys-primary)]">
+          <mat-icon aria-hidden="true">filter_list</mat-icon>{{ I18N.ui.buttons.filters | translate }}
+          @if (statsFilters.filterCategory() || statsFilters.dateFrom() || statsFilters.dateTo()) {
+            <span class="h-2 w-2 rounded-full bg-[var(--mat-sys-primary)]" aria-hidden="true"></span>
+            <span class="sr-only">{{ statsFilters.filterCategory() }} {{ statsFilters.dateFrom() }} {{ statsFilters.dateTo() }}</span>
+          }
+          <mat-icon aria-hidden="true" class="transition-transform group-open:rotate-180">expand_more</mat-icon>
+        </summary>
+        <ng-container [ngTemplateOutlet]="statsFiltersTemplate" />
+      </details>
+      <div class="hidden sm:block"><ng-container [ngTemplateOutlet]="statsFiltersTemplate" /></div>
+      <ng-template #statsFiltersTemplate>
       <div class="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:max-w-3xl" data-stats-filters>
       <mat-form-field class="col-span-2 min-w-0 sm:col-span-1" subscriptSizing="dynamic">
         <mat-label>{{ I18N.ui.filters.type | translate }}</mat-label>
         <mat-select panelWidth="auto" panelClass="nowrap-panel" [value]="statsFilters.filterCategory()" (selectionChange)="onStatsCategoryChange($event.value)">
           <mat-option value="">{{ I18N.gallery.all_photos | translate }}</mat-option>
+          @if (unknownCategory(); as category) {
+            <mat-option [value]="category">{{ category }}</mat-option>
+          }
           @for (t of store.types(); track t.id) {
             <mat-option [value]="t.id">{{ (t.id === 'top_picks' ? 'photo_types.top_picks' : 'category_names.' + t.id) | translate }} ({{ t.count }})</mat-option>
           }
@@ -138,6 +161,7 @@ const COLORS = ['#22c55e', '#3b82f6', '#a855f7', '#f59e0b', '#ef4444', '#06b6d4'
         fromClass="min-w-0 w-full"
         (fromChange)="statsFilters.dateFrom.set($event)" (toChange)="statsFilters.dateTo.set($event)" />
       </div>
+      </ng-template>
     </header>
     @if (loadFailed() || retrying()) {
       <div role="alert" class="mb-4 flex flex-wrap items-center gap-3 rounded-lg bg-[var(--mat-sys-error-container)] p-3 text-[var(--mat-sys-on-error-container)]">
@@ -149,13 +173,13 @@ const COLORS = ['#22c55e', '#3b82f6', '#a855f7', '#f59e0b', '#ef4444', '#06b6d4'
       <div class="flex justify-center py-16">
         <mat-spinner diameter="48" [attr.aria-label]="I18N.ui.labels.loading | translate" />
       </div>
-    } @else {
+    } @else if (!loadFailed()) {
       <mat-tab-group class="stats-tabs" mat-stretch-tabs="false" mat-align-tabs="start" [selectedIndex]="selectedTab()" (selectedIndexChange)="selectedTab.set($event)">
           <!-- Gear tab -->
           <mat-tab>
             <ng-template mat-tab-label>
-              <mat-icon class="sm:mr-2" [matTooltip]="I18N.stats.gear | translate">camera_alt</mat-icon>
-              <span class="sr-only sm:not-sr-only">{{ I18N.stats.gear | translate }}</span>
+              <mat-icon class="!hidden sm:!inline-block sm:mr-2" aria-hidden="true">camera_alt</mat-icon>
+              <span>{{ I18N.stats.gear | translate }}</span>
             </ng-template>
             <div class="grid grid-cols-1 xl:grid-cols-2 gap-4 mt-4">
               <app-gear-chart-card titleKey="stats.cameras" [items]="cameras()" [loading]="gearLoading()" [color]="themeService.accentColor()" />
@@ -174,8 +198,8 @@ const COLORS = ['#22c55e', '#3b82f6', '#a855f7', '#f59e0b', '#ef4444', '#06b6d4'
           <!-- Categories tab -->
           <mat-tab>
             <ng-template mat-tab-label>
-              <mat-icon class="sm:mr-2" [matTooltip]="I18N.stats.categories.tab | translate">category</mat-icon>
-              <span class="sr-only sm:not-sr-only">{{ I18N.stats.categories.tab | translate }}</span>
+              <mat-icon class="!hidden sm:!inline-block sm:mr-2" aria-hidden="true">category</mat-icon>
+              <span>{{ I18N.stats.categories.tab | translate }}</span>
             </ng-template>
             <div class="mt-4 flex flex-col gap-4">
               <div class="grid grid-cols-1 lg:grid-cols-2 2xl:grid-cols-3 gap-4">
@@ -229,6 +253,8 @@ const COLORS = ['#22c55e', '#3b82f6', '#a855f7', '#f59e0b', '#ef4444', '#06b6d4'
                   <mat-card-content class="!pt-4">
                     @if (scoreLoading()) {
                       <div class="flex justify-center py-4"><mat-spinner diameter="32" [attr.aria-label]="I18N.ui.labels.loading | translate" /></div>
+                    } @else if (scoreBins().length === 0) {
+                      <p class="text-sm text-[var(--mat-sys-on-surface-variant)]">{{ I18N.stats.no_data | translate }}</p>
                     } @else {
                       <div [style.height.px]="scoreBins() | chartHeight">
                         <canvas #scoreCanvas role="img" [attr.aria-label]="I18N.stats.score_histogram | translate"></canvas>
@@ -302,8 +328,8 @@ const COLORS = ['#22c55e', '#3b82f6', '#a855f7', '#f59e0b', '#ef4444', '#06b6d4'
           <!-- Timeline tab -->
           <mat-tab>
             <ng-template mat-tab-label>
-              <mat-icon class="sm:mr-2" [matTooltip]="I18N.stats.timeline | translate">timeline</mat-icon>
-              <span class="sr-only sm:not-sr-only">{{ I18N.stats.timeline | translate }}</span>
+              <mat-icon class="!hidden sm:!inline-block sm:mr-2" aria-hidden="true">timeline</mat-icon>
+              <span>{{ I18N.stats.timeline | translate }}</span>
             </ng-template>
             <app-stats-timeline-tab />
           </mat-tab>
@@ -311,8 +337,8 @@ const COLORS = ['#22c55e', '#3b82f6', '#a855f7', '#f59e0b', '#ef4444', '#06b6d4'
           <!-- Correlations tab -->
           <mat-tab>
             <ng-template mat-tab-label>
-              <mat-icon class="sm:mr-2" [matTooltip]="I18N.stats.tabs.correlations | translate">insights</mat-icon>
-              <span class="sr-only sm:not-sr-only">{{ I18N.stats.tabs.correlations | translate }}</span>
+              <mat-icon class="!hidden sm:!inline-block sm:mr-2" aria-hidden="true">insights</mat-icon>
+              <span>{{ I18N.stats.tabs.correlations | translate }}</span>
             </ng-template>
             <app-stats-correlations-tab />
           </mat-tab>
@@ -326,12 +352,16 @@ export class StatsComponent {
   private readonly auth = inject(AuthService);
   private readonly document = inject(DOCUMENT);
   private readonly injector = inject(Injector);
-  private i18n = inject(I18nService);
+  protected readonly i18n = inject(I18nService);
   private destroyRef = inject(DestroyRef);
   private route = inject(ActivatedRoute);
   private router = inject(Router);
   readonly statsFilters = inject(StatsFiltersService);
   readonly store = inject(GalleryStore);
+  protected readonly unknownCategory = computed(() => {
+    const category = this.statsFilters.filterCategory();
+    return category && !this.store.types().some(t => t.id === category) ? category : null;
+  });
   readonly themeService = inject(ThemeService);
   private readonly pageHelp = inject(PageHelpService);
   private charts = new Map<string, Chart>();
@@ -436,31 +466,28 @@ export class StatsComponent {
     // Chart effects — canvas refs must be tracked so charts render on tab switch
     effect(() => {
       const bins = this.scoreBins();
-      const accent = this.themeService.accentColor();
-      this.themeService.darkMode();
+      const accent = chartSeriesColor(this.themeService.accentColor(), this.themeService.darkMode());
       this.buildVerticalBar('score', this.scoreCanvas(), bins.map(b => b.range), bins.map(b => b.count), accent);
     });
     effect(() => {
       const cats = this.categoryScoreProfile();
-      const accent = this.themeService.accentColor();
-      this.themeService.darkMode();
+      const colors = chartSeriesColors(this.themeService.darkMode());
       const labels = cats.map(c => this.translateCategory(c.category));
       this.buildGroupedHorizontalBar('categoryScoreProfile', this.categoryScoreProfileCanvas(), labels, [
-        { label: this.i18n.t(I18N.stats.axes.aggregate),    data: cats.map(c => c.avg_score),        color: COLORS[3] },
-        { label: this.i18n.t(I18N.stats.axes.aesthetic),    data: cats.map(c => c.avg_aesthetic),    color: accent },
-        { label: this.i18n.t(I18N.stats.axes.composition),  data: cats.map(c => c.avg_composition),  color: COLORS[1] },
-        { label: this.i18n.t(I18N.stats.axes.sharpness),    data: cats.map(c => c.avg_sharpness),    color: COLORS[2] },
-        { label: this.i18n.t(I18N.stats.axes.color),        data: cats.map(c => c.avg_color),        color: COLORS[5] },
-        { label: this.i18n.t(I18N.stats.axes.exposure),     data: cats.map(c => c.avg_exposure),     color: COLORS[4] },
-        { label: this.i18n.t(I18N.stats.axes.face_quality), data: cats.map(c => c.avg_face_quality), color: COLORS[6] },
-        { label: this.i18n.t(I18N.stats.axes.contrast),     data: cats.map(c => c.avg_contrast),     color: COLORS[7] },
+        { label: this.i18n.t(I18N.stats.axes.aggregate),    data: cats.map(c => c.avg_score),        color: colors[0] },
+        { label: this.i18n.t(I18N.stats.axes.aesthetic),    data: cats.map(c => c.avg_aesthetic),    color: colors[1] },
+        { label: this.i18n.t(I18N.stats.axes.composition),  data: cats.map(c => c.avg_composition),  color: colors[2] },
+        { label: this.i18n.t(I18N.stats.axes.sharpness),    data: cats.map(c => c.avg_sharpness),    color: colors[3] },
+        { label: this.i18n.t(I18N.stats.axes.color),        data: cats.map(c => c.avg_color),        color: colors[4] },
+        { label: this.i18n.t(I18N.stats.axes.exposure),     data: cats.map(c => c.avg_exposure),     color: colors[5] },
+        { label: this.i18n.t(I18N.stats.axes.face_quality), data: cats.map(c => c.avg_face_quality), color: colors[6] },
+        { label: this.i18n.t(I18N.stats.axes.contrast),     data: cats.map(c => c.avg_contrast),     color: colors[7] },
       ]);
     });
     effect(() => {
       const cats = this.categoryMetricData();
       const metric = this.categoryMetric() as keyof CategoryStat;
-      const color = this.themeService.complementaryColor();
-      this.themeService.darkMode();
+      const color = chartSeriesColor(this.themeService.complementaryColor(), this.themeService.darkMode());
       this.buildHorizontalBar('categoryMetric', this.categoryMetricCanvas(),
         cats.map(c => this.translateCategory(c.category)), cats.map(c => c[metric] as number), color);
     });

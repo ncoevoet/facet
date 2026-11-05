@@ -7,7 +7,7 @@ import { NEVER, of, Subject, throwError } from 'rxjs';
 import { ApiService } from '../../core/services/api.service';
 import { I18nService } from '../../core/services/i18n.service';
 import { ChartHeightPipe } from './chart-height.pipe';
-import { StatsComponent } from './stats.component';
+import { StatsComponent, StatsNumberPipe } from './stats.component';
 import { PageContextService } from '../../core/agent/page-context.service';
 import { Router, ActivatedRoute } from '@angular/router';
 
@@ -146,6 +146,22 @@ describe('StatsComponent', () => {
       component.statsFilters.dateFrom.set('2026-01-01');
       expect(context.snapshot()).toMatchObject({ category: 'portrait', date_from: '2026-01-01' });
     });
+  });
+
+  it('formats overview numbers using the viewer language', () => {
+    const pipe = new StatsNumberPipe();
+    expect(pipe.transform(18432, 'de')).toBe('18.432');
+    expect(pipe.transform(6.5, 'de', 1)).toBe('6,5');
+    expect(pipe.transform(18432, 'en')).toBe('18,432');
+  });
+
+  it('keeps an unknown category query visible until the matching type is available', () => {
+    component = createComponent();
+    const types = TestBed.inject(GalleryStore).types as ReturnType<typeof signal<{ id: string; count: number }[]>>;
+    component.statsFilters.filterCategory.set('unknown-category');
+    expect(c().unknownCategory()).toBe('unknown-category');
+    types.set([{ id: 'unknown-category', count: 1 }]);
+    expect(c().unknownCategory()).toBeNull();
   });
 
   describe('loadAll()', () => {
