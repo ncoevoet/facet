@@ -467,16 +467,7 @@ def test_real_numeric_keywords_survive_cli_writer_paths(tmp_path, embed, reconci
 def test_control_character_keyword_beside_a_boolean_survives_embedding(tmp_path, monkeypatch):
     from PIL import Image
     from processing import xmp_export as xe
-    from utils.exiftool_process import close_sessions, run_exiftool_process
-    original_popen = subprocess.Popen
-    def windows_narrow_argv(args, **kwargs):
-        # Windows ANSI argv bytes are not UTF-8; ExifTool can drop the accent
-        # before the production writer ever sees the seeded IPTC keyword.
-        args = [args[0], *[value.encode('cp1252', errors='replace').decode('utf-8', errors='ignore')
-                           for value in args[1:]]]
-        return original_popen(args, **kwargs)
-    close_sessions()
-    monkeypatch.setattr(subprocess, 'Popen', windows_narrow_argv)
+    from utils.exiftool_process import run_exiftool_process
     image = tmp_path / 'bell.jpg'
     Image.new('RGB', (16, 16)).save(image)
     names = ['True', 'bell\x07x', 'café']
@@ -535,6 +526,6 @@ def test_exact_boolean_read_io_failure_refuses_before_writing(tmp_path, monkeypa
         return subprocess.CompletedProcess(args, 0, stdout='[{"Subject":true}]')
     exiftool_fake.install(monkeypatch, run)
     with pytest.raises(RuntimeError, match='Cannot read existing keywords'):
-        xe._run_exiftool(str(sidecar), XmpRating(tags=['own']), timeout=1)
+        xe._run_exiftool(str(sidecar), XmpRating(tags=['own']), timeout=0.05)
     assert subject_reads
     assert sidecar.read_bytes() == before

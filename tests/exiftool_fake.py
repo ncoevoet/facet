@@ -3,58 +3,35 @@
 ``utils.exiftool_process`` keeps one ExifTool process open and feeds it commands
 through stdin, so a test can no longer fake ExifTool by replacing
 ``subprocess.run``: that hook never sees those commands. Both fakes here answer
-the real protocol instead, so the session code under test (status echo, stderr
-marker, ``{readyN}``, timeout, a dying process) runs unchanged.
+the real protocol through ``tests/exiftool_protocol.py``, so the session code under
+test (status echo, stderr marker, ``{readyN}``, timeout, a dying process) runs
+unchanged.
 
 * ``install(monkeypatch, handler)`` -- an in-process fake process. ``handler(args)``
   receives one command's arguments as ExifTool parses them (``[exe, *config,
   *arguments]``) and returns an object with ``returncode`` and ``stdout`` (and
-  optionally ``stderr``). Raising ``OSError`` makes the process die mid-command;
-  raising ``subprocess.TimeoutExpired`` makes it hang until the caller's timeout.
-  Each process records ``commands`` (parsed) and ``lines`` (the raw argument-file
-  lines of each command).
+  optionally ``stderr``). Raising ``Exit(status, stderr)`` makes the process write
+  ``stderr`` and exit mid-command (``OSError`` is ``Exit(1)``); raising
+  ``subprocess.TimeoutExpired`` makes it hang until the caller's timeout. Each
+  process records ``commands`` (parsed) and ``lines`` (the raw argument-file lines
+  of each command).
 * ``script(tmp_path, handle_source)`` -- a real executable, for tests that need an
   actual process. ``handle_source`` defines ``handle(args) -> (status, stdout,
-  stderr)``; every command it receives is appended to ``<script>.log`` as JSON.
+  stderr)``; it returns the launcher path, and ``logged(launcher)`` lists every
+  command the process received.
 """
 import json
 import queue
-import re
 import subprocess
 import sys
 import textwrap
 import types
+from pathlib import Path
 
 import utils.exiftool_process as exiftool_process
+from tests.exiftool_protocol import Exit, Protocol
 
-_ASSIGNMENT = re.compile(r'(-[-:\w]+?#?)([-+<]?=) (.*)', re.DOTALL)
-_CHARSET = ['-charset', 'filename=UTF8', '-charset', 'UTF8']
-
-
-def _parsed(lines):
-    """One command's argument-file lines as ExifTool reads them."""
-    if lines[:4] == _CHARSET:
-        lines = lines[4:]
-    parsed = []
-    for line in lines:
-        match = _ASSIGNMENT.fullmatch(line)
-        # An argument file strips ONE space after an assignment.
-        parsed.append(match[1] + match[2] + match[3] if match and match[2] != '<=' else line)
-    return parsed
-
-
-def _split_command(lines):
-    """``(arguments, echo3 text, echo4 text)`` of one command block."""
-    arguments, echo3, echo4 = [], [], []
-    iterator = iter(lines)
-    for line in iterator:
-        if line == '-echo3':
-            echo3.append(next(iterator))
-        elif line == '-echo4':
-            echo4.append(next(iterator))
-        else:
-            arguments.append(line)
-    return arguments, echo3, echo4
+__all__ = ['Exit', 'FakeStayOpenProcess', 'install', 'logged', 'script']
 
 
 class _Pipe:
@@ -95,50 +72,37 @@ class _Stdin:
 class FakeStayOpenProcess:
     """In-process ``exiftool -stay_open True -@ -`` driven by a handler."""
 
-    def __init__(self, launch, handler):
+    pid = None
+
+    def __init__(self, launch, handler, *, report_status=True, ignore_stop=False):
         assert launch[-4:] == ['-stay_open', 'True', '-@', '-'], launch
         self.launch = launch[:-4]
         self.handler = handler
+        self.ignore_stop = ignore_stop
         self.stdin, self.stdout, self.stderr = _Stdin(self), _Pipe(), _Pipe()
         self.returncode = None
         self.commands = []
         self.lines = []
-        self._block = []
-        self._stopping = False
+        self.killed = False
+        self._protocol = Protocol(self._answer, exiftool_process.ARGFILE_PREFIX, report_status)
+
+    def _answer(self, lines, args):
+        args = [*self.launch, *args]
+        self.lines.append(lines)
+        self.commands.append(args)
+        result = self.handler(args)
+        return result.returncode, result.stdout or '', getattr(result, 'stderr', '') or ''
 
     def line(self, line):
-        if self._stopping:
-            if line == 'False':
-                self._exit(0)
-            self._stopping = False
-            return
-        if line == '-stay_open':
-            self._stopping = True
-            return
-        match = re.fullmatch(r'-execute(\d*)', line)
-        if not match:
-            self._block.append(line)
-            return
-        block, self._block = self._block, []
-        arguments, echo3, echo4 = _split_command(block)
-        args = [*self.launch, *_parsed(arguments)]
-        self.lines.append(arguments)
-        self.commands.append(args)
-        try:
-            result = self.handler(args)
-        except subprocess.TimeoutExpired:
-            return  # hangs: the caller's deadline has to fire
-        except OSError:
-            self._exit(1)
-            return
-        status = result.returncode
-        self.stdout.put((result.stdout or '').encode('utf-8'))
-        for text in echo3:
-            self.stdout.put((text.replace('${status}', str(status)) + '\n').encode('utf-8'))
-        self.stdout.put(f'{{ready{match[1]}}}\n'.encode('utf-8'))
-        self.stderr.put((getattr(result, 'stderr', '') or '').encode('utf-8'))
-        for text in echo4:
-            self.stderr.put((text.replace('${status}', str(status)) + '\n').encode('utf-8'))
+        result = self._protocol.feed(line)
+        if result == 'stop' and not self.ignore_stop:
+            self._exit(0)
+        elif isinstance(result, Exit):
+            self.stderr.put(result.stderr.encode('utf-8'))
+            self._exit(result.status)
+        elif isinstance(result, tuple):
+            self.stdout.put(result[0])
+            self.stderr.put(result[1])
 
     def _exit(self, code):
         if self.returncode is None:
@@ -150,88 +114,83 @@ class FakeStayOpenProcess:
         return self.returncode
 
     def kill(self):
+        self.killed = True
         self._exit(-9)
 
     def wait(self, timeout=None):
+        if self.returncode is None:
+            raise subprocess.TimeoutExpired('fake exiftool', timeout)
         return self.returncode
 
 
-def install(monkeypatch, handler):
+def install(monkeypatch, handler, **options):
     """Route every ExifTool command to ``handler`` through a fake stay-open process.
 
+    ``options`` go to ``FakeStayOpenProcess`` (``report_status``, ``ignore_stop``).
     Returns the list of processes started, so a test can count launches and read
     each one's ``commands``.
     """
     started = []
 
     def popen(launch, **kwargs):
-        process = FakeStayOpenProcess(list(launch), handler)
+        process = FakeStayOpenProcess(list(launch), handler, **options)
         started.append(process)
         return process
 
     fake = types.SimpleNamespace(**{name: getattr(subprocess, name) for name in
-                                    ('PIPE', 'TimeoutExpired', 'CompletedProcess')}, Popen=popen)
+                                    ('PIPE', 'TimeoutExpired', 'CompletedProcess', 'run')}, Popen=popen)
     exiftool_process.close_sessions()
     monkeypatch.setattr(exiftool_process, 'subprocess', fake)
     monkeypatch.setattr(exiftool_process, '_sessions', {})
+    monkeypatch.setattr(exiftool_process, '_PDEATHSIG', [])
     return started
 
 
 _SCRIPT = '''\
-import json, re, sys
+import json, sys
+sys.path.insert(0, {tests!r})
+from exiftool_protocol import Exit, Protocol
+
 LOG = {log!r}
 
 {handle}
 
-def log(args):
+def answer(lines, args):
     with open(LOG, 'a', encoding='utf-8') as stream:
         stream.write(json.dumps(args) + '\\n')
-
-def answer(args):
-    log(args)
     return handle(args)
 
 argv = sys.argv[1:]
 if argv[-4:] != ['-stay_open', 'True', '-@', '-']:
-    status, out, err = answer(argv)
+    status, out, err = answer(argv, argv)
     sys.stdout.write(out); sys.stderr.write(err)
     sys.exit(status)
 config = argv[:-4]
-block = []
-lines = iter(sys.stdin.buffer)
-for raw in lines:
-    line = raw.decode('utf-8').rstrip('\\r\\n')
-    if line == '-stay_open':
-        if next(lines).decode('utf-8').strip() == 'False':
-            sys.exit(0)
-        continue
-    match = re.fullmatch(r'-execute(\\d*)', line)
-    if not match:
-        block.append(line)
-        continue
-    arguments, echo3, echo4 = SPLIT(block)
-    block = []
-    status, out, err = answer(config + PARSED(arguments))
-    sys.stdout.write(out)
-    for text in echo3:
-        sys.stdout.write(text.replace('${{status}}', str(status)) + '\\n')
-    sys.stdout.write('{{ready' + match[1] + '}}\\n'); sys.stdout.flush()
-    sys.stderr.write(err)
-    for text in echo4:
-        sys.stderr.write(text.replace('${{status}}', str(status)) + '\\n')
-    sys.stderr.flush()
+protocol = Protocol(lambda lines, args: answer(lines, config + args), {prefix!r})
+for raw in sys.stdin.buffer:
+    result = protocol.feed(raw.decode('utf-8').rstrip('\\r\\n'))
+    if result == 'stop':
+        sys.exit(0)
+    if isinstance(result, Exit):
+        sys.stderr.write(result.stderr); sys.stderr.flush()
+        sys.exit(result.status)
+    if isinstance(result, tuple):
+        sys.stdout.buffer.write(result[0]); sys.stdout.flush()
+        sys.stderr.buffer.write(result[1]); sys.stderr.flush()
 '''
 
 
+def _log(launcher):
+    return Path(launcher).with_suffix('.log')
+
+
 def script(tmp_path, handle_source, name='fake_exiftool'):
-    """Write an executable fake ExifTool; returns ``(launcher path, log path)``."""
-    import inspect
+    """Write an executable fake ExifTool; returns its launcher path."""
     body = tmp_path / f'{name}.py'
     log = tmp_path / f'{name}.log'
-    helpers = '\n'.join(inspect.getsource(fn) for fn in (_parsed, _split_command))
-    source = ('_ASSIGNMENT = re.compile(r\'(-[-:\\w]+?#?)([-+<]?=) (.*)\', re.DOTALL)\n'
-              f'_CHARSET = {_CHARSET!r}\n' + helpers + '\nPARSED, SPLIT = _parsed, _split_command\n')
-    body.write_text(_SCRIPT.format(log=str(log), handle=textwrap.dedent(handle_source) + '\n' + source),
+    body.write_text(_SCRIPT.format(tests=str(Path(__file__).resolve().parent), log=str(log),
+                                   prefix=exiftool_process.ARGFILE_PREFIX,
+                                   handle=textwrap.dedent(handle_source)),
                     encoding='utf-8')
     if sys.platform == 'win32':
         launcher = tmp_path / f'{name}.cmd'
@@ -240,11 +199,13 @@ def script(tmp_path, handle_source, name='fake_exiftool'):
         launcher = tmp_path / name
         launcher.write_text(f'#!/bin/sh\nexec "{sys.executable}" "{body}" "$@"\n')
         launcher.chmod(0o755)
-    return str(launcher), log
+    assert _log(launcher) == log
+    return str(launcher)
 
 
-def logged(log):
-    """Every command the script fake received, in order."""
+def logged(launcher):
+    """Every command the script fake at ``launcher`` received, in order."""
+    log = _log(launcher)
     if not log.exists():
         return []
     return [json.loads(line) for line in log.read_text(encoding='utf-8').splitlines()]

@@ -238,7 +238,7 @@ def test_region_reader_timeout_or_io_failure_is_a_precondition(tmp_path, monkeyp
         raise failure
     exiftool_fake.install(monkeypatch, fail)
     with pytest.raises(xe.MetadataPreconditionError):
-        xe._read_existing_regions(str(target), "exiftool", timeout=1)
+        xe._read_existing_regions(str(target), "exiftool", timeout=0.05)
     assert target.read_bytes() == before
 
 
@@ -259,7 +259,7 @@ def test_exact_region_read_failure_refuses_without_changing_packet(tmp_path, mon
         return SimpleNamespace(returncode=0, stdout='[{"RegionInfo":{"RegionList":[{"Name":true}]}}]')
     exiftool_fake.install(monkeypatch, run)
     with pytest.raises(xe.MetadataPreconditionError):
-        xe._read_existing_regions(str(target), 'exiftool', timeout=1)
+        xe._read_existing_regions(str(target), 'exiftool', timeout=0.05)
     assert target.read_bytes() == before
 
 

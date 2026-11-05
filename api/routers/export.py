@@ -67,7 +67,8 @@ _PATH_QUERY_CHUNK = 500
 # Explicit lists and filter-resolved sidecar exports share a 10,000-photo cap.
 # Filters are counted before materializing paths, and oversized scopes are
 # refused rather than truncated. This also bounds background job plans and
-# external metadata work (up to two exiftool processes per photo).
+# external metadata work (up to four ExifTool commands per photo, sent to one
+# persistent process).
 _SIDECAR_FILTER_MAX = 10000
 
 # Same shape of problem, for POST /api/cull/apply's filter branch: `_selected_paths`
@@ -78,9 +79,10 @@ _SIDECAR_FILTER_MAX = 10000
 # explicit-list branch at max_length=10000 via the common _PathsOrFiltersRequest
 # base, so all four ways of naming a set on either endpoint end up bounded
 # identically. The per-photo COST that motivates a cap is not the same one --
-# sidecar export spawns two exiftool subprocesses per photo (~0.13s measured);
-# cull does a single shutil.move/copy2 or send2trash call per photo, an order of
-# magnitude cheaper -- so a future retune of either ceiling should not have to
+# sidecar export sends up to four ExifTool commands per photo to a persistent
+# process (a few ms each since #478; the cap predates that and was sized when
+# every command spawned a process); cull does a single shutil.move/copy2 or
+# send2trash call per photo -- so a future retune of either ceiling should not have to
 # touch the other. Refused (412) rather than truncated, exactly like the sidecar
 # cap, and applies to a dry run too: a preview must not be usable to do the
 # unbounded work the real run would be refused for.

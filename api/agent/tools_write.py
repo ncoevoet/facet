@@ -45,7 +45,7 @@ SCAN_LINES_CAP = 50
 CAPTION_MAX = 2000
 EXPORT_CAP = 100
 EXPORT_SIDECARS_SHOWN = 20
-# A sidecar export runs two exiftool processes per photo; call_timeout_s would abort a legitimate batch.
+# A sidecar export runs up to four ExifTool commands per photo; call_timeout_s would abort a legitimate batch.
 EXPORT_METADATA_TIMEOUT_S = 180
 # The levels each write tool needs; the matrix test walks this table.
 WRITE_TOOL_LEVELS: dict[str, str] = {

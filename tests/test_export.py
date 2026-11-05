@@ -233,7 +233,7 @@ class TestExportSidecarsFilterScopeIsBounded:
 
     ``paths`` carries ``max_length=10000``; the filter branch had no bound at
     all, and the gallery can now select a whole view without sending its paths.
-    Each photo spawns two exiftool processes and the endpoint is a sync ``def``
+    Each photo runs several ExifTool commands and the endpoint is a sync ``def``
     holding a threadpool worker for the whole run, so an uncapped library-wide
     export pins that worker for hours.
     """

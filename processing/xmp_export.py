@@ -849,7 +849,7 @@ def _exiftool_record(raw: str) -> dict:
 def _read_exact_boolean_names(target: str, exe: str, fields: list[str], *, timeout: int) -> dict[str, list[str]]:
     """JSON booleans erase original case; RDF/XML retains the literal names."""
     result = run_exiftool_process(
-        [exe, '-q', '-m', '-X', '-XMP-dc:Subject', '-IPTC:Keywords',
+        [exe, '-config', _exiftool_config(), '-q', '-m', '-X', '-XMP-dc:Subject', '-IPTC:Keywords',
          '-XMP-lr:HierarchicalSubject', target], timeout=timeout)
     if result.returncode:
         raise RuntimeError('Cannot read exact keyword names; export refused')
@@ -952,7 +952,7 @@ def _read_keyword_state(target: str, exe: str, *, timeout: int) -> dict | None:
 
 
 class ExportState(NamedTuple):
-    """Everything one pre-write state read yields, from a single exiftool spawn.
+    """Everything one pre-write state read yields, from a single ExifTool command.
 
     ``regions`` and ``keyword_state`` fail closed (a precondition error / an
     ownership refusal); ``flat``/``hier``/``facet_dated`` follow the keyword
@@ -968,10 +968,10 @@ class ExportState(NamedTuple):
 
 def _read_export_state(target: str, exe: str, *, timeout: int,
                        strict_keywords: bool) -> ExportState:
-    """Read every family the pre-write merge needs in ONE exiftool spawn.
+    """Read every family the pre-write merge needs in ONE ExifTool command.
 
-    Replaces the three per-family spawns (regions, keywords, keyword state)
-    that each paid a fresh Perl interpreter per photo; the per-family error
+    Replaces the three per-family reads (regions, keywords, keyword state),
+    each a round trip to ExifTool per photo; the per-family error
     contracts are unchanged and enforced on the shared record. A file-level
     failure answers with the strictest of them (the face precondition), which
     is what the separate reads converged on for unreadable files anyway.
@@ -1019,7 +1019,7 @@ def _exiftool_write_args(target: str, rating: XmpRating, exe: str, *, timeout: i
     config = _exiftool_config()
     # Validate structural metadata first so malformed existing packets retain
     # the metadata-precondition contract before any original/companion write.
-    # One spawn reads all families; the per-family contracts are enforced on
+    # One command reads all families; the per-family contracts are enforced on
     # the shared record by _read_export_state.
     state = _read_export_state(target, exe, timeout=timeout,
                                strict_keywords=os.path.exists(target))

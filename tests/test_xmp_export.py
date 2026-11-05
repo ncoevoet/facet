@@ -15,7 +15,6 @@ import pytest
 
 from processing import xmp_export as xe
 from tests import exiftool_fake
-from utils.exiftool_process import close_sessions
 from processing.xmp_export import (
     LABEL_FAVORITE,
     LABEL_REJECTED,
@@ -432,12 +431,13 @@ class TestWriteMetadata:
         every sidecar."""
         # payload=None: writes succeed without touching the target (the default
         # fake corrupts on write, which would raise before the accounting runs).
-        monkeypatch.setattr(xe, "_resolve_exiftool", lambda: _fake_exiftool(tmp_path, payload=None))
+        exe = _fake_exiftool(tmp_path, payload=None)
+        monkeypatch.setattr(xe, "_resolve_exiftool", lambda: exe)
         img = tmp_path / "spawn.jpg"
         img.write_bytes(b"x")
         img.with_suffix(img.suffix + ".xmp").write_text(_GOOD_XMP, encoding='utf-8')
         write_metadata(str(img), XmpRating(star_rating=3))
-        commands = _fake_log(tmp_path)
+        commands = exiftool_fake.logged(exe)
         reads = [a for a in commands if '-XMP-mwg-rs:RegionInfo' in a]
         writes = [a for a in commands if '-overwrite_original' in a]
         assert len(reads) == 1
@@ -477,9 +477,9 @@ def _fake_exiftool(tmp_path, version="13.55", payload="<broken attr=\"a=\" b"):
 
     It speaks both a direct argv launch (the version probe) and the persistent
     ``-stay_open`` session every other command goes through; every command it
-    receives is logged to ``_fake_log(tmp_path)``.
+    receives is logged for ``exiftool_fake.logged(launcher)``.
     """
-    launcher, _ = exiftool_fake.script(tmp_path, f"""
+    return exiftool_fake.script(tmp_path, f"""
         def handle(args):
             if args[:1] == ['-ver']:
                 return 0, {version!r} + '\\n', ''
@@ -489,18 +489,6 @@ def _fake_exiftool(tmp_path, version="13.55", payload="<broken attr=\"a=\" b"):
                 open(args[-1], 'wb').write({payload!r}.encode())
             return 0, '', ''
         """)
-    return launcher
-
-
-def _fake_log(tmp_path):
-    return exiftool_fake.logged(tmp_path / 'fake_exiftool.log')
-
-
-@pytest.fixture(autouse=True)
-def _stop_exiftool_sessions():
-    """A fake ExifTool lives in the test's tmp_path; never let its session outlive the test."""
-    yield
-    close_sessions()
 
 
 @pytest.fixture
@@ -592,7 +580,7 @@ class TestExiftoolVersionGuard:
         with pytest.raises(RuntimeError, match='13.25.*13.28'):
             write_metadata(str(image), XmpRating(star_rating=3), embed_original=embed)
         assert len(probes) == 2
-        assert not any('-overwrite_original' in args for args in _fake_log(tmp_path))
+        assert not any('-overwrite_original' in args for args in exiftool_fake.logged(exe))
         assert (image.read_bytes(), sidecar.read_bytes()) == before
 
     def test_lookup_failure_does_not_block(self, monkeypatch):
