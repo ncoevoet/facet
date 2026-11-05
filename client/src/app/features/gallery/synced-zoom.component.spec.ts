@@ -140,6 +140,30 @@ describe('SyncedZoomComponent', () => {
     expect(zooms.at(-1)).toEqual(FIT_ZOOM);
   });
 
+  it('bounds comparison framing to fitted image pixels without changing culling framing', () => {
+    const f = make(); measure(f); f.componentInstance.measurePane();
+    const state = { scale: 1.5, tx: -1464, ty: 1000 };
+    expect(f.componentInstance.boundInspectionZoom(state)).toEqual(state);
+    f.componentRef.setInput('keyboardInspection', true); f.detectChanges();
+    expect(f.componentInstance.boundInspectionZoom(state)).toEqual({ scale: 1.5, tx: -200, ty: 150 });
+    measure(f, { width: 3000, height: 4000 }); f.componentInstance.measurePane();
+    expect(f.componentInstance.boundInspectionZoom(state)).toEqual({ scale: 1.5, tx: 0, ty: 150 });
+    expect(f.componentInstance.boundInspectionZoom({ ...state, scale: 1 })).toEqual(FIT_ZOOM);
+  });
+
+  it('ends a captured drag at Fit, lost capture, and frame replacement', () => {
+    const f = make({ scale: 2, tx: 0, ty: 0 });
+    const host = f.nativeElement as HTMLElement;
+    const updates: ZoomState[] = []; f.componentInstance.zoomChange.subscribe(state => updates.push(state));
+    const start = () => host.dispatchEvent(new PointerEvent('pointerdown', { button: 0, pointerId: 1, clientX: 0, clientY: 0 }));
+    const move = () => host.dispatchEvent(new PointerEvent('pointermove', { pointerId: 1, clientX: 20, clientY: 10 }));
+    start(); move(); expect(updates).toHaveLength(1);
+    apply(f, FIT_ZOOM); move(); expect(updates).toHaveLength(1);
+    apply(f, { scale: 2, tx: 0, ty: 0 }); start();
+    host.dispatchEvent(new Event('lostpointercapture')); move(); expect(updates).toHaveLength(1);
+    start(); f.componentRef.setInput('frameKey', 'next'); f.detectChanges(); move(); expect(updates).toHaveLength(1);
+  });
+
   it('uses the thumbnail at fit scale and the full-res past it', () => {
     expect(api(make(FIT_ZOOM)).effectiveSrc()).toBe('/thumb.jpg');
     expect(api(make({ scale: 1.5, tx: 0, ty: 0 })).effectiveSrc()).toBe('/full.jpg');
@@ -221,14 +245,14 @@ describe('SyncedZoomComponent', () => {
     let fired = false;
     fitted.componentInstance.zoomChange.subscribe(() => (fired = true));
     const a = api(fitted);
-    a.onPointerDown({ clientX: 0, clientY: 0, pointerId: 1, target: document.createElement('div') });
-    a.onPointerMove({ clientX: 20, clientY: 20 });
+    a.onPointerDown({ button: 0, clientX: 0, clientY: 0, pointerId: 1, target: document.createElement('div') });
+    a.onPointerMove({ pointerId: 1, clientX: 20, clientY: 20 });
     expect(fired).toBe(false);
 
     const zoomed = make({ scale: 2, tx: 0, ty: 0 });
     const b = api(zoomed);
-    b.onPointerDown({ clientX: 0, clientY: 0, pointerId: 1, target: document.createElement('div') });
-    const z = emitted(zoomed, () => b.onPointerMove({ clientX: 15, clientY: -10 }));
+    b.onPointerDown({ button: 0, clientX: 0, clientY: 0, pointerId: 1, target: document.createElement('div') });
+    const z = emitted(zoomed, () => b.onPointerMove({ pointerId: 1, clientX: 15, clientY: -10 }));
     expect(z).toEqual({ scale: 2, tx: 15, ty: -10 });
   });
 
@@ -299,8 +323,8 @@ describe('SyncedZoomComponent', () => {
     it('stops re-framing once the user has panned the frame', () => {
       const f = focused({ scale: 2, tx: 0, ty: 0 });
       const a = api(f);
-      a.onPointerDown({ clientX: 0, clientY: 0, pointerId: 1, target: document.createElement('div') });
-      a.onPointerMove({ clientX: 40, clientY: 0 });
+      a.onPointerDown({ button: 0, clientX: 0, clientY: 0, pointerId: 1, target: document.createElement('div') });
+      a.onPointerMove({ pointerId: 1, clientX: 40, clientY: 0 });
 
       apply(f, FIT_ZOOM);
 
@@ -319,8 +343,8 @@ describe('SyncedZoomComponent', () => {
     it('releases the latch when the pane moves to another frame', () => {
       const f = focused({ scale: 2, tx: 0, ty: 0 });
       const a = api(f);
-      a.onPointerDown({ clientX: 0, clientY: 0, pointerId: 1, target: document.createElement('div') });
-      a.onPointerMove({ clientX: 40, clientY: 0 });
+      a.onPointerDown({ button: 0, clientX: 0, clientY: 0, pointerId: 1, target: document.createElement('div') });
+      a.onPointerMove({ pointerId: 1, clientX: 40, clientY: 0 });
 
       f.componentRef.setInput('src', '/next.jpg');
       apply(f, FIT_ZOOM);

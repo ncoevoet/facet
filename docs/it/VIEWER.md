@@ -361,6 +361,8 @@ Doppio clic su una foto per aprirla.
 - Selezionare una foto dal menu la rimuove soltanto dalla selezione.
 - Non disponibile sui dispositivi touch-first (`hover: none` e `pointer: coarse`); usa invece il pannello Azioni.
 
+Il confronto delle foto selezionate mostra pannelli e destinazioni di sostituzione anche sul telefono. I nomi lunghi conservano un suffisso distintivo. La striscia ha un arresto Tab; sinistra/destra, Home e Fine spostano il focus e Invio assegna la foto. Ispeziona ha titolo e pulsante Chiudi; il focus entra nel pannello e torna al comando chiudendolo. I bersagli sono almeno 44 pixel su schermi stretti o con puntatori grossolani. Pronto resta per gli screen reader, mentre origine ed errori restano visibili. Lo spostamento è limitato a ogni immagine adattata, anche nei pannelli collegati o ridimensionati. Adatta, il cambio foto o la perdita della cattura del puntatore termina il trascinamento. Questi limiti preservano il flusso di selezione. Rimuovi e Ripristina cambiano solo questo spazio di sola lettura, non valutazioni, decisioni, raccolta o destinazione Indietro.
+
 ### Modifiche acquisite e ispezione
 
 Le anteprime di gruppo fissano i percorsi delle foto prima di Applica, inclusi i membri compressi o fuori schermo corrispondenti ai filtri ed escluse le foto deselezionate in una selezione dell’intera vista. Distinguono le osservazioni caricate dai valori sconosciuti; un ambito troppo grande viene rifiutato anziché troncato. Una selezione successiva non può cambiare la destinazione di una modifica accettata. Le richieste vengono confermate in lotti di dimensioni limitate, non in un’unica transazione per l’intera selezione.

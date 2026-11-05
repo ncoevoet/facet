@@ -362,6 +362,8 @@ Haz doble clic en una foto para abrirla.
 - Descartar una foto desde el menú quita de la selección solo esa foto.
 - No se ofrece en dispositivos táctiles (`hover: none` y `pointer: coarse`); usa allí la hoja de Acciones.
 
+La comparación de fotos seleccionadas muestra los paneles y destinos de sustitución también en teléfonos. Los nombres largos conservan un sufijo distintivo. La tira tiene una parada de Tab; izquierda/derecha, Inicio y Fin mueven el foco y Enter asigna la foto. Inspeccionar tiene título y botón Cerrar; el foco entra en el panel y vuelve al cerrar. Los controles estrechos o con puntero grueso tienen áreas de al menos 44 píxeles. Listo permanece para lectores de pantalla; el origen y los fallos siguen visibles. El desplazamiento se limita a cada imagen ajustada, incluso con paneles vinculados o redimensionados. Ajustar, cambiar de foto o perder la captura del puntero termina el arrastre. Estas restricciones conservan el flujo de selección de descarte. Quitar y Restaurar solo cambian este espacio de solo lectura, no valoraciones, decisiones, colección ni destino de Volver.
+
 ### Ediciones capturadas e inspección
 
 Las vistas previas por lotes fijan las rutas de destino antes de Aplicar, incluidos los miembros coincidentes contraídos o fuera de pantalla y excluidas las fotos deseleccionadas en una selección de toda la vista. Distinguen las observaciones cargadas de los valores desconocidos; si el ámbito es demasiado grande, se rechaza en lugar de truncarse. Una selección posterior no cambia los destinos de una edición aceptada. Las solicitudes se confirman en bloques acotados, no en una sola transacción para toda la selección.

@@ -11,6 +11,7 @@ import { MatButtonModule } from '@angular/material/button';
 import { MatTooltipModule } from '@angular/material/tooltip';
 import { i18nKeys } from '../../core/i18n/keys';
 import { ThumbnailUrlPipe, ImageUrlPipe, STORED_THUMBNAIL_EDGE, RENDERED_THUMBNAIL_EDGE } from '../../shared/pipes/thumbnail-url.pipe';
+import { FilenamePipe } from '../../shared/pipes/filename.pipe';
 import { TranslatePipe } from '../../shared/pipes/translate.pipe';
 import { SyncedZoomComponent, ZoomState, DisplayedRendition, FIT_ZOOM, linkedZoomFrames } from './synced-zoom.component';
 import { MAX_COMPARE_PANES, assignComparisonSlot } from './comparison-slots.util';
@@ -40,27 +41,27 @@ const RENDERED_EDGE = RENDERED_THUMBNAIL_EDGE;
   imports: [
     PhotoAssessmentComponent,
     MatIconModule, MatButtonModule, MatTooltipModule,
-    SyncedZoomComponent, ThumbnailUrlPipe, ImageUrlPipe, TranslatePipe,
+    SyncedZoomComponent, ThumbnailUrlPipe, ImageUrlPipe, TranslatePipe, FilenamePipe,
   ],
   template: `
     <div data-comparison-workspace class="flex flex-col h-full min-h-0 bg-[var(--mat-sys-surface)] text-[var(--mat-sys-on-surface)]">
-      <div class="flex flex-wrap items-center gap-2 border-b border-[var(--mat-sys-outline-variant)] px-3 py-2 text-sm shrink-0">
-        <button mat-icon-button class="!text-[var(--mat-sys-on-surface)]"
+      <div class="flex flex-wrap items-center gap-1 sm:gap-2 border-b border-[var(--mat-sys-outline-variant)] px-2 sm:px-3 py-1 text-sm shrink-0">
+        <button mat-icon-button class="max-sm:!w-11 max-sm:!h-11 pointer-coarse:!w-11 pointer-coarse:!h-11 !text-[var(--mat-sys-on-surface)]"
                 [matTooltip]="I18N.ui.buttons.back | translate"
                 [attr.aria-label]="I18N.ui.buttons.back | translate"
                 (click)="close()">
           <mat-icon>arrow_back</mat-icon>
         </button>
-        <mat-icon class="!text-base !w-4 !h-4 !leading-4">compare</mat-icon>
-        <h1 class="m-0 flex-1 truncate text-sm font-semibold">{{ I18N.gallery.compare.title | translate:{ count: visiblePhotos().length } }}</h1>
-        <button mat-button data-inspection-toggle class="!text-[var(--mat-sys-on-surface)] shrink-0" [attr.aria-expanded]="inspectionOpen()" aria-controls="comparison-inspection" [attr.aria-label]="I18N.gallery.compare.inspection.title | translate" (click)="toggleInspection()"><mat-icon>manage_search</mat-icon><span class="hidden sm:inline">{{ I18N.gallery.compare.inspection.title | translate }}</span></button>
+        <mat-icon aria-hidden="true" class="max-sm:!hidden !text-base !w-4 !h-4 !leading-4">compare</mat-icon>
+        <h1 class="m-0 min-w-0 flex-1 truncate text-sm font-semibold"><span class="sm:hidden" aria-hidden="true">{{ I18N.gallery.selection.compare | translate }}</span><span class="max-sm:sr-only">{{ I18N.gallery.compare.title | translate:{ count: visiblePhotos().length } }}</span></h1>
+        <button mat-button data-inspection-toggle class="max-sm:!min-w-11 max-sm:!h-11 pointer-coarse:!min-w-11 pointer-coarse:!h-11 !text-[var(--mat-sys-on-surface)] shrink-0" [attr.aria-expanded]="inspectionOpen()" aria-controls="comparison-inspection" [attr.aria-label]="I18N.gallery.compare.inspection.title | translate" (click)="toggleInspection()"><mat-icon>manage_search</mat-icon><span class="hidden sm:inline">{{ I18N.gallery.compare.inspection.title | translate }}</span></button>
         @if (queue().length > 2) {
-          <button mat-button data-two-up class="!text-[var(--mat-sys-on-surface)] shrink-0" [attr.aria-pressed]="twoUp()"
+          <button mat-button data-two-up class="max-sm:!min-w-11 max-sm:!h-11 pointer-coarse:!min-w-11 pointer-coarse:!h-11 !text-[var(--mat-sys-on-surface)] shrink-0" [attr.aria-pressed]="twoUp()"
                   [attr.aria-label]="I18N.gallery.compare.two_up | translate" (click)="toggleLayout()">
             <mat-icon>view_column_2</mat-icon><span class="hidden sm:inline">{{ I18N.gallery.compare.two_up | translate }}</span>
           </button>
         }
-        <button mat-button data-link-inspection class="!text-[var(--mat-sys-on-surface)] shrink-0"
+        <button mat-button data-link-inspection class="max-sm:!min-w-11 max-sm:!h-11 pointer-coarse:!min-w-11 pointer-coarse:!h-11 !text-[var(--mat-sys-on-surface)] shrink-0"
                 [attr.aria-pressed]="linked()"
                 [attr.aria-label]="(linked() ? I18N.gallery.compare.linked : I18N.gallery.compare.independent) | translate"
                 [matTooltip]="I18N.gallery.compare.link_help | translate"
@@ -69,7 +70,7 @@ const RENDERED_EDGE = RENDERED_THUMBNAIL_EDGE;
           <span class="hidden sm:inline">{{ (linked() ? I18N.gallery.compare.linked : I18N.gallery.compare.independent) | translate }}</span>
         </button>
         @if (zoomed()) {
-          <button mat-icon-button class="!text-[var(--mat-sys-on-surface)]"
+          <button mat-icon-button class="max-sm:!w-11 max-sm:!h-11 pointer-coarse:!w-11 pointer-coarse:!h-11 !text-[var(--mat-sys-on-surface)]"
                   [matTooltip]="I18N.gallery.compare.reset_zoom | translate"
                   [attr.aria-label]="I18N.gallery.compare.reset_zoom | translate"
                   (click)="resetZoom()">
@@ -89,18 +90,18 @@ const RENDERED_EDGE = RENDERED_THUMBNAIL_EDGE;
            [class.grid-rows-2]="visiblePhotos().length > 2">
         @for (pane of paneStates(); track pane.photo.path) {
           @let photo = pane.photo;
-          <div class="@container/pane relative flex flex-col w-full h-full min-h-0 overflow-hidden border border-[var(--facet-image-rule)]" [class.border-[var(--mat-sys-primary)]]="activePath() === photo.path" [attr.data-reference]="referencePath() === photo.path" [attr.data-active-pane]="activePath() === photo.path" (pointerdown)="activate(photo.path)" (focusin)="activate(photo.path)">
-            <div class="flex shrink-0 items-center gap-2 px-2 text-[var(--facet-image-ink)] text-xs bg-[var(--facet-image-chrome)] min-h-10">
+          <div class="@container/pane relative flex flex-col w-full h-full min-w-0 min-h-0 overflow-hidden border border-[var(--facet-image-rule)]" [class.!border-[var(--mat-sys-primary)]]="activePath() === photo.path" [attr.data-reference]="referencePath() === photo.path" [attr.data-active-pane]="activePath() === photo.path" (pointerdown)="activate(photo.path)" (focusin)="activate(photo.path)">
+            <div class="flex shrink-0 flex-wrap items-center gap-x-1 px-2 text-[var(--facet-image-ink)] text-xs bg-[var(--facet-image-chrome)] min-h-10">
               <mat-icon class="!text-base !w-4 !h-4 !leading-4 shrink-0">{{ referencePath() === photo.path ? 'push_pin' : 'photo' }}</mat-icon>
-              <span class="shrink-0 font-semibold" aria-hidden="true">{{ pane.slotLabel }}</span><span class="sr-only @[320px]/pane:not-sr-only">{{ (referencePath() === photo.path ? I18N.gallery.compare.reference : I18N.gallery.compare.candidate) | translate }}</span>
-              <span class="truncate min-w-0 flex-1">{{ photo.filename }}</span>
+              <span class="shrink-0 font-semibold" aria-hidden="true">{{ pane.slotLabel }}</span><span class="min-w-0 flex-1 font-medium">{{ pane.roleKey | translate }}</span>
+              <span data-pane-filename class="order-last mb-1 basis-full min-w-0 [overflow-wrap:anywhere] @[400px]/pane:order-none @[400px]/pane:mb-0 @[400px]/pane:basis-auto @[400px]/pane:flex-1" [title]="photo.filename"><span class="@[400px]/pane:hidden" aria-hidden="true">{{ photo.filename | filename:36 }}</span><span class="hidden @[400px]/pane:inline">{{ photo.filename | filename:64 }}</span><span class="sr-only @[400px]/pane:hidden">{{ photo.filename }}</span></span>
               @if (referencePath() !== photo.path) {
-                <button mat-icon-button data-promote-reference class="!text-white shrink-0"
+                <button mat-icon-button data-promote-reference class="max-sm:!w-11 max-sm:!h-11 pointer-coarse:!w-11 pointer-coarse:!h-11 !text-white shrink-0"
                         [attr.aria-label]="I18N.gallery.compare.promote | translate:{ name: photo.filename }"
                         [matTooltip]="I18N.gallery.compare.promote | translate:{ name: photo.filename }"
                         (click)="promote(photo.path)"><mat-icon>push_pin</mat-icon></button>
               }
-              <button mat-icon-button data-remove-pane class="!text-white shrink-0" [disabled]="panes().length < 2"
+              <button mat-icon-button data-remove-pane class="max-sm:!w-11 max-sm:!h-11 pointer-coarse:!w-11 pointer-coarse:!h-11 !text-white shrink-0" [disabled]="panes().length < 2"
                       [attr.aria-label]="I18N.gallery.compare.remove_pane | translate:{ name: photo.filename }"
                       [matTooltip]="I18N.gallery.compare.remove_pane | translate:{ name: photo.filename }"
                       (click)="removePane(photo.path)"><mat-icon>close</mat-icon></button>
@@ -121,49 +122,54 @@ const RENDERED_EDGE = RENDERED_THUMBNAIL_EDGE;
                              (sharpLoaded)="setReadiness(photo.path, 'ready')"
                              (sharpFailed)="setReadiness(photo.path, 'failed')"
                              (renditionChange)="setRendition(photo.path, $event)"
+                             (geometryChange)="constrainPanes()"
                              [alt]="photo.filename" />
-            <div class="shrink-0 flex flex-wrap items-center gap-x-1 border-t border-[var(--facet-image-rule)] bg-[var(--facet-image-chrome)] text-[var(--facet-image-ink)] px-2">
-              <div class="flex w-full @[320px]/pane:w-auto @[320px]/pane:flex-1 min-w-0 items-center">
+            <div class="shrink-0 flex flex-wrap items-center justify-between gap-x-1 border-t border-[var(--facet-image-rule)] bg-[var(--facet-image-chrome)] text-[var(--facet-image-ink)] px-2">
+              <div class="flex min-w-0 flex-1 items-center">
               <span data-preview-status role="status" class="min-w-0 flex-1 truncate text-xs" [title]="I18N.gallery.compare.rendition.limit | translate">
-                {{ pane.kindKey | translate }} · {{ pane.phaseKey | translate }}
-                @if (pane.rendition?.phase === 'ready') { {{ pane.rendition.width }} × {{ pane.rendition.height }} }
+                {{ pane.kindKey | translate }}<span [class.sr-only]="pane.rendition?.phase === 'ready' && !pane.previewFailed"> · {{ pane.phaseKey | translate }}</span>
+                @if (pane.rendition?.phase === 'ready') { <span class="hidden @[400px]/pane:inline"> · {{ pane.rendition.width }} × {{ pane.rendition.height }}</span><span class="sr-only @[400px]/pane:hidden"> {{ pane.rendition.width }} × {{ pane.rendition.height }}</span> }
               </span>
               @if (pane.rendition?.phase === 'failed' || pane.previewFailed) {
-                <button mat-icon-button data-retry-pane class="!text-white" [attr.aria-label]="I18N.gallery.load_error.retry | translate" (click)="imagePane.retry()"><mat-icon>refresh</mat-icon></button>
+                <button mat-icon-button data-retry-pane class="max-sm:!w-11 max-sm:!h-11 pointer-coarse:!w-11 pointer-coarse:!h-11 !text-white" [attr.aria-label]="I18N.gallery.load_error.retry | translate" (click)="imagePane.retry()"><mat-icon>refresh</mat-icon></button>
               }
               </div>
-              <div class="flex w-full @[320px]/pane:w-auto min-w-0 items-center justify-center">
-              <button mat-icon-button data-zoom-out class="!text-white" [disabled]="pane.zoomOutDisabled" [attr.aria-label]="I18N.gallery.compare.rendition.zoom_out | translate" (click)="stepZoom(photo.path, -1)"><mat-icon>remove</mat-icon></button>
-              <button mat-button data-fit-pane class="!text-white !min-w-10 !px-1" [attr.aria-label]="I18N.gallery.compare.rendition.fit | translate" [matTooltip]="I18N.gallery.compare.rendition.scale_help | translate" (click)="fitPane(photo.path)">@if (pane.fitted) { {{ I18N.gallery.compare.rendition.fit_short | translate }} } @else { {{ pane.scaleLabel }} }</button>
-              <button mat-icon-button data-zoom-in class="!text-white" [disabled]="pane.zoomInDisabled" [attr.aria-label]="I18N.gallery.compare.rendition.zoom_in | translate" (click)="stepZoom(photo.path, 1)"><mat-icon>add</mat-icon></button>
+              <div class="flex shrink-0 min-w-0 items-center justify-center">
+              <button mat-icon-button data-zoom-out class="max-sm:!w-11 max-sm:!h-11 pointer-coarse:!w-11 pointer-coarse:!h-11 !text-white" [disabled]="pane.zoomOutDisabled" [attr.aria-label]="I18N.gallery.compare.rendition.zoom_out | translate" (click)="stepZoom(photo.path, -1)"><mat-icon>remove</mat-icon></button>
+              <button mat-button data-fit-pane class="max-sm:!min-w-11 max-sm:!h-11 pointer-coarse:!min-w-11 pointer-coarse:!h-11 !text-white !min-w-10 !px-1" [attr.aria-label]="I18N.gallery.compare.rendition.fit | translate" [matTooltip]="I18N.gallery.compare.rendition.scale_help | translate" (click)="fitPane(photo.path)">@if (pane.fitted) { {{ I18N.gallery.compare.rendition.fit_short | translate }} } @else { {{ pane.scaleLabel }} }</button>
+              <button mat-icon-button data-zoom-in class="max-sm:!w-11 max-sm:!h-11 pointer-coarse:!w-11 pointer-coarse:!h-11 !text-white" [disabled]="pane.zoomInDisabled" [attr.aria-label]="I18N.gallery.compare.rendition.zoom_in | translate" (click)="stepZoom(photo.path, 1)"><mat-icon>add</mat-icon></button>
               </div>
             </div>
           </div>
         }
       </div>
       @if (inspectionOpen()) {
-        <section id="comparison-inspection" class="absolute inset-x-0 bottom-0 z-10 max-h-[65%] overflow-y-auto border-t border-[var(--mat-sys-outline-variant)] bg-[var(--mat-sys-surface-container)] p-3 text-xs sm:static sm:max-h-none sm:w-72 sm:shrink-0 sm:border-l sm:border-t-0" [attr.aria-label]="I18N.gallery.compare.inspection.title | translate">
+        <section id="comparison-inspection" class="absolute inset-x-0 bottom-0 z-10 max-h-[65%] overflow-y-auto overscroll-contain [overflow-wrap:anywhere] border-t border-[var(--mat-sys-outline-variant)] bg-[var(--mat-sys-surface-container)] p-3 text-xs sm:static sm:max-h-none sm:w-72 sm:shrink-0 sm:border-l sm:border-t-0" [attr.aria-label]="I18N.gallery.compare.inspection.title | translate">
+          <div class="sticky top-0 z-10 -mx-1 mb-2 flex items-center gap-2 bg-[var(--mat-sys-surface-container)] px-1">
+            <h2 id="comparison-inspection-title" tabindex="-1" class="m-0 min-w-0 flex-1 text-sm font-semibold">{{ I18N.gallery.compare.inspection.title | translate }}</h2>
+            <button type="button" data-close-inspection class="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded hover:bg-[var(--mat-sys-surface-container-high)]" [attr.aria-label]="I18N.dialog.close | translate" (click)="closeInspection()"><mat-icon aria-hidden="true">close</mat-icon></button>
+          </div>
           <div class="flex flex-wrap items-center gap-2">
-            <button mat-button data-comparison-loupe [attr.aria-pressed]="loupe()" (click)="loupe.set(!loupe())"><mat-icon>search</mat-icon>{{ I18N.culling.loupe | translate }}</button>
-            <label class="inline-flex items-center gap-1">{{ I18N.gallery.compare.inspection.magnification | translate }}<select class="rounded border bg-[var(--mat-sys-surface-container)] px-2 py-1" [value]="loupeZoom()" (change)="setLoupeZoom($event)"><option value="2">2×</option><option value="3">3×</option><option value="5">5×</option></select></label>
+            <button mat-button class="max-sm:!min-w-11 max-sm:!h-11 pointer-coarse:!min-w-11 pointer-coarse:!h-11" data-comparison-loupe [attr.aria-pressed]="loupe()" (click)="loupe.set(!loupe())"><mat-icon>search</mat-icon>{{ I18N.culling.loupe | translate }}</button>
+            <label class="inline-flex items-center gap-1">{{ I18N.gallery.compare.inspection.magnification | translate }}<select class="max-sm:min-h-11 pointer-coarse:min-h-11 rounded border bg-[var(--mat-sys-surface-container)] px-2 py-1" [value]="loupeZoom()" (change)="setLoupeZoom($event)"><option value="2">2×</option><option value="3">3×</option><option value="5">5×</option></select></label>
             @if (inspectionState() === 'loading') { <span role="status">{{ I18N.ui.labels.loading | translate }}</span> }
-            @if (inspectionState() === 'partial') { <button mat-button data-inspection-retry (click)="loadInspection()">{{ I18N.gallery.load_error.retry | translate }}</button><span role="status">{{ I18N.gallery.compare.inspection.partial | translate }}</span> }
-            <select data-shared-person [disabled]="!sharedPeople().length" [attr.aria-label]="I18N.gallery.compare.inspection.shared_person | translate" class="max-w-full rounded border bg-[var(--mat-sys-surface-container)] px-2 py-1" (change)="frameSharedPerson($event)">
+            @if (inspectionState() === 'partial') { <button mat-button class="max-sm:!min-w-11 max-sm:!h-11 pointer-coarse:!min-w-11 pointer-coarse:!h-11" data-inspection-retry (click)="loadInspection()">{{ I18N.gallery.load_error.retry | translate }}</button><span role="status">{{ I18N.gallery.compare.inspection.partial | translate }}</span> }
+            <select data-shared-person [disabled]="!sharedPeople().length" [attr.aria-label]="I18N.gallery.compare.inspection.shared_person | translate" class="max-sm:min-h-11 pointer-coarse:min-h-11 max-w-full rounded border bg-[var(--mat-sys-surface-container)] px-2 py-1" (change)="frameSharedPerson($event)">
               <option value="">{{ I18N.gallery.compare.inspection.shared_person | translate }}</option>
               @for (person of sharedPeople(); track person.id) { <option [value]="person.id">{{ person.name }}</option> }
             </select>
           </div>
           <p class="my-1">{{ I18N.gallery.compare.inspection.help | translate }}</p>
-          <details><summary class="cursor-pointer py-1">{{ I18N.shortcuts.title | translate }}</summary><p class="my-1">{{ I18N.gallery.compare.inspection.keyboard | translate }}</p></details>
+          <details><summary class="min-h-11 cursor-pointer py-3">{{ I18N.shortcuts.title | translate }}</summary><p class="my-1">{{ I18N.gallery.compare.inspection.keyboard | translate }}</p></details>
           @if (inspectionNotice()) { <p role="status" class="my-1">{{ inspectionNotice()! | translate }}</p> }
           @if (!sharedPeople().length && inspectionState() !== 'loading') { <p class="my-1">{{ I18N.gallery.compare.inspection.no_correspondence | translate }}</p> }
           <div class="grid gap-3">
             @for (pane of paneStates(); track pane.photo.path) {
-              <div class="flex min-w-0 flex-wrap items-center gap-1">
-                <span class="max-w-28 truncate" [title]="pane.photo.filename">{{ pane.photo.filename }}</span>
+              <div class="flex min-w-0 flex-wrap items-center gap-2 border-t border-[var(--mat-sys-outline-variant)] pt-3">
+                <h3 class="m-0 w-full text-xs font-semibold" [title]="pane.photo.filename">{{ pane.slotLabel }} · {{ pane.roleKey | translate }} · {{ pane.photo.filename | filename:54 }}</h3>
                 <app-photo-assessment class="w-full" [photo]="pane.photo" />
-                <button mat-button class="!text-xs" data-frame-suggestion [disabled]="!pane.suggestion" (click)="frameSuggestion(pane.photo.path)">{{ (pane.suggestion?.kind === 'person' ? I18N.gallery.compare.inspection.suggested_face : pane.suggestion?.kind === 'subject' ? I18N.gallery.compare.inspection.suggested_subject : inspectionState() === 'loading' ? I18N.ui.labels.loading : I18N.gallery.compare.inspection.no_crop) | translate }}</button>
-                <select data-frame-face [disabled]="!pane.faces.length" [attr.aria-label]="(I18N.gallery.compare.inspection.choose_face | translate) + ': ' + pane.photo.filename" class="min-w-0 max-w-40 rounded border bg-[var(--mat-sys-surface-container)] px-1 py-1" (change)="frameFace(pane.photo.path, $event)">
+                <button mat-button class="max-sm:!min-w-11 max-sm:!h-11 pointer-coarse:!min-w-11 pointer-coarse:!h-11 !text-xs" data-frame-suggestion [disabled]="!pane.suggestion" (click)="frameSuggestion(pane.photo.path)">{{ (pane.suggestion?.kind === 'person' ? I18N.gallery.compare.inspection.suggested_face : pane.suggestion?.kind === 'subject' ? I18N.gallery.compare.inspection.suggested_subject : inspectionState() === 'loading' ? I18N.ui.labels.loading : I18N.gallery.compare.inspection.no_crop) | translate }}</button>
+                <select data-frame-face [disabled]="!pane.faces.length" [attr.aria-label]="(I18N.gallery.compare.inspection.choose_face | translate) + ': ' + pane.photo.filename" class="max-sm:min-h-11 pointer-coarse:min-h-11 min-w-0 max-w-full rounded border bg-[var(--mat-sys-surface-container)] px-1 py-1" (change)="frameFace(pane.photo.path, $event)">
                   <option value="">{{ I18N.gallery.compare.inspection.choose_face | translate }}</option>
                   @for (face of pane.faces; track face.id) { <option [value]="face.id">{{ face.person_name || (I18N.photo_faces.unknown | translate) }} · {{ face.face_index + 1 }}</option> }
                 </select>
@@ -172,7 +178,7 @@ const RENDERED_EDGE = RENDERED_THUMBNAIL_EDGE;
           </div>
       <div class="mt-3 text-xs text-[var(--mat-sys-on-surface-variant)]">
         {{ I18N.gallery.compare.hint | translate }}
-        <details class="text-left"><summary class="cursor-pointer py-1">{{ I18N.gallery.compare.rendition.sources | translate }}</summary><p class="m-0">{{ I18N.gallery.compare.rendition.limit | translate }}</p><p class="m-0">{{ I18N.gallery.compare.rendition.scale_help | translate }}</p></details>
+        <details class="text-left"><summary class="min-h-11 cursor-pointer py-3">{{ I18N.gallery.compare.rendition.sources | translate }}</summary><p class="m-0">{{ I18N.gallery.compare.rendition.limit | translate }}</p><p class="m-0">{{ I18N.gallery.compare.rendition.scale_help | translate }}</p></details>
       </div>
         </section>
       }
@@ -181,17 +187,17 @@ const RENDERED_EDGE = RENDERED_THUMBNAIL_EDGE;
         <div class="flex flex-wrap items-center justify-between gap-2 mb-2 text-xs text-[var(--mat-sys-on-surface-variant)]">
           @if (twoUp() && candidates().length && candidateIndex() >= 0) {
         <div class="flex items-center gap-1 min-w-0">
-          <button mat-icon-button data-candidate-previous class="!text-[var(--mat-sys-on-surface)] disabled:!text-[var(--mat-sys-outline)]"
+          <button mat-icon-button data-candidate-previous class="max-sm:!w-11 max-sm:!h-11 pointer-coarse:!w-11 pointer-coarse:!h-11 !text-[var(--mat-sys-on-surface)] disabled:!text-[var(--mat-sys-outline)]"
                   [disabled]="candidateIndex() <= 0" [attr.aria-label]="I18N.gallery.compare.previous_candidate | translate"
                   (click)="moveCandidate(-1)"><mat-icon>chevron_left</mat-icon></button>
           <span class="min-w-0 truncate text-xs" aria-live="polite">{{ I18N.gallery.compare.candidate_position | translate:{ current: candidateIndex() + 1, total: candidates().length } }}</span>
-          <button mat-icon-button data-candidate-next class="!text-[var(--mat-sys-on-surface)] disabled:!text-[var(--mat-sys-outline)]"
+          <button mat-icon-button data-candidate-next class="max-sm:!w-11 max-sm:!h-11 pointer-coarse:!w-11 pointer-coarse:!h-11 !text-[var(--mat-sys-on-surface)] disabled:!text-[var(--mat-sys-outline)]"
                   [disabled]="candidateIndex() >= candidates().length - 1" [attr.aria-label]="I18N.gallery.compare.next_candidate | translate"
                   (click)="moveCandidate(1)"><mat-icon>chevron_right</mat-icon></button>
         </div>
       }
           <span data-queue-count>{{ I18N.gallery.compare.queue_total | translate:{ count: queue().length } }}</span>
-          <div class="hidden sm:flex shrink-0 gap-1" role="group" [attr.aria-label]="I18N.gallery.compare.assign_target | translate">
+          <div class="flex min-w-0 flex-wrap gap-1" role="group" [attr.aria-label]="I18N.gallery.compare.assign_target | translate">
             <button type="button" data-compare-target="reference" class="min-h-11 rounded border border-[var(--mat-sys-outline-variant)] px-2" [class.bg-[var(--mat-sys-secondary-container)]]="assignmentTarget() === 'reference'" [attr.aria-pressed]="assignmentTarget() === 'reference'" (click)="assignmentTarget.set('reference')">{{ I18N.gallery.compare.reference | translate }}</button>
             <button type="button" data-compare-target="candidate" class="min-h-11 rounded border border-[var(--mat-sys-outline-variant)] px-2" [class.bg-[var(--mat-sys-secondary-container)]]="assignmentTarget() === 'candidate'" [attr.aria-pressed]="assignmentTarget() === 'candidate'" (click)="assignmentTarget.set('candidate')">{{ I18N.gallery.compare.candidate | translate }}</button>
             @if (!twoUp() && panes().length >= 2 && queue().length > 2) {
@@ -202,20 +208,20 @@ const RENDERED_EDGE = RENDERED_THUMBNAIL_EDGE;
             }
           </div>
           @if (removedPaths().size) {
-            <button mat-button data-restore-comparison (click)="restorePanes()">{{ I18N.gallery.compare.restore | translate }}</button>
+            <button mat-button class="max-sm:!min-w-11 max-sm:!h-11 pointer-coarse:!min-w-11 pointer-coarse:!h-11" data-restore-comparison (click)="restorePanes()">{{ I18N.gallery.compare.restore | translate }}</button>
           }
         </div>
-        <p class="m-0 pb-2 text-xs sm:sr-only" data-comparison-assignment>{{ I18N.gallery.compare.assign_pane_hint | translate:{ target: (assignmentLabelKey() | translate) } }}</p>
+        <p class="sr-only" data-comparison-assignment>{{ I18N.gallery.compare.assign_pane_hint | translate:{ target: (assignmentLabelKey() | translate) } }}</p>
         <div class="flex gap-2 overflow-x-auto" role="group" [attr.aria-label]="I18N.gallery.compare.queue_label | translate">
           @for (photo of queue(); track photo.path) {
-            <button #candidateButton type="button" data-candidate-thumbnail [attr.data-path]="photo.path"
-                    class="flex w-24 shrink-0 flex-col gap-1 rounded border border-[var(--mat-sys-outline-variant)] p-1 text-left focus-visible:outline-2 focus-visible:outline-[var(--mat-sys-primary)]"
+            <button #candidateButton type="button" data-candidate-thumbnail (keydown)="onQueueKey($event)" [attr.data-path]="photo.path" [attr.tabindex]="photo.path === queueFocusPath() ? 0 : -1" (focus)="focusedQueuePath.set(photo.path)" [title]="photo.filename"
+                    class="flex w-32 shrink-0 flex-col gap-1 rounded border border-[var(--mat-sys-outline-variant)] p-1 text-left focus-visible:outline-2 focus-visible:outline-[var(--mat-sys-primary)]"
                     [class.bg-[var(--mat-sys-secondary-container)]]="activePath() === photo.path"
                     [attr.aria-pressed]="activePath() === photo.path"
                     [attr.aria-label]="I18N.gallery.compare.assign_photo | translate:{ target: (assignmentLabelKey() | translate), name: photo.filename }"
                     (click)="chooseCandidate(photo.path)">
               <img loading="lazy" decoding="async" [src]="photo.path | thumbnailUrl:storedEdge:photo.preview_revision" alt="" class="h-12 w-full object-contain bg-neutral-950" />
-              <span class="flex items-center gap-1 text-xs w-full"><mat-icon class="!text-base !w-4 !h-4 !leading-4 shrink-0">{{ referencePath() === photo.path ? 'push_pin' : 'photo' }}</mat-icon><span class="truncate">{{ photo.filename }}</span></span>
+              <span class="flex items-center gap-1 text-xs w-full"><mat-icon class="!text-base !w-4 !h-4 !leading-4 shrink-0">{{ referencePath() === photo.path ? 'push_pin' : 'photo' }}</mat-icon><span class="min-w-0 line-clamp-2 [overflow-wrap:anywhere] leading-4">{{ photo.filename | filename:24 }}</span></span>
             </button>
           }
         </div>
@@ -283,6 +289,20 @@ export class ComparisonWorkspaceComponent {
   protected readonly assignmentLabelKey = computed(() => this.I18N.gallery.compare[TARGET_LABELS[this.assignmentTarget()]]);
   protected readonly activePath = signal(this.data.photos?.[0]?.path ?? null);
   protected readonly removedPaths = signal(new Set<string>());
+  protected readonly focusedQueuePath = signal<string | null>(null);
+  protected readonly queueFocusPath = computed(() => this.queue().find(photo => photo.path === this.focusedQueuePath())?.path
+    ?? this.queue().find(photo => photo.path === this.activePath())?.path ?? this.queue()[0]?.path);
+  protected onQueueKey(event: KeyboardEvent): void {
+    if (event.ctrlKey || event.metaKey || event.altKey || event.isComposing) return;
+    const buttons = [...(event.currentTarget as HTMLElement).parentElement!.querySelectorAll<HTMLButtonElement>('[data-candidate-thumbnail]')];
+    const index = buttons.indexOf((event.target as HTMLElement).closest<HTMLButtonElement>('[data-candidate-thumbnail]')!);
+    if (index < 0) return;
+    const next = event.key === 'Home' ? 0 : event.key === 'End' ? buttons.length - 1
+      : event.key === 'ArrowRight' ? Math.min(index + 1, buttons.length - 1)
+      : event.key === 'ArrowLeft' ? Math.max(0, index - 1) : null;
+    if (next === null) return;
+    event.preventDefault(); event.stopPropagation(); buttons[next]?.focus();
+  }
   private readonly candidatePath = signal(this.data.photos?.[1]?.path ?? null);
   /** Each photo retains its own framing, including candidates outside two-up. */
   private readonly paneZoom = signal(new Map<string, ZoomState>());
@@ -313,8 +333,16 @@ export class ComparisonWorkspaceComponent {
   protected toggleInspection(): void {
     if (!this.context.current()) return;
     this.inspectionOpen.update(open => !open);
-    if (!this.inspectionOpen()) this.cancelInspection();
-    else if (this.inspectionState() === 'idle') void this.loadInspection();
+    if (!this.inspectionOpen()) { this.cancelInspection(); return; }
+    if (this.inspectionState() === 'idle') void this.loadInspection();
+    afterNextRender(() => {
+      if (this.inspectionOpen() && this.context.current()) this.host.nativeElement.querySelector<HTMLElement>('#comparison-inspection-title')?.focus();
+    }, { injector: this.injector });
+  }
+
+  protected closeInspection(): void {
+    this.inspectionOpen.set(false); this.cancelInspection();
+    this.host.nativeElement.querySelector<HTMLButtonElement>('[data-inspection-toggle]')?.focus();
   }
 
   protected async loadInspection({ reuseLoaded = false }: { reuseLoaded?: boolean } = {}): Promise<void> {
@@ -366,9 +394,7 @@ export class ComparisonWorkspaceComponent {
     if (event.key === 'Escape' && !event.isComposing && !event.repeat) {
       event.preventDefault(); event.stopPropagation();
       if (this.inspectionOpen()) {
-        this.inspectionOpen.set(false);
-        this.cancelInspection();
-        this.host.nativeElement.querySelector<HTMLButtonElement>('[data-inspection-toggle]')?.focus();
+        this.closeInspection();
       } else this.close();
       return;
     }
@@ -413,7 +439,7 @@ export class ComparisonWorkspaceComponent {
       frames.set(path, frame);
     }
     this.linked.set(false);
-    this.paneZoom.set(frames);
+    this.paneZoom.set(this.boundedFrames(frames));
     this.inspectionNotice.set(this.I18N.gallery.compare.inspection.review_link);
   }
 
@@ -433,7 +459,7 @@ export class ComparisonWorkspaceComponent {
     const zoom = this.paneZoom().get(photo.path) ?? FIT_ZOOM;
     const rendition = this.renditions().get(photo.path);
     return {
-      photo, slotLabel: String.fromCharCode(65 + this.panes().findIndex(item => item.path === photo.path)), zoom, rendition, fitted: zoom.scale === SyncedZoomComponent.MIN_SCALE && zoom.tx === 0 && zoom.ty === 0,
+      photo, slotLabel: String.fromCharCode(65 + this.panes().findIndex(item => item.path === photo.path)), roleKey: this.I18N.gallery.compare[TARGET_LABELS[COMPARISON_TARGETS[this.panes().findIndex(item => item.path === photo.path)]]], zoom, rendition, fitted: zoom.scale === SyncedZoomComponent.MIN_SCALE && zoom.tx === 0 && zoom.ty === 0,
       faces: (this.faceRows().get(photo.path) ?? []).filter(face => normalizedInspectionBox(face.box) && Number.isInteger(face.id) && Number.isInteger(face.face_index)), suggestion: this.suggestions().get(photo.path),
       zoomOutDisabled: this.linked() ? this.panes().some(p => (this.paneZoom().get(p.path) ?? FIT_ZOOM).scale <= SyncedZoomComponent.MIN_SCALE) : zoom.scale <= SyncedZoomComponent.MIN_SCALE,
       zoomInDisabled: this.linked() ? this.panes().some(p => (this.paneZoom().get(p.path) ?? FIT_ZOOM).scale >= SyncedZoomComponent.MAX_SCALE) : zoom.scale >= SyncedZoomComponent.MAX_SCALE,
@@ -540,19 +566,40 @@ export class ComparisonWorkspaceComponent {
 
   protected onZoom(path: string, state: ZoomState): void {
     // A hidden two-up candidate may still finish an old gesture after unmounting.
-    if (!this.visiblePhotos().some(photo => photo.path === path)) return;
+    if (!this.context.current() || !this.visiblePhotos().some(photo => photo.path === path)) return;
     if (![state.scale, state.tx, state.ty].every(Number.isFinite) ||
         state.scale < SyncedZoomComponent.MIN_SCALE || state.scale > SyncedZoomComponent.MAX_SCALE) return;
     const frames = this.paneZoom();
     if (!this.linked()) {
-      updateMapSignal(this.paneZoom, path, { ...state });
+      this.paneZoom.set(this.boundedFrames(new Map(frames).set(path, { ...state })));
       return;
     }
     if (state.scale === SyncedZoomComponent.MIN_SCALE && state.tx === 0 && state.ty === 0) {
       this.resetZoom();
       return;
     }
-    this.paneZoom.set(linkedZoomFrames(frames, this.panes().map(photo => photo.path), path, state));
+    this.paneZoom.set(this.boundedFrames(linkedZoomFrames(frames, this.panes().map(photo => photo.path), path, state)));
+  }
+
+  private boundedFrames(frames: ReadonlyMap<string, ZoomState>): Map<string, ZoomState> {
+    const bounded = new Map(frames);
+    for (const pane of this.imagePanes()) {
+      const path = pane.frameKey();
+      if (!path) continue;
+      const frame = frames.get(path);
+      if (frame) bounded.set(path, pane.boundInspectionZoom(frame));
+    }
+    return bounded;
+  }
+
+  protected constrainPanes(): void {
+    if (!this.context.current()) return;
+    const frames = this.paneZoom();
+    const bounded = this.boundedFrames(frames);
+    if ([...bounded].some(([path, frame]) => {
+      const current = frames.get(path);
+      return current?.scale !== frame.scale || current.tx !== frame.tx || current.ty !== frame.ty;
+    })) this.paneZoom.set(bounded);
   }
 
   protected toggleLinked(): void {
@@ -562,6 +609,7 @@ export class ComparisonWorkspaceComponent {
   protected setRendition(path: string, rendition: DisplayedRendition): void {
     if (!this.visiblePhotos().some(photo => photo.path === path)) return;
     updateMapSignal(this.renditions, path, rendition);
+    if (rendition.phase === 'ready') this.constrainPanes();
   }
 
   protected stepZoom(path: string, direction: number): void {

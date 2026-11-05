@@ -361,6 +361,8 @@ Double-cliquez sur une photo pour l'ouvrir.
 - Trier une photo depuis le menu ne retire que cette photo de la sélection.
 - Non proposé sur les appareils tactiles (`hover: none` et `pointer: coarse`) ; utilisez-y la feuille Actions.
 
+La comparaison des photos sélectionnées affiche les panneaux et les cibles de remplacement sur téléphone. Les noms longs gardent une fin distinctive. Le filmstrip a un arrêt Tab ; gauche/droite, Début et Fin déplacent le focus, Entrée affecte la photo. Inspecter a un titre et un bouton Fermer ; le focus entre dans le panneau puis revient à sa fermeture. Les cibles sont d’au moins 44 pixels sur écran étroit ou avec un pointeur grossier. Prêt reste accessible aux lecteurs d’écran, tandis que la source et les erreurs restent visibles. Le déplacement est limité à chaque image ajustée, même dans les panneaux liés ou redimensionnés. Ajuster, changer de photo ou perdre la capture du pointeur termine le glissement. Ces limites préservent le flux de tri. Retirer et Restaurer ne modifient que cet espace en lecture seule, sans changer notes, décisions, collection ni destination Retour.
+
 ### Modifications capturées et inspection
 
 Les aperçus groupés figent les chemins cibles avant Appliquer. Dans une sélection de toute la vue, ils incluent les membres correspondants repliés ou hors écran et excluent les photos désélectionnées. Ils distinguent les observations chargées des valeurs inconnues ; un périmètre trop grand est refusé au lieu d’être tronqué. Une sélection ultérieure ne peut pas rediriger une modification acceptée vers d’autres photos. Les requêtes sont enregistrées par blocs de taille limitée, et non dans une transaction unique couvrant toute la sélection.

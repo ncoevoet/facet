@@ -361,6 +361,8 @@ Dê um duplo clique em uma foto para abri-la.
 - Fazer a triagem de uma só foto pelo menu retira da seleção apenas essa foto.
 - Não é oferecido em dispositivos de toque (`hover: none` e `pointer: coarse`); use ali a folha de Ações.
 
+A comparação de fotografias selecionadas mostra painéis e destinos de substituição no telefone. Nomes longos mantêm um sufixo distintivo. A tira tem uma paragem Tab; esquerda/direita, Home e End movem o foco e Enter atribui a fotografia. Inspecionar tem título e botão Fechar; o foco entra no painel e regressa ao fechar. Os alvos têm pelo menos 44 píxeis em ecrãs estreitos ou com ponteiros grosseiros. Pronto permanece para leitores de ecrã; a origem e os erros continuam visíveis. O deslocamento limita-se a cada imagem ajustada, mesmo com painéis ligados ou redimensionados. Ajustar, mudar de fotografia ou perder a captura do ponteiro termina o arrasto. Estes limites preservam o fluxo de seleção. Remover e Restaurar alteram apenas este espaço de leitura, sem mudar classificações, decisões, coleção ou destino Voltar.
+
 ### Edições capturadas e inspeção
 
 As pré-visualizações em lote fixam os caminhos de destino antes de Aplicar, incluindo os membros correspondentes recolhidos ou fora do ecrã e excluindo fotos desmarcadas numa seleção de toda a vista. Distinguem as observações carregadas dos valores desconhecidos; um âmbito demasiado grande é recusado em vez de truncado. Uma seleção posterior não muda os destinos de uma edição aceite. Os pedidos são confirmados em blocos limitados, não numa única transação para toda a seleção.

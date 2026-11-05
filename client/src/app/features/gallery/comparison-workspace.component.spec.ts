@@ -535,6 +535,36 @@ describe('ComparisonWorkspaceComponent', () => {
     expect(renderer.fullResSrc()).not.toContain('fallback');
   });
 
+  it('commits bounded linked and independent crops after real pane geometry is available', () => {
+    const { fixture } = build(['/a.jpg', '/b.jpg']);
+    const nodes = fixture.debugElement.queryAll(By.directive(SyncedZoomComponent));
+    const renderers = nodes.map(node => node.componentInstance as SyncedZoomComponent);
+    for (const node of nodes) {
+      const host = node.nativeElement as HTMLElement;
+      vi.spyOn(host, 'getBoundingClientRect').mockReturnValue({ width: 800, height: 600 } as DOMRect);
+      Object.defineProperties(host.querySelector('img')!, { naturalWidth: { value: 4000 }, naturalHeight: { value: 3000 } });
+      (node.componentInstance as SyncedZoomComponent).measurePane();
+    }
+    renderers[0].zoomChange.emit({ scale: 1.5, tx: -1464, ty: 1000 }); fixture.detectChanges();
+    expect(renderers.map(pane => pane.zoom())).toEqual([{ scale: 1.5, tx: -200, ty: 150 }, { scale: 1.5, tx: -200, ty: 150 }]);
+    fixture.nativeElement.querySelector('[data-link-inspection]').click(); fixture.detectChanges();
+    renderers[1].zoomChange.emit({ scale: 2, tx: 5000, ty: -5000 }); fixture.detectChanges();
+    expect(renderers[0].zoom()).toEqual({ scale: 1.5, tx: -200, ty: 150 });
+    expect(renderers[1].zoom()).toEqual({ scale: 2, tx: 400, ty: -300 });
+    fixture.nativeElement.querySelectorAll('[data-fit-pane]')[1].click(); fixture.detectChanges();
+    expect(renderers[1].zoom()).toEqual(FIT_ZOOM);
+  });
+
+  it('closes modeless Inspect with its own control and returns focus to its trigger', async () => {
+    const { fixture } = build(['/a.jpg', '/b.jpg']);
+    const root = fixture.nativeElement as HTMLElement;
+    const trigger = root.querySelector<HTMLButtonElement>('[data-inspection-toggle]')!;
+    trigger.click(); fixture.detectChanges(); await fixture.whenStable(); fixture.detectChanges();
+    expect(document.activeElement).toBe(root.querySelector('#comparison-inspection-title'));
+    root.querySelector<HTMLButtonElement>('[data-close-inspection]')!.click(); fixture.detectChanges();
+    expect(root.querySelector('#comparison-inspection')).toBeNull(); expect(document.activeElement).toBe(trigger);
+  });
+
   it('offers explicit zoom and Fit for linked and independently aligned panes', () => {
     const { fixture } = build(['/a.jpg', '/b.jpg']);
     const root = fixture.nativeElement as HTMLElement;

@@ -104,6 +104,7 @@ export class LoadedSources {
     '(pointermove)': 'onPointerMove($event)',
     '(pointerup)': 'onPointerUp()',
     '(pointercancel)': 'onPointerUp()',
+    '(lostpointercapture)': 'onPointerUp()',
     '(dblclick)': 'onDoubleClick()',
     '[style.--fit-inset-x.px]': 'fitInsetX()',
     '[style.--fit-inset-y.px]': 'fitInsetY()',
@@ -139,6 +140,7 @@ export class SyncedZoomComponent {
   readonly zoomChange = output<ZoomState>();
   readonly keyboardInspection = input(false);
   readonly fitRequested = output<void>();
+  readonly geometryChange = output<void>();
 
   /** Shown until `src` has been fetched by a preloader; null disables the
    *  progressive load entirely (no `Image` is ever constructed). */
@@ -178,6 +180,7 @@ export class SyncedZoomComponent {
   private readonly destroyRef = inject(DestroyRef);
 
   private dragging = false;
+  private panPointerId: number | null = null;
   private lastX = 0;
   private lastY = 0;
 
@@ -270,6 +273,8 @@ export class SyncedZoomComponent {
       this.frameKey();
       this.renditionChange.emit({ kind: this.displayedKind(), phase: 'loading' });
     });
+    effect(() => { this.frameKey(); untracked(() => this.onPointerUp()); });
+    effect(() => { if (this.zoom().scale === SyncedZoomComponent.MIN_SCALE) this.onPointerUp(); });
     // A step onto an image the browser already holds (memory cache) has it
     // complete as soon as the new `src` is applied, but its `load` event only
     // fires later, which would keep the pane `opacity-0` for a frame or two.
@@ -304,9 +309,26 @@ export class SyncedZoomComponent {
    *  observer never fires for — can trigger it directly. */
   measurePane(): void {
     const { width, height } = this.host.nativeElement.getBoundingClientRect();
+    const previous = this.paneSize();
     this.paneSize.set({ w: width, h: height });
     const img = this.frame()?.nativeElement;
     if (img) this.naturalSize.set({ w: img.naturalWidth, h: img.naturalHeight });
+    if (width !== previous.w || height !== previous.h) this.geometryChange.emit();
+  }
+
+  /** Comparison owns framing; culling retains its existing shared-frame contract. */
+  boundInspectionZoom(state: ZoomState): ZoomState {
+    if (!this.keyboardInspection()) return state;
+    if (state.scale === SyncedZoomComponent.MIN_SCALE) return { ...FIT_ZOOM };
+    const { w, h } = this.paneSize();
+    const { w: iw, h: ih } = this.naturalSize();
+    if (!w || !h || !iw || !ih) return state;
+    const fit = this.containFitScale(w, h, iw, ih);
+    const limitX = Math.max(0, (iw * fit * state.scale - w) / 2);
+    const limitY = Math.max(0, (ih * fit * state.scale - h) / 2);
+    return { scale: state.scale,
+      tx: limitX ? Math.max(-limitX, Math.min(limitX, state.tx)) : 0,
+      ty: limitY ? Math.max(-limitY, Math.min(limitY, state.ty)) : 0 };
   }
 
   protected onFrameLoad(): void {
@@ -495,15 +517,17 @@ export class SyncedZoomComponent {
   }
 
   protected onPointerDown(event: PointerEvent): void {
-    if (this.zoom().scale <= SyncedZoomComponent.MIN_SCALE) return;
+    if (event.button !== 0 || event.pointerType === 'touch' && !event.isPrimary
+      || this.zoom().scale <= SyncedZoomComponent.MIN_SCALE) return;
     this.dragging = true;
+    this.panPointerId = event.pointerId;
     this.lastX = event.clientX;
     this.lastY = event.clientY;
     (event.target as Element).setPointerCapture?.(event.pointerId);
   }
 
   protected onPointerMove(event: PointerEvent): void {
-    if (!this.dragging) return;
+    if (!this.dragging || event.pointerId !== this.panPointerId) return;
     this.markManuallyFramed();
     const z = this.zoom();
     this.zoomChange.emit({ scale: z.scale, tx: z.tx + (event.clientX - this.lastX), ty: z.ty + (event.clientY - this.lastY) });
@@ -513,6 +537,7 @@ export class SyncedZoomComponent {
 
   protected onPointerUp(): void {
     this.dragging = false;
+    this.panPointerId = null;
   }
 
   /** Toggle fit <-> TOGGLE_SCALE, zooming in on the focus point. Public so the

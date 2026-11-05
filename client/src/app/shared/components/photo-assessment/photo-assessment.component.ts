@@ -34,7 +34,7 @@ const MEASUREMENTS = [
   host: { class: 'block min-w-0 text-xs' },
   template: `
     <details data-photo-assessment class="min-w-0">
-      <summary class="cursor-pointer py-1.5">
+      <summary class="max-sm:min-h-11 pointer-coarse:min-h-11 cursor-pointer py-1.5">
         <span class="font-medium">{{ I18N.photo_detail.assessment.score | translate }} {{ photo().aggregate | assessmentValue }}</span>
         <span class="ml-2 opacity-75">{{ I18N.photo_detail.assessment.measurements | translate:{ available: availableCount(), total: measurements().length } }}</span>
       </summary>

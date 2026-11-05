@@ -362,6 +362,8 @@ Double-click a photo to open it.
 - Culling one photo from the menu removes only that photo from the selection.
 - Not offered on touch-first devices (`hover: none` and `pointer: coarse`); use the Actions sheet there.
 
+The selected-photo comparison workspace keeps pane identity and replacement targets visible on phones. Long names retain a distinguishing suffix; the filmstrip has one Tab stop, with Left/Right, Home and End moving focus before Enter assigns a photo. Inspect has its own heading and Close control, moves focus into the panel, and returns it to Inspect when closed. Narrow and coarse-pointer controls have at least 44-pixel targets; steady-state Ready is screen-reader text while image source and failures stay visible. Comparison pan is bounded by each fitted image, including linked panes and resized layouts; Fit, a changed frame or lost pointer capture ends the previous drag. These bounds apply to comparison inspection and preserve the culling shared-frame workflow. Comparison remains read-only: Remove and Restore change this workspace, not ratings, Keep/Reject, gallery membership or the captured Back destination.
+
 ### Captured edits and inspection
 
 Batch previews freeze the target paths before Apply, including matching folded/offscreen members and excluding deselected photos in a whole-view selection. They distinguish loaded observations from unknown values; an oversized scope is refused rather than truncated. A later selection cannot retarget an accepted edit. Requests commit in bounded chunks, not as one transaction across the entire selection.
