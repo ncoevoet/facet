@@ -9,6 +9,7 @@ from unittest import mock
 from fastapi.testclient import TestClient
 import pytest
 
+import api.db_helpers
 from api import create_app
 from api.routers import critique
 from config.percentile_normalizer import PercentileNormalizer
@@ -63,15 +64,15 @@ def snapshot(tmp_path):
     # Import route modules before patching their shared config factory: a
     # route's module-level import must not retain this fixture's mock.
     app = create_app()
-    # This fixture's database is deliberately shaped differently from the one
-    # the app's startup warms the process-wide photos-column cache against, so
-    # the route must read its own connection's schema, not the global cache.
+    # The route reads the photos columns and the overrides table's presence from
+    # process-wide caches. Seed them with this fixture's database so the real
+    # helpers run, and so no earlier test's (or this test's) values leak across.
+    with sqlite3.connect(path) as conn:
+        columns = {row[1] for row in conn.execute("PRAGMA table_info(photos)")}
     with (
         mock.patch.object(critique, "get_db", database),
-        mock.patch.object(
-            critique, "get_existing_columns",
-            lambda conn=None: {row[1] for row in conn.execute("PRAGMA table_info(photos)")},
-        ),
+        mock.patch("api.db_helpers._existing_columns_cache", columns),
+        mock.patch("api.db_helpers._side_table_present", {}),
         mock.patch.object(critique, "get_visibility_clause", return_value=("1=1", [])),
         mock.patch("api.config.server_scoring_config", return_value=config),
     ):
@@ -225,6 +226,8 @@ def test_old_schema_missing_native_input_is_explicitly_unavailable(snapshot):
     path, config, queries, client = snapshot
     with sqlite3.connect(path) as conn:
         conn.execute("ALTER TABLE photos DROP COLUMN histogram_spread")
+    # The startup cache describes the schema the server started on.
+    api.db_helpers._existing_columns_cache.discard("histogram_spread")
     result = get(client)
     assert result["aggregate"] == 2.0 and result["current_formula_score"] is None
     assert result["explanation_unavailable_reason"] == "missing_scoring_inputs"
@@ -289,3 +292,15 @@ def test_unavailable_normalization_does_not_invent_a_default_category_reason(sna
     result = get(client)
     assert result["category"] == result["category_reason"]["category"] == "portrait"
     assert result["category_reason"]["reason_key"] == "unavailable"
+
+
+def test_rule_critique_does_not_re_read_the_photos_schema(snapshot):
+    """The photos columns come from the startup cache and the overrides table's
+    presence from the shared side-table cache: once warm, a request issues no
+    PRAGMA table_info and no sqlite_master probe."""
+    path, config, queries, client = snapshot
+    get(client)
+    queries.clear()
+    get(client)
+    assert queries
+    assert not [sql for sql in queries if "PRAGMA table_info" in sql or "sqlite_master" in sql]

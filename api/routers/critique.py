@@ -20,8 +20,7 @@ from api.auth import CurrentUser, get_optional_user, is_edition_authenticated, r
 from api.config import VIEWER_CONFIG, _FULL_CONFIG
 from api.database import get_async_db, get_db, run_sync
 from api.inflight import GenerationInterrupted, InflightGate
-from api.db_helpers import get_existing_columns, get_visibility_clause
-from db.schema import table_exists
+from api.db_helpers import _side_table_available, get_existing_columns, get_visibility_clause
 from api.models.media import MediaCritiqueResponse
 from api.model_cache import (
     get_or_load_vlm_tagger,
@@ -453,7 +452,7 @@ def _load_rule_critique(path, user):
     with get_db() as conn, conn:
         conn.execute("BEGIN")
         # Startup-warmed cache: the per-request PRAGMA re-read the schema every call.
-        existing = set(get_existing_columns(conn))
+        existing = get_existing_columns(conn)
         columns = list(dict.fromkeys((*SERVED_ROW_COLUMNS, 'category', 'aggregate',
                     'distortion_attributes', 'skin_tone_delta', 'skin_tone_cast')))
         columns = [column for column in columns if column in existing]
@@ -472,7 +471,7 @@ def _load_rule_critique(path, user):
         if settings.get('method') == 'percentile' and _snapshot_malformed(conn):
             return photo, _unavailable_critique(photo, 'normalization_snapshot_unavailable')
         normalizer = PercentileNormalizer.from_snapshot(conn, settings)
-        has_overrides = table_exists(conn, 'photo_scoring_overrides')
+        has_overrides = _side_table_available('photo_scoring_overrides', conn)
         overrides = get_photo_scoring_overrides(conn, [path]).get(path) if has_overrides else None
         try:
             result = _build_rule_critique(photo, config=config, normalizer=normalizer,
