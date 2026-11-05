@@ -1719,7 +1719,9 @@
       "label": "Presentación de miniaturas",
       "square": "Recorte cuadrado",
       "natural": "Proporción original"
-    }
+    },
+    "review_controls_hint": "Decisiones de revisión, valoraciones, pilas sugeridas y mejor porcentaje",
+    "display_controls_hint": "Diseño, información de fotos y expansión de pilas"
   },
   "composition_patterns": {
     "none": "Ninguno",
@@ -3894,7 +3896,6 @@
     "saved": "Pila de fotos actualizada",
     "expand_all": "Expandir todas las pilas",
     "collapse": "Contraer pilas",
-    "totals": "Fotos coincidentes: {photos} · Visibles: {items}",
     "folded_scope": "Las acciones de toda la vista incluyen los miembros contraídos. Una miniatura seleccionada solo afecta a esa foto.",
     "explicit_only": "Selecciona explícitamente entre 2 y 1000 fotos para crear una pila.",
     "badge": "Abrir pila: {count} miembros",

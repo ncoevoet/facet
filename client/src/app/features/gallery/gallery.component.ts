@@ -37,8 +37,6 @@ import { MatSidenav, MatSidenavContainer, MatSidenavModule, MatSidenavContent } 
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { MatIconModule } from '@angular/material/icon';
 import { MatButtonModule } from '@angular/material/button';
-import { MatFormFieldModule } from '@angular/material/form-field';
-import { MatSelectModule, MatSelect } from '@angular/material/select';
 import { MatInputModule } from '@angular/material/input';
 import { MatSliderModule } from '@angular/material/slider';
 import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
@@ -120,8 +118,6 @@ const SET_KIND_TOGGLE: Record<string, keyof HiddenFilterFlags> = {
     MatProgressSpinnerModule,
     MatIconModule,
     MatButtonModule,
-    MatFormFieldModule,
-    MatSelectModule,
     MatInputModule,
     MatSliderModule,
     MatDialogModule,
@@ -149,18 +145,8 @@ const SET_KIND_TOGGLE: Record<string, keyof HiddenFilterFlags> = {
          Existing handlers retain debounce, pin and parked-route protections. -->
     <ng-template #galleryToolbar>
       @if (!pinned()) {
-        <mat-form-field class="!hidden @min-[1120px]:!inline-flex @min-[1120px]:w-40 shrink-0" subscriptSizing="dynamic">
-          <mat-label>{{ I18N.ui.filters.type | translate }}</mat-label>
-          <mat-select panelWidth="auto" panelClass="nowrap-panel !max-h-[70vh]" [value]="store.filters().type" (selectionChange)="onTypeChange($event.value)">
-            <mat-option value="">{{ I18N.gallery.all_photos | translate }}</mat-option>
-            @for (t of store.types(); track t.id) {
-              <mat-option [value]="t.id">{{ (t.id === 'top_picks' ? 'photo_types.top_picks' : 'category_names.' + t.id) | translate }} ({{ t.count }})</mat-option>
-            }
-          </mat-select>
-        </mat-form-field>
-
         <!-- Exact text search commits through the existing debounced handler. -->
-        <label class="relative block min-w-40 flex-1">
+        <label class="relative block min-w-40 flex-1 @min-[480px]:@max-[639px]:min-w-0">
           <span class="sr-only">{{ I18N.gallery.search_placeholder | translate }}</span>
           <input
             #toolbarSearch
@@ -168,7 +154,8 @@ const SET_KIND_TOGGLE: Record<string, keyof HiddenFilterFlags> = {
             type="search"
             autocomplete="off"
             class="h-10 w-full min-w-0 rounded border border-[var(--mat-sys-outline)] bg-[var(--mat-sys-surface-container-lowest)] py-2 pl-3 pr-11 text-base text-[var(--mat-sys-on-surface)] placeholder:text-[var(--mat-sys-on-surface-variant)] [&::-webkit-search-cancel-button]:hidden"
-            [placeholder]="I18N.gallery.search_placeholder | translate"
+            [placeholder]="I18N.ui.filters.search | translate"
+            [title]="I18N.gallery.search_placeholder | translate"
             [value]="store.filters().search"
             (input)="onSearchInput($event)"
             (keyup.enter)="onSearchChange($event)"
@@ -185,27 +172,30 @@ const SET_KIND_TOGGLE: Record<string, keyof HiddenFilterFlags> = {
         </label>
       }
 
+    </ng-template>
+    <ng-template #collectionStackControls>
       @if (!pinned()) {
-        <button mat-icon-button data-stack-collapse (click)="store.toggleStackCollapse()"
+        <button mat-button class="!min-h-11 !w-full !justify-start" data-stack-collapse (click)="store.toggleStackCollapse()"
           [matTooltip]="(store.collapseStacks() ? I18N.stacks.expand_all : I18N.stacks.collapse) | translate"
-          [attr.aria-label]="(store.collapseStacks() ? I18N.stacks.expand_all : I18N.stacks.collapse) | translate"><mat-icon>{{ store.collapseStacks() ? 'unfold_more' : 'unfold_less' }}</mat-icon></button>
+          [attr.aria-label]="(store.collapseStacks() ? I18N.stacks.expand_all : I18N.stacks.collapse) | translate"><mat-icon>{{ store.collapseStacks() ? 'unfold_more' : 'unfold_less' }}</mat-icon>{{ (store.collapseStacks() ? I18N.stacks.expand_all : I18N.stacks.collapse) | translate }}</button>
       }
+    </ng-template>
+    <ng-template #collectionReviewCommands>
       @if (auth.isEdition() && store.canScopeSelectionToView()) {
-        <button mat-icon-button data-stack-suggestions (click)="openStackSuggestions()"
+        <button mat-button class="!min-h-11 !w-full !justify-start" data-stack-suggestions (click)="openStackSuggestions()"
           [matTooltip]="I18N.stacks.suggestions | translate" [attr.aria-label]="I18N.stacks.suggestions | translate">
-          <mat-icon>auto_awesome_motion</mat-icon>
+          <mat-icon>auto_awesome_motion</mat-icon>{{ I18N.stacks.suggestions | translate }}
         </button>
       }
       <!-- Keep top N%: server-rank the current view by the current sort and
            select the bottom (100-N)% for review/rejection via the selection bar. -->
       @if (auth.isEdition() && store.total() > 0 && store.canScopeSelectionToView()) {
-        <button mat-icon-button class="!hidden lg:!inline-flex" [matMenuTriggerFor]="keepTopMenu"
-                [matTooltip]="I18N.gallery.keep_top.label | translate"
-                [attr.aria-label]="I18N.gallery.keep_top.label | translate">
-          <mat-icon>content_cut</mat-icon>
-        </button>
-        <mat-menu #keepTopMenu="matMenu" class="!max-w-none">
-          <div class="p-4 w-80" tabindex="-1" (click)="$event.stopPropagation()" (keydown)="$event.stopPropagation()">
+        <details #keepTopDetails data-keep-top-controls tabindex="-1" class="group/keep-top rounded border border-[var(--mat-sys-outline-variant)]" (keydown.escape)="closeDisclosure($event, keepTopDetails, keepTopSummary)">
+          <summary #keepTopSummary class="flex min-h-11 cursor-pointer list-none items-center gap-2 px-3 text-sm font-medium [&::-webkit-details-marker]:hidden">
+            <mat-icon aria-hidden="true">content_cut</mat-icon>{{ I18N.gallery.keep_top.label | translate }}
+            <mat-icon aria-hidden="true" class="ml-auto group-open/keep-top:rotate-180">expand_more</mat-icon>
+          </summary>
+          <div class="p-3" >
             <div class="text-xs opacity-70 mb-2">{{ I18N.gallery.keep_top.help | translate }}</div>
             <div class="flex items-center gap-2">
               <mat-slider class="flex-1 !min-w-0" [min]="5" [max]="95" [step]="5" [discrete]="true">
@@ -226,7 +216,7 @@ const SET_KIND_TOGGLE: Record<string, keyof HiddenFilterFlags> = {
               {{ I18N.gallery.keep_top.apply | translate }}
             </button>
           </div>
-        </mat-menu>
+        </details>
       }
     </ng-template>
 
@@ -300,45 +290,52 @@ const SET_KIND_TOGGLE: Record<string, keyof HiddenFilterFlags> = {
            exactly the width it has whenever the filters are open. -->
       <mat-sidenav-content [style.scroll-padding-top.px]="collectionHeaderHeight()">
         <header #collectionHeader data-collection-header class="sticky top-0 z-40 @container border-b border-[var(--mat-sys-outline-variant)] bg-[var(--mat-sys-surface-container-lowest)] px-2 py-2 md:px-4">
-          <div class="flex flex-wrap items-center gap-x-2 gap-y-1">
-          <div class="min-w-0 flex-1 @min-[960px]:max-w-64 @min-[960px]:min-w-44 @min-[960px]:basis-0">
+          <div class="flex flex-wrap items-center gap-x-2 gap-y-1 @min-[480px]:@max-[639px]:grid @min-[480px]:@max-[639px]:grid-cols-[minmax(0,1fr)_auto]">
+          <div class="min-w-40 flex-1 @min-[960px]:max-w-52 @min-[960px]:min-w-32 @min-[960px]:basis-0 @min-[1280px]:max-w-64 @min-[480px]:@max-[639px]:col-start-1 @min-[480px]:@max-[639px]:col-span-2 @min-[480px]:@max-[639px]:row-start-1 @min-[480px]:@max-[639px]:pr-48">
           <h1 class="m-0 min-w-0 text-lg font-medium leading-6 text-[var(--mat-sys-on-surface)] truncate" [title]="store.currentAlbum()?.name || (I18N.gallery.all_photos | translate)">
             {{ store.currentAlbum()?.name || (I18N.gallery.all_photos | translate) }}
           </h1>
-          <p role="status" class="m-0 truncate text-xs leading-5 tabular-nums text-[var(--mat-sys-on-surface-variant)]">
-            @if (!isDesktop() && !pinned() && store.photoTotal() !== store.total()) {
+          <p role="status" class="m-0 text-xs leading-5 tabular-nums text-[var(--mat-sys-on-surface-variant)]">
+            @if (!pinned() && store.photoTotal() !== store.total()) {
               {{ I18N.gallery.collection_totals_compact | translate:{ photos: store.photoTotal(), items: store.total() } }}
-            } @else if (!pinned() && store.photoTotal() !== store.total()) {
-              {{ I18N.stacks.totals | translate:{ photos: store.photoTotal(), items: store.total() } }}
             } @else {
               {{ (pinned() ? store.total() : store.photoTotal()) | pluralKey:I18N.gallery.photo_count_one:I18N.gallery.photo_count | translate:{ count: pinned() ? store.total() : store.photoTotal() } }}
             }
           </p>
           </div>
-          <div class="flex shrink-0 items-center gap-0.5 @min-[960px]:order-none">
-            @if (!pinned()) {
-              <button #mobileSearchToggle mat-icon-button class="md:!hidden !min-h-11 !min-w-11" [attr.aria-label]="I18N.ui.filters.search | translate" [attr.aria-expanded]="mobileSearchOpen() || !!store.filters().search" (click)="focusCollectionSearch()"><mat-icon>search</mat-icon></button>
-            }
-            <button mat-button data-mobile-select class="!min-h-11 !min-w-0 !px-2"
-                    [attr.aria-pressed]="selectingPhotos()" (click)="toggleMobileSelection()">
-              {{ (selectingPhotos() ? I18N.ui.buttons.cancel : I18N.gallery.selection.select) | translate }}
-            </button>
-          </div>
-          <div data-collection-query role="search" [attr.aria-label]="I18N.gallery.search_placeholder | translate" class="order-last flex w-full min-w-0 flex-wrap items-center gap-1 @min-[960px]:order-none @min-[960px]:w-auto @min-[960px]:min-w-80 @min-[960px]:flex-1 @min-[1120px]:min-w-[30rem]" [class.!hidden]="!isDesktop() && !mobileSearchOpen() && !store.filters().search">
+          <div data-collection-query role="search" [attr.aria-label]="I18N.gallery.search_placeholder | translate" class="order-last flex w-full min-w-0 flex-wrap items-center gap-1 @min-[960px]:order-none @min-[960px]:w-auto @min-[960px]:min-w-44 @min-[1120px]:min-w-56 @min-[960px]:flex-1 @min-[1280px]:max-w-[32rem] @min-[1600px]:max-w-[40rem] @min-[480px]:@max-[639px]:col-start-1 @min-[480px]:@max-[639px]:row-start-2" [class.!hidden]="compactCollectionControls() && !mediumCollectionControls() && !mobileSearchOpen() && !store.filters().search">
             <ng-container [ngTemplateOutlet]="galleryToolbar" />
           </div>
-          <div data-collection-actions class="flex shrink-0 items-center gap-1 @min-[960px]:ml-auto">
+          <div data-collection-actions class="ml-auto flex shrink-0 items-center gap-0.5 @min-[960px]:gap-1 @max-[639px]:contents">
+            @if (!pinned() && compactCollectionControls() && !mediumCollectionControls()) {
+              <button #mobileSearchToggle mat-icon-button class="!min-h-11 !min-w-11 @max-[639px]:order-1" [attr.aria-label]="I18N.ui.filters.search | translate" [attr.aria-expanded]="mobileSearchOpen() || !!store.filters().search" (click)="focusCollectionSearch()"><mat-icon>search</mat-icon></button>
+            }
+            <button #collectionSelect mat-button data-mobile-select class="!min-h-11 !min-w-0 !px-2 @max-[639px]:order-1 @min-[480px]:@max-[639px]:col-start-2 @min-[480px]:@max-[639px]:row-start-1 @min-[480px]:@max-[639px]:justify-self-end" [class.!bg-[var(--mat-sys-secondary-container)]]="selectingPhotos()"
+                    [attr.aria-label]="selectingPhotos() ? ((I18N.ui.buttons.cancel | translate) + ': ' + (I18N.gallery.selection.count | translate:{ count: selectionCount() })) : (I18N.gallery.selection.select | translate)"
+                    [matTooltip]="I18N.ui.buttons.cancel | translate" [matTooltipDisabled]="!selectingPhotos()"
+                    [attr.aria-pressed]="selectingPhotos()" (click)="toggleMobileSelection()">
+              <mat-icon aria-hidden="true">{{ selectingPhotos() ? 'close' : 'check_box_outline_blank' }}</mat-icon>
+              {{ selectingPhotos() ? (I18N.gallery.selection.count | translate:{ count: selectionCount() }) : (I18N.gallery.selection.select | translate) }}
+            </button>
+            <div data-collection-settings class="flex items-center gap-0.5 @min-[960px]:gap-1 @max-[639px]:order-3 @max-[479px]:basis-full @max-[639px]:justify-end @min-[480px]:@max-[639px]:col-start-2 @min-[480px]:@max-[639px]:row-start-2">
             @if (!compactCollectionControls()) {
               <div data-collection-primary-controls class="flex items-center gap-1">
                 <ng-container [ngTemplateOutlet]="collectionViewControls.primaryControls()" />
               </div>
             }
             <ng-container [ngTemplateOutlet]="collectionViewControls.filterControls()" />
-            <app-control-popover data-collection-review [compact]="true" icon="rule"
-                [label]="I18N.gallery.sidebar.tabs.review | translate" [content]="collectionSettings.reviewSettings() ?? null" />
-            <app-control-popover data-collection-options [compact]="true" icon="tune"
+            <span aria-hidden="true" class="mx-1 h-5 border-l border-[var(--mat-sys-outline-variant)]"></span>
+            <app-control-popover data-collection-review #collectionReview icon="rule" [disclosure]="true" [hint]="auth.isEdition() ? (I18N.gallery.review_controls_hint | translate) : ''"
+                [label]="I18N.gallery.sidebar.tabs.review | translate" [content]="reviewSettings" (opened)="onCollectionReviewOpened()" (closed)="onCollectionReviewClosed()" />
+            <ng-template #reviewSettings>
+              <ng-container [ngTemplateOutlet]="collectionReviewCommands" />
+              <ng-container [ngTemplateOutlet]="collectionSettings.reviewSettings()" />
+            </ng-template>
+            <app-control-popover data-collection-options icon="tune" [disclosure]="true" [hint]="pinned() ? '' : (I18N.gallery.display_controls_hint | translate)"
                 [label]="I18N.gallery.sidebar.tabs.display | translate" [content]="displaySettings" />
+            </div>
             <ng-template #displaySettings>
+              <ng-container [ngTemplateOutlet]="collectionStackControls" />
               @if (compactCollectionControls()) {
                 <div data-compact-collection-controls class="flex items-center gap-1">
                   <ng-container [ngTemplateOutlet]="collectionViewControls.primaryControls()" />
@@ -1097,6 +1094,11 @@ export class GalleryComponent implements OnInit, OnDestroy {
   private readonly collectionPopovers = viewChildren(ControlPopoverComponent);
   private readonly criteria = viewChild(GalleryCriteriaComponent);
   private readonly liveAnnouncer = inject(LiveAnnouncer);
+  private reviewCloseFocus: (() => void) | null = null;
+  private reviewGeneration = 0;
+  private readonly collectionReview = viewChild<ControlPopoverComponent>('collectionReview');
+  private readonly keepTopDetails = viewChild<ElementRef<HTMLDetailsElement>>('keepTopDetails');
+  private readonly collectionSelect = viewChild<unknown, ElementRef<HTMLButtonElement>>('collectionSelect', { read: ElementRef });
   private readonly toolbarSearch = viewChild<ElementRef<HTMLInputElement>>('toolbarSearch');
 
   protected async navigateTag(choice: TagNavigation): Promise<void> {
@@ -1156,7 +1158,6 @@ export class GalleryComponent implements OnInit, OnDestroy {
   private readonly menus = viewChildren(MatMenuTrigger);
   private readonly photoTooltips = viewChildren(PhotoTooltipComponent);
   private readonly photoMenu = viewChild(GalleryPhotoMenuComponent);
-  private readonly selects = viewChildren(MatSelect);
   private readonly cards = viewChildren(PhotoCardComponent);
 
   /** True once the gallery content is scrolled far enough to show the scroll-to-top button. */
@@ -1783,6 +1784,10 @@ export class GalleryComponent implements OnInit, OnDestroy {
   /** Container width for mosaic layout (updated via ResizeObserver) */
   protected readonly containerWidth = signal(0);
   protected readonly compactCollectionControls = computed(() => this.containerWidth() - (this.isDesktop() ? 32 : 16) < 960);
+  protected readonly mediumCollectionControls = computed(() => {
+    const available = this.containerWidth() - (this.isDesktop() ? 32 : 16);
+    return available >= 480 && available < 640;
+  });
 
   // --- Virtual scrolling (row windowing with top/bottom spacers) ---
 
@@ -1928,7 +1933,7 @@ export class GalleryComponent implements OnInit, OnDestroy {
         this.changeDetector.detectChanges();
       }
       // A tooltip left showing would sit over the photo page and swallow its first Escape.
-      closeOverlayDirectives(this.ownTooltips(), this.menus(), this.selects());
+      closeOverlayDirectives(this.ownTooltips(), this.menus());
       // Context-menu triggers are separate from MatMenuTrigger; all cards share this panel.
       this.photoMenu()?.menu().closed.emit();
       for (const card of this.cards()) card.closeOverlays();
@@ -2211,6 +2216,16 @@ export class GalleryComponent implements OnInit, OnDestroy {
         this.focusCard(index, false, false);
       } finally { cleanup(); }
     }));
+  }
+
+  protected onCollectionReviewOpened(): void {
+    this.reviewGeneration++;
+  }
+
+  protected onCollectionReviewClosed(): void {
+    const focus = this.reviewCloseFocus;
+    this.reviewCloseFocus = null;
+    if (focus) queueMicrotask(focus);
   }
 
   protected closeCollectionPopovers(restoreFocus = false): void {
@@ -2545,10 +2560,20 @@ export class GalleryComponent implements OnInit, OnDestroy {
    */
   protected async applyKeepTop(): Promise<void> {
     if (this.keepApplying()) return;
+    const identity = this.auth.identity();
+    const details = this.keepTopDetails()?.nativeElement;
+    const review = this.collectionReview();
+    const generation = this.reviewGeneration;
+    const live = () => !this.parked && !this.router.currentNavigation?.() && !this.destroyRef.destroyed && this.auth.identity() === identity;
     this.keepApplying.set(true);
     try {
       const res = await this.store.selectBottomPercent(this.keepPercent());
-      if (!res) return;
+      if (!res || !live()) return;
+      if (details?.open && details === this.keepTopDetails()?.nativeElement && review?.open() && generation === this.reviewGeneration) {
+        this.reviewCloseFocus = () => { if (live() && !this.collectionPopovers().some(popover => popover.open())) this.collectionSelect()?.nativeElement.focus({ preventScroll: true }); };
+        details.open = false;
+        review.open.set(false);
+      }
       const msg = res.truncated
         ? this.i18n.t(I18N.gallery.keep_top.truncated, { count: res.paths.length, cut: res.cut })
         : this.i18n.t(I18N.gallery.keep_top.selected, { count: res.cut });
@@ -2903,10 +2928,6 @@ export class GalleryComponent implements OnInit, OnDestroy {
     this.store.updateFilter('person_id', String(personId));
   }
 
-  protected onTypeChange(type: string): void {
-    this.store.updateFilter('type', type);
-  }
-
   private searchTimeout: ReturnType<typeof setTimeout> | null = null;
 
   /** Debounced live filtering for the toolbar search box: waiting for
@@ -2975,7 +2996,7 @@ export class GalleryComponent implements OnInit, OnDestroy {
       const input = this.toolbarSearch()?.nativeElement;
       input?.focus(); input?.select();
     };
-    if (!this.isDesktop() && !this.mobileSearchOpen()) {
+    if (this.compactCollectionControls() && !this.mediumCollectionControls() && !this.mobileSearchOpen()) {
       this.mobileSearchOpen.set(true);
       afterNextRender(focus, { injector: this.injector });
     } else focus();
@@ -2984,7 +3005,7 @@ export class GalleryComponent implements OnInit, OnDestroy {
   protected readonly closeDisclosure = closeDetailsOnEscape;
 
   protected closeMobileSearch(event: Event): void {
-    if (this.isDesktop()) return;
+    if (!this.compactCollectionControls() || this.mediumCollectionControls()) return;
     event.preventDefault(); event.stopPropagation();
     this.mobileSearchOpen.set(false);
     this.mobileSearchToggle()?.nativeElement.focus();

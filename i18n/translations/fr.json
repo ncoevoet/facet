@@ -1719,7 +1719,9 @@
       "label": "Présentation des vignettes",
       "square": "Recadrage carré",
       "natural": "Ratio d'origine"
-    }
+    },
+    "review_controls_hint": "Décisions de tri, notes, piles suggérées et meilleurs pourcentages",
+    "display_controls_hint": "Disposition, informations des photos et développement des piles"
   },
   "composition_patterns": {
     "none": "Aucun",
@@ -3894,7 +3896,6 @@
     "saved": "Pile de photos mise à jour",
     "expand_all": "Développer toutes les piles",
     "collapse": "Réduire les piles",
-    "totals": "Photos correspondantes : {photos} · Affichés : {items}",
     "folded_scope": "Les actions sur toute la vue incluent les membres repliés. Une vignette sélectionnée seule ne cible que cette photo.",
     "explicit_only": "Sélectionnez explicitement 2 à 1000 photos pour créer une pile.",
     "badge": "Ouvrir la pile : {count} membres",

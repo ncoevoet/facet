@@ -1759,6 +1759,8 @@ export const I18N = {
       square: "gallery.tile_fit.square",
       natural: "gallery.tile_fit.natural",
     },
+    review_controls_hint: "gallery.review_controls_hint",
+    display_controls_hint: "gallery.display_controls_hint",
   },
   composition_patterns: {
     none: "composition_patterns.none",
@@ -3933,7 +3935,6 @@ export const I18N = {
     saved: "stacks.saved",
     expand_all: "stacks.expand_all",
     collapse: "stacks.collapse",
-    totals: "stacks.totals",
     folded_scope: "stacks.folded_scope",
     explicit_only: "stacks.explicit_only",
     badge: "stacks.badge",

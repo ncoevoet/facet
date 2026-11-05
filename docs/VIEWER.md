@@ -8,6 +8,8 @@ On desktop (1024 px and wider), enabled destinations appear directly in the top 
 
 The sticky collection header keeps search, selection, sorting and active criteria available while scrolling. **Filters** opens Browse, Quality and Subject; its numeric badge counts active filters and its background shows whether the drawer is open. **Review** opens decision, visibility, rating and favorite controls. **Display** opens layout, thumbnail size, presets, photo-information behavior and slideshow. Each setting has one entry point. On narrow collections, sorting moves into Display. Help opens in anchored popovers without shifting the gallery.
 
+**Header controls.** Search contains only the text query. Photo type is in **Filters**. **Review** contains Suggested stacks and Keep top %; **Display** contains Expand/Collapse stacks. In selection mode, the Select button shows the selected count and a close icon. Narrow phones use two compact rows to keep the collection name and control labels readable.
+
 **Display presets.** Open Display. Browse uses a compact mosaic with hover information (click information on narrow screens). Review uses larger grid cards with details and click-owned inspection (a docked panel where the screen is wide enough). Organize uses a metadata list with filename, capture date, review decisions and camera settings. Presets change presentation only: they preserve the query, sort, album, selection and loaded page. Reset display to defaults restores configured presentation without resetting filters. Manual adjustments leave a preset unchecked when its settings no longer match.
 
 **Collection criteria.** Metadata and visual-search criteria now stay below the collection query when the filter panel closes. Each chip has a named Remove action; clearing a range removes both bounds together. Visual search states how similarity candidates combine with metadata filters and the chosen sort. Favorites retains the other criteria. Decision filters leave visual search; Undecided uses capture-date order, oldest first, as explained before choosing. Visibility rules disclose the effective hiding/grouping settings, including best-of-burst and bracket/panorama representatives; rules suppressed by an Only filter are not shown as active. Fixed photo lists explain that you must return to the usual view before changing criteria.
@@ -1222,8 +1224,6 @@ Production builds can be installed to the home screen. The app shell loads offli
 > **Warning:** logout attempts to remove existing service-worker thumbnail entries. Requests already in flight can cache images again. This does not clear the browser’s HTTP cache, which can keep viewed images (thumbnails, renders, full-resolution images) for up to a year. Accounts that must not see each other’s photos should not share a browser profile.
 
 ## Mobile
-
-The sticky collection header keeps search, selection, sorting and active criteria available while scrolling. **Filters** opens Browse, Quality and Subject; its numeric badge counts active filters and its background shows whether the drawer is open. **Review** opens decision, visibility, rating and favorite controls. **Display** opens layout, thumbnail size, presets, photo-information behavior and slideshow. Each setting has one entry point. On narrow collections, sorting moves into Display. Help opens in anchored popovers without shifting the gallery.
 
 ## Photo Frame / Kiosk Endpoint
 

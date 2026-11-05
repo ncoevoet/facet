@@ -116,11 +116,11 @@ const sortOptionLabelKey = (column: string): string => `sort_options.${column}`;
       @if (!pinned()) {
         @let sortTooltip = I18N.gallery.sort_current | translate:{ label: (currentSortLabelKey() | translate) };
         <button mat-button data-collection-sort
-                class="!min-h-11 !min-w-11 !w-11 !px-2 @[1120px]:!w-auto @[1120px]:!px-4"
+                class="!min-h-11 !min-w-11 !w-11 !px-2 !text-[var(--mat-sys-on-surface)] @[960px]:!w-auto @[960px]:!px-2"
                 [matMenuTriggerFor]="sortMenu" [matTooltip]="sortTooltip" [attr.aria-label]="sortTooltip">
           @let currentIcon = store.filters().sort | sortOptionIcon;
-          <mat-icon aria-hidden="true" class="!m-0 !w-8 text-center @[1120px]:!mr-2" [class]="currentIcon.classes">{{ currentIcon.text }}</mat-icon>
-          <span class="hidden @[1120px]:inline">{{ currentSortLabelKey() | translate }}</span>
+          <mat-icon aria-hidden="true" class="!m-0 !w-8 text-center @[960px]:!mr-2" [class]="currentIcon.classes">{{ currentIcon.text }}</mat-icon>
+          <span class="hidden @[960px]:inline">{{ currentSortLabelKey() | translate }}</span>
         </button>
         <button mat-icon-button class="!h-11 !w-11 !min-w-11 !p-2.5" (click)="toggleSortDirection()"
                 [matTooltip]="store.filters().sort_direction === 'DESC' ? (I18N.gallery.sort_desc | translate) : (I18N.gallery.sort_asc | translate)"
@@ -136,8 +136,8 @@ const sortOptionLabelKey = (column: string): string => `sort_options.${column}`;
                 [matBadge]="store.activeFilterCount() || null" matBadgeColor="primary" matBadgeSize="medium"
                 [matTooltip]="I18N.gallery.filters | translate" [attr.aria-label]="I18N.gallery.filters | translate"
                 [attr.aria-expanded]="store.filterDrawerOpen()">
-          <mat-icon class="@max-[479px]:!m-0" >filter_alt</mat-icon>
-          <span class="hidden @min-[480px]:inline">{{ I18N.gallery.filters | translate }}</span>
+          <mat-icon>filter_alt</mat-icon>
+          <span>{{ I18N.gallery.filters | translate }}</span>
         </button>
       }
     </ng-template>

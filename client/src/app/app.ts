@@ -214,6 +214,7 @@ export class App implements OnInit {
   protected readonly navigationDestinations = computed(() => {
     const features = this.store.config()?.features;
     const path = pathOf(this.url());
+    const tools = new Set(['/culling', '/junk', '/stats', '/compare']);
     return [
       { path: '/', icon: 'diamond', label: I18N.nav.gallery, visible: true },
       { path: '/albums', icon: 'photo_album', label: I18N.nav.albums, visible: features?.show_albums },
@@ -226,7 +227,9 @@ export class App implements OnInit {
       { path: '/junk', icon: 'delete_sweep', label: I18N.nav.junk_sweep, visible: this.auth.isEdition() && features?.show_junk_sweep },
       { path: '/stats', icon: 'bar_chart', label: I18N.nav.stats, visible: true },
       { path: '/compare', icon: 'compare', label: I18N.nav.compare, visible: this.auth.isEdition() },
-    ].filter(item => item.visible).map(item => ({ ...item,
+    ].filter(item => item.visible).map((item, index, items) => ({ ...item,
+      tool: tools.has(item.path),
+      groupStart: index > 0 && tools.has(item.path) && !tools.has(items[index - 1].path),
       active: item.path === '/' ? this.isGalleryRoute() : path === item.path || path.startsWith(item.path + '/'),
     }));
   });

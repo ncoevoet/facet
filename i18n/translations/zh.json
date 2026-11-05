@@ -1719,7 +1719,9 @@
       "label": "照片呈现方式",
       "square": "裁切到正方形",
       "natural": "保持原有比例"
-    }
+    },
+    "review_controls_hint": "审阅决定、评分、建议堆叠和保留排名靠前的百分比",
+    "display_controls_hint": "布局、照片信息和展开堆叠"
   },
   "composition_patterns": {
     "none": "无",
@@ -3894,7 +3896,6 @@
     "saved": "照片堆叠已更新",
     "expand_all": "展开所有堆叠",
     "collapse": "折叠堆叠",
-    "totals": "匹配照片：{photos} 张 · 显示：{items} 项",
     "folded_scope": "针对整个视图的操作包括折叠的成员。单独选择一个缩略图仅操作该张照片。",
     "explicit_only": "请明确选择 2–1000 张照片以创建堆叠。",
     "badge": "打开堆叠：{count} 个成员",

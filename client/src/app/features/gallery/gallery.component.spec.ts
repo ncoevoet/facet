@@ -8,6 +8,7 @@ import { RouterTestingHarness } from '@angular/router/testing';
 import { GALLERY_REVISIT, GalleryReuseStrategy } from '../../core/gallery-reuse.strategy';
 import { ActivatedRoute, Event as RouterEvent, NavigationEnd, NavigationStart, provideRouter, RouteReuseStrategy, Router, RouterOutlet } from '@angular/router';
 import { By } from '@angular/platform-browser';
+import { ControlPopoverComponent } from '../../shared/components/control-popover/control-popover.component';
 import { PhotoCardComponent } from '../../shared/components/photo-card/photo-card.component';
 import { KeyboardMappingService, KEYMAP_STORAGE_KEY } from '../../core/services/keyboard-mapping.service';
 import { GalleryPhotoMenuComponent } from './gallery-photo-menu.component';
@@ -347,7 +348,6 @@ describe('GalleryComponent', () => {
     vi.spyOn(TestBed.inject(I18nService), 't').mockImplementation((key, params) => {
       if (key === I18N.gallery.photo_count) return `${params?.['count']} photos`;
       if (key === I18N.gallery.collection_totals_compact) return `${params?.['photos']} matching, ${params?.['items']} displayed`;
-      if (key === I18N.stacks.totals) return `${params?.['photos']} photos / ${params?.['items']} groups`;
       return key;
     });
     mockStore.total.set(2);
@@ -357,9 +357,9 @@ describe('GalleryComponent', () => {
     Object.defineProperty(fixture.componentInstance, 'isDesktop', { value: desktop });
     fixture.detectChanges();
     const header = fixture.nativeElement.querySelector('[data-collection-header]') as HTMLElement;
-    expect(header.textContent).toContain('4 photos / 2 groups');
+    expect(header.textContent).toContain('4 matching, 2 displayed');
     const status = header.querySelector('[role="status"]');
-    expect(status?.textContent).toContain('4 photos / 2 groups');
+    expect(status?.textContent).toContain('4 matching, 2 displayed');
     desktop.set(false); fixture.detectChanges();
     expect(status?.textContent).toContain('4 matching, 2 displayed');
     expect(header.querySelector('[role="status"]')).toBe(status);
@@ -376,12 +376,16 @@ describe('GalleryComponent', () => {
     mockAuth['isEdition'] = vi.fn(() => false);
     const fixture = TestBed.createComponent(GalleryComponent);
     fixture.detectChanges();
-    const query = fixture.nativeElement.querySelector('[data-collection-query]') as HTMLElement;
-    query.querySelector<HTMLButtonElement>('[data-stack-collapse]')!.click();
+    const root = fixture.nativeElement as HTMLElement;
+    const query = root.querySelector('[data-collection-query]')!;
+    expect(query.querySelector('[data-stack-collapse]')).toBeNull();
+    root.querySelector<HTMLButtonElement>('[data-collection-options] button')!.click(); fixture.detectChanges();
+    const overlay = TestBed.inject(OverlayContainer).getContainerElement();
+    overlay.querySelector<HTMLButtonElement>('[data-stack-collapse]')!.click();
     expect(mockStore.toggleStackCollapse).toHaveBeenCalledOnce();
     mockStore.pinnedPaths.set(['/a.jpg']);
     fixture.detectChanges();
-    expect(query.querySelector('[data-stack-collapse]')).toBeNull();
+    expect(overlay.querySelector('[data-stack-collapse]')).toBeNull();
     fixture.destroy();
   });
 
@@ -407,6 +411,22 @@ describe('GalleryComponent', () => {
     fixture.destroy(); root.remove();
   });
 
+  it('uses the spare medium-width row for search and preserves it on Escape', () => {
+    const fixture = TestBed.createComponent(GalleryComponent);
+    Object.defineProperty(fixture.componentInstance, 'isDesktop', { value: signal(false) });
+    fixture.componentInstance['containerWidth'].set(556); fixture.detectChanges();
+    const root = fixture.nativeElement as HTMLElement;
+    const query = root.querySelector('[data-collection-query]')!;
+    expect(query.classList.contains('!hidden')).toBe(false);
+    expect(root.querySelector('button[aria-label="ui.filters.search"]')).toBeNull();
+    query.querySelector('input')!.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true })); fixture.detectChanges();
+    expect(query.classList.contains('!hidden')).toBe(false);
+    fixture.componentInstance['containerWidth'].set(375); fixture.detectChanges();
+    expect(query.classList.contains('!hidden')).toBe(true);
+    expect(root.querySelector('button[aria-label="ui.filters.search"]')).not.toBeNull();
+    fixture.destroy();
+  });
+
   it('keeps Filters direct and gives Review and Display one lazy popover each', () => {
     mockStore.selectedPaths.set(new Set(['/selected.jpg'])); mockStore.selectionCount.set(1);
     const fixture = TestBed.createComponent(GalleryComponent);
@@ -425,6 +445,69 @@ describe('GalleryComponent', () => {
     expect(overlay.querySelectorAll('[data-collection-sort]')).toHaveLength(1);
     expect([...mockStore.selectedPaths()]).toEqual(['/selected.jpg']);
     fixture.destroy();
+  });
+
+  it('keeps review commands out of search and closes Review only after Keep top succeeds', async () => {
+    mockAuth['isEdition'] = vi.fn(() => true);
+    mockStore.total.set(4);
+    mockStore.photos.set([makePhoto({ path: '/a.jpg' })]);
+    mockStore.selectBottomPercent = vi.fn().mockResolvedValueOnce(null).mockImplementationOnce(async () => {
+      mockStore.selectedPaths.set(new Set(['/a.jpg'])); mockStore.selectionCount.set(1);
+      return { paths: ['/a.jpg'], cut: 1, truncated: false };
+    });
+    const fixture = TestBed.createComponent(GalleryComponent);
+    document.body.appendChild(fixture.nativeElement);
+    fixture.detectChanges();
+    const root = fixture.nativeElement as HTMLElement;
+    expect(root.querySelector('[data-collection-query] button')).toBeNull();
+    const review = root.querySelector<HTMLButtonElement>('[data-collection-review] button')!;
+    review.click(); fixture.detectChanges(); await fixture.whenStable();
+    const overlay = TestBed.inject(OverlayContainer).getContainerElement();
+    expect(overlay.querySelector('[data-stack-suggestions]')).not.toBeNull();
+    overlay.querySelector<HTMLElement>('[data-keep-top-controls] summary')!.click();
+    fixture.detectChanges(); await fixture.whenStable();
+    const apply = overlay.querySelector<HTMLButtonElement>('[data-keep-top-controls] button.mat-mdc-unelevated-button')!;
+    expect(apply).not.toBeNull();
+    apply.click(); await fixture.whenStable(); fixture.detectChanges(); await fixture.whenStable();
+    expect(mockStore.selectBottomPercent).toHaveBeenCalledTimes(1);
+    expect(review.getAttribute('aria-expanded')).toBe('true');
+    expect(overlay.querySelector<HTMLDetailsElement>('[data-keep-top-controls]')?.open).toBe(true);
+    apply.click(); await fixture.whenStable(); fixture.detectChanges(); await fixture.whenStable();
+    expect(mockStore.selectBottomPercent).toHaveBeenCalledTimes(2);
+    expect(review.getAttribute('aria-expanded')).toBe('false');
+    expect(overlay.querySelector('[role="dialog"]')).toBeNull();
+    expect(overlay.querySelector('[data-keep-top-controls]')).toBeNull();
+    expect(document.activeElement).toBe(root.querySelector('[data-mobile-select]'));
+    expect(mockStore.selectedPaths()).toEqual(new Set(['/a.jpg']));
+    fixture.destroy(); root.remove();
+  });
+
+  it('does not close a newer panel or retain stale focus work after Keep top is dismissed while pending', async () => {
+    mockAuth['isEdition'] = vi.fn(() => true);
+    mockStore.total.set(4);
+    let finish!: (result: { paths: string[]; cut: number; truncated: boolean }) => void;
+    mockStore.selectBottomPercent = vi.fn(() => new Promise(resolve => { finish = resolve; }));
+    const fixture = TestBed.createComponent(GalleryComponent);
+    document.body.appendChild(fixture.nativeElement); fixture.detectChanges();
+    const root = fixture.nativeElement as HTMLElement;
+    const review = root.querySelector<HTMLButtonElement>('[data-collection-review] button')!;
+    const display = root.querySelector<HTMLButtonElement>('[data-collection-options] button')!;
+    const overlay = TestBed.inject(OverlayContainer).getContainerElement();
+    review.click(); fixture.detectChanges();
+    overlay.querySelector<HTMLElement>('[data-keep-top-controls] summary')!.click(); fixture.detectChanges();
+    overlay.querySelector<HTMLButtonElement>('[data-keep-top-controls] button.mat-mdc-unelevated-button')!.click();
+    expect(mockStore.selectBottomPercent).toHaveBeenCalledOnce();
+    overlay.querySelector<HTMLDetailsElement>('[data-keep-top-controls]')!.open = false;
+    const reviewOwner = fixture.debugElement.query(By.css('[data-collection-review]')).componentInstance as ControlPopoverComponent;
+    reviewOwner.open.set(false); fixture.detectChanges();
+    display.focus(); display.click(); fixture.detectChanges();
+    finish({ paths: ['/a.jpg'], cut: 1, truncated: false }); await fixture.whenStable(); fixture.detectChanges();
+    expect(display.getAttribute('aria-expanded')).toBe('true');
+    overlay.querySelector<HTMLElement>('[role="dialog"]')!.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true, cancelable: true })); fixture.detectChanges();
+    review.focus(); review.click(); fixture.detectChanges();
+    overlay.querySelector<HTMLElement>('[role="dialog"]')!.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true, cancelable: true })); fixture.detectChanges();
+    expect(document.activeElement).toBe(review);
+    fixture.destroy(); root.remove();
   });
 
   it('closes Display on Escape and navigation at either width', () => {
@@ -491,7 +574,8 @@ describe('GalleryComponent', () => {
     button.click();
     fixture.detectChanges();
     expect(button.getAttribute('aria-pressed')).toBe('true');
-    expect(button.textContent).toContain(I18N.ui.buttons.cancel);
+    expect(button.getAttribute('aria-label')).toContain(I18N.ui.buttons.cancel);
+    expect(button.textContent).toContain(I18N.gallery.selection.count);
     expect(fixture.componentInstance['tooltipPhoto']()).toBeNull();
     expect(fixture.componentInstance.tooltipDisabled()).toBe(true);
     expect(fixture.nativeElement.querySelectorAll('[data-selection-affordance]')).toHaveLength(2);
@@ -1906,9 +1990,8 @@ describe('GalleryComponent', () => {
     function toolbarView(): HTMLElement {
       return fixture!.nativeElement.querySelector('[data-collection-query]');
     }
-    const hasTypeAndSearch = (host: HTMLElement) =>
-      host.textContent?.includes(I18N.ui.filters.type) === true
-      && !!host.querySelector(`input[placeholder="${I18N.gallery.search_placeholder}"]`);
+    const hasSearch = (host: HTMLElement) =>
+      !!host.querySelector(`input[type="search"]`);
 
     it('offers no filter links while pinned (tag chips, person avatars, Find similar) and restores them after', () => {
       mockAuth['hasFeature'] = vi.fn(() => false);
@@ -1935,10 +2018,10 @@ describe('GalleryComponent', () => {
       mockStore.pinnedPaths.set(['/a.jpg']);
       fixture = TestBed.createComponent(GalleryComponent);
       fixture.detectChanges();
-      expect(hasTypeAndSearch(toolbarView())).toBe(false);
+      expect(hasSearch(toolbarView())).toBe(false);
       mockStore.pinnedPaths.set(null);
       fixture.detectChanges();
-      expect(hasTypeAndSearch(toolbarView())).toBe(true);
+      expect(hasSearch(toolbarView())).toBe(true);
     });
 
     it('keeps the filter drawer shut while pinned without touching the persisted flag, and reopens it after', () => {
@@ -6667,13 +6750,13 @@ describe('GalleryComponent', () => {
       expect(trigger.menuOpen).toBe(false);
     });
 
-    it('closes the local collection type select when the gallery parks', () => {
-      const type = (gallery as unknown as { selects(): MatSelect[] }).selects().at(0)!;
-      expect(type).toBeTruthy();
-      type.open(); fixture.detectChanges();
-      expect(type.panelOpen).toBe(true);
-      openPhoto(1);
-      expect(type.panelOpen).toBe(false);
+    it('closes collection settings when the gallery parks', () => {
+      const trigger = fixture.nativeElement.querySelector('[data-collection-options] button') as HTMLButtonElement;
+      trigger.click(); fixture.detectChanges();
+      expect(trigger.getAttribute('aria-expanded')).toBe('true');
+      openPhoto(1); fixture.detectChanges();
+      expect(trigger.getAttribute('aria-expanded')).toBe('false');
+      expect(TestBed.inject(OverlayContainer).getContainerElement().querySelector('[role="dialog"]')).toBeNull();
     });
 
     it('does not override a pointer press made before the anchor frame', () => {
@@ -6933,7 +7016,7 @@ describe('GalleryComponent', () => {
       host.detectChanges();
       document.body.appendChild(host.nativeElement);
       document.body.appendChild(fixture.nativeElement);
-      search = fixture.nativeElement.querySelector(`input[placeholder="${I18N.gallery.search_placeholder}"]`) as HTMLInputElement;
+      search = fixture.nativeElement.querySelector(`input[type="search"]`) as HTMLInputElement;
       mockStore.updateFilter.mockClear();
       vi.useFakeTimers();
     });
@@ -7007,7 +7090,8 @@ describe('GalleryComponent', () => {
         const router = TestBed.inject(Router);
         const navigate = vi.spyOn(router, 'navigate').mockResolvedValue(true);
         vi.spyOn(router, 'url', 'get').mockReturnValue('/album/42?sort=date&tag=a%20b#focused');
-        const button = fixture.nativeElement.querySelector('[data-stack-suggestions]') as HTMLButtonElement;
+        fixture.nativeElement.querySelector('[data-collection-review] button').click(); fixture.detectChanges();
+        const button = TestBed.inject(OverlayContainer).getContainerElement().querySelector('[data-stack-suggestions]') as HTMLButtonElement;
         button.click();
         expect(navigate).toHaveBeenCalledWith(['/culling'], { queryParams: {
           mode: 'stacks', filters: JSON.stringify(filters), return: '/album/42?sort=date&tag=a%20b#focused',
@@ -7077,6 +7161,7 @@ describe('GalleryComponent', () => {
     describe('/, B and V', () => {
       const stubWide = (matches: boolean) => {
         Object.defineProperty(gallery, 'isDesktop', { value: signal(matches), configurable: true });
+        (gallery as unknown as { containerWidth: WritableSignal<number> }).containerWidth.set(matches ? 1280 : 375);
         fixture.detectChanges();
       };
       afterEach(() => {

@@ -1719,7 +1719,9 @@
       "label": "Apresentação dos cartões",
       "square": "Recorte quadrado",
       "natural": "Proporção original"
-    }
+    },
+    "review_controls_hint": "Decisões de revisão, avaliações, pilhas sugeridas e melhor porcentagem",
+    "display_controls_hint": "Layout, informações das fotos e expansão de pilhas"
   },
   "composition_patterns": {
     "none": "Nenhum",
@@ -3894,7 +3896,6 @@
     "saved": "Pilha de fotos atualizada",
     "expand_all": "Expandir todas as pilhas",
     "collapse": "Recolher pilhas",
-    "totals": "Fotos correspondentes: {photos} · Apresentados: {items}",
     "folded_scope": "As ações de toda a vista incluem os membros recolhidos. Uma miniatura selecionada sozinha afeta apenas essa foto.",
     "explicit_only": "Selecione explicitamente 2 a 1000 fotos para criar uma pilha.",
     "badge": "Abrir pilha: {count} membros",

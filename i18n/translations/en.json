@@ -1744,7 +1744,9 @@
       "label": "Tile presentation",
       "square": "Square crop",
       "natural": "Original ratio"
-    }
+    },
+    "review_controls_hint": "Review decisions, ratings, suggested stacks and Keep top %",
+    "display_controls_hint": "Layout, photo information and stack expansion"
   },
   "composition_patterns": {
     "none": "None",
@@ -3919,7 +3921,6 @@
     "saved": "Photo stack updated",
     "expand_all": "Expand all stacks",
     "collapse": "Collapse stacks",
-    "totals": "Matching photos: {photos} · Displayed: {items}",
     "folded_scope": "Whole-view actions include folded stack members. A selected tile alone acts only on that photo.",
     "explicit_only": "Select 2–1000 explicit photos to create a stack.",
     "badge": "Open stack: {count} members",

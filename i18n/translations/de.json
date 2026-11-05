@@ -1719,7 +1719,9 @@
       "label": "Kachel-Darstellung",
       "square": "Quadratisch zugeschnitten",
       "natural": "Originalformat"
-    }
+    },
+    "review_controls_hint": "Sichtungsentscheidungen, Bewertungen, vorgeschlagene Stapel und beste Prozente",
+    "display_controls_hint": "Layout, Fotoinformationen und Aufklappen von Stapeln"
   },
   "composition_patterns": {
     "none": "Keines",
@@ -3894,7 +3896,6 @@
     "saved": "Fotostapel aktualisiert",
     "expand_all": "Alle Stapel aufklappen",
     "collapse": "Stapel einklappen",
-    "totals": "Passende Fotos: {photos} · Angezeigt: {items}",
     "folded_scope": "Aktionen für die gesamte Ansicht umfassen eingeklappte Mitglieder. Eine einzeln ausgewählte Kachel betrifft nur dieses Foto.",
     "explicit_only": "Zum Erstellen 2–1000 Fotos ausdrücklich auswählen.",
     "badge": "Stapel öffnen: {count} Mitglieder",
