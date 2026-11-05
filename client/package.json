@@ -9,7 +9,8 @@
     "test": "ng test",
     "lint": "ng lint",
     "gen:i18n": "node scripts/gen-i18n-keys.mjs",
-    "gen:api": "node scripts/gen-api-types.mjs"
+    "gen:api": "node scripts/gen-api-types.mjs",
+    "e2e": "playwright test -c e2e/playwright.config.ts"
   },
   "prettier": {
     "printWidth": 100,
@@ -49,6 +50,7 @@
     "@angular/cli": "22.2.5",
     "@angular/compiler-cli": "22.2.4",
     "@angular/platform-browser-dynamic": "22.2.4",
+    "@playwright/test": "1.64.1",
     "@tailwindcss/postcss": "4.3.3",
     "angular-eslint": "22.6.0",
     "eslint": "9.39.5",

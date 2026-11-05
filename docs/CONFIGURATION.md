@@ -966,7 +966,7 @@ Groups similar photos taken in quick succession.
 Tells edition users when a newer Facet release exists. This is separate from the browser's "a new version is available — Reload" prompt.
 
 - The running version is shown at the bottom of the user menu for everyone who can open the viewer.
-- An image built with `--build-arg FACET_BUILD=<branch>@<commit>` also shows that build line. `/api/config` returns both as `version` and `build`, only to callers who can read the library.
+- An image built with `--build-arg FACET_BUILD=<branch>@<commit>` also shows that build line, and so does a Windows MSI install, with the `<branch>@<commit>` it was built from. `/api/config` returns both as `version` and `build`, only to callers who can read the library.
 - The server asks GitHub at most once per `interval_days`, with no token or library data. A failed check shows as "no update known".
 - Only edition users see the notice, at most once a week per browser.
 

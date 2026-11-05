@@ -99,6 +99,13 @@ npm run gen:api && npm run gen:i18n      # commit any change these produce
 
 Typecheck the two projects above, not the root `tsconfig.json`: it compiles nothing and always passes.
 
+A change to a multi-step gallery or photo-page journey should also pass the browser flows, which drive
+the production build in Chrome on a seeded library (not run by CI; see `client/e2e/README.md`):
+
+```bash
+cd client && npx ng build && FACET_E2E_PYTHON=../venv/bin/python npm run e2e
+```
+
 Optional local hooks run ruff, the auth-mock guard and the commit-message guard (no `Claude-Session:` or
 `Co-Authored-By: Claude` trailers; CI rejects them too):
 
