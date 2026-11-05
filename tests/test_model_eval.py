@@ -25,6 +25,12 @@ def _sha(path):
     return hashlib.sha256(open(path, 'rb').read()).hexdigest()
 
 
+@pytest.fixture(autouse=True)
+def _hermetic_face_filters(monkeypatch):
+    """Agreement mode always resolves the config; never read the repo's real one in tests."""
+    monkeypatch.setattr(me, '_face_filters', lambda config_path: dict(me.DEFAULT_FACE_FILTERS))
+
+
 @pytest.fixture
 def eval_db(tmp_path):
     """Temp DB: 6 photos, 4 decisive pairs (winner always the higher `aesthetic`) + 1 tie."""
@@ -803,6 +809,40 @@ def test_face_labels_without_faces_detect_is_argparse_error():
     for argv in (['--face-labels', 'l.json'], ['--evaluate-models', 'aesthetic', '--face-labels', 'l.json']):
         with pytest.raises(SystemExit):
             cli_args.validate_face_labels(parser, parser.parse_args(argv))
+
+
+def test_agreement_mode_reads_resolved_config_without_config_path(eval_db, tmp_path, monkeypatch):
+    _seed_faces(eval_db)
+    monkeypatch.setattr(me, '_face_filters', lambda cp: {'min_confidence': 0.5, 'min_face_size': 0})
+    captured = []
+    monkeypatch.setattr(me, '_build_face_runners',
+                        lambda slot, names, device, filters=None: captured.append(filters) or {})
+    monkeypatch.setattr(me, '_run_faces_detect', lambda conn, names, loader, device, seed, limit, filters: {
+        'filters': filters, 'built': me._build_face_runners('faces-detect', names, device, filters)})
+    me._evaluate_faces(eval_db, 'faces-detect', None, str(tmp_path / 'r.json'), 1, 10)
+    assert captured == [{'min_confidence': 0.5, 'min_face_size': 0}]
+
+
+def test_evaluate_models_stray_positional_is_argparse_error():
+    import cli_args
+    parser = build_parser()
+    args = parser.parse_args(['--evaluate-models', 'weights', '--candidates', 'a.json', 'b.json'])
+    with pytest.raises(SystemExit):
+        cli_args.validate_evaluate_models_positionals(parser, args)
+
+
+def test_evaluate_models_comma_candidates_accepted():
+    import cli_args
+    parser = build_parser()
+    args = parser.parse_args(['--evaluate-models', 'weights', '--candidates', 'a.json,b.json'])
+    cli_args.validate_evaluate_models_positionals(parser, args)
+
+
+def test_facet_main_calls_positionals_validator():
+    import inspect
+
+    import facet
+    assert 'validate_evaluate_models_positionals(parser, args)' in inspect.getsource(facet.main)
 
 
 def test_device_vram_peak_tracks_samples(monkeypatch):
