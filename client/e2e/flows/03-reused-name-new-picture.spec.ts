@@ -7,6 +7,8 @@ test('an edit imported under a deleted edit’s name shows the new picture', asy
   const edit = libraryPath('reuse', 'IMG_0100_agy_1.jpg');
   const card = 'role=button[name="IMG_0100_agy_1.jpg"] >> img';
 
+  seedTool('reset', 'reuse');   // this flow changes its folder: start from the seeded state
+
   await test.step('1. The gallery card shows the red edit (and caches it)', async () => {
     await page.goto('/');
     await expect(page.locator(card)).toBeVisible();

@@ -1,8 +1,10 @@
-import { test, expect, libraryPath, editionToken } from '../fixtures';
+import { test, expect, libraryPath, editionToken, seedTool } from '../fixtures';
 
 // Deleting the AI edit that leads its burst must hand the lead to the best remaining frame, or Hide
 // bursts hides the whole burst. Found while reproducing B22, as B23.
 test('deleting the AI edit that leads its burst keeps the burst in the gallery', async ({ page }) => {
+  seedTool('reset', 'lead');   // this flow changes its folder: start from the seeded state
+
   await test.step('1. The burst shows as its leading AI edit', async () => {
     await page.goto('/');
     await expect(page.getByRole('button', { name: 'IMG_0200_agy_1.jpg', exact: true })).toBeVisible();

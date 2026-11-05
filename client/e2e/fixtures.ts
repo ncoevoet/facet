@@ -1,10 +1,9 @@
 import { execFileSync } from 'node:child_process';
 import * as path from 'node:path';
 import { test as base, expect, type Page } from '@playwright/test';
+import { EDITION_PASSWORD, PYTHON } from './env';
 
 export const WORK = path.resolve(__dirname, '.work');
-export const EDITION_PASSWORD = 'e2e-edition';
-const PYTHON = process.env['FACET_E2E_PYTHON'] ?? 'python';
 
 /** Absolute path of a seeded photo, spelled the way the server stored it. */
 export function libraryPath(folder: string, name: string): string {
@@ -13,10 +12,8 @@ export function libraryPath(folder: string, name: string): string {
 
 /** Run a seed_library.py subcommand against the running server's database. */
 export function seedTool(...args: string[]): void {
-  execFileSync(PYTHON, [path.join(__dirname, 'seed_library.py'), ...args], {
-    cwd: path.resolve(__dirname, '..', '..'),
-    stdio: 'pipe',
-  });
+  // No cwd: a relative FACET_E2E_PYTHON resolves from client/, as for the web server.
+  execFileSync(PYTHON, [path.join(__dirname, 'seed_library.py'), ...args], { stdio: 'pipe' });
 }
 
 /** Log in to edition mode the way the client does, and return the bearer token. */
@@ -46,8 +43,11 @@ export const test = base.extend<{ gate: void }>({
     async ({ page }, use) => {
       const problems: string[] = [];
       page.on('pageerror', (err) => problems.push(`pageerror: ${err.message}`));
+      let failedLoad = false;
       page.on('console', (msg) => {
-        if (msg.type() === 'error') problems.push(`console.error: ${msg.text()}`);
+        if (msg.type() !== 'error') return;
+        problems.push(`console.error: ${msg.text()}`);
+        if (msg.text().startsWith('Failed to load resource')) failedLoad = true;
       });
       // A failed load logs only "Failed to load resource"; keep the URLs so the report names them.
       const failed: string[] = [];
@@ -56,12 +56,8 @@ export const test = base.extend<{ gate: void }>({
         if (res.status() >= 500) problems.push(line);
         else if (res.status() >= 400) failed.push(line);
       });
-      page.on('console', (msg) => {
-        if (msg.type() === 'error' && msg.text().startsWith('Failed to load resource') && failed.length) {
-          problems.push(`  (4xx so far: ${failed.join(' ; ')})`);
-        }
-      });
       await use();
+      if (failedLoad && failed.length) problems.push(`4xx responses: ${failed.join(' ; ')}`);
       expect(problems, 'errors seen during the flow').toEqual([]);
     },
     { auto: true },

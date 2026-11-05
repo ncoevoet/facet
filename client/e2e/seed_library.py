@@ -2,9 +2,11 @@
 
 No models and no scan: the photos are synthetic solid-colour images and their rows are written
 straight into a database built by ``db.schema.init_database``, the same schema the scanner uses.
-Each flow owns its own folder, so flows never depend on one another's changes.
+Each flow owns its own folder, and a flow that changes its folder resets it first (``reset``), so
+flows never depend on one another's changes, nor on an earlier run of themselves.
 
-    python client/e2e/seed_library.py serve --port 5099     # seed into client/e2e/.work, run the viewer
+    python client/e2e/seed_library.py serve --port 5099 --edition-password <pw>   # seed .work, run the viewer
+    python client/e2e/seed_library.py reset <folder>                   # restore one folder as seeded
     python client/e2e/seed_library.py reimport <edit_path> <#rrggbb>   # see reimport() below
 """
 
@@ -22,7 +24,8 @@ WORK = os.path.join(REPO, 'client', 'e2e', '.work')
 LIBRARY = os.path.join(WORK, 'library')
 DB_PATH = os.path.join(WORK, 'facet_e2e.db')
 CONFIG_PATH = os.path.join(WORK, 'scoring_config.json')
-EDITION_PASSWORD = 'e2e-edition'   # the flows log in with this; a throwaway library only
+# send2trash honours XDG_DATA_HOME: a deleted test photo lands here, not in the user's own Trash.
+XDG_DATA_HOME = os.path.join(WORK, 'xdg-data')
 
 sys.path.insert(0, REPO)
 
@@ -74,23 +77,41 @@ def _insert_photo(conn, folder, name, colour, aggregate, lead, group, second):
     return path
 
 
-def seed():
+def _seed_folder(conn, folder):
+    group = list(PHOTOS).index(folder) + 1
+    photos = PHOTOS[folder]
+    os.makedirs(os.path.join(LIBRARY, folder))
+    for second, (name, colour, aggregate, lead, _) in enumerate(photos):
+        _insert_photo(conn, folder, name, colour, aggregate, lead, group, second)
+    for revision, (name, _, _, _, source) in enumerate((p for p in photos if p[4]), start=1):
+        conn.execute('INSERT INTO photo_ai_edits (edit_path, source_path, tool, note, revision, captioned) '
+                     "VALUES (?, ?, 'antigravity-gemini', 'e2e edit', ?, 1)",
+                     (os.path.join(LIBRARY, folder, name), os.path.join(LIBRARY, folder, source), revision))
+
+
+def seed(edition_password):
     from db.schema import init_database
     shutil.rmtree(WORK, ignore_errors=True)
     os.makedirs(LIBRARY)
     with open(CONFIG_PATH, 'w', encoding='utf-8') as fh:
-        json.dump({'viewer': {'edition_password': EDITION_PASSWORD, 'scan_directories': [LIBRARY],
+        json.dump({'viewer': {'edition_password': edition_password, 'scan_directories': [LIBRARY],
                               'cull': {'allow_trash': True}}}, fh, indent=2)
     init_database(DB_PATH)
     conn = sqlite3.connect(DB_PATH)
-    for group, (folder, photos) in enumerate(PHOTOS.items(), start=1):
-        os.makedirs(os.path.join(LIBRARY, folder))
-        for second, (name, colour, aggregate, lead, _) in enumerate(photos):
-            _insert_photo(conn, folder, name, colour, aggregate, lead, group, second)
-        for revision, (name, _, _, _, source) in enumerate((p for p in photos if p[4]), start=1):
-            conn.execute('INSERT INTO photo_ai_edits (edit_path, source_path, tool, note, revision, captioned) '
-                         "VALUES (?, ?, 'antigravity-gemini', 'e2e edit', ?, 1)",
-                         (os.path.join(LIBRARY, folder, name), os.path.join(LIBRARY, folder, source), revision))
+    for folder in PHOTOS:
+        _seed_folder(conn, folder)
+    conn.commit()
+    conn.close()
+
+
+def reset(folder):
+    """Put one folder back as seed() wrote it: its files, its rows and its AI edit links."""
+    conn = sqlite3.connect(DB_PATH)
+    prefix = os.path.join(LIBRARY, folder, '')
+    conn.execute('DELETE FROM photos WHERE substr(path, 1, ?) = ?', (len(prefix), prefix))
+    conn.execute('DELETE FROM photo_ai_edits WHERE substr(edit_path, 1, ?) = ?', (len(prefix), prefix))
+    shutil.rmtree(prefix, ignore_errors=True)
+    _seed_folder(conn, folder)
     conn.commit()
     conn.close()
 
@@ -117,10 +138,10 @@ def reimport(edit_path, colour):
     conn.close()
 
 
-def serve(port):
-    seed()
+def serve(port, edition_password):
+    seed(edition_password)
     env = {**os.environ, 'FACET_CONFIG': CONFIG_PATH, 'DB_PATH': DB_PATH, 'PYTHONIOENCODING': 'utf-8',
-           'FACET_BUILD': 'e2e'}
+           'FACET_BUILD': 'e2e', 'XDG_DATA_HOME': XDG_DATA_HOME}
     sys.exit(subprocess.call([sys.executable, 'viewer.py', '--production', '--port', str(port),
                               '--host', '127.0.0.1'], cwd=REPO, env=env))
 
@@ -128,17 +149,23 @@ def serve(port):
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     sub = parser.add_subparsers(dest='cmd', required=True)
-    sub.add_parser('seed')
+    sd = sub.add_parser('seed')
+    sd.add_argument('--edition-password', required=True)
     s = sub.add_parser('serve')
     s.add_argument('--port', type=int, default=5099)
+    s.add_argument('--edition-password', required=True)
+    rs = sub.add_parser('reset')
+    rs.add_argument('folder', choices=list(PHOTOS))
     r = sub.add_parser('reimport')
     r.add_argument('edit_path')
     r.add_argument('colour')
     args = parser.parse_args()
     os.chdir(REPO)
     if args.cmd == 'seed':
-        seed()
+        seed(args.edition_password)
     elif args.cmd == 'serve':
-        serve(args.port)
+        serve(args.port, args.edition_password)
+    elif args.cmd == 'reset':
+        reset(args.folder)
     else:
         reimport(args.edit_path, args.colour)
