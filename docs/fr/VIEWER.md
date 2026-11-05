@@ -918,6 +918,8 @@ Points d'accès : [API.md — Téléchargement](../API.md#download).
 
 ## Tri sélectif
 
+La chambre noire affiche le fichier actif et propose Garder, Rejeter et Confirmer en vue simple. Garder et Rejeter modifient le brouillon du groupe ; Confirmer conserve la validation différée et Annuler. Les flèches et raccourcis de zoom fonctionnent après le focus sur un bouton, sans intercepter les champs ni les touches modifiées. Les cibles font 44 pixels sur écran étroit et avec un pointeur grossier. Sur téléphone, Plein écran se trouve dans Inspecter.
+
 La page de tri (`/culling`, mode édition) regroupe les prises quasi identiques pour que vous gardiez la meilleure de chacune et rejetiez les autres. Choisissez la ou les photos à garder dans chaque groupe ; confirmer rejette les autres. Les confirmations sont différées et peuvent être annulées (voir [Annuler](#annuler)).
 
 La **granularité** (premier contrôle de la barre d'outils) choisit comment les photos sont regroupées :

@@ -4147,6 +4147,48 @@ describe('BurstCullingComponent modals (rendered)', () => {
     expect(seenAtDocument).not.toHaveBeenCalled();
   });
 
+  it('navigates and reviews the focused frame after a toolbar control takes focus', () => {
+    openDarkroom();
+    const button = fixture.nativeElement.querySelector('[aria-label="culling.compare.single"]') as HTMLButtonElement;
+    button.focus();
+    button.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowRight', bubbles: true, cancelable: true }));
+    fixture.detectChanges();
+    expect(component['effectiveLightboxIndex']()).toBe(1);
+    button.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowDown', bubbles: true, cancelable: true }));
+    fixture.detectChanges();
+    expect(store.selectionsMap().get('1_burst')?.has('/p2.jpg')).toBe(false);
+    button.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowUp', bubbles: true, cancelable: true }));
+    fixture.detectChanges();
+    expect(store.selectionsMap().get('1_burst')?.has('/p2.jpg')).toBe(true);
+    expect(store.confirmedGroups().size).toBe(0);
+  });
+
+  it('keeps native input arrows and modified navigation out of frame shortcuts', () => {
+    openDarkroom();
+    const root = fixture.nativeElement as HTMLElement;
+    const input = document.createElement('input');
+    root.querySelector('[data-darkroom-header]')!.appendChild(input);
+    input.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowRight', bubbles: true, cancelable: true }));
+    const button = root.querySelector('[aria-label="culling.compare.single"]')!;
+    button.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowRight', altKey: true, bubbles: true, cancelable: true }));
+    fixture.detectChanges();
+    expect(component['effectiveLightboxIndex']()).toBe(0);
+  });
+
+  it('offers single-view decisions without confirming and confirms only on its explicit action', () => {
+    openDarkroom();
+    const root = fixture.nativeElement as HTMLElement;
+    const confirm = vi.spyOn(store, 'confirmGroup').mockReturnValue(false);
+    root.querySelector<HTMLButtonElement>('[data-darkroom-reject]')!.click(); fixture.detectChanges();
+    expect(store.selectionsMap().get('1_burst')?.has('/p1.jpg')).toBe(false);
+    root.querySelector<HTMLButtonElement>('[data-darkroom-keep]')!.click(); fixture.detectChanges();
+    expect(store.selectionsMap().get('1_burst')?.has('/p1.jpg')).toBe(true);
+    expect(confirm).not.toHaveBeenCalled();
+    root.querySelector<HTMLButtonElement>('[data-darkroom-confirm]')!.click();
+    expect(confirm).toHaveBeenCalledOnce();
+    expect(component['lightboxGroup']()).not.toBeNull();
+  });
+
   it('legend toggle starts hidden, shows the legend on click and flips aria-pressed', () => {
     store.groups.set([{
       group_id: 1, type: 'burst', reason: '', best_path: '/p1.jpg', count: 1,
@@ -4586,7 +4628,7 @@ describe('BurstCullingComponent compare panes (rendered)', () => {
     expect(frame.firstElementChild!.contains(frame.querySelector('[data-comparison-slot]'))).toBe(true);
   });
 
-  it('names the frame the footer status is about while a grid is shown', () => {
+  it('names the focused frame in both grid and single-view review controls', () => {
     openCompare();
     const footer: HTMLElement = fixture.nativeElement;
     expect(footer.textContent).toContain('c1.jpg');
@@ -4595,7 +4637,7 @@ describe('BurstCullingComponent compare panes (rendered)', () => {
     fixture.detectChanges();
 
     expect(footer.querySelectorAll('app-synced-zoom')).toHaveLength(1);
-    expect(footer.textContent).not.toContain('c1.jpg');
+    expect(footer.querySelector('[data-darkroom-filename]')?.textContent).toContain('c1.jpg');
   });
 });
 

@@ -919,6 +919,8 @@ Endpoints: [API.md — Download](API.md#download).
 
 ## Culling
 
+The darkroom shows the focused filename and offers Keep, Reject and Confirm actions in single view. Keep and Reject update the group draft; Confirm uses the existing deferred confirmation and Undo. Arrow keys and zoom shortcuts remain available after a toolbar button takes focus, while inputs and modified keys retain their native behavior. Narrow and coarse-pointer controls have 44-pixel targets. On phones, Fullscreen is in Inspect.
+
 The culling page (`/culling`, edition mode) groups near-identical shots so you keep the best of each and reject the rest. Pick the keeper(s) in each group; confirming rejects the others. Confirms are deferred and can be undone (see [Undo](#undo)).
 
 **Granularity** (the first toolbar control) chooses how photos are grouped:

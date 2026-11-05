@@ -214,16 +214,17 @@ interface SceneSummary {
       <!-- The toolbar projects into the global header on lg+ (HeaderSlotService) and
            renders as a fixed bottom bar on small screens (same #cullToolbar template).
            When scoped, the back button is its first element (see below). -->
+      <h1 class="sr-only">{{ (stacksMode() ? I18N.stacks.suggestions : I18N.culling.title) | translate }}</h1>
       <div class="lg:hidden">
         <ng-container [ngTemplateOutlet]="cullToolbar" />
       </div>
       <ng-template #cullToolbar>
         @if (stacksMode()) {
           <div class="flex flex-wrap items-center gap-2 py-2" data-testid="stack-review-header">
-            <button mat-button (click)="backToGallery()"><mat-icon>arrow_back</mat-icon>{{ I18N.stacks.back_gallery | translate }}</button>
+            <button class="max-sm:!min-h-11 pointer-coarse:!min-h-11" mat-button (click)="backToGallery()"><mat-icon>arrow_back</mat-icon>{{ I18N.stacks.back_gallery | translate }}</button>
             <span>{{ I18N.stacks.loaded | translate:{ count: visibleGroups().length } }}</span>
             @if (cull.batchFull()) { <span class="text-xs opacity-70">{{ I18N.stacks.more_may_follow | translate }}</span> }
-            <button mat-button (click)="cull.resetForReload()">{{ I18N.stacks.suggestions_reload | translate }}</button>
+            <button class="max-sm:!min-h-11 pointer-coarse:!min-h-11" mat-button (click)="cull.resetForReload()">{{ I18N.stacks.suggestions_reload | translate }}</button>
           </div>
         } @else {
         <div class="flex items-center gap-3 md:gap-4 min-w-0
@@ -239,7 +240,7 @@ interface SceneSummary {
                produced a scrollbar on a header with plenty of free width. -->
           <div class="flex flex-nowrap items-center gap-3 md:gap-4 min-w-0 flex-1 overflow-x-auto max-lg:[scrollbar-width:none] py-1.5 pr-1.5">
             @if (scoped()) {
-              <button mat-icon-button (click)="exitScope()"
+              <button class="max-sm:!w-11 max-sm:!h-11 pointer-coarse:!w-11 pointer-coarse:!h-11" mat-icon-button (click)="exitScope()"
                       [matTooltip]="I18N.culling.exit_scene | translate"
                       [attr.aria-label]="I18N.culling.exit_scene | translate">
                 <mat-icon>arrow_back</mat-icon>
@@ -248,7 +249,7 @@ interface SceneSummary {
             <!-- Filters ordered by impact: scope → granularity → sort → category →
                  thresholds. The actions live in the pinned cluster below. -->
             @if (cull.albums().length > 0) {
-              <button mat-icon-button [matMenuTriggerFor]="scopeMenu"
+              <button class="max-sm:!w-11 max-sm:!h-11 pointer-coarse:!w-11 pointer-coarse:!h-11" mat-icon-button [matMenuTriggerFor]="scopeMenu"
                       [class.!text-[var(--mat-sys-primary)]]="albumScoped()"
                       [matTooltip]="cull.albumScopeLabel() ?? (I18N.culling.scope_whole_library | translate)"
                       [attr.aria-label]="cull.albumScopeLabel() ?? (I18N.culling.scope_whole_library | translate)">
@@ -286,7 +287,7 @@ interface SceneSummary {
             <!-- Not behind the albums check: a date window needs no album. The range input is an invisible
                  anchor for the custom picker's popup; it never takes focus or pointer events. -->
             <div class="relative inline-flex shrink-0">
-              <button mat-button class="!min-w-0 !px-3 shrink-0" data-testid="cull-date-range" [matMenuTriggerFor]="dateRangeMenu"
+              <button mat-button class="max-sm:!min-h-11 pointer-coarse:!min-h-11 !min-w-0 !px-3 shrink-0" data-testid="cull-date-range" [matMenuTriggerFor]="dateRangeMenu"
                       [class.!text-[var(--mat-sys-primary)]]="cull.dateRangeActive()"
                       [matTooltip]="cull.dateRangeActive() ? (cull.scopeFrom() | cullDateRange: cull.scopeTo()) : (I18N.culling.date_range.label | translate)"
                       [attr.aria-label]="(I18N.culling.date_range.label | translate) + (cull.dateRangeActive() ? ': ' + (cull.scopeFrom() | cullDateRange: cull.scopeTo()) : '')">
@@ -322,12 +323,12 @@ interface SceneSummary {
                 <span>{{ I18N.culling.date_range.all_dates | translate }}</span>
               </button>
             </mat-menu>
-            <button mat-button class="!min-w-0 !px-3 shrink-0" data-testid="cull-group-by" [matMenuTriggerFor]="cullGroupByMenu"
+            <button mat-button class="max-sm:!min-h-11 pointer-coarse:!min-h-11 !min-w-0 !px-3 shrink-0" data-testid="cull-group-by" [matMenuTriggerFor]="cullGroupByMenu"
                     [class.!text-[var(--mat-sys-primary)]]="cull.groupBy() !== 'all'"
                     [matTooltip]="I18N.culling.group_by.label | translate"
                     [attr.aria-label]="(I18N.culling.group_by.label | translate) + ': ' + (cull.groupBy() | cullGroupLabel | translate)">
               <mat-icon>{{ cull.groupBy() | cullGroupIcon }}</mat-icon>
-              <span class="hidden xl:inline text-sm">{{ cull.groupBy() | cullGroupLabel | translate }}</span>
+              <span class="text-sm">{{ cull.groupBy() | cullGroupLabel | translate }}</span>
             </button>
             <mat-menu #cullGroupByMenu="matMenu">
               <button mat-menu-item (click)="onGroupByChange('all')">
@@ -362,7 +363,7 @@ interface SceneSummary {
               </button>
             </mat-menu>
             @if (cull.groupBy() !== 'scene') {
-              <button mat-button class="!min-w-0 !px-3 shrink-0" [matMenuTriggerFor]="cullSortMenu" [disabled]="cull.planActive()"
+              <button mat-button class="max-sm:!min-h-11 pointer-coarse:!min-h-11 !min-w-0 !px-3 shrink-0" [matMenuTriggerFor]="cullSortMenu" [disabled]="cull.planActive()"
                       [class.!text-[var(--mat-sys-primary)]]="cull.sortMode() !== 'easiest'"
                       [matTooltip]="'culling.sort.' + cull.sortMode() | translate"
                       [attr.aria-label]="'culling.sort.' + cull.sortMode() | translate">
@@ -377,7 +378,7 @@ interface SceneSummary {
                   </button>
                 }
               </mat-menu>
-              <button mat-icon-button (click)="toggleSortDirection()" [disabled]="cull.planActive()"
+              <button class="max-sm:!w-11 max-sm:!h-11 pointer-coarse:!w-11 pointer-coarse:!h-11" mat-icon-button (click)="toggleSortDirection()" [disabled]="cull.planActive()"
                       [class.!text-[var(--mat-sys-primary)]]="cull.sortDirection() !== ''"
                       [matTooltip]="(sortAscending() ? I18N.culling.sort.ascending : I18N.culling.sort.descending) | translate"
                       [attr.aria-label]="(sortAscending() ? I18N.culling.sort.ascending : I18N.culling.sort.descending) | translate">
@@ -385,7 +386,7 @@ interface SceneSummary {
               </button>
             }
             @if (categoryOptions().length > 0) {
-              <button mat-icon-button [matMenuTriggerFor]="cullCategoryMenu"
+              <button class="max-sm:!w-11 max-sm:!h-11 pointer-coarse:!w-11 pointer-coarse:!h-11" mat-icon-button [matMenuTriggerFor]="cullCategoryMenu"
                       [class.!text-[var(--mat-sys-primary)]]="categoryFilter() !== ''"
                       [matTooltip]="categoryFilter() ? (('category_names.' + categoryFilter()) | translate) : (I18N.culling.filter_category | translate)"
                       [attr.aria-label]="categoryFilter() ? (('category_names.' + categoryFilter()) | translate) : (I18N.culling.filter_category | translate)">
@@ -405,7 +406,7 @@ interface SceneSummary {
               </mat-menu>
             }
             @if (cull.groupBy() === 'similar' || cull.groupBy() === 'all') {
-              <button mat-icon-button [matMenuTriggerFor]="thresholdMenu" [disabled]="cull.planActive()"
+              <button class="max-sm:!w-11 max-sm:!h-11 pointer-coarse:!w-11 pointer-coarse:!h-11" mat-icon-button [matMenuTriggerFor]="thresholdMenu" [disabled]="cull.planActive()"
                       [matTooltip]="(I18N.culling.threshold | translate) + ' · ' + cull.similarityThreshold() + '%'"
                       [attr.aria-label]="I18N.culling.threshold | translate">
                 <mat-icon>compare</mat-icon>
@@ -421,7 +422,7 @@ interface SceneSummary {
               </mat-menu>
             }
             @if (cull.cullProfiles().length > 0) {
-              <button mat-icon-button [matMenuTriggerFor]="profileMenu" [disabled]="cull.planActive()"
+              <button class="max-sm:!w-11 max-sm:!h-11 pointer-coarse:!w-11 pointer-coarse:!h-11" mat-icon-button [matMenuTriggerFor]="profileMenu" [disabled]="cull.planActive()"
                       [class.!text-[var(--mat-sys-primary)]]="cull.selectedProfile() !== ''"
                       [matTooltip]="selectedProfileLabel() | translate"
                       [attr.aria-label]="selectedProfileLabel() | translate">
@@ -436,7 +437,7 @@ interface SceneSummary {
                 }
               </mat-menu>
             }
-            <button mat-icon-button [matMenuTriggerFor]="strictnessMenu"
+            <button class="max-sm:!w-11 max-sm:!h-11 pointer-coarse:!w-11 pointer-coarse:!h-11" mat-icon-button [matMenuTriggerFor]="strictnessMenu"
                     [matTooltip]="(I18N.culling.strictness_tooltip | translate) + ' · ' + cull.strictness() + '%'"
                     [attr.aria-label]="I18N.culling.strictness | translate">
               <mat-icon>tune</mat-icon>
@@ -454,14 +455,14 @@ interface SceneSummary {
           <!-- Exclude-rejected and the loupe act on the photos rather than
                selecting which ones the feed serves, so they are pinned with the
                other actions instead of scrolling away with the filters. -->
-          <button mat-icon-button class="shrink-0" (click)="onExcludeRejectedChange(!cull.excludeRejected())"
+          <button mat-icon-button class="max-sm:!w-11 max-sm:!h-11 pointer-coarse:!w-11 pointer-coarse:!h-11 shrink-0" (click)="onExcludeRejectedChange(!cull.excludeRejected())"
                   [class.!text-[var(--mat-sys-primary)]]="cull.excludeRejected()"
                   [attr.aria-pressed]="cull.excludeRejected()"
                   [matTooltip]="I18N.culling.exclude_rejected | translate"
                   [attr.aria-label]="I18N.culling.exclude_rejected | translate">
             <mat-icon>{{ cull.excludeRejected() ? 'visibility_off' : 'visibility' }}</mat-icon>
           </button>
-          <button mat-icon-button class="shrink-0" (click)="loupeActive.set(!loupeActive())"
+          <button mat-icon-button class="max-sm:!w-11 max-sm:!h-11 pointer-coarse:!w-11 pointer-coarse:!h-11 shrink-0" (click)="loupeActive.set(!loupeActive())"
                   [class.!text-[var(--mat-sys-primary)]]="loupeActive()"
                   [attr.aria-pressed]="loupeActive()"
                   [matTooltip]="I18N.culling.loupe_hint | translate"
@@ -475,14 +476,14 @@ interface SceneSummary {
             </mat-slider>
           }
           @if (auth.isEdition() && !keepWholeGranularity()) {
-            <button mat-icon-button class="shrink-0" (click)="cull.openAutoCull()" [disabled]="cull.autoCullBusy()"
+            <button mat-icon-button class="max-sm:!w-11 max-sm:!h-11 pointer-coarse:!w-11 pointer-coarse:!h-11 shrink-0" (click)="cull.openAutoCull()" [disabled]="cull.autoCullBusy()"
                     [matTooltip]="I18N.culling.auto_cull.tooltip | translate"
                     [attr.aria-label]="I18N.culling.auto_cull.button | translate">
               <mat-icon>auto_fix_high</mat-icon>
             </button>
           }
           @if (auth.isEdition() && store.config()?.cull?.trash_available) {
-            <button mat-icon-button class="shrink-0" (click)="openTrashRejects()"
+            <button mat-icon-button class="max-sm:!w-11 max-sm:!h-11 pointer-coarse:!w-11 pointer-coarse:!h-11 shrink-0" (click)="openTrashRejects()"
                     [matTooltip]="I18N.cull.trash_all_rejects | translate"
                     [attr.aria-label]="I18N.cull.trash_all_rejects | translate">
               <mat-icon>delete_sweep</mat-icon>
@@ -765,9 +766,9 @@ interface SceneSummary {
                 @if (stacksMode()) {
                   @if (cull.stackDrafts()[groupKey].excludedCount; as count) { <span data-stack-excluded role="status" class="text-xs">{{ I18N.stacks.reject_count | translate:{ count } }}</span> }
                   <div class="flex flex-wrap gap-2 ml-auto">
-                    <button mat-button (click)="openLightbox(group, 0)">{{ I18N.culling.darkroom | translate }}</button>
-                    <button mat-button [disabled]="cull.stackBusy()" (click)="editSuggestion(group)">{{ I18N.stacks.suggestion_edit_members | translate }}</button>
-                    <button mat-button [disabled]="cull.stackBusy()" (click)="skipStackSuggestion(group)">{{ I18N.stacks.suggestion_skip | translate }}</button>
+                    <button class="max-sm:!min-h-11 pointer-coarse:!min-h-11" mat-button (click)="openLightbox(group, 0)">{{ I18N.culling.darkroom | translate }}</button>
+                    <button class="max-sm:!min-h-11 pointer-coarse:!min-h-11" mat-button [disabled]="cull.stackBusy()" (click)="editSuggestion(group)">{{ I18N.stacks.suggestion_edit_members | translate }}</button>
+                    <button class="max-sm:!min-h-11 pointer-coarse:!min-h-11" mat-button [disabled]="cull.stackBusy()" (click)="skipStackSuggestion(group)">{{ I18N.stacks.suggestion_skip | translate }}</button>
                     <button mat-flat-button [disabled]="cull.stackBusy() || cull.stackDrafts()[groupKey].paths.length < 2" (click)="stackGroup(group)">{{ I18N.stacks.stack_cover | translate }}</button>
                   </div>
                 } @else {
@@ -814,7 +815,7 @@ interface SceneSummary {
                          from a measurement that can read a subject-tracking pan
                          as a sweep. -->
                     @if (auth.isEdition() && (group.sequence_kind === 'panorama' || group.sequence_kind === 'hdr_panorama')) {
-                      <button mat-icon-button [matMenuTriggerFor]="correctMenu"
+                      <button class="max-sm:!w-11 max-sm:!h-11 pointer-coarse:!w-11 pointer-coarse:!h-11" mat-icon-button [matMenuTriggerFor]="correctMenu"
                               [matTooltip]="I18N.culling.panorama.correct_tooltip | translate"
                               [attr.aria-label]="I18N.culling.panorama.correct | translate">
                         <mat-icon>edit_note</mat-icon>
@@ -846,7 +847,7 @@ interface SceneSummary {
                          that one action rather than reusing the panorama
                          menu's shape. -->
                     @if (auth.isEdition() && (group | canMarkBracket)) {
-                      <button mat-icon-button [matMenuTriggerFor]="bracketMenu"
+                      <button class="max-sm:!w-11 max-sm:!h-11 pointer-coarse:!w-11 pointer-coarse:!h-11" mat-icon-button [matMenuTriggerFor]="bracketMenu"
                               [matTooltip]="I18N.culling.bracket.correct_tooltip | translate"
                               [attr.aria-label]="I18N.culling.panorama.correct | translate">
                         <mat-icon>edit_note</mat-icon>
@@ -862,7 +863,7 @@ interface SceneSummary {
                          it back to the detector, mirroring the panorama menu's
                          own "Clear correction" entry. -->
                     @if (auth.isEdition() && group.sequence_kind === 'bracket' && (group | groupOverride)) {
-                      <button mat-icon-button [matMenuTriggerFor]="bracketClearMenu"
+                      <button class="max-sm:!w-11 max-sm:!h-11 pointer-coarse:!w-11 pointer-coarse:!h-11" mat-icon-button [matMenuTriggerFor]="bracketClearMenu"
                               [matTooltip]="I18N.culling.panorama.correct | translate"
                               [attr.aria-label]="I18N.culling.panorama.correct | translate">
                         <mat-icon>edit_note</mat-icon>
@@ -873,19 +874,19 @@ interface SceneSummary {
                         </button>
                       </mat-menu>
                     }
-                    <button mat-icon-button (click)="openLightbox(group, 0)"
+                    <button class="max-sm:!w-11 max-sm:!h-11 pointer-coarse:!w-11 pointer-coarse:!h-11" mat-icon-button (click)="openLightbox(group, 0)"
                             [matTooltip]="I18N.culling.darkroom_tooltip | translate"
                             [attr.aria-label]="I18N.culling.darkroom | translate">
                       <mat-icon>fullscreen</mat-icon>
                     </button>
-                    <button mat-icon-button (click)="cull.skipGroup(group)" [disabled]="cull.replanning()"
+                    <button class="max-sm:!w-11 max-sm:!h-11 pointer-coarse:!w-11 pointer-coarse:!h-11" mat-icon-button (click)="cull.skipGroup(group)" [disabled]="cull.replanning()"
                             [matTooltip]="I18N.culling.skip_tooltip | translate"
                             [attr.aria-label]="I18N.culling.skip | translate">
                       <mat-icon>skip_next</mat-icon>
                     </button>
-                    <button mat-icon-button (click)="rejectEntireGroup(group)" [disabled]="cull.replanning() || cull.confirming()"
+                    <button class="max-sm:!w-11 max-sm:!h-11 pointer-coarse:!w-11 pointer-coarse:!h-11" mat-icon-button (click)="rejectEntireGroup(group)" [disabled]="cull.replanning() || cull.confirming()"
                             [matTooltip]="I18N.culling.workspace.reject_all | translate" [attr.aria-label]="I18N.culling.workspace.reject_all | translate"><mat-icon>remove_done</mat-icon></button>
-                    <button mat-icon-button (click)="cull.confirmGroup(group)" [disabled]="cull.confirming() || cull.replanning()"
+                    <button class="max-sm:!w-11 max-sm:!h-11 pointer-coarse:!w-11 pointer-coarse:!h-11" mat-icon-button (click)="cull.confirmGroup(group)" [disabled]="cull.confirming() || cull.replanning()"
                             [matTooltip]="I18N.culling.confirm_tooltip | translate"
                             [attr.aria-label]="I18N.culling.confirm | translate">
                       <mat-icon>check_circle</mat-icon>
@@ -959,21 +960,21 @@ interface SceneSummary {
               }
             </div>
           }
-          <div [class.hidden]="cleanComparison()" class="flex min-w-0 flex-1 items-center gap-1 [&>button]:shrink-0" role="presentation"
+          <div [class.hidden]="cleanComparison()" class="flex min-w-0 flex-1 flex-wrap items-center gap-1 [&>button]:shrink-0" role="presentation"
                (click)="$event.stopPropagation()" (keydown)="onDarkroomKeydown($event)">
-            <button mat-icon-button [class.!text-white]="compareMode() !== 'single'"
+            <button class="max-sm:!w-11 max-sm:!h-11 pointer-coarse:!w-11 pointer-coarse:!h-11" mat-icon-button [class.!text-white]="compareMode() !== 'single'"
                     [class.!text-[var(--mat-sys-primary)]]="compareMode() === 'single'"
                     [matTooltip]="I18N.culling.compare.single | translate"
                     [attr.aria-label]="I18N.culling.compare.single | translate"
                     [attr.aria-pressed]="compareMode() === 'single'"
                     (click)="setCompareMode('single')"><mat-icon>crop_original</mat-icon></button>
-            <button mat-icon-button [class.!text-white]="compareMode() !== '2up'"
+            <button class="max-sm:!w-11 max-sm:!h-11 pointer-coarse:!w-11 pointer-coarse:!h-11" mat-icon-button [class.!text-white]="compareMode() !== '2up'"
                     [class.!text-[var(--mat-sys-primary)]]="compareMode() === '2up'"
                     [matTooltip]="I18N.culling.compare['2up'] | translate"
                     [attr.aria-label]="I18N.culling.compare['2up'] | translate"
                     [attr.aria-pressed]="compareMode() === '2up'"
                     (click)="setCompareMode('2up')"><mat-icon>splitscreen</mat-icon></button>
-            <button mat-icon-button [class.!text-white]="compareMode() !== '4up'"
+            <button class="max-sm:!w-11 max-sm:!h-11 pointer-coarse:!w-11 pointer-coarse:!h-11" mat-icon-button [class.!text-white]="compareMode() !== '4up'"
                     [class.!text-[var(--mat-sys-primary)]]="compareMode() === '4up'"
                     [matTooltip]="I18N.culling.compare['4up'] | translate"
                     [attr.aria-label]="I18N.culling.compare['4up'] | translate"
@@ -987,32 +988,33 @@ interface SceneSummary {
                 <mat-icon aria-hidden="true">tune</mat-icon><span class="hidden sm:inline">{{ I18N.gallery.compare.inspection.title | translate }}</span>
               </summary>
               <div class="fixed top-14 left-2 right-2 z-[120] flex max-h-[70dvh] flex-wrap items-center gap-2 overflow-y-auto rounded border border-[var(--facet-image-rule)] bg-[var(--facet-image-chrome)] p-3 text-[var(--facet-image-ink)] sm:left-auto sm:right-28 sm:max-w-lg">
-                <button mat-button [attr.aria-pressed]="filmstripVisible()" (click)="toggleFilmstrip()">{{ I18N.culling.workspace.filmstrip | translate }}</button>
-                <button mat-button [attr.aria-pressed]="inspectionStripsVisible()" (click)="toggleInspectionStrips()">{{ I18N.culling.workspace.closeups | translate }}</button>
-                <button mat-button data-darkroom-link [attr.aria-pressed]="darkroomLinked()" (click)="toggleDarkroomLink()"><mat-icon>{{ darkroomLinked() ? 'link' : 'link_off' }}</mat-icon>{{ I18N.culling.workspace.link | translate }}</button>
+                <button class="max-sm:!min-h-11 pointer-coarse:!min-h-11" mat-button [attr.aria-pressed]="filmstripVisible()" (click)="toggleFilmstrip()">{{ I18N.culling.workspace.filmstrip | translate }}</button>
+                <button class="max-sm:!min-h-11 pointer-coarse:!min-h-11" mat-button [attr.aria-pressed]="inspectionStripsVisible()" (click)="toggleInspectionStrips()">{{ I18N.culling.workspace.closeups | translate }}</button>
+                <button mat-button class="max-sm:!min-h-11 pointer-coarse:!min-h-11 sm:!hidden" (click)="toggleFullscreen()"><mat-icon>fullscreen</mat-icon>{{ I18N.slideshow.fullscreen | translate }}</button>
+                <button class="max-sm:!min-h-11 pointer-coarse:!min-h-11" mat-button data-darkroom-link [attr.aria-pressed]="darkroomLinked()" (click)="toggleDarkroomLink()"><mat-icon>{{ darkroomLinked() ? 'link' : 'link_off' }}</mat-icon>{{ I18N.culling.workspace.link | translate }}</button>
                 @if (!stacksMode()) {
-                  <button mat-button data-reject-entire-group (click)="rejectEntireGroup(lbGroup)" [disabled]="cull.replanning() || cull.confirming()">{{ I18N.culling.workspace.reject_all | translate }}</button>
+                  <button class="max-sm:!min-h-11 pointer-coarse:!min-h-11" mat-button data-reject-entire-group (click)="rejectEntireGroup(lbGroup)" [disabled]="cull.replanning() || cull.confirming()">{{ I18N.culling.workspace.reject_all | translate }}</button>
                 }
-                <button mat-icon-button [class.!text-white]="!legendVisible()"
+                <button class="max-sm:!w-11 max-sm:!h-11 pointer-coarse:!w-11 pointer-coarse:!h-11" mat-icon-button [class.!text-white]="!legendVisible()"
                         [class.!text-[var(--mat-sys-primary)]]="legendVisible()"
                         [attr.aria-pressed]="legendVisible()"
                         [matTooltip]="I18N.culling.legend.tooltip | translate"
                         [attr.aria-label]="I18N.culling.legend.label | translate"
                         (click)="toggleLegend()"><mat-icon>keyboard</mat-icon></button>
-            <button mat-icon-button [class.!text-white]="!peakingActive()"
+            <button class="max-sm:!w-11 max-sm:!h-11 pointer-coarse:!w-11 pointer-coarse:!h-11" mat-icon-button [class.!text-white]="!peakingActive()"
                     [class.!text-[var(--mat-sys-primary)]]="peakingActive()"
                     [attr.aria-pressed]="peakingActive()"
                     [matTooltip]="I18N.culling.peaking.tooltip | translate"
                     [attr.aria-label]="I18N.culling.peaking.label | translate"
                     aria-describedby="darkroom-peaking-help"
                     (click)="togglePeaking()"><mat-icon>filter_center_focus</mat-icon></button>
-            <button mat-icon-button [class.!text-white]="gridMode() === ''"
+            <button class="max-sm:!w-11 max-sm:!h-11 pointer-coarse:!w-11 pointer-coarse:!h-11" mat-icon-button [class.!text-white]="gridMode() === ''"
                     [class.!text-[var(--mat-sys-primary)]]="gridMode() !== ''"
                     [attr.aria-pressed]="gridMode() !== ''"
                     [matTooltip]="I18N.culling.grid.tooltip | translate"
                     [attr.aria-label]="gridModeLabel() | translate"
                     (click)="cycleGrid()"><mat-icon>grid_3x3</mat-icon></button>
-            <button mat-icon-button [class.!text-white]="!darkroomLoupeActive()"
+            <button class="max-sm:!w-11 max-sm:!h-11 pointer-coarse:!w-11 pointer-coarse:!h-11" mat-icon-button [class.!text-white]="!darkroomLoupeActive()"
                     [class.!text-[var(--mat-sys-primary)]]="darkroomLoupeActive()"
                     [attr.aria-pressed]="darkroomLoupeActive()"
                     [matTooltip]="I18N.culling.darkroom_loupe_hint | translate"
@@ -1032,19 +1034,19 @@ interface SceneSummary {
               </div>
             </details>
             @if (auth.isEdition() && (stacksMode() || (lbGroup | canStackGroup))) {
-              <button mat-icon-button class="!text-white" aria-keyshortcuts="S" [disabled]="stacksMode() && (cull.stackBusy() || cull.stackDrafts()[lbKey].paths.length < 2)"
+              <button mat-icon-button class="max-sm:!w-11 max-sm:!h-11 pointer-coarse:!w-11 pointer-coarse:!h-11 !text-white" aria-keyshortcuts="S" [disabled]="stacksMode() && (cull.stackBusy() || cull.stackDrafts()[lbKey].paths.length < 2)"
                       [matTooltip]="I18N.culling.stack_group | translate"
                       [attr.aria-label]="I18N.culling.stack_group | translate"
                       (click)="stackGroup(lbGroup)"><mat-icon>layers</mat-icon></button>
             }
             @if (stacksMode()) {
-              <button mat-icon-button data-stack-reject class="!text-white" aria-keyshortcuts="R" [disabled]="cull.stackBusy() || !!cull.stackExcluded()[lbGroup.photos[effectiveLightboxIndex()]?.path ?? '']"
+              <button mat-icon-button data-stack-reject class="max-sm:!w-11 max-sm:!h-11 pointer-coarse:!w-11 pointer-coarse:!h-11 !text-white" aria-keyshortcuts="R" [disabled]="cull.stackBusy() || !!cull.stackExcluded()[lbGroup.photos[effectiveLightboxIndex()]?.path ?? '']"
                       [matTooltip]="I18N.stacks.reject_focused | translate" [attr.aria-label]="I18N.stacks.reject_focused | translate" (click)="rejectStackPhoto(lbGroup)"><mat-icon aria-hidden="true">block</mat-icon></button>
-              <button mat-button class="!text-white" [disabled]="cull.stackBusy()" (click)="editSuggestion(lbGroup)">{{ I18N.stacks.suggestion_edit_members | translate }}</button>
-              <button mat-button class="!text-white" [disabled]="cull.stackBusy()" (click)="skipStackSuggestion(lbGroup)">{{ I18N.stacks.suggestion_skip | translate }}</button>
+              <button mat-button class="max-sm:!min-h-11 pointer-coarse:!min-h-11 !text-white" [disabled]="cull.stackBusy()" (click)="editSuggestion(lbGroup)">{{ I18N.stacks.suggestion_edit_members | translate }}</button>
+              <button mat-button class="max-sm:!min-h-11 pointer-coarse:!min-h-11 !text-white" [disabled]="cull.stackBusy()" (click)="skipStackSuggestion(lbGroup)">{{ I18N.stacks.suggestion_skip | translate }}</button>
             }
             @if (!stacksMode() && cullStyleCapable() && compareMode() === 'single') {
-              <button mat-icon-button [matMenuTriggerFor]="cullStyleMenu"
+              <button class="max-sm:!w-11 max-sm:!h-11 pointer-coarse:!w-11 pointer-coarse:!h-11" mat-icon-button [matMenuTriggerFor]="cullStyleMenu"
                       [class.!text-white]="renditions.activeStyle() === ''"
                       [class.!text-[var(--mat-sys-primary)]]="renditions.activeStyle() !== ''"
                       [matTooltip]="I18N.culling.cull_style.tooltip | translate"
@@ -1067,16 +1069,16 @@ interface SceneSummary {
           </div>
           <button mat-icon-button data-clean-comparison [attr.aria-pressed]="cleanComparison()"
                   [matTooltip]="(cleanComparison() ? I18N.culling.workspace.restore : I18N.culling.workspace.clean) | translate" [attr.aria-label]="(cleanComparison() ? I18N.culling.workspace.restore : I18N.culling.workspace.clean) | translate"
-                  (click)="toggleCleanComparison(); $event.stopPropagation()" class="!text-white shrink-0 ml-auto"><mat-icon>{{ cleanComparison() ? 'visibility' : 'hide_source' }}</mat-icon></button>
+                  (click)="toggleCleanComparison(); $event.stopPropagation()" class="max-sm:!w-11 max-sm:!h-11 pointer-coarse:!w-11 pointer-coarse:!h-11 !text-white shrink-0 ml-auto"><mat-icon>{{ cleanComparison() ? 'visibility' : 'hide_source' }}</mat-icon></button>
           <button mat-icon-button
                   [matTooltip]="I18N.slideshow.fullscreen | translate"
                   [attr.aria-label]="I18N.slideshow.fullscreen | translate"
-                  (click)="toggleFullscreen(); $event.stopPropagation()" class="!text-white shrink-0">
+                  (click)="toggleFullscreen(); $event.stopPropagation()" class="max-sm:!w-11 max-sm:!h-11 pointer-coarse:!w-11 pointer-coarse:!h-11 !text-white shrink-0 !hidden sm:!inline-flex">
             <mat-icon>{{ isFullscreen() ? 'fullscreen_exit' : 'fullscreen' }}</mat-icon>
           </button>
           <button mat-icon-button data-darkroom-close
                   [attr.aria-label]="I18N.dialog.cancel | translate"
-                  (click)="closeLightbox(); $event.stopPropagation()" class="!text-white shrink-0">
+                  (click)="closeLightbox(); $event.stopPropagation()" class="max-sm:!w-11 max-sm:!h-11 pointer-coarse:!w-11 pointer-coarse:!h-11 !text-white shrink-0">
             <mat-icon>close</mat-icon>
           </button>
         </div>
@@ -1295,7 +1297,7 @@ interface SceneSummary {
             <div class="shrink-0 flex gap-2 overflow-x-auto border-t border-white/10 px-3 py-1" data-stack-filmstrip
                  role="presentation" (click)="$event.stopPropagation()" (keydown)="onDarkroomKeydown($event)">
               @for (photo of lbGroup.photos; track photo.path; let index = $index) {
-                <button type="button" class="shrink-0 rounded border-2 border-transparent overflow-hidden cursor-pointer"
+                <button type="button" class="min-w-11 shrink-0 rounded border-2 border-transparent overflow-hidden cursor-pointer"
                         [class.!border-amber-400]="index === effectiveLightboxIndex()" [class.opacity-40]="cull.stackExcluded()[photo.path]"
                         [attr.aria-current]="index === effectiveLightboxIndex() ? 'true' : null"
                         [attr.aria-label]="compareMode() === 'single' ? photo.filename : (I18N.culling.comparison.assign_photo | translate:{ pane: comparisonSlotLabels[comparisonSlot()], name: photo.filename })" (click)="focusPhotoInLightbox(index)">
@@ -1308,16 +1310,18 @@ interface SceneSummary {
             }
           @if (!stacksMode() && !cleanComparison()) {
           <!-- Footer status -->
-          <div class="px-4 py-3 text-center"
+          <div class="shrink-0 flex flex-wrap items-center justify-center gap-2 px-3 py-2 text-center"
                role="presentation"
                (click)="$event.stopPropagation()"
                (keydown)="onDarkroomKeydown($event)">
-            @if (compareMode() !== 'single') {
-              <!-- The status that follows is the focused frame's alone. Spanning
-                   the whole width under a grid of panes, unnamed, it read as a
-                   verdict on all of them. -->
-              <span class="text-white/60 text-sm mr-2">{{ lbPhoto.filename }}</span>
+            <span data-darkroom-filename class="min-w-0 basis-full break-all text-xs text-white/80" [title]="lbPhoto.filename">{{ lbPhoto.filename | filename:54 }}</span>
+            @if (compareMode() === 'single') {
+              <div class="inline-flex items-center gap-1" role="group" [attr.aria-label]="I18N.gallery.sidebar.tabs.review | translate">
+                <button mat-button data-darkroom-keep class="max-sm:!min-h-11 pointer-coarse:!min-h-11 !min-h-11 !text-white" [class.!bg-[var(--facet-review-kept)]]="lbPhoto.path | isKept:cull.selectionsMap():lbKey" [attr.aria-pressed]="lbPhoto.path | isKept:cull.selectionsMap():lbKey" [disabled]="cull.confirming() || cull.replanning()" (click)="cull.setPhotoKept(lbGroup, lbPhoto.path, true)"><mat-icon>check</mat-icon>{{ I18N.culling.lightbox.keep | translate }}</button>
+                <button mat-button data-darkroom-reject class="max-sm:!min-h-11 pointer-coarse:!min-h-11 !min-h-11 !text-white" [class.!text-[var(--mat-sys-on-error-container)]]="(lbPhoto.path | isDecided:cull.selectionsMap():lbKey) && !(lbPhoto.path | isKept:cull.selectionsMap():lbKey)" [class.!bg-[var(--mat-sys-error-container)]]="(lbPhoto.path | isDecided:cull.selectionsMap():lbKey) && !(lbPhoto.path | isKept:cull.selectionsMap():lbKey)" [attr.aria-pressed]="(lbPhoto.path | isDecided:cull.selectionsMap():lbKey) && !(lbPhoto.path | isKept:cull.selectionsMap():lbKey)" [disabled]="cull.confirming() || cull.replanning()" (click)="cull.setPhotoKept(lbGroup, lbPhoto.path, false)"><mat-icon>close</mat-icon>{{ I18N.culling.lightbox.reject | translate }}</button>
+              </div>
             }
+            <span role="status" class="sr-only">
             @if (lbPhoto.path | isKept:cull.selectionsMap():lbKey) {
               <span class="inline-flex items-center gap-1 text-green-400 text-sm">
                 <mat-icon class="!text-base !w-4 !h-4 !leading-4">check</mat-icon>
@@ -1331,11 +1335,13 @@ interface SceneSummary {
             } @else {
               <span class="text-white/40 text-sm">{{ I18N.culling.lightbox.undecided | translate }}</span>
             }
+            </span>
+            <button mat-flat-button data-darkroom-confirm class="!min-h-11" [disabled]="cull.confirming() || cull.replanning()" (click)="continueCullingGroup($event)"><mat-icon>check_circle</mat-icon>{{ I18N.culling.confirm | translate }}</button>
             @if (swipeEnabled() && !swipeHintDismissed()) {
               <div class="flex items-center justify-center gap-2 pt-2 text-white/60 text-xs">
                 <mat-icon class="!text-base !w-4 !h-4 !leading-4" aria-hidden="true">swipe</mat-icon>
                 <span>{{ I18N.culling.swipe.hint | translate }}</span>
-                <button mat-button class="!min-w-0 !px-2 !text-xs !text-white/80"
+                <button mat-button class="max-sm:!min-h-11 pointer-coarse:!min-h-11 !min-w-0 !px-2 !text-xs !text-white/80"
                         (click)="dismissSwipeHint()">
                   {{ I18N.culling.swipe.hint_dismiss | translate }}
                 </button>
@@ -2737,6 +2743,16 @@ export class BurstCullingComponent implements OnDestroy {
       else if (event.key.toLowerCase() === 'p') this.onPeakingKey(event);
       else if (event.key.toLowerCase() === 'g') this.onGridKey(event);
       else if (event.key.toLowerCase() === 'f') this.onFullscreenToggle(event);
+    } else if (!isTypingContext(event) && !event.ctrlKey && !event.metaKey && !event.altKey
+      && !(event.target as HTMLElement | null)?.closest('[role="slider"], [role="radiogroup"], [data-darkroom-tools][open]')) {
+      if (event.key === 'ArrowLeft') this.onArrowLeft(event);
+      else if (event.key === 'ArrowRight') this.onArrowRight(event);
+      else if (event.key === 'ArrowUp') this.onArrowUp(event);
+      else if (event.key === 'ArrowDown') this.onArrowDown(event);
+      else if (event.key.toLowerCase() === 'z') this.onZoomToggle(event);
+      else if (event.key.toLowerCase() === 'p') this.onPeakingKey(event);
+      else if (event.key.toLowerCase() === 'g') this.onGridKey(event);
+      else if (event.key.toLowerCase() === 'f') this.onFullscreenToggle(event);
     }
     if (event.key === 'Escape') this.closeLightbox();
   }
@@ -2917,9 +2933,10 @@ export class BurstCullingComponent implements OnDestroy {
   }
 
   private shortcutsBlocked(event: Event): boolean {
-    if (event.defaultPrevented || this.dialog.openDialogs.length > 0) return true;
-    if (!this.stacksMode()) return false;
     const key = event as KeyboardEvent;
+    if (event.defaultPrevented || this.dialog.openDialogs.length > 0 || isTypingContext(event)
+      || key.ctrlKey || key.metaKey || key.altKey) return true;
+    if (!this.stacksMode()) return false;
     return this.pageNavigating || this.cull.stackBusy() || isTypingContext(event) || key.shiftKey || key.ctrlKey || key.metaKey || key.altKey
       || key.isComposing || key.keyCode === 229 || key.repeat || this.pageContext.overlays().length > 0
       || !!(event.target instanceof HTMLElement ? event.target : null)?.closest('[role="slider"], [role="radiogroup"]');
@@ -3204,7 +3221,7 @@ export class BurstCullingComponent implements OnDestroy {
     this.continueCullingGroup(event);
   }
 
-  private continueCullingGroup(event: Event): void {
+  protected continueCullingGroup(event: Event): void {
     const key = event as KeyboardEvent;
     if (this.shortcutsBlocked(event) || isTypingContext(event) || key.repeat || key.isComposing || key.keyCode === 229
       || key.ctrlKey || key.altKey || key.metaKey || this.pageNavigating || !this.pageAlive) return;
