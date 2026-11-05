@@ -1,5 +1,4 @@
 import { AuthService } from '../../core/services/auth.service';
-import { galleryPresentation } from './gallery-presentation.util';
 import { GalleryReviewNavigationService } from './gallery-review-navigation.service';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { Component, signal, TemplateRef } from '@angular/core';
@@ -18,7 +17,7 @@ afterEach(() => TestBed.resetTestingModule());
 @Component({ imports: [NgTemplateOutlet], template: '<ng-container [ngTemplateOutlet]="template" [ngTemplateOutletContext]="context" />' })
 class RehostedControls {
   template: TemplateRef<unknown> | null = null;
-  context: { $implicit?: unknown } = {};
+  context: { $implicit?: unknown; inPopover?: boolean } = {};
 }
 
 describe('GalleryViewControlsComponent', () => {
@@ -29,7 +28,7 @@ describe('GalleryViewControlsComponent', () => {
       filters: signal({ ...DEFAULT_FILTERS }), config: signal(config),
       pinnedPaths: signal<string[] | null>(null), filterDrawerOpen: signal(true), activeFilterCount: signal(0),
       slideshowActive: signal(false), setFilterDrawerOpen: vi.fn(), updateFilter: vi.fn(), setUserSort: vi.fn(() => Promise.resolve()),
-      galleryMode: signal('grid'), setGalleryMode: vi.fn(), cardWidth: signal(168), applyDisplayPreset: vi.fn(() => Promise.resolve()),
+      galleryMode: signal('grid'), setGalleryMode: vi.fn(), cardWidth: signal(168), resetDisplay: vi.fn(() => Promise.resolve()),
     };
     TestBed.configureTestingModule({
       imports: [GalleryViewControlsComponent],
@@ -123,7 +122,7 @@ describe('GalleryViewControlsComponent', () => {
       fixture.detectChanges();
     };
 
-    it('owns the session-only review navigation choice without modifying the collection or presets', () => {
+    it('owns the session-only review navigation choice without modifying the collection or display', () => {
       const { fixture, root, store, edition } = render({ features: { show_rating_controls: true } });
       expect(root.querySelector('[data-review-advance]')).toBeNull();
       edition.set(true); fixture.detectChanges();
@@ -132,37 +131,66 @@ describe('GalleryViewControlsComponent', () => {
       checkbox.click(); fixture.detectChanges();
       expect(TestBed.inject(GalleryReviewNavigationService).enabled()).toBe(true);
       expect(store.updateFilter).not.toHaveBeenCalled();
-      expect(store.applyDisplayPreset).not.toHaveBeenCalled();
+      expect(store.resetDisplay).not.toHaveBeenCalled();
       fixture.componentInstance.setActive(false);
       checkbox.click();
       expect(TestBed.inject(GalleryReviewNavigationService).enabled()).toBe(true);
       expect(checkbox.checked).toBe(true);
     });
 
-    it('offers display-only task presets in pinned lists and blocks captured commands while parked', async () => {
+    it('offers the display reset in pinned lists and blocks captured commands while parked', () => {
       const { fixture, root, store } = render();
+      fixture.componentRef.setInput('portDisplay', true);
       store.pinnedPaths.set(['/fixed']);
       fixture.detectChanges();
-      await openMenu(fixture, root.querySelector<HTMLButtonElement>('[data-display-presets]')!);
-      const organize = document.querySelector<HTMLButtonElement>('[data-display-preset="organize"]')!;
-      expect(organize).not.toBeNull();
-      organize.click();
-      expect(store.applyDisplayPreset).toHaveBeenCalledWith('organize', expect.any(Boolean));
+      expect(root.querySelector('[data-reset-display]')).toBeNull();
+      const host = TestBed.createComponent(RehostedControls);
+      host.componentInstance.template = fixture.componentInstance.displayControls()!;
+      host.detectChanges();
+      const reset = (host.nativeElement as HTMLElement).querySelector<HTMLButtonElement>('[data-reset-display]')!;
+      expect(reset).not.toBeNull();
+      reset.click();
+      expect(store.resetDisplay).toHaveBeenCalledOnce();
       expect(store.updateFilter).not.toHaveBeenCalled();
-      store.applyDisplayPreset.mockClear();
+      store.resetDisplay.mockClear();
       fixture.componentInstance.setActive(false);
-      organize.click();
-      expect(store.applyDisplayPreset).not.toHaveBeenCalled();
+      reset.click();
+      expect(store.resetDisplay).not.toHaveBeenCalled();
     });
 
-    it.each([[true, 'grid', false], [false, 'grid', true], [true, 'mosaic', true], [true, 'list', true]] as const)(
-      'enables tile fit only for detail-less grids (%s, %s)', async (hideDetails, mode, disabled) => {
+    it.each([[false, false], [true, true]])('forces the sort label on only when rehosted in the popover (%s)', (inPopover, forced) => {
+      const { fixture } = render();
+      const host = TestBed.createComponent(RehostedControls);
+      host.componentInstance.template = fixture.componentInstance.primaryControls()!;
+      host.componentInstance.context = { inPopover };
+      host.detectChanges();
+      const label = (host.nativeElement as HTMLElement).querySelector('[data-collection-sort] span.hidden')!;
+      expect(label.classList.contains('!inline')).toBe(forced);
+    });
+
+    it('rehosts Tooltip and Tile fit as labelled choice rows showing the current value', () => {
+      const { fixture, store } = render();
+      fixture.componentRef.setInput('portDisplay', true);
+      store.filters.update(filters => ({ ...filters, tooltip_mode: 'click', hide_details: true, tile_fit: 'natural' }));
+      store.galleryMode.set('grid');
+      fixture.detectChanges();
+      const host = TestBed.createComponent(RehostedControls);
+      host.componentInstance.template = fixture.componentInstance.displayControls()!;
+      host.detectChanges();
+      const rows = Array.from((host.nativeElement as HTMLElement).querySelectorAll<HTMLButtonElement>('[data-choice]'));
+      expect(rows.map(row => row.getAttribute('data-choice'))).toEqual(['tooltip-mode', 'tile-fit']);
+      expect(rows.map(row => row.querySelector('[data-value]')!.textContent!.trim()))
+        .toEqual([I18N.gallery.tooltip_mode.click, I18N.gallery.tile_fit.natural]);
+      expect(rows.every(row => row.getAttribute('aria-haspopup') === 'menu')).toBe(true);
+    });
+
+    it.each([[true, 'grid', true], [false, 'grid', false], [true, 'mosaic', false], [true, 'list', false]] as const)(
+      'offers tile fit only for detail-less grids (%s, %s)', (hideDetails, mode, shown) => {
         const { fixture, root, store } = render();
         store.filters.update(filters => ({ ...filters, hide_details: hideDetails }));
         store.galleryMode.set(mode);
         fixture.detectChanges();
-        await openMenu(fixture, root.querySelector<HTMLButtonElement>('[data-display-presets]')!);
-        expect(document.querySelector<HTMLButtonElement>('[data-tile-fit]')!.disabled).toBe(disabled);
+        expect(root.querySelector('[data-tile-fit]') !== null).toBe(shown);
       },
     );
 
@@ -514,19 +542,11 @@ describe('GalleryViewControlsComponent', () => {
       expect(byLabel(root, I18N.gallery.filters)).toHaveLength(1);
       expect(store.setFilterDrawerOpen).not.toHaveBeenCalled();
     });
-    it.each([false, true])('marks the active preset, resets it and offers the dock only on desktop (%s)', async dock => {
-      const { fixture, root, store } = render();
+    it.each([false, true])('offers the dock only on desktop (%s)', async dock => {
+      const { fixture, root } = render();
       const controls = fixture.componentInstance as unknown as { railCapable: { setMatches(value: boolean): void } };
       controls.railCapable.setMatches(dock);
-      const preset = galleryPresentation('review', dock);
-      store.filters.update(filters => ({ ...filters, ...preset }));
-      store.galleryMode.set(preset.mode); store.cardWidth.set(preset.cardWidth); fixture.detectChanges();
-      await openMenu(fixture, root.querySelector<HTMLButtonElement>('[data-display-presets]')!);
-      const review = document.querySelector<HTMLButtonElement>('[data-display-preset="review"]')!;
-      expect(review.getAttribute('aria-checked')).toBe('true');
-      expect(iconOf(review)).toBe('check');
-      document.querySelector<HTMLButtonElement>('[data-reset-display]')!.click();
-      expect(store.applyDisplayPreset).toHaveBeenCalledExactlyOnceWith('default', dock);
+      fixture.detectChanges();
       await openMenu(fixture, root.querySelector<HTMLButtonElement>(`[aria-label="${I18N.gallery.tooltip_mode.label}"]`)!);
       const labels = menuItems().map(item => item.textContent);
       expect(labels.some(label => label?.includes(I18N.gallery.tooltip_mode.panel))).toBe(dock);

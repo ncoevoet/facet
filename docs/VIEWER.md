@@ -10,7 +10,7 @@ The sticky collection header keeps search, selection, sorting and active criteri
 
 **Header controls.** Search contains only the text query. Photo type is in **Filters**. **Review** contains Suggested stacks and Keep top %; **Display** contains Expand/Collapse stacks. In selection mode, the Select button shows the selected count and a close icon. Narrow phones use two compact rows to keep the collection name and control labels readable.
 
-**Display presets.** Open Display. Browse uses a compact mosaic with hover information (click information on narrow screens). Review uses larger grid cards with details and click-owned inspection (a docked panel where the screen is wide enough). Organize uses a metadata list with filename, capture date, review decisions and camera settings. Presets change presentation only: they preserve the query, sort, album, selection and loaded page. Reset display to defaults restores configured presentation without resetting filters. Manual adjustments leave a preset unchecked when its settings no longer match.
+**Reset display.** Open Display and choose Reset display to restore the configured layout, thumbnail size and inspection mode. The query, sort, album, selection and loaded page stay as they are.
 
 **Collection criteria.** Metadata and visual-search criteria now stay below the collection query when the filter panel closes. Each chip has a named Remove action; clearing a range removes both bounds together. Visual search states how similarity candidates combine with metadata filters and the chosen sort. Favorites retains the other criteria. Decision filters leave visual search; Undecided uses capture-date order, oldest first, as explained before choosing. Visibility rules disclose the effective hiding/grouping settings, including best-of-burst and bracket/panorama representatives; rules suppressed by an Only filter are not shown as active. Fixed photo lists explain that you must return to the usual view before changing criteria.
 
@@ -463,7 +463,7 @@ Response fields and status codes: [API.md](API.md).
 - **Layout Mode** — **Grid** (uniform cards), **Mosaic** (justified aspect-ratio rows), or **List** (metadata rows), at every screen width.
 - **Thumbnail Size** — card/row height slider (120–400px, saved in localStorage)
 - **Hide Details** — hide metadata on cards (grid mode only)
-- **Tile presentation** — square crop (the default) or the photo's original ratio for the detail-less tiles; greyed while Mosaic is active, which already keeps the ratio, or while details are shown.
+- **Thumbnail shape** — square crop (the default) or the photo's original ratio for the detail-less tiles; greyed while Mosaic is active, which already keeps the ratio, or while details are shown.
 - **Tooltip** — how photo details appear: **Side panel** (default), **Hover**, **Click** or **Off**.
   - The side panel shows full details in the right-hand drawer, laid out like photo detail. Under **Panel activation**, choose **Hover**, **Click**, or **Hover or click** (default). The Review preset uses **Click**; choose a click-enabled option for touch screens. It keeps the last photo when the cursor leaves the grid.
   - Clicking a photo holds the panel on it until you press **Deselect** (which also deselects the photo). **Escape** does the same and clears the selection.

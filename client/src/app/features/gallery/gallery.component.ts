@@ -335,12 +335,13 @@ const SET_KIND_TOGGLE: Record<string, keyof HiddenFilterFlags> = {
                 [label]="I18N.gallery.sidebar.tabs.display | translate" [content]="displaySettings" />
             </div>
             <ng-template #displaySettings>
-              <ng-container [ngTemplateOutlet]="collectionStackControls" />
               @if (compactCollectionControls()) {
                 <div data-compact-collection-controls class="flex items-center gap-1">
-                  <ng-container [ngTemplateOutlet]="collectionViewControls.primaryControls()" />
+                  <ng-container [ngTemplateOutlet]="collectionViewControls.primaryControls()" [ngTemplateOutletContext]="{ inPopover: true }" />
                 </div>
               }
+              <ng-container [ngTemplateOutlet]="collectionSettings.displayLayoutSettings()" />
+              <ng-container [ngTemplateOutlet]="collectionStackControls" />
               <ng-container [ngTemplateOutlet]="collectionSettings.displaySettings()" />
               <ng-container [ngTemplateOutlet]="collectionCriteria.shortcuts()" />
             </ng-template>

@@ -811,7 +811,7 @@ export function loadActiveTab(): SidebarTabId {
         <ng-container [ngTemplateOutlet]="metricPanel" [ngTemplateOutletContext]="{ $implicit: group }" />
       }
           }
-          @case ('display') { <ng-container [ngTemplateOutlet]="displaySettings" /> }
+          @case ('display') { <ng-container [ngTemplateOutlet]="displayLayoutSettings" /><ng-container [ngTemplateOutlet]="displaySettings" /> }
         }
       }
 
@@ -993,6 +993,23 @@ export function loadActiveTab(): SidebarTabId {
         }
       </div>
 </ng-template>
+<ng-template #displayLayoutSettings>
+        <div data-section="view-layout" class="flex flex-col gap-2 px-1 pt-1">
+          <div class="flex items-center gap-2">
+            <span class="text-sm opacity-70 shrink-0">{{ I18N.gallery.layout_mode | translate }}</span>
+            <div class="ml-auto flex gap-1"><ng-container [ngTemplateOutlet]="layoutControls()" /></div>
+          </div>
+          @if (sliderConfig(); as sc) {
+            <div class="flex items-center gap-2">
+              <span class="text-sm opacity-70 shrink-0">{{ I18N.gallery.thumbnail_size | translate }}</span>
+              <mat-slider [min]="thumbnailSliderMin()" [max]="sc.max_px" [step]="sc.step_px" class="flex-1">
+                <input matSliderThumb [value]="store.cardWidth()" (valueChange)="store.setCardWidth($event)" [attr.aria-label]="I18N.gallery.thumbnail_size | translate" />
+              </mat-slider>
+              <span class="text-xs opacity-60 w-10 text-right">{{ store.cardWidth() }}px</span>
+            </div>
+          }
+        </div>
+</ng-template>
 <ng-template #displaySettings>
       <!-- View (display preferences, not filters): the tab's only section, so no panel around it -->
         <div data-section="view" class="flex flex-col gap-2 px-1 pt-1 pb-2">
@@ -1007,23 +1024,9 @@ export function loadActiveTab(): SidebarTabId {
             [checked]="store.virtualScroll()"
             (change)="store.setVirtualScroll($event.checked)"
           >{{ I18N.gallery.sidebar.virtual_scroll | translate }}</mat-checkbox>
-          <button mat-stroked-button class="!justify-start" (click)="openCardActionsDialog()">
-            <mat-icon class="!text-base !w-4 !h-4 !leading-4 mr-1">tune</mat-icon>
-            {{ I18N.gallery.card_actions.title | translate }}
+          <button mat-button data-card-actions class="!min-h-11 !w-full !justify-start" (click)="openCardActionsDialog()">
+            <mat-icon>tune</mat-icon>{{ I18N.gallery.card_actions.open | translate }}
           </button>
-          <div class="flex items-center gap-2 mt-2">
-            <span class="text-sm opacity-70 shrink-0">{{ I18N.gallery.layout_mode | translate }}</span>
-            <div class="ml-auto flex gap-1"><ng-container [ngTemplateOutlet]="layoutControls()" /></div>
-          </div>
-          @if (sliderConfig(); as sc) {
-            <div class="flex items-center gap-2 mt-2">
-              <span class="text-sm opacity-70 shrink-0">{{ I18N.gallery.thumbnail_size | translate }}</span>
-              <mat-slider [min]="thumbnailSliderMin()" [max]="sc.max_px" [step]="sc.step_px" class="flex-1">
-                <input matSliderThumb [value]="store.cardWidth()" (valueChange)="store.setCardWidth($event)" [attr.aria-label]="I18N.gallery.thumbnail_size | translate" />
-              </mat-slider>
-              <span class="text-xs opacity-60 w-10 text-right">{{ store.cardWidth() }}px</span>
-            </div>
-          }
         </div>
 <ng-container [ngTemplateOutlet]="displayExtras()" /></ng-template>
 @if (!portSettings()) { <ng-container [ngTemplateOutlet]="bodyContent" /> }
@@ -1035,6 +1038,7 @@ export class GalleryFilterSidebarComponent {
   readonly bodyContent = viewChild<TemplateRef<unknown>>('bodyContent');
   readonly reviewSettings = viewChild<TemplateRef<unknown>>('reviewSettings');
   readonly displaySettings = viewChild<TemplateRef<unknown>>('displaySettings');
+  readonly displayLayoutSettings = viewChild<TemplateRef<unknown>>('displayLayoutSettings');
   readonly displayExtras = input<TemplateRef<unknown> | null>(null);
   readonly effectiveTab = computed(() => this.portSettings() && ['review', 'display'].includes(this.activeTab()) ? 'browse' : this.activeTab());
   readonly layoutControls = input<TemplateRef<unknown> | null>(null);

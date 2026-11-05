@@ -1055,7 +1055,7 @@
     "user_menu": "Menu utente"
   },
   "gallery": {
-    "face_outlines": "Mostra i riquadri dei volti",
+    "face_outlines": "Riquadri dei volti",
     "criteria": {
       "field_labels": {
         "blinks_only": "Solo occhi chiusi",
@@ -1099,14 +1099,7 @@
         "any_people": "Una QUALSIASI persona selezionata può corrispondere alla foto"
       }
     },
-    "presentation": {
-      "label": "Preimpostazioni",
-      "help": "Scegli un layout di lavoro. Filtri, ordinamento, album e selezione restano invariati.",
-      "browse": "Sfoglia",
-      "review": "Rivedi",
-      "organize": "Organizza",
-      "reset": "Ripristina la vista predefinita"
-    },
+    "reset_display": "Ripristina la vista",
     "help": "Ordina per punteggio, data o il tuo gusto personale\nFiltra con la barra laterale: persone, tag, fotocamera, categorie\nCerca per nome file o descrizione",
     "hidden_banner": {
       "message": "{n} foto nascoste dai filtri attivi",
@@ -1306,7 +1299,7 @@
       "folder": "Cartella",
       "persons": "Persone",
       "smart_album_filter_notice": "Le modifiche ai filtri sono temporanee. Per conservarle, esamina e salva le regole dell’album dai criteri della raccolta.",
-      "virtual_scroll": "Scorrimento rapido (virtualizzato)",
+      "virtual_scroll": "Scorrimento rapido",
       "any": "Tutti",
       "find_filter": "Cerca un filtro…",
       "clear_find_filter": "Cancella ricerca filtro",
@@ -1592,7 +1585,8 @@
       "hint": "Scegli quali pulsanti mostra una foto al passaggio del mouse e in quale ordine. I pulsanti di gruppo compaiono solo sulle foto che appartengono a un gruppo.",
       "move_up": "Sposta su",
       "move_down": "Sposta giù",
-      "reset": "Ripristina predefiniti"
+      "reset": "Ripristina predefiniti",
+      "open": "Pulsanti della scheda"
     },
     "review_progress": {
       "title": "Avanzamento revisione",
@@ -1716,7 +1710,7 @@
       "reset": "Reimposta tutti i filtri"
     },
     "tile_fit": {
-      "label": "Presentazione delle miniature",
+      "label": "Forma delle miniature",
       "square": "Ritaglio quadrato",
       "natural": "Proporzioni originali"
     },

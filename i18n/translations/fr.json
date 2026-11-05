@@ -1055,7 +1055,7 @@
     "user_menu": "Menu utilisateur"
   },
   "gallery": {
-    "face_outlines": "Afficher les cadres des visages",
+    "face_outlines": "Cadres des visages",
     "criteria": {
       "field_labels": {
         "blinks_only": "Clignements uniquement",
@@ -1099,14 +1099,7 @@
         "any_people": "AU MOINS UNE personne sélectionnée peut correspondre à la photo"
       }
     },
-    "presentation": {
-      "label": "Préréglages",
-      "help": "Choisissez une disposition. Filtres, tri, album et sélection sont conservés.",
-      "browse": "Parcourir",
-      "review": "Examiner",
-      "organize": "Organiser",
-      "reset": "Rétablir l’affichage par défaut"
-    },
+    "reset_display": "Rétablir l’affichage",
     "help": "Triez par score, date ou votre goût personnel\nFiltrez avec la barre latérale : personnes, tags, appareil, catégories\nRecherchez par nom de fichier ou description",
     "hidden_banner": {
       "message": "{n} photos masquées par les filtres actuels",
@@ -1306,7 +1299,7 @@
       "folder": "Dossier",
       "persons": "Personnes",
       "smart_album_filter_notice": "Les modifications des filtres sont temporaires. Vérifiez et enregistrez les règles de l’album depuis les critères de la collection pour les conserver.",
-      "virtual_scroll": "Défilement rapide (virtualisé)",
+      "virtual_scroll": "Défilement rapide",
       "any": "Tous",
       "find_filter": "Rechercher un filtre…",
       "clear_find_filter": "Effacer la recherche de filtre",
@@ -1592,7 +1585,8 @@
       "hint": "Choisissez quels boutons une photo affiche au survol, et dans quel ordre. Les boutons de groupe n'apparaissent que sur les photos qui appartiennent à un groupe.",
       "move_up": "Monter",
       "move_down": "Descendre",
-      "reset": "Rétablir les valeurs"
+      "reset": "Rétablir les valeurs",
+      "open": "Boutons de vignette"
     },
     "review_progress": {
       "title": "Progression du tri",
@@ -1716,7 +1710,7 @@
       "reset": "Réinitialiser tous les filtres"
     },
     "tile_fit": {
-      "label": "Présentation des vignettes",
+      "label": "Forme des vignettes",
       "square": "Recadrage carré",
       "natural": "Ratio d'origine"
     },

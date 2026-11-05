@@ -1055,7 +1055,7 @@
     "user_menu": "Menu do usuário"
   },
   "gallery": {
-    "face_outlines": "Mostrar caixas de rostos",
+    "face_outlines": "Caixas de rostos",
     "criteria": {
       "field_labels": {
         "blinks_only": "Apenas piscadas",
@@ -1099,14 +1099,7 @@
         "any_people": "QUALQUER pessoa selecionada pode corresponder à foto"
       }
     },
-    "presentation": {
-      "label": "Predefinições",
-      "help": "Escolha uma disposição de trabalho. Filtros, ordenação, álbum e seleção mantêm-se.",
-      "browse": "Explorar",
-      "review": "Rever",
-      "organize": "Organizar",
-      "reset": "Repor a vista predefinida"
-    },
+    "reset_display": "Repor a vista",
     "help": "Ordene por pontuação, data ou seu gosto pessoal\nFiltre com a barra lateral: pessoas, tags, câmera, categorias\nBusque por nome de arquivo ou descrição",
     "hidden_banner": {
       "message": "{n} fotos ocultadas pelos filtros atuais",
@@ -1306,7 +1299,7 @@
       "folder": "Pasta",
       "persons": "Pessoas",
       "smart_album_filter_notice": "As alterações aos filtros são temporárias. Reveja e guarde as regras do álbum nos critérios da coleção para as manter.",
-      "virtual_scroll": "Rolagem rápida (virtualizada)",
+      "virtual_scroll": "Rolagem rápida",
       "any": "Qualquer",
       "find_filter": "Encontrar um filtro…",
       "clear_find_filter": "Limpar pesquisa de filtro",
@@ -1592,7 +1585,8 @@
       "hint": "Escolha quais botões uma foto mostra ao passar o mouse e em qual ordem. Os botões de grupo só aparecem em fotos que pertencem a um grupo.",
       "move_up": "Mover para cima",
       "move_down": "Mover para baixo",
-      "reset": "Restaurar padrões"
+      "reset": "Restaurar padrões",
+      "open": "Botões do cartão"
     },
     "review_progress": {
       "title": "Progresso da revisão",
@@ -1716,7 +1710,7 @@
       "reset": "Redefinir todos os filtros"
     },
     "tile_fit": {
-      "label": "Apresentação dos cartões",
+      "label": "Forma das miniaturas",
       "square": "Recorte quadrado",
       "natural": "Proporção original"
     },

@@ -1055,7 +1055,7 @@
     "user_menu": "Benutzermenü"
   },
   "gallery": {
-    "face_outlines": "Gesichtsrahmen anzeigen",
+    "face_outlines": "Gesichtsrahmen",
     "criteria": {
       "field_labels": {
         "blinks_only": "Nur Blinzler",
@@ -1099,14 +1099,7 @@
         "any_people": "MINDESTENS EINE ausgewählte Person kann auf dem Foto sein"
       }
     },
-    "presentation": {
-      "label": "Voreinstellungen",
-      "help": "Aufgabenlayout wählen. Filter, Sortierung, Album und Auswahl bleiben gleich.",
-      "browse": "Durchsehen",
-      "review": "Prüfen",
-      "organize": "Organisieren",
-      "reset": "Anzeige auf Standard zurücksetzen"
-    },
+    "reset_display": "Anzeige zurücksetzen",
     "help": "Nach Bewertung, Datum oder deinem Geschmack sortieren\nMit der Seitenleiste filtern: Personen, Tags, Kamera, Kategorien\nSuche nach Dateiname oder Beschreibung",
     "hidden_banner": {
       "message": "{n} Fotos durch aktuelle Filter ausgeblendet",
@@ -1306,7 +1299,7 @@
       "folder": "Ordner",
       "persons": "Personen",
       "smart_album_filter_notice": "Filteränderungen sind temporär. Prüfen und speichern Sie die Albumregeln über die Kriterien der Sammlung, um sie beizubehalten.",
-      "virtual_scroll": "Schnelles Scrollen (virtualisiert)",
+      "virtual_scroll": "Schnelles Scrollen",
       "any": "Alle",
       "find_filter": "Filter suchen…",
       "clear_find_filter": "Filtersuche löschen",
@@ -1592,7 +1585,8 @@
       "hint": "Wähle, welche Knöpfe ein Foto beim Überfahren zeigt und in welcher Reihenfolge. Gruppen-Knöpfe erscheinen nur bei Fotos, die zu einer solchen Gruppe gehören.",
       "move_up": "Nach oben",
       "move_down": "Nach unten",
-      "reset": "Auf Standard zurücksetzen"
+      "reset": "Auf Standard zurücksetzen",
+      "open": "Kartenknöpfe"
     },
     "review_progress": {
       "title": "Sichtungsfortschritt",
@@ -1716,7 +1710,7 @@
       "reset": "Alle Filter zurücksetzen"
     },
     "tile_fit": {
-      "label": "Kachel-Darstellung",
+      "label": "Vorschaubildform",
       "square": "Quadratisch zugeschnitten",
       "natural": "Originalformat"
     },

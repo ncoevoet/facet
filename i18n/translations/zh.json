@@ -1055,7 +1055,7 @@
     "user_menu": "用户菜单"
   },
   "gallery": {
-    "face_outlines": "显示人物人脸框",
+    "face_outlines": "人脸框",
     "criteria": {
       "field_labels": {
         "blinks_only": "仅眨眼照片",
@@ -1099,14 +1099,7 @@
         "any_people": "照片包含任一选中人物即可匹配"
       }
     },
-    "presentation": {
-      "label": "预设",
-      "help": "选择任务布局。筛选、排序、相册和选择保持不变。",
-      "browse": "浏览",
-      "review": "审阅",
-      "organize": "整理",
-      "reset": "重置为默认显示"
-    },
+    "reset_display": "重置显示",
     "help": "按评分、日期或个人偏好排序\n用侧栏筛选：人物、标签、相机、类别等\n搜索框按文件名或描述查找",
     "hidden_banner": {
       "message": "当前筛选条件隐藏了 {n} 张照片",
@@ -1306,7 +1299,7 @@
       "folder": "文件夹",
       "persons": "人物",
       "smart_album_filter_notice": "筛选更改是临时的。如需保留，请在集合条件中查看并保存相册规则。",
-      "virtual_scroll": "快速滚动（虚拟列表）",
+      "virtual_scroll": "快速滚动",
       "any": "不限",
       "find_filter": "查找筛选条件…",
       "clear_find_filter": "清空筛选搜索",
@@ -1592,7 +1585,8 @@
       "hint": "选择照片卡片悬停时显示哪些按钮及其顺序。组按钮只在属于对应组的照片上出现。",
       "move_up": "上移",
       "move_down": "下移",
-      "reset": "恢复默认"
+      "reset": "恢复默认",
+      "open": "卡片按钮"
     },
     "review_progress": {
       "title": "审阅进度",
@@ -1716,7 +1710,7 @@
       "reset": "重置全部筛选"
     },
     "tile_fit": {
-      "label": "照片呈现方式",
+      "label": "缩略图形状",
       "square": "裁切到正方形",
       "natural": "保持原有比例"
     },

@@ -5,6 +5,7 @@ import { MatBadgeModule } from '@angular/material/badge';
 import { MatButtonModule } from '@angular/material/button';
 import { MatIconModule } from '@angular/material/icon';
 import { MatMenuModule, MatMenuTrigger } from '@angular/material/menu';
+import { MatRippleModule } from '@angular/material/core';
 import { MatTooltip, MatTooltipModule } from '@angular/material/tooltip';
 import { I18N, i18nKeys } from '../../core/i18n/keys';
 import { TranslatePipe } from '../../shared/pipes/translate.pipe';
@@ -14,7 +15,6 @@ import { useDesktopSignal, useHoverCapableSignal, DETAILS_RAIL_MIN_WIDTH_PX } fr
 import { GalleryFilters, GalleryStore } from './gallery.store';
 import { TILE_FITS, GalleryMode, PanelActivation, TooltipMode } from './gallery-filters.util';
 import { closeOverlayDirectives } from '../../shared/utils/overlays';
-import { GalleryDisplayPreset, galleryPresentation } from './gallery-presentation.util';
 import { AuthService } from '../../core/services/auth.service';
 import { GalleryReviewNavigationService } from './gallery-review-navigation.service';
 
@@ -24,7 +24,7 @@ const sortOptionLabelKey = (column: string): string => `sort_options.${column}`;
 @Component({
   selector: 'app-gallery-view-controls',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [NgTemplateOutlet, MatBadgeModule, MatButtonModule, MatIconModule, MatMenuModule, MatTooltipModule, TranslatePipe, SortOptionIconPipe, SortGroupKeyPipe],
+  imports: [NgTemplateOutlet, MatBadgeModule, MatButtonModule, MatRippleModule, MatIconModule, MatMenuModule, MatTooltipModule, TranslatePipe, SortOptionIconPipe, SortGroupKeyPipe],
   host: { class: 'flex flex-wrap items-center gap-1' },
   template: `
     <ng-template #displayControls>
@@ -35,24 +35,38 @@ const sortOptionLabelKey = (column: string): string => `sort_options.${column}`;
         {{ I18N.gallery.review_navigation.advance | translate }}
       </label>
     }
-    <button mat-button data-display-presets [class.!w-full]="portDisplay()" [class.!justify-start]="portDisplay()" class="!min-h-11 !min-w-11 !w-11 !px-2 @[1120px]:!w-auto @[1120px]:!px-4" [matMenuTriggerFor]="displayPresetMenu"
-            [attr.aria-label]="I18N.gallery.presentation.label | translate"
-            [matTooltip]="I18N.gallery.presentation.help | translate">
-      <mat-icon class="!m-0 @[1120px]:!mr-2">tune</mat-icon><span [class.!inline]="portDisplay()" class="hidden @[1120px]:inline">{{ I18N.gallery.presentation.label | translate }}</span>
-    </button>
-    <mat-menu #displayPresetMenu="matMenu">
-      <p class="m-0 px-4 py-2 max-w-72 text-xs text-[var(--mat-sys-on-surface-variant)]">{{ I18N.gallery.presentation.help | translate }}</p>
-      @for (preset of presets; track preset.id) {
-        <button mat-menu-item role="menuitemradio" [attr.aria-checked]="activePreset() === preset.id"
-                [attr.data-display-preset]="preset.id" (click)="applyPreset(preset.id)">
-          <mat-icon>{{ activePreset() === preset.id ? 'check' : preset.icon }}</mat-icon>{{ preset.label | translate }}
+    @if (!portDisplay()) { <ng-container [ngTemplateOutlet]="layoutControls" [ngTemplateOutletContext]="{ $implicit: secondaryLayouts }" /> }
+    @if (portDisplay()) {
+      <ng-container [ngTemplateOutlet]="choiceRow" [ngTemplateOutletContext]="{ id: 'tooltip-mode', icon: tooltipIcon(), label: I18N.gallery.tooltip_mode.label, value: tooltipModeLabel(), menu: tooltipModeMenu }" />
+      @if (store.galleryMode() === 'grid' && store.filters().hide_details) {
+        <ng-container [ngTemplateOutlet]="choiceRow" [ngTemplateOutletContext]="{ id: 'tile-fit', icon: 'aspect_ratio', label: I18N.gallery.tile_fit.label, value: tileFitLabel(), menu: tileFitMenu }" />
+      }
+    } @else {
+      <button mat-button class="!min-h-11 !min-w-11 !w-11 !px-2 @[1120px]:!w-auto @[1120px]:!px-4"
+              [matMenuTriggerFor]="tooltipModeMenu" [matTooltip]="I18N.gallery.tooltip_mode.label | translate"
+              [attr.aria-label]="I18N.gallery.tooltip_mode.label | translate">
+        <mat-icon class="!m-0 @[1120px]:!mr-2">{{ tooltipIcon() }}</mat-icon>
+        <span class="hidden @[1120px]:inline">{{ I18N.gallery.tooltip_mode.label | translate }}</span>
+      </button>
+      @if (store.galleryMode() === 'grid' && store.filters().hide_details) {
+        <button mat-button data-tile-fit class="!min-h-11 !min-w-11 !w-11 !px-2 @[1120px]:!w-auto @[1120px]:!px-4"
+                [matMenuTriggerFor]="tileFitMenu" [matTooltip]="I18N.gallery.tile_fit.label | translate"
+                [attr.aria-label]="I18N.gallery.tile_fit.label | translate">
+          <mat-icon class="!m-0 @[1120px]:!mr-2">aspect_ratio</mat-icon>
+          <span class="hidden @[1120px]:inline">{{ I18N.gallery.tile_fit.label | translate }}</span>
         </button>
       }
-      <button mat-menu-item data-reset-display (click)="applyPreset('default')"><mat-icon>restart_alt</mat-icon>{{ I18N.gallery.presentation.reset | translate }}</button>
-      <button mat-menu-item data-tile-fit [matMenuTriggerFor]="tileFitMenu" [disabled]="store.galleryMode() !== 'grid' || !store.filters().hide_details">
-        <mat-icon>aspect_ratio</mat-icon>{{ I18N.gallery.tile_fit.label | translate }}
+    }
+    <ng-template #choiceRow let-id="id" let-icon="icon" let-label="label" let-value="value" let-menu="menu">
+      <button type="button" matRipple [attr.data-choice]="id" aria-haspopup="menu" [matMenuTriggerFor]="menu"
+              class="flex w-full min-h-10 items-center gap-3 rounded-md px-2 py-1 text-left hover:bg-[var(--mat-sys-surface-container-high)] focus-visible:outline-2 focus-visible:outline-[var(--mat-sys-primary)]"
+              [attr.aria-label]="I18N.gallery.sidebar.review.value_aria | translate:{ label: (label | translate), value: (value | translate) }">
+        <mat-icon class="!text-xl !w-5 !h-5 !leading-5 shrink-0 opacity-80">{{ icon }}</mat-icon>
+        <span class="flex-1 min-w-0 text-sm break-words">{{ label | translate }}</span>
+        <span class="shrink-0 text-xs opacity-70" data-value>{{ value | translate }}</span>
+        <mat-icon class="!text-xl !w-5 !h-5 !leading-5 shrink-0 opacity-70">expand_more</mat-icon>
       </button>
-    </mat-menu>
+    </ng-template>
     <mat-menu #tileFitMenu="matMenu">
       @for (fit of tileFits; track fit) {
         <button mat-menu-item role="menuitemradio" [attr.aria-checked]="store.filters().tile_fit === fit" (click)="setPresentationFilter('tile_fit', fit)">
@@ -61,23 +75,17 @@ const sortOptionLabelKey = (column: string): string => `sort_options.${column}`;
         </button>
       }
     </mat-menu>
-    @if (!portDisplay()) { <ng-container [ngTemplateOutlet]="layoutControls" [ngTemplateOutletContext]="{ $implicit: secondaryLayouts }" /> }
-    <button mat-button [class.!w-full]="portDisplay()" [class.!justify-start]="portDisplay()" class="!min-h-11 !min-w-11 !w-11 !px-2 @[1120px]:!w-auto @[1120px]:!px-4"
-            [matMenuTriggerFor]="tooltipModeMenu" [matTooltip]="I18N.gallery.tooltip_mode.label | translate"
-            [attr.aria-label]="I18N.gallery.tooltip_mode.label | translate">
-      <mat-icon class="!m-0 @[1120px]:!mr-2">{{
-        store.filters().tooltip_mode === 'click' ? 'touch_app'
-        : store.filters().tooltip_mode === 'off' ? 'visibility_off'
-        : store.filters().tooltip_mode === 'panel' ? 'view_sidebar'
-        : 'chat_bubble_outline'
-      }}</mat-icon>
-      <span [class.!inline]="portDisplay()" class="hidden @[1120px]:inline">{{ I18N.gallery.tooltip_mode.label | translate }}</span>
-    </button>
     <button mat-button class="!min-h-11 !min-w-11" [class.!w-full]="portDisplay()" [class.!justify-start]="portDisplay()" (click)="toggleSlideshow()"
             [matTooltip]="I18N.slideshow.start | translate" [attr.aria-label]="I18N.slideshow.start | translate">
       <mat-icon [style.color]="store.slideshowActive() ? 'var(--mat-sys-primary)' : ''">slideshow</mat-icon>
       @if (portDisplay()) { <span>{{ I18N.slideshow.start | translate }}</span> }
     </button>
+    @if (portDisplay()) {
+      <button mat-button data-reset-display class="!min-h-11 !w-full !justify-start" (click)="resetDisplay()"
+              [attr.aria-label]="I18N.gallery.reset_display | translate">
+        <mat-icon>restart_alt</mat-icon><span>{{ I18N.gallery.reset_display | translate }}</span>
+      </button>
+    }
     <mat-menu #tooltipModeMenu="matMenu">
       @for (mode of tooltipModes(); track mode.id) {
         <button mat-menu-item role="menuitemradio"
@@ -112,15 +120,16 @@ const sortOptionLabelKey = (column: string): string => `sort_options.${column}`;
     </mat-menu>
     </ng-template>
     @if (!portDisplay()) { <ng-container [ngTemplateOutlet]="displayControls" /> }
-    <ng-template #primaryControls>
+    <ng-template #primaryControls let-inPopover="inPopover">
       @if (!pinned()) {
         @let sortTooltip = I18N.gallery.sort_current | translate:{ label: (currentSortLabelKey() | translate) };
         <button mat-button data-collection-sort
-                class="!min-h-11 !min-w-11 !w-11 !px-2 !text-[var(--mat-sys-on-surface)] @[960px]:!w-auto @[960px]:!px-2"
+                class="!min-h-11 !min-w-11 !text-[var(--mat-sys-on-surface)] @[960px]:!w-auto @[960px]:!px-2"
+                [class.!w-11]="!inPopover" [class.!px-2]="!inPopover" [class.grow]="inPopover" [class.!justify-start]="inPopover"
                 [matMenuTriggerFor]="sortMenu" [matTooltip]="sortTooltip" [attr.aria-label]="sortTooltip">
           @let currentIcon = store.filters().sort | sortOptionIcon;
-          <mat-icon aria-hidden="true" class="!m-0 !w-8 text-center @[960px]:!mr-2" [class]="currentIcon.classes">{{ currentIcon.text }}</mat-icon>
-          <span class="hidden @[960px]:inline">{{ currentSortLabelKey() | translate }}</span>
+          <mat-icon aria-hidden="true" class="text-center @[960px]:!mr-2" [class.!m-0]="!inPopover" [class.!w-8]="!inPopover" [class]="currentIcon.classes">{{ currentIcon.text }}</mat-icon>
+          <span class="hidden @[960px]:inline" [class.!inline]="inPopover">{{ currentSortLabelKey() | translate }}</span>
         </button>
         <button mat-icon-button class="!h-11 !w-11 !min-w-11 !p-2.5" (click)="toggleSortDirection()"
                 [matTooltip]="store.filters().sort_direction === 'DESC' ? (I18N.gallery.sort_desc | translate) : (I18N.gallery.sort_asc | translate)"
@@ -221,6 +230,13 @@ export class GalleryViewControlsComponent {
     ];
     return modes.filter(mode => mode.id !== 'panel' || this.canDockDetails());
   });
+  private readonly tooltipModeIcons: Record<TooltipMode, string> = { hover: 'chat_bubble_outline', click: 'touch_app', panel: 'view_sidebar', off: 'visibility_off' };
+  protected readonly tooltipIcon = computed(() => this.tooltipModeIcons[this.store.filters().tooltip_mode] ?? 'chat_bubble_outline');
+  private readonly tooltipModeLabels: Record<TooltipMode, string> = {
+    hover: I18N.gallery.tooltip_mode.hover, click: I18N.gallery.tooltip_mode.click, panel: I18N.gallery.tooltip_mode.panel, off: I18N.gallery.tooltip_mode.off,
+  };
+  protected readonly tooltipModeLabel = computed(() => this.tooltipModeLabels[this.store.filters().tooltip_mode] ?? I18N.gallery.tooltip_mode.off);
+  protected readonly tileFitLabel = computed(() => this.store.filters().tile_fit === 'natural' ? I18N.gallery.tile_fit.natural : I18N.gallery.tile_fit.square);
   protected readonly panelActivationModes: { id: PanelActivation; label: string; icon: string }[] = [
     { id: 'hover', label: I18N.gallery.panel_activation.hover, icon: 'chat_bubble_outline' },
     { id: 'click', label: I18N.gallery.panel_activation.click, icon: 'touch_app' },
@@ -228,23 +244,8 @@ export class GalleryViewControlsComponent {
   ];
   protected readonly panelActivationIcon = computed(() =>
     this.panelActivationModes.find(mode => mode.id === this.store.filters().panel_activation)?.icon ?? 'swap_horiz');
-  protected readonly presets: { id: GalleryDisplayPreset; label: string; icon: string }[] = [
-    { id: 'browse', label: I18N.gallery.presentation.browse, icon: 'photo_library' },
-    { id: 'review', label: I18N.gallery.presentation.review, icon: 'fact_check' },
-    { id: 'organize', label: I18N.gallery.presentation.organize, icon: 'folder' },
-  ];
-  protected readonly activePreset = computed(() => {
-    const filters = this.store.filters();
-    return this.presets.find(({ id }) => {
-      const candidate = galleryPresentation(id, this.canDockDetails());
-      return candidate.mode === this.store.galleryMode() && candidate.cardWidth === this.store.cardWidth()
-        && candidate.hide_details === filters.hide_details && candidate.tooltip_mode === filters.tooltip_mode
-        && candidate.panel_activation === filters.panel_activation;
-    })?.id ?? null;
-  });
-
-  protected applyPreset(preset: GalleryDisplayPreset | 'default'): void {
-    if (this.canAct()) void this.store.applyDisplayPreset(preset, this.canDockDetails());
+  protected resetDisplay(): void {
+    if (this.canAct()) void this.store.resetDisplay();
   }
   protected setLayout(mode: GalleryMode): void {
     if (this.canAct()) this.store.setGalleryMode(mode);

@@ -1138,14 +1138,7 @@ export const I18N = {
         any_people: "gallery.criteria.logic.any_people",
       },
     },
-    presentation: {
-      label: "gallery.presentation.label",
-      help: "gallery.presentation.help",
-      browse: "gallery.presentation.browse",
-      review: "gallery.presentation.review",
-      organize: "gallery.presentation.organize",
-      reset: "gallery.presentation.reset",
-    },
+    reset_display: "gallery.reset_display",
     help: "gallery.help",
     hidden_banner: {
       message: "gallery.hidden_banner.message",
@@ -1634,6 +1627,7 @@ export const I18N = {
       move_up: "gallery.card_actions.move_up",
       move_down: "gallery.card_actions.move_down",
       reset: "gallery.card_actions.reset",
+      open: "gallery.card_actions.open",
     },
     review_progress: {
       title: "gallery.review_progress.title",

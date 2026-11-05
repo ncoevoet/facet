@@ -357,7 +357,7 @@ describe('GalleryStore', () => {
       }
       saved.clear();
     });
-    it.each(['browse', 'review', 'organize', 'default'] as const)('changes only presentation with %s, retaining a pinned query and selection without HTTP', async preset => {
+    it('resets only presentation, retaining a pinned query and selection without HTTP', async () => {
       store.config.set(makeConfig());
       store.filters.update(filters => ({ ...filters, page: 3, album_id: '17', search: 'rain', sort: 'date_taken', hide_bursts: false, review_status: 'kept' }));
       store.pinnedPaths.set(['/pinned-a', '/pinned-b']);
@@ -365,7 +365,7 @@ describe('GalleryStore', () => {
       store.focusedPath.set('/pinned-a');
       const before = { ...store.filters() };
       const beforePayload = store.filterPayload();
-      await store.applyDisplayPreset(preset, true);
+      await store.resetDisplay();
       expect(store.filterPayload()).toEqual(beforePayload);
       expect(store.filters()).toMatchObject({ page: before.page, album_id: before.album_id, search: before.search, sort: before.sort, hide_bursts: false, review_status: 'kept' });
       expect(store.pinnedPaths()).toEqual(['/pinned-a', '/pinned-b']);
@@ -376,22 +376,18 @@ describe('GalleryStore', () => {
       expect(routerNavigate).toHaveBeenCalled();
     });
 
-    it('uses click inspection on narrow review screens and restores configured display defaults separately from the query', async () => {
+    it('restores the configured display defaults separately from the query', async () => {
       const config = makeConfig();
       config.defaults.gallery_mode = 'mosaic';
       config.defaults.tooltip_mode = 'off';
       config.display.thumbnail_slider = { min_px: 96, max_px: 480, default_px: 192, step_px: 8 };
       store.config.set(config);
-      await store.applyDisplayPreset('review', false);
-      expect(store.filters()).toMatchObject({ hide_details: false, tooltip_mode: 'click', panel_activation: 'click' });
-      expect(store.galleryMode()).toBe('grid');
-      expect(store.cardWidth()).toBe(240);
-      await store.applyDisplayPreset('default', false);
+      store.setGalleryMode('list');
+      store.setCardWidth(240);
+      await store.resetDisplay();
       expect(store.galleryMode()).toBe('mosaic');
       expect(store.cardWidth()).toBe(192);
       expect(store.filters().tooltip_mode).toBe('off');
-      await store.applyDisplayPreset('browse', false);
-      expect(store.filters().tooltip_mode).toBe('click');
       expect(apiGet).not.toHaveBeenCalled();
     });
   });

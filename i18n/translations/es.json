@@ -1055,7 +1055,7 @@
     "user_menu": "Menú de usuario"
   },
   "gallery": {
-    "face_outlines": "Mostrar recuadros de rostros",
+    "face_outlines": "Recuadros de rostros",
     "criteria": {
       "field_labels": {
         "blinks_only": "Solo parpadeos",
@@ -1099,14 +1099,7 @@
         "any_people": "CUALQUIERA de las personas seleccionadas puede coincidir con la foto"
       }
     },
-    "presentation": {
-      "label": "Preajustes",
-      "help": "Elige un diseño de trabajo. Los filtros, el orden, el álbum y la selección se mantienen.",
-      "browse": "Explorar",
-      "review": "Revisar",
-      "organize": "Organizar",
-      "reset": "Restablecer vista predeterminada"
-    },
+    "reset_display": "Restablecer vista",
     "help": "Ordena por puntuación, fecha o tu gusto personal\nFiltra con la barra lateral: personas, etiquetas, cámara, categorías\nBusca por nombre de archivo o descripción",
     "hidden_banner": {
       "message": "{n} fotos ocultas por los filtros actuales",
@@ -1306,7 +1299,7 @@
       "folder": "Carpeta",
       "persons": "Personas",
       "smart_album_filter_notice": "Los cambios de filtros son temporales. Revisa y guarda las reglas del álbum desde los criterios de la colección para conservarlos.",
-      "virtual_scroll": "Desplazamiento rápido (virtualizado)",
+      "virtual_scroll": "Desplazamiento rápido",
       "any": "Todos",
       "find_filter": "Buscar un filtro…",
       "clear_find_filter": "Limpiar búsqueda de filtro",
@@ -1592,7 +1585,8 @@
       "hint": "Elige qué botones muestra una foto al pasar el cursor y en qué orden. Los botones de grupo solo aparecen en fotos que pertenecen a un grupo.",
       "move_up": "Subir",
       "move_down": "Bajar",
-      "reset": "Restaurar valores"
+      "reset": "Restaurar valores",
+      "open": "Botones de la tarjeta"
     },
     "review_progress": {
       "title": "Progreso de revisión",
@@ -1716,7 +1710,7 @@
       "reset": "Restablecer todos los filtros"
     },
     "tile_fit": {
-      "label": "Presentación de miniaturas",
+      "label": "Forma de las miniaturas",
       "square": "Recorte cuadrado",
       "natural": "Proporción original"
     },
