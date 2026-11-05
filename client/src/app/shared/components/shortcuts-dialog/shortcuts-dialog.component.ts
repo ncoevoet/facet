@@ -59,8 +59,8 @@ export class ShortcutsDialogComponent {
     {
       titleKey: 'shortcuts.section_comparison',
       rows: [
-        { keys: ['A'], labelKey: 'shortcuts.comp_left_wins' },
-        { keys: ['B'], labelKey: 'shortcuts.comp_right_wins' },
+        { keys: ['←'], labelKey: 'shortcuts.comp_left_wins' },
+        { keys: ['→'], labelKey: 'shortcuts.comp_right_wins' },
         { keys: ['T'], labelKey: 'comparison.tie' },
         { keys: ['S'], labelKey: 'comparison.skip' },
       ],

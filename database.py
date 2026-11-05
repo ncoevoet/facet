@@ -158,8 +158,10 @@ def add_user(username, role, display_name=None):
     import hashlib
 
     if role not in ('user', 'admin', 'superadmin'):
+        # Refusals exit non-zero: a deployment script must be able to tell a
+        # created user from a rejected one (same rationale as --rotate-secret).
         logger.error("Role must be 'user', 'admin', or 'superadmin' (got '%s')", role)
-        return
+        sys.exit(1)
 
     config = _load_config()
     if 'users' not in config:
@@ -167,13 +169,13 @@ def add_user(username, role, display_name=None):
 
     if username in config['users'] and isinstance(config['users'][username], dict):
         logger.error("User '%s' already exists. Remove manually from config to re-add.", username)
-        return
+        sys.exit(1)
 
     password = getpass.getpass(f"Password for {username}: ")
     confirm = getpass.getpass("Confirm password: ")
     if password != confirm:
         logger.error("Passwords do not match.")
-        return
+        sys.exit(1)
 
     # Hash with PBKDF2
     salt = os.urandom(16)
@@ -558,6 +560,7 @@ def main():
     elif args.migrate_user_preferences:
         if not args.user:
             logger.error("--user USERNAME is required with --migrate-user-preferences")
+            sys.exit(1)
         else:
             migrate_user_preferences(args.user, args.db)
     elif args.migrate_storage_fs:

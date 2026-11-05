@@ -17,7 +17,7 @@ import { TranslatePipe } from '../../shared/pipes/translate.pipe';
 import { FixedPipe } from '../../shared/pipes/fixed.pipe';
 import { ThumbnailUrlPipe } from '../../shared/pipes/thumbnail-url.pipe';
 import { UserActivityJournal } from '../../core/agent/user-activity-journal.service';
-import { CompareFiltersService } from './compare-filters.service';
+import { COMPARE_TAB_INDEX, CompareFiltersService } from './compare-filters.service';
 import { WeightLabelKeyPipe } from './comparison.pipes';
 import { I18N, i18nKeys } from '../../core/i18n/keys';
 
@@ -439,6 +439,10 @@ export class ComparisonAbTabComponent {
   }
 
   protected onKeydown(event: KeyboardEvent): void {
+    // mat-tab-group keeps this tab's DOM alive after the first activation, so a
+    // window-level keydown keeps arriving while the user is on another tab:
+    // without the tab gate, Arrow/T/S would record wins for photos nobody sees.
+    if (this.compareFilters.activeTab() !== COMPARE_TAB_INDEX.ab) return;
     const target = event.target as HTMLElement;
     const tag = target?.tagName;
     if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return;

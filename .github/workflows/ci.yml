@@ -9,6 +9,14 @@ on:
 permissions:
   contents: read
 
+# A new push on a pull request supersedes the previous run: the shards take
+# ~27/31 minutes each, so letting dead revisions run to completion holds 8+
+# runners for nothing. Master pushes keep their run (the same group would
+# cancel it whenever a queued push arrives).
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
 jobs:
   changes:
     name: Detect changed areas
@@ -74,6 +82,7 @@ jobs:
     # "Python Tests" below is the single status branch protection requires.
     needs: changes
     runs-on: ubuntu-latest
+    timeout-minutes: 45
     strategy:
       fail-fast: false
       matrix:
@@ -104,7 +113,11 @@ jobs:
           COVERAGE_FILE: coverage-shard-${{ matrix.shard }}.dat
         run: |
           if [ "$SCOPE" = "full" ]; then
-            python -m pytest -n 4 --durations=30 --tb=short -q --cov=api --cov=processing --cov=analyzers --cov=config --cov=utils --cov-report=
+            # --timeout mirrors the Windows shard: one hung test without an
+            # explicit marker otherwise rides GitHub's 360-minute job cap. The
+            # default signal method is Linux-only safe; the Windows caveat in
+            # the shard below (thread method) does not apply here.
+            python -m pytest -n 4 --durations=30 --tb=short -q --timeout=600 --cov=api --cov=processing --cov=analyzers --cov=config --cov=utils --cov-report=
           else
             python -m pytest -n 4 --tb=short -q -m cross_file
           fi

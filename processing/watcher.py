@@ -14,7 +14,7 @@ import sys
 import threading
 import time
 
-from utils.exit_codes import SAVED_NOTHING_EXIT_CODE
+from utils.exit_codes import LIBRARY_LOCK_HELD_EXIT_CODE, SAVED_NOTHING_EXIT_CODE
 from utils.image_loading import SCANNABLE_IMAGE_EXTENSIONS, WATCHABLE_IMAGE_EXTENSIONS
 
 logger = logging.getLogger("facet.watcher")
@@ -140,13 +140,24 @@ def run_watch_loop(directories, db_path, config_path=None, debounce_seconds=30,
             logger.warning("Scan saved 0 photos (exit code %d); see the scan log for the cause. "
                            "Watching continues.", result.returncode)
             return None
+        if result.returncode == LIBRARY_LOCK_HELD_EXIT_CODE:
+            # Another job holds the library lock: transient by definition (the very
+            # next settled batch rescans), so a busy stretch must not accumulate
+            # toward giving up.
+            logger.warning("Scan skipped: the library lock is held by another job (exit code %d). "
+                           "Watching continues.", result.returncode)
+            return None
         logger.warning("Scan exited with code %d", result.returncode)
         return False
 
     consecutive_failures = 0
+    gave_up = False
     try:
         if initial_scan:
-            _run_scan('initial')
+            # A failing initial scan counts as the streak's first failure, so a
+            # broken install cannot watch forever while every scan crashes.
+            if _run_scan('initial') is False:
+                consecutive_failures = 1
         logger.info("Watch mode active - new files trigger a scan after %ds of quiet "
                     "(Ctrl+C to stop)", debounce_seconds)
         while True:
@@ -171,9 +182,11 @@ def run_watch_loop(directories, db_path, config_path=None, debounce_seconds=30,
                         logger.error(
                             "Stopping watch mode: %d consecutive scans failed. Fix the "
                             "underlying error and restart.", consecutive_failures)
+                        gave_up = True
                         break
     except KeyboardInterrupt:
         logger.info("Watch mode stopped.")
     finally:
         observer.stop()
         observer.join(timeout=5)
+    return not gave_up

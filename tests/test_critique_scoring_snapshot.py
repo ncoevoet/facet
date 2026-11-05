@@ -63,8 +63,15 @@ def snapshot(tmp_path):
     # Import route modules before patching their shared config factory: a
     # route's module-level import must not retain this fixture's mock.
     app = create_app()
+    # This fixture's database is deliberately shaped differently from the one
+    # the app's startup warms the process-wide photos-column cache against, so
+    # the route must read its own connection's schema, not the global cache.
     with (
         mock.patch.object(critique, "get_db", database),
+        mock.patch.object(
+            critique, "get_existing_columns",
+            lambda conn=None: {row[1] for row in conn.execute("PRAGMA table_info(photos)")},
+        ),
         mock.patch.object(critique, "get_visibility_clause", return_value=("1=1", [])),
         mock.patch("api.config.server_scoring_config", return_value=config),
     ):
