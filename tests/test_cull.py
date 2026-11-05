@@ -1678,6 +1678,25 @@ class TestPhotoDelete:
         assert sorted(self._delete(client, db, [a, b])["deleted"]) == sorted([a, b])
         assert self._burst_leads(db) == []
 
+    def test_moving_a_bursts_only_lead_leaves_exactly_one_lead(self, client, tmp_path):
+        """Cull to folder keeps the moved row until a rescan prunes it, so the moved lead
+        must give up its flag as the best remaining frame takes it: two leads would show
+        one burst as two tiles under Hide bursts."""
+        lead, best, worst = (_make_file(tmp_path, n) for n in ("IMG_1_agy_1.jpg", "IMG_1.jpg", "IMG_2.jpg"))
+        db = _db(tmp_path, [(lead, 1), (best, 0), (worst, 0)])
+        self._burst(db, [(lead, 7.0, 1), (best, 6.0, 0), (worst, 2.0, 0)])
+        with (
+            mock.patch(f"{_EXPORT_MODULE}.get_db", _db_cm(db)),
+            mock.patch(f"{_EXPORT_MODULE}._allowed_export_roots", return_value=[str(tmp_path)]),
+        ):
+            resp = client.post("/api/cull/apply", json={
+                "paths": [lead], "action": "move_rejects", "target_dir": str(tmp_path / "out"),
+                "dry_run": False, "include_companions": False, "include_sequence_siblings": False,
+            })
+        assert resp.status_code == 200, resp.text
+        assert resp.json()["moved"] == 1
+        assert self._burst_leads(db) == [best]
+
     def test_reconciling_a_missing_panorama_lead_repicks_a_surviving_lead(self, client, tmp_path):
         """A lead whose file is already gone, removed via remove_missing with no
         trash call at all, must still hand the lead to a surviving frame."""
