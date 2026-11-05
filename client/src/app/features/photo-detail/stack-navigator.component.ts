@@ -176,13 +176,14 @@ export class StackNavigatorComponent {
     this.memberOpened.emit(path);
   }
 
-  /** True also at a boundary: arrows never escape an active stack, nor a pending lookup of a stacked photo. A failed lookup or an unstacked photo leaves them to the gallery. */
+  /** Pending membership owns stacked-photo arrows; resolved boundaries leave them to the collection. */
   step(delta: number): boolean {
     if (this.navigating || this.owner !== this.auth.identity()) return true;
     if (this.loading()) return this.stacked();
     if (this.error() || !this.stack() || this.position() < 0) return false;
     const next = this.members()[this.position() + delta];
-    if (next) this.openMember(next.path);
+    if (!next) return false;
+    this.openMember(next.path);
     return true;
   }
 

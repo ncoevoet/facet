@@ -3216,6 +3216,8 @@ export const I18N = {
   },
   photo_detail: {
     collection: {
+      previous: "photo_detail.collection.previous",
+      next: "photo_detail.collection.next",
       title: "photo_detail.collection.title",
       show: "photo_detail.collection.show",
       hide: "photo_detail.collection.hide",
@@ -3360,6 +3362,7 @@ export const I18N = {
     },
     analysis: "photo_detail.analysis",
     info: "photo_detail.info",
+    details: "photo_detail.details",
     unassigned_faces: "photo_detail.unassigned_faces",
     tag_refine_collection: "photo_detail.tag_refine_collection",
     tag_search_library: "photo_detail.tag_search_library",

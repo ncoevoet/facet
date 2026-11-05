@@ -3202,6 +3202,8 @@
   },
   "photo_detail": {
     "collection": {
+      "previous": "Previous photo in collection",
+      "next": "Next photo in collection",
       "title": "Collection",
       "show": "Show collection",
       "hide": "Hide collection",
@@ -3346,6 +3348,7 @@
     },
     "analysis": "Analysis",
     "info": "Info",
+    "details": "Photo details",
     "unassigned_faces": "Unassigned faces: {count}",
     "tag_refine_collection": "Refine this collection",
     "tag_search_library": "Search library"

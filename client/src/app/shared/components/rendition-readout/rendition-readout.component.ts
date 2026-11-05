@@ -14,7 +14,7 @@ import { FixedPipe } from '../../pipes/fixed.pipe';
     <div class="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1" data-rendition-readout>
       <span role="status">
         {{ kindLabel() | translate }}
-        <span [class.sr-only]="state().phase === 'ready'" class="@[480px]/rendition:not-sr-only">· {{ phaseLabel() | translate }}</span>
+        <span [class.sr-only]="state().phase === 'ready'">· {{ phaseLabel() | translate }}</span>
         @if (state().phase === 'ready' && state().width && state().height) { · {{ state().width }} × {{ state().height }} }
       </span>
       @if (pending()) { <span>{{ I18N.photo_detail.rendition.pending | translate }}</span> }

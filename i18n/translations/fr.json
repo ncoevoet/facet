@@ -3177,6 +3177,8 @@
   },
   "photo_detail": {
     "collection": {
+      "previous": "Photo précédente de la collection",
+      "next": "Photo suivante de la collection",
       "title": "Collection",
       "show": "Afficher la collection",
       "hide": "Masquer la collection",
@@ -3321,6 +3323,7 @@
     },
     "analysis": "Analyse",
     "info": "Infos",
+    "details": "Détails de la photo",
     "unassigned_faces": "Visages non attribués : {count}",
     "tag_refine_collection": "Affiner cette collection",
     "tag_search_library": "Rechercher dans la bibliothèque"

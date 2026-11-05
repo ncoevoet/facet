@@ -178,6 +178,52 @@ describe('manual stack browsing through rendered viewer, Router and HTTP', () =>
     expect(root().querySelector('h1')?.textContent).toContain('outside.jpg');
   });
 
+  it.each(['click', 'ArrowRight', 'ArrowLeft', 'unannotated'])('keeps collapsed collection navigation on non-cover members (%s)', async action => {
+    const cover = makePhoto({ path: paths[0], stack_id: stack.id });
+    const outside = makePhoto({ path: '/outside.jpg', filename: 'outside.jpg' });
+    store.photos.set(action === 'ArrowLeft' ? [outside, cover] : [cover, outside]);
+    store.total.set(2);
+    const member = makePhoto({ path: action === 'ArrowRight' ? paths[2] : paths[1], stack_id: action === 'unannotated' ? null : stack.id });
+    await router.navigate(['/photo'], { queryParams: { path: member.path }, state: { photo: member } });
+    harness.detectChanges();
+    http.match(request => request.url === '/api/photo').forEach(request => request.flush(member));
+    await membership();
+    expect(root().querySelector('app-photo-collection-sidebar [data-collection-current]')?.getAttribute('aria-label')).toBe(cover.filename);
+    expect(root().querySelector('[data-photo-next]')).not.toBeNull();
+    expect(root().querySelector('[data-photo-previous]')).not.toBeNull();
+    expect(root().querySelector('[data-collection-position]')?.textContent).toContain(action === 'ArrowLeft' ? '2 / 2' : '1 / 2');
+    if (action === 'ArrowLeft') await keyboardMember('ArrowLeft', paths[0]);
+    const navigation = arrived();
+    if (action === 'click' || action === 'unannotated') button('[data-photo-next]').click();
+    else document.dispatchEvent(new KeyboardEvent('keydown', { key: action, bubbles: true }));
+    await navigation;
+    await membership(null);
+    expect(router.url).toContain(encodeURIComponent('/outside.jpg'));
+  });
+
+  it('pages from a folded member using its cover slot', async () => {
+    const cover = makePhoto({ path: paths[0], stack_id: stack.id });
+    const member = makePhoto({ path: paths[1], stack_id: stack.id });
+    store.photos.set([cover]); store.total.set(2); store.hasMore.set(true);
+    await router.navigate(['/photo'], { queryParams: { path: member.path }, state: { photo: member } });
+    harness.detectChanges();
+    http.match(request => request.url === '/api/photo').forEach(request => request.flush(member));
+    await membership();
+    expect(button('[data-photo-next]').getAttribute('aria-label')).toBe('photo_detail.collection.next');
+    expect(root().querySelector('[data-photo-inspector]')?.getAttribute('aria-label')).toBe('photo_detail.details');
+    expect(root().querySelector('[data-photo-info] summary h2')).not.toBeNull();
+    const favorite = button('[aria-label="rating.favorite"]');
+    expect(favorite.getAttribute('aria-pressed')).toBe('false');
+    const navigation = arrived();
+    button('[data-photo-next]').click();
+    const request = http.expectOne(request => request.url === '/api/photos');
+    expect(request.request.params.get('page')).toBe('2');
+    request.flush({ photos: [makePhoto({ path: '/next.jpg' })], total: 2, photo_total: 2, has_more: false });
+    await navigation;
+    await membership(null);
+    expect(router.url).toContain(encodeURIComponent('/next.jpg'));
+  });
+
   it('reports failed Next paging and retries the same collection page', async () => {
     store.photos.set([makePhoto({ path: '/outside.jpg' })]);
     store.hasMore.set(true);
@@ -656,36 +702,31 @@ describe('manual stack browsing through rendered viewer, Router and HTTP', () =>
     expect(store.pinnedPaths()).toEqual(pinned);
   });
 
-  it('keeps both keyboard arrows bounded to the permitted stack intersection of an exact list', async () => {
+  it('leaves the permitted stack intersection for the adjacent collection entry at its boundary', async () => {
     store.pinnedPaths.set(['/outside.jpg', paths[1], paths[2]]);
     store.photos.set(['/outside.jpg', paths[1], paths[2]].map(path => makePhoto({ path })));
     await open();
     expect(root().querySelectorAll('[data-stack-thumbnail]')).toHaveLength(2);
     expect(root().querySelector('[data-stack-position]')?.textContent).toContain('1 of 2');
     expect(button('[data-stack-prev]').disabled).toBe(true);
+    const navigation = arrived();
     document.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowLeft', bubbles: true }));
-    http.expectNone(request => request.url === '/api/photo');
-    await render();
-    expect(router.url).toContain(encodeURIComponent(paths[1]));
-    await keyboardMember('ArrowRight', paths[2]);
-    document.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowRight', bubbles: true }));
-    http.expectNone(request => request.url === '/api/photo');
-    expect(router.url).toContain(encodeURIComponent(paths[2]));
+    await navigation;
+    await membership(null);
+    expect(router.url).toContain(encodeURIComponent('/outside.jpg'));
     expect(store.pinnedPaths()).toEqual(['/outside.jpg', paths[1], paths[2]]);
   });
 
-  it('keeps a one-member stack intersection bounded while ordinary nonstack photos use pinned-list order', async () => {
+  it('leaves a one-member stack intersection and returns using collection order', async () => {
     store.pinnedPaths.set([paths[1], '/outside.jpg']);
     await open();
     expect(root().querySelectorAll('[data-stack-thumbnail]')).toHaveLength(1);
     expect(button('[data-stack-next]').disabled).toBe(true);
+    const outgoing = arrived();
     document.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowRight', bubbles: true }));
-    http.expectNone(request => request.url === '/api/photo');
-    await render();
-    expect(router.url).toContain(encodeURIComponent(paths[1]));
-    // An explicitly opened nonstack photo still follows the exact list.
-    await router.navigate(['/photo'], { queryParams: { path: '/outside.jpg' } });
+    await outgoing;
     await membership(null);
+    expect(router.url).toContain(encodeURIComponent('/outside.jpg'));
     const navigation = arrived();
     document.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowLeft', bubbles: true }));
     await navigation;

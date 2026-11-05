@@ -3177,6 +3177,8 @@
   },
   "photo_detail": {
     "collection": {
+      "previous": "集合中的上一张照片",
+      "next": "集合中的下一张照片",
       "title": "集合",
       "show": "显示集合",
       "hide": "隐藏集合",
@@ -3321,6 +3323,7 @@
     },
     "analysis": "分析",
     "info": "信息",
+    "details": "照片详情",
     "unassigned_faces": "未分配人脸：{count}",
     "tag_refine_collection": "细化此集合",
     "tag_search_library": "搜索图库"

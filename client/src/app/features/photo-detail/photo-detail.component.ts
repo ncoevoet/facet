@@ -283,7 +283,7 @@ const SOCIAL_SOURCE_KEYS: Record<string, string> = {
       <!-- Main content: originating collection + image + info -->
       <div class="flex flex-col lg:flex-row lg:flex-1 lg:min-h-0 lg:overflow-hidden">
         @if (collectionSidebarAvailable()) {
-          <app-photo-collection-sidebar [photos]="store.photos()" [currentPath]="p.path"
+          <app-photo-collection-sidebar [photos]="store.photos()" [currentPath]="collectionEntry()?.path ?? p.path"
             [title]="collectionSidebarTitle()" [total]="store.total()" [hasMore]="store.hasMore()" [loading]="store.loading()"
             (choose)="openCollectionPhoto($event)" (more)="loadCollectionPage()" />
         }
@@ -318,11 +318,12 @@ const SOCIAL_SOURCE_KEYS: Record<string, string> = {
           }
           @if (collectionNavigation().visible) {
             <div role="group" [attr.aria-label]="I18N.photo_detail.collection.title | translate" class="pointer-events-none absolute inset-0 z-30 flex items-center justify-between px-2 opacity-0 transition-opacity group-hover/photo:opacity-100 focus-within:opacity-100 max-xl:opacity-100">
-              <button type="button" data-photo-previous class="pointer-events-auto inline-flex h-11 w-11 cursor-pointer items-center justify-center rounded-full bg-black/60 text-white hover:bg-black/80 focus-visible:outline-2 focus-visible:outline-white disabled:opacity-30"
-                [disabled]="!collectionNavigation().previous || store.loading()" [attr.aria-label]="I18N.slideshow.prev | translate"
+              <button type="button" data-photo-previous class="pointer-events-auto inline-flex h-11 w-11 cursor-pointer items-center justify-center rounded-full bg-black/60 text-white hover:bg-black/80 focus-visible:outline-2 focus-visible:outline-white disabled:invisible"
+                [disabled]="!collectionNavigation().previous || store.loading()" [attr.aria-label]="I18N.photo_detail.collection.previous | translate"
                 (pointerdown)="$event.stopPropagation()" (dblclick)="$event.stopPropagation()" (click)="stepCollectionPhoto(-1); $event.stopPropagation()"><mat-icon aria-hidden="true">chevron_left</mat-icon></button>
-              <button type="button" data-photo-next class="pointer-events-auto inline-flex h-11 w-11 cursor-pointer items-center justify-center rounded-full bg-black/60 text-white hover:bg-black/80 focus-visible:outline-2 focus-visible:outline-white disabled:opacity-30"
-                [disabled]="!collectionNavigation().next || store.loading()" [attr.aria-label]="I18N.slideshow.next | translate"
+              <span data-collection-position class="absolute bottom-2 left-1/2 -translate-x-1/2 whitespace-nowrap rounded-full bg-black/60 px-3 py-1 text-xs tabular-nums text-white">{{ collectionNavigation().position }} / {{ store.total() }}</span>
+              <button type="button" data-photo-next class="pointer-events-auto inline-flex h-11 w-11 cursor-pointer items-center justify-center rounded-full bg-black/60 text-white hover:bg-black/80 focus-visible:outline-2 focus-visible:outline-white disabled:invisible"
+                [disabled]="!collectionNavigation().next || store.loading()" [attr.aria-label]="I18N.photo_detail.collection.next | translate"
                 (pointerdown)="$event.stopPropagation()" (dblclick)="$event.stopPropagation()" (click)="stepCollectionPhoto(1); $event.stopPropagation()"><mat-icon aria-hidden="true">chevron_right</mat-icon></button>
             </div>
           }
@@ -349,7 +350,7 @@ const SOCIAL_SOURCE_KEYS: Record<string, string> = {
         </div>
 
         <!-- Info panel -->
-        <aside data-photo-inspector [attr.aria-label]="I18N.photo_detail.info | translate" class="lg:w-80 xl:w-[360px] lg:shrink-0 lg:overflow-y-auto lg:border-l border-[var(--mat-sys-outline-variant)] bg-[var(--mat-sys-surface-container-lowest)] p-4 space-y-4 text-sm text-[var(--mat-sys-on-surface)]">
+        <aside data-photo-inspector [attr.aria-label]="I18N.photo_detail.details | translate" class="lg:w-80 xl:w-[360px] lg:shrink-0 lg:overflow-y-auto lg:border-l border-[var(--mat-sys-outline-variant)] bg-[var(--mat-sys-surface-container-lowest)] p-4 space-y-4 text-sm text-[var(--mat-sys-on-surface)]">
           <!-- Capture date and scoring category -->
           <div class="mb-2">
             @if (p.date_taken || auth.isEdition()) {
@@ -407,7 +408,7 @@ const SOCIAL_SOURCE_KEYS: Record<string, string> = {
                 <h2 id="photo-review-title" class="m-0 flex flex-1 items-center gap-2 text-sm font-medium"><mat-icon aria-hidden="true" class="!h-5 !w-5 !text-xl">rule</mat-icon>{{ I18N.gallery.sidebar.tabs.review | translate }}</h2>
                 <button mat-icon-button class="max-sm:!h-11 max-sm:!w-11" (click)="toggleFavorite(p.path)"
                   [matTooltip]="(p.is_favorite ? I18N.rating.remove_favorite : I18N.rating.add_favorite) | translate"
-                  [attr.aria-label]="(p.is_favorite ? I18N.rating.remove_favorite : I18N.rating.add_favorite) | translate" [attr.aria-pressed]="!!p.is_favorite">
+                  [attr.aria-label]="I18N.rating.favorite | translate" [attr.aria-pressed]="!!p.is_favorite">
                   <mat-icon class="!text-[var(--facet-favorite)]">{{ p.is_favorite ? 'favorite' : 'favorite_border' }}</mat-icon>
                 </button>
               </div>
@@ -440,14 +441,16 @@ const SOCIAL_SOURCE_KEYS: Record<string, string> = {
           }
 
           <details data-photo-info [open]="infoOpen()" class="border-t border-[var(--mat-sys-outline-variant)]">
-            <summary (click)="$event.preventDefault(); infoOpen.set(!infoOpen())" class="flex min-h-11 cursor-pointer items-center gap-2 font-medium"><mat-icon aria-hidden="true" class="!h-5 !w-5 !text-xl">info</mat-icon>{{ I18N.photo_detail.info | translate }}</summary>
+            <summary (click)="$event.preventDefault(); infoOpen.set(!infoOpen())" class="flex min-h-11 cursor-pointer items-center gap-2 font-medium"><mat-icon aria-hidden="true" class="!h-5 !w-5 !text-xl">info</mat-icon><h2 class="m-0 text-sm font-medium">{{ I18N.photo_detail.info | translate }}</h2></summary>
             @if (infoOpen()) {
             <div class="space-y-3 pb-3">
               @if (hasExif()) {
                 <app-photo-metric-section kind="exif" [photo]="p" [histogramHeight]="HISTOGRAM_PANEL_HEIGHT" />
               }
-              <app-photo-provenance [photo]="p" />
-              <app-photo-related-files [photo]="p" (logicalApplied)="onLogicalAssetApplied($event)" />
+              <div>
+                <app-photo-provenance [photo]="p" />
+                <app-photo-related-files [photo]="p" (logicalApplied)="onLogicalAssetApplied($event)" />
+              </div>
           <!-- Caption -->
           <div>
             <div class="flex items-center justify-between mb-1">
@@ -482,7 +485,7 @@ const SOCIAL_SOURCE_KEYS: Record<string, string> = {
           @if (p.gps_latitude !== null && p.gps_longitude !== null) {
             <div class="border-t border-[var(--mat-sys-outline-variant)] pt-3 mb-2">
               <div class="flex items-center justify-between mb-2">
-                <div class="text-[0.625rem] uppercase tracking-wider text-[var(--mat-sys-on-surface-variant)]">{{ I18N.photo_detail.location | translate }}</div>
+                <div class="text-xs text-[var(--mat-sys-on-surface-variant)]">{{ I18N.photo_detail.location | translate }}</div>
                 @if (auth.isEdition()) {
                   <button mat-icon-button class="!w-7 !h-7 !p-0" (click)="editGps(p)" [matTooltip]="I18N.photo_detail.edit_location | translate" [attr.aria-label]="I18N.photo_detail.edit_location | translate">
                     <mat-icon class="!text-base !w-4 !h-4 !leading-4">edit_location</mat-icon>
@@ -498,7 +501,7 @@ const SOCIAL_SOURCE_KEYS: Record<string, string> = {
           } @else if (auth.isEdition()) {
             <div class="border-t border-[var(--mat-sys-outline-variant)] pt-3 mb-2">
               <div class="flex items-center justify-between">
-                <div class="text-[0.625rem] uppercase tracking-wider text-[var(--mat-sys-on-surface-variant)]">{{ I18N.photo_detail.location | translate }}</div>
+                <div class="text-xs text-[var(--mat-sys-on-surface-variant)]">{{ I18N.photo_detail.location | translate }}</div>
                 <button mat-icon-button class="!w-7 !h-7 !p-0" (click)="editGps(p)" [matTooltip]="I18N.photo_detail.add_location | translate" [attr.aria-label]="I18N.photo_detail.add_location | translate">
                   <mat-icon class="!text-base !w-4 !h-4 !leading-4">add_location</mat-icon>
                 </button>
@@ -510,7 +513,7 @@ const SOCIAL_SOURCE_KEYS: Record<string, string> = {
           <!-- Tags section: AI chips, then manual chips (marked, removable for editors) -->
           @if (p.tags_list.length || p.manual_tags.length || auth.isEdition()) {
             <div data-testid="tags-section">
-              <div class="text-[0.625rem] uppercase tracking-wider text-[var(--mat-sys-on-surface-variant)] mb-2">{{ I18N.photo_detail.tags | translate }}</div>
+              <div class="text-xs text-[var(--mat-sys-on-surface-variant)] mb-2">{{ I18N.photo_detail.tags | translate }}</div>
               <div class="flex gap-1.5 flex-wrap items-center">
                 @for (tag of p.tags_list; track tag) {
                   <span data-testid="ai-tag-chip" class="inline-flex">
@@ -571,7 +574,7 @@ const SOCIAL_SOURCE_KEYS: Record<string, string> = {
           </details>
 
           <details #analysisSection data-photo-analysis (keydown.escape)="closeAnalysis($event)" (toggle)="analysisOpen.set(analysisSection.open)" class="border-t border-[var(--mat-sys-outline-variant)]">
-            <summary class="flex min-h-11 cursor-pointer items-center gap-2 text-sm font-medium"><mat-icon aria-hidden="true" class="!h-5 !w-5 !text-xl">analytics</mat-icon><span>{{ I18N.photo_detail.analysis | translate }}</span><span class="ml-auto text-xs font-normal tabular-nums">{{ I18N.photo_detail.assessment.score | translate }} {{ p.aggregate | assessmentValue }}</span></summary>
+            <summary class="flex min-h-11 cursor-pointer items-center gap-2 text-sm font-medium"><mat-icon aria-hidden="true" class="!h-5 !w-5 !text-xl">analytics</mat-icon><h2 class="m-0 text-sm font-medium">{{ I18N.photo_detail.analysis | translate }}</h2><span class="ml-auto text-xs font-normal tabular-nums">{{ I18N.photo_detail.assessment.score | translate }} {{ p.aggregate | assessmentValue }}</span></summary>
             @if (analysisOpen()) {
               @if (aggregateRange(); as range) {
                 <app-metric-rank data-aggregate-distribution class="mb-2" [range]="range" [value]="p.aggregate" />
@@ -581,7 +584,7 @@ const SOCIAL_SOURCE_KEYS: Record<string, string> = {
               }
               @for (section of metricSections; track section.id) {
                 <details data-metric-section [attr.data-section-kind]="section.id" [open]="activeMetricSection() === section.id" class="border-t border-[var(--mat-sys-outline-variant)]">
-                  <summary (click)="$event.preventDefault(); toggleMetricSection(section.id)" class="flex min-h-11 cursor-pointer items-center gap-2 text-xs font-medium"><mat-icon aria-hidden="true" class="!h-5 !w-5 !text-xl" [class]="section.id | markTone">{{ section.icon }}</mat-icon>{{ section.label | translate }}</summary>
+                  <summary (click)="$event.preventDefault(); toggleMetricSection(section.id)" class="flex min-h-11 cursor-pointer items-center gap-2 text-xs font-medium"><mat-icon aria-hidden="true" class="!h-5 !w-5 !text-xl" [class]="section.id | markTone">{{ section.icon }}</mat-icon><h3 class="m-0 text-xs font-medium">{{ section.label | translate }}</h3></summary>
                   @if (activeMetricSection() === section.id) {
                     <app-photo-metric-section [kind]="section.id" [photo]="p" [ranges]="store.metricRangesByColumn()" [populated]="store.config()?.populated_scores" [histogramHeight]="HISTOGRAM_PANEL_HEIGHT" [histogramDefaultMode]="histogramDefaultMode()" [indicatorPercent]="clippingIndicatorPercent()" />
                   }
@@ -594,7 +597,7 @@ const SOCIAL_SOURCE_KEYS: Record<string, string> = {
           <!-- Persons section -->
           @if (p.persons.length || p.unassigned_faces) {
             <details data-photo-people class="border-t border-[var(--mat-sys-outline-variant)]">
-              <summary class="flex min-h-11 cursor-pointer items-center gap-2 font-medium"><mat-icon aria-hidden="true" class="!h-5 !w-5 !text-xl">people</mat-icon>{{ I18N.photo_detail.persons | translate }}</summary>
+              <summary class="flex min-h-11 cursor-pointer items-center gap-2 font-medium"><mat-icon aria-hidden="true" class="!h-5 !w-5 !text-xl">people</mat-icon><h2 class="m-0 text-sm font-medium">{{ I18N.photo_detail.persons | translate }}</h2></summary>
               @if (p.unassigned_faces) { <p class="m-0 pb-2 text-xs text-[var(--mat-sys-on-surface-variant)]">{{ I18N.photo_detail.unassigned_faces | translate:{ count: p.unassigned_faces } }}</p> }
               <div class="flex gap-3 flex-wrap">
                 @for (person of p.persons; track person.id) {
@@ -744,13 +747,25 @@ export class PhotoDetailComponent extends PhotoDetailBase implements OnInit {
       : this.timelineOrigin || state?.['photoOrigin'] === 'in-app' || !!state?.['photo'];
   }
 
+  /** Folded stacks occupy their loaded cover's slot in the originating collection. */
+  protected readonly collectionEntry = computed(() => {
+    const current = this.photo();
+    if (!current) return undefined;
+    const photos = this.store.photos();
+    // Single-photo responses do not carry gallery stack annotations. The strip's
+    // authorized membership supplies the same identity after a direct member load.
+    const stackId = current.stack_id ?? this.stackNavigator()?.visibleStack()?.id;
+    return photos.find(photo => photo.path === current.path)
+      ?? (stackId ? photos.find(photo => photo.stack_id === stackId) : undefined);
+  });
   protected readonly collectionSidebarAvailable = computed(() => !this.timelineOrigin && this.viewerOwner === this.auth.identity()
-    && this.store.photos().some(photo => photo.path === this.photo()?.path));
+    && !!this.collectionEntry());
   protected readonly collectionNavigation = computed(() => {
     const photos = this.store.photos();
-    const index = photos.findIndex(photo => photo.path === this.photo()?.path);
+    const index = photos.findIndex(photo => photo.path === this.collectionEntry()?.path);
     return {
       visible: this.collectionSidebarAvailable(),
+      position: index + 1,
       previous: index > 0,
       next: index >= 0 && (index + 1 < photos.length || this.store.hasMore()),
     };
@@ -1206,7 +1221,7 @@ export class PhotoDetailComponent extends PhotoDetailBase implements OnInit {
     if (!withinCollection && this.stackNavigator()?.step(delta)) return;
     const current = this.photo();
     if (!current) return;
-    const indexOf = () => this.store.photos().findIndex(p => p.path === current.path);
+    const indexOf = () => this.store.photos().findIndex(p => p.path === this.collectionEntry()?.path);
     let idx = indexOf();
     if (idx === -1) return;
     // The store only holds the pages the grid has scrolled through, so stepping past the last one fetches the next.

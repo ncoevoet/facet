@@ -14,8 +14,8 @@ import { ContextHelpComponent } from '../../shared/components/context-help/conte
   template: `
     <details [open]="expanded()" data-photo-provenance
              (keydown.escape)="expanded() && close($event, trigger)">
-      <summary #trigger (click)="toggle($event)" class="flex min-h-11 cursor-pointer items-center gap-2 text-xs font-medium focus-visible:outline-2">
-        <mat-icon aria-hidden="true" class="!h-5 !w-5 !text-xl">history</mat-icon>{{ I18N.metadata_sources.title | translate }}
+      <summary #trigger (click)="toggle($event)" class="flex min-h-9 max-sm:min-h-11 cursor-pointer items-center gap-2 text-xs font-medium focus-visible:outline-2">
+        <mat-icon aria-hidden="true" class="!h-5 !w-5 !text-xl">history</mat-icon><h3 class="m-0 text-xs font-medium">{{ I18N.metadata_sources.title | translate }}</h3>
       </summary>
       @if (expanded()) {
         <div class="space-y-2 pb-2 text-xs">

@@ -3177,6 +3177,8 @@
   },
   "photo_detail": {
     "collection": {
+      "previous": "Vorheriges Foto in der Sammlung",
+      "next": "Nächstes Foto in der Sammlung",
       "title": "Sammlung",
       "show": "Sammlung einblenden",
       "hide": "Sammlung ausblenden",
@@ -3321,6 +3323,7 @@
     },
     "analysis": "Analyse",
     "info": "Info",
+    "details": "Fotodetails",
     "unassigned_faces": "Nicht zugewiesene Gesichter: {count}",
     "tag_refine_collection": "Diese Sammlung verfeinern",
     "tag_search_library": "Bibliothek durchsuchen"

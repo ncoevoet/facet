@@ -14,6 +14,13 @@ describe('RenditionReadoutComponent', () => {
     const retry = vi.fn(); fixture.componentInstance.retry.subscribe(retry);
     expect(root.querySelector('[role="status"]')?.textContent).toContain('320 × 240');
     expect(root.textContent).toContain('photo_detail.rendition.attempt_failed');
+    const phase = root.querySelector('[role="status"] span')!;
+    expect(phase.classList.contains('sr-only')).toBe(true);
+    expect(phase.textContent).toContain('gallery.compare.rendition.ready');
+    fixture.componentRef.setInput('state', { kind: 'preview', phase: 'loading' }); fixture.detectChanges();
+    expect(phase.classList.contains('sr-only')).toBe(false);
+    expect(phase.textContent).toContain('gallery.compare.rendition.loading');
+
     root.querySelector<HTMLButtonElement>('[data-rendition-retry]')!.click();
     expect(retry).toHaveBeenCalledOnce();
     fixture.destroy();
