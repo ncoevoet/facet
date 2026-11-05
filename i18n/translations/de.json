@@ -628,6 +628,7 @@
     "person_fallback": "Person {id}"
   },
   "stats": {
+    "show_chart_data": "Diagrammdaten anzeigen",
     "help": "Einblicke in Ihre Bibliothek: Bewertungsverteilungen, Kamera- und Objektivnutzung, Korrelationen zwischen den Bewertungsdimensionen und Trends im Zeitverlauf.",
     "title": "EXIF-Statistiken",
     "tabs": {

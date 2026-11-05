@@ -667,6 +667,7 @@ export const I18N = {
     person_fallback: "merge_suggestions.person_fallback",
   },
   stats: {
+    show_chart_data: "stats.show_chart_data",
     help: "stats.help",
     title: "stats.title",
     tabs: {

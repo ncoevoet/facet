@@ -1170,7 +1170,7 @@ Die Foto-Lightbox hat dieselben Aktionen unter **Bewertungskategorie festlegen�
 
 ## EXIF-Statistiken
 
-Die Statistikseite (`/stats`) hat 5 Tabs. Die Auswahl für **Kategorie** und **Datumsbereich** filtert jedes Diagramm. Im Mehrbenutzermodus sieht jeder Benutzer Statistiken für seine eigenen sichtbaren Fotos.
+Die Statistikseite (`/stats`) hat 5 Tabs. Die Übersicht zeigt die Anzahl der Fotos, Personen und Gesichter sowie die durchschnittliche Bewertung; die Filter sind auch auf Mobilgeräten verfügbar. Die Auswahl für **Kategorie** und **Datumsbereich** filtert jedes Diagramm. Im Mehrbenutzermodus sieht jeder Benutzer Statistiken für seine eigenen sichtbaren Fotos.
 
 ### Tabs
 

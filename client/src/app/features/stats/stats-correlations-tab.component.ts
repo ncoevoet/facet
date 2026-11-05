@@ -9,13 +9,17 @@ import { MatTooltipModule } from '@angular/material/tooltip';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { firstValueFrom } from 'rxjs';
 import { Chart } from 'chart.js';
+import { HttpContext } from '@angular/common/http';
 import { ApiService } from '../../core/services/api.service';
 import { ThemeService } from '../../core/services/theme.service';
+import { AuthService } from '../../core/services/auth.service';
 import { TranslatePipe } from '../../shared/pipes/translate.pipe';
 import { StatsFiltersService } from './stats-filters.service';
 import { downloadCsv } from '../../shared/utils/csv';
 import { CorrelationApiResponse, buildCorrelationCsvRecords } from './stats-correlations-csv';
 import { i18nKeys } from '../../core/i18n/keys';
+import { chartTheme } from './chart-theme';
+import { HANDLE_SERVER_ERROR_LOCALLY } from '../../core/utils/http-error-context';
 
 const COLORS = ['#22c55e', '#3b82f6', '#a855f7', '#f59e0b', '#ef4444', '#06b6d4', '#ec4899', '#84cc16'];
 
@@ -39,7 +43,7 @@ const COLORS = ['#22c55e', '#3b82f6', '#a855f7', '#f59e0b', '#ef4444', '#06b6d4'
       <mat-card>
         <mat-card-header class="!flex !items-center !justify-between">
           <mat-card-title>{{ I18N.stats.metric_correlations | translate }}</mat-card-title>
-          <button mat-icon-button class="shrink-0" [disabled]="!corrData()"
+          <button mat-icon-button class="shrink-0" [disabled]="!currentData()"
             [matTooltip]="I18N.stats.export_csv | translate"
             [attr.aria-label]="I18N.stats.export_csv | translate" (click)="exportCsv()">
             <mat-icon>download</mat-icon>
@@ -92,16 +96,27 @@ const COLORS = ['#22c55e', '#3b82f6', '#a855f7', '#f59e0b', '#ef4444', '#06b6d4'
             </div>
           </div>
           @if (corrYMetrics().length === 0) {
-            <div class="text-sm text-gray-400 mb-4">{{ I18N.stats.correlations.select_metric | translate }}</div>
+            <div class="text-sm text-[var(--mat-sys-on-surface-variant)] mb-4">{{ I18N.stats.correlations.select_metric | translate }}</div>
           }
           @if (correlationLoading()) {
             <div class="flex justify-center py-4"><mat-spinner diameter="32" [attr.aria-label]="I18N.ui.labels.loading | translate" /></div>
-          } @else if (corrData()) {
+          } @else if (correlationFailed()) {
+            <div role="alert" class="rounded-lg bg-[var(--mat-sys-error-container)] p-4 text-[var(--mat-sys-on-error-container)]">{{ I18N.stats.correlations.error | translate }}</div>
+          } @else if (currentData() && !corrBucketCount()) {
+            <p class="py-6 text-center text-[var(--mat-sys-on-surface-variant)]">{{ I18N.stats.no_data | translate }}</p>
+          } @else if (currentData()) {
             <div class="h-72 md:h-96 lg:h-[28rem]">
-              <canvas #correlationsCanvas></canvas>
+              <canvas #correlationsCanvas aria-hidden="true"></canvas>
             </div>
+            <details class="mt-3 text-sm text-[var(--mat-sys-on-surface-variant)]">
+              <summary class="cursor-pointer">{{ I18N.stats.show_chart_data | translate }}</summary>
+              <div class="mt-2 max-h-72 overflow-auto"><table class="w-full text-left">
+                <thead><tr>@for (column of accessibleColumns(); track column) {<th scope="col" class="p-1">{{ column }}</th>}</tr></thead>
+                <tbody>@for (row of accessibleRows(); track $index) {<tr class="border-t border-[var(--mat-sys-outline-variant)]">@for (value of row; track $index) {<td class="p-1">{{ value }}</td>}</tr>}</tbody>
+              </table></div>
+            </details>
             @if (corrBucketCount() > 0) {
-              <div class="text-xs text-gray-500 mt-2">{{ corrBucketCount() }} {{ I18N.stats.correlations.buckets | translate }}</div>
+              <div class="text-xs text-[var(--mat-sys-on-surface-variant)] mt-2">{{ corrBucketCount() }} {{ I18N.stats.correlations.buckets | translate }}</div>
             }
           }
         </mat-card-content>
@@ -115,7 +130,10 @@ export class StatsCorrelationsTabComponent {
   private destroyRef = inject(DestroyRef);
   private statsFilters = inject(StatsFiltersService);
   private themeService = inject(ThemeService);
+  private auth = inject(AuthService);
   private charts = new Map<string, Chart>();
+  private generation = 0;
+  private readonly loadedKey = signal('');
 
   readonly correlationsCanvas = viewChild<ElementRef<HTMLCanvasElement>>('correlationsCanvas');
 
@@ -125,8 +143,13 @@ export class StatsCorrelationsTabComponent {
   readonly corrChartType = signal('line');
   readonly corrMinSamples = 3;
   readonly corrData = signal<CorrelationApiResponse | null>(null);
-  readonly corrBucketCount = computed(() => this.corrData()?.labels?.length ?? 0);
+  readonly currentData = computed(() => this.loadedKey() === this.requestKey() ? this.corrData() : null);
+  readonly corrBucketCount = computed(() => this.currentData()?.labels?.length ?? 0);
+  private readonly accessibleRecords = computed(() => buildCorrelationCsvRecords(this.currentData(), this.corrYMetrics()));
+  readonly accessibleColumns = computed(() => Object.keys(this.accessibleRecords()[0] ?? {}));
+  readonly accessibleRows = computed(() => this.accessibleRecords().map(row => this.accessibleColumns().map(column => row[column])));
   readonly correlationLoading = signal(false);
+  readonly correlationFailed = signal(false);
 
   readonly corrDimensions = [
     { key: 'iso' }, { key: 'f_stop' }, { key: 'focal_length' },
@@ -158,11 +181,22 @@ export class StatsCorrelationsTabComponent {
 
   constructor() {
     effect(() => {
-      const data = this.corrData();
+      this.corrXAxis(); this.corrYMetrics(); this.corrGroupBy();
+      this.statsFilters.filterCategory(); this.statsFilters.dateFrom(); this.statsFilters.dateTo();
+      this.auth.status(); this.auth.identity(); this.auth.isAuthenticated();
+      this.generation++;
+      this.corrData.set(null);
+      this.correlationLoading.set(false);
+      this.correlationFailed.set(false);
+    });
+    effect(() => {
+      const data = this.currentData();
+      this.themeService.darkMode(); this.themeService.theme(); this.corrChartType();
       if (data) this.buildCorrelationChart(data);
     });
 
     this.destroyRef.onDestroy(() => {
+      this.generation++;
       this.charts.forEach(chart => chart.destroy());
       this.charts.clear();
     });
@@ -177,8 +211,12 @@ export class StatsCorrelationsTabComponent {
   }
 
   async loadCorrelation(): Promise<void> {
-    if (this.corrYMetrics().length === 0) return;
+    if (!this.auth.isAuthenticated() || this.corrYMetrics().length === 0) return;
+    const generation = ++this.generation;
+    const key = this.requestKey();
     this.correlationLoading.set(true);
+    this.correlationFailed.set(false);
+    this.corrData.set(null);
     try {
       const params: Record<string, string> = {
         x: this.corrXAxis(),
@@ -188,18 +226,26 @@ export class StatsCorrelationsTabComponent {
       };
       if (this.corrGroupBy()) params['group_by'] = this.corrGroupBy();
       const data = await firstValueFrom(
-        this.api.get<CorrelationApiResponse>('/stats/correlations', params),
+        this.api.get<CorrelationApiResponse>('/stats/correlations', params, new HttpContext().set(HANDLE_SERVER_ERROR_LOCALLY, true)),
       );
-      this.corrData.set(data);
-    } catch { /* empty */ }
-    finally { this.correlationLoading.set(false); }
+      if (generation === this.generation && key === this.requestKey()) { this.loadedKey.set(key); this.corrData.set(data); }
+    } catch { if (generation === this.generation && key === this.requestKey()) this.correlationFailed.set(true); }
+    finally { if (generation === this.generation) this.correlationLoading.set(false); }
   }
 
   /** Export the loaded correlation buckets as CSV (one row per bucket, or per bucket+group). */
   exportCsv(): void {
-    const data = this.corrData();
-    if (!data || !data.labels?.length) return;
+    const data = this.currentData();
+    if (this.loadedKey() !== this.requestKey() || !data || !data.labels?.length) return;
     downloadCsv('facet-correlations', buildCorrelationCsvRecords(data, this.corrYMetrics()));
+  }
+
+  private requestKey(): string {
+    // Token rotation revalidates/replaces status even when the user id stays
+    // the same. Track that signal so cached data is invalidated immediately.
+    this.auth.status();
+    return JSON.stringify([this.auth.identity(), this.auth.isAuthenticated(), this.auth.token, this.corrXAxis(), this.corrYMetrics(), this.corrGroupBy(),
+      this.statsFilters.filterCategory(), this.statsFilters.dateFrom(), this.statsFilters.dateTo()]);
   }
 
   private buildCorrelationChart(apiData: CorrelationApiResponse): void {
@@ -209,6 +255,7 @@ export class StatsCorrelationsTabComponent {
     if (existing) { existing.destroy(); this.charts.delete('correlations'); }
     const ctx = ref.nativeElement.getContext('2d');
     if (!ctx) return;
+    const palette = chartTheme();
 
     const labels = apiData.labels;
     const chartType = this.corrChartType();
@@ -241,7 +288,7 @@ export class StatsCorrelationsTabComponent {
           label: grp, data,
           backgroundColor: color + (type === 'bar' ? 'cc' : '33'),
           borderColor: color, borderWidth: type === 'bar' ? 1 : 2,
-          fill, tension: type === 'line' ? 0.3 : undefined,
+          fill, tension: type === 'line' ? 0 : undefined,
           pointRadius: type === 'line' ? 2 : undefined,
           borderRadius: type === 'bar' ? 3 : undefined,
         });
@@ -256,7 +303,7 @@ export class StatsCorrelationsTabComponent {
           label: metric, data: values,
           backgroundColor: color + (type === 'bar' ? 'cc' : '33'),
           borderColor: color, borderWidth: type === 'bar' ? 1 : 2,
-          fill, tension: type === 'line' ? 0.3 : undefined,
+          fill, tension: type === 'line' ? 0 : undefined,
           pointRadius: type === 'line' ? 2 : undefined,
           borderRadius: type === 'bar' ? 3 : undefined,
         });
@@ -271,7 +318,7 @@ export class StatsCorrelationsTabComponent {
         responsive: true,
         maintainAspectRatio: false,
         plugins: {
-          legend: { display: datasets.length > 1, labels: { color: '#d4d4d4', boxWidth: 12 } },
+          legend: { display: datasets.length > 1, labels: { color: palette.text, boxWidth: 12 } },
           tooltip: {
             callbacks: {
               label: (tooltipCtx) => {
@@ -283,10 +330,10 @@ export class StatsCorrelationsTabComponent {
         },
         scales: {
           x: {
-            grid: { color: isHorizontal ? '#262626' : '#262626' },
-            ticks: { color: '#a3a3a3', maxRotation: isHorizontal ? 0 : 45 },
+            grid: { color: palette.grid },
+            ticks: { color: palette.text, maxRotation: isHorizontal ? 0 : 45 },
           },
-          y: { grid: { color: '#262626' }, ticks: { color: '#d4d4d4', font: { size: 11 } } },
+          y: { grid: { color: palette.grid }, ticks: { color: palette.text, font: { size: 11 } } },
         },
       },
     }));

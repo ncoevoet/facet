@@ -1,4 +1,4 @@
-import { Component, inject, signal, computed, viewChild, ElementRef, effect, Pipe, PipeTransform, DestroyRef, ChangeDetectionStrategy } from '@angular/core';
+import { Component, inject, signal, computed, viewChild, ElementRef, effect, Pipe, PipeTransform, DestroyRef, Injector, afterNextRender, ChangeDetectionStrategy } from '@angular/core';
 import { MatCardModule } from '@angular/material/card';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { MatButtonModule } from '@angular/material/button';
@@ -6,13 +6,17 @@ import { MatIconModule } from '@angular/material/icon';
 import { MatTooltipModule } from '@angular/material/tooltip';
 import { firstValueFrom } from 'rxjs';
 import { Chart } from 'chart.js';
+import { HttpContext } from '@angular/common/http';
 import { ApiService } from '../../core/services/api.service';
 import { I18nService } from '../../core/services/i18n.service';
 import { ThemeService } from '../../core/services/theme.service';
+import { AuthService } from '../../core/services/auth.service';
 import { TranslatePipe } from '../../shared/pipes/translate.pipe';
 import { StatsFiltersService } from './stats-filters.service';
 import { downloadCsv } from '../../shared/utils/csv';
 import { i18nKeys } from '../../core/i18n/keys';
+import { chartTheme } from './chart-theme';
+import { HANDLE_SERVER_ERROR_LOCALLY } from '../../core/utils/http-error-context';
 
 /** Pipe to compute heatmap circle color from count:max. */
 @Pipe({ name: 'heatmapColor', standalone: true })
@@ -58,7 +62,7 @@ interface TimelineEntry {
     <div class="mt-4 flex flex-col gap-4">
       <mat-card>
         <mat-card-header class="!flex !items-center !justify-between">
-          <mat-card-title>{{ I18N.stats.photos_over_time | translate }}</mat-card-title>
+          <mat-card-title #timelineHeading tabindex="-1">{{ I18N.stats.photos_over_time | translate }}</mat-card-title>
           <button mat-icon-button class="shrink-0" [disabled]="timeline().length === 0"
             [matTooltip]="I18N.stats.export_csv | translate"
             [attr.aria-label]="I18N.stats.export_csv | translate" (click)="exportCsv()">
@@ -66,12 +70,27 @@ interface TimelineEntry {
           </button>
         </mat-card-header>
         <mat-card-content class="!pt-4">
-          @if (timelineLoading()) {
+          @if (timelineLoading() && !retrying()) {
             <div class="flex justify-center py-4"><mat-spinner diameter="32" [attr.aria-label]="I18N.ui.labels.loading | translate" /></div>
+          } @else if (timelineFailed() || retrying()) {
+            <div role="alert" class="rounded-lg bg-[var(--mat-sys-error-container)] p-4 text-[var(--mat-sys-on-error-container)]">
+              {{ (retrying() ? I18N.ui.labels.loading : I18N.stats.correlations.error) | translate }}
+              <button #timelineRetry mat-stroked-button class="ml-3 max-lg:!min-h-11" [attr.aria-disabled]="retrying()" (click)="retryTimeline()">{{ (retrying() ? I18N.ui.labels.loading : I18N.gallery.load_error.retry) | translate }}</button>
+            </div>
+          } @else if (!timeline().length) {
+            <p class="py-6 text-center text-[var(--mat-sys-on-surface-variant)]">{{ I18N.stats.no_data | translate }}</p>
           } @else {
             <div class="h-64 md:h-80 lg:h-96">
-              <canvas #timelineCanvas></canvas>
+              <canvas #timelineCanvas aria-hidden="true"></canvas>
             </div>
+            <details class="mt-3 text-sm text-[var(--mat-sys-on-surface-variant)]">
+              <summary class="cursor-pointer">{{ I18N.stats.show_chart_data | translate }}</summary>
+              <div class="mt-2 max-h-72 overflow-auto"><table class="w-full text-left"><tbody>
+                @for (row of timeline(); track row.period) {
+                  <tr class="border-b border-[var(--mat-sys-outline-variant)]"><th scope="row" class="py-1 pr-3 font-normal">{{ row.period }}</th><td class="py-1 text-right tabular-nums">{{ row.count }}</td></tr>
+                }
+              </tbody></table></div>
+            </details>
           }
         </mat-card-content>
       </mat-card>
@@ -83,8 +102,9 @@ interface TimelineEntry {
           </mat-card-header>
           <mat-card-content class="!pt-4">
             <div class="h-48 md:h-64">
-              <canvas #yearlyCanvas></canvas>
+              <canvas #yearlyCanvas aria-hidden="true"></canvas>
             </div>
+            <details class="mt-3 text-sm"><summary class="cursor-pointer">{{ I18N.stats.show_chart_data | translate }}</summary><table class="mt-2 w-full text-left"><tbody>@for (row of yearlyData(); track row.year) {<tr><th scope="row" class="font-normal">{{ row.year }}</th><td class="text-right">{{ row.count }}</td></tr>}</tbody></table></details>
           </mat-card-content>
         </mat-card>
       }
@@ -97,8 +117,9 @@ interface TimelineEntry {
             </mat-card-header>
             <mat-card-content class="!pt-4">
               <div class="h-64">
-                <canvas #dayOfWeekCanvas></canvas>
+                <canvas #dayOfWeekCanvas aria-hidden="true"></canvas>
               </div>
+              <details class="mt-3 text-sm"><summary class="cursor-pointer">{{ I18N.stats.show_chart_data | translate }}</summary><table class="mt-2 w-full text-left"><tbody>@for (row of dayOfWeekData(); track $index) {<tr><th scope="row" class="font-normal">{{ row.label }}</th><td class="text-right">{{ row.count }}</td></tr>}</tbody></table></details>
             </mat-card-content>
           </mat-card>
         }
@@ -109,8 +130,9 @@ interface TimelineEntry {
             </mat-card-header>
             <mat-card-content class="!pt-4">
               <div class="h-64">
-                <canvas #hourOfDayCanvas></canvas>
+                <canvas #hourOfDayCanvas aria-hidden="true"></canvas>
               </div>
+              <details class="mt-3 text-sm"><summary class="cursor-pointer">{{ I18N.stats.show_chart_data | translate }}</summary><table class="mt-2 w-full text-left"><tbody>@for (row of hourOfDayData(); track $index) {<tr><th scope="row" class="font-normal">{{ row.label }}</th><td class="text-right">{{ row.count }}</td></tr>}</tbody></table></details>
             </mat-card-content>
           </mat-card>
         }
@@ -126,19 +148,20 @@ interface TimelineEntry {
               <table class="w-full min-w-[700px] border-collapse text-xs">
                 <thead>
                   <tr>
-                    <th class="p-1 text-gray-400 text-left w-12"></th>
+                    <th class="p-1 text-[var(--mat-sys-on-surface-variant)] text-left w-12"></th>
                     @for (h of hours; track h) {
-                      <th class="p-1 text-gray-400 text-center font-normal">{{ h }}h</th>
+                      <th class="p-1 text-[var(--mat-sys-on-surface-variant)] text-center font-normal">{{ h }}h</th>
                     }
                   </tr>
                 </thead>
                 <tbody>
                   @for (row of heatmapRows(); track row.day) {
                     <tr>
-                      <td class="p-1 text-gray-300 font-medium">{{ row.day }}</td>
+                      <td class="p-1 text-[var(--mat-sys-on-surface)] font-medium">{{ row.day }}</td>
                       @for (count of row.cells; track $index) {
                         <td class="p-0 text-center align-middle"
-                          [title]="I18N.stats.heatmap_tooltip | translate:{day: row.day, hour: $index, count: count}">
+                          [title]="I18N.stats.heatmap_tooltip | translate:{day: row.day, hour: $index, count: count}"
+                          [attr.aria-label]="I18N.stats.heatmap_tooltip | translate:{day: row.day, hour: $index, count: count}">
                           <div class="inline-block rounded-full"
                             [style.width.px]="count | heatmapSize:heatmapMax()"
                             [style.height.px]="count | heatmapSize:heatmapMax()"
@@ -162,11 +185,17 @@ export class StatsTimelineTabComponent {
   private api = inject(ApiService);
   private i18n = inject(I18nService);
   private destroyRef = inject(DestroyRef);
+  private injector = inject(Injector);
   private statsFilters = inject(StatsFiltersService);
   private themeService = inject(ThemeService);
+  private auth = inject(AuthService);
   private charts = new Map<string, Chart>();
+  private generation = 0;
+  private loadedKey = '';
 
   readonly timelineCanvas = viewChild<ElementRef<HTMLCanvasElement>>('timelineCanvas');
+  readonly timelineRetry = viewChild('timelineRetry', { read: ElementRef<HTMLButtonElement> });
+  readonly timelineHeading = viewChild('timelineHeading', { read: ElementRef<HTMLElement> });
   readonly yearlyCanvas = viewChild<ElementRef<HTMLCanvasElement>>('yearlyCanvas');
   readonly dayOfWeekCanvas = viewChild<ElementRef<HTMLCanvasElement>>('dayOfWeekCanvas');
   readonly hourOfDayCanvas = viewChild<ElementRef<HTMLCanvasElement>>('hourOfDayCanvas');
@@ -174,6 +203,8 @@ export class StatsTimelineTabComponent {
   readonly hours = Array.from({ length: 24 }, (_, i) => i);
 
   timelineLoading = signal(false);
+  timelineFailed = signal(false);
+  retrying = signal(false);
   timeline = signal<TimelineEntry[]>([]);
   yearlyData = signal<{ year: string; count: number }[]>([]);
   dayOfWeekData = signal<{ label: string; count: number }[]>([]);
@@ -192,31 +223,37 @@ export class StatsTimelineTabComponent {
       this.statsFilters.filterCategory();
       this.statsFilters.dateFrom();
       this.statsFilters.dateTo();
+      this.auth.status(); this.auth.identity(); this.auth.isAuthenticated();
       void this.loadTimeline();
     });
 
     effect(() => {
       const data = this.timeline();
       const color = this.themeService.complementaryColor();
+      this.themeService.darkMode(); this.themeService.theme();
       this.buildAreaLine('timeline', this.timelineCanvas(), data.map(t => t.period), data.map(t => t.count), color);
     });
     effect(() => {
       const data = this.yearlyData();
       const accent = this.themeService.accentColor();
+      this.themeService.darkMode(); this.themeService.theme();
       this.buildVerticalBar('yearly', this.yearlyCanvas(), data.map(y => y.year), data.map(y => y.count), accent);
     });
     effect(() => {
       const data = this.dayOfWeekData();
       const color = this.themeService.complementaryColor();
+      this.themeService.darkMode(); this.themeService.theme();
       this.buildVerticalBar('dayOfWeek', this.dayOfWeekCanvas(), data.map(d => d.label), data.map(d => d.count), color);
     });
     effect(() => {
       const data = this.hourOfDayData();
       const color = this.themeService.complementaryColor();
+      this.themeService.darkMode(); this.themeService.theme();
       this.buildVerticalBar('hourOfDay', this.hourOfDayCanvas(), data.map(d => d.label), data.map(d => d.count), color);
     });
 
     this.destroyRef.onDestroy(() => {
+      this.generation++;
       this.charts.forEach(chart => chart.destroy());
       this.charts.clear();
     });
@@ -230,14 +267,36 @@ export class StatsTimelineTabComponent {
     return params;
   }
 
-  async loadTimeline(): Promise<void> {
+  retryTimeline(): void {
+    if (!this.timelineLoading()) void this.loadTimeline(true);
+  }
+
+  async loadTimeline(retry = false): Promise<void> {
+    const generation = ++this.generation;
+    const key = JSON.stringify([this.auth.identity(), this.auth.isAuthenticated(), this.auth.token, this.filterParams]);
+    const button = retry ? this.timelineRetry()?.nativeElement : undefined;
+    const doc = button?.ownerDocument;
+    const restoreFocus = !!button && doc?.activeElement === button;
     this.timelineLoading.set(true);
+    this.retrying.set(retry);
+    this.timelineFailed.set(false);
+    this.loadedKey = '';
+    this.timeline.set([]); this.yearlyData.set([]); this.dayOfWeekData.set([]); this.hourOfDayData.set([]); this.heatmapGrid.set([]);
+    if (!this.auth.isAuthenticated()) { this.timelineLoading.set(false); this.retrying.set(false); return; }
     try {
       const data = await firstValueFrom(this.api.get<{
         monthly: { month: string; count: number; avg_score: number }[];
         heatmap?: { day: number; hour: number; count: number }[];
-      }>('/stats/timeline', this.filterParams));
+      }>('/stats/timeline', this.filterParams, new HttpContext().set(HANDLE_SERVER_ERROR_LOCALLY, true)));
 
+      if (generation !== this.generation || key !== JSON.stringify([this.auth.identity(), this.auth.isAuthenticated(), this.auth.token, this.filterParams])) return;
+      this.loadedKey = key;
+      if (restoreFocus && doc?.activeElement === button) {
+        afterNextRender(() => {
+          if (generation === this.generation && key === JSON.stringify([this.auth.identity(), this.auth.isAuthenticated(), this.auth.token, this.filterParams])
+            && (doc.activeElement === doc.body || doc.activeElement === button)) this.timelineHeading()?.nativeElement.focus();
+        }, { injector: this.injector });
+      }
       const monthly = data.monthly ?? [];
       this.timeline.set(monthly.map(m => ({ period: m.month, count: m.count, avg_score: m.avg_score ?? 0 })));
 
@@ -271,12 +330,13 @@ export class StatsTimelineTabComponent {
         this.heatmapGrid.set(grid);
         this.heatmapMax.set(maxVal);
       }
-    } catch { /* empty */ }
-    finally { this.timelineLoading.set(false); }
+    } catch { if (generation === this.generation && key === JSON.stringify([this.auth.identity(), this.auth.isAuthenticated(), this.auth.token, this.filterParams])) this.timelineFailed.set(true); }
+    finally { if (generation === this.generation) { this.timelineLoading.set(false); this.retrying.set(false); } }
   }
 
   /** Export the monthly photo timeline as CSV. */
   exportCsv(): void {
+    if (this.loadedKey !== JSON.stringify([this.auth.identity(), this.auth.isAuthenticated(), this.auth.token, this.filterParams])) return;
     downloadCsv('facet-timeline', this.timeline());
   }
 
@@ -285,6 +345,7 @@ export class StatsTimelineTabComponent {
     this.destroyChart(id);
     const ctx = ref.nativeElement.getContext('2d');
     if (!ctx) return;
+    const palette = chartTheme();
     this.charts.set(id, new Chart(ctx, {
       type: 'line',
       data: {
@@ -294,7 +355,7 @@ export class StatsTimelineTabComponent {
           borderColor: color,
           backgroundColor: color + '33',
           fill: true,
-          tension: 0.3,
+          tension: 0,
           pointRadius: 0,
           pointHitRadius: 8,
           borderWidth: 2,
@@ -308,8 +369,8 @@ export class StatsTimelineTabComponent {
           tooltip: { callbacks: { label: (ctx) => (ctx.parsed.y ?? 0).toLocaleString() } },
         },
         scales: {
-          x: { grid: { display: false }, ticks: { color: '#a3a3a3', maxRotation: 45, autoSkip: true, maxTicksLimit: 24 } },
-          y: { grid: { color: '#262626' }, ticks: { color: '#a3a3a3' }, beginAtZero: true },
+          x: { grid: { display: false }, ticks: { color: palette.text, maxRotation: 45, autoSkip: true, maxTicksLimit: 24 } },
+          y: { grid: { color: palette.grid }, ticks: { color: palette.text }, beginAtZero: true },
         },
       },
     }));
@@ -320,6 +381,7 @@ export class StatsTimelineTabComponent {
     this.destroyChart(id);
     const ctx = ref.nativeElement.getContext('2d');
     if (!ctx) return;
+    const palette = chartTheme();
     this.charts.set(id, new Chart(ctx, {
       type: 'bar',
       data: {
@@ -340,8 +402,8 @@ export class StatsTimelineTabComponent {
           tooltip: { callbacks: { label: (ctx) => (ctx.parsed.y ?? 0).toLocaleString() } },
         },
         scales: {
-          x: { grid: { display: false }, ticks: { color: '#a3a3a3', maxRotation: 45 } },
-          y: { grid: { color: '#262626' }, ticks: { color: '#a3a3a3' } },
+          x: { grid: { display: false }, ticks: { color: palette.text, maxRotation: 45 } },
+          y: { grid: { color: palette.grid }, ticks: { color: palette.text } },
         },
       },
     }));

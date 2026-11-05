@@ -1,6 +1,9 @@
 import type { Mock } from 'vitest';
 import { TestBed } from '@angular/core/testing';
-import { NEVER, of, throwError } from 'rxjs';
+import { signal } from '@angular/core';
+import { AuthService } from '../../core/services/auth.service';
+import { GalleryStore } from '../gallery/gallery.store';
+import { NEVER, of, Subject, throwError } from 'rxjs';
 import { ApiService } from '../../core/services/api.service';
 import { I18nService } from '../../core/services/i18n.service';
 import { ChartHeightPipe } from './chart-height.pipe';
@@ -13,6 +16,7 @@ describe('StatsComponent', () => {
   // Cast to `any` for test access to protected signals
   const c = () => component as any;
   let mockApi: { get: Mock };
+  let mockAuth: { identity: ReturnType<typeof signal<string>>; isAuthenticated: ReturnType<typeof signal<boolean>>; status: ReturnType<typeof signal<object>>; token: string | null };
 
   const mockOverview = {
     total_photos: 1000,
@@ -111,6 +115,7 @@ describe('StatsComponent', () => {
   }
 
   function createComponent(getMock?: Mock): StatsComponent {
+    mockAuth = { identity: signal('owner-a'), isAuthenticated: signal(true), status: signal({}), token: 'token-a' };
     mockApi = {
       get: getMock ?? vi.fn((path: string) => safeDefault(path)),
     };
@@ -118,6 +123,8 @@ describe('StatsComponent', () => {
     TestBed.configureTestingModule({
       providers: [
         { provide: ApiService, useValue: mockApi },
+        { provide: AuthService, useValue: mockAuth },
+        { provide: GalleryStore, useValue: { types: signal([]) } },
         { provide: I18nService, useValue: { t: (key: string) => key } },
         { provide: Router, useValue: { navigate: vi.fn(), events: NEVER } },
         { provide: ActivatedRoute, useValue: { snapshot: { queryParams: {} } } },
@@ -152,7 +159,7 @@ describe('StatsComponent', () => {
       // Wait for constructor's loadAll to complete
       await flushPromises();
 
-      expect(mockApi.get).toHaveBeenCalledWith('/stats/overview', expect.any(Object));
+      expect(mockApi.get).toHaveBeenCalledWith('/stats/overview', expect.any(Object), expect.any(Object));
       expect(component.statsFilters.overview()).toEqual(mockOverview);
       expect(c().loading()).toBe(false);
     });
@@ -168,6 +175,48 @@ describe('StatsComponent', () => {
 
       expect(c().loading()).toBe(false);
       expect(component.statsFilters.overview()).toBeNull();
+      expect(c().loadFailed()).toBe(true);
+      expect(mockApi.get).not.toHaveBeenCalledWith('/stats/gear', expect.anything(), expect.anything());
+      expect(mockApi.get).not.toHaveBeenCalledWith('/stats/categories', expect.anything(), expect.anything());
+      expect(mockApi.get).not.toHaveBeenCalledWith('/stats/score_distribution', expect.anything(), expect.anything());
+      expect(mockApi.get).not.toHaveBeenCalledWith('/stats/top_cameras', expect.anything(), expect.anything());
+    });
+
+    it('does not start obsolete chart reads after a newer overview completes', async () => {
+      const first = new Subject<typeof mockOverview>();
+      const second = new Subject<typeof mockOverview>();
+      let overviewCalls = 0;
+      const getMock = vi.fn((path: string) => {
+        if (path === '/stats/overview') return ++overviewCalls === 1 ? first : second;
+        return safeDefault(path);
+      });
+      component = createComponent(getMock);
+      const oldLoad = component.loadAll();
+      const newLoad = component.loadAll();
+      second.next(mockOverview); second.complete();
+      await newLoad;
+      first.next(mockOverview); first.complete();
+      await oldLoad;
+      expect(getMock.mock.calls.filter(([path]) => path === '/stats/gear')).toHaveLength(1);
+      expect(component.statsFilters.overview()).toEqual(mockOverview);
+    });
+
+    it('ignores an earlier gear response immediately when a new filtered load starts', async () => {
+      const pendingGear = new Subject<typeof mockGear>();
+      const pendingOverview = new Subject<typeof mockOverview>();
+      const getMock = vi.fn((path: string) => {
+        if (path === '/stats/gear') return pendingGear;
+        if (path === '/stats/overview') return pendingOverview;
+        return safeDefault(path);
+      });
+      component = createComponent(getMock);
+      const oldGear = component.loadGear();
+      const newLoad = component.loadAll();
+      pendingGear.next(mockGear); pendingGear.complete();
+      await oldGear;
+      expect(c().cameras()).toEqual([]);
+      pendingOverview.next(mockOverview); pendingOverview.complete();
+      await newLoad;
     });
 
     it('should kick off parallel loads after overview', async () => {
@@ -176,11 +225,11 @@ describe('StatsComponent', () => {
 
       await flushPromises();
 
-      expect(mockApi.get).toHaveBeenCalledWith('/stats/overview', expect.any(Object));
-      expect(mockApi.get).toHaveBeenCalledWith('/stats/gear', expect.any(Object));
-      expect(mockApi.get).toHaveBeenCalledWith('/stats/categories', expect.any(Object));
-      expect(mockApi.get).toHaveBeenCalledWith('/stats/score_distribution', expect.any(Object));
-      expect(mockApi.get).toHaveBeenCalledWith('/stats/top_cameras', expect.any(Object));
+      expect(mockApi.get).toHaveBeenCalledWith('/stats/overview', expect.any(Object), expect.any(Object));
+      expect(mockApi.get).toHaveBeenCalledWith('/stats/gear', expect.any(Object), expect.any(Object));
+      expect(mockApi.get).toHaveBeenCalledWith('/stats/categories', expect.any(Object), expect.any(Object));
+      expect(mockApi.get).toHaveBeenCalledWith('/stats/score_distribution', expect.any(Object), expect.any(Object));
+      expect(mockApi.get).toHaveBeenCalledWith('/stats/top_cameras', expect.any(Object), expect.any(Object));
     });
   });
 

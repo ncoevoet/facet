@@ -1169,7 +1169,7 @@ La visionneuse de la photo a les mêmes actions sous **Définir la catégorie de
 
 ## Statistiques EXIF
 
-La page Stats (`/stats`) a 5 onglets. Les sélecteurs de **catégorie** et de **plage de dates** filtrent chaque graphique. En mode multi-utilisateurs, chaque utilisateur voit les statistiques de ses propres photos visibles.
+La page Stats (`/stats`) a 5 onglets. Le résumé affiche le nombre de photos, de personnes et de visages ainsi que le score moyen ; les filtres sont aussi disponibles sur mobile. Les sélecteurs de **catégorie** et de **plage de dates** filtrent chaque graphique. En mode multi-utilisateurs, chaque utilisateur voit les statistiques de ses propres photos visibles.
 
 ### Onglets
 

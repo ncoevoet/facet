@@ -1169,7 +1169,7 @@ Il lightbox della foto ha le stesse azioni sotto **Imposta categoria di punteggi
 
 ## Statistiche EXIF
 
-La pagina Statistiche (`/stats`) ha 5 schede. I selettori di **categoria** e **intervallo di date** filtrano ogni grafico. In modalità multiutente ogni utente vede le statistiche delle proprie foto visibili.
+La pagina Statistiche (`/stats`) ha 5 schede. Il riepilogo mostra i conteggi di foto, persone e volti e il punteggio medio; i filtri sono disponibili anche su dispositivi mobili. I selettori di **categoria** e **intervallo di date** filtrano ogni grafico. In modalità multiutente ogni utente vede le statistiche delle proprie foto visibili.
 
 ### Schede
 

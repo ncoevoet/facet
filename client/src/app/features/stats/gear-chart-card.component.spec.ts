@@ -88,6 +88,22 @@ describe('GearChartCardComponent', () => {
     expect((component as any).selectedMetric()).toBe('avg_score');
   });
 
+  it('provides the plotted gear values in a readable data table', () => {
+    fixture.detectChanges();
+    const table = fixture.nativeElement.querySelector('details table') as HTMLTableElement;
+    expect(table.textContent).toContain('Lens A');
+    expect(table.textContent).toContain('5.5');
+    expect(table.textContent).toContain('Lens B');
+    expect(table.textContent).toContain('8.5');
+  });
+
+  it('shows an empty state rather than an empty chart', () => {
+    fixture.componentRef.setInput('items', []);
+    fixture.detectChanges();
+    expect(fixture.nativeElement.textContent).toContain('trans_stats.no_data');
+    expect(fixture.nativeElement.querySelector('canvas')).toBeNull();
+  });
+
   it('should sort items correctly by count (default)', () => {
     fixture.detectChanges();
     const sorted = (component as any).sortedItems();

@@ -628,6 +628,7 @@
     "person_fallback": "Persona {id}"
   },
   "stats": {
+    "show_chart_data": "Mostra i dati del grafico",
     "help": "Approfondimenti sulla tua libreria: distribuzioni dei punteggi, utilizzo di fotocamere e obiettivi, correlazioni tra le dimensioni di punteggio e tendenze nel tempo.",
     "title": "Statistiche EXIF",
     "tabs": {

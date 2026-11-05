@@ -1,6 +1,6 @@
 import { pathOf } from './shared/utils/url-path';
 import { Component, inject, computed, signal, effect, untracked, OnInit, ChangeDetectionStrategy, DestroyRef, ElementRef, viewChild, afterRenderEffect } from '@angular/core';
-import { DecimalPipe, NgTemplateOutlet } from '@angular/common';
+import { NgTemplateOutlet } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { Router, RouterOutlet, RouterLink, NavigationEnd } from '@angular/router';
 import { toSignal } from '@angular/core/rxjs-interop';
@@ -28,7 +28,6 @@ import { ThemeService } from './core/services/theme.service';
 import { PageHelpService } from './core/services/page-help.service';
 import { HeaderSlotService } from './core/services/header-slot.service';
 import { GalleryStore, anyHideToggleActive } from './features/gallery/gallery.store';
-import { StatsFiltersService } from './features/stats/stats-filters.service';
 import { TimelineFiltersService } from './features/timeline/timeline-filters.service';
 import { AlbumsFiltersService } from './features/albums/albums-filters.service';
 import { PersonsFiltersService } from './features/persons/persons-filters.service';
@@ -117,7 +116,6 @@ export class EditionDialogComponent {
 @Component({
   selector: 'app-root',
   imports: [
-    DecimalPipe,
     AssistantActivityChipComponent,
     RouterOutlet,
     RouterLink,
@@ -205,7 +203,6 @@ export class App implements OnInit {
   }
   protected readonly headerSlot = inject(HeaderSlotService);
   protected readonly store = inject(GalleryStore);
-  protected readonly statsFilters = inject(StatsFiltersService);
   protected readonly timelineFilters = inject(TimelineFiltersService);
   protected readonly albumsFilters = inject(AlbumsFiltersService);
   protected readonly personsFilters = inject(PersonsFiltersService);
@@ -299,8 +296,6 @@ export class App implements OnInit {
     return path === '/' || path === '' || path.startsWith('/album/');
   });
 
-  protected readonly isStatsRoute = computed(() => this.url().split('?')[0] === '/stats');
-
   protected readonly isCompareRoute = computed(() => this.url().split('?')[0] === '/compare');
   protected readonly isAlbumsRoute = computed(() => this.url().split('?')[0] === '/albums');
   protected readonly isPersonsRoute = computed(() => this.url().split('?')[0] === '/persons');
@@ -310,8 +305,7 @@ export class App implements OnInit {
 
   /** A route gets a second bar only when it actually supplies page controls. */
   protected readonly showPageToolbar = computed(() => !this.auth.isAuthenticated()
-    || this.isCompareRoute() || this.headerSlot.template() !== null
-    || (this.isStatsRoute() && !!this.statsFilters.overview()));
+    || this.isCompareRoute() || this.headerSlot.template() !== null);
 
   /** Mirrors TimelineComponent.anyHiddenByFilters for the mobile bottom bar's
    *  own copy of the affordance — same GalleryStore signal, same shared

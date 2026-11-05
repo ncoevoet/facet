@@ -1167,7 +1167,7 @@ O lightbox da foto tem as mesmas ações em **Definir categoria de pontuação�
 
 ## Estatísticas EXIF
 
-A página Estatísticas (`/stats`) tem 5 abas. Os seletores de **categoria** e de **intervalo de datas** filtram todos os gráficos. No modo multiusuário, cada usuário vê as estatísticas das suas próprias fotos visíveis.
+A página Estatísticas (`/stats`) tem 5 abas. O resumo mostra as contagens de fotos, pessoas e rostos e a pontuação média; os filtros também estão disponíveis em dispositivos móveis. Os seletores de **categoria** e de **intervalo de datas** filtram todos os gráficos. No modo multiusuário, cada usuário vê as estatísticas das suas próprias fotos visíveis.
 
 ### Abas
 

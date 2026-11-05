@@ -143,11 +143,6 @@ describe('App', () => {
       expect((app as any).isCompareRoute()).toBe(false);
     });
 
-    it('isStatsRoute returns true for /stats', () => {
-      const { app } = createApp('/stats');
-      expect((app as any).isStatsRoute()).toBe(true);
-    });
-
     it('isGalleryRoute ignores query string', () => {
       const { app } = createApp('/?sort=aggregate&type=portrait');
       expect((app as any).isGalleryRoute()).toBe(true);

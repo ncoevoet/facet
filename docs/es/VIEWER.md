@@ -1172,7 +1172,7 @@ El visor ampliado de fotos tiene las mismas acciones en **Definir categoría de 
 
 ## Estadísticas EXIF
 
-La página Estadísticas (`/stats`) tiene 5 pestañas. Los selectores de **categoría** e **intervalo de fechas** filtran todos los gráficos. En modo multiusuario cada usuario ve las estadísticas de sus propias fotos visibles.
+La página Estadísticas (`/stats`) tiene 5 pestañas. El resumen muestra los recuentos de fotos, personas y rostros y la puntuación media; los filtros también están disponibles en móviles. Los selectores de **categoría** e **intervalo de fechas** filtran todos los gráficos. En modo multiusuario cada usuario ve las estadísticas de sus propias fotos visibles.
 
 ### Pestañas
 

@@ -97,6 +97,7 @@ All notable changes to Facet are documented in this file.
 
 ### Fixed
 
+- Statistics exposes filters and summary figures on mobile, improves chart contrast and text alternatives, and handles errors and account changes without displaying stale results.
 - Albums distinguish empty results from load failures, support retrying failed pages and preserve the correct account and navigation context during dialog operations.
 - Stack editor mode controls and gallery keyboard hints fit narrow cards and screens more reliably.
 - Keep Stack Editor controls accessible while scrolling, restore focus after review decisions, and improve Culling and Junk Sweep labels, touch targets and failure messages.

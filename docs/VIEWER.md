@@ -1170,7 +1170,7 @@ The photo lightbox has the same actions under **Set scoring category…** / **Cl
 
 ## EXIF Statistics
 
-The Stats page (`/stats`) has 5 tabs. The **category** and **date range** selectors filter every chart. In multi-user mode each user sees statistics for their own visible photos.
+The Stats page (`/stats`) has 5 tabs. Its overview shows photo, person and face counts and the average score; the filters are available on mobile as well as desktop. The **category** and **date range** selectors filter every chart. In multi-user mode each user sees statistics for their own visible photos.
 
 ### Tabs
 

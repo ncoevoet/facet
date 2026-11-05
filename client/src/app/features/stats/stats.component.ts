@@ -1,5 +1,5 @@
-import { Component, inject, signal, computed, viewChild, ElementRef, effect, DestroyRef, untracked, TemplateRef, ChangeDetectionStrategy } from '@angular/core';
-import { DecimalPipe } from '@angular/common';
+import { Component, inject, signal, computed, viewChild, ElementRef, effect, DestroyRef, Injector, afterNextRender, untracked, ChangeDetectionStrategy } from '@angular/core';
+import { DecimalPipe, DOCUMENT } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { MatCardModule } from '@angular/material/card';
 import { MatTabsModule } from '@angular/material/tabs';
@@ -13,25 +13,26 @@ import { firstValueFrom } from 'rxjs';
 import { Router, ActivatedRoute } from '@angular/router';
 import { Chart, registerables } from 'chart.js';
 import { ApiService } from '../../core/services/api.service';
+import { AuthService } from '../../core/services/auth.service';
+import { HttpContext } from '@angular/common/http';
+import { HANDLE_SERVER_ERROR_LOCALLY } from '../../core/utils/http-error-context';
 import { I18nService } from '../../core/services/i18n.service';
 import { TranslatePipe } from '../../shared/pipes/translate.pipe';
 import { ThemeService } from '../../core/services/theme.service';
 import { PageHelpService } from '../../core/services/page-help.service';
-import { HeaderSlotService } from '../../core/services/header-slot.service';
 import { DateRangeFilterComponent } from '../../shared/components/date-range-filter/date-range-filter.component';
 import { GalleryStore } from '../gallery/gallery.store';
 import { StatsFiltersService, StatsOverviewData } from './stats-filters.service';
 import { registerPageContext } from '../../core/agent/page-context.service';
 import { GearChartCardComponent, GearItem } from './gear-chart-card.component';
 import { ChartHeightPipe } from './chart-height.pipe';
+import { chartTheme } from './chart-theme';
 import { StatsTimelineTabComponent } from './stats-timeline-tab.component';
 import { StatsCorrelationsTabComponent } from './stats-correlations-tab.component';
 import { downloadCsv } from '../../shared/utils/csv';
 import { I18N, i18nKeys } from '../../core/i18n/keys';
 
 Chart.register(...registerables);
-Chart.defaults.color = '#a3a3a3';
-Chart.defaults.borderColor = '#262626';
 
 interface GearApiResponse {
   cameras: GearItem[];
@@ -99,8 +100,30 @@ const COLORS = ['#22c55e', '#3b82f6', '#a855f7', '#f59e0b', '#ef4444', '#06b6d4'
   host: { class: 'block p-4 md:p-6' },
   changeDetection: ChangeDetectionStrategy.Eager,
   template: `
-    <ng-template #statsToolbar>
-      <mat-form-field class="!hidden lg:!inline-flex w-52 ml-2" subscriptSizing="dynamic">
+    <header class="mb-4 space-y-4">
+      <h1 id="stats-heading" tabindex="-1" class="m-0 text-xl font-semibold text-[var(--mat-sys-on-surface)]">{{ I18N.nav.stats | translate }}</h1>
+      @if (statsFilters.overview(); as overview) {
+        <dl class="m-0 grid grid-cols-2 gap-2 sm:grid-cols-4" data-stats-overview>
+          <div class="min-w-0 rounded-lg bg-[var(--mat-sys-surface-container)] px-3 py-2">
+            <dt class="text-xs text-[var(--mat-sys-on-surface-variant)]">{{ I18N.stats.total_photos | translate }}</dt>
+            <dd class="m-0 text-lg font-semibold tabular-nums">{{ overview.total_photos | number }}</dd>
+          </div>
+          <div class="min-w-0 rounded-lg bg-[var(--mat-sys-surface-container)] px-3 py-2">
+            <dt class="text-xs text-[var(--mat-sys-on-surface-variant)]">{{ I18N.stats.total_persons | translate }}</dt>
+            <dd class="m-0 text-lg font-semibold tabular-nums">{{ overview.total_persons | number }}</dd>
+          </div>
+          <div class="min-w-0 rounded-lg bg-[var(--mat-sys-surface-container)] px-3 py-2">
+            <dt class="text-xs text-[var(--mat-sys-on-surface-variant)]">{{ I18N.stats.avg_score | translate }}</dt>
+            <dd class="m-0 text-lg font-semibold tabular-nums">{{ overview.avg_score | number:'1.1-1' }}</dd>
+          </div>
+          <div class="min-w-0 rounded-lg bg-[var(--mat-sys-surface-container)] px-3 py-2">
+            <dt class="text-xs text-[var(--mat-sys-on-surface-variant)]">{{ I18N.stats.total_faces | translate }}</dt>
+            <dd class="m-0 text-lg font-semibold tabular-nums">{{ overview.total_faces | number }}</dd>
+          </div>
+        </dl>
+      }
+      <div class="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:max-w-3xl" data-stats-filters>
+      <mat-form-field class="col-span-2 min-w-0 sm:col-span-1" subscriptSizing="dynamic">
         <mat-label>{{ I18N.ui.filters.type | translate }}</mat-label>
         <mat-select panelWidth="auto" panelClass="nowrap-panel" [value]="statsFilters.filterCategory()" (selectionChange)="onStatsCategoryChange($event.value)">
           <mat-option value="">{{ I18N.gallery.all_photos | translate }}</mat-option>
@@ -112,9 +135,16 @@ const COLORS = ['#22c55e', '#3b82f6', '#a855f7', '#f59e0b', '#ef4444', '#06b6d4'
       <app-date-range-filter
         [from]="statsFilters.dateFrom()" [to]="statsFilters.dateTo()"
         fromLabel="stats.filter.date_from" toLabel="stats.filter.date_to"
-        fromClass="!hidden lg:!inline-flex w-44"
+        fromClass="min-w-0 w-full"
         (fromChange)="statsFilters.dateFrom.set($event)" (toChange)="statsFilters.dateTo.set($event)" />
-    </ng-template>
+      </div>
+    </header>
+    @if (loadFailed() || retrying()) {
+      <div role="alert" class="mb-4 flex flex-wrap items-center gap-3 rounded-lg bg-[var(--mat-sys-error-container)] p-3 text-[var(--mat-sys-on-error-container)]">
+        <span>{{ (retrying() ? I18N.ui.labels.loading : I18N.stats.correlations.error) | translate }}</span>
+        <button mat-stroked-button data-stats-retry class="min-h-11" [attr.aria-disabled]="retrying()" (click)="retryLoad()">{{ (retrying() ? I18N.ui.labels.loading : I18N.gallery.load_error.retry) | translate }}</button>
+      </div>
+    }
     @if (loading()) {
       <div class="flex justify-center py-16">
         <mat-spinner diameter="48" [attr.aria-label]="I18N.ui.labels.loading | translate" />
@@ -125,7 +155,7 @@ const COLORS = ['#22c55e', '#3b82f6', '#a855f7', '#f59e0b', '#ef4444', '#06b6d4'
           <mat-tab>
             <ng-template mat-tab-label>
               <mat-icon class="sm:mr-2" [matTooltip]="I18N.stats.gear | translate">camera_alt</mat-icon>
-              <span class="hidden sm:inline">{{ I18N.stats.gear | translate }}</span>
+              <span class="sr-only sm:not-sr-only">{{ I18N.stats.gear | translate }}</span>
             </ng-template>
             <div class="grid grid-cols-1 xl:grid-cols-2 gap-4 mt-4">
               <app-gear-chart-card titleKey="stats.cameras" [items]="cameras()" [loading]="gearLoading()" [color]="themeService.accentColor()" />
@@ -145,7 +175,7 @@ const COLORS = ['#22c55e', '#3b82f6', '#a855f7', '#f59e0b', '#ef4444', '#06b6d4'
           <mat-tab>
             <ng-template mat-tab-label>
               <mat-icon class="sm:mr-2" [matTooltip]="I18N.stats.categories.tab | translate">category</mat-icon>
-              <span class="hidden sm:inline">{{ I18N.stats.categories.tab | translate }}</span>
+              <span class="sr-only sm:not-sr-only">{{ I18N.stats.categories.tab | translate }}</span>
             </ng-template>
             <div class="mt-4 flex flex-col gap-4">
               <div class="grid grid-cols-1 lg:grid-cols-2 2xl:grid-cols-3 gap-4">
@@ -164,7 +194,7 @@ const COLORS = ['#22c55e', '#3b82f6', '#a855f7', '#f59e0b', '#ef4444', '#06b6d4'
                     </mat-card-header>
                     <mat-card-content class="!pt-4">
                       <div [style.height.px]="categoryMetricData() | chartHeight">
-                        <canvas #categoryMetricCanvas></canvas>
+                        <canvas #categoryMetricCanvas role="img" [attr.aria-label]="I18N.stats.category_metric_title | translate"></canvas>
                       </div>
                     </mat-card-content>
                   </mat-card>
@@ -180,7 +210,7 @@ const COLORS = ['#22c55e', '#3b82f6', '#a855f7', '#f59e0b', '#ef4444', '#06b6d4'
                         <div class="flex justify-center py-4"><mat-spinner diameter="32" [attr.aria-label]="I18N.ui.labels.loading | translate" /></div>
                       } @else {
                         <div [style.height.px]="categoryScoreProfile() | chartHeight:80">
-                          <canvas #categoryScoreProfileCanvas></canvas>
+                          <canvas #categoryScoreProfileCanvas role="img" [attr.aria-label]="I18N.stats.categories_score_profile | translate"></canvas>
                         </div>
                       }
                     </mat-card-content>
@@ -201,8 +231,16 @@ const COLORS = ['#22c55e', '#3b82f6', '#a855f7', '#f59e0b', '#ef4444', '#06b6d4'
                       <div class="flex justify-center py-4"><mat-spinner diameter="32" [attr.aria-label]="I18N.ui.labels.loading | translate" /></div>
                     } @else {
                       <div [style.height.px]="scoreBins() | chartHeight">
-                        <canvas #scoreCanvas></canvas>
+                        <canvas #scoreCanvas role="img" [attr.aria-label]="I18N.stats.score_histogram | translate"></canvas>
                       </div>
+                      <table class="sr-only">
+                        <caption>{{ I18N.stats.score_histogram | translate }}</caption>
+                        <tbody>
+                          @for (bin of scoreBins(); track bin.range) {
+                            <tr><th scope="row">{{ bin.range }}</th><td>{{ bin.count }}</td></tr>
+                          }
+                        </tbody>
+                      </table>
                     }
                   </mat-card-content>
                 </mat-card>
@@ -226,14 +264,14 @@ const COLORS = ['#22c55e', '#3b82f6', '#a855f7', '#f59e0b', '#ef4444', '#06b6d4'
                     </div>
                   </mat-card-header>
                   @if (showGearProfileHelp()) {
-                    <div class="mx-4 mb-2 text-sm text-gray-400">
+                    <div class="mx-4 mb-2 text-sm text-[var(--mat-sys-on-surface-variant)]">
                       {{ I18N.stats.gear_profile_help.description | translate }}
                     </div>
                   }
                   <mat-card-content class="!pt-4 overflow-x-auto">
                     <table class="w-full text-sm">
                       <thead>
-                        <tr class="text-gray-400 text-left border-b border-neutral-700">
+                        <tr class="text-[var(--mat-sys-on-surface-variant)] text-left border-b border-[var(--mat-sys-outline-variant)]">
                           <th class="pb-2 pr-4">{{ I18N.stats.categories.tab | translate }}</th>
                           <th class="pb-2 pr-4">{{ I18N.stats.cameras | translate }}</th>
                           <th class="pb-2 pr-4">{{ I18N.stats.lenses | translate }}</th>
@@ -246,11 +284,11 @@ const COLORS = ['#22c55e', '#3b82f6', '#a855f7', '#f59e0b', '#ef4444', '#06b6d4'
                         @for (cat of categoryScoreProfile(); track cat.category) {
                           <tr class="border-b border-[var(--mat-sys-outline-variant)] hover:bg-[var(--mat-sys-surface-container)]">
                             <td class="py-1.5 pr-4 font-medium" [matTooltip]="('category_names.' + cat.category) | translate">{{ ('category_names.' + cat.category) | translate }}</td>
-                            <td class="py-1.5 pr-4 text-gray-300 truncate max-w-40" [matTooltip]="cat.top_camera || '—'">{{ cat.top_camera || '—' }}</td>
-                            <td class="py-1.5 pr-4 text-gray-300 truncate max-w-40" [matTooltip]="cat.top_lens || '—'">{{ cat.top_lens || '—' }}</td>
-                            <td class="py-1.5 pr-4 text-gray-300" [matTooltip]="cat.avg_iso > 0 ? (cat.avg_iso | number:'1.0-0') : '—'">{{ cat.avg_iso > 0 ? (cat.avg_iso | number:'1.0-0') : '—' }}</td>
-                            <td class="py-1.5 pr-4 text-gray-300" [matTooltip]="cat.avg_f_stop > 0 ? (cat.avg_f_stop | number:'1.1-1') : '—'">{{ cat.avg_f_stop > 0 ? (cat.avg_f_stop | number:'1.1-1') : '—' }}</td>
-                            <td class="py-1.5 text-gray-300" [matTooltip]="cat.avg_focal_length > 0 ? (cat.avg_focal_length | number:'1.0-0') : '—'">{{ cat.avg_focal_length > 0 ? (cat.avg_focal_length | number:'1.0-0') : '—' }}</td>
+                            <td class="py-1.5 pr-4 text-[var(--mat-sys-on-surface-variant)] truncate max-w-40" [matTooltip]="cat.top_camera || '—'">{{ cat.top_camera || '—' }}</td>
+                            <td class="py-1.5 pr-4 text-[var(--mat-sys-on-surface-variant)] truncate max-w-40" [matTooltip]="cat.top_lens || '—'">{{ cat.top_lens || '—' }}</td>
+                            <td class="py-1.5 pr-4 text-[var(--mat-sys-on-surface-variant)]" [matTooltip]="cat.avg_iso > 0 ? (cat.avg_iso | number:'1.0-0') : '—'">{{ cat.avg_iso > 0 ? (cat.avg_iso | number:'1.0-0') : '—' }}</td>
+                            <td class="py-1.5 pr-4 text-[var(--mat-sys-on-surface-variant)]" [matTooltip]="cat.avg_f_stop > 0 ? (cat.avg_f_stop | number:'1.1-1') : '—'">{{ cat.avg_f_stop > 0 ? (cat.avg_f_stop | number:'1.1-1') : '—' }}</td>
+                            <td class="py-1.5 text-[var(--mat-sys-on-surface-variant)]" [matTooltip]="cat.avg_focal_length > 0 ? (cat.avg_focal_length | number:'1.0-0') : '—'">{{ cat.avg_focal_length > 0 ? (cat.avg_focal_length | number:'1.0-0') : '—' }}</td>
                           </tr>
                         }
                       </tbody>
@@ -265,7 +303,7 @@ const COLORS = ['#22c55e', '#3b82f6', '#a855f7', '#f59e0b', '#ef4444', '#06b6d4'
           <mat-tab>
             <ng-template mat-tab-label>
               <mat-icon class="sm:mr-2" [matTooltip]="I18N.stats.timeline | translate">timeline</mat-icon>
-              <span class="hidden sm:inline">{{ I18N.stats.timeline | translate }}</span>
+              <span class="sr-only sm:not-sr-only">{{ I18N.stats.timeline | translate }}</span>
             </ng-template>
             <app-stats-timeline-tab />
           </mat-tab>
@@ -274,7 +312,7 @@ const COLORS = ['#22c55e', '#3b82f6', '#a855f7', '#f59e0b', '#ef4444', '#06b6d4'
           <mat-tab>
             <ng-template mat-tab-label>
               <mat-icon class="sm:mr-2" [matTooltip]="I18N.stats.tabs.correlations | translate">insights</mat-icon>
-              <span class="hidden sm:inline">{{ I18N.stats.tabs.correlations | translate }}</span>
+              <span class="sr-only sm:not-sr-only">{{ I18N.stats.tabs.correlations | translate }}</span>
             </ng-template>
             <app-stats-correlations-tab />
           </mat-tab>
@@ -285,6 +323,9 @@ const COLORS = ['#22c55e', '#3b82f6', '#a855f7', '#f59e0b', '#ef4444', '#06b6d4'
 export class StatsComponent {
   protected readonly I18N = i18nKeys();
   private api = inject(ApiService);
+  private readonly auth = inject(AuthService);
+  private readonly document = inject(DOCUMENT);
+  private readonly injector = inject(Injector);
   private i18n = inject(I18nService);
   private destroyRef = inject(DestroyRef);
   private route = inject(ActivatedRoute);
@@ -293,8 +334,6 @@ export class StatsComponent {
   readonly store = inject(GalleryStore);
   readonly themeService = inject(ThemeService);
   private readonly pageHelp = inject(PageHelpService);
-  private readonly headerSlot = inject(HeaderSlotService);
-  private readonly statsToolbar = viewChild<TemplateRef<unknown>>('statsToolbar');
   private charts = new Map<string, Chart>();
   private chartRefs = new Map<string, ElementRef<HTMLCanvasElement>>();
 
@@ -315,6 +354,8 @@ export class StatsComponent {
   }
 
   protected readonly loading = signal(true);
+  protected readonly loadFailed = signal(false);
+  protected readonly retrying = signal(false);
 
   protected readonly cameras = signal<GearItem[]>([]);
   protected readonly lenses = signal<GearItem[]>([]);
@@ -353,12 +394,6 @@ export class StatsComponent {
     }));
     this.pageHelp.setDescription(I18N.stats.help);
 
-    // Register the large-screen header toolbar into the shared header slot
-    effect(() => {
-      const t = this.statsToolbar();
-      if (t) this.headerSlot.set(t);
-    });
-
     // Initialize filters from URL
     const params = this.route.snapshot.queryParams;
     if (params['category']) this.statsFilters.filterCategory.set(params['category']);
@@ -380,7 +415,14 @@ export class StatsComponent {
       this.statsFilters.filterCategory();
       this.statsFilters.dateFrom();
       this.statsFilters.dateTo();
-      untracked(() => this.loadAll());
+      // Status changes when credentials rotate, including for the same user.
+      this.auth.status();
+      this.auth.identity();
+      const authenticated = this.auth.isAuthenticated();
+      untracked(() => {
+        if (authenticated) void this.loadAll();
+        else this.clearStats();
+      });
     });
 
     // Destroy Chart.js instances and clear shared state on component teardown
@@ -389,19 +431,19 @@ export class StatsComponent {
       this.charts.clear();
       this.statsFilters.overview.set(null);
       this.pageHelp.setDescription(null);
-      const t = this.statsToolbar();
-      if (t) this.headerSlot.clear(t);
     });
 
     // Chart effects — canvas refs must be tracked so charts render on tab switch
     effect(() => {
       const bins = this.scoreBins();
       const accent = this.themeService.accentColor();
+      this.themeService.darkMode();
       this.buildVerticalBar('score', this.scoreCanvas(), bins.map(b => b.range), bins.map(b => b.count), accent);
     });
     effect(() => {
       const cats = this.categoryScoreProfile();
       const accent = this.themeService.accentColor();
+      this.themeService.darkMode();
       const labels = cats.map(c => this.translateCategory(c.category));
       this.buildGroupedHorizontalBar('categoryScoreProfile', this.categoryScoreProfileCanvas(), labels, [
         { label: this.i18n.t(I18N.stats.axes.aggregate),    data: cats.map(c => c.avg_score),        color: COLORS[3] },
@@ -418,6 +460,7 @@ export class StatsComponent {
       const cats = this.categoryMetricData();
       const metric = this.categoryMetric() as keyof CategoryStat;
       const color = this.themeService.complementaryColor();
+      this.themeService.darkMode();
       this.buildHorizontalBar('categoryMetric', this.categoryMetricCanvas(),
         cats.map(c => this.translateCategory(c.category)), cats.map(c => c[metric] as number), color);
     });
@@ -433,21 +476,59 @@ export class StatsComponent {
 
   private readonly loadSeq: Record<string, number> = {};
   private nextLoadSeq(key: string): number { return (this.loadSeq[key] = (this.loadSeq[key] ?? 0) + 1); }
-  private isLatestLoadSeq(key: string, seq: number): boolean { return this.loadSeq[key] === seq; }
+  private captureLoad(key: string): () => boolean {
+    const seq = this.nextLoadSeq(key);
+    const owner = this.auth.identity();
+    const token = this.auth.token;
+    return () => !this.destroyRef.destroyed && this.auth.isAuthenticated()
+      && this.auth.identity() === owner && this.auth.token === token && this.loadSeq[key] === seq;
+  }
 
-  async loadAll(): Promise<void> {
-    const seq = this.nextLoadSeq('overview');
+  private clearStats(): void {
+    for (const key of ['overview', 'gear', 'categories', 'scoreDistribution', 'topCameras']) this.nextLoadSeq(key);
+    this.statsFilters.overview.set(null);
+    this.cameras.set([]); this.lenses.set([]); this.combos.set([]);
+    this.categoryStats.set([]); this.scoreBins.set([]); this.topCameras.set([]);
+    this.loading.set(false); this.gearLoading.set(false); this.categoriesLoading.set(false); this.scoreLoading.set(false);
+    this.loadFailed.set(false);
+    this.retrying.set(false);
+  }
+
+  private localErrors(): HttpContext {
+    return new HttpContext().set(HANDLE_SERVER_ERROR_LOCALLY, true);
+  }
+
+  protected retryLoad(): void {
+    if (!this.retrying()) void this.loadAll(true);
+  }
+
+  async loadAll(retry = false): Promise<void> {
+    const retryButton = retry ? this.document.querySelector<HTMLButtonElement>('[data-stats-retry]') : null;
+    this.clearStats();
+    if (!this.auth.isAuthenticated() || this.destroyRef.destroyed) return;
+    const current = this.captureLoad('overview');
+    this.retrying.set(retry);
+    // Invalidate outstanding chart reads as soon as filters change, not after
+    // the new overview has returned. An older response must not reappear.
     this.loading.set(true);
+    let overviewLoaded = false;
     try {
-      const overview = await firstValueFrom(this.api.get<StatsOverviewData>('/stats/overview', this.filterParams));
-      if (this.isLatestLoadSeq('overview', seq)) this.statsFilters.overview.set(overview);
-    } catch { /* empty */ }
-    finally { if (this.isLatestLoadSeq('overview', seq)) this.loading.set(false); }
+      const overview = await firstValueFrom(this.api.get<StatsOverviewData>('/stats/overview', this.filterParams, this.localErrors()));
+      if (current()) { this.statsFilters.overview.set(overview); overviewLoaded = true; }
+    } catch { if (current()) this.loadFailed.set(true); }
+    finally { if (current()) this.loading.set(false); }
 
-    this.loadGear();
-    this.loadCategories();
-    this.loadScoreDistribution();
-    this.loadTopCameras();
+    if (!current()) return;
+    if (overviewLoaded) {
+      await Promise.all([this.loadGear(), this.loadCategories(), this.loadScoreDistribution(), this.loadTopCameras()]);
+    }
+    if (!current()) return;
+    const restoreFocus = retry && !this.loadFailed() && this.document.activeElement === retryButton;
+    this.retrying.set(false);
+    if (restoreFocus) afterNextRender(() => {
+      if (current() && (this.document.activeElement === retryButton || this.document.activeElement === this.document.body))
+        this.document.getElementById('stats-heading')?.focus();
+    }, { injector: this.injector });
   }
 
   private mapGearItem(r: Record<string, unknown>): GearItem {
@@ -470,45 +551,45 @@ export class StatsComponent {
   }
 
   async loadGear(): Promise<void> {
-    const seq = this.nextLoadSeq('gear');
+    const current = this.captureLoad('gear');
     this.gearLoading.set(true);
     try {
-      const data = await firstValueFrom(this.api.get<GearApiResponse>('/stats/gear', this.filterParams));
-      if (this.isLatestLoadSeq('gear', seq)) {
+      const data = await firstValueFrom(this.api.get<GearApiResponse>('/stats/gear', this.filterParams, this.localErrors()));
+      if (current()) {
         this.cameras.set((data.cameras ?? []).map(c => this.mapGearItem(c as unknown as Record<string, unknown>)));
         this.lenses.set((data.lenses ?? []).map(l => this.mapGearItem(l as unknown as Record<string, unknown>)));
         this.combos.set((data.combos ?? []).map(c => this.mapGearItem(c as unknown as Record<string, unknown>)));
       }
-    } catch { /* empty */ }
-    finally { if (this.isLatestLoadSeq('gear', seq)) this.gearLoading.set(false); }
+    } catch { if (current()) this.loadFailed.set(true); }
+    finally { if (current()) this.gearLoading.set(false); }
   }
 
   async loadCategories(): Promise<void> {
-    const seq = this.nextLoadSeq('categories');
+    const current = this.captureLoad('categories');
     this.categoriesLoading.set(true);
     try {
-      const data = await firstValueFrom(this.api.get<CategoryStat[]>('/stats/categories', this.filterParams));
-      if (this.isLatestLoadSeq('categories', seq)) this.categoryStats.set(data);
-    } catch { /* empty */ }
-    finally { if (this.isLatestLoadSeq('categories', seq)) this.categoriesLoading.set(false); }
+      const data = await firstValueFrom(this.api.get<CategoryStat[]>('/stats/categories', this.filterParams, this.localErrors()));
+      if (current()) this.categoryStats.set(data);
+    } catch { if (current()) this.loadFailed.set(true); }
+    finally { if (current()) this.categoriesLoading.set(false); }
   }
 
   async loadScoreDistribution(): Promise<void> {
-    const seq = this.nextLoadSeq('scoreDistribution');
+    const current = this.captureLoad('scoreDistribution');
     this.scoreLoading.set(true);
     try {
-      const data = await firstValueFrom(this.api.get<ScoreBin[]>('/stats/score_distribution', this.filterParams));
-      if (this.isLatestLoadSeq('scoreDistribution', seq)) this.scoreBins.set(data);
-    } catch { /* empty */ }
-    finally { if (this.isLatestLoadSeq('scoreDistribution', seq)) this.scoreLoading.set(false); }
+      const data = await firstValueFrom(this.api.get<ScoreBin[]>('/stats/score_distribution', this.filterParams, this.localErrors()));
+      if (current()) this.scoreBins.set(data);
+    } catch { if (current()) this.loadFailed.set(true); }
+    finally { if (current()) this.scoreLoading.set(false); }
   }
 
   async loadTopCameras(): Promise<void> {
-    const seq = this.nextLoadSeq('topCameras');
+    const current = this.captureLoad('topCameras');
     try {
-      const data = await firstValueFrom(this.api.get<TopCamera[]>('/stats/top_cameras', this.filterParams));
-      if (this.isLatestLoadSeq('topCameras', seq)) this.topCameras.set(data);
-    } catch { /* empty */ }
+      const data = await firstValueFrom(this.api.get<TopCamera[]>('/stats/top_cameras', this.filterParams, this.localErrors()));
+      if (current()) this.topCameras.set(data);
+    } catch { if (current()) this.loadFailed.set(true); }
   }
 
   /** Export the per-category statistics table as CSV. */
@@ -527,6 +608,17 @@ export class StatsComponent {
     return translated === key ? name : translated;
   }
 
+  private updateChartTheme(chart: Chart): void {
+    const { text, grid } = chartTheme();
+    for (const scale of Object.values(chart.options.scales ?? {})) {
+      if (!scale) continue;
+      if (scale.ticks) scale.ticks.color = text;
+      if (scale.grid && scale.grid.display !== false) scale.grid.color = grid;
+    }
+    const labels = chart.options.plugins?.legend?.labels;
+    if (labels) labels.color = text;
+  }
+
   private buildHorizontalBar(id: string, ref: ElementRef<HTMLCanvasElement> | undefined, labels: string[], data: number[], color: string): void {
     if (!ref || data.length === 0) { this.destroyChart(id); return; }
     // Skip rebuild if same canvas ref and chart already exists — just update data
@@ -536,6 +628,7 @@ export class StatsComponent {
       existing.data.datasets[0].data = data;
       existing.data.datasets[0].backgroundColor = color + 'cc';
       existing.data.datasets[0].borderColor = color;
+      this.updateChartTheme(existing);
       existing.update('none');
       return;
     }
@@ -543,6 +636,7 @@ export class StatsComponent {
     this.chartRefs.set(id, ref);
     const ctx = ref.nativeElement.getContext('2d');
     if (!ctx) return;
+    const { text, grid } = chartTheme();
     this.charts.set(id, new Chart(ctx, {
       type: 'bar',
       data: {
@@ -558,8 +652,8 @@ export class StatsComponent {
           tooltip: { callbacks: { label: (ctx) => (ctx.parsed.x ?? 0).toLocaleString() } },
         },
         scales: {
-          x: { grid: { color: '#262626' }, ticks: { color: '#a3a3a3' } },
-          y: { grid: { display: false }, ticks: { color: '#d4d4d4', font: { size: 11 } } },
+          x: { grid: { color: grid }, ticks: { color: text } },
+          y: { grid: { display: false }, ticks: { color: text, font: { size: 11 } } },
         },
       },
     }));
@@ -582,6 +676,7 @@ export class StatsComponent {
           (existing.data.datasets[i] as any).borderColor = d.color;
         }
       });
+      this.updateChartTheme(existing);
       existing.update('none');
       return;
     }
@@ -589,6 +684,7 @@ export class StatsComponent {
     this.chartRefs.set(id, ref);
     const ctx = ref.nativeElement.getContext('2d');
     if (!ctx) return;
+    const { text, grid } = chartTheme();
     this.charts.set(id, new Chart(ctx, {
       type: 'bar',
       data: {
@@ -603,12 +699,12 @@ export class StatsComponent {
         responsive: true,
         maintainAspectRatio: false,
         plugins: {
-          legend: { display: true, position: 'top', labels: { color: '#a3a3a3', boxWidth: 12 } },
+          legend: { display: true, position: 'top', labels: { color: text, boxWidth: 12 } },
           tooltip: { callbacks: { label: (ctx) => `${ctx.dataset.label}: ${(ctx.parsed.x ?? 0).toFixed(2)}` } },
         },
         scales: {
-          x: { grid: { color: '#262626' }, ticks: { color: '#a3a3a3' }, min: 0, max: 10 },
-          y: { grid: { display: false }, ticks: { color: '#d4d4d4', font: { size: 11 } } },
+          x: { grid: { color: grid }, ticks: { color: text }, min: 0, max: 10 },
+          y: { grid: { display: false }, ticks: { color: text, font: { size: 11 } } },
         },
       },
     }));
@@ -622,6 +718,7 @@ export class StatsComponent {
       existing.data.datasets[0].data = data;
       existing.data.datasets[0].backgroundColor = color + 'cc';
       existing.data.datasets[0].borderColor = color;
+      this.updateChartTheme(existing);
       existing.update('none');
       return;
     }
@@ -629,6 +726,7 @@ export class StatsComponent {
     this.chartRefs.set(id, ref);
     const ctx = ref.nativeElement.getContext('2d');
     if (!ctx) return;
+    const { text, grid } = chartTheme();
     this.charts.set(id, new Chart(ctx, {
       type: 'bar',
       data: {
@@ -643,8 +741,8 @@ export class StatsComponent {
           tooltip: { callbacks: { label: (ctx) => (ctx.parsed.y ?? 0).toLocaleString() } },
         },
         scales: {
-          x: { grid: { display: false }, ticks: { color: '#a3a3a3', maxRotation: 45 } },
-          y: { grid: { color: '#262626' }, ticks: { color: '#a3a3a3' } },
+          x: { grid: { display: false }, ticks: { color: text, maxRotation: 45 } },
+          y: { grid: { color: grid }, ticks: { color: text } },
         },
       },
     }));

@@ -13,6 +13,7 @@ import { ThemeService } from '../../core/services/theme.service';
 import { TranslatePipe } from '../../shared/pipes/translate.pipe';
 import { ChartHeightPipe } from './chart-height.pipe';
 import { downloadCsv } from '../../shared/utils/csv';
+import { chartTheme } from './chart-theme';
 
 export const GEAR_LEGEND_MAX_CHARS = 24;
 
@@ -97,10 +98,20 @@ const GEAR_METRIC_OPTIONS = [
       <mat-card-content class="!pt-4">
         @if (loading()) {
           <div class="flex justify-center py-4"><mat-spinner diameter="32" [attr.aria-label]="'ui.labels.loading' | translate" /></div>
+        } @else if (items().length === 0) {
+          <p class="py-6 text-center text-[var(--mat-sys-on-surface-variant)]">{{ 'stats.no_data' | translate }}</p>
         } @else {
           <div [style.height.px]="sortedItems() | chartHeight">
-            <canvas #chartCanvas></canvas>
+            <canvas #chartCanvas aria-hidden="true"></canvas>
           </div>
+            <details class="mt-3 text-sm text-[var(--mat-sys-on-surface-variant)]">
+              <summary class="cursor-pointer">{{ 'stats.show_chart_data' | translate }}</summary>
+              <div class="mt-2 max-h-72 overflow-auto"><table class="w-full text-left"><tbody>
+                @for (row of accessibleRows(); track $index) {
+                  <tr class="border-b border-[var(--mat-sys-outline-variant)]"><th scope="row" class="py-1 pr-3 font-normal">{{ row.name }}</th><td class="py-1 text-right tabular-nums">{{ row.value }}</td></tr>
+                }
+              </tbody></table></div>
+            </details>
         }
       </mat-card-content>
     </mat-card>
@@ -129,6 +140,9 @@ export class GearChartCardComponent {
 
   /** Items sorted by selected metric */
   protected readonly sortedItems = computed(() => this.sortByMetric(this.items(), this.selectedMetric()));
+  protected readonly accessibleRows = computed(() => this.selectedMetric() === 'usage_timeline'
+    ? this.sortedItems().slice(0, 8).flatMap(item => item.history.map(point => ({ name: `${item.name} · ${point.date}`, value: point.count })))
+    : this.sortedItems().map(item => ({ name: item.name, value: this.metricValue(item, this.selectedMetric()) })));
 
   constructor() {
     // Persistence: Load selected metric from localStorage
@@ -139,7 +153,7 @@ export class GearChartCardComponent {
         this.selectedMetric.set(saved);
       } else {
         // Apply default based on type if no saved value
-        if (key === 'stats.cameras') this.selectedMetric.set('usage_timeline');
+        if (key === 'stats.cameras') this.selectedMetric.set('count');
         else if (key === 'stats.lenses') this.selectedMetric.set('avg_score');
         else if (key === 'stats.charts.camera_lens_combos') this.selectedMetric.set('count');
       }
@@ -158,12 +172,15 @@ export class GearChartCardComponent {
       const metric = this.selectedMetric();
       const canvas = this.chartCanvas();
       const color = this.color() || this.themeService.accentColor();
+      this.themeService.darkMode();
+      this.themeService.theme();
 
       if (!canvas) return;
 
       this.destroyChart();
       const ctx = canvas.nativeElement.getContext('2d');
       if (!ctx) return;
+      const palette = chartTheme();
 
       if (metric === 'usage_timeline') {
         const topItems = items.slice(0, 8); // Limit to top 8 to avoid clutter
@@ -178,7 +195,7 @@ export class GearChartCardComponent {
               borderColor: colors[i % colors.length],
               backgroundColor: colors[i % colors.length] + '80',
               borderWidth: 2,
-              tension: 0.3,
+              tension: 0,
               pointRadius: 2,
             })),
           },
@@ -186,7 +203,7 @@ export class GearChartCardComponent {
             responsive: true,
             maintainAspectRatio: false,
             plugins: {
-              legend: { display: true, position: 'bottom', labels: { color: '#d4d4d4', usePointStyle: true, boxWidth: 8, generateLabels: truncatedLegendLabels } },
+              legend: { display: true, position: 'bottom', labels: { color: palette.text, usePointStyle: true, boxWidth: 8, generateLabels: truncatedLegendLabels } },
               tooltip: {
                 mode: 'index',
                 intersect: false,
@@ -206,8 +223,8 @@ export class GearChartCardComponent {
               },
             },
             scales: {
-              x: { type: 'time', time: { unit: 'month' }, grid: { color: '#262626' }, ticks: { color: '#a3a3a3' } },
-              y: { beginAtZero: true, grid: { color: '#262626' }, ticks: { color: '#d4d4d4' } },
+              x: { type: 'time', time: { unit: 'month' }, grid: { color: palette.grid }, ticks: { color: palette.text } },
+              y: { beginAtZero: true, grid: { color: palette.grid }, ticks: { color: palette.text } },
             },
           }
         });
@@ -237,8 +254,8 @@ export class GearChartCardComponent {
               tooltip: { callbacks: { label: (ctx) => (ctx.parsed.x ?? 0).toLocaleString() } },
             },
             scales: {
-              x: { grid: { color: '#262626' }, ticks: { color: '#a3a3a3' } },
-              y: { grid: { display: false }, ticks: { color: '#d4d4d4', font: { size: 11 } } },
+              x: { grid: { color: palette.grid }, ticks: { color: palette.text } },
+              y: { grid: { display: false }, ticks: { color: palette.text, font: { size: 11 }, callback: function(value) { return truncateLegendLabel(this.getLabelForValue(Number(value)), 24); } } },
             },
           },
         });

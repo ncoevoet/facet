@@ -628,6 +628,7 @@
     "person_fallback": "人物 {id}"
   },
   "stats": {
+    "show_chart_data": "显示图表数据",
     "help": "了解照片库：评分分布、相机和镜头使用情况、各评分指标的相关性，以及随时间变化的趋势。",
     "title": "EXIF 统计",
     "tabs": {

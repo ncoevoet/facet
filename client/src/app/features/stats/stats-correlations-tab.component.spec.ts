@@ -1,7 +1,8 @@
 import { TestBed } from '@angular/core/testing';
 import { signal } from '@angular/core';
-import { of } from 'rxjs';
+import { of, Subject, throwError } from 'rxjs';
 import { ApiService } from '../../core/services/api.service';
+import { AuthService } from '../../core/services/auth.service';
 import { I18nService } from '../../core/services/i18n.service';
 import { StatsFiltersService } from './stats-filters.service';
 import { StatsCorrelationsTabComponent } from './stats-correlations-tab.component';
@@ -9,12 +10,15 @@ import { buildCorrelationCsvRecords } from './stats-correlations-csv';
 
 describe('StatsCorrelationsTabComponent', () => {
   let component: StatsCorrelationsTabComponent;
+  let owner: ReturnType<typeof signal<string>>;
 
   beforeEach(() => {
+    owner = signal('owner-a');
     TestBed.configureTestingModule({
       providers: [
         StatsCorrelationsTabComponent,
         { provide: ApiService, useValue: { get: vi.fn(() => of({})) } },
+        { provide: AuthService, useValue: { status: signal({ authenticated: true }), identity: owner, isAuthenticated: signal(true), token: 'token-a' } },
         { provide: I18nService, useValue: { t: vi.fn((k: string) => k), currentLang: vi.fn(() => 'en') } },
         { provide: StatsFiltersService, useValue: { filterCategory: signal(''), dateFrom: signal(''), dateTo: signal('') } },
       ],
@@ -24,6 +28,86 @@ describe('StatsCorrelationsTabComponent', () => {
 
   it('should create', () => {
     expect(component).toBeTruthy();
+  });
+
+  it('does not show or export data for settings changed while a request is pending', async () => {
+    TestBed.tick();
+    const pending = new Subject<any>();
+    vi.mocked(TestBed.inject(ApiService).get).mockReturnValueOnce(pending);
+    const request = component.loadCorrelation();
+    component.corrYMetrics.set(['aesthetic']);
+    pending.next({ labels: ['2025'], metrics: { aggregate: [7] }, x_axis: 'date_year', group_by: '' });
+    pending.complete();
+    await request;
+    expect(component.currentData()).toBeNull();
+    expect(component.corrBucketCount()).toBe(0);
+  });
+
+  it('distinguishes a failed request from an empty result', async () => {
+    TestBed.tick();
+    vi.mocked(TestBed.inject(ApiService).get).mockReturnValueOnce(throwError(() => new Error('offline')));
+    await component.loadCorrelation();
+    expect(component.correlationFailed()).toBe(true);
+    expect(component.currentData()).toBeNull();
+  });
+
+  it('clears loaded data immediately when the owner changes', async () => {
+    TestBed.tick();
+    vi.mocked(TestBed.inject(ApiService).get).mockReturnValueOnce(of({ labels: ['2025'], metrics: { aggregate: [7] } }));
+    await component.loadCorrelation();
+    expect(component.currentData()?.labels).toEqual(['2025']);
+    owner.set('owner-b');
+    expect(component.currentData()).toBeNull();
+    expect(component.corrBucketCount()).toBe(0);
+  });
+
+  it('ignores a late response after the owner changes', async () => {
+    TestBed.tick();
+    const pending = new Subject<any>();
+    vi.mocked(TestBed.inject(ApiService).get).mockReturnValueOnce(pending);
+    const request = component.loadCorrelation();
+    owner.set('owner-b');
+    pending.next({ labels: ['2025'], metrics: { aggregate: [7] } });
+    pending.complete();
+    await request;
+    expect(component.currentData()).toBeNull();
+  });
+
+  it('ignores a response after the component is destroyed', async () => {
+    TestBed.tick();
+    const pending = new Subject<any>();
+    vi.mocked(TestBed.inject(ApiService).get).mockReturnValueOnce(pending);
+    const request = component.loadCorrelation();
+    TestBed.resetTestingModule();
+    pending.next({ labels: ['2025'], metrics: { aggregate: [7] } });
+    pending.complete();
+    await request;
+    expect(component.currentData()).toBeNull();
+  });
+
+  it('ignores a late response after the credential changes', async () => {
+    TestBed.tick();
+    const pending = new Subject<any>();
+    vi.mocked(TestBed.inject(ApiService).get).mockReturnValueOnce(pending);
+    const request = component.loadCorrelation();
+    Object.defineProperty(TestBed.inject(AuthService), 'token', { value: 'token-b', configurable: true });
+    pending.next({ labels: ['2025'], metrics: { aggregate: [7] } });
+    pending.complete();
+    await request;
+    expect(component.currentData()).toBeNull();
+  });
+
+  it('invalidates a loaded chart on a same-owner credential rotation', async () => {
+    TestBed.tick();
+    vi.mocked(TestBed.inject(ApiService).get).mockReturnValueOnce(of({ labels: ['2025'], metrics: { aggregate: [7] } }));
+    await component.loadCorrelation();
+    expect(component.currentData()?.labels).toEqual(['2025']);
+    const auth = TestBed.inject(AuthService);
+    Object.defineProperty(auth, 'token', { value: 'token-b', configurable: true });
+    (auth.status as ReturnType<typeof signal<any>>).set({ authenticated: true });
+    expect(component.currentData()).toBeNull();
+    TestBed.tick();
+    expect(component.corrData()).toBeNull();
   });
 });
 
