@@ -25,7 +25,9 @@ FACET_E2E_PYTHON=../venv/bin/python npm run e2e
    a database made by `db.schema.init_database`, and a library of synthetic solid-colour photos
    whose rows are written directly. There are no models and no scan, so the seed takes about a
    second. It then starts the viewer on that library.
-2. Each flow in `flows/` owns one folder of the library, so the flows do not depend on one another.
+2. Each flow in `flows/` owns one folder of the library. A flow that changes its folder first restores
+   it (`seed_library.py reset <folder>`), so the flows run in any order and survive `--repeat-each`.
+   A photo a flow deletes goes to `e2e/.work/xdg-data/Trash`, never to your own Trash.
 3. `fixtures.ts` fails a flow on any page error, `console.error` or 5xx response, even when the
    assertions pass. It also names the URL behind a "Failed to load resource" message.
 
@@ -33,7 +35,8 @@ FACET_E2E_PYTHON=../venv/bin/python npm run e2e
 
 - `npx playwright show-trace test-results/<flow>/trace.zip` shows the page before and after
   every step, with the network calls and the console.
-- `playwright-report/index.html` holds the run, with the screenshot and video of each failure.
+- `playwright-report/index.html` holds the run, with the screenshot of each failure (video is off: it would
+  need Playwright's ffmpeg download).
 
 ## Writing a flow
 

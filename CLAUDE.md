@@ -75,7 +75,8 @@ python database.py
 venv/bin/python -m pytest tests/ -q
 venv/bin/python -m ruff check .
 cd client && npm run test          # Vitest builder, not `ng test`
-cd client && npm run e2e           # browser flows (Playwright, installed Chrome) on a seeded
+cd client && FACET_E2E_PYTHON=../venv/bin/python npm run e2e
+                                  # browser flows (Playwright, installed Chrome) on a seeded
                                   # library; needs `ng build` first, see client/e2e/README.md
 cd client && npx tsc --noEmit -p tsconfig.app.json && npx tsc --noEmit -p tsconfig.spec.json
 cd client && npx ng lint          # NOT covered by tsc: a `type` alias where the
