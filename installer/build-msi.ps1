@@ -25,6 +25,17 @@ if ($dirty) { Write-Warning "Uncommitted changes are NOT in the MSI (it packages
 $version = (Select-String -Path (Join-Path $repo 'pyproject.toml') -Pattern '^version = "([^"]+)"').Matches[0].Groups[1].Value
 $commit  = git -C $repo rev-parse --short HEAD
 $branch  = git -C $repo rev-parse --abbrev-ref HEAD
+$labelCommit = $commit
+if ($branch -eq 'HEAD') {
+    # A detached checkout has no branch. CI's pull-request build packages a throwaway merge commit:
+    # name it after the PR's branch and head commit. A tag checkout is named after its tag.
+    if ($env:GITHUB_HEAD_REF) {
+        $branch = $env:GITHUB_HEAD_REF
+        if ($env:PR_HEAD_SHA) { $labelCommit = $env:PR_HEAD_SHA.Substring(0, 7) }
+    }
+    else { $branch = @(git -C $repo tag --points-at HEAD)[0] }
+    if (-not $branch) { $branch = 'detached' }
+}
 
 foreach ($d in $out, $work) { if (Test-Path $d) { Remove-Item -Recurse -Force $d } }
 New-Item -ItemType Directory -Force $out, $stage, $obj | Out-Null
@@ -45,7 +56,7 @@ New-Item -ItemType Directory -Force (Join-Path $stage 'installer\bin') | Out-Nul
 Copy-Item $Uv (Join-Path $stage 'installer\bin\uv.exe')
 # The user menu shows this beside the version (FACET_BUILD, set by Start-Facet.ps1), as the Docker
 # image's --build-arg FACET_BUILD does, so two builds of one release can be told apart.
-Set-Content (Join-Path $stage 'installer\build-label.txt') "$branch@$commit" -Encoding ascii
+Set-Content (Join-Path $stage 'installer\build-label.txt') "$branch@$labelCommit" -Encoding ascii
 Set-Content (Join-Path $stage 'BUILD.txt') "Facet $version, commit $commit, built $(Get-Date -Format s)" -Encoding ascii
 
 # Harvest, compile, link. A per-user install with file key paths trips ICE38/ICE64/ICE91 by

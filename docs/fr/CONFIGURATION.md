@@ -966,7 +966,7 @@ Regroupe les photos similaires prises en succession rapide.
 Avertit les utilisateurs en mode édition qu'une version plus récente de Facet existe. C'est distinct de l'invite du navigateur « une nouvelle version est disponible — Recharger ».
 
 - La version en cours s'affiche en bas du menu utilisateur pour tous ceux qui peuvent ouvrir la visionneuse.
-- Une image construite avec `--build-arg FACET_BUILD=<branch>@<commit>` affiche aussi cette ligne de build. `/api/config` renvoie les deux sous `version` et `build`, uniquement aux appelants qui peuvent lire la bibliothèque.
+- Une image construite avec `--build-arg FACET_BUILD=<branch>@<commit>` affiche aussi cette ligne de build, tout comme une installation Windows par MSI, avec le `<branch>@<commit>` à partir duquel il a été construit. `/api/config` renvoie les deux sous `version` et `build`, uniquement aux appelants qui peuvent lire la bibliothèque.
 - Le serveur interroge GitHub au plus une fois par `interval_days`, sans jeton ni donnée de la bibliothèque. Un échec de vérification s'affiche comme « aucune mise à jour connue ».
 - Seuls les utilisateurs en mode édition voient l'avis, au plus une fois par semaine et par navigateur.
 

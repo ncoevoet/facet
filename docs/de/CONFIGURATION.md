@@ -969,7 +969,7 @@ Gruppiert ähnliche Fotos, die in schneller Folge aufgenommen wurden.
 Teilt Edition-Nutzern mit, wann ein neueres Facet veröffentlicht wurde. Das ist getrennt von der Browser-Meldung „Eine neue Version ist verfügbar – Neu laden“.
 
 - Die laufende Version steht unten im Benutzermenü, für alle, die den Viewer öffnen können.
-- Ein mit `--build-arg FACET_BUILD=<Branch>@<Commit>` gebautes Image zeigt zusätzlich diese Build-Zeile. `/api/config` liefert beides als `version` und `build`, nur an Aufrufer, die die Bibliothek lesen dürfen.
+- Ein mit `--build-arg FACET_BUILD=<Branch>@<Commit>` gebautes Image zeigt zusätzlich diese Build-Zeile, ebenso eine Windows-Installation per MSI, mit dem `<Branch>@<Commit>`, aus dem sie gebaut wurde. `/api/config` liefert beides als `version` und `build`, nur an Aufrufer, die die Bibliothek lesen dürfen.
 - Der Server fragt GitHub höchstens einmal pro `interval_days`, ohne Token und ohne Bibliotheksdaten. Eine fehlgeschlagene Prüfung erscheint als „kein Update bekannt“.
 - Nur Edition-Nutzer sehen den Hinweis, höchstens einmal pro Woche und Browser.
 
