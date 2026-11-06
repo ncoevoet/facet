@@ -232,6 +232,25 @@ describe('JunkSweepComponent', () => {
     expect(partialValue).toEqual({ action: 'reject', count: 1000, partial: true });
   });
 
+  it('after a partial reject-all failure, drops the kind badges by exactly the chunks that landed, without re-reading them', async () => {
+    const many = Array.from({ length: 1500 }, (_, i) => ({
+      path: `/p/j${i}.jpg`, filename: `j${i}.jpg`, junk_kind: i < 1000 ? 'meme' : 'screenshot', aggregate: 1.0,
+    }));
+    createComponent(
+      { photos: many, total: 1500, total_pages: 32, page: 1, has_more: true },
+      of({ junk_kinds: [['meme', 1000], ['screenshot', 500]] }),
+    );
+    await component.ngOnInit();
+    const kindsReads = () => mockApi.get.mock.calls.filter(([url]) => (url as string).includes('junk_kinds')).length;
+    const before = kindsReads();
+    mockApi.post.mockReturnValueOnce(of({})).mockReturnValueOnce(throwError(() => new Error('boom')));
+
+    await component.rejectAllShown();
+
+    expect(component.kinds()).toEqual([['meme', 0], ['screenshot', 500]]);
+    expect(kindsReads()).toBe(before);
+  });
+
   it('feeds the count of *shown* candidates (not the API total) into the reject-all tooltip', async () => {
     // Only 2 of 10 candidates are loaded on the first page; the reject-all button
     // binds junk.reject_all with { count: photos().length }, so the tooltip must

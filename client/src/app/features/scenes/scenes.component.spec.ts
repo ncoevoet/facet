@@ -1,7 +1,7 @@
 import type { Mock } from 'vitest';
 import { TestBed } from '@angular/core/testing';
 import { ActivatedRoute, Router } from '@angular/router';
-import { of } from 'rxjs';
+import { of, throwError } from 'rxjs';
 import { MatSnackBar } from '@angular/material/snack-bar';
 import { ApiService } from '../../core/services/api.service';
 import { AlbumService } from '../../core/services/album.service';
@@ -50,5 +50,37 @@ describe('ScenesComponent page context', () => {
     expect(pageContext.snapshot()).not.toBeNull();
     TestBed.resetTestingModule();
     expect(pageContext.snapshot()).toBeNull();
+  });
+});
+
+describe('ScenesComponent load more', () => {
+  it('re-requests the same page after a failed load-more, not the next one', async () => {
+    const page1 = { scenes: [], total: 60, page: 1, per_page: 20, total_pages: 3 };
+    const api = { get: vi.fn(() => of(page1)) };
+    TestBed.configureTestingModule({
+      providers: [
+        ScenesComponent,
+        { provide: ApiService, useValue: api },
+        { provide: MatSnackBar, useValue: { open: vi.fn() } },
+        { provide: I18nService, useValue: { t: vi.fn((key: string) => key) } },
+        { provide: ActivatedRoute, useValue: { snapshot: { queryParamMap: { get: () => null } } } },
+        { provide: Router, useValue: { navigate: vi.fn() } },
+        { provide: AlbumService, useValue: { listNonSmart: () => of([]) } },
+        { provide: AuthService, useValue: { isEdition: vi.fn(() => false) } },
+        { provide: GalleryStore, useValue: { config: () => null } },
+      ],
+    });
+    const component = TestBed.inject(ScenesComponent) as any;
+    const lastPage = () => (api.get.mock.calls.at(-1) as unknown as [string, { page: number }])[1].page;
+
+    await component.ngOnInit();
+    expect(lastPage()).toBe(1);
+
+    api.get.mockReturnValueOnce(throwError(() => new Error('boom')));
+    await component.loadMore();
+    expect(lastPage()).toBe(2);
+
+    await component.loadMore();
+    expect(lastPage()).toBe(2);
   });
 });

@@ -120,6 +120,12 @@ const COLORS = ['#22c55e', '#3b82f6', '#a855f7', '#f59e0b', '#ef4444', '#06b6d4'
         <mat-spinner diameter="48" [attr.aria-label]="I18N.ui.labels.loading | translate" />
       </div>
     } @else {
+      @if (loadErrors()['overview'] || loadErrors()['gear'] || loadErrors()['categories'] || loadErrors()['scoreDistribution'] || loadErrors()['topCameras']) {
+        <div role="alert" class="flex items-center justify-center gap-3 py-4 text-sm">
+          <span>{{ I18N.errors.server_error | translate }}</span>
+          <button mat-stroked-button (click)="loadAll()">{{ I18N.gallery.load_error.retry | translate }}</button>
+        </div>
+      }
       <mat-tab-group class="stats-tabs" mat-stretch-tabs="false" mat-align-tabs="start" [selectedIndex]="selectedTab()" (selectedIndexChange)="selectedTab.set($event)">
           <!-- Gear tab -->
           <mat-tab>
@@ -432,16 +438,27 @@ export class StatsComponent {
   }
 
   private readonly loadSeq: Record<string, number> = {};
+  /** Per-section load failure: the previous data stays on screen, but the
+   *  banner says it no longer matches the selected filter. */
+  protected readonly loadErrors = signal<Record<string, boolean>>({});
+
+  private setLoadError(key: string, failed: boolean): void {
+    this.loadErrors.update(errors => ({ ...errors, [key]: failed }));
+  }
+
   private nextLoadSeq(key: string): number { return (this.loadSeq[key] = (this.loadSeq[key] ?? 0) + 1); }
   private isLatestLoadSeq(key: string, seq: number): boolean { return this.loadSeq[key] === seq; }
 
   async loadAll(): Promise<void> {
     const seq = this.nextLoadSeq('overview');
+    this.setLoadError('overview', false);
     this.loading.set(true);
     try {
       const overview = await firstValueFrom(this.api.get<StatsOverviewData>('/stats/overview', this.filterParams));
       if (this.isLatestLoadSeq('overview', seq)) this.statsFilters.overview.set(overview);
-    } catch { /* empty */ }
+    } catch {
+      if (this.isLatestLoadSeq('overview', seq)) this.setLoadError('overview', true);
+    }
     finally { if (this.isLatestLoadSeq('overview', seq)) this.loading.set(false); }
 
     this.loadGear();
@@ -471,6 +488,7 @@ export class StatsComponent {
 
   async loadGear(): Promise<void> {
     const seq = this.nextLoadSeq('gear');
+    this.setLoadError('gear', false);
     this.gearLoading.set(true);
     try {
       const data = await firstValueFrom(this.api.get<GearApiResponse>('/stats/gear', this.filterParams));
@@ -479,36 +497,47 @@ export class StatsComponent {
         this.lenses.set((data.lenses ?? []).map(l => this.mapGearItem(l as unknown as Record<string, unknown>)));
         this.combos.set((data.combos ?? []).map(c => this.mapGearItem(c as unknown as Record<string, unknown>)));
       }
-    } catch { /* empty */ }
+    } catch {
+      if (this.isLatestLoadSeq('gear', seq)) this.setLoadError('gear', true);
+    }
     finally { if (this.isLatestLoadSeq('gear', seq)) this.gearLoading.set(false); }
   }
 
   async loadCategories(): Promise<void> {
     const seq = this.nextLoadSeq('categories');
+    this.setLoadError('categories', false);
     this.categoriesLoading.set(true);
     try {
       const data = await firstValueFrom(this.api.get<CategoryStat[]>('/stats/categories', this.filterParams));
       if (this.isLatestLoadSeq('categories', seq)) this.categoryStats.set(data);
-    } catch { /* empty */ }
+    } catch {
+      if (this.isLatestLoadSeq('categories', seq)) this.setLoadError('categories', true);
+    }
     finally { if (this.isLatestLoadSeq('categories', seq)) this.categoriesLoading.set(false); }
   }
 
   async loadScoreDistribution(): Promise<void> {
     const seq = this.nextLoadSeq('scoreDistribution');
+    this.setLoadError('scoreDistribution', false);
     this.scoreLoading.set(true);
     try {
       const data = await firstValueFrom(this.api.get<ScoreBin[]>('/stats/score_distribution', this.filterParams));
       if (this.isLatestLoadSeq('scoreDistribution', seq)) this.scoreBins.set(data);
-    } catch { /* empty */ }
+    } catch {
+      if (this.isLatestLoadSeq('scoreDistribution', seq)) this.setLoadError('scoreDistribution', true);
+    }
     finally { if (this.isLatestLoadSeq('scoreDistribution', seq)) this.scoreLoading.set(false); }
   }
 
   async loadTopCameras(): Promise<void> {
     const seq = this.nextLoadSeq('topCameras');
+    this.setLoadError('topCameras', false);
     try {
       const data = await firstValueFrom(this.api.get<TopCamera[]>('/stats/top_cameras', this.filterParams));
       if (this.isLatestLoadSeq('topCameras', seq)) this.topCameras.set(data);
-    } catch { /* empty */ }
+    } catch {
+      if (this.isLatestLoadSeq('topCameras', seq)) this.setLoadError('topCameras', true);
+    }
   }
 
   /** Export the per-category statistics table as CSV. */

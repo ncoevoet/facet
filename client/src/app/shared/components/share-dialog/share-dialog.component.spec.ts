@@ -1,7 +1,7 @@
 import type { Mock } from 'vitest';
 import { TestBed } from '@angular/core/testing';
 import { MatDialogRef, MAT_DIALOG_DATA } from '@angular/material/dialog';
-import { of } from 'rxjs';
+import { of, throwError } from 'rxjs';
 import { ApiService } from '../../../core/services/api.service';
 import { ShareDialogComponent, ShareDialogData } from './share-dialog.component';
 
@@ -95,6 +95,29 @@ describe('ShareDialogComponent', () => {
       expect(mockApi.delete).toHaveBeenCalledWith('/api/albums/3/share');
       expect(component.shareUrl()).toBe('');
       expect(mockDialogRef.close).toHaveBeenCalledWith('revoked');
+    });
+
+    it('should set the error when generateLink fails', async () => {
+      mockApi.post.mockReturnValue(throwError(() => new Error('boom')));
+      createComponent({ ...albumData, autoGenerate: false });
+
+      await component.generateLink();
+
+      expect(component.error()).toBe('errors.action_failed');
+      expect(component.shareUrl()).toBe('');
+      expect(component.loading()).toBe(false);
+    });
+
+    it('should keep the dialog open and show the error when revoke fails', async () => {
+      mockApi.delete.mockReturnValue(throwError(() => new Error('boom')));
+      createComponent(albumData);
+      component.shareUrl.set('/shared/album/1?token=abc');
+
+      await component.revoke();
+
+      expect(component.error()).toBe('errors.action_failed');
+      expect(component.shareUrl()).toBe('/shared/album/1?token=abc');
+      expect(mockDialogRef.close).not.toHaveBeenCalled();
     });
   });
 

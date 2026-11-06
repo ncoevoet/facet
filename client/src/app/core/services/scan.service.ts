@@ -26,6 +26,9 @@ export interface ScanDirectory {
   owner: string;
 }
 
+/** Consecutive failed status polls tolerated before polling gives up. */
+export const MAX_POLL_FAILURES = 5;
+
 @Injectable({ providedIn: 'root' })
 export class ScanService implements OnDestroy {
   private readonly api = inject(ApiService);
@@ -35,6 +38,7 @@ export class ScanService implements OnDestroy {
   private eventSource: EventSource | null = null;
   private pollTimer: ReturnType<typeof setInterval> | null = null;
   private retriedMintOnError = false;
+  private pollFailures = 0;
 
   readonly status = signal<ScanStatus>({
     running: false,
@@ -119,7 +123,7 @@ export class ScanService implements OnDestroy {
     const params = new URLSearchParams({ token, lines: '50' });
     const source = new EventSource(`/api/scan/stream?${params}`);
     this.eventSource = source;
-    this.connected.set(true);
+    source.onopen = () => this.connected.set(true);
 
     source.onmessage = (event: MessageEvent) => {
       let data: ScanStatus;
@@ -148,6 +152,7 @@ export class ScanService implements OnDestroy {
 
   private startPolling(): void {
     this.stopPolling();
+    this.pollFailures = 0;
     this.pollOnce();
     this.pollTimer = setInterval(() => this.pollOnce(), 2000);
   }
@@ -164,12 +169,27 @@ export class ScanService implements OnDestroy {
       const data = await firstValueFrom(
         this.api.get<ScanStatus>('/scan/status', { lines: 50 }),
       );
+      // One transient failure must not freeze the progress view for a scan
+      // that is still running: the interval keeps firing, the next poll
+      // re-arms the flag.
+      this.pollFailures = 0;
+      this.connected.set(true);
       this.status.set(data);
       if (!data.running) {
         this.stopPolling();
       }
-    } catch {
-      this.stopPolling();
+    } catch (err) {
+      // Keep the interval alive through a hiccup: one failure skips a tick
+      // instead of ending the updates for a scan still running server-side.
+      // A refusal (401/403) or a persistent failure stops it, or this root
+      // service would poll -- and the error interceptor toast -- every tick
+      // for the rest of the session.
+      this.connected.set(false);
+      const status = (err as { status?: number })?.status;
+      this.pollFailures++;
+      if (status === 401 || status === 403 || this.pollFailures >= MAX_POLL_FAILURES) {
+        this.stopPolling();
+      }
     }
   }
 }

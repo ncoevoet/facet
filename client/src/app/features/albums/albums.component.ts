@@ -78,10 +78,17 @@ import { MarkTonePipe } from '../../shared/pipes/mark-tone.pipe';
       </div>
     }
 
-    @if (albums().length === 0 && !loading()) {
+    @if (albums().length === 0 && !loading() && !loadError()) {
       <div class="text-center py-16 opacity-60">
         <mat-icon class="!text-5xl !w-12 !h-12 mb-4">photo_library</mat-icon>
         <p>{{ 'albums.empty' | translate }}</p>
+      </div>
+    }
+
+    @if (loadError() && !loading()) {
+      <div role="alert" class="flex items-center justify-center gap-3 py-10 text-sm">
+        <span>{{ 'errors.server_error' | translate }}</span>
+        <button mat-stroked-button (click)="loadAlbums(true)">{{ 'gallery.load_error.retry' | translate }}</button>
       </div>
     }
 
@@ -207,6 +214,8 @@ export class AlbumsComponent {
 
   protected readonly albums = signal<Album[]>([]);
   protected readonly total = signal(0);
+  /** A failed load: the empty state must not read as "you have no albums". */
+  protected readonly loadError = signal(false);
   protected readonly loading = signal(false);
   private page = 1;
   private readonly perPage = 48;
@@ -270,6 +279,7 @@ export class AlbumsComponent {
         search: this.albumsFilters.search(),
       };
       const res = await firstValueFrom(this.albumService.list(params));
+      this.loadError.set(false);
       if (reset) {
         this.albums.set(res.albums);
       } else {
@@ -280,7 +290,12 @@ export class AlbumsComponent {
       if (reset) {
         this.albums.set([]);
         this.total.set(0);
+      } else {
+        // Give the page back: onScrollReached already incremented it, and a
+        // failed append must be refetched, not skipped.
+        this.page--;
       }
+      this.loadError.set(true);
     } finally {
       this.loading.set(false);
     }

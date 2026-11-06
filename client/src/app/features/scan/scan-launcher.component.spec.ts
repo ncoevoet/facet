@@ -1,6 +1,7 @@
 import { TestBed } from '@angular/core/testing';
 import { signal } from '@angular/core';
 import { MatDialogRef } from '@angular/material/dialog';
+import { I18nService } from '../../core/services/i18n.service';
 import { ScanService, ScanStatus } from '../../core/services/scan.service';
 import { ScanLauncherComponent } from './scan-launcher.component';
 
@@ -34,6 +35,7 @@ describe('ScanLauncherComponent', () => {
       providers: [
         { provide: ScanService, useValue: mockScan },
         { provide: MatDialogRef, useValue: { close: dialogClose } },
+        { provide: I18nService, useValue: { t: (key: string) => `T(${key})`, translations: () => ({}) } },
       ],
     });
     component = TestBed.runInInjectionContext(() => new ScanLauncherComponent());
@@ -90,5 +92,30 @@ describe('ScanLauncherComponent', () => {
     mockScan.status.set({ ...idleStatus(), running: false, exit_code: 0 });
     TestBed.tick();
     expect(dialogClose).toHaveBeenCalledWith(true);
+  });
+
+  describe('a refused start', () => {
+    async function startRefused(err: unknown): Promise<HTMLElement> {
+      mockScan.startScan.mockReturnValueOnce(Promise.reject(err));
+      const fixture = TestBed.createComponent(ScanLauncherComponent);
+      const c = fixture.componentInstance as unknown as { selectedDir: { set(v: string): void }; start(): Promise<void> };
+      fixture.detectChanges();
+      await fixture.whenStable();
+      c.selectedDir.set('/photos/a');
+      await c.start();
+      fixture.detectChanges();
+      expect((fixture.componentInstance as unknown as { started(): boolean }).started()).toBe(false);
+      return fixture.nativeElement as HTMLElement;
+    }
+
+    it("shows the server's detail and gives the button back", async () => {
+      const el = await startRefused({ error: { detail: 'A scan is already running' } });
+      expect(el.querySelector('[role="alert"]')?.textContent?.trim()).toBe('A scan is already running');
+    });
+
+    it('falls back to the translated generic error when there is no detail', async () => {
+      const el = await startRefused(new Error('boom'));
+      expect(el.querySelector('[role="alert"]')?.textContent?.trim()).toBe('T(errors.action_failed)');
+    });
   });
 });

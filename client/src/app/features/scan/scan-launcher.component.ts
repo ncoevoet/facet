@@ -64,6 +64,9 @@ import { I18N, i18nKeys } from '../../core/i18n/keys';
     <mat-dialog-actions align="end">
       <button mat-button mat-dialog-close>{{ I18N.scan.close | translate }}</button>
       @if (!started()) {
+        @if (startError(); as error) {
+          <div role="alert" class="mb-2 text-sm text-[var(--mat-sys-error)]">{{ error.key ? (error.key | translate) : error.detail }}</div>
+        }
         <button mat-flat-button color="primary"
                 [disabled]="!selectedDir()"
                 (click)="start()">
@@ -83,6 +86,8 @@ export class ScanLauncherComponent implements OnInit {
   protected readonly loadingDirs = signal(true);
   protected readonly dirLoadError = signal(false);
   protected readonly started = signal(false);
+  /** A refused start: the server's own reason, else a translation key. */
+  protected readonly startError = signal<{ detail?: string; key?: string } | null>(null);
 
   protected readonly status = this.scan.status;
   protected readonly connected = this.scan.connected;
@@ -132,6 +137,15 @@ export class ScanLauncherComponent implements OnInit {
     const dir = this.selectedDir();
     if (!dir) return;
     this.started.set(true);
-    await this.scan.startScan([dir]);
+    try {
+      await this.scan.startScan([dir]);
+    } catch (err) {
+      // A refused start (409: a scan is already running, or a server fault)
+      // must give the button back with the reason — the progress view has
+      // nothing to show and would otherwise sit there forever.
+      this.started.set(false);
+      const detail = (err as { error?: { detail?: string } })?.error?.detail;
+      this.startError.set(detail ? { detail } : { key: I18N.errors.action_failed });
+    }
   }
 }

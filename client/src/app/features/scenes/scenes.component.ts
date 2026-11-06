@@ -227,6 +227,7 @@ export class ScenesComponent implements OnInit {
 
   private async load(): Promise<void> {
     const gen = ++this.loadGeneration;
+    const page = this.page;
     this.loading.set(true);
     try {
       const params: Record<string, string | number> = { page: this.page, per_page: this.perPage };
@@ -241,6 +242,9 @@ export class ScenesComponent implements OnInit {
       this.hasMore.set(this.page < data.total_pages);
     } catch {
       if (gen !== this.loadGeneration) return;
+      // Give the page back: loadMore already incremented it, and a failed
+      // append must be refetched, not skipped.
+      if (page > 1) this.page = page - 1;
       this.snack.open(this.i18n.t(I18N.scenes.load_error), this.i18n.t(I18N.common.dismiss), { duration: 3000 });
     } finally {
       if (gen === this.loadGeneration) this.loading.set(false);

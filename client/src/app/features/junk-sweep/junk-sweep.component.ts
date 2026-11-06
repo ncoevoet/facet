@@ -324,6 +324,16 @@ export class JunkSweepComponent implements OnInit, OnDestroy {
     }
   }
 
+  /** Take rejected photos off the kind badges (the list view hides rejected rows). */
+  private decrementKinds(removed: readonly Photo[]): void {
+    const removedByKind = new Map<string, number>();
+    for (const p of removed) {
+      if (p.junk_kind) removedByKind.set(p.junk_kind, (removedByKind.get(p.junk_kind) ?? 0) + 1);
+    }
+    this.kinds.update(list =>
+      list.map(k => [k[0], Math.max(0, k[1] - (removedByKind.get(k[0]) ?? 0))] as [string, number]));
+  }
+
   protected async rejectAllShown(): Promise<void> {
     const shown = this.photos();
     if (shown.length === 0) return;
@@ -348,12 +358,7 @@ export class JunkSweepComponent implements OnInit, OnDestroy {
       }
       this.journal.record('junk', rejected, { action: 'reject', count: rejected.length });
       this.notify(I18N.junk.rejected_bulk, 2000, { count: paths.length });
-      const removedByKind = new Map<string, number>();
-      for (const p of shown) {
-        if (p.junk_kind) removedByKind.set(p.junk_kind, (removedByKind.get(p.junk_kind) ?? 0) + 1);
-      }
-      this.kinds.update(list =>
-        list.map(k => [k[0], Math.max(0, k[1] - (removedByKind.get(k[0]) ?? 0))] as [string, number]));
+      this.decrementKinds(shown);
       this.page = 1;
       this.photos.set([]);
       await this.load();
@@ -363,6 +368,11 @@ export class JunkSweepComponent implements OnInit, OnDestroy {
       // longer matches it — re-read rather than leave rejected rows shown.
       if (rejected.length > 0) {
         this.journal.record('junk', rejected, { action: 'reject', count: rejected.length, partial: true });
+        // Earlier chunks landed server-side: take exactly those off the kind
+        // badges. Re-reading /filter_options/junk_kinds cannot do it -- its
+        // counts include rejected photos and may come from the stats cache.
+        const landed = new Set(rejected);
+        this.decrementKinds(shown.filter(p => landed.has(p.path)));
         this.page = 1;
         this.photos.set([]);
         await this.load();
