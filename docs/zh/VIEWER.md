@@ -1407,7 +1407,7 @@ Facet 会添加一些索引，使大型照片库上的图库分页和计数保�
 
 ## API 端点
 
-HTTP API 参考位于 [API.md](../API.md)。交互式文档位于 `/api/docs`。
+HTTP API 参考位于 [API.md](../API.md)。以 `FACET_ENABLE_API_DOCS=1` 启动查看器时，交互式文档位于 `/api/docs`。
 
 ## JPEG XL 照片
 

@@ -688,7 +688,7 @@ class TestAuthFailureBookkeeping:
                 limits.record_auth_failure(f"10.0.{index // 250}.{index % 250}")
             now[0] += limits.WINDOW_SECONDS + 1
             limits.record_auth_failure("fresh")
-            assert set(limits._failures) == {"fresh"}
+            assert set(limits._auth_failures._failures) == {"fresh"}
         finally:
             limits.set_clock(None)
             limits.reset_limits()
@@ -703,12 +703,12 @@ class TestAuthFailureBookkeeping:
 
         now = [0.0]
         limits.set_clock(lambda: now[0])
-        saved = limits._failures
+        saved = limits._auth_failures._failures
         try:
             limits.reset_limits()
-            limits._failures = CountingMap(limits.deque)
+            limits._auth_failures._failures = CountingMap(limits.deque)
             for index in range(limits.FAILURE_SWEEP_THRESHOLD + 5):
-                limits._failures[f"10.1.{index // 250}.{index % 250}"].append(0.0)
+                limits._auth_failures._failures[f"10.1.{index // 250}.{index % 250}"].append(0.0)
             limits.record_auth_failure("first")
             assert CountingMap.scans == 1
             for index in range(50):
@@ -718,7 +718,7 @@ class TestAuthFailureBookkeeping:
             limits.record_auth_failure("next-window")
             assert CountingMap.scans == 2
         finally:
-            limits._failures = saved
+            limits._auth_failures._failures = saved
             limits.set_clock(None)
             limits.reset_limits()
 
@@ -739,7 +739,7 @@ class TestAuthBlockDoesNotLockOutValidTokens:
         limits.set_clock(lambda: later)
         try:
             assert limits.auth_blocked("testclient") is False
-            assert "testclient" not in limits._failures
+            assert "testclient" not in limits._auth_failures._failures
         finally:
             limits.set_clock(None)
 

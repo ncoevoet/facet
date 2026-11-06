@@ -347,6 +347,7 @@ class TestLegacyPasswordMode:
                 client.post("/api/auth/login", json={"password": "wrong"})
             resp = client.post("/api/auth/login", json={"password": "wrong"})
             assert resp.status_code == 429
+            assert resp.headers["Retry-After"] == "60"
 
     def test_expired_bearer_stays_unauthenticated(self, client):
         """The open-install fallback must not widen to a locked deployment."""

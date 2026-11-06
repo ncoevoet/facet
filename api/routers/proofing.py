@@ -119,7 +119,8 @@ def create_share_session(album_id: int, body: ShareSessionRequest, request: Requ
         raise HTTPException(status_code=403, detail="Proofing disabled")
     client_ip = request.client.host if request.client else "unknown"
     if not _session_limiter.is_allowed(f"{client_ip}:{album_id}"):
-        raise HTTPException(status_code=429, detail="Too many attempts. Try again later.")
+        raise HTTPException(status_code=429, detail="Too many attempts. Try again later.",
+                            headers={"Retry-After": str(_session_limiter.window_seconds)})
     with get_db() as conn:
         album, stored_token = _load_album_share_token(conn, album_id)
     if not album:

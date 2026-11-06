@@ -1407,7 +1407,7 @@ Facet aggiunge indici che mantengono veloci pagine e conteggi della galleria sul
 
 ## Endpoint API
 
-Il riferimento dell'API HTTP è in [API.md](../API.md). La documentazione interattiva è servita su `/api/docs`.
+Il riferimento dell'API HTTP è in [API.md](../API.md). La documentazione interattiva è servita su `/api/docs` quando il visualizzatore viene avviato con `FACET_ENABLE_API_DOCS=1`.
 
 ## Foto JPEG XL
 

@@ -1407,7 +1407,7 @@ Facet legt Indizes an, die Galerieseiten und Zähler bei großen Bibliotheken sc
 
 ## API-Endpunkte
 
-Die Referenz der HTTP-API steht in [API.md](../API.md). Interaktive Dokumentation liefert `/api/docs`.
+Die Referenz der HTTP-API steht in [API.md](../API.md). Interaktive Dokumentation liefert `/api/docs`, wenn der Viewer mit `FACET_ENABLE_API_DOCS=1` gestartet wird.
 
 ## JPEG-XL-Fotos
 

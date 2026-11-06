@@ -63,6 +63,7 @@ _MANIFEST_FILTER_MAX = 10000
 # could otherwise pin a worker thread parsing an unbounded request. Refused
 # (400/413) before any DB write, never truncated.
 _IMPORT_MAX_BODY_BYTES = 20 * 1024 * 1024
+IMPORT_ROUTE = "/api/lightroom/import"
 _IMPORT_MAX_PHOTOS = 50000
 
 # Cap on the manifest AFTER burst/sequence expansion -- the round trip's other
@@ -227,7 +228,7 @@ def api_lightroom_manifest(
 
 
 @router.post(
-    "/api/lightroom/import",
+    IMPORT_ROUTE,
     response_model=LightroomImportResponse,
     openapi_extra={
         "requestBody": {

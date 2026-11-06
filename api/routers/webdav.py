@@ -34,6 +34,8 @@ from urllib.parse import quote, unquote, urlsplit
 from fastapi import APIRouter, HTTPException, Request, Response
 from fastapi.responses import FileResponse
 
+from api.token_auth import TokenFailureLimiter
+
 logger = logging.getLogger(__name__)
 
 router = APIRouter(tags=["webdav"])
@@ -70,26 +72,47 @@ def _unauthorized() -> HTTPException:
     return HTTPException(status_code=401, detail="Authentication required", headers=_UNAUTH_HEADERS)
 
 
-def _check_auth(request: Request, cfg: dict) -> None:
-    """Validate HTTP Basic credentials constant-time as UTF-8 bytes.
+# Failed Basic-auth attempts per peer IP: the upload password is an offline-guessing target.
+_auth_failure_limiter = TokenFailureLimiter()
 
-    A missing, malformed, or wrong header yields 401 with a ``WWW-Authenticate``
-    challenge so a WebDAV client re-sends with credentials.
+
+def _credentials_match(header: str, cfg: dict) -> bool:
+    """True when ``header`` carries Basic credentials equal to the configured pair.
+
+    Decoded and compared constant-time as UTF-8 bytes; anything malformed is a mismatch.
     """
-    header = request.headers.get("authorization", "")
     scheme, _, encoded = header.partition(" ")
     if scheme.lower() != "basic" or not encoded:
-        raise _unauthorized()
+        return False
     try:
         decoded = base64.b64decode(encoded, validate=True).decode("utf-8")
     except (ValueError, UnicodeDecodeError):
-        raise _unauthorized()
+        return False
     username, sep, password = decoded.partition(":")
     if not sep:
-        raise _unauthorized()
+        return False
     user_ok = hmac.compare_digest(username.encode("utf-8"), str(cfg["username"]).encode("utf-8"))
     pass_ok = hmac.compare_digest(password.encode("utf-8"), str(cfg["password"]).encode("utf-8"))
-    if not (user_ok and pass_ok):
+    return user_ok and pass_ok
+
+
+def _check_auth(request: Request, cfg: dict) -> None:
+    """Validate HTTP Basic credentials, throttling failed attempts per peer IP.
+
+    A missing, malformed, or wrong header yields 401 with a ``WWW-Authenticate``
+    challenge so a WebDAV client re-sends with credentials. Only a request that
+    presented credentials and failed consumes the failure budget: a missing header
+    is the challenge handshake many clients open every connection with, and
+    counting it would lock a legitimate uploader out.
+    """
+    ip = request.client.host if request.client else "unknown"
+    if _auth_failure_limiter.blocked(ip):
+        raise _auth_failure_limiter.too_many()
+    header = request.headers.get("authorization", "")
+    if not header:
+        raise _unauthorized()
+    if not _credentials_match(header, cfg):
+        _auth_failure_limiter.register_failure(ip)
         raise _unauthorized()
 
 

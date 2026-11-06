@@ -65,7 +65,8 @@ def login(body: LoginRequest, request: Request, response: Response):
     """
     client_ip = request.client.host if request.client else "unknown"
     if not _login_limiter.is_allowed(client_ip):
-        raise HTTPException(status_code=429, detail="Too many login attempts. Try again later.")
+        raise HTTPException(status_code=429, detail="Too many login attempts. Try again later.",
+                            headers={"Retry-After": str(_login_limiter.window_seconds)})
 
     multi_user = is_multi_user_enabled()
 
@@ -130,7 +131,8 @@ def edition_login(body: EditionLoginRequest, request: Request, response: Respons
     """Authenticate for edition mode (legacy single-user only)."""
     client_ip = request.client.host if request.client else "unknown"
     if not _login_limiter.is_allowed(client_ip):
-        raise HTTPException(status_code=429, detail="Too many login attempts. Try again later.")
+        raise HTTPException(status_code=429, detail="Too many login attempts. Try again later.",
+                            headers={"Retry-After": str(_login_limiter.window_seconds)})
 
     if is_multi_user_enabled():
         raise HTTPException(status_code=400, detail="Use /api/auth/login for multi-user auth")

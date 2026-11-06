@@ -850,6 +850,11 @@ class RateLimiter:
         self._lock = threading.Lock()
         self._attempts: dict[str, collections.deque] = {}
 
+    @property
+    def window_seconds(self) -> int:
+        """The sliding window, so 429 answers can carry a Retry-After."""
+        return self._window
+
     def is_allowed(self, key: str) -> bool:
         now = time.monotonic()
         with self._lock:
