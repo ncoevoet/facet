@@ -17,6 +17,7 @@ from api.auth import CurrentUser, get_optional_user, require_authenticated
 from api.config import VIEWER_CONFIG, is_multi_user_enabled
 from api.database import get_async_db, get_db
 from api.db_helpers import is_manual_tags_available, is_photo_tags_available, get_visibility_clause
+from api.types import JUNK_NOT_JUNK
 from api.models.media import (
     MediaFilterOptionCamerasResponse,
     MediaFilterOptionJunkKindsResponse,
@@ -508,25 +509,31 @@ async def junk_kinds(user: Optional[CurrentUser] = Depends(get_optional_user)):
     # Match the queue's explicit filters; the shared builder also preserves
     # configured sequence hiding and logical-primary/review authority.
     filters = {
-        'type': '', 'junk_kind': 'any', 'hide_rejected': '1',
+        'type': '', 'hide_rejected': '1',
         'hide_blinks': '0', 'hide_bursts': '0', 'hide_duplicates': '0',
         'collapse_stacks': '0',
     }
 
     async def query(conn):
         try:
-            from_clause, where, params = await gallery_scope_sql_async(
-                conn, filters, user_id, logical=await enabled_async(conn))
-            rows = await _fetch_all(
+            # `not_junk` sits on nearly every evaluated photo, so a `!= not_junk`
+            # range would row-fetch the whole library to read the review state.
+            # List the real kinds from the index alone, then count each by
+            # equality so only genuine candidates are ever looked up.
+            kinds = await _fetch_all(
                 conn,
-                f"""
-                SELECT photos.junk_kind, COUNT(*) as cnt FROM {from_clause}
-                {where}
-                GROUP BY photos.junk_kind ORDER BY cnt DESC
-                """,
-                params,
+                "SELECT DISTINCT junk_kind FROM photos WHERE junk_kind IS NOT NULL AND junk_kind != ?",
+                [JUNK_NOT_JUNK],
             )
-            return [(r[0], r[1]) for r in rows]
+            counts = []
+            for (kind,) in kinds:
+                from_clause, where, params = await gallery_scope_sql_async(
+                    conn, {**filters, 'junk_kind': kind}, user_id, logical=await enabled_async(conn))
+                rows = await _fetch_all(
+                    conn, f"SELECT COUNT(*) FROM {from_clause} {where}", params)
+                if rows[0][0]:
+                    counts.append((kind, rows[0][0]))
+            return sorted(counts, key=lambda item: item[1], reverse=True)
         except sqlite3.Error:
             logger.exception("Failed to query junk_kinds")
             return []

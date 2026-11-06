@@ -1,4 +1,5 @@
 """Explicit catalog erasure must not depend on original-file availability."""
+import re
 import sqlite3
 from contextlib import contextmanager
 from unittest import mock
@@ -113,7 +114,8 @@ def test_sequence_siblings_resolve_all_groups_in_one_query(tmp_path):
         result = _sequence_siblings(conn, {'a': ('bracket', 1), 'c': ('panorama', 1)}, {'a', 'c'}, None)
         query = next(statement for statement in statements if statement.lstrip().upper().startswith('SELECT'))
         plan = [row[3] for row in conn.execute('EXPLAIN QUERY PLAN ' + query)]
-        assert any('SEARCH photos USING' in detail and 'idx_sequence_kind' in detail for detail in plan), plan
-        assert not any(detail.startswith('SCAN photos') for detail in plan), plan
+        # SQLite before 3.36 prints "SEARCH TABLE photos USING INDEX ...", later ones "SEARCH photos USING INDEX ...".
+        assert any(re.search(r'^SEARCH (TABLE )?photos USING .*idx_sequence_kind', detail) for detail in plan), plan
+        assert not any(re.match(r'SCAN (TABLE )?photos', detail) for detail in plan), plan
     assert set(result) == {'b', 'd'}
     assert len([statement for statement in statements if statement.lstrip().upper().startswith('SELECT')]) == 1

@@ -10,6 +10,14 @@ PREFIX = '/test_metric_distribution/'
 MINE = PREFIX + 'mine/'
 
 
+@pytest.fixture(autouse=True)
+def _fresh_stats_cache():
+    from api.config import invalidate_stats_cache
+    invalidate_stats_cache()
+    yield
+    invalidate_stats_cache()
+
+
 @contextmanager
 def _visible_library():
     with mock.patch('api.db_helpers.is_multi_user_enabled', return_value=True), mock.patch(
@@ -49,8 +57,8 @@ def test_metric_identifier_and_auth_are_checked(regular_client, anonymous_client
     for column in ['path', 'star_rating']:
         assert regular_client.get('/api/stats/metric_distribution', params={'column': column}).status_code == 422
     assert regular_client.get('/api/stats/metric_distribution', params={'column': 'aggregate);DELETE FROM photos;--'}).status_code == 422
-    with mock.patch.dict('api.auth.VIEWER_CONFIG', {'password': 'secret'}):
-        assert anonymous_client.get('/api/stats/metric_distribution').status_code == 401
+    # require_authenticated refuses an anonymous caller whatever the viewer password is.
+    assert anonymous_client.get('/api/stats/metric_distribution').status_code == 401
 
 
 def test_bounds_and_buckets_share_snapshot(regular_client, seed_people):
@@ -95,3 +103,32 @@ def test_finite_extremes_do_not_overflow_buckets(regular_client, seed_people, va
     buckets = response.json()['distribution']['buckets']
     assert sum(buckets) == len(values)
     assert [index for index, total in enumerate(buckets) if total] == indices
+
+
+def test_repeat_reads_are_served_from_the_stats_cache_per_scope(regular_client, seed_people):
+    """Form metrics have no index, so each uncached read walks every photo's overflow pages."""
+    from api.config import invalidate_stats_cache
+    from api.routers import stats
+    seed_people.photo(MINE, 'one.jpg', form_fractal=1, category='group-a')
+    seed_people.photo(MINE, 'two.jpg', form_fractal=2, category='group-b')
+    opened = []
+
+    @contextmanager
+    def counting_connection():
+        with get_db() as conn:
+            opened.append(1)
+            yield conn
+
+    params = {'column': 'form_fractal'}
+    with _visible_library(), mock.patch.object(stats, 'get_db', counting_connection):
+        first = regular_client.get('/api/stats/metric_distribution', params=params).json()
+        assert opened == [1]
+        assert regular_client.get('/api/stats/metric_distribution', params=params).json() == first
+        assert opened == [1], 'an identical read must not touch the database again'
+        scoped = regular_client.get('/api/stats/metric_distribution', params={**params, 'category': 'group-a'}).json()
+        assert opened == [1, 1] and scoped['count'] == 1, 'a category is a separate cache entry'
+        with get_db() as writer, writer:
+            writer.execute('UPDATE photos SET form_fractal=50 WHERE path=?', (MINE + 'two.jpg',))
+        invalidate_stats_cache()
+        refreshed = regular_client.get('/api/stats/metric_distribution', params=params).json()
+    assert opened == [1, 1, 1] and refreshed['distribution']['max'] == 50

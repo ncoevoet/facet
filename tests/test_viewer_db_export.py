@@ -171,6 +171,32 @@ def test_mapped_original_keeps_viewer_local_ignore_and_offline_refresh_refuses_b
     assert Path(out).read_bytes() == before
 
 
+def test_incremental_export_ignores_the_viewer_hosts_configured_path_mapping(tmp_path, monkeypatch):
+    """viewer.path_mapping describes the NAS; the scoring host must check its own paths."""
+    import config_resolve
+    from db.ignored_faces import detection_source, ignore_detection
+    from utils.manual_face_frame import read_frame
+    src, out = str(tmp_path / 'source.db'), str(tmp_path / 'viewer.db')
+    init_database(src)
+    image = tmp_path / 'advert.jpg'
+    Image.new('RGB', (100, 80), 'red').save(image)
+    with sqlite3.connect(src) as conn:
+        conn.execute('INSERT INTO photos(path,filename,thumbnail,image_width,image_height) VALUES (?, ?, ?,100,80)',
+                     (str(image), 'advert.jpg', _thumb_bytes()))
+        conn.execute('INSERT INTO faces(photo_path,face_index,embedding,bbox_x1,bbox_y1,bbox_x2,bbox_y2) '
+                     'VALUES (?,0,X\'\',10,10,60,60)', (str(image),))
+    export_viewer_db(src, out, verbose=False)
+    with sqlite3.connect(out) as conn:
+        conn.row_factory = sqlite3.Row
+        key = ignore_detection(conn, conn.execute('SELECT * FROM faces').fetchone(), detection_source(read_frame(image)))
+    nas_only = {'viewer': {'path_mapping': {str(tmp_path): '/volume1/not-on-this-host'}}}
+    monkeypatch.setattr(config_resolve, 'load_resolved', lambda *a, **k: nas_only)
+    export_viewer_db(src, out, verbose=False)
+    with sqlite3.connect(out) as conn:
+        assert conn.execute('SELECT active FROM ignored_face_detections WHERE ignore_id=?', (key,)).fetchone() == (1,)
+        assert conn.execute('SELECT COUNT(*) FROM faces').fetchone()[0] == 0
+
+
 def test_incremental_manual_faces_preserve_independent_colliding_people(tmp_path):
     src, out = str(tmp_path / 'source.db'), str(tmp_path / 'viewer.db')
     _make_source_db(src)

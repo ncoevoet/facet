@@ -133,7 +133,8 @@ def test_counts_do_not_reveal_candidates_when_visibility_denies_anonymous_reader
     from api.routers import gallery
     monkeypatch.setattr(gallery, 'get_visibility_clause', deny)
     assert counts(anonymous_client) == {}
-    assert seen == [None]
+    # The scope is built once per candidate kind, always for the anonymous reader.
+    assert seen and set(seen) == {None}
 
 
 def test_logical_pair_counts_only_primary_kind_and_honors_logical_rejection(edition_client, logical_pair):

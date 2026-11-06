@@ -234,3 +234,154 @@ def test_almost_identical_replacement_pixels_do_not_inherit_an_ignore(edition_cl
     image.save(detected_photo, format='PNG')
     assert not source_is_current(detected_photo, source)
     assert _restore(edition_client, key, detected_photo).status_code == 409
+
+
+def _rewrite_image(path):
+    """Different pixels, same name: what a competing editor does between read and commit."""
+    Image.new('RGB', (100, 80), 'green').save(path)
+
+
+def _swap_after_frame_read(path, on_read=None):
+    from api.routers import ignored_faces
+    read = ignored_faces._face_correction_frame
+
+    def swapped(photo_path):
+        frame = read(photo_path)
+        if on_read:
+            on_read()
+        _rewrite_image(path)
+        return frame
+
+    return mock.patch.object(ignored_faces, '_face_correction_frame', side_effect=swapped)
+
+
+def _ignored_count(path):
+    with get_db() as conn:
+        return conn.execute('SELECT COUNT(*) FROM ignored_face_detections WHERE photo_path=?', (path,)).fetchone()[0]
+
+
+def test_ignore_refuses_an_image_rewritten_after_it_was_read(edition_client, detected_photo, seed_people):
+    face = seed_people.face(detected_photo)
+    before = _rows(detected_photo)
+    with _swap_after_frame_read(detected_photo):
+        response = edition_client.post(f'/api/face/{face}/ignore', json={'photo_path': detected_photo})
+    assert response.status_code == 409 and 'Original image changed' in response.text
+    assert _rows(detected_photo) == before and _ignored_count(detected_photo) == 0
+
+
+def test_ignore_rolls_back_when_the_image_is_rewritten_during_the_commit(edition_client, detected_photo, seed_people):
+    from db import ignored_faces
+    face = seed_people.face(detected_photo)
+    before = _rows(detected_photo)
+    real = ignored_faces.ignore_detection
+
+    def ignore_then_rewrite(*args, **kwargs):
+        result = real(*args, **kwargs)
+        _rewrite_image(detected_photo)
+        return result
+
+    with mock.patch.object(ignored_faces, 'ignore_detection', side_effect=ignore_then_rewrite):
+        response = edition_client.post(f'/api/face/{face}/ignore', json={'photo_path': detected_photo})
+    assert response.status_code == 409 and 'Original image changed' in response.text
+    assert _rows(detected_photo) == before and _ignored_count(detected_photo) == 0
+
+
+def test_retried_ignore_refuses_an_image_rewritten_after_it_was_read(edition_client, detected_photo, seed_people):
+    face = seed_people.face(detected_photo)
+    key = _ignore(edition_client, face, detected_photo)
+    # The retry finds the face already gone; the ignore handle may be returned only for the same file.
+    with _swap_after_frame_read(detected_photo):
+        response = edition_client.post(f'/api/face/{face}/ignore', json={'photo_path': detected_photo})
+    assert response.status_code == 409 and 'Original image changed' in response.text
+    assert _ignored_count(detected_photo) == 1 and key
+
+
+def test_ignore_retry_after_the_face_vanishes_mid_request_refuses_a_rewritten_image(edition_client, detected_photo, seed_people):
+    face = seed_people.face(detected_photo)
+    _ignore(edition_client, face, detected_photo)
+    with get_db() as conn, conn:
+        conn.execute('INSERT INTO faces(id,photo_path,face_index,embedding,bbox_x1,bbox_y1,bbox_x2,bbox_y2) '
+                     "VALUES (?,?,0,X'01020304',10,10,60,60)", (face, detected_photo))
+
+    def face_vanishes():
+        with get_db() as conn, conn:
+            conn.execute('DELETE FROM faces WHERE id=?', (face,))
+
+    with _swap_after_frame_read(detected_photo, on_read=face_vanishes):
+        # The first phase saw the face; the commit phase finds it gone but the image is no longer the one read.
+        response = edition_client.post(f'/api/face/{face}/ignore', json={'photo_path': detected_photo})
+    assert response.status_code == 409 and 'Original image changed' in response.text
+
+
+def test_restore_refuses_an_image_rewritten_after_it_was_read(edition_client, detected_photo, seed_people):
+    face = seed_people.face(detected_photo)
+    key = _ignore(edition_client, face, detected_photo)
+    with _swap_after_frame_read(detected_photo):
+        response = _restore(edition_client, key, detected_photo)
+    assert response.status_code == 409
+    assert _rows(detected_photo) == []
+    with get_db() as conn:
+        assert conn.execute('SELECT active FROM ignored_face_detections WHERE ignore_id=?', (key,)).fetchone()[0] == 1
+
+
+def test_restore_rolls_back_when_the_image_is_rewritten_during_the_commit(edition_client, detected_photo, seed_people):
+    from db import ignored_faces
+    face = seed_people.face(detected_photo)
+    key = _ignore(edition_client, face, detected_photo)
+    real = ignored_faces.restore_detection
+
+    def restore_then_rewrite(*args, **kwargs):
+        result = real(*args, **kwargs)
+        _rewrite_image(detected_photo)
+        return result
+
+    with mock.patch.object(ignored_faces, 'restore_detection', side_effect=restore_then_rewrite):
+        response = _restore(edition_client, key, detected_photo)
+    assert response.status_code == 409 and 'Original image changed' in response.text
+    assert _rows(detected_photo) == []
+    with get_db() as conn:
+        assert conn.execute('SELECT active FROM ignored_face_detections WHERE ignore_id=?', (key,)).fetchone()[0] == 1
+
+
+def test_ignore_refuses_the_hundred_and_first_correction_on_a_photo(edition_client, detected_photo, seed_people):
+    face = seed_people.face(detected_photo)
+    with get_db() as conn, conn:
+        conn.execute('INSERT INTO ignored_face_detections(ignore_id,source,active,updated_at,face_id,photo_path,face_index,'
+                     'embedding,bbox_x1,bbox_y1,bbox_x2,bbox_y2) '
+                     "WITH RECURSIVE n(i) AS (SELECT 1 UNION ALL SELECT i+1 FROM n WHERE i<100) "
+                     "SELECT 'limit-' || i,'{}',1,i,-i,?,i,X'',1,1,2,2 FROM n", (detected_photo,))
+    before = _rows(detected_photo)
+    response = edition_client.post(f'/api/face/{face}/ignore', json={'photo_path': detected_photo})
+    assert response.status_code == 409 and 'limit' in response.text
+    assert _rows(detected_photo) == before and _ignored_count(detected_photo) == 100
+
+
+@pytest.mark.parametrize('kind', ['manual', 'zero_width', 'no_box'])
+def test_ignore_refuses_faces_without_a_valid_detection_rectangle(edition_client, detected_photo, seed_people, kind):
+    face = seed_people.face(detected_photo)
+    updates = {'manual': 'is_manual=1', 'zero_width': 'bbox_x2=bbox_x1', 'no_box': 'bbox_y1=NULL'}
+    with get_db() as conn, conn:
+        conn.execute(f'UPDATE faces SET {updates[kind]} WHERE id=?', (face,))
+    before = _rows(detected_photo)
+    response = edition_client.post(f'/api/face/{face}/ignore', json={'photo_path': detected_photo})
+    assert response.status_code == 409 and 'valid rectangle' in response.text
+    assert _rows(detected_photo) == before and _ignored_count(detected_photo) == 0
+
+
+def test_a_rewritten_image_outranks_a_refusal_that_would_otherwise_apply(edition_client, detected_photo, seed_people):
+    """The check before the write decides first, so the user reloads rather than fixing a stale cause."""
+    face = seed_people.face(detected_photo)
+    with get_db() as conn, conn:
+        conn.execute('UPDATE faces SET is_manual=1 WHERE id=?', (face,))
+    with _swap_after_frame_read(detected_photo):
+        response = edition_client.post(f'/api/face/{face}/ignore', json={'photo_path': detected_photo})
+    assert response.status_code == 409 and 'Original image changed' in response.text
+
+    other = seed_people.face(detected_photo)
+    key = _ignore(edition_client, other, detected_photo)
+    with get_db() as conn, conn:
+        conn.execute('INSERT INTO faces(photo_path,face_index,embedding,bbox_x1,bbox_y1,bbox_x2,bbox_y2) '
+                     "SELECT photo_path,face_index,X'01020304',100,100,110,110 FROM ignored_face_detections WHERE ignore_id=?", (key,))
+    with _swap_after_frame_read(detected_photo):
+        restored = _restore(edition_client, key, detected_photo)
+    assert restored.status_code == 409 and 'Original image changed' in restored.text

@@ -83,6 +83,44 @@ def test_job_naming_cache_only_reuses_stable_change_timestamps(tmp_path, monkeyp
         job.check_packet_ownership(str(source), [packet])
 
 
+def _stable_job(tmp_path, monkeypatch):
+    """A job over a folder that was quiet when the job started; ``clock`` is the job's idea of now."""
+    from api import export_execution, export_preview
+
+    source = tmp_path / 'a.jpg'
+    source.write_bytes(b'photo')
+    clock = [source.parent.stat().st_ctime_ns + 10_000_000_000]
+    monkeypatch.setattr(export_execution.time, 'time_ns', lambda: clock[0])
+    monkeypatch.setattr(export_execution, '_WINDOWS', False)
+    scans = []
+    real_scan = export_preview.os.scandir
+
+    def scan(path):
+        scans.append(path)
+        return real_scan(path)
+
+    monkeypatch.setattr(export_preview.os, 'scandir', scan)
+    return export_execution._Execution('unused', None, None, None, 'unused'), source, scans, clock
+
+
+@pytest.mark.skipif(os.name == 'nt', reason='POSIX change-time cache requires POSIX stat semantics')
+def test_job_naming_cache_discards_an_index_built_while_the_folder_changes(tmp_path, monkeypatch):
+    from api import export_preview, sidecar_jobs
+
+    job, source, scans, clock = _stable_job(tmp_path, monkeypatch)
+    real_check = export_preview._check_packet_claims
+
+    def check_after_a_competitor_appears(disk, packets, claims):
+        # The index is complete and clean; the folder changes before the job trusts it.
+        (tmp_path / 'a.jpg.CR2').write_bytes(b'competing owner')
+        real_check(disk, packets, claims)
+
+    monkeypatch.setattr(export_preview, '_check_packet_claims', check_after_a_competitor_appears)
+    with pytest.raises(sidecar_jobs.ExportConditionsChanged):
+        job.check_packet_ownership(str(source), [str(source) + '.xmp'])
+    assert job.naming_directories == {} and job.naming_key is None
+
+
 def test_companion_xmp_competitor_between_copy_units_refuses_next_unit(edition_client, library, monkeypatch):
     from api import export_execution
 

@@ -1157,9 +1157,10 @@ def export_viewer_db(source_db='photo_scores_pro.db', output_path=None, thumbnai
 
     # Incremental update if output already exists and force is not set
     if os.path.exists(output_path) and not force:
+        # viewer.path_mapping describes the viewer host's filesystem; the export
+        # runs on the scoring host, where originals sit at their stored paths.
         if path_mapping is None:
-            from config_resolve import load_resolved
-            path_mapping = load_resolved().get('viewer', {}).get('path_mapping', {})
+            path_mapping = {}
         if not isinstance(path_mapping, dict):
             path_mapping = {}
         # Refuse before any destination writes: offline originals cannot prove
