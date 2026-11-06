@@ -1,4 +1,4 @@
-import { Component, inject, signal, computed, viewChild, ElementRef, effect, DestroyRef, Injector, afterNextRender, untracked, ChangeDetectionStrategy, Pipe, PipeTransform } from '@angular/core';
+import { Component, inject, signal, computed, viewChild, ElementRef, effect, DestroyRef, Injector, afterNextRender, untracked, ChangeDetectionStrategy } from '@angular/core';
 import { DOCUMENT, NgTemplateOutlet } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { MatCardModule } from '@angular/material/card';
@@ -29,6 +29,8 @@ import { ChartHeightPipe } from './chart-height.pipe';
 import { chartTheme, chartSeriesColor, chartSeriesColors } from './chart-theme';
 import { StatsTimelineTabComponent } from './stats-timeline-tab.component';
 import { StatsCorrelationsTabComponent } from './stats-correlations-tab.component';
+import { StatsNumberPipe } from './stats-locale-number.pipe';
+import { statsAuthScope } from './stats-auth-scope';
 import { downloadCsv } from '../../shared/utils/csv';
 import { I18N, i18nKeys } from '../../core/i18n/keys';
 
@@ -66,21 +68,6 @@ interface ScoreBin {
   max: number;
   count: number;
   percentage: number;
-}
-
-interface TopCamera {
-  name: string;
-  count: number;
-  avg_score: number;
-  avg_aesthetic: number;
-}
-
-@Pipe({ name: 'statsNumber', standalone: true })
-export class StatsNumberPipe implements PipeTransform {
-  transform(value: number | null | undefined, locale: string, digits = 0): string {
-    return value == null || !Number.isFinite(value) ? '—'
-      : new Intl.NumberFormat(locale, { minimumFractionDigits: digits, maximumFractionDigits: digits }).format(value);
-  }
 }
 
 @Component({
@@ -169,6 +156,12 @@ export class StatsNumberPipe implements PipeTransform {
         <button mat-stroked-button data-stats-retry class="min-h-11" [attr.aria-disabled]="retrying()" (click)="retryLoad()">{{ (retrying() ? I18N.ui.labels.loading : I18N.gallery.load_error.retry) | translate }}</button>
       </div>
     }
+    <ng-template #sectionError let-section>
+      <div role="alert" class="mt-4 flex flex-wrap items-center gap-3 rounded-lg bg-[var(--mat-sys-error-container)] p-3 text-[var(--mat-sys-on-error-container)]">
+        <span>{{ I18N.stats.correlations.error | translate }}</span>
+        <button mat-stroked-button class="min-h-11" (click)="retrySection(section)">{{ I18N.gallery.load_error.retry | translate }}</button>
+      </div>
+    </ng-template>
     @if (loading()) {
       <div class="flex justify-center py-16">
         <mat-spinner diameter="48" [attr.aria-label]="I18N.ui.labels.loading | translate" />
@@ -181,6 +174,9 @@ export class StatsNumberPipe implements PipeTransform {
               <mat-icon class="!hidden sm:!inline-block sm:mr-2" aria-hidden="true">camera_alt</mat-icon>
               <span class="block whitespace-nowrap text-center text-[11px] sm:text-sm">{{ I18N.stats.gear | translate }}</span>
             </ng-template>
+            @if (gearFailed()) {
+              <ng-container *ngTemplateOutlet="sectionError; context: { $implicit: 'gear' }" />
+            }
             <div class="grid grid-cols-1 xl:grid-cols-2 gap-4 mt-4">
               <app-gear-chart-card titleKey="stats.cameras" [items]="cameras()" [loading]="gearLoading()" [color]="themeService.accentColor()" />
               <app-gear-chart-card titleKey="stats.lenses" [items]="lenses()" [loading]="gearLoading()" [color]="themeService.complementaryColor()" />
@@ -201,6 +197,9 @@ export class StatsNumberPipe implements PipeTransform {
               <mat-icon class="!hidden sm:!inline-block sm:mr-2" aria-hidden="true">category</mat-icon>
               <span class="block whitespace-nowrap text-center text-[11px] sm:text-sm">{{ I18N.stats.categories.tab | translate }}</span>
             </ng-template>
+            @if (categoriesFailed()) {
+              <ng-container *ngTemplateOutlet="sectionError; context: { $implicit: 'categories' }" />
+            }
             <div class="mt-4 flex flex-col gap-4">
               <div class="grid grid-cols-1 lg:grid-cols-2 2xl:grid-cols-3 gap-4">
                 @if (categoryMetricData().length > 0) {
@@ -295,6 +294,8 @@ export class StatsNumberPipe implements PipeTransform {
                   <mat-card-content class="!pt-4">
                     @if (scoreLoading()) {
                       <div class="flex justify-center py-4"><mat-spinner diameter="32" [attr.aria-label]="I18N.ui.labels.loading | translate" /></div>
+                    } @else if (scoreFailed()) {
+                      <ng-container *ngTemplateOutlet="sectionError; context: { $implicit: 'score' }" />
                     } @else if (scoreBins().length === 0) {
                       <p class="text-sm text-[var(--mat-sys-on-surface-variant)]">{{ I18N.stats.no_data | translate }}</p>
                     } @else {
@@ -393,6 +394,7 @@ export class StatsComponent {
   protected readonly I18N = i18nKeys();
   private api = inject(ApiService);
   private readonly auth = inject(AuthService);
+  private readonly authScope = statsAuthScope(this.auth);
   private readonly document = inject(DOCUMENT);
   private readonly injector = inject(Injector);
   protected readonly i18n = inject(I18nService);
@@ -448,6 +450,10 @@ export class StatsComponent {
   protected readonly lenses = signal<GearItem[]>([]);
   protected readonly combos = signal<GearItem[]>([]);
   protected readonly gearLoading = signal(false);
+  // A failed section read degrades that section only; `loadFailed` is reserved for the overview.
+  protected readonly gearFailed = signal(false);
+  protected readonly categoriesFailed = signal(false);
+  protected readonly scoreFailed = signal(false);
 
   protected readonly categoryStats = signal<CategoryStat[]>([]);
   protected readonly categoriesLoading = signal(false);
@@ -507,8 +513,6 @@ export class StatsComponent {
   });
   protected readonly scoreLoading = signal(false);
 
-  protected readonly topCameras = signal<TopCamera[]>([]);
-
   constructor() {
     registerPageContext('stats', () => ({
       tab: this.selectedTab(),
@@ -539,9 +543,8 @@ export class StatsComponent {
       this.statsFilters.filterCategory();
       this.statsFilters.dateFrom();
       this.statsFilters.dateTo();
-      // Status changes when credentials rotate, including for the same user.
-      this.auth.status();
-      this.auth.identity();
+      // Reload when the identity or token changes, not on every status refresh.
+      this.authScope();
       const authenticated = this.auth.isAuthenticated();
       untracked(() => {
         if (authenticated) void this.loadAll();
@@ -552,7 +555,7 @@ export class StatsComponent {
     // Category choices are consumed by Statistics even while gallery listing
     // reads are parked. Refresh them explicitly after the auth scope settles.
     effect(() => {
-      this.auth.status();
+      this.authScope();
       const authenticated = this.auth.isAuthenticated();
       untracked(() => { if (authenticated) void this.store.loadTypeCounts(); });
     });
@@ -614,11 +617,12 @@ export class StatsComponent {
   }
 
   private clearStats(): void {
-    for (const key of ['overview', 'gear', 'categories', 'scoreDistribution', 'topCameras']) this.nextLoadSeq(key);
+    for (const key of ['overview', 'gear', 'categories', 'scoreDistribution']) this.nextLoadSeq(key);
     this.statsFilters.overview.set(null);
     this.cameras.set([]); this.lenses.set([]); this.combos.set([]);
-    this.categoryStats.set([]); this.scoreBins.set([]); this.topCameras.set([]);
+    this.categoryStats.set([]); this.scoreBins.set([]);
     this.loading.set(false); this.gearLoading.set(false); this.categoriesLoading.set(false); this.scoreLoading.set(false);
+    this.gearFailed.set(false); this.categoriesFailed.set(false); this.scoreFailed.set(false);
     this.loadFailed.set(false);
     this.retrying.set(false);
   }
@@ -629,6 +633,12 @@ export class StatsComponent {
 
   protected retryLoad(): void {
     if (!this.retrying()) void this.loadAll(true);
+  }
+
+  protected retrySection(section: 'gear' | 'categories' | 'score'): void {
+    if (section === 'gear') void this.loadGear();
+    else if (section === 'categories') void this.loadCategories();
+    else void this.loadScoreDistribution();
   }
 
   async loadAll(retry = false): Promise<void> {
@@ -649,7 +659,7 @@ export class StatsComponent {
 
     if (!current()) return;
     if (overviewLoaded) {
-      await Promise.all([this.loadGear(), this.loadCategories(), this.loadScoreDistribution(), this.loadTopCameras()]);
+      await Promise.all([this.loadGear(), this.loadCategories(), this.loadScoreDistribution()]);
     }
     if (!current()) return;
     const restoreFocus = retry && !this.loadFailed() && this.document.activeElement === retryButton;
@@ -682,6 +692,7 @@ export class StatsComponent {
   async loadGear(): Promise<void> {
     const current = this.captureLoad('gear');
     this.gearLoading.set(true);
+    this.gearFailed.set(false);
     try {
       const data = await firstValueFrom(this.api.get<GearApiResponse>('/stats/gear', this.filterParams, this.localErrors()));
       if (current()) {
@@ -689,36 +700,30 @@ export class StatsComponent {
         this.lenses.set((data.lenses ?? []).map(l => this.mapGearItem(l as unknown as Record<string, unknown>)));
         this.combos.set((data.combos ?? []).map(c => this.mapGearItem(c as unknown as Record<string, unknown>)));
       }
-    } catch { if (current()) this.loadFailed.set(true); }
+    } catch { if (current()) this.gearFailed.set(true); }
     finally { if (current()) this.gearLoading.set(false); }
   }
 
   async loadCategories(): Promise<void> {
     const current = this.captureLoad('categories');
     this.categoriesLoading.set(true);
+    this.categoriesFailed.set(false);
     try {
       const data = await firstValueFrom(this.api.get<CategoryStat[]>('/stats/categories', this.filterParams, this.localErrors()));
       if (current()) this.categoryStats.set(data);
-    } catch { if (current()) this.loadFailed.set(true); }
+    } catch { if (current()) this.categoriesFailed.set(true); }
     finally { if (current()) this.categoriesLoading.set(false); }
   }
 
   async loadScoreDistribution(): Promise<void> {
     const current = this.captureLoad('scoreDistribution');
     this.scoreLoading.set(true);
+    this.scoreFailed.set(false);
     try {
       const data = await firstValueFrom(this.api.get<ScoreBin[]>('/stats/score_distribution', this.filterParams, this.localErrors()));
       if (current()) this.scoreBins.set(data);
-    } catch { if (current()) this.loadFailed.set(true); }
+    } catch { if (current()) this.scoreFailed.set(true); }
     finally { if (current()) this.scoreLoading.set(false); }
-  }
-
-  async loadTopCameras(): Promise<void> {
-    const current = this.captureLoad('topCameras');
-    try {
-      const data = await firstValueFrom(this.api.get<TopCamera[]>('/stats/top_cameras', this.filterParams, this.localErrors()));
-      if (current()) this.topCameras.set(data);
-    } catch { if (current()) this.loadFailed.set(true); }
   }
 
   /** Export the per-category statistics table as CSV. */

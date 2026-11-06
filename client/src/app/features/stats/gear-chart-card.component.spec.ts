@@ -99,6 +99,16 @@ describe('GearChartCardComponent', () => {
     expect(table.textContent).toContain('8.5');
   });
 
+  it('names the data table and its columns, and rounds averages like the other tables', () => {
+    (component as any).selectedMetric.set('avg_score');
+    fixture.componentRef.setInput('items', [{ ...mockItems[0], avg_score: 7.123457 }]);
+    fixture.detectChanges();
+    const table = fixture.nativeElement.querySelector('details table') as HTMLTableElement;
+    expect(table.querySelector('caption')?.textContent).toContain('trans_');
+    expect(Array.from(table.querySelectorAll('thead th')).map(th => th.textContent)).toEqual(['trans_stats.model', 'trans_stats.gear_metrics.avg_score']);
+    expect(table.querySelector('tbody td')?.textContent?.trim()).toBe('7.1');
+  });
+
   it('shows an empty state rather than an empty chart', () => {
     fixture.componentRef.setInput('items', []);
     fixture.detectChanges();

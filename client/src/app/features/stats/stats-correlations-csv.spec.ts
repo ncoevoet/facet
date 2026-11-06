@@ -1,4 +1,4 @@
-import { buildCorrelationCsvRecords, CorrelationApiResponse } from './stats-correlations-csv';
+import { buildCorrelationCsvRecords, correlationBucketColumn, CorrelationApiResponse } from './stats-correlations-csv';
 
 describe('buildCorrelationCsvRecords', () => {
   it('returns an empty array for null data', () => {
@@ -164,5 +164,25 @@ describe('buildCorrelationCsvRecords', () => {
       group_by: '',
     };
     expect(buildCorrelationCsvRecords(data, ['aesthetic'])).toEqual([]);
+  });
+
+  it('keeps the bucket column when the X dimension is also a Y metric', () => {
+    const data: CorrelationApiResponse = {
+      labels: ['4.0-4.5', '4.5-5.0'], metrics: { aggregate: [4.2, 4.7], aesthetic: [5.1, 5.3] }, x_axis: 'aggregate', group_by: '',
+    };
+    expect(buildCorrelationCsvRecords(data, ['aggregate', 'aesthetic'])).toEqual([
+      { aggregate_bucket: '4.0-4.5', aggregate: 4.2, aesthetic: 5.1 },
+      { aggregate_bucket: '4.5-5.0', aggregate: 4.7, aesthetic: 5.3 },
+    ]);
+    expect(correlationBucketColumn(data, ['aesthetic'])).toBe('aggregate_bucket');
+  });
+
+  it('keeps the bucket column of grouped rows when the X dimension is also a Y metric', () => {
+    const data: CorrelationApiResponse = {
+      labels: ['4.0-4.5'], groups: { Canon: { '4.0-4.5': { aggregate: 4.2 } } }, x_axis: 'aggregate', group_by: 'camera_model',
+    };
+    expect(buildCorrelationCsvRecords(data, ['aggregate'])).toEqual([
+      { aggregate_bucket: '4.0-4.5', group: 'Canon', aggregate: 4.2 },
+    ]);
   });
 });

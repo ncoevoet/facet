@@ -7,7 +7,8 @@ import { NEVER, of, Subject, throwError } from 'rxjs';
 import { ApiService } from '../../core/services/api.service';
 import { I18nService } from '../../core/services/i18n.service';
 import { ChartHeightPipe } from './chart-height.pipe';
-import { StatsComponent, StatsNumberPipe } from './stats.component';
+import { StatsComponent } from './stats.component';
+import { StatsNumberPipe } from './stats-locale-number.pipe';
 import { PageContextService } from '../../core/agent/page-context.service';
 import { Router, ActivatedRoute } from '@angular/router';
 
@@ -97,10 +98,6 @@ describe('StatsComponent', () => {
     { range: '9-10', min: 9, max: 10, count: 50, percentage: 0.05 },
   ];
 
-  const mockTopCameras = [
-    { name: 'Canon R5', count: 500, avg_score: 7.1, avg_aesthetic: 7.5 },
-  ];
-
   /**
    * Create component with api.get mock pre-configured.
    * The constructor calls loadAll() immediately, so the mock must be ready.
@@ -109,7 +106,6 @@ describe('StatsComponent', () => {
   function safeDefault(path: string) {
     if (path === '/stats/categories') return of([]);
     if (path === '/stats/score_distribution') return of([]);
-    if (path === '/stats/top_cameras') return of([]);
     if (path === '/stats/gear') return of({ cameras: [], lenses: [], combos: [], categories: [] });
     return of({});
   }
@@ -154,6 +150,8 @@ describe('StatsComponent', () => {
     expect(pipe.transform(6.5, 'de', 1)).toBe('6,5');
     expect(pipe.transform(18432, 'en')).toBe('18,432');
     expect(pipe.transform(null, 'de', 1)).toBe('—');
+    expect(pipe.transform(undefined, 'de')).toBe('—');
+    expect(pipe.transform(Number.NaN, 'de')).toBe('—');
   });
 
   it('localizes score-bin labels when the viewer language changes', () => {
@@ -294,7 +292,8 @@ describe('StatsComponent', () => {
       expect(mockApi.get).toHaveBeenCalledWith('/stats/gear', expect.any(Object), expect.any(Object));
       expect(mockApi.get).toHaveBeenCalledWith('/stats/categories', expect.any(Object), expect.any(Object));
       expect(mockApi.get).toHaveBeenCalledWith('/stats/score_distribution', expect.any(Object), expect.any(Object));
-      expect(mockApi.get).toHaveBeenCalledWith('/stats/top_cameras', expect.any(Object), expect.any(Object));
+      // Nothing renders the top cameras, so they are no longer read.
+      expect(mockApi.get).not.toHaveBeenCalledWith('/stats/top_cameras', expect.any(Object), expect.any(Object));
     });
   });
 
@@ -338,6 +337,8 @@ describe('StatsComponent', () => {
       await flushPromises();
 
       expect(c().gearLoading()).toBe(false);
+      expect(c().gearFailed()).toBe(true);
+      expect(c().loadFailed()).toBe(false);
     });
   });
 
@@ -408,19 +409,6 @@ describe('StatsComponent', () => {
 
       expect(c().scoreBins()).toEqual(mockScoreBins);
       expect(c().scoreLoading()).toBe(false);
-    });
-  });
-
-  describe('loadTopCameras()', () => {
-    it('should fetch top cameras and set the signal', async () => {
-      const getMock = vi.fn((path: string) => {
-        if (path === '/stats/top_cameras') return of(mockTopCameras);
-        return safeDefault(path);
-      });
-      component = createComponent(getMock);
-      await flushPromises();
-
-      expect(c().topCameras()).toEqual(mockTopCameras);
     });
   });
 

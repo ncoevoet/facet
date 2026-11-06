@@ -13,11 +13,12 @@ import { ThemeService } from '../../core/services/theme.service';
 import { AuthService } from '../../core/services/auth.service';
 import { TranslatePipe } from '../../shared/pipes/translate.pipe';
 import { StatsFiltersService } from './stats-filters.service';
+import { statsAuthScope } from './stats-auth-scope';
 import { downloadCsv } from '../../shared/utils/csv';
 import { i18nKeys } from '../../core/i18n/keys';
 import { chartSeriesColor, chartTheme } from './chart-theme';
 import { HANDLE_SERVER_ERROR_LOCALLY } from '../../core/utils/http-error-context';
-import { StatsLocaleNumberPipe } from './stats-locale-number.pipe';
+import { StatsNumberPipe } from './stats-locale-number.pipe';
 
 /** Pipe to compute heatmap circle color from count:max. */
 @Pipe({ name: 'heatmapColor', standalone: true })
@@ -66,7 +67,7 @@ export function formatStatsMonth(period: string, locale: string): string {
     TranslatePipe,
     HeatmapColorPipe,
     HeatmapSizePipe,
-    StatsLocaleNumberPipe,
+    StatsNumberPipe,
   ],
   changeDetection: ChangeDetectionStrategy.Eager,
   template: `
@@ -95,10 +96,13 @@ export function formatStatsMonth(period: string, locale: string): string {
               <canvas #timelineCanvas aria-hidden="true"></canvas>
             </div>
             <details class="mt-3 text-sm text-[var(--mat-sys-on-surface-variant)]">
-              <summary class="cursor-pointer">{{ I18N.stats.show_chart_data | translate }}</summary>
-              <div class="mt-2 max-h-72 overflow-auto"><table class="w-full text-left"><tbody>
+              <summary class="min-h-11 cursor-pointer content-center">{{ I18N.stats.show_chart_data | translate }}</summary>
+              <div class="mt-2 max-h-72 overflow-auto"><table class="w-full text-left">
+                <caption class="sr-only">{{ I18N.stats.photos_over_time | translate }}</caption>
+                <thead><tr><th scope="col" class="py-1 pr-3">{{ I18N.stats.period | translate }}</th><th scope="col" class="py-1 text-right">{{ I18N.stats.axes.photos | translate }}</th></tr></thead>
+                <tbody>
                 @for (row of timelineRows(); track row.period) {
-                  <tr class="border-b border-[var(--mat-sys-outline-variant)]"><th scope="row" class="py-1 pr-3 font-normal">{{ row.label }}</th><td class="py-1 text-right tabular-nums">{{ row.count | statsLocaleNumber:i18n.locale() }}</td></tr>
+                  <tr class="border-b border-[var(--mat-sys-outline-variant)]"><th scope="row" class="py-1 pr-3 font-normal">{{ row.label }}</th><td class="py-1 text-right tabular-nums">{{ row.count | statsNumber:i18n.locale() }}</td></tr>
                 }
               </tbody></table></div>
             </details>
@@ -115,7 +119,7 @@ export function formatStatsMonth(period: string, locale: string): string {
             <div class="h-48 md:h-64">
               <canvas #yearlyCanvas aria-hidden="true"></canvas>
             </div>
-            <details class="mt-3 text-sm"><summary class="cursor-pointer">{{ I18N.stats.show_chart_data | translate }}</summary><table class="mt-2 w-full text-left"><tbody>@for (row of yearlyData(); track row.year) {<tr><th scope="row" class="font-normal">{{ row.year }}</th><td class="text-right">{{ row.count | statsLocaleNumber:i18n.locale() }}</td></tr>}</tbody></table></details>
+            <details class="mt-3 text-sm"><summary class="min-h-11 cursor-pointer content-center">{{ I18N.stats.show_chart_data | translate }}</summary><table class="mt-2 w-full text-left"><caption class="sr-only">{{ I18N.stats.photos_per_year | translate }}</caption><thead><tr><th scope="col">{{ I18N.stats.axes.year | translate }}</th><th scope="col" class="text-right">{{ I18N.stats.axes.photos | translate }}</th></tr></thead><tbody>@for (row of yearlyData(); track row.year) {<tr><th scope="row" class="font-normal">{{ row.year }}</th><td class="text-right">{{ row.count | statsNumber:i18n.locale() }}</td></tr>}</tbody></table></details>
           </mat-card-content>
         </mat-card>
       }
@@ -130,7 +134,7 @@ export function formatStatsMonth(period: string, locale: string): string {
               <div class="h-64">
                 <canvas #dayOfWeekCanvas aria-hidden="true"></canvas>
               </div>
-              <details class="mt-3 text-sm"><summary class="cursor-pointer">{{ I18N.stats.show_chart_data | translate }}</summary><table class="mt-2 w-full text-left"><tbody>@for (row of dayOfWeekData(); track $index) {<tr><th scope="row" class="font-normal">{{ row.label }}</th><td class="text-right">{{ row.count | statsLocaleNumber:i18n.locale() }}</td></tr>}</tbody></table></details>
+              <details class="mt-3 text-sm"><summary class="min-h-11 cursor-pointer content-center">{{ I18N.stats.show_chart_data | translate }}</summary><table class="mt-2 w-full text-left"><caption class="sr-only">{{ I18N.stats.charts.day_of_week | translate }}</caption><thead><tr><th scope="col">{{ I18N.stats.axes.day_of_week | translate }}</th><th scope="col" class="text-right">{{ I18N.stats.axes.photos | translate }}</th></tr></thead><tbody>@for (row of dayOfWeekData(); track $index) {<tr><th scope="row" class="font-normal">{{ row.label }}</th><td class="text-right">{{ row.count | statsNumber:i18n.locale() }}</td></tr>}</tbody></table></details>
             </mat-card-content>
           </mat-card>
         }
@@ -143,7 +147,7 @@ export function formatStatsMonth(period: string, locale: string): string {
               <div class="h-64">
                 <canvas #hourOfDayCanvas aria-hidden="true"></canvas>
               </div>
-              <details class="mt-3 text-sm"><summary class="cursor-pointer">{{ I18N.stats.show_chart_data | translate }}</summary><table class="mt-2 w-full text-left"><tbody>@for (row of hourOfDayData(); track $index) {<tr><th scope="row" class="font-normal">{{ row.label }}</th><td class="text-right">{{ row.count | statsLocaleNumber:i18n.locale() }}</td></tr>}</tbody></table></details>
+              <details class="mt-3 text-sm"><summary class="min-h-11 cursor-pointer content-center">{{ I18N.stats.show_chart_data | translate }}</summary><table class="mt-2 w-full text-left"><caption class="sr-only">{{ I18N.stats.charts.hour_of_day | translate }}</caption><thead><tr><th scope="col">{{ I18N.stats.axes.hour | translate }}</th><th scope="col" class="text-right">{{ I18N.stats.axes.photos | translate }}</th></tr></thead><tbody>@for (row of hourOfDayData(); track $index) {<tr><th scope="row" class="font-normal">{{ row.label }}</th><td class="text-right">{{ row.count | statsNumber:i18n.locale() }}</td></tr>}</tbody></table></details>
             </mat-card-content>
           </mat-card>
         }
@@ -200,6 +204,7 @@ export class StatsTimelineTabComponent {
   private statsFilters = inject(StatsFiltersService);
   private themeService = inject(ThemeService);
   private auth = inject(AuthService);
+  private readonly authScope = statsAuthScope(this.auth);
   private charts = new Map<string, Chart>();
   private generation = 0;
   private loadedKey = '';
@@ -235,7 +240,7 @@ export class StatsTimelineTabComponent {
       this.statsFilters.filterCategory();
       this.statsFilters.dateFrom();
       this.statsFilters.dateTo();
-      this.auth.status(); this.auth.identity(); this.auth.isAuthenticated();
+      this.authScope();
       this.i18n.locale();
       void this.loadTimeline();
     });

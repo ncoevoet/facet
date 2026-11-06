@@ -61,6 +61,15 @@ describe('StatsCorrelationsTabComponent', () => {
     expect(component.corrBucketCount()).toBe(0);
   });
 
+  it('keeps a loaded chart when a status refresh changes neither identity nor token', async () => {
+    TestBed.tick();
+    vi.mocked(TestBed.inject(ApiService).get).mockReturnValueOnce(of({ labels: ['2025'], metrics: { aggregate: [7] }, x_axis: 'date_year', group_by: '' }));
+    await component.loadCorrelation();
+    (TestBed.inject(AuthService).status as ReturnType<typeof signal<object>>).set({ authenticated: true, edition_authenticated: true });
+    TestBed.tick();
+    expect(component.currentData()?.labels).toEqual(['2025']);
+  });
+
   it('uses translation keys for chart-table headers while retaining raw CSV keys', async () => {
     TestBed.tick();
     vi.mocked(TestBed.inject(ApiService).get).mockReturnValueOnce(of({ labels: ['2025'], metrics: { aggregate: [7], aesthetic: [6] }, x_axis: 'date_year', group_by: '' }));
@@ -69,6 +78,45 @@ describe('StatsCorrelationsTabComponent', () => {
       'stats.correlations.dimensions.date_year', 'stats.correlations.metrics.aggregate', 'stats.correlations.metrics.aesthetic',
     ]);
     expect(buildCorrelationCsvRecords(component.currentData(), ['aggregate', 'aesthetic'])[0]).toEqual({ date_year: '2025', aggregate: 7, aesthetic: 6 });
+  });
+
+  it('keeps a bucket column in the chart-data table when the X dimension is also a selected Y metric', async () => {
+    TestBed.tick();
+    vi.mocked(TestBed.inject(ApiService).get).mockReturnValueOnce(of({ labels: ['4.0-4.5', '4.5-5.0'], metrics: { aggregate: [4.2, 4.7], aesthetic: [5.1, 5.3] }, x_axis: 'aggregate', group_by: '' }));
+    await component.loadCorrelation();
+    expect(component.accessibleColumnLabels()).toEqual([
+      'stats.correlations.dimensions.aggregate', 'stats.correlations.metrics.aggregate', 'stats.correlations.metrics.aesthetic',
+    ]);
+    expect(component.accessibleRows()).toEqual([['4.0-4.5', '4.2', '5.1'], ['4.5-5.0', '4.7', '5.3']]);
+  });
+
+  it('keeps one colour per group and a distinct dash and point style per metric', async () => {
+    TestBed.tick();
+    const metrics = ['aggregate', 'aesthetic', 'tech_sharpness', 'comp_score', 'face_quality'];
+    component.corrYMetrics.set(metrics);
+    component.corrGroupBy.set('camera_model');
+    TestBed.tick();
+    const cell = { aggregate: 1, aesthetic: 2, tech_sharpness: 3, comp_score: 4, face_quality: 5 };
+    vi.mocked(TestBed.inject(ApiService).get).mockReturnValueOnce(of({ labels: ['2025'], groups: { Canon: { '2025': cell } }, x_axis: 'date_year', group_by: 'camera_model' }));
+    await component.loadCorrelation();
+    const rows = component.chartSeriesRows();
+    expect(rows).toHaveLength(5);
+    expect(new Set(rows.map(row => row.color)).size).toBe(1);
+    expect(new Set(rows.map(row => `${row.dashPattern}|${row.point}`)).size).toBe(5);
+  });
+
+  it('keeps all 23 selectable metrics visually distinct on an ungrouped line chart', async () => {
+    TestBed.tick();
+    const metrics = component.corrMetricOptions.map(option => option.key);
+    component.corrYMetrics.set(metrics);
+    TestBed.tick();
+    vi.mocked(TestBed.inject(ApiService).get).mockReturnValueOnce(of({
+      labels: ['2025'], metrics: Object.fromEntries(metrics.map(metric => [metric, [1]])), x_axis: 'date_year', group_by: '',
+    }));
+    await component.loadCorrelation();
+    const rows = component.chartSeriesRows();
+    expect(rows).toHaveLength(23);
+    expect(new Set(rows.map(row => `${row.color}|${row.dashPattern}|${row.point}`)).size).toBe(23);
   });
 
   it('labels grouped tables with the actual dimension and formats numbers in the selected locale', async () => {

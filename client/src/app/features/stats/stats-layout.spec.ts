@@ -19,15 +19,19 @@ class MockTranslatePipe implements PipeTransform { transform(key: string): strin
 
 describe('statistics page states', () => {
   let failOverview: boolean;
+  let failedPath: string | null;
+  let requested: string[];
   const locale = signal('de');
   const owner = signal('owner');
   const overview = { total_photos: 18432, total_persons: 50, avg_score: 6.5, total_faces: 300 };
   beforeEach(async () => {
-    failOverview = false; locale.set('de'); owner.set('owner'); overview.total_photos = 18432;
+    failOverview = false; failedPath = null; requested = []; locale.set('de'); owner.set('owner'); overview.total_photos = 18432;
     await TestBed.configureTestingModule({
       imports: [StatsComponent, NoopAnimationsModule],
       providers: [
         { provide: ApiService, useValue: { get: (path: string) => {
+          requested.push(path);
+          if (path === failedPath) return throwError(() => new Error('offline'));
           if (path === '/stats/overview') return failOverview ? throwError(() => new Error('offline')) : of(overview);
           if (path === '/stats/gear') return of({ cameras: [], lenses: [], combos: [] });
           return of([]);
@@ -84,6 +88,17 @@ describe('statistics page states', () => {
     expect(host.querySelector('[role="alert"]')?.textContent).toContain('stats.correlations.error');
     expect(host.querySelector('mat-tab-group')).toBeNull();
     expect(host.querySelector('app-gear-chart-card')).toBeNull();
+  });
+
+  it('does not read the unused top cameras, and keeps the page when a single section read fails', async () => {
+    failedPath = '/stats/gear';
+    const fixture = TestBed.createComponent(StatsComponent);
+    fixture.detectChanges(); await fixture.whenStable(); fixture.detectChanges();
+    const host: HTMLElement = fixture.nativeElement;
+    expect(requested).not.toContain('/stats/top_cameras');
+    expect(host.querySelector('mat-tab-group')).not.toBeNull();
+    expect(host.querySelectorAll('[role="alert"]')).toHaveLength(1);
+    expect(host.querySelector('[role="alert"]')?.textContent).toContain('stats.correlations.error');
   });
 
   it('shows an unavailable average for an empty collection', async () => {

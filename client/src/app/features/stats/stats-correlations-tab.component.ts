@@ -17,8 +17,9 @@ import { I18nService } from '../../core/services/i18n.service';
 import { TranslatePipe } from '../../shared/pipes/translate.pipe';
 import { StatsFiltersService } from './stats-filters.service';
 import { downloadCsv } from '../../shared/utils/csv';
-import { CorrelationApiResponse, buildCorrelationCsvRecords } from './stats-correlations-csv';
+import { CorrelationApiResponse, buildCorrelationCsvRecords, correlationBucketColumn } from './stats-correlations-csv';
 import { i18nKeys } from '../../core/i18n/keys';
+import { statsAuthScope } from './stats-auth-scope';
 import { chartSeriesColors, chartTheme } from './chart-theme';
 import { HANDLE_SERVER_ERROR_LOCALLY } from '../../core/utils/http-error-context';
 
@@ -33,6 +34,8 @@ export function correlationSeries(data: CorrelationApiResponse, metrics: string[
   }
   return Object.entries(data.metrics ?? {}).map(([metric, values], metricIndex) => ({ label: metricLabel(metric), values, groupIndex: metricIndex, metricIndex }));
 }
+
+const LINE_POINT_STYLES: PointStyle[] = ['circle', 'triangle', 'rect', 'rectRot', 'crossRot', 'star'];
 
 /** Preserve slots for still-visible series, reusing only slots that became free. */
 export function allocateSeriesSlots(keys: string[], previous: Record<string, number>, limit = 8): Record<string, number> {
@@ -165,8 +168,9 @@ export function allocateSeriesSlots(keys: string[], previous: Record<string, num
               </div>
             }
             <details class="mt-3 text-sm text-[var(--mat-sys-on-surface-variant)]">
-              <summary class="cursor-pointer">{{ I18N.stats.show_chart_data | translate }}</summary>
+              <summary class="min-h-11 cursor-pointer content-center">{{ I18N.stats.show_chart_data | translate }}</summary>
               <div class="mt-2 max-h-72 overflow-auto"><table class="w-full text-left">
+                <caption class="sr-only">{{ I18N.stats.metric_correlations | translate }}</caption>
                 <thead><tr>@for (column of accessibleColumnLabels(); track $index) {<th scope="col" class="p-1">{{ column }}</th>}</tr></thead>
                 <tbody>@for (row of accessibleRows(); track $index) {<tr class="border-t border-[var(--mat-sys-outline-variant)]">@for (value of row; track $index) {<td class="p-1">{{ value }}</td>}</tr>}</tbody>
               </table></div>
@@ -187,6 +191,7 @@ export class StatsCorrelationsTabComponent {
   private statsFilters = inject(StatsFiltersService);
   private themeService = inject(ThemeService);
   private auth = inject(AuthService);
+  private readonly authScope = statsAuthScope(this.auth);
   private i18n = inject(I18nService);
   private injector = inject(Injector);
   private charts = new Map<string, Chart>();
@@ -226,8 +231,10 @@ export class StatsCorrelationsTabComponent {
         const visible = requested && (!bars || visibleIndex < this.seriesLimit);
         const colorIndex = bars ? (visible ? (barSlots[key] ?? visibleIndex++) : 0) : series.groupIndex;
         if (bars && visible && barSlots[key] !== undefined) visibleIndex++;
+        // Lines keep colour for the group; dash, then point shape, tell its metrics apart (4 dashes x 6 points = 24 metrics).
         const dash = bars ? [] : dashes[series.metricIndex % dashes.length];
-        return { ...series, key, color: bars && !visible ? 'var(--mat-sys-outline)' : colors[colorIndex % colors.length], dash, dashPattern: dash.join(' '), visible };
+        const point = LINE_POINT_STYLES[Math.floor(series.metricIndex / dashes.length) % LINE_POINT_STYLES.length];
+        return { ...series, key, color: bars && !visible ? 'var(--mat-sys-outline)' : colors[colorIndex % colors.length], dash, dashPattern: dash.join(' '), point, visible };
       });
     const selected = rows.filter(row => row.visible).length;
     return rows.map(row => ({ ...row, atLimit: bars && !row.visible && selected >= this.seriesLimit }));
@@ -237,10 +244,11 @@ export class StatsCorrelationsTabComponent {
   readonly accessibleColumns = computed(() => Object.keys(this.accessibleRecords()[0] ?? {}));
   readonly accessibleColumnLabels = computed(() => {
     this.i18n.locale();
-    const xAxis = this.currentData()?.x_axis;
+    const data = this.currentData();
+    const bucketColumn = data ? correlationBucketColumn(data, this.corrYMetrics()) : '';
     return this.accessibleColumns().map(column => column === 'group'
-      ? this.i18n.t(`stats.correlations.dimensions.${this.currentData()?.group_by}`)
-      : this.i18n.t(column === xAxis ? `stats.correlations.dimensions.${column}` : `stats.correlations.metrics.${column}`));
+      ? this.i18n.t(`stats.correlations.dimensions.${data?.group_by}`)
+      : this.i18n.t(column === bucketColumn ? `stats.correlations.dimensions.${data?.x_axis}` : `stats.correlations.metrics.${column}`));
   });
   readonly accessibleRows = computed(() => {
     const formatter = new Intl.NumberFormat(this.i18n.locale(), { maximumFractionDigits: 6 });
@@ -285,7 +293,7 @@ export class StatsCorrelationsTabComponent {
     effect(() => {
       this.corrXAxis(); this.corrYMetrics(); this.corrGroupBy();
       this.statsFilters.filterCategory(); this.statsFilters.dateFrom(); this.statsFilters.dateTo();
-      this.auth.status(); this.auth.identity(); this.auth.isAuthenticated();
+      this.authScope();
       this.generation++;
       this.corrData.set(null);
       this.seriesVisibility.set({});
@@ -396,10 +404,9 @@ export class StatsCorrelationsTabComponent {
   }
 
   private requestKey(): string {
-    // Token rotation revalidates/replaces status even when the user id stays
-    // the same. Track that signal so cached data is invalidated immediately.
-    this.auth.status();
-    return JSON.stringify([this.auth.identity(), this.auth.isAuthenticated(), this.auth.token, this.corrXAxis(), this.corrYMetrics(), this.corrGroupBy(),
+    // The scope tracks identity and token changes, so a status refresh that changes neither does not
+    // invalidate cached data; the live token still rejects a response that returns after a rotation.
+    return JSON.stringify([this.authScope(), this.auth.token, this.corrXAxis(), this.corrYMetrics(), this.corrGroupBy(),
       this.statsFilters.filterCategory(), this.statsFilters.dateFrom(), this.statsFilters.dateTo()]);
   }
 
@@ -432,7 +439,6 @@ export class StatsCorrelationsTabComponent {
       pointStyle?: PointStyle;
     }[] = [];
 
-    const points: PointStyle[] = ['circle', 'triangle', 'rect', 'rectRot', 'crossRot', 'star'];
     for (const series of this.chartSeriesRows().filter(row => row.visible)) {
         const color = series.color;
         datasets.push({
@@ -441,7 +447,7 @@ export class StatsCorrelationsTabComponent {
           borderColor: color, borderWidth: type === 'bar' ? 1 : 2,
           fill, tension: type === 'line' ? 0 : undefined,
           borderDash: type === 'line' ? series.dash : undefined,
-          pointStyle: type === 'line' ? points[series.groupIndex % points.length] : undefined,
+          pointStyle: type === 'line' ? series.point : undefined,
           pointRadius: type === 'line' ? 3 : undefined,
           borderRadius: type === 'bar' ? 3 : undefined,
         });

@@ -378,6 +378,11 @@ export class JunkSweepComponent implements OnInit, OnDestroy {
     return { generation: this.viewGeneration, navigation: this.navigationGeneration, identity: this.viewIdentity, kind: this.activeKind() };
   }
 
+  /** The account that issued a write is still the one signed in, wherever the view has moved since. */
+  private isSameOwner(view: QueueView): boolean {
+    return this.auth.isEdition() && view.identity === this.auth.identity();
+  }
+
   private isCurrentView(view: QueueView): boolean {
     return !this.destroyed && this.pendingNavigation === null && view.navigation === this.navigationGeneration
       && this.auth.isEdition() && view.generation === this.viewGeneration
@@ -472,14 +477,18 @@ export class JunkSweepComponent implements OnInit, OnDestroy {
       } else {
         await firstValueFrom(this.api.post('/photo/clear_junk', { photo_path: photo.path }));
       }
-      if (!this.isCurrentView(view)) return;
-      this.journal.record('junk', [photo.path], { action: reject ? 'reject' : 'clear', count: 1 });
-      this.notify(reject ? I18N.junk.rejected : I18N.junk.kept, 1500);
+      // The write landed whatever the user is looking at now: report and journal it for the same account.
+      if (this.isSameOwner(view)) {
+        this.journal.record('junk', [photo.path], { action: reject ? 'reject' : 'clear', count: 1 });
+        this.notify(reject ? I18N.junk.rejected : I18N.junk.kept, 1500);
+      }
     } catch {
-      if (!this.isCurrentView(view)) return;
-      this.restoreLocal(photo, index);
-      failed = true;
-      this.notifyDecisionError();
+      // Only the local rollback belongs to the view that removed the card.
+      if (this.isCurrentView(view)) {
+        this.restoreLocal(photo, index);
+        failed = true;
+      }
+      if (this.isSameOwner(view)) this.notifyDecisionError();
     } finally {
       const current = this.captureView();
       // A kind change can occur while a decision is pending. A matching new
@@ -519,14 +528,26 @@ export class JunkSweepComponent implements OnInit, OnDestroy {
       const confirmed = await firstValueFrom(ref.afterClosed());
       if (!confirmed || !this.isCurrentView(view)) return;
       // Only the loaded, confirmed snapshot is sent, never a library-wide filter.
+      let stopped = false;
       for (const chunk of chunkPhotoPaths(shown.map(photo => photo.path))) {
-        if (!this.isCurrentView(view)) return;
+        // A navigation or kind change stops further chunks, but never hides the ones that landed.
+        if (!this.isCurrentView(view)) {
+          stopped = true;
+          break;
+        }
         await firstValueFrom(this.api.post('/photos/batch_reject', { photo_paths: chunk }));
-        if (!this.isCurrentView(view)) return;
         rejected.push(...chunk);
       }
-      this.journal.record('junk', rejected, { action: 'reject', count: rejected.length });
-      this.notify(I18N.junk.rejected_bulk, 2000, { count: rejected.length });
+      if (stopped) {
+        this.reportPartialReject(view, rejected);
+        return;
+      }
+      // Every chunk landed: report it for the same account, and touch the list only if this view is still shown.
+      if (this.isSameOwner(view)) {
+        this.journal.record('junk', rejected, { action: 'reject', count: rejected.length });
+        this.notify(I18N.junk.rejected_bulk, 2000, { count: rejected.length });
+      }
+      if (!this.isCurrentView(view)) return;
       const removedByKind = new Map<string, number>();
       for (const photo of shown) {
         if (photo.junk_kind) removedByKind.set(photo.junk_kind, (removedByKind.get(photo.junk_kind) ?? 0) + 1);
@@ -536,11 +557,11 @@ export class JunkSweepComponent implements OnInit, OnDestroy {
       this.photos.set([]);
       await this.load(1);
     } catch {
-      if (!this.isCurrentView(view)) return;
-      if (rejected.length > 0) {
+      if (rejected.length > 0 && this.isSameOwner(view)) {
         this.journal.record('junk', rejected, { action: 'reject', count: rejected.length, partial: true });
       }
-      this.notifyDecisionError();
+      if (this.isSameOwner(view)) this.notifyDecisionError();
+      if (!this.isCurrentView(view)) return;
       // Re-read after a failed bulk write, including when earlier chunks landed.
       this.page = 0;
       this.photos.set([]);
@@ -548,6 +569,12 @@ export class JunkSweepComponent implements OnInit, OnDestroy {
     } finally {
       if (this.isCurrentView(view)) this.bulkBusy.set(false);
     }
+  }
+
+  private reportPartialReject(view: QueueView, rejected: string[]): void {
+    if (rejected.length === 0 || !this.isSameOwner(view)) return;
+    this.journal.record('junk', rejected, { action: 'reject', count: rejected.length, partial: true });
+    this.notify(I18N.gallery.selection.batch_partial, 3000, { count: rejected.length });
   }
 
   /** Wait until all pending writes have settled before refilling a drained queue. */

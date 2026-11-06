@@ -509,6 +509,23 @@ describe('JunkSweepComponent HTTP, owner and recovery boundaries', () => {
     expect(paths()).toEqual([current.path]);
     expect(component.total()).toBe(1);
     expect(journal.record).not.toHaveBeenCalled();
+    expect(snack.open).toHaveBeenCalledWith('junk.decision_error', expect.anything(), expect.anything());
+  });
+
+  it.each([['keep', 'clear'], ['reject', 'reject']])('journals and reports a %s that lands after the kind changed, without touching the new list', async (action, journalled) => {
+    const old = photo(1, 'meme');
+    const current = photo(2);
+    await boot([old, current]);
+    const pending = component[action](old);
+    const write = http.expectOne(action === 'keep' ? '/api/photo/clear_junk' : '/api/photos/batch_reject');
+    const selected = component.selectKind('screenshot');
+    reply(expectPage(1, 'screenshot'), [current]);
+    await selected;
+    write.flush({ success: true });
+    await pending;
+    expect(paths()).toEqual([current.path]);
+    expect(journal.record).toHaveBeenCalledWith('junk', [old.path], { action: journalled, count: 1 });
+    expect(snack.open).toHaveBeenCalledWith(action === 'keep' ? 'junk.kept' : 'junk.rejected', expect.anything(), expect.anything());
   });
 
   it('refreshes a matching new kind after an old-view decision settles instead of replaying its rollback', async () => {
@@ -625,6 +642,54 @@ describe('JunkSweepComponent HTTP, owner and recovery boundaries', () => {
     await resumed;
     expect(paths()).toEqual([]);
     http.expectNone('/api/photos/batch_reject');
+  });
+
+  it('journals and reports the chunks that landed when a navigation stops the bulk write', async () => {
+    const router = TestBed.inject(Router);
+    await router.navigateByUrl('/junk');
+    const queue = Array.from({ length: 1001 }, (_, index) => photo(index));
+    await loadEveryPage(queue);
+    const bulk = component.rejectAllShown();
+    await Promise.resolve();
+    const first = http.expectOne('/api/photos/batch_reject');
+    const entered = new Promise<void>(resolve => { navigationEntered = resolve; });
+    const navigation = router.navigateByUrl('/leaving');
+    await entered;
+    first.flush({ success: true, count: 1000 });
+    await bulk;
+    http.expectNone('/api/photos/batch_reject');
+    expect(journal.record).toHaveBeenCalledWith('junk', queue.slice(0, 1000).map(candidate => candidate.path),
+      { action: 'reject', count: 1000, partial: true });
+    expect(snack.open).toHaveBeenCalledWith('gallery.selection.batch_partial', expect.anything(), expect.anything());
+    navigationGate.next(false); navigationGate.complete();
+    await navigation;
+    await Promise.resolve();
+    http.expectOne('/api/filter_options/junk_kinds').flush({ junk_kinds: [] });
+    reply(expectPage(1), [queue[1000]]);
+    await fixture.whenStable();
+  });
+
+  it('reports a single-chunk bulk write that lands after a navigation started', async () => {
+    const router = TestBed.inject(Router);
+    await router.navigateByUrl('/junk');
+    const queue = [photo(1), photo(2)];
+    await boot(queue);
+    const bulk = component.rejectAllShown();
+    await Promise.resolve();
+    const only = http.expectOne('/api/photos/batch_reject');
+    const entered = new Promise<void>(resolve => { navigationEntered = resolve; });
+    const navigation = router.navigateByUrl('/leaving');
+    await entered;
+    only.flush({ success: true, count: 2 });
+    await bulk;
+    expect(journal.record).toHaveBeenCalledWith('junk', queue.map(candidate => candidate.path), { action: 'reject', count: 2 });
+    expect(snack.open).toHaveBeenCalledWith('junk.rejected_bulk', expect.anything(), expect.anything());
+    navigationGate.next(false); navigationGate.complete();
+    await navigation;
+    await Promise.resolve();
+    http.expectOne('/api/filter_options/junk_kinds').flush({ junk_kinds: [] });
+    reply(expectPage(1), []);
+    await fixture.whenStable();
   });
 
   it('does not issue a later old-account chunk or overwrite the new account queue', async () => {

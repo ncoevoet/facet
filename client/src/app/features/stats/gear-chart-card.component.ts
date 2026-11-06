@@ -15,7 +15,7 @@ import { TranslatePipe } from '../../shared/pipes/translate.pipe';
 import { ChartHeightPipe } from './chart-height.pipe';
 import { downloadCsv } from '../../shared/utils/csv';
 import { chartSeriesColor, chartSeriesColors, chartTheme } from './chart-theme';
-import { StatsLocaleNumberPipe } from './stats-locale-number.pipe';
+import { StatsNumberPipe } from './stats-locale-number.pipe';
 
 export const GEAR_LEGEND_MAX_CHARS = 24;
 
@@ -74,7 +74,7 @@ const GEAR_METRIC_OPTIONS = [
     MatTooltipModule,
     TranslatePipe,
     ChartHeightPipe,
-    StatsLocaleNumberPipe,
+    StatsNumberPipe,
   ],
   changeDetection: ChangeDetectionStrategy.Eager,
   template: `
@@ -108,10 +108,13 @@ const GEAR_METRIC_OPTIONS = [
             <canvas #chartCanvas aria-hidden="true"></canvas>
           </div>
             <details class="mt-3 text-sm text-[var(--mat-sys-on-surface-variant)]">
-              <summary class="cursor-pointer">{{ 'stats.show_chart_data' | translate }}</summary>
-              <div class="mt-2 max-h-72 overflow-auto"><table class="w-full text-left"><tbody>
+              <summary class="min-h-11 cursor-pointer content-center">{{ 'stats.show_chart_data' | translate }}</summary>
+              <div class="mt-2 max-h-72 overflow-auto"><table class="w-full text-left">
+                <caption class="sr-only">{{ titleKey() | translate }}</caption>
+                <thead><tr><th scope="col" class="py-1 pr-3">{{ 'stats.model' | translate }}</th><th scope="col" class="py-1 text-right">{{ ('stats.gear_metrics.' + selectedMetric()) | translate }}</th></tr></thead>
+                <tbody>
                 @for (row of accessibleRows(); track $index) {
-                  <tr class="border-b border-[var(--mat-sys-outline-variant)]"><th scope="row" class="py-1 pr-3 font-normal">{{ row.name }}</th><td class="py-1 text-right tabular-nums">{{ row.value | statsLocaleNumber:i18n.locale() }}</td></tr>
+                  <tr class="border-b border-[var(--mat-sys-outline-variant)]"><th scope="row" class="py-1 pr-3 font-normal">{{ row.name }}</th><td class="py-1 text-right tabular-nums">{{ row.value | statsNumber:i18n.locale():valueDigits() }}</td></tr>
                 }
               </tbody></table></div>
             </details>
@@ -144,6 +147,8 @@ export class GearChartCardComponent {
 
   /** Items sorted by selected metric */
   protected readonly sortedItems = computed(() => this.sortByMetric(this.items(), this.selectedMetric()));
+  /** Counts and ISO/focal length are whole numbers; the averaged scores and f-stop keep one decimal. */
+  protected readonly valueDigits = computed(() => ['count', 'usage_timeline', 'avg_iso', 'avg_focal_length'].includes(this.selectedMetric()) ? 0 : 1);
   protected readonly accessibleRows = computed(() => this.selectedMetric() === 'usage_timeline'
     ? this.sortedItems().slice(0, 8).flatMap(item => item.history.map(point => ({ name: `${item.name} · ${point.date}`, value: point.count })))
     : this.sortedItems().map(item => ({ name: item.name, value: this.metricValue(item, this.selectedMetric()) })));

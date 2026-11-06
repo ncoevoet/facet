@@ -1,5 +1,5 @@
 import { signal } from '@angular/core';
-import { TestBed } from '@angular/core/testing';
+import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { provideHttpClient } from '@angular/common/http';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
 import { Router, ActivatedRoute } from '@angular/router';
@@ -20,7 +20,7 @@ describe('statistics owner and lifecycle boundaries', () => {
       provideHttpClient(), provideHttpClientTesting(), StatsComponent,
       { provide: AuthService, useValue: auth },
       { provide: GalleryStore, useValue: { types: signal([]), loadTypeCounts: vi.fn(() => Promise.resolve()) } },
-      { provide: I18nService, useValue: { t: (key: string) => key, locale: signal('en') } },
+      { provide: I18nService, useValue: { t: (key: string) => key, locale: signal('en'), translations: () => ({}) } },
       { provide: Router, useValue: { navigate: vi.fn(), events: NEVER } },
       { provide: ActivatedRoute, useValue: { snapshot: { queryParams: {} } } },
     ] });
@@ -44,7 +44,6 @@ describe('statistics owner and lifecycle boundaries', () => {
     http.expectOne(req => req.url === '/api/stats/gear').flush({ cameras: [], lenses: [], combos: [] });
     http.expectOne(req => req.url === '/api/stats/categories').flush([]);
     http.expectOne(req => req.url === '/api/stats/score_distribution').flush([]);
-    http.expectOne(req => req.url === '/api/stats/top_cameras').flush([]);
     http.verify();
   });
 
@@ -76,37 +75,66 @@ describe('statistics owner and lifecycle boundaries', () => {
     http.expectOne(req => req.url === '/api/stats/gear').flush({ cameras: [], lenses: [], combos: [] });
     http.expectOne(req => req.url === '/api/stats/categories').flush([]);
     http.expectOne(req => req.url === '/api/stats/score_distribution').flush([]);
-    http.expectOne(req => req.url === '/api/stats/top_cameras').flush([]);
     http.verify();
   });
 
-  it('keeps Retry focused on repeated failure and does not start a duplicate request', async () => {
-    const page = TestBed.inject(StatsComponent) as any;
-    TestBed.tick();
+  /** Render the real template (not the bare class) so the retry button and heading are the page's own elements. */
+  function render(): { fixture: ComponentFixture<StatsComponent>; page: any; host: HTMLElement } {
+    const fixture = TestBed.createComponent(StatsComponent);
+    fixture.detectChanges();
+    return { fixture, page: fixture.componentInstance, host: fixture.nativeElement };
+  }
+  // The rendered page also mounts the eager Timeline tab, which makes its own read.
+  const verifyRendered = () => {
+    http.match(req => req.url === '/api/stats/timeline').forEach(request => request.flush([]));
+    http.verify();
+  };
+  const failOverview = async (fixture: ComponentFixture<StatsComponent>, page: any) => {
     http.expectOne(req => req.url === '/api/stats/overview').flush('failed', { status: 500, statusText: 'Failed' });
     await vi.waitFor(() => expect(page.loadFailed()).toBe(true));
-    const button = document.createElement('button');
-    button.setAttribute('data-stats-retry', ''); document.body.append(button); button.focus();
-    page.retryLoad();
+    fixture.detectChanges();
+  };
+
+  it('does not reload, or wipe loaded data, when a status refresh changes neither identity nor token', async () => {
+    const page = TestBed.inject(StatsComponent);
+    TestBed.tick();
+    http.expectOne(req => req.url === '/api/stats/overview').flush({ total_photos: 5 });
+    await vi.waitFor(() => http.expectOne(req => req.url === '/api/stats/gear').flush({ cameras: [], lenses: [], combos: [] }));
+    http.expectOne(req => req.url === '/api/stats/categories').flush([]);
+    http.expectOne(req => req.url === '/api/stats/score_distribution').flush([]);
+    await vi.waitFor(() => expect(page.statsFilters.overview()?.total_photos).toBe(5));
+    auth.status.set({ edition_authenticated: true });
+    TestBed.tick();
+    http.expectNone(req => req.url.startsWith('/api/stats/'));
+    expect(page.statsFilters.overview()?.total_photos).toBe(5);
+    verifyRendered();
+  });
+
+  it('keeps Retry focused on repeated failure and does not start a duplicate request', async () => {
+    const { fixture, page, host } = render();
+    await failOverview(fixture, page);
+    const button = host.querySelector<HTMLButtonElement>('[data-stats-retry]')!;
+    expect(button).not.toBeNull();
+    button.focus();
+    button.click();
     const retry = http.expectOne(req => req.url === '/api/stats/overview');
     expect(page.retrying()).toBe(true);
     expect(document.activeElement).toBe(button);
-    page.retryLoad();
+    button.click();
     http.expectNone(req => req.url === '/api/stats/overview');
     retry.flush('failed', { status: 500, statusText: 'Failed' });
     await vi.waitFor(() => expect(page.retrying()).toBe(false));
+    fixture.detectChanges();
     expect(page.loadFailed()).toBe(true);
-    expect(document.activeElement).toBe(button);
-    button.remove(); http.verify();
+    expect(document.activeElement).toBe(host.querySelector('[data-stats-retry]'));
+    verifyRendered();
   });
 
   it('does not steal focus when a user moves away while retrying', async () => {
-    const page = TestBed.inject(StatsComponent) as any;
-    TestBed.tick();
-    http.expectOne(req => req.url === '/api/stats/overview').flush('failed', { status: 500, statusText: 'Failed' });
-    await vi.waitFor(() => expect(page.loadFailed()).toBe(true));
-    const retryButton = document.createElement('button');
-    retryButton.setAttribute('data-stats-retry', ''); document.body.append(retryButton); retryButton.focus();
+    const { fixture, page, host } = render();
+    await failOverview(fixture, page);
+    const retryButton = host.querySelector<HTMLButtonElement>('[data-stats-retry]')!;
+    retryButton.focus();
     page.retryLoad();
     const retry = http.expectOne(req => req.url === '/api/stats/overview');
     const elsewhere = document.createElement('button'); document.body.append(elsewhere); elsewhere.focus();
@@ -114,30 +142,43 @@ describe('statistics owner and lifecycle boundaries', () => {
     await vi.waitFor(() => http.expectOne(req => req.url === '/api/stats/gear').flush({ cameras: [], lenses: [], combos: [] }));
     http.expectOne(req => req.url === '/api/stats/categories').flush([]);
     http.expectOne(req => req.url === '/api/stats/score_distribution').flush([]);
-    http.expectOne(req => req.url === '/api/stats/top_cameras').flush([]);
     await vi.waitFor(() => expect(page.retrying()).toBe(false));
-    TestBed.tick();
+    fixture.detectChanges(); TestBed.tick();
     expect(document.activeElement).toBe(elsewhere);
-    retryButton.remove(); elsewhere.remove(); http.verify();
+    elsewhere.remove(); verifyRendered();
   });
 
-  it('moves focus to the heading after a successful retry when Retry still holds focus', async () => {
-    const page = TestBed.inject(StatsComponent) as any;
-    TestBed.tick();
-    http.expectOne(req => req.url === '/api/stats/overview').flush('failed', { status: 500, statusText: 'Failed' });
-    await vi.waitFor(() => expect(page.loadFailed()).toBe(true));
-    const heading = document.createElement('h1'); heading.id = 'stats-heading'; heading.tabIndex = -1; document.body.append(heading);
-    const retryButton = document.createElement('button'); retryButton.setAttribute('data-stats-retry', '');
-    document.body.append(retryButton); retryButton.focus();
-    page.retryLoad();
+  it('moves focus to the rendered heading after a successful retry when Retry still holds focus', async () => {
+    const { fixture, page, host } = render();
+    await failOverview(fixture, page);
+    const heading = host.querySelector<HTMLElement>('#stats-heading')!;
+    expect(heading).not.toBeNull();
+    expect(heading.getAttribute('tabindex')).toBe('-1');
+    const retryButton = host.querySelector<HTMLButtonElement>('[data-stats-retry]')!;
+    retryButton.focus();
+    retryButton.click();
     http.expectOne(req => req.url === '/api/stats/overview').flush({ total_photos: 1 });
     await vi.waitFor(() => http.expectOne(req => req.url === '/api/stats/gear').flush({ cameras: [], lenses: [], combos: [] }));
     http.expectOne(req => req.url === '/api/stats/categories').flush([]);
     http.expectOne(req => req.url === '/api/stats/score_distribution').flush([]);
-    http.expectOne(req => req.url === '/api/stats/top_cameras').flush([]);
     await vi.waitFor(() => expect(page.retrying()).toBe(false));
-    retryButton.remove(); TestBed.tick();
+    fixture.detectChanges(); TestBed.tick();
+    expect(host.querySelector('[data-stats-retry]')).toBeNull();
     expect(document.activeElement).toBe(heading);
-    heading.remove(); http.verify();
+    verifyRendered();
+  });
+
+  it('keeps the tabs and the other sections when only one section read fails', async () => {
+    const { fixture, page, host } = render();
+    http.expectOne(req => req.url === '/api/stats/overview').flush({ total_photos: 1 });
+    await vi.waitFor(() => http.expectOne(req => req.url === '/api/stats/gear').flush('failed', { status: 500, statusText: 'Failed' }));
+    http.expectOne(req => req.url === '/api/stats/categories').flush([]);
+    http.expectOne(req => req.url === '/api/stats/score_distribution').flush([]);
+    await vi.waitFor(() => expect(page.gearFailed()).toBe(true));
+    fixture.detectChanges();
+    expect(page.loadFailed()).toBe(false);
+    expect(host.querySelector('mat-tab-group')).not.toBeNull();
+    expect(host.querySelector('[role="alert"] [mat-stroked-button], [role="alert"] button')).not.toBeNull();
+    verifyRendered();
   });
 });
