@@ -82,21 +82,6 @@ function createApp(routerUrl = '/', extraProviders: Provider[] = []) {
 }
 
 describe('App', () => {
-  it('loads direct-photo configuration after initial authentication settles', async () => {
-    let finishAuth!: () => void;
-    const authReady = new Promise<void>(resolve => { finishAuth = resolve; });
-    const { app, mockStore } = createApp('/photo', [
-      { provide: AuthService, useValue: { identity: () => 'user', isAuthenticated: () => true, isEdition: () => false, checkStatus: () => authReady } },
-      { provide: ApiService, useValue: { get: () => of({}), post: () => NEVER } },
-    ]);
-    const startup = app.ngOnInit();
-    await Promise.resolve();
-    await Promise.resolve();
-    expect(mockStore.loadConfig).not.toHaveBeenCalled();
-    finishAuth();
-    await startup;
-    expect(mockStore.loadConfig).toHaveBeenCalledOnce();
-  });
   describe('help dialog shortcuts', () => {
     afterEach(() => {
       TestBed.inject(KeyboardMappingService).resetAll();

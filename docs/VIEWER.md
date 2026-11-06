@@ -1238,7 +1238,7 @@ Single-key shortcuts are inactive while focus is in a text field, menu or list.
 
 **Current photo.** The photo that rating, favorite and reject keys act on has a 4px outline; other cards retain their normal brightness. Nothing is marked until you move onto a photo. Clicking a photo moves the marker to it. Returning from a photo leaves the marker on the last one you viewed. The focused-card hint appears only in edition mode with `viewer.features.show_rating_controls` on.
 
-**On the photo page**, `1`–`5`, the favourite key and the reject key (`F` and `X` by default; `0` also rejects) act on the open photo, when review controls are available. Ratings and favorites stay on the current photo. Keep/Reject in a gallery review queue refreshes that queue and opens the next available photo, or returns to the gallery when none remain. Timeline photos do not advance this way. Use `←` `→` for manual navigation. The `?` reference lists them under *Photo view*.
+**On the photo page**, `1`–`5`, the favourite key and the reject key (`F` and `X` by default; `0` also rejects) act on the open photo, in edition mode with `viewer.features.show_rating_controls` on. Ratings and favorites stay on the current photo. Keep/Reject in a gallery review queue refreshes that queue and opens the next available photo, or returns to the gallery when none remain. Timeline photos do not advance this way. Use `←` `→` for manual navigation. The `?` reference lists them under *Photo view*.
 
 ## Undo
 

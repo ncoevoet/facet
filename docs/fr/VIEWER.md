@@ -1237,7 +1237,7 @@ Les raccourcis à touche unique sont inactifs quand le focus est dans un champ d
 
 **Photo courante.** La photo sur laquelle agissent les touches de note, de favori et de rejet a un contour de 4 px ; les autres cartes conservent leur luminosité normale. Rien n'est marqué tant que vous ne vous placez pas sur une photo. Cliquer sur une photo y déplace le repère. Revenir d'une photo laisse le repère sur la dernière consultée. L'indication de carte ciblée n'apparaît qu'en mode édition avec `viewer.features.show_rating_controls` activé.
 
-**Sur la page de photo**, `1`–`5`, la touche de favori et la touche de rejet (`F` et `X` par défaut ; `0` rejette aussi) agissent sur la photo ouverte, lorsque les commandes de revue sont disponibles. Les notes et favoris restent sur la photo actuelle. Conserver/Rejeter dans une file de révision de la galerie actualise la file et ouvre la prochaine photo disponible, ou revient à la galerie s’il n’en reste aucune. Les photos de la chronologie n’avancent pas ainsi. Utilisez `←` `→` pour naviguer manuellement. La référence `?` les liste sous *Vue photo*.
+**Sur la page de photo**, `1`–`5`, la touche de favori et la touche de rejet (`F` et `X` par défaut ; `0` rejette aussi) agissent sur la photo ouverte, en mode édition avec `viewer.features.show_rating_controls` activé. Les notes et favoris restent sur la photo actuelle. Conserver/Rejeter dans une file de révision de la galerie actualise la file et ouvre la prochaine photo disponible, ou revient à la galerie s’il n’en reste aucune. Les photos de la chronologie n’avancent pas ainsi. Utilisez `←` `→` pour naviguer manuellement. La référence `?` les liste sous *Vue photo*.
 
 ## Annuler
 

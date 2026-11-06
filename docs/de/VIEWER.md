@@ -1238,7 +1238,7 @@ Einzeltasten-Kürzel sind inaktiv, solange der Fokus in einem Textfeld, Menü od
 
 **Aktuelles Foto.** Das Foto, auf das die Tasten für Bewertung, Favorit und Ablehnung wirken, hat eine 4px-Kontur; andere Karten behalten ihre normale Helligkeit. Nichts ist markiert, bis Sie sich auf ein Foto bewegen. Ein Klick auf ein Foto verschiebt die Markierung darauf. Die Rückkehr von einem Foto lässt die Markierung auf dem zuletzt betrachteten. Der Hinweis zur fokussierten Karte erscheint nur im Bearbeitungsmodus bei aktivem `viewer.features.show_rating_controls`.
 
-**Auf der Fotoseite** wirken `1`–`5`, die Favoriten-Taste und die Ablehnen-Taste (standardmäßig `F` und `X`; `0` lehnt ebenfalls ab) auf das geöffnete Foto, wenn die Prüfsteuerung verfügbar ist. Bewertungen und Favoriten bleiben beim aktuellen Foto. Behalten/Ablehnen in einer Prüfwarteschlange der Galerie aktualisiert diese und öffnet das nächste verfügbare Foto oder kehrt zur Galerie zurück, wenn keines mehr übrig ist. Fotos aus der Zeitleiste wechseln so nicht weiter. Mit `←` `→` navigieren Sie manuell. Die Referenz unter `?` listet sie unter *Fotoansicht*.
+**Auf der Fotoseite** wirken `1`–`5`, die Favoriten-Taste und die Ablehnen-Taste (standardmäßig `F` und `X`; `0` lehnt ebenfalls ab) auf das geöffnete Foto, im Bearbeitungsmodus bei aktivem `viewer.features.show_rating_controls`. Bewertungen und Favoriten bleiben beim aktuellen Foto. Behalten/Ablehnen in einer Prüfwarteschlange der Galerie aktualisiert diese und öffnet das nächste verfügbare Foto oder kehrt zur Galerie zurück, wenn keines mehr übrig ist. Fotos aus der Zeitleiste wechseln so nicht weiter. Mit `←` `→` navigieren Sie manuell. Die Referenz unter `?` listet sie unter *Fotoansicht*.
 
 ## Rückgängig
 

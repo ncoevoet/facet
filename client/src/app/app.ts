@@ -451,12 +451,9 @@ export class App implements OnInit {
     await this.i18n.loadLanguages();
     await this.i18n.load();
     this.store.loadTypeCounts();
+    void this.store.loadConfig(() => this.store.galleryMounts() === 0);
     try {
       await this.auth.checkStatus();
-      // Capture the authenticated identity before loading viewer settings. On a
-      // direct photo link there may be no gallery mount to retry a config read
-      // invalidated by the initial authentication transition.
-      void this.store.loadConfig(() => this.store.galleryMounts() === 0);
       const promises: Promise<void>[] = [];
       if (this.auth.isEdition()) {
         // A page load that starts already in edition mode is not a transition,

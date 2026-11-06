@@ -1235,7 +1235,7 @@ Os atalhos de uma tecla ficam inativos enquanto o foco está em um campo de text
 
 **Foto atual.** A foto sobre a qual agem as teclas de avaliação, favorito e rejeição tem um contorno de 4px; os outros cartões mantêm o brilho normal. Nada é marcado até você passar para uma foto. Clicar em uma foto leva o marcador até ela. Voltar de uma foto deixa o marcador na última que você viu. A dica do cartão em foco aparece apenas no modo de edição com `viewer.features.show_rating_controls` ligado.
 
-**Na página da foto**, `1`–`5`, a tecla de favorito e a tecla de rejeição (`F` e `X` por padrão; `0` também rejeita) agem sobre a foto aberta, quando os controles de revisão estão disponíveis. Avaliações e favoritos mantêm a foto atual. Manter/Rejeitar numa fila de revisão da galeria atualiza a fila e abre a próxima foto disponível, ou volta à galeria se não restar nenhuma. As fotos da linha do tempo não avançam assim. Use `←` `→` para navegar manualmente. A referência `?` as lista em *Visão da foto*.
+**Na página da foto**, `1`–`5`, a tecla de favorito e a tecla de rejeição (`F` e `X` por padrão; `0` também rejeita) agem sobre a foto aberta, no modo de edição com `viewer.features.show_rating_controls` ligado. Avaliações e favoritos mantêm a foto atual. Manter/Rejeitar numa fila de revisão da galeria atualiza a fila e abre a próxima foto disponível, ou volta à galeria se não restar nenhuma. As fotos da linha do tempo não avançam assim. Use `←` `→` para navegar manualmente. A referência `?` as lista em *Visão da foto*.
 
 ## Desfazer
 

@@ -1882,6 +1882,23 @@ describe('PhotoDetailComponent', () => {
       expect(toggleRejected).not.toHaveBeenCalled();
     }
 
+    it('handles real document keyboard events for reject, rating and keep', () => {
+      const view = TestBed.createComponent(PhotoDetailComponent);
+      const page = view.componentInstance as any;
+      vi.spyOn(page, 'ngOnInit').mockResolvedValue(undefined);
+      page.photo.set({ ...samplePhoto });
+      const reject = vi.spyOn(page, 'toggleRejected').mockResolvedValue(undefined);
+      const rating = vi.spyOn(page, 'setRating').mockResolvedValue(undefined);
+      const keep = vi.spyOn(page, 'reviewPhoto').mockResolvedValue(undefined);
+      view.detectChanges();
+      try {
+        for (const key of ['x', '3', 'k']) document.dispatchEvent(new KeyboardEvent('keydown', { key, bubbles: true, cancelable: true }));
+        expect(reject).toHaveBeenCalledExactlyOnceWith('/photos/test.jpg');
+        expect(rating).toHaveBeenCalledExactlyOnceWith('/photos/test.jpg', 3);
+        expect(keep).toHaveBeenCalledExactlyOnceWith('kept');
+      } finally { view.destroy(); }
+    });
+
     it.each([1, 2, 3, 4, 5])('%i rates the open photo', stars => {
       const event = press({ key: String(stars) });
       expect(event.defaultPrevented).toBe(true);
@@ -2015,20 +2032,9 @@ describe('PhotoDetailComponent', () => {
       expectNothing(press({ key: '3' }));
     });
 
-    it('keeps photo review shortcuts available when gallery rating controls are turned off', () => {
+    it('does nothing when the rating controls are turned off', () => {
       component.store.config.set({ features: { show_rating_controls: false } });
-      expect(press({ key: 'f' }).defaultPrevented).toBe(true);
-      expect(toggleFavorite).toHaveBeenCalledExactlyOnceWith('/photos/test.jpg');
-      expect(press({ key: 'x' }).defaultPrevented).toBe(true);
-      expect(toggleRejected).toHaveBeenCalledExactlyOnceWith('/photos/test.jpg');
-      expect(press({ key: '3' }).defaultPrevented).toBe(true);
-      expect(setRating).toHaveBeenCalledExactlyOnceWith('/photos/test.jpg', 3);
-    });
-
-    it('accepts review shortcuts when configuration has not loaded', () => {
-      component.store.config.set(null);
-      expect(press({ key: 'x' }).defaultPrevented).toBe(true);
-      expect(toggleRejected).toHaveBeenCalledExactlyOnceWith('/photos/test.jpg');
+      expectNothing(press({ key: 'f' }));
     });
 
     it('does nothing before the photo has loaded', () => {

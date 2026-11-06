@@ -1240,7 +1240,7 @@ Los atajos de una sola tecla están inactivos mientras el foco está en un campo
 
 **Foto actual.** La foto sobre la que actúan las teclas de valoración, favorito y rechazo tiene un contorno de 4 px; las demás tarjetas conservan su luminosidad normal. No se marca nada hasta que te mueves a una foto. Hacer clic en una foto mueve el marcador a ella. Volver desde una foto deja el marcador en la última que viste. La pista de la tarjeta enfocada aparece solo en modo de edición con `viewer.features.show_rating_controls` activado.
 
-**En la página de la foto**, `1`–`5`, la tecla de favorito y la de rechazo (`F` y `X` por defecto; `0` también rechaza) actúan sobre la foto abierta, cuando los controles de revisión están disponibles. Las puntuaciones y favoritos mantienen la foto actual. Conservar/Rechazar en una cola de revisión de la galería actualiza la cola y abre la siguiente foto disponible, o vuelve a la galería si no queda ninguna. Las fotos de la línea de tiempo no avanzan así. Usa `←` `→` para navegar manualmente. La referencia `?` los lista en *Vista de foto*.
+**En la página de la foto**, `1`–`5`, la tecla de favorito y la de rechazo (`F` y `X` por defecto; `0` también rechaza) actúan sobre la foto abierta, en modo de edición con `viewer.features.show_rating_controls` activado. Las puntuaciones y favoritos mantienen la foto actual. Conservar/Rechazar en una cola de revisión de la galería actualiza la cola y abre la siguiente foto disponible, o vuelve a la galería si no queda ninguna. Las fotos de la línea de tiempo no avanzan así. Usa `←` `→` para navegar manualmente. La referencia `?` los lista en *Vista de foto*.
 
 ## Deshacer
 
