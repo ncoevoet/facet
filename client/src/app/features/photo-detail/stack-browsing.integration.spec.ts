@@ -111,7 +111,7 @@ describe('manual stack browsing through rendered viewer, Router and HTTP', () =>
     TestBed.configureTestingModule({ providers: [
       provideHttpClient(withXhr()), provideHttpClientTesting(), provideLocationMocks(),
       provideRouter([{ path: '', component: SourceComponent }, { path: 'photo', component: PhotoDetailComponent }, { path: 'away', component: SourceComponent }]),
-      { provide: I18nService, useValue: { translations: signal({}), locale: () => 'en', t: (key: string, params?: Record<string, unknown>) => key === 'stacks.browse_position' ? params?.['position'] + ' of ' + params?.['count'] : key === 'photo_detail.collection.position' ? 'Collection ' + params?.['position'] + ' / ' + params?.['total'] : key === 'stacks.open_member' ? key + ' ' + params?.['path'] : key } },
+      { provide: I18nService, useValue: { translations: signal({}), locale: () => 'en', t: (key: string, params?: Record<string, unknown>) => key === 'stacks.browse_position' ? params?.['position'] + ' of ' + params?.['count'] : key === 'photo_detail.collection.position' ? 'Collection ' + params?.['position'] + ' / ' + params?.['total'] : key === 'stacks.open_member' ? key + ' ' + params?.['path'] : key === 'stacks.open_member_at_position' ? key + ' ' + params?.['path'] + ' ' + params?.['position'] + '/' + params?.['count'] : key } },
       { provide: AssistantChangesService, useValue: { batch$: assistantBatches.asObservable() } },
       { provide: MatSnackBar, useValue: snack },
     ] });
@@ -154,6 +154,34 @@ describe('manual stack browsing through rendered viewer, Router and HTTP', () =>
     const request = http.expectOne(request => request.url === '/api/photo');
     expect(request.request.params.get('path')).toBe(paths[2]);
     request.flush(makePhoto({ path: paths[2] })); await navigation; await membership();
+  });
+
+  it('shows the keyboard help only for keyboard focus, not after a mouse click', async () => {
+    await open();
+    const help = root().querySelector<HTMLElement>('#photo-inspection-help')!;
+    expect(help.classList).toContain('group-focus-visible/photo:visible');
+    expect(help.classList).not.toContain('group-focus/photo:visible');
+  });
+
+  it('lets collection order own the arrows while stacks are expanded, even when members are not adjacent', async () => {
+    store.collapseStacks.set(false);
+    const members = new Set(paths);
+    const gallery = ['/y.jpg', paths[2], paths[0], '/x.jpg', paths[1], '/z.jpg'].map(path => makePhoto({ path, stack_id: members.has(path) ? stack.id : null }));
+    store.photos.set(gallery);
+    store.total.set(gallery.length);
+    await router.navigate(['/photo'], { queryParams: { path: paths[0] }, state: { photo: gallery[2] } });
+    await membership();
+    const collectionStep = async (path: string) => {
+      const navigation = arrived();
+      document.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowRight', bubbles: true }));
+      await navigation;
+      http.match(request => request.url === '/api/photo').forEach(request => request.flush(makePhoto({ path })));
+      await membership(members.has(path) ? stack : null);
+      expect(router.url).toContain(encodeURIComponent(path));
+    };
+    await collectionStep('/x.jpg');
+    await collectionStep(paths[1]);
+    await collectionStep('/z.jpg');
   });
 
   it('browses the originating collection without changing filters, selection, or Back destination', async () => {
@@ -556,7 +584,7 @@ describe('manual stack browsing through rendered viewer, Router and HTTP', () =>
     await open();
     expect(root().querySelector('[data-stack-position]')?.textContent).toContain('2 of 3');
     expect(root().querySelectorAll('[data-stack-thumbnail]')).toHaveLength(3);
-    expect(root().querySelector('app-stack-navigator [aria-current="true"]')?.getAttribute('aria-label')).toBe('stacks.open_member b.jpg · 2 of 3');
+    expect(root().querySelector('app-stack-navigator [aria-current="true"]')?.getAttribute('aria-label')).toBe('stacks.open_member_at_position b.jpg 2/3');
     expect(store.pinnedPaths()).toBeNull();
     await clickMember('[data-stack-next]', paths[2]);
     expect(button('[data-stack-next]').disabled).toBe(true);

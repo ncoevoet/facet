@@ -45,7 +45,7 @@ import { GalleryStore } from '../gallery/gallery.store';
             <button #thumbnail data-stack-thumbnail class="shrink-0 rounded overflow-hidden cursor-pointer focus-visible:outline-2 border-2 border-transparent"
               [class.!border-[var(--mat-sys-primary)]]="member.path === path()"
               [attr.aria-current]="member.path === path() ? 'true' : null"
-              [attr.aria-label]="(I18N.stacks.open_member | translate:{ path: (member.path | filename) }) + ' · ' + (I18N.stacks.browse_position | translate:{ position: $index + 1, count: members().length })" [title]="member.path | filename"
+              [attr.aria-label]="I18N.stacks.open_member_at_position | translate:{ path: (member.path | filename), position: $index + 1, count: members().length }" [title]="member.path | filename"
               (click)="openMember(member.path)">
               <img [src]="member.path | thumbnailUrl:96:member.preview_revision" alt="" loading="lazy" decoding="async" class="w-10 h-10 object-cover" />
             </button>

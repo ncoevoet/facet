@@ -1313,7 +1313,6 @@
       "no_filters_match": "Aucun filtre ne correspond",
       "color_quality": "Couleur et qualité",
       "moments": "Moments",
-      "reset_tooltip": "Réinitialiser tous les filtres",
       "tabs": {
         "browse": "Parcourir",
         "review": "Tri",
@@ -1624,7 +1623,6 @@
       "error": "Impossible d'enregistrer le nom",
       "remove": "Retirer du filtre"
     },
-    "collection_controls": "Options d’affichage",
     "collection_totals_compact": "Correspondances : {photos}, affichées : {items}",
     "rating_preview": {
       "title": "Modifier la note personnelle",
@@ -1678,7 +1676,6 @@
       "invalid": "Ces règles de mesures sont invalides. Effacez-les pour rétablir la vue.",
       "clear": "Effacer les règles de mesures"
     },
-    "collection_view": "Vue",
     "layout_list": "Liste de métadonnées",
     "metadata": {
       "not_recorded": "Non enregistré",
@@ -1708,7 +1705,6 @@
       "invalid": "Vérifiez les critères et leurs valeurs autorisées avant d’appliquer."
     },
     "zero_stars": "0 étoile",
-    "zero_stars_clear": "0 étoile uniquement. Cliquez pour effacer le filtre d’étoiles.",
     "zero_stars_help_title": "À propos de zéro étoile",
     "zero_stars_help": "Correspond à un zéro numérique dans le périmètre de note actuel, y compris l’absence de note personnelle. Les notes du catalogue inconnues restent indisponibles. Cela ne signifie pas jamais noté. Les comptes personnels ne reprennent pas les notes du catalogue ni celles d’autres personnes ; Sources des métadonnées indique l’origine enregistrée.",
     "semantic_search_help": "À propos de la recherche visuelle",
@@ -2342,7 +2338,6 @@
     "unassigned_face": "Visage non attribué",
     "ignore_detection": "Ignorer cette détection",
     "detection_ignored": "Détection ignorée",
-    "unknown": "Inconnu",
     "change_person": "Changer de personne…",
     "name_face": "Nommer ce visage…",
     "name_needs_edition": "Déverrouillez l'édition dans le menu utilisateur pour nommer ce visage",
@@ -3901,6 +3896,7 @@
     "member_count": "{count} membre",
     "member_count_plural": "{count} membres",
     "open_member": "Ouvrir {path}",
+    "open_member_at_position": "Ouvrir {path} · {position} sur {count}",
     "cover_for": "Utiliser {path} comme couverture",
     "cover": "Couverture",
     "move_up": "Avancer {path}",

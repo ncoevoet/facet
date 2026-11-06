@@ -53,7 +53,7 @@ export interface PersonFaceMenuTarget {
     <mat-menu #menu="matMenu">
       @if (view(); as v) {
         <div class="px-4 py-2 text-xs opacity-70 truncate max-w-[16rem]">
-          {{ v.name || (I18N.photo_faces.unknown | translate) }}
+          {{ v.name || (I18N.photo_faces.unassigned_face | translate) }}
         </div>
         @if (v.personId) {
           <button mat-menu-item (click)="viewPhotos()">

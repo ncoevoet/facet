@@ -1313,7 +1313,6 @@
       "no_filters_match": "Nenhum filtro corresponde",
       "color_quality": "Cor e qualidade",
       "moments": "Momentos",
-      "reset_tooltip": "Repor todos os filtros para os valores predefinidos",
       "tabs": {
         "browse": "Explorar",
         "review": "Revisão",
@@ -1624,7 +1623,6 @@
       "error": "Não foi possível salvar o nome",
       "remove": "Remover do filtro"
     },
-    "collection_controls": "Opções de vista",
     "collection_totals_compact": "{photos} correspondentes, {items} apresentados",
     "rating_preview": {
       "title": "Editar avaliação pessoal",
@@ -1678,7 +1676,6 @@
       "invalid": "Estas políticas de medição são inválidas. Limpe-as para recuperar.",
       "clear": "Limpar políticas de medição"
     },
-    "collection_view": "Vista",
     "layout_list": "Lista de metadados",
     "metadata": {
       "not_recorded": "Não registado",
@@ -1708,7 +1705,6 @@
       "invalid": "Verifique os critérios e os valores permitidos antes de aplicar."
     },
     "zero_stars": "0 estrelas",
-    "zero_stars_clear": "Apenas 0 estrelas. Clique para limpar o filtro de estrelas.",
     "zero_stars_help_title": "Sobre zero estrelas",
     "zero_stars_help": "Corresponde ao zero numérico no âmbito de classificação atual, incluindo uma classificação pessoal ausente. Classificações desconhecidas do catálogo continuam indisponíveis. Isto não significa nunca classificado. As contas pessoais não recorrem às classificações do catálogo nem de outras pessoas; Fontes dos metadados mostra a origem registada.",
     "semantic_search_help": "Sobre a pesquisa visual",
@@ -2342,7 +2338,6 @@
     "unassigned_face": "Rosto não atribuído",
     "ignore_detection": "Ignorar esta detecção",
     "detection_ignored": "Detecção ignorada",
-    "unknown": "Desconhecido",
     "change_person": "Trocar pessoa…",
     "name_face": "Nomear este rosto…",
     "name_needs_edition": "Desbloqueie a edição no menu do usuário para nomear este rosto",
@@ -3901,6 +3896,7 @@
     "member_count": "{count} membro",
     "member_count_plural": "{count} membros",
     "open_member": "Abrir {path}",
+    "open_member_at_position": "Abrir {path} · {position} de {count}",
     "cover_for": "Usar {path} como capa",
     "cover": "Capa",
     "move_up": "Mover {path} para antes",

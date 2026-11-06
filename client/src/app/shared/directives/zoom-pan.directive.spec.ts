@@ -28,8 +28,8 @@ describe('ZoomPanDirective', () => {
     return event;
   };
 
-  const pointer = (type: string, clientX: number, clientY: number) => {
-    panel.dispatchEvent(new PointerEvent(type, { clientX, clientY, pointerId: 1, bubbles: true }));
+  const pointer = (type: string, clientX: number, clientY: number, pointerId = 1) => {
+    panel.dispatchEvent(new PointerEvent(type, { clientX, clientY, pointerId, bubbles: true }));
     fixture.detectChanges();
   };
 
@@ -103,7 +103,36 @@ describe('ZoomPanDirective', () => {
     expect(img.style.transform).toBe('scale(1.25) translate(-40px, 0px)');
     expect(key('Tab').defaultPrevented).toBe(false);
     key('Home'); expect(img.style.transform).toBe('');
-    key('-'); expect(img.style.transform).toBe('');
+    key('-'); expect(img.style.transform).toBe('scale(0.75) translate(0px, 0px)');
+  });
+
+  it('keeps zooming out with the minus key below Fit instead of jumping back to Fit', () => {
+    const zoom = fixture.debugElement.children[0].injector.get(ZoomPanDirective);
+    wheel(1); wheel(1);
+    const below = zoom.scale();
+    expect(below).toBeLessThan(1);
+    panel.dispatchEvent(new KeyboardEvent('keydown', { key: '-', bubbles: true, cancelable: true }));
+    expect(zoom.scale()).toBeLessThan(below);
+    expect(zoom.scale()).toBeGreaterThanOrEqual(0.5);
+  });
+
+  it('suspends panning while two pointers are down and re-anchors on the one left', () => {
+    const zoom = fixture.debugElement.children[0].injector.get(ZoomPanDirective);
+    Object.defineProperty(panel, 'clientWidth', { value: 400 });
+    Object.defineProperty(panel, 'clientHeight', { value: 300 });
+    zoom.zoomStep(4); fixture.detectChanges();
+    expect(zoom.scale()).toBe(2);
+    pointer('pointerdown', 0, 0, 1);
+    pointer('pointerdown', 200, 0, 2);
+    expect(panel.classList).not.toContain('cursor-grabbing');
+    pointer('pointermove', 10, 0, 1); pointer('pointermove', 210, 0, 2); pointer('pointermove', 20, 0, 1);
+    expect(zoom.panX()).toBe(0);
+    pointer('pointerup', 210, 0, 2);
+    expect(panel.classList).toContain('cursor-grabbing');
+    pointer('pointermove', 40, 0, 1);
+    expect(zoom.panX()).toBe(10);
+    pointer('pointerup', 40, 0, 1);
+    expect(panel.classList).not.toContain('cursor-grabbing');
   });
 
   it('leaves nested controls, modified shortcuts and IME input alone', () => {

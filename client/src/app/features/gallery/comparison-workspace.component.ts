@@ -23,6 +23,7 @@ import { KEY_SUBJECT_COORDINATE_SPACE } from './burst-culling.pipes';
 import type { KeySubject } from './burst-culling.pipes';
 import { normalizedInspectionBox, sharedInspectionPeople, NormalizedBox } from './comparison-inspection.util';
 import { isTypingContext } from '../../shared/utils/keyboard';
+import { rovingFocusKey } from '../../shared/utils/roving-focus';
 import { PhotoAssessmentComponent } from '../../shared/components/photo-assessment/photo-assessment.component';
 
 // Module-level consts, not direct class-field initializers: Vite's test transform
@@ -173,7 +174,7 @@ const RENDERED_EDGE = RENDERED_THUMBNAIL_EDGE;
                 <button mat-button class="max-sm:!min-w-11 max-sm:!h-11 pointer-coarse:!min-w-11 pointer-coarse:!h-11 !text-xs" data-frame-suggestion [disabled]="!pane.suggestion" (click)="frameSuggestion(pane.photo.path)">{{ (pane.suggestion?.kind === 'person' ? I18N.gallery.compare.inspection.suggested_face : pane.suggestion?.kind === 'subject' ? I18N.gallery.compare.inspection.suggested_subject : inspectionState() === 'loading' ? I18N.ui.labels.loading : I18N.gallery.compare.inspection.no_crop) | translate }}</button>
                 <select data-frame-face [disabled]="!pane.faces.length" [attr.aria-label]="(I18N.gallery.compare.inspection.choose_face | translate) + ': ' + pane.photo.filename" class="max-sm:min-h-11 pointer-coarse:min-h-11 min-w-0 max-w-full rounded border bg-[var(--mat-sys-surface-container)] px-1 py-1" (change)="frameFace(pane.photo.path, $event)">
                   <option value="">{{ I18N.gallery.compare.inspection.choose_face | translate }}</option>
-                  @for (face of pane.faces; track face.id) { <option [value]="face.id">{{ face.person_name || (I18N.photo_faces.unknown | translate) }} · {{ face.face_index + 1 }}</option> }
+                  @for (face of pane.faces; track face.id) { <option [value]="face.id">{{ face.person_name || (I18N.photo_faces.unassigned_face | translate) }} · {{ face.face_index + 1 }}</option> }
                 </select>
               </div>
             }
@@ -295,15 +296,7 @@ export class ComparisonWorkspaceComponent {
   protected readonly queueFocusPath = computed(() => this.queue().find(photo => photo.path === this.focusedQueuePath())?.path
     ?? this.queue().find(photo => photo.path === this.activePath())?.path ?? this.queue()[0]?.path);
   protected onQueueKey(event: KeyboardEvent): void {
-    if (event.ctrlKey || event.metaKey || event.altKey || event.isComposing) return;
-    const buttons = [...(event.currentTarget as HTMLElement).parentElement!.querySelectorAll<HTMLButtonElement>('[data-candidate-thumbnail]')];
-    const index = buttons.indexOf((event.target as HTMLElement).closest<HTMLButtonElement>('[data-candidate-thumbnail]')!);
-    if (index < 0) return;
-    const next = event.key === 'Home' ? 0 : event.key === 'End' ? buttons.length - 1
-      : event.key === 'ArrowRight' ? Math.min(index + 1, buttons.length - 1)
-      : event.key === 'ArrowLeft' ? Math.max(0, index - 1) : null;
-    if (next === null) return;
-    event.preventDefault(); event.stopPropagation(); buttons[next]?.focus();
+    rovingFocusKey(event, '[data-candidate-thumbnail]');
   }
   private readonly candidatePath = signal(this.data.photos?.[1]?.path ?? null);
   /** Each photo retains its own framing, including candidates outside two-up. */

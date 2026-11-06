@@ -1313,7 +1313,6 @@
       "no_filters_match": "Ningún filtro coincide",
       "color_quality": "Color y calidad",
       "moments": "Momentos",
-      "reset_tooltip": "Restablecer todos los filtros a sus valores predeterminados",
       "tabs": {
         "browse": "Explorar",
         "review": "Revisión",
@@ -1624,7 +1623,6 @@
       "error": "No se pudo guardar el nombre",
       "remove": "Quitar del filtro"
     },
-    "collection_controls": "Opciones de vista",
     "collection_totals_compact": "{photos} coincidencias, {items} visibles",
     "rating_preview": {
       "title": "Editar valoración personal",
@@ -1678,7 +1676,6 @@
       "invalid": "Estas políticas de medición no son válidas. Bórralas para recuperarte.",
       "clear": "Borrar políticas de medición"
     },
-    "collection_view": "Vista",
     "layout_list": "Lista de metadatos",
     "metadata": {
       "not_recorded": "No registrado",
@@ -1708,7 +1705,6 @@
       "invalid": "Comprueba los criterios y sus valores permitidos antes de aplicarlos."
     },
     "zero_stars": "0 estrellas",
-    "zero_stars_clear": "Solo 0 estrellas. Haz clic para borrar el filtro de estrellas.",
     "zero_stars_help_title": "Acerca de las cero estrellas",
     "zero_stars_help": "Coincide con un cero numérico en el ámbito de valoración actual, incluida la ausencia de valoración personal. Las valoraciones desconocidas del catálogo siguen sin estar disponibles. Esto no significa que nunca se haya valorado. Las cuentas personales no recurren a las valoraciones del catálogo ni de otras personas; Fuentes de metadatos muestra el origen registrado.",
     "semantic_search_help": "Acerca de la búsqueda visual",
@@ -2342,7 +2338,6 @@
     "unassigned_face": "Rostro sin asignar",
     "ignore_detection": "Ignorar esta detección",
     "detection_ignored": "Detección ignorada",
-    "unknown": "Desconocido",
     "change_person": "Cambiar de persona…",
     "name_face": "Nombrar esta cara…",
     "name_needs_edition": "Desbloquea la edición en el menú de usuario para nombrar esta cara",
@@ -3901,6 +3896,7 @@
     "member_count": "{count} miembro",
     "member_count_plural": "{count} miembros",
     "open_member": "Abrir {path}",
+    "open_member_at_position": "Abrir {path} · {position} de {count}",
     "cover_for": "Usar {path} como portada",
     "cover": "Portada",
     "move_up": "Mover {path} antes",

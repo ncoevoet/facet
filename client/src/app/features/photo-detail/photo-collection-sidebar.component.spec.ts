@@ -78,6 +78,19 @@ describe('PhotoCollectionSidebarComponent', () => {
     expect(key(0, 'ArrowRight', { isComposing: true }).defaultPrevented).toBe(false);
     expect(choose).toHaveBeenCalledTimes(count);
   });
+  it('moves by two rows per vertical key once the sidebar is wide enough for two columns', () => {
+    const { fixture, root, divider } = render();
+    fixture.componentRef.setInput('photos', Array.from({ length: 4 }, (_, index) => makePhoto({ path: `/p${index}.jpg` })));
+    divider().dispatchEvent(new KeyboardEvent('keydown', { key: 'End', bubbles: true, cancelable: true }));
+    fixture.detectChanges();
+    expect(root.querySelector<HTMLElement>('.grid')!.style.gridTemplateColumns).toContain('repeat(2,');
+    const buttons = [...root.querySelectorAll<HTMLButtonElement>('.grid button')];
+    const choose = vi.fn(); fixture.componentInstance.choose.subscribe(choose);
+    buttons[0].dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowDown', bubbles: true, cancelable: true }));
+    expect(choose).toHaveBeenLastCalledWith('/p2.jpg');
+    buttons[3].dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowUp', bubbles: true, cancelable: true }));
+    expect(choose).toHaveBeenLastCalledWith('/p1.jpg');
+  });
   it('bounds the rendered list while keeping later and earlier loaded photos accessible', () => {
     const { fixture, root } = render();
     const photos = Array.from({ length: 500 }, (_, index) => makePhoto({ path: `/p${index}.jpg`, filename: `p${index}.jpg` }));

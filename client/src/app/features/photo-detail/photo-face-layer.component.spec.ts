@@ -159,6 +159,19 @@ describe('PhotoFaceLayerComponent', () => {
     expect(mockStore.reloadPersonOptions).toHaveBeenCalled();
   });
 
+  it('marks a manual face (negative face_index) as not automatic, so Ignore detection is not offered', async () => {
+    await render([
+      ...ROWS,
+      { id: 4, face_index: -1, person_id: null, person_name: null, box: [0.7, 0.1, 0.8, 0.3] },
+      { id: 5, face_index: -2, person_id: 9, person_name: 'Manual', box: [0.1, 0.7, 0.2, 0.9] },
+    ]);
+    expect(component.faces().map(face => [face.id, face.automatic])).toEqual([[1, true], [2, true], [4, false], [5, false]]);
+    menuFor(2);
+    expect(openSpy.mock.calls.at(-1)![0].face).toEqual({ id: 4, automatic: false });
+    expect(component.faceOf(9)).toEqual({ id: 5, automatic: false });
+    expect(component.faceOf(5)).toEqual({ id: 1, automatic: true });
+  });
+
   it('draws nothing without the photo dimensions', async () => {
     await render(ROWS, null, null);
     expect(fixture.nativeElement.querySelector('svg')).toBeNull();

@@ -48,6 +48,9 @@ export class ZoomPanDirective {
   private panOriginX = 0;
   private panOriginY = 0;
   private lastPinchDist = 0;
+  /** Last known position of every pointer that is down; a pinch puts two here. */
+  private readonly pointers = new Map<number, { x: number; y: number }>();
+  private panPointerId: number | null = null;
 
   constructor() {
     // Non-passive, so preventDefault() keeps the page from scrolling or zooming.
@@ -72,6 +75,8 @@ export class ZoomPanDirective {
 
   reset(): void {
     this.isPanning.set(false);
+    this.panPointerId = null;
+    this.pointers.clear();
     this.lastPinchDist = 0;
     this.scale.set(1);
     this.panX.set(0);
@@ -97,7 +102,7 @@ export class ZoomPanDirective {
     if (event.key === 'Home') {
       this.reset();
     } else if (event.key === '+' || event.key === '=' || event.key === '-') {
-      this.applyZoom(Math.max(1, this.scale() + (event.key === '-' ? -0.25 : 0.25)));
+      this.zoomStep(event.key === '-' ? -1 : 1);
     } else {
       if (this.scale() <= 1) return;
       const step = 40 / this.scale();
@@ -130,17 +135,18 @@ export class ZoomPanDirective {
   }
 
   protected onPanStart(e: PointerEvent): void {
+    this.pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
+    // A second finger is a pinch: the touch handlers zoom, nothing pans.
+    if (this.pointers.size > 1) { this.suspendPan(); return; }
     if (this.scale() <= 1) return;
-    this.isPanning.set(true);
-    this.panStartX = e.clientX;
-    this.panStartY = e.clientY;
-    this.panOriginX = this.panX();
-    this.panOriginY = this.panY();
+    this.anchorPan(e.pointerId, e.clientX, e.clientY);
     (e.target as HTMLElement).setPointerCapture?.(e.pointerId);
   }
 
   protected onPanMove(e: PointerEvent): void {
-    if (!this.isPanning()) return;
+    const known = this.pointers.get(e.pointerId);
+    if (known) { known.x = e.clientX; known.y = e.clientY; }
+    if (!this.isPanning() || e.pointerId !== this.panPointerId) return;
     const scale = this.scale();
     const rawX = this.panOriginX + (e.clientX - this.panStartX) / scale;
     const rawY = this.panOriginY + (e.clientY - this.panStartY) / scale;
@@ -149,9 +155,31 @@ export class ZoomPanDirective {
   }
 
   protected onPanEnd(e: PointerEvent): void {
-    if (!this.isPanning()) return;
+    this.pointers.delete(e.pointerId);
+    if (e.pointerId === this.panPointerId) {
+      this.isPanning.set(false);
+      this.panPointerId = null;
+      (e.target as HTMLElement).releasePointerCapture?.(e.pointerId);
+    }
+    // The pinch is over: carry on panning from the finger that stayed down.
+    if (this.pointers.size === 1 && this.scale() > 1) {
+      const [[id, last]] = [...this.pointers];
+      this.anchorPan(id, last.x, last.y);
+    }
+  }
+
+  private anchorPan(pointerId: number, x: number, y: number): void {
+    this.isPanning.set(true);
+    this.panPointerId = pointerId;
+    this.panStartX = x;
+    this.panStartY = y;
+    this.panOriginX = this.panX();
+    this.panOriginY = this.panY();
+  }
+
+  private suspendPan(): void {
     this.isPanning.set(false);
-    (e.target as HTMLElement).releasePointerCapture?.(e.pointerId);
+    this.panPointerId = null;
   }
 
   protected onTouchStart(e: TouchEvent): void {

@@ -322,7 +322,7 @@ const SOCIAL_SOURCE_KEYS: Record<string, string> = {
             [style.transform]="zoom.transform()"
           />
           }
-          <p id="photo-inspection-help" class="pointer-events-none absolute top-2 left-2 right-2 z-40 m-0 rounded bg-black/75 px-3 py-2 text-center text-xs text-white invisible group-focus/photo:visible">{{ I18N.photo_detail.inspection.help | translate }}</p>
+          <p id="photo-inspection-help" class="pointer-events-none absolute top-2 left-2 right-2 z-40 m-0 rounded bg-black/75 px-3 py-2 text-center text-xs text-white invisible group-focus-visible/photo:visible">{{ I18N.photo_detail.inspection.help | translate }}</p>
           @if (collectionNavigation().visible) {
             <div role="group" [attr.aria-label]="I18N.photo_detail.collection.title | translate" class="pointer-events-none absolute inset-0 z-30 flex items-center justify-between px-2 opacity-0 transition-opacity group-hover/photo:opacity-100 focus-within:opacity-100 max-xl:opacity-100">
               <button type="button" data-photo-previous class="pointer-events-auto inline-flex h-11 w-11 cursor-pointer items-center justify-center rounded-full bg-black/60 text-white hover:bg-black/80 focus-visible:outline-2 focus-visible:outline-white disabled:invisible"
@@ -594,7 +594,7 @@ const SOCIAL_SOURCE_KEYS: Record<string, string> = {
                 <details data-metric-section [attr.data-section-kind]="section.id" [open]="activeMetricSection() === section.id" class="[&[open]>summary>mat-icon:last-child]:rotate-180 border-t border-[var(--mat-sys-outline-variant)]">
                   <summary (click)="$event.preventDefault(); toggleMetricSection(section.id)" class="flex min-h-11 cursor-pointer items-center gap-2 text-xs font-medium"><mat-icon aria-hidden="true" class="!h-5 !w-5 !text-xl" [class]="section.id | markTone">{{ section.icon }}</mat-icon><h3 class="m-0 text-xs font-medium">{{ section.label | translate }}</h3><mat-icon aria-hidden="true" class="ml-auto !h-5 !w-5 shrink-0 !text-xl transition-transform motion-reduce:transition-none">expand_more</mat-icon></summary>
                   @if (activeMetricSection() === section.id) {
-                    <app-photo-metric-section [kind]="section.id" [photo]="p" [ranges]="store.metricRangesByColumn()" [populated]="store.config()?.populated_scores" [histogramHeight]="HISTOGRAM_PANEL_HEIGHT" [histogramDefaultMode]="histogramDefaultMode()" [indicatorPercent]="clippingIndicatorPercent()" />
+                    <app-photo-metric-section [kind]="section.id" [photo]="p" [populated]="store.config()?.populated_scores" [histogramHeight]="HISTOGRAM_PANEL_HEIGHT" [histogramDefaultMode]="histogramDefaultMode()" [indicatorPercent]="clippingIndicatorPercent()" />
                   }
                 </details>
               }
@@ -1226,7 +1226,8 @@ export class PhotoDetailComponent extends PhotoDetailBase implements OnInit {
       return;
     }
     // Match the visible stack buttons; its members already respect an exact list.
-    if (!withinCollection && this.stackNavigator()?.step(delta)) return;
+    // Expanded stacks are collection rows, so the collection order owns the arrows.
+    if (!withinCollection && this.store.collapseStacks() && this.stackNavigator()?.step(delta)) return;
     const current = this.photo();
     if (!current) return;
     const indexOf = () => this.store.photos().findIndex(p => p.path === this.collectionEntry()?.path);

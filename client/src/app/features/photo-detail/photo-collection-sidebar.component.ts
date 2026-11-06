@@ -4,6 +4,7 @@ import { Photo } from '../../shared/models/photo.model';
 import { ThumbnailUrlPipe } from '../../shared/pipes/thumbnail-url.pipe';
 import { TranslatePipe } from '../../shared/pipes/translate.pipe';
 import { I18N } from '../../core/i18n/keys';
+import { rovingFocusKey } from '../../shared/utils/roving-focus';
 
 /** Reads the originating collection; never changes its query, selection or sort. */
 @Component({
@@ -70,7 +71,8 @@ export class PhotoCollectionSidebarComponent {
   readonly more = output<void>();
   protected readonly width = signal(192);
   protected readonly collapsed = signal(false);
-  protected readonly columns = computed(() => `repeat(${this.width() >= 280 ? 2 : 1}, minmax(0, 1fr))`);
+  protected readonly columnCount = computed(() => this.width() >= 280 ? 2 : 1);
+  protected readonly columns = computed(() => `repeat(${this.columnCount()}, minmax(0, 1fr))`);
   private readonly injector = inject(Injector);
   private readonly windowSize = 200;
   private readonly requestedStart = signal(0);
@@ -84,21 +86,10 @@ export class PhotoCollectionSidebarComponent {
       ?? photos.find(photo => photo.path === this.currentPath())?.path ?? photos[0]?.path;
   });
   protected thumbnailKey(event: KeyboardEvent): void {
-    if (event.altKey || event.ctrlKey || event.metaKey || event.isComposing) return;
-    const grid = (event.currentTarget as HTMLElement).parentElement!;
-    const buttons = [...grid.querySelectorAll<HTMLButtonElement>('button')];
-    const index = buttons.indexOf(event.target as HTMLButtonElement);
-    if (index < 0) return;
-    const columns = this.width() >= 280 ? 2 : 1;
-    const offsets: Record<string, number> = { ArrowLeft: -1, ArrowRight: 1, ArrowUp: -columns, ArrowDown: columns };
-    const offset = offsets[event.key];
-    const next = event.key === 'Home' ? 0 : event.key === 'End' ? buttons.length - 1
-      : offset === undefined ? null : Math.max(0, Math.min(buttons.length - 1, index + offset));
-    if (next === null) return;
-    event.preventDefault(); event.stopPropagation(); buttons[next]?.focus();
+    const move = rovingFocusKey(event, 'button', this.columnCount());
     // A focused collection thumbnail represents the photo being viewed. Moving
     // its focus must open that photo too, just like clicking the thumbnail.
-    if (next !== index) this.choose.emit(this.visiblePhotos()[next].path);
+    if (move && move.to !== move.from) this.choose.emit(this.visiblePhotos()[move.to].path);
   }
   private lastPath = '';
   private lastPathFound = false;

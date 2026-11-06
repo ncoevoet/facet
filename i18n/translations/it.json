@@ -1313,7 +1313,6 @@
       "no_filters_match": "Nessun filtro corrisponde",
       "color_quality": "Colore e qualità",
       "moments": "Momenti",
-      "reset_tooltip": "Ripristina tutti i filtri ai valori predefiniti",
       "tabs": {
         "browse": "Sfoglia",
         "review": "Revisione",
@@ -1624,7 +1623,6 @@
       "error": "Impossibile salvare il nome",
       "remove": "Rimuovi dal filtro"
     },
-    "collection_controls": "Opzioni vista",
     "collection_totals_compact": "Corrispondenti: {photos}, visualizzati: {items}",
     "rating_preview": {
       "title": "Modifica valutazione personale",
@@ -1678,7 +1676,6 @@
       "invalid": "Queste politiche di misurazione non sono valide. Cancellale per ripristinare la vista.",
       "clear": "Cancella politiche di misurazione"
     },
-    "collection_view": "Vista",
     "layout_list": "Elenco metadati",
     "metadata": {
       "not_recorded": "Non registrato",
@@ -1708,7 +1705,6 @@
       "invalid": "Controlla i criteri e i valori consentiti prima di applicarli."
     },
     "zero_stars": "0 stelle",
-    "zero_stars_clear": "Solo 0 stelle. Fai clic per cancellare il filtro delle stelle.",
     "zero_stars_help_title": "Informazioni sulle zero stelle",
     "zero_stars_help": "Corrisponde a uno zero numerico nell’ambito di valutazione attuale, inclusa l’assenza di una valutazione personale. Le valutazioni sconosciute del catalogo restano non disponibili. Non significa che la foto non sia mai stata valutata. Gli account personali non ricorrono alle valutazioni del catalogo o di altre persone; Origini dei metadati mostra la provenienza registrata.",
     "semantic_search_help": "Informazioni sulla ricerca visiva",
@@ -2342,7 +2338,6 @@
     "unassigned_face": "Volto non assegnato",
     "ignore_detection": "Ignora questo rilevamento",
     "detection_ignored": "Rilevamento ignorato",
-    "unknown": "Sconosciuto",
     "change_person": "Cambia persona…",
     "name_face": "Dai un nome a questo volto…",
     "name_needs_edition": "Sblocca la modifica nel menu utente per dare un nome a questo volto",
@@ -3901,6 +3896,7 @@
     "member_count": "{count} membro",
     "member_count_plural": "{count} membri",
     "open_member": "Apri {path}",
+    "open_member_at_position": "Apri {path} · {position} di {count}",
     "cover_for": "Usa {path} come copertina",
     "cover": "Copertina",
     "move_up": "Sposta {path} prima",

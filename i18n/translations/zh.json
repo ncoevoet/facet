@@ -1313,7 +1313,6 @@
       "no_filters_match": "没有匹配的筛选条件",
       "color_quality": "色彩与画质",
       "moments": "拍摄时刻",
-      "reset_tooltip": "将所有筛选条件重置为默认值",
       "tabs": {
         "browse": "浏览",
         "review": "审阅",
@@ -1624,7 +1623,6 @@
       "error": "无法保存名称",
       "remove": "从筛选中移除"
     },
-    "collection_controls": "视图选项",
     "collection_totals_compact": "匹配 {photos} 张，显示 {items} 项",
     "rating_preview": {
       "title": "编辑个人星级",
@@ -1678,7 +1676,6 @@
       "invalid": "这些测量策略无效。请清除以恢复。",
       "clear": "清除测量策略"
     },
-    "collection_view": "视图",
     "layout_list": "元数据列表",
     "metadata": {
       "not_recorded": "未记录",
@@ -1708,7 +1705,6 @@
       "invalid": "应用前请检查条件及其允许值。"
     },
     "zero_stars": "0 星",
-    "zero_stars_clear": "仅显示 0 星。点击清除星级筛选。",
     "zero_stars_help_title": "关于零星评分",
     "zero_stars_help": "匹配当前评分范围中的数值零，包括未设置个人评分的情况。未知的目录评分仍为不可用。这不表示从未评分。个人账户不会回退使用目录或其他人的评分；“元数据来源”显示已记录的来源。",
     "semantic_search_help": "关于视觉搜索",
@@ -2342,7 +2338,6 @@
     "unassigned_face": "未分配的人脸",
     "ignore_detection": "忽略此检测结果",
     "detection_ignored": "已忽略检测结果",
-    "unknown": "未知",
     "change_person": "更换人物…",
     "name_face": "为此面孔命名…",
     "name_needs_edition": "在用户菜单中解锁编辑后即可为此人脸命名",
@@ -3901,6 +3896,7 @@
     "member_count": "{count} 个成员",
     "member_count_plural": "{count} 个成员",
     "open_member": "打开 {path}",
+    "open_member_at_position": "打开 {path} · 第 {position} 张，共 {count} 张",
     "cover_for": "将 {path} 设为封面",
     "cover": "封面",
     "move_up": "将 {path} 前移",

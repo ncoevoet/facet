@@ -1160,7 +1160,6 @@
       "clear": "Show the usual view"
     },
     "all_photos": "All Photos",
-    "collection_controls": "View options",
     "collection_totals_compact": "{photos} matching, {items} displayed",
     "sort": "Sort by",
     "sort_current": "Sort by: {label}",
@@ -1344,7 +1343,6 @@
       "no_filters_match": "No filters match",
       "color_quality": "Color & Quality",
       "moments": "Moments",
-      "reset_tooltip": "Reset all filters to their defaults",
       "tabs": {
         "browse": "Browse",
         "review": "Review",
@@ -1703,7 +1701,6 @@
       "invalid": "These measurement policies are invalid. Clear them to recover.",
       "clear": "Clear measurement policies"
     },
-    "collection_view": "View",
     "layout_list": "Metadata list",
     "metadata": {
       "not_recorded": "Not recorded",
@@ -1733,7 +1730,6 @@
       "invalid": "Check the criteria and their allowed values before applying."
     },
     "zero_stars": "0 stars",
-    "zero_stars_clear": "0 stars only. Click to clear the star filter.",
     "zero_stars_help_title": "About zero stars",
     "zero_stars_help": "Matches a numeric zero in the current rating scope, including an absent personal rating. Unknown catalog ratings stay unavailable. This does not mean never rated. Personal accounts do not fall back to catalog or other people’s ratings; Metadata sources shows the recorded origin.",
     "semantic_search_help": "About visual search",
@@ -2367,7 +2363,6 @@
     "unassigned_face": "Unassigned face",
     "ignore_detection": "Ignore this detection",
     "detection_ignored": "Detection ignored",
-    "unknown": "Unknown",
     "change_person": "Change person…",
     "name_face": "Name this face…",
     "name_needs_edition": "Unlock editing in the user menu to name this face",
@@ -3926,6 +3921,7 @@
     "member_count": "{count} member",
     "member_count_plural": "{count} members",
     "open_member": "Open {path}",
+    "open_member_at_position": "Open {path} · {position} of {count}",
     "cover_for": "Use {path} as cover",
     "cover": "Cover",
     "move_up": "Move {path} earlier",
