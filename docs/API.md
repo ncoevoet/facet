@@ -2,7 +2,7 @@
 
 The viewer's HTTP API, grouped by area. For using the gallery, see [Viewer](VIEWER.md).
 
-Interactive documentation is at `/api/docs` (Swagger UI); the OpenAPI schema is at `/api/openapi.json`.
+Interactive documentation (Swagger UI, `/api/docs`) and the OpenAPI schema (`/api/openapi.json`) are served only when the viewer starts with `FACET_ENABLE_API_DOCS=1` (also `true`, `yes`, `on`); otherwise both answer 404, so a reachable server does not hand out its route inventory.
 
 Developers: `cd client && npm run gen:api` regenerates the client types in `client/src/app/core/api/schema.d.ts` from that schema; CI fails if the committed file is stale.
 

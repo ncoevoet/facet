@@ -134,6 +134,22 @@ def _reset_index_build_status():
     schema_startup._set_status(state=schema_startup.STATE_READY, done=0, total=0)
 
 
+@pytest.fixture(autouse=True)
+def _reset_token_failure_limiters():
+    """The frame, Immich-webhook and WebDAV failure budgets are process-global: auth
+    tests deliberately burn wrong-credential attempts, which would otherwise throttle
+    a later test from the same ``testclient`` peer."""
+    from api.routers.frame import _token_limiter as frame_limiter
+    from api.routers.immich import _token_limiter as immich_limiter
+    from api.routers.webdav import _auth_failure_limiter as webdav_limiter
+    limiters = (frame_limiter, immich_limiter, webdav_limiter)
+    for limiter in limiters:
+        limiter.reset()
+    yield
+    for limiter in limiters:
+        limiter.reset()
+
+
 def reset_place_search():
     """The provider cache, throttle and in-flight flag are process-wide."""
     from api import place_search

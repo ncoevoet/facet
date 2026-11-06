@@ -11,6 +11,8 @@ import time
 from collections import defaultdict, deque
 from typing import Callable, Optional
 
+from api.token_auth import TokenFailureLimiter
+
 WINDOW_SECONDS = 60.0
 FAILED_AUTH_MAX = 10
 # Past this many tracked addresses a failure sweeps the ones whose window has expired
@@ -21,8 +23,8 @@ FAILURE_SWEEP_THRESHOLD = 10000
 _clock: Callable[[], float] = time.monotonic
 _lock = threading.Lock()
 _calls: dict[tuple[int | str, bool], deque] = defaultdict(deque)
-_failures: dict[str, deque] = defaultdict(deque)
-_last_sweep = float("-inf")
+_auth_failures = TokenFailureLimiter(FAILED_AUTH_MAX, WINDOW_SECONDS,
+                                     sweep_threshold=FAILURE_SWEEP_THRESHOLD, clock=lambda: now())
 
 
 def set_clock(clock: Optional[Callable[[], float]]) -> None:
@@ -36,12 +38,10 @@ def now() -> float:
 
 
 def reset_limits() -> None:
-    global _last_sweep
     from api.agent import nonce
     with _lock:
         _calls.clear()
-        _failures.clear()
-        _last_sweep = float("-inf")
+    _auth_failures.reset()
     nonce.reset()
 
 
@@ -64,29 +64,11 @@ def check_rate(rate_key: int | str, write: bool, per_min: int) -> tuple[bool, fl
 
 def auth_blocked(client_ip: str) -> bool:
     """True once ``client_ip`` has failed bearer authentication too often."""
-    current = now()
-    with _lock:
-        window = _failures.get(client_ip)
-        if window is None:
-            return False
-        while window and window[0] <= current - WINDOW_SECONDS:
-            window.popleft()
-        if not window:
-            del _failures[client_ip]
-            return False
-        return len(window) >= FAILED_AUTH_MAX
+    return _auth_failures.blocked(client_ip)
 
 
 def record_auth_failure(client_ip: str) -> None:
-    global _last_sweep
-    current = now()
-    with _lock:
-        if len(_failures) > FAILURE_SWEEP_THRESHOLD and current - _last_sweep >= WINDOW_SECONDS:
-            _last_sweep = current
-            for stale in [ip for ip, window in _failures.items()
-                          if not window or window[-1] <= current - WINDOW_SECONDS]:
-                del _failures[stale]
-        _failures[client_ip].append(current)
+    _auth_failures.register_failure(client_ip)
 
 
 def encoded_size(envelope: dict) -> int:

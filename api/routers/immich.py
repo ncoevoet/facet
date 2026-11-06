@@ -19,16 +19,20 @@ the same "empty means the whole feature 404s" idiom as ``frame.tokens`` and
 
 import logging
 import os
+from itertools import islice
 
 from fastapi import APIRouter, HTTPException, Request, Response
 from fastapi.responses import JSONResponse
 from starlette.concurrency import run_in_threadpool
 
-from api.token_auth import require_static_token
+from api.token_auth import TokenFailureLimiter, require_static_token_throttled
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter(tags=["immich"])
+
+# Failed-token throttle per peer IP: the webhook secret is an offline-guessing target.
+_token_limiter = TokenFailureLimiter()
 
 WEBHOOK_PATH = "/api/immich/webhook"
 
@@ -215,13 +219,16 @@ async def immich_webhook(request: Request):
     shape is Immich's to change), 400 when the body is not JSON at all.
     """
     webhook_cfg = _immich_config().get("webhook", {}) or {}
-    require_static_token(_expected_token(webhook_cfg),
-                         _provided_token(request, webhook_cfg), _FEATURE)
+    require_static_token_throttled(request, _expected_token(webhook_cfg),
+                                   _provided_token(request, webhook_cfg), _FEATURE,
+                                   limiter=_token_limiter)
     try:
         payload = await request.json()
     except (ValueError, UnicodeDecodeError):
         raise HTTPException(status_code=400, detail="Body is not valid JSON")
-    assets = list(_iter_assets(payload))
+    # The walk is a generator, so islice stops it at the cap instead of visiting every
+    # entry of a hostile payload; +1 keeps a delivery over the cap observable in the log.
+    assets = list(islice(_iter_assets(payload), _MAX_ASSETS_PER_DELIVERY + 1))
     if not assets:
         logger.info("Immich webhook: no asset in payload (%s)", _describe_shape(payload))
         return Response(status_code=_STATUS_NO_CONTENT)

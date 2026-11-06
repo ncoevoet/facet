@@ -34,6 +34,7 @@ from fastapi.middleware.cors import CORSMiddleware  # noqa: E402
 from fastapi.responses import FileResponse, JSONResponse, Response  # noqa: E402
 from fastapi.staticfiles import StaticFiles  # noqa: E402
 from starlette.exceptions import HTTPException as StarletteHTTPException  # noqa: E402
+from starlette.datastructures import Headers as StarletteHeaders  # noqa: E402
 from starlette.middleware.base import BaseHTTPMiddleware  # noqa: E402
 
 logger = logging.getLogger(__name__)
@@ -138,6 +139,62 @@ DEFAULT_CSP = (
     "frame-ancestors 'self'; "
     "base-uri 'self'"
 )
+
+
+class RequestBodyCapMiddleware:
+    """Refuse a request body over the cap before a handler buffers it.
+
+    Anonymous POST endpoints (login, proofing sessions, client error reports)
+    buffer the whole body before validation and rate limiting run, so an
+    unbounded body is a memory lever for any LAN peer. A declared
+    ``Content-Length`` over the cap answers 413 before anything is read; a
+    chunked body is refused as soon as it crosses the cap.
+
+    Routes that enforce their own, larger cap while streaming are exempt by
+    exact path or prefix: WebDAV uploads (``upload.max_file_mb``), the AI-edit
+    import and the Lightroom state import.
+    """
+
+    DEFAULT_MAX_BYTES = 10 * 1024 * 1024
+
+    def __init__(self, app, max_bytes: int = DEFAULT_MAX_BYTES,
+                 exempt_paths: tuple[str, ...] = (), exempt_prefixes: tuple[str, ...] = ()):
+        self.app = app
+        self._max_bytes = max_bytes
+        self._exempt_paths = frozenset(exempt_paths)
+        self._exempt_prefixes = exempt_prefixes
+
+    def _too_large(self) -> HTTPException:
+        return HTTPException(status_code=413, detail="Request body too large")
+
+    async def __call__(self, scope, receive, send):
+        path = scope.get("path", "")
+        if (scope["type"] != "http" or path in self._exempt_paths
+                or path.startswith(self._exempt_prefixes)):
+            await self.app(scope, receive, send)
+            return
+        declared = StarletteHeaders(scope=scope).get("content-length", "")
+        if declared.isdigit() and int(declared) > self._max_bytes:
+            await JSONResponse({"detail": self._too_large().detail}, status_code=413)(scope, receive, send)
+            return
+        seen = 0
+
+        async def limited_receive():
+            nonlocal seen
+            message = await receive()
+            if message["type"] == "http.request":
+                seen += len(message.get("body", b""))
+                if seen > self._max_bytes:
+                    # FastAPI re-raises an HTTPException met while reading the body.
+                    raise self._too_large()
+            return message
+
+        await self.app(scope, limited_receive, send)
+
+
+def _api_docs_enabled() -> bool:
+    """``FACET_ENABLE_API_DOCS`` turns the interactive docs on; only explicit yes-values count."""
+    return os.environ.get("FACET_ENABLE_API_DOCS", "").strip().lower() in ("1", "true", "yes", "on")
 
 
 class SecurityHeadersMiddleware(BaseHTTPMiddleware):
@@ -505,13 +562,20 @@ def create_app() -> FastAPI:
         logger.warning("%s", exposure_warning)
 
     from api.db_helpers import warm_schema_caches
+    docs_enabled = _api_docs_enabled()
     app = FastAPI(
         title="Facet API",
         description="Multi-dimensional photo analysis engine API",
         version="1.0.0",
         lifespan=lifespan,
-        docs_url="/api/docs",
-        openapi_url="/api/openapi.json",
+        # The interactive docs hand the complete route inventory, request models
+        # and response shapes to anyone who can reach the server — on a
+        # password-protected install that contradicts the "disabled feature
+        # ⇒ 404" posture, so they are off unless a developer explicitly turns
+        # them on. dump_openapi.py does not need the routes (it calls
+        # app.openapi() directly), so npm run gen:api is unaffected.
+        docs_url="/api/docs" if docs_enabled else None,
+        openapi_url="/api/openapi.json" if docs_enabled else None,
         # Before every route: the cached schema probes that handlers read
         # synchronously are filled on a worker thread, never on the event loop.
         dependencies=[Depends(warm_schema_caches)],
@@ -529,8 +593,16 @@ def create_app() -> FastAPI:
     # The AI-edit import refuses an oversized body while it streams in, not after buffering it.
     # Added first, so it is the innermost middleware: its receive is the one the route reads
     # (a BaseHTTPMiddleware outside it would turn its 413 into a 400 parse error).
-    from api.routers.ai_edits import ImportBodyLimit
+    from api.routers.ai_edits import IMPORT_ROUTE, ImportBodyLimit
     app.add_middleware(ImportBodyLimit)
+
+    # Body cap for every other route, declared or streamed. Pure ASGI like ImportBodyLimit,
+    # so its 413 raised mid-read reaches the route as an HTTPException, not a parse error.
+    from api.routers.lightroom import IMPORT_ROUTE as LIGHTROOM_IMPORT_ROUTE
+    from api.routers.webdav import DAV_PREFIX
+    app.add_middleware(RequestBodyCapMiddleware,
+                       exempt_paths=(IMPORT_ROUTE, LIGHTROOM_IMPORT_ROUTE, DAV_PREFIX),
+                       exempt_prefixes=(DAV_PREFIX + "/",))
 
     # Request logging middleware — requests slower than the configured
     # threshold (performance.slow_request_ms) are logged at WARNING.

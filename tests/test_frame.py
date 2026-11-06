@@ -228,6 +228,31 @@ class TestAuthGate:
         resp = client.get(endpoint, params={"token": NON_ASCII_TOKEN})
         assert resp.status_code == 403
 
+    def test_wrong_tokens_are_throttled_but_a_missing_one_is_not(self, client, frame_cfg, seed):
+        """Ten wrong tokens from one peer earn a 429 with Retry-After, even for the right
+        token; a kiosk that forgot its token (401) never consumes the budget."""
+        for _ in range(20):
+            assert client.get("/api/frame/photos").status_code == 401
+        assert client.get("/api/frame/photos", params={"token": TOKEN}).status_code == 200
+        for _ in range(10):
+            assert client.get("/api/frame/photos", params={"token": "guess"}).status_code == 403
+        blocked = client.get("/api/frame/photos", params={"token": TOKEN})
+        assert blocked.status_code == 429
+        assert blocked.headers["Retry-After"] == "60"
+
+    def test_a_disabled_feature_stays_404_and_never_throttles(self, client):
+        from api import config
+        prev = config._FULL_CONFIG.get("frame")
+        config._FULL_CONFIG["frame"] = {"tokens": []}
+        try:
+            codes = {client.get("/api/frame/next", params={"token": "guess"}).status_code for _ in range(15)}
+        finally:
+            if prev is None:
+                config._FULL_CONFIG.pop("frame", None)
+            else:
+                config._FULL_CONFIG["frame"] = prev
+        assert codes == {404}
+
     def test_second_configured_token_accepted(self, client, frame_cfg, seed):
         resp = client.get("/api/frame/photos", params={"token": OTHER_TOKEN})
         assert resp.status_code == 200

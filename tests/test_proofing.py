@@ -390,11 +390,10 @@ class TestSessionRateLimitAndRole:
 
     def test_pin_attempts_rate_limited(self, client, proofing_on, albums):
         proofing_on["pin"] = "1234"
-        codes = [
-            _mint(client, albums["manual_id"], pin="0000").status_code
-            for _ in range(8)
-        ]
-        assert 429 in codes
+        responses = [_mint(client, albums["manual_id"], pin="0000") for _ in range(8)]
+        limited = [r for r in responses if r.status_code == 429]
+        assert limited
+        assert limited[0].headers["Retry-After"].isdigit()
 
     def test_regular_edition_jwt_rejected_on_picks(self, edition_client, proofing_on, albums):
         # A valid edition JWT is not a share_client token → require_share_client 403s.
