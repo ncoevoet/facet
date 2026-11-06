@@ -1,5 +1,5 @@
 import { AuthService } from '../../core/services/auth.service';
-import { provideRouter } from '@angular/router';
+import { provideRouter, Router, type Routes } from '@angular/router';
 import type { Mock } from 'vitest';
 import { TestBed } from '@angular/core/testing';
 import { MAT_DIALOG_DATA, MatDialogRef } from '@angular/material/dialog';
@@ -18,7 +18,9 @@ describe('ClientPicksDialogComponent', () => {
 
   const data: ClientPicksDialogData = { albumId: 7, albumName: 'Wedding' };
 
-  function createComponent(getImpl?: () => unknown) {
+  let mockClose: Mock;
+
+  function createComponent(getImpl?: () => unknown, routes: Routes = []) {
     mockApi = {
       get: vi.fn(getImpl ?? (() => of({
         picks: [
@@ -31,17 +33,18 @@ describe('ClientPicksDialogComponent', () => {
     };
     mockI18n = { t: vi.fn((k: string) => k), translations: vi.fn(() => ({})) };
     mockSnackBar = { open: vi.fn() };
+    mockClose = vi.fn();
 
     TestBed.resetTestingModule();
     TestBed.configureTestingModule({
       providers: [
-        provideRouter([]), { provide: AuthService, useValue: { identity: () => 'owner', isEdition: () => true } },
+        provideRouter(routes), { provide: AuthService, useValue: { identity: () => 'owner', isEdition: () => true } },
         ClientPicksDialogComponent,
         { provide: ApiService, useValue: mockApi },
         { provide: I18nService, useValue: mockI18n },
         { provide: MatSnackBar, useValue: mockSnackBar },
         { provide: MAT_DIALOG_DATA, useValue: data },
-        { provide: MatDialogRef, useValue: { close: vi.fn() } },
+        { provide: MatDialogRef, useValue: { close: mockClose } },
       ],
     });
     component = TestBed.inject(ClientPicksDialogComponent);
@@ -109,5 +112,38 @@ describe('ClientPicksDialogComponent', () => {
     expect(writeText).toHaveBeenCalledWith('IMG_1.jpg\nIMG_3.jpg');
 
     await vi.waitFor(() => expect(mockSnackBar.open).toHaveBeenCalled());
+  });
+
+  describe('opened while a navigation is in flight', () => {
+    function slowRoute() {
+      let release!: (allow: boolean) => void;
+      const gate = new Promise<boolean>(resolve => { release = resolve; });
+      return { release, routes: [{ path: 'slow', children: [], canActivate: [() => gate] }] as Routes };
+    }
+
+    it('loads the picks once a cancelled navigation settles on the same page', async () => {
+      const { release, routes } = slowRoute();
+      createComponent(undefined, routes);
+      void TestBed.inject(Router).navigateByUrl('/slow');
+      const loading = component.ngOnInit();
+      await Promise.resolve();
+      expect(mockApi.get).not.toHaveBeenCalled();
+      release(false);
+      await loading;
+      expect(mockApi.get).toHaveBeenCalledWith('/albums/7/picks');
+      expect(component.loading()).toBe(false);
+      expect(mockClose).not.toHaveBeenCalled();
+    });
+
+    it('closes the dialog when the navigation leaves the page instead of spinning forever', async () => {
+      const { release, routes } = slowRoute();
+      createComponent(undefined, routes);
+      void TestBed.inject(Router).navigateByUrl('/slow');
+      const loading = component.ngOnInit();
+      release(true);
+      await loading;
+      expect(mockApi.get).not.toHaveBeenCalled();
+      expect(mockClose).toHaveBeenCalled();
+    });
   });
 });

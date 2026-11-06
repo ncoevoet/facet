@@ -15,6 +15,7 @@ import { useDesktopSignal, useHoverCapableSignal, DETAILS_RAIL_MIN_WIDTH_PX } fr
 import { GalleryFilters, GalleryStore } from './gallery.store';
 import { TILE_FITS, GalleryMode, PanelActivation, TooltipMode } from './gallery-filters.util';
 import { closeOverlayDirectives } from '../../shared/utils/overlays';
+import { sortLabelKey } from '../../shared/utils/sort-label';
 import { AuthService } from '../../core/services/auth.service';
 import { GalleryReviewNavigationService } from './gallery-review-navigation.service';
 
@@ -315,18 +316,10 @@ export class GalleryViewControlsComponent {
     return sections;
   });
 
-  private static readonly SORT_LABELS_OUTSIDE_MENU: Record<string, string> = {
-    relevance: I18N.gallery.sort_relevance,
-    learned_score: I18N.gallery.sort_my_taste,
-    top_picks_score: I18N.photo_types.top_picks,
-  };
-
   protected readonly currentSortLabelKey = computed(() => {
     const sort = this.store.filters().sort;
     const match = this.sortMenuSections().flatMap(section => section.options).find(opt => opt.column === sort);
-    const outsideLabel = Object.hasOwn(GalleryViewControlsComponent.SORT_LABELS_OUTSIDE_MENU, sort)
-      ? GalleryViewControlsComponent.SORT_LABELS_OUTSIDE_MENU[sort] : undefined;
-    return match?.labelKey ?? outsideLabel ?? sortOptionLabelKey(sort);
+    return match?.labelKey ?? sortLabelKey(sort);
   });
 
   protected onSortChange(sort: string): void {

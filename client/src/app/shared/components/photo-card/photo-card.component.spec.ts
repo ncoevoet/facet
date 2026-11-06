@@ -76,6 +76,19 @@ describe('PhotoCardComponent', () => {
     expect(row.querySelector('img')?.getAttribute('src')).toContain('size=160');
   });
 
+  it.each([
+    ['relevance', 'gallery.sort_relevance'],
+    ['learned_score', 'gallery.sort_my_taste'],
+    ['top_picks_score', 'photo_types.top_picks'],
+    ['filename', 'filter_labels.search'],
+  ])('labels the metadata-list sort column for %s with a real key, not sort_options.*', (sort, key) => {
+    fixture.componentInstance.listMode.set(true);
+    fixture.componentInstance.photo.set(makePhoto({ filename: 'record.jpg' }));
+    fixture.componentInstance.currentSort.set(sort); fixture.detectChanges();
+    const cell = fixture.nativeElement.querySelector('[data-list-sort]') as HTMLElement;
+    expect(cell.textContent).toContain(key); expect(cell.textContent).not.toContain('sort_options.');
+  });
+
   it('shows the actual metadata-list sort value, including zero and text, rather than substituting another score', () => {
     fixture.componentInstance.listMode.set(true);
     fixture.componentInstance.photo.set(makePhoto({aggregate: 9, aesthetic: 0, filename: 'record.jpg', date_taken: null}));

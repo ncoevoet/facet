@@ -1,5 +1,6 @@
 import { PhotoListExtraComponent } from './photo-list-extra.component';
 import { i18nKeys } from '../../../core/i18n/keys';
+import { sortLabelKey } from '../../utils/sort-label';
 import { Component, computed, effect, inject, input, output, signal, untracked, viewChildren, ChangeDetectionStrategy } from '@angular/core';
 import { MatIconModule } from '@angular/material/icon';
 import { MatButtonModule } from '@angular/material/button';
@@ -753,7 +754,7 @@ export class PhotoCardComponent {
   readonly mosaicMode = input(false);
   readonly listMode = input(false);
   private static nextListId = 0;
-  protected readonly listSortLabel = computed(() => `sort_options.${this.currentSort()}`);
+  protected readonly listSortLabel = computed(() => sortLabelKey(this.currentSort()));
   private readonly listSortValue = computed(() => (this.photo() as unknown as Record<string, unknown>)[this.currentSort()]);
   protected readonly listSortNumber = computed(() => {
     const value = this.listSortValue();

@@ -398,13 +398,18 @@ export class StackEditorComponent implements OnInit {
     if (!this.current() || !this.editable() || this.saved() || this.saving() || mode === this.mode()) return;
     this.mode.set(mode); void this.loadPreview();
   }
+  /** Notes whether focus left `origin` (and the body) while an async action ran; `dispose` also runs on destroy. */
+  private trackFocusMove(origin: HTMLElement | null, active: boolean): { moved: () => boolean; dispose: () => void } {
+    let moved = false;
+    const noteFocus = (event: FocusEvent) => { if (event.target !== origin && event.target !== document.body) moved = true; };
+    if (active) document.addEventListener('focusin', noteFocus);
+    const cleanup = this.destroyRef.onDestroy(() => document.removeEventListener('focusin', noteFocus));
+    return { moved: () => moved, dispose: () => { document.removeEventListener('focusin', noteFocus); cleanup(); } };
+  }
   async retry(): Promise<void> {
     const origin = document.activeElement instanceof HTMLElement ? document.activeElement : null;
     const restore = this.page && !!origin?.matches('[data-stack-retry]');
-    let focusMoved = false;
-    const noteFocus = (event: FocusEvent) => { if (event.target !== origin && event.target !== document.body) focusMoved = true; };
-    if (restore) document.addEventListener('focusin', noteFocus);
-    const cleanup = this.destroyRef.onDestroy(() => document.removeEventListener('focusin', noteFocus));
+    const focus = this.trackFocusMove(origin, restore);
     try {
       if (typeof this.retryAction === 'object') {
         if ('reject' in this.retryAction) await this.rejectFocused(this.retryAction.reject);
@@ -415,8 +420,8 @@ export class StackEditorComponent implements OnInit {
       else if (this.retryAction === 'save' && this.error() === 'error') await this.save();
       else await this.load();
     } finally {
-      document.removeEventListener('focusin', noteFocus); cleanup();
-      if (restore && !focusMoved && this.current() && !this.error()) afterNextRender(() => {
+      focus.dispose();
+      if (restore && !focus.moved() && this.current() && !this.error()) afterNextRender(() => {
         if (!this.current() || this.loading() || this.saving() || this.pageContext.overlays().length
             || document.activeElement !== document.body && document.activeElement !== origin) return;
         const mode = this.element?.nativeElement.querySelector<HTMLElement>('[data-stack-mode][aria-pressed="true"]');
@@ -519,10 +524,7 @@ export class StackEditorComponent implements OnInit {
     if (!live() || shared && !shared.lock()) return;
     const origin = document.activeElement instanceof HTMLElement ? document.activeElement : null;
     const restoreTileFocus = origin?.matches('[data-stack-reject]') || origin?.closest('[data-stack-tile]')?.querySelector('[data-stack-focus]')?.getAttribute('data-stack-focus') === path;
-    let focusMoved = false;
-    const noteFocus = (event: FocusEvent) => { if (event.target !== origin && event.target !== document.body) focusMoved = true; };
-    if (restoreTileFocus) document.addEventListener('focusin', noteFocus);
-    const clearFocusCleanup = this.destroyRef.onDestroy(() => document.removeEventListener('focusin', noteFocus));
+    const focus = this.trackFocusMove(origin, restoreTileFocus);
     this.saving.set(true); this.host.setBusy(true); this.error.set(null); this.retryAction = { reject: path };
     try {
       await this.reviewActions.reject(path, {
@@ -542,11 +544,11 @@ export class StackEditorComponent implements OnInit {
       });
     } catch { if (live()) this.error.set('error'); }
     finally {
-      document.removeEventListener('focusin', noteFocus); clearFocusCleanup();
+      focus.dispose();
       shared?.unlock();
       if (live()) {
         this.saving.set(false); this.host.setBusy(false);
-        if (restoreTileFocus && !focusMoved) afterNextRender(() => {
+        if (restoreTileFocus && !focus.moved()) afterNextRender(() => {
           if (!live() || this.saving() || this.loading() || this.pageContext.overlays().length
             || document.activeElement !== document.body && document.activeElement !== origin) return;
           const target = this.thumbnails()[this.paths().indexOf(this.focused())]?.nativeElement ?? this.closeButton()?.nativeElement;

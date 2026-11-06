@@ -5,7 +5,8 @@ import { MatButtonModule } from '@angular/material/button';
 import { MatIconModule } from '@angular/material/icon';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { MatSnackBar } from '@angular/material/snack-bar';
-import { firstValueFrom } from 'rxjs';
+import { defaultIfEmpty, filter, firstValueFrom } from 'rxjs';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { ApiService } from '../../core/services/api.service';
 import { I18nService } from '../../core/services/i18n.service';
 import { TranslatePipe } from '../../shared/pipes/translate.pipe';
@@ -16,6 +17,7 @@ import { I18N, i18nKeys } from '../../core/i18n/keys';
 import { AuthService } from '../../core/services/auth.service';
 import { Router } from '@angular/router';
 import { AlbumDialogContext } from './album-dialog-context';
+import { isNavigationSettled } from '../../shared/utils/navigation-settled';
 
 export interface ClientPicksDialogData {
   albumId: number;
@@ -106,7 +108,9 @@ export class ClientPicksDialogComponent implements OnInit {
   private readonly auth = inject(AuthService);
   private readonly openingOwner = this.auth.identity();
   private readonly dialogRef = inject(MatDialogRef<ClientPicksDialogComponent>);
-  private readonly guard = new AlbumDialogContext(this.auth, inject(Router), inject(DestroyRef), false);
+  private readonly router = inject(Router);
+  private readonly destroyRef = inject(DestroyRef);
+  private readonly guard = new AlbumDialogContext(this.auth, this.router, this.destroyRef, false);
 
   protected readonly loading = signal(true);
   protected readonly loadFailed = signal(false);
@@ -129,7 +133,15 @@ export class ClientPicksDialogComponent implements OnInit {
   }
 
   protected async load(isRetry = false): Promise<void> {
-    if (this.loading() && isRetry || !this.guard.canStart()) return;
+    if (this.loading() && isRetry) return;
+    while (this.guard.current() && !this.guard.canStart()) {
+      await firstValueFrom(this.router.events.pipe(filter(isNavigationSettled), takeUntilDestroyed(this.destroyRef), defaultIfEmpty(null)));
+    }
+    if (!this.guard.current()) {
+      // The navigation left the page this dialog was opened on: nothing left to load for.
+      if (!this.destroyRef.destroyed) this.dialogRef.close();
+      return;
+    }
     const retryButton = isRetry ? this.retryButton()?.nativeElement : undefined;
     this.retrying.set(isRetry);
     this.loading.set(true);

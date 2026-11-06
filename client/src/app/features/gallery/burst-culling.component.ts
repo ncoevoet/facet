@@ -2787,6 +2787,11 @@ export class BurstCullingComponent implements OnDestroy {
     if (event.key === 'Escape') this.closeLightbox();
   }
 
+  private groupRow(key: string): HTMLElement | undefined {
+    return Array.from(this.element()?.nativeElement.querySelectorAll<HTMLElement>('[data-culling-group-key]') ?? [])
+      .find(element => element.dataset['cullingGroupKey'] === key);
+  }
+
   protected confirmGroupFromRow(group: CullingGroup, event: Event): void {
     const origin = event.currentTarget as HTMLElement | null;
     const identity = this.auth.identity();
@@ -2796,8 +2801,7 @@ export class BurstCullingComponent implements OnDestroy {
       if (!this.pageAlive || this.pageNavigating || this.lightboxGroup() || this.dialog.openDialogs.length
         || this.auth.identity() !== identity || !this.cull.passingGroups().has(key)
         || document.activeElement !== document.body && document.activeElement !== origin) return;
-      const row = Array.from(this.element()?.nativeElement.querySelectorAll<HTMLElement>('[data-culling-group-key]') ?? [])
-        .find(element => element.dataset['cullingGroupKey'] === key);
+      const row = this.groupRow(key);
       row?.querySelector<HTMLButtonElement>('[data-culling-cancel]')?.focus();
     });
   }
@@ -2816,8 +2820,7 @@ export class BurstCullingComponent implements OnDestroy {
         overlay?.querySelector<HTMLButtonElement>('[data-darkroom-confirm]:not(:disabled)')?.focus();
       } else {
         if (this.lightboxGroup()) return;
-        const row = Array.from(this.element()?.nativeElement.querySelectorAll<HTMLElement>('[data-culling-group-key]') ?? [])
-          .find(element => element.dataset['cullingGroupKey'] === key);
+        const row = this.groupRow(key);
         (row?.querySelector<HTMLButtonElement>('[data-culling-confirm]:not(:disabled)') ?? row)?.focus();
       }
     });
@@ -2842,8 +2845,7 @@ export class BurstCullingComponent implements OnDestroy {
     if (groupKey) setTimeout(() => {
       if (!this.pageAlive || this.pageNavigating || this.lightboxGroup() || this.dialog.openDialogs.length
         || this.auth.identity() !== identity) return;
-      const row = Array.from(this.element()?.nativeElement.querySelectorAll<HTMLElement>('[data-culling-group-key]') ?? [])
-        .find(element => element.dataset['cullingGroupKey'] === groupKey);
+      const row = this.groupRow(groupKey);
       (row?.querySelector<HTMLElement>('[data-culling-cancel]') ?? row?.querySelector<HTMLElement>('[data-culling-open]') ?? row)?.focus();
     });
   }

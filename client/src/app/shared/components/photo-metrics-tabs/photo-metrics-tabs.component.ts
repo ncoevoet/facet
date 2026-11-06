@@ -41,21 +41,21 @@ import { PhotoAssessmentComponent } from '../photo-assessment/photo-assessment.c
       <!-- EXIF section -->
       @if (hasExif()) {
         <mat-tab [aria-label]="'photo_detail.exif' | translate">
-          <ng-template mat-tab-label><mat-icon aria-hidden="true" [matTooltip]="'photo_detail.exif' | translate">photo_camera</mat-icon></ng-template><app-photo-metric-section kind="exif" [photo]="p" [ranges]="ranges()" [populated]="populated()" [histogramSrcSize]="histogramSrcSize()" [histogramHeight]="histogramHeight()" [histogramSurface]="histogramSurface()" [histogramDefaultMode]="histogramDefaultMode()" [indicatorPercent]="indicatorPercent()" /></mat-tab>
+          <ng-template mat-tab-label><mat-icon aria-hidden="true" [matTooltip]="'photo_detail.exif' | translate">photo_camera</mat-icon></ng-template><app-photo-metric-section kind="exif" [photo]="p" [populated]="populated()" [histogramSrcSize]="histogramSrcSize()" [histogramHeight]="histogramHeight()" [histogramSurface]="histogramSurface()" [histogramDefaultMode]="histogramDefaultMode()" [indicatorPercent]="indicatorPercent()" /></mat-tab>
       }
 
       <mat-tab [aria-label]="'photo_detail.quality' | translate">
-        <ng-template mat-tab-label><span aria-hidden="true" class="text-xl" [class]="'quality' | markTone" [matTooltip]="'photo_detail.quality' | translate">{{ featureMark }}</span></ng-template><app-photo-metric-section kind="quality" [photo]="p" [ranges]="ranges()" [populated]="populated()" [histogramSrcSize]="histogramSrcSize()" [histogramHeight]="histogramHeight()" [histogramSurface]="histogramSurface()" [histogramDefaultMode]="histogramDefaultMode()" [indicatorPercent]="indicatorPercent()" /></mat-tab>
+        <ng-template mat-tab-label><span aria-hidden="true" class="text-xl" [class]="'quality' | markTone" [matTooltip]="'photo_detail.quality' | translate">{{ featureMark }}</span></ng-template><app-photo-metric-section kind="quality" [photo]="p" [populated]="populated()" [histogramSrcSize]="histogramSrcSize()" [histogramHeight]="histogramHeight()" [histogramSurface]="histogramSurface()" [histogramDefaultMode]="histogramDefaultMode()" [indicatorPercent]="indicatorPercent()" /></mat-tab>
 
       <!-- Composition section -->
       <mat-tab [aria-label]="'photo_detail.composition' | translate">
-        <ng-template mat-tab-label><mat-icon aria-hidden="true" [matTooltip]="'photo_detail.composition' | translate">grid_on</mat-icon></ng-template><app-photo-metric-section kind="composition" [photo]="p" [ranges]="ranges()" [populated]="populated()" [histogramSrcSize]="histogramSrcSize()" [histogramHeight]="histogramHeight()" [histogramSurface]="histogramSurface()" [histogramDefaultMode]="histogramDefaultMode()" [indicatorPercent]="indicatorPercent()" /></mat-tab>
+        <ng-template mat-tab-label><mat-icon aria-hidden="true" [matTooltip]="'photo_detail.composition' | translate">grid_on</mat-icon></ng-template><app-photo-metric-section kind="composition" [photo]="p" [populated]="populated()" [histogramSrcSize]="histogramSrcSize()" [histogramHeight]="histogramHeight()" [histogramSurface]="histogramSurface()" [histogramDefaultMode]="histogramDefaultMode()" [indicatorPercent]="indicatorPercent()" /></mat-tab>
 
       <!-- Technical section -->
       <mat-tab [aria-label]="'photo_detail.technical' | translate">
-        <ng-template mat-tab-label><mat-icon aria-hidden="true" [matTooltip]="'photo_detail.technical' | translate">tune</mat-icon></ng-template><app-photo-metric-section kind="technical" [photo]="p" [ranges]="ranges()" [populated]="populated()" [histogramSrcSize]="histogramSrcSize()" [histogramHeight]="histogramHeight()" [histogramSurface]="histogramSurface()" [histogramDefaultMode]="histogramDefaultMode()" [indicatorPercent]="indicatorPercent()" /></mat-tab>
+        <ng-template mat-tab-label><mat-icon aria-hidden="true" [matTooltip]="'photo_detail.technical' | translate">tune</mat-icon></ng-template><app-photo-metric-section kind="technical" [photo]="p" [populated]="populated()" [histogramSrcSize]="histogramSrcSize()" [histogramHeight]="histogramHeight()" [histogramSurface]="histogramSurface()" [histogramDefaultMode]="histogramDefaultMode()" [indicatorPercent]="indicatorPercent()" /></mat-tab>
       <mat-tab [aria-label]="'tooltip.histogram' | translate">
-        <ng-template mat-tab-label><mat-icon aria-hidden="true" [matTooltip]="'tooltip.histogram' | translate">equalizer</mat-icon></ng-template><app-photo-metric-section kind="histogram" [photo]="p" [ranges]="ranges()" [populated]="populated()" [histogramSrcSize]="histogramSrcSize()" [histogramHeight]="histogramHeight()" [histogramSurface]="histogramSurface()" [histogramDefaultMode]="histogramDefaultMode()" [indicatorPercent]="indicatorPercent()" /></mat-tab>
+        <ng-template mat-tab-label><mat-icon aria-hidden="true" [matTooltip]="'tooltip.histogram' | translate">equalizer</mat-icon></ng-template><app-photo-metric-section kind="histogram" [photo]="p" [populated]="populated()" [histogramSrcSize]="histogramSrcSize()" [histogramHeight]="histogramHeight()" [histogramSurface]="histogramSurface()" [histogramDefaultMode]="histogramDefaultMode()" [indicatorPercent]="indicatorPercent()" /></mat-tab>
       </mat-tab-group>
     }
   `,
