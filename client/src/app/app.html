@@ -50,7 +50,7 @@
             <a [routerLink]="destination.path" [attr.aria-current]="destination.active ? 'page' : null"
                class="inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap border-b-2 border-transparent px-2.5 text-sm font-medium text-[var(--mat-sys-on-surface-variant)] no-underline hover:bg-[var(--mat-sys-surface-container)] focus-visible:outline-2 focus-visible:outline-[var(--mat-sys-primary)] focus-visible:-outline-offset-2"
                [class.!pl-5]="destination.groupStart" [class.border-l]="destination.groupStart" [class.border-l-[var(--mat-sys-outline-variant)]]="destination.groupStart" [class.!font-normal]="destination.tool"
-               [class.!border-[var(--mat-sys-primary)]]="destination.active" [class.!text-[var(--mat-sys-primary)]]="destination.active">
+               [class.!border-b-[var(--mat-sys-primary)]]="destination.active" [class.!text-[var(--mat-sys-primary)]]="destination.active">
               <mat-icon aria-hidden="true" class="hidden !h-5 !w-5 !text-xl xl:inline-flex">{{ destination.icon }}</mat-icon>{{ destination.label | translate }}
             </a>
           }
