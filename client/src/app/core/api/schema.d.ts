@@ -5551,8 +5551,9 @@ export interface paths {
          * Metric Distribution
          * @description One metric in the caller's visible library, optionally within a category.
          *
-         *     Intentionally uncached: each request is small and never shares a visibility
-         *     snapshot with another account. Identifiers come exclusively from the registry.
+         *     Cached in the stats cache per metric, category and visibility scope: the form
+         *     metrics have no index, so an uncached read walks every photo's overflow pages.
+         *     Identifiers come exclusively from the registry.
          */
         get: operations["metric_distribution_api_stats_metric_distribution_get"];
         put?: never;
