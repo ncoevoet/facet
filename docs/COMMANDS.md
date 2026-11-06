@@ -4,7 +4,7 @@
 
 [Scanning](#scanning) · [Preview & Export](#preview--export) · [Recompute Operations](#recompute-operations) · [Face Recognition](#face-recognition) · [Thumbnail Management](#thumbnail-management) · [Diagnostics](#diagnostics) · [Model Information](#model-information) · [Weight Optimization](#weight-optimization-pairwise-comparison) · [Configuration](#configuration) · [Tagging](#tagging) · [Database Validation](#database-validation) · [Database Maintenance](#database-maintenance) · [Web Viewer](#web-viewer) · [Common Workflows](#common-workflows)
 
-> Requirement tags used below: `[GPU]` · `[8gb/16gb/24gb]` / `[16gb/24gb]` / `[24gb]` (VRAM profile). See the [feature matrix](INSTALLATION.md#feature-requirements).
+> Requirement tags used below: `[GPU]` · `[8gb/12gb/16gb/24gb]` / `[12gb/16gb/24gb]` / `[24gb]` (VRAM profile). See the [feature matrix](INSTALLATION.md#feature-requirements).
 
 ## Scanning
 
@@ -44,11 +44,11 @@ Facet records every scan (status, mode, directories, counters) and every per-fil
 **Single-pass (`--single-pass`):** loads all models at once. Faster, but needs more VRAM.
 
 - It scores aesthetics with the CLIP+MLP head, so it applies to the `legacy` and `8gb` profiles.
-- On `16gb` and `24gb` the aesthetic model is TOPIQ, which only multi-pass runs. A single-pass request (`--single-pass` or `processing.mode: "single-pass"`) logs a warning and runs multi-pass.
+- On `12gb`, `16gb` and `24gb` the aesthetic model is TOPIQ, which only multi-pass runs. A single-pass request (`--single-pass` or `processing.mode: "single-pass"`) logs a warning and runs multi-pass.
 - `--pass NAME` and `--dry-run` skip that check.
 - Commercial mode keeps single-pass, because native Q-ReAlign scores the aesthetic there.
 
-**Upgrade note:** earlier versions saved a neutral 5.0 aesthetic for every photo of a single-pass scan on `16gb`/`24gb`. Re-scan those folders with `--force` in multi-pass. To find them: `SELECT path FROM photos WHERE scoring_model = 'topiq' AND aesthetic = 5.0 AND topiq_score IS NULL`.
+**Upgrade note:** earlier versions saved a neutral 5.0 aesthetic for every photo of a single-pass scan on `12gb`/`16gb`/`24gb`. Re-scan those folders with `--force` in multi-pass. To find them: `SELECT path FROM photos WHERE scoring_model = 'topiq' AND aesthetic = 5.0 AND topiq_score IS NULL`.
 
 **Specific pass (`--pass NAME`):** runs one pass only, to update some metrics without full reprocessing.
 
@@ -102,7 +102,7 @@ On a CUDA GPU, once a chunk is decoded the same decode worker starts on the firs
 | `python facet.py --export-sidecars --embed-originals` | Also write metadata **into** JPEG/HEIC/TIFF/PNG/DNG originals |
 | `python facet.py --export-sidecars --score-to-stars` | Set `xmp:Rating` from the score for photos you have not rated |
 
-**Dry run.** On `16gb`/`24gb` the aesthetic column shows `n/a`, because TOPIQ runs only in a real scan (commercial mode shows the Q-ReAlign score). The aggregate counts it as a neutral 5.0.
+**Dry run.** On `12gb`/`16gb`/`24gb` the aesthetic column shows `n/a`, because TOPIQ runs only in a real scan (commercial mode shows the Q-ReAlign score). The aggregate counts it as a neutral 5.0.
 
 **CSV and JSON.** The `tags` column holds AI tags only; [manual tags](VIEWER.md#manual-tags) are not included. In JSON, each photo's `scores` object holds every stored metric; NULL, non-finite numbers and BLOBs become `null`. The JSON export refuses to write over the database or its `-wal`/`-shm`/`-journal` files.
 
@@ -191,7 +191,7 @@ These update metrics or derive new data without re-running the full scoring pipe
 | `python facet.py --detect-panoramas` | Detect panorama sets from stored thumbnails (runs the bracket pass first; CPU) |
 | `python facet.py --detect-duplicates` | Detect duplicate photos via pHash (logs `Duplicate state: N rows changed`) |
 | `python facet.py --sweep-dedup-thresholds [labels.json]` | Evaluate near-duplicate cosine thresholds (precision/recall with labels) |
-| `python facet.py --generate-captions` | `[GPU]` `[16gb/24gb]` Generate AI captions with the VLM |
+| `python facet.py --generate-captions` | `[GPU]` `[12gb/16gb/24gb]` Generate AI captions with the VLM |
 | `python facet.py --translate-captions` | Translate English captions to the configured language (CPU, MarianMT) |
 | `python facet.py --extract-gps` | Copy EXIF GPS into the database; skips locations set in the viewer |
 | `python facet.py --rescan-gps` | Re-extract EXIF GPS for all photos (overwrites); skips locations set in the viewer |
@@ -213,7 +213,7 @@ These update metrics or derive new data without re-running the full scoring pipe
 
 - `--detect-moments` encodes each new caption once into `caption_embedding`. The first backfill of an existing library is best done on a GPU; add `--limit N` to try it on a sample.
 - Add `--dry-run --verbose` to `--recompute-moments` (or `--detect-junk`) to preview without writing.
-- `narrative_moments.vlm_tiebreak` (16gb/24gb): when `narrative_moments.vlm_tiebreak.enabled` is set, the profile VLM re-classifies low-confidence frames.
+- `narrative_moments.vlm_tiebreak` (12gb/16gb/24gb): when `narrative_moments.vlm_tiebreak.enabled` is set, the profile VLM re-classifies low-confidence frames.
 - `--discover-moments` clusters stored caption embeddings and names each cluster. It never rewrites the active config. Run `--detect-moments` first; tune it with `--discover-min-cluster-size N`.
 - `--generate-captions` skips unlabelled, `other` and low-confidence photos when `narrative_moments.caption_min_confidence > 0`.
 
@@ -291,12 +291,13 @@ The tagging model depends on the VRAM profile:
 |---------|-------|-------------|
 | `legacy` | CLIP similarity | Cosine similarity between image and tag-text embeddings. No extra model. |
 | `8gb` | CLIP similarity | Same as legacy, on stored CLIP ViT-L-14 embeddings. |
+| `12gb` | Qwen3.5-2B | Multimodal model for scene tagging. |
 | `16gb` | Qwen3.5-2B | Multimodal model for scene tagging. |
 | `24gb` | Qwen3.5-4B | Larger multimodal model. |
 
 All taggers map their output to the configured tag vocabulary. Use `--recompute-tags` to re-tag with the profile's model, or `--recompute-tags-vlm` for the VLM.
 
-**When tags are written.** On CLIP-similarity profiles (`legacy`/`8gb`, and `16gb`/`24gb` when the VLM pass is not scheduled), a multi-pass scan tags during the embeddings pass, so the scan's category and aggregate already use them. A single `--pass` run (for example `--pass embeddings`) writes no tags. `--pass tags` on a CLIP profile stops and points to `--recompute-tags`. Existing rows keep their category until `--recompute-average`.
+**When tags are written.** On CLIP-similarity profiles (`legacy`/`8gb`, and `12gb`/`16gb`/`24gb` when the VLM pass is not scheduled), a multi-pass scan tags during the embeddings pass, so the scan's category and aggregate already use them. A single `--pass` run (for example `--pass embeddings`) writes no tags. `--pass tags` on a CLIP profile stops and points to `--recompute-tags`. Existing rows keep their category until `--recompute-average`.
 
 ### Embedding Models
 
@@ -304,7 +305,7 @@ Two embedding models, selected per VRAM profile via `clip_config`:
 
 | Config | Model | Dimensions | Used By |
 |--------|-------|-----------|---------|
-| `clip` | SigLIP 2 NaFlex SO400M | 1152 | 16gb, 24gb profiles |
+| `clip` | SigLIP 2 NaFlex SO400M | 1152 | 12gb, 16gb, 24gb profiles |
 | `clip_legacy` | CLIP ViT-L-14 | 768 | legacy, 8gb profiles |
 
 Embeddings power tagging, duplicate detection, similar-photo search and the CLIP+MLP aesthetic (legacy/8gb). Switching models requires re-embedding all photos (`--force`, `--pass embeddings`, or `--recompute-embeddings`).
@@ -469,7 +470,7 @@ python /opt/facet/viewer.py      # still reads /opt/facet/scoring_config.json (o
 | `python tag_existing.py --db custom.db` | Use a custom database |
 | `python tag_existing.py --config my.json` | Use a custom config |
 
-On CUDA, the SigLIP profiles (`16gb`, `24gb`) now encode the tag vocabulary in fp16, which changes the tags of a few photos. Run `python tag_existing.py --force` to re-tag photos tagged earlier. CPU and the `legacy`/`8gb` profiles are unchanged.
+On CUDA, the SigLIP profiles (`12gb`, `16gb`, `24gb`) now encode the tag vocabulary in fp16, which changes the tags of a few photos. Run `python tag_existing.py --force` to re-tag photos tagged earlier. CPU and the `legacy`/`8gb` profiles are unchanged.
 
 The tagging step at the end of a scan is skipped when `tagging.enabled` is `false` or no photo is waiting for tags.
 

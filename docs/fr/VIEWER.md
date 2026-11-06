@@ -21,12 +21,12 @@ L’en-tête de collection reste visible pendant le défilement, avec recherche,
 - [Démarrer la visionneuse](#démarrer-la-visionneuse) · [Authentification](#authentification) · [Options de filtrage](#options-de-filtrage) · [Tri](#tri) · [Décisions de tri](#décisions-de-tri) · [Fonctionnalités de la galerie](#fonctionnalités-de-la-galerie)
 - [Panoramas et bracketings d'exposition](#panoramas-et-bracketings-dexposition)
 - [Gestion des personnes](#gestion-des-personnes) · [Déclenchement d'un scan](#déclenchement-dun-scan) · [Recherche sémantique](#recherche-sémantique) · [Albums](#albums)
-- [Critique IA](#critique-ia) · [Légendage IA](#légendage-ia-gpu-16gb24gb-edition) · [Souvenirs (« Ce jour-là »)](#souvenirs-ce-jour-là) · [Vue Chronologie](#vue-chronologie) · [Vue Carte](#vue-carte) · [Capsules](#capsules)
+- [Critique IA](#critique-ia) · [Légendage IA](#légendage-ia-gpu-12gb16gb24gb-edition) · [Souvenirs (« Ce jour-là »)](#souvenirs-ce-jour-là) · [Vue Chronologie](#vue-chronologie) · [Vue Carte](#vue-carte) · [Capsules](#capsules)
 - [Vue Dossiers](#vue-dossiers) · [Boîte de dialogue Filtre GPS](#boîte-de-dialogue-filtre-gps) · [Suggestions de fusion](#suggestions-de-fusion) · [Export vers éditeur](#export-vers-éditeur) · [Téléchargement](#téléchargement) · [Tri sélectif](#tri-sélectif) · [Nettoyage des indésirables](#nettoyage-des-indésirables) · [Mode de comparaison par paires](#mode-de-comparaison-par-paires)
 - [Statistiques EXIF](#statistiques-exif) · [Raccourcis clavier](#raccourcis-clavier-galerie) · [Annuler](#annuler) · [Application web progressive](#application-web-progressive) · [Mobile](#mobile) · [Cadre photo / Kiosque](#cadre-photo--kiosque) · [Envoi automatique depuis le téléphone](#envoi-automatique-depuis-le-téléphone)
 - [Configuration](#configuration-3) · [Performances](#performances) · [Points d'accès API](#points-daccès-api) · [Photos JPEG XL](#photos-jpeg-xl) · [Dépannage](#dépannage)
 
-> **Les prérequis des fonctionnalités** sont indiqués en ligne : `[GPU]` · `[16gb/24gb]` (profil VRAM) · `[Edition]` (mot de passe d'édition) · `[Superadmin]`. Voir la [matrice des fonctionnalités](INSTALLATION.md#exigences-par-fonctionnalité).
+> **Les prérequis des fonctionnalités** sont indiqués en ligne : `[GPU]` · `[12gb/16gb/24gb]` (profil VRAM) · `[Edition]` (mot de passe d'édition) · `[Superadmin]`. Voir la [matrice des fonctionnalités](INSTALLATION.md#exigences-par-fonctionnalité).
 
 > **Assistants IA** : Facet peut fournir ses outils aux assistants compatibles MCP. Avec le bon niveau de jeton, ils peuvent chercher dans la bibliothèque, la modifier et la trier. Voir [Agents IA (MCP)](AGENTS.md).
 
@@ -621,7 +621,7 @@ Pour recalculer les scores des photos existantes sans scanner de nouveaux fichie
 Saisissez une requête comme « coucher de soleil sur des montagnes » et obtenez les photos correspondantes. Le classement mêle la similarité des embeddings CLIP/SigLIP (70 %) à la correspondance textuelle FTS5 BM25 sur les légendes et tags (30 %).
 
 - **Prérequis.** Les photos doivent avoir des données `clip_embedding` stockées (calculées pendant la notation). Lancez `database.py --rebuild-fts` pour activer la partie texte légendes/tags.
-- **Modèle.** Utilise le modèle d'embedding du profil VRAM actif (SigLIP 2 pour 16gb/24gb, CLIP ViT-L-14 pour legacy/8gb), ou celui de `models.clip`/`clip_legacy` qui correspond aux embeddings stockés (voir [CONFIGURATION.md](CONFIGURATION.md)).
+- **Modèle.** Utilise le modèle d'embedding du profil VRAM actif (SigLIP 2 pour 12gb/16gb/24gb, CLIP ViT-L-14 pour legacy/8gb), ou celui de `models.clip`/`clip_legacy` qui correspond aux embeddings stockés (voir [CONFIGURATION.md](CONFIGURATION.md)).
 - **Vitesse.** Installer sqlite-vec accélère la recherche ; sinon Facet garde une matrice en mémoire. La première requête sur une grande bibliothèque peut prendre plusieurs secondes.
 - **Seuil.** Le seuil de correspondance vaut par défaut `models.clip.search_threshold_percent` (`5%`) ou `models.clip_legacy.search_threshold_percent` (15 %), distinct de `tag_threshold_percent`. Le curseur de la galerie couvre 0–50 % ; `search_threshold_default` de `/api/config` définit sa position de départ. Même `0%` rejette une similarité négative. Le défaut SigLIP de 5 % favorise le rappel — voir `clip.search_threshold_percent` dans [CONFIGURATION.md](CONFIGURATION.md).
 - **Texte seul.** `scope=text` limite la requête aux correspondances FTS5 littérales dans le texte OCR/des légendes.
@@ -723,9 +723,9 @@ Si le calcul n'est pas disponible, seul le score stocké est affiché, avec le c
 
 La boîte de dialogue distingue aussi une photo *pas encore notée* d'une photo dont le *score stocké est inutilisable*.
 
-### Critique VLM `[GPU]` `[16gb/24gb]`
+### Critique VLM `[GPU]` `[12gb/16gb/24gb]`
 
-Utilise le VLM configuré (Qwen3.5-2B ou Qwen3.5-4B) pour une critique contextuelle. Nécessite le profil 16gb ou 24gb, `viewer.features.show_vlm_critique` à `true` (la valeur par défaut) et une session d'édition pour la générer. Sans édition, seule une critique en cache est affichée et `vlm_available` vaut `false`. La boîte de dialogue génère via `POST /api/critique/vlm` (édition uniquement ; les requêtes simultanées pour une même photo partagent une seule génération) ; `GET /api/critique` ne fait que lire le cache et ne génère, ne traduit ni n'écrit jamais.
+Utilise le VLM configuré (Qwen3.5-2B ou Qwen3.5-4B) pour une critique contextuelle. Nécessite le profil 12gb, 16gb ou 24gb, `viewer.features.show_vlm_critique` à `true` (la valeur par défaut) et une session d'édition pour la générer. Sans édition, seule une critique en cache est affichée et `vlm_available` vaut `false`. La boîte de dialogue génère via `POST /api/critique/vlm` (édition uniquement ; les requêtes simultanées pour une même photo partagent une seule génération) ; `GET /api/critique` ne fait que lire le cache et ne génère, ne traduit ni n'écrit jamais.
 
 - Le prompt (`critique.vlm`) inclut le détail du score, les scores stocké et recalculé, les conditions détectées et l'EXIF.
 - La réponse se lit **Observation / Évaluation / Suggestions**. Elle est mise en cache par photo (`photos.vlm_critique`), traduite lorsqu'une session d'édition l'ouvre dans la langue cible (puis enregistrée et servie telle quelle), et **Régénérer** la recalcule. Sans session d'édition, vous voyez le texte non traduit, sauf si une traduction enregistrée existe déjà.
@@ -733,7 +733,7 @@ Utilise le VLM configuré (Qwen3.5-2B ou Qwen3.5-4B) pour une critique contextue
 
 **Superposition visuelle « pourquoi ce score ».** Avec `viewer.features.show_saliency_overlay` activé (`true` par défaut), la boîte de dialogue de critique a **Afficher la superposition**. Elle dessine la carte de saillance BiRefNet sous forme de carte thermique (`GET /api/saliency_overlay`), plus des cadres de visages et des marqueurs d'yeux issus des points de repère stockés (`GET /api/photo/face_markers`). Les cadres sont verts pour des yeux ouverts, ambre pour un clignement. La carte thermique a la résolution de la miniature, elle est donc approximative. La bascule est masquée sur les profils qui ne peuvent pas produire de masque de saillance.
 
-## Légendage IA `[GPU]` `[16gb/24gb]` `[Edition]`
+## Légendage IA `[GPU]` `[12gb/16gb/24gb]` `[Edition]`
 
 Obtenez une légende en langage naturel pour n'importe quelle photo. Une session d'édition la génère à la première demande ; elle est ensuite mise en cache dans la colonne `caption`. Modifiez les légendes dans le détail de la photo (mode édition). Une installation ouverte en lecture seule n'en génère jamais. `POST /api/caption` la génère (et la traduit) ; `GET /api/caption` ne renvoie que la légende ou la traduction enregistrée et ne génère, ne traduit ni n'écrit jamais.
 
@@ -746,7 +746,7 @@ python facet.py --translate-captions     # Traduit les légendes vers la langue 
 
 La traduction utilise MarianMT sur CPU (pas de GPU nécessaire). Définissez la langue avec `translation.target_language` (par défaut : `"fr"`). Langues prises en charge : français, allemand, espagnol, italien.
 
-Contrôlé par `viewer.features.show_captions` (par défaut : `true`). Sans le profil 16gb/24gb ni `vlm_backend` distant, le bouton Générer une légende est masqué et les critiques restent basées sur des règles.
+Contrôlé par `viewer.features.show_captions` (par défaut : `true`). Sans le profil 12gb/16gb/24gb ni `vlm_backend` distant, le bouton Générer une légende est masqué et les critiques restent basées sur des règles.
 
 ## Souvenirs (« Ce jour-là »)
 
@@ -1079,7 +1079,7 @@ Contrôlé par `viewer.features.show_scenes` (par défaut : `true`). Voir [Conf
 Facet étiquette chaque photo avec l'activité qu'elle montre. Le vocabulaire **général** par défaut : fête, repas, plage, activité nautique, montagne, nature et faune, paysage urbain, site touristique, concert, sport, rassemblement, portrait, enfants, animaux de compagnie, vie nocturne, cérémonie, paysage, neige et hiver, intérieur, route et véhicule, ou `other`. Un vocabulaire `wedding` est disponible en option de genre.
 
 - Il s'exécute localement, sans passe de modèle supplémentaire : la légende IA de chaque photo est comparée aux prompts textuels de chaque moment (l'embedding de l'image est utilisé quand il n'y a pas de légende). Un lissage temporel corrige les erreurs de lecture isolées.
-- Un arbitre VLM facultatif (16gb/24gb) revérifie les images à faible confiance.
+- Un arbitre VLM facultatif (12gb/16gb/24gb) revérifie les images à faible confiance.
 - Il **s'exécute automatiquement à la fin de chaque scan**. La première passe sur une bibliothèque existante encode chaque légende (GPU recommandé). Ré-étiquetez tout avec `python facet.py --recompute-moments`.
 - Les moments apparaissent comme titres de scènes et comme filtre de galerie (`GET /api/photos?narrative_moment=beach`, options depuis `GET /api/filter_options/narrative_moments`).
 - Le vocabulaire est configurable — voir [Configuration — Moments narratifs](CONFIGURATION.md#moments-narratifs).
@@ -1517,9 +1517,9 @@ Facet analyse le JPEG XL (`.jxl`) grâce à la dépendance principale `imagecode
 | Bouton Scan absent | Nécessite `viewer.features.show_scan_button: true` plus l'accès scan — voir [Déclenchement d'un scan](#déclenchement-dun-scan) |
 | La recherche ne renvoie aucun résultat | Assurez-vous que les photos ont des données `clip_embedding` (lancez d'abord la notation) |
 | La recherche indique que l'accélération Apple Silicon est occupée | Réessayez une fois la tâche de modèle en cours terminée |
-| Critique VLM indisponible | Nécessite le profil 16gb/24gb, `viewer.features.show_vlm_critique: true` et une session d'édition |
+| Critique VLM indisponible | Nécessite le profil 12gb/16gb/24gb, `viewer.features.show_vlm_critique: true` et une session d'édition |
 | La carte n'affiche aucune photo | Lancez `--extract-gps` ; vérifiez que les photos ont des données GPS EXIF |
-| Les légendes ne se génèrent pas | Nécessite le profil VRAM 16gb/24gb pour le légendage VLM |
+| Les légendes ne se génèrent pas | Nécessite le profil VRAM 12gb/16gb/24gb pour le légendage VLM |
 | Chronologie vide | Assurez-vous que les photos ont des valeurs `date_taken` |
 | Port 5000 occupé | Lancez `python viewer.py --port 5001` (ou définissez `PORT=5001`). Sous macOS, AirPlay Receiver utilise 5000 : choisissez un autre port ou désactivez-le dans Réglages Système → Général → AirDrop et Handoff. |
 

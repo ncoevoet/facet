@@ -493,7 +493,16 @@ Selecciona qué modelos se usan por cada perfil de VRAM.
         "tagging_model": "clip",
         "supplementary_pyiqa": ["topiq_iaa", "topiq_nr_face", "liqe"],
         "saliency_enabled": true,
-        "description": "CLIP-MLP aesthetic + SAMP-Net composition + CLIP tagging + TOPIQ IAA/NR-Face/LIQE + BiRefNet saliency (6-14GB VRAM)"
+        "description": "CLIP-MLP aesthetic + SAMP-Net composition + CLIP tagging + TOPIQ IAA/NR-Face/LIQE + BiRefNet saliency (6-11.5GB VRAM)"
+      },
+      "12gb": {
+        "aesthetic_model": "topiq",
+        "clip_config": "clip",
+        "composition_model": "samp-net",
+        "tagging_model": "qwen3.5-2b",
+        "supplementary_pyiqa": ["topiq_iaa", "topiq_nr_face", "liqe"],
+        "saliency_enabled": true,
+        "description": "Same models as 16gb (TOPIQ aesthetic + SigLIP 2 embeddings + Qwen3.5-2B tagging), planned as 3-4 passes for 11.5-14GB VRAM (4 below about 11.8GB)"
       },
       "16gb": {
         "aesthetic_model": "topiq",
@@ -560,15 +569,15 @@ Selecciona qué modelos se usan por cada perfil de VRAM.
 
 | Ajuste | Por defecto | Descripción |
 |---------|---------|-------------|
-| `vram_profile` | `"auto"` | Perfil activo (`auto`, `legacy`, `8gb`, `16gb`, `24gb`); `FACET_VRAM_PROFILE` lo anula (ver más abajo) |
+| `vram_profile` | `"auto"` | Perfil activo (`auto`, `legacy`, `8gb`, `12gb`, `16gb`, `24gb`); `FACET_VRAM_PROFILE` lo anula (ver más abajo) |
 | `keep_in_ram` | `"auto"` | Mantener los modelos en RAM entre los fragmentos multipase (`"auto"`, `"always"`, `"never"`); `auto` comprueba antes la RAM libre |
 | `ram_cache_reserve_gb` | `4.0` (opcional, no está en el archivo incluido) | RAM (GB) que se deja libre junto a un modelo en caché con `"auto"` |
 | `profiles.*.supplementary_pyiqa` | `["topiq_iaa", "topiq_nr_face", "liqe"]` | Modelos PyIQA a ejecutar para este perfil (los cuatro perfiles ejecutan el conjunto completo) |
 | `profiles.*.saliency_enabled` | `true` (todos los perfiles) | Ejecutar la saliencia del sujeto BiRefNet para este perfil |
-| `clip.model_name` | `"google/siglip2-so400m-patch16-naflex"` | Modelo de embeddings SigLIP 2 NaFlex (16gb/24gb) |
+| `clip.model_name` | `"google/siglip2-so400m-patch16-naflex"` | Modelo de embeddings SigLIP 2 NaFlex (12gb/16gb/24gb) |
 | `clip.backend` | `"transformers"` | `"transformers"` (SigLIP 2 NaFlex) o `"open_clip"` (heredado) |
 | `clip.embedding_dim` | `1152` | Dimensiones del embedding (1152 para SigLIP 2) |
-| `clip.tag_threshold_percent` | `8` | Similitud mínima para una coincidencia de **etiqueta** con el etiquetador SigLIP 2 de 16gb/24gb (sustituye a `similarity_threshold_percent`) |
+| `clip.tag_threshold_percent` | `8` | Similitud mínima para una coincidencia de **etiqueta** con el etiquetador SigLIP 2 de 12gb/16gb/24gb (sustituye a `similarity_threshold_percent`) |
 | `clip.search_threshold_percent` | `5` | Similitud mínima para la búsqueda semántica (`GET /api/search`); número entero `0-50` |
 | `clip_legacy.model_name` | `"ViT-L-14"` | Modelo CLIP heredado (perfiles legacy/8gb) |
 | `clip_legacy.pretrained` | `"laion2b_s32b_b82k"` | Pesos preentrenados heredados |
@@ -576,7 +585,7 @@ Selecciona qué modelos se usan por cada perfil de VRAM.
 | `clip_legacy.tag_threshold_percent` | `8` | El mismo umbral de etiquetas para el etiquetador CLIP de legacy/8gb; `tagging.max_tags` limita el número |
 | `clip_legacy.search_threshold_percent` | `15` | Umbral de búsqueda semántica en el perfil legacy/8gb; número entero `0-50` |
 | `qwen2_vl.model_path` | `"Qwen/Qwen2-VL-2B-Instruct"` | Modelo para la opción manual `composition_model: "qwen2-vl-2b"` (ningún perfil lo usa) |
-| `qwen3_5_2b.model_path` | `"Qwen/Qwen3.5-2B"` | Modelo de etiquetado para el perfil 16gb |
+| `qwen3_5_2b.model_path` | `"Qwen/Qwen3.5-2B"` | Modelo de etiquetado para el perfil 12gb/16gb |
 | `qwen3_5_2b.vlm_batch_size` | `4` | Imágenes por lote de inferencia VLM |
 | `qwen3_5_4b.model_path` | `"Qwen/Qwen3.5-4B"` | Modelo de etiquetado para el perfil 24gb |
 | `qwen3_5_4b.vlm_batch_size` | `2` | Imágenes por lote de inferencia VLM |
@@ -599,20 +608,21 @@ Cuando `vram_profile` es `"auto"` (por defecto), Facet detecta la VRAM de la GPU
 |---------------|------------------|
 | ≥ 20GB | `24gb` |
 | ≥ 14GB | `16gb` |
+| ≥ 11,5GB | `12gb` |
 | ≥ 6GB | `8gb` |
 | Sin GPU | `legacy` (usa la RAM del sistema) |
 
 Una GPU CUDA solo cuenta cuando PyTorch la ve. Sin ningún dispositivo visible (por ejemplo con `CUDA_VISIBLE_DEVICES=''`), el escaneo usa la CPU, informa de 0 GB de VRAM y selecciona `legacy`. `FACET_DEVICE=cuda` sin dispositivo visible se detiene con «FACET_DEVICE=cuda was requested, but that device is not available».
 
-**Las tarjetas de 10-14GB pueden optar por el conjunto completo de funciones.** La detección automática sigue eligiendo `8gb` por debajo de 14GB. Define `"vram_profile": "16gb"` o `FACET_VRAM_PROFILE=16gb` para ejecutar SigLIP 2, TOPIQ, etiquetado con Qwen3.5-2B, Q-ReAlign y saliencia. Los modelos se ejecutan entonces en cuatro pases, o tres en una tarjeta que informa de 11,8 GiB o más (consulta [Agrupación dinámica de pases](#agrupación-dinámica-de-pases)). Una foto que la saliencia aun así no puede puntuar guarda NULL y registra un ERROR.
+**Una tarjeta de 12GB se elige automáticamente.** Desde 11,5GB hasta menos de 14GB, la detección automática selecciona `12gb`, que ejecuta los mismos modelos que `16gb` (SigLIP 2, TOPIQ, etiquetado con Qwen3.5-2B, Q-ReAlign y saliencia), de modo que una biblioteca sigue siendo intercambiable entre un equipo de 12GB y uno de 16GB. Las tarjetas por debajo de 11,5GB, como una GTX 1080 Ti de 11,0GB o una de 10GB, se quedan en `8gb`. Los modelos se ejecutan en cuatro pases, o tres en una tarjeta que informa de 11,8 GiB o más (consulta [Agrupación dinámica de pases](#agrupación-dinámica-de-pases)). Una foto que la saliencia aun así no puede puntuar guarda NULL y registra un ERROR.
 
-> **Advertencia:** Cambiar una biblioteca `8gb` existente a `16gb` cambia el modelo de embeddings (CLIP ViT-L-14 de 768 dimensiones → SigLIP 2 de 1152 dimensiones). Vuelve a escanear o ejecuta `--recompute-embeddings`, o la biblioteca mezclará dos tamaños de embedding. Hasta entonces, la búsqueda se comporta como se describe en *Búsqueda semántica y una biblioteca incrustada con un perfil distinto* en [Modelos](#modelos).
+> **Advertencia:** Cambiar una biblioteca `8gb` existente a `12gb` / `16gb` cambia el modelo de embeddings (CLIP ViT-L-14 de 768 dimensiones → SigLIP 2 de 1152 dimensiones). Vuelve a escanear o ejecuta `--recompute-embeddings`, o la biblioteca mezclará dos tamaños de embedding. Hasta entonces, la búsqueda se comporta como se describe en *Búsqueda semántica y una biblioteca incrustada con un perfil distinto* en [Modelos](#modelos).
 
 ---
 
 ### Anulación mediante la variable de entorno `FACET_VRAM_PROFILE`
 
-`FACET_VRAM_PROFILE` anula `models.vram_profile` en el momento de la carga, de modo que una sola configuración montada puede servir a todos los perfiles de Docker. Valores aceptados: `auto`, `legacy`, `8gb`, `16gb`, `24gb`; cualquier otro valor se ignora con una advertencia. Las superposiciones de Docker Compose (`docker-compose.{legacy,8gb,16gb,24gb}.yml`) la definen por ti.
+`FACET_VRAM_PROFILE` anula `models.vram_profile` en el momento de la carga, de modo que una sola configuración montada puede servir a todos los perfiles de Docker. Valores aceptados: `auto`, `legacy`, `8gb`, `12gb`, `16gb`, `24gb`; cualquier otro valor se ignora con una advertencia. Las superposiciones de Docker Compose (`docker-compose.{legacy,8gb,12gb,16gb,24gb}.yml`) la definen por ti.
 
 La anulación nunca se reescribe en `scoring_config.json`. Un `vram_profile` que hayas puesto en el archivo sigue aplicándose cuando la variable no está definida.
 
@@ -747,7 +757,7 @@ Ajustes de procesamiento por lotes en GPU y del modo multipase.
 | `multi-pass` | Carga secuencial de modelos (funciona con VRAM limitada) |
 | `single-pass` | Todos los modelos cargados a la vez (mucha VRAM); solo perfiles `legacy`/`8gb` |
 
-En `16gb`/`24gb` (estética con TOPIQ), `single-pass` registra una advertencia y ejecuta multipaso, salvo en el modo comercial (ver [Licencias](#licencias)).
+En `12gb`/`16gb`/`24gb` (estética con TOPIQ), `single-pass` registra una advertencia y ejecuta multipaso, salvo en el modo comercial (ver [Licencias](#licencias)).
 
 ### Cómo funciona el modo multipase
 
@@ -784,12 +794,12 @@ Cuando la VRAM lo permite, varios modelos se ejecutan en el mismo pase:
 | VRAM | Pase 1 | Pase 2 | Pase 3 | Pase 4 |
 |---|---|---|---|---|
 | 8GB (perfil `8gb`) | CLIP | Q-ReAlign + saliencia | TOPIQ IAA + TOPIQ NR-Face + LIQE | SAMP-Net + InsightFace |
-| 12GB\* (perfil `16gb`, opcional) | Etiquetador Qwen3.5 + Q-ReAlign | SigLIP + saliencia + TOPIQ IAA | TOPIQ + TOPIQ NR-Face + LIQE + SAMP-Net | InsightFace |
+| 12GB\* (perfil `12gb`; pico 9,4 GiB, simulado) | Etiquetador Qwen3.5 + Q-ReAlign | SigLIP + saliencia + TOPIQ IAA | TOPIQ + TOPIQ NR-Face + LIQE + SAMP-Net | InsightFace |
 | 16GB (perfil `16gb`) | Etiquetador Qwen3.5 + SigLIP + TOPIQ | Q-ReAlign + saliencia + TOPIQ IAA + TOPIQ NR-Face + LIQE + SAMP-Net | InsightFace | - |
 | 24GB (perfil `24gb`) | Etiquetador Qwen3.5 4B + SigLIP + Q-ReAlign + saliencia | TOPIQ + TOPIQ IAA + TOPIQ NR-Face + LIQE + SAMP-Net + InsightFace | - | - |
 | 35GB+ (perfil `24gb`) | Todos los modelos juntos (monopase) | - | - | - |
 
-Las filas son los planes para tarjetas que informan de 8,0, 11,7, 15,99 y 23,99 GiB de VRAM total; con 34,8 GiB o más se planifica un solo pase. El planificador deja libres 1,3 GiB para CUDA, ONNX Runtime y el escritorio. Una tarjeta de 12GB no se selecciona automáticamente (consulta [Detección automática de VRAM](#detección-automática-de-vram)): define `"vram_profile": "16gb"` o `FACET_VRAM_PROFILE=16gb`.
+Las filas son los planes para tarjetas que informan de 8,0, 11,7, 15,99 y 23,99 GiB de VRAM total; con 34,8 GiB o más se planifica un solo pase. El planificador deja libres 1,3 GiB para CUDA, ONNX Runtime y el escritorio. Una tarjeta que informa de 11,5 a menos de 14 GiB se selecciona automáticamente como `12gb` (consulta [Detección automática de VRAM](#detección-automática-de-vram)).
 
 \* La fila de 12GB es para una tarjeta que informa de 11,7 GiB. Una que informa de 11,8 GiB o más (por ejemplo, 11,99 GiB) planifica en cambio tres pases: etiquetador Qwen3.5 + Q-ReAlign; SigLIP + saliencia + TOPIQ; TOPIQ IAA + TOPIQ NR-Face + LIQE + SAMP-Net + InsightFace.
 
@@ -799,7 +809,7 @@ Las filas son los planes para tarjetas que informan de 8,0, 11,7, 15,99 y 23,99 
 # Por defecto: multipase automático con agrupación óptima
 python facet.py /path/to/photos
 
-# Forzar monopase (todos los modelos cargados a la vez; solo perfiles legacy/8gb, en 16gb/24gb avisa y ejecuta multipaso)
+# Forzar monopase (todos los modelos cargados a la vez; solo perfiles legacy/8gb, en 12gb/16gb/24gb avisa y ejecuta multipaso)
 python facet.py /path --single-pass
 
 # Ejecutar solo un pase concreto
@@ -1158,7 +1168,7 @@ Encuentra fotos duplicadas en toda la biblioteca: candidatos de pHash flexible, 
 
 Puntuadores de calidad adicionales que escriben sus propias columnas; nunca sustituyen a TOPIQ. Se ejecutan durante un escaneo normal. Un fallo de carga o de VRAM se registra y deja la columna en `NULL`; el escaneo continúa.
 
-- `qrealign` tiene como valor por defecto `"auto"`: **activado** para los perfiles `8gb`/`16gb`/`24gb`, **desactivado** para `legacy`/CPU.
+- `qrealign` tiene como valor por defecto `"auto"`: **activado** para los perfiles `8gb`/`12gb`/`16gb`/`24gb`, **desactivado** para `legacy`/CPU.
 - `aesthetic_v25` y `deqa` están **DESACTIVADOS por defecto**.
 
 ```json
@@ -1410,7 +1420,7 @@ Ajustes generales de etiquetado. El modelo de etiquetado se configura por perfil
 | `enabled` | `true` | Activar el etiquetado |
 | `max_tags` | `5` | Máximo de etiquetas por foto |
 
-**Nota:** El umbral de etiquetas de CLIP/SigLIP es `tag_threshold_percent` en el bloque del perfil activo: `models.clip` para `16gb`/`24gb`, `models.clip_legacy` para `legacy`/`8gb`. La antigua clave `similarity_threshold_percent` ya no se lee. Si la habías personalizado, copia el valor a `tag_threshold_percent`; la carga de la configuración y `python facet.py --doctor` señalan la clave antigua.
+**Nota:** El umbral de etiquetas de CLIP/SigLIP es `tag_threshold_percent` en el bloque del perfil activo: `models.clip` para `12gb`/`16gb`/`24gb`, `models.clip_legacy` para `legacy`/`8gb`. La antigua clave `similarity_threshold_percent` ya no se lee. Si la habías personalizado, copia el valor a `tag_threshold_percent`; la carga de la configuración y `python facet.py --doctor` señalan la clave antigua.
 
 Al final de un escaneo, el paso de etiquetado se omite (con una línea de registro) cuando `enabled` es `false` o ninguna foto tiene a la vez un embedding y una lista de etiquetas vacía. Las fotos que ninguna etiqueta llega a coincidir siguen pendientes, así que el modelo se carga igualmente en cada escaneo. `python tag_existing.py` (con o sin `--force`) y `python facet.py --tag-untagged` siempre se ejecutan.
 
@@ -1430,6 +1440,7 @@ Configurado a través de `models.profiles.*.tagging_model`:
 |---------|---------------|-----------------|
 | `legacy` | `clip` | CLIP ViT-L-14 (768-dim) |
 | `8gb` | `clip` | CLIP ViT-L-14 (768-dim) |
+| `12gb` | `qwen3.5-2b` | SigLIP 2 NaFlex SO400M (1152-dim) |
 | `16gb` | `qwen3.5-2b` | SigLIP 2 NaFlex SO400M (1152-dim) |
 | `24gb` | `qwen3.5-4b` | SigLIP 2 NaFlex SO400M (1152-dim) |
 
@@ -1785,7 +1796,7 @@ Activa o desactiva funciones opcionales para reducir el uso de memoria o simplif
 | `show_semantic_search` | `true` | Mostrar la barra de búsqueda semántica (búsqueda de texto a imagen usando embeddings CLIP/SigLIP) |
 | `show_albums` | `true` | Mostrar la función de álbumes (crear, gestionar y explorar álbumes de fotos) |
 | `show_critique` | `true` | Mostrar el botón de crítica de IA en las tarjetas de foto (desglose de puntuación basado en reglas) |
-| `show_vlm_critique` | `true` | Activar la crítica con VLM (perfil 16gb/24gb); `false` cuando falta la clave |
+| `show_vlm_critique` | `true` | Activar la crítica con VLM (perfil 12gb/16gb/24gb); `false` cuando falta la clave |
 | `show_embed_metadata` | `true` | Mostrar «Escribir metadatos en el archivo» en modo edición (incrusta valoraciones/palabras clave mediante exiftool) |
 | `show_memories` | `true` | Mostrar el diálogo de recuerdos "Un día como hoy" (fotos tomadas en la misma fecha en años anteriores) |
 | `show_captions` | `true` | Mostrar las descripciones generadas por IA en las tarjetas de foto |
@@ -2407,7 +2418,7 @@ Facet compara la leyenda de IA de cada foto, codificada una vez y almacenada (`c
 | `priors.rules` | (conjunto general) | Lista de reglas `{kind, when, boost}` (ver más abajo) |
 | `priors.event_types.<et>.rules` | anulación `wedding` | Reglas que **reemplazan** las `rules` globales cuando ese vocabulario está activo |
 | `transitions.stay_prob` / `forward_bias` / `weight` | `0.7` / `0.0` / `0.3` | Suavizado de la línea de tiempo entre fotogramas vecinos (`weight=0` = ninguno) |
-| `vlm_tiebreak.enabled` / `min_confidence` / `min_margin` | `false` / `0.0` / `0.04` | En 16gb/24gb, reclasifica con el VLM del perfil solo los fotogramas de baja confianza o bajo margen |
+| `vlm_tiebreak.enabled` / `min_confidence` / `min_margin` | `false` / `0.0` / `0.04` | En 12gb/16gb/24gb, reclasifica con el VLM del perfil solo los fotogramas de baja confianza o bajo margen |
 | `event_types` | `general` + `wedding` | `{moment: [sinónimos de prompt]}` por tipo de evento; establece `default_event_type` para cambiar de género o añadir el tuyo propio |
 
 Formato de `priors.rules`:
@@ -2710,7 +2721,7 @@ Marca los archivos "basura" que no son fotos (capturas de pantalla, documentos e
 
 ## Crítica con IA
 
-Ajustes de prompt para la crítica con VLM (perfiles 16gb/24gb). La crítica alimenta al VLM con el desglose de la puntuación, las penalizaciones y el EXIF, y muestra su respuesta como Observación / Evaluación / Sugerencias.
+Ajustes de prompt para la crítica con VLM (perfiles 12gb/16gb/24gb). La crítica alimenta al VLM con el desglose de la puntuación, las penalizaciones y el EXIF, y muestra su respuesta como Observación / Evaluación / Sugerencias.
 
 - La Evaluación cubre composición, color y luz, enfoque/PdC y ejecución técnica, y sujeto y momento, contrastados con las métricas.
 - Se almacena en caché por foto (`photos.vlm_critique`, traducciones en `vlm_critique_translated`); `refresh` la regenera.
@@ -2734,7 +2745,7 @@ Consulta [Galería web — Crítica con IA](VIEWER.md#crítica-con-ia).
 
 ## Backend VLM
 
-Elige dónde se ejecuta el modelo de visión y lenguaje de leyendas/etiquetas. `local` (por defecto) usa el modelo Qwen integrado de los perfiles 16gb/24gb. Los dos backends remotos usan un servidor externo, así que las leyendas y el etiquetado VLM también funcionan en los **perfiles legacy/8gb, que no incluyen ningún VLM local**.
+Elige dónde se ejecuta el modelo de visión y lenguaje de leyendas/etiquetas. `local` (por defecto) usa el modelo Qwen integrado de los perfiles 12gb/16gb/24gb. Los dos backends remotos usan un servidor externo, así que las leyendas y el etiquetado VLM también funcionan en los **perfiles legacy/8gb, que no incluyen ningún VLM local**.
 
 ```json
 {

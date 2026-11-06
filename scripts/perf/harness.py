@@ -2,7 +2,7 @@
 
 usage: harness.py RUN_DIR [facet args...]
 env:   PERF_REPO       (required) checkout to run; its facet.py is executed, its modules are imported
-       PERF_PROFILE    16gb (default) | 8gb          -> FACET_VRAM_PROFILE
+       PERF_PROFILE    16gb (default) | 12gb | 8gb   -> FACET_VRAM_PROFILE
        PERF_CHUNK      N: pin the chunk size (auto-tuning resize neutralised, RAM-cache eviction stays live)
        PERF_PIL_GUARD  1: crc32 of every photo's PIL image before and after every _run_model_pass
 

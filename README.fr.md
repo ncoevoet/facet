@@ -99,14 +99,14 @@ Survolez n'importe quelle photo pour afficher le détail du score et les donnée
 ### Comprendre
 
 - **Statistiques** — tableaux de bord sur l'utilisation du matériel, la répartition par catégorie, la chronologie de prise de vue et les corrélations entre métriques
-- **Critique IA** — détail du score montrant la contribution de chaque métrique ; évaluation en langage naturel par VLM `[GPU]` `[16gb/24gb]`
+- **Critique IA** — détail du score montrant la contribution de chaque métrique ; évaluation en langage naturel par VLM `[GPU]` `[12gb/16gb/24gb]`
 - **Réglage des poids** — éditeur de poids par catégorie avec aperçu du score en direct. La comparaison A/B de photos apprend de vos choix et suggère des poids optimisés.
 - **Contextes de notation** — choisissez *quelle* catégorie note une photo : réorganisez la priorité des catégories, appliquez un contexte nommé (Action/Scène, Séance portrait, Faune, …) par album, ou fixez une catégorie sur une photo.
 - **Tri « Mon goût »** — triez la galerie selon le score appris du classeur personnel, avec un badge de confiance indiquant la couverture apprise et la précision sur données de validation
 - **Apprentissage à partir des étiquettes** — les décisions de tri, les notes (étoiles), les favoris et les rejets alimentent l'optimiseur de poids (`--sync-label-comparisons`, `--mine-insights`)
 - **Instantanés** — enregistrez, restaurez et comparez des configurations de poids
 - **Histogramme** — histogramme RVB/luminance avec indicateurs d'écrêtage, dans le panneau latéral de la galerie et la vue détaillée
-- **Légendes IA** `[GPU]` `[16gb/24gb]` — descriptions textuelles, modifiables `[Edition]` et traduisibles en 5 langues (la consultation est ouverte ; la génération et la modification requièrent l'édition)
+- **Légendes IA** `[GPU]` `[12gb/16gb/24gb]` — descriptions textuelles, modifiables `[Edition]` et traduisibles en 5 langues (la consultation est ouverte ; la génération et la modification requièrent l'édition)
 
 <table><tr>
 <td><img src="docs/screenshots/stats-gear.jpg" alt="Statistiques d'équipement" width="100%"></td>
@@ -162,7 +162,7 @@ Survolez n'importe quelle photo pour afficher le détail du score et les donnée
 
 - **N'importe quelle machine (CPU)** exécute l'essentiel de Facet : évaluation, visages, tri, galerie, recherche, albums et export des métadonnées.
 - **Apple Silicon** utilise automatiquement le backend Metal (`mps`). Le profil `auto` suit la mémoire unifiée : 32 Go atteint `16gb`, 48 Go atteint `24gb`.
-- **Un GPU NVIDIA** avec les profils `16gb`/`24gb` débloque les modèles les plus performants : TOPIQ, SigLIP 2, tagging par VLM, légendes et critique IA, saillance du sujet.
+- **Un GPU NVIDIA** avec les profils `12gb`/`16gb`/`24gb` débloque les modèles les plus performants : TOPIQ, SigLIP 2, tagging par VLM, légendes et critique IA, saillance du sujet.
 - **Pas de GPU ?** Pointez le tagging, les légendes et la critique VLM vers un serveur **Ollama** ou **compatible OpenAI** distant avec `vlm_backend` dans `scoring_config.json`.
 - **L'édition dans le visualiseur** (notes, visages, tri) nécessite le **mot de passe d'édition**. Le bouton Analyser nécessite `viewer.features.show_scan_button: true` et l'accès édition (le rôle **superadmin** en mode multi-utilisateurs).
 

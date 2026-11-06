@@ -5,6 +5,7 @@ import sqlite3
 import sys
 import threading
 import time
+import types
 
 import pytest
 
@@ -134,18 +135,23 @@ def finished_job(library):
 
 
 @pytest.mark.skipif(sys.platform != 'win32', reason='receipt retry exists on Windows only')
-def test_status_survives_the_receipt_being_republished(library, finished_job):
+def test_status_survives_the_receipt_being_republished(library, finished_job, monkeypatch):
     job_id, path = finished_job
     saved = path.read_bytes()
+    backoffs = []
 
-    def republish_after_a_gap(poller):
-        path.unlink()
-        poller.start()
-        time.sleep(0.02)
-        path.write_bytes(saved)
+    # Republish inside the poll's own first backoff rather than after a wall-clock
+    # gap: a 20 ms sleep against a ~40 ms retry budget lost the race on a loaded runner.
+    def republish_during_the_first_backoff(seconds):
+        if not backoffs:
+            path.write_bytes(saved)
+        backoffs.append(seconds)
+        time.sleep(seconds)
 
-    result = _poll_during(library, job_id, republish_after_a_gap)
-    assert not isinstance(result, BaseException), result
+    path.unlink()
+    monkeypatch.setattr(jobs, 'time', types.SimpleNamespace(sleep=republish_during_the_first_backoff))
+    result = jobs.status(library, job_id, 'alice')
+    assert backoffs, 'the poll never met the missing receipt'
     assert result['id'] == job_id
 
 

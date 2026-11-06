@@ -21,12 +21,12 @@
 - [启动查看器](#启动查看器) · [身份验证](#身份验证) · [筛选选项](#筛选选项) · [排序](#排序) · [审阅决定](#审阅决定) · [照片库功能](#照片库功能)
 - [全景照片与包围曝光](#全景照片与包围曝光)
 - [人物管理](#人物管理) · [触发扫描](#触发扫描) · [语义搜索](#语义搜索) · [相册](#相册)
-- [AI 点评](#ai-点评) · [AI 照片描述](#ai-照片描述-gpu-16gb24gb-edition) · [回忆（“那年今日”）](#回忆那年今日) · [时间线视图](#时间线视图) · [地图视图](#地图视图) · [照片胶囊](#照片胶囊)
+- [AI 点评](#ai-点评) · [AI 照片描述](#ai-照片描述-gpu-12gb16gb24gb-edition) · [回忆（“那年今日”）](#回忆那年今日) · [时间线视图](#时间线视图) · [地图视图](#地图视图) · [照片胶囊](#照片胶囊)
 - [文件夹视图](#文件夹视图) · [GPS 筛选对话框](#gps-筛选对话框) · [人物合并建议](#人物合并建议) · [导出到后期软件](#导出到后期软件) · [下载](#下载) · [选片](#选片) · [废片清理](#废片清理) · [两两比较模式](#两两比较模式)
 - [EXIF 统计](#exif-统计) · [键盘快捷键](#键盘快捷键照片库) · [撤销](#撤销) · [渐进式网页应用](#渐进式网页应用) · [移动端](#移动端) · [数码相框与展示屏端点](#数码相框与展示屏端点) · [手机自动上传](#手机自动上传)
 - [配置](#配置-2) · [性能](#性能) · [API 端点](#api-端点) · [JPEG XL 照片](#jpeg-xl-照片) · [疑难解答](#疑难解答)
 
-> **功能所需条件**在正文中就地标注：`[GPU]` · `[16gb/24gb]`（VRAM 配置档） · `[Edition]`（编辑密码） · `[Superadmin]`。参见[功能矩阵](INSTALLATION.md#各功能的要求)。
+> **功能所需条件**在正文中就地标注：`[GPU]` · `[12gb/16gb/24gb]`（VRAM 配置档） · `[Edition]`（编辑密码） · `[Superadmin]`。参见[功能矩阵](INSTALLATION.md#各功能的要求)。
 
 > **AI 助手**：Facet 可以把它的工具提供给支持 MCP 的助手。凭相应级别的令牌，它们可以搜索、修改并筛选照片库。参见 [AI 智能体（MCP）](AGENTS.md)。
 
@@ -621,7 +621,7 @@ AI 工具可以通过助手工具 `import_ai_edit` 把照片的编辑版本导�
 输入诸如“群山之上的日落”这样的查询，即可得到匹配的照片。排序综合了 CLIP/SigLIP 嵌入向量相似度（70%）与基于照片描述和标签的 FTS5 BM25 文本匹配（30%）。
 
 - **要求。** 照片需要已存储的 `clip_embedding` 数据（在评分过程中计算）。运行 `database.py --rebuild-fts` 可启用描述/标签文本部分。
-- **模型。** 使用当前 VRAM 配置档的嵌入模型（16gb/24gb 用 SigLIP 2，legacy/8gb 用 CLIP ViT-L-14），或 `models.clip`/`clip_legacy` 中与已存储嵌入向量相匹配的那一个（见 [CONFIGURATION.md](CONFIGURATION.md)）。
+- **模型。** 使用当前 VRAM 配置档的嵌入模型（12gb/16gb/24gb 用 SigLIP 2，legacy/8gb 用 CLIP ViT-L-14），或 `models.clip`/`clip_legacy` 中与已存储嵌入向量相匹配的那一个（见 [CONFIGURATION.md](CONFIGURATION.md)）。
 - **速度。** 安装 sqlite-vec 可加快搜索；否则 Facet 会在内存中保留一个矩阵。大型照片库上的第一次查询可能需要几秒。
 - **阈值。** 匹配阈值默认为 `models.clip.search_threshold_percent`（`5%`）或 `models.clip_legacy.search_threshold_percent`（15%），区别于 `tag_threshold_percent`。图库滑块覆盖 0–50%；`/api/config` 的 `search_threshold_default` 设置其初始值。即使是 `0%` 也会拒绝负的相似度。SigLIP 的 5% 默认值偏向召回率——参见 [CONFIGURATION.md](CONFIGURATION.md) 中的 `clip.search_threshold_percent`。
 - **仅文本。** `scope=text` 把查询限制为对 OCR/描述文本的字面 FTS5 匹配。
@@ -723,9 +723,9 @@ AI 工具可以通过助手工具 `import_ai_edit` 把照片的编辑版本导�
 
 对话框还会区分*尚未评分*的照片与*已存储评分不可用*的照片。
 
-### VLM 点评 `[GPU]` `[16gb/24gb]`
+### VLM 点评 `[GPU]` `[12gb/16gb/24gb]`
 
-使用已配置的 VLM（Qwen3.5-2B 或 Qwen3.5-4B）给出结合上下文的点评。需要 16gb 或 24gb 配置档，`viewer.features.show_vlm_critique` 设为 `true`（默认），以及编辑会话来生成。没有编辑权限时，只显示已缓存的点评，且 `vlm_available` 为 `false`。对话框通过 `POST /api/critique/vlm` 生成（仅限编辑权限；同一张照片的并发请求共用一次生成）；`GET /api/critique` 只读取缓存，从不生成、翻译或写入。
+使用已配置的 VLM（Qwen3.5-2B 或 Qwen3.5-4B）给出结合上下文的点评。需要 12gb、16gb 或 24gb 配置档，`viewer.features.show_vlm_critique` 设为 `true`（默认），以及编辑会话来生成。没有编辑权限时，只显示已缓存的点评，且 `vlm_available` 为 `false`。对话框通过 `POST /api/critique/vlm` 生成（仅限编辑权限；同一张照片的并发请求共用一次生成）；`GET /api/critique` 只读取缓存，从不生成、翻译或写入。
 
 - 提示词（`critique.vlm`）包含评分拆解、已保存与重新计算的评分、检测到的情况和 EXIF。
 - 回复按**观察 / 评价 / 建议**呈现。结果按照片缓存（`photos.vlm_critique`）并在编辑会话以目标语言打开时翻译（随后保存，之后按已保存内容提供），**重新生成**会重新计算。没有编辑会话时，除非已有保存的译文，否则看到的是未翻译的文本。
@@ -733,7 +733,7 @@ AI 工具可以通过助手工具 `import_ai_edit` 把照片的编辑版本导�
 
 **“为什么是这个评分”可视化叠加层。** 当 `viewer.features.show_saliency_overlay` 开启（默认 `true`）时，点评对话框有**显示叠加层**。它把 BiRefNet 显著性图绘制为热力图（`GET /api/saliency_overlay`），再加上由已存储关键点得到的人脸框和眼睛标记（`GET /api/photo/face_markers`）。睁眼时框为绿色，闭眼时为琥珀色。热力图为缩略图分辨率，因此只是近似。在无法生成显著性掩膜的配置档上，该开关会隐藏。
 
-## AI 照片描述 `[GPU]` `[16gb/24gb]` `[Edition]`
+## AI 照片描述 `[GPU]` `[12gb/16gb/24gb]` `[Edition]`
 
 为任意照片获取自然语言描述。描述在首次请求时由编辑会话生成，随后缓存在 `caption` 列中。在编辑模式下可以在照片详情中修改描述。开放的只读安装从不生成描述。 `POST /api/caption` 负责生成（并翻译）；`GET /api/caption` 只返回已保存的描述或译文，从不生成、翻译或写入。
 
@@ -746,7 +746,7 @@ python facet.py --translate-captions     # 把描述翻译成所配置的目标�
 
 翻译使用 MarianMT（CPU，无需 GPU）。用 `translation.target_language` 设置语言（默认：`"fr"`）。支持的语言：法语、德语、西班牙语、意大利语。
 
-由 `viewer.features.show_captions` 控制（默认：`true`）。没有 16gb/24gb 配置档，也没有远程 `vlm_backend` 时，“生成描述”按钮会隐藏，点评仅使用规则。
+由 `viewer.features.show_captions` 控制（默认：`true`）。没有 12gb/16gb/24gb 配置档，也没有远程 `vlm_backend` 时，“生成描述”按钮会隐藏，点评仅使用规则。
 
 ## 回忆（“那年今日”）
 
@@ -1079,7 +1079,7 @@ Facet 会从你的照片库生成胶囊：
 Facet 会为每张照片标注它所描绘的活动。默认的 **general** 词表：庆祝、用餐、海滩、水上活动、山地、自然与野生动物、城市景观、旅行地标、演唱会、体育、聚会、人像、儿童、宠物、夜生活、典礼、风光、冰雪与冬季、居家室内、道路与车辆，或 `other`。另有一个 `wedding` 词表作为可选题材提供。
 
 - 它在本地运行，无需额外的模型处理：每张照片的 AI 描述会与每个时刻的文本提示进行匹配（没有描述时使用图像嵌入向量）。时间线平滑会纠正孤立的误判。
-- 可选的 VLM 决胜环节（16gb/24gb）会重新判定低置信度的帧。
+- 可选的 VLM 决胜环节（12gb/16gb/24gb）会重新判定低置信度的帧。
 - 它会在**每次扫描结束时自动运行**。对已有照片库的第一次处理会编码所有描述（建议使用 GPU）。用 `python facet.py --recompute-moments` 可重新标注全部。
 - 时刻会以场景标题的形式呈现，也可作为照片库的筛选条件（`GET /api/photos?narrative_moment=beach`，选项来自 `GET /api/filter_options/narrative_moments`）。
 - 词表是可配置的——参见[配置——叙事时刻](CONFIGURATION.md#叙事时刻)。
@@ -1517,9 +1517,9 @@ Facet 使用核心依赖 `imagecodecs` 扫描 JPEG XL（`.jxl`），标准安装
 | 看不到扫描按钮 | 需要 `viewer.features.show_scan_button: true` 加上扫描权限——参见[触发扫描](#触发扫描) |
 | 搜索没有结果 | 确保照片有 `clip_embedding` 数据（先运行评分） |
 | 搜索提示 Apple Silicon 加速繁忙 | 等当前模型任务结束后重试 |
-| VLM 点评不可用 | 需要 16gb/24gb 配置档、`viewer.features.show_vlm_critique: true` 以及编辑会话 |
+| VLM 点评不可用 | 需要 12gb/16gb/24gb 配置档、`viewer.features.show_vlm_critique: true` 以及编辑会话 |
 | 地图上没有照片 | 运行 `--extract-gps`；检查照片是否带有 EXIF GPS 数据 |
-| 描述无法生成 | VLM 照片描述需要 16gb/24gb VRAM 配置档 |
+| 描述无法生成 | VLM 照片描述需要 12gb/16gb/24gb VRAM 配置档 |
 | 时间线为空 | 确保照片有 `date_taken` 值 |
 | 端口 5000 已被占用 | 运行 `python viewer.py --port 5001`（或设置 `PORT=5001`）。在 macOS 上，AirPlay 接收器会占用 5000：请选用其他端口，或在“系统设置 → 通用 → 隔空投送与接力”中将其关闭。 |
 

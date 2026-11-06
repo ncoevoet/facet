@@ -4,7 +4,7 @@
 
 [Scansione](#scansione) · [Anteprima ed esportazione](#anteprima-ed-esportazione) · [Operazioni di ricalcolo](#operazioni-di-ricalcolo) · [Riconoscimento facciale](#riconoscimento-facciale) · [Gestione delle miniature](#gestione-delle-miniature) · [Diagnostica](#diagnostica) · [Informazioni sui modelli](#informazioni-sui-modelli) · [Ottimizzazione dei pesi](#ottimizzazione-dei-pesi-confronto-a-coppie) · [Configurazione](#configurazione) · [Tagging](#tagging) · [Validazione del database](#validazione-del-database) · [Manutenzione del database](#manutenzione-del-database) · [Visualizzatore web](#visualizzatore-web) · [Flussi di lavoro comuni](#flussi-di-lavoro-comuni)
 
-> Tag dei requisiti usati di seguito: `[GPU]` · `[8gb/16gb/24gb]` / `[16gb/24gb]` / `[24gb]` (profilo VRAM). Vedi la [matrice delle funzionalità](INSTALLATION.md#requisiti-delle-funzionalità).
+> Tag dei requisiti usati di seguito: `[GPU]` · `[8gb/12gb/16gb/24gb]` / `[12gb/16gb/24gb]` / `[24gb]` (profilo VRAM). Vedi la [matrice delle funzionalità](INSTALLATION.md#requisiti-delle-funzionalità).
 
 ## Scansione
 
@@ -44,11 +44,11 @@ Facet registra ogni scansione (stato, modalità, directory, contatori) e ogni er
 **Single-pass (`--single-pass`):** carica tutti i modelli in una volta. Più veloce, ma richiede più VRAM.
 
 - Valuta l'estetica con la head CLIP+MLP, quindi si applica ai profili `legacy` e `8gb`.
-- Su `16gb` e `24gb` il modello estetico è TOPIQ, che viene eseguito solo in multi-pass. Una richiesta single-pass (`--single-pass` o `processing.mode: "single-pass"`) registra un avviso ed esegue il multi-pass.
+- Su `12gb`, `16gb` e `24gb` il modello estetico è TOPIQ, che viene eseguito solo in multi-pass. Una richiesta single-pass (`--single-pass` o `processing.mode: "single-pass"`) registra un avviso ed esegue il multi-pass.
 - `--pass NAME` e `--dry-run` saltano questo controllo.
 - La modalità commerciale mantiene il single-pass, perché lì l'estetica è valutata dal Q-ReAlign nativo.
 
-**Nota di aggiornamento:** le versioni precedenti salvavano un'estetica neutra di 5,0 per ogni foto di una scansione single-pass su `16gb`/`24gb`. Riscansiona quelle cartelle con `--force` in multi-pass. Per trovarle: `SELECT path FROM photos WHERE scoring_model = 'topiq' AND aesthetic = 5.0 AND topiq_score IS NULL`.
+**Nota di aggiornamento:** le versioni precedenti salvavano un'estetica neutra di 5,0 per ogni foto di una scansione single-pass su `12gb`/`16gb`/`24gb`. Riscansiona quelle cartelle con `--force` in multi-pass. Per trovarle: `SELECT path FROM photos WHERE scoring_model = 'topiq' AND aesthetic = 5.0 AND topiq_score IS NULL`.
 
 **Passaggio specifico (`--pass NAME`):** esegue un solo passaggio, per aggiornare alcune metriche senza una rielaborazione completa.
 
@@ -102,7 +102,7 @@ Su una GPU CUDA, appena un chunk è decodificato, lo stesso worker di decodifica
 | `python facet.py --export-sidecars --embed-originals` | Scrive i metadati anche **dentro** gli originali JPEG/HEIC/TIFF/PNG/DNG |
 | `python facet.py --export-sidecars --score-to-stars` | Imposta `xmp:Rating` dal punteggio per le foto che non hai valutato |
 
-**Dry run.** Su `16gb`/`24gb` la colonna estetica mostra `n/a`, perché TOPIQ viene eseguito solo in una scansione reale (la modalità commerciale mostra il punteggio Q-ReAlign). L'aggregato la conta come un 5,0 neutro.
+**Dry run.** Su `12gb`/`16gb`/`24gb` la colonna estetica mostra `n/a`, perché TOPIQ viene eseguito solo in una scansione reale (la modalità commerciale mostra il punteggio Q-ReAlign). L'aggregato la conta come un 5,0 neutro.
 
 **CSV e JSON.** La colonna `tags` contiene solo i tag IA; i [tag manuali](VIEWER.md#tag-manuali) non sono inclusi. Nel JSON, l'oggetto `scores` di ogni foto contiene ogni metrica memorizzata; NULL, numeri non finiti e BLOB diventano `null`. L'esportazione JSON rifiuta di scrivere sul database o sui suoi file `-wal`/`-shm`/`-journal`.
 
@@ -191,7 +191,7 @@ Questi comandi aggiornano metriche o derivano nuovi dati senza rieseguire l'inte
 | `python facet.py --detect-panoramas` | Rileva i panorami dalle miniature memorizzate (esegue prima la passata dei bracket; CPU) |
 | `python facet.py --detect-duplicates` | Rileva le foto duplicate tramite pHash (registra `Duplicate state: N rows changed`) |
 | `python facet.py --sweep-dedup-thresholds [labels.json]` | Valuta le soglie di coseno per i quasi-duplicati (precisione/richiamo con le etichette) |
-| `python facet.py --generate-captions` | `[GPU]` `[16gb/24gb]` Genera didascalie AI con il VLM |
+| `python facet.py --generate-captions` | `[GPU]` `[12gb/16gb/24gb]` Genera didascalie AI con il VLM |
 | `python facet.py --translate-captions` | Traduce le didascalie inglesi nella lingua configurata (CPU, MarianMT) |
 | `python facet.py --extract-gps` | Copia il GPS EXIF nel database; salta le posizioni impostate nel visualizzatore |
 | `python facet.py --rescan-gps` | Riestrae il GPS EXIF per tutte le foto (sovrascrive); salta le posizioni impostate nel visualizzatore |
@@ -213,7 +213,7 @@ Questi comandi aggiornano metriche o derivano nuovi dati senza rieseguire l'inte
 
 - `--detect-moments` codifica ogni nuova didascalia una sola volta in `caption_embedding`. Il primo backfill di una libreria esistente è meglio farlo con una GPU; aggiungi `--limit N` per provarlo su un campione.
 - Aggiungi `--dry-run --verbose` a `--recompute-moments` (o a `--detect-junk`) per l'anteprima senza scrivere.
-- `narrative_moments.vlm_tiebreak` (16gb/24gb): quando `narrative_moments.vlm_tiebreak.enabled` è impostato, il VLM del profilo riclassifica i fotogrammi a bassa confidenza.
+- `narrative_moments.vlm_tiebreak` (12gb/16gb/24gb): quando `narrative_moments.vlm_tiebreak.enabled` è impostato, il VLM del profilo riclassifica i fotogrammi a bassa confidenza.
 - `--discover-moments` raggruppa gli embedding delle didascalie memorizzati e dà un nome a ogni gruppo. Non riscrive mai la configurazione attiva. Esegui prima `--detect-moments`; regola con `--discover-min-cluster-size N`.
 - `--generate-captions` salta le foto non etichettate, `other` e a bassa confidenza quando `narrative_moments.caption_min_confidence > 0`.
 
@@ -291,12 +291,13 @@ Il modello di tagging dipende dal profilo VRAM:
 |---------|-------|-------------|
 | `legacy` | Somiglianza CLIP | Somiglianza coseno tra gli embedding dell'immagine e del testo dei tag. Nessun modello aggiuntivo. |
 | `8gb` | Somiglianza CLIP | Come legacy, sugli embedding CLIP ViT-L-14 memorizzati. |
+| `12gb` | Qwen3.5-2B | Modello multimodale per il tagging delle scene. |
 | `16gb` | Qwen3.5-2B | Modello multimodale per il tagging delle scene. |
 | `24gb` | Qwen3.5-4B | Modello multimodale più grande. |
 
 Tutti i tagger mappano l'output sul vocabolario di tag configurato. Usa `--recompute-tags` per riassegnare i tag con il modello del profilo, o `--recompute-tags-vlm` per il VLM.
 
-**Quando vengono scritti i tag.** Sui profili a similarità CLIP (`legacy`/`8gb`, e `16gb`/`24gb` quando il passaggio VLM non è pianificato), una scansione multi-pass assegna i tag durante il passaggio degli embedding, quindi categoria e aggregato della scansione li usano già. Un'esecuzione con un solo `--pass` (per esempio `--pass embeddings`) non scrive tag. `--pass tags` su un profilo CLIP si ferma e rimanda a `--recompute-tags`. Le righe esistenti mantengono la loro categoria fino a `--recompute-average`.
+**Quando vengono scritti i tag.** Sui profili a similarità CLIP (`legacy`/`8gb`, e `12gb`/`16gb`/`24gb` quando il passaggio VLM non è pianificato), una scansione multi-pass assegna i tag durante il passaggio degli embedding, quindi categoria e aggregato della scansione li usano già. Un'esecuzione con un solo `--pass` (per esempio `--pass embeddings`) non scrive tag. `--pass tags` su un profilo CLIP si ferma e rimanda a `--recompute-tags`. Le righe esistenti mantengono la loro categoria fino a `--recompute-average`.
 
 ### Modelli di embedding
 
@@ -304,7 +305,7 @@ Due modelli di embedding, selezionati per profilo VRAM tramite `clip_config`:
 
 | Config | Modello | Dimensioni | Usato da |
 |--------|-------|-----------|---------|
-| `clip` | SigLIP 2 NaFlex SO400M | 1152 | profili 16gb, 24gb |
+| `clip` | SigLIP 2 NaFlex SO400M | 1152 | profili 12gb, 16gb, 24gb |
 | `clip_legacy` | CLIP ViT-L-14 | 768 | profili legacy, 8gb |
 
 Gli embedding alimentano il tagging, il rilevamento dei duplicati, la ricerca di foto simili e l'estetica CLIP+MLP (legacy/8gb). Il cambio di modello richiede di ricalcolare gli embedding di tutte le foto (`--force`, `--pass embeddings` o `--recompute-embeddings`).
@@ -469,7 +470,7 @@ python /opt/facet/viewer.py      # legge comunque /opt/facet/scoring_config.json
 | `python tag_existing.py --db custom.db` | Usa un database personalizzato |
 | `python tag_existing.py --config my.json` | Usa una configurazione personalizzata |
 
-Su CUDA, i profili SigLIP (`16gb`, `24gb`) ora codificano il vocabolario dei tag in fp16, il che cambia i tag di alcune foto. Esegui `python tag_existing.py --force` per riassegnare i tag alle foto etichettate in precedenza. CPU e profili `legacy`/`8gb` restano invariati.
+Su CUDA, i profili SigLIP (`12gb`, `16gb`, `24gb`) ora codificano il vocabolario dei tag in fp16, il che cambia i tag di alcune foto. Esegui `python tag_existing.py --force` per riassegnare i tag alle foto etichettate in precedenza. CPU e profili `legacy`/`8gb` restano invariati.
 
 Il passaggio di tagging al termine di una scansione viene saltato quando `tagging.enabled` è `false` o nessuna foto è in attesa di tag.
 

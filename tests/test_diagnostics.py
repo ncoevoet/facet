@@ -860,6 +860,9 @@ class TestDoctorListsWhatIsRouted:
         '8gb': ['clip_mlp_head', 'clip', 'topiq_iaa', 'topiq_nr_face', 'liqe', 'samp_net',
                 'u2netp', 'birefnet', 'insightface', 'mediapipe_face_landmarker',
                 'qrealign_native'],
+        '12gb': ['topiq', 'siglip2', 'qwen3_5_2b', 'topiq_iaa', 'topiq_nr_face', 'liqe',
+                 'samp_net', 'u2netp', 'birefnet', 'insightface', 'mediapipe_face_landmarker',
+                 'qrealign_native'],
         '16gb': ['topiq', 'siglip2', 'qwen3_5_2b', 'topiq_iaa', 'topiq_nr_face', 'liqe',
                  'samp_net', 'u2netp', 'birefnet', 'insightface', 'mediapipe_face_landmarker',
                  'qrealign_native'],
@@ -873,14 +876,14 @@ class TestDoctorListsWhatIsRouted:
         import config_resolve
         return config_resolve.load_resolved(None)
 
-    @pytest.mark.parametrize('profile', ['legacy', '8gb', '16gb', '24gb'])
+    @pytest.mark.parametrize('profile', ['legacy', '8gb', '12gb', '16gb', '24gb'])
     def test_default_mode_ids_are_unchanged(self, profile):
         import licensing
         from diagnostics import _components_in_use
         ids = _components_in_use(self._cfg(), profile, licensing.Policy('default', False))
         assert ids == self.DEFAULT_IDS[profile]
 
-    @pytest.mark.parametrize('profile', ['legacy', '8gb', '16gb', '24gb'])
+    @pytest.mark.parametrize('profile', ['legacy', '8gb', '12gb', '16gb', '24gb'])
     def test_commercial_mode_lists_the_permissive_stack_and_nothing_refused(self, profile):
         import licensing
         from diagnostics import _components_in_use
@@ -1611,3 +1614,57 @@ class TestOnnxRuntimeProbeModel:
         providers, reason = _probe_cuda_session(ort)
         assert providers == ["CPUExecutionProvider"]
         assert "CUDAExecutionProvider" in reason
+
+
+class TestDoctorEmbeddingWidthOnAuto:
+    """`auto` on an 11.5-14 GiB card now resolves to 12gb (SigLIP, 1152-dim); a library embedded at 768 would silently mix widths."""
+
+    @staticmethod
+    def _library(tmp_path, width):
+        db = tmp_path / "lib.db"
+        conn = sqlite3.connect(db)
+        conn.execute("CREATE TABLE photos (path TEXT, clip_embedding BLOB)")
+        conn.execute("INSERT INTO photos VALUES ('a', NULL)")
+        conn.execute("INSERT INTO photos VALUES ('b', ?)", (b"\0" * (4 * width),))
+        conn.commit()
+        conn.close()
+        return db
+
+    def _doctor(self, capsys, tmp_path, db):
+        cfg = tmp_path / "cfg.json"
+        cfg.write_text("{}", encoding="utf-8")   # no overrides: vram_profile stays the shipped "auto"
+        run_doctor(config_path=str(cfg), db_path=str(db),
+                   simulate_gpu="RTX 3060", simulate_vram=11.7)
+        return capsys.readouterr().out
+
+    def test_the_resolved_profile_is_printed_and_a_768_library_is_warned_about(self, capsys, tmp_path):
+        out = self._doctor(capsys, tmp_path, self._library(tmp_path, 768))
+        assert "Resolved profile: 12gb (auto)" in out
+        assert "Embedding width" in out and "768-dim" in out and "1152-dim" in out
+        assert "vram_profile" in out and "--recompute-embeddings" in out
+
+    def test_a_matching_library_gets_no_warning(self, capsys, tmp_path):
+        out = self._doctor(capsys, tmp_path, self._library(tmp_path, 1152))
+        assert "Resolved profile: 12gb (auto)" in out
+        assert "Embedding width" not in out
+
+    def test_a_missing_or_empty_library_gets_no_warning(self, capsys, tmp_path):
+        assert "Embedding width" not in self._doctor(capsys, tmp_path, tmp_path / "absent.db")
+        db = tmp_path / "empty.db"
+        conn = sqlite3.connect(db)
+        conn.execute("CREATE TABLE photos (path TEXT, clip_embedding BLOB)")
+        conn.commit()
+        conn.close()
+        assert "Embedding width" not in self._doctor(capsys, tmp_path, db)
+
+    def test_the_width_is_read_from_one_row_not_a_scan(self):
+        import inspect
+
+        from diagnostics import _stored_embedding_dim
+        assert "detect_embedding_dim" in inspect.getsource(_stored_embedding_dim)
+
+    def test_a_library_path_with_uri_metacharacters_still_gets_the_warning(self, capsys, tmp_path):
+        folder = tmp_path / "a#b"
+        folder.mkdir()
+        out = self._doctor(capsys, tmp_path, self._library(folder, 768))
+        assert "Embedding width" in out and "768-dim" in out

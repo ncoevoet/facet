@@ -1392,11 +1392,11 @@
       "metric_help": {
         "score_range": "Score global : l'agrégat pondéré de toutes les mesures pour la catégorie de la photo (0–10).",
         "aesthetic_range": "L'attrait général de la photo, noté par TOPIQ (CLIP+MLP sur les profils legacy et 8gb), 0–10.",
-        "quality_score_range": "Qualité technique de l'image, notée par TOPIQ NR sur les profils 16gb et 24gb (0–10).",
+        "quality_score_range": "Qualité technique de l'image, notée par TOPIQ NR sur les profils 12gb, 16gb et 24gb (0–10).",
         "aesthetic_iaa_range": "Mérite artistique, noté par TOPIQ IAA entraîné sur AVA (0–10) ; distinct de la qualité technique. Idéal pour l'art et la création.",
         "face_quality_iqa_range": "Qualité de la zone du visage, notée par TOPIQ NR-Face (0–10). Une photo sans visage n'a pas de valeur.",
         "liqe_range": "Qualité globale de l'image, notée par LIQE (0–10), qui diagnostique aussi les défauts : flou de bougé, surexposition, bruit.",
-        "qrealign_range": "Score esthétique de Q-ReAlign (0–10). Activé par défaut sur les profils 8gb, 16gb et 24gb.",
+        "qrealign_range": "Score esthétique de Q-ReAlign (0–10). Activé par défaut sur les profils 8gb, 12gb, 16gb et 24gb.",
         "aesthetic_v25_range": "Attrait esthétique, noté par Aesthetic Predictor v2.5 (0–10). Désactivé par défaut et obsolète au profit de Q-ReAlign.",
         "deqa_range": "Qualité de l'image, notée par DeQA-Score (0–10). Désactivé par défaut.",
         "face_count_range": "Nombre de visages détectés par InsightFace dans la photo.",
@@ -2969,7 +2969,7 @@
     "title": "Légende",
     "generate": "Générer une légende",
     "generating": "Génération en cours...",
-    "unavailable": "La génération de légende nécessite un modèle VLM (16 Go+ VRAM)"
+    "unavailable": "La génération de légende nécessite un modèle VLM (profil 12gb ou supérieur, ou un backend VLM distant)"
   },
   "timeline": {
     "help": "Parcourez les photos datées, accédez à un mois ou utilisez Densité par date pour sélectionner une période. Le calendrier reste disponible ; les photos sans date de prise de vue sont présentées séparément.",

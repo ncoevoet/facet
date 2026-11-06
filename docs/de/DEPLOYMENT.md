@@ -14,7 +14,7 @@ Facet hat zwei Arbeitslasten:
 
 | Komponente | Hardware | Zweck |
 |-----------|----------|---------|
-| **Bewertung** (`facet.py`) | GPU (6-24 GB VRAM) oder CPU (8 GB RAM Minimum, 12 GB empfohlen; mehr für `16gb`/`24gb`, siehe [Speicherlimits für Container](#speicherlimits-für-container)) | Fotos analysieren und bewerten |
+| **Bewertung** (`facet.py`) | GPU (6-24 GB VRAM) oder CPU (8 GB RAM Minimum, 12 GB empfohlen; mehr für `12gb`/`16gb`/`24gb`, siehe [Speicherlimits für Container](#speicherlimits-für-container)) | Fotos analysieren und bewerten |
 | **Viewer** (`viewer.py`) | Beliebige Maschine (geringe Ressourcen) | Web-Galerie bereitstellen |
 
 Nur der Viewer muss auf dem Server laufen. Bewerten Sie auf einer Workstation und synchronisieren Sie dann die Datenbank.
@@ -333,7 +333,7 @@ kein `arm64`-Image. Bauen Sie auf einem ARM-NAS oder einem Raspberry Pi lokal mi
 - Images, entpackt: CPU ~3,34 GB, `latest-cuda` (`sm_75`-`sm_120`) ~13,1 GB,
   `latest-cuda-legacy` (`sm_50`-`sm_90`) ~13,8 GB ([Image-Größe](#image-größe)).
   `docker pull` überträgt weniger, komprimiert.
-- Modelle: `legacy` 4,69 GB, `8gb` 6,93 GB, `16gb` 14,55 GB, `24gb` 19,32 GB
+- Modelle: `legacy` 4,69 GB, `8gb` 6,93 GB, `12gb`/`16gb` 14,55 GB, `24gb` 19,32 GB
   ([Downloadgrößen](INSTALLATION.md#downloadgrößen)).
 - `docker compose down -v` löscht die Modell-Volumes und erzwingt einen erneuten Download.
 
@@ -420,7 +420,7 @@ Aktivierungen kommen hinzu. Behandeln Sie diese Werte als Untergrenzen.
 | VRAM-Profil | Modellgewichte (gesamt) | Empfohlener Container-Speicher |
 |---|---|---|
 | `legacy` / `8gb` | 15,0 GB | 12 GB (GPU) / 8 GB Minimum, 12 GB empfohlen (CPU) |
-| `16gb` | 22,0 GB | mindestens 18 GB (vorläufig) |
+| `12gb` / `16gb` | 22,0 GB | mindestens 18 GB (vorläufig) |
 | `24gb` | 25,0 GB | mindestens 18 GB (vorläufig) |
 
 - **GPU und CPU unterscheiden sich.** Auf einer GPU liegen die Gewichte im VRAM, und der RAM hält hauptsächlich dekodierte
@@ -430,7 +430,8 @@ Aktivierungen kommen hinzu. Behandeln Sie diese Werte als Untergrenzen.
 - **8 GB sind eine Untergrenze auf der CPU.** 50-Foto-Scans mit `--memory=8g` schlossen bei `legacy` (Peak 7,26 GB) und
   `8gb` (7,56 GB) ab, innerhalb von etwa einem halben Gigabyte der Grenze, bei 18-20 MP JPEGs. Größere Bilder, RAW-Dekodierung
   oder ein ausgelasteter Host brauchen mehr, daher werden 12 GB empfohlen.
-- **`16gb` und `24gb` sind nicht gemessen.** 18 GB sind ein vorläufiger Platzhalter.
+- **`12gb`, `16gb` und `24gb` sind nicht gemessen.** 18 GB sind ein vorläufiger Platzhalter.
+- **`12gb`-VRAM-Spitze: 9,4–11,3 GiB (simuliert).** Spitze der gesamten Karte unter Grenzen von 11,7 und 12,0 GiB, einschließlich etwa 2 GiB Desktop-Nutzung; die PyTorch-Spitze lag bei 6,3 GiB belegt, 8,8 GiB reserviert (Durchlauf des Qwen3.5-Taggers). Gemessen unter einer simulierten 12-GiB-Grenze auf einer 16-GB-Karte; ONNX-Runtime-Modelle (InsightFace) ignorieren die Grenze; nicht auf einer echten 12-GB-Karte gemessen.
 - **Beobachten Sie den anonymen Speicher.** Das MemUsage von `docker stats` und das `memory.current` der Cgroup
   zählen beide rückgewinnbaren Seiten-Cache mit und führen daher in die Irre.
 - **Modell-Caching.** Mit `models.keep_in_ram` auf `"auto"` bleibt ein Modell zwischen Chunks nur dann im RAM,
@@ -531,7 +532,7 @@ curl -s localhost:5000/health          # -> ok
 ```
 
 Fügen Sie `--build` hinzu, um aus dem Checkout zu bauen, statt zu ziehen. GPU-Profile
-(`8gb`/`16gb`/`24gb`) clustern Gesichter über das mitgelieferte RAPIDS cuML auf der GPU; `legacy`
+(`8gb`/`12gb`/`16gb`/`24gb`) clustern Gesichter über das mitgelieferte RAPIDS cuML auf der GPU; `legacy`
 clustert auf der CPU. Der erste Lauf lädt Modelle in die benannten Volumes herunter; setzen Sie sie mit
 `docker compose down -v` zurück.
 

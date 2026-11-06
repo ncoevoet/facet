@@ -38,6 +38,21 @@ UNIFIED_MEMORY_PROFILE_THRESHOLDS_GB = (
 )
 UNIFIED_MEMORY_MINIMUM_PROFILE = 'legacy'
 
+# Minimum dedicated VRAM (GiB) per CUDA profile, richest first. The ONE auto-detect
+# table: ``suggest_vram_profile``, ``check_vram_profile_compatibility``'s
+# requirements, the ``FACET_VRAM_PROFILE`` whitelist and
+# ``ModelManager.get_recommended_profile`` all read it. ``12gb`` starts at 11.5 so a
+# card reporting 11.7 GiB (a 12 GB card) lands on it while a 1080 Ti (11.0) or a
+# 3080 10 GB (~9.8) stays on ``8gb``. The Apple table above has no 12gb tier:
+# a Mac has no 12 GB memory configuration.
+VRAM_PROFILE_THRESHOLDS_GB = (
+    ('24gb', 20.0),
+    ('16gb', 14.0),
+    ('12gb', 11.5),
+    ('8gb', 6.0),
+)
+VRAM_MINIMUM_PROFILE = 'legacy'
+
 # RAW demosaic and embedded-preview defaults. ``bright`` is a fixed exposure
 # gain applied to every frame, replacing LibRaw's per-frame auto-brightness:
 # the latter equalises exposure across a bracket, which erases the exposure
@@ -354,12 +369,13 @@ class ScoringConfig:
             )
 
         # Environment override for the VRAM profile. Lets a single mounted config
-        # serve every Docker profile (legacy/8gb/16gb/24gb/auto) via an env var
+        # serve every Docker profile (legacy/8gb/12gb/16gb/24gb/auto) via an env var
         # instead of editing the JSON — e.g. `FACET_VRAM_PROFILE=8gb`. Invalid
         # values are ignored with a warning so a typo can't silently mis-scan.
         env_profile = os.environ.get('FACET_VRAM_PROFILE', '').strip()
         if env_profile:
-            valid_profiles = {'auto', 'legacy', '8gb', '16gb', '24gb'}
+            valid_profiles = {'auto', VRAM_MINIMUM_PROFILE,
+                              *(name for name, _ in VRAM_PROFILE_THRESHOLDS_GB)}
             if env_profile in valid_profiles:
                 # Remember what the FILE said, so :meth:`save_config` can put it
                 # back before writing. Without that, any write -- and
@@ -952,16 +968,22 @@ class ScoringConfig:
                     'tagging_model': 'clip',
                     'description': 'CLIP+MLP aesthetic, SAMP-Net composition (~2GB VRAM)'
                 },
+                '12gb': {
+                    'aesthetic_model': 'topiq',
+                    'composition_model': 'samp-net',
+                    'tagging_model': 'qwen3.5-2b',
+                    'description': 'TOPIQ aesthetic, SAMP-Net composition (same models as 16gb, 3-4 passes in 11.5-14GB VRAM)'
+                },
                 '16gb': {
                     'aesthetic_model': 'topiq',
                     'composition_model': 'samp-net',
-                    'tagging_model': 'ram++',
+                    'tagging_model': 'qwen3.5-2b',
                     'description': 'TOPIQ aesthetic, SAMP-Net composition (~14GB VRAM)'
                 },
                 '24gb': {
                     'aesthetic_model': 'topiq',
                     'composition_model': 'samp-net',
-                    'tagging_model': 'qwen2.5-vl-7b',
+                    'tagging_model': 'qwen3.5-4b',
                     'description': 'TOPIQ aesthetic, SAMP-Net composition (~18GB VRAM)'
                 }
             },
@@ -1070,7 +1092,8 @@ class ScoringConfig:
         macOS, the window server and every other running application, and a Mac
         that swaps is far slower than one on a smaller profile. Each threshold
         in UNIFIED_MEMORY_PROFILE_THRESHOLDS_GB therefore asks for about twice
-        the profile's model footprint (legacy ~2GB, 8gb ~6GB, 16gb ~14GB, 24gb
+        the profile's model footprint (legacy ~2GB, 8gb ~6GB, 16gb ~14GB (12gb
+        has no Mac tier: no Mac ships 12GB of unified memory), 24gb
         ~20GB of weights plus inference), never less than that footprint plus
         8GB left to the rest of the system, rounded up to a memory
         configuration Apple actually ships.
@@ -1085,6 +1108,17 @@ class ScoringConfig:
             if total_memory_gb >= minimum_gb:
                 return profile
         return UNIFIED_MEMORY_MINIMUM_PROFILE
+
+    @staticmethod
+    def profile_for_vram(vram_gb):
+        """The richest CUDA profile whose VRAM_PROFILE_THRESHOLDS_GB minimum ``vram_gb`` reaches.
+
+        The single auto-detect table; ``ModelManager.get_recommended_profile`` calls this.
+        """
+        for profile, minimum_gb in VRAM_PROFILE_THRESHOLDS_GB:
+            if vram_gb >= minimum_gb:
+                return profile
+        return VRAM_MINIMUM_PROFILE
 
     @staticmethod
     def suggest_vram_profile(vram_gb=None):
@@ -1147,18 +1181,15 @@ class ScoringConfig:
             return profile, None, msg
 
         # Profile recommendations based on VRAM
-        if vram_gb >= 20:
-            profile = '24gb'
-            msg = f"Detected {vram_gb:.1f}GB VRAM - recommended profile: 24gb (TOPIQ + Qwen2-VL)"
-        elif vram_gb >= 14:
-            profile = '16gb'
-            msg = f"Detected {vram_gb:.1f}GB VRAM - recommended profile: 16gb (TOPIQ + SAMP-Net)"
-        elif vram_gb >= 6:
-            profile = '8gb'
-            msg = f"Detected {vram_gb:.1f}GB VRAM - recommended profile: 8gb (TOPIQ + SAMP-Net)"
-        else:
-            profile = 'legacy'
-            msg = f"Detected {vram_gb:.1f}GB VRAM - recommended profile: legacy (TOPIQ + SAMP-Net)"
+        profile = ScoringConfig.profile_for_vram(vram_gb)
+        label = {
+            'legacy': 'CLIP-MLP + SAMP-Net, CPU',
+            '8gb': 'CLIP-MLP + SAMP-Net',
+            '12gb': 'TOPIQ + SigLIP 2 + Qwen3.5-2B, 3-4 passes',
+            '16gb': 'TOPIQ + SigLIP 2 + Qwen3.5-2B',
+            '24gb': 'TOPIQ + SigLIP 2 + Qwen3.5-4B',
+        }[profile]
+        msg = f"Detected {vram_gb:.1f}GB VRAM - recommended profile: {profile} ({label})"
 
         return profile, vram_gb, msg
 
@@ -1224,17 +1255,15 @@ class ScoringConfig:
 
         # Define VRAM requirements for each profile
         profile_requirements = {
-            'legacy': 2,
-            '8gb': 6,
-            '16gb': 14,
-            '24gb': 20,
+            VRAM_MINIMUM_PROFILE: 2,
+            **{name: minimum for name, minimum in VRAM_PROFILE_THRESHOLDS_GB},
         }
 
         required_vram = profile_requirements.get(current_profile, 0)
 
         if vram_gb < required_vram:
             if verbose:
-                logger.warning("Profile '%s' requires ~%dGB VRAM, but only %.1fGB detected", current_profile, required_vram, vram_gb)
+                logger.warning("Profile '%s' requires ~%.1fGB VRAM, but only %.1fGB detected", current_profile, required_vram, vram_gb)
                 logger.warning("  %s", msg)
                 logger.warning("  Consider setting vram_profile to '%s' or 'auto' in scoring_config.json", suggested_profile)
             return False, suggested_profile, f"Insufficient VRAM for {current_profile}"
@@ -1376,7 +1405,7 @@ class ScoringConfig:
         ``{enabled, min_confidence, min_margin}``. Only frames whose smoothed
         posterior falls below ``min_confidence`` *or* whose L0+L1 top-1/top-2
         probability margin falls below ``min_margin`` are re-classified by the
-        VLM (16gb/24gb profiles only). Disabled by default — a config-only stub
+        VLM (12gb/16gb/24gb profiles only). Disabled by default — a config-only stub
         until enabled.
         """
         vt = self.get_narrative_moments_config().get('vlm_tiebreak', {}) or {}

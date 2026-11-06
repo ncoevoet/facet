@@ -13,7 +13,7 @@ Facet has two workloads:
 
 | Component | Hardware | Purpose |
 |-----------|----------|---------|
-| **Scoring** (`facet.py`) | GPU (6-24GB VRAM) or CPU (8GB RAM minimum, 12GB recommended; more for `16gb`/`24gb`, see [Container Memory Limits](#container-memory-limits)) | Analyze and score photos |
+| **Scoring** (`facet.py`) | GPU (6-24GB VRAM) or CPU (8GB RAM minimum, 12GB recommended; more for `12gb`/`16gb`/`24gb`, see [Container Memory Limits](#container-memory-limits)) | Analyze and score photos |
 | **Viewer** (`viewer.py`) | Any machine (low resources) | Serve the web gallery |
 
 Only the viewer needs to run on the server. Score on a workstation, then sync the database.
@@ -329,7 +329,7 @@ no `arm64` image. On an ARM NAS or a Raspberry Pi, build locally with
 - Images, unpacked: CPU ~3.34 GB, `latest-cuda` (`sm_75`-`sm_120`) ~13.1 GB,
   `latest-cuda-legacy` (`sm_50`-`sm_90`) ~13.8 GB ([Image size](#image-size)).
   `docker pull` transfers less, compressed.
-- Models: `legacy` 4.69 GB, `8gb` 6.93 GB, `16gb` 14.55 GB, `24gb` 19.32 GB
+- Models: `legacy` 4.69 GB, `8gb` 6.93 GB, `12gb`/`16gb` 14.55 GB, `24gb` 19.32 GB
   ([Download sizes](INSTALLATION.md#download-sizes)).
 - `docker compose down -v` deletes the model volumes and forces a re-download.
 
@@ -416,7 +416,7 @@ activations add to it. Treat these as floors.
 | VRAM profile | Model weights (total) | Recommended container memory |
 |---|---|---|
 | `legacy` / `8gb` | 15.0 GB | 12 GB (GPU) / 8 GB minimum, 12 GB recommended (CPU) |
-| `16gb` | 22.0 GB | at least 18 GB (provisional) |
+| `12gb` / `16gb` | 22.0 GB | at least 18 GB (provisional) |
 | `24gb` | 25.0 GB | at least 18 GB (provisional) |
 
 - **GPU and CPU differ.** On a GPU the weights sit in VRAM, and RAM mainly holds decoded
@@ -426,7 +426,8 @@ activations add to it. Treat these as floors.
 - **8 GB is a floor on CPU.** 50-photo scans at `--memory=8g` completed on `legacy` (peak 7.26 GB) and
   `8gb` (7.56 GB), within about half a gigabyte of the cap on 18-20 MP JPEGs. Larger frames, RAW
   decoding or a busy host need more, hence 12 GB recommended.
-- **`16gb` and `24gb` are unmeasured.** 18 GB is a provisional placeholder.
+- **`12gb`, `16gb` and `24gb` are unmeasured.** 18 GB is a provisional placeholder.
+- **`12gb` VRAM peak: 9.4–11.3 GiB (simulated).** Whole-card peak under 11.7 and 12.0 GiB caps, including about 2 GiB of desktop use; the PyTorch peak was 6.3 GiB allocated, 8.8 GiB reserved (the Qwen3.5 tagger pass). Measured under a simulated 12 GiB cap on a 16 GB card; ONNX Runtime models (InsightFace) ignore the cap; not measured on a real 12 GB card.
 - **Watch anonymous memory.** `docker stats` MemUsage and the cgroup's `memory.current`
   both count reclaimable page cache, so they mislead.
 - **Model caching.** With `models.keep_in_ram` at `"auto"`, a model stays in RAM between
@@ -527,7 +528,7 @@ curl -s localhost:5000/health          # -> ok
 ```
 
 Add `--build` to build from the checkout instead of pulling. GPU profiles
-(`8gb`/`16gb`/`24gb`) cluster faces on the GPU via the bundled RAPIDS cuML; `legacy`
+(`8gb`/`12gb`/`16gb`/`24gb`) cluster faces on the GPU via the bundled RAPIDS cuML; `legacy`
 clusters on CPU. The first run downloads models into the named volumes; reset them with
 `docker compose down -v`.
 

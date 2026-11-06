@@ -3,7 +3,7 @@
 #   LABEL      run directory name under $PERF_RUNS
 #   REPO       checkout to run (BASE or PERF); becomes PERF_REPO for the harness
 #   PHOTO_DIR  directory to scan (read-only)
-# env passthrough: PERF_PROFILE (16gb|8gb), PERF_CHUNK, PERF_PIL_GUARD
+# env passthrough: PERF_PROFILE (16gb|12gb|8gb), PERF_CHUNK, PERF_PIL_GUARD
 # env: PERF_RUNS    run root           (default /d/facet-scratch/perf2/runs)
 #      PERF_PYTHON  interpreter        (default /d/photo-llm/conda/python.exe)
 #      PERF_GATE_MIB nvidia-smi gate   (default 2560)

@@ -1392,11 +1392,11 @@
       "metric_help": {
         "score_range": "Gesamtwert: das gewichtete Aggregat aller Messwerte für die Kategorie des Fotos (0–10).",
         "aesthetic_range": "Wie ansprechend das Foto insgesamt wirkt, bewertet von TOPIQ (CLIP+MLP bei den Profilen legacy und 8gb), 0–10.",
-        "quality_score_range": "Technische Bildqualität, bei den Profilen 16gb und 24gb von TOPIQ NR bewertet (0–10).",
+        "quality_score_range": "Technische Bildqualität, bei den Profilen 12gb, 16gb und 24gb von TOPIQ NR bewertet (0–10).",
         "aesthetic_iaa_range": "Künstlerischer Wert, bewertet von TOPIQ IAA (auf AVA trainiert, 0–10); getrennt von der technischen Qualität. Am besten für Kunst und kreative Aufnahmen.",
         "face_quality_iqa_range": "Qualität des Gesichtsbereichs, bewertet von TOPIQ NR-Face (0–10). Ein Foto ohne Gesicht hat keinen Wert.",
         "liqe_range": "Gesamtbildqualität, bewertet von LIQE (0–10), das auch Störungen wie Bewegungsunschärfe, Überbelichtung und Rauschen diagnostiziert.",
-        "qrealign_range": "Ästhetikwert von Q-ReAlign (0–10). Bei den Profilen 8gb, 16gb und 24gb standardmäßig aktiv.",
+        "qrealign_range": "Ästhetikwert von Q-ReAlign (0–10). Bei den Profilen 8gb, 12gb, 16gb und 24gb standardmäßig aktiv.",
         "aesthetic_v25_range": "Ästhetische Wirkung, bewertet von Aesthetic Predictor v2.5 (0–10). Standardmäßig aus und zugunsten von Q-ReAlign veraltet.",
         "deqa_range": "Bildqualität, bewertet von DeQA-Score (0–10). Standardmäßig aus.",
         "face_count_range": "Anzahl der von InsightFace im Foto erkannten Gesichter.",
@@ -2969,7 +2969,7 @@
     "title": "Beschriftung",
     "generate": "Beschriftung generieren",
     "generating": "Beschriftung wird generiert...",
-    "unavailable": "Beschriftungsgenerierung erfordert ein VLM-Modell (16 GB+ VRAM)"
+    "unavailable": "Beschriftungsgenerierung erfordert ein VLM-Modell (Profil 12gb oder höher oder ein entferntes VLM-Backend)"
   },
   "timeline": {
     "help": "Durchsuchen Sie datierte Fotos, springen Sie zu einem Monat oder wählen Sie über die Datumsdichte einen Zeitraum. Der Kalender bleibt verfügbar; Fotos ohne Aufnahmedatum werden separat aufgeführt.",

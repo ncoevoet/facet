@@ -39,7 +39,7 @@ I valori assenti o NULL di subject_sharpness, subject_prominence, subject_placem
 
 Altre categorie basate sui tag includono `aerial`, `food`, `sports`, `vehicle`, `travel`, `fashion`, `candid`, `product`, `architecture`, `urban`, `golden_hour`, `blue_hour`, `cinematic`, `vintage`, `abstract`, `minimalist`, `dramatic` e `weather`.
 
-Sui profili con tagging CLIP (`legacy`/`8gb`, e `16gb`/`24gb` quando il loro tagger VLM non viene eseguito) una scansione etichetta ogni foto prima di calcolarne la categoria, quindi la categoria memorizzata usa i tag. Un'esecuzione con un solo `--pass NAME` non etichetta.
+Sui profili con tagging CLIP (`legacy`/`8gb`, e `12gb`/`16gb`/`24gb` quando il loro tagger VLM non viene eseguito) una scansione etichetta ogni foto prima di calcolarne la categoria, quindi la categoria memorizzata usa i tag. Un'esecuzione con un solo `--pass NAME` non etichetta.
 
 **Silhouette.** `is_silhouette` deriva da una regola di pixel basata sul volto (vedi [Filtri booleani](#filtri-booleani)), non da un tag.
 
@@ -255,7 +255,7 @@ Questi modelli vengono eseguiti come parte della pipeline di punteggio predefini
 - Un face_quality_iqa NULL segue la regola sopra; gli altri ingressi supplementari NULL mantengono il valore neutro 5.0.
 - **Galleria:** un filtro di intervallo su Estetica (IAA), Qualità volto (IQA), LIQE o Aesthetic V2.5 non include una foto senza punteggio (`min_face_quality_iqa=0` salta una foto senza volti). Un ordinamento crescente su questi, su Q-ReAlign o su DeQA mette le foto senza punteggio in fondo, nella galleria e negli album.
 - **I vecchi valori neutri 5.0** restano finché `--repair-neutral-iqa` non li cancella; poi esegui `--recompute-iqa` e `--recompute-average`, oppure riscansiona con `--force`.
-- **Errore del modello principale** (TOPIQ sui profili `16gb` e `24gb`): la foto viene registrata come fallita invece di essere salvata con un 5.0 neutro. Una foto nuova viene ripresa dalla scansione successiva; una già memorizzata conserva la propria riga e viene ritentata da `--retry-failed all` (un `--retry-failed` senza argomento copre solo l'ultima esecuzione con errori) o da un'altra scansione con `--force`.
+- **Errore del modello principale** (TOPIQ sui profili `12gb`, `16gb` e `24gb`): la foto viene registrata come fallita invece di essere salvata con un 5.0 neutro. Una foto nuova viene ripresa dalla scansione successiva; una già memorizzata conserva la propria riga e viene ritentata da `--retry-failed all` (un `--retry-failed` senza argomento copre solo l'ultima esecuzione con errori) o da un'altra scansione con `--force`.
 
 Regole di ripetizione per ogni comando: [Modelli di qualità supplementari](COMMANDS.md#modelli-di-qualità-supplementari).
 
@@ -312,6 +312,7 @@ I pesi predefiniti sono ottimizzati per **TOPIQ** (0.93 SRCC), il modello esteti
 |---------|-----------------|-----------|--------|-----------------|
 | `24gb` | TOPIQ (0.93 SRCC) | SigLIP 2 NaFlex SO400M | Qwen3.5-4B | Migliore accuratezza, pesi predefiniti |
 | `16gb` | TOPIQ (0.93 SRCC) | SigLIP 2 NaFlex SO400M | Qwen3.5-2B | Pesi predefiniti |
+| `12gb` | TOPIQ (0.93 SRCC) | SigLIP 2 NaFlex SO400M | Qwen3.5-2B | Pesi predefiniti |
 | `8gb` | CLIP+MLP (0.76 SRCC) | CLIP ViT-L-14 | Somiglianza CLIP | I pesi predefiniti funzionano bene |
 | `legacy` | CLIP+MLP su CPU | CLIP ViT-L-14 | Somiglianza CLIP | Pesi predefiniti, più lento |
 

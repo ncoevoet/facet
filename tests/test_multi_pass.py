@@ -182,7 +182,7 @@ def _processor_for_shipped_profile(config_name, profile_name):
     scorer = mock.MagicMock()
     scorer.config = config
     proc = ChunkedMultiPassProcessor(scorer, ModelManager(config), config.config)
-    proc.available_vram = {"legacy": 0.0, "8gb": 8.0, "16gb": 16.0, "24gb": 24.0}[profile_name]
+    proc.available_vram = {"legacy": 0.0, "8gb": 8.0, "12gb": 11.7, "16gb": 16.0, "24gb": 24.0}[profile_name]
     return proc
 
 
@@ -198,7 +198,7 @@ class TestShippedProfileCompositionRouting:
     """
 
     @pytest.mark.parametrize("config_name", SHIPPED_CONFIGS)
-    @pytest.mark.parametrize("profile_name", ["legacy", "8gb", "16gb", "24gb"])
+    @pytest.mark.parametrize("profile_name", ["legacy", "8gb", "12gb", "16gb", "24gb"])
     def test_profile_composition_model_is_selected_and_dispatched(self, config_name, profile_name):
         profile = _shipped_profiles(config_name)[profile_name]
         composition_model = profile.get("composition_model")
@@ -215,7 +215,7 @@ class TestShippedProfileCompositionRouting:
         proc._run_model_pass(expected, model=None, images={}, results={})
         assert proc._pass_samp_net.called
 
-    @pytest.mark.parametrize("profile_name", ["legacy", "8gb", "16gb", "24gb"])
+    @pytest.mark.parametrize("profile_name", ["legacy", "8gb", "12gb", "16gb", "24gb"])
     def test_selected_composition_model_survives_pass_grouping(self, profile_name):
         proc = _processor_for_shipped_profile("config/scoring_config.default.json", profile_name)
         models = proc._select_models()

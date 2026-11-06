@@ -185,7 +185,7 @@ assert torch.__version__ == intended, f"{lock} replaced this image torch {intend
 assert (torch.version.cuda is None) == (strip == "0"), f"STRIP_TORCH={strip} but torch {torch.__version__} reports CUDA {torch.version.cuda}"; \
 marker.unlink()'
 
-# GPU face clustering (RAPIDS cuML). Baked in so the GPU profiles (8gb/16gb/24gb)
+# GPU face clustering (RAPIDS cuML). Baked in so the GPU profiles (8gb/12gb/16gb/24gb)
 # use cuML HDBSCAN via face_clustering.use_gpu="auto"; the legacy profile forces
 # CPU clustering (faces/clusterer.py) and the clusterer also falls back to CPU
 # when no CUDA device is present. RAPIDS wheels come from the NVIDIA index. This

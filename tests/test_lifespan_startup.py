@@ -527,7 +527,11 @@ def test_shutdown_checkpoint_leaves_db_file_complete(tmp_path, wal_minutes):
     db = _make_db(tmp_path)
     marker = "/life.db/committed-while-running.jpg"
     with _patched_server(db, wal_minutes):
-        with TestClient(create_app()):
+        with TestClient(create_app()) as client:
+            # The build's first ANALYZE creates sqlite_stat1, a schema change: an INSERT
+            # whose prepare spans it (FTS5 connects photos_fts inside the prepare) fails
+            # "no such table: photos". Let it finish before anything writes.
+            client.app.state.index_build.wait()
             # Collect unrelated connection cycles before establishing the sentinel.
             # Startup writers may briefly make its first read busy: a miss token
             # does not mean the read-only connection has joined the WAL yet.

@@ -1423,11 +1423,11 @@
       "metric_help": {
         "score_range": "Overall score: the weighted aggregate of all metrics for the photo's category (0–10).",
         "aesthetic_range": "How pleasing the photo looks overall, scored by TOPIQ (CLIP+MLP on the legacy and 8gb profiles), 0–10.",
-        "quality_score_range": "Technical image quality, scored by TOPIQ NR on the 16gb and 24gb profiles (0–10).",
+        "quality_score_range": "Technical image quality, scored by TOPIQ NR on the 12gb, 16gb and 24gb profiles (0–10).",
         "aesthetic_iaa_range": "Artistic merit, scored by TOPIQ IAA trained on AVA (0–10); separate from technical quality. Best for art and creative shots.",
         "face_quality_iqa_range": "Quality of the face region, scored by TOPIQ NR-Face (0–10). A photo with no face has no value.",
         "liqe_range": "Overall image quality, scored by LIQE (0–10), which also diagnoses distortions such as motion blur, overexposure and noise.",
-        "qrealign_range": "Aesthetic score from Q-ReAlign (0–10). On by default on the 8gb, 16gb and 24gb profiles.",
+        "qrealign_range": "Aesthetic score from Q-ReAlign (0–10). On by default on the 8gb, 12gb, 16gb and 24gb profiles.",
         "aesthetic_v25_range": "Aesthetic appeal, scored by Aesthetic Predictor v2.5 (0–10). Off by default and deprecated in favour of Q-ReAlign.",
         "deqa_range": "Image quality, scored by DeQA-Score (0–10). Off by default.",
         "face_count_range": "Number of faces InsightFace detected in the photo.",
@@ -2994,7 +2994,7 @@
     "title": "Caption",
     "generate": "Generate Caption",
     "generating": "Generating caption...",
-    "unavailable": "Caption generation requires a VLM model (16GB+ VRAM)"
+    "unavailable": "Caption generation requires a VLM model (12gb profile or above, or a remote VLM backend)"
   },
   "timeline": {
     "help": "Browse dated photos, jump to a month or use Date density to select a period. Calendar remains available; photos without capture dates are listed separately.",

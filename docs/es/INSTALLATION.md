@@ -30,7 +30,8 @@ cambiarlo más tarde.
 | Tu hardware | Perfil | Qué obtienes |
 |---------------|---------|--------------|
 | Sin tarjeta gráfica | `legacy` | Todo funciona, solo que más despacio. |
-| Tarjeta NVIDIA, 6–14 GB | `8gb` | Los modelos de `legacy`, ejecutados en la tarjeta gráfica. |
+| Tarjeta NVIDIA, 6–11,5 GB | `8gb` | Los modelos de `legacy`, ejecutados en la tarjeta gráfica. |
+| Tarjeta NVIDIA, 11,5–14 GB | `12gb` | Los mismos modelos que `16gb`, ejecutados en más pases. |
 | Tarjeta NVIDIA, 14–20 GB | `16gb` | La puntuación más potente, además de etiquetas y leyendas con IA. |
 | Tarjeta NVIDIA, 20 GB o más | `24gb` | Los modelos más grandes, además de explicaciones escritas de la composición. |
 | Mac con Apple Silicon (M1–M4) | se elige por ti | Usa los núcleos gráficos del Mac; perfil dimensionado según la memoria. |
@@ -103,7 +104,7 @@ Los bloques de GPU de arriba y `docker-compose.gpu.yml` descargan `ghcr.io/ncoev
 que cubre `sm_75`-`sm_120` (de Turing a Blackwell).
 
 Para una tarjeta Maxwell, Pascal (serie GTX 900/10) o Volta (p. ej. una Titan V), edita la línea
-`image:` del archivo compose que usaste (`docker-compose.8gb.yml`, `.16gb.yml`, `.24gb.yml` o
+`image:` del archivo compose que usaste (`docker-compose.8gb.yml`, `.12gb.yml`, `.16gb.yml`, `.24gb.yml` o
 `.gpu.yml`) antes de `docker compose up -d`:
 
 - de `ghcr.io/ncoevoet/facet:latest-cuda`
@@ -245,7 +246,7 @@ Docker también funciona en Windows; para una tarjeta NVIDIA, sigue la [guía de
 ## Primera ejecución: qué esperar
 
 - **Una descarga.** El primer escaneo obtiene los modelos de tu perfil: aproximadamente 4,7 GB para
-  `legacy`, 6,9 GB para `8gb`, 14,6 GB para `16gb`, 19,3 GB para `24gb`
+  `legacy`, 6,9 GB para `8gb`, 14,6 GB para `12gb`/`16gb`, 19,3 GB para `24gb`
   ([Tamaños de descarga](#tamaños-de-descarga)). Esto ocurre una sola vez.
 - **Sin configuración para escanear.** Facet crea su base de datos en el primer escaneo.
 - **Solo lectura hasta que definas una contraseña.** Para editar (valorar, seleccionar, álbumes, personas), define
@@ -298,7 +299,7 @@ Los ajustes de despliegue viven en `.env` (copia `.env.example`):
 |-----|---------|---------|
 | `PHOTOS_DIR` | `./photos` | Carpeta del host montada en lectura-escritura en `/data/photos` (para poder escribir los sidecars XMP) |
 | `PORT` | `5000` | Puerto del host para la galería |
-| `FACET_VRAM_PROFILE` | `auto` | `auto`, `legacy`, `8gb`, `16gb`, `24gb`; anula `models.vram_profile` |
+| `FACET_VRAM_PROFILE` | `auto` | `auto`, `legacy`, `8gb`, `12gb`, `16gb`, `24gb`; anula `models.vram_profile` |
 | `DB_PATH` | `/app/data/photo_scores_pro.db` | Ruta de la base de datos dentro del contenedor, ubicada en el bind mount `./data` |
 | `FACET_RETRAIN_THRESHOLD` / `FACET_RETRAIN_IDLE_S` | `auto_retrain` de la configuración | Disparador del reentrenamiento del clasificador personal, para quienes valoran mucho |
 
@@ -366,7 +367,7 @@ permanece desactivada salvo que añadas un binario `darktable-cli` a la imagen.
 
 ## Elegir el perfil tú mismo
 
-- `docker-compose.legacy.yml`, `docker-compose.8gb.yml`, `docker-compose.16gb.yml`,
+- `docker-compose.legacy.yml`, `docker-compose.8gb.yml`, `docker-compose.12gb.yml`, `docker-compose.16gb.yml`,
   `docker-compose.24gb.yml` fijan cada uno `FACET_VRAM_PROFILE`; los de GPU además reservan el
   dispositivo NVIDIA.
 - `docker-compose.gpu.yml` reserva la GPU y deja el perfil al `vram_profile` de la
@@ -377,7 +378,7 @@ Se publican tres imágenes:
 | Imagen | Contenido | Descomprimida |
 |-------|----------|----------|
 | `ghcr.io/ncoevoet/facet:latest` | Compilación ligera para CPU | 3,34 GB |
-| `ghcr.io/ncoevoet/facet:latest-cuda` | CUDA 12.8, RAPIDS cuML, PyTorch `sm_75`-`sm_120` (Turing–Blackwell, incl. serie RTX 50); predeterminada para `8gb`/`16gb`/`24gb` | 13,1 GB |
+| `ghcr.io/ncoevoet/facet:latest-cuda` | CUDA 12.8, RAPIDS cuML, PyTorch `sm_75`-`sm_120` (Turing–Blackwell, incl. serie RTX 50); predeterminada para `8gb`/`12gb`/`16gb`/`24gb` | 13,1 GB |
 | `ghcr.io/ncoevoet/facet:latest-cuda-legacy` | CUDA 12.6, PyTorch `sm_50`-`sm_90` (Maxwell, Pascal, Volta–Hopper); ver [Tarjeta NVIDIA más antigua](#tarjeta-nvidia-más-antigua-maxwell-pascal-volta) | 13,8 GB |
 
 - Las dos imágenes CUDA incluyen `onnxruntime-gpu` (1.26.0, CUDA 12) en lugar de `onnxruntime`, de modo que
@@ -612,7 +613,7 @@ pip install --no-deps "opencv-python-headless==$CV_VER"
 ```
 
 Con cuML instalado, la agrupación usa la GPU automáticamente (`face_clustering.use_gpu` en
-`scoring_config.json`). Las imágenes Docker CUDA lo incluyen, así que los contenedores `8gb`/`16gb`/`24gb`
+`scoring_config.json`). Las imágenes Docker CUDA lo incluyen, así que los contenedores `8gb`/`12gb`/`16gb`/`24gb`
 agrupan en la GPU. `legacy` siempre agrupa en el procesador.
 
 ## Apple Silicon (Metal/MPS)
@@ -707,27 +708,27 @@ Los tamaños son decimales (GB = 10⁹ bytes, MB = 10⁶ bytes).
 |-------|------|----------|
 | CLIP ViT-L-14 laion2b (embeddings + etiquetado CLIP + estética CLIP-MLP) | 1,711 GB | `legacy`/`8gb` |
 | Cabeza estética MLP (`sac+logos+ava1-l14-linearMSE.pth`) | 3,7 MB | solo `legacy`/`8gb` |
-| SigLIP 2 NaFlex SO400M (embeddings) | 4,581 GB | `16gb`/`24gb` |
-| Qwen3.5-2B (etiquetado VLM) | 4,571 GB | `16gb` |
+| SigLIP 2 NaFlex SO400M (embeddings) | 4,581 GB | `12gb`/`16gb`/`24gb` |
+| Qwen3.5-2B (etiquetado VLM) | 4,571 GB | `12gb`/`16gb` |
 | Qwen3.5-4B (etiquetado VLM) | 9,343 GB | `24gb` |
 | Qwen2-VL-2B (composición) | 4,430 GB | ninguno por defecto; ver nota 1 |
 | InsightFace buffalo_l (rostros) | 289 MB de descarga / 630 MB en disco (el zip se conserva junto a los archivos `.onnx`) | todos |
 | Pesos de SAMP-Net (composición) | 183 MB | todos |
 | U2-Net-P (submodelo de saliencia de SAMP-Net) | 4,7 MB | los mismos que SAMP-Net |
 | BiRefNet_dynamic (saliencia del sujeto) | 445 MB | todos |
-| TOPIQ NR (modelo estético) | 181 MB | `16gb`/`24gb` |
+| TOPIQ NR (modelo estético) | 181 MB | `12gb`/`16gb`/`24gb` |
 | TOPIQ IAA (estética complementaria) | 873 MB | todos |
 | TOPIQ NR-Face (calidad facial complementaria) | 376 MB | todos |
 | LIQE (calidad/distorsión complementaria) | 708 MB | todos |
 | timm resnet50.a1_in1k (backbone PyIQA compartido) | 102 MB | todos |
-| Q-ReAlign-Mini-0.8B (`iqa_extended.qrealign`) | 2,235 GB | `8gb`/`16gb`/`24gb`, **activado por defecto** (`"auto"`) |
+| Q-ReAlign-Mini-0.8B (`iqa_extended.qrealign`) | 2,235 GB | `8gb`/`12gb`/`16gb`/`24gb`, **activado por defecto** (`"auto"`) |
 
 1. Qwen2-VL-2B solo se carga si defines `composition_model: "qwen2-vl-2b"` **y**
    `processing.mode: "single-pass"`, en sustitución de SAMP-Net/U2-Net-P. Fuera del modo comercial
-   esto solo funciona en `legacy`/`8gb`: en `16gb`/`24gb` el modo de un solo paso recurre a multipaso,
+   esto solo funciona en `legacy`/`8gb`: en `12gb`/`16gb`/`24gb` el modo de un solo paso recurre a multipaso,
    que no tiene paso de Qwen2-VL.
 
-Totales por perfil (descarga): `legacy` 4,69 GB · `8gb` 6,93 GB · `16gb` 14,55 GB ·
+Totales por perfil (descarga): `legacy` 4,69 GB · `8gb` 6,93 GB · `12gb`/`16gb` 14,55 GB ·
 `24gb` 19,32 GB · `24gb` con composición Qwen2-VL 23,56 GB (solo modo comercial, ver nota 1).
 
 Las propias imágenes Docker, antes de cualquier descarga de modelos: `latest` 3,34 GB descomprimida,
@@ -801,20 +802,20 @@ Cada uno desbloquea una función; sin él, la función se omite o se utiliza una
 La mayor parte de Facet funciona en cualquier entorno (CPU, cualquier perfil). Algunas funciones necesitan una GPU, un **perfil
 de VRAM** superior, un paquete opcional o la **contraseña de edición** / el rol de **superadmin** del visor.
 Etiquetas usadas en la documentación:
-`[GPU]` · `[16gb/24gb]` (perfil de VRAM) · `[Edition]` · `[Superadmin]` · `[Optional: pkg]`.
+`[GPU]` · `[12gb/16gb/24gb]` (perfil de VRAM) · `[Edition]` · `[Superadmin]` · `[Optional: pkg]`.
 
 | Función | GPU | Perfil | Autenticación | Paquete opcional |
 |---------|:---:|---------|:----:|------------------|
 | Puntuación / escaneo (base) | opcional | cualquiera (`legacy` = CPU) | — | — |
-| Estética TOPIQ | sí | `16gb`/`24gb` | — | — |
+| Estética TOPIQ | sí | `12gb`/`16gb`/`24gb` | — | — |
 | IQA suplementario (TOPIQ IAA, NR-Face, LIQE) | opcional | cualquiera (`legacy` = CPU) | — | — |
-| Embeddings SigLIP 2 | sí | `16gb`/`24gb` | — | — |
-| Etiquetado VLM (Qwen3.5) | sí | `16gb`/`24gb` | — | — |
+| Embeddings SigLIP 2 | sí | `12gb`/`16gb`/`24gb` | — | — |
+| Etiquetado VLM (Qwen3.5) | sí | `12gb`/`16gb`/`24gb` | — | — |
 | Patrón de composición (SAMP-Net) | opcional | cualquiera (`legacy` = CPU) | — | — |
 | Saliencia del sujeto (BiRefNet) | opcional | cualquiera (`legacy` = CPU) | — | — |
-| Leyendas con IA (generar / ver) | sí | `16gb`/`24gb` | edición (generar) | — |
-| Leyendas con IA (editar) | sí | `16gb`/`24gb` | edición | — |
-| Crítica VLM | sí | `16gb`/`24gb` | edición (generar) | — |
+| Leyendas con IA (generar / ver) | sí | `12gb`/`16gb`/`24gb` | edición (generar) | — |
+| Leyendas con IA (editar) | sí | `12gb`/`16gb`/`24gb` | edición | — |
+| Crítica VLM | sí | `12gb`/`16gb`/`24gb` | edición (generar) | — |
 | Detección / extracción de rostros (InsightFace) | recomendada (la CPU funciona, pero es lenta) | cualquiera | — | — |
 | Agrupación de rostros (HDBSCAN) | no (CPU) | cualquiera | — | `cuml`/`cupy` (aceleración GPU opcional) |
 | Búsqueda semántica | no | cualquiera | — | `sqlite-vec` (recurre a NumPy) |

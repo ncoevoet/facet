@@ -100,7 +100,7 @@ Configuration:
     scan_group.add_argument('--single-pass', action='store_true',
                         help='Force single-pass mode (load all models at once, requires more VRAM). '
                              'Applies to profiles scored with the CLIP+MLP head (legacy, 8gb); '
-                             'on 16gb/24gb it logs a warning and runs multi-pass, except in '
+                             'on 12gb/16gb/24gb it logs a warning and runs multi-pass, except in '
                              'commercial mode (Q-ReAlign scores the aesthetic there)')
     scan_group.add_argument('--pass', type=str, dest='single_pass_name', metavar='NAME',
                         choices=['quality', 'tags', 'composition', 'faces', 'embeddings',
@@ -109,7 +109,7 @@ Configuration:
                              'quality-iaa, quality-face, quality-liqe, saliency')
     scan_group.add_argument('--dry-run', action='store_true',
                         help='Preview without database writes: score sample photos, or with --import-sidecars show the import plan. '
-                             'Outside commercial mode, on 16gb/24gb the aesthetic column shows n/a '
+                             'Outside commercial mode, on 12gb/16gb/24gb the aesthetic column shows n/a '
                              '(TOPIQ runs only in a real scan; commercial mode shows the Q-ReAlign score)')
     scan_group.add_argument('--dry-run-count', type=int, default=DEFAULT_DRY_RUN_COUNT,
                         help=f'Number of sample photos to score in scan dry-run mode (default: '
