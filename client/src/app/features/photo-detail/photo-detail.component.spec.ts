@@ -2015,9 +2015,20 @@ describe('PhotoDetailComponent', () => {
       expectNothing(press({ key: '3' }));
     });
 
-    it('does nothing when the rating controls are turned off', () => {
+    it('keeps photo review shortcuts available when gallery rating controls are turned off', () => {
       component.store.config.set({ features: { show_rating_controls: false } });
-      expectNothing(press({ key: 'f' }));
+      expect(press({ key: 'f' }).defaultPrevented).toBe(true);
+      expect(toggleFavorite).toHaveBeenCalledExactlyOnceWith('/photos/test.jpg');
+      expect(press({ key: 'x' }).defaultPrevented).toBe(true);
+      expect(toggleRejected).toHaveBeenCalledExactlyOnceWith('/photos/test.jpg');
+      expect(press({ key: '3' }).defaultPrevented).toBe(true);
+      expect(setRating).toHaveBeenCalledExactlyOnceWith('/photos/test.jpg', 3);
+    });
+
+    it('accepts review shortcuts when configuration has not loaded', () => {
+      component.store.config.set(null);
+      expect(press({ key: 'x' }).defaultPrevented).toBe(true);
+      expect(toggleRejected).toHaveBeenCalledExactlyOnceWith('/photos/test.jpg');
     });
 
     it('does nothing before the photo has loaded', () => {

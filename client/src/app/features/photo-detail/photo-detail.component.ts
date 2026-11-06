@@ -1189,14 +1189,14 @@ export class PhotoDetailComponent extends PhotoDetailBase implements OnInit {
 
   /** The mapped rating keys act on the open photo — the same keys the grid's
    *  focused card answers, so a reviewer never has to reach for the panel.
-   *  Gated the same way the rating buttons are (edition mode + the
-   *  rating-controls feature flag); typing contexts and open dialogs bow out
+   *  Gated the same way the photo review buttons are (review access);
+   *  typing contexts and open dialogs bow out
    *  first. No auto-advance: a single-photo view has no "next" contract with
    *  the filters it came from. */
   @HostListener('document:keydown', ['$event'])
   protected onRatingShortcut(event: KeyboardEvent): void {
     if (isPageShortcutBlocked(event)) return;
-    if (!this.canReview() || !this.store.config()?.features?.show_rating_controls) return;
+    if (!this.canReview()) return;
     const p = this.photo();
     if (!p) return;
     if (event.key >= '1' && event.key <= '5') {

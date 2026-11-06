@@ -1237,7 +1237,7 @@ Le scorciatoie a tasto singolo sono inattive mentre il fuoco è in un campo di t
 
 **Foto corrente.** La foto su cui agiscono i tasti di valutazione, preferito e rifiuto ha un contorno di 4px; le altre schede mantengono la luminosità normale. Nulla è segnato finché non ti sposti su una foto. Cliccare una foto sposta il segnaposto su di essa. Tornando da una foto, il segnaposto resta sull'ultima visualizzata. Il suggerimento della scheda a fuoco compare solo in modalità di modifica con `viewer.features.show_rating_controls` attivo.
 
-**Nella pagina della foto**, `1`–`5`, il tasto preferito e il tasto rifiuta (`F` e `X` per impostazione predefinita; anche `0` rifiuta) agiscono sulla foto aperta, in modalità di modifica con `viewer.features.show_rating_controls` attivo. Valutazioni e preferiti mantengono la foto attuale. Conserva/Rifiuta in una coda di revisione della galleria aggiorna la coda e apre la prossima foto disponibile, oppure torna alla galleria se non ne restano. Le foto della cronologia non avanzano in questo modo. Usa `←` `→` per navigare manualmente. Il riferimento `?` li elenca sotto *Photo view*.
+**Nella pagina della foto**, `1`–`5`, il tasto preferito e il tasto rifiuta (`F` e `X` per impostazione predefinita; anche `0` rifiuta) agiscono sulla foto aperta, quando i controlli di revisione sono disponibili. Valutazioni e preferiti mantengono la foto attuale. Conserva/Rifiuta in una coda di revisione della galleria aggiorna la coda e apre la prossima foto disponibile, oppure torna alla galleria se non ne restano. Le foto della cronologia non avanzano in questo modo. Usa `←` `→` per navigare manualmente. Il riferimento `?` li elenca sotto *Photo view*.
 
 ## Annulla
 
