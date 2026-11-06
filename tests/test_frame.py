@@ -151,6 +151,16 @@ def unrenderable_seed():
     conn.close()
 
 
+@pytest.fixture(autouse=True)
+def _fresh_token_limiter():
+    """A failure budget recorded by one test must not throttle the next:
+    the auth-gate tests deliberately burn 401/403 attempts."""
+    from api.routers.frame import _token_limiter
+    _token_limiter.reset()
+    yield
+    _token_limiter.reset()
+
+
 def test_revised_id_resolves_and_forgery_does_not():
     """A revision rides in the signed payload: it changes the cache key, not
     the identity, and only an authentic revision resolves."""

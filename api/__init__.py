@@ -140,6 +140,34 @@ DEFAULT_CSP = (
 )
 
 
+class RequestBodyCapMiddleware(BaseHTTPMiddleware):
+    """Refuse requests that declare a body larger than the cap before any
+    handler reads it.
+
+    Anonymous POST endpoints (login, proofing sessions, client error reports)
+    buffer the whole body before validation and rate limiting run, so a
+    multi-gigabyte Content-Length is a memory lever on any LAN peer. WebDAV
+    uploads are exempt: they stream against their own configured
+    ``upload.max_file_mb`` cap. Transfer-encoding chunked bodies carry no
+    Content-Length and are not caught here — noted honestly rather than
+    pretending the pre-check is complete.
+    """
+
+    DEFAULT_MAX_BYTES = 10 * 1024 * 1024
+    _EXEMPT_PREFIXES = ("/webdav/",)
+
+    def __init__(self, app, max_bytes: int = DEFAULT_MAX_BYTES):
+        super().__init__(app)
+        self._max_bytes = max_bytes
+
+    async def dispatch(self, request, call_next):
+        if request.method in ("POST", "PUT", "PATCH") and not request.url.path.startswith(self._EXEMPT_PREFIXES):
+            length = request.headers.get("content-length", "")
+            if length.isdigit() and int(length) > self._max_bytes:
+                return JSONResponse({"detail": "Request body too large"}, status_code=413)
+        return await call_next(request)
+
+
 class SecurityHeadersMiddleware(BaseHTTPMiddleware):
     """Attach security headers to every response.
 
@@ -510,8 +538,14 @@ def create_app() -> FastAPI:
         description="Multi-dimensional photo analysis engine API",
         version="1.0.0",
         lifespan=lifespan,
-        docs_url="/api/docs",
-        openapi_url="/api/openapi.json",
+        # The interactive docs hand the complete route inventory, request models
+        # and response shapes to anyone who can reach the server — on a
+        # password-protected install that contradicts the "disabled feature
+        # ⇒ 404" posture, so they are off unless a developer explicitly turns
+        # them on. dump_openapi.py does not need the routes (it calls
+        # app.openapi() directly), so npm run gen:api is unaffected.
+        docs_url="/api/docs" if os.environ.get("FACET_ENABLE_API_DOCS", "").strip().lower() not in ("", "0", "false") else None,
+        openapi_url="/api/openapi.json" if os.environ.get("FACET_ENABLE_API_DOCS", "").strip().lower() not in ("", "0", "false") else None,
         # Before every route: the cached schema probes that handlers read
         # synchronously are filled on a worker thread, never on the event loop.
         dependencies=[Depends(warm_schema_caches)],
@@ -531,6 +565,11 @@ def create_app() -> FastAPI:
     # (a BaseHTTPMiddleware outside it would turn its 413 into a 400 parse error).
     from api.routers.ai_edits import ImportBodyLimit
     app.add_middleware(ImportBodyLimit)
+
+    # Declared-body cap, checked before any handler buffers the body. Added
+    # last, so it runs outermost: the 413 answers without waking the inner
+    # stack.
+    app.add_middleware(RequestBodyCapMiddleware, max_bytes=10 * 1024 * 1024)
 
     # Request logging middleware — requests slower than the configured
     # threshold (performance.slow_request_ms) are logged at WARNING.

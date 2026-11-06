@@ -20,7 +20,60 @@ stays in the router. Only the verdict is shared.
 
 import hmac
 
-from fastapi import HTTPException
+from fastapi import HTTPException, Request
+
+from api.auth import RateLimiter
+
+
+class TokenFailureLimiter:
+    """Rate-limits FAILED static-token attempts per peer IP.
+
+    Static-token surfaces are offline-guessing targets (an operator-chosen
+    frame or webhook secret), and unlike a login there is no username to key
+    the bucket by. Only failures consume budget: a legitimate kiosk polling
+    every photo never throttles itself, while a guesser is held to
+    ``max_failures`` per window per peer address.
+    """
+
+    def __init__(self, max_failures: int = 10, window_seconds: int = 60):
+        self._max = max_failures
+        self._window_s = window_seconds
+        self._limiter = RateLimiter(max_attempts=max_failures, window_seconds=window_seconds)
+
+    def reset(self) -> None:
+        """Drop every recorded failure — the test-isolation seam."""
+        self._limiter = RateLimiter(max_attempts=self._max, window_seconds=self._window_s)
+
+    def allowed(self, key: str) -> bool:
+        """False when this peer has exhausted its failure budget."""
+        return self._limiter.is_allowed(key, register=False)
+
+    precheck = allowed
+
+    def register_failure(self, key: str) -> None:
+        self._limiter.is_allowed(key)
+
+    @property
+    def window_seconds(self) -> int:
+        return self._window_s
+
+
+def require_static_token_throttled(request: Request, expected, provided, feature: str,
+                                   limiter: TokenFailureLimiter) -> None:
+    """``require_static_token`` with per-peer-IP failure throttling.
+
+    The 429 pre-check does not consume budget; a 401/403 from the token check
+    registers one failure for this peer before propagating.
+    """
+    client_ip = request.client.host if request.client else "unknown"
+    if not limiter.precheck(client_ip):
+        raise HTTPException(status_code=429, detail="Too many token failures. Try again later.",
+                            headers={"Retry-After": str(limiter.window_seconds)})
+    try:
+        require_static_token(expected, provided, feature)
+    except HTTPException:
+        limiter.register_failure(client_ip)
+        raise
 
 
 def require_static_token(expected, provided, feature: str) -> None:

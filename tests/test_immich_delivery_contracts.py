@@ -160,6 +160,16 @@ def test_rejected_hint_keeps_its_state_while_another_entry_pushes(
     assert all(Path(path).read_bytes() == b'untouched original' for path in paths.values())
 
 
+@pytest.fixture(autouse=True)
+def _fresh_token_limiter():
+    """A failure budget recorded by one test must not throttle the next:
+    the auth-gate tests deliberately burn 401/403 attempts."""
+    from api.routers.immich import _token_limiter
+    _token_limiter.reset()
+    yield
+    _token_limiter.reset()
+
+
 def test_hinted_id_is_quoted_in_the_actual_http_target(client, remote, delivery):
     paths, original_state, _ = delivery
     asset_id = 'id/ ?#%+雪'

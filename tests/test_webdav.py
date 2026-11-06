@@ -78,6 +78,16 @@ def _no_temp_files(inbox):
 
 # --- Feature gate / auth ---------------------------------------------------
 
+@pytest.fixture(autouse=True)
+def _fresh_token_limiter():
+    """A failure budget recorded by one test must not throttle the next:
+    the auth-gate tests deliberately burn 401/403 attempts."""
+    from api.routers.webdav import _auth_failure_limiter
+    _auth_failure_limiter.reset()
+    yield
+    _auth_failure_limiter.reset()
+
+
 class TestGate:
     def test_disabled_feature_returns_404(self, client):
         from api import config

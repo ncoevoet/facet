@@ -17,16 +17,19 @@ import logging
 from io import BytesIO
 from typing import Optional
 
-from fastapi import APIRouter, Header, HTTPException, Query, Response
+from fastapi import APIRouter, Header, HTTPException, Query, Request, Response
 
 from api.database import get_db
 from api.path_validation import resolve_photo_disk_path
-from api.token_auth import require_static_token
+from api.token_auth import TokenFailureLimiter, require_static_token_throttled
 from api.types import JUNK_NOT_JUNK
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter(tags=["frame"])
+
+# Failed-token throttle per peer IP: a kiosk polls constantly, a guesser does not.
+_token_limiter = TokenFailureLimiter(max_failures=10, window_seconds=60)
 
 _FEATURE = "Frame feature"
 
@@ -214,6 +217,7 @@ def _render_jpeg(path: str, thumbnail: Optional[bytes], max_edge: int) -> Option
 
 @router.get("/api/frame/photos")
 def frame_photos(
+    request: Request,
     token: str = Query(""),
     count: Optional[int] = Query(None),
     x_frame_token: Optional[str] = Header(None),
@@ -221,8 +225,9 @@ def frame_photos(
 ):
     """Return a curated batch of photos as opaque ids + display metadata."""
     cfg = _frame_config()
-    require_static_token(cfg.get("tokens"),
-                         _resolve_token(token, x_frame_token, authorization), _FEATURE)
+    require_static_token_throttled(request, cfg.get("tokens"),
+                                   _resolve_token(token, x_frame_token, authorization), _FEATURE,
+                                   limiter=_token_limiter)
     rows = _sample(cfg, _clamp_count(count, cfg), _META_COLS)
     photos = []
     for row in rows:
@@ -241,6 +246,7 @@ def frame_photos(
 
 @router.get("/api/frame/image/{photo_id}")
 def frame_image(
+    request: Request,
     photo_id: str,
     token: str = Query(""),
     max_edge: Optional[int] = Query(None),
@@ -249,8 +255,9 @@ def frame_image(
 ):
     """Serve a single curated photo JPEG addressed by its opaque signed id."""
     cfg = _frame_config()
-    require_static_token(cfg.get("tokens"),
-                         _resolve_token(token, x_frame_token, authorization), _FEATURE)
+    require_static_token_throttled(request, cfg.get("tokens"),
+                                   _resolve_token(token, x_frame_token, authorization), _FEATURE,
+                                   limiter=_token_limiter)
     rowid = _resolve_id(photo_id)
     if rowid is None:
         raise HTTPException(status_code=404, detail="Unknown photo")
@@ -270,6 +277,7 @@ def frame_image(
 
 @router.get("/api/frame/next")
 def frame_next(
+    request: Request,
     token: str = Query(""),
     max_edge: Optional[int] = Query(None),
     x_frame_token: Optional[str] = Header(None),
@@ -277,8 +285,9 @@ def frame_next(
 ):
     """Serve one random curated photo JPEG (dumb-frame / HA generic-camera case)."""
     cfg = _frame_config()
-    require_static_token(cfg.get("tokens"),
-                         _resolve_token(token, x_frame_token, authorization), _FEATURE)
+    require_static_token_throttled(request, cfg.get("tokens"),
+                                   _resolve_token(token, x_frame_token, authorization), _FEATURE,
+                                   limiter=_token_limiter)
     rows = _sample(cfg, 1, _RENDER_COLS)
     if not rows:
         raise HTTPException(status_code=404, detail="No photos available")

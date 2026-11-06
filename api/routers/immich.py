@@ -24,11 +24,14 @@ from fastapi import APIRouter, HTTPException, Request, Response
 from fastapi.responses import JSONResponse
 from starlette.concurrency import run_in_threadpool
 
-from api.token_auth import require_static_token
+from api.token_auth import TokenFailureLimiter, require_static_token_throttled
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter(tags=["immich"])
+
+# Failed-token throttle per peer IP: the webhook secret is an offline-guessing target.
+_token_limiter = TokenFailureLimiter(max_failures=10, window_seconds=60)
 
 WEBHOOK_PATH = "/api/immich/webhook"
 
@@ -92,29 +95,39 @@ def _provided_token(request: Request, webhook_cfg: dict) -> str:
     return ""
 
 
-def _iter_assets(payload, depth: int = 0):
+def _iter_assets(payload, depth: int = 0, limit: int | None = None):
     """Yield the asset dicts out of whatever shape the workflow action posted.
 
     Immich's webhook body is not a stable published contract, so anything
     carrying an ``originalPath`` counts: a bare asset, ``{"asset": {...}}``, a
     list of assets, or any of those nested under ``data`` / ``items`` /
     ``assets``. Recursion is depth-capped so a deeply nested body cannot
-    exhaust the stack.
+    exhaust the stack; ``limit`` stops the walk after that many assets, so a
+    hostile multi-megabyte payload is not materialized past the delivery cap.
     """
-    if depth > _MAX_NESTING:
-        return
-    if isinstance(payload, list):
-        for entry in payload:
-            yield from _iter_assets(entry, depth + 1)
-        return
-    if not isinstance(payload, dict):
-        return
-    if payload.get(_ORIGINAL_PATH_KEY):
-        yield payload
-        return
-    for key in _ASSET_CONTAINER_KEYS:
-        if key in payload:
-            yield from _iter_assets(payload[key], depth + 1)
+    count = 0
+
+    def _walk(node, depth):
+        nonlocal count
+        if depth > _MAX_NESTING:
+            return
+        if limit is not None and count >= limit:
+            return
+        if isinstance(node, list):
+            for entry in node:
+                yield from _walk(entry, depth + 1)
+            return
+        if not isinstance(node, dict):
+            return
+        if node.get(_ORIGINAL_PATH_KEY):
+            count += 1
+            yield node
+            return
+        for key in _ASSET_CONTAINER_KEYS:
+            if key in node:
+                yield from _walk(node[key], depth + 1)
+
+    yield from _walk(payload, depth)
 
 
 def _describe_shape(payload) -> str:
@@ -215,13 +228,16 @@ async def immich_webhook(request: Request):
     shape is Immich's to change), 400 when the body is not JSON at all.
     """
     webhook_cfg = _immich_config().get("webhook", {}) or {}
-    require_static_token(_expected_token(webhook_cfg),
-                         _provided_token(request, webhook_cfg), _FEATURE)
+    require_static_token_throttled(request, _expected_token(webhook_cfg),
+                                   _provided_token(request, webhook_cfg), _FEATURE,
+                                   limiter=_token_limiter)
     try:
         payload = await request.json()
     except (ValueError, UnicodeDecodeError):
         raise HTTPException(status_code=400, detail="Body is not valid JSON")
-    assets = list(_iter_assets(payload))
+    # +1 so a delivery over the cap stays observable (and loggable) without
+    # materializing the rest of a hostile payload.
+    assets = list(_iter_assets(payload, limit=_MAX_ASSETS_PER_DELIVERY + 1))
     if not assets:
         logger.info("Immich webhook: no asset in payload (%s)", _describe_shape(payload))
         return Response(status_code=_STATUS_NO_CONTENT)

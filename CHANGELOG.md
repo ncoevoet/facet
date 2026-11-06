@@ -39,6 +39,12 @@ All notable changes to Facet are documented in this file.
 
 ### Fixed
 
+- **Anonymous POST endpoints refuse an oversized body before reading it.** Login, proofing sessions and client error reports buffered the whole body before validation and rate limiting ran, so a multi-gigabyte Content-Length was a memory lever for any LAN peer; a 10 MB declared-body cap answers 413 without waking the handlers (WebDAV uploads keep their own streaming cap).
+- **Static-token surfaces throttle failed attempts per peer IP.** The frame kiosk, the Immich webhook and WebDAV Basic auth accepted unlimited guesses of their long-lived secrets; failed attempts now share a 10-per-minute budget per address, and successful requests never consume it.
+- **The interactive API docs are off unless explicitly enabled.** `/api/docs` and `/api/openapi.json` handed the complete route inventory and request models to anyone who could reach a password-protected server; they are served only with `FACET_ENABLE_API_DOCS=1` (`scripts/dump_openapi.py` never needed the routes).
+- **Rate-limited answers carry `Retry-After`.** The login, edition-login and proofing 429s now tell a locked-out legitimate client when its window resets.
+- **Immich webhook deliveries stop walking a hostile payload at the delivery cap.** The asset walk materialized every entry before truncating to the first 100; it now stops at the cap while the over-cap delivery stays observable in the log.
+
 <!-- Benchmark: three trees on one machine (before = d1859235, one state read, persistent process), ExifTool 12.76,
      40 photos x 5 interleaved repeats, median ms/photo: JPEG sidecar re-export 343 -> 232 -> 4.2, embed-original
      re-export 899 -> 477 -> 9.3, CR3 with a darktable sidecar re-export 369 -> 229 -> 6.0. -->
