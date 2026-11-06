@@ -2,6 +2,7 @@ import type { Mock } from 'vitest';
 import { TestBed } from '@angular/core/testing';
 import { signal } from '@angular/core';
 import { of, throwError } from 'rxjs';
+import { I18nService } from '../../core/services/i18n.service';
 import { ApiService } from '../../core/services/api.service';
 import { TimelineFiltersService } from './timeline-filters.service';
 import { GalleryStore } from '../gallery/gallery.store';
@@ -31,6 +32,7 @@ describe('TimelineYearsComponent', () => {
     TestBed.configureTestingModule({
       providers: [
         { provide: ApiService, useValue: mockApi },
+        { provide: I18nService, useValue: { t: (key: string) => `T(${key})`, translations: () => ({}) } },
         TimelineFiltersService,
         { provide: GalleryStore, useValue: mockStore },
       ],
@@ -88,6 +90,26 @@ describe('TimelineYearsComponent', () => {
       TestBed.flushEffects();
 
       expect(mockApi.get).toHaveBeenCalledWith('/timeline/years', { ...noneHidden, hide_bursts: '1' });
+    });
+  });
+
+  describe('rendered: a failed load', () => {
+    async function renderFailed() {
+      mockApi.get.mockReturnValue(throwError(() => new Error('fail')));
+      const fixture = TestBed.createComponent(TimelineYearsComponent);
+      fixture.detectChanges();
+      await fixture.whenStable();
+      fixture.detectChanges();
+      return fixture.nativeElement as HTMLElement;
+    }
+
+    it('shows the alert and not the empty state (Retry re-requests)', async () => {
+      const el = await renderFailed();
+      expect(el.querySelector('[role="alert"]')).toBeTruthy();
+      expect(el.textContent).not.toContain('timeline.empty');
+      const calls = mockApi.get.mock.calls.length;
+      (el.querySelector('[role="alert"] button') as HTMLButtonElement).click();
+      expect(mockApi.get.mock.calls.length).toBe(calls + 1);
     });
   });
 });

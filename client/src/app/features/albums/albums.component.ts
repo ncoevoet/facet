@@ -265,7 +265,6 @@ export class AlbumsComponent {
   }
 
   private async loadAlbums(reset: boolean): Promise<void> {
-    const page = this.page;
     if (reset) {
       this.page = 1;
       this.albums.set([]);
@@ -292,8 +291,9 @@ export class AlbumsComponent {
         this.albums.set([]);
         this.total.set(0);
       } else {
-        // Give the page back: a failed append must be refetched, not skipped.
-        this.page = page;
+        // Give the page back: onScrollReached already incremented it, and a
+        // failed append must be refetched, not skipped.
+        this.page--;
       }
       this.loadError.set(true);
     } finally {

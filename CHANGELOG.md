@@ -49,7 +49,7 @@ All notable changes to Facet are documented in this file.
 
 - **List pages no longer lose a page to a failed request.** Albums, scenes and capsules incremented their page counter before the request and left it incremented on failure, so whatever the failed page carried was skipped for good on the next "load more"; the counter now rolls back. A slow capsules answer landing after a regenerate also no longer replaces the grid with a stale page.
 - **The scan launcher reports a refused start.** Clicking Start while a scan is already running (409) or on a server fault switched the dialog to an indeterminate progress bar forever; the button now comes back with the server's reason.
-- **Scan progress survives a hiccup.** One failed status poll stopped all updates for a scan that was still running; polling now keeps going, and the connected flag only claims a stream that actually opened.
+- **Scan progress survives a hiccup.** One failed status poll stopped all updates for a scan that was still running; polling now rides out a transient failure (it gives up after five in a row, or at once on a 401/403, rather than polling and toasting for the rest of the session), and the connected flag only claims a stream that actually opened.
 - **Stats sections own their load failures.** A failed reload after a filter change kept showing the previous filter's numbers with no explanation; the failing sections now say so, with a Retry for the whole page.
 - **The panorama settings tab reports a failed load** with a Retry instead of a blank pane.
 - **Albums and capsules never read as "you have none" when the request merely failed.** Both list pages distinguish a failed load from an empty library, with a Retry.

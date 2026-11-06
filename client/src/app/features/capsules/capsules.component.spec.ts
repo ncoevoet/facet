@@ -1,6 +1,6 @@
 import type { Mock } from 'vitest';
 import { TestBed } from '@angular/core/testing';
-import { of } from 'rxjs';
+import { of, throwError } from 'rxjs';
 import { MatSnackBar } from '@angular/material/snack-bar';
 import { ApiService } from '../../core/services/api.service';
 import { AuthService } from '../../core/services/auth.service';
@@ -71,5 +71,41 @@ describe('CapsulesComponent', () => {
 
     expect(internals().currentPage).toBe(2);
     expect(mockApi.get).toHaveBeenCalled();
+  });
+
+  describe('load failures', () => {
+    const lastPage = () => (mockApi.get.mock.calls.at(-1)![1] as { page: number }).page;
+    const settle = () => vi.waitFor(() => expect(internals().loading()).toBe(false));
+
+    it('re-requests the same page after a failed load-more, not the next one', async () => {
+      // Let the regenerate effect's initial run happen before capsules exist.
+      TestBed.tick();
+      await internals().loadCapsules();
+      TestBed.tick();
+      mockApi.get.mockReturnValueOnce(throwError(() => new Error('boom')));
+      internals().loadMore();
+      await settle();
+      expect(lastPage()).toBe(2);
+
+      internals().loadMore();
+      await settle();
+      expect(lastPage()).toBe(2);
+    });
+
+    it('flags a failed page-1 load as an error', async () => {
+      mockApi.get.mockReturnValueOnce(throwError(() => new Error('boom')));
+      await internals().loadCapsules();
+      expect(internals().loadError()).toBe(true);
+      expect(internals().capsules()).toEqual([]);
+    });
+
+    it('keeps the grid and sets no error when a later page fails', async () => {
+      await internals().loadCapsules();
+      mockApi.get.mockReturnValueOnce(throwError(() => new Error('boom')));
+      internals().loadMore();
+      await settle();
+      expect(internals().capsules().length).toBe(1);
+      expect(internals().loadError()).toBe(false);
+    });
   });
 });

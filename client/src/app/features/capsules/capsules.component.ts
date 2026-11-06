@@ -298,9 +298,11 @@ export class CapsulesComponent implements OnDestroy {
       this.hasMore.set(res.has_more);
       this.total.set(res.total);
     } catch {
-      // Give the page back: a failed append must be refetched, not skipped.
-      this.currentPage = page;
-      if (page === 1) {
+      if (page > 1) {
+        // Give the page back: loadMore already incremented it, and a failed
+        // append must be refetched, not skipped.
+        this.currentPage = page - 1;
+      } else {
         this.capsules.set([]);
         this.loadError.set(true);
       }

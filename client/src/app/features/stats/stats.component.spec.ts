@@ -184,6 +184,33 @@ describe('StatsComponent', () => {
     });
   });
 
+  describe('section load failures', () => {
+    it('flags the failed section so the alert banner shows, and clears it on a successful reload', async () => {
+      let failGear = true;
+      const getMock = vi.fn((path: string) => {
+        if (path === '/stats/gear' && failGear) return throwError(() => new Error('fail'));
+        return safeDefault(path);
+      });
+      component = createComponent(getMock);
+      await flushPromises();
+
+      expect(c().loadErrors()['gear']).toBe(true);
+      expect(c().loadErrors()['categories']).toBe(false);
+
+      failGear = false;
+      await c().loadGear();
+      expect(c().loadErrors()['gear']).toBe(false);
+    });
+
+    it('flags a failed overview load', async () => {
+      const getMock = vi.fn((path: string) =>
+        path === '/stats/overview' ? throwError(() => new Error('fail')) : safeDefault(path));
+      component = createComponent(getMock);
+      await flushPromises();
+      expect(c().loadErrors()['overview']).toBe(true);
+    });
+  });
+
   describe('loadGear()', () => {
     it('should fetch gear stats and set cameras/lenses/combos signals', async () => {
       const getMock = vi.fn((path: string) => {

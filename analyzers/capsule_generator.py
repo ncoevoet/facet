@@ -44,7 +44,9 @@ logger = logging.getLogger("facet.capsules")
 _ISO_DATE = "REPLACE(SUBSTR(date_taken,1,10),':','-') || SUBSTR(date_taken,11)"
 _YEAR = "CAST(SUBSTR(date_taken, 1, 4) AS INTEGER)"
 _MONTH = "CAST(SUBSTR(date_taken, 6, 2) AS INTEGER)"
-_YEAR_MONTH = "SUBSTR(date_taken, 1, 7)"
+# Month keys are user-visible titles and feed _stable_id, so they keep the
+# '2025-03' form the strftime('%Y-%m') version produced.
+_YEAR_MONTH = "REPLACE(SUBSTR(date_taken, 1, 7), ':', '-')"
 _MONTH_DAY = "SUBSTR(date_taken, 6, 5)"
 _WELL_FORMED_DATE = "date_taken GLOB '[0-9][0-9][0-9][0-9]:[0-9][0-9]:[0-9][0-9]*'"
 
@@ -1816,7 +1818,7 @@ _DIMENSIONS = {
         "param_name": "year",
     },
     "month": {
-        "sql_expr": "SUBSTR(date_taken, 1, 7)",
+        "sql_expr": _YEAR_MONTH,
         "filter": _WELL_FORMED_DATE,
         "icon": "calendar_month",
         "min_photos": 8,

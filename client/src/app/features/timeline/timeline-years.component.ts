@@ -36,7 +36,7 @@ interface YearSummary {
       </div>
     }
 
-    @if (!loading() && years().length === 0) {
+    @if (!loading() && !loadError() && years().length === 0) {
       <div class="text-center py-16 opacity-60">
         <mat-icon class="!text-5xl !w-12 !h-12 mb-4">calendar_today</mat-icon>
         <p>{{ I18N.timeline.empty | translate }}</p>
@@ -95,7 +95,6 @@ export class TimelineYearsComponent {
   }
 
   private async load(dateFrom: string, dateTo: string, viewParams: ViewFilterParams): Promise<void> {
-    this.loadError.set(false);
     this.loadError.set(false);
     this.loading.set(true);
     try {

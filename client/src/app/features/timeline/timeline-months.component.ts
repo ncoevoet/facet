@@ -37,7 +37,7 @@ interface MonthSummary {
       </div>
     }
 
-    @if (!loading() && months().length === 0) {
+    @if (!loading() && !loadError() && months().length === 0) {
       <div class="text-center py-16 opacity-60">
         <mat-icon class="!text-5xl !w-12 !h-12 mb-4">calendar_today</mat-icon>
         <p>{{ I18N.timeline.no_photos_month | translate }}</p>

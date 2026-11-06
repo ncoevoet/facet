@@ -2,6 +2,7 @@ import type { Mock } from 'vitest';
 import { TestBed } from '@angular/core/testing';
 import { signal } from '@angular/core';
 import { of, throwError } from 'rxjs';
+import { I18nService } from '../../core/services/i18n.service';
 import { ApiService } from '../../core/services/api.service';
 import { TimelineFiltersService } from './timeline-filters.service';
 import { GalleryStore } from '../gallery/gallery.store';
@@ -23,6 +24,7 @@ describe('TimelineDaysComponent', () => {
     TestBed.configureTestingModule({
       providers: [
         { provide: ApiService, useValue: mockApi },
+        { provide: I18nService, useValue: { t: (key: string) => `T(${key})`, translations: () => ({}) } },
         TimelineFiltersService,
         { provide: GalleryStore, useValue: mockStore },
       ],
@@ -163,6 +165,35 @@ describe('TimelineDaysComponent', () => {
       TestBed.flushEffects();
 
       expect(mockApi.get).toHaveBeenCalledWith('/timeline/dates', { year: 2024, month: 6, ...noneHidden, hide_duplicates: '1' });
+    });
+  });
+
+  describe('rendered: a failed load', () => {
+    async function renderFailed() {
+      mockApi.get.mockReturnValue(throwError(() => new Error('fail')));
+      // The outer beforeEach built a bare instance whose effect has no inputs; start clean.
+      TestBed.resetTestingModule();
+      TestBed.configureTestingModule({
+        providers: [
+          { provide: ApiService, useValue: mockApi },
+          { provide: I18nService, useValue: { t: (key: string) => `T(${key})`, translations: () => ({}) } },
+          TimelineFiltersService,
+          { provide: GalleryStore, useValue: mockStore },
+        ],
+      });
+      const fixture = TestBed.createComponent(TimelineDaysComponent);
+      fixture.componentRef.setInput('year', '2024');
+      fixture.componentRef.setInput('month', '6');
+      fixture.detectChanges();
+      await fixture.whenStable();
+      fixture.detectChanges();
+      return fixture.nativeElement as HTMLElement;
+    }
+
+    it('shows the alert and not the empty state (Retry re-requests)', async () => {
+      const el = await renderFailed();
+      expect(el.querySelector('[role="alert"]')).toBeTruthy();
+      expect(el.querySelector('.grid.grid-cols-7')).toBeNull();
     });
   });
 });

@@ -41,7 +41,7 @@ interface CalendarCell {
       </div>
     }
 
-    @if (!loading()) {
+    @if (!loading() && !loadError()) {
       <!-- Day-of-week headers -->
       <div class="grid grid-cols-7 gap-2 mb-2">
         @for (d of weekDays; track d) {
@@ -157,8 +157,8 @@ export class TimelineDaysComponent {
 
       this.calendarCells.set(cells);
     } catch {
-      // A failed load must not render as an empty calendar: show the error
-      // with a retry instead of silently keeping the previous period's cells.
+      // A failed load must not render as an empty calendar or keep the
+      // previous period's cells: the grid is hidden and the error offers a retry.
       this.loadError.set(true);
     } finally {
       this.loading.set(false);
