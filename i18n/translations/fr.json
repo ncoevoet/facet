@@ -3184,6 +3184,9 @@
     "no_gps_hint": "Rien dans le périmètre ne porte de coordonnées GPS. Ouvrez une photo et utilisez son panneau Lieu pour la placer — les photos placées apparaissent ici."
   },
   "photo_detail": {
+    "copy_image": "Copier l’image",
+    "copy_image_done": "Image copiée",
+    "copy_image_failed": "Impossible de copier l’image. Essayez de la télécharger.",
     "inspection": {
       "title": "Inspection de la photo",
       "help": "Utilisez +/− pour zoomer, les flèches pour déplacer l’image agrandie et Début pour l’ajuster. Tab passe à la commande suivante."

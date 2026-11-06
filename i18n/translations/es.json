@@ -3184,6 +3184,9 @@
     "no_gps_hint": "Nada en el alcance lleva coordenadas GPS. Abre una foto y usa su panel de ubicación para situarla — las fotos situadas aparecen aquí."
   },
   "photo_detail": {
+    "copy_image": "Copiar imagen",
+    "copy_image_done": "Imagen copiada",
+    "copy_image_failed": "No se pudo copiar la imagen. Prueba a descargarla.",
     "inspection": {
       "title": "Inspección de la foto",
       "help": "Usa +/− para ampliar, las flechas para desplazar la imagen ampliada e Inicio para ajustarla. Tab pasa al siguiente control."

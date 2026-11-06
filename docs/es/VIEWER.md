@@ -1242,6 +1242,8 @@ Los atajos de una sola tecla están inactivos mientras el foco está en un campo
 
 **En la página de la foto**, `1`–`5`, la tecla de favorito y la de rechazo (`F` y `X` por defecto; `0` también rechaza) actúan sobre la foto abierta, en modo de edición con `viewer.features.show_rating_controls` activado. Las puntuaciones y favoritos mantienen la foto actual. Conservar/Rechazar en una cola de revisión de la galería actualiza la cola y abre la siguiente foto disponible, o vuelve a la galería si no queda ninguna. Las fotos de la línea de tiempo no avanzan así. Usa `←` `→` para navegar manualmente. La referencia `?` los lista en *Vista de foto*.
 
+Usa **Copiar imagen** para copiar una representación PNG y pegarla en otra aplicación. Se copian los píxeles, no el archivo original ni sus metadatos; usa Descargar para obtener el original. El portapapeles requiere un navegador compatible y una conexión segura.
+
 ## Deshacer
 
 Los cambios por lotes de favorito/rechazo/valoración y las confirmaciones aplazadas de descarte muestran una barra de aviso con **Deshacer** durante ~7 segundos.

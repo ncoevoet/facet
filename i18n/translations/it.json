@@ -3184,6 +3184,9 @@
     "no_gps_hint": "Nulla nell'ambito porta coordinate GPS. Apri una foto e usa il suo pannello Posizione per posizionarla — le foto posizionate appaiono qui."
   },
   "photo_detail": {
+    "copy_image": "Copia immagine",
+    "copy_image_done": "Immagine copiata",
+    "copy_image_failed": "Impossibile copiare l’immagine. Prova a scaricarla.",
     "inspection": {
       "title": "Ispezione della foto",
       "help": "Usa +/− per lo zoom, le frecce per spostare l’immagine ingrandita e Home per adattarla. Tab passa al controllo successivo."

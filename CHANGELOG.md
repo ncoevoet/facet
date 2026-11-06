@@ -4,6 +4,10 @@ All notable changes to Facet are documented in this file.
 
 ## [Unreleased]
 
+### Added
+
+- Copy the open photo as a PNG image for pasting into other applications; the original file is unchanged.
+
 ## [1.28.0] "f/64" — 2026-11-05
 
 ### Added

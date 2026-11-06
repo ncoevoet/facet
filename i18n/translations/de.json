@@ -3184,6 +3184,9 @@
     "no_gps_hint": "Nichts im Umfang trägt GPS-Koordinaten. Öffne ein Foto und lege es über dessen Standort-Panel fest — platzierte Fotos erscheinen hier."
   },
   "photo_detail": {
+    "copy_image": "Bild kopieren",
+    "copy_image_done": "Bild kopiert",
+    "copy_image_failed": "Bild konnte nicht kopiert werden. Versuche stattdessen Herunterladen.",
     "inspection": {
       "title": "Foto untersuchen",
       "help": "Mit +/− zoomen, im vergrößerten Bild mit den Pfeiltasten verschieben und mit Pos1 einpassen. Tab wechselt zum nächsten Steuerelement."

@@ -1239,6 +1239,8 @@ Les raccourcis à touche unique sont inactifs quand le focus est dans un champ d
 
 **Sur la page de photo**, `1`–`5`, la touche de favori et la touche de rejet (`F` et `X` par défaut ; `0` rejette aussi) agissent sur la photo ouverte, en mode édition avec `viewer.features.show_rating_controls` activé. Les notes et favoris restent sur la photo actuelle. Conserver/Rejeter dans une file de révision de la galerie actualise la file et ouvre la prochaine photo disponible, ou revient à la galerie s’il n’en reste aucune. Les photos de la chronologie n’avancent pas ainsi. Utilisez `←` `→` pour naviguer manuellement. La référence `?` les liste sous *Vue photo*.
 
+Utilisez **Copier l’image** pour copier un rendu PNG à coller dans une autre application. Les pixels sont copiés, pas le fichier original ni ses métadonnées ; utilisez Télécharger pour obtenir l’original. Le presse-papiers nécessite un navigateur compatible et une connexion sécurisée.
+
 ## Annuler
 
 Les changements groupés de favori/rejet/note et les confirmations différées de tri affichent une barre de notification avec **Annuler** pendant environ 7 secondes.

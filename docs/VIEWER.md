@@ -1240,6 +1240,8 @@ Single-key shortcuts are inactive while focus is in a text field, menu or list.
 
 **On the photo page**, `1`–`5`, the favourite key and the reject key (`F` and `X` by default; `0` also rejects) act on the open photo, in edition mode with `viewer.features.show_rating_controls` on. Ratings and favorites stay on the current photo. Keep/Reject in a gallery review queue refreshes that queue and opens the next available photo, or returns to the gallery when none remain. Timeline photos do not advance this way. Use `←` `→` for manual navigation. The `?` reference lists them under *Photo view*.
 
+Use **Copy image** to copy a PNG rendition of the photo for pasting into another app. This copies image pixels, not the original file or its metadata; use Download for the original. Clipboard access requires a supported browser and a secure connection.
+
 ## Undo
 
 Batch favorite/reject/rating changes and deferred culling confirms show a snackbar with **Undo** for ~7 seconds.

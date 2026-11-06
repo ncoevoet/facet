@@ -3223,6 +3223,9 @@ export const I18N = {
     no_gps_hint: "map.no_gps_hint",
   },
   photo_detail: {
+    copy_image: "photo_detail.copy_image",
+    copy_image_done: "photo_detail.copy_image_done",
+    copy_image_failed: "photo_detail.copy_image_failed",
     inspection: {
       title: "photo_detail.inspection.title",
       help: "photo_detail.inspection.help",

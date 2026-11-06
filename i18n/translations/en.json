@@ -3209,6 +3209,9 @@
     "no_gps_hint": "Nothing in scope carries GPS coordinates. Open a photo and use its Location panel to place it — placed photos appear here."
   },
   "photo_detail": {
+    "copy_image": "Copy image",
+    "copy_image_done": "Image copied",
+    "copy_image_failed": "Could not copy the image. Try Download instead.",
     "inspection": {
       "title": "Photo inspection",
       "help": "Use +/− to zoom, arrow keys to pan when zoomed, and Home to fit. Tab moves to the next control."

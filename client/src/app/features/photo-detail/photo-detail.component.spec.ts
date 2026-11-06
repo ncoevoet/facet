@@ -20,6 +20,7 @@ import { OverlayContainer } from '@angular/cdk/overlay';
 import { ApiService } from '../../core/services/api.service';
 import { AuthService } from '../../core/services/auth.service';
 import { I18nService } from '../../core/services/i18n.service';
+import { I18N } from '../../core/i18n/keys';
 import { KeyboardMappingService, KEYMAP_STORAGE_KEY } from '../../core/services/keyboard-mapping.service';
 import { AssistantChangesService, AssistantChangeBatch } from '../../core/agent/assistant-changes.service';
 
@@ -2058,6 +2059,62 @@ describe('PhotoDetailComponent', () => {
       } finally {
         dialog.remove();
       }
+    });
+  });
+
+  describe('copy image', () => {
+    const originalClipboard = Object.getOwnPropertyDescriptor(navigator, 'clipboard');
+    afterEach(() => {
+      vi.restoreAllMocks();
+      vi.unstubAllGlobals();
+      if (originalClipboard) Object.defineProperty(navigator, 'clipboard', originalClipboard);
+      else Reflect.deleteProperty(navigator, 'clipboard');
+    });
+
+    it('copies a PNG rendition and reports success', async () => {
+      createComponent();
+      component.photo.set({ ...samplePhoto });
+      const png = new Blob(['png'], { type: 'image/png' });
+      const close = vi.fn();
+      vi.stubGlobal('createImageBitmap', vi.fn(async () => ({ width: 4, height: 3, close })));
+      vi.spyOn(HTMLCanvasElement.prototype, 'getContext').mockReturnValue({ drawImage: vi.fn() } as never);
+      vi.spyOn(HTMLCanvasElement.prototype, 'toBlob').mockImplementation(callback => callback(png));
+      vi.stubGlobal('ClipboardItem', class { constructor(public values: Record<string, Promise<Blob>>) {} });
+      const write = vi.fn(async (items: { values: Record<string, Promise<Blob>> }[]) => {
+        expect(await items[0].values['image/png']).toBe(png);
+      });
+      Object.defineProperty(navigator, 'clipboard', { configurable: true, value: { write } });
+      const notice = vi.spyOn(component.snackBar, 'open').mockReturnValue({} as never);
+      await component.copyPhoto(samplePhoto.path);
+      expect(mockApi.getRaw).toHaveBeenCalledWith(`/image?path=${encodeURIComponent(samplePhoto.path)}`);
+      expect(write).toHaveBeenCalledOnce();
+      expect(close).toHaveBeenCalledOnce();
+      expect(notice).toHaveBeenCalledWith(I18N.photo_detail.copy_image_done, '', { duration: 3000 });
+    });
+
+    it('does not copy the previous photo after navigation', async () => {
+      createComponent();
+      component.photo.set({ ...samplePhoto });
+      const pending = new Subject<Blob>();
+      mockApi.getRaw.mockReturnValue(pending);
+      vi.stubGlobal('ClipboardItem', class { constructor(public values: Record<string, Promise<Blob>>) {} });
+      const write = vi.fn(async (items: { values: Record<string, Promise<Blob>> }[]) => { await items[0].values['image/png']; });
+      Object.defineProperty(navigator, 'clipboard', { configurable: true, value: { write } });
+      const copying = component.copyPhoto(samplePhoto.path);
+      component.photo.set({ ...samplePhoto, path: '/other.jpg' });
+      pending.next(new Blob(['jpeg'], { type: 'image/jpeg' }));
+      await copying;
+      expect(component.copyingPhoto()).toBe(false);
+    });
+
+    it('reports an unavailable clipboard and offers the download path', async () => {
+      createComponent();
+      component.photo.set({ ...samplePhoto });
+      Object.defineProperty(navigator, 'clipboard', { configurable: true, value: undefined });
+      const notice = vi.spyOn(component.snackBar, 'open').mockReturnValue({} as never);
+      await component.copyPhoto(samplePhoto.path);
+      expect(mockApi.getRaw).not.toHaveBeenCalled();
+      expect(notice).toHaveBeenCalledWith(I18N.photo_detail.copy_image_failed, '', { duration: 4000 });
     });
   });
 

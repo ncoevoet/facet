@@ -1240,6 +1240,8 @@ Einzeltasten-Kürzel sind inaktiv, solange der Fokus in einem Textfeld, Menü od
 
 **Auf der Fotoseite** wirken `1`–`5`, die Favoriten-Taste und die Ablehnen-Taste (standardmäßig `F` und `X`; `0` lehnt ebenfalls ab) auf das geöffnete Foto, im Bearbeitungsmodus bei aktivem `viewer.features.show_rating_controls`. Bewertungen und Favoriten bleiben beim aktuellen Foto. Behalten/Ablehnen in einer Prüfwarteschlange der Galerie aktualisiert diese und öffnet das nächste verfügbare Foto oder kehrt zur Galerie zurück, wenn keines mehr übrig ist. Fotos aus der Zeitleiste wechseln so nicht weiter. Mit `←` `→` navigieren Sie manuell. Die Referenz unter `?` listet sie unter *Fotoansicht*.
 
+Mit **Bild kopieren** kopieren Sie eine PNG-Darstellung zum Einfügen in eine andere App. Kopiert werden Bildpunkte, nicht die Originaldatei oder ihre Metadaten; für das Original verwenden Sie Herunterladen. Die Zwischenablage erfordert einen unterstützten Browser und eine sichere Verbindung.
+
 ## Rückgängig
 
 Sammeländerungen an Favorit/Ablehnung/Bewertung und verzögerte Auswahl-Bestätigungen zeigen etwa 7 Sekunden lang eine Snackbar mit **Rückgängig**.

@@ -3184,6 +3184,9 @@
     "no_gps_hint": "Nada no escopo carrega coordenadas GPS. Abra uma foto e use o painel de localização dela para situá-la — fotos situadas aparecem aqui."
   },
   "photo_detail": {
+    "copy_image": "Copiar imagem",
+    "copy_image_done": "Imagem copiada",
+    "copy_image_failed": "Não foi possível copiar a imagem. Tente baixá-la.",
     "inspection": {
       "title": "Inspeção da fotografia",
       "help": "Use +/− para ampliar, as setas para deslocar a imagem ampliada e Home para ajustar. Tab avança para o controlo seguinte."

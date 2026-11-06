@@ -186,6 +186,11 @@ const SOCIAL_SOURCE_KEYS: Record<string, string> = {
           </button>
         }
 
+        <button mat-icon-button class="max-sm:!h-11 max-sm:!w-11 pointer-coarse:!h-11 pointer-coarse:!w-11" data-copy-photo
+          (click)="copyPhoto(p.path)" [disabled]="copyingPhoto()" [matTooltip]="I18N.photo_detail.copy_image | translate"
+          [attr.aria-label]="I18N.photo_detail.copy_image | translate">
+          @if (copyingPhoto()) { <mat-spinner diameter="18" aria-hidden="true" /> } @else { <mat-icon>content_copy</mat-icon> }
+        </button>
         @if (downloadOptions().length > 1) {
           <button mat-button class="!min-w-11 !h-11 !px-2" [matMenuTriggerFor]="downloadMenu" [disabled]="downloading()" [matTooltip]="I18N.photo_detail.download | translate"
             [attr.aria-label]="(downloading() ? I18N.photo_detail.downloading : I18N.photo_detail.download) | translate">
@@ -862,6 +867,7 @@ export class PhotoDetailComponent extends PhotoDetailBase implements OnInit {
   protected readonly objectsRevision = signal(0);
   protected readonly photoMissing = signal(false);
   protected readonly downloading = signal(false);
+  protected readonly copyingPhoto = signal(false);
   protected readonly downloadOptions = signal<DownloadOption[]>([]);
   protected readonly generatingCaption = signal(false);
   protected readonly stars: readonly number[] = [1, 2, 3, 4, 5];
@@ -1245,6 +1251,40 @@ export class PhotoDetailComponent extends PhotoDetailBase implements OnInit {
     });
     this.photo.set(next);
 
+  }
+
+  protected async copyPhoto(path: string): Promise<void> {
+    if (this.copyingPhoto()) return;
+    const photo = this.photo();
+    if (!photo || photo.path !== path) return;
+    const owner = this.auth.identity(), token = this.auth.token;
+    const current = () => !this.destroyRef.destroyed && this.photo()?.path === path
+      && this.auth.identity() === owner && this.auth.token === token;
+    this.copyingPhoto.set(true);
+    try {
+      if (!navigator.clipboard?.write || typeof ClipboardItem === 'undefined') throw new Error('Clipboard unavailable');
+      const image = firstValueFrom(this.api.getRaw(this.api.imageUrl(path, photo.preview_revision))).then(async blob => {
+        if (!current()) throw new Error('Photo changed');
+        const bitmap = await createImageBitmap(blob);
+        try {
+          if (!current()) throw new Error('Photo changed');
+          const canvas = document.createElement('canvas');
+          canvas.width = bitmap.width; canvas.height = bitmap.height;
+          const context = canvas.getContext('2d');
+          if (!context) throw new Error('Image conversion unavailable');
+          context.drawImage(bitmap, 0, 0);
+          const png = await new Promise<Blob>((resolve, reject) => canvas.toBlob(result => result ? resolve(result) : reject(new Error('Image conversion failed')), 'image/png'));
+          if (!current()) throw new Error('Photo changed');
+          return png;
+        } finally { bitmap.close(); }
+      });
+      // Some browsers reject clipboard access before consuming the promised image.
+      void image.catch(() => {});
+      await navigator.clipboard.write([new ClipboardItem({ 'image/png': image })]);
+      if (current()) this.snackBar.open(this.i18n.t(I18N.photo_detail.copy_image_done), '', { duration: 3000 });
+    } catch {
+      if (current()) this.snackBar.open(this.i18n.t(I18N.photo_detail.copy_image_failed), '', { duration: 4000 });
+    } finally { this.copyingPhoto.set(false); }
   }
 
   protected async download(path: string, type = 'original', profile?: string): Promise<void> {
