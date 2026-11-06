@@ -367,6 +367,9 @@ export class JunkSweepComponent implements OnInit, OnDestroy {
         this.photos.set([]);
         await this.load();
       }
+      // Earlier chunks landed server-side, so the locally-decremented kind
+      // badges no longer match: re-read what actually remains.
+      await this.loadKinds();
     }
   }
 

@@ -30,6 +30,13 @@ interface MonthSummary {
       </div>
     }
 
+    @if (loadError() && !loading()) {
+      <div role="alert" class="flex items-center justify-center gap-3 py-10 text-sm">
+        <span>{{ 'errors.server_error' | translate }}</span>
+        <button mat-stroked-button (click)="load(this.year(), this.filters.dateFrom(), this.filters.dateTo(), this.store.viewFilterParams())">{{ 'gallery.load_error.retry' | translate }}</button>
+      </div>
+    }
+
     @if (!loading() && months().length === 0) {
       <div class="text-center py-16 opacity-60">
         <mat-icon class="!text-5xl !w-12 !h-12 mb-4">calendar_today</mat-icon>
@@ -78,6 +85,7 @@ export class TimelineMonthsComponent {
 
   protected readonly months = signal<MonthSummary[]>([]);
   protected readonly loading = signal(false);
+  protected readonly loadError = signal(false);
 
   constructor() {
     effect(() => {
@@ -92,6 +100,7 @@ export class TimelineMonthsComponent {
   private async load(
     year: string, dateFrom: string, dateTo: string, viewParams: ViewFilterParams,
   ): Promise<void> {
+    this.loadError.set(false);
     this.loading.set(true);
     try {
       const params: Record<string, string | number> = { year: +year, ...viewParams };
@@ -101,6 +110,10 @@ export class TimelineMonthsComponent {
         this.api.get<{ months: MonthSummary[] }>('/timeline/months', params),
       );
       this.months.set(res.months);
+    } catch {
+      // A failed load must not render as an empty timeline: show the error
+      // with a retry instead of silently keeping nothing.
+      this.loadError.set(true);
     } finally {
       this.loading.set(false);
     }

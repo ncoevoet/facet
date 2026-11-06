@@ -12,6 +12,7 @@ class MockEventSource {
   url: string;
   onmessage: ((event: MessageEvent) => void) | null = null;
   onerror: (() => void) | null = null;
+  onopen: (() => void) | null = null;
   closed = false;
 
   constructor(url: string) {
@@ -98,6 +99,10 @@ describe('ScanService', () => {
       expect(MockEventSource.instances[0].url).toContain('/api/scan/stream?');
       expect(MockEventSource.instances[0].url).toContain('token=minted-token');
       expect(MockEventSource.instances[0].url).toContain('lines=50');
+      // connected is claimed only when the stream actually opens, not on
+      // EventSource construction (the B90 fix).
+      expect(service.connected()).toBe(false);
+      MockEventSource.instances[0].onopen?.();
       expect(service.connected()).toBe(true);
     });
 
@@ -183,6 +188,7 @@ describe('ScanService', () => {
         expect(MockEventSource.instances).toHaveLength(2);
       });
       expect(MockEventSource.instances[1].url).toContain('token=token-2');
+      MockEventSource.instances[1].onopen?.();
       expect(service.connected()).toBe(true);
     });
 
@@ -231,6 +237,7 @@ describe('ScanService', () => {
         expect(MockEventSource.instances).toHaveLength(3);
       });
       expect(MockEventSource.instances[2].url).toContain('token=token-3');
+      MockEventSource.instances[2].onopen?.();
       expect(service.connected()).toBe(true);
 
       httpTesting.expectNone((r) => r.url === '/api/scan/status');
@@ -265,6 +272,7 @@ describe('ScanService', () => {
       await promise;
 
       expect(MockEventSource.instances).toHaveLength(1);
+      MockEventSource.instances[0].onopen?.();
       expect(service.connected()).toBe(true);
     });
   });

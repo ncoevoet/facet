@@ -34,6 +34,12 @@ interface CalendarCell {
         <mat-spinner diameter="48" [attr.aria-label]="'ui.labels.loading' | translate" />
       </div>
     }
+    @if (loadError() && !loading()) {
+      <div role="alert" class="flex items-center justify-center gap-3 py-10 text-sm">
+        <span>{{ 'errors.server_error' | translate }}</span>
+        <button mat-stroked-button (click)="load(+this.year(), +this.month(), this.filters.dateFrom(), this.filters.dateTo(), this.store.viewFilterParams())">{{ 'gallery.load_error.retry' | translate }}</button>
+      </div>
+    }
 
     @if (!loading()) {
       <!-- Day-of-week headers -->
@@ -85,6 +91,7 @@ export class TimelineDaysComponent {
 
   protected readonly calendarCells = signal<CalendarCell[]>([]);
   protected readonly loading = signal(false);
+  protected readonly loadError = signal(false);
 
   // Generate Mon–Sun abbreviations from the browser locale (Monday-first)
   protected readonly weekDays = (() => {
@@ -107,6 +114,7 @@ export class TimelineDaysComponent {
   private async load(
     year: number, month: number, dateFrom: string, dateTo: string, viewParams: ViewFilterParams,
   ): Promise<void> {
+    this.loadError.set(false);
     this.loading.set(true);
     try {
       const params: Record<string, string | number> = { year, month, ...viewParams };
@@ -148,6 +156,10 @@ export class TimelineDaysComponent {
       }
 
       this.calendarCells.set(cells);
+    } catch {
+      // A failed load must not render as an empty calendar: show the error
+      // with a retry instead of silently keeping the previous period's cells.
+      this.loadError.set(true);
     } finally {
       this.loading.set(false);
     }

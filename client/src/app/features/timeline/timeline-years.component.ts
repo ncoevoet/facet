@@ -29,6 +29,13 @@ interface YearSummary {
       </div>
     }
 
+    @if (loadError() && !loading()) {
+      <div role="alert" class="flex items-center justify-center gap-3 py-10 text-sm">
+        <span>{{ 'errors.server_error' | translate }}</span>
+        <button mat-stroked-button (click)="load(this.filters.dateFrom(), this.filters.dateTo(), this.store.viewFilterParams())">{{ 'gallery.load_error.retry' | translate }}</button>
+      </div>
+    }
+
     @if (!loading() && years().length === 0) {
       <div class="text-center py-16 opacity-60">
         <mat-icon class="!text-5xl !w-12 !h-12 mb-4">calendar_today</mat-icon>
@@ -74,6 +81,7 @@ export class TimelineYearsComponent {
 
   protected readonly years = signal<YearSummary[]>([]);
   protected readonly loading = signal(false);
+  protected readonly loadError = signal(false);
 
   readonly yearSelected = output<string>();
 
@@ -87,6 +95,8 @@ export class TimelineYearsComponent {
   }
 
   private async load(dateFrom: string, dateTo: string, viewParams: ViewFilterParams): Promise<void> {
+    this.loadError.set(false);
+    this.loadError.set(false);
     this.loading.set(true);
     try {
       const params: Record<string, string> = { ...viewParams };
@@ -96,6 +106,10 @@ export class TimelineYearsComponent {
         this.api.get<{ years: YearSummary[] }>('/timeline/years', params),
       );
       this.years.set(res.years);
+    } catch {
+      // A failed load must not render as an empty timeline: show the error
+      // with a retry instead of silently keeping nothing.
+      this.loadError.set(true);
     } finally {
       this.loading.set(false);
     }

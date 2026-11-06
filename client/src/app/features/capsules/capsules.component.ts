@@ -76,10 +76,17 @@ interface CapsulesResponse {
       </div>
     }
 
-    @if (capsules().length === 0 && !loading()) {
+    @if (capsules().length === 0 && !loading() && !loadError()) {
       <div class="text-center py-16 opacity-60">
         <mat-icon class="!text-5xl !w-12 !h-12 mb-4">auto_stories</mat-icon>
         <p>{{ I18N.capsules.empty | translate }}</p>
+      </div>
+    }
+
+    @if (loadError() && !loading()) {
+      <div role="alert" class="flex items-center justify-center gap-3 py-10 text-sm">
+        <span>{{ 'errors.server_error' | translate }}</span>
+        <button mat-stroked-button (click)="loadCapsules(true)">{{ 'gallery.load_error.retry' | translate }}</button>
       </div>
     }
 
@@ -192,6 +199,8 @@ export class CapsulesComponent implements OnDestroy {
   protected readonly loading = signal(false);
   protected readonly hasMore = signal(false);
   protected readonly total = signal(0);
+  /** A failed load: the empty state must not read as "you have no capsules". */
+  protected readonly loadError = signal(false);
 
   protected readonly savingAlbum = signal(false);
 
@@ -264,6 +273,7 @@ export class CapsulesComponent implements OnDestroy {
 
   private async loadCapsules(refresh = false): Promise<void> {
     if (this.loading()) return;
+    const page = this.currentPage;
     this.loading.set(true);
     if (refresh) this.capsuleFilters.refreshing.set(true);
     try {
@@ -277,15 +287,23 @@ export class CapsulesComponent implements OnDestroy {
         }),
       );
       const resolved = res.capsules.map(c => this.resolveParams(c));
-      if (this.currentPage === 1) {
+      // Compare the page this response is FOR, not the current field: a slow
+      // page-2 answer landing after a regenerate must not replace the grid.
+      if (page === 1) {
         this.capsules.set(resolved);
+        this.loadError.set(false);
       } else {
         this.capsules.update(prev => [...prev, ...resolved]);
       }
       this.hasMore.set(res.has_more);
       this.total.set(res.total);
     } catch {
-      if (this.currentPage === 1) this.capsules.set([]);
+      // Give the page back: a failed append must be refetched, not skipped.
+      this.currentPage = page;
+      if (page === 1) {
+        this.capsules.set([]);
+        this.loadError.set(true);
+      }
     } finally {
       this.loading.set(false);
       this.capsuleFilters.refreshing.set(false);

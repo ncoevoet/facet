@@ -119,7 +119,7 @@ export class ScanService implements OnDestroy {
     const params = new URLSearchParams({ token, lines: '50' });
     const source = new EventSource(`/api/scan/stream?${params}`);
     this.eventSource = source;
-    this.connected.set(true);
+    source.onopen = () => this.connected.set(true);
 
     source.onmessage = (event: MessageEvent) => {
       let data: ScanStatus;
@@ -164,12 +164,18 @@ export class ScanService implements OnDestroy {
       const data = await firstValueFrom(
         this.api.get<ScanStatus>('/scan/status', { lines: 50 }),
       );
+      // One transient failure must not freeze the progress view for a scan
+      // that is still running: the interval keeps firing, the next poll
+      // re-arms the flag.
+      this.connected.set(true);
       this.status.set(data);
       if (!data.running) {
         this.stopPolling();
       }
     } catch {
-      this.stopPolling();
+      // Keep the interval alive: a hiccup skips one tick instead of ending
+      // the updates for a scan that is still running server-side.
+      this.connected.set(false);
     }
   }
 }

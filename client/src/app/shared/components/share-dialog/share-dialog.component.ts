@@ -55,6 +55,9 @@ export interface ShareDialogData {
         <p class="text-sm opacity-70">{{ I18N.ui.labels.loading | translate }}</p>
       }
     </mat-dialog-content>
+    @if (error()) {
+      <div role="alert" class="w-full text-sm text-[var(--mat-sys-error)]">{{ error() | translate }}</div>
+    }
     <mat-dialog-actions align="end">
       @if (shareUrl()) {
         @if (data.revokeApi) {
@@ -88,6 +91,7 @@ export class ShareDialogComponent implements OnInit {
   protected readonly shareUrl = signal('');
   protected readonly fullShareUrl = computed(() => `${window.location.origin}${this.shareUrl()}`);
   protected readonly loading = signal(false);
+  protected readonly error = signal('');
   protected readonly copied = signal(false);
 
   protected readonly titleKey = `${this.data.i18nPrefix}.share`;
@@ -113,7 +117,12 @@ export class ShareDialogComponent implements OnInit {
           ? this.api.post<Record<string, unknown>>(url, body ?? {})
           : this.api.get<Record<string, unknown>>(url),
       );
+      this.error.set('');
       this.shareUrl.set(extractUrl(res));
+    } catch {
+      // A failed generation must not read as "no link yet": say so, or the
+      // user retries a write that may have succeeded.
+      this.error.set('errors.action_failed');
     } finally {
       this.loading.set(false);
     }
@@ -127,9 +136,12 @@ export class ShareDialogComponent implements OnInit {
 
   protected async revoke(): Promise<void> {
     if (!this.data.revokeApi) return;
-    await firstValueFrom(
-      this.api.delete(this.data.revokeApi.url),
-    );
+    try {
+      await firstValueFrom(this.api.delete(this.data.revokeApi.url));
+    } catch {
+      this.error.set('errors.action_failed');
+      return;
+    }
     this.shareUrl.set('');
     this.dialogRef.close('revoked');
   }

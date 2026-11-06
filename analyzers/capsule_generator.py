@@ -35,8 +35,18 @@ from utils.union_find import UnionFind
 
 logger = logging.getLogger("facet.capsules")
 
-# SQLite expression to convert EXIF date (2025:11:23 17:07:24) to ISO format
+# date_taken is stored in EXIF format (2025:11:23 17:07:24); SQLite strftime
+# only parses ISO-8601 ('-' separators) and returns NULL on ':' dates, so date
+# queries used to convert per row first (_ISO_DATE below). The fields are
+# fixed-width, so most queries now compare SUBSTR slices directly — no
+# per-row REPLACE+strftime. Two exprs genuinely need date arithmetic and keep
+# the conversion: the ISO week number (%W) and the weekday (%w).
 _ISO_DATE = "REPLACE(SUBSTR(date_taken,1,10),':','-') || SUBSTR(date_taken,11)"
+_YEAR = "CAST(SUBSTR(date_taken, 1, 4) AS INTEGER)"
+_MONTH = "CAST(SUBSTR(date_taken, 6, 2) AS INTEGER)"
+_YEAR_MONTH = "SUBSTR(date_taken, 1, 7)"
+_MONTH_DAY = "SUBSTR(date_taken, 6, 5)"
+_WELL_FORMED_DATE = "date_taken GLOB '[0-9][0-9][0-9][0-9]:[0-9][0-9]:[0-9][0-9]*'"
 
 # Season definitions (meteorological)
 _SEASONS = {
@@ -931,19 +941,20 @@ def _generate_this_week(conn, capsule_config, min_aggregate, vis, user_id):
     today = date.today()
     current_year = today.year
 
-    # Build day-of-year window (±3 days)
+    # Build day-of-year window (±3 days), in the stored EXIF colon form
     window_days = []
     for delta in range(-3, 4):
         d = today + timedelta(days=delta)
-        window_days.append(d.strftime("%m-%d"))
+        window_days.append(d.strftime("%m:%d"))
 
     placeholders = ",".join(["?"] * len(window_days))
 
     rows = conn.execute(
         f"""SELECT path, date_taken, aggregate
            FROM photos
-           WHERE strftime('%m-%d', {_ISO_DATE}) IN ({placeholders})
-             AND CAST(strftime('%Y', {_ISO_DATE}) AS INTEGER) < ?
+           WHERE {_WELL_FORMED_DATE}
+             AND {_MONTH_DAY} IN ({placeholders})
+             AND {_YEAR} < ?
              AND aggregate >= ?
              AND date_taken IS NOT NULL
              AND {vis_sql}
@@ -1413,12 +1424,12 @@ def _generate_progress(conn, capsule_config, min_aggregate, vis, user_id):
     # Get average aggregate per quarter
     rows = conn.execute(
         f"""SELECT
-               CAST(strftime('%Y', {_ISO_DATE}) AS INTEGER) AS yr,
-               (CAST(strftime('%m', {_ISO_DATE}) AS INTEGER) - 1) / {period_months} AS qtr,
+               {_YEAR} AS yr,
+               ({_MONTH} - 1) / {period_months} AS qtr,
                AVG(aggregate) AS avg_agg,
                COUNT(*) AS cnt
            FROM photos
-           WHERE aggregate IS NOT NULL AND date_taken IS NOT NULL AND {vis_sql}
+           WHERE {_WELL_FORMED_DATE} AND aggregate IS NOT NULL AND date_taken IS NOT NULL AND {vis_sql}
            GROUP BY yr, qtr
            HAVING cnt >= ?
            ORDER BY yr ASC, qtr ASC""",
@@ -1447,10 +1458,10 @@ def _generate_progress(conn, capsule_config, min_aggregate, vis, user_id):
     best_photos = conn.execute(
         f"""SELECT path, aggregate
            FROM photos
-           WHERE CAST(strftime('%Y', {_ISO_DATE}) AS INTEGER) = ?
-             AND CAST(strftime('%m', {_ISO_DATE}) AS INTEGER) >= ?
-             AND CAST(strftime('%m', {_ISO_DATE}) AS INTEGER) < ?
-             AND aggregate IS NOT NULL AND {vis_sql}
+           WHERE {_YEAR} = ?
+             AND {_MONTH} >= ?
+             AND {_MONTH} < ?
+             AND aggregate IS NOT NULL AND {_WELL_FORMED_DATE} AND {vis_sql}
            ORDER BY aggregate DESC
            LIMIT ?""",
         [recent_yr, month_start, month_end] + vis_params + [max_photos],
@@ -1489,7 +1500,7 @@ def _generate_color_palette(conn, capsule_config, min_aggregate, vis, user_id):
     max_months = cfg.get("max_months", 24)
     rows = conn.execute(
         f"""SELECT month_key, avg_sat, mono_ratio, cnt, paths FROM (
-            SELECT strftime('%Y-%m', {_ISO_DATE}) AS month_key,
+            SELECT {_YEAR_MONTH} AS month_key,
                    AVG(mean_saturation) AS avg_sat,
                    AVG(CASE WHEN is_monochrome = 1 THEN 1.0 ELSE 0.0 END) AS mono_ratio,
                    COUNT(*) AS cnt,
@@ -1796,7 +1807,8 @@ def _week_title_params(display: str) -> dict:
 
 _DIMENSIONS = {
     "year": {
-        "sql_expr": f"strftime('%Y', {_ISO_DATE})",
+        "sql_expr": "SUBSTR(date_taken, 1, 4)",
+        "filter": _WELL_FORMED_DATE,
         "icon": "event",
         "min_photos": 20,
         "title_tpl": "{value}",
@@ -1804,7 +1816,8 @@ _DIMENSIONS = {
         "param_name": "year",
     },
     "month": {
-        "sql_expr": f"strftime('%Y-%m', {_ISO_DATE})",
+        "sql_expr": "SUBSTR(date_taken, 1, 7)",
+        "filter": _WELL_FORMED_DATE,
         "icon": "calendar_month",
         "min_photos": 8,
         "title_tpl": "{value}",
@@ -1982,16 +1995,16 @@ _DIMENSIONS = {
         "title_transform": lambda s: s.replace("_", " ").title(),
     },
     "time_of_day": {
-        "sql_expr": f"""CASE
-            WHEN CAST(SUBSTR({_ISO_DATE}, 12, 2) AS INTEGER) BETWEEN 5 AND 7 THEN 'golden_morning'
-            WHEN CAST(SUBSTR({_ISO_DATE}, 12, 2) AS INTEGER) BETWEEN 8 AND 10 THEN 'morning'
-            WHEN CAST(SUBSTR({_ISO_DATE}, 12, 2) AS INTEGER) BETWEEN 11 AND 14 THEN 'midday'
-            WHEN CAST(SUBSTR({_ISO_DATE}, 12, 2) AS INTEGER) BETWEEN 15 AND 17 THEN 'afternoon'
-            WHEN CAST(SUBSTR({_ISO_DATE}, 12, 2) AS INTEGER) BETWEEN 18 AND 20 THEN 'golden_evening'
-            WHEN CAST(SUBSTR({_ISO_DATE}, 12, 2) AS INTEGER) BETWEEN 21 AND 23 THEN 'night'
+        "sql_expr": """CASE
+            WHEN CAST(SUBSTR(date_taken, 12, 2) AS INTEGER) BETWEEN 5 AND 7 THEN 'golden_morning'
+            WHEN CAST(SUBSTR(date_taken, 12, 2) AS INTEGER) BETWEEN 8 AND 10 THEN 'morning'
+            WHEN CAST(SUBSTR(date_taken, 12, 2) AS INTEGER) BETWEEN 11 AND 14 THEN 'midday'
+            WHEN CAST(SUBSTR(date_taken, 12, 2) AS INTEGER) BETWEEN 15 AND 17 THEN 'afternoon'
+            WHEN CAST(SUBSTR(date_taken, 12, 2) AS INTEGER) BETWEEN 18 AND 20 THEN 'golden_evening'
+            WHEN CAST(SUBSTR(date_taken, 12, 2) AS INTEGER) BETWEEN 21 AND 23 THEN 'night'
             ELSE 'night'
             END""",
-        "filter": "date_taken IS NOT NULL AND LENGTH(date_taken) > 10",
+        "filter": f"date_taken IS NOT NULL AND {_WELL_FORMED_DATE}",
         "icon": "schedule",
         "min_photos": 15,
         "title_tpl": "Best of {value}",
