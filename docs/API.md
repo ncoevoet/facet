@@ -187,7 +187,7 @@ Timeline routes return 503 when the query fails. Week keys use ISO 8601 week yea
 |----------|-------------|
 | `GET /api/stats/overview` | Overall scoring statistics summary |
 | `GET /api/stats/score_distribution` | Score distribution histogram data |
-| `GET /api/stats/metric_distribution?column=aesthetic&category=portrait` | Authenticated reader’s visible-library histogram for one registered metric; optional category scope, finite values only, current read snapshot; returns `distribution` (min/max/buckets) and `count` |
+| `GET /api/stats/metric_distribution?column=aesthetic&category=portrait` | Authenticated reader’s visible-library histogram for one registered metric; optional category scope, finite values only, current read snapshot, cached for the stats-cache TTL (5 min) per metric, category and visibility scope; returns `{distribution, count}`. `distribution` is `{column, min, max, buckets}` (32 buckets across min–max, or a single bucket when every value is equal) and is `null` with `count: 0` when no photo in scope has a value. `422` for an unknown metric, including `star_rating` (ratings are per account and not a computed metric) |
 | `GET /api/stats/top_cameras` | Top cameras by photo count |
 | `GET /api/stats/categories` | Category counts and averages |
 | `GET /api/stats/gear` | Camera/lens/combo counts |
@@ -245,7 +245,7 @@ Timeline routes return 503 when the query fails. Week keys use ISO 8601 week yea
 | `POST /api/photos/keeper_hints` | Per-photo "a better shot exists in this group" hints, grouped by `burst_group_id`. Body `{paths}`; returns `{path: {has_better, best_path, keeper_prob}}`, or `{}` when no keeper-ranking head is trained |
 | `GET /api/photo/cull_preview?path=&style=` | `[Edition]` Render the original through a configured darktable style (`--style`, bounded to `preview_max_edge`); disk-cached. Errors: `400` unknown style; `503` darktable-cli unavailable; `502` render failure/timeout |
 | `GET /api/scenes` | Chronological scenes of burst-lead photos (read-only) |
-| `GET /api/filter_options/junk_kinds` | Detected junk kinds with counts (excludes `not_junk`) for the Junk Sweep chips |
+| `GET /api/filter_options/junk_kinds` | Remaining Junk Sweep candidates per detected kind for the Junk Sweep chips: `{junk_kinds: [[kind, count], …], cached}`, most frequent first. Excludes `not_junk`, photos the reader has rejected and kinds with no remaining candidate; bursts, duplicates and stacks are not collapsed. Counted for the requesting reader on every call, so `cached` is always `false` and a decision shows in the next read |
 | `POST /api/photo/clear_junk` | `[Edition]` Keep a junk candidate: sets its `junk_kind` to `not_junk` so it leaves the queue. Body `{photo_path}` |
 
 **`POST /api/culling/auto` details:**
@@ -286,6 +286,8 @@ Timeline routes return 503 when the query fails. Week keys use ISO 8601 week yea
 | `POST /api/face/{id}/assign` | Assign a face to a person |
 | `POST /api/face/{id}/unassign` | Detach that one face from its person (edition-gated); other faces of the person in the same photo are kept. The person's face count and picture are repaired, and a person left with no face is deleted, as `unassign_person` does. Response `{success, face_id, person_id}`, `person_id` being the former owner (even when deleted) or `null`. `404` for an unknown or invisible face |
 | `POST /api/photo/assign_all_faces` | Assign all faces in a photo to a person |
+| `POST /api/face/{id}/ignore` | Ignore one automatic detection, for example an advertisement or a false face (edition-gated). Body `{photo_path}`; the face must belong to that photo. Response `{ignore_id}`, the handle for Undo; the correction is stored apart from the detector's own face rows. Repeating the request for a face already ignored returns the same `ignore_id`. `404` for an unknown or invisible face or photo; `409` when the original image is unavailable or changed since it was shown, the face changed meanwhile, or the photo already has 100 active ignored detections |
+| `POST /api/ignored-face/{id}/restore` | Undo an ignore using the `ignore_id` it returned (edition-gated). Body `{photo_path}`. Response `{success: true}`. `404` for an unknown or invisible correction; `409` when the original image is unavailable or changed, or the correction changed meanwhile |
 | `POST /api/photo/unassign_person` | Unassign a person from every face in a photo; a person left with no face is deleted |
 
 ## Photo Actions

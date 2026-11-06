@@ -6,7 +6,7 @@ The viewer is a FastAPI + Angular web app for browsing, filtering, culling and m
 
 On desktop (1024 px and wider), enabled destinations appear directly in the top bar as space allows. **More** appears only when destinations do not fit and contains the overflow. Resizing, translated labels and account controls are included in the fit calculation. Contextual page actions appear in a row below the destinations. The gallery owns its collection header, which shows the source, query, count, sort and removable active-filter chips. On narrower screens, the hamburger opens the same available destinations.
 
-The sticky collection header keeps search, selection, sorting and active criteria available while scrolling. **Filters** opens Browse, Quality and Subject; its numeric badge counts active filters and its background shows whether the drawer is open. **Review** opens decision, visibility, rating and favorite controls. **Display** opens layout, thumbnail size, presets, photo-information behavior and slideshow. Each setting has one entry point. On narrow collections, sorting moves into Display. Help opens in anchored popovers without shifting the gallery.
+The sticky collection header keeps search, selection, sorting and active criteria available while scrolling. **Filters** opens Browse, Quality and Subject; its numeric badge counts active filters and its background shows whether the drawer is open. **Review** opens decision, visibility, rating and favorite controls. **Display** opens layout, thumbnail size, photo-information behavior and slideshow. Each setting has one entry point. On narrow collections, sorting moves into Display. Help opens in anchored popovers without shifting the gallery.
 
 **Header controls.** Search contains only the text query. Photo type is in **Filters**. **Review** contains Suggested stacks and Keep top %; **Display** contains Expand/Collapse stacks. In selection mode, the Select button shows the selected count and a close icon. Narrow phones use two compact rows to keep the collection name and control labels readable.
 
@@ -158,20 +158,14 @@ The filter drawer has three tabs: Browse, Quality and Subject. Review and Displa
 | Tab | Sections |
 |-----|----------|
 | **Browse** | Semantic Search, Persons, Date Range, Content, Albums, Location, Folder, Equipment |
-
 | **Quality** | Quality, Color & Quality, Extended Quality, Technical, Exposure & Range (how good the image is) |
 | **Subject** | Face Metrics, Composition, Subject Saliency, Moments (what is in the frame) |
-
 
 The header, **Find a filter**, the smart-album notice and the filename search stay above the tabs on every tab, so `/` works from any of them. Typing in **Find a filter** hides the tabs and lists the matching sliders from all of them.
 
 The numeric count beside **Filters** includes every active criterion, including unavailable metrics. A range counts once. **Reset filters** appears beside the collection chips even for a single active criterion; the drawer does not duplicate it. **X** closes the drawer.
 
-In the Review popover, the decision and each set (for example Duplicates) is one row showing its current value (such as Hidden, Shown or Only these) that opens a menu of choices, each with a one-line explanation. A row left on its default value does not count toward the tab or header badge. *Only* and *Hidden* exclude each other. While a decision is chosen, Rejected is locked, and its tooltip says why. The star button sets a minimum rating: each click raises it by one, and the click after 5, or after a maximum that came in from a link, clears it. It shares a row with the icon-only Favorites and Monochrome toggles, which have tooltips. On the Quality and Subject tabs, hovering a setting's name explains what is scored and by which model, and the Review controls have tooltips too.
-
-
-
-
+In the Review popover, the decision and each set (for example Duplicates) is one row showing its current value (such as Hidden, Shown or Only these) that opens a menu of choices, each with a one-line explanation. A row left on its default value does not count toward the tab or header badge. *Only* and *Hidden* exclude each other. While a decision is chosen, Rejected is locked, and its tooltip says why. A **Star Rating** row opens a menu (Any, 1★ and up through 5★ and up, 0 stars). Below it, the labelled **Favorites Only** and **Monochrome Only** checkboxes have tooltips. On the Quality and Subject tabs, hovering a setting's name explains what is scored and by which model, and the Review controls have tooltips too.
 
 ### Primary Filters
 
@@ -388,7 +382,7 @@ On phones, the photo filename has its own full-width row, up to two lines. Very 
 
 When a comparison image is zoomed in, a small overview shows the whole photo with a red box marking the visible region. The box follows panning and zooming, including linked panes, and disappears at Fit.
 
-Focus the photo canvas to inspect it with the keyboard: +/− zoom, arrow keys pan while enlarged, and Home fits the image. At Fit, arrows resume photo navigation; Tab leaves the canvas. A single image name is announced while renditions change. Stack thumbnails show the active member and use filenames rather than server paths. The collection thumbnail list has one Tab stop; arrows, Home and End move focus without opening a photo until Enter. On phones the title preserves the start and distinguishing suffix of long filenames. Review comes before Info; capture date and category are inside Info, with an explicit missing-date label. Long tags wrap within the inspector. Small rendition readouts retain the source label and expose dimensions to screen readers when those dimensions cannot fit visibly.
+Focus the photo canvas to inspect it with the keyboard: +/− zoom, arrow keys pan while enlarged, and Home fits the image. At Fit, arrows resume photo navigation; Tab leaves the canvas. A single image name is announced while renditions change. Stack thumbnails show the active member and use filenames rather than server paths. The collection thumbnail list has one Tab stop; arrows, Home and End open the photo they reach. On phones the title preserves the start and distinguishing suffix of long filenames. Review comes before Info; capture date and category are inside Info, with an explicit missing-date label. Long tags wrap within the inspector. Small rendition readouts retain the source label and expose dimensions to screen readers when those dimensions cannot fit visibly.
 
 Enlarged inspection reserves touch drags for panning; Fit restores normal page scrolling. Pan bounds follow the fitted image in each direction, so every edge is reachable at high magnification and zooming out keeps the image within bounds. Long captions and person names wrap within the inspector.
 
@@ -465,7 +459,7 @@ Response fields and status codes: [API.md](API.md).
 - **Hide Details** — hide metadata on cards (grid mode only)
 - **Thumbnail shape** — square crop (the default) or the photo's original ratio for the detail-less tiles; greyed while Mosaic is active, which already keeps the ratio, or while details are shown.
 - **Tooltip** — how photo details appear: **Side panel** (default), **Hover**, **Click** or **Off**.
-  - The side panel shows full details in the right-hand drawer, laid out like photo detail. Under **Panel activation**, choose **Hover**, **Click**, or **Hover or click** (default). The Review preset uses **Click**; choose a click-enabled option for touch screens. It keeps the last photo when the cursor leaves the grid.
+  - The side panel shows full details in the right-hand drawer, laid out like photo detail. Under **Panel activation**, choose **Hover**, **Click**, or **Hover or click** (default). Choose a click-enabled option for touch screens. It keeps the last photo when the cursor leaves the grid.
   - Clicking a photo holds the panel on it until you press **Deselect** (which also deselects the photo). **Escape** does the same and clears the selection.
   - A **Why This Score?** entry pinned at the bottom of the panel opens the score explainer (the critique dialog) for the photo the panel holds.
   - The panel shares the drawer with the filters; opening the filters hides it. It needs a viewport at least 1280px wide. Where the panel cannot dock, a saved **Side panel** setting shows its details in the floating bubble instead, and **Escape** closes it.
@@ -479,7 +473,7 @@ Response fields and status codes: [API.md](API.md).
 - **Best of bracket** — show only each bracket's base exposure. **On by default.** Independent of Best of Burst, because a bracket's burst lead is not always its base exposure.
 - **Best of panorama** — show only the middle frame of each panorama or HDR-panorama set. **On by default.**
 - **Infinite Scroll** — photos load as you scroll
-- **Fast Scrolling (virtualized)** — renders only rows near the viewport, so deep scrolling stays fast. On by default. Turn it off in the sidebar's Display tab if you hit layout issues. Grid mode with details shown always renders fully. Saved in localStorage (`facet_virtual_scroll`).
+- **Fast Scrolling (virtualized)** — renders only rows near the viewport, so deep scrolling stays fast. On by default. Turn it off in the **Display** popover if you hit layout issues. Grid mode with details shown always renders fully. Saved in localStorage (`facet_virtual_scroll`).
 
 ### Similar Photos
 
@@ -1261,6 +1255,8 @@ Production builds can be installed to the home screen. The app shell loads offli
 > **Warning:** logout attempts to remove existing service-worker thumbnail entries. Requests already in flight can cache images again. This does not clear the browser’s HTTP cache, which can keep viewed images (thumbnails, renders, full-resolution images) for up to a year. Accounts that must not see each other’s photos should not share a browser profile.
 
 ## Mobile
+
+On small screens the floating selection bar shows touch-sized buttons for clear, compare (once two or more photos are selected) and, in edition mode, Keep and Reject, plus an **Actions** button. **Actions** opens a bottom sheet with the other bulk operations (refresh, stack, favorite, reset decision, rate, albums, capture date, tags, location, export, cull to folder, mark as panorama, HDR panorama or bracket, invert, copy filenames, download). When the selection does not fit the compare workspace, the compare button stays disabled and a note states the limits.
 
 ## Photo Frame / Kiosk Endpoint
 

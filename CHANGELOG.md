@@ -7,38 +7,19 @@ All notable changes to Facet are documented in this file.
 ### Added
 
 - Copy the open photo as a PNG image for pasting into other applications; the original file is unchanged.
-
-## [1.28.0] "f/64" — 2026-11-05
-
-### Added
-
 - Photo-detail score charts load on demand, highlight the current photo and switch between the reader’s visible library and the photo’s category. Multi-person gallery filters show color-matched face outlines, with a persistent Display toggle.
-- **A `12gb` VRAM profile.** Auto-detect now selects it for cards reporting 11.5 to under 14 GiB (a 12 GB card reports about 11.7), which previously fell to `8gb`. It runs the same models as `16gb` (SigLIP 2, TOPIQ, Qwen3.5-2B), so a library stays interchangeable between a 12 GB and a 16 GB machine, and is planned in four passes below about 11.8 GiB and three above (simulated with a capped PyTorch allocator on a 16 GB card; ONNX Runtime models such as InsightFace ignore that cap). Cards under 11.5 GiB stay on `8gb`. `FACET_VRAM_PROFILE=12gb` and `docker-compose.12gb.yml` select it explicitly. **Upgrade note:** an existing CLIP library on such a card changes embedding model (768 to 1152 dimensions) if left on `auto`; pin `vram_profile` to `8gb` to keep it, or rescan / run `--recompute-embeddings`.
-
-- **`--evaluate-models weights` judges a category-weight change before you apply it.** Pass config override files as `--candidates`; each re-scores every photo and the report gives, per category and overall and in both licence modes, agreement with your decisive picks, the paired-bootstrap CI of candidate minus baseline, the score-distribution shift and a report-only ship check. Buckets under 30 decisive pairs are `insufficient_pairs`. Read-only; no default weight changes.
-
-- **`--evaluate-models faces-detect --face-labels PATH` measures small-face recall against hand-labelled boxes.** `python -m optimization.face_labels sample|import` builds the labelled set from your own library (labelme workflow, kept local, see `testdb/README.md`); the report gives recall per face-size bucket with bootstrap CIs, false positives per no-face photo, seconds per photo, peak VRAM and a downstream cannot-link check, for `insightface@640/1024/1280`, `insightface-tiled`, `insightface-tiled-cond` and `yunet-tiled` candidates. `insightface-tiled-cond` tiles only when the full-frame pass finds a face under 80 px (`insightface-tiled-cond@<px>` also tiles images whose longer side exceeds `<px>`); timing is taken after one untimed warm-up call and reported as mean and median, with the ship-rule time ratio on the median. Measurement only: no scan default changes.
-- **Browser flows (Playwright).** `cd client && npm run e2e` drives the production viewer in Chrome through multi-step paths on a seeded, model-free library (`client/e2e/`): the AI-edit burst strip, Hide bursts, a reused edit name showing the new picture through the service worker's cache, and a deleted burst lead. Each flow fails on any page error, console error or 5xx, and keeps a trace of every step on failure. Not part of `npm run test`; see `client/e2e/README.md`.
 
 - Reset display restores the configured layout, thumbnail size and inspection mode without changing the current query, sort, album, selection or loaded page.
 
 - A dedicated selected-photo comparison workspace replaces the gallery popup: arbitrary reference/candidate assignment, promotion, candidate strip, view-only Remove/Restore, linked or independent framing, keyboard/touch inspection, stored face/subject crops and displayed-rendition status with Retry. Back preserves the originating collection and selection.
+
 - Captured rating Set/Clear and manual-tag Add/Remove/Replace/Clear previews disclose mixed values and exact targets, including matching folded members and whole-view exclusions. Account or access changes stop later write chunks; unrelated fields and AI tags are preserved.
+
 - Organization history has explicit Preview/Apply/Cancel and per-entry conflict recovery. Processing and export receipts expose actual operation state, counts, cancellation and supported retry behavior.
 
-- **Culling previews show the affected files.** Review paginated thumbnails, filenames and companion files before copying, moving or trashing; click an image to enlarge it. Trash confirmation shows the file count.
-- **Mark an object.** The mark editor on the photo page can mark an object instead of a face: pick **Object**, draw the box and give it a label. Objects show as blue labelled boxes, the gallery search finds them by label, and assistants read them (`GET /api/photo/objects`, and `objects` in the `get_photo` tool) to know which region to act on; marks are always user-drawn, never detected. They live in a new `photo_objects` side table and never touch faces, clustering or people.
-
-- Stack explicit unstacked selections in selection order with Cmd+Shift+S or Ctrl+Shift+S, using the first selected photo as cover. Existing stack members open the editor for review, and Undo restores the selection the stack cleared.
-- **The docked side panel gains a Why This Score? entry** pinned at its bottom edge, opening the score explainer (the critique dialog) for the photo the panel holds, without hunting for the card's hover bar.
-- **The photo tiles can keep the original ratio.** The gallery's display menu offers square crop or the photo's own ratio — the card hugs the photo instead of cropping it. The choice is stored per browser and applies to grids with details hidden.
-
-- **AI edits.** An assistant brings an AI-edited copy of a photo into the library with `import_ai_edit`, sending the image as bytes (`image_data`, base64) or as a file in the operator's `ai_edits.drop_dir` (read and left in place; a resolved path outside it, a symlink out, a second hard link or a scanned folder is refused). Facet writes its own copy, never deletes a file, and two imports at once take two revisions; the edit's scan follows the scan trigger's access rule: the copy lands beside the original as `{name}_{suffix}_{revision}{ext}` (suffix per tool in `ai_edits.tool_suffixes`: `agy` for Antigravity Gemini, `gpt` for ChatGPT, `ant` for Claude; revisions are numbered across all tools, so after `IMG_1_agy_2` a ChatGPT edit is `IMG_1_gpt_3`), never over an existing file, captioned with the original's caption plus `AI: <note>`, and the MCP call waits for the scan so the assistant can confirm it is in Facet; linked in a new `photo_ai_edits` side table (merged into an incremental viewer-DB export like manual tags) and scanned on its own. An original read through `viewer.path_mapping` is refused, as relink refuses it. The gallery marks it ✨ **AI**; on the photo page an edit in its original's burst is labelled ✨ AI in the strip, which lists the kept frames, then AI edits, then blinks.
-- **Light AI-edit import.** The import scores only the new file (`facet.py --ai-edit`), puts it in its original's burst and captions it, without re-running the library-wide passes, so the edit is in Facet in well under a minute. The burst's lead is re-picked by score, so an edit that scores best leads, and every later scan keeps an edit in its original's burst whatever its capture time.
-- **`edit_photo` MCP prompt.** Walks any connected assistant through finding a photo, editing a copy outside the library and bringing it back with `import_ai_edit`, naming the tool names the server accepts. An example skill file for skill-based assistants is in `docs/examples/agent-skills/facet/`.
-- **The Windows MSI records the build it was made from.** The user menu's build line shows the `branch@commit` an MSI was built from; a pull-request build is labelled after its PR branch and head, a tag build after the tag, and any other detached checkout `detached`.
-
 ### Changed
+
+- **The photo-tile ratio choice moves to the gallery's display menu.** Square crop or the photo's own ratio — the card hugs the photo instead of cropping it. The choice is stored per browser and applies to grids with details hidden.
 
 - The full-page Stack Editor supports bounded keyboard image inspection, a single-stop thumbnail strip, explicit image-load Retry, and focus restoration after rejecting the focused member. Narrow controls retain touch targets and readable filenames.
 
@@ -75,18 +56,19 @@ All notable changes to Facet are documented in this file.
 - Photo-detail sets label their counts and member positions as files, keeping every RAW/JPEG representation inspectable. Gallery set counts explicitly refer to photos, where a grouped RAW/JPEG pair counts once.
 
 - The selection bar has a drag handle (arrow keys work too) that moves it off the photos you are working on; each account's position is remembered in the browser.
+
 - The selection bar notes when a selected folded stack tile acts on its displayed photo only, matching the existing whole-view note about folded members.
+
 - The selection bar status names a whole-view selection's exclusions: "All matching photos, except N".
-- **Multi-pass scans on CUDA decode the first photos of the next chunk while the current chunk's models run.** Once a chunk is decoded the decode worker starts on as many of the next chunk's first photos as free memory, Windows commit headroom and the memory monitor's growth threshold allow (none for the first chunk, with auto-tuning on after a chunk shorter than the monitor interval, or with `keep_in_ram: "never"`; the room for every model the chunk's RAM cache keeps is left free); the rest of the chunk is decoded as before. Chunk boundaries are unchanged, auto-tuning is given the bytes the early decode holds and subtracts them from the readings it judges (near the growth threshold a growth step can come a chunk later), a photo whose early decode failed (an out-of-memory error included) is decoded again once in its own chunk and reported only if that fails too, a photo whose early decode raised a timeout error is reported once and not decoded again, EXIF is collected when the chunk starts as before, and scores and thumbnails are identical. The scan summary gains `Decode-ahead: X photos in Y chunks (Z re-decoded)`, printed only when a decode-ahead was submitted; those photos' decode wall overlaps the previous chunk's inference, so `Decode wall` is no longer part of the scan thread's wait (`I/O wait`).
-- **Multi-pass scans read the next chunk's EXIF while the current chunk is processed.** A background thread runs the batched exiftool call for chunk N+1 beside chunk N and the decode only collects it; chunk 0, a failed prefetch and any path a changed chunk size left out are read synchronously, so results are unchanged. Ctrl-C or an error stops the thread and starts no further exiftool process, and creating the shared exiftool instance is now thread-safe. In the scan summary `EXIF batch` is exiftool execution seconds (its `Stages` wall is the whole scan, not the decode), and the new `EXIF wait` is the time the decode was blocked on EXIF, part of the decode wall.
-- **A full scan makes each photo's thumbnail where it decodes the photo.** A RAW file is now opened once per scan: the embedded preview is encoded to the stored thumbnail and the demosaic runs on the same open, instead of the save re-opening the file on the scan thread. Thumbnails are byte-identical and `render_version` is unchanged. `--pass` runs still make a thumbnail only for a file that is new to the database, and still open that RAW twice. In the scan summary the `Thumbnail wall` line is now `Thumbnail worker-seconds` (resize and JPEG encode, on the decode pool, included in the decode wall), `Save wall` no longer excludes anything, and `Stages` gains a `thumbnail` line; the embedded-preview read now counts as decode. The single-pass engine takes the same route, with `total_thumbnail_time` kept out of the load time that auto-tuning reads.
-- **✨ now marks only what an assistant chose.** Facet's own features (aesthetic quality, My Taste, moments, Memories and smart albums) use a coloured ✦ instead, so they no longer read as AI output. Icon-only change; nothing is rescored.
-- **Language and theme submenus mark their current entry** with the same check the tooltip-mode radio uses, and no longer wrap their labels when the check squeezes them.
-- **A missing optional metric no longer scores as a neutral 5.0 in the aggregate.** A NULL `subject_sharpness`, `subject_prominence`, `subject_placement`, `bg_separation` or `face_quality_iqa` is left out and its weight is redistributed over the metrics that are present; with all of them missing the aggregate stays neutral. Aggregates change only where a category gives one of these five a positive weight (the shipped weights are unchanged), so run `--recompute-average` after upgrading if you set one. `--optimize-weights` keeps such a weight at its current value when the comparison set has no data for that metric, instead of writing 0%.
+
 - Changing the filters, search or album clears the gallery selection and says so, so a selection hidden by the new view cannot be the target of the next action. Changing only the sort keeps it.
+
 - Album refinements stay temporary until an explicit saved-rule Preview and Save; Reset restores saved criteria. Manual membership and smart criteria are identified separately.
+
 - Phone collection controls use two compact rows with on-demand search, explicit Select/Cancel, direct sort/filter/layout controls and secondary View options. UI strings and Viewer guides are synchronized across all seven languages.
+
 - Assessment availability, personal ratings, review decisions and group suggestions have distinct labels. Image status and histogram provenance describe actual displayed pixels without implying RAW sensor inspection.
+
 - Desktop destination tabs separate library navigation from the current page’s actions and collection header. Destinations that do not fit move to More; mobile retains the navigation menu. Filter-tab counts stay within their icon row.
 
 - Active criteria and similarity controls belong to the collection header. Review, type, location and clipping criteria are visible; paired range bounds clear in one update. Quick filters disclose the existing visual-search and review-sort transitions, effective visibility rules are inspectable, and fixed lists explain their query restrictions.
@@ -96,19 +78,27 @@ All notable changes to Facet are documented in this file.
 - The selection bar discloses selected photos outside loaded tiles and whole-view exclusions. Comparison refuses partial or oversized selections instead of silently opening only some selected photos.
 
 - Gallery sort, filters, inspection and slideshow use one collection-owned control group at every width. Account and scan actions follow global navigation; the duplicate gallery toolbar and mobile bottom bar are removed. Collection menus close and reject stale commands while a photo page parks the gallery.
+
 - Comparison has a thumbnail candidate strip, independent active-pane marking, view-only removal and restore. Two-pane comparison stacks vertically on narrow screens; command chrome follows the selected theme.
+
 - Grid cards with details fit whole images into equal 4:3 frames. Moving focus preserves other photos’ brightness while retaining separate current-photo and selection markers.
+
 - Card metadata follows the selected light or dark theme.
+
 - The gallery owns its collection title, counts, Grid/Mosaic controls and exact text search at every width. The selection bar keeps Clear, Compare and review decisions visible, with labeled secondary commands in Actions. Small screens retain a navigation menu and Actions sheet; filter tabs show their names.
+
 - Light and dark workspace surfaces use neutral colors across the accent themes, keeping color emphasis on active controls and the photos.
+
 - The gallery details panel names its owning photo and can be closed without clearing the batch selection.
-- **`--recompute-iqa` no longer loads every pending thumbnail into memory.** The pass lists the pending photos first, then reads, decodes (a small thread pool) and scores them one batch at a time and writes each batch with one `executemany` per score column plus one for declines, so memory no longer grows with the number of pending photos. Photos are now processed in rowid order, and a photo scored, declined or deleted while the pass runs is skipped if the change lands before its batch is read. Ctrl-C keeps every finished batch; rerun to continue. The scorers are now always unloaded, even when the pass fails.
 
 ### Fixed
 
 - Statistics exposes filters and summary figures on mobile, improves chart contrast and text alternatives, and handles errors and account changes without displaying stale results.
+
 - Albums distinguish empty results from load failures, support retrying failed pages and preserve the correct account and navigation context during dialog operations.
+
 - Stack editor mode controls and gallery keyboard hints fit narrow cards and screens more reliably.
+
 - Keep Stack Editor controls accessible while scrolling, restore focus after review decisions, and improve Culling and Junk Sweep labels, touch targets and failure messages.
 
 - Junk Sweep preserves unseen candidates after decisions and failed paging, separates load failures from empty queues, and stops later bulk write batches after navigation or account changes. Named touch-sized decisions stay visible; kind counts match the reader’s remaining candidates.
@@ -118,12 +108,15 @@ All notable changes to Facet are documented in this file.
 - Narrow photo headers give filenames a full-width two-line row. Ready-image readouts keep dimensions and zoom together in narrow panes while retaining accessible source status; Favorite and zoom controls use 44-pixel coarse-pointer targets.
 
 - Public album shares cannot sort by private review fields. Photo and comparison Back navigation preserve the originating collection without leaving a direct photo link or duplicating gallery history; cancelled returns remain retryable.
+
 - Hierarchy editors close when filters change, and refreshed face-review queues supersede older page reads. Catalog removal explains protected bracket frames. Sidebar layouts share Grid, Mosaic and List controls, with consistent Escape handling and touch targets.
+
 - Export jobs reuse stable source-directory naming inventories while rechecking recent or changed directories; sequence sibling lookup uses its index after database analysis.
 
 - Comparison Back returns to the collection without reopening the workspace on browser Back. Compact navigation, layout controls and review buttons keep consistent alignment, and collection filter labels remain visible.
 
 - Grouped RAW/JPEG culling pages reuse their enriched results without retaining stale primaries, membership or visibility. Similarity thresholds keep their exact value in the cache key.
+
 - JPEG-only download menus reuse missing-RAW hints; positive RAW options still check current file visibility. Confirmed exports avoid rebuilding a full folder ownership index before every file, while continuing to check current filenames for XMP conflicts.
 
 - Photo detail, comparison, darkroom and manual face saving work on plain-HTTP LAN connections where the browser does not provide `crypto.randomUUID`.
@@ -145,10 +138,13 @@ All notable changes to Facet are documented in this file.
 - Clearing saved smart-album criteria now survives reload and Back, including camera, tag and score filters, disabled flags and reset sort direction. Saved album rules remain unchanged.
 
 - Late album and configuration responses cannot overwrite a newer gallery visit; startup defaults no longer reset an active gallery.
+
 - Album setup that finishes while a photo is open waits for Back before loading the gallery, without losing the album scope or retrying old collection pages.
+
 - Pending range-slider reloads pause when leaving the gallery and resume on Back. Late “Keep top N%” results cannot replace a newer selection or collection.
 
 - Saved album rules and query previews translate their field names, while preserving literal camera, tag and search values.
+
 - Retrying a developed preview keeps its cache bypass scoped to that photo and style.
 
 - Retrying a darkroom image no longer bypasses the thumbnail cache for later photos viewed in the same pane.
@@ -164,11 +160,49 @@ All notable changes to Facet are documented in this file.
 - Cull and Delete validate companion access before previews or writes, including mapped aliases. Hidden indexed companions and unsafe inventories refuse the whole request without changing files or catalog rows.
 
 - Text search and review-progress reads retain full-text index identity when RAW/JPEG groups are present.
+
 - Logical-photo reviews reconcile filtered results and refreshed revision receipts after single and batch edits.
+
 - Indexed logical album, semantic-hit and stack membership avoid library-by-membership scans.
 
 - Token rotation immediately suspends stale editing controls, status reads share a credential-scoped request, and late status or edition-lock responses cannot restore a previous account's state.
+
 - Escape on a directly opened photo returns to the saved gallery query instead of leaving the application through browser history. Gallery-opened photos retain normal history return.
+
+## [1.28.0] "f/64" — 2026-11-05
+
+### Added
+
+- **A `12gb` VRAM profile.** Auto-detect now selects it for cards reporting 11.5 to under 14 GiB (a 12 GB card reports about 11.7), which previously fell to `8gb`. It runs the same models as `16gb` (SigLIP 2, TOPIQ, Qwen3.5-2B), so a library stays interchangeable between a 12 GB and a 16 GB machine, and is planned in four passes below about 11.8 GiB and three above (simulated with a capped PyTorch allocator on a 16 GB card; ONNX Runtime models such as InsightFace ignore that cap). Cards under 11.5 GiB stay on `8gb`. `FACET_VRAM_PROFILE=12gb` and `docker-compose.12gb.yml` select it explicitly. **Upgrade note:** an existing CLIP library on such a card changes embedding model (768 to 1152 dimensions) if left on `auto`; pin `vram_profile` to `8gb` to keep it, or rescan / run `--recompute-embeddings`.
+
+- **`--evaluate-models weights` judges a category-weight change before you apply it.** Pass config override files as `--candidates`; each re-scores every photo and the report gives, per category and overall and in both licence modes, agreement with your decisive picks, the paired-bootstrap CI of candidate minus baseline, the score-distribution shift and a report-only ship check. Buckets under 30 decisive pairs are `insufficient_pairs`. Read-only; no default weight changes.
+
+- **`--evaluate-models faces-detect --face-labels PATH` measures small-face recall against hand-labelled boxes.** `python -m optimization.face_labels sample|import` builds the labelled set from your own library (labelme workflow, kept local, see `testdb/README.md`); the report gives recall per face-size bucket with bootstrap CIs, false positives per no-face photo, seconds per photo, peak VRAM and a downstream cannot-link check, for `insightface@640/1024/1280`, `insightface-tiled`, `insightface-tiled-cond` and `yunet-tiled` candidates. `insightface-tiled-cond` tiles only when the full-frame pass finds a face under 80 px (`insightface-tiled-cond@<px>` also tiles images whose longer side exceeds `<px>`); timing is taken after one untimed warm-up call and reported as mean and median, with the ship-rule time ratio on the median. Measurement only: no scan default changes.
+- **Browser flows (Playwright).** `cd client && npm run e2e` drives the production viewer in Chrome through multi-step paths on a seeded, model-free library (`client/e2e/`): the AI-edit burst strip, Hide bursts, a reused edit name showing the new picture through the service worker's cache, and a deleted burst lead. Each flow fails on any page error, console error or 5xx, and keeps a trace of every step on failure. Not part of `npm run test`; see `client/e2e/README.md`.
+
+- **Culling previews show the affected files.** Review paginated thumbnails, filenames and companion files before copying, moving or trashing; click an image to enlarge it. Trash confirmation shows the file count.
+
+- **Mark an object.** The mark editor on the photo page can mark an object instead of a face: pick **Object**, draw the box and give it a label. Objects show as blue labelled boxes, the gallery search finds them by label, and assistants read them (`GET /api/photo/objects`, and `objects` in the `get_photo` tool) to know which region to act on; marks are always user-drawn, never detected. They live in a new `photo_objects` side table and never touch faces, clustering or people.
+- Multi-pass scans print seconds per model, a `Stages` block with a `busy / wait / occupancy` line for the scan thread and for each decode-pool stage (worker-seconds) plus the time no timer covers, and a completed `facet.py` scan logs `Post-scan <step>` lines and a `Process wall:` line splitting startup, scoring and post-scan. Measurement only.
+- Stack explicit unstacked selections in selection order with Cmd+Shift+S or Ctrl+Shift+S, using the first selected photo as cover. Existing stack members open the editor for review, and Undo restores the selection the stack cleared.
+- **The docked side panel gains a Why This Score? entry** pinned at its bottom edge, opening the score explainer (the critique dialog) for the photo the panel holds, without hunting for the card's hover bar.
+- **The photo tiles can keep the original ratio.** User menu → Tile presentation offers square crop (the current look) or the photo's own ratio, FlowVision-style — the card hugs the photo instead of cropping it. Stored per browser like the other display options; greyed while the mosaic layout is active (which already keeps the ratio) or while details are shown.
+- **AI edits.** An assistant brings an AI-edited copy of a photo into the library with `import_ai_edit`, sending the image as bytes (`image_data`, base64) or as a file in the operator's `ai_edits.drop_dir` (read and left in place; a resolved path outside it, a symlink out, a second hard link or a scanned folder is refused). Facet writes its own copy, never deletes a file, and two imports at once take two revisions; the edit's scan follows the scan trigger's access rule: the copy lands beside the original as `{name}_{suffix}_{revision}{ext}` (suffix per tool in `ai_edits.tool_suffixes`: `agy` for Antigravity Gemini, `gpt` for ChatGPT, `ant` for Claude; revisions are numbered across all tools, so after `IMG_1_agy_2` a ChatGPT edit is `IMG_1_gpt_3`), never over an existing file, captioned with the original's caption plus `AI: <note>`, and the MCP call waits for the scan so the assistant can confirm it is in Facet; linked in a new `photo_ai_edits` side table (merged into an incremental viewer-DB export like manual tags) and scanned on its own. An original read through `viewer.path_mapping` is refused, as relink refuses it. The gallery marks it ✨ **AI**; on the photo page an edit in its original's burst is labelled ✨ AI in the strip, which lists the kept frames, then AI edits, then blinks.
+- **Light AI-edit import.** The import scores only the new file (`facet.py --ai-edit`), puts it in its original's burst and captions it, without re-running the library-wide passes, so the edit is in Facet in well under a minute. The burst's lead is re-picked by score, so an edit that scores best leads, and every later scan keeps an edit in its original's burst whatever its capture time.
+- **`edit_photo` MCP prompt.** Walks any connected assistant through finding a photo, editing a copy outside the library and bringing it back with `import_ai_edit`, naming the tool names the server accepts. An example skill file for skill-based assistants is in `docs/examples/agent-skills/facet/`.
+- **The Windows MSI records the build it was made from.** The user menu's build line shows the `branch@commit` an MSI was built from; a pull-request build is labelled after its PR branch and head, a tag build after the tag, and any other detached checkout `detached`.
+
+### Changed
+
+- **Multi-pass scans on CUDA decode the first photos of the next chunk while the current chunk's models run.** Once a chunk is decoded the decode worker starts on as many of the next chunk's first photos as free memory, Windows commit headroom and the memory monitor's growth threshold allow (none for the first chunk, with auto-tuning on after a chunk shorter than the monitor interval, or with `keep_in_ram: "never"`; the room for every model the chunk's RAM cache keeps is left free); the rest of the chunk is decoded as before. Chunk boundaries are unchanged, auto-tuning is given the bytes the early decode holds and subtracts them from the readings it judges (near the growth threshold a growth step can come a chunk later), a photo whose early decode failed (an out-of-memory error included) is decoded again once in its own chunk and reported only if that fails too, a photo whose early decode raised a timeout error is reported once and not decoded again, EXIF is collected when the chunk starts as before, and scores and thumbnails are identical. The scan summary gains `Decode-ahead: X photos in Y chunks (Z re-decoded)`, printed only when a decode-ahead was submitted; those photos' decode wall overlaps the previous chunk's inference, so `Decode wall` is no longer part of the scan thread's wait (`I/O wait`).
+- **Multi-pass scans read the next chunk's EXIF while the current chunk is processed.** A background thread runs the batched exiftool call for chunk N+1 beside chunk N and the decode only collects it; chunk 0, a failed prefetch and any path a changed chunk size left out are read synchronously, so results are unchanged. Ctrl-C or an error stops the thread and starts no further exiftool process, and creating the shared exiftool instance is now thread-safe. In the scan summary `EXIF batch` is exiftool execution seconds (its `Stages` wall is the whole scan, not the decode), and the new `EXIF wait` is the time the decode was blocked on EXIF, part of the decode wall.
+- **A full scan makes each photo's thumbnail where it decodes the photo.** A RAW file is now opened once per scan: the embedded preview is encoded to the stored thumbnail and the demosaic runs on the same open, instead of the save re-opening the file on the scan thread. Thumbnails are byte-identical and `render_version` is unchanged. `--pass` runs still make a thumbnail only for a file that is new to the database, and still open that RAW twice. In the scan summary the `Thumbnail wall` line is now `Thumbnail worker-seconds` (resize and JPEG encode, on the decode pool, included in the decode wall), `Save wall` no longer excludes anything, and `Stages` gains a `thumbnail` line; the embedded-preview read now counts as decode. The single-pass engine takes the same route, with `total_thumbnail_time` kept out of the load time that auto-tuning reads.
+- **✨ now marks only what an assistant chose.** Facet's own features (aesthetic quality, My Taste, moments, Memories and smart albums) use a coloured ✦ instead, so they no longer read as AI output. Icon-only change; nothing is rescored.
+- **Language and theme submenus mark their current entry** with the same check the tooltip-mode radio uses, and no longer wrap their labels when the check squeezes them.
+- **A missing optional metric no longer scores as a neutral 5.0 in the aggregate.** A NULL `subject_sharpness`, `subject_prominence`, `subject_placement`, `bg_separation` or `face_quality_iqa` is left out and its weight is redistributed over the metrics that are present; with all of them missing the aggregate stays neutral. Aggregates change only where a category gives one of these five a positive weight (the shipped weights are unchanged), so run `--recompute-average` after upgrading if you set one. `--optimize-weights` keeps such a weight at its current value when the comparison set has no data for that metric, instead of writing 0%.
+- **`--recompute-iqa` no longer loads every pending thumbnail into memory.** The pass lists the pending photos first, then reads, decodes (a small thread pool) and scores them one batch at a time and writes each batch with one `executemany` per score column plus one for declines, so memory no longer grows with the number of pending photos. Photos are now processed in rowid order, and a photo scored, declined or deleted while the pass runs is skipped if the change lands before its batch is read. Ctrl-C keeps every finished batch; rerun to continue. The scorers are now always unloaded, even when the pass fails.
+
+### Fixed
 
 <!-- Benchmark: three trees on one machine (before = d1859235, one state read, persistent process), ExifTool 12.76,
      40 photos x 5 interleaved repeats, median ms/photo: JPEG sidecar re-export 343 -> 232 -> 4.2, embed-original

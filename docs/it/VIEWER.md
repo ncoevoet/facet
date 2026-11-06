@@ -6,7 +6,7 @@ La galleria è un'app web FastAPI + Angular per sfogliare, filtrare, selezionare
 
 Su desktop (da 1024 px), le destinazioni abilitate compaiono direttamente nella barra superiore finché c’è spazio. **Altro** appare solo quando alcune destinazioni non entrano e contiene quelle rimanenti. Il calcolo considera il ridimensionamento, le etichette tradotte e i controlli dell’account. Le azioni contestuali della pagina sono nella riga sottostante. La galleria ha una propria intestazione della raccolta con origine, ricerca, conteggio, ordinamento e filtri attivi rimovibili. Sugli schermi più stretti, il menu di navigazione offre le stesse destinazioni disponibili.
 
-L’intestazione della raccolta resta visibile durante lo scorrimento, con ricerca, selezione, ordinamento e criteri attivi. **Filtri** apre Sfoglia, Qualità e Soggetto; il badge numerico conta i filtri attivi e lo sfondo indica il pannello aperto. **Revisione** contiene decisioni, visibilità, stelle e preferiti. **Visualizzazione** contiene layout, dimensione miniature, preimpostazioni, informazioni e presentazione. Ogni impostazione ha un solo accesso. Nelle raccolte strette l’ordinamento passa in Visualizzazione. Gli aiuti si aprono in finestre ancorate senza spostare la galleria.
+L’intestazione della raccolta resta visibile durante lo scorrimento, con ricerca, selezione, ordinamento e criteri attivi. **Filtri** apre Sfoglia, Qualità e Soggetto; il badge numerico conta i filtri attivi e lo sfondo indica il pannello aperto. **Revisione** contiene decisioni, visibilità, stelle e preferiti. **Visualizzazione** contiene layout, dimensione miniature, informazioni e presentazione. Ogni impostazione ha un solo accesso. Nelle raccolte strette l’ordinamento passa in Visualizzazione. Gli aiuti si aprono in finestre ancorate senza spostare la galleria.
 
 **Comandi dell’intestazione.** La ricerca contiene solo la query di testo. Il tipo di foto si trova in **Filtri**. **Revisione** contiene le pile suggerite e la selezione della percentuale migliore; **Visualizzazione** permette di espandere o comprimere le pile. In modalità selezione, il pulsante mostra il numero di foto selezionate e un’icona di chiusura. Sugli smartphone stretti, due righe compatte mantengono leggibili il nome della raccolta e le etichette dei comandi.
 
@@ -158,20 +158,14 @@ Il pannello filtri ha tre schede: Sfoglia, Qualità e Soggetto. Revisione e Visu
 | Scheda | Sezioni |
 |--------|---------|
 | **Sfoglia** | Ricerca semantica, Persone, Intervallo date, Contenuto, Album, Posizione, Cartella, Attrezzatura |
-
 | **Qualità** | Qualità, Colore e qualità, Qualità estesa, Tecnica, Esposizione & Gamma (quanto è buona l'immagine) |
 | **Soggetto** | Metriche volti, Composizione, Salienza del soggetto, Momenti (cosa c'è nell'inquadratura) |
-
 
 L'intestazione, **Cerca un filtro**, l'avviso dell'album intelligente e la ricerca per nome file restano sopra le schede in ogni scheda, quindi `/` funziona da tutte. Digitare in **Cerca un filtro** nasconde le schede ed elenca i cursori corrispondenti di tutte.
 
 Il numero accanto a **Filtri** comprende tutti i criteri attivi, anche metriche non disponibili. Un intervallo conta una volta. **Reimposta filtri** appare accanto ai criteri della raccolta già con un solo criterio; il pannello non lo duplica. **X** chiude il pannello.
 
-Nella scheda Revisione, la decisione e ogni gruppo (ad esempio Duplicati) è una riga che mostra il valore attuale (come Nascoste, Mostrate o Solo queste) e apre un menu di scelte, ciascuna con una spiegazione di una riga. Una riga lasciata sul valore predefinito non conta nel badge della scheda né dell'intestazione. *Solo* e *Nascoste* si escludono a vicenda. Finché è scelta una decisione, Scartate è bloccata e la sua descrizione ne spiega il motivo. Il pulsante a stella imposta una valutazione minima: ogni clic la aumenta di uno, e il clic dopo 5, o dopo un massimo arrivato da un link, la cancella. Condivide una riga con gli interruttori Preferiti e Monocromo, solo icona e con descrizioni al passaggio. Nelle schede Qualità e Soggetto, passare sul nome di un'impostazione spiega cosa viene valutato e da quale modello, e anche i controlli di Revisione hanno descrizioni al passaggio.
-
-
-
-
+Nella scheda Revisione, la decisione e ogni gruppo (ad esempio Duplicati) è una riga che mostra il valore attuale (come Nascoste, Mostrate o Solo queste) e apre un menu di scelte, ciascuna con una spiegazione di una riga. Una riga lasciata sul valore predefinito non conta nel badge della scheda né dell'intestazione. *Solo* e *Nascoste* si escludono a vicenda. Finché è scelta una decisione, Scartate è bloccata e la sua descrizione ne spiega il motivo. Una riga **Valutazione a stelle** apre un menu (Tutte, da 1★ e oltre a 5★ e oltre, 0 stelle). Sotto, le caselle con etichetta **Solo preferite** e **Solo monocromatiche** hanno descrizioni al passaggio. Nelle schede Qualità e Soggetto, passare sul nome di un'impostazione spiega cosa viene valutato e da quale modello, e anche i controlli di Revisione hanno descrizioni al passaggio.
 
 ### Filtri primari
 
@@ -382,22 +376,22 @@ Nella pagina della foto aperta, la sezione di revisione raggruppa Conserva/Indec
 Le frecce e la posizione nella raccolta restano disponibili per ogni membro della pila, usando la posizione della copertina caricata. I tasti freccia scorrono la pila e proseguono nella raccolta alle sue estremità. Dettagli della foto raggruppa revisione e sezioni tecniche; lo stato Pronto resta disponibile ai lettori di schermo senza testo visivo aggiuntivo.
 
 Quando si ingrandisce un’immagine nel confronto, una miniatura mostra tutta la foto con un riquadro rosso sulla regione visibile. Il riquadro segue spostamento e zoom, anche nei riquadri collegati, e scompare con Adatta.
+
 L’indicatore di posizione sull’immagine identifica la raccolta. Le sezioni espandibili mostrano frecce che ruotano all’apertura. Revisione resta per prima; in Informazioni, Didascalia, Posizione e Tag precedono le fonti dei metadati e i file correlati. I controlli di modifica e dei tag hanno bersagli di almeno 44 pixel su schermi stretti e con puntatori grossolani, restando compatti sul desktop.
 
 Sul telefono il nome ha una riga a larghezza piena, con al massimo due righe di testo. I nomi molto lunghi conservano inizio e suffisso distintivo. Le letture strette mantengono visibile il tipo di immagine; le dimensioni che non entrano restano disponibili agli screen reader. Caricamento ed errori restano visibili. Preferiti, zoom e icone dell’intestazione hanno bersagli di almeno 44 pixel con puntatori grossolani.
 
+Metti a fuoco l’immagine: +/− regola lo zoom, le frecce spostano l’immagine ingrandita e Home la adatta. Quando è adattata, le frecce riprendono la navigazione; Tab esce dall’immagine. Viene annunciato un solo nome durante i cambi di resa. Le miniature della pila evidenziano il membro attivo e usano nomi di file anziché percorsi del server. La raccolta ha un solo arresto Tab; frecce, Home e Fine aprono la foto raggiunta. Sul telefono restano visibili l’inizio e il suffisso distintivo dei nomi lunghi. Revisione precede Informazioni, che contiene data e categoria e indica le date mancanti. I tag lunghi vanno a capo nel pannello. Le letture compatte mantengono il tipo di immagine; le dimensioni nascoste restano disponibili agli screen reader.
+
+Nell’ispezione ingrandita i trascinamenti tattili spostano l’immagine; Adatta ripristina lo scorrimento della pagina. I limiti seguono l’immagine adattata in ogni direzione per raggiungere tutti i bordi ad alto ingrandimento e rispettare i limiti riducendo lo zoom. Didascalie e nomi lunghi vanno a capo nel pannello.
 
 ### Tieni il top N%
-Metti a fuoco l’immagine: +/− regola lo zoom, le frecce spostano l’immagine ingrandita e Home la adatta. Quando è adattata, le frecce riprendono la navigazione; Tab esce dall’immagine. Viene annunciato un solo nome durante i cambi di resa. Le miniature della pila evidenziano il membro attivo e usano nomi di file anziché percorsi del server. La raccolta ha un solo arresto Tab; frecce, Home e Fine spostano il focus, Invio apre la foto. Sul telefono restano visibili l’inizio e il suffisso distintivo dei nomi lunghi. Revisione precede Informazioni, che contiene data e categoria e indica le date mancanti. I tag lunghi vanno a capo nel pannello. Le letture compatte mantengono il tipo di immagine; le dimensioni nascoste restano disponibili agli screen reader.
-
 
 Il controllo **Tieni top %** nella barra degli strumenti (modalità di modifica) seleziona l'intera vista filtrata in un solo passaggio. Imposta una percentuale. Facet ordina la vista secondo l'**ordinamento corrente** (aggregato, I miei gusti, Migliori scelte, nitidezza…), conserva la quota migliore e **seleziona il resto**. Rifiutale dalla barra delle azioni, dopo aver deselezionato quelle che vuoi risparmiare.
 
 - Nulla viene spostato o eliminato; riempie soltanto la selezione. I rifiuti continuano ad addestrare I miei gusti.
 - La selezione è limitata a 5000 foto. Su una vista più grande, restringi il filtro (album, data, persona…).
 - Con i `hide_brackets` / `hide_panoramas` predefiniti, una serie di bracket o panorama conta come **una** foto.
-
-Nell’ispezione ingrandita i trascinamenti tattili spostano l’immagine; Adatta ripristina lo scorrimento della pagina. I limiti seguono l’immagine adattata in ogni direzione per raggiungere tutti i bordi ad alto ingrandimento e rispettare i limiti riducendo lo zoom. Didascalie e nomi lunghi vanno a capo nel pannello.
 
 ### Modifiche IA
 
@@ -464,7 +458,7 @@ Campi della risposta e codici di stato: [API.md](../API.md).
 - **Nascondi dettagli** — nasconde i metadati sulle schede (solo modalità griglia)
 - **Forma delle miniature** — ritaglio quadrato (predefinito) o proporzioni originali della foto per le miniature senza dettagli; disabilitata finché il modo mosaico è attivo, che già conserva le proporzioni, o finché i dettagli sono visibili.
 - **Tooltip** — come appaiono i dettagli della foto: **Pannello laterale** (predefinito), **Al passaggio**, **Al clic** o **Disattivato**.
-  - Il pannello laterale mostra i dettagli completi nel cassetto di destra, organizzato come il dettaglio della foto. In **Attivazione pannello**, scegli **Hover**, **Clic** o **Hover o clic** (predefinito). La vista Revisione usa **Clic**; scegli un’opzione con clic per gli schermi touch. Mantiene l'ultima foto quando il cursore lascia la griglia.
+  - Il pannello laterale mostra i dettagli completi nel cassetto di destra, organizzato come il dettaglio della foto. In **Attivazione pannello**, scegli **Hover**, **Clic** o **Hover o clic** (predefinito). Scegli un’opzione con clic per gli schermi touch. Mantiene l'ultima foto quando il cursore lascia la griglia.
   - Cliccare una foto tiene il pannello su di essa finché non premi **Deseleziona** (che deseleziona anche la foto). **Esc** fa lo stesso e cancella la selezione.
   - Una voce **Perché questo punteggio?** fissata in fondo al pannello apre la spiegazione del punteggio (la finestra di critica) per la foto che il pannello tiene.
   - Il pannello condivide il cassetto con i filtri; aprire i filtri lo nasconde. Richiede una finestra larga almeno 1280px. Dove il pannello non può agganciarsi, un'impostazione **Pannello laterale** salvata mostra i dettagli nel fumetto flottante, ed **Esc** lo chiude.
@@ -478,7 +472,7 @@ Campi della risposta e codici di stato: [API.md](../API.md).
 - **Migliore del bracketing** — mostra solo l'esposizione di base di ogni bracket. **Attivo per impostazione predefinita.** Indipendente da Migliore della raffica, perché il capofila di raffica di un bracket non è sempre la sua esposizione di base.
 - **Migliore del panorama** — mostra solo il fotogramma centrale di ogni serie panorama o panorama HDR. **Attivo per impostazione predefinita.**
 - **Scorrimento infinito** — le foto si caricano mentre scorri
-- **Scorrimento rapido (virtualizzato)** — disegna solo le righe vicine all'area visibile, così lo scorrimento in profondità resta veloce. Attivo per impostazione predefinita. Disattivalo nella scheda Visualizzazione della barra laterale se incontri problemi di layout. La modalità griglia con dettagli mostrati si disegna sempre per intero. Salvato in localStorage (`facet_virtual_scroll`).
+- **Scorrimento rapido (virtualizzato)** — disegna solo le righe vicine all'area visibile, così lo scorrimento in profondità resta veloce. Attivo per impostazione predefinita. Disattivalo nella finestra **Visualizzazione** se incontri problemi di layout. La modalità griglia con dettagli mostrati si disegna sempre per intero. Salvato in localStorage (`facet_virtual_scroll`).
 
 ### Foto simili
 
@@ -1260,6 +1254,8 @@ Le build di produzione possono essere installate nella schermata iniziale. La sh
 > **Avviso:** al logout, l’app tenta di rimuovere le miniature presenti nella cache del service worker. Le richieste già in corso possono memorizzare nuovamente le immagini. Questo non cancella la cache HTTP del browser, che può conservare le immagini viste (miniature, rendering, immagini a piena risoluzione) fino a un anno. Gli account che non devono vedere le foto l’uno dell’altro non dovrebbero condividere un profilo del browser.
 
 ## Mobile
+
+Sugli schermi piccoli la barra di selezione fluttuante mostra pulsanti touch per cancellare la selezione, confrontare (con due o più foto selezionate) e, in modalità di modifica, Conserva e Rifiuta, più un pulsante **Azioni**. **Azioni** apre un pannello inferiore con le altre operazioni di gruppo (aggiorna, impila, preferito, reimposta decisione, valuta, album, data di scatto, tag, posizione, esporta, scarta in cartella, segna come panorama, panorama HDR o bracket, inverti, copia nomi file, scarica). Se la selezione non rientra nell'area di confronto, il pulsante di confronto resta disattivato e una nota indica i limiti.
 
 ## Cornice digitale / Chiosco
 

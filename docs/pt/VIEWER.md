@@ -6,7 +6,7 @@ O visualizador é uma aplicação web em FastAPI + Angular para navegar, filtrar
 
 No computador (a partir de 1024 px), os destinos ativados aparecem diretamente na barra superior enquanto houver espaço. **Mais** aparece apenas quando alguns destinos não cabem e contém os restantes. O cálculo considera o tamanho da janela, os rótulos traduzidos e os controlos da conta. As ações contextuais da página aparecem na linha abaixo. A galeria tem o seu próprio cabeçalho de coleção com origem, pesquisa, contagem, ordenação e filtros ativos removíveis. Em ecrãs mais estreitos, o menu de navegação apresenta os mesmos destinos disponíveis.
 
-O cabeçalho da coleção permanece visível ao deslocar, com pesquisa, seleção, ordenação e critérios ativos. **Filtros** abre Explorar, Qualidade e Assunto; o emblema numérico conta os filtros ativos e o fundo indica se está aberto. **Revisão** contém decisões, visibilidade, estrelas e favoritos. **Visualização** contém disposição, tamanho das miniaturas, predefinições, informações e apresentação. Cada ajuste tem um único acesso. Em coleções estreitas, ordenar passa para Visualização. A ajuda abre em janelas ancoradas sem deslocar a galeria.
+O cabeçalho da coleção permanece visível ao deslocar, com pesquisa, seleção, ordenação e critérios ativos. **Filtros** abre Explorar, Qualidade e Assunto; o emblema numérico conta os filtros ativos e o fundo indica se está aberto. **Revisão** contém decisões, visibilidade, estrelas e favoritos. **Visualização** contém disposição, tamanho das miniaturas, informações e apresentação. Cada ajuste tem um único acesso. Em coleções estreitas, ordenar passa para Visualização. A ajuda abre em janelas ancoradas sem deslocar a galeria.
 
 **Controles do cabeçalho.** A busca contém apenas a consulta de texto. O tipo de foto fica em **Filtros**. **Revisão** contém pilhas sugeridas e a seleção da melhor porcentagem; **Visualização** permite expandir ou recolher pilhas. No modo de seleção, o botão mostra a quantidade selecionada e um ícone para sair. Em celulares estreitos, duas linhas compactas mantêm legíveis o nome da coleção e os rótulos dos controles.
 
@@ -158,20 +158,14 @@ O painel de filtros tem três abas: Explorar, Qualidade e Assunto. Revisão e Vi
 | Aba | Seções |
 |-----|--------|
 | **Explorar** | Busca semântica, Pessoas, Período, Conteúdo, Álbuns, Localização, Pasta, Equipamento |
-
 | **Qualidade** | Qualidade, Cor e qualidade, Qualidade estendida, Técnico, Exposição e amplitude (quão boa é a imagem) |
 | **Assunto** | Métricas de rosto, Composição, Saliência do sujeito, Momentos (o que está no enquadramento) |
-
 
 O cabeçalho, **Encontrar um filtro**, o aviso de álbum inteligente e a busca por nome de arquivo ficam acima das abas em todas elas, por isso `/` funciona a partir de qualquer uma. Digitar em **Encontrar um filtro** oculta as abas e lista os controles correspondentes de todas.
 
 O número junto a **Filtros** inclui todos os critérios ativos, até métricas indisponíveis. Um intervalo conta uma vez. **Redefinir filtros** aparece junto aos critérios da coleção desde o primeiro critério ativo; o painel não o duplica. **X** fecha o painel.
 
-Na aba Revisão, a decisão e cada grupo (por exemplo Duplicatas) é uma linha que mostra o valor atual (como Ocultos, Mostrados ou Só estes) e abre um menu de opções, cada uma com uma explicação de uma linha. Uma linha deixada no valor padrão não conta no emblema da aba nem do cabeçalho. *Só* e *Ocultos* excluem-se mutuamente. Enquanto uma decisão está escolhida, Rejeitadas fica bloqueada, e a dica explica o motivo. O botão de estrela define uma avaliação mínima: cada clique a aumenta em um, e o clique depois de 5, ou depois de um máximo vindo de um link, a limpa. Ele divide uma linha com os interruptores Favoritos e Monocromático, só com ícone e com dicas. Nas abas Qualidade e Assunto, passar o mouse sobre o nome de uma configuração explica o que é pontuado e por qual modelo, e os controles de Revisão também têm dicas.
-
-
-
-
+Na aba Revisão, a decisão e cada grupo (por exemplo Duplicatas) é uma linha que mostra o valor atual (como Ocultos, Mostrados ou Só estes) e abre um menu de opções, cada uma com uma explicação de uma linha. Uma linha deixada no valor padrão não conta no emblema da aba nem do cabeçalho. *Só* e *Ocultos* excluem-se mutuamente. Enquanto uma decisão está escolhida, Rejeitadas fica bloqueada, e a dica explica o motivo. Uma linha **Avaliação por estrelas** abre um menu (Todas, de 1★ ou mais a 5★ ou mais, 0 estrelas). Abaixo, as caixas de seleção rotuladas **Apenas favoritas** e **Apenas monocromáticas** têm dicas. Nas abas Qualidade e Assunto, passar o mouse sobre o nome de uma configuração explica o que é pontuado e por qual modelo, e os controles de Revisão também têm dicas.
 
 ### Filtros Primários
 
@@ -382,22 +376,22 @@ Na página da foto aberta, a secção de revisão agrupa Manter/Indeciso/Rejeita
 As setas e a posição na coleção continuam disponíveis em cada membro da pilha, usando a posição da capa carregada. As teclas de seta percorrem a pilha e continuam na coleção nos seus extremos. Detalhes da foto agrupa a revisão e as secções técnicas; o estado Pronto continua disponível para leitores de ecrã sem texto visual adicional.
 
 Ao ampliar uma imagem na comparação, uma miniatura mostra a fotografia inteira com um retângulo vermelho a marcar a região visível. O retângulo acompanha o deslocamento e o zoom, incluindo nos painéis ligados, e desaparece ao ajustar a imagem.
+
 O indicador de posição na imagem identifica a coleção. As secções expansíveis mostram setas que rodam ao abrir. Revisão permanece primeiro; em Informações, Legenda, Localização e Etiquetas precedem as fontes de metadados e os ficheiros relacionados. Os controlos de edição e etiquetas têm alvos de pelo menos 44 píxeis em ecrãs estreitos e com ponteiros grosseiros, mantendo-se compactos no computador.
 
 No telefone, o nome ocupa uma linha de largura total, com até duas linhas de texto. Nomes muito longos mantêm o início e o sufixo distintivo. A leitura estreita mantém visível o tipo de imagem; dimensões sem espaço continuam disponíveis para leitores de ecrã. Carregamento e erros permanecem visíveis. Favoritos, zoom e ícones do cabeçalho têm alvos de pelo menos 44 píxeis com ponteiros grosseiros.
 
+Foque a imagem: +/− amplia, as setas deslocam a imagem ampliada e Home ajusta-a. Depois de ajustar, as setas retomam a navegação; Tab sai da imagem. Só é anunciado um nome ao mudar a apresentação. As miniaturas da pilha assinalam o membro ativo e usam nomes de ficheiro, não caminhos do servidor. A coleção tem uma só paragem Tab; setas, Home e End abrem a fotografia a que chegam. No telefone ficam visíveis o início e o sufixo distintivo dos nomes longos. Revisão precede Informações, que contém data e categoria e indica datas ausentes. Etiquetas longas quebram dentro do painel. As leituras pequenas mantêm o tipo de imagem; dimensões ocultas continuam disponíveis para leitores de ecrã.
+
+A inspeção ampliada reserva os arrastos táteis para deslocar a imagem; Ajustar restaura o deslocamento da página. Os limites seguem a imagem ajustada em cada direção para alcançar todos os bordos com grande ampliação e respeitar os limites ao reduzir. Legendas e nomes longos quebram dentro do painel.
 
 ### Manter Top N%
-Foque a imagem: +/− amplia, as setas deslocam a imagem ampliada e Home ajusta-a. Depois de ajustar, as setas retomam a navegação; Tab sai da imagem. Só é anunciado um nome ao mudar a apresentação. As miniaturas da pilha assinalam o membro ativo e usam nomes de ficheiro, não caminhos do servidor. A coleção tem uma só paragem Tab; setas, Home e End movem o foco e Enter abre a fotografia. No telefone ficam visíveis o início e o sufixo distintivo dos nomes longos. Revisão precede Informações, que contém data e categoria e indica datas ausentes. Etiquetas longas quebram dentro do painel. As leituras pequenas mantêm o tipo de imagem; dimensões ocultas continuam disponíveis para leitores de ecrã.
-
 
 O controle **Manter top %** na barra de ferramentas (modo de edição) faz a triagem de toda a visualização filtrada em uma única etapa. Defina uma porcentagem. O Facet classifica a visualização pela **ordenação atual** (agregada, Meu Gosto, Melhores Escolhas, nitidez…), mantém a parcela superior e **seleciona o restante**. Rejeite-as pela barra de ações, depois de desselecionar as que quiser poupar.
 
 - Nada é movido nem excluído; apenas se preenche a seleção. As rejeições continuam treinando o Meu Gosto.
 - A seleção é limitada a 5000 fotos. Em uma visualização maior, refine o filtro (álbum, data, pessoa…).
 - Com `hide_brackets` / `hide_panoramas` por padrão, um bracketing ou uma panorâmica conta como **uma** foto.
-
-A inspeção ampliada reserva os arrastos táteis para deslocar a imagem; Ajustar restaura o deslocamento da página. Os limites seguem a imagem ajustada em cada direção para alcançar todos os bordos com grande ampliação e respeitar os limites ao reduzir. Legendas e nomes longos quebram dentro do painel.
 
 ### Edições por IA
 
@@ -464,7 +458,7 @@ Campos de resposta e códigos de status: [API.md](../API.md).
 - **Ocultar Detalhes** — oculta os metadados nos cartões (apenas no modo grade)
 - **Forma das miniaturas** — recorte quadrado (padrão) ou a proporção original da foto para os cartões sem detalhes; desabilitada enquanto o modo mosaico estiver ativo, que já preserva a proporção, ou enquanto os detalhes estiverem visíveis.
 - **Dica** — como os detalhes das fotos aparecem: **Painel lateral** (padrão), **Passar o mouse**, **Clicar** ou **Desligado**.
-  - O painel lateral mostra todos os detalhes na gaveta da direita, com a mesma disposição do detalhe da foto. Em **Ativação do painel**, escolha **Passar o mouse**, **Clicar** ou **Passar o mouse ou clicar** (padrão). A vista Revisar usa **Clicar**; escolha uma opção com clique para telas de toque. Mantém a última foto quando o cursor sai da grade.
+  - O painel lateral mostra todos os detalhes na gaveta da direita, com a mesma disposição do detalhe da foto. Em **Ativação do painel**, escolha **Passar o mouse**, **Clicar** ou **Passar o mouse ou clicar** (padrão). Escolha uma opção com clique para telas de toque. Mantém a última foto quando o cursor sai da grade.
   - Clicar em uma foto mantém o painel nela até você pressionar **Desselecionar** (que também desseleciona a foto). **Escape** faz o mesmo e limpa a seleção.
   - Uma entrada **Por que esta pontuação?** fixada na base do painel abre o explicador de pontuação (o diálogo de crítica) para a foto que o painel mantém.
   - O painel divide a gaveta com os filtros; abrir os filtros o oculta. Exige uma janela de pelo menos 1280px de largura. Onde o painel não pode se acoplar, uma configuração **Painel lateral** salva mostra os detalhes no balão flutuante, e **Escape** o fecha.
@@ -478,7 +472,7 @@ Campos de resposta e códigos de status: [API.md](../API.md).
 - **Melhor do bracketing** — mostra apenas a exposição base de cada bracketing. **Ligado por padrão.** Independente de Melhor da rajada, porque o líder de rajada de um bracketing nem sempre é a sua exposição base.
 - **Melhor do panorama** — mostra apenas o quadro central de cada conjunto de panorâmica ou panorâmica HDR. **Ligado por padrão.**
 - **Rolagem Infinita** — as fotos carregam conforme você rola
-- **Rolagem Rápida (virtualizada)** — renderiza apenas as linhas próximas à janela de visualização, então a rolagem profunda continua rápida. Ligada por padrão. Desligue-a na aba Exibição da barra lateral se tiver problemas de layout. O modo grade com detalhes visíveis sempre renderiza tudo. Salvo no localStorage (`facet_virtual_scroll`).
+- **Rolagem Rápida (virtualizada)** — renderiza apenas as linhas próximas à janela de visualização, então a rolagem profunda continua rápida. Ligada por padrão. Desligue-a na janela **Visualização** se tiver problemas de layout. O modo grade com detalhes visíveis sempre renderiza tudo. Salvo no localStorage (`facet_virtual_scroll`).
 
 ### Fotos Semelhantes
 
@@ -1259,7 +1253,7 @@ Os builds de produção podem ser instalados na tela inicial. O shell do aplicat
 
 ## Mobile
 
-A coleção tem duas linhas compactas: título/Pesquisar/Selecionar e depois Ordenar, direção, Filtros, Grelha/Mosaico e Opções de vista. A pesquisa expande-se quando pedida; a consulta confirmada e os critérios ativos permanecem visíveis. Opções de vista contém os controlos secundários de apresentação, filtros rápidos e visibilidade. Selecionar inicia a seleção tátil; Cancelar permite sair. A barra contextual de seleção oferece Limpar, Comparar e as ações de escrita permitidas, com operações adicionais em Ações. O espaço de comparação tem controlos visíveis de Voltar e zoom/Ajustar, arrasto tátil e um painel de inspeção opcional sobreposto; não depende de passar o ponteiro nem de manter premido.
+Em telas pequenas, a barra de seleção flutuante mostra botões de toque para limpar a seleção, comparar (com duas ou mais fotos selecionadas) e, no modo de edição, Manter e Rejeitar, além de um botão **Ações**. **Ações** abre uma folha inferior com as outras operações em lote (atualizar, empilhar, favoritar, repor decisão, avaliar, álbuns, data de captura, etiquetas, localização, exportar, selecionar para pasta, marcar como panorâmica, panorâmica HDR ou bracketing, inverter, copiar nomes dos arquivos, baixar). Quando a seleção não cabe na área de comparação, o botão de comparar fica desativado e uma nota indica os limites.
 
 ## Moldura Digital / Endpoint de Quiosque
 

@@ -6,7 +6,7 @@ El visor es una aplicación web FastAPI + Angular para explorar, filtrar, descar
 
 En escritorio (desde 1024 px), los destinos habilitados aparecen directamente en la barra superior según el espacio disponible. **Más** aparece solo cuando algunos destinos no caben y contiene los restantes. Se tienen en cuenta el tamaño de la ventana, las etiquetas traducidas y los controles de cuenta. Las acciones contextuales de la página aparecen debajo. La galería tiene su propia cabecera de colección con origen, consulta, recuento, orden y filtros activos que se pueden quitar. En pantallas más estrechas, el menú de navegación ofrece los mismos destinos disponibles.
 
-La cabecera de colección permanece visible al desplazarse, con búsqueda, selección, ordenación y criterios activos. **Filtros** abre Explorar, Calidad y Sujeto; su insignia numérica cuenta filtros activos y el fondo indica si está abierto. **Revisión** contiene decisiones, visibilidad, estrellas y favoritos. **Visualización** contiene diseño, tamaño de miniatura, preajustes, información y presentación. Cada ajuste tiene un único acceso. En colecciones estrechas, ordenar pasa a Visualización. Las ayudas se abren en ventanas ancladas sin desplazar la galería.
+La cabecera de colección permanece visible al desplazarse, con búsqueda, selección, ordenación y criterios activos. **Filtros** abre Explorar, Calidad y Sujeto; su insignia numérica cuenta filtros activos y el fondo indica si está abierto. **Revisión** contiene decisiones, visibilidad, estrellas y favoritos. **Visualización** contiene diseño, tamaño de miniatura, información y presentación. Cada ajuste tiene un único acceso. En colecciones estrechas, ordenar pasa a Visualización. Las ayudas se abren en ventanas ancladas sin desplazar la galería.
 
 **Controles de la cabecera.** La búsqueda solo contiene la consulta de texto. El tipo de foto está en **Filtros**. **Revisión** contiene las pilas sugeridas y la conservación del mejor porcentaje; **Visualización** permite expandir o contraer pilas. En modo de selección, el botón indica cuántas fotos hay seleccionadas y muestra un icono para salir. En teléfonos estrechos se usan dos filas compactas para mantener legibles el nombre de la colección y los controles.
 
@@ -158,20 +158,14 @@ El panel de filtros tiene tres pestañas: Explorar, Calidad y Sujeto. Revisión 
 | Pestaña | Secciones |
 |---------|-----------|
 | **Explorar** | Búsqueda semántica, Personas, Rango de fechas, Contenido, Álbumes, Ubicación, Carpeta, Equipo |
-
 | **Calidad** | Calidad, Color y calidad, Calidad extendida, Técnica, Exposición & Rango (qué tan buena es la imagen) |
 | **Sujeto** | Métricas faciales, Composición, Saliencia del sujeto, Momentos (qué hay en el encuadre) |
-
 
 La cabecera, **Buscar un filtro**, el aviso de álbum inteligente y la búsqueda por nombre de archivo permanecen sobre las pestañas en todas ellas, así que `/` funciona desde cualquiera. Escribir en **Buscar un filtro** oculta las pestañas y lista los controles coincidentes de todas.
 
 El número junto a **Filtros** incluye todos los criterios activos, incluso métricas no disponibles. Un intervalo cuenta una vez. **Restablecer filtros** aparece junto a los criterios de colección desde el primer criterio activo; el panel no lo duplica. **X** cierra el panel.
 
-En la pestaña Revisión, la decisión y cada grupo (por ejemplo Duplicados) es una fila que muestra su valor actual (como Ocultos, Mostrados o Solo estos) y abre un menú de opciones, cada una con una explicación de una línea. Una fila que se deja en su valor por defecto no cuenta en la insignia de la pestaña ni de la cabecera. *Solo* y *Ocultos* se excluyen entre sí. Mientras hay una decisión elegida, Rechazadas queda bloqueada, y su información emergente explica por qué. El botón de estrella fija una valoración mínima: cada clic la sube en uno, y el clic después de 5, o después de un máximo llegado desde un enlace, la borra. Comparte fila con los interruptores Favoritos y Monocromo, solo con icono y con información emergente. En las pestañas Calidad y Sujeto, pasar el cursor sobre el nombre de un ajuste explica qué se puntúa y con qué modelo, y los controles de Revisión también tienen información emergente.
-
-
-
-
+En la pestaña Revisión, la decisión y cada grupo (por ejemplo Duplicados) es una fila que muestra su valor actual (como Ocultos, Mostrados o Solo estos) y abre un menú de opciones, cada una con una explicación de una línea. Una fila que se deja en su valor por defecto no cuenta en la insignia de la pestaña ni de la cabecera. *Solo* y *Ocultos* se excluyen entre sí. Mientras hay una decisión elegida, Rechazadas queda bloqueada, y su información emergente explica por qué. Una fila **Valoración por estrellas** abre un menú (Todas, de 1★ o más a 5★ o más, 0 estrellas). Debajo, las casillas con etiqueta **Solo favoritas** y **Solo monocromo** tienen información emergente. En las pestañas Calidad y Sujeto, pasar el cursor sobre el nombre de un ajuste explica qué se puntúa y con qué modelo, y los controles de Revisión también tienen información emergente.
 
 ### Filtros principales
 
@@ -388,7 +382,7 @@ En teléfonos, el nombre tiene una fila de ancho completo y hasta dos líneas. L
 
 Al ampliar una imagen en la comparación, una miniatura muestra la foto completa y un marco rojo señala la región visible. El marco sigue el desplazamiento y el zoom, también en paneles vinculados, y desaparece al ajustar la imagen.
 
-Enfoca la imagen para usar +/−, desplazarla ampliada con las flechas y ajustarla con Inicio. Una vez ajustada, las flechas vuelven a navegar; Tab sale de la imagen. Solo se anuncia un nombre de imagen al cambiar la representación. Las miniaturas de pila marcan el miembro activo y usan nombres de archivo, no rutas del servidor. La colección tiene una sola parada de Tab; flechas, Inicio y Fin mueven el foco y Enter abre la foto. En móviles se conservan el inicio y el sufijo distintivo de nombres largos. Revisión precede a Información, que contiene fecha y categoría e indica las fechas ausentes. Las etiquetas largas se ajustan al panel. La lectura pequeña conserva el tipo de imagen; las dimensiones que no caben siguen disponibles para lectores de pantalla.
+Enfoca la imagen para usar +/−, desplazarla ampliada con las flechas y ajustarla con Inicio. Una vez ajustada, las flechas vuelven a navegar; Tab sale de la imagen. Solo se anuncia un nombre de imagen al cambiar la representación. Las miniaturas de pila marcan el miembro activo y usan nombres de archivo, no rutas del servidor. La colección tiene una sola parada de Tab; flechas, Inicio y Fin abren la foto a la que llegan. En móviles se conservan el inicio y el sufijo distintivo de nombres largos. Revisión precede a Información, que contiene fecha y categoría e indica las fechas ausentes. Las etiquetas largas se ajustan al panel. La lectura pequeña conserva el tipo de imagen; las dimensiones que no caben siguen disponibles para lectores de pantalla.
 
 La imagen ampliada reserva los arrastres táctiles para desplazarla; Ajustar restaura el desplazamiento de la página. Los límites siguen la imagen ajustada en cada dirección para alcanzar todos los bordes con gran aumento y mantenerla dentro de los límites al reducir. Las descripciones y nombres largos se ajustan al panel.
 
@@ -465,7 +459,7 @@ Campos de respuesta y códigos de estado: [API.md](../API.md).
 - **Ocultar detalles**: oculta los metadatos de las tarjetas (solo en modo cuadrícula)
 - **Forma de las miniaturas**: recorte cuadrado (por defecto) o la proporción original de la foto para las miniaturas sin detalles; se muestra deshabilitada mientras el modo mosaico está activo, que ya conserva la proporción, o mientras se muestran los detalles.
 - **Información emergente**: cómo aparecen los detalles de la foto: **Panel lateral** (por defecto), **Al pasar el cursor**, **Clic** o **Desactivada**.
-  - El panel lateral muestra los detalles completos en el cajón de la derecha, con la misma disposición que el detalle de la foto. En **Activación del panel**, elige **Hover**, **Clic** o **Hover o clic** (por defecto). La vista Revisar usa **Clic**; elige una opción con clic para las pantallas táctiles. Conserva la última foto cuando el cursor sale de la cuadrícula.
+  - El panel lateral muestra los detalles completos en el cajón de la derecha, con la misma disposición que el detalle de la foto. En **Activación del panel**, elige **Hover**, **Clic** o **Hover o clic** (por defecto). Elige una opción con clic para las pantallas táctiles. Conserva la última foto cuando el cursor sale de la cuadrícula.
   - Hacer clic en una foto mantiene el panel en ella hasta que pulsas **Deseleccionar** (que también deselecciona la foto). **Escape** hace lo mismo y borra la selección.
   - Una entrada **¿Por qué esta puntuación?** fijada en la parte inferior del panel abre el explicador de puntuación (el diálogo de crítica) para la foto que el panel mantiene.
   - El panel comparte el cajón con los filtros; abrir los filtros lo oculta. Necesita una ventana de al menos 1280 px de ancho. Donde el panel no puede acoplarse, un **Panel lateral** guardado muestra los detalles en la burbuja flotante, y **Escape** la cierra.
@@ -479,7 +473,7 @@ Campos de respuesta y códigos de estado: [API.md](../API.md).
 - **Mejor del horquillado**: muestra solo la exposición base de cada bracketing. **Activado por defecto.** Independiente de Mejor de ráfaga, porque la principal de la ráfaga de un bracketing no siempre es su exposición base.
 - **Mejor del panorama**: muestra solo el fotograma central de cada conjunto de panorámica o panorámica HDR. **Activado por defecto.**
 - **Desplazamiento infinito**: las fotos se cargan al desplazarte
-- **Desplazamiento rápido (virtualizado)**: renderiza solo las filas cercanas a la ventana, de modo que el desplazamiento profundo sigue siendo rápido. Activado por defecto. Desactívalo en la pestaña Visualización de la barra lateral si tienes problemas de diseño. El modo cuadrícula con detalles visibles siempre se renderiza por completo. Se guarda en localStorage (`facet_virtual_scroll`).
+- **Desplazamiento rápido (virtualizado)**: renderiza solo las filas cercanas a la ventana, de modo que el desplazamiento profundo sigue siendo rápido. Activado por defecto. Desactívalo en la ventana emergente **Visualización** si tienes problemas de diseño. El modo cuadrícula con detalles visibles siempre se renderiza por completo. Se guarda en localStorage (`facet_virtual_scroll`).
 
 ### Fotos similares
 
@@ -1264,7 +1258,7 @@ Las compilaciones de producción se pueden instalar en la pantalla de inicio. El
 
 ## Móvil
 
-La colección tiene dos filas compactas: título/Buscar/Seleccionar y, después, Ordenar, dirección, Filtros, Cuadrícula/Mosaico y Opciones de vista. La búsqueda se despliega al solicitarla; la consulta confirmada y los criterios activos permanecen visibles. Opciones de vista contiene controles secundarios de visualización, filtros rápidos y visibilidad. Seleccionar inicia la selección táctil; Cancelar permite salir. La barra contextual de selección ofrece Limpiar, Comparar y las acciones de escritura permitidas, con operaciones adicionales en Acciones. El espacio de comparación tiene controles visibles de Volver y zoom/Ajustar, arrastre táctil y un panel superpuesto opcional de inspección; no depende de pasar el puntero ni de mantener pulsado.
+En pantallas pequeñas, la barra de selección flotante muestra botones táctiles para limpiar la selección, comparar (con dos o más fotos seleccionadas) y, en modo de edición, Conservar y Rechazar, además de un botón **Acciones**. **Acciones** abre una hoja inferior con el resto de las operaciones masivas (actualizar, apilar, favorito, restablecer decisión, calificar, álbumes, fecha de captura, etiquetas, ubicación, exportar, descartar a carpeta, marcar como panorámica, panorámica HDR o bracketing, invertir, copiar nombres, descargar). Si la selección no cabe en el espacio de comparación, el botón de comparar queda desactivado y una nota indica los límites.
 
 ## Marco de fotos / Quiosco
 

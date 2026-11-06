@@ -6,7 +6,7 @@ Die Galerie ist eine Web-App aus FastAPI und Angular zum Durchsuchen, Filtern, A
 
 Auf dem Desktop (ab 1024 px) erscheinen aktivierte Ziele direkt in der oberen Leiste, soweit sie Platz haben. **Mehr** erscheint nur bei Platzmangel und enthält die übrigen Ziele. Fenstergröße, übersetzte Beschriftungen und Kontosteuerungen werden berücksichtigt. Kontextaktionen der aktuellen Seite stehen darunter. Die Galerie besitzt einen eigenen Sammlungskopf mit Quelle, Suchanfrage, Anzahl, Sortierung und entfernbaren Filterchips. Auf schmaleren Bildschirmen öffnet das Hamburger-Menü dieselben verfügbaren Ziele.
 
-Die angeheftete Sammlungskopfzeile hält Suche, Auswahl, Sortierung und aktive Kriterien beim Scrollen erreichbar. **Filter** öffnet Durchsuchen, Qualität und Motiv; ein Zahlenabzeichen zählt aktive Filter, der Hintergrund zeigt den geöffneten Zustand. **Prüfen** enthält Entscheidung, Sichtbarkeit, Bewertung und Favoriten. **Anzeige** enthält Layout, Vorschaubildgröße, Voreinstellungen, Fotoinformationen und Diashow. Jede Einstellung hat einen Zugang. In schmalen Sammlungen liegt die Sortierung unter Anzeige. Hilfe öffnet sich verankert, ohne die Galerie zu verschieben.
+Die angeheftete Sammlungskopfzeile hält Suche, Auswahl, Sortierung und aktive Kriterien beim Scrollen erreichbar. **Filter** öffnet Durchsuchen, Qualität und Motiv; ein Zahlenabzeichen zählt aktive Filter, der Hintergrund zeigt den geöffneten Zustand. **Prüfen** enthält Entscheidung, Sichtbarkeit, Bewertung und Favoriten. **Anzeige** enthält Layout, Vorschaubildgröße, Fotoinformationen und Diashow. Jede Einstellung hat einen Zugang. In schmalen Sammlungen liegt die Sortierung unter Anzeige. Hilfe öffnet sich verankert, ohne die Galerie zu verschieben.
 
 **Kopfzeilensteuerung.** Die Suche enthält nur die Textabfrage. Der Fototyp steht unter **Filter**. **Sichten** enthält vorgeschlagene Stapel und die Auswahl der besten Prozente; **Anzeige** enthält das Auf- und Zuklappen von Stapeln. Im Auswahlmodus zeigt die Auswahltaste die Anzahl ausgewählter Fotos und ein Schließen-Symbol. Auf schmalen Smartphones bleiben Sammlungsname und Beschriftungen durch zwei kompakte Zeilen lesbar.
 
@@ -158,20 +158,14 @@ Die Filterleiste hat drei Tabs: Durchsuchen, Qualität und Motiv. Sichten und An
 | Tab | Abschnitte |
 |-----|-----------|
 | **Durchsuchen** | Semantische Suche, Personen, Zeitraum, Inhalt, Alben, Standort, Ordner, Ausrüstung |
-
 | **Qualität** | Qualität, Farbe & Qualität, Erweiterte Qualität, Technik, Belichtung & Bereich (wie gut das Bild ist) |
 | **Motiv** | Gesichtsmetriken, Komposition, Motiverkennung, Momente (was im Bild zu sehen ist) |
-
 
 Kopfzeile, **Filter suchen**, der Hinweis für Smart-Alben und die Dateinamensuche bleiben auf jedem Tab über den Tabs, daher funktioniert `/` von jedem aus. Eine Eingabe in **Filter suchen** blendet die Tabs aus und listet die passenden Regler aus allen Tabs.
 
 Die Zahl neben **Filter** zählt alle aktiven Kriterien einschließlich nicht verfügbarer Metriken. Ein Wertebereich zählt einmal. **Filter zurücksetzen** steht bei den Sammlungskriterien bereits ab einem aktiven Kriterium; die Seitenleiste dupliziert es nicht. **X** schließt die Leiste.
 
-Im Tab Prüfen sind die Entscheidung und jede Gruppe (zum Beispiel Duplikate) eine Zeile mit ihrem aktuellen Wert (etwa Ausgeblendet, Eingeblendet oder Nur diese), die ein Menü mit Auswahlmöglichkeiten samt einzeiliger Erklärung öffnet. Eine Zeile mit ihrem Standardwert zählt nicht zum Abzeichen des Tabs oder der Kopfzeile. *Nur* und *Ausgeblendet* schließen sich gegenseitig aus. Solange eine Entscheidung gewählt ist, ist Abgelehnt gesperrt, und sein Tooltip nennt den Grund. Die Sterne-Schaltfläche setzt eine Mindestbewertung: Jeder Klick erhöht sie um eins, und der Klick nach 5 oder nach einem aus einem Link übernommenen Maximum löscht sie. Sie teilt sich eine Zeile mit den reinen Symbol-Schaltern Favoriten und Monochrom, die Tooltips haben. In den Tabs Qualität und Motiv erklärt das Überfahren des Namens einer Einstellung, was bewertet wird und von welchem Modell, und auch die Steuerelemente im Tab Prüfen haben Tooltips.
-
-
-
-
+Im Tab Prüfen sind die Entscheidung und jede Gruppe (zum Beispiel Duplikate) eine Zeile mit ihrem aktuellen Wert (etwa Ausgeblendet, Eingeblendet oder Nur diese), die ein Menü mit Auswahlmöglichkeiten samt einzeiliger Erklärung öffnet. Eine Zeile mit ihrem Standardwert zählt nicht zum Abzeichen des Tabs oder der Kopfzeile. *Nur* und *Ausgeblendet* schließen sich gegenseitig aus. Solange eine Entscheidung gewählt ist, ist Abgelehnt gesperrt, und sein Tooltip nennt den Grund. Eine Zeile **Sternebewertung** öffnet ein Menü (Alle, 1★ und mehr bis 5★ und mehr, 0 Sterne). Darunter stehen die beschrifteten Kontrollkästchen **Nur Favoriten** und **Nur Schwarzweiß**, die Tooltips haben. In den Tabs Qualität und Motiv erklärt das Überfahren des Namens einer Einstellung, was bewertet wird und von welchem Modell, und auch die Steuerelemente im Tab Prüfen haben Tooltips.
 
 ### Primärfilter
 
@@ -321,8 +315,6 @@ Das Zählabzeichen oder ein gestapeltes Foto öffnet die Fotoansicht mit Vorscha
 - Die Kopfzeile zählt geladene Vorschläge, nicht die gesamte Bibliothek. Ein Durchgang umfasst höchstens 20 Vorschläge und 2000 Fotos (1000 je Gruppe). Der nächste lädt erst automatisch, wenn alle geladenen Vorschläge gestapelt oder übersprungen wurden. **Vorschläge neu laden** lädt denselben Bereich erneut; **Zurück zur Galerie** führt zum Ursprung.
 - Nicht in angehefteten Listen, Ähnliche Fotos oder der semantischen Suche verfügbar. Stapeln und Überspringen ändern weder Sichtungsentscheidungen noch Originale. Nur ausdrückliches Ablehnen ändert die Sichtungswerte.
 
-Bei vergrößerter Ansicht verschieben Touch-Gesten das Bild; Einpassen stellt normales Seitenscrollen wieder her. Verschiebegrenzen folgen dem eingepassten Bild in jeder Richtung, damit bei starker Vergrößerung alle Ränder erreichbar bleiben und Herauszoomen die Grenzen einhält. Lange Bildunterschriften und Personennamen umbrechen im Detailbereich.
-
 ### Fotokarten
 
 - Vorschaubild mit Wertungsabzeichen. Fahren Sie darüber, um zu sehen, wo der Wert in Ihrer Bibliothek liegt („Top 18 % der Bibliothek“).
@@ -390,7 +382,9 @@ Auf dem Handy erhält der Dateiname eine eigene Zeile über die gesamte Breite m
 
 Beim Vergrößern eines Vergleichsbilds zeigt eine kleine Übersicht das ganze Foto mit einem roten Rahmen um den sichtbaren Bereich. Der Rahmen folgt Schwenken und Zoomen, auch bei gekoppelten Ansichten, und verschwindet bei „Einpassen“.
 
-Fokussieren Sie die Bildfläche: +/− zoomt, Pfeiltasten verschieben das vergrößerte Bild und Pos1 passt es ein. Bei eingepasstem Bild wechseln die Pfeile wieder das Foto; Tab verlässt die Bildfläche. Beim Wechsel der Darstellung wird nur ein Bildname vorgelesen. Stapelminiaturen markieren das aktive Mitglied und nennen Dateinamen statt Serverpfaden. Die Sammlungsminiaturen haben einen Tab-Stopp; Pfeile, Pos1 und Ende bewegen den Fokus, Enter öffnet das Foto. Auf dem Handy bleiben Anfang und unterscheidendes Ende langer Dateinamen sichtbar. Bewertung steht vor Info; Aufnahmedatum und Kategorie befinden sich in Info, fehlende Daten werden benannt. Lange Tags umbrechen im Panel. Kleine Bildanzeigen behalten die Quellenbezeichnung; nicht sichtbare Abmessungen bleiben für Screenreader verfügbar.
+Fokussieren Sie die Bildfläche: +/− zoomt, Pfeiltasten verschieben das vergrößerte Bild und Pos1 passt es ein. Bei eingepasstem Bild wechseln die Pfeile wieder das Foto; Tab verlässt die Bildfläche. Beim Wechsel der Darstellung wird nur ein Bildname vorgelesen. Stapelminiaturen markieren das aktive Mitglied und nennen Dateinamen statt Serverpfaden. Die Sammlungsminiaturen haben einen Tab-Stopp; Pfeile, Pos1 und Ende öffnen das erreichte Foto. Auf dem Handy bleiben Anfang und unterscheidendes Ende langer Dateinamen sichtbar. Bewertung steht vor Info; Aufnahmedatum und Kategorie befinden sich in Info, fehlende Daten werden benannt. Lange Tags umbrechen im Panel. Kleine Bildanzeigen behalten die Quellenbezeichnung; nicht sichtbare Abmessungen bleiben für Screenreader verfügbar.
+
+Bei vergrößerter Ansicht verschieben Touch-Gesten das Bild; Einpassen stellt normales Seitenscrollen wieder her. Verschiebegrenzen folgen dem eingepassten Bild in jeder Richtung, damit bei starker Vergrößerung alle Ränder erreichbar bleiben und Herauszoomen die Grenzen einhält. Lange Bildunterschriften und Personennamen umbrechen im Detailbereich.
 
 ### Top N% behalten
 
@@ -465,7 +459,7 @@ Antwortfelder und Statuscodes: [API.md](../API.md).
 - **Details ausblenden** — Metadaten auf Karten ausblenden (nur im Rastermodus)
 - **Vorschaubildform** — quadratischer Zuschnitt (Standard) oder das Originalformat der Foto-Kacheln ohne Details; ausgegraut, solange Mosaik aktiv ist, was das Format bereits bewahrt, oder Details angezeigt werden.
 - **Tooltip** — Wie Fotodetails erscheinen: **Seitenleiste** (Standard), **Hover**, **Klick** oder **Aus**.
-  - Die Seitenleiste zeigt alle Details in der rechten Schublade, angeordnet wie in der Fotodetailansicht. Unter **Panel-Aktivierung** wählen Sie **Hover**, **Klick** oder **Hover oder Klick** (Standard). Die Ansicht Prüfen verwendet **Klick**; wählen Sie für Touch-Bildschirme eine Option mit Klick. Sie behält das letzte Foto, wenn der Zeiger das Raster verlässt.
+  - Die Seitenleiste zeigt alle Details in der rechten Schublade, angeordnet wie in der Fotodetailansicht. Unter **Panel-Aktivierung** wählen Sie **Hover**, **Klick** oder **Hover oder Klick** (Standard). Wählen Sie für Touch-Bildschirme eine Option mit Klick. Sie behält das letzte Foto, wenn der Zeiger das Raster verlässt.
   - Ein Klick auf ein Foto hält die Leiste darauf fest, bis Sie **Auswahl aufheben** drücken (das auch das Foto abwählt). **Escape** wirkt genauso und hebt die Auswahl auf.
   - Ein am unteren Rand der Leiste fixierter Eintrag **Warum diese Bewertung?** öffnet den Bewertungserklärer (den Kritik-Dialog) für das Foto, das die Leiste hält.
   - Die Leiste teilt sich die Schublade mit den Filtern; das Öffnen der Filter blendet sie aus. Erfordert ein Fenster von mindestens 1280px. Wo die Leiste nicht andocken kann, zeigt eine gespeicherte **Seitenleiste** die Details stattdessen in der schwebenden Blase, und **Escape** schließt sie.
@@ -479,7 +473,7 @@ Antwortfelder und Statuscodes: [API.md](../API.md).
 - **Beste der Belichtungsreihe** — Nur die Basisbelichtung jeder Belichtungsreihe anzeigen. **Standardmäßig an.** Unabhängig von „Beste aus Serie“, da das Serien-Leitfoto einer Reihe nicht immer ihre Basisbelichtung ist.
 - **Beste des Panoramas** — Nur das mittlere Bild jedes Panoramas oder HDR-Panoramas anzeigen. **Standardmäßig an.**
 - **Endloses Scrollen** — Fotos werden beim Scrollen geladen
-- **Schnelles Scrollen (virtualisiert)** — Rendert nur Zeilen nahe dem Sichtbereich, sodass tiefes Scrollen schnell bleibt. Standardmäßig an. Schalten Sie es im Tab „Anzeige“ der Seitenleiste aus, falls Layoutprobleme auftreten. Der Rastermodus mit angezeigten Details rendert stets vollständig. In localStorage gespeichert (`facet_virtual_scroll`).
+- **Schnelles Scrollen (virtualisiert)** — Rendert nur Zeilen nahe dem Sichtbereich, sodass tiefes Scrollen schnell bleibt. Standardmäßig an. Schalten Sie es im Popover **Anzeige** aus, falls Layoutprobleme auftreten. Der Rastermodus mit angezeigten Details rendert stets vollständig. In localStorage gespeichert (`facet_virtual_scroll`).
 
 ### Ähnliche Fotos
 
@@ -1261,6 +1255,8 @@ Produktions-Builds lassen sich auf dem Startbildschirm installieren. Die App-Hü
 > **Warnung:** Beim Abmelden versucht die App, vorhandene Vorschaubilder aus dem Service-Worker-Cache zu entfernen. Bereits laufende Anfragen können Bilder erneut zwischenspeichern. Der HTTP-Cache des Browsers wird nicht geleert und kann angesehene Bilder (Vorschaubilder, Renderings, Bilder in voller Auflösung) bis zu einem Jahr behalten. Konten, die die Fotos der anderen nicht sehen dürfen, sollten kein Browserprofil teilen.
 
 ## Mobil
+
+Auf kleinen Bildschirmen zeigt die schwebende Auswahlleiste berührungsfreundliche Schaltflächen zum Aufheben der Auswahl, zum Vergleichen (ab zwei ausgewählten Fotos) und im Bearbeitungsmodus für Behalten und Ablehnen sowie eine Schaltfläche **Aktionen**. **Aktionen** öffnet ein unteres Blatt mit den übrigen Sammeloperationen (Aktualisieren, Stapeln, Favorit, Entscheidung zurücksetzen, Bewerten, Alben, Aufnahmedatum, Schlagwörter, Ort, Exportieren, In Ordner aussortieren, Markieren als Panorama, HDR-Panorama oder Belichtungsreihe, Umkehren, Dateinamen kopieren, Herunterladen). Passt die Auswahl nicht in den Vergleichsarbeitsbereich, bleibt die Vergleichsschaltfläche deaktiviert und ein Hinweis nennt die Grenzen.
 
 ## Bilderrahmen / Kiosk
 

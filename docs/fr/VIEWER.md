@@ -6,7 +6,7 @@ La visionneuse est une application web FastAPI + Angular pour parcourir, filtrer
 
 Sur ordinateur (à partir de 1024 px), les destinations activées apparaissent directement dans la barre supérieure selon la place disponible. **Plus** apparaît uniquement lorsque certaines destinations ne tiennent pas et contient celles qui débordent. Le calcul tient compte du redimensionnement, des libellés traduits et des commandes du compte. Les actions contextuelles de la page se trouvent juste en dessous. La galerie possède son en-tête de collection avec la source, la recherche, le nombre, le tri et les filtres actifs supprimables. Sur les écrans plus étroits, le menu hamburger ouvre les mêmes destinations disponibles.
 
-L’en-tête de collection reste visible pendant le défilement, avec recherche, sélection, tri et critères actifs. **Filtres** ouvre Parcourir, Qualité et Sujet ; son badge numérique compte les filtres actifs et son fond indique si le panneau est ouvert. **Tri** ouvre les décisions, la visibilité, les étoiles et les favoris. **Affichage** regroupe disposition, taille des vignettes, dispositions de travail, informations photo et diaporama. Chaque réglage a un seul point d’accès. Dans une collection étroite, le tri passe dans Affichage. L’aide s’ouvre dans des fenêtres ancrées sans déplacer la galerie.
+L’en-tête de collection reste visible pendant le défilement, avec recherche, sélection, tri et critères actifs. **Filtres** ouvre Parcourir, Qualité et Sujet ; son badge numérique compte les filtres actifs et son fond indique si le panneau est ouvert. **Tri** ouvre les décisions, la visibilité, les étoiles et les favoris. **Affichage** regroupe disposition, taille des vignettes, informations photo et diaporama. Chaque réglage a un seul point d’accès. Dans une collection étroite, le tri passe dans Affichage. L’aide s’ouvre dans des fenêtres ancrées sans déplacer la galerie.
 
 **Commandes de l’en-tête.** La recherche contient uniquement la requête textuelle. Le type de photo se trouve dans **Filtres**. **Tri** contient les piles suggérées et la conservation des meilleurs pourcentages ; **Affichage** permet de développer ou réduire les piles. En mode sélection, le bouton indique le nombre sélectionné et une icône de fermeture. Sur les petits téléphones, deux lignes compactes préservent la lisibilité du nom de la collection et des commandes.
 
@@ -158,20 +158,14 @@ Le panneau de filtres a trois onglets : Parcourir, Qualité et Sujet. Tri et Aff
 | Onglet | Sections |
 |--------|----------|
 | **Parcourir** | Recherche sémantique, Personnes, Plage de dates, Contenu, Albums, Localisation, Dossier, Équipement |
-
 | **Qualité** | Qualité, Couleur et qualité, Qualité étendue, Technique, Exposition & Plage (la qualité de l'image) |
 | **Sujet** | Métriques visage, Composition, Saillance du sujet, Moments (ce qui est dans le cadre) |
-
 
 L'en-tête, **Rechercher un filtre**, l'avis d'album intelligent et la recherche par nom de fichier restent au-dessus des onglets sur chacun d'eux, donc `/` fonctionne depuis n'importe lequel. Saisir dans **Rechercher un filtre** masque les onglets et liste les curseurs correspondants de tous les onglets.
 
 Le nombre à côté de **Filtres** inclut tous les critères actifs, même les métriques indisponibles. Une plage compte une fois. **Réinitialiser les filtres** apparaît près des critères de collection dès le premier critère actif ; le panneau ne le duplique pas. **X** ferme le panneau.
 
-Dans la fenêtre Tri, la décision et chaque série (par exemple Doublons) est une ligne affichant sa valeur actuelle (comme Masqués, Affichés ou Seulement ceux-ci) qui ouvre un menu de choix, chacun avec une explication d'une ligne. Une ligne laissée sur sa valeur par défaut ne compte pas dans le badge de l'onglet ni de l'en-tête. *Seulement* et *Masqués* s'excluent mutuellement. Tant qu'une décision est choisie, Rejetées est verrouillé, et son infobulle en donne la raison. Le bouton étoile définit une note minimale : chaque clic l'augmente d'un cran, et le clic après 5, ou après un maximum venu d'un lien, l'efface. Il partage une ligne avec les bascules Favoris et Monochrome, réduites à une icône et dotées d'infobulles. Dans les onglets Qualité et Sujet, survoler le nom d'un réglage explique ce qui est noté et par quel modèle, et les contrôles de Tri ont aussi des infobulles.
-
-
-
-
+Dans la fenêtre Tri, la décision et chaque série (par exemple Doublons) est une ligne affichant sa valeur actuelle (comme Masqués, Affichés ou Seulement ceux-ci) qui ouvre un menu de choix, chacun avec une explication d'une ligne. Une ligne laissée sur sa valeur par défaut ne compte pas dans le badge de l'onglet ni de l'en-tête. *Seulement* et *Masqués* s'excluent mutuellement. Tant qu'une décision est choisie, Rejetées est verrouillé, et son infobulle en donne la raison. Une ligne **Étoiles** ouvre un menu (Toutes, de 1★ et plus à 5★ et plus, 0 étoile). Dessous, les cases à cocher libellées **Favoris uniquement** et **Monochrome uniquement** ont des infobulles. Dans les onglets Qualité et Sujet, survoler le nom d'un réglage explique ce qui est noté et par quel modèle, et les contrôles de Tri ont aussi des infobulles.
 
 ### Filtres principaux
 
@@ -382,22 +376,22 @@ Sur la page d’une photo ouverte, la section de révision regroupe Conserver/In
 Les flèches et la position dans la collection restent disponibles sur chaque membre de pile, à la position de sa couverture chargée. Les touches fléchées parcourent la pile, puis la collection à ses extrémités. Détails de la photo regroupe la sélection et les sections techniques ; l’état Prêt reste accessible aux lecteurs d’écran sans texte visuel supplémentaire.
 
 Lorsqu’une image de comparaison est agrandie, une miniature montre la photo entière et un cadre rouge délimite la zone visible. Le cadre suit le déplacement et le zoom, y compris dans les volets liés, et disparaît en vue ajustée.
+
 L’indicateur de position sur l’image identifie la collection. Les sections repliables affichent des chevrons qui tournent à l’ouverture. Révision reste en premier ; dans Infos, Légende, Lieu et Étiquettes précèdent les sources de métadonnées et les fichiers associés. Les commandes d’édition et d’étiquettes offrent des cibles d’au moins 44 pixels sur les écrans étroits et avec un pointeur grossier, tout en restant compactes sur ordinateur.
 
 Sur téléphone, le nom du fichier occupe sa propre ligne pleine largeur, sur deux lignes au maximum. Les noms très longs gardent leur début et leur fin distinctive. L’indicateur étroit conserve le type d’image visible ; les dimensions qui ne tiennent pas restent accessibles aux lecteurs d’écran. Les textes de chargement et d’erreur restent visibles. Favori, zoom et icônes d’en-tête offrent des cibles d’au moins 44 pixels avec un pointeur grossier.
 
+Focalisez l’image : +/− zoome, les flèches déplacent l’image agrandie et Début l’ajuste. À la taille ajustée, les flèches reprennent la navigation ; Tab quitte l’image. Un seul nom d’image est annoncé lors des changements de rendu. Les miniatures de pile marquent le membre actif et utilisent le nom du fichier, sans chemin serveur. La collection n’a qu’un arrêt Tab ; flèches, Début et Fin ouvrent la photo atteinte. Sur téléphone, le début et la fin distinctive des noms longs restent visibles. Révision précède Infos, qui contient date et catégorie et indique les dates absentes. Les étiquettes longues passent à la ligne. Les petits indicateurs gardent le type d’image ; les dimensions masquées restent accessibles aux lecteurs d’écran.
+
+L’inspection agrandie réserve les gestes tactiles au déplacement de l’image ; Ajuster rétablit le défilement de la page. Les limites suivent l’image ajustée dans chaque direction pour atteindre tous les bords à fort grossissement et rester dans les limites au dézoom. Les légendes et noms longs passent à la ligne dans le panneau.
 
 ### Garder le top N%
-Focalisez l’image : +/− zoome, les flèches déplacent l’image agrandie et Début l’ajuste. À la taille ajustée, les flèches reprennent la navigation ; Tab quitte l’image. Un seul nom d’image est annoncé lors des changements de rendu. Les miniatures de pile marquent le membre actif et utilisent le nom du fichier, sans chemin serveur. La collection n’a qu’un arrêt Tab ; flèches, Début et Fin déplacent le focus, Entrée ouvre la photo. Sur téléphone, le début et la fin distinctive des noms longs restent visibles. Révision précède Infos, qui contient date et catégorie et indique les dates absentes. Les étiquettes longues passent à la ligne. Les petits indicateurs gardent le type d’image ; les dimensions masquées restent accessibles aux lecteurs d’écran.
-
 
 Le contrôle **Garder le top %** de la barre d'outils (mode édition) trie toute la vue filtrée en une étape. Définissez un pourcentage. Facet classe la vue selon le **tri courant** (agrégat, My Taste, Coups de cœur, netteté…), garde la part supérieure et **sélectionne le reste**. Rejetez-les depuis la barre d'actions, après avoir désélectionné celles que vous voulez épargner.
 
 - Rien n'est déplacé ni supprimé ; cela ne fait que remplir la sélection. Les rejets entraînent toujours My Taste.
 - La sélection est plafonnée à 5000 photos. Sur une vue plus grande, restreignez le filtre (album, date, personne…).
 - Avec les valeurs par défaut `hide_brackets` / `hide_panoramas`, un bracketing ou un panorama compte pour **une** photo.
-
-L’inspection agrandie réserve les gestes tactiles au déplacement de l’image ; Ajuster rétablit le défilement de la page. Les limites suivent l’image ajustée dans chaque direction pour atteindre tous les bords à fort grossissement et rester dans les limites au dézoom. Les légendes et noms longs passent à la ligne dans le panneau.
 
 ### Retouches IA
 
@@ -464,7 +458,7 @@ Champs de réponse et codes de statut : [API.md](../API.md).
 - **Masquer détails** — masque les métadonnées sur les cartes (mode grille uniquement)
 - **Forme des vignettes** — recadrage carré (par défaut) ou ratio d'origine de la photo pour les vignettes sans détails ; grisée tant que le mode mosaïque est actif, qui conserve déjà le ratio, ou que les détails sont affichés.
 - **Infobulle** — comment les détails d'une photo s'affichent : **Panneau latéral** (par défaut), **Survol**, **Clic** ou **Désactivée**.
-  - Le panneau latéral montre tous les détails dans le tiroir de droite, disposés comme le détail de la photo. Dans **Activation du panneau**, choisissez **Survol**, **Clic** ou **Survol ou clic** (par défaut). La vue Réviser utilise **Clic** ; choisissez une option avec clic pour les écrans tactiles. Il garde la dernière photo quand le curseur quitte la grille.
+  - Le panneau latéral montre tous les détails dans le tiroir de droite, disposés comme le détail de la photo. Dans **Activation du panneau**, choisissez **Survol**, **Clic** ou **Survol ou clic** (par défaut). Choisissez une option avec clic pour les écrans tactiles. Il garde la dernière photo quand le curseur quitte la grille.
   - Cliquer sur une photo maintient le panneau sur elle jusqu'à ce que vous appuyiez sur **Désélectionner** (ce qui désélectionne aussi la photo). **Échap** fait la même chose et efface la sélection.
   - Une entrée **Pourquoi ce score ?** épinglée en bas du panneau ouvre l'explication du score (la boîte de dialogue de critique) pour la photo que le panneau maintient.
   - Le panneau partage le tiroir avec les filtres ; ouvrir les filtres le masque. Il exige une fenêtre d'au moins 1280 px de large. Là où le panneau ne peut pas se docker, un réglage **Panneau latéral** enregistré affiche les détails dans la bulle flottante, et **Échap** la ferme.
@@ -478,7 +472,7 @@ Champs de réponse et codes de statut : [API.md](../API.md).
 - **Meilleure du bracketing** — n'affiche que l'exposition de référence de chaque bracketing. **Activé par défaut.** Indépendant de Meilleure de la rafale, car la tête de rafale d'un bracketing n'est pas toujours son exposition de référence.
 - **Meilleure du panorama** — n'affiche que la vue centrale de chaque panorama ou panorama HDR. **Activé par défaut.**
 - **Défilement infini** — les photos se chargent au fil du défilement
-- **Défilement rapide (virtualisé)** — ne rend que les rangées proches de la fenêtre, ce qui garde un défilement profond rapide. Activé par défaut. Désactivez-le dans l'onglet Affichage de la barre latérale si vous rencontrez des problèmes de mise en page. Le mode grille avec détails affichés se rend toujours en entier. Enregistré dans localStorage (`facet_virtual_scroll`).
+- **Défilement rapide (virtualisé)** — ne rend que les rangées proches de la fenêtre, ce qui garde un défilement profond rapide. Activé par défaut. Désactivez-le dans la fenêtre **Affichage** si vous rencontrez des problèmes de mise en page. Le mode grille avec détails affichés se rend toujours en entier. Enregistré dans localStorage (`facet_virtual_scroll`).
 
 ### Photos similaires
 
@@ -1261,7 +1255,7 @@ Les builds de production peuvent être installées sur l'écran d'accueil. La co
 
 ## Mobile
 
-La collection comporte deux rangées compactes : titre/Rechercher/Sélectionner, puis tri, sens, Filtres, Grille/Mosaïque et Options d’affichage. La recherche se développe à la demande ; une requête validée et les critères actifs restent visibles. Options d’affichage regroupe les commandes secondaires d’affichage, de filtres rapides et de visibilité. Sélectionner démarre la sélection tactile ; Annuler la quitte. La barre de sélection contextuelle propose Effacer, Comparer et les actions d’écriture autorisées, avec les opérations supplémentaires dans Actions. L’espace de comparaison comporte des commandes visibles Retour et zoom/Ajuster, le glissement tactile et un panneau d’inspection superposé facultatif ; il ne dépend ni du survol ni d’un appui long.
+Sur petits écrans, la barre de sélection flottante affiche des boutons tactiles pour effacer la sélection, comparer (dès deux photos sélectionnées) et, en mode édition, Conserver et Rejeter, plus un bouton **Actions**. **Actions** ouvre une feuille du bas avec les autres opérations groupées (actualiser, empiler, favori, réinitialiser la décision, noter, albums, date de prise de vue, mots-clés, lieu, exporter, trier vers un dossier, marquer comme panorama, panorama HDR ou bracketing, inverser, copier les noms, télécharger). Quand la sélection ne tient pas dans l'espace de comparaison, le bouton de comparaison reste désactivé et une note indique les limites.
 
 ## Cadre photo / Kiosque
 
