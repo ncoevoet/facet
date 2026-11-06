@@ -78,16 +78,6 @@ def _no_temp_files(inbox):
 
 # --- Feature gate / auth ---------------------------------------------------
 
-@pytest.fixture(autouse=True)
-def _fresh_token_limiter():
-    """A failure budget recorded by one test must not throttle the next:
-    the auth-gate tests deliberately burn 401/403 attempts."""
-    from api.routers.webdav import _auth_failure_limiter
-    _auth_failure_limiter.reset()
-    yield
-    _auth_failure_limiter.reset()
-
-
 class TestGate:
     def test_disabled_feature_returns_404(self, client):
         from api import config
@@ -114,6 +104,18 @@ class TestGate:
         resp = client.request("PROPFIND", "/dav/", auth=WRONG)
         assert resp.status_code == 401
         assert "www-authenticate" in resp.headers
+
+    def test_wrong_credentials_are_throttled_but_the_challenge_is_not(self, client, inbox):
+        """The unauthenticated challenge request a WebDAV client opens with never
+        consumes the budget; ten wrong passwords earn a 429 with Retry-After."""
+        for _ in range(20):
+            assert client.request("PROPFIND", "/dav/", headers={"Depth": "0"}).status_code == 401
+        assert client.request("PROPFIND", "/dav/", auth=AUTH, headers={"Depth": "0"}).status_code == 207
+        for _ in range(10):
+            assert client.request("PROPFIND", "/dav/", auth=WRONG).status_code == 401
+        blocked = client.request("PROPFIND", "/dav/", auth=AUTH, headers={"Depth": "0"})
+        assert blocked.status_code == 429
+        assert blocked.headers["Retry-After"] == "60"
 
     def test_options_advertises_dav_and_methods(self, client, inbox):
         resp = client.request("OPTIONS", "/dav/", auth=AUTH)

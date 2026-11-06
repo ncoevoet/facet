@@ -32,9 +32,9 @@ from email.utils import formatdate
 from urllib.parse import quote, unquote, urlsplit
 
 from fastapi import APIRouter, HTTPException, Request, Response
+from fastapi.responses import FileResponse
 
 from api.token_auth import TokenFailureLimiter
-from fastapi.responses import FileResponse
 
 logger = logging.getLogger(__name__)
 
@@ -72,41 +72,46 @@ def _unauthorized() -> HTTPException:
     return HTTPException(status_code=401, detail="Authentication required", headers=_UNAUTH_HEADERS)
 
 
-# Failed Basic-auth attempts per peer IP, keyed to the same 60s window the login limiter uses.
-_auth_failure_limiter = TokenFailureLimiter(max_failures=10, window_seconds=60)
+# Failed Basic-auth attempts per peer IP: the upload password is an offline-guessing target.
+_auth_failure_limiter = TokenFailureLimiter()
+
+
+def _credentials_match(header: str, cfg: dict) -> bool:
+    """True when ``header`` carries Basic credentials equal to the configured pair.
+
+    Decoded and compared constant-time as UTF-8 bytes; anything malformed is a mismatch.
+    """
+    scheme, _, encoded = header.partition(" ")
+    if scheme.lower() != "basic" or not encoded:
+        return False
+    try:
+        decoded = base64.b64decode(encoded, validate=True).decode("utf-8")
+    except (ValueError, UnicodeDecodeError):
+        return False
+    username, sep, password = decoded.partition(":")
+    if not sep:
+        return False
+    user_ok = hmac.compare_digest(username.encode("utf-8"), str(cfg["username"]).encode("utf-8"))
+    pass_ok = hmac.compare_digest(password.encode("utf-8"), str(cfg["password"]).encode("utf-8"))
+    return user_ok and pass_ok
 
 
 def _check_auth(request: Request, cfg: dict) -> None:
-    """Validate HTTP Basic credentials constant-time as UTF-8 bytes.
+    """Validate HTTP Basic credentials, throttling failed attempts per peer IP.
 
     A missing, malformed, or wrong header yields 401 with a ``WWW-Authenticate``
-    challenge so a WebDAV client re-sends with credentials. Failed attempts
-    count against a per-peer-IP failure budget (the upload password is an
-    offline-guessing target); successful requests never consume it.
+    challenge so a WebDAV client re-sends with credentials. Only a request that
+    presented credentials and failed consumes the failure budget: a missing header
+    is the challenge handshake many clients open every connection with, and
+    counting it would lock a legitimate uploader out.
     """
     ip = request.client.host if request.client else "unknown"
-    if not _auth_failure_limiter.allowed(ip):
-        raise HTTPException(status_code=429, detail="Too many authentication failures. Try again later.",
-                            headers={"Retry-After": str(_auth_failure_limiter.window_seconds)})
+    if _auth_failure_limiter.blocked(ip):
+        raise _auth_failure_limiter.too_many()
     header = request.headers.get("authorization", "")
-    scheme, _, encoded = header.partition(" ")
-    failed = False
-    if scheme.lower() != "basic" or not encoded:
-        failed = True
-    else:
-        try:
-            decoded = base64.b64decode(encoded, validate=True).decode("utf-8")
-        except (ValueError, UnicodeDecodeError):
-            failed = True
-        else:
-            username, sep, password = decoded.partition(":")
-            if not sep:
-                failed = True
-            else:
-                user_ok = hmac.compare_digest(username.encode("utf-8"), str(cfg["username"]).encode("utf-8"))
-                pass_ok = hmac.compare_digest(password.encode("utf-8"), str(cfg["password"]).encode("utf-8"))
-                failed = not (user_ok and pass_ok)
-    if failed:
+    if not header:
+        raise _unauthorized()
+    if not _credentials_match(header, cfg):
         _auth_failure_limiter.register_failure(ip)
         raise _unauthorized()
 

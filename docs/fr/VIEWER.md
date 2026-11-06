@@ -1407,7 +1407,7 @@ Facet ajoute des index qui gardent rapides les pages et compteurs de la galerie 
 
 ## Points d'accès API
 
-La référence de l'API HTTP se trouve dans [API.md](../API.md). La documentation interactive est servie sur `/api/docs`.
+La référence de l'API HTTP se trouve dans [API.md](../API.md). La documentation interactive est servie sur `/api/docs` lorsque le visualiseur démarre avec `FACET_ENABLE_API_DOCS=1`.
 
 ## Photos JPEG XL
 

@@ -29,7 +29,7 @@ logger = logging.getLogger(__name__)
 router = APIRouter(tags=["frame"])
 
 # Failed-token throttle per peer IP: a kiosk polls constantly, a guesser does not.
-_token_limiter = TokenFailureLimiter(max_failures=10, window_seconds=60)
+_token_limiter = TokenFailureLimiter()
 
 _FEATURE = "Frame feature"
 

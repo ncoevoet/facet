@@ -1407,7 +1407,7 @@ Facet adds indexes that keep gallery pages and counts fast on large libraries. O
 
 ## API Endpoints
 
-The HTTP API reference is in [API.md](API.md). Interactive docs are served at `/api/docs`.
+The HTTP API reference is in [API.md](API.md). Interactive docs are served at `/api/docs` when the viewer starts with `FACET_ENABLE_API_DOCS=1`.
 
 ## JPEG XL photos
 

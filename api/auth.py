@@ -855,13 +855,7 @@ class RateLimiter:
         """The sliding window, so 429 answers can carry a Retry-After."""
         return self._window
 
-    def is_allowed(self, key: str, *, register: bool = True) -> bool:
-        """Check the attempt budget for ``key``.
-
-        ``register=False`` performs the check without consuming a slot: the
-        caller registers the attempt itself when it turns out to be a failure
-        (static-token surfaces count failures only, so a legitimate kiosk
-        polling every photo cannot lock itself out)."""
+    def is_allowed(self, key: str) -> bool:
         now = time.monotonic()
         with self._lock:
             # Periodically prune stale keys to prevent unbounded growth
@@ -876,8 +870,7 @@ class RateLimiter:
                 dq.popleft()
             if len(dq) >= self._max:
                 return False
-            if register:
-                dq.append(now)
+            dq.append(now)
             return True
 
 

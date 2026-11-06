@@ -1405,7 +1405,7 @@ O Facet adiciona índices que mantêm rápidas as páginas e contagens da galeri
 
 ## Endpoints da API
 
-A referência da API HTTP está em [API.md](../API.md). A documentação interativa é servida em `/api/docs`.
+A referência da API HTTP está em [API.md](../API.md). A documentação interativa é servida em `/api/docs` quando o visualizador é iniciado com `FACET_ENABLE_API_DOCS=1`.
 
 ## Fotos JPEG XL
 

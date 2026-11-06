@@ -4,6 +4,14 @@ All notable changes to Facet are documented in this file.
 
 ## [Unreleased]
 
+### Security
+
+- **Request bodies are capped at 10 MB before any handler reads them.** Login, proofing sessions and client error reports buffered the whole body before validation and rate limiting ran, so an unbounded body was a memory lever for any LAN peer. A declared size over the cap answers 413 at once and a chunked body is refused as soon as it crosses it. WebDAV uploads, the AI-edit import and the Lightroom state import keep their own, larger streaming caps.
+- **Static-secret surfaces throttle wrong guesses per peer address.** The frame kiosk, the Immich webhook and WebDAV Basic auth accepted unlimited guesses of their long-lived secrets; ten wrong ones within a minute now answer 429 with `Retry-After`. A missing credential (a kiosk without its token, a WebDAV client's opening challenge) and a disabled feature never consume the budget, and the budget is per viewer process. The assistant endpoint's existing failure throttle now shares the same implementation.
+- **The interactive API docs are off unless explicitly enabled.** `/api/docs` and `/api/openapi.json` handed the complete route inventory to anyone who could reach the server; they are served only with `FACET_ENABLE_API_DOCS=1` (or `true`, `yes`, `on`). `npm run gen:api` is unaffected.
+- **Rate-limited login and proofing answers carry `Retry-After`**, so a locked-out client knows when its window resets.
+- **Immich webhook deliveries stop walking the payload at the delivery cap** instead of visiting every entry of an oversized body.
+
 ## [1.28.0] "f/64" — 2026-11-05
 
 ### Added
@@ -38,12 +46,6 @@ All notable changes to Facet are documented in this file.
 - **`--recompute-iqa` no longer loads every pending thumbnail into memory.** The pass lists the pending photos first, then reads, decodes (a small thread pool) and scores them one batch at a time and writes each batch with one `executemany` per score column plus one for declines, so memory no longer grows with the number of pending photos. Photos are now processed in rowid order, and a photo scored, declined or deleted while the pass runs is skipped if the change lands before its batch is read. Ctrl-C keeps every finished batch; rerun to continue. The scorers are now always unloaded, even when the pass fails.
 
 ### Fixed
-
-- **Anonymous POST endpoints refuse an oversized body before reading it.** Login, proofing sessions and client error reports buffered the whole body before validation and rate limiting ran, so a multi-gigabyte Content-Length was a memory lever for any LAN peer; a 10 MB declared-body cap answers 413 without waking the handlers (WebDAV uploads keep their own streaming cap).
-- **Static-token surfaces throttle failed attempts per peer IP.** The frame kiosk, the Immich webhook and WebDAV Basic auth accepted unlimited guesses of their long-lived secrets; failed attempts now share a 10-per-minute budget per address, and successful requests never consume it.
-- **The interactive API docs are off unless explicitly enabled.** `/api/docs` and `/api/openapi.json` handed the complete route inventory and request models to anyone who could reach a password-protected server; they are served only with `FACET_ENABLE_API_DOCS=1` (`scripts/dump_openapi.py` never needed the routes).
-- **Rate-limited answers carry `Retry-After`.** The login, edition-login and proofing 429s now tell a locked-out legitimate client when its window resets.
-- **Immich webhook deliveries stop walking a hostile payload at the delivery cap.** The asset walk materialized every entry before truncating to the first 100; it now stops at the cap while the over-cap delivery stays observable in the log.
 
 <!-- Benchmark: three trees on one machine (before = d1859235, one state read, persistent process), ExifTool 12.76,
      40 photos x 5 interleaved repeats, median ms/photo: JPEG sidecar re-export 343 -> 232 -> 4.2, embed-original
