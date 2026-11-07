@@ -299,11 +299,16 @@ export class CapsulesComponent implements OnDestroy {
       this.total.set(res.total);
     } catch {
       if (page > 1) {
-        // Give the page back: loadMore already incremented it, and a failed
-        // append must be refetched, not skipped.
+        // Roll the page back: loadMore already incremented it, and a failed
+        // append must be refetched, not skipped. The grid still holds earlier
+        // pages, so the loadError banner does not apply — a toast says the
+        // append failed instead of silently losing the failed page.
         this.currentPage = page - 1;
+        this.snackBar.open(this.i18n.t(I18N.capsules.load_error), '', { duration: 3000 });
       } else {
         this.capsules.set([]);
+        this.total.set(0);
+        this.hasMore.set(false);
         this.loadError.set(true);
       }
     } finally {

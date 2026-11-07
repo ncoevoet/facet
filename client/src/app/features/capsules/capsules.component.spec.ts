@@ -6,6 +6,7 @@ import { ApiService } from '../../core/services/api.service';
 import { AuthService } from '../../core/services/auth.service';
 import { I18nService } from '../../core/services/i18n.service';
 import { CapsulesComponent } from './capsules.component';
+import { I18N } from '../../core/i18n/keys';
 
 describe('CapsulesComponent', () => {
   let component: CapsulesComponent;
@@ -97,6 +98,22 @@ describe('CapsulesComponent', () => {
       await internals().loadCapsules();
       expect(internals().loadError()).toBe(true);
       expect(internals().capsules()).toEqual([]);
+      // Page-1 failures use the loadError banner — a toast would double the
+      // notification.
+      expect(mockSnackBar.open).not.toHaveBeenCalled();
+    });
+
+    it('clears stale pagination when a page-1 reload fails', async () => {
+      await internals().loadCapsules();
+      expect(internals().hasMore()).toBe(true);
+      mockApi.get.mockReturnValueOnce(throwError(() => new Error('boom')));
+      internals().currentPage = 1;
+      await internals().loadCapsules(true);
+      // A hasMore left over from the earlier load would keep the scroll
+      // sentinel alive and append page 2 onto the now-empty grid.
+      expect(internals().hasMore()).toBe(false);
+      expect(internals().total()).toBe(0);
+      expect(internals().loadError()).toBe(true);
     });
 
     it('keeps the grid and sets no error when a later page fails', async () => {
@@ -106,6 +123,17 @@ describe('CapsulesComponent', () => {
       await settle();
       expect(internals().capsules().length).toBe(1);
       expect(internals().loadError()).toBe(false);
+    });
+
+    it('toasts the failure when a later page fails', async () => {
+      await internals().loadCapsules();
+      mockApi.get.mockReturnValueOnce(throwError(() => new Error('boom')));
+      internals().loadMore();
+      await settle();
+      // The grid holds earlier pages, so the loadError banner does not apply —
+      // the failure must still be visible, as a toast.
+      expect(mockSnackBar.open).toHaveBeenCalledWith(
+        I18N.capsules.load_error, '', { duration: 3000 });
     });
   });
 });
