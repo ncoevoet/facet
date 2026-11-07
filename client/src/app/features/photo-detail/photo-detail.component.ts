@@ -1296,6 +1296,10 @@ export class PhotoDetailComponent extends PhotoDetailBase implements OnInit {
         p => this.api.downloadUrl(p, type, profile),
         url => this.api.getRaw(url),
       );
+    } catch {
+      // A 404 (the file moved on disk) or a 412 passes the interceptor's 5xx
+      // toast silently — the click must not look like a no-op.
+      this.snackBar.open(this.i18n.t(I18N.errors.action_failed), '', { duration: 3000 });
     } finally {
       this.downloading.set(false);
     }
@@ -1309,6 +1313,8 @@ export class PhotoDetailComponent extends PhotoDetailBase implements OnInit {
         p => `/api/photo/social_crop?path=${encodeURIComponent(p)}&preset=${encodeURIComponent(preset)}`,
         url => this.api.getRaw(url),
       );
+    } catch {
+      this.snackBar.open(this.i18n.t(I18N.errors.action_failed), '', { duration: 3000 });
     } finally {
       this.downloading.set(false);
     }

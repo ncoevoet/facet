@@ -212,6 +212,18 @@ All notable changes to Facet are documented in this file.
 
 ### Fixed
 
+- **List pages no longer lose a page to a failed request.** Albums, scenes and capsules incremented their page counter before the request and left it incremented on failure, so whatever the failed page carried was skipped for good on the next "load more"; the counter now rolls back. A slow capsules answer landing after a regenerate also no longer replaces the grid with a stale page.
+- **The scan launcher reports a refused start.** Clicking Start while a scan is already running (409) or on a server fault switched the dialog to an indeterminate progress bar forever; the button now comes back with the server's reason.
+- **Scan progress survives a hiccup.** One failed status poll stopped all updates for a scan that was still running; polling now rides out a transient failure (it gives up after five in a row, or at once on a 401/403, rather than polling and toasting for the rest of the session), and the connected flag only claims a stream that actually opened.
+- **Stats sections own their load failures.** A failed reload after a filter change kept showing the previous filter's numbers with no explanation; the failing sections now say so, with a Retry for the whole page.
+- **The panorama settings tab reports a failed load** with a Retry instead of a blank pane.
+- **Albums and capsules never read as "you have none" when the request merely failed.** Both list pages distinguish a failed load from an empty library, with a Retry.
+- **Timeline calendar loads report failures** (years/months/days) with a Retry instead of a silently empty or stale calendar.
+- **Photo downloads say when they failed.** A 404 (the file moved on disk) or a 412 was swallowed with no toast and an unhandled rejection; downloads and social crops now report the failure.
+- **Share links say when they failed.** Generating or revoking a share link swallowed errors, leaving an empty dialog that read as "no link yet"; both now show the failure.
+- **Junk-sweep kind badges recover from partial batch failures.** After a mid-batch rejection failure the kind filter counts no longer overstate what remains.
+- **A rapid language switch no longer shows the old language.** Two quick switches raced: the slower translation response overwrote the newer one while the locale already reported it; a stale answer is now discarded.
+
 <!-- Benchmark: three trees on one machine (before = d1859235, one state read, persistent process), ExifTool 12.76,
      40 photos x 5 interleaved repeats, median ms/photo: JPEG sidecar re-export 343 -> 232 -> 4.2, embed-original
      re-export 899 -> 477 -> 9.3, CR3 with a darktable sidecar re-export 369 -> 229 -> 6.0. -->

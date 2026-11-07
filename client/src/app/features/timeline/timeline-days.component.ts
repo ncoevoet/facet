@@ -37,7 +37,6 @@ interface CalendarCell {
         <mat-spinner diameter="48" [attr.aria-label]="'ui.labels.loading' | translate" />
       </div>
     }
-
     @if (failed()) {
       <app-timeline-load-failure [loading]="loading()" (retry)="retryRead()" />
     }

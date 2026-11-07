@@ -175,6 +175,29 @@ describe('ShareDialogComponent', () => {
       expect(component.shareUrl()).toBe('');
       expect(mockDialogRef.close).toHaveBeenCalledWith('revoked');
     });
+
+    it('should set the error when generateLink fails', async () => {
+      mockApi.post.mockReturnValue(throwError(() => new Error('boom')));
+      createComponent({ ...albumData, autoGenerate: false });
+
+      await component.generateLink();
+
+      expect(component.error()).toBe(true);
+      expect(component.shareUrl()).toBe('');
+      expect(component.loading()).toBe(false);
+    });
+
+    it('should keep the dialog open and show the error when revoke fails', async () => {
+      mockApi.delete.mockReturnValue(throwError(() => new Error('boom')));
+      createComponent(albumData);
+      component.shareUrl.set('/shared/album/1?token=abc');
+
+      await component.revoke();
+
+      expect(component.error()).toBe(true);
+      expect(component.shareUrl()).toBe('/shared/album/1?token=abc');
+      expect(mockDialogRef.close).not.toHaveBeenCalled();
+    });
   });
 
   describe('fullShareUrl', () => {

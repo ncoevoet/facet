@@ -511,6 +511,16 @@ export class JunkSweepComponent implements OnInit, OnDestroy {
     }
   }
 
+  /** Take rejected photos off the kind badges (the list view hides rejected rows). */
+  private decrementKinds(removed: readonly Photo[]): void {
+    const removedByKind = new Map<string, number>();
+    for (const p of removed) {
+      if (p.junk_kind) removedByKind.set(p.junk_kind, (removedByKind.get(p.junk_kind) ?? 0) + 1);
+    }
+    this.kinds.update(list =>
+      list.map(k => [k[0], Math.max(0, k[1] - (removedByKind.get(k[0]) ?? 0))] as [string, number]));
+  }
+
   protected async rejectAllShown(): Promise<void> {
     const view = this.captureView();
     if (!this.isCurrentView(view) || this.bulkBusy() || this.loading() || this.pendingPaths().size > 0) return;
@@ -548,11 +558,7 @@ export class JunkSweepComponent implements OnInit, OnDestroy {
         this.notify(I18N.junk.rejected_bulk, 2000, { count: rejected.length });
       }
       if (!this.isCurrentView(view)) return;
-      const removedByKind = new Map<string, number>();
-      for (const photo of shown) {
-        if (photo.junk_kind) removedByKind.set(photo.junk_kind, (removedByKind.get(photo.junk_kind) ?? 0) + 1);
-      }
-      this.kinds.update(list => list.map(kind => [kind[0], Math.max(0, kind[1] - (removedByKind.get(kind[0]) ?? 0))] as [string, number]));
+      this.decrementKinds(shown);
       this.page = 0;
       this.photos.set([]);
       await this.load(1);
@@ -560,6 +566,10 @@ export class JunkSweepComponent implements OnInit, OnDestroy {
       if (rejected.length > 0 && this.isSameOwner(view)) {
         this.journal.record('junk', rejected, { action: 'reject', count: rejected.length, partial: true });
       }
+      // Earlier chunks landed server-side: take exactly those off the kind badges. Re-reading
+      // the counts cannot do it, they include rejected photos and may come from the stats cache.
+      const landed = new Set(rejected);
+      this.decrementKinds(shown.filter(photo => landed.has(photo.path)));
       if (this.isSameOwner(view)) this.notifyDecisionError();
       if (!this.isCurrentView(view)) return;
       // Re-read after a failed bulk write, including when earlier chunks landed.

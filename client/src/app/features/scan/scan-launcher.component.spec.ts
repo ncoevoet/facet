@@ -1,6 +1,7 @@
 import { TestBed } from '@angular/core/testing';
 import { signal, computed } from '@angular/core';
 import { MatDialogRef } from '@angular/material/dialog';
+import { I18nService } from '../../core/services/i18n.service';
 import { ScanService, ScanStatus } from '../../core/services/scan.service';
 import { ScanLauncherComponent } from './scan-launcher.component';
 
@@ -41,6 +42,7 @@ describe('ScanLauncherComponent', () => {
       providers: [
         { provide: ScanService, useValue: mockScan },
         { provide: MatDialogRef, useValue: { close: dialogClose } },
+        { provide: I18nService, useValue: { t: (key: string) => `T(${key})`, translations: () => ({}) } },
       ],
     });
     component = TestBed.runInInjectionContext(() => new ScanLauncherComponent());

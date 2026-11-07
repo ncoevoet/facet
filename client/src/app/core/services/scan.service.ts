@@ -66,6 +66,9 @@ function isScanStatus(value: unknown): value is ScanStatus {
   });
 }
 
+/** Consecutive failed status polls tolerated before polling gives up. */
+export const MAX_POLL_FAILURES = 5;
+
 @Injectable({ providedIn: 'root' })
 export class ScanService implements OnDestroy {
   private readonly api = inject(ApiService);
@@ -79,6 +82,7 @@ export class ScanService implements OnDestroy {
   private session: ScanSession | null = null;
   private launcher: { ref: MatDialogRef<unknown>; session: ScanSession } | null = null;
   private retriedMintOnError = false;
+  private pollFailures = 0;
 
   readonly status = signal<ScanStatus>(emptyScanStatus());
   readonly connected = signal(false);
@@ -246,7 +250,8 @@ export class ScanService implements OnDestroy {
     try { source = new EventSource(`/api/scan/stream?${params}`); }
     catch { this.startPolling(session); return; }
     this.eventSource = source;
-    this.connected.set(true);
+    source.onopen = () => this.connected.set(true);
+
     source.onmessage = (event: MessageEvent) => {
       if (!this.current(session) || this.eventSource !== source) return;
       let data: unknown;
@@ -274,6 +279,7 @@ export class ScanService implements OnDestroy {
   private startPolling(session: ScanSession): void {
     if (!this.current(session)) return;
     this.stopPolling();
+    this.pollFailures = 0;
     void this.pollOnce(session);
     this.pollTimer = setInterval(() => void this.pollOnce(session), 2000);
   }
@@ -292,14 +298,27 @@ export class ScanService implements OnDestroy {
       const data = await firstValueFrom(this.api.get<unknown>('/scan/status', { lines: 50 }));
       if (!this.current(session) || this.pollRequest !== request) return;
       if (!isScanStatus(data)) throw new Error('Invalid scan status');
+      // One transient failure must not freeze the progress view for a scan
+      // that is still running: the interval keeps firing, the next poll re-arms the flag.
+      this.pollFailures = 0;
+      this.connected.set(true);
       this.status.set(data);
       this.statusKnown.set(true);
       this.observationError.set(false);
       if (!data.running) this.stopPolling();
-    } catch {
+    } catch (err) {
       if (!this.current(session) || this.pollRequest !== request) return;
-      this.observationError.set(true);
-      this.stopPolling();
+      // Keep the interval alive through a hiccup: one failure skips a tick instead of ending
+      // the updates for a scan still running server-side. Malformed data (an Error, not an HTTP
+      // failure), a refusal (401/403) or a persistent failure stops it, or this root service
+      // would poll every tick for the rest of the session. With nothing on screen yet the
+      // failure is shown at once, and a later good poll clears it.
+      this.connected.set(false);
+      const status = (err as { status?: number })?.status;
+      this.pollFailures++;
+      const final = err instanceof Error || status === 401 || status === 403 || this.pollFailures >= MAX_POLL_FAILURES;
+      if (final || !this.statusKnown()) this.observationError.set(true);
+      if (final) this.stopPolling();
     } finally {
       if (this.pollRequest === request) this.pollRequest = null;
     }

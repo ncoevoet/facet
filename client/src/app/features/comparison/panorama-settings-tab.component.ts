@@ -35,6 +35,11 @@ import { PanoramaSettingsService, PanoramaSettings } from './panorama-settings.s
   template: `
     @if (loading()) {
       <div class="flex justify-center p-8"><mat-spinner diameter="32" [attr.aria-label]="I18N.ui.labels.loading | translate" /></div>
+    } @else if (failed()) {
+      <div role="alert" class="flex items-center justify-center gap-3 p-8 text-sm">
+        <span>{{ I18N.errors.server_error | translate }}</span>
+        <button mat-stroked-button (click)="reload()">{{ I18N.gallery.load_error.retry | translate }}</button>
+      </div>
     } @else if (settings(); as s) {
       <p class="text-sm opacity-70 mb-4 max-w-3xl">
         {{ I18N.panorama.settings.intro | translate }}
@@ -104,9 +109,15 @@ export class PanoramaSettingsTabComponent {
   protected readonly failed = signal(false);
 
   constructor() {
+    this.reload();
+  }
+
+  protected reload(): void {
+    this.loading.set(true);
+    this.failed.set(false);
     this.service.load().subscribe({
       next: s => { this.settings.set(s); this.loading.set(false); },
-      error: () => this.loading.set(false),
+      error: () => { this.loading.set(false); this.failed.set(true); },
     });
   }
 

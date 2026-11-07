@@ -1,7 +1,7 @@
 import { TestBed } from '@angular/core/testing';
 import { provideHttpClient, withXhr } from '@angular/common/http';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
-import { ScanService, ScanStatus } from './scan.service';
+import { MAX_POLL_FAILURES, ScanService, ScanStatus } from './scan.service';
 import { AuthService, AuthStatus } from './auth.service';
 import { MatDialog } from '@angular/material/dialog';
 import { of } from 'rxjs';
@@ -12,6 +12,7 @@ class MockEventSource {
   url: string;
   onmessage: ((event: MessageEvent) => void) | null = null;
   onerror: (() => void) | null = null;
+  onopen: (() => void) | null = null;
   closed = false;
 
   constructor(url: string) {
@@ -188,6 +189,10 @@ describe('ScanService', () => {
       expect(MockEventSource.instances[0].url).toContain('/api/scan/stream?');
       expect(MockEventSource.instances[0].url).toContain('token=minted-token');
       expect(MockEventSource.instances[0].url).toContain('lines=50');
+      // connected is claimed only when the stream actually opens, not on
+      // EventSource construction (the B90 fix).
+      expect(service.connected()).toBe(false);
+      MockEventSource.instances[0].onopen?.();
       expect(service.connected()).toBe(true);
     });
 
@@ -414,6 +419,7 @@ describe('ScanService', () => {
         expect(MockEventSource.instances).toHaveLength(2);
       });
       expect(MockEventSource.instances[1].url).toContain('token=token-2');
+      MockEventSource.instances[1].onopen?.();
       expect(service.connected()).toBe(true);
     });
 
@@ -462,6 +468,7 @@ describe('ScanService', () => {
         expect(MockEventSource.instances).toHaveLength(3);
       });
       expect(MockEventSource.instances[2].url).toContain('token=token-3');
+      MockEventSource.instances[2].onopen?.();
       expect(service.connected()).toBe(true);
 
       httpTesting.expectNone((r) => r.url === '/api/scan/status');
@@ -496,6 +503,7 @@ describe('ScanService', () => {
       await promise;
 
       expect(MockEventSource.instances).toHaveLength(1);
+      MockEventSource.instances[0].onopen?.();
       expect(service.connected()).toBe(true);
     });
   });
@@ -620,6 +628,56 @@ describe('ScanService', () => {
     it('returns false when the launcher is dismissed', async () => {
       withDialog(undefined);
       expect(await TestBed.inject(ScanService).openLauncher()).toBe(false);
+    });
+  });
+
+  describe('status polling failures', () => {
+    const statusReqs = () => httpTesting.match((r) => r.url === '/api/scan/status');
+
+    async function startPolling(): Promise<void> {
+      const connectPromise = service.connect();
+      httpTesting
+        .expectOne('/api/scan/stream_token')
+        .flush('mint failed', { status: 500, statusText: 'Server Error' });
+      await connectPromise;
+    }
+
+    const failNext = async (status = 500) => {
+      const reqs = statusReqs();
+      expect(reqs).toHaveLength(1);
+      reqs[0].flush('nope', { status, statusText: 'err' });
+      await vi.advanceTimersByTimeAsync(0);
+    };
+
+    beforeEach(() => vi.useFakeTimers());
+    afterEach(() => vi.useRealTimers());
+
+    it('keeps polling after a single failed poll', async () => {
+      await startPolling();
+      await failNext();
+      await vi.advanceTimersByTimeAsync(2000);
+      const next = statusReqs();
+      expect(next).toHaveLength(1);
+      next[0].flush(mockStatus);
+      await vi.advanceTimersByTimeAsync(0);
+      expect(service.status()).toEqual(mockStatus);
+    });
+
+    it('stops polling after MAX_POLL_FAILURES consecutive failures', async () => {
+      await startPolling();
+      for (let i = 0; i < MAX_POLL_FAILURES; i++) {
+        await failNext();
+        if (i < MAX_POLL_FAILURES - 1) await vi.advanceTimersByTimeAsync(2000);
+      }
+      await vi.advanceTimersByTimeAsync(10000);
+      expect(statusReqs()).toHaveLength(0);
+    });
+
+    it('stops polling immediately on a 403', async () => {
+      await startPolling();
+      await failNext(403);
+      await vi.advanceTimersByTimeAsync(10000);
+      expect(statusReqs()).toHaveLength(0);
     });
   });
 });

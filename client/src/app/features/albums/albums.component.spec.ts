@@ -360,4 +360,40 @@ describe('AlbumsComponent', () => {
     expect(dialogOpen).toHaveBeenCalled();
     expect(overlay.querySelector('[role="menu"]')).toBeNull();
   });
+
+  describe('load failures', () => {
+    const lastPage = () => (mockAlbumService.list.mock.calls.at(-1)![0] as { page: number }).page;
+    const settle = () => vi.waitFor(() => expect(internals().loading()).toBe(false));
+
+    it('re-requests the same page after a failed load-more, not the next one', async () => {
+      // Let the filter effect's initial reload run first, or it lands mid-test.
+      TestBed.tick();
+      await settle();
+      await internals().loadAlbums(true);
+      expect(lastPage()).toBe(1);
+
+      mockAlbumService.list.mockReturnValueOnce(throwError(() => new Error('boom')));
+      internals().onScrollReached();
+      await settle();
+      expect(lastPage()).toBe(2);
+      expect(internals().loadFailed()).toBe(true);
+      expect(internals().albums().length).toBe(2);
+
+      internals().onScrollReached();
+      await settle();
+      expect(lastPage()).toBe(2);
+    });
+
+    it('renders the retry alert, not the empty state, after a failed first load', async () => {
+      mockAlbumService.list.mockReturnValue(throwError(() => new Error('boom')));
+      const fixture = TestBed.createComponent(AlbumsComponent);
+      fixture.detectChanges();
+      await fixture.whenStable();
+      fixture.detectChanges();
+
+      const el = fixture.nativeElement as HTMLElement;
+      expect(el.querySelector('[role="alert"]')).toBeTruthy();
+      expect(el.textContent).not.toContain('albums.empty');
+    });
+  });
 });

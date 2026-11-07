@@ -39,7 +39,12 @@ export class I18nService {
     }
   }
 
-  /** Load translations for current locale */
+  /** Load translations for current locale.
+   *
+   * Two quick language switches race: the slower response would otherwise
+   * overwrite the newer language's strings while `locale()` already reports
+   * it, so a stale answer is discarded instead of applied.
+   */
   async load(): Promise<void> {
     const lang = this.locale();
     try {
@@ -50,15 +55,14 @@ export class I18nService {
     } catch {
       if (this.locale() !== lang) return;
       // Fallback to English
-      if (lang !== 'en') {
-        try {
-          const data = await firstValueFrom(this.http.get<Record<string, unknown>>('/api/i18n/en'));
-          if (this.locale() !== lang) return;
-          this._translations.set(data ?? {});
-          document.documentElement.lang = 'en';
-        } catch {
-          // Both failed — use empty translations, keys will show as-is
-        }
+      if (lang === 'en' || this.locale() !== lang) return;
+      try {
+        const data = await firstValueFrom(this.http.get<Record<string, unknown>>('/api/i18n/en'));
+        if (this.locale() !== lang) return;
+        this._translations.set(data ?? {});
+        document.documentElement.lang = 'en';
+      } catch {
+        // Both failed — use empty translations, keys will show as-is
       }
     }
   }

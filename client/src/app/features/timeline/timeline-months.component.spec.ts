@@ -4,6 +4,7 @@ import { provideRouter, Router } from '@angular/router';
 import { AuthService } from '../../core/services/auth.service';
 import { signal } from '@angular/core';
 import { of, throwError } from 'rxjs';
+import { I18nService } from '../../core/services/i18n.service';
 import { ApiService } from '../../core/services/api.service';
 import { TimelineFiltersService } from './timeline-filters.service';
 import { GalleryStore } from '../gallery/gallery.store';
@@ -35,6 +36,7 @@ describe('TimelineMonthsComponent', () => {
         provideRouter([]),
         { provide: AuthService, useValue: { status: signal({ user_id: 'alice' }), token: 'a' } },
         { provide: ApiService, useValue: mockApi },
+        { provide: I18nService, useValue: { t: (key: string) => `T(${key})`, translations: () => ({}) } },
         TimelineFiltersService,
         { provide: GalleryStore, useValue: mockStore },
       ],
