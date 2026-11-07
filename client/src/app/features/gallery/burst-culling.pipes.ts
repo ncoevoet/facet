@@ -93,6 +93,8 @@ export interface CullingGroup {
   type: CullingGroupType | 'duplicate';
   suggestionKey?: string;
   reason: string;
+  /** Similar groups only: the threshold the group was formed at. */
+  similarity_percent?: number | null;
   photos: CullingPhoto[];
   best_path: string;
   count: number;

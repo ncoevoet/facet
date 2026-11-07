@@ -934,7 +934,7 @@ La **granularité** (premier contrôle de la barre d'outils) choisit comment les
 
 - **Tout** (par défaut) — rafales et groupes de similaires fusionnés.
 - **Rafales** — photos prises rapprochées dans le temps.
-- **Similaires** — photos qui se ressemblent quel que soit le moment, par similarité CLIP/SigLIP. Un curseur règle la rigueur.
+- **Similaires** — photos qui se ressemblent quel que soit le moment, par similarité CLIP/SigLIP. Un curseur règle la rigueur (plus bas : ressemblances plus larges). Une scène plus grande que `similarity_groups.max_group_size` est scindée avec un seuil plus strict au lieu d'être écartée, et une carte qui montre moins de photos que son groupe n'en contient indique « N sur M photos affichées ».
 - **Scènes** — séquences chronologiques d'heures de prise de vue, chacune coiffée de sa plage horaire et de son moment narratif principal. Nécessite `viewer.features.show_scenes`.
 - **Bracketings d'exposition** — séries trouvées par [`--detect-sequences`](COMMANDS.md), exposition de référence d'abord, chaque vue étiquetée de sa compensation (`-2 EV` … `+2 EV`).
 - **Panoramas** — balayages trouvés par [`--detect-panoramas`](COMMANDS.md), dans l'ordre de prise de vue, vue centrale marquée.

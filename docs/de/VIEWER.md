@@ -935,7 +935,7 @@ Die Auswahlseite (`/culling`, Bearbeitungsmodus) gruppiert beinahe identische Au
 
 - **Alle** (Standard) — Serien und Ähnlichkeitsgruppen zusammengeführt.
 - **Serien** — zeitlich dicht aufeinander aufgenommene Fotos.
-- **Ähnliche** — Fotos, die unabhängig von der Zeit gleich aussehen, nach CLIP/SigLIP-Ähnlichkeit. Ein Regler legt die Strenge fest.
+- **Ähnliche** — Fotos, die unabhängig von der Zeit gleich aussehen, nach CLIP/SigLIP-Ähnlichkeit. Ein Regler legt die Strenge fest (niedriger findet auch lockerere Ähnlichkeiten). Eine Szene über `similarity_groups.max_group_size` wird bei strengerem Schwellenwert aufgeteilt statt verworfen; zeigt eine Karte weniger Fotos als ihre Gruppe enthält, steht dort „N von M Fotos angezeigt“.
 - **Szenen** — chronologische Aufnahmezeit-Abschnitte, jeweils mit Zeitspanne und wichtigstem narrativem Moment als Überschrift. Erfordert `viewer.features.show_scenes`.
 - **Belichtungsreihen** — von [`--detect-sequences`](COMMANDS.md) gefundene Sets, Basisbelichtung zuerst, jede Aufnahme mit ihrer Korrektur gekennzeichnet (`-2 EV` … `+2 EV`).
 - **Panoramen** — von [`--detect-panoramas`](COMMANDS.md) gefundene Schwenks in Aufnahmereihenfolge, mittleres Bild markiert.

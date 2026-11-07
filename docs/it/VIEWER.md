@@ -934,7 +934,7 @@ La **granularità** (il primo controllo della barra degli strumenti) sceglie com
 
 - **Tutto** (predefinito) — raffiche e gruppi di simili uniti.
 - **Raffiche** — foto scattate ravvicinate nel tempo.
-- **Simili** — foto che si assomigliano a prescindere dal tempo, per somiglianza CLIP/SigLIP. Un cursore imposta il rigore.
+- **Simili** — foto che si assomigliano a prescindere dal tempo, per somiglianza CLIP/SigLIP. Un cursore imposta il rigore (più basso trova somiglianze più ampie). Una scena più grande di `similarity_groups.max_group_size` viene divisa con una soglia più rigida invece di essere scartata, e una scheda che mostra meno foto di quante ne contiene il suo gruppo indica «N di M foto mostrate».
 - **Scene** — sequenze cronologiche per ora di scatto, ciascuna con l'intervallo di tempo e il momento narrativo principale in testa. Richiede `viewer.features.show_scenes`.
 - **Bracketing di esposizione** — serie trovate da [`--detect-sequences`](COMMANDS.md), esposizione di base per prima, ogni fotogramma con il badge della sua compensazione (`-2 EV` … `+2 EV`).
 - **Panorami** — panoramiche trovate da [`--detect-panoramas`](COMMANDS.md), in ordine di scatto, fotogramma centrale segnato.

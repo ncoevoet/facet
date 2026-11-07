@@ -932,7 +932,7 @@ A **Granularidade** (o primeiro controle da barra de ferramentas) escolhe como a
 
 - **Tudo** (padrão) — rajadas e grupos de semelhantes fundidos.
 - **Rajadas** — fotos tiradas em sequência próxima no tempo.
-- **Semelhantes** — fotos de aspecto parecido, seja qual for o horário, por similaridade CLIP/SigLIP. Um controle deslizante define o rigor.
+- **Semelhantes** — fotos de aspecto parecido, seja qual for o horário, por similaridade CLIP/SigLIP. Um controle deslizante define o rigor (mais baixo encontra semelhanças mais amplas). Uma cena maior que `similarity_groups.max_group_size` é dividida com um limiar mais rígido em vez de descartada, e um cartão que mostra menos fotos do que o seu grupo contém indica «N de M fotos mostradas».
 - **Cenas** — sequências cronológicas por horário de captura, cada uma encabeçada pelo seu intervalo de tempo e pelo momento narrativo principal. Exige `viewer.features.show_scenes`.
 - **Bracketings de exposição** — séries encontradas por [`--detect-sequences`](COMMANDS.md), exposição base primeiro, cada quadro com o emblema da sua compensação (`-2 EV` … `+2 EV`).
 - **Panoramas** — varreduras encontradas por [`--detect-panoramas`](COMMANDS.md), em ordem de captura, com o quadro central marcado.

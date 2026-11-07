@@ -937,7 +937,7 @@ La **Granularidad** (el primer control de la barra de herramientas) elige cómo 
 
 - **Todas** (por defecto): ráfagas y grupos de similares combinados.
 - **Ráfagas**: fotos tomadas muy cerca en el tiempo.
-- **Similares**: fotos parecidas sea cual sea su momento, por similitud CLIP/SigLIP. Un control deslizante define lo estricta que es.
+- **Similares**: fotos parecidas sea cual sea su momento, por similitud CLIP/SigLIP. Un control deslizante define lo estricta que es (más bajo encuentra parecidos más laxos). Una escena mayor que `similarity_groups.max_group_size` se divide con un umbral más estricto en lugar de descartarse, y una tarjeta que muestra menos fotos de las que tiene su grupo indica «N de M fotos mostradas».
 - **Escenas**: tramos cronológicos de captura, cada uno encabezado por su intervalo de tiempo y su momento narrativo principal. Requiere `viewer.features.show_scenes`.
 - **Horquillados de exposición**: conjuntos encontrados por [`--detect-sequences`](COMMANDS.md), la exposición base primero, cada fotograma con la insignia de su compensación (`-2 EV` … `+2 EV`).
 - **Panorámicas**: barridos encontrados por [`--detect-panoramas`](COMMANDS.md), en orden de captura, con el fotograma central marcado.

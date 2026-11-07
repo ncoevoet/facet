@@ -2687,6 +2687,8 @@
     "confirm_all": "全部确认",
     "confirmed_badge": "已确认",
     "photos": "张照片",
+    "photos_shown_of": "已显示 {count} 张中的 {shown} 张",
+    "threshold_hint": "调低会找到更宽松的相似照片；调高则只保留几乎相同的照片。",
     "threshold": "相似度",
     "load_more": "加载更多",
     "view_detail": "查看详情",

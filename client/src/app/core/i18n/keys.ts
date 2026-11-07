@@ -2726,6 +2726,8 @@ export const I18N = {
     confirm_all: "culling.confirm_all",
     confirmed_badge: "culling.confirmed_badge",
     photos: "culling.photos",
+    photos_shown_of: "culling.photos_shown_of",
+    threshold_hint: "culling.threshold_hint",
     threshold: "culling.threshold",
     load_more: "culling.load_more",
     view_detail: "culling.view_detail",

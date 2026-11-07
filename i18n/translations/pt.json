@@ -2687,6 +2687,8 @@
     "confirm_all": "Confirmar tudo",
     "confirmed_badge": "Confirmado",
     "photos": "fotos",
+    "photos_shown_of": "{shown} de {count} fotos mostradas",
+    "threshold_hint": "Mais baixo encontra semelhanças mais amplas; mais alto só fotos quase idênticas.",
     "threshold": "Semelhança",
     "load_more": "Carregar mais",
     "view_detail": "Ver detalhe",

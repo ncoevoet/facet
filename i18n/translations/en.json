@@ -2712,6 +2712,8 @@
     "confirm_all": "Confirm All",
     "confirmed_badge": "Confirmed",
     "photos": "photos",
+    "photos_shown_of": "{shown} of {count} photos shown",
+    "threshold_hint": "Lower finds looser look-alikes; higher keeps only near-identical shots.",
     "threshold": "Similarity",
     "load_more": "Load more",
     "view_detail": "View detail",

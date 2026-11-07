@@ -935,7 +935,7 @@ The culling page (`/culling`, edition mode) groups near-identical shots so you k
 
 - **All** (default) — bursts and similar groups merged.
 - **Bursts** — photos shot close together in time.
-- **Similar** — photos that look alike whatever their time, by CLIP/SigLIP similarity. A slider sets how strict.
+- **Similar** — photos that look alike whatever their time, by CLIP/SigLIP similarity. A slider sets how strict (lower finds looser look-alikes). A scene larger than `similarity_groups.max_group_size` is split at a stricter threshold instead of dropped, and a card that shows fewer photos than its group holds says "N of M photos shown".
 - **Scenes** — chronological capture-time runs, each headed by its time span and main narrative moment. Needs `viewer.features.show_scenes`.
 - **Exposure brackets** — sets found by [`--detect-sequences`](COMMANDS.md), base exposure first, each frame badged with its compensation (`-2 EV` … `+2 EV`).
 - **Panoramas** — sweeps found by [`--detect-panoramas`](COMMANDS.md), in capture order, middle frame marked.

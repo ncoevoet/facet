@@ -412,12 +412,15 @@ interface SceneSummary {
                 <mat-icon>compare</mat-icon>
               </button>
               <mat-menu #thresholdMenu="matMenu">
-                <div class="flex items-center gap-2 px-4 py-3" tabindex="-1" (click)="$event.stopPropagation()" (keydown)="$event.stopPropagation()">
-                  <span class="text-xs opacity-60">{{ I18N.culling.threshold | translate }}</span>
-                  <mat-slider class="!w-28 !min-w-0" [min]="70" [max]="95" [step]="5" [discrete]="true">
-                    <input matSliderThumb [value]="cull.similarityThreshold()" (valueChange)="onThresholdChange($event)" [attr.aria-label]="I18N.culling.threshold | translate" />
-                  </mat-slider>
-                  <span class="text-xs font-medium w-8">{{ cull.similarityThreshold() }}%</span>
+                <div class="flex flex-col gap-1 px-4 py-3" tabindex="-1" (click)="$event.stopPropagation()" (keydown)="$event.stopPropagation()">
+                  <div class="flex items-center gap-2">
+                    <span class="text-xs opacity-60">{{ I18N.culling.threshold | translate }}</span>
+                    <mat-slider class="!w-28 !min-w-0" [min]="70" [max]="95" [step]="5" [discrete]="true">
+                      <input matSliderThumb [value]="cull.similarityThreshold()" (valueChange)="onThresholdChange($event)" [attr.aria-label]="I18N.culling.threshold | translate" />
+                    </mat-slider>
+                    <span class="text-xs font-medium w-8">{{ cull.similarityThreshold() }}%</span>
+                  </div>
+                  <p class="m-0 max-w-64 text-xs opacity-60">{{ I18N.culling.threshold_hint | translate }}</p>
                 </div>
               </mat-menu>
             }
@@ -749,7 +752,7 @@ interface SceneSummary {
                       </div>
                     }
                     @if (!(photo.path | isKept:cull.selectionsMap():groupKey)) {
-                      <button class="absolute top-2 right-2 w-7 h-7 rounded-full bg-black/60 inline-flex items-center justify-center opacity-0 group-hover/photo:opacity-100 transition-opacity cursor-pointer"
+                      <button class="absolute top-2 right-2 w-7 h-7 rounded-full bg-black/60 inline-flex items-center justify-center opacity-0 group-hover/photo:opacity-100 focus-visible:opacity-100 pointer-coarse:opacity-100 pointer-coarse:after:absolute pointer-coarse:after:-inset-2 pointer-coarse:after:content-[''] transition-opacity cursor-pointer"
                               [matTooltip]="I18N.culling.view_detail | translate"
                               [attr.aria-label]="I18N.culling.view_detail | translate"
                               (click)="openDetail($event, photo.path)">
@@ -765,7 +768,11 @@ interface SceneSummary {
                 <mat-icon class="inline-flex !text-base !w-4 !h-4 !leading-4 opacity-60"
                           [matTooltip]="group.type | cullGroupLabel | translate"
                           [attr.aria-label]="group.type | cullGroupLabel | translate">{{ group.type | cullGroupIcon }}</mat-icon>
-                <span class="text-xs opacity-50">{{ group.count }} {{ I18N.culling.photos | translate }}</span>
+                <span class="text-xs opacity-50">
+                  @if (group.count > group.photos.length) { {{ I18N.culling.photos_shown_of | translate:{ shown: group.photos.length, count: group.count } }} }
+                  @else { {{ group.count }} {{ I18N.culling.photos | translate }} }
+                  @if (group.similarity_percent; as percent) { · {{ I18N.culling.group_reason.similar_percent | translate:{ percent } }} }
+                </span>
                 @if (stacksMode()) {
                   @if (cull.stackDrafts()[groupKey].excludedCount; as count) { <span data-stack-excluded role="status" class="text-xs">{{ I18N.stacks.reject_count | translate:{ count } }}</span> }
                   <div class="flex flex-wrap gap-2 ml-auto">
@@ -778,14 +785,14 @@ interface SceneSummary {
                 @if (group.category; as category) {
                   @if (cull.comparisonStats(); as stats) {
                     @if ((category | weightRemaining:stats); as remaining) {
-                      <button class="inline-flex items-center justify-center w-6 h-6 rounded hover:bg-[var(--mat-sys-surface-container-high)] transition-colors cursor-pointer"
+                      <button class="inline-flex items-center justify-center w-6 h-6 pointer-coarse:w-11 pointer-coarse:h-11 rounded hover:bg-[var(--mat-sys-surface-container-high)] transition-colors cursor-pointer"
                               (click)="tuneCategory(category)"
                               [matTooltip]="I18N.culling.weight_remaining | translate:{ count: remaining }"
                               [attr.aria-label]="I18N.culling.weight_remaining | translate:{ count: remaining }">
                         <mat-icon class="!text-base !w-4 !h-4 !leading-4 opacity-60">tune</mat-icon>
                       </button>
                     } @else {
-                      <button class="inline-flex items-center justify-center w-6 h-6 rounded hover:bg-[var(--mat-sys-surface-container-high)] transition-colors cursor-pointer"
+                      <button class="inline-flex items-center justify-center w-6 h-6 pointer-coarse:w-11 pointer-coarse:h-11 rounded hover:bg-[var(--mat-sys-surface-container-high)] transition-colors cursor-pointer"
                               (click)="tuneCategory(category)"
                               [matTooltip]="I18N.culling.weight_ready | translate"
                               [attr.aria-label]="I18N.culling.weight_ready | translate">

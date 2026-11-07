@@ -369,6 +369,29 @@ describe('BurstCullingComponent', () => {
     });
   });
 
+  describe('group footer', () => {
+    const render = async (groups: object[]) => {
+      const fixture = TestBed.createComponent(BurstCullingComponent);
+      fixture.detectChanges();
+      await fixture.whenStable();
+      fixture.debugElement.injector.get(CullingStore).groups.set(groups as never);
+      fixture.detectChanges();
+    };
+    const [burst, similar] = mockCullingGroupsResponse.groups;
+
+    it('says how many of a larger group the card shows, with the threshold it formed at', async () => {
+      await render([{ ...similar, count: 41, similarity_percent: 85 }]);
+      expect(mockI18n.t).toHaveBeenCalledWith('culling.photos_shown_of', { shown: 2, count: 41 });
+      expect(mockI18n.t).toHaveBeenCalledWith('culling.group_reason.similar_percent', { percent: 85 });
+    });
+
+    it('keeps the plain count when every photo of the group is on the card', async () => {
+      await render([burst]);
+      expect(mockI18n.t).not.toHaveBeenCalledWith('culling.photos_shown_of', expect.anything());
+      expect(mockI18n.t).not.toHaveBeenCalledWith('culling.group_reason.similar_percent', expect.anything());
+    });
+  });
+
   describe('loadGroups', () => {
     it('should load culling groups from API', async () => {
       await store.loadGroups();
