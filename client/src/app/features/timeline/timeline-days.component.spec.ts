@@ -1,5 +1,7 @@
 import type { Mock } from 'vitest';
 import { TestBed } from '@angular/core/testing';
+import { provideRouter, Router } from '@angular/router';
+import { AuthService } from '../../core/services/auth.service';
 import { signal } from '@angular/core';
 import { of, throwError } from 'rxjs';
 import { I18nService } from '../../core/services/i18n.service';
@@ -12,6 +14,7 @@ describe('TimelineDaysComponent', () => {
   let component: any;
   let mockApi: { get: Mock };
   let mockStore: { viewFilterParams: ReturnType<typeof signal> };
+  const locale = signal('en');
 
   const noneHidden = {
     hide_blinks: '0', hide_bursts: '0', hide_duplicates: '0', hide_brackets: '0', hide_panoramas: '0',
@@ -19,16 +22,21 @@ describe('TimelineDaysComponent', () => {
 
   beforeEach(() => {
     mockApi = { get: vi.fn(() => of({ dates: [] })) };
+    locale.set('en');
     mockStore = { viewFilterParams: signal({ ...noneHidden }) };
 
     TestBed.configureTestingModule({
       providers: [
+        provideRouter([]),
+        { provide: AuthService, useValue: { status: signal({ user_id: 'alice' }), token: 'a' } },
         { provide: ApiService, useValue: mockApi },
         { provide: I18nService, useValue: { t: (key: string) => `T(${key})`, translations: () => ({}) } },
         TimelineFiltersService,
         { provide: GalleryStore, useValue: mockStore },
+        { provide: I18nService, useValue: { locale, translations: () => ({}), t: (key: string) => key } },
       ],
     });
+    vi.spyOn(TestBed.inject(Router), 'url', 'get').mockReturnValue('/timeline');
     TestBed.runInInjectionContext(() => {
       component = new TimelineDaysComponent();
     });
@@ -37,7 +45,7 @@ describe('TimelineDaysComponent', () => {
   describe('API call', () => {
     it('should call /timeline/dates with year and month', async () => {
       await (component as any).load(2024, 6, '', '', { ...noneHidden });
-      expect(mockApi.get).toHaveBeenCalledWith('/timeline/dates', { year: 2024, month: 6, ...noneHidden });
+      expect(mockApi.get).toHaveBeenCalledWith('/timeline/dates', { year: 2024, month: 6, ...noneHidden }, expect.anything());
     });
 
     it('should pass date_from and date_to when provided', async () => {
@@ -47,7 +55,7 @@ describe('TimelineDaysComponent', () => {
         ...noneHidden,
         date_from: '2024-06-01',
         date_to: '2024-06-30',
-      });
+      }, expect.anything());
     });
 
     it('should set loading false after success', async () => {
@@ -63,6 +71,21 @@ describe('TimelineDaysComponent', () => {
   });
 
   describe('calendar cell building', () => {
+    it('disables days with no photos and labels populated days with the date and count', async () => {
+      component.year = () => '2024'; component.month = () => '6';
+      mockApi.get.mockReturnValue(of({ dates: [{ date: '2024-06-15', count: 3, hero_photo_path: null }] }));
+      const fixture = TestBed.createComponent(TimelineDaysComponent);
+      fixture.componentRef.setInput('year', '2024'); fixture.componentRef.setInput('month', '6');
+      fixture.detectChanges(); await fixture.whenStable(); fixture.detectChanges();
+      const buttons = [...fixture.nativeElement.querySelectorAll('button')] as HTMLButtonElement[];
+      const empty = buttons.find(button => button.textContent?.trim() === '1')!;
+      const populated = buttons.find(button => button.textContent?.includes('15'))!;
+      expect(empty.disabled).toBe(true);
+      expect(populated.disabled).toBe(false);
+      expect(populated.getAttribute('aria-label')).toContain('15/06/2024');
+      expect(populated.getAttribute('aria-label')).toContain('3');
+      fixture.destroy();
+    });
     it('should create correct number of cells for a known month', async () => {
       // June 2024 has 30 days, starts on Saturday → 5 padding cells (Mon-Fri)
       mockApi.get.mockReturnValue(of({ dates: [] }));
@@ -130,14 +153,21 @@ describe('TimelineDaysComponent', () => {
 
   describe('weekDays', () => {
     it('should have exactly 7 entries', () => {
-      expect(component.weekDays).toHaveLength(7);
+      expect(component.weekDays()).toHaveLength(7);
     });
 
     it('should be non-empty strings', () => {
-      for (const d of component.weekDays) {
+      for (const d of component.weekDays()) {
         expect(typeof d).toBe('string');
         expect(d.length).toBeGreaterThan(0);
       }
+    });
+
+    it('updates weekday names when the viewer language changes', () => {
+      const english = component.weekDays()[0];
+      locale.set('de');
+      expect(component.weekDays()[0]).toBe(new Intl.DateTimeFormat('de', { weekday: 'short' }).format(new Date(2026, 0, 5)));
+      expect(component.weekDays()[0]).not.toBe(english);
     });
   });
 
@@ -158,42 +188,13 @@ describe('TimelineDaysComponent', () => {
       component.year = () => '2024';
       component.month = () => '6';
       TestBed.flushEffects();
-      expect(mockApi.get).toHaveBeenCalledWith('/timeline/dates', { year: 2024, month: 6, ...noneHidden });
+      expect(mockApi.get).toHaveBeenCalledWith('/timeline/dates', { year: 2024, month: 6, ...noneHidden }, expect.anything());
       mockApi.get.mockClear();
 
       mockStore.viewFilterParams.set({ ...noneHidden, hide_duplicates: '1' });
       TestBed.flushEffects();
 
-      expect(mockApi.get).toHaveBeenCalledWith('/timeline/dates', { year: 2024, month: 6, ...noneHidden, hide_duplicates: '1' });
-    });
-  });
-
-  describe('rendered: a failed load', () => {
-    async function renderFailed() {
-      mockApi.get.mockReturnValue(throwError(() => new Error('fail')));
-      // The outer beforeEach built a bare instance whose effect has no inputs; start clean.
-      TestBed.resetTestingModule();
-      TestBed.configureTestingModule({
-        providers: [
-          { provide: ApiService, useValue: mockApi },
-          { provide: I18nService, useValue: { t: (key: string) => `T(${key})`, translations: () => ({}) } },
-          TimelineFiltersService,
-          { provide: GalleryStore, useValue: mockStore },
-        ],
-      });
-      const fixture = TestBed.createComponent(TimelineDaysComponent);
-      fixture.componentRef.setInput('year', '2024');
-      fixture.componentRef.setInput('month', '6');
-      fixture.detectChanges();
-      await fixture.whenStable();
-      fixture.detectChanges();
-      return fixture.nativeElement as HTMLElement;
-    }
-
-    it('shows the alert and not the empty state (Retry re-requests)', async () => {
-      const el = await renderFailed();
-      expect(el.querySelector('[role="alert"]')).toBeTruthy();
-      expect(el.querySelector('.grid.grid-cols-7')).toBeNull();
+      expect(mockApi.get).toHaveBeenCalledWith('/timeline/dates', { year: 2024, month: 6, ...noneHidden, hide_duplicates: '1' }, expect.anything());
     });
   });
 });

@@ -546,6 +546,7 @@ Selezione automatica senza interfaccia: la versione da terminale della [selezion
 | `--copy-keepers DIR` | Copia in `DIR` ogni foto non rifiutata dell'ambito, con i file collegati RAW / `.xmp` dallo stesso nome |
 | `--cull-strictness N` | Budget di foto conservate 0–100, più alto = meno foto conservate per gruppo (predefinito: `auto_cull.default_strictness`) |
 | `--cull-min-keep N` | Numero minimo di foto conservate per gruppo (predefinito `1`) |
+| `--cull-reconsider-existing` | Rivaluta le foto già valutate, preferite, conservate o rifiutate (preservate per impostazione predefinita). |
 | `--cull-group-by {all,burst,similar,scene}` | Quali gruppi selezionare (predefinito `all`) |
 | `--cull-min-score X` | Rifiuta anche le foto singole con punteggio aggregato inferiore a `X` |
 | `--cull-trim-brackets` | Rifiuta anche gli scatti ridondanti dei bracketing di esposizione (il `trim_brackets` del visualizzatore) |

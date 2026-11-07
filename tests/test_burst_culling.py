@@ -463,6 +463,7 @@ class TestCullingGroupsEndpoint:
         with (
             mock.patch("api.routers.burst_culling.get_db", lambda: _cm(mock_conn)),
             mock.patch("api.routers.burst_culling.get_visibility_clause", return_value=("1=1", [])),
+            mock.patch("api.logical_culling.has_groups", return_value=False),
             mock.patch("api.routers.burst_culling._fetch_scene_groups", return_value=scene_groups) as scene_fetch,
         ):
             resp = client.get("/api/culling-groups?group_by=scene")
@@ -514,6 +515,7 @@ class TestCullingGroupsEndpoint:
         with (
             mock.patch("api.routers.burst_culling.get_db", lambda: _cm(mock_conn)),
             mock.patch("api.routers.burst_culling.get_visibility_clause", return_value=("1=1", [])),
+            mock.patch("api.logical_culling.has_groups", return_value=False),
             mock.patch("api.routers.burst_culling._fetch_bracket_groups",
                        return_value=bracket_groups) as bracket_fetch,
             mock.patch("api.routers.burst_culling._fetch_unreviewed_burst_groups") as burst_fetch,
@@ -1080,6 +1082,12 @@ class TestKeepWholeKindVisibilityLeak:
 
 class TestFilterSimilarGroups:
     """Unit tests for read-time rejected-photo filtering of cached similar groups."""
+
+    @pytest.fixture(autouse=True)
+    def _physical_catalog(self):
+        # A MagicMock connection answers every probe, so it would look logical.
+        with mock.patch("api.logical_culling.has_groups", return_value=False):
+            yield
 
     def _conn_with_rejected(self, rejected_paths):
         conn = mock.MagicMock()

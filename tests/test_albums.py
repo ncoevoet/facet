@@ -308,6 +308,8 @@ class TestSharing:
 
         call_counter = {"n": 0}
         async def _exec(*args, **kwargs):
+            if args[0] == 'BEGIN':
+                return _Cursor([], None)
             call_counter["n"] += 1
             n = call_counter["n"]
             if n == 1:

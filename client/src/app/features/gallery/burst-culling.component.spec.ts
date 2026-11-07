@@ -1,3 +1,4 @@
+import { signal } from '@angular/core';
 import type { Mock } from 'vitest';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { By } from '@angular/platform-browser';
@@ -92,7 +93,7 @@ describe('BurstCullingComponent', () => {
         { provide: MatSnackBar, useValue: mockSnackBar },
         { provide: I18nService, useValue: mockI18n },
         { provide: GalleryStore, useValue: { config: () => null } },
-        { provide: AuthService, useValue: { isEdition: () => true, identity: () => '0|' } },
+        { provide: AuthService, useValue: { status: signal({ user_id: 'editor' }), token: 'fixture',  isEdition: () => true, identity: () => '0|' } },
         { provide: AssistantChangesService, useValue: { batch$: changes$.asObservable() } },
         { provide: ActivatedRoute, useValue: { snapshot: { queryParamMap: { get: () => null } } } },
       ],
@@ -103,6 +104,15 @@ describe('BurstCullingComponent', () => {
 
   afterEach(() => {
     component.ngOnDestroy();
+  });
+
+  it('opens the darkroom workspace on HTTP LAN without randomUUID', () => {
+    vi.stubGlobal('crypto', { getRandomValues: crypto.getRandomValues.bind(crypto) });
+    try {
+      const workspace = TestBed.runInInjectionContext(() => new BurstCullingComponent());
+      expect(workspace.renditions.developedPreviewUrl()).toBe('');
+      workspace.ngOnDestroy();
+    } finally { vi.unstubAllGlobals(); }
   });
 
   describe('stack mode transport isolation', () => {
@@ -158,15 +168,114 @@ describe('BurstCullingComponent', () => {
     });
   });
 
+  describe('arbitrary comparison assignment', () => {
+    it.each(['2up', '4up'] as const)('keeps the current frame selected when opening %s near the end', async mode => {
+      await store.loadGroups();
+      const base = store.groups()[0];
+      const group = { ...base, photos: Array.from({ length: 6 }, (_, i) => ({ ...base.photos[0], path: `/frame${i}.jpg` })), count: 6 };
+      store.groups.set([group]);
+      component['openLightbox'](group, 5);
+      component['setCompareMode'](mode);
+      expect(group.photos[component['effectiveLightboxIndex']()].path).toBe('/frame5.jpg');
+      component['setCompareMode']('single');
+      expect(group.photos[component['effectiveLightboxIndex']()].path).toBe('/frame5.jpg');
+    });
+
+    it('assigns nonconsecutive thumbnails to chosen two-up and four-up panes without review writes', async () => {
+      const fixture = TestBed.createComponent(BurstCullingComponent);
+      fixture.detectChanges(); await fixture.whenStable();
+      const rendered = fixture.componentInstance;
+      const cull = fixture.debugElement.injector.get(CullingStore);
+      await cull.loadGroups();
+      const base = cull.groups()[0];
+      const group = { ...base, photos: Array.from({ length: 6 }, (_, i) => ({ ...base.photos[0], path: `/frame${i}.jpg`, filename: `frame${i}.jpg` })), count: 6 };
+      cull.groups.set([group]); rendered['openLightbox'](group, 0);
+      rendered['setCompareMode']('2up'); fixture.detectChanges(); await fixture.whenStable();
+      const selections = structuredClone(cull.selectionsMap()); mockApi.post.mockClear();
+      const root = fixture.nativeElement as HTMLElement;
+      const panePaths = () => [...root.querySelectorAll('[data-darkroom-pane]')].map(pane => pane.getAttribute('data-path'));
+      const slots = () => root.querySelectorAll<HTMLButtonElement>('[data-comparison-slot]');
+      const thumbs = () => root.querySelectorAll<HTMLButtonElement>('[data-stack-filmstrip] button');
+      const expectBadges = () => {
+        const paths = panePaths();
+        [...thumbs()].forEach((thumb, index) => {
+          const assigned = paths.indexOf(`/frame${index}.jpg`);
+          const badge = thumb.querySelector('[data-filmstrip-pane-badge]');
+          expect(badge?.textContent?.trim() ?? null).toBe(assigned < 0 ? null : ['A', 'B', 'C', 'D'][assigned]);
+          if (badge) expect(badge.getAttribute('aria-hidden')).toBe('true');
+          expect(thumb.getAttribute('aria-label')).toContain('culling.comparison.assign_photo');
+        });
+      };
+      expect(thumbs()).toHaveLength(6);
+      expectBadges();
+      slots()[1].click(); fixture.detectChanges(); thumbs()[5].click(); fixture.detectChanges();
+      expect(panePaths()).toEqual(['/frame0.jpg', '/frame5.jpg']);
+      expectBadges();
+      slots()[0].click(); fixture.detectChanges(); thumbs()[3].click(); fixture.detectChanges();
+      expect(panePaths()).toEqual(['/frame3.jpg', '/frame5.jpg']);
+      rendered['setCompareMode']('4up'); fixture.detectChanges();
+      expect(panePaths().slice(0, 2)).toEqual(['/frame3.jpg', '/frame5.jpg']);
+      slots()[2].click(); fixture.detectChanges(); thumbs()[4].click(); fixture.detectChanges();
+      expect(panePaths()[2]).toBe('/frame4.jpg');
+      slots()[3].click(); fixture.detectChanges(); thumbs()[3].click(); fixture.detectChanges();
+      expect(panePaths()[3]).toBe('/frame3.jpg');
+      expect(new Set(panePaths()).size).toBe(4);
+      expectBadges();
+      expect(cull.selectionsMap()).toEqual(selections); expect(mockApi.post).not.toHaveBeenCalled();
+      // A hidden member disappears before effects settle: review ownership must
+      // still follow the chosen pane's path, not its old numeric group index.
+      rendered['setCompareMode']('2up'); fixture.detectChanges();
+      slots()[1].click(); fixture.detectChanges();
+      const chosenPath = panePaths()[1]!;
+      const nextGroup = { ...group, photos: group.photos.filter(photo => photo.path !== '/frame0.jpg') };
+      cull.groups.set([nextGroup]);
+      const keep = vi.spyOn(cull, 'setPhotoKept').mockImplementation(() => undefined);
+      rendered['setCurrentLightboxPhotoKept'](nextGroup, true);
+      expect(keep).toHaveBeenCalledWith(nextGroup, chosenPath, true);
+      rendered['setCompareMode']('single');
+      fixture.detectChanges();
+      expect(root.querySelector('[data-filmstrip-pane-badge]')).toBeNull();
+      expect(thumbs()[0].getAttribute('aria-label')).toBe(nextGroup.photos[0].filename);
+      expect(nextGroup.photos[rendered['effectiveLightboxIndex']()].path).toBe(chosenPath);
+      fixture.destroy();
+    });
+  });
+
   describe('overlays', () => {
+    it('keeps assessment disclosure keyboard and clicks inside the darkroom without reviewing or closing', async () => {
+      const fixture = TestBed.createComponent(BurstCullingComponent);
+      fixture.detectChanges();
+      await fixture.whenStable();
+      const rendered = fixture.componentInstance;
+      const cull = fixture.debugElement.injector.get(CullingStore);
+      await cull.loadGroups();
+      rendered['openLightbox'](cull.groups()[0], 0);
+      fixture.detectChanges();
+      const close = vi.spyOn(rendered, 'closeLightbox' as never);
+      const initialSelections = cull.selectionsMap();
+      const details: HTMLDetailsElement = fixture.nativeElement.querySelector('[data-photo-assessment]');
+      const summary = details.querySelector('summary')!;
+      summary.click();
+      expect(details.open).toBe(true);
+      expect(close).not.toHaveBeenCalled();
+      for (const key of [' ', 'Enter', 'ArrowRight']) {
+        const event = new KeyboardEvent('keydown', { key, bubbles: true, cancelable: true });
+        summary.dispatchEvent(event);
+        expect(event.defaultPrevented).toBe(false);
+      }
+      expect(cull.selectionsMap()).toEqual(initialSelections);
+      expect(close).not.toHaveBeenCalled();
+      summary.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+      expect(close).toHaveBeenCalledOnce();
+    });
+
     it('reports the auto-cull confirm as a dialog while it is shown, and nothing once it is closed', () => {
       const context = TestBed.inject(PageContextService);
       TestBed.tick();
       expect(context.overlays()).toEqual([]);
       store.autoCullPreview.set({
         groups_processed: 1, kept: 1, rejected: 1, highlights_added: 0,
-        dry_run: true, preview: [], next_cursor: null, plan_digest: 'digest',
-      });
+        dry_run: true, preview: [], next_cursor: null, plan_digest: 'digest', decision_state_digest: 'state-digest'});
       TestBed.tick();
       expect(context.overlays()).toEqual(['dialog']);
       store.autoCullPreview.set(null);
@@ -257,6 +366,29 @@ describe('BurstCullingComponent', () => {
       fixture.detectChanges();
       TestBed.tick();
       expect(seen()).toBeNull();
+    });
+  });
+
+  describe('group footer', () => {
+    const render = async (groups: object[]) => {
+      const fixture = TestBed.createComponent(BurstCullingComponent);
+      fixture.detectChanges();
+      await fixture.whenStable();
+      fixture.debugElement.injector.get(CullingStore).groups.set(groups as never);
+      fixture.detectChanges();
+    };
+    const [burst, similar] = mockCullingGroupsResponse.groups;
+
+    it('says how many of a larger group the card shows, with the threshold it formed at', async () => {
+      await render([{ ...similar, count: 41, similarity_percent: 85 }]);
+      expect(mockI18n.t).toHaveBeenCalledWith('culling.photos_shown_of', { shown: 2, count: 41 });
+      expect(mockI18n.t).toHaveBeenCalledWith('culling.group_reason.similar_percent', { percent: 85 });
+    });
+
+    it('keeps the plain count when every photo of the group is on the card', async () => {
+      await render([burst]);
+      expect(mockI18n.t).not.toHaveBeenCalledWith('culling.photos_shown_of', expect.anything());
+      expect(mockI18n.t).not.toHaveBeenCalledWith('culling.group_reason.similar_percent', expect.anything());
     });
   });
 
@@ -454,6 +586,155 @@ describe('BurstCullingComponent', () => {
       mockApi.post.mockReturnValue(of({}));
     });
 
+    it('culling feedback: Space on a filmstrip button continues without changing the pair', () => {
+      const first = store.groups()[0];
+      component['openLightbox'](first, 0);
+      const strip = document.createElement('div'); strip.setAttribute('data-stack-filmstrip', '');
+      const button = document.createElement('button'); strip.append(button);
+      button.addEventListener('keydown', event => component['onDarkroomKeydown'](event));
+      const event = new KeyboardEvent('keydown', { key: ' ', bubbles: true, cancelable: true });
+      button.dispatchEvent(event);
+      expect(event.defaultPrevented).toBe(true);
+      expect(store.confirmedGroups().has(store.groupKey(first))).toBe(true);
+      expect(component['lightboxGroupId']()).toBe('2_similar');
+    });
+
+    it('culling feedback: independent crops survive relinking and linked gestures preserve their relative framing', () => {
+      component['openLightbox'](store.groups()[0], 0);
+      component['setCompareMode']('2up');
+      component['toggleDarkroomLink']();
+      component['onDarkroomZoom']({ scale: 2, tx: 10, ty: 20 }, '/photo1.jpg');
+      expect(component['paneFrames']().get('/photo2.jpg')).toBeUndefined();
+      component['onDarkroomZoom']({ scale: 3, tx: -5, ty: 7 }, '/photo2.jpg');
+      const before = new Map(component['paneFrames']());
+      component['toggleDarkroomLink']();
+      expect(component['paneFrames']()).toEqual(before);
+      component['onDarkroomZoom']({ scale: 4, tx: 23, ty: 45 }, '/photo1.jpg');
+      expect(component['paneFrames']().get('/photo2.jpg')).toEqual({ scale: 6, tx: -7, ty: 19 });
+      component['fitDarkroom']('/photo1.jpg');
+      expect(component['paneFrames']().get('/photo1.jpg')).toEqual({ scale: 1, tx: 0, ty: 0 });
+      expect(component['paneFrames']().get('/photo2.jpg')).toEqual({ scale: 1, tx: 0, ty: 0 });
+    });
+
+    it('culling feedback: explicit Reject entire burst commits empty keeps only after the cancel window', async () => {
+      vi.useFakeTimers();
+      try {
+        const first = store.groups()[0];
+        expect(store.rejectEntireGroup(first)).toBe(true);
+        expect(store.selectionsMap().get(store.groupKey(first))?.size).toBe(0);
+        expect(mockApi.post.mock.calls.filter(([url]) => url === '/culling-groups/confirm')).toHaveLength(0);
+        await vi.advanceTimersByTimeAsync(7000);
+        expect(mockApi.post).toHaveBeenCalledWith('/culling-groups/confirm', {
+          group_id: first.group_id, type: first.type, paths: first.photos.map(photo => photo.path), keep_paths: [],
+        });
+      } finally { vi.useRealTimers(); }
+    });
+
+    it('culling feedback: ordinary Continue cannot silently turn an empty selection into Reject all', () => {
+      const first = store.groups()[0];
+      store.selectionsMap.set(new Map([[store.groupKey(first), new Set()]]));
+      expect(store.confirmGroup(first)).toBe(false);
+      expect(store.confirmedGroups().size).toBe(0);
+    });
+
+    it('culling feedback: switching to single view or reselecting its frame preserves decoded-image framing', () => {
+      component['openLightbox'](store.groups()[0], 0);
+      component['setCompareMode']('2up');
+      component['toggleDarkroomLink']();
+      const crop = { scale: 2, tx: 50, ty: 20 };
+      component['onDarkroomZoom'](crop, '/photo1.jpg');
+      component['setCompareMode']('single');
+      expect(component['zoom']()).toEqual(crop);
+      component['focusPhotoInLightbox'](0);
+      expect(component['zoom']()).toEqual(crop);
+      expect(component['paneFrames']().get('/photo1.jpg')).toEqual(crop);
+      component['focusPhotoInLightbox'](1);
+      expect(component['zoom']()).toEqual({ scale: 1, tx: 0, ty: 0 });
+      component['focusPhotoInLightbox'](0);
+      expect(component['zoom']()).toEqual(crop);
+    });
+
+    it('culling feedback: Reject entire burst requires confirmation and refuses changed membership', async () => {
+      const closed = new Subject<boolean>();
+      const open = vi.spyOn(TestBed.inject(MatDialog), 'open').mockReturnValue({ afterClosed: () => closed } as never);
+      const first = store.groups()[0];
+      const pending = component['rejectEntireGroup'](first);
+      await vi.waitFor(() => expect(open).toHaveBeenCalled());
+      expect(store.confirmedGroups().size).toBe(0);
+      store.groups.update(groups => groups.map(group => group === first ? { ...group, photos: group.photos.slice(1) } : group));
+      closed.next(true); await pending;
+      expect(store.confirmedGroups().size).toBe(0);
+      expect(mockApi.post.mock.calls.filter(([url]) => url === '/culling-groups/confirm')).toHaveLength(0);
+    });
+
+    it('culling feedback: confirming Reject entire burst stages the captured group, not file deletion', async () => {
+      const closed = new Subject<boolean>();
+      const open = vi.spyOn(TestBed.inject(MatDialog), 'open').mockReturnValue({ afterClosed: () => closed } as never);
+      const first = store.groups()[0];
+      const pending = component['rejectEntireGroup'](first);
+      await vi.waitFor(() => expect(open).toHaveBeenCalled());
+      expect(store.confirmedGroups().size).toBe(0);
+      closed.next(true); await pending;
+      expect(store.confirmedGroups().has(store.groupKey(first))).toBe(true);
+      expect(store.selectionsMap().get(store.groupKey(first))?.size).toBe(0);
+      expect(mockApi.post.mock.calls.filter(([url]) => url === '/culling-groups/confirm')).toHaveLength(0);
+    });
+
+    it.each([
+      ['bracket', 'culling.bracket.label'],
+      ['panorama', 'culling.panorama.label'],
+      ['hdr_panorama', 'culling.panorama.hdr_label'],
+    ])('requires an explicit whole-set override for %s and preserves cancellation', async (kind, label) => {
+      const first = { ...store.groups()[0], sequence_kind: kind };
+      store.groups.set([first, ...store.groups().slice(1)]);
+      const closed = new Subject<boolean>();
+      const open = vi.spyOn(TestBed.inject(MatDialog), 'open').mockReturnValue({ afterClosed: () => closed } as never);
+      let pending = component['rejectEntireGroup'](first);
+      await vi.waitFor(() => expect(open).toHaveBeenCalledTimes(1));
+      expect(open.mock.calls[0][1]?.data).toEqual({
+        title: 'culling.workspace.reject_sequence_title',
+        message: 'culling.workspace.reject_sequence_body',
+        confirmLabel: 'culling.workspace.reject_sequence_confirm',
+      });
+      expect(mockI18n.t).toHaveBeenCalledWith('culling.workspace.reject_sequence_body', { count: first.photos.length, sequence_count: first.photos.length, kinds: label });
+      closed.next(false); await pending;
+      expect(store.confirmedGroups().size).toBe(0);
+      pending = component['rejectEntireGroup'](first);
+      await vi.waitFor(() => expect(open).toHaveBeenCalledTimes(2));
+      closed.next(true); await pending;
+      expect(store.confirmedGroups().has(store.groupKey(first))).toBe(true);
+      expect(store.selectionsMap().get(store.groupKey(first))?.size).toBe(0);
+      expect(mockApi.post.mock.calls.filter(([url]) => url === '/culling-groups/confirm')).toHaveLength(0);
+    });
+
+    it.each(['mixed', 'declared'])('warns for protected frames in a %s group', async mode => {
+      const original = store.groups()[0];
+      const first = mode === 'declared' ? { ...original, type: 'bracket' as const }
+        : { ...original, photos: original.photos.map((photo, index) => index === 0 ? { ...photo, sequence_kind: 'bracket' } : photo) };
+      store.groups.set([first]);
+      const closed = new Subject<boolean>();
+      const open = vi.spyOn(TestBed.inject(MatDialog), 'open').mockReturnValue({ afterClosed: () => closed } as never);
+      const pending = component['rejectEntireGroup'](first);
+      await vi.waitFor(() => expect(open).toHaveBeenCalled());
+      expect(mockI18n.t).toHaveBeenCalledWith('culling.workspace.reject_sequence_body', {
+        count: first.photos.length, sequence_count: mode === 'declared' ? first.photos.length : 1, kinds: 'culling.bracket.label',
+      });
+      closed.next(false); await pending;
+      expect(store.confirmedGroups().size).toBe(0);
+    });
+
+    it('refuses a sequence correction made while Reject all confirmation is open', async () => {
+      const first = store.groups()[0];
+      const closed = new Subject<boolean>();
+      const open = vi.spyOn(TestBed.inject(MatDialog), 'open').mockReturnValue({ afterClosed: () => closed } as never);
+      const pending = component['rejectEntireGroup'](first);
+      await vi.waitFor(() => expect(open).toHaveBeenCalled());
+      store.patchOverrides(first.photos.map(photo => photo.path), 'bracket');
+      closed.next(true); await pending;
+      expect(store.confirmedGroups().size).toBe(0);
+      expect(mockApi.post.mock.calls.filter(([url]) => url === '/culling-groups/confirm')).toHaveLength(0);
+    });
+
     it('confirms the open group and opens the next group fullscreen', async () => {
       const [first, second] = store.groups();
       component['openLightbox'](first, 0);
@@ -488,19 +769,16 @@ describe('BurstCullingComponent', () => {
       expect(component['selectedGroupIndex']()).toBe(1);
     });
 
-    it('list mode: Space toggles the photo under the cursor and confirms nothing', () => {
+    it('list mode: Space confirms and advances without toggling the focused photo', () => {
       component['selectedGroupIndex'].set(0);
       component['onArrowRight'](new KeyboardEvent('keydown'));
       const group = store.groups()[0];
-      const wasKept = store.selectionsMap().get('1_burst')?.has('/photo2.jpg') ?? false;
+      const kept = new Set(store.selectionsMap().get('1_burst'));
 
       component['onSpace'](new KeyboardEvent('keydown'));
-      expect(store.selectionsMap().get('1_burst')?.has('/photo2.jpg') ?? false).toBe(!wasKept);
-      component['onSpace'](new KeyboardEvent('keydown'));
-      expect(store.selectionsMap().get('1_burst')?.has('/photo2.jpg') ?? false).toBe(wasKept);
-
-      expect(store.confirmedGroups().size).toBe(0);
-      expect(group.photos[component['selectedPhotoIndex']()].path).toBe('/photo2.jpg');
+      expect(store.selectionsMap().get('1_burst')).toEqual(kept);
+      expect(store.confirmedGroups().has(store.groupKey(group))).toBe(true);
+      expect(component['selectedGroupIndex']()).toBe(1);
     });
 
     it('list mode: Space leaves a confirmed group untouched', () => {
@@ -665,7 +943,7 @@ describe('BurstCullingComponent', () => {
           { provide: MatSnackBar, useValue: mockSnackBar },
           { provide: I18nService, useValue: mockI18n },
           { provide: GalleryStore, useValue: { config: () => null } },
-          { provide: AuthService, useValue: { isEdition: () => true, identity: () => '0|' } },
+          { provide: AuthService, useValue: { status: signal({ user_id: 'editor' }), token: 'fixture',  isEdition: () => true, identity: () => '0|' } },
           { provide: AssistantChangesService, useValue: { batch$: changes$.asObservable() } },
           { provide: ActivatedRoute, useValue: { snapshot: { queryParamMap: { get: () => null } } } },
         ],
@@ -703,7 +981,7 @@ describe('BurstCullingComponent', () => {
           { provide: MatSnackBar, useValue: mockSnackBar },
           { provide: I18nService, useValue: mockI18n },
           { provide: GalleryStore, useValue: { config: () => null } },
-          { provide: AuthService, useValue: { isEdition: () => true, identity: () => '0|' } },
+          { provide: AuthService, useValue: { status: signal({ user_id: 'editor' }), token: 'fixture',  isEdition: () => true, identity: () => '0|' } },
           { provide: AssistantChangesService, useValue: { batch$: changes$.asObservable() } },
           { provide: ActivatedRoute, useValue: { snapshot: { queryParamMap: { get: () => null } } } },
         ],
@@ -714,14 +992,16 @@ describe('BurstCullingComponent', () => {
       expect(component['darkroomLoupeActive']()).toBe(false);
     });
 
-    it('is inactive while the darkroom frame is zoomed beyond fit, even when the toggle is on', () => {
+    it('is inactive while the darkroom frame is zoomed beyond fit, even when the toggle is on', async () => {
+      await store.loadGroups();
+      component['openLightbox'](store.groups()[0], 0);
       expect(component['darkroomLoupeActive']()).toBe(true);
       expect(component['darkroomLoupeEffective']()).toBe(true);
 
-      component['zoom'].set({ scale: 2, tx: 0, ty: 0 });
+      component['onDarkroomZoom']({ scale: 2, tx: 0, ty: 0 });
       expect(component['darkroomLoupeEffective']()).toBe(false);
 
-      component['zoom'].set({ scale: 1, tx: 0, ty: 0 });
+      component['onDarkroomZoom']({ scale: 1, tx: 0, ty: 0 });
       expect(component['darkroomLoupeEffective']()).toBe(true);
     });
   });
@@ -806,8 +1086,7 @@ describe('BurstCullingComponent', () => {
   describe('auto-cull (one-button cull with keeper budget)', () => {
     const preview = {
       groups_processed: 3, kept: 4, rejected: 5, highlights_added: 2,
-      dry_run: true, preview: [], next_cursor: null, plan_digest: 'digest',
-    };
+      dry_run: true, preview: [], next_cursor: null, plan_digest: 'digest', decision_state_digest: 'state-digest'};
 
     it('openAutoCull dry-runs the current scope and stores the preview', async () => {
       mockApi.post = vi.fn(() => of(preview));
@@ -815,8 +1094,7 @@ describe('BurstCullingComponent', () => {
       expect(mockApi.post).toHaveBeenCalledWith('/culling/auto', expect.objectContaining({
         dry_run: true,
         group_by: 'all',
-        strictness: store.strictness(),
-      }));
+        strictness: store.strictness(), decision_policy: 'preserve'}));
       expect(store.autoCullPreview()).toEqual(preview);
     });
 
@@ -875,7 +1153,7 @@ describe('BurstCullingComponent', () => {
     it('sends the generated highlights album name on apply when the checkbox is on', async () => {
       mockApi.post = vi.fn(() => of(preview));
       await store.openAutoCull();
-      store.autoCullHighlights.set(true);
+      await store.onAutoCullHighlightsChange(true);
 
       await component['confirmAutoCull']();
 
@@ -1013,20 +1291,19 @@ describe('BurstCullingComponent', () => {
         expect(mockApi.post).toHaveBeenCalledTimes(1);
       });
 
-      it('re-arms the dialog after a failed apply', async () => {
+      it("requires a new preview before re-arming a failed apply", async () => {
         mockApi.post = vi.fn(() => of(preview));
         await store.openAutoCull();
         mockApi.post = vi.fn(() => throwError(() => new Error('boom')));
-
         await component['confirmAutoCull']();
-
         expect(store.autoCullPreview()).toEqual(preview);
-        expect(mockSnackBar.open).toHaveBeenCalled();
-
-        mockApi.post = vi.fn(() => of({ ...preview, dry_run: false }));
+        expect(store.autoCullIssue()).toBe('uncertain');
+        mockApi.post = vi.fn((_url, body) => of({ ...preview, dry_run: body.dry_run }));
         await component['confirmAutoCull']();
-
-        expect(mockApi.post).toHaveBeenCalledTimes(1);
+        expect(mockApi.post).not.toHaveBeenCalled();
+        await store.openAutoCull();
+        await component['confirmAutoCull']();
+        expect(mockApi.post).toHaveBeenCalledTimes(2);
         expect(store.autoCullPreview()).toBeNull();
       });
 
@@ -1148,26 +1425,22 @@ describe('BurstCullingComponent', () => {
 
       // The same writer, one beat earlier: its dry run was already in flight when
       // Apply was hit, so refusing at the door cannot catch it.
-      it('drops the answer of a dry run that was already in flight when Apply was hit', async () => {
+      it("blocks Apply until the pending preview lands, then applies that preview", async () => {
         mockApi.post = vi.fn(() => of(preview));
         await store.openAutoCull();
-        const snapshot = store.autoCullRequest();
         const late = new Subject<typeof preview>();
         mockApi.post = vi.fn(() => late);
-        void store.openAutoCull();
-        await flush();
+        void store.openAutoCull(); await flush();
         const response = new Subject<typeof preview>();
         mockApi.post = vi.fn(() => response);
+        await component['confirmAutoCull']();
+        expect(mockApi.post).not.toHaveBeenCalled();
+        late.next({ ...preview, rejected: 99 }); await flush();
+        expect(store.autoCullPreview()?.rejected).toBe(99);
         const applied = component['confirmAutoCull']();
-
-        late.next({ ...preview, rejected: 99 });
-        await flush();
-
-        expect(store.autoCullPreview()).toEqual(preview);
-        expect(store.autoCullRequest()).toBe(snapshot);
-
+        expect(mockApi.post).toHaveBeenCalledTimes(1);
+        expect(mockApi.post.mock.calls[0][1]).toMatchObject({ expected_digest: preview.plan_digest, expected_state_digest: preview.decision_state_digest });
         await settleApply(response, applied);
-
         expect(store.autoCullPreview()).toBeNull();
       });
 
@@ -1295,7 +1568,18 @@ describe('BurstCullingComponent', () => {
         posts[1].error(new Error('boom'));
         await flush();
 
-        expect(armedState()).toEqual({ armed: true, box: false, snapshotTrim: false });
+        // The preset reset the feed, so the previous approval is no longer valid.
+        expect(store.autoCullPreview()).toBeNull();
+        expect(store.autoCullRequest()).toBeNull();
+        const calls = mockApi.post.mock.calls.length;
+        await component['confirmAutoCull']();
+        expect(mockApi.post).toHaveBeenCalledTimes(calls);
+        mockApi.post = vi.fn(() => of(preview));
+        await store.openAutoCull();
+        await component['confirmAutoCull']();
+        expect(mockApi.post).toHaveBeenCalledTimes(2);
+        expect(mockApi.post.mock.calls[1][1]).toMatchObject({ dry_run: false, trim_brackets: true,
+          expected_digest: preview.plan_digest, expected_state_digest: preview.decision_state_digest });
       });
     });
   });
@@ -1359,7 +1643,7 @@ describe('BurstCullingComponent', () => {
           { provide: MatSnackBar, useValue: mockSnackBar },
           { provide: I18nService, useValue: mockI18n },
           { provide: GalleryStore, useValue: { config: () => null } },
-          { provide: AuthService, useValue: { isEdition: () => true, identity: () => '0|' } },
+          { provide: AuthService, useValue: { status: signal({ user_id: 'editor' }), token: 'fixture',  isEdition: () => true, identity: () => '0|' } },
           { provide: AssistantChangesService, useValue: { batch$: changes$.asObservable() } },
           { provide: ActivatedRoute, useValue: { snapshot: { queryParamMap: { get: () => null } } } },
         ],
@@ -1558,7 +1842,7 @@ describe('BurstCullingComponent', () => {
           { provide: MatSnackBar, useValue: mockSnackBar },
           { provide: I18nService, useValue: mockI18n },
           { provide: GalleryStore, useValue: { config: () => config } },
-          { provide: AuthService, useValue: { isEdition: () => isEdition, identity: () => '0|' } },
+          { provide: AuthService, useValue: { status: signal({ user_id: 'editor' }), token: 'fixture',  isEdition: () => isEdition, identity: () => '0|' } },
           { provide: AssistantChangesService, useValue: { batch$: changes$.asObservable() } },
           { provide: ActivatedRoute, useValue: { snapshot: { queryParamMap: { get: () => null } } } },
         ],
@@ -1588,17 +1872,17 @@ describe('BurstCullingComponent', () => {
     it('selecting a style updates the active style that drives the preview src swap', () => {
       component = build({ cull_styles: styles });
       store = component['cull'];
-      expect(component['activeStyle']()).toBe('');
-      component['selectCullStyle']('velvia');
-      expect(component['activeStyle']()).toBe('velvia');
+      expect(component.renditions['activeStyle']()).toBe('');
+      component.renditions['selectCullStyle']('velvia');
+      expect(component.renditions['activeStyle']()).toBe('velvia');
     });
 
     it('selecting Original clears the active style back to the flat frame', () => {
       component = build({ cull_styles: styles });
       store = component['cull'];
-      component['selectCullStyle']('velvia');
-      component['selectCullStyle']('');
-      expect(component['activeStyle']()).toBe('');
+      component.renditions['selectCullStyle']('velvia');
+      component.renditions['selectCullStyle']('');
+      expect(component.renditions['activeStyle']()).toBe('');
     });
   });
 
@@ -1615,56 +1899,128 @@ describe('BurstCullingComponent', () => {
       store.groups.set([grp]);
       component['lightboxGroupId'].set(store.groupKey(grp));
       component['lightboxIndex'].set(idx);
-      component['activeStyle'].set(style);
+      component.renditions['activeStyle'].set(style);
     };
 
     it('detaches the previous in-flight image handlers before spawning a new one', () => {
       focus(0, 'velvia');
-      (component as any).preloadDevelopedPreview('/photo1.jpg', 'velvia');
-      const first = component['previewImg']!;
+      (component.renditions as any).preloadDevelopedPreview('/photo1.jpg', 'velvia');
+      const first = component.renditions['previewImg']!;
       expect(first).toBeTruthy();
 
-      (component as any).preloadDevelopedPreview('/photo1.jpg', 'velvia');
+      (component.renditions as any).preloadDevelopedPreview('/photo1.jpg', 'velvia');
 
       expect(first.onload).toBeNull();
       expect(first.onerror).toBeNull();
-      expect(component['previewImg']).not.toBe(first);
+      expect(component.renditions['previewImg']).not.toBe(first);
     });
 
     it('onerror reverts the style and toasts for the frame still shown', () => {
       focus(0, 'velvia');
-      (component as any).preloadDevelopedPreview('/photo1.jpg', 'velvia');
+      (component.renditions as any).preloadDevelopedPreview('/photo1.jpg', 'velvia');
       mockSnackBar.open.mockClear();
 
-      component['previewImg']!.onerror!(new Event('error'));
+      component.renditions['previewImg']!.onerror!(new Event('error'));
 
-      expect(component['activeStyle']()).toBe('');
-      expect(component['previewLoading']()).toBe(false);
+      expect(component.renditions['activeStyle']()).toBe('');
+      expect(component.renditions['previewLoading']()).toBe(false);
       expect(mockSnackBar.open).toHaveBeenCalled();
+      expect(component.renditions['developedFailure']()).toEqual({ path: '/photo1.jpg', style: 'velvia' });
+      component.renditions['retryDarkroomPane']({ retry: vi.fn(), frameKey: () => '/photo1.jpg' } as unknown as SyncedZoomComponent);
+      expect(component.renditions['activeStyle']()).toBe('velvia');
+      expect(component.renditions['developedFailure']()).toBeNull();
+      expect(component.renditions['developedPreviewUrl']()).toContain('facet_retry=');
+    });
+
+    it('scopes developed retries to the captured photo and style while retaining matching revisits', () => {
+      focus(0, 'velvia');
+      const original = component.renditions.developedPreviewUrl();
+      const pane = { retry: vi.fn(), frameKey: () => grp.photos[component['lightboxIndex']()].path } as unknown as SyncedZoomComponent;
+      component.renditions.retryDarkroomPane(pane);
+      const firstRetry = component.renditions.developedPreviewUrl();
+      expect(firstRetry).not.toBe(original);
+      expect(firstRetry).toContain('facet_retry=');
+      expect(firstRetry).toContain('ngsw-bypass=1');
+
+      focus(1, 'velvia');
+      expect(component.renditions.developedPreviewUrl()).not.toContain('facet_retry');
+      expect(component.renditions.developedPreviewUrl()).not.toContain('ngsw-bypass');
+      focus(0, 'portra');
+      expect(component.renditions.developedPreviewUrl()).not.toContain('facet_retry');
+      focus(0, 'velvia');
+      expect(component.renditions.developedPreviewUrl()).toBe(firstRetry);
+
+      component.renditions.retryDarkroomPane(pane);
+      const secondRetry = component.renditions.developedPreviewUrl();
+      expect(secondRetry).not.toBe(firstRetry);
+      focus(1, 'portra');
+      component.renditions.retryDarkroomPane(pane);
+      const thirdRetry = new URL(component.renditions.developedPreviewUrl()).searchParams.get('facet_retry')!;
+      expect(thirdRetry).toBe(new URL(secondRetry).searchParams.get('facet_retry')!.replace(/-2$/, '-3'));
+      focus(0, 'velvia');
+      expect(component.renditions.developedPreviewUrl()).toBe(original);
+    });
+
+    it('ignores an older developed completion after a new retry of the same photo and style', () => {
+      focus(0, 'velvia');
+      const pane = { retry: vi.fn(), frameKey: () => '/photo1.jpg' } as unknown as SyncedZoomComponent;
+      component.renditions.retryDarkroomPane(pane);
+      component.renditions['preloadDevelopedPreview']('/photo1.jpg', 'velvia');
+      const firstImage = component.renditions['previewImg']!;
+      const oldLoad = firstImage.onload!;
+      const oldError = firstImage.onerror!;
+      expect(firstImage.src).toBe(component.renditions.developedPreviewUrl());
+
+      component.renditions.retryDarkroomPane(pane);
+      component.renditions['preloadDevelopedPreview']('/photo1.jpg', 'velvia');
+      const currentImage = component.renditions['previewImg']!;
+      expect(currentImage.src).toBe(component.renditions.developedPreviewUrl());
+      expect(currentImage.src).not.toBe(firstImage.src);
+      oldLoad.call(firstImage, new Event('load'));
+      oldError.call(firstImage, new Event('error'));
+      expect(component.renditions.previewLoading()).toBe(true);
+      expect(component.renditions.activeStyle()).toBe('velvia');
+      expect(component.renditions.developedFailure()).toBeNull();
+      currentImage.onload!(new Event('load'));
+      expect(component.renditions.previewLoading()).toBe(false);
     });
 
     it('a stale onerror (user navigated away) neither reverts the style nor toasts', () => {
       focus(0, 'velvia');
-      (component as any).preloadDevelopedPreview('/photo1.jpg', 'velvia');
+      (component.renditions as any).preloadDevelopedPreview('/photo1.jpg', 'velvia');
       component['lightboxIndex'].set(1);
       mockSnackBar.open.mockClear();
 
-      component['previewImg']!.onerror!(new Event('error'));
+      component.renditions['previewImg']!.onerror!(new Event('error'));
 
-      expect(component['activeStyle']()).toBe('velvia');
+      expect(component.renditions['activeStyle']()).toBe('velvia');
       expect(mockSnackBar.open).not.toHaveBeenCalled();
     });
 
     it('a stale onload (style changed under it) does not clear the spinner', () => {
       focus(0, 'velvia');
-      (component as any).preloadDevelopedPreview('/photo1.jpg', 'velvia');
-      component['activeStyle'].set('portra');
-      component['previewLoading'].set(true);
+      (component.renditions as any).preloadDevelopedPreview('/photo1.jpg', 'velvia');
+      component.renditions['activeStyle'].set('portra');
+      component.renditions['previewLoading'].set(true);
 
-      component['previewImg']!.onload!(new Event('load'));
+      component.renditions['previewImg']!.onload!(new Event('load'));
 
-      expect(component['previewLoading']()).toBe(true);
+      expect(component.renditions['previewLoading']()).toBe(true);
     });
+  });
+
+  it('records visible rendition evidence only for this route owner and does not change review state', async () => {
+    await store.loadGroups();
+    component['openLightbox'](store.groups()[0], 0);
+    const selections = store.selectionsMap();
+    component.renditions['onDisplayedRendition']({ kind: 'source', phase: 'ready', width: 600, height: 400 }, '/photo1.jpg', '');
+    expect(component.renditions['displayedRenditions']().get('/photo1.jpg')?.width).toBe(600);
+    component.renditions['onDisplayedRendition']({ kind: 'source', phase: 'failed' }, '/not-visible.jpg', '');
+    expect(component.renditions['displayedRenditions']().has('/not-visible.jpg')).toBe(false);
+    component['pageNavigating'] = true;
+    component.renditions['onDisplayedRendition']({ kind: 'source', phase: 'failed' }, '/photo1.jpg', '');
+    expect(component.renditions['displayedRenditions']().get('/photo1.jpg')?.phase).toBe('ready');
+    expect(store.selectionsMap()).toEqual(selections);
   });
 
   describe('subject close-up strip (non-face groups)', () => {
@@ -1759,7 +2115,7 @@ describe('BurstCullingComponent', () => {
           { provide: MatSnackBar, useValue: mockSnackBar },
           { provide: I18nService, useValue: mockI18n },
           { provide: GalleryStore, useValue: { config: () => null } },
-          { provide: AuthService, useValue: { isEdition: () => true, identity: () => '0|' } },
+          { provide: AuthService, useValue: { status: signal({ user_id: 'editor' }), token: 'fixture',  isEdition: () => true, identity: () => '0|' } },
           { provide: AssistantChangesService, useValue: { batch$: changes$.asObservable() } },
           { provide: ActivatedRoute, useValue: { snapshot: { queryParamMap: { get: () => null } } } },
         ],
@@ -1881,6 +2237,8 @@ describe('BurstCullingComponent', () => {
       await flush();
       rendered['cull'].groups.set([grp]);
       rendered['openLightbox'](grp, 0);
+      // These tests inspect the optional close-up strip deliberately.
+      rendered['inspectionStripsVisible'].set(true);
       await flush();
       fixture.detectChanges();
       const teardown = () => {
@@ -1889,6 +2247,51 @@ describe('BurstCullingComponent', () => {
       };
       return { fixture, rendered, teardown };
     };
+
+    it('culling feedback: help can close and clean view restores the same comparison without bottom strips', async () => {
+      const { fixture, rendered, teardown } = await renderDarkroom({ '/k1.jpg': keyPerson() });
+      try {
+        rendered['setCompareMode']('2up');
+        fixture.detectChanges();
+        const root = fixture.nativeElement as HTMLElement;
+        root.querySelector<HTMLDetailsElement>('[data-darkroom-tools]')!.open = true;
+        const help = root.querySelector<HTMLDetailsElement>('[data-rendition-help]')!;
+        const summary = help.querySelector('summary')!;
+        help.open = true;
+        const close = help.querySelector<HTMLButtonElement>('[data-rendition-help-close]')!;
+        close.focus(); close.click();
+        expect(help.open).toBe(false);
+        expect(document.activeElement).toBe(summary);
+        const before = rendered['compareFrames']().map((photo: { path: string }) => photo.path);
+        expect(root.querySelector('[data-stack-filmstrip]')).toBeTruthy();
+        root.querySelector<HTMLButtonElement>('[data-clean-comparison]')!.click();
+        fixture.detectChanges();
+        expect(root.querySelector('[data-stack-filmstrip]')).toBeNull();
+        expect(root.querySelector('[data-face-frame]')).toBeNull();
+        expect(root.querySelector('[data-darkroom-close]')).toBeTruthy();
+        expect(root.querySelectorAll('app-synced-zoom').length).toBe(before.length);
+        root.querySelector<HTMLButtonElement>('[data-clean-comparison]')!.click();
+        fixture.detectChanges();
+        expect(root.querySelector('[data-stack-filmstrip]')).toBeTruthy();
+        expect(rendered['compareFrames']().map((photo: { path: string }) => photo.path)).toEqual(before);
+      } finally { teardown(); }
+    });
+
+    it('closes rendition help, then Inspect, before leaving the darkroom on Escape', async () => {
+      const { fixture, teardown } = await renderDarkroom({});
+      try {
+        const root = fixture.nativeElement as HTMLElement;
+        const tools = root.querySelector<HTMLDetailsElement>('[data-darkroom-tools]')!;
+        const help = root.querySelector<HTMLDetailsElement>('[data-rendition-help]')!;
+        tools.open = true; help.open = true;
+        const summary = help.querySelector('summary')!;
+        summary.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true, cancelable: true }));
+        expect(help.open).toBe(false); expect(tools.open).toBe(true);
+        summary.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true, cancelable: true }));
+        expect(tools.open).toBe(false);
+        expect(root.querySelector('[data-darkroom-close]')).not.toBeNull();
+      } finally { teardown(); }
+    });
 
     /** The browser-less env reports a zero-size pane and an unloaded image. */
     const measurePane = (fixture: ComponentFixture<BurstCullingComponent>) => {
@@ -2367,8 +2770,7 @@ describe('BurstCullingComponent', () => {
     ];
     const preview = {
       groups_processed: 2, kept: 3, rejected: 4, highlights_added: 0,
-      dry_run: true, preview: [], next_cursor: null, plan_digest: 'digest',
-    };
+      dry_run: true, preview: [], next_cursor: null, plan_digest: 'digest', decision_state_digest: 'state-digest'};
     const suggestion = (profile: string | null) =>
       ({ profile, confidence: 0.8, evidence: { photos: 40, wedding: 32 } });
 
@@ -2587,46 +2989,39 @@ describe('BurstCullingComponent', () => {
         posts[2].next({ ...preview, dry_run: false });
         await flush();
 
-        expect(bodies[2]).toEqual({ ...displayedBody(), dry_run: false, highlights_album: '' });
+        expect(bodies[2]).toEqual({ ...displayedBody(), dry_run: false, expected_digest: preview.plan_digest, expected_state_digest: preview.decision_state_digest });
         expect(bodies[2]).toMatchObject({ strictness: 35, profile: 'wedding' });
       });
 
       // Ordering two: Apply is clicked while the suggestion's re-run is still in
       // flight, so the counts on screen are still the first run's. Those are the
       // ones the user agreed to, so those are the knobs that run.
-      it('applies the displayed run when Apply is clicked before the re-run lands', async () => {
-        void store.openAutoCull();
-        await flush();
-        posts[0].next(preview);
-        await flush();
-        expect(store.autoCullPreview()).toEqual(preview);
-
-        suggestReply.next(suggestion('wedding'));
-        await flush();
+      it("waits for a suggestion rerun before applying its exact displayed parameters", async () => {
+        void store.openAutoCull(); await flush();
+        posts[0].next(preview); await flush();
+        suggestReply.next(suggestion('wedding')); await flush();
+        await component['confirmAutoCull']();
         expect(bodies).toHaveLength(2);
-
+        posts[1].next(preview); await flush();
+        expect(store.autoCullPreview(), 'preview after rerun').toEqual(preview);
+        expect(store.autoCullBusy(), 'busy after rerun').toBe(false);
+        expect(store.autoCullIssue(), 'issue after rerun').toBeNull();
         void component['confirmAutoCull']();
-        posts[2].next({ ...preview, dry_run: false });
-        await flush();
-
-        expect(bodies[2]).toEqual({ ...bodies[0], dry_run: false, highlights_album: '' });
-        expect(bodies[2]).toMatchObject({ strictness: 100 });
-        expect(bodies[2]['profile']).toBeUndefined();
+        posts[2].next({ ...preview, dry_run: false }); await flush();
+        expect(bodies[2]).toEqual({ ...bodies[1], dry_run: false, expected_digest: preview.plan_digest, expected_state_digest: preview.decision_state_digest });
+        expect(bodies[2]).toMatchObject({ strictness: 35, profile: 'wedding' });
       });
 
-      it('keeps the Highlights checkbox the dialog\'s own decision', async () => {
-        void store.openAutoCull();
-        await flush();
-        posts[0].next(preview);
-        await flush();
-        store.autoCullHighlights.set(true);
-
+      it("previews the Highlights choice before it can be applied", async () => {
+        void store.openAutoCull(); await flush();
+        posts[0].next(preview); await flush();
+        void store.onAutoCullHighlightsChange(true); await flush();
+        posts[1].next({ ...preview, highlights_added: 2 }); await flush();
         void component['confirmAutoCull']();
-        posts[1].next({ ...preview, dry_run: false });
-        await flush();
-
-        expect(bodies[1]['highlights_album']).toBe(bodies[0]['highlights_album']);
-        expect(String(bodies[1]['highlights_album'])).not.toBe('');
+        posts[2].next({ ...preview, dry_run: false }); await flush();
+        expect(bodies[0]['highlights_album']).toBe('');
+        expect(bodies[2]['highlights_album']).toBe(bodies[1]['highlights_album']);
+        expect(String(bodies[2]['highlights_album'])).not.toBe('');
       });
     });
   });
@@ -2651,7 +3046,7 @@ describe('BurstCullingComponent', () => {
     /** The single pane reports its render as loaded, which peaking waits for. */
     const markSharp = () => {
       const photo = component['lightboxGroup']()?.photos[component['lightboxIndex']()];
-      if (photo) component['sharpPath'].set(photo.path);
+      if (photo) component.renditions['sharpPath'].set(photo.path);
     };
     /** Run the overlay effects and let their async raster work settle. */
     const settle = async () => {
@@ -2665,9 +3060,9 @@ describe('BurstCullingComponent', () => {
       renderPeaking = vi.fn((src: string) => Promise.resolve(`overlay:${src}`));
       renderPooledPeaking = vi.fn((srcs: string[]) =>
         Promise.resolve(new Map(srcs.map(src => [src, `pooled:${src}`]))));
-      vi.spyOn(component as any, 'renderPeaking').mockImplementation(renderPeaking as never);
-      vi.spyOn(component as any, 'renderPooledPeaking').mockImplementation(renderPooledPeaking as never);
-      vi.spyOn(component as any, 'measureFrame').mockResolvedValue({ w: 6000, h: 4000 });
+      vi.spyOn(component.renditions as any, 'renderPeaking').mockImplementation(renderPeaking as never);
+      vi.spyOn(component.renditions as any, 'renderPooledPeaking').mockImplementation(renderPooledPeaking as never);
+      vi.spyOn(component.renditions as any, 'measureFrame').mockResolvedValue({ w: 6000, h: 4000 });
     });
 
     it('builds an overlay for the displayed frame once peaking is on', async () => {
@@ -2676,8 +3071,8 @@ describe('BurstCullingComponent', () => {
 
       await settle();
 
-      expect(component['peakingOverlays']().get('/f1.jpg')).toContain('size=1920');
-      expect(component['peakingOverlays']().size).toBe(1);
+      expect(component.renditions['peakingOverlays']().get('/f1.jpg')).toContain('size=1920');
+      expect(component.renditions['peakingOverlays']().size).toBe(1);
     });
 
     it('measures fit view at the tuned field and the full-resolution swap at full size', async () => {
@@ -2686,12 +3081,12 @@ describe('BurstCullingComponent', () => {
       await settle();
       expect(renderPeaking.mock.calls.at(-1)?.[1]).toBe(640);
 
-      component['zoom'].set({ scale: 2, tx: 0, ty: 0 });
+      component['onDarkroomZoom']({ scale: 2, tx: 0, ty: 0 });
       await settle();
       expect(renderPeaking.mock.calls.at(-1)?.[1]).toBeUndefined();
 
       component['setCompareMode']('2up');
-      component['zoom'].set({ scale: 1, tx: 0, ty: 0 });
+      component['fitDarkroom']();
       await settle();
       expect(renderPooledPeaking.mock.calls.at(-1)?.[1]).toBe(640);
     });
@@ -2706,7 +3101,7 @@ describe('BurstCullingComponent', () => {
       component['lightboxIndex'].set(1);
       TestBed.tick();
       await flush();
-      expect(component['peakingOverlays']().size).toBe(0);
+      expect(component.renditions['peakingOverlays']().size).toBe(0);
       await settle();
       expect(renderPeaking).toHaveBeenCalledTimes(2);
 
@@ -2714,11 +3109,11 @@ describe('BurstCullingComponent', () => {
       component['lightboxIndex'].set(0);
       TestBed.tick();
       await flush();
-      expect(component['peakingOverlays']().size).toBe(0);
+      expect(component.renditions['peakingOverlays']().size).toBe(0);
       await settle();
 
       expect(renderPeaking).toHaveBeenCalledTimes(2);
-      expect(component['peakingOverlays']().get('/f1.jpg')).toBeDefined();
+      expect(component.renditions['peakingOverlays']().get('/f1.jpg')).toBeDefined();
     });
 
     it('builds nothing while peaking is off', async () => {
@@ -2727,7 +3122,7 @@ describe('BurstCullingComponent', () => {
       await settle();
 
       expect(renderPeaking).not.toHaveBeenCalled();
-      expect(component['peakingOverlays']().size).toBe(0);
+      expect(component.renditions['peakingOverlays']().size).toBe(0);
     });
 
     it('drops the overlays when peaking is switched back off', async () => {
@@ -2738,7 +3133,7 @@ describe('BurstCullingComponent', () => {
       component['peakingActive'].set(false);
       await settle();
 
-      expect(component['peakingOverlays']().size).toBe(0);
+      expect(component.renditions['peakingOverlays']().size).toBe(0);
     });
 
     it('rebuilds for the new frame when the photo changes', async () => {
@@ -2749,8 +3144,8 @@ describe('BurstCullingComponent', () => {
       component['lightboxIndex'].set(1);
       await settle();
 
-      expect(component['peakingOverlays']().has('/f2.jpg')).toBe(true);
-      expect(component['peakingOverlays']().has('/f1.jpg')).toBe(false);
+      expect(component.renditions['peakingOverlays']().has('/f2.jpg')).toBe(true);
+      expect(component.renditions['peakingOverlays']().has('/f1.jpg')).toBe(false);
     });
 
     it('covers every pane in compare mode', async () => {
@@ -2760,7 +3155,7 @@ describe('BurstCullingComponent', () => {
 
       await settle();
 
-      expect([...component['peakingOverlays']().keys()]).toEqual(['/f1.jpg', '/f2.jpg']);
+      expect([...component.renditions['peakingOverlays']().keys()]).toEqual(['/f1.jpg', '/f2.jpg']);
     });
 
     // Side by side, the frames are read against each other, so one threshold has
@@ -2775,7 +3170,7 @@ describe('BurstCullingComponent', () => {
       expect(renderPeaking).not.toHaveBeenCalled();
       expect(renderPooledPeaking).toHaveBeenCalledTimes(1);
       expect(renderPooledPeaking.mock.calls[0][0]).toHaveLength(2);
-      expect(component['peakingOverlays']().get('/f1.jpg')).toContain('pooled:');
+      expect(component.renditions['peakingOverlays']().get('/f1.jpg')).toContain('pooled:');
     });
 
     // Stepping the focus inside a pair shows the very same two frames, so the
@@ -2790,7 +3185,7 @@ describe('BurstCullingComponent', () => {
       await settle();
 
       expect(renderPooledPeaking).toHaveBeenCalledTimes(1);
-      expect(component['peakingOverlays']().size).toBe(2);
+      expect(component.renditions['peakingOverlays']().size).toBe(2);
     });
 
     // A pooled overlay is only the answer for the set it was pooled over: the
@@ -2806,9 +3201,10 @@ describe('BurstCullingComponent', () => {
       component['setCompareMode']('2up');
       await settle();
 
-      component['lightboxIndex'].set(1);
+      component['selectComparisonSlot'](1);
+      component['focusPhotoInLightbox'](2);
       await settle();
-      component['lightboxIndex'].set(0);
+      component['focusPhotoInLightbox'](1);
       await settle();
 
       expect(renderPooledPeaking).toHaveBeenCalledTimes(3);
@@ -2822,7 +3218,7 @@ describe('BurstCullingComponent', () => {
       component['closeLightbox']();
       await settle();
 
-      expect(component['peakingOverlays']().size).toBe(0);
+      expect(component.renditions['peakingOverlays']().size).toBe(0);
     });
 
     // The overlay rides the image's transform, so a pan must cost nothing; only
@@ -2833,11 +3229,11 @@ describe('BurstCullingComponent', () => {
       await settle();
       const afterFit = renderPeaking.mock.calls.length;
 
-      component['zoom'].set({ scale: 2, tx: 0, ty: 0 });
+      component['onDarkroomZoom']({ scale: 2, tx: 0, ty: 0 });
       await settle();
       const afterZoom = renderPeaking.mock.calls.length;
 
-      component['zoom'].set({ scale: 2, tx: 60, ty: 20 });
+      component['onDarkroomZoom']({ scale: 2, tx: 60, ty: 20 });
       await settle();
 
       expect(afterZoom).toBe(afterFit + 1);
@@ -2861,7 +3257,7 @@ describe('BurstCullingComponent', () => {
       }
 
       expect(renderPeaking).toHaveBeenCalledTimes(12);
-      expect(component['peakingCache'].size).toBe(8);
+      expect(component.renditions['peakingCache'].size).toBe(8);
     });
 
     // A pass is one await away from publishing; the toggle that switched peaking
@@ -2873,14 +3269,14 @@ describe('BurstCullingComponent', () => {
       component['peakingActive'].set(true);
       await settle();
       expect(renderPeaking).toHaveBeenCalledTimes(1);
-      expect(component['peakingOverlays']().size).toBe(0);
+      expect(component.renditions['peakingOverlays']().size).toBe(0);
 
       component['peakingActive'].set(false);
       await settle();
       land('data:image/png;base64,late');
       await settle();
 
-      expect(component['peakingOverlays']().size).toBe(0);
+      expect(component.renditions['peakingOverlays']().size).toBe(0);
     });
 
     // Same guard, the other way the frames leave the screen.
@@ -2896,7 +3292,7 @@ describe('BurstCullingComponent', () => {
       land('data:image/png;base64,late');
       await settle();
 
-      expect(component['peakingOverlays']().size).toBe(0);
+      expect(component.renditions['peakingOverlays']().size).toBe(0);
     });
 
     it('cycles the grid off → thirds → golden → off', () => {
@@ -2916,7 +3312,7 @@ describe('BurstCullingComponent', () => {
       await settle();
       await new Promise(resolve => setTimeout(resolve, SHARP_PRELOAD_DEBOUNCE_MS + 50));
 
-      expect(component['frameSizes']().get('/f1.jpg')).toEqual({ w: 6000, h: 4000 });
+      expect(component.renditions['frameSizes']().get('/f1.jpg')).toEqual({ w: 6000, h: 4000 });
     });
 
     // The signal-level tests above cannot see whether the overlays are actually
@@ -2930,8 +3326,8 @@ describe('BurstCullingComponent', () => {
       // Let this instance's own initial load land before seeding the darkroom,
       // or it would replace the seeded group and close it again.
       await flush();
-      vi.spyOn(rendered as any, 'renderPeaking').mockResolvedValue('data:image/png;base64,x');
-      vi.spyOn(rendered as any, 'measureFrame').mockResolvedValue({ w: 6000, h: 4000 });
+      vi.spyOn(rendered.renditions as any, 'renderPeaking').mockResolvedValue('data:image/png;base64,x');
+      vi.spyOn(rendered.renditions as any, 'measureFrame').mockResolvedValue({ w: 6000, h: 4000 });
       const renderedStore: CullingStore = rendered['cull'];
       renderedStore.groups.set([grp]);
       rendered['lightboxGroupId'].set(renderedStore.groupKey(grp));
@@ -3360,8 +3756,7 @@ describe('BurstCullingComponent modals (rendered)', () => {
   };
   const preview = {
     groups_processed: 3, kept: 4, rejected: 5, highlights_added: 0,
-    dry_run: true, preview: [], next_cursor: null, plan_digest: 'digest',
-  };
+    dry_run: true, preview: [], next_cursor: null, plan_digest: 'digest', decision_state_digest: 'state-digest'};
 
   beforeEach(() => {
     localStorage.clear();
@@ -3381,7 +3776,7 @@ describe('BurstCullingComponent modals (rendered)', () => {
         })) } },
         { provide: I18nService, useValue: { t: (key: string) => key, translations: () => ({}) } },
         { provide: GalleryStore, useValue: { config: () => null } },
-        { provide: AuthService, useValue: { isEdition: () => true, identity: () => '0|' } },
+        { provide: AuthService, useValue: { status: signal({ user_id: 'editor' }), token: 'fixture',  isEdition: () => true, identity: () => '0|' } },
         { provide: AssistantChangesService, useValue: { batch$: changes$.asObservable() } },
         { provide: ActivatedRoute, useValue: { snapshot: { queryParamMap: { get: () => null } } } },
       ],
@@ -3395,6 +3790,32 @@ describe('BurstCullingComponent modals (rendered)', () => {
   afterEach(() => {
     fixture.destroy();
     Element.prototype.scrollIntoView = scrollIntoView;
+  });
+
+  it('renders existing-choice consequences and re-previews a deliberate policy choice without writing', async () => {
+    const post = TestBed.inject(ApiService).post as Mock;
+    post.mockReturnValue(of({ ...preview, existing_labels_count: 2, preserved_labels_count: 2,
+      existing_labels_truncated: true, existing_labels: [{ path: '/folder/one.jpg', star_rating: 4,
+        is_favorite: true, is_kept: false, is_rejected: false, proposed: 'unchanged' }],
+      preview: [{ number: 1, group_id: 10, type: 'burst', keep_paths: ['/a.jpg'], reject_paths: ['/b.jpg'],
+        best_path: '/a.jpg', existing_labels_count: 2 }] }));
+    await store.openAutoCull(); fixture.detectChanges();
+    const root = fixture.nativeElement as HTMLElement;
+    const policy = root.querySelectorAll<HTMLInputElement>('input[name="autoCullPolicy"]');
+    expect(policy).toHaveLength(2); expect(policy[0].checked).toBe(true);
+    const consequences = root.querySelector<HTMLElement>('[data-auto-consequences]')!;
+    expect(consequences.textContent).toContain('one.jpg');
+    expect(consequences.textContent).toContain('culling.auto_cull.unchanged');
+    expect(consequences.textContent).toContain('culling.auto_cull.existing_overflow');
+    expect(consequences.textContent).toContain('a.jpg');
+    expect(consequences.textContent).toContain('b.jpg');
+    policy[1].click(); await fixture.whenStable(); fixture.detectChanges();
+    expect(post.mock.calls.at(-1)?.[1]).toMatchObject({ decision_policy: 'replace', dry_run: true });
+    expect(post.mock.calls.every(([, body]) => body.dry_run === true)).toBe(true);
+    store.autoCullIssue.set('changed'); fixture.detectChanges();
+    const apply = Array.from(root.querySelectorAll<HTMLButtonElement>('button')).find(button => button.textContent?.includes('culling.auto_cull.apply'))!;
+    expect(apply.disabled).toBe(true);
+    expect(root.querySelector('[role="alert"]')?.textContent).toContain('culling.auto_cull.preview_changed');
   });
 
   it('opens the all-rejects preview from the toolbar without applying it', async () => {
@@ -3613,44 +4034,28 @@ describe('BurstCullingComponent modals (rendered)', () => {
    * Rendered rather than read off the signals: the bindings are the whole of the
    * fix, and every behavioural test stayed green with them reverted.
    */
-  it('keeps every dialog control disabled while an apply outlives the dry run behind it', async () => {
+  it('disables Apply during preview and keeps every control disabled during the accepted apply', async () => {
     const api = TestBed.inject(ApiService) as unknown as { post: Mock };
     const flush = () => new Promise(resolve => setTimeout(resolve, 0));
-    await store.openAutoCull();
-    fixture.detectChanges();
+    await store.openAutoCull(); fixture.detectChanges();
     expect(trimBracketsBox().disabled).toBe(false);
-    expect(dialogButton('culling.auto_cull.apply').disabled).toBe(false);
-
     const dryRun = new Subject<typeof preview>();
     api.post = vi.fn(() => dryRun);
-    void store.openAutoCull();
-    await flush();
-    const response = new Subject<typeof preview>();
-    api.post = vi.fn(() => response);
-    const applied = component['confirmAutoCull']();
-    dryRun.next({ ...preview, rejected: 99 });
-    dryRun.complete();
-    await flush();
-    fixture.detectChanges();
-
-    // The window the two signals disagree in: the dry run behind the apply has
-    // cleared `loading`, and the apply is still open.
-    expect(store.autoCullLoading()).toBe(false);
+    void store.openAutoCull(); await flush(); fixture.detectChanges();
+    expect(dialogButton('culling.auto_cull.apply').disabled).toBe(true);
+    await component['confirmAutoCull']();
+    expect(api.post).toHaveBeenCalledTimes(1); // only the preview, no write
+    dryRun.next({ ...preview, rejected: 99 }); dryRun.complete(); await flush();
+    const response = new Subject<typeof preview>(); api.post = vi.fn(() => response);
+    const applied = component['confirmAutoCull'](); fixture.detectChanges();
     expect(store.autoCullApplying()).toBe(true);
     expect(trimBracketsBox().disabled).toBe(true);
     expect(dialogButton('culling.auto_cull.apply').disabled).toBe(true);
     expect(dialogButton('dialog.cancel').disabled).toBe(true);
     expect(openAutoCullButton().disabled).toBe(true);
-    expect(fixture.debugElement
-      .query(By.css('[aria-labelledby="autoCullTitle"] mat-spinner'))).toBeTruthy();
-
-    response.next({ ...preview, dry_run: false });
-    response.complete();
-    await applied;
-    fixture.detectChanges();
-
-    expect(autoCullDialog()).toBeFalsy();
-    expect(openAutoCullButton().disabled).toBe(false);
+    expect(fixture.debugElement.query(By.css('[aria-labelledby="autoCullTitle"] mat-spinner'))).toBeTruthy();
+    response.next({ ...preview, dry_run: false }); response.complete(); await applied;
+    fixture.detectChanges(); expect(autoCullDialog()).toBeFalsy();
   });
 
   // The shield is load-bearing: the page's cull shortcuts must not fire while a
@@ -3678,8 +4083,22 @@ describe('BurstCullingComponent modals (rendered)', () => {
     openDarkroom();
 
     const darkroom = fixture.debugElement.query(By.css('[role="dialog"][aria-modal="true"]'));
+    expect(darkroom.nativeElement.getAttribute('aria-label')).toBe('culling.darkroom');
     expect(fixture.debugElement.queryAll(By.directive(CdkTrapFocus))
       .some(el => el.nativeElement === darkroom.nativeElement)).toBe(true);
+  });
+
+  it('announces the selected darkroom layout after switching modes', () => {
+    openDarkroom();
+    for (const mode of ['single', '2up', '4up']) {
+      const button: HTMLButtonElement = fixture.nativeElement.querySelector(`[aria-label="culling.compare.${mode}"]`);
+      button.click();
+      fixture.detectChanges();
+      for (const candidate of ['single', '2up', '4up']) {
+        expect(fixture.nativeElement.querySelector(`[aria-label="culling.compare.${candidate}"]`)
+          .getAttribute('aria-pressed')).toBe(String(candidate === mode));
+      }
+    }
   });
 
   // The darkroom's shields are the auto-cull dialog's problem one layer down:
@@ -3701,14 +4120,53 @@ describe('BurstCullingComponent modals (rendered)', () => {
 
   it('closes the darkroom on Escape from the header controls', () => {
     openDarkroom();
-    const legendButton: HTMLElement = fixture.debugElement
-      .query(By.css('[aria-label="culling.legend.label"]')).nativeElement;
-    legendButton.focus();
+    const viewButton: HTMLElement = fixture.debugElement
+      .query(By.css('[aria-label="culling.compare.single"]')).nativeElement;
+    viewButton.focus();
 
-    legendButton.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+    viewButton.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
     fixture.detectChanges();
 
     expect(component['lightboxGroup']()).toBeNull();
+  });
+
+  it('closes the darkroom when Escape starts on the closed Tools summary', () => {
+    openDarkroom();
+    const tools = fixture.nativeElement.querySelector('[data-darkroom-tools]') as HTMLDetailsElement;
+    expect(tools.open).toBe(false);
+    tools.querySelector('summary')!.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true, cancelable: true }));
+    fixture.detectChanges();
+    expect(component['lightboxGroup']()).toBeNull();
+  });
+
+  it('closes Inspect before the darkroom on Escape and returns focus to its summary', () => {
+    openDarkroom();
+    const tools = fixture.nativeElement.querySelector('[data-darkroom-tools]') as HTMLDetailsElement;
+    const summary = tools.querySelector('summary')!;
+    tools.open = true;
+    const legend = tools.querySelector('[aria-label="culling.legend.label"]') as HTMLButtonElement;
+    legend.focus();
+    legend.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true, cancelable: true }));
+    fixture.detectChanges();
+    expect(tools.open).toBe(false);
+    expect(component['lightboxGroup']()).not.toBeNull();
+    expect(document.activeElement).toBe(summary);
+  });
+
+  it('leaves native Inspect activation keys alone in stack mode instead of stacking', () => {
+    openDarkroom();
+    store.mode.set('stacks');
+    fixture.detectChanges();
+    const summary = fixture.nativeElement.querySelector('[data-darkroom-tools] summary') as HTMLElement;
+    const stack = vi.spyOn(component, 'stackGroup');
+    summary.focus();
+    for (const key of [' ', 'Enter']) {
+      const event = new KeyboardEvent('keydown', { key, bubbles: true, cancelable: true });
+      summary.dispatchEvent(event);
+      expect(event.defaultPrevented).toBe(false);
+    }
+    expect(stack).not.toHaveBeenCalled();
+    expect(component['lightboxGroup']()).not.toBeNull();
   });
 
   // Escape is acted on at the shield rather than let through it: the page's cull
@@ -3726,6 +4184,166 @@ describe('BurstCullingComponent modals (rendered)', () => {
     document.removeEventListener('keydown', seenAtDocument);
 
     expect(seenAtDocument).not.toHaveBeenCalled();
+  });
+
+  it('navigates and reviews the focused frame after a toolbar control takes focus', () => {
+    openDarkroom();
+    const button = fixture.nativeElement.querySelector('[aria-label="culling.compare.single"]') as HTMLButtonElement;
+    button.focus();
+    button.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowRight', bubbles: true, cancelable: true }));
+    fixture.detectChanges();
+    expect(component['effectiveLightboxIndex']()).toBe(1);
+    button.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowDown', bubbles: true, cancelable: true }));
+    fixture.detectChanges();
+    expect(store.selectionsMap().get('1_burst')?.has('/p2.jpg')).toBe(false);
+    button.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowUp', bubbles: true, cancelable: true }));
+    fixture.detectChanges();
+    expect(store.selectionsMap().get('1_burst')?.has('/p2.jpg')).toBe(true);
+    expect(store.confirmedGroups().size).toBe(0);
+  });
+
+  it('keeps native input arrows and modified navigation out of frame shortcuts', () => {
+    openDarkroom();
+    const root = fixture.nativeElement as HTMLElement;
+    const input = document.createElement('input');
+    root.querySelector('[data-darkroom-header]')!.appendChild(input);
+    input.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowRight', bubbles: true, cancelable: true }));
+    const button = root.querySelector('[aria-label="culling.compare.single"]')!;
+    button.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowRight', altKey: true, bubbles: true, cancelable: true }));
+    fixture.detectChanges();
+    expect(component['effectiveLightboxIndex']()).toBe(0);
+  });
+
+  it('offers single-view decisions without confirming and confirms only on its explicit action', () => {
+    openDarkroom();
+    const root = fixture.nativeElement as HTMLElement;
+    const confirm = vi.spyOn(store, 'confirmGroup').mockReturnValue(false);
+    root.querySelector<HTMLButtonElement>('[data-darkroom-reject]')!.click(); fixture.detectChanges();
+    expect(store.selectionsMap().get('1_burst')?.has('/p1.jpg')).toBe(false);
+    root.querySelector<HTMLButtonElement>('[data-darkroom-keep]')!.click(); fixture.detectChanges();
+    expect(store.selectionsMap().get('1_burst')?.has('/p1.jpg')).toBe(true);
+    expect(confirm).not.toHaveBeenCalled();
+    root.querySelector<HTMLButtonElement>('[data-darkroom-confirm]')!.click();
+    expect(confirm).toHaveBeenCalledOnce();
+    expect(component['lightboxGroup']()).not.toBeNull();
+  });
+
+  it('explains an empty keeper draft and enables Confirm again after keeping a photo', () => {
+    openDarkroom();
+    const root = fixture.nativeElement as HTMLElement;
+    store.selectionsMap.set(new Map([['1_burst', new Set(['/p1.jpg'])]])); fixture.detectChanges();
+    root.querySelector<HTMLButtonElement>('[data-darkroom-reject]')!.click(); fixture.detectChanges();
+    expect(root.querySelector('[data-darkroom-reject]')!.getAttribute('aria-pressed')).toBe('true');
+    const confirm = root.querySelector<HTMLButtonElement>('[data-darkroom-confirm]')!;
+    expect(confirm.disabled).toBe(true);
+    expect(root.querySelector('#culling-keeper-required')?.textContent).toContain('culling.keep_required');
+    root.querySelector<HTMLButtonElement>('[data-darkroom-keep]')!.click(); fixture.detectChanges();
+    expect(confirm.disabled).toBe(false);
+    expect(root.querySelector('#culling-keeper-required')).toBeNull();
+  });
+
+  it('disables the contact-sheet Confirm with a linked explanation when no keepers remain', () => {
+    openDarkroom();
+    component['closeLightbox']();
+    store.selectionsMap.set(new Map([['1_burst', new Set<string>()]]));
+    fixture.detectChanges();
+    const root = fixture.nativeElement as HTMLElement;
+    const confirm = root.querySelector<HTMLButtonElement>('[data-culling-confirm]')!;
+    expect(confirm.disabled).toBe(true);
+    const explanation = root.querySelector('#' + confirm.getAttribute('aria-describedby'))!;
+    expect(explanation.textContent).toContain('culling.keep_required');
+    const write = vi.spyOn(store, 'confirmGroup');
+    confirm.click();
+    expect(write).not.toHaveBeenCalled();
+    store.setPhotoKept(store.groups()[0], '/p1.jpg', true); fixture.detectChanges();
+    expect(confirm.disabled).toBe(false);
+    expect(confirm.hasAttribute('aria-describedby')).toBe(false);
+  });
+
+  it('moves focus from a contact-sheet Confirm to its countdown Cancel', async () => {
+    openDarkroom(); component['closeLightbox']();
+    store.selectionsMap.set(new Map([['1_burst', new Set(['/p1.jpg'])]])); fixture.detectChanges();
+    await new Promise(resolve => setTimeout(resolve, 0));
+    const root = fixture.nativeElement as HTMLElement;
+    const confirm = root.querySelector<HTMLButtonElement>('[data-culling-confirm]')!;
+    confirm.focus(); confirm.click(); fixture.detectChanges();
+    await new Promise(resolve => setTimeout(resolve, 0));
+    expect(document.activeElement).toBe(root.querySelector('[data-culling-cancel]'));
+    expect(store.passingGroups().has('1_burst')).toBe(true);
+  });
+
+  it('does not steal focus after confirming if the user moved elsewhere', async () => {
+    openDarkroom(); component['closeLightbox']();
+    store.selectionsMap.set(new Map([['1_burst', new Set(['/p1.jpg'])]])); fixture.detectChanges();
+    await new Promise(resolve => setTimeout(resolve, 0));
+    const root = fixture.nativeElement as HTMLElement;
+    const confirm = root.querySelector<HTMLButtonElement>('[data-culling-confirm]')!;
+    confirm.focus(); confirm.click(); fixture.detectChanges();
+    const elsewhere = document.createElement('button'); document.body.appendChild(elsewhere); elsewhere.focus();
+    await new Promise(resolve => setTimeout(resolve, 0));
+    expect(document.activeElement).toBe(elsewhere);
+    elsewhere.remove();
+  });
+
+  it.each([' ', 'Enter'])('announces the keeper requirement on a refused darkroom %s shortcut', key => {
+    openDarkroom();
+    store.selectionsMap.set(new Map([['1_burst', new Set<string>()]])); fixture.detectChanges();
+    const notice = vi.spyOn(component['snackBar'], 'open');
+    notice.mockClear();
+    const dialog = fixture.nativeElement.querySelector('[role="dialog"]') as HTMLElement;
+    dialog.dispatchEvent(new KeyboardEvent('keydown', { key, bubbles: true, cancelable: true }));
+    expect(notice).toHaveBeenCalledWith('culling.keep_required', '', { duration: 3000 });
+    expect(store.confirmedGroups().size).toBe(0);
+    expect(component['lightboxGroup']()).not.toBeNull();
+  });
+
+  it('announces the keeper requirement on a refused list Shift+Space shortcut', () => {
+    openDarkroom(); component['closeLightbox']();
+    store.selectionsMap.set(new Map([['1_burst', new Set<string>()]])); fixture.detectChanges();
+    const notice = vi.spyOn(component['snackBar'], 'open');
+    notice.mockClear();
+    component['onShiftSpace'](new KeyboardEvent('keydown', { key: ' ', shiftKey: true, bubbles: true, cancelable: true }));
+    expect(notice).toHaveBeenCalledWith('culling.keep_required', '', { duration: 3000 });
+    expect(store.confirmedGroups().size).toBe(0);
+  });
+
+  it.each([' ', 'Enter'])('focuses countdown Cancel after the last %s confirmation and lets a reopened darkroom undo it', async key => {
+    openDarkroom();
+    store.selectionsMap.set(new Map([['1_burst', new Set(['/p1.jpg'])]])); fixture.detectChanges();
+    const root = fixture.nativeElement as HTMLElement;
+    const post = TestBed.inject(ApiService).post as Mock;
+    post.mockClear();
+    root.querySelector<HTMLElement>('[role="dialog"]')!.dispatchEvent(new KeyboardEvent('keydown', { key, bubbles: true, cancelable: true })); fixture.detectChanges();
+    await new Promise(resolve => setTimeout(resolve, 0));
+    const cancel = root.querySelector<HTMLButtonElement>('[data-culling-cancel]')!;
+    expect(document.activeElement).toBe(cancel);
+    expect(store.passingGroups().get('1_burst')).toBe(7);
+    component['lightboxGroupId'].set('1_burst'); fixture.detectChanges();
+    expect(root.querySelector('[data-darkroom-pending]')?.textContent).toContain('culling.confirmed_badge');
+    expect(root.querySelector<HTMLButtonElement>('[data-darkroom-keep]')!.disabled).toBe(true);
+    const darkroomCancel = root.querySelector<HTMLButtonElement>('[data-darkroom-cancel]')!;
+    darkroomCancel.focus(); darkroomCancel.click(); fixture.detectChanges();
+    await new Promise(resolve => setTimeout(resolve, 0));
+    expect(store.passingGroups().has('1_burst')).toBe(false);
+    expect(store.confirmedGroups().has('1_burst')).toBe(false);
+    expect(root.querySelector('[data-darkroom-pending]')).toBeNull();
+    expect(root.querySelector<HTMLButtonElement>('[data-darkroom-keep]')!.disabled).toBe(false);
+    expect(document.activeElement).toBe(root.querySelector('[data-darkroom-confirm]'));
+    expect(post).not.toHaveBeenCalled();
+  });
+
+  it('returns focus to the group Confirm button after cancelling its countdown', async () => {
+    openDarkroom();
+    store.selectionsMap.set(new Map([['1_burst', new Set(['/p1.jpg'])]])); fixture.detectChanges();
+    const root = fixture.nativeElement as HTMLElement;
+    root.querySelector<HTMLElement>('[role="dialog"]')!.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true, cancelable: true }));
+    fixture.detectChanges();
+    await new Promise(resolve => setTimeout(resolve, 0));
+    const cancel = root.querySelector<HTMLButtonElement>('[data-culling-cancel]')!;
+    cancel.focus(); cancel.click(); fixture.detectChanges();
+    await new Promise(resolve => setTimeout(resolve, 0));
+    expect(document.activeElement).toBe(root.querySelector('[data-culling-confirm]'));
+    expect(store.passingGroups().has('1_burst')).toBe(false);
   });
 
   it('legend toggle starts hidden, shows the legend on click and flips aria-pressed', () => {
@@ -3760,6 +4378,8 @@ describe('BurstCullingComponent modals (rendered)', () => {
   // never render the template — only this test can catch that.
   it('face-strip slider focus release: every face-strip slider thumb refocuses the dialog on dragEnd', () => {
     openDarkroom();
+    const closeups = Array.from(fixture.nativeElement.querySelectorAll('button') as NodeListOf<HTMLButtonElement>).find(button => button.textContent?.includes('culling.workspace.closeups'))!;
+    closeups.click();
     component['faceMap'].set(new Map([
       ['/p1.jpg', [{ id: 1, face_index: 0, eyes_open_score: 5, smile_score: 5 }]],
     ]));
@@ -3779,6 +4399,8 @@ describe('BurstCullingComponent modals (rendered)', () => {
 
   it('face strip: outlines the current frame and follows the arrow keys', () => {
     openDarkroom();
+    const closeups = Array.from(fixture.nativeElement.querySelectorAll('button') as NodeListOf<HTMLButtonElement>).find(button => button.textContent?.includes('culling.workspace.closeups'))!;
+    closeups.click();
     component['faceMap'].set(new Map([
       ['/p1.jpg', [{ id: 1, face_index: 0, eyes_open_score: 5, smile_score: 5 }]],
       ['/p2.jpg', [{ id: 2, face_index: 0, eyes_open_score: 5, smile_score: 5 }]],
@@ -3855,7 +4477,7 @@ describe('BurstCullingComponent swipe-to-decide (rendered, touch)', () => {
         { provide: MatSnackBar, useValue: mockSnackBar },
         { provide: I18nService, useValue: { t: (key: string) => key, translations: () => ({}) } },
         { provide: GalleryStore, useValue: { config: () => null } },
-        { provide: AuthService, useValue: { isEdition: () => true, identity: () => '0|' } },
+        { provide: AuthService, useValue: { status: signal({ user_id: 'editor' }), token: 'fixture',  isEdition: () => true, identity: () => '0|' } },
         { provide: AssistantChangesService, useValue: { batch$: changes$.asObservable() } },
         { provide: ActivatedRoute, useValue: { snapshot: { queryParamMap: { get: () => null } } } },
       ],
@@ -3959,7 +4581,7 @@ describe('BurstCullingComponent swipe-to-decide (rendered, touch)', () => {
     openDarkroom();
     expect((surface().nativeElement as HTMLElement).style.touchAction).toBe('pan-y');
 
-    component['zoom'].set({ scale: 2, tx: 0, ty: 0 });
+    component['onDarkroomZoom']({ scale: 2, tx: 0, ty: 0 });
     fixture.detectChanges();
 
     expect((surface().nativeElement as HTMLElement).style.touchAction).toBe('');
@@ -3980,7 +4602,7 @@ describe('BurstCullingComponent swipe-to-decide (rendered, touch)', () => {
   // one drag below has to move the crop and decide nothing.
   it('stands down while the frame is zoomed, leaving the drag to the pane pan', async () => {
     openDarkroom();
-    component['zoom'].set({ scale: 2, tx: 0, ty: 0 });
+    component['onDarkroomZoom']({ scale: 2, tx: 0, ty: 0 });
     fixture.detectChanges();
     expect(component['swipeEnabled']()).toBe(false);
 
@@ -4063,7 +4685,7 @@ describe('BurstCullingComponent compare panes (rendered)', () => {
         })) } },
         { provide: I18nService, useValue: { t: (key: string) => key, translations: () => ({}) } },
         { provide: GalleryStore, useValue: { config: () => null } },
-        { provide: AuthService, useValue: { isEdition: () => true, identity: () => '0|' } },
+        { provide: AuthService, useValue: { status: signal({ user_id: 'editor' }), token: 'fixture',  isEdition: () => true, identity: () => '0|' } },
         { provide: AssistantChangesService, useValue: { batch$: changes$.asObservable() } },
         { provide: ActivatedRoute, useValue: { snapshot: { queryParamMap: { get: () => null } } } },
       ],
@@ -4124,19 +4746,22 @@ describe('BurstCullingComponent compare panes (rendered)', () => {
     expect(keptPaths()).toEqual(['/c1.jpg']);
   });
 
-  it('marks the decided pane with the solid badge the tiles use', () => {
+  it('separates decided pane state in its heading from Keep and Reject actions', () => {
     openCompare();
     store.selectionsMap.set(new Map([['1_burst', new Set(['/c1.jpg'])]]));
     fixture.detectChanges();
 
     const host: HTMLElement = fixture.nativeElement;
-    expect(host.querySelectorAll('[aria-label="culling.lightbox.kept"].bg-green-600')).toHaveLength(1);
-    expect(host.querySelectorAll('[aria-label="culling.lightbox.rejected"].bg-red-600')).toHaveLength(1);
+    const headings = host.querySelectorAll('[data-darkroom-pane]');
+    expect(headings[0].textContent).toContain('culling.lightbox.kept');
+    expect(headings[1].textContent).toContain('culling.lightbox.rejected');
+    expect(buttonFor('c1.jpg, culling.lightbox.keep')!.getAttribute('aria-pressed')).toBe('true');
+    expect(buttonFor('c1.jpg, culling.lightbox.reject')!.getAttribute('aria-pressed')).toBe('false');
+    expect(buttonFor('c2.jpg, culling.lightbox.keep')!.getAttribute('aria-pressed')).toBe('false');
+    expect(buttonFor('c2.jpg, culling.lightbox.reject')!.getAttribute('aria-pressed')).toBe('true');
   });
 
-  // The chrome traces the rendered photo, so it must be inset by whatever the
-  // pane letterboxed away -- not pinned to the cell corner.
-  it('insets the per-frame chrome by the letterbox of its pane', () => {
+  it('keeps decision controls in the pane heading outside the letterboxed image', () => {
     openCompare();
     const panes = fixture.debugElement.queryAll(By.directive(SyncedZoomComponent));
     const pane = panes[0].componentInstance as SyncedZoomComponent;
@@ -4152,12 +4777,15 @@ describe('BurstCullingComponent compare panes (rendered)', () => {
     fixture.detectChanges();
 
     expect(pane.fitInsetY()).toBe(200);
-    const chrome = buttonFor('c1.jpg, culling.lightbox.keep')!.closest('div[style]') as HTMLElement;
-    expect(chrome.style.top).toBe('200px');
-    expect(chrome.style.left).toBe('0px');
+    const action = buttonFor('c1.jpg, culling.lightbox.keep')!;
+    const frame = action.closest('[data-darkroom-pane]')!;
+    expect(frame.querySelector('app-synced-zoom')).toBe(host);
+    expect(host.contains(action)).toBe(false);
+    expect(frame.firstElementChild!.contains(action)).toBe(true);
+    expect(frame.firstElementChild!.contains(frame.querySelector('[data-comparison-slot]'))).toBe(true);
   });
 
-  it('names the frame the footer status is about while a grid is shown', () => {
+  it('names the focused frame in both grid and single-view review controls', () => {
     openCompare();
     const footer: HTMLElement = fixture.nativeElement;
     expect(footer.textContent).toContain('c1.jpg');
@@ -4166,7 +4794,7 @@ describe('BurstCullingComponent compare panes (rendered)', () => {
     fixture.detectChanges();
 
     expect(footer.querySelectorAll('app-synced-zoom')).toHaveLength(1);
-    expect(footer.textContent).not.toContain('c1.jpg');
+    expect(footer.querySelector('[data-darkroom-filename]')?.textContent).toContain('c1.jpg');
   });
 });
 
@@ -4211,7 +4839,7 @@ describe('BurstCullingComponent progressive darkroom frames (rendered)', () => {
         })) } },
         { provide: I18nService, useValue: { t: (key: string) => key, translations: () => ({}) } },
         { provide: GalleryStore, useValue: { config: () => null } },
-        { provide: AuthService, useValue: { isEdition: () => true, identity: () => '0|' } },
+        { provide: AuthService, useValue: { status: signal({ user_id: 'editor' }), token: 'fixture',  isEdition: () => true, identity: () => '0|' } },
         { provide: AssistantChangesService, useValue: { batch$: changes$.asObservable() } },
         { provide: ActivatedRoute, useValue: { snapshot: { queryParamMap: { get: () => null } } } },
       ],
@@ -4252,7 +4880,7 @@ describe('BurstCullingComponent progressive darkroom frames (rendered)', () => {
     expect(srcs()).toEqual(expect.arrayContaining([thumb('/p0.jpg'), thumb('/p2.jpg')]));
     expect(srcs()).not.toContain(render('/p0.jpg'));
 
-    component['onSharpLoaded'](render('/p1.jpg'));
+    component.renditions['onSharpLoaded'](render('/p1.jpg'));
     fixture.detectChanges();
 
     expect(srcs()).toEqual(expect.arrayContaining([render('/p0.jpg'), render('/p2.jpg')]));
@@ -4280,28 +4908,28 @@ describe('BurstCullingComponent progressive darkroom frames (rendered)', () => {
     }
     FakeImage.instances = [];
     // The render of frame 1 reports in after the user is already on frame 2.
-    component['onSharpLoaded'](render('/p1.jpg'));
+    component.renditions['onSharpLoaded'](render('/p1.jpg'));
     fixture.detectChanges();
     expect(srcs().filter(u => u.includes('size=1920'))).toEqual([]);
   });
 
   it('prefetches one neighbour at either end of the group', () => {
     open(0);
-    component['onSharpLoaded'](render('/p0.jpg'));
+    component.renditions['onSharpLoaded'](render('/p0.jpg'));
     fixture.detectChanges();
     expect(srcs().filter(u => u.includes('size=1920'))).toEqual([render('/p1.jpg')]);
 
     // The same neighbor is still wanted at the other end; reuse its request.
     component['lightboxIndex'].set(2);
     fixture.detectChanges();
-    component['onSharpLoaded'](render('/p2.jpg'));
+    component.renditions['onSharpLoaded'](render('/p2.jpg'));
     fixture.detectChanges();
     expect(srcs().filter(u => u.includes('size=1920'))).toEqual([render('/p1.jpg')]);
   });
 
   it('keeps the in-flight render of the frame stepped onto and aborts the one left behind', () => {
     open(1);
-    component['onSharpLoaded'](render('/p1.jpg'));
+    component.renditions['onSharpLoaded'](render('/p1.jpg'));
     fixture.detectChanges();
     const farSide = FakeImage.instances.find(i => i.src === render('/p0.jpg'))!;
     const stepTarget = FakeImage.instances.find(i => i.src === render('/p2.jpg'))!;
@@ -4321,7 +4949,7 @@ describe('BurstCullingComponent progressive darkroom frames (rendered)', () => {
 
   it('does not create a second image for a render still in flight when stepping back', () => {
     open(1);
-    component['onSharpLoaded'](render('/p1.jpg'));
+    component.renditions['onSharpLoaded'](render('/p1.jpg'));
     fixture.detectChanges();
     const p2Render = FakeImage.instances.find(i => i.src === render('/p2.jpg'))!;
     component['lightboxIndex'].set(2);
@@ -4348,11 +4976,11 @@ describe('BurstCullingComponent progressive darkroom frames (rendered)', () => {
 
   it('does not restart the neighbour fetches when a new group object has the same neighbours', () => {
     open(1);
-    component['onSharpLoaded'](render('/p1.jpg'));
+    component.renditions['onSharpLoaded'](render('/p1.jpg'));
     fixture.detectChanges();
     const before = [...FakeImage.instances];
     // A re-run of either prefetch effect goes through prefetch().
-    const prefetch = vi.spyOn(component as any, 'prefetch');
+    const prefetch = vi.spyOn(component.renditions as any, 'prefetch');
 
     component['cull'].groups.set([{ ...group, photos: [...group.photos] }]);
     fixture.detectChanges();
@@ -4364,17 +4992,17 @@ describe('BurstCullingComponent progressive darkroom frames (rendered)', () => {
 
   it('records a neighbour render it has fetched so the pane can skip its debounce', () => {
     open(1);
-    component['onSharpLoaded'](render('/p1.jpg'));
+    component.renditions['onSharpLoaded'](render('/p1.jpg'));
     fixture.detectChanges();
     const neighbour = FakeImage.instances.find(i => i.src === render('/p2.jpg'))!;
     neighbour.onload!();
-    expect((component['loadedRenders'] as LoadedSources).has(render('/p2.jpg'))).toBe(true);
+    expect((component.renditions['loadedRenders'] as LoadedSources).has(render('/p2.jpg'))).toBe(true);
   });
 
   it('prefetches no neighbours and shows no placeholder while a darktable style is active', () => {
-    component['activeStyle'].set('portra');
+    component.renditions['activeStyle'].set('portra');
     open(1);
-    component['onSharpLoaded'](render('/p1.jpg'));
+    component.renditions['onSharpLoaded'](render('/p1.jpg'));
     fixture.detectChanges();
 
     expect(pane().placeholderSrc()).toBeNull();
@@ -4384,7 +5012,7 @@ describe('BurstCullingComponent progressive darkroom frames (rendered)', () => {
   it('prefetches no neighbours when the browser asks to save data', () => {
     Object.defineProperty(navigator, 'connection', { value: { saveData: true }, configurable: true });
     open(1);
-    component['onSharpLoaded'](render('/p1.jpg'));
+    component.renditions['onSharpLoaded'](render('/p1.jpg'));
     fixture.detectChanges();
 
     expect(srcs().filter(u => u.includes('path=%2Fp0.jpg') || u.includes('path=%2Fp2.jpg'))).toEqual([]);
@@ -4407,21 +5035,21 @@ describe('BurstCullingComponent progressive darkroom frames (rendered)', () => {
       naturalWidth = 640;
     }
     vi.stubGlobal('Image', WarmImage);
-    component['loadedRenders'].add(render('/p0.jpg'));
+    component.renditions['loadedRenders'].add(render('/p0.jpg'));
     open(0);
-    expect(component['sharpPath']()).toBe('/p0.jpg');
+    expect(component.renditions['sharpPath']()).toBe('/p0.jpg');
     open(1);
     open(0);
-    expect(component['sharpPath']()).toBe('/p0.jpg');
-    expect(component['failedRenderPaths']().size).toBe(0);
+    expect(component.renditions['sharpPath']()).toBe('/p0.jpg');
+    expect(component.renditions['failedRenderPaths']().size).toBe(0);
   });
 
   it.each(['loaded', 'failed'])('clears %s readiness when returning to a frame whose new render attempt is pending', async state => {
-    const renderPeaking = vi.spyOn(component as any, 'renderPeaking').mockResolvedValue('overlay');
+    const renderPeaking = vi.spyOn(component.renditions as any, 'renderPeaking').mockResolvedValue('overlay');
     open(0);
     if (state === 'loaded') {
       pane().sharpLoaded.emit(render('/p0.jpg'));
-      component['loadedRenders'].add(render('/p0.jpg'));
+      component.renditions['loadedRenders'].add(render('/p0.jpg'));
     } else {
       pane().sharpFailed.emit(render('/p0.jpg'));
     }
@@ -4431,19 +5059,19 @@ describe('BurstCullingComponent progressive darkroom frames (rendered)', () => {
     component['peakingActive'].set(true);
     fixture.detectChanges();
     await new Promise(resolve => setTimeout(resolve, 0));
-    expect(component['sharpPath']()).toBeNull();
-    expect(component['failedRenderPaths']().size).toBe(0);
+    expect(component.renditions['sharpPath']()).toBeNull();
+    expect(component.renditions['failedRenderPaths']().size).toBe(0);
     expect(renderPeaking).not.toHaveBeenCalled();
     // Positive control: the new attempt's own success does restore readiness and peaking.
     pane().sharpLoaded.emit(render('/p0.jpg'));
     fixture.detectChanges();
     await new Promise(resolve => setTimeout(resolve, 0));
-    expect(component['sharpPath']()).toBe('/p0.jpg');
+    expect(component.renditions['sharpPath']()).toBe('/p0.jpg');
     expect(renderPeaking).toHaveBeenCalled();
   });
 
   it('uses the visible stored thumbnail for peaking when the current render fails', async () => {
-    const renderPeaking = vi.spyOn(component as any, 'renderPeaking').mockResolvedValue('overlay');
+    const renderPeaking = vi.spyOn(component.renditions as any, 'renderPeaking').mockResolvedValue('overlay');
     open(1);
     component['peakingActive'].set(true);
     fixture.detectChanges();
@@ -4452,12 +5080,12 @@ describe('BurstCullingComponent progressive darkroom frames (rendered)', () => {
     fixture.detectChanges();
     await new Promise(resolve => setTimeout(resolve, 0));
     expect(renderPeaking).toHaveBeenCalledWith(thumb('/p1.jpg'), expect.any(Number));
-    expect(component['sharpPath']()).toBeNull();
+    expect(component.renditions['sharpPath']()).toBeNull();
     expect(srcs().filter(u => u === render('/p0.jpg') || u === render('/p2.jpg'))).toEqual([]);
   });
 
   it('uses each compare pane’s current render attempt after a single-view failure', async () => {
-    const pooled = vi.spyOn(component, 'renderPooledPeaking').mockImplementation(async (...args: unknown[]) =>
+    const pooled = vi.spyOn(component.renditions, 'renderPooledPeaking').mockImplementation(async (...args: unknown[]) =>
       new Map((args[0] as string[]).map(src => [src, `overlay:${src}`])));
     open(1);
     pane().sharpFailed.emit(render('/p1.jpg'));
@@ -4474,22 +5102,22 @@ describe('BurstCullingComponent progressive darkroom frames (rendered)', () => {
     fixture.detectChanges();
     await fixture.whenStable();
     expect(pooled).toHaveBeenLastCalledWith([render('/p1.jpg'), thumb('/p2.jpg')], expect.any(Number));
-    expect(component['peakingOverlays']().get('/p2.jpg')).toBe(`overlay:${thumb('/p2.jpg')}`);
+    expect(component.renditions['peakingOverlays']().get('/p2.jpg')).toBe(`overlay:${thumb('/p2.jpg')}`);
 
     // Obsolete/wrong-source events and an unchanged success must leave the pool alone.
     const calls = pooled.mock.calls.length;
-    component['onSharpFailed'](render('/p0.jpg'), '/p0.jpg');
+    component.renditions['onSharpFailed'](render('/p0.jpg'), '/p0.jpg');
     panes[1].sharpLoaded.emit(thumb('/p2.jpg'));
     panes[0].sharpLoaded.emit(render('/p1.jpg'));
     fixture.detectChanges();
     await fixture.whenStable();
     expect(pooled).toHaveBeenCalledTimes(calls);
-    expect([...component['failedRenderPaths']()]).toEqual(['/p2.jpg']);
+    expect([...component.renditions['failedRenderPaths']()]).toEqual(['/p2.jpg']);
 
     component['setCompareMode']('4up');
     fixture.detectChanges();
     await fixture.whenStable();
-    expect(pooled).toHaveBeenLastCalledWith([render('/p0.jpg'), render('/p1.jpg'), thumb('/p2.jpg')], expect.any(Number));
+    expect(pooled).toHaveBeenLastCalledWith([render('/p1.jpg'), thumb('/p2.jpg'), render('/p0.jpg')], expect.any(Number));
     component['setCompareMode']('2up');
     fixture.detectChanges();
 
@@ -4514,14 +5142,14 @@ describe('BurstCullingComponent progressive darkroom frames (rendered)', () => {
   });
 
   it('waits for the sharp render before building the peaking overlay in single view', async () => {
-    const renderPeaking = vi.spyOn(component as any, 'renderPeaking').mockResolvedValue('overlay');
+    const renderPeaking = vi.spyOn(component.renditions as any, 'renderPeaking').mockResolvedValue('overlay');
     open(1);
     component['peakingActive'].set(true);
     fixture.detectChanges();
     await new Promise(resolve => setTimeout(resolve, 0));
     expect(renderPeaking).not.toHaveBeenCalled();
 
-    component['onSharpLoaded'](render('/p1.jpg'));
+    component.renditions['onSharpLoaded'](render('/p1.jpg'));
     fixture.detectChanges();
     await new Promise(resolve => setTimeout(resolve, 0));
     expect(renderPeaking).toHaveBeenCalledTimes(1);
@@ -4550,7 +5178,7 @@ describe('BurstCullingComponent date range', () => {
         { provide: MatSnackBar, useValue: { open: vi.fn(() => ({ onAction: () => new Subject<void>(), afterDismissed: () => new Subject<void>() })) } },
         { provide: I18nService, useValue: { t: (key: string) => key, translations: () => ({}) } },
         { provide: GalleryStore, useValue: { config: () => null } },
-        { provide: AuthService, useValue: { isEdition: () => true, identity: () => '0|' } },
+        { provide: AuthService, useValue: { status: signal({ user_id: 'editor' }), token: 'fixture',  isEdition: () => true, identity: () => '0|' } },
         { provide: AssistantChangesService, useValue: { batch$: new Subject<AssistantChangeBatch>().asObservable() } },
         { provide: ActivatedRoute, useValue: { snapshot: { queryParamMap: { get: (k: string) => query[k] ?? null } } } },
       ],

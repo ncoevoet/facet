@@ -8,6 +8,8 @@ import { TimelineComponent } from './timeline.component';
 import { PageContextService } from '../../core/agent/page-context.service';
 import { GalleryStore } from '../gallery/gallery.store';
 
+const timelinePersonalReset = { type: '', hide_rejected: 'false', favorites_only: 'false', is_monochrome: 'false', review_status: '', show_rejected: 'false', blinks_only: 'false', duplicates_only: 'false' };
+
 describe('TimelineComponent', () => {
 
   let component: any;
@@ -16,6 +18,7 @@ describe('TimelineComponent', () => {
     dateFrom: ReturnType<typeof signal<string>>;
     dateTo: ReturnType<typeof signal<string>>;
     sortDirection: ReturnType<typeof signal<'older' | 'newer'>>;
+    showOverview: ReturnType<typeof signal<boolean>>;
   };
   let mockStore: { viewFilterParams: ReturnType<typeof signal>; showAllHidden: Mock };
   let paramMapSubject: { get: Mock };
@@ -30,6 +33,7 @@ describe('TimelineComponent', () => {
       dateFrom: signal(''),
       dateTo: signal(''),
       sortDirection: signal<'older' | 'newer'>('older'),
+      showOverview: signal(false),
     };
     mockStore = { viewFilterParams: signal({ ...noneHidden }), showAllHidden: vi.fn() };
     paramMapSubject = { get: vi.fn().mockReturnValue(null) };
@@ -52,6 +56,14 @@ describe('TimelineComponent', () => {
       mockFilters.sortDirection.set('newer');
       expect(context.snapshot()).toMatchObject({ sort: 'newer' });
     });
+  });
+
+  it('retains calendar mode when timeline navigation recreates the component', () => {
+    component.showOverview.set(true);
+    const recreated: any = TestBed.runInInjectionContext(() => new TimelineComponent());
+    expect(recreated.showOverview()).toBe(true);
+    recreated.showOverview.set(false);
+    expect(component.showOverview()).toBe(false);
   });
 
   describe('initial state', () => {
@@ -165,6 +177,8 @@ describe('TimelineComponent', () => {
       component.onDaySelected('2024-06-15');
       expect(mockRouter.navigate).toHaveBeenCalledWith(['/'], {
         queryParams: {
+          ...Object.fromEntries(Object.keys(noneHidden).map(key => [key, 'false'])),
+          ...timelinePersonalReset,
           date_from: '2024-06-15',
           date_to: '2024-06-15',
           sort: 'date_taken',
@@ -190,5 +204,64 @@ describe('TimelineComponent', () => {
       mockStore.viewFilterParams.set({ ...noneHidden });
       expect(component.anyHiddenByFilters()).toBe(false);
     });
+  });
+});
+
+
+describe('Timeline missing-date and range transitions', () => {
+  it.each([
+    ['2024-02-20', '2024-02-10'],
+    ['2024-03-01', '2024-03-31'],
+  ])('keeps an empty date intersection on the timeline until corrected (%s, %s)', (from, to) => {
+    const navigate = vi.fn();
+    const dateFrom = signal(from); const dateTo = signal(to);
+    TestBed.configureTestingModule({ providers: [
+      { provide: Router, useValue: { navigate } },
+      { provide: ActivatedRoute, useValue: { paramMap: of({ get: (key: string) => key === 'year' ? '2024' : key === 'month' ? '2' : null }) } },
+      { provide: TimelineFiltersService, useValue: { dateFrom, dateTo, sortDirection: signal('older'), showOverview: signal(false) } },
+      { provide: GalleryStore, useValue: { viewFilterParams: signal({ hide_bursts: '1' }) } },
+    ] });
+    const component: any = TestBed.runInInjectionContext(() => new TimelineComponent());
+    component.viewRange();
+    expect(navigate).not.toHaveBeenCalled();
+    expect(component.emptyRange()).toBe(true);
+    dateFrom.set('2024-02-29'); dateTo.set('2024-02-29');
+    expect(component.emptyRange()).toBe(false);
+    component.viewRange();
+    expect(navigate).toHaveBeenCalledWith(['/'], { queryParams: {
+      ...timelinePersonalReset, hide_bursts: 'true', date_from: '2024-02-29', date_to: '2024-02-29',
+      sort: 'date_taken', sort_direction: 'DESC',
+    } });
+  });
+
+  it('opens the selected route month intersected with the typed range instead of widening to the whole library', () => {
+    const navigate = vi.fn();
+    TestBed.configureTestingModule({ providers: [
+      { provide: Router, useValue: { navigate } },
+      { provide: ActivatedRoute, useValue: { paramMap: of({ get: (key: string) => key === 'year' ? '2024' : key === 'month' ? '2' : null }) } },
+      { provide: TimelineFiltersService, useValue: { dateFrom: signal('2024-02-12'), dateTo: signal(''), sortDirection: signal('older'), showOverview: signal(false) } },
+      { provide: GalleryStore, useValue: { viewFilterParams: signal({ hide_bursts: '1' }) } },
+    ] });
+    const component: any = TestBed.runInInjectionContext(() => new TimelineComponent());
+    component.viewRange();
+    expect(navigate).toHaveBeenCalledWith(['/'], { queryParams: { ...timelinePersonalReset, hide_bursts: 'true', date_from: '2024-02-12', date_to: '2024-02-29', sort: 'date_taken', sort_direction: 'DESC' } });
+  });
+  it('carries only visibility into the chosen date scope, and resets the timeline window', () => {
+    const navigate = vi.fn();
+    const dateFrom = signal('2026-01-01'); const dateTo = signal('2026-02-01');
+    TestBed.configureTestingModule({ providers: [
+      { provide: Router, useValue: { navigate } },
+      { provide: ActivatedRoute, useValue: { paramMap: of({ get: () => null }) } },
+      { provide: TimelineFiltersService, useValue: { dateFrom, dateTo, sortDirection: signal('older'), showOverview: signal(false) } },
+      { provide: GalleryStore, useValue: { viewFilterParams: signal({ hide_bursts: '1' }) } },
+    ] });
+    const component: any = TestBed.runInInjectionContext(() => new TimelineComponent());
+    component.viewRange();
+    expect(navigate).toHaveBeenLastCalledWith(['/'], { queryParams: { ...timelinePersonalReset, hide_bursts: 'true', date_from: '2026-01-01', date_to: '2026-02-01', sort: 'date_taken', sort_direction: 'DESC' } });
+    component.viewUnknownDates();
+    expect(navigate).toHaveBeenLastCalledWith(['/'], { queryParams: { ...timelinePersonalReset, hide_bursts: 'true', no_capture_date: '1', sort: 'filename', sort_direction: 'ASC' } });
+    component.resetDates();
+    expect(dateFrom()).toBe(''); expect(dateTo()).toBe('');
+    expect(navigate).toHaveBeenLastCalledWith(['/timeline']);
   });
 });

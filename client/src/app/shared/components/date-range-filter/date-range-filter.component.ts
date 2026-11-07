@@ -17,6 +17,10 @@ import { TranslatePipe } from '../../pipes/translate.pipe';
   changeDetection: ChangeDetectionStrategy.OnPush,
   host: { class: 'contents' },
   template: `
+    @if (compact()) {
+      <label class="flex items-center gap-2 text-sm">{{ fromLabel() | translate }}<input type="date" class="min-h-9 rounded border border-[var(--mat-sys-outline)] bg-transparent px-2" [class]="fromClass()" [value]="from()" (change)="onInput('from', $event)" /></label>
+      <label class="flex items-center gap-2 text-sm">{{ toLabel() | translate }}<input type="date" class="min-h-9 rounded border border-[var(--mat-sys-outline)] bg-transparent px-2" [class]="toClass() || fromClass()" [value]="to()" (change)="onInput('to', $event)" /></label>
+    } @else {
     <mat-form-field [class]="fromClass()" subscriptSizing="dynamic">
       <mat-label>{{ fromLabel() | translate }}</mat-label>
       <input matInput type="date" [value]="from()" (change)="onInput('from', $event)" />
@@ -25,9 +29,11 @@ import { TranslatePipe } from '../../pipes/translate.pipe';
       <mat-label>{{ toLabel() | translate }}</mat-label>
       <input matInput type="date" [value]="to()" (change)="onInput('to', $event)" />
     </mat-form-field>
+    }
   `,
 })
 export class DateRangeFilterComponent {
+  readonly compact = input(false);
   readonly from = input('');
   readonly to = input('');
   readonly fromLabel = input('ui.labels.from');

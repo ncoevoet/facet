@@ -1,6 +1,6 @@
 import { TestBed } from '@angular/core/testing';
 import type { Mock } from 'vitest';
-import { of, throwError } from 'rxjs';
+import { of, throwError, Subject } from 'rxjs';
 import { ApiService } from '../../core/services/api.service';
 import { I18nService } from '../../core/services/i18n.service';
 import { PageContextService } from '../../core/agent/page-context.service';
@@ -104,14 +104,87 @@ describe('MapComponent', () => {
       const tileUrl = new URL(tileTemplate.replace('{z}/{x}/{y}', '5/17/11'));
       expect(tileUrl.searchParams.get('ngsw-bypass')).toBe('1');
       expect(tileUrl.origin).toBe('https://tile.openstreetmap.org');
-      expect(mockMap.setView).toHaveBeenCalledWith([48.8566, 2.3522], 5);
+      expect(mockMap.setView).toHaveBeenCalledWith([0, 0], 2);
       expect(mockMap.on).toHaveBeenCalledWith('moveend', expect.any(Function));
     });
 
-    it('should trigger loadMarkers on init', () => {
+    it('fits all authorized photo coordinates, including a single-location zoom cap', async () => {
+      mockApi.get.mockImplementation((url: string) => url === '/photos/map/count'
+        ? of({ count: 4, bounds: [37.5, 66.8, 43.2, 76.9] }) : of({ photos: [], clusters: [] }));
+      component.initMap(); await Promise.resolve();
+      expect(mockMap.fitBounds).toHaveBeenCalledWith([[37.5, 66.8], [43.2, 76.9]], { padding: [32, 32], maxZoom: 12, animate: false });
+    });
+
+    it('caps initial zoom for one photo location', async () => {
+      mockApi.get.mockImplementation((url: string) => url === '/photos/map/count'
+        ? of({ count: 1, bounds: [40, 70, 40, 70] }) : of({ photos: [], clusters: [] }));
+      component.initMap(); await Promise.resolve();
+      expect(mockMap.fitBounds).toHaveBeenCalledWith([[40, 70], [40, 70]], { padding: [32, 32], maxZoom: 12, animate: false });
+    });
+
+    it.each([
+      { count: 1, bounds: [40, 70, 40, 70], capped: true },
+      { count: 4, bounds: [37.5, 66.8, 43.2, 76.9], capped: false },
+    ])('fits the initial extent with real Leaflet zoom behavior: $count locations', async ({ count, bounds, capped }) => {
+      const leaflet = await vi.importActual<typeof import('leaflet')>('leaflet');
+      const container = document.createElement('div');
+      Object.defineProperties(container, { clientWidth: { value: 800 }, clientHeight: { value: 600 } });
+      document.body.append(container);
+      const realMap = leaflet.map(container, { zoomAnimation: false, fadeAnimation: false }).setView([0, 0], 2);
+      mockMap.fitBounds.mockImplementation((extent: import('leaflet').LatLngBoundsExpression, options: import('leaflet').FitBoundsOptions) => {
+        realMap.fitBounds(extent, options);
+        return mockMap;
+      });
+      mockApi.get.mockImplementation((url: string) => url === '/photos/map/count'
+        ? of({ count, bounds }) : of({ photos: [], clusters: [] }));
+      try {
+        component.initMap();
+        await Promise.resolve();
+        expect(realMap.getZoom()).toBe(capped ? 12 : realMap.getBoundsZoom([[bounds[0], bounds[1]], [bounds[2], bounds[3]]], false, leaflet.point(64, 64)));
+        expect(realMap.getBounds().contains([bounds[0], bounds[1]])).toBe(true);
+        expect(realMap.getBounds().contains([bounds[2], bounds[3]])).toBe(true);
+        if (!capped) expect(realMap.getZoom()).toBeLessThan(12);
+      } finally {
+        mockMap.fitBounds.mockReset().mockReturnValue(mockMap);
+        realMap.remove();
+        container.remove();
+      }
+    });
+
+    it.each([
+      { count: 1, bounds: [40, 70, Number.NaN, 70] },
+      { count: 0, bounds: null },
+    ])('uses the default viewport when bounds are unavailable or invalid', async data => {
+      mockApi.get.mockImplementation((url: string) => url === '/photos/map/count' ? of(data) : of({ photos: [], clusters: [] }));
+      component.initMap(); await Promise.resolve();
+      expect(mockMap.fitBounds).not.toHaveBeenCalled();
+      expect(mockApi.get.mock.calls.filter(([url]) => url === '/photos/map')).toHaveLength(1);
+    });
+
+    it('preserves a user pan made before the initial extent arrives', async () => {
+      const pending = new Subject<{ count: number; bounds: number[] }>();
+      mockApi.get.mockImplementation((url: string) => url === '/photos/map/count' ? pending : of({ photos: [], clusters: [] }));
+      component.initMap(); component.moveEndHandler(); mockMap.fitBounds.mockClear();
+      pending.next({ count: 1, bounds: [40, 70, 40, 70] }); pending.complete(); await Promise.resolve();
+      expect(mockMap.fitBounds).not.toHaveBeenCalled();
+    });
+
+    it('discards a late initial extent after the map is destroyed', async () => {
+      const pending = new Subject<{ count: number; bounds: number[] }>();
+      mockApi.get.mockImplementation((url: string) => url === '/photos/map/count' ? pending : of({ photos: [], clusters: [] }));
+      component.initMap(); component.ngOnDestroy(); mockMap.fitBounds.mockClear();
+      pending.next({ count: 1, bounds: [40, 70, 40, 70] }); pending.complete(); await Promise.resolve();
+      expect(mockMap.fitBounds).not.toHaveBeenCalled();
+    });
+
+    it('loads markers only after the initial extent has been resolved', async () => {
+      const pending = new Subject<{ count: number; bounds: number[] }>();
+      mockApi.get.mockImplementation((url: string) => url === '/photos/map/count' ? pending : of({ photos: [], clusters: [] }));
       const spy = vi.spyOn(component, 'loadMarkers');
       component.initMap();
-      expect(spy).toHaveBeenCalled();
+      expect(spy).not.toHaveBeenCalled();
+      pending.next({ count: 1, bounds: [40, 70, 40, 70] }); pending.complete(); await Promise.resolve();
+      expect(spy).toHaveBeenCalledOnce();
     });
   });
 

@@ -1,4 +1,8 @@
-import { Component, computed, DestroyRef, effect, ElementRef, inject, signal, viewChild, viewChildren, ChangeDetectionStrategy } from '@angular/core';
+import { ControlPopoverComponent } from '../../shared/components/control-popover/control-popover.component';
+import { FaceOutlinePreferences } from '../../core/services/face-outline-preferences.service';
+import { closeDetailsOnEscape, closeOverlayDirectives } from '../../shared/utils/overlays';
+import { FEATURE_MARK, MarkTonePipe } from '../../shared/pipes/mark-tone.pipe';
+import { Component, computed, DestroyRef, effect, ElementRef, inject, signal, viewChild, viewChildren, ChangeDetectionStrategy, afterNextRender, Injector, input, TemplateRef } from '@angular/core';
 import { DecimalPipe, NgTemplateOutlet } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { MatSelectModule, MatSelect } from '@angular/material/select';
@@ -27,73 +31,25 @@ import { AdditionalFilterDef } from '../../shared/models/filter-def.model';
 import { computeRangeFilterUpdate } from '../../shared/utils/range-filter';
 import { useCoarsePointerSignal } from '../../shared/utils/media-query';
 import { MOBILE_MIN_CARD_WIDTH_PX } from './gallery-rows.util';
-import { GalleryFilters, SEARCH_THRESHOLD_MAX, activeFilterUnits, countActiveFilters, filterUnit, seededSearchThreshold, smartAlbumFilterJson } from './gallery-filters.util';
+import { GalleryFilters, PERSON_FILTER_LIMIT, SEARCH_THRESHOLD_MAX, activeFilterUnits, countActiveFilters, filterUnit, hasZeroStarFilter, seededSearchThreshold, smartAlbumFilterJson } from './gallery-filters.util';
 import { AlbumService, Album } from '../../core/services/album.service';
 import { AuthService } from '../../core/services/auth.service';
 import { I18nService } from '../../core/services/i18n.service';
 import { SaveSmartAlbumDialogComponent } from '../albums/save-smart-album-dialog.component';
 import { CardActionsDialogComponent } from './card-actions-dialog.component';
 import { folderDisplayName } from '../folders/folders.util';
-import { i18nKeys } from '../../core/i18n/keys';
+import { I18N, i18nKeys } from '../../core/i18n/keys';
 import { isUnavailableKey, unavailableSet } from '../../shared/utils/unavailable-metrics';
-import { closeOverlayDirectives } from '../../shared/utils/overlays';
 import { MetricSparklineComponent } from '../../shared/components/metric-sparkline/metric-sparkline.component';
-import { FEATURE_MARK, MarkTonePipe } from '../../shared/pipes/mark-tone.pipe';
+import { TagGroupsComponent } from './tag-groups.component';
+import { KeywordCatalogComponent } from './keyword-catalog.component';
+import { KeywordTreeComponent } from './keyword-tree.component';
+import { ScorePresenceComponent } from './score-presence.component';
+import { SCORE_PRESENCE_KEYS } from './score-presence.util';
+import { ADDITIONAL_FILTERS } from './gallery-metric-filters';
+import { FilterPinsService, FILTER_PIN_LIMIT } from './filter-pins.service';
 
-export const ADDITIONAL_FILTERS: AdditionalFilterDef[] = [
-  // Quality
-  { id: 'score_range', labelKey: 'gallery.score_range', helpKey: 'gallery.sidebar.metric_help.score_range', sectionKey: 'gallery.sidebar.quality', minKey: 'min_score', maxKey: 'max_score', sliderMin: 0, sliderMax: 10, step: 0.5, spanWidth: 'w-16' },
-  { id: 'aesthetic_range', labelKey: 'gallery.aesthetic_range', helpKey: 'gallery.sidebar.metric_help.aesthetic_range', sectionKey: 'gallery.sidebar.quality', minKey: 'min_aesthetic', maxKey: 'max_aesthetic', sliderMin: 0, sliderMax: 10, step: 0.5, spanWidth: 'w-16' },
-  { id: 'quality_score_range', labelKey: 'gallery.quality_score_range', helpKey: 'gallery.sidebar.metric_help.quality_score_range', sectionKey: 'gallery.sidebar.quality', minKey: 'min_quality_score', maxKey: 'max_quality_score', sliderMin: 0, sliderMax: 10, step: 0.5, spanWidth: 'w-16' },
-  // Extended Quality
-  { id: 'aesthetic_iaa_range', labelKey: 'gallery.aesthetic_iaa_range', helpKey: 'gallery.sidebar.metric_help.aesthetic_iaa_range', sectionKey: 'gallery.sidebar.extended_quality', minKey: 'min_aesthetic_iaa', maxKey: 'max_aesthetic_iaa', sliderMin: 0, sliderMax: 10, step: 0.5, spanWidth: 'w-16' },
-  { id: 'face_quality_iqa_range', labelKey: 'gallery.face_quality_iqa_range', helpKey: 'gallery.sidebar.metric_help.face_quality_iqa_range', sectionKey: 'gallery.sidebar.extended_quality', minKey: 'min_face_quality_iqa', maxKey: 'max_face_quality_iqa', sliderMin: 0, sliderMax: 10, step: 0.5, spanWidth: 'w-16' },
-  { id: 'liqe_range', labelKey: 'gallery.liqe_range', helpKey: 'gallery.sidebar.metric_help.liqe_range', sectionKey: 'gallery.sidebar.extended_quality', minKey: 'min_liqe', maxKey: 'max_liqe', sliderMin: 0, sliderMax: 10, step: 0.5, spanWidth: 'w-16' },
-  { id: 'qrealign_range', labelKey: 'gallery.qrealign_range', helpKey: 'gallery.sidebar.metric_help.qrealign_range', sectionKey: 'gallery.sidebar.extended_quality', minKey: 'min_qrealign', maxKey: 'max_qrealign', sliderMin: 0, sliderMax: 10, step: 0.5, spanWidth: 'w-16' },
-  { id: 'aesthetic_v25_range', labelKey: 'gallery.aesthetic_v25_range', helpKey: 'gallery.sidebar.metric_help.aesthetic_v25_range', sectionKey: 'gallery.sidebar.extended_quality', minKey: 'min_aesthetic_v25', maxKey: 'max_aesthetic_v25', sliderMin: 0, sliderMax: 10, step: 0.5, spanWidth: 'w-16' },
-  { id: 'deqa_range', labelKey: 'gallery.deqa_range', helpKey: 'gallery.sidebar.metric_help.deqa_range', sectionKey: 'gallery.sidebar.extended_quality', minKey: 'min_deqa', maxKey: 'max_deqa', sliderMin: 0, sliderMax: 10, step: 0.5, spanWidth: 'w-16' },
-  // Face Metrics
-  { id: 'face_count_range', labelKey: 'gallery.face_count_range', helpKey: 'gallery.sidebar.metric_help.face_count_range', sectionKey: 'gallery.sidebar.face', minKey: 'min_face_count', maxKey: 'max_face_count', sliderMin: 0, sliderMax: 20, step: 1, spanWidth: 'w-16' },
-  { id: 'face_quality_range', labelKey: 'gallery.face_quality_range', helpKey: 'gallery.sidebar.metric_help.face_quality_range', sectionKey: 'gallery.sidebar.face', minKey: 'min_face_quality', maxKey: 'max_face_quality', sliderMin: 0, sliderMax: 10, step: 0.5, spanWidth: 'w-16' },
-  { id: 'eye_sharpness_range', labelKey: 'gallery.eye_sharpness_range', helpKey: 'gallery.sidebar.metric_help.eye_sharpness_range', sectionKey: 'gallery.sidebar.face', minKey: 'min_eye_sharpness', maxKey: 'max_eye_sharpness', sliderMin: 0, sliderMax: 10, step: 0.5, spanWidth: 'w-16' },
-  { id: 'face_sharpness_range', labelKey: 'gallery.face_sharpness_range', helpKey: 'gallery.sidebar.metric_help.face_sharpness_range', sectionKey: 'gallery.sidebar.face', minKey: 'min_face_sharpness', maxKey: 'max_face_sharpness', sliderMin: 0, sliderMax: 10, step: 0.5, spanWidth: 'w-16' },
-  { id: 'face_ratio_range', labelKey: 'gallery.face_ratio_range', helpKey: 'gallery.sidebar.metric_help.face_ratio_range', sectionKey: 'gallery.sidebar.face', minKey: 'min_face_ratio', maxKey: 'max_face_ratio', sliderMin: 0, sliderMax: 1, step: 0.01, spanWidth: 'w-16' },
-  { id: 'face_confidence_range', labelKey: 'gallery.face_confidence_range', helpKey: 'gallery.sidebar.metric_help.face_confidence_range', sectionKey: 'gallery.sidebar.face', minKey: 'min_face_confidence', maxKey: 'max_face_confidence', sliderMin: 0, sliderMax: 1, step: 0.01, spanWidth: 'w-16' },
-  // Composition
-  { id: 'composition_range', labelKey: 'gallery.composition_range', helpKey: 'gallery.sidebar.metric_help.composition_range', sectionKey: 'gallery.sidebar.composition', minKey: 'min_composition', maxKey: 'max_composition', sliderMin: 0, sliderMax: 10, step: 0.5, spanWidth: 'w-16' },
-  { id: 'power_point_range', labelKey: 'gallery.power_point_range', helpKey: 'gallery.sidebar.metric_help.power_point_range', sectionKey: 'gallery.sidebar.composition', minKey: 'min_power_point', maxKey: 'max_power_point', sliderMin: 0, sliderMax: 10, step: 0.5, spanWidth: 'w-16' },
-  { id: 'leading_lines_range', labelKey: 'gallery.leading_lines_range', helpKey: 'gallery.sidebar.metric_help.leading_lines_range', sectionKey: 'gallery.sidebar.composition', minKey: 'min_leading_lines', maxKey: 'max_leading_lines', sliderMin: 0, sliderMax: 10, step: 0.5, spanWidth: 'w-16' },
-  { id: 'isolation_range', labelKey: 'gallery.isolation_range', helpKey: 'gallery.sidebar.metric_help.isolation_range', sectionKey: 'gallery.sidebar.composition', minKey: 'min_isolation', maxKey: 'max_isolation', sliderMin: 0, sliderMax: 10, step: 0.5, spanWidth: 'w-16' },
-  // Subject Saliency
-  { id: 'subject_sharpness_range', labelKey: 'gallery.subject_sharpness_range', helpKey: 'gallery.sidebar.metric_help.subject_sharpness_range', sectionKey: 'gallery.sidebar.saliency', minKey: 'min_subject_sharpness', maxKey: 'max_subject_sharpness', sliderMin: 0, sliderMax: 10, step: 0.5, spanWidth: 'w-16' },
-  { id: 'subject_prominence_range', labelKey: 'gallery.subject_prominence_range', helpKey: 'gallery.sidebar.metric_help.subject_prominence_range', sectionKey: 'gallery.sidebar.saliency', minKey: 'min_subject_prominence', maxKey: 'max_subject_prominence', sliderMin: 0, sliderMax: 10, step: 0.5, spanWidth: 'w-16' },
-  { id: 'subject_placement_range', labelKey: 'gallery.subject_placement_range', helpKey: 'gallery.sidebar.metric_help.subject_placement_range', sectionKey: 'gallery.sidebar.saliency', minKey: 'min_subject_placement', maxKey: 'max_subject_placement', sliderMin: 0, sliderMax: 10, step: 0.5, spanWidth: 'w-16' },
-  { id: 'bg_separation_range', labelKey: 'gallery.bg_separation_range', helpKey: 'gallery.sidebar.metric_help.bg_separation_range', sectionKey: 'gallery.sidebar.saliency', minKey: 'min_bg_separation', maxKey: 'max_bg_separation', sliderMin: 0, sliderMax: 10, step: 0.5, spanWidth: 'w-16' },
 
-  { id: 'moment_confidence_range', labelKey: 'gallery.moment_confidence_range', helpKey: 'gallery.sidebar.metric_help.moment_confidence_range', sectionKey: 'gallery.sidebar.moments', minKey: 'min_moment_confidence', maxKey: 'max_moment_confidence', sliderMin: 0, sliderMax: 1, step: 0.01, spanWidth: 'w-16' },
-  // Technical
-  { id: 'sharpness_range', labelKey: 'gallery.sharpness_range', helpKey: 'gallery.sidebar.metric_help.sharpness_range', sectionKey: 'gallery.sidebar.technical', minKey: 'min_sharpness', maxKey: 'max_sharpness', sliderMin: 0, sliderMax: 10, step: 0.5, spanWidth: 'w-16' },
-  { id: 'exposure_range', labelKey: 'gallery.exposure_range', helpKey: 'gallery.sidebar.metric_help.exposure_range', sectionKey: 'gallery.sidebar.technical', minKey: 'min_exposure', maxKey: 'max_exposure', sliderMin: 0, sliderMax: 10, step: 0.5, spanWidth: 'w-16' },
-  { id: 'color_range', labelKey: 'gallery.color_range', helpKey: 'gallery.sidebar.metric_help.color_range', sectionKey: 'gallery.sidebar.technical', minKey: 'min_color', maxKey: 'max_color', sliderMin: 0, sliderMax: 10, step: 0.5, spanWidth: 'w-16' },
-  { id: 'contrast_range', labelKey: 'gallery.contrast_range', helpKey: 'gallery.sidebar.metric_help.contrast_range', sectionKey: 'gallery.sidebar.technical', minKey: 'min_contrast', maxKey: 'max_contrast', sliderMin: 0, sliderMax: 10, step: 0.5, spanWidth: 'w-16' },
-  { id: 'saturation_range', labelKey: 'gallery.saturation_range', helpKey: 'gallery.sidebar.metric_help.saturation_range', sectionKey: 'gallery.sidebar.technical', minKey: 'min_saturation', maxKey: 'max_saturation', sliderMin: 0, sliderMax: 1, step: 0.01, spanWidth: 'w-16' },
-  { id: 'noise_range', labelKey: 'gallery.noise_range', helpKey: 'gallery.sidebar.metric_help.noise_range', sectionKey: 'gallery.sidebar.technical', minKey: 'min_noise', maxKey: 'max_noise', sliderMin: 0, sliderMax: 20, step: 0.5, spanWidth: 'w-16' },
-  // Exposure & Range
-  { id: 'dynamic_range', labelKey: 'gallery.dynamic_range', helpKey: 'gallery.sidebar.metric_help.dynamic_range', sectionKey: 'gallery.sidebar.exposure_range', minKey: 'min_dynamic_range', maxKey: 'max_dynamic_range', sliderMin: 0, sliderMax: 15, step: 0.5, displaySuffix: ' EV', spanWidth: 'w-16' },
-  { id: 'luminance_range', labelKey: 'gallery.luminance_range', helpKey: 'gallery.sidebar.metric_help.luminance_range', sectionKey: 'gallery.sidebar.exposure_range', minKey: 'min_luminance', maxKey: 'max_luminance', sliderMin: 0, sliderMax: 1, step: 0.01, spanWidth: 'w-16' },
-  { id: 'histogram_range', labelKey: 'gallery.histogram_range', helpKey: 'gallery.sidebar.metric_help.histogram_range', sectionKey: 'gallery.sidebar.exposure_range', minKey: 'min_histogram_spread', maxKey: 'max_histogram_spread', sliderMin: 0, sliderMax: 10, step: 0.5, spanWidth: 'w-16' },
-  // Percent of pixels, worst of R/G/B. Capped at 25 rather than 100: over 28
-  // sampled photos the worst highlight clipping seen was 12.7% and the worst
-  // shadow 30.4%, so a 0-100 slider would spend nine tenths of its travel on
-  // values no photo has.
-  { id: 'channel_clip_highlight_range', labelKey: 'gallery.channel_clip_highlight_range', helpKey: 'gallery.sidebar.metric_help.channel_clip_highlight_range', sectionKey: 'gallery.sidebar.exposure_range', minKey: 'min_channel_clip_highlight', maxKey: 'max_channel_clip_highlight', sliderMin: 0, sliderMax: 25, step: 0.5, displaySuffix: '%', spanWidth: 'w-16' },
-  { id: 'channel_clip_shadow_range', labelKey: 'gallery.channel_clip_shadow_range', helpKey: 'gallery.sidebar.metric_help.channel_clip_shadow_range', sectionKey: 'gallery.sidebar.exposure_range', minKey: 'min_channel_clip_shadow', maxKey: 'max_channel_clip_shadow', sliderMin: 0, sliderMax: 25, step: 0.5, displaySuffix: '%', spanWidth: 'w-16' },
-  { id: 'iso_range', labelKey: 'gallery.iso_range', helpKey: 'gallery.sidebar.metric_help.iso_range', sectionKey: 'gallery.sidebar.exposure_range', minKey: 'min_iso', maxKey: 'max_iso', sliderMin: 50, sliderMax: 25600, step: 50, spanWidth: 'w-20' },
-  { id: 'aperture_range', labelKey: 'gallery.aperture_range', helpKey: 'gallery.sidebar.metric_help.aperture_range', sectionKey: 'gallery.sidebar.exposure_range', minKey: 'min_aperture', maxKey: 'max_aperture', sliderMin: 0.7, sliderMax: 64, step: 0.1, displayPrefix: 'f/', spanWidth: 'w-20' },
-  { id: 'focal_range', labelKey: 'gallery.focal_range', helpKey: 'gallery.sidebar.metric_help.focal_range', sectionKey: 'gallery.sidebar.exposure_range', minKey: 'min_focal_length', maxKey: 'max_focal_length', sliderMin: 1, sliderMax: 1200, step: 1, displaySuffix: 'mm', spanWidth: 'w-24' },
-  // User Ratings
-  { id: 'star_rating_range', labelKey: 'gallery.star_rating_range', helpKey: 'gallery.sidebar.metric_help.star_rating_range', sectionKey: 'gallery.sidebar.ratings', minKey: 'min_star_rating', maxKey: 'max_star_rating', sliderMin: 0, sliderMax: 5, step: 1, spanWidth: 'w-16' },
-];
 
 export const COMMON_SECTION_ORDER = [
   'gallery.sidebar.quality',
@@ -143,7 +99,7 @@ export type SidebarTabId = 'browse' | 'review' | 'quality' | 'subject' | 'displa
 export const TAB_SECTIONS: Record<SidebarTabId, readonly string[]> = {
   browse: BROWSE_PANELS,
   review: ['refine', 'gallery.sidebar.ratings'],
-  quality: ['gallery.sidebar.quality', 'color_quality', 'gallery.sidebar.extended_quality', 'gallery.sidebar.technical', 'gallery.sidebar.exposure_range'],
+  quality: ['score_presence', 'gallery.sidebar.quality', 'color_quality', 'gallery.sidebar.extended_quality', 'gallery.sidebar.technical', 'gallery.sidebar.exposure_range'],
   subject: ['gallery.sidebar.face', 'gallery.sidebar.composition', 'gallery.sidebar.saliency', 'gallery.sidebar.moments'],
   display: ['view'],
 };
@@ -209,9 +165,10 @@ export interface SegmentRow {
  * range) lives outside the tabs and is counted by the header only.
  */
 export const UNIT_PANEL: Record<string, string> = {
+  score_presence: 'score_presence',
   person_id: 'persons', faces_need_names: 'persons',
-  date_from: 'date', date_to: 'date',
-  type: 'content', tag: 'content', composition_pattern: 'content',
+  date_from: 'date', date_to: 'date', no_capture_date: 'date',
+  type: 'content', tag: 'content', keyword_branch: 'content', composition_pattern: 'content',
   camera: 'equipment', lens: 'equipment',
   review_status: 'refine', favorites_only: 'refine', is_monochrome: 'refine', show_rejected: 'refine',
   blinks_only: 'refine', duplicates_only: 'refine', sequence_override: 'refine', manual_faces_need_review: 'refine',
@@ -258,11 +215,14 @@ export function loadActiveTab(): SidebarTabId {
   return TAB_IDS.find(id => id === raw) ?? DEFAULT_TAB;
 }
 
+type RatingOption = 'any' | '1' | '2' | '3' | '4' | '5' | 'zero';
+
 @Component({
   selector: 'app-gallery-filter-sidebar',
   standalone: true,
-  host: { class: 'flex flex-col h-full' },
+  host: { class: 'contents' },
   imports: [
+    ControlPopoverComponent,
     MarkTonePipe,
     DecimalPipe,
     MetricSparklineComponent,
@@ -286,27 +246,35 @@ export function loadActiveTab(): SidebarTabId {
     MatDialogModule,
     TranslatePipe,
     FilterDisplayPipe,
+    TagGroupsComponent, KeywordCatalogComponent, KeywordTreeComponent,
+    ScorePresenceComponent,
     PersonThumbnailUrlPipe,
   ],
   changeDetection: ChangeDetectionStrategy.Eager,
   template: `
-<div class="shrink-0 px-2">
+<ng-template #bodyContent><div class="flex flex-col h-full bg-[var(--mat-sys-surface-container-lowest)] [&_.mat-expansion-panel]:!shadow-none [&_.mat-expansion-panel]:!rounded-none [&_.mat-expansion-panel]:!bg-transparent [&_.mat-expansion-panel]:!mx-0 [&_.mat-expansion-panel]:!my-0 [&_.mat-expansion-panel]:border-b [&_.mat-expansion-panel]:border-[var(--mat-sys-outline-variant)]">
+<div class="shrink-0 px-4 border-b border-[var(--mat-sys-outline-variant)]">
 
-      <div class="pt-3 pb-2 flex items-center gap-2">
+      <div class="relative py-2 flex items-center gap-2">
         <span class="text-sm font-medium opacity-80">{{ I18N.gallery.filters | translate }}</span>
         @if (totalActiveCount()) {
-          <span data-test="active-count" class="text-xs rounded-full min-w-[1.25rem] h-5 px-1.5 flex items-center justify-center bg-[var(--mat-sys-primary)] text-[var(--mat-sys-on-primary)] leading-none">{{ totalActiveCount() }}</span>
+          <span data-test="active-count" class="text-xs rounded min-w-5 h-5 px-1.5 flex items-center justify-center bg-[var(--mat-sys-surface-container-high)] text-[var(--mat-sys-on-surface)] tabular-nums leading-none">{{ totalActiveCount() }}</span>
         }
         <span class="flex-1"></span>
-        @if (totalActiveCount()) {
-          <button mat-button data-test="reset" class="!min-w-0 !px-2 !text-xs"
-            [matTooltip]="I18N.gallery.sidebar.reset_tooltip | translate"
-            (click)="store.resetFilters()">
-            <mat-icon class="!text-base !w-4 !h-4 !leading-4 mr-1">restart_alt</mat-icon>
-            {{ I18N.gallery.reset_filters | translate }}
-          </button>
-        }
-        <button mat-icon-button data-test="close" class="md:hidden !w-8 !h-8 !p-0 !min-w-0 shrink-0"
+        <details #countHelp data-count-help class="shrink-0">
+          <summary #countSummary (keydown.escape)="closeCountHelp($event, countHelp, countSummary)" class="flex h-11 w-11 cursor-pointer list-none items-center justify-center rounded-full hover:bg-[var(--mat-sys-surface-container-high)] focus-visible:outline-2 focus-visible:outline-[var(--mat-sys-primary)] [&::-webkit-details-marker]:hidden"
+            [attr.aria-label]="I18N.gallery.sidebar.count_scope | translate"
+            [title]="I18N.gallery.sidebar.count_scope | translate">
+            <mat-icon class="!text-xl !w-5 !h-5 !leading-5" aria-hidden="true">info_outline</mat-icon>
+          </summary>
+          <div class="absolute right-0 top-full z-30 w-64 max-w-[calc(100vw-2rem)] rounded-lg border border-[var(--mat-sys-outline-variant)] bg-[var(--mat-sys-surface-container)] p-3 text-xs leading-5 text-[var(--mat-sys-on-surface)] shadow-lg">
+            <p class="m-0 font-medium">{{ I18N.gallery.sidebar.count_scope | translate }}</p>
+            <p class="mb-0 mt-1">{{ I18N.gallery.sidebar.count_scope_options | translate }}</p>
+            <p class="mb-0 mt-1">{{ I18N.gallery.sidebar.count_scope_types | translate }}</p>
+            <p class="mb-0 mt-1">{{ I18N.gallery.sidebar.count_scope_badges | translate }}</p>
+          </div>
+        </details>
+        <button mat-icon-button data-test="close" class="shrink-0"
           [matTooltip]="I18N.dialog.close | translate"
           [attr.aria-label]="I18N.dialog.close | translate"
           (click)="store.setFilterDrawerOpen(false)">
@@ -323,35 +291,37 @@ export function loadActiveTab(): SidebarTabId {
       }
 
       <!-- Search (visible below 2xl, hidden on 2xl+ where header search is shown) -->
-      <div class="2xl:!hidden mb-1">
-        <mat-form-field subscriptSizing="dynamic" class="w-full">
-          <mat-label>{{ I18N.ui.filters.search | translate }}</mat-label>
-          <mat-icon matPrefix class="mr-1 opacity-60">search</mat-icon>
-          <input matInput #sidebarSearch
-            [placeholder]="I18N.gallery.search_placeholder | translate"
-            [value]="store.filters().search"
-            (input)="onSidebarSearchChange($event)"
-            (keyup.enter)="onSidebarSearchCommit($event)" />
+      <details class="2xl:!hidden mb-1">
+        <summary class="cursor-pointer py-2 text-sm text-[var(--mat-sys-on-surface-variant)]">{{ I18N.ui.filters.search | translate }}</summary>
+        <label class="sr-only" for="sidebar-filename-search">{{ I18N.gallery.search_placeholder | translate }}</label>
+        <div class="relative min-w-0">
+          <input #sidebarSearch id="sidebar-filename-search" type="text" role="searchbox" enterkeyhint="search"
+            class="min-h-11 w-full min-w-0 rounded border border-[var(--mat-sys-outline)] bg-[var(--mat-sys-surface-container-lowest)] pl-3 pr-10 text-base text-[var(--mat-sys-on-surface)] focus-visible:outline-2 focus-visible:outline-[var(--mat-sys-primary)]"
+            [placeholder]="I18N.gallery.search_placeholder | translate" [value]="store.filters().search"
+            (input)="onSidebarSearchChange($event)" (keyup.enter)="onSidebarSearchCommit($event)" />
           @if (store.filters().search) {
-            <button matSuffix mat-icon-button class="!w-6 !h-6 !p-0" (click)="store.updateFilter('search', '')" [attr.aria-label]="I18N.gallery.clear_search | translate">
-              <mat-icon class="!text-sm !w-4 !h-4">close</mat-icon>
+            <button type="button" class="absolute inset-y-0 right-0 flex w-10 cursor-pointer items-center justify-center rounded hover:bg-[var(--mat-sys-surface-container-high)] focus-visible:outline-2"
+              (click)="clearSidebarSearch()" [attr.aria-label]="I18N.gallery.clear_search | translate">
+              <mat-icon class="!text-xl !w-5 !h-5">close</mat-icon>
             </button>
           }
-        </mat-form-field>
-      </div>
+        </div>
+      </details>
 
       <!-- Find a filter -->
-      <mat-form-field subscriptSizing="dynamic" class="w-full !mb-1">
-        <mat-icon matPrefix class="mr-1 opacity-60">manage_search</mat-icon>
-        <input matInput [placeholder]="I18N.gallery.sidebar.find_filter | translate"
-               [attr.aria-label]="I18N.gallery.sidebar.find_filter | translate"
+      <div class="relative mb-2">
+        <label class="sr-only" for="filter-finder-input">{{ I18N.gallery.sidebar.find_filter | translate }}</label>
+        <input #filterFinder id="filter-finder-input" [placeholder]="I18N.gallery.sidebar.find_filter | translate"
+               type="text" role="searchbox" autocomplete="off"
+               class="min-h-11 w-full min-w-0 rounded border border-[var(--mat-sys-outline)] bg-[var(--mat-sys-surface-container-lowest)] py-2 pl-3 pr-10 text-base text-[var(--mat-sys-on-surface)] placeholder:text-[var(--mat-sys-on-surface-variant)] focus-visible:outline-2 focus-visible:outline-[var(--mat-sys-primary)]"
                [value]="filterQuery()" (input)="filterQuery.set($any($event.target).value)" />
         @if (filterQuery()) {
-          <button matSuffix mat-icon-button class="!w-6 !h-6 !p-0" (click)="filterQuery.set('')" [attr.aria-label]="I18N.gallery.sidebar.clear_find_filter | translate">
-            <mat-icon class="!text-sm !w-4 !h-4">close</mat-icon>
+          <button type="button" class="absolute inset-y-0 right-0 flex w-10 cursor-pointer items-center justify-center rounded hover:bg-[var(--mat-sys-surface-container-high)] focus-visible:outline-2"
+            (click)="clearFilterQuery()" [attr.aria-label]="I18N.gallery.sidebar.clear_find_filter | translate">
+            <mat-icon class="!text-xl !w-5 !h-5">close</mat-icon>
           </button>
         }
-      </mat-form-field>
+      </div>
 
       @if (!filterQuery().trim()) {
         <nav mat-tab-nav-bar mat-stretch-tabs="true" animationDuration="0ms" [tabPanel]="tabPanel"
@@ -361,11 +331,14 @@ export function loadActiveTab(): SidebarTabId {
             <button type="button" mat-tab-link [active]="tab.active" (click)="selectTab(tab.id)"
                [matTooltip]="tab.labelKey | translate"
                [attr.aria-label]="tab.count ? (I18N.gallery.sidebar.tabs.active_count | translate:{ label: (tab.labelKey | translate), count: tab.count }) : (tab.labelKey | translate)">
-              <span class="relative inline-flex">
+              <span class="inline-flex flex-col items-center gap-0.5 min-w-0 py-1">
+                <span class="inline-flex h-6 items-center justify-center gap-1">
                 <mat-icon aria-hidden="true">{{ tab.icon }}</mat-icon>
                 @if (tab.count) {
-                  <span aria-hidden="true" class="absolute -top-1 -right-2 text-[0.625rem] rounded-full min-w-[1rem] h-4 px-1 flex items-center justify-center bg-[var(--mat-sys-primary)] text-[var(--mat-sys-on-primary)] leading-none">{{ tab.count }}</span>
+                  <span data-filter-tab-count aria-hidden="true" class="text-[0.625rem] rounded-full min-w-4 h-4 px-1 flex items-center justify-center bg-[var(--mat-sys-primary)] text-[var(--mat-sys-on-primary)] leading-none">{{ tab.count }}</span>
                 }
+                </span>
+                <span data-filter-tab-label class="max-w-12 truncate text-[11px] leading-4">{{ tab.labelKey | translate }}</span>
               </span>
             </button>
           }
@@ -373,9 +346,23 @@ export function loadActiveTab(): SidebarTabId {
       }
     </div>
 
-    <mat-tab-nav-panel #tabPanel class="flex-1 min-h-0 flex flex-col [--mat-expansion-header-collapsed-state-height:40px] [--mat-expansion-header-expanded-state-height:44px] [&_.mat-expansion-panel-body]:!px-4">
+    <mat-tab-nav-panel #tabPanel class="flex-1 min-h-0 flex flex-col [--mat-expansion-header-collapsed-state-height:40px] [--mat-expansion-header-expanded-state-height:44px] [&_.mat-expansion-panel-body]:!px-2">
     <div data-scroll #scrollArea class="flex-1 min-h-0 overflow-y-auto px-2 pt-3 pb-4">
 
+      @if (!filterQuery().trim() && pinnedFilters().length) {
+        <section data-pinned-filters class="mb-3 border-b border-[var(--mat-sys-outline-variant)] pb-2" [attr.aria-label]="I18N.gallery.sidebar.pins.title | translate">
+          <details class="mb-1" data-pins-help>
+            <summary class="flex min-h-8 cursor-pointer list-none items-center gap-2 rounded px-1 text-xs font-semibold focus-visible:outline-2">
+              <span>{{ I18N.gallery.sidebar.pins.title | translate }}</span>
+              <mat-icon aria-hidden="true" class="!h-4 !w-4 !text-base text-[var(--mat-sys-on-surface-variant)]">info_outline</mat-icon>
+            </summary>
+            <p class="m-0 px-1 pb-1 text-xs text-[var(--mat-sys-on-surface-variant)]">{{ I18N.gallery.sidebar.pins.hint | translate:{ max: pinLimit } }}</p>
+          </details>
+          @for (def of pinnedFilters(); track def.id) {
+            <ng-container [ngTemplateOutlet]="metricRow" [ngTemplateOutletContext]="{ $implicit: def }" />
+          }
+        </section>
+      }
       @if (filterQuery().trim()) {
         @if (noFilterMatches()) {
           <p class="text-xs opacity-50 px-2 py-3">{{ I18N.gallery.sidebar.no_filters_match | translate }}</p>
@@ -392,7 +379,7 @@ export function loadActiveTab(): SidebarTabId {
           </div>
         }
       } @else {
-        @switch (activeTab()) {
+        @switch (effectiveTab()) {
           @case ('browse') {
       <!-- Semantic Search (top of sidebar) -->
       @if (store.config()?.features?.show_semantic_search) {
@@ -400,39 +387,44 @@ export function loadActiveTab(): SidebarTabId {
                              (opened)="onSectionToggle('semantic', true)"
                              (closed)="onSectionToggle('semantic', false)"
                              [style.background-color]="sectionStates()['semantic'] === true ? 'var(--mat-sys-surface-container)' : null">
-          <mat-expansion-panel-header class="!px-4">
+          <mat-expansion-panel-header class="!px-2">
             <mat-panel-title class="flex items-center gap-2">
               <mat-icon class="!text-xl !w-5 !h-5 !leading-none opacity-80">image_search</mat-icon>
               {{ I18N.gallery.sidebar.semantic_search | translate }}
             </mat-panel-title>
           </mat-expansion-panel-header>
-          <div class="flex flex-col gap-2 pb-2">
-            <mat-form-field subscriptSizing="dynamic" class="w-full">
-              <mat-label>{{ I18N.gallery.semantic_search | translate }}</mat-label>
-              <mat-icon matPrefix class="mr-1 opacity-60">image_search</mat-icon>
-              <input #semanticSearchInput matInput
-                [value]="store.filters().semanticQuery"
-                (input)="onSemanticSearch($event)"
-                [placeholder]="I18N.gallery.semantic_search_placeholder | translate" />
-              @if (store.filters().semanticQuery) {
-                <button matSuffix mat-icon-button class="!w-6 !h-6 !p-0" (click)="store.updateFilter('semanticQuery', '')" [attr.aria-label]="I18N.gallery.clear_semantic_search | translate">
-                  <mat-icon class="!text-sm !w-4 !h-4">close</mat-icon>
-                </button>
-              }
-            </mat-form-field>
-            <p class="text-xs opacity-50 px-1">{{ I18N.gallery.semantic_search_info | translate }}</p>
-            <div class="flex items-center gap-2 px-1">
-              <span class="text-sm opacity-70 shrink-0">{{ I18N.gallery.semantic_search_threshold | translate }}</span>
-              <mat-slider [min]="0" [max]="SEARCH_THRESHOLD_MAX" [step]="1" [displayWith]="formatThresholdPercent" class="flex-1">
-                <input matSliderThumb
-                  [value]="searchThresholdValue()"
-                  (valueChange)="onSearchThresholdChange($event)"
-                  [attr.aria-label]="I18N.gallery.semantic_search_threshold | translate"
-                  aria-describedby="semantic-search-threshold-hint" />
-              </mat-slider>
-              <span class="text-xs opacity-60 w-10 text-right">{{ searchThresholdValue() }}%</span>
+          <div class="flex min-w-0 flex-col gap-1 pb-1" data-semantic-search>
+            <div class="flex min-w-0 items-center gap-1">
+              <label class="sr-only" for="semantic-search-input">{{ I18N.gallery.semantic_search | translate }}</label>
+              <div class="relative min-w-0 flex-1">
+                <input #semanticSearchInput id="semantic-search-input" type="text" role="searchbox" enterkeyhint="search"
+                  class="min-h-11 w-full min-w-0 rounded border border-[var(--mat-sys-outline)] bg-[var(--mat-sys-surface-container-lowest)] pl-3 pr-10 text-base text-[var(--mat-sys-on-surface)] focus-visible:outline-2 focus-visible:outline-[var(--mat-sys-primary)]"
+                  [value]="store.filters().semanticQuery" (input)="onSemanticSearch($event)"
+                  [placeholder]="I18N.gallery.semantic_search_placeholder | translate" />
+                @if (store.filters().semanticQuery) {
+                  <button type="button" class="absolute inset-y-0 right-0 flex w-10 items-center justify-center rounded cursor-pointer hover:bg-[var(--mat-sys-surface-container-high)] focus-visible:outline-2"
+                    (click)="clearSemanticSearch()" [attr.aria-label]="I18N.gallery.clear_semantic_search | translate">
+                    <mat-icon class="!text-xl !w-5 !h-5">close</mat-icon>
+                  </button>
+                }
+              </div>
+              <app-control-popover data-semantic-help [compact]="true" icon="info_outline" [label]="I18N.gallery.semantic_search_help | translate" [content]="semanticExplanation" />
+              <ng-template #semanticExplanation>
+                <div id="semantic-search-help" class="space-y-2 text-xs">
+                  <p class="m-0">{{ I18N.gallery.semantic_search_info | translate }}</p>
+                  <p class="m-0">{{ I18N.gallery.semantic_search_threshold_hint | translate }}</p>
+                </div>
+              </ng-template>
             </div>
-            <p id="semantic-search-threshold-hint" class="text-xs opacity-50 px-1">{{ I18N.gallery.semantic_search_threshold_hint | translate }}</p>
+            <div class="flex min-w-0 items-center gap-2">
+              <span class="shrink-0 text-xs text-[var(--mat-sys-on-surface-variant)]">{{ I18N.gallery.semantic_search_threshold | translate }}</span>
+              <mat-slider [min]="0" [max]="SEARCH_THRESHOLD_MAX" [step]="1" [displayWith]="formatThresholdPercent" class="!mx-1 min-w-0 flex-1">
+                <input matSliderThumb [value]="searchThresholdValue()" (valueChange)="onSearchThresholdChange($event)"
+                  [attr.aria-label]="I18N.gallery.semantic_search_threshold | translate" aria-describedby="semantic-search-threshold-hint" />
+              </mat-slider>
+              <span class="w-8 shrink-0 text-right text-xs tabular-nums">{{ searchThresholdValue() }}%</span>
+            </div>
+            <p id="semantic-search-threshold-hint" class="sr-only">{{ I18N.gallery.semantic_search_threshold_hint | translate }}</p>
           </div>
         </mat-expansion-panel>
       }
@@ -442,7 +434,7 @@ export function loadActiveTab(): SidebarTabId {
                              (opened)="onSectionToggle('persons', true)"
                              (closed)="onSectionToggle('persons', false)"
                              [style.background-color]="sectionStates()['persons'] !== false ? 'var(--mat-sys-surface-container)' : null">
-          <mat-expansion-panel-header class="!px-4">
+          <mat-expansion-panel-header class="!px-2">
             <mat-panel-title class="flex items-center gap-2">
               <mat-icon class="!text-xl !w-5 !h-5 !leading-none opacity-80">people</mat-icon>
               {{ I18N.gallery.sidebar.persons | translate }}
@@ -461,11 +453,9 @@ export function loadActiveTab(): SidebarTabId {
               <p id="face-naming-hint" class="text-xs text-gray-500 dark:text-gray-400">{{ (auth.isEdition() ? I18N.gallery.faces_need_names_hint : I18N.gallery.faces_need_names_readonly_hint) | translate }}</p>
             }
             <mat-form-field subscriptSizing="dynamic" class="w-full">
-              @if (!selectedPersons().length) {
-                <mat-label>{{ I18N.gallery.person | translate }}</mat-label>
-              }
+              <mat-label>{{ I18N.gallery.person | translate }}</mat-label>
               <input matInput #sidebarPersonInput
-                     [matAutocomplete]="sidebarPersonAuto"
+                     [matAutocomplete]="sidebarPersonAuto" [attr.aria-describedby]="selectedPersonIds().length >= personFilterLimit ? 'person-filter-limit' : null"
                      [value]="sidebarPersonQuery()"
                      [placeholder]="selectedPersons().length ? (I18N.gallery.person_add | translate) : ''"
                      (input)="sidebarPersonQuery.set($any($event.target).value)"
@@ -474,7 +464,7 @@ export function loadActiveTab(): SidebarTabId {
                                 (optionSelected)="onSidebarPersonSelected($event)"
                                 [hideSingleSelectionIndicator]="true">
                 @for (p of filteredPersons(); track p.id) {
-                  <mat-option [value]="p.id">
+                  <mat-option [value]="p.id" [disabled]="selectedPersonIds().length >= personFilterLimit">
                     <div class="flex items-center gap-2">
                       <img [src]="p.id | personThumbnailUrl" class="w-8 h-8 rounded-full object-cover shrink-0" [alt]="p.name || (I18N.gallery.unknown_person | translate)" loading="lazy" />
                       <span class="text-sm">{{ p.name || (I18N.gallery.unknown_person | translate) }} ({{ p.face_count }})</span>
@@ -483,6 +473,17 @@ export function loadActiveTab(): SidebarTabId {
                 }
               </mat-autocomplete>
             </mat-form-field>
+            @if (selectedPersonIds().length >= personFilterLimit) { <p id="person-filter-limit" role="status" class="m-0 text-xs">{{ I18N.gallery.people_match.limit | translate:{ max: personFilterLimit } }}</p> }
+            @if (selectedPersonIds().length > 1) {
+              <fieldset class="m-0 border-0 p-0" [attr.aria-describedby]="'person-match-help'">
+                <legend class="text-xs font-medium">{{ I18N.gallery.people_match.title | translate }}</legend>
+                <div class="flex gap-3">
+                  <label class="inline-flex min-h-11 items-center gap-2"><input type="radio" name="person-match" data-person-match="all" value="all" [checked]="store.filters().person_match === 'all'" (change)="store.updateFilter('person_match', 'all')" />{{ I18N.gallery.people_match.all | translate }}</label>
+                  <label class="inline-flex min-h-11 items-center gap-2"><input type="radio" name="person-match" data-person-match="any" value="any" [checked]="store.filters().person_match === 'any'" (change)="store.updateFilter('person_match', 'any')" />{{ I18N.gallery.people_match.any | translate }}</label>
+                </div>
+                <p id="person-match-help" class="m-0 text-xs text-[var(--mat-sys-on-surface-variant)]">{{ I18N.gallery.people_match.hint | translate }}</p>
+              </fieldset>
+            }
             @if (selectedPersons().length) {
               <div class="flex flex-wrap gap-1.5">
                 @for (p of selectedPersons(); track p.id) {
@@ -503,7 +504,7 @@ export function loadActiveTab(): SidebarTabId {
                            (opened)="onSectionToggle('date', true)"
                            (closed)="onSectionToggle('date', false)"
                            [style.background-color]="sectionStates()['date'] !== false ? 'var(--mat-sys-surface-container)' : null">
-        <mat-expansion-panel-header class="!px-4">
+        <mat-expansion-panel-header class="!px-2">
           <mat-panel-title class="flex items-center gap-2">
             <mat-icon class="!text-xl !w-5 !h-5 !leading-none opacity-80">calendar_today</mat-icon>
             {{ I18N.gallery.sidebar.date | translate }}
@@ -525,16 +526,19 @@ export function loadActiveTab(): SidebarTabId {
             <mat-datepicker-toggle matIconSuffix [for]="toDp" />
             <mat-datepicker #toDp />
           </mat-form-field>
+          <mat-checkbox [checked]="!!store.filters().no_capture_date"
+                        (change)="onMissingDateChange($event.checked)">
+            {{ I18N.gallery.no_capture_date | translate }}
+          </mat-checkbox>
         </div>
       </mat-expansion-panel>
 
       <!-- Content -->
-      @if (store.types().length || store.tags().length || store.patterns().length) {
         <mat-expansion-panel class="!mb-1" [expanded]="sectionStates()['content'] !== false"
                              (opened)="onSectionToggle('content', true)"
                              (closed)="onSectionToggle('content', false)"
                              [style.background-color]="sectionStates()['content'] !== false ? 'var(--mat-sys-surface-container)' : null">
-          <mat-expansion-panel-header class="!px-4">
+          <mat-expansion-panel-header class="!px-2">
             <mat-panel-title class="flex items-center gap-2">
               <mat-icon class="!text-xl !w-5 !h-5 !leading-none opacity-80">label</mat-icon>
               {{ I18N.gallery.sidebar.content | translate }}
@@ -545,7 +549,7 @@ export function loadActiveTab(): SidebarTabId {
           </mat-expansion-panel-header>
           <div class="flex flex-col gap-2 pb-2">
             @if (store.types().length) {
-              <mat-form-field subscriptSizing="dynamic" class="w-full lg:!hidden">
+              <mat-form-field subscriptSizing="dynamic" class="w-full">
                 <mat-label>{{ I18N.ui.filters.type | translate }}</mat-label>
                 <mat-select panelWidth="auto" panelClass="nowrap-panel !max-h-[70vh]" [value]="store.filters().type" (selectionChange)="store.updateFilter('type', $event.value)">
                   <mat-option value="">{{ I18N.gallery.all_photos | translate }}</mat-option>
@@ -566,6 +570,9 @@ export function loadActiveTab(): SidebarTabId {
                 </mat-select>
               </mat-form-field>
             }
+            <app-tag-groups />
+            <app-keyword-catalog />
+            <app-keyword-tree />
             @if (store.patterns().length) {
               <mat-form-field subscriptSizing="dynamic" class="w-full">
                 <mat-label>{{ I18N.gallery.composition_pattern | translate }}</mat-label>
@@ -579,7 +586,6 @@ export function loadActiveTab(): SidebarTabId {
             }
           </div>
         </mat-expansion-panel>
-      }
 
       <!-- Albums -->
       @if (store.config()?.features?.show_albums && albums().length) {
@@ -587,7 +593,7 @@ export function loadActiveTab(): SidebarTabId {
                              (opened)="onSectionToggle('albums', true)"
                              (closed)="onSectionToggle('albums', false)"
                              [style.background-color]="sectionStates()['albums'] === true ? 'var(--mat-sys-surface-container)' : null">
-          <mat-expansion-panel-header class="!px-4">
+          <mat-expansion-panel-header class="!px-2">
             <mat-panel-title class="flex items-center gap-2">
               <mat-icon class="!text-xl !w-5 !h-5 !leading-none opacity-80">photo_album</mat-icon>
               {{ I18N.albums.title | translate }}
@@ -612,7 +618,7 @@ export function loadActiveTab(): SidebarTabId {
                            (opened)="onSectionToggle('location', true)"
                            (closed)="onSectionToggle('location', false)"
                            [style.background-color]="sectionStates()['location'] === true ? 'var(--mat-sys-surface-container)' : null">
-        <mat-expansion-panel-header class="!px-4">
+        <mat-expansion-panel-header class="!px-2">
           <mat-panel-title class="flex items-center gap-2">
             <mat-icon class="!text-xl !w-5 !h-5 !leading-none opacity-80">place</mat-icon>
             {{ I18N.gallery.sidebar.location | translate }}
@@ -654,7 +660,7 @@ export function loadActiveTab(): SidebarTabId {
                              (opened)="onSectionToggle('folder', true)"
                              (closed)="onSectionToggle('folder', false)"
                              [style.background-color]="sectionStates()['folder'] === true ? 'var(--mat-sys-surface-container)' : null">
-          <mat-expansion-panel-header class="!px-4">
+          <mat-expansion-panel-header class="!px-2">
             <mat-panel-title class="flex items-center gap-2">
               <mat-icon class="!text-xl !w-5 !h-5 !leading-none opacity-80">folder</mat-icon>
               {{ I18N.gallery.sidebar.folder | translate }}
@@ -692,7 +698,7 @@ export function loadActiveTab(): SidebarTabId {
                              (opened)="onSectionToggle('equipment', true)"
                              (closed)="onSectionToggle('equipment', false)"
                              [style.background-color]="sectionStates()['equipment'] !== false ? 'var(--mat-sys-surface-container)' : null">
-          <mat-expansion-panel-header class="!px-4">
+          <mat-expansion-panel-header class="!px-2">
             <mat-panel-title class="flex items-center gap-2">
               <mat-icon class="!text-xl !w-5 !h-5 !leading-none opacity-80">photo_camera</mat-icon>
               {{ I18N.gallery.sidebar.equipment | translate }}
@@ -728,106 +734,7 @@ export function loadActiveTab(): SidebarTabId {
         </mat-expansion-panel>
       }
           }
-          @case ('review') {
-      <div data-section="review" class="flex flex-col gap-2 px-1 pt-1 pb-2">
-        <div class="flex flex-col">
-          @for (row of reviewRows(); track row.id) {
-            @if ($index === 1) {
-              <span class="text-xs uppercase opacity-60 mt-2 mb-1 px-2">{{ I18N.gallery.sidebar.review.sets | translate }}</span>
-            }
-            <button type="button" matRipple class="flex w-full min-h-10 items-center gap-3 rounded-md px-2 py-1 text-left hover:bg-[var(--mat-sys-surface-container-high)] focus-visible:outline-2 focus-visible:outline-[var(--mat-sys-primary)] aria-disabled:opacity-50"
-              [attr.data-row]="row.id" aria-haspopup="menu"
-              [matMenuTriggerFor]="row.disabled ? null : menu" [attr.aria-disabled]="row.disabled || null"
-              [attr.aria-label]="I18N.gallery.sidebar.review.value_aria | translate:{ label: (row.labelKey | translate), value: (row.valueLabelKey | translate) }"
-              [appHelpTip]="(row.disabled ? I18N.gallery.sidebar.review.rejected_locked : row.helpKey) | translate">
-              <mat-icon class="!text-xl !w-5 !h-5 !leading-5 shrink-0 opacity-80">{{ row.icon }}</mat-icon>
-              <span class="flex-1 min-w-0 text-sm break-words">{{ row.labelKey | translate }}</span>
-              <span class="shrink-0 text-xs opacity-70" data-value>{{ row.valueLabelKey | translate }}</span>
-              <mat-icon class="!text-xl !w-5 !h-5 !leading-5 shrink-0 opacity-70">expand_more</mat-icon>
-            </button>
-            <mat-menu #menu="matMenu">
-              <ng-template matMenuContent>
-              @for (option of row.options; track option.value) {
-                <button type="button" mat-menu-item role="menuitemradio" [attr.data-option]="option.value"
-                  [attr.aria-checked]="option.value === row.value"
-                  [appHelpTip]="option.descKey | translate"
-                  (click)="onSegment(row.id, option.value)">
-                  <mat-icon [class.invisible]="option.value !== row.value">check</mat-icon>
-                  <span class="flex flex-col py-1">
-                    <span class="text-sm">{{ option.labelKey | translate }}</span>
-                    <span class="text-xs opacity-70 whitespace-normal leading-snug">{{ option.descKey | translate }}</span>
-                  </span>
-                </button>
-              }
-              </ng-template>
-            </mat-menu>
-          }
-        </div>
-
-        <div class="flex items-center gap-2 mt-1" role="group" [attr.aria-label]="I18N.gallery.sidebar.review.quick | translate" data-row="quick">
-          <span class="relative inline-flex">
-            <button type="button" mat-stroked-button class="!min-w-0 !w-10 !h-8 !px-0" data-row="rating"
-              [class.!bg-[var(--mat-sys-primary-container)]]="ratingMin() > 0"
-              [attr.aria-label]="ratingKey() | translate:ratingVars()"
-              [appHelpTip]="ratingKey() | translate:ratingVars()"
-              (click)="cycleRating()">
-              <mat-icon class="!text-xl !w-5 !h-5 !leading-5 !m-0">{{ ratingMin() > 0 ? 'star' : 'star_border' }}</mat-icon>
-            </button>
-            @if (ratingMin() > 0) {
-              <span aria-hidden="true" data-test="rating-badge" class="pointer-events-none absolute -top-1.5 -right-1.5 text-[0.625rem] rounded-full min-w-[1rem] h-4 px-1 flex items-center justify-center bg-[var(--mat-sys-primary)] text-[var(--mat-sys-on-primary)] leading-none">{{ ratingMin() }}</span>
-            }
-          </span>
-          <span class="sr-only" aria-live="polite" data-test="rating-status">{{ ratingKey() | translate:ratingVars() }}</span>
-          @if (ratingMaxLabel()) {
-            <span class="text-xs opacity-70" data-test="rating-max">{{ ratingMaxLabel() }}</span>
-          }
-          <button type="button" mat-stroked-button class="!min-w-0 !w-10 !h-8 !px-0" data-toggle="favorites_only"
-            [class.!bg-[var(--mat-sys-primary-container)]]="store.filters().favorites_only"
-            [attr.aria-pressed]="store.filters().favorites_only"
-            [attr.aria-label]="I18N.gallery.favorites_only | translate"
-            [appHelpTip]="I18N.gallery.sidebar.refine_help.favorites_only | translate"
-            (click)="store.updateFilter('favorites_only', !store.filters().favorites_only)">
-            <mat-icon class="!text-xl !w-5 !h-5 !leading-5 !m-0">favorite</mat-icon>
-          </button>
-          <button type="button" mat-stroked-button class="!min-w-0 !w-10 !h-8 !px-0" data-toggle="is_monochrome"
-            [class.!bg-[var(--mat-sys-primary-container)]]="store.filters().is_monochrome"
-            [attr.aria-pressed]="store.filters().is_monochrome"
-            [attr.aria-label]="I18N.gallery.monochrome_only | translate"
-            [appHelpTip]="I18N.gallery.sidebar.refine_help.monochrome_only | translate"
-            (click)="store.updateFilter('is_monochrome', !store.filters().is_monochrome)">
-            <mat-icon class="!text-xl !w-5 !h-5 !leading-5 !m-0">contrast</mat-icon>
-          </button>
-        </div>
-
-        <!-- A correction is invisible in the labels until the detector runs
-             again, so without this the only record of one still pending is
-             the user's memory. Edition-only: nobody else can make one. -->
-        @if (auth.isEdition()) {
-          <span class="text-xs uppercase opacity-60 mt-2">{{ I18N.gallery.sidebar.review.edition | translate }}</span>
-          <button type="button" mat-stroked-button class="!min-w-0 !h-8 !text-xs !justify-start" data-toggle="manual_faces_need_review"
-            [class.!bg-[var(--mat-sys-primary-container)]]="store.filters().manual_faces_need_review"
-            [attr.aria-pressed]="store.filters().manual_faces_need_review"
-            [appHelpTip]="I18N.gallery.sidebar.refine_help.manual_faces_need_review | translate"
-            (click)="store.updateFilter('manual_faces_need_review', !store.filters().manual_faces_need_review)">
-            {{ I18N.gallery.manual_faces_need_review | translate }}
-          </button>
-          @if (store.filters().manual_faces_need_review) {
-            <p class="text-xs text-gray-500 dark:text-gray-400">{{ I18N.gallery.manual_faces_review_hint | translate }}</p>
-          }
-          <mat-form-field subscriptSizing="dynamic" class="w-full">
-            <mat-label>{{ I18N.gallery.sequence_override.label | translate }}</mat-label>
-            <mat-select [value]="store.filters().sequence_override"
-                        [appHelpTip]="I18N.gallery.sidebar.refine_help.sequence_override | translate"
-                        (selectionChange)="store.updateFilter('sequence_override', $event.value)">
-              <mat-option value="">{{ I18N.gallery.sequence_override.all | translate }}</mat-option>
-              <mat-option value="any">{{ I18N.gallery.sequence_override.any | translate }}</mat-option>
-              <mat-option value="suppressed">{{ I18N.gallery.sequence_override.suppressed | translate }}</mat-option>
-              <mat-option value="forced">{{ I18N.gallery.sequence_override.forced | translate }}</mat-option>
-            </mat-select>
-          </mat-form-field>
-        }
-      </div>
-          }
+          @case ('review') { <ng-container [ngTemplateOutlet]="reviewSettings" /> }
           @case ('quality') {
       @for (group of qualityGroups(); track group.sectionKey) {
         <ng-container [ngTemplateOutlet]="metricPanel" [ngTemplateOutletContext]="{ $implicit: group }" />
@@ -839,7 +746,7 @@ export function loadActiveTab(): SidebarTabId {
                              (opened)="onSectionToggle('color_quality', true)"
                              (closed)="onSectionToggle('color_quality', false)"
                              [style.background-color]="sectionStates()['color_quality'] === true ? 'var(--mat-sys-surface-container)' : null">
-          <mat-expansion-panel-header class="!px-4">
+          <mat-expansion-panel-header class="!px-2">
             <mat-panel-title class="flex items-center gap-2">
               <mat-icon class="!text-xl !w-5 !h-5 !leading-none opacity-80">palette</mat-icon>
               {{ I18N.gallery.sidebar.color_quality | translate }}
@@ -883,6 +790,7 @@ export function loadActiveTab(): SidebarTabId {
                     class="flex items-center gap-1.5 rounded-full pl-1.5 pr-2.5 py-1 text-xs border border-[var(--mat-sys-outline-variant)] cursor-pointer"
                     [class.!border-[var(--mat-sys-primary)]]="store.filters().hue_bucket === h.value"
                     [class.bg-[var(--mat-sys-primary-container)]]="store.filters().hue_bucket === h.value"
+                    [attr.aria-pressed]="store.filters().hue_bucket === h.value"
                     [matTooltip]="('gallery.hue_buckets.' + h.value | translate) + ' (' + h.count + ')'"
                     (click)="toggleHueBucket(h.value)">
                     <span class="w-3.5 h-3.5 rounded-full shrink-0 border border-black/10" [style.background-color]="hueSwatches[h.value]"></span>
@@ -898,59 +806,14 @@ export function loadActiveTab(): SidebarTabId {
       @for (group of qualityAdvancedGroups(); track group.sectionKey) {
         <ng-container [ngTemplateOutlet]="metricPanel" [ngTemplateOutletContext]="{ $implicit: group }" />
       }
+      <app-score-presence [metrics]="scorePresenceMetrics" />
           }
           @case ('subject') {
       @for (group of subjectGroups(); track group.sectionKey) {
         <ng-container [ngTemplateOutlet]="metricPanel" [ngTemplateOutletContext]="{ $implicit: group }" />
       }
           }
-          @case ('display') {
-      <!-- View (display preferences, not filters): the tab's only section, so no panel around it -->
-        <div data-section="view" class="flex flex-col gap-2 px-4 pt-1 pb-2">
-          @if (store.galleryMode() !== 'mosaic') {
-            <mat-checkbox
-              [checked]="store.filters().hide_details"
-              (change)="store.updateFilter('hide_details', $event.checked)"
-            >{{ I18N.gallery.hide_details | translate }}</mat-checkbox>
-          }
-          <mat-checkbox
-            [checked]="store.virtualScroll()"
-            (change)="store.setVirtualScroll($event.checked)"
-          >{{ I18N.gallery.sidebar.virtual_scroll | translate }}</mat-checkbox>
-          <button mat-stroked-button class="!justify-start" (click)="openCardActionsDialog()">
-            <mat-icon class="!text-base !w-4 !h-4 !leading-4 mr-1">tune</mat-icon>
-            {{ I18N.gallery.card_actions.title | translate }}
-          </button>
-          <div class="flex items-center gap-2 mt-2">
-            <span class="text-sm opacity-70 shrink-0">{{ I18N.gallery.layout_mode | translate }}</span>
-            <div class="flex gap-1 ml-auto">
-              <button mat-icon-button class="!w-8 !h-8 !p-0 inline-flex items-center justify-center"
-                [class.!bg-[var(--mat-sys-primary-container)]]="store.galleryMode() === 'grid'"
-                [matTooltip]="I18N.gallery.layout_grid | translate"
-                [attr.aria-label]="I18N.gallery.layout_grid | translate"
-                (click)="store.setGalleryMode('grid')">
-                <mat-icon class="!text-lg !w-5 !h-5 !leading-5">grid_view</mat-icon>
-              </button>
-              <button mat-icon-button class="!w-8 !h-8 !p-0 inline-flex items-center justify-center"
-                [class.!bg-[var(--mat-sys-primary-container)]]="store.galleryMode() === 'mosaic'"
-                [matTooltip]="I18N.gallery.layout_mosaic | translate"
-                [attr.aria-label]="I18N.gallery.layout_mosaic | translate"
-                (click)="store.setGalleryMode('mosaic')">
-                <mat-icon class="!text-lg !w-5 !h-5 !leading-5">auto_awesome_mosaic</mat-icon>
-              </button>
-            </div>
-          </div>
-          @if (sliderConfig(); as sc) {
-            <div class="flex items-center gap-2 mt-2">
-              <span class="text-sm opacity-70 shrink-0">{{ I18N.gallery.thumbnail_size | translate }}</span>
-              <mat-slider [min]="thumbnailSliderMin()" [max]="sc.max_px" [step]="sc.step_px" class="flex-1">
-                <input matSliderThumb [value]="store.cardWidth()" (valueChange)="store.setCardWidth($event)" [attr.aria-label]="I18N.gallery.thumbnail_size | translate" />
-              </mat-slider>
-              <span class="text-xs opacity-60 w-10 text-right">{{ store.cardWidth() }}px</span>
-            </div>
-          }
-        </div>
-          }
+          @case ('display') { <ng-container [ngTemplateOutlet]="displayLayoutSettings" /><ng-container [ngTemplateOutlet]="displaySettings" /> }
         }
       }
 
@@ -959,7 +822,7 @@ export function loadActiveTab(): SidebarTabId {
                              (opened)="onSectionToggle(group.sectionKey, true)"
                              (closed)="onSectionToggle(group.sectionKey, false)"
                              [style.background-color]="sectionStates()[group.sectionKey] === true ? 'var(--mat-sys-surface-container)' : null">
-          <mat-expansion-panel-header class="!px-4">
+          <mat-expansion-panel-header class="!px-2">
             <mat-panel-title class="flex items-center gap-2">
               <mat-icon class="!text-xl !w-5 !h-5 !leading-none opacity-80" [class]="group.sectionKey | markTone">{{ sectionIcons[group.sectionKey] || 'tune' }}</mat-icon>
               {{ group.sectionKey | translate }}
@@ -976,9 +839,19 @@ export function loadActiveTab(): SidebarTabId {
         </mat-expansion-panel>
       </ng-template>
 
+      <span id="filter-pin-limit" class="sr-only">{{ I18N.gallery.sidebar.pins.limit | translate:{ max: pinLimit } }}</span>
       <ng-template #metricRow let-def>
         <div class="flex flex-col gap-0" [attr.data-metric]="def.id">
-          <span class="text-xs opacity-60 px-1" [appHelpTip]="def.helpKey | translate">{{ def.labelKey | translate }}</span>
+          <div class="flex min-h-11 items-center gap-1">
+            <span class="min-w-0 flex-1 text-xs px-1" [appHelpTip]="def.helpKey | translate">{{ def.labelKey | translate }}</span>
+            <button #metricPin type="button" mat-icon-button [attr.data-pin-filter]="def.id" class="shrink-0"
+                    [disabled]="!pinnedIds().has(def.id) && pinLimitReached()"
+                    [attr.aria-pressed]="pinnedIds().has(def.id)"
+                    [attr.aria-label]="(pinnedIds().has(def.id) ? I18N.gallery.sidebar.pins.remove : I18N.gallery.sidebar.pins.add) | translate:{ name: (def.labelKey | translate) }"
+                    [attr.aria-describedby]="pinLimitReached() ? 'filter-pin-limit' : null" (click)="togglePin(def)">
+              <mat-icon>{{ pinnedIds().has(def.id) ? 'star' : 'star_border' }}</mat-icon>
+            </button>
+          </div>
           <span class="sr-only" [id]="'metric-help-' + def.id">{{ def.helpKey | translate }}</span>
           <div class="flex items-center gap-1">
             <div class="flex-1 flex flex-col">
@@ -1019,14 +892,196 @@ export function loadActiveTab(): SidebarTabId {
         </button>
       </div>
     }
+</div></ng-template>
+<ng-template #reviewSettings>
+      <div data-section="review" class="flex flex-col gap-2 px-1 pt-1 pb-2">
+        <div class="flex flex-col">
+          @for (row of reviewRows(); track row.id) {
+            @if ($index === 1) {
+              <span class="text-xs uppercase opacity-60 mt-2 mb-1 px-2">{{ I18N.gallery.sidebar.review.sets | translate }}</span>
+            }
+            <button type="button" matRipple class="flex w-full min-h-10 items-center gap-3 rounded-md px-2 py-1 text-left hover:bg-[var(--mat-sys-surface-container-high)] focus-visible:outline-2 focus-visible:outline-[var(--mat-sys-primary)] aria-disabled:opacity-50"
+              [attr.data-row]="row.id" aria-haspopup="menu"
+              [matMenuTriggerFor]="row.disabled ? null : menu" [attr.aria-disabled]="row.disabled || null"
+              [attr.aria-label]="I18N.gallery.sidebar.review.value_aria | translate:{ label: (row.labelKey | translate), value: (row.valueLabelKey | translate) }"
+              [appHelpTip]="(row.disabled ? I18N.gallery.sidebar.review.rejected_locked : row.helpKey) | translate">
+              <mat-icon class="!text-xl !w-5 !h-5 !leading-5 shrink-0 opacity-80">{{ row.icon }}</mat-icon>
+              <span class="flex-1 min-w-0 text-sm break-words">{{ row.labelKey | translate }}</span>
+              <span class="shrink-0 text-xs opacity-70" data-value>{{ row.valueLabelKey | translate }}</span>
+              <mat-icon class="!text-xl !w-5 !h-5 !leading-5 shrink-0 opacity-70">expand_more</mat-icon>
+            </button>
+            <mat-menu #menu="matMenu">
+              <ng-template matMenuContent>
+              @for (option of row.options; track option.value) {
+                <button type="button" mat-menu-item role="menuitemradio" [attr.data-option]="option.value"
+                  [attr.aria-checked]="option.value === row.value"
+                  [appHelpTip]="option.descKey | translate"
+                  (click)="onSegment(row.id, option.value)">
+                  <mat-icon [class.invisible]="option.value !== row.value">check</mat-icon>
+                  <span class="flex flex-col py-1">
+                    <span class="text-sm">{{ option.labelKey | translate }}</span>
+                    <span class="text-xs opacity-70 whitespace-normal leading-snug">{{ option.descKey | translate }}</span>
+                  </span>
+                </button>
+              }
+              </ng-template>
+            </mat-menu>
+          }
+        </div>
+
+        <div class="flex flex-col" data-row="quick">
+          <span class="text-xs uppercase opacity-60 mt-2 mb-1 px-2" data-test="quick-title">{{ I18N.gallery.sidebar.review.quick | translate }}</span>
+          @if (!pinnedIds().has('star_rating_range')) {
+            <button #reviewRating type="button" matRipple class="flex w-full min-h-10 items-center gap-3 rounded-md px-2 py-1 text-left hover:bg-[var(--mat-sys-surface-container-high)] focus-visible:outline-2 focus-visible:outline-[var(--mat-sys-primary)]"
+              data-row="rating" aria-haspopup="menu" [matMenuTriggerFor]="ratingMenu"
+              [attr.aria-label]="I18N.gallery.sidebar.review.value_aria | translate:{ label: (I18N.gallery.star_rating_range | translate), value: (ratingValue().key | translate:ratingValue().vars) }"
+              [appHelpTip]="I18N.gallery.sidebar.review.rating_help | translate">
+              <mat-icon class="!text-xl !w-5 !h-5 !leading-5 shrink-0 opacity-80">{{ ratingOption() === 'any' ? 'star_border' : 'star' }}</mat-icon>
+              <span class="flex-1 min-w-0 text-sm break-words">{{ I18N.gallery.star_rating_range | translate }}</span>
+              <span class="shrink-0 text-xs opacity-70" data-value>{{ ratingValue().key | translate:ratingValue().vars }}</span>
+              <mat-icon class="!text-xl !w-5 !h-5 !leading-5 shrink-0 opacity-70">expand_more</mat-icon>
+            </button>
+            <mat-menu #ratingMenu="matMenu">
+              @for (option of ratingOptions; track option.id) {
+                <button type="button" mat-menu-item role="menuitemradio" [attr.data-option]="option.id"
+                  [attr.aria-checked]="ratingOption() === option.id" (click)="setRating(option.id)">
+                  <mat-icon [class.invisible]="ratingOption() !== option.id">check</mat-icon>{{ option.key | translate:option.vars }}
+                </button>
+              }
+            </mat-menu>
+          }
+          <mat-checkbox data-toggle="favorites_only" [checked]="store.filters().favorites_only"
+            [appHelpTip]="I18N.gallery.sidebar.refine_help.favorites_only | translate"
+            (change)="store.updateFilter('favorites_only', $event.checked)">{{ I18N.gallery.favorites_only | translate }}</mat-checkbox>
+          <mat-checkbox data-toggle="is_monochrome" [checked]="store.filters().is_monochrome"
+            [appHelpTip]="I18N.gallery.sidebar.refine_help.monochrome_only | translate"
+            (change)="store.updateFilter('is_monochrome', $event.checked)">{{ I18N.gallery.monochrome_only | translate }}</mat-checkbox>
+        </div>
+
+        <!-- A correction is invisible in the labels until the detector runs
+             again, so without this the only record of one still pending is
+             the user's memory. Edition-only: nobody else can make one. -->
+        @if (auth.isEdition()) {
+          <span class="text-xs uppercase opacity-60 mt-2">{{ I18N.gallery.sidebar.review.edition | translate }}</span>
+          <button type="button" mat-stroked-button class="!min-w-0 !h-8 !text-xs !justify-start" data-toggle="manual_faces_need_review"
+            [class.!bg-[var(--mat-sys-primary-container)]]="store.filters().manual_faces_need_review"
+            [attr.aria-pressed]="store.filters().manual_faces_need_review"
+            [appHelpTip]="I18N.gallery.sidebar.refine_help.manual_faces_need_review | translate"
+            (click)="store.updateFilter('manual_faces_need_review', !store.filters().manual_faces_need_review)">
+            {{ I18N.gallery.manual_faces_need_review | translate }}
+          </button>
+          @if (store.filters().manual_faces_need_review) {
+            <p class="text-xs text-gray-500 dark:text-gray-400">{{ I18N.gallery.manual_faces_review_hint | translate }}</p>
+          }
+          <mat-form-field subscriptSizing="dynamic" class="w-full">
+            <mat-label>{{ I18N.gallery.sequence_override.label | translate }}</mat-label>
+            <mat-select [value]="store.filters().sequence_override"
+                        [appHelpTip]="I18N.gallery.sidebar.refine_help.sequence_override | translate"
+                        (selectionChange)="store.updateFilter('sequence_override', $event.value)">
+              <mat-option value="">{{ I18N.gallery.sequence_override.all | translate }}</mat-option>
+              <mat-option value="any">{{ I18N.gallery.sequence_override.any | translate }}</mat-option>
+              <mat-option value="suppressed">{{ I18N.gallery.sequence_override.suppressed | translate }}</mat-option>
+              <mat-option value="forced">{{ I18N.gallery.sequence_override.forced | translate }}</mat-option>
+            </mat-select>
+          </mat-form-field>
+        }
+      </div>
+</ng-template>
+<ng-template #displayLayoutSettings>
+        <div data-section="view-layout" class="flex flex-col gap-2 px-1 pt-1">
+          <div class="flex items-center gap-2">
+            <span class="text-sm opacity-70 shrink-0">{{ I18N.gallery.layout_mode | translate }}</span>
+            <div class="ml-auto flex gap-1"><ng-container [ngTemplateOutlet]="layoutControls()" /></div>
+          </div>
+          @if (sliderConfig(); as sc) {
+            <div class="flex items-center gap-2">
+              <span class="text-sm opacity-70 shrink-0">{{ I18N.gallery.thumbnail_size | translate }}</span>
+              <mat-slider [min]="thumbnailSliderMin()" [max]="sc.max_px" [step]="sc.step_px" class="flex-1">
+                <input matSliderThumb [value]="store.cardWidth()" (valueChange)="store.setCardWidth($event)" [attr.aria-label]="I18N.gallery.thumbnail_size | translate" />
+              </mat-slider>
+              <span class="text-xs opacity-60 w-10 text-right">{{ store.cardWidth() }}px</span>
+            </div>
+          }
+        </div>
+</ng-template>
+<ng-template #displaySettings>
+      <!-- View (display preferences, not filters): the tab's only section, so no panel around it -->
+        <div data-section="view" class="flex flex-col gap-2 px-1 pt-1 pb-2">
+          <mat-checkbox data-face-outline-toggle [checked]="faceOutlines.enabled()" (change)="faceOutlines.setEnabled($event.checked)">{{ I18N.gallery.face_outlines | translate }}</mat-checkbox>
+          @if (store.galleryMode() !== 'mosaic') {
+            <mat-checkbox
+              [checked]="store.filters().hide_details"
+              (change)="store.updateFilter('hide_details', $event.checked)"
+            >{{ I18N.gallery.hide_details | translate }}</mat-checkbox>
+          }
+          <mat-checkbox
+            [checked]="store.virtualScroll()"
+            (change)="store.setVirtualScroll($event.checked)"
+          >{{ I18N.gallery.sidebar.virtual_scroll | translate }}</mat-checkbox>
+          <button mat-button data-card-actions class="!min-h-11 !w-full !justify-start" (click)="openCardActionsDialog()">
+            <mat-icon>tune</mat-icon>{{ I18N.gallery.card_actions.open | translate }}
+          </button>
+        </div>
+<ng-container [ngTemplateOutlet]="displayExtras()" /></ng-template>
+@if (!portSettings()) { <ng-container [ngTemplateOutlet]="bodyContent" /> }
   `,
 })
 export class GalleryFilterSidebarComponent {
+  protected readonly faceOutlines = inject(FaceOutlinePreferences);
+  readonly portSettings = input(false);
+  readonly bodyContent = viewChild<TemplateRef<unknown>>('bodyContent');
+  readonly reviewSettings = viewChild<TemplateRef<unknown>>('reviewSettings');
+  readonly displaySettings = viewChild<TemplateRef<unknown>>('displaySettings');
+  readonly displayLayoutSettings = viewChild<TemplateRef<unknown>>('displayLayoutSettings');
+  readonly displayExtras = input<TemplateRef<unknown> | null>(null);
+  readonly effectiveTab = computed(() => this.portSettings() && ['review', 'display'].includes(this.activeTab()) ? 'browse' : this.activeTab());
+  readonly layoutControls = input<TemplateRef<unknown> | null>(null);
+  protected readonly scorePresenceMetrics = [
+    ...ADDITIONAL_FILTERS.filter(def => SCORE_PRESENCE_KEYS.has(def.minKey)),
+    { minKey: 'min_topiq', labelKey: 'gallery.topiq_range' },
+  ];
   protected readonly I18N = i18nKeys();
   readonly store = inject(GalleryStore);
   readonly auth = inject(AuthService);
   private dialog = inject(MatDialog);
   private albumService = inject(AlbumService);
+  private readonly filterPins = inject(FilterPinsService);
+  private readonly injector = inject(Injector);
+  private readonly metricPins = viewChildren<unknown, ElementRef<HTMLButtonElement>>('metricPin', { read: ElementRef });
+  private readonly reviewRating = viewChild<unknown, ElementRef<HTMLButtonElement>>('reviewRating', { read: ElementRef });
+  protected readonly pinLimit = FILTER_PIN_LIMIT;
+  private readonly pinnableIds = computed(() => Object.values(this.filtersBySection()).flat().map(def => def.id));
+  readonly pinnedIds = computed(() => new Set(this.filterPins.ids(this.pinnableIds())));
+  readonly pinLimitReached = computed(() => this.pinnedIds().size >= FILTER_PIN_LIMIT);
+  readonly pinnedFilters = computed(() => {
+    const available = new Map(Object.values(this.filtersBySection()).flat().map(def => [def.id, def]));
+    return [...this.pinnedIds()].flatMap(id => {
+      const def = available.get(id);
+      return def ? [this.clampDef(def)] : [];
+    });
+  });
+
+  togglePin(def: AdditionalFilterDef): void {
+    if (!Object.values(this.filtersBySection()).flat().some(item => item.id === def.id)) return;
+    const trigger = this.metricPins().find(pin => pin.nativeElement.dataset['pinFilter'] === def.id)?.nativeElement;
+    const owner = this.auth.identity();
+    const restoreFocus = trigger && trigger.ownerDocument.activeElement === trigger;
+    const wasPinned = this.pinnedIds().has(def.id);
+    if (!this.filterPins.toggle(def.id, this.pinnableIds())) return;
+    if (wasPinned && !this.filterQuery().trim()) {
+      const tab = TAB_IDS.find(id => TAB_SECTIONS[id].includes(def.sectionKey));
+      if (tab) this.selectTab(tab);
+      this.onSectionToggle(def.sectionKey, true);
+    }
+    if (restoreFocus) afterNextRender(() => {
+      const focused = trigger.ownerDocument.activeElement;
+      if (this.auth.identity() !== owner || (focused !== trigger && focused !== trigger.ownerDocument.body)) return;
+      const destination = this.metricPins().find(pin => pin.nativeElement.dataset['pinFilter'] === def.id)?.nativeElement
+        ?? (def.id === 'star_rating_range' ? this.reviewRating()?.nativeElement : null);
+      destination?.focus();
+    }, { injector: this.injector });
+  }
+
   readonly albums = signal<Album[]>([]);
   readonly sectionStates = signal<Record<string, boolean>>(loadSectionStates());
   readonly activeTab = signal<SidebarTabId>(loadActiveTab());
@@ -1089,6 +1144,7 @@ export class GalleryFilterSidebarComponent {
   });
 
   // Person autocomplete (multi-select with search)
+  protected readonly personFilterLimit = PERSON_FILTER_LIMIT;
   readonly sidebarPersonQuery = signal('');
   private readonly sidebarPersonInput = viewChild<ElementRef<HTMLInputElement>>('sidebarPersonInput');
 
@@ -1119,7 +1175,7 @@ export class GalleryFilterSidebarComponent {
   onSidebarPersonSelected(event: MatAutocompleteSelectedEvent): void {
     const id = String(event.option.value);
     const current = this.selectedPersonIds();
-    if (!current.includes(id)) {
+    if (!current.includes(id) && current.length < PERSON_FILTER_LIMIT) {
       this.store.updateFilter('person_id', [...current, id].join(','));
     }
     this.sidebarPersonQuery.set('');
@@ -1193,7 +1249,7 @@ export class GalleryFilterSidebarComponent {
     const out: FilterGroup[] = [];
     for (const sectionKey of order) {
       const all = bySection[sectionKey];
-      let defs = all;
+      let defs = q ? all : all.filter(def => !this.pinnedIds().has(def.id));
       if (q && tr) {
         const sectionMatches = all.length > 0 && tr[all[0].id].section.includes(q);
         defs = sectionMatches ? all : all.filter(d => tr[d.id].label.includes(q));
@@ -1211,24 +1267,26 @@ export class GalleryFilterSidebarComponent {
 
   readonly qualityAdvancedGroups = computed(() => this.advancedFilterGroups().filter(g => TAB_SECTIONS.quality.includes(g.sectionKey)));
   readonly subjectGroups = computed(() => this.advancedFilterGroups().filter(g => TAB_SECTIONS.subject.includes(g.sectionKey)));
-  readonly ratingMin = computed(() => Number(this.store.filters().min_star_rating) || 0);
-  private readonly ratingMax = computed(() => Number(this.store.filters().max_star_rating) || 0);
-  /** The minimum the next click sets: one more star, and nothing (off) after 5 or after a max bound. */
-  private readonly ratingNext = computed(() => {
-    const next = Math.floor(this.ratingMin()) + 1;
-    if (next > 5 || (this.ratingMax() && next > this.ratingMax())) return 0;
-    return next;
+  readonly zeroStars = computed(() => hasZeroStarFilter(this.store.filters()));
+  protected readonly ratingOptions: { id: RatingOption; key: string; vars: Record<string, number> }[] = [
+    { id: 'any', key: I18N.gallery.sidebar.review.rating_any, vars: {} },
+    ...[1, 2, 3, 4, 5].map(count => ({ id: String(count) as RatingOption, key: I18N.gallery.sidebar.review.rating_min, vars: { count } })),
+    { id: 'zero', key: I18N.gallery.zero_stars, vars: {} },
+  ];
+  /** The menu entry matching the current bounds; `custom` for a min/max pair a link or smart album set. */
+  readonly ratingOption = computed((): RatingOption | 'custom' => {
+    const { min_star_rating: min, max_star_rating: max } = this.store.filters();
+    if (this.zeroStars()) return 'zero';
+    if (min === '' && max === '') return 'any';
+    if (max === '' && ['1', '2', '3', '4', '5'].includes(min)) return min as RatingOption;
+    return 'custom';
   });
-  /** "≤ 4" when a max bound came in from a link or smart album (the button only sets the min). */
-  readonly ratingMaxLabel = computed(() => this.ratingMax() ? `≤ ${this.ratingMax()}` : '');
-  /** The sentence for the button's tooltip and accessible name: the current state, and what a click does. */
-  readonly ratingKey = computed(() => {
-    const rv = this.I18N.gallery.sidebar.review;
-    if (this.ratingMin() === 0) return rv.rating_off;
-    if (this.ratingNext() === 0) return rv.rating_last;
-    return rv.rating_step;
+  readonly ratingValue = computed(() => {
+    const option = this.ratingOption();
+    if (option !== 'custom') return this.ratingOptions.find(({ id }) => id === option)!;
+    const { min_star_rating: min, max_star_rating: max } = this.store.filters();
+    return { id: option, key: this.I18N.gallery.sidebar.review.rating_range, vars: { min: Number(min) || 0, max: max === '' ? 5 : Number(max) } };
   });
-  readonly ratingVars = computed(() => ({ count: this.ratingMin(), next: this.ratingNext() }));
 
   /**
    * The Review tab's menu rows: the decision first, then the sets. A stale "hide"
@@ -1318,10 +1376,12 @@ export class GalleryFilterSidebarComponent {
     else void this.store.updateFilters(SEGMENT_PATCHES[row][value]);
   }
 
-  /** Each click raises the minimum star rating by one; the click after 5 clears it. */
-  cycleRating(): void {
-    const next = this.ratingNext();
-    void this.store.updateFilter('min_star_rating', next ? String(next) : '');
+  /** Applies the star-rating bounds of the chosen menu entry. */
+  setRating(option: RatingOption): void {
+    void this.store.updateFilters({
+      min_star_rating: option === 'any' || option === 'zero' ? '' : option,
+      max_star_rating: option === 'zero' ? '0' : '',
+    });
   }
 
   readonly qualityGroups = computed(() => this.commonFilterGroups().filter(g => g.sectionKey === 'gallery.sidebar.quality'));
@@ -1354,12 +1414,12 @@ export class GalleryFilterSidebarComponent {
   /** The header badge and Reset: every active control, a hidden metric's included, so Reset can always clear it. */
   readonly totalActiveCount = computed(() => countActiveFilters(this.store.filters()));
 
-  readonly tabItems = computed(() => TAB_IDS.map(id => ({
+  readonly tabItems = computed(() => TAB_IDS.filter(id => !this.portSettings() || (id !== 'review' && id !== 'display')).map(id => ({
     id,
     icon: TAB_ICONS[id],
     labelKey: this.I18N.gallery.sidebar.tabs[id],
     count: this.tabActiveCounts()[id],
-    active: this.activeTab() === id,
+    active: this.effectiveTab() === id,
   })));
 
   selectTab(id: SidebarTabId): void {
@@ -1387,8 +1447,16 @@ export class GalleryFilterSidebarComponent {
   }
 
   onDateChange(key: 'date_from' | 'date_to', event: MatDatepickerInputEvent<Date>): void {
-    this.store.updateFilter(key, toIsoDateString(event.value));
+    this.store.updateFilters({ [key]: toIsoDateString(event.value), no_capture_date: '' });
   }
+
+  onMissingDateChange(checked: boolean): void {
+    this.store.updateFilters(checked
+      ? { no_capture_date: '1', date_from: '', date_to: '' }
+      : { no_capture_date: '' });
+  }
+
+  protected readonly closeCountHelp = closeDetailsOnEscape;
 
   private readonly semanticSearchInput = viewChild<ElementRef<HTMLInputElement>>('semanticSearchInput');
   private searchTimeout: ReturnType<typeof setTimeout> | null = null;
@@ -1410,7 +1478,6 @@ export class GalleryFilterSidebarComponent {
     });
     inject(DestroyRef).onDestroy(() => {
       this.cancelPendingSearch();
-      if (this.filenameTimeout) clearTimeout(this.filenameTimeout);
       this.coarsePointer.cleanup();
     });
   }
@@ -1425,16 +1492,23 @@ export class GalleryFilterSidebarComponent {
   }
 
   /** Close overlays before the gallery parks behind a photo. */
+  private readonly popovers = viewChildren(ControlPopoverComponent);
+
   closeOverlays(): void {
+    for (const popover of this.popovers()) popover.open.set(false);
     closeOverlayDirectives(this.tooltips(), this.menuTriggers(), this.selects());
   }
 
   cancelPendingSearch(): void {
     if (this.searchTimeout) clearTimeout(this.searchTimeout);
     if (this.thresholdTimeout) clearTimeout(this.thresholdTimeout);
+    if (this.filenameTimeout) clearTimeout(this.filenameTimeout);
     this.searchTimeout = null;
     this.thresholdTimeout = null;
+    this.filenameTimeout = null;
     this.thresholdDraft.set(null);
+    const filenameInput = this.sidebarSearch()?.nativeElement;
+    if (filenameInput) filenameInput.value = this.store.filters().search;
     const input = this.semanticSearchInput()?.nativeElement;
     if (input) input.value = this.store.filters().semanticQuery;
   }
@@ -1450,6 +1524,8 @@ export class GalleryFilterSidebarComponent {
   /** The `/` shortcut's target when the toolbar search is hidden (below 1360 px). */
   focusSearch(): void {
     const input = this.sidebarSearch()?.nativeElement;
+    const disclosure = input?.closest('details');
+    if (disclosure) disclosure.open = true;
     input?.focus();
     input?.select();
   }
@@ -1474,12 +1550,37 @@ export class GalleryFilterSidebarComponent {
     this.store.updateFilter('search', (event.target as HTMLInputElement).value);
   }
 
+  clearSidebarSearch(): void {
+    if (this.filenameTimeout) clearTimeout(this.filenameTimeout);
+    this.filenameTimeout = null;
+    const input = this.sidebarSearch()?.nativeElement;
+    if (input) { input.value = ''; input.focus(); }
+    this.store.updateFilter('search', '');
+  }
+
+  private readonly filterFinder = viewChild<ElementRef<HTMLInputElement>>('filterFinder');
+
+  protected clearFilterQuery(): void {
+    this.filterQuery.set('');
+    const input = this.filterFinder()?.nativeElement;
+    if (input) { input.value = ''; input.focus(); }
+  }
+
   onSemanticSearch(event: Event): void {
     const value = (event.target as HTMLInputElement).value;
     if (this.searchTimeout) clearTimeout(this.searchTimeout);
     this.searchTimeout = setTimeout(() => {
+      this.searchTimeout = null;
       this.store.updateFilter('semanticQuery', value);
     }, 400);
+  }
+
+  clearSemanticSearch(): void {
+    if (this.searchTimeout) clearTimeout(this.searchTimeout);
+    this.searchTimeout = null;
+    const input = this.semanticSearchInput()?.nativeElement;
+    if (input) { input.value = ''; input.focus(); }
+    this.store.updateFilter('semanticQuery', '');
   }
 
   onSearchThresholdChange(value: number): void {

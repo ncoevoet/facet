@@ -20,6 +20,14 @@ describe('ApiService', () => {
   });
 
   describe('get()', () => {
+    it('preserves an explicit empty All photos type instead of selecting the server default', () => {
+      service.get('/photos', { type: '', search: '' }).subscribe();
+      const req = httpTesting.expectOne(r => r.url === '/api/photos');
+      expect(req.request.params.has('type')).toBe(true);
+      expect(req.request.params.get('type')).toBe('');
+      expect(req.request.params.has('search')).toBe(false);
+      req.flush({});
+    });
     it('should make a GET request to /api + path', () => {
       const mockData = { items: [1, 2, 3] };
 

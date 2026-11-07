@@ -1,4 +1,4 @@
-import { Component, inject, input, output, signal, computed, viewChild, ChangeDetectionStrategy } from '@angular/core';
+import { Component, inject, input, output, signal, computed, viewChild, DestroyRef, ChangeDetectionStrategy } from '@angular/core';
 import { MatDialog } from '@angular/material/dialog';
 import { MatIconModule } from '@angular/material/icon';
 import { MatMenuModule, MatMenuTrigger } from '@angular/material/menu';
@@ -6,6 +6,8 @@ import { MatSnackBar } from '@angular/material/snack-bar';
 import { Router } from '@angular/router';
 import { firstValueFrom } from 'rxjs';
 import { ApiService } from '../../core/services/api.service';
+import { AuthService } from '../../core/services/auth.service';
+import { UndoService } from '../../core/services/undo.service';
 import { I18nService } from '../../core/services/i18n.service';
 import { UserActivityJournal } from '../../core/agent/user-activity-journal.service';
 import { GalleryStore } from '../gallery/gallery.store';
@@ -26,7 +28,7 @@ export interface MenuPerson {
 export interface PersonFaceMenuTarget {
   person: MenuPerson | null;
   /** A face in the photo at ``path``; without one the menu is person-only. */
-  face: { id: number } | null;
+  face: { id: number; automatic?: boolean } | null;
 }
 
 /**
@@ -51,7 +53,7 @@ export interface PersonFaceMenuTarget {
     <mat-menu #menu="matMenu">
       @if (view(); as v) {
         <div class="px-4 py-2 text-xs opacity-70 truncate max-w-[16rem]">
-          {{ v.name || (I18N.photo_faces.unknown | translate) }}
+          {{ v.name || (I18N.photo_faces.unassigned_face | translate) }}
         </div>
         @if (v.personId) {
           <button mat-menu-item (click)="viewPhotos()">
@@ -65,6 +67,12 @@ export interface PersonFaceMenuTarget {
               <mat-icon>manage_accounts</mat-icon>
               {{ (v.personId ? I18N.photo_faces.change_person : I18N.photo_faces.name_face) | translate }}
             </button>
+            @if (v.automatic) {
+              <button mat-menu-item [disabled]="ignoreBusy()" (click)="ignoreDetection()">
+                <mat-icon>visibility_off</mat-icon>
+                {{ I18N.photo_faces.ignore_detection | translate }}
+              </button>
+            }
           }
           @if (v.personId) {
             @if (v.hasFace) {
@@ -110,6 +118,10 @@ export class PersonFaceMenuComponent {
   private readonly journal = inject(UserActivityJournal);
   private readonly faceBoxes = inject(PersonFaceBoxesService);
   private readonly hide = inject(PersonHideService);
+  private readonly auth = inject(AuthService);
+  private readonly undo = inject(UndoService);
+  private readonly destroyRef = inject(DestroyRef);
+  protected readonly ignoreBusy = signal(false);
 
   /** The photo the face belongs to; face actions need it. */
   readonly path = input<string | null>(null);
@@ -137,6 +149,7 @@ export class PersonFaceMenuComponent {
       unnamed: isUnnamedPerson(t.person?.name),
       hidden: !!t.person?.hidden,
       hasFace: t.face !== null,
+      automatic: t.face !== null && t.face.automatic !== false,
     };
   });
 
@@ -228,6 +241,43 @@ export class PersonFaceMenuComponent {
     this.journal.record('person', [path], { action: 'unassign', person_id: person.id });
     this.faceBoxes.invalidate(path);
     this.changed.emit();
+  }
+
+  /** Ignore this detection, rather than an entire person or the underlying photo. */
+  async ignoreDetection(): Promise<void> {
+    const face = this.target()?.face;
+    const path = this.path();
+    const owner = this.auth.identity();
+    if (!face || face.automatic === false || !path || !this.canEdit() || this.ignoreBusy()) return;
+    this.ignoreBusy.set(true);
+    try {
+      const result = await firstValueFrom(this.api.post<{ ignore_id: string }>(
+        `/face/${face.id}/ignore`, { photo_path: path }));
+      if (this.auth.identity() !== owner) return;
+      this.undo.register({
+        labelKey: I18N.photo_faces.detection_ignored,
+        durationMs: 10_000,
+        undo: async () => {
+          if (this.auth.identity() !== owner || !this.auth.isEdition()) throw new Error('Session changed');
+          await firstValueFrom(this.api.post(`/ignored-face/${result.ignore_id}/restore`, { photo_path: path }));
+          await this.refreshCorrection(path, owner);
+        },
+      });
+      await this.refreshCorrection(path, owner);
+    } catch {
+      if (!this.destroyRef.destroyed && this.path() === path && this.auth.identity() === owner) {
+        this.snackBar.open(this.i18n.t(I18N.errors.action_failed), '', { duration: 3000 });
+      }
+    } finally {
+      this.ignoreBusy.set(false);
+    }
+  }
+
+  private async refreshCorrection(path: string, owner: string): Promise<void> {
+    if (this.auth.identity() !== owner) return;
+    this.faceBoxes.invalidate(path);
+    await this.store.reloadPersonOptions();
+    if (!this.destroyRef.destroyed && this.path() === path && this.auth.identity() === owner) this.changed.emit();
   }
 
   async findMore(): Promise<void> {

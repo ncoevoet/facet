@@ -11,7 +11,7 @@ import sys
 
 import numpy as np
 
-from db.embedding_space import ARCFACE_MODEL, active_embedding_model, expected_dim, tag_matches
+from db.embedding_space import ARCFACE_MODEL, active_embedding_model, expected_dim, tag_matches, model_filter_sql
 
 logger = logging.getLogger("facet.person_centroids")
 
@@ -66,33 +66,42 @@ def recompute_person_centroid(conn, person_id, active=None):
     cleanup then deleted the named person. Giving each touched person a real
     centroid keeps them matchable.
 
-    Mirrors the clusterer's own centroid math: float32 embeddings of one model,
-    each L2-normalized, averaged, then renormalized. A person with no usable
+    Uses the clusterer's float32 normalized-mean arithmetic, streaming in stable
+    face-ID order instead of retaining all vectors. A person with no usable
     embeddings has its centroid and model set to NULL (it is still preserved by
     the history rule, never by centroid similarity).
     """
     model = person_centroid_model(conn, person_id, active)
-    embeddings = []
+    total = None
+    count = 0
     if model is not None:
         dim = expected_dim(model)
+        model_sql, model_params = model_filter_sql(model)
         # ORDER BY id: the float summation order of the mean must not depend on
         # which index happens to serve this read.
         rows = conn.execute(
             "SELECT embedding, embedding_model FROM faces "
-            "WHERE person_id = ? AND is_manual=0 AND length(embedding)>0 ORDER BY id",
-            (person_id,),
-        ).fetchall()
+            f"WHERE person_id = ? AND is_manual=0 AND length(embedding)=? AND {model_sql} ORDER BY id",
+            (person_id, dim * 4, *model_params),
+        )
         for row in rows:
+            if not tag_matches(row[1], model) or not isinstance(row[0], bytes) or len(row[0]) != dim * 4:
+                continue
             emb = np.frombuffer(row[0], dtype=np.float32)
-            if tag_matches(row[1], model) and len(emb) == dim:
-                embeddings.append(emb / (np.linalg.norm(emb) + 1e-10))
-    if not embeddings:
+            norm = np.linalg.norm(emb)
+            if not np.isfinite(emb).all() or not np.isfinite(norm) or norm <= 1e-10:
+                continue
+            if total is None:
+                total = np.zeros(dim, dtype=np.float32)
+            total += emb / (norm + 1e-10)
+            count += 1
+    if total is None:
         conn.execute(
             "UPDATE persons SET centroid = NULL, centroid_model = NULL WHERE id = ?",
             (person_id,))
         return
-    centroid = np.mean(embeddings, axis=0).astype(np.float32)
-    centroid = centroid / (np.linalg.norm(centroid) + 1e-10)
+    np.divide(total, np.intp(count), out=total, casting='unsafe')
+    centroid = total / (np.linalg.norm(total) + 1e-10)
     conn.execute(
         "UPDATE persons SET centroid = ?, centroid_model = ? WHERE id = ?",
         (centroid.tobytes(), model, person_id),
@@ -106,7 +115,6 @@ def load_person_centroids(conn, embedding_model=None, include_hidden=True):
     skipped: a dot product across embedding spaces is meaningless, and across
     lengths it is an error. ``conn`` must use ``sqlite3.Row`` rows.
     """
-    from db.embedding_space import model_filter_sql
     from db.schema import person_not_hidden_clause
 
     model = embedding_model or active_embedding_model()

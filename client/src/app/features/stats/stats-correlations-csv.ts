@@ -9,13 +9,20 @@ export interface CorrelationApiResponse {
   group_by: string;
 }
 
+/** Key of the bucket column: the X dimension, renamed when a Y metric of the same name would overwrite it. */
+export function correlationBucketColumn(data: CorrelationApiResponse, yMetrics: string[]): string {
+  const xCol = data.x_axis || 'x';
+  const metrics = new Set([...yMetrics, ...Object.keys(data.metrics ?? {})]);
+  return metrics.has(xCol) ? `${xCol}_bucket` : xCol;
+}
+
 /** Build the CSV export rows (one per bucket, or per bucket+group). */
 export function buildCorrelationCsvRecords(
   data: CorrelationApiResponse | null,
   yMetrics: string[],
 ): Record<string, CsvValue>[] {
   if (!data || !data.labels?.length) return [];
-  const xCol = data.x_axis || 'x';
+  const xCol = correlationBucketColumn(data, yMetrics);
   const records: Record<string, CsvValue>[] = [];
   if (data.groups && Object.keys(data.groups).length > 0) {
     for (const [group, byLabel] of Object.entries(data.groups)) {

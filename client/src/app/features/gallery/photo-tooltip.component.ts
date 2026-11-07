@@ -1,7 +1,10 @@
-import { Component, DestroyRef, Pipe, PipeTransform, computed, effect, inject, input, output, signal, untracked, viewChild, ElementRef, ChangeDetectionStrategy } from '@angular/core';
-import { NgTemplateOutlet, TitleCasePipe } from '@angular/common';
+import { CategoryLabelPipe } from '../../shared/pipes/category-label.pipe';
+import { Component, DestroyRef, computed, effect, inject, input, output, signal, untracked, viewChild, viewChildren, ElementRef, ChangeDetectionStrategy } from '@angular/core';
+import { NgTemplateOutlet } from '@angular/common';
 import { Router } from '@angular/router';
 import { MatIconModule } from '@angular/material/icon';
+import { MatMenuModule, MatMenuTrigger } from '@angular/material/menu';
+import { TagNavigation } from '../../shared/models/tag-navigation';
 import { catchError, of } from 'rxjs';
 import { Photo, PhotoSet, hasExifFields } from '../../shared/models/photo.model';
 import { ApiService } from '../../core/services/api.service';
@@ -16,8 +19,9 @@ import { aspectOf } from './gallery-rows.util';
 import { GalleryStore } from './gallery.store';
 import { HISTOGRAM_TOOLTIP_HEIGHT } from '../../shared/components/histogram/histogram.component';
 import { HistogramMode } from '../../shared/utils/histogram';
-import { MetricRankComponent } from '../../shared/components/metric-rank/metric-rank.component';
 import { PhotoMetricsTabsComponent } from '../../shared/components/photo-metrics-tabs/photo-metrics-tabs.component';
+import { CaptureDatePipe } from '../../shared/pipes/capture-date.pipe';
+import { PhotoAssessmentComponent } from '../../shared/components/photo-assessment/photo-assessment.component';
 
 /** How long the pointer must rest on a photo before the tooltip fetches the
  *  frame count + EV span for its set. Kind and this frame's own EV offset are
@@ -40,22 +44,12 @@ const KEY_SCORES = [
 // one module registry per worker -- the map spec's module mock resets it and nulls
 // this component's I18N import binding. Excluded in client/scripts/migrate-i18n.mjs.
 
-/** Replace underscores with spaces for display (e.g. "rule_of_thirds" → "Rule Of Thirds"). */
-@Pipe({ name: 'categoryLabel', standalone: true, pure: true })
-export class CategoryLabelPipe implements PipeTransform {
-  private titleCase = new TitleCasePipe();
-  transform(value: string | null): string {
-    if (!value) return '';
-    return this.titleCase.transform(value.replace(/_/g, ' '));
-  }
-}
-
 @Component({
   selector: 'app-photo-tooltip',
   imports: [
-    MatIconModule, NgTemplateOutlet, FixedPipe, ShutterSpeedPipe, TranslatePipe, ThumbnailUrlPipe, PersonThumbnailUrlPipe,
+    MatIconModule, MatMenuModule, NgTemplateOutlet, FixedPipe, ShutterSpeedPipe, TranslatePipe, ThumbnailUrlPipe, PersonThumbnailUrlPipe,
     CategoryLabelPipe, PhotoSetKindIconPipe, PhotoSetKindLabelPipe, EvOffsetPipe,
-    MomentLabelPipe, MetricRankComponent, PhotoMetricsTabsComponent,
+    MomentLabelPipe, PhotoMetricsTabsComponent, CaptureDatePipe, PhotoAssessmentComponent,
   ],
   changeDetection: ChangeDetectionStrategy.Eager,
   template: `
@@ -65,12 +59,13 @@ export class CategoryLabelPipe implements PipeTransform {
            escaped class binding is invisible to it (z-[1000] silently vanished
            that way). Docking overrides it through style bindings instead. -->
       <div #root
-        class="fixed z-[1000] pointer-events-none flex flex-col backdrop-blur-sm p-2.5 rounded-xl shadow-2xl"
+        class="fixed z-[1000] pointer-events-none flex flex-col p-3 rounded shadow-lg"
         [class.max-h-[calc(100vh-2rem)]]="!docked()"
         [class.overflow-y-auto]="!docked()"
         [style.position]="docked() ? 'static' : null"
         [style.pointer-events]="showInteractiveControls() ? 'auto' : null"
         [style.width]="docked() ? '100%' : null"
+        [style.padding]="docked() ? '16px' : null"
         [style.background]="docked() ? 'transparent' : 'var(--facet-tooltip-bg)'"
         [style.border]="docked() ? 'none' : '1px solid var(--facet-tooltip-border)'"
         [style.border-radius]="docked() ? '0' : null"
@@ -92,11 +87,11 @@ export class CategoryLabelPipe implements PipeTransform {
           <img
             [src]="p.path | thumbnailUrl:640:p.preview_revision"
             [alt]="p.filename"
-            class="rounded-md shrink-0 max-w-full w-auto h-auto"
+            class="rounded-sm shrink-0 max-w-full w-auto h-auto"
             [class.self-center]="docked()"
             [class.max-h-[40vh]]="!isLandscape() && !docked()"
             [class.max-h-[28vh]]="isLandscape() && !docked()"
-            [class.max-h-[75vh]]="docked()"
+            [class.max-h-[32dvh]]="docked()"
           />
 
           <!-- Scoring panel -->
@@ -116,19 +111,16 @@ export class CategoryLabelPipe implements PipeTransform {
               @if (p.date_taken) {
                 <span class="text-[var(--facet-tooltip-text-muted)] text-[11px] font-normal shrink-0"
                   [class.block]="!isLandscape()"
-                >{{ p.date_taken }}</span>
+                data-capture-date>{{ p.date_taken | captureDate }}</span>
               }
             </div>
 
             <!-- Category + aggregate placed in the library like photo detail's,
                with the stars on their own line. -->
-            <div class="flex items-center gap-2 mt-1 mb-1.5">
-              <span class="px-2 py-0.5 rounded-full text-xs font-medium bg-[var(--mat-sys-primary-container)] text-[var(--mat-sys-on-primary-container)] truncate">{{ p.category | categoryLabel }}</span>
-              <span class="ml-auto flex items-center gap-2 shrink-0">
-                @if (store.metricRangesByColumn()['aggregate']; as range) {<app-metric-rank class="w-24" [range]="range" [value]="p.aggregate" />}
-                <span class="text-lg font-semibold leading-tight tabular-nums text-[var(--mat-sys-primary)]"><span class="sr-only">{{ 'gallery.aggregate_score' | translate }} </span>{{ p.aggregate | fixed:1 }}</span>
-              </span>
-            </div>
+            @if (p.category) { <div class="flex items-center gap-2 mt-1 mb-1.5">
+              <span class="text-xs text-[var(--facet-tooltip-text-secondary)] truncate">{{ p.category | categoryLabel }}</span>
+            </div> }
+            @if (!docked()) { <app-photo-assessment [photo]="p" [range]="store.metricRangesByColumn()['aggregate']" /> }
             @if (p.star_rating) {
               <div class="flex items-center gap-0.5 mb-1.5 text-yellow-400" role="img"
                    [attr.aria-label]="'rating.stars_out_of_five' | translate:{ stars: p.star_rating }">
@@ -159,7 +151,7 @@ export class CategoryLabelPipe implements PipeTransform {
                  EXIF line. Every other metric lives in the side
                  panel and photo detail, which the docked rail renders below. -->
             @if (!docked()) {
-              <div class="border-t border-[var(--facet-tooltip-divider)] pt-1.5 mt-1">
+              <div data-floating-key-scores class="border-t border-[var(--facet-tooltip-divider)] pt-1.5 mt-1">
                 @for (row of KEY_SCORES; track row.field) {
                   @if (p[row.field] !== null && p[row.field] !== undefined) {
                     <div class="flex items-baseline gap-2">
@@ -246,13 +238,26 @@ export class CategoryLabelPipe implements PipeTransform {
         }
 
         <!-- Zone C: Tags (full width) -->
-        @if (p.tags_list.length) {
+        @if (navigationTags().length) {
           <div class="flex gap-1 flex-wrap mt-2 pt-1.5 border-[var(--facet-tooltip-divider)]" [class.border-t]="!docked()">
-            @for (tag of p.tags_list; track tag) {
-              <span class="px-1.5 py-0.5 bg-[var(--facet-accent-badge)] text-[var(--facet-accent-text)] rounded text-[10px]">{{ tag }}</span>
+            @for (tag of navigationTags(); track tag) {
+              @if (personLinks() && showInteractiveControls()) {
+                <button type="button" data-testid="tooltip-tag" class="min-h-9 px-1.5 py-0.5 bg-[var(--facet-accent-badge)] text-[var(--facet-accent-text)] rounded text-[10px] hover:brightness-90 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--mat-sys-primary)]"
+                  [matMenuTriggerFor]="tagMenu" [matMenuTriggerData]="{ tag: tag }">{{ tag }}</button>
+              } @else {
+                <span class="px-1.5 py-0.5 bg-[var(--facet-accent-badge)] text-[var(--facet-accent-text)] rounded text-[10px]">{{ tag }}</span>
+              }
             }
           </div>
         }
+        <mat-menu #tagMenu="matMenu">
+          <ng-template matMenuContent let-tag="tag">
+            @if (tagCollectionAvailable()) {
+              <button mat-menu-item (click)="onTagClick(tag, 'collection')"><mat-icon>filter_alt</mat-icon>{{ 'photo_detail.tag_refine_collection' | translate }}</button>
+            }
+            <button mat-menu-item (click)="onTagClick(tag, 'library')"><mat-icon>search</mat-icon>{{ 'photo_detail.tag_search_library' | translate }}</button>
+          </ng-template>
+        </mat-menu>
 
         <!-- Zone D: Person avatars. No label -- round face thumbnails are
              self-explanatory and the label was just noise competing for width
@@ -406,6 +411,10 @@ export class PhotoTooltipComponent {
   });
 
   constructor() {
+    effect(() => {
+      this.photo(); this.docked(); this.pinned(); this.personLinks();
+      untracked(() => this.closeOverlays());
+    });
     this.destroyRef.onDestroy(() => { this.destroyed = true; });
     const onResize = () => this.viewport.set({ width: window.innerWidth, height: window.innerHeight });
     window.addEventListener('resize', onResize);
@@ -458,7 +467,7 @@ export class PhotoTooltipComponent {
    * page's existing query-param fallback fetches it, same as a bookmarked link.
    */
   protected openSetMember(path: string): void {
-    this.router.navigate(['/photo'], { queryParams: { path } });
+    this.router.navigate(['/photo'], { queryParams: { path }, state: { photoOrigin: 'in-app' } });
   }
 
   /** Emits the clicked person's id, comma-list-formatted the way `person_id`
@@ -471,6 +480,21 @@ export class PhotoTooltipComponent {
    *  face -- while the sidebar's own multi-select remains the place to build
    *  up a filter across several people. */
   readonly personSelected = output<string>();
+  readonly tagSelected = output<TagNavigation>();
+  private readonly menus = viewChildren(MatMenuTrigger);
+
+  closeOverlays(): void {
+    for (const menu of this.menus()) menu.closeMenu();
+  }
+  readonly tagCollectionAvailable = input(true);
+  protected readonly navigationTags = computed(() => [...new Set([
+    ...(this.photo()?.tags_list ?? []), ...(this.photo()?.manual_tags ?? []),
+  ])]);
+
+  protected onTagClick(tag: string, scope: TagNavigation['scope']): void {
+    if (!this.personLinks() || !this.showInteractiveControls() || (scope === 'collection' && !this.tagCollectionAvailable())) return;
+    this.tagSelected.emit({ tag, scope });
+  }
 
   protected onPersonClick(id: number): void {
     this.personSelected.emit(String(id));

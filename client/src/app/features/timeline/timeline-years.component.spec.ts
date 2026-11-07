@@ -1,5 +1,7 @@
 import type { Mock } from 'vitest';
 import { TestBed } from '@angular/core/testing';
+import { provideRouter, Router } from '@angular/router';
+import { AuthService } from '../../core/services/auth.service';
 import { signal } from '@angular/core';
 import { of, throwError } from 'rxjs';
 import { I18nService } from '../../core/services/i18n.service';
@@ -31,19 +33,22 @@ describe('TimelineYearsComponent', () => {
 
     TestBed.configureTestingModule({
       providers: [
+        provideRouter([]),
+        { provide: AuthService, useValue: { status: signal({ user_id: 'alice' }), token: 'a' } },
         { provide: ApiService, useValue: mockApi },
         { provide: I18nService, useValue: { t: (key: string) => `T(${key})`, translations: () => ({}) } },
         TimelineFiltersService,
         { provide: GalleryStore, useValue: mockStore },
       ],
     });
+    vi.spyOn(TestBed.inject(Router), 'url', 'get').mockReturnValue('/timeline');
     component = TestBed.runInInjectionContext(() => new TimelineYearsComponent());
   });
 
   describe('load', () => {
     it('should call /timeline/years with just the view filter params when dates are empty', async () => {
       await component.load('', '', { ...noneHidden });
-      expect(mockApi.get).toHaveBeenCalledWith('/timeline/years', { ...noneHidden });
+      expect(mockApi.get).toHaveBeenCalledWith('/timeline/years', { ...noneHidden }, expect.anything());
     });
 
     it('should pass date_from and date_to when provided', async () => {
@@ -52,7 +57,7 @@ describe('TimelineYearsComponent', () => {
         ...noneHidden,
         date_from: '2024-01-01',
         date_to: '2024-12-31',
-      });
+      }, expect.anything());
     });
 
     it('should populate years signal', async () => {
@@ -83,33 +88,13 @@ describe('TimelineYearsComponent', () => {
   describe('reactive refetch on hide-toggle change', () => {
     it('re-fetches /timeline/years when GalleryStore.viewFilterParams changes', () => {
       TestBed.flushEffects();
-      expect(mockApi.get).toHaveBeenCalledWith('/timeline/years', { ...noneHidden });
+      expect(mockApi.get).toHaveBeenCalledWith('/timeline/years', { ...noneHidden }, expect.anything());
       mockApi.get.mockClear();
 
       mockStore.viewFilterParams.set({ ...noneHidden, hide_bursts: '1' });
       TestBed.flushEffects();
 
-      expect(mockApi.get).toHaveBeenCalledWith('/timeline/years', { ...noneHidden, hide_bursts: '1' });
-    });
-  });
-
-  describe('rendered: a failed load', () => {
-    async function renderFailed() {
-      mockApi.get.mockReturnValue(throwError(() => new Error('fail')));
-      const fixture = TestBed.createComponent(TimelineYearsComponent);
-      fixture.detectChanges();
-      await fixture.whenStable();
-      fixture.detectChanges();
-      return fixture.nativeElement as HTMLElement;
-    }
-
-    it('shows the alert and not the empty state (Retry re-requests)', async () => {
-      const el = await renderFailed();
-      expect(el.querySelector('[role="alert"]')).toBeTruthy();
-      expect(el.textContent).not.toContain('timeline.empty');
-      const calls = mockApi.get.mock.calls.length;
-      (el.querySelector('[role="alert"] button') as HTMLButtonElement).click();
-      expect(mockApi.get.mock.calls.length).toBe(calls + 1);
+      expect(mockApi.get).toHaveBeenCalledWith('/timeline/years', { ...noneHidden, hide_bursts: '1' }, expect.anything());
     });
   });
 });

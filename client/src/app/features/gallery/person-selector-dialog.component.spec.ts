@@ -1,6 +1,6 @@
 import { signal } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
-import { MatDialogRef } from '@angular/material/dialog';
+import { MAT_DIALOG_DATA, MatDialogRef } from '@angular/material/dialog';
 import { of, Subject, throwError } from 'rxjs';
 import { PersonAssignmentHistoryService } from '../../core/services/person-assignment-history.service';
 import { AuthService } from '../../core/services/auth.service';
@@ -11,6 +11,24 @@ import type { PersonOption } from './gallery.store';
 
 const alice: PersonOption = { id: 1, name: 'Alice', face_count: 1 };
 const bob: PersonOption = { id: 2, name: 'Bob', face_count: 3 };
+describe('PersonSelectorDialogComponent existing-person-only review', () => {
+  it('does not offer or return Create when the caller requires an existing target', async () => {
+    const close = vi.fn();
+    TestBed.configureTestingModule({ imports: [PersonSelectorDialogComponent], providers: [
+      { provide: AuthService, useValue: { identity: () => 'owner' } },
+      { provide: PersonAssignmentHistoryService, useValue: { recentIds: () => [] } },
+      { provide: ApiService, useValue: { get: () => of({ persons: [alice], total: 1 }) } },
+      { provide: MatDialogRef, useValue: { close } }, { provide: MAT_DIALOG_DATA, useValue: { allowCreate: false } },
+      { provide: I18nService, useValue: { t: (key: string) => key, translations: () => ({}) } },
+    ] });
+    const fixture = TestBed.createComponent(PersonSelectorDialogComponent);
+    fixture.detectChanges(); await fixture.whenStable(); fixture.detectChanges();
+    expect(fixture.nativeElement.textContent).not.toContain('person_selector.create_new');
+    fixture.componentInstance.startCreate(); fixture.componentInstance.newName = 'New person'; fixture.componentInstance.confirmCreate();
+    expect(close).not.toHaveBeenCalled();
+    expect(fixture.componentInstance.creating()).toBe(false);
+  });
+});
 describe('PersonSelectorDialogComponent server search', () => {
   const identity = signal('1|test');
   const recentIds = vi.fn(() => [] as number[]);

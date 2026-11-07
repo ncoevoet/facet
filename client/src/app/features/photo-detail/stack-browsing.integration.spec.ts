@@ -1,5 +1,6 @@
 import { StackNavigatorComponent } from './stack-navigator.component';
 import { By } from '@angular/platform-browser';
+import { Location } from '@angular/common';
 import { provideLocationMocks } from '@angular/common/testing';
 import { Component, signal } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
@@ -110,7 +111,7 @@ describe('manual stack browsing through rendered viewer, Router and HTTP', () =>
     TestBed.configureTestingModule({ providers: [
       provideHttpClient(withXhr()), provideHttpClientTesting(), provideLocationMocks(),
       provideRouter([{ path: '', component: SourceComponent }, { path: 'photo', component: PhotoDetailComponent }, { path: 'away', component: SourceComponent }]),
-      { provide: I18nService, useValue: { translations: signal({}), locale: () => 'en', t: (key: string, params?: Record<string, unknown>) => key === 'stacks.browse_position' ? params?.['position'] + ' of ' + params?.['count'] : key === 'stacks.open_member' ? key + ' ' + params?.['path'] : key } },
+      { provide: I18nService, useValue: { translations: signal({}), locale: () => 'en', t: (key: string, params?: Record<string, unknown>) => key === 'stacks.browse_position' ? params?.['position'] + ' of ' + params?.['count'] : key === 'photo_detail.collection.position' ? 'Collection ' + params?.['position'] + ' / ' + params?.['total'] : key === 'stacks.open_member' ? key + ' ' + params?.['path'] : key === 'stacks.open_member_at_position' ? key + ' ' + params?.['path'] + ' ' + params?.['position'] + '/' + params?.['count'] : key } },
       { provide: AssistantChangesService, useValue: { batch$: assistantBatches.asObservable() } },
       { provide: MatSnackBar, useValue: snack },
     ] });
@@ -134,11 +135,456 @@ describe('manual stack browsing through rendered viewer, Router and HTTP', () =>
     localStorage.clear(); sessionStorage.clear();
   });
 
+  it('pans a zoomed photo without Router/HTTP navigation and restores navigation at Fit', async () => {
+    await open();
+    const canvas = root().querySelector<HTMLElement>('[data-photo-canvas]')!;
+    Object.defineProperty(canvas, 'clientWidth', { value: 400 });
+    Object.defineProperty(canvas, 'clientHeight', { value: 300 });
+    const key = (value: string) => {
+      canvas.dispatchEvent(new KeyboardEvent('keydown', { key: value, bubbles: true, cancelable: true }));
+      harness.detectChanges();
+    };
+    const before = router.url;
+    key('+'); key('ArrowRight');
+    expect((canvas.querySelector('img') as HTMLImageElement).style.transform).toBe('scale(1.25) translate(-32px, 0px)');
+    expect(router.url).toBe(before);
+    http.expectNone(request => request.url === '/api/photo');
+    key('Home'); expect((canvas.querySelector('img') as HTMLImageElement).style.transform).toBe('');
+    const navigation = arrived(); key('ArrowRight');
+    const request = http.expectOne(request => request.url === '/api/photo');
+    expect(request.request.params.get('path')).toBe(paths[2]);
+    request.flush(makePhoto({ path: paths[2] })); await navigation; await membership();
+  });
+
+  it('shows the keyboard help only for keyboard focus, not after a mouse click', async () => {
+    await open();
+    const help = root().querySelector<HTMLElement>('#photo-inspection-help')!;
+    expect(help.classList).toContain('group-focus-visible/photo:visible');
+    expect(help.classList).not.toContain('group-focus/photo:visible');
+  });
+
+  it('lets collection order own the arrows while stacks are expanded, even when members are not adjacent', async () => {
+    store.collapseStacks.set(false);
+    const members = new Set(paths);
+    const gallery = ['/y.jpg', paths[2], paths[0], '/x.jpg', paths[1], '/z.jpg'].map(path => makePhoto({ path, stack_id: members.has(path) ? stack.id : null }));
+    store.photos.set(gallery);
+    store.total.set(gallery.length);
+    await router.navigate(['/photo'], { queryParams: { path: paths[0] }, state: { photo: gallery[2] } });
+    await membership();
+    const collectionStep = async (path: string) => {
+      const navigation = arrived();
+      document.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowRight', bubbles: true }));
+      await navigation;
+      http.match(request => request.url === '/api/photo').forEach(request => request.flush(makePhoto({ path })));
+      await membership(members.has(path) ? stack : null);
+      expect(router.url).toContain(encodeURIComponent(path));
+    };
+    await collectionStep('/x.jpg');
+    await collectionStep(paths[1]);
+    await collectionStep('/z.jpg');
+  });
+
+  it('browses the originating collection without changing filters, selection, or Back destination', async () => {
+    await open();
+    const beforeFilters = { ...store.filters() };
+    const beforeSelection = new Set(store.selectedPaths());
+    const navigation = arrived();
+    const sidebar = root().querySelector('app-photo-collection-sidebar')!;
+    const thumbnails = sidebar.querySelectorAll<HTMLButtonElement>('button[title]');
+    expect(thumbnails).toHaveLength(2);
+    thumbnails[1].click();
+    await navigation;
+    await membership(null);
+    expect(router.url).toContain(encodeURIComponent('/outside.jpg'));
+    const images = root().querySelectorAll<HTMLImageElement>('div.cursor-grab > img');
+    expect(new URL(images[0].src).searchParams.get('path')).toBe('/outside.jpg');
+    expect(new URL(images[1].src).searchParams.get('path')).toBe('/outside.jpg');
+    expect(new URL(images[2].src).searchParams.get('path')).toBe('/outside.jpg');
+    expect(sidebar.querySelector('[aria-current="true"]')).not.toBeNull();
+    expect(store.filters()).toEqual(beforeFilters);
+    expect(store.selectedPaths()).toEqual(beforeSelection);
+    const returned = arrived();
+    button('button[aria-label="photo_detail.back"]').click();
+    await returned;
+    expect(router.url).toBe('/?no_gps=true');
+  });
+
+  it('opens the adjacent collection photo when an arrow key follows a thumbnail click', async () => {
+    store.photos.set([makePhoto({ path: paths[1] }), makePhoto({ path: '/outside.jpg', filename: 'outside.jpg' })]);
+    await open();
+    const filters = { ...store.filters() };
+    const selection = new Set(store.selectedPaths());
+    const current = button('app-photo-collection-sidebar [data-collection-current]');
+    current.click(); current.focus();
+    const navigation = arrived();
+    const navigate = vi.spyOn(router, 'navigate');
+    current.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowRight', bubbles: true, cancelable: true }));
+    // Navigation reuses the loaded collection row. Assert the real Router call
+    // before waiting, so a missing action fails without timing out the test.
+    expect(navigate).toHaveBeenCalledExactlyOnceWith(['/photo'], expect.objectContaining({
+      queryParams: { path: '/outside.jpg' }, replaceUrl: true,
+    }));
+    await navigation;
+    await membership(null);
+    expect(router.url).toContain(encodeURIComponent('/outside.jpg'));
+    expect(root().querySelector('h1')?.textContent).toContain('outside.jpg');
+    expect(button('app-photo-collection-sidebar [data-collection-current]').getAttribute('aria-label')).toBe('outside.jpg');
+    expect(store.filters()).toEqual(filters);
+    expect(store.selectedPaths()).toEqual(selection);
+  });
+
+  it('leaves a stack cover through collection arrows without stepping into its members', async () => {
+    const cover = makePhoto({ path: paths[0], stack_id: stack.id });
+    store.photos.set([cover, makePhoto({ path: '/outside.jpg', filename: 'outside.jpg' })]);
+    await router.navigate(['/photo'], { queryParams: { path: cover.path }, state: { photo: cover } });
+    await membership();
+    expect(button('[data-stack-next]').disabled).toBe(false);
+    const beforeFilters = { ...store.filters() };
+
+    const navigation = arrived();
+    button('[data-photo-next]').click();
+    await navigation;
+    await membership(null);
+
+    expect(router.url).toContain(encodeURIComponent('/outside.jpg'));
+    expect(store.filters()).toEqual(beforeFilters);
+    expect(root().querySelector('h1')?.textContent).toContain('outside.jpg');
+  });
+
+  it.each(['click', 'ArrowRight', 'ArrowLeft', 'unannotated'])('keeps collapsed collection navigation on non-cover members (%s)', async action => {
+    const cover = makePhoto({ path: paths[0], stack_id: stack.id });
+    const outside = makePhoto({ path: '/outside.jpg', filename: 'outside.jpg' });
+    store.photos.set(action === 'ArrowLeft' ? [outside, cover] : [cover, outside]);
+    store.total.set(2);
+    const member = makePhoto({ path: action === 'ArrowRight' ? paths[2] : paths[1], stack_id: action === 'unannotated' ? null : stack.id });
+    await router.navigate(['/photo'], { queryParams: { path: member.path }, state: { photo: member } });
+    harness.detectChanges();
+    http.match(request => request.url === '/api/photo').forEach(request => request.flush(member));
+    await membership();
+    expect(root().querySelector('app-photo-collection-sidebar [data-collection-current]')?.getAttribute('aria-label')).toBe(cover.filename);
+    expect(root().querySelector('[data-photo-next]')).not.toBeNull();
+    expect(root().querySelector('[data-photo-previous]')).not.toBeNull();
+    expect(root().querySelector('[data-collection-position]')?.textContent).toContain(action === 'ArrowLeft' ? 'Collection 2 / 2' : 'Collection 1 / 2');
+    if (action === 'ArrowLeft') await keyboardMember('ArrowLeft', paths[0]);
+    const navigation = arrived();
+    if (action === 'click' || action === 'unannotated') button('[data-photo-next]').click();
+    else document.dispatchEvent(new KeyboardEvent('keydown', { key: action, bubbles: true }));
+    await navigation;
+    await membership(null);
+    expect(router.url).toContain(encodeURIComponent('/outside.jpg'));
+  });
+
+  it('pages from a folded member using its cover slot', async () => {
+    const cover = makePhoto({ path: paths[0], stack_id: stack.id });
+    const member = makePhoto({ path: paths[1], stack_id: stack.id });
+    store.photos.set([cover]); store.total.set(2); store.hasMore.set(true);
+    await router.navigate(['/photo'], { queryParams: { path: member.path }, state: { photo: member } });
+    harness.detectChanges();
+    http.match(request => request.url === '/api/photo').forEach(request => request.flush(member));
+    await membership();
+    expect(button('[data-photo-next]').getAttribute('aria-label')).toBe('photo_detail.collection.next');
+    expect(root().querySelector('[data-photo-inspector]')?.getAttribute('aria-label')).toBe('photo_detail.details');
+    expect(root().querySelector('[data-photo-info] summary h2')).not.toBeNull();
+    const favorite = button('[aria-label="rating.favorite"]');
+    expect(favorite.getAttribute('aria-pressed')).toBe('false');
+    const navigation = arrived();
+    button('[data-photo-next]').click();
+    const request = http.expectOne(request => request.url === '/api/photos');
+    expect(request.request.params.get('page')).toBe('2');
+    request.flush({ photos: [makePhoto({ path: '/next.jpg' })], total: 2, photo_total: 2, has_more: false });
+    await navigation;
+    await membership(null);
+    expect(router.url).toContain(encodeURIComponent('/next.jpg'));
+  });
+
+  it('reports failed Next paging and retries the same collection page', async () => {
+    store.photos.set([makePhoto({ path: '/outside.jpg' })]);
+    store.hasMore.set(true);
+    await router.navigate(['/photo'], { queryParams: { path: '/outside.jpg' }, state: { photo: store.photos()[0] } });
+    await membership(null);
+    button('[data-photo-next]').click();
+    const failed = http.expectOne(request => request.url === '/api/photos');
+    expect(failed.request.params.get('page')).toBe('2');
+    failed.flush({}, { status: 503, statusText: 'Offline' });
+    await render();
+    expect(router.url).toContain(encodeURIComponent('/outside.jpg'));
+    expect(button('[data-photo-next]').disabled).toBe(false);
+    expect(snack.open).toHaveBeenCalledWith('gallery.load_error.page_failed', '', expect.anything());
+
+    const navigation = arrived();
+    button('[data-photo-next]').click();
+    const retry = http.expectOne(request => request.url === '/api/photos');
+    expect(retry.request.params.get('page')).toBe('2');
+    expect(retry.request.params.get('no_gps')).toBe('true');
+    retry.flush({ photos: [makePhoto({ path: '/next.jpg' })], total: 2, photo_total: 2, has_more: false });
+    await navigation;
+    await membership(null);
+    expect(router.url).toContain(encodeURIComponent('/next.jpg'));
+    expect(button('[data-photo-next]').disabled).toBe(true);
+  });
+
+  it('returns to an explicitly marked in-app origin without a prefetched photo', async () => {
+    await router.navigate(['/photo'], { queryParams: { path: paths[1] }, state: { photoOrigin: 'in-app' } });
+    await membership(null);
+    const returned = arrived();
+    button('button[aria-label="photo_detail.back"]').click();
+    await returned;
+    expect(router.url).toBe('/?no_gps=true');
+  });
+
+  it('keeps a direct photo entry safe after tag search, browser Back and viewer Escape', async () => {
+    await router.navigate(['/photo'], { queryParams: { path: paths[1] }, replaceUrl: true });
+    await membership(null);
+    expect(TestBed.inject(Location).getState()).toEqual(expect.objectContaining({ photoBack: false }));
+    const page = harness.routeDebugElement!.componentInstance as unknown as { navigateTag(tag: string, scope: 'library'): void };
+    let navigation = arrived(); page.navigateTag('coast', 'library'); await navigation;
+    navigation = arrived(); TestBed.inject(Location).back(); await navigation; await membership(null);
+    const back = vi.spyOn(TestBed.inject(Location), 'back');
+    navigation = arrived();
+    document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true, cancelable: true }));
+    await navigation;
+    expect(back).not.toHaveBeenCalled(); expect(router.url).toBe('/');
+  });
+
+  it('updates Back ownership when browser history reuses the same photo component', async () => {
+    await open();
+    const instance = harness.routeDebugElement!.componentInstance;
+    await router.navigate(['/photo'], { queryParams: { path: '/outside.jpg' }, state: { photoBack: false, photo: makePhoto({ path: '/outside.jpg' }) } });
+    await membership(null);
+    expect(harness.routeDebugElement!.componentInstance).toBe(instance);
+    const back = vi.spyOn(TestBed.inject(Location), 'back');
+    const returned = arrived(); button('button[aria-label="photo_detail.back"]').click(); await returned;
+    expect(back).not.toHaveBeenCalled(); expect(router.url).toBe('/');
+  });
+
+  it.each([false, true])('retains the photo visit collection after a library tag search and history Back (step=%s)', async step => {
+    store.filters.update(filters => ({ ...filters, album_id: '7', date_from: '2026-10-01', date_to: '2026-10-31' }));
+    await open();
+    if (step) {
+      const navigation = arrived();
+      root().querySelectorAll<HTMLButtonElement>('app-photo-collection-sidebar button[title]')[1].click();
+      await navigation;
+      await membership(null);
+    }
+    const photoPage = () => harness.routeDebugElement!.componentInstance as unknown as {
+      navigateTag(tag: string, scope: 'library' | 'collection'): void;
+    };
+    let navigation = arrived();
+    photoPage().navigateTag('coast,ridge OR 夜景', 'library');
+    await navigation;
+    // A library visit replaces the singleton store's current query. The photo
+    // visit's origin must survive independently of that later gallery state.
+    store.filters.update(filters => ({ ...filters, album_id: '', date_from: '', date_to: '', no_gps: '',
+      tag_groups: '{"all":["coast,ridge OR 夜景"]}' }));
+    navigation = arrived();
+    TestBed.inject(Location).back();
+    await navigation;
+    await membership(step ? null : stack);
+    navigation = arrived();
+    photoPage().navigateTag('夜景', 'collection');
+    await navigation;
+    const url = new URL(router.url, 'http://fixture');
+    expect(url.searchParams.get('album_id')).toBe('7');
+    expect(url.searchParams.get('date_from')).toBe('2026-10-01');
+    expect(url.searchParams.get('date_to')).toBe('2026-10-31');
+    expect(url.searchParams.get('no_gps')).toBe('true');
+    expect(url.searchParams.get('tag_groups')).toBe('{"all":["夜景"]}');
+  });
+
+  it('restores each query when history navigation reuses the photo component', async () => {
+    store.filters.update(filters => ({ ...filters, album_id: '7' }));
+    await open();
+    const instance = harness.routeDebugElement!.componentInstance;
+    store.filters.update(filters => ({ ...filters, album_id: '99' }));
+    await router.navigate(['/photo'], { queryParams: { path: '/outside.jpg' }, state: { photo: makePhoto({ path: '/outside.jpg' }) } });
+    await membership(null);
+    expect(harness.routeDebugElement!.componentInstance).toBe(instance);
+    const navigation = arrived();
+    TestBed.inject(Location).back();
+    await navigation;
+    await membership();
+    expect(harness.routeDebugElement!.componentInstance).toBe(instance);
+    const forward = arrived();
+    TestBed.inject(Location).forward();
+    await forward;
+    await membership(null);
+    expect(TestBed.inject(Location).getState()).toEqual(expect.objectContaining({
+      photoTagOrigin: expect.objectContaining({ params: expect.objectContaining({ album_id: '99' }) }),
+    }));
+    const back = arrived();
+    TestBed.inject(Location).back();
+    await back;
+    await membership();
+    const returned = arrived();
+    (instance as { navigateTag(tag: string, scope: 'collection'): void }).navigateTag('trip', 'collection');
+    await returned;
+    expect(new URL(router.url, 'http://fixture').searchParams.get('album_id')).toBe('7');
+  });
+
+  it('does not adopt an old photo visit collection after another account returns through Back', async () => {
+    store.filters.update(filters => ({ ...filters, album_id: '7' }));
+    await open();
+    let navigation = arrived();
+    await router.navigateByUrl('/away');
+    await navigation;
+    auth.status.update(status => ({ ...status!, user_id: 'bob' }));
+    store.filters.update(filters => ({ ...filters, album_id: '99' }));
+    navigation = arrived();
+    TestBed.inject(Location).back();
+    await navigation;
+    await membership();
+    const page = harness.routeDebugElement!.componentInstance as unknown as {
+      tagCollectionAvailable(): boolean;
+      navigateTag(tag: string, scope: 'collection' | 'library'): void;
+    };
+    expect(page.tagCollectionAvailable()).toBe(false);
+    page.navigateTag('trip', 'collection');
+    expect(router.url).toContain('/photo?');
+    navigation = arrived();
+    page.navigateTag('trip', 'library');
+    await navigation;
+    expect(router.url).toBe('/?tag_groups=%7B%22all%22:%5B%22trip%22%5D%7D');
+  });
+
+  it.each(['pinned', 'similar'])('keeps %s visits unavailable for query refinement after Back', async kind => {
+    if (kind === 'pinned') store.pinnedPaths.set([paths[1]]);
+    else store.filters.update(filters => ({ ...filters, similar_to: '/source.jpg' }));
+    await open();
+    const page = () => harness.routeDebugElement!.componentInstance as unknown as {
+      tagCollectionAvailable(): boolean;
+      navigateTag(tag: string, scope: 'collection' | 'library'): void;
+    };
+    let navigation = arrived();
+    page().navigateTag('trip', 'library');
+    await navigation;
+    store.pinnedPaths.set(null);
+    store.filters.update(filters => ({ ...filters, similar_to: '' }));
+    navigation = arrived();
+    TestBed.inject(Location).back();
+    await navigation;
+    await membership();
+    expect(page().tagCollectionAvailable()).toBe(false);
+    page().navigateTag('trip', 'collection');
+    expect(router.url).toContain('/photo?');
+  });
+
+  it('does not navigate from a stale collection button after the account changes', async () => {
+    await open();
+    const thumbnail = root().querySelectorAll<HTMLButtonElement>('app-photo-collection-sidebar button[title]')[1];
+    auth.status.update(status => ({ ...status!, user_id: 'bob' }));
+    thumbnail.click();
+    await initialPhoto();
+    expect(router.url).toContain(encodeURIComponent(paths[1]));
+    expect(root().querySelector('app-photo-collection-sidebar')).toBeNull();
+  });
+
+  it('loads and retries the next collection page using the preserved query', async () => {
+    await open();
+    store.hasMore.set(true); store.total.set(3);
+    await render();
+    const load = () => button('app-photo-collection-sidebar div[tabindex] > button').click();
+    load();
+    const failed = http.expectOne(request => request.url === '/api/photos');
+    expect(failed.request.params.get('no_gps')).toBe('true');
+    expect(failed.request.params.get('page')).toBe('2');
+    failed.flush({}, { status: 503, statusText: 'Offline' });
+    await render();
+    expect(store.photos()).toHaveLength(2);
+    expect(store.filters().page).toBe(1);
+    load();
+    const retry = http.expectOne(request => request.url === '/api/photos');
+    expect(retry.request.params.get('page')).toBe('2');
+    retry.flush({ photos: [makePhoto({ path: '/next.jpg' })], total: 3, photo_total: 3, has_more: false });
+    await render();
+    expect(store.photos().map(photo => photo.path)).toEqual([paths[1], '/outside.jpg', '/next.jpg']);
+    expect(router.url).toContain(encodeURIComponent(paths[1]));
+    expect(store.filters().no_gps).toBe('true');
+  });
+
+  it('refreshes and follows an explicitly changed primary without changing the gallery query', async () => {
+    await open();
+    store.selectedPaths.set(new Set([paths[1]]));
+    const component = harness.routeDebugElement!.componentInstance as { onLogicalAssetApplied(change: object): Promise<void> };
+    const applying = component.onLogicalAssetApplied({ operation: 'primary', assetId: 'asset', primaryPath: '/outside.jpg', members: [paths[1], '/outside.jpg'] });
+    const read = http.expectOne(request => request.url === '/api/photo');
+    expect(read.request.params.get('path')).toBe('/outside.jpg');
+    read.flush(makePhoto({ path: '/outside.jpg', filename: 'chosen-primary.jpg' }));
+    await applying;
+    await membership(null);
+    expect(router.url).toContain(encodeURIComponent('/outside.jpg'));
+    expect(root().querySelector('[data-photo-detail-header]')?.textContent).toContain('chosen-primary.jpg');
+    expect([...store.selectedPaths()]).toEqual(['/outside.jpg']);
+    expect(store.filters().no_gps).toBe('true');
+  });
+
+  it('does not follow an obsolete primary refresh after navigating away', async () => {
+    await open();
+    const component = harness.routeDebugElement!.componentInstance as { onLogicalAssetApplied(change: object): Promise<void> };
+    const applying = component.onLogicalAssetApplied({ operation: 'primary', assetId: 'asset', primaryPath: '/outside.jpg', members: [paths[1], '/outside.jpg'] });
+    const read = http.expectOne(request => request.url === '/api/photo');
+    await router.navigateByUrl('/away');
+    read.flush(makePhoto({ path: '/outside.jpg' }));
+    await applying;
+    expect(router.url).toBe('/away');
+  });
+
+  it('reports a failed primary refresh without undoing the committed choice or navigating', async () => {
+    await open();
+    const notice = vi.spyOn(harness.routeDebugElement!.injector.get(MatSnackBar), 'open').mockReturnValue(snack.open() as never);
+    const component = harness.routeDebugElement!.componentInstance as { onLogicalAssetApplied(change: object): Promise<void> };
+    const applying = component.onLogicalAssetApplied({ operation: 'primary', assetId: 'asset', primaryPath: '/outside.jpg', members: [paths[1], '/outside.jpg'] });
+    http.expectOne(request => request.url === '/api/photo').flush({}, { status: 503, statusText: 'Offline' });
+    await applying;
+    expect(router.url).toContain(encodeURIComponent(paths[1]));
+    expect(notice).toHaveBeenCalledWith('logical_assets.refresh_error', '', { duration: 5000 });
+  });
+
+  it('only follows the latest confirmed primary when refreshes complete out of order', async () => {
+    await open();
+    const component = harness.routeDebugElement!.componentInstance as { onLogicalAssetApplied(change: object): Promise<void> };
+    const change = { operation: 'primary', assetId: 'asset', members: [paths[1], '/outside.jpg', paths[0]] };
+    const first = component.onLogicalAssetApplied({ ...change, primaryPath: '/outside.jpg' });
+    const old = http.expectOne(request => request.url === '/api/photo');
+    const second = component.onLogicalAssetApplied({ ...change, primaryPath: paths[0] });
+    http.expectOne(request => request.url === '/api/photo').flush(makePhoto({ path: paths[0] }));
+    await second;
+    await membership(null);
+    old.flush(makePhoto({ path: '/outside.jpg' }));
+    await first;
+    expect(router.url).toContain(encodeURIComponent(paths[0]));
+  });
+
+  it('invalidates a pending primary refresh across same-component navigation ABA', async () => {
+    await open();
+    const component = harness.routeDebugElement!.componentInstance as { onLogicalAssetApplied(change: object): Promise<void> };
+    const applying = component.onLogicalAssetApplied({ operation: 'primary', assetId: 'asset', primaryPath: '/outside.jpg', members: [paths[1], '/outside.jpg'] });
+    const old = http.expectOne(request => request.url === '/api/photo');
+    await router.navigate(['/photo'], { queryParams: { path: paths[0] }, state: { photo: makePhoto({ path: paths[0] }) } });
+    await membership(null);
+    await router.navigate(['/photo'], { queryParams: { path: paths[1] }, state: { photo: makePhoto({ path: paths[1] }) } });
+    await membership(null);
+    old.flush(makePhoto({ path: '/outside.jpg' }));
+    await applying;
+    expect(router.url).toContain(encodeURIComponent(paths[1]));
+  });
+
+  it('releases the temporary primary row so a later revisit reads current store metadata', async () => {
+    await open();
+    const component = harness.routeDebugElement!.componentInstance as { onLogicalAssetApplied(change: object): Promise<void> };
+    const applying = component.onLogicalAssetApplied({ operation: 'primary', assetId: 'asset', primaryPath: '/outside.jpg', members: [paths[1], '/outside.jpg'] });
+    http.expectOne(request => request.url === '/api/photo').flush(makePhoto({ path: '/outside.jpg', filename: 'old-primary.jpg' }));
+    await applying; await membership(null);
+    store.photos.update(photos => photos.map(photo => photo.path === '/outside.jpg' ? { ...photo, filename: 'fresh-primary.jpg' } : photo));
+    await router.navigate(['/photo'], { queryParams: { path: paths[1] } }); await membership(null);
+    await router.navigate(['/photo'], { queryParams: { path: '/outside.jpg' } }); await membership(null);
+    expect(root().querySelector('[data-photo-detail-header]')?.textContent).toContain('fresh-primary.jpg');
+  });
+
   it('ordinary cover opens ordered visible strip; buttons and arrows stay inside stack without pinning or replacing gallery filters', async () => {
     await open();
     expect(root().querySelector('[data-stack-position]')?.textContent).toContain('2 of 3');
     expect(root().querySelectorAll('[data-stack-thumbnail]')).toHaveLength(3);
-    expect(root().querySelector('[aria-current="true"]')?.getAttribute('aria-label')).toContain(paths[1]);
+    expect(root().querySelector('app-stack-navigator [aria-current="true"]')?.getAttribute('aria-label')).toBe('stacks.open_member_at_position b.jpg 2/3');
     expect(store.pinnedPaths()).toBeNull();
     await clickMember('[data-stack-next]', paths[2]);
     expect(button('[data-stack-next]').disabled).toBe(true);
@@ -329,36 +775,31 @@ describe('manual stack browsing through rendered viewer, Router and HTTP', () =>
     expect(store.pinnedPaths()).toEqual(pinned);
   });
 
-  it('keeps both keyboard arrows bounded to the permitted stack intersection of an exact list', async () => {
+  it('leaves the permitted stack intersection for the adjacent collection entry at its boundary', async () => {
     store.pinnedPaths.set(['/outside.jpg', paths[1], paths[2]]);
     store.photos.set(['/outside.jpg', paths[1], paths[2]].map(path => makePhoto({ path })));
     await open();
     expect(root().querySelectorAll('[data-stack-thumbnail]')).toHaveLength(2);
     expect(root().querySelector('[data-stack-position]')?.textContent).toContain('1 of 2');
     expect(button('[data-stack-prev]').disabled).toBe(true);
+    const navigation = arrived();
     document.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowLeft', bubbles: true }));
-    http.expectNone(request => request.url === '/api/photo');
-    await render();
-    expect(router.url).toContain(encodeURIComponent(paths[1]));
-    await keyboardMember('ArrowRight', paths[2]);
-    document.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowRight', bubbles: true }));
-    http.expectNone(request => request.url === '/api/photo');
-    expect(router.url).toContain(encodeURIComponent(paths[2]));
+    await navigation;
+    await membership(null);
+    expect(router.url).toContain(encodeURIComponent('/outside.jpg'));
     expect(store.pinnedPaths()).toEqual(['/outside.jpg', paths[1], paths[2]]);
   });
 
-  it('keeps a one-member stack intersection bounded while ordinary nonstack photos use pinned-list order', async () => {
+  it('leaves a one-member stack intersection and returns using collection order', async () => {
     store.pinnedPaths.set([paths[1], '/outside.jpg']);
     await open();
     expect(root().querySelectorAll('[data-stack-thumbnail]')).toHaveLength(1);
     expect(button('[data-stack-next]').disabled).toBe(true);
+    const outgoing = arrived();
     document.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowRight', bubbles: true }));
-    http.expectNone(request => request.url === '/api/photo');
-    await render();
-    expect(router.url).toContain(encodeURIComponent(paths[1]));
-    // An explicitly opened nonstack photo still follows the exact list.
-    await router.navigate(['/photo'], { queryParams: { path: '/outside.jpg' } });
+    await outgoing;
     await membership(null);
+    expect(router.url).toContain(encodeURIComponent('/outside.jpg'));
     const navigation = arrived();
     document.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowLeft', bubbles: true }));
     await navigation;
@@ -618,7 +1059,7 @@ describe('manual stack browsing through rendered viewer, Router and HTTP', () =>
     route.runGuardsAndResolvers = 'always';
     document.querySelector<HTMLButtonElement>('app-stack-dialog button[data-stack-focus="/c.jpg"]')!.click();
     await render();
-    document.querySelector<HTMLButtonElement>('app-stack-dialog button[aria-label="stacks.open_member /c.jpg"]')!.click();
+    document.querySelector<HTMLButtonElement>('app-stack-dialog button[aria-label="stacks.open_member c.jpg"]')!.click();
     http.expectOne(request => request.url === '/api/photo').flush(makePhoto({ path: paths[2] }));
     await guardEntered;
     store.pinnedPaths.set([paths[1]]);

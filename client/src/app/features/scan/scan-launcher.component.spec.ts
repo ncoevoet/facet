@@ -1,5 +1,5 @@
 import { TestBed } from '@angular/core/testing';
-import { signal } from '@angular/core';
+import { signal, computed } from '@angular/core';
 import { MatDialogRef } from '@angular/material/dialog';
 import { I18nService } from '../../core/services/i18n.service';
 import { ScanService, ScanStatus } from '../../core/services/scan.service';
@@ -16,6 +16,11 @@ describe('ScanLauncherComponent', () => {
     startScan: ReturnType<typeof vi.fn>;
     status: ReturnType<typeof signal<ScanStatus>>;
     connected: ReturnType<typeof signal<boolean>>;
+    statusKnown: ReturnType<typeof signal<boolean>>;
+    observationError: ReturnType<typeof signal<boolean>>;
+    connect: ReturnType<typeof vi.fn>;
+    cancelScan: ReturnType<typeof vi.fn>;
+    canCancel: ReturnType<typeof computed<boolean>>;
   };
   let dialogClose: ReturnType<typeof vi.fn>;
 
@@ -27,7 +32,9 @@ describe('ScanLauncherComponent', () => {
       ])),
       startScan: vi.fn(() => Promise.resolve()),
       status: signal<ScanStatus>(idleStatus()),
-      connected: signal(false),
+      connected: signal(false), statusKnown: signal(true), observationError: signal(false), connect: vi.fn(async () => undefined),
+      cancelScan: vi.fn(async () => undefined),
+      canCancel: computed(() => mockScan.status().running && !!mockScan.status().job_id && !mockScan.status().cancel_requested),
     };
     dialogClose = vi.fn();
 
@@ -64,6 +71,23 @@ describe('ScanLauncherComponent', () => {
     expect(mockScan.startScan).not.toHaveBeenCalled();
   });
 
+  it('recovers observation after an uncertain start without allowing a second start', async () => {
+    mockScan.startScan.mockRejectedValueOnce(new Error('lost response'));
+    (component as any).selectedDir.set('/photos/a');
+    await component.start();
+    expect(read<boolean>('startError')).toBe(true);
+    expect(mockScan.connect).toHaveBeenCalledTimes(1);
+    await component.start();
+    expect(mockScan.startScan).toHaveBeenCalledTimes(1);
+  });
+
+  it('does not start before status is known or while observation has failed', async () => {
+    (component as any).selectedDir.set('/photos/a');
+    mockScan.statusKnown.set(false); await component.start();
+    mockScan.statusKnown.set(true); mockScan.observationError.set(true); await component.start();
+    expect(mockScan.startScan).not.toHaveBeenCalled();
+  });
+
   it('computes a determinate progress percentage', () => {
     mockScan.status.set({ ...idleStatus(), running: true,
       progress: { phase: 'scoring', current: 5, total: 20 } });
@@ -92,30 +116,5 @@ describe('ScanLauncherComponent', () => {
     mockScan.status.set({ ...idleStatus(), running: false, exit_code: 0 });
     TestBed.tick();
     expect(dialogClose).toHaveBeenCalledWith(true);
-  });
-
-  describe('a refused start', () => {
-    async function startRefused(err: unknown): Promise<HTMLElement> {
-      mockScan.startScan.mockReturnValueOnce(Promise.reject(err));
-      const fixture = TestBed.createComponent(ScanLauncherComponent);
-      const c = fixture.componentInstance as unknown as { selectedDir: { set(v: string): void }; start(): Promise<void> };
-      fixture.detectChanges();
-      await fixture.whenStable();
-      c.selectedDir.set('/photos/a');
-      await c.start();
-      fixture.detectChanges();
-      expect((fixture.componentInstance as unknown as { started(): boolean }).started()).toBe(false);
-      return fixture.nativeElement as HTMLElement;
-    }
-
-    it("shows the server's detail and gives the button back", async () => {
-      const el = await startRefused({ error: { detail: 'A scan is already running' } });
-      expect(el.querySelector('[role="alert"]')?.textContent?.trim()).toBe('A scan is already running');
-    });
-
-    it('falls back to the translated generic error when there is no detail', async () => {
-      const el = await startRefused(new Error('boom'));
-      expect(el.querySelector('[role="alert"]')?.textContent?.trim()).toBe('T(errors.action_failed)');
-    });
   });
 });

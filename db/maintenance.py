@@ -10,6 +10,7 @@ import logging
 import os
 import shutil
 import sqlite3
+from contextlib import ExitStack
 from datetime import datetime
 from io import BytesIO
 
@@ -631,7 +632,14 @@ def _normalize_review_decisions(conn: sqlite3.Connection) -> None:
             conn.execute(f"UPDATE {table} SET is_kept = 0 WHERE is_kept != 0 AND is_rejected != 0")
 
 
-def _incremental_update_viewer_db(source_db, output_path, thumbnail_size, verbose):
+def _incremental_update_viewer_db(source_db, output_path, thumbnail_size, verbose, path_mapping):
+    # TEMP hierarchy snapshots must be removed even if another export phase
+    # fails before their merge. Closing the owning connection removes them.
+    with ExitStack() as resources:
+        return _incremental_update_viewer_data(source_db, output_path, thumbnail_size, verbose, resources, path_mapping)
+
+
+def _incremental_update_viewer_data(source_db, output_path, thumbnail_size, verbose, resources, path_mapping):
     """Incrementally sync changes from source_db into the existing viewer database.
 
     Processes only new/deleted photos; preserves existing thumbnails.
@@ -654,8 +662,15 @@ def _incremental_update_viewer_db(source_db, output_path, thumbnail_size, verbos
 
     src_escaped = source_db.replace("'", "''")
     dest_conn = sqlite3.connect(output_path)
+    resources.callback(dest_conn.close)
     dest_conn.execute("PRAGMA foreign_keys = ON")
     dest_conn.execute(f"ATTACH DATABASE '{src_escaped}' AS src")
+
+    from db.logical_asset_sync import prepare_sync as prepare_asset_sync, sync_imports as sync_asset_imports
+    preserved_assets = prepare_asset_sync(dest_conn)
+
+    from db.keyword_hierarchy_sync import prepare_hierarchy_sync
+    hierarchy_sync = prepare_hierarchy_sync(dest_conn)
 
     from db.manual_face_export import prepare_person_sync, merge_manual_faces
     source_face_columns = prepare_person_sync(dest_conn)
@@ -845,6 +860,8 @@ def _incremental_update_viewer_db(source_db, output_path, thumbnail_size, verbos
 
     # Stable person identities were reconciled before face synchronization.
     merge_manual_faces(dest_conn, source_face_columns)
+    from db.ignored_faces import merge_viewer_corrections
+    merge_viewer_corrections(dest_conn, path_mapping)
     dest_conn.commit()
 
     # --- Sync photo_tags (full replace — fast, no BLOBs) ---
@@ -949,6 +966,18 @@ def _incremental_update_viewer_db(source_db, output_path, thumbnail_size, verbos
                 count = dest_conn.execute("SELECT COUNT(*) FROM main.photo_objects").fetchone()[0]
                 logger.info("  Merged marked objects (%d rows)", count)
 
+    if hierarchy_sync is not None:
+        try:
+            hierarchy_sync.apply(dest_conn)
+            dest_conn.commit()
+            hierarchy_sync.close(dest_conn)
+        except BaseException:
+            try:
+                hierarchy_sync.close(dest_conn)
+            except Exception:
+                logger.warning('Could not clean hierarchy export snapshot', exc_info=True)
+            raise
+
     # --- Merge photo_ai_edits (AI edit -> original links; additive only) ---
     # Same contract as photo_manual_tags. A row is keyed by edit_path, so an edit linked on the
     # viewer deployment survives a re-export and a source link is added when absent. The guard
@@ -1009,6 +1038,13 @@ def _incremental_update_viewer_db(source_db, output_path, thumbnail_size, verbos
                 "Could not sync photos_vec in viewer export "
                 "(rebuild with --populate-vec): %s", ex)
 
+    # Catalog logical groups ship, unlike owner-private manual stacks. Capture
+    # viewer intent before photo cleanup and retain it through every re-export.
+    imported_assets = sync_asset_imports(dest_conn, preserved_assets)
+    from db.logical_review_sync import sync_imports as sync_logical_review_imports
+    sync_logical_review_imports(dest_conn, imported_assets, preserved_assets)
+    dest_conn.commit()
+
     # --- Clear stats_cache (viewer regenerates on demand) ---
     if 'stats_cache' in dest_tables:
         dest_conn.execute("DELETE FROM main.stats_cache")
@@ -1020,7 +1056,8 @@ def _incremental_update_viewer_db(source_db, output_path, thumbnail_size, verbos
     if verbose:
         logger.info("  Running ANALYZE...")
     dest_conn.execute("ANALYZE")
-    dest_conn.close()
+    # Release the managed connection before measuring the finalized output.
+    resources.close()
 
     output_size = os.path.getsize(output_path)
     saved = source_size - output_size
@@ -1035,7 +1072,11 @@ def _incremental_update_viewer_db(source_db, output_path, thumbnail_size, verbos
 
 
 # Tables a viewer database export must not carry (the DROP list of the full export).
-VIEWER_EXPORT_EXCLUDED_TABLES = ('mcp_tokens', 'rating_provenance', 'organization_history',
+VIEWER_EXPORT_EXCLUDED_TABLES = ('logical_review_imports', 'logical_asset_imports', 'mcp_tokens', 'rating_provenance', 'organization_history',
+                                 'face_review_feedback',
+                                 'face_update_items', 'face_update_jobs',
+                                 'person_centroid_dirty',
+                                 'scan_failures', 'scan_runs', 'scan_retry_receipts',
                                  'photo_stack_members', 'photo_stacks', 'stack_suggestion_dismissals',
                                  'immich_stack_links', 'immich_stack_receipts', 'immich_stack_send_claims')
 
@@ -1080,7 +1121,7 @@ def _omit_private_stack_albums(conn) -> int:
     return len(excluded)
 
 
-def export_viewer_db(source_db='photo_scores_pro.db', output_path=None, thumbnail_size=320, verbose=True, force=False):
+def export_viewer_db(source_db='photo_scores_pro.db', output_path=None, thumbnail_size=320, verbose=True, force=False, *, path_mapping=None):
     """Export a lightweight database for viewer-only deployment.
 
     Creates a stripped-down copy suitable for low-memory NAS devices by:
@@ -1116,7 +1157,17 @@ def export_viewer_db(source_db='photo_scores_pro.db', output_path=None, thumbnai
 
     # Incremental update if output already exists and force is not set
     if os.path.exists(output_path) and not force:
-        return _incremental_update_viewer_db(source_db, output_path, thumbnail_size, verbose)
+        # viewer.path_mapping describes the viewer host's filesystem; the export
+        # runs on the scoring host, where originals sit at their stored paths.
+        if path_mapping is None:
+            path_mapping = {}
+        if not isinstance(path_mapping, dict):
+            path_mapping = {}
+        # Refuse before any destination writes: offline originals cannot prove
+        # that a source face is still the detection this viewer ignored.
+        from db.ignored_faces import preflight_viewer_corrections
+        preflight_viewer_corrections(source_db, output_path, path_mapping)
+        return _incremental_update_viewer_db(source_db, output_path, thumbnail_size, verbose, path_mapping)
 
     # Full export: remove existing output file then do a clean backup
     if os.path.exists(output_path):
@@ -1129,6 +1180,12 @@ def export_viewer_db(source_db='photo_scores_pro.db', output_path=None, thumbnai
     dst_conn = sqlite3.connect(output_path)
     src_conn.backup(dst_conn)
     src_conn.close()
+    from db.keyword_hierarchy_sync import reset_viewer_hierarchy_authority
+    try:
+        reset_viewer_hierarchy_authority(dst_conn)
+    except BaseException:
+        dst_conn.close()
+        raise
     _normalize_review_decisions(dst_conn)
     dst_conn.commit()
 
@@ -1166,14 +1223,22 @@ def export_viewer_db(source_db='photo_scores_pro.db', output_path=None, thumbnai
     if table_exists(dst_conn, 'organization_revisions'):
         dst_conn.execute("DELETE FROM organization_revisions WHERE kind='stack'")
 
-    # Private side tables never ship in a viewer export: the provenance table holds user paths, the
-    # token table holds bearer-secret hashes, and organization_history holds per-owner before/after
-    # snapshots of edited photos. The viewer's own init_database re-creates them empty. (The
-    # incremental path copies none of them.) organization_revisions and organization_clock stay: they
-    # are trigger-maintained derived counters (photo paths and integers only) that the
-    # destination's own triggers keep advancing.
+    # Drop source-private jobs, credentials, owner history, stacks and import receipts.
+    # The destination builds its own import baselines below; incremental sync keeps
+    # destination-owned records instead of copying these source tables. Derived
+    # organization_revisions/organization_clock counters remain, with private stack
+    # scopes removed above, and the destination's triggers keep advancing them.
     for table in VIEWER_EXPORT_EXCLUDED_TABLES:
         dst_conn.execute(f"DROP TABLE IF EXISTS {table}")
+    dst_conn.commit()
+
+    # Imported asset baselines belong to this viewer, never to the source DB.
+    # Catalog memberships themselves are durable catalog data and remain copied.
+    from db.logical_asset_sync import capture_imports as capture_asset_imports
+    capture_asset_imports(dst_conn)
+    from db.logical_review_sync import omit_retired as omit_retired_reviews, capture_imports as capture_review_imports
+    omit_retired_reviews(dst_conn)
+    capture_review_imports(dst_conn)
     dst_conn.commit()
 
     # Receipt authority and private source paths belong to this database only.
@@ -1184,6 +1249,10 @@ def export_viewer_db(source_db='photo_scores_pro.db', output_path=None, thumbnai
 
     # faces: embedding (NOT NULL constraint — use empty blob), landmark_2d_106
     dst_conn.execute("UPDATE faces SET embedding = zeroblob(0), landmark_2d_106 = NULL")
+    # Detection corrections are durable annotations, not operational history.
+    # Carry their Restore data, but strip recognition vectors just as for faces.
+    if table_exists(dst_conn, 'ignored_face_detections'):
+        dst_conn.execute('UPDATE ignored_face_detections SET embedding=zeroblob(0),landmark_2d_106=NULL')
     dst_conn.commit()
 
     # Downsize photo thumbnails

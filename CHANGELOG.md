@@ -4,6 +4,173 @@ All notable changes to Facet are documented in this file.
 
 ## [Unreleased]
 
+### Added
+
+- Copy the open photo as a PNG image for pasting into other applications; the original file is unchanged.
+- Photo-detail score charts load on demand, highlight the current photo and switch between the reader’s visible library and the photo’s category. Multi-person gallery filters show color-matched face outlines, with a persistent Display toggle.
+
+- Reset display restores the configured layout, thumbnail size and inspection mode without changing the current query, sort, album, selection or loaded page.
+
+- A dedicated selected-photo comparison workspace replaces the gallery popup: arbitrary reference/candidate assignment, promotion, candidate strip, view-only Remove/Restore, linked or independent framing, keyboard/touch inspection, stored face/subject crops and displayed-rendition status with Retry. Back preserves the originating collection and selection.
+
+- Captured rating Set/Clear and manual-tag Add/Remove/Replace/Clear previews disclose mixed values and exact targets, including matching folded members and whole-view exclusions. Account or access changes stop later write chunks; unrelated fields and AI tags are preserved.
+
+- Organization history has explicit Preview/Apply/Cancel and per-entry conflict recovery. Processing and export receipts expose actual operation state, counts, cancellation and supported retry behavior.
+
+### Changed
+
+- **The photo-tile ratio choice moves to the gallery's display menu.** Square crop or the photo's own ratio — the card hugs the photo instead of cropping it. The choice is stored per browser and applies to grids with details hidden.
+
+- The full-page Stack Editor supports bounded keyboard image inspection, a single-stop thumbnail strip, explicit image-load Retry, and focus restoration after rejecting the focused member. Narrow controls retain touch targets and readable filenames.
+
+- Culling keeps darkroom navigation and zoom shortcuts working after toolbar focus, adds explicit single-view Keep/Reject/Confirm actions and a focused filename, and enlarges narrow-screen touch targets. Captured decisions stay locked during confirmation, Undo restores editing, and an empty keeper draft explains why Confirm is unavailable. Narrow comparison headers separate filenames and verdicts from decision controls.
+
+- Photo comparison keeps pane and assignment identities readable on phones, adds touch-sized controls and a focused Inspect panel with Close, and bounds inspection panning to fitted images. Narrow-pane source failures and Retry stay separate from zoom controls. Filmstrip keyboard focus and long-name display improve without changing ratings, gallery selection or culling framing.
+
+- Enlarged photos now pan to every fitted-image edge, retain touch drags for inspection, and clamp correctly when zooming out. Long captions and person names wrap inside photo details.
+
+- Photo inspection supports keyboard panning and one image announcement; stack thumbnails mark the active member without announcing server paths. Long filenames and tags fit phones, collection thumbnails use one Tab stop, and Review precedes capture metadata.
+
+- Photo details now labels collection position, shows disclosure chevrons, places editable content before sources/files, and provides 44-pixel editing and tag targets on phones and touch devices.
+
+- Keep collection navigation and cover highlighting available on folded stack members. Arrow keys leave the stack at its boundaries; collection arrows show position and distinct accessible labels. Unify photo inspector headings, compact secondary disclosures, and hide redundant Ready text visually.
+
+- The opened-photo page groups Keep/Undecided/Reject and ratings, exposes zoom/Fit controls and collection arrows (including stack covers), and keeps the filename and stack strip readable on phones. Paging stops if the account changes; fitting or changing photos ends the previous pan. The shared image readout also gives comparison and culling shorter Fit text and larger phone controls; their zoom bounds stay unchanged.
+
+- Keep collection controls and criteria visible while scrolling. Review and Display use separate popovers, help no longer shifts layouts, filter counts stay numeric, and Reset filters remains available for a single criterion. Wide metadata rows expose more context; deselecting releases the inspector and restores keyboard focus.
+
+- Compact collection controls on narrow screens, give photo metrics distinct icons, and add per-detection face Ignore with Undo for advertisements and false detections.
+
+- Separate browsing destinations from tools, give search its own space, and group stack/review commands under labelled menus. Selection mode shows its count; phone headers retain readable titles and labels. Keep top closes Review after success and returns focus to the selection control.
+
+- Gallery notices animate briefly on open and dismissal and offer Dismiss all. Selected photos use a square checkbox; kept photos show a thin green line along the bottom edge with a tooltip and accessible label. Reduced-motion preferences are respected.
+
+- Timeline API failures now return 503 instead of empty results. Week buckets use ISO week years, date bounds cover whole calendar days, and photos within a date bucket follow the requested date sort direction; old week keys and cursors are not comparable.
+
+- Auto-cull preserves existing ratings, favorites, rejects and keeps by default. Use `decision_policy: 'replace'` or `--cull-reconsider-existing` to reconsider them.
+
+- Shared-album clients use opaque `asset_id` values instead of filesystem paths for photos and proofing picks. Existing clients must fetch fresh IDs and exchange older proofing sessions again; rotating a share invalidates its sessions. See [API migration notes](docs/API.md#albums).
+
+- Top-bar destinations use available space; More contains only the overflow. Zoomed comparison images show an overview with the visible region outlined in red.
+
+- Photo-detail sets label their counts and member positions as files, keeping every RAW/JPEG representation inspectable. Gallery set counts explicitly refer to photos, where a grouped RAW/JPEG pair counts once.
+
+- The selection bar has a drag handle (arrow keys work too) that moves it off the photos you are working on; each account's position is remembered in the browser.
+
+- The selection bar notes when a selected folded stack tile acts on its displayed photo only, matching the existing whole-view note about folded members.
+
+- The selection bar status names a whole-view selection's exclusions: "All matching photos, except N".
+
+- Changing the filters, search or album clears the gallery selection and says so, so a selection hidden by the new view cannot be the target of the next action. Changing only the sort keeps it.
+
+- Album refinements stay temporary until an explicit saved-rule Preview and Save; Reset restores saved criteria. Manual membership and smart criteria are identified separately.
+
+- Phone collection controls use two compact rows with on-demand search, explicit Select/Cancel, direct sort/filter/layout controls and secondary View options. UI strings and Viewer guides are synchronized across all seven languages.
+
+- Assessment availability, personal ratings, review decisions and group suggestions have distinct labels. Image status and histogram provenance describe actual displayed pixels without implying RAW sensor inspection.
+
+- Desktop destination tabs separate library navigation from the current page’s actions and collection header. Destinations that do not fit move to More; mobile retains the navigation menu. Filter-tab counts stay within their icon row.
+
+- Active criteria and similarity controls belong to the collection header. Review, type, location and clipping criteria are visible; paired range bounds clear in one update. Quick filters disclose the existing visual-search and review-sort transitions, effective visibility rules are inspectable, and fixed lists explain their query restrictions.
+
+- Floating gallery actions release a closed inspector’s reserved width when switching to a narrow screen. The drawer container no longer scrolls horizontally when a focused control moves during resizing.
+
+- The selection bar discloses selected photos outside loaded tiles and whole-view exclusions. Comparison refuses partial or oversized selections instead of silently opening only some selected photos.
+
+- Gallery sort, filters, inspection and slideshow use one collection-owned control group at every width. Account and scan actions follow global navigation; the duplicate gallery toolbar and mobile bottom bar are removed. Collection menus close and reject stale commands while a photo page parks the gallery.
+
+- Comparison has a thumbnail candidate strip, independent active-pane marking, view-only removal and restore. Two-pane comparison stacks vertically on narrow screens; command chrome follows the selected theme.
+
+- Grid cards with details fit whole images into equal 4:3 frames. Moving focus preserves other photos’ brightness while retaining separate current-photo and selection markers.
+
+- Card metadata follows the selected light or dark theme.
+
+- The gallery owns its collection title, counts, Grid/Mosaic controls and exact text search at every width. The selection bar keeps Clear, Compare and review decisions visible, with labeled secondary commands in Actions. Small screens retain a navigation menu and Actions sheet; filter tabs show their names.
+
+- Light and dark workspace surfaces use neutral colors across the accent themes, keeping color emphasis on active controls and the photos.
+
+- The gallery details panel names its owning photo and can be closed without clearing the batch selection.
+
+### Fixed
+
+- **Culling no longer drops a large similar scene.** A run of look-alike photos bigger than `similarity_groups.max_group_size` (50) vanished from the Similar and All feeds entirely; it is now split at a stricter threshold, or in capture order when no threshold can separate it. A card showing fewer photos than its group holds says so ("20 of 41 photos shown"), and shows the similarity it formed at. The Similarity menu explains the slider.
+- The Filters button announces how many filters are active, not only that it opens the panel, and the README filter-sidebar screenshot shows the three tabs that exist.
+- Statistics exposes filters and summary figures on mobile, improves chart contrast and text alternatives, and handles errors and account changes without displaying stale results.
+
+- Albums distinguish empty results from load failures, support retrying failed pages and preserve the correct account and navigation context during dialog operations.
+
+- Stack editor mode controls and gallery keyboard hints fit narrow cards and screens more reliably.
+
+- Keep Stack Editor controls accessible while scrolling, restore focus after review decisions, and improve Culling and Junk Sweep labels, touch targets and failure messages.
+
+- Junk Sweep preserves unseen candidates after decisions and failed paging, separates load failures from empty queues, and stops later bulk write batches after navigation or account changes. Named touch-sized decisions stay visible; kind counts match the reader’s remaining candidates.
+
+- Arrow keys on the opened-photo collection thumbnails now open the focused photo instead of only moving its focus outline. Home/End open the first/last photo in the visible section; collection filters, selection and Back remain intact.
+
+- Narrow photo headers give filenames a full-width two-line row. Ready-image readouts keep dimensions and zoom together in narrow panes while retaining accessible source status; Favorite and zoom controls use 44-pixel coarse-pointer targets.
+
+- Public album shares cannot sort by private review fields. Photo and comparison Back navigation preserve the originating collection without leaving a direct photo link or duplicating gallery history; cancelled returns remain retryable.
+
+- Hierarchy editors close when filters change, and refreshed face-review queues supersede older page reads. Catalog removal explains protected bracket frames. Sidebar layouts share Grid, Mosaic and List controls, with consistent Escape handling and touch targets.
+
+- Export jobs reuse stable source-directory naming inventories while rechecking recent or changed directories; sequence sibling lookup uses its index after database analysis.
+
+- Comparison Back returns to the collection without reopening the workspace on browser Back. Compact navigation, layout controls and review buttons keep consistent alignment, and collection filter labels remain visible.
+
+- Grouped RAW/JPEG culling pages reuse their enriched results without retaining stale primaries, membership or visibility. Similarity thresholds keep their exact value in the cache key.
+
+- JPEG-only download menus reuse missing-RAW hints; positive RAW options still check current file visibility. Confirmed exports avoid rebuilding a full folder ownership index before every file, while continuing to check current filenames for XMP conflicts.
+
+- Photo detail, comparison, darkroom and manual face saving work on plain-HTTP LAN connections where the browser does not provide `crypto.randomUUID`.
+
+- Scan summaries again measure scoring and each post-scan phase. Favorite saves ignore old-session responses and retain confirmed changes when a subsequent gallery refresh fails.
+
+- Late manual-tag writes refresh grouped-tag collections so newly matching photos appear after navigation.
+
+- Shared-album filename copying and original downloads retain the photo’s filename, including when the selected photo is no longer on the displayed page. Shift-selection follows its photo after sorting and starts a new range if filtering removes that photo.
+
+- Photo deletion and relinking use an indexed lookup for retained face-update receipts, avoiding a full job-history scan per photo.
+
+- Shared-album slideshows use the album’s authorized image URLs and load subsequent shared pages. Refine collection from a photo preserves cleared smart-album criteria. Late rating and favorite responses no longer update another account’s gallery or activity history.
+
+- Older People searches cannot replace newer results. Manual face and object deletion refuses actions from a dialog opened by another account and ignores stale completions.
+
+- Photo deletion and relinking no longer scan every retained logical-review source for each affected file. Existing keyword-path imports and previews use indexed lookups instead of scanning the full vocabulary for every segment.
+
+- Clearing saved smart-album criteria now survives reload and Back, including camera, tag and score filters, disabled flags and reset sort direction. Saved album rules remain unchanged.
+
+- Late album and configuration responses cannot overwrite a newer gallery visit; startup defaults no longer reset an active gallery.
+
+- Album setup that finishes while a photo is open waits for Back before loading the gallery, without losing the album scope or retrying old collection pages.
+
+- Pending range-slider reloads pause when leaving the gallery and resume on Back. Late “Keep top N%” results cannot replace a newer selection or collection.
+
+- Saved album rules and query previews translate their field names, while preserving literal camera, tag and search values.
+
+- Retrying a developed preview keeps its cache bypass scoped to that photo and style.
+
+- Retrying a darkroom image no longer bypasses the thumbnail cache for later photos viewed in the same pane.
+
+- Cancel pending sidebar filename searches when opening a photo, so a delayed filter update cannot replace the photo URL.
+
+- Cancelling “Reject entire group” during its countdown restores the previous keeper selection instead of leaving an empty draft.
+
+- Logout clears existing thumbnail entries held by a running service worker. Catalog removal uses the same cleanup and keeps cache handles reachable for later cleanup.
+
+- Similar-group caches recheck current authorized photo inputs before returning group summaries, so revoked photos cannot remain in cover paths or counts. Thumbnail cache invalidation no longer races eviction into a request error.
+
+- Cull and Delete validate companion access before previews or writes, including mapped aliases. Hidden indexed companions and unsafe inventories refuse the whole request without changing files or catalog rows.
+
+- Text search and review-progress reads retain full-text index identity when RAW/JPEG groups are present.
+
+- Logical-photo reviews reconcile filtered results and refreshed revision receipts after single and batch edits.
+
+- Indexed logical album, semantic-hit and stack membership avoid library-by-membership scans.
+
+- Token rotation immediately suspends stale editing controls, status reads share a credential-scoped request, and late status or edition-lock responses cannot restore a previous account's state.
+
+- Escape on a directly opened photo returns to the saved gallery query instead of leaving the application through browser history. Gallery-opened photos retain normal history return.
+
 ### Security
 
 - **Request bodies are capped at 10 MB before any handler reads them.** Login, proofing sessions and client error reports buffered the whole body before validation and rate limiting ran, so an unbounded body was a memory lever for any LAN peer. A declared size over the cap answers 413 at once and a chunked body is refused as soon as it crosses it. WebDAV uploads, the AI-edit import and the Lightroom state import keep their own, larger streaming caps.

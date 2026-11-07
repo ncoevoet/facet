@@ -1,3 +1,6 @@
+import filterLimits from './gallery-filter-limits.generated.json';
+import { hasTagQuery, parseTagQuery, serializeTagQuery } from './tag-query.util';
+import { parseScorePresence, serializeScorePresence } from './score-presence.util';
 /**
  * Pure filter logic for the gallery: types, defaults, and the URL/API/storage
  * codec. Extracted from gallery.store.ts so it can be unit-tested in isolation
@@ -5,7 +8,20 @@
  * store owns that and calls these functions.
  */
 
-export type GalleryMode = 'grid' | 'mosaic';
+export type GalleryMode = 'grid' | 'mosaic' | 'list';
+
+/** Numeric zero, not a claim that a rating has never been assigned. */
+export function hasZeroStarFilter(filters: Pick<GalleryFilters, 'min_star_rating' | 'max_star_rating'>): boolean {
+  return filters.max_star_rating === '0' && (filters.min_star_rating === '' || filters.min_star_rating === '0');
+}
+
+export function parseGalleryMode(value: string | null | undefined): GalleryMode {
+  return value === 'mosaic' || value === 'list' ? value : 'grid';
+}
+
+export function nextGalleryMode(value: GalleryMode): GalleryMode {
+  return value === 'grid' ? 'mosaic' : value === 'mosaic' ? 'list' : 'grid';
+}
 export type TooltipMode = 'hover' | 'click' | 'off' | 'panel';
 
 /** Every accepted tooltip mode, so the URL parser and the mode picker cannot drift apart. */
@@ -35,6 +51,9 @@ export const GALLERY_SESSION_QUERY_KEY = 'facet_gallery_session_query';
  *  URL always wins — a shared or bookmarked link means what it says. */
 export const LAST_SORT_KEY = 'facet_last_sort';
 
+/** Generated from the server contract by scripts/dump_filter_keys.py. */
+export const PERSON_FILTER_LIMIT = filterLimits.person_filter_limit;
+
 export interface GalleryFilters {
   page: number;
   per_page: number;
@@ -44,7 +63,11 @@ export interface GalleryFilters {
   camera: string;
   lens: string;
   tag: string;
+  tag_groups: string;
+  keyword_branch: string;
+  score_presence: string;
   person_id: string;
+  person_match: 'all' | 'any';
   // Score ranges
   min_score: string;
   max_score: string;
@@ -141,6 +164,7 @@ export interface GalleryFilters {
   // Date range
   date_from: string;
   date_to: string;
+  no_capture_date: string;
   // Content
   composition_pattern: string;
   /** Pending panorama corrections: '' | 'any' | 'suppressed' | 'forced'. */
@@ -227,6 +251,7 @@ export function semanticSortPatch(
 
 /** Subset of viewer config defaults the URL/sync codec compares against. */
 export interface FilterDefaults {
+  type?: string;
   sort?: string;
   sort_direction?: string;
   hide_details?: boolean;
@@ -279,9 +304,10 @@ export const SMART_ALBUM_EXCLUDE_KEYS = new Set([
  *  so a reopened album never asks `/api/photos` for `sort=relevance` without `semantic_q` (a 400). */
 export function smartAlbumFilterJson(filters: GalleryFilters): string {
   const dropSort = filters.sort === RELEVANCE_SORT;
-  const filterJson: Record<string, unknown> = {};
+  const filterJson: Record<string, unknown> = { type: filters.type };
   for (const [k, v] of Object.entries(filters)) {
-    if (v && v !== '' && !SMART_ALBUM_EXCLUDE_KEYS.has(k) && !(dropSort && (k === 'sort' || k === 'sort_direction'))) {
+    if (k === 'tag_groups' && !hasTagQuery(String(v))) continue;
+    if (v && v !== '' && !(k === 'person_match' && (!filters.person_id || v === 'all')) && !SMART_ALBUM_EXCLUDE_KEYS.has(k) && !(dropSort && (k === 'sort' || k === 'sort_direction'))) {
       filterJson[k] = v;
     }
   }
@@ -293,7 +319,12 @@ export function smartAlbumFilterJson(filters: GalleryFilters): string {
  *  (`testing/smart-album-stored.json`) pins that what an agent stores round-trips through both. */
 export function applySavedAlbumFilters(current: GalleryFilters, savedJson: string, albumId: string): GalleryFilters {
   const saved = JSON.parse(savedJson) as Partial<GalleryFilters>;
-  return { ...current, ...saved, ...exclusiveHidePatch(saved), album_id: albumId };
+  if (saved.person_match !== undefined && !['all', 'any'].includes(saved.person_match)) throw new Error('Invalid person match');
+  if (saved.tag_groups !== undefined && !parseTagQuery(saved.tag_groups)) throw new Error('Invalid tag groups');
+  if (saved.score_presence !== undefined && !parseScorePresence(saved.score_presence)) throw new Error('Invalid measurement policies');
+  if (saved.keyword_branch !== undefined && (typeof saved.keyword_branch !== 'string'
+    || (saved.keyword_branch !== '' && !/^[0-9a-f]{8}-(?:[0-9a-f]{4}-){3}[0-9a-f]{12}$/.test(saved.keyword_branch)))) throw new Error('Invalid keyword branch identity');
+  return { ...current, person_match: 'all', tag_groups: '', score_presence: '', keyword_branch: '', ...saved, ...exclusiveHidePatch(saved), album_id: albumId };
 }
 
 /** The store's mutual-exclusion rule: "hide rejected" and "favourites only" cannot both hold, so
@@ -361,7 +392,7 @@ export function setScopePatch(
 
 /** Common string-typed filter keys shared across URL sync, API params, and filter counting. */
 export const RANGE_AND_SELECT_KEYS: (keyof GalleryFilters)[] = [
-  'type', 'camera', 'lens', 'tag', 'person_id', 'composition_pattern', 'search',
+  'type', 'camera', 'lens', 'tag', 'tag_groups', 'keyword_branch', 'score_presence', 'person_id', 'person_match', 'composition_pattern', 'search',
   'color_temp', 'hue_bucket', 'quality_tier', 'sequence_override', 'review_status',
   'min_score', 'max_score', 'min_aesthetic', 'max_aesthetic',
   'min_quality_score', 'max_quality_score', 'min_topiq', 'max_topiq',
@@ -386,7 +417,7 @@ export const RANGE_AND_SELECT_KEYS: (keyof GalleryFilters)[] = [
   'min_face_ratio', 'max_face_ratio', 'min_face_confidence', 'max_face_confidence',
   'min_star_rating', 'max_star_rating',
   'min_iso', 'max_iso', 'min_aperture', 'max_aperture', 'min_focal_length', 'max_focal_length',
-  'date_from', 'date_to',
+  'date_from', 'date_to', 'no_capture_date',
   'path_prefix',
   'no_gps', 'gps_lat', 'gps_lng', 'gps_radius_km',
 ];
@@ -400,7 +431,11 @@ export const DEFAULT_FILTERS: GalleryFilters = {
   camera: '',
   lens: '',
   tag: '',
+  tag_groups: '',
+  keyword_branch: '',
+  score_presence: '',
   person_id: '',
+  person_match: 'all',
   min_score: '',
   max_score: '',
   min_aesthetic: '',
@@ -483,6 +518,7 @@ export const DEFAULT_FILTERS: GalleryFilters = {
   max_focal_length: '',
   date_from: '',
   date_to: '',
+  no_capture_date: '',
   composition_pattern: '',
   sequence_override: '',
   path_prefix: '',
@@ -558,7 +594,7 @@ export function activeFilterKeys(f: GalleryFilters): (keyof GalleryFilters)[] {
     'favorites_only', 'show_rejected', 'blinks_only', 'duplicates_only', 'is_monochrome',
     'manual_faces_need_review', 'faces_need_names',
   ];
-  return [...stringKeys, ...flagKeys].filter(key => !!f[key]);
+  return [...stringKeys, ...flagKeys].filter(key => key !== 'person_match' && !!f[key] && (key !== 'tag_groups' || hasTagQuery(f.tag_groups)));
 }
 
 /**
@@ -567,6 +603,8 @@ export function activeFilterKeys(f: GalleryFilters): (keyof GalleryFilters)[] {
  * Every other key is its own control.
  */
 export function filterUnit(key: string): string {
+  if (key === 'person_match') return 'person_id';
+  if (key === 'tag_groups') return 'tag';
   if (key.startsWith('min_') || key.startsWith('max_')) return key.slice(4);
   if (key === 'no_gps' || key.startsWith('gps_')) return 'gps';
   return key;
@@ -590,12 +628,25 @@ export function applyQueryParams(
   const result = { ...base };
 
   const stringKeys: (keyof GalleryFilters)[] = [
-    ...RANGE_AND_SELECT_KEYS, 'sort', 'sort_direction', 'similar_to', 'min_similarity',
+    'sort', 'sort_direction', 'similar_to', 'min_similarity',
     'semanticQuery', 'album_id',
   ];
+  for (const key of RANGE_AND_SELECT_KEYS) {
+    if (Object.hasOwn(params, key)) (result as Record<string, unknown>)[key] = params[key];
+  }
   for (const key of stringKeys) {
     if (params[key]) (result as Record<string, unknown>)[key] = params[key];
   }
+  if (Object.hasOwn(params, 'tag_groups')) {
+    const groups = parseTagQuery(params['tag_groups']);
+    result.tag_groups = groups ? serializeTagQuery(groups) : params['tag_groups'];
+  }
+  if (Object.hasOwn(params, 'score_presence')) {
+    const policy = parseScorePresence(params['score_presence']);
+    result.score_presence = policy ? serializeScorePresence(policy) : params['score_presence'];
+  }
+  result.no_capture_date = ['1', 'true'].includes(result.no_capture_date) ? '1' : '';
+  if (!result.person_id || !['all', 'any'].includes(result.person_match)) result.person_match = 'all';
   if (!['', 'undecided', 'kept', 'rejected'].includes(result.review_status)) result.review_status = '';
   if (result.review_status) Object.assign(result, reviewStatusPatch(result, false));
   result.no_gps = ['1', 'true'].includes(result.no_gps) ? '1' : '';
@@ -655,13 +706,20 @@ export function applyQueryParams(
   return result;
 }
 
-/** Build the query-param map for URL sync — only values that differ from defaults, plus the sort, which is always written. */
+/** URLs capture semantic visibility explicitly; another browser can have
+ * different persisted preferences. Presentation-only options still use defaults. */
 export function buildSyncParams(
   f: GalleryFilters,
   defaults: FilterDefaults | undefined,
   searchThresholdDefault?: number | null,
+  savedAlbumJson?: string | null,
 ): Record<string, string> {
-  const params: Record<string, string> = {};
+  const params: Record<string, string> = { type: f.type,
+    hide_blinks: String(f.hide_blinks), hide_bursts: String(f.hide_bursts),
+    hide_duplicates: String(f.hide_duplicates), hide_brackets: String(f.hide_brackets),
+    hide_panoramas: String(f.hide_panoramas), hide_rejected: String(f.hide_rejected),
+    favorites_only: String(f.favorites_only), is_monochrome: String(f.is_monochrome),
+  };
   // A semantic query implies Relevance (DESC), so that is the only sort left unwritten. Every other
   // sort is written even when it equals the viewer default: a URL without one falls back to the
   // browser's remembered sort (see GalleryStore.loadConfig), so an unwritten default would reopen a
@@ -673,7 +731,22 @@ export function buildSyncParams(
 
   const stringKeys: (keyof GalleryFilters)[] = [...RANGE_AND_SELECT_KEYS, 'similar_to', 'album_id', 'semanticQuery'];
   for (const key of stringKeys) {
+    if (key === 'person_match' || key === 'tag_groups') continue;
     if (f[key]) params[key] = String(f[key]);
+  }
+  // Album URLs overlay saved rules: default ALL and an explicitly cleared
+  // group must both survive that overlay instead of resurrecting saved ANY.
+  if (f.person_id || f.album_id) {
+    params['person_id'] = f.person_id;
+    params['person_match'] = f.person_match;
+  }
+  if (f.album_id || hasTagQuery(f.tag_groups)) params['tag_groups'] = f.tag_groups;
+  if (f.album_id || f.score_presence) params['score_presence'] = f.score_presence;
+  if (f.album_id || f.keyword_branch) params['keyword_branch'] = f.keyword_branch;
+  if (f.album_id) {
+    params['no_capture_date'] = f.no_capture_date;
+    params['date_from'] = f.date_from;
+    params['date_to'] = f.date_to;
   }
   if (f.similar_to && f.min_similarity) params['min_similarity'] = f.min_similarity;
   if (f.similar_to && f.similarity_mode && f.similarity_mode !== 'visual') params['similarity_mode'] = f.similarity_mode;
@@ -687,30 +760,30 @@ export function buildSyncParams(
 
   if (f.hide_details !== (defaults?.hide_details ?? true))
     params['hide_details'] = String(f.hide_details);
-  if (f.hide_blinks !== (defaults?.hide_blinks ?? true))
-    params['hide_blinks'] = String(f.hide_blinks);
-  if (f.hide_bursts !== (defaults?.hide_bursts ?? true))
-    params['hide_bursts'] = String(f.hide_bursts);
-  if (f.hide_duplicates !== (defaults?.hide_duplicates ?? true))
-    params['hide_duplicates'] = String(f.hide_duplicates);
-  if (f.hide_brackets !== (defaults?.hide_brackets ?? true))
-    params['hide_brackets'] = String(f.hide_brackets);
-  if (f.hide_panoramas !== (defaults?.hide_panoramas ?? true))
-    params['hide_panoramas'] = String(f.hide_panoramas);
-  if (f.hide_rejected !== (defaults?.hide_rejected ?? true))
-    params['hide_rejected'] = String(f.hide_rejected);
   if (f.tooltip_mode !== (defaults?.tooltip_mode ?? 'panel'))
     params['tooltip_mode'] = f.tooltip_mode;
   if (f.panel_activation !== (defaults?.panel_activation ?? 'both'))
     params['panel_activation'] = f.panel_activation;
-  if (f.favorites_only) params['favorites_only'] = 'true';
   if (f.show_rejected) params['show_rejected'] = 'true';
   if (f.blinks_only) params['blinks_only'] = 'true';
   if (f.duplicates_only) params['duplicates_only'] = 'true';
-  if (f.is_monochrome) params['is_monochrome'] = 'true';
   if (f.manual_faces_need_review) params['manual_faces_need_review'] = 'true';
   if (f.faces_need_names) params['faces_need_names'] = 'true';
 
+  // An album URL overlays its saved rules on reload. Preserve explicit clears
+  // only for those saved keys, keeping ordinary gallery URLs compact.
+  if (f.album_id && savedAlbumJson) {
+    try {
+      const saved: unknown = JSON.parse(savedAlbumJson);
+      if (saved && typeof saved === 'object' && !Array.isArray(saved)) {
+        for (const key of Object.keys(saved)) {
+          if (Object.hasOwn(DEFAULT_FILTERS, key) && !SMART_ALBUM_EXCLUDE_KEYS.has(key)) {
+            params[key] = String(f[key as keyof GalleryFilters]);
+          }
+        }
+      }
+    } catch { /* Invalid album rules do not contribute URL overrides. */ }
+  }
   return params;
 }
 
@@ -721,6 +794,7 @@ export function buildApiParams(
   searchThresholdDefault: number | null | undefined,
 ): Record<string, string | number | boolean> {
   const params: Record<string, string | number | boolean> = {
+    type: f.type,
     page: f.page,
     per_page: f.per_page,
     sort: f.sort,
@@ -732,6 +806,8 @@ export function buildApiParams(
     'sequence_group_id', 'sequence_kind', 'burst_group_id', 'duplicate_group_id',
   ];
   for (const key of stringKeys) {
+    if (key === 'person_match' && (!f.person_id || f.person_match !== 'any')) continue;
+    if (key === 'tag_groups' && !hasTagQuery(f.tag_groups)) continue;
     if (f[key]) params[key] = String(f[key]);
   }
 
@@ -779,20 +855,18 @@ export const BY_PATHS_PAGING_KEYS: ReadonlySet<string> = new Set([
  * The `filters` member of a `POST /photos/by_paths` body for the gallery view: everything
  * `buildApiParams` sends except paging and sort, so a photo that no longer matches (rejected under
  * `hide_rejected`, out of the album or score range) comes back missing exactly as a reload would
- * drop it. `type` is sent explicitly because the endpoint defaults it to '' while `GET /photos`
- * resolves the viewer's default (and '' for a person view).
+ * drop it. Both reads send the already-resolved type, including an explicitly
+ * empty All photos value; neither reapplies a viewer default over that choice.
  */
 export function buildByPathsFilters(
   f: GalleryFilters,
   isSmartAlbum: boolean,
-  defaultType: string,
   searchThresholdDefault: number | null | undefined,
 ): Record<string, string | number | boolean> {
   const filters: Record<string, string | number | boolean> = {};
   for (const [key, value] of Object.entries(buildApiParams(f, isSmartAlbum, searchThresholdDefault))) {
     if (!BY_PATHS_PAGING_KEYS.has(key)) filters[key] = value;
   }
-  filters['type'] = f.type || (f.person_id ? '' : defaultType);
   return filters;
 }
 

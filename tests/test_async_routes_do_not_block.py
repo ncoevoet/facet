@@ -262,6 +262,25 @@ _REQUIRED_PARAMS = {
 # remove. Anything else that misses its 2xx fails the test, so a route that starts
 # stopping at a 404 before its handler body runs does not pass unnoticed.
 EXPECTED_NON_2XX = {
+    # These route-coverage inputs intentionally name absent receipts/assets.
+    # Signed members are valid, but fixture originals do not exist on disk.
+    ('GET', '/api/shared/album/1/media/thumbnail'): 404,  # no thumbnail BLOB or original
+    ('GET', '/api/shared/album/1/media/image'): 404,
+    ('GET', '/api/shared/album/1/media/download'): 404,
+    ('GET', '/api/logical_assets/review'): 404,
+    ('GET', '/api/scan/faces/jobs/00000000000000000000000000000000'): 404,
+    ('GET', '/api/scan/faces/jobs/00000000000000000000000000000000/items'): 404,
+    ('GET', '/api/scan/jobs/00000000000000000000000000000000'): 404,
+    ('GET', '/api/scan/retry/00000000000000000000000000000000'): 410,
+    ('POST', '/api/scan/faces/start'): 409,
+    ('POST', '/api/scan/faces/jobs/00000000000000000000000000000000/cancel'): 404,
+    ('POST', '/api/faces/review/feedback'): 404,
+    ('POST', '/api/faces/review/feedback/undo'): 404,
+    ('POST', '/api/scan/retry/preview'): 409,
+    ('POST', '/api/scan/retry/apply'): 410,
+    ('POST', '/api/logical_assets/review'): 404,
+    ('POST', '/api/logical_assets/preview'): 404,
+    ('POST', '/api/logical_assets/apply'): 409,
     ('GET', '/api/download/options'): 404,  # the seeded row has no file on disk
     ('GET', '/api/frame/photos'): 404,  # frame.tokens is empty: the feature 404s
     ('GET', '/api/frame/next'): 404,
@@ -274,6 +293,8 @@ EXPECTED_NON_2XX = {
     # The route-coverage request names a face id that does not exist, so the
     # handler's visibility check answers 404 after the body has started.
     ('POST', '/api/face/987654321/unassign'): 404,
+    ('POST', '/api/face/987654321/ignore'): 404,
+    ('POST', '/api/ignored-face/00000000-0000-0000-0000-000000000000/restore'): 404,
     # VLM unavailable: the pinned legacy profile has no captioner.
     ('POST', '/api/caption'): 503,
 }
@@ -317,6 +338,10 @@ def seeded_history(seeded_photos):
 
 def _bind(requests, photo_path, album_id, history_id, job_id, stack_paths=None):
     """``requests`` with the photo and album placeholders replaced by real rows."""
+    from api.shared_assets import shared_asset_reference
+    with sqlite3.connect(os.environ['DB_PATH']) as conn:
+        row_id = conn.execute('SELECT rowid FROM photos WHERE path=?', (photo_path,)).fetchone()[0]
+    asset_id = shared_asset_reference(album_id, _SHARE_TOKEN, row_id, photo_path)
     def value(v):
         if v == _PLACEHOLDER_PHOTO:
             return photo_path
@@ -343,6 +368,8 @@ def _bind(requests, photo_path, album_id, history_id, job_id, stack_paths=None):
             if path.startswith(('/api/albums/', '/api/shared/album/')):
                 path = (path + '/').replace(album_segment, f"/{album_id}/", 1).rstrip('/')
         params = {**_REQUIRED_PARAMS.get(path, {}), **{k: value(v) for k, v in params.items()}}
+        if path.startswith('/api/shared/album/') and ('/media/' in path or path.endswith('/photo')):
+            params = {**params, 'token': _SHARE_TOKEN, 'asset_id': asset_id}
         if params.get('album_id') == _PLACEHOLDER_ALBUM_ID:
             params['album_id'] = album_id
         if isinstance(body, dict):
@@ -353,6 +380,11 @@ def _bind(requests, photo_path, album_id, history_id, job_id, stack_paths=None):
 
 
 def _answered_as_expected(method, path, status):
+    # The seeded album id is allocated by SQLite and need not be 1.
+    if path.startswith('/api/shared/album/') and '/media/' in path:
+        parts = path.split('/')
+        parts[4] = '1'
+        path = '/'.join(parts)
     expected = EXPECTED_NON_2XX.get((method, path))
     return status == expected if expected is not None else 200 <= status < 300
 

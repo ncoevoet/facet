@@ -15,6 +15,8 @@ from datetime import timedelta
 from unittest import mock
 
 import pytest
+
+
 from fastapi.testclient import TestClient
 
 from api import create_app
@@ -813,7 +815,7 @@ class TestRecompute:
         proc = mock.MagicMock()
         proc.stdout = iter([])
         proc.returncode = 0
-        scan_router._scan_state.update({"kind": scan_router.JOB_KIND_RECOMPUTE})
+        scan_router._scan_state.update({"kind": scan_router.JOB_KIND_RECOMPUTE, "process": proc})
         generation = api_config._stats_cache_generation
         scan_router._read_scan_output(proc)
         assert api_config._stats_cache_generation == generation + 1
@@ -2012,7 +2014,9 @@ class TestScanHoldsTheLibraryLock:
         than by a heartbeat that has already stopped."""
         import facet
 
-        scan_source = inspect.getsource(facet._run_scan)
+        wrapper_source = inspect.getsource(facet._run_scan)
+        assert '_run_scan_pipeline(args, resumed_run, lifecycle)' in wrapper_source
+        scan_source = inspect.getsource(facet._run_scan_pipeline)
         for tail_call in (
             "process_bursts(",
             "run_tagging(",
@@ -2042,12 +2046,12 @@ _LOCK_EXEMPT_WRITERS = {
 
 _JOB_MODIFIERS = frozenset({
     "ack_stack_plan", "ai_edit", "apply", "apply_recommendations", "candidates", "config", "copy_keepers", "cull_group_by",
-    "cull_min_keep", "cull_min_score", "cull_strictness", "cull_trim_brackets", "db",
+    "cull_min_keep", "cull_min_score", "cull_strictness", "cull_trim_brackets", "cull_reconsider_existing", "db",
     "discover_min_cluster_size", "dry_run", "eval_out", "face_labels",
     "dry_run_count", "embed_originals", "force", "force_library_lock", "force_low_space",
     "force_since", "immich_stack_ids", "limit", "merge_threshold", "optimize_category", "optimize_force",
     "optimize_sources", "overwrite_manual_gps", "overwrite_sidecar_review", "ranker_category", "refresh_thumbnails_workers", "resume",
-    "retry_failed", "score_to_stars", "reconcile_keywords", "sidecar_fields", "sidecar_naming",
+    "retry_failed", "retry_plan", "retry_plan_sha256", "score_to_stars", "reconcile_keywords", "sidecar_fields", "sidecar_naming",
     "simulate", "simulate_gpu", "simulate_vram", "single_pass", "single_pass_name", "stack_plan_out",
     "train_keeper_force", "train_ranker_force", "user", "verbose", "watch_debounce",
 })
@@ -2160,3 +2164,17 @@ class TestLibraryJobCoverage:
             holder.wait()
 
         assert result.returncode == 0
+
+
+def test_scan_spawn_refuses_a_different_executable_before_starting_threads(monkeypatch):
+    from api.routers import scan
+    from unittest.mock import Mock
+
+    popen = Mock()
+    thread = Mock()
+    monkeypatch.setattr(scan.subprocess, 'Popen', popen)
+    monkeypatch.setattr(scan.threading, 'Thread', thread)
+    with pytest.raises(ValueError, match='configured Facet interpreter'):
+        scan._spawn_scan(['/untrusted/executable', scan.FACET_SCRIPT], [])
+    popen.assert_not_called()
+    thread.assert_not_called()

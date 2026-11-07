@@ -15,6 +15,7 @@ import sqlite3
 import threading
 import time
 from collections import Counter
+from copy import deepcopy
 from dataclasses import dataclass, field
 from itertools import groupby
 from typing import Literal, Optional, Any
@@ -29,13 +30,13 @@ from api.database import get_db
 from api.subject_bbox import parse_subject_bbox
 from api.db_helpers import (
     get_visibility_clause, paginate, is_multi_user_enabled, get_photos_from_clause,
-    get_preference_columns, read_labels,
+    get_preference_columns,
     trigger_auto_retrain, record_culling_decision, set_photos_rejected, set_photos_kept,
     album_filter_clause, time_window_clauses, window_or_400,
     select_in_chunks, scope_cache_key, scope_sql as path_scope_sql, NO_VISIBILITY_SQL,
     SEQUENCE_OVERRIDE_SELECT, SEQUENCE_OVERRIDE_PENDING_SELECT,
 )
-from api.similarity_groups import compute_similarity_groups
+from api.similarity_groups import _get_similarity_config, compute_similarity_groups
 from api.routers.scenes import compute_scenes, apply_scene_cull, SceneConfirmBody
 from processing.burst_score import burst_weights_from_config, compute_burst_score
 from db.stats_cache import cache_stats_best_effort
@@ -140,6 +141,7 @@ class AutoCullBody(CullPlanRequest):
     dry_run: bool = True
     cursor: int = Field(0, ge=0)
     expected_digest: Optional[str] = None
+    expected_state_digest: Optional[str] = None
 
 
 class CullingPlanBody(CullPlanRequest):
@@ -310,16 +312,10 @@ def attach_user_marks(conn, groups, user_id):
     paths = [p['path'] for g in groups for p in g.get('photos') or [] if p.get('path')]
     if not paths:
         return
-    from_clause, from_params = get_photos_from_clause(user_id)
-    cols = get_preference_columns(user_id)
-    marks = {
-        row[0]: (row[1] or 0, row[2] or 0, row[3] or 0, row[4] or 0)
-        for row in select_in_chunks(
-            conn,
-            f"SELECT photos.path, {cols['is_rejected']}, {cols['is_favorite']}, {cols['star_rating']}, {cols['is_kept']} "
-            f"FROM {from_clause} WHERE photos.path IN ({{placeholders}})",
-            set(paths), before=from_params)
-    }
+    from api.logical_culling import read_culling_labels
+    labels = read_culling_labels(conn, user_id, set(paths), include_kept=True)
+    marks = {path: (value.rejected, value.favorite, value.star, value.kept)
+             for path, value in labels.items()}
     for group in groups:
         for photo in group.get('photos') or []:
             rejected, favorite, rating, kept = marks.get(photo.get('path'), (0, 0, 0, 0))
@@ -509,7 +505,77 @@ def _group_sequence_kind(photos):
 
 # --- Shared burst query logic ---
 
+@dataclass(frozen=True)
+class _LogicalBurstSelection:
+    source_sql: str
+    source_params: list
+    member_where: str
+    member_params: list
+    groups_sql: str
+    group_params: list
+
+
+def _logical_burst_selection(conn, user_id, vis_sql, vis_params, exclude_rejected,
+                             album_id=None, date_from=None, date_to=None):
+    from api.logical_culling import has_groups
+    if not has_groups(conn):
+        return None
+    from api.logical_collection import source, album_predicate
+    columns = list(dict.fromkeys(['path', *_CULLING_PHOTO_COLS, 'star_rating', 'is_favorite',
+                                 'is_kept', 'is_rejected', 'is_burst_lead', 'burst_group_id', 'burst_reviewed']))
+    personal = is_multi_user_enabled()
+    collection = source(columns, owner=(user_id or '') if personal else '', multi_user=personal,
+                        visibility_sql=vis_sql, visibility_params=vis_params)
+    album_sql, album_params = album_predicate(album_id)
+    window, window_params = time_window_clauses(date_from, date_to)
+    qualifier = ' AND '.join(['burst_reviewed IS NOT 1', *window])
+    member_where = f'burst_group_id IS NOT NULL AND ({vis_sql}) AND ({album_sql})'
+    if exclude_rejected:
+        member_where += ' AND COALESCE(photos.is_rejected,0)=0'
+    member_params = [*vis_params, *album_params]
+    # A window qualifies a group; its tail remains available outside the window.
+    # Count complete logical membership before deciding whether the group exists.
+    groups_sql = (f'SELECT burst_group_id FROM {collection.sql} WHERE {member_where} '
+                  f'GROUP BY burst_group_id HAVING COUNT(*)>=2 AND MAX(CASE WHEN {qualifier} THEN 1 ELSE 0 END)=1')
+    return _LogicalBurstSelection(collection.sql, collection.params, member_where, member_params,
+                                  groups_sql, [*collection.params, *member_params, *window_params])
+
+
+def _query_logical_bursts(conn, selection, page, per_page):
+    total = conn.execute(f'SELECT COUNT(*) FROM ({selection.groups_sql})', selection.group_params).fetchone()[0]
+    ordered = selection.groups_sql + ' ORDER BY burst_group_id'
+    params = list(selection.group_params)
+    pages = 1
+    if page is not None and per_page is not None:
+        pages, offset = paginate(total, page, per_page)
+        ordered += ' LIMIT ? OFFSET ?'
+        params.extend([per_page, offset])
+    ids = [row[0] for row in conn.execute(ordered, params)]
+    if not ids:
+        return [], total, pages
+    placeholders = ','.join('?' for _ in ids)
+    rows = conn.execute(
+        f'SELECT {_culling_photo_columns("photos.path", burst=True)} FROM {selection.source_sql} '
+        f'WHERE {selection.member_where} AND burst_group_id IN ({placeholders}) ORDER BY burst_group_id,date_taken,photos.path',
+        [*selection.source_params, *selection.member_params, *ids]).fetchall()
+    groups = [_format_group([dict(row) for row in members], key)
+              for key, members in groupby(rows, key=lambda row: row['burst_group_id'])]
+    return groups, total, pages
+
+
 def _query_burst_groups(conn, vis_sql, vis_params, page=None, per_page=None, exclude_rejected=False,
+                        user_id=None, album_id=None, date_from=None, date_to=None):
+    from comparison.training_scope import read_snapshot
+    with read_snapshot(conn):
+        logical = _logical_burst_selection(conn, user_id, vis_sql, vis_params, exclude_rejected,
+                                           album_id, date_from, date_to)
+        if logical is not None:
+            return _query_logical_bursts(conn, logical, page, per_page)
+        return _query_physical_burst_groups(conn, vis_sql, vis_params, page, per_page, exclude_rejected,
+                                            user_id, album_id, date_from, date_to)
+
+
+def _query_physical_burst_groups(conn, vis_sql, vis_params, page=None, per_page=None, exclude_rejected=False,
                         user_id=None, album_id=None, date_from=None, date_to=None):
     """Query unreviewed burst groups and their photos.
 
@@ -609,7 +675,7 @@ def get_burst_groups(
             user_id = user.user_id if user else None
             vis_sql, vis_params = get_visibility_clause(user_id)
             formatted, total_groups, total_pages = _query_burst_groups(
-                conn, vis_sql, vis_params, page=page, per_page=per_page,
+                conn, vis_sql, vis_params, page=page, per_page=per_page, user_id=user_id,
             )
             return {
                 'groups': formatted,
@@ -900,6 +966,9 @@ def _enrich_burst_group(group):
 
 def _count_unreviewed_burst_groups(conn, vis_sql, vis_params, exclude_rejected=False, user_id=None):
     """Return the count of unreviewed burst groups."""
+    logical = _logical_burst_selection(conn, user_id, vis_sql, vis_params, exclude_rejected)
+    if logical is not None:
+        return conn.execute(f'SELECT COUNT(*) FROM ({logical.groups_sql})', logical.group_params).fetchone()[0]
     if exclude_rejected:
         from_clause, from_params, is_rejected_col = _rejected_clause(user_id)
         row = conn.execute(
@@ -959,22 +1028,17 @@ def _fetch_similar_group_photos(conn, groups, vis_sql="1=1", vis_params=None, ma
     unique_paths = list(set(all_paths))
     placeholders = ','.join('?' * len(unique_paths))
 
+    rows = conn.execute(
+        f"""SELECT {_culling_photo_columns()}
+            FROM photos
+            WHERE path IN ({placeholders}) AND {vis_sql}""",
+        unique_paths + vis_params,
+    ).fetchall()
     if exclude_rejected:
-        from_clause, from_params, is_rejected_col = _rejected_clause(user_id)
-        rows = conn.execute(
-            f"""SELECT {_culling_photo_columns('photos.path')}
-                FROM {from_clause}
-                WHERE photos.path IN ({placeholders}) AND {vis_sql}
-                  AND {is_rejected_col} = 0""",
-            from_params + unique_paths + vis_params,
-        ).fetchall()
-    else:
-        rows = conn.execute(
-            f"""SELECT {_culling_photo_columns()}
-                FROM photos
-                WHERE path IN ({placeholders}) AND {vis_sql}""",
-            unique_paths + vis_params,
-        ).fetchall()
+        # Per-account marks, or a logical photo's shared decision when its files are grouped.
+        from api.logical_culling import read_culling_labels
+        labels = read_culling_labels(conn, user_id, [r['path'] for r in rows])
+        rows = [r for r in rows if not labels[r['path']].rejected]
 
     # Index by path for O(1) lookup
     photo_by_path = {r['path']: dict(r) for r in rows}
@@ -1052,6 +1116,12 @@ def _fetch_scene_groups(conn, user_id=None, album_id=None, date_from=None, date_
 
 def _get_rejected_paths(conn, user_id):
     """Fetch set of rejected paths for the current user."""
+    from api.logical_culling import standalone_source
+    logical = standalone_source(conn, user_id)
+    if logical is not None:
+        # Representative rows carry the logical photo's shared decision.
+        rows = conn.execute(f"SELECT photos.path FROM {logical.sql} WHERE photos.is_rejected = 1", logical.params)
+        return {r[0] for r in rows}
     from_clause, from_params, is_rejected_col = _rejected_clause(user_id)
     rows = conn.execute(
         f"SELECT photos.path FROM {from_clause} WHERE {is_rejected_col} = 1",
@@ -1199,9 +1269,8 @@ def _culling_sort_reverse(sort, direction):
 # reuses one enrichment instead of re-materializing + re-scoring every group on
 # every page. Invalidated on any confirm (the unreviewed set shrinks) and on every
 # reject / favorite write (`exclude_rejected` is part of the feed). The key also
-# carries `_library_change_token`, so photos landing from another process (a scan,
-# a burst pass) miss the memo at once; the short TTL is only the backstop for what
-# neither can see.
+# carries the database's cross-process change token, including logical regrouping
+# and primary changes. Only unchanged computations enter the memo.
 _culling_groups_cache: dict = {}
 _CULLING_GROUPS_CACHE_TTL = 45.0
 _CULLING_GROUPS_CACHE_MAX = 16
@@ -1222,18 +1291,16 @@ def _invalidate_culling_groups_cache():
         _culling_groups_cache.clear()
 
 
-def _library_change_token(conn):
-    """Cheap fingerprint of the library: the latest scan run plus the photo count.
+def _library_change_token():
+    """Capture before opening the reader, so replacement cannot cache an old handle.
 
-    A scan runs in another process and cannot call ``_invalidate_culling_groups_cache``;
-    new photos or a started or finished run move this token. Grouping passes run from
-    the CLI (burst, bracket, panorama) touch neither, so they show once the memo expires.
-    ``processed_files`` is left out: it is rewritten about once a second during a scan.
+    A second observation before storage rejects computations crossed by any commit,
+    including the similarity helper's own best-effort cache write. Failed token
+    reads are unique misses. In-memory test databases simply cannot reuse the memo.
     """
-    run = conn.execute(
-        "SELECT id, status, finished_at FROM scan_runs ORDER BY id DESC LIMIT 1"
-    ).fetchone()
-    return (tuple(run) if run else None, conn.execute("SELECT COUNT(*) FROM photos").fetchone()[0])
+    from api import database
+    from api.change_token import db_change_token
+    return (str(database.DEFAULT_DB_PATH), db_change_token(database.DEFAULT_DB_PATH))
 
 
 def _cached_culling_groups(cache_key, now):
@@ -1555,6 +1622,7 @@ def api_culling_groups(
     if group_by not in _CULLING_GROUP_BY:
         group_by = 'all'
     date_from, date_to = window_or_400(date_from, date_to)
+    library_token = _library_change_token() if group_by != 'scene' else None
     with get_db() as conn:
         try:
             user_id = user.user_id if user else None
@@ -1575,9 +1643,11 @@ def api_culling_groups(
                 # Enriching + globally sorting the whole unreviewed set is identical
                 # across pages, so memo it and let pagination reuse one enrichment
                 # instead of re-materializing + re-scoring every group per page.
-                cache_key = (round(similarity_threshold, 3), seed, sort, direction, exclude_rejected,
+                cache_key = (similarity_threshold, seed, sort, direction, exclude_rejected,
                              user_id, album_id, date_from, date_to, group_by,
-                             _library_change_token(conn))
+                             vis_sql, tuple(vis_params), is_multi_user_enabled(), library_token,
+                             _get_burst_weights(), _get_face_thresholds(),
+                             tuple(sorted(_get_similarity_config().items())))
                 now = time.time()
                 cached_groups, generation = _cached_culling_groups(cache_key, now)
                 if cached_groups is not None:
@@ -1609,7 +1679,8 @@ def api_culling_groups(
                                     reverse=_culling_sort_reverse(sort, direction))
                     if sort == 'chronological':
                         _order_group_photos_by_capture(all_groups)
-                    _store_culling_groups(cache_key, now, all_groups, generation)
+                    if library_token == _library_change_token():
+                        _store_culling_groups(cache_key, now, all_groups, generation)
                 else:
                     burst_groups = []
                     if group_by in ('all', 'burst'):
@@ -1649,11 +1720,14 @@ def api_culling_groups(
                     if sort == 'chronological':
                         _order_group_photos_by_capture(all_groups)
 
-                    _store_culling_groups(cache_key, now, all_groups, generation)
+                    if library_token == _library_change_token():
+                        _store_culling_groups(cache_key, now, all_groups, generation)
 
             total_groups = len(all_groups)
             total_pages, offset = paginate(total_groups, page, per_page)
-            page_groups = all_groups[offset:offset + per_page]
+            # Request-local annotations must not mutate photos shared by cached pages
+            # or another reader. Copy only this page, not the full enriched library.
+            page_groups = deepcopy(all_groups[offset:offset + per_page])
             attach_keeper_probs(conn, page_groups, user_id)
             attach_user_marks(conn, page_groups, user_id)
 
@@ -2049,8 +2123,10 @@ def _collect_auto_cull_groups(conn, user_id, group_by, album_id, date_from, date
     """Materialize the unreviewed culling groups for an auto-cull scope.
 
     Reuses the exact fetchers behind ``GET /api/culling-groups`` with
-    ``exclude_rejected=True`` so already-rejected photos (per-user) never enter
-    the split, and every photo is bounded by the caller's visibility clause.
+    ``exclude_rejected=False`` so the preview can disclose existing Reject decisions.
+    Preserve removes those labels before splitting; Replace may reconsider them.
+    Already-reviewed groups stay outside this unreviewed scope, and every photo
+    is bounded by the caller's visibility clause.
     ``use_cache=False`` keeps the similar/scene computation from writing
     ``stats_cache``; ``path_scope`` confines their candidates in SQL.
     """
@@ -2058,7 +2134,7 @@ def _collect_auto_cull_groups(conn, user_id, group_by, album_id, date_from, date
     if group_by == 'scene':
         groups = _fetch_scene_groups(
             conn, user_id=user_id, album_id=album_id,
-            date_from=date_from, date_to=date_to, exclude_rejected=True,
+            date_from=date_from, date_to=date_to, exclude_rejected=False,
             use_cache=use_cache, path_scope=path_scope,
         )
     else:
@@ -2066,7 +2142,7 @@ def _collect_auto_cull_groups(conn, user_id, group_by, album_id, date_from, date
         if group_by in ('all', 'burst'):
             groups += _fetch_unreviewed_burst_groups(
                 conn, vis_sql, vis_params, page=None, per_page=None,
-                exclude_rejected=True, user_id=user_id,
+                exclude_rejected=False, user_id=user_id,
                 album_id=album_id, date_from=date_from, date_to=date_to,
             )
         if group_by in ('all', 'similar'):
@@ -2074,7 +2150,7 @@ def _collect_auto_cull_groups(conn, user_id, group_by, album_id, date_from, date
             threshold = float(
                 (_FULL_CONFIG.get('similarity_groups', {}) or {}).get('default_threshold', 0.85))
             _, similar_shuffled = _count_unreviewed_similar_groups(
-                conn, threshold, user_id, seed=0, exclude_rejected=True,
+                conn, threshold, user_id, seed=0, exclude_rejected=False,
                 album_id=album_id, date_from=date_from, date_to=date_to,
                 use_cache=use_cache, path_scope=path_scope,
             )
@@ -2086,13 +2162,12 @@ def _collect_auto_cull_groups(conn, user_id, group_by, album_id, date_from, date
                 groups += _fetch_unreviewed_similar_groups(
                     conn, threshold, vis_sql, vis_params, seed=0, user_id=user_id,
                     page_groups=similar_shuffled, offset=0,
-                    exclude_rejected=True, max_per_group=max_per_group,
+                    exclude_rejected=False, max_per_group=max_per_group,
                     album_id=album_id, date_from=date_from, date_to=date_to,
                 )
     groups = [g for g in groups if len(g.get('photos') or []) >= 2]
     _apply_keeper_scores(conn, groups, user_id)
     return groups
-
 
 def _apply_auto_cull_group(conn, group, keep_paths, reject_paths, user_id, vis_sql, vis_params,
                            record=True):
@@ -2471,7 +2546,7 @@ def _plan_tags(plan):
                      for side in ('keep', 'reject') for path in e[f'{side}_paths'])
 
 
-def _remember_plan(conn, user_id, digest, plan, rest, result):
+def _remember_plan(user_id, digest, plan, rest, result, labels):
     """Snapshot the plan's tags and labels for the apply's guard, built outside ``_guard_lock``.
 
     A live snapshot for ``digest`` is kept as is (every later page of a preview lands here again and must
@@ -2484,7 +2559,7 @@ def _remember_plan(conn, user_id, digest, plan, rest, result):
         result.state_guard = GUARD_UNAVAILABLE
         return
     _guard_store(user_id, digest, _GuardSnapshot(
-        tags, rest, read_labels(conn, user_id, [t[3] for t in tags], include_kept=True), _guard_clock()))
+        tags, rest, {t[3]: labels[t[3]] for t in tags}, _guard_clock()))
 
 
 def _reconcile_plan(conn, user_id, plan, result, expected_digest, rest, state_guard):
@@ -2500,7 +2575,8 @@ def _reconcile_plan(conn, user_id, plan, result, expected_digest, rest, state_gu
     changed = set()
     tags = _plan_tags(plan)
     if snapshot is not None:
-        fresh = read_labels(conn, user_id, snapshot.labels, include_kept=True)
+        from api.logical_culling import read_culling_labels
+        fresh = read_culling_labels(conn, user_id, snapshot.labels, include_kept=True)
         changed |= {path for path, labels in snapshot.labels.items() if fresh[path] != labels}
     if expected_digest is not None and expected_digest != result.plan_digest:
         if snapshot is None or snapshot.rest != rest or \
@@ -2634,6 +2710,16 @@ def _auto_cull_plan_digest(plan, options, effective):
     return hashlib.sha256(body.encode('utf-8')).hexdigest()
 
 
+def _auto_cull_highlights(plan, album, minimum):
+    return [entry['keep_paths'][0] for entry in plan
+            if album and _highlight_quality(entry['keep'][0]) >= minimum]
+
+
+def _has_keep_decisions(conn, user_id):
+    table = 'user_preferences' if user_id and is_multi_user_enabled() else 'photos'
+    return any(row[1] == 'is_kept' for row in conn.execute(f'PRAGMA table_info({table})'))
+
+
 def _auto_cull_rest_digest(options, effective):
     """The part of the plan digest that is not the plan: its options and effective overrides."""
     return _auto_cull_plan_digest([], options, effective)
@@ -2685,6 +2771,7 @@ def _auto_cull_page(plan, cursor):
                'type': entry['group']['type'], 'keep_paths': entry['keep_paths'],
                'reject_paths': entry['reject_paths'], 'best_path': entry['keep_paths'][0],
                'kind': entry['group'].get('sequence_kind') or entry['group']['type'],
+               'existing_labels_count': entry.get('existing_labels_count', 0),
                'reasons': {p['path']: _compute_cull_reason(p, entry['keep'][0]) for p in entry['reject']}}
         group_reason = _group_reason(entry['group'])
         if group_reason:
@@ -2718,6 +2805,11 @@ class AutoCullResult:
     preview: list = field(default_factory=list)
     next_cursor: Optional[int] = None
     plan_digest: str = ''
+    decision_state_digest: str = ''
+    decision_guard_available: bool = False
+    existing_labels: list = field(default_factory=list)
+    existing_labels_count: int = 0
+    preserved_labels_count: int = 0
     ignored_overrides: list = field(default_factory=list)
     skipped_user_changed: list = field(default_factory=list)
     skipped_user_changed_count: int = 0
@@ -2766,13 +2858,12 @@ def _confine_groups_to_scope(groups, path_scope):
     return confined, spanning_skipped
 
 
-@organization_capture.grouped
 def run_auto_cull(conn, db_path, user_id, *, group_by, strictness, min_keep,
                   trim_brackets=False, highlights_album='', dry_run=True,
                   album_id=None, date_from=None, date_to=None, path_scope=None,
                   use_cache=True, membership_groups=False, record=True, cursor=0,
                   keep_override=None, remove_override=None, expected_digest=None,
-                  state_guard=False):
+                  state_guard=False, decision_policy='preserve', expected_state_digest=None):
     """Collect, split and (unless ``dry_run``) apply one auto-cull sweep.
 
     Shared by ``POST /api/culling/auto`` and ``facet.py --auto-cull``. Raises
@@ -2787,6 +2878,19 @@ def run_auto_cull(conn, db_path, user_id, *, group_by, strictness, min_keep,
     group whatever ``group_by`` was. Scene membership counts only when
     ``group_by='scene'``, the one case where scene decisions are made.
     """
+    if decision_policy not in ('preserve', 'replace'):
+        raise AutoCullOverrideError('Unknown decision policy')
+    # Released schemas remain readable by CLI dry runs without migrations. They
+    # cannot contain Keep decisions before that column exists, and cannot issue
+    # a revision-bound apply precondition without the revisions table.
+    has_keep = _has_keep_decisions(conn, user_id)
+    has_revisions = conn.execute("SELECT 1 FROM sqlite_master WHERE type='table' AND name='organization_revisions'").fetchone() is not None
+    if not dry_run and not (has_keep and has_revisions):
+        raise AutoCullOverrideError('Update the database schema before applying auto-cull decisions.')
+    # Reserve the writer before reading labels/membership. A failed upgrade of an
+    # existing deferred transaction is refused by SQLite rather than racing edits.
+    if not dry_run and not conn.in_transaction:
+        conn.execute('BEGIN IMMEDIATE')
     cfg = _get_auto_cull_config()
     vis_sql, vis_params = get_visibility_clause(user_id)
     if album_id is not None:
@@ -2802,7 +2906,7 @@ def run_auto_cull(conn, db_path, user_id, *, group_by, strictness, min_keep,
         groups += _fetch_bracket_groups(
             conn, user_id, vis_sql, vis_params,
             album_id=album_id, date_from=date_from, date_to=date_to,
-            redundant_only=True,
+            redundant_only=True, exclude_rejected=False,
         )
     result = AutoCullResult()
     result.scope_dependent_kinds = list(_SCOPE_DEPENDENT_KINDS.get(group_by, []))
@@ -2827,7 +2931,15 @@ def run_auto_cull(conn, db_path, user_id, *, group_by, strictness, min_keep,
     # earlier group keeps/rejects is never re-decided by a later one.
     groups.sort(key=lambda g: _AUTO_CULL_TYPE_ORDER.get(g['type'], 99))
 
-    plan = _plan_auto_cull_groups(groups, result.decided, strictness, min_keep)
+    from api.logical_culling import read_culling_labels, authority_snapshot
+    if not conn.in_transaction:
+        conn.execute('BEGIN')
+    labels = read_culling_labels(conn, user_id, sorted({p['path'] for group in groups for p in group['photos']}), include_kept=has_keep)
+    existing = {path: value for path, value in labels.items() if any(value)}
+    result.existing_labels_count = len(existing)
+    protected = set(existing) if decision_policy == 'preserve' else set()
+    result.preserved_labels_count = len(protected)
+    plan = _plan_auto_cull_groups(groups, protected, strictness, min_keep)
     keep_override = list(dict.fromkeys(keep_override or []))
     remove_override = list(dict.fromkeys(remove_override or []))
     effective, result.ignored_overrides = _apply_plan_overrides(
@@ -2838,17 +2950,46 @@ def run_auto_cull(conn, db_path, user_id, *, group_by, strictness, min_keep,
         'group_by': group_by, 'album_id': album_id, 'date_from': date_from,
         'date_to': date_to, 'strictness': strictness, 'min_keep': min_keep,
         'trim_brackets': trim_brackets, 'highlights_album': highlights_album,
+        'decision_policy': decision_policy,
     }
     result.plan_digest = _auto_cull_plan_digest(plan, digest_options, effective)
+    result.decision_guard_available = has_keep and has_revisions
+    if result.decision_guard_available:
+        review_scope = (user_id or '') if is_multi_user_enabled() else ''
+        revision_snapshot = organization_capture.snapshot(conn, 'review', review_scope, sorted(labels))
+        state = json.dumps({'user': user_id, 'plan': result.plan_digest,
+                            'labels': sorted(labels.items()),
+                            'logical': authority_snapshot(conn, user_id, labels),
+                            'highlights': _auto_cull_highlights(plan, highlights_album, cfg['highlights_min']),
+                            'revisions': sorted((path, value['revision']) for path, value in revision_snapshot.items())},
+                           sort_keys=True, separators=(',', ':'), ensure_ascii=False)
+        result.decision_state_digest = hashlib.sha256(state.encode('utf-8')).hexdigest()
+    if expected_state_digest is not None and expected_state_digest != result.decision_state_digest:
+        raise AutoCullPlanChanged(
+            'Decisions changed since the preview; nothing was written. Preview it again.')
+    sides = {path: side for entry in plan for side in ('keep', 'reject') for path in entry[f'{side}_paths']}
+    result.existing_labels = [
+        {'path': path, 'star_rating': value.star, 'is_favorite': bool(value.favorite),
+         'is_rejected': bool(value.rejected), 'is_kept': bool(value.kept),
+         'proposed': sides.get(path, 'unchanged')}
+        for path, value in sorted(existing.items())[:SKIPPED_REPORT_CAP]
+    ]
+    for entry in plan:
+        entry['existing_labels_count'] = sum(p['path'] in existing for p in entry['group']['photos'])
     rest = _auto_cull_rest_digest(digest_options, effective)
     if dry_run:
         if expected_digest is not None and expected_digest != result.plan_digest:
             raise AutoCullPlanChanged(
                 'The plan changed since it was previewed; nothing was written. Preview it again.')
         if state_guard:
-            _remember_plan(conn, user_id, result.plan_digest, plan, rest, result)
+            _remember_plan(user_id, result.plan_digest, plan, rest, result, labels)
     else:
-        changed, reported = _reconcile_plan(conn, user_id, plan, result, expected_digest, rest, state_guard)
+        # A matching revision-bound preview supersedes the older, digest-keyed
+        # lenient snapshot. Reusing that snapshot could skip newly confirmed
+        # choices from a fresh preview with the same plan but a new label state.
+        changed, reported = _reconcile_plan(
+            conn, user_id, plan, result, expected_digest, rest,
+            state_guard and expected_state_digest is None)
         if changed:
             result.skipped_user_changed_groups = _drop_skipped(plan, changed)
         result.skipped_user_changed_count = len(reported)
@@ -2864,25 +3005,23 @@ def run_auto_cull(conn, db_path, user_id, *, group_by, strictness, min_keep,
         result.rejected += len(entry['reject_paths'])
     result.plan = plan
     result.preview, result.next_cursor = _auto_cull_page(plan, cursor)
-    highlight_paths = [
-        entry['keep_paths'][0] for entry in plan
-        if highlights_album and _highlight_quality(entry['keep'][0]) >= cfg['highlights_min']
-    ]
-    if not dry_run:
-        for entry in plan:
-            result.total_pairs += _apply_auto_cull_group(
-                conn, entry['group'], entry['keep_paths'], entry['reject_paths'],
-                user_id, vis_sql, vis_params, record,
-            )
-
+    highlight_paths = _auto_cull_highlights(plan, highlights_album, cfg['highlights_min'])
     result.highlights_added = len(highlight_paths)
     if not dry_run:
-        if highlight_paths:
-            result.highlights_added = _fill_highlights_album(
-                conn, user_id, highlights_album, highlight_paths,
-            )
-        conn.execute("DELETE FROM stats_cache WHERE key LIKE 'scenes_%'")
-        conn.execute("DELETE FROM stats_cache WHERE key LIKE 'similarity_groups_%'")
+        # Finish the compound history receipt before committing any label writes.
+        # A refusal to represent the history must roll back the entire sweep.
+        with organization_capture.action(conn, user_id):
+            for entry in plan:
+                result.total_pairs += _apply_auto_cull_group(
+                    conn, entry['group'], entry['keep_paths'], entry['reject_paths'],
+                    user_id, vis_sql, vis_params, record,
+                )
+            if highlight_paths:
+                result.highlights_added = _fill_highlights_album(
+                    conn, user_id, highlights_album, highlight_paths,
+                )
+            conn.execute("DELETE FROM stats_cache WHERE key LIKE 'scenes_%'")
+            conn.execute("DELETE FROM stats_cache WHERE key LIKE 'similarity_groups_%'")
         conn.commit()
         _invalidate_culling_groups_cache()
         trigger_auto_retrain(db_path, user_id, result.total_pairs, conn=conn)
@@ -2962,6 +3101,7 @@ def auto_cull(
                 cursor=body.cursor, keep_override=body.keep_paths,
                 remove_override=body.remove_paths, expected_digest=body.expected_digest,
                 state_guard=bool(user and user.is_agent_request),
+                decision_policy=body.decision_policy, expected_state_digest=body.expected_state_digest,
             )
             rejected_paths = ({'rejected_paths': result.reject_paths}
                               if not body.dry_run and len(result.reject_paths) <= live_updates.MAX_LIVE_PATHS
@@ -2975,6 +3115,11 @@ def auto_cull(
                 'preview': result.preview,
                 'next_cursor': result.next_cursor,
                 'plan_digest': result.plan_digest,
+                'decision_state_digest': result.decision_state_digest,
+                'existing_labels': result.existing_labels,
+                'existing_labels_count': result.existing_labels_count,
+                'existing_labels_truncated': result.existing_labels_count > len(result.existing_labels),
+                'preserved_labels_count': result.preserved_labels_count,
                 'ignored_overrides': result.ignored_overrides,
                 'scope_dependent_kinds': result.scope_dependent_kinds,
                 **rejected_paths,
@@ -2982,10 +3127,13 @@ def auto_cull(
             }
 
         except HTTPException:
+            conn.rollback()
             raise
         except AutoCullOverrideError as ex:
+            conn.rollback()
             raise HTTPException(status_code=400, detail=str(ex))
         except AutoCullPlanChanged as ex:
+            conn.rollback()
             raise HTTPException(status_code=412, detail=str(ex))
         except sqlite3.Error:
             conn.rollback()
@@ -3052,7 +3200,7 @@ def culling_plan(
                 trim_brackets=body.trim_brackets, highlights_album=body.highlights_album,
                 dry_run=True, album_id=body.album_id, date_from=date_from, date_to=date_to,
                 keep_override=body.keep_paths, remove_override=body.remove_paths,
-                expected_digest=body.expected_digest,
+                expected_digest=body.expected_digest, decision_policy=body.decision_policy,
             )
             groups, truncated, oversize = _plan_as_culling_groups(conn, user_id, result.plan)
             return {
@@ -3073,7 +3221,6 @@ def culling_plan(
 _STANDALONE_REJECT_CHUNK = 500
 
 
-@organization_capture.grouped
 def reject_standalone_below(conn, user_id, scope, min_score, exclude_paths, dry_run):
     """Reject standalone photos scoring under ``min_score``; returns the affected paths.
 
@@ -3096,17 +3243,40 @@ def reject_standalone_below(conn, user_id, scope, min_score, exclude_paths, dry_
     no comparison pairs: a score threshold says nothing about which of two
     photos the user prefers. The caller invalidates caches.
     """
+    if not conn.in_transaction:
+        conn.execute('BEGIN' if dry_run else 'BEGIN IMMEDIATE')
     from_clause, from_params, is_rejected_col = _rejected_clause(user_id)
     prefs = get_preference_columns(user_id)
+    from api.logical_culling import standalone_source
+    logical = standalone_source(conn, user_id)
+    if logical is not None:
+        from_clause, from_params = logical.sql, logical.params
+        is_rejected_col = 'photos.is_rejected'
+        prefs = {field: f'photos.{field}' for field in prefs}
     vis_sql, vis_params = get_visibility_clause(user_id)
     scope_fragment, scope_params = path_scope_sql(scope, 'photos.path')
     per_user = bool(user_id and is_multi_user_enabled())
+    # A released read-only schema predating Keep cannot hold Keep decisions.
+    # Applies still require the initialized schema and its real column.
+    kept_predicate = '1' if dry_run and not _has_keep_decisions(conn, user_id) else f"COALESCE({prefs['is_kept']}, 0) = 0"
+    comparison_match = '(c.photo_a_path = photos.path OR c.photo_b_path = photos.path)'
+    comparison_scope = "c.source = 'culling'" + (' AND c.user_id = ?' if per_user else '')
+    logical_comparison_exclusion = ''
+    burst_count = 'COUNT(*) FROM photos g'
+    if logical is not None:
+        logical_comparison_exclusion = f'''AND NOT EXISTS (
+            SELECT 1 FROM logical_asset_members cm WHERE cm.asset_id=photos._logical_asset_id
+              AND EXISTS (SELECT 1 FROM comparisons c WHERE {comparison_scope}
+                AND (c.photo_a_path=cm.photo_path OR c.photo_b_path=cm.photo_path)))'''
+        burst_count = ("COUNT(DISTINCT CASE WHEN gm.asset_id IS NULL THEN 'file:'||g.path ELSE 'asset:'||gm.asset_id END) "
+                       'FROM photos g LEFT JOIN logical_asset_members gm ON gm.photo_path=g.path')
+    identity_columns = 'photos.path,photos._logical_asset_id' if logical is not None else 'photos.path'
     rows = conn.execute(
-        f"""SELECT photos.path
+        f"""SELECT {identity_columns}
             FROM {from_clause}
             WHERE {vis_sql}
               AND COALESCE({is_rejected_col}, 0) = 0
-              AND COALESCE({prefs['is_kept']}, 0) = 0
+              AND {kept_predicate}
               AND photos.sequence_kind IS NULL
               AND photos.aggregate IS NOT NULL AND photos.aggregate < ?
               AND COALESCE(photos.similarity_reviewed, 0) = 0
@@ -3114,19 +3284,27 @@ def reject_standalone_below(conn, user_id, scope, min_score, exclude_paths, dry_
                        OR COALESCE({prefs['star_rating']}, 0) > 0)
               AND {scope_fragment}
               AND NOT EXISTS (SELECT 1 FROM comparisons c
-                              WHERE c.source = 'culling'{' AND c.user_id = ?' if per_user else ''}
-                                AND (c.photo_a_path = photos.path OR c.photo_b_path = photos.path))
+                              WHERE {comparison_scope}
+                                AND {comparison_match})
+              {logical_comparison_exclusion}
               AND (photos.burst_group_id IS NULL
-                   OR (SELECT COUNT(*) FROM photos g
+                   OR (SELECT {burst_count}
                        WHERE g.burst_group_id = photos.burst_group_id) < 2)
             ORDER BY photos.path""",
-        from_params + vis_params + [min_score] + scope_params + ([user_id] if per_user else []),
+        from_params + vis_params + [min_score] + scope_params
+        + ([user_id] * (2 if logical is not None else 1) if per_user else []),
     ).fetchall()
     excluded = set(exclude_paths)
-    paths = [r['path'] for r in rows if r['path'] not in excluded]
+    excluded_assets = set()
+    if logical is not None and excluded:
+        excluded_assets = {row[0] for row in select_in_chunks(conn,
+            'SELECT asset_id FROM logical_asset_members WHERE photo_path IN ({placeholders})', excluded)}
+    paths = [r['path'] for r in rows if r['path'] not in excluded
+             and (logical is None or r['_logical_asset_id'] not in excluded_assets)]
     if not dry_run:
-        for i in range(0, len(paths), _STANDALONE_REJECT_CHUNK):
-            set_photos_rejected(conn, paths[i:i + _STANDALONE_REJECT_CHUNK], user_id)
+        with organization_capture.action(conn, user_id):
+            for i in range(0, len(paths), _STANDALONE_REJECT_CHUNK):
+                set_photos_rejected(conn, paths[i:i + _STANDALONE_REJECT_CHUNK], user_id)
         conn.commit()
     return paths
 

@@ -6,8 +6,9 @@ import time
 from unittest import mock
 
 import numpy as np
+import pytest
 
-from api.similarity_groups import compute_similarity_groups
+from api.similarity_groups import _split_oversized, compute_similarity_groups
 from utils.embedding import bytes_to_normalized_embedding as decode_embedding
 
 
@@ -55,21 +56,25 @@ class TestDecodeEmbedding:
 class TestComputeSimilarityGroups:
     """Tests for compute_similarity_groups."""
 
+    @pytest.fixture(autouse=True)
+    def _physical_catalog(self):
+        # A MagicMock connection answers every probe, so it would look logical.
+        with mock.patch("api.logical_culling.has_groups", return_value=False):
+            yield
+
     def _make_embedding_blob(self, values):
         """Helper to pack float values into a blob."""
         return struct.pack(f"{len(values)}f", *values)
 
-    def test_returns_cached_result(self):
-        """Returns cached groups when cache is fresh."""
-        cached_groups = [{"paths": ["/a.jpg", "/b.jpg"], "best_path": "/a.jpg", "count": 2}]
+    def test_unvalidated_legacy_cache_recomputes(self):
+        """A fresh pre-validation cache cannot authorize paths."""
         mock_conn = mock.MagicMock()
         mock_conn.execute.return_value.fetchone.return_value = {
-            "value": json.dumps(cached_groups),
-            "updated_at": time.time(),  # Fresh cache
+            "value": json.dumps([{"paths": ["/private.jpg"], "best_path": "/private.jpg", "count": 1}]),
+            "updated_at": time.time(),
         }
-
-        result = compute_similarity_groups(conn=mock_conn)
-        assert result == cached_groups
+        mock_conn.execute.return_value.fetchall.return_value = []
+        assert compute_similarity_groups(conn=mock_conn) == []
 
     def test_stale_cache_recomputes(self):
         """Recomputes groups when cache is stale (>1 hour)."""
@@ -238,3 +243,41 @@ class TestComputeSimilarityGroups:
         # Group with 3 photos should come first
         assert result[0]["count"] == 3
         assert result[1]["count"] == 2
+
+
+class TestSplitOversized:
+    """A component over max_group_size used to be dropped whole, hiding every photo in it."""
+
+    @staticmethod
+    def _arc(count, degrees):
+        angles = np.radians(np.arange(count) * degrees)
+        return np.stack([np.cos(angles), np.sin(angles)], axis=1)
+
+    def test_a_chain_is_cut_where_its_ends_stop_resembling_each_other(self):
+        # 3 degrees apart: neighbours are ~0.9986 alike, but one end is nowhere near the other.
+        matrix = self._arc(60, 3.0)
+        pieces = _split_oversized(matrix, list(range(60)), 0.85, 50)
+        assert sorted(i for p in pieces for i in p) == list(range(60))
+        assert all(len(p) <= 50 for p in pieces)
+
+    def test_a_chain_no_threshold_can_cut_is_chunked_in_capture_order(self):
+        # Neighbours are cos(0.1 deg) alike, above every stepped threshold.
+        matrix = self._arc(120, 0.1)
+        pieces = _split_oversized(matrix, list(range(120)), 0.85, 50)
+        assert [len(p) for p in pieces] == [40, 40, 40]
+        assert pieces[0] == list(range(40))
+
+    def test_a_component_within_the_limit_is_untouched(self):
+        pieces = _split_oversized(self._arc(5, 1.0), list(range(5)), 0.85, 50)
+        assert pieces == [[0, 1, 2, 3, 4]]
+
+    def test_compute_keeps_an_oversized_scene_instead_of_dropping_it(self):
+        blobs = [struct.pack("2f", *row) for row in self._arc(120, 0.1)]
+        rows = [{"path": f"/{i:03}.jpg", "clip_embedding": b, "aggregate": 5.0} for i, b in enumerate(blobs)]
+        conn = mock.MagicMock()
+        conn.execute.return_value.fetchone.return_value = None
+        conn.execute.return_value.fetchall.return_value = rows
+        with mock.patch("api.logical_culling.has_groups", return_value=False):
+            groups = compute_similarity_groups(conn=conn, threshold=0.85, min_size=2, use_cache=False)
+        assert sum(g["count"] for g in groups) == 120
+        assert max(g["count"] for g in groups) <= 50

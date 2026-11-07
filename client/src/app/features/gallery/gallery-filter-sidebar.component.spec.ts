@@ -1,5 +1,8 @@
+import { GalleryViewControlsComponent } from './gallery-view-controls.component';
+import { ADDITIONAL_FILTERS } from './gallery-metric-filters';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { signal } from '@angular/core';
+import { provideRouter } from '@angular/router';
 import { of } from 'rxjs';
 import { MatSelect } from '@angular/material/select';
 import { MatDialog } from '@angular/material/dialog';
@@ -9,10 +12,11 @@ import { By } from '@angular/platform-browser';
 import { OverlayContainer } from '@angular/cdk/overlay';
 import { GalleryStore } from './gallery.store';
 import {
-  ADDITIONAL_FILTERS, ADVANCED_SECTION_ORDER, BROWSE_PANELS, GalleryFilterSidebarComponent, SECTION_ORDER, SidebarTabId, TAB_ICONS, TAB_IDS,
+  ADVANCED_SECTION_ORDER, BROWSE_PANELS, GalleryFilterSidebarComponent, SECTION_ORDER, SidebarTabId, TAB_ICONS, TAB_IDS,
   SEGMENT_PATCHES, TAB_SECTIONS, UNIT_PANEL, loadActiveTab,
 } from './gallery-filter-sidebar.component';
 import { DEFAULT_FILTERS, GalleryFilters, activeFilterUnits, countActiveFilters } from './gallery-filters.util';
+import { SCORE_PRESENCE_KEYS } from './score-presence.util';
 import { I18N } from '../../core/i18n/keys';
 import { I18nService } from '../../core/services/i18n.service';
 import { AuthService } from '../../core/services/auth.service';
@@ -30,7 +34,7 @@ describe('GalleryFilterSidebarComponent', () => {
         hide_rejected: true, favorites_only: false, is_monochrome: false,
         hide_brackets: true, hide_panoramas: true, blinks_only: false, duplicates_only: false,
         show_rejected: false, review_status: '', manual_faces_need_review: false,
-        camera: '', lens: '', tag: '', composition_pattern: '', person_id: '',
+        camera: '', lens: '', tag: '', composition_pattern: '', person_id: '', person_match: 'all', tag_groups: '',
         min_score: '', max_score: '', min_aesthetic: '', max_aesthetic: '',
         min_face_quality: '', max_face_quality: '', min_composition: '', max_composition: '',
         min_sharpness: '', max_sharpness: '', min_exposure: '', max_exposure: '',
@@ -79,10 +83,11 @@ describe('GalleryFilterSidebarComponent', () => {
 
     TestBed.configureTestingModule({
       providers: [
+        provideRouter([]),
         GalleryFilterSidebarComponent,
         { provide: GalleryStore, useValue: mockStore },
         { provide: I18nService, useValue: { t: vi.fn((k: string) => k), currentLang: vi.fn(() => 'en'), translations: vi.fn(() => ({})) } },
-        { provide: AuthService, useValue: { isEdition: vi.fn(() => false) } },
+        { provide: AuthService, useValue: { isEdition: vi.fn(() => false), identity: () => '0|', status: signal(null), token: null } },
         { provide: AlbumService, useValue: { list: vi.fn(() => of({ albums: [] })) } },
         { provide: MatDialog, useValue: { open: vi.fn() } },
       ],
@@ -92,6 +97,23 @@ describe('GalleryFilterSidebarComponent', () => {
 
   it('should create', () => {
     expect(component).toBeTruthy();
+  });
+
+  it('counts measurement availability in the Quality tab even with no measured range', () => {
+    expect(new Set((component as any).scorePresenceMetrics.map((metric: { minKey: string }) => metric.minKey))).toEqual(SCORE_PRESENCE_KEYS);
+    (mockStore['filters'] as ReturnType<typeof signal<GalleryFilters>>).update(current => ({ ...current, score_presence: '{"min_sharpness":"missing_only"}' }));
+    expect(component.tabActiveCounts()['quality']).toBe(1);
+    expect(component.totalActiveCount()).toBe(1);
+  });
+
+  it('switches missing capture date and explicit bounds atomically', () => {
+    component.onMissingDateChange(true);
+    expect(mockStore['updateFilters']).toHaveBeenLastCalledWith({ no_capture_date: '1', date_from: '', date_to: '' });
+    component.onDateChange('date_from', { value: new Date(2026, 10, 1) } as any);
+    expect(mockStore['updateFilters']).toHaveBeenLastCalledWith({ date_from: '2026-11-01', no_capture_date: '' });
+    component.onMissingDateChange(false);
+    expect(mockStore['updateFilters']).toHaveBeenLastCalledWith({ no_capture_date: '' });
+    expect(UNIT_PANEL['no_capture_date']).toBe('date');
   });
 
   describe('unavailable metrics (commercial mode)', () => {
@@ -164,6 +186,19 @@ describe('GalleryFilterSidebarComponent', () => {
       expect(store.updateFilter).toHaveBeenCalledWith('search', 'IMG_1');
     });
 
+    it('cancels pending filename and semantic queries when the gallery parks', () => {
+      vi.useFakeTimers();
+      component.onSidebarSearchChange(input('pending filename'));
+      component.onSemanticSearch(input('pending semantic'));
+      component.cancelPendingSearch();
+      vi.advanceTimersByTime(1000);
+      expect(mockStore['updateFilter']).not.toHaveBeenCalled();
+
+      component.onSidebarSearchChange(input('after returning'));
+      vi.advanceTimersByTime(400);
+      expect(mockStore['updateFilter']).toHaveBeenCalledExactlyOnceWith('search', 'after returning');
+    });
+
     it('Enter commits at once and drops the pending debounce', () => {
       vi.useFakeTimers();
       const store = (component as any).store;
@@ -171,6 +206,28 @@ describe('GalleryFilterSidebarComponent', () => {
       component.onSidebarSearchCommit(input('IMG_2'));
       vi.advanceTimersByTime(1000);
       expect(store.updateFilter.mock.calls).toEqual([['search', 'IMG_2']]);
+    });
+
+    it('clearing semantic search cancels its pending query without cancelling the filename debounce', () => {
+      vi.useFakeTimers();
+      component.onSemanticSearch(input('new query'));
+      component.onSidebarSearchChange(input('IMG'));
+      component.clearSemanticSearch();
+      vi.advanceTimersByTime(1000);
+      expect(mockStore['updateFilter']).toHaveBeenCalledTimes(2);
+      expect(mockStore['updateFilter']).toHaveBeenNthCalledWith(1, 'semanticQuery', '');
+      expect(mockStore['updateFilter']).toHaveBeenNthCalledWith(2, 'search', 'IMG');
+    });
+
+    it('clearing the filename query cancels its debounce while preserving a pending semantic query', () => {
+      vi.useFakeTimers();
+      component.onSidebarSearchChange(input('IMG_2'));
+      component.onSemanticSearch(input('sunset'));
+      component.clearSidebarSearch();
+      vi.advanceTimersByTime(1000);
+      expect(mockStore['updateFilter']).toHaveBeenCalledTimes(2);
+      expect(mockStore['updateFilter']).toHaveBeenNthCalledWith(1, 'search', '');
+      expect(mockStore['updateFilter']).toHaveBeenNthCalledWith(2, 'semanticQuery', 'sunset');
     });
 
     it('a semantic keystroke does not cancel a pending filename update', () => {
@@ -204,12 +261,14 @@ describe('GalleryFilterSidebarComponent', () => {
       expect(component.sectionActiveCounts()['date']).toBe(2);
     });
 
-    it('counts tag and composition_pattern for content section', () => {
+    it('counts flat tags, hierarchy branches and composition for Content', () => {
       const mockStore = (component as any).store;
       mockStore.filters.set({ ...mockStore.filters(), tag: 'landscape' });
       expect(component.sectionActiveCounts()['content']).toBe(1);
       mockStore.filters.set({ ...mockStore.filters(), composition_pattern: 'rule_of_thirds' });
       expect(component.sectionActiveCounts()['content']).toBe(2);
+      mockStore.filters.set({ ...mockStore.filters(), keyword_branch: '11111111-1111-4111-8111-111111111111' });
+      expect(component.sectionActiveCounts()['content']).toBe(3);
     });
 
     it('counts camera and lens for equipment section', () => {
@@ -433,13 +492,13 @@ describe('GalleryFilterSidebarComponent', () => {
       const panels = allPanels();
       for (const key of SECTION_ORDER) expect(panels, key).toContain(key);
       for (const key of BROWSE_PANELS) expect(TAB_SECTIONS.browse).toContain(key);
-      expect(panels).toEqual(expect.arrayContaining(['refine', 'color_quality', 'view']));
-      expect(panels).toHaveLength(SECTION_ORDER.length + BROWSE_PANELS.length + 3);
+      expect(panels).toEqual(expect.arrayContaining(['refine', 'color_quality', 'view', 'score_presence']));
+      expect(panels).toHaveLength(SECTION_ORDER.length + BROWSE_PANELS.length + 4);
     });
 
     it('splits the metric sections between Quality (image quality) and Subject (what is in the frame)', () => {
       expect(TAB_SECTIONS.quality).toEqual([
-        'gallery.sidebar.quality', 'color_quality', 'gallery.sidebar.extended_quality',
+        'score_presence', 'gallery.sidebar.quality', 'color_quality', 'gallery.sidebar.extended_quality',
         'gallery.sidebar.technical', 'gallery.sidebar.exposure_range',
       ]);
       expect(TAB_SECTIONS.subject).toEqual([
@@ -476,10 +535,11 @@ describe('GalleryFilterSidebarComponent', () => {
       TestBed.resetTestingModule();
       TestBed.configureTestingModule({
         providers: [
+        provideRouter([]),
           GalleryFilterSidebarComponent,
           { provide: GalleryStore, useValue: mockStore },
           { provide: I18nService, useValue: { t: vi.fn((k: string) => k), currentLang: vi.fn(() => 'en'), translations: vi.fn(() => ({})) } },
-          { provide: AuthService, useValue: { isEdition: vi.fn(() => false) } },
+          { provide: AuthService, useValue: { isEdition: vi.fn(() => false), identity: () => '0|', status: signal(null), token: null } },
           { provide: AlbumService, useValue: { list: vi.fn(() => of({ albums: [] })) } },
           { provide: MatDialog, useValue: { open: vi.fn() } },
         ],
@@ -604,17 +664,20 @@ describe('GalleryFilterSidebarComponent', () => {
         galleryMode: signal('grid'),
         gpsLocationName: signal(''),
         virtualScroll: signal(false),
+        pinnedPaths: signal(null), slideshowActive: signal(false),
+        setFilterDrawerOpen: vi.fn(), setUserSort: vi.fn(), resetDisplay: vi.fn(),
         setCardWidth: vi.fn(),
         setGalleryMode: vi.fn(),
         setVirtualScroll: vi.fn(),
       };
       TestBed.configureTestingModule({
         providers: [
+        provideRouter([]),
           provideNativeDateAdapter(),
           { provide: MATERIAL_ANIMATIONS, useValue: { animationsDisabled: true } },
           { provide: GalleryStore, useValue: store },
           { provide: I18nService, useValue: { t: vi.fn(translate), currentLang: vi.fn(() => 'en'), translations: vi.fn(() => ({})) } },
-          { provide: AuthService, useValue: { isEdition: vi.fn(() => false) } },
+          { provide: AuthService, useValue: { isEdition: vi.fn(() => false), identity: () => '0|', status: signal(null), token: null } },
           { provide: AlbumService, useValue: { list: vi.fn(() => of({ albums: [] })) } },
           { provide: MatDialog, useValue: { open: vi.fn() } },
         ],
@@ -627,6 +690,141 @@ describe('GalleryFilterSidebarComponent', () => {
       store['filters'].set({ ...store['filters'](), ...patch });
       settle();
     };
+
+    it('keeps count scope help compact until opened and restores focus on Escape', () => {
+      const help = fixture.nativeElement.querySelector('[data-count-help]') as HTMLDetailsElement;
+      const summary = help.querySelector('summary')!;
+      expect(help.open).toBe(false);
+      expect(summary.getAttribute('aria-label')).toBe('gallery.sidebar.count_scope');
+      const bubbled = vi.fn(); fixture.nativeElement.addEventListener('keydown', bubbled);
+      summary.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+      expect(bubbled).toHaveBeenCalledOnce();
+      summary.click(); settle();
+      expect(help.open).toBe(true);
+      expect(help.textContent).toContain('gallery.sidebar.count_scope_options');
+      expect(help.textContent).toContain('gallery.sidebar.count_scope_types');
+      expect(help.textContent).toContain('gallery.sidebar.count_scope_badges');
+      summary.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true })); settle();
+      expect(bubbled).toHaveBeenCalledOnce();
+      expect(help.open).toBe(false);
+      expect(summary.ownerDocument.activeElement).toBe(summary);
+      expect(store['updateFilter']).not.toHaveBeenCalled();
+      expect(store['updateFilters']).not.toHaveBeenCalled();
+    });
+
+    it('moves a pinned range into one shared section without changing its active value or duplicating IDs', async () => {
+      component = fixture.componentInstance;
+      component.selectTab('quality'); settle();
+      component.filterQuery.set('score_range'); settle();
+      // Search labels are translation keys in this fixture.
+      const pin = () => fixture.nativeElement.querySelector('[data-pin-filter="score_range"]') as HTMLButtonElement;
+      expect(pin()).not.toBeNull();
+      pin().focus(); pin().click(); settle();
+      expect(component.pinnedIds().has('score_range')).toBe(true);
+      expect(store['updateFilter']).not.toHaveBeenCalled();
+      expect(store['updateFilters']).not.toHaveBeenCalled();
+      component.filterQuery.set(''); settle();
+      expect(fixture.nativeElement.querySelectorAll('[data-metric="score_range"]')).toHaveLength(1);
+      expect(fixture.nativeElement.querySelectorAll('#metric-help-score_range')).toHaveLength(1);
+      expect(fixture.nativeElement.querySelector('[data-pinned-filters] [data-metric="score_range"]')).not.toBeNull();
+      const help = fixture.nativeElement.querySelector('[data-pins-help]') as HTMLDetailsElement;
+      expect(help.open).toBe(false);
+      help.querySelector('summary')!.click();
+      expect(help.open).toBe(true);
+      component.selectTab('browse'); settle();
+      expect(fixture.nativeElement.querySelectorAll('[data-metric="score_range"]')).toHaveLength(1);
+      store['filters'].update((f: object) => ({ ...f, min_score: '6' })); settle();
+      pin().focus(); pin().click(); settle();
+      await fixture.whenStable(); settle();
+      expect(component.activeTab()).toBe('quality');
+      expect(component.pinnedIds().size).toBe(0);
+      expect(store['filters']().min_score).toBe('6');
+      expect(fixture.nativeElement.querySelectorAll('[data-metric="score_range"]')).toHaveLength(1);
+      expect(pin().ownerDocument.activeElement).toBe(pin());
+    });
+
+    it('restores the Review rating owner and keyboard focus when unpinning personal stars', async () => {
+      component = fixture.componentInstance;
+      component.filterQuery.set('star_rating_range'); settle();
+      const pin = () => fixture.nativeElement.querySelector('[data-pin-filter="star_rating_range"]') as HTMLButtonElement;
+      pin().click(); settle(); component.filterQuery.set(''); component.selectTab('review'); settle();
+      expect(fixture.nativeElement.querySelector('[data-row="rating"]')).toBeNull();
+      expect(fixture.nativeElement.querySelectorAll('[data-metric="star_rating_range"]')).toHaveLength(1);
+      store['filters'].update((f: object) => ({ ...f, min_star_rating: '3' })); settle();
+      pin().focus(); pin().click(); settle(); await fixture.whenStable(); settle();
+      const rating = fixture.nativeElement.querySelector('[data-row="rating"]') as HTMLButtonElement;
+      expect(rating).not.toBeNull();
+      expect(rating.ownerDocument.activeElement).toBe(rating);
+      expect(fixture.nativeElement.querySelector('[data-metric="star_rating_range"]')).toBeNull();
+      expect(store['filters']().min_star_rating).toBe('3');
+    });
+
+    it('never exposes pinned unavailable metrics and leaves their active criteria clearable', () => {
+      component = fixture.componentInstance;
+      const def = ADDITIONAL_FILTERS.find(def => def.id === 'liqe_range')!;
+      component.togglePin(def); settle();
+      expect(component.pinnedFilters().map(def => def.id)).toContain('liqe_range');
+      store['filters'].update((f: object) => ({ ...f, min_liqe: '4' }));
+      store['config'].set({ features: {}, unavailable_metrics: ['liqe_score'] }); settle();
+      expect(component.pinnedFilters().map(def => def.id)).not.toContain('liqe_range');
+      expect(fixture.nativeElement.querySelector('[data-metric="liqe_range"]')).toBeNull();
+      expect(component.totalActiveCount()).toBeGreaterThan(0);
+      expect(fixture.nativeElement.querySelector('[data-test="reset"]')).toBeNull();
+    });
+
+    it('offers a native ALL/ANY people group for read-only browsing without changing the selected IDs', () => {
+      component = fixture.componentInstance;
+      store['persons'].set([{ id: 1, name: 'Alice', face_count: 2 }, { id: 2, name: 'Bob', face_count: 2 }]);
+      store['filters'].update((f: object) => ({ ...f, person_id: '1,2', person_match: 'all' }));
+      component.selectTab('browse'); component.onSectionToggle('persons', true); settle();
+      const root = fixture.nativeElement as HTMLElement;
+      const personInput = root.querySelector<HTMLInputElement>('input[role="combobox"]')!;
+      const personLabel = root.querySelector<HTMLLabelElement>(`label[for="${personInput.id}"]`);
+      expect(personLabel?.textContent).toContain('gallery.person');
+      const all = root.querySelector<HTMLInputElement>('[data-person-match="all"]')!;
+      const any = root.querySelector<HTMLInputElement>('[data-person-match="any"]')!;
+      expect(all.checked).toBe(true); expect(any.checked).toBe(false);
+      expect(any.disabled).toBe(false); any.click(); settle();
+      expect(store['updateFilter']).toHaveBeenCalledExactlyOnceWith('person_match', 'any');
+      expect(store['filters']().person_id).toBe('1,2');
+      expect(component.sectionActiveCounts()['persons']).toBe(1);
+    });
+
+    it('exposes selected hue and layout states to assistive technology', () => {
+      component = fixture.componentInstance;
+      store['hueBuckets'].set([{ value: 'red', count: 2 }, { value: 'blue', count: 3 }]);
+      component.selectTab('quality'); component.onSectionToggle('color_quality', true); settle();
+      const root = fixture.nativeElement as HTMLElement;
+      const hues = () => Array.from(root.querySelectorAll<HTMLButtonElement>('[aria-label="gallery.hue"] button'));
+      expect(hues().map(button => button.getAttribute('aria-pressed'))).toEqual(['false', 'false']);
+      store['filters'].update((f: object) => ({ ...f, hue_bucket: 'red' })); settle();
+      expect(hues().map(button => button.getAttribute('aria-pressed'))).toEqual(['true', 'false']);
+      component.selectTab('display'); settle();
+      const owner = TestBed.createComponent(GalleryViewControlsComponent);
+      owner.detectChanges();
+      fixture.componentRef.setInput('layoutControls', owner.componentInstance.sidebarLayoutControls()!); settle();
+      const grid = root.querySelector('[aria-label="gallery.layout_grid"]')!;
+      const mosaic = root.querySelector('[aria-label="gallery.layout_mosaic"]')!;
+      expect([grid.getAttribute('aria-pressed'), mosaic.getAttribute('aria-pressed')]).toEqual(['true', 'false']);
+      store['galleryMode'].set('mosaic'); settle();
+      expect([grid.getAttribute('aria-pressed'), mosaic.getAttribute('aria-pressed')]).toEqual(['false', 'true']);
+      const list = root.querySelector<HTMLButtonElement>('[data-gallery-layout="list"]')!;
+      list.click(); expect(store['setGalleryMode']).toHaveBeenCalledWith('list');
+      store['galleryMode'].set('list'); owner.detectChanges(); settle();
+      expect(list.getAttribute('aria-pressed')).toBe('true');
+      owner.destroy();
+    });
+
+    it('explains the person-group cap and refuses a stale autocomplete add at the limit', () => {
+      component = fixture.componentInstance;
+      const ids = Array.from({ length: 200 }, (_, i) => String(i + 1));
+      store['filters'].update((f: object) => ({ ...f, person_id: ids.join(','), person_match: 'any' }));
+      component.selectTab('browse'); component.onSectionToggle('persons', true); settle();
+      expect(fixture.nativeElement.querySelector('#person-filter-limit')).not.toBeNull();
+      component.onSidebarPersonSelected({ option: { value: 201 } } as any);
+      expect(store['updateFilter']).not.toHaveBeenCalled();
+      expect(store['filters']().person_id).toBe(ids.join(','));
+    });
 
     describe('tab bar', () => {
       it('exposes a labelled tablist of five tabs with exactly the active one selected', () => {
@@ -647,25 +845,26 @@ describe('GalleryFilterSidebarComponent', () => {
         expect(links().map(t => t.getAttribute('aria-selected'))).toEqual(['false', 'true', 'false', 'false', 'false']);
       });
 
-      it('shows icons only, each with a tooltip carrying the tab name and an aria-label naming it', () => {
+      it('shows named tabs with icons, matching tooltips and accessible labels', () => {
         const items = links();
         expect(items.map(l => l.querySelector('mat-icon')!.textContent!.trim()))
           .toEqual(['travel_explore', 'rule', 'high_quality', 'center_focus_strong', 'display_settings']);
         const tooltips = fixture.debugElement.queryAll(By.css('[mat-tab-link]')).map(d => d.injector.get(MatTooltip).message);
         expect(tooltips).toEqual(['Browse', 'Review', 'Quality', 'Subject', 'Display']);
         expect(items.map(l => l.getAttribute('aria-label'))).toEqual(['Browse', 'Review', 'Quality', 'Subject', 'Display']);
-        for (const link of items) expect(link.textContent!.replace(link.querySelector('mat-icon')!.textContent!, '').trim()).toBe('');
+        expect(items.map(link => link.querySelector('[data-filter-tab-label]')!.textContent!.trim()))
+          .toEqual(['Browse', 'Review', 'Quality', 'Subject', 'Display']);
       });
 
       it('names a tab with its active count and puts the count on the icon as a corner badge', () => {
         setFilters({ camera: 'Sony', lens: 'FE' });
         const browse = links()[0];
         expect(browse.getAttribute('aria-label')).toBe('Browse, 2 active');
-        const badge = browse.querySelector('mat-icon')!.nextElementSibling!;
+        const badge = browse.querySelector('[data-filter-tab-count]')!;
         expect(badge.textContent!.trim()).toBe('2');
         expect(badge.getAttribute('aria-hidden')).toBe('true');
         expect(links()[1].getAttribute('aria-label')).toBe('Review');
-        expect(links()[1].querySelector('mat-icon')!.nextElementSibling).toBeNull();
+        expect(links()[1].querySelector('[data-filter-tab-count]')).toBeNull();
       });
 
       it('hides the tab bar while a filter query is typed', () => {
@@ -703,33 +902,32 @@ describe('GalleryFilterSidebarComponent', () => {
       const titles = () => Array.from((fixture.nativeElement as HTMLElement).querySelectorAll('mat-panel-title'))
         .map(t => t.textContent!.trim());
 
-      it('gives every metric row its own help, as a left tooltip and as the sliders\' description', () => {
+      it.each(['quality', 'subject'] as const)('gives every %s metric row its own tooltip and slider description', tab => {
         const help = I18N.gallery.sidebar.metric_help as Record<string, string>;
         for (const def of ADDITIONAL_FILTERS) expect(help[def.id], def.id).toBe(def.helpKey);
         let checked = 0;
-        for (const tab of ['quality', 'subject'] as const) {
-          fixture.componentInstance.selectTab(tab);
-          settle();
-          for (const def of ADDITIONAL_FILTERS) {
-            const rowEl = fixture.debugElement.query(By.css(`[data-metric="${def.id}"]`));
-            if (!rowEl) continue;
-            const tip = rowEl.query(By.directive(MatTooltip)).injector.get(MatTooltip);
-            expect(tip.message, def.id).toBe(def.helpKey);
-            expect(tip.position, def.id).toBe('left');
-            expect(tip.showDelay, def.id).toBe(600);
-            const description = (rowEl.nativeElement as HTMLElement).querySelector(`#metric-help-${def.id}`)!.textContent!.trim();
-            expect(description, def.id).toBe(def.helpKey);
-            for (const input of (rowEl.nativeElement as HTMLElement).querySelectorAll('input')) {
-              expect(input.getAttribute('aria-describedby'), def.id).toBe(`metric-help-${def.id}`);
-            }
-            checked++;
+        fixture.componentInstance.selectTab(tab);
+        settle();
+        const definitions = new Map(ADDITIONAL_FILTERS.map(def => [def.id, def]));
+        for (const rowEl of fixture.debugElement.queryAll(By.css('[data-metric]'))) {
+          const def = definitions.get((rowEl.nativeElement as HTMLElement).dataset['metric']!);
+          if (!def) continue;
+          const tip = rowEl.query(By.directive(MatTooltip)).injector.get(MatTooltip);
+          expect(tip.message, def.id).toBe(def.helpKey);
+          expect(tip.position, def.id).toBe('left');
+          expect(tip.showDelay, def.id).toBe(600);
+          const description = (rowEl.nativeElement as HTMLElement).querySelector(`#metric-help-${def.id}`)!.textContent!.trim();
+          expect(description, def.id).toBe(def.helpKey);
+          for (const input of (rowEl.nativeElement as HTMLElement).querySelectorAll('input')) {
+            expect(input.getAttribute('aria-describedby'), def.id).toBe(`metric-help-${def.id}`);
           }
-          if (tab === 'quality') {
-            const labelTips = fixture.debugElement.queryAll(By.directive(MatTooltip))
-              .filter(d => d.nativeElement.tagName === 'MAT-LABEL').map(d => d.injector.get(MatTooltip).message);
-            expect(labelTips).toContain('gallery.sidebar.metric_help.quality_tier');
-            expect((fixture.nativeElement as HTMLElement).querySelector('#metric-help-quality_tier')).toBeTruthy();
-          }
+          checked++;
+        }
+        if (tab === 'quality') {
+          const labelTips = fixture.debugElement.queryAll(By.directive(MatTooltip))
+            .filter(d => d.nativeElement.tagName === 'MAT-LABEL').map(d => d.injector.get(MatTooltip).message);
+          expect(labelTips).toContain('gallery.sidebar.metric_help.quality_tier');
+          expect((fixture.nativeElement as HTMLElement).querySelector('#metric-help-quality_tier')).toBeTruthy();
         }
         expect(checked).toBeGreaterThan(4);
       });
@@ -778,23 +976,15 @@ describe('GalleryFilterSidebarComponent', () => {
         expect(badge.textContent!.trim()).toBe('1');
       });
 
-      it('tells Reset and Close apart: a labelled text button against the only bare icon button, far right', () => {
+      it('keeps Close available without duplicating the collection Reset action', () => {
         setFilters({ camera: 'Sony' });
-        const reset = header().querySelector('[data-test="reset"]') as HTMLElement;
+        expect(header().querySelector('[data-test="reset"]')).toBeNull();
         const close = header().querySelector('[data-test="close"]') as HTMLElement;
-        expect(reset.textContent).toContain('gallery.reset_filters');
-        expect(reset.querySelector('mat-icon')!.textContent!.trim()).toBe('restart_alt');
-        expect(reset.getAttribute('aria-label')).toBeNull();
         expect(close.getAttribute('aria-label')).toBe('dialog.close');
         expect(close.querySelector('mat-icon')!.textContent!.trim()).toBe('close');
-        expect(close.textContent!.trim()).toBe('close');
-        expect(close.classList.contains('md:hidden')).toBe(true);
         expect(header().lastElementChild).toBe(close);
-        const tips = fixture.debugElement.queryAll(By.directive(MatTooltip)).map(d => d.injector.get(MatTooltip).message);
-        expect(tips).toContain('gallery.sidebar.reset_tooltip');
-        expect(tips).toContain('dialog.close');
-        reset.click();
-        expect(store['resetFilters']).toHaveBeenCalledOnce();
+        close.click();
+        expect(store['setFilterDrawerOpen']).toHaveBeenCalledWith(false);
       });
 
       it('shows no Reset and no badge without active filters, but keeps Close', () => {
@@ -826,6 +1016,8 @@ describe('GalleryFilterSidebarComponent', () => {
         galleryMode: signal('grid'),
         gpsLocationName: signal(''),
         virtualScroll: signal(false),
+        pinnedPaths: signal(null), slideshowActive: signal(false),
+        setFilterDrawerOpen: vi.fn(), setUserSort: vi.fn(), resetDisplay: vi.fn(),
         setCardWidth: vi.fn(),
         setGalleryMode: vi.fn(),
         setVirtualScroll: vi.fn(),
@@ -833,12 +1025,13 @@ describe('GalleryFilterSidebarComponent', () => {
 
       TestBed.configureTestingModule({
         providers: [
+        provideRouter([]),
           provideNativeDateAdapter(),
           // Tooltip hides wait for an animationend jsdom never fires unless animations are off.
           { provide: MATERIAL_ANIMATIONS, useValue: { animationsDisabled: true } },
           { provide: GalleryStore, useValue: renderedStore },
           { provide: I18nService, useValue: { t: vi.fn((k: string) => k), currentLang: vi.fn(() => 'en'), translations: vi.fn(() => ({})) } },
-          { provide: AuthService, useValue: { isEdition: vi.fn(() => false) } },
+          { provide: AuthService, useValue: { isEdition: vi.fn(() => false), identity: () => '0|', status: signal(null), token: null } },
           { provide: AlbumService, useValue: { list: vi.fn(() => of({ albums: [] })) } },
           { provide: MatDialog, useValue: { open: vi.fn() } },
         ],
@@ -853,6 +1046,17 @@ describe('GalleryFilterSidebarComponent', () => {
       fixture.componentInstance.selectTab(id);
       fixture.detectChanges();
     };
+
+    it('keeps literal tag rules reachable with empty catalogs and permits clearing invalid saved rules', () => {
+      mockStore['types'] = signal([]); mockStore['tags'] = signal([]); mockStore['patterns'] = signal([]);
+      TestBed.inject(GalleryStore).filters.update(filters => ({ ...filters, tag_groups: '{"any":false}' }));
+      showTab('browse');
+      const editor = (fixture.nativeElement as HTMLElement).querySelector('app-tag-groups');
+      expect(editor).toBeTruthy();
+      expect(editor!.querySelector('[role=alert]')!.textContent).toContain('gallery.tag_groups.invalid');
+      editor!.querySelector<HTMLButtonElement>('[data-tag-rule-clear]')!.click();
+      expect(mockStore['updateFilter']).toHaveBeenCalledWith('tag_groups', '');
+    });
 
     it('lists the advanced metric sections as top-level sections, with no wrapping panel', () => {
       const advanced = fixture.componentInstance.advancedFilterGroups();
@@ -898,10 +1102,10 @@ describe('GalleryFilterSidebarComponent', () => {
       expect((fixture.nativeElement as HTMLElement).querySelector('[data-section="review"]')).toBeTruthy();
     });
 
-    it('lists the decision, then the sets with Rejected last, as menu rows', () => {
+    it('lists the decision, then the sets with Rejected last, then Rating, as menu rows', () => {
       showTab('review');
       const ids = Array.from((fixture.nativeElement as HTMLElement).querySelectorAll('button[data-row][aria-haspopup="menu"]')).map(b => b.getAttribute('data-row'));
-      expect(ids).toEqual(REVIEW_ROWS);
+      expect(ids).toEqual([...REVIEW_ROWS, 'rating']);
     });
 
     it('shows the viewer defaults as the current value of every row, with nothing counted', () => {
@@ -1009,16 +1213,16 @@ describe('GalleryFilterSidebarComponent', () => {
       vi.mocked(TestBed.inject(AuthService).isEdition).mockReturnValue(true);
       showTab('review');
       const section = (fixture.nativeElement as HTMLElement).querySelector('[data-section="review"]') as HTMLElement;
-      const rowTips = fixture.debugElement.queryAll(By.css('button[data-row][aria-haspopup="menu"]')).map(d => d.injector.get(MatTooltip));
+      const rowTips = fixture.debugElement.queryAll(By.css('button[data-row]:not([data-row="rating"])[aria-haspopup="menu"]')).map(d => d.injector.get(MatTooltip));
       expect(rowTips).toHaveLength(7);
       for (const tip of rowTips) {
         expect(tip.message).toMatch(/^gallery\.sidebar\.refine_help\.\w+$/);
         expect(tip.position).toBe('left');
       }
       const ratingTip = fixture.debugElement.query(By.css('button[data-row="rating"]')).injector.get(MatTooltip);
-      expect(ratingTip.message).toBe('gallery.sidebar.review.rating_off');
+      expect(ratingTip.message).toBe('gallery.sidebar.review.rating_help');
       expect(ratingTip.position).toBe('left');
-      const toggles = fixture.debugElement.queryAll(By.css('button[data-toggle]'));
+      const toggles = fixture.debugElement.queryAll(By.css('[data-toggle]'));
       expect(toggles.map(d => d.nativeElement.getAttribute('data-toggle'))).toEqual(['favorites_only', 'is_monochrome', 'manual_faces_need_review']);
       for (const toggle of toggles) {
         const tip = toggle.injector.get(MatTooltip);
@@ -1030,83 +1234,61 @@ describe('GalleryFilterSidebarComponent', () => {
     });
 
     const ratingButton = () => fixture.nativeElement.querySelector('button[data-row="rating"]') as HTMLButtonElement;
-    const ratingBadge = () => (fixture.nativeElement as HTMLElement).querySelector('[data-test="rating-badge"]')?.textContent?.trim();
-    const ratingAria = (count: number, next: number) => `Rating ${count}>${next}`;
+    const ratingValue = () => ratingButton().querySelector('[data-value]')!.textContent!.trim();
 
-    it('shares one row between the rating button and the favorites and monochrome toggles', () => {
+    it('lists the rating row, then the favorites and monochrome checkboxes, each labelled', () => {
       showTab('review');
       const quick = row('quick');
-      expect(quick.getAttribute('role')).toBe('group');
-      expect(Array.from(quick.querySelectorAll('button')).map(b => b.getAttribute('data-row') ?? b.getAttribute('data-toggle')))
+      expect(quick.firstElementChild!.textContent!.trim()).toBe('gallery.sidebar.review.quick');
+      expect(Array.from(quick.querySelectorAll('[data-row], [data-toggle]')).map(e => e.getAttribute('data-row') ?? e.getAttribute('data-toggle')))
         .toEqual(['rating', 'favorites_only', 'is_monochrome']);
-      for (const toggle of Array.from(quick.querySelectorAll('button[data-toggle]'))) expect(toggle.getAttribute('aria-label')).toMatch(/^gallery\.\w+$/);
+      expect(quick.querySelector('[data-toggle="favorites_only"]')!.textContent).toContain('gallery.favorites_only');
+      expect(quick.querySelector('[data-toggle="is_monochrome"]')!.textContent).toContain('gallery.monochrome_only');
     });
 
-    it('shows an empty star and no badge while the rating is off', () => {
+    it('shows an empty star and Any while the rating is off', () => {
       showTab('review');
       expect(ratingButton().querySelector('mat-icon')!.textContent!.trim()).toBe('star_border');
-      expect(ratingBadge()).toBeUndefined();
-      expect(ratingButton().getAttribute('aria-label')).toBe('gallery.sidebar.review.rating_off');
+      expect(ratingValue()).toBe('gallery.sidebar.review.rating_any');
     });
 
-    it('raises the minimum by one per click, and clears it after 5', () => {
-      showTab('review');
-      const steps: [string, string][] = [['', '1'], ['1', '2'], ['2', '3'], ['3', '4'], ['4', '5'], ['5', '']];
-      for (const [from, to] of steps) {
-        toggleFilters({ min_star_rating: from });
-        ratingButton().click();
-        expect(mockStore['updateFilter'], `${from || 'off'} -> ${to || 'off'}`).toHaveBeenLastCalledWith('min_star_rating', to);
-      }
-    });
-
-    it('stops at a max bound from a link instead of setting a minimum above it', () => {
-      showTab('review');
-      toggleFilters({ min_star_rating: '3', max_star_rating: '4' });
-      ratingButton().click();
-      expect(mockStore['updateFilter']).toHaveBeenLastCalledWith('min_star_rating', '4');
-      toggleFilters({ min_star_rating: '4' });
-      expect(ratingButton().getAttribute('aria-label')).toBe('gallery.sidebar.review.rating_last');
-      ratingButton().click();
-      expect(mockStore['updateFilter']).toHaveBeenLastCalledWith('min_star_rating', '');
-    });
-
-    it.each([['2.5', '3'], ['7', ''], ['0', '1']])('steps an odd minimum %s from a link to %s', (from, to) => {
-      showTab('review');
-      toggleFilters({ min_star_rating: from, max_star_rating: '' });
-      ratingButton().click();
-      expect(mockStore['updateFilter']).toHaveBeenLastCalledWith('min_star_rating', to);
-    });
-
-    it('shows a filled star with the minimum as a badge, and says what the next click does', () => {
-      vi.mocked(TestBed.inject(I18nService).t).mockImplementation((k: string, vars?: Record<string, string | number>) =>
-        k.endsWith('review.rating_step') ? ratingAria(Number(vars!['count']), Number(vars!['next'])) : k);
-      showTab('review');
-      toggleFilters({ min_star_rating: '3' });
-      expect(ratingButton().querySelector('mat-icon')!.textContent!.trim()).toBe('star');
-      expect(ratingBadge()).toBe('3');
-      expect(ratingButton().getAttribute('aria-label')).toBe(ratingAria(3, 4));
-      expect(fixture.debugElement.query(By.css('button[data-row="rating"]')).injector.get(MatTooltip).message).toBe(ratingAria(3, 4));
-      expect(fixture.componentInstance.sectionActiveCounts()['gallery.sidebar.ratings']).toBe(1);
-      toggleFilters({ min_star_rating: '5' });
-      expect(ratingBadge()).toBe('5');
-      expect(ratingButton().getAttribute('aria-label')).toBe('gallery.sidebar.review.rating_last');
-    });
-
-    it('keeps the max rating bound visible when a link set it', () => {
+    it.each([
+      ['any', { min_star_rating: '', max_star_rating: '' }],
+      ['3', { min_star_rating: '3', max_star_rating: '' }],
+      ['5', { min_star_rating: '5', max_star_rating: '' }],
+      ['zero', { min_star_rating: '', max_star_rating: '0' }],
+    ] as const)('sets both bounds from the %s menu entry', async (option, bounds) => {
       showTab('review');
       toggleFilters({ min_star_rating: '2', max_star_rating: '4' });
-      expect((fixture.nativeElement as HTMLElement).querySelector('[data-test="rating-max"]')!.textContent!.trim()).toBe('≤ 4');
-      expect(ratingBadge()).toBe('2');
+      await openMenu('rating');
+      expect(menuItems().map(i => i.getAttribute('data-option'))).toEqual(['any', '1', '2', '3', '4', '5', 'zero']);
+      menuItem(option).click();
+      expect(mockStore['updateFilters']).toHaveBeenLastCalledWith(bounds);
     });
 
-    it('toggles favorites and monochrome as pressed buttons', () => {
+    it('checks the entry matching the bounds, and none for a range a link set', async () => {
       showTab('review');
-      const fav = fixture.nativeElement.querySelector('[data-toggle="favorites_only"]') as HTMLButtonElement;
-      expect(fav.getAttribute('aria-pressed')).toBe('false');
+      toggleFilters({ min_star_rating: '3', max_star_rating: '' });
+      expect(ratingButton().querySelector('mat-icon')!.textContent!.trim()).toBe('star');
+      expect(ratingValue()).toBe('gallery.sidebar.review.rating_min');
+      expect(fixture.componentInstance.sectionActiveCounts()['gallery.sidebar.ratings']).toBe(1);
+      await openMenu('rating');
+      expect(menuItems().filter(i => i.getAttribute('aria-checked') === 'true').map(i => i.getAttribute('data-option'))).toEqual(['3']);
+      toggleFilters({ min_star_rating: '2', max_star_rating: '4' });
+      expect(ratingValue()).toBe('gallery.sidebar.review.rating_range');
+      expect(menuItems().filter(i => i.getAttribute('aria-checked') === 'true')).toHaveLength(0);
+      toggleFilters({ min_star_rating: '0', max_star_rating: '0' });
+      expect(ratingValue()).toBe('gallery.zero_stars');
+    });
+
+    it('toggles favorites and monochrome as checkboxes', () => {
+      showTab('review');
+      const fav = fixture.nativeElement.querySelector('[data-toggle="favorites_only"] input') as HTMLInputElement;
+      expect(fav.checked).toBe(false);
       fav.click();
       expect(mockStore['updateFilter']).toHaveBeenLastCalledWith('favorites_only', true);
       toggleFilters({ favorites_only: true });
-      expect(fav.getAttribute('aria-pressed')).toBe('true');
+      expect(fav.checked).toBe(true);
       fav.click();
       expect(mockStore['updateFilter']).toHaveBeenLastCalledWith('favorites_only', false);
     });
@@ -1170,12 +1352,54 @@ describe('GalleryFilterSidebarComponent', () => {
     });
 
 
+    it('offers missing capture date in the date panel and applies one atomic query change', () => {
+      const labels = Array.from(fixture.nativeElement.querySelectorAll('mat-checkbox')) as HTMLElement[];
+      const control = labels.find(el => el.textContent?.includes('gallery.no_capture_date'))!;
+      expect(control).toBeTruthy();
+      expect(control.closest('mat-expansion-panel')?.textContent).toContain('gallery.sidebar.date');
+      (control.querySelector('input') as HTMLInputElement).click();
+      expect(mockStore['updateFilters']).toHaveBeenLastCalledWith({ no_capture_date: '1', date_from: '', date_to: '' });
+    });
+
     it('offers no geolocation without the map feature and forwards the checkbox', () => {
       const labels = Array.from(fixture.nativeElement.querySelectorAll('mat-checkbox')) as HTMLElement[];
       const control = labels.find(el => el.textContent?.includes('gallery.no_geolocation'))!;
       expect(control).toBeTruthy();
       (control.querySelector('input') as HTMLInputElement).click();
       expect(mockStore['updateFilter']).toHaveBeenCalledWith('no_gps', '1');
+    });
+
+    it('opens the filename disclosure for its keyboard shortcut and keeps the finder clear action in its input', () => {
+      fixture.componentInstance.focusSearch();
+      const filename = fixture.nativeElement.querySelector('#sidebar-filename-search') as HTMLInputElement;
+      expect(filename.closest('details')?.open).toBe(true);
+      expect(document.activeElement).toBe(filename);
+      expect(filename.type).toBe('text');
+      const finder = fixture.nativeElement.querySelector('#filter-finder-input') as HTMLInputElement;
+      expect(finder.labels?.[0]?.classList.contains('sr-only')).toBe(true);
+      finder.value = 'score'; finder.dispatchEvent(new Event('input')); fixture.detectChanges();
+      const clear = fixture.nativeElement.querySelector('[aria-label="gallery.sidebar.clear_find_filter"]') as HTMLButtonElement;
+      clear.click(); fixture.detectChanges();
+      expect(finder.value).toBe('');
+      expect(document.activeElement).toBe(finder);
+    });
+
+    it('uses one visible semantic heading and reveals explanatory copy only on request', () => {
+      const panel = fixture.nativeElement.querySelector('[data-semantic-search]') as HTMLElement;
+      expect(panel.querySelector('mat-form-field')).toBeNull();
+      const input = panel.querySelector<HTMLInputElement>('#semantic-search-input')!;
+      expect(input.labels?.[0]?.classList.contains('sr-only')).toBe(true);
+      const help = panel.querySelector<HTMLButtonElement>('[data-semantic-help] button')!;
+      expect(help.getAttribute('aria-expanded')).toBe('false');
+      expect(panel.querySelector('#semantic-search-help')).toBeNull();
+      help.click(); fixture.detectChanges();
+      expect(help.getAttribute('aria-expanded')).toBe('true');
+      const overlay = TestBed.inject(OverlayContainer).getContainerElement();
+      expect(panel.querySelector('#semantic-search-help')).toBeNull();
+      expect(overlay.querySelector('#semantic-search-help')?.textContent).toContain('gallery.semantic_search_info');
+      overlay.querySelector('header button')!.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true })); fixture.detectChanges();
+      expect(overlay.querySelector('#semantic-search-help')).toBeNull();
+      expect(panel.querySelector('#semantic-search-help')).toBeNull();
     });
 
     it('renders the thumb seeded from the config default, announced with its unit', () => {

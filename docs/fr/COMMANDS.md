@@ -546,6 +546,7 @@ Tri automatique sans interface : la version terminal du [tri automatique](VIEWE
 | `--copy-keepers DIR` | Copie dans `DIR` chaque photo non rejetée de la portée, avec ses compagnons RAW / `.xmp` de même nom |
 | `--cull-strictness N` | Budget de photos conservées de 0 à 100, plus élevé = moins de photos conservées par groupe (défaut : `auto_cull.default_strictness`) |
 | `--cull-min-keep N` | Nombre minimal de photos conservées par groupe (défaut `1`) |
+| `--cull-reconsider-existing` | Réexamine les photos déjà notées, favorites, conservées ou rejetées (préservées par défaut). |
 | `--cull-group-by {all,burst,similar,scene}` | Groupes à trier (défaut `all`) |
 | `--cull-min-score X` | Rejette aussi les photos isolées dont le score global est inférieur à `X` |
 | `--cull-trim-brackets` | Rejette aussi les vues redondantes des bracketings d'exposition (le `trim_brackets` de la visionneuse) |

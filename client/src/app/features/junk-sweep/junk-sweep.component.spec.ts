@@ -1,4 +1,8 @@
 import type { Mock } from 'vitest';
+import { signal, type WritableSignal } from '@angular/core';
+import { provideHttpClient } from '@angular/common/http';
+import { provideHttpClientTesting, HttpTestingController, type TestRequest } from '@angular/common/http/testing';
+import { AuthService } from '../../core/services/auth.service';
 import { TestBed, ComponentFixture } from '@angular/core/testing';
 import { MatSnackBar } from '@angular/material/snack-bar';
 import { MatDialog } from '@angular/material/dialog';
@@ -32,7 +36,7 @@ describe('JunkSweepComponent', () => {
 
   const emptyPage = { photos: [], total: 0, total_pages: 1, page: 1, has_more: false };
 
-  function createComponent(
+  function configureComponent(
     firstPage: Record<string, unknown> | Observable<unknown> = defaultFirstPage,
     kindsReply: Observable<unknown> = of(kindsList),
     laterPages: () => Observable<unknown> = () => of(emptyPage),
@@ -49,7 +53,7 @@ describe('JunkSweepComponent', () => {
         }
         return laterPages();
       }),
-      post: vi.fn(() => of({})),
+      post: vi.fn((_url: string, body: { photo_paths?: string[] }) => of({ count: body.photo_paths?.length ?? 1 })),
     };
     mockI18n = { t: vi.fn((k: string, vars?: Record<string, unknown>) => (vars ? `${k} ${JSON.stringify(vars)}` : k)), translations: () => ({}) } as unknown as { t: Mock };
     mockSnackBar = { open: vi.fn() };
@@ -62,12 +66,17 @@ describe('JunkSweepComponent', () => {
         JunkSweepComponent,
         provideRouter([{ path: 'junk', children: [] }]),
         { provide: ApiService, useValue: mockApi },
+        { provide: AuthService, useValue: { identity: signal('owner-a'), isEdition: signal(true) } },
         { provide: I18nService, useValue: mockI18n },
         { provide: MatSnackBar, useValue: mockSnackBar },
         { provide: MatDialog, useValue: mockDialog },
         { provide: UserActivityJournal, useValue: journal },
       ],
     });
+  }
+
+  function createComponent(...args: Parameters<typeof configureComponent>) {
+    configureComponent(...args);
     component = TestBed.inject(JunkSweepComponent);
   }
 
@@ -224,7 +233,7 @@ describe('JunkSweepComponent', () => {
     journal.record.mockClear();
     createComponent({ photos: many, total: 1500, total_pages: 32, page: 1, has_more: true });
     await component.ngOnInit();
-    mockApi.post.mockReturnValueOnce(of({})).mockReturnValueOnce(throwError(() => new Error('boom')));
+    mockApi.post.mockReturnValueOnce(of({ count: 1000 })).mockReturnValueOnce(throwError(() => new Error('boom')));
     await component.rejectAllShown();
     expect(journal.record).toHaveBeenCalledTimes(1);
     const [, partialPaths, partialValue] = journal.record.mock.calls[0];
@@ -265,7 +274,7 @@ describe('JunkSweepComponent', () => {
   describe('rendered: candidate count and empty states', () => {
     /** createComponent, but rendered as the fixture root so the template can be asserted. */
     async function render(...args: Parameters<typeof createComponent>): Promise<{ fixture: ComponentFixture<JunkSweepComponent>; host: HTMLElement }> {
-      createComponent(...args);
+      configureComponent(...args);
       const fixture = TestBed.createComponent(JunkSweepComponent);
       component = fixture.componentInstance;
       fixture.detectChanges();
@@ -294,9 +303,9 @@ describe('JunkSweepComponent', () => {
       expect(countChip(host)).toBeNull();
     });
 
-    it('counts down as a card is rejected from its hover button', async () => {
+    it('counts down as a card is rejected from its visible decision button', async () => {
       const { fixture, host } = await render();
-      const rejectButtons = [...host.querySelectorAll<HTMLButtonElement>('button[aria-label="junk.reject"]')];
+      const rejectButtons = [...host.querySelectorAll<HTMLButtonElement>('button[data-junk-reject]')];
       expect(rejectButtons.length).toBe(4);
       rejectButtons[0].click();
       fixture.detectChanges();
@@ -311,12 +320,14 @@ describe('JunkSweepComponent', () => {
       expect(countChip(host)!.textContent).toContain('junk.candidates {"count":1}');
     });
 
-    it('drops the previous kind\'s count when the new kind fails to load', async () => {
+    it('shows a persistent error rather than an empty queue when the new kind fails to load', async () => {
       const { fixture, host } = await render(defaultFirstPage, of(kindsList), () => throwError(() => new Error('boom')));
       await component.selectKind('meme');
       fixture.detectChanges();
-      expect(countChip(host)!.textContent).toContain('"count":0');
-      expect(emptyMessages(host)).toEqual(['junk.empty_kind']);
+      expect(countChip(host)).toBeNull();
+      expect(emptyMessages(host)).toEqual([]);
+      expect(host.querySelector('[data-junk-load-error]')).not.toBeNull();
+      expect(host.querySelector('[data-junk-retry]')).not.toBeNull();
     });
 
     it('re-reads the first page once every loaded card is handled while more remain', async () => {
@@ -364,5 +375,460 @@ describe('JunkSweepComponent', () => {
       expect(component.activeKind()).toBe('meme');
       expect(emptyMessages(host)).toEqual(['junk.empty_kind']);
     });
+  });
+});
+
+
+describe('JunkSweepComponent HTTP, owner and recovery boundaries', () => {
+  let fixture: ComponentFixture<JunkSweepComponent>;
+  let component: any;
+  let http: HttpTestingController;
+  let identity: WritableSignal<string>;
+  let isEdition: WritableSignal<boolean>;
+  let journal: { record: Mock };
+  let snack: { open: Mock };
+  let dialog: { open: Mock };
+  let navigationGate: Subject<boolean>;
+  let navigationEntered: () => void;
+
+  const photo = (index: number, kind = 'screenshot') => ({
+    path: `/queue/${index}.jpg`, filename: `${index}.jpg`, junk_kind: kind, aggregate: 10 - index / 1000,
+  });
+  const paths = () => component.photos().map((candidate: { path: string }) => candidate.path);
+  const host = () => fixture.nativeElement as HTMLElement;
+  const expectPage = (page: number, kind = 'any'): TestRequest => http.expectOne(request =>
+    request.url === '/api/photos' && request.params.get('page') === String(page)
+      && request.params.get('per_page') === '48' && request.params.get('junk_kind') === kind
+      && request.params.has('type') && request.params.get('type') === '');
+  const reply = (request: TestRequest, queue: ReturnType<typeof photo>[], page = 1) => request.flush({
+    photos: queue.slice((page - 1) * 48, page * 48), total: queue.length,
+    total_pages: Math.max(1, Math.ceil(queue.length / 48)), page,
+  });
+
+  beforeEach(() => {
+    TestBed.resetTestingModule();
+    identity = signal('owner-a');
+    isEdition = signal(true);
+    journal = { record: vi.fn() };
+    snack = { open: vi.fn() };
+    dialog = { open: vi.fn(() => ({ afterClosed: () => of(true) })) };
+    navigationGate = new Subject<boolean>();
+    navigationEntered = () => undefined;
+    TestBed.configureTestingModule({
+      imports: [JunkSweepComponent],
+      providers: [
+        provideHttpClient(), provideHttpClientTesting(), provideRouter([
+          { path: 'junk', children: [] }, { path: 'leaving', children: [], canActivate: [() => {
+            navigationEntered(); return navigationGate;
+          }] },
+        ]),
+        { provide: AuthService, useValue: { identity, isEdition } },
+        { provide: I18nService, useValue: { translations: signal({}), t: (key: string) => key } },
+        { provide: MatSnackBar, useValue: snack },
+        { provide: MatDialog, useValue: dialog },
+        { provide: UserActivityJournal, useValue: journal },
+      ],
+    });
+    http = TestBed.inject(HttpTestingController);
+  });
+
+  afterEach(() => {
+    try {
+      http.verify();
+    } finally {
+      TestBed.resetTestingModule();
+    }
+  });
+
+  function start(): TestRequest {
+    fixture = TestBed.createComponent(JunkSweepComponent);
+    component = fixture.componentInstance;
+    fixture.detectChanges();
+    http.expectOne('/api/filter_options/junk_kinds').flush({ junk_kinds: [['screenshot', 2000], ['meme', 1]] });
+    return expectPage(1);
+  }
+
+  async function boot(queue: ReturnType<typeof photo>[]): Promise<void> {
+    reply(start(), queue);
+    await fixture.whenStable();
+    fixture.detectChanges();
+  }
+
+  async function loadEveryPage(queue: ReturnType<typeof photo>[]): Promise<void> {
+    await boot(queue);
+    for (let page = 2; page <= Math.ceil(queue.length / 48); page++) {
+      const pending = component.loadMore();
+      reply(expectPage(page), queue, page);
+      await pending;
+    }
+  }
+
+  it('keeps an initial read failure visible until Retry successfully loads candidates', async () => {
+    start().flush({ detail: 'temporary read refusal' }, { status: 503, statusText: 'Unavailable' });
+    await fixture.whenStable();
+    fixture.detectChanges();
+    expect(host().querySelector('[data-junk-load-error]')).not.toBeNull();
+    expect(host().textContent).not.toContain('junk.empty');
+    host().querySelector<HTMLButtonElement>('[data-junk-retry]')!.click();
+    reply(expectPage(1), [photo(1)]);
+    await fixture.whenStable();
+    fixture.detectChanges();
+    expect(paths()).toEqual(['/queue/1.jpg']);
+    expect(host().querySelector('[data-junk-load-error]')).toBeNull();
+  });
+
+  it('retries the failed append page without skipping it or losing existing cards', async () => {
+    const queue = Array.from({ length: 120 }, (_, index) => photo(index));
+    await boot(queue);
+    const more = component.loadMore();
+    expectPage(2).flush({ detail: 'temporary read refusal' }, { status: 503, statusText: 'Unavailable' });
+    await more;
+    fixture.detectChanges();
+    expect(paths()).toEqual(queue.slice(0, 48).map(candidate => candidate.path));
+    expect(host().querySelector('[data-junk-load-error]')).not.toBeNull();
+    const retry = component.retryLoad();
+    reply(expectPage(2), queue, 2);
+    await retry;
+    expect(paths()).toEqual(queue.slice(0, 96).map(candidate => candidate.path));
+    http.expectNone(request => request.url === '/api/photos' && request.params.get('page') === '3');
+  });
+
+  it('loads every shifted candidate after Keep using at most the boundary and following page', async () => {
+    const queue = Array.from({ length: 120 }, (_, index) => photo(index));
+    await boot(queue);
+    const kept = component.keep(queue[0]);
+    const write = http.expectOne('/api/photo/clear_junk');
+    expect(write.request.body).toEqual({ photo_path: queue[0].path });
+    write.flush({ success: true });
+    await kept;
+    const remaining = queue.slice(1);
+    const more = component.loadMore();
+    reply(expectPage(1), remaining);
+    // Settle load's response continuation, then loadMore's next-page continuation.
+    await Promise.resolve();
+    await Promise.resolve();
+    reply(expectPage(2), remaining, 2);
+    await more;
+    expect(paths()).toEqual(remaining.slice(0, 96).map(candidate => candidate.path));
+    expect(paths()).toContain(queue[48].path);
+    http.expectNone(request => request.url === '/api/photos');
+  });
+
+  it.each(['keep', 'reject'])('does not restore a failed old-kind %s into the new kind', async action => {
+    const old = photo(1, 'meme');
+    const current = photo(2);
+    await boot([old, current]);
+    const pending = component[action](old);
+    const write = http.expectOne(action === 'keep' ? '/api/photo/clear_junk' : '/api/photos/batch_reject');
+    const selected = component.selectKind('screenshot');
+    reply(expectPage(1, 'screenshot'), [current]);
+    await selected;
+    write.flush({ detail: 'write refused' }, { status: 409, statusText: 'Conflict' });
+    await pending;
+    expect(paths()).toEqual([current.path]);
+    expect(component.total()).toBe(1);
+    expect(journal.record).not.toHaveBeenCalled();
+    expect(snack.open).toHaveBeenCalledWith('junk.decision_error', expect.anything(), expect.anything());
+  });
+
+  it.each([['keep', 'clear'], ['reject', 'reject']])('journals and reports a %s that lands after the kind changed, without touching the new list', async (action, journalled) => {
+    const old = photo(1, 'meme');
+    const current = photo(2);
+    await boot([old, current]);
+    const pending = component[action](old);
+    const write = http.expectOne(action === 'keep' ? '/api/photo/clear_junk' : '/api/photos/batch_reject');
+    const selected = component.selectKind('screenshot');
+    reply(expectPage(1, 'screenshot'), [current]);
+    await selected;
+    write.flush({ success: true });
+    await pending;
+    expect(paths()).toEqual([current.path]);
+    expect(journal.record).toHaveBeenCalledWith('junk', [old.path], { action: journalled, count: 1 });
+    expect(snack.open).toHaveBeenCalledWith(action === 'keep' ? 'junk.kept' : 'junk.rejected', expect.anything(), expect.anything());
+  });
+
+  it('refreshes a matching new kind after an old-view decision settles instead of replaying its rollback', async () => {
+    const old = photo(1, 'meme');
+    const current = photo(2);
+    await boot([old, current]);
+    const selected = component.selectKind('meme');
+    reply(expectPage(1, 'meme'), [old]);
+    await selected;
+    const pending = component.keep(old);
+    const write = http.expectOne('/api/photo/clear_junk');
+    const all = component.selectKind('any');
+    reply(expectPage(1), [old, current]);
+    await all;
+    write.flush({ success: true });
+    await Promise.resolve();
+    reply(expectPage(1), [current]);
+    await pending;
+    expect(paths()).toEqual([current.path]);
+    expect(component.total()).toBe(1);
+  });
+
+  it('allows only one bulk confirmation and blocks conflicting decisions while its request runs', async () => {
+    const queue = [photo(1), photo(2)];
+    await boot(queue);
+    const confirmation = new Subject<boolean>();
+    dialog.open.mockReturnValueOnce({ afterClosed: () => confirmation });
+    const cancelled = component.rejectAllShown();
+    await component.rejectAllShown();
+    expect(dialog.open).toHaveBeenCalledTimes(1);
+    http.expectNone('/api/photos/batch_reject');
+    confirmation.next(false);
+    confirmation.complete();
+    await cancelled;
+    expect(component.bulkBusy()).toBe(false);
+
+    const bulk = component.rejectAllShown();
+    await Promise.resolve();
+    const request = http.expectOne('/api/photos/batch_reject');
+    expect(request.request.body).toEqual({ photo_paths: queue.map(candidate => candidate.path) });
+    await component.keep(queue[0]);
+    await component.reject(queue[1]);
+    await component.rejectAllShown();
+    http.expectNone('/api/photo/clear_junk');
+    http.expectNone('/api/photos/batch_reject');
+    request.flush({ success: true, count: 2 });
+    await Promise.resolve();
+    reply(expectPage(1), []);
+    await bulk;
+    expect(paths()).toEqual([]);
+    expect(component.bulkBusy()).toBe(false);
+    expect(journal.record).toHaveBeenCalledWith('junk', queue.map(candidate => candidate.path), { action: 'reject', count: 2 });
+  });
+
+  it('does not submit a confirmation captured under an earlier account', async () => {
+    await boot([photo(1)]);
+    const confirmation = new Subject<boolean>();
+    dialog.open.mockReturnValueOnce({ afterClosed: () => confirmation });
+    const bulk = component.rejectAllShown();
+    identity.set('owner-b');
+    fixture.detectChanges();
+    http.expectOne('/api/filter_options/junk_kinds').flush({ junk_kinds: [] });
+    reply(expectPage(1), []);
+    confirmation.next(true);
+    confirmation.complete();
+    await bulk;
+    await fixture.whenStable();
+    http.expectNone('/api/photos/batch_reject');
+    expect(paths()).toEqual([]);
+  });
+
+  it('stops later bulk chunks after the component is destroyed', async () => {
+    const queue = Array.from({ length: 1001 }, (_, index) => photo(index));
+    await loadEveryPage(queue);
+    const bulk = component.rejectAllShown();
+    await Promise.resolve();
+    const first = http.expectOne('/api/photos/batch_reject');
+    expect(first.request.body.photo_paths).toHaveLength(1000);
+    fixture.destroy();
+    first.flush({ success: true, count: 1000 });
+    await bulk;
+    http.expectNone('/api/photos/batch_reject');
+    http.expectNone('/api/photos');
+  });
+
+  it('stops later chunks at navigation start and recovers after a guarded navigation is cancelled', async () => {
+    const router = TestBed.inject(Router);
+    await router.navigateByUrl('/junk');
+    const queue = Array.from({ length: 1001 }, (_, index) => photo(index));
+    await loadEveryPage(queue);
+    const bulk = component.rejectAllShown();
+    await Promise.resolve();
+    const first = http.expectOne('/api/photos/batch_reject');
+    const entered = new Promise<void>(resolve => { navigationEntered = resolve; });
+    const navigation = router.navigateByUrl('/leaving');
+    await entered;
+    expect(fixture.componentRef.hostView.destroyed).toBe(false);
+    first.flush({ success: true, count: 1000 });
+    await bulk;
+    http.expectNone('/api/photos/batch_reject');
+    await component.keep(queue[1000]);
+    http.expectNone('/api/photo/clear_junk');
+
+    navigationGate.next(false); navigationGate.complete();
+    expect(await navigation).toBe(false);
+    await Promise.resolve();
+    http.expectOne('/api/filter_options/junk_kinds').flush({ junk_kinds: [['screenshot', 1]] });
+    reply(expectPage(1), [queue[1000]]);
+    await fixture.whenStable();
+    fixture.detectChanges();
+    expect(paths()).toEqual([queue[1000].path]);
+    const resumed = component.keep(queue[1000]);
+    http.expectOne('/api/photo/clear_junk').flush({ success: true });
+    await resumed;
+    expect(paths()).toEqual([]);
+    http.expectNone('/api/photos/batch_reject');
+  });
+
+  it('journals and reports the chunks that landed when a navigation stops the bulk write', async () => {
+    const router = TestBed.inject(Router);
+    await router.navigateByUrl('/junk');
+    const queue = Array.from({ length: 1001 }, (_, index) => photo(index));
+    await loadEveryPage(queue);
+    const bulk = component.rejectAllShown();
+    await Promise.resolve();
+    const first = http.expectOne('/api/photos/batch_reject');
+    const entered = new Promise<void>(resolve => { navigationEntered = resolve; });
+    const navigation = router.navigateByUrl('/leaving');
+    await entered;
+    first.flush({ success: true, count: 1000 });
+    await bulk;
+    http.expectNone('/api/photos/batch_reject');
+    expect(journal.record).toHaveBeenCalledWith('junk', queue.slice(0, 1000).map(candidate => candidate.path),
+      { action: 'reject', count: 1000, partial: true });
+    expect(snack.open).toHaveBeenCalledWith('gallery.selection.batch_partial', expect.anything(), expect.anything());
+    navigationGate.next(false); navigationGate.complete();
+    await navigation;
+    await Promise.resolve();
+    http.expectOne('/api/filter_options/junk_kinds').flush({ junk_kinds: [] });
+    reply(expectPage(1), [queue[1000]]);
+    await fixture.whenStable();
+  });
+
+  it('reports a single-chunk bulk write that lands after a navigation started', async () => {
+    const router = TestBed.inject(Router);
+    await router.navigateByUrl('/junk');
+    const queue = [photo(1), photo(2)];
+    await boot(queue);
+    const bulk = component.rejectAllShown();
+    await Promise.resolve();
+    const only = http.expectOne('/api/photos/batch_reject');
+    const entered = new Promise<void>(resolve => { navigationEntered = resolve; });
+    const navigation = router.navigateByUrl('/leaving');
+    await entered;
+    only.flush({ success: true, count: 2 });
+    await bulk;
+    expect(journal.record).toHaveBeenCalledWith('junk', queue.map(candidate => candidate.path), { action: 'reject', count: 2 });
+    expect(snack.open).toHaveBeenCalledWith('junk.rejected_bulk', expect.anything(), expect.anything());
+    navigationGate.next(false); navigationGate.complete();
+    await navigation;
+    await Promise.resolve();
+    http.expectOne('/api/filter_options/junk_kinds').flush({ junk_kinds: [] });
+    reply(expectPage(1), []);
+    await fixture.whenStable();
+  });
+
+  it('does not issue a later old-account chunk or overwrite the new account queue', async () => {
+    const queue = Array.from({ length: 1001 }, (_, index) => photo(index));
+    await loadEveryPage(queue);
+    const bulk = component.rejectAllShown();
+    await Promise.resolve();
+    const first = http.expectOne('/api/photos/batch_reject');
+    identity.set('owner-b');
+    fixture.detectChanges();
+    http.expectOne('/api/filter_options/junk_kinds').flush({ junk_kinds: [['screenshot', 1]] });
+    const other = photo(2000);
+    reply(expectPage(1), [other]);
+    first.flush({ success: true, count: 1000 });
+    await bulk;
+    await fixture.whenStable();
+    expect(paths()).toEqual([other.path]);
+    expect(component.total()).toBe(1);
+    http.expectNone('/api/photos/batch_reject');
+    expect(journal.record).not.toHaveBeenCalled();
+  });
+
+  it('refuses a new decision immediately when identity changes, before effects clear old cards', async () => {
+    const queue = [photo(1)];
+    await boot(queue);
+    identity.set('owner-b');
+    await component.keep(queue[0]);
+    http.expectNone('/api/photo/clear_junk');
+    fixture.detectChanges();
+    http.expectOne('/api/filter_options/junk_kinds').flush({ junk_kinds: [] });
+    reply(expectPage(1), []);
+    await fixture.whenStable();
+    expect(paths()).toEqual([]);
+  });
+
+  it('renders discoverable named Keep/Reject controls with an explicit non-delete reject glyph', async () => {
+    await boot([photo(1)]);
+    const keep = host().querySelector<HTMLButtonElement>('[data-junk-keep]')!;
+    const reject = host().querySelector<HTMLButtonElement>('[data-junk-reject]')!;
+    expect(keep.textContent).toContain('junk.keep');
+    expect(reject.textContent).toContain('junk.reject');
+    expect(reject.querySelector('mat-icon')!.textContent).toBe('block');
+    expect(keep.disabled).toBe(false);
+    expect(reject.disabled).toBe(false);
+  });
+
+  it('keeps the full descriptive filename and distinguishing suffix available on its card', async () => {
+    const filename = 'synthetic-receipt-01.png';
+    await boot([{ ...photo(1), filename }]);
+    const label = host().querySelector<HTMLElement>('[data-junk-card] p[title]')!;
+    expect(label.textContent?.trim()).toBe(filename);
+    expect(label.getAttribute('title')).toBe(filename);
+  });
+
+  it('reports a failed Keep decision accurately and restores the candidate', async () => {
+    await boot([photo(1), photo(2)]);
+    const keep = host().querySelector<HTMLButtonElement>('[data-junk-keep]')!;
+    keep.focus(); keep.click(); fixture.detectChanges();
+    const request = http.expectOne('/api/photo/clear_junk');
+    request.flush({ detail: 'write failed' }, { status: 500, statusText: 'Failure' });
+    await fixture.whenStable(); fixture.detectChanges();
+    expect(snack.open).toHaveBeenCalledWith('junk.decision_error', expect.anything(), expect.anything());
+    expect(paths()).toContain('/queue/1.jpg');
+  });
+
+  it('restores a failed third decision in place and returns focus to that card', async () => {
+    const queue = [photo(1), photo(2), photo(3), photo(4)];
+    await boot(queue);
+    const buttons = host().querySelectorAll<HTMLButtonElement>('[data-junk-keep]');
+    buttons[2].focus(); buttons[2].click(); fixture.detectChanges();
+    const request = http.expectOne('/api/photo/clear_junk');
+    await fixture.whenStable(); fixture.detectChanges();
+    expect(document.activeElement?.getAttribute('aria-label')).toContain('4.jpg');
+    request.flush({ detail: 'failed' }, { status: 500, statusText: 'Failure' });
+    await fixture.whenStable(); fixture.detectChanges();
+    await fixture.whenStable(); fixture.detectChanges();
+    expect(paths()).toEqual(queue.map(item => item.path));
+    expect(document.activeElement?.getAttribute('aria-label')).toContain('3.jpg');
+  });
+
+  it('does not steal focus after a failed decision when the user moved elsewhere', async () => {
+    await boot([photo(1), photo(2), photo(3)]);
+    const keep = host().querySelectorAll<HTMLButtonElement>('[data-junk-keep]')[1];
+    keep.focus(); keep.click(); fixture.detectChanges();
+    const request = http.expectOne('/api/photo/clear_junk');
+    await fixture.whenStable(); fixture.detectChanges();
+    const heading = host().querySelector<HTMLElement>('[data-junk-heading]')!;
+    heading.focus();
+    request.flush({ detail: 'failed' }, { status: 500, statusText: 'Failure' });
+    await fixture.whenStable(); fixture.detectChanges();
+    expect(document.activeElement).toBe(heading);
+    expect(paths()).toEqual(['/queue/1.jpg', '/queue/2.jpg', '/queue/3.jpg']);
+  });
+
+  it('moves focus to the next card after Keep succeeds', async () => {
+    await boot([photo(1), photo(2)]);
+    const keep = host().querySelector<HTMLButtonElement>('[data-junk-keep]')!;
+    keep.focus(); keep.click(); fixture.detectChanges();
+    http.expectOne('/api/photo/clear_junk').flush({ success: true });
+    await fixture.whenStable(); fixture.detectChanges();
+    expect(document.activeElement?.getAttribute('aria-label')).toContain('2.jpg');
+  });
+
+  it('preserves native modified, repeating and modal Z keystrokes', async () => {
+    await boot([photo(1)]);
+    for (const options of [{ ctrlKey: true }, { metaKey: true }, { altKey: true }, { repeat: true }, { isComposing: true }]) {
+      document.dispatchEvent(new KeyboardEvent('keydown', { key: 'z', bubbles: true, ...options }));
+      expect(component.loupeActive()).toBe(false);
+    }
+    const modal = document.createElement('div');
+    modal.setAttribute('role', 'dialog');
+    modal.setAttribute('aria-modal', 'true');
+    document.body.append(modal);
+    try {
+      document.dispatchEvent(new KeyboardEvent('keydown', { key: 'z', bubbles: true }));
+      expect(component.loupeActive()).toBe(false);
+    } finally {
+      modal.remove();
+    }
+    document.dispatchEvent(new KeyboardEvent('keydown', { key: 'z', bubbles: true }));
+    expect(component.loupeActive()).toBe(true);
   });
 });

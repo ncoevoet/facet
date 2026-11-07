@@ -1,3 +1,4 @@
+import { randomUuid } from '../../shared/utils/random-uuid';
 import {
   EnvironmentInjector,
   Injectable,
@@ -13,7 +14,7 @@ import { firstValueFrom } from 'rxjs';
 import { AuthService } from '../services/auth.service';
 import { McpCallRequest, McpCallResponse, McpInpageLevel, McpInpageTool, McpInpageTools } from '../api/types';
 import { LEVEL_TIERS, agentLevel } from './agent-level';
-import { WebMcpDescriptor, registerWebMcpTools, toHex, toWebMcpDescriptor } from './webmcp-descriptor';
+import { WebMcpDescriptor, registerWebMcpTools, toWebMcpDescriptor } from './webmcp-descriptor';
 import { AgentWebMcpService } from './agent-web-mcp.service';
 import { AgentBridgeService } from './agent-bridge.service';
 import { AssistantChangesService } from './assistant-changes.service';
@@ -25,17 +26,6 @@ const TIERS: readonly McpInpageLevel[] = LEVEL_TIERS;
 const STRIPPED_ARGS = ['tab_id'] as const;
 /** Wait before the single retry of a failed tool listing. */
 export const INPAGE_RETRY_MS = 2000;
-
-/** A v4-shaped id. `crypto.randomUUID` exists only in secure contexts, and a plain-HTTP LAN install is not one. */
-function newSessionId(): string {
-  if (typeof crypto.randomUUID === 'function') return crypto.randomUUID();
-  const bytes = new Uint8Array(16);
-  crypto.getRandomValues(bytes);
-  bytes[6] = (bytes[6] & 0x0f) | 0x40;
-  bytes[8] = (bytes[8] & 0x3f) | 0x80;
-  const hex = toHex(bytes);
-  return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20)}`;
-}
 
 function readOptIn(): boolean {
   try {
@@ -189,10 +179,10 @@ export class ServerToolRegistry {
       if (!snapshot.ok) return JSON.stringify(snapshot);
       body.selection_snapshot = snapshot.data && typeof snapshot.data === 'object' ? snapshot.data as Record<string, unknown> : null;
     }
-    const callId = newSessionId();
+    const callId = randomUuid();
     try {
       const response = await firstValueFrom(this.http.post<McpCallResponse>('/api/mcp/call', body, {
-        headers: new HttpHeaders({ [SESSION_HEADER]: this.sessionId ??= newSessionId() }),
+        headers: new HttpHeaders({ [SESSION_HEADER]: this.sessionId ??= randomUuid() }),
       }));
       // The key is present only when a photo-changing write ran (even an ok:false outcome_unknown one).
       if ('changed_paths' in response) {

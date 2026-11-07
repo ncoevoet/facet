@@ -93,6 +93,8 @@ export interface CullingGroup {
   type: CullingGroupType | 'duplicate';
   suggestionKey?: string;
   reason: string;
+  /** Similar groups only: the threshold the group was formed at. */
+  similarity_percent?: number | null;
   photos: CullingPhoto[];
   best_path: string;
   count: number;
@@ -225,9 +227,9 @@ export class IsKeptPipe implements PipeTransform {
 
 @Pipe({ name: 'isDecided' })
 export class IsDecidedPipe implements PipeTransform {
-  transform(path: string, selectionsMap: Map<string, Set<string>>, groupKey: string): boolean {
+  transform(path: string, selectionsMap: Map<string, Set<string>>, groupKey: string, touched = false): boolean {
     const kept = selectionsMap.get(groupKey);
-    return kept !== undefined && kept.size > 0 && !kept.has(path);
+    return kept !== undefined && (kept.size > 0 || touched) && !kept.has(path);
   }
 }
 
@@ -589,13 +591,6 @@ export interface CullStyle {
 export function cullPreviewUrl(path: string, style: string): string {
   const params = new URLSearchParams({ path, style });
   return `/api/photo/cull_preview?${params}`;
-}
-
-@Pipe({ name: 'cullPreviewUrl' })
-export class CullPreviewUrlPipe implements PipeTransform {
-  transform(path: string, style: string): string {
-    return cullPreviewUrl(path, style);
-  }
 }
 
 // --- Darkroom overlays: focus peaking + composition grid ---

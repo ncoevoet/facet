@@ -1,31 +1,32 @@
-import { Component, inject, signal, effect, OnInit, HostListener, ChangeDetectionStrategy } from '@angular/core';
+import { ContextHelpComponent } from '../context-help/context-help.component';
+import { Component, inject, signal, OnInit, HostListener, ChangeDetectionStrategy, DestroyRef } from '@angular/core';
 import { ActivatedRoute, Router } from '@angular/router';
 import { MatIconModule } from '@angular/material/icon';
 import { MatButtonModule } from '@angular/material/button';
 import { MatTooltipModule } from '@angular/material/tooltip';
-import { MatMenuModule } from '@angular/material/menu';
 import { firstValueFrom } from 'rxjs';
 import { ExtendedQualityComponent } from '../extended-quality/extended-quality.component';
 import { Photo, normalisePhotoFlags } from '../../models/photo.model';
 import { FixedPipe } from '../../pipes/fixed.pipe';
 import { ShutterSpeedPipe } from '../../pipes/shutter-speed.pipe';
 import { TranslatePipe } from '../../pipes/translate.pipe';
-import { ThumbnailUrlPipe } from '../../pipes/thumbnail-url.pipe';
-import { CategoryLabelPipe } from '../../../features/gallery/photo-tooltip.component';
+import { CaptureDatePipe } from '../../pipes/capture-date.pipe';
+import { RenditionReadoutComponent } from '../rendition-readout/rendition-readout.component';
+import { PhotoAssessmentComponent } from '../photo-assessment/photo-assessment.component';
+import { CategoryLabelPipe } from '../../pipes/category-label.pipe';
 import { IsLensNamePipe } from '../../pipes/is-lens-name.pipe';
-import { DownloadIconPipe } from '../../pipes/download-icon.pipe';
-import { DownloadOption } from '../../../core/api/types';
 import { PhotoDetailBase } from '../../directives/photo-detail-base.directive';
 import { i18nKeys } from '../../../core/i18n/keys';
+import { sharedAssetPhoto, type SharedAsset, sharedAlbumMediaUrl } from '../../utils/shared-album-media';
 
 @Component({
   selector: 'app-shared-photo-detail',
   standalone: true,
-  imports: [
+  imports: [ContextHelpComponent,
     ExtendedQualityComponent,
-    MatIconModule, MatButtonModule, MatTooltipModule, MatMenuModule,
-    FixedPipe, ShutterSpeedPipe, TranslatePipe, ThumbnailUrlPipe,
-    CategoryLabelPipe, IsLensNamePipe, DownloadIconPipe,
+    MatIconModule, MatButtonModule, MatTooltipModule,
+    FixedPipe, ShutterSpeedPipe, TranslatePipe, CaptureDatePipe, RenditionReadoutComponent, PhotoAssessmentComponent,
+    CategoryLabelPipe, IsLensNamePipe,
   ],
   host: { class: 'block h-full overflow-y-auto lg:overflow-y-hidden' },
   changeDetection: ChangeDetectionStrategy.Eager,
@@ -37,48 +38,33 @@ import { i18nKeys } from '../../../core/i18n/keys';
           <mat-icon>arrow_back</mat-icon>
         </button>
         <span class="flex-1 truncate font-medium">{{ p.filename }}</span>
-        @if (downloadOptions().length > 1) {
-          <button mat-button [matMenuTriggerFor]="downloadMenu" [matTooltip]="I18N.photo_detail.download | translate">
-            <mat-icon>download</mat-icon>
-            {{ I18N.photo_detail.download | translate }}
-          </button>
-          <mat-menu #downloadMenu="matMenu">
-            @for (opt of downloadOptions(); track opt.type + (opt.profile ?? '')) {
-              <button mat-menu-item (click)="download(p.path, opt.type, opt.profile ?? undefined)">
-                <mat-icon>{{ opt.type | downloadIcon }}</mat-icon>
-                @if (opt.type === 'darktable') {
-                  {{ opt.profile }}
-                } @else {
-                  {{ ('download.type_' + opt.type) | translate }}
-                }
-              </button>
-            }
-          </mat-menu>
-        } @else {
-          <button mat-button (click)="download(p.path)" [matTooltip]="I18N.photo_detail.download | translate">
-            <mat-icon>download</mat-icon>
-            {{ I18N.photo_detail.download | translate }}
-          </button>
-        }
+        <button mat-button (click)="download(p.path)" [matTooltip]="I18N.photo_detail.download | translate">
+          <mat-icon>download</mat-icon>
+          {{ I18N.photo_detail.download | translate }}
+        </button>
       </div>
 
       <!-- Main content: image + info -->
       <div class="flex flex-col lg:flex-row lg:h-[calc(100%-49px)] lg:overflow-hidden">
         <!-- Image panel -->
         <div class="shrink-0 lg:h-auto lg:flex-1 flex items-center justify-center bg-black lg:min-h-0 relative">
+          @for (imagePhoto of [p]; track imagePhoto.path) {
           <img
-            [src]="p.path | thumbnailUrl:640:p.preview_revision"
+            [src]="thumbnailImageUrl()"
             [alt]="p.filename"
             class="w-full lg:max-w-full lg:max-h-full object-contain transition-opacity duration-300"
             [class.opacity-0]="fullImageLoaded()"
+            (load)="onThumbnailState($event)" (error)="onThumbnailState($event, true)"
           />
           <img
             [src]="fullImageUrl()"
             [alt]="p.filename"
             class="absolute inset-0 w-full h-full object-contain transition-opacity duration-300"
             [class.opacity-0]="!fullImageLoaded()"
-            (load)="onFullImageLoad()"
+            (load)="onFullImageLoad($event)" (error)="onFullImageError($event)"
           />
+          }
+          <app-rendition-readout class="absolute inset-x-2 bottom-2 rounded bg-black/80 px-2 py-1 text-white" [state]="displayedRendition()" [pending]="sourceRendition().phase === 'loading'" [attemptFailed]="sourceRendition().phase === 'failed'" [failureLabel]="I18N.photo_detail.rendition.source_failed" (retry)="retryFullImage()" />
         </div>
 
         <!-- Info panel -->
@@ -87,15 +73,16 @@ import { i18nKeys } from '../../../core/i18n/keys';
           <div>
             <div class="font-semibold text-lg">{{ p.filename }}</div>
             @if (p.date_taken) {
-              <div class="text-[var(--mat-sys-on-surface-variant)] text-xs">{{ p.date_taken }}</div>
+              <div class="text-[var(--mat-sys-on-surface-variant)] text-xs">{{ p.date_taken | captureDate }}</div>
             }
             <div class="flex items-center gap-2 mt-1">
               @if (p.category) {
                 <span class="px-2 py-0.5 bg-[var(--mat-sys-primary-container)] text-[var(--mat-sys-on-primary-container)] rounded-full text-xs font-medium">{{ p.category | categoryLabel }}</span>
               }
-              <span class="text-[var(--mat-sys-primary)] font-semibold ml-auto">{{ p.aggregate | fixed:1 }}</span>
             </div>
           </div>
+          <app-photo-assessment [photo]="p" />
+          <app-context-help [label]="I18N.gallery.compare.rendition.sources" [keys]="[I18N.photo_detail.rendition.note]" />
 
           <!-- Caption (read-only) -->
           @if (displayCaption()) {
@@ -277,40 +264,35 @@ export class SharedPhotoDetailComponent extends PhotoDetailBase implements OnIni
   protected readonly I18N = i18nKeys();
   private readonly route = inject(ActivatedRoute);
   private readonly router = inject(Router);
+  private readonly destroyRef = inject(DestroyRef);
 
   readonly photo = signal<Photo | null>(null);
-  protected readonly downloadOptions = signal<DownloadOption[]>([]);
-
-  // Download options (shared view passes is_shared: true)
-  private downloadOptionsEffect = effect(() => {
-    const p = this.photo();
-    if (!p) { this.downloadOptions.set([]); return; }
-    firstValueFrom(this.api.get<{ options: DownloadOption[] }>('/download/options', { path: p.path, is_shared: true }))
-      .then(res => this.downloadOptions.set(res.options))
-      .catch(() => this.downloadOptions.set([{ type: 'original', label: 'original' }]));
-  });
 
   private get token(): string {
     return this.route.snapshot.queryParamMap.get('token') ?? '';
   }
 
   private get sharedBasePath(): string {
-    const url = this.route.snapshot.url;
-    const entityType = url[1]?.path ?? 'album';
-    const entityId = url[2]?.path ?? '';
-    return `/shared/${entityType}/${entityId}`;
+    return `/shared/album/${this.route.snapshot.paramMap.get('albumId') ?? ''}`;
   }
 
   async ngOnInit(): Promise<void> {
-    const statePhoto = history.state?.['photo'] as Photo | undefined;
-    if (statePhoto) {
-      this.photo.set(statePhoto);
-    } else {
-      const path = this.route.snapshot.queryParamMap.get('path');
-      if (path) {
+    const albumId = Number(this.route.snapshot.paramMap.get('albumId'));
+    const token = this.token;
+    const path = this.route.snapshot.queryParamMap.get('asset_id');
+    if (!Number.isSafeInteger(albumId) || albumId <= 0 || !token || !path) {
+      this.navigateBack(); return;
+    }
+    const scope = { albumId, token };
+    this.sharedAlbumMedia.set(scope);
+    // Always revalidate the grant: browser history is not membership authority.
+    const current = () => !this.destroyRef.destroyed && this.sharedAlbumMedia() === scope
+      && this.token === token && Number(this.route.snapshot.paramMap.get('albumId')) === albumId
+      && this.route.snapshot.queryParamMap.get('asset_id') === path;
         try {
           const photo = normalisePhotoFlags(await firstValueFrom(
-            this.api.get<Photo>('/photo', { path, token: this.token })));
+            this.api.get<SharedAsset>(`/shared/album/${albumId}/photo`, { asset_id: path, token, 'ngsw-bypass': '1' })).then(sharedAssetPhoto));
+          if (!current()) return;
           if (!photo.tags_list) {
             photo.tags_list = photo.tags ? photo.tags.split(',').map(t => t.trim()) : [];
           }
@@ -319,12 +301,8 @@ export class SharedPhotoDetailComponent extends PhotoDetailBase implements OnIni
           }
           this.photo.set(photo);
         } catch {
-          this.navigateBack();
+          if (current()) this.navigateBack();
         }
-      } else {
-        this.navigateBack();
-      }
-    }
   }
 
   @HostListener('document:keydown.escape')
@@ -333,8 +311,12 @@ export class SharedPhotoDetailComponent extends PhotoDetailBase implements OnIni
   }
 
   protected download(path: string, type = 'original', profile?: string): void {
+    const scope = this.sharedAlbumMedia();
+    if (this.destroyRef.destroyed || !scope || path !== this.photo()?.path
+      || type !== 'original' || profile || this.token !== scope.token
+      || Number(this.route.snapshot.paramMap.get('albumId')) !== scope.albumId) return;
     const a = document.createElement('a');
-    a.href = this.api.downloadUrl(path, type, profile, this.token);
+    a.href = sharedAlbumMediaUrl(scope, 'download', path);
     a.download = '';
     document.body.appendChild(a);
     a.click();

@@ -22,9 +22,12 @@ import { makePhoto } from '../../../../testing/photo.fixture';
                              [burstFramesVisible]="burstFramesVisible()"
                              [collapsedSetKinds]="collapsedSetKinds()"
                              [isEditionMode]="isEditionMode()"
+                             [listMode]="listMode()" [isSelected]="selectionState()"
                              [metricRanges]="metricRanges()"
                              [currentSort]="currentSort()"
                              (selectionChange)="selected.push($event.photo.path)"
+                             (favoriteToggled)="favorites.push($event)"
+                             (starClicked)="stars.push($event.star)"
                              (doubleClicked)="opened.push($event.path)" />`,
 })
 class TestHostComponent {
@@ -33,10 +36,14 @@ class TestHostComponent {
   burstFramesVisible = signal(false);
   collapsedSetKinds = signal<readonly string[]>([]);
   isEditionMode = signal(false);
+  listMode = signal(false);
+  selectionState = signal(false);
   metricRanges = signal<Record<string, { min: number; max: number; buckets: number[] }>>({});
   currentSort = signal('aggregate');
   selected: string[] = [];
   opened: string[] = [];
+  favorites: string[] = [];
+  stars: number[] = [];
 }
 
 describe('PhotoCardComponent', () => {
@@ -55,6 +62,104 @@ describe('PhotoCardComponent', () => {
   function getCard(): PhotoCardComponent {
     return fixture.debugElement.children[0].componentInstance as PhotoCardComponent;
   }
+
+  it('renders metadata list values and decisions for a read-only photo, including an unknown date', () => {
+    fixture.componentInstance.listMode.set(true);
+    fixture.componentInstance.photo.set(makePhoto({ filename: 'record.jpg', date_taken: null, is_kept: true, star_rating: 4, stack_id: 'stack', stack_count: 7 }));
+    fixture.detectChanges();
+    const row = fixture.nativeElement.querySelector('[data-metadata-row]') as HTMLElement;
+    expect(row.textContent).toContain('record.jpg'); expect(row.textContent).toContain('gallery.no_capture_date');
+    expect(row.textContent).toContain('review.kept'); expect(row.textContent).toContain('7');
+    expect(fixture.nativeElement.querySelector('app-photo-card').getAttribute('role')).toBe('listitem');
+    const entry = fixture.nativeElement.querySelector('[role=button]');
+    expect(entry.getAttribute('aria-describedby')).toBe(row.id);
+    expect(row.querySelector('img')?.getAttribute('src')).toContain('size=160');
+  });
+
+  it.each([
+    ['relevance', 'gallery.sort_relevance'],
+    ['learned_score', 'gallery.sort_my_taste'],
+    ['top_picks_score', 'photo_types.top_picks'],
+    ['filename', 'filter_labels.search'],
+  ])('labels the metadata-list sort column for %s with a real key, not sort_options.*', (sort, key) => {
+    fixture.componentInstance.listMode.set(true);
+    fixture.componentInstance.photo.set(makePhoto({ filename: 'record.jpg' }));
+    fixture.componentInstance.currentSort.set(sort); fixture.detectChanges();
+    const cell = fixture.nativeElement.querySelector('[data-list-sort]') as HTMLElement;
+    expect(cell.textContent).toContain(key); expect(cell.textContent).not.toContain('sort_options.');
+  });
+
+  it('shows the actual metadata-list sort value, including zero and text, rather than substituting another score', () => {
+    fixture.componentInstance.listMode.set(true);
+    fixture.componentInstance.photo.set(makePhoto({aggregate: 9, aesthetic: 0, filename: 'record.jpg', date_taken: null}));
+    const value = () => fixture.nativeElement.querySelector('[data-list-sort]') as HTMLElement;
+    fixture.componentInstance.currentSort.set('aesthetic'); fixture.detectChanges();
+    expect(value().textContent).toContain('sort_options.aesthetic'); expect(value().textContent).toContain('0.0');
+    fixture.componentInstance.currentSort.set('filename'); fixture.detectChanges();
+    expect(value().textContent).toContain('record.jpg'); expect(value().textContent).not.toContain('9.0');
+    fixture.componentInstance.currentSort.set('date_taken'); fixture.detectChanges();
+    expect(value().textContent).toContain('gallery.no_capture_date');
+    fixture.componentInstance.currentSort.set('face_quality'); fixture.detectChanges();
+    expect(value().textContent).toContain('—'); expect(value().textContent).not.toContain('9.0');
+  });
+
+  it('keeps metadata list menu key presses separate from row selection and gates edit actions', async () => {
+    fixture.componentInstance.listMode.set(true); fixture.componentInstance.photo.set(makePhoto({ path: '/row.jpg', is_rejected: true, star_rating: 0 }));
+    fixture.detectChanges();
+    const trigger = fixture.nativeElement.querySelector('button[aria-label="gallery.metadata.photo_actions"]') as HTMLButtonElement;
+    trigger.dispatchEvent(new KeyboardEvent('keydown', { key: ' ', bubbles: true, cancelable: true }));
+    expect(fixture.componentInstance.selected).toEqual([]); expect(fixture.componentInstance.opened).toEqual([]);
+    trigger.click(); await fixture.whenStable(); fixture.detectChanges();
+    const overlay = TestBed.inject(OverlayContainer).getContainerElement();
+    expect(overlay.textContent).toContain('photoCard.open_detail'); expect(overlay.textContent).not.toContain('rating.unmark_rejected');
+    expect(overlay.textContent).not.toContain('rating.add_favorite');
+    expect(fixture.nativeElement.textContent).toContain('review.rejected');
+  });
+
+  it('routes a metadata list favorite through the existing single-photo event without selecting or opening it', async () => {
+    fixture.componentInstance.listMode.set(true); fixture.componentInstance.isEditionMode.set(true);
+    fixture.componentInstance.photo.set(makePhoto({ path: '/row.jpg', is_favorite: false })); fixture.detectChanges();
+    (fixture.nativeElement.querySelector('button[aria-label="gallery.metadata.photo_actions"]') as HTMLButtonElement).click();
+    await fixture.whenStable(); fixture.detectChanges();
+    const overlay = TestBed.inject(OverlayContainer).getContainerElement();
+    const favorite = [...overlay.querySelectorAll<HTMLButtonElement>('button')].find(button => button.textContent?.includes('rating.add_favorite'))!;
+    expect(favorite).toBeDefined(); favorite.click();
+    expect(fixture.componentInstance.favorites).toEqual(['/row.jpg']);
+    expect(fixture.componentInstance.selected).toEqual([]); expect(fixture.componentInstance.opened).toEqual([]);
+  });
+
+  it('opens the lazily rendered rating submenu for a list row', async () => {
+    fixture.componentInstance.listMode.set(true); fixture.componentInstance.isEditionMode.set(true);
+    fixture.componentInstance.config.set({ features: { show_rating_controls: true } }); fixture.detectChanges();
+    (fixture.nativeElement.querySelector('button[aria-label="gallery.metadata.photo_actions"]') as HTMLButtonElement).click();
+    await fixture.whenStable(); fixture.detectChanges();
+    const overlay = TestBed.inject(OverlayContainer).getContainerElement();
+    const rating = [...overlay.querySelectorAll<HTMLButtonElement>('button')].find(button => button.textContent?.includes('rating.set_rating'))!;
+    rating.click(); await fixture.whenStable(); fixture.detectChanges();
+    const stars = [...overlay.querySelectorAll<HTMLButtonElement>('[role="menuitemradio"]')];
+    expect(stars).toHaveLength(6); stars[3].click();
+    expect(fixture.componentInstance.stars).toEqual([3]);
+  });
+
+  it('uses the album capability for a rendered shared card without changing ordinary card URLs', () => {
+    const card = TestBed.createComponent(PhotoCardComponent);
+    try {
+      const assetId = `7.${'a'.repeat(64)}`;
+      card.componentRef.setInput('photo', makePhoto({ path: assetId }));
+      card.componentRef.setInput('sharedAlbum', { albumId: 9, token: 'fixture-card-token' });
+      card.detectChanges();
+      const img = card.nativeElement.querySelector('img') as HTMLImageElement;
+      const scoped = new URL(img.src);
+      expect(scoped.pathname).toBe('/api/shared/album/9/media/thumbnail');
+      expect(scoped.searchParams.get('token')).toBe('fixture-card-token');
+      expect(scoped.searchParams.get('asset_id')).toBe(assetId);
+      expect(scoped.searchParams.has('path')).toBe(false);
+      expect(scoped.searchParams.get('ngsw-bypass')).toBe('1');
+      card.componentRef.setInput('sharedAlbum', null); card.detectChanges();
+      expect(new URL(img.src).pathname).toBe('/thumbnail');
+      expect(new URL(img.src).searchParams.has('token')).toBe(false);
+    } finally { card.destroy(); }
+  });
 
   describe('score badge library placement', () => {
     const badgeTooltips = () => fixture.debugElement.queryAll(By.directive(MatTooltip))
@@ -186,29 +291,19 @@ describe('PhotoCardComponent', () => {
     expect(img.parentElement!.classList.contains('h-full')).toBe(true);
   });
 
-  it('fills the tile below md when the parent sizes it (fillTile) and details are hidden', () => {
+  it('fills hidden-details tiles below md without changing the uncropped details view', () => {
     const cardFixture = TestBed.createComponent(PhotoCardComponent);
     cardFixture.componentRef.setInput('photo', makePhoto());
     cardFixture.componentRef.setInput('hideDetails', true);
-    cardFixture.componentRef.setInput('fillTile', true);
     cardFixture.detectChanges();
-    const el = cardFixture.nativeElement as HTMLElement;
-    const img = el.querySelector('img')!;
+    const img = (cardFixture.nativeElement as HTMLElement).querySelector('img')!;
     expect(img.classList.contains('h-full')).toBe(true);
     expect(img.classList.contains('object-cover')).toBe(true);
-    expect(el.querySelector('[role="button"]')!.classList.contains('aspect-square')).toBe(true);
-  });
-
-  it('shows the photo whole in the shared view single-column list (hideDetails, no fillTile, no mosaic)', () => {
-    const cardFixture = TestBed.createComponent(PhotoCardComponent);
-    cardFixture.componentRef.setInput('photo', makePhoto());
-    cardFixture.componentRef.setInput('hideDetails', true);
+    expect((cardFixture.nativeElement as HTMLElement).querySelector('[role="button"]')!.classList.contains('aspect-square')).toBe(true);
+    cardFixture.componentRef.setInput('hideDetails', false);
     cardFixture.detectChanges();
-    const el = cardFixture.nativeElement as HTMLElement;
-    const img = el.querySelector('img')!;
     expect(img.classList.contains('object-cover')).toBe(false);
-    expect(img.classList.contains('h-full')).toBe(false);
-    expect(el.querySelector('[role="button"]')!.classList.contains('aspect-square')).toBe(false);
+    expect(img.classList.contains('object-contain')).toBe(true);
   });
 
   it('never asks for a thumbnail above the stored 640 px', () => {
@@ -230,19 +325,20 @@ describe('PhotoCardComponent', () => {
     expect(card.photo().aggregate).toBe(9.0);
   });
 
-  it('accepts a null aggregate (an unscored row): blank badge, lowest-bucket class, no throw', () => {
+  it('accepts a null aggregate (an unscored row): blank neutral badge, never scored zero', () => {
     // The wire type: a row the scoring pass hasn't reached yet sends
     // `aggregate: null`, not a number -- see photo.model.ts. Sorting by
     // 'aggregate' (the default) routes it through SortScorePipe ->
-    // ScoreClassPipe -> FixedPipe; null must render as BLANK, never "0.0" --
+    // FixedPipe; null must render as BLANK, never "0.0" --
     // that would turn "not scored yet" into "scored zero".
     fixture.componentInstance.photo.set(makePhoto({ aggregate: null }));
     fixture.detectChanges();
     const card = getCard();
     expect(card.photo().aggregate).toBeNull();
-    const badge = fixture.nativeElement.querySelector('span.text-xs.font-bold') as HTMLElement;
+    const badge = fixture.nativeElement.querySelector('span.tabular-nums') as HTMLElement;
     expect(badge.textContent?.trim()).toBe('');
-    expect(badge.className).toContain('bg-red-600');
+    expect(badge.className).toContain('!bg-[var(--mat-sys-surface-container-high)]');
+    expect(badge.className).not.toContain('bg-red-600');
   });
 
   describe('cycleStarRating', () => {
@@ -298,7 +394,26 @@ describe('PhotoCardComponent', () => {
       fixture.detectChanges();
       const badge = (fixture.nativeElement as HTMLElement).querySelector('[aria-label="review.kept"]');
       expect(badge !== null).toBe(shown);
-      if (badge) expect(badge.querySelector('mat-icon')?.textContent?.trim()).toBe('check');
+      if (badge) { expect(badge.getAttribute('aria-label')).toBe('review.kept'); }
+    });
+
+    it('keeps selection and the saved decision separate when both are present', () => {
+      fixture.componentInstance.isEditionMode.set(true);
+      fixture.componentInstance.selectionState.set(true);
+      fixture.componentInstance.photo.set(makePhoto({ is_kept: true }));
+      fixture.detectChanges();
+      const root = fixture.nativeElement as HTMLElement;
+      const selected = root.querySelector('[data-photo-selected]')!;
+      const kept = root.querySelector('[data-photo-kept]')!;
+      expect(selected).not.toBeNull(); expect(kept).not.toBeNull();
+      expect(selected.textContent).toContain('check');
+      expect(kept.textContent?.trim()).toBe('');
+      expect(kept.querySelector('mat-icon')).toBeNull();
+      expect(kept.getAttribute('role')).toBe('img');
+      expect(kept.getAttribute('aria-label')).toBe('review.kept');
+      fixture.componentInstance.selectionState.set(false); fixture.detectChanges();
+      expect(root.querySelector('[data-photo-selected]')).toBeNull();
+      expect(root.querySelector('[data-photo-kept]')).not.toBeNull();
     });
 
     it('removes an existing badge when edition access ends', () => {
@@ -940,10 +1055,8 @@ describe('PhotoCardComponent current-photo marker', () => {
     return fixture;
   }
 
-  /** The marker is asserted on the HOST, not on the tile inside it. The host
-   *  carries `content-visibility: auto`, whose paint containment clips whatever
-   *  a descendant draws outside the card -- so only the host's own outline
-   *  reaches the gutter. */
+  /** The marker belongs to the HOST so it reaches the gutter outside the
+   *  overflow-hidden tile. */
   function host(fixture: ComponentFixture<PhotoCardComponent>): HTMLElement {
     return fixture.nativeElement as HTMLElement;
   }
@@ -1020,9 +1133,9 @@ describe('PhotoCardComponent current-photo marker', () => {
       .toBe(false);
   });
 
-  it('dims a card that is not the current one', () => {
+  it('keeps other photos at full strength when the current photo changes', () => {
     const fixture = createCard({ isActive: false, gridHasActiveCard: true });
-    expect(host(fixture).classList.contains('opacity-50')).toBe(true);
+    expect(host(fixture).classList.contains('opacity-50')).toBe(false);
     expect(host(fixture).classList.contains('outline-4')).toBe(false);
   });
 
@@ -1078,16 +1191,19 @@ describe('PhotoCardComponent current-photo marker', () => {
     expect(classes.contains('scroll-mt-2')).toBe(true);
   });
 
-  it('carries the class that cancels the dimming under "reduce transparency"', () => {
-    // jsdom cannot evaluate `prefers-reduced-transparency`, so this only proves
-    // the class is BOUND to the host, not that the media query wins the
-    // cascade at runtime -- that is proven separately against the built
-    // production stylesheet, where `.reduce-transparency\:opacity-100` (inside
-    // the `@media (prefers-reduced-transparency: reduce)` block) must appear
-    // AFTER the plain `.opacity-50` rule, since both are single-class
-    // selectors and source order, not specificity, decides which wins.
-    const classes = host(createCard({ isActive: false, gridHasActiveCard: true })).classList;
-    expect(classes.contains('reduce-transparency:opacity-100')).toBe(true);
+  it('keeps mixed orientations in an uncropped fixed frame when details are shown', () => {
+    const fixture = createCard();
+    fixture.componentRef.setInput('hideDetails', false);
+    fixture.componentRef.setInput('mosaicMode', false);
+    fixture.detectChanges();
+    const image = host(fixture).querySelector('img')!;
+    expect(image.parentElement!.classList.contains('aspect-[4/3]')).toBe(true);
+    expect(image.classList.contains('object-contain')).toBe(true);
+    expect(image.classList.contains('object-cover')).toBe(false);
+    fixture.componentRef.setInput('mosaicMode', true);
+    fixture.detectChanges();
+    expect(image.parentElement!.classList.contains('aspect-[4/3]')).toBe(false);
+    expect(image.classList.contains('object-cover')).toBe(true);
   });
 
 });
@@ -1108,13 +1224,14 @@ describe('PhotoCardComponent filter links', () => {
   }
 
   const chip = (el: HTMLElement) =>
-    Array.from(el.querySelectorAll('span')).find(s => s.textContent?.trim() === 'sunset') as HTMLElement;
+    Array.from(el.querySelectorAll('[data-tag-chip]')).find(s => s.textContent?.trim() === 'sunset') as HTMLElement;
   const similar = (el: HTMLElement) => el.querySelector('button[aria-label="similar.find_similar"]');
 
   afterEach(() => TestBed.resetTestingModule());
 
   it('keeps tag chips clickable and Find similar available by default', () => {
     const el = create({});
+    expect(chip(el).tagName).toBe('BUTTON');
     expect(chip(el).getAttribute('role')).toBe('button');
     expect(chip(el).getAttribute('tabindex')).toBe('0');
     expect(similar(el)).not.toBeNull();
@@ -1129,6 +1246,11 @@ describe('PhotoCardComponent filter links', () => {
     expect(c.className).not.toContain('cursor-pointer');
     expect(c.className).not.toContain('hover:');
     expect(similar(el)).toBeNull();
+  });
+
+  it('includes manual tags in the same navigation controls without duplicate chips', () => {
+    const el = create({ photo: makePhoto({ tags_list: ['trip'], manual_tags: ['trip', '夜景'] }) });
+    expect([...el.querySelectorAll('[data-tag-chip]')].map(chip => chip.textContent?.trim())).toEqual(['trip', '夜景']);
   });
 
   it('closes an open Find similar menu when closeOverlays is called', () => {
@@ -1159,11 +1281,30 @@ describe('PhotoCardComponent filter links', () => {
     const fixture = TestBed.createComponent(PhotoCardComponent);
     fixture.componentRef.setInput('photo', makePhoto({ tags_list: ['sunset'] }));
     fixture.componentRef.setInput('filterLinks', false);
-    const emitted: string[] = [];
+    const emitted: unknown[] = [];
     fixture.componentInstance.tagClicked.subscribe(t => emitted.push(t));
     fixture.detectChanges();
     chip(fixture.nativeElement as HTMLElement).click();
     expect(emitted).toEqual([]);
+  });
+
+  it('emits explicit scope only after a tag menu action and closes it with other overlays', async () => {
+    TestBed.configureTestingModule({ imports: [PhotoCardComponent], providers: [{ provide: I18nService, useValue: mockI18n }] });
+    const fixture = TestBed.createComponent(PhotoCardComponent);
+    fixture.componentRef.setInput('photo', makePhoto({ tags_list: ['coast,ridge'] }));
+    const emitted: unknown[] = [];
+    fixture.componentInstance.tagClicked.subscribe(event => emitted.push(event));
+    fixture.detectChanges();
+    const trigger = fixture.debugElement.queryAll(By.directive(MatMenuTrigger)).find(el => el.nativeElement.textContent.trim() === 'coast,ridge')!.injector.get(MatMenuTrigger);
+    trigger.openMenu(); fixture.detectChanges(); await fixture.whenStable();
+    expect(emitted).toEqual([]);
+    const overlay = TestBed.inject(OverlayContainer).getContainerElement();
+    const action = [...overlay.querySelectorAll<HTMLButtonElement>('button')].find(button => button.textContent?.includes('photo_detail.tag_refine_collection'))!;
+    action.click();
+    expect(emitted).toEqual([{ tag: 'coast,ridge', scope: 'collection' }]);
+    trigger.openMenu(); fixture.detectChanges();
+    fixture.componentInstance.closeOverlays();
+    expect(trigger.menuOpen).toBe(false);
   });
 });
 

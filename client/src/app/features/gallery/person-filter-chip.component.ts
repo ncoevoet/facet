@@ -1,3 +1,4 @@
+import { personOutlineColors } from '../../shared/utils/person-outline-colors';
 import { Component, inject, input, output, signal, computed, effect, viewChild, afterNextRender, ElementRef, Injector, ChangeDetectionStrategy } from '@angular/core';
 import { MatAutocompleteModule, MatAutocompleteTrigger } from '@angular/material/autocomplete';
 import { FormsModule } from '@angular/forms';
@@ -46,7 +47,7 @@ const CHIP_BUTTON = 'inline-flex items-center justify-center w-6 h-6 shrink-0 ro
     <div data-person-chip
          class="inline-flex items-center gap-1 pl-0.5 pr-1 py-0.5 min-h-9 rounded-full border-2 bg-[var(--mat-sys-secondary-container)] text-[var(--mat-sys-on-secondary-container)] text-xs font-medium"
          [class]="unnamed() ? 'border-dashed border-[var(--mat-sys-primary)]' : 'border-solid border-transparent'"
-         [attr.data-person-id]="personId()">
+         [attr.data-person-id]="personId()" [style.border-color]="outlineColor()">
       <img data-person-chip-avatar [src]="personId() | personThumbnailUrl" class="w-8 h-8 rounded-full object-cover shrink-0" [alt]="label()" />
       @if (editing()) {
         <input #nameInput
@@ -109,6 +110,7 @@ export class PersonFilterChipComponent {
   private readonly injector = inject(Injector);
 
   readonly personId = input.required<number>();
+  protected readonly outlineColor = computed(() => personOutlineColors(this.store.filters().person_id).get(this.personId()) ?? null);
   readonly canEdit = input(false);
   /** The remove (×) button: the gallery drops this person from its filter. */
   readonly remove = output<void>();

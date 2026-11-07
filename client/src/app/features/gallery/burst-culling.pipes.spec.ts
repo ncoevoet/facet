@@ -3,7 +3,7 @@ import {
   IsKeptPipe, IsDecidedPipe, IsConfirmedPipe, IsPassingPipe, PassCountdownPipe,
   FacesForPathPipe, FacePoorExpressionPipe, FaceRingClassPipe, FaceDimmedPipe,
   WeightRemainingPipe, SortIconPipe, CategoryIconPipe, CullProfileIconPipe,
-  CullPreviewUrlPipe, SubjectForPathPipe, SubjectRingClassPipe, EvOffsetPipe,
+  cullPreviewUrl, SubjectForPathPipe, SubjectRingClassPipe, EvOffsetPipe,
   GroupOverridePipe, PeakingOverlayPipe, FrameViewBoxPipe, GridLinesPipe,
   KeySubjectForPathPipe, IsKeyFacePipe, CanMarkBracketPipe, peakingEdgeOverlay,
   peakingGradientField, peakingThreshold, paintPeakingField,
@@ -415,11 +415,9 @@ describe('CategoryIconPipe', () => {
   });
 });
 
-describe('CullPreviewUrlPipe', () => {
-  const pipe = new CullPreviewUrlPipe();
-
+describe('cullPreviewUrl', () => {
   it('builds the cull_preview endpoint URL with encoded path and style', () => {
-    expect(pipe.transform('/a/b c.jpg', 'Velvia look'))
+    expect(cullPreviewUrl('/a/b c.jpg', 'Velvia look'))
       .toBe('/api/photo/cull_preview?path=%2Fa%2Fb+c.jpg&style=Velvia+look');
   });
 });

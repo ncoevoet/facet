@@ -258,6 +258,24 @@ FACES_COLUMNS = [
 # older active copy, and must outlive deletion of the original photo itself.
 MANUAL_FACE_DELETIONS_COLUMNS = [('manual_key', 'TEXT PRIMARY KEY NOT NULL')]
 
+# A correction removes the detection from every reader, including clustering.
+# Keep its original row for Undo separately: forced extraction replaces faces.
+IGNORED_FACE_DETECTIONS_COLUMNS = [
+    ('ignore_id', 'TEXT PRIMARY KEY NOT NULL'),
+    ('source', 'TEXT NOT NULL'),
+    ('active', 'INTEGER NOT NULL DEFAULT 1'),
+    ('updated_at', 'INTEGER NOT NULL'),
+    ('person_key', 'TEXT'),
+    ('face_id', 'INTEGER NOT NULL'),
+    *[(name, ('TEXT NOT NULL REFERENCES photos(path) ON DELETE CASCADE ON UPDATE CASCADE'
+              if name == 'photo_path' else declaration))
+      for name, declaration in FACES_COLUMNS if name != 'id'],
+]
+
+IGNORED_FACE_DETECTIONS_INDEXES = [
+    ('idx_ignored_face_photo', 'ignored_face_detections', 'photo_path, active'),
+]
+
 # Single shared faces upsert used by every scan-time writer (processing/scorer.py
 # single + batch, faces/processor.py). INSERT OR REPLACE regenerates the whole
 # row on --force rescans via the UNIQUE(photo_path, face_index) constraint, so a
@@ -270,6 +288,9 @@ FACES_UPSERT_SQL = """
      embedding_model)
     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 """
+# The additive updater must refuse a collision rather than replacing a face
+# that was assigned or manually drawn while its image was being decoded.
+FACES_INSERT_SQL = FACES_UPSERT_SQL.replace('INSERT OR REPLACE', 'INSERT', 1)
 
 
 def face_upsert_row(photo_path, face, embedding_model):
@@ -707,6 +728,27 @@ WEIGHT_OPTIMIZATION_RUNS_INDEXES = [
     ('idx_optimization_category', 'weight_optimization_runs', 'category'),
 ]
 
+FACE_UPDATE_JOBS_COLUMNS = [
+    ('job_id', 'TEXT PRIMARY KEY'), ('owner', 'TEXT NOT NULL'), ('model', 'TEXT NOT NULL'),
+    ('mode', "TEXT NOT NULL DEFAULT 'missing'"),
+    ('state', "TEXT NOT NULL DEFAULT 'queued'"), ('stop_requested', 'INTEGER NOT NULL DEFAULT 0'),
+    ('total', 'INTEGER NOT NULL'), ('processed', 'INTEGER NOT NULL DEFAULT 0'),
+    ('added_faces', 'INTEGER NOT NULL DEFAULT 0'), ('refreshed_faces', 'INTEGER NOT NULL DEFAULT 0'),
+    ('removed_faces', 'INTEGER NOT NULL DEFAULT 0'), ('refused', 'INTEGER NOT NULL DEFAULT 0'),
+    ('repaired_people', 'INTEGER NOT NULL DEFAULT 0'),
+    ('empty', 'INTEGER NOT NULL DEFAULT 0'), ('skipped', 'INTEGER NOT NULL DEFAULT 0'),
+    ('failed', 'INTEGER NOT NULL DEFAULT 0'), ('error_code', 'TEXT'),
+    ('started_at', 'TEXT'), ('finished_at', 'TEXT'), ('created_at', 'TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP'),
+]
+FACE_UPDATE_ITEMS_COLUMNS = [
+    ('job_id', 'TEXT NOT NULL REFERENCES face_update_jobs(job_id) ON DELETE CASCADE'),
+    ('path', 'TEXT NOT NULL REFERENCES photos(path) ON DELETE CASCADE ON UPDATE CASCADE'),
+    ('state', "TEXT NOT NULL DEFAULT 'pending'"), ('error_code', 'TEXT'), ('face_snapshot', 'TEXT'),
+]
+PERSON_CENTROID_DIRTY_COLUMNS = [
+    ('person_id', 'INTEGER PRIMARY KEY REFERENCES persons(id) ON DELETE CASCADE'),
+]
+
 # Scan run bookkeeping: one row per scan invocation, plus per-file failures
 SCAN_RUNS_COLUMNS = [
     ('id', 'INTEGER PRIMARY KEY AUTOINCREMENT'),
@@ -719,6 +761,20 @@ SCAN_RUNS_COLUMNS = [
     ('processed_files', 'INTEGER DEFAULT 0'),
     ('failed_files', 'INTEGER DEFAULT 0'),
     ('heartbeat_at', 'TEXT'),  # last liveness write; lets --resume reclaim hard-crashed runs
+    # Scoring status above can finish before library-wide finalization. These
+    # fields describe the enclosing pipeline, never OS-process liveness.
+    ('viewer_job_id', 'TEXT'),
+    ('job_status', 'TEXT'),
+    ('job_phase', 'TEXT'),
+    ('job_finished_at', 'TEXT'),
+]
+
+SCAN_RETRY_RECEIPTS_COLUMNS = [
+    ('plan_id', 'TEXT PRIMARY KEY'),
+    ('actor', 'TEXT NOT NULL'),
+    ('state', 'TEXT NOT NULL'),
+    ('receipt', 'TEXT'),
+    ('expires_at', 'REAL NOT NULL'),
 ]
 
 SCAN_FAILURES_COLUMNS = [
@@ -732,6 +788,7 @@ SCAN_FAILURES_COLUMNS = [
 SCAN_RUNS_INDEXES = [
     ('idx_scan_runs_status', 'scan_runs', 'status'),
     ('idx_scan_failures_run', 'scan_failures', 'scan_run_id'),
+    ('idx_scan_runs_viewer_job', 'scan_runs', 'viewer_job_id'),
 ]
 
 # Photos a supplementary IQA model answered "no" to on purpose, so --recompute-iqa
@@ -739,10 +796,10 @@ SCAN_RUNS_INDEXES = [
 # pyiqa's own detector on the thumbnail, though InsightFace found a face on the
 # full image). A side table, not a photos column, because a full-row save rewrites
 # photos wholesale. For the opposite reason it cannot simply be trusted: the save
-# is an UPSERT, which never cascades, so a row here SURVIVES a rescan. It is
-# therefore valid only while scan_fingerprint still equals the photo's current
-# IQA_SCAN_FINGERPRINT_SQL; a rescan rewrites scanned_at and the thumbnail and so
-# invalidates every decline for that photo without anyone deleting a row. The
+# is an UPSERT, which never cascades, so a row here would survive a rescan without explicit invalidation. It is
+# therefore cleared by the full save when it replaces an observation, including
+# same-second / equal-length thumbnail collisions. Other readers also require
+# scan_fingerprint to equal the current IQA_SCAN_FINGERPRINT_SQL. The
 # fingerprint is nullable on purpose: NULL never equals anything, so a photo with
 # no scanned_at is never "declined" (fails open, it is simply retried).
 IQA_DECLINED_COLUMNS = [
@@ -900,6 +957,11 @@ MANUAL_FACE_INDEXES = [
     ('idx_faces_manual_review', 'faces', 'photo_path, is_manual, manual_review_required'),
 ]
 
+FACE_UPDATE_INDEXES = [
+    ('idx_face_update_pending', 'face_update_items', 'job_id,state,path'),
+    ('idx_face_update_path', 'face_update_items', 'path'),
+]
+
 # Identity constraints share the registry used by schema diagnostics. Manual
 # UUIDs identify annotations only; automatic rows do not own this namespace.
 IDENTITY_INDEXES = [
@@ -966,6 +1028,11 @@ RATING_PROVENANCE_COLUMNS = [
 # under-reported by the scan-runs / recommendation / album / user-preference
 # groups). INDEXES stays first: the migration builds ALL_INDEX_GROUPS[1:], and
 # INDEXES is built after it commits (create_photo_indexes), one index at a time.
+FACE_REVIEW_FEEDBACK_INDEXES = [
+    ('idx_face_review_feedback_face', 'face_review_feedback', 'face_id'),
+    ('idx_face_review_feedback_person', 'face_review_feedback', 'person_id'),
+]
+
 ALL_INDEX_GROUPS = [
     INDEXES,
     PHOTO_TAGS_INDEXES,
@@ -982,6 +1049,9 @@ ALL_INDEX_GROUPS = [
     USER_PREFERENCES_INDEXES,
     IDENTITY_INDEXES,
     MANUAL_FACE_INDEXES,
+    IGNORED_FACE_DETECTIONS_INDEXES,
+    FACE_UPDATE_INDEXES,
+    FACE_REVIEW_FEEDBACK_INDEXES,
     MCP_TOKENS_INDEXES,
 ]
 
@@ -1161,7 +1231,11 @@ _MIGRATED_TABLES = [
     ('photos', PHOTOS_COLUMNS),
     ('faces', FACES_COLUMNS),
     ('manual_face_deletions', MANUAL_FACE_DELETIONS_COLUMNS),
+    ('ignored_face_detections', IGNORED_FACE_DETECTIONS_COLUMNS),
     ('persons', PERSONS_COLUMNS),
+    ('face_update_jobs', FACE_UPDATE_JOBS_COLUMNS),
+    ('face_update_items', FACE_UPDATE_ITEMS_COLUMNS),
+    ('person_centroid_dirty', PERSON_CENTROID_DIRTY_COLUMNS),
     ('photo_tags', PHOTO_TAGS_COLUMNS),
     ('photo_manual_tags', PHOTO_MANUAL_TAGS_COLUMNS),
     ('photo_objects', PHOTO_OBJECTS_COLUMNS),
@@ -1188,6 +1262,7 @@ _MIGRATED_TABLES = [
     ('panorama_run_cache', PANORAMA_RUN_CACHE_COLUMNS),
     ('face_reextract_snapshot', FACE_REEXTRACT_SNAPSHOT_COLUMNS),
     ('scan_runs', SCAN_RUNS_COLUMNS),
+    ('scan_retry_receipts', SCAN_RETRY_RECEIPTS_COLUMNS),
     ('scan_failures', SCAN_FAILURES_COLUMNS),
     ('iqa_declined', IQA_DECLINED_COLUMNS),
 ]
@@ -1257,11 +1332,9 @@ def _migrate_comparisons_user_id(conn):
 # express — renames, type changes, data backfills, index/constraint drops.
 SCHEMA_VERSION = 1
 
-# Ordered ladder of non-additive migrations: (target_version, fn(conn)).
-# Each fn MUST be idempotent and SHOULD call db.maintenance.backup_database
-# before a destructive step. Empty today — the mechanism ships ahead of need.
-MIGRATIONS: list[tuple[int, Callable[[Any], None]]] = []
 
+# Ordered ladder of non-additive migrations: (target_version, fn(conn)).
+MIGRATIONS: list[tuple[int, Callable[[Any], None]]] = []
 
 def table_exists(conn, name):
     return conn.execute(
@@ -1360,6 +1433,14 @@ def init_database(db_path='photo_scores_pro.db', build_photo_indexes=True):
 
         # Create photos table
         conn.execute(_build_create_table_sql('photos', PHOTOS_COLUMNS))
+        from db.logical_assets import init_schema as init_logical_assets
+        from db.logical_asset_sync import init_receipts as init_logical_asset_receipts
+        init_logical_assets(conn)
+        init_logical_asset_receipts(conn)
+        from db.logical_review import init_schema as init_logical_review
+        from db.logical_review_sync import init_receipts as init_logical_review_receipts
+        init_logical_review(conn)
+        init_logical_review_receipts(conn)
 
         # Create faces table with unique constraint
         conn.execute(_build_create_table_sql(
@@ -1368,9 +1449,25 @@ def init_database(db_path='photo_scores_pro.db', build_photo_indexes=True):
             constraints=['UNIQUE(photo_path, face_index)']
         ))
         conn.execute(_build_create_table_sql('manual_face_deletions', MANUAL_FACE_DELETIONS_COLUMNS))
+        conn.execute(_build_create_table_sql('ignored_face_detections', IGNORED_FACE_DETECTIONS_COLUMNS))
 
         # Create persons table
         conn.execute(_build_create_table_sql('persons', PERSONS_COLUMNS))
+        conn.execute(_build_create_table_sql('person_centroid_dirty', PERSON_CENTROID_DIRTY_COLUMNS))
+
+        conn.execute(_build_create_table_sql('face_update_jobs', FACE_UPDATE_JOBS_COLUMNS))
+        conn.execute(_build_create_table_sql('face_update_items', FACE_UPDATE_ITEMS_COLUMNS,
+                                            constraints=['PRIMARY KEY(job_id,path)']))
+
+        # Private per-account suggestion feedback. Geometry/embedding tokens make
+        # feedback obsolete after a face is edited or extracted again.
+        conn.execute('''CREATE TABLE IF NOT EXISTS face_review_feedback (
+            owner TEXT NOT NULL,
+            face_id INTEGER NOT NULL REFERENCES faces(id) ON DELETE CASCADE,
+            person_id INTEGER NOT NULL REFERENCES persons(id) ON DELETE CASCADE,
+            identity_token TEXT NOT NULL,
+            receipt_id TEXT NOT NULL,
+            PRIMARY KEY(owner, face_id, person_id))''')
 
         # Create photo_tags lookup table for fast tag queries
         conn.execute(_build_create_table_sql(
@@ -1385,6 +1482,8 @@ def init_database(db_path='photo_scores_pro.db', build_photo_indexes=True):
             PHOTO_MANUAL_TAGS_COLUMNS,
             constraints=['PRIMARY KEY (photo_path, tag)']
         ))
+        from db.keyword_hierarchy import create_keyword_hierarchy_schema
+        create_keyword_hierarchy_schema(conn)
 
         # Create photo_objects (user-marked labelled boxes; side table, survives rescans)
         conn.execute(_build_create_table_sql('photo_objects', PHOTO_OBJECTS_COLUMNS))
@@ -1512,6 +1611,7 @@ def init_database(db_path='photo_scores_pro.db', build_photo_indexes=True):
 
         # Create scan bookkeeping tables
         conn.execute(_build_create_table_sql('scan_runs', SCAN_RUNS_COLUMNS))
+        conn.execute(_build_create_table_sql('scan_retry_receipts', SCAN_RETRY_RECEIPTS_COLUMNS))
         conn.execute(_build_create_table_sql(
             'scan_failures', SCAN_FAILURES_COLUMNS,
             constraints=['PRIMARY KEY (scan_run_id, path)']

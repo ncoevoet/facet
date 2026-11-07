@@ -1,12 +1,12 @@
 """Pydantic response models for albums, proofing, capsules, memories,
 merge-suggestions and scenes endpoints."""
 
-from typing import Any, Optional
+from typing import Any, Literal, Optional
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from api.models.common import PaginationEnvelope
-from api.models.gallery import Photo
+from api.models.gallery import Photo, SharedPhoto
 
 
 class AlbumPhotosResponse(PaginationEnvelope):
@@ -31,6 +31,14 @@ class Album(BaseModel):
     scoring_context: Optional[str] = None
 
 
+class SharedAlbum(Album):
+    """Recipient album projection never includes native cover paths or saved rules."""
+
+    cover_photo_path: Optional[str] = Field(None, exclude=True)
+    smart_filter_json: Optional[str] = Field(None, exclude=True)
+    cover_asset_id: Optional[str] = None
+
+
 class AlbumFilterOptionItem(BaseModel):
     value: str
     count: int
@@ -46,6 +54,21 @@ class AlbumFilterOptions(BaseModel):
     categories: list[AlbumFilterOptionItem] = []
 
 
+class SharedAlbumPolicy(BaseModel):
+    """Capabilities of this public link, not account edition rights or a frozen delivery."""
+
+    membership: Literal['manual', 'smart']
+    membership_can_change: bool
+    downloads: Literal['album_member_original']
+    photo_metadata: bool
+    native_paths: bool
+    manual_tags: bool
+    saved_rules: bool
+    password_protected: bool
+    expires_at: Optional[str] = None
+    proofing: bool
+
+
 class SharedAlbumResponse(PaginationEnvelope):
     """The anonymous share-token view of an album.
 
@@ -57,11 +80,12 @@ class SharedAlbumResponse(PaginationEnvelope):
     off the wire on every other request rather than sending them as null.
     """
 
-    photos: list[Photo]
-    album: Album
+    photos: list[SharedPhoto]
+    album: SharedAlbum
     effective_sort: str
     effective_sort_direction: str
     proofing_enabled: bool
+    sharing_policy: SharedAlbumPolicy
     # Same object as /api/config's, which types it as passthrough. Narrowing it
     # here would drop any key an operator adds to a viewer.sort_options entry.
     sort_options_grouped: Optional[dict[str, Any]] = None

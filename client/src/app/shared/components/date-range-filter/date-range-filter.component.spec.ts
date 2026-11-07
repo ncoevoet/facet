@@ -9,13 +9,16 @@ import { DateRangeFilterComponent } from './date-range-filter.component';
   changeDetection: ChangeDetectionStrategy.Eager,
   template: `
     <app-date-range-filter
-      [from]="from()" [to]="to()"
+      [from]="from()" [to]="to()" [compact]="compact()" [fromClass]="fromClass()" [toClass]="toClass()"
       (fromChange)="lastFrom = $event" (toChange)="lastTo = $event" />
   `,
 })
 class HostComponent {
   from = signal('2024-01-01');
   to = signal('2024-12-31');
+  compact = signal(false);
+  fromClass = signal('w-44');
+  toClass = signal('');
   lastFrom = '';
   lastTo = '';
 }
@@ -64,5 +67,12 @@ describe('DateRangeFilterComponent', () => {
     to.value = '2025-07-15';
     to.dispatchEvent(new Event('change'));
     expect(fixture.componentInstance.lastTo).toBe('2025-07-15');
+  });
+
+  it('honors compact input widths and falls back to the from width', () => {
+    fixture.componentInstance.compact.set(true); fixture.componentInstance.fromClass.set('w-40'); fixture.detectChanges();
+    expect(dateInputs().every(input => input.classList.contains('w-40'))).toBe(true);
+    fixture.componentInstance.toClass.set('w-36'); fixture.detectChanges();
+    expect(dateInputs()[1].classList.contains('w-36')).toBe(true);
   });
 });

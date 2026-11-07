@@ -546,6 +546,7 @@ python /opt/facet/viewer.py      # 仍然读取 /opt/facet/scoring_config.json�
 | `--copy-keepers DIR` | 把范围内每张未被淘汰的照片，连同同名 RAW / `.xmp`，复制到 `DIR` |
 | `--cull-strictness N` | 保留配额 0–100，越高每组保留得越少（默认：`auto_cull.default_strictness`） |
 | `--cull-min-keep N` | 每组至少保留的照片数（默认 `1`） |
+| `--cull-reconsider-existing` | 重新评估已有评分、收藏、保留或淘汰决定的照片（默认保留原决定）。 |
 | `--cull-group-by {all,burst,similar,scene}` | 对哪些分组选片（默认 `all`） |
 | `--cull-min-score X` | 同时淘汰综合评分低于 `X` 的独立照片 |
 | `--cull-trim-brackets` | 同时淘汰多余的包围曝光帧（即查看器的 `trim_brackets`） |

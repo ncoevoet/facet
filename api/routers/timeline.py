@@ -12,12 +12,14 @@ from api.auth import CurrentUser, get_optional_user
 from api.config import VIEWER_CONFIG
 from api.database import get_async_db
 from api.db_helpers import (
+    CAPTURE_DATE_MISSING_SQL,
     build_date_range_clauses,
     build_photo_select_columns, sanitize_float_values,
     split_photo_tags, attach_person_data_async,
-    get_visibility_clause, get_photos_from_clause,
+    get_visibility_clause,
     format_date, hide_toggle_params, hide_clauses_from_toggles,
 )
+from api.logical_collection import read_source_async
 from api.models.discovery import (
     TimelineDatesResponse, TimelineMonthsResponse, TimelineYearsResponse,
 )
@@ -104,32 +106,35 @@ async def api_timeline(
         if limit > max_limit:
             limit = max_limit
 
-    # Build date expression based on granularity
+    capture_day = "DATE(REPLACE(SUBSTR(date_taken,1,10),':','-'))"
+    # Grouping keys and calendar bounds have different jobs. The Thursday of
+    # an ISO week determines both its ISO year and its week number, including
+    # dates near New Year. Avoid newer SQLite-only %G/%V specifiers.
     if granularity == 'week':
-        # ISO week: group by year + week number (Monday-based)
-        date_expr = "STRFTIME('%Y-W%W', REPLACE(SUBSTR(date_taken,1,10),':','-'))"
+        thursday = f"DATE({capture_day}, '-3 days', 'weekday 4')"
+        date_expr = (f"STRFTIME('%Y', {thursday}) || '-W' || "
+                     f"PRINTF('%02d', (CAST(STRFTIME('%j', {thursday}) AS INTEGER) - 1) / 7 + 1)")
     elif granularity == 'month':
         date_expr = "SUBSTR(REPLACE(SUBSTR(date_taken,1,10),':','-'),1,7)"
     else:
-        date_expr = "DATE(REPLACE(SUBSTR(date_taken,1,10),':','-'))"
+        date_expr = capture_day
 
     user_id = user.user_id if user else None
     try:
         async with get_async_db() as conn:
-            from_clause, from_params = get_photos_from_clause(user_id)
+            # Counts, rendered membership and preview revisions share a read snapshot.
+            await conn.execute("BEGIN")
+            from_clause, from_params, logical = await read_source_async(conn, user_id)
             vis_sql, vis_params = get_visibility_clause(user_id)
 
-            where_clauses = [vis_sql, "date_taken IS NOT NULL", "date_taken != ''"]
+            where_clauses = [vis_sql, f"NOT {CAPTURE_DATE_MISSING_SQL}", f"{capture_day} IS NOT NULL"]
             sql_params = list(from_params) + list(vis_params)
 
             where_clauses.extend(hide_clauses_from_toggles(hide_toggles))
 
-            if date_from:
-                where_clauses.append(f"{date_expr} >= ?")
-                sql_params.append(date_from)
-            if date_to:
-                where_clauses.append(f"{date_expr} <= ?")
-                sql_params.append(date_to)
+            date_clauses, date_params = build_date_range_clauses(date_from, date_to)
+            where_clauses.extend(date_clauses)
+            sql_params.extend(date_params)
 
             if cursor:
                 if direction == "newer":
@@ -161,7 +166,7 @@ async def api_timeline(
             # build_photo_select_columns reads the startup-warmed
             # _existing_columns_cache and never touches conn — safe to call
             # with an aiosqlite Connection.
-            select_cols = build_photo_select_columns(conn, user_id)
+            select_cols = build_photo_select_columns(conn, user_id, logical=logical)
 
             tags_limit = VIEWER_CONFIG['display']['tags_per_photo']
             groups = []
@@ -178,15 +183,21 @@ async def api_timeline(
 
                 # Sort order within each group
                 if sort_by == 'date_taken':
-                    inner_order = "date_taken ASC, path ASC"
+                    # Compare camera-local fields, not EXIF ':' vs ISO '-'/'T'
+                    # punctuation, and do not shift them through a timezone.
+                    inner_order = (
+                        "REPLACE(SUBSTR(date_taken,1,10),':','-') || ' ' || "
+                        f"SUBSTR(date_taken,12) {date_order}, path ASC"
+                    )
                 elif sort_by == 'filename':
                     inner_order = "filename ASC, path ASC"
                 else:
                     inner_order = "aggregate DESC, path ASC"
 
-                batch_where = [vis_sql, "date_taken IS NOT NULL", "date_taken != ''"]
-                batch_params = list(from_params) + list(vis_params)
-                batch_where.extend(hide_clauses_from_toggles(hide_toggles))
+                # Group counts and rendered previews must use the identical
+                # captured scope, including partial-week/month date bounds.
+                batch_where = list(where_clauses)
+                batch_params = list(sql_params)
                 batch_where.append(f"{date_expr} IN ({placeholders})")
                 batch_params.extend(date_list)
 
@@ -201,7 +212,7 @@ async def api_timeline(
                     f"      ORDER BY {inner_order}"
                     f"    ) AS _rn "
                     f"  FROM {from_clause}{batch_where_str}"
-                    f") WHERE _rn <= ?"
+                    f") WHERE _rn <= ? ORDER BY _photo_date {date_order}, _rn ASC"
                 )
                 batch_params.append(ppg)
 
@@ -213,6 +224,9 @@ async def api_timeline(
                 for photo in all_photos:
                     photo['date_formatted'] = format_date(photo.get('date_taken'))
 
+                if logical:
+                    from api.logical_reviews import attach_async
+                    await attach_async(conn, all_photos, user_id)
                 await attach_person_data_async(all_photos, conn)
                 sanitize_float_values(all_photos)
 
@@ -237,7 +251,7 @@ async def api_timeline(
         raise
     except Exception:
         logger.exception("Failed to fetch timeline")
-        return {'groups': [], 'next_cursor': None, 'has_more': False}
+        raise HTTPException(status_code=503, detail="Timeline is temporarily unavailable") from None
 
     return {
         'groups': groups,
@@ -263,10 +277,11 @@ async def api_timeline_dates(
     user_id = user.user_id if user else None
     try:
         async with get_async_db() as conn:
-            from_clause, from_params = get_photos_from_clause(user_id)
+            await conn.execute("BEGIN")
+            from_clause, from_params, logical = await read_source_async(conn, user_id)
             vis_sql, vis_params = get_visibility_clause(user_id)
 
-            where_clauses = [vis_sql, "date_taken IS NOT NULL", "date_taken != ''"]
+            where_clauses = [vis_sql, f"NOT {CAPTURE_DATE_MISSING_SQL}"]
             sql_params = list(from_params) + list(vis_params)
 
             where_clauses.extend(hide_clauses_from_toggles(hide_toggles))
@@ -275,11 +290,11 @@ async def api_timeline_dates(
             where_clauses.extend(date_clauses)
             sql_params.extend(date_params)
 
-            # Filter by year (EXIF format: YYYY:MM:DD)
+            # Stored capture dates can use either EXIF colons or ISO hyphens.
             year_prefix = str(year)
             if month is not None:
-                date_prefix = f"{year}:{month:02d}"
-                where_clauses.append("SUBSTR(date_taken,1,7) = ?")
+                date_prefix = f"{year}-{month:02d}"
+                where_clauses.append("REPLACE(SUBSTR(date_taken,1,7),':','-') = ?")
                 sql_params.append(date_prefix)
             else:
                 where_clauses.append("SUBSTR(date_taken,1,4) = ?")
@@ -299,7 +314,7 @@ async def api_timeline_dates(
         raise
     except Exception:
         logger.exception("Failed to fetch timeline dates")
-        return {'dates': []}
+        raise HTTPException(status_code=503, detail="Timeline dates are temporarily unavailable") from None
 
     return {'dates': dates}
 
@@ -320,10 +335,11 @@ async def api_timeline_years(
     user_id = user.user_id if user else None
     try:
         async with get_async_db() as conn:
-            from_clause, from_params = get_photos_from_clause(user_id)
+            await conn.execute("BEGIN")
+            from_clause, from_params, logical = await read_source_async(conn, user_id)
             vis_sql, vis_params = get_visibility_clause(user_id)
 
-            where_clauses = [vis_sql, "date_taken IS NOT NULL", "date_taken != ''"]
+            where_clauses = [vis_sql, f"NOT {CAPTURE_DATE_MISSING_SQL}"]
             sql_params = list(from_params) + list(vis_params)
 
             where_clauses.extend(hide_clauses_from_toggles(hide_toggles))
@@ -346,7 +362,7 @@ async def api_timeline_years(
         raise
     except Exception:
         logger.exception("Failed to fetch timeline years")
-        return {'years': []}
+        raise HTTPException(status_code=503, detail="Timeline years are temporarily unavailable") from None
 
     return {'years': years}
 
@@ -363,10 +379,11 @@ async def api_timeline_months(
     user_id = user.user_id if user else None
     try:
         async with get_async_db() as conn:
-            from_clause, from_params = get_photos_from_clause(user_id)
+            await conn.execute("BEGIN")
+            from_clause, from_params, logical = await read_source_async(conn, user_id)
             vis_sql, vis_params = get_visibility_clause(user_id)
 
-            where_clauses = [vis_sql, "date_taken IS NOT NULL", "date_taken != ''",
+            where_clauses = [vis_sql, f"NOT {CAPTURE_DATE_MISSING_SQL}",
                              "SUBSTR(date_taken,1,4) = ?"]
             sql_params = list(from_params) + list(vis_params) + [str(year)]
 
@@ -390,6 +407,6 @@ async def api_timeline_months(
         raise
     except Exception:
         logger.exception("Failed to fetch timeline months")
-        return {'months': []}
+        raise HTTPException(status_code=503, detail="Timeline months are temporarily unavailable") from None
 
     return {'months': months}

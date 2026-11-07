@@ -5,19 +5,25 @@ then streamed in chunks, so a library of any size cannot make one request load e
 """
 
 import logging
+import json
 import time
+import uuid
 from typing import Literal, Optional
 
 import numpy as np
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 
-from api.auth import CurrentUser, require_authenticated
+from api.auth import CurrentUser, require_authenticated, require_edition
 from api.database import get_db
 from api.db_helpers import (
-    get_visibility_clause, is_unnamed, person_unnamed_clause, person_visibility_exists, select_in_chunks)
-from api.models.culling import PossibleFacesResponse
-from db.embedding_space import ARCFACE_MODEL, expected_dim, tag_matches
+    get_visibility_clause, is_unnamed, person_unnamed_clause, person_visibility_exists, select_in_chunks,
+    retry_on_locked)
+from api.models.culling import (
+    FaceReviewResponse, PossibleFacesResponse, FaceReviewFeedbackRequest,
+    FaceReviewUndoRequest, FaceReviewFeedbackResponse)
+from db.embedding_space import ARCFACE_MODEL, active_embedding_model, expected_dim, model_filter_sql, tag_matches
 from db.schema import person_not_hidden_clause
+from db.face_identity import face_identity_token
 
 logger = logging.getLogger(__name__)
 
@@ -37,6 +43,8 @@ SCOPES = ("unassigned", "unnamed", "other_persons", "all")
 # Who owns a candidate face: in no group, in a group nobody has named, or in a named person.
 OWNERS = ("ungrouped", "unnamed_group", "named")
 MAX_SIMILAR_GROUPS = 10
+MAX_REVIEW_REFERENCE_FACES = 20000
+MAX_REVIEW_PEOPLE = 1000
 
 # ``unnamed`` is every face without a name: in no cluster, or in a cluster nobody has named
 # yet. ``unassigned`` is the narrower "in no cluster at all".
@@ -296,3 +304,177 @@ def _owner_of(person_id, name) -> str:
     if person_id is None:
         return "ungrouped"
     return "unnamed_group" if is_unnamed(name) else "named"
+
+
+def _review_vector(blob, dim):
+    """A malformed embedding is unavailable evidence, not a failed review page."""
+    if not isinstance(blob, bytes) or len(blob) != dim * FLOAT_BYTES:
+        return None
+    vector = np.frombuffer(blob, dtype=np.float32).astype(np.float64)
+    norm = float(np.linalg.norm(vector))
+    if not np.isfinite(vector).all() or not np.isfinite(norm) or norm <= 1e-10:
+        return None
+    return vector / norm
+
+
+def _feedback_owner(user):
+    # JSON distinguishes the single-user null owner from every literal user ID.
+    return json.dumps(user.user_id if user else None, ensure_ascii=True)
+
+
+def _feedback_preconditions(conn, body, user):
+    user_id = user.user_id if user else None
+    visibility, params = get_visibility_clause(user_id, 'ph')
+    row = conn.execute(
+        'SELECT f.id, f.photo_path, f.face_index, f.bbox_x1, f.bbox_y1, f.bbox_x2, f.bbox_y2, '
+        'f.embedding_model, f.embedding, f.person_id FROM faces f '
+        f'JOIN photos ph ON ph.path=f.photo_path WHERE f.id=? AND {visibility}',
+        [body.face_id, *params]).fetchone()
+    fragment, person_params = person_visibility_exists(user_id, 'pe.id')
+    target = conn.execute(
+        f'SELECT pe.name FROM persons pe WHERE pe.id=? AND {person_not_hidden_clause("pe")}'
+        + (f' AND {fragment}' if fragment else ''), [body.person_id, *person_params]).fetchone()
+    # Visibility precedes all precondition comparisons, including name checks.
+    if row is None or target is None:
+        raise HTTPException(404, 'Face or person not found')
+    token = face_identity_token(row[0], row[1], row[2], row[3:7], row[7], row[8])
+    if row[9] is not None or token != body.identity_token or (target[0] or '').strip() != body.expected_person_name:
+        raise HTTPException(409, 'Face or person changed; reload the review')
+
+
+@router.post('/api/faces/review/feedback', response_model=FaceReviewFeedbackResponse)
+@retry_on_locked()
+def reject_face_suggestion(body: FaceReviewFeedbackRequest, user: CurrentUser = Depends(require_edition)):
+    """Reject a suggestion only for this account; never change assignments."""
+    with get_db() as conn:
+        conn.execute('BEGIN IMMEDIATE')
+        _feedback_preconditions(conn, body, user)
+        owner = _feedback_owner(user)
+        existing = conn.execute(
+            'SELECT identity_token, receipt_id FROM face_review_feedback WHERE owner=? AND face_id=? AND person_id=?',
+            (owner, body.face_id, body.person_id)).fetchone()
+        if existing is not None and existing[0] == body.identity_token:
+            return {'receipt_id': existing[1], 'rejected': True}
+        receipt = uuid.uuid4().hex
+        conn.execute('''INSERT INTO face_review_feedback(owner,face_id,person_id,identity_token,receipt_id)
+            VALUES (?,?,?,?,?) ON CONFLICT(owner,face_id,person_id) DO UPDATE SET
+            identity_token=excluded.identity_token, receipt_id=excluded.receipt_id''',
+                     (owner, body.face_id, body.person_id, body.identity_token, receipt))
+        conn.commit()
+        return {'receipt_id': receipt, 'rejected': True}
+
+
+@router.post('/api/faces/review/feedback/undo', response_model=FaceReviewFeedbackResponse)
+@retry_on_locked()
+def undo_face_suggestion_feedback(body: FaceReviewUndoRequest, user: CurrentUser = Depends(require_edition)):
+    """Undo exactly one receipt, refusing a newer rejection in another tab."""
+    with get_db() as conn:
+        conn.execute('BEGIN IMMEDIATE')
+        _feedback_preconditions(conn, body, user)
+        deleted = conn.execute(
+            'DELETE FROM face_review_feedback WHERE owner=? AND face_id=? AND person_id=? '
+            'AND identity_token=? AND receipt_id=?',
+            (_feedback_owner(user), body.face_id, body.person_id, body.identity_token, body.receipt_id))
+        if deleted.rowcount != 1:
+            raise HTTPException(409, 'Feedback changed; reload the review')
+        conn.commit()
+        return {'receipt_id': body.receipt_id, 'rejected': False}
+
+
+@router.get('/api/faces/review', response_model=FaceReviewResponse)
+def review_unassigned_faces(
+    after_id: int = Query(0, ge=0, le=9007199254740991),
+    limit: int = Query(48, ge=1, le=100),
+    suggest: bool = Query(True),
+    min_similarity: float = Query(0.35, ge=0, le=1),
+    target_person_id: int | None = Query(None, ge=1, le=9007199254740991),
+    face_id: int | None = Query(None, ge=1, le=9007199254740991),
+    user: CurrentUser = Depends(require_authenticated),
+):
+    """Global review of truly unassigned faces; no clustering or assignment writes.
+
+    Suggestions use centroids derived only from this caller's visible faces in
+    one read snapshot. Stored library-wide centroids, hidden people and foreign
+    model vectors do not influence them. The bounded reference scan refuses
+    instead of silently omitting people; unassigned browsing remains available
+    without suggestions. Keyset pagination is a live view, not a frozen batch.
+    """
+    user_id = user.user_id if user else None
+    model = active_embedding_model()
+    dim = expected_dim(model)
+    visibility, vis_params = get_visibility_clause(user_id, 'ph')
+    scope = f'faces f JOIN photos ph ON ph.path = f.photo_path WHERE f.person_id IS NULL AND {visibility}'
+    with get_db() as conn:
+        conn.execute('BEGIN')
+        total = conn.execute(f'SELECT COUNT(*) FROM {scope}', vis_params).fetchone()[0]
+        page_scope = scope + (' AND f.id=?' if face_id is not None else '')
+        page_params = [*vis_params, *([face_id] if face_id is not None else [])]
+        rows = conn.execute(
+            f'SELECT f.id, f.photo_path, f.embedding, f.embedding_model, f.face_index, '
+            f'f.bbox_x1, f.bbox_y1, f.bbox_x2, f.bbox_y2 FROM {page_scope} '
+            'AND f.id > ? ORDER BY f.id LIMIT ?', [*page_params, after_id, limit + 1]).fetchall()
+        feedback: dict[int, set[tuple[int, str]]] = {}
+        if rows:
+            ids = [row[0] for row in rows[:limit]]
+            for fid, pid, token in conn.execute(
+                'SELECT face_id,person_id,identity_token FROM face_review_feedback WHERE owner=? '
+                f'AND face_id IN ({",".join("?" for _ in ids)})', [_feedback_owner(user), *ids]):
+                feedback.setdefault(fid, set()).add((pid, token))
+        people = []
+        matrix = None
+        if suggest and rows:
+            model_sql, model_params = model_filter_sql(model, 'f.embedding_model')
+            target_model_sql, target_model_params = model_filter_sql(model, 'pe.centroid_model')
+            reference = (
+                'faces f JOIN photos ph ON ph.path = f.photo_path JOIN persons pe ON pe.id = f.person_id '
+                f'WHERE {visibility} AND {person_not_hidden_clause("pe")} '
+                f'AND NOT {person_unnamed_clause("pe")} AND {model_sql} '
+                f'AND (pe.centroid IS NULL OR length(pe.centroid)=0 OR {target_model_sql})')
+            params = [*vis_params, *model_params, *target_model_params]
+            if target_person_id is not None:
+                reference += ' AND pe.id = ?'
+                params.append(target_person_id)
+            count, targets = conn.execute(
+                f'SELECT COUNT(*), COUNT(DISTINCT pe.id) FROM {reference}', params).fetchone()
+            if count > MAX_REVIEW_REFERENCE_FACES or targets > MAX_REVIEW_PEOPLE:
+                raise HTTPException(412, 'Review reference scope is too large; choose a person or browse without suggestions')
+            sums = {}
+            names = {}
+            for person_id, name, blob in conn.execute(
+                f'SELECT pe.id, pe.name, f.embedding FROM {reference} ORDER BY pe.id, f.id', params):
+                vector = _review_vector(blob, dim)
+                if vector is None:
+                    continue
+                if person_id not in sums:
+                    sums[person_id] = np.zeros(dim, dtype=np.float64)
+                    names[person_id] = name.strip()
+                sums[person_id] += vector
+            vectors = []
+            for person_id, value in sums.items():
+                norm = float(np.linalg.norm(value))
+                if not np.isfinite(norm) or norm <= 1e-10:
+                    continue
+                people.append((person_id, names[person_id]))
+                vectors.append(value / norm)
+            if vectors:
+                matrix = np.stack(vectors)
+        faces = []
+        for face_id, path, blob, tag, face_index, *box in rows[:limit]:
+            token = face_identity_token(face_id, path, face_index, box, tag, blob)
+            compatible = tag_matches(tag, model)
+            vector = _review_vector(blob, dim) if compatible else None
+            suggestions = []
+            if vector is not None and matrix is not None:
+                similarities = matrix @ vector
+                # Deterministic ties: people are visited by ascending ID.
+                indices = [index for index in np.argsort(-similarities, kind='stable')
+                           if (people[index][0], token) not in feedback.get(face_id, set())][:3]
+                suggestions = [
+                    {'person_id': people[index][0], 'name': people[index][1],
+                     'similarity': round(float(np.clip(similarities[index], -1, 1)), 4)}
+                    for index in indices if similarities[index] >= min_similarity]
+            faces.append({'face_id': face_id, 'photo_path': path, 'suggestions': suggestions,
+                          'identity_token': token,
+                          'embedding_state': 'incompatible' if not compatible else 'ready' if vector is not None else 'unavailable'})
+        return {'faces': faces, 'total_unassigned': total, 'next_after_id': rows[limit - 1][0] if len(rows) > limit else None,
+                'model': model, 'compared_people': len(people), 'suggestions_requested': suggest}

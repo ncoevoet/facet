@@ -53,6 +53,25 @@ describe('AuthService', () => {
     mockRouter.navigate.mockClear();
   });
 
+  it('logout clears retained thumbnail entries without delaying navigation or deleting namespaces', async () => {
+    const request = new Request('http://localhost/thumbnail?path=private');
+    const bytes = new Map([[request, 'private bytes']]);
+    const open = vi.fn(async () => ({
+      keys: async () => [...bytes.keys()],
+      delete: async (key: Request) => bytes.delete(key),
+    }));
+    const deleteNamespace = vi.fn();
+    vi.stubGlobal('caches', { keys: async () => ['ngsw:thumbnails:cache', 'unrelated'], open, delete: deleteNamespace });
+    try {
+      expect(service.logout()).toBeUndefined();
+      httpTesting.expectOne('/api/auth/logout').flush({ ok: true });
+      expect(mockRouter.navigate).toHaveBeenCalledWith(['/login']);
+      await vi.waitFor(() => expect(bytes.size).toBe(0));
+      expect(open).toHaveBeenCalledExactlyOnceWith('ngsw:thumbnails:cache');
+      expect(deleteNamespace).not.toHaveBeenCalled();
+    } finally { vi.unstubAllGlobals(); }
+  });
+
   describe('initial state', () => {
     it('should have null status initially', () => {
       expect(service.status()).toBeNull();
@@ -208,6 +227,46 @@ describe('AuthService', () => {
   });
 
   describe('cross-tab token rotation', () => {
+    it('refuses new edit commands while a rotated credential is being checked', async () => {
+      getItemSpy.mockReturnValue(makeJwt(3600));
+      const initial = service.checkStatus();
+      httpTesting.expectOne('/api/auth/status').flush({ ...mockStatus, edition_authenticated: true });
+      await initial;
+      expect(service.isEdition()).toBe(true);
+
+      getItemSpy.mockReturnValue(makeJwt(7200));
+      window.dispatchEvent(new StorageEvent('storage', { key: 'facet_token', newValue: 'rotated' }));
+      const blockedWhileChecking = !service.isEdition();
+      httpTesting.expectOne('/api/auth/status').flush(mockStatus);
+      await Promise.resolve();
+      expect(blockedWhileChecking).toBe(true);
+    });
+
+    it('does not let an earlier status response overwrite another credential', async () => {
+      getItemSpy.mockReturnValue(makeJwt(3600));
+      const old = service.revalidate();
+      const oldRequest = httpTesting.expectOne('/api/auth/status');
+      getItemSpy.mockReturnValue(makeJwt(7200));
+      const current = service.revalidate();
+      const freshRequests = httpTesting.match('/api/auth/status');
+      for (const request of freshRequests) request.flush({ ...mockStatus, user_id: 'new-owner' });
+      oldRequest.flush(mockStatus);
+      await Promise.all([old, current]);
+      expect(freshRequests).toHaveLength(1);
+      expect(service.status()?.user_id).toBe('new-owner');
+    });
+
+    it('does not resurrect status after logout during a pending status read', async () => {
+      const pending = service.revalidate();
+      const request = httpTesting.expectOne('/api/auth/status');
+      service.logout();
+      httpTesting.expectOne('/api/auth/logout').flush({ ok: true });
+      request.flush(mockStatus);
+      await pending;
+      expect(service.status()).toBeNull();
+      expect(service.isEdition()).toBe(false);
+    });
+
     it('should refetch status when another tab rewrites the token', async () => {
       service.status.set({ ...mockStatus, edition_authenticated: true });
 
@@ -226,6 +285,15 @@ describe('AuthService', () => {
   });
 
   describe('checkStatus()', () => {
+    it('shares an in-flight check with route guards and error reconciliation', async () => {
+      const guard = service.loadStatus();
+      const direct = service.checkStatus();
+      const recovery = service.revalidate();
+      httpTesting.expectOne('/api/auth/status').flush(mockStatus);
+      expect(await guard).toEqual(mockStatus);
+      expect(await direct).toEqual(mockStatus);
+      expect(await recovery).toEqual(mockStatus);
+    });
     it('should fetch auth status and update the signal', async () => {
       const promise = service.checkStatus();
 
@@ -478,6 +546,57 @@ describe('AuthService', () => {
       service.logout();
       flushLogout();
       expect(mockRouter.navigate).toHaveBeenCalledWith(['/login']);
+    });
+  });
+
+  describe('dropEdition()', () => {
+    it('accepts the reduced token despite a same-token status read during locking', async () => {
+      let token = makeJwt(3600);
+      getItemSpy.mockImplementation(() => token);
+      setItemSpy.mockImplementation((_key: string, value: string) => { token = value; });
+      service.status.set({ ...mockStatus, edition_authenticated: true });
+      const lock = service.dropEdition();
+      const pendingStatus = service.revalidate();
+      httpTesting.expectOne('/api/auth/status').flush({ ...mockStatus, edition_authenticated: true });
+      await pendingStatus;
+      expect(service.isEdition()).toBe(false);
+      const reduced = makeJwt(7200);
+      httpTesting.expectOne('/api/auth/edition/logout').flush({ access_token: reduced });
+      await lock;
+      expect(service.token).toBe(reduced);
+      expect(service.isEdition()).toBe(false);
+    });
+    it('locks immediately and keeps the accepted reduced-rights token usable', async () => {
+      let token = makeJwt(3600);
+      getItemSpy.mockImplementation(() => token);
+      setItemSpy.mockImplementation((_key: string, value: string) => { token = value; });
+      const initial = service.checkStatus();
+      httpTesting.expectOne('/api/auth/status').flush({ ...mockStatus, edition_authenticated: true });
+      await initial;
+
+      const lock = service.dropEdition();
+      expect(service.isEdition()).toBe(false);
+      const reducedToken = makeJwt(7200);
+      httpTesting.expectOne('/api/auth/edition/logout').flush({ access_token: reducedToken });
+      await lock;
+      expect(service.token).toBe(reducedToken);
+      expect((await service.loadStatus()).user_id).toBe(mockStatus.user_id);
+      httpTesting.expectNone('/api/auth/status');
+    });
+
+    it('refuses a late edition logout token after another account has signed in', async () => {
+      getItemSpy.mockReturnValue(makeJwt(3600));
+      const lock = service.dropEdition();
+      const request = httpTesting.expectOne('/api/auth/edition/logout');
+      getItemSpy.mockReturnValue(makeJwt(7200));
+      const current = service.checkStatus();
+      httpTesting.expectOne('/api/auth/status').flush({ ...mockStatus, user_id: 'new-owner', edition_authenticated: true });
+      await current;
+      request.flush({ access_token: makeJwt(10800) });
+      await lock;
+      expect(setItemSpy).not.toHaveBeenCalled();
+      expect(service.status()?.user_id).toBe('new-owner');
+      expect(service.isEdition()).toBe(true);
     });
   });
 

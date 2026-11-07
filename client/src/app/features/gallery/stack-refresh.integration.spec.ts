@@ -1,3 +1,4 @@
+import { OverlayContainer } from '@angular/cdk/overlay';
 import { ApplicationRef, signal } from '@angular/core';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { HttpRequest, provideHttpClient, withInterceptors, withXhr } from '@angular/common/http';
@@ -15,7 +16,6 @@ import { AssistantChangesService, AssistantChangeBatch } from '../../core/agent/
 import { makePhoto } from '../../../testing/photo.fixture';
 import { GalleryComponent } from './gallery.component';
 import { GalleryStore } from './gallery.store';
-import { App } from '../../app';
 import { KeyboardMappingService, DEFAULT_KEYMAP } from '../../core/services/keyboard-mapping.service';
 import { StackDialogComponent } from './stack-dialog.component';
 import { RouterTestingHarness } from '@angular/router/testing';
@@ -164,7 +164,7 @@ describe('stack representative repairs through rendered gallery and HTTP', () =>
     const closeEditor = async () => {
       TestBed.inject(MatDialog).closeAll();
       routed.fixture.destroy();
-      await fixture.whenStable();
+      fixture.destroy();
     };
     afterEach(async () => { await closeEditor(); });
 
@@ -467,7 +467,7 @@ describe('stack representative repairs through rendered gallery and HTTP', () =>
     expect(store.photos()).toEqual([photo]);
   });
 
-  it.each(['grid', 'mosaic'] as const)('expands and collapses %s via the mobile shell button through HTTP without losing photo totals or paging', async mode => {
+  it.each(['grid', 'mosaic'] as const)('expands and collapses %s via collection controls through HTTP without losing photo totals or paging', async mode => {
     store.setGalleryMode(mode);
     store.filters.update(filters => ({ ...filters, per_page: 2 }));
     fixture.componentInstance['containerWidth'].set(768);
@@ -479,52 +479,58 @@ describe('stack representative repairs through rendered gallery and HTTP', () =>
     http.expectOne(req => req.url === '/api/photos').flush({ ...page, per_page: 2, photos: [a,d], total: 2, photo_total: 4 });
     progressRequests().forEach(req => req.flush({ ...counts, total: 4 }));
     await loading; flushSideData(); fixture.detectChanges();
-    // Gallery startup has completed above; render the real shell with its shared
-    // store, without running a second copy of application startup HTTP.
-    const startup = vi.spyOn(App.prototype, 'ngOnInit').mockResolvedValue();
-    const shell = TestBed.createComponent(App);
-    shell.detectChanges(); startup.mockRestore();
-    try {
-      const root = shell.nativeElement as HTMLElement;
-      const button = root.querySelector<HTMLButtonElement>('[data-stack-collapse-mobile]');
-      expect(button).not.toBeNull();
-      expect(button?.closest('.lg\\:hidden')).not.toBeNull();
-      expect(fixture.componentInstance.effectiveGalleryMode()).toBe(mode);
-      expect((fixture.nativeElement as HTMLElement).querySelectorAll('app-photo-card')).toHaveLength(2);
-      button!.click();
-      const expand = http.expectOne(req => req.url === '/api/photos');
-      expect(expand.request.params.get('collapse_stacks')).toBe('0');
-      expect(expand.request.params.get('page')).toBe('1');
-      expect(expand.request.params.get('per_page')).toBe('2');
-      expand.flush({ ...page, per_page: 2, photos: [a,b], total: 4, photo_total: 4, has_more: true, total_pages: 2 });
-      progressRequests().forEach(req => req.flush({ ...counts, total: 4 }));
-      await fixture.whenStable(); flushSideData(); fixture.detectChanges(); shell.detectChanges();
-      expect(store.total()).toBe(4); expect(store.photoTotal()).toBe(4);
-      expect(button!.hasAttribute('aria-pressed')).toBe(false);
-      const paging = store.nextPage();
-      const next = http.expectOne(req => req.url === '/api/photos');
-      expect(next.request.params.get('collapse_stacks')).toBe('0');
-      expect(next.request.params.get('page')).toBe('2');
-      next.flush({ ...page, per_page: 2, photos: [c,d], total: 4, photo_total: 4, page: 2, total_pages: 2 });
-      await paging; flushSideData(); fixture.detectChanges();
-      expect(store.photos().map(photo => photo.path)).toEqual(['/a.jpg', '/b.jpg', '/c.jpg', '/d.jpg']);
-      expect((fixture.nativeElement as HTMLElement).querySelectorAll('app-photo-card')).toHaveLength(4);
-      button!.click();
-      const collapse = http.expectOne(req => req.url === '/api/photos');
-      expect(collapse.request.params.get('collapse_stacks')).toBe('1');
-      expect(collapse.request.params.get('page')).toBe('1');
-      collapse.flush({ ...page, per_page: 2, photos: [a,d], total: 2, photo_total: 4 });
-      progressRequests().forEach(req => req.flush({ ...counts, total: 4 }));
-      await fixture.whenStable(); flushSideData(); fixture.detectChanges(); shell.detectChanges();
-      expect(store.total()).toBe(2); expect(store.photoTotal()).toBe(4);
-      expect(store.photos().map(photo => photo.path)).toEqual(['/a.jpg', '/d.jpg']);
-      expect((fixture.nativeElement as HTMLElement).querySelectorAll('app-photo-card')).toHaveLength(2);
-      expect(button!.hasAttribute('aria-pressed')).toBe(false);
-      // Existing bottom-bar actions remain reachable alongside the new control.
-      const slideshow = root.querySelector<HTMLButtonElement>('button[aria-label^="slideshow.start"]');
-      expect(slideshow).not.toBeNull(); slideshow!.click();
-      expect(store.slideshowActive()).toBe(true);
-    } finally { shell.destroy(); }
+    const root = fixture.nativeElement as HTMLElement;
+    document.body.appendChild(root);
+    const displayTrigger = root.querySelector<HTMLButtonElement>('[data-collection-options] button')!;
+    displayTrigger.focus(); displayTrigger.click(); fixture.detectChanges();
+    const overlay = TestBed.inject(OverlayContainer).getContainerElement();
+    const button = overlay.querySelector<HTMLButtonElement>('[data-stack-collapse]');
+    expect(button).not.toBeNull();
+    expect(button!.getAttribute('aria-label')).toContain('stacks.expand_all');
+    expect(fixture.componentInstance.effectiveGalleryMode()).toBe(mode);
+    expect((fixture.nativeElement as HTMLElement).querySelectorAll('app-photo-card')).toHaveLength(2);
+    button!.click();
+    const expand = http.expectOne(req => req.url === '/api/photos');
+    expect(expand.request.params.get('collapse_stacks')).toBe('0');
+    expect(expand.request.params.get('page')).toBe('1');
+    expect(expand.request.params.get('per_page')).toBe('2');
+    expand.flush({ ...page, per_page: 2, photos: [a,b], total: 4, photo_total: 4, has_more: true, total_pages: 2 });
+    progressRequests().forEach(req => req.flush({ ...counts, total: 4 }));
+    await fixture.whenStable(); flushSideData(); fixture.detectChanges();
+    expect(store.total()).toBe(4); expect(store.photoTotal()).toBe(4);
+    expect(button!.hasAttribute('aria-pressed')).toBe(false);
+    expect(button!.getAttribute('aria-label')).toContain('stacks.collapse');
+    const paging = store.nextPage();
+    const next = http.expectOne(req => req.url === '/api/photos');
+    expect(next.request.params.get('collapse_stacks')).toBe('0');
+    expect(next.request.params.get('page')).toBe('2');
+    next.flush({ ...page, per_page: 2, photos: [c,d], total: 4, photo_total: 4, page: 2, total_pages: 2 });
+    await paging; flushSideData(); fixture.detectChanges();
+    expect(store.photos().map(photo => photo.path)).toEqual(['/a.jpg', '/b.jpg', '/c.jpg', '/d.jpg']);
+    expect((fixture.nativeElement as HTMLElement).querySelectorAll('app-photo-card')).toHaveLength(4);
+    button!.click();
+    const collapse = http.expectOne(req => req.url === '/api/photos');
+    expect(collapse.request.params.get('collapse_stacks')).toBe('1');
+    expect(collapse.request.params.get('page')).toBe('1');
+    collapse.flush({ ...page, per_page: 2, photos: [a,d], total: 2, photo_total: 4 });
+    progressRequests().forEach(req => req.flush({ ...counts, total: 4 }));
+    await fixture.whenStable(); flushSideData(); fixture.detectChanges();
+    expect(store.total()).toBe(2); expect(store.photoTotal()).toBe(4);
+    expect(store.photos().map(photo => photo.path)).toEqual(['/a.jpg', '/d.jpg']);
+    expect((fixture.nativeElement as HTMLElement).querySelectorAll('app-photo-card')).toHaveLength(2);
+    expect(button!.hasAttribute('aria-pressed')).toBe(false);
+    expect(button!.getAttribute('aria-label')).toContain('stacks.expand_all');
+    // The collection-owned slideshow remains reachable alongside stack expansion.
+    const slideshow = overlay.querySelector<HTMLButtonElement>('button[aria-label^="slideshow.start"]');
+    expect(slideshow).not.toBeNull(); slideshow!.focus(); slideshow!.click();
+    fixture.detectChanges(); TestBed.tick();
+    expect(store.slideshowActive()).toBe(true);
+    expect(TestBed.inject(OverlayContainer).getContainerElement().querySelector('[role="dialog"]')).toBeNull();
+    document.body.dispatchEvent(new KeyboardEvent('keydown', {key: 'Escape', bubbles: true, cancelable: true}));
+    fixture.detectChanges();
+    expect(store.slideshowActive()).toBe(false);
+    expect(document.activeElement).toBe(displayTrigger);
+    root.remove();
   });
 
   it.each([true, false])('refreshes projected stack counts after an assistant changes an offscreen member (collapsed=%s)', async collapsed => {
@@ -636,7 +642,7 @@ describe('stack representative repairs through rendered gallery and HTTP', () =>
     const target = scenario === 'hidden-member' ? paths[1] : paths[0];
     store.restoreSelection([target]); fixture.detectChanges();
     vi.spyOn(fixture.debugElement.injector.get(MatDialog), 'open').mockReturnValue({ afterClosed: () => of({ includeCompanions: false, includeSequenceSiblings: false, removeMissing: true }) } as never);
-    const deletion = vi.spyOn(fixture.componentInstance, 'deleteSelected');
+    const deletion = vi.spyOn(fixture.componentInstance.selectionActions, 'deleteSelected');
     const refresh = vi.spyOn(store, 'refreshPaths');
     const started = requested('/api/photo/delete');
     const deleteButton = [...(fixture.nativeElement as HTMLElement).querySelectorAll<HTMLButtonElement>('[data-selection-bar] button')]

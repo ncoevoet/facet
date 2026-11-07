@@ -1,6 +1,10 @@
+import { signal } from '@angular/core';
+import { AuthService } from '../../../core/services/auth.service';
+import { FaceOutlinePreferences } from '../../../core/services/face-outline-preferences.service';
+import { personOutlineColors } from '../../utils/person-outline-colors';
 import type { Mock } from 'vitest';
 import { TestBed, ComponentFixture } from '@angular/core/testing';
-import { of, throwError } from 'rxjs';
+import { of, Subject, throwError } from 'rxjs';
 import { ApiService } from '../../../core/services/api.service';
 import { FaceFocusOverlayComponent } from './face-focus-overlay.component';
 import { PersonFaceBoxesService } from './person-face-boxes.service';
@@ -53,7 +57,7 @@ describe('FaceFocusOverlayComponent', () => {
     expect(rects.length).toBe(1);
     expect(['x', 'y', 'width', 'height'].map((a) => Math.round(Number(rects[0].getAttribute(a)))))
       .toEqual([100, 100, 200, 200]);
-    expect(rects[0].getAttribute('stroke')).toBe('#ef4444');
+    expect(rects[0].getAttribute('stroke')).toBe(personOutlineColors('95').get(95));
     expect(fixture.nativeElement.querySelector('svg').getAttribute('viewBox')).toBe('0 0 1000 500');
   });
 
@@ -62,12 +66,11 @@ describe('FaceFocusOverlayComponent', () => {
     expect(fixture.nativeElement.querySelector('svg').getAttribute('preserveAspectRatio')).toBe('xMidYMid slice');
   });
 
-  it('asks nothing and draws nothing without a single-person filter', async () => {
+  it('asks nothing and draws nothing without a person filter', async () => {
     await render('');
     expect(mockApi.post).not.toHaveBeenCalled();
     expect(fixture.nativeElement.querySelector('svg')).toBeNull();
-    await render('95,163');
-    expect(mockApi.post).not.toHaveBeenCalled();
+
   });
 
   it('draws nothing when the server has no box for the photo', async () => {
@@ -80,6 +83,28 @@ describe('FaceFocusOverlayComponent', () => {
     mockApi.post.mockReturnValue(throwError(() => new Error('down')));
     await render('95');
     expect(fixture.nativeElement.querySelector('svg')).toBeNull();
+  });
+
+  it('draws matching colors for every selected person and toggles without fetching photos', async () => {
+    await render('95,163');
+    const colors = personOutlineColors('95,163');
+    expect(mockApi.post.mock.calls.map(c => c[0])).toEqual(['/person/95/face_boxes', '/person/163/face_boxes']);
+    expect([...fixture.nativeElement.querySelectorAll('rect')].map((r: any) => r.getAttribute('stroke'))).toEqual([...colors.values()]);
+    const preference = TestBed.inject(FaceOutlinePreferences);
+    preference.setEnabled(false); await settle(fixture);
+    expect(fixture.nativeElement.querySelector('svg')).toBeNull();
+    preference.setEnabled(true); await settle(fixture);
+    expect(fixture.nativeElement.querySelectorAll('rect')).toHaveLength(2);
+    expect(mockApi.post).toHaveBeenCalledTimes(2);
+    expect(mockApi.get).not.toHaveBeenCalled();
+  });
+
+  it('does not cap supported people at the palette size', async () => {
+    const ids = Array.from({length: 11}, (_, i) => i + 1).join(',');
+    await render(ids);
+    expect(mockApi.post).toHaveBeenCalledTimes(11);
+    expect(fixture.nativeElement.querySelectorAll('rect')).toHaveLength(11);
+    expect(personOutlineColors(ids).size).toBe(11);
   });
 
   it('twenty tiles share ONE request, and each draws its own box', async () => {
@@ -107,6 +132,17 @@ describe('PersonFaceBoxesService', () => {
     service = TestBed.inject(PersonFaceBoxesService);
   });
 
+  it('settles every caller even when pending work exceeds the settled-cache limit', async () => {
+    const original = service.boxes(5, '/p/first.jpg');
+    const work = Array.from({length: 4001}, (_, i) => service.boxes(5, `/p/${i}.jpg`));
+    const repeated = service.boxes(5, '/p/first.jpg');
+    expect(repeated).toBe(original);
+    const answers = await Promise.all([original, ...work, repeated]);
+    expect(answers.every(boxes => boxes.length === 1)).toBe(true);
+    expect((service as any).cache.size).toBeLessThanOrEqual(4000);
+    expect((service as any).inFlight.size).toBe(0);
+  });
+
   it('splits a batch above the 200-path cap', async () => {
     await Promise.all(Array.from({ length: 450 }, (_, i) => service.boxes(5, `/p/${i}.jpg`)));
     expect(mockApi.post.mock.calls.map((c) => c[1].paths.length)).toEqual([200, 200, 50]);
@@ -119,7 +155,7 @@ describe('PersonFaceBoxesService', () => {
     await service.boxes(6, '/p/a.jpg');
     await service.boxes(5, '/p/a.jpg');
     expect(mockApi.post.mock.calls.map((c) => c[0])).toEqual([
-      '/person/5/face_boxes', '/person/6/face_boxes', '/person/5/face_boxes',
+      '/person/5/face_boxes', '/person/6/face_boxes',
     ]);
   });
 });
@@ -146,5 +182,62 @@ describe('PersonFaceBoxesService invalidation', () => {
     service.clear();
     await service.boxes(5, '/p/a.jpg');
     expect(mockApi.post).toHaveBeenCalledTimes(2);
+  });
+});
+
+
+describe('Person face box ownership and retry', () => {
+  const identity = signal('first');
+  let service: PersonFaceBoxesService;
+  let post: Mock;
+  beforeEach(() => {
+    identity.set('first');
+    post = vi.fn();
+    TestBed.configureTestingModule({providers: [
+      {provide: AuthService, useValue: {identity}}, {provide: ApiService, useValue: {post}},
+    ]});
+    service = TestBed.inject(PersonFaceBoxesService);
+  });
+
+  it('does not dispatch a queued account A batch using account B credentials', async () => {
+    post.mockReturnValue(of({boxes: {'/a': [[0, 0, 0.1, 0.1]]}}));
+    const queued = service.boxes(5, '/a');
+    identity.set('second');
+    expect(await queued).toEqual([]);
+    expect(post).not.toHaveBeenCalled();
+    identity.set('first');
+    post.mockReturnValueOnce(of({boxes: {'/a': [[0, 0, 1, 1]]}}));
+    expect(await service.boxes(5, '/a')).toEqual([[0, 0, 1, 1]]);
+  });
+
+  it('rejects a previous account completion and re-reads the same photo', async () => {
+    const old = new Subject<any>(); post.mockReturnValueOnce(old);
+    const first = service.boxes(5, '/a'); await Promise.resolve();
+    identity.set('second');
+    post.mockReturnValueOnce(of({boxes: {'/a': [[0, 0, 1, 1]]}}));
+    const second = service.boxes(5, '/a');
+    old.next({boxes: {'/a': [[0, 0, 0.1, 0.1]]}}); old.complete();
+    expect(await first).toEqual([]);
+    expect(await second).toEqual([[0, 0, 1, 1]]);
+  });
+
+  it('invalidation for all people refuses old work without deleting a newer retry', async () => {
+    const old = new Subject<any>(); post.mockReturnValue(old);
+    const first = service.boxes(5, '/a'); const other = service.boxes(6, '/a');
+    await Promise.resolve(); service.invalidate('/a');
+    post.mockReturnValue(of({boxes: {'/a': [[0, 0, 1, 1]]}}));
+    const fresh = service.boxes(5, '/a');
+    old.error(new Error('old request failed'));
+    expect(await first).toEqual([]); expect(await other).toEqual([]);
+    expect(await fresh).toEqual([[0, 0, 1, 1]]);
+    expect(service.boxes(5, '/a')).toBe(fresh);
+  });
+
+  it('permits retry after a failure and releases pending ownership', async () => {
+    post.mockReturnValueOnce(throwError(() => new Error('offline')));
+    expect(await service.boxes(5, '/a')).toEqual([]);
+    expect((service as any).inFlight.size).toBe(0);
+    post.mockReturnValueOnce(of({boxes: {'/a': [[0, 0, 1, 1]]}}));
+    expect(await service.boxes(5, '/a')).toEqual([[0, 0, 1, 1]]);
   });
 });

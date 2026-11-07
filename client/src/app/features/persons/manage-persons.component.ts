@@ -1,6 +1,9 @@
-import { Component, inject, signal, computed, OnInit, effect, untracked, DestroyRef, viewChild, TemplateRef, ChangeDetectionStrategy } from '@angular/core';
+import { FaceReviewQueueComponent } from './face-review-queue.component';
+import { FaceUpdateControlComponent } from './face-update-control.component';
+import { afterNextRender, Component, inject, Injector, signal, computed, OnInit, effect, untracked, DestroyRef, viewChild, TemplateRef, ChangeDetectionStrategy } from '@angular/core';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { FormsModule } from '@angular/forms';
-import { ActivatedRoute, Router, RouterLink } from '@angular/router';
+import { ActivatedRoute, NavigationEnd, Router, RouterLink } from '@angular/router';
 import { NgTemplateOutlet } from '@angular/common';
 import { MatTabsModule } from '@angular/material/tabs';
 import { MatButtonModule } from '@angular/material/button';
@@ -250,14 +253,15 @@ export class PersonFacesDialogComponent implements OnInit {
 }
 
 /** The /persons tabs, as written in ``?tab=``. */
-export type PersonsTab = 'named' | 'naming';
+const PERSONS_TABS = ['named', 'naming', 'matches', 'unassigned'] as const;
+export type PersonsTab = typeof PERSONS_TABS[number];
 /** Orders the Needs naming tab offers; a name sort means nothing on unnamed persons. */
 export type NamingSort = 'faces' | 'recent';
 
 @Component({
   selector: 'app-manage-persons',
   imports: [
-    MatButtonModule,
+    FaceReviewQueueComponent, FaceUpdateControlComponent, MatButtonModule,
     MatIconModule,
     MatDialogModule,
     MatFormFieldModule,
@@ -428,9 +432,10 @@ export type NamingSort = 'faces' | 'recent';
     </ng-template>
 
     <div class="px-4 pt-4 pb-4">
+      <app-face-update-control (reviewRequested)="reviewUpdatedFaces()" />
       @if (auth.isEdition()) {
         <mat-tab-group mat-stretch-tabs="false" mat-align-tabs="start" animationDuration="0ms"
-                       [selectedIndex]="tab() === 'naming' ? 1 : 0" (selectedIndexChange)="selectTab($event === 1 ? 'naming' : 'named')">
+                       [selectedIndex]="tabIndex()" (selectedIndexChange)="selectTabIndex($event)">
           <mat-tab>
             <ng-template mat-tab-label>
               <span data-tab="named">{{ I18N.manage_persons.named | translate }} ({{ total() }})</span>
@@ -467,6 +472,14 @@ export type NamingSort = 'faces' | 'recent';
                 </div>
               }
             </div>
+          </mat-tab>
+          <mat-tab>
+            <ng-template mat-tab-label><span data-tab="matches">{{ I18N.persons.review_queue.matches | translate }}</span></ng-template>
+            @if (tab() === 'matches') { <app-face-review-queue mode="matches" /> }
+          </mat-tab>
+          <mat-tab>
+            <ng-template mat-tab-label><span data-tab="unassigned">{{ I18N.persons.review_queue.unassigned | translate }}</span></ng-template>
+            @if (tab() === 'unassigned') { <app-face-review-queue mode="unassigned" /> }
           </mat-tab>
         </mat-tab-group>
       } @else {
@@ -506,6 +519,16 @@ export class ManagePersonsComponent implements OnInit {
   private readonly pageHelp = inject(PageHelpService);
   private readonly headerSlot = inject(HeaderSlotService);
   private readonly router = inject(Router);
+  private readonly route = inject(ActivatedRoute);
+  private tabNavigation = 0;
+  private readonly destroyRef = inject(DestroyRef);
+  private readonly injector = inject(Injector);
+  private personsLoadGeneration = 0;
+  // Status publishes credential changes; unchanged refreshes should not reload the grid.
+  private readonly personsSession = computed(() => {
+    this.auth.status();
+    return JSON.stringify([this.auth.identity(), this.auth.token, this.auth.isEdition()]);
+  });
   protected readonly personsFilters = inject(PersonsFiltersService);
   private dialog = inject(MatDialog);
   private snackBar = inject(MatSnackBar);
@@ -513,6 +536,21 @@ export class ManagePersonsComponent implements OnInit {
   private readonly faceBoxes = inject(PersonFaceBoxesService);
   private readonly hide = inject(PersonHideService);
   private readonly personsToolbar = viewChild<TemplateRef<unknown>>('personsToolbar');
+  private readonly reviewQueue = viewChild(FaceReviewQueueComponent);
+
+  protected reviewUpdatedFaces(): void {
+    if (!this.auth.isEdition() || this.router.currentNavigation()) return;
+    const owner = this.auth.identity(), token = this.auth.token, focused = document.activeElement;
+    if (this.tab() === 'matches') this.reviewQueue()?.reload();
+    void this.selectTab('matches').then(completed => {
+      if (!completed || this.destroyRef.destroyed) return;
+      afterNextRender(() => {
+        if (!this.destroyRef.destroyed && owner === this.auth.identity() && token === this.auth.token && this.auth.isEdition()
+          && this.tab() === 'matches' && this.router.url.split('?')[0] === '/persons' && !this.router.currentNavigation()
+          && (document.activeElement === focused || document.activeElement === document.body)) this.reviewQueue()?.focus();
+      }, { injector: this.injector });
+    });
+  }
 
   readonly persons = signal<Person[]>([]);
   readonly total = signal(0);
@@ -536,8 +574,9 @@ export class ManagePersonsComponent implements OnInit {
   readonly namingTabActive = computed(() => this.auth.isEdition() && this.tab() === 'naming');
 
   /** The selected tab, mirrored in ``?tab=``; Named unless the URL asks for Needs naming. */
-  readonly tab = signal<PersonsTab>(
-    inject(ActivatedRoute).snapshot.queryParamMap.get('tab') === 'naming' ? 'naming' : 'named');
+  readonly tab = signal<PersonsTab>(PERSONS_TABS.find(tab => tab === this.route.snapshot.queryParamMap.get('tab')) ?? 'named');
+  protected readonly tabIndex = computed(() => PERSONS_TABS.indexOf(this.tab()));
+  protected selectTabIndex(index: number): void { const tab = PERSONS_TABS[index]; if (tab) this.selectTab(tab); }
   /** Hidden persons, shown in the Ignored section (collapsed by default). */
   readonly ignored = signal<Person[]>([]);
   /** Every hidden person, from the response; the section loads them a page at a time. */
@@ -554,11 +593,18 @@ export class ManagePersonsComponent implements OnInit {
   readonly hasMore = computed(() => this.persons().length < this.total());
 
   constructor() {
+    this.router.events.pipe(takeUntilDestroyed()).subscribe(event => {
+      if (!(event instanceof NavigationEnd)) return;
+      const url = this.router.parseUrl(event.urlAfterRedirects);
+      const segments = url.root.children['primary']?.segments;
+      if (segments?.length === 1 && segments[0].path === 'persons') { this.tabNavigation++; this.tab.set(PERSONS_TABS.find(tab => tab === url.queryParams['tab']) ?? 'named'); }
+    });
     registerPageContext('persons', () => ({
       search: this.personsFilters.search(),
       sort: this.personsFilters.sort(),
       sort_direction: this.personsFilters.sortDirection(),
       show_hidden: this.personsFilters.showHidden(),
+      tab: this.auth.isEdition() ? this.tab() : 'named',
     }));
     // The assistant's `list_persons show=true` sends the search every time: the page takes exactly that query.
     onPageQuery('/persons', ['search'], query => {
@@ -577,7 +623,7 @@ export class ManagePersonsComponent implements OnInit {
     });
     effect(() => {
       const t = this.personsToolbar();
-      if (t) this.headerSlot.set(t);
+      if (t) { if (this.auth.isEdition() && (this.tab() === 'matches' || this.tab() === 'unassigned')) this.headerSlot.clear(t); else this.headerSlot.set(t); }
     });
     effect(() => {
       this.personsFilters.sort();
@@ -586,7 +632,7 @@ export class ManagePersonsComponent implements OnInit {
       this.personsFilters.showHidden();
       // Locking or unlocking edition shows or hides Needs naming, which decides
       // whether the grid lists unnamed persons too.
-      this.auth.isEdition();
+      this.personsSession();
       if (this.initialized) {
         untracked(() => this.loadPersons(true));
       }
@@ -617,10 +663,13 @@ export class ManagePersonsComponent implements OnInit {
   }
 
   /** Switch tabs and keep the choice in the URL, so a reload or Back returns to it. */
-  selectTab(tab: PersonsTab): void {
-    if (tab === this.tab()) return;
+  selectTab(tab: PersonsTab): Promise<boolean> {
+    if (tab === this.tab()) return Promise.resolve(true);
+    const previous = this.tab(), navigation = ++this.tabNavigation;
     this.tab.set(tab);
-    void this.router.navigate([], { queryParams: { tab }, queryParamsHandling: 'merge', replaceUrl: true });
+    return this.router.navigate([], { queryParams: { tab }, queryParamsHandling: 'merge', replaceUrl: true })
+      .then(completed => { if (!completed && this.tabNavigation === navigation && this.tab() === tab) this.tab.set(previous); return completed; })
+      .catch(() => { if (this.tabNavigation === navigation && this.tab() === tab) this.tab.set(previous); return false; });
   }
 
   onPersonsSortChange(sort: string): void {
@@ -786,9 +835,15 @@ export class ManagePersonsComponent implements OnInit {
   }
 
   async loadPersons(reset: boolean): Promise<void> {
+    if (this.destroyRef.destroyed) return;
+    const generation = ++this.personsLoadGeneration;
+    const owner = this.auth.identity(), token = this.auth.token;
+    const current = () => !this.destroyRef.destroyed && generation === this.personsLoadGeneration
+      && owner === this.auth.identity() && token === this.auth.token;
     if (reset) {
       this.page = 1;
       this.persons.set([]);
+      this.total.set(0);
     }
     this.loading.set(true);
 
@@ -807,6 +862,7 @@ export class ManagePersonsComponent implements OnInit {
         }),
       );
 
+      if (!current()) return;
       if (reset) {
         this.persons.set(res.persons);
       } else {
@@ -814,9 +870,10 @@ export class ManagePersonsComponent implements OnInit {
       }
       this.total.set(res.total);
     } catch {
-      this.snackBar.open(this.i18n.t(I18N.persons.error_loading), '', { duration: 3000 });
+      if (current()) this.snackBar.open(this.i18n.t(I18N.persons.error_loading), '', { duration: 3000 });
     } finally {
-      this.loading.set(false);
+      // An invalidated latest read still owns its spinner, but never a newer read's.
+      if (!this.destroyRef.destroyed && generation === this.personsLoadGeneration) this.loading.set(false);
     }
   }
 

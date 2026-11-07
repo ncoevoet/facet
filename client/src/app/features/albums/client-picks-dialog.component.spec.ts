@@ -1,8 +1,10 @@
+import { AuthService } from '../../core/services/auth.service';
+import { provideRouter, Router, type Routes } from '@angular/router';
 import type { Mock } from 'vitest';
 import { TestBed } from '@angular/core/testing';
-import { MAT_DIALOG_DATA } from '@angular/material/dialog';
+import { MAT_DIALOG_DATA, MatDialogRef } from '@angular/material/dialog';
 import { MatSnackBar } from '@angular/material/snack-bar';
-import { of, throwError } from 'rxjs';
+import { of, Subject, throwError } from 'rxjs';
 import { ApiService } from '../../core/services/api.service';
 import { I18nService } from '../../core/services/i18n.service';
 import { ClientPicksDialogComponent, ClientPicksDialogData } from './client-picks-dialog.component';
@@ -11,12 +13,14 @@ describe('ClientPicksDialogComponent', () => {
 
   let component: any;
   let mockApi: { get: Mock };
-  let mockI18n: { t: Mock };
+  let mockI18n: { t: Mock; translations: Mock };
   let mockSnackBar: { open: Mock };
 
   const data: ClientPicksDialogData = { albumId: 7, albumName: 'Wedding' };
 
-  function createComponent(getImpl?: () => unknown) {
+  let mockClose: Mock;
+
+  function createComponent(getImpl?: () => unknown, routes: Routes = []) {
     mockApi = {
       get: vi.fn(getImpl ?? (() => of({
         picks: [
@@ -27,17 +31,20 @@ describe('ClientPicksDialogComponent', () => {
         count: 3,
       }))),
     };
-    mockI18n = { t: vi.fn((k: string) => k) };
+    mockI18n = { t: vi.fn((k: string) => k), translations: vi.fn(() => ({})) };
     mockSnackBar = { open: vi.fn() };
+    mockClose = vi.fn();
 
     TestBed.resetTestingModule();
     TestBed.configureTestingModule({
       providers: [
+        provideRouter(routes), { provide: AuthService, useValue: { identity: () => 'owner', isEdition: () => true } },
         ClientPicksDialogComponent,
         { provide: ApiService, useValue: mockApi },
         { provide: I18nService, useValue: mockI18n },
         { provide: MatSnackBar, useValue: mockSnackBar },
         { provide: MAT_DIALOG_DATA, useValue: data },
+        { provide: MatDialogRef, useValue: { close: mockClose } },
       ],
     });
     component = TestBed.inject(ClientPicksDialogComponent);
@@ -62,13 +69,35 @@ describe('ClientPicksDialogComponent', () => {
     expect(component.pickedCount()).toBe(2);
   });
 
-  it('empties picks and stops loading when the API fails', async () => {
+  it('reports a failed load and retries successfully', async () => {
     createComponent(() => throwError(() => new Error('boom')));
 
     await component.ngOnInit();
 
-    expect(component.picks()).toEqual([]);
+    expect(component.loadFailed()).toBe(true);
     expect(component.loading()).toBe(false);
+    mockApi.get.mockReturnValueOnce(of({ picks: [{ path: '/p.jpg', picked: true }], count: 1 }));
+    await component.load();
+    expect(component.loadFailed()).toBe(false);
+    expect(component.picks()[0].filename).toBe('p.jpg');
+  });
+
+  it.each([true, false])('preserves intentional focus while retrying picks (move=%s)', async move => {
+    createComponent(() => throwError(() => new Error('offline')));
+    const fixture = TestBed.createComponent(ClientPicksDialogComponent);
+    document.body.appendChild(fixture.nativeElement);
+    fixture.detectChanges();
+    await vi.waitFor(() => { fixture.detectChanges(); expect(fixture.nativeElement.querySelector('[role=alert]')).not.toBeNull(); });
+    const pending = new Subject<any>();
+    mockApi.get.mockReturnValueOnce(pending);
+    const retry = fixture.nativeElement.querySelector('[role=alert] button') as HTMLButtonElement;
+    retry.focus(); retry.click(); fixture.detectChanges();
+    const back = fixture.nativeElement.querySelector('mat-dialog-actions button:last-child') as HTMLButtonElement;
+    if (move) back.focus();
+    pending.next({ picks: [{ path: '/a.jpg', picked: true }], count: 1 });
+    await fixture.whenStable(); fixture.detectChanges(); await fixture.whenStable();
+    await vi.waitFor(() => expect(document.activeElement).toBe(move ? back : fixture.nativeElement.querySelector('h2')));
+    fixture.destroy(); fixture.nativeElement.remove();
   });
 
   it('copyFilenames copies picked basenames newline-joined then shows a snackbar', async () => {
@@ -83,5 +112,38 @@ describe('ClientPicksDialogComponent', () => {
     expect(writeText).toHaveBeenCalledWith('IMG_1.jpg\nIMG_3.jpg');
 
     await vi.waitFor(() => expect(mockSnackBar.open).toHaveBeenCalled());
+  });
+
+  describe('opened while a navigation is in flight', () => {
+    function slowRoute() {
+      let release!: (allow: boolean) => void;
+      const gate = new Promise<boolean>(resolve => { release = resolve; });
+      return { release, routes: [{ path: 'slow', children: [], canActivate: [() => gate] }] as Routes };
+    }
+
+    it('loads the picks once a cancelled navigation settles on the same page', async () => {
+      const { release, routes } = slowRoute();
+      createComponent(undefined, routes);
+      void TestBed.inject(Router).navigateByUrl('/slow');
+      const loading = component.ngOnInit();
+      await Promise.resolve();
+      expect(mockApi.get).not.toHaveBeenCalled();
+      release(false);
+      await loading;
+      expect(mockApi.get).toHaveBeenCalledWith('/albums/7/picks');
+      expect(component.loading()).toBe(false);
+      expect(mockClose).not.toHaveBeenCalled();
+    });
+
+    it('closes the dialog when the navigation leaves the page instead of spinning forever', async () => {
+      const { release, routes } = slowRoute();
+      createComponent(undefined, routes);
+      void TestBed.inject(Router).navigateByUrl('/slow');
+      const loading = component.ngOnInit();
+      release(true);
+      await loading;
+      expect(mockApi.get).not.toHaveBeenCalled();
+      expect(mockClose).toHaveBeenCalled();
+    });
   });
 });

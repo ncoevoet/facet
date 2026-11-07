@@ -642,6 +642,7 @@ def create_app() -> FastAPI:
     from api.routers.thumbnails import router as thumbnails_router
     from api.routers.filter_options import router as filter_options_router
     from api.routers.faces import router as faces_router
+    from api.routers.ignored_faces import router as ignored_faces_router
     from api.routers.face_matches import router as face_matches_router
     from api.routers.persons import router as persons_router
     from api.routers.merge_suggestions import router as merge_suggestions_router
@@ -651,6 +652,8 @@ def create_app() -> FastAPI:
     from api.routers.i18n import router as i18n_router
     from api.routers.search import router as search_router
     from api.routers.albums import router as albums_router
+    from api.routers.shared_media import router as shared_media_router, SharedAlbumNoStoreMiddleware
+    app.add_middleware(SharedAlbumNoStoreMiddleware)
     from api.routers.proofing import router as proofing_router
     from api.routers.critique import router as critique_router
     from api.routers.burst_culling import router as burst_culling_router
@@ -683,6 +686,8 @@ def create_app() -> FastAPI:
     from api.routers.ai_edits import router as ai_edits_router
 
     from api.routers.photo_refresh import router as photo_refresh_router
+    from api.routers.logical_assets import router as logical_assets_router
+    app.include_router(logical_assets_router)
     app.include_router(photo_refresh_router)
     app.include_router(health_router)
     app.include_router(auth_router)
@@ -691,6 +696,7 @@ def create_app() -> FastAPI:
     app.include_router(thumbnails_router)
     app.include_router(filter_options_router)
     app.include_router(faces_router)
+    app.include_router(ignored_faces_router)
     app.include_router(face_matches_router)
     app.include_router(persons_router)
     app.include_router(merge_suggestions_router)
@@ -700,6 +706,7 @@ def create_app() -> FastAPI:
     app.include_router(i18n_router)
     app.include_router(search_router)
     app.include_router(albums_router)
+    app.include_router(shared_media_router)
     app.include_router(proofing_router)
     app.include_router(critique_router)
     app.include_router(burst_culling_router)

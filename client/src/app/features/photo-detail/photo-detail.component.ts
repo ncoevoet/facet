@@ -1,6 +1,19 @@
+import { ControlPopoverComponent } from '../../shared/components/control-popover/control-popover.component';
+import { FEATURE_MARK, MarkTonePipe } from '../../shared/pipes/mark-tone.pipe';
+import { LogicalAssetApplied } from '../../shared/models/logical-asset-change';
+import { buildSyncParams } from '../gallery/gallery-filters.util';
+import { refineTagQuery } from '../gallery/tag-query.util';
+import { GALLERY_REVISIT } from '../../core/gallery-reuse.strategy';
+import { PhotoCollectionSidebarComponent } from './photo-collection-sidebar.component';
+import { LogicalReviewService, LogicalReviewAction, LogicalReviewWriteError } from '../../core/services/logical-review.service';
+import { PhotoAnalysisComponent } from '../gallery/photo-analysis.component';
+import { PhotoProvenanceComponent } from './photo-provenance.component';
+import { PhotoRelatedFilesComponent } from './photo-related-files.component';
+import { TimelineFeedCache } from '../timeline/timeline-feed-cache.service';
+import { ContextHelpComponent } from '../../shared/components/context-help/context-help.component';
 import { Component, inject, signal, computed, effect, OnInit, HostListener, DestroyRef, ElementRef, viewChild, ChangeDetectionStrategy } from '@angular/core';
 import { Location } from '@angular/common';
-import { ActivatedRoute, Router, NavigationStart } from '@angular/router';
+import { ActivatedRoute, Router, NavigationStart, NavigationEnd } from '@angular/router';
 import { MatIconModule } from '@angular/material/icon';
 import { MatButtonModule } from '@angular/material/button';
 import { MatTooltipModule } from '@angular/material/tooltip';
@@ -14,7 +27,6 @@ import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { firstValueFrom, skip, finalize } from 'rxjs';
 import { UserActivityJournal } from '../../core/agent/user-activity-journal.service';
 import { AssistantChangeBatch, AssistantChangesService } from '../../core/agent/assistant-changes.service';
-import { MetricRankComponent } from '../../shared/components/metric-rank/metric-rank.component';
 import { Photo, KeeperHint, PhotoSet, PhotoSetMember, normalisePhotoFlags } from '../../shared/models/photo.model';
 import { AuthService } from '../../core/services/auth.service';
 import { StalenessGuardFactory } from '../../core/services/staleness-guard.service';
@@ -23,10 +35,13 @@ import { PhotoDetailBase } from '../../shared/directives/photo-detail-base.direc
 import { ZoomPanDirective } from '../../shared/directives/zoom-pan.directive';
 import { PhotoObjectLayerComponent } from './photo-object-layer.component';
 import { FixedPipe } from '../../shared/pipes/fixed.pipe';
+import { CaptureDatePipe } from '../../shared/pipes/capture-date.pipe';
+import { RenditionReadoutComponent } from '../../shared/components/rendition-readout/rendition-readout.component';
 import { TranslatePipe } from '../../shared/pipes/translate.pipe';
 import { ThumbnailUrlPipe } from '../../shared/pipes/thumbnail-url.pipe';
 import { PersonThumbnailUrlPipe } from '../../shared/pipes/thumbnail-url.pipe';
-import { CategoryLabelPipe } from '../gallery/photo-tooltip.component';
+import { FilenamePipe } from '../../shared/pipes/filename.pipe';
+import { CategoryLabelPipe } from '../../shared/pipes/category-label.pipe';
 import { DownloadIconPipe } from '../../shared/pipes/download-icon.pipe';
 import { PhotoSetKindIconPipe, PhotoSetKindLabelPipe } from '../../shared/pipes/photo-set-kind.pipe';
 import { SEQUENCE_KINDS_KEPT_WHOLE } from '../../shared/pipes/sequence-kind.pipe';
@@ -34,17 +49,21 @@ import { EvOffsetPipe } from '../gallery/burst-culling.pipes';
 import {
   HISTOGRAM_PANEL_HEIGHT,
 } from '../../shared/components/histogram/histogram.component';
-import { PhotoMetricsTabsComponent } from '../../shared/components/photo-metrics-tabs/photo-metrics-tabs.component';
+import { PhotoMetricSectionComponent } from '../../shared/components/photo-metrics-tabs/photo-metric-section.component';
+import { AssessmentValuePipe } from '../../shared/pipes/assessment-value.pipe';
+import { MetricRankComponent } from '../../shared/components/metric-rank/metric-rank.component';
+import { MetricsTabState, MetricsTab } from '../../core/services/metrics-tab-state.service';
 import { HistogramMode, isHistogramMode } from '../../shared/utils/histogram';
 import { ComparisonCategoryExplainerComponent } from '../comparison/comparison-category-explainer.component';
 import { DownloadOption } from '../../core/api/types';
 import { downloadAll } from '../../shared/utils/download';
 import { GalleryStore } from '../gallery/gallery.store';
+import { aspectOf } from '../gallery/gallery-rows.util';
 import { setScopePatch } from '../gallery/gallery-filters.util';
 import * as L from 'leaflet';
 import { createLeafletMap } from '../../shared/leaflet';
 import { I18N, i18nKeys } from '../../core/i18n/keys';
-import { isPageShortcutBlocked, isTypingContext } from '../../shared/utils/keyboard';
+import { isPageShortcutBlocked } from '../../shared/utils/keyboard';
 import { KeyboardMappingService } from '../../core/services/keyboard-mapping.service';
 import type { CategoryOverrideResult } from './category-override-dialog.component';
 import { StackNavigatorComponent } from './stack-navigator.component';
@@ -55,6 +74,12 @@ import {
   FaceBoxMode, FACE_BOX_MODE_ICONS, FACE_BOX_MODE_LABELS, nextFaceBoxMode, readFaceBoxMode, writeFaceBoxMode,
 } from './face-box-mode';
 
+interface PhotoTagOrigin {
+  owner: string;
+  params: Record<string, string>;
+  refinable: boolean;
+}
+
 const SOCIAL_SOURCE_KEYS: Record<string, string> = {
   saliency: I18N.social_export.source.saliency,
   faces: I18N.social_export.source.faces,
@@ -64,12 +89,11 @@ const SOCIAL_SOURCE_KEYS: Record<string, string> = {
 
 @Component({
   selector: 'app-photo-detail',
-  imports: [
+  imports: [ControlPopoverComponent,MarkTonePipe, PhotoCollectionSidebarComponent, ContextHelpComponent, PhotoAnalysisComponent, PhotoProvenanceComponent, PhotoRelatedFilesComponent,
     StackNavigatorComponent,
     ZoomPanDirective,
     PhotoObjectLayerComponent,
-    MetricRankComponent,
-    PhotoMetricsTabsComponent,
+    PhotoMetricSectionComponent, AssessmentValuePipe, MetricRankComponent,
     PhotoFaceLayerComponent,
     PersonFaceMenuComponent,
     MatIconModule,
@@ -82,10 +106,11 @@ const SOCIAL_SOURCE_KEYS: Record<string, string> = {
     MatProgressSpinnerModule,
     MatSnackBarModule,
     FixedPipe,
+    CaptureDatePipe, RenditionReadoutComponent,
     TranslatePipe,
     ThumbnailUrlPipe,
     PersonThumbnailUrlPipe,
-    CategoryLabelPipe,
+    CategoryLabelPipe, FilenamePipe,
     DownloadIconPipe,
     PhotoSetKindIconPipe,
     PhotoSetKindLabelPipe,
@@ -95,45 +120,52 @@ const SOCIAL_SOURCE_KEYS: Record<string, string> = {
   template: `
     @if (photo(); as p) {
       <!-- Header bar -->
-      <div class="flex items-center gap-2 px-2 py-1 border-b border-[var(--mat-sys-outline-variant)] bg-[var(--mat-sys-surface-container)]">
-        <button mat-icon-button (click)="goBack()" [matTooltip]="I18N.photo_detail.back | translate" [attr.aria-label]="I18N.photo_detail.back | translate">
+      <div data-photo-detail-header class="@container flex max-md:flex-wrap shrink-0 items-center gap-2 px-2 py-1 border-b border-[var(--mat-sys-outline-variant)] bg-[var(--mat-sys-surface-container-lowest)]">
+        <button mat-icon-button class="max-sm:!h-11 max-sm:!w-11 pointer-coarse:!h-11 pointer-coarse:!w-11" (click)="goBack()" [matTooltip]="I18N.photo_detail.back | translate" [attr.aria-label]="I18N.photo_detail.back | translate">
           <mat-icon>arrow_back</mat-icon>
         </button>
-        <span class="min-w-0 flex-1 truncate font-medium">{{ p.filename }}</span>
+        <h1 class="m-0 min-w-0 flex-1 truncate text-base font-medium leading-6 max-md:whitespace-normal max-md:[overflow-wrap:anywhere] max-md:line-clamp-2 max-md:order-last max-md:basis-full" [title]="p.filename"><span class="md:hidden" aria-hidden="true">{{ p.filename | filename:64 }}</span><span class="max-md:sr-only">{{ p.filename }}</span></h1>
         @if (auth.isEdition()) {
-          <button mat-icon-button class="max-md:!hidden" (click)="refreshPhoto(p)" [matTooltip]="I18N.photo_refresh.title | translate" [attr.aria-label]="I18N.photo_refresh.title | translate"><mat-icon>refresh</mat-icon></button>
+          <button mat-icon-button class="max-sm:!h-11 max-sm:!w-11 pointer-coarse:!h-11 pointer-coarse:!w-11 max-md:!hidden" (click)="refreshPhoto(p)" [matTooltip]="I18N.photo_refresh.title | translate" [attr.aria-label]="I18N.photo_refresh.title | translate"><mat-icon>refresh</mat-icon></button>
         }
 
 
         @if (store.config()?.features?.show_similar_button) {
-          <button mat-icon-button class="max-md:!hidden" [matMenuTriggerFor]="similarMenu"
+          <button mat-icon-button class="max-sm:!h-11 max-sm:!w-11 pointer-coarse:!h-11 pointer-coarse:!w-11 max-md:!hidden" [matMenuTriggerFor]="similarMenu"
             [matTooltip]="I18N.similar.find_similar | translate" [attr.aria-label]="I18N.similar.find_similar | translate">
             <mat-icon>image_search</mat-icon>
           </button>
         }
 
         @if (store.config()?.features?.show_critique) {
-          <button mat-icon-button (click)="openCritique(p)"
-            [matTooltip]="I18N.critique.title | translate" [attr.aria-label]="I18N.critique.title | translate">
-            <mat-icon>analytics</mat-icon>
+          <button #analysisToggle [attr.aria-expanded]="analysisOpen()" aria-controls="photo-analysis" mat-button class="!min-w-11 !h-11 !px-2" (click)="openCritique(p)"
+            [matTooltip]="I18N.photo_detail.analysis | translate" [attr.aria-label]="I18N.photo_detail.analysis | translate">
+            <mat-icon class="!m-0 @min-[960px]:!mr-2">analytics</mat-icon><span class="hidden @min-[960px]:inline">{{ I18N.photo_detail.analysis | translate }}</span>
           </button>
         }
 
-        @if (auth.isEdition() && store.config()?.cull?.trash_available) {
-          <button mat-icon-button class="max-md:!hidden" (click)="deletePhoto()"
+        @if (auth.isEdition() && p.is_rejected && !p.is_kept) {
+          <button mat-icon-button class="max-sm:!h-11 max-sm:!w-11 pointer-coarse:!h-11 pointer-coarse:!w-11 !text-[var(--mat-sys-error)]" (click)="removeFromCatalog()"
+            [matTooltip]="I18N.photo_detail.remove_catalog.action | translate" [attr.aria-label]="I18N.photo_detail.remove_catalog.action | translate">
+            <mat-icon>hide_image</mat-icon>
+          </button>
+        }
+
+        @if (auth.isEdition() && p.is_rejected && !p.is_kept && store.config()?.cull?.trash_available) {
+          <button mat-icon-button class="max-sm:!h-11 max-sm:!w-11 pointer-coarse:!h-11 pointer-coarse:!w-11 max-md:!hidden !text-[var(--mat-sys-error)]" (click)="deletePhoto()"
             [matTooltip]="I18N.photo_detail.delete.button_label | translate" [attr.aria-label]="I18N.photo_detail.delete.button_label | translate">
             <mat-icon>delete</mat-icon>
           </button>
         }
 
         @if (auth.isEdition()) {
-          <button mat-icon-button class="max-md:!hidden" [matMenuTriggerFor]="categoryOverrideMenu"
+          <button mat-icon-button class="max-sm:!h-11 max-sm:!w-11 pointer-coarse:!h-11 pointer-coarse:!w-11 max-md:!hidden" [matMenuTriggerFor]="categoryOverrideMenu"
             [matTooltip]="I18N.photo.category_override.menu_tooltip | translate" [attr.aria-label]="I18N.photo.category_override.menu_tooltip | translate">
             <mat-icon>category</mat-icon>
           </button>
         }
 
-        <button mat-icon-button (click)="cycleFaceBoxMode()"
+        <button mat-icon-button class="max-sm:!h-11 max-sm:!w-11 pointer-coarse:!h-11 pointer-coarse:!w-11 max-md:!hidden" (click)="cycleFaceBoxMode()"
           data-face-box-mode
           [matTooltip]="faceBoxModeLabel() | translate"
           [attr.aria-label]="faceBoxModeLabel() | translate">
@@ -141,23 +173,29 @@ const SOCIAL_SOURCE_KEYS: Record<string, string> = {
         </button>
 
         @if (auth.isEdition()) {
-          <button mat-icon-button class="max-md:!hidden" (click)="openManualFaces(p)"
+          <button mat-icon-button class="max-sm:!h-11 max-sm:!w-11 pointer-coarse:!h-11 pointer-coarse:!w-11 max-md:!hidden" (click)="openManualFaces(p)"
             [matTooltip]="I18N.manual_faces.title | translate" [attr.aria-label]="I18N.manual_faces.title | translate">
             <mat-icon>highlight_alt</mat-icon>
           </button>
         }
 
         @if (auth.isEdition() && p.unassigned_faces > 0) {
-          <button mat-icon-button class="max-md:!hidden" (click)="openAddPerson(p)"
+          <button mat-icon-button class="max-sm:!h-11 max-sm:!w-11 pointer-coarse:!h-11 pointer-coarse:!w-11 max-md:!hidden" (click)="openAddPerson(p)"
             [matTooltip]="I18N.manage_persons.assign_face | translate" [attr.aria-label]="I18N.manage_persons.assign_face | translate">
             <mat-icon>person_add</mat-icon>
           </button>
         }
 
+        <button mat-icon-button class="max-sm:!h-11 max-sm:!w-11 pointer-coarse:!h-11 pointer-coarse:!w-11" data-copy-photo
+          (click)="copyPhoto(p.path)" [disabled]="copyingPhoto()" [matTooltip]="I18N.photo_detail.copy_image | translate"
+          [attr.aria-label]="I18N.photo_detail.copy_image | translate">
+          @if (copyingPhoto()) { <mat-spinner diameter="18" aria-hidden="true" /> } @else { <mat-icon>content_copy</mat-icon> }
+        </button>
         @if (downloadOptions().length > 1) {
-          <button mat-icon-button [matMenuTriggerFor]="downloadMenu" [disabled]="downloading()" [matTooltip]="I18N.photo_detail.download | translate"
+          <button mat-button class="!min-w-11 !h-11 !px-2" [matMenuTriggerFor]="downloadMenu" [disabled]="downloading()" [matTooltip]="I18N.photo_detail.download | translate"
             [attr.aria-label]="(downloading() ? I18N.photo_detail.downloading : I18N.photo_detail.download) | translate">
-            @if (downloading()) { <mat-spinner diameter="18" class="!inline-block" aria-hidden="true" /> } @else { <mat-icon>download</mat-icon> }
+            @if (downloading()) { <mat-spinner diameter="18" class="!inline-block" aria-hidden="true" /> } @else { <mat-icon class="!m-0 @min-[960px]:!mr-2">download</mat-icon> }
+            <span class="hidden @min-[960px]:inline">{{ I18N.photo_detail.download | translate }}</span>
           </button>
           <mat-menu #downloadMenu="matMenu">
             @for (opt of downloadOptions(); track opt.type + (opt.profile ?? '')) {
@@ -172,14 +210,15 @@ const SOCIAL_SOURCE_KEYS: Record<string, string> = {
             }
           </mat-menu>
         } @else {
-          <button mat-icon-button (click)="download(p.path)" [disabled]="downloading()" [matTooltip]="I18N.photo_detail.download | translate"
+          <button mat-button class="!min-w-11 !h-11 !px-2" (click)="download(p.path)" [disabled]="downloading()" [matTooltip]="I18N.photo_detail.download | translate"
             [attr.aria-label]="(downloading() ? I18N.photo_detail.downloading : I18N.photo_detail.download) | translate">
-            @if (downloading()) { <mat-spinner diameter="18" class="!inline-block" aria-hidden="true" /> } @else { <mat-icon>download</mat-icon> }
+            @if (downloading()) { <mat-spinner diameter="18" class="!inline-block" aria-hidden="true" /> } @else { <mat-icon class="!m-0 @min-[960px]:!mr-2">download</mat-icon> }
+            <span class="hidden @min-[960px]:inline">{{ I18N.photo_detail.download | translate }}</span>
           </button>
         }
 
         @if (socialExportEnabled()) {
-          <button mat-icon-button class="max-md:!hidden" [matMenuTriggerFor]="socialMenu" [disabled]="downloading()"
+          <button mat-icon-button class="max-sm:!h-11 max-sm:!w-11 pointer-coarse:!h-11 pointer-coarse:!w-11 max-md:!hidden" [matMenuTriggerFor]="socialMenu" [disabled]="downloading()"
             [matTooltip]="(socialCropTooltipKey() | translate)" [attr.aria-label]="I18N.photo_detail.social_crop | translate">
             <mat-icon>crop</mat-icon>
           </button>
@@ -216,20 +255,20 @@ const SOCIAL_SOURCE_KEYS: Record<string, string> = {
 
         <!-- Below md the secondary actions fold into this menu so the filename keeps its room;
              back, critique and download stay in the row. Same handlers and conditions as the inline buttons. -->
-        @if (auth.isEdition() || store.config()?.features?.show_similar_button || socialExportEnabled()) {
-          <button mat-icon-button class="md:!hidden" [matMenuTriggerFor]="moreActionsMenu"
+          <button mat-icon-button class="max-sm:!h-11 max-sm:!w-11 pointer-coarse:!h-11 pointer-coarse:!w-11 md:!hidden" [matMenuTriggerFor]="moreActionsMenu"
             [matTooltip]="I18N.nav.more | translate" [attr.aria-label]="I18N.nav.more | translate">
             <mat-icon>more_vert</mat-icon>
           </button>
           <mat-menu #moreActionsMenu="matMenu">
+            <button mat-menu-item data-photo-face-menu (click)="cycleFaceBoxMode()"><mat-icon>{{ faceBoxModeIcon() }}</mat-icon>{{ faceBoxModeLabel() | translate }}</button>
             @if (auth.isEdition()) {
               <button mat-menu-item (click)="refreshPhoto(p)"><mat-icon>refresh</mat-icon> {{ I18N.photo_refresh.title | translate }}</button>
             }
             @if (store.config()?.features?.show_similar_button) {
               <button mat-menu-item [matMenuTriggerFor]="similarMenu"><mat-icon>image_search</mat-icon> {{ I18N.similar.find_similar | translate }}</button>
             }
-            @if (auth.isEdition() && store.config()?.cull?.trash_available) {
-              <button mat-menu-item (click)="deletePhoto()"><mat-icon>delete</mat-icon> {{ I18N.photo_detail.delete.button_label | translate }}</button>
+            @if (auth.isEdition() && p.is_rejected && !p.is_kept && store.config()?.cull?.trash_available) {
+              <button mat-menu-item class="!text-[var(--mat-sys-error)]" (click)="deletePhoto()"><mat-icon>delete</mat-icon> {{ I18N.photo_detail.delete.button_label | translate }}</button>
             }
             @if (auth.isEdition()) {
               <button mat-menu-item [matMenuTriggerFor]="categoryOverrideMenu"><mat-icon>category</mat-icon> {{ I18N.photo.category_override.menu_tooltip | translate }}</button>
@@ -242,31 +281,59 @@ const SOCIAL_SOURCE_KEYS: Record<string, string> = {
               <button mat-menu-item [matMenuTriggerFor]="socialMenu" [disabled]="downloading()"><mat-icon>crop</mat-icon> {{ I18N.photo_detail.social_crop | translate }}</button>
             }
           </mat-menu>
-        }
       </div>
 
       <app-stack-navigator [path]="p.path" [allowedPaths]="store.pinnedPaths()" [stacked]="!!p.stack_id"
         (memberOpened)="openSetMember($event)" />
 
-      <!-- Main content: image + info -->
+      <!-- Main content: originating collection + image + info -->
       <div class="flex flex-col lg:flex-row lg:flex-1 lg:min-h-0 lg:overflow-hidden">
+        @if (collectionSidebarAvailable()) {
+          <app-photo-collection-sidebar [photos]="store.photos()" [currentPath]="collectionEntry()?.path ?? p.path"
+            [title]="collectionSidebarTitle()" [total]="store.total()" [hasMore]="store.hasMore()" [loading]="store.loading()"
+            (choose)="openCollectionPhoto($event)" (more)="loadCollectionPage()" />
+        }
         <!-- Image panel -->
-        <div appZoomPan #zoom="zoomPan" class="group/photo shrink-0 lg:h-auto lg:flex-1 flex items-center justify-center bg-black lg:min-h-0 relative overflow-hidden cursor-grab">
+        <div class="flex min-h-40 max-h-[62dvh] min-w-0 shrink-0 flex-col lg:max-h-none lg:min-h-0 lg:flex-1">
+        <div data-photo-canvas tabindex="0" role="group" [attr.aria-label]="I18N.photo_detail.inspection.title | translate" aria-describedby="photo-inspection-help" [appZoomPan]="p.path" #zoom="zoomPan" [style.aspect-ratio]="photoAspect()" class="group/photo focus-visible:!outline-2 focus-visible:!-outline-offset-4 focus-visible:!outline-white flex flex-auto min-h-0 items-center justify-center bg-[var(--facet-image-canvas)] relative overflow-hidden cursor-grab lg:!aspect-auto lg:flex-1">
+          @for (imagePhoto of [p]; track imagePhoto.path) {
+          <!-- The collection already loads this thumbnail; keep it underneath
+               the larger renditions so a cold image request doesn't flash black. -->
           <img
-            [src]="p.path | thumbnailUrl:640:p.preview_revision"
+            [src]="p.path | thumbnailUrl:240:p.preview_revision"
             [alt]="p.filename"
-            class="w-full lg:max-w-full lg:max-h-full object-contain transition-opacity duration-300 pointer-events-none select-none"
+            class="w-full h-full max-w-full max-h-full object-contain pointer-events-none select-none"
+            [style.transform]="zoom.transform()"
+          />
+          <img
+            [src]="thumbnailImageUrl()"
+            alt="" aria-hidden="true"
+            class="absolute inset-0 w-full h-full object-contain transition-opacity duration-300 pointer-events-none select-none"
             [class.opacity-0]="fullImageLoaded()"
             [style.transform]="zoom.transform()"
+            (load)="onThumbnailState($event)" (error)="onThumbnailState($event, true)"
           />
           <img
             [src]="fullImageUrl()"
-            [alt]="p.filename"
+            alt="" aria-hidden="true"
             class="absolute inset-0 w-full h-full object-contain transition-opacity duration-300 pointer-events-none select-none"
             [class.opacity-0]="!fullImageLoaded()"
-            (load)="onFullImageLoad()"
+            (load)="onFullImageLoad($event)" (error)="onFullImageError($event)"
             [style.transform]="zoom.transform()"
           />
+          }
+          <p id="photo-inspection-help" class="pointer-events-none absolute top-2 left-2 right-2 z-40 m-0 rounded bg-black/75 px-3 py-2 text-center text-xs text-white invisible group-focus-visible/photo:visible">{{ I18N.photo_detail.inspection.help | translate }}</p>
+          @if (collectionNavigation().visible) {
+            <div role="group" [attr.aria-label]="I18N.photo_detail.collection.title | translate" class="pointer-events-none absolute inset-0 z-30 flex items-center justify-between px-2 opacity-0 transition-opacity group-hover/photo:opacity-100 focus-within:opacity-100 max-xl:opacity-100">
+              <button type="button" data-photo-previous class="pointer-events-auto inline-flex h-11 w-11 cursor-pointer items-center justify-center rounded-full bg-black/60 text-white hover:bg-black/80 focus-visible:outline-2 focus-visible:outline-white disabled:invisible"
+                [disabled]="!collectionNavigation().previous || store.loading()" [attr.aria-label]="I18N.photo_detail.collection.previous | translate"
+                (pointerdown)="$event.stopPropagation()" (dblclick)="$event.stopPropagation()" (click)="stepCollectionPhoto(-1); $event.stopPropagation()"><mat-icon aria-hidden="true">chevron_left</mat-icon></button>
+              <span data-collection-position [attr.title]="I18N.photo_detail.collection.title | translate" class="absolute bottom-2 left-1/2 -translate-x-1/2 whitespace-nowrap rounded-full bg-black/60 px-3 py-1 text-xs tabular-nums text-white">{{ I18N.photo_detail.collection.position | translate:{ position: collectionNavigation().position, total: store.total() } }}</span>
+              <button type="button" data-photo-next class="pointer-events-auto inline-flex h-11 w-11 cursor-pointer items-center justify-center rounded-full bg-black/60 text-white hover:bg-black/80 focus-visible:outline-2 focus-visible:outline-white disabled:invisible"
+                [disabled]="!collectionNavigation().next || store.loading()" [attr.aria-label]="I18N.photo_detail.collection.next | translate"
+                (pointerdown)="$event.stopPropagation()" (dblclick)="$event.stopPropagation()" (click)="stepCollectionPhoto(1); $event.stopPropagation()"><mat-icon aria-hidden="true">chevron_right</mat-icon></button>
+            </div>
+          }
           <app-photo-face-layer
             [path]="p.path"
             [imageWidth]="p.image_width"
@@ -284,60 +351,14 @@ const SOCIAL_SOURCE_KEYS: Record<string, string> = {
             [transform]="zoom.transform()"
             [revision]="objectsRevision()" />
         </div>
+          <div class="shrink-0 border-t border-[var(--facet-image-rule)] bg-[var(--facet-image-chrome)] px-4 py-1 text-[var(--facet-image-ink)] cursor-auto" role="presentation" (pointerdown)="$event.stopPropagation()" (dblclick)="$event.stopPropagation()">
+            <app-rendition-readout [state]="displayedRendition()" [pending]="sourceRendition().phase === 'loading'" [attemptFailed]="sourceRendition().phase === 'failed'" [failureLabel]="I18N.photo_detail.rendition.source_failed" [scale]="zoom.scale()" [minimumScale]="1" [maximumScale]="zoom.maximumScale" (zoomStep)="zoom.zoomStep($event)" (fit)="zoom.reset()" (retry)="retryFullImage()" />
+          </div>
+        </div>
 
         <!-- Info panel -->
-        <div class="lg:w-[380px] lg:shrink-0 lg:overflow-y-auto p-4 space-y-4 text-sm text-[var(--mat-sys-on-surface)]">
-          <!-- Filename + Date + Category + Aggregate -->
-          <div class="mb-2">
-            <div class="font-semibold text-lg">{{ p.filename }}</div>
-            @if (p.date_taken || auth.isEdition()) {
-              <div class="flex items-center gap-1 text-[var(--mat-sys-on-surface-variant)] text-xs">
-                @if (auth.isEdition()) {
-                  <button mat-icon-button class="!w-7 !h-7 !min-w-0 !p-0 -ml-1.5 !inline-flex items-center justify-center" (click)="editCaptureDate(p)"
-                          [matTooltip]="I18N.capture_date.title | translate"
-                          [attr.aria-label]="I18N.capture_date.title | translate">
-                    <mat-icon class="!text-base !w-4 !h-4 !leading-4">edit_calendar</mat-icon>
-                  </button>
-                }
-                @if (p.date_taken) {
-                  <span class="leading-4">{{ p.date_taken }}</span>
-                }
-              </div>
-            }
-            <div class="flex items-center gap-2 mt-1">
-              @if (p.category || auth.isEdition()) {
-                <span class="inline-flex items-center gap-0.5 px-2 py-0.5 bg-[var(--mat-sys-primary-container)] text-[var(--mat-sys-on-primary-container)] rounded-full text-xs font-medium">
-                  @if (p.category) { {{ p.category | categoryLabel }} }
-                  <!-- Category explainer toggle: "why isn't this photo classified as X?" — kept for an uncategorized photo too. -->
-                  @if (auth.isEdition()) {
-                    <button type="button" class="w-6 h-6 -my-1 -mr-1.5 inline-flex items-center justify-center rounded-full cursor-pointer hover:bg-black/15"
-                            data-explainer-toggle
-                            (click)="toggleExplainer()"
-                            [attr.aria-expanded]="explainerOpen()"
-                            [matTooltip]="I18N.photo.category_override.explainer_toggle | translate"
-                            [attr.aria-label]="I18N.photo.category_override.explainer_toggle | translate">
-                      <mat-icon class="!text-base !w-4 !h-4 !leading-4" aria-hidden="true">{{ explainerOpen() ? 'expand_less' : 'expand_more' }}</mat-icon>
-                    </button>
-                  }
-                </span>
-              }
-              @if (keeperHint()?.has_better) {
-                <span class="inline-flex items-center gap-1 px-2 py-0.5 bg-black/60 text-amber-300 rounded-full text-xs font-medium"
-                      [attr.aria-label]="I18N.culling.reason.better_shot | translate">
-                  <mat-icon class="!text-sm !w-4 !h-4 !leading-4" aria-hidden="true">arrow_circle_up</mat-icon>
-                  {{ I18N.culling.reason.better_shot | translate }}
-                </span>
-              }
-              <span class="ml-auto flex items-center gap-2">
-                @if (store.metricRangesByColumn()['aggregate']; as range) {<app-metric-rank class="w-28" [range]="range" [value]="p.aggregate" />}
-                <span class="text-[var(--mat-sys-primary)] font-semibold">{{ p.aggregate | fixed:1 }}</span>
-              </span>
-            </div>
-          </div>
-
-          <!-- Category explainer: the target-category select and its explanation -->
-          @if (auth.isEdition() && explainerOpen()) {
-            <div class="border-t border-[var(--mat-sys-outline-variant)] pt-3">
+        <aside data-photo-inspector [attr.aria-label]="I18N.photo_detail.details | translate" class="[overflow-wrap:anywhere] lg:w-80 xl:w-[360px] lg:shrink-0 lg:overflow-y-auto lg:border-l border-[var(--mat-sys-outline-variant)] bg-[var(--mat-sys-surface-container-lowest)] p-4 space-y-4 text-sm text-[var(--mat-sys-on-surface)]">
+          <ng-template #categoryExplanation>
               <mat-form-field class="w-full" subscriptSizing="dynamic">
                 <mat-label>{{ I18N.photo.category_override.target_category_label | translate }}</mat-label>
                 <mat-select [value]="explainerTargetCategory()" (selectionChange)="explainerTargetCategory.set($event.value)">
@@ -350,55 +371,98 @@ const SOCIAL_SOURCE_KEYS: Record<string, string> = {
               @if (explainerTargetCategory(); as target) {
                 <app-category-explainer [path]="p.path" [targetCategory]="target" />
               }
-            </div>
-          }
-
-          <!-- Rating controls (edition only) -->
-          @if (auth.isEdition()) {
-            <div class="flex items-center border-t border-[var(--mat-sys-outline-variant)] pt-1 mb-1">
-              <!-- Star rating -->
-              @for (star of stars; track star) {
-                <button class="w-8 h-8 rounded-full inline-flex items-center justify-center hover:bg-[var(--mat-sys-surface-container-high)] transition-colors cursor-pointer" (click)="setRating(p.path, star)">
-                  <mat-icon class="!text-xl !w-5 !h-5 !leading-5 !text-yellow-400">{{ p.star_rating !== null && star <= p.star_rating! ? 'star' : 'star_border' }}</mat-icon>
+          </ng-template>
+          <!-- Account review controls -->
+          @if (canReview()) {
+            <section data-photo-review aria-labelledby="photo-review-title" class="border-t border-[var(--mat-sys-outline-variant)] py-2 space-y-1">
+              <div class="flex min-h-11 items-center gap-2">
+                <h2 id="photo-review-title" class="m-0 flex flex-1 items-center gap-2 text-sm font-medium"><mat-icon aria-hidden="true" class="!h-5 !w-5 !text-xl">rule</mat-icon>{{ I18N.gallery.sidebar.tabs.review | translate }}</h2>
+                <button mat-icon-button class="max-sm:!h-11 max-sm:!w-11 pointer-coarse:!h-11 pointer-coarse:!w-11" (click)="toggleFavorite(p.path)"
+                  [matTooltip]="(p.is_favorite ? I18N.rating.remove_favorite : I18N.rating.add_favorite) | translate"
+                  [attr.aria-label]="I18N.rating.favorite | translate" [attr.aria-pressed]="!!p.is_favorite">
+                  <mat-icon class="!text-[var(--facet-favorite)]">{{ p.is_favorite ? 'favorite' : 'favorite_border' }}</mat-icon>
                 </button>
-              }
-              <div class="flex-1"></div>
-              <!-- Favorite -->
-              <button mat-icon-button (click)="toggleFavorite(p.path)"
-                [matTooltip]="(p.is_favorite ? I18N.rating.remove_favorite : I18N.rating.add_favorite) | translate"
-                [attr.aria-label]="(p.is_favorite ? I18N.rating.remove_favorite : I18N.rating.add_favorite) | translate"
-                [attr.aria-pressed]="!!p.is_favorite">
-                <mat-icon class="!text-red-400">{{ p.is_favorite ? 'favorite' : 'favorite_border' }}</mat-icon>
-              </button>
-              <!-- Review decisions -->
-              <button mat-icon-button (click)="reviewPhoto(p.is_kept ? 'undecided' : 'kept')" [class.text-green-400]="p.is_kept"
-                [matTooltip]="I18N.review.keep | translate"
-                [attr.aria-label]="I18N.review.keep | translate"
-                [attr.aria-pressed]="!!p.is_kept">
-                <mat-icon>{{ p.is_kept ? 'check_circle' : 'check_circle_outline' }}</mat-icon>
-              </button>
-              <button mat-icon-button (click)="reviewPhoto('undecided')"
-                [matTooltip]="I18N.review.reset | translate"
-                [attr.aria-label]="I18N.review.reset | translate">
-                <mat-icon>restart_alt</mat-icon>
-              </button>
-              <button mat-icon-button (click)="toggleRejected(p.path)" [class.text-orange-400]="p.is_rejected"
-                [matTooltip]="(p.is_rejected ? I18N.rating.unmark_rejected : I18N.rating.mark_rejected) | translate"
-                [attr.aria-label]="(p.is_rejected ? I18N.rating.unmark_rejected : I18N.rating.mark_rejected) | translate"
-                [attr.aria-pressed]="!!p.is_rejected">
-                <mat-icon>{{ p.is_rejected ? 'thumb_down' : 'thumb_down_off_alt' }}</mat-icon>
-              </button>
-            </div>
+              </div>
+              <div role="group" [attr.aria-label]="I18N.photo_detail.rating | translate" class="flex items-center justify-between gap-2">
+                <span class="text-xs text-[var(--mat-sys-on-surface-variant)]">{{ I18N.photo_detail.rating | translate }}</span>
+                <div class="flex flex-nowrap">
+                  @for (star of stars; track star) {
+                    <button type="button" class="min-w-11 min-h-11 rounded inline-flex items-center justify-center hover:bg-[var(--mat-sys-surface-container-high)] cursor-pointer"
+                            [attr.aria-label]="(I18N.rating.set_rating | translate) + ': ' + star" [attr.aria-pressed]="p.star_rating === star" (click)="setRating(p.path, star)">
+                      <mat-icon class="!text-xl !w-5 !h-5 !leading-5 !text-[var(--mat-sys-primary)]">{{ p.star_rating !== null && star <= p.star_rating! ? 'star' : 'star_border' }}</mat-icon>
+                    </button>
+                  }
+                </div>
+              </div>
+              <div data-photo-decisions role="group" [attr.aria-label]="I18N.gallery.sidebar.review.decision | translate" class="flex items-stretch divide-x divide-[var(--mat-sys-outline-variant)] overflow-hidden rounded border border-[var(--mat-sys-outline-variant)]">
+                <button type="button" data-photo-keep class="inline-flex min-h-11 min-w-0 flex-1 cursor-pointer focus-visible:!outline-2 focus-visible:!-outline-offset-4 focus-visible:!outline-current items-center justify-center gap-1 px-1 text-xs hover:bg-[var(--mat-sys-surface-container-high)]" [class.!bg-[var(--facet-review-kept)]]="p.is_kept" [class.!text-[var(--facet-review-on-kept)]]="p.is_kept"
+                  (click)="reviewPhoto(p.is_kept ? 'undecided' : 'kept')" [attr.aria-pressed]="!!p.is_kept">
+                  <mat-icon aria-hidden="true" class="!w-5 !h-5 !text-xl">{{ p.is_kept ? 'flag' : 'outlined_flag' }}</mat-icon>{{ I18N.review.keep | translate }}
+                </button>
+                <button type="button" data-photo-undecided class="inline-flex min-h-11 min-w-0 flex-1 cursor-pointer focus-visible:!outline-2 focus-visible:!-outline-offset-4 focus-visible:!outline-current items-center justify-center px-1 text-xs hover:bg-[var(--mat-sys-surface-container-high)]" [class.!bg-[var(--mat-sys-secondary-container)]]="!p.is_kept && !p.is_rejected" [class.!text-[var(--mat-sys-on-secondary-container)]]="!p.is_kept && !p.is_rejected"
+                  (click)="reviewPhoto('undecided')" [attr.aria-pressed]="!p.is_kept && !p.is_rejected">
+                  <span class="min-w-0 break-words hyphens-auto">{{ I18N.gallery.metadata.undecided | translate }}</span>
+                </button>
+                <button type="button" data-photo-reject class="inline-flex min-h-11 min-w-0 flex-1 cursor-pointer focus-visible:!outline-2 focus-visible:!-outline-offset-4 focus-visible:!outline-current items-center justify-center gap-1 px-1 text-xs hover:bg-[var(--mat-sys-surface-container-high)]" [class.!bg-[var(--mat-sys-error-container)]]="p.is_rejected" [class.!text-[var(--mat-sys-on-error-container)]]="p.is_rejected"
+                  (click)="toggleRejected(p.path)" [attr.aria-pressed]="!!p.is_rejected">
+                  <mat-icon aria-hidden="true" class="!w-5 !h-5 !text-xl">{{ p.is_rejected ? 'thumb_down' : 'thumb_down_off_alt' }}</mat-icon>{{ I18N.gallery.selection.reject | translate }}
+                </button>
+              </div>
+            </section>
           }
 
+          <details data-photo-info [open]="infoOpen()" class="[&[open]>summary>mat-icon:last-child]:rotate-180 border-t border-[var(--mat-sys-outline-variant)]">
+            <summary (click)="$event.preventDefault(); infoOpen.set(!infoOpen())" class="flex min-h-11 cursor-pointer items-center gap-2 font-medium"><mat-icon aria-hidden="true" class="!h-5 !w-5 !text-xl">info</mat-icon><h2 class="m-0 text-sm font-medium">{{ I18N.photo_detail.info | translate }}</h2><mat-icon aria-hidden="true" class="ml-auto !h-5 !w-5 shrink-0 !text-xl transition-transform motion-reduce:transition-none">expand_more</mat-icon></summary>
+            @if (infoOpen()) {
+            <div class="space-y-3 pb-3">
+          <!-- Capture date and scoring category -->
+          <div class="mb-2">
+            @if (p.date_taken || auth.isEdition()) {
+              <div class="flex items-center gap-1 text-[var(--mat-sys-on-surface-variant)] text-xs">
+                @if (auth.isEdition()) {
+                  <button mat-icon-button class="!w-7 !h-7 max-sm:!w-11 max-sm:!h-11 pointer-coarse:!w-11 pointer-coarse:!h-11 !min-w-0 !p-0 -ml-1.5 !inline-flex items-center justify-center" (click)="editCaptureDate(p)"
+                          [matTooltip]="I18N.capture_date.title | translate"
+                          [attr.aria-label]="I18N.capture_date.title | translate">
+                    <mat-icon class="!text-base !w-4 !h-4 !leading-4">edit_calendar</mat-icon>
+                  </button>
+                }
+                @if (p.date_taken) {
+              <span class="leading-4">{{ p.date_taken | captureDate }}</span>
+                } @else { <span>{{ I18N.gallery.no_capture_date | translate }}</span> }
+              </div>
+            }
+            <div class="flex items-center gap-2 mt-1">
+              @if (p.category || auth.isEdition()) {
+                <span class="inline-flex items-center gap-1 text-[var(--mat-sys-on-surface-variant)] text-xs">
+                  {{ p.category ? (p.category | categoryLabel) : (I18N.category_names.default | translate) }}
+                  <!-- Category explainer toggle: "why isn't this photo classified as X?" — kept for an uncategorized photo too. -->
+                  @if (auth.isEdition()) {
+                    <app-control-popover icon="help_outline" [compact]="true" [label]="I18N.photo.category_override.explainer_toggle | translate" [content]="categoryExplanation" (opened)="loadExplainerCategories()" />
+                  }
+                </span>
+              }
+              @if (keeperHint()?.has_better) {
+                <span class="inline-flex items-center gap-1 px-2 py-0.5 bg-black/60 text-amber-300 rounded-full text-xs font-medium"
+                      [attr.aria-label]="I18N.culling.reason.better_shot | translate">
+                  <mat-icon class="!text-sm !w-4 !h-4 !leading-4" aria-hidden="true">arrow_circle_up</mat-icon>
+                  {{ I18N.culling.reason.better_shot | translate }}
+                </span>
+              }
+            </div>
+          </div>
+
+
+              @if (hasExif()) {
+                <app-photo-metric-section kind="exif" [photo]="p" [histogramHeight]="HISTOGRAM_PANEL_HEIGHT" />
+              }
           <!-- Caption -->
           <div>
             <div class="flex items-center justify-between mb-1">
-              <div class="text-[0.625rem] uppercase tracking-wider text-[var(--mat-sys-on-surface-variant)]">{{ I18N.photo_detail.caption | translate }}</div>
+              <div class="text-xs text-[var(--mat-sys-on-surface-variant)]">{{ I18N.photo_detail.caption | translate }}</div>
               @if (auth.isEdition()) {
                 <div class="flex gap-1">
                   @if (!p.caption && store.config()?.features?.show_captions) {
-                    <button mat-icon-button class="!w-7 !h-7 !p-0" (click)="generateCaption(p.path)" [disabled]="generatingCaption()" [matTooltip]="I18N.photo_detail.generate_caption | translate" [attr.aria-label]="I18N.photo_detail.generate_caption | translate">
+                    <button mat-icon-button class="!w-7 !h-7 max-sm:!w-11 max-sm:!h-11 pointer-coarse:!w-11 pointer-coarse:!h-11 !p-0" (click)="generateCaption(p.path)" [disabled]="generatingCaption()" [matTooltip]="I18N.photo_detail.generate_caption | translate" [attr.aria-label]="I18N.photo_detail.generate_caption | translate">
                       @if (generatingCaption()) {
                         <mat-spinner diameter="16" [attr.aria-label]="I18N.ui.labels.loading | translate" />
                       } @else {
@@ -406,7 +470,7 @@ const SOCIAL_SOURCE_KEYS: Record<string, string> = {
                       }
                     </button>
                   }
-                  <button mat-icon-button class="!w-7 !h-7 !p-0" (click)="editCaption(p)" [matTooltip]="I18N.photo_detail.edit_caption | translate" [attr.aria-label]="I18N.photo_detail.edit_caption | translate">
+                  <button mat-icon-button class="!w-7 !h-7 max-sm:!w-11 max-sm:!h-11 pointer-coarse:!w-11 pointer-coarse:!h-11 !p-0" (click)="editCaption(p)" [matTooltip]="I18N.photo_detail.edit_caption | translate" [attr.aria-label]="I18N.photo_detail.edit_caption | translate">
                     <mat-icon class="!text-base !w-4 !h-4 !leading-4">edit</mat-icon>
                   </button>
                 </div>
@@ -421,21 +485,13 @@ const SOCIAL_SOURCE_KEYS: Record<string, string> = {
             }
           </div>
 
-          <!-- Metric tabs: EXIF | Quality | Composition | Technical | Histogram -->
-          <app-photo-metrics-tabs [photo]="p" [ranges]="store.metricRangesByColumn()"
-                                  [populated]="store.config()?.populated_scores"
-                                  [histogramHeight]="HISTOGRAM_PANEL_HEIGHT"
-                                  [histogramDefaultMode]="histogramDefaultMode()"
-                                  [indicatorPercent]="clippingIndicatorPercent()" />
-
-
           <!-- Location -->
           @if (p.gps_latitude !== null && p.gps_longitude !== null) {
             <div class="border-t border-[var(--mat-sys-outline-variant)] pt-3 mb-2">
               <div class="flex items-center justify-between mb-2">
-                <div class="text-[0.625rem] uppercase tracking-wider text-[var(--mat-sys-on-surface-variant)]">{{ I18N.photo_detail.location | translate }}</div>
+                <div class="text-xs text-[var(--mat-sys-on-surface-variant)]">{{ I18N.photo_detail.location | translate }}</div>
                 @if (auth.isEdition()) {
-                  <button mat-icon-button class="!w-7 !h-7 !p-0" (click)="editGps(p)" [matTooltip]="I18N.photo_detail.edit_location | translate" [attr.aria-label]="I18N.photo_detail.edit_location | translate">
+                  <button mat-icon-button class="!w-7 !h-7 max-sm:!w-11 max-sm:!h-11 pointer-coarse:!w-11 pointer-coarse:!h-11 !p-0" (click)="editGps(p)" [matTooltip]="I18N.photo_detail.edit_location | translate" [attr.aria-label]="I18N.photo_detail.edit_location | translate">
                     <mat-icon class="!text-base !w-4 !h-4 !leading-4">edit_location</mat-icon>
                   </button>
                 }
@@ -449,8 +505,8 @@ const SOCIAL_SOURCE_KEYS: Record<string, string> = {
           } @else if (auth.isEdition()) {
             <div class="border-t border-[var(--mat-sys-outline-variant)] pt-3 mb-2">
               <div class="flex items-center justify-between">
-                <div class="text-[0.625rem] uppercase tracking-wider text-[var(--mat-sys-on-surface-variant)]">{{ I18N.photo_detail.location | translate }}</div>
-                <button mat-icon-button class="!w-7 !h-7 !p-0" (click)="editGps(p)" [matTooltip]="I18N.photo_detail.add_location | translate" [attr.aria-label]="I18N.photo_detail.add_location | translate">
+                <div class="text-xs text-[var(--mat-sys-on-surface-variant)]">{{ I18N.photo_detail.location | translate }}</div>
+                <button mat-icon-button class="!w-7 !h-7 max-sm:!w-11 max-sm:!h-11 pointer-coarse:!w-11 pointer-coarse:!h-11 !p-0" (click)="editGps(p)" [matTooltip]="I18N.photo_detail.add_location | translate" [attr.aria-label]="I18N.photo_detail.add_location | translate">
                   <mat-icon class="!text-base !w-4 !h-4 !leading-4">add_location</mat-icon>
                 </button>
               </div>
@@ -461,27 +517,27 @@ const SOCIAL_SOURCE_KEYS: Record<string, string> = {
           <!-- Tags section: AI chips, then manual chips (marked, removable for editors) -->
           @if (p.tags_list.length || p.manual_tags.length || auth.isEdition()) {
             <div data-testid="tags-section">
-              <div class="text-[0.625rem] uppercase tracking-wider text-[var(--mat-sys-on-surface-variant)] mb-2">{{ I18N.photo_detail.tags | translate }}</div>
+              <div class="text-xs text-[var(--mat-sys-on-surface-variant)] mb-2">{{ I18N.photo_detail.tags | translate }}</div>
               <div class="flex gap-1.5 flex-wrap items-center">
                 @for (tag of p.tags_list; track tag) {
-                  <span data-testid="ai-tag-chip" class="inline-flex">
-                    <button class="px-2 py-0.5 bg-[var(--facet-accent-badge)] text-[var(--facet-accent-text)] rounded-full text-xs cursor-pointer hover:opacity-80 transition-opacity"
-                            (click)="navigateToGallery('tag', tag)">{{ tag }}</button>
+                  <span data-testid="ai-tag-chip" class="inline-flex min-w-0 max-w-full">
+                    <button class="inline-flex items-center max-sm:min-h-11 pointer-coarse:min-h-11 max-sm:min-w-11 pointer-coarse:min-w-11 max-w-full [overflow-wrap:anywhere] text-left px-2 py-0.5 bg-[var(--facet-accent-badge)] text-[var(--facet-accent-text)] rounded-full text-xs cursor-pointer hover:opacity-80 transition-opacity"
+                            [matMenuTriggerFor]="tagNavigationMenu" [matMenuTriggerData]="{ tag: tag }">{{ tag }}</button>
                   </span>
                 }
                 @for (tag of p.manual_tags; track tag) {
                   <span data-testid="manual-tag-chip"
-                        class="inline-flex items-center rounded-full border border-dashed border-[var(--facet-accent-text)] text-[var(--facet-accent-text)] text-xs">
-                    <button class="inline-flex items-center gap-1 pl-2 pr-2 py-0.5 cursor-pointer hover:opacity-80 transition-opacity"
+                        class="inline-flex min-w-0 max-w-full items-center rounded-full border border-dashed border-[var(--facet-accent-text)] text-[var(--facet-accent-text)] text-xs">
+                    <button class="inline-flex items-center max-sm:min-h-11 pointer-coarse:min-h-11 max-sm:min-w-11 pointer-coarse:min-w-11 min-w-0 gap-1 pl-2 pr-2 py-0.5 cursor-pointer hover:opacity-80 transition-opacity"
                             [attr.title]="I18N.manual_tags.manual | translate"
-                            (click)="navigateToGallery('tag', tag)">
+                            [matMenuTriggerFor]="tagNavigationMenu" [matMenuTriggerData]="{ tag: tag }">
                       <mat-icon class="!text-xs !w-3 !h-3 !leading-3" aria-hidden="true">sell</mat-icon>
                       <span class="sr-only">{{ I18N.manual_tags.manual | translate }}:</span>
-                      {{ tag }}
+                      <span class="min-w-0 [overflow-wrap:anywhere] text-left">{{ tag }}</span>
                     </button>
                     @if (auth.isEdition()) {
                       <button data-testid="manual-tag-remove"
-                              class="inline-flex items-center justify-center min-w-6 min-h-6 -my-1.5 -ml-1 cursor-pointer hover:opacity-80"
+                              class="inline-flex items-center justify-center shrink-0 min-w-6 min-h-6 max-sm:min-w-11 max-sm:min-h-11 pointer-coarse:min-w-11 pointer-coarse:min-h-11 -ml-1 max-sm:ml-0 pointer-coarse:ml-0 cursor-pointer hover:opacity-80"
                               [attr.aria-label]="I18N.manual_tags.remove_tag | translate:{ tag: tag }"
                               (click)="removeManualTag(p, tag)">
                         <mat-icon class="!text-xs !w-3 !h-3 !leading-3" aria-hidden="true">close</mat-icon>
@@ -490,16 +546,24 @@ const SOCIAL_SOURCE_KEYS: Record<string, string> = {
                   </span>
                 }
               </div>
+              <mat-menu #tagNavigationMenu="matMenu">
+                <ng-template matMenuContent let-tag="tag">
+                  @if (tagCollectionAvailable()) {
+                    <button mat-menu-item (click)="navigateTag(tag, 'collection')"><mat-icon>filter_alt</mat-icon>{{ I18N.photo_detail.tag_refine_collection | translate }}</button>
+                  }
+                  <button mat-menu-item (click)="navigateTag(tag, 'library')"><mat-icon>search</mat-icon>{{ I18N.photo_detail.tag_search_library | translate }}</button>
+                </ng-template>
+              </mat-menu>
               @if (auth.isEdition()) {
                 <div class="flex items-center gap-1 mt-2" data-testid="manual-tag-add">
                   <input type="text" maxlength="64"
-                         class="min-w-0 flex-1 px-2 py-1 text-xs rounded border border-[var(--mat-sys-outline-variant)] bg-transparent"
+                         class="min-w-0 flex-1 max-sm:min-h-11 pointer-coarse:min-h-11 px-2 py-1 text-xs rounded border border-[var(--mat-sys-outline-variant)] bg-transparent"
                          [value]="newTag()"
                          [attr.aria-label]="I18N.manual_tags.add | translate"
                          [placeholder]="I18N.manual_tags.add | translate"
                          (input)="onNewTagInput($event)"
                          (keydown.enter)="addManualTag(p, newTag())" />
-                  <button mat-icon-button class="!w-7 !h-7 !p-0 !inline-flex !items-center !justify-center shrink-0" (click)="addManualTag(p, newTag())"
+                  <button mat-icon-button class="!w-7 !h-7 max-sm:!w-11 max-sm:!h-11 pointer-coarse:!w-11 pointer-coarse:!h-11 !p-0 !inline-flex !items-center !justify-center shrink-0" (click)="addManualTag(p, newTag())"
                           [disabled]="!newTag().trim()"
                           [matTooltip]="I18N.manual_tags.add | translate" [attr.aria-label]="I18N.manual_tags.add | translate">
                     <mat-icon class="!text-base !w-4 !h-4 !leading-4">add</mat-icon>
@@ -509,13 +573,43 @@ const SOCIAL_SOURCE_KEYS: Record<string, string> = {
             </div>
           }
 
+              <div class="border-t border-[var(--mat-sys-outline-variant)] pt-2">
+                <app-photo-provenance [photo]="p" />
+                <app-photo-related-files [photo]="p" (logicalApplied)="onLogicalAssetApplied($event)" />
+              </div>
+            </div>
+            }
+          </details>
+
+          <details id="photo-analysis" #analysisSection data-photo-analysis (keydown.escape)="closeAnalysis($event)" (toggle)="analysisOpen.set(analysisSection.open)" class="[&[open]>summary>mat-icon:last-child]:rotate-180 border-t border-[var(--mat-sys-outline-variant)]">
+            <summary class="flex min-h-11 cursor-pointer items-center gap-2 text-sm font-medium"><mat-icon aria-hidden="true" class="!h-5 !w-5 !text-xl">analytics</mat-icon><h2 class="m-0 text-sm font-medium">{{ I18N.photo_detail.analysis | translate }}</h2><span class="ml-auto text-xs font-normal tabular-nums">{{ I18N.photo_detail.assessment.score | translate }} {{ p.aggregate | assessmentValue }}</span><mat-icon aria-hidden="true" class="!h-5 !w-5 shrink-0 !text-xl transition-transform motion-reduce:transition-none">expand_more</mat-icon></summary>
+            @if (analysisOpen()) {
+              @if (aggregateRange(); as range) {
+                <app-metric-rank data-aggregate-distribution class="mb-2" [range]="range" [value]="p.aggregate" />
+              }
+              @if (store.config()?.features?.show_critique) {
+                @for (path of [p.path]; track path) { <app-photo-analysis [photoPath]="path" [vlmAvailable]="!!store.config()?.features?.show_vlm_critique" /> }
+              }
+              @for (section of metricSections; track section.id) {
+                <details data-metric-section [attr.data-section-kind]="section.id" [open]="activeMetricSection() === section.id" class="[&[open]>summary>mat-icon:last-child]:rotate-180 border-t border-[var(--mat-sys-outline-variant)]">
+                  <summary (click)="$event.preventDefault(); toggleMetricSection(section.id)" class="flex min-h-11 cursor-pointer items-center gap-2 text-xs font-medium"><mat-icon aria-hidden="true" class="!h-5 !w-5 !text-xl" [class]="section.id | markTone">{{ section.icon }}</mat-icon><h3 class="m-0 text-xs font-medium">{{ section.label | translate }}</h3><mat-icon aria-hidden="true" class="ml-auto !h-5 !w-5 shrink-0 !text-xl transition-transform motion-reduce:transition-none">expand_more</mat-icon></summary>
+                  @if (activeMetricSection() === section.id) {
+                    <app-photo-metric-section [kind]="section.id" [photo]="p" [populated]="store.config()?.populated_scores" [histogramHeight]="HISTOGRAM_PANEL_HEIGHT" [histogramDefaultMode]="histogramDefaultMode()" [indicatorPercent]="clippingIndicatorPercent()" />
+                  }
+                </details>
+              }
+              <app-context-help [label]="I18N.gallery.compare.rendition.sources" [keys]="[I18N.photo_detail.rendition.note]" />
+            }
+          </details>
+
           <!-- Persons section -->
-          @if (p.persons.length) {
-            <div class="pt-1">
-              <div class="text-[0.625rem] uppercase tracking-wider text-[var(--mat-sys-on-surface-variant)] mb-2">{{ I18N.photo_detail.persons | translate }}</div>
+          @if (p.persons.length || p.unassigned_faces) {
+            <details data-photo-people class="[&[open]>summary>mat-icon:last-child]:rotate-180 border-t border-[var(--mat-sys-outline-variant)]">
+              <summary class="flex min-h-11 cursor-pointer items-center gap-2 font-medium"><mat-icon aria-hidden="true" class="!h-5 !w-5 !text-xl">people</mat-icon><h2 class="m-0 text-sm font-medium">{{ I18N.photo_detail.persons | translate }}</h2><mat-icon aria-hidden="true" class="ml-auto !h-5 !w-5 shrink-0 !text-xl transition-transform motion-reduce:transition-none">expand_more</mat-icon></summary>
+              @if (p.unassigned_faces) { <p class="m-0 pb-2 text-xs text-[var(--mat-sys-on-surface-variant)]">{{ I18N.photo_detail.unassigned_faces | translate:{ count: p.unassigned_faces } }}</p> }
               <div class="flex gap-3 flex-wrap">
                 @for (person of p.persons; track person.id) {
-                  <button class="flex flex-col items-center gap-1 cursor-pointer hover:opacity-80 transition-opacity"
+                  <button class="flex min-w-0 max-w-full flex-col items-center gap-1 cursor-pointer hover:opacity-80 transition-opacity"
                           data-person-avatar aria-haspopup="menu"
                           (click)="openPersonMenu(person, $event)">
                     <img
@@ -527,7 +621,7 @@ const SOCIAL_SOURCE_KEYS: Record<string, string> = {
                   </button>
                 }
               </div>
-            </div>
+            </details>
           }
 
           <!-- Set section (bracket/panorama/hdr_panorama/burst/duplicate) -->
@@ -537,14 +631,14 @@ const SOCIAL_SOURCE_KEYS: Record<string, string> = {
                 <div class="flex items-center gap-2 flex-wrap mb-2 text-sm">
                   <mat-icon class="!text-base !w-4 !h-4 !leading-4 opacity-70">{{ set.kind | photoSetKindIcon }}</mat-icon>
                   <span class="font-medium">{{ set.kind | photoSetKindLabel | translate }}</span>
-                  <span class="text-xs text-[var(--mat-sys-on-surface-variant)]">{{ I18N.capsules.photos_count | translate:{ count: set.count } }}</span>
+                  <span data-set-file-count class="text-xs text-[var(--mat-sys-on-surface-variant)]" [matTooltip]="I18N.photo_detail.set.count_help | translate">{{ (set.count === 1 ? I18N.photo_detail.set.files_count : I18N.photo_detail.set.files_count_plural) | translate:{ count: set.count } }}</span>
                   @if (setBlinkCount(); as blinks) {
                     <span class="text-xs text-[var(--mat-sys-on-surface-variant)]">· {{ I18N.gallery.hidden_banner.reason_blinks | translate:{ n: blinks } }}</span>
                   }
                   @if (set.ev_span !== null) {
                     <span class="text-xs text-[var(--mat-sys-on-surface-variant)]">{{ I18N.photo_detail.set.ev_span | translate }}: {{ set.ev_span | fixed:1 }} EV</span>
                   }
-                  <button mat-icon-button class="!w-7 !h-7 !p-0 !inline-flex !items-center !justify-center ml-auto" (click)="openSetInGallery()"
+                  <button mat-icon-button class="!w-7 !h-7 max-sm:!w-11 max-sm:!h-11 pointer-coarse:!w-11 pointer-coarse:!h-11 !p-0 !inline-flex !items-center !justify-center ml-auto" (click)="openSetInGallery()"
                           [matTooltip]="I18N.photo_detail.set.open_in_gallery | translate" [attr.aria-label]="I18N.photo_detail.set.open_in_gallery | translate">
                     <mat-icon class="!text-base !w-4 !h-4 !leading-4">photo_library</mat-icon>
                   </button>
@@ -571,7 +665,7 @@ const SOCIAL_SOURCE_KEYS: Record<string, string> = {
             }
           }
 
-        </div>
+        </aside>
       </div>
     } @else if (photoMissing()) {
       <div class="flex flex-col items-center justify-center gap-2 h-full text-[var(--mat-sys-on-surface-variant)]">
@@ -593,6 +687,43 @@ const SOCIAL_SOURCE_KEYS: Record<string, string> = {
 })
 export class PhotoDetailComponent extends PhotoDetailBase implements OnInit {
   protected readonly I18N = i18nKeys();
+  protected readonly analysisOpen = signal(false);
+  protected readonly aggregateRange = computed(() => {
+    const value = this.photo()?.aggregate;
+    return typeof value === 'number' && Number.isFinite(value)
+      ? this.store.metricRangesByColumn()['aggregate'] : undefined;
+  });
+  private readonly metricState = inject(MetricsTabState);
+  protected readonly metricSections = [
+    { id: 'quality', icon: FEATURE_MARK, label: I18N.photo_detail.quality },
+    { id: 'composition', icon: 'grid_on', label: I18N.photo_detail.composition },
+    { id: 'technical', icon: 'tune', label: I18N.photo_detail.technical },
+    { id: 'histogram', icon: 'equalizer', label: I18N.tooltip.histogram },
+  ] as const;
+  protected readonly infoOpen = signal(true);
+  protected readonly activeMetricSection = signal<MetricsTab | null>(this.metricState.tab() === 'exif' ? 'quality' : this.metricState.tab());
+  protected toggleMetricSection(section: MetricsTab): void {
+    const next = this.activeMetricSection() === section ? null : section;
+    this.activeMetricSection.set(next);
+    if (next) this.metricState.select(next);
+  }
+
+  private readonly analysisSection = viewChild<ElementRef<HTMLDetailsElement>>('analysisSection');
+  private readonly analysisToggle = viewChild<unknown, ElementRef<HTMLButtonElement>>('analysisToggle', { read: ElementRef });
+
+  protected closeAnalysis(event: Event): void {
+    if (!this.analysisSection()?.nativeElement.open) return;
+    event.preventDefault(); event.stopPropagation();
+    const section = this.analysisSection()?.nativeElement;
+    if (section) section.open = false;
+    this.analysisOpen.set(false);
+    const trigger = this.analysisToggle()?.nativeElement ?? section?.querySelector<HTMLElement>('summary');
+    trigger?.focus();
+  }
+  protected readonly photoAspect = computed(() => {
+    const photo = this.photo();
+    return photo ? aspectOf(photo) : null;
+  });
   private readonly location = inject(Location);
   private readonly route = inject(ActivatedRoute);
   private readonly router = inject(Router);
@@ -613,18 +744,135 @@ export class PhotoDetailComponent extends PhotoDetailBase implements OnInit {
   private memberRequest = 0;
   private memberPhoto: { photo: Photo; owner: string } | null = null;
   private readonly viewerOwner = this.auth.identity();
+  /** Only gallery-opened entries own an in-app Back destination. Direct links
+   *  must not send Escape to an unrelated page or about:blank. */
+  private readonly timelineOrigin = (this.router.currentNavigation()?.extras.state?.['photoOrigin'] ?? history.state?.['photoOrigin']) === 'timeline';
+  private readonly timeline = this.timelineOrigin ? inject(TimelineFeedCache) : null;
+  private openedFromGallery = this.readBackOwnership();
+
+  private readBackOwnership(state = this.router.currentNavigation()?.extras.state ?? history.state): boolean {
+    return typeof state?.['photoBack'] === 'boolean' ? state['photoBack']
+      : this.timelineOrigin || state?.['photoOrigin'] === 'in-app' || !!state?.['photo'];
+  }
+
+  /** Folded stacks occupy their loaded cover's slot in the originating collection. */
+  protected readonly collectionEntry = computed(() => {
+    const current = this.photo();
+    if (!current) return undefined;
+    const photos = this.store.photos();
+    // Single-photo responses do not carry gallery stack annotations. The strip's
+    // authorized membership supplies the same identity after a direct member load.
+    const stackId = current.stack_id ?? this.stackNavigator()?.visibleStack()?.id;
+    return photos.find(photo => photo.path === current.path)
+      ?? (stackId ? photos.find(photo => photo.stack_id === stackId) : undefined);
+  });
+  protected readonly collectionSidebarAvailable = computed(() => !this.timelineOrigin && this.viewerOwner === this.auth.identity()
+    && !!this.collectionEntry());
+  protected readonly collectionNavigation = computed(() => {
+    const photos = this.store.photos();
+    const index = photos.findIndex(photo => photo.path === this.collectionEntry()?.path);
+    return {
+      visible: this.collectionSidebarAvailable(),
+      position: index + 1,
+      previous: index > 0,
+      next: index >= 0 && (index + 1 < photos.length || this.store.hasMore()),
+    };
+  });
+  protected stepCollectionPhoto(delta: number): void {
+    if (!this.collectionNavigation().visible || this.destroyRef.destroyed || this.router.currentNavigation?.() || this.dialog.openDialogs.length) return;
+    void this.navigateAdjacentPhoto(delta, true);
+  }
+  protected readonly collectionSidebarTitle = computed(() => this.store.currentAlbum?.()?.name ?? '');
+  // A later library search replaces the singleton store. Keep the query owned
+  // by this history entry, including when Back recreates the photo component.
+  private readonly tagOrigin = signal(this.readTagOrigin());
+  protected readonly tagCollectionAvailable = computed(() => this.tagOrigin()?.refinable === true
+    && this.viewerOwner === this.auth.identity());
+
+  private readTagOrigin(
+    state = this.router.currentNavigation()?.extras.state ?? history.state,
+    trigger = this.router.currentNavigation()?.trigger ?? 'imperative',
+  ): PhotoTagOrigin | null {
+    if (this.viewerOwner !== this.auth.identity()) return null;
+    if (state && Object.hasOwn(state, 'photoTagOrigin')) {
+      const origin = state['photoTagOrigin'] as PhotoTagOrigin | null;
+      return origin?.owner === this.viewerOwner && typeof origin.refinable === 'boolean'
+        && origin.params && typeof origin.params === 'object' && !Array.isArray(origin.params)
+        && Object.values(origin.params).every(value => typeof value === 'string') ? origin : null;
+    }
+    if (!state?.['photo'] || state?.['photoOrigin'] === 'timeline') return null;
+    // An old/unowned history entry must never capture a different account's
+    // current collection when restored through Back/Forward.
+    if (trigger !== 'imperative') return null;
+    const filters = this.store.filters();
+    return { owner: this.viewerOwner, refinable: this.store.pinnedPaths() === null && !filters.similar_to,
+      params: { ...buildSyncParams(filters, this.store.config()?.defaults, this.store.config()?.search_threshold_default, this.store.currentAlbum()?.smart_filter_json),
+        ...(this.store.temporaryReviewQueue() ? { review_queue: '1' } : {}) } };
+  }
+
+  private rememberTagOrigin(): void {
+    this.location.replaceState(this.location.path(true), '', {
+      ...this.location.getState() as Record<string, unknown>, photoTagOrigin: this.tagOrigin(), photoBack: this.openedFromGallery,
+    });
+  }
+
+  private photoNavigationState(photo: Photo | undefined): Record<string, unknown> {
+    return { photo, photoTagOrigin: this.tagOrigin(), photoBack: this.openedFromGallery };
+  }
+
+  private logicalChangeRevision = 0;
+
+  protected async onLogicalAssetApplied(change: LogicalAssetApplied): Promise<void> {
+    const previous = this.photo()?.path;
+    if (!previous || this.viewerOwner !== this.auth.identity() || !change.members.includes(previous)) return;
+    const revision = ++this.logicalChangeRevision;
+    const token = this.auth.token;
+    this.store.reconcileLogicalAssetChange(change);
+    const target = change.operation !== 'dissolve' && change.primaryPath && this.memberAllowed(change.primaryPath)
+      ? change.primaryPath : previous;
+    const photo = await this.fetchPhoto(target).catch(() => undefined);
+    if (revision !== this.logicalChangeRevision || !this.isCurrentViewer() || token !== this.auth.token
+      || this.photo()?.path !== previous || this.route.snapshot.queryParamMap.get('path') !== previous
+      || this.router.currentNavigation?.()) return;
+    if (!photo) {
+      this.snackBar.open(this.i18n.t(I18N.logical_assets.refresh_error), '', { duration: 5000 });
+      return;
+    }
+    if (target === previous) this.photo.set(photo);
+    else {
+      const member = { photo, owner: this.auth.identity() };
+      this.memberPhoto = member;
+      try {
+        await this.router.navigate(['/photo'], { queryParams: { path: target }, state: this.photoNavigationState(photo), replaceUrl: true });
+      } finally {
+        if (this.memberPhoto === member) this.memberPhoto = null;
+      }
+    }
+  }
+
+  protected openCollectionPhoto(path: string): void {
+    if (!this.collectionSidebarAvailable() || path === this.photo()?.path || !this.memberAllowed(path)) return;
+    const photo = this.store.photos().find(item => item.path === path);
+    if (!photo) return;
+    void this.router.navigate(['/photo'], { queryParams: { path }, state: this.photoNavigationState(photo), replaceUrl: true });
+  }
+
+  protected loadCollectionPage(): void {
+    if (!this.collectionSidebarAvailable() || this.store.loading() || !this.store.hasMore()) return;
+    void this.store.nextPage(undefined, { whileParked: true });
+  }
 
   readonly photo = signal<Photo | null>(null);
   /** Bumped when the mark dialog adds or removes an object, so the object layer re-reads. */
   protected readonly objectsRevision = signal(0);
   protected readonly photoMissing = signal(false);
   protected readonly downloading = signal(false);
+  protected readonly copyingPhoto = signal(false);
   protected readonly downloadOptions = signal<DownloadOption[]>([]);
   protected readonly generatingCaption = signal(false);
   protected readonly stars: readonly number[] = [1, 2, 3, 4, 5];
 
   // Category explainer ("why isn't this photo classified as X?")
-  protected readonly explainerOpen = signal(false);
   protected readonly explainerCategories = signal<string[]>([]);
   protected readonly explainerTargetCategory = signal<string | null>(null);
 
@@ -747,8 +995,7 @@ export class PhotoDetailComponent extends PhotoDetailBase implements OnInit {
   private locationMapEffect = effect(() => {
     const container = this.locationMapContainer();
     const p = this.photo();
-    if (!container || !p || p.gps_latitude == null || p.gps_longitude == null) return;
-
+    const visible = this.infoOpen();
     if (this.locationMapTimeout !== null) {
       clearTimeout(this.locationMapTimeout);
       this.locationMapTimeout = null;
@@ -758,8 +1005,10 @@ export class PhotoDetailComponent extends PhotoDetailBase implements OnInit {
       this.locationMap = null;
     }
 
+    if (!visible || !container || !p || p.gps_latitude == null || p.gps_longitude == null) return;
     this.locationMapTimeout = setTimeout(() => {
       this.locationMapTimeout = null;
+      if (this.destroyRef.destroyed || !this.infoOpen() || this.locationMapContainer()?.nativeElement !== container.nativeElement || this.photo()?.path !== p.path) return;
       const map = createLeafletMap(container.nativeElement, {
         zoomControl: false,
         attributionControl: false,
@@ -776,6 +1025,15 @@ export class PhotoDetailComponent extends PhotoDetailBase implements OnInit {
 
   constructor() {
     super();
+    let trigger: 'imperative' | 'popstate' | 'hashchange' = 'imperative';
+    this.router.events.pipe(takeUntilDestroyed(this.destroyRef)).subscribe(event => {
+      if (event instanceof NavigationStart) { this.logicalChangeRevision++; trigger = event.navigationTrigger ?? 'imperative'; }
+      if (event instanceof NavigationEnd) {
+        this.openedFromGallery = this.readBackOwnership(this.location.getState());
+        this.tagOrigin.set(this.readTagOrigin(this.location.getState(), trigger));
+        this.rememberTagOrigin();
+      }
+    });
     this.destroyRef.onDestroy(() => {
       if (this.locationMapTimeout !== null) clearTimeout(this.locationMapTimeout);
       if (this.locationMap) { this.locationMap.remove(); this.locationMap = null; }
@@ -809,6 +1067,7 @@ export class PhotoDetailComponent extends PhotoDetailBase implements OnInit {
   }
 
   async ngOnInit(): Promise<void> {
+    this.rememberTagOrigin();
     void this.store.ensureMetricRanges();
     // Back/Forward between two photos reuses this component instead of creating a new one.
     this.route.queryParamMap.pipe(skip(1), takeUntilDestroyed(this.destroyRef)).subscribe(params => {
@@ -820,14 +1079,14 @@ export class PhotoDetailComponent extends PhotoDetailBase implements OnInit {
     const statePhoto = history.state?.['photo'] as Photo | undefined;
 
     if (statePhoto) {
-      this.photo.set(statePhoto);
+      this.photo.set(normalisePhotoFlags(statePhoto));
     } else {
       // Fallback: load from API using query param
       const path = this.route.snapshot.queryParamMap.get('path');
       if (path) {
         // The user may leave, or Back may move the address, while this loads; replacing keeps a dead entry out of history.
         const photo = await this.fetchPhoto(path).catch(() => undefined);
-        if (this.destroyRef.destroyed || this.viewerOwner !== this.auth.identity() || this.route.snapshot.queryParamMap.get('path') !== path) return;
+        if (!this.isCurrentViewer() || this.route.snapshot.queryParamMap.get('path') !== path) return;
         if (photo) this.photo.set(photo);
         else this.router.navigate(['/'], { replaceUrl: true });
       } else {
@@ -865,7 +1124,6 @@ export class PhotoDetailComponent extends PhotoDetailBase implements OnInit {
     }
     this.photoMissing.set(false);
     this.photo.set(photo);
-    this.fullImageLoaded.set(false);
   }
 
   private memberAllowed(path: string): boolean {
@@ -916,7 +1174,9 @@ export class PhotoDetailComponent extends PhotoDetailBase implements OnInit {
   @HostListener('document:keydown.escape', ['$event'])
   protected goBack(event?: Event): void {
     if (event && this.shortcutBlocked(event)) return;
-    this.location.back();
+    event?.preventDefault();
+    if (this.openedFromGallery) this.location.back();
+    else void this.router.navigate(['/'], { queryParams: this.store.readGallerySessionQuery() ?? undefined, replaceUrl: true });
   }
 
   @HostListener('document:keydown.arrowleft', ['$event'])
@@ -939,10 +1199,9 @@ export class PhotoDetailComponent extends PhotoDetailBase implements OnInit {
    *  rating-controls feature flag); typing contexts and open dialogs bow out
    *  first. No auto-advance: a single-photo view has no "next" contract with
    *  the filters it came from. */
-  @HostListener('document:keydown', ['$event'])
   protected onRatingShortcut(event: KeyboardEvent): void {
     if (isPageShortcutBlocked(event)) return;
-    if (!this.auth.isEdition() || !this.store.config()?.features?.show_rating_controls) return;
+    if (!this.canReview() || !this.store.config()?.features?.show_rating_controls) return;
     const p = this.photo();
     if (!p) return;
     if (event.key >= '1' && event.key <= '5') {
@@ -957,19 +1216,28 @@ export class PhotoDetailComponent extends PhotoDetailBase implements OnInit {
     }
   }
 
-  private async navigateAdjacentPhoto(delta: number): Promise<void> {
+  private async navigateAdjacentPhoto(delta: number, withinCollection = false): Promise<void> {
+    if (this.timelineOrigin) {
+      const path = this.photo()?.path;
+      const next = path ? this.timeline?.adjacent(path, delta) : null;
+      if (next) await this.router.navigate(['/photo'], {
+        queryParams: { path: next }, state: { photoOrigin: 'timeline' }, replaceUrl: true,
+      });
+      return;
+    }
     // Match the visible stack buttons; its members already respect an exact list.
-    if (this.stackNavigator()?.step(delta)) return;
+    // Expanded stacks are collection rows, so the collection order owns the arrows.
+    if (!withinCollection && this.store.collapseStacks() && this.stackNavigator()?.step(delta)) return;
     const current = this.photo();
     if (!current) return;
-    const indexOf = () => this.store.photos().findIndex(p => p.path === current.path);
+    const indexOf = () => this.store.photos().findIndex(p => p.path === this.collectionEntry()?.path);
     let idx = indexOf();
     if (idx === -1) return;
     // The store only holds the pages the grid has scrolled through, so stepping past the last one fetches the next.
     if (idx + delta >= this.store.photos().length && this.store.hasMore()) {
       await this.store.nextPage(undefined, { whileParked: true });
       // Back between two photos reuses this component, so the URL is checked as well as destroyed.
-      if (this.destroyRef.destroyed || this.photo()?.path !== current.path
+      if (this.destroyRef.destroyed || this.viewerOwner !== this.auth.identity() || this.photo()?.path !== current.path
         || this.route.snapshot.queryParamMap.get('path') !== current.path) return;
       idx = indexOf();
       if (idx === -1) return;
@@ -979,11 +1247,45 @@ export class PhotoDetailComponent extends PhotoDetailBase implements OnInit {
     // Replace, so Escape (history back) leaves the photo page instead of stepping back through every photo.
     this.router.navigate(['/photo'], {
       queryParams: { path: next.path },
-      state: { photo: next },
+      state: this.photoNavigationState(next),
       replaceUrl: true,
     });
     this.photo.set(next);
-    this.fullImageLoaded.set(false);
+
+  }
+
+  protected async copyPhoto(path: string): Promise<void> {
+    if (this.copyingPhoto()) return;
+    const photo = this.photo();
+    if (!photo || photo.path !== path) return;
+    const owner = this.auth.identity(), token = this.auth.token;
+    const current = () => !this.destroyRef.destroyed && this.photo()?.path === path
+      && this.auth.identity() === owner && this.auth.token === token;
+    this.copyingPhoto.set(true);
+    try {
+      if (!navigator.clipboard?.write || typeof ClipboardItem === 'undefined') throw new Error('Clipboard unavailable');
+      const image = firstValueFrom(this.api.getRaw(this.api.imageUrl(path, photo.preview_revision))).then(async blob => {
+        if (!current()) throw new Error('Photo changed');
+        const bitmap = await createImageBitmap(blob);
+        try {
+          if (!current()) throw new Error('Photo changed');
+          const canvas = document.createElement('canvas');
+          canvas.width = bitmap.width; canvas.height = bitmap.height;
+          const context = canvas.getContext('2d');
+          if (!context) throw new Error('Image conversion unavailable');
+          context.drawImage(bitmap, 0, 0);
+          const png = await new Promise<Blob>((resolve, reject) => canvas.toBlob(result => result ? resolve(result) : reject(new Error('Image conversion failed')), 'image/png'));
+          if (!current()) throw new Error('Photo changed');
+          return png;
+        } finally { bitmap.close(); }
+      });
+      // Some browsers reject clipboard access before consuming the promised image.
+      void image.catch(() => {});
+      await navigator.clipboard.write([new ClipboardItem({ 'image/png': image })]);
+      if (current()) this.snackBar.open(this.i18n.t(I18N.photo_detail.copy_image_done), '', { duration: 3000 });
+    } catch {
+      if (current()) this.snackBar.open(this.i18n.t(I18N.photo_detail.copy_image_failed), '', { duration: 4000 });
+    } finally { this.copyingPhoto.set(false); }
   }
 
   protected async download(path: string, type = 'original', profile?: string): Promise<void> {
@@ -1081,22 +1383,65 @@ export class PhotoDetailComponent extends PhotoDetailBase implements OnInit {
     }
   }
 
+  protected readonly canReview = computed(() => this.auth.isEdition() || !!(this.auth.status()?.multi_user && this.auth.status()?.authenticated));
+  private readonly logicalReviews = inject(LogicalReviewService);
+
+  private async saveLogicalReview(p: Photo, action: LogicalReviewAction): Promise<boolean> {
+    const state = p.logical_review;
+    if (!state) return false;
+    const guard = this.staleness.create(this.destroyRef, { requireEdition: false, valid: () =>
+      this.canReview() && this.photo()?.path === p.path && this.photo()?.logical_review?.input_token === state.input_token });
+    try {
+      const result = await this.logicalReviews.save(state, action, guard.current);
+      if (!result) return false;
+      await this.store.applyLogicalReview(result);
+      if (!guard.current()) return false;
+      this.photo.set(normalisePhotoFlags({ ...this.photo()!, logical_review: result }));
+      return true;
+    } catch (error) {
+      const current = guard.current();
+      if (current && error instanceof LogicalReviewWriteError && error.recovered) {
+        await this.store.applyLogicalReview(error.recovered);
+        if (!guard.current()) return false;
+        this.photo.set(normalisePhotoFlags({ ...this.photo()!, logical_review: error.recovered }));
+      }
+      if (current) this.snackBar.open(this.i18n.t(I18N.errors.action_failed), '', { duration: 3000 });
+      return false;
+    } finally { guard.dispose(); }
+  }
+
+  /** Accepted writes may repair the gallery after this view is destroyed, but never another session. */
+  private captureSession(): () => boolean {
+    const owner = this.auth.identity();
+    const token = this.auth.token;
+    return () => owner === this.auth.identity() && token === this.auth.token;
+  }
+
+  private isCurrentViewer(): boolean {
+    return !this.destroyRef.destroyed && this.viewerOwner === this.auth.identity();
+  }
+
   protected async setRating(path: string, rating: number): Promise<void> {
     const p = this.photo();
-    if (!p) return;
+    if (!p || p.path !== path) return;
     const newRating = p.star_rating === rating ? 0 : rating;
+    if (p.logical_review) { await this.saveLogicalReview(p, { rating: newRating }); return; }
+    const sameSession = this.captureSession();
     try {
       await firstValueFrom(this.api.post('/photo/set_rating', { photo_path: path, rating: newRating }));
+      // A confirmed write still repairs the same session's gallery after navigation.
+      if (!sameSession()) return;
       this.applyConfirmed(p, { star_rating: newRating });
       this.journal.record('rating', [path], newRating);
     } catch {
-      this.snackBar.open(this.i18n.t(I18N.errors.action_failed), '', { duration: 3000 });
+      if (sameSession() && !this.destroyRef.destroyed) this.snackBar.open(this.i18n.t(I18N.errors.action_failed), '', { duration: 3000 });
     }
   }
 
   @HostListener('document:keydown', ['$event'])
   protected onReviewKey(event: KeyboardEvent): void {
-    if (this.dialog.openDialogs.length || isTypingContext(event) || event.ctrlKey || event.metaKey || event.altKey || !this.keymap.matches(event, 'keep') || !this.auth.isEdition()) return;
+    this.onRatingShortcut(event);
+    if (this.dialog.openDialogs.length || isPageShortcutBlocked(event) || !this.keymap.matches(event, 'keep') || !this.canReview()) return;
     event.preventDefault();
     void this.reviewPhoto('kept');
   }
@@ -1106,45 +1451,56 @@ export class PhotoDetailComponent extends PhotoDetailBase implements OnInit {
     if (!p || this.reviewSaving) return;
     this.reviewSaving = true;
     const isOrigin = this.store.captureReviewView();
-    const identity = this.auth.identity();
+    const sameSession = this.captureSession();
     const photos = this.store.photos();
     const index = photos.findIndex(photo => photo.path === p.path);
     const next = photos[index + 1];
     try {
-      await firstValueFrom(this.api.post('/photos/batch_review', { photo_paths: [p.path], decision }));
-      if (identity !== this.auth.identity()) return;
-      this.applyConfirmed(p, { is_kept: decision === 'kept', is_rejected: false });
-      this.journal.record('review', [p.path], decision);
+      if (p.logical_review) {
+        if (!await this.saveLogicalReview(p, decision)) return;
+      } else {
+        await firstValueFrom(this.api.post('/photos/batch_review', { photo_paths: [p.path], decision }));
+        if (!sameSession()) return;
+        this.applyConfirmed(p, { is_kept: decision === 'kept', is_rejected: false });
+        this.journal.record('review', [p.path], decision);
+      }
       if (isOrigin()) await this.advanceAfterReview(p, index, next);
     } catch {
-      this.snackBar.open(this.i18n.t(I18N.errors.action_failed), '', { duration: 3000 });
+      if (sameSession() && !this.destroyRef.destroyed) this.snackBar.open(this.i18n.t(I18N.errors.action_failed), '', { duration: 3000 });
     } finally { this.reviewSaving = false; }
   }
 
   private reviewSaving = false;
 
   private async advanceAfterReview(previous: Photo, index: number, next?: Photo): Promise<void> {
+    // Timeline owns a captured preview sequence, not the parked Gallery queue.
+    if (this.timelineOrigin) return;
     if (!this.store.filters().review_status) return;
+    const owner = this.auth.identity(), token = this.auth.token;
     let navigated = false;
     const navigation = this.router.events.subscribe(event => {
       if (event instanceof NavigationStart) navigated = true;
     });
     try {
       await this.store.refreshReviewResults(false, { whileParked: true });
-      if (navigated || this.destroyRef.destroyed || this.photo()?.path !== previous.path) return;
+      if (navigated || this.destroyRef.destroyed || this.photo()?.path !== previous.path
+        || owner !== this.auth.identity() || token !== this.auth.token) return;
       const target = this.store.photos().find(photo => photo.path === next?.path) ?? this.store.photos()[index] ?? this.store.photos()[0];
       if (!target) { this.router.navigate(['/']); return; }
-      this.router.navigate(['/photo'], { queryParams: { path: target.path }, state: { photo: target }, replaceUrl: true });
+      this.router.navigate(['/photo'], { queryParams: { path: target.path }, state: this.photoNavigationState(target), replaceUrl: true });
       this.photo.set(target);
-      this.fullImageLoaded.set(false);
+
     } finally { navigation.unsubscribe(); }
   }
 
   protected async toggleFavorite(path: string): Promise<void> {
     const p = this.photo();
-    if (!p) return;
+    if (!p || p.path !== path) return;
+    if (p.logical_review) { await this.saveLogicalReview(p, 'favorite'); return; }
+    const sameSession = this.captureSession();
     try {
       const res = await firstValueFrom(this.api.post<{ is_favorite: boolean; is_rejected: boolean | null }>('/photo/toggle_favorite', { photo_path: path }));
+      if (!sameSession()) return;
       const confirmed: Partial<Photo> = { is_favorite: res.is_favorite };
       // null means "the server did not touch this one": leave both readers on
       // the value they hold rather than writing this view's belief over the
@@ -1153,30 +1509,34 @@ export class PhotoDetailComponent extends PhotoDetailBase implements OnInit {
       this.applyConfirmed(p, confirmed);
       this.journal.record('favorite', [path], res.is_favorite);
     } catch {
-      this.snackBar.open(this.i18n.t(I18N.errors.action_failed), '', { duration: 3000 });
+      if (sameSession() && !this.destroyRef.destroyed) this.snackBar.open(this.i18n.t(I18N.errors.action_failed), '', { duration: 3000 });
     }
   }
 
   protected async toggleRejected(path: string): Promise<void> {
     const p = this.photo();
-    if (!p) return;
+    if (!p || p.path !== path) return;
     const isOrigin = this.store.captureReviewView();
-    const identity = this.auth.identity();
+    const sameSession = this.captureSession();
     const photos = this.store.photos();
     const index = photos.findIndex(photo => photo.path === p.path);
     const next = photos[index + 1];
+    if (p.logical_review) {
+      if (await this.saveLogicalReview(p, 'reject') && isOrigin()) await this.advanceAfterReview(p, index, next);
+      return;
+    }
     try {
       const res = await firstValueFrom(this.api.post<{ is_rejected: boolean; is_favorite: boolean | null; star_rating: number | null }>('/photo/toggle_rejected', { photo_path: path }));
       const confirmed: Partial<Photo> = { is_rejected: res.is_rejected, is_kept: false };
       if (res.is_favorite !== null) confirmed.is_favorite = res.is_favorite;
       if (res.star_rating !== null) confirmed.star_rating = res.star_rating;
-      // The write landed: only another principal's view must not see it.
-      if (identity !== this.auth.identity()) return;
+      // Repair the gallery only while the initiating credentials still own it.
+      if (!sameSession()) return;
       this.applyConfirmed(p, confirmed);
       this.journal.record('reject', [path], res.is_rejected);
       if (isOrigin()) await this.advanceAfterReview(p, index, next);
     } catch {
-      this.snackBar.open(this.i18n.t(I18N.errors.action_failed), '', { duration: 3000 });
+      if (sameSession() && !this.destroyRef.destroyed) this.snackBar.open(this.i18n.t(I18N.errors.action_failed), '', { duration: 3000 });
     }
   }
 
@@ -1217,8 +1577,16 @@ export class PhotoDetailComponent extends PhotoDetailBase implements OnInit {
     await this.refreshPeople(path);
   }
 
-  protected navigateToGallery(filter: string, value: string | number): void {
-    this.router.navigate(['/'], { queryParams: { [filter]: String(value) } });
+  protected navigateTag(tag: string, scope: 'collection' | 'library'): void {
+    if (!this.isCurrentViewer()) return;
+    if (scope === 'collection' && !this.tagCollectionAvailable()) return;
+    const query = refineTagQuery(scope === 'collection' ? this.tagOrigin()!.params['tag_groups'] ?? '' : '', tag);
+    if (query === null) {
+      this.snackBar.open(this.i18n.t(I18N.errors.action_failed), '', { duration: 3000 });
+      return;
+    }
+    const params = scope === 'collection' ? this.tagOrigin()!.params : {};
+    this.router.navigate(['/'], { info: GALLERY_REVISIT, queryParams: { ...params, tag_groups: query } });
   }
 
   protected readonly newTag = signal('');
@@ -1295,29 +1663,36 @@ export class PhotoDetailComponent extends PhotoDetailBase implements OnInit {
   }
 
   protected openCritique(photo: Photo): void {
-    this.photoActions.openCritique(photo);
+    if (this.photo()?.path !== photo.path || this.router.currentNavigation?.()) return;
+    const section = this.analysisSection()?.nativeElement;
+    if (!section) return;
+    section.open = true;
+    this.analysisOpen.set(true);
+    section.querySelector<HTMLElement>('summary')?.focus();
+    section.scrollIntoView({ block: 'nearest' });
   }
 
-  /**
-   * Open the delete confirm dialog and, on confirm, call
-   * `PhotoActionsService.deletePhotos` for the single open photo.
-   *
-   * `hasSiblings`/`hasBracketLead` are read off the already-fetched
-   * `photoSet()` rather than a fresh request: a bracket/panorama/hdr_panorama
-   * set with more than one member offers the sibling checkbox, and this
-   * photo being that set's own bracket-kind lead frame is exactly the
-   * condition the endpoint refuses without `includeSequenceSiblings`
-   * (decision 7) -- known precisely here, unlike the gallery's bulk
-   * selection, which has no per-path lead signal client-side.
-   */
+  protected async removeFromCatalog(): Promise<void> {
+    const photo = this.photo();
+    if (!photo?.is_rejected || photo.is_kept) return;
+    const current = () => this.isCurrentViewer()
+      && this.photo()?.path === photo.path && !!this.photo()?.is_rejected && !this.photo()?.is_kept;
+    const removed = await this.photoActions.removeFromCatalog([photo.path], current);
+    if (this.isCurrentViewer() && this.photo()?.path === photo.path && removed.includes(photo.path)) this.goBack();
+  }
+
+  /** Open the trash dialog with sibling and bracket-lead information from the loaded set. */
   protected deletePhoto(): void {
     const p = this.photo();
-    if (!p) return;
+    if (!p?.is_rejected || p.is_kept) return;
     const set = this.photoSet();
     const hasSiblings = !!set?.kind && SEQUENCE_KINDS_KEPT_WHOLE.includes(set.kind) && set.count > 1;
     const hasBracketLead = set?.kind === 'bracket'
       && (set.members.find(m => m.path === p.path)?.is_lead ?? false);
+    const current = () => this.isCurrentViewer()
+      && this.photo()?.path === p.path && !!this.photo()?.is_rejected && !this.photo()?.is_kept;
     import('../../shared/components/photo-delete-dialog/photo-delete-dialog.component').then(m => {
+      if (!current()) return;
       const ref = this.dialog.open(m.PhotoDeleteDialogComponent, {
         width: '95vw',
         maxWidth: '28rem',
@@ -1331,17 +1706,20 @@ export class PhotoDetailComponent extends PhotoDetailBase implements OnInit {
         },
       });
       ref.afterClosed().subscribe(async result => {
-        if (!result) return;
+        if (!result || !current()) return;
+        const sameSession = this.captureSession();
         const res = await this.photoActions.deletePhotos([p.path], result);
-        if (!res) return;
+        if (!res || !sameSession()) return;
         // `removed_missing` counts as deleted for this surface: the row is
         // gone either way, which is all the photo page can observe.
         const gone = res.deleted.includes(p.path) || res.removed_missing.includes(p.path);
         if (gone) {
           this.store.removePhotos([p.path]);
+          if (!this.isCurrentViewer() || this.photo()?.path !== p.path) return;
           this.snackBar.open(this.i18n.t(I18N.photo_detail.delete.success), '', { duration: 2000 });
           this.goBack();
         } else {
+          if (!this.isCurrentViewer() || this.photo()?.path !== p.path) return;
           this.snackBar.open(this.i18n.t(I18N.photo_detail.delete.error), '', { duration: 3000 });
         }
       });
@@ -1373,10 +1751,8 @@ export class PhotoDetailComponent extends PhotoDetailBase implements OnInit {
     }
   }
 
-  protected toggleExplainer(): void {
-    const next = !this.explainerOpen();
-    this.explainerOpen.set(next);
-    if (next && this.explainerCategories().length === 0) {
+  protected loadExplainerCategories(): void {
+    if (this.explainerCategories().length === 0) {
       firstValueFrom(this.api.get<{ categories: { name: string }[] }>('/config/category_priorities'))
         .then(res => this.explainerCategories.set(res.categories.map(c => c.name)))
         .catch(() => this.explainerCategories.set([]));
@@ -1389,7 +1765,7 @@ export class PhotoDetailComponent extends PhotoDetailBase implements OnInit {
       const refreshed = await this.photoActions.refreshPhotos([p.path]);
       if (!current() || !refreshed.includes(p.path)) return;
       const photo = await this.fetchPhoto(p.path);
-      if (current()) { this.fullImageLoaded.set(false); this.photo.set(photo); }
+      if (current()) this.photo.set(photo);
     } finally { dispose(); }
   }
 

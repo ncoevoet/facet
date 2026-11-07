@@ -62,13 +62,16 @@ import logging
 import math
 import os
 import re
+import stat
 import subprocess
+import tempfile
 from dataclasses import dataclass, field
 from typing import NamedTuple
 from datetime import datetime, timezone
 from xml.etree import ElementTree as ET
 
 from db.manual_tags import enrich_effective_tags, load_manual_tags_map, merge_effective_tags
+from db.keyword_hierarchy import HierarchyError, MAX_ASSIGNMENTS, load_hierarchy_map, parse_imported_path
 from processing.xmp_keywords import parse_keyword_state, reconcile_keywords as merge_keyword_state, serialize_keyword_state
 from utils.capture_dates import parse_capture_date
 from utils.image_loading import JPEG_EXTENSIONS, KNOWN_HEIF_EXTENSIONS
@@ -213,6 +216,7 @@ class XmpRating:
     tags: list[str] = field(default_factory=list)
     ai_tags: list[str] = field(default_factory=list)
     manual_tags: list[str] = field(default_factory=list)
+    hierarchy_paths: list[str] = field(default_factory=list)
     caption: str = ""
     category: str = ""
     person_names: list[str] = field(default_factory=list)
@@ -244,6 +248,7 @@ class XmpRating:
             tags=_as_list(data.get("tags")),
             ai_tags=_as_list(data.get("ai_tags")),
             manual_tags=_as_list(data.get("manual_tags")),
+            hierarchy_paths=_explicit_hierarchy_paths(data.get("hierarchy_paths", [])),
             caption=(data.get("caption") or "").strip(),
             category=(data.get("category") or "").strip(),
             person_names=_as_list(data.get("person_names")),
@@ -297,7 +302,7 @@ class XmpRating:
         """
         seen: set[str] = set()
         keywords: list[str] = []
-        for keyword in (*self.tags, *self.person_names):
+        for keyword in (*self.tags, *self.person_names, *_explicit_hierarchy_paths(self.hierarchy_paths)):
             if keyword and keyword not in seen:
                 seen.add(keyword)
                 keywords.append(keyword)
@@ -361,11 +366,23 @@ def _rdf_bag(parent, tag: str, items: list[str]):
     return node
 
 
-def _hierarchical_paths(rating: XmpRating) -> list[str]:
-    """``lr:hierarchicalSubject`` paths: ``Category|<cat>`` then ``People|<name>``."""
+def _explicit_hierarchy_paths(values) -> list[str]:
+    """Explicit portable paths only; commas/slashes in a label stay literal."""
+    if not isinstance(values, (list, tuple)) or len(values) > MAX_ASSIGNMENTS:
+        raise HierarchyError('Invalid explicit keyword hierarchy assignments')
+    for path in values:
+        parse_imported_path(path)
+    return list(dict.fromkeys(values))
+
+
+def _generated_hierarchy_paths(rating: XmpRating) -> list[str]:
     paths = [f"{HIER_CATEGORY}|{rating.category}"] if rating.category else []
     paths += [f"{HIER_PEOPLE}|{name}" for name in rating.person_names]
     return paths
+
+
+def _hierarchical_paths(rating: XmpRating) -> list[str]:
+    return _union(_generated_hierarchy_paths(rating), _explicit_hierarchy_paths(rating.hierarchy_paths))
 
 
 def _apply_facet_nodes(desc, rating: XmpRating) -> None:
@@ -376,8 +393,12 @@ def _apply_facet_nodes(desc, rating: XmpRating) -> None:
     has to merge with foreign nodes.
     """
     xmp_rating, label = rating.xmp_values()
-    _, keyword_state = merge_keyword_state([], rating.all_keywords(), ai=rating.ai_tags, manual=rating.manual_tags)
+    _, keyword_state = merge_keyword_state([], rating.all_keywords(), ai=rating.ai_tags,
+                                          manual=[*rating.manual_tags, *rating.hierarchy_paths])
     desc.set(f"{{{NS_FACET}}}KeywordState", serialize_keyword_state(keyword_state))
+    _, hierarchy_state = merge_keyword_state([], _hierarchical_paths(rating),
+                                            ai=_generated_hierarchy_paths(rating), manual=rating.hierarchy_paths)
+    desc.set(f"{{{NS_FACET}}}HierarchyState", serialize_keyword_state(hierarchy_state))
     now = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
     desc.set(f"{{{NS_XMP}}}Rating", str(xmp_rating))
     if label:
@@ -766,12 +787,12 @@ def _union(*lists: list[str]) -> list[str]:
 
 def _exiftool_tag_args(rating: XmpRating, existing_flat: list[str],
                        existing_hier: list[str], facet_dated: bool = False, *,
-                       keyword_state=None, reconcile=False) -> list[str]:
+                       keyword_state=None, hierarchy_state=None, reconcile=False) -> list[str]:
     """Build the exiftool ``-Tag=value`` args for ``rating`` (no exe, no target).
 
     Keyword lists are cleared then rewritten additively by default. Explicit
     reconciliation removes only stale Facet-owned flat keywords; foreign values
-    and existing hierarchy remain preserved, and repeated exports do not
+    in both flat and hierarchy fields remain preserved, and repeated exports do not
     accumulate duplicates. Face regions are merged separately using explicit
     per-region ownership. ``xmp:Label`` is fully Facet-owned (favourite/reject only), so it is
     always emitted like ``xmp:Rating`` -- an empty value clears the exiftool tag,
@@ -806,14 +827,20 @@ def _exiftool_tag_args(rating: XmpRating, existing_flat: list[str],
     # names a ``reconcile`` run removes.
     args += ["-XMP-dc:Subject=", "-IPTC:Keywords="]
     flat, marker = merge_keyword_state(existing_flat, rating.all_keywords(), keyword_state,
-                                      reconcile=reconcile, ai=rating.ai_tags, manual=rating.manual_tags)
+                                      reconcile=reconcile, ai=rating.ai_tags,
+                                      manual=[*rating.manual_tags, *rating.hierarchy_paths])
     args.append(f"-XMP-facet:KeywordState={serialize_keyword_state(marker)}")
     for keyword in flat:
         args.append(f"-XMP-dc:Subject={keyword}")
         args.append(f"-IPTC:Keywords={keyword}")
-    # Hierarchical keywords: clear then replace with the union.
+    # Each field has separate ownership. Never infer authority from a flat name
+    # or a generated Category/People prefix in an unmarked foreign packet.
     args.append("-XMP-lr:HierarchicalSubject=")
-    for path in _union(existing_hier, _hierarchical_paths(rating)):
+    hierarchical, marker = merge_keyword_state(existing_hier, _hierarchical_paths(rating), hierarchy_state,
+                                               reconcile=reconcile, ai=_generated_hierarchy_paths(rating),
+                                               manual=rating.hierarchy_paths)
+    args.append(f"-XMP-facet:HierarchyState={serialize_keyword_state(marker)}")
+    for path in hierarchical:
         args.append(f"-XMP-lr:HierarchicalSubject={path}")
     return args
 
@@ -925,10 +952,10 @@ def _read_existing_metadata(target: str, exe: str, *, timeout: int, strict=False
         return [], [], False
 
 
-def _keyword_state_from_record(record: dict) -> dict | None:
-    """Validate and parse the private KeywordState marker of a parsed record."""
-    raw = record.get('KeywordState')
-    if 'KeywordState' in record and not isinstance(raw, str):
+def _keyword_state_from_record(record: dict, marker_name: str = 'KeywordState') -> dict | None:
+    """Validate a private ownership marker; absent markers grant no ownership."""
+    raw = record.get(marker_name)
+    if marker_name in record and not isinstance(raw, str):
         raise RuntimeError('Unsupported or invalid Facet keyword ownership; export refused')
     state = parse_keyword_state(raw)
     if raw is not None and state is None:
@@ -936,25 +963,27 @@ def _keyword_state_from_record(record: dict) -> dict | None:
     return state
 
 
-def _read_keyword_state(target: str, exe: str, *, timeout: int) -> dict | None:
-    """Read private state separately; missing/foreign packets grant no ownership."""
+def _read_keyword_states(target: str, exe: str, *, timeout: int) -> tuple[dict | None, dict | None]:
+    """Read both field ownership markers in one ExifTool invocation."""
     if not os.path.exists(target):
-        return None
-    config = _exiftool_config()
+        return None, None
     try:
-        result = run_exiftool_process([exe, '-config', config, '-json', '-XMP-facet:KeywordState', target],
+        result = run_exiftool_process([exe, '-config', _exiftool_config(), '-json',
+                                      '-XMP-facet:KeywordState', '-XMP-facet:HierarchyState', target],
                                      timeout=timeout)
     except (subprocess.TimeoutExpired, OSError) as ex:
         raise RuntimeError('Cannot read keyword ownership before export') from ex
     if result.returncode:
         raise RuntimeError('Cannot read keyword ownership before export')
-    return _keyword_state_from_record(_exiftool_record(result.stdout))
+    record = _exiftool_record(result.stdout)
+    return (_keyword_state_from_record(record),
+            _keyword_state_from_record(record, 'HierarchyState'))
 
 
 class ExportState(NamedTuple):
     """Everything one pre-write state read yields, from a single ExifTool command.
 
-    ``regions`` and ``keyword_state`` fail closed (a precondition error / an
+    ``regions`` and both ownership markers fail closed (a precondition error / an
     ownership refusal); ``flat``/``hier``/``facet_dated`` follow the keyword
     read's own contract — an existing file whose keywords cannot be read never
     gets them cleared, so non-strict callers receive empty lists instead.
@@ -964,6 +993,7 @@ class ExportState(NamedTuple):
     hier: list[str]
     facet_dated: bool
     keyword_state: dict | None
+    hierarchy_state: dict | None = None
 
 
 def _read_export_state(target: str, exe: str, *, timeout: int,
@@ -986,7 +1016,7 @@ def _read_export_state(target: str, exe: str, *, timeout: int,
             [exe, "-config", config, "-q", "-m", "-struct", "-json",
              "-XMP-mwg-rs:RegionInfo", "-XMP-dc:Subject", "-IPTC:Keywords",
              "-XMP-lr:HierarchicalSubject", "-XMP-facet:DateState",
-             "-XMP-facet:KeywordState", target],
+             "-XMP-facet:KeywordState", "-XMP-facet:HierarchyState", target],
             timeout=timeout,
         )
         if result.returncode != 0:
@@ -1008,7 +1038,8 @@ def _read_export_state(target: str, exe: str, *, timeout: int,
                 raise RuntimeError('Cannot read existing keywords; export refused before clearing metadata') from ex
             flat, hier, facet_dated = [], [], False
         state = _keyword_state_from_record(record)
-        return ExportState(regions, flat, hier, facet_dated, state)
+        hierarchy_state = _keyword_state_from_record(record, 'HierarchyState')
+        return ExportState(regions, flat, hier, facet_dated, state, hierarchy_state)
     except (OSError, subprocess.TimeoutExpired, ValueError, TypeError, AttributeError, ET.ParseError) as ex:
         raise MetadataPreconditionError(f"Cannot read face metadata for {target}; repair it before exporting") from ex
 
@@ -1019,15 +1050,14 @@ def _exiftool_write_args(target: str, rating: XmpRating, exe: str, *, timeout: i
     config = _exiftool_config()
     # Validate structural metadata first so malformed existing packets retain
     # the metadata-precondition contract before any original/companion write.
-    # One command reads all families; the per-family contracts are enforced on
-    # the shared record by _read_export_state.
+    # Read all families together while preserving both ownership markers.
     state = _read_export_state(target, exe, timeout=timeout,
                                strict_keywords=os.path.exists(target))
     existing_regions = state.regions
     existing_flat, existing_hier, facet_dated = state.flat, state.hier, state.facet_dated
-    keyword_state = state.keyword_state
+    keyword_state, hierarchy_state = state.keyword_state, state.hierarchy_state
     tag_args = _exiftool_tag_args(rating, existing_flat, existing_hier, facet_dated,
-                                  keyword_state=keyword_state, reconcile=reconcile)
+                                  keyword_state=keyword_state, hierarchy_state=hierarchy_state, reconcile=reconcile)
     version = _exiftool_version(exe)
     _refuse_defective_exiftool_version(version)
     if version is not None and version >= _JSON_REGION_MIN:
@@ -1096,6 +1126,92 @@ def _run_exiftool(target: str, rating: XmpRating, *, timeout: int, reconcile=Fal
             raise RuntimeError(
                 f"exiftool produced malformed XMP for {target} ({ex}); original restored"
             ) from ex
+
+
+def _preview_packet_identity(path: str):
+    try:
+        info = os.lstat(path)
+    except FileNotFoundError:
+        return None
+    if not stat.S_ISREG(info.st_mode):
+        raise MetadataPreconditionError('Metadata target must be an ordinary file')
+    if info.st_size > 16 * 1024 * 1024:
+        raise MetadataPreconditionError('Existing metadata is too large to preview')
+    return info.st_dev, info.st_ino, info.st_size, info.st_mtime_ns, info.st_ctime_ns
+
+
+def preview_metadata_write(image_path: str, rating: XmpRating, *, overwrite: bool = False,
+                           timeout: int = 60) -> dict:
+    """Validate the actual serializer/merge without writing an export target.
+
+    This is not an apply token: the caller must bind/recheck file identities,
+    metadata and tool policy before writing. Private ExifTool configuration may
+    be prepared just as for a normal metadata read.
+    """
+    try:
+        ET.fromstring(build_xmp(rating))
+    except (ET.ParseError, UnicodeError):
+        raise MetadataPreconditionError('Metadata contains unsupported XML characters') from None
+    if exiftool_available():
+        _refuse_defective_exiftool_version(exiftool_defective_version())
+        target = _contained_sidecar(image_path, '.xmp')
+        before = _preview_packet_identity(target)
+        exe = _require_exiftool()
+        tool_stat = os.stat(exe)
+        tool = (tool_stat.st_dev, tool_stat.st_ino, tool_stat.st_size, tool_stat.st_mtime_ns, tool_stat.st_ctime_ns)
+        _exiftool_write_args(target, rating, exe, timeout=timeout)
+        after = os.stat(exe)
+        if (before != _preview_packet_identity(target)
+                or tool != (after.st_dev, after.st_ino, after.st_size, after.st_mtime_ns, after.st_ctime_ns)):
+            raise MetadataPreconditionError('Metadata changed during preview')
+        return {'sidecar': target, 'writer': 'exiftool',
+                'tool_identity': [exe, *tool],
+                'face_regions': (_exiftool_version(exe) or (0, 0)) >= _JSON_REGION_MIN}
+    target = sidecar_path(image_path, overwrite=overwrite)
+    if os.path.islink(target) or os.path.lexists(target + '.tmp'):
+        raise MetadataPreconditionError('Metadata target needs inspection before writing')
+    before = _preview_packet_identity(target)
+    if before != _preview_packet_identity(target):
+        raise MetadataPreconditionError('Metadata changed during preview')
+    return {'sidecar': target, 'writer': 'xml', 'face_regions': False}
+
+
+def write_confirmed_metadata(image_path: str, rating: XmpRating, *, target: str, writer: str,
+                             expected_identity: list[int] | None, timeout: int = 60) -> None:
+    """Write the approved sidecar name without switching writer or fallback.
+
+    Rechecks are not filesystem compare-and-swap: an external writer can still
+    race the final replace/tool invocation. No originals are embedded here.
+    """
+    if target not in {_contained_sidecar(image_path, '.xmp'), _contained_sidecar(image_path, '.facet.xmp')}:
+        raise MetadataPreconditionError('Metadata destination changed')
+    expected = tuple(expected_identity) if expected_identity is not None else None
+    if _preview_packet_identity(target) != expected:
+        raise MetadataPreconditionError('Metadata destination changed')
+    if writer == 'exiftool':
+        if not exiftool_available():
+            raise MetadataPreconditionError('Metadata writer changed')
+        _refuse_defective_exiftool_version(exiftool_defective_version())
+        _run_exiftool(target, rating, timeout=timeout)
+        return
+    if writer != 'xml' or exiftool_available():
+        raise MetadataPreconditionError('Metadata writer changed')
+    xml = build_xmp(rating)
+    ET.fromstring(xml)
+    descriptor, temporary = tempfile.mkstemp(prefix='.facet-export-', suffix='.xmp.tmp', dir=os.path.dirname(target))
+    try:
+        with os.fdopen(descriptor, 'w', encoding='utf-8', newline='\n') as handle:
+            handle.write(xml)
+            handle.flush()
+            os.fsync(handle.fileno())
+        mode_source = target if expected is not None else image_path
+        os.chmod(temporary, os.stat(mode_source).st_mode & 0o666)
+        if _preview_packet_identity(target) != expected:
+            raise MetadataPreconditionError('Metadata destination changed')
+        os.replace(temporary, target)
+    finally:
+        if os.path.exists(temporary):
+            os.unlink(temporary)
 
 
 def write_metadata(image_path: str, rating: XmpRating, *, overwrite: bool = False,
@@ -1226,7 +1342,8 @@ def _cli_face_regions(conn, path: str, width, height) -> list[FaceRegion]:
 _REGION_BATCH = 450
 
 
-def _cli_face_regions_bulk(conn, paths: list[str], dims: dict[str, tuple]) -> dict[str, list[FaceRegion]]:
+def _cli_face_regions_bulk(conn, paths: list[str], dims: dict[str, tuple],
+                           *, failures: dict[str, Exception] | None = None) -> dict[str, list[FaceRegion]]:
     """Named face regions for a whole export batch in one query per chunk.
 
     The per-photo query made a 10k-photo export pay 10k indexed lookups; one
@@ -1246,9 +1363,14 @@ def _cli_face_regions_bulk(conn, paths: list[str], dims: dict[str, tuple]) -> di
         for r in rows:
             path = r['photo_path']
             width, height = dims.get(path, (None, None))
-            if (dimensions := export_dimensions(r, width, height)) is not None:
-                by_path[path].append(
-                    FaceRegion.from_bbox(r['name'], r['bbox_x1'], r['bbox_y1'], r['bbox_x2'], r['bbox_y2'], *dimensions))
+            try:
+                if (dimensions := export_dimensions(r, width, height)) is not None:
+                    by_path[path].append(
+                        FaceRegion.from_bbox(r['name'], r['bbox_x1'], r['bbox_y1'], r['bbox_x2'], r['bbox_y2'], *dimensions))
+            except (ValueError, TypeError, OverflowError) as ex:
+                if failures is None:
+                    raise
+                failures[path] = ex
     return by_path
 
 
@@ -1281,25 +1403,38 @@ def export_sidecars(conn, root: str | None = None, *, embed_original: bool = Fal
     manual_map = load_manual_tags_map(conn, [r["path"] for r in rows])
     on_disk = [r["path"] for r in rows if os.path.exists(r["path"])]
     dims = {r["path"]: (r["image_width"], r["image_height"]) for r in rows}
-    regions_by_path = _cli_face_regions_bulk(conn, on_disk, dims)
+    region_failures: dict[str, Exception] = {}
+    regions_by_path = _cli_face_regions_bulk(conn, on_disk, dims, failures=region_failures)
     written = embedded = missing = errors = 0
-    for row in rows:
+    hierarchy_map = None
+    for index, row in enumerate(rows):
+        if index % 500 == 0:
+            try:
+                hierarchy_map = load_hierarchy_map(conn, [item['path'] for item in rows[index:index + 500]], max_bytes=None)
+            except HierarchyError:
+                # Isolate damaged metadata to its photo, preserving the CLI's
+                # existing per-file error boundary instead of exporting less.
+                hierarchy_map = None
         path = row["path"]
         if not os.path.exists(path):
             missing += 1
             continue
-        data = dict(row)
-        rating = XmpRating.from_row(enrich_effective_tags(data, manual_map))
-        rating.apply_score_mapping(cfg)
-        rating.regions = regions_by_path.get(path, [])
-        rating.person_names = person_names_from_regions(rating.regions)
         try:
+            if path in region_failures:
+                raise RuntimeError('Invalid face metadata; export refused') from region_failures[path]
+            assigned = hierarchy_map if hierarchy_map is not None else load_hierarchy_map(conn, [path])
+            data = dict(row)
+            data['hierarchy_paths'] = [item['exported_path'] for item in assigned.get(path, [])]
+            rating = XmpRating.from_row(enrich_effective_tags(data, manual_map))
+            rating.apply_score_mapping(cfg)
+            rating.regions = regions_by_path.get(path, [])
+            rating.person_names = person_names_from_regions(rating.regions)
             result = write_metadata(path, rating, embed_original=embed_original, timeout=timeout,
                                     reconcile_keywords=reconcile_keywords)
             written += 1
             if result.get("embedded"):
                 embedded += 1
-        except (OSError, RuntimeError) as ex:
+        except (OSError, RuntimeError, HierarchyError) as ex:
             errors += 1
             if errors == 1:
                 logger.warning("sidecar export failed for %s: %s", path, ex)

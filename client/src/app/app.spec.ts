@@ -1,9 +1,9 @@
-import { ComponentFixture, TestBed } from '@angular/core/testing';
+import { TestBed } from '@angular/core/testing';
 import { DefaultUrlSerializer, Router, provideRouter } from '@angular/router';
-import { Provider, signal } from '@angular/core';
+import { Component, Provider, signal } from '@angular/core';
 import { NEVER, Subject, of } from 'rxjs';
 import { App } from './app';
-import { GalleryStore, GalleryFilters, DEFAULT_FILTERS, ViewerConfig } from './features/gallery/gallery.store';
+import { GalleryStore, GalleryFilters, DEFAULT_FILTERS } from './features/gallery/gallery.store';
 import { AuthService } from './core/services/auth.service';
 import { ApiService } from './core/services/api.service';
 import { I18nService } from './core/services/i18n.service';
@@ -11,6 +11,7 @@ import { ThemeService } from './core/services/theme.service';
 import { CompareFiltersService } from './features/comparison/compare-filters.service';
 import { StatsFiltersService } from './features/stats/stats-filters.service';
 import { PersonsFiltersService } from './features/persons/persons-filters.service';
+import { AlbumsFiltersService } from './features/albums/albums-filters.service';
 import { MatDialog } from '@angular/material/dialog';
 import { MatSnackBar } from '@angular/material/snack-bar';
 import { SwUpdate } from '@angular/service-worker';
@@ -18,8 +19,11 @@ import { I18N } from './core/i18n/keys';
 import { ScanService } from './core/services/scan.service';
 import { By } from '@angular/platform-browser';
 import { MatTooltip } from '@angular/material/tooltip';
-import { MatMenuTrigger } from '@angular/material/menu';
+
 import { KeyboardMappingService, KEYMAP_STORAGE_KEY } from './core/services/keyboard-mapping.service';
+
+@Component({ selector: 'app-navigation-fixture-page', template: '' })
+class NavigationFixturePage {}
 
 function createApp(routerUrl = '/', extraProviders: Provider[] = []) {
   const filtersSignal = signal<GalleryFilters>({ ...DEFAULT_FILTERS });
@@ -78,42 +82,6 @@ function createApp(routerUrl = '/', extraProviders: Provider[] = []) {
 }
 
 describe('App', () => {
-  it.each([true, false])('reads pointer hover capability (%s) and cleans up listeners', async canHover => {
-    const get = vi.fn(() => of({}));
-    const { app } = createApp('/', [
-      { provide: AuthService, useValue: {
-        identity: () => '0|', isAuthenticated: () => true, isEdition: () => false,
-        checkStatus: vi.fn(() => Promise.resolve()),
-      } },
-      { provide: ApiService, useValue: { get } },
-    ]);
-    const mql = {
-      matches: true,
-      addEventListener: vi.fn(),
-      removeEventListener: vi.fn(),
-    } as unknown as MediaQueryList;
-    const hoverMql = { ...mql, matches: canHover, addEventListener: vi.fn(), removeEventListener: vi.fn() };
-    const originalMatchMedia = window.matchMedia.bind(window);
-    const query = vi.spyOn(window, 'matchMedia').mockImplementation(value =>
-      value === '(hover: hover)' ? hoverMql
-        : value === '(min-width: 768px)' ? mql : originalMatchMedia(value),
-    );
-    try {
-      await app.ngOnInit();
-      expect(query).toHaveBeenCalledWith('(min-width: 768px)');
-      expect(query).toHaveBeenCalledWith('(hover: hover)');
-      expect((app as unknown as { canHoverAtAll: () => boolean }).canHoverAtAll()).toBe(canHover);
-      expect((app as unknown as { canUseHoverTooltips: () => boolean }).canUseHoverTooltips()).toBe(true);
-      expect(mql.addEventListener).toHaveBeenCalledWith('change', expect.any(Function));
-      const handler = vi.mocked(mql.addEventListener).mock.calls[0][1];
-      TestBed.resetTestingModule();
-      expect(mql.removeEventListener).toHaveBeenCalledWith('change', handler);
-      expect(hoverMql.removeEventListener).toHaveBeenCalledWith('change', hoverMql.addEventListener.mock.calls[0][1]);
-    } finally {
-      query.mockRestore();
-    }
-  });
-
   describe('help dialog shortcuts', () => {
     afterEach(() => {
       TestBed.inject(KeyboardMappingService).resetAll();
@@ -175,11 +143,6 @@ describe('App', () => {
       expect((app as any).isCompareRoute()).toBe(false);
     });
 
-    it('isStatsRoute returns true for /stats', () => {
-      const { app } = createApp('/stats');
-      expect((app as any).isStatsRoute()).toBe(true);
-    });
-
     it('isGalleryRoute ignores query string', () => {
       const { app } = createApp('/?sort=aggregate&type=portrait');
       expect((app as any).isGalleryRoute()).toBe(true);
@@ -207,23 +170,6 @@ describe('App', () => {
   });
 
   describe('mobile bottom bar vs selection (issue #73)', () => {
-    it('shows the gallery bottom bar when nothing is selected', () => {
-      const { app } = createApp('/');
-      expect((app as any).mobileGalleryBarVisible()).toBe(true);
-    });
-
-    it('hides the gallery bottom bar while photos are selected', () => {
-      const { app, selectionCountSignal } = createApp('/');
-      selectionCountSignal.set(3);
-      expect((app as any).mobileGalleryBarVisible()).toBe(false);
-    });
-
-    it('hides the gallery bottom bar on an album route while photos are selected', () => {
-      const { app, selectionCountSignal } = createApp('/album/12');
-      selectionCountSignal.set(1);
-      expect((app as any).mobileGalleryBarVisible()).toBe(false);
-    });
-
     it('shows the persons bottom bar when nothing is selected', () => {
       const { app } = createApp('/persons');
       expect((app as any).mobilePersonsBarVisible()).toBe(true);
@@ -242,226 +188,6 @@ describe('App', () => {
     });
   });
 
-  describe('activeFilterChips', () => {
-    it('returns empty array when not on gallery route', () => {
-      const { app, filtersSignal } = createApp('/compare');
-      filtersSignal.set({ ...DEFAULT_FILTERS, tag: 'nature' });
-      expect((app as any).activeFilterChips()).toEqual([]);
-    });
-
-    it('returns empty array when no active filters', () => {
-      const { app } = createApp('/');
-      expect((app as any).activeFilterChips()).toEqual([]);
-    });
-
-    it('produces chip for active tag filter', () => {
-      const { app, filtersSignal } = createApp('/');
-      filtersSignal.set({ ...DEFAULT_FILTERS, tag: 'nature' });
-      const chip = (app as any).activeFilterChips().find((c: any) => c.id === 'tag');
-      expect(chip).toBeDefined();
-      expect(chip?.value).toBe('nature');
-    });
-
-    it('produces chip for active search filter', () => {
-      const { app, filtersSignal } = createApp('/');
-      filtersSignal.set({ ...DEFAULT_FILTERS, search: 'paris' });
-      const chip = (app as any).activeFilterChips().find((c: any) => c.id === 'search');
-      expect(chip?.value).toBe('paris');
-    });
-
-    it('produces chip for active camera filter', () => {
-      const { app, filtersSignal } = createApp('/');
-      filtersSignal.set({ ...DEFAULT_FILTERS, camera: 'Canon R5' });
-      expect((app as any).activeFilterChips().some((c: any) => c.id === 'camera' && c.value === 'Canon R5')).toBe(true);
-    });
-
-    it('produces one chip per person in comma-separated person_id', () => {
-      const { app, filtersSignal } = createApp('/');
-      filtersSignal.set({ ...DEFAULT_FILTERS, person_id: '1,2,3' });
-      const personChips = (app as any).activeFilterChips().filter((c: any) => c.id.startsWith('person_'));
-      expect(personChips).toHaveLength(3);
-      expect(personChips.map((c: any) => c.id)).toEqual(['person_1', 'person_2', 'person_3']);
-    });
-
-    it('uses person name when available', () => {
-      const { app, filtersSignal, personsSignal } = createApp('/');
-      personsSignal.set([{ id: 1, name: 'Alice' }]);
-      filtersSignal.set({ ...DEFAULT_FILTERS, person_id: '1' });
-      const chip = (app as any).activeFilterChips().find((c: any) => c.id === 'person_1');
-      expect(chip?.value).toBe('Alice');
-    });
-
-    it('falls back to #pid when person name is null', () => {
-      const { app, filtersSignal, personsSignal } = createApp('/');
-      personsSignal.set([{ id: 2, name: null }]);
-      filtersSignal.set({ ...DEFAULT_FILTERS, person_id: '2' });
-      const chip = (app as any).activeFilterChips().find((c: any) => c.id === 'person_2');
-      expect(chip?.value).toBe('#2');
-    });
-
-    it('falls back to #pid when person is not in persons list', () => {
-      const { app, filtersSignal, personsSignal } = createApp('/');
-      personsSignal.set([]);
-      filtersSignal.set({ ...DEFAULT_FILTERS, person_id: '99' });
-      const chip = (app as any).activeFilterChips().find((c: any) => c.id === 'person_99');
-      expect(chip?.value).toBe('#99');
-    });
-
-    it('shows min–max format when both range bounds are set', () => {
-      const { app, filtersSignal } = createApp('/');
-      filtersSignal.set({ ...DEFAULT_FILTERS, min_score: '6', max_score: '9' });
-      const chip = (app as any).activeFilterChips().find((c: any) => c.id === 'min_score');
-      expect(chip?.value).toBe('6–9');
-    });
-
-    it('shows ≥min format when only min bound is set', () => {
-      const { app, filtersSignal } = createApp('/');
-      filtersSignal.set({ ...DEFAULT_FILTERS, min_score: '7', max_score: '' });
-      const chip = (app as any).activeFilterChips().find((c: any) => c.id === 'min_score');
-      expect(chip?.value).toBe('≥7');
-    });
-
-    it('shows ≤max format when only max bound is set', () => {
-      const { app, filtersSignal } = createApp('/');
-      filtersSignal.set({ ...DEFAULT_FILTERS, min_score: '', max_score: '8' });
-      const chip = (app as any).activeFilterChips().find((c: any) => c.id === 'min_score');
-      expect(chip?.value).toBe('≤8');
-    });
-
-    it('range chip clearKeys includes both min and max keys', () => {
-      const { app, filtersSignal } = createApp('/');
-      filtersSignal.set({ ...DEFAULT_FILTERS, min_score: '5', max_score: '9' });
-      const chip = (app as any).activeFilterChips().find((c: any) => c.id === 'min_score');
-      expect(chip?.clearKeys).toEqual(['min_score', 'max_score']);
-    });
-
-    it('produces chip for favorites_only = true', () => {
-      const { app, filtersSignal } = createApp('/');
-      filtersSignal.set({ ...DEFAULT_FILTERS, favorites_only: true });
-      expect((app as any).activeFilterChips().some((c: any) => c.id === 'favorites_only')).toBe(true);
-    });
-
-    it('does not produce chip for favorites_only = false', () => {
-      const { app } = createApp('/');
-      expect((app as any).activeFilterChips().some((c: any) => c.id === 'favorites_only')).toBe(false);
-    });
-
-    it('produces chip for is_monochrome = true', () => {
-      const { app, filtersSignal } = createApp('/');
-      filtersSignal.set({ ...DEFAULT_FILTERS, is_monochrome: true });
-      expect((app as any).activeFilterChips().some((c: any) => c.id === 'is_monochrome')).toBe(true);
-    });
-
-    it('shows the manual-face review filter only while it is active', () => {
-      const { app, filtersSignal } = createApp('/');
-      expect((app as any).activeFilterChips().some((chip: { id: string }) => chip.id === 'manual_faces_need_review')).toBe(false);
-      filtersSignal.update(filters => ({ ...filters, manual_faces_need_review: true }));
-      expect((app as any).activeFilterChips()).toContainEqual({
-        id: 'manual_faces_need_review', labelKey: I18N.gallery.manual_faces_need_review,
-        value: '', clearKeys: ['manual_faces_need_review'],
-      });
-      filtersSignal.update(filters => ({ ...filters, manual_faces_need_review: false }));
-      expect((app as any).activeFilterChips().some((chip: { id: string }) => chip.id === 'manual_faces_need_review')).toBe(false);
-    });
-
-    it('topiq chip uses gallery.topiq_range (not aesthetic_range)', () => {
-      const { app, filtersSignal } = createApp('/');
-      filtersSignal.set({ ...DEFAULT_FILTERS, min_topiq: '5', max_topiq: '' });
-      const topiqChip = (app as any).activeFilterChips().find((c: any) => c.id === 'min_topiq');
-      expect(topiqChip?.labelKey).toBe('gallery.topiq_range');
-    });
-
-    it('aesthetic chip uses gallery.aesthetic_range', () => {
-      const { app, filtersSignal } = createApp('/');
-      filtersSignal.set({ ...DEFAULT_FILTERS, min_aesthetic: '5', max_aesthetic: '' });
-      const aestheticChip = (app as any).activeFilterChips().find((c: any) => c.id === 'min_aesthetic');
-      expect(aestheticChip?.labelKey).toBe('gallery.aesthetic_range');
-    });
-
-    it('topiq and aesthetic chips have distinct label keys', () => {
-      const { app, filtersSignal } = createApp('/');
-      filtersSignal.set({ ...DEFAULT_FILTERS, min_topiq: '5', min_aesthetic: '5', max_topiq: '', max_aesthetic: '' });
-      const chips = (app as any).activeFilterChips();
-      const topiq = chips.find((c: any) => c.id === 'min_topiq');
-      const aesthetic = chips.find((c: any) => c.id === 'min_aesthetic');
-      expect(topiq?.labelKey).not.toBe(aesthetic?.labelKey);
-    });
-  });
-
-  describe('clearFilterChip', () => {
-    it('clears the manual-face review flag as a boolean and preserves other filters', () => {
-      const { app, filtersSignal, mockStore } = createApp('/');
-      filtersSignal.set({ ...DEFAULT_FILTERS, manual_faces_need_review: true, person_id: '7', min_score: '5' });
-      mockStore.updateFilter.mockImplementation((key: keyof GalleryFilters, value: GalleryFilters[keyof GalleryFilters]) => {
-        filtersSignal.update(filters => ({ ...filters, [key]: value }));
-      });
-      const chip = (app as any).activeFilterChips().find((item: { id: string }) => item.id === 'manual_faces_need_review');
-      expect(chip).toBeDefined();
-      (app as any).clearFilterChip(chip);
-      expect(mockStore.updateFilter).toHaveBeenCalledExactlyOnceWith('manual_faces_need_review', false);
-      expect(filtersSignal()).toMatchObject({ manual_faces_need_review: false, person_id: '7', min_score: '5' });
-      expect((app as any).activeFilterChips().map((item: { id: string }) => item.id)).toEqual(['person_7', 'min_score']);
-    });
-    it('removes one person without affecting other person ids', () => {
-      const { app, filtersSignal, mockStore } = createApp('/');
-      filtersSignal.set({ ...DEFAULT_FILTERS, person_id: '1,2,3' });
-      (app as any).clearFilterChip({ id: 'person_2', clearKeys: ['person_2'] });
-      expect(mockStore.updateFilter).toHaveBeenCalledWith('person_id', '1,3');
-    });
-
-    it('sets person_id to empty string when last person is removed', () => {
-      const { app, filtersSignal, mockStore } = createApp('/');
-      filtersSignal.set({ ...DEFAULT_FILTERS, person_id: '5' });
-      (app as any).clearFilterChip({ id: 'person_5', clearKeys: ['person_5'] });
-      expect(mockStore.updateFilter).toHaveBeenCalledWith('person_id', '');
-    });
-
-    it('calls updateFilter with false for favorites_only', () => {
-      const { app, mockStore } = createApp('/');
-      (app as any).clearFilterChip({ id: 'favorites_only', clearKeys: ['favorites_only'] });
-      expect(mockStore.updateFilter).toHaveBeenCalledWith('favorites_only', false);
-    });
-
-    it('calls updateFilter with false for is_monochrome', () => {
-      const { app, mockStore } = createApp('/');
-      (app as any).clearFilterChip({ id: 'is_monochrome', clearKeys: ['is_monochrome'] });
-      expect(mockStore.updateFilter).toHaveBeenCalledWith('is_monochrome', false);
-    });
-
-    it('calls updateFilter with empty string for string filters', () => {
-      const { app, mockStore } = createApp('/');
-      (app as any).clearFilterChip({ id: 'tag', clearKeys: ['tag'] });
-      expect(mockStore.updateFilter).toHaveBeenCalledWith('tag', '');
-    });
-
-    it('calls updateFilter for both min and max keys of a range chip', () => {
-      const { app, filtersSignal, mockStore } = createApp('/');
-      filtersSignal.set({ ...DEFAULT_FILTERS, min_score: '5', max_score: '9' });
-      const chip = (app as any).activeFilterChips().find((c: any) => c.id === 'min_score')!;
-      (app as any).clearFilterChip(chip);
-      expect(mockStore.updateFilter).toHaveBeenCalledWith('min_score', '');
-      expect(mockStore.updateFilter).toHaveBeenCalledWith('max_score', '');
-    });
-  });
-
-  describe('activeFilterChips with unavailable metrics', () => {
-    it('shows a LIQE chip in default mode', () => {
-      const { app, filtersSignal } = createApp('/');
-      filtersSignal.set({ ...DEFAULT_FILTERS, min_liqe: '4' });
-      expect((app as any).activeFilterChips().some((c: any) => c.id === 'min_liqe')).toBe(true);
-    });
-
-    it('skips chips for metrics the licensing policy hides', () => {
-      const { app, filtersSignal, mockStore } = createApp('/');
-      (mockStore.config as any).set({ unavailable_metrics: ['liqe_score', 'aesthetic_iaa'] });
-      filtersSignal.set({ ...DEFAULT_FILTERS, min_liqe: '4', min_aesthetic_iaa: '5', min_score: '6' });
-      const ids = (app as any).activeFilterChips().map((c: any) => c.id);
-      expect(ids).toContain('min_score');
-      expect(ids).not.toContain('min_liqe');
-      expect(ids).not.toContain('min_aesthetic_iaa');
-    });
-  });
-
   describe('onCompareCategoryChange', () => {
     it('sets selectedCategory on compareFilters service', () => {
       const { app, compareCategorySig } = createApp('/');
@@ -469,16 +195,6 @@ describe('App', () => {
       expect(compareCategorySig()).toBe('portrait');
     });
   });
-
-  describe('onSortChange', () => {
-    it('goes through setUserSort, the one path that remembers the sort', () => {
-      const { app, mockStore } = createApp('/');
-      (app as any).onSortChange('date_taken');
-      expect(mockStore.setUserSort).toHaveBeenCalledExactlyOnceWith('date_taken');
-      expect(mockStore.updateFilter).not.toHaveBeenCalledWith('sort', 'date_taken');
-    });
-  });
-
   describe('resetAllFilters', () => {
     it('navigates to / and calls store.resetFilters', () => {
       const { app, mockStore, mockRouter } = createApp('/');
@@ -671,8 +387,8 @@ describe('App', () => {
       TestBed.configureTestingModule({
         providers: [
           { provide: Router, useValue: mockRouter },
-          { provide: GalleryStore, useValue: { filters: signal({ ...DEFAULT_FILTERS }), galleryMode: signal('grid'), persons: signal([]), selectionCount: signal(0), config: signal(null), types: signal([]), loadTypeCounts: vi.fn(), loadConfig: vi.fn(), viewFilterParams: signal({}), pinnedPaths: signal<string[] | null>(null) } },
-          { provide: AuthService, useValue: { identity: () => '0|', isAuthenticated: signal(false), isReadOnlyInstall: signal(isReadOnlyInstall), isEdition: signal(false), status: signal(null), editionPasswordRequired: signal(false), isMultiUser: signal(false), isInstallAdmin: signal(false), loginPasswordRequired: signal(false), checkStatus: vi.fn(() => Promise.resolve()) } },
+          { provide: GalleryStore, useValue: { filters: signal({ ...DEFAULT_FILTERS }), persons: signal([]), selectionCount: signal(0), config: signal(null), types: signal([]), loadTypeCounts: vi.fn(), loadConfig: vi.fn(), viewFilterParams: signal({}), pinnedPaths: signal<string[] | null>(null) } },
+          { provide: AuthService, useValue: { identity: () => '0|', isAuthenticated: signal(false), hasFeature: () => false, isReadOnlyInstall: signal(isReadOnlyInstall), isEdition: signal(false), status: signal(null), editionPasswordRequired: signal(false), isMultiUser: signal(false), isInstallAdmin: signal(false), loginPasswordRequired: signal(false), checkStatus: vi.fn(() => Promise.resolve()) } },
           { provide: I18nService, useValue: { load: vi.fn(() => Promise.resolve()), loadLanguages: vi.fn(() => Promise.resolve()), languages: signal([]), t: vi.fn((k: string) => k), translations: signal({}) } },
           { provide: StatsFiltersService, useValue: { filterCategory: signal(''), dateFrom: signal(''), dateTo: signal('') } },
           { provide: CompareFiltersService, useValue: { selectedCategory: signal('') } },
@@ -732,58 +448,26 @@ describe('App', () => {
       const buttons = Array.from(root.querySelectorAll<HTMLButtonElement>(`button[aria-label="${I18N.gallery.scan_action}"]`));
       return { fixture, root, buttons, store, openLauncher };
     }
-
-    it('announces matching photo totals in the gallery header and exact item totals for pinned lists', () => {
-      const { fixture, root, store } = render(false);
-      vi.mocked(TestBed.inject(I18nService).t).mockImplementation((key, params) =>
-        key === I18N.gallery.photo_count ? `${params?.['count']} photos` : key);
-      store.total.set(2); store.photoTotal.set(4); fixture.detectChanges();
-      expect(root.textContent).toContain('4 photos');
-      store.pinnedPaths.set(['/a.jpg', '/b.jpg']); fixture.detectChanges();
-      expect(root.textContent).toContain('2 photos');
-    });
-
-    it('renders one desktop button just before the account menu, in the tonal colour', () => {
+    it('renders one scan button in the application bar immediately before the account menu', () => {
       const { buttons } = render(true);
-      const desktop = buttons.filter((b) => b.classList.contains('lg:!inline-flex'));
+      const desktop = buttons;
       expect(desktop).toHaveLength(1);
       expect(desktop[0].nextElementSibling?.getAttribute('aria-label')).toBe(I18N.auth.user_menu);
-      expect(desktop[0].classList.contains('!hidden')).toBe(true);
+      expect(desktop[0].closest('[data-workspace-navigation]')).not.toBeNull();
       for (const cls of TONAL) expect(desktop[0].classList.contains(cls)).toBe(true);
     });
-
-    it('renders the mobile-bar copy pushed to the far right of the bar', () => {
-      const { buttons } = render(true);
-      const mobile = buttons.filter((b) => !b.classList.contains('lg:!inline-flex'));
-      expect(mobile).toHaveLength(1);
-      expect(mobile[0].nextElementSibling).toBeNull();
-      expect(mobile[0].previousElementSibling?.getAttribute('aria-label')).toBe(I18N.slideshow.start);
-      expect(mobile[0].classList.contains('ml-auto')).toBe(true);
-      expect(mobile[0].closest('.lg\\:hidden')).not.toBeNull();
-      for (const cls of TONAL) expect(mobile[0].classList.contains(cls)).toBe(true);
-    });
-
     it('labels the button with the scan action (tooltip message and aria-label)', () => {
       const { fixture, buttons } = render(true);
-      expect(buttons.length).toBe(2);
+      expect(buttons.length).toBe(1);
       const tooltips = fixture.debugElement.queryAll(By.directive(MatTooltip))
         .filter((d) => buttons.includes(d.nativeElement as HTMLButtonElement));
-      expect(tooltips).toHaveLength(2);
+      expect(tooltips).toHaveLength(1);
       for (const d of tooltips) expect(d.injector.get(MatTooltip).message).toBe(I18N.gallery.scan_action);
       for (const b of buttons) {
         expect(b.getAttribute('aria-label')).toBe(I18N.gallery.scan_action);
         expect(b.textContent).toContain('add_photo_alternate');
       }
     });
-
-    it('opens the launcher from the mobile-bar copy too', async () => {
-      const { buttons, store, openLauncher } = render(true, true);
-      const mobile = buttons.find((b) => !b.classList.contains('lg:!inline-flex'));
-      mobile?.click();
-      await vi.waitFor(() => expect(store.reloadPhotos).toHaveBeenCalledTimes(1));
-      expect(openLauncher).toHaveBeenCalledTimes(1);
-    });
-
     it('reloads the type counts and the photos when the launcher reports a completed scan', async () => {
       const { buttons, store, openLauncher } = render(true, true);
       buttons[0].click();
@@ -807,395 +491,6 @@ describe('App', () => {
       expect(render(false).buttons).toHaveLength(0);
     });
   });
-
-  describe('filter bar while an assistant-pinned list is shown', () => {
-    function render(config: { features?: { show_my_taste?: boolean }; sort_options_grouped?: ViewerConfig['sort_options_grouped'] } | null = null) {
-      const store = {
-        filters: signal({ ...DEFAULT_FILTERS }), galleryMode: signal('grid'), persons: signal([]), selectionCount: signal(0), config: signal(config),
-        types: signal([]), total: signal(0), photoTotal: signal(0), loadTypeCounts: vi.fn(() => Promise.resolve()), reloadPhotos: vi.fn(), loadConfig: vi.fn(),
-        viewFilterParams: signal({}), activeFilterCount: signal(0), filterDrawerOpen: signal(true), hiddenFiltersStash: signal(null),
-        reviewProgressVisible: signal(true), setReviewProgressVisible: vi.fn(),
-        collapseStacks: signal(true), toggleStackCollapse: vi.fn(),
-        slideshowActive: signal(false), pinnedPaths: signal<string[] | null>(null), setFilterDrawerOpen: vi.fn(), updateFilter: vi.fn(), updateFilters: vi.fn(),
-        setUserSort: vi.fn(() => Promise.resolve()), resetFilters: vi.fn(), restoreHidden: vi.fn(), showAllHidden: vi.fn(),
-      };
-      TestBed.configureTestingModule({
-        providers: [
-          provideRouter([]),
-          { provide: GalleryStore, useValue: store },
-          { provide: ScanService, useValue: { canLaunch: signal(true), openLauncher: vi.fn() } },
-          { provide: AuthService, useValue: { identity: () => '0|', isAuthenticated: signal(true), isReadOnlyInstall: signal(false), features: signal({}), user: signal(null), logout: vi.fn(), isEdition: signal(false), status: signal(null), editionPasswordRequired: signal(false), isMultiUser: signal(false), isInstallAdmin: signal(false), loginPasswordRequired: signal(false), checkStatus: vi.fn(() => Promise.resolve()) } },
-          { provide: I18nService, useValue: { load: vi.fn(() => Promise.resolve()), loadLanguages: vi.fn(() => Promise.resolve()), languages: signal([]), t: vi.fn((k: string, vars?: Record<string, string | number>) => vars ? `${k}(${Object.values(vars).join(',')})` : k), translations: signal({}) } },
-          { provide: StatsFiltersService, useValue: { filterCategory: signal(''), dateFrom: signal(''), dateTo: signal('') } },
-          { provide: CompareFiltersService, useValue: { selectedCategory: signal('') } },
-          { provide: MatDialog, useValue: { open: vi.fn() } },
-          { provide: ApiService, useValue: { get: vi.fn(() => NEVER), post: vi.fn(() => NEVER) } },
-          { provide: ThemeService, useValue: { theme: signal(''), darkMode: signal(true), THEMES: [], setTheme: vi.fn(), toggleDarkMode: vi.fn(), accentColor: signal('#ff6600'), complementaryColor: signal('#0099ff') } },
-        ],
-      });
-      const fixture = TestBed.createComponent(App);
-      fixture.detectChanges();
-      return { fixture, root: fixture.nativeElement as HTMLElement, store };
-    }
-
-    const sortButtons = (root: HTMLElement) => Array.from(root.querySelectorAll<HTMLButtonElement>('button[aria-haspopup="menu"]'))
-      .filter(el => el.getAttribute('aria-label')?.startsWith(`${I18N.gallery.sort_current}(`));
-    const sortLabel = (key: string) => `${I18N.gallery.sort_current}(${key})`;
-    const byLabel = (root: HTMLElement, key: string) => root.querySelectorAll(`button[aria-label="${key}"]`);
-    const menuItems = () => Array.from(document.querySelectorAll<HTMLElement>('.mat-mdc-menu-panel [role="menuitemradio"]'));
-    const iconOf = (el: Element) => el.querySelector('mat-icon')?.textContent?.trim();
-    const openMenu = async (fixture: ComponentFixture<App>, button: HTMLButtonElement) => {
-      button.click();
-      fixture.detectChanges();
-      await fixture.whenStable();
-      fixture.detectChanges();
-    };
-
-    it('offers stack expansion in the mobile bar to read-only users and hides it for exact pinned lists', () => {
-      const { fixture, root, store } = render();
-      const button = root.querySelector<HTMLButtonElement>('[data-stack-collapse-mobile]');
-      expect(button).not.toBeNull();
-      expect(button?.closest('.lg\\:hidden')).not.toBeNull();
-      expect(button?.getAttribute('aria-label')).toBe(I18N.stacks.expand_all);
-      expect(button?.hasAttribute('aria-pressed')).toBe(false);
-      button?.click();
-      expect(store.toggleStackCollapse).toHaveBeenCalledOnce();
-      store.collapseStacks.set(false); fixture.detectChanges();
-      expect(button?.getAttribute('aria-label')).toBe(I18N.stacks.collapse);
-      expect(button?.hasAttribute('aria-pressed')).toBe(false);
-      store.pinnedPaths.set(['/a.jpg']); fixture.detectChanges();
-      expect(root.querySelector('[data-stack-collapse-mobile]')).toBeNull();
-      store.pinnedPaths.set(null); fixture.detectChanges();
-      expect(root.querySelector('[data-stack-collapse-mobile]')).not.toBeNull();
-    });
-
-    it('shows the sort button, sort direction and filter toggle (header and mobile bar) otherwise', () => {
-      const { root } = render();
-      expect(sortButtons(root)).toHaveLength(2);
-      expect(byLabel(root, I18N.gallery.sort_desc)).toHaveLength(2);
-      expect(byLabel(root, I18N.gallery.filters)).toHaveLength(1);
-      expect(byLabel(root, I18N.ui.buttons.filters)).toHaveLength(1);
-      expect(byLabel(root, I18N.ui.filters.search)).toHaveLength(1);
-    });
-
-    it('puts the direction toggle, then the filter toggle, right after the sort button in both layouts', () => {
-      const { root } = render();
-      const [desktop, mobile] = sortButtons(root);
-      for (const [button, filtersLabel] of [[desktop, I18N.gallery.filters], [mobile, I18N.ui.buttons.filters]] as const) {
-        expect(button.nextElementSibling?.getAttribute('aria-label')).toBe(I18N.gallery.sort_desc);
-        expect(button.nextElementSibling?.nextElementSibling?.getAttribute('aria-label')).toBe(filtersLabel);
-      }
-    });
-
-    it('shows the current sort icon and labels the button "Sort by: <current label>"', () => {
-      const { fixture, root, store } = render();
-      for (const button of sortButtons(root)) {
-        expect(iconOf(button)).toBe('leaderboard');
-        expect(button.getAttribute('aria-label')).toBe(sortLabel(I18N.gallery.sort_aggregate));
-      }
-      store.filters.update(filters => ({ ...filters, sort: 'aesthetic_iaa' }));
-      fixture.detectChanges();
-      for (const button of sortButtons(root)) {
-        expect(iconOf(button)).toBe('IAA');
-        expect(button.querySelector('mat-icon')?.classList.contains('!font-sans')).toBe(true);
-        expect(button.getAttribute('aria-label')).toBe(sortLabel('sort_options.aesthetic_iaa'));
-      }
-    });
-
-    it.each(['constructor', 'toString', '__proto__'])('keeps an unknown %s sort label a string rather than reading Object.prototype', sort => {
-      const { fixture, root, store } = render();
-      store.filters.update(filters => ({ ...filters, sort }));
-      fixture.detectChanges();
-      for (const button of sortButtons(root)) {
-        expect(button.getAttribute('aria-label')).toBe(sortLabel(`sort_options.${sort}`));
-      }
-    });
-
-    it('gives current model labels the same width as their menu markers in both layouts', () => {
-      const { fixture, root, store } = render();
-      store.filters.update(filters => ({ ...filters, sort: 'deqa_score' }));
-      fixture.detectChanges();
-      for (const button of sortButtons(root)) {
-        const icon = button.querySelector('mat-icon')!;
-        expect(icon.textContent?.trim()).toBe('DeQA');
-        expect(icon.classList.contains('!w-8')).toBe(true);
-        expect(icon.classList.contains('text-center')).toBe(true);
-        expect(icon.classList.contains('-mx-1')).toBe(true);
-        expect(icon.getAttribute('aria-hidden')).toBe('true');
-        expect(button.getAttribute('aria-label')).toBe(sortLabel('sort_options.deqa_score'));
-      }
-    });
-
-    it('lists the fallback sorts with icons, marks the current one and runs the saved-sort handler on click', async () => {
-      const { fixture, root, store } = render();
-      await openMenu(fixture, sortButtons(root)[0]);
-      const items = menuItems();
-      expect(items.map(item => item.textContent?.replace(iconOf(item) ?? '', '').replace('check', '').trim())).toEqual([
-        I18N.gallery.sort_aggregate, I18N.gallery.sort_aesthetic, I18N.gallery.sort_date,
-      ]);
-      expect(items.map(item => iconOf(item))).toEqual(['leaderboard', '✦', 'event']);
-      expect(items.map(item => item.getAttribute('aria-checked'))).toEqual(['true', 'false', 'false']);
-      expect(items.map(item => !!Array.from(item.querySelectorAll('mat-icon')).find(i => i.textContent?.trim() === 'check'))).toEqual([true, false, false]);
-      items[2].click();
-      expect(store.setUserSort).toHaveBeenLastCalledWith('date_taken');
-      fixture.detectChanges();
-      await fixture.whenStable();
-      expect(menuItems()).toHaveLength(0);
-    });
-
-    it('labels a sort the menu does not list with its own label, never a raw sort_options key', () => {
-      const { fixture, root, store } = render();
-      for (const [sort, labelKey] of [
-        ['top_picks_score', I18N.photo_types.top_picks],
-        ['learned_score', I18N.gallery.sort_my_taste],
-        ['relevance', I18N.gallery.sort_relevance],
-      ] as const) {
-        store.filters.update(filters => ({ ...filters, sort }));
-        fixture.detectChanges();
-        for (const button of sortButtons(root)) expect(button.getAttribute('aria-label')).toBe(sortLabel(labelKey));
-      }
-    });
-
-    it('moves the check to the current sort', async () => {
-      const { fixture, root, store } = render();
-      store.filters.update(filters => ({ ...filters, sort: 'aesthetic' }));
-      fixture.detectChanges();
-      await openMenu(fixture, sortButtons(root)[1]);
-      expect(menuItems().map(item => item.getAttribute('aria-checked'))).toEqual(['false', 'true', 'false']);
-    });
-
-    it('does not reload when the already-current sort is picked again', async () => {
-      const { fixture, root, store } = render();
-      await openMenu(fixture, sortButtons(root)[0]);
-      menuItems()[0].click();
-      expect(store.setUserSort).not.toHaveBeenCalled();
-    });
-
-    it('lists configured groups under non-interactive headers, with conditional sorts and model labels', async () => {
-      const { fixture, root, store } = render({
-        features: { show_my_taste: true },
-        sort_options_grouped: {
-          General: [
-            { column: 'date_taken', label: 'Date Taken' },
-            { column: 'aesthetic_iaa', label: 'Aesthetic IAA' },
-            { column: 'qrealign_score', label: 'Q-ReAlign' },
-          ],
-          'Face Metrics': [{ column: 'future_metric', label: 'Future metric' }],
-        },
-      });
-      store.filters.update(filters => ({ ...filters, semanticQuery: 'sunset' }));
-      fixture.detectChanges();
-      await openMenu(fixture, sortButtons(root)[1]);
-      const items = menuItems();
-      expect(items.map(item => iconOf(item))).toEqual(['search', 'psychology', 'event', 'IAA', 'Q-R', 'sort']);
-      const panel = items[0].closest('.mat-mdc-menu-panel')!;
-      const groups = Array.from(panel.querySelectorAll('[role="group"]'));
-      const headers = groups.map(group => document.getElementById(group.getAttribute('aria-labelledby')!)?.textContent?.trim());
-      expect(headers).toEqual(['sort_groups.general', 'sort_groups.face_metrics']);
-      expect(groups.map(group => group.querySelectorAll('[role="menuitemradio"]').length)).toEqual([3, 1]);
-      for (const item of items) expect(item.querySelector('mat-icon')?.getAttribute('aria-hidden')).toBe('true');
-      items[3].click();
-      expect(store.setUserSort).toHaveBeenLastCalledWith('aesthetic_iaa');
-    });
-
-    it('offers the tooltip as two rows, place then trigger, in one shared menu', async () => {
-      const { fixture, root, store } = render();
-      store.filters.update(filters => ({ ...filters, tooltip_mode: 'click' }));
-      fixture.detectChanges();
-      const triggers = Array.from(byLabel(root, I18N.gallery.tooltip_mode.label)) as HTMLButtonElement[];
-      expect(triggers).toHaveLength(2);
-      const menus = fixture.debugElement.queryAll(By.directive(MatMenuTrigger))
-        .filter(d => triggers.includes(d.nativeElement as HTMLButtonElement))
-        .map(d => d.injector.get(MatMenuTrigger).menu);
-      expect(menus[0]).toBe(menus[1]);
-      await openMenu(fixture, triggers[1]);
-      const items = menuItems();
-      // Show in: Popup, Side panel / Show on: Off, Hover, Click, Hover or click
-      expect(items.map(item => iconOf(item)))
-        .toEqual(['chat_bubble_outline', 'view_sidebar', 'visibility_off', 'mouse', 'touch_app', 'swap_horiz']);
-      expect(items.map(item => item.getAttribute('aria-checked')))
-        .toEqual(['true', 'false', 'false', 'false', 'true', 'false']);
-      // No side panel at this width; the popup has no "either" trigger; the
-      // hover bubble is desktop-only, so its entry is offered disabled here.
-      expect(items.map(item => (item as HTMLButtonElement).disabled))
-        .toEqual([false, true, false, true, false, true]);
-      const panel = items[0].closest('.mat-mdc-menu-panel')!;
-      const headers = Array.from(panel.querySelectorAll('[role="group"]'))
-        .map(group => document.getElementById(group.getAttribute('aria-labelledby')!)?.textContent?.trim());
-      expect(headers).toEqual([I18N.gallery.tooltip_mode.show_in, I18N.gallery.tooltip_mode.show_on]);
-      items[2].click();
-      expect(store.updateFilter).toHaveBeenLastCalledWith('tooltip_mode', 'off');
-      // A pick keeps the menu open for the other row.
-      expect(menuItems()).toHaveLength(6);
-    });
-
-    it('sets the side panel trigger through panel_activation and carries click back to the popup', async () => {
-      const { fixture, root, store } = render();
-      store.filters.update(filters => ({ ...filters, tooltip_mode: 'panel', panel_activation: 'click' }));
-      fixture.detectChanges();
-      await openMenu(fixture, byLabel(root, I18N.gallery.tooltip_mode.label)[0] as HTMLButtonElement);
-      const items = menuItems();
-      expect(items.map(item => item.getAttribute('aria-checked')))
-        .toEqual(['false', 'true', 'false', 'false', 'true', 'false']);
-      // A panel user sees every entry enabled except hover: the desktop-only
-      // bubble cannot serve this width, and the active trigger is click.
-      expect(items.map(item => (item as HTMLButtonElement).disabled)).toEqual([false, false, false, true, false, false]);
-      items[5].click();
-      expect(store.updateFilters).toHaveBeenLastCalledWith({ tooltip_mode: 'panel', panel_activation: 'both' });
-      items[0].click();
-      expect(store.updateFilter).toHaveBeenLastCalledWith('tooltip_mode', 'click');
-    });
-
-    it('offers the hover trigger enabled once the viewport is desktop-wide', async () => {
-      const { fixture, root, store } = render();
-      store.filters.update(filters => ({ ...filters, tooltip_mode: 'click' }));
-      const capability = (fixture.componentInstance as unknown as {
-        tooltipCapable: { setMatches: (v: boolean) => void };
-        hoverCapable: { setMatches: (v: boolean) => void };
-      });
-      capability.tooltipCapable.setMatches(true);
-      capability.hoverCapable.setMatches(true);
-      fixture.detectChanges();
-      await openMenu(fixture, byLabel(root, I18N.gallery.tooltip_mode.label)[0] as HTMLButtonElement);
-      const items = menuItems();
-      expect(items.map(item => (item as HTMLButtonElement).disabled)).toEqual([false, true, false, false, false, true]);
-      items[3].click();
-      expect(store.updateFilter).toHaveBeenLastCalledWith('tooltip_mode', 'hover');
-    });
-
-    it('greys the hover trigger out on a pure touch device at any width', async () => {
-      const { fixture, root, store } = render();
-      store.filters.update(filters => ({ ...filters, tooltip_mode: 'off' }));
-      (fixture.componentInstance as unknown as {
-        tooltipCapable: { setMatches: (v: boolean) => void };
-        hoverCapable: { setMatches: (v: boolean) => void };
-      })
-        .hoverCapable.setMatches(false);
-      fixture.detectChanges();
-      await openMenu(fixture, byLabel(root, I18N.gallery.tooltip_mode.label)[0] as HTMLButtonElement);
-      const items = menuItems();
-      expect((items[3] as HTMLButtonElement).disabled).toBe(true);
-      items[4].click();
-      expect(store.updateFilter).toHaveBeenLastCalledWith('tooltip_mode', 'click');
-    });
-
-    it('updates the open menu on resize without writing the preference', async () => {
-      const { fixture, root, store } = render();
-      store.filters.update(filters => ({ ...filters, tooltip_mode: 'click' }));
-      fixture.detectChanges();
-      await openMenu(fixture, byLabel(root, I18N.gallery.tooltip_mode.label)[0] as HTMLButtonElement);
-      const capability = (fixture.componentInstance as unknown as {
-        tooltipCapable: { setMatches: (v: boolean) => void };
-        hoverCapable: { setMatches: (v: boolean) => void };
-      });
-      const hover = () => menuItems()[3] as HTMLButtonElement;
-      expect(hover().disabled).toBe(true);
-      hover().click();
-      expect(store.updateFilter).not.toHaveBeenCalled();
-
-      capability.tooltipCapable.setMatches(true);
-      capability.hoverCapable.setMatches(true);
-      fixture.detectChanges();
-      expect(hover().disabled).toBe(false);
-      capability.tooltipCapable.setMatches(false);
-      fixture.detectChanges();
-      expect(hover().disabled).toBe(true);
-      expect(store.updateFilter).not.toHaveBeenCalled();
-      expect(store.updateFilters).not.toHaveBeenCalled();
-    });
-
-    it.each(['popup', 'panel'] as const)('keeps the selected hover trigger enabled on a narrow %s', async place => {
-      const { fixture, root, store } = render();
-      store.filters.update(filters => ({
-        ...filters, tooltip_mode: place === 'panel' ? 'panel' : 'hover', panel_activation: 'hover',
-      }));
-      fixture.detectChanges();
-      await openMenu(fixture, byLabel(root, I18N.gallery.tooltip_mode.label)[0] as HTMLButtonElement);
-      const hover = menuItems()[3] as HTMLButtonElement;
-      expect(hover.getAttribute('aria-checked')).toBe('true');
-      expect(hover.disabled).toBe(false);
-      hover.click();
-      expect(store.updateFilter).not.toHaveBeenCalled();
-      expect(store.updateFilters).not.toHaveBeenCalled();
-      menuItems()[4].click();
-      if (place === 'panel') {
-        expect(store.updateFilters).toHaveBeenLastCalledWith({ tooltip_mode: 'panel', panel_activation: 'click' });
-      } else {
-        expect(store.updateFilter).toHaveBeenLastCalledWith('tooltip_mode', 'click');
-      }
-    });
-
-    it('keeps the place while off, and turning back on uses it', async () => {
-      localStorage.removeItem('facet_tooltip_place');
-      const { fixture, root, store } = render();
-      store.filters.update(filters => ({ ...filters, tooltip_mode: 'off', panel_activation: 'hover' }));
-      fixture.detectChanges();
-      await openMenu(fixture, byLabel(root, I18N.gallery.tooltip_mode.label)[0] as HTMLButtonElement);
-      const items = menuItems();
-      expect(items.map(item => item.getAttribute('aria-checked')))
-        .toEqual(['false', 'true', 'true', 'false', 'false', 'false']);
-      items[0].click();
-      expect(store.updateFilter).not.toHaveBeenCalled();
-      fixture.detectChanges();
-      expect(menuItems()[0].getAttribute('aria-checked')).toBe('true');
-      menuItems()[4].click();
-      expect(store.updateFilter).toHaveBeenLastCalledWith('tooltip_mode', 'click');
-    });
-
-    it('returns a popup user to the popup after Click, Off, Click', async () => {
-      localStorage.removeItem('facet_tooltip_place');
-      const { fixture, root, store } = render();
-      store.filters.update(filters => ({ ...filters, tooltip_mode: 'click' }));
-      fixture.detectChanges();
-      await openMenu(fixture, byLabel(root, I18N.gallery.tooltip_mode.label)[0] as HTMLButtonElement);
-      menuItems()[2].click();
-      expect(store.updateFilter).toHaveBeenLastCalledWith('tooltip_mode', 'off');
-      store.filters.update(filters => ({ ...filters, tooltip_mode: 'off' }));
-      fixture.detectChanges();
-      menuItems()[4].click();
-      expect(store.updateFilter).toHaveBeenLastCalledWith('tooltip_mode', 'click');
-    });
-
-    it('keeps the hover trigger when a popup user picks the side panel', () => {
-      const { fixture, store } = render();
-      store.filters.update(filters => ({ ...filters, tooltip_mode: 'hover', panel_activation: 'click' }));
-      fixture.detectChanges();
-      const app = fixture.componentInstance as unknown as { setDetailsPlace(event: Event, place: 'popup' | 'panel'): void };
-      app.setDetailsPlace(new Event('click'), 'panel');
-      expect(store.updateFilters).toHaveBeenLastCalledWith({ tooltip_mode: 'panel', panel_activation: 'hover' });
-    });
-
-    it('is one shared menu for both triggers', () => {
-      const { fixture, root } = render();
-      const buttons = sortButtons(root);
-      const menus = fixture.debugElement.queryAll(By.directive(MatMenuTrigger))
-        .filter(d => buttons.includes(d.nativeElement as HTMLButtonElement))
-        .map(d => d.injector.get(MatMenuTrigger).menu);
-      expect(menus).toHaveLength(2);
-      expect(menus[0]).toBe(menus[1]);
-    });
-
-    it('hides them all while pinned, and brings them back when the pin clears', () => {
-      const { fixture, root, store } = render();
-      store.pinnedPaths.set(['/a.jpg']);
-      fixture.detectChanges();
-      expect(sortButtons(root)).toHaveLength(0);
-      expect(byLabel(root, I18N.gallery.sort_desc)).toHaveLength(0);
-      expect(byLabel(root, I18N.gallery.filters)).toHaveLength(0);
-      expect(byLabel(root, I18N.ui.buttons.filters)).toHaveLength(0);
-      expect(byLabel(root, I18N.ui.filters.search)).toHaveLength(0);
-      expect(byLabel(root, I18N.gallery.scan_action).length).toBeGreaterThan(0);
-      expect(byLabel(root, I18N.slideshow.start).length).toBeGreaterThan(0);
-      expect(byLabel(root, I18N.gallery.tooltip_mode.label).length).toBeGreaterThan(0);
-      store.pinnedPaths.set(null);
-      fixture.detectChanges();
-      expect(sortButtons(root)).toHaveLength(2);
-      expect(byLabel(root, I18N.gallery.filters)).toHaveLength(1);
-      expect(store.setFilterDrawerOpen).not.toHaveBeenCalled();
-    });
-  });
-
-
   describe('lockEdition', () => {
     it('leaves a page the route table flags data.edition, and only those', async () => {
       const config = [{ path: 'compare', data: { edition: true } }, { path: 'stats' }];
@@ -1247,19 +542,132 @@ describe('App', () => {
 
     it.each([[true], [false]])('offers Organization history in the nav exactly while edition is %s', (edition) => {
       const { root } = render(edition);
-      const buttons = root.querySelectorAll(`nav button[aria-label="${I18N.organization_history.title}"]`);
-      expect(buttons.length).toBe(edition ? 2 : 0);
+      const buttons = root.querySelectorAll(`header button[aria-label="${I18N.organization_history.title}"]`);
+      expect(buttons.length).toBe(edition ? 1 : 0);
     });
 
-    it('folds the secondary destinations into one More menu below 1680px and keeps the inline set above it', () => {
-      const { root } = render(true);
-      const more = root.querySelector<HTMLButtonElement>(`nav button[aria-label="${I18N.nav.more}"]`)!;
-      expect(more.classList.contains('!hidden')).toBe(true);
-      expect(more.classList.contains('lg:max-[1679px]:!inline-flex')).toBe(true);
-      const stats = root.querySelector<HTMLElement>(`nav a[aria-label="${I18N.nav.stats}"].\\!hidden`)!;
-      expect(stats.classList.contains('min-[1680px]:!inline-flex')).toBe(true);
-      const persons = root.querySelector<HTMLElement>(`nav a[aria-label="${I18N.nav.persons}"].\\!hidden`)!;
-      expect(persons.classList.contains('lg:!inline-flex')).toBe(true);
+    it.each([[true], [false]])('offers labeled mobile navigation with editing destinations gated by edition %s', (edition) => {
+      const { fixture, root } = render(edition);
+      const trigger = root.querySelector<HTMLButtonElement>('[data-mobile-navigation]');
+      expect(trigger).not.toBeNull();
+      trigger!.click();
+      fixture.detectChanges();
+      const menu = document.querySelector('.mat-mdc-menu-panel')!;
+      expect(menu.textContent).toContain(I18N.nav.persons);
+      expect(menu.querySelector('a[href="/culling"]') !== null).toBe(edition);
+      expect(menu.querySelector('a[href="/compare"]') !== null).toBe(edition);
+      expect(menu.querySelector('a[href="/stats"]')).not.toBeNull();
+    });
+
+    it('marks the gallery workspace current across real query and album navigation', async () => {
+      const { fixture, root } = render(false);
+      const router = TestBed.inject(Router);
+      router.resetConfig([{ path: '', component: NavigationFixturePage }, { path: 'album/:albumId', component: NavigationFixturePage }, { path: 'other', component: NavigationFixturePage }]);
+      await router.navigateByUrl('/?search=single'); fixture.detectChanges();
+      const link = root.querySelector<HTMLAnchorElement>('[data-destination-tabs] a[href="/"]')!;
+      expect(link.getAttribute('aria-current')).toBe('page');
+      await router.navigateByUrl('/album/17?tag=trip'); fixture.detectChanges();
+      expect(link.getAttribute('aria-current')).toBe('page');
+      await router.navigateByUrl('/other'); fixture.detectChanges();
+      expect(link.getAttribute('aria-current')).toBeNull();
+    });
+
+    it('fits all destinations, overflows only the tail, and remeasures changed label widths', async () => {
+      let available = 600;
+      let labelWidth = 100;
+      const callbacks: (() => void)[] = [];
+      const disconnect = vi.fn();
+      const originalRect = HTMLElement.prototype.getBoundingClientRect;
+      const rect = vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockImplementation(function (this: HTMLElement) {
+        const width = this.matches('[data-navigation-space]') ? available
+          : this.matches('[data-navigation-measure]') ? labelWidth
+          : this.matches('[data-more-measure]') ? 60 : null;
+        return width === null ? originalRect.call(this) : new DOMRect(0, 0, width, 48);
+      });
+      vi.stubGlobal('ResizeObserver', class {
+        constructor(callback: () => void) { callbacks.push(callback); }
+        observe() {} disconnect = disconnect;
+      });
+      const { fixture, root } = render(true);
+      try {
+        await fixture.whenStable(); fixture.detectChanges();
+        const tabs = () => root.querySelector('[data-destination-tabs]')!;
+        expect(tabs().querySelectorAll('a').length).toBe(5);
+        expect(root.querySelector('[data-more-destinations]')).toBeNull();
+        available = 350; callbacks.forEach(callback => callback()); fixture.detectChanges();
+        expect(tabs().querySelectorAll('a').length).toBe(2);
+        expect(tabs().querySelector('a[href="/culling"]')).toBeNull();
+        root.querySelector<HTMLButtonElement>('[data-more-destinations]')!.click();
+        fixture.detectChanges(); await fixture.whenStable();
+        const menu = document.querySelector('.mat-mdc-menu-panel')!;
+        expect(menu.querySelector('a[href="/culling"]')).not.toBeNull();
+        expect(menu.querySelector('a[href="/"]')).toBeNull();
+        available = 600; callbacks.forEach(callback => callback()); fixture.detectChanges();
+        expect(tabs().querySelectorAll('a').length).toBe(5);
+        expect(root.querySelector('[data-more-destinations]')).toBeNull();
+        labelWidth = 150; callbacks.forEach(callback => callback()); fixture.detectChanges();
+        expect(tabs().querySelectorAll('a').length).toBe(3);
+        expect(root.querySelector('[data-more-destinations]')).not.toBeNull();
+      } finally {
+        fixture.destroy(); rect.mockRestore(); vi.unstubAllGlobals();
+      }
+      expect(disconnect).toHaveBeenCalled();
+    });
+
+    it('opens mobile album search and Escape closes it with focus returned to the trigger', async () => {
+      const { fixture, root } = render(true);
+      document.body.appendChild(root);
+      const router = TestBed.inject(Router);
+      router.resetConfig([{ path: 'albums', component: NavigationFixturePage }]);
+      await router.navigateByUrl('/albums'); fixture.detectChanges(); await fixture.whenStable(); fixture.detectChanges();
+      const trigger = root.querySelector<HTMLButtonElement>(`button[aria-label="${I18N.ui.filters.search}"]`)!;
+      trigger.focus(); trigger.click(); fixture.detectChanges(); await fixture.whenStable(); fixture.detectChanges();
+      const input = root.querySelector<HTMLInputElement>(`input[placeholder="${I18N.albums.search}"]`)!;
+      expect(input).not.toBeNull();
+      expect(document.activeElement).toBe(input);
+      input.value = 'Family'; input.dispatchEvent(new Event('input', { bubbles: true })); fixture.detectChanges();
+      input.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true, cancelable: true }));
+      fixture.detectChanges(); await fixture.whenStable(); fixture.detectChanges();
+      expect(root.querySelector(`input[placeholder="${I18N.albums.search}"]`)).toBeNull();
+      expect(document.activeElement).toBe(trigger);
+      expect(TestBed.inject(AlbumsFiltersService).search()).toBe('Family');
+      trigger.click(); fixture.detectChanges(); await fixture.whenStable(); fixture.detectChanges();
+      root.querySelector<HTMLButtonElement>(`button[aria-label="${I18N.albums.clear_search}"]`)!.click();
+      fixture.detectChanges();
+      expect(TestBed.inject(AlbumsFiltersService).search()).toBe('');
+      fixture.destroy(); root.remove();
+    });
+
+    it('updates primary destination tabs when configured features change', () => {
+      const { fixture, root } = render(false);
+      const store = TestBed.inject(GalleryStore) as unknown as { config: ReturnType<typeof signal<unknown>> };
+      expect(root.querySelector('[data-destination-tabs] a[href="/albums"]')).toBeNull();
+      store.config.set({ features: { show_albums: true, show_timeline: true } });
+      fixture.detectChanges();
+      expect(root.querySelector('[data-destination-tabs] a[href="/albums"]')).not.toBeNull();
+      expect(root.querySelector('[data-destination-tabs] a[href="/timeline"]')).not.toBeNull();
+      expect(root.querySelector('[data-destination-tabs] a[href="/folders"]')).toBeNull();
+    });
+
+    it('removes editing destinations immediately when edition access is lost', async () => {
+      const { fixture, root } = render(true);
+      const auth = TestBed.inject(AuthService) as unknown as { isEdition: ReturnType<typeof signal<boolean>> };
+      root.querySelector<HTMLButtonElement>('[data-mobile-navigation]')!.click();
+      fixture.detectChanges(); await fixture.whenStable();
+      expect(document.querySelector('.mat-mdc-menu-panel a[href="/culling"]')).not.toBeNull();
+      auth.isEdition.set(false);
+      fixture.detectChanges();
+      expect(document.querySelector('.mat-mdc-menu-panel a[href="/culling"]')).toBeNull();
+      expect(root.querySelector('[data-mobile-navigation]')).not.toBeNull();
+    });
+
+    it('removes authenticated navigation after logout', () => {
+      const { fixture, root } = render(false);
+      const auth = TestBed.inject(AuthService) as unknown as { isAuthenticated: ReturnType<typeof signal<boolean>> };
+      expect(root.querySelector('[data-workspace-navigation]')).not.toBeNull();
+      auth.isAuthenticated.set(false);
+      fixture.detectChanges();
+      expect(root.querySelector('[data-workspace-navigation]')).toBeNull();
     });
 
     it.each([['kept', 1], ['lost', 0]])('opens the history dialog after the lazy load only while edition is %s', async (state, opens) => {
@@ -1277,7 +685,7 @@ describe('App', () => {
       const { root } = render(true);
       const dialog = TestBed.inject(MatDialog) as unknown as { open: ReturnType<typeof vi.fn> };
       dialog.open.mockReturnValue(historyRef(restored));
-      root.querySelector<HTMLButtonElement>(`nav button[aria-label="${I18N.organization_history.title}"]`)!.click();
+      root.querySelector<HTMLButtonElement>(`header button[aria-label="${I18N.organization_history.title}"]`)!.click();
       await vi.waitFor(() => expect(dialog.open).toHaveBeenCalledTimes(1));
       await new Promise<void>(resolve => setTimeout(resolve, 0));
       expect(TestBed.inject(GalleryStore).notifyOrganizationRestored).toHaveBeenCalledTimes(notifies);
@@ -1285,7 +693,7 @@ describe('App', () => {
 
     it.each([[true], [false]])('draws the theme-accent 2px underline exactly while edition is %s', (edition) => {
       const { root } = render(edition);
-      const bar = root.querySelector<HTMLElement>('mat-toolbar')!;
+      const bar = root.querySelector<HTMLElement>('[data-workspace-navigation]')!;
       expect(bar.style.borderBottomColor).toBe(edition ? 'var(--facet-accent)' : '');
       expect(bar.classList.contains('!border-b-2')).toBe(edition);
     });
@@ -1338,17 +746,5 @@ describe('App', () => {
       expect(items.at(-1)!.textContent).toContain(I18N.auth.logout);
     });
 
-    it.each([[true, 'grid', false], [false, 'grid', true], [true, 'mosaic', true]] as const)(
-      'offers Tile presentation disabled unless details are hidden in grid (hide_details %s, %s)', (hideDetails, mode, disabled) => {
-        const { fixture, root } = render(false);
-        const store = TestBed.inject(GalleryStore) as unknown as {
-          filters: ReturnType<typeof signal<GalleryFilters>>; galleryMode: ReturnType<typeof signal<string>>;
-        };
-        store.filters.set({ ...DEFAULT_FILTERS, hide_details: hideDetails });
-        store.galleryMode.set(mode);
-        const entry = openUserMenu(fixture, root).find(i => i.textContent?.includes(I18N.gallery.tile_fit.label))!;
-        expect(entry.disabled).toBe(disabled);
-      },
-    );
   });
 });

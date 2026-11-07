@@ -164,15 +164,18 @@ class TestPathScope:
         messy = f"{dirs}/shoot//./"
         assert build_path_scope([messy]).prefixes == build_path_scope([str(dirs / 'shoot')]).prefixes
 
-    def test_a_case_variant_scope_collapses_where_the_filesystem_folds_case(self, dirs):
+    def test_case_folding_filesystem_does_not_change_stored_path_matching(self, dirs):
         probe = dirs / 'CaseProbe'
         probe.mkdir()
         if not (dirs / 'caseprobe').exists():
             pytest.skip('filesystem is case-sensitive')
-        # `shoot` and `Shoot` are one directory here, so both spellings must
-        # normalise to the single on-disk form the scanner would have stored.
-        assert (build_path_scope([str(dirs / 'Shoot')]).prefixes
-                == build_path_scope([str(dirs / 'shoot')]).prefixes)
+        # POSIX resolve preserves lexical case, including on default APFS.
+        # Scope SQL must match those stored strings, not broaden write targets.
+        for spelling in ('Shoot', 'shoot'):
+            directory = dirs / spelling
+            scope = build_path_scope([str(directory)])
+            assert scope.prefixes == (str(directory.resolve()) + os.sep,)
+            assert scope.matches(str(directory.resolve() / 'a.jpg'))
 
     def test_a_missing_entry_raises(self, dirs):
         with pytest.raises(ValueError):
@@ -701,6 +704,40 @@ class TestCliValidation:
 
 
 class TestCliRuns:
+    @pytest.mark.parametrize('extra', [[], ['--cull-min-score', '5']])
+    def test_released_v123_schema_dry_run_does_not_migrate_or_write(self, tmp_path, extra):
+        db = tmp_path / 'released.db'
+        schema = Path(__file__).parent / 'fixtures' / 'photo_stacks_v1_23_1_schema.sql'
+        with sqlite3.connect(db) as conn:
+            conn.executescript(schema.read_text(encoding='utf-8'))
+            for index, score in enumerate((9, 3), 1):
+                conn.execute('INSERT INTO photos(path,filename,aggregate,aesthetic,tech_sharpness,burst_group_id,date_taken) VALUES(?,?,?,?,?,?,?)',
+                             (f'/released/{index}.jpg', f'{index}.jpg', score, score, score, 1, f'2024:01:01 10:00:0{index}'))
+        before = db.read_bytes()
+        config = _write_config(tmp_path)
+        result = _facet(config, '--db', str(db), '--auto-cull', '--cull-strictness', '100', *extra)
+        assert result.returncode == 0, result.stderr
+        assert 'would_reject_by_groups=1' in result.stdout
+        assert db.read_bytes() == before
+
+    def test_existing_choices_are_preserved_unless_explicitly_reconsidered(self, tmp_path):
+        lib = _Library(tmp_path)
+        with sqlite3.connect(lib.db) as conn:
+            conn.execute("UPDATE photos SET star_rating=5,is_favorite=1 WHERE filename='b3.jpg'")
+        before = _checksum(lib.db)
+        preview = lib.run('--auto-cull', '--cull-strictness', '100')
+        assert preview.returncode == 0, preview.stderr
+        assert 'decision_policy=preserve' in preview.stdout
+        assert 'existing_choices=1  preserved_choices=1' in preview.stdout
+        assert _checksum(lib.db) == before
+        applied = lib.run('--auto-cull', '--apply', '--cull-strictness', '100', '--cull-reconsider-existing')
+        assert applied.returncode == 0, applied.stderr
+        assert 'decision_policy=reconsider' in applied.stdout
+        assert 'preserved_choices=0' in applied.stdout
+        assert 'b3.jpg' in lib.rejected()
+        with sqlite3.connect(lib.db) as conn:
+            assert conn.execute("SELECT star_rating,is_favorite FROM photos WHERE filename='b3.jpg'").fetchone() == (5, 1)
+
     def test_a_dry_run_changes_nothing_and_creates_no_target(self, tmp_path):
         lib = _Library(tmp_path)
         target = tmp_path / 'keepers'

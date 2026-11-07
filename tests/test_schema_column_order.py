@@ -86,7 +86,7 @@ def test_incremental_export_persons_copy_survives_differing_column_order(tmp_pat
     conn.close()
     assert _columns(dest, 'persons') != _columns(src, 'persons')
 
-    _incremental_update_viewer_db(src, dest, 320, False)
+    _incremental_update_viewer_db(src, dest, 320, False, {})
 
     conn = sqlite3.connect(dest)
     row = conn.execute(

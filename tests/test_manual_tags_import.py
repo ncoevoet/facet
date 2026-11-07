@@ -76,8 +76,8 @@ class TestForeignKeywords:
 
         # Old code merged the keywords into photos.tags: it fails HERE.
         assert _tags(conn, img) == "landscape, mountain"
-        assert _manual(conn, img) == [("trip-norway-2026", "xmp")]
-        assert stats["tags_added"] == 1
+        assert _manual(conn, img) == [("a|b", "xmp"), ("trip-norway-2026", "xmp")]
+        assert stats["tags_added"] == 2
         assert stats["updated"] == 1
         row = conn.execute("SELECT created_by, created_at FROM photo_manual_tags").fetchone()
         assert row["created_by"] is None and row["created_at"]
@@ -88,7 +88,7 @@ class TestForeignKeywords:
         assert tag_untagged_photos(db_path, _StubTagger(), force=True) == 1
         conn = sqlite3.connect(db_path)
         assert _tags(conn, img) == "landscape"
-        assert _manual(conn, img) == [("trip-norway-2026", "xmp")]
+        assert _manual(conn, img) == [("a|b", "xmp"), ("trip-norway-2026", "xmp")]
 
     def test_second_import_is_unchanged(self, tmp_path):
         _, conn, img = _setup(tmp_path, ["trip-norway-2026"])

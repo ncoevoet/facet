@@ -1,3 +1,5 @@
+import { parseTagQuery, serializeTagQuery } from '../../features/gallery/tag-query.util';
+import { parseScorePresence, serializeScorePresence } from '../../features/gallery/score-presence.util';
 import { LEVEL_RANK, agentLevel } from './agent-level';
 import { NavigationExtras, Router } from '@angular/router';
 import { pathOf } from '../../shared/utils/url-path';
@@ -309,6 +311,19 @@ export function createUiToolHandlers(deps: UiToolDeps): Record<string, UiToolHan
           : filterDefault(clientKey);
       } else if (FRACTION_KEYS.has(contractKey)) {
         updates[clientKey] = fractionToPercent(contractKey, value);
+      } else if (clientKey === 'score_presence') {
+        if (typeof value !== 'string') throw new UiToolError('invalid_input', 'score_presence must be a JSON string.');
+        const policies = parseScorePresence(value);
+        if (!policies) throw new UiToolError('invalid_input', 'Invalid measurement policies.');
+        updates[clientKey] = serializeScorePresence(policies);
+      } else if (clientKey === 'tag_groups') {
+        if (typeof value !== 'string') throw new UiToolError('invalid_input', 'tag_groups must be a JSON string.');
+        const groups = parseTagQuery(value);
+        if (!groups) throw new UiToolError('invalid_input', 'Invalid tag groups.');
+        updates[clientKey] = serializeTagQuery(groups);
+      } else if (clientKey === 'person_match') {
+        if (value !== 'all' && value !== 'any') throw new UiToolError('invalid_input', 'person_match must be all or any.');
+        updates[clientKey] = value;
       } else if (clientKey === 'similarity_mode') {
         if (!SIMILARITY_MODES.includes(String(value))) {
           throw new UiToolError('invalid_input', `similarity_mode must be one of ${SIMILARITY_MODES.join(', ')}.`);
@@ -410,6 +425,12 @@ export function createUiToolHandlers(deps: UiToolDeps): Record<string, UiToolHan
     ui_set_gallery_filters: async args => {
       const patch = (args['patch'] ?? {}) as Record<string, unknown>;
       patchToUpdates(patch);
+      if (args['proposal'] !== undefined) {
+        requireGalleryView();
+        const present = viewActions.get('gallery_filter_proposal');
+        if (!present) throw new UiToolError('no_active_view', 'The active gallery cannot review a query proposal.');
+        return present({ ...args, normalize: patchToUpdates, reset: clearedFilters() });
+      }
       // On an album page the store saves every filter change as that album's smart filter (edition sessions),
       // which a readonly-granted agent must never cause: leave the album for any change, not only a replace.
       await leaveAlbum();
@@ -471,7 +492,7 @@ export function createUiToolHandlers(deps: UiToolDeps): Record<string, UiToolHan
     ui_open_photo: async args => {
       const path = args['path'] as string;
       leaveCullingGuard();
-      await navigateOrRefuse(['/photo'], { queryParams: { path }, onSameUrlNavigation: 'reload' }, 'The tab could not open that photo.');
+      await navigateOrRefuse(['/photo'], { queryParams: { path }, onSameUrlNavigation: 'reload', state: { photoOrigin: 'in-app' } }, 'The tab could not open that photo.');
       return { route: '/photo', path };
     },
 

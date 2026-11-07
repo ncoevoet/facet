@@ -890,3 +890,30 @@ def test_a_deferred_start_on_an_unanalyzed_library_leaves_plans_on_the_gallery_i
     assert any("COVERING INDEX idx_gallery_" in line for line in plans["summary"]), plans["summary"]
     assert _uses(plans["page"], "idx_gallery_aggregate"), plans["page"]
     assert not _temp_sort(plans["page"]), plans["page"]
+
+
+@pytest.mark.skipif(sqlite3.sqlite_version_info < (3, 31, 1),
+                    reason=f"SQLite {sqlite3.sqlite_version} is older than 3.31.1")
+@pytest.mark.parametrize("distribution", ["sparse", "dense"])
+def test_junk_sweep_kind_counts_never_row_fetch_the_not_junk_sentinel(gallery, traced, sparse_db, dense_db,
+                                                                     distribution):
+    """`not_junk` is stored on nearly every photo: no kind-count statement may range over it."""
+    db_path = sparse_db if distribution == "sparse" else dense_db
+    client = gallery(db_path)
+    traced.clear()
+    response = client.get("/api/filter_options/junk_kinds")
+    assert response.status_code == 200, response.text
+    statements = [s for s in traced if " FROM photos" in s and "COUNT(*)" in s]
+    assert statements, traced
+    for statement in statements:
+        plan = _plan(db_path, statement)
+        assert not _bare_scan(plan), plan
+        assert not any("junk_kind>" in line or "SCAN photos USING INDEX idx_junk_kind" in line
+                       for line in plan), plan
+        assert any("COVERING INDEX" in line or "idx_junk_kind (junk_kind=?)" in line for line in plan), plan
+    with sqlite3.connect(db_path) as conn:
+        expected = dict(conn.execute(
+            "SELECT junk_kind, COUNT(*) FROM photos WHERE junk_kind IS NOT NULL AND junk_kind != 'not_junk' "
+            "AND COALESCE(is_rejected, 0) = 0 GROUP BY junk_kind"))
+    assert expected, "no junk rows seeded"
+    assert {kind: count for kind, count in response.json()["junk_kinds"]} == expected

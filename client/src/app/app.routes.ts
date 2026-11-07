@@ -1,4 +1,6 @@
-import { Route, Routes } from '@angular/router';
+import { Route, Routes, Router } from '@angular/router';
+import { inject } from '@angular/core';
+import { ComparisonSessionService } from './features/gallery/comparison-session.service';
 import { authGuard } from './core/guards/auth.guard';
 import { editionGuard } from './core/guards/edition.guard';
 
@@ -14,6 +16,11 @@ const EDITION_ONLY = {
 } satisfies Pick<Route, 'canActivate' | 'data'>;
 
 export const routes: Routes = [
+  {
+    path: 'photo-compare',
+    loadComponent: () => import('./features/gallery/comparison-workspace.component').then(m => m.ComparisonWorkspaceComponent),
+    canActivate: [authGuard, () => inject(ComparisonSessionService).snapshot().photos.length >= 2 || inject(Router).parseUrl('/')],
+  },
   {
     path: '',
     loadComponent: () =>

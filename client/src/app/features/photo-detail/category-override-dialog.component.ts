@@ -9,7 +9,7 @@ import { firstValueFrom } from 'rxjs';
 import { ApiService } from '../../core/services/api.service';
 import { I18nService } from '../../core/services/i18n.service';
 import { TranslatePipe } from '../../shared/pipes/translate.pipe';
-import { CategoryLabelPipe } from '../gallery/photo-tooltip.component';
+import { CategoryLabelPipe } from '../../shared/pipes/category-label.pipe';
 import { I18N, i18nKeys } from '../../core/i18n/keys';
 
 export interface CategoryOverrideDialogData {

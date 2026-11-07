@@ -1,7 +1,8 @@
 import { TestBed } from '@angular/core/testing';
-import { provideHttpClient, withXhr } from '@angular/common/http';
+import { HttpContext, provideHttpClient, withXhr } from '@angular/common/http';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
 import { AlbumService, Album, AlbumPhotosResponse } from './album.service';
+import { HANDLE_SERVER_ERROR_LOCALLY } from '../utils/http-error-context';
 
 const MOCK_ALBUM: Album = {
   id: 1,
@@ -45,6 +46,13 @@ describe('AlbumService', () => {
       const req = httpTesting.expectOne('/api/albums');
       expect(req.request.method).toBe('GET');
       req.flush(mockResponse);
+    });
+
+    it('passes the caller’s local error handling context to the list request', () => {
+      service.list({ page: 2 }, new HttpContext().set(HANDLE_SERVER_ERROR_LOCALLY, true)).subscribe();
+      const req = httpTesting.expectOne(r => r.url === '/api/albums');
+      expect(req.request.context.get(HANDLE_SERVER_ERROR_LOCALLY)).toBe(true);
+      req.flush({ albums: [], total: 0, has_more: false });
     });
 
     it('should pass query params', () => {

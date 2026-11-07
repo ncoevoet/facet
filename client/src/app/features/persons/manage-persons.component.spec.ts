@@ -1,3 +1,4 @@
+import { signal } from '@angular/core';
 import type { Mock } from 'vitest';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { ActivatedRoute, DefaultUrlSerializer, NavigationEnd, Router } from '@angular/router';
@@ -8,18 +9,21 @@ import { By } from '@angular/platform-browser';
 import { PersonCardComponent } from '../../shared/components/person-card/person-card.component';
 import { ApiService } from '../../core/services/api.service';
 import { HeaderSlotService } from '../../core/services/header-slot.service';
+import { ScanService } from '../../core/services/scan.service';
 import { AuthService } from '../../core/services/auth.service';
 import { I18nService } from '../../core/services/i18n.service';
 import { UserActivityJournal } from '../../core/agent/user-activity-journal.service';
 import { PersonsFiltersService } from './persons-filters.service';
 import { ManagePersonsComponent } from './manage-persons.component';
+import { FaceReviewQueueComponent } from './face-review-queue.component';
+import { FaceUpdateControlComponent } from './face-update-control.component';
 import { PageContextService } from '../../core/agent/page-context.service';
 import { SameNameMergeDialogComponent } from './same-name-merge.service';
 
 describe('ManagePersonsComponent', () => {
   let component: ManagePersonsComponent;
   let mockApi: { get: Mock; post: Mock };
-  let mockAuth: { isEdition: Mock; identity: () => string };
+  let mockAuth: { isEdition: Mock; identity: () => string; status: () => null };
   let mockI18n: { t: Mock; translations: () => object };
   let mockDialog: { open: Mock };
   let mockSnackBar: { open: Mock };
@@ -42,7 +46,7 @@ describe('ManagePersonsComponent', () => {
       get: vi.fn(() => of(mockPersonsResponse)),
       post: vi.fn(() => of({})),
     };
-    mockAuth = { isEdition: vi.fn(() => true), identity: () => 'test' };
+    mockAuth = { status: () => null, isEdition: vi.fn(() => true), identity: () => 'test' };
     mockI18n = { t: vi.fn((key: string) => key), translations: () => ({}) };
     mockDialog = {
       open: vi.fn(() => ({ afterClosed: () => of(true) })),
@@ -57,11 +61,12 @@ describe('ManagePersonsComponent', () => {
         ManagePersonsComponent,
         { provide: ApiService, useValue: mockApi },
         { provide: AuthService, useValue: mockAuth },
+        { provide: ScanService, useValue: { canLaunch: signal(false) } },
         { provide: I18nService, useValue: mockI18n },
         { provide: MatDialog, useValue: mockDialog },
         { provide: MatSnackBar, useValue: mockSnackBar },
         { provide: UserActivityJournal, useValue: journal },
-        { provide: Router, useValue: { url: '/persons', navigate: vi.fn(), events: routerEvents, parseUrl: (url: string) => new DefaultUrlSerializer().parse(url) } },
+        { provide: Router, useValue: { url: '/persons', navigate: vi.fn(() => Promise.resolve(true)), currentNavigation: () => null, events: routerEvents, parseUrl: (url: string) => new DefaultUrlSerializer().parse(url) } },
         { provide: ActivatedRoute, useValue: { snapshot: { queryParamMap: { get: () => null } } } },
       ],
     });
@@ -113,10 +118,10 @@ describe('ManagePersonsComponent', () => {
   describe('page context', () => {
     it('registers the persons page and reads its filters live, without the selection', () => {
       const context = TestBed.inject(PageContextService);
-      expect(context.snapshot()).toEqual({ id: 'persons', search: '', sort: 'count', sort_direction: 'desc', show_hidden: false });
+      expect(context.snapshot()).toEqual({ id: 'persons', tab: 'named', search: '', sort: 'count', sort_direction: 'desc', show_hidden: false });
       TestBed.inject(PersonsFiltersService).search.set('ann');
       TestBed.inject(PersonsFiltersService).selectedIds.set(new Set([1]));
-      expect(context.snapshot()).toEqual({ id: 'persons', search: 'ann', sort: 'count', sort_direction: 'desc', show_hidden: false });
+      expect(context.snapshot()).toEqual({ id: 'persons', tab: 'named', search: 'ann', sort: 'count', sort_direction: 'desc', show_hidden: false });
     });
   });
 
@@ -164,6 +169,109 @@ describe('ManagePersonsComponent', () => {
   });
 
   describe('loadPersons', () => {
+    it('keeps the latest search rows and total when an older response arrives last', async () => {
+      const older = new Subject<typeof mockPersonsResponse>();
+      const newer = new Subject<typeof mockPersonsResponse>();
+      mockApi.get.mockReturnValueOnce(older).mockReturnValueOnce(newer);
+      const filters = TestBed.inject(PersonsFiltersService);
+      filters.search.set('A');
+      const first = component.loadPersons(true);
+      filters.search.set('AB');
+      const second = component.loadPersons(true);
+      const fresh = { persons: [{ id: 42, name: 'AB', face_count: 1, face_thumbnail: true }], total: 1 };
+      newer.next(fresh); await second;
+      older.next(mockPersonsResponse); await first;
+      expect(component.persons()).toEqual(fresh.persons);
+      expect(component.total()).toBe(1);
+      expect(filters.search()).toBe('AB');
+    });
+
+    it.each(['success', 'failure'])('does not let stale %s settle the newer loading state', async outcome => {
+      const older = new Subject<typeof mockPersonsResponse>();
+      const newer = new Subject<typeof mockPersonsResponse>();
+      mockApi.get.mockReturnValueOnce(older).mockReturnValueOnce(newer);
+      const first = component.loadPersons(true);
+      const second = component.loadPersons(true);
+      if (outcome === 'success') older.next(mockPersonsResponse);
+      else older.error(new Error('obsolete read'));
+      await first;
+      expect(component.loading()).toBe(true);
+      expect(component.persons()).toEqual([]);
+      expect(mockSnackBar.open).not.toHaveBeenCalled();
+      newer.next(mockPersonsResponse); await second;
+      expect(component.loading()).toBe(false);
+      expect(component.persons()).toEqual(mockPersonsResponse.persons);
+    });
+
+    it.each(['owner', 'token', 'destroy'])('refuses a late read after %s changes', async loss => {
+      const pending = new Subject<typeof mockPersonsResponse>();
+      mockApi.get.mockReturnValueOnce(pending);
+      Object.assign(mockAuth, { token: 'original' });
+      const reading = component.loadPersons(true);
+      if (loss === 'owner') mockAuth.identity = () => 'other';
+      else if (loss === 'token') Object.assign(mockAuth, { token: 'rotated' });
+      else TestBed.resetTestingModule();
+      pending.next(mockPersonsResponse); await reading;
+      expect(component.persons()).toEqual([]);
+      expect(component.total()).toBe(0);
+      expect(mockSnackBar.open).not.toHaveBeenCalled();
+    });
+
+    it.each(['success', 'failure'])('settles an invalidated latest %s without publishing stale state', async outcome => {
+      const pending = new Subject<typeof mockPersonsResponse>();
+      mockApi.get.mockReturnValueOnce(pending);
+      Object.assign(mockAuth, { token: 'original' });
+      const reading = component.loadPersons(true);
+      Object.assign(mockAuth, { token: 'rotated' });
+      if (outcome === 'success') pending.next(mockPersonsResponse);
+      else pending.error(new Error('obsolete credential'));
+      await reading;
+      expect(component.loading()).toBe(false);
+      expect(component.persons()).toEqual([]);
+      expect(mockSnackBar.open).not.toHaveBeenCalled();
+    });
+
+    it.each(['owner', 'token'])('reloads through the real effect when %s changes with edition unchanged', async change => {
+      const status = signal<object | null>({ revision: 1 });
+      const owner = signal('test');
+      Object.assign(mockAuth, { status, identity: owner, token: 'original' });
+      TestBed.tick();
+      await component.ngOnInit();
+      const pending = new Subject<typeof mockPersonsResponse>();
+      mockApi.get.mockImplementation((url: string) => url === '/persons' ? pending : of({ persons: [] }));
+      mockApi.get.mockClear();
+      if (change === 'owner') owner.set('other');
+      else Object.assign(mockAuth, { token: 'rotated' });
+      status.set({ revision: 2 }); TestBed.tick();
+      expect(mockApi.get).toHaveBeenCalledOnce();
+      expect(component.persons()).toEqual([]);
+      expect(component.total()).toBe(0);
+      expect(component.loading()).toBe(true);
+      pending.next(mockPersonsResponse); await Promise.resolve();
+      expect(component.persons()).toEqual(mockPersonsResponse.persons);
+      expect(component.loading()).toBe(false);
+      status.set({ revision: 3 }); TestBed.tick();
+      expect(mockApi.get).toHaveBeenCalledOnce();
+    });
+
+    it('discards a pending old page after a new search and preserves subsequent paging', async () => {
+      await component.loadPersons(true);
+      const oldPage = new Subject<typeof mockPersonsResponse>();
+      mockApi.get.mockReturnValueOnce(oldPage);
+      const paging = component.loadPersons(false);
+      const fresh = { persons: [{ id: 42, name: 'AB', face_count: 1, face_thumbnail: true }], total: 2 };
+      mockApi.get.mockReturnValueOnce(of(fresh));
+      TestBed.inject(PersonsFiltersService).search.set('AB');
+      await component.loadPersons(true);
+      oldPage.next(mockPersonsResponse); await paging;
+      expect(component.persons()).toEqual(fresh.persons);
+      const next = { ...fresh.persons[0], id: 43 };
+      mockApi.get.mockReturnValueOnce(of({ persons: [next], total: 2 }));
+      await component.loadPersons(false);
+      expect(component.persons()).toEqual([...fresh.persons, next]);
+      expect(component.total()).toBe(2);
+    });
+
     it('should reset page and clear persons list when reset is true', async () => {
       component.persons.set([
         { id: 99, name: 'Old', face_count: 1, face_thumbnail: false },
@@ -898,7 +1006,155 @@ describe('ManagePersonsComponent', () => {
       expect(labels(fixture.nativeElement)).toEqual([
         { text: 'manage_persons.named (1)', selected: true },
         { text: 'manage_persons.needs_naming (1)', selected: false },
+        { text: 'persons.review_queue.matches', selected: false },
+        { text: 'persons.review_queue.unassigned', selected: false },
       ]);
+    });
+
+    it('reloads captured match choices only after the explicit face-update review action', async () => {
+      withTab('matches');
+      (TestBed.inject(Router) as unknown as { url: string }).url = '/persons?tab=matches';
+      Object.assign(mockAuth, { status: signal({ user_id: 'test' }), token: 'fixture' });
+      const original = mockApi.get.getMockImplementation()!;
+      mockApi.get.mockImplementation((url: string, params: unknown) => url === '/faces/review' ? of({
+        faces: [{ face_id: 9, photo_path: '/nine.jpg', identity_token: 'a'.repeat(64), embedding_state: 'ready', suggestions: [{ person_id: 1, name: 'Alice', similarity: 0.9 }] }],
+        total_unassigned: 1, next_after_id: null, model: 'arcface_buffalo_l', compared_people: 1, suggestions_requested: true,
+      }) : original(url, params));
+      const fixture = await render();
+      const root = fixture.nativeElement as HTMLElement;
+      document.body.appendChild(root);
+      root.querySelector<HTMLInputElement>('app-face-review-queue input[type="checkbox"]')!.focus();
+      root.querySelector<HTMLInputElement>('app-face-review-queue input[type="checkbox"]')!.click(); fixture.detectChanges();
+      const queue = fixture.debugElement.query(By.directive(FaceReviewQueueComponent)).componentInstance;
+      expect(queue.selected().has(9)).toBe(true);
+      const before = mockApi.get.mock.calls.filter(([url]) => url === '/faces/review').length;
+      fixture.debugElement.query(By.directive(FaceUpdateControlComponent)).componentInstance.reviewRequested.emit();
+      await fixture.whenStable(); fixture.detectChanges();
+      await fixture.whenStable(); fixture.detectChanges();
+      expect(mockApi.get.mock.calls.filter(([url]) => url === '/faces/review')).toHaveLength(before + 1);
+      expect(queue.selected().size).toBe(0);
+      expect(root.querySelector<HTMLInputElement>('app-face-review-queue input[type="checkbox"]')!.checked).toBe(false);
+      expect(document.activeElement).toBe(root.querySelector('app-face-review-queue'));
+      root.remove();
+    });
+
+    it('moves focus to the matches queue after the face-update review action changes tabs', async () => {
+      withTab(null);
+      Object.assign(mockAuth, { isEdition: signal(true), status: signal({ user_id: 'test' }), token: 'fixture' });
+      const fixture = await render(); const root = fixture.nativeElement as HTMLElement;
+      document.body.appendChild(root);
+      fixture.debugElement.query(By.directive(FaceUpdateControlComponent)).componentInstance.reviewRequested.emit();
+      await fixture.whenStable(); fixture.detectChanges(); await fixture.whenStable(); fixture.detectChanges();
+      expect(fixture.componentInstance.tab()).toBe('matches');
+      expect(document.activeElement).toBe(root.querySelector('app-face-review-queue'));
+      root.remove();
+    });
+
+    it('does not move focus when the matches navigation is refused', async () => {
+      withTab(null);
+      Object.assign(mockAuth, { isEdition: signal(true), status: signal({ user_id: 'test' }), token: 'fixture' });
+      const router = TestBed.inject(Router) as unknown as { navigate: Mock };
+      router.navigate.mockResolvedValueOnce(false);
+      const fixture = await render(); const root = fixture.nativeElement as HTMLElement;
+      document.body.appendChild(root);
+      const trigger = root.querySelector<HTMLElement>('[role="tab"]')!; trigger.focus();
+      fixture.debugElement.query(By.directive(FaceUpdateControlComponent)).componentInstance.reviewRequested.emit();
+      await fixture.whenStable(); fixture.detectChanges();
+      expect(fixture.componentInstance.tab()).toBe('named'); expect(document.activeElement).toBe(trigger);
+      root.remove();
+    });
+
+    it('exposes global review destinations without duplicating the Named toolbar', async () => {
+      withTab('matches');
+      const router = TestBed.inject(Router) as unknown as { url: string; navigate: Mock };
+      router.url = '/persons?tab=matches';
+      const edition = signal(true);
+      Object.assign(mockAuth, { isEdition: edition, status: signal({ user_id: 'test' }), token: 'fixture' });
+      const original = mockApi.get.getMockImplementation()!;
+      mockApi.get.mockImplementation((url: string, params: unknown) => url === '/faces/review' ? of({ faces: [], total_unassigned: 0, next_after_id: null, model: 'arcface_buffalo_l', compared_people: 0, suggestions_requested: true }) : original(url, params));
+      const fixture = await render();
+      expect(fixture.componentInstance.tab()).toBe('matches');
+      expect(labels(fixture.nativeElement)[2].selected).toBe(true);
+      expect(fixture.nativeElement.querySelectorAll('app-face-review-queue')).toHaveLength(1);
+      expect(TestBed.inject(HeaderSlotService).template()).toBeNull();
+      expect(mockApi.get).toHaveBeenCalledWith('/faces/review', expect.objectContaining({ suggest: true }));
+      routerEvents.next(new NavigationEnd(5, '/persons?tab=unassigned', '/persons?tab=unassigned'));
+      expect(fixture.componentInstance.tab()).toBe('unassigned');
+      edition.set(false); fixture.detectChanges(); await fixture.whenStable(); fixture.detectChanges();
+      expect(fixture.nativeElement.querySelector('app-face-review-queue')).toBeNull();
+      expect(TestBed.inject(HeaderSlotService).template()).not.toBeNull();
+      fixture.destroy();
+    });
+
+    it('restores the previous tab when a requested tab navigation is refused', async () => {
+      const router = TestBed.inject(Router) as unknown as { navigate: Mock };
+      router.navigate.mockResolvedValueOnce(false);
+      component.selectTab('matches');
+      await Promise.resolve();
+      expect(component.tab()).toBe('named');
+    });
+
+    it('restores the previous tab after navigation rejects', async () => {
+      const router = TestBed.inject(Router) as unknown as { navigate: Mock };
+      router.navigate.mockRejectedValueOnce(new Error('navigation failed'));
+      expect(await component.selectTab('matches')).toBe(false);
+      expect(component.tab()).toBe('named');
+    });
+
+    it.each(['refused', 'rejected'] as const)('ignores an old %s completion after tab ABA navigation', async ending => {
+      const router = TestBed.inject(Router) as unknown as { navigate: Mock };
+      let settle!: (value: boolean) => void, reject!: (error: Error) => void;
+      router.navigate.mockReturnValueOnce(new Promise<boolean>((resolve, fail) => { settle = resolve; reject = fail; }));
+      const first = component.selectTab('matches');
+      await component.selectTab('unassigned'); await component.selectTab('matches');
+      if (ending === 'refused') settle(false); else reject(new Error('obsolete navigation'));
+      expect(await first).toBe(false); expect(component.tab()).toBe('matches');
+    });
+
+    it.each(['edition', 'navigation'] as const)('does not launch updated-face review while %s blocks it', state => {
+      const router = TestBed.inject(Router) as unknown as { navigate: Mock; currentNavigation: () => unknown };
+      if (state === 'edition') mockAuth.isEdition.mockReturnValue(false);
+      else router.currentNavigation = () => ({ id: 1 });
+      (component as any).reviewUpdatedFaces();
+      expect(router.navigate).not.toHaveBeenCalled(); expect(component.tab()).toBe('named');
+    });
+
+    it('requests the matches tab from another tab without reloading a nonexistent queue', async () => {
+      const router = TestBed.inject(Router) as unknown as { navigate: Mock };
+      router.navigate.mockResolvedValueOnce(false);
+      (component as any).reviewUpdatedFaces(); await Promise.resolve();
+      expect(router.navigate).toHaveBeenCalledExactlyOnceWith([], { queryParams: { tab: 'matches' }, queryParamsHandling: 'merge', replaceUrl: true });
+      expect(component.tab()).toBe('named');
+    });
+
+    it.each(['owner', 'token', 'edition', 'focus', 'destroyed'] as const)('does not steal focus after updated-face review when %s changes during navigation', async ending => {
+      withTab(null);
+      Object.assign(mockAuth, { isEdition: signal(true), status: signal({ user_id: 'test' }), token: 'fixture' });
+      const original = mockApi.get.getMockImplementation()!;
+      mockApi.get.mockImplementation((url: string, params: unknown) => url === '/faces/review'
+        ? of({ faces: [], total_unassigned: 0, next_after_id: null, model: 'arcface_buffalo_l', compared_people: 0, suggestions_requested: true }) : original(url, params));
+      const fixture = await render(); const root = fixture.nativeElement as HTMLElement;
+      document.body.appendChild(root);
+      let finish!: (value: boolean) => void;
+      const router = TestBed.inject(Router) as unknown as { navigate: Mock };
+      router.navigate.mockReturnValueOnce(new Promise<boolean>(resolve => { finish = resolve; }));
+      fixture.debugElement.query(By.directive(FaceUpdateControlComponent)).componentInstance.reviewRequested.emit();
+      fixture.detectChanges();
+      const queue = fixture.debugElement.query(By.directive(FaceReviewQueueComponent)).componentInstance;
+      const focus = vi.spyOn(queue, 'focus');
+      const newer = document.createElement('button'); document.body.appendChild(newer);
+      if (ending === 'owner') mockAuth.identity = () => 'bob';
+      if (ending === 'token') Object.assign(mockAuth, { token: 'rotated' });
+      if (ending === 'edition') (mockAuth.isEdition as unknown as ReturnType<typeof signal<boolean>>).set(false);
+      if (ending === 'focus') newer.focus();
+      if (ending === 'destroyed') fixture.destroy();
+      finish(true);
+      if (ending !== 'destroyed') { await fixture.whenStable(); fixture.detectChanges(); await fixture.whenStable(); fixture.detectChanges(); }
+      else await Promise.resolve();
+      expect(focus).not.toHaveBeenCalled();
+      if (ending === 'focus') expect(document.activeElement).toBe(newer);
+      if (ending !== 'destroyed') fixture.destroy();
+      root.remove(); newer.remove();
     });
 
     it('?tab=naming opens Needs naming, and switching writes ?tab back', async () => {
@@ -945,6 +1201,8 @@ describe('ManagePersonsComponent', () => {
       expect(labels(fixture.nativeElement).map((l) => l.text)).toEqual([
         'manage_persons.named (2)',
         'manage_persons.needs_naming (0)',
+        'persons.review_queue.matches',
+        'persons.review_queue.unassigned',
       ]);
       expect(fixture.nativeElement.querySelector('[data-needs-naming-empty]')).not.toBeNull();
     });
@@ -1037,6 +1295,8 @@ describe('ManagePersonsComponent', () => {
       expect(labels(fixture.nativeElement).map((l) => l.text)).toEqual([
         'manage_persons.named (1)',
         'manage_persons.needs_naming (0)',
+        'persons.review_queue.matches',
+        'persons.review_queue.unassigned',
       ]);
     });
   });

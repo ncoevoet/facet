@@ -224,9 +224,9 @@ darktable speichert seinen Bearbeitungsverlauf in seinem eigenen `<bild><ext>.xm
 Facet hält die Tags, die Sie eingeben (siehe [Web-Galerie — Manuelle Tags](VIEWER.md#manuelle-tags)), in `photo_manual_tags`, getrennt von den KI-Tags in `photos.tags`. Ein erneuter Scan oder ein erneutes Tagging berührt sie nie.
 
 - **Export.** Jeder Stichwort-Schreiber gibt zuerst die KI-Tags aus, dann die manuellen Tags, dann Personennamen, ohne Beachtung der Groß-/Kleinschreibung dedupliziert. Das gilt für `--export-sidecars`, die XMP-Export- und „Metadaten in Datei schreiben“-Aktionen der Galerie sowie das Lightroom-Manifest (`--export-manifest`, `/api/lightroom/manifest`).
-- **Import.** `--import-sidecars` liest nur `dc:subject`. Stichwörter werden wie eingegebene Tags normalisiert: getrimmt, kleingeschrieben, höchstens 64 Zeichen, 50 manuelle Tags pro Foto. Jedes wird zu einem manuellen Tag mit der Quelle `xmp`, außer es
+- **Import.** `--import-sidecars` liest flache Stichwörter aus `dc:subject` und Hierarchiepfade getrennt aus `lr:hierarchicalSubject`. Flache Stichwörter werden wie eingegebene Tags normalisiert: getrimmt, kleingeschrieben, höchstens 64 Zeichen, 50 manuelle Tags pro Foto. Jedes wird zu einem manuellen Tag mit der Quelle `xmp`, außer es
   - ist bereits eines der KI-Tags oder einer der Personennamen des Fotos,
-  - ist ein hierarchischer Pfad `a|b`,
+  - dupliziert einen ausdrücklich in `lr:hierarchicalSubject` enthaltenen Pfad,
   - enthält ein Komma oder Steuerzeichen oder
   - würde die Obergrenze überschreiten.
 - **Entfernen von Stichwörtern ist ausdrücklich.** Exporte ergänzen standardmäßig nur. `--export-sidecars /path --reconcile-keywords` (benötigt ExifTool) entfernt außerdem Namen, die Facet früher geschrieben hat und die in Facet nicht mehr vorkommen. Stichwörter, die Facet nie geschrieben hat, werden nie entfernt, auch bei gleichem Namen, und alte Sidecars ohne Markierung geben Facet keinen Besitz. Fügen Sie ein entferntes Stichwort in einem anderen Editor wieder hinzu, kann Facet es erneut importieren und behandelt es danach als fremd. Stichwörter bleiben auch mit `--user` gemeinsam.
@@ -234,10 +234,11 @@ Facet hält die Tags, die Sie eingeben (siehe [Web-Galerie — Manuelle Tags](VI
 - Namen wie `2024`, `1.50`, `1e3`, `true`, `false` und `null` behalten ihre Schreibweise.
 - Kann Facet die Metadaten einer vorhandenen Datei nicht lesen, stoppt der Export vor dem Schreiben.
 - **Das Lightroom-Manifest gibt Entfernungen dagegen weiter.** Die Stichwort-Option des Zusatzmoduls schreibt bei jedem Apply die `Facet ›`-Kinder jedes Fotos neu.
-- **KI-Tags bleiben KI-Tags.** Sidecars halten fest, welche Stichwörter KI und welche manuell waren, sodass ein erneutes Tagging ein altes KI-Stichwort nicht zu einem manuellen Tag macht. Sidecars älterer Facet-Versionen behalten das alte additive Verhalten. Hierarchische Stichwörter sind immer additiv.
+- **KI-Tags bleiben KI-Tags.** Sidecars halten fest, welche Stichwörter KI und welche manuell waren, sodass ein erneutes Tagging ein altes KI-Stichwort nicht zu einem manuellen Tag macht. Sidecars älterer Facet-Versionen behalten das alte additive Verhalten.
+- **Hierarchien.** Importierte Pfade werden der gemeinsamen Schlagworthierarchie hinzugefügt; flache Namen mit `|` oder `/` erzeugen allein keine Hierarchie. Als von Facet erzeugt markierte Pfade werden nicht als manuelle Zuweisungen importiert, sofern sie nicht zugleich als manuell markiert sind. Exporte enthalten explizite Zuweisungen und erzeugte Kategorie-/Personenpfade. Der Export fügt standardmäßig hinzu; `--reconcile-keywords` entfernt nur veraltete Facet-eigene Pfade und bewahrt fremde Pfade.
 - **Besitzgrenzen:** 10.000 Namen pro Liste und 1.024 Zeichen pro Name. Ein Export, der sie überschreiten würde, stoppt vor dem Schreiben. Archivieren und bereinigen Sie ein solches Sidecar von Hand, bevor Sie neu beginnen.
 - **Von einer älteren Facet-Version importierte Stichwörter bleiben, wo sie sind.** Ältere Versionen führten Stichwörter in `photos.tags` zusammen, wo sie wie KI-Tags aussehen, und keine Migration verschiebt sie. Um eines in ein manuelles Tag umzuwandeln, leeren oder taggen Sie `photos.tags` neu und führen dann `--import-sidecars` erneut aus — oder fügen Sie das Tag von Hand hinzu.
-- **Eine verschobene oder umbenannte Datei verliert ihre manuellen Tags.** Sie hängen am Pfad des Fotos.
+- **Verschobene oder umbenannte Dateien.** Manuelle Tags sind an den Katalogpfad gebunden. Nach dem eigenen Verschieben aktualisiert der geprüfte [Neu-Verknüpfungsablauf](RELINK.md) diesen Pfad und erhält die Tags; ein Scan am neuen Speicherort allein überträgt sie nicht.
 - **`--export-csv` und `--export-json` bleiben auf KI beschränkt.** Ihr `tags`-Wert enthält keine manuellen Tags.
 
 ## Wie Facet zusammenführt
@@ -247,7 +248,7 @@ Facet hält die Tags, die Sie eingeben (siehe [Web-Galerie — Manuelle Tags](VI
 | Bewertung (Sterne/Ablehnung) | `xmp:Rating` (`-1` = abgelehnt) | `xmp:Rating` | Bewertungszeitmarken; bisheriger Scan-Rückfall |
 | Farblabel | `xmp:Label` (`Red` = abgelehnt, `Yellow` = Favorit) | `xmp:Label` | Bewertungszeitmarken; bisheriger Scan-Rückfall |
 | Tags/Stichwörter | `dc:subject` (flach, KI-Tags + manuelle Tags, enthält Namen erkannter Personen) | `dc:subject` (als manuelle Tags gespeichert) | Standardmäßig additiv; `--reconcile-keywords` entfernt nur veraltete Facet-eigene Namen; Importe bleiben additiv ([Manuelle Tags und XMP-Stichwörter](#manuelle-tags-und-xmp-stichwörter)) |
-| Hierarchische Tags | `lr:hierarchicalSubject` (`Category\|<kat>`, `People\|<name>`) | Nicht zurückimportiert | Nur Export |
+| Hierarchische Tags | `lr:hierarchicalSubject` (explizite Zuweisungen und erzeugte Kategorie-/Personenpfade) | `lr:hierarchicalSubject` (Zuweisungen zur gemeinsamen Hierarchie) | Import fügt hinzu; Exportabgleich entfernt nur veraltete Facet-eigene Pfade |
 | Bildunterschrift | `dc:description` Standardsprache (+ `IPTC:Caption-Abstract` über exiftool) | Nicht zurückimportiert | Nur Export |
 | Benannte Gesichtsbereiche | MWG `mwg-rs:RegionList` + `facet:RegionOwner=Facet` (zentriert-normalisiert, `Type=Face`) | Nicht zurückimportiert | Nur Export; nativ von digiKam gelesen, **nicht** von Lightroom (eine bekannte Adobe-Einschränkung — Lightroom liest nur MWG-Bereiche, die es selbst geschrieben hat) |
 
@@ -282,7 +283,7 @@ Fehlt die Datenbank, ist sie nicht lesbar oder ungültig, endet die Vorschau mit
 - **gps** behält manuelle Orte, sofern nicht `--overwrite-manual-gps` angegeben ist.
 - **keywords** sind additiv und gemeinsam, auch mit `--user`.
 
-**Änderungszeitmarken.** Facet hält fest, wann jedes Bewertungsfeld zuletzt geändert wurde, je Foto und Konto, einschließlich Zurücksetzungen. Ein Sidecar, das älter als diese Änderung ist, ist ein Konflikt `newer_local_edit`, und diese Bewertungsgruppe bleibt unverändert. `--overwrite-sidecar-review` hebt dies und die Scanzeit-Prüfung auf. Eine Quelle `local` bedeutet einen unbekannten Schreiber, nicht unbedingt eine Person. Beschriftungen, Gesichter, hierarchische Stichwörter und unmarkiertes externes GPS werden nie importiert.
+**Änderungszeitmarken.** Facet hält fest, wann jedes Bewertungsfeld zuletzt geändert wurde, je Foto und Konto, einschließlich Zurücksetzungen. Ein Sidecar, das älter als diese Änderung ist, ist ein Konflikt `newer_local_edit`, und diese Bewertungsgruppe bleibt unverändert. `--overwrite-sidecar-review` hebt dies und die Scanzeit-Prüfung auf. Eine Quelle `local` bedeutet einen unbekannten Schreiber, nicht unbedingt eine Person. Beschriftungen, Gesichter und unmarkiertes externes GPS werden nie importiert.
 
 - Felder, die geändert wurden, bevor Facet Änderungen aufzeichnete, haben keine bekannte Änderungszeit. Es gilt die Scanzeit-Regel, gemeldet als `untracked_legacy_edit`.
 - Die Vorschau öffnet auch ältere Datenbanken ohne Upgrade; ein fehlendes Behalten-Feld gilt als unentschieden.
