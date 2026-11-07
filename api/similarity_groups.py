@@ -47,6 +47,48 @@ def _candidate_fingerprint(rows, settings, *, logical=False):
     return digest.hexdigest()
 
 
+_THRESHOLD_STEP = 0.02
+
+
+def _components(matrix, members, threshold):
+    """Connected components of ``members`` whose cosine similarity reaches ``threshold``."""
+    sub = matrix[members]
+    uf = UnionFind(len(members))
+    chunk_size = 500  # chunked so the n x n similarity matrix never has to exist
+    for i in range(0, len(members), chunk_size):
+        sims = sub[i:i + chunk_size] @ sub.T
+        for ci in range(len(sims)):
+            gi = i + ci
+            for j in np.where(sims[ci, gi + 1:] >= threshold)[0] + gi + 1:
+                uf.union(gi, int(j))
+    grouped = defaultdict(list)
+    for k, idx in enumerate(members):
+        grouped[uf.find(k)].append(idx)
+    return list(grouped.values())
+
+
+def _split_oversized(matrix, members, threshold, max_size):
+    """Components within ``max_size``; a larger one is re-split at a stricter threshold.
+
+    Single linkage chains: a long run of look-alike shots joins into one
+    component even though its ends are not similar. Dropping that component hid
+    every photo in it from the feed, so it is tightened until it breaks apart.
+    """
+    pieces = []
+    for comp in _components(matrix, members, threshold):
+        if len(comp) <= max_size:
+            pieces.append(comp)
+        elif threshold + _THRESHOLD_STEP < 1.0:
+            pieces.extend(_split_oversized(matrix, comp, threshold + _THRESHOLD_STEP, max_size))
+        else:
+            # A chain too dense for any threshold to cut: members are in capture
+            # order, so contiguous chunks keep neighbouring frames together.
+            count = -(-len(comp) // max_size)
+            size = -(-len(comp) // count)
+            pieces.extend(comp[i:i + size] for i in range(0, len(comp), size))
+    return pieces
+
+
 def compute_similarity_groups(conn=None, threshold=None, min_size=None, user_id=None,
                               album_id=None, date_from=None, date_to=None, *,
                               use_cache=True, path_scope=None):
@@ -100,7 +142,7 @@ def compute_similarity_groups(conn=None, threshold=None, min_size=None, user_id=
         # One row per logical photo: a RAW+JPEG capture is not "similar" to itself.
         logical = standalone_source(conn, user_id, extra=('clip_embedding', 'date_taken', 'is_burst_lead', 'is_sequence_lead'))
         album_sql, album_params = (album_filter_clause if logical is None else album_predicate)(album_id)
-        cache_key = f"similarity_groups_{threshold}_{min_size}_{user_id}_{album_id}_{date_from}_{date_to}_10k"
+        cache_key = f"similarity_groups_{threshold}_{min_size}_{user_id}_{album_id}_{date_from}_{date_to}_split"
         cached = None
         if use_cache:
             cached = conn.execute(
@@ -177,36 +219,17 @@ def compute_similarity_groups(conn=None, threshold=None, min_size=None, user_id=
         # Compute cosine similarity matrix (chunked to avoid OOM for large datasets)
         n = len(emb_matrix)
 
-        # Union-Find for connected components
-        uf = UnionFind(n)
-
-        # Compute similarities in chunks (vectorized pair extraction)
-        chunk_size = 500
-        for i in range(0, n, chunk_size):
-            chunk = emb_matrix[i:i+chunk_size]
-            sims = chunk @ emb_matrix.T  # (chunk_size, n)
-            for ci in range(len(chunk)):
-                global_i = i + ci
-                # Upper triangle only: compare with indices > global_i
-                row = sims[ci, global_i + 1:]
-                js = np.where(row >= threshold)[0] + global_i + 1
-                for j in js:
-                    uf.union(global_i, int(j))
-
-        # Build groups
-        groups_map = defaultdict(list)
-        for idx in range(n):
-            groups_map[uf.find(idx)].append(valid_paths[idx])
-
         groups = []
-        for group_paths in groups_map.values():
-            if min_size <= len(group_paths) <= max_group_size:
-                best_path = max(group_paths, key=lambda p: aggregates.get(p, 0))
-                groups.append({
-                    'paths': group_paths,
-                    'best_path': best_path,
-                    'count': len(group_paths),
-                })
+        for members in _split_oversized(emb_matrix, list(range(n)), threshold, max_group_size):
+            if len(members) < min_size:
+                continue
+            group_paths = [valid_paths[i] for i in members]
+            best_path = max(group_paths, key=lambda p: aggregates.get(p, 0))
+            groups.append({
+                'paths': group_paths,
+                'best_path': best_path,
+                'count': len(group_paths),
+            })
 
         groups.sort(key=lambda g: g['count'], reverse=True)
 
