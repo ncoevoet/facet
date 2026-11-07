@@ -144,7 +144,8 @@ const sortOptionLabelKey = (column: string): string => `sort_options.${column}`;
       @if (!pinned()) {
         <button mat-button class="!min-h-11 !min-w-11 !px-2 !text-[var(--mat-sys-on-surface)]" [class.!bg-[var(--mat-sys-secondary-container)]]="store.filterDrawerOpen()" (click)="toggleFilters()"
                 [matBadge]="store.activeFilterCount() || null" matBadgeColor="primary" matBadgeSize="medium"
-                [matTooltip]="I18N.gallery.filters | translate" [attr.aria-label]="I18N.gallery.filters | translate"
+                [matTooltip]="I18N.gallery.filters | translate"
+                [attr.aria-label]="store.activeFilterCount() ? (I18N.gallery.filters | translate) + ', ' + (I18N.gallery.active_filters | translate:{ count: store.activeFilterCount() }) : (I18N.gallery.filters | translate)"
                 [attr.aria-expanded]="store.filterDrawerOpen()">
           <mat-icon>filter_alt</mat-icon>
           <span>{{ I18N.gallery.filters | translate }}</span>

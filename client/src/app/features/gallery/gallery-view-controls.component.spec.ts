@@ -424,6 +424,14 @@ describe('GalleryViewControlsComponent', () => {
       expect(store.updateFilter).toHaveBeenLastCalledWith('panel_activation', 'both');
     });
 
+    it('announces how many filters are active, not only that the button opens them', () => {
+      const { fixture, root, store } = render();
+      store.activeFilterCount.set(3); fixture.detectChanges();
+      expect(root.querySelector(`button[aria-label="${I18N.gallery.filters}, ${I18N.gallery.active_filters}(3)"]`)).not.toBeNull();
+      store.activeFilterCount.set(0); fixture.detectChanges();
+      expect(byLabel(root, I18N.gallery.filters)).toHaveLength(1);
+    });
+
     it('toggles the refinement panel without changing collection predicates', () => {
       const { fixture, root, store } = render();
       const filters = store.filters();
