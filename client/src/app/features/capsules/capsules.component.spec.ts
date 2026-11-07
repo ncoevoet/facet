@@ -103,6 +103,19 @@ describe('CapsulesComponent', () => {
       expect(mockSnackBar.open).not.toHaveBeenCalled();
     });
 
+    it('clears stale pagination when a page-1 reload fails', async () => {
+      await internals().loadCapsules();
+      expect(internals().hasMore()).toBe(true);
+      mockApi.get.mockReturnValueOnce(throwError(() => new Error('boom')));
+      internals().currentPage = 1;
+      await internals().loadCapsules(true);
+      // A hasMore left over from the earlier load would keep the scroll
+      // sentinel alive and append page 2 onto the now-empty grid.
+      expect(internals().hasMore()).toBe(false);
+      expect(internals().total()).toBe(0);
+      expect(internals().loadError()).toBe(true);
+    });
+
     it('keeps the grid and sets no error when a later page fails', async () => {
       await internals().loadCapsules();
       mockApi.get.mockReturnValueOnce(throwError(() => new Error('boom')));
