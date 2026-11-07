@@ -1158,7 +1158,7 @@ Les raccourcis à touche unique sont inactifs quand le focus est dans un champ d
 
 ## Annuler
 
-Les changements groupés de favori/rejet/note et les confirmations de tri affichent une barre de notification avec **Annuler** pendant environ 7 secondes.
+Les changements groupés de favori/rejet/note et les confirmations de tri affichent une barre de notification avec **Annuler** pendant environ 7 secondes. `Ctrl+Z` / `Cmd+Z` l’actionne tant qu’elle est affichée ; dans un champ de texte, la touche garde son rôle habituel.
 
 - Les changements groupés d'indicateurs s'appliquent aussitôt et s'annulent en les inversant (jusqu'à 500 photos).
 - Les confirmations de tri sont différées : le groupe disparaît aussitôt, mais rien n'est enregistré avant la fin de la fenêtre d'annulation.

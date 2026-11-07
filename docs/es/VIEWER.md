@@ -1160,7 +1160,7 @@ Los atajos de una sola tecla están inactivos mientras el foco está en un campo
 
 ## Deshacer
 
-Los cambios por lotes de favorito/rechazo/valoración y las confirmaciones de descarte muestran una barra de aviso con **Deshacer** durante ~7 segundos.
+Los cambios por lotes de favorito/rechazo/valoración y las confirmaciones de descarte muestran una barra de aviso con **Deshacer** durante ~7 segundos. `Ctrl+Z` / `Cmd+Z` la pulsa mientras está visible; en un campo de texto, la tecla conserva su función habitual.
 
 - Los cambios de indicadores por lotes se aplican al instante y se deshacen invirtiéndolos (hasta 500 fotos).
 - Las confirmaciones de descarte se aplazan: el grupo desaparece al instante, pero no se guarda nada hasta que termina el plazo de deshacer.

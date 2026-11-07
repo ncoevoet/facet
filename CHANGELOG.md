@@ -4,6 +4,14 @@ All notable changes to Facet are documented in this file.
 
 ## [Unreleased]
 
+### Added
+
+- **`Ctrl+Z` / `Cmd+Z` presses the snackbar's Undo while it is showing**, on every page that offers one (gallery batch changes, culling and stack confirms, person hides), including inside the darkroom. A text field keeps its own undo, an open dialog keeps the key, and with no snackbar on screen the key does nothing. The `?` reference lists it on the gallery, culling and stack-suggestion pages.
+
+### Changed
+
+- **The remappable keyboard actions live in one registry** (`SHORTCUT_REGISTRY`: id, default key, page scope, label). The Customize shortcuts dialog, the saved-keymap loader and the `?` reference read from it, so a new action is one row. A key is now refused only when another action on the same page holds it; all seven current actions are live on the gallery, so nothing a user can do changes yet.
+
 ### Security
 
 - **Request bodies are capped at 10 MB before any handler reads them.** Login, proofing sessions and client error reports buffered the whole body before validation and rate limiting ran, so an unbounded body was a memory lever for any LAN peer. A declared size over the cap answers 413 at once and a chunked body is refused as soon as it crosses it. WebDAV uploads, the AI-edit import and the Lightroom state import keep their own, larger streaming caps.

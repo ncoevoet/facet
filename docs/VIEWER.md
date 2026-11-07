@@ -1146,11 +1146,12 @@ Single-key shortcuts are inactive while focus is in a text field, menu or list.
 | `/` | Focus the toolbar search (shown from 1360 px wide); narrower, opens the filter sidebar's search |
 | `S` | Open the stack editor for the explicit selection (edition mode; remappable, can be left Unassigned) |
 | `Ctrl+Shift+S` / `Cmd+Shift+S` | Stack the explicit unstacked selection at once in selection order, the first photo as cover (edition mode; existing stack members open the editor) |
+| `Ctrl+Z` / `Cmd+Z` | Undo the last change while its [Undo](#undo) snackbar is showing (every page; not in text fields or dialogs) |
 | `B` | Show / hide the filter sidebar |
 | `V` | Switch between grid and mosaic layout |
 | `?` | Show the keyboard shortcuts reference (every page; also in user menu → Help) |
 
-**Remap keys.** `K`, `F`, `X`, `/`, `B`, `V` and `S` are defaults. User menu → **Customize shortcuts** lets you click an action and press a new key (`Esc` or `Tab` cancels). Digits, `Space` and `?` are reserved, and a key already in use is refused. **Reset all** restores the defaults. The mapping is stored per browser (`localStorage`). The photo page uses the same keys, and the `?` reference always shows the keys in effect.
+**Remap keys.** `K`, `F`, `X`, `/`, `B`, `V` and `S` are defaults. User menu → **Customize shortcuts** lets you click an action and press a new key (`Esc` or `Tab` cancels). Digits, `Space` and `?` are reserved, and a key already in use by another action on the same page is refused. **Reset all** restores the defaults. The mapping is stored per browser (`localStorage`). The photo page uses the same keys, and the `?` reference always shows the keys in effect.
 
 **Current photo.** The photo that rating, favorite and reject keys act on has a 4px outline; other cards dim to 50%. Nothing is marked until you move onto a photo. Clicking a photo moves the marker to it. Returning from a photo leaves the marker on the last one you viewed. The focused-card hint appears only in edition mode with `viewer.features.show_rating_controls` on.
 
@@ -1158,7 +1159,7 @@ Single-key shortcuts are inactive while focus is in a text field, menu or list.
 
 ## Undo
 
-Batch favorite/reject/rating changes and culling confirms show a snackbar with **Undo** for ~7 seconds.
+Batch favorite/reject/rating changes and culling confirms show a snackbar with **Undo** for ~7 seconds. `Ctrl+Z` / `Cmd+Z` presses it while it is showing; in a text field the key keeps its usual meaning.
 
 - Batch flag changes apply at once and are undone by reversing them (up to 500 photos).
 - Culling confirms are deferred: the group disappears at once, but nothing is saved until the undo window ends.

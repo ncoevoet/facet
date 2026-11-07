@@ -1156,7 +1156,7 @@ Os atalhos de uma tecla ficam inativos enquanto o foco está em um campo de text
 
 ## Desfazer
 
-As alterações em lote de favorito/rejeição/avaliação e as confirmações de triagem mostram uma barra de aviso com **Desfazer** por ~7 segundos.
+As alterações em lote de favorito/rejeição/avaliação e as confirmações de triagem mostram uma barra de aviso com **Desfazer** por ~7 segundos. `Ctrl+Z` / `Cmd+Z` aciona-a enquanto está visível; num campo de texto, a tecla mantém a função habitual.
 
 - As alterações de marcadores em lote se aplicam na hora e são desfeitas revertendo-as (até 500 fotos).
 - As confirmações de triagem são adiadas: o grupo some na hora, mas nada é salvo até o fim da janela de desfazer.

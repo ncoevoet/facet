@@ -2945,6 +2945,7 @@
     "key_reserved": "That key is reserved",
     "stack": "Stack selected photos (editing only)",
     "quick_stack": "Quick stack selection (existing stack members open the editor)",
+    "undo": "Undo (while the Undo bar is showing)",
     "unassigned": "Unassigned",
     "stack_hint": "Stack photos ({key})",
     "keymap_title": "Customize shortcuts"

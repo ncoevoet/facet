@@ -1158,7 +1158,7 @@ Le scorciatoie a tasto singolo sono inattive mentre il fuoco è in un campo di t
 
 ## Annulla
 
-Le modifiche di gruppo a preferito/rifiuto/valutazione e le conferme di selezione mostrano una snackbar con **Annulla** per ~7 secondi.
+Le modifiche di gruppo a preferito/rifiuto/valutazione e le conferme di selezione mostrano una snackbar con **Annulla** per ~7 secondi. `Ctrl+Z` / `Cmd+Z` la preme finché è visibile; in un campo di testo il tasto mantiene la sua funzione abituale.
 
 - Le modifiche di gruppo ai flag si applicano subito e si annullano invertendole (fino a 500 foto).
 - Le conferme di selezione sono differite: il gruppo sparisce subito, ma nulla viene salvato finché la finestra di annullamento non termina.

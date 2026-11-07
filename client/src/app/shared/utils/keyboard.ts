@@ -25,6 +25,11 @@ export function isImeOrRepeat(event: KeyboardEvent): boolean {
   return event.repeat || event.isComposing || event.keyCode === 229;
 }
 
+/** True for Ctrl+Z or Cmd+Z (one of the two, never both), without Shift or Alt. */
+export function isUndoChord(event: KeyboardEvent): boolean {
+  return event.key.toLowerCase() === 'z' && event.ctrlKey !== event.metaKey && !event.shiftKey && !event.altKey;
+}
+
 /** True when focus is in a typing context or a dialog / bottom sheet is open, whatever modifiers are held. */
 export function isShortcutContextBlocked(event: KeyboardEvent): boolean {
   return isTypingContext(event) || !!document.querySelector('mat-dialog-container, mat-bottom-sheet-container');

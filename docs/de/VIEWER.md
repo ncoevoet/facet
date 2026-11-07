@@ -1158,7 +1158,7 @@ Einzeltasten-Kürzel sind inaktiv, solange der Fokus in einem Textfeld, Menü od
 
 ## Rückgängig
 
-Sammeländerungen an Favorit/Ablehnung/Bewertung und Auswahl-Bestätigungen zeigen etwa 7 Sekunden lang eine Snackbar mit **Rückgängig**.
+Sammeländerungen an Favorit/Ablehnung/Bewertung und Auswahl-Bestätigungen zeigen etwa 7 Sekunden lang eine Snackbar mit **Rückgängig**. `Strg+Z` / `Cmd+Z` löst sie aus, solange sie angezeigt wird; in einem Textfeld behält die Taste ihre übliche Bedeutung.
 
 - Sammeländerungen von Markierungen gelten sofort und werden durch Umkehren rückgängig gemacht (bis zu 500 Fotos).
 - Auswahl-Bestätigungen sind verzögert: Die Gruppe verschwindet sofort, aber nichts wird gespeichert, bis das Rückgängig-Fenster endet.
