@@ -1,5 +1,5 @@
 import {
-  CULLING_GROUP_TYPES, CullGroupIconPipe, CullGroupLabelPipe,
+  CULLING_GROUP_TYPES, CullGroupIconPipe, CullGroupLabelPipe, LookalikeSignalsPipe,
   IsKeptPipe, IsDecidedPipe, IsConfirmedPipe, IsPassingPipe, PassCountdownPipe,
   FacesForPathPipe, FacePoorExpressionPipe, FaceRingClassPipe, FaceDimmedPipe,
   WeightRemainingPipe, SortIconPipe, CategoryIconPipe, CullProfileIconPipe,
@@ -1004,6 +1004,7 @@ describe('suggested-stack group presentation', () => {
     ['all', 'dashboard', 'culling.group_by.all'],
     ['burst', 'burst_mode', 'culling.group_by.bursts'],
     ['similar', 'filter_none', 'culling.group_by.similar'],
+    ['lookalike', 'difference', 'culling.group_by.lookalikes'],
     ['scene', 'movie_filter', 'culling.group_by.scenes'],
     ['bracket', 'hdr_on', 'culling.group_by.brackets'],
     ['panorama', 'panorama_photosphere', 'culling.group_by.panoramas'],
@@ -1013,9 +1014,39 @@ describe('suggested-stack group presentation', () => {
     expect(icons.transform(kind)).toBe(icon); expect(labels.transform(kind)).toBe(label);
   });
   it('keeps duplicates out of the cull group-by options', () => {
-    expect(CULLING_GROUP_TYPES).toEqual(['burst', 'similar', 'scene', 'bracket', 'panorama', 'hdr_panorama']);
+    expect(CULLING_GROUP_TYPES).toEqual(['burst', 'similar', 'lookalike', 'scene', 'bracket', 'panorama', 'hdr_panorama']);
   });
   it.each(['unknown', '__proto__', 'constructor', 'toString'])('uses safe fallbacks for %s', kind => {
     expect(icons.transform(kind)).toBe('dashboard'); expect(labels.transform(kind)).toBe('');
+  });
+});
+
+describe('LookalikeSignalsPipe', () => {
+  const pipe = new LookalikeSignalsPipe();
+  const evidence = { visual: 0.943, hash: null, seconds_apart: null, same_camera: null, earlier_keeper: null };
+  const keys = (value: Parameters<LookalikeSignalsPipe['transform']>[0]) => pipe.transform(value).map(signal => signal.key);
+
+  it('says nothing without evidence and always leads with how alike the pictures look', () => {
+    expect(pipe.transform(undefined)).toEqual([]);
+    expect(pipe.transform(evidence)).toEqual([{ key: 'culling.lookalike.alike', params: { percent: 94 } }]);
+  });
+
+  it('adds one fragment per signal that is present', () => {
+    expect(keys({ ...evidence, hash: 0.95, seconds_apart: 7, same_camera: true, earlier_keeper: '/a.jpg' })).toEqual([
+      'culling.lookalike.alike', 'culling.lookalike.same_content', 'culling.lookalike.apart_seconds',
+      'culling.lookalike.same_camera', 'culling.lookalike.kept_earlier',
+    ]);
+  });
+
+  it('does not call a loose hash match or another camera a signal', () => {
+    expect(keys({ ...evidence, hash: 0.8, same_camera: false })).toEqual(['culling.lookalike.alike']);
+  });
+
+  it.each([
+    [7, 'culling.lookalike.apart_seconds', 7], [0.2, 'culling.lookalike.apart_seconds', 1],
+    [600, 'culling.lookalike.apart_minutes', 10], [7200, 'culling.lookalike.apart_hours', 2],
+    [172800, 'culling.lookalike.apart_days', 2],
+  ])('shows %s seconds in the unit that reads best', (seconds, key, n) => {
+    expect(pipe.transform({ ...evidence, seconds_apart: seconds })[1]).toEqual({ key, params: { n } });
   });
 });

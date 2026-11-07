@@ -1,5 +1,6 @@
 import { Pipe, PipeTransform, inject } from '@angular/core';
 import { I18nService } from '../../core/services/i18n.service';
+import { I18N } from '../../core/i18n/keys';
 import { SEQUENCE_KIND_ICONS } from '../../shared/pipes/sequence-kind.pipe';
 import type { ComparisonStats } from '../../core/api/types';
 import type { CullSuggestion } from '../../core/agent/assistant-cull-plan.service';
@@ -75,7 +76,7 @@ export interface CullingSubject {
 }
 
 /** The group types the culling feed serves; the one list the type, the toolbar's granularity values and their checks share. */
-export const CULLING_GROUP_TYPES = ['burst', 'similar', 'scene', 'bracket', 'panorama', 'hdr_panorama'] as const;
+export const CULLING_GROUP_TYPES = ['burst', 'similar', 'lookalike', 'scene', 'bracket', 'panorama', 'hdr_panorama'] as const;
 export type CullingGroupType = typeof CULLING_GROUP_TYPES[number];
 
 /** What the assistant's plan says about one group (rows of `POST /culling/plan`). */
@@ -87,6 +88,16 @@ export interface CullingGroupPlan {
   group_reason: { key: string; params: Record<string, string | number> } | null;
 }
 
+/** Why two photos were paired in the look-alikes view; null means the signal was unavailable. */
+export interface LookalikeEvidence {
+  visual: number;
+  hash: number | null;
+  seconds_apart: number | null;
+  same_camera: boolean | null;
+  /** The photo already decided in an earlier review, when exactly one of the pair is. */
+  earlier_keeper: string | null;
+}
+
 /** A burst, similar, scene, bracket or panorama group surfaced for culling. */
 export interface CullingGroup {
   group_id: number;
@@ -95,6 +106,8 @@ export interface CullingGroup {
   reason: string;
   /** Similar groups only: the threshold the group was formed at. */
   similarity_percent?: number | null;
+  /** Look-alike pairs only: the evidence for pairing these two photos (0-1 similarities). */
+  lookalike?: LookalikeEvidence;
   photos: CullingPhoto[];
   best_path: string;
   count: number;
@@ -497,6 +510,7 @@ export class CullGroupIconPipe implements PipeTransform {
     burst: 'burst_mode',
     duplicate: 'content_copy',
     similar: 'filter_none',
+    lookalike: 'difference',
     scene: 'movie_filter',
     ...SEQUENCE_KIND_ICONS,
   };
@@ -514,6 +528,7 @@ export class CullGroupLabelPipe implements PipeTransform {
     burst: 'culling.group_by.bursts',
     duplicate: 'stacks.suggestion_duplicate',
     similar: 'culling.group_by.similar',
+    lookalike: 'culling.group_by.lookalikes',
     scene: 'culling.group_by.scenes',
     bracket: 'culling.group_by.brackets',
     panorama: 'culling.group_by.panoramas',
@@ -873,5 +888,33 @@ export class CullDateRangePipe implements PipeTransform {
       return `${String(d.getDate()).padStart(2, '0')}/${String(d.getMonth() + 1).padStart(2, '0')}/${d.getFullYear()}`;
     };
     return `${fmt(from)} - ${fmt(to)}`.trim();
+  }
+}
+
+/** A card footer fragment: a translation key and its params. */
+export interface LookalikeSignal {
+  key: string;
+  params: Record<string, number>;
+}
+
+/** The evidence of a look-alike pair as the footer's translated fragments, strongest first. */
+@Pipe({ name: 'lookalikeSignals' })
+export class LookalikeSignalsPipe implements PipeTransform {
+  transform(evidence: LookalikeEvidence | undefined): LookalikeSignal[] {
+    if (!evidence) return [];
+    const signals: LookalikeSignal[] = [{ key: I18N.culling.lookalike.alike, params: { percent: Math.round(evidence.visual * 100) } }];
+    // Within 6 of 64 bits: a re-save or resize rather than a retake.
+    if (evidence.hash !== null && evidence.hash >= 0.9) signals.push({ key: I18N.culling.lookalike.same_content, params: {} });
+    const gap = evidence.seconds_apart;
+    if (gap !== null) {
+      const [key, value] = gap < 90 ? [I18N.culling.lookalike.apart_seconds, gap]
+        : gap < 5400 ? [I18N.culling.lookalike.apart_minutes, gap / 60]
+        : gap < 129600 ? [I18N.culling.lookalike.apart_hours, gap / 3600]
+        : [I18N.culling.lookalike.apart_days, gap / 86400];
+      signals.push({ key, params: { n: Math.max(1, Math.round(value)) } });
+    }
+    if (evidence.same_camera) signals.push({ key: I18N.culling.lookalike.same_camera, params: {} });
+    if (evidence.earlier_keeper) signals.push({ key: I18N.culling.lookalike.kept_earlier, params: {} });
+    return signals;
   }
 }

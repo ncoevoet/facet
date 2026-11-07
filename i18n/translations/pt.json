@@ -2832,11 +2832,22 @@
       "grid": "Grelha de composição",
       "close": "Fechar"
     },
+    "lookalike": {
+      "alike": "{percent}% parecidas",
+      "same_content": "conteúdo quase idêntico",
+      "apart_seconds": "{n} s de diferença",
+      "apart_minutes": "{n} min de diferença",
+      "apart_hours": "{n} h de diferença",
+      "apart_days": "{n} d de diferença",
+      "same_camera": "mesma câmera",
+      "kept_earlier": "uma mantida antes"
+    },
     "group_by": {
       "label": "Agrupar por",
       "all": "Tudo",
       "bursts": "Rajadas",
       "similar": "Semelhantes",
+      "lookalikes": "Quase iguais",
       "scenes": "Cenas",
       "brackets": "Bracketings de exposição",
       "panoramas": "Panoramas",

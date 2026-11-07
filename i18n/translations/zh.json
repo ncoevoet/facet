@@ -2832,11 +2832,22 @@
       "grid": "构图辅助线",
       "close": "关闭"
     },
+    "lookalike": {
+      "alike": "相似度 {percent}%",
+      "same_content": "内容几乎相同",
+      "apart_seconds": "相隔 {n} 秒",
+      "apart_minutes": "相隔 {n} 分钟",
+      "apart_hours": "相隔 {n} 小时",
+      "apart_days": "相隔 {n} 天",
+      "same_camera": "同一台相机",
+      "kept_earlier": "其中一张此前已保留"
+    },
     "group_by": {
       "label": "分组方式",
       "all": "全部",
       "bursts": "连拍",
       "similar": "相似",
+      "lookalikes": "高度相似",
       "scenes": "场景",
       "brackets": "包围曝光",
       "panoramas": "全景照片组",

@@ -2832,11 +2832,22 @@
       "grid": "Cuadrícula de composición",
       "close": "Cerrar"
     },
+    "lookalike": {
+      "alike": "{percent}% parecidas",
+      "same_content": "contenido casi idéntico",
+      "apart_seconds": "{n} s de diferencia",
+      "apart_minutes": "{n} min de diferencia",
+      "apart_hours": "{n} h de diferencia",
+      "apart_days": "{n} d de diferencia",
+      "same_camera": "misma cámara",
+      "kept_earlier": "una conservada antes"
+    },
     "group_by": {
       "label": "Agrupar por",
       "all": "Todo",
       "bursts": "Ráfagas",
       "similar": "Similares",
+      "lookalikes": "Casi iguales",
       "scenes": "Escenas",
       "brackets": "Horquillados de exposición",
       "panoramas": "Panoramas",

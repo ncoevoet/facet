@@ -385,6 +385,15 @@ describe('BurstCullingComponent', () => {
       expect(mockI18n.t).toHaveBeenCalledWith('culling.group_reason.similar_percent', { percent: 85 });
     });
 
+    it('lists the evidence of a look-alike pair instead of the similar-group percentage', async () => {
+      await render([{ ...similar, type: 'lookalike', similarity_percent: 94,
+        lookalike: { visual: 0.94, hash: null, seconds_apart: 7, same_camera: true, earlier_keeper: null } }]);
+      expect(mockI18n.t).toHaveBeenCalledWith('culling.lookalike.alike', { percent: 94 });
+      expect(mockI18n.t).toHaveBeenCalledWith('culling.lookalike.apart_seconds', { n: 7 });
+      expect(mockI18n.t).toHaveBeenCalledWith('culling.lookalike.same_camera', {});
+      expect(mockI18n.t).not.toHaveBeenCalledWith('culling.group_reason.similar_percent', expect.anything());
+    });
+
     it('keeps the plain count when every photo of the group is on the card', async () => {
       await render([burst]);
       expect(mockI18n.t).not.toHaveBeenCalledWith('culling.photos_shown_of', expect.anything());

@@ -6,6 +6,7 @@ All notable changes to Facet are documented in this file.
 
 ### Added
 
+- **A Look-alikes view in culling** finds near-duplicates the Burst and Similar views leave out. It scores pairs of photos from how alike they look, near-identical content and closeness in time, reads photos that were already reviewed or sit inside a burst so a new shot meets an earlier keeper, and shows the evidence on each card ("96% alike · 10 s apart · same camera"). Nothing is automatic and the existing views are unchanged.
 - Copy the open photo as a PNG image for pasting into other applications; the original file is unchanged.
 - Photo-detail score charts load on demand, highlight the current photo and switch between the reader’s visible library and the photo’s category. Multi-person gallery filters show color-matched face outlines, with a persistent Display toggle.
 

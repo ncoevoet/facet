@@ -114,7 +114,7 @@ class SimilarSelectionBody(BaseModel):
 
 class CullingConfirmBody(BaseModel):
     group_id: int
-    type: Literal['burst', 'similar', 'scene', 'bracket', 'panorama', 'hdr_panorama']
+    type: Literal['burst', 'similar', 'lookalike', 'scene', 'bracket', 'panorama', 'hdr_panorama']
     # Non-empty for every feed type: `select_burst_photos` and
     # `select_similar_photos` operate on the whole named group, so an empty
     # `paths` here would leave an empty `keep_paths` rejecting everything in
@@ -1236,9 +1236,32 @@ def _fetch_unreviewed_similar_groups(conn, threshold, vis_sql, vis_params, seed,
     return results
 
 
+def _fetch_lookalike_groups(conn, user_id, vis_sql, vis_params, *, album_id=None, date_from=None, date_to=None):
+    """Two-photo groups for ``group_by='lookalike'``, strongest match first.
+
+    Each group carries the evidence behind it (``lookalike``: visual and hash similarity as 0-1,
+    seconds apart, same camera, the earlier keeper's path) so the client can say why two photos were put side by side.
+    """
+    from api.lookalike_pairs import compute_lookalike_pairs
+    pairs = compute_lookalike_pairs(
+        conn, user_id, album_id=album_id, date_from=date_from, date_to=date_to,
+        max_photos=_get_similarity_config()['max_photos'])
+    groups = _fetch_unreviewed_similar_groups(
+        conn, 0.85, vis_sql, vis_params, 0, user_id,
+        page_groups=[{'paths': p['paths'], 'best_path': p['best_path'], 'count': 2} for p in pairs],
+        exclude_rejected=False, max_per_group=2,
+    )
+    for group, pair in zip(groups, pairs):
+        group['type'] = 'lookalike'
+        group['reason'] = f"{round(pair['visual'] * 100)}% alike"
+        group['similarity_percent'] = round(pair['visual'] * 100)
+        group['lookalike'] = {key: pair[key] for key in ('visual', 'hash', 'seconds_apart', 'same_camera', 'earlier_keeper')}
+    return groups
+
+
 _CULLING_SORTS = ('easiest', 'redundant', 'best', 'recent', 'needs_comparisons', 'chronological')
 _CULLING_GROUP_BY = ('all', 'burst', 'similar', 'scene', 'bracket',
-                     'panorama', 'hdr_panorama')
+                     'panorama', 'hdr_panorama', 'lookalike')
 
 # Natural direction of each sort mode. Every mode ranks largest-first except
 # `chronological`, which walks the shoot forward in time -- the order a
@@ -1605,7 +1628,8 @@ def api_culling_groups(
     """Return a list of culling groups for one granularity.
 
     `group_by` selects the grouping: `all` (today's merged burst+similar feed),
-    `burst`, `similar`, or `scene`. Burst/similar groups are enriched + globally
+    `burst`, `similar`, `lookalike` (scored two-photo pairs, including photos the other feeds skip),
+    or `scene`. Burst/similar groups are enriched + globally
     ordered by `sort` (easiest | redundant | best | recent | needs_comparisons |
     chronological) and memoized; `scene` groups come from `compute_scenes`, stay
     chronological (`sort` is ignored), and bypass the memo (compute_scenes has
@@ -1679,6 +1703,13 @@ def api_culling_groups(
                                     reverse=_culling_sort_reverse(sort, direction))
                     if sort == 'chronological':
                         _order_group_photos_by_capture(all_groups)
+                    if library_token == _library_change_token():
+                        _store_culling_groups(cache_key, now, all_groups, generation)
+                elif group_by == 'lookalike':
+                    # Ranked by match strength, so `sort` is ignored (as for scenes).
+                    all_groups = _fetch_lookalike_groups(
+                        conn, user_id, vis_sql, vis_params, album_id=album_id,
+                        date_from=date_from, date_to=date_to)
                     if library_token == _library_change_token():
                         _store_culling_groups(cache_key, now, all_groups, generation)
                 else:
@@ -1927,7 +1958,7 @@ def confirm_culling_group(
             paths=body.paths,
         )
         return select_burst_photos(burst_body, user)
-    elif body.type == 'similar':
+    elif body.type in ('similar', 'lookalike'):
         similar_body = SimilarSelectionBody(
             paths=body.paths,
             keep_paths=body.keep_paths,

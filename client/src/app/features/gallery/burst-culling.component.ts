@@ -64,7 +64,7 @@ import {
   PlanSuggestionPipe, PlanAcceptedPipe, PlanGroupNotePipe, CullDateRangePipe, ScopeDatePipe,
   IsKeptPipe, IsDecidedPipe, IsConfirmedPipe, IsPassingPipe, PassCountdownPipe,
   CullReasonPipe, FacesForPathPipe, FacePoorExpressionPipe, FaceRingClassPipe,
-  FaceDimmedPipe, WeightRemainingPipe, CullGroupIconPipe, CullGroupLabelPipe,
+  FaceDimmedPipe, WeightRemainingPipe, CullGroupIconPipe, CullGroupLabelPipe, LookalikeSignalsPipe,
   SortIconPipe, CategoryIconPipe, CullProfileIconPipe,
   SubjectForPathPipe, SubjectRingClassPipe, EvOffsetPipe, GroupOverridePipe,
   GroupOverridePendingPipe, PeakingOverlayPipe, FrameViewBoxPipe, GridLinesPipe,
@@ -188,6 +188,7 @@ interface SceneSummary {
     WeightRemainingPipe,
     CullGroupIconPipe,
     CullGroupLabelPipe,
+    LookalikeSignalsPipe,
     SortIconPipe,
     CategoryIconPipe,
     CullProfileIconPipe,
@@ -343,6 +344,10 @@ interface SceneSummary {
                 <mat-icon>{{ 'similar' | cullGroupIcon }}</mat-icon>
                 <span [class.font-bold]="cull.groupBy() === 'similar'">{{ I18N.culling.group_by.similar | translate }}</span>
               </button>
+              <button mat-menu-item (click)="onGroupByChange('lookalike')">
+                <mat-icon>{{ 'lookalike' | cullGroupIcon }}</mat-icon>
+                <span [class.font-bold]="cull.groupBy() === 'lookalike'">{{ I18N.culling.group_by.lookalikes | translate }}</span>
+              </button>
               @if (store.config()?.features?.show_scenes || cull.groupBy() === 'scene') {
                 <button mat-menu-item (click)="onGroupByChange('scene')">
                   <mat-icon>{{ 'scene' | cullGroupIcon }}</mat-icon>
@@ -362,7 +367,7 @@ interface SceneSummary {
                 <span [class.font-bold]="cull.groupBy() === 'hdr_panorama'">{{ I18N.culling.group_by.hdr_panoramas | translate }}</span>
               </button>
             </mat-menu>
-            @if (cull.groupBy() !== 'scene') {
+            @if (cull.groupBy() !== 'scene' && cull.groupBy() !== 'lookalike') {
               <button mat-button class="max-sm:!min-h-11 pointer-coarse:!min-h-11 !min-w-0 !px-3 shrink-0" [matMenuTriggerFor]="cullSortMenu" [disabled]="cull.planActive()"
                       [class.!text-[var(--mat-sys-primary)]]="cull.sortMode() !== 'easiest'"
                       [matTooltip]="'culling.sort.' + cull.sortMode() | translate"
@@ -472,7 +477,7 @@ interface SceneSummary {
                   [attr.aria-label]="I18N.culling.loupe | translate">
             <mat-icon>{{ loupeActive() ? 'zoom_in' : 'search' }}</mat-icon>
           </button>
-          @if (auth.isEdition() && !keepWholeGranularity()) {
+          @if (auth.isEdition() && !keepWholeGranularity() && cull.groupBy() !== 'lookalike') {
             <button mat-icon-button class="max-sm:!w-11 max-sm:!h-11 pointer-coarse:!w-11 pointer-coarse:!h-11 shrink-0" (click)="cull.openAutoCull()" [disabled]="cull.autoCullBusy()"
                     [matTooltip]="I18N.culling.auto_cull.tooltip | translate"
                     [attr.aria-label]="I18N.culling.auto_cull.button | translate">
@@ -771,7 +776,9 @@ interface SceneSummary {
                 <span class="text-xs opacity-50">
                   @if (group.count > group.photos.length) { {{ I18N.culling.photos_shown_of | translate:{ shown: group.photos.length, count: group.count } }} }
                   @else { {{ group.count }} {{ I18N.culling.photos | translate }} }
-                  @if (group.similarity_percent; as percent) { · {{ I18N.culling.group_reason.similar_percent | translate:{ percent } }} }
+                  @if (group.lookalike) {
+                    @for (signal of group.lookalike | lookalikeSignals; track signal.key) { · {{ signal.key | translate:signal.params }} }
+                  } @else if (group.similarity_percent; as percent) { · {{ I18N.culling.group_reason.similar_percent | translate:{ percent } }} }
                 </span>
                 @if (stacksMode()) {
                   @if (cull.stackDrafts()[groupKey].excludedCount; as count) { <span data-stack-excluded role="status" class="text-xs">{{ I18N.stacks.reject_count | translate:{ count } }}</span> }

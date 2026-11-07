@@ -2857,11 +2857,22 @@
       "grid": "Composition grid",
       "close": "Close"
     },
+    "lookalike": {
+      "alike": "{percent}% alike",
+      "same_content": "near-identical content",
+      "apart_seconds": "{n} s apart",
+      "apart_minutes": "{n} min apart",
+      "apart_hours": "{n} h apart",
+      "apart_days": "{n} d apart",
+      "same_camera": "same camera",
+      "kept_earlier": "one kept earlier"
+    },
     "group_by": {
       "label": "Group by",
       "all": "All",
       "bursts": "Bursts",
       "similar": "Similar",
+      "lookalikes": "Look-alikes",
       "scenes": "Scenes",
       "brackets": "Exposure brackets",
       "panoramas": "Panoramas",

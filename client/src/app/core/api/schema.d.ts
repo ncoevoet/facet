@@ -1318,7 +1318,8 @@ export interface paths {
          * @description Return a list of culling groups for one granularity.
          *
          *     `group_by` selects the grouping: `all` (today's merged burst+similar feed),
-         *     `burst`, `similar`, or `scene`. Burst/similar groups are enriched + globally
+         *     `burst`, `similar`, `lookalike` (scored two-photo pairs, including photos the other feeds skip),
+         *     or `scene`. Burst/similar groups are enriched + globally
          *     ordered by `sort` (easiest | redundant | best | recent | needs_comparisons |
          *     chronological) and memoized; `scene` groups come from `compute_scenes`, stay
          *     chronological (`sort` is ignored), and bypass the memo (compute_scenes has
@@ -7199,7 +7200,7 @@ export interface components {
              * Type
              * @enum {string}
              */
-            type: "burst" | "similar" | "scene" | "bracket" | "panorama" | "hdr_panorama";
+            type: "burst" | "similar" | "lookalike" | "scene" | "bracket" | "panorama" | "hdr_panorama";
         };
         /** CullingFacesBody */
         CullingFacesBody: {
