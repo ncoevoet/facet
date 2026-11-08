@@ -443,9 +443,13 @@ async def lifespan(app: FastAPI):
     threading.Thread(target=_repair_dimensions, daemon=True,
                      name="thumbnail-dims-repair").start()
 
-    # Pre-compute capsules in a background thread so first visitor gets instant results
+    # Pre-compute capsules in a background thread so first visitor gets instant results.
+    # Only an open install can use it: the pass runs with no user, and on a protected one
+    # that sees nothing (get_visibility_clause), so it would be a full scan for an empty list.
     from api.config import _FULL_CONFIG
-    if _FULL_CONFIG.get("viewer", {}).get("features", {}).get("show_capsules", True):
+    from api.db_helpers import is_access_controlled_install
+    if (_FULL_CONFIG.get("viewer", {}).get("features", {}).get("show_capsules", True)
+            and not is_access_controlled_install()):
         import threading
         def _precompute_capsules():
             try:
