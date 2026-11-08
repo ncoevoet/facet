@@ -238,8 +238,9 @@ interface SceneSummary {
                shell controls the toolbar is projected next to.
                py-1.5 / pr-1.5 leave room for the icon buttons' 48px touch targets: they
                overhang the 36px buttons, and in a scrolling row that overhang alone
-               produced a scrollbar on a header with plenty of free width. -->
-          <div class="flex flex-nowrap items-center gap-3 md:gap-4 min-w-0 flex-1 max-lg:min-w-11 overflow-x-auto py-1.5 pr-1.5">
+               produced a scrollbar on a header with plenty of free width.
+               On small screens the right edge fades so a clipped control reads as "scrolls". -->
+          <div class="flex flex-nowrap items-center gap-3 md:gap-4 min-w-0 flex-1 max-lg:min-w-11 overflow-x-auto py-1.5 pr-1.5 max-lg:pr-6 max-lg:[mask-image:linear-gradient(to_right,#000_calc(100%-1.5rem),transparent)]">
             @if (scoped()) {
               <button class="max-sm:!w-11 max-sm:!h-11 pointer-coarse:!w-11 pointer-coarse:!h-11" mat-icon-button (click)="exitScope()"
                       [matTooltip]="I18N.culling.exit_scene | translate"

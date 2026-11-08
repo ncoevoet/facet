@@ -1,3 +1,4 @@
+import { DEFAULT_BREAKPOINT_PX } from '../../shared/utils/media-query';
 import { LogicalAssetApplied } from '../../shared/models/logical-asset-change';
 import { LogicalReviewAction, LogicalReviewService, LogicalReviewState, LogicalReviewWriteError } from '../../core/services/logical-review.service';
 import { Injectable, inject, signal, computed, effect, untracked, DestroyRef } from '@angular/core';
@@ -572,7 +573,11 @@ export class GalleryStore {
   readonly focusedPath = signal<string | null>(null);
   readonly hasMore = signal(false);
   readonly config = signal<ViewerConfig | null>(null);
-  readonly filterDrawerOpen = signal(localStorage.getItem(DRAWER_STATE_KEY) === 'true');
+  // On a phone the drawer is a full-screen overlay, so a state saved on a wide screen must not reopen it over the grid.
+  readonly filterDrawerOpen = signal(
+    localStorage.getItem(DRAWER_STATE_KEY) === 'true'
+    && (typeof window.matchMedia !== 'function' || window.matchMedia(`(min-width: ${DEFAULT_BREAKPOINT_PX}px)`).matches),
+  );
   readonly slideshowActive = signal(false);
   readonly cardWidth = signal(parseInt(localStorage.getItem(CARD_WIDTH_KEY) ?? '', 10) || 0);
   readonly galleryMode = signal<GalleryMode>(parseGalleryMode(localStorage.getItem(GALLERY_MODE_KEY)));

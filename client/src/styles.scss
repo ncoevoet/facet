@@ -319,7 +319,11 @@ html.light-mode ::-webkit-scrollbar-thumb {
   }
 }
 
-*:focus-visible {
+*:focus-visible,
+// Material buttons set `outline: none` at higher specificity and keep only a faint state layer.
+.mat-focus-indicator:focus-visible,
+.mat-mdc-button-base:focus-visible,
+.mat-mdc-icon-button:focus-visible {
   outline: 2px solid var(--mat-sys-primary);
   outline-offset: 2px;
 }

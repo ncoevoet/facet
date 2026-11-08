@@ -121,6 +121,30 @@ describe('GalleryStore', () => {
     store = TestBed.inject(GalleryStore);
   });
 
+  describe('filter drawer restore', () => {
+    const restoreWith = (wide: boolean): boolean => {
+      localStorage.setItem('facet_filter_drawer_open', 'true');
+      vi.stubGlobal('matchMedia', (query: string) => ({ matches: wide, media: query, addEventListener: vi.fn(), removeEventListener: vi.fn() }));
+      TestBed.resetTestingModule();
+      TestBed.configureTestingModule({ providers: [GalleryStore,
+        { provide: ApiService, useValue: { get: apiGet, post: apiPost } },
+        { provide: Router, useValue: { url: '/', navigate: routerNavigate, events: routerEvents, currentNavigation: () => null } },
+        { provide: ActivatedRoute, useValue: { snapshot: { queryParams } } },
+        { provide: AuthService, useValue: { status: signal({ user_id: 'alice', edition_authenticated: true }), identity: authIdentity, isEdition: vi.fn(() => false) } },
+        { provide: AlbumService, useValue: { list: vi.fn(() => of({ albums: [] })), update: vi.fn(() => of({})) } },
+        { provide: MatSnackBar, useValue: { open: snackOpen } },
+        { provide: I18nService, useValue: { t: (k: string) => k } },
+        { provide: AssistantChangesService, useValue: { batch$: assistantBatches.asObservable() } },
+      ] });
+      const open = TestBed.inject(GalleryStore).filterDrawerOpen();
+      vi.unstubAllGlobals();
+      return open;
+    };
+
+    it('reopens the saved drawer on a wide screen', () => expect(restoreWith(true)).toBe(true));
+    it('keeps it closed on a phone, where it would cover the whole grid', () => expect(restoreWith(false)).toBe(false));
+  });
+
   describe('nonmutating filter preview', () => {
     it('shows actual dependent GPS, search, review and visibility changes before applying the same result', async () => {
       store.config.set(makeConfig());

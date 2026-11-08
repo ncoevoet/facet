@@ -118,9 +118,9 @@ const HIDE_TOGGLE_KEYS = ['hide_blinks', 'hide_bursts', 'hide_duplicates'] as co
         <mat-spinner diameter="40" [attr.aria-label]="I18N.ui.labels.loading | translate" />
       </div>
     } @else if (error()) {
-      <div class="flex flex-col items-center justify-center h-64 opacity-60">
-        <mat-icon class="!text-5xl !w-12 !h-12 mb-4">lock</mat-icon>
-        <p>{{ error() }}</p>
+      <div class="flex flex-col items-center justify-center h-64 text-[var(--mat-sys-on-surface-variant)]">
+        <mat-icon class="!text-5xl !w-12 !h-12 mb-4" aria-hidden="true">lock</mat-icon>
+        <h1 role="alert" class="m-0 text-base font-normal">{{ error() | translate }}</h1>
       </div>
     } @else {
       <div class="bg-[var(--mat-sys-surface)] border-b border-[var(--mat-sys-outline-variant)] px-2 md:px-4 py-1 md:py-3">
@@ -549,6 +549,7 @@ export class SharedViewComponent implements OnInit {
   protected readonly loading = signal(true);
   protected readonly loadingMore = signal(false);
   protected readonly downloading = signal(false);
+  /** An i18n key, translated in the template: this is set before the translations have loaded. */
   protected readonly error = signal('');
 
   // Entity data
@@ -761,7 +762,7 @@ export class SharedViewComponent implements OnInit {
     this.token = this.route.snapshot.queryParamMap.get('token') ?? '';
 
     if (!Number.isSafeInteger(this.entityId) || this.entityId <= 0 || !this.token) {
-      this.error.set(this.i18n.t(I18N.albums.invalid_share_link));
+      this.error.set(I18N.albums.invalid_share_link);
       this.loading.set(false);
       return;
     }
@@ -1062,9 +1063,9 @@ export class SharedViewComponent implements OnInit {
     } catch (e: unknown) {
       if (epoch !== this.requestEpoch || !this.mediaCurrent(scope)) return;
       if (e instanceof HttpErrorResponse && (e.status === 403 || e.status === 401)) {
-        this.error.set(this.i18n.t(I18N.albums.share_link_revoked));
+        this.error.set(I18N.albums.share_link_revoked);
       } else {
-        this.error.set(this.i18n.t(I18N.albums.load_error));
+        this.error.set(I18N.albums.load_error);
       }
     } finally {
       if (epoch === this.requestEpoch && this.mediaCurrent(scope)) this.loading.set(false);
