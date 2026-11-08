@@ -58,7 +58,7 @@ import { GalleryStore } from '../gallery/gallery.store';
     }
 
     @if (!loading() && folders().length === 0) {
-      <div class="text-center py-16 opacity-60">
+      <div class="text-center py-16 text-[var(--mat-sys-on-surface-variant)]">
         <mat-icon class="!text-5xl !w-12 !h-12 mb-4">folder_off</mat-icon>
         <p>{{ I18N.folders.empty | translate }}</p>
       </div>
@@ -89,7 +89,7 @@ import { GalleryStore } from '../gallery/gallery.store';
               </div>
             }
             <div class="p-3">
-              <div class="text-xs opacity-60">{{ folder.photo_count | number }} {{ I18N.folders.photos_count | translate }}</div>
+              <div class="text-xs text-[var(--mat-sys-on-surface-variant)]">{{ folder.photo_count | number }} {{ I18N.folders.photos_count | translate }}</div>
             </div>
           </button>
           <button
@@ -160,6 +160,12 @@ export class FoldersComponent implements OnInit {
           },
           replaceUrl: true,
         });
+        return;
+      }
+      // A lone folder with nothing beside it is a path prefix, not a choice (/Users/me/...).
+      // Skip to the first level that branches; the breadcrumb still shows the chain.
+      if (res.folders.length === 1 && !res.has_direct_photos) {
+        this.router.navigate(['/folders'], { queryParams: { prefix: res.folders[0].path }, replaceUrl: true });
         return;
       }
       this.folders.set(res.folders);

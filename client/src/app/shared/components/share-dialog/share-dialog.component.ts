@@ -44,7 +44,7 @@ export interface ShareDialogData {
     <h2 mat-dialog-title class="truncate" [matTooltip]="titleKey | translate">{{ titleKey | translate }}</h2>
     <mat-dialog-content>
       @if (shareUrl()) {
-        <p class="text-sm mb-3 opacity-70">{{ descriptionKey | translate }}</p>
+        <p class="text-sm mb-3 text-[var(--mat-sys-on-surface-variant)]">{{ descriptionKey | translate }}</p>
         @if (policy(); as policy) {
           <section class="mb-3 text-sm" [attr.aria-label]="I18N.albums.recipient_policy | translate">
             <p>{{ (policy.membership === 'smart' ? I18N.albums.share_smart_scope : I18N.albums.share_manual_scope) | translate:{ count: recipientCount() } }}</p>
@@ -68,7 +68,7 @@ export interface ShareDialogData {
           </p>
         }
       } @else if (loading()) {
-        <p class="text-sm opacity-70">{{ I18N.ui.labels.loading | translate }}</p>
+        <p class="text-sm text-[var(--mat-sys-on-surface-variant)]">{{ I18N.ui.labels.loading | translate }}</p>
       }
       @if (error()) { <p role="alert">{{ I18N.albums.share_operation_error | translate }}</p> }
       @if (shareUrl() && data.entityType === 'album' && !policy()) {

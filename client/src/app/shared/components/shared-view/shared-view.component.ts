@@ -128,9 +128,9 @@ const HIDE_TOGGLE_KEYS = ['hide_blinks', 'hide_bursts', 'hide_duplicates'] as co
           <div class="hidden md:block min-w-0 shrink">
             <h1 class="text-xl font-semibold truncate">{{ entityName() }}</h1>
             @if (description()) {
-              <p class="text-sm opacity-70 mt-1">{{ description() }}</p>
+              <p class="text-sm text-[var(--mat-sys-on-surface-variant)] mt-1">{{ description() }}</p>
             }
-            <p class="text-xs opacity-50 mt-1">{{ I18N.albums.photos_count | translate:{ count: total() } }}</p>
+            <p class="text-xs text-[var(--mat-sys-on-surface-variant)] mt-1">{{ I18N.albums.photos_count | translate:{ count: total() } }}</p>
           </div>
           <div class="flex items-center gap-1 md:gap-2 flex-1 min-w-0">
             <mat-form-field class="flex-1 min-w-0 md:max-w-xs" subscriptSizing="dynamic">
@@ -331,7 +331,7 @@ const HIDE_TOGGLE_KEYS = ['hide_blinks', 'hide_bursts', 'hide_duplicates'] as co
                 <div class="flex flex-col gap-1 pb-1">
                   @for (def of group.filters; track def.id) {
                     <div class="flex flex-col gap-0">
-                      <span class="text-xs opacity-60 px-1">{{ def.labelKey | translate }}</span>
+                      <span class="text-xs text-[var(--mat-sys-on-surface-variant)] px-1">{{ def.labelKey | translate }}</span>
                       <div class="flex items-center gap-1">
                         <mat-slider [min]="def.sliderMin" [max]="def.sliderMax" [step]="def.step" class="flex-1">
                           <input matSliderStartThumb
@@ -343,7 +343,7 @@ const HIDE_TOGGLE_KEYS = ['hide_blinks', 'hide_bursts', 'hide_duplicates'] as co
                             (valueChange)="onDynamicRangeChange(def, 'max', $event)"
                             [attr.aria-label]="(def.labelKey | translate) + ' max'" />
                         </mat-slider>
-                        <span class="text-xs opacity-60 text-right" [class]="def.spanWidth">{{ filters() | filterDisplay:def }}</span>
+                        <span class="text-xs text-[var(--mat-sys-on-surface-variant)] text-right" [class]="def.spanWidth">{{ filters() | filterDisplay:def }}</span>
                       </div>
                     </div>
                   }
@@ -438,7 +438,7 @@ const HIDE_TOGGLE_KEYS = ['hide_blinks', 'hide_bursts', 'hide_duplicates'] as co
       @if (!selectionCount()) {
         <div class="md:hidden fixed bottom-0 left-0 right-0 z-50 h-11 flex items-center gap-2 px-4 bg-[var(--mat-sys-surface-container)] border-t border-[var(--mat-sys-outline-variant)] safe-area-pb">
           <span class="text-sm font-medium truncate">{{ entityName() }}</span>
-          <span class="text-xs opacity-60 ml-auto shrink-0">{{ total() }}</span>
+          <span class="text-xs text-[var(--mat-sys-on-surface-variant)] ml-auto shrink-0">{{ total() }}</span>
         </div>
       }
 

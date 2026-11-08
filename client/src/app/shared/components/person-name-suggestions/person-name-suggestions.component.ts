@@ -36,7 +36,7 @@ export class PersonNameMatchesPipe implements PipeTransform {
             <img [src]="o.id | personThumbnailUrl" alt="" loading="lazy"
                  class="w-8 h-8 rounded-full object-cover shrink-0 bg-[var(--mat-sys-surface-container-high)]" />
             <span class="truncate flex-1">{{ o.name }}</span>
-            <span class="text-xs opacity-70 shrink-0">
+            <span class="text-xs text-[var(--mat-sys-on-surface-variant)] shrink-0">
               {{ o.count | pluralKey:I18N.persons.name_suggestion_photos:I18N.persons.name_suggestion_photos_plural | translate:{ count: o.count } }}
             </span>
           </span>

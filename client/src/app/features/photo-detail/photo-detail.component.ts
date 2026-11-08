@@ -481,7 +481,7 @@ const SOCIAL_SOURCE_KEYS: Record<string, string> = {
             } @else if (displayCaption()) {
               <p class="text-[var(--mat-sys-on-surface-variant)]">{{ displayCaption() }}</p>
             } @else {
-              <p class="text-[var(--mat-sys-on-surface-variant)] opacity-40 italic text-xs">&mdash;</p>
+              <p class="text-[var(--mat-sys-on-surface-variant)] italic text-xs">&mdash;</p>
             }
           </div>
 
@@ -510,7 +510,7 @@ const SOCIAL_SOURCE_KEYS: Record<string, string> = {
                   <mat-icon class="!text-base !w-4 !h-4 !leading-4">add_location</mat-icon>
                 </button>
               </div>
-              <p class="text-[var(--mat-sys-on-surface-variant)] opacity-40 italic text-xs">&mdash;</p>
+              <p class="text-[var(--mat-sys-on-surface-variant)] italic text-xs">&mdash;</p>
             </div>
           }
 

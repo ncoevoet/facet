@@ -115,7 +115,7 @@ interface ScenesResponse {
               <span class="text-sm text-[var(--mat-sys-on-surface)]">{{ scene.start | sceneDate }}</span>
               <span class="text-xs text-[var(--mat-sys-on-surface-variant)]">· {{ scene.count }} {{ I18N.scenes.photos | translate }}</span>
               @if (scene.moment | momentLabel; as momentLabel) {
-                <span class="inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded-full bg-[var(--mat-sys-primary)]/20 text-[var(--mat-sys-primary)]"
+                <span class="inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded-full bg-[var(--mat-sys-primary)]/12 text-[var(--mat-sys-primary)]"
                       [class.!opacity-50]="scene.moment_confidence | momentUncertain:momentConfidenceMin()">
                   <mat-icon class="!text-sm !w-4 !h-4 !leading-4" [class]="'moment' | markTone">✦</mat-icon>{{ momentLabel }}@if (scene.moment_confidence | momentUncertain:momentConfidenceMin()) { <span class="opacity-80">({{ I18N.moments.uncertain | translate }})</span> }
                 </span>

@@ -64,7 +64,7 @@ export interface ExportEditorDialogData {
 
       @if (!data.receiptsOnly && !retryRequest()) {
       @if (count && !preview()) {
-        <p class="text-sm opacity-70">{{ count }} {{ I18N.cull.selected | translate }}</p>
+        <p class="text-sm text-[var(--mat-sys-on-surface-variant)]">{{ count }} {{ I18N.cull.selected | translate }}</p>
       }
 
       <mat-radio-group [disabled]="running()" [ngModel]="mode()" (ngModelChange)="mode.set($event)" class="flex flex-col gap-2">
@@ -154,15 +154,15 @@ export interface ExportEditorDialogData {
           @if (current.first_error_code; as errorCode) { <p class="text-xs text-[var(--mat-sys-error)]">{{ errorKeys[errorCode] | translate }}</p> }
           @else if (current.first_error) { <p class="text-xs text-[var(--mat-sys-error)]">{{ current.first_error }}</p> }
           @if (current.state === 'running') {
-            <p class="text-xs opacity-70">{{ I18N.export.jobs.close_hint | translate }}</p>
+            <p class="text-xs text-[var(--mat-sys-on-surface-variant)]">{{ I18N.export.jobs.close_hint | translate }}</p>
             <button mat-stroked-button [disabled]="submitting() || readingStatus() || current.cancel_requested" (click)="cancelJob()">
               {{ (current.cancel_requested ? I18N.export.jobs.cancelling : I18N.export.jobs.cancel) | translate }}
             </button>
-            <p class="text-xs opacity-70">{{ I18N.export.jobs.cancel_hint | translate }}</p>
+            <p class="text-xs text-[var(--mat-sys-on-surface-variant)]">{{ I18N.export.jobs.cancel_hint | translate }}</p>
           }
           @if (canRetry()) {
             <button mat-stroked-button [disabled]="running() || readingStatus()" (click)="retryJob()">{{ I18N.export.jobs.retry | translate }}</button>
-            <p class="text-xs opacity-70">{{ I18N.export.jobs.retry_hint | translate }}</p>
+            <p class="text-xs text-[var(--mat-sys-on-surface-variant)]">{{ I18N.export.jobs.retry_hint | translate }}</p>
           }
           <button mat-button [disabled]="submitting()" (click)="viewJob(current)">{{ I18N.export.jobs.refresh | translate }}</button>
         </section>
@@ -181,13 +181,13 @@ export interface ExportEditorDialogData {
             {{ receipt.started_at * 1000 | date:'dd/MM/yyyy HH:mm' }} · {{ receipt | sidecarJobLabel | translate }} · {{ receipt.processed }}/{{ receipt.total }}
           </button>
         }
-        @if (!recentJobs().length && !recentLoading() && !errorDetail()) { <p class="text-xs opacity-70">{{ I18N.export.jobs.none | translate }}</p> }
+        @if (!recentJobs().length && !recentLoading() && !errorDetail()) { <p class="text-xs text-[var(--mat-sys-on-surface-variant)]">{{ I18N.export.jobs.none | translate }}</p> }
       </section>
 
       @if (!data.receiptsOnly) {
       <div class="flex flex-col gap-2 border-t pt-3 mt-1">
         <h3 class="text-sm font-medium">{{ I18N.export.lightroom.title | translate }}</h3>
-        <p class="text-xs opacity-70">{{ I18N.export.lightroom.description | translate }}</p>
+        <p class="text-xs text-[var(--mat-sys-on-surface-variant)]">{{ I18N.export.lightroom.description | translate }}</p>
 
         <button mat-stroked-button type="button"
                 [disabled]="!canDownloadManifest() || lightroomManifestRunning()"

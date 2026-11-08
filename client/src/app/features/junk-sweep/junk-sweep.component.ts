@@ -96,7 +96,7 @@ interface QueueView {
             <button mat-menu-item (click)="selectKind(k[0])">
               <mat-icon>{{ k[0] | junkKindIcon }}</mat-icon>
               <span [class.font-bold]="activeKind() === k[0]">{{ k[0] | junkKindLabel }}</span>
-              <span class="ml-2 text-xs opacity-50">{{ k[1] }}</span>
+              <span class="ml-2 text-xs text-[var(--mat-sys-on-surface-variant)]">{{ k[1] }}</span>
             </button>
           }
         </mat-menu>

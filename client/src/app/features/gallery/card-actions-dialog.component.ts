@@ -25,7 +25,7 @@ import { CardActionsService } from './card-actions.service';
       </span>
       <span class="flex flex-col">
         <span class="!text-base !font-semibold">{{ I18N.gallery.card_actions.title | translate }}</span>
-        <span class="!text-xs !font-normal opacity-60 mt-0.5">{{ I18N.gallery.card_actions.hint | translate }}</span>
+        <span class="!text-xs !font-normal text-[var(--mat-sys-on-surface-variant)] mt-0.5">{{ I18N.gallery.card_actions.hint | translate }}</span>
       </span>
     </h2>
     <mat-dialog-content class="!px-6 !pb-1">

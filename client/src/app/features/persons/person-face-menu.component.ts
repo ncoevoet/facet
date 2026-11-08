@@ -52,7 +52,7 @@ export interface PersonFaceMenuTarget {
          [matMenuTriggerFor]="menu" [matMenuTriggerRestoreFocus]="false" (menuClosed)="onClosed()"></div>
     <mat-menu #menu="matMenu">
       @if (view(); as v) {
-        <div class="px-4 py-2 text-xs opacity-70 truncate max-w-[16rem]">
+        <div class="px-4 py-2 text-xs text-[var(--mat-sys-on-surface-variant)] truncate max-w-[16rem]">
           {{ v.name || (I18N.photo_faces.unassigned_face | translate) }}
         </div>
         @if (v.personId) {

@@ -75,7 +75,7 @@ interface CullResponse {
         <p class="text-sm mb-3">{{ I18N.cull.all_rejects_scope | translate }}</p>
       }
       @if (count) {
-        <p class="text-sm opacity-70 mb-3">{{ count }} {{ I18N.cull.selected | translate }}</p>
+        <p class="text-sm text-[var(--mat-sys-on-surface-variant)] mb-3">{{ count }} {{ I18N.cull.selected | translate }}</p>
       }
 
       <div class="flex flex-col gap-1 mb-3">
@@ -89,13 +89,13 @@ interface CullResponse {
       </div>
 
       @if (!data.trashAvailable) {
-        <p class="text-xs opacity-60 mb-3">
+        <p class="text-xs text-[var(--mat-sys-on-surface-variant)] mb-3">
           {{ (data.allowTrash ? I18N.cull.trash_missing_pkg : I18N.cull.trash_disabled) | translate }}
         </p>
       }
 
       @if (needsTarget()) {
-        <label for="cullTargetDir" class="block text-xs opacity-60 mb-1">{{ I18N.cull.target_dir | translate }}</label>
+        <label for="cullTargetDir" class="block text-xs text-[var(--mat-sys-on-surface-variant)] mb-1">{{ I18N.cull.target_dir | translate }}</label>
         <input id="cullTargetDir" type="text" [value]="targetDir()" (input)="onTargetInput($event)"
                class="w-full text-sm font-mono rounded border border-[var(--mat-sys-outline-variant)] bg-transparent px-2 py-1.5 mb-3"
                placeholder="/path/to/folder" />

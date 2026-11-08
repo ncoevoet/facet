@@ -23,7 +23,7 @@ import { KeyboardMappingService } from '../../../core/services/keyboard-mapping.
       <div class="flex flex-col gap-4 min-w-[320px]">
         @for (section of sections; track section.titleKey) {
           <div>
-            <h3 class="text-sm font-semibold opacity-70 mb-2">{{ section.titleKey | translate }}</h3>
+            <h3 class="text-sm font-semibold text-[var(--mat-sys-on-surface-variant)] mb-2">{{ section.titleKey | translate }}</h3>
             <div class="flex flex-col gap-1.5">
               @for (row of section.rows; track row.labelKey) {
                 <div class="flex items-center justify-between gap-4 text-sm">

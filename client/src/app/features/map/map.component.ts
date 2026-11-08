@@ -89,7 +89,7 @@ interface MapResponse {
                       bg-[var(--mat-sys-surface-container)] text-[var(--mat-sys-on-surface)]">
             <mat-icon class="!text-4xl !w-10 !h-10 opacity-50 mb-2">location_off</mat-icon>
             <p class="font-medium">{{ I18N.map.no_gps_title | translate }}</p>
-            <p class="text-sm opacity-70 mt-2">{{ I18N.map.no_gps_hint | translate }}</p>
+            <p class="text-sm text-[var(--mat-sys-on-surface-variant)] mt-2">{{ I18N.map.no_gps_hint | translate }}</p>
           </div>
         </div>
       }

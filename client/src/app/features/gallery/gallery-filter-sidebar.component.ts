@@ -365,11 +365,11 @@ type RatingOption = 'any' | '1' | '2' | '3' | '4' | '5' | 'zero';
       }
       @if (filterQuery().trim()) {
         @if (noFilterMatches()) {
-          <p class="text-xs opacity-50 px-2 py-3">{{ I18N.gallery.sidebar.no_filters_match | translate }}</p>
+          <p class="text-xs text-[var(--mat-sys-on-surface-variant)] px-2 py-3">{{ I18N.gallery.sidebar.no_filters_match | translate }}</p>
         }
         @for (group of metricFilterGroups(); track group.sectionKey) {
           <div class="px-1 pt-2 pb-1">
-            <div class="flex items-center gap-2 text-xs font-medium opacity-70 mb-1">
+            <div class="flex items-center gap-2 text-xs font-medium text-[var(--mat-sys-on-surface-variant)] mb-1">
               <mat-icon class="!text-xl !w-5 !h-5 !leading-none opacity-80" [class]="group.sectionKey | markTone">{{ sectionIcons[group.sectionKey] || 'tune' }}</mat-icon>
               {{ group.sectionKey | translate }}
             </div>
@@ -632,7 +632,7 @@ type RatingOption = 'any' | '1' | '2' | '3' | '4' | '5' | 'zero';
             {{ I18N.gallery.no_geolocation | translate }}
           </mat-checkbox>
           @if (store.filters().gps_lat) {
-            <div class="text-xs opacity-60 px-1">
+            <div class="text-xs text-[var(--mat-sys-on-surface-variant)] px-1">
               @if (store.gpsLocationName()) {
                 {{ store.gpsLocationName() }} — {{ store.filters().gps_radius_km }} km
               } @else {
@@ -782,7 +782,7 @@ type RatingOption = 'any' | '1' | '2' | '3' | '4' | '5' | 'zero';
             }
             <!-- Hue buckets as colour chips -->
             @if (store.hueBuckets().length) {
-              <span class="text-xs opacity-60 px-1" [appHelpTip]="I18N.gallery.sidebar.metric_help.hue_bucket | translate">{{ I18N.gallery.hue | translate }}</span>
+              <span class="text-xs text-[var(--mat-sys-on-surface-variant)] px-1" [appHelpTip]="I18N.gallery.sidebar.metric_help.hue_bucket | translate">{{ I18N.gallery.hue | translate }}</span>
               <span class="sr-only" id="metric-help-hue_bucket">{{ I18N.gallery.sidebar.metric_help.hue_bucket | translate }}</span>
               <div class="flex flex-wrap gap-1.5" role="group" [attr.aria-label]="I18N.gallery.hue | translate" aria-describedby="metric-help-hue_bucket">
                 @for (h of store.hueBuckets(); track h.value) {
@@ -869,7 +869,7 @@ type RatingOption = 'any' | '1' | '2' | '3' | '4' | '5' | 'zero';
                   [attr.aria-label]="(def.labelKey | translate) + ' max'" [attr.aria-describedby]="'metric-help-' + def.id" />
               </mat-slider>
             </div>
-            <span class="text-xs opacity-60 text-right" [class]="def.spanWidth">
+            <span class="text-xs text-[var(--mat-sys-on-surface-variant)] text-right" [class]="def.spanWidth">
               @if ($any(store.filters())[def.minKey] || $any(store.filters())[def.maxKey]) {
                 {{ store.filters() | filterDisplay:def }}
               } @else {
@@ -898,7 +898,7 @@ type RatingOption = 'any' | '1' | '2' | '3' | '4' | '5' | 'zero';
         <div class="flex flex-col">
           @for (row of reviewRows(); track row.id) {
             @if ($index === 1) {
-              <span class="text-xs uppercase opacity-60 mt-2 mb-1 px-2">{{ I18N.gallery.sidebar.review.sets | translate }}</span>
+              <span class="text-xs uppercase text-[var(--mat-sys-on-surface-variant)] mt-2 mb-1 px-2">{{ I18N.gallery.sidebar.review.sets | translate }}</span>
             }
             <button type="button" matRipple class="flex w-full min-h-10 items-center gap-3 rounded-md px-2 py-1 text-left hover:bg-[var(--mat-sys-surface-container-high)] focus-visible:outline-2 focus-visible:outline-[var(--mat-sys-primary)] aria-disabled:opacity-50"
               [attr.data-row]="row.id" aria-haspopup="menu"
@@ -907,7 +907,7 @@ type RatingOption = 'any' | '1' | '2' | '3' | '4' | '5' | 'zero';
               [appHelpTip]="(row.disabled ? I18N.gallery.sidebar.review.rejected_locked : row.helpKey) | translate">
               <mat-icon class="!text-xl !w-5 !h-5 !leading-5 shrink-0 opacity-80">{{ row.icon }}</mat-icon>
               <span class="flex-1 min-w-0 text-sm break-words">{{ row.labelKey | translate }}</span>
-              <span class="shrink-0 text-xs opacity-70" data-value>{{ row.valueLabelKey | translate }}</span>
+              <span class="shrink-0 text-xs text-[var(--mat-sys-on-surface-variant)]" data-value>{{ row.valueLabelKey | translate }}</span>
               <mat-icon class="!text-xl !w-5 !h-5 !leading-5 shrink-0 opacity-70">expand_more</mat-icon>
             </button>
             <mat-menu #menu="matMenu">
@@ -920,7 +920,7 @@ type RatingOption = 'any' | '1' | '2' | '3' | '4' | '5' | 'zero';
                   <mat-icon [class.invisible]="option.value !== row.value">check</mat-icon>
                   <span class="flex flex-col py-1">
                     <span class="text-sm">{{ option.labelKey | translate }}</span>
-                    <span class="text-xs opacity-70 whitespace-normal leading-snug">{{ option.descKey | translate }}</span>
+                    <span class="text-xs text-[var(--mat-sys-on-surface-variant)] whitespace-normal leading-snug">{{ option.descKey | translate }}</span>
                   </span>
                 </button>
               }
@@ -930,7 +930,7 @@ type RatingOption = 'any' | '1' | '2' | '3' | '4' | '5' | 'zero';
         </div>
 
         <div class="flex flex-col" data-row="quick">
-          <span class="text-xs uppercase opacity-60 mt-2 mb-1 px-2" data-test="quick-title">{{ I18N.gallery.sidebar.review.quick | translate }}</span>
+          <span class="text-xs uppercase text-[var(--mat-sys-on-surface-variant)] mt-2 mb-1 px-2" data-test="quick-title">{{ I18N.gallery.sidebar.review.quick | translate }}</span>
           @if (!pinnedIds().has('star_rating_range')) {
             <button #reviewRating type="button" matRipple class="flex w-full min-h-10 items-center gap-3 rounded-md px-2 py-1 text-left hover:bg-[var(--mat-sys-surface-container-high)] focus-visible:outline-2 focus-visible:outline-[var(--mat-sys-primary)]"
               data-row="rating" aria-haspopup="menu" [matMenuTriggerFor]="ratingMenu"
@@ -938,7 +938,7 @@ type RatingOption = 'any' | '1' | '2' | '3' | '4' | '5' | 'zero';
               [appHelpTip]="I18N.gallery.sidebar.review.rating_help | translate">
               <mat-icon class="!text-xl !w-5 !h-5 !leading-5 shrink-0 opacity-80">{{ ratingOption() === 'any' ? 'star_border' : 'star' }}</mat-icon>
               <span class="flex-1 min-w-0 text-sm break-words">{{ I18N.gallery.star_rating_range | translate }}</span>
-              <span class="shrink-0 text-xs opacity-70" data-value>{{ ratingValue().key | translate:ratingValue().vars }}</span>
+              <span class="shrink-0 text-xs text-[var(--mat-sys-on-surface-variant)]" data-value>{{ ratingValue().key | translate:ratingValue().vars }}</span>
               <mat-icon class="!text-xl !w-5 !h-5 !leading-5 shrink-0 opacity-70">expand_more</mat-icon>
             </button>
             <mat-menu #ratingMenu="matMenu">
@@ -962,7 +962,7 @@ type RatingOption = 'any' | '1' | '2' | '3' | '4' | '5' | 'zero';
              again, so without this the only record of one still pending is
              the user's memory. Edition-only: nobody else can make one. -->
         @if (auth.isEdition()) {
-          <span class="text-xs uppercase opacity-60 mt-2">{{ I18N.gallery.sidebar.review.edition | translate }}</span>
+          <span class="text-xs uppercase text-[var(--mat-sys-on-surface-variant)] mt-2">{{ I18N.gallery.sidebar.review.edition | translate }}</span>
           <button type="button" mat-stroked-button class="!min-w-0 !h-8 !text-xs !justify-start" data-toggle="manual_faces_need_review"
             [class.!bg-[var(--mat-sys-primary-container)]]="store.filters().manual_faces_need_review"
             [attr.aria-pressed]="store.filters().manual_faces_need_review"
@@ -990,16 +990,16 @@ type RatingOption = 'any' | '1' | '2' | '3' | '4' | '5' | 'zero';
 <ng-template #displayLayoutSettings>
         <div data-section="view-layout" class="flex flex-col gap-2 px-1 pt-1">
           <div class="flex items-center gap-2">
-            <span class="text-sm opacity-70 shrink-0">{{ I18N.gallery.layout_mode | translate }}</span>
+            <span class="text-sm text-[var(--mat-sys-on-surface-variant)] shrink-0">{{ I18N.gallery.layout_mode | translate }}</span>
             <div class="ml-auto flex gap-1"><ng-container [ngTemplateOutlet]="layoutControls()" /></div>
           </div>
           @if (sliderConfig(); as sc) {
             <div class="flex items-center gap-2">
-              <span class="text-sm opacity-70 shrink-0">{{ I18N.gallery.thumbnail_size | translate }}</span>
+              <span class="text-sm text-[var(--mat-sys-on-surface-variant)] shrink-0">{{ I18N.gallery.thumbnail_size | translate }}</span>
               <mat-slider [min]="thumbnailSliderMin()" [max]="sc.max_px" [step]="sc.step_px" class="flex-1">
                 <input matSliderThumb [value]="store.cardWidth()" (valueChange)="store.setCardWidth($event)" [attr.aria-label]="I18N.gallery.thumbnail_size | translate" />
               </mat-slider>
-              <span class="text-xs opacity-60 w-10 text-right">{{ store.cardWidth() }}px</span>
+              <span class="text-xs text-[var(--mat-sys-on-surface-variant)] w-10 text-right">{{ store.cardWidth() }}px</span>
             </div>
           }
         </div>

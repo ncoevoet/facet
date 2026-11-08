@@ -93,7 +93,7 @@ export interface SplitPersonResult {
               </div>
             }
             <span class="text-sm truncate w-full text-center">{{ person.name || (I18N.persons.unnamed | translate) }}</span>
-            <span class="text-xs opacity-60">{{ I18N.persons.face_count | translate:{ count: person.face_count } }}</span>
+            <span class="text-xs text-[var(--mat-sys-on-surface-variant)]">{{ I18N.persons.face_count | translate:{ count: person.face_count } }}</span>
           </button>
         }
       </div>
@@ -173,7 +173,7 @@ export class NewPersonDialogComponent {
           <mat-spinner diameter="32" [attr.aria-label]="I18N.ui.labels.loading | translate" />
         </div>
       } @else if (faces().length === 0) {
-        <p class="text-sm opacity-60 text-center py-8">{{ I18N.persons.no_faces | translate }}</p>
+        <p class="text-sm text-[var(--mat-sys-on-surface-variant)] text-center py-8">{{ I18N.persons.no_faces | translate }}</p>
       } @else {
         <div class="flex flex-wrap gap-2 justify-center">
           @for (face of faces(); track face.id; let i = $index) {
@@ -383,7 +383,7 @@ export type NamingSort = 'faces' | 'recent';
 
       <!-- Empty state -->
       @if (!loading() && persons().length === 0) {
-        <div class="text-center py-16 opacity-50 max-w-md mx-auto">
+        <div class="text-center py-16 text-[var(--mat-sys-on-surface-variant)] max-w-md mx-auto">
           <mat-icon class="!text-5xl !w-12 !h-12 mb-4">people</mat-icon>
           <p>{{ I18N.persons.no_persons | translate }}</p>
           <p class="text-sm mt-3 opacity-80">{{ I18N.persons.empty_hint | translate }}</p>
@@ -467,7 +467,7 @@ export type NamingSort = 'faces' | 'recent';
                   }
                 </div>
               } @else {
-                <div data-needs-naming-empty class="text-center py-16 opacity-60 max-w-md mx-auto">
+                <div data-needs-naming-empty class="text-center py-16 text-[var(--mat-sys-on-surface-variant)] max-w-md mx-auto">
                   <mat-icon class="!text-5xl !w-12 !h-12 mb-4">how_to_reg</mat-icon>
                   <p>{{ I18N.manage_persons.needs_naming_empty | translate }}</p>
                 </div>

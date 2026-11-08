@@ -33,11 +33,11 @@ type Diagnostics = components['schemas']['ImmichDiagnosticsResponse'];
           <dt>{{ I18N.immich_diagnostics.last_push | translate }}</dt>
           <dd>{{ value.last_push_at ? (value.last_push_at | date:'dd/MM/yyyy HH:mm') : (I18N.immich_diagnostics.unknown | translate) }}</dd>
         </dl>
-        <p class="mt-2 text-xs opacity-70">{{ I18N.immich_diagnostics.sample_hint | translate:{ limit: value.sample_limit } }}</p>
+        <p class="mt-2 text-xs text-[var(--mat-sys-on-surface-variant)]">{{ I18N.immich_diagnostics.sample_hint | translate:{ limit: value.sample_limit } }}</p>
         <p class="mt-3 text-sm" role="status">{{ connectionLabel() | translate }}</p>
         @if (value.version) {
           <p class="mt-2 text-sm">{{ I18N.immich_diagnostics.version | translate:{ version: value.version } }}</p>
-          <p class="mt-1 text-xs opacity-70">{{ (value.stack_version_supported ? I18N.immich_diagnostics.stack_version_ok : I18N.immich_diagnostics.stack_version_old) | translate }}</p>
+          <p class="mt-1 text-xs text-[var(--mat-sys-on-surface-variant)]">{{ (value.stack_version_supported ? I18N.immich_diagnostics.stack_version_ok : I18N.immich_diagnostics.stack_version_old) | translate }}</p>
         }
       }
     </mat-dialog-content>

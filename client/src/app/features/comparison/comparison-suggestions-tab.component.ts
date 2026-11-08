@@ -103,7 +103,7 @@ interface TopPhoto {
 
       <!-- Column 2: current top 10 (before) -->
       <div class="rounded-lg bg-[var(--mat-sys-surface-container)] p-4">
-        <div class="text-xs font-semibold uppercase opacity-60 mb-3">{{ I18N.comparison.top_before | translate }}</div>
+        <div class="text-xs font-semibold uppercase text-[var(--mat-sys-on-surface-variant)] mb-3">{{ I18N.comparison.top_before | translate }}</div>
         @for (p of topBefore(); track p.path; let i = $index) {
           <div class="relative mb-3">
             <img [src]="p.path | thumbnailUrl:512:p.preview_revision" class="w-full rounded object-cover" [alt]="p.filename" loading="lazy" />
@@ -115,7 +115,7 @@ interface TopPhoto {
 
       <!-- Column 3: top 10 after recompute -->
       <div class="rounded-lg bg-[var(--mat-sys-surface-container)] p-4">
-        <div class="text-xs font-semibold uppercase opacity-60 mb-3">{{ I18N.comparison.top_after | translate }}</div>
+        <div class="text-xs font-semibold uppercase text-[var(--mat-sys-on-surface-variant)] mb-3">{{ I18N.comparison.top_after | translate }}</div>
         @if (recomputed()) {
           @for (p of topAfter(); track p.path; let i = $index) {
             <div class="relative mb-3">

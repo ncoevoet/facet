@@ -196,7 +196,7 @@ const SET_KIND_TOGGLE: Record<string, keyof HiddenFilterFlags> = {
             <mat-icon aria-hidden="true" class="ml-auto group-open/keep-top:rotate-180">expand_more</mat-icon>
           </summary>
           <div class="p-3" >
-            <div class="text-xs opacity-70 mb-2">{{ I18N.gallery.keep_top.help | translate }}</div>
+            <div class="text-xs text-[var(--mat-sys-on-surface-variant)] mb-2">{{ I18N.gallery.keep_top.help | translate }}</div>
             <div class="flex items-center gap-2">
               <mat-slider class="flex-1 !min-w-0" [min]="5" [max]="95" [step]="5" [discrete]="true">
                 <input matSliderThumb [value]="keepPercent()" (valueChange)="keepPercent.set($event)"
@@ -204,7 +204,7 @@ const SET_KIND_TOGGLE: Record<string, keyof HiddenFilterFlags> = {
               </mat-slider>
               <span class="text-sm font-medium w-9 text-right">{{ keepPercent() }}%</span>
             </div>
-            <div class="text-xs opacity-70 my-2">
+            <div class="text-xs text-[var(--mat-sys-on-surface-variant)] my-2">
               {{ I18N.gallery.keep_top.preview | translate:{ keep: keepPreviewKeep(), cut: keepPreviewCut(), total: store.photoTotal() } }}
             </div>
             <button mat-flat-button class="w-full" [disabled]="keepApplying() || keepPreviewCut() === 0" (click)="applyKeepTop()">
@@ -262,7 +262,7 @@ const SET_KIND_TOGGLE: Record<string, keyof HiddenFilterFlags> = {
                                  [personLinks]="!pinned()" [tagCollectionAvailable]="!store.filters().similar_to" (tagSelected)="navigateTag($event)"
         (personSelected)="store.updateFilter('person_id', $event)" />
             } @else {
-              <div class="p-4 text-sm opacity-60 text-center">
+              <div class="p-4 text-sm text-[var(--mat-sys-on-surface-variant)] text-center">
                 {{ I18N.gallery.tooltip_mode.panel_empty | translate }}
               </div>
             }

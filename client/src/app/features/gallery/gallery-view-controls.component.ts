@@ -64,7 +64,7 @@ const sortOptionLabelKey = (column: string): string => `sort_options.${column}`;
               [attr.aria-label]="I18N.gallery.sidebar.review.value_aria | translate:{ label: (label | translate), value: (value | translate) }">
         <mat-icon class="!text-xl !w-5 !h-5 !leading-5 shrink-0 opacity-80">{{ icon }}</mat-icon>
         <span class="flex-1 min-w-0 text-sm break-words">{{ label | translate }}</span>
-        <span class="shrink-0 text-xs opacity-70" data-value>{{ value | translate }}</span>
+        <span class="shrink-0 text-xs text-[var(--mat-sys-on-surface-variant)]" data-value>{{ value | translate }}</span>
         <mat-icon class="!text-xl !w-5 !h-5 !leading-5 shrink-0 opacity-70">expand_more</mat-icon>
       </button>
     </ng-template>
@@ -170,7 +170,7 @@ const sortOptionLabelKey = (column: string): string => `sort_options.${column}`;
       @let headerId = 'sort-menu-group-' + $index;
       <div [attr.role]="section.header ? 'group' : 'none'" [attr.aria-labelledby]="section.header ? headerId : null">
         @if (section.header) {
-          <div [id]="headerId" class="px-4 pt-2 pb-1 text-xs font-medium uppercase opacity-70">{{ ('sort_groups.' + (section.header | sortGroupKey)) | translate }}</div>
+          <div [id]="headerId" class="px-4 pt-2 pb-1 text-xs font-medium uppercase text-[var(--mat-sys-on-surface-variant)]">{{ ('sort_groups.' + (section.header | sortGroupKey)) | translate }}</div>
         }
         @for (opt of section.options; track opt.column) {
           @let optionIcon = opt.column | sortOptionIcon;

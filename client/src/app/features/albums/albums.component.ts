@@ -92,7 +92,7 @@ import { HANDLE_SERVER_ERROR_LOCALLY } from '../../core/utils/http-error-context
         <button mat-stroked-button class="max-lg:!min-h-11" data-albums-retry [attr.aria-disabled]="retrying()" (click)="retryLoad()">{{ (retrying() ? I18N.ui.labels.loading : I18N.gallery.load_error.retry) | translate }}</button>
       </div>
     } @else if (!loadFailed() && albums().length === 0 && !loading()) {
-      <div class="text-center py-16 opacity-60">
+      <div class="text-center py-16 text-[var(--mat-sys-on-surface-variant)]">
         <mat-icon class="!text-5xl !w-12 !h-12 mb-4">photo_library</mat-icon>
         <p>{{ (albumsFilters.search() || albumsFilters.typeFilter() ? I18N.albums.no_matches : I18N.albums.empty) | translate }}</p>
       </div>

@@ -71,7 +71,7 @@ interface ReleaseCheck {
       {{ I18N.edition.unlock_title | translate }}
     </h2>
     <mat-dialog-content>
-      <p class="text-sm opacity-70 mb-3">{{ I18N.edition.unlock_description | translate }}</p>
+      <p class="text-sm text-[var(--mat-sys-on-surface-variant)] mb-3">{{ I18N.edition.unlock_description | translate }}</p>
       <mat-form-field class="w-full">
         <mat-label>{{ I18N.edition.password_placeholder | translate }}</mat-label>
         <input matInput type="password" [(ngModel)]="password" (keyup.enter)="submit()" />

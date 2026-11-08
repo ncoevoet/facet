@@ -63,7 +63,7 @@ type SuggestionPerson = MergeSuggestion['person1'];
           <a mat-icon-button routerLink="/persons" [matTooltip]="I18N.photo_detail.back | translate" [attr.aria-label]="I18N.photo_detail.back | translate">
             <mat-icon>arrow_back</mat-icon>
           </a>
-          <span class="text-sm opacity-70 shrink-0">{{ I18N.persons.similarity_threshold | translate }}</span>
+          <span class="text-sm text-[var(--mat-sys-on-surface-variant)] shrink-0">{{ I18N.persons.similarity_threshold | translate }}</span>
           @if (sliderValue(); as value) {
             <mat-slider [min]="0.3" [max]="0.9" [step]="0.05" [discrete]="true" class="w-40">
               <input
@@ -116,7 +116,7 @@ type SuggestionPerson = MergeSuggestion['person1'];
                   <p class="font-medium text-sm text-center truncate w-full">
                     {{ suggestion.person1.name || (I18N.persons.unnamed | translate) }}
                   </p>
-                  <p class="text-xs opacity-60">
+                  <p class="text-xs text-[var(--mat-sys-on-surface-variant)]">
                     {{ I18N.persons.face_count | translate:{ count: suggestion.person1.face_count } }}
                   </p>
                 </button>
@@ -150,7 +150,7 @@ type SuggestionPerson = MergeSuggestion['person1'];
                   <p class="font-medium text-sm text-center truncate w-full">
                     {{ suggestion.person2.name || (I18N.persons.unnamed | translate) }}
                   </p>
-                  <p class="text-xs opacity-60">
+                  <p class="text-xs text-[var(--mat-sys-on-surface-variant)]">
                     {{ I18N.persons.face_count | translate:{ count: suggestion.person2.face_count } }}
                   </p>
                 </button>
@@ -175,7 +175,7 @@ type SuggestionPerson = MergeSuggestion['person1'];
 
       <!-- Empty state -->
       @if (!loading() && suggestions().length === 0) {
-        <div class="text-center py-16 opacity-50">
+        <div class="text-center py-16 text-[var(--mat-sys-on-surface-variant)]">
           <mat-icon class="!text-5xl !w-12 !h-12 mb-4">check_circle</mat-icon>
           <p>{{ I18N.persons.no_suggestions | translate }}</p>
         </div>

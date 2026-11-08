@@ -91,7 +91,7 @@ interface LevelOption {
             <input type="checkbox" class="mt-1" name="inpage-optin" [checked]="inpageOptIn()" (change)="setInpage($event)" />
             <span class="flex flex-col">
               <span>{{ I18N.dialog.connect_assistant.inpage_toggle | translate }}</span>
-              <span class="text-xs opacity-70">{{ I18N.dialog.connect_assistant.inpage_hint | translate }}</span>
+              <span class="text-xs text-[var(--mat-sys-on-surface-variant)]">{{ I18N.dialog.connect_assistant.inpage_hint | translate }}</span>
             </span>
           </label>
         }
@@ -105,8 +105,8 @@ interface LevelOption {
             @if (token.level === 'edition') {
               <span class="rounded bg-amber-500/20 px-1.5 text-xs text-amber-800 dark:text-amber-300" data-testid="edition-badge">{{ I18N.dialog.connect_assistant.level_edition_badge | translate }}</span>
             }
-            <span class="text-xs opacity-70">{{ I18N.dialog.connect_assistant.col_created | translate }} {{ token.created_at | date: 'dd/MM/yyyy' }}</span>
-            <span class="text-xs opacity-70">
+            <span class="text-xs text-[var(--mat-sys-on-surface-variant)]">{{ I18N.dialog.connect_assistant.col_created | translate }} {{ token.created_at | date: 'dd/MM/yyyy' }}</span>
+            <span class="text-xs text-[var(--mat-sys-on-surface-variant)]">
               {{ I18N.dialog.connect_assistant.col_last_used | translate }}
               {{ token.last_used_at ? (token.last_used_at | date: 'dd/MM/yyyy') : (I18N.dialog.connect_assistant.never_used | translate) }}
             </span>
@@ -121,7 +121,7 @@ interface LevelOption {
             </span>
           </div>
         } @empty {
-          <p class="text-sm opacity-70">{{ I18N.dialog.connect_assistant.no_tokens | translate }}</p>
+          <p class="text-sm text-[var(--mat-sys-on-surface-variant)]">{{ I18N.dialog.connect_assistant.no_tokens | translate }}</p>
         }
         </div>
         </details>

@@ -101,6 +101,20 @@ describe('FoldersComponent', () => {
       });
     });
 
+    it('skips a lone folder with no photos beside it, to the first level that branches', async () => {
+      mockApi.get.mockReturnValue(of({ folders: [{ name: 'Users', path: '/Users/', photo_count: 3, cover_photo_path: null }], has_direct_photos: false }));
+      await (component as any).loadFolders();
+      expect(mockRouter.navigate).toHaveBeenCalledWith(['/folders'], { queryParams: { prefix: '/Users/' }, replaceUrl: true });
+      expect(component.folders()).toHaveLength(0);
+    });
+
+    it('keeps a lone folder when photos also sit at this level', async () => {
+      mockApi.get.mockReturnValue(of({ folders: [{ name: 'Users', path: '/Users/', photo_count: 3, cover_photo_path: null }], has_direct_photos: true }));
+      await (component as any).loadFolders();
+      expect(mockRouter.navigate).not.toHaveBeenCalled();
+      expect(component.folders()).toHaveLength(1);
+    });
+
     it('should not redirect when at root with no subfolders', async () => {
       mockApi.get.mockReturnValue(of({ folders: [], has_direct_photos: false }));
       component.currentPrefix.set('');

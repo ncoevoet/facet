@@ -224,7 +224,7 @@ interface SceneSummary {
           <div class="flex flex-wrap items-center gap-2 py-2" data-testid="stack-review-header">
             <button class="max-sm:!min-h-11 pointer-coarse:!min-h-11" mat-button (click)="backToGallery()"><mat-icon>arrow_back</mat-icon>{{ I18N.stacks.back_gallery | translate }}</button>
             <span>{{ I18N.stacks.loaded | translate:{ count: visibleGroups().length } }}</span>
-            @if (cull.batchFull()) { <span class="text-xs opacity-70">{{ I18N.stacks.more_may_follow | translate }}</span> }
+            @if (cull.batchFull()) { <span class="text-xs text-[var(--mat-sys-on-surface-variant)]">{{ I18N.stacks.more_may_follow | translate }}</span> }
             <button class="max-sm:!min-h-11 pointer-coarse:!min-h-11" mat-button (click)="cull.resetForReload()">{{ I18N.stacks.suggestions_reload | translate }}</button>
           </div>
         } @else {
@@ -604,7 +604,7 @@ interface SceneSummary {
                   <mat-icon class="!text-base text-[var(--mat-sys-primary)]">schedule</mat-icon>
                   <span class="opacity-80">{{ group.start | sceneDate }}</span>
                   @if (group.moment | momentLabel; as ml) {
-                    <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-[var(--mat-sys-primary)]/20 text-[var(--mat-sys-primary)]"
+                    <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-[var(--mat-sys-primary)]/12 text-[var(--mat-sys-primary)]"
                           [class.!opacity-50]="group.moment_confidence | momentUncertain:momentConfidenceMin()">
                       <mat-icon class="!text-sm !w-4 !h-4 !leading-4" [class]="'moment' | markTone">✦</mat-icon>{{ ml }}@if (group.moment_confidence | momentUncertain:momentConfidenceMin()) { <span class="opacity-80">({{ I18N.moments.uncertain | translate }})</span> }
                     </span>
@@ -1579,7 +1579,7 @@ interface SceneSummary {
                      app.html -- the explanation lives only in matTooltip, unreachable by
                      keyboard/AT users without a focusable host. -->
                 <button type="button"
-                        class="px-2 py-0.5 rounded-full text-xs bg-[var(--mat-sys-primary)]/20 text-[var(--mat-sys-primary)]"
+                        class="px-2 py-0.5 rounded-full text-xs bg-[var(--mat-sys-primary)]/12 text-[var(--mat-sys-primary)]"
                         [matTooltip]="I18N.culling.auto_cull.suggested_tooltip | translate">
                   {{ I18N.culling.auto_cull.suggested | translate }}
                   @if (cull.profileSuggestion(); as suggestion) {
@@ -1610,7 +1610,7 @@ interface SceneSummary {
             </p>
           }
           @if (cull.trimBracketsUnchanged()) {
-            <p class="text-xs opacity-70" role="status">{{ I18N.culling.auto_cull.trim_brackets_none | translate }}</p>
+            <p class="text-xs text-[var(--mat-sys-on-surface-variant)]" role="status">{{ I18N.culling.auto_cull.trim_brackets_none | translate }}</p>
           }
           @if (ac.groups_processed === 0) {
             <p class="text-sm opacity-80">{{ I18N.culling.auto_cull.empty | translate }}</p>

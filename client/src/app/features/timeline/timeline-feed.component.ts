@@ -56,7 +56,7 @@ import { timelineReadContext } from './timeline-read-context';
           }
         </div>
         @if (group.count > group.photos.length) {
-          <p class="mb-0 mt-2 text-xs text-[var(--mat-sys-on-surface-variant)]">
+          <p class="mb-0 mt-2 text-sm text-[var(--mat-sys-on-surface-variant)]">
             {{ I18N.timeline.preview_count | translate: { shown: group.photos.length, total: group.count } }}
           </p>
         }

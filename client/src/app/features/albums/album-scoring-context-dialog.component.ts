@@ -64,7 +64,7 @@ const DEFAULT_CONTEXT = 'default';
           <mat-spinner diameter="28" [attr.aria-label]="'ui.labels.loading' | translate" />
         </div>
       } @else {
-        <p class="text-sm opacity-70 mb-3">{{ 'albums.scoring_context.description' | translate }}</p>
+        <p class="text-sm text-[var(--mat-sys-on-surface-variant)] mb-3">{{ 'albums.scoring_context.description' | translate }}</p>
 
         <mat-form-field class="w-full">
           <mat-label>{{ 'albums.scoring_context.label' | translate }}</mat-label>
@@ -78,7 +78,7 @@ const DEFAULT_CONTEXT = 'default';
 
         @if (suggestion(); as s) {
           @if (s.suggested && s.moment && s.suggested !== selectedContext()) {
-            <div class="flex items-center gap-2 text-xs opacity-70 -mt-2 mb-3">
+            <div class="flex items-center gap-2 text-xs text-[var(--mat-sys-on-surface-variant)] -mt-2 mb-3">
               <span>
                 {{ 'albums.scoring_context.suggested_hint' | translate:{ context: suggestedLabel(), percent: '' + suggestedPercent(), moment: s.moment } }}
               </span>
@@ -107,7 +107,7 @@ const DEFAULT_CONTEXT = 'default';
             <p class="opacity-70 mb-2">
               {{ (cleared() ? 'albums.scoring_context.cleared_success' : 'albums.scoring_context.saved_success') | translate:{ count: '' + updatedCount() } }}
             </p>
-            <p class="opacity-60 text-xs mb-2">{{ 'albums.scoring_context.membership_note' | translate }}</p>
+            <p class="text-[var(--mat-sys-on-surface-variant)] text-xs mb-2">{{ 'albums.scoring_context.membership_note' | translate }}</p>
 
             @if (phase() === 'saved') {
               <p class="mb-2">{{ 'albums.scoring_context.recompute_prompt' | translate }}</p>

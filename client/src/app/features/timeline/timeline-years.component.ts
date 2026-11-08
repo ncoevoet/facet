@@ -33,7 +33,7 @@ interface YearSummary {
       <app-timeline-load-failure [loading]="loading()" (retry)="retryRead()" />
     }
     @if (!loading() && !failed() && years().length === 0) {
-      <div class="text-center py-16 opacity-60">
+      <div class="text-center py-16 text-[var(--mat-sys-on-surface-variant)]">
         <mat-icon class="!text-5xl !w-12 !h-12 mb-4">calendar_today</mat-icon>
         <p data-timeline-empty tabindex="-1">{{ I18N.timeline.empty | translate }}</p>
       </div>
@@ -62,7 +62,7 @@ interface YearSummary {
             </div>
           }
           <div class="p-3">
-            <div class="text-sm opacity-60">{{ y.count | number }} {{ I18N.timeline.photos_count | translate }}</div>
+            <div class="text-sm text-[var(--mat-sys-on-surface-variant)]">{{ y.count | number }} {{ I18N.timeline.photos_count | translate }}</div>
           </div>
         </button>
       }

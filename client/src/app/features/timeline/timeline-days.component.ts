@@ -47,7 +47,7 @@ interface CalendarCell {
       <!-- Day-of-week headers -->
       <div class="mx-auto grid max-w-3xl grid-cols-7 gap-2 mb-2">
         @for (d of weekDays(); track $index) {
-        <div class="text-center text-sm font-medium opacity-50 py-1">{{ d }}</div>
+        <div class="text-center text-sm font-medium text-[var(--mat-sys-on-surface-variant)] py-1">{{ d }}</div>
         }
       </div>
 
@@ -71,7 +71,7 @@ interface CalendarCell {
                    [class.text-white]="!!cell.hero_photo_path">
                 <span class="text-base font-semibold">{{ cell.day }}</span>
                 @if (cell.count > 0) {
-                  <span class="text-xs opacity-70">{{ cell.count }}</span>
+                  <span class="text-xs text-[var(--mat-sys-on-surface-variant)]">{{ cell.count }}</span>
                 }
               </div>
             </button>

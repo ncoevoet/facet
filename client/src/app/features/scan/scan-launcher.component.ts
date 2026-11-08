@@ -33,16 +33,16 @@ import { ScanHistoryComponent } from './scan-history.component';
       @if (stopError()) { <p role="alert" class="text-sm">{{ I18N.scan.stop_unconfirmed | translate }}</p> }
       @if (!started()) {
         @if (loadingDirs()) {
-          <p class="opacity-60 text-sm py-4">{{ I18N.scan.loading_directories | translate }}</p>
+          <p class="text-[var(--mat-sys-on-surface-variant)] text-sm py-4">{{ I18N.scan.loading_directories | translate }}</p>
         } @else if (dirLoadError()) {
           <div class="flex items-center gap-2 text-red-400 text-sm py-4">
             <mat-icon class="!text-base !w-4 !h-4">error_outline</mat-icon>
             <span>{{ I18N.notifications.connection_error | translate }}</span>
           </div>
         } @else if (directories().length === 0) {
-          <p class="opacity-60 text-sm py-4">{{ I18N.scan.no_directories | translate }}</p>
+          <p class="text-[var(--mat-sys-on-surface-variant)] text-sm py-4">{{ I18N.scan.no_directories | translate }}</p>
         } @else {
-          <p class="text-sm opacity-70 mb-2">{{ I18N.scan.pick_directory | translate }}</p>
+          <p class="text-sm text-[var(--mat-sys-on-surface-variant)] mb-2">{{ I18N.scan.pick_directory | translate }}</p>
           <div class="flex flex-col gap-1 max-h-64 overflow-y-auto">
             @for (dir of directories(); track dir.path) {
               <label class="flex items-center gap-2 px-2 py-1.5 rounded cursor-pointer hover:bg-[var(--mat-sys-surface-container-high)]">

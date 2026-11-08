@@ -82,21 +82,21 @@ export interface Person {
         @if (canEdit() && isEditing() && !restoreOnly()) {
           <div class="absolute bottom-1.5 right-1.5 z-10 flex gap-1" role="presentation" (keydown)="$event.stopPropagation()" (dblclick)="$event.stopPropagation()">
             <button
-              class="w-8 h-8 rounded-full bg-black/60 hover:bg-black/80 transition-colors text-white inline-flex items-center justify-center cursor-pointer"
+              class="w-8 h-8 pointer-coarse:w-11 pointer-coarse:h-11 rounded-full bg-black/60 hover:bg-black/80 transition-colors text-white inline-flex items-center justify-center cursor-pointer"
               [matTooltip]="'persons.view_photos' | translate"
               [attr.aria-label]="'persons.view_photos' | translate"
               (click)="viewPhotos.emit(person().id); $event.stopPropagation()">
               <mat-icon class="!text-lg !w-5 !h-5 !leading-5">photo_library</mat-icon>
             </button>
             <button
-              class="w-8 h-8 rounded-full bg-black/60 hover:bg-black/80 transition-colors text-white inline-flex items-center justify-center cursor-pointer"
+              class="w-8 h-8 pointer-coarse:w-11 pointer-coarse:h-11 rounded-full bg-black/60 hover:bg-black/80 transition-colors text-white inline-flex items-center justify-center cursor-pointer"
               [matTooltip]="'persons.find_more' | translate"
               [attr.aria-label]="'persons.find_more' | translate"
               (click)="findMore.emit(person().id); $event.stopPropagation()">
               <mat-icon class="!text-lg !w-5 !h-5 !leading-5">person_search</mat-icon>
             </button>
             <button
-              class="w-8 h-8 rounded-full bg-black/60 hover:bg-black/80 transition-colors text-white inline-flex items-center justify-center cursor-pointer"
+              class="w-8 h-8 pointer-coarse:w-11 pointer-coarse:h-11 rounded-full bg-black/60 hover:bg-black/80 transition-colors text-white inline-flex items-center justify-center cursor-pointer"
               [matTooltip]="'persons.hide' | translate"
               [attr.aria-label]="'persons.hide' | translate"
               (click)="hidden.emit(person().id); $event.stopPropagation()">
