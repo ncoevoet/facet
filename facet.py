@@ -840,7 +840,9 @@ LIBRARY_JOB_ARGS = (
     'extract_gps',
     'fix_thumbnail_rotation',
     'generate_captions',
+    'apply_recommendations',
     'import_lightroom',
+    'optimize_weights',
     'import_sidecars',
     'recompute_average',
     'recompute_blinks',
@@ -2532,6 +2534,20 @@ def main():
     if args.repair_neutral_iqa and args.dry_run:
         parser.error("--repair-neutral-iqa writes to the database and has no dry-run; "
                      "drop --dry-run")
+    # Every other mutating flag that has no dry-run path: refuse the combination
+    # up front instead of silently writing when the caller asked for a preview.
+    # Checked against the handlers: each of these writes unconditionally.
+    _MUTATING_NO_DRY_RUN = (
+        '--repair-int-columns', '--backfill-clipping', '--backfill-focal-35mm',
+        '--recompute-average',
+        '--generate-captions', '--recompute-tags', '--recompute-text', '--recompute-colors',
+        '--recompute-form', '--recompute-skin-tone', '--recompute-distortions',
+        '--cluster-faces-force', '--upgrade-db',
+    )
+    for _flag in _MUTATING_NO_DRY_RUN:
+        arg_name = _flag.lstrip('-').replace('-', '_')
+        if getattr(args, arg_name, None) and args.dry_run:
+            parser.error(f"{_flag} writes to the database and has no dry-run; drop --dry-run")
 
     if (args.refresh_thumbnails_workers != cli_args.DEFAULT_REFRESH_THUMBNAIL_WORKERS
             and not args.refresh_thumbnails):
@@ -2927,7 +2943,7 @@ def main():
         if not is_port_in_use(port):
             logger.info("Starting web viewer...")
             viewer_process = subprocess.Popen(
-                [sys.executable, 'viewer.py'],
+                [sys.executable, str(Path(__file__).resolve().parent / 'viewer.py')],
                 stdout=subprocess.DEVNULL,
                 stderr=subprocess.DEVNULL,
             )
@@ -4286,10 +4302,13 @@ def main():
     lock = _acquire_library_lock(args, LIBRARY_JOB_SCAN) if _scan_writes_to_library(args) else None
     try:
         ok = _run_scan(args, resumed_run)
-        if ok and args.auto_cull:
-            _run_auto_cull_cli(args, args.photo_paths, lock_held=True)
-        elif args.auto_cull:
+        if ok is False:
+            # An interrupted or failed scan must not exit 0: wrapper scripts
+            # and --watch read the exit status. The cull is skipped too.
             logger.warning("Scan did not complete; cull skipped.")
+            exit(1)
+        if args.auto_cull:
+            _run_auto_cull_cli(args, args.photo_paths, lock_held=True)
     finally:
         if lock is not None:
             lock.release()

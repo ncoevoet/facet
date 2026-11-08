@@ -76,7 +76,11 @@ def test_keyboard_interrupt_skips_post_processing(tmp_path, monkeypatch):
 
     monkeypatch.setattr(sys, "argv", ["facet.py", str(photo_dir), "--db", db_path])
 
-    facet.main()
+    # The interrupted scan exits 1 (B54: wrapper scripts must be able to tell
+    # a failure from a success).
+    with pytest.raises(SystemExit) as exc_info:
+        facet.main()
+    assert exc_info.value.code == 1
 
     assert calls["process_bursts"] == 0
     assert calls["run_tagging"] == 0
