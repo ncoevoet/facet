@@ -18,7 +18,8 @@ let nextPopover = 0;
   host: { class: 'contents' },
   template: `
     <button #trigger type="button" cdkOverlayOrigin #origin="cdkOverlayOrigin"
-            class="inline-flex min-h-11 min-w-11 cursor-pointer items-center justify-center gap-2 rounded px-2 text-sm hover:bg-[var(--mat-sys-surface-container-high)] focus-visible:outline-2 focus-visible:outline-[var(--mat-sys-primary)]"
+            [class]="compact() ? 'min-h-7 min-w-7 pointer-coarse:min-h-11 pointer-coarse:min-w-11' : 'min-h-11 min-w-11'"
+            class="inline-flex cursor-pointer items-center justify-center gap-2 rounded px-2 text-sm hover:bg-[var(--mat-sys-surface-container-high)] focus-visible:outline-2 focus-visible:outline-[var(--mat-sys-primary)]"
             [class.bg-[var(--mat-sys-secondary-container)]]="open()"
             [attr.aria-label]="label()" [attr.title]="hint() || null" aria-haspopup="dialog" [attr.aria-expanded]="open()"
             [attr.aria-controls]="open() ? panelId : null" (click)="toggle()">

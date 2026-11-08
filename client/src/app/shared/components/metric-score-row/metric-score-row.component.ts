@@ -15,7 +15,7 @@ import { MetricRankComponent } from '../metric-rank/metric-rank.component';
   selector: 'app-metric-score-row',
   imports: [MetricDistributionComponent, MatIconModule, MetricRankComponent, TranslatePipe],
   changeDetection: ChangeDetectionStrategy.OnPush,
-  host: { class: 'flex min-h-9 items-center gap-3 py-1' },
+  host: { class: 'flex min-h-8 items-center gap-3 py-0.5' },
   template: `
     <span class="flex min-w-0 flex-1 items-center gap-2 text-[var(--mat-sys-on-surface-variant)]"><mat-icon aria-hidden="true" class="!h-4 !w-4 !text-base !leading-none">{{ icon() }}</mat-icon><span class="truncate">{{ label() }}</span></span>
     <span class="shrink-0 font-semibold tabular-nums" [class.text-[var(--mat-sys-primary)]]="available()">@if (available()) { <ng-content /> } @else { {{ I18N.photo_detail.assessment.unavailable | translate }} }</span>
