@@ -306,6 +306,19 @@ describe('PhotoCardComponent', () => {
     expect(img.classList.contains('object-contain')).toBe(true);
   });
 
+  it('keeps the card and every control on it out of the tab order unless it is the grid\'s tab stop', () => {
+    const cardFixture = TestBed.createComponent(PhotoCardComponent);
+    cardFixture.componentRef.setInput('photo', makePhoto({ tags_list: ['tree'] }));
+    cardFixture.detectChanges();
+    const el = cardFixture.nativeElement as HTMLElement;
+    const stops = (): number => [...el.querySelectorAll<HTMLElement>('[role="button"], button')].filter(e => e.tabIndex >= 0).length;
+    expect(stops()).toBeGreaterThan(1);
+    cardFixture.componentRef.setInput('tabStop', false);
+    cardFixture.detectChanges();
+    expect(el.querySelector<HTMLElement>('[role="button"]')!.tabIndex).toBe(-1);
+    expect(stops()).toBe(0);
+  });
+
   it('never asks for a thumbnail above the stored 640 px', () => {
     const cardFixture = TestBed.createComponent(PhotoCardComponent);
     cardFixture.componentRef.setInput('photo', makePhoto());

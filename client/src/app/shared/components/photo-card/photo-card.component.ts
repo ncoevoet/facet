@@ -136,7 +136,7 @@ const DEFAULT_CLIPPING_BADGE_PERCENT = 5;
   template: `
     <div
       role="button"
-      tabindex="0"
+      [attr.tabindex]="tabStop() ? 0 : -1"
       class="relative rounded-sm overflow-hidden cursor-pointer bg-[var(--mat-sys-surface-container-lowest)] h-full focus-visible:outline-2 focus-visible:outline-[var(--mat-sys-primary)] focus-visible:outline-offset-2"
       [class]="listMode() ? '@container' : ''"
       [class.aspect-square]="!listMode() && hideDetails() && !mosaicMode() && !naturalFit()"
@@ -322,7 +322,7 @@ const DEFAULT_CLIPPING_BADGE_PERCENT = 5;
           @let stackCount = photo().stack_count ?? 0;
           @let stackTotal = photo().stack_total_count ?? stackCount;
           @let stackLabel = (stackCount !== stackTotal ? I18N.stacks.badge_filtered : I18N.stacks.badge) | translate:{ count: stackCount, total: stackTotal };
-          <button type="button" data-stack-badge
+          <button type="button" data-stack-badge [attr.tabindex]="tabStop() ? null : -1"
             class="absolute left-9 w-7 h-7 z-30 inline-flex items-center justify-center bottom-1 rounded-full bg-black/60 hover:bg-black/80 text-white cursor-pointer"
             (click)="openStackClicked.emit(photo()); $event.stopPropagation()"
             (keydown)="$event.stopPropagation()"
@@ -405,6 +405,7 @@ const DEFAULT_CLIPPING_BADGE_PERCENT = 5;
               @switch (id) {
                 @case ('similar') {
                   <button
+                    [attr.tabindex]="tabStop() ? null : -1"
                     class="w-7 h-7 rounded-full bg-black/50 inline-flex items-center justify-center hover:bg-black/80 transition-colors text-white cursor-pointer"
                     [matMenuTriggerFor]="similarMenu"
                     [matTooltip]="'similar.find_similar' | translate"
@@ -429,6 +430,7 @@ const DEFAULT_CLIPPING_BADGE_PERCENT = 5;
                 }
                 @default {
                   <button
+                    [attr.tabindex]="tabStop() ? null : -1"
                     class="w-7 h-7 rounded-full bg-black/50 inline-flex items-center justify-center hover:bg-black/80 transition-colors text-white cursor-pointer"
                     [matTooltip]="CARD_ACTION_META[id].labelKey | translate"
                     [attr.aria-label]="CARD_ACTION_META[id].labelKey | translate"
@@ -446,6 +448,7 @@ const DEFAULT_CLIPPING_BADGE_PERCENT = 5;
               <!-- Left: compact star rating -->
               @if (config()?.features?.show_rating_controls) {
                 <button
+                  [attr.tabindex]="tabStop() ? null : -1"
                   class="relative w-7 h-7 rounded-full inline-flex items-center justify-center hover:bg-white/20 transition-colors text-yellow-400 cursor-pointer"
                   [matTooltip]="'rating.set_rating' | translate"
                   [attr.aria-label]="'rating.set_rating' | translate"
@@ -461,6 +464,7 @@ const DEFAULT_CLIPPING_BADGE_PERCENT = 5;
               <div class="flex items-center gap-0.5 ml-auto">
                 @if (!photo().star_rating) {
                   <button
+                    [attr.tabindex]="tabStop() ? null : -1"
                     class="w-7 h-7 rounded-full inline-flex items-center justify-center hover:bg-white/20 transition-colors cursor-pointer"
                     [class.text-red-400]="photo().is_rejected"
                     [class.text-white]="!photo().is_rejected"
@@ -473,6 +477,7 @@ const DEFAULT_CLIPPING_BADGE_PERCENT = 5;
                   </button>
                 }
                 <button
+                  [attr.tabindex]="tabStop() ? null : -1"
                   class="w-7 h-7 rounded-full inline-flex items-center justify-center hover:bg-white/20 transition-colors cursor-pointer"
                   [class.text-red-400]="photo().is_favorite"
                   [class.text-white]="!photo().is_favorite"
@@ -549,7 +554,7 @@ const DEFAULT_CLIPPING_BADGE_PERCENT = 5;
                 @if (filterLinks()) {
                   <button type="button" data-tag-chip class="px-1.5 py-0.5 bg-[var(--facet-accent-badge)] text-[var(--facet-accent-text)] rounded text-[11px] cursor-pointer hover:bg-[var(--facet-accent-dim)] transition-colors"
                         role="button"
-                        tabindex="0"
+                        [attr.tabindex]="tabStop() ? 0 : -1"
                         [matMenuTriggerFor]="tagMenu" [matMenuTriggerData]="{ tag: tag }"
                         (click)="$event.stopPropagation()"
                         (keydown.enter)="$event.stopPropagation()"
@@ -570,6 +575,7 @@ const DEFAULT_CLIPPING_BADGE_PERCENT = 5;
               @for (person of photo().persons | sortPersons:personFilterId(); track person.id) {
                 @if (isEditionMode() && personFilterId() === '' + person.id) {
                   <button
+                    [attr.tabindex]="tabStop() ? null : -1"
                     class="w-8 h-8 rounded-full bg-red-900/60 inline-flex items-center justify-center hover:bg-red-800 transition-colors cursor-pointer"
                     [matTooltip]="('ui.buttons.remove' | translate) + ': ' + person.name"
                     [attr.aria-label]="('ui.buttons.remove' | translate) + ': ' + person.name"
@@ -582,7 +588,7 @@ const DEFAULT_CLIPPING_BADGE_PERCENT = 5;
                        [alt]="person.name"
                        [matTooltip]="person.name"
                        role="button"
-                       tabindex="0"
+                       [attr.tabindex]="tabStop() ? 0 : -1"
                        (click)="personFilterClicked.emit(person.id); $event.stopPropagation()"
                        (keydown.enter)="personFilterClicked.emit(person.id); $event.stopPropagation()"
                        (keydown.space)="personFilterClicked.emit(person.id); $event.preventDefault(); $event.stopPropagation()" />
@@ -744,6 +750,8 @@ export class PhotoCardComponent {
    *  Independent of `isSelected`: a card can be both, and the two say different
    *  things -- selection is a set the batch actions operate on, current is the
    *  single photo the next rating keystroke lands on. */
+  /** Only one card of a grid sits in the tab order (arrow keys move between cards); the rest stay out of it. */
+  readonly tabStop = input(true);
   readonly isActive = input(false);
   /** Enables keyboard-rating hints after the grid cursor first lands on a photo. */
   readonly gridHasActiveCard = input(false);

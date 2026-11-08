@@ -433,6 +433,7 @@ const SET_KIND_TOGGLE: Record<string, keyof HiddenFilterFlags> = {
                   <app-photo-card
                 [collapsedSetKinds]="collapsedSetKinds()"
                 [burstFramesVisible]="burstFramesVisible()"
+                    [tabStop]="photo.path === tabStopPath()"
                     [photo]="photo"
                     [attr.data-pidx]="row.startIndex + i"
                     [style.width.px]="row.widths[i]"
@@ -503,7 +504,8 @@ const SET_KIND_TOGGLE: Record<string, keyof HiddenFilterFlags> = {
                 <app-photo-card
                   [collapsedSetKinds]="collapsedSetKinds()"
                   [burstFramesVisible]="burstFramesVisible()"
-                  [photo]="photo"
+                  [tabStop]="photo.path === tabStopPath()"
+                    [photo]="photo"
                   [attr.data-pidx]="i"
                   [config]="store.config()"
                   [isSelected]="photo.path | isSelected:viewScoped():selectedPaths():excludedPaths()"
@@ -567,7 +569,8 @@ const SET_KIND_TOGGLE: Record<string, keyof HiddenFilterFlags> = {
                     <app-photo-card
                   [collapsedSetKinds]="collapsedSetKinds()"
                   [burstFramesVisible]="burstFramesVisible()"
-                      [photo]="photo"
+                      [tabStop]="photo.path === tabStopPath()"
+                    [photo]="photo"
                       [attr.data-pidx]="row.startIndex + i"
                       [style.width.px]="row.widths[i]"
                       [style.height.px]="row.height"
@@ -3167,6 +3170,10 @@ export class GalleryComponent implements OnInit, OnDestroy {
    *  it also covers the frame in between. */
   protected readonly hasActivePhoto = computed(() =>
     this.activeIndex() >= 0 && this.activeIndex() < this.store.photos().length);
+
+  /** The one card in the page's tab order: the cursor's card, else the first. Arrow keys do the rest. */
+  protected readonly tabStopPath = computed(() =>
+    (this.hasActivePhoto() ? this.store.photos()[this.activeIndex()] : this.store.photos()[0])?.path ?? null);
 
   /** What the docked rail shows: the current photo while there is one, so
    *  crossing other cards on the way to the rail cannot retarget it, and the
