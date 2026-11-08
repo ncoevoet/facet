@@ -119,13 +119,13 @@ interface CullResponse {
             <p>{{ p.affected.length }} {{ I18N.cull.would_affect | translate }}</p>
           }
           @if (p.siblings) {
-            <p class="opacity-60">{{ p.siblings }} {{ I18N.cull.sequence_siblings | translate }}</p>
+            <p class="text-[var(--mat-sys-on-surface-variant)]">{{ p.siblings }} {{ I18N.cull.sequence_siblings | translate }}</p>
           }
           @if (p.excluded) {
-            <p class="opacity-60">{{ p.excluded }} {{ I18N.cull.excluded_by_state | translate }}</p>
+            <p class="text-[var(--mat-sys-on-surface-variant)]">{{ p.excluded }} {{ I18N.cull.excluded_by_state | translate }}</p>
           }
           @if (p.skipped.length) {
-            <p class="opacity-60">{{ p.skipped.length }} {{ I18N.cull.skipped | translate }}</p>
+            <p class="text-[var(--mat-sys-on-surface-variant)]">{{ p.skipped.length }} {{ I18N.cull.skipped | translate }}</p>
           }
         </div>
         @if (p.affected.length) {

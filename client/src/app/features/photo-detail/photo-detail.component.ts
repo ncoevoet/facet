@@ -477,7 +477,7 @@ const SOCIAL_SOURCE_KEYS: Record<string, string> = {
               }
             </div>
             @if (translatingCaption()) {
-              <p class="text-[var(--mat-sys-on-surface-variant)] opacity-60 italic text-xs">{{ I18N.photo_detail.translating_caption | translate }}</p>
+              <p class="text-[var(--mat-sys-on-surface-variant)] italic text-xs">{{ I18N.photo_detail.translating_caption | translate }}</p>
             } @else if (displayCaption()) {
               <p class="text-[var(--mat-sys-on-surface-variant)]">{{ displayCaption() }}</p>
             } @else {

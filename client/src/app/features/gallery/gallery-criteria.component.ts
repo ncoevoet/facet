@@ -175,7 +175,7 @@ import { GALLERY_REVISIT } from '../../core/gallery-reuse.strategy';
           }
         } @else {
           <div class="inline-flex items-center gap-1 pl-2.5 pr-1 py-0.5 rounded-full bg-[var(--mat-sys-secondary-container)] text-[var(--mat-sys-on-secondary-container)] text-xs font-medium">
-            <span class="opacity-70">{{ chip.labelKey | translate }}</span>
+            <span class="font-normal">{{ chip.labelKey | translate }}</span>
             @if (chip.value) {
               <span class="mx-0.5 max-w-64 truncate" [title]="displayValue">{{ displayValue }}</span>
             }
@@ -190,7 +190,7 @@ import { GALLERY_REVISIT } from '../../core/gallery-reuse.strategy';
         }
       }
       @if (visibleFilterChips().length > 0) {
-        <button class="text-xs opacity-60 hover:opacity-100 transition-opacity ml-auto shrink-0" (click)="resetFilters()">
+        <button class="text-xs text-[var(--mat-sys-on-surface-variant)] hover:text-[var(--mat-sys-on-surface)] transition-colors ml-auto shrink-0" (click)="resetFilters()">
           {{ I18N.gallery.reset_filters | translate }}
         </button>
       }

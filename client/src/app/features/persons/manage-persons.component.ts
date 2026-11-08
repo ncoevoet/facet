@@ -422,7 +422,7 @@ export type NamingSort = 'faces' | 'recent';
             </div>
             @if (ignored().length < ignoredTotal()) {
               <div class="flex items-center justify-center gap-3 px-4 pb-4 text-sm">
-                <span class="opacity-70">{{ I18N.persons.ignored_shown_of | translate:{ shown: ignored().length, total: ignoredTotal() } }}</span>
+                <span class="text-[var(--mat-sys-on-surface-variant)]">{{ I18N.persons.ignored_shown_of | translate:{ shown: ignored().length, total: ignoredTotal() } }}</span>
                 <button mat-button [disabled]="ignoredLoading()" (click)="loadMoreIgnored()">{{ I18N.persons.load_more | translate }}</button>
               </div>
             }

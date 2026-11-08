@@ -58,7 +58,7 @@ interface ClientPicksResponse {
           <button #retryButton mat-button class="max-lg:!min-h-11" [attr.aria-disabled]="retrying()" (click)="load(true)">{{ I18N.gallery.load_error.retry | translate }}</button>
         </div>
       } @else if (picks().length === 0) {
-        <p class="opacity-60 py-4">{{ I18N.proofing.no_picks | translate }}</p>
+        <p class="text-[var(--mat-sys-on-surface-variant)] py-4">{{ I18N.proofing.no_picks | translate }}</p>
       } @else {
         <p class="text-sm text-[var(--mat-sys-on-surface-variant)] mb-2">{{ pickedCount() | pluralKey:I18N.proofing.picks_count:I18N.proofing.picks_count_plural | translate:{ count: pickedCount() } }}</p>
         <div class="flex flex-col divide-y divide-[var(--mat-sys-outline-variant)]">

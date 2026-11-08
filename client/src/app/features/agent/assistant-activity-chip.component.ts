@@ -48,7 +48,7 @@ const CLOCK_MS = 15000;
           <div class="flex items-baseline gap-2">
             <span class="font-medium truncate" data-testid="activity-label">{{ label }}</span>
             @if (entry.count !== null) {
-              <span class="opacity-70 shrink-0">{{ (entry.count === 1 ? I18N.assistant_activity.photo_one : I18N.assistant_activity.photo_other) | translate: { count: entry.count } }}</span>
+              <span class="text-[var(--mat-sys-on-surface-variant)] shrink-0">{{ (entry.count === 1 ? I18N.assistant_activity.photo_one : I18N.assistant_activity.photo_other) | translate: { count: entry.count } }}</span>
             }
             <span class="ml-auto text-[var(--mat-sys-on-surface-variant)] text-xs shrink-0">{{ entry.at | relativeTime: now() : i18n.locale() }}</span>
           </div>

@@ -64,7 +64,7 @@ import { ScanHistoryComponent } from './scan-history.component';
             @else { {{ status().progress?.phase }} }
           </span>
           @if (eta() !== null) {
-            <span class="opacity-50 ml-auto">{{ I18N.scan.eta | translate }} {{ eta() }}s</span>
+            <span class="text-[var(--mat-sys-on-surface-variant)] ml-auto">{{ I18N.scan.eta | translate }} {{ eta() }}s</span>
           }
         </div>
         @if (statusKnown() && status().running && !observationError()) {

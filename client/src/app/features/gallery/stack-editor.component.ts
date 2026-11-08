@@ -128,7 +128,7 @@ function captureDateKey(date: string | null | undefined): string {
               [attemptFailed]="rendition().kind !== 'source' && previewFailed()" (retry)="retryPreview()" />
           }
           <div class="@container/stackactions shrink-0 flex flex-wrap items-center justify-between gap-x-2 gap-y-1 my-1 min-w-0">
-            <span data-stack-focused-name class="basis-full min-w-0 flex items-center gap-2 text-sm @[480px]/stackactions:basis-auto @[480px]/stackactions:flex-1" [title]="path"><span class="min-w-0 flex-1 truncate">{{ path | filename:56 }}</span><span class="shrink-0 whitespace-nowrap tabular-nums opacity-70">{{ focusedIndex() + 1 }} / {{ paths().length }}</span></span>
+            <span data-stack-focused-name class="basis-full min-w-0 flex items-center gap-2 text-sm @[480px]/stackactions:basis-auto @[480px]/stackactions:flex-1" [title]="path"><span class="min-w-0 flex-1 truncate">{{ path | filename:56 }}</span><span class="shrink-0 whitespace-nowrap tabular-nums text-[var(--mat-sys-on-surface-variant)]">{{ focusedIndex() + 1 }} / {{ paths().length }}</span></span>
             @if (editable() && !saved()) {
               <button mat-icon-button data-stack-reject class="max-sm:!h-11 max-sm:!w-11 pointer-coarse:!h-11 pointer-coarse:!w-11" (click)="rejectFocused()" [disabled]="saving() || loading()" [attr.aria-label]="I18N.stacks.reject_focused | translate" [matTooltip]="I18N.stacks.reject_focused | translate" aria-keyshortcuts="R"><mat-icon aria-hidden="true">block</mat-icon></button>
             }

@@ -726,7 +726,7 @@ const SET_KIND_TOGGLE: Record<string, keyof HiddenFilterFlags> = {
                   <div class="flex-1 min-w-0 flex flex-col gap-1">
                     <span id="notice-text-review_progress" class="flex flex-wrap gap-x-3 gap-y-0.5" role="status" aria-live="polite" aria-atomic="true">
                       <span>{{ I18N.gallery.review_progress.counts | translate:{ undecided: progress.undecided, kept: progress.kept, rejected: progress.rejected } }}</span>
-                      <span class="opacity-70">{{ I18N.gallery.review_progress.complete | translate:{ percent: store.reviewPercent(), total: progress.total } }}</span>
+                      <span class="text-[var(--mat-sys-on-surface-variant)]">{{ I18N.gallery.review_progress.complete | translate:{ percent: store.reviewPercent(), total: progress.total } }}</span>
                     </span>
                     <progress class="w-full h-1" max="100" [value]="store.reviewPercent()" [attr.aria-label]="I18N.gallery.review_progress.title | translate"></progress>
                     @if (progress.undecided > 0 && store.filters().review_status !== 'undecided') {

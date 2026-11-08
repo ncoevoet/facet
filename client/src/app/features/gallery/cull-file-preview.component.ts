@@ -53,7 +53,7 @@ const PAGE_SIZE = 24;
                 }
                 <span class="block text-xs p-2 break-all">{{ file.path | filename }}</span>
               </button>
-              <p class="text-[10px] opacity-60 mt-1 truncate" [title]="file.path">{{ file.path }}</p>
+              <p class="text-[10px] text-[var(--mat-sys-on-surface-variant)] mt-1 truncate" [title]="file.path">{{ file.path }}</p>
             </li>
           }
         </ul>

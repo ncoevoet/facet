@@ -89,7 +89,7 @@ import { sharedAssetPhoto, type SharedAsset, sharedAlbumMediaUrl } from '../../u
             <div class="border-t border-[var(--mat-sys-outline-variant)] pt-3">
               <div class="text-[0.625rem] uppercase tracking-wider text-[var(--mat-sys-on-surface-variant)] mb-2">{{ I18N.photo_detail.caption | translate }}</div>
               @if (translatingCaption()) {
-                <p class="text-[var(--mat-sys-on-surface-variant)] opacity-60 italic text-xs">{{ I18N.photo_detail.translating_caption | translate }}</p>
+                <p class="text-[var(--mat-sys-on-surface-variant)] italic text-xs">{{ I18N.photo_detail.translating_caption | translate }}</p>
               } @else {
                 <p class="text-[var(--mat-sys-on-surface-variant)]">{{ displayCaption() }}</p>
               }

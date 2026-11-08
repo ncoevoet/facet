@@ -619,7 +619,7 @@ interface SceneSummary {
                   <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-600 dark:text-amber-400">
                     <mat-icon class="!text-sm !w-4 !h-4 !leading-4">{{ 'bracket' | cullGroupIcon }}</mat-icon>{{ I18N.culling.bracket.label | translate }}
                   </span>
-                  <span class="opacity-70">{{ I18N.culling.bracket.hint | translate }}</span>
+                  <span class="text-[var(--mat-sys-on-surface-variant)]">{{ I18N.culling.bracket.hint | translate }}</span>
                 </div>
               }
               <!-- A pan has no best frame: every one covers a different part of
@@ -629,7 +629,7 @@ interface SceneSummary {
                   <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-sky-500/20 text-sky-600 dark:text-sky-400">
                     <mat-icon class="!text-sm !w-4 !h-4 !leading-4">{{ group.sequence_kind | cullGroupIcon }}</mat-icon>{{ group.sequence_kind | sequenceKindLabel | translate }}
                   </span>
-                  <span class="opacity-70">{{ I18N.culling.panorama.hint | translate }}</span>
+                  <span class="text-[var(--mat-sys-on-surface-variant)]">{{ I18N.culling.panorama.hint | translate }}</span>
                 </div>
               }
               <!-- The pending/corrected chip renders for ANY group carrying a
