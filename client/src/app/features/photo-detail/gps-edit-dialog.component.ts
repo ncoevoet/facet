@@ -91,8 +91,8 @@ type GpsResult = components['schemas']['GpsUpdateResponse'];
               <button mat-button (click)="editingId.set(null)" [disabled]="placeBusy() || loadingPlaces()">{{ I18N.ui.buttons.cancel | translate }}</button>
             } @else {
               <button mat-button class="grow !justify-start" [class.!bg-[var(--mat-sys-secondary-container)]]="selectedPlaceId() === place.id" (click)="selectPlace(place)" [attr.aria-pressed]="selectedPlaceId() === place.id"><mat-icon>{{ selectedPlaceId() === place.id ? 'check_circle' : 'place' }}</mat-icon>{{ place.name }}</button>
-              <button mat-icon-button (click)="startRename(place)" [disabled]="placeBusy() || loadingPlaces()" [attr.title]="I18N.photo_detail.gps.rename | translate"><mat-icon aria-hidden="true">edit</mat-icon><span class="sr-only">{{ I18N.photo_detail.gps.rename | translate }}</span></button>
-              <button mat-icon-button class="!text-[var(--mat-sys-error)]" (click)="deletePlace(place)" [disabled]="placeBusy() || loadingPlaces()" [attr.title]="I18N.photo_detail.gps.delete | translate"><mat-icon aria-hidden="true">delete</mat-icon><span class="sr-only">{{ I18N.photo_detail.gps.delete | translate }}</span></button>
+              <button mat-icon-button (click)="startRename(place)" [disabled]="placeBusy() || loadingPlaces()" [attr.title]="I18N.photo_detail.gps.rename | translate" [attr.aria-label]="I18N.photo_detail.gps.rename | translate"><mat-icon aria-hidden="true">edit</mat-icon></button>
+              <button mat-icon-button class="!text-[var(--mat-sys-error)]" (click)="deletePlace(place)" [disabled]="placeBusy() || loadingPlaces()" [attr.title]="I18N.photo_detail.gps.delete | translate" [attr.aria-label]="I18N.photo_detail.gps.delete | translate"><mat-icon aria-hidden="true">delete</mat-icon></button>
             }
           </li>
         } @empty { @if (!loadingPlaces()) { <li class="text-sm py-2">{{ I18N.photo_detail.gps.no_places | translate }}</li> } }
