@@ -32,17 +32,17 @@ interface AssignmentReport { assigned_count: number; already: number[]; missing:
   template: `
     <div class="flex flex-wrap items-center gap-2 py-3">
       <p role="status" class="m-0 min-w-0 flex-1 text-sm">{{ I18N.persons.review_queue.total | translate:{ count: total() } }}</p>
-      <button mat-button data-queue-reload [disabled]="loading() || busy()" (click)="load(0)"><mat-icon>refresh</mat-icon>{{ I18N.persons.review_queue.reload | translate }}</button>
-      <button mat-flat-button data-review-selected [disabled]="!selected().size || loading() || busy() || uncertain() || changed() || choosing()" (click)="preview($event)">{{ I18N.persons.review_queue.preview | translate:{ count: selected().size } }}</button>
+      <button mat-stroked-button data-queue-reload [disabled]="loading() || busy()" (click)="load(0)"><mat-icon>refresh</mat-icon>{{ I18N.persons.review_queue.reload | translate }}</button>
+      <button mat-flat-button data-review-selected [disabled]="!selected().size || loading() || busy() || uncertain() || changed() || choosing()" (click)="preview($event)"><mat-icon>fact_check</mat-icon>{{ I18N.persons.review_queue.preview | translate:{ count: selected().size } }}</button>
     </div>
     @if (pending()) {
-      <section #previewPanel tabindex="-1" data-assignment-preview class="mb-4 rounded border border-[var(--mat-sys-outline)] p-3" (keydown.escape)="cancel($event)">
+      <section #previewPanel tabindex="-1" data-assignment-preview class="mb-4 flex flex-col gap-2 rounded-xl border border-[var(--mat-sys-outline)] bg-[var(--mat-sys-surface-container)] p-4" (keydown.escape)="cancel($event)">
         <h3 class="m-0 text-sm font-medium">{{ I18N.persons.review_queue.confirm_title | translate }}</h3>
         <ul class="my-2 max-h-48 overflow-y-auto pl-5 text-sm">
           @for (group of planGroups(); track group.personId) { <li>{{ group.name }} · {{ group.count }}</li> }
         </ul>
         <p class="text-xs text-[var(--mat-sys-on-surface-variant)]">{{ I18N.persons.review_queue.confirm_help | translate }}</p>
-        <div class="flex gap-2"><button mat-button [disabled]="busy()" (click)="cancel($event)">{{ I18N.dialog.cancel | translate }}</button><button mat-flat-button data-confirm-assignment [disabled]="busy()" (click)="apply()">{{ I18N.persons.review_queue.confirm | translate }}</button></div>
+        <div class="flex justify-end gap-2"><button mat-button [disabled]="busy()" (click)="cancel($event)">{{ I18N.dialog.cancel | translate }}</button><button mat-flat-button data-confirm-assignment [disabled]="busy()" (click)="apply()"><mat-icon>check</mat-icon>{{ I18N.persons.review_queue.confirm | translate }}</button></div>
       </section>
     }
     @if (receipt(); as result) {
@@ -52,14 +52,14 @@ interface AssignmentReport { assigned_count: number; already: number[]; missing:
     @if (feedbackReceipt(); as result) {
       <div role="status" data-feedback-receipt class="mb-3 flex flex-wrap items-center gap-2 text-sm">
         <span>{{ I18N.persons.review_queue.feedback_saved | translate:{name: result.choice.name} }}</span>
-        <button mat-button data-feedback-undo [disabled]="interactionLocked()" (click)="undoFeedback()">{{ I18N.persons.review_queue.feedback_undo | translate }}</button>
+        <button mat-stroked-button data-feedback-undo [disabled]="interactionLocked()" (click)="undoFeedback()"><mat-icon>undo</mat-icon>{{ I18N.persons.review_queue.feedback_undo | translate }}</button>
       </div>
     }
     @if (error()) {
       <div role="alert" class="mb-3 rounded border border-[var(--mat-sys-outline)] p-3 text-sm">
         {{ (uncertain() ? I18N.persons.review_queue.uncertain : changed() ? I18N.persons.review_queue.changed : I18N.persons.review_queue.read_error) | translate }}
-        @if (!busy()) { <button mat-button (click)="load(0)">{{ I18N.gallery.load_error.retry | translate }}</button> }
-        @if (mode() === 'matches') { <button mat-button data-browse-without-matches (click)="withoutSuggestions.set(true); load(0)">{{ I18N.persons.review_queue.without_matches | translate }}</button> }
+        @if (!busy()) { <button mat-stroked-button (click)="load(0)"><mat-icon>refresh</mat-icon>{{ I18N.gallery.load_error.retry | translate }}</button> }
+        @if (mode() === 'matches') { <button mat-stroked-button data-browse-without-matches (click)="withoutSuggestions.set(true); load(0)">{{ I18N.persons.review_queue.without_matches | translate }}</button> }
       </div>
     }
     @if (loading()) { <p role="status">{{ I18N.ui.labels.loading | translate }}</p> }
@@ -68,27 +68,30 @@ interface AssignmentReport { assigned_count: number; already: number[]; missing:
         <h3 class="m-0 mb-2 break-words text-sm font-medium">{{ group.name ? (I18N.persons.review_queue.group | translate:{ name: group.name }) : (I18N.persons.review_queue.no_suggestion | translate) }}</h3>
         <div class="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3">
           @for (face of group.faces; track face.face_id) {
-            <article class="min-w-0 rounded border border-[var(--mat-sys-outline-variant)] p-2" [attr.data-review-face]="face.face_id" [attr.aria-label]="I18N.persons.review_queue.face_label | translate:{id: face.face_id}">
+            <article class="min-w-0 rounded-lg border border-[var(--mat-sys-outline-variant)] bg-[var(--mat-sys-surface-container-low)] p-3" [attr.data-review-face]="face.face_id" [attr.aria-label]="I18N.persons.review_queue.face_label | translate:{id: face.face_id}">
               <div class="flex items-start gap-3">
-                <img [src]="face.face_id | faceThumbnailUrl" alt="" class="h-24 w-24 shrink-0 rounded object-cover" />
+                <div class="relative shrink-0">
+                  <img [src]="face.face_id | faceThumbnailUrl" alt="" class="h-24 w-24 rounded object-cover" />
+                  <a routerLink="/photo" [queryParams]="{path:face.photo_path}" target="_blank" rel="noopener" [attr.aria-label]="I18N.persons.review_queue.open_photo | translate" [attr.title]="I18N.persons.review_queue.open_photo | translate"
+                     class="absolute bottom-1 right-1 inline-flex h-8 w-8 items-center justify-center rounded-full bg-black/60 text-white hover:bg-black/80 pointer-coarse:h-11 pointer-coarse:w-11"><mat-icon class="!text-base !h-4 !w-4 !leading-4" aria-hidden="true">open_in_new</mat-icon></a>
+                </div>
                 <div class="min-w-0 flex-1">
-                  <a mat-button routerLink="/photo" [queryParams]="{path:face.photo_path}" target="_blank" rel="noopener" class="!px-1">{{ I18N.persons.review_queue.open_photo | translate }}<mat-icon>open_in_new</mat-icon></a>
                   @if (choices().get(face.face_id); as choice) {
                     <label class="flex min-h-11 cursor-pointer items-center gap-2 text-sm"><input type="checkbox" [checked]="selected().has(face.face_id)" [disabled]="interactionLocked()" [attr.aria-label]="I18N.persons.review_queue.assign_label | translate:{id: face.face_id, name: choice.name}" (change)="toggle(face.face_id)" /><span class="min-w-0 break-words">{{ choice.name }}</span></label>
                   }
+                  <div class="flex flex-wrap items-center gap-1">
+                    @for (suggestion of face.suggestions; track suggestion.person_id) {
+                      <button mat-stroked-button class="!min-h-11 !px-3" [class.!bg-[var(--mat-sys-secondary-container)]]="choices().get(face.face_id)?.personId === suggestion.person_id" [disabled]="interactionLocked()" [attr.aria-pressed]="choices().get(face.face_id)?.personId === suggestion.person_id" [attr.aria-label]="I18N.persons.review_queue.similarity_label | translate:{ name: suggestion.name, value: suggestion.similarity * 100 }" (click)="choose(face.face_id, suggestion.person_id, suggestion.name)">@if (choices().get(face.face_id)?.personId === suggestion.person_id) { <mat-icon>check</mat-icon> }<span class="max-w-40 truncate">{{ suggestion.name }}</span> · {{ suggestion.similarity * 100 | fixed:0 }}</button>
+                    }
+                    <button mat-stroked-button [disabled]="interactionLocked()" (click)="chooseOther(face, $event)"><mat-icon>person_search</mat-icon>{{ I18N.persons.review_queue.choose_person | translate }}</button>
+                    @if (choices().get(face.face_id); as choice) {
+                      <button mat-button data-not-person [disabled]="interactionLocked()" (click)="rejectSuggestion(face)"><mat-icon>block</mat-icon>{{ I18N.persons.review_queue.not_person | translate:{name: choice.name} }}</button>
+                    }
+                    <button mat-button class="!text-[var(--mat-sys-on-surface-variant)]" [disabled]="busy() || !!pending() || choosing()" (click)="skip(face.face_id)"><mat-icon>skip_next</mat-icon>{{ I18N.persons.review_queue.skip | translate }}</button>
+                  </div>
                 </div>
               </div>
               @if (face.embedding_state !== 'ready') { <p class="my-1 text-xs text-[var(--mat-sys-on-surface-variant)]">{{ (face.embedding_state === 'incompatible' ? I18N.persons.review_queue.model_mismatch : I18N.persons.review_queue.matching_unavailable) | translate }}</p> }
-              <div class="mt-2 flex flex-wrap items-center gap-1">
-                @for (suggestion of face.suggestions; track suggestion.person_id) {
-                  <button mat-button class="!min-h-11 !px-2" [disabled]="interactionLocked()" [attr.aria-pressed]="choices().get(face.face_id)?.personId === suggestion.person_id" [attr.aria-label]="I18N.persons.review_queue.similarity_label | translate:{ name: suggestion.name, value: suggestion.similarity * 100 }" (click)="choose(face.face_id, suggestion.person_id, suggestion.name)"><span class="max-w-40 truncate">{{ suggestion.name }}</span> · {{ suggestion.similarity * 100 | fixed:0 }}</button>
-                }
-                <button mat-button [disabled]="interactionLocked()" (click)="chooseOther(face, $event)">{{ I18N.persons.review_queue.choose_person | translate }}</button>
-                @if (choices().get(face.face_id); as choice) {
-                  <button mat-button data-not-person [disabled]="interactionLocked()" (click)="rejectSuggestion(face)">{{ I18N.persons.review_queue.not_person | translate:{name: choice.name} }}</button>
-                }
-                <button mat-button [disabled]="busy() || !!pending() || choosing()" (click)="skip(face.face_id)">{{ I18N.persons.review_queue.skip | translate }}</button>
-              </div>
             </article>
           }
         </div>
