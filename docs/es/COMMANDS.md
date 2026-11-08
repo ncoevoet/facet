@@ -35,7 +35,7 @@
 
 ### Registro de escaneos
 
-Facet registra cada escaneo (estado, modo, directorios, contadores) y cada error por archivo. Ctrl+C marca la ejecución como `interrupted`, para que `--resume` pueda continuarla. Los archivos fallidos se listan y solo se reintentan con `--retry-failed`. El visor muestra el progreso del escaneo a partir de las líneas `@FACET_PROGRESS` de la CLI. Un escaneo que no guardó ninguna foto termina con el código 4 (todos los archivos fallaron, por ejemplo porque un modelo necesario no se cargó); un escaneo sin nada que hacer termina con 0, y `--watch` sigue vigilando tras un código 4. Un escaneo omitido porque otro trabajo tiene el bloqueo de la biblioteca termina con el código 75; `--watch` no lo cuenta como fallo y reintenta el lote tras el siguiente periodo de calma. Tras 3 escaneos fallidos consecutivos, incluido el inicial, `--watch` se detiene y termina con el código 1.
+Facet registra cada escaneo (estado, modo, directorios, contadores) y cada error por archivo. Ctrl+C marca la ejecución como `interrupted`, para que `--resume` pueda continuarla. Un escaneo interrumpido termina con el código de salida 130. Los archivos fallidos se listan y solo se reintentan con `--retry-failed`. El visor muestra el progreso del escaneo a partir de las líneas `@FACET_PROGRESS` de la CLI. Un escaneo que no guardó ninguna foto termina con el código 4 (todos los archivos fallaron, por ejemplo porque un modelo necesario no se cargó); un escaneo sin nada que hacer termina con 0, y `--watch` sigue vigilando tras un código 4. Un escaneo omitido porque otro trabajo tiene el bloqueo de la biblioteca termina con el código 75; `--watch` no lo cuenta como fallo y reintenta el lote tras el siguiente periodo de calma. Tras 3 escaneos fallidos consecutivos, incluido el inicial, `--watch` se detiene y termina con el código 1.
 
 ### Modos de procesamiento
 
@@ -206,6 +206,8 @@ Estos comandos actualizan métricas o derivan datos nuevos sin volver a ejecutar
 | `python facet.py --compute-recommendations --verbose` | Muestra estadísticas detalladas |
 | `python facet.py --compute-recommendations --apply-recommendations` | Aplica automáticamente las correcciones de puntuación |
 | `python facet.py --compute-recommendations --simulate` | Previsualiza los cambios proyectados |
+
+**`--dry-run`** no tiene vista previa para estos comandos que reescriben la base de datos; cada uno lo rechaza con el código de salida 2 en lugar de escribir igualmente: `--backfill-clipping`, `--backfill-focal-35mm`, `--cluster-faces-force`, `--generate-captions`, `--recompute-average`, `--recompute-colors`, `--recompute-distortions`, `--recompute-form`, `--recompute-skin-tone`, `--recompute-tags`, `--recompute-text`, `--repair-int-columns`, `--repair-neutral-iqa`, `--upgrade-db`.
 
 **`--recompute-average`** no guarda ninguna instantánea: para revertir, restaura una instantánea de pesos y recalcula. Tras actualizar desde la 1.20 o anterior, ejecuta primero `--recompute-silhouette` y después `--recompute-average` dos veces. La primera pasada guarda los nuevos percentiles, así que la segunda aún cambia algunas filas.
 

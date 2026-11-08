@@ -35,7 +35,7 @@
 
 ### Scan Bookkeeping
 
-Facet records every scan (status, mode, directories, counters) and every per-file error. Ctrl+C marks the run `interrupted`, so `--resume` can continue it. Failed files are listed and retried only with `--retry-failed`. The viewer shows scan progress from the CLI's `@FACET_PROGRESS` lines. A scan that saved none of its photos exits with code 4 (every file failed, for example a required model that would not load); a scan with nothing to do exits 0, and `--watch` keeps watching after a code 4. A scan skipped because another job holds the library lock exits 75; `--watch` does not count it as a failure and retries the batch after the next quiet period. After 3 consecutive failed scans, the initial scan included, `--watch` stops and exits 1.
+Facet records every scan (status, mode, directories, counters) and every per-file error. Ctrl+C marks the run `interrupted`, so `--resume` can continue it. An interrupted scan exits with code 130. Failed files are listed and retried only with `--retry-failed`. The viewer shows scan progress from the CLI's `@FACET_PROGRESS` lines. A scan that saved none of its photos exits with code 4 (every file failed, for example a required model that would not load); a scan with nothing to do exits 0, and `--watch` keeps watching after a code 4. A scan skipped because another job holds the library lock exits 75; `--watch` does not count it as a failure and retries the batch after the next quiet period. After 3 consecutive failed scans, the initial scan included, `--watch` stops and exits 1.
 
 ### Processing Modes
 
@@ -206,6 +206,8 @@ These update metrics or derive new data without re-running the full scoring pipe
 | `python facet.py --compute-recommendations --verbose` | Show detailed statistics |
 | `python facet.py --compute-recommendations --apply-recommendations` | Auto-apply scoring fixes |
 | `python facet.py --compute-recommendations --simulate` | Preview projected changes |
+
+**`--dry-run`** has no preview for these database rewriters, so each refuses it with exit code 2 rather than writing anyway: `--backfill-clipping`, `--backfill-focal-35mm`, `--cluster-faces-force`, `--generate-captions`, `--recompute-average`, `--recompute-colors`, `--recompute-distortions`, `--recompute-form`, `--recompute-skin-tone`, `--recompute-tags`, `--recompute-text`, `--repair-int-columns`, `--repair-neutral-iqa`, `--upgrade-db`.
 
 **`--recompute-average`** keeps no snapshot: to roll back, restore a weight snapshot and recompute. After upgrading from 1.20 or earlier, run `--recompute-silhouette` first, then `--recompute-average` twice. The first pass stores new percentiles, so the second still changes some rows.
 

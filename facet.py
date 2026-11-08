@@ -824,6 +824,7 @@ UNKNOWN_LIBRARY_JOB = {'pid': None, 'kind': 'library job', 'origin': 'unknown'}
 DEFAULT_SCAN_STALE_SECONDS = 120
 
 LIBRARY_JOB_ARGS = (
+    'apply_recommendations',
     'backfill_clipping',
     'backfill_focal_35mm',
     'cluster_faces_force',
@@ -840,10 +841,9 @@ LIBRARY_JOB_ARGS = (
     'extract_gps',
     'fix_thumbnail_rotation',
     'generate_captions',
-    'apply_recommendations',
     'import_lightroom',
-    'optimize_weights',
     'import_sidecars',
+    'optimize_weights',
     'recompute_average',
     'recompute_blinks',
     'recompute_burst',
@@ -877,6 +877,26 @@ LIBRARY_JOB_ARGS = (
     'train_keeper',
     'train_ranker',
     'translate_captions',
+)
+
+# Mutating flags whose handlers write unconditionally: combined with --dry-run
+# they are refused up front, instead of silently writing when the caller asked
+# for a preview.
+MUTATING_NO_DRY_RUN_FLAGS = (
+    '--backfill-clipping',
+    '--backfill-focal-35mm',
+    '--cluster-faces-force',
+    '--generate-captions',
+    '--recompute-average',
+    '--recompute-colors',
+    '--recompute-distortions',
+    '--recompute-form',
+    '--recompute-skin-tone',
+    '--recompute-tags',
+    '--recompute-text',
+    '--repair-int-columns',
+    '--repair-neutral-iqa',
+    '--upgrade-db',
 )
 
 
@@ -2531,23 +2551,10 @@ def main():
 
     if args.dry_run_count != cli_args.DEFAULT_DRY_RUN_COUNT and not args.dry_run:
         parser.error("--dry-run-count requires --dry-run")
-    if args.repair_neutral_iqa and args.dry_run:
-        parser.error("--repair-neutral-iqa writes to the database and has no dry-run; "
-                     "drop --dry-run")
-    # Every other mutating flag that has no dry-run path: refuse the combination
-    # up front instead of silently writing when the caller asked for a preview.
-    # Checked against the handlers: each of these writes unconditionally.
-    _MUTATING_NO_DRY_RUN = (
-        '--repair-int-columns', '--backfill-clipping', '--backfill-focal-35mm',
-        '--recompute-average',
-        '--generate-captions', '--recompute-tags', '--recompute-text', '--recompute-colors',
-        '--recompute-form', '--recompute-skin-tone', '--recompute-distortions',
-        '--cluster-faces-force', '--upgrade-db',
-    )
-    for _flag in _MUTATING_NO_DRY_RUN:
-        arg_name = _flag.lstrip('-').replace('-', '_')
-        if getattr(args, arg_name, None) and args.dry_run:
-            parser.error(f"{_flag} writes to the database and has no dry-run; drop --dry-run")
+    if args.dry_run:
+        for flag in MUTATING_NO_DRY_RUN_FLAGS:
+            if getattr(args, flag.lstrip('-').replace('-', '_')):
+                parser.error(f"{flag} writes to the database and has no dry-run; drop --dry-run")
 
     if (args.refresh_thumbnails_workers != cli_args.DEFAULT_REFRESH_THUMBNAIL_WORKERS
             and not args.refresh_thumbnails):
@@ -4302,11 +4309,12 @@ def main():
     lock = _acquire_library_lock(args, LIBRARY_JOB_SCAN) if _scan_writes_to_library(args) else None
     try:
         ok = _run_scan(args, resumed_run)
-        if ok is False:
-            # An interrupted or failed scan must not exit 0: wrapper scripts
-            # and --watch read the exit status. The cull is skipped too.
-            logger.warning("Scan did not complete; cull skipped.")
-            exit(1)
+        if not ok:
+            # An interrupted scan must not exit 0: wrapper scripts and --watch
+            # read the exit status.
+            if args.auto_cull:
+                logger.warning("Scan did not complete; cull skipped.")
+            exit(INTERRUPTED_EXIT_CODE)
         if args.auto_cull:
             _run_auto_cull_cli(args, args.photo_paths, lock_held=True)
     finally:
