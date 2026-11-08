@@ -35,7 +35,7 @@
 
 ### 扫描记录
 
-Facet 会记录每次扫描（状态、模式、目录、计数器）以及每个文件的错误。Ctrl+C 会把该次运行标记为 `interrupted`，以便 `--resume` 接续。失败的文件会被列出，且只有 `--retry-failed` 才会重试。查看器根据命令行的 `@FACET_PROGRESS` 行显示扫描进度。若一次扫描没有保存任何照片，则以退出码 4 结束（所有文件均失败，例如必需的模型未能加载）；无事可做的扫描以 0 结束，`--watch` 在退出码 4 之后仍会继续监视。若另一个任务持有照片库锁，扫描会被跳过并以退出码 75 结束；`--watch` 不将其计为失败，并在下一个静默期后重试该批文件。连续 3 次扫描失败（含初始扫描）后，`--watch` 停止并以退出码 1 结束。
+Facet 会记录每次扫描（状态、模式、目录、计数器）以及每个文件的错误。Ctrl+C 会把该次运行标记为 `interrupted`，以便 `--resume` 接续。被中断的扫描以退出码 130 结束。失败的文件会被列出，且只有 `--retry-failed` 才会重试。查看器根据命令行的 `@FACET_PROGRESS` 行显示扫描进度。若一次扫描没有保存任何照片，则以退出码 4 结束（所有文件均失败，例如必需的模型未能加载）；无事可做的扫描以 0 结束，`--watch` 在退出码 4 之后仍会继续监视。若另一个任务持有照片库锁，扫描会被跳过并以退出码 75 结束；`--watch` 不将其计为失败，并在下一个静默期后重试该批文件。连续 3 次扫描失败（含初始扫描）后，`--watch` 停止并以退出码 1 结束。
 
 ### 处理模式
 
@@ -206,6 +206,8 @@ Facet 会记录每次扫描（状态、模式、目录、计数器）以及每�
 | `python facet.py --compute-recommendations --verbose` | 显示详细统计信息 |
 | `python facet.py --compute-recommendations --apply-recommendations` | 自动应用评分修正 |
 | `python facet.py --compute-recommendations --simulate` | 预览预计产生的变化 |
+
+**`--dry-run`** 对以下改写数据库的命令没有预览，因此它们会以退出码 2 拒绝该选项，而不是照样写入：`--backfill-clipping`, `--backfill-focal-35mm`, `--cluster-faces-force`, `--generate-captions`, `--recompute-average`, `--recompute-colors`, `--recompute-distortions`, `--recompute-form`, `--recompute-skin-tone`, `--recompute-tags`, `--recompute-text`, `--repair-int-columns`, `--repair-neutral-iqa`, `--upgrade-db`。
 
 **`--recompute-average`** 不保留快照：如需回退，请恢复某个权重快照并重新计算。从 1.20 或更早版本升级后，先运行 `--recompute-silhouette`，再把本命令运行两次。第一遍会存储新的百分位，所以第二遍仍会改动一些行。
 

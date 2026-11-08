@@ -824,6 +824,7 @@ UNKNOWN_LIBRARY_JOB = {'pid': None, 'kind': 'library job', 'origin': 'unknown'}
 DEFAULT_SCAN_STALE_SECONDS = 120
 
 LIBRARY_JOB_ARGS = (
+    'apply_recommendations',
     'backfill_clipping',
     'backfill_focal_35mm',
     'cluster_faces_force',
@@ -842,6 +843,7 @@ LIBRARY_JOB_ARGS = (
     'generate_captions',
     'import_lightroom',
     'import_sidecars',
+    'optimize_weights',
     'recompute_average',
     'recompute_blinks',
     'recompute_burst',
@@ -875,6 +877,26 @@ LIBRARY_JOB_ARGS = (
     'train_keeper',
     'train_ranker',
     'translate_captions',
+)
+
+# Mutating flags whose handlers write unconditionally: combined with --dry-run
+# they are refused up front, instead of silently writing when the caller asked
+# for a preview.
+MUTATING_NO_DRY_RUN_FLAGS = (
+    '--backfill-clipping',
+    '--backfill-focal-35mm',
+    '--cluster-faces-force',
+    '--generate-captions',
+    '--recompute-average',
+    '--recompute-colors',
+    '--recompute-distortions',
+    '--recompute-form',
+    '--recompute-skin-tone',
+    '--recompute-tags',
+    '--recompute-text',
+    '--repair-int-columns',
+    '--repair-neutral-iqa',
+    '--upgrade-db',
 )
 
 
@@ -2529,9 +2551,10 @@ def main():
 
     if args.dry_run_count != cli_args.DEFAULT_DRY_RUN_COUNT and not args.dry_run:
         parser.error("--dry-run-count requires --dry-run")
-    if args.repair_neutral_iqa and args.dry_run:
-        parser.error("--repair-neutral-iqa writes to the database and has no dry-run; "
-                     "drop --dry-run")
+    if args.dry_run:
+        for flag in MUTATING_NO_DRY_RUN_FLAGS:
+            if getattr(args, flag.lstrip('-').replace('-', '_')):
+                parser.error(f"{flag} writes to the database and has no dry-run; drop --dry-run")
 
     if (args.refresh_thumbnails_workers != cli_args.DEFAULT_REFRESH_THUMBNAIL_WORKERS
             and not args.refresh_thumbnails):
@@ -2927,7 +2950,7 @@ def main():
         if not is_port_in_use(port):
             logger.info("Starting web viewer...")
             viewer_process = subprocess.Popen(
-                [sys.executable, 'viewer.py'],
+                [sys.executable, str(Path(__file__).resolve().parent / 'viewer.py')],
                 stdout=subprocess.DEVNULL,
                 stderr=subprocess.DEVNULL,
             )
@@ -4286,10 +4309,14 @@ def main():
     lock = _acquire_library_lock(args, LIBRARY_JOB_SCAN) if _scan_writes_to_library(args) else None
     try:
         ok = _run_scan(args, resumed_run)
-        if ok and args.auto_cull:
+        if not ok:
+            # An interrupted scan must not exit 0: wrapper scripts and --watch
+            # read the exit status.
+            if args.auto_cull:
+                logger.warning("Scan did not complete; cull skipped.")
+            exit(INTERRUPTED_EXIT_CODE)
+        if args.auto_cull:
             _run_auto_cull_cli(args, args.photo_paths, lock_held=True)
-        elif args.auto_cull:
-            logger.warning("Scan did not complete; cull skipped.")
     finally:
         if lock is not None:
             lock.release()

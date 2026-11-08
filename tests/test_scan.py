@@ -1930,6 +1930,7 @@ class TestScanHoldsTheLibraryLock:
 
         def fake_run_scan(args, resumed_run):
             seen['holder'] = facet.library_job_holder(db_path)
+            return True
 
         monkeypatch.setattr(facet, "_run_scan", fake_run_scan)
         monkeypatch.setattr(sys, "argv", ["facet.py", str(photos_dir), "--db", db_path])
@@ -1953,6 +1954,7 @@ class TestScanHoldsTheLibraryLock:
 
         def fake_run_scan(args, resumed_run):
             seen['holder'] = facet.library_job_holder(db_path)
+            return True
 
         monkeypatch.setattr(facet, "_run_scan", fake_run_scan)
         monkeypatch.setattr(sys, "argv",
@@ -1974,6 +1976,7 @@ class TestScanHoldsTheLibraryLock:
 
         def fake_run_scan(args, resumed_run):
             seen['result'] = _run_facet("--recompute-average", "--db", db_path)
+            return True
 
         monkeypatch.setattr(facet, "_run_scan", fake_run_scan)
         monkeypatch.setattr(sys, "argv", ["facet.py", str(photos_dir), "--db", db_path])

@@ -12,6 +12,13 @@ All notable changes to Facet are documented in this file.
 - **Rate-limited login and proofing answers carry `Retry-After`**, so a locked-out client knows when its window resets.
 - **Immich webhook deliveries stop walking the payload at the delivery cap** instead of visiting every entry of an oversized body.
 
+### Fixed
+
+- **`--dry-run` is no longer silently ignored by mutating commands.** Thirteen flags that write to the database (`--repair-int-columns`, `--recompute-average`, `--backfill-clipping`, `--backfill-focal-35mm`, `--generate-captions`, `--cluster-faces-force`, `--upgrade-db` and others) accepted `--dry-run` and wrote anyway; the CLI now refuses the combination up front (exit code 2), as it already did for `--repair-neutral-iqa`.
+- **An interrupted scan exits non-zero.** `Ctrl-C` during a scan returned exit 0, so wrapper scripts and `--watch` read it as success; it now exits 130.
+- **`--optimize-weights` and `--apply-recommendations` hold the library lock.** Both wrote to the database and config without the lock their siblings hold, risking `database is locked` failures mid-write during a concurrent scan.
+- **`--suggest-person-merges` resolves `viewer.py` relative to the script.** It previously used a bare relative path that broke when facet.py was invoked from another directory.
+
 ## [1.28.0] "f/64" — 2026-11-05
 
 ### Added
