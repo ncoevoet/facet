@@ -48,6 +48,7 @@ interface MapResponse {
   standalone: true,
   imports: [MatIconModule, MatButtonModule, MatProgressSpinnerModule, DateRangeFilterComponent, TranslatePipe],
   template: `
+    <h1 class="sr-only">{{ I18N.map.title | translate }}</h1>
     <div class="relative h-full">
       <details class="absolute right-3 top-3 z-[1001] rounded bg-[var(--mat-sys-surface-container)] text-sm shadow-md" data-map-dates>
         <summary class="flex min-h-10 cursor-pointer list-none items-center gap-2 rounded px-3 focus-visible:outline-2">

@@ -94,45 +94,47 @@ describe('ComparisonComponent', () => {
     });
   });
 
-  describe('loadCategories', () => {
-    it('should call store.loadTypeCounts when types are empty', async () => {
-      mockStore.types.set([]);
-      await component.loadCategories();
+  describe('category pick', () => {
+    const types = [{ id: 'portrait', count: 10 }, { id: 'landscape', count: 5 }];
+
+    it('asks the store for types on construction when it has none', () => {
       expect(mockStore.loadTypeCounts).toHaveBeenCalled();
     });
 
-    it('should not call loadTypeCounts when types are already populated', async () => {
-      mockStore.types.set([{ id: 'portrait', count: 10 }]);
+    it('does not ask again when types are already loaded', () => {
+      TestBed.resetTestingModule();
+      mockStore.types.set(types);
       mockStore.loadTypeCounts.mockClear();
-      await component.loadCategories();
+      TestBed.configureTestingModule({
+        providers: [
+          ComparisonComponent,
+          { provide: ApiService, useValue: mockApi },
+          { provide: MatSnackBar, useValue: mockSnackBar },
+          { provide: I18nService, useValue: mockI18n },
+          { provide: AuthService, useValue: mockAuth },
+          { provide: GalleryStore, useValue: mockStore },
+          { provide: CompareFiltersService, useValue: compareFilters },
+        ],
+      });
+      TestBed.inject(ComparisonComponent);
+      TestBed.tick();
       expect(mockStore.loadTypeCounts).not.toHaveBeenCalled();
-    });
-
-    it('should set selectedCategory to first type when none selected', async () => {
-      mockStore.types.set([{ id: 'portrait', count: 10 }, { id: 'landscape', count: 5 }]);
-      compareFilters.selectedCategory.set('');
-      await component.loadCategories();
       expect(compareFilters.selectedCategory()).toBe('portrait');
     });
 
-    it('should not overwrite an already-selected category', async () => {
-      mockStore.types.set([{ id: 'portrait', count: 10 }, { id: 'landscape', count: 5 }]);
-      compareFilters.selectedCategory.set('landscape');
-      await component.loadCategories();
-      expect(compareFilters.selectedCategory()).toBe('landscape');
-    });
-
-    it('should not set category when types are empty', async () => {
-      mockStore.types.set([]);
-      compareFilters.selectedCategory.set('');
-      await component.loadCategories();
+    it('picks the first type when the list arrives after construction', () => {
+      TestBed.tick();
       expect(compareFilters.selectedCategory()).toBe('');
+      mockStore.types.set(types);
+      TestBed.tick();
+      expect(compareFilters.selectedCategory()).toBe('portrait');
     });
-  });
 
-  describe('constructor', () => {
-    it('should call loadCategories on construction, triggering store.loadTypeCounts when types are empty', () => {
-      expect(mockStore.loadTypeCounts).toHaveBeenCalled();
+    it('keeps a category the user already chose', () => {
+      compareFilters.selectedCategory.set('landscape');
+      mockStore.types.set(types);
+      TestBed.tick();
+      expect(compareFilters.selectedCategory()).toBe('landscape');
     });
   });
 });

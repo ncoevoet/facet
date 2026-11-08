@@ -83,7 +83,7 @@ interface LevelOption {
         </div>
         }
         <p class="flex items-center gap-2 text-sm" data-testid="bridge-status">
-          <mat-icon class="shrink-0 !w-4 !h-4 !text-[16px] !leading-4" [class.text-green-600]="bridgeConnected()" [class.opacity-60]="!bridgeConnected()">{{ bridgeConnected() ? 'link' : 'link_off' }}</mat-icon>
+          <mat-icon class="shrink-0 !w-4 !h-4 !text-[16px] !leading-4" [class.text-[var(--facet-positive)]]="bridgeConnected()" [class.opacity-60]="!bridgeConnected()">{{ bridgeConnected() ? 'link' : 'link_off' }}</mat-icon>
           <span>{{ bridgeStatusKey() | translate }}</span>
         </p>
         @if (inpageAvailable()) {

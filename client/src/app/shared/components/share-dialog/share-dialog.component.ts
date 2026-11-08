@@ -63,7 +63,7 @@ export interface ShareDialogData {
           <input matInput [value]="fullShareUrl()" readonly />
         </mat-form-field>
         @if (copied()) {
-          <p class="text-sm text-green-600 dark:text-green-400 mt-1">
+          <p class="text-sm text-[var(--facet-positive)] mt-1">
             {{ copiedKey | translate }}
           </p>
         }

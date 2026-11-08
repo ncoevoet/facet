@@ -29,6 +29,7 @@
   --facet-image-ink: oklch(94% 0.004 250);
   --facet-image-rule: oklch(38% 0.006 250);
   --facet-favorite: #fda4af;
+  --facet-positive: #4ade80;
   --facet-review-kept: #064e3b;
   --facet-review-on-kept: #ffffff;
 }
@@ -143,6 +144,7 @@ html.theme-azure {
 // Light mode overrides
 html.light-mode {
   --facet-favorite: #be123c;
+  --facet-positive: #15803d;
   @include mat.theme((
     color: (theme-type: light, primary: mat.$orange-palette, tertiary: mat.$cyan-palette),
     typography: (plain-family: var(--facet-font-ui), brand-family: var(--facet-font-ui)),

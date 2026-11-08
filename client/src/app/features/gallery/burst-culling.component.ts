@@ -419,13 +419,13 @@ interface SceneSummary {
               <mat-menu #thresholdMenu="matMenu">
                 <div class="flex flex-col gap-1 px-4 py-3" tabindex="-1" (click)="$event.stopPropagation()" (keydown)="$event.stopPropagation()">
                   <div class="flex items-center gap-2">
-                    <span class="text-xs opacity-60">{{ I18N.culling.threshold | translate }}</span>
+                    <span class="text-xs text-[var(--mat-sys-on-surface-variant)]">{{ I18N.culling.threshold | translate }}</span>
                     <mat-slider class="!w-28 !min-w-0" [min]="70" [max]="95" [step]="5" [discrete]="true">
                       <input matSliderThumb [value]="cull.similarityThreshold()" (valueChange)="onThresholdChange($event)" [attr.aria-label]="I18N.culling.threshold | translate" />
                     </mat-slider>
                     <span class="text-xs font-medium w-8">{{ cull.similarityThreshold() }}%</span>
                   </div>
-                  <p class="m-0 max-w-64 text-xs opacity-60">{{ I18N.culling.threshold_hint | translate }}</p>
+                  <p class="m-0 max-w-64 text-xs text-[var(--mat-sys-on-surface-variant)]">{{ I18N.culling.threshold_hint | translate }}</p>
                 </div>
               </mat-menu>
             }
@@ -452,7 +452,7 @@ interface SceneSummary {
             </button>
             <mat-menu #strictnessMenu="matMenu">
               <div class="flex items-center gap-2 px-4 py-3" tabindex="-1" (click)="$event.stopPropagation()" (keydown)="$event.stopPropagation()">
-                <span class="text-xs opacity-60">{{ I18N.culling.strictness | translate }}</span>
+                <span class="text-xs text-[var(--mat-sys-on-surface-variant)]">{{ I18N.culling.strictness | translate }}</span>
                 <mat-slider class="!w-28 !min-w-0" [min]="0" [max]="100" [step]="5" [discrete]="true">
                   <input matSliderThumb [value]="cull.strictness()" (valueChange)="onStrictnessChange($event)" [attr.aria-label]="I18N.culling.strictness | translate" />
                 </mat-slider>
@@ -575,7 +575,7 @@ interface SceneSummary {
           }
         </div>
       } @else if (visibleGroups().length === 0) {
-        <p class="text-center py-20 opacity-60">{{ emptyKey() | translate }}</p>
+        <p class="text-center py-20 text-[var(--mat-sys-on-surface-variant)]">{{ emptyKey() | translate }}</p>
       } @else {
         <div class="space-y-3 pb-4">
           @for (group of visibleGroups(); track group.group_id + '_' + group.type; let i = $index) {
@@ -687,7 +687,7 @@ interface SceneSummary {
                          class="block h-72 md:h-96 w-auto object-cover" [alt]="photo.filename" loading="lazy" />
                     @if (!stacksMode()) {
                       @if (photo.path === group.best_path) {
-                        <div class="absolute top-2 left-2 px-2 py-0.5 rounded bg-green-600 text-white text-xs font-bold">
+                        <div class="absolute top-2 left-2 px-2 py-0.5 rounded bg-green-700 text-white text-xs font-bold">
                           {{ I18N.photo_detail.assessment.group_pick | translate }}
                         </div>
                       } @else if (photo.cull_reason; as reason) {
@@ -773,7 +773,7 @@ interface SceneSummary {
                 <mat-icon class="inline-flex !text-base !w-4 !h-4 !leading-4 opacity-60"
                           [matTooltip]="group.type | cullGroupLabel | translate"
                           [attr.aria-label]="group.type | cullGroupLabel | translate">{{ group.type | cullGroupIcon }}</mat-icon>
-                <span class="text-xs opacity-50">
+                <span class="text-xs text-[var(--mat-sys-on-surface-variant)]">
                   @if (group.count > group.photos.length) { {{ I18N.culling.photos_shown_of | translate:{ shown: group.photos.length, count: group.count } }} }
                   @else { {{ group.count }} {{ I18N.culling.photos | translate }} }
                   @if (group.lookalike) {
@@ -803,14 +803,14 @@ interface SceneSummary {
                               (click)="tuneCategory(category)"
                               [matTooltip]="I18N.culling.weight_ready | translate"
                               [attr.aria-label]="I18N.culling.weight_ready | translate">
-                        <mat-icon class="!text-base !w-4 !h-4 !leading-4 text-green-500">tune</mat-icon>
+                        <mat-icon class="!text-base !w-4 !h-4 !leading-4 text-[var(--facet-positive)]">tune</mat-icon>
                       </button>
                     }
                   }
-                  <span class="text-xs opacity-50">{{ 'category_names.' + category | translate }}</span>
+                  <span class="text-xs text-[var(--mat-sys-on-surface-variant)]">{{ 'category_names.' + category | translate }}</span>
                 }
                 @if ((group | isConfirmed:cull.confirmedGroups())) {
-                  <span class="inline-flex items-center gap-1 text-xs text-green-500 font-medium">
+                  <span class="inline-flex items-center gap-1 text-xs text-[var(--facet-positive)] font-medium">
                     <mat-icon class="inline-flex !text-sm !w-4 !h-4 !leading-4">check_circle</mat-icon>
                     {{ I18N.culling.confirmed_badge | translate }}
                   </span>
@@ -1618,7 +1618,7 @@ interface SceneSummary {
             <p class="text-sm opacity-80">
               {{ I18N.culling.auto_cull.summary | translate:{ groups: ac.groups_processed, kept: ac.kept, rejected: ac.rejected } }}
             </p>
-            <p class="text-xs opacity-60">{{ I18N.culling.strictness | translate }} · {{ cull.autoCullRequest()?.strictness }}%</p>
+            <p class="text-xs text-[var(--mat-sys-on-surface-variant)]">{{ I18N.culling.strictness | translate }} · {{ cull.autoCullRequest()?.strictness }}%</p>
             @if (ac.groups_processed > 0) {
               <label class="flex min-h-11 items-center gap-2 text-sm cursor-pointer">
                 <input type="checkbox" class="accent-[var(--mat-sys-primary)]"

@@ -56,7 +56,7 @@ import { ScanHistoryComponent } from './scan-history.component';
         }
       } @else {
         <div class="flex items-center gap-2 mb-2 text-sm">
-          <mat-icon class="!text-base !w-4 !h-4" [class.text-green-500]="connected() && statusKnown() && !observationError()">
+          <mat-icon class="!text-base !w-4 !h-4" [class.text-[var(--facet-positive)]]="connected() && statusKnown() && !observationError()">
             {{ connected() && statusKnown() && !observationError() ? 'cloud_done' : 'sync' }}
           </mat-icon>
           <span class="opacity-80">

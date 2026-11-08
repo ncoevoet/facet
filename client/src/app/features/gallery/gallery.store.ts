@@ -968,8 +968,9 @@ export class GalleryStore {
         this.syncFilterReadScope();
         const status = this.auth.status();
         if (!status || !status.authenticated && status.login_password_required) return;
+        // Types also feed the Weight Tuning header picker, so they refresh off the gallery too.
+        if (this.needsFilterRefresh('types')) void this.loadTypeCounts();
         if (this.listingReadsActive && !this.listingViewParked) {
-          if (this.needsFilterRefresh('types')) void this.loadTypeCounts();
           if (this.needsFilterRefresh('options')) void this.loadFilterOptions();
           else if (this.needsFilterRefresh('persons')) void this.reloadPersonOptions();
         }

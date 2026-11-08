@@ -49,6 +49,7 @@ type SuggestionPerson = MergeSuggestion['person1'];
   changeDetection: ChangeDetectionStrategy.Eager,
   template: `
     <div class="p-4 md:p-6 pb-20 w-full lg:max-w-[96%] mx-auto">
+      <h1 class="sr-only">{{ I18N.merge_suggestions.title | translate }}</h1>
       <!-- Toolbar projects into the global header on lg+ (HeaderSlotService); on small
            screens it renders as a fixed bottom bar (same #mergeToolbar template). -->
       <div class="lg:hidden">

@@ -27,10 +27,10 @@ import { I18N, i18nKeys } from '../../core/i18n/keys';
     <div class="flex items-center justify-center min-h-full p-4">
       <mat-card class="w-full max-w-sm">
         <mat-card-header>
-          <mat-card-title class="!flex items-center gap-2">
-            <mat-icon>diamond</mat-icon>
+          <h1 mat-card-title class="!flex items-center gap-2">
+            <mat-icon aria-hidden="true">diamond</mat-icon>
             Facet
-          </mat-card-title>
+          </h1>
         </mat-card-header>
         <mat-card-content class="mt-4">
           @if (auth.isMultiUser()) {

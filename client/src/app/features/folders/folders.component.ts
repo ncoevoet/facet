@@ -30,6 +30,7 @@ import { GalleryStore } from '../gallery/gallery.store';
   host: { class: 'block px-4 pt-4 pb-4' },
   changeDetection: ChangeDetectionStrategy.Eager,
   template: `
+    <h1 class="sr-only">{{ I18N.folders.title | translate }}</h1>
     @if (loading() && folders().length === 0) {
       <div class="flex justify-center py-16">
         <mat-spinner diameter="48" [attr.aria-label]="I18N.ui.labels.loading | translate" />

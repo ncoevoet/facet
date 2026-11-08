@@ -58,6 +58,7 @@ interface CapsulesResponse {
   ],
   changeDetection: ChangeDetectionStrategy.Eager,
   template: `
+    <h1 class="sr-only">{{ I18N.capsules.title | translate }}</h1>
     <ng-template #capsulesToolbar>
       <app-date-range-filter
         [from]="capsuleFilters.dateFrom()" [to]="capsuleFilters.dateTo()"

@@ -552,14 +552,6 @@ export class StatsComponent {
       });
     });
 
-    // Category choices are consumed by Statistics even while gallery listing
-    // reads are parked. Refresh them explicitly after the auth scope settles.
-    effect(() => {
-      this.authScope();
-      const authenticated = this.auth.isAuthenticated();
-      untracked(() => { if (authenticated) void this.store.loadTypeCounts(); });
-    });
-
     // Destroy Chart.js instances and clear shared state on component teardown
     this.destroyRef.onDestroy(() => {
       this.charts.forEach(chart => chart.destroy());

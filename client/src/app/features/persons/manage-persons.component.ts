@@ -279,6 +279,7 @@ export type NamingSort = 'faces' | 'recent';
   ],
   changeDetection: ChangeDetectionStrategy.Eager,
   template: `
+    <h1 class="sr-only">{{ I18N.nav.persons | translate }}</h1>
     <ng-template #personsToolbar>
       @if (namingTabActive()) {
         <mat-form-field class="!hidden lg:!inline-flex w-44 ml-2" subscriptSizing="dynamic">

@@ -1,4 +1,4 @@
-import { Component, computed, DestroyRef, effect, inject, signal, viewChild, TemplateRef, ChangeDetectionStrategy } from '@angular/core';
+import { Component, computed, DestroyRef, effect, inject, signal, untracked, viewChild, TemplateRef, ChangeDetectionStrategy } from '@angular/core';
 import { NgTemplateOutlet } from '@angular/common';
 import { MatIconModule } from '@angular/material/icon';
 import { MatButtonModule } from '@angular/material/button';
@@ -49,6 +49,7 @@ const COMPARE_TAB_NAMES: string[] = [...Object.keys(COMPARE_TAB_INDEX), 'context
   changeDetection: ChangeDetectionStrategy.Eager,
   template: `
     <div class="p-4 md:p-6 max-w-screen-2xl mx-auto">
+      <h1 class="sr-only">{{ I18N.comparison.title | translate }}</h1>
       <!-- Tab-contextual actions projected into the global header on lg (HeaderSlotService);
            small screens use the in-page Top bar below and the weights-tab mobile bar. -->
       <ng-template #compareToolbar>
@@ -255,7 +256,12 @@ export class ComparisonComponent {
       const tpl = this.compareToolbar();
       if (tpl) this.headerSlot.set(tpl);
     });
-    void this.loadCategories();
+    // Reactive, not one-shot: a type list dropped by an auth refresh arrives later.
+    effect(() => {
+      const first = this.store.types()[0]?.id;
+      if (first && !untracked(this.compareFilters.selectedCategory)) this.compareFilters.selectedCategory.set(first);
+    });
+    if (this.store.types().length === 0) void this.store.loadTypeCounts();
     void this.loadComparisonStats();
   }
 
@@ -266,18 +272,6 @@ export class ComparisonComponent {
       );
       this.comparisonStats.set(stats);
     } catch { /* non-critical: the tab simply stays locked */ }
-  }
-
-  private async loadCategories(): Promise<void> {
-    try {
-      if (this.store.types().length === 0) {
-        await this.store.loadTypeCounts();
-      }
-      const types = this.store.types();
-      if (types.length > 0 && !this.compareFilters.selectedCategory()) {
-        this.compareFilters.selectedCategory.set(types[0].id);
-      }
-    } catch { /* non-critical */ }
   }
 
   protected onTabChange(index: number): void {
