@@ -3861,7 +3861,10 @@
     "summary_earlier": "{amount} plus tôt",
     "summary_later": "{amount} plus tard",
     "exact_label": "Date et heure correctes de la photo de référence",
-    "reference": "Photo de référence :"
+    "reference": "Photo de référence :",
+    "exact_label_set": "Date et heure de prise de vue",
+    "invalid_set": "Saisissez une date et une heure valides ; sélectionnez au plus 1000 photos.",
+    "summary_set": "Définir à {amount}"
   },
   "organization_history": {
     "title": "Historique des modifications",

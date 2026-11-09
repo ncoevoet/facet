@@ -6757,11 +6757,13 @@ export interface components {
                 [key: string]: unknown;
             } | null;
             /** Offset Seconds */
-            offset_seconds: number;
+            offset_seconds?: number | null;
             /** Photo Paths */
             photo_paths?: string[] | null;
             /** Preview Token */
             preview_token: string;
+            /** Set Date */
+            set_date?: string | null;
         };
         /** CaptureDatePreview */
         CaptureDatePreview: {
@@ -6786,9 +6788,11 @@ export interface components {
                 [key: string]: unknown;
             } | null;
             /** Offset Seconds */
-            offset_seconds: number;
+            offset_seconds?: number | null;
             /** Photo Paths */
             photo_paths?: string[] | null;
+            /** Set Date */
+            set_date?: string | null;
         };
         /** CaptureDateReset */
         CaptureDateReset: {
@@ -6805,7 +6809,7 @@ export interface components {
             /** New Date */
             new_date: string;
             /** Old Date */
-            old_date: string;
+            old_date: string | null;
             /** Path */
             path: string;
         };

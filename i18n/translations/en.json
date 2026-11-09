@@ -3886,7 +3886,10 @@
     "summary_earlier": "{amount} earlier",
     "summary_later": "{amount} later",
     "exact_label": "Correct date and time of the reference photo",
-    "reference": "Reference photo:"
+    "reference": "Reference photo:",
+    "exact_label_set": "Capture date and time",
+    "invalid_set": "Enter a valid date and time; select at most 1000 photos.",
+    "summary_set": "Set to {amount}"
   },
   "organization_history": {
     "title": "Organization history",

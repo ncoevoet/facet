@@ -35,7 +35,12 @@ def _preview(conn: sqlite3.Connection, body: CaptureDateRequest, user: CurrentUs
     if len(rows) > 1000:
         raise HTTPException(422, 'Select at most 1000 photos')
     changes = []
+    absolute = format_capture_date(parse_capture_date(body.set_date)) if body.set_date is not None else None
     for row in rows:
+        if absolute is not None:
+            if row['date_taken'] != absolute:
+                changes.append(dict(path=row['path'], old_date=row['date_taken'], new_date=absolute))
+            continue
         date = parse_capture_date(row['date_taken'])
         if date is None:
             continue
@@ -44,7 +49,8 @@ def _preview(conn: sqlite3.Connection, body: CaptureDateRequest, user: CurrentUs
         except OverflowError:
             continue
         changes.append(dict(path=row['path'], old_date=row['date_taken'], new_date=format_capture_date(shifted)))
-    token = hashlib.sha256(json.dumps([body.offset_seconds, [tuple(row) for row in rows]], ensure_ascii=True).encode()).hexdigest()
+    mode = body.offset_seconds if absolute is None else ['set', absolute]
+    token = hashlib.sha256(json.dumps([mode, [tuple(row) for row in rows]], ensure_ascii=True).encode()).hexdigest()
     return dict(changed=len(changes), skipped=len(rows) - len(changes), samples=changes[:20], preview_token=token), changes
 
 

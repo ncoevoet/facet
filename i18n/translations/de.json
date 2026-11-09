@@ -3861,7 +3861,10 @@
     "summary_earlier": "{amount} früher",
     "summary_later": "{amount} später",
     "exact_label": "Korrektes Datum und Uhrzeit des Referenzfotos",
-    "reference": "Referenzfoto:"
+    "reference": "Referenzfoto:",
+    "exact_label_set": "Aufnahmedatum und -uhrzeit",
+    "invalid_set": "Geben Sie ein gültiges Datum und eine gültige Uhrzeit ein; wählen Sie höchstens 1000 Fotos aus.",
+    "summary_set": "Auf {amount} setzen"
   },
   "organization_history": {
     "title": "Änderungsverlauf",

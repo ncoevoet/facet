@@ -1541,15 +1541,15 @@ Encuentra las fotos cuyos rectángulos de rostro guardados necesitan comprobaci�
 Corrige un reloj de cámara equivocado. En modo de edición, elige **Corregir fecha de captura** desde el icono de calendario junto a la fecha de la foto, o desde la barra de selección de la galería. Hasta 1000 fotos visibles, "Seleccionar todo en la vista" incluido.
 
 - **Desplazar en** (por defecto): elige **Antes** o **Después** e introduce Días, Horas, Minutos y Segundos. Por defecto: 1 hora después. Los botones rápidos −1 h, +1 h, −1 d y +1 d se suman al desplazamiento.
-- **Definir hora exacta**: introduce la fecha y hora correctas de una foto de referencia (la foto abierta, o la primera foto con fecha de la selección; no para "Seleccionar todo en la vista"). El desplazamiento se deduce de ella.
+- **Definir hora exacta**: introduce la fecha y hora correctas. Con una foto de referencia (la foto abierta, o la primera foto con fecha de la selección; no para "Seleccionar todo en la vista") el desplazamiento se deduce de ella y se aplica a cada foto seleccionada. Sin referencia (una foto sin fecha, "Seleccionar todo en la vista", o una selección sin fotos con fecha) cada foto seleccionada recibe la fecha y hora introducidas, incluidas las que no tienen fecha. Una sola foto sin fecha se abre en este modo.
 - El desplazamiento no debe ser cero y como máximo de ±366 días.
-- Un resumen indica el desplazamiento ("1 h 30 min después"), y la vista previa muestra los recuentos de cambiadas/omitidas y las 20 primeras marcas de tiempo antiguas/nuevas.
+- Un resumen indica el desplazamiento ("1 h 30 min después") o la hora que se define, y la vista previa muestra los recuentos de cambiadas/omitidas y las 20 primeras marcas de tiempo antiguas/nuevas.
 - **Aplicar corrección (N)** la aplica. Si algo cambió entretanto, un error ofrece **Previsualizar** para actualizar.
 
 **Qué cambia.**
 
 - La hora de la cámara se desplaza tal cual: sin lógica de zona horaria ni de horario de verano.
-- Solo se admiten fechas completas `YYYY:MM:DD HH:MM:SS` o `YYYY-MM-DD[T o espacio]HH:MM:SS`. Las fechas desconocidas, solo con día, con zona horaria/subsegundos y las no válidas se omiten.
+- Solo se admiten fechas completas `YYYY:MM:DD HH:MM:SS` o `YYYY-MM-DD[T o espacio]HH:MM:SS`. Un desplazamiento omite las fechas desconocidas, solo con día, con zona horaria/subsegundos y las no válidas; una hora exacta definida sin referencia las reemplaza. Una foto que ya tiene esa hora se omite.
 - Las fechas corregidas sobreviven a los reescaneos y a las exportaciones incrementales de la base de datos del visor.
 - **Usar la fecha del archivo** quita la corrección y vuelve a leer el archivo. Sin fecha de archivo, la fecha de captura es desconocida.
 - Aplicar una corrección nunca escribe el original ni cambia la hora de su archivo. La exportación XMP escribe `exif:DateTimeOriginal`; **Escribir metadatos en el archivo** también actualiza el EXIF `DateTimeOriginal` en los formatos compatibles.

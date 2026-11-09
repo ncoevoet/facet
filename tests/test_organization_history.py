@@ -258,6 +258,20 @@ def test_date_revert_restores_pair_without_original_write(edition_client, seed_p
     assert photo.read_bytes() == b'original untouched'
 
 
+def test_date_revert_returns_a_set_date_to_undated(edition_client, seed_photos_prefix):
+    path = '/history-undated/a.jpg'
+    seed_photos_prefix('/history-undated/', [dict(path=path,filename='a.jpg',date_taken=None,date_manually_set=0)])
+    body = dict(photo_paths=[path],set_date='2024-05-06T07:08:09')
+    preview = edition_client.post('/api/photos/capture_date/preview',json=body).json()
+    assert edition_client.post('/api/photos/capture_date/apply',json={**body,'preview_token':preview['preview_token']}).status_code == 200
+    with get_db() as conn:
+        assert tuple(conn.execute('SELECT date_taken,date_manually_set FROM photos WHERE path=?',(path,)).fetchone()) == ('2024:05:06 07:08:09',1)
+    entry = edition_client.get('/api/organization_history').json()['entries'][0]
+    assert edition_client.post(f"/api/organization_history/{entry['id']}/revert").status_code == 200
+    with get_db() as conn:
+        assert tuple(conn.execute('SELECT date_taken,date_manually_set FROM photos WHERE path=?',(path,)).fetchone()) == (None,0)
+
+
 def test_revert_failure_rolls_back_all_members(edition_client, seed_photos_prefix):
     paths = ['/history-atomic/a.jpg','/history-atomic/b.jpg']
     seed_photos_prefix('/history-atomic/', [dict(path=p,filename='a.jpg') for p in paths])

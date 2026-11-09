@@ -3901,6 +3901,9 @@ export const I18N = {
     summary_later: "capture_date.summary_later",
     exact_label: "capture_date.exact_label",
     reference: "capture_date.reference",
+    exact_label_set: "capture_date.exact_label_set",
+    invalid_set: "capture_date.invalid_set",
+    summary_set: "capture_date.summary_set",
   },
   organization_history: {
     title: "organization_history.title",

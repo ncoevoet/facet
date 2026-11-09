@@ -1540,15 +1540,15 @@ Trova le foto i cui rettangoli di volto salvati vanno controllati. Nella scheda 
 Correggi l'orologio sbagliato di una fotocamera. In modalità di modifica, scegli **Correggi data di scatto** dall'icona del calendario accanto alla data della foto, o dalla barra di selezione della galleria. Fino a 1000 foto visibili, "Seleziona tutta la vista" incluso.
 
 - **Sposta di** (predefinito): scegli **Prima** o **Dopo** e inserisci Giorni, Ore, Minuti e Secondi. Predefinito: 1 ora dopo. I pulsanti rapidi −1 h, +1 h, −1 d e +1 d si sommano allo spostamento.
-- **Imposta ora esatta**: inserisci la data e l'ora corrette di una foto di riferimento (la foto aperta, o la prima foto datata della selezione; non per "Seleziona tutta la vista"). Lo spostamento ne viene derivato.
+- **Imposta ora esatta**: inserisci la data e l'ora corrette. Con una foto di riferimento (la foto aperta, o la prima foto datata della selezione; non per "Seleziona tutta la vista") lo spostamento ne viene derivato e applicato a ogni foto selezionata. Senza riferimento (una foto senza data, "Seleziona tutta la vista", o una selezione senza foto datate) ogni foto selezionata riceve la data e l'ora inserite, comprese quelle senza data. Una singola foto senza data si apre in questa modalità.
 - Lo spostamento deve essere diverso da zero e al massimo ±366 giorni.
-- Un riepilogo indica lo spostamento ("1 h 30 min later"), e l'anteprima mostra i conteggi di modificate/saltate e le prime 20 marche temporali vecchie/nuove.
+- Un riepilogo indica lo spostamento ("1 h 30 min later") o l'ora impostata, e l'anteprima mostra i conteggi di modificate/saltate e le prime 20 marche temporali vecchie/nuove.
 - **Applica correzione (N)** la applica. Se nel frattempo è cambiato qualcosa, un errore offre **Anteprima** per aggiornare.
 
 **Che cosa cambia.**
 
 - L'ora della fotocamera viene spostata così com'è: nessuna logica di fuso orario o ora legale.
-- Sono supportate solo date complete `YYYY:MM:DD HH:MM:SS` o `YYYY-MM-DD[T o spazio]HH:MM:SS`. Le date sconosciute, solo data, con fuso orario/sottosecondi e non valide vengono saltate.
+- Sono supportate solo date complete `YYYY:MM:DD HH:MM:SS` o `YYYY-MM-DD[T o spazio]HH:MM:SS`. Uno spostamento salta le date sconosciute, solo data, con fuso orario/sottosecondi e non valide; un'ora esatta impostata senza riferimento le sostituisce. Una foto che ha già quell'ora viene saltata.
 - Le date corrette sopravvivono a nuove scansioni ed esportazioni incrementali del database della galleria.
 - **Usa data del file** rimuove la correzione e rilegge il file. Nessuna data nel file significa data di scatto sconosciuta.
 - Applicare una correzione non scrive mai l'originale né cambia l'ora del file. L'esportazione XMP scrive `exif:DateTimeOriginal`; **Scrivi metadati nel file** aggiorna anche l'EXIF `DateTimeOriginal` nei formati supportati.

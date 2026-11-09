@@ -1540,15 +1540,15 @@ Trouvez les photos dont les rectangles de visages enregistrés doivent être vé
 Corrigez une horloge d'appareil erronée. En mode édition, choisissez **Corriger la date de prise de vue** depuis l'icône de calendrier près de la date de la photo, ou depuis la barre de sélection de la galerie. Jusqu'à 1000 photos visibles, « Tout sélectionner dans la vue » compris.
 
 - **Décaler de** (par défaut) : choisissez **Plus tôt** ou **Plus tard** et saisissez Jours, Heures, Minutes et Secondes. Par défaut : 1 heure plus tard. Les boutons rapides −1 h, +1 h, −1 j et +1 j s'ajoutent au décalage.
-- **Définir l'heure exacte** : saisissez la date et l'heure correctes d'une photo de référence (la photo ouverte, ou la première photo datée de la sélection ; pas pour « Tout sélectionner dans la vue »). Le décalage en est déduit.
+- **Définir l'heure exacte** : saisissez la date et l'heure correctes. Avec une photo de référence (la photo ouverte, ou la première photo datée de la sélection ; pas pour « Tout sélectionner dans la vue »), le décalage en est déduit et appliqué à chaque photo sélectionnée. Sans référence (une photo sans date, « Tout sélectionner dans la vue », ou une sélection sans photo datée), chaque photo sélectionnée reçoit la date et l'heure saisies, y compris celles sans date. Une photo seule sans date s'ouvre dans ce mode.
 - Le décalage doit être non nul et d'au plus ±366 jours.
-- Un résumé énonce le décalage (« 1 h 30 min plus tard »), et l'aperçu montre les compteurs de photos modifiées/ignorées et les 20 premiers horodatages ancien/nouveau.
+- Un résumé énonce le décalage (« 1 h 30 min plus tard ») ou l'heure définie, et l'aperçu montre les compteurs de photos modifiées/ignorées et les 20 premiers horodatages ancien/nouveau.
 - **Appliquer la correction (N)** l'applique. Si quelque chose a changé entre-temps, une erreur propose **Aperçu** pour rafraîchir.
 
 **Ce qui change.**
 
 - L'heure de l'appareil est décalée telle quelle : aucune logique de fuseau horaire ni d'heure d'été.
-- Seules les dates complètes `YYYY:MM:DD HH:MM:SS` ou `YYYY-MM-DD[T ou espace]HH:MM:SS` sont prises en charge. Les dates inconnues, sans heure, avec fuseau/sous-seconde et invalides sont ignorées.
+- Seules les dates complètes `YYYY:MM:DD HH:MM:SS` ou `YYYY-MM-DD[T ou espace]HH:MM:SS` sont prises en charge. Un décalage ignore les dates inconnues, sans heure, avec fuseau/sous-seconde et invalides ; une heure exacte définie sans référence les remplace. Une photo déjà à cette heure est ignorée.
 - Les dates corrigées survivent aux rescans et aux exports incrémentaux de la base de données de la visionneuse.
 - **Utiliser la date du fichier** retire la correction et relit le fichier. Pas de date de fichier signifie une date de prise de vue inconnue.
 - Appliquer une correction n'écrit jamais l'original et ne change pas son horodatage de fichier. L'export XMP écrit `exif:DateTimeOriginal` ; **Écrire les métadonnées dans le fichier** met aussi à jour l'EXIF `DateTimeOriginal` dans les formats pris en charge.

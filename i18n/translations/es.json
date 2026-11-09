@@ -3861,7 +3861,10 @@
     "summary_earlier": "{amount} antes",
     "summary_later": "{amount} después",
     "exact_label": "Fecha y hora correctas de la foto de referencia",
-    "reference": "Foto de referencia:"
+    "reference": "Foto de referencia:",
+    "exact_label_set": "Fecha y hora de captura",
+    "invalid_set": "Introduzca una fecha y hora válidas; seleccione como máximo 1000 fotos.",
+    "summary_set": "Establecer en {amount}"
   },
   "organization_history": {
     "title": "Historial de organización",

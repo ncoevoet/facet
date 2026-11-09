@@ -3861,7 +3861,10 @@
     "summary_earlier": "提前 {amount}",
     "summary_later": "推后 {amount}",
     "exact_label": "参考照片的正确日期和时间",
-    "reference": "参考照片："
+    "reference": "参考照片：",
+    "exact_label_set": "拍摄日期和时间",
+    "invalid_set": "请输入有效的日期和时间；最多选择 1000 张照片。",
+    "summary_set": "设为 {amount}"
   },
   "organization_history": {
     "title": "整理历史",
