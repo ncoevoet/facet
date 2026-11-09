@@ -185,6 +185,9 @@ jobs:
           run python /tool/ci_report.py --db /app/data/photo_scores_pro.db --people /data/photos/people.csv \
             --refs /refs > reports/docker.txt
           cat reports/docker.txt
+          # The weights were written by uid 1000 with mode 0600 (mkstemp); hand them back so the
+          # cache save, which runs as the runner user, can read them.
+          sudo chown -R "$USER" "$RUNNER_TEMP/pretrained_models"
       - uses: actions/upload-artifact@v7
         with:
           name: report-docker
