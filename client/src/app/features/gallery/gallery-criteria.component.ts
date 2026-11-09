@@ -20,7 +20,9 @@ import { isUnavailableKey, unavailableSet } from '../../shared/utils/unavailable
 import { CaptureDatePipe } from '../../shared/pipes/capture-date.pipe';
 import { GalleryAlbumRulesComponent } from './gallery-album-rules.component';
 import { GalleryVisit, GalleryVisitHistoryService } from './gallery-visit-history.service';
-import { filterUnit, hasZeroStarFilter } from './gallery-filters.util';
+import { DEFAULT_FILTERS, filterUnit, hasZeroStarFilter } from './gallery-filters.util';
+import { galleryFilterLabel } from './gallery-filter-label.pipe';
+import { sortLabelKey } from '../../shared/utils/sort-label';
 import { ContextHelpComponent } from '../../shared/components/context-help/context-help.component';
 import { KeywordBranchLabelPipe } from './keyword-hierarchy-labels.service';
 import { GalleryQueryProposalComponent } from './gallery-query-proposal.component';
@@ -278,10 +280,26 @@ export class GalleryCriteriaComponent {
    return this.history.visits().map(visit=>({visit,description:this.describeVisit(visit)}));
  });
  private describeVisit(visit:GalleryVisit):string {
-   const labels:Record<string,string>={search:I18N.gallery.search_chip,semanticQuery:I18N.gallery.semantic_search_chip,tag:I18N.gallery.tag,camera:I18N.gallery.camera,lens:I18N.gallery.lens};
-   const leading=visit.criteria.find(([key])=>key in labels);
-   const count=this.i18n.t(I18N.gallery.criteria.recent_filter_count,{count:new Set(visit.criteria.filter(([key])=>key!=='album_id').map(([key])=>filterUnit(key))).size});
-   return leading?`${this.i18n.t(labels[leading[0]])}: ${leading[1]} · ${count}`:count;
+   const translate=(key:string)=>this.i18n.t(key);
+   // What names a collection (its search, tag, gear) leads; ranges and toggles follow in key order.
+   const leading=['search','semanticQuery','tag','camera','lens'];
+   const rank=(key:string)=>{const index=leading.indexOf(key);return index<0?leading.length:index;};
+   const criteria=visit.criteria.filter(([key])=>key!=='album_id').sort(([a],[b])=>rank(a)-rank(b));
+   const parts=criteria.slice(0,2).map(([key,value])=>{
+     const label=galleryFilterLabel(key,translate);
+     return /[≥≤]$/.test(label)?`${label} ${value}`:`${label}: ${value}`;
+   });
+   if(criteria.length>2)parts.push(`+${criteria.length-2}`);
+   // The visit list keys on the URL, so two visits can differ only by sort; name it unless it is the default.
+   const query=new URLSearchParams(visit.url.split('?')[1]??'');
+   const sort=query.get('sort');
+   const direction=query.get('sort_direction');
+   if((sort&&sort!==DEFAULT_FILTERS.sort)||(direction&&direction!==DEFAULT_FILTERS.sort_direction)){
+     const arrow=direction==='ASC'?' ↑':direction==='DESC'?' ↓':'';
+     parts.push(`${translate(I18N.gallery.sort)}: ${translate(sortLabelKey(sort??DEFAULT_FILTERS.sort))}${arrow}`);
+   }
+   if(parts.length)return parts.join(' · ');
+   return this.i18n.t(I18N.gallery.criteria.recent_filter_count,{count:new Set(criteria.map(([key])=>filterUnit(key))).size});
  }
  protected resetFilters():void {if(this.canAct())void this.store.resetFilters();}
  protected onSimilarityFilterChange(value:number):void {if(this.canAct())void this.store.updateFilter('min_similarity',String(value));}

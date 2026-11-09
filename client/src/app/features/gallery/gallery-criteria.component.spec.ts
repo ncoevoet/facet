@@ -90,6 +90,38 @@ describe('recent collection visits',()=>{
   expect(details.open).toBe(false);
  });
 
+ it('describes a recent visit by up to two label: value pairs, naming criteria first, not a bare count',()=>{
+  const {fixture,navigation,authStatus}=createCriteria();
+  authStatus.set({authenticated:true});fixture.detectChanges();
+  navigation.next(new NavigationEnd(1,'/?tag=forest&camera=X100&lens=35mm&min_score=6','/?tag=forest&camera=X100&lens=35mm&min_score=6'));
+  fixture.detectChanges();
+  const text=(fixture.nativeElement as HTMLElement).querySelector('[data-recent-visit]')!.textContent!;
+  expect(text).toContain(`${I18N.gallery.tag}: forest · ${I18N.gallery.camera}: X100`);
+  expect(text).not.toContain(`${I18N.gallery.lens}:`);
+  expect(text).not.toContain(I18N.gallery.criteria.recent_filter_count);
+ });
+
+ it('tells apart visits that differ only by sort, and labels every criterion kind',()=>{
+  const {fixture,navigation,authStatus}=createCriteria();
+  authStatus.set({authenticated:true});fixture.detectChanges();
+  for(const url of ['/?min_score=6&sort=date_taken&sort_direction=ASC','/?min_score=6&sort=aesthetic']){
+   navigation.next(new NavigationEnd(1,url,url));fixture.detectChanges();
+  }
+  const texts=Array.from((fixture.nativeElement as HTMLElement).querySelectorAll('[data-recent-visit]')).map(button=>button.textContent!.replace(/\s+/g,' ').trim());
+  expect(texts).toHaveLength(2);
+  expect(texts[0]).toContain(`${I18N.gallery.score_range} ≥ 6`);
+  expect(texts[0]).toContain(`${I18N.gallery.sort}: sort_options.aesthetic`);
+  expect(texts[1]).toContain(`${I18N.gallery.sort}: sort_options.date_taken ↑`);
+ });
+
+ it('counts the criteria beyond the two it names',()=>{
+  const {fixture,navigation,authStatus}=createCriteria();
+  authStatus.set({authenticated:true});fixture.detectChanges();
+  navigation.next(new NavigationEnd(1,'/?tag=forest&camera=X100&lens=35mm&min_score=6','/?tag=forest&camera=X100&lens=35mm&min_score=6'));
+  fixture.detectChanges();
+  expect((fixture.nativeElement as HTMLElement).querySelector('[data-recent-visit]')!.textContent).toContain(' · +2');
+ });
+
  it('does not record cancelled visits or allow a captured history action while parked or after logout',()=>{
   const {app,fixture,navigation,mockRouter,authStatus}=createCriteria();
   authStatus.set({authenticated:true});fixture.detectChanges();
