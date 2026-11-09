@@ -121,19 +121,23 @@ function readDensityVisible(): boolean {
       </button>
     </ng-template>
     <ng-template #datesPanel>
-      <p class="mb-2 text-xs text-[var(--mat-sys-on-surface-variant)]">{{ I18N.timeline.scope_help | translate }}</p>
-      <div class="flex flex-wrap items-center gap-2">
-        <app-date-range-filter [compact]="true"
-          [from]="filters.dateFrom()" [to]="filters.dateTo()"
-          fromClass="w-40" toClass="w-40"
-          (fromChange)="filters.dateFrom.set($event)" (toChange)="filters.dateTo.set($event)" />
-        <button mat-button [disabled]="emptyRange()" [attr.aria-describedby]="emptyRange() ? 'timeline-empty-range' : null" (click)="viewRange()">{{ I18N.timeline.open_range | translate }}</button>
-        <button mat-button (click)="resetDates()">{{ I18N.timeline.all_dates | translate }}</button>
-        <button mat-button (click)="viewUnknownDates()">{{ I18N.gallery.no_capture_date | translate }}</button>
+      <div class="flex flex-col gap-3">
+        <p class="m-0 text-xs text-[var(--mat-sys-on-surface-variant)]">{{ I18N.timeline.scope_help | translate }}</p>
+        <div class="flex flex-col gap-2">
+          <app-date-range-filter
+            [from]="filters.dateFrom()" [to]="filters.dateTo()"
+            fromClass="w-full" toClass="w-full"
+            (fromChange)="filters.dateFrom.set($event)" (toChange)="filters.dateTo.set($event)" />
+        </div>
+        <button mat-flat-button class="w-full" [disabled]="emptyRange()" [attr.aria-describedby]="emptyRange() ? 'timeline-empty-range' : null" (click)="viewRange()">{{ I18N.timeline.open_range | translate }}</button>
+        @if (emptyRange()) {
+          <p id="timeline-empty-range" role="status" class="m-0 text-sm text-[var(--mat-sys-on-surface-variant)]">{{ I18N.timeline.empty_range | translate }}</p>
+        }
+        <div class="flex flex-col border-t border-[var(--mat-sys-outline-variant)] pt-2">
+          <button mat-button class="!justify-start" (click)="resetDates()"><mat-icon>restart_alt</mat-icon>{{ I18N.timeline.all_dates | translate }}</button>
+          <button mat-button class="!justify-start" (click)="viewUnknownDates()"><mat-icon>event_busy</mat-icon>{{ I18N.gallery.no_capture_date | translate }}</button>
+        </div>
       </div>
-      @if (emptyRange()) {
-        <p id="timeline-empty-range" role="status" class="mt-2 text-sm text-[var(--mat-sys-on-surface-variant)]">{{ I18N.timeline.empty_range | translate }}</p>
-      }
     </ng-template>
     <ng-template #datesControl>
       <app-control-popover icon="date_range" [compact]="true" [label]="I18N.timeline.dates | translate" [content]="datesPanel" />
