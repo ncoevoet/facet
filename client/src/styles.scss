@@ -303,13 +303,13 @@ html.light-mode ::-webkit-scrollbar-thumb {
   &:hover { background: #aaa; }
 }
 
-// Compact tab header for stats page
-.stats-tabs .mat-mdc-tab {
+// Compact tab header shared by page-level tab groups (Statistics, Weight Tuning)
+.page-tabs .mat-mdc-tab {
   min-height: 40px;
   padding: 0 12px;
 }
 
-.stats-tabs .mat-mdc-tab-header {
+.page-tabs .mat-mdc-tab-header {
   --mat-tab-header-label-text-size: 13px;
 }
 

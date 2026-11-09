@@ -213,7 +213,7 @@ interface ScoreBin {
         <mat-spinner diameter="48" [attr.aria-label]="I18N.ui.labels.loading | translate" />
       </div>
     } @else if (!loadFailed()) {
-      <mat-tab-group class="stats-tabs max-sm:[&_.mat-mdc-tab]:!min-w-0 max-sm:[&_.mat-mdc-tab]:!px-0 max-sm:[&_.mat-mdc-tab]:!flex-[1_1_auto] max-sm:[&_.mat-mdc-tab-labels]:!flex-[1_1_0%]" mat-stretch-tabs="false" mat-align-tabs="start" [selectedIndex]="selectedTab()" (selectedIndexChange)="selectedTab.set($event)">
+      <mat-tab-group class="page-tabs max-sm:[&_.mat-mdc-tab]:!min-w-0 max-sm:[&_.mat-mdc-tab]:!px-0 max-sm:[&_.mat-mdc-tab]:!flex-[1_1_auto] max-sm:[&_.mat-mdc-tab-labels]:!flex-[1_1_0%]" mat-stretch-tabs="false" mat-align-tabs="start" [selectedIndex]="selectedTab()" (selectedIndexChange)="selectedTab.set($event)">
           <!-- Gear tab -->
           <mat-tab>
             <ng-template mat-tab-label>

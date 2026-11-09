@@ -173,6 +173,25 @@ describe('ComparisonComponent', () => {
       expect(root.className).not.toContain('md:p-6');
     });
 
+    it('uses the full page width like the other pages, not a centred column', () => {
+      const root = (render().nativeElement as HTMLElement).firstElementChild as HTMLElement;
+      expect(root.className).not.toContain('max-w-screen-2xl');
+      expect(root.className).not.toContain('mx-auto');
+      expect(root.className).not.toContain('md:py-6');
+    });
+
+    it('shares the compact page tab header and label layout with Statistics', () => {
+      const host = render().nativeElement as HTMLElement;
+      const group = host.querySelector('mat-tab-group') as HTMLElement;
+      expect(group.classList).toContain('page-tabs');
+      const icons = [...host.querySelectorAll('.mat-mdc-tab mat-icon')];
+      expect(icons.length).toBeGreaterThan(0);
+      for (const icon of icons) {
+        expect(icon.classList).toContain('sm:!inline-block');
+        expect(icon.getAttribute('aria-hidden')).toBe('true');
+      }
+    });
+
     it('left-aligns its tabs instead of stretching them', () => {
       const group = (render().nativeElement as HTMLElement).querySelector('mat-tab-group') as HTMLElement;
       expect(group.getAttribute('mat-stretch-tabs')).toBe('false');

@@ -48,7 +48,7 @@ const COMPARE_TAB_NAMES: string[] = [...Object.keys(COMPARE_TAB_INDEX), 'context
   ],
   changeDetection: ChangeDetectionStrategy.Eager,
   template: `
-    <div class="px-4 py-4 md:py-6 max-w-screen-2xl mx-auto">
+    <div class="px-4 py-4">
       <h1 class="sr-only">{{ I18N.comparison.title | translate }}</h1>
       <!-- Tab-contextual actions projected into the global header on lg (HeaderSlotService);
            small screens use the in-page Top bar below and the weights-tab mobile bar. -->
@@ -126,12 +126,12 @@ const COMPARE_TAB_NAMES: string[] = [...Object.keys(COMPARE_TAB_INDEX), 'context
       }
 
       @if (compareFilters.selectedCategory()) {
-        <mat-tab-group class="mb-6" mat-stretch-tabs="false" mat-align-tabs="start" [selectedIndex]="compareFilters.activeTab()" (selectedIndexChange)="onTabChange($event)">
+        <mat-tab-group class="page-tabs mb-6" mat-stretch-tabs="false" mat-align-tabs="start" [selectedIndex]="compareFilters.activeTab()" (selectedIndexChange)="onTabChange($event)">
           <!-- Snapshots tab -->
           <mat-tab>
             <ng-template mat-tab-label>
-              <mat-icon class="mr-2">bookmark</mat-icon>
-              {{ I18N.comparison.snapshots | translate }}
+              <mat-icon class="!hidden sm:!inline-block sm:mr-2" aria-hidden="true">bookmark</mat-icon>
+              <span class="whitespace-nowrap text-[11px] sm:text-sm">{{ I18N.comparison.snapshots | translate }}</span>
             </ng-template>
             <app-comparison-snapshots-tab #snapshotsTabEl (restored)="onSnapshotRestored()" />
           </mat-tab>
@@ -139,8 +139,8 @@ const COMPARE_TAB_NAMES: string[] = [...Object.keys(COMPARE_TAB_INDEX), 'context
           <!-- A/B Compare tab -->
           <mat-tab>
             <ng-template mat-tab-label>
-              <mat-icon class="mr-2">compare</mat-icon>
-              {{ I18N.comparison.compare_tab | translate }}
+              <mat-icon class="!hidden sm:!inline-block sm:mr-2" aria-hidden="true">compare</mat-icon>
+              <span class="whitespace-nowrap text-[11px] sm:text-sm">{{ I18N.comparison.compare_tab | translate }}</span>
             </ng-template>
             <app-comparison-ab-tab #abTabEl (weightsApplied)="onWeightsApplied($event)" />
           </mat-tab>
@@ -150,8 +150,8 @@ const COMPARE_TAB_NAMES: string[] = [...Object.keys(COMPARE_TAB_INDEX), 'context
             <ng-template mat-tab-label>
               <span [matTooltip]="weightsLocked() ? ((I18N.comparison.suggestions_locked_tooltip | translate:{ count: weightsRemaining() })) : ''"
                     class="inline-flex items-center">
-                <mat-icon class="mr-2">auto_fix_high</mat-icon>
-                {{ I18N.comparison.suggestions_tab | translate }}
+                <mat-icon class="!hidden sm:!inline-block sm:mr-2" aria-hidden="true">auto_fix_high</mat-icon>
+                <span class="whitespace-nowrap text-[11px] sm:text-sm">{{ I18N.comparison.suggestions_tab | translate }}</span>
               </span>
             </ng-template>
             <app-comparison-suggestions-tab #suggestionsTabEl (weightsApplied)="onWeightsApplied($event)" />
@@ -160,8 +160,8 @@ const COMPARE_TAB_NAMES: string[] = [...Object.keys(COMPARE_TAB_INDEX), 'context
           <!-- Weights tab -->
           <mat-tab>
             <ng-template mat-tab-label>
-              <mat-icon class="mr-2">tune</mat-icon>
-              {{ I18N.comparison.weights | translate }}
+              <mat-icon class="!hidden sm:!inline-block sm:mr-2" aria-hidden="true">tune</mat-icon>
+              <span class="whitespace-nowrap text-[11px] sm:text-sm">{{ I18N.comparison.weights | translate }}</span>
             </ng-template>
             <app-comparison-weights-tab #weightsTabEl />
           </mat-tab>
@@ -169,8 +169,8 @@ const COMPARE_TAB_NAMES: string[] = [...Object.keys(COMPARE_TAB_INDEX), 'context
           <!-- Scoring context tab -->
           <mat-tab>
             <ng-template mat-tab-label>
-              <mat-icon class="mr-2">low_priority</mat-icon>
-              {{ I18N.comparison.context.tab_label | translate }}
+              <mat-icon class="!hidden sm:!inline-block sm:mr-2" aria-hidden="true">low_priority</mat-icon>
+              <span class="whitespace-nowrap text-[11px] sm:text-sm">{{ I18N.comparison.context.tab_label | translate }}</span>
             </ng-template>
             <app-comparison-priority-tab #priorityTabEl />
           </mat-tab>
@@ -178,8 +178,8 @@ const COMPARE_TAB_NAMES: string[] = [...Object.keys(COMPARE_TAB_INDEX), 'context
           <!-- Panorama detection tab -->
           <mat-tab>
             <ng-template mat-tab-label>
-              <mat-icon class="mr-2">panorama_photosphere</mat-icon>
-              {{ I18N.panorama.settings.tab_label | translate }}
+              <mat-icon class="!hidden sm:!inline-block sm:mr-2" aria-hidden="true">panorama_photosphere</mat-icon>
+              <span class="whitespace-nowrap text-[11px] sm:text-sm">{{ I18N.panorama.settings.tab_label | translate }}</span>
             </ng-template>
             <app-panorama-settings-tab />
           </mat-tab>
