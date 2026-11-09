@@ -3022,8 +3022,6 @@
     "preview_count": "Mostrando {shown} de {total} fotos",
     "load_failed": "No se han podido cargar estas fechas. Reinténtalo.",
     "retry": "Reintentar",
-    "more_days": "Más días",
-    "continue_dates": "Continuar a las fechas siguientes",
     "log_scale": "Escala logarítmica",
     "density_years": "Fotos por año",
     "density_months": "Fotos por mes",

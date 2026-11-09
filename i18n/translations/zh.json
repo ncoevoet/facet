@@ -3022,8 +3022,6 @@
     "preview_count": "已显示 {total} 张照片中的 {shown} 张",
     "load_failed": "无法加载这些日期。请重试。",
     "retry": "重试",
-    "more_days": "更多日期",
-    "continue_dates": "继续查看后续日期",
     "log_scale": "对数刻度",
     "density_years": "按年统计照片",
     "density_months": "按月统计照片",

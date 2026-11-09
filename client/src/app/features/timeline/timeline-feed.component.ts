@@ -1,5 +1,5 @@
 import { timelineRouteActivity } from './timeline-route-activity';
-import { Component, DestroyRef, ElementRef, Injector, afterEveryRender, afterNextRender, computed, effect, inject, input, signal, untracked, ChangeDetectionStrategy } from '@angular/core';
+import { Component, DestroyRef, ElementRef, Injector, afterEveryRender, afterNextRender, computed, effect, inject, input, signal, untracked, viewChild, ChangeDetectionStrategy } from '@angular/core';
 import { Router, RouterLink } from '@angular/router';
 import { Subscription } from 'rxjs';
 import { MatButtonModule } from '@angular/material/button';
@@ -17,16 +17,17 @@ import { TimelineFeedCache, type TimelineGroup, type TimelinePage } from './time
 import type { Photo } from '../../shared/models/photo.model';
 import { timelineWindow } from './timeline-density.util';
 import { timelineReadContext } from './timeline-read-context';
+import { InfiniteScrollDirective } from '../../shared/directives/infinite-scroll.directive';
 
 @Component({
   selector: 'app-timeline-feed',
   standalone: true,
-  imports: [RouterLink, MatButtonModule, MatIconModule, TranslatePipe, ThumbnailUrlPipe, CaptureDatePipe, TimelineDayQueryPipe, TimelinePhotoLinkPipe],
+  imports: [RouterLink, MatButtonModule, MatIconModule, TranslatePipe, ThumbnailUrlPipe, CaptureDatePipe, TimelineDayQueryPipe, TimelinePhotoLinkPipe, InfiniteScrollDirective],
   host: { class: 'block min-w-0' },
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     @for (group of groups(); track group.date) {
-      <section class="mb-6" [attr.data-timeline-date]="group.date" [attr.aria-label]="group.date | captureDate">
+      <section class="mb-4 rounded-xl bg-[var(--mat-sys-surface-container)] p-3 sm:p-4" [attr.data-timeline-date]="group.date" [attr.aria-label]="group.date | captureDate">
         <header class="flex min-h-11 flex-wrap items-baseline justify-between gap-x-3 gap-y-1 py-0">
           <h2 class="m-0 text-base font-semibold tabular-nums">{{ group.date | captureDate }}</h2>
           <a mat-button routerLink="/" [queryParams]="group.date | timelineDayQuery:visibility()">
@@ -37,7 +38,7 @@ import { timelineReadContext } from './timeline-read-context';
         <div class="grid grid-cols-3 gap-1 sm:grid-cols-4 xl:grid-cols-6">
           @for (photo of group.photos; track photo.path) {
             <a [href]="photo.path | timelinePhotoLink" (click)="openPhoto($event, photo)"
-              class="relative block aspect-square min-w-0 overflow-hidden bg-[var(--mat-sys-surface-container)] focus-visible:z-10 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--mat-sys-primary)]"
+              class="relative block aspect-square min-w-0 overflow-hidden rounded bg-[var(--mat-sys-surface-container-high)] focus-visible:z-10 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--mat-sys-primary)]"
               [attr.aria-label]="photo.filename">
               <img [src]="photo.path | thumbnailUrl:320:photo.preview_revision" alt="" loading="lazy" decoding="async" class="h-full w-full object-cover" />
             </a>
@@ -54,14 +55,13 @@ import { timelineReadContext } from './timeline-read-context';
       @if (error()) { <p role="alert">{{ I18N.timeline.load_failed | translate }}</p> }
       @if (loading() && !manualLoading()) { <span role="status">{{ I18N.ui.labels.loading | translate }}</span> }
       @else if (!loading() && !error() && groups().length === 0) { <p>{{ I18N.timeline.empty | translate }}</p> }
-      @if (error() || manualLoading() || (hasMore() && groups().length < 128)) {
+      @if (error() || manualLoading()) {
         <button mat-stroked-button data-timeline-load-more [attr.aria-disabled]="loading()" (click)="loadMore()">
-          {{ (loading() ? I18N.ui.labels.loading : error() ? I18N.timeline.retry : I18N.timeline.more_days) | translate }}
+          {{ (loading() ? I18N.ui.labels.loading : I18N.timeline.retry) | translate }}
         </button>
-      } @else if (!loading() && hasMore()) {
-          <button mat-stroked-button data-timeline-continue (click)="continueWindow()">{{ I18N.timeline.continue_dates | translate }}</button>
       }
     </div>
+    @if (hasMore() && !error()) { <div appInfiniteScroll scrollRoot="app-timeline" data-timeline-sentinel class="h-1" (scrollReached)="onScrollReached()"></div> }
   `,
 })
 export class TimelineFeedComponent {
@@ -74,6 +74,7 @@ export class TimelineFeedComponent {
   private readonly router = inject(Router);
   private readonly host = inject<ElementRef<HTMLElement>>(ElementRef);
   private readonly injector = inject(Injector);
+  private readonly sentinel = viewChild(InfiniteScrollDirective);
   readonly year = input('');
   readonly month = input('');
   protected readonly active = timelineRouteActivity(() => { this.remember(); this.cancel(); });
@@ -173,14 +174,15 @@ export class TimelineFeedComponent {
         this.groups.update(groups => [...groups, ...added]);
         this.nextCursor.set(page.next_cursor); this.hasMore.set(page.has_more && !!page.next_cursor);
         this.loading.set(false); this.manualLoading.set(false); this.remember();
-        if (restoreFocus && this.host.nativeElement.ownerDocument.activeElement === button && (!this.hasMore() || this.groups().length >= 128)) {
+        // A sentinel still in view after the page renders fires no new intersection, so re-check it.
+        afterNextRender(() => { if (this.current(context, generation)) this.sentinel()?.recheck(); }, { injector: this.injector });
+        if (restoreFocus && this.host.nativeElement.ownerDocument.activeElement === button) {
           afterNextRender(() => {
             const doc = this.host.nativeElement.ownerDocument;
             if (this.current(context, generation) && (doc.activeElement === doc.body || doc.activeElement === button)) {
-              const next = this.host.nativeElement.querySelector<HTMLElement>('[data-timeline-continue]');
               const firstAdded = [...this.host.nativeElement.querySelectorAll<HTMLElement>('[data-timeline-date]')]
                 .find(section => section.dataset['timelineDate'] === firstAddedDate)?.querySelector<HTMLElement>('.grid a[href]');
-              (next ?? firstAdded ?? this.host.nativeElement.querySelector<HTMLElement>('section:last-of-type header a[href]'))?.focus();
+              (firstAdded ?? this.host.nativeElement.querySelector<HTMLElement>('section:last-of-type header a[href]'))?.focus();
             }
           }, { injector: this.injector });
         }
@@ -189,14 +191,7 @@ export class TimelineFeedComponent {
     });
   }
 
-  protected continueWindow(): void {
-    const cursor = this.nextCursor();
-    if (!cursor || !this.active()) return;
-    const date = new Date(`${cursor}T12:00:00Z`);
-    date.setUTCDate(date.getUTCDate() + (this.filters.sortDirection() === 'older' ? -1 : 1));
-    const value = date.toISOString().slice(0, 10);
-    if (this.filters.sortDirection() === 'older') this.filters.dateTo.set(value);
-    else this.filters.dateFrom.set(value);
-    if (this.scrollOwner) this.scrollOwner.scrollTop = 0;
+  protected onScrollReached(): void {
+    if (this.hasMore() && !this.error()) this.loadMore();
   }
 }

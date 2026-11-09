@@ -3047,8 +3047,6 @@
     "preview_count": "Showing {shown} of {total} photos",
     "load_failed": "Could not load these dates. Try again.",
     "retry": "Retry",
-    "more_days": "More days",
-    "continue_dates": "Continue to next dates",
     "log_scale": "Log scale",
     "density_years": "Photos by year",
     "density_months": "Photos by month",

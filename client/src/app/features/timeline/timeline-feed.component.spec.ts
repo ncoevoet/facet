@@ -1,5 +1,6 @@
 import { Component, signal } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
+import { By } from '@angular/platform-browser';
 import { provideRouter, Router } from '@angular/router';
 import { of, Subject, throwError } from 'rxjs';
 import { TimelineFeedComponent } from './timeline-feed.component';
@@ -11,6 +12,7 @@ import { GalleryStore } from '../gallery/gallery.store';
 import { TimelineFeedCache, type TimelinePage } from './timeline-feed-cache.service';
 import type { Photo } from '../../shared/models/photo.model';
 import { HANDLE_SERVER_ERROR_LOCALLY } from '../../core/utils/http-error-context';
+import { InfiniteScrollDirective } from '../../shared/directives/infinite-scroll.directive';
 
 @Component({ template: '' }) class OtherPage {}
 const first = { groups: [{ date: '2026-11-01', count: 12, photos: [
@@ -37,7 +39,10 @@ describe('Timeline photo feed', () => {
       const wrapper = document.createElement('app-timeline'); wrapper.appendChild(fixture.nativeElement); document.body.appendChild(wrapper);
       const settle = async () => { fixture.detectChanges(); await fixture.whenStable(); fixture.detectChanges(); };
       const dispose = () => { fixture.destroy(); wrapper.remove(); };
-      return { fixture, root: fixture.nativeElement as HTMLElement, wrapper, settle, dispose };
+      const sentinel = () => fixture.debugElement.query(By.directive(InfiniteScrollDirective))?.injector.get(InfiniteScrollDirective) ?? null;
+      /** Scrolls the bottom sentinel into view, as the IntersectionObserver would. */
+      const reach = async () => { sentinel()!.scrollReached.emit(); await settle(); };
+      return { fixture, root: fixture.nativeElement as HTMLElement, wrapper, settle, dispose, sentinel, reach };
     }
     const view = create(); await view.settle();
     return { ...view, create, api, auth, visibility, photos, timelineMembershipRevision, loading, router, filters: TestBed.inject(TimelineFiltersService) };
@@ -58,8 +63,9 @@ describe('Timeline photo feed', () => {
 
   it('retains loaded dates on a failed next page and retries the same cursor', async () => {
     const v = await setup(); v.api.get.mockReturnValueOnce(throwError(() => new Error('offline')));
-    v.root.querySelector<HTMLButtonElement>('button[mat-stroked-button]')!.click(); await v.settle();
+    await v.reach();
     expect(v.root.querySelector('h2')?.textContent).toBe('01/11/2026'); expect(v.root.querySelector('[role=alert]')).not.toBeNull();
+    expect(v.sentinel()).toBeNull();
     v.api.get.mockReturnValueOnce(of({ groups: [{ date: '2026-10-31', count: 0, photos: [] }], next_cursor: null, has_more: false }));
     const retry = [...v.root.querySelectorAll('button')].find(button => button.textContent?.includes('timeline.retry'))!;
     retry.click(); await v.settle();
@@ -68,9 +74,11 @@ describe('Timeline photo feed', () => {
   });
 
   it('keeps pagination focus through a failed request and retry without stealing it', async () => {
-    const v = await setup(); const pending = new Subject<TimelinePage>();
-    v.api.get.mockReturnValueOnce(pending);
+    const v = await setup(); v.api.get.mockReturnValueOnce(throwError(() => new Error('offline')));
+    await v.reach();
     const button = v.root.querySelector<HTMLButtonElement>('[data-timeline-load-more]')!;
+    expect(button.textContent).toContain('timeline.retry');
+    const pending = new Subject<TimelinePage>(); v.api.get.mockReturnValueOnce(pending);
     button.focus(); button.click(); await v.settle();
     expect(document.activeElement).toBe(button);
     expect(button.getAttribute('aria-disabled')).toBe('true');
@@ -84,8 +92,10 @@ describe('Timeline photo feed', () => {
     expect(document.activeElement).toBe(other); other.remove(); v.dispose();
   });
 
-  it('moves focus to the final loaded photo when the pagination control disappears', async () => {
-    const v = await setup(); const next = new Subject<TimelinePage>(); v.api.get.mockReturnValueOnce(next);
+  it('moves focus to the first new photo when a successful retry removes its control', async () => {
+    const v = await setup(); v.api.get.mockReturnValueOnce(throwError(() => new Error('offline')));
+    await v.reach();
+    const next = new Subject<TimelinePage>(); v.api.get.mockReturnValueOnce(next);
     const button = v.root.querySelector<HTMLButtonElement>('[data-timeline-load-more]')!;
     button.focus(); button.click(); await v.settle();
     next.next({ groups: [
@@ -206,24 +216,35 @@ describe('Timeline photo feed', () => {
     v.dispose();
   });
 
-  it.each(['older', 'newer'] as const)('continues after the 128-day cap in the %s direction', async direction => {
-    const v = await setup(); v.filters.sortDirection.set(direction);
+  it('loads the next days from the bottom sentinel, with no button, until the server has no more', async () => {
+    const v = await setup();
+    expect(v.root.querySelector('[data-timeline-load-more]')).toBeNull();
+    expect(v.root.querySelector('[data-timeline-continue]')).toBeNull();
+    const recheck = vi.spyOn(v.sentinel()!, 'recheck');
+    v.api.get.mockReturnValueOnce(of({ groups: [{ date: '2026-10-31', count: 1, photos: [{ path: '/second.jpg', filename: 'second.jpg' }] }],
+      next_cursor: '2026-10-31', has_more: true } as TimelinePage));
+    await v.reach(); await v.settle();
+    expect(v.api.get).toHaveBeenLastCalledWith('/timeline', expect.objectContaining({ cursor: '2026-11-01' }), expect.anything());
+    expect(v.root.querySelectorAll('h2')).toHaveLength(2);
+    expect(recheck).toHaveBeenCalled();
+    v.api.get.mockReturnValueOnce(of({ groups: [], next_cursor: null, has_more: false }));
+    await v.reach();
+    expect(v.sentinel()).toBeNull(); v.dispose();
+  });
+
+  it('keeps loading past 128 days instead of offering a Continue control', async () => {
+    const v = await setup();
     const groups = Array.from({ length: 128 }, (_, index) => ({
       date: new Date(Date.UTC(2026, 10, 1 - index)).toISOString().slice(0, 10), count: 0, photos: [],
     }));
-    const cursor = groups[127].date;
-    v.api.get.mockReturnValueOnce(of({ groups, has_more: true, next_cursor: cursor }));
+    v.api.get.mockReturnValueOnce(of({ groups, has_more: true, next_cursor: groups[127].date }));
     v.visibility.set({ hide_bursts: '0', hide_duplicates: '0' }); await v.settle();
     expect(v.root.querySelectorAll('h2')).toHaveLength(128);
-    v.wrapper.scrollTop = 240;
-    const button = [...v.root.querySelectorAll<HTMLButtonElement>('button')].find(item => item.textContent?.includes('timeline.continue_dates'))!;
-    expect(button).toBeTruthy();
-    v.api.get.mockReturnValueOnce(of({ groups: [], has_more: false, next_cursor: null }));
-    button.click(); await v.settle();
-    const expected = direction === 'older' ? '2026-06-26' : '2026-06-28';
-    expect(direction === 'older' ? v.filters.dateTo() : v.filters.dateFrom()).toBe(expected);
-    expect(v.api.get).toHaveBeenLastCalledWith('/timeline', expect.objectContaining(direction === 'older' ? { date_to: expected, cursor: '' } : { date_from: expected, cursor: '' }), expect.anything());
-    expect(v.wrapper.scrollTop).toBe(0); v.dispose();
+    expect(v.root.querySelector('[data-timeline-continue]')).toBeNull();
+    v.api.get.mockReturnValueOnce(of({ groups: [{ date: '2026-06-26', count: 0, photos: [] }], has_more: false, next_cursor: null }));
+    await v.reach();
+    expect(v.api.get).toHaveBeenLastCalledWith('/timeline', expect.objectContaining({ cursor: groups[127].date }), expect.anything());
+    expect(v.root.querySelectorAll('h2')).toHaveLength(129); v.dispose();
   });
 
   it.each(['removed', 'capture-date changed'])('re-reads instead of returning a stale tile after a photo was %s', async change => {

@@ -3061,8 +3061,6 @@ export const I18N = {
     preview_count: "timeline.preview_count",
     load_failed: "timeline.load_failed",
     retry: "timeline.retry",
-    more_days: "timeline.more_days",
-    continue_dates: "timeline.continue_dates",
     log_scale: "timeline.log_scale",
     density_years: "timeline.density_years",
     density_months: "timeline.density_months",
