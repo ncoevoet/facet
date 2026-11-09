@@ -19,7 +19,7 @@ describe('PhotoCollectionSidebarComponent', () => {
       { provide: I18nService, useValue: { t: (key: string) => key, translations: () => ({}) } },
     ] });
   });
-  afterEach(() => { TestBed.resetTestingModule(); vi.restoreAllMocks(); vi.unstubAllGlobals(); });
+  afterEach(() => { TestBed.resetTestingModule(); vi.restoreAllMocks(); vi.unstubAllGlobals(); localStorage.removeItem('facet_collection_sidebar_width'); });
   function render() {
     const fixture = TestBed.createComponent(PhotoCollectionSidebarComponent);
     fixture.componentRef.setInput('photos', [makePhoto({ path: '/a.jpg', filename: 'a.jpg' }), makePhoto({ path: '/b.jpg', filename: 'b.jpg' })]);
@@ -145,6 +145,37 @@ describe('PhotoCollectionSidebarComponent', () => {
     else divider().dispatchEvent(new PointerEvent(kind, { pointerId: 1, bubbles: true }));
     fixture.detectChanges(); expect(root.style.width).toBe('192px');
     flush(); fixture.detectChanges(); expect(root.style.width).toBe('192px');
+  });
+
+  describe('remembered width', () => {
+    const KEY = 'facet_collection_sidebar_width';
+    it('restores the stored width, clamped, and ignores garbage', () => {
+      localStorage.setItem(KEY, '300');
+      expect(render().root.style.width).toBe('300px');
+      TestBed.resetTestingModule();
+      localStorage.setItem(KEY, '9999');
+      TestBed.configureTestingModule({ imports: [PhotoCollectionSidebarComponent], providers: [
+        { provide: I18nService, useValue: { t: (key: string) => key, translations: () => ({}) } },
+      ] });
+      expect(render().root.style.width).toBe('384px');
+      TestBed.resetTestingModule();
+      localStorage.setItem(KEY, 'wide');
+      TestBed.configureTestingModule({ imports: [PhotoCollectionSidebarComponent], providers: [
+        { provide: I18nService, useValue: { t: (key: string) => key, translations: () => ({}) } },
+      ] });
+      expect(render().root.style.width).toBe('192px');
+    });
+    it('saves a committed keyboard or pointer resize but not a cancelled drag', () => {
+      const { fixture, divider } = render(); flush();
+      divider().dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowRight', bubbles: true, cancelable: true }));
+      fixture.detectChanges();
+      expect(localStorage.getItem(KEY)).toBe('208');
+      const pointer = (type: string, x: number) => { divider().dispatchEvent(new PointerEvent(type, { clientX: x, pointerId: 1, isPrimary: true, bubbles: true })); fixture.detectChanges(); };
+      pointer('pointerdown', 100); pointer('pointermove', 150); flush(); pointer('pointercancel', 150);
+      expect(localStorage.getItem(KEY)).toBe('208');
+      pointer('pointerdown', 100); pointer('pointermove', 140); pointer('pointerup', 140);
+      expect(localStorage.getItem(KEY)).toBe('248');
+    });
   });
 
   it('disables loading more while a page is pending', () => {

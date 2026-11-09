@@ -7,6 +7,19 @@ import { I18N } from '../../core/i18n/keys';
 import { rovingFocusKey } from '../../shared/utils/roving-focus';
 
 /** Reads the originating collection; never changes its query, selection or sort. */
+const WIDTH_KEY = 'facet_collection_sidebar_width';
+const DEFAULT_WIDTH = 192;
+const clampWidth = (width: number): number => Math.max(144, Math.min(384, width));
+
+function storedWidth(): number {
+  try {
+    const stored = Number.parseInt(localStorage.getItem(WIDTH_KEY) ?? '', 10);
+    return Number.isFinite(stored) ? clampWidth(stored) : DEFAULT_WIDTH;
+  } catch {
+    return DEFAULT_WIDTH;
+  }
+}
+
 @Component({
   selector: 'app-photo-collection-sidebar',
   imports: [MatIconModule, ThumbnailUrlPipe, TranslatePipe],
@@ -69,7 +82,7 @@ export class PhotoCollectionSidebarComponent {
   readonly loading = input(false);
   readonly choose = output<string>();
   readonly more = output<void>();
-  protected readonly width = signal(192);
+  protected readonly width = signal(storedWidth());
   protected readonly collapsed = signal(false);
   protected readonly columnCount = computed(() => this.width() >= 280 ? 2 : 1);
   protected readonly columns = computed(() => `repeat(${this.columnCount()}, minmax(0, 1fr))`);
@@ -154,7 +167,10 @@ export class PhotoCollectionSidebarComponent {
       (direction > 0 ? buttons[0] : buttons[buttons.length - 1])?.focus({ preventScroll: true });
     }, { injector: this.injector });
   }
-  private setWidth(width: number): void { this.width.set(Math.max(144, Math.min(384, width))); }
+  private setWidth(width: number): void { this.width.set(clampWidth(width)); }
+  private persistWidth(): void {
+    try { localStorage.setItem(WIDTH_KEY, String(this.width())); } catch { /* Storage blocked: the width still applies, it is just not remembered. */ }
+  }
   protected start(event: PointerEvent): void {
     if (this.drag || event.button !== 0 || !event.isPrimary) return;
     event.preventDefault(); event.stopPropagation();
@@ -185,6 +201,7 @@ export class PhotoCollectionSidebarComponent {
     if (!cancel && this.pendingWidth !== null) this.setWidth(this.pendingWidth);
     this.pendingWidth = null;
     if (cancel) this.width.set(drag.width);
+    else this.persistWidth();
     try { drag.target.releasePointerCapture(drag.id); } catch { /* Already released. */ }
   }
   protected resizeKey(event: KeyboardEvent): void {
@@ -194,5 +211,6 @@ export class PhotoCollectionSidebarComponent {
     if (event.key === 'Escape') { this.finishPointer(true); return; }
     this.finishPointer(true);
     this.setWidth(event.key === 'Home' ? 144 : event.key === 'End' ? 384 : this.width() + (event.key === 'ArrowRight' ? 16 : -16));
+    this.persistWidth();
   }
 }
