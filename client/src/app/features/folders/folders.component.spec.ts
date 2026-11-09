@@ -1,6 +1,8 @@
 import type { Mock } from 'vitest';
 import { TestBed } from '@angular/core/testing';
 import { signal } from '@angular/core';
+import { HeaderSlotService } from '../../core/services/header-slot.service';
+import { I18nService } from '../../core/services/i18n.service';
 import { ActivatedRoute, Router } from '@angular/router';
 import { Observable, of } from 'rxjs';
 import { ApiService } from '../../core/services/api.service';
@@ -194,6 +196,81 @@ describe('FoldersComponent', () => {
           sort_direction: 'DESC',
         },
       });
+    });
+  });
+
+  describe('page shell', () => {
+    async function render() {
+      TestBed.resetTestingModule();
+      mockApi = { get: vi.fn(() => of(foldersResponse)) };
+      mockRouter = { navigate: vi.fn(() => new Promise<boolean>(() => undefined)) };
+      TestBed.configureTestingModule({
+        providers: [
+          { provide: ApiService, useValue: mockApi },
+          { provide: Router, useValue: mockRouter },
+          { provide: ActivatedRoute, useValue: mockRoute },
+          { provide: GalleryStore, useValue: mockStore },
+          { provide: I18nService, useValue: { t: (key: string, params?: object) => key + (params ? JSON.stringify(params) : ''), translations: () => ({}) } },
+        ],
+      });
+      const fixture = TestBed.createComponent(FoldersComponent);
+      fixture.detectChanges();
+      await fixture.whenStable();
+      return fixture;
+    }
+
+    it('registers its toolbar template with the header slot on init and clears it on destroy', async () => {
+      const fixture = await render();
+      const slot = TestBed.inject(HeaderSlotService);
+      expect(slot.template()).not.toBeNull();
+      fixture.destroy();
+      expect(slot.template()).toBeNull();
+    });
+
+    it('renders the in-page breadcrumb row at root, below lg only and sticky', async () => {
+      const fixture = await render();
+      const row = (fixture.nativeElement as HTMLElement).querySelector('[data-folders-toolbar]') as HTMLElement;
+      expect(row).not.toBeNull();
+      expect(row.className).toContain('lg:hidden');
+      expect(row.className).toContain('sticky');
+      expect(row.className).toContain('top-0');
+      expect(row.className).toContain('z-20');
+      expect(row.textContent).toContain('folders.root');
+    });
+
+    it('renders the spinner after the breadcrumb row in DOM order', async () => {
+      const fixture = await render();
+      const el = fixture.nativeElement as HTMLElement;
+      const row = el.querySelector('[data-folders-toolbar]') as HTMLElement;
+      const spinner = el.querySelector('mat-spinner') as HTMLElement;
+      expect(spinner).not.toBeNull();
+      expect(row.compareDocumentPosition(spinner) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    });
+
+    it('keeps loading true across a redirect branch while the navigation is pending', async () => {
+      const fixture = await render();
+      const cmp = fixture.componentInstance as any;
+      mockApi.get.mockReturnValue(of({ folders: [], has_direct_photos: true }));
+      cmp.currentPrefix.set('Holidays/');
+      await cmp.loadFolders();
+      expect(mockRouter.navigate).toHaveBeenCalled();
+      expect(cmp.loading()).toBe(true);
+    });
+
+    it('clears loading when the redirect navigation resolves false or rejects', async () => {
+      const fixture = await render();
+      const cmp = fixture.componentInstance as any;
+      mockApi.get.mockReturnValue(of({ folders: [], has_direct_photos: true }));
+      cmp.currentPrefix.set('Holidays/');
+      mockRouter.navigate.mockReturnValueOnce(Promise.resolve(false));
+      await cmp.loadFolders();
+      await Promise.resolve();
+      expect(cmp.loading()).toBe(false);
+      mockRouter.navigate.mockReturnValueOnce(Promise.reject(new Error('nav')));
+      await cmp.loadFolders();
+      await Promise.resolve();
+      await Promise.resolve();
+      expect(cmp.loading()).toBe(false);
     });
   });
 });

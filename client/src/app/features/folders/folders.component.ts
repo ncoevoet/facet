@@ -1,13 +1,14 @@
-import { Component, inject, signal, computed, effect, OnInit, DestroyRef, ChangeDetectionStrategy } from '@angular/core';
+import { Component, inject, signal, computed, effect, OnInit, OnDestroy, DestroyRef, ChangeDetectionStrategy, TemplateRef, viewChild } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { Router, ActivatedRoute } from '@angular/router';
-import { DecimalPipe } from '@angular/common';
+import { DecimalPipe, NgTemplateOutlet } from '@angular/common';
 import { MatIconModule } from '@angular/material/icon';
 import { MatButtonModule } from '@angular/material/button';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { MatTooltipModule } from '@angular/material/tooltip';
 import { firstValueFrom } from 'rxjs';
 import { ApiService } from '../../core/services/api.service';
+import { HeaderSlotService } from '../../core/services/header-slot.service';
 import { PageHelpService } from '../../core/services/page-help.service';
 import { TranslatePipe } from '../../shared/pipes/translate.pipe';
 import { ThumbnailUrlPipe } from '../../shared/pipes/thumbnail-url.pipe';
@@ -23,6 +24,7 @@ export const KEEP_CHAIN_STATE = 'foldersKeepChain';
   standalone: true,
   imports: [
     DecimalPipe,
+    NgTemplateOutlet,
     MatIconModule,
     MatButtonModule,
     MatProgressSpinnerModule,
@@ -34,23 +36,19 @@ export const KEEP_CHAIN_STATE = 'foldersKeepChain';
   changeDetection: ChangeDetectionStrategy.Eager,
   template: `
     <h1 class="sr-only">{{ I18N.folders.title | translate }}</h1>
-    @if (loading() && folders().length === 0) {
-      <div class="flex justify-center py-16">
-        <mat-spinner diameter="48" [attr.aria-label]="I18N.ui.labels.loading | translate" />
-      </div>
-    }
-
-    <!-- Breadcrumb -->
-    @if (breadcrumbs().length > 0) {
-      <nav class="flex items-center gap-1 text-sm mb-3 flex-wrap">
-        <button mat-button class="!min-w-0 !px-2" (click)="navigateTo('')">
+    <!-- Breadcrumb: lg+ renders it in the shell's page-actions bar (HeaderSlotService);
+         below lg the same template renders here as a sticky row. Always rendered, so its
+         height is constant while the lone-folder redirect hops resolve. -->
+    <ng-template #foldersToolbar>
+      <nav class="flex items-center gap-1 text-sm min-w-0 overflow-x-auto whitespace-nowrap" [attr.aria-label]="I18N.folders.title | translate">
+        <button mat-button class="!min-w-0 !px-2 shrink-0" (click)="navigateTo('')">
           <mat-icon class="!text-base !w-4 !h-4 !leading-4 mr-1">home</mat-icon>
           {{ I18N.folders.root | translate }}
         </button>
         @for (crumb of breadcrumbs(); track crumb.path) {
-          <mat-icon class="!text-base !w-4 !h-4 !leading-4 opacity-40">chevron_right</mat-icon>
+          <mat-icon class="!text-base !w-4 !h-4 !leading-4 opacity-40 shrink-0">chevron_right</mat-icon>
           @if (!$last) {
-            <button mat-button class="!min-w-0 !px-2" (click)="navigateTo(crumb.path)">
+            <button mat-button class="!min-w-0 !px-2 shrink-0" (click)="navigateTo(crumb.path)">
               {{ crumb.name }}
             </button>
           } @else {
@@ -58,6 +56,15 @@ export const KEEP_CHAIN_STATE = 'foldersKeepChain';
           }
         }
       </nav>
+    </ng-template>
+    <div data-folders-toolbar class="lg:hidden sticky top-0 z-20 -mx-4 -mt-4 mb-3 px-4 py-1 bg-[var(--mat-sys-surface)] border-b border-[var(--mat-sys-outline-variant)]">
+      <ng-container [ngTemplateOutlet]="foldersToolbar" />
+    </div>
+
+    @if (loading() && folders().length === 0) {
+      <div class="flex justify-center py-16">
+        <mat-spinner diameter="48" [attr.aria-label]="I18N.ui.labels.loading | translate" />
+      </div>
     }
 
     @if (!loading() && folders().length === 0) {
@@ -108,7 +115,7 @@ export const KEEP_CHAIN_STATE = 'foldersKeepChain';
     </div>
   `,
 })
-export class FoldersComponent implements OnInit {
+export class FoldersComponent implements OnInit, OnDestroy {
   protected readonly I18N = i18nKeys();
   private readonly api = inject(ApiService);
   private readonly router = inject(Router);
@@ -116,6 +123,8 @@ export class FoldersComponent implements OnInit {
   private readonly destroyRef = inject(DestroyRef);
   private readonly pageHelp = inject(PageHelpService);
   private readonly store = inject(GalleryStore);
+  private readonly headerSlot = inject(HeaderSlotService);
+  private readonly toolbarTpl = viewChild<TemplateRef<unknown>>('foldersToolbar');
 
   protected readonly folders = signal<FolderItem[]>([]);
   protected readonly loading = signal(false);
@@ -133,6 +142,15 @@ export class FoldersComponent implements OnInit {
       this.store.viewFilterParams();
       this.loadFolders();
     });
+    effect(() => {
+      const t = this.toolbarTpl();
+      if (t) this.headerSlot.set(t);
+    });
+  }
+
+  ngOnDestroy(): void {
+    const t = this.toolbarTpl();
+    if (t) this.headerSlot.clear(t);
   }
 
   ngOnInit(): void {
@@ -145,6 +163,9 @@ export class FoldersComponent implements OnInit {
 
   private async loadFolders(): Promise<void> {
     this.loading.set(true);
+    // A redirect branch leaves loading true: the navigation re-runs this load for the next
+    // prefix, and clearing it here would flash the empty state between hops.
+    let redirected = false;
     try {
       const res = await firstValueFrom(
         this.api.get<FoldersResponse>('/folders', {
@@ -155,27 +176,37 @@ export class FoldersComponent implements OnInit {
       // Auto-redirect to gallery if no subfolders (leaf directory)
       // replaceUrl avoids a back-button loop (back → leaf folder → redirect → gallery → …)
       if (res.folders.length === 0 && this.currentPrefix()) {
-        this.router.navigate(['/'], {
+        redirected = true;
+        this.settleRedirect(this.router.navigate(['/'], {
           queryParams: {
             path_prefix: this.currentPrefix(),
             sort: 'date_taken',
             sort_direction: 'DESC',
           },
           replaceUrl: true,
-        });
+        }));
         return;
       }
       // A lone folder with nothing beside it is a path prefix, not a choice (/Users/me/...).
       // Skip to the first level that branches; the breadcrumb still shows the chain.
       // Not when a breadcrumb led here: that level was chosen, and skipping bounced straight back.
       if (res.folders.length === 1 && !res.has_direct_photos && !history.state?.[KEEP_CHAIN_STATE]) {
-        this.router.navigate(['/folders'], { queryParams: { prefix: res.folders[0].path }, replaceUrl: true });
+        redirected = true;
+        this.settleRedirect(this.router.navigate(['/folders'], { queryParams: { prefix: res.folders[0].path }, replaceUrl: true }));
         return;
       }
       this.folders.set(res.folders);
     } finally {
-      this.loading.set(false);
+      if (!redirected) this.loading.set(false);
     }
+  }
+
+  /** A redirect that does not happen (resolved false or rejected) must not leave the spinner up for good. */
+  private settleRedirect(navigation: Promise<boolean>): void {
+    Promise.resolve(navigation).then(
+      navigated => { if (!navigated) this.loading.set(false); },
+      () => this.loading.set(false),
+    );
   }
 
   protected navigateTo(prefix: string): void {
