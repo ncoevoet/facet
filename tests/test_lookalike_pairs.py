@@ -5,7 +5,7 @@ import struct
 import pytest
 
 from api import config
-from api.lookalike_pairs import MIN_CONFIDENCE, compute_lookalike_pairs, pair_signals
+from api.lookalike_pairs import NEIGHBOURS, MIN_CONFIDENCE, _neighbour_pairs, compute_lookalike_pairs, pair_signals
 from api.routers.burst_culling import _fetch_lookalike_groups
 from db.schema import init_database
 
@@ -37,6 +37,26 @@ def add(conn, name, embedding, **columns):
 
 def pairs(conn):
     return compute_lookalike_pairs(conn, None)
+
+
+def test_the_candidate_scan_leaves_phash_to_the_covering_seek(conn):
+    # phash sits after the thumbnail BLOB; the library-wide candidate read must not select it.
+    add(conn, 'a.jpg', vector(1, 0, 0), phash=SAME_HASH, date_taken='2026:10:01 10:00:00')
+    add(conn, 'b.jpg', vector(1, 0.01, 0), phash=SAME_HASH)
+    statements = []
+    conn.set_trace_callback(statements.append)
+    [pair] = pairs(conn)
+    conn.set_trace_callback(None)
+    assert pair['hash'] == 1.0
+    reads = [sql for sql in statements if 'phash' in sql]
+    assert reads and all(sql.startswith('WITH want(date_taken, path)') for sql in reads), reads
+
+
+def test_a_rejected_neighbour_hands_its_slot_to_the_next_closest():
+    # The stored lists outlive rejections, so a rejected photo must not use up a neighbour slot.
+    lists = [[[j, 1 - j / 100] for j in range(1, NEIGHBOURS + 2)]] + [[] for _ in range(NEIGHBOURS + 1)]
+    pairs = _neighbour_pairs(lists, excluded={1})
+    assert sorted(pairs) == [(0, j) for j in range(2, NEIGHBOURS + 2)]
 
 
 def test_a_resaved_copy_is_the_strongest_match_even_without_a_capture_time(conn):
@@ -179,3 +199,43 @@ def test_the_feed_serves_pairs_and_confirming_one_settles_it(edition_client, see
         'paths': [p['path'] for p in group['photos']], 'keep_paths': [f'{prefix}keep.jpg']})
     assert confirmed.status_code == 200 and confirmed.json()['rejected'] == 1
     assert mine() == []
+
+
+def test_seeds_share_one_memo_and_a_confirm_reuses_the_neighbour_search(edition_client, seed_photos_prefix):
+    from unittest import mock
+
+    from api import lookalike_pairs
+    from api.routers.burst_culling import _invalidate_culling_groups_cache
+    from tests.conftest import _TEST_DB_FILE
+
+    prefix = '/lookalike-memo/'
+    seed_photos_prefix(prefix, [
+        {'path': f'{prefix}keep.jpg', 'filename': 'keep.jpg', 'aggregate': 8.0, 'clip_embedding': vector(0, 0, 1),
+         'phash': SAME_HASH, 'date_taken': '2026:10:02 10:00:00', 'camera_model': 'X100'},
+        {'path': f'{prefix}drop.jpg', 'filename': 'drop.jpg', 'aggregate': 4.0, 'clip_embedding': vector(0, 0.01, 1),
+         'phash': SAME_HASH, 'date_taken': '2026:10:02 10:00:07', 'camera_model': 'X100'},
+    ])
+    with sqlite3.connect(_TEST_DB_FILE.name) as handle:
+        handle.execute("DELETE FROM stats_cache WHERE key LIKE 'lookalike_neighbours_%'")
+    _invalidate_culling_groups_cache()
+
+    def mine(**params):
+        feed = edition_client.get('/api/culling-groups', params={'group_by': 'lookalike', 'per_page': 100, **params}).json()
+        return [g for g in feed['groups'] if g['photos'][0]['path'].startswith(prefix)]
+
+    with mock.patch.object(lookalike_pairs, 'compute_lookalike_pairs', wraps=lookalike_pairs.compute_lookalike_pairs) as pairs_pass, \
+            mock.patch.object(lookalike_pairs, '_neighbour_lists', wraps=lookalike_pairs._neighbour_lists) as search:
+        # The cold request's stats_cache write moves the library token, so the memo fills on the next one.
+        [group] = mine(seed=1)
+        assert mine(seed=1) == [group]
+        assert pairs_pass.call_count == 2 and search.call_count == 1
+        assert mine(seed=2, sort='best', direction='asc', exclude_rejected='true', similarity_threshold=0.9) == [group]
+        assert pairs_pass.call_count == 2
+
+        confirmed = edition_client.post('/api/culling-groups/confirm', json={
+            'group_id': group['group_id'], 'type': 'lookalike',
+            'paths': [p['path'] for p in group['photos']], 'keep_paths': [f'{prefix}keep.jpg']})
+        assert confirmed.status_code == 200 and confirmed.json()['rejected'] == 1
+        assert mine(seed=1) == []
+        # The confirm cleared the memo, so the pairs were recomputed, but from the stored search.
+        assert pairs_pass.call_count == 3 and search.call_count == 1

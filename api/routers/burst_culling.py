@@ -1666,7 +1666,11 @@ def api_culling_groups(
                 # Enriching + globally sorting the whole unreviewed set is identical
                 # across pages, so memo it and let pagination reuse one enrichment
                 # instead of re-materializing + re-scoring every group per page.
-                cache_key = (similarity_threshold, seed, sort, direction, exclude_rejected,
+                # Look-alikes ignores the threshold, seed, sort, direction and rejected
+                # toggle, so they stay out of its key: varying them must not recompute it.
+                varying = ((None,) * 5 if group_by == 'lookalike'
+                           else (similarity_threshold, seed, sort, direction, exclude_rejected))
+                cache_key = (*varying,
                              user_id, album_id, date_from, date_to, group_by,
                              vis_sql, tuple(vis_params), is_multi_user_enabled(), library_token,
                              _get_burst_weights(), _get_face_thresholds(),

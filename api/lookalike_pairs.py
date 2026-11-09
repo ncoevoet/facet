@@ -6,10 +6,16 @@ instead, from three signals (how alike the pictures look, near-identical file co
 close in time they were taken), so each result is one comparison a person can judge at a glance.
 """
 
+import json
+import logging
 import math
+import sqlite3
+import time
 
 import numpy as np
 
+from api.similarity_groups import _candidate_fingerprint
+from db.stats_cache import cache_stats_best_effort
 from utils.date_utils import parse_date
 from utils.embedding import bytes_to_normalized_embedding, filter_uniform_embeddings
 
@@ -17,10 +23,15 @@ from utils.embedding import bytes_to_normalized_embedding, filter_uniform_embedd
 CANDIDATE_COSINE = 0.82
 # Neighbours examined per photo: bounds the pair list on a library full of similar shots.
 NEIGHBOURS = 5
+# Neighbours kept per photo in the persisted lists, so rejecting a few still leaves NEIGHBOURS.
+_STORED_NEIGHBOURS = 3 * NEIGHBOURS
+_CACHE_TTL_SECONDS = 3600
 MIN_CONFIDENCE = 0.30
 # Visual dominates; the hash confirms re-saves and resizes; time lifts retakes.
 _W_VISUAL, _W_HASH, _W_TIME = 0.60, 0.25, 0.15
 _CHUNK = 500
+# (date_taken, path) pairs per phash read: two binds each, under SQLite's 999-variable floor.
+_PHASH_CHUNK = 400
 # Within this gap two frames count as one moment; the time signal fades to zero at six hours.
 _FULL_TIME_SECONDS, _ZERO_TIME_SECONDS = 60, 6 * 3600
 
@@ -65,19 +76,78 @@ def pair_signals(visual, a, b):
             'seconds_apart': seconds_apart, 'same_camera': same_camera}
 
 
-def _neighbour_pairs(matrix):
-    """``{(i, j): cosine}`` for each photo's closest neighbours above CANDIDATE_COSINE."""
+def phash_sql(count):
+    """Read ``phash`` for ``count`` (date_taken, path) rows through ``idx_date_asc_cover``.
+
+    ``phash`` is stored right after the ~46 KB thumbnail BLOB, so selecting it in the candidate
+    scan walked the overflow pages of every candidate row. Seeking the covering index on its
+    leading (date_taken, path) reads it without touching the table.
+    """
+    values = ', '.join(['(?, ?)'] * count)
+    return (f"WITH want(date_taken, path) AS (VALUES {values}) "
+            "SELECT photos.path, photos.phash FROM want JOIN photos "
+            "ON photos.date_taken IS want.date_taken AND photos.path = want.path")
+
+
+def _read_phashes(conn, rows):
+    """``{path: phash}`` for ``rows``, which carry ``path`` and ``date_taken``."""
+    phashes = {}
+    for start in range(0, len(rows), _PHASH_CHUNK):
+        chunk = rows[start:start + _PHASH_CHUNK]
+        params = [value for row in chunk for value in (row['date_taken'], row['path'])]
+        phashes.update((r[0], r[1]) for r in conn.execute(phash_sql(len(chunk)), params))
+    return phashes
+
+
+logger = logging.getLogger(__name__)
+
+
+def _neighbour_lists(matrix):
+    """Each photo's closest neighbours at or above CANDIDATE_COSINE, as ``[j, cosine]``, closest first."""
     count = len(matrix)
-    take = min(NEIGHBOURS, count - 1)
-    pairs = {}
+    take = min(_STORED_NEIGHBOURS, count - 1)
+    lists = []
     for start in range(0, count, _CHUNK):
         sims = matrix[start:start + _CHUNK] @ matrix.T
         for offset in range(len(sims)):
-            i = start + offset
-            sims[offset, i] = -1.0
-            for j in np.argpartition(sims[offset], -take)[-take:]:
-                if sims[offset, j] >= CANDIDATE_COSINE:
-                    pairs[(min(i, int(j)), max(i, int(j)))] = float(sims[offset, j])
+            sims[offset, start + offset] = -1.0
+            top = np.argpartition(sims[offset], -take)[-take:]
+            top = top[np.argsort(-sims[offset, top], kind='stable')]
+            lists.append([[int(j), float(sims[offset, j])] for j in top if sims[offset, j] >= CANDIDATE_COSINE])
+    return lists
+
+
+def _cached_neighbour_lists(conn, cache_key, fingerprint, matrix):
+    """The O(n^2) neighbour search, persisted in ``stats_cache`` for the exact candidate set.
+
+    The lists are computed over every candidate, rejected or not, so a rejection (what each
+    confirm writes) filters them per request instead of invalidating them.
+    """
+    cached = conn.execute("SELECT value, updated_at FROM stats_cache WHERE key = ?", (cache_key,)).fetchone()
+    if cached and time.time() - cached['updated_at'] < _CACHE_TTL_SECONDS:
+        try:
+            payload = json.loads(cached['value'])
+            if payload.get('fingerprint') == fingerprint and isinstance(payload.get('neighbours'), list):
+                return payload['neighbours']
+        except (json.JSONDecodeError, TypeError, AttributeError):
+            pass  # Corrupted entry: recompute.
+    lists = _neighbour_lists(matrix)
+    try:
+        cache_stats_best_effort(conn, [(cache_key, json.dumps({'fingerprint': fingerprint, 'neighbours': lists}))])
+    except sqlite3.Error as e:
+        logger.debug("Failed to cache look-alike neighbours: %s", e)
+    return lists
+
+
+def _neighbour_pairs(lists, excluded):
+    """``{(i, j): cosine}`` from each kept photo's NEIGHBOURS closest kept neighbours."""
+    pairs = {}
+    for i, neighbours in enumerate(lists):
+        if i in excluded:
+            continue
+        kept = [(j, cosine) for j, cosine in neighbours if j not in excluded][:NEIGHBOURS]
+        for j, cosine in kept:
+            pairs[(min(i, j), max(i, j))] = cosine
     return pairs
 
 
@@ -98,19 +168,18 @@ def compute_lookalike_pairs(conn, user_id, *, album_id=None, date_from=None, dat
 
     vis_sql, vis_params = get_visibility_clause(user_id)
     window_clauses, window_params = time_window_clauses(date_from, date_to)
-    logical = standalone_source(conn, user_id, extra=('clip_embedding', 'phash', 'camera_model', 'date_taken',
+    logical = standalone_source(conn, user_id, extra=('clip_embedding', 'camera_model', 'date_taken',
                                                       'burst_reviewed'))
     album_sql, album_params = (album_filter_clause if logical is None else album_predicate)(album_id)
     from_sql, from_params = ('photos', []) if logical is None else (logical.sql, logical.params)
     where = ' AND '.join(['clip_embedding IS NOT NULL', vis_sql, album_sql, *window_clauses])
     rows = conn.execute(
-        f"""SELECT path, clip_embedding, phash, camera_model, date_taken, burst_group_id, burst_reviewed,
+        f"""SELECT path, clip_embedding, camera_model, date_taken, burst_group_id, burst_reviewed,
                    similarity_reviewed, sequence_kind, aggregate
             FROM {from_sql} WHERE {where} ORDER BY date_taken DESC LIMIT ?""",
         from_params + vis_params + album_params + window_params + [max_photos],
     ).fetchall()
     labels = read_culling_labels(conn, user_id, [r['path'] for r in rows], include_kept=True)
-    rows = [r for r in rows if not labels[r['path']].rejected]
 
     embeddings, indices = [], []
     for i, row in enumerate(rows):
@@ -127,14 +196,28 @@ def compute_lookalike_pairs(conn, user_id, *, album_id=None, date_from=None, dat
         label = labels[row['path']]
         return bool(row['similarity_reviewed'] or row['burst_reviewed'] or label.kept or label.favorite or label.star)
 
-    scored = []
-    for (i, j), cosine in _neighbour_pairs(np.stack(embeddings)).items():
+    fingerprint = _candidate_fingerprint(
+        rows, [CANDIDATE_COSINE, _STORED_NEIGHBOURS, max_photos, vis_sql, vis_params,
+               album_sql, album_params, window_clauses, window_params, logical is not None])
+    lists = _cached_neighbour_lists(
+        conn, f"lookalike_neighbours_{user_id}_{album_id}_{date_from}_{date_to}", fingerprint, np.stack(embeddings))
+    rejected = {i for i, row in enumerate(photos) if labels[row['path']].rejected}
+
+    candidates = []
+    for (i, j), cosine in _neighbour_pairs(lists, rejected).items():
         a, b = photos[i], photos[j]
         if a['burst_group_id'] is not None and a['burst_group_id'] == b['burst_group_id']:
             continue
         if a['sequence_kind'] or b['sequence_kind'] or (decided(a) and decided(b)):
             continue
-        signals = pair_signals(cosine, a, b)
+        candidates.append((cosine, a, b))
+    paired = {row['path']: row for _, a, b in candidates for row in (a, b)}
+    phashes = _read_phashes(conn, list(paired.values()))
+
+    scored = []
+    for cosine, a, b in candidates:
+        signals = pair_signals(cosine, {**dict(a), 'phash': phashes.get(a['path'])},
+                               {**dict(b), 'phash': phashes.get(b['path'])})
         if signals['confidence'] < MIN_CONFIDENCE:
             continue
         keeper = a if (decided(a), a['aggregate'] or 0) >= (decided(b), b['aggregate'] or 0) else b
