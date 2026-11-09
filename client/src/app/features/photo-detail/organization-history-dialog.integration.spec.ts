@@ -27,7 +27,7 @@ const messages = {
 const translations = { organization_history: messages, capture_date: { before: 'Before', after: 'After' },
   dialog: { close: 'Close' }, ui: { labels: { loading: 'Loading...' }, buttons: { cancel: 'Cancel' } }, culling: { lightbox: { undecided: 'Undecided' } } };
 const entry = (overrides: Partial<Entry> = {}): Entry => ({
-  id: 901, kind: 'gps', created_at: '2026-10-24T10:11:00', part: 1, parts: 1, reverted: false,
+  id: 901, kind: 'gps', created_at: '2026-10-24T10:11:00', part: 1, parts: 1, reverted: false, superseded: false,
   changes: [{ path: '/history/a.jpg', before: [null, 2, 0], after: [3, 4, 1], revision: 5 }], ...overrides,
 });
 

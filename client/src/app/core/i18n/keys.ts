@@ -129,6 +129,8 @@ export const I18N = {
     dark_mode: "ui.dark_mode",
     light_mode: "ui.light_mode",
     version: "ui.version",
+    display_menu: "ui.display_menu",
+    jobs_diagnostics: "ui.jobs_diagnostics",
   },
   dialog: {
     cancel: "dialog.cancel",
@@ -1050,6 +1052,9 @@ export const I18N = {
       usage_timeline: "stats.gear_metrics.usage_timeline",
     },
     gear_metric_label: "stats.gear_metric_label",
+    profile_series: "stats.profile_series",
+    profile_series_count: "stats.profile_series_count",
+    profile_series_count_plural: "stats.profile_series_count_plural",
   },
   login: {
     title: "login.title",
@@ -1089,6 +1094,18 @@ export const I18N = {
     more: "nav.more",
     navigation: "nav.navigation",
     page_actions: "nav.page_actions",
+    tooltips: {
+      albums: "nav.tooltips.albums",
+      capsules: "nav.tooltips.capsules",
+      timeline: "nav.tooltips.timeline",
+      folders: "nav.tooltips.folders",
+      persons: "nav.tooltips.persons",
+      map: "nav.tooltips.map",
+      culling: "nav.tooltips.culling",
+      junk_sweep: "nav.tooltips.junk_sweep",
+      stats: "nav.tooltips.stats",
+      compare: "nav.tooltips.compare",
+    },
   },
   auth: {
     logout: "auth.logout",
@@ -1644,6 +1661,7 @@ export const I18N = {
       browser: "gallery.review_progress.browser",
       hide_from_menu: "gallery.review_progress.hide_from_menu",
       show_from_menu: "gallery.review_progress.show_from_menu",
+      show_toggle: "gallery.review_progress.show_toggle",
     },
     manual_faces_need_review: "gallery.manual_faces_need_review",
     manual_faces_review_hint: "gallery.manual_faces_review_hint",
@@ -1759,6 +1777,7 @@ export const I18N = {
     },
     review_controls_hint: "gallery.review_controls_hint",
     display_controls_hint: "gallery.display_controls_hint",
+    sort_direction: "gallery.sort_direction",
   },
   composition_patterns: {
     none: "composition_patterns.none",
@@ -2319,6 +2338,7 @@ export const I18N = {
       not_person: "persons.review_queue.not_person",
       feedback_saved: "persons.review_queue.feedback_saved",
       feedback_undo: "persons.review_queue.feedback_undo",
+      suggestions_skipped: "persons.review_queue.suggestions_skipped",
     },
     face_update: {
       title: "persons.face_update.title",
@@ -2506,6 +2526,7 @@ export const I18N = {
       failed: "albums.rules.failed",
       uncertain: "albums.rules.uncertain",
       reload: "albums.rules.reload",
+      person_fallback: "albums.rules.person_fallback",
     },
     recipient_policy: "albums.recipient_policy",
     share_smart_scope: "albums.share_smart_scope",
@@ -2690,6 +2711,7 @@ export const I18N = {
     },
     generate_action: "critique.generate_action",
     translate_action: "critique.translate_action",
+    breakdown_note: "critique.breakdown_note",
   },
   culling: {
     compare: {
@@ -3059,6 +3081,7 @@ export const I18N = {
     select_range: "timeline.select_range",
     density_unit: "timeline.density_unit",
     density_weeks: "timeline.density_weeks",
+    dates: "timeline.dates",
   },
   folders: {
     help: "folders.help",
@@ -3383,6 +3406,8 @@ export const I18N = {
       confirm: "photo_detail.remove_catalog.confirm",
       result: "photo_detail.remove_catalog.result",
       bracket_refused: "photo_detail.remove_catalog.bracket_refused",
+      confirm_plural: "photo_detail.remove_catalog.confirm_plural",
+      result_plural: "photo_detail.remove_catalog.result_plural",
     },
     analysis: "photo_detail.analysis",
     info: "photo_detail.info",
@@ -3418,6 +3443,9 @@ export const I18N = {
       replace_boundary: "manual_tags.batch.replace_boundary",
       recheck: "manual_tags.batch.recheck",
       captured_view_scope: "manual_tags.batch.captured_view_scope",
+      applied: "manual_tags.batch.applied",
+      applied_plural: "manual_tags.batch.applied_plural",
+      empty_state: "manual_tags.batch.empty_state",
     },
     title: "manual_tags.title",
     tag_label: "manual_tags.tag_label",
@@ -3584,6 +3612,7 @@ export const I18N = {
     delete_failed: "cull.delete_failed",
     delete_disabled_view_scope_tooltip: "cull.delete_disabled_view_scope_tooltip",
     remove_missing_rows: "cull.remove_missing_rows",
+    preview_error: "cull.preview_error",
   },
   shortcuts: {
     title: "shortcuts.title",
@@ -3914,6 +3943,8 @@ export const I18N = {
     preview_action: "organization_history.preview_action",
     restore_preview: "organization_history.restore_preview",
     restore_boundary: "organization_history.restore_boundary",
+    superseded: "organization_history.superseded",
+    restore_preview_plural: "organization_history.restore_preview_plural",
   },
   stacks: {
     review_help: "stacks.review_help",
@@ -4116,7 +4147,9 @@ export const I18N = {
       error: "keyword_hierarchy.edit.error",
       scope_changed: "keyword_hierarchy.edit.scope_changed",
       changed: "keyword_hierarchy.edit.changed",
+      help_label: "keyword_hierarchy.edit.help_label",
     },
+    help_label: "keyword_hierarchy.help_label",
   },
 } as const;
 

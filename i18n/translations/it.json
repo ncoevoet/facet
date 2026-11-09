@@ -89,7 +89,9 @@
     "theme": "Tema",
     "dark_mode": "Modalità scura",
     "light_mode": "Modalità chiara",
-    "version": "Facet {version}"
+    "version": "Facet {version}",
+    "display_menu": "Visualizzazione",
+    "jobs_diagnostics": "Attività e diagnostica"
   },
   "dialog": {
     "cancel": "Annulla",
@@ -1010,7 +1012,10 @@
       "avg_dynamic_range": "Gamma dinamica media",
       "usage_timeline": "Cronologia utilizzo"
     },
-    "gear_metric_label": "Metrica del grafico"
+    "gear_metric_label": "Metrica del grafico",
+    "profile_series": "Punteggi",
+    "profile_series_count": "{count} punteggio",
+    "profile_series_count_plural": "{count} punteggi"
   },
   "login": {
     "title": "Accesso",
@@ -1049,7 +1054,19 @@
     "help": "Aiuto",
     "more": "Altro",
     "navigation": "Navigazione",
-    "page_actions": "Azioni della pagina"
+    "page_actions": "Azioni della pagina",
+    "tooltips": {
+      "albums": "Album manuali e intelligenti",
+      "capsules": "Storie fotografiche generate automaticamente",
+      "timeline": "Sfoglia le foto per data",
+      "folders": "Sfoglia le foto per cartella",
+      "persons": "Persone e revisione dei volti",
+      "map": "Foto su una mappa",
+      "culling": "Scegli le foto migliori tra raffiche e scatti simili",
+      "junk_sweep": "Trova screenshot, foto sfocate e scarti",
+      "stats": "Statistiche e grafici della libreria",
+      "compare": "Regola i pesi di punteggio confrontando le foto"
+    }
   },
   "auth": {
     "logout": "Esci",
@@ -1220,7 +1237,7 @@
     "unknown_person": "Sconosciuto",
     "selection": {
       "cover_only": "Le miniature impilate in questa selezione riguardano solo la foto mostrata. Apri una pila per selezionarne gli altri membri.",
-      "outside_loaded": "Selezione fuori dalle miniature caricate: {count}. Le azioni riguardano l’intera selezione.",
+      "outside_loaded": "{count} foto selezionate non sono ancora caricate. Le azioni riguardano l’intera selezione.",
       "exclusions": "Esclusioni dall’intera vista: {count}.",
       "count": "{count} selezionati",
       "cleared_by_view": "Selezione cancellata perché la vista è cambiata.",
@@ -1282,7 +1299,7 @@
       "help": "Mantiene la quota superiore della vista corrente secondo l'ordinamento attuale; il resto viene selezionato per la revisione.",
       "preview": "Tieni top {keep} · seleziona {cut} di {total}",
       "apply": "Seleziona il resto",
-      "selected": "{count} foto selezionate — rifiutale dalla barra in basso",
+      "selected": "{count} foto selezionate — rifiutale dalla barra di selezione",
       "truncated": "Selezionate le prime {count} di {cut} — restringi il filtro per il resto"
     },
     "composition_pattern": "Composizione",
@@ -1563,7 +1580,7 @@
         "shared_person": "Inquadra una persona salvata nei riquadri visibili…",
         "partial": "Impossibile caricare alcuni dati di rilevamento salvati.",
         "help": "L’inquadratura passa alla modalità Indipendenti. Controlla i ritagli prima di collegare i riquadri. Le assegnazioni salvate possono essere errate o obsolete. La lente ingrandisce i pixel visualizzati; aumenta lo zoom per richiedere l’immagine sorgente.",
-        "no_correspondence": "Nessuna persona salvata è identificata univocamente con riquadri utilizzabili in ogni vista visibile. Inquadra manualmente; il collegamento condivide i movimenti, non l’identità.",
+        "no_correspondence": "Nessuna persona compare in ogni riquadro visibile. Inquadra ogni riquadro a mano.",
         "suggested_face": "Volto suggerito",
         "suggested_subject": "Soggetto suggerito",
         "no_crop": "Ritaglio non disponibile",
@@ -1603,7 +1620,8 @@
       "resume": "Continua revisione",
       "browser": "Riprendi la coda memorizzata in questo browser.",
       "hide_from_menu": "Nascondi avanzamento revisione",
-      "show_from_menu": "Mostra avanzamento revisione"
+      "show_from_menu": "Mostra avanzamento revisione",
+      "show_toggle": "Mostra l’avanzamento della revisione"
     },
     "manual_faces_need_review": "Volti manuali da verificare",
     "manual_faces_review_hint": "In base all’ultima scansione o verifica nell’editor dei volti, senza monitoraggio continuo. Apri l’editor dei volti di una foto per verificare i riquadri salvati.",
@@ -1634,7 +1652,7 @@
       "clear": "Rimuovi stelle",
       "clear_plan": "Rimuovi le stelle personali dalle {count} foto acquisite.",
       "set_plan": "Assegna {rating} stelle personali alle {count} foto acquisite.",
-      "boundary": "Nessun file viene riscritto. I lotti vengono confermati separatamente. Annulla rapido è limitato alle istantanee caricate e ai conflitti noti localmente; la Cronologia verifica i conflitti sul server.",
+      "boundary": "Annulla riguarda solo le foto caricate in questa vista. La cronologia di organizzazione verifica i conflitti sul server.",
       "whole_scope": "Questo elenco acquisito dell’intera vista include i membri compressi corrispondenti, dopo le esclusioni. Non vengono aggiunti altri membri né file associati. Tag, preferiti e decisioni Conserva/Rifiuta restano invariati."
     },
     "review_navigation": {
@@ -1719,7 +1737,8 @@
       "natural": "Proporzioni originali"
     },
     "review_controls_hint": "Decisioni di revisione, valutazioni, pile suggerite e percentuale migliore",
-    "display_controls_hint": "Layout, informazioni delle foto ed espansione delle pile"
+    "display_controls_hint": "Layout, informazioni delle foto ed espansione delle pile",
+    "sort_direction": "Direzione di ordinamento"
   },
   "composition_patterns": {
     "none": "Nessuno",
@@ -2279,7 +2298,8 @@
       "face_changed": "Il volto è cambiato dopo l’anteprima",
       "not_person": "Non è {name}",
       "feedback_saved": "Nascosto come suggerimento per {name} nel tuo account.",
-      "feedback_undo": "Annulla feedback"
+      "feedback_undo": "Annulla feedback",
+      "suggestions_skipped": "Troppi volti di riferimento per suggerire corrispondenze. Vengono mostrati i volti senza suggerimenti."
     },
     "face_update": {
       "title": "Aggiorna volti",
@@ -2461,7 +2481,8 @@
       "success": "Regole dell’album salvate.",
       "failed": "Impossibile leggere le regole salvate. La vista attuale è invariata.",
       "uncertain": "Impossibile confermare il salvataggio. Ricarica le regole salvate prima di riprovare.",
-      "reload": "Ricarica regole salvate"
+      "reload": "Ricarica regole salvate",
+      "person_fallback": "Persona n. {id}"
     },
     "creation": {
       "help": "Come funziona questo album",
@@ -2650,7 +2671,8 @@
       "stored_metrics": "Vengono usati i valori grezzi delle metriche salvate, senza normalizzazione per percentili."
     },
     "generate_action": "Genera commento IA",
-    "translate_action": "Traduci commento IA salvato"
+    "translate_action": "Traduci commento IA salvato",
+    "breakdown_note": "La ripartizione usa i valori normalizzati da cui è stato calcolato il punteggio."
   },
   "culling": {
     "compare": {
@@ -3019,7 +3041,8 @@
     "explore_period": "Esplora periodo",
     "select_range": "Seleziona un intervallo di date",
     "density_unit": "Periodo",
-    "density_weeks": "Settimane (lunedì–domenica)"
+    "density_weeks": "Settimane (lunedì–domenica)",
+    "dates": "Date"
   },
   "folders": {
     "help": "Le cartelle corrispondono alla posizione dei file originali sul disco. Gli album organizzano le foto senza spostare quei file. Apri una cartella per sfogliarne le foto o filtra la galleria per quella posizione.",
@@ -3341,9 +3364,11 @@
     "remove_catalog": {
       "title": "Rimuovere da Facet?",
       "action": "Rimuovi da Facet…",
-      "confirm": "Rimuovi definitivamente da questo catalogo Facet, per tutti gli utenti, {count} foto selezionate, anteprime salvate, registrazioni dei volti, tag, valutazioni e appartenenze agli album. Non è possibile annullare. File originali, cestino del sistema, backup, esportazioni e copie in altri browser restano disponibili. Una scansione successiva può aggiungere nuovamente qualsiasi originale ancora esistente. Vengono rimosse solo le foto indicate; i file associati e gli altri membri della pila restano invariati.",
-      "result": "Rimosse {count} foto da Facet.",
-      "bracket_refused": "Il fotogramma base di una serie di esposizioni non può essere rimosso da Facet da solo."
+      "confirm": "Rimuovi definitivamente da questo catalogo Facet, per tutti gli utenti, la foto selezionata, le anteprime salvate, registrazioni dei volti, tag, valutazioni e appartenenze agli album. Non è possibile annullare. File originali, cestino del sistema, backup, esportazioni e copie in altri browser restano disponibili. Una scansione successiva può aggiungere nuovamente qualsiasi originale ancora esistente. Viene rimossa solo la foto indicata; i file associati e gli altri membri della pila restano invariati.",
+      "result": "Rimossa {count} foto da Facet.",
+      "bracket_refused": "Il fotogramma base di una serie di esposizioni non può essere rimosso da Facet da solo.",
+      "confirm_plural": "Rimuovi definitivamente da questo catalogo Facet, per tutti gli utenti, {count} foto selezionate, anteprime salvate, registrazioni dei volti, tag, valutazioni e appartenenze agli album. Non è possibile annullare. File originali, cestino del sistema, backup, esportazioni e copie in altri browser restano disponibili. Una scansione successiva può aggiungere nuovamente qualsiasi originale ancora esistente. Vengono rimosse solo le foto indicate; i file associati e gli altri membri della pila restano invariati.",
+      "result_plural": "Rimosse {count} foto da Facet."
     },
     "analysis": "Analisi",
     "info": "Informazioni",
@@ -3378,7 +3403,10 @@
       "clear_preview": "Rimuovi tutti i tag manuali dalla destinazione.",
       "replace_boundary": "Questa operazione può rimuovere tag manuali importati. I tag IA e gli altri metadati restano invariati. Ogni lotto è atomico; più lotti vengono confermati separatamente. Annulla non è disponibile per i tag manuali.",
       "recheck": "L’esito di Sostituisci/Cancella è incerto. Chiudi, esamina la destinazione e crea una nuova anteprima; ripetere questo vecchio piano potrebbe sovrascrivere tag più recenti.",
-      "captured_view_scope": "L’elenco delle foto corrispondenti dell’intera vista è stato acquisito dopo le esclusioni, inclusi i membri compressi corrispondenti. Le corrispondenze successive non vengono aggiunte. I file associati non sono inclusi."
+      "captured_view_scope": "L’elenco delle foto corrispondenti dell’intera vista è stato acquisito dopo le esclusioni, inclusi i membri compressi corrispondenti. Le corrispondenze successive non vengono aggiunte. I file associati non sono inclusi.",
+      "applied": "Tag aggiornati su {count} foto",
+      "applied_plural": "Tag aggiornati su {count} foto",
+      "empty_state": "Queste foto non hanno ancora tag manuali. Crea parole chiave nell’editor delle parole chiave."
     },
     "title": "Modifica tag",
     "tag_label": "Tag",
@@ -3544,7 +3572,8 @@
     "delete_partial_result": "{deleted} eliminate, {failed} fallite",
     "delete_failed": "Eliminazione non riuscita — nulla è stato inviato al cestino",
     "delete_disabled_view_scope_tooltip": "Seleziona le foto esplicitamente per eliminarle — qui non è possibile usare una selezione dell'intera vista",
-    "remove_missing_rows": "Rimuovi anche le voci della libreria il cui file è già mancante dal disco"
+    "remove_missing_rows": "Rimuovi anche le voci della libreria il cui file è già mancante dal disco",
+    "preview_error": "Impossibile creare l’anteprima"
   },
   "shortcuts": {
     "title": "Scorciatoie da tastiera",
@@ -3863,7 +3892,7 @@
     "kept": "Conservata",
     "yes": "Sì",
     "no": "No",
-    "unknown": "Sconosciuto",
+    "unknown": "Non impostato",
     "photo_count": "Foto: {count}",
     "field": "Campo",
     "entry_action": "{action} · {kind} · {date} · #{id}",
@@ -3874,7 +3903,9 @@
     "preview_action": "Esamina ripristino…",
     "restore_preview": "Ripristina questa voce: {count} foto · parte {part}/{parts}.",
     "restore_boundary": "Verrà ripristinata solo questa parte. Il server verifica i valori e le revisioni registrati; in caso di conflitto non viene ripristinato nulla. Le altre parti richiedono azioni separate.",
-    "logical_review": "Revisione della foto raggruppata"
+    "logical_review": "Revisione della foto raggruppata",
+    "superseded": "Sostituita da una modifica successiva",
+    "restore_preview_plural": "Ripristina questa voce: {count} foto · parte {part}/{parts}."
   },
   "stacks": {
     "review_help": "Esamina le pile suggerite nella camera oscura. S impila con la copertina proposta nella griglia o la foto attiva nella camera oscura; Invio apre un gruppo o impila la foto attiva. X salta. Modifica membri permette di adattare il gruppo prima del salvataggio. Le decisioni sulle foto non cambiano. R rifiuta subito la foto attiva e la esclude dalla bozza. Annulla ripristina la decisione e l’appartenenza. Il raggruppamento attende Salva; uscire senza salvare non annulla Rifiuta.",
@@ -4101,7 +4132,9 @@
       "delete_branch": "Elimina ramo e relative assegnazioni",
       "error": "Impossibile completare l’aggiornamento gerarchico richiesto.",
       "scope_changed": "La selezione acquisita o le opzioni sono cambiate. Genera una nuova anteprima.",
-      "changed": "Destinazioni: {targets}. Foto modificate: {photos}; assegnazioni modificate: {assignments}."
-    }
+      "changed": "Destinazioni: {targets}. Foto modificate: {photos}; assegnazioni modificate: {assignments}.",
+      "help_label": "Informazioni sulla modifica delle parole chiave"
+    },
+    "help_label": "Informazioni sull’albero delle parole chiave"
   }
 }

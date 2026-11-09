@@ -89,7 +89,9 @@
     "theme": "主题",
     "dark_mode": "深色模式",
     "light_mode": "浅色模式",
-    "version": "Facet {version}"
+    "version": "Facet {version}",
+    "display_menu": "显示",
+    "jobs_diagnostics": "任务与诊断"
   },
   "dialog": {
     "cancel": "取消",
@@ -1010,7 +1012,10 @@
       "avg_dynamic_range": "平均动态范围",
       "usage_timeline": "使用时间线"
     },
-    "gear_metric_label": "图表指标"
+    "gear_metric_label": "图表指标",
+    "profile_series": "评分",
+    "profile_series_count": "{count} 项评分",
+    "profile_series_count_plural": "{count} 项评分"
   },
   "login": {
     "title": "登录",
@@ -1049,7 +1054,19 @@
     "help": "帮助",
     "more": "更多",
     "navigation": "导航",
-    "page_actions": "页面操作"
+    "page_actions": "页面操作",
+    "tooltips": {
+      "albums": "手动相册和智能相册",
+      "capsules": "自动生成的照片故事",
+      "timeline": "按日期浏览照片",
+      "folders": "按文件夹浏览照片",
+      "persons": "人物与人脸审阅",
+      "map": "地图上的照片",
+      "culling": "从连拍和相似照片中挑选保留项",
+      "junk_sweep": "查找截图、模糊和无用照片",
+      "stats": "图库统计与图表",
+      "compare": "通过比较照片调整评分权重"
+    }
   },
   "auth": {
     "logout": "退出登录",
@@ -1220,7 +1237,7 @@
     "unknown_person": "未知",
     "selection": {
       "cover_only": "此选择中的堆叠图块仅作用于所显示的照片。打开堆叠即可选择其中的其他成员。",
-      "outside_loaded": "已加载图块以外的选择：{count}。操作适用于整个选择。",
+      "outside_loaded": "{count} 张所选照片尚未加载。操作适用于整个选择。",
       "exclusions": "整个视图的排除数量：{count}。",
       "count": "已选 {count} 张",
       "cleared_by_view": "视图已更改，已清除选择。",
@@ -1282,7 +1299,7 @@
       "help": "按当前排序保留当前视图中排名靠前的指定比例照片，其余照片将被选中，供你复核。",
       "preview": "保留前 {keep} 张 · 选中 {total} 张中的 {cut} 张",
       "apply": "选中其余照片",
-      "selected": "已选中 {count} 张照片，可通过下方工具栏淘汰",
+      "selected": "已选中 {count} 张照片，可通过选择工具栏淘汰",
       "truncated": "已选中 {cut} 张中的前 {count} 张，请缩小筛选范围以处理其余照片"
     },
     "composition_pattern": "构图",
@@ -1563,7 +1580,7 @@
         "shared_person": "在可见窗格中定位已保存的人物…",
         "partial": "部分已存检测数据无法加载。",
         "help": "取景会切换为独立模式。联动前请检查裁切范围。已存人物关联可能错误或过时。放大镜仅放大已显示的像素；放大图像可请求源图像。",
-        "no_correspondence": "没有任何一位已保存的人物在所有可见窗格中均有唯一且可用的检测框。请手动取景；联动仅共享移动，不会匹配人物身份。",
+        "no_correspondence": "没有人物出现在每个可见窗格中。请手动为每个窗格取景。",
         "suggested_face": "建议人脸",
         "suggested_subject": "建议主体",
         "no_crop": "裁切范围不可用",
@@ -1603,7 +1620,8 @@
       "resume": "继续审阅",
       "browser": "在此浏览器中恢复记住的队列。",
       "hide_from_menu": "隐藏审阅进度",
-      "show_from_menu": "显示审阅进度"
+      "show_from_menu": "显示审阅进度",
+      "show_toggle": "显示审阅进度"
     },
     "manual_faces_need_review": "手动人脸需要检查",
     "manual_faces_review_hint": "基于最近一次扫描或人脸编辑器检查，并非持续监控。打开照片的人脸编辑器，检查已保存的标记。",
@@ -1634,7 +1652,7 @@
       "clear": "清除星级",
       "clear_plan": "清除已确定的 {count} 张照片的个人星级。",
       "set_plan": "将已确定的 {count} 张照片设为个人 {rating} 星。",
-      "boundary": "不会重写任何文件。各批次单独提交。即时撤销仅限于已加载快照及本地已知冲突；历史记录会在服务器端检查冲突。",
+      "boundary": "撤销仅涵盖此视图中已加载的照片。组织历史会在服务器上检查冲突。",
       "whole_scope": "此已确定的整个视图列表包含排除操作后仍匹配的折叠成员。不再添加其他成员或伴随文件。标签、收藏及保留/淘汰决定保持不变。"
     },
     "review_navigation": {
@@ -1719,7 +1737,8 @@
       "natural": "保持原有比例"
     },
     "review_controls_hint": "审阅决定、评分、建议堆叠和保留排名靠前的百分比",
-    "display_controls_hint": "布局、照片信息和展开堆叠"
+    "display_controls_hint": "布局、照片信息和展开堆叠",
+    "sort_direction": "排序方向"
   },
   "composition_patterns": {
     "none": "无",
@@ -2279,7 +2298,8 @@
       "face_changed": "人脸在预览后发生变化",
       "not_person": "不是 {name}",
       "feedback_saved": "已在你的账户中隐藏此人脸对 {name} 的建议。",
-      "feedback_undo": "撤销反馈"
+      "feedback_undo": "撤销反馈",
+      "suggestions_skipped": "参考人脸过多，无法推荐匹配。正在显示无推荐的人脸。"
     },
     "face_update": {
       "title": "更新人脸",
@@ -2461,7 +2481,8 @@
       "success": "相册规则已保存。",
       "failed": "无法读取已保存规则。当前视图保持不变。",
       "uncertain": "无法确认是否已保存。请重新加载已保存规则后再试。",
-      "reload": "重新加载已保存规则"
+      "reload": "重新加载已保存规则",
+      "person_fallback": "人物 #{id}"
     },
     "creation": {
       "help": "此相册的工作方式",
@@ -2650,7 +2671,8 @@
       "stored_metrics": "使用原始存储的指标值，不进行百分位归一化。"
     },
     "generate_action": "生成 AI 点评",
-    "translate_action": "翻译已保存的 AI 点评"
+    "translate_action": "翻译已保存的 AI 点评",
+    "breakdown_note": "明细使用计算评分时采用的归一化输入值。"
   },
   "culling": {
     "compare": {
@@ -3019,7 +3041,8 @@
     "explore_period": "浏览时段",
     "select_range": "选择日期范围",
     "density_unit": "时段",
-    "density_weeks": "周（周一至周日）"
+    "density_weeks": "周（周一至周日）",
+    "dates": "日期"
   },
   "folders": {
     "help": "文件夹对应原始文件在磁盘上的存储位置。相册整理照片而不移动这些文件。打开文件夹可浏览其中的照片，也可按该位置筛选图库。",
@@ -3341,9 +3364,11 @@
     "remove_catalog": {
       "title": "从 Facet 移除？",
       "action": "从 Facet 移除…",
-      "confirm": "为所有用户从此 Facet 目录中永久移除所选 {count} 张照片及其已保存预览、人脸记录、标签、评分和相册成员关系。此操作无法撤销。原始文件、系统回收站、备份、导出文件及其他浏览器中的副本将保留。后续扫描可重新添加仍然存在的原始文件。仅移除指定照片；配套文件和其他堆栈成员保持不变。",
+      "confirm": "为所有用户从此 Facet 目录中永久移除所选照片及其已保存预览、人脸记录、标签、评分和相册成员关系。此操作无法撤销。原始文件、系统回收站、备份、导出文件及其他浏览器中的副本将保留。后续扫描可重新添加仍然存在的原始文件。仅移除指定照片；配套文件和其他堆栈成员保持不变。",
       "result": "已从 Facet 移除 {count} 张照片。",
-      "bracket_refused": "包围曝光组的基准帧无法单独从 Facet 中移除。"
+      "bracket_refused": "包围曝光组的基准帧无法单独从 Facet 中移除。",
+      "confirm_plural": "为所有用户从此 Facet 目录中永久移除所选 {count} 张照片及其已保存预览、人脸记录、标签、评分和相册成员关系。此操作无法撤销。原始文件、系统回收站、备份、导出文件及其他浏览器中的副本将保留。后续扫描可重新添加仍然存在的原始文件。仅移除指定照片；配套文件和其他堆栈成员保持不变。",
+      "result_plural": "已从 Facet 移除 {count} 张照片。"
     },
     "analysis": "分析",
     "info": "信息",
@@ -3378,7 +3403,10 @@
       "clear_preview": "移除目标的所有手动标签。",
       "replace_boundary": "此操作可能移除导入的手动标签。AI 标签及其他元数据保持不变。每个批次具有原子性；多个批次分别提交。手动标签不支持撤销。",
       "recheck": "替换/清除操作的响应不确定。请关闭窗口，检查目标并创建新预览；重复旧计划可能覆盖较新的标签。",
-      "captured_view_scope": "整个视图中匹配的照片列表已在排除后确定，包括匹配的折叠成员。不会添加之后才匹配的照片。不包含伴随文件。"
+      "captured_view_scope": "整个视图中匹配的照片列表已在排除后确定，包括匹配的折叠成员。不会添加之后才匹配的照片。不包含伴随文件。",
+      "applied": "已更新 {count} 张照片的标签",
+      "applied_plural": "已更新 {count} 张照片的标签",
+      "empty_state": "这些照片还没有手动标签。请在关键词编辑器中创建关键词。"
     },
     "title": "编辑标签",
     "tag_label": "标签",
@@ -3544,7 +3572,8 @@
     "delete_partial_result": "已删除 {deleted} 张，失败 {failed} 张",
     "delete_failed": "删除失败 — 没有任何内容被发送到回收站",
     "delete_disabled_view_scope_tooltip": "请明确选择照片以删除——此处不能使用整视图选择",
-    "remove_missing_rows": "同时移除磁盘上已缺失文件的库记录"
+    "remove_missing_rows": "同时移除磁盘上已缺失文件的库记录",
+    "preview_error": "无法预览"
   },
   "shortcuts": {
     "title": "键盘快捷键",
@@ -3863,7 +3892,7 @@
     "kept": "已保留",
     "yes": "是",
     "no": "否",
-    "unknown": "未知",
+    "unknown": "未设置",
     "photo_count": "照片数量：{count}",
     "field": "字段",
     "entry_action": "{action} · {kind} · {date} · #{id}",
@@ -3874,7 +3903,9 @@
     "preview_action": "查看还原预览…",
     "restore_preview": "还原此记录：{count} 张照片 · 第 {part}/{parts} 部分。",
     "restore_boundary": "仅还原这一部分。服务器会检查记录的值和修订版本；发生冲突时不还原任何内容。其他部分需分别操作。",
-    "logical_review": "已分组照片审阅"
+    "logical_review": "已分组照片审阅",
+    "superseded": "已被后续更改取代",
+    "restore_preview_plural": "还原此记录：{count} 张照片 · 第 {part}/{parts} 部分。"
   },
   "stacks": {
     "review_help": "在暗房中查看建议堆叠。S 在网格中使用建议封面，在暗房中使用当前照片堆叠；Enter 打开照片组或以当前照片堆叠。X 跳过。编辑成员可在保存前调整照片组。堆叠不会改变照片的审核决定。 R 会立即拒绝当前照片并将其从草稿中排除。撤销会恢复审核状态和草稿成员资格。分组需保存后才生效；不保存就离开不会撤销拒绝。",
@@ -4101,7 +4132,9 @@
       "delete_branch": "删除分支及其分配",
       "error": "无法完成请求的层级更新。",
       "scope_changed": "已捕获的选择或选项发生变化。请重新预览。",
-      "changed": "目标：{targets}。已更改照片：{photos}；已更改分配：{assignments}。"
-    }
+      "changed": "目标：{targets}。已更改照片：{photos}；已更改分配：{assignments}。",
+      "help_label": "关于关键词编辑"
+    },
+    "help_label": "关于关键词树"
   }
 }

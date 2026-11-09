@@ -16,6 +16,7 @@ class OrganizationEntry(BaseModel):
     part: int
     parts: int
     reverted: bool
+    superseded: bool
     changes: list[OrganizationChange]
 
 

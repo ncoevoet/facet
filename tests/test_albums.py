@@ -1372,3 +1372,24 @@ class TestAddPhotosSkipsUnknownPaths:
             assert len(body["skipped"]) == BY_PATHS_MISSING_CAP and body["skipped_count"] == len(paths)
         finally:
             client.delete(f"/api/albums/{album['id']}")
+
+
+class TestListAlbumsSmartCount:
+    """A smart album's membership is a live filter, so the list reports no count."""
+
+    PREFIX = "/album-list-count/"
+
+    def test_smart_album_count_is_null_and_manual_is_counted(self, client, seed_photos_prefix, album_factory):
+        seed_photos_prefix(self.PREFIX, [
+            {"path": self.PREFIX + "a.jpg", "filename": "a.jpg", "aggregate": 5.0},
+            {"path": self.PREFIX + "b.jpg", "filename": "b.jpg", "aggregate": 5.0},
+        ])
+        make = album_factory(self.PREFIX, None, "list count")
+        manual_id = make(member_names=("a.jpg", "b.jpg"))
+        smart_id = make(smart_filter={"path_prefix": self.PREFIX})
+        resp = client.get("/api/albums?per_page=200")
+        assert resp.status_code == 200
+        by_id = {a["id"]: a for a in resp.json()["albums"]}
+        assert by_id[manual_id]["photo_count"] == 2
+        assert by_id[smart_id]["is_smart"]
+        assert by_id[smart_id]["photo_count"] is None

@@ -89,7 +89,9 @@
     "theme": "Farbschema",
     "dark_mode": "Dunkelmodus",
     "light_mode": "Hellmodus",
-    "version": "Facet {version}"
+    "version": "Facet {version}",
+    "display_menu": "Anzeige",
+    "jobs_diagnostics": "Aufgaben & Diagnose"
   },
   "dialog": {
     "cancel": "Abbrechen",
@@ -1010,7 +1012,10 @@
       "avg_dynamic_range": "Durchschn. Dynamikumfang",
       "usage_timeline": "Nutzungszeitraum"
     },
-    "gear_metric_label": "Diagrammmetrik"
+    "gear_metric_label": "Diagrammmetrik",
+    "profile_series": "Bewertungen",
+    "profile_series_count": "{count} Bewertung",
+    "profile_series_count_plural": "{count} Bewertungen"
   },
   "login": {
     "title": "Anmelden",
@@ -1049,7 +1054,19 @@
     "help": "Hilfe",
     "more": "Mehr",
     "navigation": "Navigation",
-    "page_actions": "Seitenaktionen"
+    "page_actions": "Seitenaktionen",
+    "tooltips": {
+      "albums": "Manuelle und intelligente Alben",
+      "capsules": "Automatisch erstellte Fotogeschichten",
+      "timeline": "Fotos nach Datum durchsuchen",
+      "folders": "Fotos nach Ordner durchsuchen",
+      "persons": "Personen und Gesichtsprüfung",
+      "map": "Fotos auf einer Karte",
+      "culling": "Die besten Aufnahmen aus Serien und ähnlichen Fotos auswählen",
+      "junk_sweep": "Screenshots, unscharfe und unbrauchbare Fotos finden",
+      "stats": "Statistiken und Diagramme der Bibliothek",
+      "compare": "Bewertungsgewichte durch Fotovergleiche abstimmen"
+    }
   },
   "auth": {
     "logout": "Abmelden",
@@ -1220,7 +1237,7 @@
     "unknown_person": "Unbekannt",
     "selection": {
       "cover_only": "Gestapelte Kacheln in dieser Auswahl betreffen nur das angezeigte Foto. Öffnen Sie einen Stapel, um seine übrigen Mitglieder auszuwählen.",
-      "outside_loaded": "Außerhalb der geladenen Kacheln ausgewählt: {count}. Aktionen gelten für die gesamte Auswahl.",
+      "outside_loaded": "{count} ausgewählte Fotos sind noch nicht geladen. Aktionen gelten für die gesamte Auswahl.",
       "exclusions": "Ausschlüsse aus der gesamten Ansicht: {count}.",
       "count": "{count} ausgewählt",
       "cleared_by_view": "Auswahl aufgehoben, weil sich die Ansicht geändert hat.",
@@ -1282,7 +1299,7 @@
       "help": "Behält den oberen Anteil der aktuellen Ansicht nach der aktuellen Sortierung; der Rest wird zur Prüfung ausgewählt.",
       "preview": "Top {keep} behalten · {cut} von {total} ausgewählt",
       "apply": "Rest auswählen",
-      "selected": "{count} Fotos ausgewählt — unten in der Leiste ablehnen",
+      "selected": "{count} Fotos ausgewählt — in der Auswahlleiste ablehnen",
       "truncated": "Erste {count} von {cut} ausgewählt — Filter eingrenzen für den Rest"
     },
     "composition_pattern": "Komposition",
@@ -1563,7 +1580,7 @@
         "shared_person": "Gespeicherte Person in sichtbaren Teilansichten ausrichten…",
         "partial": "Einige gespeicherte Erkennungsdaten konnten nicht geladen werden.",
         "help": "Beim Ausrichten wird auf Unabhängig umgeschaltet. Prüfen Sie die Ausschnitte vor dem Koppeln. Gespeicherte Zuordnungen können falsch oder veraltet sein. Die Lupe vergrößert die angezeigten Pixel; fordern Sie das Quellbild durch Hineinzoomen an.",
-        "no_correspondence": "Keine eindeutig zugeordnete gespeicherte Person mit nutzbaren Begrenzungsrahmen in allen sichtbaren Teilansichten. Richten Sie die Ausschnitte manuell aus. Koppeln teilt Bewegungen, keine Personenzuordnung.",
+        "no_correspondence": "Keine Person erscheint in allen sichtbaren Bereichen. Rahmen Sie jeden Bereich manuell.",
         "suggested_face": "Vorgeschlagenes Gesicht",
         "suggested_subject": "Vorgeschlagenes Motiv",
         "no_crop": "Ausschnitt nicht verfügbar",
@@ -1603,7 +1620,8 @@
       "resume": "Sichtung fortsetzen",
       "browser": "Gespeicherte Warteschlange in diesem Browser fortsetzen.",
       "hide_from_menu": "Bewertungsfortschritt ausblenden",
-      "show_from_menu": "Bewertungsfortschritt anzeigen"
+      "show_from_menu": "Bewertungsfortschritt anzeigen",
+      "show_toggle": "Prüffortschritt anzeigen"
     },
     "manual_faces_need_review": "Manuelle Gesichter prüfen",
     "manual_faces_review_hint": "Stand des letzten Scans oder der letzten Prüfung im Gesichtseditor, keine laufende Überwachung. Öffnen Sie den Gesichtseditor eines Fotos, um gespeicherte Markierungen zu prüfen.",
@@ -1634,7 +1652,7 @@
       "clear": "Sterne löschen",
       "clear_plan": "Persönliche Sterne für {count} erfasste Fotos löschen.",
       "set_plan": "{rating} persönliche Sterne für {count} erfasste Fotos setzen.",
-      "boundary": "Dateien werden nicht neu geschrieben. Jeder Stapel wird separat gespeichert. Das kurz verfügbare Rückgängig berücksichtigt nur geladene Momentaufnahmen und lokal bekannte Konflikte; der Verlauf verwendet serverseitige Konfliktprüfungen.",
+      "boundary": "Rückgängig gilt nur für die in dieser Ansicht geladenen Fotos. Der Organisationsverlauf prüft Konflikte auf dem Server.",
       "whole_scope": "Diese erfasste Liste der gesamten Ansicht enthält nach Abzug der Ausschlüsse auch passende eingeklappte Mitglieder. Weitere Mitglieder oder Begleitdateien werden nicht hinzugefügt. Tags, Favoriten und Behalten/Ablehnen bleiben unverändert."
     },
     "review_navigation": {
@@ -1719,7 +1737,8 @@
       "natural": "Originalformat"
     },
     "review_controls_hint": "Sichtungsentscheidungen, Bewertungen, vorgeschlagene Stapel und beste Prozente",
-    "display_controls_hint": "Layout, Fotoinformationen und Aufklappen von Stapeln"
+    "display_controls_hint": "Layout, Fotoinformationen und Aufklappen von Stapeln",
+    "sort_direction": "Sortierrichtung"
   },
   "composition_patterns": {
     "none": "Keines",
@@ -2279,7 +2298,8 @@
       "face_changed": "Gesicht nach der Vorschau geändert",
       "not_person": "Nicht {name}",
       "feedback_saved": "In Ihrem Konto als Vorschlag für {name} ausgeblendet.",
-      "feedback_undo": "Rückmeldung rückgängig machen"
+      "feedback_undo": "Rückmeldung rückgängig machen",
+      "suggestions_skipped": "Zu viele Referenzgesichter, um Treffer vorzuschlagen. Gesichter werden ohne Vorschläge angezeigt."
     },
     "face_update": {
       "title": "Gesichter aktualisieren",
@@ -2461,7 +2481,8 @@
       "success": "Albumregeln gespeichert.",
       "failed": "Die gespeicherten Regeln konnten nicht gelesen werden. Ihre aktuelle Ansicht bleibt unverändert.",
       "uncertain": "Das Speichern konnte nicht bestätigt werden. Laden Sie die gespeicherten Regeln neu, bevor Sie es erneut versuchen.",
-      "reload": "Gespeicherte Regeln neu laden"
+      "reload": "Gespeicherte Regeln neu laden",
+      "person_fallback": "Person Nr. {id}"
     },
     "creation": {
       "help": "Funktionsweise dieses Albums",
@@ -2650,7 +2671,8 @@
       "stored_metrics": "Es werden die rohen gespeicherten Metrikwerte ohne Perzentil-Normalisierung verwendet."
     },
     "generate_action": "KI-Kommentar erzeugen",
-    "translate_action": "Gespeicherten KI-Kommentar übersetzen"
+    "translate_action": "Gespeicherten KI-Kommentar übersetzen",
+    "breakdown_note": "Die Aufschlüsselung verwendet die normalisierten Eingaben, aus denen die Bewertung berechnet wurde."
   },
   "culling": {
     "compare": {
@@ -3019,7 +3041,8 @@
     "explore_period": "Zeitraum erkunden",
     "select_range": "Datumsbereich auswählen",
     "density_unit": "Zeitraum",
-    "density_weeks": "Wochen (Montag–Sonntag)"
+    "density_weeks": "Wochen (Montag–Sonntag)",
+    "dates": "Daten"
   },
   "folders": {
     "help": "Ordner entsprechen dem Speicherort der Originaldateien auf dem Datenträger. Alben organisieren Fotos, ohne diese Dateien zu verschieben. Öffnen Sie einen Ordner, um seine Fotos zu durchsuchen, oder filtern Sie die Galerie nach diesem Speicherort.",
@@ -3341,9 +3364,11 @@
     "remove_catalog": {
       "title": "Aus Facet entfernen?",
       "action": "Aus Facet entfernen…",
-      "confirm": "{count} ausgewählte Fotos, gespeicherte Vorschauen, Gesichtseinträge, Schlagwörter, Bewertungen und Albummitgliedschaften dauerhaft für alle Benutzer aus diesem Facet-Katalog entfernen. Dies kann nicht rückgängig gemacht werden. Originaldateien, Systempapierkorb, Sicherungen, Exporte und Kopien in anderen Browsern bleiben erhalten. Ein späterer Scan kann noch vorhandene Originale erneut hinzufügen. Nur die genannten Fotos werden entfernt; Begleitdateien und andere Stapelmitglieder bleiben unverändert.",
-      "result": "{count} Fotos aus Facet entfernt.",
-      "bracket_refused": "Das Basisbild einer Belichtungsreihe kann nicht einzeln aus Facet entfernt werden."
+      "confirm": "Das ausgewählte Foto, gespeicherte Vorschauen, Gesichtseinträge, Schlagwörter, Bewertungen und Albummitgliedschaften dauerhaft für alle Benutzer aus diesem Facet-Katalog entfernen. Dies kann nicht rückgängig gemacht werden. Originaldateien, Systempapierkorb, Sicherungen, Exporte und Kopien in anderen Browsern bleiben erhalten. Ein späterer Scan kann noch vorhandene Originale erneut hinzufügen. Nur das genannte Foto wird entfernt; Begleitdateien und andere Stapelmitglieder bleiben unverändert.",
+      "result": "{count} Foto aus Facet entfernt.",
+      "bracket_refused": "Das Basisbild einer Belichtungsreihe kann nicht einzeln aus Facet entfernt werden.",
+      "confirm_plural": "{count} ausgewählte Fotos, gespeicherte Vorschauen, Gesichtseinträge, Schlagwörter, Bewertungen und Albummitgliedschaften dauerhaft für alle Benutzer aus diesem Facet-Katalog entfernen. Dies kann nicht rückgängig gemacht werden. Originaldateien, Systempapierkorb, Sicherungen, Exporte und Kopien in anderen Browsern bleiben erhalten. Ein späterer Scan kann noch vorhandene Originale erneut hinzufügen. Nur die genannten Fotos werden entfernt; Begleitdateien und andere Stapelmitglieder bleiben unverändert.",
+      "result_plural": "{count} Fotos aus Facet entfernt."
     },
     "analysis": "Analyse",
     "info": "Info",
@@ -3378,7 +3403,10 @@
       "clear_preview": "Alle manuellen Schlagwörter von den Zielfotos entfernen.",
       "replace_boundary": "Dabei können importierte manuelle Schlagwörter entfernt werden. KI-Tags und andere Metadaten bleiben unverändert. Jeder Stapel wird vollständig oder gar nicht gespeichert; mehrere Stapel werden separat gespeichert. Für manuelle Schlagwörter ist kein Rückgängig verfügbar.",
       "recheck": "Eine Antwort auf Ersetzen/Löschen ist ungewiss. Schließen Sie den Dialog, prüfen Sie die Zielfotos und erstellen Sie eine neue Vorschau. Die Wiederholung dieses alten Plans könnte neuere Schlagwörter überschreiben.",
-      "captured_view_scope": "Die Liste passender Fotos der gesamten Ansicht wurde nach Abzug der Ausschlüsse erfasst, einschließlich passender eingeklappter Mitglieder. Spätere Treffer werden nicht hinzugefügt. Begleitdateien sind nicht eingeschlossen."
+      "captured_view_scope": "Die Liste passender Fotos der gesamten Ansicht wurde nach Abzug der Ausschlüsse erfasst, einschließlich passender eingeklappter Mitglieder. Spätere Treffer werden nicht hinzugefügt. Begleitdateien sind nicht eingeschlossen.",
+      "applied": "Tags für {count} Foto aktualisiert",
+      "applied_plural": "Tags für {count} Fotos aktualisiert",
+      "empty_state": "Diese Fotos haben noch keine manuellen Tags. Erstellen Sie Schlagwörter im Schlagwort-Editor."
     },
     "title": "Schlagwörter bearbeiten",
     "tag_label": "Schlagwort",
@@ -3544,7 +3572,8 @@
     "delete_partial_result": "{deleted} gelöscht, {failed} fehlgeschlagen",
     "delete_failed": "Löschen fehlgeschlagen — nichts wurde in den Papierkorb verschoben",
     "delete_disabled_view_scope_tooltip": "Wählen Sie Fotos explizit aus, um sie zu löschen — eine Auswahl der gesamten Ansicht kann hier nicht verwendet werden",
-    "remove_missing_rows": "Bibliothekseinträge ebenfalls entfernen, deren Datei auf der Platte bereits fehlt"
+    "remove_missing_rows": "Bibliothekseinträge ebenfalls entfernen, deren Datei auf der Platte bereits fehlt",
+    "preview_error": "Vorschau nicht möglich"
   },
   "shortcuts": {
     "title": "Tastenkürzel",
@@ -3863,7 +3892,7 @@
     "kept": "Behalten",
     "yes": "Ja",
     "no": "Nein",
-    "unknown": "Unbekannt",
+    "unknown": "Nicht festgelegt",
     "photo_count": "Fotos: {count}",
     "field": "Feld",
     "entry_action": "{action} · {kind} · {date} · #{id}",
@@ -3872,9 +3901,11 @@
     "limits": "Bis zu 50 aktuelle Einträge für dieses Konto. Unterstützt werden Prüffelder, Ort, Aufnahmedatum und manuelle Stapel. Manuelle Schlagwörter, Exporte und Dateiverschiebungen lassen sich hier nicht rückgängig machen. Das kurz verfügbare Rückgängig ist separat und auf seine Momentaufnahme beschränkt.",
     "reload": "Verlauf neu laden",
     "preview_action": "Wiederherstellung prüfen…",
-    "restore_preview": "Diesen Eintrag wiederherstellen: {count} Fotos · Teil {part}/{parts}.",
+    "restore_preview": "Diesen Eintrag wiederherstellen: {count} Foto · Teil {part}/{parts}.",
     "restore_boundary": "Nur dieser Teil wird wiederhergestellt. Der Server prüft die aufgezeichneten Werte und Revisionen; bei einem Konflikt wird nichts wiederhergestellt. Andere Teile erfordern separate Aktionen.",
-    "logical_review": "Bewertung gruppierter Fotos"
+    "logical_review": "Bewertung gruppierter Fotos",
+    "superseded": "Durch eine spätere Änderung ersetzt",
+    "restore_preview_plural": "Diesen Eintrag wiederherstellen: {count} Fotos · Teil {part}/{parts}."
   },
   "stacks": {
     "review_help": "Prüfen Sie Stapelvorschläge in der Dunkelkammer. S stapelt mit dem vorgeschlagenen Titelbild im Raster oder dem aktiven Foto in der Dunkelkammer. Eingabe öffnet eine Gruppe oder stapelt das aktive Foto. X überspringt. Mitglieder bearbeiten passt die Gruppe vor dem Speichern an. Sichtungsentscheidungen bleiben unverändert. R lehnt das aktive Foto sofort ab und schließt es aus dem Entwurf aus. Rückgängig stellt Sichtung und Mitgliedschaft wieder her. Die Gruppierung wartet auf Speichern; Verlassen ohne Speichern macht Ablehnen nicht rückgängig.",
@@ -4101,7 +4132,9 @@
       "delete_branch": "Zweig und seine Zuweisungen löschen",
       "error": "Die angeforderte Hierarchieaktualisierung konnte nicht abgeschlossen werden.",
       "scope_changed": "Die erfasste Auswahl oder Optionen haben sich geändert. Erstellen Sie eine neue Vorschau.",
-      "changed": "Ziele: {targets}. Geänderte Fotos: {photos}; geänderte Zuweisungen: {assignments}."
-    }
+      "changed": "Ziele: {targets}. Geänderte Fotos: {photos}; geänderte Zuweisungen: {assignments}.",
+      "help_label": "Über die Schlagwortbearbeitung"
+    },
+    "help_label": "Über den Schlagwortbaum"
   }
 }

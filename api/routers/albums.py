@@ -504,7 +504,8 @@ def list_albums(
         albums = []
         for row in rows:
             album = _album_to_dict(row)
-            album['photo_count'] = count_map.get(row['id'], 0)
+            # A smart album's membership is a live filter, never stored rows: 0 would lie.
+            album['photo_count'] = None if album.get('is_smart') else count_map.get(row['id'], 0)
             album['first_photo_path'] = _get_first_photo_path(conn, row)
             albums.append(album)
         attach_preview_versions(conn, albums, 'first_photo_path')

@@ -89,7 +89,9 @@
     "theme": "Tema",
     "dark_mode": "Modo oscuro",
     "light_mode": "Modo claro",
-    "version": "Facet {version}"
+    "version": "Facet {version}",
+    "display_menu": "Visualización",
+    "jobs_diagnostics": "Tareas y diagnóstico"
   },
   "dialog": {
     "cancel": "Cancelar",
@@ -1010,7 +1012,10 @@
       "avg_dynamic_range": "Rango dinámico prom.",
       "usage_timeline": "Cronología de uso"
     },
-    "gear_metric_label": "Métrica del gráfico"
+    "gear_metric_label": "Métrica del gráfico",
+    "profile_series": "Puntuaciones",
+    "profile_series_count": "{count} puntuación",
+    "profile_series_count_plural": "{count} puntuaciones"
   },
   "login": {
     "title": "Iniciar sesión",
@@ -1049,7 +1054,19 @@
     "help": "Ayuda",
     "more": "Más",
     "navigation": "Navegación",
-    "page_actions": "Acciones de la página"
+    "page_actions": "Acciones de la página",
+    "tooltips": {
+      "albums": "Álbumes manuales e inteligentes",
+      "capsules": "Historias de fotos generadas automáticamente",
+      "timeline": "Explorar fotos por fecha",
+      "folders": "Explorar fotos por carpeta",
+      "persons": "Personas y revisión de caras",
+      "map": "Fotos en un mapa",
+      "culling": "Elige las mejores fotos entre ráfagas y tomas similares",
+      "junk_sweep": "Encontrar capturas de pantalla, fotos borrosas y basura",
+      "stats": "Estadísticas y gráficos de la biblioteca",
+      "compare": "Ajusta los pesos de puntuación comparando fotos"
+    }
   },
   "auth": {
     "logout": "Cerrar sesión",
@@ -1220,7 +1237,7 @@
     "unknown_person": "Desconocido",
     "selection": {
       "cover_only": "Las miniaturas apiladas de esta selección solo afectan a la foto mostrada. Abre una pila para seleccionar sus demás miembros.",
-      "outside_loaded": "Selección fuera de los elementos cargados: {count}. Las acciones se aplican a toda la selección.",
+      "outside_loaded": "{count} fotos seleccionadas aún no se han cargado. Las acciones se aplican a toda la selección.",
       "exclusions": "Exclusiones de toda la vista: {count}.",
       "count": "{count} seleccionados",
       "cleared_by_view": "Selección borrada porque la vista cambió.",
@@ -1282,7 +1299,7 @@
       "help": "Conserva la parte superior de la vista actual según el orden actual; el resto se selecciona para revisar.",
       "preview": "Conservar top {keep} · seleccionar {cut} de {total}",
       "apply": "Seleccionar el resto",
-      "selected": "{count} fotos seleccionadas — recházalas desde la barra inferior",
+      "selected": "{count} fotos seleccionadas — recházalas desde la barra de selección",
       "truncated": "Seleccionadas las primeras {count} de {cut} — acota el filtro para el resto"
     },
     "composition_pattern": "Composición",
@@ -1563,7 +1580,7 @@
         "shared_person": "Encuadrar persona guardada en los paneles visibles…",
         "partial": "No se pudieron cargar algunos datos de detección almacenados.",
         "help": "El encuadre cambia a Independientes. Comprueba los recortes antes de vincular. Las asignaciones guardadas pueden ser incorrectas o estar desactualizadas. La lupa amplía los píxeles mostrados; aumenta el zoom para solicitar la imagen de origen.",
-        "no_correspondence": "No hay una única persona guardada con recuadros utilizables en todos los paneles visibles. Usa el encuadre manual; la vinculación comparte movimientos, no identidades.",
+        "no_correspondence": "Ninguna persona aparece en todos los paneles visibles. Encuadra cada panel manualmente.",
         "suggested_face": "Rostro sugerido",
         "suggested_subject": "Sujeto sugerido",
         "no_crop": "Recorte no disponible",
@@ -1603,7 +1620,8 @@
       "resume": "Continuar revisión",
       "browser": "Reanudar la cola recordada en este navegador.",
       "hide_from_menu": "Ocultar el progreso de revisión",
-      "show_from_menu": "Mostrar el progreso de revisión"
+      "show_from_menu": "Mostrar el progreso de revisión",
+      "show_toggle": "Mostrar el progreso de la revisión"
     },
     "manual_faces_need_review": "Rostros manuales por revisar",
     "manual_faces_review_hint": "Según el último escaneo o revisión en el editor de rostros, sin supervisión continua. Abra el editor de rostros de una foto para revisar las marcas guardadas.",
@@ -1634,7 +1652,7 @@
       "clear": "Borrar estrellas",
       "clear_plan": "Borrar las estrellas personales de las {count} fotos capturadas.",
       "set_plan": "Asignar {rating} estrellas personales a las {count} fotos capturadas.",
-      "boundary": "No se reescriben archivos. Los lotes se confirman por separado. La acción breve Deshacer se limita a las capturas cargadas y los conflictos conocidos localmente; el Historial comprueba los conflictos en el servidor.",
+      "boundary": "Deshacer solo cubre las fotos cargadas en esta vista. El historial de organización comprueba conflictos en el servidor.",
       "whole_scope": "Esta lista capturada de toda la vista incluye los miembros contraídos coincidentes tras las exclusiones. No se añaden otros miembros ni archivos acompañantes. Las etiquetas, los favoritos y las decisiones de Mantener/Rechazar no cambian."
     },
     "review_navigation": {
@@ -1719,7 +1737,8 @@
       "natural": "Proporción original"
     },
     "review_controls_hint": "Decisiones de revisión, valoraciones, pilas sugeridas y mejor porcentaje",
-    "display_controls_hint": "Diseño, información de fotos y expansión de pilas"
+    "display_controls_hint": "Diseño, información de fotos y expansión de pilas",
+    "sort_direction": "Dirección de orden"
   },
   "composition_patterns": {
     "none": "Ninguno",
@@ -2279,7 +2298,8 @@
       "face_changed": "La cara ha cambiado después de la vista previa",
       "not_person": "No es {name}",
       "feedback_saved": "Ocultada como sugerencia para {name} en tu cuenta.",
-      "feedback_undo": "Deshacer rechazo"
+      "feedback_undo": "Deshacer rechazo",
+      "suggestions_skipped": "Demasiadas caras de referencia para sugerir coincidencias. Se muestran las caras sin sugerencias."
     },
     "face_update": {
       "title": "Actualizar caras",
@@ -2461,7 +2481,8 @@
       "success": "Reglas del álbum guardadas.",
       "failed": "No se pudieron leer las reglas guardadas. Tu vista actual no ha cambiado.",
       "uncertain": "No se pudo confirmar el guardado. Recarga las reglas guardadas antes de intentarlo de nuevo.",
-      "reload": "Recargar reglas guardadas"
+      "reload": "Recargar reglas guardadas",
+      "person_fallback": "Persona n.º {id}"
     },
     "creation": {
       "help": "Cómo funciona este álbum",
@@ -2650,7 +2671,8 @@
       "stored_metrics": "Se usan los valores brutos de las métricas guardadas, sin normalización por percentiles."
     },
     "generate_action": "Generar comentario con IA",
-    "translate_action": "Traducir comentario de IA guardado"
+    "translate_action": "Traducir comentario de IA guardado",
+    "breakdown_note": "El desglose usa los valores normalizados a partir de los cuales se calculó la puntuación."
   },
   "culling": {
     "compare": {
@@ -3019,7 +3041,8 @@
     "explore_period": "Explorar periodo",
     "select_range": "Seleccionar intervalo de fechas",
     "density_unit": "Periodo",
-    "density_weeks": "Semanas (lunes–domingo)"
+    "density_weeks": "Semanas (lunes–domingo)",
+    "dates": "Fechas"
   },
   "folders": {
     "help": "Las carpetas reflejan dónde se guardan los archivos originales en el disco. Los álbumes organizan las fotos sin mover esos archivos. Abre una carpeta para explorar sus fotos o filtra la galería por esa ubicación.",
@@ -3341,9 +3364,11 @@
     "remove_catalog": {
       "title": "¿Quitar de Facet?",
       "action": "Quitar de Facet…",
-      "confirm": "Quitar permanentemente de este catálogo de Facet, para todos los usuarios, {count} fotos seleccionadas, sus vistas previas guardadas, registros de caras, etiquetas, valoraciones y pertenencias a álbumes. No se puede deshacer. Los archivos originales, la papelera del sistema, copias de seguridad, exportaciones y copias en otros navegadores permanecen. Un escaneo posterior puede volver a añadir cualquier original que aún exista. Solo se quitan las fotos indicadas; los archivos acompañantes y otros miembros de la pila no cambian.",
-      "result": "Se han quitado {count} fotos de Facet.",
-      "bracket_refused": "La toma base de una serie de exposición no se puede eliminar de Facet por separado."
+      "confirm": "Quitar permanentemente de este catálogo de Facet, para todos los usuarios, la foto seleccionada, sus vistas previas guardadas, registros de caras, etiquetas, valoraciones y pertenencias a álbumes. No se puede deshacer. Los archivos originales, la papelera del sistema, copias de seguridad, exportaciones y copias en otros navegadores permanecen. Un escaneo posterior puede volver a añadir cualquier original que aún exista. Solo se quita la foto indicada; los archivos acompañantes y otros miembros de la pila no cambian.",
+      "result": "Se ha quitado {count} foto de Facet.",
+      "bracket_refused": "La toma base de una serie de exposición no se puede eliminar de Facet por separado.",
+      "confirm_plural": "Quitar permanentemente de este catálogo de Facet, para todos los usuarios, {count} fotos seleccionadas, sus vistas previas guardadas, registros de caras, etiquetas, valoraciones y pertenencias a álbumes. No se puede deshacer. Los archivos originales, la papelera del sistema, copias de seguridad, exportaciones y copias en otros navegadores permanecen. Un escaneo posterior puede volver a añadir cualquier original que aún exista. Solo se quitan las fotos indicadas; los archivos acompañantes y otros miembros de la pila no cambian.",
+      "result_plural": "Se han quitado {count} fotos de Facet."
     },
     "analysis": "Análisis",
     "info": "Información",
@@ -3378,7 +3403,10 @@
       "clear_preview": "Quitar todas las etiquetas manuales del destino.",
       "replace_boundary": "Esto puede quitar etiquetas manuales importadas. Las etiquetas de IA y los demás metadatos no cambian. Cada lote es atómico; varios lotes se confirman por separado. Deshacer no está disponible para las etiquetas manuales.",
       "recheck": "No se conoce el resultado de una respuesta de Reemplazar/Borrar. Cierra, inspecciona el destino y crea una nueva vista previa; repetir este plan antiguo podría sobrescribir etiquetas más recientes.",
-      "captured_view_scope": "La lista de fotos coincidentes de toda la vista se capturó tras las exclusiones, incluidos los miembros contraídos coincidentes. No se añaden coincidencias posteriores. No se incluyen archivos acompañantes."
+      "captured_view_scope": "La lista de fotos coincidentes de toda la vista se capturó tras las exclusiones, incluidos los miembros contraídos coincidentes. No se añaden coincidencias posteriores. No se incluyen archivos acompañantes.",
+      "applied": "Etiquetas actualizadas en {count} foto",
+      "applied_plural": "Etiquetas actualizadas en {count} fotos",
+      "empty_state": "Estas fotos aún no tienen etiquetas manuales. Crea palabras clave en el editor de palabras clave."
     },
     "title": "Editar etiquetas",
     "tag_label": "Etiqueta",
@@ -3544,7 +3572,8 @@
     "delete_partial_result": "{deleted} eliminadas, {failed} fallidas",
     "delete_failed": "Error al eliminar — no se envió nada a la papelera",
     "delete_disabled_view_scope_tooltip": "Selecciona las fotos explícitamente para eliminarlas — aquí no se puede usar una selección de toda la vista",
-    "remove_missing_rows": "Eliminar también las entradas de la biblioteca cuyo archivo ya falta en el disco"
+    "remove_missing_rows": "Eliminar también las entradas de la biblioteca cuyo archivo ya falta en el disco",
+    "preview_error": "No se pudo previsualizar"
   },
   "shortcuts": {
     "title": "Atajos de teclado",
@@ -3863,7 +3892,7 @@
     "kept": "Conservada",
     "yes": "Sí",
     "no": "No",
-    "unknown": "Desconocido",
+    "unknown": "Sin definir",
     "photo_count": "Fotos: {count}",
     "field": "Campo",
     "entry_action": "{action} · {kind} · {date} · #{id}",
@@ -3872,9 +3901,11 @@
     "limits": "Hasta 50 entradas recientes de esta cuenta. Se admiten campos de revisión, ubicación, fecha de captura y pilas manuales. Aquí no se deshacen etiquetas manuales, exportaciones ni movimientos de archivos. La acción breve Deshacer es independiente y se limita a su captura.",
     "reload": "Recargar historial",
     "preview_action": "Revisar restauración…",
-    "restore_preview": "Restaurar esta entrada: {count} fotos · parte {part}/{parts}.",
+    "restore_preview": "Restaurar esta entrada: {count} foto · parte {part}/{parts}.",
     "restore_boundary": "Solo se restaurará esta parte. El servidor comprueba los valores y las revisiones registrados; si hay un conflicto, no se restaura nada. Las demás partes son acciones independientes.",
-    "logical_review": "Revisión de foto agrupada"
+    "logical_review": "Revisión de foto agrupada",
+    "superseded": "Reemplazada por un cambio posterior",
+    "restore_preview_plural": "Restaurar esta entrada: {count} fotos · parte {part}/{parts}."
   },
   "stacks": {
     "review_help": "Revisa las pilas sugeridas en el cuarto oscuro. S apila con la portada propuesta en la cuadrícula o la foto activa en el cuarto oscuro; Intro abre un grupo o apila la foto activa. X omite. Editar miembros permite ajustar el grupo antes de guardar. Las decisiones sobre las fotos no cambian. R rechaza la foto activa de inmediato y la excluye del borrador. Deshacer restaura su decisión y pertenencia. La agrupación espera a Guardar; salir sin guardar no deshace Rechazar.",
@@ -4101,7 +4132,9 @@
       "delete_branch": "Eliminar rama y sus asignaciones",
       "error": "No se ha podido completar la actualización jerárquica solicitada.",
       "scope_changed": "La selección capturada o las opciones han cambiado. Previsualiza de nuevo.",
-      "changed": "Destinos: {targets}. Fotos cambiadas: {photos}; asignaciones cambiadas: {assignments}."
-    }
+      "changed": "Destinos: {targets}. Fotos cambiadas: {photos}; asignaciones cambiadas: {assignments}.",
+      "help_label": "Acerca de la edición de palabras clave"
+    },
+    "help_label": "Acerca del árbol de palabras clave"
   }
 }

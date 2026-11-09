@@ -74,15 +74,22 @@ def list_history(response: Response, user: CurrentUser = Depends(require_edition
     with get_db() as conn, conn:
         conn.execute('BEGIN')
         entries = []
+        # Rows arrive newest first, so `newer` holds what later entries of the same
+        # kind and scope (the pair `_revert` snapshots by) already touched.
+        newer: dict[tuple[str, str], set[str]] = {}
         for row in conn.execute("SELECT * FROM organization_history WHERE (owner=? AND kind!='stack') OR (owner=? AND kind='stack') ORDER BY id DESC LIMIT 50", (user.user_id or '', stack_owner(user.user_id))):
             changes = json.loads(row['payload'])
+            touched = {change.get('path') or f"asset:{change.get('asset_id')}" for change in changes}
+            seen = newer.setdefault((row['kind'], row['scope']), set())
+            superseded = not touched.isdisjoint(seen)
+            seen |= touched
             if row['kind'] == 'logical_review':
                 context = _logical_context(conn, user, row, changes)
                 if context is None:
                     continue
                 changes = context.visible_changes
             if row['kind'] == 'logical_review' or _visible(conn, user, changes):
-                entries.append({**{key: row[key] for key in ('id', 'kind', 'created_at', 'part', 'parts', 'reverted')}, 'changes': changes})
+                entries.append({**{key: row[key] for key in ('id', 'kind', 'created_at', 'part', 'parts', 'reverted')}, 'superseded': superseded, 'changes': changes})
         return {'entries': entries}
 
 

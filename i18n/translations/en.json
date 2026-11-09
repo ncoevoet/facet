@@ -114,7 +114,9 @@
     "theme": "Theme",
     "dark_mode": "Dark mode",
     "light_mode": "Light mode",
-    "version": "Facet {version}"
+    "version": "Facet {version}",
+    "display_menu": "Display",
+    "jobs_diagnostics": "Jobs & diagnostics"
   },
   "dialog": {
     "cancel": "Cancel",
@@ -1035,7 +1037,10 @@
       "avg_dynamic_range": "Avg. Dynamic Range",
       "usage_timeline": "Usage Timeline"
     },
-    "gear_metric_label": "Chart metric"
+    "gear_metric_label": "Chart metric",
+    "profile_series": "Scores",
+    "profile_series_count": "{count} score",
+    "profile_series_count_plural": "{count} scores"
   },
   "login": {
     "title": "Login",
@@ -1074,7 +1079,19 @@
     "help": "Help",
     "more": "More",
     "navigation": "Navigation",
-    "page_actions": "Page actions"
+    "page_actions": "Page actions",
+    "tooltips": {
+      "albums": "Manual and smart albums",
+      "capsules": "Auto-generated photo stories",
+      "timeline": "Browse photos by date",
+      "folders": "Browse photos by folder",
+      "persons": "People and face review",
+      "map": "Photos on a map",
+      "culling": "Pick the keepers from bursts and similar shots",
+      "junk_sweep": "Find screenshots, blurred and junk photos",
+      "stats": "Library statistics and charts",
+      "compare": "Tune scoring weights by comparing photos"
+    }
   },
   "auth": {
     "logout": "Log out",
@@ -1249,7 +1266,7 @@
       "move_bar": "Move selection toolbar",
       "move_bar_help": "Drag this handle or use the arrow keys to move the toolbar. Hold Shift for larger steps. Home resets its position. Escape cancels a drag.",
       "select": "Select",
-      "outside_loaded": "Selected outside loaded tiles: {count}. Actions apply to the entire selection.",
+      "outside_loaded": "{count} selected photos aren't loaded yet. Actions apply to the whole selection.",
       "exclusions": "Whole-view exclusions: {count}.",
       "count": "{count} selected",
       "cleared_by_view": "Selection cleared because the view changed.",
@@ -1308,7 +1325,7 @@
       "help": "Keep the top share of the current view by the current sort; the rest get selected for review.",
       "preview": "Keep top {keep} · select {cut} of {total}",
       "apply": "Select the rest",
-      "selected": "{count} photos selected — reject from the bar below",
+      "selected": "{count} photos selected — reject from the selection bar",
       "truncated": "Selected the first {count} of {cut} — narrow your filter to act on the rest"
     },
     "composition_pattern": "Composition",
@@ -1589,7 +1606,7 @@
         "shared_person": "Frame saved person in visible panes…",
         "partial": "Some stored detection data could not be loaded.",
         "help": "Framing switches to Independent. Check crops before linking. Saved assignments can be wrong or outdated. Loupe enlarges displayed pixels; zoom in to request the source image.",
-        "no_correspondence": "No unique saved person with usable boxes in every visible pane. Use manual framing; Link shares movement, not identity.",
+        "no_correspondence": "No person appears in every visible pane. Frame each pane by hand.",
         "suggested_face": "Suggested face",
         "suggested_subject": "Suggested subject",
         "no_crop": "Crop unavailable",
@@ -1629,7 +1646,8 @@
       "resume": "Continue reviewing",
       "browser": "Resume the remembered queue on this browser.",
       "hide_from_menu": "Hide review progress",
-      "show_from_menu": "Show review progress"
+      "show_from_menu": "Show review progress",
+      "show_toggle": "Show review progress"
     },
     "manual_faces_need_review": "Manual faces need review",
     "manual_faces_review_hint": "Based on the last scan or face-editor check, not continuous monitoring. Open a photo’s face editor to review saved marks.",
@@ -1659,7 +1677,7 @@
       "clear": "Clear stars",
       "clear_plan": "Clear personal stars on {count} captured photos.",
       "set_plan": "Set {rating} personal stars on {count} captured photos.",
-      "boundary": "No files are rewritten. Batches commit separately. Short Undo is limited to loaded snapshots and locally known conflicts; History uses server-side conflict checks.",
+      "boundary": "Undo covers only photos loaded in this view. Organization history checks the server for conflicts.",
       "whole_scope": "This captured whole-view list includes matching folded members after exclusions. No further members or companion files are added. Tags, favorites and Keep/Reject stay unchanged."
     },
     "review_navigation": {
@@ -1744,7 +1762,8 @@
       "natural": "Original ratio"
     },
     "review_controls_hint": "Review decisions, ratings, suggested stacks and Keep top %",
-    "display_controls_hint": "Layout, photo information and stack expansion"
+    "display_controls_hint": "Layout, photo information and stack expansion",
+    "sort_direction": "Sort direction"
   },
   "composition_patterns": {
     "none": "None",
@@ -2304,7 +2323,8 @@
       "face_changed": "Face changed after preview",
       "not_person": "Not {name}",
       "feedback_saved": "Hidden as a suggestion for {name} in your account.",
-      "feedback_undo": "Undo feedback"
+      "feedback_undo": "Undo feedback",
+      "suggestions_skipped": "Too many reference faces to suggest matches. Showing faces without suggestions."
     },
     "face_update": {
       "title": "Update faces",
@@ -2491,7 +2511,8 @@
       "success": "Album rules saved.",
       "failed": "Could not read the saved rules. Your current view is unchanged.",
       "uncertain": "The save could not be confirmed. Reload saved rules before trying again.",
-      "reload": "Reload saved rules"
+      "reload": "Reload saved rules",
+      "person_fallback": "Person #{id}"
     },
     "recipient_policy": "Recipient access",
     "share_smart_scope": "{count} photos currently match this smart album. Matching photos can change as the library or saved rules change.",
@@ -2675,7 +2696,8 @@
       "stored_metrics": "Raw stored metric values are used, without percentile normalization."
     },
     "generate_action": "Generate AI commentary",
-    "translate_action": "Translate stored AI commentary"
+    "translate_action": "Translate stored AI commentary",
+    "breakdown_note": "The breakdown uses the normalised inputs the score was computed from."
   },
   "culling": {
     "compare": {
@@ -3044,7 +3066,8 @@
     "explore_period": "Explore period",
     "select_range": "Select a date range",
     "density_unit": "Period",
-    "density_weeks": "Weeks (Monday–Sunday)"
+    "density_weeks": "Weeks (Monday–Sunday)",
+    "dates": "Dates"
   },
   "folders": {
     "help": "Folders follow where original files are stored on disk. Albums organize photos without moving those files. Open a folder to browse its photos or filter the gallery to that location.",
@@ -3366,9 +3389,11 @@
     "remove_catalog": {
       "title": "Remove from Facet?",
       "action": "Remove from Facet…",
-      "confirm": "Permanently remove {count} selected photo(s), stored previews, face records, tags, ratings and album membership from this Facet catalog for all users. This cannot be undone. Original files, OS trash, backups, exports and copies in other browsers remain. A later scan can re-add any original that still exists. Only the named photos are removed; companions and other stack members are unchanged.",
-      "result": "Removed {count} photo(s) from Facet.",
-      "bracket_refused": "The base frame of a bracket cannot be removed from Facet on its own."
+      "confirm": "Permanently remove the selected photo, stored previews, face records, tags, ratings and album membership from this Facet catalog for all users. This cannot be undone. Original files, OS trash, backups, exports and copies in other browsers remain. A later scan can re-add any original that still exists. Only the named photo is removed; companions and other stack members are unchanged.",
+      "result": "Removed {count} photo from Facet.",
+      "bracket_refused": "The base frame of a bracket cannot be removed from Facet on its own.",
+      "confirm_plural": "Permanently remove {count} selected photos, stored previews, face records, tags, ratings and album membership from this Facet catalog for all users. This cannot be undone. Original files, OS trash, backups, exports and copies in other browsers remain. A later scan can re-add any original that still exists. Only the named photos are removed; companions and other stack members are unchanged.",
+      "result_plural": "Removed {count} photos from Facet."
     },
     "analysis": "Analysis",
     "info": "Info",
@@ -3403,7 +3428,10 @@
       "clear_preview": "Remove every manual tag from the target.",
       "replace_boundary": "This can remove imported manual tags. AI tags and other metadata stay unchanged. Each batch is atomic; multiple batches are separate commits. No Undo is available for manual tags.",
       "recheck": "A Replace/Clear response is uncertain. Close, inspect the target and create a new preview; repeating this old plan could overwrite newer tags.",
-      "captured_view_scope": "The matching whole-view photo list was captured after exclusions, including matching folded members. Later matches are not added. Companion files are not included."
+      "captured_view_scope": "The matching whole-view photo list was captured after exclusions, including matching folded members. Later matches are not added. Companion files are not included.",
+      "applied": "Tags updated on {count} photo",
+      "applied_plural": "Tags updated on {count} photos",
+      "empty_state": "These photos have no manual tags yet. Create keywords in the keyword editor."
     },
     "title": "Edit tags",
     "tag_label": "Tag",
@@ -3569,7 +3597,8 @@
     "delete_partial_result": "{deleted} deleted, {failed} failed",
     "delete_failed": "Delete failed — nothing was sent to trash",
     "delete_disabled_view_scope_tooltip": "Select photos explicitly to delete them — a whole-view selection can’t be used here",
-    "remove_missing_rows": "Also remove library entries whose file is already missing from disk"
+    "remove_missing_rows": "Also remove library entries whose file is already missing from disk",
+    "preview_error": "Could not preview"
   },
   "shortcuts": {
     "title": "Keyboard shortcuts",
@@ -3889,7 +3918,7 @@
     "kept": "Kept",
     "yes": "Yes",
     "no": "No",
-    "unknown": "Unknown",
+    "unknown": "Not set",
     "photo_count": "Photos: {count}",
     "field": "Field",
     "entry_action": "{action} · {kind} · {date} · #{id}",
@@ -3898,8 +3927,10 @@
     "limits": "Up to 50 recent entries for this account. Review fields, location, capture date and manual stacks are supported. Manual tags, exports and file moves are not undone here. Short Undo is separate and limited to its snapshot.",
     "reload": "Reload history",
     "preview_action": "Review restore…",
-    "restore_preview": "Restore this entry: {count} photos · part {part}/{parts}.",
-    "restore_boundary": "Only this part will be restored. The server checks recorded values and revisions; a conflict restores nothing. Other parts are separate actions."
+    "restore_preview": "Restore this entry: {count} photo · part {part}/{parts}.",
+    "restore_boundary": "Only this part will be restored. The server checks recorded values and revisions; a conflict restores nothing. Other parts are separate actions.",
+    "superseded": "Superseded by a later change",
+    "restore_preview_plural": "Restore this entry: {count} photos · part {part}/{parts}."
   },
   "stacks": {
     "review_help": "Review suggested stacks using the darkroom. S stacks with the proposed cover in the grid or the focused photo in the darkroom; Enter opens a group or stacks the focused photo. X skips. Edit members changes the group before saving. Stacking never changes photo review decisions. R rejects the focused photo immediately and excludes it from the draft. Undo restores its review and draft membership. Grouping waits for Save; leaving without saving does not undo Reject.",
@@ -4101,7 +4132,9 @@
       "delete_branch": "Delete branch and its assignments",
       "error": "Could not complete the requested hierarchy update.",
       "scope_changed": "The captured selection or options changed. Preview again.",
-      "changed": "Targets: {targets}. Photos changed: {photos}; assignments changed: {assignments}."
-    }
+      "changed": "Targets: {targets}. Photos changed: {photos}; assignments changed: {assignments}.",
+      "help_label": "About keyword editing"
+    },
+    "help_label": "About the keyword tree"
   }
 }

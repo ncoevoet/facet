@@ -9092,6 +9092,8 @@ export interface components {
             parts: number;
             /** Reverted */
             reverted: boolean;
+            /** Superseded */
+            superseded: boolean;
         };
         /** OrganizationHistory */
         OrganizationHistory: {

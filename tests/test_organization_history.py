@@ -356,3 +356,34 @@ def test_failed_finish_maps_to_422_and_rolls_back(edition_client, seed_photos_pr
     with get_db() as conn:
         assert conn.execute("SELECT is_kept FROM photos WHERE path='/history-finish/a.jpg'").fetchone()[0] in (None, 0)
 
+
+
+def _entries(client):
+    return client.get('/api/organization_history').json()['entries']
+
+
+def test_newer_same_kind_entry_on_overlapping_path_supersedes_older(edition_client, seed_photos_prefix):
+    seed_photos_prefix('/history-sup/', [dict(path=f'/history-sup/{p}.jpg', filename=f'{p}.jpg') for p in ('a', 'b')])
+    assert edition_client.post('/api/photos/batch_review', json=dict(photo_paths=['/history-sup/a.jpg', '/history-sup/b.jpg'], decision='kept')).status_code == 200
+    assert edition_client.post('/api/photos/batch_review', json=dict(photo_paths=['/history-sup/b.jpg'], decision='rejected')).status_code == 200
+    newest, older = _entries(edition_client)
+    assert (newest['kind'], older['kind']) == ('review', 'review')
+    assert newest['superseded'] is False
+    assert older['superseded'] is True
+
+
+def test_newer_entry_of_another_kind_does_not_supersede(edition_client, seed_photos_prefix):
+    seed_photos_prefix('/history-sup/', [dict(path='/history-sup/a.jpg', filename='a.jpg', gps_latitude=1, gps_longitude=2, gps_manually_set=0)])
+    assert edition_client.put('/api/photo/gps', json=dict(path='/history-sup/a.jpg', gps_latitude=3, gps_longitude=4)).status_code == 200
+    assert edition_client.post('/api/photos/batch_review', json=dict(photo_paths=['/history-sup/a.jpg'], decision='kept')).status_code == 200
+    newest, older = _entries(edition_client)
+    assert (newest['kind'], older['kind']) == ('review', 'gps')
+    assert newest['superseded'] is False
+    assert older['superseded'] is False
+
+
+def test_newer_same_kind_entry_on_disjoint_paths_does_not_supersede(edition_client, seed_photos_prefix):
+    seed_photos_prefix('/history-sup/', [dict(path=f'/history-sup/{p}.jpg', filename=f'{p}.jpg') for p in ('a', 'b')])
+    assert edition_client.post('/api/photos/batch_review', json=dict(photo_paths=['/history-sup/a.jpg'], decision='kept')).status_code == 200
+    assert edition_client.post('/api/photos/batch_review', json=dict(photo_paths=['/history-sup/b.jpg'], decision='kept')).status_code == 200
+    assert [entry['superseded'] for entry in _entries(edition_client)] == [False, False]
