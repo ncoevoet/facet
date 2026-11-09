@@ -48,7 +48,7 @@ const COMPARE_TAB_NAMES: string[] = [...Object.keys(COMPARE_TAB_INDEX), 'context
   ],
   changeDetection: ChangeDetectionStrategy.Eager,
   template: `
-    <div class="p-4 md:p-6 max-w-screen-2xl mx-auto">
+    <div class="px-4 py-4 md:py-6 max-w-screen-2xl mx-auto">
       <h1 class="sr-only">{{ I18N.comparison.title | translate }}</h1>
       <!-- Tab-contextual actions projected into the global header on lg (HeaderSlotService);
            small screens use the in-page Top bar below and the weights-tab mobile bar. -->
@@ -126,7 +126,7 @@ const COMPARE_TAB_NAMES: string[] = [...Object.keys(COMPARE_TAB_INDEX), 'context
       }
 
       @if (compareFilters.selectedCategory()) {
-        <mat-tab-group class="mb-6" [selectedIndex]="compareFilters.activeTab()" (selectedIndexChange)="onTabChange($event)">
+        <mat-tab-group class="mb-6" mat-stretch-tabs="false" mat-align-tabs="start" [selectedIndex]="compareFilters.activeTab()" (selectedIndexChange)="onTabChange($event)">
           <!-- Snapshots tab -->
           <mat-tab>
             <ng-template mat-tab-label>

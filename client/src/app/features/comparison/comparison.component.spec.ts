@@ -1,6 +1,6 @@
 import type { Mock } from 'vitest';
 import { TestBed } from '@angular/core/testing';
-import { signal } from '@angular/core';
+import { CUSTOM_ELEMENTS_SCHEMA, signal } from '@angular/core';
 import { of } from 'rxjs';
 import { MatSnackBar } from '@angular/material/snack-bar';
 import { ApiService } from '../../core/services/api.service';
@@ -9,6 +9,12 @@ import { I18nService } from '../../core/services/i18n.service';
 import { GalleryStore } from '../gallery/gallery.store';
 import { CompareFiltersService } from './compare-filters.service';
 import { ComparisonComponent } from './comparison.component';
+import { ComparisonWeightsTabComponent } from './comparison-weights-tab.component';
+import { ComparisonSnapshotsTabComponent } from './comparison-snapshots-tab.component';
+import { ComparisonAbTabComponent } from './comparison-ab-tab.component';
+import { ComparisonSuggestionsTabComponent } from './comparison-suggestions-tab.component';
+import { ComparisonPriorityTabComponent } from './comparison-priority-tab.component';
+import { PanoramaSettingsTabComponent } from './panorama-settings-tab.component';
 import { PageContextService } from '../../core/agent/page-context.service';
 
 describe('ComparisonComponent', () => {
@@ -135,6 +141,42 @@ describe('ComparisonComponent', () => {
       mockStore.types.set(types);
       TestBed.tick();
       expect(compareFilters.selectedCategory()).toBe('landscape');
+    });
+  });
+
+  describe('page shell', () => {
+    function render() {
+      TestBed.resetTestingModule();
+      compareFilters.selectedCategory.set('portrait');
+      TestBed.configureTestingModule({
+        providers: [
+          { provide: ApiService, useValue: mockApi },
+          { provide: MatSnackBar, useValue: mockSnackBar },
+          { provide: I18nService, useValue: { t: (key: string) => key, translations: () => ({}) } },
+          { provide: AuthService, useValue: mockAuth },
+          { provide: GalleryStore, useValue: mockStore },
+          { provide: CompareFiltersService, useValue: compareFilters },
+        ],
+      });
+      TestBed.overrideComponent(ComparisonComponent, {
+        remove: { imports: [ComparisonWeightsTabComponent, ComparisonSnapshotsTabComponent, ComparisonAbTabComponent, ComparisonSuggestionsTabComponent, ComparisonPriorityTabComponent, PanoramaSettingsTabComponent] },
+        add: { schemas: [CUSTOM_ELEMENTS_SCHEMA] },
+      });
+      const fixture = TestBed.createComponent(ComparisonComponent);
+      fixture.detectChanges();
+      return fixture;
+    }
+
+    it('insets the page 16px (px-4) at every width, not 24px at md', () => {
+      const root = (render().nativeElement as HTMLElement).firstElementChild as HTMLElement;
+      expect(root.className).toContain('px-4');
+      expect(root.className).not.toContain('md:p-6');
+    });
+
+    it('left-aligns its tabs instead of stretching them', () => {
+      const group = (render().nativeElement as HTMLElement).querySelector('mat-tab-group') as HTMLElement;
+      expect(group.getAttribute('mat-stretch-tabs')).toBe('false');
+      expect(group.getAttribute('mat-align-tabs')).toBe('start');
     });
   });
 });
