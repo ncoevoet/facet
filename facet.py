@@ -826,7 +826,6 @@ DEFAULT_SCAN_STALE_SECONDS = 120
 
 LIBRARY_JOB_ARGS = (
     'apply_recommendations',
-    'update_faces_job',
     'backfill_clipping',
     'backfill_focal_35mm',
     'cluster_faces_force',
@@ -867,7 +866,6 @@ LIBRARY_JOB_ARGS = (
     'recompute_tags',
     'recompute_tags_vlm',
     'recompute_text',
-    'tag_untagged',
     'refill_face_thumbnails_force',
     'refill_face_thumbnails_incremental',
     'refresh_thumbnails',
@@ -876,9 +874,11 @@ LIBRARY_JOB_ARGS = (
     'rescan_gps',
     'score_topiq',
     'sync_label_comparisons',
+    'tag_untagged',
     'train_keeper',
     'train_ranker',
     'translate_captions',
+    'update_faces_job',
 )
 
 # Mutating flags whose handlers write unconditionally: combined with --dry-run
