@@ -2000,6 +2000,7 @@
             "enum": [
               "burst",
               "similar",
+              "lookalike",
               "scene",
               "bracket",
               "panorama",
@@ -2240,5 +2241,5 @@
       "name": "ui_show_comparison"
     }
   ],
-  "version": "ca5d80340f4473bd"
+  "version": "e7d6bbe8ae66aa9b"
 }
