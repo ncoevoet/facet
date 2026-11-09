@@ -132,7 +132,7 @@ describe('GalleryComponent', () => {
       config: signal(null),
       activeFilterCount: signal(0),
       filterDrawerOpen: signal(false),
-      reviewProgressVisible: signal(true), setReviewProgressVisible: vi.fn(),
+      reviewProgressVisible: signal(true), setReviewProgressVisible: vi.fn(), viewChangeClears: signal(0),
       currentAlbum: signal(null),
       temporaryReviewQueue: signal(false),
       initializing: signal(false),
@@ -621,6 +621,31 @@ describe('GalleryComponent', () => {
     expect(fixture.componentInstance['selectionAffordance']()).toBe(false);
     expect(fixture.componentInstance.tooltipDisabled()).toBe(true);
     expect(fixture.componentInstance['cardTooltipMode']()).toBe('off');
+    fixture.destroy();
+  });
+
+  it('drops the Select affordance when a view change clears the selection', () => {
+    const fixture = TestBed.createComponent(GalleryComponent);
+    fixture.detectChanges();
+    fixture.componentInstance['selectionAffordance'].set(true);
+    mockStore.viewChangeClears.update((n: number) => n + 1);
+    fixture.detectChanges();
+    expect(fixture.componentInstance['selectionAffordance']()).toBe(false);
+    fixture.destroy();
+  });
+
+  it('clears a parked tooltip when the docked-rail breakpoint flips panel mode', () => {
+    mockStore.filters.update((filters: GalleryFilters) => ({ ...filters, tooltip_mode: 'panel' }));
+    const fixture = TestBed.createComponent(GalleryComponent);
+    const wide = signal(false);
+    Object.defineProperty(fixture.componentInstance['railWide'], 'isDesktop', { value: wide, configurable: true });
+    fixture.detectChanges();
+    expect(fixture.componentInstance.panelMode()).toBe(false);
+    fixture.componentInstance['tooltipPhoto'].set({ path: '/a.jpg' } as never);
+    wide.set(true);
+    fixture.detectChanges();
+    expect(fixture.componentInstance.panelMode()).toBe(true);
+    expect(fixture.componentInstance['tooltipPhoto']()).toBeNull();
     fixture.destroy();
   });
 
@@ -2772,25 +2797,9 @@ describe('GalleryComponent', () => {
           key: 'Escape', code: 'Escape', keyCode: 27, bubbles: true, cancelable: true,
         }));
 
-        it('names the inspector owner and closes the panel without dispatching a deselection', () => {
+        it('names the inspector owner and offers no close button (the Details mode is switched off in the Display menu)', () => {
           expect(rail.querySelector('[data-inspector-owner]')?.textContent).toContain('a.jpg');
-          mockStore.selectedPaths.set(new Set(['/a.jpg', '/offscreen.jpg']));
-          mockStore.selectionCount.set(2);
-          mockStore.updateFilter.mockImplementationOnce((key: string, value: string) => {
-            expect(key).toBe('tooltip_mode');
-            mockStore.filters.set({ ...mockStore.filters(), tooltip_mode: value });
-          });
-          fixture.detectChanges();
-          mockStore.toggleSelection.mockClear();
-          mockStore.clearSelection.mockClear();
-          rail.querySelector<HTMLButtonElement>('[data-close-inspector]')!.click();
-          fixture.detectChanges();
-          expect(fixture.nativeElement.querySelector('[data-details-rail]')).toBeNull();
-          expect([...mockStore.selectedPaths()]).toEqual(['/a.jpg', '/offscreen.jpg']);
-          expect(mockStore.selectionCount()).toBe(2);
-          expect(mockStore.updateFilter).toHaveBeenCalledWith('tooltip_mode', 'off');
-          expect(mockStore.toggleSelection).not.toHaveBeenCalled();
-          expect(mockStore.clearSelection).not.toHaveBeenCalled();
+          expect(rail.querySelector('[data-close-inspector]')).toBeNull();
         });
 
         it('Escape releases the photo and the drawer is not closed (rendered)', () => {
@@ -3925,6 +3934,29 @@ describe('GalleryComponent', () => {
       expect(disclosure.open).toBe(false);
       expect(escape.defaultPrevented).toBe(true);
       expect(mockStore.selectionCount()).toBe(2);
+    });
+
+    it('keeps the Compare requirement out of the flow and on the Compare tooltip', () => {
+      const f = render({ viewScoped: true });
+      const requirement = bar(f)!.querySelector<HTMLElement>('#compare-selection-requirements')!;
+      expect(requirement.classList.contains('sr-only')).toBe(true);
+      expect(requirement.classList.contains('basis-full')).toBe(false);
+      const compare = labelled(f, I18N.gallery.selection.compare)!;
+      expect(compare.getAttribute('aria-describedby')).toBe('compare-selection-requirements');
+      const tooltip = f.debugElement.queryAll(By.directive(MatTooltip)).find(d => d.nativeElement === compare.parentElement);
+      expect(tooltip?.injector.get(MatTooltip).message).toBe(requirement.textContent!.trim());
+    });
+
+    it('closes the Actions disclosure after one of its commands runs and when the filters change', () => {
+      const f = render();
+      const disclosure = bar(f)!.querySelector<HTMLDetailsElement>('[data-selection-more]')!;
+      disclosure.open = true;
+      disclosure.querySelector<HTMLButtonElement>('[data-toolbar-panel] button:not([disabled])')!.click();
+      expect(disclosure.open).toBe(false);
+      disclosure.open = true;
+      mockStore.filters.set({ ...mockStore.filters(), camera: 'Gamma' });
+      f.detectChanges();
+      expect(disclosure.open).toBe(false);
     });
 
     it('uses an icon present in the shipped font for Cull to folder', () => {
@@ -6167,6 +6199,29 @@ describe('GalleryComponent', () => {
       mockStore.filters.set({ ...DEFAULT_FILTERS, tag: 'beach' });
       fixture.detectChanges();
       expect(host.querySelector('[data-review-progress]')).not.toBeNull();
+    });
+
+    it('lets the Review popover show the banner again after its close button hid it for this tab', async () => {
+      mockStore.reviewProgress.set({ total: 10, undecided: 6, kept: 3, rejected: 1 });
+      mockStore.setReviewProgressVisible.mockImplementation((visible: boolean) => mockStore.reviewProgressVisible.set(visible));
+      const host = render();
+      host.querySelector<HTMLButtonElement>(`[data-review-progress] button[aria-label="${I18N.ui.buttons.dismiss}"]`)!.click();
+      fixture.detectChanges();
+      expect(host.querySelector('[data-review-progress]')).toBeNull();
+      host.querySelector<HTMLButtonElement>('[data-collection-review] button')!.click();
+      fixture.detectChanges(); await fixture.whenStable();
+      const overlay = TestBed.inject(OverlayContainer).getContainerElement();
+      const toggle = overlay.querySelector<HTMLInputElement>('[data-review-progress-toggle]')!;
+      expect(toggle.checked).toBe(false);
+      toggle.click();
+      fixture.detectChanges();
+      expect(mockStore.setReviewProgressVisible).toHaveBeenLastCalledWith(true);
+      expect(host.querySelector('[data-review-progress]')).not.toBeNull();
+      expect(toggle.checked).toBe(true);
+      toggle.click();
+      fixture.detectChanges();
+      expect(mockStore.setReviewProgressVisible).toHaveBeenLastCalledWith(false);
+      expect(host.querySelector('[data-review-progress]')).toBeNull();
     });
 
     it('renders nothing while there is no progress snapshot', () => {

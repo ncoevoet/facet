@@ -246,8 +246,6 @@ const SET_KIND_TOGGLE: Record<string, keyof HiddenFilterFlags> = {
                   <p data-inspector-owner class="m-0 truncate text-xs text-[var(--mat-sys-on-surface-variant)]" [title]="owner.filename">{{ owner.filename }}</p>
                 }
               </div>
-              <button mat-icon-button data-close-inspector [attr.aria-label]="I18N.dialog.close | translate"
-                      (click)="store.updateFilter('tooltip_mode', 'off')"><mat-icon>close</mat-icon></button>
             </header>
             @if (hasActivePhoto()) {
               <button mat-button class="!min-w-0 !px-0 shrink-0 self-start mx-4 mt-2" (click)="deselectFromRail()">
@@ -330,6 +328,11 @@ const SET_KIND_TOGGLE: Record<string, keyof HiddenFilterFlags> = {
             <ng-template #reviewSettings>
               <ng-container [ngTemplateOutlet]="collectionReviewCommands" />
               <ng-container [ngTemplateOutlet]="collectionSettings.reviewSettings()" />
+              <label class="flex min-h-11 cursor-pointer items-center gap-2 px-3 text-sm">
+                <input type="checkbox" data-review-progress-toggle class="size-4 accent-[var(--mat-sys-primary)]"
+                       [checked]="reviewProgressToggleOn()" (change)="onReviewProgressToggle($any($event.target).checked)" />
+                {{ I18N.gallery.review_progress.show_toggle | translate }}
+              </label>
             </ng-template>
             <app-control-popover data-collection-options [keepOnQueryChange]="true" icon="tune" [disclosure]="true" [hint]="pinned() ? '' : (I18N.gallery.display_controls_hint | translate)"
                 [label]="I18N.gallery.sidebar.tabs.display | translate" [content]="displaySettings" />
@@ -853,9 +856,11 @@ const SET_KIND_TOGGLE: Record<string, keyof HiddenFilterFlags> = {
           }
           <button mat-button disabledInteractive class="max-md:!min-h-11 max-md:!min-w-11 max-md:!w-11 max-md:!px-2" (click)="clearSelection()" [matTooltip]="I18N.gallery.selection.clear | translate" [attr.aria-label]="I18N.gallery.selection.clear | translate"><mat-icon class="max-md:!m-0">close</mat-icon><span class="hidden md:inline">{{ I18N.gallery.selection.clear | translate }}</span></button>
           @if (selectionCount() >= 2) {
-            <button mat-button class="max-md:!min-h-11 max-md:!min-w-11 max-md:!w-11 max-md:!px-2" [disabled]="!canCompareSelection()" (click)="compareSelection()" [matTooltip]="I18N.gallery.selection.compare | translate" [attr.aria-label]="I18N.gallery.selection.compare | translate" [attr.aria-describedby]="canCompareSelection() ? null : 'compare-selection-requirements'"><mat-icon class="max-md:!m-0">compare</mat-icon><span class="hidden md:inline">{{ I18N.gallery.selection.compare | translate }}</span></button>
+            <span class="inline-flex" [matTooltip]="canCompareSelection() ? '' : ((selectionCount() > compareQueueLimit ? I18N.gallery.selection.compare_queue_limit : I18N.gallery.selection.compare_queue_requirements) | translate:{ max: compareQueueLimit })">
+              <button mat-button class="max-md:!min-h-11 max-md:!min-w-11 max-md:!w-11 max-md:!px-2" [disabled]="!canCompareSelection()" (click)="compareSelection()" [matTooltip]="I18N.gallery.selection.compare | translate" [attr.aria-label]="I18N.gallery.selection.compare | translate" [attr.aria-describedby]="canCompareSelection() ? null : 'compare-selection-requirements'"><mat-icon class="max-md:!m-0">compare</mat-icon><span class="hidden md:inline">{{ I18N.gallery.selection.compare | translate }}</span></button>
+            </span>
             @if (!canCompareSelection()) {
-              <span id="compare-selection-requirements" class="text-xs basis-full">{{ (selectionCount() > compareQueueLimit ? I18N.gallery.selection.compare_queue_limit : I18N.gallery.selection.compare_queue_requirements) | translate:{ max: compareQueueLimit } }}</span>
+              <span id="compare-selection-requirements" class="sr-only">{{ (selectionCount() > compareQueueLimit ? I18N.gallery.selection.compare_queue_limit : I18N.gallery.selection.compare_queue_requirements) | translate:{ max: compareQueueLimit } }}</span>
             }
           }
           @if (auth.isEdition()) {
@@ -867,7 +872,7 @@ const SET_KIND_TOGGLE: Record<string, keyof HiddenFilterFlags> = {
           </button>
           <details #selectionMore #selectionDisclosure name="gallery-selection-disclosures" data-selection-more class="max-md:hidden" (keydown.escape)="closeDisclosure($event, selectionMore, selectionMoreSummary)">
             <summary #selectionMoreSummary class="flex min-h-11 cursor-pointer list-none items-center gap-1 rounded-md px-2 text-sm font-medium hover:bg-[var(--mat-sys-surface-container-high)] focus-visible:outline-2 focus-visible:outline-[var(--mat-sys-primary)]"><mat-icon aria-hidden="true">more_horiz</mat-icon>{{ I18N.gallery.selection.actions | translate }}</summary>
-            <div data-toolbar-panel class="absolute bottom-full left-0 mb-3 group-data-[toolbar-down=true]/selection:bottom-auto group-data-[toolbar-down=true]/selection:top-full group-data-[toolbar-down=true]/selection:mb-0 group-data-[toolbar-down=true]/selection:mt-3 flex max-h-[60vh] w-full max-w-160 flex-wrap items-center gap-2 overflow-y-auto rounded-lg border border-[var(--mat-sys-outline-variant)] bg-[var(--mat-sys-surface-container)] p-3 shadow-lg">
+            <div data-toolbar-panel role="presentation" (click)="closeSelectionMoreOnCommand($event)" class="absolute bottom-full left-0 mb-3 group-data-[toolbar-down=true]/selection:bottom-auto group-data-[toolbar-down=true]/selection:top-full group-data-[toolbar-down=true]/selection:mb-0 group-data-[toolbar-down=true]/selection:mt-3 flex max-h-[60vh] w-full max-w-160 flex-wrap items-center gap-2 overflow-y-auto rounded-lg border border-[var(--mat-sys-outline-variant)] bg-[var(--mat-sys-surface-container)] p-3 shadow-lg">
           @if (!allLoadedSelected()) {
             <button mat-button disabledInteractive (click)="selectAll()" [matTooltip]="I18N.gallery.selection.select_all | translate" [attr.aria-label]="I18N.gallery.selection.select_all | translate"><mat-icon>select_all</mat-icon><span>{{ I18N.gallery.selection.select_all | translate }}</span></button>
           }
@@ -1586,6 +1591,26 @@ export class GalleryComponent implements OnInit, OnDestroy {
   /** An empty scope has nothing to review, so it gets no "0 of 0" card. */
   protected readonly reviewProgressShown = computed(() =>
     this.store.reviewProgressVisible() && !!this.store.reviewProgress()?.total && !this.noticeClosed('review_progress'));
+  /** The Review popover's checkbox: on while the banner is wanted and not closed for this scope in this tab. */
+  protected readonly reviewProgressToggleOn = computed(() =>
+    this.store.reviewProgressVisible() && !this.noticeClosed('review_progress'));
+
+  protected onReviewProgressToggle(on: boolean): void {
+    if (on) this.showReviewProgress();
+    else this.store.setReviewProgressVisible(false);
+  }
+
+  /** Bring the banner back: the × only closed it for this scope in this tab, so that memory goes too. */
+  protected showReviewProgress(): void {
+    const signature = this.noticeSignatures()['review_progress'];
+    const next = { ...this.noticeDismissals() };
+    const kept = next['review_progress']?.filter(entry => entry !== signature);
+    if (kept?.length) next['review_progress'] = kept;
+    else delete next['review_progress'];
+    this.noticeDismissals.set(next);
+    saveNoticeDismissals(next);
+    this.store.setReviewProgressVisible(true);
+  }
   protected readonly reviewBookmarkShown = computed(() => !!this.store.reviewBookmark() && !this.noticeClosed('review_bookmark'));
   protected readonly hiddenNoticeShown = computed(() => this.showHiddenBanner() && !this.noticeClosed('hidden'));
   protected readonly restoreNoticeShown = computed(() => this.canRestoreHidden() && !this.noticeClosed('restore_hidden'));
@@ -2022,8 +2047,21 @@ export class GalleryComponent implements OnInit, OnDestroy {
     // and hides instead of shows. A dedicated effect rather than folding this
     // into the one above: that one also recomputes scroll/virtual-window
     // layout, which a mode switch has no reason to trigger.
+    // A view change clears the selection in the store; the Select affordance goes with it.
+    effect(() => {
+      this.store.viewChangeClears();
+      untracked(() => this.selectionAffordance.set(false));
+    });
+    effect(() => {
+      this.store.filters();
+      untracked(() => {
+        const details = this.selectionMoreRef()?.nativeElement;
+        if (details) details.open = false;
+      });
+    });
     effect(() => {
       this.tooltipMode(); // track dependency
+      this.panelMode(); // the rail breakpoint flips panel mode without a mode change
       untracked(() => this.tooltipPhoto.set(null));
     });
   }
@@ -3008,6 +3046,13 @@ export class GalleryComponent implements OnInit, OnDestroy {
   }
 
   protected readonly closeDisclosure = closeDetailsOnEscape;
+  private readonly selectionMoreRef = viewChild<ElementRef<HTMLDetailsElement>>('selectionMore');
+
+  /** The Actions disclosure is a menu: running one of its commands closes it. */
+  protected closeSelectionMoreOnCommand(event: Event): void {
+    const details = this.selectionMoreRef()?.nativeElement;
+    if (details && event.target instanceof Element && event.target.closest('button')) details.open = false;
+  }
 
   protected closeMobileSearch(event: Event): void {
     if (!this.compactCollectionControls() || this.mediumCollectionControls()) return;

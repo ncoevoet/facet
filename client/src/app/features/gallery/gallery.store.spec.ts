@@ -462,7 +462,14 @@ describe('GalleryStore', () => {
       store.selectedPaths.set(new Set(['/a.jpg', '/b.jpg']));
       await store.updateFilter('camera', 'Gamma');
       expect(store.selectedPaths().size).toBe(0);
-      expect(snackOpen).toHaveBeenCalledWith(I18N.gallery.selection.cleared_by_view, '', expect.anything());
+      expect(snackOpen).toHaveBeenCalledWith(I18N.gallery.selection.cleared_by_view, '', expect.objectContaining({ verticalPosition: 'top' }));
+    });
+
+    it('announces the view-change clear so the gallery can drop its selection affordance', async () => {
+      const before = store.viewChangeClears();
+      store.selectedPaths.set(new Set(['/a.jpg']));
+      await store.updateFilter('camera', 'Gamma');
+      expect(store.viewChangeClears()).toBe(before + 1);
     });
 
     it('clears a whole-view selection and its exclusions too', async () => {

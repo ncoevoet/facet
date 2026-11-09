@@ -791,6 +791,8 @@ export class GalleryStore {
     this.lastSelectedIndex = -1;
   }
 
+  /** Bumped each time a view change drops the selection, so the gallery can drop its own selection affordance with it. */
+  readonly viewChangeClears = signal(0);
   private lastViewKey: string | null = null;
 
   /** What the loaded photos are a view of: the query without sort or paging, which reorder or slice the same set. */
@@ -817,8 +819,9 @@ export class GalleryStore {
     }
     const hadSelection = this.selectedPaths().size > 0 || this.viewScopeSelected();
     this.clearSelection();
+    this.viewChangeClears.update(n => n + 1);
     if (hadSelection) {
-      this.snackBar.open(this.i18n.t(I18N.gallery.selection.cleared_by_view), '', { duration: 5000 });
+      this.snackBar.open(this.i18n.t(I18N.gallery.selection.cleared_by_view), '', { duration: 5000, verticalPosition: 'top' });
     }
   }
 
