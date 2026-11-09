@@ -1619,8 +1619,6 @@
       "start": "Revisar sin decidir",
       "resume": "Continuar revisión",
       "browser": "Reanudar la cola recordada en este navegador.",
-      "hide_from_menu": "Ocultar el progreso de revisión",
-      "show_from_menu": "Mostrar el progreso de revisión",
       "show_toggle": "Mostrar el progreso de la revisión"
     },
     "manual_faces_need_review": "Rostros manuales por revisar",

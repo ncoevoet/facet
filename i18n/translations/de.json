@@ -1619,8 +1619,6 @@
       "start": "Unentschiedene sichten",
       "resume": "Sichtung fortsetzen",
       "browser": "Gespeicherte Warteschlange in diesem Browser fortsetzen.",
-      "hide_from_menu": "Bewertungsfortschritt ausblenden",
-      "show_from_menu": "Bewertungsfortschritt anzeigen",
       "show_toggle": "Prüffortschritt anzeigen"
     },
     "manual_faces_need_review": "Manuelle Gesichter prüfen",

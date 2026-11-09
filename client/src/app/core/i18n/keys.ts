@@ -1659,8 +1659,6 @@ export const I18N = {
       start: "gallery.review_progress.start",
       resume: "gallery.review_progress.resume",
       browser: "gallery.review_progress.browser",
-      hide_from_menu: "gallery.review_progress.hide_from_menu",
-      show_from_menu: "gallery.review_progress.show_from_menu",
       show_toggle: "gallery.review_progress.show_toggle",
     },
     manual_faces_need_review: "gallery.manual_faces_need_review",

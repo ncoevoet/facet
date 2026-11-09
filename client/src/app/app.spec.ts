@@ -559,7 +559,7 @@ describe('App', () => {
       expect(menu.querySelector('a[href="/stats"]')).not.toBeNull();
     });
 
-    it('marks the gallery workspace current across real query and album navigation', async () => {
+    it('marks the gallery tab current across real query navigation, but not on an album page', async () => {
       const { fixture, root } = render(false);
       const router = TestBed.inject(Router);
       router.resetConfig([{ path: '', component: NavigationFixturePage }, { path: 'album/:albumId', component: NavigationFixturePage }, { path: 'other', component: NavigationFixturePage }]);
@@ -567,7 +567,7 @@ describe('App', () => {
       const link = root.querySelector<HTMLAnchorElement>('[data-destination-tabs] a[href="/"]')!;
       expect(link.getAttribute('aria-current')).toBe('page');
       await router.navigateByUrl('/album/17?tag=trip'); fixture.detectChanges();
-      expect(link.getAttribute('aria-current')).toBe('page');
+      expect(link.getAttribute('aria-current')).toBeNull();
       await router.navigateByUrl('/other'); fixture.detectChanges();
       expect(link.getAttribute('aria-current')).toBeNull();
     });
@@ -691,35 +691,51 @@ describe('App', () => {
       expect(TestBed.inject(GalleryStore).notifyOrganizationRestored).toHaveBeenCalledTimes(notifies);
     });
 
-    it.each([[true], [false]])('draws the theme-accent 2px underline exactly while edition is %s', (edition) => {
+    it.each([[true], [false]])('draws no edition accent underline on either header while edition is %s', (edition) => {
       const { root } = render(edition);
-      const bar = root.querySelector<HTMLElement>('[data-workspace-navigation]')!;
-      expect(bar.style.borderBottomColor).toBe(edition ? 'var(--facet-accent)' : '');
-      expect(bar.classList.contains('!border-b-2')).toBe(edition);
+      for (const selector of ['[data-workspace-navigation]', '[data-page-actions]']) {
+        const bar = root.querySelector<HTMLElement>(selector);
+        if (!bar) continue;
+        expect(bar.style.borderBottomColor).toBe('');
+        expect(bar.classList.contains('!border-b-2')).toBe(false);
+      }
     });
 
-    it('lists Card actions, Keyboard shortcuts, then the shell-level Help, and calls their handlers', () => {
-      const { fixture, root } = render(false);
-      const app = fixture.componentInstance as unknown as { openCardActionsDialog: () => void; openKeymapDialog: () => void; openHelpDialog: () => void };
-      const openCardActions = vi.spyOn(app, 'openCardActionsDialog').mockImplementation(() => undefined);
+    const menuLabels = (items: HTMLElement[]) => items.map(i => i.textContent!.replace(/\s+/g, ' ').trim());
+    const openSubmenu = (fixture: ReturnType<typeof render>['fixture'], items: HTMLElement[], label: string) => {
+      items.find(i => i.textContent!.includes(label))!.click();
+      fixture.detectChanges();
+      return Array.from(document.querySelectorAll<HTMLButtonElement>('.mat-mdc-menu-panel button[mat-menu-item]'));
+    };
+
+    it('orders the user menu Shortcuts, Help, Display, Jobs & diagnostics, Logout and calls the handlers', () => {
+      const { fixture, root } = render(true, true, true);
+      const app = fixture.componentInstance as unknown as { openKeymapDialog: () => void; openHelpDialog: () => void };
       const openKeymap = vi.spyOn(app, 'openKeymapDialog').mockImplementation(() => undefined);
       const openHelp = vi.spyOn(app, 'openHelpDialog').mockImplementation(() => undefined);
       const items = openUserMenu(fixture, root);
-      const labels = items.map(i => i.textContent!.replace(/\s+/g, ' ').trim());
-      expect(labels.at(-3)).toContain(I18N.gallery.card_actions.title);
-      expect(labels.at(-2)).toContain(I18N.shortcuts.keymap_title);
-      expect(labels.at(-1)).toContain(I18N.nav.help);
-      // The customisation group is separated from Help by a divider.
-      const content = document.querySelector('.mat-mdc-menu-panel .mat-mdc-menu-content')!;
-      const children = [...content.children];
-      const helpIndex = children.findIndex(c => c.tagName === 'BUTTON' && c.textContent!.includes(I18N.nav.help));
-      expect(children[helpIndex - 1].tagName).toBe('MAT-DIVIDER');
-      items.at(-3)!.click();
-      expect(openCardActions).toHaveBeenCalledOnce();
-      items.at(-2)!.click();
+      const labels = menuLabels(items);
+      expect(labels).toHaveLength(5);
+      expect(labels[0]).toContain(I18N.shortcuts.keymap_title);
+      expect(labels[1]).toContain(I18N.nav.help);
+      expect(labels[2]).toContain(I18N.ui.display_menu);
+      expect(labels[3]).toContain(I18N.ui.jobs_diagnostics);
+      expect(labels[4]).toContain(I18N.auth.logout);
+      expect(labels.some(l => l.includes(I18N.gallery.card_actions.title))).toBe(false);
+      expect(labels.some(l => l.includes(I18N.gallery.review_progress.show_toggle))).toBe(false);
+      items[0].click();
       expect(openKeymap).toHaveBeenCalledOnce();
-      items.at(-1)!.click();
+      items[1].click();
       expect(openHelp).toHaveBeenCalledOnce();
+    });
+
+    it('nests language, dark mode and theme under Display', () => {
+      const { fixture, root } = render(false);
+      const items = openUserMenu(fixture, root);
+      const sub = menuLabels(openSubmenu(fixture, items, I18N.ui.display_menu));
+      expect(sub.some(l => l.includes(I18N.ui.switch_language))).toBe(true);
+      expect(sub.some(l => l.includes(I18N.ui.light_mode))).toBe(true);
+      expect(sub.some(l => l.includes(I18N.ui.theme))).toBe(true);
     });
 
     it.each([[true, false, false, true], [false, false, false, false],
@@ -727,9 +743,37 @@ describe('App', () => {
       'limits diagnostics menu to installation administrators (%s/%s/%s)', (edition, multi, admin, visible) => {
         const { fixture, root } = render(edition, multi, admin);
         const items = openUserMenu(fixture, root);
-        expect(items.some(i => i.textContent?.includes(I18N.immich_diagnostics.title))).toBe(visible);
+        const hasJobs = items.some(i => i.textContent?.includes(I18N.ui.jobs_diagnostics));
+        expect(hasJobs).toBe(edition || (multi && admin));
+        if (!hasJobs) { expect(visible).toBe(false); return; }
+        const sub = openSubmenu(fixture, items, I18N.ui.jobs_diagnostics);
+        expect(sub.some(i => i.textContent?.includes(I18N.immich_diagnostics.title))).toBe(visible);
       },
     );
+
+    it('omits Jobs & diagnostics when the user has no rights for any child', () => {
+      const { fixture, root } = render(false);
+      const items = openUserMenu(fixture, root);
+      expect(menuLabels(items).some(l => l.includes(I18N.ui.jobs_diagnostics))).toBe(false);
+    });
+
+    it('carries a descriptive tooltip on a destination tab and the reset hint on Gallery', () => {
+      const { fixture } = render(false);
+      const message = (href: string) => fixture.debugElement
+        .query(By.css(`[data-destination-tabs] a[href="${href}"]`)).injector.get(MatTooltip).message;
+      expect(message('/persons')).toBe(I18N.nav.tooltips.persons);
+      expect(message('/')).toBe(I18N.nav.gallery_tooltip);
+    });
+
+    it('marks Albums, not Gallery, current on /album/:id', async () => {
+      const { fixture, root } = render(false);
+      (TestBed.inject(GalleryStore).config as unknown as ReturnType<typeof signal>).set({ features: { show_albums: true } });
+      const router = TestBed.inject(Router);
+      router.resetConfig([{ path: '', component: NavigationFixturePage }, { path: 'album/:albumId', component: NavigationFixturePage }]);
+      await router.navigateByUrl('/album/1'); fixture.detectChanges();
+      expect(root.querySelector('[data-destination-tabs] a[href="/albums"]')!.getAttribute('aria-current')).toBe('page');
+      expect(root.querySelector('[data-destination-tabs] a[href="/"]')!.getAttribute('aria-current')).toBeNull();
+    });
 
     it('does not open a late diagnostics chunk after edition access is lost', async () => {
       const { fixture } = render(true);

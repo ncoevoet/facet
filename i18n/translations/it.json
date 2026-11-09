@@ -1619,8 +1619,6 @@
       "start": "Rivedi le indecise",
       "resume": "Continua revisione",
       "browser": "Riprendi la coda memorizzata in questo browser.",
-      "hide_from_menu": "Nascondi avanzamento revisione",
-      "show_from_menu": "Mostra avanzamento revisione",
       "show_toggle": "Mostra l’avanzamento della revisione"
     },
     "manual_faces_need_review": "Volti manuali da verificare",

@@ -1619,8 +1619,6 @@
       "start": "Rever por decidir",
       "resume": "Continuar revisão",
       "browser": "Retomar a fila guardada neste navegador.",
-      "hide_from_menu": "Ocultar progresso da revisão",
-      "show_from_menu": "Mostrar progresso da revisão",
       "show_toggle": "Mostrar o progresso da revisão"
     },
     "manual_faces_need_review": "Rostos manuais a rever",

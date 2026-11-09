@@ -1619,8 +1619,6 @@
       "start": "审阅未决定照片",
       "resume": "继续审阅",
       "browser": "在此浏览器中恢复记住的队列。",
-      "hide_from_menu": "隐藏审阅进度",
-      "show_from_menu": "显示审阅进度",
       "show_toggle": "显示审阅进度"
     },
     "manual_faces_need_review": "手动人脸需要检查",

@@ -1645,8 +1645,6 @@
       "start": "Review undecided",
       "resume": "Continue reviewing",
       "browser": "Resume the remembered queue on this browser.",
-      "hide_from_menu": "Hide review progress",
-      "show_from_menu": "Show review progress",
       "show_toggle": "Show review progress"
     },
     "manual_faces_need_review": "Manual faces need review",

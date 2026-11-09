@@ -34,7 +34,6 @@ import { PersonsFiltersService } from './features/persons/persons-filters.servic
 import { CompareFiltersService } from './features/comparison/compare-filters.service';
 import { CapsuleFiltersService } from './features/capsules/capsule-filters.service';
 import { TranslatePipe } from './shared/pipes/translate.pipe';
-import { CardActionsDialogComponent } from './features/gallery/card-actions-dialog.component';
 import { HelpDialogComponent } from './shared/components/help-dialog/help-dialog.component';
 import { CULLING_SHORTCUT_SECTIONS, STACK_SHORTCUT_SECTIONS, MANUAL_STACK_SHORTCUT_SECTIONS } from './features/gallery/culling-shortcuts';
 import { galleryShortcutSection, ShortcutSection } from './features/gallery/gallery-shortcuts';
@@ -157,12 +156,6 @@ export class App implements OnInit {
   protected readonly pageHelp = inject(PageHelpService);
   private readonly keymap = inject(KeyboardMappingService);
 
-  /** Open the photo-card hover-button customiser from the user menu — the
-   *  same dialog the filter sidebar offers, reachable from every route. */
-  protected openCardActionsDialog(): void {
-    this.dialog.open(CardActionsDialogComponent, { width: '26rem', autoFocus: false });
-  }
-
   /** Read-only Immich status for whoever may administer the installation. */
   protected async openImmichDiagnostics(): Promise<void> {
     const { current, dispose } = this.staleness.create(this.destroyRef, {
@@ -213,21 +206,22 @@ export class App implements OnInit {
     const path = pathOf(this.url());
     const tools = new Set(['/culling', '/junk', '/stats', '/compare']);
     return [
-      { path: '/', icon: 'diamond', label: I18N.nav.gallery, visible: true },
-      { path: '/albums', icon: 'photo_album', label: I18N.nav.albums, visible: features?.show_albums },
-      { path: '/capsules', icon: 'auto_stories', label: I18N.nav.capsules, visible: features?.show_capsules },
-      { path: '/timeline', icon: 'view_timeline', label: I18N.nav.timeline, visible: features?.show_timeline },
-      { path: '/folders', icon: 'folder', label: I18N.nav.folders, visible: features?.show_folders },
-      { path: '/persons', icon: 'people', label: I18N.nav.persons, visible: true },
-      { path: '/map', icon: 'map', label: I18N.nav.map, visible: features?.show_map && this.hasGeoPhotos() },
-      { path: '/culling', icon: 'burst_mode', label: I18N.nav.culling, visible: this.auth.isEdition() },
-      { path: '/junk', icon: 'delete_sweep', label: I18N.nav.junk_sweep, visible: this.auth.isEdition() && features?.show_junk_sweep },
-      { path: '/stats', icon: 'bar_chart', label: I18N.nav.stats, visible: true },
-      { path: '/compare', icon: 'compare', label: I18N.nav.compare, visible: this.auth.isEdition() },
+      { path: '/', icon: 'diamond', label: I18N.nav.gallery, tooltipKey: I18N.nav.gallery_tooltip, visible: true },
+      { path: '/albums', icon: 'photo_album', label: I18N.nav.albums, tooltipKey: I18N.nav.tooltips.albums, visible: features?.show_albums },
+      { path: '/capsules', icon: 'auto_stories', label: I18N.nav.capsules, tooltipKey: I18N.nav.tooltips.capsules, visible: features?.show_capsules },
+      { path: '/timeline', icon: 'view_timeline', label: I18N.nav.timeline, tooltipKey: I18N.nav.tooltips.timeline, visible: features?.show_timeline },
+      { path: '/folders', icon: 'folder', label: I18N.nav.folders, tooltipKey: I18N.nav.tooltips.folders, visible: features?.show_folders },
+      { path: '/persons', icon: 'people', label: I18N.nav.persons, tooltipKey: I18N.nav.tooltips.persons, visible: true },
+      { path: '/map', icon: 'map', label: I18N.nav.map, tooltipKey: I18N.nav.tooltips.map, visible: features?.show_map && this.hasGeoPhotos() },
+      { path: '/culling', icon: 'burst_mode', label: I18N.nav.culling, tooltipKey: I18N.nav.tooltips.culling, visible: this.auth.isEdition() },
+      { path: '/junk', icon: 'delete_sweep', label: I18N.nav.junk_sweep, tooltipKey: I18N.nav.tooltips.junk_sweep, visible: this.auth.isEdition() && features?.show_junk_sweep },
+      { path: '/stats', icon: 'bar_chart', label: I18N.nav.stats, tooltipKey: I18N.nav.tooltips.stats, visible: true },
+      { path: '/compare', icon: 'compare', label: I18N.nav.compare, tooltipKey: I18N.nav.tooltips.compare, visible: this.auth.isEdition() },
     ].filter(item => item.visible).map((item, index, items) => ({ ...item,
       tool: tools.has(item.path),
       groupStart: index > 0 && tools.has(item.path) && !tools.has(items[index - 1].path),
-      active: item.path === '/' ? this.isGalleryRoute() : path === item.path || path.startsWith(item.path + '/'),
+      active: item.path === '/' ? this.isGalleryRoute() && !path.startsWith('/album/')
+        : path === item.path || path.startsWith(item.path + '/') || (item.path === '/albums' && path.startsWith('/album/')),
     }));
   });
   private readonly navigationSpace = viewChild<ElementRef<HTMLElement>>('navigationSpace');

@@ -29,33 +29,38 @@
     </ng-template>
   </mat-menu>
   @if (auth.isAuthenticated() && !isSharedRoute()) {
-    <header data-workspace-navigation class="flex min-h-12 shrink-0 items-center gap-1 border-b border-[var(--mat-sys-outline-variant)] bg-[var(--mat-sys-surface-container-low)] px-2"
-            [class.!border-b-2]="auth.isEdition()" [style.border-bottom-color]="auth.isEdition() ? 'var(--facet-accent)' : null">
+    <header data-workspace-navigation class="flex min-h-12 shrink-0 items-center gap-1 border-b border-[var(--mat-sys-outline-variant)] bg-[var(--mat-sys-surface-container-low)] px-2">
       <button mat-icon-button class="lg:!hidden" data-mobile-navigation [matMenuTriggerFor]="applicationNavigationMenu" [attr.aria-label]="I18N.nav.navigation | translate"><mat-icon>menu</mat-icon></button>
       <a routerLink="/" class="flex flex-1 items-center gap-2 px-2 text-sm font-medium no-underline lg:hidden" [attr.title]="I18N.nav.gallery_tooltip | translate" (dblclick)="resetAllFilters()"><mat-icon aria-hidden="true">diamond</mat-icon>Facet</a>
       <div #navigationSpace data-navigation-space class="relative hidden overflow-hidden min-w-0 flex-1 items-stretch self-stretch gap-1 lg:flex">
         <div #navigationMeasurements aria-hidden="true" inert class="pointer-events-none invisible absolute left-0 top-0 flex w-max">
           @for (destination of navigationDestinations(); track destination.path) {
-            <span data-navigation-measure [class.!pl-5]="destination.groupStart" [class.border-l]="destination.groupStart" [class.border-l-transparent]="destination.groupStart" [class.!font-normal]="destination.tool" class="inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap border-b-2 border-transparent px-2.5 text-sm font-medium">
+            <span data-navigation-measure [class.!pl-5]="destination.groupStart" [class.!font-normal]="destination.tool" class="inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap border-b-2 border-transparent px-2.5 text-sm font-medium">
               <mat-icon aria-hidden="true" class="hidden !h-5 !w-5 !text-xl xl:inline-flex">{{ destination.icon }}</mat-icon>{{ destination.label | translate }}
             </span>
           }
           @if (memoriesNavigationAvailable()) {
-            <button mat-button data-navigation-measure class="shrink-0 self-center"><mat-icon [class]="'memories' | markTone">{{ featureMark }}</mat-icon>{{ I18N.nav.memories | translate }}</button>
+            <span data-navigation-measure class="inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap border-b-2 border-transparent px-2.5 text-sm font-medium">
+              <mat-icon aria-hidden="true" class="hidden !h-5 !w-5 !text-xl xl:inline-flex">{{ featureMark }}</mat-icon>{{ I18N.nav.memories | translate }}
+            </span>
           }
           <button mat-button data-more-measure class="shrink-0 self-center"><mat-icon>more_horiz</mat-icon>{{ I18N.nav.more | translate }}</button>
         </div>
         <nav data-destination-tabs class="hidden min-w-0 flex-1 items-stretch self-stretch overflow-hidden lg:flex" [attr.aria-label]="I18N.nav.navigation | translate">
           @for (destination of desktopDestinations(); track destination.path) {
             <a [routerLink]="destination.path" [attr.aria-current]="destination.active ? 'page' : null"
+               [matTooltip]="destination.tooltipKey | translate" (dblclick)="destination.path === '/' && resetAllFilters()"
                class="inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap border-b-2 border-transparent px-2.5 text-sm font-medium text-[var(--mat-sys-on-surface-variant)] no-underline hover:bg-[var(--mat-sys-surface-container)] focus-visible:outline-2 focus-visible:outline-[var(--mat-sys-primary)] focus-visible:-outline-offset-2"
-               [class.!pl-5]="destination.groupStart" [class.border-l]="destination.groupStart" [class.border-l-[var(--mat-sys-outline-variant)]]="destination.groupStart" [class.!font-normal]="destination.tool"
+               [class.!pl-5]="destination.groupStart" [class.!font-normal]="destination.tool"
                [class.!border-b-[var(--mat-sys-primary)]]="destination.active" [class.!text-[var(--mat-sys-primary)]]="destination.active">
               <mat-icon aria-hidden="true" class="hidden !h-5 !w-5 !text-xl xl:inline-flex">{{ destination.icon }}</mat-icon>{{ destination.label | translate }}
             </a>
           }
           @if (memoriesInTabs()) {
-            <button mat-button class="shrink-0 self-center" (click)="playMemories()"><mat-icon [class]="'memories' | markTone">{{ featureMark }}</mat-icon>{{ I18N.nav.memories | translate }}</button>
+            <button type="button" (click)="playMemories()" [matTooltip]="I18N.memories.tooltip | translate"
+                    class="inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap border-b-2 border-transparent px-2.5 text-sm font-medium bg-transparent cursor-pointer text-[var(--mat-sys-on-surface-variant)] hover:bg-[var(--mat-sys-surface-container)] focus-visible:outline-2 focus-visible:outline-[var(--mat-sys-primary)] focus-visible:-outline-offset-2">
+              <mat-icon aria-hidden="true" class="hidden !h-5 !w-5 !text-xl xl:inline-flex">{{ featureMark }}</mat-icon>{{ I18N.nav.memories | translate }}
+            </button>
           }
         </nav>
         @if (showMoreDestinations()) {
@@ -78,14 +83,8 @@
 
   <!-- Toolbar (hidden on shared routes) -->
   @if (!isSharedRoute() && showPageToolbar()) {
-  <!-- The edition-active underline: an unlocked edit session can write to the
-       library, and the only prior signal was a small amber shield among ten
-       icons. The bar is there from unlock until lock, sitting exactly on the
-       border the toolbar already draws, in the selected theme's accent. -->
   <mat-toolbar data-page-actions [attr.aria-label]="I18N.nav.page_actions | translate" class="shrink-0 !w-auto !px-2 !bg-[var(--mat-sys-surface-container)] border-b border-[var(--mat-sys-outline-variant)]"
-               [class.max-lg:!hidden]="auth.isAuthenticated()"
-               [class.!border-b-2]="auth.isEdition()"
-               [style.border-bottom-color]="auth.isEdition() ? 'var(--facet-accent)' : null">
+               [class.max-lg:!hidden]="auth.isAuthenticated()">
     <div class="flex items-center gap-3 w-full">
       <!-- Compare category selector (visible only on compare route, lg+) -->
       @if (auth.isAuthenticated() && isCompareRoute()) {
@@ -105,12 +104,14 @@
         <!-- overflow-x-clip (not hidden/auto) so a wide page toolbar can never paint
              over the shell controls to its right, while a slider's value bubble can
              still overflow vertically. The projected toolbar owns its own scrolling. -->
-        <div class="!hidden lg:!flex items-center gap-1 ml-2 min-w-0 overflow-x-clip">
+        <div class="!hidden lg:!flex flex-1 items-center gap-1 ml-2 min-w-0 overflow-x-clip">
           <ng-container [ngTemplateOutlet]="tpl" />
         </div>
       }
 
-      <div class="flex-1"></div>
+      @if (!auth.isAuthenticated()) {
+        <div class="flex-1"></div>
+      }
 
       <!-- Language menu (not authenticated) -->
       @if (!auth.isAuthenticated()) {
@@ -352,9 +353,6 @@
           <mat-icon [class.!text-amber-400]="auth.isEdition()">{{ auth.isEdition() ? 'admin_panel_settings' : 'account_circle' }}</mat-icon>
         </button>
         <mat-menu #userMenu="matMenu">
-          @if (auth.isEdition()) {
-            <button mat-menu-item (click)="openProcessing()"><mat-icon>receipt_long</mat-icon>{{ I18N.export.jobs.workspace_title | translate }}</button>
-          }
           @if (auth.status()?.display_name) {
             <div class="px-4 py-2 text-sm opacity-70">{{ auth.status()?.display_name }}</div>
           }
@@ -370,8 +368,50 @@
                 {{ I18N.edition.label | translate }}
               </button>
             }
-            <mat-divider />
           }
+          @if (auth.features()['mcp']) {
+            <button mat-menu-item (click)="showConnectAssistantDialog()">
+              <mat-icon>smart_toy</mat-icon>
+              {{ I18N.dialog.connect_assistant.menu | translate }}
+            </button>
+          }
+          <button mat-menu-item (click)="openKeymapDialog()">
+            <mat-icon>keyboard</mat-icon>
+            {{ I18N.shortcuts.keymap_title | translate }}
+          </button>
+          <button mat-menu-item (click)="openHelpDialog()">
+            <mat-icon>help_outline</mat-icon>
+            {{ I18N.nav.help | translate }}
+          </button>
+          <mat-divider />
+          <button mat-menu-item [matMenuTriggerFor]="displayMenu">
+            <mat-icon>display_settings</mat-icon>
+            {{ I18N.ui.display_menu | translate }}
+          </button>
+          @if (auth.isEdition() || auth.isInstallAdmin()) {
+            <button mat-menu-item [matMenuTriggerFor]="jobsMenu">
+              <mat-icon>receipt_long</mat-icon>
+              {{ I18N.ui.jobs_diagnostics | translate }}
+            </button>
+          }
+          @if (auth.isMultiUser() || auth.loginPasswordRequired()) {
+            <mat-divider />
+            <button mat-menu-item (click)="logout()">
+              <mat-icon>logout</mat-icon>
+              {{ I18N.auth.logout | translate }}
+            </button>
+          }
+          @if (store.config()?.version; as version) {
+            <mat-divider />
+            <div class="px-4 py-2 text-xs opacity-60">
+              {{ I18N.ui.version | translate: { version: version } }}
+              @if (store.config()?.build; as build) {
+                <div class="font-mono break-all">{{ build }}</div>
+              }
+            </div>
+          }
+        </mat-menu>
+        <mat-menu #displayMenu="matMenu">
           <button mat-menu-item [matMenuTriggerFor]="langMenu">
             <mat-icon>language</mat-icon>
             {{ I18N.ui.switch_language | translate }}
@@ -384,50 +424,15 @@
             <mat-icon>palette</mat-icon>
             {{ I18N.ui.theme | translate }}
           </button>
-          @if (auth.features()['mcp']) {
-            <button mat-menu-item (click)="showConnectAssistantDialog()">
-              <mat-icon>smart_toy</mat-icon>
-              {{ I18N.dialog.connect_assistant.menu | translate }}
-            </button>
+        </mat-menu>
+        <mat-menu #jobsMenu="matMenu">
+          @if (auth.isEdition()) {
+            <button mat-menu-item (click)="openProcessing()"><mat-icon>receipt_long</mat-icon>{{ I18N.export.jobs.workspace_title | translate }}</button>
           }
-          <mat-divider />
-          <button mat-menu-item (click)="store.setReviewProgressVisible(!store.reviewProgressVisible())">
-            <mat-icon>{{ store.reviewProgressVisible() ? 'visibility' : 'visibility_off' }}</mat-icon>
-            {{ (store.reviewProgressVisible() ? I18N.gallery.review_progress.hide_from_menu : I18N.gallery.review_progress.show_from_menu) | translate }}
-          </button>
-          <button mat-menu-item (click)="openCardActionsDialog()">
-            <mat-icon>tune</mat-icon>
-            {{ I18N.gallery.card_actions.title | translate }}
-          </button>
-          <button mat-menu-item (click)="openKeymapDialog()">
-            <mat-icon>keyboard</mat-icon>
-            {{ I18N.shortcuts.keymap_title | translate }}
-          </button>
           @if (auth.isInstallAdmin()) {
             <button mat-menu-item (click)="openImmichDiagnostics()">
               <mat-icon>sync</mat-icon>
               {{ I18N.immich_diagnostics.title | translate }}
-            </button>
-          }
-          <mat-divider />
-          <button mat-menu-item (click)="openHelpDialog()">
-            <mat-icon>help_outline</mat-icon>
-            {{ I18N.nav.help | translate }}
-          </button>
-          @if (store.config()?.version; as version) {
-            <mat-divider />
-            <div class="px-4 py-2 text-xs opacity-60">
-              {{ I18N.ui.version | translate: { version: version } }}
-              @if (store.config()?.build; as build) {
-                <div class="font-mono break-all">{{ build }}</div>
-              }
-            </div>
-          }
-          @if (auth.isMultiUser() || auth.loginPasswordRequired()) {
-            <mat-divider />
-            <button mat-menu-item (click)="logout()">
-              <mat-icon>logout</mat-icon>
-              {{ I18N.auth.logout | translate }}
             </button>
           }
         </mat-menu>

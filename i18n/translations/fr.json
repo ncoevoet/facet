@@ -1619,8 +1619,6 @@
       "start": "Trier les indécises",
       "resume": "Continuer le tri",
       "browser": "Reprendre la file mémorisée dans ce navigateur.",
-      "hide_from_menu": "Masquer la progression de revue",
-      "show_from_menu": "Afficher la progression de revue",
       "show_toggle": "Afficher la progression de la revue"
     },
     "manual_faces_need_review": "Visages manuels à vérifier",
