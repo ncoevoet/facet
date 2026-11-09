@@ -31,7 +31,9 @@ interface AssignmentReport { assigned_count: number; already: number[]; missing:
   host: { class: 'block min-w-0', tabindex: '-1' },
   template: `
     <div class="flex flex-wrap items-center gap-2 py-3">
-      <p role="status" class="m-0 min-w-0 flex-1 text-sm">{{ I18N.persons.review_queue.total | translate:{ count: total() } }}</p>
+      <div class="min-w-0 flex-1">
+        @if (!error()) { <p role="status" class="m-0 text-sm">{{ I18N.persons.review_queue.total | translate:{ count: total() } }}</p> }
+      </div>
       <button mat-stroked-button data-queue-reload [disabled]="loading() || busy()" (click)="load(0)"><mat-icon>refresh</mat-icon>{{ I18N.persons.review_queue.reload | translate }}</button>
       <button mat-flat-button data-review-selected [disabled]="!selected().size || loading() || busy() || uncertain() || changed() || choosing()" (click)="preview($event)"><mat-icon>fact_check</mat-icon>{{ I18N.persons.review_queue.preview | translate:{ count: selected().size } }}</button>
     </div>
@@ -62,6 +64,7 @@ interface AssignmentReport { assigned_count: number; already: number[]; missing:
         @if (mode() === 'matches') { <button mat-stroked-button data-browse-without-matches (click)="withoutSuggestions.set(true); load(0)">{{ I18N.persons.review_queue.without_matches | translate }}</button> }
       </div>
     }
+    @if (suggestionsSkipped() && !error()) { <p role="status" data-suggestions-skipped class="mb-3 text-sm text-[var(--mat-sys-on-surface-variant)]">{{ I18N.persons.review_queue.suggestions_skipped | translate }}</p> }
     @if (loading()) { <p role="status">{{ I18N.ui.labels.loading | translate }}</p> }
     @for (group of groups(); track group.id) {
       <section class="mb-4">
@@ -143,6 +146,7 @@ export class FaceReviewQueueComponent {
   protected readonly changed = signal(false);
   protected readonly error = signal(false);
   protected readonly withoutSuggestions = signal(false);
+  protected readonly suggestionsSkipped = signal(false);
   protected readonly pending = signal<readonly CapturedFace[] | null>(null);
   protected readonly interactionLocked = computed(() => this.busy() || !!this.pending() || this.uncertain() || this.changed() || this.choosing());
   protected readonly receipt = signal<{ assigned: number; skipped: number; reasons: ReceiptReason[] } | null>(null);
@@ -191,12 +195,14 @@ export class FaceReviewQueueComponent {
     this.total.set(0); this.error.set(false); this.uncertain.set(false); this.changed.set(false);
     this.pending.set(null); this.faces.set([]); this.selected.set(new Set()); this.choices.set(new Map());
     this.receipt.set(null); this.loading.set(false); this.busy.set(false); this.nextAfter.set(null);
+    this.suggestionsSkipped.set(false);
   }
   protected async load(after: number): Promise<void> {
     if (!this.allowed() || this.busy() || (after > 0 && (this.loading() || this.pending() || this.uncertain() || this.changed() || this.choosing()))) return;
     if (after === 0) this.reset();
     this.loading.set(true); this.error.set(false);
     const guard = this.capture(), generation = this.generation;
+    let retryWithoutSuggestions = false;
     try {
       const response = await firstValueFrom(this.api.get<Response>('/faces/review', { after_id: after, limit: 48, suggest: this.mode() === 'matches' && !this.withoutSuggestions() }));
       if (!guard.current()) return;
@@ -209,8 +215,17 @@ export class FaceReviewQueueComponent {
         choices.set(face.face_id, { personId: face.suggestions[0].person_id, name: face.suggestions[0].name });
       }
       this.choices.set(choices);
-    } catch { if (guard.current()) this.error.set(true); }
+    } catch (failure) {
+      if (!guard.current()) return;
+      // 412: too many reference faces to rank suggestions. Browsing without them still works.
+      if ((failure as { status?: number }).status === 412 && this.mode() === 'matches' && !this.withoutSuggestions()) retryWithoutSuggestions = true;
+      else this.error.set(true);
+    }
     finally { if (this.generation === generation) { this.loading.set(false); if (!guard.current()) this.error.set(true); } guard.dispose(); }
+    if (!retryWithoutSuggestions) return;
+    this.withoutSuggestions.set(true);
+    await this.load(after);
+    if (!this.error()) this.suggestionsSkipped.set(true);
   }
   protected toggle(id: number): void {
     if (!this.allowed() || this.busy() || this.pending() || this.uncertain() || this.changed() || !this.choices().has(id)) return;
@@ -232,7 +247,11 @@ export class FaceReviewQueueComponent {
       const ref = this.dialog.open(PersonSelectorDialogComponent, { width: 'min(95vw, 28rem)', data: { allowCreate: false } });
       this.chooser = ref;
       const result = await firstValueFrom(ref.afterClosed());
-      if (guard.current() && result?.kind === 'select' && typeof result.person.name === 'string') this.choose(face.face_id, result.person.id, result.person.name);
+      if (guard.current() && result?.kind === 'select' && typeof result.person.name === 'string') {
+        this.choose(face.face_id, result.person.id, result.person.name);
+        // Picking a person by hand is an explicit decision: tick the face so it is in the next preview.
+        if (this.choices().get(face.face_id)?.personId === result.person.id) this.selected.update(value => new Set(value).add(face.face_id));
+      }
       if (this.chooser === ref) this.chooser = null;
     } catch { if (guard.current()) this.error.set(true); }
     finally {

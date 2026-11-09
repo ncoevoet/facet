@@ -285,6 +285,54 @@ describe('FaceReviewQueueComponent', () => {
     fixture.destroy(); root.remove();
   });
 
+  it('retries once without suggestions on a 412 and says so', async () => {
+    const { fixture, root, api } = await render();
+    api.get.mockReturnValueOnce(throwError(() => ({ status: 412 })))
+      .mockReturnValueOnce(of({ ...response, faces: response.faces.map(face => ({ ...face, suggestions: [] })) }));
+    root.querySelector<HTMLButtonElement>('[data-queue-reload]')!.click();
+    await fixture.whenStable(); fixture.detectChanges();
+    expect(api.get.mock.calls.slice(-2).map(call => call[1].suggest)).toEqual([true, false]);
+    expect(root.querySelector('[role=alert]')).toBeNull();
+    expect(root.querySelector('[data-suggestions-skipped]')?.textContent).toContain('persons.review_queue.suggestions_skipped');
+    expect(root.querySelectorAll('[data-review-face]')).toHaveLength(2);
+    fixture.destroy(); root.remove();
+  });
+
+  it('does not retry a non-412 failure and hides the unassigned total while the error shows', async () => {
+    const { fixture, root, api } = await render();
+    const reads = api.get.mock.calls.length;
+    api.get.mockReturnValueOnce(throwError(() => ({ status: 500 })));
+    root.querySelector<HTMLButtonElement>('[data-queue-reload]')!.click();
+    await fixture.whenStable(); fixture.detectChanges();
+    expect(api.get).toHaveBeenCalledTimes(reads + 1);
+    expect(root.querySelector('[role=alert]')).not.toBeNull();
+    expect(root.querySelector('[data-suggestions-skipped]')).toBeNull();
+    expect(root.textContent).not.toContain('persons.review_queue.total');
+    fixture.destroy(); root.remove();
+  });
+
+  it('ticks the face checkbox when a person is picked through Choose person, not through a suggestion', async () => {
+    const { fixture, root, dialog, chooserClosed } = await render();
+    const checkbox = () => root.querySelector<HTMLInputElement>('[data-review-face="1"] input[type=checkbox]')!;
+    expect(checkbox().checked).toBe(false);
+    const trigger = [...root.querySelectorAll<HTMLButtonElement>('[data-review-face="1"] button')].find(button => button.textContent?.includes('persons.review_queue.choose_person'))!;
+    trigger.click();
+    await vi.waitFor(() => expect(dialog.open).toHaveBeenCalled());
+    chooserClosed.next({ kind: 'select', person: { id: 30, name: 'Zoe' } }); chooserClosed.complete();
+    await fixture.whenStable(); fixture.detectChanges();
+    expect(checkbox().checked).toBe(true);
+    expect(root.querySelector<HTMLInputElement>('[data-review-face="2"] input[type=checkbox]')!.checked).toBe(false);
+    fixture.destroy(); root.remove();
+  });
+
+  it('leaves the checkbox alone when a suggestion button chooses the person', async () => {
+    const { fixture, root } = await render();
+    const suggestion = [...root.querySelectorAll<HTMLButtonElement>('[data-review-face="1"] button')].find(button => button.textContent?.includes('Alice'))!;
+    suggestion.click(); fixture.detectChanges();
+    expect(root.querySelector<HTMLInputElement>('[data-review-face="1"] input[type=checkbox]')!.checked).toBe(false);
+    fixture.destroy(); root.remove();
+  });
+
   it.each(['selected', 'cancelled', 'stale'] as const)('settles a person chooser that is %s without assigning faces', async ending => {
     const { fixture, root, api, auth, dialog, chooserClosed } = await render();
     const trigger = [...root.querySelectorAll<HTMLButtonElement>('button')].find(button => button.textContent?.includes('persons.review_queue.choose_person'))!;
