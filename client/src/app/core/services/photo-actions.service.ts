@@ -56,7 +56,7 @@ export class PhotoActionsService {
       const ref = this.dialog.open(ConfirmDialogComponent, {
         width: '95vw', maxWidth: '30rem', data: {
           title: this.i18n.t(I18N.photo_detail.remove_catalog.title),
-          message: this.i18n.t(I18N.photo_detail.remove_catalog.confirm, { count: paths.length }),
+          message: this.i18n.t(paths.length === 1 ? I18N.photo_detail.remove_catalog.confirm : I18N.photo_detail.remove_catalog.confirm_plural, { count: paths.length }),
           confirmLabel: this.i18n.t(I18N.photo_detail.remove_catalog.action),
         },
       });
@@ -71,7 +71,7 @@ export class PhotoActionsService {
       this.store.removePhotos(removed);
       if (removed.length) void clearThumbnailCaches(removed);
       if (!guard.current()) return [];
-      const message = this.i18n.t(I18N.photo_detail.remove_catalog.result, { count: removed.length });
+      const message = this.i18n.t(removed.length === 1 ? I18N.photo_detail.remove_catalog.result : I18N.photo_detail.remove_catalog.result_plural, { count: removed.length });
       const refused = result.refused_bracket_lead?.length
         ? ' ' + this.i18n.t(I18N.photo_detail.remove_catalog.bracket_refused) : '';
       this.snackBar.open(message + refused, '', { duration: 4000 });
