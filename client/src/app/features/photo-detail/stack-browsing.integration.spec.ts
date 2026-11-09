@@ -209,7 +209,7 @@ describe('manual stack browsing through rendered viewer, Router and HTTP', () =>
     expect(router.url).toBe('/?no_gps=true');
   });
 
-  it('opens the adjacent collection photo when an arrow key follows a thumbnail click', async () => {
+  it('opens the adjacent collection photo when a vertical arrow key follows a thumbnail click', async () => {
     store.photos.set([makePhoto({ path: paths[1] }), makePhoto({ path: '/outside.jpg', filename: 'outside.jpg' })]);
     await open();
     const filters = { ...store.filters() };
@@ -218,7 +218,8 @@ describe('manual stack browsing through rendered viewer, Router and HTTP', () =>
     current.click(); current.focus();
     const navigation = arrived();
     const navigate = vi.spyOn(router, 'navigate');
-    current.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowRight', bubbles: true, cancelable: true }));
+    // Up/Down own the collection list; Left/Right would walk this member's stack first.
+    current.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowDown', bubbles: true, cancelable: true }));
     // Navigation reuses the loaded collection row. Assert the real Router call
     // before waiting, so a missing action fails without timing out the test.
     expect(navigate).toHaveBeenCalledExactlyOnceWith(['/photo'], expect.objectContaining({
@@ -284,7 +285,7 @@ describe('manual stack browsing through rendered viewer, Router and HTTP', () =>
     await membership();
     expect(button('[data-photo-next]').getAttribute('aria-label')).toBe('photo_detail.collection.next');
     expect(root().querySelector('[data-photo-inspector]')?.getAttribute('aria-label')).toBe('photo_detail.details');
-    expect(root().querySelector('[data-photo-info] summary h2')).not.toBeNull();
+    expect(root().querySelector('[data-photo-inspector] app-photo-metrics-tabs')).not.toBeNull();
     const favorite = button('[aria-label="rating.favorite"]');
     expect(favorite.getAttribute('aria-pressed')).toBe('false');
     const navigation = arrived();

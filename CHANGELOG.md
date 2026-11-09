@@ -20,6 +20,8 @@ All notable changes to Facet are documented in this file.
 
 ### Changed
 
+- **The photo page's details panel is laid out like the gallery's.** The review controls open it without a title or a rule, with the favorite beside the stars, and the EXIF, Quality, Composition, Technical and Histogram tabs replace the Info and Analysis sections. **Analysis** in the header now opens the score explainer, as **Why this score?** does. `←`/`→` step through the open photo's stack, or through the burst, bracket, panorama or duplicate group the gallery folds into one photo, before moving on to the next photo; on wide screens `↑`/`↓` move along the collection directly, and they are the keys that move between collection-sidebar thumbnails.
+
 - **The photo-tile ratio choice moves to the gallery's display menu.** Square crop or the photo's own ratio — the card hugs the photo instead of cropping it. The choice is stored per browser and applies to grids with details hidden.
 
 - The full-page Stack Editor supports bounded keyboard image inspection, a single-stop thumbnail strip, explicit image-load Retry, and focus restoration after rejecting the focused member. Narrow controls retain touch targets and readable filenames.
@@ -108,6 +110,7 @@ All notable changes to Facet are documented in this file.
 
 ### Fixed
 
+- Opening a set frame the gallery hides, such as a burst sibling from the set strip, no longer drops the collection sidebar and the collection arrows: the frame keeps the collection position of the frame the gallery shows.
 - **Culling no longer drops a large similar scene.** A run of look-alike photos bigger than `similarity_groups.max_group_size` (50) vanished from the Similar and All feeds entirely; it is now split at a stricter threshold, or in capture order when no threshold can separate it. Auto-cull (`POST /api/culling/auto`, `--auto-cull`) and `--cull-min-score` now act on those pieces too, so photos in a long scene they used to skip can be rejected or spared. A card showing fewer photos than its group holds says so ("20 of 41 photos shown"), and shows the similarity its piece formed at rather than the slider value. The Similarity menu explains the slider.
 - The Filters button announces how many filters are active, not only that it opens the panel, and the README filter-sidebar screenshot shows the three tabs that exist.
 - Statistics exposes filters and summary figures on mobile, improves chart contrast and text alternatives, and handles errors and account changes without displaying stale results.
@@ -120,7 +123,7 @@ All notable changes to Facet are documented in this file.
 
 - Junk Sweep preserves unseen candidates after decisions and failed paging, separates load failures from empty queues, and stops later bulk write batches after navigation or account changes. Named touch-sized decisions stay visible; kind counts match the reader’s remaining candidates.
 
-- Arrow keys on the opened-photo collection thumbnails now open the focused photo instead of only moving its focus outline. Home/End open the first/last photo in the visible section; collection filters, selection and Back remain intact.
+- `↑`/`↓` on the opened-photo collection thumbnails now open the focused photo instead of only moving its focus outline, and continue along the collection past the first or last thumbnail. Home/End open the first/last photo in the visible section; collection filters, selection and Back remain intact.
 
 - Narrow photo headers give filenames a full-width two-line row. Ready-image readouts keep dimensions and zoom together in narrow panes while retaining accessible source status; Favorite and zoom controls use 44-pixel coarse-pointer targets.
 

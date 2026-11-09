@@ -3573,6 +3573,7 @@
   "shortcuts": {
     "title": "键盘快捷键",
     "navigate": "切换照片",
+    "navigate_set": "先浏览照片组或堆叠，再切换照片",
     "open_detail": "打开照片",
     "toggle_select": "选中／取消选中",
     "select_all": "选中所有已加载照片",

@@ -3598,6 +3598,7 @@
   "shortcuts": {
     "title": "Keyboard shortcuts",
     "navigate": "Move between photos",
+    "navigate_set": "Step through the photo's group or stack, then between photos",
     "open_detail": "Open photo",
     "toggle_select": "Select / deselect",
     "select_all": "Select all loaded",

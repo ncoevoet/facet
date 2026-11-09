@@ -3573,6 +3573,7 @@
   "shortcuts": {
     "title": "Atalhos de teclado",
     "navigate": "Mover entre fotos",
+    "navigate_set": "Percorrer o grupo ou a pilha da foto e depois as fotos",
     "open_detail": "Abrir foto",
     "toggle_select": "Selecionar / desmarcar",
     "select_all": "Selecionar todas as carregadas",

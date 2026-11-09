@@ -1,3 +1,4 @@
+import { ApplicationRef } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
 import { I18nService } from '../../core/services/i18n.service';
 import { makePhoto } from '../../../testing/photo.fixture';
@@ -47,14 +48,64 @@ describe('PhotoCollectionSidebarComponent', () => {
     expect(buttons.map(button => button.tabIndex)).toEqual([-1, 0]);
     const choose = vi.fn(); fixture.componentInstance.choose.subscribe(choose);
     buttons[1].focus();
-    const event = new KeyboardEvent('keydown', { key: 'ArrowLeft', bubbles: true, cancelable: true });
+    const event = new KeyboardEvent('keydown', { key: 'ArrowUp', bubbles: true, cancelable: true });
     buttons[1].dispatchEvent(event); fixture.detectChanges();
     expect(event.defaultPrevented).toBe(true);
     expect(document.activeElement).toBe(buttons[0]);
     expect(buttons.map(button => button.tabIndex)).toEqual([0, -1]);
     expect(choose).toHaveBeenCalledExactlyOnceWith('/a.jpg');
-    buttons[0].dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowLeft', bubbles: true, cancelable: true }));
+    buttons[0].dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowUp', bubbles: true, cancelable: true }));
     expect(choose).toHaveBeenCalledTimes(1);
+  });
+  it('leaves Left/Right to the photo page, which steps through the open photo\'s set', () => {
+    const { fixture, root } = render();
+    const buttons = [...root.querySelectorAll<HTMLButtonElement>('.grid button')];
+    const choose = vi.fn(); fixture.componentInstance.choose.subscribe(choose);
+    const page = vi.fn(); document.addEventListener('keydown', page);
+    document.body.appendChild(root);
+    buttons[1].focus();
+    for (const key of ['ArrowLeft', 'ArrowRight']) {
+      const event = new KeyboardEvent('keydown', { key, bubbles: true, cancelable: true });
+      buttons[1].dispatchEvent(event); fixture.detectChanges();
+      expect(event.defaultPrevented).toBe(false);
+    }
+    expect(page).toHaveBeenCalledTimes(2);
+    expect(document.activeElement).toBe(buttons[1]);
+    expect(choose).not.toHaveBeenCalled();
+    document.removeEventListener('keydown', page); root.remove();
+  });
+  it('asks the page to step along the collection on Up/Down past the first or last thumbnail', () => {
+    const { fixture, root } = render();
+    const buttons = [...root.querySelectorAll<HTMLButtonElement>('.grid button')];
+    const step = vi.fn(); fixture.componentInstance.step.subscribe(step);
+    const choose = vi.fn(); fixture.componentInstance.choose.subscribe(choose);
+    document.body.appendChild(root);
+    const press = (button: HTMLButtonElement, key: string) => {
+      button.focus();
+      const event = new KeyboardEvent('keydown', { key, bubbles: true, cancelable: true });
+      button.dispatchEvent(event); fixture.detectChanges();
+      return event;
+    };
+    expect(press(buttons.at(-1)!, 'ArrowDown').defaultPrevented).toBe(true);
+    expect(press(buttons[0], 'ArrowUp').defaultPrevented).toBe(true);
+    press(buttons[0], 'Home');
+    expect(step.mock.calls).toEqual([[1], [-1]]);
+    expect(choose).not.toHaveBeenCalled();
+    root.remove();
+  });
+  it('moves focus to the new current photo when it changes while a thumbnail has focus', () => {
+    const { fixture, root } = render();
+    document.body.appendChild(root);
+    const buttons = [...root.querySelectorAll<HTMLButtonElement>('.grid button')];
+    buttons[1].focus();
+    fixture.componentRef.setInput('currentPath', '/a.jpg');
+    fixture.detectChanges(); TestBed.inject(ApplicationRef).tick();
+    expect(document.activeElement).toBe(buttons[0]);
+    buttons[0].blur();
+    fixture.componentRef.setInput('currentPath', '/b.jpg');
+    fixture.detectChanges(); TestBed.inject(ApplicationRef).tick();
+    expect(document.activeElement).not.toBe(buttons[1]);
+    root.remove();
   });
   it('opens photos with vertical and section-edge keys while preserving modified-key behavior', () => {
     const { fixture, root } = render();
@@ -78,7 +129,7 @@ describe('PhotoCollectionSidebarComponent', () => {
     expect(key(0, 'ArrowRight', { isComposing: true }).defaultPrevented).toBe(false);
     expect(choose).toHaveBeenCalledTimes(count);
   });
-  it('moves by two rows per vertical key once the sidebar is wide enough for two columns', () => {
+  it('steps one photo per vertical key in two columns too, so every photo stays reachable without Left/Right', () => {
     const { fixture, root, divider } = render();
     fixture.componentRef.setInput('photos', Array.from({ length: 4 }, (_, index) => makePhoto({ path: `/p${index}.jpg` })));
     divider().dispatchEvent(new KeyboardEvent('keydown', { key: 'End', bubbles: true, cancelable: true }));
@@ -87,9 +138,9 @@ describe('PhotoCollectionSidebarComponent', () => {
     const buttons = [...root.querySelectorAll<HTMLButtonElement>('.grid button')];
     const choose = vi.fn(); fixture.componentInstance.choose.subscribe(choose);
     buttons[0].dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowDown', bubbles: true, cancelable: true }));
-    expect(choose).toHaveBeenLastCalledWith('/p2.jpg');
-    buttons[3].dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowUp', bubbles: true, cancelable: true }));
     expect(choose).toHaveBeenLastCalledWith('/p1.jpg');
+    buttons[3].dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowUp', bubbles: true, cancelable: true }));
+    expect(choose).toHaveBeenLastCalledWith('/p2.jpg');
   });
   it('bounds the rendered list while keeping later and earlier loaded photos accessible', () => {
     const { fixture, root } = render();

@@ -3612,6 +3612,7 @@ export const I18N = {
   shortcuts: {
     title: "shortcuts.title",
     navigate: "shortcuts.navigate",
+    navigate_set: "shortcuts.navigate_set",
     open_detail: "shortcuts.open_detail",
     toggle_select: "shortcuts.toggle_select",
     select_all: "shortcuts.select_all",

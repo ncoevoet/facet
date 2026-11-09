@@ -3573,6 +3573,7 @@
   "shortcuts": {
     "title": "Scorciatoie da tastiera",
     "navigate": "Spostarsi tra le foto",
+    "navigate_set": "Scorrere il gruppo o la pila della foto, poi le foto",
     "open_detail": "Apri foto",
     "toggle_select": "Seleziona / deseleziona",
     "select_all": "Seleziona tutti i caricati",

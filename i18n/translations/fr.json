@@ -3573,6 +3573,7 @@
   "shortcuts": {
     "title": "Raccourcis clavier",
     "navigate": "Naviguer entre les photos",
+    "navigate_set": "Parcourir le groupe ou la pile de la photo, puis les photos",
     "open_detail": "Ouvrir la photo",
     "toggle_select": "Sélectionner / désélectionner",
     "select_all": "Tout sélectionner (chargé)",

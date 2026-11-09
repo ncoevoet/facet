@@ -39,7 +39,7 @@ function storedWidth(): number {
       </div>
       @if (!collapsed()) {
         <p class="m-0 px-2 pb-2 text-xs text-[var(--mat-sys-on-surface-variant)]">{{ I18N.photo_detail.collection.loaded | translate:{ loaded: photos().length, total: total() } }}</p>
-        <div #scroller class="min-h-0 flex-1 overflow-y-auto overscroll-contain p-2" tabindex="0" [attr.aria-label]="I18N.photo_detail.collection.title | translate">
+        <div #scroller data-collection-scroller class="min-h-0 flex-1 overflow-y-auto overscroll-contain p-2" tabindex="0" [attr.aria-label]="I18N.photo_detail.collection.title | translate">
           @if (windowStart() > 0) {
             <button type="button" data-collection-previous-window class="mb-2 min-h-11 w-full rounded border border-[var(--mat-sys-outline-variant)] px-2 text-xs" (click)="pageWindow(-1)">{{ I18N.photo_detail.collection.previous_loaded | translate }}</button>
           }
@@ -82,6 +82,8 @@ export class PhotoCollectionSidebarComponent {
   readonly loading = input(false);
   readonly choose = output<string>();
   readonly more = output<void>();
+  /** Up/Down pressed on the section's first or last thumbnail, for the page to step along the collection. */
+  readonly step = output<-1 | 1>();
   protected readonly width = signal(storedWidth());
   protected readonly collapsed = signal(false);
   protected readonly columnCount = computed(() => this.width() >= 280 ? 2 : 1);
@@ -99,10 +101,14 @@ export class PhotoCollectionSidebarComponent {
       ?? photos.find(photo => photo.path === this.currentPath())?.path ?? photos[0]?.path;
   });
   protected thumbnailKey(event: KeyboardEvent): void {
-    const move = rovingFocusKey(event, 'button', this.columnCount());
+    // Left/Right belong to the photo page, which walks the open photo's set first;
+    // Up/Down step one photo in reading order, so both columns stay reachable.
+    if (event.key === 'ArrowLeft' || event.key === 'ArrowRight') return;
+    const move = rovingFocusKey(event, 'button', 1);
     // A focused collection thumbnail represents the photo being viewed. Moving
     // its focus must open that photo too, just like clicking the thumbnail.
     if (move && move.to !== move.from) this.choose.emit(this.visiblePhotos()[move.to].path);
+    else if (move && (event.key === 'ArrowUp' || event.key === 'ArrowDown')) this.step.emit(event.key === 'ArrowUp' ? -1 : 1);
   }
   private lastPath = '';
   private lastPathFound = false;
@@ -119,6 +125,12 @@ export class PhotoCollectionSidebarComponent {
       this.lastPath = path; this.lastPathFound = index >= 0;
       if (!changed || index < 0) return;
       this.focusedPath.set(path);
+      // A key handled by the page (Left/Right past a set's end) changed the photo
+      // under a focused thumbnail: keep focus on the photo now shown.
+      const grid = untracked(this.scroller)?.nativeElement.querySelector('.grid');
+      if (grid?.contains(document.activeElement)) {
+        afterNextRender(() => untracked(this.scroller)?.nativeElement.querySelector<HTMLElement>('[data-collection-current]')?.focus(), { injector: this.injector });
+      }
       const start = untracked(this.windowStart);
       if (index < start || index >= start + this.windowSize) this.requestedStart.set(Math.max(0, index - Math.floor(this.windowSize / 2)));
     });

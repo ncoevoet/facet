@@ -3573,6 +3573,7 @@
   "shortcuts": {
     "title": "Tastenkürzel",
     "navigate": "Zwischen Fotos wechseln",
+    "navigate_set": "Durch die Gruppe oder den Stapel des Fotos, dann zwischen Fotos wechseln",
     "open_detail": "Foto öffnen",
     "toggle_select": "Auswählen / abwählen",
     "select_all": "Alle geladenen auswählen",

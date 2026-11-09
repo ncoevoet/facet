@@ -1,12 +1,10 @@
 import { ControlPopoverComponent } from '../../shared/components/control-popover/control-popover.component';
-import { FEATURE_MARK, MarkTonePipe } from '../../shared/pipes/mark-tone.pipe';
 import { LogicalAssetApplied } from '../../shared/models/logical-asset-change';
 import { buildSyncParams } from '../gallery/gallery-filters.util';
 import { refineTagQuery } from '../gallery/tag-query.util';
 import { GALLERY_REVISIT } from '../../core/gallery-reuse.strategy';
 import { PhotoCollectionSidebarComponent } from './photo-collection-sidebar.component';
 import { LogicalReviewService, LogicalReviewAction, LogicalReviewWriteError } from '../../core/services/logical-review.service';
-import { PhotoAnalysisComponent } from '../gallery/photo-analysis.component';
 import { PhotoProvenanceComponent } from './photo-provenance.component';
 import { PhotoRelatedFilesComponent } from './photo-related-files.component';
 import { TimelineFeedCache } from '../timeline/timeline-feed-cache.service';
@@ -49,10 +47,7 @@ import { EvOffsetPipe } from '../gallery/burst-culling.pipes';
 import {
   HISTOGRAM_PANEL_HEIGHT,
 } from '../../shared/components/histogram/histogram.component';
-import { PhotoMetricSectionComponent } from '../../shared/components/photo-metrics-tabs/photo-metric-section.component';
-import { AssessmentValuePipe } from '../../shared/pipes/assessment-value.pipe';
-import { MetricRankComponent } from '../../shared/components/metric-rank/metric-rank.component';
-import { MetricsTabState, MetricsTab } from '../../core/services/metrics-tab-state.service';
+import { PhotoMetricsTabsComponent } from '../../shared/components/photo-metrics-tabs/photo-metrics-tabs.component';
 import { HistogramMode, isHistogramMode } from '../../shared/utils/histogram';
 import { ComparisonCategoryExplainerComponent } from '../comparison/comparison-category-explainer.component';
 import { DownloadOption } from '../../core/api/types';
@@ -87,13 +82,28 @@ const SOCIAL_SOURCE_KEYS: Record<string, string> = {
 };
 
 
+/** Whether `row` is in the set `/photo/set` lists for `current`: its sequence, else its
+ *  burst, else its duplicate group, the server's order (`api/routers/gallery.py`). */
+function sharesSet(row: Photo, current: Photo): boolean {
+  if (current.sequence_kind && current.sequence_group_id != null) {
+    return row.sequence_kind === current.sequence_kind && row.sequence_group_id === current.sequence_group_id;
+  }
+  if (current.burst_group_id != null) return row.burst_group_id === current.burst_group_id;
+  return current.duplicate_group_id != null && row.duplicate_group_id === current.duplicate_group_id;
+}
+
+/** Whether a row says it belongs to a detected set, before `/photo/set` has listed it. */
+function inDetectedSet(photo: Photo): boolean {
+  return (!!photo.sequence_kind && photo.sequence_group_id != null) || photo.burst_group_id != null || photo.duplicate_group_id != null;
+}
+
 @Component({
   selector: 'app-photo-detail',
-  imports: [ControlPopoverComponent,MarkTonePipe, PhotoCollectionSidebarComponent, ContextHelpComponent, PhotoAnalysisComponent, PhotoProvenanceComponent, PhotoRelatedFilesComponent,
+  imports: [ControlPopoverComponent, PhotoCollectionSidebarComponent, ContextHelpComponent, PhotoProvenanceComponent, PhotoRelatedFilesComponent,
     StackNavigatorComponent,
     ZoomPanDirective,
     PhotoObjectLayerComponent,
-    PhotoMetricSectionComponent, AssessmentValuePipe, MetricRankComponent,
+    PhotoMetricsTabsComponent,
     PhotoFaceLayerComponent,
     PersonFaceMenuComponent,
     MatIconModule,
@@ -138,7 +148,7 @@ const SOCIAL_SOURCE_KEYS: Record<string, string> = {
         }
 
         @if (store.config()?.features?.show_critique) {
-          <button #analysisToggle [attr.aria-expanded]="analysisOpen()" aria-controls="photo-analysis" mat-button class="!min-w-11 !h-11 !px-2" (click)="openCritique(p)"
+          <button mat-button class="!min-w-11 !h-11 !px-2" (click)="openCritique(p)"
             [matTooltip]="I18N.photo_detail.analysis | translate" [attr.aria-label]="I18N.photo_detail.analysis | translate">
             <mat-icon class="!m-0 @min-[960px]:!mr-2">analytics</mat-icon><span class="hidden @min-[960px]:inline">{{ I18N.photo_detail.analysis | translate }}</span>
           </button>
@@ -291,7 +301,7 @@ const SOCIAL_SOURCE_KEYS: Record<string, string> = {
         @if (collectionSidebarAvailable()) {
           <app-photo-collection-sidebar [photos]="store.photos()" [currentPath]="collectionEntry()?.path ?? p.path"
             [title]="collectionSidebarTitle()" [total]="store.total()" [hasMore]="store.hasMore()" [loading]="store.loading()"
-            (choose)="openCollectionPhoto($event)" (more)="loadCollectionPage()" />
+            (choose)="openCollectionPhoto($event)" (more)="loadCollectionPage()" (step)="stepCollection($event)" />
         }
         <!-- Image panel -->
         <div class="flex min-h-40 max-h-[62dvh] min-w-0 shrink-0 flex-col lg:max-h-none lg:min-h-0 lg:flex-1">
@@ -374,18 +384,11 @@ const SOCIAL_SOURCE_KEYS: Record<string, string> = {
           </ng-template>
           <!-- Account review controls -->
           @if (canReview()) {
-            <section data-photo-review aria-labelledby="photo-review-title" class="border-t border-[var(--mat-sys-outline-variant)] py-2 space-y-1">
-              <div class="flex min-h-11 items-center gap-2">
-                <h2 id="photo-review-title" class="m-0 flex flex-1 items-center gap-2 text-sm font-medium"><mat-icon aria-hidden="true" class="!h-5 !w-5 !text-xl">rule</mat-icon>{{ I18N.gallery.sidebar.tabs.review | translate }}</h2>
-                <button mat-icon-button class="max-sm:!h-11 max-sm:!w-11 pointer-coarse:!h-11 pointer-coarse:!w-11" (click)="toggleFavorite(p.path)"
-                  [matTooltip]="(p.is_favorite ? I18N.rating.remove_favorite : I18N.rating.add_favorite) | translate"
-                  [attr.aria-label]="I18N.rating.favorite | translate" [attr.aria-pressed]="!!p.is_favorite">
-                  <mat-icon class="!text-[var(--facet-favorite)]">{{ p.is_favorite ? 'favorite' : 'favorite_border' }}</mat-icon>
-                </button>
-              </div>
-              <div role="group" [attr.aria-label]="I18N.photo_detail.rating | translate" class="flex items-center justify-between gap-2">
-                <span class="text-xs text-[var(--mat-sys-on-surface-variant)]">{{ I18N.photo_detail.rating | translate }}</span>
-                <div class="flex flex-nowrap">
+            <section data-photo-review aria-labelledby="photo-review-title" class="space-y-1">
+              <h2 id="photo-review-title" class="sr-only">{{ I18N.gallery.sidebar.tabs.review | translate }}</h2>
+              <!-- Like the gallery rail: no title or rule above the review controls, the favourite beside the stars. -->
+              <div data-photo-rating-row class="flex items-center gap-2">
+                <div role="group" [attr.aria-label]="I18N.photo_detail.rating | translate" class="flex flex-nowrap">
                   @for (star of stars; track star) {
                     <button type="button" class="min-w-11 min-h-11 rounded inline-flex items-center justify-center hover:bg-[var(--mat-sys-surface-container-high)] cursor-pointer"
                             [attr.aria-label]="(I18N.rating.set_rating | translate) + ': ' + star" [attr.aria-pressed]="p.star_rating === star" (click)="setRating(p.path, star)">
@@ -393,6 +396,11 @@ const SOCIAL_SOURCE_KEYS: Record<string, string> = {
                     </button>
                   }
                 </div>
+                <button mat-icon-button class="ml-auto max-sm:!h-11 max-sm:!w-11 pointer-coarse:!h-11 pointer-coarse:!w-11" (click)="toggleFavorite(p.path)"
+                  [matTooltip]="(p.is_favorite ? I18N.rating.remove_favorite : I18N.rating.add_favorite) | translate"
+                  [attr.aria-label]="I18N.rating.favorite | translate" [attr.aria-pressed]="!!p.is_favorite">
+                  <mat-icon class="!text-[var(--facet-favorite)]">{{ p.is_favorite ? 'favorite' : 'favorite_border' }}</mat-icon>
+                </button>
               </div>
               <div data-photo-decisions role="group" [attr.aria-label]="I18N.gallery.sidebar.review.decision | translate" class="flex items-stretch divide-x divide-[var(--mat-sys-outline-variant)] overflow-hidden rounded border border-[var(--mat-sys-outline-variant)]">
                 <button type="button" data-photo-keep class="inline-flex min-h-11 min-w-0 flex-1 cursor-pointer focus-visible:!outline-2 focus-visible:!-outline-offset-4 focus-visible:!outline-current items-center justify-center gap-1 px-1 text-xs hover:bg-[var(--mat-sys-surface-container-high)]" [class.!bg-[var(--facet-review-kept)]]="p.is_kept" [class.!text-[var(--facet-review-on-kept)]]="p.is_kept"
@@ -411,10 +419,6 @@ const SOCIAL_SOURCE_KEYS: Record<string, string> = {
             </section>
           }
 
-          <details data-photo-info [open]="infoOpen()" class="[&[open]>summary>mat-icon:last-child]:rotate-180 border-t border-[var(--mat-sys-outline-variant)]">
-            <summary (click)="$event.preventDefault(); infoOpen.set(!infoOpen())" class="flex min-h-11 cursor-pointer items-center gap-2 font-medium"><mat-icon aria-hidden="true" class="!h-5 !w-5 !text-xl">info</mat-icon><h2 class="m-0 text-sm font-medium">{{ I18N.photo_detail.info | translate }}</h2><mat-icon aria-hidden="true" class="ml-auto !h-5 !w-5 shrink-0 !text-xl transition-transform motion-reduce:transition-none">expand_more</mat-icon></summary>
-            @if (infoOpen()) {
-            <div class="space-y-3 pb-3">
           <!-- Capture date and scoring category -->
           <div class="mb-2">
             @if (p.date_taken || auth.isEdition()) {
@@ -451,10 +455,6 @@ const SOCIAL_SOURCE_KEYS: Record<string, string> = {
             </div>
           </div>
 
-
-              @if (hasExif()) {
-                <app-photo-metric-section kind="exif" [photo]="p" [histogramHeight]="HISTOGRAM_PANEL_HEIGHT" />
-              }
           <!-- Caption -->
           <div>
             <div class="flex items-center justify-between mb-1">
@@ -484,6 +484,16 @@ const SOCIAL_SOURCE_KEYS: Record<string, string> = {
               <p class="text-[var(--mat-sys-on-surface-variant)] italic text-xs">&mdash;</p>
             }
           </div>
+
+          <!-- Metric tabs: EXIF | Quality | Composition | Technical | Histogram, as in the gallery rail,
+               sharing its remembered tab. "Why this score?" opens the same critique dialog. -->
+          <app-photo-metrics-tabs [photo]="p" [ranges]="store.metricRangesByColumn()"
+                                  [populated]="store.config()?.populated_scores"
+                                  [histogramHeight]="HISTOGRAM_PANEL_HEIGHT"
+                                  [histogramDefaultMode]="histogramDefaultMode()"
+                                  [indicatorPercent]="clippingIndicatorPercent()"
+                                  [explainable]="!!store.config()?.features?.show_critique" (explain)="openCritique(p)" />
+          <app-context-help [label]="I18N.gallery.compare.rendition.sources" [keys]="[I18N.photo_detail.rendition.note]" />
 
           <!-- Location -->
           @if (p.gps_latitude !== null && p.gps_longitude !== null) {
@@ -573,39 +583,10 @@ const SOCIAL_SOURCE_KEYS: Record<string, string> = {
             </div>
           }
 
-              <div class="border-t border-[var(--mat-sys-outline-variant)] pt-2">
-                <app-photo-provenance [photo]="p" />
-                <app-photo-related-files [photo]="p" (logicalApplied)="onLogicalAssetApplied($event)" />
-              </div>
-            </div>
-            }
-          </details>
-
-          <details id="photo-analysis" #analysisSection data-photo-analysis (keydown.escape)="closeAnalysis($event)" (toggle)="analysisOpen.set(analysisSection.open)" class="[&[open]>summary>mat-icon:last-child]:rotate-180 border-t border-[var(--mat-sys-outline-variant)]">
-            <summary class="flex min-h-11 cursor-pointer items-center gap-2 text-sm font-medium"><mat-icon aria-hidden="true" class="!h-5 !w-5 !text-xl">analytics</mat-icon><h2 class="m-0 text-sm font-medium">{{ I18N.photo_detail.analysis | translate }}</h2><span class="ml-auto text-xs font-normal tabular-nums">{{ I18N.photo_detail.assessment.score | translate }} {{ p.aggregate | assessmentValue }}</span><mat-icon aria-hidden="true" class="!h-5 !w-5 shrink-0 !text-xl transition-transform motion-reduce:transition-none">expand_more</mat-icon></summary>
-            @if (analysisOpen()) {
-              @if (aggregateRange(); as range) {
-                <app-metric-rank data-aggregate-distribution class="mb-2" [range]="range" [value]="p.aggregate" />
-              }
-              @if (store.config()?.features?.show_critique) {
-                @for (path of [p.path]; track path) { <app-photo-analysis [photoPath]="path" [vlmAvailable]="!!store.config()?.features?.show_vlm_critique" /> }
-              }
-              @for (section of metricSections; track section.id) {
-                <details data-metric-section [attr.data-section-kind]="section.id" [open]="activeMetricSection() === section.id" class="[&[open]>summary>mat-icon:last-child]:rotate-180 border-t border-[var(--mat-sys-outline-variant)]">
-                  <summary (click)="$event.preventDefault(); toggleMetricSection(section.id)" class="flex min-h-11 cursor-pointer items-center gap-2 text-xs font-medium"><mat-icon aria-hidden="true" class="!h-5 !w-5 !text-xl" [class]="section.id | markTone">{{ section.icon }}</mat-icon><h3 class="m-0 text-xs font-medium">{{ section.label | translate }}</h3><mat-icon aria-hidden="true" class="ml-auto !h-5 !w-5 shrink-0 !text-xl transition-transform motion-reduce:transition-none">expand_more</mat-icon></summary>
-                  @if (activeMetricSection() === section.id) {
-                    <app-photo-metric-section [kind]="section.id" [photo]="p" [populated]="store.config()?.populated_scores" [histogramHeight]="HISTOGRAM_PANEL_HEIGHT" [histogramDefaultMode]="histogramDefaultMode()" [indicatorPercent]="clippingIndicatorPercent()" />
-                  }
-                </details>
-              }
-              <app-context-help [label]="I18N.gallery.compare.rendition.sources" [keys]="[I18N.photo_detail.rendition.note]" />
-            }
-          </details>
-
           <!-- Persons section -->
           @if (p.persons.length || p.unassigned_faces) {
-            <details data-photo-people class="[&[open]>summary>mat-icon:last-child]:rotate-180 border-t border-[var(--mat-sys-outline-variant)]">
-              <summary class="flex min-h-11 cursor-pointer items-center gap-2 font-medium"><mat-icon aria-hidden="true" class="!h-5 !w-5 !text-xl">people</mat-icon><h2 class="m-0 text-sm font-medium">{{ I18N.photo_detail.persons | translate }}</h2><mat-icon aria-hidden="true" class="ml-auto !h-5 !w-5 shrink-0 !text-xl transition-transform motion-reduce:transition-none">expand_more</mat-icon></summary>
+            <section data-photo-people aria-labelledby="photo-people-title">
+              <h2 id="photo-people-title" class="m-0 mb-1 text-xs font-normal text-[var(--mat-sys-on-surface-variant)]">{{ I18N.photo_detail.persons | translate }}</h2>
               @if (p.unassigned_faces) { <p class="m-0 pb-2 text-xs text-[var(--mat-sys-on-surface-variant)]">{{ I18N.photo_detail.unassigned_faces | translate:{ count: p.unassigned_faces } }}</p> }
               <div class="flex gap-3 flex-wrap">
                 @for (person of p.persons; track person.id) {
@@ -621,7 +602,7 @@ const SOCIAL_SOURCE_KEYS: Record<string, string> = {
                   </button>
                 }
               </div>
-            </details>
+            </section>
           }
 
           <!-- Set section (bracket/panorama/hdr_panorama/burst/duplicate) -->
@@ -665,6 +646,10 @@ const SOCIAL_SOURCE_KEYS: Record<string, string> = {
             }
           }
 
+          <div>
+            <app-photo-provenance [photo]="p" />
+            <app-photo-related-files [photo]="p" (logicalApplied)="onLogicalAssetApplied($event)" />
+          </div>
         </aside>
       </div>
     } @else if (photoMissing()) {
@@ -687,39 +672,6 @@ const SOCIAL_SOURCE_KEYS: Record<string, string> = {
 })
 export class PhotoDetailComponent extends PhotoDetailBase implements OnInit {
   protected readonly I18N = i18nKeys();
-  protected readonly analysisOpen = signal(false);
-  protected readonly aggregateRange = computed(() => {
-    const value = this.photo()?.aggregate;
-    return typeof value === 'number' && Number.isFinite(value)
-      ? this.store.metricRangesByColumn()['aggregate'] : undefined;
-  });
-  private readonly metricState = inject(MetricsTabState);
-  protected readonly metricSections = [
-    { id: 'quality', icon: FEATURE_MARK, label: I18N.photo_detail.quality },
-    { id: 'composition', icon: 'grid_on', label: I18N.photo_detail.composition },
-    { id: 'technical', icon: 'tune', label: I18N.photo_detail.technical },
-    { id: 'histogram', icon: 'equalizer', label: I18N.tooltip.histogram },
-  ] as const;
-  protected readonly infoOpen = signal(true);
-  protected readonly activeMetricSection = signal<MetricsTab | null>(this.metricState.tab() === 'exif' ? 'quality' : this.metricState.tab());
-  protected toggleMetricSection(section: MetricsTab): void {
-    const next = this.activeMetricSection() === section ? null : section;
-    this.activeMetricSection.set(next);
-    if (next) this.metricState.select(next);
-  }
-
-  private readonly analysisSection = viewChild<ElementRef<HTMLDetailsElement>>('analysisSection');
-  private readonly analysisToggle = viewChild<unknown, ElementRef<HTMLButtonElement>>('analysisToggle', { read: ElementRef });
-
-  protected closeAnalysis(event: Event): void {
-    if (!this.analysisSection()?.nativeElement.open) return;
-    event.preventDefault(); event.stopPropagation();
-    const section = this.analysisSection()?.nativeElement;
-    if (section) section.open = false;
-    this.analysisOpen.set(false);
-    const trigger = this.analysisToggle()?.nativeElement ?? section?.querySelector<HTMLElement>('summary');
-    trigger?.focus();
-  }
   protected readonly photoAspect = computed(() => {
     const photo = this.photo();
     return photo ? aspectOf(photo) : null;
@@ -763,8 +715,11 @@ export class PhotoDetailComponent extends PhotoDetailBase implements OnInit {
     // Single-photo responses do not carry gallery stack annotations. The strip's
     // authorized membership supplies the same identity after a direct member load.
     const stackId = current.stack_id ?? this.stackNavigator()?.visibleStack()?.id;
+    // A set's hidden frames (a burst's non-lead shots, say) are not collection rows:
+    // they stand on the loaded frame of the same set, as a folded stack's members do.
     return photos.find(photo => photo.path === current.path)
-      ?? (stackId ? photos.find(photo => photo.stack_id === stackId) : undefined);
+      ?? (stackId ? photos.find(photo => photo.stack_id === stackId) : undefined)
+      ?? photos.find(photo => sharesSet(photo, current));
   });
   protected readonly collectionSidebarAvailable = computed(() => !this.timelineOrigin && this.viewerOwner === this.auth.identity()
     && !!this.collectionEntry());
@@ -954,6 +909,7 @@ export class PhotoDetailComponent extends PhotoDetailBase implements OnInit {
 
   // Set membership (bracket/panorama/hdr_panorama/burst/duplicate)
   protected readonly photoSet = signal<PhotoSet | null>(null);
+  private readonly photoSetPending = signal(false);
   /** Blink frames in the set: the gallery hides them by default, so saying so here
    *  explains why "Open in gallery" can list fewer photos than the set holds. */
   protected readonly setBlinkCount = computed(() => this.photoSet()?.members.filter(m => m.is_blink).length ?? 0);
@@ -966,11 +922,12 @@ export class PhotoDetailComponent extends PhotoDetailBase implements OnInit {
   private photoSetEffect = effect(() => {
     const p = this.photo();
     this.photoSet.set(null);
+    this.photoSetPending.set(!!p);
     if (!p) return;
     const requestedPath = p.path;
     firstValueFrom(this.api.get<PhotoSet>('/photo/set', { path: requestedPath }))
-      .then(res => { if (this.photo()?.path === requestedPath) this.photoSet.set(res); })
-      .catch(() => { if (this.photo()?.path === requestedPath) this.photoSet.set(null); });
+      .then(res => { if (this.photo()?.path === requestedPath) { this.photoSet.set(res); this.photoSetPending.set(false); } })
+      .catch(() => { if (this.photo()?.path === requestedPath) { this.photoSet.set(null); this.photoSetPending.set(false); } });
   });
 
   // Location
@@ -996,7 +953,6 @@ export class PhotoDetailComponent extends PhotoDetailBase implements OnInit {
   private locationMapEffect = effect(() => {
     const container = this.locationMapContainer();
     const p = this.photo();
-    const visible = this.infoOpen();
     if (this.locationMapTimeout !== null) {
       clearTimeout(this.locationMapTimeout);
       this.locationMapTimeout = null;
@@ -1006,10 +962,10 @@ export class PhotoDetailComponent extends PhotoDetailBase implements OnInit {
       this.locationMap = null;
     }
 
-    if (!visible || !container || !p || p.gps_latitude == null || p.gps_longitude == null) return;
+    if (!container || !p || p.gps_latitude == null || p.gps_longitude == null) return;
     this.locationMapTimeout = setTimeout(() => {
       this.locationMapTimeout = null;
-      if (this.destroyRef.destroyed || !this.infoOpen() || this.locationMapContainer()?.nativeElement !== container.nativeElement || this.photo()?.path !== p.path) return;
+      if (this.destroyRef.destroyed || this.locationMapContainer()?.nativeElement !== container.nativeElement || this.photo()?.path !== p.path) return;
       const map = createLeafletMap(container.nativeElement, {
         zoomControl: false,
         attributionControl: false,
@@ -1194,6 +1150,37 @@ export class PhotoDetailComponent extends PhotoDetailBase implements OnInit {
     void this.navigateAdjacentPhoto(1);
   }
 
+  @HostListener('document:keydown.arrowup', ['$event'])
+  protected previousCollectionPhoto(event: Event): void { this.collectionArrow(event, -1); }
+
+  @HostListener('document:keydown.arrowdown', ['$event'])
+  protected nextCollectionPhoto(event: Event): void { this.collectionArrow(event, 1); }
+
+  /**
+   * Up/Down move along the collection, past any stack or set, while Left/Right walk
+   * the open photo's set first. Only where the page itself does not scroll (lg+), and
+   * never inside the inspector or the collection list, whose arrows scroll them.
+   */
+  private collectionArrow(event: Event, delta: number): void {
+    if (this.shortcutBlocked(event) || !matchMedia('(min-width: 1024px)').matches || this.inScrollRegion(event.target)
+      || (this.lastPointerTarget?.isConnected && this.inScrollRegion(this.lastPointerTarget))
+      || (!this.timelineOrigin && !this.collectionNavigation().visible)) return;
+    event.preventDefault();
+    void this.navigateAdjacentPhoto(delta, true);
+  }
+
+  /** Clicking the inspector's or the sidebar's text leaves focus on the page, yet the browser
+   *  scrolls that region with the arrows: the last pointer press tells which region the user is in. */
+  private lastPointerTarget: Element | null = null;
+  @HostListener('document:pointerdown', ['$event'])
+  protected notePointerTarget(event: Event): void { this.lastPointerTarget = event.target as Element | null; }
+  private inScrollRegion(target: EventTarget | null): boolean {
+    return !!(target as HTMLElement | null)?.closest?.('[data-photo-inspector], [data-collection-scroller]');
+  }
+
+  /** Up/Down past the sidebar's first or last thumbnail: step along the collection, which pages as needed. */
+  protected stepCollection(delta: number): void { void this.navigateAdjacentPhoto(delta, true); }
+
   /** The mapped rating keys act on the open photo — the same keys the grid's
    *  focused card answers, so a reviewer never has to reach for the panel.
    *  Gated the same way the rating buttons are (edition mode + the
@@ -1229,6 +1216,7 @@ export class PhotoDetailComponent extends PhotoDetailBase implements OnInit {
     // Match the visible stack buttons; its members already respect an exact list.
     // Expanded stacks are collection rows, so the collection order owns the arrows.
     if (!withinCollection && this.store.collapseStacks() && this.stackNavigator()?.step(delta)) return;
+    if (!withinCollection && this.stepSetSibling(delta)) return;
     const current = this.photo();
     if (!current) return;
     const indexOf = () => this.store.photos().findIndex(p => p.path === this.collectionEntry()?.path);
@@ -1253,6 +1241,29 @@ export class PhotoDetailComponent extends PhotoDetailBase implements OnInit {
     });
     this.photo.set(next);
 
+  }
+
+  /**
+   * Steps to the neighbouring frame in the Set strip's order. False at the strip's
+   * ends or outside a set, so the arrows carry on through the collection; true while
+   * a grouped photo's set is still loading, so they cannot skip past it.
+   */
+  private stepSetSibling(delta: number): boolean {
+    const current = this.photo();
+    // A folded stack owns Left/Right: past its ends they go to the collection, not into a set.
+    if (!current || (current.stack_id != null && this.store.collapseStacks())) return false;
+    // Once the gallery lists several frames of the set, their order owns the arrows, as it does
+    // for expanded stacks: walking the strip as well would cycle between the two orders.
+    if (this.store.photos().filter(photo => sharesSet(photo, current)).length > 1) return false;
+    const set = this.photoSet();
+    if (!set) return this.photoSetPending() && inDetectedSet(current);
+    if (!set.kind) return false;
+    const members = this.setStripMembers().filter(member => this.memberAllowed(member.path));
+    const index = members.findIndex(member => member.path === current.path);
+    const next = index < 0 ? undefined : members[index + delta];
+    if (!next) return false;
+    void this.openSetMember(next.path);
+    return true;
   }
 
   protected async copyPhoto(path: string): Promise<void> {
@@ -1663,14 +1674,10 @@ export class PhotoDetailComponent extends PhotoDetailBase implements OnInit {
     });
   }
 
+  /** The header Analysis button and the tabs' "Why this score?" open the critique dialog, as in the gallery rail. */
   protected openCritique(photo: Photo): void {
     if (this.photo()?.path !== photo.path || this.router.currentNavigation?.()) return;
-    const section = this.analysisSection()?.nativeElement;
-    if (!section) return;
-    section.open = true;
-    this.analysisOpen.set(true);
-    section.querySelector<HTMLElement>('summary')?.focus();
-    section.scrollIntoView({ block: 'nearest' });
+    this.photoActions.openCritique(photo);
   }
 
   protected async removeFromCatalog(): Promise<void> {
