@@ -313,8 +313,25 @@ describe('FaceUpdateControlComponent', () => {
     } finally { dispose(); timer.mockRestore(); }
   });
 
+  it('gives two coexisting controls distinct panel and heading ids, wired to their triggers', async () => {
+    const first = await render();
+    const second = TestBed.createComponent(FaceUpdateControlComponent);
+    second.detectChanges(); await second.whenStable(); second.detectChanges();
+    const other = second.nativeElement as HTMLElement; document.body.appendChild(other);
+    await first.open();
+    other.querySelector<HTMLButtonElement>('[data-update-faces]')!.click(); await second.whenStable(); second.detectChanges();
+    const sections = [first.root, other].map(host => host.querySelector('section')!);
+    expect(sections[0].id).not.toBe(sections[1].id);
+    expect(sections[0].querySelector('h3')!.id).not.toBe(sections[1].querySelector('h3')!.id);
+    [first.root, other].forEach((host, index) => {
+      expect(host.querySelector('[data-update-faces]')!.getAttribute('aria-controls')).toBe(sections[index].id);
+      expect(sections[index].getAttribute('aria-labelledby')).toBe(sections[index].querySelector('h3')!.id);
+    });
+    second.destroy(); other.remove(); first.dispose();
+  });
+
   describe('overlay panel (the control sits in the page-actions bar)', () => {
-    const panel = () => document.querySelector<HTMLElement>('.cdk-overlay-container #face-update-panel');
+    const panel = () => document.querySelector<HTMLElement>('.cdk-overlay-container section[id^="face-update-panel-"]');
 
     it('opens the same panel in an overlay anchored under the trigger, leaving the bar untouched', async () => {
       const { root, open, dispose } = await render('overlay');
@@ -327,7 +344,8 @@ describe('FaceUpdateControlComponent', () => {
       expect(panel()!.className).toContain('w-[28rem]');
       expect(panel()!.className).toContain('max-w-[calc(100vw-1rem)]');
       expect(trigger.getAttribute('aria-expanded')).toBe('true');
-      expect(trigger.getAttribute('aria-controls')).toBe('face-update-panel');
+      expect(trigger.getAttribute('aria-controls')).toBe(panel()!.id);
+      expect(panel()!.getAttribute('aria-labelledby')).toBe(panel()!.querySelector('h3')!.id);
       dispose();
     });
 

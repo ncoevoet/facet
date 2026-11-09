@@ -431,6 +431,9 @@ def review_unassigned_faces(
                 'faces f JOIN photos ph ON ph.path = f.photo_path JOIN persons pe ON pe.id = f.person_id '
                 f'WHERE {visibility} AND {person_not_hidden_clause("pe")} '
                 f'AND NOT {person_unnamed_clause("pe")} AND {model_sql} '
+                # Only faces _review_vector can read count and get sampled, so a person's
+                # sample is never spent on a NULL or wrong-length embedding.
+                f"AND typeof(f.embedding)='blob' AND length(f.embedding)={int(dim * FLOAT_BYTES)} "
                 f'AND (pe.centroid IS NULL OR length(pe.centroid)=0 OR {target_model_sql})')
             params = [*vis_params, *model_params, *target_model_params]
             if target_person_id is not None:

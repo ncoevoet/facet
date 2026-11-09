@@ -145,7 +145,11 @@ export class FaceReviewQueueComponent {
   protected readonly uncertain = signal(false);
   protected readonly changed = signal(false);
   protected readonly error = signal(false);
+  /** The user's own "Browse without matches" choice; it stays until the tab is remounted. */
   protected readonly withoutSuggestions = signal(false);
+  /** Set by a 412 for the current read only; every fresh first-page read asks for suggestions again. */
+  private readonly refusedSuggestions = signal(false);
+  private readonly wantsSuggestions = computed(() => this.mode() === 'matches' && !this.withoutSuggestions() && !this.refusedSuggestions());
   protected readonly suggestionsSkipped = signal(false);
   protected readonly pending = signal<readonly CapturedFace[] | null>(null);
   protected readonly interactionLocked = computed(() => this.busy() || !!this.pending() || this.uncertain() || this.changed() || this.choosing());
@@ -197,14 +201,14 @@ export class FaceReviewQueueComponent {
     this.receipt.set(null); this.loading.set(false); this.busy.set(false); this.nextAfter.set(null);
     this.suggestionsSkipped.set(false);
   }
-  protected async load(after: number): Promise<void> {
+  protected async load(after: number, afterRefusal = false): Promise<void> {
     if (!this.allowed() || this.busy() || (after > 0 && (this.loading() || this.pending() || this.uncertain() || this.changed() || this.choosing()))) return;
-    if (after === 0) this.reset();
+    if (after === 0) { this.reset(); if (!afterRefusal) this.refusedSuggestions.set(false); }
     this.loading.set(true); this.error.set(false);
     const guard = this.capture(), generation = this.generation;
     let retryWithoutSuggestions = false;
     try {
-      const response = await firstValueFrom(this.api.get<Response>('/faces/review', { after_id: after, limit: 48, suggest: this.mode() === 'matches' && !this.withoutSuggestions() }));
+      const response = await firstValueFrom(this.api.get<Response>('/faces/review', { after_id: after, limit: 48, suggest: this.wantsSuggestions() }));
       if (!guard.current()) return;
       const existing = after > 0 ? this.faces() : [];
       const ids = new Set(existing.map(face => face.face_id));
@@ -218,13 +222,13 @@ export class FaceReviewQueueComponent {
     } catch (failure) {
       if (!guard.current()) return;
       // 412: too many reference faces to rank suggestions. Browsing without them still works.
-      if ((failure as { status?: number }).status === 412 && this.mode() === 'matches' && !this.withoutSuggestions()) retryWithoutSuggestions = true;
+      if ((failure as { status?: number }).status === 412 && this.wantsSuggestions()) retryWithoutSuggestions = true;
       else this.error.set(true);
     }
     finally { if (this.generation === generation) { this.loading.set(false); if (!guard.current()) this.error.set(true); } guard.dispose(); }
     if (!retryWithoutSuggestions) return;
-    this.withoutSuggestions.set(true);
-    await this.load(after);
+    this.refusedSuggestions.set(true);
+    await this.load(after, true);
     if (!this.error()) this.suggestionsSkipped.set(true);
   }
   protected toggle(id: number): void {
@@ -293,7 +297,7 @@ export class FaceReviewQueueComponent {
       accepted = true;
       this.feedbackReceipt.set(undo ? null : { ...captured, receiptId: result.receipt_id });
       const response = await firstValueFrom(this.api.get<Response>('/faces/review', {
-        face_id: captured.face.face_id, limit: 1, suggest: this.mode() === 'matches' && !this.withoutSuggestions(),
+        face_id: captured.face.face_id, limit: 1, suggest: this.wantsSuggestions(),
       }));
       if (!guard.current()) return;
       const refreshed = response.faces.find(face => face.face_id === captured.face.face_id);

@@ -22,6 +22,8 @@ type Preview = components['schemas']['FaceUpdatePreview'];
 type Problems = components['schemas']['FaceUpdateItemsResponse'];
 interface StartRequest { job_id: string; expected_model: string; mode: 'missing' | 'redetect' | 'repair'; token: string | null; owner: string | null; status: unknown }
 
+let nextInstance = 0;
+
 @Component({
   selector: 'app-face-update-control',
   imports: [CdkConnectedOverlay, CdkOverlayOrigin, MatButtonModule, MatIconModule, NgTemplateOutlet, SlicePipe, TranslatePipe, ContextHelpComponent, RouterLink, FilenamePipe],
@@ -30,7 +32,7 @@ interface StartRequest { job_id: string; expected_model: string; mode: 'missing'
   template: `
     @if (scan.canLaunch()) {
       <div [class]="overlay() ? 'flex h-full items-center' : 'flex justify-end'">
-        <button #trigger cdkOverlayOrigin #origin="cdkOverlayOrigin" mat-stroked-button data-update-faces [disabled]="blocked()" [attr.aria-label]="I18N.persons.face_update.title | translate" [attr.aria-expanded]="expanded()" aria-controls="face-update-panel" (click)="open()"><mat-icon [class.max-sm:!m-0]="overlay()">person_search</mat-icon><span [class.max-sm:hidden]="overlay()">{{ I18N.persons.face_update.title | translate }}</span></button>
+        <button #trigger cdkOverlayOrigin #origin="cdkOverlayOrigin" mat-stroked-button data-update-faces [disabled]="blocked()" [attr.aria-label]="I18N.persons.face_update.title | translate" [attr.aria-expanded]="expanded()" [attr.aria-controls]="panelId" (click)="open()"><mat-icon [class.max-sm:!m-0]="overlay()">person_search</mat-icon><span [class.max-sm:hidden]="overlay()">{{ I18N.persons.face_update.title | translate }}</span></button>
       </div>
       @if (overlay()) {
         <!-- In the page-actions bar a 48 px row cannot grow: the panel floats under the trigger instead. -->
@@ -44,12 +46,12 @@ interface StartRequest { job_id: string; expected_model: string; mode: 'missing'
       }
     }
     <ng-template #panelTemplate>
-        <section #panel id="face-update-panel" tabindex="-1" aria-labelledby="face-update-heading"
+        <section #panel [id]="panelId" tabindex="-1" [attr.aria-labelledby]="headingId"
                  class="flex flex-col gap-3 rounded-xl border border-[var(--mat-sys-outline-variant)] bg-[var(--mat-sys-surface-container)] p-4"
                  [class]="overlay() ? 'max-h-[min(80dvh,40rem)] w-[28rem] max-w-[calc(100vw-1rem)] overflow-y-auto shadow-xl' : 'mb-3 mt-2'" (keydown.escape)="close($event)">
           <div class="flex items-center gap-2">
             <mat-icon class="shrink-0 text-[var(--mat-sys-primary)]" aria-hidden="true">person_search</mat-icon>
-            <h3 id="face-update-heading" class="m-0 flex-1 text-base font-medium">{{ I18N.persons.face_update.title | translate }}</h3>
+            <h3 [id]="headingId" class="m-0 flex-1 text-base font-medium">{{ I18N.persons.face_update.title | translate }}</h3>
             @if (job()) {
               <span data-face-update-state class="rounded-full px-3 py-1 text-xs font-medium" [class]="stateClass()">{{ stateKey() | translate }}</span>
             }
@@ -157,6 +159,10 @@ interface StartRequest { job_id: string; expected_model: string; mode: 'missing'
 })
 export class FaceUpdateControlComponent {
   protected readonly I18N = I18N;
+  private readonly instance = nextInstance++;
+  /** Per instance: the page mounts two controls (one hidden), so fixed ids would collide. */
+  protected readonly panelId = `face-update-panel-${this.instance}`;
+  protected readonly headingId = `face-update-heading-${this.instance}`;
   /** `inline` grows the panel in the page's flow; `overlay` floats it under the trigger, for a control that lives in a fixed-height bar. */
   readonly panelMode = input<'inline' | 'overlay'>('inline');
   protected readonly overlay = computed(() => this.panelMode() === 'overlay');

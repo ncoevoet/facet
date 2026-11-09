@@ -306,6 +306,39 @@ describe('FaceReviewQueueComponent', () => {
     fixture.destroy(); root.remove();
   });
 
+  it('asks for suggestions again on reload after a 412, and falls back again if refused', async () => {
+    const { fixture, root, api } = await render();
+    const bare = of({ ...response, faces: response.faces.map(face => ({ ...face, suggestions: [] })) });
+    api.get.mockReturnValueOnce(throwError(() => ({ status: 412 }))).mockReturnValueOnce(bare);
+    root.querySelector<HTMLButtonElement>('[data-queue-reload]')!.click();
+    await fixture.whenStable(); fixture.detectChanges();
+    api.get.mockReturnValueOnce(of(response));
+    root.querySelector<HTMLButtonElement>('[data-queue-reload]')!.click();
+    await fixture.whenStable(); fixture.detectChanges();
+    expect(api.get.mock.calls.at(-1)![1].suggest).toBe(true);
+    expect(root.querySelector('[data-suggestions-skipped]')).toBeNull();
+    api.get.mockReturnValueOnce(throwError(() => ({ status: 412 }))).mockReturnValueOnce(bare);
+    root.querySelector<HTMLButtonElement>('[data-queue-reload]')!.click();
+    await fixture.whenStable(); fixture.detectChanges();
+    expect(api.get.mock.calls.slice(-2).map(call => call[1].suggest)).toEqual([true, false]);
+    expect(root.querySelector('[data-suggestions-skipped]')).not.toBeNull();
+    fixture.destroy(); root.remove();
+  });
+
+  it('keeps the user\'s own Browse without matches choice across reloads', async () => {
+    const { fixture, root, api } = await render();
+    api.get.mockReturnValueOnce(throwError(() => ({ status: 500 })));
+    root.querySelector<HTMLButtonElement>('[data-queue-reload]')!.click();
+    await fixture.whenStable(); fixture.detectChanges();
+    api.get.mockReturnValue(of({ ...response, faces: response.faces.map(face => ({ ...face, suggestions: [] })) }));
+    root.querySelector<HTMLButtonElement>('[data-browse-without-matches]')!.click();
+    await fixture.whenStable(); fixture.detectChanges();
+    root.querySelector<HTMLButtonElement>('[data-queue-reload]')!.click();
+    await fixture.whenStable(); fixture.detectChanges();
+    expect(api.get.mock.calls.at(-1)![1].suggest).toBe(false);
+    fixture.destroy(); root.remove();
+  });
+
   it('does not retry a non-412 failure and hides the unassigned total while the error shows', async () => {
     const { fixture, root, api } = await render();
     const reads = api.get.mock.calls.length;

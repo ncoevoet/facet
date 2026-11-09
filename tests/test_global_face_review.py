@@ -103,8 +103,9 @@ def test_mixed_target_centroid_model_is_not_offered_as_assignable(regular_client
 def test_reference_budget_samples_every_person_instead_of_refusing(regular_client, seed_people, monkeypatch):
     path = seed_people.photo(ROOT, 'cap.jpg')
     alice, bob = seed_people.person('Alice'), seed_people.person('Bob')
-    # Alice's history in id order: two faces like v0, then two like v1.
-    for index in (0, 0, 1, 1):
+    # Alice's history in id order: three faces like v0, then one like v1. The full set's
+    # centroid scores 3/sqrt(10) against v0; the two-face sample (rn 2 and 4) scores 2**-0.5.
+    for index in (0, 0, 0, 1):
         seed_people.face(path, alice, embedding=vector(index))
     seed_people.face(path, bob, embedding=vector(2))
     face = seed_people.face(path, None, embedding=vector())
@@ -114,9 +115,29 @@ def test_reference_budget_samples_every_person_instead_of_refusing(regular_clien
     body = response.json()
     assert body['compared_people'] == 2
     # Two faces per person, spread over Alice's whole history: one v0 and one v1, so the
-    # centroid sits between them. Her first two faces alone would give 1.0, her last two 0.
+    # centroid sits between them. An unbounded scan would give 0.949.
     [row] = [row for row in body['faces'] if row['face_id'] == face]
     assert [s['person_id'] for s in row['suggestions']] == [alice]
+    assert row['suggestions'][0]['similarity'] == pytest.approx(2 ** -0.5, abs=1e-3)
+
+
+def test_reference_sample_is_drawn_only_from_usable_faces(regular_client, seed_people, monkeypatch):
+    path = seed_people.photo(ROOT, 'cap-usable.jpg')
+    alice, bob = seed_people.person('Alice'), seed_people.person('Bob')
+    # Alice's id-ordered rows: v0, v0, short, v0, v1, NULL. With per_person=2 a sample over
+    # all six rows keeps rn 3 and 6, both unreadable, so she would vanish from the comparison.
+    seed_people.face(path, alice, embedding=vector())
+    seed_people.face(path, alice, embedding=vector())
+    seed_people.face(path, alice, embedding=np.ones(128, np.float32).tobytes())
+    seed_people.face(path, alice, embedding=vector())
+    seed_people.face(path, alice, embedding=vector(1))
+    seed_people.face(path, alice, embedding=None)
+    seed_people.face(path, bob, embedding=vector(2))
+    face = seed_people.face(path, None, embedding=vector())
+    monkeypatch.setattr(face_matches, 'MAX_REVIEW_REFERENCE_FACES', 4)
+    body = regular_client.get('/api/faces/review', params={'min_similarity': 0.5}).json()
+    assert body['compared_people'] == 2
+    [row] = [row for row in body['faces'] if row['face_id'] == face]
     assert row['suggestions'][0]['similarity'] == pytest.approx(2 ** -0.5, abs=1e-3)
 
 
