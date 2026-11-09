@@ -10,6 +10,7 @@ import { ApiService } from '../../core/services/api.service';
 import { AuthService } from '../../core/services/auth.service';
 import { i18nKeys } from '../../core/i18n/keys';
 import { ReviewStateKeyPipe } from '../../shared/pipes/review-state-key.pipe';
+import { PluralKeyPipe } from '../../shared/pipes/plural-key.pipe';
 import { TranslatePipe } from '../../shared/pipes/translate.pipe';
 import { GalleryStore } from '../gallery/gallery.store';
 
@@ -22,7 +23,7 @@ const REVERT_ERROR_BY_STATUS: Record<number, 'conflict' | 'unavailable'> = { 409
 @Component({
   selector: 'app-organization-history-dialog',
   standalone: true,
-  imports: [MatDialogModule, MatButtonModule, TranslatePipe, DatePipe, ReviewStateKeyPipe],
+  imports: [MatDialogModule, MatButtonModule, TranslatePipe, DatePipe, ReviewStateKeyPipe, PluralKeyPipe],
   changeDetection: ChangeDetectionStrategy.Eager,
   template: `
     <h2 mat-dialog-title>{{ I18N.organization_history.title | translate }}</h2>
@@ -47,10 +48,14 @@ const REVERT_ERROR_BY_STATUS: Record<number, 'conflict' | 'unavailable'> = { 409
             @for (change of entry.changes; track change.path) {
               <p class="text-sm break-all font-medium mt-3">{{ change.path }}</p>
               @if (entry.kind === 'review' || entry.kind === 'logical_review') {
-                <p class="text-sm">{{ I18N.organization_history.review | translate }}:
-                  {{ change.before | reviewStateKey | translate }}
-                  → {{ change.after | reviewStateKey | translate }}
-                </p>
+                @let beforeState = change.before | reviewStateKey;
+                @let afterState = change.after | reviewStateKey;
+                @if (beforeState !== afterState) {
+                  <p class="text-sm">{{ I18N.organization_history.review | translate }}:
+                    {{ beforeState | translate }}
+                    → {{ afterState | translate }}
+                  </p>
+                }
               }
               <table class="w-full text-sm"><thead><tr><th scope="col">{{ I18N.organization_history.field | translate }}</th><th scope="col">{{ I18N.capture_date.before | translate }}</th><th scope="col">{{ I18N.capture_date.after | translate }}</th></tr></thead>
               <tbody>@for (field of fields[entry.kind]; track field.key; let i = $index) {
@@ -63,11 +68,12 @@ const REVERT_ERROR_BY_STATUS: Record<number, 'conflict' | 'unavailable'> = { 409
             }
             }
           </details>
-          <button mat-button [disabled]="busy() || entry.reverted" (click)="previewRestore(entry)"
+          <button mat-button [disabled]="busy() || entry.reverted || entry.superseded" (click)="previewRestore(entry)"
             [attr.aria-label]="I18N.organization_history.entry_action | translate:{ action: ((entry.reverted ? I18N.organization_history.reverted : I18N.organization_history.preview_action) | translate), kind: (I18N.organization_history[entry.kind] | translate), date: ((entry.created_at | date:'dd/MM/yyyy HH:mm') ?? ''), id: entry.id }">{{ (entry.reverted ? I18N.organization_history.reverted : I18N.organization_history.preview_action) | translate }}</button>
+          @if (entry.superseded && !entry.reverted) { <p data-history-superseded class="my-1 text-xs text-[var(--mat-sys-on-surface-variant)]">{{ I18N.organization_history.superseded | translate }}</p> }
           @if (restorePlan()?.id === entry.id) {
             <section data-history-preview class="my-2 rounded border border-[var(--mat-sys-outline-variant)] p-3 text-sm">
-              <p>{{ I18N.organization_history.restore_preview | translate:{ count: entry.changes.length, part: entry.part, parts: entry.parts } }}</p>
+              <p>{{ (entry.changes.length | pluralKey:I18N.organization_history.restore_preview:I18N.organization_history.restore_preview_plural) | translate:{ count: entry.changes.length, part: entry.part, parts: entry.parts } }}</p>
               <p>{{ I18N.organization_history.restore_boundary | translate }}</p>
               <button mat-button [disabled]="busy()" (click)="restorePlan.set(null)">{{ I18N.ui.buttons.cancel | translate }}</button>
               <button mat-flat-button data-history-apply [disabled]="busy()" (click)="confirmRestore()">{{ I18N.organization_history.revert | translate }}</button>
@@ -163,7 +169,7 @@ export class OrganizationHistoryDialogComponent implements OnInit {
   }
 
   previewRestore(entry: Entry): void {
-    if (this.current() && !this.busy() && !entry.reverted) this.restorePlan.set(structuredClone(entry));
+    if (this.current() && !this.busy() && !entry.reverted && !entry.superseded) this.restorePlan.set(structuredClone(entry));
   }
 
   async confirmRestore(): Promise<void> {
@@ -174,7 +180,7 @@ export class OrganizationHistoryDialogComponent implements OnInit {
   }
 
   async revert(entry: Entry): Promise<void> {
-    if (!this.current() || this.busy() || entry.reverted) return;
+    if (!this.current() || this.busy() || entry.reverted || entry.superseded) return;
     this.pendingRestore = this.performRevert(entry);
     await this.pendingRestore;
   }

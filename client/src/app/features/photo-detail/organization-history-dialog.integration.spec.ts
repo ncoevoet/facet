@@ -12,7 +12,7 @@ import { OrganizationHistoryDialogComponent } from './organization-history-dialo
 
 type Entry = components['schemas']['OrganizationEntry'];
 const messages = {
-  preview_action: 'Review restore…', limits_title: 'What history can restore', limits: 'Up to 50 recent entries.', reload: 'Reload history', restore_preview: 'Restore {count} photos', restore_boundary: 'Conflicts restore nothing.',
+  preview_action: 'Review restore…', limits_title: 'What history can restore', limits: 'Up to 50 recent entries.', reload: 'Reload history', restore_preview: 'Restore {count} photo', restore_preview_plural: 'Restore {count} photos', superseded: 'Superseded by a later change', restore_boundary: 'Conflicts restore nothing.',
   title: 'Organization history', hint: 'History belongs to this account.', gps: 'Location', date: 'Capture date',
   review: 'Review', logical_review: 'Grouped photo review', revert: 'Revert this entry', reverted: 'Already reverted', empty: 'No available history entries.',
   success: 'Photos restored: {count}', error: 'Could not load or restore history.',
@@ -98,7 +98,7 @@ describe('Organization history rendered controls and HTTP', () => {
   it('previews and cancels a restore without writing, then explicitly applies the captured entry', async () => {
     await create();
     revert().click(); await settle();
-    expect(root.querySelector('[data-history-preview]')?.textContent).toContain('Restore 1 photos');
+    expect(root.querySelector('[data-history-preview]')?.textContent).toContain('Restore 1 photo');
     expect(revert().compareDocumentPosition(root.querySelector('[data-history-preview]')!) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
     http.expectNone(request => request.method === 'POST');
     const cancel = [...root.querySelectorAll('[data-history-preview] button')].find(button => button.textContent?.trim() === 'Cancel') as HTMLButtonElement;
@@ -179,6 +179,36 @@ describe('Organization history rendered controls and HTTP', () => {
     revert().click();
     http.expectNone(request => request.method === 'POST');
     assertNoRestore();
+  });
+
+  it('disables a superseded entry and says why, without posting', async () => {
+    await create([entry({ superseded: true }), entry({ id: 902 })]);
+    expect(revert().disabled).toBe(true);
+    expect(sections()[0].textContent).toContain('Superseded by a later change');
+    expect(sections()[1].textContent).not.toContain('Superseded by a later change');
+    expect(revert(1).disabled).toBe(false);
+    revert().click();
+    http.expectNone(request => request.method === 'POST');
+  });
+
+  it('picks the singular or plural restore preview by the number of photos', async () => {
+    const two = [{ path: '/a.jpg', before: [null, 2, 0], after: [3, 4, 1], revision: 5 }, { path: '/b.jpg', before: [null, 2, 0], after: [3, 4, 1], revision: 5 }];
+    await create([entry({ id: 902, changes: two }), entry()]);
+    revert(0).click(); await settle();
+    expect(root.querySelector('[data-history-preview]')?.textContent).toContain('Restore 2 photos');
+    revert(1).click(); await settle();
+    expect(root.querySelector('[data-history-preview]')?.textContent).toContain('Restore 1 photo');
+    expect(root.querySelector('[data-history-preview]')?.textContent).not.toContain('Restore 1 photos');
+  });
+
+  it('shows the review decision only when it changed', async () => {
+    const same = { path: '/same.jpg', before: [0, 0, 0, 0], after: [4, 1, 0, 0], revision: 5 };
+    const flipped = { path: '/flip.jpg', before: [0, 0, 0, 0], after: [0, 0, 1, 0], revision: 5 };
+    await create([entry({ id: 910, kind: 'review', changes: [same, flipped] })]);
+    const details = root.querySelectorAll('details')[1] as HTMLDetailsElement;
+    details.open = true; details.dispatchEvent(new Event('toggle')); await settle();
+    const lines = [...root.querySelectorAll('p')].filter(p => p.textContent?.includes('Review:'));
+    expect(lines).toHaveLength(1);
   });
 
   for (const [status, message] of [[404, messages.unavailable], [409, messages.conflict], [500, messages.error]] as const) {
