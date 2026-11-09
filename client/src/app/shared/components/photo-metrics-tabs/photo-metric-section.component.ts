@@ -172,7 +172,7 @@ import { MetricScoreRowComponent } from '../metric-score-row/metric-score-row.co
             <app-metric-score-row icon="contrast" [label]="'tooltip.contrast' | translate" column="contrast_score" [category]="p.category" [value]="p.contrast_score">{{ p.contrast_score | fixed:1 }}</app-metric-score-row>
           }
           @if (p.dynamic_range_stops !== null) {
-            <app-metric-score-row icon="dynamic_range" [label]="'tooltip.dynamic_range' | translate" column="dynamic_range_stops" [category]="p.category" [value]="p.dynamic_range_stops">{{ p.dynamic_range_stops | fixed:1 }}</app-metric-score-row>
+            <app-metric-score-row icon="hdr_strong" [label]="'tooltip.dynamic_range' | translate" column="dynamic_range_stops" [category]="p.category" [value]="p.dynamic_range_stops">{{ p.dynamic_range_stops | fixed:1 }}</app-metric-score-row>
           }
           @if (p.mean_saturation !== null && p.mean_saturation !== undefined) {
             <app-metric-score-row icon="invert_colors" [label]="'tooltip.saturation' | translate" column="mean_saturation" [category]="p.category" [value]="p.mean_saturation" [percent]="true">{{ (p.mean_saturation * 100) | fixed:0 }}%</app-metric-score-row>
