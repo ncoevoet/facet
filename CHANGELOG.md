@@ -44,7 +44,7 @@ All notable changes to Facet are documented in this file.
 
 - Separate browsing destinations from tools, give search its own space, and group stack/review commands under labelled menus. Selection mode shows its count; phone headers retain readable titles and labels. Keep top closes Review after success and returns focus to the selection control.
 
-- Gallery notices animate briefly on open and dismissal and offer Dismiss all. Selected photos use a square checkbox; kept photos show a thin green line along the bottom edge with a tooltip and accessible label. Reduced-motion preferences are respected.
+- Gallery notices animate briefly on open and dismissal and offer Dismiss all. Selected photos use a square checkbox; kept photos show a thin green line along the bottom edge with a tooltip and accessible label. Reduced-motion preferences are respected, except by loading spinners and progress bars, which slow down instead of stopping.
 
 - Timeline API failures now return 503 instead of empty results. Week buckets use ISO week years, date bounds cover whole calendar days, and photos within a date bucket follow the requested date sort direction; old week keys and cursors are not comparable.
 

@@ -357,8 +357,11 @@ app-gallery-view-controls .mat-mdc-button:not(:disabled) {
   color: var(--mat-sys-on-surface-variant);
 }
 
+// Material's progress indicators already slow themselves under reduced motion; one 0.01ms run
+// would freeze an indeterminate spinner on its last frame, a dot of colour.
 @media (prefers-reduced-motion: reduce) {
-  *, *::before, *::after {
+  :not(.mdc-circular-progress, .mdc-circular-progress *, .mdc-linear-progress, .mdc-linear-progress *),
+  ::before, ::after {
     scroll-behavior: auto !important;
     animation-duration: 0.01ms !important;
     animation-iteration-count: 1 !important;
