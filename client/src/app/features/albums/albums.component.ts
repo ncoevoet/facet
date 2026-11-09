@@ -88,7 +88,7 @@ import { HANDLE_SERVER_ERROR_LOCALLY } from '../../core/utils/http-error-context
       }
     </ng-template>
 
-    <h1 id="albums-heading" tabindex="-1" class="m-0 mb-4 text-lg font-medium text-[var(--mat-sys-on-surface)]">{{ 'albums.title' | translate }}</h1>
+    <h1 id="albums-heading" tabindex="-1" class="sr-only">{{ 'albums.title' | translate }}</h1>
     @if (loading() && !retrying() && albums().length === 0) {
       <div class="flex justify-center py-16">
         <mat-spinner diameter="48" [attr.aria-label]="'ui.labels.loading' | translate" />
@@ -109,9 +109,9 @@ import { HANDLE_SERVER_ERROR_LOCALLY } from '../../core/utils/http-error-context
 
     <div class="grid grid-cols-2 gap-x-4 gap-y-6 sm:grid-cols-3 lg:grid-cols-4 2xl:grid-cols-5">
       @for (album of albums(); track album.id) {
-        <article class="min-w-0">
+        <article class="group flex min-w-0 flex-col overflow-hidden rounded-xl bg-[var(--mat-sys-surface-container)] transition-shadow hover:shadow-lg">
         <a [routerLink]="['/album', album.id]" [id]="'album-link-' + album.id"
-           class="group block min-w-0 rounded-sm overflow-hidden cursor-pointer text-[var(--mat-sys-on-surface)]">
+           class="block min-w-0 cursor-pointer text-[var(--mat-sys-on-surface)] focus-visible:-outline-offset-2">
           @if (album.first_photo_path) {
             <div class="relative w-full aspect-[4/3] overflow-hidden">
               <img [src]="album.first_photo_path | thumbnailUrl:320:album.preview_revision"
@@ -123,7 +123,7 @@ import { HANDLE_SERVER_ERROR_LOCALLY } from '../../core/utils/http-error-context
               <mat-icon class="!text-4xl !w-10 !h-10 opacity-30">photo_library</mat-icon>
             </div>
           }
-          <div class="pt-2 flex items-start gap-2">
+          <div class="px-3 pt-2 flex items-start gap-2">
             <div class="flex-1 min-w-0">
               <h2 class="m-0 truncate text-sm font-medium" [title]="album.name">{{ album.name }}</h2>
               @if (album.description) {
@@ -138,7 +138,7 @@ import { HANDLE_SERVER_ERROR_LOCALLY } from '../../core/utils/http-error-context
             }
           </div>
         </a>
-            <div class="flex items-center justify-between gap-2">
+            <div class="flex items-center justify-between gap-2 px-3 pb-1">
               @if (album.photo_count === null) {
                 <span data-album-smart-label class="text-xs text-[var(--mat-sys-on-surface-variant)]">{{ 'albums.type_smart' | translate }}</span>
               } @else {

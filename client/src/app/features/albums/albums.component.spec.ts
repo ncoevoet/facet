@@ -192,6 +192,30 @@ describe('AlbumsComponent', () => {
     fixture.destroy(); fixture.nativeElement.remove();
   });
 
+  it('draws each card as a panel like /capsules and /folders, with the text kept off the panel edge', async () => {
+    const fixture = TestBed.createComponent(AlbumsComponent);
+    fixture.detectChanges(); await fixture.whenStable(); fixture.detectChanges();
+    const article = fixture.nativeElement.querySelector('article') as HTMLElement;
+    for (const cls of ['flex', 'flex-col', 'rounded-xl', 'overflow-hidden', 'bg-[var(--mat-sys-surface-container)]', 'hover:shadow-lg', 'transition-shadow']) {
+      expect(article.classList.contains(cls), cls).toBe(true);
+    }
+    const link = article.querySelector('a') as HTMLElement;
+    expect(link.classList.contains('bg-[var(--mat-sys-surface-container)]')).toBe(false);
+    expect(link.classList.contains('focus-visible:-outline-offset-2')).toBe(true);
+    expect((link.querySelector('h2') as HTMLElement).parentElement!.parentElement!.classList.contains('px-3')).toBe(true);
+    expect((article.querySelector('.justify-between') as HTMLElement).classList.contains('px-3')).toBe(true);
+    fixture.destroy();
+  });
+
+  it('keeps the page title for assistive tech only, since the nav already names the page', async () => {
+    const fixture = TestBed.createComponent(AlbumsComponent);
+    fixture.detectChanges(); await fixture.whenStable(); fixture.detectChanges();
+    const heading = fixture.nativeElement.querySelector('h1#albums-heading') as HTMLElement;
+    expect(heading.classList.contains('sr-only')).toBe(true);
+    expect(heading.getAttribute('tabindex')).toBe('-1');
+    fixture.destroy();
+  });
+
   it('shows the Smart label instead of a count for a smart album with a null count', async () => {
     mockAlbumService.list.mockReturnValue(of({ albums: [
       { id: 1, name: 'Trip', is_smart: false, is_shared: false, photo_count: 3 },
