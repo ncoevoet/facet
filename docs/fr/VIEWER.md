@@ -265,7 +265,7 @@ Utilisez **Décision de tri → À examiner** dans la galerie pour parcourir les
 **Notifications flottantes.** La progression du tri, **Continuer le tri**, la notification de photos masquées et celle de migration des miniatures s'empilent en bas à droite.
 
 - Le × de chaque carte la masque pour l'onglet courant du navigateur. Elle revient dans un nouvel onglet, ou quand la notification change (autre périmètre ou nombre de photos masquées modifié).
-- Pour masquer définitivement la progression du tri, utilisez **Masquer la progression du tri** / **Afficher la progression du tri** du menu utilisateur. Ce choix est enregistré par navigateur et masque aussi le bouton **Trier les indécises**.
+- Pour masquer définitivement la progression du tri, décochez **Afficher la progression de la revue** dans le panneau **Tri** de la galerie. Ce choix est enregistré par navigateur et masque aussi le bouton **Trier les indécises**. La cocher de nouveau fait aussi réapparaître une bannière fermée avec sa ×.
 - Après quelques secondes d'inactivité, la pile se replie en une petite pastille avec un compteur. Survolez-la ou cliquez dessus pour la déplier.
 
 **Tout fermer** masque les notifications actuelles pour cet onglet sans modifier les filtres, les décisions de tri ou la file enregistrée. Leur courte animation respecte la préférence de réduction des mouvements. Une case carrée et un contour indiquent la sélection ; une fine ligne verte sur le bord inférieur indique les photos conservées. Le libellé **Conservée** reste dans l’infobulle et pour les lecteurs d’écran.
@@ -460,7 +460,7 @@ Champs de réponse et codes de statut : [API.md](../API.md).
 - **Infobulle** — comment les détails d'une photo s'affichent : **Panneau latéral** (par défaut), **Survol**, **Clic** ou **Désactivée**.
   - Le panneau latéral montre tous les détails dans le tiroir de droite, disposés comme le détail de la photo. Dans **Activation du panneau**, choisissez **Survol**, **Clic** ou **Survol ou clic** (par défaut). Choisissez une option avec clic pour les écrans tactiles. Il garde la dernière photo quand le curseur quitte la grille.
   - Cliquer sur une photo maintient le panneau sur elle jusqu'à ce que vous appuyiez sur **Désélectionner** (ce qui désélectionne aussi la photo). **Échap** fait la même chose et efface la sélection.
-  - Une entrée **Pourquoi ce score ?** épinglée en bas du panneau ouvre l'explication du score (la boîte de dialogue de critique) pour la photo que le panneau maintient.
+  - Un bouton-icône **Pourquoi ce score ?** à la fin de la ligne du score IA du panneau ouvre l'explication du score (la boîte de dialogue de critique) pour la photo que le panneau maintient.
   - Le panneau partage le tiroir avec les filtres ; ouvrir les filtres le masque. Il exige une fenêtre d'au moins 1280 px de large. Là où le panneau ne peut pas se docker, un réglage **Panneau latéral** enregistré affiche les détails dans la bulle flottante, et **Échap** la ferme.
   - **Survol** et **Clic** affichent une courte bulle : catégorie, agrégat et rang, esthétique, composition, netteté, exposition et une ligne EXIF.
   - En dessous de 768px, **Survol** est désactivé sauf s’il est déjà sélectionné ; redimensionner la fenêtre conserve le déclencheur enregistré. Sur les appareils tactiles, **Survol** est aussi désactivé, ici comme dans **Activation du panneau**, car un appui ne peut pas survoler.
@@ -760,6 +760,10 @@ Contrôlé par `viewer.features.show_memories` (par défaut : `true`).
 Parcourez chronologiquement : les années descendent vers les mois, puis vers un calendrier des jours. Chaque tuile montre un nombre de photos et une photo de couverture. Cliquez sur un jour pour ouvrir la galerie filtrée sur cette date ; triez-y.
 
 Les cinq bascules de masquage de la galerie (`hide_blinks`, `hide_bursts`, `hide_duplicates`, `hide_brackets`, `hide_panoramas`) s'appliquent, avec `viewer.defaults` pour valeurs par défaut, de sorte que les compteurs des tuiles correspondent à ce que montre la galerie. Quand quelque chose est masqué, un bouton `visibility_off` apparaît dans la barre d'outils (« Certaines photos sont masquées par vos filtres ») ; cliquez dessus pour effacer les cinq.
+
+**Barre d’outils.** La barre sous la navigation contient, de gauche à droite : le fil d’Ariane et le nombre de photos du périmètre courant, la bascule **Photos** / **Calendrier**, **Aller au mois** et le sens du tri (vue Photos), **Dates** pour une plage de dates de prise de vue, la bascule de densité par date et, quand une plage est définie, sa pastille. Sur petit écran, les mêmes commandes tiennent sur une ligne en haut de la page.
+
+**Densité par date.** Une bande de barres au-dessus des photos les compte par année, mois ou jour du périmètre courant. Cliquez sur une barre pour l’explorer. Faites glisser la souris sur plusieurs barres, ou cliquez sur une barre puis Maj+clic sur une autre, pour filtrer les dates de prise de vue sur cette plage ; au clavier, les flèches gauche et droite passent d’une barre à l’autre, Maj plus une flèche étend une plage, Entrée l’applique et Échap l’annule. Dans une année ou un mois, **Période** bascule entre les mois (les jours, dans un mois) et les semaines ISO ; le bouton `show_chart` passe à une échelle logarithmique. Le bouton `bar_chart` de la barre d’outils masque la bande, ce choix est mémorisé par navigateur.
 
 Ouvrez `/timeline`. Contrôlé par `viewer.features.show_timeline` (par défaut : `true`).
 
@@ -1565,7 +1569,7 @@ Passez en revue et rétablissez vos modifications récentes dans toute la biblio
 
 ### Traitement et reçus
 
-Ouvrez Traitement et reçus d’export depuis le menu du compte pour consulter les opérations d’arrière-plan prises en charge, leurs identifiants de reçu, leur état réel et leurs nombres d’éléments. Les tâches terminées avec des éléments inachevés restent signalées comme telles ; aucune position dans une file n’est inventée. L’annulation prend effet entre les fichiers. Réessayer relance l’opération prise en charge pour ses éléments en échec, pas une autre action. Un échec de lecture de l’état propose une récupération. Les exports de fichiers conservent leurs propres vérifications d’aperçu, de destination et de propriété ; les reçus décrivent les écritures déjà tentées, sans promettre que les écritures de fichiers distinctes sont globalement atomiques.
+Ouvrez **Reçus de traitement et d’export** depuis le sous-menu **Tâches et diagnostics** du menu utilisateur pour consulter les opérations d’arrière-plan prises en charge, leurs identifiants de reçu, leur état réel et leurs nombres d’éléments. Les tâches terminées avec des éléments inachevés restent signalées comme telles ; aucune position dans une file n’est inventée. L’annulation prend effet entre les fichiers. Réessayer relance l’opération prise en charge pour ses éléments en échec, pas une autre action. Un échec de lecture de l’état propose une récupération. Les exports de fichiers conservent leurs propres vérifications d’aperçu, de destination et de propriété ; les reçus décrivent les écritures déjà tentées, sans promettre que les écritures de fichiers distinctes sont globalement atomiques.
 
 ## Visages sans nom
 

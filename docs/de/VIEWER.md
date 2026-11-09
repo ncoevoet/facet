@@ -265,7 +265,7 @@ Wählen Sie in der Galerie **Auswahlstatus → Zu prüfen**, um unentschiedene F
 **Schwebende Hinweise.** Bewertungsfortschritt, **Sichtung fortsetzen**, der Hinweis zu ausgeblendeten Fotos und der Hinweis zur Vorschaubild-Migration stapeln sich unten rechts.
 
 - Das × jeder Karte blendet sie für den aktuellen Browser-Tab aus. Sie kehrt in einem neuen Tab zurück oder wenn sich der Hinweis ändert (anderer Bereich oder geänderte Zahl ausgeblendeter Fotos).
-- Um den Bewertungsfortschritt dauerhaft auszublenden, nutzen Sie im Benutzermenü **Bewertungsfortschritt ausblenden** / **Bewertungsfortschritt anzeigen**. Das wird pro Browser gespeichert und blendet auch die Schaltfläche **Unentschiedene sichten** aus.
+- Um den Bewertungsfortschritt dauerhaft auszublenden, entfernen Sie im **Prüfen**-Popover der Galerie das Häkchen bei **Prüffortschritt anzeigen**. Das wird pro Browser gespeichert und blendet auch die Schaltfläche **Unentschiedene sichten** aus. Setzen Sie das Häkchen erneut, erscheint auch ein mit dem × geschlossenes Banner wieder.
 - Nach einigen Sekunden ohne Interaktion faltet sich der Stapel zu einer kleinen Zählpille zusammen. Zeiger darüber oder ein Klick darauf entfaltet ihn.
 
 **Alle schließen** blendet die aktuellen Hinweise für diesen Tab aus, ohne Filter, Bewertungsentscheidungen oder die gespeicherte Warteschlange zu ändern. Die kurze Animation entfällt bei reduzierter Bewegung. Ein quadratisches Kontrollkästchen und ein Rahmen markieren die Auswahl; eine dünne grüne Linie am unteren Rand kennzeichnet behaltene Fotos. **Behalten** bleibt als Tooltip und für Screenreader verfügbar.
@@ -461,7 +461,7 @@ Antwortfelder und Statuscodes: [API.md](../API.md).
 - **Tooltip** — Wie Fotodetails erscheinen: **Seitenleiste** (Standard), **Hover**, **Klick** oder **Aus**.
   - Die Seitenleiste zeigt alle Details in der rechten Schublade, angeordnet wie in der Fotodetailansicht. Unter **Panel-Aktivierung** wählen Sie **Hover**, **Klick** oder **Hover oder Klick** (Standard). Wählen Sie für Touch-Bildschirme eine Option mit Klick. Sie behält das letzte Foto, wenn der Zeiger das Raster verlässt.
   - Ein Klick auf ein Foto hält die Leiste darauf fest, bis Sie **Auswahl aufheben** drücken (das auch das Foto abwählt). **Escape** wirkt genauso und hebt die Auswahl auf.
-  - Ein am unteren Rand der Leiste fixierter Eintrag **Warum diese Bewertung?** öffnet den Bewertungserklärer (den Kritik-Dialog) für das Foto, das die Leiste hält.
+  - Eine Symbolschaltfläche **Warum diese Bewertung?** am Ende der KI-Bewertungszeile der Leiste öffnet den Bewertungserklärer (den Kritik-Dialog) für das Foto, das die Leiste hält.
   - Die Leiste teilt sich die Schublade mit den Filtern; das Öffnen der Filter blendet sie aus. Erfordert ein Fenster von mindestens 1280px. Wo die Leiste nicht andocken kann, zeigt eine gespeicherte **Seitenleiste** die Details stattdessen in der schwebenden Blase, und **Escape** schließt sie.
   - **Hover** und **Klick** zeigen eine kurze Blase: Kategorie, Gesamtwertung und Rang, Ästhetik, Komposition, Schärfe, Belichtung und eine EXIF-Zeile.
   - Unter 768px ist **Hover** deaktiviert, sofern es nicht bereits ausgewählt ist; eine Größenänderung behält den gespeicherten Auslöser bei. Auf reinen Touch-Geräten ist **Hover** ebenfalls deaktiviert, hier wie unter **Panel-Aktivierung**, da ein Tipp nicht schweben kann.
@@ -761,6 +761,10 @@ Gesteuert über `viewer.features.show_memories` (Standard: `true`).
 Durchsuchen Sie chronologisch: Jahre führen zu Monaten, dann zu einem Kalender der Tage. Jede Kachel zeigt eine Fotozahl und ein Titelfoto. Ein Klick auf einen Tag öffnet die auf dieses Datum gefilterte Galerie; sortieren Sie dort.
 
 Die fünf Ausblend-Schalter der Galerie (`hide_blinks`, `hide_bursts`, `hide_duplicates`, `hide_brackets`, `hide_panoramas`) gelten und stehen standardmäßig auf `viewer.defaults`, sodass die Kachelzahlen mit der Galerie übereinstimmen. Ist etwas ausgeblendet, erscheint in der Symbolleiste eine `visibility_off`-Schaltfläche („Einige Fotos sind durch Ihre Filter ausgeblendet“); ein Klick setzt alle fünf zurück.
+
+**Symbolleiste.** Die Leiste unter der Navigation enthält von links nach rechts: den Brotkrümelpfad und die Fotozahl des aktuellen Bereichs, den Umschalter **Fotos** / **Kalender**, **Zum Monat springen** und die Sortierrichtung (Fotoansicht), **Daten** für einen Aufnahmedatumsbereich, den Umschalter für die Datumsdichte und, wenn ein Bereich gesetzt ist, dessen Chip. Auf kleinen Bildschirmen stehen dieselben Bedienelemente in einer Zeile am Seitenanfang.
+
+**Datumsdichte.** Ein Balkenstreifen über den Fotos zählt sie pro Jahr, Monat oder Tag des aktuellen Bereichs. Klicken Sie auf einen Balken, um ihn zu öffnen. Ziehen Sie über mehrere Balken oder klicken Sie einen an und mit Umschalt+Klick einen weiteren, um die Aufnahmedaten auf diesen Bereich zu filtern; mit der Tastatur wechseln die Pfeiltasten links und rechts zwischen den Balken, Umschalt plus Pfeiltaste erweitert einen Bereich, die Eingabetaste übernimmt ihn und Escape bricht ab. Innerhalb eines Jahres oder Monats schaltet **Zeitraum** zwischen Monaten (in einem Monat: Tagen) und ISO-Wochen um; die Schaltfläche `show_chart` wechselt zu einer logarithmischen Skala. Die Schaltfläche `bar_chart` in der Symbolleiste blendet den Streifen aus, pro Browser gespeichert.
 
 Öffnen Sie `/timeline`. Gesteuert über `viewer.features.show_timeline` (Standard: `true`).
 
@@ -1566,7 +1570,7 @@ Prüfen Sie die letzten Änderungen in der gesamten Bibliothek und stellen Sie f
 
 ### Verarbeitung und Belege
 
-Öffnen Sie Verarbeitung und Exportbelege über das Kontomenü, um unterstützte Hintergrundvorgänge, ihre Belegkennungen, tatsächlichen Zustände und Elementzahlen zu prüfen. Abgeschlossene Aufträge mit unerledigten Einträgen bleiben entsprechend gekennzeichnet; eine Warteschlangenposition wird nicht erfunden. Abbrechen greift zwischen Dateien. Erneut versuchen wiederholt den unterstützten Vorgang für seine fehlgeschlagenen Einträge, keine andere Aktion. Ein fehlgeschlagener Statusabruf bietet eine Möglichkeit zur Wiederherstellung. Dateiexporte behalten ihre eigenen Prüfungen für Vorschau, Ziel und Zuständigkeit. Belege beschreiben bereits versuchte Schreibvorgänge und versprechen nicht, dass separate Dateischreibvorgänge insgesamt atomar sind.
+Öffnen Sie **Verarbeitungs- und Exportbelege** über das Untermenü **Aufgaben & Diagnose** des Benutzermenüs, um unterstützte Hintergrundvorgänge, ihre Belegkennungen, tatsächlichen Zustände und Elementzahlen zu prüfen. Abgeschlossene Aufträge mit unerledigten Einträgen bleiben entsprechend gekennzeichnet; eine Warteschlangenposition wird nicht erfunden. Abbrechen greift zwischen Dateien. Erneut versuchen wiederholt den unterstützten Vorgang für seine fehlgeschlagenen Einträge, keine andere Aktion. Ein fehlgeschlagener Statusabruf bietet eine Möglichkeit zur Wiederherstellung. Dateiexporte behalten ihre eigenen Prüfungen für Vorschau, Ziel und Zuständigkeit. Belege beschreiben bereits versuchte Schreibvorgänge und versprechen nicht, dass separate Dateischreibvorgänge insgesamt atomar sind.
 
 ## Gesichter ohne Namen
 

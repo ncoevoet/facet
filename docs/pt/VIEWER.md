@@ -265,7 +265,7 @@ Use **Estado de revisão → Precisa de revisão** na galeria para percorrer fot
 **Avisos flutuantes.** O progresso da revisão, **Continuar revisão**, o aviso de fotos ocultas e o aviso de migração de miniaturas se empilham no canto inferior direito.
 
 - O × de cada cartão o oculta na aba atual do navegador. Ele volta em uma nova aba, ou quando o aviso muda (outro escopo ou outro número de ocultas).
-- Para ocultar o progresso da revisão de vez, use **Ocultar progresso da revisão** / **Mostrar progresso da revisão** no menu do usuário. A escolha é salva por navegador e também oculta o botão **Rever por decidir**.
+- Para ocultar o progresso da revisão de vez, desmarque **Mostrar o progresso da revisão** no popover **Revisão** da galeria. A escolha é salva por navegador e também oculta o botão **Rever por decidir**. Marcá-la de novo também traz de volta um aviso fechado com o ×.
 - Após alguns segundos sem interação, a pilha se recolhe em uma pequena pílula de contagem. Passe o ponteiro ou clique nela para abrir.
 
 **Dispensar todos** oculta os avisos atuais nesta aba sem alterar filtros, decisões ou a fila salva. A animação breve é desativada quando há preferência por movimento reduzido. Uma caixa quadrada e um contorno indicam a seleção; uma linha verde fina na borda inferior identifica as fotos mantidas. **Mantida** continua na dica e para leitores de tela.
@@ -460,7 +460,7 @@ Campos de resposta e códigos de status: [API.md](../API.md).
 - **Dica** — como os detalhes das fotos aparecem: **Painel lateral** (padrão), **Passar o mouse**, **Clicar** ou **Desligado**.
   - O painel lateral mostra todos os detalhes na gaveta da direita, com a mesma disposição do detalhe da foto. Em **Ativação do painel**, escolha **Passar o mouse**, **Clicar** ou **Passar o mouse ou clicar** (padrão). Escolha uma opção com clique para telas de toque. Mantém a última foto quando o cursor sai da grade.
   - Clicar em uma foto mantém o painel nela até você pressionar **Desselecionar** (que também desseleciona a foto). **Escape** faz o mesmo e limpa a seleção.
-  - Uma entrada **Por que esta pontuação?** fixada na base do painel abre o explicador de pontuação (o diálogo de crítica) para a foto que o painel mantém.
+  - Um botão de ícone **Por que esta pontuação?** no fim da linha da pontuação de IA do painel abre o explicador de pontuação (o diálogo de crítica) para a foto que o painel mantém.
   - O painel divide a gaveta com os filtros; abrir os filtros o oculta. Exige uma janela de pelo menos 1280px de largura. Onde o painel não pode se acoplar, uma configuração **Painel lateral** salva mostra os detalhes no balão flutuante, e **Escape** o fecha.
   - **Passar o mouse** e **Clicar** mostram um balão curto: categoria, agregada e posição, estética, composição, nitidez, exposição e uma linha de EXIF.
   - Abaixo de 768px, **Passar o mouse** fica desabilitado, exceto se já estiver selecionado; redimensionar preserva o gatilho salvo. Em dispositivos de toque ele também fica desabilitado, aqui e em **Ativação do painel**, pois um toque não pode pairar.
@@ -758,6 +758,10 @@ Controlado por `viewer.features.show_memories` (padrão: `true`).
 Navegue cronologicamente: os anos descem para meses e depois para um calendário de dias. Cada bloco mostra a contagem de fotos e uma foto de capa. Clique em um dia para abrir a galeria filtrada por essa data; ordene ali.
 
 Os cinco alternadores de ocultação da galeria (`hide_blinks`, `hide_bursts`, `hide_duplicates`, `hide_brackets`, `hide_panoramas`) se aplicam, com `viewer.defaults` como padrão, de modo que as contagens dos blocos coincidem com o que a galeria mostra. Quando algo está oculto, um botão `visibility_off` aparece na barra de ferramentas ("Algumas fotos estão ocultas pelos seus filtros"); clique nele para limpar os cinco.
+
+**Barra de ferramentas.** A barra abaixo da navegação contém, da esquerda para a direita: o caminho de navegação e a contagem de fotos do escopo atual, o alternador **Fotos** / **Calendário**, **Ir para o mês** e o sentido da ordenação (vista Fotos), **Datas** para um intervalo de datas de captura, o alternador de densidade por data e, quando há um intervalo, seu chip. Em telas pequenas, os mesmos controles ficam numa linha no topo da página.
+
+**Densidade por data.** Uma faixa de barras acima das fotos as conta por ano, mês ou dia do escopo atual. Clique numa barra para explorá-la. Arraste sobre várias barras, ou clique numa e use Shift+clique noutra, para filtrar as datas de captura para esse intervalo; com o teclado, as setas esquerda e direita passam entre barras, Shift mais uma seta alarga um intervalo, Enter o aplica e Esc o cancela. Dentro de um ano ou mês, **Período** alterna entre meses (dias, dentro de um mês) e semanas ISO; o botão `show_chart` muda para uma escala logarítmica. O botão `bar_chart` na barra de ferramentas oculta a faixa, lembrado por navegador.
 
 Abra `/timeline`. Controlado por `viewer.features.show_timeline` (padrão: `true`).
 
@@ -1563,7 +1567,7 @@ Reveja e reverta as edições recentes em toda a biblioteca. No modo de edição
 
 ### Processamento e comprovativos
 
-Abra Comprovativos de processamento e exportação no menu de conta para inspecionar as operações em segundo plano suportadas, os identificadores dos comprovativos, o estado real e as contagens de itens. As tarefas concluídas com itens pendentes continuam a indicá-lo; não é inventada uma posição na fila. Cancelar tem efeito entre ficheiros. Repetir executa novamente a operação suportada para os itens com falha, não uma ação diferente. Uma falha na leitura do estado oferece recuperação. As exportações de ficheiros mantêm as próprias verificações de pré-visualização, destino e titularidade; os comprovativos descrevem escritas já tentadas, não prometem que escritas separadas de ficheiros sejam globalmente atómicas.
+Abra **Comprovativos de processamento e exportação** no submenu **Tarefas e diagnóstico** do menu de usuário para inspecionar as operações em segundo plano suportadas, os identificadores dos comprovativos, o estado real e as contagens de itens. As tarefas concluídas com itens pendentes continuam a indicá-lo; não é inventada uma posição na fila. Cancelar tem efeito entre ficheiros. Repetir executa novamente a operação suportada para os itens com falha, não uma ação diferente. Uma falha na leitura do estado oferece recuperação. As exportações de ficheiros mantêm as próprias verificações de pré-visualização, destino e titularidade; os comprovativos descrevem escritas já tentadas, não prometem que escritas separadas de ficheiros sejam globalmente atómicas.
 
 ## Rostos sem nome
 

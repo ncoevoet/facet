@@ -265,7 +265,7 @@ Use **Review status → Needs review** in the gallery to work through undecided 
 **Floating notices.** Review progress, **Continue reviewing**, the hidden-photos notice and the thumbnail-migration notice stack at the bottom right.
 
 - Each card's × hides it for the current browser tab. It returns in a new tab, or when the notice changes (another scope or a changed hidden count).
-- To hide review progress for good, use the user menu's **Hide review progress** / **Show review progress**. This is stored per browser and also hides the **Review undecided** button.
+- To hide review progress for good, untick **Show review progress** in the gallery's **Review** popover. This is stored per browser and also hides the **Review undecided** button. Ticking it again also brings back a banner you closed with its ×.
 - After a few seconds idle the stack folds into a small count pill. Hover or click it to unfold.
 
 **Dismiss all** closes every current notice for this tab without changing filters, review decisions or the saved queue. Cards open and close with a short animation, disabled when reduced motion is requested. A square checkbox and outline identify selected photos; a thin green line along the bottom edge identifies kept photos. Hover it for **Kept**; the same label is available to screen readers.
@@ -461,7 +461,7 @@ Response fields and status codes: [API.md](API.md).
 - **Tooltip** — how photo details appear: **Side panel** (default), **Hover**, **Click** or **Off**.
   - The side panel shows full details in the right-hand drawer, laid out like photo detail. Under **Panel activation**, choose **Hover**, **Click**, or **Hover or click** (default). Choose a click-enabled option for touch screens. It keeps the last photo when the cursor leaves the grid.
   - Clicking a photo holds the panel on it until you press **Deselect** (which also deselects the photo). **Escape** does the same and clears the selection.
-  - A **Why This Score?** entry pinned at the bottom of the panel opens the score explainer (the critique dialog) for the photo the panel holds.
+  - A **Why this score?** icon button at the end of the panel's AI score line opens the score explainer (the critique dialog) for the photo the panel holds.
   - The panel shares the drawer with the filters; opening the filters hides it. It needs a viewport at least 1280px wide. Where the panel cannot dock, a saved **Side panel** setting shows its details in the floating bubble instead, and **Escape** closes it.
   - **Hover** and **Click** show a short bubble: category, aggregate and rank, aesthetic, composition, sharpness, exposure, and one EXIF line.
   - Below 768px, **Hover** is disabled unless already selected; resizing preserves the saved trigger. **Hover** is disabled on touch devices as well, here and under **Panel activation**, since a tap cannot hover.
@@ -761,6 +761,10 @@ Controlled by `viewer.features.show_memories` (default: `true`).
 Browse chronologically: years drill down to months, then to a calendar of days. Each tile shows a photo count and a cover photo. Click a day to open the gallery filtered to that date; sort there.
 
 The five gallery hide toggles (`hide_blinks`, `hide_bursts`, `hide_duplicates`, `hide_brackets`, `hide_panoramas`) apply, defaulting to `viewer.defaults`, so tile counts match what the gallery shows. When something is hidden, a `visibility_off` button appears in the toolbar ("Some photos are hidden by your filters"); click it to clear all five.
+
+**Toolbar.** The bar under the navigation holds, from the left: the breadcrumb and the photo count of the current scope, the **Photos** / **Calendar** toggle, **Jump to month** and the sort direction (Photos view), **Dates** for a capture-date range, the date-density toggle and, when a range is set, its chip. On small screens the same controls sit in a row at the top of the page.
+
+**Date density.** A strip of bars above the photos counts them per year, month or day of the current scope. Click a bar to drill into it. Drag across bars, or click one and Shift+click another, to filter the capture dates to that range; with the keyboard, the left and right arrows move between bars, Shift plus an arrow extends a range, Enter applies it and Escape cancels. Inside a year or a month, **Period** switches between months (days, inside a month) and ISO weeks; the `show_chart` button switches to a log scale. The `bar_chart` button in the toolbar hides the strip, remembered per browser.
 
 Open `/timeline`. Controlled by `viewer.features.show_timeline` (default: `true`).
 
@@ -1566,7 +1570,7 @@ Review and revert recent edits across the library. In edition mode, open **Organ
 
 ### Processing and receipts
 
-Open Processing and export receipts from the account menu to inspect supported background operations, their receipt IDs, actual state and item counts. Completed jobs with unfinished items remain qualified; no queue position is invented. Cancel takes effect between files. Retry repeats the supported operation for its failed items, not an unrelated action. A failed status read offers recovery. File exports retain their own preview, destination and ownership checks; receipts describe writes already attempted, not a promise that separate file writes are globally atomic.
+Open **Processing and export receipts** from the user menu's **Jobs & diagnostics** submenu to inspect supported background operations, their receipt IDs, actual state and item counts. Completed jobs with unfinished items remain qualified; no queue position is invented. Cancel takes effect between files. Retry repeats the supported operation for its failed items, not an unrelated action. A failed status read offers recovery. File exports retain their own preview, destination and ownership checks; receipts describe writes already attempted, not a promise that separate file writes are globally atomic.
 
 ## Faces without names
 

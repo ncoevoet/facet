@@ -90,7 +90,15 @@ All notable changes to Facet are documented in this file.
 
 - Light and dark workspace surfaces use neutral colors across the accent themes, keeping color emphasis on active controls and the photos.
 
-- The gallery details panel names its owning photo and can be closed without clearing the batch selection.
+- The gallery details panel names its owning photo. Its Deselect releases that photo alone and leaves the rest of the batch selection; the panel itself is switched off with the gallery's Tooltip choice (Side panel, Hover, Click, Off).
+
+- **The user menu is reordered.** Edition lock/unlock, Connect an assistant, Shortcuts and Help come first, then a Display submenu (language, dark mode, theme) and a Jobs & diagnostics submenu (processing and export receipts, Immich diagnostics), with Logout last. Card-button customisation stays in the gallery's Display popover and sidebar. The review-progress toggle moves to the gallery's Review popover, where ticking it also brings back a banner closed with its ×.
+- Edition mode no longer draws an accent underline under the headers; the amber shield on the user menu remains the signal. Destination tabs regain descriptive tooltips and the Gallery tab's double-click reset, Memories uses the same colours as the other tabs, and on an album page Albums is the current tab.
+- **Pages share one actions bar and one inset.** Timeline, Folders and Statistics put their page controls in the fixed bar under the navigation, as Albums and Persons do, and every page's content starts at the same 16 px inset. Weight Tuning uses the full width and the Statistics tab header, and Persons' Update faces sits at the end of the bar.
+- **Timeline date density is always visible.** Click a bar to drill into it; drag, Shift+click or Shift+arrow keys select a range, which Enter applies and Escape cancels. Toggles hide the strip (remembered per browser) and switch it to a log scale. Jump to month and the sort direction sit in the actions bar beside the breadcrumb and the photo count.
+- Statistics metric selects show the gallery sort's icons, and Score profile by category picks its series from a multi-select instead of legend clicks.
+- "Why this score?" is an icon button on the photo's AI score line, and About these measurements opens at the panel's width. Gallery list rows show 72 px thumbnails, the photo page's collection sidebar remembers its width, and Measurement availability is a standard collapsible filter section.
+- Review matches and Unassigned fit more face cards per row on wide screens: four at 1920 px, six at 2560 px.
 
 ### Fixed
 
@@ -171,6 +179,19 @@ All notable changes to Facet are documented in this file.
 - Token rotation immediately suspends stale editing controls, status reads share a credential-scoped request, and late status or edition-lock responses cannot restore a previous account's state.
 
 - Escape on a directly opened photo returns to the saved gallery query instead of leaving the application through browser history. Gallery-opened photos retain normal history return.
+
+- **Review matches works on large libraries.** Once named people had more than 20,000 faces between them it refused to suggest anyone and showed the same list as Unassigned. Past that budget each person now contributes an evenly spread sample of their faces; only more than 1,000 named people still falls back to browsing without suggestions.
+- On an album page, Export with photos selected exports the selection instead of the whole album.
+- Smart albums no longer read "0 photos": the album list reports their count as unknown and the card shows "Smart".
+- Organization history disables Restore on an entry a later change of the same kind superseded, and says so, instead of failing with an unexplained 409. Star- or favourite-only entries no longer print an unchanged review line, and an unset state reads "Not set".
+- The cull dialog titles a failed dry run "Could not preview" and no longer repeats it in a snackbar.
+- Applying a manual tag confirms how many photos changed, and Replace all is no longer styled as the primary action.
+- The Move action shows its icon; it named a glyph the shipped icon font lacks, and CI now fails on any such name.
+- On a phone, tapping a card during a selection no longer opens its tooltip over most of the screen.
+- Opening a photo without stored dimensions no longer requests a social-crop preview that fails with 422.
+- Scrolling /albums down and back up with a mouse wheel no longer leaves the cards cut through the middle and the header gone.
+- Removing photos from the catalog says "1 photo", not "1 photos".
+- A comparison pane that falls back to the preview after its source image fails says "Source image unavailable" rather than "Preview unavailable".
 
 ### Security
 

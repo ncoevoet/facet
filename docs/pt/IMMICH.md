@@ -289,7 +289,7 @@ Escaneie essas fotos (`python facet.py /mnt/photos`) e elas somem da lista na si
 
 ## Diagnóstico no visualizador
 
-Abra **Diagnóstico do Immich** no menu do usuário. É necessário acesso de superadministrador no modo multiusuário, e acesso de edição (ou edição local confiável) no modo individual.
+Abra **Diagnóstico do Immich** no submenu **Tarefas e diagnóstico** do menu do usuário. É necessário acesso de superadministrador no modo multiusuário, e acesso de edição (ou edição local confiável) no modo individual.
 
 - Nada é lido do Immich até você clicar em **Testar ligação**. O teste lê a versão do servidor e o acesso à conta e não grava nada.
 - A cobertura de caminhos verifica no máximo 200 fotos indexadas. Ela não confirma que cada uma corresponde a um ativo do Immich.

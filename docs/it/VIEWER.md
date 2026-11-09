@@ -265,7 +265,7 @@ Usa **Stato revisione → Da esaminare** nella galleria per smaltire le foto non
 **Avvisi fluttuanti.** L'avanzamento della revisione, **Continua revisione**, l'avviso delle foto nascoste e l'avviso di migrazione delle miniature si impilano in basso a destra.
 
 - La × di ogni scheda la nasconde per la scheda corrente del browser. Ritorna in una nuova scheda, o quando l'avviso cambia (altro ambito o conteggio di nascoste cambiato).
-- Per nascondere per sempre l'avanzamento della revisione, usa **Nascondi avanzamento revisione** / **Mostra avanzamento revisione** nel menu utente. È memorizzato per browser e nasconde anche il pulsante **Rivedi le indecise**.
+- Per nascondere per sempre l'avanzamento della revisione, deseleziona **Mostra l’avanzamento della revisione** nel popover **Revisione** della galleria. È memorizzato per browser e nasconde anche il pulsante **Rivedi le indecise**. Riselezionandola torna anche un banner chiuso con la sua ×.
 - Dopo qualche secondo di inattività la pila si ripiega in una piccola pillola con il conteggio. Passaci sopra o cliccala per aprirla.
 
 **Chiudi tutti** nasconde gli avvisi attuali per questa scheda senza cambiare filtri, decisioni o coda salvata. La breve animazione è disattivata quando è richiesto il movimento ridotto. Una casella quadrata e un bordo indicano la selezione; una sottile linea verde sul bordo inferiore indica le foto da tenere. **Da tenere** resta nel suggerimento e per gli screen reader.
@@ -460,7 +460,7 @@ Campi della risposta e codici di stato: [API.md](../API.md).
 - **Tooltip** — come appaiono i dettagli della foto: **Pannello laterale** (predefinito), **Al passaggio**, **Al clic** o **Disattivato**.
   - Il pannello laterale mostra i dettagli completi nel cassetto di destra, organizzato come il dettaglio della foto. In **Attivazione pannello**, scegli **Hover**, **Clic** o **Hover o clic** (predefinito). Scegli un’opzione con clic per gli schermi touch. Mantiene l'ultima foto quando il cursore lascia la griglia.
   - Cliccare una foto tiene il pannello su di essa finché non premi **Deseleziona** (che deseleziona anche la foto). **Esc** fa lo stesso e cancella la selezione.
-  - Una voce **Perché questo punteggio?** fissata in fondo al pannello apre la spiegazione del punteggio (la finestra di critica) per la foto che il pannello tiene.
+  - Un pulsante a icona **Perché questo punteggio?** alla fine della riga del punteggio IA del pannello apre la spiegazione del punteggio (la finestra di critica) per la foto che il pannello tiene.
   - Il pannello condivide il cassetto con i filtri; aprire i filtri lo nasconde. Richiede una finestra larga almeno 1280px. Dove il pannello non può agganciarsi, un'impostazione **Pannello laterale** salvata mostra i dettagli nel fumetto flottante, ed **Esc** lo chiude.
   - **Al passaggio** e **Al clic** mostrano un breve fumetto: categoria, aggregato e posizione, estetica, composizione, nitidezza, esposizione e una riga EXIF.
   - Sotto i 768px, **Al passaggio** è disabilitato se non è già selezionato; il ridimensionamento conserva il comportamento salvato. Sui dispositivi touch è disabilitato comunque, come **Hover** in **Attivazione pannello**, perché un tocco non può posare il puntatore.
@@ -760,6 +760,10 @@ Controllato da `viewer.features.show_memories` (predefinito: `true`).
 Sfoglia in ordine cronologico: gli anni scendono ai mesi, poi a un calendario dei giorni. Ogni tessera mostra il numero di foto e una foto di copertina. Clicca un giorno per aprire la galleria filtrata su quella data; ordina lì.
 
 I cinque interruttori di nascondimento della galleria (`hide_blinks`, `hide_bursts`, `hide_duplicates`, `hide_brackets`, `hide_panoramas`) si applicano, con `viewer.defaults` come valori iniziali, quindi i conteggi delle tessere corrispondono a ciò che mostra la galleria. Quando qualcosa è nascosto, nella barra degli strumenti compare un pulsante `visibility_off` ("Some photos are hidden by your filters"); cliccalo per cancellarli tutti e cinque.
+
+**Barra degli strumenti.** La barra sotto la navigazione contiene, da sinistra: il percorso di navigazione e il conteggio delle foto dell’ambito corrente, l’interruttore **Foto** / **Calendario**, **Vai al mese** e il verso dell’ordinamento (vista Foto), **Date** per un intervallo di date di scatto, l’interruttore della densità per data e, quando è impostato un intervallo, il suo chip. Sugli schermi piccoli gli stessi controlli stanno su una riga in cima alla pagina.
+
+**Densità per data.** Una striscia di barre sopra le foto le conta per anno, mese o giorno dell’ambito corrente. Fai clic su una barra per esplorarla. Trascina su più barre, oppure fai clic su una barra e poi Maiusc+clic su un’altra, per filtrare le date di scatto su quell’intervallo; con la tastiera le frecce sinistra e destra si spostano tra le barre, Maiusc più una freccia estende un intervallo, Invio lo applica ed Esc lo annulla. All’interno di un anno o di un mese, **Periodo** alterna i mesi (i giorni, dentro un mese) e le settimane ISO; il pulsante `show_chart` passa a una scala logaritmica. Il pulsante `bar_chart` nella barra degli strumenti nasconde la striscia, ricordato per browser.
 
 Apri `/timeline`. Controllato da `viewer.features.show_timeline` (predefinito: `true`).
 
@@ -1565,7 +1569,7 @@ Esamina e ripristina le modifiche recenti in tutta la libreria. In modalità di 
 
 ### Elaborazione e ricevute
 
-Apri Ricevute di elaborazione ed esportazione dal menu dell’account per esaminare le operazioni in background supportate, gli ID delle ricevute, lo stato effettivo e i conteggi degli elementi. Le attività completate con elementi incompiuti mantengono questa precisazione; non viene inventata una posizione in coda. L’annullamento ha effetto tra un file e l’altro. Riprova ripete l’operazione supportata per gli elementi non riusciti, non un’azione diversa. Un errore nella lettura dello stato offre un modo per recuperare. Le esportazioni di file mantengono le proprie anteprime e verifiche della destinazione e della titolarità; le ricevute descrivono scritture già tentate, non garantiscono che scritture di file separate siano globalmente atomiche.
+Apri **Ricevute di elaborazione ed esportazione** dal sottomenu **Attività e diagnostica** del menu utente per esaminare le operazioni in background supportate, gli ID delle ricevute, lo stato effettivo e i conteggi degli elementi. Le attività completate con elementi incompiuti mantengono questa precisazione; non viene inventata una posizione in coda. L’annullamento ha effetto tra un file e l’altro. Riprova ripete l’operazione supportata per gli elementi non riusciti, non un’azione diversa. Un errore nella lettura dello stato offre un modo per recuperare. Le esportazioni di file mantengono le proprie anteprime e verifiche della destinazione e della titolarità; le ricevute descrivono scritture già tentate, non garantiscono che scritture di file separate siano globalmente atomiche.
 
 ## Volti senza nome
 
