@@ -1142,7 +1142,7 @@ Le scorciatoie a tasto singolo sono inattive mentre il fuoco è in un campo di t
 | `1`–`5` | Valuta la foto a fuoco da 1 a 5 stelle (modalità di modifica; passa automaticamente alla foto successiva) |
 | `K` | Conserva la foto a fuoco (modalità di modifica) |
 | `F` | Aggiunge / toglie dai preferiti la foto a fuoco (modalità di modifica) |
-| `X` o `0` | Rifiuta / annulla il rifiuto della foto a fuoco (modalità di modifica; avanza automaticamente) |
+| `X` o `0` | Rifiuta / annulla il rifiuto della foto a fuoco (modalità di modifica; avanza automaticamente). Su una scheda all'interno di una selezione di due o più foto, rifiuta invece l'intera selezione, con **Annulla** |
 | `/` | Mette a fuoco la ricerca della barra degli strumenti (mostrata da 1360 px di larghezza); più stretta, apre la ricerca della barra laterale dei filtri |
 | `S` | Apre l'editor delle pile per la selezione esplicita (modalità di modifica; rimappabile, può restare non assegnato) |
 | `Ctrl+Maiusc+S` / `Cmd+Maiusc+S` | Impila subito la selezione esplicita non impilata nell’ordine di selezione, con la prima foto come copertina (modalità di modifica; i membri di pile esistenti aprono l’editor) |

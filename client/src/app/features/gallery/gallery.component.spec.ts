@@ -355,6 +355,36 @@ describe('GalleryComponent', () => {
       expect(activeIndex()).toBe(1);
     });
 
+    describe('X on a card inside a selection', () => {
+      function select(paths: string[]) {
+        mockStore.selectedPaths.set(new Set(paths));
+        mockStore.selectionCount.set(paths.length);
+      }
+
+      it('rejects every selected photo, not just the focused one', async () => {
+        select(['/a.jpg', '/c.jpg']);
+        fire(keyEvent('x'));
+        await Promise.resolve();
+        expect(mockStore.batchReject).toHaveBeenCalledWith(['/a.jpg', '/c.jpg']);
+        expect(mockStore.toggleRejected).not.toHaveBeenCalled();
+        expect(activeIndex()).toBe(0);
+      });
+
+      it('rejects only the focused photo when it is outside the selection', () => {
+        select(['/b.jpg', '/c.jpg']);
+        fire(keyEvent('x'));
+        expect(mockStore.batchReject).not.toHaveBeenCalled();
+        expect(mockStore.toggleRejected).toHaveBeenCalledWith('/a.jpg');
+      });
+
+      it('keeps the single-photo toggle when the selection is just the focused photo', () => {
+        select(['/a.jpg']);
+        fire(keyEvent('x'));
+        expect(mockStore.batchReject).not.toHaveBeenCalled();
+        expect(mockStore.toggleRejected).toHaveBeenCalledWith('/a.jpg');
+      });
+    });
+
     it('toggles favorite WITHOUT advancing on F', () => {
       fire(keyEvent('f'));
       expect(mockStore.toggleFavorite).toHaveBeenCalledWith('/a.jpg');

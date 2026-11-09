@@ -3317,6 +3317,13 @@ export class GalleryComponent implements OnInit, OnDestroy {
       });
       return;
     } else if (event.key === '0' || this.keymap.matches(event, 'reject')) {
+      // On a card inside a multi-photo selection, reject the whole selection
+      // (with Undo), the same rule the context menu uses to offer its bulk items.
+      if (this.inMultiSelection(photo.path)) {
+        event.preventDefault();
+        void this.batchReject();
+        return;
+      }
       if (this.store.filters().review_status) {
         void this.store.toggleRejected(photo.path).then(() => this.focusAfterDecision(photos, index));
       } else {
@@ -3335,6 +3342,12 @@ export class GalleryComponent implements OnInit, OnDestroy {
       this.setCursor(next);
       this.focusCard(next);
     }
+  }
+
+  /** True when `path` is selected and the selection holds more than one photo. */
+  private inMultiSelection(path: string): boolean {
+    if (this.selectionCount() < 2) return false;
+    return this.viewScoped() ? !this.excludedPaths().has(path) : this.selectedPaths().has(path);
   }
 
   private focusAfterDecision(photos: Photo[], index: number): void {

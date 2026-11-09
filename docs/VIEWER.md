@@ -1142,7 +1142,7 @@ Single-key shortcuts are inactive while focus is in a text field, menu or list.
 | `1`–`5` | Rate the focused photo 1–5 stars (edition mode; auto-advances to the next photo) |
 | `K` | Keep the focused photo (edition mode) |
 | `F` | Favourite / unfavourite the focused photo (edition mode) |
-| `X` or `0` | Reject / un-reject the focused photo (edition mode; auto-advances) |
+| `X` or `0` | Reject / un-reject the focused photo (edition mode; auto-advances). On a card inside a selection of two or more, rejects the whole selection instead, with **Undo** |
 | `/` | Focus the toolbar search (shown from 1360 px wide); narrower, opens the filter sidebar's search |
 | `S` | Open the stack editor for the explicit selection (edition mode; remappable, can be left Unassigned) |
 | `Ctrl+Shift+S` / `Cmd+Shift+S` | Stack the explicit unstacked selection at once in selection order, the first photo as cover (edition mode; existing stack members open the editor) |

@@ -1142,7 +1142,7 @@ Les raccourcis à touche unique sont inactifs quand le focus est dans un champ d
 | `1`–`5` | Note la photo ciblée de 1 à 5 étoiles (mode édition ; passe automatiquement à la photo suivante) |
 | `K` | Garde la photo ciblée (mode édition) |
 | `F` | Met en favori / retire des favoris la photo ciblée (mode édition) |
-| `X` ou `0` | Rejette / annule le rejet de la photo ciblée (mode édition ; passe automatiquement à la suivante) |
+| `X` ou `0` | Rejette / annule le rejet de la photo ciblée (mode édition ; passe automatiquement à la suivante). Sur une carte faisant partie d'une sélection de deux photos ou plus, rejette plutôt toute la sélection, avec **Annuler** |
 | `/` | Met le focus sur la recherche de la barre d'outils (affichée à partir de 1360 px de large) ; plus étroit, ouvre la recherche de la barre latérale de filtres |
 | `S` | Ouvre l'éditeur de piles pour la sélection explicite (mode édition ; réassignable, peut rester non assignée) |
 | `Ctrl+Maj+S` / `Cmd+Maj+S` | Empile aussitôt la sélection explicite non empilée dans l’ordre de sélection, la première photo servant de couverture (mode édition ; les membres de piles existantes ouvrent l’éditeur) |

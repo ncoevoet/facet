@@ -4,6 +4,10 @@ All notable changes to Facet are documented in this file.
 
 ## [Unreleased]
 
+### Changed
+
+- **`X` (or `0`) on a card inside a selection rejects the whole selection.** It rejected only the focused card, so rejecting ten selected photos meant ten trips; it now does what the selection bar's Reject does, with **Undo**. The rule is the context menu's: the focused card must be selected and the selection must hold two or more photos; otherwise `X` toggles the focused photo and advances as before. A whole-view selection asks for confirmation first, as the bar does.
+
 ### Security
 
 - **Request bodies are capped at 10 MB before any handler reads them.** Login, proofing sessions and client error reports buffered the whole body before validation and rate limiting ran, so an unbounded body was a memory lever for any LAN peer. A declared size over the cap answers 413 at once and a chunked body is refused as soon as it crosses it. WebDAV uploads, the AI-edit import and the Lightroom state import keep their own, larger streaming caps.

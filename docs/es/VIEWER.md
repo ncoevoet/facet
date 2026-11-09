@@ -1144,7 +1144,7 @@ Los atajos de una sola tecla están inactivos mientras el foco está en un campo
 | `1`–`5` | Valora la foto enfocada con 1–5 estrellas (modo de edición; avanza automáticamente a la siguiente foto) |
 | `K` | Conserva la foto enfocada (modo de edición) |
 | `F` | Marca / desmarca como favorita la foto enfocada (modo de edición) |
-| `X` o `0` | Rechaza / deshace el rechazo de la foto enfocada (modo de edición; avanza automáticamente) |
+| `X` o `0` | Rechaza / deshace el rechazo de la foto enfocada (modo de edición; avanza automáticamente). En una tarjeta dentro de una selección de dos o más fotos, rechaza en su lugar toda la selección, con **Deshacer** |
 | `/` | Enfoca la búsqueda de la barra de herramientas (se muestra desde 1360 px de ancho); más estrecho, abre la búsqueda de la barra lateral de filtros |
 | `S` | Abre el editor de pilas para la selección explícita (modo de edición; reasignable, puede quedar sin asignar) |
 | `Ctrl+Mayús+S` / `Cmd+Mayús+S` | Apila al instante la selección explícita sin pila en orden de selección, con la primera foto como portada (modo de edición; los miembros de pilas existentes abren el editor) |
