@@ -256,13 +256,13 @@ type RatingOption = 'any' | '1' | '2' | '3' | '4' | '5' | 'zero';
 <div class="shrink-0 px-4 border-b border-[var(--mat-sys-outline-variant)]">
 
       <div class="relative py-2 flex items-center gap-2">
-        <span class="text-sm font-medium opacity-80">{{ I18N.gallery.filters | translate }}</span>
+        <span class="text-sm font-medium leading-9 opacity-80">{{ I18N.gallery.filters | translate }}</span>
         @if (totalActiveCount()) {
           <span data-test="active-count" class="text-xs rounded min-w-5 h-5 px-1.5 flex items-center justify-center bg-[var(--mat-sys-surface-container-high)] text-[var(--mat-sys-on-surface)] tabular-nums leading-none">{{ totalActiveCount() }}</span>
         }
         <span class="flex-1"></span>
         <details #countHelp data-count-help class="shrink-0">
-          <summary #countSummary (keydown.escape)="closeCountHelp($event, countHelp, countSummary)" class="flex h-11 w-11 cursor-pointer list-none items-center justify-center rounded-full hover:bg-[var(--mat-sys-surface-container-high)] focus-visible:outline-2 focus-visible:outline-[var(--mat-sys-primary)] [&::-webkit-details-marker]:hidden"
+          <summary #countSummary (keydown.escape)="closeCountHelp($event, countHelp, countSummary)" class="flex h-9 w-9 cursor-pointer list-none items-center justify-center rounded-full pointer-coarse:h-11 pointer-coarse:w-11 hover:bg-[var(--mat-sys-surface-container-high)] focus-visible:outline-2 focus-visible:outline-[var(--mat-sys-primary)] [&::-webkit-details-marker]:hidden"
             [attr.aria-label]="I18N.gallery.sidebar.count_scope | translate"
             [title]="I18N.gallery.sidebar.count_scope | translate">
             <mat-icon class="!text-xl !w-5 !h-5 !leading-5" aria-hidden="true">info_outline</mat-icon>
@@ -274,11 +274,11 @@ type RatingOption = 'any' | '1' | '2' | '3' | '4' | '5' | 'zero';
             <p class="mb-0 mt-1">{{ I18N.gallery.sidebar.count_scope_badges | translate }}</p>
           </div>
         </details>
-        <button mat-icon-button data-test="close" class="shrink-0"
+        <button mat-icon-button data-test="close" class="shrink-0 pointer-coarse:!h-11 pointer-coarse:!w-11"
           [matTooltip]="I18N.dialog.close | translate"
           [attr.aria-label]="I18N.dialog.close | translate"
           (click)="store.setFilterDrawerOpen(false)">
-          <mat-icon class="!text-lg !w-5 !h-5 !leading-5">close</mat-icon>
+          <mat-icon class="!text-xl !w-5 !h-5 !leading-5">close</mat-icon>
         </button>
       </div>
 
