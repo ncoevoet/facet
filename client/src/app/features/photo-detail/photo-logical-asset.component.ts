@@ -1,5 +1,5 @@
 import { LogicalAssetApplied } from '../../shared/models/logical-asset-change';
-import { ChangeDetectionStrategy, Component, ElementRef, computed, inject, output, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, ElementRef, computed, effect, inject, output, signal, untracked } from '@angular/core';
 import { I18N } from '../../core/i18n/keys';
 import type { components } from '../../core/api/schema';
 import { PhotoPanelReader } from './photo-panel-reader';
@@ -17,10 +17,10 @@ type Result = components['schemas']['LogicalAssetResult'];
   host: { class: 'block min-w-0' },
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
-    <details class="[&[open]>summary>mat-icon:last-child]:rotate-180" data-logical-asset [open]="expanded()" (keydown.escape)="expanded() && close($event, trigger)">
-      <summary #trigger (click)="toggle($event)" class="flex min-h-11 cursor-pointer items-center gap-2 text-xs font-medium focus-visible:outline-2"><mat-icon aria-hidden="true" class="!h-5 !w-5 !text-xl">photo_library</mat-icon><h4 class="m-0 text-xs font-medium">{{ I18N.logical_assets.title | translate }}</h4><mat-icon aria-hidden="true" class="ml-auto !h-5 !w-5 shrink-0 !text-xl transition-transform motion-reduce:transition-none">expand_more</mat-icon></summary>
+    <section data-logical-asset class="space-y-2 border-t border-[var(--mat-sys-outline-variant)] pt-2 text-xs">
+      <h4 #trigger tabindex="-1" class="m-0 flex items-center gap-2 text-xs font-medium focus:outline-none"><mat-icon aria-hidden="true" class="!h-5 !w-5 shrink-0 !text-xl">photo_library</mat-icon>{{ I18N.logical_assets.title | translate }}</h4>
       @if (expanded()) {
-        <div class="space-y-2 pb-2 text-xs">
+        <div class="space-y-2">
           @if (busy()) { <p role="status" class="m-0">{{ I18N.ui.labels.loading | translate }}</p> }
           @if (error()) { <p role="alert" class="m-0">{{ error() | translate }}</p> }
           @if (updated()) { <p role="status" class="m-0">{{ I18N.logical_assets.updated | translate }}</p> }
@@ -78,7 +78,7 @@ type Result = components['schemas']['LogicalAssetResult'];
           }
         </div>
       }
-    </details>
+    </section>
   `,
 })
 export class PhotoLogicalAssetComponent extends PhotoPanelReader<Context> {
@@ -112,6 +112,15 @@ export class PhotoLogicalAssetComponent extends PhotoPanelReader<Context> {
     const selected = state.candidates.filter(row => this.selected().has(row.path));
     return selected.some(row => row.kind === 'raw') && selected.some(row => row.kind === 'jpeg');
   });
+
+  constructor() {
+    super();
+    // Shown inline in the open Related files panel, so it reads whenever it can: on render and after each reset.
+    effect(() => {
+      if (this.expanded() || this.navigating || !this.auth.status()) return;
+      untracked(() => { this.expanded.set(true); this.load(); });
+    });
+  }
 
   protected override load(message = ''): void {
     if (!this.expanded() || this.navigating || !this.auth.status()) return;

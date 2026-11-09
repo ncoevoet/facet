@@ -3410,6 +3410,8 @@ export const I18N = {
     unassigned_faces: "photo_detail.unassigned_faces",
     tag_refine_collection: "photo_detail.tag_refine_collection",
     tag_search_library: "photo_detail.tag_search_library",
+    add_caption: "photo_detail.add_caption",
+    capture_settings: "photo_detail.capture_settings",
   },
   manual_tags: {
     batch: {
@@ -4067,6 +4069,11 @@ export const I18N = {
     failed: "metadata_sources.failed",
     help_title: "metadata_sources.help_title",
     help: "metadata_sources.help",
+    field: "metadata_sources.field",
+    value: "metadata_sources.value",
+    source: "metadata_sources.source",
+    all_fields: "metadata_sources.all_fields",
+    all_tags: "metadata_sources.all_tags",
   },
   related_files: {
     title: "related_files.title",

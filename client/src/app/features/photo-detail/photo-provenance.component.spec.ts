@@ -38,13 +38,21 @@ describe('PhotoProvenanceComponent', () => {
 
   afterEach(() => { try { http.verify(); } finally { TestBed.resetTestingModule(); } });
 
+  /** The cells of the review-table row headed by `label`. */
+  function rowText(root: HTMLElement, label: string): string[] {
+    const row = [...root.querySelectorAll('[data-provenance-review] tbody tr')].find(tr => tr.querySelector('th')!.textContent!.trim() === label)!;
+    return [...row.children].map(cell => cell.textContent!.trim());
+  }
+
   function render() {
     const fixture = TestBed.createComponent(PhotoProvenanceComponent);
     fixture.componentRef.setInput('photo', makePhoto({ path: '/a.jpg' }));
     fixture.detectChanges();
     const root = fixture.nativeElement as HTMLElement;
-    return { fixture, root, trigger: root.querySelector('summary')!, panel: root.querySelector('details')! };
+    const trigger = root.querySelector<HTMLElement>('mat-expansion-panel-header')!;
+    return { fixture, root, trigger, panel: { get open() { return trigger.getAttribute('aria-expanded') === 'true'; } } };
   }
+  const isOpen = (root: HTMLElement) => root.querySelector('mat-expansion-panel-header')!.getAttribute('aria-expanded') === 'true';
 
   it('renders boolean decisions, source labels and metadata override notices', () => {
     const { fixture, root, trigger } = render(); trigger.click();
@@ -54,9 +62,8 @@ describe('PhotoProvenanceComponent', () => {
         { field: 'is_rejected', value: false, source: 'unrecorded', changed_at: null, source_at: null },
         { field: 'is_favorite', value: true, source: 'xmp', changed_at: null, source_at: null },
       ] }); fixture.detectChanges();
-    expect(root.textContent).toContain('review.kept organization_history.yes');
-    expect(root.textContent).toContain('review.rejected organization_history.no');
-    expect(root.textContent).toContain('metadata_sources.unrecorded');
+    expect(rowText(root, 'review.kept')).toEqual(['review.kept', 'organization_history.yes', 'metadata_sources.local']);
+    expect(rowText(root, 'review.rejected')).toEqual(['review.rejected', 'organization_history.no', 'metadata_sources.unrecorded']);
     expect(root.textContent).toContain('metadata_sources.gps_override');
     expect(root.textContent).not.toContain('metadata_sources.date_override');
     expect(root.textContent).toContain('metadata_sources.no_tags');
@@ -98,7 +105,7 @@ describe('PhotoProvenanceComponent', () => {
     trigger.click(); fixture.detectChanges();
     const request = http.expectOne('/api/photo/provenance?path=/a.jpg');
     expect(request.request.method).toBe('GET'); request.flush(response); fixture.detectChanges();
-    expect(root.textContent).toContain('rating.stars 0');
+    expect(rowText(root, 'rating.stars')).toEqual(['rating.stars', '0']);
     expect(root.textContent).toContain('metadata_sources.personal');
     expect(root.textContent).toContain('from xmp');
     expect(root.textContent).not.toContain('metadata_sources.help ');
@@ -114,7 +121,7 @@ describe('PhotoProvenanceComponent', () => {
     expect(event.defaultPrevented).toBe(true); expect(panel.open).toBe(false);
     expect(document.activeElement).toBe(trigger);
     expect(root.textContent).not.toContain('from xmp');
-    expect(root.querySelector('details')!.open).toBe(false);
+    expect(isOpen(root)).toBe(false);
     trigger.click(); fixture.detectChanges();
     http.expectOne('/api/photo/provenance?path=/a.jpg').flush(response); fixture.detectChanges();
     expect(root.textContent).toContain('from xmp');
@@ -127,7 +134,7 @@ describe('PhotoProvenanceComponent', () => {
     const old = http.expectOne('/api/photo/provenance?path=/a.jpg');
     fixture.componentRef.setInput('photo', makePhoto({ path: '/b.jpg' })); fixture.detectChanges();
     expect(old.cancelled).toBe(true);
-    expect(root.querySelector('details')!.open).toBe(false);
+    expect(isOpen(root)).toBe(false);
     trigger.click(); fixture.detectChanges();
     http.expectOne('/api/photo/provenance?path=/b.jpg').flush({}, { status: 503, statusText: 'Unavailable' });
     fixture.detectChanges(); expect(root.querySelector('[role="alert"]')).not.toBeNull();
@@ -150,7 +157,7 @@ describe('PhotoProvenanceComponent', () => {
     trigger.click(); fixture.detectChanges();
     const request = http.expectOne('/api/photo/provenance?path=/a.jpg');
     events.next(new NavigationStart(2, '/')); fixture.detectChanges();
-    expect(request.cancelled).toBe(true); expect(root.querySelector('details')!.open).toBe(false);
+    expect(request.cancelled).toBe(true); expect(isOpen(root)).toBe(false);
   });
 
   it('does not display a response delivered after credential rotation', () => {
@@ -160,7 +167,7 @@ describe('PhotoProvenanceComponent', () => {
     auth.token = 'replacement-token';
     request.flush(response); fixture.detectChanges();
     expect(root.textContent).not.toContain('from xmp');
-    expect(root.querySelector('details')!.open).toBe(false);
+    expect(isOpen(root)).toBe(false);
     trigger.click(); fixture.detectChanges();
     http.expectOne('/api/photo/provenance?path=/a.jpg').flush(response); fixture.detectChanges();
     expect(root.textContent).toContain('from xmp');
@@ -173,10 +180,38 @@ describe('PhotoProvenanceComponent', () => {
       review: [{ field: 'star_rating', value: null, source: 'unrecorded', changed_at: null, source_at: null }] });
     fixture.detectChanges();
     expect(root.textContent).toContain('photo_detail.assessment.unavailable');
-    expect(root.textContent).not.toContain('rating.stars 0');
+    expect(rowText(root, 'rating.stars')).toEqual(['rating.stars', 'photo_detail.assessment.unavailable']);
     trigger.click(); fixture.detectChanges(); trigger.click(); fixture.detectChanges();
     http.expectOne('/api/photo/provenance?path=/a.jpg').flush(response); fixture.detectChanges();
-    expect(root.textContent).toContain('rating.stars 0');
+    expect(rowText(root, 'rating.stars')).toEqual(['rating.stars', '0']);
     expect(root.textContent).not.toContain('photo_detail.assessment.unavailable');
+  });
+
+  it('collapses a source every review field shares into one line, and every tag source likewise', () => {
+    const { fixture, root, trigger } = render(); trigger.click();
+    http.expectOne('/api/photo/provenance?path=/a.jpg').flush({ ...response, review: [
+      { field: 'star_rating', value: 3, source: 'unrecorded', changed_at: null, source_at: null },
+      { field: 'is_favorite', value: false, source: 'unrecorded', changed_at: null, source_at: null },
+    ], manual_tags: [{ tag: 'a', source: 'xmp' }, { tag: 'b', source: 'xmp' }] }); fixture.detectChanges();
+    const table = root.querySelector('[data-provenance-review]')!;
+    expect([...table.querySelectorAll('thead th')].map(th => th.textContent!.trim())).toEqual(['metadata_sources.field', 'metadata_sources.value']);
+    expect(rowText(root, 'rating.favorite')).toEqual(['rating.favorite', 'organization_history.no']);
+    expect(root.querySelector('[data-provenance-review-source]')!.textContent).toContain('metadata_sources.all_fields');
+    expect(root.querySelector('[data-provenance-tag-source]')!.textContent).toContain('metadata_sources.all_tags');
+    expect(root.textContent!.match(/metadata_sources\.unrecorded/g)).toBeNull();
+  });
+
+  it('keeps a Source column when review fields come from different sources, with the help icon beside the scope heading', () => {
+    const { fixture, root, trigger } = render(); trigger.click();
+    http.expectOne('/api/photo/provenance?path=/a.jpg').flush({ ...response, review: [
+      { field: 'star_rating', value: 3, source: 'xmp', changed_at: null, source_at: null },
+      { field: 'is_favorite', value: true, source: 'local', changed_at: null, source_at: null },
+    ] }); fixture.detectChanges();
+    expect([...root.querySelectorAll('[data-provenance-review] thead th')].map(th => th.textContent!.trim()))
+      .toEqual(['metadata_sources.field', 'metadata_sources.value', 'metadata_sources.source']);
+    expect(root.querySelector('[data-provenance-review-source]')).toBeNull();
+    const help = root.querySelector<HTMLButtonElement>('[data-provenance-scope] app-context-help button')!;
+    expect(help.getAttribute('aria-label')).toBe('metadata_sources.help_title');
+    expect(help.textContent!.trim()).toBe('help_outline');
   });
 });

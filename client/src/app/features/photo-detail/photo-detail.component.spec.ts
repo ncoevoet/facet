@@ -5,13 +5,13 @@ import { GalleryStore } from '../gallery/gallery.store';
 import { GALLERY_REVISIT } from '../../core/gallery-reuse.strategy';
 import { makePhoto } from '../../../testing/photo.fixture';
 import type { Mock, MockInstance } from 'vitest';
-import { TestBed } from '@angular/core/testing';
+import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { ActivatedRoute, ParamMap, Router, NavigationStart, NavigationEnd, convertToParamMap } from '@angular/router';
 import { Location } from '@angular/common';
 import { MatDialog } from '@angular/material/dialog';
 import { BehaviorSubject, finalize, Observable, of, Subject, throwError } from 'rxjs';
 import { UserActivityJournal } from '../../core/agent/user-activity-journal.service';
-import { Component, signal } from '@angular/core';
+import { ApplicationRef, Component, signal } from '@angular/core';
 import { By } from '@angular/platform-browser';
 import { MatTooltip } from '@angular/material/tooltip';
 import { MatMenuModule, MatMenuTrigger } from '@angular/material/menu';
@@ -650,10 +650,77 @@ describe('PhotoDetailComponent', () => {
     expect(people.tagName).toBe('SECTION');
     expect(people.textContent).toContain('Alice');
     expect(people.textContent).toContain('photo_detail.unassigned_faces');
-    expect(aside.querySelector<HTMLDetailsElement>('[data-photo-provenance]')!.open).toBe(false);
+    // Metadata sources and related files close the panel as one single-open Material accordion, both collapsed.
+    const fileDetails = aside.querySelector<HTMLElement>('mat-accordion[data-file-details]')!;
+    expect(fileDetails).not.toBeNull();
+    expect(aside.lastElementChild).toBe(fileDetails);
+    for (const panel of ['[data-photo-provenance]', '[data-related-files]']) {
+      expect(fileDetails.querySelector(`mat-expansion-panel${panel}`)).not.toBeNull();
+      expect(fileDetails.querySelector(`${panel} mat-expansion-panel-header`)!.getAttribute('aria-expanded')).toBe('false');
+    }
+    expect(aside.querySelector('details[data-logical-asset]')).toBeNull();
     expect(mockApi.get.mock.calls.filter(([url]) => url === '/photo/provenance')).toHaveLength(0);
-    expect(aside.querySelector<HTMLDetailsElement>('[data-related-files]')!.open).toBe(false);
     expect(mockApi.get.mock.calls.filter(([url]) => url === '/photo/related_files')).toHaveLength(0);
+  });
+
+  it('orders the inspector Review, date line, Describe, metric tabs, set, file details and pins Review on wide screens', async () => {
+    const view = renderDetail();
+    const photo = makePhoto({ camera_model: 'Canon EOS R6', focal_length: 85, f_stop: 2.8, shutter_speed: '0.01', iso: 4000,
+      caption: 'A street', tags_list: ['street'], gps_latitude: 1, gps_longitude: 2, persons: [{ id: 1, name: 'Alice' }],
+      burst_group_id: 7 });
+    const set = { kind: 'burst', count: 5, ev_span: null, members: [1, 2, 3, 4, 5].map(n => ({ path: `/m${n}.jpg`, ev_offset: null, ai_edit_of: null, is_blink: false, preview_revision: null })) };
+    mockApi.get.mockImplementation((url: string) => of(url === '/photo' ? photo : url === '/photo/set' ? set : {}));
+    view.componentInstance.photo.set(photo);
+    for (let i = 0; i < 3; i++) {
+      view.detectChanges();
+      await new Promise<void>(resolve => setTimeout(resolve, 0));
+    }
+    view.detectChanges();
+    const aside = (view.nativeElement as HTMLElement).querySelector<HTMLElement>('[data-photo-inspector]')!;
+    const order = ['[data-photo-review]', '[data-photo-when]', '[data-photo-describe]', 'app-photo-metrics-tabs', '[data-photo-set]', '[data-file-details]']
+      .map(selector => aside.querySelector<HTMLElement>(selector)!);
+    order.forEach(element => expect(element).not.toBeNull());
+    for (let i = 1; i < order.length; i++) {
+      expect(order[i - 1].compareDocumentPosition(order[i]) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    }
+    const describe = aside.querySelector<HTMLElement>('[data-photo-describe]')!;
+    const fields = ['[data-photo-caption]', '[data-testid="tags-section"]', '[data-photo-location]', '[data-photo-people]']
+      .map(selector => describe.querySelector<HTMLElement>(selector)!);
+    fields.forEach(element => expect(element).not.toBeNull());
+    for (let i = 1; i < fields.length; i++) {
+      expect(fields[i - 1].compareDocumentPosition(fields[i]) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    }
+    expect(aside.querySelector('[data-photo-review]')!.className).toContain('lg:sticky');
+    expect(aside.querySelector('[data-photo-set-strip]')!.className).toContain('lg:grid-cols-5');
+    // Date and category share one line; the capture settings sit under it, always visible.
+    const when = aside.querySelector<HTMLElement>('[data-photo-when]')!;
+    expect(when.querySelector('[data-photo-date]')!.parentElement).toBe(when.querySelector('[data-photo-category]')!.parentElement);
+    const exposure = when.querySelector<HTMLElement>('[data-photo-exposure]')!;
+    expect([...exposure.querySelectorAll('span')].map(span => span.textContent!.trim())).toEqual(['Canon EOS R6', '85mm', 'f/2.8', '1/100', 'ISO 4000']);
+    expect(exposure.getAttribute('aria-label')).toBe('photo_detail.capture_settings');
+    // The rendition help sits beside the image readout, icon-only, not in the inspector (the metric tabs keep their own).
+    expect([...aside.querySelectorAll('app-context-help')].filter(help => !help.closest('app-photo-metrics-tabs'))).toHaveLength(0);
+    const readoutHelp = (view.nativeElement as HTMLElement).querySelector<HTMLButtonElement>('[data-image-readout] app-context-help button')!;
+    expect(readoutHelp.getAttribute('aria-label')).toBe('gallery.compare.rendition.sources');
+    expect(readoutHelp.textContent!.trim()).toBe('help_outline');
+  });
+
+  it('collapses empty caption, tags and location into compact add actions for editors only', async () => {
+    const view = renderDetail();
+    const photo = makePhoto({ caption: null, tags_list: [], manual_tags: [], gps_latitude: null, gps_longitude: null });
+    mockApi.get.mockImplementation((url: string) => of(url === '/photo' ? photo : {}));
+    view.componentInstance.photo.set(photo);
+    view.detectChanges(); await view.whenStable(); view.detectChanges();
+    const root = view.nativeElement as HTMLElement;
+    const add = root.querySelector<HTMLElement>('[data-photo-add]')!;
+    expect([...add.querySelectorAll('button')].map(button => button.getAttribute('aria-label') ?? button.textContent!.trim()))
+      .toEqual(['photo_detail.add_caption', 'manual_tags.add', 'photo_detail.add_location']);
+    for (const absent of ['[data-photo-caption]', '[data-testid="tags-section"]', '[data-photo-location]']) {
+      expect(root.querySelector(absent)).toBeNull();
+    }
+    expect(root.querySelector('[data-photo-describe]')!.textContent).not.toContain('—');
+    mockAuth.isEdition.set(false); view.detectChanges();
+    expect(root.querySelector('[data-photo-add]')).toBeNull();
   });
 
   it('recreates the location map on a visible container after changing GPS photos', async () => {
@@ -2909,6 +2976,10 @@ describe('PhotoDetailComponent', () => {
   });
 
   describe('Tags section template', () => {
+    let tagsView: ComponentFixture<InstanceType<typeof PhotoDetailComponent>>;
+    async function settle() {
+      tagsView.detectChanges(); TestBed.inject(ApplicationRef).tick(); await tagsView.whenStable();
+    }
     async function render(photo: Record<string, unknown>, edition: boolean) {
       mockAuth.isEdition.set(edition);
       mockApi.get.mockReturnValue(of(photo));
@@ -2926,6 +2997,7 @@ describe('PhotoDetailComponent', () => {
         ],
       });
       const fixture = TestBed.createComponent(PhotoDetailComponent);
+      tagsView = fixture;
       fixture.componentInstance.photo.set(photo as never);
       fixture.detectChanges();
       await fixture.whenStable();
@@ -2935,11 +3007,30 @@ describe('PhotoDetailComponent', () => {
 
     const untagged = { ...samplePhoto, tags: null, tags_list: [], manual_tags: [] };
 
-    it('renders for an edition user on a photo with no tags at all', async () => {
+    it('offers + Tag to an edition user on a photo with no tags, revealing a focused input', async () => {
       const el = await render(untagged, true);
+      document.body.appendChild(el);
+      try {
+        expect(el.querySelector('[data-testid="tags-section"]')).toBeNull();
+        expect(el.querySelector('[data-testid="manual-tag-add"]')).toBeNull();
+        el.querySelector<HTMLButtonElement>('[data-add-tag]')!.click();
+        await settle();
+        expect(el.querySelector('[data-testid="tags-section"]')).not.toBeNull();
+        const input = el.querySelector<HTMLInputElement>('[data-testid="manual-tag-add"] input')!;
+        expect(document.activeElement).toBe(input);
+        input.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+        await settle();
+        expect(el.querySelector('[data-testid="manual-tag-add"]')).toBeNull();
+        expect(document.activeElement).toBe(el.querySelector('[data-add-tag]'));
+      } finally { el.remove(); }
+    });
 
-      expect(el.querySelector('[data-testid="tags-section"]')).not.toBeNull();
-      expect(el.querySelector('[data-testid="manual-tag-add"]')).not.toBeNull();
+    it('ends the tag chips with + Tag once the photo has tags', async () => {
+      const el = await render({ ...untagged, manual_tags: ['trip'] }, true);
+      const section = el.querySelector<HTMLElement>('[data-testid="tags-section"]')!;
+      expect(section.querySelector('[data-add-tag]')).not.toBeNull();
+      expect(el.querySelector('[data-photo-add] [data-add-tag]')).toBeNull();
+      expect(el.querySelector('[data-testid="manual-tag-add"]')).toBeNull();
     });
 
     it('is absent for a non-edition user on a photo with no tags', async () => {

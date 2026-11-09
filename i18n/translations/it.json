@@ -3370,7 +3370,9 @@
     "details": "Dettagli della foto",
     "unassigned_faces": "Volti non assegnati: {count}",
     "tag_refine_collection": "Affina questa raccolta",
-    "tag_search_library": "Cerca nella raccolta"
+    "tag_search_library": "Cerca nella raccolta",
+    "add_caption": "Aggiungi didascalia",
+    "capture_settings": "Impostazioni di scatto"
   },
   "manual_tags": {
     "batch": {
@@ -4052,7 +4054,12 @@
     "tag_limit": "Visualizzati i primi 50 tag manuali.",
     "failed": "Impossibile caricare le origini dei metadati.",
     "help_title": "Informazioni su queste origini",
-    "help": "Queste sono le origini attualmente registrate, non una cronologia completa delle modifiche. Le modifiche locali non identificano una persona. L’assenza di registrazioni non significa che un valore sia invariato. I tag manuali sono condivisi; i campi di revisione seguono l’ambito mostrato sopra. Le modifiche alla data di scatto e alla posizione possono provenire anche da importazioni."
+    "help": "Queste sono le origini attualmente registrate, non una cronologia completa delle modifiche. Le modifiche locali non identificano una persona. L’assenza di registrazioni non significa che un valore sia invariato. I tag manuali sono condivisi; i campi di revisione seguono l’ambito mostrato sopra. Le modifiche alla data di scatto e alla posizione possono provenire anche da importazioni.",
+    "field": "Campo",
+    "value": "Valore",
+    "source": "Origine",
+    "all_fields": "Tutti i campi: {source}",
+    "all_tags": "Tutti i tag: {source}"
   },
   "related_files": {
     "title": "File associati",

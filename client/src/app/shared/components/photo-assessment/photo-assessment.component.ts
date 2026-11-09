@@ -36,18 +36,23 @@ const MEASUREMENTS = [
   changeDetection: ChangeDetectionStrategy.OnPush,
   host: { class: 'relative block min-w-0 text-xs' },
   template: `
-    <!-- The explain button is a sibling of the details, not a child of the summary: interactive content inside
-         a summary is not reliably operable, and a sibling stays visible while the details is closed. -->
+    <!-- The help and explain buttons are siblings of the details, not children of the summary: interactive content
+         inside a summary is not reliably operable, and a sibling stays visible while the details is closed. -->
+    <div class="absolute end-0 top-0 z-10 flex items-center">
+    <app-context-help [fill]="true" [iconOnly]="true" [label]="I18N.photo_detail.assessment.help" [keys]="[I18N.photo_detail.assessment.explanation, I18N.photo_detail.assessment.unavailable_help, I18N.photo_detail.assessment.face_iqa_declined_help]" />
     @if (explainable()) {
-      <button type="button" data-explain-score class="absolute end-0 top-0 z-10 flex h-8 w-8 cursor-pointer items-center justify-center rounded hover:bg-[var(--mat-sys-surface-container-high)] focus-visible:outline-2 focus-visible:outline-[var(--mat-sys-primary)] max-sm:h-11 max-sm:w-11 pointer-coarse:h-11 pointer-coarse:w-11"
+      <button type="button" data-explain-score class="flex h-8 w-8 cursor-pointer items-center justify-center rounded hover:bg-[var(--mat-sys-surface-container-high)] focus-visible:outline-2 focus-visible:outline-[var(--mat-sys-primary)] max-sm:h-11 max-sm:w-11 pointer-coarse:h-11 pointer-coarse:w-11"
               [matTooltip]="I18N.critique.title | translate" [attr.aria-label]="I18N.critique.title | translate" (click)="explain.emit()">
         <mat-icon aria-hidden="true" class="!h-5 !w-5 !text-xl">analytics</mat-icon>
       </button>
     }
-    <details data-photo-assessment class="min-w-0">
-      <summary class="max-sm:min-h-11 pointer-coarse:min-h-11 cursor-pointer py-1.5" [class.pe-11]="explainable()">
+    </div>
+    <details data-photo-assessment class="group min-w-0">
+      <summary class="flex list-none items-center gap-2 max-sm:min-h-11 pointer-coarse:min-h-11 cursor-pointer py-1.5 [&::-webkit-details-marker]:hidden"
+               [class]="explainable() ? 'pe-16 max-sm:pe-24 pointer-coarse:pe-24' : 'pe-8 max-sm:pe-12 pointer-coarse:pe-12'">
         <span class="font-medium">{{ I18N.photo_detail.assessment.score | translate }} {{ photo().aggregate | assessmentValue }}</span>
-        <span class="ml-2 opacity-75">{{ I18N.photo_detail.assessment.measurements | translate:{ available: availableCount(), total: measurements().length } }}</span>
+        <span class="opacity-75">{{ I18N.photo_detail.assessment.measurements | translate:{ available: availableCount(), total: measurements().length } }}</span>
+        <mat-icon aria-hidden="true" class="ms-auto !h-5 !w-5 shrink-0 !text-xl transition-transform motion-reduce:transition-none group-open:rotate-180">expand_more</mat-icon>
       </summary>
       <div class="max-h-48 overflow-y-auto rounded border border-current/20 p-2">
 
@@ -60,7 +65,6 @@ const MEASUREMENTS = [
           }
         </dl>
         @if (groupPick()) { <p class="m-0 mt-2">{{ I18N.photo_detail.assessment.group_pick_help | translate }}</p> }
-        <app-context-help [fill]="true" [label]="I18N.photo_detail.assessment.help" [keys]="[I18N.photo_detail.assessment.explanation, I18N.photo_detail.assessment.unavailable_help, I18N.photo_detail.assessment.face_iqa_declined_help]" />
       </div>
     </details>
   `,

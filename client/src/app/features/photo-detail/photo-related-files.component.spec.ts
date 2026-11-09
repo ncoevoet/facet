@@ -37,13 +37,17 @@ describe('PhotoRelatedFilesComponent', () => {
     });
     http = TestBed.inject(HttpTestingController);
   });
-  afterEach(() => { try { http.verify(); } finally { TestBed.resetTestingModule(); } });
+  // The inline RAW/JPEG list has its own spec; here its read is only acknowledged.
+  afterEach(() => { try { http.match(request => request.url.startsWith('/api/logical_assets/by-photo')); http.verify(); } finally { TestBed.resetTestingModule(); } });
   function render() {
     const fixture = TestBed.createComponent(PhotoRelatedFilesComponent);
     fixture.componentRef.setInput('photo', makePhoto({ path: '/shot.jpg' })); fixture.detectChanges();
     const root = fixture.nativeElement as HTMLElement;
-    return { fixture, root, trigger: root.querySelector('summary')! };
+    return { fixture, root, trigger: root.querySelector<HTMLElement>('mat-expansion-panel-header')! };
   }
+  const isOpen = (root: HTMLElement) => root.querySelector('mat-expansion-panel-header')!.getAttribute('aria-expanded') === 'true';
+  /** The RAW/JPEG list renders inline in the open panel and reads its own state. */
+  const logical = (path = '/shot.jpg') => http.expectOne(`/api/logical_assets/by-photo?path=${path}`);
 
   it('shows an on-demand candidate inventory without file-changing controls and closes on Escape before page navigation', () => {
     const { fixture, root, trigger } = render(); document.body.appendChild(root);
@@ -57,7 +61,7 @@ describe('PhotoRelatedFilesComponent', () => {
     expect(root.querySelector('a')).toBeNull(); expect([...root.querySelectorAll('button')].filter(button => !button.closest('app-context-help'))).toHaveLength(0);
     const event = new KeyboardEvent('keydown', { key: 'Escape', bubbles: true, cancelable: true });
     trigger.dispatchEvent(event); fixture.detectChanges();
-    expect(event.defaultPrevented).toBe(true); expect(root.querySelector('details')!.open).toBe(false);
+    expect(event.defaultPrevented).toBe(true); expect(isOpen(root)).toBe(false);
     expect(document.activeElement).toBe(trigger); expect(root.textContent).not.toContain('shot.CR2');
     fixture.destroy(); root.remove();
   });
@@ -71,7 +75,7 @@ describe('PhotoRelatedFilesComponent', () => {
     trigger.click(); fixture.detectChanges();
     http.expectOne('/api/photo/related_files?path=/next.jpg').flush({ ...response, inventory_state: 'unavailable', files: [{ ...response.files[0], state: 'missing' }] });
     fixture.detectChanges(); expect(root.textContent).toContain('related_files.unchecked');
-    root.querySelector<HTMLButtonElement>('button')!.click();
+    root.querySelector<HTMLButtonElement>('[data-related-retry]')!.click();
     http.expectOne('/api/photo/related_files?path=/next.jpg').flush({}, { status: 503, statusText: 'Unavailable' });
     fixture.detectChanges(); expect(root.querySelector('[role="alert"]')).not.toBeNull();
     root.querySelector<HTMLButtonElement>('button')!.click();
@@ -83,6 +87,7 @@ describe('PhotoRelatedFilesComponent', () => {
     const { fixture, root, trigger } = render();
     trigger.click(); fixture.detectChanges();
     http.expectOne('/api/photo/related_files?path=/shot.jpg').flush(response); fixture.detectChanges();
+    logical().flush({ asset: null, can_group: false, candidates: [] });
     auth.status.set(null); fixture.detectChanges(); expect(root.textContent).not.toContain('shot.CR2');
     trigger.click(); http.expectNone(() => true);
     auth.status.set({ user_id: 'bob' }); fixture.detectChanges();
@@ -90,7 +95,7 @@ describe('PhotoRelatedFilesComponent', () => {
     events.next(new NavigationCancel(1, '/persons', 'cancelled')); trigger.click(); fixture.detectChanges();
     const request = http.expectOne('/api/photo/related_files?path=/shot.jpg');
     auth.token = 'two'; request.flush(response); fixture.detectChanges();
-    expect(root.textContent).not.toContain('shot.CR2'); expect(root.querySelector('details')!.open).toBe(false);
+    expect(root.textContent).not.toContain('shot.CR2'); expect(isOpen(root)).toBe(false);
     trigger.click(); fixture.detectChanges(); http.expectOne('/api/photo/related_files?path=/shot.jpg').flush(response);
     fixture.detectChanges(); expect(root.textContent).toContain('shot.CR2');
   });
@@ -118,4 +123,19 @@ describe('PhotoRelatedFilesComponent', () => {
     expect(emitted).toHaveBeenCalledExactlyOnceWith(change);
   });
 
+  it('lists the RAW/JPEG photo inline once the panel opens, with the help icon beside the file list', () => {
+    const { fixture, root, trigger } = render();
+    trigger.click(); fixture.detectChanges();
+    http.expectNone('/api/logical_assets/by-photo?path=/shot.jpg');
+    http.expectOne('/api/photo/related_files?path=/shot.jpg').flush(response); fixture.detectChanges();
+    logical().flush({ asset: null, can_group: false, candidates: [] }); fixture.detectChanges();
+    const inline = root.querySelector<HTMLElement>('[data-logical-asset]')!;
+    expect(inline.tagName).toBe('SECTION');
+    expect(root.querySelector('details, summary')).toBeNull();
+    expect(inline.textContent).toContain('logical_assets.title');
+    expect(inline.textContent).toContain('logical_assets.no_candidates');
+    const help = root.querySelector<HTMLButtonElement>('[data-related-list] app-context-help button')!;
+    expect(help.getAttribute('aria-label')).toBe('related_files.help_title');
+    expect(help.textContent!.trim()).toBe('help_outline');
+  });
 });

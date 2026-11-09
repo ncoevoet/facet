@@ -9,10 +9,11 @@ import { PhotoProvenanceComponent } from './photo-provenance.component';
 import { PhotoRelatedFilesComponent } from './photo-related-files.component';
 import { TimelineFeedCache } from '../timeline/timeline-feed-cache.service';
 import { ContextHelpComponent } from '../../shared/components/context-help/context-help.component';
-import { Component, inject, signal, computed, effect, OnInit, HostListener, DestroyRef, ElementRef, viewChild, ChangeDetectionStrategy } from '@angular/core';
+import { Component, inject, signal, computed, effect, OnInit, HostListener, DestroyRef, ElementRef, viewChild, ChangeDetectionStrategy, Injector, afterNextRender } from '@angular/core';
 import { Location } from '@angular/common';
 import { ActivatedRoute, Router, NavigationStart, NavigationEnd } from '@angular/router';
 import { MatIconModule } from '@angular/material/icon';
+import { MatExpansionModule } from '@angular/material/expansion';
 import { MatButtonModule } from '@angular/material/button';
 import { MatTooltipModule } from '@angular/material/tooltip';
 import { MatMenuModule } from '@angular/material/menu';
@@ -33,6 +34,7 @@ import { PhotoDetailBase } from '../../shared/directives/photo-detail-base.direc
 import { ZoomPanDirective } from '../../shared/directives/zoom-pan.directive';
 import { PhotoObjectLayerComponent } from './photo-object-layer.component';
 import { FixedPipe } from '../../shared/pipes/fixed.pipe';
+import { ShutterSpeedPipe } from '../../shared/pipes/shutter-speed.pipe';
 import { CaptureDatePipe } from '../../shared/pipes/capture-date.pipe';
 import { RenditionReadoutComponent } from '../../shared/components/rendition-readout/rendition-readout.component';
 import { TranslatePipe } from '../../shared/pipes/translate.pipe';
@@ -115,7 +117,7 @@ function inDetectedSet(photo: Photo): boolean {
     MatSelectModule,
     MatProgressSpinnerModule,
     MatSnackBarModule,
-    FixedPipe,
+    FixedPipe, ShutterSpeedPipe, MatExpansionModule,
     CaptureDatePipe, RenditionReadoutComponent,
     TranslatePipe,
     ThumbnailUrlPipe,
@@ -361,8 +363,9 @@ function inDetectedSet(photo: Photo): boolean {
             [transform]="zoom.transform()"
             [revision]="objectsRevision()" />
         </div>
-          <div class="shrink-0 border-t border-[var(--facet-image-rule)] bg-[var(--facet-image-chrome)] px-4 py-1 text-[var(--facet-image-ink)] cursor-auto" role="presentation" (pointerdown)="$event.stopPropagation()" (dblclick)="$event.stopPropagation()">
-            <app-rendition-readout [state]="displayedRendition()" [pending]="sourceRendition().phase === 'loading'" [attemptFailed]="sourceRendition().phase === 'failed'" [failureLabel]="I18N.photo_detail.rendition.source_failed" [scale]="zoom.scale()" [minimumScale]="1" [maximumScale]="zoom.maximumScale" (zoomStep)="zoom.zoomStep($event)" (fit)="zoom.reset()" (retry)="retryFullImage()" />
+          <div data-image-readout class="flex shrink-0 items-center gap-1 border-t border-[var(--facet-image-rule)] bg-[var(--facet-image-chrome)] px-4 py-1 text-[var(--facet-image-ink)] cursor-auto" role="presentation" (pointerdown)="$event.stopPropagation()" (dblclick)="$event.stopPropagation()">
+            <app-rendition-readout class="flex-1" [state]="displayedRendition()" [pending]="sourceRendition().phase === 'loading'" [attemptFailed]="sourceRendition().phase === 'failed'" [failureLabel]="I18N.photo_detail.rendition.source_failed" [scale]="zoom.scale()" [minimumScale]="1" [maximumScale]="zoom.maximumScale" (zoomStep)="zoom.zoomStep($event)" (fit)="zoom.reset()" (retry)="retryFullImage()" />
+            <app-context-help [label]="I18N.gallery.compare.rendition.sources" [keys]="[I18N.photo_detail.rendition.note]" [iconOnly]="true" />
           </div>
         </div>
 
@@ -384,7 +387,7 @@ function inDetectedSet(photo: Photo): boolean {
           </ng-template>
           <!-- Account review controls -->
           @if (canReview()) {
-            <section data-photo-review aria-labelledby="photo-review-title" class="space-y-1">
+            <section data-photo-review aria-labelledby="photo-review-title" class="space-y-1 bg-[var(--mat-sys-surface-container-lowest)] lg:sticky lg:-top-4 lg:z-10 lg:-mx-4 lg:-mt-4 lg:px-4 lg:pt-4 lg:pb-2">
               <h2 id="photo-review-title" class="sr-only">{{ I18N.gallery.sidebar.tabs.review | translate }}</h2>
               <!-- Like the gallery rail: no title or rule above the review controls, the favourite beside the stars. -->
               <div data-photo-rating-row class="flex items-center gap-2">
@@ -419,25 +422,24 @@ function inDetectedSet(photo: Photo): boolean {
             </section>
           }
 
-          <!-- Capture date and scoring category -->
-          <div class="mb-2">
-            @if (p.date_taken || auth.isEdition()) {
-              <div class="flex items-center gap-1 text-[var(--mat-sys-on-surface-variant)] text-xs">
-                @if (auth.isEdition()) {
-                  <button mat-icon-button class="!w-7 !h-7 max-sm:!w-11 max-sm:!h-11 pointer-coarse:!w-11 pointer-coarse:!h-11 !min-w-0 !p-0 -ml-1.5 !inline-flex items-center justify-center" (click)="editCaptureDate(p)"
-                          [matTooltip]="I18N.capture_date.title | translate"
-                          [attr.aria-label]="I18N.capture_date.title | translate">
-                    <mat-icon class="!text-base !w-4 !h-4 !leading-4">edit_calendar</mat-icon>
-                  </button>
-                }
-                @if (p.date_taken) {
-              <span class="leading-4">{{ p.date_taken | captureDate }}</span>
-                } @else { <span>{{ I18N.gallery.no_capture_date | translate }}</span> }
-              </div>
-            }
-            <div class="flex items-center gap-2 mt-1">
+          <!-- Capture date and scoring category on one line, the capture settings under it -->
+          <div data-photo-when class="space-y-1 text-xs text-[var(--mat-sys-on-surface-variant)]">
+            <div class="flex flex-wrap items-center gap-x-3 gap-y-1">
+              @if (p.date_taken || auth.isEdition()) {
+                <span data-photo-date class="inline-flex items-center gap-1">
+                  @if (auth.isEdition()) {
+                    <button mat-icon-button class="!w-7 !h-7 max-sm:!w-11 max-sm:!h-11 pointer-coarse:!w-11 pointer-coarse:!h-11 !min-w-0 !p-0 -ml-1.5 !inline-flex items-center justify-center" (click)="editCaptureDate(p)"
+                            [matTooltip]="I18N.capture_date.title | translate"
+                            [attr.aria-label]="I18N.capture_date.title | translate">
+                      <mat-icon class="!text-base !w-4 !h-4 !leading-4">edit_calendar</mat-icon>
+                    </button>
+                  }
+                  @if (p.date_taken) { <span class="leading-4">{{ p.date_taken | captureDate }}</span> }
+                  @else { <span>{{ I18N.gallery.no_capture_date | translate }}</span> }
+                </span>
+              }
               @if (p.category || auth.isEdition()) {
-                <span class="inline-flex items-center gap-1 text-[var(--mat-sys-on-surface-variant)] text-xs">
+                <span data-photo-category class="inline-flex items-center gap-1">
                   {{ p.category ? (p.category | categoryLabel) : (I18N.category_names.default | translate) }}
                   <!-- Category explainer toggle: "why isn't this photo classified as X?" — kept for an uncategorized photo too. -->
                   @if (auth.isEdition()) {
@@ -453,16 +455,150 @@ function inDetectedSet(photo: Photo): boolean {
                 </span>
               }
             </div>
+            @if (p.camera_model || p.focal_length || p.f_stop || p.shutter_speed || p.iso) {
+              <div data-photo-exposure role="group" [attr.aria-label]="I18N.photo_detail.capture_settings | translate"
+                   class="flex flex-wrap gap-x-1.5 tabular-nums [&>span+span]:before:me-1.5 [&>span+span]:before:content-['·']">
+                @if (p.camera_model) { <span>{{ p.camera_model }}</span> }
+                @if (p.focal_length) { <span>{{ p.focal_length }}mm</span> }
+                @if (p.f_stop) { <span>f/{{ p.f_stop }}</span> }
+                @if (p.shutter_speed | shutterSpeed; as shutter) { <span>{{ shutter }}</span> }
+                @if (p.iso) { <span>ISO {{ p.iso }}</span> }
+              </div>
+            }
           </div>
 
-          <!-- Caption -->
-          <div>
-            <div class="flex items-center justify-between mb-1">
-              <div class="text-xs text-[var(--mat-sys-on-surface-variant)]">{{ I18N.photo_detail.caption | translate }}</div>
-              @if (auth.isEdition()) {
-                <div class="flex gap-1">
-                  @if (!p.caption && store.config()?.features?.show_captions) {
-                    <button mat-icon-button class="!w-7 !h-7 max-sm:!w-11 max-sm:!h-11 pointer-coarse:!w-11 pointer-coarse:!h-11 !p-0" (click)="generateCaption(p.path)" [disabled]="generatingCaption()" [matTooltip]="I18N.photo_detail.generate_caption | translate" [attr.aria-label]="I18N.photo_detail.generate_caption | translate">
+          <!-- Describe: caption, tags, location and people; an editor adds a missing one from the compact actions -->
+          <div #describe data-photo-describe class="space-y-3">
+            @if (displayCaption() || translatingCaption()) {
+              <div data-photo-caption>
+                <div class="flex items-center justify-between mb-1">
+                  <div class="text-xs text-[var(--mat-sys-on-surface-variant)]">{{ I18N.photo_detail.caption | translate }}</div>
+                  @if (auth.isEdition()) {
+                    <button mat-icon-button class="!w-7 !h-7 max-sm:!w-11 max-sm:!h-11 pointer-coarse:!w-11 pointer-coarse:!h-11 !p-0" (click)="editCaption(p)" [matTooltip]="I18N.photo_detail.edit_caption | translate" [attr.aria-label]="I18N.photo_detail.edit_caption | translate">
+                      <mat-icon class="!text-base !w-4 !h-4 !leading-4">edit</mat-icon>
+                    </button>
+                  }
+                </div>
+                @if (translatingCaption()) {
+                  <p class="text-[var(--mat-sys-on-surface-variant)] italic text-xs">{{ I18N.photo_detail.translating_caption | translate }}</p>
+                } @else {
+                  <p class="text-[var(--mat-sys-on-surface-variant)]">{{ displayCaption() }}</p>
+                }
+              </div>
+            }
+
+              <!-- Tags: AI chips, then manual chips (marked, removable for editors), then + Tag -->
+            @if (p.tags_list.length || p.manual_tags.length || tagInputOpen()) {
+              <div data-testid="tags-section">
+                <div class="text-xs text-[var(--mat-sys-on-surface-variant)] mb-2">{{ I18N.photo_detail.tags | translate }}</div>
+                <div class="flex gap-1.5 flex-wrap items-center">
+                  @for (tag of p.tags_list; track tag) {
+                    <span data-testid="ai-tag-chip" class="inline-flex min-w-0 max-w-full">
+                      <button class="inline-flex items-center max-sm:min-h-11 pointer-coarse:min-h-11 max-sm:min-w-11 pointer-coarse:min-w-11 max-w-full [overflow-wrap:anywhere] text-left px-2 py-0.5 bg-[var(--facet-accent-badge)] text-[var(--facet-accent-text)] rounded-full text-xs cursor-pointer hover:opacity-80 transition-opacity"
+                              [matMenuTriggerFor]="tagNavigationMenu" [matMenuTriggerData]="{ tag: tag }">{{ tag }}</button>
+                    </span>
+                  }
+                  @for (tag of p.manual_tags; track tag) {
+                    <span data-testid="manual-tag-chip"
+                          class="inline-flex min-w-0 max-w-full items-center rounded-full border border-dashed border-[var(--facet-accent-text)] text-[var(--facet-accent-text)] text-xs">
+                      <button class="inline-flex items-center max-sm:min-h-11 pointer-coarse:min-h-11 max-sm:min-w-11 pointer-coarse:min-w-11 min-w-0 gap-1 pl-2 pr-2 py-0.5 cursor-pointer hover:opacity-80 transition-opacity"
+                              [attr.title]="I18N.manual_tags.manual | translate"
+                              [matMenuTriggerFor]="tagNavigationMenu" [matMenuTriggerData]="{ tag: tag }">
+                        <mat-icon class="!text-xs !w-3 !h-3 !leading-3" aria-hidden="true">sell</mat-icon>
+                        <span class="sr-only">{{ I18N.manual_tags.manual | translate }}:</span>
+                        <span class="min-w-0 [overflow-wrap:anywhere] text-left">{{ tag }}</span>
+                      </button>
+                      @if (auth.isEdition()) {
+                        <button data-testid="manual-tag-remove"
+                                class="inline-flex items-center justify-center shrink-0 min-w-6 min-h-6 max-sm:min-w-11 max-sm:min-h-11 pointer-coarse:min-w-11 pointer-coarse:min-h-11 -ml-1 max-sm:ml-0 pointer-coarse:ml-0 cursor-pointer hover:opacity-80"
+                                [attr.aria-label]="I18N.manual_tags.remove_tag | translate:{ tag: tag }"
+                                (click)="removeManualTag(p, tag)">
+                          <mat-icon class="!text-xs !w-3 !h-3 !leading-3" aria-hidden="true">close</mat-icon>
+                        </button>
+                      }
+                    </span>
+                  }
+                  @if (auth.isEdition() && !tagInputOpen()) {
+                    <button type="button" data-add-tag class="inline-flex items-center gap-0.5 rounded-full border border-dashed border-[var(--mat-sys-outline)] px-2 py-0.5 text-xs text-[var(--mat-sys-on-surface-variant)] cursor-pointer hover:bg-[var(--mat-sys-surface-container-high)] max-sm:min-h-11 pointer-coarse:min-h-11"
+                            [attr.aria-label]="I18N.manual_tags.add | translate" (click)="openTagInput()">
+                      <mat-icon class="!text-sm !w-3.5 !h-3.5 !leading-3.5" aria-hidden="true">add</mat-icon>{{ I18N.manual_tags.tag_label | translate }}
+                    </button>
+                  }
+                </div>
+                <mat-menu #tagNavigationMenu="matMenu">
+                  <ng-template matMenuContent let-tag="tag">
+                    @if (tagCollectionAvailable()) {
+                      <button mat-menu-item (click)="navigateTag(tag, 'collection')"><mat-icon>filter_alt</mat-icon>{{ I18N.photo_detail.tag_refine_collection | translate }}</button>
+                    }
+                    <button mat-menu-item (click)="navigateTag(tag, 'library')"><mat-icon>search</mat-icon>{{ I18N.photo_detail.tag_search_library | translate }}</button>
+                  </ng-template>
+                </mat-menu>
+                @if (auth.isEdition() && tagInputOpen()) {
+                  <div class="flex items-center gap-1 mt-2" data-testid="manual-tag-add">
+                    <input type="text" maxlength="64"
+                           class="min-w-0 flex-1 max-sm:min-h-11 pointer-coarse:min-h-11 px-2 py-1 text-xs rounded border border-[var(--mat-sys-outline-variant)] bg-transparent"
+                           [value]="newTag()"
+                           [attr.aria-label]="I18N.manual_tags.add | translate"
+                           [placeholder]="I18N.manual_tags.add | translate"
+                           (input)="onNewTagInput($event)"
+                           (keydown.enter)="addManualTag(p, newTag())" (keydown.escape)="closeTagInput($event)" />
+                    <button mat-icon-button class="!w-7 !h-7 max-sm:!w-11 max-sm:!h-11 pointer-coarse:!w-11 pointer-coarse:!h-11 !p-0 !inline-flex !items-center !justify-center shrink-0" (click)="addManualTag(p, newTag())"
+                            [disabled]="!newTag().trim()"
+                            [matTooltip]="I18N.manual_tags.add | translate" [attr.aria-label]="I18N.manual_tags.add | translate">
+                      <mat-icon class="!text-base !w-4 !h-4 !leading-4">add</mat-icon>
+                    </button>
+                  </div>
+                }
+              </div>
+            }
+
+            @if (p.gps_latitude !== null && p.gps_longitude !== null) {
+              <div data-photo-location>
+                <div class="flex items-center justify-between mb-2">
+                  <div class="text-xs text-[var(--mat-sys-on-surface-variant)]">{{ I18N.photo_detail.location | translate }}</div>
+                  @if (auth.isEdition()) {
+                    <button mat-icon-button class="!w-7 !h-7 max-sm:!w-11 max-sm:!h-11 pointer-coarse:!w-11 pointer-coarse:!h-11 !p-0" (click)="editGps(p)" [matTooltip]="I18N.photo_detail.edit_location | translate" [attr.aria-label]="I18N.photo_detail.edit_location | translate">
+                      <mat-icon class="!text-base !w-4 !h-4 !leading-4">edit_location</mat-icon>
+                    </button>
+                  }
+                </div>
+                @if (locationName()) {
+                  <div class="text-sm font-medium mb-1">{{ locationName() }}</div>
+                }
+                <div class="text-xs text-[var(--mat-sys-on-surface-variant)] mb-2">{{ p.gps_latitude | fixed:6 }}, {{ p.gps_longitude | fixed:6 }}</div>
+                <div #locationMapContainer class="w-full h-40 rounded-lg overflow-hidden"></div>
+              </div>
+            }
+
+            @if (p.persons.length || p.unassigned_faces) {
+              <section data-photo-people aria-labelledby="photo-people-title">
+                <h2 id="photo-people-title" class="m-0 mb-1 text-xs font-normal text-[var(--mat-sys-on-surface-variant)]">{{ I18N.photo_detail.persons | translate }}</h2>
+                @if (p.unassigned_faces) { <p class="m-0 pb-2 text-xs text-[var(--mat-sys-on-surface-variant)]">{{ I18N.photo_detail.unassigned_faces | translate:{ count: p.unassigned_faces } }}</p> }
+                <div class="flex gap-3 flex-wrap">
+                  @for (person of p.persons; track person.id) {
+                    <button class="flex min-w-0 max-w-full flex-col items-center gap-1 cursor-pointer hover:opacity-80 transition-opacity"
+                            data-person-avatar aria-haspopup="menu"
+                            (click)="openPersonMenu(person, $event)">
+                      <img
+                        [src]="person.id | personThumbnailUrl"
+                        [alt]="person.name"
+                        class="w-10 h-10 rounded-full object-cover bg-[var(--mat-sys-surface-container)]"
+                      />
+                      <span class="text-xs text-[var(--mat-sys-on-surface-variant)]">{{ person.name }}</span>
+                    </button>
+                  }
+                </div>
+              </section>
+            }
+
+            @if (auth.isEdition() && (!p.caption || (!p.tags_list.length && !p.manual_tags.length && !tagInputOpen()) || p.gps_latitude === null || p.gps_longitude === null)) {
+              <div data-photo-add class="flex flex-wrap items-center gap-1">
+                @if (!p.caption) {
+                  <button mat-stroked-button class="!h-8 !min-w-0 !px-2.5 !text-xs max-sm:!h-11 pointer-coarse:!h-11" (click)="editCaption(p)" [attr.aria-label]="I18N.photo_detail.add_caption | translate">
+                    <mat-icon class="!text-base !w-4 !h-4 !leading-4" aria-hidden="true">add_comment</mat-icon>{{ I18N.photo_detail.caption | translate }}
+                  </button>
+                  @if (store.config()?.features?.show_captions) {
+                    <button mat-icon-button class="!w-8 !h-8 max-sm:!w-11 max-sm:!h-11 pointer-coarse:!w-11 pointer-coarse:!h-11 !p-0" (click)="generateCaption(p.path)" [disabled]="generatingCaption()" [matTooltip]="I18N.photo_detail.generate_caption | translate" [attr.aria-label]="I18N.photo_detail.generate_caption | translate">
                       @if (generatingCaption()) {
                         <mat-spinner diameter="16" [attr.aria-label]="I18N.ui.labels.loading | translate" />
                       } @else {
@@ -470,18 +606,18 @@ function inDetectedSet(photo: Photo): boolean {
                       }
                     </button>
                   }
-                  <button mat-icon-button class="!w-7 !h-7 max-sm:!w-11 max-sm:!h-11 pointer-coarse:!w-11 pointer-coarse:!h-11 !p-0" (click)="editCaption(p)" [matTooltip]="I18N.photo_detail.edit_caption | translate" [attr.aria-label]="I18N.photo_detail.edit_caption | translate">
-                    <mat-icon class="!text-base !w-4 !h-4 !leading-4">edit</mat-icon>
+                }
+                @if (!p.tags_list.length && !p.manual_tags.length && !tagInputOpen()) {
+                  <button mat-stroked-button data-add-tag class="!h-8 !min-w-0 !px-2.5 !text-xs max-sm:!h-11 pointer-coarse:!h-11" (click)="openTagInput()" [attr.aria-label]="I18N.manual_tags.add | translate">
+                    <mat-icon class="!text-base !w-4 !h-4 !leading-4" aria-hidden="true">sell</mat-icon>{{ I18N.manual_tags.tag_label | translate }}
                   </button>
-                </div>
-              }
-            </div>
-            @if (translatingCaption()) {
-              <p class="text-[var(--mat-sys-on-surface-variant)] italic text-xs">{{ I18N.photo_detail.translating_caption | translate }}</p>
-            } @else if (displayCaption()) {
-              <p class="text-[var(--mat-sys-on-surface-variant)]">{{ displayCaption() }}</p>
-            } @else {
-              <p class="text-[var(--mat-sys-on-surface-variant)] italic text-xs">&mdash;</p>
+                }
+                @if (p.gps_latitude === null || p.gps_longitude === null) {
+                  <button mat-stroked-button class="!h-8 !min-w-0 !px-2.5 !text-xs max-sm:!h-11 pointer-coarse:!h-11" (click)="editGps(p)" [attr.aria-label]="I18N.photo_detail.add_location | translate">
+                    <mat-icon class="!text-base !w-4 !h-4 !leading-4" aria-hidden="true">add_location</mat-icon>{{ I18N.photo_detail.location | translate }}
+                  </button>
+                }
+              </div>
             }
           </div>
 
@@ -493,122 +629,11 @@ function inDetectedSet(photo: Photo): boolean {
                                   [histogramDefaultMode]="histogramDefaultMode()"
                                   [indicatorPercent]="clippingIndicatorPercent()"
                                   [explainable]="!!store.config()?.features?.show_critique" (explain)="openCritique(p)" />
-          <app-context-help [label]="I18N.gallery.compare.rendition.sources" [keys]="[I18N.photo_detail.rendition.note]" />
-
-          <!-- Location -->
-          @if (p.gps_latitude !== null && p.gps_longitude !== null) {
-            <div class="border-t border-[var(--mat-sys-outline-variant)] pt-3 mb-2">
-              <div class="flex items-center justify-between mb-2">
-                <div class="text-xs text-[var(--mat-sys-on-surface-variant)]">{{ I18N.photo_detail.location | translate }}</div>
-                @if (auth.isEdition()) {
-                  <button mat-icon-button class="!w-7 !h-7 max-sm:!w-11 max-sm:!h-11 pointer-coarse:!w-11 pointer-coarse:!h-11 !p-0" (click)="editGps(p)" [matTooltip]="I18N.photo_detail.edit_location | translate" [attr.aria-label]="I18N.photo_detail.edit_location | translate">
-                    <mat-icon class="!text-base !w-4 !h-4 !leading-4">edit_location</mat-icon>
-                  </button>
-                }
-              </div>
-              @if (locationName()) {
-                <div class="text-sm font-medium mb-1">{{ locationName() }}</div>
-              }
-              <div class="text-xs text-[var(--mat-sys-on-surface-variant)] mb-2">{{ p.gps_latitude | fixed:6 }}, {{ p.gps_longitude | fixed:6 }}</div>
-              <div #locationMapContainer class="w-full h-40 rounded-lg overflow-hidden"></div>
-            </div>
-          } @else if (auth.isEdition()) {
-            <div class="border-t border-[var(--mat-sys-outline-variant)] pt-3 mb-2">
-              <div class="flex items-center justify-between">
-                <div class="text-xs text-[var(--mat-sys-on-surface-variant)]">{{ I18N.photo_detail.location | translate }}</div>
-                <button mat-icon-button class="!w-7 !h-7 max-sm:!w-11 max-sm:!h-11 pointer-coarse:!w-11 pointer-coarse:!h-11 !p-0" (click)="editGps(p)" [matTooltip]="I18N.photo_detail.add_location | translate" [attr.aria-label]="I18N.photo_detail.add_location | translate">
-                  <mat-icon class="!text-base !w-4 !h-4 !leading-4">add_location</mat-icon>
-                </button>
-              </div>
-              <p class="text-[var(--mat-sys-on-surface-variant)] italic text-xs">&mdash;</p>
-            </div>
-          }
-
-          <!-- Tags section: AI chips, then manual chips (marked, removable for editors) -->
-          @if (p.tags_list.length || p.manual_tags.length || auth.isEdition()) {
-            <div data-testid="tags-section">
-              <div class="text-xs text-[var(--mat-sys-on-surface-variant)] mb-2">{{ I18N.photo_detail.tags | translate }}</div>
-              <div class="flex gap-1.5 flex-wrap items-center">
-                @for (tag of p.tags_list; track tag) {
-                  <span data-testid="ai-tag-chip" class="inline-flex min-w-0 max-w-full">
-                    <button class="inline-flex items-center max-sm:min-h-11 pointer-coarse:min-h-11 max-sm:min-w-11 pointer-coarse:min-w-11 max-w-full [overflow-wrap:anywhere] text-left px-2 py-0.5 bg-[var(--facet-accent-badge)] text-[var(--facet-accent-text)] rounded-full text-xs cursor-pointer hover:opacity-80 transition-opacity"
-                            [matMenuTriggerFor]="tagNavigationMenu" [matMenuTriggerData]="{ tag: tag }">{{ tag }}</button>
-                  </span>
-                }
-                @for (tag of p.manual_tags; track tag) {
-                  <span data-testid="manual-tag-chip"
-                        class="inline-flex min-w-0 max-w-full items-center rounded-full border border-dashed border-[var(--facet-accent-text)] text-[var(--facet-accent-text)] text-xs">
-                    <button class="inline-flex items-center max-sm:min-h-11 pointer-coarse:min-h-11 max-sm:min-w-11 pointer-coarse:min-w-11 min-w-0 gap-1 pl-2 pr-2 py-0.5 cursor-pointer hover:opacity-80 transition-opacity"
-                            [attr.title]="I18N.manual_tags.manual | translate"
-                            [matMenuTriggerFor]="tagNavigationMenu" [matMenuTriggerData]="{ tag: tag }">
-                      <mat-icon class="!text-xs !w-3 !h-3 !leading-3" aria-hidden="true">sell</mat-icon>
-                      <span class="sr-only">{{ I18N.manual_tags.manual | translate }}:</span>
-                      <span class="min-w-0 [overflow-wrap:anywhere] text-left">{{ tag }}</span>
-                    </button>
-                    @if (auth.isEdition()) {
-                      <button data-testid="manual-tag-remove"
-                              class="inline-flex items-center justify-center shrink-0 min-w-6 min-h-6 max-sm:min-w-11 max-sm:min-h-11 pointer-coarse:min-w-11 pointer-coarse:min-h-11 -ml-1 max-sm:ml-0 pointer-coarse:ml-0 cursor-pointer hover:opacity-80"
-                              [attr.aria-label]="I18N.manual_tags.remove_tag | translate:{ tag: tag }"
-                              (click)="removeManualTag(p, tag)">
-                        <mat-icon class="!text-xs !w-3 !h-3 !leading-3" aria-hidden="true">close</mat-icon>
-                      </button>
-                    }
-                  </span>
-                }
-              </div>
-              <mat-menu #tagNavigationMenu="matMenu">
-                <ng-template matMenuContent let-tag="tag">
-                  @if (tagCollectionAvailable()) {
-                    <button mat-menu-item (click)="navigateTag(tag, 'collection')"><mat-icon>filter_alt</mat-icon>{{ I18N.photo_detail.tag_refine_collection | translate }}</button>
-                  }
-                  <button mat-menu-item (click)="navigateTag(tag, 'library')"><mat-icon>search</mat-icon>{{ I18N.photo_detail.tag_search_library | translate }}</button>
-                </ng-template>
-              </mat-menu>
-              @if (auth.isEdition()) {
-                <div class="flex items-center gap-1 mt-2" data-testid="manual-tag-add">
-                  <input type="text" maxlength="64"
-                         class="min-w-0 flex-1 max-sm:min-h-11 pointer-coarse:min-h-11 px-2 py-1 text-xs rounded border border-[var(--mat-sys-outline-variant)] bg-transparent"
-                         [value]="newTag()"
-                         [attr.aria-label]="I18N.manual_tags.add | translate"
-                         [placeholder]="I18N.manual_tags.add | translate"
-                         (input)="onNewTagInput($event)"
-                         (keydown.enter)="addManualTag(p, newTag())" />
-                  <button mat-icon-button class="!w-7 !h-7 max-sm:!w-11 max-sm:!h-11 pointer-coarse:!w-11 pointer-coarse:!h-11 !p-0 !inline-flex !items-center !justify-center shrink-0" (click)="addManualTag(p, newTag())"
-                          [disabled]="!newTag().trim()"
-                          [matTooltip]="I18N.manual_tags.add | translate" [attr.aria-label]="I18N.manual_tags.add | translate">
-                    <mat-icon class="!text-base !w-4 !h-4 !leading-4">add</mat-icon>
-                  </button>
-                </div>
-              }
-            </div>
-          }
-
-          <!-- Persons section -->
-          @if (p.persons.length || p.unassigned_faces) {
-            <section data-photo-people aria-labelledby="photo-people-title">
-              <h2 id="photo-people-title" class="m-0 mb-1 text-xs font-normal text-[var(--mat-sys-on-surface-variant)]">{{ I18N.photo_detail.persons | translate }}</h2>
-              @if (p.unassigned_faces) { <p class="m-0 pb-2 text-xs text-[var(--mat-sys-on-surface-variant)]">{{ I18N.photo_detail.unassigned_faces | translate:{ count: p.unassigned_faces } }}</p> }
-              <div class="flex gap-3 flex-wrap">
-                @for (person of p.persons; track person.id) {
-                  <button class="flex min-w-0 max-w-full flex-col items-center gap-1 cursor-pointer hover:opacity-80 transition-opacity"
-                          data-person-avatar aria-haspopup="menu"
-                          (click)="openPersonMenu(person, $event)">
-                    <img
-                      [src]="person.id | personThumbnailUrl"
-                      [alt]="person.name"
-                      class="w-10 h-10 rounded-full object-cover bg-[var(--mat-sys-surface-container)]"
-                    />
-                    <span class="text-xs text-[var(--mat-sys-on-surface-variant)]">{{ person.name }}</span>
-                  </button>
-                }
-              </div>
-            </section>
-          }
 
           <!-- Set section (bracket/panorama/hdr_panorama/burst/duplicate) -->
           @if (photoSet(); as set) {
             @if (set.kind) {
-              <div class="pt-1">
+              <div data-photo-set class="pt-1">
                 <div class="flex items-center gap-2 flex-wrap mb-2 text-sm">
                   <mat-icon class="!text-base !w-4 !h-4 !leading-4 opacity-70">{{ set.kind | photoSetKindIcon }}</mat-icon>
                   <span class="font-medium">{{ set.kind | photoSetKindLabel | translate }}</span>
@@ -624,9 +649,9 @@ function inDetectedSet(photo: Photo): boolean {
                     <mat-icon class="!text-base !w-4 !h-4 !leading-4">photo_library</mat-icon>
                   </button>
                 </div>
-                <div class="flex gap-2 flex-wrap">
+                <div data-photo-set-strip class="grid grid-cols-[repeat(auto-fill,minmax(4rem,1fr))] gap-2 lg:grid-cols-5">
                   @for (member of setStripMembers(); track member.path) {
-                    <button class="relative rounded-lg overflow-hidden w-16 h-16 shrink-0 cursor-pointer hover:opacity-80 transition-opacity ring-[var(--mat-sys-primary)]"
+                    <button class="relative rounded-lg overflow-hidden aspect-square w-full min-w-0 cursor-pointer hover:opacity-80 transition-opacity ring-[var(--mat-sys-primary)]"
                             [class.ring-2]="member.path === p.path"
                             [attr.aria-label]="(I18N.photo_detail.set.member_position | translate:{ position: $index + 1, count: set.members.length }) + (member.ev_offset !== null ? ', ' + (member.ev_offset | evOffset) : '') + (member.ai_edit_of ? ', ' + (I18N.photo_detail.ai_edit.badge | translate) : '') + (member.is_blink ? ', ' + (I18N.ui.badges.blink | translate) : '')"
                             (click)="openSetMember(member.path)">
@@ -646,10 +671,11 @@ function inDetectedSet(photo: Photo): boolean {
             }
           }
 
-          <div>
+          <!-- File details: metadata sources and related files, one open at a time -->
+          <mat-accordion data-file-details displayMode="flat" class="block">
             <app-photo-provenance [photo]="p" />
             <app-photo-related-files [photo]="p" (logicalApplied)="onLogicalAssetApplied($event)" />
-          </div>
+          </mat-accordion>
         </aside>
       </div>
     } @else if (photoMissing()) {
@@ -1602,6 +1628,22 @@ export class PhotoDetailComponent extends PhotoDetailBase implements OnInit {
   }
 
   protected readonly newTag = signal('');
+  /** The manual-tag input shows on demand, from + Tag, so an untagged photo costs one compact action. */
+  protected readonly tagInputOpen = signal(false);
+  private readonly injector = inject(Injector);
+  private readonly describe = viewChild<ElementRef<HTMLElement>>('describe');
+
+  protected openTagInput(): void {
+    this.tagInputOpen.set(true);
+    afterNextRender(() => this.describe()?.nativeElement.querySelector<HTMLInputElement>('[data-testid="manual-tag-add"] input')?.focus(), { injector: this.injector });
+  }
+
+  protected closeTagInput(event: Event): void {
+    event.preventDefault();
+    this.newTag.set('');
+    this.tagInputOpen.set(false);
+    afterNextRender(() => this.describe()?.nativeElement.querySelector<HTMLElement>('[data-add-tag]')?.focus(), { injector: this.injector });
+  }
 
   protected onNewTagInput(event: Event): void {
     this.newTag.set((event.target as HTMLInputElement).value);

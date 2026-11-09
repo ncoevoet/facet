@@ -37,7 +37,8 @@ describe('PhotoLogicalAssetComponent', () => {
     const fixture = TestBed.createComponent(PhotoLogicalAssetComponent);
     fixture.componentRef.setInput('photo', makePhoto({ path: '/shot.jpg' })); fixture.detectChanges();
     const root = fixture.nativeElement as HTMLElement;
-    return { fixture, root, open: () => { root.querySelector('summary')!.click(); fixture.detectChanges(); } };
+    // Inline in the open Related files panel: it reads as soon as it renders, so "open" only settles the view.
+    return { fixture, root, open: () => fixture.detectChanges() };
   }
   function choose(root: HTMLElement) {
     const checkbox = root.querySelectorAll<HTMLInputElement>('input[type=checkbox]')[1];
@@ -46,10 +47,10 @@ describe('PhotoLogicalAssetComponent', () => {
     primary.click();
   }
 
-  it('reads on demand and requires an explicit primary, review and conflict acknowledgment before Apply', () => {
+  it('reads as soon as it shows and requires an explicit primary, review and conflict acknowledgment before Apply', () => {
     const { fixture, root, open } = render();
     document.body.appendChild(root);
-    http.expectNone(() => true); open();
+    expect(root.querySelector('details, summary')).toBeNull(); open();
     http.expectOne('/api/logical_assets/by-photo?path=/shot.jpg').flush(context); fixture.detectChanges();
     const review = root.querySelector<HTMLButtonElement>('[data-review-group]')!;
     expect(review.disabled).toBe(true);
@@ -66,7 +67,7 @@ describe('PhotoLogicalAssetComponent', () => {
     write.flush({ asset_id: 'a'.repeat(32), revision: 1, dissolved: false });
     http.expectOne('/api/logical_assets/by-photo?path=/shot.jpg').flush({ asset: { asset_id: 'a'.repeat(32), revision: 1, primary_path: '/shot.jpg', members }, candidates: [], can_group: false });
     fixture.detectChanges(); expect(root.textContent).toContain('logical_assets.updated');
-    expect(document.activeElement).toBe(root.querySelector('summary'));
+    expect(document.activeElement).toBe(root.querySelector('[data-logical-asset] h4'));
     root.remove();
     expect(applied).toHaveBeenCalledExactlyOnceWith({ operation: 'create', assetId: 'a'.repeat(32), primaryPath: '/shot.jpg', members: ['/shot.jpg', '/shot.CR2'] });
   });
@@ -91,7 +92,9 @@ describe('PhotoLogicalAssetComponent', () => {
     const preview = http.expectOne('/api/logical_assets/preview');
     auth.status.set({ user_id: 'bob' }); auth.token = 'bob-token'; fixture.detectChanges();
     expect(preview.cancelled).toBe(true); expect(root.querySelector('[data-group-preview]')).toBeNull();
-    expect(root.querySelector('details')!.open).toBe(false);
+    // Still shown, so it reads the new account's state afresh.
+    http.expectOne('/api/logical_assets/by-photo?path=/shot.jpg').flush(context); fixture.detectChanges();
+    expect(root.querySelectorAll('input[type=checkbox]:checked')).toHaveLength(1);
   });
 
   it('never retries an uncertain Apply; reloads current state for another deliberate review', () => {
@@ -125,17 +128,6 @@ describe('PhotoLogicalAssetComponent', () => {
     write.flush({ asset_id: asset.asset_id, revision: null, dissolved: true });
     http.expectOne('/api/logical_assets/by-photo?path=/shot.jpg').flush(context); fixture.detectChanges();
     expect(root.querySelector('[data-group-preview]')).toBeNull();
-  });
-
-  it('Escape closes only this disclosure and restores its trigger focus', () => {
-    const { fixture, root, open } = render(); document.body.appendChild(root); open();
-    http.expectOne('/api/logical_assets/by-photo?path=/shot.jpg').flush(context); fixture.detectChanges();
-    const trigger = root.querySelector('summary')!;
-    const event = new KeyboardEvent('keydown', { key: 'Escape', bubbles: true, cancelable: true });
-    trigger.dispatchEvent(event); fixture.detectChanges();
-    expect(event.defaultPrevented).toBe(true); expect(root.querySelector('details')!.open).toBe(false);
-    expect(document.activeElement).toBe(trigger);
-    root.remove();
   });
 
   it('removes Apply when edition is locked while a preview is displayed', () => {

@@ -3370,7 +3370,9 @@
     "details": "Fotodetails",
     "unassigned_faces": "Nicht zugewiesene Gesichter: {count}",
     "tag_refine_collection": "Diese Sammlung verfeinern",
-    "tag_search_library": "Bibliothek durchsuchen"
+    "tag_search_library": "Bibliothek durchsuchen",
+    "add_caption": "Beschriftung hinzufügen",
+    "capture_settings": "Aufnahmeeinstellungen"
   },
   "manual_tags": {
     "batch": {
@@ -4052,7 +4054,12 @@
     "tag_limit": "Die ersten 50 manuellen Schlagwörter werden angezeigt.",
     "failed": "Die Metadatenquellen konnten nicht geladen werden.",
     "help_title": "Über diese Quellen",
-    "help": "Dies sind die aktuell erfassten Quellen, kein vollständiger Änderungsverlauf. Lokale Änderungen nennen keine Person. Fehlende Einträge bedeuten nicht, dass ein Wert unverändert ist. Manuelle Schlagwörter werden geteilt; Bewertungsfelder folgen dem oben angegebenen Bereich. Aufnahmedatums- und Standortkorrekturen können auch aus Importen stammen."
+    "help": "Dies sind die aktuell erfassten Quellen, kein vollständiger Änderungsverlauf. Lokale Änderungen nennen keine Person. Fehlende Einträge bedeuten nicht, dass ein Wert unverändert ist. Manuelle Schlagwörter werden geteilt; Bewertungsfelder folgen dem oben angegebenen Bereich. Aufnahmedatums- und Standortkorrekturen können auch aus Importen stammen.",
+    "field": "Feld",
+    "value": "Wert",
+    "source": "Quelle",
+    "all_fields": "Alle Felder: {source}",
+    "all_tags": "Alle Schlagwörter: {source}"
   },
   "related_files": {
     "title": "Zugehörige Dateien",

@@ -3395,7 +3395,9 @@
     "details": "Photo details",
     "unassigned_faces": "Unassigned faces: {count}",
     "tag_refine_collection": "Refine this collection",
-    "tag_search_library": "Search library"
+    "tag_search_library": "Search library",
+    "add_caption": "Add caption",
+    "capture_settings": "Capture settings"
   },
   "manual_tags": {
     "batch": {
@@ -4052,7 +4054,12 @@
     "tag_limit": "Showing the first 50 manual tags.",
     "failed": "Metadata sources could not be loaded.",
     "help_title": "About these sources",
-    "help": "These are current recorded sources, not a full edit history. Local changes do not identify a person. Missing records do not mean a value is unchanged. Manual tags are shared; review fields follow the scope shown above. Capture-date and location overrides may also come from imports."
+    "help": "These are current recorded sources, not a full edit history. Local changes do not identify a person. Missing records do not mean a value is unchanged. Manual tags are shared; review fields follow the scope shown above. Capture-date and location overrides may also come from imports.",
+    "field": "Field",
+    "value": "Value",
+    "source": "Source",
+    "all_fields": "All fields: {source}",
+    "all_tags": "All tags: {source}"
   },
   "related_files": {
     "title": "Related files",

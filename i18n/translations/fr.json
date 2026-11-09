@@ -3370,7 +3370,9 @@
     "details": "Détails de la photo",
     "unassigned_faces": "Visages non attribués : {count}",
     "tag_refine_collection": "Affiner cette collection",
-    "tag_search_library": "Rechercher dans la bibliothèque"
+    "tag_search_library": "Rechercher dans la bibliothèque",
+    "add_caption": "Ajouter une légende",
+    "capture_settings": "Réglages de prise de vue"
   },
   "manual_tags": {
     "batch": {
@@ -4052,7 +4054,12 @@
     "tag_limit": "Affichage des 50 premières étiquettes manuelles.",
     "failed": "Les sources des métadonnées n’ont pas pu être chargées.",
     "help_title": "À propos de ces sources",
-    "help": "Il s’agit des sources actuellement enregistrées, pas d’un historique complet des modifications. Les changements locaux n’identifient pas une personne. L’absence d’enregistrement ne signifie pas qu’une valeur est inchangée. Les étiquettes manuelles sont partagées ; les champs d’évaluation suivent le périmètre indiqué ci-dessus. Les remplacements de date et de lieu peuvent aussi provenir d’imports."
+    "help": "Il s’agit des sources actuellement enregistrées, pas d’un historique complet des modifications. Les changements locaux n’identifient pas une personne. L’absence d’enregistrement ne signifie pas qu’une valeur est inchangée. Les étiquettes manuelles sont partagées ; les champs d’évaluation suivent le périmètre indiqué ci-dessus. Les remplacements de date et de lieu peuvent aussi provenir d’imports.",
+    "field": "Champ",
+    "value": "Valeur",
+    "source": "Source",
+    "all_fields": "Tous les champs : {source}",
+    "all_tags": "Tous les mots-clés : {source}"
   },
   "related_files": {
     "title": "Fichiers associés",

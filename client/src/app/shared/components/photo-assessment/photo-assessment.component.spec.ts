@@ -79,7 +79,8 @@ describe('PhotoAssessmentComponent', () => {
     expect(button.closest('summary')).toBeNull();
     expect(button.closest('details')).toBeNull();
     expect(button.getAttribute('aria-label')).toBe('critique.title');
-    expect(el.querySelector('summary')?.className).toContain('pe-11');
+    // The summary keeps clear of the help and explain icons beside it.
+    expect(el.querySelector('summary')?.className).toContain('pe-16');
   });
 
   it('emits explain when the button is clicked', () => {

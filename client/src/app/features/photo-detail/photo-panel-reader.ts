@@ -27,13 +27,15 @@ export abstract class PhotoPanelReader<T> {
     this.destroyRef.onDestroy(() => this.reset());
   }
 
-  protected toggle(event: Event): void {
-    event.preventDefault();
-    if (this.expanded()) this.reset();
-    else if (!this.navigating && this.auth.status()) { this.expanded.set(true); this.load(); }
+  /** Follows the panel's own toggle; a read the page cannot make now closes the panel again. */
+  protected setExpanded(open: boolean, panel?: { close(): void }): void {
+    if (open === this.expanded()) return;
+    if (!open) { this.reset(); return; }
+    if (this.navigating || !this.auth.status()) { panel?.close(); return; }
+    this.expanded.set(true); this.load();
   }
 
-  protected close(event: Event, trigger: HTMLElement): void {
+  protected close(event: Event, trigger: { focus(): void }): void {
     event.preventDefault(); event.stopPropagation(); this.reset(); trigger.focus();
   }
 

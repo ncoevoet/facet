@@ -208,14 +208,18 @@ const STORED_EDGE = STORED_THUMBNAIL_EDGE;
         </div>
 
         <div class="text-sm mb-3" data-testid="score-calculation-context">
-          <div>{{ I18N.critique.stored_score | translate }}:
-            @if (c.aggregate !== null && c.aggregate !== undefined) { {{ c.aggregate | number:'1.2-2' }} }
-            @else if (c.stored_score_state === 'missing') { {{ I18N.critique.stored_state.missing | translate }} }
-            @else if (c.stored_score_state === 'invalid') { {{ I18N.critique.stored_state.invalid | translate }} }
-            @else { {{ I18N.critique.stored_unavailable | translate }} }
+          <div class="flex items-center gap-1">
+            <span>{{ I18N.critique.stored_score | translate }}:
+              @if (c.aggregate !== null && c.aggregate !== undefined) { {{ c.aggregate | number:'1.2-2' }} }
+              @else if (c.stored_score_state === 'missing') { {{ I18N.critique.stored_state.missing | translate }} }
+              @else if (c.stored_score_state === 'invalid') { {{ I18N.critique.stored_state.invalid | translate }} }
+              @else { {{ I18N.critique.stored_unavailable | translate }} }
+            </span>
+            @if (c.current_formula_score !== null && c.current_formula_score !== undefined) {
+              <app-context-help [label]="I18N.critique.current_formula" [keys]="calculationHelp()" [iconOnly]="true" />
+            }
           </div>
           @if (c.current_formula_score !== null && c.current_formula_score !== undefined) {
-            <app-context-help [label]="I18N.critique.current_formula" [keys]="calculationHelp()" />
             @if (c.stored_score_matches_current_formula === false) {
               <p class="text-xs text-[var(--mat-sys-on-surface)]">{{ I18N.critique.different_score | translate }}</p>
             }

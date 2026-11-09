@@ -5,6 +5,7 @@ import { NgTemplateOutlet } from '@angular/common';
 import { CdkConnectedOverlay, CdkOverlayOrigin, ConnectedPosition } from '@angular/cdk/overlay';
 import { CdkTrapFocus } from '@angular/cdk/a11y';
 import { MatIconModule } from '@angular/material/icon';
+import { MatTooltipModule } from '@angular/material/tooltip';
 import { I18N } from '../../../core/i18n/keys';
 import { TranslatePipe } from '../../pipes/translate.pipe';
 
@@ -13,19 +14,20 @@ let nextPopover = 0;
 /** A scroll-contained settings/help panel that never changes its owner's layout. */
 @Component({
   selector: 'app-control-popover',
-  imports: [CdkConnectedOverlay, CdkOverlayOrigin, CdkTrapFocus, MatIconModule, TranslatePipe, NgTemplateOutlet],
+  imports: [CdkConnectedOverlay, CdkOverlayOrigin, CdkTrapFocus, MatIconModule, MatTooltipModule, TranslatePipe, NgTemplateOutlet],
   changeDetection: ChangeDetectionStrategy.OnPush,
   host: { class: 'contents' },
   template: `
     <button #trigger type="button" cdkOverlayOrigin #origin="cdkOverlayOrigin"
-            [class]="compact() ? 'min-h-7 min-w-7 pointer-coarse:min-h-11 pointer-coarse:min-w-11' : 'min-h-11 min-w-11'"
+            [class]="compact() || iconOnly() ? 'min-h-7 min-w-7 pointer-coarse:min-h-11 pointer-coarse:min-w-11' : 'min-h-11 min-w-11'"
             class="inline-flex cursor-pointer items-center gap-2 rounded px-2 text-sm hover:bg-[var(--mat-sys-surface-container-high)] focus-visible:outline-2 focus-visible:outline-[var(--mat-sys-primary)]"
             [class.bg-[var(--mat-sys-secondary-container)]]="open()"
-            [class.w-full]="fill()" [class.justify-start]="fill()" [class.justify-center]="!fill()"
+            [class.w-full]="fill() && !iconOnly()" [class.justify-start]="fill() && !iconOnly()" [class.justify-center]="!fill() || iconOnly()"
+            [matTooltip]="iconOnly() ? label() : ''" [matTooltipDisabled]="!iconOnly()"
             [attr.aria-label]="label()" [attr.title]="hint() || null" aria-haspopup="dialog" [attr.aria-expanded]="open()"
             [attr.aria-controls]="open() ? panelId : null" (click)="toggle()">
       <mat-icon aria-hidden="true" class="!h-5 !w-5 !text-xl">{{ icon() }}</mat-icon>
-      <span [class]="compact() ? 'hidden @min-[480px]:inline' : ''">{{ label() }}</span>
+      @if (!iconOnly()) { <span [class]="compact() ? 'hidden @min-[480px]:inline' : ''">{{ label() }}</span> }
       @if (disclosure()) { <mat-icon aria-hidden="true" class="!hidden !h-4 !w-4 !text-base @min-[960px]:!inline-flex" [class.ml-auto]="fill()" [class.rotate-180]="open()">expand_more</mat-icon> }
     </button>
     <ng-template cdkConnectedOverlay [cdkConnectedOverlayOrigin]="origin" [cdkConnectedOverlayOpen]="open()"
@@ -34,7 +36,7 @@ let nextPopover = 0;
                  (backdropClick)="open.set(false)" (detach)="onDetached()">
       <section [id]="panelId" tabindex="-1" role="dialog" aria-modal="true" [attr.aria-label]="label()"
                cdkTrapFocus [cdkTrapFocusAutoCapture]="true" (keydown)="onKeydown($event)"
-               [class.w-80]="!fill()" [class.w-full]="fill()"
+               [class.w-80]="overlayWidth() === undefined" [class.w-full]="overlayWidth() !== undefined"
                class="flex max-h-[min(75dvh,44rem)] max-w-[calc(100vw-1rem)] flex-col overflow-hidden rounded-lg border border-[var(--mat-sys-outline-variant)] bg-[var(--mat-sys-surface-container)] text-[var(--mat-sys-on-surface)] shadow-xl">
         <header class="flex shrink-0 items-center gap-2 border-b border-[var(--mat-sys-outline-variant)] px-3 py-1">
           <span class="min-w-0 flex-1 text-sm font-medium">{{ label() }}</span>
@@ -55,6 +57,8 @@ export class ControlPopoverComponent {
   readonly hint = input('');
   /** Stretch the trigger to its container and open the panel as wide as the details rail (or, off the rail, the trigger) minus 8 px a side. */
   readonly fill = input(false);
+  /** Show only the icon; the label becomes the tooltip and stays the accessible name. */
+  readonly iconOnly = input(false);
   readonly content = input<TemplateRef<unknown> | null>(null);
   readonly open = signal(false);
   readonly opened = output<void>();
@@ -67,7 +71,7 @@ export class ControlPopoverComponent {
   }
   private readonly trigger = viewChild.required<ElementRef<HTMLElement>>('trigger');
   protected readonly overlayWidth = signal<number | undefined>(undefined);
-  private readonly fillOffsetX = signal(0);
+  private readonly fillOffsetX = signal<number | null>(null);
   protected toggle(): void {
     if (!this.open()) this.measureFill();
     this.open.update(value => !value);
@@ -87,20 +91,22 @@ export class ControlPopoverComponent {
     { originX: 'end', originY: 'top', overlayX: 'end', overlayY: 'bottom', offsetY: -4 },
   ];
   protected readonly activePositions = computed<ConnectedPosition[]>(() => {
-    if (!this.fill()) return this.positions;
     const offsetX = this.fillOffsetX();
+    if (!this.fill() || offsetX === null) return this.positions;
     return [
       { originX: 'start', originY: 'bottom', overlayX: 'start', overlayY: 'top', offsetX, offsetY: 4 },
       { originX: 'start', originY: 'top', overlayX: 'start', overlayY: 'bottom', offsetX, offsetY: -4 },
     ];
   });
   private measureFill(): void {
-    if (!this.fill()) {
+    const trigger = this.trigger().nativeElement;
+    // An icon-only trigger is too narrow to size a panel by, so off a rail it keeps the default panel.
+    const anchor = trigger.closest('[data-details-rail], [data-photo-inspector]') ?? (this.iconOnly() ? null : trigger);
+    if (!this.fill() || !anchor) {
       this.overlayWidth.set(undefined);
+      this.fillOffsetX.set(null);
       return;
     }
-    const trigger = this.trigger().nativeElement;
-    const anchor = trigger.closest('[data-details-rail]') ?? trigger;
     const box = anchor.getBoundingClientRect();
     this.overlayWidth.set(Math.max(0, Math.round(box.width) - 16));
     this.fillOffsetX.set(Math.round(box.left - trigger.getBoundingClientRect().left) + 8);

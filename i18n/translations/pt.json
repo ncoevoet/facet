@@ -3370,7 +3370,9 @@
     "details": "Detalhes da foto",
     "unassigned_faces": "Rostos não atribuídos: {count}",
     "tag_refine_collection": "Refinar esta coleção",
-    "tag_search_library": "Pesquisar na biblioteca"
+    "tag_search_library": "Pesquisar na biblioteca",
+    "add_caption": "Adicionar legenda",
+    "capture_settings": "Definições de captura"
   },
   "manual_tags": {
     "batch": {
@@ -4052,7 +4054,12 @@
     "tag_limit": "A mostrar as primeiras 50 etiquetas manuais.",
     "failed": "Não foi possível carregar as fontes dos metadados.",
     "help_title": "Sobre estas fontes",
-    "help": "Estas são as fontes atualmente registadas, não um histórico completo de edições. As alterações locais não identificam uma pessoa. A ausência de registos não significa que um valor esteja inalterado. As etiquetas manuais são partilhadas; os campos de revisão seguem o âmbito acima. As substituições da data de captura e localização também podem vir de importações."
+    "help": "Estas são as fontes atualmente registadas, não um histórico completo de edições. As alterações locais não identificam uma pessoa. A ausência de registos não significa que um valor esteja inalterado. As etiquetas manuais são partilhadas; os campos de revisão seguem o âmbito acima. As substituições da data de captura e localização também podem vir de importações.",
+    "field": "Campo",
+    "value": "Valor",
+    "source": "Fonte",
+    "all_fields": "Todos os campos: {source}",
+    "all_tags": "Todas as etiquetas: {source}"
   },
   "related_files": {
     "title": "Ficheiros associados",

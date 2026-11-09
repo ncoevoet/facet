@@ -3370,7 +3370,9 @@
     "details": "照片详情",
     "unassigned_faces": "未分配人脸：{count}",
     "tag_refine_collection": "细化此集合",
-    "tag_search_library": "搜索图库"
+    "tag_search_library": "搜索图库",
+    "add_caption": "添加照片描述",
+    "capture_settings": "拍摄参数"
   },
   "manual_tags": {
     "batch": {
@@ -4052,7 +4054,12 @@
     "tag_limit": "显示前 50 个手动标签。",
     "failed": "无法加载元数据来源。",
     "help_title": "关于这些来源",
-    "help": "这些是当前记录的来源，并非完整编辑历史。本地变更不标识具体人物。缺少记录不表示值未改变。手动标签是共享的；审阅字段遵循上方所示范围。拍摄日期和位置覆盖值也可能来自导入。"
+    "help": "这些是当前记录的来源，并非完整编辑历史。本地变更不标识具体人物。缺少记录不表示值未改变。手动标签是共享的；审阅字段遵循上方所示范围。拍摄日期和位置覆盖值也可能来自导入。",
+    "field": "字段",
+    "value": "值",
+    "source": "来源",
+    "all_fields": "所有字段：{source}",
+    "all_tags": "所有标签：{source}"
   },
   "related_files": {
     "title": "相关文件",

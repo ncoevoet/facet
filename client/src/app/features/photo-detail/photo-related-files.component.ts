@@ -2,6 +2,7 @@ import { PhotoPanelReader } from './photo-panel-reader';
 import { LogicalAssetApplied } from '../../shared/models/logical-asset-change';
 import { PhotoLogicalAssetComponent } from './photo-logical-asset.component';
 import { ChangeDetectionStrategy, Component, computed, output } from '@angular/core';
+import { MatExpansionModule } from '@angular/material/expansion';
 import { MatIconModule } from '@angular/material/icon';
 import { I18N } from '../../core/i18n/keys';
 import type { RelatedFilesResponse } from '../../core/api/types';
@@ -10,15 +11,15 @@ import { ContextHelpComponent } from '../../shared/components/context-help/conte
 
 @Component({
   selector: 'app-photo-related-files',
-  imports: [MatIconModule, TranslatePipe, ContextHelpComponent, PhotoLogicalAssetComponent],
+  imports: [MatExpansionModule, MatIconModule, TranslatePipe, ContextHelpComponent, PhotoLogicalAssetComponent],
   changeDetection: ChangeDetectionStrategy.OnPush,
   host: { class: 'block min-w-0' },
   template: `
-    <details [open]="expanded()" data-related-files (keydown.escape)="expanded() && close($event, trigger)" class="[&[open]>summary>mat-icon:last-child]:rotate-180">
-      <summary #trigger (click)="toggle($event)" class="flex min-h-9 max-sm:min-h-11 pointer-coarse:min-h-11 cursor-pointer items-center gap-2 text-xs font-medium focus-visible:outline-2">
-        <mat-icon aria-hidden="true" class="!h-5 !w-5 !text-xl">file_copy</mat-icon><h3 class="m-0 text-xs font-medium">{{ I18N.related_files.title | translate }}</h3>
-        <mat-icon aria-hidden="true" class="ml-auto !h-5 !w-5 shrink-0 !text-xl transition-transform motion-reduce:transition-none">expand_more</mat-icon>
-      </summary>
+    <mat-expansion-panel #panel data-related-files class="!rounded-none !bg-transparent !shadow-none [&_.mat-expansion-panel-body]:!px-0 [&_.mat-expansion-panel-body]:!pb-2"
+                         [expanded]="expanded()" (expandedChange)="setExpanded($event, panel)" (keydown.escape)="expanded() && close($event, header)">
+      <mat-expansion-panel-header #header class="!h-11 !px-0 !text-xs !font-medium">
+        <mat-panel-title class="!m-0 items-center gap-2"><mat-icon aria-hidden="true" class="!h-5 !w-5 shrink-0 !text-xl">file_copy</mat-icon>{{ I18N.related_files.title | translate }}</mat-panel-title>
+      </mat-expansion-panel-header>
       @if (expanded()) {
         <div class="space-y-2 pb-2 text-xs">
           @if (loading()) { <p role="status">{{ I18N.ui.labels.loading | translate }}</p> }
@@ -26,7 +27,8 @@ import { ContextHelpComponent } from '../../shared/components/context-help/conte
             <p role="alert">{{ I18N.related_files.failed | translate }}</p>
             <button type="button" class="min-h-11 cursor-pointer underline focus-visible:outline-2" (click)="load()">{{ I18N.gallery.load_error.retry | translate }}</button>
           } @else if (data(); as result) {
-            <ul class="m-0 list-none space-y-2 p-0" [attr.aria-label]="I18N.related_files.title | translate">
+            <div data-related-list class="flex items-start gap-1">
+            <ul class="m-0 min-w-0 flex-1 list-none space-y-2 p-0" [attr.aria-label]="I18N.related_files.title | translate">
               @for (file of rows(); track file.name) {
                 <li class="flex min-w-0 items-start gap-2">
                   <mat-icon aria-hidden="true" class="!h-4 !w-4 shrink-0 !text-base">{{ file.icon }}</mat-icon>
@@ -39,18 +41,19 @@ import { ContextHelpComponent } from '../../shared/components/context-help/conte
                 </li>
               }
             </ul>
+            <app-context-help [label]="I18N.related_files.help_title" [keys]="helpKeys()" [iconOnly]="true" />
+            </div>
             @if (result.inventory_state === 'unavailable') {
               <p class="m-0">{{ I18N.related_files.unchecked | translate }}</p>
-              <button type="button" class="min-h-11 cursor-pointer underline focus-visible:outline-2" (click)="load()">{{ I18N.gallery.load_error.retry | translate }}</button>
+              <button type="button" data-related-retry class="min-h-11 cursor-pointer underline focus-visible:outline-2" (click)="load()">{{ I18N.gallery.load_error.retry | translate }}</button>
             }
             @if (result.multiple_raw_candidates) { <p class="m-0">{{ I18N.related_files.multiple_raw | translate }}</p> }
             @if (result.basename_sidecar_unverified) { <p class="m-0">{{ I18N.related_files.basename_unverified | translate }}</p> }
             <app-photo-logical-asset [photo]="photo()" (applied)="logicalApplied.emit($event)" />
-            <app-context-help [label]="I18N.related_files.help_title" [keys]="helpKeys()" />
           }
         </div>
       }
-    </details>
+    </mat-expansion-panel>
   `,
 })
 export class PhotoRelatedFilesComponent extends PhotoPanelReader<RelatedFilesResponse> {
