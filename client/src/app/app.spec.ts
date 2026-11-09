@@ -21,6 +21,7 @@ import { By } from '@angular/platform-browser';
 import { MatTooltip } from '@angular/material/tooltip';
 
 import { KeyboardMappingService, KEYMAP_STORAGE_KEY } from './core/services/keyboard-mapping.service';
+import { FEATURE_MARK } from './shared/pipes/mark-tone.pipe';
 
 @Component({ selector: 'app-navigation-fixture-page', template: '' })
 class NavigationFixturePage {}
@@ -635,6 +636,19 @@ describe('App', () => {
       root.querySelector<HTMLButtonElement>(`button[aria-label="${I18N.albums.clear_search}"]`)!.click();
       fixture.detectChanges();
       expect(TestBed.inject(AlbumsFiltersService).search()).toBe('');
+      fixture.destroy(); root.remove();
+    });
+
+    it('shows the album type icons in the mobile album type menu', async () => {
+      const { fixture, root } = render(true);
+      document.body.appendChild(root);
+      const router = TestBed.inject(Router);
+      router.resetConfig([{ path: 'albums', component: NavigationFixturePage }]);
+      await router.navigateByUrl('/albums'); fixture.detectChanges(); await fixture.whenStable(); fixture.detectChanges();
+      root.querySelector<HTMLButtonElement>(`button[aria-label="${I18N.albums.filter_type}"]`)!.click();
+      fixture.detectChanges();
+      const items = Array.from(document.querySelectorAll<HTMLButtonElement>('.mat-mdc-menu-panel button[mat-menu-item]'));
+      expect(items.map(item => item.querySelector('mat-icon')?.textContent?.trim())).toEqual(['photo_library', 'photo_album', FEATURE_MARK]);
       fixture.destroy(); root.remove();
     });
 

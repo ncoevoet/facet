@@ -34,6 +34,7 @@ import { PersonsFiltersService } from './features/persons/persons-filters.servic
 import { CompareFiltersService } from './features/comparison/compare-filters.service';
 import { CapsuleFiltersService } from './features/capsules/capsule-filters.service';
 import { TranslatePipe } from './shared/pipes/translate.pipe';
+import { AlbumTypeIconPipe } from './features/albums/album-type-icon.pipe';
 import { HelpDialogComponent } from './shared/components/help-dialog/help-dialog.component';
 import { CULLING_SHORTCUT_SECTIONS, STACK_SHORTCUT_SECTIONS, MANUAL_STACK_SHORTCUT_SECTIONS } from './features/gallery/culling-shortcuts';
 import { galleryShortcutSection, ShortcutSection } from './features/gallery/gallery-shortcuts';
@@ -130,6 +131,7 @@ export class EditionDialogComponent {
     MatDividerModule,
     TranslatePipe,
     MarkTonePipe,
+    AlbumTypeIconPipe,
     NgTemplateOutlet,
     DateRangeFilterComponent,
     SlideshowComponent,

@@ -16,7 +16,7 @@ export interface Album {
   is_shared: boolean;
   smart_filter_json: string | null;
   scoring_context: string | null;
-  photo_count: number;
+  photo_count: number | null;
   created_at: string;
   updated_at: string;
 }

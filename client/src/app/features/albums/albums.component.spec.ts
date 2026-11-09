@@ -192,6 +192,21 @@ describe('AlbumsComponent', () => {
     fixture.destroy(); fixture.nativeElement.remove();
   });
 
+  it('shows the Smart label instead of a count for a smart album with a null count', async () => {
+    mockAlbumService.list.mockReturnValue(of({ albums: [
+      { id: 1, name: 'Trip', is_smart: false, is_shared: false, photo_count: 3 },
+      { id: 2, name: 'Smart', is_smart: true, is_shared: false, photo_count: null },
+    ], total: 2 }));
+    const fixture = TestBed.createComponent(AlbumsComponent);
+    document.body.appendChild(fixture.nativeElement);
+    fixture.detectChanges(); await fixture.whenStable(); fixture.detectChanges();
+    const cards = fixture.nativeElement.querySelectorAll('article') as NodeListOf<HTMLElement>;
+    expect(cards[0].textContent).toContain('albums.photos_count');
+    expect(cards[1].textContent).not.toContain('albums.photos_count');
+    expect(cards[1].querySelector('[data-album-smart-label]')?.textContent).toContain('albums.type_smart');
+    fixture.destroy(); fixture.nativeElement.remove();
+  });
+
   it('announces a repeated page failure while keeping Retry focused', async () => {
     const fixture = TestBed.createComponent(AlbumsComponent);
     document.body.appendChild(fixture.nativeElement);

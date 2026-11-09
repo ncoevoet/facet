@@ -32,6 +32,7 @@ import { ConfirmDialogComponent } from '../../shared/components/confirm-dialog/c
 import { PageHelpService } from '../../core/services/page-help.service';
 import { HeaderSlotService } from '../../core/services/header-slot.service';
 import { onPageQuery } from '../../shared/utils/page-query';
+import { AlbumTypeIconPipe } from './album-type-icon.pipe';
 import { MarkTonePipe } from '../../shared/pipes/mark-tone.pipe';
 import { I18N, i18nKeys } from '../../core/i18n/keys';
 import { StalenessGuardFactory } from '../../core/services/staleness-guard.service';
@@ -45,7 +46,7 @@ import { HANDLE_SERVER_ERROR_LOCALLY } from '../../core/utils/http-error-context
   imports: [
     RouterLink, MatButtonModule, MatIconModule, MatFormFieldModule, MatInputModule,
     MatSelectModule, MatDialogModule, MatTooltipModule,
-    MatProgressSpinnerModule, MatMenuModule, MarkTonePipe,
+    MatProgressSpinnerModule, MatMenuModule, MarkTonePipe, AlbumTypeIconPipe,
     TranslatePipe, ThumbnailUrlPipe, InfiniteScrollDirective,
   ],
   changeDetection: ChangeDetectionStrategy.Eager,
@@ -59,9 +60,17 @@ import { HANDLE_SERVER_ERROR_LOCALLY } from '../../core/utils/http-error-context
       <mat-form-field class="!hidden lg:!inline-flex w-36" subscriptSizing="dynamic">
         <mat-label>{{ 'albums.filter_type' | translate }}</mat-label>
         <mat-select [value]="albumsFilters.typeFilter()" (selectionChange)="albumsFilters.typeFilter.set($event.value)">
-          <mat-option value="">{{ 'albums.type_all' | translate }}</mat-option>
-          <mat-option value="manual">{{ 'albums.type_manual' | translate }}</mat-option>
-          <mat-option value="smart">{{ 'albums.type_smart' | translate }}</mat-option>
+          <mat-select-trigger>
+            @let currentType = albumsFilters.typeFilter() | albumTypeIcon;
+            <mat-icon aria-hidden="true" class="!mr-2 align-middle" [class]="currentType.classes">{{ currentType.text }}</mat-icon>
+            <span>{{ (albumsFilters.typeFilter() === 'smart' ? 'albums.type_smart' : albumsFilters.typeFilter() === 'manual' ? 'albums.type_manual' : 'albums.type_all') | translate }}</span>
+          </mat-select-trigger>
+          @let allIcon = '' | albumTypeIcon;
+          @let manualIcon = 'manual' | albumTypeIcon;
+          @let smartIcon = 'smart' | albumTypeIcon;
+          <mat-option value=""><mat-icon aria-hidden="true" [class]="allIcon.classes">{{ allIcon.text }}</mat-icon>{{ 'albums.type_all' | translate }}</mat-option>
+          <mat-option value="manual"><mat-icon aria-hidden="true" [class]="manualIcon.classes">{{ manualIcon.text }}</mat-icon>{{ 'albums.type_manual' | translate }}</mat-option>
+          <mat-option value="smart"><mat-icon aria-hidden="true" [class]="smartIcon.classes">{{ smartIcon.text }}</mat-icon>{{ 'albums.type_smart' | translate }}</mat-option>
         </mat-select>
       </mat-form-field>
       <mat-form-field class="!hidden lg:!inline-flex w-40" subscriptSizing="dynamic">
@@ -130,7 +139,11 @@ import { HANDLE_SERVER_ERROR_LOCALLY } from '../../core/utils/http-error-context
           </div>
         </a>
             <div class="flex items-center justify-between gap-2">
-              <span class="text-xs tabular-nums text-[var(--mat-sys-on-surface-variant)]">{{ 'albums.photos_count' | translate:{ count: album.photo_count } }}</span>
+              @if (album.photo_count === null) {
+                <span data-album-smart-label class="text-xs text-[var(--mat-sys-on-surface-variant)]">{{ 'albums.type_smart' | translate }}</span>
+              } @else {
+                <span class="text-xs tabular-nums text-[var(--mat-sys-on-surface-variant)]">{{ 'albums.photos_count' | translate:{ count: album.photo_count } }}</span>
+              }
               @if (!album.is_smart || auth.isEdition()) {
                 <button mat-icon-button [matMenuTriggerFor]="albumActions"
                         [id]="'album-actions-' + album.id"

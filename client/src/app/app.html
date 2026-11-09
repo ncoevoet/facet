@@ -192,13 +192,19 @@
           <mat-icon>filter_list</mat-icon>
         </button>
         <mat-menu #mobileAlbumTypeMenu="matMenu">
+          @let allTypeIcon = '' | albumTypeIcon;
+          @let manualTypeIcon = 'manual' | albumTypeIcon;
+          @let smartTypeIcon = 'smart' | albumTypeIcon;
           <button mat-menu-item (click)="albumsFilters.typeFilter.set('')">
+            <mat-icon aria-hidden="true" [class]="allTypeIcon.classes">{{ allTypeIcon.text }}</mat-icon>
             <span [class.font-bold]="!albumsFilters.typeFilter()">{{ I18N.albums.type_all | translate }}</span>
           </button>
           <button mat-menu-item (click)="albumsFilters.typeFilter.set('manual')">
+            <mat-icon aria-hidden="true" [class]="manualTypeIcon.classes">{{ manualTypeIcon.text }}</mat-icon>
             <span [class.font-bold]="albumsFilters.typeFilter() === 'manual'">{{ I18N.albums.type_manual | translate }}</span>
           </button>
           <button mat-menu-item (click)="albumsFilters.typeFilter.set('smart')">
+            <mat-icon aria-hidden="true" [class]="smartTypeIcon.classes">{{ smartTypeIcon.text }}</mat-icon>
             <span [class.font-bold]="albumsFilters.typeFilter() === 'smart'">{{ I18N.albums.type_smart | translate }}</span>
           </button>
         </mat-menu>

@@ -605,7 +605,7 @@ type RatingOption = 'any' | '1' | '2' | '3' | '4' | '5' | 'zero';
               <mat-select [value]="store.filters().album_id" (selectionChange)="store.updateFilter('album_id', $event.value)">
                 <mat-option value="">{{ I18N.gallery.all | translate }}</mat-option>
                 @for (a of albums(); track a.id) {
-                  <mat-option [value]="'' + a.id">{{ a.name }} ({{ a.photo_count }})</mat-option>
+                  <mat-option [value]="'' + a.id">{{ a.name }}@if (a.photo_count !== null) { ({{ a.photo_count }})}</mat-option>
                 }
               </mat-select>
             </mat-form-field>
