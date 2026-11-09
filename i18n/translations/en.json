@@ -2771,7 +2771,15 @@
       "batch_applied_plural": "Updated {changed} photos; {skipped} skipped.",
       "batch_error": "Could not apply location. Select at most 1000 photos and preview again; the selection or saved place may have changed.",
       "batch_limit": "Select at most 1000 photos. Existing locations are replaced when protection is off. Original files are unchanged.",
-      "batch_hint": "Choose a location, then preview the changes before saving the selection."
+      "batch_hint": "Choose a location, then preview the changes before saving the selection.",
+      "maps_link": "Google Maps link or coordinates",
+      "maps_go": "Go to point",
+      "maps_hint": "Paste a Google Maps link (short links too) or coordinates such as 32.6064, -116.3239 or 32°36'23\"N 116°19'26\"W. The pin moves; nothing is saved until you click Save.",
+      "maps_resolving": "Reading the link…",
+      "maps_moved": "Pin moved to {lat}, {lng}. Check it, then save.",
+      "maps_unrecognized": "No coordinates found. Paste a Google Maps link, or right-click the map in Google Maps and copy the numbers.",
+      "maps_unreachable": "Could not open the link. Check the connection, or copy the coordinates instead.",
+      "maps_pick": "Pick on Google Maps"
     },
     "distribution": {
       "top": "Top {pct}% of the library",

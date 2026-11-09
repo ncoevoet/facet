@@ -2771,7 +2771,15 @@
       "batch_applied_plural": "{changed} foto aggiornate; {skipped} ignorate.",
       "batch_error": "Impossibile applicare la posizione. Seleziona al massimo 1000 foto e ripeti l’anteprima; la selezione o il luogo salvato potrebbe essere cambiato.",
       "batch_limit": "Seleziona al massimo 1000 foto. Senza protezione le posizioni esistenti vengono sostituite. I file originali restano invariati.",
-      "batch_hint": "Scegli una posizione e visualizza le modifiche prima di salvare la selezione."
+      "batch_hint": "Scegli una posizione e visualizza le modifiche prima di salvare la selezione.",
+      "maps_link": "Link di Google Maps o coordinate",
+      "maps_go": "Vai al punto",
+      "maps_hint": "Incolla un link di Google Maps (anche brevi) o coordinate come 32.6064, -116.3239 o 32°36'23\"N 116°19'26\"W. Il segnaposto si sposta; nulla viene salvato finché non clicchi Salva.",
+      "maps_resolving": "Lettura del link…",
+      "maps_moved": "Segnaposto spostato su {lat}, {lng}. Controlla, poi salva.",
+      "maps_unrecognized": "Nessuna coordinata trovata. Incolla un link di Google Maps, oppure fai clic destro sulla mappa in Google Maps e copia i numeri.",
+      "maps_unreachable": "Impossibile aprire il link. Controlla la connessione o copia invece le coordinate.",
+      "maps_pick": "Scegli su Google Maps"
     },
     "distribution": {
       "top": "Top {pct}% della libreria",

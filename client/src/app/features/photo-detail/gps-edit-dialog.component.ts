@@ -21,9 +21,12 @@ import { normalizeOnlineQuery } from './online-query';
 import { PluralKeyPipe } from '../../shared/pipes/plural-key.pipe';
 import { I18N, i18nKeys } from '../../core/i18n/keys';
 import { HANDLE_PLACE_SEARCH_ERRORS_LOCALLY } from '../../core/utils/place-search-error.util';
+import { googleMapsSearchUrl, isResolvableMapsLink, parseGoogleMapsInput, type LatLng, MAPS_LINK_MAX_INPUT } from '../../shared/utils/google-maps-link';
 
 /** The keyCode browsers report for a keydown the IME is still processing. */
 const IME_PROCESS_KEY_CODE = 229;
+/** Where the map opens when there is no point yet. */
+const DEFAULT_CENTER: LatLng = { lat: 48.8566, lng: 2.3522 };
 
 export interface GpsEditDialogData {
   path: string;
@@ -40,6 +43,7 @@ export type SavedPlace = components['schemas']['SavedPlace'];
 export type RecentPlace = components['schemas']['RecentPlace'];
 type BatchGpsDraft = NonNullable<GpsEditDialogData['batch']> & { gps_latitude: number | null; gps_longitude: number | null; only_missing: boolean; saved_place_id?: number | null };
 type GpsResult = components['schemas']['GpsUpdateResponse'];
+type MapsLinkResponse = components['schemas']['MapsLinkResponse'];
 
 @Component({
   selector: 'app-gps-edit-dialog',
@@ -74,6 +78,17 @@ type GpsResult = components['schemas']['GpsUpdateResponse'];
           <li><button mat-button class="!h-auto !py-2 !text-left" (click)="selectOnlineResult(result)">{{ result.label }}</button></li>
         }
       </ul>
+      <div class="flex flex-wrap items-end gap-2">
+        <label class="grow text-sm">{{ I18N.photo_detail.gps.maps_link | translate }}
+          <input class="block w-full border rounded p-2 bg-transparent" type="text" inputmode="url" autocomplete="off" spellcheck="false" [attr.maxlength]="mapsMaxInput" aria-describedby="gps-maps-hint" [ngModel]="mapsInput()" (ngModelChange)="setMapsInput($event)" (paste)="onMapsPaste($event)" (keydown.enter)="onMapsEnter($event)">
+        </label>
+        <button mat-button (click)="applyMapsInput()" [disabled]="saving() || mapsBusy() || !mapsInput().trim()">{{ I18N.photo_detail.gps.maps_go | translate }}</button>
+      </div>
+      <p id="gps-maps-hint" class="text-xs mt-1 mb-2">{{ I18N.photo_detail.gps.maps_hint | translate }}</p>
+      @if (mapsBusy()) { <p role="status" class="text-sm">{{ I18N.photo_detail.gps.maps_resolving | translate }}</p> }
+      @if (mapsError()) { <p role="alert" class="text-sm">{{ mapsError() | translate }}</p> }
+      <p role="status" class="text-sm">@if (mapsPoint(); as point) { {{ I18N.photo_detail.gps.maps_moved | translate:{ lat: (point.lat | fixed:6), lng: (point.lng | fixed:6) } }} }</p>
+      <button mat-button class="mb-3" (click)="openGoogleMaps()"><mat-icon>open_in_new</mat-icon>{{ I18N.photo_detail.gps.maps_pick | translate }}<span class="sr-only"> {{ I18N.photo_detail.gps.opens_new_tab | translate }}</span></button>
       @if (loadingPlaces()) { <p role="status">{{ I18N.photo_detail.gps.loading | translate }}</p> }
       @if (placesError()) {
         <p role="alert">{{ placesError() | translate }}</p>
@@ -199,6 +214,13 @@ export class GpsEditDialogComponent {
   readonly placeError = signal('');
   readonly saveError = signal('');
   readonly mapFailed = signal(false);
+  protected readonly mapsMaxInput = MAPS_LINK_MAX_INPUT;
+  readonly mapsInput = signal('');
+  readonly mapsBusy = signal(false);
+  readonly mapsError = signal('');
+  /** The point the last paste moved the pin to, announced to screen readers. */
+  readonly mapsPoint = signal<LatLng | null>(null);
+  private mapsSequence = 0;
   readonly filteredPlaces = computed(() => {
     const term = this.search().trim().toLocaleLowerCase();
     return this.places().filter(place => place.name.toLocaleLowerCase().includes(term));
@@ -313,10 +335,86 @@ export class GpsEditDialogComponent {
     this.selectRecent(result);
   }
 
+  setMapsInput(text: string): void {
+    this.mapsSequence++;
+    this.mapsBusy.set(false);
+    this.mapsError.set('');
+    this.mapsPoint.set(null);
+    this.mapsInput.set(text);
+  }
+
+  /** A paste replaces the field and is read at once: the user copied it to use it. */
+  onMapsPaste(event: ClipboardEvent): void {
+    const text = event.clipboardData?.getData('text');
+    if (!text) return;
+    event.preventDefault();
+    this.setMapsInput(text);
+    void this.applyMapsInput();
+  }
+
+  onMapsEnter(event: Event): void {
+    const key = event as KeyboardEvent;
+    if (key.isComposing || key.keyCode === IME_PROCESS_KEY_CODE) return;
+    event.preventDefault();
+    void this.applyMapsInput();
+  }
+
+  /** Move the pin to a pasted point or link; never saves (the user reviews, then Saves). */
+  async applyMapsInput(): Promise<void> {
+    if (!this.current() || this.saving() || this.mapsBusy()) return;
+    const text = this.mapsInput().trim();
+    this.mapsError.set('');
+    this.mapsPoint.set(null);
+    if (!text) return;
+    const local = parseGoogleMapsInput(text);
+    if (local) { this.applyMapsPoint(local); return; }
+    if (!isResolvableMapsLink(text)) { this.mapsError.set(I18N.photo_detail.gps.maps_unrecognized); return; }
+    const sequence = ++this.mapsSequence;
+    this.mapsBusy.set(true);
+    try {
+      const result = await firstValueFrom(this.api.post<MapsLinkResponse>('/geo/resolve_maps_link', { url: text }));
+      if (sequence !== this.mapsSequence || !this.current()) return;
+      this.applyMapsPoint({ lat: result.latitude, lng: result.longitude });
+    } catch (error) {
+      if (sequence !== this.mapsSequence || !this.current()) return;
+      const response = error as { status?: number; error?: { detail?: unknown } } | null;
+      const unrecognized = response?.status === 422 && response.error?.detail !== 'unreachable';
+      this.mapsError.set(unrecognized ? I18N.photo_detail.gps.maps_unrecognized : I18N.photo_detail.gps.maps_unreachable);
+    } finally {
+      if (sequence === this.mapsSequence) this.mapsBusy.set(false);
+    }
+  }
+
+  private applyMapsPoint(point: LatLng): void {
+    this.selectRecent({ latitude: point.lat, longitude: point.lng });
+    this.mapsPoint.set(point);
+  }
+
+  /** Google Maps in a new tab, at the pin, else the selection's first geotagged photo, else the map's centre. */
+  openGoogleMaps(): void {
+    window.open(googleMapsSearchUrl(this.googleMapsPoint()), '_blank', 'noopener');
+  }
+
+  private googleMapsPoint(): LatLng {
+    const lat = this.selectedLat(), lng = this.selectedLng();
+    if (lat !== null && lng !== null && this.coordinatesValid()) return { lat, lng };
+    if (this.batchTarget) {
+      const listed = this.batchTarget.photo_paths ? new Set(this.batchTarget.photo_paths) : null;
+      const excluded = new Set(this.batchTarget.exclude ?? []);
+      const geotagged = this.store.photos().find(photo => (listed ? listed.has(photo.path) : !excluded.has(photo.path))
+        && typeof photo.gps_latitude === 'number' && typeof photo.gps_longitude === 'number');
+      if (geotagged) return { lat: geotagged.gps_latitude!, lng: geotagged.gps_longitude! };
+    } else if (this.data.lat !== null && this.data.lng !== null) {
+      return { lat: this.data.lat, lng: this.data.lng };
+    }
+    const center = this.map?.getCenter().wrap();
+    return center ? { lat: center.lat, lng: center.lng } : DEFAULT_CENTER;
+  }
+
   private initMap(): void {
     const container = this.mapContainer().nativeElement;
-    const lat = this.selectedLat() ?? 48.8566;
-    const lng = this.selectedLng() ?? 2.3522;
+    const lat = this.selectedLat() ?? DEFAULT_CENTER.lat;
+    const lng = this.selectedLng() ?? DEFAULT_CENTER.lng;
     const zoom = this.selectedLat() !== null ? 13 : 5;
 
     this.map = createLeafletMap(container, undefined, () => { if (this.current()) this.mapFailed.set(true); }).setView([lat, lng], zoom);

@@ -752,6 +752,19 @@ Usa **Indirizzo o attività → Cerca online** per cercare un luogo con Photon (
 - Facet attende almeno un secondo tra le chiamate al provider e non ne invia mai due insieme.
 - Facet non registra le query. Configura il tuo reverse proxy perché non registri le stringhe di query.
 
+### Link e coordinate di Google Maps
+
+La finestra della posizione (una foto, o **Imposta posizione** per una selezione o un'intera vista album) accetta anche punti da Google Maps. Nulla viene salvato finché non clicchi **Salva** (o non visualizzi l'anteprima e applichi un lotto), come per ogni altro punto.
+
+- **Scegli su Google Maps** apre Google Maps in una nuova scheda sul segnaposto attuale, altrimenti sulla prima foto geolocalizzata della selezione, altrimenti al centro della mappa. Trova lì il punto e copialo.
+- **Link di Google Maps o coordinate**: incolla, poi premi Invio o clicca **Vai al punto**. Il segnaposto si sposta sul punto per la verifica. Formati accettati:
+  - la coppia che Google copia con il clic destro sulla mappa, ad es. `32.6064, -116.3239` (va bene anche uno spazio al posto della virgola);
+  - gradi, minuti, secondi come `32°36'23.0"N 116°19'26.0"W`;
+  - un URL completo di Google Maps. Il segnaposto inserito (`!3d…!4d…`) prevale su un valore `q=`, `query=`, `ll=` o `center=`, che prevale sul centro della vista `@lat,lon`;
+  - un link breve (`maps.app.goo.gl/…`, `goo.gl/maps/…`). Il browser non può aprirli, quindi la galleria segue il reindirizzamento (`POST /api/geo/resolve_maps_link`, solo in modalità modifica).
+- La risoluzione dei link brevi contatta solo `maps.app.goo.gl`, `goo.gl`, `maps.google.com`, `www.google.com` e `google.com` via HTTPS, solo su indirizzi pubblici, con al massimo 5 reindirizzamenti in 5 secondi, senza mai leggere il corpo di una pagina. Qualsiasi altro host viene rifiutato senza richiesta. I link non vengono registrati.
+- Facet non usa API Google, chiavi API né tile di Google: i termini di Google non consentono le sue tile in un'altra mappa, quindi la mappa della finestra resta OpenStreetMap.
+
 ## Capsule
 
 Presentazioni a tema raggruppate per tema, luogo, persone e tempo. Apri `/capsules` e clicca una capsula per riprodurla.

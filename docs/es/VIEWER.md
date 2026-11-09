@@ -754,6 +754,19 @@ Usa **Dirección o negocio → Buscar en línea** para buscar un lugar con Photo
 - Facet espera al menos un segundo entre llamadas al proveedor y nunca envía dos a la vez.
 - Facet no registra las consultas. Configura tu proxy inverso para que no registre las cadenas de consulta.
 
+### Enlaces y coordenadas de Google Maps
+
+El diálogo de ubicación (una foto, o **Asignar ubicación** para una selección o toda una vista de álbum) también acepta puntos de Google Maps. No se guarda nada hasta pulsar **Guardar** (o previsualizar y aplicar un lote), como con cualquier otro punto.
+
+- **Elegir en Google Maps** abre Google Maps en una pestaña nueva en el pin actual; si no hay, en la primera foto geolocalizada de la selección; si no, en el centro del mapa. Busca el sitio allí y cópialo.
+- **Enlace de Google Maps o coordenadas**: pega y pulsa Intro o haz clic en **Ir al punto**. El pin se mueve al punto para que lo revises. Se acepta:
+  - el par que Google copia al hacer clic derecho en el mapa, p. ej. `32.6064, -116.3239` (también vale un espacio en lugar de la coma);
+  - grados, minutos y segundos como `32°36'23.0"N 116°19'26.0"W`;
+  - una URL completa de Google Maps. El pin colocado (`!3d…!4d…`) prevalece sobre un valor `q=`, `query=`, `ll=` o `center=`, que prevalece sobre el centro de la vista `@lat,lon`;
+  - un enlace corto (`maps.app.goo.gl/…`, `goo.gl/maps/…`). El navegador no puede abrirlos, así que la galería sigue la redirección (`POST /api/geo/resolve_maps_link`, solo en modo edición).
+- La resolución de enlaces cortos solo consulta `maps.app.goo.gl`, `goo.gl`, `maps.google.com`, `www.google.com` y `google.com` por HTTPS, solo en direcciones públicas, con un máximo de 5 redirecciones en 5 segundos, y nunca lee el cuerpo de una página. Cualquier otro host se rechaza sin petición. Los enlaces no se registran.
+- Facet no usa ninguna API de Google, clave de API ni teselas de Google: los términos de Google no permiten sus teselas dentro de otro mapa, por eso el mapa del diálogo sigue siendo OpenStreetMap.
+
 ## Cápsulas
 
 Presentaciones temáticas agrupadas por tema, lugar, personas y tiempo. Abre `/capsules` y haz clic en una cápsula para reproducirla.

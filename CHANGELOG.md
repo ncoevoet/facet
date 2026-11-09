@@ -4,6 +4,10 @@ All notable changes to Facet are documented in this file.
 
 ## [Unreleased]
 
+### Added
+
+- **Google Maps in the location dialog.** For one photo and for **Set location** on a selection or a whole view, **Pick on Google Maps** opens Google Maps in a new tab at the pin (else the selection's first geotagged photo, else the map centre), and a **Google Maps link or coordinates** field moves the pin to a pasted point: the pair Google copies on right-click, degrees/minutes/seconds, or a Google Maps URL (the dropped pin `!3d…!4d…` first, then `q=`/`query=`/`ll=`/`center=`, then `@lat,lon`). Short links (`maps.app.goo.gl`, `goo.gl/maps`) are followed by the new edition-only `POST /api/geo/resolve_maps_link`, which requests only five Google hosts over HTTPS at public addresses, at most 5 redirects within 5 seconds, and never reads a page body. Nothing is saved until Save, as before. No Google API, key or map tiles are used; the dialog map stays OpenStreetMap.
+
 ### Security
 
 - **Request bodies are capped at 10 MB before any handler reads them.** Login, proofing sessions and client error reports buffered the whole body before validation and rate limiting ran, so an unbounded body was a memory lever for any LAN peer. A declared size over the cap answers 413 at once and a chunked body is refused as soon as it crosses it. WebDAV uploads, the AI-edit import and the Lightroom state import keep their own, larger streaming caps.

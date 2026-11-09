@@ -8,7 +8,7 @@ from api.auth import CurrentUser, require_edition
 from api.config import is_multi_user_enabled
 from api.database import get_db
 from db import places
-from api import place_search
+from api import maps_link, place_search
 
 router = APIRouter(tags=['places'])
 Latitude = Annotated[float, Field(ge=-90, le=90, allow_inf_nan=False)]
@@ -116,3 +116,25 @@ class PlaceSearchErrorResponse(BaseModel):
 def api_search_places(q: Annotated[str, Query(min_length=place_search.QUERY_MIN, max_length=place_search.QUERY_MAX), AfterValidator(place_search.normalize_query)], user: CurrentUser = Depends(require_edition)):
     owner = ('user', place_owner(user)) if is_multi_user_enabled() else ('installation', '')
     return {'results': place_search.search(q, owner)}
+
+
+class MapsLinkRequest(BaseModel):
+    url: str = Field(min_length=1, max_length=2048)
+
+
+class MapsLinkResponse(BaseModel):
+    latitude: Latitude
+    longitude: Longitude
+
+
+@router.post('/api/geo/resolve_maps_link', response_model=MapsLinkResponse, responses={
+    422: {'model': PlaceSearchErrorResponse, 'description': (
+        'No coordinates: invalid_link, unsupported_host, no_coordinates, unreachable or too_many_redirects.')},
+})
+def api_resolve_maps_link(body: MapsLinkRequest, user: CurrentUser = Depends(require_edition)):
+    """Follow a Google Maps short link to the point it opens on; nothing is stored or assigned."""
+    try:
+        latitude, longitude = maps_link.resolve(body.url)
+    except maps_link.LinkError as exc:
+        raise HTTPException(status_code=422, detail=exc.code) from exc
+    return {'latitude': latitude, 'longitude': longitude}

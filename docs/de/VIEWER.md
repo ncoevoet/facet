@@ -752,6 +752,19 @@ Nutzen Sie **Adresse oder Geschäft → Online suchen**, um einen Ort über Phot
 - Facet wartet zwischen Anbieteraufrufen mindestens eine Sekunde und sendet nie zwei gleichzeitig.
 - Facet protokolliert keine Anfragen. Konfigurieren Sie Ihren Reverse-Proxy so, dass er keine Query-Strings protokolliert.
 
+### Google-Maps-Links und Koordinaten
+
+Der Ortsdialog (ein Foto oder **Ort festlegen** für eine Auswahl oder eine ganze Albumansicht) übernimmt auch Punkte aus Google Maps. Gespeichert wird erst mit **Speichern** (bzw. Vorschau und Anwenden eines Stapels), wie bei jedem anderen Punkt.
+
+- **Auf Google Maps wählen** öffnet Google Maps in einem neuen Tab an der aktuellen Markierung, sonst am ersten Foto der Auswahl mit Standort, sonst in der Kartenmitte. Suchen Sie dort die Stelle und kopieren Sie sie.
+- **Google-Maps-Link oder Koordinaten**: einfügen, dann Enter drücken oder auf **Zum Punkt** klicken. Die Markierung springt zur Prüfung auf den Punkt. Akzeptiert werden:
+  - das Paar, das Google per Rechtsklick auf die Karte kopiert, z. B. `32.6064, -116.3239` (ein Leerzeichen statt Komma geht auch);
+  - Grad, Minuten, Sekunden wie `32°36'23.0"N 116°19'26.0"W`;
+  - eine vollständige Google-Maps-URL. Die gesetzte Markierung (`!3d…!4d…`) hat Vorrang vor einem `q=`-, `query=`-, `ll=`- oder `center=`-Wert, dieser vor der Ansichtsmitte `@lat,lon`;
+  - ein Kurzlink (`maps.app.goo.gl/…`, `goo.gl/maps/…`). Der Browser kann ihn nicht öffnen, daher folgt die Galerie der Weiterleitung (`POST /api/geo/resolve_maps_link`, nur im Bearbeitungsmodus).
+- Die Kurzlink-Auflösung fragt nur `maps.app.goo.gl`, `goo.gl`, `maps.google.com`, `www.google.com` und `google.com` per HTTPS an, nur unter öffentlichen Adressen, mit höchstens 5 Weiterleitungen in 5 Sekunden, und liest nie einen Seiteninhalt. Jeder andere Host wird ohne Anfrage abgelehnt. Links werden nicht protokolliert.
+- Facet nutzt keine Google-API, keinen API-Schlüssel und keine Google-Kartenkacheln: Googles Bedingungen erlauben die Kacheln nicht in einer fremden Karte, daher bleibt die Dialogkarte OpenStreetMap.
+
 ## Kapseln
 
 Thematische Diashows, nach Thema, Ort, Personen und Zeit gruppiert. Öffnen Sie `/capsules` und klicken Sie auf eine Kapsel, um sie abzuspielen.

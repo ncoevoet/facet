@@ -2105,6 +2105,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/geo/resolve_maps_link": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Api Resolve Maps Link
+         * @description Follow a Google Maps short link to the point it opens on; nothing is stored or assigned.
+         */
+        post: operations["api_resolve_maps_link_api_geo_resolve_maps_link_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/i18n/languages": {
         parameters: {
             query?: never;
@@ -7077,6 +7097,18 @@ export interface components {
             path: string;
             /** Preview Revision */
             preview_revision?: string | null;
+        };
+        /** MapsLinkRequest */
+        MapsLinkRequest: {
+            /** Url */
+            url: string;
+        };
+        /** MapsLinkResponse */
+        MapsLinkResponse: {
+            /** Latitude */
+            latitude: number;
+            /** Longitude */
+            longitude: number;
         };
         /** McpCallRequest */
         McpCallRequest: {
@@ -12932,6 +12964,39 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    api_resolve_maps_link_api_geo_resolve_maps_link_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["MapsLinkRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MapsLinkResponse"];
+                };
+            };
+            /** @description No coordinates: invalid_link, unsupported_host, no_coordinates, unreachable or too_many_redirects. */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PlaceSearchErrorResponse"];
                 };
             };
         };

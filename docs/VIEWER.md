@@ -752,6 +752,19 @@ Use **Address or business → Search online** to look up a place with Photon (Op
 - Facet waits at least one second between provider calls and never sends two at once.
 - Facet does not log queries. Configure your reverse proxy not to log query strings.
 
+### Google Maps links and coordinates
+
+The location dialog (one photo, or **Set location** for a selection or a whole album view) also takes points from Google Maps. Nothing is saved until you click **Save** (or preview and apply a batch), as with any other point.
+
+- **Pick on Google Maps** opens Google Maps in a new tab at the current pin, else at the first geotagged photo of the selection, else at the map's centre. Find the spot there and copy it.
+- **Google Maps link or coordinates**: paste, then press Enter or click **Go to point**. The pin moves to the point for you to check. Accepted:
+  - the pair Google copies when you right-click the map, e.g. `32.6064, -116.3239` (a space instead of the comma works too);
+  - degrees, minutes, seconds such as `32°36'23.0"N 116°19'26.0"W`;
+  - a full Google Maps URL. The dropped pin (`!3d…!4d…`) wins over a `q=`, `query=`, `ll=` or `center=` value, which wins over the `@lat,lon` view centre;
+  - a short link (`maps.app.goo.gl/…`, `goo.gl/maps/…`). The browser cannot open these, so the viewer follows the redirect (`POST /api/geo/resolve_maps_link`, edition only).
+- The short-link lookup only requests `maps.app.goo.gl`, `goo.gl`, `maps.google.com`, `www.google.com` and `google.com` over HTTPS, at public addresses only, at most 5 redirects within 5 seconds, and never reads a page body. Any other host is refused without a request. Links are not logged.
+- Facet uses no Google API, API key or Google map tiles: Google's terms do not allow its tiles inside another map, so the dialog's map stays OpenStreetMap.
+
 ## Capsules
 
 Themed slideshows grouped by theme, place, people and time. Open `/capsules` and click a capsule to play it.

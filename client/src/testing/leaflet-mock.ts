@@ -49,6 +49,7 @@ export const leafletMockMap = {
     getNorthEast: () => ({ lat: 55, lng: 15 }),
   })),
   getZoom: vi.fn(() => 5),
+  getCenter: vi.fn(() => ({ wrap: () => ({ lat: 47.5, lng: 5 }) })),
   on: vi.fn(),
   off: vi.fn(),
   remove: vi.fn(),

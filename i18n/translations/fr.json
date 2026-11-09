@@ -2771,7 +2771,15 @@
       "batch_applied_plural": "{changed} photos modifiées ; {skipped} ignorées.",
       "batch_error": "Impossible d’appliquer le lieu. Sélectionnez au plus 1000 photos et recommencez l’aperçu ; la sélection ou le lieu enregistré a pu changer.",
       "batch_limit": "Sélectionnez au plus 1000 photos. Les lieux existants sont remplacés sans la protection. Les fichiers originaux restent inchangés.",
-      "batch_hint": "Choisissez un lieu, puis prévisualisez les changements avant d’enregistrer la sélection."
+      "batch_hint": "Choisissez un lieu, puis prévisualisez les changements avant d’enregistrer la sélection.",
+      "maps_link": "Lien Google Maps ou coordonnées",
+      "maps_go": "Aller au point",
+      "maps_hint": "Collez un lien Google Maps (liens courts compris) ou des coordonnées comme 32.6064, -116.3239 ou 32°36'23\"N 116°19'26\"W. L'épingle se déplace ; rien n'est enregistré avant de cliquer sur Enregistrer.",
+      "maps_resolving": "Lecture du lien…",
+      "maps_moved": "Épingle placée sur {lat}, {lng}. Vérifiez, puis enregistrez.",
+      "maps_unrecognized": "Aucune coordonnée trouvée. Collez un lien Google Maps, ou faites un clic droit sur la carte dans Google Maps et copiez les nombres.",
+      "maps_unreachable": "Impossible d'ouvrir le lien. Vérifiez la connexion, ou copiez plutôt les coordonnées.",
+      "maps_pick": "Choisir sur Google Maps"
     },
     "distribution": {
       "top": "Top {pct} % de la photothèque",
