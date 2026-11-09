@@ -157,24 +157,26 @@ const DEFAULT_CLIPPING_BADGE_PERCENT = 5;
       (mouseleave)="onMouseLeave()"
     >
       @if (listMode()) {
-        <div data-metadata-row [id]="listMetadataId" class="grid h-full min-w-0 grid-cols-[3rem_minmax(0,1fr)_auto] items-center gap-3 border-b border-[var(--mat-sys-outline-variant)] p-2 @[36rem]:grid-cols-[3rem_minmax(0,2fr)_6rem_auto] @[60rem]:grid-cols-[3rem_minmax(0,2fr)_6rem_minmax(0,1fr)_minmax(0,1fr)_auto] @[80rem]:grid-cols-[3rem_minmax(0,2fr)_6rem_minmax(0,1fr)_minmax(0,1fr)_minmax(0,1.4fr)_auto] @[100rem]:grid-cols-[3rem_minmax(0,2fr)_6rem_minmax(0,1fr)_minmax(0,1fr)_minmax(0,1.4fr)_minmax(0,1.6fr)_auto]">
-          <div class="relative h-12 w-12">
+        <div data-metadata-row [id]="listMetadataId" class="grid h-full min-w-0 grid-cols-[4.5rem_minmax(0,1fr)_auto] items-center gap-3 border-b border-[var(--mat-sys-outline-variant)] p-2 @[36rem]:grid-cols-[4.5rem_minmax(0,2fr)_9rem_auto] @[60rem]:grid-cols-[4.5rem_minmax(0,2fr)_9rem_minmax(0,1fr)_minmax(0,1fr)_auto] @[80rem]:grid-cols-[4.5rem_minmax(0,2fr)_9rem_minmax(0,1fr)_minmax(0,1fr)_minmax(0,1.4fr)_auto] @[100rem]:grid-cols-[4.5rem_minmax(0,2fr)_9rem_minmax(0,1fr)_minmax(0,1fr)_minmax(0,1.4fr)_minmax(0,1.6fr)_auto]">
+          <div class="relative h-[4.5rem] w-[4.5rem]">
             <img [src]="photo().path | thumbnailUrl:160:photo().preview_revision:sharedAlbum()" alt="" loading="lazy" decoding="async" class="h-full w-full object-contain bg-[var(--mat-sys-surface-container)]" />
             @if (isSelected()) { <mat-icon aria-hidden="true" class="absolute -left-1 -top-1 !text-[var(--mat-sys-primary)]">check_box</mat-icon> }
           </div>
           <div class="min-w-0 text-sm leading-5">
             <div class="truncate font-medium" [title]="photo().filename">{{ photo().filename }}</div>
-            <div class="line-clamp-2 text-xs text-[var(--mat-sys-on-surface-variant)]" [title]="listCaptureDate() | captureDate">
-              <span class="@[24rem]:hidden">{{ listCaptureDate() ? (listCaptureDay() | captureDate) : (I18N.gallery.no_capture_date | translate) }}</span>
-              <span class="hidden @[24rem]:inline">{{ listCaptureDate() ? (listCaptureDate() | captureDate) : (I18N.gallery.no_capture_date | translate) }}</span>
-            </div>
+            @if (currentSort() !== 'date_taken') {
+              <div data-list-capture-date class="line-clamp-2 text-xs text-[var(--mat-sys-on-surface-variant)]" [title]="listCaptureDate() | captureDate">
+                <span class="@[24rem]:hidden">{{ listCaptureDate() ? (listCaptureDay() | captureDate) : (I18N.gallery.no_capture_date | translate) }}</span>
+                <span class="hidden @[24rem]:inline">{{ listCaptureDate() ? (listCaptureDate() | captureDate) : (I18N.gallery.no_capture_date | translate) }}</span>
+              </div>
+            }
             <div class="flex min-w-0 items-center gap-1 overflow-hidden text-xs text-[var(--mat-sys-on-surface-variant)]">
               @if (photo().stack_id) { <span class="inline-flex items-center gap-1" [attr.aria-label]="I18N.photoCard.stack_set | translate"><mat-icon class="!h-4 !w-4 !text-base">layers</mat-icon>{{ photo().stack_count }}</span> }
               @if (collapsedSetKind()) { <span class="min-w-0 truncate" [attr.aria-label]="listGroupLabel() | translate">{{ listGroupLabel() | translate }}</span> }
               @if (photo().is_favorite) { <mat-icon class="!h-4 !w-4 !text-base" [attr.aria-label]="I18N.rating.favorite | translate">favorite</mat-icon> }
             </div>
           </div>
-          <div data-list-sort class="min-w-0 text-right text-xs tabular-nums">
+          <div data-list-sort class="min-w-0 whitespace-nowrap text-right text-xs tabular-nums">
             <div class="truncate text-[var(--mat-sys-on-surface-variant)]">{{ listSortLabel() | translate }}</div>
             <div class="font-semibold">
               @if (currentSort() === 'date_taken') {

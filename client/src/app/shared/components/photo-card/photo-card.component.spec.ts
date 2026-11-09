@@ -76,6 +76,28 @@ describe('PhotoCardComponent', () => {
     expect(row.querySelector('img')?.getAttribute('src')).toContain('size=160');
   });
 
+  it('lays the list row out with a 72 px thumbnail and a 9rem non-wrapping sort column', () => {
+    fixture.componentInstance.listMode.set(true);
+    fixture.detectChanges();
+    const row = fixture.nativeElement.querySelector('[data-metadata-row]') as HTMLElement;
+    expect(row.className).toContain('grid-cols-[4.5rem_');
+    expect(row.className).not.toContain('3rem_');
+    expect(row.className).not.toContain('_6rem_');
+    expect(row.className).toContain('_9rem_');
+    expect(row.querySelector('img')?.parentElement?.className).toContain('h-[4.5rem] w-[4.5rem]');
+    expect((row.querySelector('[data-list-sort]') as HTMLElement).className).toContain('whitespace-nowrap');
+  });
+
+  it('shows the capture date once, in the sort column, when sorting by date', () => {
+    fixture.componentInstance.listMode.set(true);
+    fixture.componentInstance.photo.set(makePhoto({ date_taken: '2026:10:29 10:12:00' }));
+    fixture.detectChanges();
+    expect(fixture.nativeElement.querySelector('[data-list-capture-date]')).not.toBeNull();
+    fixture.componentInstance.currentSort.set('date_taken'); fixture.detectChanges();
+    expect(fixture.nativeElement.querySelector('[data-list-capture-date]')).toBeNull();
+    expect((fixture.nativeElement.querySelector('[data-list-sort]') as HTMLElement).textContent).toContain('29/10/2026');
+  });
+
   it.each([
     ['relevance', 'gallery.sort_relevance'],
     ['learned_score', 'gallery.sort_my_taste'],
