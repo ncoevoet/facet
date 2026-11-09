@@ -115,6 +115,18 @@ describe('Timeline photo feed', () => {
     expect(v.root.querySelector('img')).toBeNull(); v.dispose();
   });
 
+  it('keeps an in-flight read when the scope is re-emitted unchanged, but restarts on a real change', async () => {
+    const v = await setup(); const pending = new Subject<TimelinePage>();
+    v.api.get.mockReturnValueOnce(pending); v.filters.sortDirection.set('newer'); await v.settle();
+    expect(pending.observed).toBe(true); const calls = v.api.get.mock.calls.length;
+    v.visibility.set({ hide_bursts: '1', hide_duplicates: '0' }); await v.settle();
+    expect(v.api.get).toHaveBeenCalledTimes(calls); expect(pending.observed).toBe(true);
+    pending.next(first); await v.settle();
+    expect(v.root.querySelector('h2')?.textContent).toBe('01/11/2026');
+    v.visibility.set({ hide_bursts: '0', hide_duplicates: '0' }); await v.settle();
+    expect(v.api.get).toHaveBeenCalledTimes(calls + 1); v.dispose();
+  });
+
   it('restores the same owner feed and scroll after photo Back without another photo read', async () => {
     const v = await setup(); v.wrapper.scrollTop = 240; v.wrapper.dispatchEvent(new Event('scroll'));
     await v.router.navigateByUrl('/photo?path=%2Ffirst.jpg'); v.dispose();

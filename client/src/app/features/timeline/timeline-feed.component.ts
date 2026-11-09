@@ -110,19 +110,22 @@ export class TimelineFeedComponent {
   });
 
   constructor() {
-    effect(onCleanup => {
+    effect(() => {
       const params = this.params(); const owner = this.auth.status(); const active = this.active(); const rows = this.cache.rows(); const membershipRevision = this.cache.membershipRevision();
       untracked(() => {
+      const scope = JSON.stringify(params); const running = this.context;
+      // An identical scope already in flight: cancelling and re-requesting would only restart the same read.
+      if (active && owner && running && this.loading() && running.scope === scope && running.owner === owner
+        && running.token === this.auth.token && running.rows === rows && running.membershipRevision === membershipRevision) return;
       this.cancel(); this.context = null; this.groups.set([]); this.hasMore.set(false); this.error.set(false);
       if (!owner || !active) return;
-      this.context = { params, owner, rows, membershipRevision, token: this.auth.token, scope: JSON.stringify(params) };
+      this.context = { params, owner, rows, membershipRevision, token: this.auth.token, scope };
       const cached = this.cache.read(this.context.scope);
       this.groups.set(cached?.groups ?? []); this.hasMore.set(cached?.has_more ?? false);
       this.nextCursor.set(cached?.next_cursor ?? null); this.restoreScroll = cached?.scrollTop ?? 0;
       if (!cached && this.scrollOwner) this.scrollOwner.scrollTop = 0;
       if (!cached) this.loadMore();
       });
-      onCleanup(() => this.cancel());
     });
     afterNextRender(() => {
       this.scrollOwner = this.host.nativeElement.closest('app-timeline');
