@@ -57,6 +57,21 @@ describe('TimelineMonthJumpComponent', () => {
     expect(v.picker.opened).toBe(false);
   });
 
+  it('compact mode is a labelled icon button that opens the picker, with no visible field, and disables with the route', () => {
+    const v = setup(); v.fixture.componentRef.setInput('compact', true); v.fixture.detectChanges();
+    const host = v.fixture.nativeElement as HTMLElement;
+    expect(host.querySelector('mat-form-field')).toBeNull();
+    const button = host.querySelector<HTMLButtonElement>('button[data-month-jump-compact]')!;
+    expect(button.getAttribute('aria-label')).toBe('timeline.jump_month');
+    expect(button.querySelector('mat-icon')!.textContent!.trim()).toBe('move_down');
+    const picker = v.fixture.debugElement.query(By.directive(MatDatepicker)).componentInstance as MatDatepicker<Date>;
+    const open = vi.spyOn(picker, 'open').mockImplementation(() => undefined);
+    button.click();
+    expect(open).toHaveBeenCalledTimes(1);
+    v.fixture.componentRef.setInput('disabled', true); v.fixture.detectChanges();
+    expect(button.disabled).toBe(true);
+  });
+
   it('scopes its month-only display format to this component', () => {
     const v = setup();
     expect(v.fixture.debugElement.injector.get(MAT_DATE_FORMATS).display.dateInput).toEqual({ year: 'numeric', month: 'long' });

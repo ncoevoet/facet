@@ -27,8 +27,7 @@ import { I18nService } from './core/services/i18n.service';
 import { ThemeService } from './core/services/theme.service';
 import { PageHelpService } from './core/services/page-help.service';
 import { HeaderSlotService } from './core/services/header-slot.service';
-import { GalleryStore, anyHideToggleActive } from './features/gallery/gallery.store';
-import { TimelineFiltersService } from './features/timeline/timeline-filters.service';
+import { GalleryStore } from './features/gallery/gallery.store';
 import { AlbumsFiltersService } from './features/albums/albums-filters.service';
 import { PersonsFiltersService } from './features/persons/persons-filters.service';
 import { CompareFiltersService } from './features/comparison/compare-filters.service';
@@ -198,7 +197,6 @@ export class App implements OnInit {
   }
   protected readonly headerSlot = inject(HeaderSlotService);
   protected readonly store = inject(GalleryStore);
-  protected readonly timelineFilters = inject(TimelineFiltersService);
   protected readonly albumsFilters = inject(AlbumsFiltersService);
   protected readonly personsFilters = inject(PersonsFiltersService);
   protected readonly compareFilters = inject(CompareFiltersService);
@@ -304,14 +302,6 @@ export class App implements OnInit {
   /** A route gets a second bar only when it actually supplies page controls. */
   protected readonly showPageToolbar = computed(() => !this.auth.isAuthenticated()
     || this.isCompareRoute() || this.headerSlot.template() !== null);
-
-  /** Mirrors TimelineComponent.anyHiddenByFilters for the mobile bottom bar's
-   *  own copy of the affordance — same GalleryStore signal, same shared
-   *  predicate, only the markup is duplicated (matches the mobile gallery bar's
-   *  own precedent of a separate template driven by the same store). */
-  protected readonly anyTimelinePhotosHiddenByFilters = computed(
-    () => anyHideToggleActive(this.store.viewFilterParams()),
-  );
 
   protected readonly mobilePersonsBarVisible = computed(() => this.isPersonsRoute() && !this.personsFilters.selectedIds().size);
 

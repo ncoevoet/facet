@@ -314,31 +314,6 @@
     </div>
   }
 
-  <!-- Mobile timeline bottom bar -->
-  @if (auth.isAuthenticated() && isTimelineRoute()) {
-    <div class="lg:hidden fixed bottom-0 left-0 right-0 z-50 flex items-center gap-1 px-2 py-1 bg-[var(--mat-sys-surface-container)] border-t border-[var(--mat-sys-outline-variant)] safe-area-pb">
-      <app-date-range-filter
-        [from]="timelineFilters.dateFrom()" [to]="timelineFilters.dateTo()"
-        fromClass="flex-1 min-w-0"
-        (fromChange)="timelineFilters.dateFrom.set($event)" (toChange)="timelineFilters.dateTo.set($event)" />
-      @if (anyTimelinePhotosHiddenByFilters()) {
-        <button mat-icon-button class="!w-10 !h-10 shrink-0"
-                [matTooltip]="I18N.gallery.hidden_banner.some_hidden | translate"
-                [attr.aria-label]="I18N.gallery.hidden_banner.show_all | translate"
-                (click)="store.showAllHidden()">
-          <mat-icon>visibility_off</mat-icon>
-        </button>
-      } @else if (store.hiddenFiltersStash()) {
-        <button mat-icon-button class="!w-10 !h-10 shrink-0"
-                [matTooltip]="I18N.gallery.hidden_banner.showing_all | translate"
-                [attr.aria-label]="I18N.gallery.hidden_banner.restore | translate"
-                (click)="store.restoreHidden()">
-          <mat-icon>visibility</mat-icon>
-        </button>
-      }
-    </div>
-  }
-
   <!-- "On This Day" diaporama (randomized slideshow of past-year photos) -->
   @if (memoriesActive()) {
     <app-slideshow

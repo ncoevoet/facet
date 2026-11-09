@@ -282,7 +282,7 @@ describe('Timeline missing-date and range transitions', () => {
 @Component({ selector: 'app-timeline-density', template: '' })
 class DensityStub { readonly year = input(''); readonly month = input(''); readonly visible = input(true); readonly total = output<number | null>(); }
 @Component({ selector: 'app-timeline-month-jump', template: '' })
-class JumpStub { readonly year = input(''); readonly month = input(''); readonly disabled = input(false); }
+class JumpStub { readonly year = input(''); readonly month = input(''); readonly disabled = input(false); readonly compact = input(false); }
 @Component({ selector: 'app-timeline-feed', template: '' })
 class FeedStub { readonly year = input(''); readonly month = input(''); }
 @Component({ selector: 'app-timeline-years', template: '' })
@@ -442,8 +442,40 @@ describe('Timeline page-actions bar (rendered)', () => {
     sort.click();
     expect(sortDirection()).toBe('newer');
     expect(bar.querySelector('button[aria-label="timeline.newest_first"]')).not.toBeNull();
+    const mobileBar = (fixture.nativeElement as HTMLElement).querySelector('[data-timeline-mobile-bar]')!;
+    expect(mobileBar.querySelector('app-timeline-month-jump')).not.toBeNull();
+  });
+
+  it('below lg keeps only the breadcrumb, the count and the range chip in the top row, on the actions-bar surface', () => {
+    const fixture = setup(); dateFrom.set('2024-02-01'); fixture.detectChanges();
     const row = (fixture.nativeElement as HTMLElement).querySelector('[data-timeline-breadcrumb-row]')!;
-    expect(row.querySelector('app-timeline-month-jump')).not.toBeNull();
+    expect(row.className).toContain('bg-[var(--mat-sys-surface-container)]');
+    expect(row.className).toContain('border-b');
+    expect(row.querySelector('nav')).not.toBeNull();
+    expect(row.querySelector('[data-timeline-range-chip]')).not.toBeNull();
+    expect(row.querySelector('app-control-popover, app-timeline-month-jump, [aria-pressed]')).toBeNull();
+  });
+
+  it('below lg puts the compact jump, sort, Dates, density, view toggle and Show all in a fixed bottom bar', () => {
+    const fixture = setup({ year: '2026', month: '2' }, false);
+    store.viewFilterParams.set({ ...noneHiddenParams, hide_bursts: '1' }); fixture.detectChanges();
+    const bar = (fixture.nativeElement as HTMLElement).querySelector('[data-timeline-mobile-bar]')!;
+    expect(bar.className).toContain('lg:hidden');
+    expect(bar.className).toContain('fixed');
+    expect(bar.className).toContain('bottom-0');
+    const jump = fixture.debugElement.queryAll(By.directive(JumpStub)).find(debug => bar.contains(debug.nativeElement))!;
+    expect((jump.componentInstance as JumpStub).compact()).toBe(true);
+    const labels = [...bar.querySelectorAll('button')].map(button => button.getAttribute('aria-label'));
+    expect(labels).toEqual(expect.arrayContaining(['timeline.newest_first', 'timeline.density_hide', 'timeline.photo_feed', 'timeline.calendar', 'gallery.hidden_banner.show_all']));
+    expect(bar.querySelector('app-control-popover')).not.toBeNull();
+  });
+
+  it('marks the bottom-bar Dates trigger with a dot only while a range is set', () => {
+    const fixture = setup();
+    const bar = () => (fixture.nativeElement as HTMLElement).querySelector('[data-timeline-mobile-bar]')!;
+    expect(bar().querySelector('[data-timeline-dates-dot]')).toBeNull();
+    dateTo.set('2024-03-01'); fixture.detectChanges();
+    expect(bar().querySelector('[data-timeline-dates-dot]')).not.toBeNull();
   });
 
   it('shows the scope count beside the breadcrumb once the strip reports a total, digit-grouped', () => {

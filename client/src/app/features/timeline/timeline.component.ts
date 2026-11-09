@@ -104,9 +104,9 @@ function readDensityVisible(): boolean {
         </button>
       </div>
     </ng-template>
-    <ng-template #feedControls>
+    <ng-template #feedControls let-compact="compact">
       @if (!showOverview()) {
-        <app-timeline-month-jump [year]="year()" [month]="month()" [disabled]="!active()" />
+        <app-timeline-month-jump [year]="year()" [month]="month()" [disabled]="!active()" [compact]="!!compact" />
         @let sortLabel = (filters.sortDirection() === 'older' ? I18N.timeline.newest_first : I18N.timeline.oldest_first) | translate;
         <button mat-button class="shrink-0" (click)="toggleDirection()" [disabled]="!active()" [matTooltip]="sortLabel" [attr.aria-label]="sortLabel">
           <mat-icon>{{ filters.sortDirection() === 'older' ? 'arrow_downward' : 'arrow_upward' }}</mat-icon><span class="hidden xl:inline">{{ sortLabel }}</span>
@@ -142,6 +142,38 @@ function readDensityVisible(): boolean {
     <ng-template #datesControl>
       <app-control-popover icon="date_range" [compact]="true" [label]="I18N.timeline.dates | translate" [content]="datesPanel" />
     </ng-template>
+    <ng-template #rangeChip>
+      @if (filters.dateFrom() || filters.dateTo()) {
+        @let range = (filters.dateFrom() ? (filters.dateFrom() | captureDate) : '…') + ' – ' + (filters.dateTo() ? (filters.dateTo() | captureDate) : '…');
+        <div data-timeline-range-chip role="status" class="inline-flex shrink-0 items-center gap-1 pl-2.5 pr-1 py-0.5 rounded-full bg-[var(--mat-sys-secondary-container)] text-[var(--mat-sys-on-secondary-container)] text-xs font-medium">
+          <span class="mx-0.5 max-w-64 truncate" [title]="range">{{ range }}</span>
+          <button
+            class="inline-flex items-center justify-center min-w-8 min-h-8 max-sm:min-w-11 max-sm:min-h-11 rounded-full hover:bg-black/20 transition-colors"
+            (click)="resetDates()"
+            [attr.aria-label]="I18N.gallery.criteria.remove | translate:{ label: range }"
+          >
+            <mat-icon class="!text-sm !w-3.5 !h-3.5 !leading-[14px]">close</mat-icon>
+          </button>
+        </div>
+      }
+    </ng-template>
+    <ng-template #hiddenFilters>
+      @if (anyHiddenByFilters()) {
+        <button mat-icon-button class="!w-10 !h-10 shrink-0"
+                [matTooltip]="I18N.gallery.hidden_banner.some_hidden | translate"
+                [attr.aria-label]="I18N.gallery.hidden_banner.show_all | translate"
+                (click)="store.showAllHidden()">
+          <mat-icon>visibility_off</mat-icon>
+        </button>
+      } @else if (store.hiddenFiltersStash()) {
+        <button mat-icon-button class="!w-10 !h-10 shrink-0"
+                [matTooltip]="I18N.gallery.hidden_banner.showing_all | translate"
+                [attr.aria-label]="I18N.gallery.hidden_banner.restore | translate"
+                (click)="store.restoreHidden()">
+          <mat-icon>visibility</mat-icon>
+        </button>
+      }
+    </ng-template>
     <ng-template #timelineToolbar>
       <div class="flex min-w-0 flex-1 items-center gap-2">
         <ng-container [ngTemplateOutlet]="breadcrumb" />
@@ -150,44 +182,26 @@ function readDensityVisible(): boolean {
         <ng-container [ngTemplateOutlet]="feedControls" />
         <ng-container [ngTemplateOutlet]="datesControl" />
         <ng-container [ngTemplateOutlet]="densityToggle" />
-        @if (filters.dateFrom() || filters.dateTo()) {
-          @let range = (filters.dateFrom() ? (filters.dateFrom() | captureDate) : '…') + ' – ' + (filters.dateTo() ? (filters.dateTo() | captureDate) : '…');
-          <div data-timeline-range-chip role="status" class="inline-flex shrink-0 items-center gap-1 pl-2.5 pr-1 py-0.5 rounded-full bg-[var(--mat-sys-secondary-container)] text-[var(--mat-sys-on-secondary-container)] text-xs font-medium">
-            <span class="mx-0.5 max-w-64 truncate" [title]="range">{{ range }}</span>
-            <button
-              class="inline-flex items-center justify-center min-w-8 min-h-8 max-sm:min-w-11 max-sm:min-h-11 rounded-full hover:bg-black/20 transition-colors"
-              (click)="resetDates()"
-              [attr.aria-label]="I18N.gallery.criteria.remove | translate:{ label: range }"
-            >
-              <mat-icon class="!text-sm !w-3.5 !h-3.5 !leading-[14px]">close</mat-icon>
-            </button>
-          </div>
-        }
-        @if (anyHiddenByFilters()) {
-          <button mat-icon-button class="!w-10 !h-10 shrink-0"
-                  [matTooltip]="I18N.gallery.hidden_banner.some_hidden | translate"
-                  [attr.aria-label]="I18N.gallery.hidden_banner.show_all | translate"
-                  (click)="store.showAllHidden()">
-            <mat-icon>visibility_off</mat-icon>
-          </button>
-        } @else if (store.hiddenFiltersStash()) {
-          <button mat-icon-button class="!w-10 !h-10 shrink-0"
-                  [matTooltip]="I18N.gallery.hidden_banner.showing_all | translate"
-                  [attr.aria-label]="I18N.gallery.hidden_banner.restore | translate"
-                  (click)="store.restoreHidden()">
-            <mat-icon>visibility</mat-icon>
-          </button>
-        }
+        <ng-container [ngTemplateOutlet]="rangeChip" />
+        <ng-container [ngTemplateOutlet]="hiddenFilters" />
       </div>
     </ng-template>
-    <!-- Below lg the shell's bottom bar holds the date range; this row keeps the breadcrumb and view controls reachable -->
-    <div data-timeline-breadcrumb-row class="lg:hidden sticky top-0 z-20 bg-[var(--mat-sys-surface)] flex flex-wrap items-center gap-2 px-4 pt-4 pb-2">
+    <!-- Below lg: the top row names where you are, the bottom bar holds the actions in thumb reach -->
+    <div data-timeline-breadcrumb-row class="lg:hidden sticky top-0 z-20 flex flex-wrap items-center gap-2 border-b border-[var(--mat-sys-outline-variant)] bg-[var(--mat-sys-surface-container)] px-4 py-2">
       <ng-container [ngTemplateOutlet]="breadcrumb" />
-      <span aria-hidden="true" class="h-6 w-px shrink-0 bg-[var(--mat-sys-outline-variant)]"></span>
-      <ng-container [ngTemplateOutlet]="viewToggle" />
-      <ng-container [ngTemplateOutlet]="feedControls" />
-      <ng-container [ngTemplateOutlet]="datesControl" />
+      <ng-container [ngTemplateOutlet]="rangeChip" />
+    </div>
+    <div data-timeline-mobile-bar class="lg:hidden fixed bottom-0 left-0 right-0 z-50 flex items-center justify-around gap-1 px-2 py-1 [&_.mat-mdc-button-base]:!h-11 [&_.mat-mdc-button]:!min-w-11 [&_.mat-mdc-button]:!px-2.5 [&_.mat-mdc-button]:!rounded-full [&_app-control-popover_button]:!rounded-full [&_.mat-mdc-icon-button]:!w-11 bg-[var(--mat-sys-surface-container)] border-t border-[var(--mat-sys-outline-variant)] safe-area-pb">
+      <ng-container [ngTemplateOutlet]="feedControls" [ngTemplateOutletContext]="{ compact: true }" />
+      <span class="relative inline-flex">
+        <ng-container [ngTemplateOutlet]="datesControl" />
+        @if (filters.dateFrom() || filters.dateTo()) {
+          <span data-timeline-dates-dot aria-hidden="true" class="pointer-events-none absolute right-1.5 top-1.5 h-2 w-2 rounded-full bg-[var(--mat-sys-primary)]"></span>
+        }
+      </span>
       <ng-container [ngTemplateOutlet]="densityToggle" />
+      <ng-container [ngTemplateOutlet]="viewToggle" />
+      <ng-container [ngTemplateOutlet]="hiddenFilters" />
     </div>
 
     <div class="px-4 pb-2 pt-2">
