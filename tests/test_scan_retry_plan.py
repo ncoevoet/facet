@@ -252,7 +252,9 @@ def test_interrupted_captured_retry_preserves_source_failures(failed_run, scanne
         monkeypatch.setattr(sys, 'argv', [
             'facet.py', '--retry-plan', filename, '--retry-plan-sha256', digest, '--db', db,
         ])
-        facet.main()
+        with pytest.raises(SystemExit) as exit_info:
+            facet.main()
+        assert exit_info.value.code == facet.INTERRUPTED_EXIT_CODE
         assert scanner_spies['bursts'] == 0
         with sqlite3.connect(db) as conn:
             assert conn.execute('SELECT path FROM scan_failures ORDER BY scan_run_id').fetchall() == [

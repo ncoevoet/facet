@@ -153,7 +153,9 @@ def test_scoring_interruption_records_both_lifetimes_and_skips_tail(pipeline, mo
         def process_directory(self, paths):
             raise KeyboardInterrupt()
     monkeypatch.setattr('processing.multi_pass.ChunkedMultiPassProcessor', Interrupted)
-    facet.main()
+    with pytest.raises(SystemExit) as exit_info:
+        facet.main()
+    assert exit_info.value.code == facet.INTERRUPTED_EXIT_CODE
     assert not observed
     with sqlite3.connect(db) as conn:
         assert conn.execute('SELECT status,job_status,job_phase FROM scan_runs').fetchone() == ('interrupted', 'interrupted', 'scoring')
