@@ -2176,6 +2176,26 @@ describe('PhotoDetailComponent', () => {
     });
   });
 
+  describe('social crop preview without dimensions', () => {
+    it('does not request a preview for a photo without image dimensions, and does for one with them', () => {
+      mockApi.get.mockImplementation((url: string) => {
+        if (url === '/photo/social_crop/preview') return of({ source: 'faces' });
+        if (url === '/download/options') return of({ options: [{ type: 'original', label: 'original' }] });
+        return of(samplePhoto);
+      });
+      createComponent();
+      component.store.config.set({ features: { show_social_export: true }, social_export: { presets: [{ key: 'square', label_key: 'social.square' }] } });
+      const previewCalls = () => mockApi.get.mock.calls.filter(call => call[0] === '/photo/social_crop/preview').length;
+      component.photo.set({ ...samplePhoto, path: '/photos/nodims.jpg', image_width: null, image_height: null });
+      TestBed.flushEffects();
+      expect(previewCalls()).toBe(0);
+      expect(component.socialCropSource()).toBeNull();
+      component.photo.set({ ...samplePhoto, path: '/photos/dims.jpg', image_width: 6000, image_height: 4000 });
+      TestBed.flushEffects();
+      expect(previewCalls()).toBe(1);
+    });
+  });
+
   describe('clearCategoryOverride', () => {
     // D5: the endpoint's response already carries the recomputed category and
     // aggregate; the client used to ignore both, leaving the lightbox

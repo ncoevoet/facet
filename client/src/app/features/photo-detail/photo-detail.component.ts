@@ -930,7 +930,8 @@ export class PhotoDetailComponent extends PhotoDetailBase implements OnInit {
   private socialCropSourceEffect = effect(() => {
     const p = this.photo();
     const presets = this.socialPresets();
-    if (!p || !this.socialExportEnabled()) {
+    // The server answers 422 for a photo whose stored dimensions are missing, so don't ask.
+    if (!p || !this.socialExportEnabled() || !p.image_width || !p.image_height) {
       this.socialCropSource.set(null);
       return;
     }
