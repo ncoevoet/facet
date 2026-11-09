@@ -1,3 +1,4 @@
+import { AlbumRuleValuePipe } from './album-rule-value.pipe';
 import { closeDetailsOnEscape } from '../../shared/utils/overlays';
 import { parseTagQuery, TAG_QUERY_GROUPS } from './tag-query.util';
 import { parseScorePresence } from './score-presence.util';
@@ -209,6 +210,7 @@ export class GalleryCriteriaComponent {
  protected readonly store=inject(GalleryStore);
  protected readonly auth=inject(AuthService);
  private readonly i18n=inject(I18nService);
+ private readonly ruleValue=new AlbumRuleValuePipe();
  private readonly router=inject(Router);
  protected readonly history=inject(GalleryVisitHistoryService);
  protected readonly pinned=computed(()=>this.store.pinnedPaths()!==null);
@@ -287,7 +289,8 @@ export class GalleryCriteriaComponent {
    const criteria=visit.criteria.filter(([key])=>key!=='album_id').sort(([a],[b])=>rank(a)-rank(b));
    const parts=criteria.slice(0,2).map(([key,value])=>{
      const label=galleryFilterLabel(key,translate);
-     return /[≥≤]$/.test(label)?`${label} ${value}`:`${label}: ${value}`;
+     const shown=this.ruleValue.transform(value,key);
+     return /[≥≤]$/.test(label)?`${label} ${shown}`:`${label}: ${shown}`;
    });
    if(criteria.length>2)parts.push(`+${criteria.length-2}`);
    // The visit list keys on the URL, so two visits can differ only by sort; name it unless it is the default.

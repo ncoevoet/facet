@@ -118,6 +118,16 @@ describe('rendered measurement policies', () => {
     expect(document.activeElement).toBe(root.querySelector('#measurement-policy-mode'));
   });
 
+  it('does not register a post-render focus once destroyed while the clear is in flight', async () => {
+    let finish!: () => void;
+    update.mockImplementationOnce(() => new Promise<void>(resolve => { finish = resolve; }));
+    const component = fixture.componentInstance as unknown as { clear(): Promise<void> };
+    const pending = component.clear();
+    fixture.destroy();
+    finish();
+    await expect(pending).resolves.toBeUndefined();
+  });
+
   it('refuses unknown modes, unrecognized metrics and changes while the policy is invalid', () => {
     const component = fixture.componentInstance as unknown as { apply(mode: string): void };
     component.apply('unknown');

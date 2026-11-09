@@ -1,5 +1,5 @@
 import { createGalleryFilterContext } from './gallery-filter-context';
-import { afterNextRender, ChangeDetectionStrategy, Component, computed, inject, Injector, input, signal, viewChild } from '@angular/core';
+import { afterNextRender, ChangeDetectionStrategy, Component, computed, DestroyRef, inject, Injector, input, signal, viewChild } from '@angular/core';
 import { GalleryStore } from './gallery.store';
 import { MatButtonModule } from '@angular/material/button';
 import { MatFormFieldModule } from '@angular/material/form-field';
@@ -50,6 +50,8 @@ export class ScorePresenceComponent {
   protected readonly store = inject(GalleryStore);
   private readonly modeSelect = viewChild<MatSelect>('modeSelect');
   private readonly injector = inject(Injector);
+  private destroyed = false;
+  private readonly destroyRef = inject(DestroyRef);
   protected readonly selected = signal('');
   protected readonly selectedKey = computed(() => this.metrics().some(m => m.minKey === this.selected()) ? this.selected() : this.metrics()[0]?.minKey ?? '');
   protected readonly policies = computed(() => parseScorePresence(this.store.filters().score_presence ?? ''));
@@ -64,6 +66,8 @@ export class ScorePresenceComponent {
   })));
 
   private readonly context = createGalleryFilterContext();
+
+  constructor() { this.destroyRef.onDestroy(() => { this.destroyed = true; }); }
 
   protected apply(mode: string): void {
     const key = this.selectedKey();
@@ -84,6 +88,8 @@ export class ScorePresenceComponent {
   protected async clear(): Promise<void> {
     if (!this.context.current()) return;
     await this.store.updateFilter('score_presence', '');
+    // The component can be torn down while the update is in flight; an injector that is gone cannot register a hook.
+    if (this.destroyed) return;
     afterNextRender(() => this.modeSelect()?.focus(), { injector: this.injector });
   }
 }

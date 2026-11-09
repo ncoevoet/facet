@@ -66,6 +66,12 @@ describe('Typed album rule values', () => {
     expect(pipe.transform('99', 'person_id')).toBe('Person #99');
   });
 
+  it('renders a comma-separated person id list as names joined with a comma', () => {
+    const pipe = make(en);
+    expect(pipe.transform('7,8', 'person_id')).toBe('Alice, Person #8');
+    expect(pipe.transform('7, 99,8', 'person_id')).toBe('Alice, Person #99, Person #8');
+  });
+
   it('translates known choices only and preserves literal or unknown values', () => {
     const bundle = signal<object>(fr);
     TestBed.configureTestingModule({ providers: [

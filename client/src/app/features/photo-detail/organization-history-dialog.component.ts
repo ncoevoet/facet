@@ -68,9 +68,9 @@ const REVERT_ERROR_BY_STATUS: Record<number, 'conflict' | 'unavailable'> = { 409
             }
             }
           </details>
-          <button mat-button [disabled]="busy() || entry.reverted || entry.superseded" (click)="previewRestore(entry)"
+          <button mat-button [disabled]="busy() || entry.reverted || entry.superseded" [attr.aria-describedby]="entry.superseded && !entry.reverted ? 'history-superseded-' + entry.id : null" (click)="previewRestore(entry)"
             [attr.aria-label]="I18N.organization_history.entry_action | translate:{ action: ((entry.reverted ? I18N.organization_history.reverted : I18N.organization_history.preview_action) | translate), kind: (I18N.organization_history[entry.kind] | translate), date: ((entry.created_at | date:'dd/MM/yyyy HH:mm') ?? ''), id: entry.id }">{{ (entry.reverted ? I18N.organization_history.reverted : I18N.organization_history.preview_action) | translate }}</button>
-          @if (entry.superseded && !entry.reverted) { <p data-history-superseded class="my-1 text-xs text-[var(--mat-sys-on-surface-variant)]">{{ I18N.organization_history.superseded | translate }}</p> }
+          @if (entry.superseded && !entry.reverted) { <p data-history-superseded [id]="'history-superseded-' + entry.id" class="my-1 text-xs text-[var(--mat-sys-on-surface-variant)]">{{ I18N.organization_history.superseded | translate }}</p> }
           @if (restorePlan()?.id === entry.id) {
             <section data-history-preview class="my-2 rounded border border-[var(--mat-sys-outline-variant)] p-3 text-sm">
               <p>{{ (entry.changes.length | pluralKey:I18N.organization_history.restore_preview:I18N.organization_history.restore_preview_plural) | translate:{ count: entry.changes.length, part: entry.part, parts: entry.parts } }}</p>

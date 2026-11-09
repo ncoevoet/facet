@@ -191,6 +191,16 @@ describe('Organization history rendered controls and HTTP', () => {
     http.expectNone(request => request.method === 'POST');
   });
 
+  it('links the superseded note to the disabled Restore button, with a unique id per entry', async () => {
+    await create([entry({ superseded: true }), entry({ id: 902, superseded: true }), entry({ id: 903 })]);
+    const notes = [...root.querySelectorAll<HTMLElement>('[data-history-superseded]')];
+    expect(notes).toHaveLength(2);
+    expect(new Set(notes.map(note => note.id)).size).toBe(2);
+    expect(revert(0).getAttribute('aria-describedby')).toBe(notes[0].id);
+    expect(revert(1).getAttribute('aria-describedby')).toBe(notes[1].id);
+    expect(revert(2).hasAttribute('aria-describedby')).toBe(false);
+  });
+
   it('picks the singular or plural restore preview by the number of photos', async () => {
     const two = [{ path: '/a.jpg', before: [null, 2, 0], after: [3, 4, 1], revision: 5 }, { path: '/b.jpg', before: [null, 2, 0], after: [3, 4, 1], revision: 5 }];
     await create([entry({ id: 902, changes: two }), entry()]);

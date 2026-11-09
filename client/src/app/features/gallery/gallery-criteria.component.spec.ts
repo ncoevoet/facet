@@ -114,6 +114,27 @@ describe('recent collection visits',()=>{
   expect(texts[1]).toContain(`${I18N.gallery.sort}: sort_options.date_taken ↑`);
  });
 
+ it('describes recent-visit values the way a saved rule shows them: person names, translated types, yes/no, dd/MM/yyyy dates',()=>{
+  const {fixture,navigation,authStatus,personsSignal}=createCriteria();
+  const i18n=TestBed.inject(I18nService) as unknown as {t:(key:string)=>string};
+  const dictionary:Record<string,string>={'category_names.portrait':'Portrait',[I18N.organization_history.yes]:'Yes'};
+  i18n.t=(key:string)=>dictionary[key]??key;
+  personsSignal.set([{id:29092,name:'Alice'},{id:5,name:null}]);
+  authStatus.set({authenticated:true});fixture.detectChanges();
+  const urls=['/?person_id=29092,5','/?type=portrait','/?favorites_only=true','/?date_from=2024-03-01'];
+  for(const url of urls){navigation.next(new NavigationEnd(1,url,url));}
+  fixture.detectChanges();
+  const texts=Array.from((fixture.nativeElement as HTMLElement).querySelectorAll('[data-recent-visit]')).map(button=>button.textContent!.replace(/\s+/g,' ').trim()).reverse();
+  expect(texts).toHaveLength(4);
+  expect(texts[0]).toContain(`: Alice, ${I18N.albums.rules.person_fallback}`);
+  expect(texts[0]).not.toContain('29092');
+  expect(texts[1]).toContain(': Portrait');
+  expect(texts[2]).toContain(': Yes');
+  expect(texts[2]).not.toContain('true');
+  expect(texts[3]).toContain('01/03/2024');
+  expect(texts[3]).not.toContain('2024-03-01');
+ });
+
  it('counts the criteria beyond the two it names',()=>{
   const {fixture,navigation,authStatus}=createCriteria();
   authStatus.set({authenticated:true});fixture.detectChanges();

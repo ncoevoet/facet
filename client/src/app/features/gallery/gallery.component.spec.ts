@@ -3067,7 +3067,8 @@ describe('GalleryComponent', () => {
       expect(root.querySelector('[data-selection-outside]')?.textContent).toContain(I18N.gallery.selection.outside_loaded);
       expect(mockI18n.t).toHaveBeenCalledWith(I18N.gallery.selection.outside_loaded, { count: 1 });
       const button = root.querySelector<HTMLButtonElement>(`button[aria-label="${I18N.gallery.selection.compare}"]`)!;
-      expect(button.disabled).toBe(true);
+      expect(button.disabled).toBe(false);
+      expect(button.getAttribute('aria-disabled')).toBe('true');
       expect(button.getAttribute('aria-describedby')).toBe('compare-selection-requirements');
       const capture = vi.spyOn(TestBed.inject(ComparisonSessionService), 'start');
       const navigate = vi.spyOn(TestBed.inject(Router), 'navigateByUrl').mockResolvedValue(true);
@@ -3941,8 +3942,23 @@ describe('GalleryComponent', () => {
       expect(requirement.classList.contains('basis-full')).toBe(false);
       const compare = labelled(f, I18N.gallery.selection.compare)!;
       expect(compare.getAttribute('aria-describedby')).toBe('compare-selection-requirements');
-      const tooltip = f.debugElement.queryAll(By.directive(MatTooltip)).find(d => d.nativeElement === compare.parentElement);
+      const tooltip = f.debugElement.queryAll(By.directive(MatTooltip)).find(d => d.nativeElement === compare);
       expect(tooltip?.injector.get(MatTooltip).message).toBe(requirement.textContent!.trim());
+    });
+
+    it('keeps the disabled Compare button focusable so keyboard users reach the reason, and a click does nothing', () => {
+      const f = render({ viewScoped: true });
+      const compare = labelled(f, I18N.gallery.selection.compare)!;
+      expect(compare.disabled).toBe(false);
+      expect(compare.getAttribute('aria-disabled')).toBe('true');
+      expect(compare.getAttribute('aria-describedby')).toBe('compare-selection-requirements');
+      compare.focus();
+      expect(document.activeElement).toBe(compare);
+      const start = vi.spyOn(TestBed.inject(ComparisonSessionService), 'start');
+      const navigate = vi.spyOn(TestBed.inject(Router), 'navigateByUrl').mockResolvedValue(true);
+      compare.click();
+      expect(start).not.toHaveBeenCalled();
+      expect(navigate).not.toHaveBeenCalled();
     });
 
     it('closes the Actions disclosure after one of its commands runs and when the filters change', () => {

@@ -17,8 +17,10 @@ export class AlbumRuleValuePipe implements PipeTransform {
       return this.i18n.t(value === 'true' ? I18N.organization_history.yes : I18N.organization_history.no);
     }
     if (key === 'person_id') {
-      const name = this.store.persons().find(person => String(person.id) === value)?.name;
-      return name || this.i18n.t(I18N.albums.rules.person_fallback, { id: value });
+      // `person_id` is a comma-separated id list; each id reads as its own name.
+      const persons = this.store.persons();
+      return value.split(',').map(raw => raw.trim()).filter(Boolean).map(id =>
+        persons.find(person => String(person.id) === id)?.name || this.i18n.t(I18N.albums.rules.person_fallback, { id })).join(', ');
     }
     if (key === 'date_from' || key === 'date_to') return this.date.transform(value);
     const enumKeys: Record<string, string> = {
