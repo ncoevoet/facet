@@ -18,7 +18,7 @@ type Result = components['schemas']['LogicalAssetResult'];
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <section data-logical-asset class="space-y-2 border-t border-[var(--mat-sys-outline-variant)] pt-2 text-xs">
-      <h4 #trigger tabindex="-1" class="m-0 flex items-center gap-2 text-xs font-medium focus:outline-none"><mat-icon aria-hidden="true" class="!h-5 !w-5 shrink-0 !text-xl">photo_library</mat-icon>{{ I18N.logical_assets.title | translate }}</h4>
+      <h3 #trigger tabindex="-1" class="m-0 flex items-center gap-2 text-xs font-medium focus:outline-none"><mat-icon aria-hidden="true" class="!h-5 !w-5 shrink-0 !text-xl">photo_library</mat-icon>{{ I18N.logical_assets.title | translate }}</h3>
       @if (expanded()) {
         <div class="space-y-2">
           @if (busy()) { <p role="status" class="m-0">{{ I18N.ui.labels.loading | translate }}</p> }

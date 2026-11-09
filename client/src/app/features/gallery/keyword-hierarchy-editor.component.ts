@@ -144,7 +144,7 @@ export class KeywordHierarchyEditorComponent {
     effect(() => { const button = this.applyButton(); if (button && this.current()) untracked(() => button.nativeElement.focus()); });
     effect(() => {
       const node = this.node();
-      untracked(() => { this.action.set(node ? (this.store.selectionCount() ? 'assign' : 'rename') : 'create_assign'); this.name.set(node?.name ?? ''); this.parent.set(node?.parent_id ?? ''); this.invalidate(); });
+      untracked(() => { this.action.set(this.initialAction(node)); this.name.set(node?.name ?? ''); this.parent.set(node?.parent_id ?? ''); this.invalidate(); });
     });
     effect(() => {
       this.auth.identity(); this.auth.status(); this.auth.isEdition();
@@ -158,6 +158,11 @@ export class KeywordHierarchyEditorComponent {
   }
   private current(): boolean {
     return this.guard.current();
+  }
+  /** A new keyword is created and assigned; an existing one is assigned to a selection, else renamed. */
+  private initialAction(node: Node | null): Action {
+    if (!node) return 'create_assign';
+    return this.store.selectionCount() ? 'assign' : 'rename';
   }
   private cancelReads(): void { this.version++; this.cancelled.next(); this.loading.set(false); }
   invalidate(): void { this.cancelReads(); this.plan.set(null); this.preparedDraft = ''; this.capturedScope = null; this.error.set(''); }

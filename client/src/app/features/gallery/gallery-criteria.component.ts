@@ -29,6 +29,8 @@ import { KeywordBranchLabelPipe } from './keyword-hierarchy-labels.service';
 import { GalleryQueryProposalComponent } from './gallery-query-proposal.component';
 import { GALLERY_REVISIT } from '../../core/gallery-reuse.strategy';
 
+const SORT_ARROWS:Record<string,string>={ASC:' ↑',DESC:' ↓'};
+
 @Component({selector:'app-gallery-criteria', changeDetection:ChangeDetectionStrategy.Eager,
  imports:[NgTemplateOutlet, MatIconModule, MatSliderModule, MatTooltipModule, PersonFilterChipComponent, TranslatePipe, ThumbnailUrlPipe, GalleryAlbumRulesComponent, KeywordBranchLabelPipe, GalleryQueryProposalComponent, ContextHelpComponent],
  host:{class:'block'}, template:`
@@ -298,7 +300,7 @@ export class GalleryCriteriaComponent {
    const sort=query.get('sort');
    const direction=query.get('sort_direction');
    if((sort&&sort!==DEFAULT_FILTERS.sort)||(direction&&direction!==DEFAULT_FILTERS.sort_direction)){
-     const arrow=direction==='ASC'?' ↑':direction==='DESC'?' ↓':'';
+     const arrow=SORT_ARROWS[direction??'']??'';
      parts.push(`${translate(I18N.gallery.sort)}: ${translate(sortLabelKey(sort??DEFAULT_FILTERS.sort))}${arrow}`);
    }
    if(parts.length)return parts.join(' · ');

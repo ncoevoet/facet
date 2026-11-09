@@ -98,7 +98,6 @@ export const I18N = {
       load_more: "ui.buttons.load_more",
     },
     sort: {
-      toggle_direction: "ui.sort.toggle_direction",
       date: "ui.sort.date",
     },
     labels: {
@@ -1272,7 +1271,6 @@ export const I18N = {
     scroll_to_top: "gallery.scroll_to_top",
     scan_action: "gallery.scan_action",
     photo_grid: "gallery.photo_grid",
-    active_filters: "gallery.active_filters",
     unknown_person: "gallery.unknown_person",
     selection: {
       cover_only: "gallery.selection.cover_only",
@@ -3051,7 +3049,6 @@ export const I18N = {
     all_years: "timeline.all_years",
     no_photos_month: "timeline.no_photos_month",
     photos_count: "timeline.photos_count",
-    capture_scope: "timeline.capture_scope",
     scope_help: "timeline.scope_help",
     open_range: "timeline.open_range",
     empty_range: "timeline.empty_range",
@@ -3405,7 +3402,6 @@ export const I18N = {
       result_plural: "photo_detail.remove_catalog.result_plural",
     },
     analysis: "photo_detail.analysis",
-    info: "photo_detail.info",
     details: "photo_detail.details",
     unassigned_faces: "photo_detail.unassigned_faces",
     tag_refine_collection: "photo_detail.tag_refine_collection",

@@ -59,7 +59,6 @@
       "load_more": "Mehr laden"
     },
     "sort": {
-      "toggle_direction": "Sortierrichtung umschalten",
       "date": "Datum"
     },
     "labels": {
@@ -1232,7 +1231,6 @@
     "scroll_to_top": "Nach oben scrollen",
     "scan_action": "Neue Fotos scannen",
     "photo_grid": "Fotoraster",
-    "active_filters": "{count} aktive Filter",
     "unknown_person": "Unbekannt",
     "selection": {
       "cover_only": "Gestapelte Kacheln in dieser Auswahl betreffen nur das angezeigte Foto. Öffnen Sie einen Stapel, um seine übrigen Mitglieder auszuwählen.",
@@ -3012,7 +3010,6 @@
     "all_years": "Alle Jahre",
     "no_photos_month": "Keine Fotos in diesem Monat",
     "photos_count": "Fotos",
-    "capture_scope": "Aufnahmedaten · sichtbare Bibliothek",
     "scope_help": "Anzahlen verwenden Aufnahmedaten und Ihre Sichtbarkeitseinstellungen in der gesamten Bibliothek. Album-, Schlagwort- und Suchfilter gelten nicht. Fotos ohne Aufnahmedatum werden separat aufgeführt. Öffnen eines Zeitraums zeigt alle passenden Fotos einschließlich abgelehnter; manuelle Stapel können ihre Kacheln gruppieren.",
     "open_range": "Zeitraum in Galerie öffnen",
     "empty_range": "Wählen Sie innerhalb des ausgewählten Kalenderzeitraums ein Startdatum vor oder gleich dem Enddatum oder wählen Sie Alle Daten.",
@@ -3366,7 +3363,6 @@
       "result_plural": "{count} Fotos aus Facet entfernt."
     },
     "analysis": "Analyse",
-    "info": "Info",
     "details": "Fotodetails",
     "unassigned_faces": "Nicht zugewiesene Gesichter: {count}",
     "tag_refine_collection": "Diese Sammlung verfeinern",

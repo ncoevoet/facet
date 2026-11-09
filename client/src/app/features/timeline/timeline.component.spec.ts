@@ -441,7 +441,8 @@ describe('Timeline page-actions bar (rendered)', () => {
     expect(sort.querySelector('span.hidden')!.className).toContain('xl:inline');
     sort.click();
     expect(sortDirection()).toBe('newer');
-    expect(bar.querySelector('button[aria-label="timeline.newest_first"]')).not.toBeNull();
+    TestBed.inject(ApplicationRef).tick();
+    expect(bar.querySelector('button[aria-label="timeline.oldest_first"]')).toBe(sort);
     const mobileBar = (fixture.nativeElement as HTMLElement).querySelector('[data-timeline-mobile-bar]')!;
     expect(mobileBar.querySelector('app-timeline-month-jump')).not.toBeNull();
   });

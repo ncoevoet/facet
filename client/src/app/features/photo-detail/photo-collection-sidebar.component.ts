@@ -6,10 +6,13 @@ import { TranslatePipe } from '../../shared/pipes/translate.pipe';
 import { I18N } from '../../core/i18n/keys';
 import { rovingFocusKey } from '../../shared/utils/roving-focus';
 
-/** Reads the originating collection; never changes its query, selection or sort. */
 const WIDTH_KEY = 'facet_collection_sidebar_width';
 const DEFAULT_WIDTH = 192;
-const clampWidth = (width: number): number => Math.max(144, Math.min(384, width));
+const MIN_WIDTH = 144;
+const MAX_WIDTH = 384;
+/** Home and End jump to the narrowest and widest sidebar; the arrows step by 16 px. */
+const KEY_WIDTHS: Record<string, number> = { Home: MIN_WIDTH, End: MAX_WIDTH };
+const clampWidth = (width: number): number => Math.max(MIN_WIDTH, Math.min(MAX_WIDTH, width));
 
 function storedWidth(): number {
   try {
@@ -20,6 +23,7 @@ function storedWidth(): number {
   }
 }
 
+/** Reads the originating collection; never changes its query, selection or sort. */
 @Component({
   selector: 'app-photo-collection-sidebar',
   imports: [MatIconModule, ThumbnailUrlPipe, TranslatePipe],
@@ -64,7 +68,7 @@ function storedWidth(): number {
           }
         </div>
         <div role="separator" tabindex="0" aria-orientation="vertical" [attr.aria-label]="I18N.photo_detail.collection.resize | translate"
-          aria-valuemin="144" aria-valuemax="384" [attr.aria-valuenow]="width()"
+          [attr.aria-valuemin]="MIN_WIDTH" [attr.aria-valuemax]="MAX_WIDTH" [attr.aria-valuenow]="width()"
           class="absolute inset-y-0 -right-1 z-10 w-2 cursor-col-resize touch-none focus-visible:bg-[var(--mat-sys-primary)]"
           (pointerdown)="start($event)" (pointermove)="move($event)" (pointerup)="finish($event)"
           (pointercancel)="finish($event, true)" (lostpointercapture)="finish($event, true)" (keydown)="resizeKey($event)"></div>
@@ -74,6 +78,8 @@ function storedWidth(): number {
 })
 export class PhotoCollectionSidebarComponent {
   protected readonly I18N = I18N;
+  protected readonly MIN_WIDTH = MIN_WIDTH;
+  protected readonly MAX_WIDTH = MAX_WIDTH;
   readonly photos = input<readonly Photo[]>([]);
   readonly currentPath = input('');
   readonly title = input('');
@@ -222,7 +228,7 @@ export class PhotoCollectionSidebarComponent {
     event.preventDefault(); event.stopPropagation();
     if (event.key === 'Escape') { this.finishPointer(true); return; }
     this.finishPointer(true);
-    this.setWidth(event.key === 'Home' ? 144 : event.key === 'End' ? 384 : this.width() + (event.key === 'ArrowRight' ? 16 : -16));
+    this.setWidth(KEY_WIDTHS[event.key] ?? this.width() + (event.key === 'ArrowRight' ? 16 : -16));
     this.persistWidth();
   }
 }

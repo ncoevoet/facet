@@ -76,9 +76,9 @@ describe('GallerySelectionActions', () => {
   });
 
   describe('openManualTagsDialog', () => {
-    const run = async (confirmedCount: number) => {
+    const run = async (confirmedCount: number, uncertain = false) => {
       selected.set(new Set(['/a.jpg']));
-      dialog.open.mockReturnValue({ afterClosed: () => of({ confirmedCount, tag: 't', action: 'add', incomplete: false, uncertain: false }) });
+      dialog.open.mockReturnValue({ afterClosed: () => of({ confirmedCount, tag: 't', action: 'add', incomplete: false, uncertain }) });
       await actions.openManualTagsDialog();
     };
 
@@ -97,6 +97,11 @@ describe('GallerySelectionActions', () => {
 
     it('stays silent when nothing was confirmed', async () => {
       await run(0);
+      expect(snackBar.open).not.toHaveBeenCalled();
+    });
+
+    it('claims no applied count when the write is uncertain and confirmed nothing', async () => {
+      await run(0, true);
       expect(snackBar.open).not.toHaveBeenCalled();
     });
   });

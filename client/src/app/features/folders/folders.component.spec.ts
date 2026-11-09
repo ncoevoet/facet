@@ -257,6 +257,15 @@ describe('FoldersComponent', () => {
       expect(cmp.loading()).toBe(true);
     });
 
+    it('keeps loading true while skipping a lone folder, so the spinner does not blink between hops', async () => {
+      const fixture = await render();
+      const cmp = fixture.componentInstance as any;
+      mockApi.get.mockReturnValue(of({ folders: [{ name: 'Users', path: '/Users/', photo_count: 3, cover_photo_path: null }], has_direct_photos: false }));
+      await cmp.loadFolders();
+      expect(mockRouter.navigate).toHaveBeenCalledWith(['/folders'], { queryParams: { prefix: '/Users/' }, replaceUrl: true });
+      expect(cmp.loading()).toBe(true);
+    });
+
     it('clears loading when the redirect navigation resolves false or rejects', async () => {
       const fixture = await render();
       const cmp = fixture.componentInstance as any;

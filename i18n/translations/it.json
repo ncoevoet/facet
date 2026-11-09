@@ -59,7 +59,6 @@
       "load_more": "Carica altro"
     },
     "sort": {
-      "toggle_direction": "Inverti ordinamento",
       "date": "Data"
     },
     "labels": {
@@ -1232,7 +1231,6 @@
     "scroll_to_top": "Torna su",
     "scan_action": "Scansiona nuove foto",
     "photo_grid": "Griglia di foto",
-    "active_filters": "{count} filtri attivi",
     "unknown_person": "Sconosciuto",
     "selection": {
       "cover_only": "Le miniature impilate in questa selezione riguardano solo la foto mostrata. Apri una pila per selezionarne gli altri membri.",
@@ -3012,7 +3010,6 @@
     "all_years": "Tutti gli anni",
     "no_photos_month": "Nessuna foto questo mese",
     "photos_count": "foto",
-    "capture_scope": "Date di scatto · raccolta visibile",
     "scope_help": "I conteggi usano le date di scatto e le impostazioni di visibilità nell’intera raccolta. Non vengono applicati filtri di album, tag o ricerca. Le foto senza data di scatto sono elencate separatamente. Aprire un periodo mostra tutte le foto corrispondenti, incluse quelle scartate; le pile manuali possono raggrupparne le miniature.",
     "open_range": "Apri intervallo nella galleria",
     "empty_range": "Scegli una data iniziale precedente o uguale a quella finale nel periodo di calendario selezionato, oppure scegli Tutte le date.",
@@ -3366,7 +3363,6 @@
       "result_plural": "Rimosse {count} foto da Facet."
     },
     "analysis": "Analisi",
-    "info": "Informazioni",
     "details": "Dettagli della foto",
     "unassigned_faces": "Volti non assegnati: {count}",
     "tag_refine_collection": "Affina questa raccolta",

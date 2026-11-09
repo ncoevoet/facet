@@ -711,9 +711,10 @@ describe('App', () => {
 
     it.each([[true], [false]])('draws no edition accent underline on either header while edition is %s', (edition) => {
       const { root } = render(edition);
-      for (const selector of ['[data-workspace-navigation]', '[data-page-actions]']) {
-        const bar = root.querySelector<HTMLElement>(selector);
-        if (!bar) continue;
+      const navigation = root.querySelector<HTMLElement>('[data-workspace-navigation]');
+      expect(navigation).not.toBeNull();
+      // The page-actions bar renders only on pages that project one; the navigation always does.
+      for (const bar of [navigation!, root.querySelector<HTMLElement>('[data-page-actions]')].filter(found => found !== null)) {
         expect(bar.style.borderBottomColor).toBe('');
         expect(bar.classList.contains('!border-b-2')).toBe(false);
       }

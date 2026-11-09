@@ -219,6 +219,8 @@ describe('Organization history rendered controls and HTTP', () => {
     details.open = true; details.dispatchEvent(new Event('toggle')); await settle();
     const lines = [...root.querySelectorAll('p')].filter(p => p.textContent?.includes('Review:'));
     expect(lines).toHaveLength(1);
+    expect(lines[0].previousElementSibling?.textContent).toBe('/flip.jpg');
+    expect(lines[0].textContent).toMatch(/Undecided\s*→\s*Rejected/);
   });
 
   for (const [status, message] of [[404, messages.unavailable], [409, messages.conflict], [500, messages.error]] as const) {

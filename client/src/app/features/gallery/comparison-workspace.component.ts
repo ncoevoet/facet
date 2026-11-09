@@ -460,10 +460,17 @@ export class ComparisonWorkspaceComponent {
       zoomInDisabled: this.linked() ? this.panes().some(p => (this.paneZoom().get(p.path) ?? FIT_ZOOM).scale >= SyncedZoomComponent.MAX_SCALE) : zoom.scale >= SyncedZoomComponent.MAX_SCALE,
       previewFailed: this.readiness().get(photo.path) === 'failed',
       kindKey: this.I18N.gallery.compare.rendition[rendition?.kind ?? 'thumbnail'],
-      phaseKey: rendition?.fellBack ? this.I18N.gallery.compare.rendition.source_fallback : this.readiness().get(photo.path) === 'failed' && rendition?.kind === 'thumbnail' ? this.I18N.gallery.compare.rendition.fallback : this.I18N.gallery.compare.rendition[rendition?.phase ?? 'loading'],
+      phaseKey: this.phaseKey(rendition, this.readiness().get(photo.path) === 'failed'),
       scaleLabel: `${Number(zoom.scale.toFixed(1))}×`,
     };
   }));
+
+  /** A source that fell back says so; a failed preview left on its thumbnail says that; otherwise the load phase. */
+  private phaseKey(rendition: DisplayedRendition | undefined, previewFailed: boolean): string {
+    if (rendition?.fellBack) return this.I18N.gallery.compare.rendition.source_fallback;
+    if (previewFailed && rendition?.kind === 'thumbnail') return this.I18N.gallery.compare.rendition.fallback;
+    return this.I18N.gallery.compare.rendition[rendition?.phase ?? 'loading'];
+  }
 
   protected readonly zoomed = computed(() => [...this.paneZoom().values()].some(frame =>
     frame.scale !== FIT_ZOOM.scale || frame.tx !== 0 || frame.ty !== 0));

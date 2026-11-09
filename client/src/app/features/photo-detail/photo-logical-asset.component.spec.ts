@@ -67,7 +67,7 @@ describe('PhotoLogicalAssetComponent', () => {
     write.flush({ asset_id: 'a'.repeat(32), revision: 1, dissolved: false });
     http.expectOne('/api/logical_assets/by-photo?path=/shot.jpg').flush({ asset: { asset_id: 'a'.repeat(32), revision: 1, primary_path: '/shot.jpg', members }, candidates: [], can_group: false });
     fixture.detectChanges(); expect(root.textContent).toContain('logical_assets.updated');
-    expect(document.activeElement).toBe(root.querySelector('[data-logical-asset] h4'));
+    expect(document.activeElement).toBe(root.querySelector('[data-logical-asset] h3'));
     root.remove();
     expect(applied).toHaveBeenCalledExactlyOnceWith({ operation: 'create', assetId: 'a'.repeat(32), primaryPath: '/shot.jpg', members: ['/shot.jpg', '/shot.CR2'] });
   });

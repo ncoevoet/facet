@@ -86,7 +86,7 @@ interface FocusTarget { focus(): void }
             @let choice = choices().get(face.face_id);
             @let similarity = faceSimilarity().get(face.face_id);
             @let isSelected = selected().has(face.face_id);
-            @let warning = face.embedding_state === 'ready' ? null : face.embedding_state === 'incompatible' ? I18N.persons.review_queue.model_mismatch : I18N.persons.review_queue.matching_unavailable;
+            @let warning = embeddingWarnings[face.embedding_state];
             <div class="relative min-w-0 scroll-mb-28" [attr.data-review-face]="face.face_id">
               <button #tile type="button" data-review-tile
                       class="relative block w-full cursor-pointer overflow-hidden rounded-lg border-2 bg-[var(--mat-sys-surface-container-high)] p-0 focus-visible:outline-2 focus-visible:-outline-offset-4 focus-visible:outline-[var(--mat-sys-primary)] aria-disabled:cursor-default"
@@ -173,6 +173,10 @@ interface FocusTarget { focus(): void }
 export class FaceReviewQueueComponent {
   focus(): void { this.host.nativeElement.focus(); }
   protected readonly I18N = I18N;
+  /** Why a face cannot be matched, by the state of its embedding. */
+  protected readonly embeddingWarnings: Record<Face['embedding_state'], string | null> = {
+    ready: null, incompatible: I18N.persons.review_queue.model_mismatch, unavailable: I18N.persons.review_queue.matching_unavailable,
+  };
   readonly mode = input.required<'matches' | 'unassigned'>();
   private readonly api = inject(ApiService);
   private readonly host = inject<ElementRef<HTMLElement>>(ElementRef);

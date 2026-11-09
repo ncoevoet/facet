@@ -59,7 +59,6 @@
       "load_more": "加载更多"
     },
     "sort": {
-      "toggle_direction": "切换排序方向",
       "date": "日期"
     },
     "labels": {
@@ -1232,7 +1231,6 @@
     "scroll_to_top": "返回顶部",
     "scan_action": "扫描新照片",
     "photo_grid": "照片网格",
-    "active_filters": "{count} 个筛选条件已生效",
     "unknown_person": "未知",
     "selection": {
       "cover_only": "此选择中的堆叠图块仅作用于所显示的照片。打开堆叠即可选择其中的其他成员。",
@@ -3012,7 +3010,6 @@
     "all_years": "所有年份",
     "no_photos_month": "此月没有照片",
     "photos_count": "张照片",
-    "capture_scope": "拍摄日期 · 可见图库",
     "scope_help": "计数使用整个图库的拍摄日期和你的可见性设置，不应用相册、标签及搜索筛选。没有拍摄日期的照片单独列出。打开某个时段将显示全部匹配照片，包括被拒绝的照片；手动堆栈可将缩略图分组。",
     "open_range": "在图库中打开范围",
     "empty_range": "请在选中的日历时段内选择不晚于结束日期的开始日期，或选择所有日期。",
@@ -3366,7 +3363,6 @@
       "result_plural": "已从 Facet 移除 {count} 张照片。"
     },
     "analysis": "分析",
-    "info": "信息",
     "details": "照片详情",
     "unassigned_faces": "未分配人脸：{count}",
     "tag_refine_collection": "细化此集合",

@@ -19,8 +19,9 @@ export interface CaptureDateDialogData {
   filters?: Record<string, unknown> | null;
   exclude?: string[];
   manuallySet?: boolean;
-  /** One target photo and its stored `date_taken` (`YYYY:MM:DD HH:MM:SS`): shown as the
-   *  before/after example and enabling the "set exact time" mode. */
+  /** One target photo and its stored `date_taken` (`YYYY:MM:DD HH:MM:SS`), shown as the
+   *  before/after example. With a dated reference, "set exact time" shifts every photo by
+   *  the offset that gives it the typed time; without one it writes the typed time itself. */
   reference?: { path: string; date: string } | null;
 }
 type Preview = components['schemas']['CaptureDatePreview'];
@@ -202,7 +203,10 @@ export class CaptureDateDialogComponent {
     const offset = this.offset();
     return this.data.count <= 1000 && offset !== null && offset !== 0 && Math.abs(offset) <= MAX_OFFSET_SECONDS;
   });
-  protected readonly summaryKey = computed(() => this.absolute() ? this.I18N.capture_date.summary_set : this.offset()! < 0 ? this.I18N.capture_date.summary_earlier : this.I18N.capture_date.summary_later);
+  protected readonly summaryKey = computed(() => {
+    if (this.absolute()) return this.I18N.capture_date.summary_set;
+    return this.offset()! < 0 ? this.I18N.capture_date.summary_earlier : this.I18N.capture_date.summary_later;
+  });
   protected readonly amount = computed(() => {
     if (this.absolute()) return this.absoluteSeconds() === null ? '' : formatExif(this.absoluteSeconds()!);
     const parts = splitOffset(Math.abs(this.offset() ?? 0));

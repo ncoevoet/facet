@@ -24,7 +24,7 @@ import { EditAlbumDialogComponent } from './edit-album-dialog.component';
 import { ClientPicksDialogComponent, ClientPicksDialogData } from './client-picks-dialog.component';
 import { PortfolioExportDialogComponent, PortfolioExportDialogData } from './portfolio-export-dialog.component';
 import { AlbumScoringContextDialogComponent, AlbumScoringContextDialogData } from './album-scoring-context-dialog.component';
-import { AlbumsFiltersService } from './albums-filters.service';
+import { AlbumsFiltersService, AlbumTypeFilter } from './albums-filters.service';
 import { UserActivityJournal } from '../../core/agent/user-activity-journal.service';
 import { registerPageContext } from '../../core/agent/page-context.service';
 import { ShareDialogComponent, ShareDialogData } from '../../shared/components/share-dialog/share-dialog.component';
@@ -63,7 +63,7 @@ import { HANDLE_SERVER_ERROR_LOCALLY } from '../../core/utils/http-error-context
           <mat-select-trigger>
             @let currentType = albumsFilters.typeFilter() | albumTypeIcon;
             <mat-icon aria-hidden="true" class="!mr-2 align-middle" [class]="currentType.classes">{{ currentType.text }}</mat-icon>
-            <span>{{ (albumsFilters.typeFilter() === 'smart' ? 'albums.type_smart' : albumsFilters.typeFilter() === 'manual' ? 'albums.type_manual' : 'albums.type_all') | translate }}</span>
+            <span>{{ typeLabels[albumsFilters.typeFilter()] | translate }}</span>
           </mat-select-trigger>
           @let allIcon = '' | albumTypeIcon;
           @let manualIcon = 'manual' | albumTypeIcon;
@@ -228,6 +228,7 @@ import { HANDLE_SERVER_ERROR_LOCALLY } from '../../core/utils/http-error-context
 })
 export class AlbumsComponent {
   protected readonly I18N = i18nKeys();
+  protected readonly typeLabels: Record<AlbumTypeFilter, string> = { '': this.I18N.albums.type_all, manual: this.I18N.albums.type_manual, smart: this.I18N.albums.type_smart };
   private readonly albumService = inject(AlbumService);
   private readonly journal = inject(UserActivityJournal);
   private readonly dialog = inject(MatDialog);

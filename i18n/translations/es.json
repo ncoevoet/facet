@@ -59,7 +59,6 @@
       "load_more": "Cargar más"
     },
     "sort": {
-      "toggle_direction": "Cambiar dirección de orden",
       "date": "Fecha"
     },
     "labels": {
@@ -1232,7 +1231,6 @@
     "scroll_to_top": "Volver arriba",
     "scan_action": "Escanear fotos nuevas",
     "photo_grid": "Cuadrícula de fotos",
-    "active_filters": "{count} filtros activos",
     "unknown_person": "Desconocido",
     "selection": {
       "cover_only": "Las miniaturas apiladas de esta selección solo afectan a la foto mostrada. Abre una pila para seleccionar sus demás miembros.",
@@ -3012,7 +3010,6 @@
     "all_years": "Todos los años",
     "no_photos_month": "Sin fotos este mes",
     "photos_count": "fotos",
-    "capture_scope": "Fechas de captura · biblioteca visible",
     "scope_help": "Los recuentos usan las fechas de captura y tus ajustes de visibilidad en toda la biblioteca. No se aplican filtros de álbum, etiqueta o búsqueda. Las fotos sin fecha de captura se muestran por separado. Abrir un periodo muestra todas las fotos coincidentes, incluidas las rechazadas; las pilas manuales pueden agrupar sus miniaturas.",
     "open_range": "Abrir intervalo en la galería",
     "empty_range": "Elige una fecha inicial igual o anterior a la final dentro del periodo de calendario seleccionado, o elige Todas las fechas.",
@@ -3366,7 +3363,6 @@
       "result_plural": "Se han quitado {count} fotos de Facet."
     },
     "analysis": "Análisis",
-    "info": "Información",
     "details": "Detalles de la foto",
     "unassigned_faces": "Caras sin asignar: {count}",
     "tag_refine_collection": "Refinar esta colección",

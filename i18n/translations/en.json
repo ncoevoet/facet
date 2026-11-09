@@ -84,7 +84,6 @@
       "load_more": "Load more"
     },
     "sort": {
-      "toggle_direction": "Toggle sort direction",
       "date": "Date"
     },
     "labels": {
@@ -1258,7 +1257,6 @@
     "scroll_to_top": "Scroll to top",
     "scan_action": "Scan for new photos",
     "photo_grid": "Photo grid",
-    "active_filters": "{count} active filters",
     "unknown_person": "Unknown",
     "selection": {
       "cover_only": "Stacked tiles in this selection act on their displayed photo only. Open a stack to select its other members.",
@@ -3037,7 +3035,6 @@
     "all_years": "All Years",
     "no_photos_month": "No photos this month",
     "photos_count": "photos",
-    "capture_scope": "Capture dates · visible library",
     "scope_help": "Counts use capture dates and your visibility settings across the library. Album, tag and search filters are not applied. Photos without a capture date are listed separately. Opening a period shows all matching photos, including rejected photos; manual stacks can group their tiles.",
     "open_range": "Open range in gallery",
     "empty_range": "Choose a start date on or before the end date within the selected calendar period, or choose All dates.",
@@ -3391,7 +3388,6 @@
       "result_plural": "Removed {count} photos from Facet."
     },
     "analysis": "Analysis",
-    "info": "Info",
     "details": "Photo details",
     "unassigned_faces": "Unassigned faces: {count}",
     "tag_refine_collection": "Refine this collection",
