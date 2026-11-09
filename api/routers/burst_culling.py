@@ -1151,6 +1151,7 @@ def _filter_similar_groups(conn, all_groups, user_id):
                 'paths': paths,
                 'best_path': g['best_path'],
                 'count': len(paths),
+                'threshold': g['threshold'],
             })
     return filtered
 
@@ -1208,11 +1209,10 @@ def _fetch_unreviewed_similar_groups(conn, threshold, vis_sql, vis_params, seed,
     # Batch-fetch photos only for this page's groups
     photos_by_group = _fetch_similar_group_photos(conn, page_groups, vis_sql, vis_params, max_per_group=max_per_group, exclude_rejected=exclude_rejected, user_id=user_id)
 
-    sim_pct = round(threshold * 100)
-    reason = f'{sim_pct}% similar'
-
     results = []
     for group_idx, group in enumerate(page_groups):
+        # A piece re-split out of an oversized component formed at a stricter threshold.
+        sim_pct = round(group['threshold'] * 100)
         photo_list = photos_by_group.get(group_idx, [])
         best_path = group['best_path']
         # When page_groups are pre-sliced by the caller, _filter_similar_groups
@@ -1224,7 +1224,7 @@ def _fetch_unreviewed_similar_groups(conn, threshold, vis_sql, vis_params, seed,
         results.append({
             'group_id': offset + group_idx,
             'type': 'similar',
-            'reason': reason,
+            'reason': f'{sim_pct}% similar',
             'photos': photo_list,
             'best_path': best_path,
             'count': group['count'],
@@ -1248,13 +1248,12 @@ def _fetch_lookalike_groups(conn, user_id, vis_sql, vis_params, *, album_id=None
         max_photos=_get_similarity_config()['max_photos'])
     groups = _fetch_unreviewed_similar_groups(
         conn, 0.85, vis_sql, vis_params, 0, user_id,
-        page_groups=[{'paths': p['paths'], 'best_path': p['best_path'], 'count': 2} for p in pairs],
+        page_groups=[{'paths': p['paths'], 'best_path': p['best_path'], 'count': 2, 'threshold': p['visual']} for p in pairs],
         exclude_rejected=False, max_per_group=2,
     )
     for group, pair in zip(groups, pairs):
         group['type'] = 'lookalike'
         group['reason'] = f"{round(pair['visual'] * 100)}% alike"
-        group['similarity_percent'] = round(pair['visual'] * 100)
         group['lookalike'] = {key: pair[key] for key in ('visual', 'hash', 'seconds_apart', 'same_camera', 'earlier_keeper')}
     return groups
 

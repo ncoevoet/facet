@@ -68,16 +68,17 @@ def _components(matrix, members, threshold):
 
 
 def _split_oversized(matrix, members, threshold, max_size):
-    """Components within ``max_size``; a larger one is re-split at a stricter threshold.
+    """``(members, threshold)`` pieces within ``max_size``, each with the threshold it formed at.
 
     Single linkage chains: a long run of look-alike shots joins into one
     component even though its ends are not similar. Dropping that component hid
     every photo in it from the feed, so it is tightened until it breaks apart.
+    A piece cut at a stricter threshold reports that threshold, not the caller's.
     """
     pieces = []
     for comp in _components(matrix, members, threshold):
         if len(comp) <= max_size:
-            pieces.append(comp)
+            pieces.append((comp, threshold))
         elif threshold + _THRESHOLD_STEP < 1.0:
             pieces.extend(_split_oversized(matrix, comp, threshold + _THRESHOLD_STEP, max_size))
         else:
@@ -85,7 +86,7 @@ def _split_oversized(matrix, members, threshold, max_size):
             # order, so contiguous chunks keep neighbouring frames together.
             count = -(-len(comp) // max_size)
             size = -(-len(comp) // count)
-            pieces.extend(comp[i:i + size] for i in range(0, len(comp), size))
+            pieces.extend((comp[i:i + size], threshold) for i in range(0, len(comp), size))
     return pieces
 
 
@@ -114,7 +115,9 @@ def compute_similarity_groups(conn=None, threshold=None, min_size=None, user_id=
                    the ``max_photos`` cap applies inside the scope.
 
     Returns:
-        List of groups, each: { paths: [...], best_path: str, count: int }
+        List of groups, each: { paths: [...], best_path: str, count: int, threshold: float },
+        ``threshold`` being the one the group formed at (stricter than the argument
+        when an oversized component was re-split).
     """
     from api.db_helpers import (
         get_visibility_clause, album_filter_clause, time_window_clauses, HIDE_BURSTS_SQL,
@@ -142,7 +145,7 @@ def compute_similarity_groups(conn=None, threshold=None, min_size=None, user_id=
         # One row per logical photo: a RAW+JPEG capture is not "similar" to itself.
         logical = standalone_source(conn, user_id, extra=('clip_embedding', 'date_taken', 'is_burst_lead', 'is_sequence_lead'))
         album_sql, album_params = (album_filter_clause if logical is None else album_predicate)(album_id)
-        cache_key = f"similarity_groups_{threshold}_{min_size}_{user_id}_{album_id}_{date_from}_{date_to}_split"
+        cache_key = f"similarity_groups_{threshold}_{min_size}_{user_id}_{album_id}_{date_from}_{date_to}_split_threshold"
         cached = None
         if use_cache:
             cached = conn.execute(
@@ -220,7 +223,7 @@ def compute_similarity_groups(conn=None, threshold=None, min_size=None, user_id=
         n = len(emb_matrix)
 
         groups = []
-        for members in _split_oversized(emb_matrix, list(range(n)), threshold, max_group_size):
+        for members, group_threshold in _split_oversized(emb_matrix, list(range(n)), threshold, max_group_size):
             if len(members) < min_size:
                 continue
             group_paths = [valid_paths[i] for i in members]
@@ -229,6 +232,7 @@ def compute_similarity_groups(conn=None, threshold=None, min_size=None, user_id=
                 'paths': group_paths,
                 'best_path': best_path,
                 'count': len(group_paths),
+                'threshold': group_threshold,
             })
 
         groups.sort(key=lambda g: g['count'], reverse=True)

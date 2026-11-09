@@ -256,20 +256,48 @@ class TestSplitOversized:
     def test_a_chain_is_cut_where_its_ends_stop_resembling_each_other(self):
         # 3 degrees apart: neighbours are ~0.9986 alike, but one end is nowhere near the other.
         matrix = self._arc(60, 3.0)
-        pieces = _split_oversized(matrix, list(range(60)), 0.85, 50)
+        pieces = [m for m, _ in _split_oversized(matrix, list(range(60)), 0.85, 50)]
         assert sorted(i for p in pieces for i in p) == list(range(60))
         assert all(len(p) <= 50 for p in pieces)
 
     def test_a_chain_no_threshold_can_cut_is_chunked_in_capture_order(self):
         # Neighbours are cos(0.1 deg) alike, above every stepped threshold.
         matrix = self._arc(120, 0.1)
-        pieces = _split_oversized(matrix, list(range(120)), 0.85, 50)
+        pieces = [m for m, _ in _split_oversized(matrix, list(range(120)), 0.85, 50)]
         assert [len(p) for p in pieces] == [40, 40, 40]
         assert pieces[0] == list(range(40))
 
     def test_a_component_within_the_limit_is_untouched(self):
         pieces = _split_oversized(self._arc(5, 1.0), list(range(5)), 0.85, 50)
-        assert pieces == [[0, 1, 2, 3, 4]]
+        assert pieces == [([0, 1, 2, 3, 4], 0.85)]
+
+    @staticmethod
+    def _two_arcs_one_weak_link():
+        # Two tight arcs (20 and 35 frames, neighbours 0.1 degree apart) whose closest
+        # frames are 30.7 degrees apart: cos = 0.860, above 0.85 but below 0.87.
+        angles = np.concatenate([np.arange(20) * 0.1, 1.9 + 30.7 + np.arange(35) * 0.1])
+        rad = np.radians(angles)
+        return np.stack([np.cos(rad), np.sin(rad)], axis=1)
+
+    def test_a_chain_is_cut_at_its_weak_link_by_tightening(self):
+        # 55 > 40 at 0.85, one component; the first tightening (0.87) breaks the
+        # link. The contiguous-chunk fallback would cut 28 + 27, not 20 + 35.
+        pieces = _split_oversized(self._two_arcs_one_weak_link(), list(range(55)), 0.85, 40)
+        assert sorted(m for m, _ in pieces) == [list(range(20)), list(range(20, 55))]
+        assert all(t == pytest.approx(0.87) for _, t in pieces)
+
+    def test_compute_reports_the_threshold_a_split_piece_formed_at(self):
+        blobs = [struct.pack("2f", *row) for row in self._two_arcs_one_weak_link()]
+        rows = [{"path": f"/{i:03}.jpg", "clip_embedding": b, "aggregate": 5.0} for i, b in enumerate(blobs)]
+        conn = mock.MagicMock()
+        conn.execute.return_value.fetchone.return_value = None
+        conn.execute.return_value.fetchall.return_value = rows
+        with mock.patch("api.logical_culling.has_groups", return_value=False), \
+                mock.patch("api.similarity_groups._get_similarity_config", return_value={
+                    'default_threshold': 0.85, 'min_group_size': 2, 'max_photos': 10000, 'max_group_size': 40}):
+            groups = compute_similarity_groups(conn=conn, threshold=0.85, min_size=2, use_cache=False)
+        assert sorted(g["count"] for g in groups) == [20, 35]
+        assert all(g["threshold"] == pytest.approx(0.87) for g in groups)
 
     def test_compute_keeps_an_oversized_scene_instead_of_dropping_it(self):
         blobs = [struct.pack("2f", *row) for row in self._arc(120, 0.1)]

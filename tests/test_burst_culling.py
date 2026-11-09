@@ -1103,6 +1103,7 @@ class TestFilterSimilarGroups:
             'paths': ['/a.jpg', '/b.jpg', '/c.jpg'],
             'best_path': '/a.jpg',
             'count': 3,
+            'threshold': 0.95,
         }]
         conn = self._conn_with_rejected(['/a.jpg'])
 
@@ -1112,6 +1113,18 @@ class TestFilterSimilarGroups:
         assert filtered[0]['paths'] == ['/b.jpg', '/c.jpg']
         assert filtered[0]['count'] == 2
         assert filtered[0]['best_path'] == '/a.jpg'
+        assert filtered[0]['threshold'] == 0.95
+
+    def test_a_split_piece_reports_its_own_threshold_not_the_slider(self):
+        from api.routers.burst_culling import _fetch_unreviewed_similar_groups
+
+        photos = [{'path': '/a.jpg', 'aggregate': 7.0}, {'path': '/b.jpg', 'aggregate': 6.0}]
+        piece = {'paths': ['/a.jpg', '/b.jpg'], 'best_path': '/a.jpg', 'count': 2, 'threshold': 0.95}
+        with mock.patch("api.routers.burst_culling._fetch_similar_group_photos", return_value={0: photos}):
+            [group] = _fetch_unreviewed_similar_groups(
+                mock.MagicMock(), 0.85, '1=1', [], 0, None, page_groups=[piece])
+        assert group['similarity_percent'] == 95
+        assert group['reason'] == '95% similar'
 
     def test_drops_groups_below_min_size(self):
         from api.routers.burst_culling import _filter_similar_groups
@@ -1120,6 +1133,7 @@ class TestFilterSimilarGroups:
             'paths': ['/a.jpg', '/b.jpg'],
             'best_path': '/a.jpg',
             'count': 2,
+            'threshold': 0.85,
         }]
         conn = self._conn_with_rejected(['/a.jpg'])
 

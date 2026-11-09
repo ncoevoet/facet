@@ -94,7 +94,7 @@ All notable changes to Facet are documented in this file.
 
 ### Fixed
 
-- **Culling no longer drops a large similar scene.** A run of look-alike photos bigger than `similarity_groups.max_group_size` (50) vanished from the Similar and All feeds entirely; it is now split at a stricter threshold, or in capture order when no threshold can separate it. A card showing fewer photos than its group holds says so ("20 of 41 photos shown"), and shows the similarity it formed at. The Similarity menu explains the slider.
+- **Culling no longer drops a large similar scene.** A run of look-alike photos bigger than `similarity_groups.max_group_size` (50) vanished from the Similar and All feeds entirely; it is now split at a stricter threshold, or in capture order when no threshold can separate it. Auto-cull (`POST /api/culling/auto`, `--auto-cull`) and `--cull-min-score` now act on those pieces too, so photos in a long scene they used to skip can be rejected or spared. A card showing fewer photos than its group holds says so ("20 of 41 photos shown"), and shows the similarity its piece formed at rather than the slider value. The Similarity menu explains the slider.
 - The Filters button announces how many filters are active, not only that it opens the panel, and the README filter-sidebar screenshot shows the three tabs that exist.
 - Statistics exposes filters and summary figures on mobile, improves chart contrast and text alternatives, and handles errors and account changes without displaying stale results.
 
