@@ -141,6 +141,9 @@ export class SyncedZoomComponent {
   readonly focusPoint = input<[number, number] | null>(null);
   readonly zoomChange = output<ZoomState>();
   readonly keyboardInspection = input(false);
+  /** A failed source shows the preview again, flagged `fellBack`, instead of a failed pane.
+   *  Opt-in: hosts that offer their own Retry on a failed pane keep reporting the failure. */
+  readonly previewFallback = input(false);
   readonly fitRequested = output<void>();
   readonly geometryChange = output<void>();
 
@@ -355,7 +358,7 @@ export class SyncedZoomComponent {
   protected onFrameError(): void {
     const img = this.frame()?.nativeElement;
     if (!img || (img.currentSrc || img.src) !== new URL(this.effectiveSrc(), document.baseURI).href) return;
-    if (this.displayedKind() === 'source') {
+    if (this.displayedKind() === 'source' && this.previewFallback()) {
       this.failedSource.set(this.fullResSrc());
       return;
     }

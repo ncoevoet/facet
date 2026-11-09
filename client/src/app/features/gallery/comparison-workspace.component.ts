@@ -109,7 +109,7 @@ const RENDERED_EDGE = RENDERED_THUMBNAIL_EDGE;
                       [matTooltip]="I18N.gallery.compare.remove_pane | translate:{ name: photo.filename }"
                       (click)="removePane(photo.path)"><mat-icon>close</mat-icon></button>
             </div>
-            <app-synced-zoom #imagePane class="w-full flex-1 min-h-0"
+            <app-synced-zoom #imagePane class="w-full flex-1 min-h-0" [previewFallback]="true"
                              [src]="photo.path | thumbnailUrl:renderedEdge:photo.preview_revision"
                              [placeholderSrc]="photo.path | thumbnailUrl:storedEdge:photo.preview_revision"
                              [frameKey]="photo.path"

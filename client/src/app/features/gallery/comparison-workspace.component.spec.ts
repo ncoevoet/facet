@@ -535,6 +535,12 @@ describe('ComparisonWorkspaceComponent', () => {
     expect(renderer.fullResSrc()).not.toContain('fallback');
   });
 
+  it('opts its panes into the preview fallback, unlike the stack editor and culling', () => {
+    const { fixture } = build(['/a.jpg', '/b.jpg']);
+    const panes = fixture.debugElement.queryAll(By.directive(SyncedZoomComponent));
+    expect(panes.map(pane => (pane.componentInstance as SyncedZoomComponent).previewFallback())).toEqual([true, true]);
+  });
+
   it('labels a pane that fell back from a failed source and keeps retry available', () => {
     const { fixture } = build(['/a.jpg', '/b.jpg']);
     const panes = fixture.debugElement.queryAll(By.directive(SyncedZoomComponent));

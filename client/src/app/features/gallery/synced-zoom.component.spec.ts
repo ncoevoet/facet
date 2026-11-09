@@ -165,6 +165,12 @@ describe('SyncedZoomComponent', () => {
   });
 
   describe('a source that fails to load', () => {
+    function makeFallback(zoom: ZoomState): ComponentFixture<SyncedZoomComponent> {
+      const fixture = make(zoom);
+      fixture.componentRef.setInput('previewFallback', true); fixture.detectChanges();
+      return fixture;
+    }
+
     function failSource(fixture: ComponentFixture<SyncedZoomComponent>): HTMLImageElement {
       const img = (fixture.nativeElement as HTMLElement).querySelector('img')!;
       Object.defineProperty(img, 'currentSrc', { configurable: true, get: () => new URL('/full.jpg', document.baseURI).href });
@@ -174,7 +180,7 @@ describe('SyncedZoomComponent', () => {
     }
 
     it('falls back to the preview, flags it, and does not report the pane failed', () => {
-      const fixture = make({ scale: 2, tx: 0, ty: 0 });
+      const fixture = makeFallback({ scale: 2, tx: 0, ty: 0 });
       const states: DisplayedRendition[] = [];
       fixture.componentInstance.renditionChange.subscribe(state => states.push(state));
       expect(api(fixture).effectiveSrc()).toBe('/full.jpg');
@@ -185,18 +191,27 @@ describe('SyncedZoomComponent', () => {
     });
 
     it('tries the source again on retry', () => {
-      const fixture = make({ scale: 2, tx: 0, ty: 0 });
+      const fixture = makeFallback({ scale: 2, tx: 0, ty: 0 });
       failSource(fixture);
       fixture.componentInstance.retry(); fixture.detectChanges();
       expect(api(fixture).effectiveSrc()).toContain('/full.jpg');
     });
 
     it('forgets the failure when the preview source changes', () => {
-      const fixture = make({ scale: 2, tx: 0, ty: 0 });
+      const fixture = makeFallback({ scale: 2, tx: 0, ty: 0 });
       failSource(fixture);
       expect(api(fixture).effectiveSrc()).toBe('/thumb.jpg');
       fixture.componentRef.setInput('src', '/thumb-2.jpg'); fixture.detectChanges();
       expect(api(fixture).effectiveSrc()).toBe('/full.jpg');
+    });
+
+    it('reports the pane failed instead when the host has not opted into the fallback', () => {
+      const fixture = make({ scale: 2, tx: 0, ty: 0 });
+      const states: DisplayedRendition[] = [];
+      fixture.componentInstance.renditionChange.subscribe(state => states.push(state));
+      failSource(fixture);
+      expect(api(fixture).effectiveSrc()).toContain('/full.jpg');
+      expect(states.at(-1)).toEqual({ kind: 'source', phase: 'failed' });
     });
   });
 
@@ -224,9 +239,8 @@ describe('SyncedZoomComponent', () => {
     current = new URL('/full.jpg', document.baseURI).href;
     img.dispatchEvent(new Event('load'));
     expect(states.at(-1)).toEqual({ kind: 'source', phase: 'ready', width: 4000, height: 3000 });
-    img.dispatchEvent(new Event('error')); fixture.detectChanges();
-    expect(api(fixture).effectiveSrc()).toBe('/thumb.jpg');
-    expect(states.at(-1)).toEqual({ kind: 'preview', phase: 'loading', fellBack: true });
+    img.dispatchEvent(new Event('error'));
+    expect(states.at(-1)).toEqual({ kind: 'source', phase: 'failed' });
     fixture.componentInstance.retry(); fixture.detectChanges();
     expect(new URL(api(fixture).effectiveSrc()).searchParams.get('facet_retry')).toMatch(/-1$/);
     expect(fixture.componentInstance.zoom()).toEqual({ scale: 2, tx: 10, ty: 20 });
