@@ -2297,7 +2297,7 @@
       "not_person": "No es {name}",
       "feedback_saved": "Ocultada como sugerencia para {name} en tu cuenta.",
       "feedback_undo": "Deshacer rechazo",
-      "suggestions_skipped": "Demasiadas caras de referencia para sugerir coincidencias. Se muestran las caras sin sugerencias."
+      "suggestions_skipped": "Demasiadas personas con nombre para sugerir coincidencias. Se muestran las caras sin sugerencias."
     },
     "face_update": {
       "title": "Actualizar caras",

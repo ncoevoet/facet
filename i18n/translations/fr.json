@@ -2297,7 +2297,7 @@
       "not_person": "Pas {name}",
       "feedback_saved": "Masqué des suggestions pour {name} dans votre compte.",
       "feedback_undo": "Annuler ce retour",
-      "suggestions_skipped": "Trop de visages de référence pour proposer des correspondances. Affichage des visages sans suggestions."
+      "suggestions_skipped": "Trop de personnes nommées pour proposer des correspondances. Affichage des visages sans suggestions."
     },
     "face_update": {
       "title": "Mettre à jour les visages",

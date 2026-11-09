@@ -2322,7 +2322,7 @@
       "not_person": "Not {name}",
       "feedback_saved": "Hidden as a suggestion for {name} in your account.",
       "feedback_undo": "Undo feedback",
-      "suggestions_skipped": "Too many reference faces to suggest matches. Showing faces without suggestions."
+      "suggestions_skipped": "Too many named people to suggest matches. Showing faces without suggestions."
     },
     "face_update": {
       "title": "Update faces",

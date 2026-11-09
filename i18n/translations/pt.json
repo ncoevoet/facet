@@ -2297,7 +2297,7 @@
       "not_person": "Não é {name}",
       "feedback_saved": "Ocultado como sugestão para {name} na sua conta.",
       "feedback_undo": "Anular feedback",
-      "suggestions_skipped": "Demasiados rostos de referência para sugerir correspondências. A mostrar rostos sem sugestões."
+      "suggestions_skipped": "Demasiadas pessoas com nome para sugerir correspondências. A mostrar rostos sem sugestões."
     },
     "face_update": {
       "title": "Atualizar rostos",

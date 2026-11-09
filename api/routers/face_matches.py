@@ -395,9 +395,11 @@ def review_unassigned_faces(
 
     Suggestions use centroids derived only from this caller's visible faces in
     one read snapshot. Stored library-wide centroids, hidden people and foreign
-    model vectors do not influence them. The bounded reference scan refuses
-    instead of silently omitting people; unassigned browsing remains available
-    without suggestions. Keyset pagination is a live view, not a frozen batch.
+    model vectors do not influence them. Past MAX_REVIEW_REFERENCE_FACES each
+    person contributes an evenly spread sample of their faces, so no one is
+    omitted; past MAX_REVIEW_PEOPLE the scan refuses, and unassigned browsing
+    remains available without suggestions. Keyset pagination is a live view,
+    not a frozen batch.
     """
     user_id = user.user_id if user else None
     model = active_embedding_model()
@@ -436,12 +438,25 @@ def review_unassigned_faces(
                 params.append(target_person_id)
             count, targets = conn.execute(
                 f'SELECT COUNT(*), COUNT(DISTINCT pe.id) FROM {reference}', params).fetchone()
-            if count > MAX_REVIEW_REFERENCE_FACES or targets > MAX_REVIEW_PEOPLE:
-                raise HTTPException(412, 'Review reference scope is too large; choose a person or browse without suggestions')
+            if targets > MAX_REVIEW_PEOPLE:
+                raise HTTPException(412, 'Review reference scope has too many people; choose a person or browse without suggestions')
+            reference_sql = f'SELECT pe.id, pe.name, f.embedding FROM {reference} ORDER BY pe.id, f.id'
+            if count > MAX_REVIEW_REFERENCE_FACES:
+                # Keep the scan bounded without dropping anyone: each person keeps an evenly
+                # spread share of their faces in id order, so the centroid covers their whole
+                # history rather than its oldest or newest stretch. Ids are picked first so
+                # the window never carries the embedding BLOBs.
+                per_person = max(1, MAX_REVIEW_REFERENCE_FACES // targets)
+                reference_sql = (
+                    'SELECT pe.id, pe.name, f.embedding FROM faces f JOIN persons pe ON pe.id = f.person_id '
+                    'WHERE f.id IN (SELECT face_id FROM ('
+                    'SELECT f.id AS face_id, ROW_NUMBER() OVER (PARTITION BY pe.id ORDER BY f.id) AS rn, '
+                    f'COUNT(*) OVER (PARTITION BY pe.id) AS n FROM {reference}) '
+                    'WHERE (rn * ?) / n > ((rn - 1) * ?) / n) ORDER BY pe.id, f.id')
+                params = [*params, per_person, per_person]
             sums = {}
             names = {}
-            for person_id, name, blob in conn.execute(
-                f'SELECT pe.id, pe.name, f.embedding FROM {reference} ORDER BY pe.id, f.id', params):
+            for person_id, name, blob in conn.execute(reference_sql, params):
                 vector = _review_vector(blob, dim)
                 if vector is None:
                     continue

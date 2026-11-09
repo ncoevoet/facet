@@ -2297,7 +2297,7 @@
       "not_person": "Non è {name}",
       "feedback_saved": "Nascosto come suggerimento per {name} nel tuo account.",
       "feedback_undo": "Annulla feedback",
-      "suggestions_skipped": "Troppi volti di riferimento per suggerire corrispondenze. Vengono mostrati i volti senza suggerimenti."
+      "suggestions_skipped": "Troppe persone con nome per suggerire corrispondenze. Vengono mostrati i volti senza suggerimenti."
     },
     "face_update": {
       "title": "Aggiorna volti",

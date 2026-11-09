@@ -2297,7 +2297,7 @@
       "not_person": "不是 {name}",
       "feedback_saved": "已在你的账户中隐藏此人脸对 {name} 的建议。",
       "feedback_undo": "撤销反馈",
-      "suggestions_skipped": "参考人脸过多，无法推荐匹配。正在显示无推荐的人脸。"
+      "suggestions_skipped": "已命名人物过多，无法推荐匹配。正在显示无推荐的人脸。"
     },
     "face_update": {
       "title": "更新人脸",

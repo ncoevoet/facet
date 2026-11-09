@@ -2297,7 +2297,7 @@
       "not_person": "Nicht {name}",
       "feedback_saved": "In Ihrem Konto als Vorschlag für {name} ausgeblendet.",
       "feedback_undo": "Rückmeldung rückgängig machen",
-      "suggestions_skipped": "Zu viele Referenzgesichter, um Treffer vorzuschlagen. Gesichter werden ohne Vorschläge angezeigt."
+      "suggestions_skipped": "Zu viele benannte Personen, um Treffer vorzuschlagen. Gesichter werden ohne Vorschläge angezeigt."
     },
     "face_update": {
       "title": "Gesichter aktualisieren",

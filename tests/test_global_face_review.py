@@ -100,12 +100,32 @@ def test_mixed_target_centroid_model_is_not_offered_as_assignable(regular_client
     assert body['faces'][0]['suggestions'] == []
 
 
-def test_reference_cap_refuses_instead_of_silently_dropping_people(regular_client, seed_people, monkeypatch):
+def test_reference_budget_samples_every_person_instead_of_refusing(regular_client, seed_people, monkeypatch):
     path = seed_people.photo(ROOT, 'cap.jpg')
-    person = seed_people.person('Alice')
-    seed_people.face(path, person, embedding=vector())
+    alice, bob = seed_people.person('Alice'), seed_people.person('Bob')
+    # Alice's history in id order: two faces like v0, then two like v1.
+    for index in (0, 0, 1, 1):
+        seed_people.face(path, alice, embedding=vector(index))
+    seed_people.face(path, bob, embedding=vector(2))
+    face = seed_people.face(path, None, embedding=vector())
+    monkeypatch.setattr(face_matches, 'MAX_REVIEW_REFERENCE_FACES', 4)
+    response = regular_client.get('/api/faces/review', params={'min_similarity': 0.5})
+    assert response.status_code == 200, response.text
+    body = response.json()
+    assert body['compared_people'] == 2
+    # Two faces per person, spread over Alice's whole history: one v0 and one v1, so the
+    # centroid sits between them. Her first two faces alone would give 1.0, her last two 0.
+    [row] = [row for row in body['faces'] if row['face_id'] == face]
+    assert [s['person_id'] for s in row['suggestions']] == [alice]
+    assert row['suggestions'][0]['similarity'] == pytest.approx(2 ** -0.5, abs=1e-3)
+
+
+def test_reference_people_cap_refuses_instead_of_silently_dropping_people(regular_client, seed_people, monkeypatch):
+    path = seed_people.photo(ROOT, 'cap-people.jpg')
+    seed_people.face(path, seed_people.person('Alice'), embedding=vector())
+    seed_people.face(path, seed_people.person('Bob'), embedding=vector(1))
     seed_people.face(path, None, embedding=vector())
-    monkeypatch.setattr(face_matches, 'MAX_REVIEW_REFERENCE_FACES', 0)
+    monkeypatch.setattr(face_matches, 'MAX_REVIEW_PEOPLE', 1)
     assert regular_client.get('/api/faces/review').status_code == 412
     response = regular_client.get('/api/faces/review', params={'suggest': False})
     assert response.status_code == 200
