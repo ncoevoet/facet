@@ -10,9 +10,10 @@ import { GalleryStore } from '../gallery/gallery.store';
 import { TimelineFiltersService } from './timeline-filters.service';
 import { TimelineMonthsComponent } from './timeline-months.component';
 import { TimelineDaysComponent } from './timeline-days.component';
+import { TimelineYearsComponent } from './timeline-years.component';
 
 describe('Timeline calendar retry focus', () => {
-  async function setup(kind: 'months' | 'days') {
+  async function setup(kind: 'years' | 'months' | 'days') {
     const api = { get: vi.fn().mockReturnValue(throwError(() => new Error('offline'))) };
     TestBed.configureTestingModule({ providers: [
       provideRouter([]), TimelineFiltersService,
@@ -22,8 +23,9 @@ describe('Timeline calendar retry focus', () => {
       { provide: I18nService, useValue: { locale: signal('en'), translations: () => ({}), t: (key: string) => key } },
     ] });
     vi.spyOn(TestBed.inject(Router), 'url', 'get').mockReturnValue('/timeline');
-    const fixture = kind === 'months' ? TestBed.createComponent(TimelineMonthsComponent) : TestBed.createComponent(TimelineDaysComponent);
-    fixture.componentRef.setInput('year', '2024');
+    const component = { years: TimelineYearsComponent, months: TimelineMonthsComponent, days: TimelineDaysComponent }[kind];
+    const fixture = TestBed.createComponent<object>(component);
+    if (kind !== 'years') fixture.componentRef.setInput('year', '2024');
     if (kind === 'days') fixture.componentRef.setInput('month', '6');
     const root = fixture.nativeElement as HTMLElement; document.body.appendChild(root);
     const settle = async () => { fixture.detectChanges(); await fixture.whenStable(); fixture.detectChanges(); };
@@ -31,17 +33,17 @@ describe('Timeline calendar retry focus', () => {
     return { api, fixture, root, settle };
   }
 
-  it.each(['months', 'days'] as const)('restores focus to the empty %s state after retry', async kind => {
+  it.each(['years', 'months', 'days'] as const)('restores focus to the empty %s state after retry', async kind => {
     const v = await setup(kind);
     expect(v.api.get.mock.calls[0][2].get(HANDLE_SERVER_ERROR_LOCALLY)).toBe(true);
     const response = new Subject<unknown>(); v.api.get.mockReturnValueOnce(response);
     const retry = v.root.querySelector<HTMLButtonElement>('[data-timeline-retry]')!;
     retry.focus(); retry.click(); await v.settle();
     expect(document.activeElement).toBe(retry);
-    response.next(kind === 'months' ? { months: [] } : { dates: [] });
+    response.next({ years: { years: [] }, months: { months: [] }, days: { dates: [] } }[kind]);
     await v.settle(); await v.settle();
     expect(document.activeElement).toBe(v.root.querySelector('[data-timeline-empty]'));
-    expect(document.activeElement?.textContent).toContain(kind === 'months' ? 'timeline.empty' : 'timeline.no_photos_month');
+    expect(document.activeElement?.textContent).toContain(kind === 'days' ? 'timeline.no_photos_month' : 'timeline.empty');
     if (kind === 'days') expect(v.root.querySelector('[role="group"] [disabled]')).not.toBeNull();
     v.fixture.destroy(); v.root.remove();
   });
