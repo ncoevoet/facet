@@ -49,7 +49,7 @@ UiRoute = Literal[
     "/", "/persons", "/merge-suggestions", "/compare", "/culling", "/scenes", "/junk",
     "/stats", "/albums", "/capsules", "/folders", "/timeline", "/map",
 ]
-CullingGroupType = Literal["burst", "similar", "scene", "bracket", "panorama", "hdr_panorama"]
+CullingGroupType = Literal["burst", "similar", "lookalike", "scene", "bracket", "panorama", "hdr_panorama"]
 
 
 class UiArgs(BaseModel):

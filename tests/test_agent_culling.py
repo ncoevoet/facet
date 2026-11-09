@@ -1033,7 +1033,10 @@ def test_the_tool_enums_match_the_routes_they_call():
     from typing import get_args
 
     from api.agent.tools_culling import GroupBy, GroupType
+    from api.agent.ui_tools import CullingGroupType
     from api.routers.burst_culling import _CULLING_GROUP_BY, CullingConfirmBody
 
     assert set(get_args(GroupBy)) == set(_CULLING_GROUP_BY)
     assert set(get_args(GroupType)) == set(get_args(CullingConfirmBody.model_fields['type'].annotation))
+    # list_culling_groups points at ui_show_culling_group, which must accept every type it lists.
+    assert set(get_args(CullingGroupType)) == set(get_args(GroupType))
