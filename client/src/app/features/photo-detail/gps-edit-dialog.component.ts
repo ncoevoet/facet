@@ -47,8 +47,11 @@ type GpsResult = components['schemas']['GpsUpdateResponse'];
   imports: [FormsModule, MatDialogModule, MatButtonModule, MatIconModule, MatSnackBarModule, TranslatePipe, FixedPipe, PluralKeyPipe],
   changeDetection: ChangeDetectionStrategy.Eager,
   template: `
-    <h2 mat-dialog-title class="!flex items-center gap-2">
-      <mat-icon>location_on</mat-icon><span class="truncate">{{ data.filename }}</span>
+    <h2 mat-dialog-title class="!flex !items-center !gap-3 !text-base !font-semibold !m-0 !px-4 !pt-5 !pb-4 before:!content-none">
+      <span class="w-9 h-9 rounded-lg bg-[var(--mat-sys-primary-container)] flex items-center justify-center shrink-0">
+        <mat-icon aria-hidden="true" class="!text-xl !leading-none !w-5 !h-5 text-[var(--mat-sys-on-primary-container)]">location_on</mat-icon>
+      </span>
+      <span class="truncate">{{ data.filename }}</span>
     </h2>
     <mat-dialog-content class="!px-4 !pb-2">
       <p class="text-sm mb-3">{{ (data.batch ? I18N.photo_detail.gps.batch_hint : I18N.photo_detail.gps.preview_hint) | translate }}</p>
