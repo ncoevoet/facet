@@ -675,6 +675,25 @@ describe('App', () => {
       expect(root.querySelector('[data-mobile-navigation]')).not.toBeNull();
     });
 
+    it('shows the Facet mark on the gallery and the current page icon and label elsewhere in the phone header', async () => {
+      const { fixture, root } = render(true);
+      const router = TestBed.inject(Router);
+      router.resetConfig([{ path: '', component: NavigationFixturePage }, { path: 'stats', component: NavigationFixturePage }, { path: 'album/:id', component: NavigationFixturePage }]);
+      (TestBed.inject(GalleryStore).config as unknown as ReturnType<typeof signal>).set({ features: { show_albums: true } });
+      const header = async (url: string) => {
+        await router.navigateByUrl(url); fixture.detectChanges(); await fixture.whenStable(); fixture.detectChanges();
+        return {
+          icon: root.querySelector('[data-mobile-navigation] mat-icon')?.textContent?.trim(),
+          brand: !!root.querySelector('[data-mobile-brand]'),
+          title: root.querySelector('[data-mobile-page-title]')?.textContent?.trim() ?? null,
+        };
+      };
+      expect(await header('/')).toEqual({ icon: 'menu', brand: true, title: null });
+      expect(await header('/stats')).toEqual({ icon: 'bar_chart', brand: false, title: I18N.nav.stats });
+      expect(await header('/album/17')).toEqual({ icon: 'photo_album', brand: false, title: I18N.nav.albums });
+      expect(root.querySelector('[data-mobile-navigation]')!.getAttribute('aria-label')).toBe(I18N.nav.navigation);
+    });
+
     it('removes authenticated navigation after logout', () => {
       const { fixture, root } = render(false);
       const auth = TestBed.inject(AuthService) as unknown as { isAuthenticated: ReturnType<typeof signal<boolean>> };

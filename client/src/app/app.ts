@@ -229,6 +229,8 @@ export class App implements OnInit {
   private readonly navigationSpace = viewChild<ElementRef<HTMLElement>>('navigationSpace');
   private readonly navigationMeasurements = viewChild<ElementRef<HTMLElement>>('navigationMeasurements');
   protected readonly desktopTabCount = signal(Number.MAX_SAFE_INTEGER);
+  /** The destination the phone header names in place of the Facet mark; the gallery keeps the mark. */
+  protected readonly currentDestination = computed(() => this.navigationDestinations().find(destination => destination.active && destination.path !== '/') ?? null);
   protected readonly desktopDestinations = computed(() => this.navigationDestinations().slice(0, this.desktopTabCount()));
   protected readonly overflowDestinations = computed(() => this.navigationDestinations().slice(this.desktopTabCount()));
   protected readonly memoriesNavigationAvailable = computed(() => !!this.store.config()?.features?.show_memories && this.hasMemories());
