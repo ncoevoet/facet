@@ -39,8 +39,8 @@ def pairs(conn):
     return compute_lookalike_pairs(conn, None)
 
 
-def test_the_candidate_scan_leaves_phash_to_the_covering_seek(conn):
-    # phash sits after the thumbnail BLOB; the library-wide candidate read must not select it.
+def test_the_candidate_scan_reads_no_column_stored_after_the_thumbnail(conn):
+    # On a migrated library these sit after the thumbnail BLOB; the candidate read must not select them.
     add(conn, 'a.jpg', vector(1, 0, 0), phash=SAME_HASH, date_taken='2026:10:01 10:00:00')
     add(conn, 'b.jpg', vector(1, 0.01, 0), phash=SAME_HASH)
     statements = []
@@ -48,8 +48,9 @@ def test_the_candidate_scan_leaves_phash_to_the_covering_seek(conn):
     [pair] = pairs(conn)
     conn.set_trace_callback(None)
     assert pair['hash'] == 1.0
-    reads = [sql for sql in statements if 'phash' in sql]
-    assert reads and all(sql.startswith('WITH want(date_taken, path)') for sql in reads), reads
+    [scan] = [sql for sql in statements if 'clip_embedding' in sql and 'stats_cache' not in sql]
+    late = ('phash', 'burst_group_id', 'burst_reviewed', 'similarity_reviewed', 'sequence_kind')
+    assert not [c for c in late if c in scan.split('FROM')[0]], scan
 
 
 def test_a_rejected_neighbour_hands_its_slot_to_the_next_closest():
@@ -98,6 +99,16 @@ def test_a_rejected_photo_never_appears(conn):
     add(conn, 'a.jpg', vector(1, 0, 0), is_rejected=1)
     add(conn, 'b.jpg', vector(1, 0.01, 0))
     assert pairs(conn) == []
+
+
+def test_rejected_photos_cannot_pick_the_embedding_width(conn):
+    # Three rejected 2-d vectors outnumber the kept 3-d pair; the width must follow the kept photos.
+    for k in range(3):
+        add(conn, f'r{k}.jpg', vector(1, 0.01 * k), is_rejected=1)
+    a = add(conn, 'a.jpg', vector(1, 0, 0), phash=SAME_HASH)
+    b = add(conn, 'b.jpg', vector(1, 0.01, 0), phash=SAME_HASH)
+    [pair] = pairs(conn)
+    assert set(pair['paths']) == {a, b}
 
 
 def test_a_pair_both_of_whose_photos_are_already_decided_is_settled(conn):

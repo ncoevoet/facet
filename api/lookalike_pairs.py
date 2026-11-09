@@ -76,27 +76,36 @@ def pair_signals(visual, a, b):
             'seconds_apart': seconds_apart, 'same_camera': same_camera}
 
 
-def phash_sql(count):
-    """Read ``phash`` for ``count`` (date_taken, path) rows through ``idx_date_asc_cover``.
+# Columns read per paired photo, not in the candidate scan: each is stored after the ~46 KB
+# thumbnail BLOB (phash by the schema, the others wherever a migration appended them), so the scan
+# walked every candidate row's overflow pages. idx_date_asc_cover carries all of them plus rowid.
+_PAIR_COLUMNS = ('phash', 'burst_group_id', 'sequence_kind')
+# Reviewed flags, read as rowid sets from their own single-column indexes.
+_REVIEWED_SQL = ("SELECT rowid FROM photos WHERE similarity_reviewed = 1",
+                 "SELECT rowid FROM photos WHERE burst_reviewed = 1")
 
-    ``phash`` is stored right after the ~46 KB thumbnail BLOB, so selecting it in the candidate
-    scan walked the overflow pages of every candidate row. Seeking the covering index on its
-    leading (date_taken, path) reads it without touching the table.
-    """
+
+def pair_columns_sql(count):
+    """Read ``_PAIR_COLUMNS`` and rowid for ``count`` (date_taken, path) rows by seeking ``idx_date_asc_cover``."""
     values = ', '.join(['(?, ?)'] * count)
     return (f"WITH want(date_taken, path) AS (VALUES {values}) "
-            "SELECT photos.path, photos.phash FROM want JOIN photos "
-            "ON photos.date_taken IS want.date_taken AND photos.path = want.path")
+            f"SELECT photos.path, photos.rowid, {', '.join('photos.' + c for c in _PAIR_COLUMNS)} "
+            "FROM want JOIN photos ON photos.date_taken IS want.date_taken AND photos.path = want.path")
 
 
-def _read_phashes(conn, rows):
-    """``{path: phash}`` for ``rows``, which carry ``path`` and ``date_taken``."""
-    phashes = {}
+def _read_pair_columns(conn, rows):
+    """``{path: {phash, burst_group_id, sequence_kind, reviewed}}`` for ``rows`` (``path``, ``date_taken``)."""
+    found = {}
     for start in range(0, len(rows), _PHASH_CHUNK):
         chunk = rows[start:start + _PHASH_CHUNK]
         params = [value for row in chunk for value in (row['date_taken'], row['path'])]
-        phashes.update((r[0], r[1]) for r in conn.execute(phash_sql(len(chunk)), params))
-    return phashes
+        for r in conn.execute(pair_columns_sql(len(chunk)), params):
+            found[r[0]] = (r[1], dict(zip(_PAIR_COLUMNS, r[2:])))
+    reviewed = set()
+    if found:
+        for sql in _REVIEWED_SQL:
+            reviewed.update(r[0] for r in conn.execute(sql))
+    return {path: {**columns, 'reviewed': rowid in reviewed} for path, (rowid, columns) in found.items()}
 
 
 logger = logging.getLogger(__name__)
@@ -169,14 +178,12 @@ def compute_lookalike_pairs(conn, user_id, *, album_id=None, date_from=None, dat
 
     vis_sql, vis_params = get_visibility_clause(user_id)
     window_clauses, window_params = time_window_clauses(date_from, date_to)
-    logical = standalone_source(conn, user_id, extra=('clip_embedding', 'camera_model', 'date_taken',
-                                                      'burst_reviewed'))
+    logical = standalone_source(conn, user_id, extra=('clip_embedding', 'camera_model', 'date_taken'))
     album_sql, album_params = (album_filter_clause if logical is None else album_predicate)(album_id)
     from_sql, from_params = ('photos', []) if logical is None else (logical.sql, logical.params)
     where = ' AND '.join(['clip_embedding IS NOT NULL', vis_sql, album_sql, *window_clauses])
     rows = conn.execute(
-        f"""SELECT path, clip_embedding, camera_model, date_taken, burst_group_id, burst_reviewed,
-                   similarity_reviewed, sequence_kind, aggregate
+        f"""SELECT path, clip_embedding, camera_model, date_taken, aggregate
             FROM {from_sql} WHERE {where} ORDER BY date_taken DESC LIMIT ?""",
         from_params + vis_params + album_params + window_params + [max_photos],
     ).fetchall()
@@ -188,14 +195,14 @@ def compute_lookalike_pairs(conn, user_id, *, album_id=None, date_from=None, dat
         if embedding is not None:
             embeddings.append(embedding)
             indices.append(i)
-    embeddings, indices = filter_uniform_embeddings(embeddings, indices)
-    if len(embeddings) < 2:
+    # The width comes from the photos still in play, so rejected ones cannot flip CLIP vs SigLIP;
+    # rejected photos of that width stay in the search, which a rejection must not invalidate.
+    kept_width = filter_uniform_embeddings([e for e, i in zip(embeddings, indices) if not labels[rows[i]['path']].rejected])
+    if len(kept_width) < 2:
         return []
+    width = kept_width[0].shape[0]
+    embeddings, indices = [e for e in embeddings if e.shape[0] == width], [i for e, i in zip(embeddings, indices) if e.shape[0] == width]
     photos = [rows[i] for i in indices]
-
-    def decided(row):
-        label = labels[row['path']]
-        return bool(row['similarity_reviewed'] or row['burst_reviewed'] or label.kept or label.favorite or label.star)
 
     fingerprint = _candidate_fingerprint(
         rows, [CANDIDATE_COSINE, _STORED_NEIGHBOURS, max_photos, vis_sql, vis_params,
@@ -204,21 +211,27 @@ def compute_lookalike_pairs(conn, user_id, *, album_id=None, date_from=None, dat
         conn, f"lookalike_neighbours_{user_id}_{album_id}_{date_from}_{date_to}", fingerprint, np.stack(embeddings))
     rejected = {i for i, row in enumerate(photos) if labels[row['path']].rejected}
 
+    neighbours = _neighbour_pairs(lists, rejected)
+    paired = {photos[k]['path']: photos[k] for pair in neighbours for k in pair}
+    extra = _read_pair_columns(conn, list(paired.values()))
+    full = {path: {**dict(row), **extra.get(path, dict.fromkeys(_PAIR_COLUMNS))} for path, row in paired.items()}
+
+    def decided(row):
+        label = labels[row['path']]
+        return bool(row.get('reviewed') or label.kept or label.favorite or label.star)
+
     candidates = []
-    for (i, j), cosine in _neighbour_pairs(lists, rejected).items():
-        a, b = photos[i], photos[j]
+    for (i, j), cosine in neighbours.items():
+        a, b = full[photos[i]['path']], full[photos[j]['path']]
         if a['burst_group_id'] is not None and a['burst_group_id'] == b['burst_group_id']:
             continue
         if a['sequence_kind'] or b['sequence_kind'] or (decided(a) and decided(b)):
             continue
         candidates.append((cosine, a, b))
-    paired = {row['path']: row for _, a, b in candidates for row in (a, b)}
-    phashes = _read_phashes(conn, list(paired.values()))
 
     scored = []
     for cosine, a, b in candidates:
-        signals = pair_signals(cosine, {**dict(a), 'phash': phashes.get(a['path'])},
-                               {**dict(b), 'phash': phashes.get(b['path'])})
+        signals = pair_signals(cosine, a, b)
         if signals['confidence'] < MIN_CONFIDENCE:
             continue
         keeper = a if (decided(a), a['aggregate'] or 0) >= (decided(b), b['aggregate'] or 0) else b

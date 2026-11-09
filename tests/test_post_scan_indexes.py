@@ -438,8 +438,10 @@ def test_the_thumbnail_length_expression_is_covered(analyzed_library):
 @pytest.mark.skipif(
     sqlite3.sqlite_version_info < MIN_COVERING_SQLITE,
     reason=f"SQLite {sqlite3.sqlite_version} is older than {MIN_COVERING_SQLITE}")
-def test_the_lookalike_phash_read_seeks_the_cover_instead_of_the_thumbnail_row(analyzed_library):
-    # phash is stored after the thumbnail BLOB: read through the table it walks the overflow pages.
-    from api.lookalike_pairs import phash_sql
-    plan = _plan(analyzed_library, phash_sql(3).replace('?', 'NULL'))
+def test_the_lookalike_pair_reads_seek_indexes_instead_of_the_thumbnail_row(analyzed_library):
+    # These columns sit after the thumbnail BLOB: read through the table they walk the overflow pages.
+    from api.lookalike_pairs import _REVIEWED_SQL, pair_columns_sql
+    plan = _plan(analyzed_library, pair_columns_sql(3).replace('?', 'NULL'))
     assert any("SEARCH photos USING COVERING INDEX idx_date_asc_cover" in line for line in plan), plan
+    for sql, index in zip(_REVIEWED_SQL, ("idx_similarity_reviewed", "idx_burst_reviewed")):
+        assert _covered_by(_plan(analyzed_library, sql), index), sql
