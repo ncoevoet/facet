@@ -14,6 +14,7 @@ import { ApiService } from '../../core/services/api.service';
 import { ThemeService } from '../../core/services/theme.service';
 import { AuthService } from '../../core/services/auth.service';
 import { I18nService } from '../../core/services/i18n.service';
+import { SortOptionIconPipe } from '../../shared/pipes/sort-option-icon.pipe';
 import { TranslatePipe } from '../../shared/pipes/translate.pipe';
 import { StatsFiltersService } from './stats-filters.service';
 import { downloadCsv } from '../../shared/utils/csv';
@@ -67,6 +68,7 @@ export function allocateSeriesSlots(keys: string[], previous: Record<string, num
     MatTooltipModule,
     MatProgressSpinnerModule,
     TranslatePipe,
+    SortOptionIconPipe,
   ],
   changeDetection: ChangeDetectionStrategy.Eager,
   template: `
@@ -86,17 +88,39 @@ export function allocateSeriesSlots(keys: string[], previous: Record<string, num
             <mat-form-field subscriptSizing="dynamic">
               <mat-label>{{ I18N.stats.correlations.x_axis | translate }}</mat-label>
               <mat-select [ngModel]="corrXAxis()" (ngModelChange)="corrXAxis.set($event)">
+                <mat-select-trigger>
+                  @let xAxisIcon = corrXAxis() | sortOptionIcon;
+                  <mat-icon aria-hidden="true" class="!w-8 text-center" [class]="xAxisIcon.classes">{{ xAxisIcon.text }}</mat-icon>
+                  {{ 'stats.correlations.dimensions.' + corrXAxis() | translate }}
+                </mat-select-trigger>
                 @for (dim of corrDimensions; track dim.key) {
-                  <mat-option [value]="dim.key">{{ 'stats.correlations.dimensions.' + dim.key | translate }}</mat-option>
+                  @let xOptionIcon = dim.key | sortOptionIcon;
+                  <mat-option [value]="dim.key">
+                    <mat-icon aria-hidden="true" class="!w-8 text-center" [class]="xOptionIcon.classes">{{ xOptionIcon.text }}</mat-icon>
+                    {{ 'stats.correlations.dimensions.' + dim.key | translate }}
+                  </mat-option>
                 }
               </mat-select>
             </mat-form-field>
             <mat-form-field subscriptSizing="dynamic">
               <mat-label>{{ I18N.stats.correlations.group_by | translate }}</mat-label>
               <mat-select [ngModel]="corrGroupBy()" (ngModelChange)="corrGroupBy.set($event)">
+                <mat-select-trigger>
+                  @if (corrGroupBy()) {
+                    @let groupIcon = corrGroupBy() | sortOptionIcon;
+                    <mat-icon aria-hidden="true" class="!w-8 text-center" [class]="groupIcon.classes">{{ groupIcon.text }}</mat-icon>
+                    {{ 'stats.correlations.dimensions.' + corrGroupBy() | translate }}
+                  } @else {
+                    {{ I18N.stats.correlations.none | translate }}
+                  }
+                </mat-select-trigger>
                 <mat-option value="">{{ I18N.stats.correlations.none | translate }}</mat-option>
                 @for (dim of corrDimensions; track dim.key) {
-                  <mat-option [value]="dim.key">{{ 'stats.correlations.dimensions.' + dim.key | translate }}</mat-option>
+                  @let groupOptionIcon = dim.key | sortOptionIcon;
+                  <mat-option [value]="dim.key">
+                    <mat-icon aria-hidden="true" class="!w-8 text-center" [class]="groupOptionIcon.classes">{{ groupOptionIcon.text }}</mat-icon>
+                    {{ 'stats.correlations.dimensions.' + dim.key | translate }}
+                  </mat-option>
                 }
               </mat-select>
             </mat-form-field>
@@ -107,15 +131,28 @@ export function allocateSeriesSlots(keys: string[], previous: Record<string, num
               <mat-label>{{ I18N.stats.correlations.y_metrics | translate }}</mat-label>
               <mat-select multiple [ngModel]="corrYMetrics()" (ngModelChange)="corrYMetrics.set($event)">
                 @for (m of corrMetricOptions; track m.key) {
-                  <mat-option [value]="m.key">{{ 'stats.correlations.metrics.' + m.key | translate }}</mat-option>
+                  @let metricIcon = m.key | sortOptionIcon;
+                  <mat-option [value]="m.key">
+                    <mat-icon aria-hidden="true" class="!w-8 text-center" [class]="metricIcon.classes">{{ metricIcon.text }}</mat-icon>
+                    {{ 'stats.correlations.metrics.' + m.key | translate }}
+                  </mat-option>
                 }
               </mat-select>
             </mat-form-field>
             <mat-form-field subscriptSizing="dynamic">
               <mat-label>{{ I18N.stats.correlations.chart_type | translate }}</mat-label>
               <mat-select [ngModel]="corrChartType()" (ngModelChange)="setChartType($event)">
+                <mat-select-trigger>
+                  @let chartTypeIcon = corrChartType() | sortOptionIcon;
+                  <mat-icon aria-hidden="true" class="!w-8 text-center" [class]="chartTypeIcon.classes">{{ chartTypeIcon.text }}</mat-icon>
+                  {{ 'stats.correlations.chart_types.' + corrChartType() | translate }}
+                </mat-select-trigger>
                 @for (ct of corrChartTypes; track ct.key) {
-                  <mat-option [value]="ct.key">{{ 'stats.correlations.chart_types.' + ct.key | translate }}</mat-option>
+                  @let chartOptionIcon = ct.key | sortOptionIcon;
+                  <mat-option [value]="ct.key">
+                    <mat-icon aria-hidden="true" class="!w-8 text-center" [class]="chartOptionIcon.classes">{{ chartOptionIcon.text }}</mat-icon>
+                    {{ 'stats.correlations.chart_types.' + ct.key | translate }}
+                  </mat-option>
                 }
               </mat-select>
             </mat-form-field>

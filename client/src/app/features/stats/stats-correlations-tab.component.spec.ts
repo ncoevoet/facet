@@ -246,6 +246,46 @@ describe('StatsCorrelationsTabComponent', () => {
   });
 });
 
+describe('Correlation selectors carry the gallery icons', () => {
+  async function render() {
+    TestBed.configureTestingModule({
+      imports: [StatsCorrelationsTabComponent],
+      providers: [
+        { provide: ApiService, useValue: { get: vi.fn(() => of({})) } },
+        { provide: AuthService, useValue: { status: signal({ authenticated: true }), identity: signal('owner'), isAuthenticated: signal(true), token: 'token' } },
+        { provide: I18nService, useValue: { t: (key: string) => key, translations: signal({}), locale: signal('en') } },
+        { provide: StatsFiltersService, useValue: { filterCategory: signal(''), dateFrom: signal(''), dateTo: signal('') } },
+      ],
+    });
+    const fixture = TestBed.createComponent(StatsCorrelationsTabComponent);
+    fixture.detectChanges();
+    await fixture.whenStable();
+    fixture.detectChanges();
+    return fixture;
+  }
+
+  it('shows the selected X axis, chart type and Y metrics as icons in the triggers', async () => {
+    const fixture = await render();
+    const triggers = Array.from((fixture.nativeElement as HTMLElement).querySelectorAll('.mat-mdc-select-value'));
+    const icons = triggers.map(t => t.querySelector('mat-icon')?.textContent?.trim() ?? null);
+    // X axis (date_year), group by (none: no icon), Y metrics (multiple: no trigger icon), chart type (line)
+    expect(icons).toEqual(['calendar_today', null, null, 'show_chart']);
+    fixture.destroy();
+  });
+
+  it('gives every X-axis option an icon', async () => {
+    const fixture = await render();
+    ((fixture.nativeElement as HTMLElement).querySelector('.mat-mdc-select-trigger') as HTMLElement).click();
+    fixture.detectChanges();
+    await fixture.whenStable();
+    const options = Array.from(document.querySelectorAll('mat-option'));
+    expect(options.length).toBe(21);
+    expect(options.every(o => !!o.querySelector('mat-icon')?.textContent?.trim())).toBe(true);
+    expect(options.some(o => o.querySelector('mat-icon')?.textContent?.trim() === 'sort')).toBe(false);
+    fixture.destroy();
+  });
+});
+
 describe('Correlation error recovery', () => {
   it('shows an explicit status when every series is hidden without removing its data table', async () => {
     const api = { get: vi.fn(() => of({ labels: ['2025'], metrics: { aggregate: [7], aesthetic: [6] }, x_axis: 'date_year', group_by: '' })) };

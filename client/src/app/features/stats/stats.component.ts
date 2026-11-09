@@ -1,4 +1,4 @@
-import { Component, inject, signal, computed, viewChild, ElementRef, effect, DestroyRef, Injector, afterNextRender, untracked, ChangeDetectionStrategy } from '@angular/core';
+import { Component, inject, signal, computed, viewChild, ElementRef, effect, DestroyRef, Injector, afterNextRender, untracked, ChangeDetectionStrategy, TemplateRef } from '@angular/core';
 import { DOCUMENT, NgTemplateOutlet } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { MatCardModule } from '@angular/material/card';
@@ -19,6 +19,8 @@ import { HANDLE_SERVER_ERROR_LOCALLY } from '../../core/utils/http-error-context
 import { I18nService } from '../../core/services/i18n.service';
 import { TranslatePipe } from '../../shared/pipes/translate.pipe';
 import { ThemeService } from '../../core/services/theme.service';
+import { HeaderSlotService } from '../../core/services/header-slot.service';
+import { SortOptionIconPipe } from '../../shared/pipes/sort-option-icon.pipe';
 import { PageHelpService } from '../../core/services/page-help.service';
 import { DateRangeFilterComponent } from '../../shared/components/date-range-filter/date-range-filter.component';
 import { GalleryStore } from '../gallery/gallery.store';
@@ -62,6 +64,8 @@ interface CategoryStat {
   top_lens: string | null;
 }
 
+type ProfileField = 'avg_score' | 'avg_aesthetic' | 'avg_composition' | 'avg_sharpness' | 'avg_color' | 'avg_exposure' | 'avg_face_quality' | 'avg_contrast';
+
 interface ScoreBin {
   range: string;
   min: number;
@@ -85,17 +89,60 @@ interface ScoreBin {
     MatProgressSpinnerModule,
     MatTooltipModule,
     TranslatePipe,
+    SortOptionIconPipe,
     DateRangeFilterComponent,
     ChartHeightPipe,
     GearChartCardComponent,
     StatsTimelineTabComponent,
     StatsCorrelationsTabComponent,
   ],
-  host: { class: 'block p-4 md:p-6 [&_mat-card]:border [&_mat-card]:border-[var(--mat-sys-outline-variant)]' },
+  host: { class: 'block px-4 py-4 [&_mat-card]:border [&_mat-card]:border-[var(--mat-sys-outline-variant)]' },
   changeDetection: ChangeDetectionStrategy.Eager,
   template: `
-    <header class="mb-4 space-y-2 border-b border-[var(--mat-sys-outline-variant)] pb-3 sm:space-y-4 sm:pb-4">
-      <h1 id="stats-heading" tabindex="-1" class="m-0 text-2xl font-semibold tracking-tight text-[var(--mat-sys-on-surface)]">{{ I18N.nav.stats | translate }}</h1>
+    <h1 id="stats-heading" tabindex="-1" class="sr-only">{{ I18N.nav.stats | translate }}</h1>
+    <!-- Page actions: lg+ renders this in the shell's page-actions bar (HeaderSlotService); below lg the
+         in-page header further down carries the counts and the collapsible filters instead. The counts
+         move into the page from lg up to xl, where the bar has no room for them beside the filters. -->
+    <ng-template #statsToolbar>
+      <mat-form-field class="w-52 shrink-0" subscriptSizing="dynamic">
+        <mat-label>{{ I18N.ui.filters.type | translate }}</mat-label>
+        <mat-select panelWidth="auto" panelClass="nowrap-panel" [value]="statsFilters.filterCategory()" (selectionChange)="onStatsCategoryChange($event.value)">
+          <mat-option value="">{{ I18N.gallery.all_photos | translate }}</mat-option>
+          @if (unknownCategory(); as category) {
+            <mat-option [value]="category">{{ unknownCategoryLabel() }}</mat-option>
+          }
+          @for (t of store.types(); track t.id) {
+            <mat-option [value]="t.id">{{ (t.id === 'top_picks' ? 'photo_types.top_picks' : 'category_names.' + t.id) | translate }} ({{ t.count }})</mat-option>
+          }
+        </mat-select>
+      </mat-form-field>
+      <app-date-range-filter
+        [from]="statsFilters.dateFrom()" [to]="statsFilters.dateTo()"
+        fromLabel="stats.filter.date_from" toLabel="stats.filter.date_to"
+        fromClass="w-44 shrink-0" toClass="w-44 shrink-0"
+        (fromChange)="statsFilters.dateFrom.set($event)" (toChange)="statsFilters.dateTo.set($event)" />
+      @if (statsFilters.overview(); as overview) {
+        <dl class="m-0 ml-auto hidden xl:flex shrink-0 items-baseline gap-x-5 whitespace-nowrap text-sm tabular-nums" data-stats-overview-bar>
+          <div class="flex items-baseline gap-1.5">
+            <dt class="text-[var(--mat-sys-on-surface-variant)]">{{ I18N.stats.total_photos | translate }}</dt>
+            <dd class="m-0 font-semibold">{{ overview.total_photos | statsNumber:i18n.locale() }}</dd>
+          </div>
+          <div class="flex items-baseline gap-1.5">
+            <dt class="text-[var(--mat-sys-on-surface-variant)]">{{ I18N.stats.total_persons | translate }}</dt>
+            <dd class="m-0 font-semibold">{{ overview.total_persons | statsNumber:i18n.locale() }}</dd>
+          </div>
+          <div class="flex items-baseline gap-1.5">
+            <dt class="text-[var(--mat-sys-on-surface-variant)]">{{ I18N.stats.avg_score | translate }}</dt>
+            <dd class="m-0 font-semibold">{{ overview.total_photos ? (overview.avg_score | statsNumber:i18n.locale():1) : '—' }}</dd>
+          </div>
+          <div class="flex items-baseline gap-1.5">
+            <dt class="text-[var(--mat-sys-on-surface-variant)]">{{ I18N.stats.total_faces | translate }}</dt>
+            <dd class="m-0 font-semibold">{{ overview.total_faces | statsNumber:i18n.locale() }}</dd>
+          </div>
+        </dl>
+      }
+    </ng-template>
+    <header class="mb-4 space-y-2 border-b border-[var(--mat-sys-outline-variant)] pb-3 sm:space-y-4 sm:pb-4 xl:hidden">
       @if (statsFilters.overview(); as overview) {
         <dl class="m-0 grid grid-cols-2 gap-x-3 gap-y-1 rounded-lg bg-[var(--mat-sys-surface-container-low)] px-2 py-1.5 text-sm sm:flex sm:flex-wrap sm:gap-x-5 sm:bg-transparent sm:p-0" data-stats-overview>
           <div class="flex min-w-0 items-baseline gap-1.5">
@@ -116,7 +163,7 @@ interface ScoreBin {
           </div>
         </dl>
       }
-      <details class="group sm:hidden">
+      <details class="group lg:hidden">
         <summary class="flex min-h-11 cursor-pointer flex-wrap items-center gap-2 py-1 text-sm font-medium text-[var(--mat-sys-primary)]">
           <mat-icon aria-hidden="true">filter_list</mat-icon>{{ I18N.ui.buttons.filters | translate }}
           @if (statsFilters.filterCategory() || statsFilters.dateFrom() || statsFilters.dateTo()) {
@@ -127,9 +174,8 @@ interface ScoreBin {
         </summary>
         <ng-container [ngTemplateOutlet]="statsFiltersTemplate" />
       </details>
-      <div class="hidden sm:block"><ng-container [ngTemplateOutlet]="statsFiltersTemplate" /></div>
       <ng-template #statsFiltersTemplate>
-      <div class="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:max-w-3xl" data-stats-filters>
+      <div class="grid grid-cols-2 gap-2 sm:grid-cols-3" data-stats-filters>
       <mat-form-field class="col-span-2 min-w-0 sm:col-span-1" subscriptSizing="dynamic">
         <mat-label>{{ I18N.ui.filters.type | translate }}</mat-label>
         <mat-select panelWidth="auto" panelClass="nowrap-panel" [value]="statsFilters.filterCategory()" (selectionChange)="onStatsCategoryChange($event.value)">
@@ -209,8 +255,17 @@ interface ScoreBin {
                       <mat-form-field class="min-w-40 flex-1" subscriptSizing="dynamic">
                         <mat-label>{{ I18N.stats.gear_metric_label | translate }}</mat-label>
                         <mat-select [ngModel]="categoryMetric()" (ngModelChange)="categoryMetric.set($event)">
+                          <mat-select-trigger>
+                            @let metricIcon = categoryMetric() | sortOptionIcon;
+                            <mat-icon aria-hidden="true" class="!w-8 text-center align-middle" [class]="metricIcon.classes">{{ metricIcon.text }}</mat-icon>
+                            {{ 'stats.category_metrics.' + categoryMetric() | translate }}
+                          </mat-select-trigger>
                           @for (opt of categoryMetricOptions; track opt.key) {
-                            <mat-option [value]="opt.key">{{ 'stats.category_metrics.' + opt.key | translate }}</mat-option>
+                            @let optionIcon = opt.key | sortOptionIcon;
+                            <mat-option [value]="opt.key">
+                              <mat-icon aria-hidden="true" class="!w-8 text-center" [class]="optionIcon.classes">{{ optionIcon.text }}</mat-icon>
+                              {{ 'stats.category_metrics.' + opt.key | translate }}
+                            </mat-option>
                           }
                         </mat-select>
                       </mat-form-field>
@@ -237,8 +292,35 @@ interface ScoreBin {
 
                 @if (categoryScoreProfile().length > 0) {
                   <mat-card>
-                    <mat-card-header>
-                      <h2 mat-card-title>{{ I18N.stats.categories_score_profile | translate }}</h2>
+                    <mat-card-header class="!flex !flex-wrap !items-center !justify-between !gap-3">
+                      <h2 mat-card-title class="shrink-0">{{ I18N.stats.categories_score_profile | translate }}</h2>
+                      <mat-form-field class="flex-1 min-w-[10rem] !-mt-2 max-sm:order-last max-sm:basis-full" subscriptSizing="dynamic">
+                        <!-- No mat-label, as on the gear cards: the card title names the chart. -->
+                        <mat-select multiple data-profile-series [value]="profileSeries()" (selectionChange)="onProfileSeriesChange($event.value)"
+                                    [aria-label]="I18N.stats.profile_series | translate">
+                          <mat-select-trigger>
+                            @if (profileSeriesSummary(); as summary) {
+                              {{ summary }}
+                            } @else {
+                              <span class="inline-flex items-center gap-1.5 align-middle">
+                                @for (def of selectedProfileDefs(); track def.key) {
+                                  <span class="inline-block h-3 w-3 rounded-sm" [style.background-color]="profileColors()[def.colorIndex]"></span>
+                                }
+                              </span>
+                            }
+                          </mat-select-trigger>
+                          @for (def of profileSeriesDefs; track def.key) {
+                            @let seriesIcon = def.key | sortOptionIcon;
+                            <mat-option [value]="def.key">
+                              <span class="inline-flex items-center gap-2">
+                                <span class="inline-block h-3 w-3 shrink-0 rounded-sm" [style.background-color]="profileColors()[def.colorIndex]" aria-hidden="true"></span>
+                                <mat-icon aria-hidden="true" class="!w-8 text-center" [class]="seriesIcon.classes">{{ seriesIcon.text }}</mat-icon>
+                                {{ def.labelKey | translate }}
+                              </span>
+                            </mat-option>
+                          }
+                        </mat-select>
+                      </mat-form-field>
                     </mat-card-header>
                     <mat-card-content class="!pt-4">
                       @if (categoriesLoading()) {
@@ -253,26 +335,16 @@ interface ScoreBin {
                             <caption class="sr-only">{{ I18N.stats.categories_score_profile | translate }}</caption>
                             <thead><tr>
                               <th scope="col">{{ I18N.stats.categories.tab | translate }}</th>
-                              <th scope="col" class="text-right">{{ I18N.stats.axes.aggregate | translate }}</th>
-                              <th scope="col" class="text-right">{{ I18N.stats.axes.aesthetic | translate }}</th>
-                              <th scope="col" class="text-right">{{ I18N.stats.axes.composition | translate }}</th>
-                              <th scope="col" class="text-right">{{ I18N.stats.axes.sharpness | translate }}</th>
-                              <th scope="col" class="text-right">{{ I18N.stats.axes.color | translate }}</th>
-                              <th scope="col" class="text-right">{{ I18N.stats.axes.exposure | translate }}</th>
-                              <th scope="col" class="text-right">{{ I18N.stats.axes.face_quality | translate }}</th>
-                              <th scope="col" class="text-right">{{ I18N.stats.axes.contrast | translate }}</th>
+                              @for (def of selectedProfileDefs(); track def.key) {
+                                <th scope="col" class="text-right">{{ def.labelKey | translate }}</th>
+                              }
                             </tr></thead>
                             <tbody>@for (cat of categoryProfileRows(); track cat.category) {
                               <tr>
                                 <th scope="row">{{ cat.label }}</th>
-                                <td>{{ cat.avg_score | statsNumber:i18n.locale():1 }}</td>
-                                <td>{{ cat.avg_aesthetic | statsNumber:i18n.locale():1 }}</td>
-                                <td>{{ cat.avg_composition | statsNumber:i18n.locale():1 }}</td>
-                                <td>{{ cat.avg_sharpness | statsNumber:i18n.locale():1 }}</td>
-                                <td>{{ cat.avg_color | statsNumber:i18n.locale():1 }}</td>
-                                <td>{{ cat.avg_exposure | statsNumber:i18n.locale():1 }}</td>
-                                <td>{{ cat.avg_face_quality | statsNumber:i18n.locale():1 }}</td>
-                                <td>{{ cat.avg_contrast | statsNumber:i18n.locale():1 }}</td>
+                                @for (def of selectedProfileDefs(); track def.key) {
+                                  <td>{{ cat[def.field] | statsNumber:i18n.locale():1 }}</td>
+                                }
                               </tr>
                             }</tbody>
                           </table></div>
@@ -423,6 +495,8 @@ export class StatsComponent {
   });
   readonly themeService = inject(ThemeService);
   private readonly pageHelp = inject(PageHelpService);
+  private readonly headerSlot = inject(HeaderSlotService);
+  private readonly toolbarTpl = viewChild<TemplateRef<unknown>>('statsToolbar');
   private charts = new Map<string, Chart>();
   private chartRefs = new Map<string, ElementRef<HTMLCanvasElement>>();
 
@@ -466,6 +540,33 @@ export class StatsComponent {
     { key: 'avg_score' }, { key: 'avg_aesthetic' }, { key: 'avg_sharpness' }, { key: 'avg_contrast' },
   ];
   protected readonly categoryMetric = signal('avg_f_stop');
+
+  /** The score-profile chart's series in chart order; `colorIndex` keeps each series' colour when others are hidden. */
+  protected readonly profileSeriesDefs: readonly { key: string; field: ProfileField; labelKey: string; colorIndex: number }[] = [
+    { key: 'aggregate', field: 'avg_score', labelKey: I18N.stats.axes.aggregate, colorIndex: 0 },
+    { key: 'aesthetic', field: 'avg_aesthetic', labelKey: I18N.stats.axes.aesthetic, colorIndex: 1 },
+    { key: 'comp_score', field: 'avg_composition', labelKey: I18N.stats.axes.composition, colorIndex: 2 },
+    { key: 'tech_sharpness', field: 'avg_sharpness', labelKey: I18N.stats.axes.sharpness, colorIndex: 3 },
+    { key: 'color_score', field: 'avg_color', labelKey: I18N.stats.axes.color, colorIndex: 4 },
+    { key: 'exposure_score', field: 'avg_exposure', labelKey: I18N.stats.axes.exposure, colorIndex: 5 },
+    { key: 'face_quality', field: 'avg_face_quality', labelKey: I18N.stats.axes.face_quality, colorIndex: 6 },
+    { key: 'contrast_score', field: 'avg_contrast', labelKey: I18N.stats.axes.contrast, colorIndex: 7 },
+  ];
+  /** Series shown on the score-profile chart: all of them at first, never persisted, never empty. */
+  protected readonly profileSeries = signal<string[]>(this.profileSeriesDefs.map(def => def.key));
+  protected readonly selectedProfileDefs = computed(() => this.profileSeriesDefs.filter(def => this.profileSeries().includes(def.key)));
+  protected readonly profileColors = computed(() => chartSeriesColors(this.themeService.darkMode()));
+  /** "N scores" once the swatches no longer fit the trigger; null while they do. */
+  protected readonly profileSeriesSummary = computed(() => {
+    const count = this.selectedProfileDefs().length;
+    return count > 3 ? this.i18n.t(count === 1 ? I18N.stats.profile_series_count : I18N.stats.profile_series_count_plural, { count }) : null;
+  });
+
+  protected onProfileSeriesChange(keys: string[]): void {
+    const next = this.profileSeriesDefs.map(def => def.key).filter(key => keys.includes(key));
+    // The last series stays: re-set a copy so the select re-applies its selection to the option the user just cleared.
+    this.profileSeries.set(next.length > 0 ? next : [...this.profileSeries()]);
+  }
   protected readonly categoryMetricDigits = computed(() =>
     this.categoryMetric() === 'avg_iso' || this.categoryMetric() === 'avg_focal_length' ? 0 : 1,
   );
@@ -552,12 +653,19 @@ export class StatsComponent {
       });
     });
 
+    effect(() => {
+      const t = this.toolbarTpl();
+      if (t) this.headerSlot.set(t);
+    });
+
     // Destroy Chart.js instances and clear shared state on component teardown
     this.destroyRef.onDestroy(() => {
       this.charts.forEach(chart => chart.destroy());
       this.charts.clear();
       this.statsFilters.overview.set(null);
       this.pageHelp.setDescription(null);
+      const t = this.toolbarTpl();
+      if (t) this.headerSlot.clear(t);
     });
 
     // Chart effects — canvas refs must be tracked so charts render on tab switch
@@ -568,18 +676,10 @@ export class StatsComponent {
     });
     effect(() => {
       const cats = this.categoryScoreProfile();
-      const colors = chartSeriesColors(this.themeService.darkMode());
+      const colors = this.profileColors();
       const labels = cats.map(c => this.translateCategory(c.category));
-      this.buildGroupedHorizontalBar('categoryScoreProfile', this.categoryScoreProfileCanvas(), labels, [
-        { label: this.i18n.t(I18N.stats.axes.aggregate),    data: cats.map(c => c.avg_score),        color: colors[0] },
-        { label: this.i18n.t(I18N.stats.axes.aesthetic),    data: cats.map(c => c.avg_aesthetic),    color: colors[1] },
-        { label: this.i18n.t(I18N.stats.axes.composition),  data: cats.map(c => c.avg_composition),  color: colors[2] },
-        { label: this.i18n.t(I18N.stats.axes.sharpness),    data: cats.map(c => c.avg_sharpness),    color: colors[3] },
-        { label: this.i18n.t(I18N.stats.axes.color),        data: cats.map(c => c.avg_color),        color: colors[4] },
-        { label: this.i18n.t(I18N.stats.axes.exposure),     data: cats.map(c => c.avg_exposure),     color: colors[5] },
-        { label: this.i18n.t(I18N.stats.axes.face_quality), data: cats.map(c => c.avg_face_quality), color: colors[6] },
-        { label: this.i18n.t(I18N.stats.axes.contrast),     data: cats.map(c => c.avg_contrast),     color: colors[7] },
-      ]);
+      this.buildGroupedHorizontalBar('categoryScoreProfile', this.categoryScoreProfileCanvas(), labels,
+        this.selectedProfileDefs().map(def => ({ label: this.i18n.t(def.labelKey), data: cats.map(c => c[def.field]), color: colors[def.colorIndex] })));
     });
     effect(() => {
       const cats = this.categoryMetricData();
@@ -793,10 +893,11 @@ export class StatsComponent {
   ): void {
     if (!ref || labels.length === 0) { this.destroyChart(id); return; }
     const existing = this.charts.get(id);
-    if (existing && this.chartRefs.get(id) === ref) {
+    if (existing && this.chartRefs.get(id) === ref && existing.data.datasets.length === datasets.length) {
       existing.data.labels = labels;
       datasets.forEach((d, i) => {
         if (existing.data.datasets[i]) {
+          existing.data.datasets[i].label = d.label;
           existing.data.datasets[i].data = d.data;
           (existing.data.datasets[i] as any).backgroundColor = d.color + 'bb';
           (existing.data.datasets[i] as any).borderColor = d.color;
@@ -825,7 +926,7 @@ export class StatsComponent {
         responsive: true,
         maintainAspectRatio: false,
         plugins: {
-          legend: { display: true, position: 'top', labels: { color: text, boxWidth: 12 } },
+          legend: { display: false },
           tooltip: { callbacks: { label: (ctx) => `${ctx.dataset.label}: ${(ctx.parsed.x ?? 0).toFixed(2)}` } },
         },
         scales: {

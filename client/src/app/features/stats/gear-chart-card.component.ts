@@ -12,6 +12,7 @@ import 'chartjs-adapter-date-fns';
 import { ThemeService } from '../../core/services/theme.service';
 import { I18nService } from '../../core/services/i18n.service';
 import { TranslatePipe } from '../../shared/pipes/translate.pipe';
+import { SortOptionIconPipe } from '../../shared/pipes/sort-option-icon.pipe';
 import { ChartHeightPipe } from './chart-height.pipe';
 import { downloadCsv } from '../../shared/utils/csv';
 import { chartSeriesColor, chartSeriesColors, chartTheme } from './chart-theme';
@@ -73,6 +74,7 @@ const GEAR_METRIC_OPTIONS = [
     MatIconModule,
     MatTooltipModule,
     TranslatePipe,
+    SortOptionIconPipe,
     ChartHeightPipe,
     StatsNumberPipe,
   ],
@@ -87,8 +89,17 @@ const GEAR_METRIC_OPTIONS = [
                the select the accessible name the visible label used to. -->
           <mat-select [ngModel]="selectedMetric()" (ngModelChange)="selectedMetric.set($event)"
                       [aria-label]="'stats.gear_metric_label' | translate">
+            <mat-select-trigger>
+              @let selectedIcon = selectedMetric() | sortOptionIcon;
+              <mat-icon aria-hidden="true" class="!w-8 text-center align-middle" [class]="selectedIcon.classes">{{ selectedIcon.text }}</mat-icon>
+              {{ 'stats.gear_metrics.' + selectedMetric() | translate }}
+            </mat-select-trigger>
             @for (opt of metricOptions; track opt.key) {
-              <mat-option [value]="opt.key">{{ 'stats.gear_metrics.' + opt.key | translate }}</mat-option>
+              @let optionIcon = opt.key | sortOptionIcon;
+              <mat-option [value]="opt.key">
+                <mat-icon aria-hidden="true" class="!w-8 text-center" [class]="optionIcon.classes">{{ optionIcon.text }}</mat-icon>
+                {{ 'stats.gear_metrics.' + opt.key | translate }}
+              </mat-option>
             }
           </mat-select>
         </mat-form-field>

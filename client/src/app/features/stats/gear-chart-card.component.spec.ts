@@ -148,6 +148,29 @@ describe('GearChartCardComponent', () => {
     expect(select.getAttribute('aria-label')).toBe('trans_stats.gear_metric_label');
     expect((fixture.nativeElement as HTMLElement).querySelector('mat-label')).toBeNull();
   });
+
+  it('shows the gallery sort icon of the selected metric in the select trigger', async () => {
+    fixture.detectChanges();
+    await fixture.whenStable();
+    fixture.detectChanges();
+    const icon = () => (fixture.nativeElement as HTMLElement).querySelector('.mat-mdc-select-value mat-icon') as HTMLElement;
+    expect(icon().textContent!.trim()).toBe('leaderboard');
+    (component as any).selectedMetric.set('avg_aesthetic');
+    fixture.detectChanges();
+    await fixture.whenStable();
+    fixture.detectChanges();
+    expect(icon().textContent!.trim()).toBe('✦');
+  });
+
+  it('gives every option its icon', async () => {
+    fixture.detectChanges();
+    await fixture.whenStable();
+    ((fixture.nativeElement as HTMLElement).querySelector('.mat-mdc-select-trigger') as HTMLElement).click();
+    fixture.detectChanges();
+    await fixture.whenStable();
+    const icons = Array.from(document.querySelectorAll('mat-option mat-icon')).map(el => el.textContent!.trim());
+    expect(icons).toEqual(['numbers', 'leaderboard', '✦', 'deblur', 'iso', 'camera', 'zoom_in', 'show_chart']);
+  });
 });
 
 describe('truncateLegendLabel', () => {

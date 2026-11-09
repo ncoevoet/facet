@@ -11,6 +11,7 @@ import { StatsComponent } from './stats.component';
 import { StatsNumberPipe } from './stats-locale-number.pipe';
 import { PageContextService } from '../../core/agent/page-context.service';
 import { Router, ActivatedRoute } from '@angular/router';
+import { HeaderSlotService } from '../../core/services/header-slot.service';
 
 describe('StatsComponent', () => {
   let component: StatsComponent;
@@ -395,6 +396,105 @@ describe('StatsComponent', () => {
       expect(landscape!.avg_f_stop).toBe(0);
       expect(landscape!.top_camera).toBeNull();
       expect(landscape!.top_lens).toBeNull();
+    });
+  });
+
+  describe('score profile series (U17)', () => {
+    beforeEach(async () => {
+      const getMock = vi.fn((path: string) => {
+        if (path === '/stats/categories') return of(mockCategories);
+        return safeDefault(path);
+      });
+      component = createComponent(getMock);
+      await flushPromises();
+    });
+
+    function lastProfileCall(spy: ReturnType<typeof vi.spyOn>): { label: string; data: number[]; color: string }[] {
+      const calls = spy.mock.calls;
+      return calls[calls.length - 1][3] as { label: string; data: number[]; color: string }[];
+    }
+
+    it('starts with all eight series selected', () => {
+      expect(c().profileSeries()).toHaveLength(8);
+    });
+
+    it('drops a deselected series from the dataset passed to the chart builder', () => {
+      const spy = vi.spyOn(c(), 'buildGroupedHorizontalBar');
+      TestBed.flushEffects();
+      expect(lastProfileCall(spy)).toHaveLength(8);
+      c().onProfileSeriesChange(c().profileSeries().filter((k: string) => k !== 'contrast_score'));
+      TestBed.flushEffects();
+      const datasets = lastProfileCall(spy);
+      expect(datasets).toHaveLength(7);
+      expect(datasets.map(d => d.label)).not.toContain('stats.axes.contrast');
+    });
+
+    it('keeps each series colour when another one is hidden', () => {
+      const spy = vi.spyOn(c(), 'buildGroupedHorizontalBar');
+      TestBed.flushEffects();
+      const before = lastProfileCall(spy).find(d => d.label === 'stats.axes.exposure')!.color;
+      c().onProfileSeriesChange(['aggregate', 'exposure_score']);
+      TestBed.flushEffects();
+      expect(lastProfileCall(spy).find(d => d.label === 'stats.axes.exposure')!.color).toBe(before);
+    });
+
+    it('refuses to deselect the last series', () => {
+      c().onProfileSeriesChange(['aesthetic']);
+      c().onProfileSeriesChange([]);
+      expect(c().profileSeries()).toEqual(['aesthetic']);
+    });
+
+    it('summarises more than three selected series as a count, passing the count placeholder', () => {
+      const i18n = TestBed.inject(I18nService);
+      vi.spyOn(i18n, 't').mockImplementation((key: string, params?: Record<string, unknown>) => key + (params ? JSON.stringify(params) : ''));
+      expect(c().profileSeriesSummary()).toBe('stats.profile_series_count_plural{"count":8}');
+      c().onProfileSeriesChange(['aggregate', 'aesthetic']);
+      expect(c().profileSeriesSummary()).toBeNull();
+    });
+  });
+
+  describe('page shell', () => {
+    async function render() {
+      const component = createComponent();
+      TestBed.resetTestingModule();
+      const fixture = TestBed.configureTestingModule({
+        providers: [
+          { provide: ApiService, useValue: mockApi },
+          { provide: AuthService, useValue: mockAuth },
+          { provide: GalleryStore, useValue: { types: signal([]), loadTypeCounts: vi.fn(() => Promise.resolve()) } },
+          { provide: I18nService, useValue: { t: (key: string) => key, locale: signal('en'), translations: () => ({}) } },
+          { provide: Router, useValue: { navigate: vi.fn(), events: NEVER } },
+          { provide: ActivatedRoute, useValue: { snapshot: { queryParams: {} } } },
+        ],
+      }).createComponent(StatsComponent);
+      void component;
+      fixture.detectChanges();
+      await fixture.whenStable();
+      fixture.detectChanges();
+      return fixture;
+    }
+
+    it('registers its toolbar with the header slot and clears it on destroy', async () => {
+      const fixture = await render();
+      const slot = TestBed.inject(HeaderSlotService);
+      expect(slot.template()).not.toBeNull();
+      fixture.destroy();
+      expect(slot.template()).toBeNull();
+    });
+
+    it('insets the page 16px (px-4) at every width, not 24px at md', async () => {
+      const fixture = await render();
+      const host = (fixture.nativeElement as HTMLElement).className;
+      expect(host).toContain('px-4');
+      expect(host).not.toContain('md:p-6');
+    });
+
+    it('keeps the H1 for assistive tech only, and the in-page filters below lg only', async () => {
+      const fixture = await render();
+      const el = fixture.nativeElement as HTMLElement;
+      expect(el.querySelector('h1#stats-heading')!.className).toContain('sr-only');
+      expect(el.querySelector('details')!.className).toContain('lg:hidden');
+      expect(el.querySelector('details')!.className).not.toContain('sm:hidden');
     });
   });
 
