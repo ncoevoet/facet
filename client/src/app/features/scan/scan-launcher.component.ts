@@ -1,4 +1,5 @@
 import { ChangeDetectionStrategy, Component, OnInit, computed, effect, inject, signal } from '@angular/core';
+import { HttpErrorResponse } from '@angular/common/http';
 import { MatDialogRef, MatDialogModule } from '@angular/material/dialog';
 import { MatButtonModule } from '@angular/material/button';
 import { MatIconModule } from '@angular/material/icon';
@@ -14,6 +15,9 @@ import { ScanHistoryComponent } from './scan-history.component';
  * fallback) to a progress bar and an output tail, and closes with `true` once
  * the scan finishes cleanly so the gallery can refresh.
  */
+/** Statuses that prove the server refused the start, so no scan is running. */
+const DEFINITE_REFUSALS = new Set([400, 403, 409]);
+
 @Component({
   selector: 'app-scan-launcher',
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -27,7 +31,9 @@ import { ScanHistoryComponent } from './scan-history.component';
       } @else if (!statusKnown()) {
         <p role="status" class="text-sm">{{ I18N.scan.checking_status | translate }}</p>
       }
-      @if (startError()) {
+      @if (startRefusal(); as refusal) {
+        <p role="alert" class="text-sm">{{ refusal.detail ?? (refusal.key! | translate) }}</p>
+      } @else if (startError()) {
         <p role="alert" class="text-sm">{{ I18N.scan.start_unconfirmed | translate }}</p>
       }
       @if (stopError()) { <p role="alert" class="text-sm">{{ I18N.scan.stop_unconfirmed | translate }}</p> }
@@ -93,7 +99,7 @@ import { ScanHistoryComponent } from './scan-history.component';
       @if (!started()) {
         <button mat-flat-button color="primary"
                 [disabled]="!selectedDir() || !statusKnown() || observationError() || status().running"
-                (click)="start()">
+                data-scan-start (click)="start()">
           {{ I18N.scan.start_button | translate }}
         </button>
       }
@@ -111,6 +117,9 @@ export class ScanLauncherComponent implements OnInit {
   protected readonly dirLoadError = signal(false);
   protected readonly started = signal(false);
   protected readonly startError = signal(false);
+  /** A start the server answered with a refusal: nothing is running, so the
+   *  reason is shown and the Start button comes back. */
+  protected readonly startRefusal = signal<{ detail?: string; key?: string } | null>(null);
   protected readonly stopError = signal(false);
   protected readonly stopping = signal(false);
   protected readonly pendingStopId = signal<string | null>(null);
@@ -191,9 +200,18 @@ export class ScanLauncherComponent implements OnInit {
     const dir = this.selectedDir();
     if (!dir || this.started() || !this.statusKnown() || this.observationError() || this.status().running) return;
     this.started.set(true);
+    this.startRefusal.set(null);
     try {
       await this.scan.startScan([dir]);
-    } catch {
+    } catch (err) {
+      if (err instanceof HttpErrorResponse && DEFINITE_REFUSALS.has(err.status)) {
+        // The server answered and refused (a library job holds the lock, the
+        // directory is not configured): no scan started, so give the button back.
+        this.started.set(false);
+        const detail = typeof err.error?.detail === 'string' ? err.error.detail : undefined;
+        this.startRefusal.set(detail ? { detail } : { key: I18N.errors.action_failed });
+        return;
+      }
       // A lost start response is uncertain. Recover observation; never repeat
       // the POST automatically or turn its failure into another Start button.
       this.startError.set(true);

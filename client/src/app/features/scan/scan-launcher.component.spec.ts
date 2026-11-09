@@ -1,9 +1,11 @@
 import { TestBed } from '@angular/core/testing';
-import { signal, computed } from '@angular/core';
+import { NO_ERRORS_SCHEMA, signal, computed } from '@angular/core';
+import { HttpErrorResponse } from '@angular/common/http';
 import { MatDialogRef } from '@angular/material/dialog';
 import { I18nService } from '../../core/services/i18n.service';
 import { ScanService, ScanStatus } from '../../core/services/scan.service';
 import { ScanLauncherComponent } from './scan-launcher.component';
+import { ScanHistoryComponent } from './scan-history.component';
 
 function idleStatus(): ScanStatus {
   return { running: false, directories: [], output: [], elapsed_seconds: null, exit_code: null };
@@ -45,6 +47,10 @@ describe('ScanLauncherComponent', () => {
         { provide: I18nService, useValue: { t: (key: string) => `T(${key})`, translations: () => ({}) } },
       ],
     });
+    // Scan history has its own service contract; only the launcher is under test.
+    TestBed.overrideComponent(ScanLauncherComponent, {
+      remove: { imports: [ScanHistoryComponent] }, add: { schemas: [NO_ERRORS_SCHEMA] },
+    });
     component = TestBed.runInInjectionContext(() => new ScanLauncherComponent());
   });
 
@@ -79,6 +85,39 @@ describe('ScanLauncherComponent', () => {
     expect(mockScan.connect).toHaveBeenCalledTimes(1);
     await component.start();
     expect(mockScan.startScan).toHaveBeenCalledTimes(1);
+  });
+
+  describe('a refused start', () => {
+    async function startRefused(err: unknown): Promise<HTMLElement> {
+      mockScan.startScan.mockRejectedValueOnce(err);
+      const fixture = TestBed.createComponent(ScanLauncherComponent);
+      const c = fixture.componentInstance as unknown as { selectedDir: { set(v: string): void }; start(): Promise<void> };
+      fixture.detectChanges();
+      await fixture.whenStable();
+      c.selectedDir.set('/photos/a');
+      await c.start();
+      fixture.detectChanges();
+      return fixture.nativeElement as HTMLElement;
+    }
+
+    it("shows the server's detail and gives the Start button back", async () => {
+      const el = await startRefused(new HttpErrorResponse({ status: 409, error: { detail: 'A library job is running' } }));
+      expect(el.querySelector('[role="alert"]')?.textContent?.trim()).toBe('A library job is running');
+      expect(el.querySelector('[data-scan-start]')).not.toBeNull();
+      expect(mockScan.connect).toHaveBeenCalledTimes(1);
+    });
+
+    it('falls back to the translated generic error when a refusal has no detail', async () => {
+      const el = await startRefused(new HttpErrorResponse({ status: 400 }));
+      expect(el.querySelector('[role="alert"]')?.textContent?.trim()).toBe('T(errors.action_failed)');
+      expect(el.querySelector('[data-scan-start]')).not.toBeNull();
+    });
+
+    it('keeps the uncertain-start message and no Start button for a lost response', async () => {
+      const el = await startRefused(new HttpErrorResponse({ status: 0 }));
+      expect(el.querySelector('[role="alert"]')?.textContent?.trim()).toBe('T(scan.start_unconfirmed)');
+      expect(el.querySelector('[data-scan-start]')).toBeNull();
+    });
   });
 
   it('does not start before status is known or while observation has failed', async () => {
