@@ -15,7 +15,7 @@ import { ScanHistoryComponent } from './scan-history.component';
  * fallback) to a progress bar and an output tail, and closes with `true` once
  * the scan finishes cleanly so the gallery can refresh.
  */
-/** Statuses that prove the server refused the start, so no scan is running. */
+/** Statuses that prove the server refused this start (a 409 may still mean another scan runs). */
 const DEFINITE_REFUSALS = new Set([400, 403, 409]);
 
 @Component({
@@ -206,10 +206,12 @@ export class ScanLauncherComponent implements OnInit {
     } catch (err) {
       if (err instanceof HttpErrorResponse && DEFINITE_REFUSALS.has(err.status)) {
         // The server answered and refused (a library job holds the lock, the
-        // directory is not configured): no scan started, so give the button back.
+        // directory is not configured): this start did not happen, so give the
+        // button back, and re-read status so a scan started elsewhere shows.
         this.started.set(false);
         const detail = typeof err.error?.detail === 'string' ? err.error.detail : undefined;
         this.startRefusal.set(detail ? { detail } : { key: I18N.errors.action_failed });
+        void this.scan.connect();
         return;
       }
       // A lost start response is uncertain. Recover observation; never repeat

@@ -104,7 +104,8 @@ describe('ScanLauncherComponent', () => {
       const el = await startRefused(new HttpErrorResponse({ status: 409, error: { detail: 'A library job is running' } }));
       expect(el.querySelector('[role="alert"]')?.textContent?.trim()).toBe('A library job is running');
       expect(el.querySelector('[data-scan-start]')).not.toBeNull();
-      expect(mockScan.connect).toHaveBeenCalledTimes(1);
+      // Re-read status once more: a 409 may mean a scan started elsewhere, whose progress then shows.
+      expect(mockScan.connect).toHaveBeenCalledTimes(2);
     });
 
     it('falls back to the translated generic error when a refusal has no detail', async () => {
