@@ -134,8 +134,8 @@ interface QueueView {
       </div>
     </ng-template>
 
-    <div #junkContent class="px-4 pt-3 md:px-8 mx-auto w-full max-w-[96%] max-lg:pb-32" [class.max-lg:!pb-48]="loupeActive()">
-      <h1 data-junk-heading tabindex="-1" class="mb-3 text-xl font-semibold">{{ I18N.nav.junk_sweep | translate }}</h1>
+    <div #junkContent class="px-4 pt-3 w-full max-lg:pb-32" [class.max-lg:!pb-48]="loupeActive()">
+      <h1 data-junk-heading tabindex="-1" class="sr-only">{{ I18N.nav.junk_sweep | translate }}</h1>
       <p class="mb-3 text-sm text-[var(--mat-sys-on-surface-variant)]">{{ I18N.junk.reject_explanation | translate }}</p>
       @if (loading() && photos().length === 0) {
         <div class="flex justify-center py-10"><mat-spinner diameter="32" [attr.aria-label]="I18N.ui.labels.loading | translate" /></div>

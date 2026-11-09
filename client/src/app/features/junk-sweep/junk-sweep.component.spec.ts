@@ -298,6 +298,23 @@ describe('JunkSweepComponent', () => {
       expect(countChip(host)!.textContent).toContain('"count":4');
     });
 
+    it('insets its content 16px (px-4) from the left like the other pages, not centred in a padded column', async () => {
+      const { host } = await render();
+      const content = host.querySelector('div.w-full') as HTMLElement;
+      expect(content.className).toContain('px-4');
+      expect(content.className).not.toContain('md:px-8');
+      expect(content.className).not.toContain('mx-auto');
+      // Left-aligned, a percentage cap would only leave a ragged gap at the right edge.
+      expect(content.className).not.toContain('max-w-');
+    });
+
+    it('keeps the title for assistive tech only, since the nav already names the page', async () => {
+      const { host } = await render();
+      const heading = host.querySelector('[data-junk-heading]') as HTMLElement;
+      expect(heading.classList.contains('sr-only')).toBe(true);
+      expect(heading.getAttribute('tabindex')).toBe('-1');
+    });
+
     it('hides the count while the first page is still loading', async () => {
       const { host } = await render(new Subject<unknown>());
       expect(countChip(host)).toBeNull();

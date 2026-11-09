@@ -63,7 +63,7 @@ interface CapsulesResponse {
       <app-date-range-filter
         [from]="capsuleFilters.dateFrom()" [to]="capsuleFilters.dateTo()"
         fromLabel="capsules.date_from" toLabel="capsules.date_to"
-        fromClass="!hidden lg:!inline-flex w-44 ml-2" toClass="!hidden lg:!inline-flex w-44"
+        fromClass="!hidden lg:!inline-flex w-44" toClass="!hidden lg:!inline-flex w-44"
         (fromChange)="capsuleFilters.dateFrom.set($event)" (toChange)="capsuleFilters.dateTo.set($event)" />
       <button class="!hidden lg:!inline-flex" mat-icon-button [disabled]="capsuleFilters.refreshing()" [matTooltip]="I18N.capsules.regenerate | translate" [attr.aria-label]="I18N.capsules.regenerate | translate" (click)="capsuleFilters.regenerate.set(capsuleFilters.regenerate() + 1)">
         <mat-icon>refresh</mat-icon>
