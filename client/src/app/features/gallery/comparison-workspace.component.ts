@@ -130,7 +130,7 @@ const RENDERED_EDGE = RENDERED_THUMBNAIL_EDGE;
             <div class="shrink-0 flex flex-wrap items-center justify-between gap-x-1 border-t border-[var(--facet-image-rule)] bg-[var(--facet-image-chrome)] text-[var(--facet-image-ink)] px-2">
               <div data-pane-source class="flex min-w-0 flex-1 basis-full items-center @[320px]/pane:basis-0">
               <span data-preview-status role="status" class="min-w-0 flex-1 [overflow-wrap:anywhere] text-xs">
-                {{ pane.kindKey | translate }}<span [class.sr-only]="pane.rendition?.phase === 'ready' && !pane.previewFailed && !pane.rendition?.fellBack"> · {{ pane.phaseKey | translate }}</span>
+                {{ pane.kindKey | translate }}<span [class.sr-only]="pane.rendition?.phase === 'ready' && !pane.previewFailed && !pane.rendition.fellBack"> · {{ pane.phaseKey | translate }}</span>
                 @if (pane.rendition?.phase === 'ready') { <span class="hidden @[400px]/pane:inline"> · {{ pane.rendition.width }} × {{ pane.rendition.height }}</span><span class="sr-only @[400px]/pane:hidden"> {{ pane.rendition.width }} × {{ pane.rendition.height }}</span> }
               </span>
               @if (pane.rendition?.phase === 'failed' || pane.previewFailed || pane.rendition?.fellBack) {
