@@ -701,6 +701,11 @@ describe('App', () => {
       }
     });
 
+    it('makes the page scroller the containing block, so an absolutely placed sr-only label cannot stretch the document', () => {
+      const { root } = render(true);
+      expect(root.querySelector('main')!.classList.contains('relative')).toBe(true);
+    });
+
     const menuLabels = (items: HTMLElement[]) => items.map(i => i.textContent!.replace(/\s+/g, ' ').trim());
     const openSubmenu = (fixture: ReturnType<typeof render>['fixture'], items: HTMLElement[], label: string) => {
       items.find(i => i.textContent!.includes(label))!.click();
