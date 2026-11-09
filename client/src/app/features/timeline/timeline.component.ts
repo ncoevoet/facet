@@ -1,5 +1,5 @@
 import { NgTemplateOutlet } from '@angular/common';
-import { Component, inject, computed, DestroyRef, ChangeDetectionStrategy } from '@angular/core';
+import { Component, inject, computed, DestroyRef, ChangeDetectionStrategy, effect, viewChild, TemplateRef } from '@angular/core';
 import { Router, ActivatedRoute } from '@angular/router';
 import { toSignal } from '@angular/core/rxjs-interop';
 import { map } from 'rxjs';
@@ -19,6 +19,8 @@ import { TimelineDensityComponent } from './timeline-density.component';
 import { CaptureDatePipe } from '../../shared/pipes/capture-date.pipe';
 import { timelineWindow } from './timeline-density.util';
 import { I18N, i18nKeys } from '../../core/i18n/keys';
+import { HeaderSlotService } from '../../core/services/header-slot.service';
+import { ControlPopoverComponent } from '../../shared/components/control-popover/control-popover.component';
 import { PageHelpService } from '../../core/services/page-help.service';
 import { DateRangeFilterComponent } from '../../shared/components/date-range-filter/date-range-filter.component';
 import { GalleryStore, anyHideToggleActive } from '../gallery/gallery.store';
@@ -40,34 +42,51 @@ import { GalleryStore, anyHideToggleActive } from '../gallery/gallery.store';
     TimelineDensityComponent,
     CaptureDatePipe,
     DateRangeFilterComponent,
+    ControlPopoverComponent,
   ],
   host: { class: 'block h-full overflow-auto' },
   changeDetection: ChangeDetectionStrategy.Eager,
   template: `
     <h1 class="sr-only">{{ I18N.timeline.title | translate }}</h1>
-    <ng-template #timelineToolbar>
-      @if (anyHiddenByFilters()) {
-        <button mat-button class="!min-w-0"
-                [matTooltip]="I18N.gallery.hidden_banner.some_hidden | translate"
-                (click)="store.showAllHidden()">
-          <mat-icon class="!text-base !w-4 !h-4 !leading-4 mr-1">visibility_off</mat-icon>
-          {{ I18N.gallery.hidden_banner.show_all | translate }}
-        </button>
-      } @else if (store.hiddenFiltersStash()) {
-        <button mat-button class="!min-w-0"
-                [matTooltip]="I18N.gallery.hidden_banner.showing_all | translate"
-                (click)="store.restoreHidden()">
-          <mat-icon class="!text-base !w-4 !h-4 !leading-4 mr-1">visibility</mat-icon>
-          {{ I18N.gallery.hidden_banner.restore | translate }}
-        </button>
-      }
+    <ng-template #breadcrumb>
+      <nav [attr.aria-label]="I18N.timeline.title | translate" class="flex min-w-0 flex-wrap items-center gap-1 text-sm">
+        @switch (level()) {
+          @case ('years') {
+            <span class="px-2 font-medium">{{ I18N.timeline.all_years | translate }}</span>
+          }
+          @case ('months') {
+            <button mat-button class="!min-w-0 !px-2" (click)="goToYears()">
+              {{ I18N.timeline.all_years | translate }}
+            </button>
+            <mat-icon class="!text-base !w-4 !h-4 !leading-4 opacity-40">chevron_right</mat-icon>
+            <span class="px-2 font-medium">{{ year() }}</span>
+          }
+          @case ('days') {
+            <button mat-button class="!min-w-0 !px-2" (click)="goToYears()">
+              {{ I18N.timeline.all_years | translate }}
+            </button>
+            <mat-icon class="!text-base !w-4 !h-4 !leading-4 opacity-40">chevron_right</mat-icon>
+            <button mat-button class="!min-w-0 !px-2" (click)="goToMonths()">
+              {{ year() }}
+            </button>
+            <mat-icon class="!text-base !w-4 !h-4 !leading-4 opacity-40">chevron_right</mat-icon>
+            <span class="px-2 font-medium">{{ selectedMonthFormatted() | timelineDate }}</span>
+          }
+        }
+      </nav>
     </ng-template>
-    @if (anyHiddenByFilters() || store.hiddenFiltersStash()) {
-      <div class="px-4"><ng-container [ngTemplateOutlet]="timelineToolbar" /></div>
-    }
-    <details class="mx-4 mt-1 border-b border-[var(--mat-sys-outline-variant)] pb-2">
-      <summary class="cursor-pointer text-sm leading-6">{{ I18N.timeline.capture_scope | translate }}</summary>
-      <p class="my-2 text-xs text-[var(--mat-sys-on-surface-variant)]">{{ I18N.timeline.scope_help | translate }}</p>
+    <ng-template #viewToggle>
+      <div class="flex items-center gap-1" role="group" [attr.aria-label]="I18N.timeline.title | translate">
+        <button mat-button [class]="!showOverview() ? '!bg-[var(--mat-sys-secondary-container)]' : ''" [attr.aria-pressed]="!showOverview()" (click)="showOverview.set(false)">
+          <mat-icon>photo_library</mat-icon>{{ I18N.timeline.photo_feed | translate }}
+        </button>
+        <button mat-button [class]="showOverview() ? '!bg-[var(--mat-sys-secondary-container)]' : ''" [attr.aria-pressed]="showOverview()" (click)="showOverview.set(true)">
+          <mat-icon>calendar_month</mat-icon>{{ I18N.timeline.calendar | translate }}
+        </button>
+      </div>
+    </ng-template>
+    <ng-template #datesPanel>
+      <p class="mb-2 text-xs text-[var(--mat-sys-on-surface-variant)]">{{ I18N.timeline.scope_help | translate }}</p>
       <div class="flex flex-wrap items-center gap-2">
         <app-date-range-filter [compact]="true"
           [from]="filters.dateFrom()" [to]="filters.dateTo()"
@@ -80,49 +99,56 @@ import { GalleryStore, anyHideToggleActive } from '../gallery/gallery.store';
       @if (emptyRange()) {
         <p id="timeline-empty-range" role="status" class="mt-2 text-sm text-[var(--mat-sys-on-surface-variant)]">{{ I18N.timeline.empty_range | translate }}</p>
       }
-    </details>
-    <!-- Breadcrumb navigation -->
-    @if (level() !== 'years') {
-    <nav [attr.aria-label]="I18N.timeline.title | translate" class="sticky top-0 z-10 bg-[var(--mat-sys-surface)] flex items-center gap-1 px-4 pt-4 pb-2 text-sm flex-wrap">
-      @switch (level()) {
-        @case ('months') {
-          <button mat-button class="!min-w-0 !px-2" (click)="goToYears()">
-            {{ I18N.timeline.all_years | translate }}
-          </button>
-          <mat-icon class="!text-base !w-4 !h-4 !leading-4 opacity-40">chevron_right</mat-icon>
-          <span class="px-2 font-medium">{{ year() }}</span>
+    </ng-template>
+    <ng-template #datesControl>
+      <app-control-popover icon="date_range" [compact]="true" [label]="I18N.timeline.dates | translate" [content]="datesPanel" />
+    </ng-template>
+    <ng-template #timelineToolbar>
+      <ng-container [ngTemplateOutlet]="breadcrumb" />
+      <div class="ml-auto flex items-center gap-1">
+        @if (filters.dateFrom() || filters.dateTo()) {
+          @let range = (filters.dateFrom() ? (filters.dateFrom() | captureDate) : '…') + ' – ' + (filters.dateTo() ? (filters.dateTo() | captureDate) : '…');
+          <div data-timeline-range-chip role="status" class="inline-flex items-center gap-1 pl-2.5 pr-1 py-0.5 rounded-full bg-[var(--mat-sys-secondary-container)] text-[var(--mat-sys-on-secondary-container)] text-xs font-medium">
+            <span class="mx-0.5 max-w-64 truncate" [title]="range">{{ range }}</span>
+            <button
+              class="inline-flex items-center justify-center min-w-8 min-h-8 max-sm:min-w-11 max-sm:min-h-11 rounded-full hover:bg-black/20 transition-colors"
+              (click)="resetDates()"
+              [attr.aria-label]="I18N.gallery.criteria.remove | translate:{ label: range }"
+            >
+              <mat-icon class="!text-sm !w-3.5 !h-3.5 !leading-[14px]">close</mat-icon>
+            </button>
+          </div>
         }
-        @case ('days') {
-          <button mat-button class="!min-w-0 !px-2" (click)="goToYears()">
-            {{ I18N.timeline.all_years | translate }}
+        <ng-container [ngTemplateOutlet]="viewToggle" />
+        <ng-container [ngTemplateOutlet]="datesControl" />
+        @if (anyHiddenByFilters()) {
+          <button mat-icon-button class="!w-10 !h-10 shrink-0"
+                  [matTooltip]="I18N.gallery.hidden_banner.some_hidden | translate"
+                  [attr.aria-label]="I18N.gallery.hidden_banner.show_all | translate"
+                  (click)="store.showAllHidden()">
+            <mat-icon>visibility_off</mat-icon>
           </button>
-          <mat-icon class="!text-base !w-4 !h-4 !leading-4 opacity-40">chevron_right</mat-icon>
-          <button mat-button class="!min-w-0 !px-2" (click)="goToMonths()">
-            {{ year() }}
+        } @else if (store.hiddenFiltersStash()) {
+          <button mat-icon-button class="!w-10 !h-10 shrink-0"
+                  [matTooltip]="I18N.gallery.hidden_banner.showing_all | translate"
+                  [attr.aria-label]="I18N.gallery.hidden_banner.restore | translate"
+                  (click)="store.restoreHidden()">
+            <mat-icon>visibility</mat-icon>
           </button>
-          <mat-icon class="!text-base !w-4 !h-4 !leading-4 opacity-40">chevron_right</mat-icon>
-          <span class="px-2 font-medium">{{ selectedMonthFormatted() | timelineDate }}</span>
         }
-      }
-    </nav>
-    }
-
-    <div class="px-4 pb-2" [class.pt-4]="level() === 'years'">
-      @if (filters.dateFrom() || filters.dateTo()) {
-        <div class="flex min-h-11 flex-wrap items-center gap-2 text-sm" role="status">
-          <span>{{ filters.dateFrom() ? (filters.dateFrom() | captureDate) : '…' }} – {{ filters.dateTo() ? (filters.dateTo() | captureDate) : '…' }}</span>
-          <button mat-button (click)="resetDates()">{{ I18N.timeline.all_dates | translate }}</button>
-        </div>
-      }
-      <app-timeline-density [year]="year()" [month]="month()" />
-      <div class="flex items-center justify-end gap-1" role="group" [attr.aria-label]="I18N.timeline.title | translate">
-        <button mat-button [class]="!showOverview() ? '!bg-[var(--mat-sys-secondary-container)]' : ''" [attr.aria-pressed]="!showOverview()" (click)="showOverview.set(false)">
-          <mat-icon>photo_library</mat-icon>{{ I18N.timeline.photo_feed | translate }}
-        </button>
-        <button mat-button [class]="showOverview() ? '!bg-[var(--mat-sys-secondary-container)]' : ''" [attr.aria-pressed]="showOverview()" (click)="showOverview.set(true)">
-          <mat-icon>calendar_month</mat-icon>{{ I18N.timeline.calendar | translate }}
-        </button>
       </div>
+    </ng-template>
+    <!-- Below lg the shell's bottom bar holds the date range; this row keeps the breadcrumb and view controls reachable -->
+    <div data-timeline-breadcrumb-row class="lg:hidden sticky top-0 z-20 bg-[var(--mat-sys-surface)] flex flex-wrap items-center gap-1 px-4 pt-4 pb-2">
+      <ng-container [ngTemplateOutlet]="breadcrumb" />
+      <div class="ml-auto flex items-center gap-1">
+        <ng-container [ngTemplateOutlet]="viewToggle" />
+        <ng-container [ngTemplateOutlet]="datesControl" />
+      </div>
+    </div>
+
+    <div class="px-4 pb-2 pt-2">
+      <app-timeline-density [year]="year()" [month]="month()" />
       @if (!showOverview()) {
         <app-timeline-feed [year]="year()" [month]="month()" />
       } @else {
@@ -162,7 +188,14 @@ export class TimelineComponent {
   /** Timeline API flags use 1/0; gallery URLs use true/false. */
   private readonly galleryVisibility = computed(() => timelineGalleryQuery(this.store.viewFilterParams()));
 
+  private readonly headerSlot = inject(HeaderSlotService);
+  private readonly timelineToolbar = viewChild<TemplateRef<unknown>>('timelineToolbar');
+
   constructor() {
+    effect(() => {
+      const t = this.timelineToolbar();
+      if (t) this.headerSlot.set(t);
+    });
     registerPageContext('timeline', () => ({
       date_from: this.filters.dateFrom(),
       date_to: this.filters.dateTo(),
@@ -171,6 +204,8 @@ export class TimelineComponent {
     this.pageHelp.setDescription(I18N.timeline.help);
     inject(DestroyRef).onDestroy(() => {
       this.pageHelp.setDescription(null);
+      const t = this.timelineToolbar();
+      if (t) this.headerSlot.clear(t);
     });
   }
 
