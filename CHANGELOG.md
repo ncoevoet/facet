@@ -17,6 +17,7 @@ All notable changes to Facet are documented in this file.
 - **`--dry-run` is no longer silently ignored by mutating commands.** Thirteen flags that write to the database (`--repair-int-columns`, `--recompute-average`, `--backfill-clipping`, `--backfill-focal-35mm`, `--generate-captions`, `--cluster-faces-force`, `--upgrade-db` and others) accepted `--dry-run` and wrote anyway; the CLI now refuses the combination up front (exit code 2), as it already did for `--repair-neutral-iqa`.
 - **An interrupted scan exits non-zero.** `Ctrl-C` during a scan returned exit 0, so wrapper scripts and `--watch` read it as success; it now exits 130.
 - **`--optimize-weights` and `--apply-recommendations` hold the library lock.** Both wrote to the database and config without the lock their siblings hold, risking `database is locked` failures mid-write during a concurrent scan.
+- **A model-weight download survives a passing server hiccup.** A 504 from GitHub while fetching the aesthetic head (or any other auto-downloaded checkpoint) aborted the whole scan; a 5xx, a 429 or a dropped connection is now retried twice with a short backoff. A 4xx, a stalled connection, a truncated body or a checksum mismatch still fails at once.
 - **`--suggest-person-merges` resolves `viewer.py` relative to the script.** It previously used a bare relative path that broke when facet.py was invoked from another directory.
 
 ## [1.28.0] "f/64" — 2026-11-05
