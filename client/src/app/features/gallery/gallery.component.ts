@@ -278,8 +278,8 @@ const SET_KIND_TOGGLE: Record<string, keyof HiddenFilterFlags> = {
       <!-- Main content. The drawer reserves its own strip, so the grid gets
            exactly the width it has whenever the filters are open. -->
       <mat-sidenav-content [style.scroll-padding-top.px]="collectionHeaderHeight()">
-        <header #collectionHeader data-collection-header class="sticky top-0 z-40 @container border-b border-[var(--mat-sys-outline-variant)] bg-[var(--mat-sys-surface-container-lowest)] px-2 py-2 md:px-4">
-          <div class="flex flex-wrap items-center gap-x-2 gap-y-1 @min-[480px]:@max-[639px]:grid @min-[480px]:@max-[639px]:grid-cols-[minmax(0,1fr)_auto]">
+        <header #collectionHeader data-collection-header class="sticky top-0 z-40 @container border-b border-[var(--mat-sys-outline-variant)] bg-[var(--mat-sys-surface-container-lowest)] px-2 md:px-4">
+          <div data-collection-bar class="-mx-2 flex flex-wrap items-center gap-x-2 gap-y-1 bg-[var(--mat-sys-surface-container)] px-2 py-2 md:-mx-4 md:px-4 @min-[480px]:@max-[639px]:grid @min-[480px]:@max-[639px]:grid-cols-[minmax(0,1fr)_auto]">
           <div class="min-w-40 flex-1 @min-[960px]:max-w-52 @min-[960px]:min-w-32 @min-[960px]:basis-0 @min-[1280px]:max-w-64 @min-[480px]:@max-[639px]:col-start-1 @min-[480px]:@max-[639px]:col-span-2 @min-[480px]:@max-[639px]:row-start-1 @min-[480px]:@max-[639px]:pr-48">
           <h1 class="m-0 min-w-0 text-lg font-medium leading-6 text-[var(--mat-sys-on-surface)] truncate" [title]="store.currentAlbum()?.name || (I18N.gallery.all_photos | translate)">
             {{ store.currentAlbum()?.name || (I18N.gallery.all_photos | translate) }}
@@ -341,7 +341,7 @@ const SET_KIND_TOGGLE: Record<string, keyof HiddenFilterFlags> = {
             </ng-template>
           </div>
           </div>
-          <app-gallery-criteria #collectionCriteria [portShortcuts]="true" [consolidatedSettings]="true" [searchPresented]="true" class="block min-w-0" />
+          <app-gallery-criteria #collectionCriteria [portShortcuts]="true" [consolidatedSettings]="true" [searchPresented]="true" class="-mx-2 block min-w-0 border-[var(--mat-sys-outline-variant)] px-2 md:-mx-4 md:px-4 has-[>:not(:empty)]:border-t has-[>:not(:empty)]:pb-1" />
         </header>
 
         <!-- Set-scope chip: the photo-detail "open this set in the gallery" action.
