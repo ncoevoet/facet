@@ -14,7 +14,7 @@ export function galleryFilterLabel(key: string, translate: (key: string) => stri
   // TOPIQ remains accepted by the saved/API filter contract, though absent from the sidebar registry.
   if (key === 'min_topiq' || key === 'max_topiq') return `${translate(I18N.gallery.topiq_range)} ${key === 'min_topiq' ? '≥' : '≤'}`;
   const labels: Record<string, string> = {
-    sort: I18N.gallery.sort, sort_direction: I18N.ui.sort.toggle_direction,
+    sort: I18N.gallery.sort, sort_direction: I18N.gallery.sort_direction,
     type: I18N.ui.filters.type, category: I18N.tooltip.category,
     camera: I18N.gallery.camera, lens: I18N.gallery.lens, tag: I18N.gallery.tag,
     tag_groups: I18N.gallery.tag_groups.title, keyword_branch: I18N.keyword_hierarchy.title,

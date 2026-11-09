@@ -10,6 +10,8 @@ import { GalleryStore } from './gallery.store';
 import { ApiService } from '../../core/services/api.service';
 import { AuthService } from '../../core/services/auth.service';
 import { I18nService } from '../../core/services/i18n.service';
+import { By } from '@angular/platform-browser';
+import { ContextHelpComponent } from '../../shared/components/context-help/context-help.component';
 
 describe('Explicit keyword hierarchy browsing', () => {
   let fixture: ComponentFixture<KeywordTreeComponent>;
@@ -54,6 +56,10 @@ describe('Explicit keyword hierarchy browsing', () => {
   async function open(): Promise<void> {
     (await beginOpen()).flush(tree);
     await fixture.whenStable(); fixture.detectChanges();
+  }
+  function chooseRename(page: HTMLElement): void {
+    const action = page.querySelector<HTMLSelectElement>('[data-hierarchy-action]')!;
+    action.value = 'rename'; action.dispatchEvent(new Event('change')); fixture.detectChanges();
   }
   afterEach(() => { fixture.destroy(); http.verify(); });
 
@@ -162,6 +168,7 @@ describe('Explicit keyword hierarchy browsing', () => {
     close.click(); fixture.detectChanges();
     expect(document.activeElement).toBe(manage);
     manage.click(); await fixture.whenStable(); fixture.detectChanges();
+    chooseRename(page);
     const preview = page.querySelector<HTMLButtonElement>('[data-hierarchy-preview]')!;
     expect(preview.disabled).toBe(true);
     const name = page.querySelector<HTMLInputElement>('[data-hierarchy-name]')!;
@@ -190,6 +197,7 @@ describe('Explicit keyword hierarchy browsing', () => {
     const page = fixture.nativeElement as HTMLElement;
     const manage = page.querySelector<HTMLButtonElement>('[data-hierarchy-manage]')!;
     manage.click(); await fixture.whenStable(); fixture.detectChanges();
+    chooseRename(page);
     const name = page.querySelector<HTMLInputElement>('[data-hierarchy-name]')!;
     name.value = 'Wildlife'; name.dispatchEvent(new Event('input')); fixture.detectChanges();
     page.querySelector<HTMLButtonElement>('[data-hierarchy-preview]')!.click();
@@ -213,5 +221,9 @@ describe('Explicit keyword hierarchy browsing', () => {
     expect(page.textContent).toContain('Wildlife');
     expect(TestBed.inject(KeywordHierarchyLabels).names()[root]).toBe('Wildlife');
     expect(document.activeElement).toBe(manage);
+  });
+  it('labels its help with the tree-specific key, distinct from the editor and catalog', async () => {
+    build(); await open();
+    expect(fixture.debugElement.query(By.directive(ContextHelpComponent)).componentInstance.label()).toBe('keyword_hierarchy.help_label');
   });
 });

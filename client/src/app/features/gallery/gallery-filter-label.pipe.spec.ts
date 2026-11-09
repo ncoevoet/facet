@@ -12,6 +12,7 @@ import { I18nService } from '../../core/services/i18n.service';
 import { DEFAULT_FILTERS, SMART_ALBUM_EXCLUDE_KEYS } from './gallery-filters.util';
 import { galleryFilterLabel } from './gallery-filter-label.pipe';
 import { AlbumRuleValuePipe } from './album-rule-value.pipe';
+import { GalleryStore } from './gallery.store';
 
 function translated(bundle: object, key: string): string {
   let value: unknown = bundle;
@@ -42,10 +43,35 @@ describe('Shared filter label coverage', () => {
   });
 });
 
+describe('Sort direction label', () => {
+  it('names the field rather than the toggle control', () => {
+    expect(galleryFilterLabel('sort_direction', value => translated(en, value))).toBe(en.gallery.sort_direction);
+  });
+});
+
 describe('Typed album rule values', () => {
+  const persons = signal([{ id: 7, name: 'Alice', face_count: 3 }, { id: 8, name: null, face_count: 1 }]);
+  const make = (bundle: object) => {
+    TestBed.configureTestingModule({ providers: [
+      { provide: I18nService, useValue: { t: (key: string, params?: Record<string, unknown>) => translated(bundle, key).replace('{id}', String(params?.['id'])) } },
+      { provide: GalleryStore, useValue: { persons } },
+    ] });
+    return TestBed.runInInjectionContext(() => new AlbumRuleValuePipe());
+  };
+
+  it('resolves a person id to the cached name and falls back to Person #id', () => {
+    const pipe = make(en);
+    expect(pipe.transform('7', 'person_id')).toBe('Alice');
+    expect(pipe.transform('8', 'person_id')).toBe('Person #8');
+    expect(pipe.transform('99', 'person_id')).toBe('Person #99');
+  });
+
   it('translates known choices only and preserves literal or unknown values', () => {
     const bundle = signal<object>(fr);
-    TestBed.configureTestingModule({ providers: [{ provide: I18nService, useValue: { t: (key: string) => translated(bundle(), key) } }] });
+    TestBed.configureTestingModule({ providers: [
+      { provide: I18nService, useValue: { t: (key: string) => translated(bundle(), key) } },
+      { provide: GalleryStore, useValue: { persons: signal([]) } },
+    ] });
     const pipe = TestBed.runInInjectionContext(() => new AlbumRuleValuePipe());
     for (const key of ['camera', 'lens', 'tag', 'search', 'path_prefix']) {
       for (const value of ['true', 'false', 'gallery.camera', 'albums.title']) expect(pipe.transform(value, key)).toBe(value);

@@ -64,6 +64,9 @@ export interface ManualTagsDialogResult {
         </div>
       </div>
       @if (data.observation; as observed) {
+        @if (!observed.tags.length && observed.photos > 0) {
+          <p data-tag-empty class="mb-3 text-sm text-[var(--mat-sys-on-surface-variant)]">{{ I18N.manual_tags.batch.empty_state | translate }}</p>
+        }
         <details class="mb-3">
           <summary class="cursor-pointer text-sm py-2">{{ I18N.manual_tags.batch.observed | translate:{ loaded: observed.photos, count: data.count } }}</summary>
           <p class="text-xs text-[var(--mat-sys-on-surface-variant)]">{{ (observed.photos === data.count ? I18N.manual_tags.batch.complete : I18N.manual_tags.batch.sample) | translate }}</p>

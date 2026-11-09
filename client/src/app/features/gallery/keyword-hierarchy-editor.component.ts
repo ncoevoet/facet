@@ -59,7 +59,7 @@ type Action = Request['action'];
       @if (plan(); as preview) {
         <div data-hierarchy-preview class="space-y-2 rounded border border-[var(--mat-sys-outline-variant)] p-2 text-xs">
           @if (beforePath()) { <p class="m-0 break-words">{{ I18N.keyword_hierarchy.edit.before | translate }}: {{ beforePath() }}</p> }
-          @if (afterPath()) { <p class="m-0 break-words">{{ I18N.keyword_hierarchy.edit.after | translate }}: {{ afterPath() }}</p> }
+          @if (afterPath() && afterPath() !== beforePath()) { <p class="m-0 break-words">{{ I18N.keyword_hierarchy.edit.after | translate }}: {{ afterPath() }}</p> }
           <p class="m-0">{{ I18N.keyword_hierarchy.edit.summary | translate:{ photos: preview.paths.length, added: preview.new_assignments, updated: preview.updated_assignments, removed: preview.removed_assignments } }}</p>
           @if (preview.definition_change === null) { <p class="m-0">{{ I18N.keyword_hierarchy.edit.spelling | translate }}</p> }
           <details><summary class="min-h-11 cursor-pointer">{{ I18N.keyword_catalog.targets | translate:{ count: preview.paths.length } }}</summary>
@@ -76,7 +76,7 @@ type Action = Request['action'];
         <button data-hierarchy-preview type="button" class="min-h-11 rounded border border-[var(--mat-sys-outline)] px-3 text-sm" [disabled]="loading() || saving() || uncertain() || !hasChange() || (usesSelection() && !store.selectionCount())" (click)="preview()">{{ I18N.keyword_hierarchy.edit.preview | translate }}</button>
       }
       @if (uncertain()) { <p role="alert" class="text-xs">{{ I18N.keyword_hierarchy.edit.uncertain | translate }}</p> }
-      <app-context-help [label]="I18N.keyword_catalog.help" [keys]="[I18N.keyword_hierarchy.edit.help]" />
+      <app-context-help [label]="I18N.keyword_hierarchy.edit.help_label" [keys]="[I18N.keyword_hierarchy.edit.help]" />
     </section>
   `,
 })
@@ -144,7 +144,7 @@ export class KeywordHierarchyEditorComponent {
     effect(() => { const button = this.applyButton(); if (button && this.current()) untracked(() => button.nativeElement.focus()); });
     effect(() => {
       const node = this.node();
-      untracked(() => { this.action.set(node ? 'rename' : 'create_assign'); this.name.set(node?.name ?? ''); this.parent.set(node?.parent_id ?? ''); this.invalidate(); });
+      untracked(() => { this.action.set(node ? (this.store.selectionCount() ? 'assign' : 'rename') : 'create_assign'); this.name.set(node?.name ?? ''); this.parent.set(node?.parent_id ?? ''); this.invalidate(); });
     });
     effect(() => {
       this.auth.identity(); this.auth.status(); this.auth.isEdition();

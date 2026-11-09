@@ -69,7 +69,7 @@ type Result = components['schemas']['HierarchyChangeResult'];
           }
         }
         @if (receipt(); as result) { <p role="status" class="text-xs">{{ I18N.keyword_hierarchy.edit.changed | translate:{ targets: result.target_photos, photos: result.affected_photos, assignments: result.changed_assignments } }}</p> }
-        <app-context-help [label]="I18N.keyword_catalog.help" [keys]="[I18N.keyword_hierarchy.help]" />
+        <app-context-help [label]="I18N.keyword_hierarchy.help_label" [keys]="[I18N.keyword_hierarchy.help]" />
       }
     </details>
   `,

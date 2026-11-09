@@ -373,6 +373,20 @@ describe('ManualTagsDialogComponent', () => {
     expect(mockApi.post).toHaveBeenCalledOnce();
   });
 
+  it('points to the keyword editor when the loaded photos carry no manual tags', () => {
+    create({ ...pathData, observation: observeManualTags([{ manual_tags: [] }, {}]) });
+    const fixture = TestBed.createComponent(ManualTagsDialogComponent);
+    fixture.detectChanges();
+    expect(fixture.nativeElement.querySelector('[data-tag-empty]')?.textContent).toContain('manual_tags.batch.empty_state');
+  });
+
+  it('shows no empty state when a loaded photo carries a manual tag', () => {
+    create({ ...pathData, observation: observeManualTags([{ manual_tags: ['trip'] }, {}]) });
+    const fixture = TestBed.createComponent(ManualTagsDialogComponent);
+    fixture.detectChanges();
+    expect(fixture.nativeElement.querySelector('[data-tag-empty]')).toBeNull();
+  });
+
   it('renders Replace all as a stroked button, not the filled primary action', () => {
     create(pathData);
     const fixture = TestBed.createComponent(ManualTagsDialogComponent);

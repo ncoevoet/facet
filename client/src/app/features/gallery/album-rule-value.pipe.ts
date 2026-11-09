@@ -3,16 +3,22 @@ import { i18nKeys } from '../../core/i18n/keys';
 import { I18nService } from '../../core/services/i18n.service';
 import { CaptureDatePipe } from '../../shared/pipes/capture-date.pipe';
 import { DEFAULT_FILTERS } from './gallery-filters.util';
+import { GalleryStore } from './gallery.store';
 
 @Pipe({ name: 'albumRuleValue', pure: false })
 export class AlbumRuleValuePipe implements PipeTransform {
   private readonly i18n = inject(I18nService);
+  private readonly store = inject(GalleryStore);
   private readonly date = new CaptureDatePipe();
   transform(value: string, key: string): string {
     const I18N = i18nKeys();
     if (!value) return this.i18n.t(I18N.albums.rules.any);
     if (typeof DEFAULT_FILTERS[key as keyof typeof DEFAULT_FILTERS] === 'boolean' && (value === 'true' || value === 'false')) {
       return this.i18n.t(value === 'true' ? I18N.organization_history.yes : I18N.organization_history.no);
+    }
+    if (key === 'person_id') {
+      const name = this.store.persons().find(person => String(person.id) === value)?.name;
+      return name || this.i18n.t(I18N.albums.rules.person_fallback, { id: value });
     }
     if (key === 'date_from' || key === 'date_to') return this.date.transform(value);
     const enumKeys: Record<string, string> = {

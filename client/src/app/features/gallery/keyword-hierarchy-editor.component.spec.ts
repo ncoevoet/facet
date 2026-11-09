@@ -9,6 +9,8 @@ import { GalleryStore, DEFAULT_FILTERS } from './gallery.store';
 import { ApiService } from '../../core/services/api.service';
 import { AuthService } from '../../core/services/auth.service';
 import { I18nService } from '../../core/services/i18n.service';
+import { By } from '@angular/platform-browser';
+import { ContextHelpComponent } from '../../shared/components/context-help/context-help.component';
 
 describe('Captured hierarchy editor', () => {
   let fixture: ComponentFixture<KeywordHierarchyEditorComponent>;
@@ -182,5 +184,26 @@ describe('Captured hierarchy editor', () => {
     await capture(); const pending = fixture.componentInstance.apply();
     http.expectOne('/api/manual_tags/hierarchy/apply').flush(result); await pending;
     expect(refresh).toHaveBeenCalledExactlyOnceWith(null);
+  });
+  it('defaults to assigning when photos are selected, and to renaming when none are', () => {
+    build();
+    expect(fixture.componentInstance.action()).toBe('assign');
+    fixture.destroy(); TestBed.resetTestingModule();
+    build();
+    selection.set(new Set()); fixture.componentRef.setInput('node', { ...node, id: '22222222-2222-4222-8222-222222222222' }); fixture.detectChanges();
+    expect(fixture.componentInstance.action()).toBe('rename');
+  });
+
+  it('shows the proposed path only when it differs from the current one', async () => {
+    build(); await capture('assign');
+    expect(fixture.nativeElement.querySelector('[data-hierarchy-preview]').textContent).toContain('keyword_hierarchy.edit.before');
+    expect(fixture.nativeElement.querySelector('[data-hierarchy-preview]').textContent).not.toContain('keyword_hierarchy.edit.after');
+    fixture.componentInstance.invalidate(); await capture('rename');
+    expect(fixture.nativeElement.querySelector('[data-hierarchy-preview]').textContent).toContain('keyword_hierarchy.edit.after');
+  });
+
+  it('labels its help with the editor-specific key', () => {
+    build();
+    expect(fixture.debugElement.query(By.directive(ContextHelpComponent)).componentInstance.label()).toBe('keyword_hierarchy.edit.help_label');
   });
 });
