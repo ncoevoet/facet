@@ -399,7 +399,7 @@ curl -s -X POST http://localhost:5000/api/mcp/tokens -H "Authorization: Bearer $
 
 | 工具 | 作用 |
 |------|------|
-| `list_culling_groups` | 列出分组（`burst`、`similar`、`scene`、`bracket`、`panorama`、`hdr_panorama`）及其照片和分数，可排序，并可按相册或日期范围限定 |
+| `list_culling_groups` | 列出分组（`burst`、`similar`、`lookalike`、`scene`、`bracket`、`panorama`、`hdr_panorama`）及其照片和分数，可排序，并可按相册或日期范围限定 |
 | `culling_profiles` | 按题材划分的选片预设以及默认预设 |
 | `suggest_culling_profile` | 指出适合某个相册或拍摄时间段的预设 |
 | `keeper_hints` | 逐张照片的“这组连拍中有更好的一张”提示，最多 100 个路径（未训练保留者排序头时为空） |

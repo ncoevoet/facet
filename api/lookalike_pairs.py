@@ -156,7 +156,8 @@ def compute_lookalike_pairs(conn, user_id, *, album_id=None, date_from=None, dat
     """Best-first look-alike pairs, each photo in at most one.
 
     Unlike the grouped feeds this reads photos that were already reviewed or sit inside a burst.
-    A pair is left out when its frames share a burst or a bracket/panorama set, and when BOTH
+    A frame of a bracket/panorama set is never paired (those sets are kept whole), and a pair is
+    left out when its frames share a burst, and when BOTH
     photos are already decided (reviewed, or explicitly kept, favourited or rated), because that
     is a comparison the person has already settled. A decided photo that meets an undecided one
     stays: that is the missed case. ``best_path`` prefers a decided photo, so a deliberate keeper

@@ -399,7 +399,7 @@ As ferramentas da câmara escura espelham a página `/culling`. Todas exigem o n
 
 | Ferramenta | O que faz |
 |------|--------------|
-| `list_culling_groups` | Lista os grupos (`burst`, `similar`, `scene`, `bracket`, `panorama`, `hdr_panorama`) com as suas fotos e pontuações, ordenáveis e delimitáveis por álbum ou intervalo de datas |
+| `list_culling_groups` | Lista os grupos (`burst`, `similar`, `lookalike`, `scene`, `bracket`, `panorama`, `hdr_panorama`) com as suas fotos e pontuações, ordenáveis e delimitáveis por álbum ou intervalo de datas |
 | `culling_profiles` | Os perfis de triagem prontos e o padrão |
 | `suggest_culling_profile` | Indica o perfil adequado a um álbum ou intervalo de captura |
 | `keeper_hints` | Dicas por foto «existe uma foto melhor nesta rajada» para até 100 caminhos (vazias se não houver cabeça de classificação treinada) |

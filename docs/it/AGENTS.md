@@ -399,7 +399,7 @@ Gli strumenti della camera oscura rispecchiano la pagina `/culling`. Tutti richi
 
 | Strumento | Cosa fa |
 |-----------|---------|
-| `list_culling_groups` | Elenca i gruppi (`burst`, `similar`, `scene`, `bracket`, `panorama`, `hdr_panorama`) con foto e punteggi, ordinabili e limitabili per album o intervallo di date |
+| `list_culling_groups` | Elenca i gruppi (`burst`, `similar`, `lookalike`, `scene`, `bracket`, `panorama`, `hdr_panorama`) con foto e punteggi, ordinabili e limitabili per album o intervallo di date |
 | `culling_profiles` | I preset di selezione per genere e quello predefinito |
 | `suggest_culling_profile` | Indica il preset adatto a un album o a un intervallo di scatto |
 | `keeper_hints` | Indicazioni per foto «in questa raffica esiste uno scatto migliore» per fino a 100 percorsi (vuote se nessuna testa di classificazione è addestrata) |

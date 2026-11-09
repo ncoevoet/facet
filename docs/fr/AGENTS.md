@@ -399,7 +399,7 @@ Les outils de la chambre noire reprennent la page `/culling`. Tous exigent le ni
 
 | Outil | Ce qu'il fait |
 |-------|---------------|
-| `list_culling_groups` | Liste les groupes (`burst`, `similar`, `scene`, `bracket`, `panorama`, `hdr_panorama`) avec leurs photos et scores, triables et limités par album ou plage de dates |
+| `list_culling_groups` | Liste les groupes (`burst`, `similar`, `lookalike`, `scene`, `bracket`, `panorama`, `hdr_panorama`) avec leurs photos et scores, triables et limités par album ou plage de dates |
 | `culling_profiles` | Les préréglages de tri adaptés au genre et celui par défaut |
 | `suggest_culling_profile` | Nomme le préréglage adapté à un album ou à une plage de prise de vue |
 | `keeper_hints` | Indications par photo « un meilleur cliché existe dans cette rafale » pour jusqu'à 100 chemins (vides si aucune tête de classement n'est entraînée) |

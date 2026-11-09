@@ -399,7 +399,7 @@ Die Dunkelkammer-Werkzeuge spiegeln die Seite `/culling`. Alle brauchen die Stuf
 
 | Werkzeug | Was es tut |
 |----------|------------|
-| `list_culling_groups` | Listet Gruppen (`burst`, `similar`, `scene`, `bracket`, `panorama`, `hdr_panorama`) mit ihren Fotos und Scores, sortierbar und nach Album oder Zeitraum eingrenzbar |
+| `list_culling_groups` | Listet Gruppen (`burst`, `similar`, `lookalike`, `scene`, `bracket`, `panorama`, `hdr_panorama`) mit ihren Fotos und Scores, sortierbar und nach Album oder Zeitraum eingrenzbar |
 | `culling_profiles` | Die genrebezogenen Auswahl-Voreinstellungen und die Standardvoreinstellung |
 | `suggest_culling_profile` | Nennt die zu einem Album oder Aufnahmezeitraum passende Voreinstellung |
 | `keeper_hints` | Hinweise pro Foto „in dieser Serie gibt es ein besseres Bild“ für bis zu 100 Pfade (leer, wenn kein Keeper-Kopf trainiert ist) |

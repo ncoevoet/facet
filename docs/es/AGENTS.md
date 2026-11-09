@@ -399,7 +399,7 @@ Las herramientas del cuarto oscuro reflejan la página `/culling`. Todas exigen 
 
 | Herramienta | Qué hace |
 |-------------|----------|
-| `list_culling_groups` | Lista los grupos (`burst`, `similar`, `scene`, `bracket`, `panorama`, `hdr_panorama`) con sus fotos y puntuaciones, ordenables y acotables por álbum o rango de fechas |
+| `list_culling_groups` | Lista los grupos (`burst`, `similar`, `lookalike`, `scene`, `bracket`, `panorama`, `hdr_panorama`) con sus fotos y puntuaciones, ordenables y acotables por álbum o rango de fechas |
 | `culling_profiles` | Los ajustes de descarte por género y el predefinido |
 | `suggest_culling_profile` | Nombra el ajuste que encaja con un álbum o un rango de captura |
 | `keeper_hints` | Pistas por foto «en esta ráfaga hay una toma mejor» para hasta 100 rutas (vacías si no hay cabeza de clasificación entrenada) |

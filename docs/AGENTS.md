@@ -399,7 +399,7 @@ The darkroom tools mirror the `/culling` page. All of them need the `edition` le
 
 | Tool | What it does |
 |------|--------------|
-| `list_culling_groups` | List groups (`burst`, `similar`, `scene`, `bracket`, `panorama`, `hdr_panorama`) with their photos and scores, sortable and scoped by album or date window |
+| `list_culling_groups` | List groups (`burst`, `similar`, `lookalike`, `scene`, `bracket`, `panorama`, `hdr_panorama`) with their photos and scores, sortable and scoped by album or date window |
 | `culling_profiles` | The genre-aware culling presets and the default one |
 | `suggest_culling_profile` | Name the preset that fits an album or a capture-time window |
 | `keeper_hints` | Per-photo "a better shot exists in this burst" hints for up to 100 paths (empty when no keeper head is trained) |

@@ -45,7 +45,8 @@ CULLING_ROUTES: dict[str, RouteSpec] = {
 # Every darkroom route is edition-gated upstream; the tools carry the same floor.
 CULLING_LEVEL = "edition"
 
-GroupType = Literal["burst", "similar", "scene", "bracket", "panorama", "hdr_panorama"]
+GroupType = Literal["burst", "similar", "lookalike", "scene", "bracket", "panorama", "hdr_panorama"]
+GroupBy = Literal["all", "burst", "similar", "lookalike", "scene", "bracket", "panorama", "hdr_panorama"]
 KEEP_WHOLE_TYPES = ("bracket", "panorama", "hdr_panorama")
 GROUP_PHOTO_LIMIT = 12
 GROUP_PHOTO_KEYS = ("path", "filename", "date_taken", "aggregate", "aesthetic", "tech_sharpness",
@@ -250,8 +251,7 @@ def register_culling_tools(server: MCPServer, app: Any, registry: TabRegistry,
 
     async def list_culling_groups(
         ctx: Context,
-        group_by: Literal["all", "burst", "similar", "scene", "bracket", "panorama",
-                          "hdr_panorama"] = "all",
+        group_by: GroupBy = "all",
         page: Annotated[int, Field(ge=1)] = 1,
         per_page: Annotated[int, Field(ge=1, le=50)] = 20,
         sort: Literal["easiest", "redundant", "best", "recent", "needs_comparisons",
@@ -552,7 +552,7 @@ def register_culling_tools(server: MCPServer, app: Any, registry: TabRegistry,
         return await run_tool(ctx, "confirm_culling_groups", handler, write=True)
 
     add(list_culling_groups, "list_culling_groups",
-        "List the darkroom's culling groups (burst, similar, scene, bracket, panorama, "
+        "List the darkroom's culling groups (burst, similar, lookalike, scene, bracket, panorama, "
         "hdr_panorama), each with its photos and scores. A group is identified by the PAIR "
         "(type, group_id); bracket/panorama/hdr_panorama sets are kept whole by design, never "
         "culled frame by frame. The list takes no `show`: the /culling page cannot apply this query." + SEE_GROUP)

@@ -1026,3 +1026,14 @@ class TestAutoCullStateGuardThroughTheTool:
         preview = rig.env.call(rig.token, "auto_cull", self.args())
         assert self.apply(rig, preview)["ok"]
         assert self.apply(rig, preview)["error"] == "confirmation_required"
+
+
+def test_the_tool_enums_match_the_routes_they_call():
+    # A view added to the darkroom stayed unreachable from the assistant when these drifted.
+    from typing import get_args
+
+    from api.agent.tools_culling import GroupBy, GroupType
+    from api.routers.burst_culling import _CULLING_GROUP_BY, CullingConfirmBody
+
+    assert set(get_args(GroupBy)) == set(_CULLING_GROUP_BY)
+    assert set(get_args(GroupType)) == set(get_args(CullingConfirmBody.model_fields['type'].annotation))
