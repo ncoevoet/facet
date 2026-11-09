@@ -5,7 +5,7 @@ import { ActivatedRoute, Router } from '@angular/router';
 import { Observable, of } from 'rxjs';
 import { ApiService } from '../../core/services/api.service';
 import { GalleryStore } from '../gallery/gallery.store';
-import { FoldersComponent } from './folders.component';
+import { FoldersComponent, KEEP_CHAIN_STATE } from './folders.component';
 
 describe('FoldersComponent', () => {
 
@@ -108,6 +108,18 @@ describe('FoldersComponent', () => {
       expect(component.folders()).toHaveLength(0);
     });
 
+    it('clicking a chain crumb stays there instead of skipping straight back down', async () => {
+      history.replaceState({ [KEEP_CHAIN_STATE]: true }, '');
+      try {
+        mockApi.get.mockReturnValue(of({ folders: [{ name: 'Users', path: '/Users/', photo_count: 3, cover_photo_path: null }], has_direct_photos: false }));
+        await (component as any).loadFolders();
+        expect(mockRouter.navigate).not.toHaveBeenCalled();
+        expect(component.folders()).toHaveLength(1);
+      } finally {
+        history.replaceState(null, '');
+      }
+    });
+
     it('keeps a lone folder when photos also sit at this level', async () => {
       mockApi.get.mockReturnValue(of({ folders: [{ name: 'Users', path: '/Users/', photo_count: 3, cover_photo_path: null }], has_direct_photos: true }));
       await (component as any).loadFolders();
@@ -151,12 +163,13 @@ describe('FoldersComponent', () => {
       component.navigateTo('Holidays/');
       expect(mockRouter.navigate).toHaveBeenCalledWith(['/folders'], {
         queryParams: { prefix: 'Holidays/' },
+        state: { [KEEP_CHAIN_STATE]: true },
       });
     });
 
     it('should navigate to /folders with no query params when prefix is empty', () => {
       component.navigateTo('');
-      expect(mockRouter.navigate).toHaveBeenCalledWith(['/folders'], { queryParams: {} });
+      expect(mockRouter.navigate).toHaveBeenCalledWith(['/folders'], { queryParams: {}, state: { [KEEP_CHAIN_STATE]: true } });
     });
   });
 

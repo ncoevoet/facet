@@ -15,6 +15,9 @@ import { I18N, i18nKeys } from '../../core/i18n/keys';
 import { buildFolderBreadcrumbs, type FolderItem, type FoldersResponse } from './folders.util';
 import { GalleryStore } from '../gallery/gallery.store';
 
+/** History-state flag set by a breadcrumb: the user chose this level, so a lone folder is not skipped. */
+export const KEEP_CHAIN_STATE = 'foldersKeepChain';
+
 @Component({
   selector: 'app-folders',
   standalone: true,
@@ -164,7 +167,8 @@ export class FoldersComponent implements OnInit {
       }
       // A lone folder with nothing beside it is a path prefix, not a choice (/Users/me/...).
       // Skip to the first level that branches; the breadcrumb still shows the chain.
-      if (res.folders.length === 1 && !res.has_direct_photos) {
+      // Not when a breadcrumb led here: that level was chosen, and skipping bounced straight back.
+      if (res.folders.length === 1 && !res.has_direct_photos && !history.state?.[KEEP_CHAIN_STATE]) {
         this.router.navigate(['/folders'], { queryParams: { prefix: res.folders[0].path }, replaceUrl: true });
         return;
       }
@@ -177,6 +181,7 @@ export class FoldersComponent implements OnInit {
   protected navigateTo(prefix: string): void {
     this.router.navigate(['/folders'], {
       queryParams: prefix ? { prefix } : {},
+      state: { [KEEP_CHAIN_STATE]: true },
     });
   }
 
