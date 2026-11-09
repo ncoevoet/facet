@@ -35,7 +35,7 @@
 
 ### Suivi des analyses
 
-Facet enregistre chaque analyse (statut, mode, répertoires, compteurs) et chaque erreur par fichier. Ctrl+C marque l'exécution `interrupted`, ce qui permet à `--resume` de la poursuivre. Les fichiers en échec sont listés et ne sont retentés qu'avec `--retry-failed`. La visionneuse affiche la progression de l'analyse à partir des lignes `@FACET_PROGRESS` de la CLI. Une analyse qui n'a enregistré aucune photo se termine avec le code 4 (tous les fichiers ont échoué, par exemple parce qu'un modèle requis ne s'est pas chargé) ; une analyse sans rien à faire se termine avec 0, et `--watch` continue de surveiller après un code 4. Une analyse ignorée parce qu'un autre travail détient le verrou de la bibliothèque se termine avec le code 75 ; `--watch` ne la compte pas comme un échec et relance le lot après la période de calme suivante. Après 3 analyses échouées consécutives, analyse initiale comprise, `--watch` s'arrête et se termine avec le code 1.
+Facet enregistre chaque analyse (statut, mode, répertoires, compteurs) et chaque erreur par fichier. Ctrl+C marque l'exécution `interrupted`, ce qui permet à `--resume` de la poursuivre. Une analyse interrompue se termine avec le code 130. Les fichiers en échec sont listés et ne sont retentés qu'avec `--retry-failed`. La visionneuse affiche la progression de l'analyse à partir des lignes `@FACET_PROGRESS` de la CLI. Une analyse qui n'a enregistré aucune photo se termine avec le code 4 (tous les fichiers ont échoué, par exemple parce qu'un modèle requis ne s'est pas chargé) ; une analyse sans rien à faire se termine avec 0, et `--watch` continue de surveiller après un code 4. Une analyse ignorée parce qu'un autre travail détient le verrou de la bibliothèque se termine avec le code 75 ; `--watch` ne la compte pas comme un échec et relance le lot après la période de calme suivante. Après 3 analyses échouées consécutives, analyse initiale comprise, `--watch` s'arrête et se termine avec le code 1.
 
 ### Modes de traitement
 
@@ -206,6 +206,8 @@ Ces commandes mettent à jour des métriques ou dérivent de nouvelles données 
 | `python facet.py --compute-recommendations --verbose` | Affiche des statistiques détaillées |
 | `python facet.py --compute-recommendations --apply-recommendations` | Applique automatiquement les correctifs de notation |
 | `python facet.py --compute-recommendations --simulate` | Prévisualise les changements projetés |
+
+**`--dry-run`** n'a pas d'aperçu pour ces commandes qui réécrivent la base ; chacune le refuse avec le code de sortie 2 au lieu d'écrire quand même : `--backfill-clipping`, `--backfill-focal-35mm`, `--cluster-faces-force`, `--generate-captions`, `--recompute-average`, `--recompute-colors`, `--recompute-distortions`, `--recompute-form`, `--recompute-skin-tone`, `--recompute-tags`, `--recompute-text`, `--repair-int-columns`, `--repair-neutral-iqa`, `--upgrade-db`.
 
 **`--recompute-average`** ne garde aucun instantané : pour revenir en arrière, restaurez un instantané de poids et recalculez. Après une mise à jour depuis la 1.20 ou une version antérieure, lancez d'abord `--recompute-silhouette`, puis `--recompute-average` deux fois. La première passe enregistre de nouveaux percentiles, si bien que la seconde modifie encore certaines lignes.
 

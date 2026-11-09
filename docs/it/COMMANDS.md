@@ -35,7 +35,7 @@
 
 ### Registrazione delle scansioni
 
-Facet registra ogni scansione (stato, modalità, directory, contatori) e ogni errore per singolo file. Ctrl+C contrassegna l'esecuzione come `interrupted`, così `--resume` può riprenderla. I file falliti vengono elencati e ritentati solo con `--retry-failed`. Il visualizzatore mostra l'avanzamento della scansione dalle righe `@FACET_PROGRESS` della CLI. Una scansione che non ha salvato nessuna foto termina con il codice 4 (tutti i file sono falliti, per esempio perché un modello richiesto non si è caricato); una scansione senza nulla da fare termina con 0, e `--watch` continua a osservare dopo un codice 4. Una scansione saltata perché un altro lavoro tiene il blocco della libreria termina con il codice 75; `--watch` non la conta come errore e riprova il lotto dopo il successivo periodo di quiete. Dopo 3 scansioni fallite consecutive, inclusa quella iniziale, `--watch` si ferma e termina con il codice 1.
+Facet registra ogni scansione (stato, modalità, directory, contatori) e ogni errore per singolo file. Ctrl+C contrassegna l'esecuzione come `interrupted`, così `--resume` può riprenderla. Una scansione interrotta termina con codice di uscita 130. I file falliti vengono elencati e ritentati solo con `--retry-failed`. Il visualizzatore mostra l'avanzamento della scansione dalle righe `@FACET_PROGRESS` della CLI. Una scansione che non ha salvato nessuna foto termina con il codice 4 (tutti i file sono falliti, per esempio perché un modello richiesto non si è caricato); una scansione senza nulla da fare termina con 0, e `--watch` continua a osservare dopo un codice 4. Una scansione saltata perché un altro lavoro tiene il blocco della libreria termina con il codice 75; `--watch` non la conta come errore e riprova il lotto dopo il successivo periodo di quiete. Dopo 3 scansioni fallite consecutive, inclusa quella iniziale, `--watch` si ferma e termina con il codice 1.
 
 ### Modalità di elaborazione
 
@@ -206,6 +206,8 @@ Questi comandi aggiornano metriche o derivano nuovi dati senza rieseguire l'inte
 | `python facet.py --compute-recommendations --verbose` | Mostra statistiche dettagliate |
 | `python facet.py --compute-recommendations --apply-recommendations` | Applica automaticamente le correzioni dei punteggi |
 | `python facet.py --compute-recommendations --simulate` | Visualizza in anteprima le modifiche previste |
+
+**`--dry-run`** non ha un'anteprima per questi comandi che riscrivono il database: ognuno lo rifiuta con codice di uscita 2 invece di scrivere comunque: `--backfill-clipping`, `--backfill-focal-35mm`, `--cluster-faces-force`, `--generate-captions`, `--recompute-average`, `--recompute-colors`, `--recompute-distortions`, `--recompute-form`, `--recompute-skin-tone`, `--recompute-tags`, `--recompute-text`, `--repair-int-columns`, `--repair-neutral-iqa`, `--upgrade-db`.
 
 **`--recompute-average`** non conserva alcuno snapshot: per annullare, ripristina uno snapshot dei pesi e ricalcola. Dopo l'aggiornamento dalla 1.20 o da una versione precedente, esegui prima `--recompute-silhouette`, poi `--recompute-average` due volte. La prima passata memorizza i nuovi percentili, quindi la seconda cambia ancora alcune righe.
 

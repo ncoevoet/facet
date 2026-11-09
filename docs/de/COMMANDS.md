@@ -35,7 +35,7 @@
 
 ### Scan-Buchhaltung
 
-Facet zeichnet jeden Scan (Status, Modus, Verzeichnisse, Zähler) und jeden Fehler pro Datei auf. Strg+C markiert den Lauf als `interrupted`, sodass `--resume` ihn fortsetzen kann. Fehlgeschlagene Dateien werden aufgelistet und nur mit `--retry-failed` erneut versucht. Der Viewer zeigt den Scan-Fortschritt anhand der `@FACET_PROGRESS`-Zeilen der CLI. Ein Scan, der kein einziges Foto gespeichert hat, endet mit Code 4 (jede Datei ist fehlgeschlagen, etwa weil ein erforderliches Modell nicht lud); ein Scan ohne Arbeit endet mit 0, und `--watch` überwacht nach Code 4 weiter. Ein Scan, der übersprungen wird, weil ein anderer Auftrag die Bibliothekssperre hält, endet mit Code 75; `--watch` zählt ihn nicht als Fehler und wiederholt den Stapel nach der nächsten Ruhephase. Nach 3 aufeinanderfolgenden fehlgeschlagenen Scans, den ersten Scan eingeschlossen, hält `--watch` an und endet mit Code 1.
+Facet zeichnet jeden Scan (Status, Modus, Verzeichnisse, Zähler) und jeden Fehler pro Datei auf. Strg+C markiert den Lauf als `interrupted`, sodass `--resume` ihn fortsetzen kann. Ein unterbrochener Scan endet mit Exit-Code 130. Fehlgeschlagene Dateien werden aufgelistet und nur mit `--retry-failed` erneut versucht. Der Viewer zeigt den Scan-Fortschritt anhand der `@FACET_PROGRESS`-Zeilen der CLI. Ein Scan, der kein einziges Foto gespeichert hat, endet mit Code 4 (jede Datei ist fehlgeschlagen, etwa weil ein erforderliches Modell nicht lud); ein Scan ohne Arbeit endet mit 0, und `--watch` überwacht nach Code 4 weiter. Ein Scan, der übersprungen wird, weil ein anderer Auftrag die Bibliothekssperre hält, endet mit Code 75; `--watch` zählt ihn nicht als Fehler und wiederholt den Stapel nach der nächsten Ruhephase. Nach 3 aufeinanderfolgenden fehlgeschlagenen Scans, den ersten Scan eingeschlossen, hält `--watch` an und endet mit Code 1.
 
 ### Verarbeitungsmodi
 
@@ -206,6 +206,8 @@ Diese Befehle aktualisieren Metriken oder leiten neue Daten ab, ohne die vollst�
 | `python facet.py --compute-recommendations --verbose` | Detaillierte Statistiken anzeigen |
 | `python facet.py --compute-recommendations --apply-recommendations` | Bewertungskorrekturen automatisch anwenden |
 | `python facet.py --compute-recommendations --simulate` | Voraussichtliche Änderungen vorab anzeigen |
+
+**`--dry-run`** hat für diese Befehle, die die Datenbank umschreiben, keine Vorschau; jeder lehnt es mit Exit-Code 2 ab, statt trotzdem zu schreiben: `--backfill-clipping`, `--backfill-focal-35mm`, `--cluster-faces-force`, `--generate-captions`, `--recompute-average`, `--recompute-colors`, `--recompute-distortions`, `--recompute-form`, `--recompute-skin-tone`, `--recompute-tags`, `--recompute-text`, `--repair-int-columns`, `--repair-neutral-iqa`, `--upgrade-db`.
 
 **`--recompute-average`** legt keinen Snapshot an: Zum Zurückrollen einen Gewichtungs-Snapshot wiederherstellen und neu berechnen. Führen Sie nach dem Upgrade von 1.20 oder früher zuerst `--recompute-silhouette` aus, dann `--recompute-average` zweimal. Der erste Durchlauf speichert neue Perzentile, daher ändert der zweite noch einige Zeilen.
 

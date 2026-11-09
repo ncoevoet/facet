@@ -35,7 +35,7 @@
 
 ### Registro de Escaneamento
 
-O Facet registra cada escaneamento (estado, modo, diretórios, contadores) e cada erro por arquivo. Ctrl+C marca a execução como `interrupted`, para que `--resume` possa continuá-la. Os arquivos com falha são listados e reprocessados somente com `--retry-failed`. O visualizador mostra o progresso do escaneamento a partir das linhas `@FACET_PROGRESS` da CLI. Um escaneamento que não salvou nenhuma foto termina com o código 4 (todos os arquivos falharam, por exemplo porque um modelo necessário não carregou); um escaneamento sem nada a fazer termina com 0, e `--watch` continua vigiando após um código 4. Um escaneamento ignorado porque outro trabalho detém o bloqueio da biblioteca termina com o código 75; `--watch` não o conta como falha e tenta o lote novamente após o próximo período de calma. Após 3 escaneamentos com falha consecutivos, incluindo o inicial, `--watch` para e termina com o código 1.
+O Facet registra cada escaneamento (estado, modo, diretórios, contadores) e cada erro por arquivo. Ctrl+C marca a execução como `interrupted`, para que `--resume` possa continuá-la. Um escaneamento interrompido termina com o código de saída 130. Os arquivos com falha são listados e reprocessados somente com `--retry-failed`. O visualizador mostra o progresso do escaneamento a partir das linhas `@FACET_PROGRESS` da CLI. Um escaneamento que não salvou nenhuma foto termina com o código 4 (todos os arquivos falharam, por exemplo porque um modelo necessário não carregou); um escaneamento sem nada a fazer termina com 0, e `--watch` continua vigiando após um código 4. Um escaneamento ignorado porque outro trabalho detém o bloqueio da biblioteca termina com o código 75; `--watch` não o conta como falha e tenta o lote novamente após o próximo período de calma. Após 3 escaneamentos com falha consecutivos, incluindo o inicial, `--watch` para e termina com o código 1.
 
 ### Modos de Processamento
 
@@ -206,6 +206,8 @@ Estes comandos atualizam métricas ou derivam novos dados sem reexecutar todo o 
 | `python facet.py --compute-recommendations --verbose` | Mostra estatísticas detalhadas |
 | `python facet.py --compute-recommendations --apply-recommendations` | Aplica automaticamente as correções de pontuação |
 | `python facet.py --compute-recommendations --simulate` | Pré-visualiza as alterações projetadas |
+
+**`--dry-run`** não tem prévia para estes comandos que reescrevem o banco de dados; cada um o recusa com o código de saída 2 em vez de gravar mesmo assim: `--backfill-clipping`, `--backfill-focal-35mm`, `--cluster-faces-force`, `--generate-captions`, `--recompute-average`, `--recompute-colors`, `--recompute-distortions`, `--recompute-form`, `--recompute-skin-tone`, `--recompute-tags`, `--recompute-text`, `--repair-int-columns`, `--repair-neutral-iqa`, `--upgrade-db`.
 
 **`--recompute-average`** não salva nenhum instantâneo: para reverter, restaure um snapshot de pesos e recalcule. Depois de atualizar da 1.20 ou anterior, execute primeiro `--recompute-silhouette` e depois `--recompute-average` duas vezes. A primeira passagem armazena novos percentis, então a segunda ainda altera algumas linhas.
 

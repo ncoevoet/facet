@@ -180,6 +180,13 @@ All notable changes to Facet are documented in this file.
 - **Rate-limited login and proofing answers carry `Retry-After`**, so a locked-out client knows when its window resets.
 - **Immich webhook deliveries stop walking the payload at the delivery cap** instead of visiting every entry of an oversized body.
 
+### Fixed
+
+- **`--dry-run` is no longer silently ignored by mutating commands.** Thirteen flags that write to the database (`--repair-int-columns`, `--recompute-average`, `--backfill-clipping`, `--backfill-focal-35mm`, `--generate-captions`, `--cluster-faces-force`, `--upgrade-db` and others) accepted `--dry-run` and wrote anyway; the CLI now refuses the combination up front (exit code 2), as it already did for `--repair-neutral-iqa`.
+- **An interrupted scan exits non-zero.** `Ctrl-C` during a scan returned exit 0, so wrapper scripts and `--watch` read it as success; it now exits 130.
+- **`--optimize-weights` and `--apply-recommendations` hold the library lock.** Both wrote to the database and config without the lock their siblings hold, risking `database is locked` failures mid-write during a concurrent scan.
+- **`--suggest-person-merges` resolves `viewer.py` relative to the script.** It previously used a bare relative path that broke when facet.py was invoked from another directory.
+
 ## [1.28.0] "f/64" — 2026-11-05
 
 ### Added
@@ -215,7 +222,7 @@ All notable changes to Facet are documented in this file.
 
 ### Fixed
 
-- **List pages no longer lose a page to a failed request.** Albums, scenes and capsules incremented their page counter before the request and left it incremented on failure, so whatever the failed page carried was skipped for good on the next "load more"; the counter now rolls back. A slow capsules answer landing after a regenerate also no longer replaces the grid with a stale page.
+- **List pages no longer lose a page to a failed request.** Albums, scenes and capsules incremented their page counter before the request and left it incremented on failure, so whatever the failed page carried was skipped for good on the next "load more"; the counter now rolls back. A slow capsules answer landing after a regenerate also no longer replaces the grid with a stale page. A failed capsules "load more" now shows an error toast instead of failing silently, and a failed regenerate no longer lets scrolling append page 2 onto the emptied grid.
 - **The scan launcher reports a refused start.** Clicking Start while a scan is already running (409) or on a server fault switched the dialog to an indeterminate progress bar forever; the button now comes back with the server's reason.
 - **Scan progress survives a hiccup.** One failed status poll stopped all updates for a scan that was still running; polling now rides out a transient failure (it gives up after five in a row, or at once on a 401/403, rather than polling and toasting for the rest of the session), and the connected flag only claims a stream that actually opened.
 - **Stats sections own their load failures.** A failed reload after a filter change kept showing the previous filter's numbers with no explanation; the failing sections now say so, with a Retry for the whole page.
