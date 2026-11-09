@@ -15,6 +15,8 @@ export interface ZoomState {
 export interface DisplayedRendition {
   kind: 'thumbnail' | 'preview' | 'source';
   phase: 'loading' | 'ready' | 'failed';
+  /** The source image failed to load and the preview stands in for it. */
+  fellBack?: true;
   width?: number;
   height?: number;
 }
@@ -214,6 +216,8 @@ export class SyncedZoomComponent {
   private readonly readySrc = signal<string | null>(null);
   private readonly retryState = signal<{ frameKey: string | null; src: string; attempt: number } | null>(null);
   private readonly retrySession = randomUuid();
+  /** The full-res source URL that errored while displayed; skipped until retry or a new `src`. */
+  private readonly failedSource = signal<string | null>(null);
   private readonly requestedPreview = computed(() => this.retryUrl(this.src()));
   /** The frame whose own image last finished loading in this pane. */
   private readonly paintedKey = signal<string | null>(null);
@@ -269,9 +273,13 @@ export class SyncedZoomComponent {
       });
     });
     effect(() => {
+      this.src();
+      untracked(() => this.failedSource.set(null));
+    });
+    effect(() => {
       this.effectiveSrc();
       this.frameKey();
-      this.renditionChange.emit({ kind: this.displayedKind(), phase: 'loading' });
+      this.renditionChange.emit({ kind: this.displayedKind(), ...this.fellBackFlag(), phase: 'loading' });
     });
     effect(() => { this.frameKey(); untracked(() => this.onPointerUp()); });
     effect(() => { if (this.zoom().scale === SyncedZoomComponent.MIN_SCALE) this.onPointerUp(); });
@@ -290,7 +298,7 @@ export class SyncedZoomComponent {
       untracked(() => {
         if (img.complete && img.naturalWidth > 0 && img.currentSrc === new URL(src, document.baseURI).href) {
           this.paintedKey.set(key);
-          this.renditionChange.emit({ kind: this.displayedKind(), phase: 'ready', width: img.naturalWidth, height: img.naturalHeight });
+          this.renditionChange.emit({ kind: this.displayedKind(), ...this.fellBackFlag(), phase: 'ready', width: img.naturalWidth, height: img.naturalHeight });
         }
       });
     });
@@ -338,7 +346,7 @@ export class SyncedZoomComponent {
     // new frame painted.
     if (img?.complete && img.naturalWidth > 0 && img.currentSrc === new URL(this.effectiveSrc(), document.baseURI).href) {
       this.paintedKey.set(this.frameKey());
-      this.renditionChange.emit({ kind: this.displayedKind(), phase: 'ready', width: img.naturalWidth, height: img.naturalHeight });
+      this.renditionChange.emit({ kind: this.displayedKind(), ...this.fellBackFlag(), phase: 'ready', width: img.naturalWidth, height: img.naturalHeight });
     }
   }
 
@@ -347,8 +355,12 @@ export class SyncedZoomComponent {
   protected onFrameError(): void {
     const img = this.frame()?.nativeElement;
     if (!img || (img.currentSrc || img.src) !== new URL(this.effectiveSrc(), document.baseURI).href) return;
+    if (this.displayedKind() === 'source') {
+      this.failedSource.set(this.fullResSrc());
+      return;
+    }
     this.paintedKey.set(this.frameKey());
-    this.renditionChange.emit({ kind: this.displayedKind(), phase: 'failed' });
+    this.renditionChange.emit({ kind: this.displayedKind(), ...this.fellBackFlag(), phase: 'failed' });
   }
 
   /** The `object-contain` fit scale: how much `content` (natural image size)
@@ -398,8 +410,8 @@ export class SyncedZoomComponent {
   private readonly selectedRendition = computed<{ src: string; kind: DisplayedRendition['kind'] }>(() => {
     const full = this.fullResSrc();
     // Past the fit scale the render is too soft to judge sharpness; swap to
-    // the full-res source for the actual pixel peek.
-    if (this.zoom().scale > SyncedZoomComponent.MIN_SCALE && full) return { src: this.retryUrl(full), kind: 'source' };
+    // the full-res source for the actual pixel peek, unless that URL has failed.
+    if (this.zoom().scale > SyncedZoomComponent.MIN_SCALE && full && this.failedSource() !== full) return { src: this.retryUrl(full), kind: 'source' };
     const placeholder = this.placeholderSrc();
     if (placeholder && this.readySrc() !== this.requestedPreview()) return { src: this.retryUrl(placeholder), kind: 'thumbnail' };
     return { src: this.requestedPreview(), kind: 'preview' };
@@ -407,6 +419,14 @@ export class SyncedZoomComponent {
 
   protected readonly effectiveSrc = computed(() => this.selectedRendition().src);
   private readonly displayedKind = computed(() => this.selectedRendition().kind);
+  /** Zoomed past fit, but the source failed, so the preview is on screen instead. */
+  private readonly fellBack = computed(() => {
+    const full = this.fullResSrc();
+    return !!full && this.failedSource() === full && this.zoom().scale > SyncedZoomComponent.MIN_SCALE;
+  });
+  private fellBackFlag(): { fellBack?: true } {
+    return this.fellBack() ? { fellBack: true } : {};
+  }
 
   private retryUrl(src: string): string {
     const retry = this.retryState();
@@ -416,6 +436,7 @@ export class SyncedZoomComponent {
 
   /** Repeat this pane's reads only; framing and the selected photo stay intact. */
   retry(): void {
+    this.failedSource.set(null);
     this.retryState.update(previous => ({
       frameKey: this.frameKey(), src: this.src(), attempt: (previous?.attempt ?? 0) + 1,
     }));

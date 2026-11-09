@@ -164,6 +164,42 @@ describe('SyncedZoomComponent', () => {
     start(); f.componentRef.setInput('frameKey', 'next'); f.detectChanges(); move(); expect(updates).toHaveLength(1);
   });
 
+  describe('a source that fails to load', () => {
+    function failSource(fixture: ComponentFixture<SyncedZoomComponent>): HTMLImageElement {
+      const img = (fixture.nativeElement as HTMLElement).querySelector('img')!;
+      Object.defineProperty(img, 'currentSrc', { configurable: true, get: () => new URL('/full.jpg', document.baseURI).href });
+      img.dispatchEvent(new Event('error'));
+      fixture.detectChanges();
+      return img;
+    }
+
+    it('falls back to the preview, flags it, and does not report the pane failed', () => {
+      const fixture = make({ scale: 2, tx: 0, ty: 0 });
+      const states: DisplayedRendition[] = [];
+      fixture.componentInstance.renditionChange.subscribe(state => states.push(state));
+      expect(api(fixture).effectiveSrc()).toBe('/full.jpg');
+      failSource(fixture);
+      expect(api(fixture).effectiveSrc()).toBe('/thumb.jpg');
+      expect(states.some(state => state.phase === 'failed')).toBe(false);
+      expect(states.at(-1)).toMatchObject({ kind: 'preview', fellBack: true });
+    });
+
+    it('tries the source again on retry', () => {
+      const fixture = make({ scale: 2, tx: 0, ty: 0 });
+      failSource(fixture);
+      fixture.componentInstance.retry(); fixture.detectChanges();
+      expect(api(fixture).effectiveSrc()).toContain('/full.jpg');
+    });
+
+    it('forgets the failure when the preview source changes', () => {
+      const fixture = make({ scale: 2, tx: 0, ty: 0 });
+      failSource(fixture);
+      expect(api(fixture).effectiveSrc()).toBe('/thumb.jpg');
+      fixture.componentRef.setInput('src', '/thumb-2.jpg'); fixture.detectChanges();
+      expect(api(fixture).effectiveSrc()).toBe('/full.jpg');
+    });
+  });
+
   it('uses the thumbnail at fit scale and the full-res past it', () => {
     expect(api(make(FIT_ZOOM)).effectiveSrc()).toBe('/thumb.jpg');
     expect(api(make({ scale: 1.5, tx: 0, ty: 0 })).effectiveSrc()).toBe('/full.jpg');
@@ -188,8 +224,9 @@ describe('SyncedZoomComponent', () => {
     current = new URL('/full.jpg', document.baseURI).href;
     img.dispatchEvent(new Event('load'));
     expect(states.at(-1)).toEqual({ kind: 'source', phase: 'ready', width: 4000, height: 3000 });
-    img.dispatchEvent(new Event('error'));
-    expect(states.at(-1)).toEqual({ kind: 'source', phase: 'failed' });
+    img.dispatchEvent(new Event('error')); fixture.detectChanges();
+    expect(api(fixture).effectiveSrc()).toBe('/thumb.jpg');
+    expect(states.at(-1)).toEqual({ kind: 'preview', phase: 'loading', fellBack: true });
     fixture.componentInstance.retry(); fixture.detectChanges();
     expect(new URL(api(fixture).effectiveSrc()).searchParams.get('facet_retry')).toMatch(/-1$/);
     expect(fixture.componentInstance.zoom()).toEqual({ scale: 2, tx: 10, ty: 20 });

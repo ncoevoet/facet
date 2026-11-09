@@ -59,7 +59,7 @@ const RENDERED_EDGE = RENDERED_THUMBNAIL_EDGE;
         @if (queue().length > 2) {
           <button mat-button data-two-up class="max-sm:!min-w-11 max-sm:!h-11 pointer-coarse:!min-w-11 pointer-coarse:!h-11 !text-[var(--mat-sys-on-surface)] shrink-0" [attr.aria-pressed]="twoUp()"
                   [attr.aria-label]="I18N.gallery.compare.two_up | translate" (click)="toggleLayout()">
-            <mat-icon>view_column_2</mat-icon><span class="hidden sm:inline">{{ I18N.gallery.compare.two_up | translate }}</span>
+            <mat-icon>vertical_split</mat-icon><span class="hidden sm:inline">{{ I18N.gallery.compare.two_up | translate }}</span>
           </button>
         }
         <button mat-button data-link-inspection class="max-sm:!min-w-11 max-sm:!h-11 pointer-coarse:!min-w-11 pointer-coarse:!h-11 !text-[var(--mat-sys-on-surface)] shrink-0"
@@ -130,10 +130,10 @@ const RENDERED_EDGE = RENDERED_THUMBNAIL_EDGE;
             <div class="shrink-0 flex flex-wrap items-center justify-between gap-x-1 border-t border-[var(--facet-image-rule)] bg-[var(--facet-image-chrome)] text-[var(--facet-image-ink)] px-2">
               <div data-pane-source class="flex min-w-0 flex-1 basis-full items-center @[320px]/pane:basis-0">
               <span data-preview-status role="status" class="min-w-0 flex-1 [overflow-wrap:anywhere] text-xs">
-                {{ pane.kindKey | translate }}<span [class.sr-only]="pane.rendition?.phase === 'ready' && !pane.previewFailed"> · {{ pane.phaseKey | translate }}</span>
+                {{ pane.kindKey | translate }}<span [class.sr-only]="pane.rendition?.phase === 'ready' && !pane.previewFailed && !pane.rendition?.fellBack"> · {{ pane.phaseKey | translate }}</span>
                 @if (pane.rendition?.phase === 'ready') { <span class="hidden @[400px]/pane:inline"> · {{ pane.rendition.width }} × {{ pane.rendition.height }}</span><span class="sr-only @[400px]/pane:hidden"> {{ pane.rendition.width }} × {{ pane.rendition.height }}</span> }
               </span>
-              @if (pane.rendition?.phase === 'failed' || pane.previewFailed) {
+              @if (pane.rendition?.phase === 'failed' || pane.previewFailed || pane.rendition?.fellBack) {
                 <button mat-icon-button data-retry-pane class="max-sm:!w-11 max-sm:!h-11 pointer-coarse:!w-11 pointer-coarse:!h-11 !text-white" [attr.aria-label]="I18N.gallery.load_error.retry | translate" (click)="imagePane.retry()"><mat-icon>refresh</mat-icon></button>
               }
               </div>
@@ -290,7 +290,7 @@ export class ComparisonWorkspaceComponent {
   private readonly assignedPaths = signal(this.data.photos.slice(0, MAX_COMPARE_PANES).map(photo => photo.path));
   protected readonly assignmentTarget = signal<typeof COMPARISON_TARGETS[number]>('candidate');
   protected readonly assignmentLabelKey = computed(() => this.I18N.gallery.compare[TARGET_LABELS[this.assignmentTarget()]]);
-  protected readonly activePath = signal(this.data.photos?.[0]?.path ?? null);
+  protected readonly activePath = signal(this.data.photos?.[1]?.path ?? this.data.photos?.[0]?.path ?? null);
   protected readonly removedPaths = signal(new Set<string>());
   protected readonly focusedQueuePath = signal<string | null>(null);
   protected readonly queueFocusPath = computed(() => this.queue().find(photo => photo.path === this.focusedQueuePath())?.path
@@ -460,7 +460,7 @@ export class ComparisonWorkspaceComponent {
       zoomInDisabled: this.linked() ? this.panes().some(p => (this.paneZoom().get(p.path) ?? FIT_ZOOM).scale >= SyncedZoomComponent.MAX_SCALE) : zoom.scale >= SyncedZoomComponent.MAX_SCALE,
       previewFailed: this.readiness().get(photo.path) === 'failed',
       kindKey: this.I18N.gallery.compare.rendition[rendition?.kind ?? 'thumbnail'],
-      phaseKey: this.readiness().get(photo.path) === 'failed' && rendition?.kind === 'thumbnail' ? this.I18N.gallery.compare.rendition.fallback : this.I18N.gallery.compare.rendition[rendition?.phase ?? 'loading'],
+      phaseKey: rendition?.fellBack || (this.readiness().get(photo.path) === 'failed' && rendition?.kind === 'thumbnail') ? this.I18N.gallery.compare.rendition.fallback : this.I18N.gallery.compare.rendition[rendition?.phase ?? 'loading'],
       scaleLabel: `${Number(zoom.scale.toFixed(1))}×`,
     };
   }));

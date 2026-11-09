@@ -535,6 +535,29 @@ describe('ComparisonWorkspaceComponent', () => {
     expect(renderer.fullResSrc()).not.toContain('fallback');
   });
 
+  it('labels a pane that fell back from a failed source and keeps retry available', () => {
+    const { fixture } = build(['/a.jpg', '/b.jpg']);
+    const panes = fixture.debugElement.queryAll(By.directive(SyncedZoomComponent));
+    panes[1].componentInstance.renditionChange.emit({ kind: 'preview', phase: 'ready', width: 1440, height: 960, fellBack: true });
+    fixture.detectChanges();
+    const source = fixture.nativeElement.querySelectorAll('[data-pane-source]')[1] as HTMLElement;
+    expect(source.textContent).toContain('gallery.compare.rendition.fallback');
+    expect(source.querySelector('[data-retry-pane]')).not.toBeNull();
+  });
+
+  it('starts with the candidate pane active, not the reference', () => {
+    const { fixture } = build(['/a.jpg', '/b.jpg']);
+    const active = fixture.nativeElement.querySelectorAll('[data-active-pane="true"]');
+    expect(active).toHaveLength(1);
+    expect(fixture.debugElement.queryAll(By.directive(SyncedZoomComponent)).map(p => p.nativeElement.closest('[data-active-pane]').getAttribute('data-active-pane')))
+      .toEqual(['false', 'true']);
+  });
+
+  it('draws the two-up toggle with the vertical_split icon', () => {
+    const { fixture } = build(['/a.jpg', '/b.jpg', '/c.jpg', '/d.jpg']);
+    expect(fixture.nativeElement.querySelector('[data-two-up] mat-icon').textContent.trim()).toBe('vertical_split');
+  });
+
   it('keeps four-up failure recovery actionable without changing another pane', () => {
     const { fixture } = build(['/a.jpg', '/b.jpg', '/c.jpg', '/d.jpg']);
     const root = fixture.nativeElement as HTMLElement;
