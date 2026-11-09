@@ -2,6 +2,7 @@ import type { Mock } from 'vitest';
 import { TestBed } from '@angular/core/testing';
 import { ApplicationRef, Component, input, output, signal } from '@angular/core';
 import { Subject } from 'rxjs';
+import { By } from '@angular/platform-browser';
 import { Router, ActivatedRoute } from '@angular/router';
 import { of } from 'rxjs';
 import { TimelineFiltersService } from './timeline-filters.service';
@@ -15,6 +16,7 @@ import { TimelineFeedComponent } from './timeline-feed.component';
 import { TimelineYearsComponent } from './timeline-years.component';
 import { TimelineMonthsComponent } from './timeline-months.component';
 import { TimelineDaysComponent } from './timeline-days.component';
+import { TimelineMonthJumpComponent } from './timeline-month-jump.component';
 import { DateRangeFilterComponent } from '../../shared/components/date-range-filter/date-range-filter.component';
 
 
@@ -23,7 +25,7 @@ const timelinePersonalReset = { type: '', hide_rejected: 'false', favorites_only
 describe('TimelineComponent', () => {
 
   let component: any;
-  let mockRouter: { navigate: Mock };
+  let mockRouter: { navigate: Mock; events: Subject<unknown>; url: string };
   let mockFilters: {
     dateFrom: ReturnType<typeof signal<string>>;
     dateTo: ReturnType<typeof signal<string>>;
@@ -38,7 +40,7 @@ describe('TimelineComponent', () => {
   };
 
   beforeEach(() => {
-    mockRouter = { navigate: vi.fn() };
+    mockRouter = { navigate: vi.fn(), events: new Subject(), url: '/timeline' };
     mockFilters = {
       dateFrom: signal(''),
       dateTo: signal(''),
@@ -226,7 +228,7 @@ describe('Timeline missing-date and range transitions', () => {
     const navigate = vi.fn();
     const dateFrom = signal(from); const dateTo = signal(to);
     TestBed.configureTestingModule({ providers: [
-      { provide: Router, useValue: { navigate } },
+      { provide: Router, useValue: { navigate, events: new Subject(), url: '/timeline' } },
       { provide: ActivatedRoute, useValue: { paramMap: of({ get: (key: string) => key === 'year' ? '2024' : key === 'month' ? '2' : null }) } },
       { provide: TimelineFiltersService, useValue: { dateFrom, dateTo, sortDirection: signal('older'), showOverview: signal(false) } },
       { provide: GalleryStore, useValue: { viewFilterParams: signal({ hide_bursts: '1' }) } },
@@ -247,7 +249,7 @@ describe('Timeline missing-date and range transitions', () => {
   it('opens the selected route month intersected with the typed range instead of widening to the whole library', () => {
     const navigate = vi.fn();
     TestBed.configureTestingModule({ providers: [
-      { provide: Router, useValue: { navigate } },
+      { provide: Router, useValue: { navigate, events: new Subject(), url: '/timeline' } },
       { provide: ActivatedRoute, useValue: { paramMap: of({ get: (key: string) => key === 'year' ? '2024' : key === 'month' ? '2' : null }) } },
       { provide: TimelineFiltersService, useValue: { dateFrom: signal('2024-02-12'), dateTo: signal(''), sortDirection: signal('older'), showOverview: signal(false) } },
       { provide: GalleryStore, useValue: { viewFilterParams: signal({ hide_bursts: '1' }) } },
@@ -260,7 +262,7 @@ describe('Timeline missing-date and range transitions', () => {
     const navigate = vi.fn();
     const dateFrom = signal('2026-01-01'); const dateTo = signal('2026-02-01');
     TestBed.configureTestingModule({ providers: [
-      { provide: Router, useValue: { navigate } },
+      { provide: Router, useValue: { navigate, events: new Subject(), url: '/timeline' } },
       { provide: ActivatedRoute, useValue: { paramMap: of({ get: () => null }) } },
       { provide: TimelineFiltersService, useValue: { dateFrom, dateTo, sortDirection: signal('older'), showOverview: signal(false) } },
       { provide: GalleryStore, useValue: { viewFilterParams: signal({ hide_bursts: '1' }) } },
@@ -278,7 +280,9 @@ describe('Timeline missing-date and range transitions', () => {
 
 
 @Component({ selector: 'app-timeline-density', template: '' })
-class DensityStub { readonly year = input(''); readonly month = input(''); }
+class DensityStub { readonly year = input(''); readonly month = input(''); readonly visible = input(true); readonly total = output<number | null>(); }
+@Component({ selector: 'app-timeline-month-jump', template: '' })
+class JumpStub { readonly year = input(''); readonly month = input(''); readonly disabled = input(false); }
 @Component({ selector: 'app-timeline-feed', template: '' })
 class FeedStub { readonly year = input(''); readonly month = input(''); }
 @Component({ selector: 'app-timeline-years', template: '' })
@@ -301,27 +305,31 @@ describe('Timeline page-actions bar (rendered)', () => {
   let params: Record<string, string>;
   let store: { viewFilterParams: ReturnType<typeof signal>; hiddenFiltersStash: ReturnType<typeof signal>; showAllHidden: Mock; restoreHidden: Mock };
 
-  function setup(routeParams: Record<string, string> = {}) {
-    navigate.mockReset();
+  let sortDirection: ReturnType<typeof signal<'older' | 'newer'>>;
+  let showOverview: ReturnType<typeof signal<boolean>>;
+
+  function setup(routeParams: Record<string, string> = {}, overview = true) {
+    localStorage.removeItem('facet_timeline_density_hidden');
+    navigate.mockReset(); sortDirection = signal<'older' | 'newer'>('older'); showOverview = signal(overview);
     dateFrom = signal('');
     dateTo = signal('');
     store = { viewFilterParams: signal({ ...noneHiddenParams }), hiddenFiltersStash: signal(null), showAllHidden: vi.fn(), restoreHidden: vi.fn() };
     params = routeParams;
     TestBed.configureTestingModule({
       providers: [
-        { provide: Router, useValue: { navigate, events: new Subject() } },
+        { provide: Router, useValue: { navigate, events: new Subject(), url: '/timeline' } },
         { provide: ActivatedRoute, useValue: { paramMap: of({ get: (k: string) => params[k] ?? null }) } },
-        { provide: TimelineFiltersService, useValue: { dateFrom, dateTo, sortDirection: signal('older'), showOverview: signal(true) } },
+        { provide: TimelineFiltersService, useValue: { dateFrom, dateTo, sortDirection, showOverview } },
         { provide: GalleryStore, useValue: store },
         { provide: I18nService, useValue: {
-          translations: signal({}),
-          t: (key: string, vars?: Record<string, string>) => vars ? `${key}|${JSON.stringify(vars)}` : key,
+          translations: signal({}), locale: () => 'en',
+          t: (key: string, vars?: Record<string, string | number>) => vars ? `${key}|${JSON.stringify(vars)}` : key,
         } },
       ],
     });
     TestBed.overrideComponent(TimelineComponent, {
-      remove: { imports: [TimelineDensityComponent, TimelineFeedComponent, TimelineYearsComponent, TimelineMonthsComponent, TimelineDaysComponent, DateRangeFilterComponent] },
-      add: { imports: [DensityStub, FeedStub, YearsStub, MonthsStub, DaysStub, DateRangeStub] },
+      remove: { imports: [TimelineDensityComponent, TimelineFeedComponent, TimelineYearsComponent, TimelineMonthsComponent, TimelineDaysComponent, DateRangeFilterComponent, TimelineMonthJumpComponent] },
+      add: { imports: [DensityStub, FeedStub, YearsStub, MonthsStub, DaysStub, DateRangeStub, JumpStub] },
     });
     const fixture = TestBed.createComponent(TimelineComponent);
     fixture.detectChanges();
@@ -396,13 +404,93 @@ describe('Timeline page-actions bar (rendered)', () => {
     expect(navigate).toHaveBeenCalledWith(['/timeline']);
   });
 
-  it('puts the feed/overview toggle and a Dates popover on the right of the bar', () => {
+  it('groups the controls on the left: no ml-auto, divider, then the view toggle after the breadcrumb', () => {
     setup();
     const bar = renderBar();
-    const right = bar.querySelector('.ml-auto');
-    expect(right).not.toBeNull();
-    expect(right!.querySelectorAll('button[aria-pressed]').length).toBe(2);
-    const trigger = right!.querySelector('app-control-popover button[aria-haspopup="dialog"]') as HTMLButtonElement;
+    expect(bar.querySelector('.ml-auto')).toBeNull();
+    const nav = bar.querySelector('nav')!;
+    const toggle = bar.querySelector('button[aria-pressed][aria-label="timeline.photo_feed"]')!;
+    expect(nav.compareDocumentPosition(toggle) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(bar.querySelector('[data-timeline-divider]')).not.toBeNull();
+    const trigger = bar.querySelector('app-control-popover button[aria-haspopup="dialog"]') as HTMLButtonElement;
+    expect(toggle.compareDocumentPosition(trigger) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(trigger.getAttribute('aria-label')).toBe('timeline.dates');
+    const pressed = [...bar.querySelectorAll('button[aria-pressed]')].map(b => b.getAttribute('aria-label'));
+    expect(pressed).toEqual(['timeline.photo_feed', 'timeline.calendar', 'timeline.density_hide']);
+  });
+
+  it('puts the range chip after the Dates popover and keeps the row left-aligned below lg too', () => {
+    const fixture = setup(); dateFrom.set('2024-02-01');
+    const bar = renderBar();
+    const trigger = bar.querySelector('app-control-popover')!;
+    expect(trigger.compareDocumentPosition(bar.querySelector('[data-timeline-range-chip]')!) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    const row = (fixture.nativeElement as HTMLElement).querySelector('[data-timeline-breadcrumb-row]')!;
+    expect(row.querySelector('.ml-auto')).toBeNull();
+    expect(row.className).toContain('flex-wrap');
+  });
+
+  it('shows the jump and the sort button only in the Photos view', () => {
+    setup({}, true);
+    expect(renderBar().querySelector('app-timeline-month-jump')).toBeNull();
+    expect([...renderBar().querySelectorAll('button')].some(b => b.getAttribute('aria-label') === 'timeline.oldest_first')).toBe(false);
+    TestBed.resetTestingModule();
+    const fixture = setup({ year: '2026', month: '2' }, false);
+    const bar = renderBar();
+    expect(bar.querySelector('app-timeline-month-jump')).not.toBeNull();
+    const sort = bar.querySelector('button[aria-label="timeline.newest_first"]') as HTMLButtonElement;
+    expect(sort.querySelector('span.hidden')!.className).toContain('xl:inline');
+    sort.click();
+    expect(sortDirection()).toBe('newer');
+    expect(bar.querySelector('button[aria-label="timeline.newest_first"]')).not.toBeNull();
+    const row = (fixture.nativeElement as HTMLElement).querySelector('[data-timeline-breadcrumb-row]')!;
+    expect(row.querySelector('app-timeline-month-jump')).not.toBeNull();
+  });
+
+  it('shows the scope count beside the breadcrumb once the strip reports a total, digit-grouped', () => {
+    const fixture = setup();
+    expect(renderBar().querySelector('[data-timeline-count]')).toBeNull();
+    const density = fixture.debugElement.query(By.directive(DensityStub)).componentInstance as DensityStub;
+    density.total.emit(10265); fixture.detectChanges();
+    expect(renderBar().querySelector('[data-timeline-count]')!.textContent).toContain('gallery.photo_count|{"count":"10,265"}');
+    density.total.emit(1); fixture.detectChanges();
+    expect(renderBar().querySelector('[data-timeline-count]')!.textContent).toContain('gallery.photo_count_one|');
+    density.total.emit(null); fixture.detectChanges();
+    expect(renderBar().querySelector('[data-timeline-count]')).toBeNull();
+  });
+
+  it('hides the density strip from a persisted toggle while the count still shows', () => {
+    const fixture = setup();
+    const density = () => fixture.debugElement.query(By.directive(DensityStub)).componentInstance as DensityStub;
+    expect(density().visible()).toBe(true);
+    density().total.emit(5); fixture.detectChanges();
+    const button = () => renderBar().querySelector('button[aria-label="timeline.density_hide"], button[aria-label="timeline.density_show"]') as HTMLButtonElement;
+    expect(button().querySelector('mat-icon')!.textContent).toBe('bar_chart');
+    button().click(); fixture.detectChanges();
+    expect(density().visible()).toBe(false);
+    expect(localStorage.getItem('facet_timeline_density_hidden')).toBe('1');
+    expect(button().getAttribute('aria-label')).toBe('timeline.density_show'); expect(button().getAttribute('aria-pressed')).toBe('false');
+    expect(renderBar().querySelector('[data-timeline-count]')).not.toBeNull();
+    TestBed.resetTestingModule();
+    localStorage.setItem('facet_timeline_density_hidden', '1');
+    navigate.mockReset();
+    const again = TestBed.configureTestingModule({ providers: [
+      { provide: Router, useValue: { navigate, events: new Subject(), url: '/timeline' } },
+      { provide: ActivatedRoute, useValue: { paramMap: of({ get: () => null }) } },
+      { provide: TimelineFiltersService, useValue: { dateFrom: signal(''), dateTo: signal(''), sortDirection: signal('older'), showOverview: signal(true) } },
+      { provide: GalleryStore, useValue: { viewFilterParams: signal({ ...noneHiddenParams }), hiddenFiltersStash: signal(null) } },
+      { provide: I18nService, useValue: { translations: signal({}), t: (key: string) => key } },
+    ] });
+    again.overrideComponent(TimelineComponent, {
+      remove: { imports: [TimelineDensityComponent, TimelineFeedComponent, TimelineYearsComponent, TimelineMonthsComponent, TimelineDaysComponent, DateRangeFilterComponent, TimelineMonthJumpComponent] },
+      add: { imports: [DensityStub, FeedStub, YearsStub, MonthsStub, DaysStub, DateRangeStub, JumpStub] } });
+    const second = TestBed.createComponent(TimelineComponent); second.detectChanges();
+    expect((second.debugElement.query(By.directive(DensityStub)).componentInstance as DensityStub).visible()).toBe(false);
+    localStorage.removeItem('facet_timeline_density_hidden');
+  });
+
+  it('puts the Dates popover in the bar', () => {
+    setup();
+    const trigger = renderBar().querySelector('app-control-popover button[aria-haspopup="dialog"]') as HTMLButtonElement;
     expect(trigger.getAttribute('aria-label')).toBe('timeline.dates');
   });
 

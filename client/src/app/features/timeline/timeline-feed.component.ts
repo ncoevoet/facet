@@ -25,18 +25,6 @@ import { timelineReadContext } from './timeline-read-context';
   host: { class: 'block min-w-0' },
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
-    <div class="flex flex-wrap items-center justify-between gap-2 py-0">
-      <label class="flex min-h-11 min-w-40 flex-1 items-center gap-2 text-sm">
-        <mat-icon aria-hidden="true">calendar_month</mat-icon>
-        <span class="sr-only">{{ I18N.timeline.jump_month | translate }}</span>
-        <input type="month" class="w-full min-w-0 max-w-44 rounded border border-[var(--mat-sys-outline)] bg-[var(--mat-sys-surface)] px-2 py-1"
-          [value]="selectedMonth()" (change)="jumpMonth($event)" />
-      </label>
-      <button mat-button (click)="toggleDirection()" [disabled]="!active()">
-        <mat-icon>{{ filters.sortDirection() === 'older' ? 'arrow_downward' : 'arrow_upward' }}</mat-icon>
-        {{ (filters.sortDirection() === 'older' ? I18N.timeline.newest_first : I18N.timeline.oldest_first) | translate }}
-      </button>
-    </div>
     @for (group of groups(); track group.date) {
       <section class="mb-6" [attr.data-timeline-date]="group.date" [attr.aria-label]="group.date | captureDate">
         <header class="flex min-h-11 flex-wrap items-baseline justify-between gap-x-3 gap-y-1 py-0">
@@ -88,7 +76,6 @@ export class TimelineFeedComponent {
   private readonly injector = inject(Injector);
   readonly year = input('');
   readonly month = input('');
-  protected readonly selectedMonth = computed(() => this.year() && this.month() ? `${this.year()}-${this.month().padStart(2, '0')}` : '');
   protected readonly active = timelineRouteActivity(() => { this.remember(); this.cancel(); });
   protected readonly groups = signal<TimelineGroup[]>([]);
   protected readonly loading = signal(false);
@@ -200,15 +187,6 @@ export class TimelineFeedComponent {
       },
       error: () => { if (this.current(context, generation)) { this.loading.set(false); this.manualLoading.set(false); this.error.set(true); } },
     });
-  }
-
-  protected jumpMonth(event: Event): void {
-    const value = (event.target as HTMLInputElement).value;
-    if (this.active() && /^\d{4}-(0[1-9]|1[0-2])$/.test(value)) void this.router.navigate(['/timeline', value.slice(0, 4), String(+value.slice(5))]);
-  }
-
-  protected toggleDirection(): void {
-    if (this.active()) this.filters.sortDirection.update(value => value === 'older' ? 'newer' : 'older');
   }
 
   protected continueWindow(): void {

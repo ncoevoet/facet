@@ -1,5 +1,5 @@
-import { NgTemplateOutlet } from '@angular/common';
-import { Component, inject, computed, DestroyRef, ChangeDetectionStrategy, effect, viewChild, TemplateRef } from '@angular/core';
+import { DecimalPipe, NgTemplateOutlet } from '@angular/common';
+import { Component, inject, computed, DestroyRef, ChangeDetectionStrategy, effect, signal, viewChild, TemplateRef } from '@angular/core';
 import { Router, ActivatedRoute } from '@angular/router';
 import { toSignal } from '@angular/core/rxjs-interop';
 import { map } from 'rxjs';
@@ -9,6 +9,7 @@ import { MatTooltipModule } from '@angular/material/tooltip';
 import { TimelineFiltersService } from './timeline-filters.service';
 import { registerPageContext } from '../../core/agent/page-context.service';
 import { TranslatePipe } from '../../shared/pipes/translate.pipe';
+import { PluralKeyPipe } from '../../shared/pipes/plural-key.pipe';
 import { TimelineYearsComponent } from './timeline-years.component';
 import { TimelineMonthsComponent } from './timeline-months.component';
 import { TimelineDaysComponent } from './timeline-days.component';
@@ -16,6 +17,8 @@ import { TimelineDatePipe } from './timeline-date.pipe';
 import { TimelineFeedComponent } from './timeline-feed.component';
 import { timelineDayQuery, timelineGalleryQuery, timelineRangeQuery } from './timeline-day-query.pipe';
 import { TimelineDensityComponent } from './timeline-density.component';
+import { TimelineMonthJumpComponent } from './timeline-month-jump.component';
+import { timelineRouteActivity } from './timeline-route-activity';
 import { CaptureDatePipe } from '../../shared/pipes/capture-date.pipe';
 import { timelineWindow } from './timeline-density.util';
 import { I18N, i18nKeys } from '../../core/i18n/keys';
@@ -24,6 +27,12 @@ import { ControlPopoverComponent } from '../../shared/components/control-popover
 import { PageHelpService } from '../../core/services/page-help.service';
 import { DateRangeFilterComponent } from '../../shared/components/date-range-filter/date-range-filter.component';
 import { GalleryStore, anyHideToggleActive } from '../gallery/gallery.store';
+
+const DENSITY_HIDDEN_KEY = 'facet_timeline_density_hidden';
+
+function readDensityVisible(): boolean {
+  try { return localStorage.getItem(DENSITY_HIDDEN_KEY) !== '1'; } catch { return true; }
+}
 
 @Component({
   selector: 'app-timeline',
@@ -34,6 +43,9 @@ import { GalleryStore, anyHideToggleActive } from '../gallery/gallery.store';
     MatButtonModule,
     MatTooltipModule,
     TranslatePipe,
+    PluralKeyPipe,
+    DecimalPipe,
+    TimelineMonthJumpComponent,
     TimelineYearsComponent,
     TimelineMonthsComponent,
     TimelineDaysComponent,
@@ -49,41 +61,64 @@ import { GalleryStore, anyHideToggleActive } from '../gallery/gallery.store';
   template: `
     <h1 class="sr-only">{{ I18N.timeline.title | translate }}</h1>
     <ng-template #breadcrumb>
-      <nav [attr.aria-label]="I18N.timeline.title | translate" class="flex min-w-0 flex-wrap items-center gap-1 text-sm">
+      <nav [attr.aria-label]="I18N.timeline.title | translate" class="flex min-w-0 shrink items-center gap-1 overflow-hidden whitespace-nowrap text-sm">
         @switch (level()) {
           @case ('years') {
-            <span class="px-2 font-medium">{{ I18N.timeline.all_years | translate }}</span>
+            <span class="min-w-0 truncate px-2 font-medium">{{ I18N.timeline.all_years | translate }}</span>
           }
           @case ('months') {
             <button mat-button class="!min-w-0 !px-2" (click)="goToYears()">
               {{ I18N.timeline.all_years | translate }}
             </button>
-            <mat-icon class="!text-base !w-4 !h-4 !leading-4 opacity-40">chevron_right</mat-icon>
-            <span class="px-2 font-medium">{{ year() }}</span>
+            <mat-icon class="!text-base !w-4 !h-4 !leading-4 shrink-0 opacity-40">chevron_right</mat-icon>
+            <span class="min-w-0 truncate px-2 font-medium">{{ year() }}</span>
           }
           @case ('days') {
             <button mat-button class="!min-w-0 !px-2" (click)="goToYears()">
               {{ I18N.timeline.all_years | translate }}
             </button>
-            <mat-icon class="!text-base !w-4 !h-4 !leading-4 opacity-40">chevron_right</mat-icon>
+            <mat-icon class="!text-base !w-4 !h-4 !leading-4 shrink-0 opacity-40">chevron_right</mat-icon>
             <button mat-button class="!min-w-0 !px-2" (click)="goToMonths()">
               {{ year() }}
             </button>
-            <mat-icon class="!text-base !w-4 !h-4 !leading-4 opacity-40">chevron_right</mat-icon>
-            <span class="px-2 font-medium">{{ selectedMonthFormatted() | timelineDate }}</span>
+            <mat-icon class="!text-base !w-4 !h-4 !leading-4 shrink-0 opacity-40">chevron_right</mat-icon>
+            <span class="min-w-0 truncate px-2 font-medium">{{ selectedMonthFormatted() | timelineDate }}</span>
           }
         }
       </nav>
+      @let total = densityTotal();
+      @if (total !== null) {
+        <span data-timeline-count class="shrink-0 whitespace-nowrap text-sm tabular-nums text-[var(--mat-sys-on-surface-variant)]">·
+          {{ (total | pluralKey:I18N.gallery.photo_count_one:I18N.gallery.photo_count) | translate:{ count: (total | number) ?? '' } }}</span>
+      }
     </ng-template>
     <ng-template #viewToggle>
-      <div class="flex items-center gap-1" role="group" [attr.aria-label]="I18N.timeline.title | translate">
-        <button mat-button [class]="!showOverview() ? '!bg-[var(--mat-sys-secondary-container)]' : ''" [attr.aria-pressed]="!showOverview()" (click)="showOverview.set(false)">
-          <mat-icon>photo_library</mat-icon>{{ I18N.timeline.photo_feed | translate }}
+      <div class="flex shrink-0 items-center gap-1" role="group" [attr.aria-label]="I18N.timeline.title | translate">
+        <button mat-button [class]="!showOverview() ? '!bg-[var(--mat-sys-secondary-container)]' : ''" [attr.aria-pressed]="!showOverview()"
+          [matTooltip]="I18N.timeline.photo_feed | translate" [attr.aria-label]="I18N.timeline.photo_feed | translate" (click)="showOverview.set(false)">
+          <mat-icon>photo_library</mat-icon><span class="hidden xl:inline">{{ I18N.timeline.photo_feed | translate }}</span>
         </button>
-        <button mat-button [class]="showOverview() ? '!bg-[var(--mat-sys-secondary-container)]' : ''" [attr.aria-pressed]="showOverview()" (click)="showOverview.set(true)">
-          <mat-icon>calendar_month</mat-icon>{{ I18N.timeline.calendar | translate }}
+        <button mat-button [class]="showOverview() ? '!bg-[var(--mat-sys-secondary-container)]' : ''" [attr.aria-pressed]="showOverview()"
+          [matTooltip]="I18N.timeline.calendar | translate" [attr.aria-label]="I18N.timeline.calendar | translate" (click)="showOverview.set(true)">
+          <mat-icon>calendar_month</mat-icon><span class="hidden xl:inline">{{ I18N.timeline.calendar | translate }}</span>
         </button>
       </div>
+    </ng-template>
+    <ng-template #feedControls>
+      @if (!showOverview()) {
+        <app-timeline-month-jump [year]="year()" [month]="month()" [disabled]="!active()" />
+        @let sortLabel = (filters.sortDirection() === 'older' ? I18N.timeline.newest_first : I18N.timeline.oldest_first) | translate;
+        <button mat-button class="shrink-0" (click)="toggleDirection()" [disabled]="!active()" [matTooltip]="sortLabel" [attr.aria-label]="sortLabel">
+          <mat-icon>{{ filters.sortDirection() === 'older' ? 'arrow_downward' : 'arrow_upward' }}</mat-icon><span class="hidden xl:inline">{{ sortLabel }}</span>
+        </button>
+      }
+    </ng-template>
+    <ng-template #densityToggle>
+      @let densityLabel = (densityVisible() ? I18N.timeline.density_hide : I18N.timeline.density_show) | translate;
+      <button mat-icon-button class="!w-10 !h-10 shrink-0" [class]="densityVisible() ? '!bg-[var(--mat-sys-secondary-container)]' : ''"
+        [attr.aria-pressed]="densityVisible()" [matTooltip]="densityLabel" [attr.aria-label]="densityLabel" (click)="toggleDensity()">
+        <mat-icon>bar_chart</mat-icon>
+      </button>
     </ng-template>
     <ng-template #datesPanel>
       <p class="mb-2 text-xs text-[var(--mat-sys-on-surface-variant)]">{{ I18N.timeline.scope_help | translate }}</p>
@@ -104,11 +139,16 @@ import { GalleryStore, anyHideToggleActive } from '../gallery/gallery.store';
       <app-control-popover icon="date_range" [compact]="true" [label]="I18N.timeline.dates | translate" [content]="datesPanel" />
     </ng-template>
     <ng-template #timelineToolbar>
-      <ng-container [ngTemplateOutlet]="breadcrumb" />
-      <div class="ml-auto flex items-center gap-1">
+      <div class="flex min-w-0 flex-1 items-center gap-2">
+        <ng-container [ngTemplateOutlet]="breadcrumb" />
+        <span data-timeline-divider aria-hidden="true" class="h-6 w-px shrink-0 bg-[var(--mat-sys-outline-variant)]"></span>
+        <ng-container [ngTemplateOutlet]="viewToggle" />
+        <ng-container [ngTemplateOutlet]="feedControls" />
+        <ng-container [ngTemplateOutlet]="datesControl" />
+        <ng-container [ngTemplateOutlet]="densityToggle" />
         @if (filters.dateFrom() || filters.dateTo()) {
           @let range = (filters.dateFrom() ? (filters.dateFrom() | captureDate) : '…') + ' – ' + (filters.dateTo() ? (filters.dateTo() | captureDate) : '…');
-          <div data-timeline-range-chip role="status" class="inline-flex items-center gap-1 pl-2.5 pr-1 py-0.5 rounded-full bg-[var(--mat-sys-secondary-container)] text-[var(--mat-sys-on-secondary-container)] text-xs font-medium">
+          <div data-timeline-range-chip role="status" class="inline-flex shrink-0 items-center gap-1 pl-2.5 pr-1 py-0.5 rounded-full bg-[var(--mat-sys-secondary-container)] text-[var(--mat-sys-on-secondary-container)] text-xs font-medium">
             <span class="mx-0.5 max-w-64 truncate" [title]="range">{{ range }}</span>
             <button
               class="inline-flex items-center justify-center min-w-8 min-h-8 max-sm:min-w-11 max-sm:min-h-11 rounded-full hover:bg-black/20 transition-colors"
@@ -119,8 +159,6 @@ import { GalleryStore, anyHideToggleActive } from '../gallery/gallery.store';
             </button>
           </div>
         }
-        <ng-container [ngTemplateOutlet]="viewToggle" />
-        <ng-container [ngTemplateOutlet]="datesControl" />
         @if (anyHiddenByFilters()) {
           <button mat-icon-button class="!w-10 !h-10 shrink-0"
                   [matTooltip]="I18N.gallery.hidden_banner.some_hidden | translate"
@@ -139,16 +177,17 @@ import { GalleryStore, anyHideToggleActive } from '../gallery/gallery.store';
       </div>
     </ng-template>
     <!-- Below lg the shell's bottom bar holds the date range; this row keeps the breadcrumb and view controls reachable -->
-    <div data-timeline-breadcrumb-row class="lg:hidden sticky top-0 z-20 bg-[var(--mat-sys-surface)] flex flex-wrap items-center gap-1 px-4 pt-4 pb-2">
+    <div data-timeline-breadcrumb-row class="lg:hidden sticky top-0 z-20 bg-[var(--mat-sys-surface)] flex flex-wrap items-center gap-2 px-4 pt-4 pb-2">
       <ng-container [ngTemplateOutlet]="breadcrumb" />
-      <div class="ml-auto flex items-center gap-1">
-        <ng-container [ngTemplateOutlet]="viewToggle" />
-        <ng-container [ngTemplateOutlet]="datesControl" />
-      </div>
+      <span aria-hidden="true" class="h-6 w-px shrink-0 bg-[var(--mat-sys-outline-variant)]"></span>
+      <ng-container [ngTemplateOutlet]="viewToggle" />
+      <ng-container [ngTemplateOutlet]="feedControls" />
+      <ng-container [ngTemplateOutlet]="datesControl" />
+      <ng-container [ngTemplateOutlet]="densityToggle" />
     </div>
 
     <div class="px-4 pb-2 pt-2">
-      <app-timeline-density [year]="year()" [month]="month()" />
+      <app-timeline-density [year]="year()" [month]="month()" [visible]="densityVisible()" (total)="densityTotal.set($event)" />
       @if (!showOverview()) {
         <app-timeline-feed [year]="year()" [month]="month()" />
       } @else {
@@ -187,6 +226,21 @@ export class TimelineComponent {
   protected readonly anyHiddenByFilters = computed(() => anyHideToggleActive(this.store.viewFilterParams()));
   /** Timeline API flags use 1/0; gallery URLs use true/false. */
   private readonly galleryVisibility = computed(() => timelineGalleryQuery(this.store.viewFilterParams()));
+
+  protected readonly active = timelineRouteActivity();
+  /** Scope total reported by the density strip, which keeps reading while hidden. */
+  protected readonly densityTotal = signal<number | null>(null);
+  protected readonly densityVisible = signal(readDensityVisible());
+
+  protected toggleDensity(): void {
+    const visible = !this.densityVisible();
+    this.densityVisible.set(visible);
+    try { if (visible) localStorage.removeItem(DENSITY_HIDDEN_KEY); else localStorage.setItem(DENSITY_HIDDEN_KEY, '1'); } catch { /* storage unavailable: the choice lasts for this page only */ }
+  }
+
+  protected toggleDirection(): void {
+    if (this.active()) this.filters.sortDirection.update(value => value === 'older' ? 'newer' : 'older');
+  }
 
   private readonly headerSlot = inject(HeaderSlotService);
   private readonly timelineToolbar = viewChild<TemplateRef<unknown>>('timelineToolbar');

@@ -79,9 +79,9 @@ describe('Timeline photo feed', () => {
     expect(button.textContent).toContain('timeline.retry');
     const next = new Subject<TimelinePage>(); v.api.get.mockReturnValueOnce(next);
     button.click(); await v.settle();
-    const other = v.root.querySelector<HTMLInputElement>('input[type=month]')!; other.focus();
+    const other = document.createElement('button'); document.body.appendChild(other); other.focus();
     next.next({ groups: [], next_cursor: null, has_more: false }); await v.settle();
-    expect(document.activeElement).toBe(other); v.dispose();
+    expect(document.activeElement).toBe(other); other.remove(); v.dispose();
   });
 
   it('moves focus to the final loaded photo when the pagination control disappears', async () => {
@@ -196,14 +196,14 @@ describe('Timeline photo feed', () => {
       expect(TestBed.inject(TimelineFeedCache).adjacent('/first.jpg', 1)).toBeNull(); v.dispose();
     });
 
-  it('drives direction and month navigation from the visible controls', async () => {
+  it('no longer renders the jump/sort row (they live in the Timeline bar) yet still follows the sort direction', async () => {
     const v = await setup();
-    v.root.querySelector<HTMLButtonElement>('div > button')!.click(); await v.settle();
-    expect(v.filters.sortDirection()).toBe('newer');
+    expect(v.root.querySelector('input[type=month]')).toBeNull();
+    expect(v.root.querySelector('mat-icon')?.textContent).not.toMatch(/arrow_(up|down)ward|calendar_month/);
+    expect([...v.root.querySelectorAll('button')].some(b => /newest_first|oldest_first/.test(b.textContent ?? ''))).toBe(false);
+    v.filters.sortDirection.set('newer'); await v.settle();
     expect(v.api.get).toHaveBeenLastCalledWith('/timeline', expect.objectContaining({ direction: 'newer' }), expect.anything());
-    const month = v.root.querySelector<HTMLInputElement>('input[type=month]')!;
-    month.value = '2026-02'; month.dispatchEvent(new Event('change', { bubbles: true })); await v.settle();
-    expect(v.router.url).toBe('/timeline/2026/2'); v.dispose();
+    v.dispose();
   });
 
   it.each(['older', 'newer'] as const)('continues after the 128-day cap in the %s direction', async direction => {
