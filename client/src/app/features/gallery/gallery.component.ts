@@ -1315,7 +1315,7 @@ export class GalleryComponent implements OnInit, OnDestroy {
     this.selectionAffordance() || (this.selectingPhotos() && !this.isDesktop()),
   );
   protected readonly cardTooltipMode = computed(() =>
-    this.selectionAffordance() && !this.isDesktop() ? 'off' : this.tooltipMode(),
+    this.selectingPhotos() && !this.isDesktop() ? 'off' : this.tooltipMode(),
   );
 
   /** Whether to hide photo details below the thumbnails */
@@ -1341,7 +1341,7 @@ export class GalleryComponent implements OnInit, OnDestroy {
   /** Which gesture(s) retarget the docked panel — only meaningful when tooltipMode is 'panel'. */
   readonly panelActivation = computed(() => this.store.filters().panel_activation);
   /** Whether tooltip is fully disabled (off mode) — used for skipping rendering and hover handlers */
-  readonly tooltipDisabled = computed(() => this.tooltipMode() === 'off' || (this.selectionAffordance() && !this.isDesktop()));
+  readonly tooltipDisabled = computed(() => this.tooltipMode() === 'off' || (this.selectingPhotos() && !this.isDesktop()));
 
   /** Docked rail needs real width, not merely "not a phone". */
   readonly panelMode = computed(() => this.tooltipMode() === 'panel' && this.railWide.isDesktop());

@@ -611,6 +611,19 @@ describe('GalleryComponent', () => {
     fixture.destroy();
   });
 
+  it('disables card tooltips on a narrow viewport while photos are selected, even without the Select affordance', () => {
+    mockStore.selectedPaths.set(new Set(['/a.jpg']));
+    mockStore.selectionCount.set(1);
+    mockStore.filters.update((filters: GalleryFilters) => ({ ...filters, tooltip_mode: 'click' }));
+    const fixture = TestBed.createComponent(GalleryComponent);
+    Object.defineProperty(fixture.componentInstance, 'isDesktop', { value: signal(false) });
+    fixture.detectChanges();
+    expect(fixture.componentInstance['selectionAffordance']()).toBe(false);
+    expect(fixture.componentInstance.tooltipDisabled()).toBe(true);
+    expect(fixture.componentInstance['cardTooltipMode']()).toBe('off');
+    fixture.destroy();
+  });
+
   it('does not let a parked mobile Select control clear a later selection', () => {
     mockStore.selectedPaths.set(new Set(['/later.jpg']));
     mockStore.selectionCount.set(1);
