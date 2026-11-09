@@ -86,6 +86,23 @@ describe('TimelineDaysComponent', () => {
       expect(populated.getAttribute('aria-label')).toContain('3');
       fixture.destroy();
     });
+    it('stretches the calendar over the width and height it is given instead of a centred column of square days', async () => {
+      component.year = () => '2024'; component.month = () => '6';
+      mockApi.get.mockReturnValue(of({ dates: [{ date: '2024-06-15', count: 3, hero_photo_path: null }, { date: '2024-06-16', count: 4, hero_photo_path: '/16.jpg' }] }));
+      const fixture = TestBed.createComponent(TimelineDaysComponent);
+      fixture.componentRef.setInput('year', '2024'); fixture.componentRef.setInput('month', '6');
+      fixture.detectChanges(); await fixture.whenStable(); fixture.detectChanges();
+      const host = fixture.nativeElement as HTMLElement;
+      const count = (day: string) => [...host.querySelectorAll('button')].find(button => button.querySelector('span')?.textContent === day)!.querySelectorAll('span')[1];
+      expect(count('16').className).toContain('text-white/90');
+      expect(count('15').className).toContain('text-[var(--mat-sys-on-surface-variant)]');
+      const grid = host.querySelector('[role="group"]')!;
+      expect([...host.classList]).toEqual(expect.arrayContaining(['flex', 'flex-1', 'flex-col']));
+      expect([...grid.classList]).toEqual(expect.arrayContaining(['flex-1', 'auto-rows-[minmax(4rem,1fr)]', 'grid-cols-7']));
+      expect(grid.classList).not.toContain('max-w-3xl');
+      expect(host.querySelectorAll('.aspect-square')).toHaveLength(0);
+      fixture.destroy();
+    });
     it('should create correct number of cells for a known month', async () => {
       // June 2024 has 30 days, starts on Saturday → 5 padding cells (Mon-Fri)
       mockApi.get.mockReturnValue(of({ dates: [] }));

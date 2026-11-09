@@ -31,6 +31,8 @@ interface CalendarCell {
   standalone: true,
   imports: [TimelineLoadFailureComponent, MatIconModule, MatProgressSpinnerModule, ThumbnailUrlPipe, TranslatePipe, CaptureDatePipe],
   changeDetection: ChangeDetectionStrategy.Eager,
+  // The calendar fills the width and the height left in the timeline; rows never shrink below 4rem.
+  host: { class: 'flex flex-1 flex-col' },
   template: `
     @if (loading()) {
       <div class="flex justify-center py-16">
@@ -45,18 +47,18 @@ interface CalendarCell {
         <p data-timeline-empty tabindex="-1" class="mx-auto max-w-3xl py-4 text-sm text-[var(--mat-sys-on-surface-variant)]">{{ I18N.timeline.no_photos_month | translate }}</p>
       }
       <!-- Day-of-week headers -->
-      <div class="mx-auto grid max-w-3xl grid-cols-7 gap-2 mb-2">
+      <div class="mb-2 grid grid-cols-7 gap-2">
         @for (d of weekDays(); track $index) {
         <div class="text-center text-sm font-medium text-[var(--mat-sys-on-surface-variant)] py-1">{{ d }}</div>
         }
       </div>
 
       <!-- Calendar grid -->
-      <div role="group" [attr.aria-label]="I18N.timeline.calendar | translate" class="mx-auto grid max-w-3xl grid-cols-7 gap-2">
+      <div role="group" [attr.aria-label]="I18N.timeline.calendar | translate" class="grid flex-1 auto-rows-[minmax(4rem,1fr)] grid-cols-7 gap-2">
         @for (cell of calendarCells(); track cell.date ?? $index) {
           @if (cell.date) {
             <button data-timeline-result
-              class="relative rounded-xl overflow-hidden transition-shadow aspect-square"
+              class="relative h-full w-full overflow-hidden rounded-xl transition-shadow"
               [disabled]="cell.count === 0"
               [attr.aria-label]="(cell.date | captureDate) + ': ' + cell.count + ' ' + (I18N.timeline.photos_count | translate)"
               [class]="cell.count > 0 ? 'cursor-pointer hover:shadow-lg bg-[var(--mat-sys-surface-container)]' : 'opacity-40 bg-[var(--mat-sys-surface-container)] cursor-default'"
@@ -71,13 +73,13 @@ interface CalendarCell {
                    [class.text-white]="!!cell.hero_photo_path">
                 <span class="text-base font-semibold">{{ cell.day }}</span>
                 @if (cell.count > 0) {
-                  <span class="text-xs text-[var(--mat-sys-on-surface-variant)]">{{ cell.count }}</span>
+                  <span [class]="cell.hero_photo_path ? 'text-xs text-white/90' : 'text-xs text-[var(--mat-sys-on-surface-variant)]'">{{ cell.count }}</span>
                 }
               </div>
             </button>
           } @else {
             <!-- Empty cell (padding for first week) -->
-            <div class="aspect-square"></div>
+            <div></div>
           }
         }
       </div>

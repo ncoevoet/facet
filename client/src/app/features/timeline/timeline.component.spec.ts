@@ -309,7 +309,7 @@ describe('Timeline page-actions bar (rendered)', () => {
   let showOverview: ReturnType<typeof signal<boolean>>;
 
   function setup(routeParams: Record<string, string> = {}, overview = true) {
-    localStorage.removeItem('facet_timeline_density_hidden');
+    localStorage.removeItem('facet_timeline_density_hidden'); localStorage.removeItem('facet_timeline_calendar_view');
     navigate.mockReset(); sortDirection = signal<'older' | 'newer'>('older'); showOverview = signal(overview);
     dateFrom = signal('');
     dateTo = signal('');
@@ -518,6 +518,25 @@ describe('Timeline page-actions bar (rendered)', () => {
     const second = TestBed.createComponent(TimelineComponent); second.detectChanges();
     expect((second.debugElement.query(By.directive(DensityStub)).componentInstance as DensityStub).visible()).toBe(false);
     localStorage.removeItem('facet_timeline_density_hidden');
+  });
+
+  it('leaves a gap under the density strip in the calendar, and none when the strip is hidden', () => {
+    const fixture = setup({ year: '2025', month: '2' }, true);
+    const days = () => fixture.nativeElement.querySelector('app-timeline-days') as HTMLElement;
+    expect(days().classList).toContain('mt-4');
+    (renderBar().querySelector('button[aria-label="timeline.density_hide"]') as HTMLButtonElement).click(); fixture.detectChanges();
+    expect(days().classList).not.toContain('mt-4');
+  });
+
+  it('saves the Photos or Calendar choice for the next visit', () => {
+    setup({}, false);
+    const view = (label: string) => renderBar().querySelector(`button[aria-label="${label}"]`) as HTMLButtonElement;
+    view('timeline.calendar').click();
+    expect(showOverview()).toBe(true);
+    expect(localStorage.getItem('facet_timeline_calendar_view')).toBe('1');
+    view('timeline.photo_feed').click();
+    expect(showOverview()).toBe(false);
+    expect(localStorage.getItem('facet_timeline_calendar_view')).toBeNull();
   });
 
   it('puts the Dates popover in the bar', () => {

@@ -6,7 +6,7 @@ import { map } from 'rxjs';
 import { MatIconModule } from '@angular/material/icon';
 import { MatButtonModule } from '@angular/material/button';
 import { MatTooltipModule } from '@angular/material/tooltip';
-import { TimelineFiltersService } from './timeline-filters.service';
+import { TIMELINE_CALENDAR_VIEW_KEY, TimelineFiltersService } from './timeline-filters.service';
 import { registerPageContext } from '../../core/agent/page-context.service';
 import { TranslatePipe } from '../../shared/pipes/translate.pipe';
 import { PluralKeyPipe } from '../../shared/pipes/plural-key.pipe';
@@ -56,7 +56,8 @@ function readDensityVisible(): boolean {
     DateRangeFilterComponent,
     ControlPopoverComponent,
   ],
-  host: { class: 'block h-full overflow-auto' },
+  // A flex column so the month calendar can take the height left under the bars; other views grow past it and scroll.
+  host: { class: 'flex h-full flex-col overflow-auto' },
   changeDetection: ChangeDetectionStrategy.Eager,
   template: `
     <h1 class="sr-only">{{ I18N.timeline.title | translate }}</h1>
@@ -95,11 +96,11 @@ function readDensityVisible(): boolean {
     <ng-template #viewToggle>
       <div class="flex shrink-0 items-center gap-1" role="group" [attr.aria-label]="I18N.timeline.title | translate">
         <button mat-button [class]="!showOverview() ? '!bg-[var(--mat-sys-secondary-container)]' : ''" [attr.aria-pressed]="!showOverview()"
-          [matTooltip]="I18N.timeline.photo_feed | translate" [attr.aria-label]="I18N.timeline.photo_feed | translate" (click)="showOverview.set(false)">
+          [matTooltip]="I18N.timeline.photo_feed | translate" [attr.aria-label]="I18N.timeline.photo_feed | translate" (click)="setCalendarView(false)">
           <mat-icon>photo_library</mat-icon><span class="hidden xl:inline">{{ I18N.timeline.photo_feed | translate }}</span>
         </button>
         <button mat-button [class]="showOverview() ? '!bg-[var(--mat-sys-secondary-container)]' : ''" [attr.aria-pressed]="showOverview()"
-          [matTooltip]="I18N.timeline.calendar | translate" [attr.aria-label]="I18N.timeline.calendar | translate" (click)="showOverview.set(true)">
+          [matTooltip]="I18N.timeline.calendar | translate" [attr.aria-label]="I18N.timeline.calendar | translate" (click)="setCalendarView(true)">
           <mat-icon>calendar_month</mat-icon><span class="hidden xl:inline">{{ I18N.timeline.calendar | translate }}</span>
         </button>
       </div>
@@ -187,7 +188,7 @@ function readDensityVisible(): boolean {
       </div>
     </ng-template>
     <!-- Below lg: the top row names where you are, the bottom bar holds the actions in thumb reach -->
-    <div data-timeline-breadcrumb-row class="lg:hidden sticky top-0 z-20 flex flex-wrap items-center gap-2 border-b border-[var(--mat-sys-outline-variant)] bg-[var(--mat-sys-surface-container)] px-4 py-2">
+    <div data-timeline-breadcrumb-row class="lg:hidden sticky top-0 z-20 flex shrink-0 flex-wrap items-center gap-2 border-b border-[var(--mat-sys-outline-variant)] bg-[var(--mat-sys-surface-container)] px-4 py-2">
       <ng-container [ngTemplateOutlet]="breadcrumb" />
       <ng-container [ngTemplateOutlet]="rangeChip" />
     </div>
@@ -204,22 +205,22 @@ function readDensityVisible(): boolean {
       <ng-container [ngTemplateOutlet]="hiddenFilters" />
     </div>
 
-    <div class="px-4 pb-2 pt-2">
+    <div class="flex flex-1 flex-col px-4 pb-2 pt-2">
       <app-timeline-density [year]="year()" [month]="month()" [visible]="densityVisible()" (total)="densityTotal.set($event)" />
       @if (!showOverview()) {
         <app-timeline-feed [year]="year()" [month]="month()" />
       } @else {
       @switch (level()) {
         @case ('years') {
-          <app-timeline-years (yearSelected)="onYearSelected($event)" />
+          <app-timeline-years [class.mt-4]="densityVisible()" (yearSelected)="onYearSelected($event)" />
         }
         @case ('months') {
-          <app-timeline-months
+          <app-timeline-months [class.mt-4]="densityVisible()"
             [year]="year()"
             (monthSelected)="onMonthSelected($event)" />
         }
         @case ('days') {
-          <app-timeline-days
+          <app-timeline-days [class.mt-4]="densityVisible()"
             [year]="year()"
             [month]="month()"
             (daySelected)="onDaySelected($event)" />
@@ -254,6 +255,11 @@ export class TimelineComponent {
     const visible = !this.densityVisible();
     this.densityVisible.set(visible);
     try { if (visible) localStorage.removeItem(DENSITY_HIDDEN_KEY); else localStorage.setItem(DENSITY_HIDDEN_KEY, '1'); } catch { /* storage unavailable: the choice lasts for this page only */ }
+  }
+
+  protected setCalendarView(calendar: boolean): void {
+    this.showOverview.set(calendar);
+    try { if (calendar) localStorage.setItem(TIMELINE_CALENDAR_VIEW_KEY, '1'); else localStorage.removeItem(TIMELINE_CALENDAR_VIEW_KEY); } catch { /* storage unavailable: the choice lasts for this page only */ }
   }
 
   protected toggleDirection(): void {
