@@ -117,6 +117,11 @@ jobs:
             -r requirements.lock.txt -r requirements.restricted.lock.txt
       - name: Runner CPU (a byte diff between the two reports may be a kernel difference, not a regression)
         run: lscpu | grep -E '^(Vendor ID|Model name|Flags)' | sed -E 's/^(Flags:).*/\1 '"$(grep -ow -m1 -E 'avx512f|avx2' /proc/cpuinfo | sort -u | tr '\n' ' ')"'/'
+      - name: Model weights (cached; their hosts answer 504 now and then)
+        uses: actions/cache@v6
+        with:
+          path: pretrained_models
+          key: pretrained-models-v1-${{ hashFiles('models/weights.py', 'models/samp_net.py', 'analyzers/face_blendshapes.py', 'analyzers/face_quality_ofiq.py', 'optimization/model_eval.py') }}
       - name: Scan, group, name
         run: |
           sudo mkdir -p /data && sudo cp -r library/photos /data/photos && sudo chown -R "$USER" /data
@@ -155,15 +160,22 @@ jobs:
           --build-arg INSTALL_CUML=0 .
       - name: Runner CPU (a byte diff between the two reports may be a kernel difference, not a regression)
         run: lscpu | grep -E '^(Vendor ID|Model name|Flags)' | sed -E 's/^(Flags:).*/\1 '"$(grep -ow -m1 -E 'avx512f|avx2' /proc/cpuinfo | sort -u | tr '\n' ' ')"'/'
+      - name: Model weights (cached; their hosts answer 504 now and then)
+        uses: actions/cache@v6
+        with:
+          path: ${{ runner.temp }}/pretrained_models
+          key: pretrained-models-v1-${{ hashFiles('models/weights.py', 'models/samp_net.py', 'analyzers/face_blendshapes.py', 'analyzers/face_quality_ofiq.py', 'optimization/model_eval.py') }}
       - name: Scan, group, name
         run: |
-          mkdir -p "$RUNNER_TEMP/data" "$RUNNER_TEMP/config" reports
+          mkdir -p "$RUNNER_TEMP/data" "$RUNNER_TEMP/config" "$RUNNER_TEMP/pretrained_models" reports
           # The scan runs as the image's facet user (uid 1000), not the runner's.
           sudo chown 1000:1000 "$RUNNER_TEMP/data" "$RUNNER_TEMP/config"
+          sudo chown -R 1000:1000 "$RUNNER_TEMP/pretrained_models"
           # An idle container: the scan and the reports are the only processes in it.
           docker run -d --name facet --entrypoint sleep \
             -e DB_PATH=/app/data/photo_scores_pro.db -e FACET_VRAM_PROFILE \
             -v "$RUNNER_TEMP/data:/app/data" -v "$RUNNER_TEMP/config:/config" \
+            -v "$RUNNER_TEMP/pretrained_models:/app/pretrained_models" \
             -v "$PWD/library/photos:/data/photos:ro" -v "$PWD/library/references:/refs:ro" \
             -v "$PWD/testdb:/tool:ro" facet:ci infinity
           run() { docker exec -u facet facet "$@"; }
