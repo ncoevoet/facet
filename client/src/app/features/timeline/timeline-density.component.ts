@@ -29,6 +29,7 @@ import { timelineReadContext } from './timeline-read-context';
     class: 'block min-w-0',
     '(document:pointerup)': 'endDrag()',
     '(document:pointercancel)': 'endDrag()',
+    '(document:keydown)': 'endPress()',
   },
   template: `
     @if (visible()) {
@@ -110,7 +111,12 @@ export class TimelineDensityComponent {
   private readonly last = signal<DensityBucket | null>(null);
   private readonly buckets = signal<DensityBucket[]>([]);
   private readonly focusKey = signal('');
+  /** The range anchor: a keyboard-focused bar, a Shift+Arrow draft start or a first Shift+click. */
   private anchorKey = '';
+  /** The anchor as it stood when the current pointer press began, before its focus could move it. */
+  private pressAnchor: string | null = null;
+  /** True from pointerdown until the click (or a key): focus in that window comes from the pointer. */
+  private pressing = false;
   private dragStart: DensityBucket | null = null;
   private dragged = false;
   private suppressClick = false;
@@ -179,26 +185,31 @@ export class TimelineDensityComponent {
     else void this.router.navigate(this.year() ? ['/timeline', this.year(), String(+bucket.key.slice(5, 7))] : ['/timeline', bucket.key]);
   }
 
+  protected endPress(): void { this.pressing = false; }
+
   protected onFocus(bucket: DensityBucket): void {
     this.focusKey.set(bucket.key);
-    if (!this.first()) this.anchorKey = bucket.key;
+    if (!this.first() && !this.pressing) this.anchorKey = bucket.key;
   }
 
   protected onClick(event: MouseEvent, bucket: DensityBucket): void {
+    const before = this.pressAnchor ?? this.anchorKey;
+    this.pressAnchor = null; this.pressing = false;
     if (this.suppressClick) { this.suppressClick = false; return; }
     if (!this.currentRead?.() || !this.find(bucket.key)) return;
     const draft = this.first();
     if (draft && event.detail === 0 && !event.shiftKey) { this.apply(draft, this.last() ?? draft); return; }
     if (event.shiftKey) {
-      this.apply(this.find(this.anchorKey) ?? this.find(this.focusKey()) ?? bucket, bucket);
+      const anchor = this.find(before);
+      if (anchor) { this.anchorKey = ''; this.apply(anchor, bucket); } else { this.anchorKey = bucket.key; this.first.set(bucket); this.last.set(null); }
       return;
     }
-    this.anchorKey = bucket.key;
     this.drill(bucket);
   }
 
   protected startDrag(event: PointerEvent, bucket: DensityBucket): void {
     this.suppressClick = false; this.dragged = false;
+    this.pressAnchor = this.anchorKey; this.pressing = true;
     this.dragStart = event.pointerType === 'touch' || event.button !== 0 ? null : bucket;
   }
 
@@ -242,7 +253,7 @@ export class TimelineDensityComponent {
       event.preventDefault();
       this.apply(first, this.last() ?? first);
     } else if (event.key === 'Escape' && this.first()) {
-      event.preventDefault(); event.stopPropagation(); this.clearDraft();
+      event.preventDefault(); event.stopPropagation(); this.clearDraft(); this.anchorKey = '';
     }
   }
 }

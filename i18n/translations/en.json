@@ -3055,7 +3055,7 @@
     "density_months": "Photos by month",
     "density_days": "Photos by day",
     "period_count": "{period} · Photos: {count}",
-    "density_keyboard": "Click a bar to explore it: a year opens its months, a month its days, a day its photos. Drag across bars with the mouse, or click one and Shift+click another, to filter the capture dates to that range. With the keyboard, use the left and right arrows to move between bars, Shift plus an arrow to extend a range, Enter to apply it and Escape to cancel.",
+    "density_keyboard": "Click a bar to explore it: a year opens its months, a month its days, a day its photos. To filter the capture dates to a range, drag across bars, or Shift+click the first and then the last bar. With the keyboard, use the left and right arrows to move between bars, Shift plus an arrow to extend a range, Enter to apply it and Escape to cancel.",
     "density_unit": "Period",
     "density_weeks": "Weeks (Monday–Sunday)",
     "dates": "Dates",

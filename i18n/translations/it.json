@@ -3030,7 +3030,7 @@
     "density_months": "Foto per mese",
     "density_days": "Foto per giorno",
     "period_count": "{period} · Foto: {count}",
-    "density_keyboard": "Fai clic su una barra per esplorarla: un anno apre i suoi mesi, un mese i suoi giorni, un giorno le sue foto. Trascina il mouse su più barre, oppure fai clic su una barra e poi Maiusc+clic su un’altra, per filtrare le date di scatto su quell’intervallo. Con la tastiera usa le frecce sinistra e destra per spostarti tra le barre, Maiusc più una freccia per estendere un intervallo, Invio per applicarlo ed Esc per annullarlo.",
+    "density_keyboard": "Fai clic su una barra per esplorarla: un anno apre i suoi mesi, un mese i suoi giorni, un giorno le sue foto. Per filtrare le date di scatto su un intervallo, trascina il mouse su più barre, oppure fai Maiusc+clic prima sulla prima barra e poi sull’ultima. Con la tastiera usa le frecce sinistra e destra per spostarti tra le barre, Maiusc più una freccia per estendere un intervallo, Invio per applicarlo ed Esc per annullarlo.",
     "density_unit": "Periodo",
     "density_weeks": "Settimane (lunedì–domenica)",
     "dates": "Date",

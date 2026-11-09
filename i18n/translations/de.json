@@ -3030,7 +3030,7 @@
     "density_months": "Fotos nach Monat",
     "density_days": "Fotos nach Tag",
     "period_count": "{period} · Fotos: {count}",
-    "density_keyboard": "Klicken Sie auf einen Balken, um ihn zu öffnen: ein Jahr zeigt seine Monate, ein Monat seine Tage, ein Tag seine Fotos. Ziehen Sie mit der Maus über mehrere Balken oder klicken Sie einen an und mit Umschalt+Klick einen weiteren, um die Aufnahmedaten auf diesen Bereich zu filtern. Mit der Tastatur wechseln Sie mit den Pfeiltasten links und rechts zwischen den Balken, erweitern mit Umschalt plus Pfeiltaste einen Bereich, übernehmen ihn mit der Eingabetaste und brechen mit Escape ab.",
+    "density_keyboard": "Klicken Sie auf einen Balken, um ihn zu öffnen: ein Jahr zeigt seine Monate, ein Monat seine Tage, ein Tag seine Fotos. Um die Aufnahmedaten auf einen Bereich zu filtern, ziehen Sie mit der Maus über mehrere Balken oder klicken Sie mit Umschalt+Klick zuerst auf den ersten und dann auf den letzten Balken. Mit der Tastatur wechseln Sie mit den Pfeiltasten links und rechts zwischen den Balken, erweitern mit Umschalt plus Pfeiltaste einen Bereich, übernehmen ihn mit der Eingabetaste und brechen mit Escape ab.",
     "density_unit": "Zeitraum",
     "density_weeks": "Wochen (Montag–Sonntag)",
     "dates": "Daten",

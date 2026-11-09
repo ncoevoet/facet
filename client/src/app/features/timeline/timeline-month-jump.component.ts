@@ -24,7 +24,7 @@ const MONTH_FORMATS: MatDateFormats = {
   template: `
     <mat-form-field class="w-48" subscriptSizing="dynamic">
       <mat-label>{{ I18N.timeline.jump_month | translate }}</mat-label>
-      <input matInput readonly [matDatepicker]="picker" [value]="value()" (click)="picker.open()" />
+      <input matInput readonly [matDatepicker]="picker" [disabled]="disabled()" [value]="value()" (click)="picker.open()" />
       <mat-datepicker-toggle matIconSuffix [for]="picker" [attr.aria-label]="I18N.timeline.jump_month | translate" />
       <mat-datepicker #picker startView="multi-year" (monthSelected)="select($event, picker)" />
     </mat-form-field>

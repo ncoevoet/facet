@@ -3030,7 +3030,7 @@
     "density_months": "Photos par mois",
     "density_days": "Photos par jour",
     "period_count": "{period} · Photos : {count}",
-    "density_keyboard": "Cliquez sur une barre pour l’explorer : une année ouvre ses mois, un mois ses jours, un jour ses photos. Faites glisser la souris sur plusieurs barres, ou cliquez sur une barre puis Maj+clic sur une autre, pour filtrer les dates de prise de vue sur cette plage. Au clavier, utilisez les flèches gauche et droite pour passer d’une barre à l’autre, Maj plus une flèche pour étendre une plage, Entrée pour l’appliquer et Échap pour l’annuler.",
+    "density_keyboard": "Cliquez sur une barre pour l’explorer : une année ouvre ses mois, un mois ses jours, un jour ses photos. Pour filtrer les dates de prise de vue sur une plage, faites glisser la souris sur plusieurs barres, ou faites Maj+clic sur la première puis sur la dernière barre. Au clavier, utilisez les flèches gauche et droite pour passer d’une barre à l’autre, Maj plus une flèche pour étendre une plage, Entrée pour l’appliquer et Échap pour l’annuler.",
     "density_unit": "Période",
     "density_weeks": "Semaines (lundi–dimanche)",
     "dates": "Dates",

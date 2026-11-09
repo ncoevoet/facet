@@ -208,12 +208,56 @@ describe('Timeline date density', () => {
     v.fixture.destroy();
   });
 
-  it('applies the range from the last clicked bucket on Shift+click', async () => {
+  /** The browser's order for a mouse press: focus lands between pointerdown and click. */
+  function shiftClick(v: { pointer: (type: string, target: Element, init?: Record<string, unknown>) => boolean }, bar: HTMLElement) {
+    v.pointer('pointerdown', bar, { shiftKey: true }); bar.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, cancelable: true, shiftKey: true }));
+    bar.focus(); v.pointer('pointerup', bar, { shiftKey: true }); bar.dispatchEvent(new MouseEvent('mouseup', { bubbles: true, cancelable: true, shiftKey: true }));
+    bar.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true, shiftKey: true, detail: 1 }));
+  }
+
+  it('Shift+click on a keyboard-focused bar applies anchor..clicked, ignoring the pointer focus, without drilling', async () => {
     const v = await render(); const bars = v.bars();
-    bars[0].click(); await v.settle();
-    bars[2].dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true, shiftKey: true })); await v.settle();
+    bars[0].focus(); await v.settle();
+    shiftClick(v, bars[2]); await v.settle();
     expect(v.filters.dateFrom()).toBe('2019-01-01'); expect(v.filters.dateTo()).toBe('2021-12-31');
-    expect(v.navigate).toHaveBeenCalledTimes(1);
+    expect(v.navigate).not.toHaveBeenCalled();
+    v.fixture.destroy();
+  });
+
+  it('applies the range in either order when the clicked bar precedes the anchor', async () => {
+    const v = await render(); const bars = v.bars();
+    bars[2].focus(); await v.settle();
+    shiftClick(v, bars[1]); await v.settle();
+    expect(v.filters.dateFrom()).toBe('2020-01-01'); expect(v.filters.dateTo()).toBe('2021-12-31');
+    v.fixture.destroy();
+  });
+
+  it('without an anchor, the first Shift+click only sets it and the second applies the range', async () => {
+    const v = await render(); const bars = v.bars();
+    shiftClick(v, bars[0]); await v.settle();
+    expect(v.navigate).not.toHaveBeenCalled(); expect(v.filters.dateFrom()).toBe('');
+    expect(bars[0].getAttribute('aria-pressed')).toBe('true'); expect(bars[1].getAttribute('aria-pressed')).toBe('false');
+    shiftClick(v, bars[2]); await v.settle();
+    expect(v.filters.dateFrom()).toBe('2019-01-01'); expect(v.filters.dateTo()).toBe('2021-12-31');
+    expect(v.navigate).not.toHaveBeenCalled();
+    v.fixture.destroy();
+  });
+
+  it('Escape clears a pending Shift+click anchor, so the next Shift+click starts over', async () => {
+    const v = await render(); const bars = v.bars();
+    shiftClick(v, bars[0]); await v.settle();
+    v.key(bars[0], 'Escape'); await v.settle();
+    expect(bars[0].getAttribute('aria-pressed')).toBe('false');
+    shiftClick(v, bars[2]); await v.settle();
+    expect(v.filters.dateFrom()).toBe(''); expect(bars[2].getAttribute('aria-pressed')).toBe('true');
+    v.fixture.destroy();
+  });
+
+  it('Shift+click extends a Shift+Arrow draft from its anchor', async () => {
+    const v = await render(); const bars = v.bars();
+    bars[0].focus(); v.key(bars[0], 'ArrowRight', { shiftKey: true }); await v.settle();
+    shiftClick(v, bars[2]); await v.settle();
+    expect(v.filters.dateFrom()).toBe('2019-01-01'); expect(v.filters.dateTo()).toBe('2021-12-31');
     v.fixture.destroy();
   });
 

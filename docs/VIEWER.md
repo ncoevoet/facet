@@ -764,7 +764,7 @@ The five gallery hide toggles (`hide_blinks`, `hide_bursts`, `hide_duplicates`, 
 
 **Toolbar.** The bar under the navigation holds, from the left: the breadcrumb and the photo count of the current scope, the **Photos** / **Calendar** toggle, **Jump to month** and the sort direction (Photos view), **Dates** for a capture-date range, the date-density toggle and, when a range is set, its chip. On small screens the same controls sit in a row at the top of the page.
 
-**Date density.** A strip of bars above the photos counts them per year, month or day of the current scope. Click a bar to drill into it. Drag across bars, or click one and Shift+click another, to filter the capture dates to that range; with the keyboard, the left and right arrows move between bars, Shift plus an arrow extends a range, Enter applies it and Escape cancels. Inside a year or a month, **Period** switches between months (days, inside a month) and ISO weeks; the `show_chart` button switches to a log scale. The `bar_chart` button in the toolbar hides the strip, remembered per browser.
+**Date density.** A strip of bars above the photos counts them per year, month or day of the current scope. Click a bar to drill into it. To filter the capture dates to a range, drag across bars, or Shift+click the first and then the last bar; with the keyboard, the left and right arrows move between bars, Shift plus an arrow extends a range, Enter applies it and Escape cancels. Inside a year or a month, **Period** switches between months (days, inside a month) and ISO weeks; the `show_chart` button switches to a log scale. The `bar_chart` button in the toolbar hides the strip, remembered per browser.
 
 Open `/timeline`. Controlled by `viewer.features.show_timeline` (default: `true`).
 

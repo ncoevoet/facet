@@ -49,6 +49,14 @@ describe('TimelineMonthJumpComponent', () => {
     expect(v.navigate).not.toHaveBeenCalled(); expect(close).toHaveBeenCalled();
   });
 
+  it('disables the trigger and cannot open the picker while disabled', () => {
+    const v = setup(); v.fixture.componentRef.setInput('disabled', true); v.fixture.detectChanges();
+    const toggle = (v.fixture.nativeElement as HTMLElement).querySelector<HTMLButtonElement>('mat-datepicker-toggle button')!;
+    expect(v.input.disabled).toBe(true); expect(toggle.disabled).toBe(true);
+    v.input.click(); toggle.click(); v.fixture.detectChanges();
+    expect(v.picker.opened).toBe(false);
+  });
+
   it('scopes its month-only display format to this component', () => {
     const v = setup();
     expect(v.fixture.debugElement.injector.get(MAT_DATE_FORMATS).display.dateInput).toEqual({ year: 'numeric', month: 'long' });
