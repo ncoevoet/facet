@@ -427,7 +427,7 @@ describe('GalleryViewControlsComponent', () => {
     it('announces how many filters are active, not only that the button opens them', () => {
       const { fixture, root, store } = render();
       store.activeFilterCount.set(3); fixture.detectChanges();
-      expect(root.querySelector(`button[aria-label="${I18N.gallery.filters}, ${I18N.gallery.active_filters}(3)"]`)).not.toBeNull();
+      expect(root.querySelector(`button[aria-label="${I18N.gallery.sidebar.tabs.active_count}(${I18N.gallery.filters},3)"]`)).not.toBeNull();
       store.activeFilterCount.set(0); fixture.detectChanges();
       expect(byLabel(root, I18N.gallery.filters)).toHaveLength(1);
     });
