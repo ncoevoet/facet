@@ -60,6 +60,14 @@ describe('FaceReviewQueueComponent', () => {
     expect(component.loading()).toBe(false);
   });
 
+  it('fits as many face cards per row as wide screens allow instead of capping at three', async () => {
+    const { fixture, root } = await render();
+    const grid = root.querySelector('[data-review-face]')!.parentElement!;
+    expect(grid.className).not.toContain('xl:grid-cols-3');
+    expect(grid.className).toContain('xl:grid-cols-[repeat(auto-fill,minmax(25rem,1fr))]');
+    fixture.destroy(); root.remove();
+  });
+
   it('shows the global queue and confirms captured face identities separately for each person', async () => {
     const { fixture, root, api, boxes } = await render();
     expect(root.querySelectorAll('[data-review-face]')).toHaveLength(2);

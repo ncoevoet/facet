@@ -69,7 +69,7 @@ interface AssignmentReport { assigned_count: number; already: number[]; missing:
     @for (group of groups(); track group.id) {
       <section class="mb-4">
         <h3 class="m-0 mb-2 break-words text-sm font-medium">{{ group.name ? (I18N.persons.review_queue.group | translate:{ name: group.name }) : (I18N.persons.review_queue.no_suggestion | translate) }}</h3>
-        <div class="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3">
+        <div class="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-[repeat(auto-fill,minmax(25rem,1fr))]">
           @for (face of group.faces; track face.face_id) {
             <article class="min-w-0 rounded-lg border border-[var(--mat-sys-outline-variant)] bg-[var(--mat-sys-surface-container-low)] p-3" [attr.data-review-face]="face.face_id" [attr.aria-label]="I18N.persons.review_queue.face_label | translate:{id: face.face_id}">
               <div class="flex items-start gap-3">
