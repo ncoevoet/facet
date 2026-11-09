@@ -3914,6 +3914,11 @@ describe('GalleryComponent', () => {
       expect(mockStore.selectionCount()).toBe(2);
     });
 
+    it('uses an icon present in the shipped font for Cull to folder', () => {
+      const f = render();
+      expect(labelled(f, I18N.cull.action)!.querySelector('mat-icon')!.textContent).toBe('move_to_inbox');
+    });
+
     it('keeps the tooltip on the disabled delete button (disabledInteractive)', () => {
       const f = render({ viewScoped: true });
       const del = labelled(f, I18N.cull.delete_action)!;

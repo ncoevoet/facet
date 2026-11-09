@@ -125,7 +125,7 @@ export interface GalleryActionsSheetData {
           {{ I18N.export.action | translate }}
         </button>
         <button class="flex items-center gap-3 w-full px-4 py-3 text-sm text-left hover:bg-white/10 cursor-pointer" (click)="pick({ kind: 'cull' })">
-          <mat-icon aria-hidden="true">folder_move</mat-icon>
+          <mat-icon aria-hidden="true">move_to_inbox</mat-icon>
           {{ I18N.cull.action | translate }}
         </button>
         @if (data.trashAvailable) {
