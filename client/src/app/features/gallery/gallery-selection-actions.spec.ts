@@ -2,6 +2,7 @@ import { TestBed } from '@angular/core/testing';
 import { ActivatedRoute, provideRouter } from '@angular/router';
 import { MatDialog } from '@angular/material/dialog';
 import { MatSnackBar } from '@angular/material/snack-bar';
+import { of } from 'rxjs';
 import { signal } from '@angular/core';
 import { AlbumService } from '../../core/services/album.service';
 import { ApiService } from '../../core/services/api.service';
@@ -71,6 +72,32 @@ describe('GallerySelectionActions', () => {
       selected.set(new Set(['/a.jpg']));
       actions.openExportDialog();
       expect(dialog.open).toHaveBeenCalledWith(ExportEditorDialogComponent, { width: '420px', data: { paths: ['/a.jpg'] } });
+    });
+  });
+
+  describe('openManualTagsDialog', () => {
+    const run = async (confirmedCount: number) => {
+      selected.set(new Set(['/a.jpg']));
+      dialog.open.mockReturnValue({ afterClosed: () => of({ confirmedCount, tag: 't', action: 'add', incomplete: false, uncertain: false }) });
+      await actions.openManualTagsDialog();
+    };
+
+    it('toasts the singular count after an apply, without an Undo action', async () => {
+      await run(1);
+      expect(snackBar.open).toHaveBeenCalledTimes(1);
+      expect(snackBar.open.mock.calls[0][0]).toContain('manual_tags.batch.applied|');
+      expect(snackBar.open.mock.calls[0][0]).not.toContain('applied_plural');
+      expect(snackBar.open.mock.calls[0][1]).toBe('');
+    });
+
+    it('picks the plural key when more than one photo changed', async () => {
+      await run(3);
+      expect(snackBar.open.mock.calls[0][0]).toContain('manual_tags.batch.applied_plural');
+    });
+
+    it('stays silent when nothing was confirmed', async () => {
+      await run(0);
+      expect(snackBar.open).not.toHaveBeenCalled();
     });
   });
 });

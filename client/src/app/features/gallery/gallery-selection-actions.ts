@@ -489,6 +489,10 @@ export class GallerySelectionActions {
       // Queue its repair debt for the same principal; never restore old selection.
       if (!written || this.auth.identity() !== owner || !written.confirmedCount && !written.uncertain) return;
       this.journal.record('tags', paths, { ...written, count: written.confirmedCount });
+      // Tags are not undoable, so the toast carries no Undo action.
+      if (written.confirmedCount) {
+        this.snackBar.open(this.i18n.t(written.confirmedCount === 1 ? I18N.manual_tags.batch.applied : I18N.manual_tags.batch.applied_plural, { count: written.confirmedCount }), '', { duration: 3000 });
+      }
       await repair(written);
     } finally { liveness.dispose(); }
   }

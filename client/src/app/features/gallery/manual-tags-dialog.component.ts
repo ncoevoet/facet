@@ -100,7 +100,7 @@ export interface ManualTagsDialogResult {
         <div class="mt-4 flex flex-wrap items-center gap-2 border-t border-[var(--mat-sys-outline-variant)] pt-3">
           <button mat-button (click)="preview('add')" [disabled]="invalidValues() || values().length !== 1">{{ I18N.manual_tags.add_action | translate }}</button>
           <button mat-button (click)="preview('delete')" [disabled]="invalidValues() || values().length !== 1">{{ I18N.manual_tags.remove_action | translate }}</button>
-          <button mat-flat-button data-replace-tags (click)="preview('replace')" [disabled]="invalidValues() || !values().length || values().length > 50">{{ I18N.manual_tags.batch.replace | translate }}</button>
+          <button mat-stroked-button data-replace-tags (click)="preview('replace')" [disabled]="invalidValues() || !values().length || values().length > 50">{{ I18N.manual_tags.batch.replace | translate }}</button>
           <button mat-button data-clear-tags (click)="preview('clear')">{{ I18N.manual_tags.batch.clear | translate }}</button>
         </div>
       }

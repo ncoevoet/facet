@@ -373,4 +373,12 @@ describe('ManualTagsDialogComponent', () => {
     expect(mockApi.post).toHaveBeenCalledOnce();
   });
 
+  it('renders Replace all as a stroked button, not the filled primary action', () => {
+    create(pathData);
+    const fixture = TestBed.createComponent(ManualTagsDialogComponent);
+    fixture.detectChanges();
+    const replace = fixture.nativeElement.querySelector('[data-replace-tags]') as HTMLElement;
+    expect(replace.classList.contains('mat-mdc-outlined-button')).toBe(true);
+  });
+
 });
