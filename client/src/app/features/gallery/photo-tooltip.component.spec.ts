@@ -19,7 +19,8 @@ import { OverlayContainer } from '@angular/cdk/overlay';
   imports: [PhotoTooltipComponent],
   changeDetection: ChangeDetectionStrategy.Eager,
   template: `<app-photo-tooltip [photo]="photo()" [x]="x()" [y]="y()" [flipped]="flipped()"
-                                 [pinned]="pinned()" [docked]="docked()" [personLinks]="personLinks()" />`,
+                                 [pinned]="pinned()" [docked]="docked()" [personLinks]="personLinks()"
+                                 [explainable]="explainable()" (explain)="explained = explained + 1" />`,
 })
 class TestHostComponent {
   photo = signal<Photo | null>(null);
@@ -29,6 +30,8 @@ class TestHostComponent {
   pinned = signal(false);
   docked = signal(false);
   personLinks = signal(true);
+  explainable = signal(false);
+  explained = 0;
 }
 
 describe('PhotoTooltipComponent', () => {
@@ -114,6 +117,15 @@ describe('PhotoTooltipComponent', () => {
     expect(fixture.nativeElement.querySelectorAll('app-photo-assessment')).toHaveLength(1);
     expect(fixture.nativeElement.querySelector('app-photo-assessment').textContent).toContain('photo_detail.assessment.score');
     expect(fixture.nativeElement.querySelector('app-photo-assessment').textContent).toContain('0.0');
+  });
+
+  it('puts the opt-in explain button on the docked assessment and re-emits its click', () => {
+    renderDocked(makePhotoFull({ aggregate: 6 }), 'quality');
+    expect(fixture.nativeElement.querySelector('[data-explain-score]')).toBeNull();
+    fixture.componentInstance.explainable.set(true);
+    fixture.detectChanges();
+    fixture.nativeElement.querySelector('app-photo-assessment [data-explain-score]').click();
+    expect(fixture.componentInstance.explained).toBe(1);
   });
 
   it('creates the host', () => {

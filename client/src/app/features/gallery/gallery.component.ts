@@ -257,6 +257,7 @@ const SET_KIND_TOGGLE: Record<string, keyof HiddenFilterFlags> = {
               <app-photo-tooltip [photo]="p" [docked]="true" [pinned]="true"
                                  [histogramDefaultMode]="tooltipHistogramDefaultMode()"
                                  [indicatorPercent]="clippingIndicatorPercent()"
+                                 [explainable]="railCritiqueVisible()" (explain)="openRailCritique()"
                                  [personLinks]="!pinned()" [tagCollectionAvailable]="!store.filters().similar_to" (tagSelected)="navigateTag($event)"
         (personSelected)="store.updateFilter('person_id', $event)" />
             } @else {
@@ -265,16 +266,6 @@ const SET_KIND_TOGGLE: Record<string, keyof HiddenFilterFlags> = {
               </div>
             }
             </div>
-            @if (railCritiqueVisible()) {
-              <!-- The score explainer, docked-rail edition: the entry the card
-                   buries in its hover bar, always visible here — and the rail's
-                   dead space below the metrics gets a job. Gated on the same
-                   show_critique flag as the card's and detail's entries. -->
-              <button mat-button class="!min-w-0 !px-0 shrink-0 self-start mx-4 mb-2" (click)="openRailCritique()">
-                <mat-icon class="!ml-0 !text-base !w-4 !h-4 !leading-4">analytics</mat-icon>
-                {{ I18N.critique.title | translate }}
-              </button>
-            }
           </div>
         } @else {
           <!-- Usually closed, and heavy enough that building it eagerly holds up the grid's first paint. -->
@@ -2836,8 +2827,8 @@ export class GalleryComponent implements OnInit, OnDestroy {
     this.photoActions.openCritique(photo);
   }
 
-  /** The docked rail's score-explainer entry renders only while the rail holds
-   *  a photo and the install shows the explainer at all — the same show_critique
+  /** The docked rail's score-explainer button (on the assessment line) renders only while the rail
+   *  holds a photo and the install shows the explainer at all — the same show_critique
    *  flag the card's hover bar and the photo detail toolbar gate theirs on. */
   protected readonly railCritiqueVisible = computed(
     () => !!this.panelPhoto() && !!this.store.config()?.features?.show_critique,

@@ -57,4 +57,38 @@ describe('PhotoAssessmentComponent', () => {
     expect(el.querySelector('dd')?.textContent).not.toContain('photo_detail.assessment.not_applicable');
   });
 
+  it('drops the face measurement when the photo has no face, and keeps it otherwise', () => {
+    const fixture = render({ aggregate: 7, aesthetic: 8, face_quality: null, face_count: 0 });
+    const el: HTMLElement = fixture.nativeElement;
+    expect(el.querySelector('summary')?.textContent).toContain('"total":1');
+    expect(el.textContent).not.toContain('tooltip.face_quality');
+    fixture.componentRef.setInput('photo', { aggregate: 7, aesthetic: 8, face_quality: 6, face_count: 2 });
+    fixture.detectChanges();
+    expect(el.querySelector('summary')?.textContent).toContain('"total":2');
+    expect(el.textContent).toContain('tooltip.face_quality');
+  });
+
+  it('renders no explain button unless explainable, and never inside the summary', () => {
+    const fixture = render({ aggregate: 7, aesthetic: 8 });
+    const el: HTMLElement = fixture.nativeElement;
+    expect(el.querySelector('[data-explain-score]')).toBeNull();
+    fixture.componentRef.setInput('explainable', true);
+    fixture.detectChanges();
+    const button = el.querySelector<HTMLButtonElement>('[data-explain-score]')!;
+    expect(button).not.toBeNull();
+    expect(button.closest('summary')).toBeNull();
+    expect(button.closest('details')).toBeNull();
+    expect(button.getAttribute('aria-label')).toBe('critique.title');
+    expect(el.querySelector('summary')?.className).toContain('pe-11');
+  });
+
+  it('emits explain when the button is clicked', () => {
+    const fixture = render({ aggregate: 7 });
+    fixture.componentRef.setInput('explainable', true);
+    fixture.detectChanges();
+    const spy = vi.fn();
+    fixture.componentInstance.explain.subscribe(spy);
+    fixture.nativeElement.querySelector('[data-explain-score]').click();
+    expect(spy).toHaveBeenCalledTimes(1);
+  });
 });

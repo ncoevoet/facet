@@ -36,6 +36,17 @@ describe('PhotoMetricsTabsComponent', () => {
 
   const selectedIndex = () => fixture.debugElement.query(By.directive(MatTabGroup)).componentInstance.selectedIndex;
 
+  it('threads explainable to the assessment and re-emits its explain click', () => {
+    render(makePhoto({ camera_model: 'X100V' }));
+    expect(fixture.nativeElement.querySelector('[data-explain-score]')).toBeNull();
+    fixture.componentRef.setInput('explainable', true);
+    fixture.detectChanges();
+    const spy = vi.fn();
+    fixture.componentInstance.explain.subscribe(spy);
+    fixture.nativeElement.querySelector('[data-explain-score]').click();
+    expect(spy).toHaveBeenCalledTimes(1);
+  });
+
   it('opens the EXIF tab when the stored tab is unknown', () => {
     localStorage.setItem(TAB_KEY, 'bogus');
     render(makePhoto({ camera_model: 'X100V' }));

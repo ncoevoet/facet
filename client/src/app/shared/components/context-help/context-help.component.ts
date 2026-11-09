@@ -9,7 +9,7 @@ import { TranslatePipe } from '../../pipes/translate.pipe';
   changeDetection: ChangeDetectionStrategy.OnPush,
   host: { class: 'block min-w-0' },
   template: `
-    <app-control-popover [label]="label() | translate" icon="info" [content]="helpContent" />
+    <app-control-popover [label]="label() | translate" icon="info" [fill]="fill()" [content]="helpContent" />
     <ng-template #helpContent>
       <div data-context-help class="space-y-2 text-xs leading-5 text-[var(--mat-sys-on-surface-variant)]">
         @for (key of keys(); track key) { <p class="m-0">{{ key | translate }}</p> }
@@ -20,4 +20,6 @@ import { TranslatePipe } from '../../pipes/translate.pipe';
 export class ContextHelpComponent {
   readonly label = input.required<string>();
   readonly keys = input.required<readonly string[]>();
+  /** Stretch the trigger and widen the panel to the details rail; see ControlPopoverComponent.fill. */
+  readonly fill = input(false);
 }

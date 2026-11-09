@@ -1,5 +1,5 @@
 import { PhotoMetricSectionComponent } from './photo-metric-section.component';
-import { ChangeDetectionStrategy, Component, computed, inject, input } from '@angular/core';
+import { ChangeDetectionStrategy, Component, computed, inject, input, output } from '@angular/core';
 import { MatIconModule } from '@angular/material/icon';
 import { MatTabsModule } from '@angular/material/tabs';
 import { MatTooltipModule } from '@angular/material/tooltip';
@@ -32,7 +32,7 @@ import { PhotoAssessmentComponent } from '../photo-assessment/photo-assessment.c
   host: { class: 'block' },
   template: `
     @let p = photo();
-    <app-photo-assessment [photo]="p" [range]="ranges()['aggregate']" />
+    <app-photo-assessment [photo]="p" [range]="ranges()['aggregate']" [explainable]="explainable()" (explain)="explain.emit()" />
     <!-- One group per tab set: when the EXIF tab comes or goes under an unchanged
          index, a kept group reselects whichever tab was active instead of the remembered one. -->
     @for (withExif of [hasExif()]; track withExif) {
@@ -73,6 +73,9 @@ export class PhotoMetricsTabsComponent {
   readonly histogramSurface = input<HistogramSurface>('detail');
   readonly histogramDefaultMode = input<HistogramMode>('luma');
   readonly indicatorPercent = input(1);
+  /** Opt-in "Why this score?" button on the assessment line. */
+  readonly explainable = input(false);
+  readonly explain = output<void>();
 
   protected readonly hasExif = computed(() => hasExifFields(this.photo()));
 

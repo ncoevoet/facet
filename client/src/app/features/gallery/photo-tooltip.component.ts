@@ -120,7 +120,7 @@ const KEY_SCORES = [
             @if (p.category) { <div class="flex items-center gap-2 mt-1 mb-1.5">
               <span class="text-xs text-[var(--facet-tooltip-text-secondary)] truncate">{{ p.category | categoryLabel }}</span>
             </div> }
-            @if (!docked()) { <app-photo-assessment [photo]="p" [range]="store.metricRangesByColumn()['aggregate']" /> }
+            @if (!docked()) { <app-photo-assessment [photo]="p" [range]="store.metricRangesByColumn()['aggregate']" [explainable]="explainable()" (explain)="explain.emit()" /> }
             @if (p.star_rating) {
               <div class="flex items-center gap-0.5 mb-1.5 text-yellow-400" role="img"
                    [attr.aria-label]="'rating.stars_out_of_five' | translate:{ stars: p.star_rating }">
@@ -192,7 +192,7 @@ const KEY_SCORES = [
                                   [populated]="store.config()?.populated_scores"
                                   [histogramSrcSize]="160" [histogramHeight]="HISTOGRAM_TOOLTIP_HEIGHT"
                                   [histogramSurface]="'tooltip'" [histogramDefaultMode]="histogramDefaultMode()"
-                                  [indicatorPercent]="indicatorPercent()" />
+                                  [indicatorPercent]="indicatorPercent()" [explainable]="explainable()" (explain)="explain.emit()" />
         }
         <!-- Set (bracket/panorama/hdr_panorama/burst/duplicate). Kind and this
              frame's own EV offset are already on the photo object and render
@@ -481,6 +481,9 @@ export class PhotoTooltipComponent {
    *  up a filter across several people. */
   readonly personSelected = output<string>();
   readonly tagSelected = output<TagNavigation>();
+  /** Opt-in "Why this score?" entry on the assessment line; the owner opens the critique. */
+  readonly explainable = input(false);
+  readonly explain = output<void>();
   private readonly menus = viewChildren(MatMenuTrigger);
 
   closeOverlays(): void {

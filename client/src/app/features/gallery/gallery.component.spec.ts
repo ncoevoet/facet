@@ -2840,9 +2840,9 @@ describe('GalleryComponent', () => {
           mockStore.config.set({ features: { show_critique: true } });
           fixture.detectChanges();
           const openCritique = vi.spyOn(fixture.componentInstance, 'openCritique');
-          const entry = Array.from(rail.querySelectorAll('button'))
-            .find(b => b.textContent!.includes(I18N.critique.title)) as HTMLElement | undefined;
+          const entry = rail.querySelector('app-photo-assessment [data-explain-score]') as HTMLElement | null;
           expect(entry).toBeTruthy();
+          expect(entry!.getAttribute('aria-label')).toBe(I18N.critique.title);
           entry!.click();
           expect(openCritique).toHaveBeenLastCalledWith(mockStore.photos()[0]);
         });
@@ -2850,9 +2850,7 @@ describe('GalleryComponent', () => {
         it('the score-explainer entry stays hidden when the install hides the explainer', () => {
           mockStore.config.set({ features: { show_critique: false } });
           fixture.detectChanges();
-          const entry = Array.from(rail.querySelectorAll('button'))
-            .find(b => b.textContent!.includes(I18N.critique.title));
-          expect(entry).toBeUndefined();
+          expect(rail.querySelector('[data-explain-score]')).toBeNull();
         });
       });
 
