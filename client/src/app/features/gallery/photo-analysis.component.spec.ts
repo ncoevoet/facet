@@ -111,6 +111,19 @@ describe('PhotoAnalysisComponent ownership', () => {
     expect(api.post).not.toHaveBeenCalled();
   });
 
+  it('gives the breakdown numeric columns explicit widths that never wrap, and explains the inputs', async () => {
+    const { fixture, root, reads } = render();
+    reads[0].next({ ...evidence, breakdown: [{ metric_key: 'aesthetic', value: 8, weight: 0.5, contribution: 4 }] });
+    await fixture.whenStable(); fixture.detectChanges();
+    const headers = Array.from(root.querySelectorAll<HTMLElement>('thead th'));
+    for (const th of headers.slice(1)) {
+      expect(th.className).toContain('whitespace-nowrap');
+      expect(th.className).not.toContain('break-words');
+      expect(th.className).toMatch(/\bw-\[\d+%\]/);
+    }
+    expect(root.querySelector('[data-breakdown-note]')?.textContent).toContain('critique.breakdown_note');
+  });
+
   it('cancels old-photo reads and old-owner generation without adopting a different account', async () => {
     const { fixture, root, reads, api, auth, generation } = render();
     fixture.componentRef.setInput('photoPath', '/second.jpg'); fixture.detectChanges();

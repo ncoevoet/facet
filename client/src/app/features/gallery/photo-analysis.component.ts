@@ -230,13 +230,13 @@ const STORED_EDGE = STORED_THUMBNAIL_EDGE;
 
         <!-- Score breakdown table -->
         <div class="text-xs font-medium text-[var(--mat-sys-on-surface-variant)] mb-2">{{ I18N.critique.breakdown | translate }}</div>
-        <table class="w-full table-fixed text-sm mb-4" [attr.aria-label]="I18N.critique.breakdown | translate">
+        <table class="w-full table-fixed text-sm mb-2" [attr.aria-label]="I18N.critique.breakdown | translate">
           <thead class="text-xs text-[var(--mat-sys-on-surface-variant)]">
             <tr>
               <th scope="col" class="w-[40%] pb-2 text-start font-medium">{{ I18N.critique.metric | translate }}</th>
-              <th scope="col" class="pb-2 text-end font-medium break-words">{{ I18N.critique.value | translate }}</th>
-              <th scope="col" class="pb-2 text-end font-medium break-words">{{ I18N.critique.weight | translate }}</th>
-              <th scope="col" class="pb-2 text-end font-medium break-words">{{ I18N.critique.contribution_label | translate }}</th>
+              <th scope="col" class="w-[18%] pb-2 text-end font-medium whitespace-nowrap">{{ I18N.critique.value | translate }}</th>
+              <th scope="col" class="w-[18%] pb-2 text-end font-medium whitespace-nowrap">{{ I18N.critique.weight | translate }}</th>
+              <th scope="col" class="w-[24%] pb-2 text-end font-medium whitespace-nowrap">{{ I18N.critique.contribution_label | translate }}</th>
             </tr>
           </thead>
           <tbody>
@@ -258,6 +258,7 @@ const STORED_EDGE = STORED_THUMBNAIL_EDGE;
             </tfoot>
           }
         </table>
+        <p class="mb-4 text-xs text-[var(--mat-sys-on-surface-variant)]" data-breakdown-note>{{ I18N.critique.breakdown_note | translate }}</p>
 
         @if (observationSections().length) {
           <div class="mb-3 grid grid-cols-1 gap-3 @min-[440px]:grid-cols-2">
