@@ -1023,8 +1023,8 @@ describe('ManagePersonsComponent', () => {
       const fixture = await render();
       const root = fixture.nativeElement as HTMLElement;
       document.body.appendChild(root);
-      root.querySelector<HTMLInputElement>('app-face-review-queue input[type="checkbox"]')!.focus();
-      root.querySelector<HTMLInputElement>('app-face-review-queue input[type="checkbox"]')!.click(); fixture.detectChanges();
+      root.querySelector<HTMLButtonElement>('app-face-review-queue [data-review-tile]')!.focus();
+      root.querySelector<HTMLButtonElement>('app-face-review-queue [data-review-tile]')!.click(); fixture.detectChanges();
       const queue = fixture.debugElement.query(By.directive(FaceReviewQueueComponent)).componentInstance;
       expect(queue.selected().has(9)).toBe(true);
       const before = mockApi.get.mock.calls.filter(([url]) => url === '/faces/review').length;
@@ -1033,9 +1033,27 @@ describe('ManagePersonsComponent', () => {
       await fixture.whenStable(); fixture.detectChanges();
       expect(mockApi.get.mock.calls.filter(([url]) => url === '/faces/review')).toHaveLength(before + 1);
       expect(queue.selected().size).toBe(0);
-      expect(root.querySelector<HTMLInputElement>('app-face-review-queue input[type="checkbox"]')!.checked).toBe(false);
+      expect(root.querySelector<HTMLButtonElement>('app-face-review-queue [data-review-tile]')!.getAttribute('aria-pressed')).toBe('false');
       expect(document.activeElement).toBe(root.querySelector('app-face-review-queue'));
       root.remove();
+    });
+
+    it('keeps a persons selection from Named but hides its bar on the review tabs, which have their own', async () => {
+      withTab(null);
+      Object.assign(mockAuth, { isEdition: signal(true), status: signal({ user_id: 'test' }), token: 'fixture' });
+      const original = mockApi.get.getMockImplementation()!;
+      mockApi.get.mockImplementation((url: string, params: unknown) => url === '/faces/review' ? of({ faces: [], total_unassigned: 0, next_after_id: null, model: 'arcface_buffalo_l', compared_people: 0, suggestions_requested: true }) : original(url, params));
+      const fixture = await render(); const root = fixture.nativeElement as HTMLElement;
+      const bar = () => [...root.querySelectorAll('button')].some(button => button.textContent?.includes('persons.merge_action'));
+      TestBed.inject(PersonsFiltersService).selectedIds.set(new Set([1])); fixture.detectChanges();
+      expect(bar()).toBe(true);
+      routerEvents.next(new NavigationEnd(5, '/persons?tab=matches', '/persons?tab=matches')); fixture.detectChanges();
+      expect(fixture.componentInstance.tab()).toBe('matches');
+      expect(bar()).toBe(false);
+      expect(fixture.componentInstance.selectedIds().has(1)).toBe(true);
+      routerEvents.next(new NavigationEnd(6, '/persons?tab=named', '/persons?tab=named')); fixture.detectChanges();
+      expect(bar()).toBe(true);
+      fixture.destroy();
     });
 
     it('moves focus to the matches queue after the face-update review action changes tabs', async () => {

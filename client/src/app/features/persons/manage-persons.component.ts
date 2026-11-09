@@ -496,8 +496,8 @@ export type NamingSort = 'faces' | 'recent';
       }
     </div>
 
-    <!-- Selection action bar (sticky bottom) -->
-    @if (auth.isEdition() && selectedIds().size > 0) {
+    <!-- Selection action bar (sticky bottom). The review tabs show their own selection bar, so a persons selection kept from Named waits there. -->
+    @if (auth.isEdition() && selectedIds().size > 0 && (tab() === 'named' || tab() === 'naming')) {
       <div class="fixed bottom-0 left-0 right-0 z-50 flex flex-col lg:flex-row items-center justify-center gap-2 lg:gap-3 px-4 lg:px-6 py-2 lg:py-3 max-lg:pb-[max(0.5rem,env(safe-area-inset-bottom))] bg-[var(--mat-sys-surface-container)] border-t border-[var(--mat-sys-outline-variant)] shadow-lg">
         <span class="text-sm font-medium">{{ I18N.gallery.selection.count | translate:{ count: selectedIds().size } }}</span>
         <div class="flex items-center gap-2">

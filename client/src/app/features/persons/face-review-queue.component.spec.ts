@@ -1,4 +1,4 @@
-import { Component, signal } from '@angular/core';
+import { ApplicationRef, Component, signal } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
 import { provideRouter, Router, NavigationStart, NavigationEnd, NavigationCancel, NavigationCancellationCode, type Event } from '@angular/router';
 import { MatDialog } from '@angular/material/dialog';
@@ -18,8 +18,9 @@ const response = { faces: [
 const assigned = { assigned_count: 1, already: [], missing: [], skipped_model: [], skipped_hidden: [], skipped_assigned: [], skipped_changed: [] };
 
 describe('FaceReviewQueueComponent', () => {
-  async function render() {
-    const api: { get: Mock; post: Mock } = { get: vi.fn(() => of(response)), post: vi.fn(() => of(assigned)) };
+  afterEach(() => document.querySelectorAll('.cdk-overlay-container').forEach(el => el.replaceChildren()));
+  async function render(mode: 'matches' | 'unassigned' = 'matches', page: typeof response = response) {
+    const api: { get: Mock; post: Mock } = { get: vi.fn(() => of(page)), post: vi.fn(() => of(assigned)) };
     const auth = { identity: signal('alice'), status: signal({ user_id: 'alice' }), isEdition: signal(true), token: 'token-a' };
     const boxes = { clear: vi.fn() };
     const chooserClosed = new Subject();
@@ -32,15 +33,28 @@ describe('FaceReviewQueueComponent', () => {
       { provide: PersonFaceBoxesService, useValue: boxes },
       { provide: I18nService, useValue: { t: (key: string, params?: object) => key + (params ? JSON.stringify(params) : ''), translations: () => ({}) } },
     ] });
-    await TestBed.inject(Router).navigateByUrl('/persons?tab=matches');
+    await TestBed.inject(Router).navigateByUrl(`/persons?tab=${mode}`);
     const fixture = TestBed.createComponent(FaceReviewQueueComponent);
-    fixture.componentRef.setInput('mode', 'matches'); fixture.detectChanges(); await fixture.whenStable(); fixture.detectChanges();
+    fixture.componentRef.setInput('mode', mode); fixture.detectChanges(); await fixture.whenStable(); fixture.detectChanges();
     const root = fixture.nativeElement as HTMLElement;
     document.body.appendChild(root);
     return { fixture, root, api, auth, boxes, dialog, chooserRef, chooserClosed };
   }
-  function select(root: HTMLElement) { root.querySelectorAll<HTMLInputElement>('input[type="checkbox"]').forEach(input => input.click()); }
+  function select(root: HTMLElement) { root.querySelectorAll<HTMLButtonElement>('[data-review-tile][aria-pressed]').forEach(tile => tile.click()); }
   function preview(root: HTMLElement) { root.querySelector<HTMLButtonElement>('[data-review-selected]')!.click(); }
+  const tile = (root: HTMLElement, id: number) => root.querySelector<HTMLButtonElement>(`[data-review-face="${id}"] [data-review-tile]`)!;
+  const actions = (root: HTMLElement, id: number) => root.querySelector<HTMLButtonElement>(`[data-review-face="${id}"] [data-face-actions]`)!;
+  /** Opens a face's ⋮ menu and returns its panel, which the CDK overlay renders on document.body. */
+  function openActions(fixture: { detectChanges(): void }, root: HTMLElement, id: number): HTMLElement {
+    actions(root, id).click(); fixture.detectChanges();
+    return [...document.querySelectorAll<HTMLElement>('.mat-mdc-menu-panel')].at(-1)!;
+  }
+  function menuItem(fixture: { detectChanges(): void }, root: HTMLElement, id: number, selector: string): HTMLButtonElement {
+    return openActions(fixture, root, id).querySelector<HTMLButtonElement>(selector)!;
+  }
+  /** Renders and runs afterNextRender hooks, which fixture.detectChanges() alone does not. */
+  function flushRender(fixture: { detectChanges(): void }) { fixture.detectChanges(); TestBed.inject(ApplicationRef).tick(); }
+  const groupOrder = (root: HTMLElement) => [...root.querySelectorAll<HTMLElement>('[data-review-group]')].map(group => group.dataset['reviewGroup']);
 
   it('reload supersedes a pending next page and ignores its late completion', async () => {
     const { fixture, api } = await render();
@@ -60,18 +74,18 @@ describe('FaceReviewQueueComponent', () => {
     expect(component.loading()).toBe(false);
   });
 
-  it('fits as many face cards per row as wide screens allow instead of capping at three', async () => {
+  it('lays faces out as tiles, three per row on phones and as many as fit from sm up', async () => {
     const { fixture, root } = await render();
     const grid = root.querySelector('[data-review-face]')!.parentElement!;
-    expect(grid.className).not.toContain('xl:grid-cols-3');
-    expect(grid.className).toContain('xl:grid-cols-[repeat(auto-fill,minmax(25rem,1fr))]');
+    expect(grid.className).toContain('grid-cols-3');
+    expect(grid.className).toContain('sm:grid-cols-[repeat(auto-fill,minmax(8rem,1fr))]');
     fixture.destroy(); root.remove();
   });
 
   it('shows the global queue and confirms captured face identities separately for each person', async () => {
     const { fixture, root, api, boxes } = await render();
     expect(root.querySelectorAll('[data-review-face]')).toHaveLength(2);
-    expect(root.querySelector('a')?.getAttribute('target')).toBe('_blank');
+    expect(menuItem(fixture, root, 1, '[data-open-photo]').getAttribute('target')).toBe('_blank');
     select(root); fixture.detectChanges(); preview(root); fixture.detectChanges();
     expect(root.querySelector('[data-assignment-preview]')?.textContent).toContain('Alice');
     expect(api.post).not.toHaveBeenCalled();
@@ -127,14 +141,14 @@ describe('FaceReviewQueueComponent', () => {
     const { fixture, root, api } = await render();
     const queue = fixture.componentInstance as any;
     queue.nextAfter.set(2);
-    queue.choose(1, 99, 'Zoe');
-    root.querySelector<HTMLInputElement>('input[type="checkbox"]')!.click();
+    queue.choose(1, 99, 'Zoe'); fixture.detectChanges();
+    tile(root, 1).click();
     fixture.detectChanges();
     api.get.mockReturnValueOnce(of({ ...response, faces: [{ ...response.faces[0], face_id: 3 }], next_after_id: null }));
     root.querySelector<HTMLButtonElement>('[data-queue-next]')!.click();
     await fixture.whenStable(); fixture.detectChanges();
     expect(root.querySelectorAll('[data-review-face]')).toHaveLength(3);
-    expect(root.querySelector<HTMLInputElement>('input[type="checkbox"]')!.checked).toBe(true);
+    expect(tile(root, 1).getAttribute('aria-pressed')).toBe('true');
     preview(root); fixture.detectChanges();
     expect(root.querySelector('[data-assignment-preview]')?.textContent).toContain('Zoe');
     fixture.destroy(); root.remove();
@@ -193,8 +207,8 @@ describe('FaceReviewQueueComponent', () => {
 
   it('closes the owned chooser when the queue is destroyed before an auth effect can run', async () => {
     const { fixture, root, dialog, chooserRef } = await render();
-    const choosing = (fixture.componentInstance as any).chooseOther(response.faces[0], { currentTarget: root });
-    const duplicate = (fixture.componentInstance as any).chooseOther(response.faces[0], { currentTarget: root });
+    const choosing = (fixture.componentInstance as any).chooseOther(response.faces[0], root);
+    const duplicate = (fixture.componentInstance as any).chooseOther(response.faces[0], root);
     await duplicate;
     await vi.waitFor(() => expect(dialog.open).toHaveBeenCalled());
     expect(dialog.open).toHaveBeenCalledTimes(1);
@@ -227,15 +241,16 @@ describe('FaceReviewQueueComponent', () => {
     const changed = { ...response.faces[0], suggestions: [{ person_id: 30, name: 'Carol', similarity: 0.7 }] };
     api.post.mockReturnValue(of({ receipt_id: 'c'.repeat(32), rejected: true }));
     api.get.mockReturnValueOnce(of({ ...response, faces: [changed] }));
-    root.querySelector<HTMLButtonElement>('[data-not-person]')!.click();
+    menuItem(fixture, root, 1, '[data-not-person]').click();
     await fixture.whenStable(); fixture.detectChanges();
     expect(api.post).toHaveBeenLastCalledWith('/faces/review/feedback', {
       face_id: 1, person_id: 10, identity_token: 'a'.repeat(64), expected_person_name: 'Alice',
     });
     expect(api.get).toHaveBeenLastCalledWith('/faces/review', { face_id: 1, limit: 1, suggest: true });
-    expect(root.querySelector('[data-review-face="1"]')?.textContent).toContain('Carol');
-    expect(root.querySelector<HTMLInputElement>('[data-review-face="1"] input')?.checked).toBe(false);
-    expect(root.querySelector<HTMLInputElement>('[data-review-face="2"] input')?.checked).toBe(true);
+    expect(root.querySelector('[data-review-group="30"] [data-review-face="1"]')).not.toBeNull();
+    expect(root.querySelector('[data-review-group="30"]')?.textContent).toContain('Carol');
+    expect(tile(root, 1).getAttribute('aria-pressed')).toBe('false');
+    expect(tile(root, 2).getAttribute('aria-pressed')).toBe('true');
     api.get.mockReturnValueOnce(of({ ...response, faces: [response.faces[0]] }));
     api.post.mockReturnValueOnce(of({ receipt_id: 'c'.repeat(32), rejected: false }));
     root.querySelector<HTMLButtonElement>('[data-feedback-undo]')!.click();
@@ -243,8 +258,8 @@ describe('FaceReviewQueueComponent', () => {
     expect(api.post).toHaveBeenLastCalledWith('/faces/review/feedback/undo', {
       face_id: 1, person_id: 10, identity_token: 'a'.repeat(64), expected_person_name: 'Alice', receipt_id: 'c'.repeat(32),
     });
-    expect(root.querySelector('[data-review-face="1"]')?.textContent).toContain('Alice');
-    expect(root.querySelector<HTMLInputElement>('[data-review-face="2"] input')?.checked).toBe(true);
+    expect(root.querySelector('[data-review-group="10"] [data-review-face="1"]')).not.toBeNull();
+    expect(tile(root, 2).getAttribute('aria-pressed')).toBe('true');
     expect(root.querySelector('[data-feedback-receipt]')).toBeNull();
     fixture.destroy(); root.remove();
   });
@@ -252,7 +267,7 @@ describe('FaceReviewQueueComponent', () => {
   it('does not apply a late feedback response or its refresh after token rotation', async () => {
     const { fixture, root, api, auth } = await render();
     const write = new Subject(); api.post.mockReturnValueOnce(write);
-    root.querySelector<HTMLButtonElement>('[data-not-person]')!.click();
+    menuItem(fixture, root, 1, '[data-not-person]').click();
     const reads = api.get.mock.calls.length;
     auth.token = 'rotated'; write.next({ receipt_id: 'c'.repeat(32), rejected: true }); write.complete();
     await fixture.whenStable(); fixture.detectChanges();
@@ -267,7 +282,7 @@ describe('FaceReviewQueueComponent', () => {
     const { fixture, root, api } = await render();
     api.post.mockReturnValueOnce(of({ receipt_id: 'c'.repeat(32), rejected: true }));
     const read = new Subject(); api.get.mockReturnValueOnce(read);
-    root.querySelector<HTMLButtonElement>('[data-not-person]')!.click();
+    menuItem(fixture, root, 1, '[data-not-person]').click();
     await Promise.resolve(); read.error(new Error('read failed'));
     await fixture.whenStable(); fixture.detectChanges();
     expect(root.querySelector('[data-feedback-receipt]')).not.toBeNull();
@@ -289,6 +304,7 @@ describe('FaceReviewQueueComponent', () => {
     expect(api.get).toHaveBeenLastCalledWith('/faces/review', { after_id: 0, limit: 48, suggest: false });
     expect(root.querySelector('[role=alert]')).toBeNull();
     expect(root.querySelectorAll('[data-review-face]')).toHaveLength(2);
+    expect(root.querySelector('[data-review-tile][aria-pressed]')).toBeNull();
     expect(root.querySelector('input[type=checkbox]')).toBeNull(); expect(api.post).not.toHaveBeenCalled();
     fixture.destroy(); root.remove();
   });
@@ -352,33 +368,61 @@ describe('FaceReviewQueueComponent', () => {
     fixture.destroy(); root.remove();
   });
 
-  it('ticks the face checkbox when a person is picked through Choose person, not through a suggestion', async () => {
+  it('selects the face, drops its similarity and focuses its new tile when Choose person picks someone else', async () => {
     const { fixture, root, dialog, chooserClosed } = await render();
-    const checkbox = () => root.querySelector<HTMLInputElement>('[data-review-face="1"] input[type=checkbox]')!;
-    expect(checkbox().checked).toBe(false);
-    const trigger = [...root.querySelectorAll<HTMLButtonElement>('[data-review-face="1"] button')].find(button => button.textContent?.includes('persons.review_queue.choose_person'))!;
-    trigger.click();
+    expect(tile(root, 1).getAttribute('aria-pressed')).toBe('false');
+    expect(root.querySelector('[data-review-face="1"] [data-tile-strip]')?.textContent).toContain('persons.find_more_similarity{"percent":90}');
+    expect(tile(root, 1).getAttribute('aria-label')).toContain('persons.review_queue.similarity_label{"name":"Alice","value":90}');
+    menuItem(fixture, root, 1, '[data-choose-person]').click();
     await vi.waitFor(() => expect(dialog.open).toHaveBeenCalled());
     chooserClosed.next({ kind: 'select', person: { id: 30, name: 'Zoe' } }); chooserClosed.complete();
     await fixture.whenStable(); fixture.detectChanges();
-    expect(checkbox().checked).toBe(true);
-    expect(root.querySelector<HTMLInputElement>('[data-review-face="2"] input[type=checkbox]')!.checked).toBe(false);
+    expect(root.querySelector('[data-review-group="30"] [data-review-face="1"]')).not.toBeNull();
+    expect(tile(root, 1).getAttribute('aria-pressed')).toBe('true');
+    expect(tile(root, 2).getAttribute('aria-pressed')).toBe('false');
+    expect(root.querySelector('[data-review-face="1"] [data-tile-strip]')).toBeNull();
+    expect(tile(root, 1).getAttribute('aria-label')).not.toContain('similarity_label');
+    flushRender(fixture);
+    expect(document.activeElement).toBe(tile(root, 1));
     fixture.destroy(); root.remove();
   });
 
-  it('leaves the checkbox alone when a suggestion button chooses the person', async () => {
-    const { fixture, root } = await render();
-    const suggestion = [...root.querySelectorAll<HTMLButtonElement>('[data-review-face="1"] button')].find(button => button.textContent?.includes('Alice'))!;
-    suggestion.click(); fixture.detectChanges();
-    expect(root.querySelector<HTMLInputElement>('[data-review-face="1"] input[type=checkbox]')!.checked).toBe(false);
+  it('lists several suggestions as radio items and moves the face, focus included, without selecting it', async () => {
+    const two = { ...response, faces: [{ ...response.faces[0], suggestions: [{ person_id: 10, name: 'Alice', similarity: 0.9 }, { person_id: 40, name: 'Dana', similarity: 0.854 }] }, response.faces[1]] };
+    const { fixture, root } = await render('matches', two);
+    const panel = openActions(fixture, root, 1);
+    const radios = [...panel.querySelectorAll<HTMLButtonElement>('[data-suggestion]')];
+    expect(radios.map(radio => [radio.getAttribute('role'), radio.getAttribute('aria-checked'), radio.textContent!.replace(/\s+/g, ' ').trim()])).toEqual([
+      ['menuitemradio', 'true', 'radio_button_checkedAlice · 90%'], ['menuitemradio', 'false', 'radio_button_uncheckedDana · 85%'],
+    ]);
+    radios[1].click();
+    await fixture.whenStable(); fixture.detectChanges();
+    expect(root.querySelector('[data-review-group="40"] [data-review-face="1"]')).not.toBeNull();
+    expect(tile(root, 1).getAttribute('aria-pressed')).toBe('false');
+    flushRender(fixture);
+    expect(document.activeElement).toBe(tile(root, 1));
+    fixture.destroy(); root.remove();
+  });
+
+  it('offers no suggestion radios for a single matching suggestion, and Not {name} only with a choice', async () => {
+    const none = { ...response, faces: [response.faces[0], { ...response.faces[1], suggestions: [] }] };
+    const { fixture, root } = await render('matches', none);
+    const withChoice = openActions(fixture, root, 1);
+    expect(withChoice.querySelector('[data-suggestion]')).toBeNull();
+    expect(withChoice.querySelector('[data-not-person]')?.textContent).toContain('persons.review_queue.not_person{"name":"Alice"}');
+    document.querySelectorAll('.cdk-overlay-container').forEach(el => el.replaceChildren());
+    const withoutChoice = openActions(fixture, root, 2);
+    expect(withoutChoice.querySelector('[data-not-person]')).toBeNull();
+    expect(withoutChoice.querySelector('[data-choose-person]')).not.toBeNull();
     fixture.destroy(); root.remove();
   });
 
   it.each(['selected', 'cancelled', 'stale'] as const)('settles a person chooser that is %s without assigning faces', async ending => {
     const { fixture, root, api, auth, dialog, chooserClosed } = await render();
-    const trigger = [...root.querySelectorAll<HTMLButtonElement>('button')].find(button => button.textContent?.includes('persons.review_queue.choose_person'))!;
-    trigger.focus(); trigger.click();
+    const trigger = actions(root, 1);
+    trigger.focus(); menuItem(fixture, root, 1, '[data-choose-person]').click();
     await vi.waitFor(() => expect(dialog.open).toHaveBeenCalled());
+    fixture.detectChanges();
     if (ending === 'stale') auth.token = 'rotated';
     chooserClosed.next(ending === 'cancelled' ? null : { kind: 'select', person: { id: 30, name: 'Zoe' } }); chooserClosed.complete();
     await fixture.whenStable(); fixture.detectChanges();
@@ -392,8 +436,9 @@ describe('FaceReviewQueueComponent', () => {
 
   it('skips a selected face locally and excludes it from the captured preview', async () => {
     const { fixture, root, api } = await render(); select(root); fixture.detectChanges();
-    const skip = [...root.querySelectorAll<HTMLButtonElement>('[data-review-face] button')].find(button => button.textContent?.includes('persons.review_queue.skip'))!;
-    skip.click(); fixture.detectChanges(); preview(root); fixture.detectChanges();
+    menuItem(fixture, root, 1, '[data-skip-face]').click(); flushRender(fixture);
+    expect(document.activeElement).toBe(tile(root, 2));
+    preview(root); fixture.detectChanges();
     expect(root.querySelectorAll('[data-review-face]')).toHaveLength(1);
     expect(root.querySelector('[data-assignment-preview]')?.textContent).toContain('Bob');
     expect(root.querySelector('[data-assignment-preview]')?.textContent).not.toContain('Alice');
@@ -403,18 +448,20 @@ describe('FaceReviewQueueComponent', () => {
   it('blocks uncertain feedback retries when its write fails before a receipt arrives', async () => {
     const { fixture, root, api } = await render(); const reads = api.get.mock.calls.length;
     api.post.mockReturnValueOnce(throwError(() => new Error('lost feedback response')));
-    root.querySelector<HTMLButtonElement>('[data-not-person]')!.click();
+    menuItem(fixture, root, 1, '[data-not-person]').click();
     await fixture.whenStable(); fixture.detectChanges();
     expect(root.textContent).toContain('persons.review_queue.uncertain');
     expect(root.querySelector('[data-feedback-receipt]')).toBeNull(); expect(api.get).toHaveBeenCalledTimes(reads);
-    expect(root.querySelector<HTMLButtonElement>('[data-not-person]')?.disabled).toBe(true);
+    document.querySelectorAll('.cdk-overlay-container').forEach(el => el.replaceChildren());
+    expect(menuItem(fixture, root, 1, '[data-not-person]').disabled).toBe(true);
+    expect(tile(root, 1).getAttribute('aria-disabled')).toBe('true');
     expect(api.post).toHaveBeenCalledTimes(1); fixture.destroy(); root.remove();
   });
 
   it('refuses Undo after its captured feedback credentials change', async () => {
     const { fixture, root, api, auth } = await render();
     api.post.mockReturnValueOnce(of({ receipt_id: 'c'.repeat(32), rejected: true }));
-    root.querySelector<HTMLButtonElement>('[data-not-person]')!.click();
+    menuItem(fixture, root, 1, '[data-not-person]').click();
     await fixture.whenStable(); fixture.detectChanges();
     auth.token = 'rotated'; root.querySelector<HTMLButtonElement>('[data-feedback-undo]')!.click();
     await fixture.whenStable(); fixture.detectChanges();
@@ -431,5 +478,118 @@ describe('FaceReviewQueueComponent', () => {
     expect(api.post).not.toHaveBeenCalled();
     expect(root.querySelector('[data-assignment-preview]')).toBeNull();
     fixture.destroy(); root.remove();
+  });
+  it('puts the faces with no suggested person last, under a header with their count', async () => {
+    const page = { ...response, faces: [{ ...response.faces[1], face_id: 3, suggestions: [] }, ...response.faces] };
+    const { fixture, root } = await render('matches', page);
+    expect(groupOrder(root)).toEqual(['10', '20', '0']);
+    const unchosen = root.querySelector('[data-review-group="0"]')!;
+    expect(unchosen.querySelector('h3')?.textContent).toContain('persons.review_queue.no_suggestion');
+    expect(unchosen.querySelector('h3')?.textContent).toContain('persons.review_queue.group_count{"count":1}');
+    expect(unchosen.querySelector('[data-select-group]')).toBeNull();
+    expect(root.querySelector('[data-review-group="10"] h3')?.textContent).toContain('Alice');
+    expect(root.querySelector('[data-review-group="10"] img')?.getAttribute('alt')).toBe('');
+    fixture.destroy(); root.remove();
+  });
+
+  it('selects one group with Select all, and shows a partial group as indeterminate', async () => {
+    const page = { ...response, faces: [...response.faces, { ...response.faces[0], face_id: 3, suggestions: [{ person_id: 10, name: 'Alice', similarity: 0.7 }] }] };
+    const { fixture, root } = await render('matches', page);
+    const selectAll = () => root.querySelector<HTMLInputElement>('[data-review-group="10"] [data-select-group]')!;
+    expect(root.querySelector('[data-review-group="10"] h3')?.textContent).toContain('persons.review_queue.group_count_plural{"count":2}');
+    expect(selectAll().getAttribute('aria-label')).toBe('persons.review_queue.select_group{"name":"Alice"}');
+    selectAll().click(); fixture.detectChanges();
+    expect([1, 3, 2].map(id => tile(root, id).getAttribute('aria-pressed'))).toEqual(['true', 'true', 'false']);
+    expect(selectAll().checked).toBe(true);
+    tile(root, 3).click(); fixture.detectChanges();
+    expect(selectAll().checked).toBe(false); expect(selectAll().indeterminate).toBe(true);
+    selectAll().click(); fixture.detectChanges();
+    expect([1, 3].map(id => tile(root, id).getAttribute('aria-pressed'))).toEqual(['true', 'true']);
+    selectAll().click(); fixture.detectChanges();
+    expect([1, 3].map(id => tile(root, id).getAttribute('aria-pressed'))).toEqual(['false', 'false']);
+    fixture.destroy(); root.remove();
+  });
+
+  it('locks Select all and the tiles while a preview is pending, and undoes a refused Select all', async () => {
+    const { fixture, root } = await render();
+    tile(root, 1).click(); fixture.detectChanges(); preview(root); fixture.detectChanges();
+    expect(root.querySelector<HTMLInputElement>('[data-select-group]')!.disabled).toBe(true);
+    expect(tile(root, 2).getAttribute('aria-disabled')).toBe('true');
+    tile(root, 2).click(); tile(root, 1).click(); fixture.detectChanges();
+    expect([1, 2].map(id => tile(root, id).getAttribute('aria-pressed'))).toEqual(['true', 'false']);
+    const queue = fixture.componentInstance as any;
+    const refused = { checked: true, indeterminate: false };
+    queue.toggleGroup(queue.groups().find((group: { id: number }) => group.id === 20), { target: refused });
+    expect(refused).toEqual({ checked: false, indeterminate: false });
+    expect(queue.selected().has(2)).toBe(false);
+    fixture.destroy(); root.remove();
+  });
+
+  it('shows no header over unassigned faces, and a chooser pick moves the face into a named group it can be selected from', async () => {
+    const bare = { ...response, faces: response.faces.map(face => ({ ...face, suggestions: [] })) };
+    const { fixture, root, dialog, chooserClosed } = await render('unassigned', bare);
+    expect(groupOrder(root)).toEqual(['0']);
+    expect(root.querySelector('[data-review-group="0"] h3')).toBeNull();
+    expect(tile(root, 2).getAttribute('aria-pressed')).toBeNull();
+    expect(tile(root, 2).getAttribute('aria-label')).toBe('persons.review_queue.choose_for{"id":2}');
+    tile(root, 2).click();
+    await vi.waitFor(() => expect(dialog.open).toHaveBeenCalled());
+    chooserClosed.next({ kind: 'select', person: { id: 30, name: 'Zoe' } }); chooserClosed.complete();
+    await fixture.whenStable(); fixture.detectChanges();
+    expect(groupOrder(root)).toEqual(['30', '0']);
+    expect(root.querySelector('[data-review-group="30"] [data-select-group]')).not.toBeNull();
+    expect(tile(root, 2).getAttribute('aria-pressed')).toBe('true');
+    flushRender(fixture);
+    expect(document.activeElement).toBe(tile(root, 2));
+    fixture.destroy(); root.remove();
+  });
+
+  it('flags a face whose embedding cannot be compared', async () => {
+    const page = { ...response, faces: [{ ...response.faces[0], embedding_state: 'incompatible' }, response.faces[1]] };
+    const { fixture, root } = await render('matches', page as typeof response);
+    expect(root.querySelector('[data-review-face="1"] [data-tile-warning]')).not.toBeNull();
+    expect(tile(root, 1).getAttribute('aria-label')).toContain('persons.review_queue.model_mismatch');
+    expect(root.querySelector('[data-review-face="2"] [data-tile-warning]')).toBeNull();
+    fixture.destroy(); root.remove();
+  });
+
+  it('shows a selection bar only while faces are selected, with a count, Clear and a singular or plural Review', async () => {
+    const { fixture, root } = await render();
+    expect(root.querySelector('[data-review-bar]')).toBeNull();
+    tile(root, 1).click(); fixture.detectChanges();
+    expect(root.querySelector('[data-review-count]')?.textContent).toContain('gallery.selection.count{"count":1}');
+    expect(root.querySelector('[data-review-selected]')?.textContent).toContain('persons.review_queue.preview{"count":1}');
+    tile(root, 2).click(); fixture.detectChanges();
+    expect(root.querySelector('[data-review-selected]')?.textContent).toContain('persons.review_queue.preview_plural{"count":2}');
+    root.querySelector<HTMLButtonElement>('[data-review-clear]')!.click(); fixture.detectChanges();
+    expect((fixture.componentInstance as any).selected().size).toBe(0);
+    expect(root.querySelector('[data-review-bar]')).toBeNull();
+    fixture.destroy(); root.remove();
+  });
+
+  it('opens the confirmation inside the selection bar and focuses it', async () => {
+    const { fixture, root } = await render();
+    select(root); fixture.detectChanges(); preview(root); fixture.detectChanges(); await fixture.whenStable();
+    const panel = root.querySelector('[data-review-bar] [data-assignment-preview]');
+    expect(panel).not.toBeNull();
+    expect(document.activeElement).toBe(panel);
+    fixture.destroy(); root.remove();
+  });
+
+  it('moves focus to the receipt after an apply, and to the alert when it fails', async () => {
+    const done = await render();
+    select(done.root); done.fixture.detectChanges(); preview(done.root); done.fixture.detectChanges();
+    done.root.querySelector<HTMLButtonElement>('[data-confirm-assignment]')!.click();
+    await done.fixture.whenStable(); flushRender(done.fixture);
+    expect(document.activeElement).toBe(done.root.querySelector('[data-assignment-receipt]'));
+    expect(done.root.querySelector('[data-review-bar]')).toBeNull();
+    done.fixture.destroy(); done.root.remove(); TestBed.resetTestingModule();
+    const failed = await render();
+    failed.api.post.mockReturnValueOnce(throwError(() => new Error('connection lost')));
+    select(failed.root); failed.fixture.detectChanges(); preview(failed.root); failed.fixture.detectChanges();
+    failed.root.querySelector<HTMLButtonElement>('[data-confirm-assignment]')!.click();
+    await failed.fixture.whenStable(); flushRender(failed.fixture);
+    expect(document.activeElement).toBe(failed.root.querySelector('[role=alert]'));
+    failed.fixture.destroy(); failed.root.remove();
   });
 });

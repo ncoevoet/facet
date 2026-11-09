@@ -2,7 +2,10 @@ import { trackPendingNavigation } from '../../shared/utils/navigation-settled';
 import { afterNextRender, ChangeDetectionStrategy, Component, computed, DestroyRef, effect, ElementRef, inject, Injector, input, signal, untracked, viewChild } from '@angular/core';
 import { Router, RouterLink } from '@angular/router';
 import { MatButtonModule } from '@angular/material/button';
+import { MatDividerModule } from '@angular/material/divider';
 import { MatIconModule } from '@angular/material/icon';
+import { MatMenuModule } from '@angular/material/menu';
+import { MatTooltipModule } from '@angular/material/tooltip';
 import { MatDialog, MatDialogRef } from '@angular/material/dialog';
 import { firstValueFrom } from 'rxjs';
 import type { components } from '../../core/api/schema';
@@ -12,7 +15,8 @@ import { I18N } from '../../core/i18n/keys';
 import { StalenessGuard, StalenessGuardFactory } from '../../core/services/staleness-guard.service';
 import { TranslatePipe } from '../../shared/pipes/translate.pipe';
 import { FixedPipe } from '../../shared/pipes/fixed.pipe';
-import { FaceThumbnailUrlPipe } from '../../shared/pipes/thumbnail-url.pipe';
+import { PluralKeyPipe } from '../../shared/pipes/plural-key.pipe';
+import { FaceThumbnailUrlPipe, PersonThumbnailUrlPipe } from '../../shared/pipes/thumbnail-url.pipe';
 import { ContextHelpComponent } from '../../shared/components/context-help/context-help.component';
 import { PersonFaceBoxesService } from '../../shared/components/photo-card/person-face-boxes.service';
 
@@ -23,32 +27,24 @@ interface CapturedFace extends Choice { faceId: number; token: string }
 interface FeedbackReceipt { face: Face; choice: Choice; receiptId: string }
 interface ReceiptReason { name: string; label: string; count: number }
 interface AssignmentReport { assigned_count: number; already: number[]; missing: number[]; skipped_model: number[]; skipped_hidden: number[]; skipped_assigned: number[]; skipped_changed: number[] }
+interface ReviewGroup { id: number; name: string; faces: Face[]; ids: number[]; selectedCount: number }
+/** Whatever opened the person chooser and takes focus back when it closes without moving the face. */
+interface FocusTarget { focus(): void }
 
 @Component({
   selector: 'app-face-review-queue',
-  imports: [MatButtonModule, MatIconModule, RouterLink, TranslatePipe, FixedPipe, FaceThumbnailUrlPipe, ContextHelpComponent],
+  imports: [MatButtonModule, MatDividerModule, MatIconModule, MatMenuModule, MatTooltipModule, RouterLink, TranslatePipe, FixedPipe, PluralKeyPipe, FaceThumbnailUrlPipe, PersonThumbnailUrlPipe, ContextHelpComponent],
   changeDetection: ChangeDetectionStrategy.OnPush,
-  host: { class: 'block min-w-0', tabindex: '-1' },
+  host: { class: 'block min-w-0', tabindex: '-1', '[class.pb-24]': 'selected().size > 0 || !!pending()' },
   template: `
     <div class="flex flex-wrap items-center gap-2 py-3">
       <div class="min-w-0 flex-1">
         @if (!error()) { <p role="status" class="m-0 text-sm">{{ I18N.persons.review_queue.total | translate:{ count: total() } }}</p> }
       </div>
       <button mat-stroked-button data-queue-reload [disabled]="loading() || busy()" (click)="load(0)"><mat-icon>refresh</mat-icon>{{ I18N.persons.review_queue.reload | translate }}</button>
-      <button mat-flat-button data-review-selected [disabled]="!selected().size || loading() || busy() || uncertain() || changed() || choosing()" (click)="preview($event)"><mat-icon>fact_check</mat-icon>{{ I18N.persons.review_queue.preview | translate:{ count: selected().size } }}</button>
     </div>
-    @if (pending()) {
-      <section #previewPanel tabindex="-1" data-assignment-preview class="mb-4 flex flex-col gap-2 rounded-xl border border-[var(--mat-sys-outline)] bg-[var(--mat-sys-surface-container)] p-4" (keydown.escape)="cancel($event)">
-        <h3 class="m-0 text-sm font-medium">{{ I18N.persons.review_queue.confirm_title | translate }}</h3>
-        <ul class="my-2 max-h-48 overflow-y-auto pl-5 text-sm">
-          @for (group of planGroups(); track group.personId) { <li>{{ group.name }} · {{ group.count }}</li> }
-        </ul>
-        <p class="text-xs text-[var(--mat-sys-on-surface-variant)]">{{ I18N.persons.review_queue.confirm_help | translate }}</p>
-        <div class="flex justify-end gap-2"><button mat-button [disabled]="busy()" (click)="cancel($event)">{{ I18N.dialog.cancel | translate }}</button><button mat-flat-button data-confirm-assignment [disabled]="busy()" (click)="apply()"><mat-icon>check</mat-icon>{{ I18N.persons.review_queue.confirm | translate }}</button></div>
-      </section>
-    }
     @if (receipt(); as result) {
-      <p role="status" data-assignment-receipt class="text-sm">{{ I18N.persons.review_queue.receipt | translate:{ assigned: result.assigned, skipped: result.skipped } }}</p>
+      <p #receiptStatus role="status" tabindex="-1" data-assignment-receipt class="text-sm">{{ I18N.persons.review_queue.receipt | translate:{ assigned: result.assigned, skipped: result.skipped } }}</p>
       @if (result.reasons.length) { <details data-receipt-reasons class="mb-3 text-xs"><summary class="min-h-11 cursor-pointer">{{ I18N.persons.review_queue.receipt_details | translate }}</summary><ul class="pl-5">@for (reason of result.reasons; track $index) { <li>{{ reason.name }} · {{ reason.label | translate }}: {{ reason.count }}</li> }</ul></details> }
     }
     @if (feedbackReceipt(); as result) {
@@ -58,7 +54,7 @@ interface AssignmentReport { assigned_count: number; already: number[]; missing:
       </div>
     }
     @if (error()) {
-      <div role="alert" class="mb-3 rounded border border-[var(--mat-sys-outline)] p-3 text-sm">
+      <div #queueAlert role="alert" tabindex="-1" class="mb-3 rounded border border-[var(--mat-sys-outline)] p-3 text-sm">
         {{ (uncertain() ? I18N.persons.review_queue.uncertain : changed() ? I18N.persons.review_queue.changed : I18N.persons.review_queue.read_error) | translate }}
         @if (!busy()) { <button mat-stroked-button (click)="load(0)"><mat-icon>refresh</mat-icon>{{ I18N.gallery.load_error.retry | translate }}</button> }
         @if (mode() === 'matches') { <button mat-stroked-button data-browse-without-matches (click)="withoutSuggestions.set(true); load(0)">{{ I18N.persons.review_queue.without_matches | translate }}</button> }
@@ -67,42 +63,103 @@ interface AssignmentReport { assigned_count: number; already: number[]; missing:
     @if (suggestionsSkipped() && !error()) { <p role="status" data-suggestions-skipped class="mb-3 text-sm text-[var(--mat-sys-on-surface-variant)]">{{ I18N.persons.review_queue.suggestions_skipped | translate }}</p> }
     @if (loading()) { <p role="status">{{ I18N.ui.labels.loading | translate }}</p> }
     @for (group of groups(); track group.id) {
-      <section class="mb-4">
-        <h3 class="m-0 mb-2 break-words text-sm font-medium">{{ group.name ? (I18N.persons.review_queue.group | translate:{ name: group.name }) : (I18N.persons.review_queue.no_suggestion | translate) }}</h3>
-        <div class="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-[repeat(auto-fill,minmax(25rem,1fr))]">
+      @let headingId = 'review-group-' + mode() + '-' + group.id;
+      @let faceCount = group.faces.length | pluralKey:I18N.persons.review_queue.group_count:I18N.persons.review_queue.group_count_plural | translate:{ count: group.faces.length };
+      <section class="mb-4 rounded-xl bg-[var(--mat-sys-surface-container)] p-3 sm:p-4" [attr.data-review-group]="group.id" [attr.aria-labelledby]="group.id || mode() === 'matches' ? headingId : null">
+        @if (group.id) {
+          <div class="mb-3 flex flex-wrap items-center gap-x-3 gap-y-1">
+            <span class="h-10 w-10 shrink-0 overflow-hidden rounded-full bg-[var(--mat-sys-surface-container-high)]"><img [src]="group.id | personThumbnailUrl" alt="" class="h-full w-full object-cover" /></span>
+            <h3 [id]="headingId" class="m-0 min-w-0 flex-1 break-words text-sm font-medium">{{ group.name }} <span class="font-normal text-[var(--mat-sys-on-surface-variant)]">· {{ faceCount }}</span></h3>
+            <label class="flex min-h-11 cursor-pointer items-center gap-2 text-sm">
+              <input type="checkbox" data-select-group [checked]="group.selectedCount === group.ids.length" [indeterminate]="group.selectedCount > 0 && group.selectedCount < group.ids.length"
+                     [disabled]="interactionLocked()" [attr.aria-label]="I18N.persons.review_queue.select_group | translate:{ name: group.name }" (change)="toggleGroup(group, $event)" />
+              {{ I18N.gallery.selection.select_all | translate }}
+            </label>
+          </div>
+        } @else if (mode() === 'matches') {
+          <h3 [id]="headingId" class="m-0 mb-3 text-sm font-medium">{{ I18N.persons.review_queue.no_suggestion | translate }} <span class="font-normal text-[var(--mat-sys-on-surface-variant)]">· {{ faceCount }}</span></h3>
+        }
+        <div class="grid grid-cols-3 gap-2 sm:grid-cols-[repeat(auto-fill,minmax(8rem,1fr))]">
           @for (face of group.faces; track face.face_id) {
-            <article class="min-w-0 rounded-lg border border-[var(--mat-sys-outline-variant)] bg-[var(--mat-sys-surface-container-low)] p-3" [attr.data-review-face]="face.face_id" [attr.aria-label]="I18N.persons.review_queue.face_label | translate:{id: face.face_id}">
-              <div class="flex items-start gap-3">
-                <div class="relative shrink-0">
-                  <img [src]="face.face_id | faceThumbnailUrl" alt="" class="h-24 w-24 rounded object-cover" />
-                  <a routerLink="/photo" [queryParams]="{path:face.photo_path}" target="_blank" rel="noopener" [attr.aria-label]="I18N.persons.review_queue.open_photo | translate" [attr.title]="I18N.persons.review_queue.open_photo | translate"
-                     class="absolute bottom-1 right-1 inline-flex h-8 w-8 items-center justify-center rounded-full bg-black/60 text-white hover:bg-black/80 pointer-coarse:h-11 pointer-coarse:w-11"><mat-icon class="!text-base !h-4 !w-4 !leading-4" aria-hidden="true">open_in_new</mat-icon></a>
-                </div>
-                <div class="min-w-0 flex-1">
-                  @if (choices().get(face.face_id); as choice) {
-                    <label class="flex min-h-11 cursor-pointer items-center gap-2 text-sm"><input type="checkbox" [checked]="selected().has(face.face_id)" [disabled]="interactionLocked()" [attr.aria-label]="I18N.persons.review_queue.assign_label | translate:{id: face.face_id, name: choice.name}" (change)="toggle(face.face_id)" /><span class="min-w-0 break-words">{{ choice.name }}</span></label>
-                  }
-                  <div class="flex flex-wrap items-center gap-1">
-                    @for (suggestion of face.suggestions; track suggestion.person_id) {
-                      <button mat-stroked-button class="!min-h-11 !px-3" [class.!bg-[var(--mat-sys-secondary-container)]]="choices().get(face.face_id)?.personId === suggestion.person_id" [disabled]="interactionLocked()" [attr.aria-pressed]="choices().get(face.face_id)?.personId === suggestion.person_id" [attr.aria-label]="I18N.persons.review_queue.similarity_label | translate:{ name: suggestion.name, value: suggestion.similarity * 100 }" (click)="choose(face.face_id, suggestion.person_id, suggestion.name)">@if (choices().get(face.face_id)?.personId === suggestion.person_id) { <mat-icon>check</mat-icon> }<span class="max-w-40 truncate">{{ suggestion.name }}</span> · {{ suggestion.similarity * 100 | fixed:0 }}</button>
-                    }
-                    <button mat-stroked-button [disabled]="interactionLocked()" (click)="chooseOther(face, $event)"><mat-icon>person_search</mat-icon>{{ I18N.persons.review_queue.choose_person | translate }}</button>
-                    @if (choices().get(face.face_id); as choice) {
-                      <button mat-button data-not-person [disabled]="interactionLocked()" (click)="rejectSuggestion(face)"><mat-icon>block</mat-icon>{{ I18N.persons.review_queue.not_person | translate:{name: choice.name} }}</button>
-                    }
-                    <button mat-button class="!text-[var(--mat-sys-on-surface-variant)]" [disabled]="busy() || !!pending() || choosing()" (click)="skip(face.face_id)"><mat-icon>skip_next</mat-icon>{{ I18N.persons.review_queue.skip | translate }}</button>
-                  </div>
-                </div>
-              </div>
-              @if (face.embedding_state !== 'ready') { <p class="my-1 text-xs text-[var(--mat-sys-on-surface-variant)]">{{ (face.embedding_state === 'incompatible' ? I18N.persons.review_queue.model_mismatch : I18N.persons.review_queue.matching_unavailable) | translate }}</p> }
-            </article>
+            @let choice = choices().get(face.face_id);
+            @let similarity = faceSimilarity().get(face.face_id);
+            @let isSelected = selected().has(face.face_id);
+            @let warning = face.embedding_state === 'ready' ? null : face.embedding_state === 'incompatible' ? I18N.persons.review_queue.model_mismatch : I18N.persons.review_queue.matching_unavailable;
+            <div class="relative min-w-0 scroll-mb-28" [attr.data-review-face]="face.face_id">
+              <button #tile type="button" data-review-tile
+                      class="relative block w-full cursor-pointer overflow-hidden rounded-lg border-2 bg-[var(--mat-sys-surface-container-high)] p-0 focus-visible:outline-2 focus-visible:-outline-offset-4 focus-visible:outline-[var(--mat-sys-primary)] aria-disabled:cursor-default"
+                      [class.border-[var(--mat-sys-primary)]]="isSelected" [class.border-transparent]="!isSelected"
+                      [attr.aria-pressed]="choice ? isSelected : null" [attr.aria-disabled]="interactionLocked() ? 'true' : null"
+                      [attr.aria-label]="(choice ? (I18N.persons.review_queue.assign_label | translate:{ id: face.face_id, name: choice.name }) : (I18N.persons.review_queue.choose_for | translate:{ id: face.face_id }))
+                        + (choice && similarity !== undefined ? '. ' + (I18N.persons.review_queue.similarity_label | translate:{ name: choice.name, value: similarity }) : '')
+                        + (warning ? '. ' + (warning | translate) : '')"
+                      (click)="activate(face, tile)">
+                <img [src]="face.face_id | faceThumbnailUrl" alt="" loading="lazy" class="block aspect-square w-full object-cover" />
+                @if (!choice) {
+                  <span aria-hidden="true" class="absolute left-1 top-1 inline-flex h-6 w-6 items-center justify-center rounded-full bg-black/60 text-white"><mat-icon class="!h-4 !w-4 !text-base !leading-4">person_search</mat-icon></span>
+                } @else if (isSelected) {
+                  <span aria-hidden="true" data-tile-check class="absolute left-1 top-1 inline-flex h-6 w-6 items-center justify-center rounded-full bg-[var(--mat-sys-primary)] text-[var(--mat-sys-on-primary)]"><mat-icon class="!h-4 !w-4 !text-base !leading-4">check</mat-icon></span>
+                }
+                @if ((choice && similarity !== undefined) || warning) {
+                  <span data-tile-strip class="absolute inset-x-0 bottom-0 flex min-h-6 items-center gap-1 bg-black/60 px-1.5 py-0.5 text-xs text-white">
+                    @if (warning) { <mat-icon data-tile-warning aria-hidden="true" class="!h-4 !w-4 !text-base !leading-4" [matTooltip]="warning | translate">warning</mat-icon> }
+                    @if (choice && similarity !== undefined) { <span class="ml-auto">{{ I18N.persons.find_more_similarity | translate:{ percent: similarity } }}</span> }
+                  </span>
+                }
+              </button>
+              <button mat-icon-button #actions="matMenuTrigger" data-face-actions type="button"
+                      class="!absolute right-1 top-1 !h-8 !w-8 !p-1 !bg-black/50 !text-white pointer-coarse:!h-11 pointer-coarse:!w-11 pointer-coarse:!p-2.5"
+                      [matMenuTriggerFor]="faceMenu" [matMenuTriggerData]="{ face, actions }" [attr.aria-label]="I18N.persons.review_queue.face_actions | translate:{ id: face.face_id }">
+                <mat-icon>more_vert</mat-icon>
+              </button>
+            </div>
           }
         </div>
       </section>
     }
+    <mat-menu #faceMenu="matMenu" xPosition="before">
+      <ng-template matMenuContent let-face="face" let-actions="actions">
+        @let choice = choices().get(face.face_id);
+        <a mat-menu-item data-open-photo routerLink="/photo" [queryParams]="{ path: face.photo_path }" target="_blank" rel="noopener"><mat-icon>open_in_new</mat-icon>{{ I18N.persons.review_queue.open_photo | translate }}</a>
+        @if (face.suggestions.length > 1 || (face.suggestions.length && !faceSimilarity().has(face.face_id))) {
+          <mat-divider />
+          @for (suggestion of face.suggestions; track suggestion.person_id) {
+            @let current = choice?.personId === suggestion.person_id;
+            <button mat-menu-item role="menuitemradio" data-suggestion [attr.aria-checked]="current" [disabled]="interactionLocked()" (click)="chooseSuggestion(face, suggestion.person_id, suggestion.name)">
+              <mat-icon>{{ current ? 'radio_button_checked' : 'radio_button_unchecked' }}</mat-icon>{{ suggestion.name }} · {{ suggestion.similarity * 100 | fixed:0 }}%
+            </button>
+          }
+        }
+        <mat-divider />
+        <button mat-menu-item data-choose-person [disabled]="interactionLocked()" (click)="chooseOther(face, actions)"><mat-icon>person_search</mat-icon>{{ I18N.persons.review_queue.choose_person | translate }}</button>
+        @if (choice) {
+          <button mat-menu-item data-not-person [disabled]="interactionLocked()" (click)="rejectSuggestion(face)"><mat-icon>block</mat-icon>{{ I18N.persons.review_queue.not_person | translate:{ name: choice.name } }}</button>
+        }
+        <button mat-menu-item data-skip-face [disabled]="busy() || !!pending() || choosing()" (click)="skip(face.face_id)"><mat-icon>skip_next</mat-icon>{{ I18N.persons.review_queue.skip | translate }}</button>
+      </ng-template>
+    </mat-menu>
     @if (!loading() && !error() && !groups().length) { <p class="py-6 text-center text-sm text-[var(--mat-sys-on-surface-variant)]">{{ I18N.persons.review_queue.empty | translate }}</p> }
     @if (nextAfter() !== null) { <button mat-stroked-button data-queue-next [disabled]="loading() || busy() || !!pending()" (click)="load(nextAfter()!)">{{ I18N.ui.buttons.load_more | translate }}</button> }
     <app-context-help [label]="I18N.persons.review_queue.about" [keys]="[I18N.persons.review_queue.help]" />
+    @if (selected().size || pending()) {
+      <div data-review-bar class="fixed inset-x-0 bottom-0 z-50 max-h-[70dvh] overflow-y-auto border-t border-[var(--mat-sys-outline-variant)] bg-[var(--mat-sys-surface-container)] px-4 py-2 shadow-lg max-lg:bottom-[calc(3rem+1px+env(safe-area-inset-bottom))]">
+        @if (pending()) {
+          <section #previewPanel tabindex="-1" data-assignment-preview class="mx-auto mb-2 flex max-w-3xl flex-col gap-2 rounded-xl border border-[var(--mat-sys-outline)] bg-[var(--mat-sys-surface-container-high)] p-4" (keydown.escape)="cancel($event)">
+            <h3 class="m-0 text-sm font-medium">{{ I18N.persons.review_queue.confirm_title | translate }}</h3>
+            <ul class="my-2 max-h-48 overflow-y-auto pl-5 text-sm">
+              @for (group of planGroups(); track group.personId) { <li>{{ group.name }} · {{ group.count }}</li> }
+            </ul>
+            <p class="text-xs text-[var(--mat-sys-on-surface-variant)]">{{ I18N.persons.review_queue.confirm_help | translate }}</p>
+            <div class="flex justify-end gap-2"><button mat-button [disabled]="busy()" (click)="cancel($event)">{{ I18N.dialog.cancel | translate }}</button><button mat-flat-button data-confirm-assignment [disabled]="busy()" (click)="apply()"><mat-icon>check</mat-icon>{{ I18N.persons.review_queue.confirm | translate }}</button></div>
+          </section>
+        }
+        <div class="flex flex-wrap items-center justify-center gap-2">
+          <span data-review-count class="text-sm font-medium">{{ I18N.gallery.selection.count | translate:{ count: selected().size } }}</span>
+          <button mat-button data-review-clear [disabled]="interactionLocked()" (click)="clearSelection()"><mat-icon>close</mat-icon>{{ I18N.persons.clear_selection | translate }}</button>
+          <button mat-flat-button data-review-selected [disabled]="!selected().size || loading() || busy() || uncertain() || changed() || choosing()" (click)="preview($event)"><mat-icon>fact_check</mat-icon>{{ selected().size | pluralKey:I18N.persons.review_queue.preview:I18N.persons.review_queue.preview_plural | translate:{ count: selected().size } }}</button>
+        </div>
+      </div>
+    }
   `,
 })
 export class FaceReviewQueueComponent {
@@ -121,6 +178,8 @@ export class FaceReviewQueueComponent {
   private readonly boxes = inject(PersonFaceBoxesService);
   private readonly owner = this.auth.identity();
   private readonly previewPanel = viewChild<ElementRef<HTMLElement>>('previewPanel');
+  private readonly receiptStatus = viewChild<ElementRef<HTMLElement>>('receiptStatus');
+  private readonly queueAlert = viewChild<ElementRef<HTMLElement>>('queueAlert');
   private generation = 0;
   private resumeAfterNavigation = !!this.router.currentNavigation();
   private readonly navigationPending = trackPendingNavigation({
@@ -155,15 +214,31 @@ export class FaceReviewQueueComponent {
   protected readonly interactionLocked = computed(() => this.busy() || !!this.pending() || this.uncertain() || this.changed() || this.choosing());
   protected readonly receipt = signal<{ assigned: number; skipped: number; reasons: ReceiptReason[] } | null>(null);
   protected readonly feedbackReceipt = signal<FeedbackReceipt | null>(null);
+  /** People in face order, then the faces with no person chosen yet. */
   protected readonly groups = computed(() => {
-    const groups = new Map<number, { id: number; name: string; faces: Face[] }>();
+    const selected = this.selected();
+    const groups = new Map<number, ReviewGroup>();
     for (const face of this.faces()) {
       const choice = this.choices().get(face.face_id);
       const id = choice?.personId ?? 0;
-      const group = groups.get(id) ?? { id, name: choice?.name ?? '', faces: [] };
-      group.faces.push(face); groups.set(id, group);
+      const group = groups.get(id) ?? { id, name: choice?.name ?? '', faces: [], ids: [], selectedCount: 0 };
+      group.faces.push(face); group.ids.push(face.face_id);
+      if (selected.has(face.face_id)) group.selectedCount++;
+      groups.set(id, group);
     }
-    return [...groups.values()];
+    const unchosen = groups.get(0);
+    groups.delete(0);
+    return unchosen ? [...groups.values(), unchosen] : [...groups.values()];
+  });
+  /** Rounded similarity of each face to its current choice, only when that choice is one of its suggestions. */
+  protected readonly faceSimilarity = computed(() => {
+    const similarity = new Map<number, number>();
+    for (const face of this.faces()) {
+      const personId = this.choices().get(face.face_id)?.personId;
+      const match = face.suggestions.find(suggestion => suggestion.person_id === personId);
+      if (match) similarity.set(face.face_id, Math.round(match.similarity * 100));
+    }
+    return similarity;
   });
   protected readonly planGroups = computed(() => {
     const groups = new Map<number, { personId: number; name: string; count: number }>();
@@ -235,16 +310,47 @@ export class FaceReviewQueueComponent {
     if (!this.allowed() || this.busy() || this.pending() || this.uncertain() || this.changed() || !this.choices().has(id)) return;
     this.selected.update(value => { const next = new Set(value); if (next.has(id)) next.delete(id); else next.add(id); return next; });
   }
+  protected toggleGroup(group: ReviewGroup, event: Event): void {
+    const input = event.target as HTMLInputElement;
+    if (!this.allowed() || this.interactionLocked()) {
+      // [checked] does not rewrite the DOM when its bound value is unchanged, so undo the click here.
+      input.checked = group.selectedCount === group.ids.length;
+      input.indeterminate = group.selectedCount > 0 && group.selectedCount < group.ids.length;
+      return;
+    }
+    this.selected.update(value => {
+      const next = new Set(value);
+      for (const id of group.ids) { if (input.checked) next.add(id); else next.delete(id); }
+      return next;
+    });
+  }
+  protected clearSelection(): void {
+    if (this.interactionLocked()) return;
+    this.selected.set(new Set());
+  }
+  /** A tile with a person toggles its selection; a tile without one asks who it is. */
+  protected activate(face: Face, tile: HTMLElement): void {
+    if (this.interactionLocked()) return;
+    if (this.choices().has(face.face_id)) this.toggle(face.face_id);
+    else void this.chooseOther(face, tile);
+  }
   protected choose(id: number, personId: number, name: string): void {
     if (!this.allowed() || this.busy() || this.pending() || this.uncertain() || this.changed() || !this.faces().some(face => face.face_id === id)) return;
     this.choices.update(value => new Map(value).set(id, { personId, name }));
   }
-  protected async chooseOther(face: Face, event: Event): Promise<void> {
+  protected chooseSuggestion(face: Face, personId: number, name: string): void {
+    const before = this.choices().get(face.face_id)?.personId;
+    this.choose(face.face_id, personId, name);
+    // The face moves to another group, so its tile is re-created there: follow it.
+    if (before !== personId && this.choices().get(face.face_id)?.personId === personId) this.focusAfterRender(() => this.tile(face.face_id));
+  }
+  protected async chooseOther(face: Face, focusTarget: FocusTarget): Promise<void> {
     if (!this.allowed() || this.interactionLocked() || this.chooser) return;
     this.choosing.set(true);
     const generation = this.generation;
     const guard = this.capture();
-    const trigger = event.currentTarget as HTMLElement | null;
+    const before = this.choices().get(face.face_id)?.personId;
+    let moved = false;
     try {
       const { PersonSelectorDialogComponent } = await import('../gallery/person-selector-dialog.component');
       if (!guard.current()) return;
@@ -254,20 +360,35 @@ export class FaceReviewQueueComponent {
       if (guard.current() && result?.kind === 'select' && typeof result.person.name === 'string') {
         this.choose(face.face_id, result.person.id, result.person.name);
         // Picking a person by hand is an explicit decision: tick the face so it is in the next preview.
-        if (this.choices().get(face.face_id)?.personId === result.person.id) this.selected.update(value => new Set(value).add(face.face_id));
+        if (this.choices().get(face.face_id)?.personId === result.person.id) {
+          this.selected.update(value => new Set(value).add(face.face_id));
+          moved = result.person.id !== before;
+        }
       }
       if (this.chooser === ref) this.chooser = null;
     } catch { if (guard.current()) this.error.set(true); }
     finally {
       if (generation === this.generation) this.choosing.set(false);
-      if (guard.current() && trigger?.isConnected) trigger.focus();
+      if (guard.current()) { if (moved) this.focusAfterRender(() => this.tile(face.face_id)); else focusTarget.focus(); }
       guard.dispose();
     }
   }
   protected skip(id: number): void {
     if (!this.allowed() || this.busy() || this.pending()) return;
+    const order = this.groups().flatMap(group => group.ids);
+    const index = order.indexOf(id);
+    const neighbour = index < 0 ? undefined : order[index + 1] ?? order[index - 1];
     this.faces.update(value => value.filter(face => face.face_id !== id));
     this.selected.update(value => { const next = new Set(value); next.delete(id); return next; });
+    if (index >= 0) this.focusAfterRender(() => neighbour === undefined ? null : this.tile(neighbour));
+  }
+  private tile(faceId: number): HTMLElement | null {
+    return this.host.nativeElement.querySelector<HTMLElement>(`[data-review-face="${faceId}"] [data-review-tile]`);
+  }
+  /** Focus what `pick` finds once the queue has re-rendered, or the queue itself when it finds nothing. */
+  private focusAfterRender(pick: () => HTMLElement | null | undefined): void {
+    const generation = this.generation;
+    afterNextRender(() => { if (this.generation === generation && this.allowed()) (pick() ?? this.host.nativeElement).focus(); }, { injector: this.injector });
   }
   protected async rejectSuggestion(face: Face): Promise<void> {
     const choice = this.choices().get(face.face_id);
@@ -369,7 +490,8 @@ export class FaceReviewQueueComponent {
       if (this.planGuard === guard) {
         this.busy.set(false);
         if (!guard.current()) { this.pending.set(null); this.faces.set([]); this.selected.set(new Set()); this.total.set(0); this.error.set(true); this.uncertain.set(true); }
-        else afterNextRender(() => { if (guard.current() && !this.pending()) this.host.nativeElement.focus(); }, { injector: this.injector });
+        // Move to the outcome, so it scrolls into view and is announced: the alert after a failure, else the receipt.
+        else afterNextRender(() => { if (guard.current() && !this.pending()) ((this.uncertain() ? this.queueAlert() : this.receiptStatus())?.nativeElement ?? this.host.nativeElement).focus(); }, { injector: this.injector });
         this.planGuard = null;
       }
       guard.dispose();

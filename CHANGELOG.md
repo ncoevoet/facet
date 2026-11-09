@@ -102,7 +102,7 @@ All notable changes to Facet are documented in this file.
 - The gallery sort menu opens one submenu per sort group; the group holding the current sort and the sort itself are highlighted in the accent colour, and the group names the current sort.
 - Statistics metric selects show the gallery sort's icons, and Score profile by category picks its series from a multi-select instead of legend clicks.
 - "Why this score?" is an icon button on the photo's AI score line, and About these measurements opens at the panel's width. Gallery list rows show 72 px thumbnails, the photo page's collection sidebar remembers its width, and Measurement availability is a standard collapsible filter section.
-- Review matches and Unassigned fit more face cards per row on wide screens: four at 1920 px, six at 2560 px.
+- Review matches and Unassigned show faces as square tiles, ten per row at 1440 px instead of three cards, grouped in one panel per suggested person with that person's photo, a face count and Select all; faces with no suggested person come last. A click selects a tile, each tile's ⋮ menu holds the other actions, and Review N assignments moves to a bar at the bottom of the screen.
 
 ### Fixed
 
