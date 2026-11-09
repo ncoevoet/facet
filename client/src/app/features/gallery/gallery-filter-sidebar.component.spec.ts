@@ -790,6 +790,26 @@ describe('GalleryFilterSidebarComponent', () => {
       expect(component.sectionActiveCounts()['persons']).toBe(1);
     });
 
+    it('renders measurement availability as a standard collapsible section with Material selects', () => {
+      component = fixture.componentInstance;
+      component.selectTab('quality'); settle();
+      const root = fixture.nativeElement as HTMLElement;
+      const panel = root.querySelector('mat-expansion-panel[data-section="score_presence"]') as HTMLElement;
+      expect(panel).not.toBeNull();
+      const header = panel.querySelector('mat-expansion-panel-header')!;
+      expect(header.classList).toContain('!px-2');
+      const icon = header.querySelector('mat-panel-title mat-icon')!;
+      expect(icon.textContent?.trim()).toBe('fact_check');
+      expect([...icon.classList]).toEqual(expect.arrayContaining(['!text-xl', '!w-5', '!h-5', '!leading-none', 'opacity-80']));
+      expect(header.textContent).toContain('gallery.measurements.title');
+      expect(header.querySelector('.bg-\\[var\\(--mat-sys-primary\\)\\]')).toBeNull();
+      setFilters({ score_presence: '{"min_sharpness":"measured_only"}' });
+      expect(header.querySelector('.bg-\\[var\\(--mat-sys-primary\\)\\]')?.textContent?.trim()).toBe('1');
+      component.onSectionToggle('score_presence', true); settle();
+      expect(panel.querySelector('select')).toBeNull();
+      expect(panel.querySelectorAll('mat-form-field mat-select')).toHaveLength(2);
+    });
+
     it('exposes selected hue and layout states to assistive technology', () => {
       component = fixture.componentInstance;
       store['hueBuckets'].set([{ value: 'red', count: 2 }, { value: 'blue', count: 3 }]);

@@ -806,7 +806,21 @@ type RatingOption = 'any' | '1' | '2' | '3' | '4' | '5' | 'zero';
       @for (group of qualityAdvancedGroups(); track group.sectionKey) {
         <ng-container [ngTemplateOutlet]="metricPanel" [ngTemplateOutletContext]="{ $implicit: group }" />
       }
-      <app-score-presence [metrics]="scorePresenceMetrics" />
+      <mat-expansion-panel class="!mb-1" data-section="score_presence" [expanded]="sectionStates()['score_presence'] === true"
+                           (opened)="onSectionToggle('score_presence', true)"
+                           (closed)="onSectionToggle('score_presence', false)"
+                           [style.background-color]="sectionStates()['score_presence'] === true ? 'var(--mat-sys-surface-container)' : null">
+        <mat-expansion-panel-header class="!px-2">
+          <mat-panel-title class="flex items-center gap-2">
+            <mat-icon class="!text-xl !w-5 !h-5 !leading-none opacity-80">fact_check</mat-icon>
+            {{ I18N.gallery.measurements.title | translate }}
+            @if (sectionActiveCounts()['score_presence']) {
+              <span class="text-xs rounded-full min-w-[1.25rem] h-5 px-1.5 flex items-center justify-center bg-[var(--mat-sys-primary)] text-[var(--mat-sys-on-primary)] leading-none">{{ sectionActiveCounts()['score_presence'] }}</span>
+            }
+          </mat-panel-title>
+        </mat-expansion-panel-header>
+        <app-score-presence [metrics]="scorePresenceMetrics" />
+      </mat-expansion-panel>
           }
           @case ('subject') {
       @for (group of subjectGroups(); track group.sectionKey) {

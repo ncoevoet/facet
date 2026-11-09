@@ -1,6 +1,9 @@
 import { Component, signal } from '@angular/core';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { provideRouter, Router, UrlTree } from '@angular/router';
+import { By } from '@angular/platform-browser';
+import { MATERIAL_ANIMATIONS } from '@angular/material/core';
+import { MatSelect } from '@angular/material/select';
 import { ScorePresenceComponent } from './score-presence.component';
 import { GalleryStore } from './gallery.store';
 import { DEFAULT_FILTERS, GalleryFilters } from './gallery-filters.util';
@@ -37,6 +40,7 @@ describe('rendered measurement policies', () => {
       { provide: GalleryStore, useValue: { filters, tags: signal([{ value: 'coast,ridge', count: 2 }]), updateFilter: update } },
       { provide: AuthService, useValue: { identity, status, isEdition: () => false, get token() { return token; } } },
       { provide: I18nService, useValue: { t: (key: string) => key, translations: signal({}), currentLang: signal('en') } },
+      { provide: MATERIAL_ANIMATIONS, useValue: { animationsDisabled: true } },
     ] });
     router = TestBed.inject(Router);
     await router.navigateByUrl('/');
@@ -44,13 +48,15 @@ describe('rendered measurement policies', () => {
     fixture.componentRef.setInput('metrics', [{ minKey: 'min_sharpness', labelKey: 'Sharpness' }, { minKey: 'min_face_quality', labelKey: 'Face quality' }]);
     fixture.detectChanges();
     root = fixture.nativeElement;
-    root.querySelector('details')!.open = true;
   });
 
-  function choose(mode: string): void {
-    const select = root.querySelector<HTMLSelectElement>('#measurement-policy-mode')!;
-    select.value = mode; select.dispatchEvent(new Event('change', { bubbles: true })); fixture.detectChanges();
+  function pick(id: string, value: string): void {
+    const select = fixture.debugElement.query(By.css(`#${id}`)).injector.get(MatSelect);
+    select.open(); fixture.detectChanges();
+    select.options.find(option => option.value === value)!._getHostElement().click();
+    fixture.detectChanges();
   }
+  const choose = (mode: string) => pick('measurement-policy-mode', mode);
 
   it('applies per-metric policies in read-only browsing without changing bounds or other fields', () => {
     filters.update(current => ({ ...current, min_sharpness: '2', max_sharpness: '4', camera: 'Alpha' }));
@@ -58,12 +64,15 @@ describe('rendered measurement policies', () => {
     choose('include_missing');
     expect(update).toHaveBeenCalledExactlyOnceWith('score_presence', '{"min_sharpness":"include_missing"}');
     expect(filters()).toMatchObject({ min_sharpness: '2', max_sharpness: '4', camera: 'Alpha' });
-    const metric = root.querySelector<HTMLSelectElement>('#measurement-policy-metric')!;
-    metric.value = 'min_face_quality'; metric.dispatchEvent(new Event('change', { bubbles: true })); fixture.detectChanges();
+    pick('measurement-policy-metric', 'min_face_quality');
     choose('missing_only');
     expect(JSON.parse(filters().score_presence)).toEqual({ min_sharpness: 'include_missing', min_face_quality: 'missing_only' });
-    expect(root.querySelector('label[for="measurement-policy-mode"]')).toBeTruthy();
-    expect(root.querySelector('#measurement-policy-mode')?.getAttribute('aria-describedby')).toBe('measurement-policy-help');
+    const mode = root.querySelector('#measurement-policy-mode')!;
+    expect(mode.tagName).toBe('MAT-SELECT');
+    expect(root.querySelector('select')).toBeNull();
+    const labelledBy = mode.getAttribute('aria-labelledby')!.split(' ').map(id => document.getElementById(id)?.textContent ?? '').join(' ');
+    expect(labelledBy).toContain('gallery.measurements.policy');
+    expect(mode.getAttribute('aria-describedby')).toContain('measurement-policy-help');
     choose('');
     expect(JSON.parse(filters().score_presence)).toEqual({ min_sharpness: 'include_missing' });
   });
@@ -83,16 +92,32 @@ describe('rendered measurement policies', () => {
     choose('measured_only'); expect(update).toHaveBeenCalledTimes(1);
   });
 
-  it('allows clearing an invalid policy and applies measured-only after repair', () => {
+  it('allows clearing an invalid policy and applies measured-only after repair', async () => {
     filters.update(current => ({ ...current, score_presence: '{invalid' }));
     fixture.detectChanges();
     expect(root.querySelector('[role="alert"]')).toBeTruthy();
-    root.querySelector<HTMLButtonElement>('button')!.click();
-    fixture.detectChanges();
+    root.querySelector<HTMLButtonElement>('[data-clear-measurements]')!.click();
+    await fixture.whenStable(); TestBed.tick();
     expect(update).toHaveBeenLastCalledWith('score_presence', '');
+    expect(document.activeElement).toBe(root.querySelector('#measurement-policy-mode'));
     choose('measured_only');
     expect(update).toHaveBeenLastCalledWith('score_presence', '{"min_sharpness":"measured_only"}');
   });
+  it('shows the stored policy again when a choice is refused', () => {
+    token = 'rotated'; choose('missing_only');
+    expect(update).not.toHaveBeenCalled();
+    expect(fixture.debugElement.query(By.css('#measurement-policy-mode')).injector.get(MatSelect).value).toBe('');
+  });
+
+  it('moves focus to the policy select when the clear button leaves the DOM', async () => {
+    filters.update(current => ({ ...current, score_presence: '{"min_sharpness":"measured_only"}' }));
+    fixture.detectChanges();
+    root.querySelector<HTMLButtonElement>('[data-clear-measurements]')!.click();
+    await fixture.whenStable(); TestBed.tick();
+    expect(root.querySelector('[data-clear-measurements]')).toBeNull();
+    expect(document.activeElement).toBe(root.querySelector('#measurement-policy-mode'));
+  });
+
   it('refuses unknown modes, unrecognized metrics and changes while the policy is invalid', () => {
     const component = fixture.componentInstance as unknown as { apply(mode: string): void };
     component.apply('unknown');

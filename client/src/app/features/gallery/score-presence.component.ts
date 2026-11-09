@@ -1,49 +1,56 @@
 import { createGalleryFilterContext } from './gallery-filter-context';
-import { ChangeDetectionStrategy, Component, computed, ElementRef, inject, input, signal, viewChild } from '@angular/core';
+import { afterNextRender, ChangeDetectionStrategy, Component, computed, inject, Injector, input, signal, viewChild } from '@angular/core';
 import { GalleryStore } from './gallery.store';
+import { MatButtonModule } from '@angular/material/button';
+import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatIconModule } from '@angular/material/icon';
+import { MatSelect, MatSelectModule } from '@angular/material/select';
 import { TranslatePipe } from '../../shared/pipes/translate.pipe';
 import { I18N } from '../../core/i18n/keys';
 import { parseScorePresence, serializeScorePresence, ScorePresenceMode, SCORE_PRESENCE_KEYS } from './score-presence.util';
 
+/** The body of the filter sidebar's "Measurement availability" section; the sidebar owns its expansion panel. */
 @Component({
-  selector: 'app-score-presence', imports: [TranslatePipe, MatIconModule], changeDetection: ChangeDetectionStrategy.OnPush,
-  host: { class: 'block' }, template: `
-    <details #disclosure (toggle)="expanded.set(disclosure.open)" class="border-b border-[var(--mat-sys-outline-variant)] mb-2 pb-2" [open]="!!store.filters().score_presence">
-      <summary #summary class="cursor-pointer min-h-11 flex list-none items-center gap-2 text-sm font-medium">
-        <mat-icon aria-hidden="true" class="!h-5 !w-5 !text-xl">fact_check</mat-icon>
-        <span class="flex-1">{{ I18N.gallery.measurements.title | translate }}</span>
-        @if (rows().length) { <span class="rounded-full bg-[var(--mat-sys-primary-container)] px-2 text-xs tabular-nums">{{ rows().length }}</span> }
-        <mat-icon aria-hidden="true" class="!h-5 !w-5 !text-xl">{{ expanded() ? 'expand_less' : 'expand_more' }}</mat-icon>
-      </summary>
-      <p id="measurement-policy-help" class="my-1 text-xs text-[var(--mat-sys-on-surface-variant)]">{{ I18N.gallery.measurements.help | translate }}</p>
-      @if (policies(); as current) {
-        <label for="measurement-policy-metric" class="block text-xs mt-2">{{ I18N.gallery.measurements.metric | translate }}</label>
-        <select id="measurement-policy-metric" aria-describedby="measurement-policy-help" class="h-11 w-full min-w-0 rounded border border-[var(--mat-sys-outline)] bg-[var(--mat-sys-surface)] px-2 text-sm"
-                (change)="selected.set($any($event.target).value)">
-          @for (metric of metrics(); track metric.minKey) { <option [value]="metric.minKey" [selected]="selectedKey() === metric.minKey">{{ metric.labelKey | translate }}</option> }
-        </select>
-        <label for="measurement-policy-mode" class="block text-xs mt-2">{{ I18N.gallery.measurements.policy | translate }}</label>
-        <select id="measurement-policy-mode" aria-describedby="measurement-policy-help" class="h-11 w-full min-w-0 rounded border border-[var(--mat-sys-outline)] bg-[var(--mat-sys-surface)] px-2 text-sm"
-                (change)="apply($any($event.target).value)">
-          <option value="" [selected]="!current[selectedKey()]">{{ I18N.gallery.measurements.default | translate }}</option>
-          @for (mode of modes; track mode.id) { <option [value]="mode.id" [selected]="current[selectedKey()] === mode.id">{{ mode.label | translate }}</option> }
-        </select>
-        @for (row of rows(); track row.key) {
-          <p class="my-2 text-xs"><b>{{ row.label | translate }}</b>: {{ row.modeLabel | translate }}</p>
-        }
-      } @else { <p role="alert" class="text-xs">{{ I18N.gallery.measurements.invalid | translate }}</p> }
-      @if (store.filters().score_presence) { <button type="button" class="min-h-11 underline text-xs" (click)="clear()">{{ I18N.gallery.measurements.clear | translate }}</button> }
-    </details>
+  selector: 'app-score-presence', imports: [TranslatePipe, MatButtonModule, MatFormFieldModule, MatIconModule, MatSelectModule], changeDetection: ChangeDetectionStrategy.OnPush,
+  host: { class: 'flex flex-col gap-2 pb-2' }, template: `
+    <p id="measurement-policy-help" class="m-0 text-xs text-[var(--mat-sys-on-surface-variant)]">{{ I18N.gallery.measurements.help | translate }}</p>
+    @if (policies(); as current) {
+      <mat-form-field subscriptSizing="dynamic" class="w-full">
+        <mat-label>{{ I18N.gallery.measurements.metric | translate }}</mat-label>
+        <mat-select id="measurement-policy-metric" aria-describedby="measurement-policy-help" [value]="selectedKey()" (selectionChange)="selected.set($event.value)">
+          @for (metric of metrics(); track metric.minKey) { <mat-option [value]="metric.minKey">{{ metric.labelKey | translate }}</mat-option> }
+        </mat-select>
+      </mat-form-field>
+      <mat-form-field subscriptSizing="dynamic" class="w-full">
+        <mat-label>{{ I18N.gallery.measurements.policy | translate }}</mat-label>
+        <mat-select #modeSelect id="measurement-policy-mode" aria-describedby="measurement-policy-help" [value]="current[selectedKey()] ?? ''" (selectionChange)="apply($event.value)">
+          <mat-option value="">{{ I18N.gallery.measurements.default | translate }}</mat-option>
+          @for (mode of modes; track mode.id) { <mat-option [value]="mode.id">{{ mode.label | translate }}</mat-option> }
+        </mat-select>
+      </mat-form-field>
+      @if (rows().length) {
+        <ul class="m-0 flex list-none flex-col gap-1 p-0 px-1 text-xs">
+          @for (row of rows(); track row.key) {
+            <li><span class="font-medium">{{ row.label | translate }}</span> · <span class="text-[var(--mat-sys-on-surface-variant)]">{{ row.modeLabel | translate }}</span></li>
+          }
+        </ul>
+      }
+    } @else { <p role="alert" class="m-0 text-xs">{{ I18N.gallery.measurements.invalid | translate }}</p> }
+    @if (store.filters().score_presence) {
+      <button type="button" mat-stroked-button data-clear-measurements class="w-full" (click)="clear()">
+        <mat-icon>close</mat-icon>
+        {{ I18N.gallery.measurements.clear | translate }}
+      </button>
+    }
   `,
 })
 export class ScorePresenceComponent {
   readonly metrics = input.required<readonly { minKey: string; labelKey: string }[]>();
   protected readonly I18N = I18N;
   protected readonly store = inject(GalleryStore);
-  private readonly summary = viewChild<ElementRef<HTMLElement>>('summary');
+  private readonly modeSelect = viewChild<MatSelect>('modeSelect');
+  private readonly injector = inject(Injector);
   protected readonly selected = signal('');
-  protected readonly expanded = signal(false);
   protected readonly selectedKey = computed(() => this.metrics().some(m => m.minKey === this.selected()) ? this.selected() : this.metrics()[0]?.minKey ?? '');
   protected readonly policies = computed(() => parseScorePresence(this.store.filters().score_presence ?? ''));
   protected readonly modes = [
@@ -60,18 +67,23 @@ export class ScorePresenceComponent {
 
   protected apply(mode: string): void {
     const key = this.selectedKey();
-    if (!this.context.current() || !SCORE_PRESENCE_KEYS.has(key) || (mode && !this.modes.some(row => row.id === mode))) return;
     const current = this.policies();
-    if (!current) return;
+    if (!this.context.current() || !SCORE_PRESENCE_KEYS.has(key) || (mode && !this.modes.some(row => row.id === mode)) || !current) {
+      // A refused choice must not stay displayed: the select shows the stored policy, not the click.
+      const select = this.modeSelect();
+      if (select) select.value = current?.[key] ?? '';
+      return;
+    }
     const next = { ...current };
     if (mode) next[key] = mode as ScorePresenceMode;
     else delete next[key];
     void this.store.updateFilter('score_presence', serializeScorePresence(next));
   }
 
-  protected clear(): void {
+  /** The clear button leaves the DOM with the policy, so focus moves to the policy select, which renders once the cleared policy parses. */
+  protected async clear(): Promise<void> {
     if (!this.context.current()) return;
-    this.summary()?.nativeElement.focus();
-    void this.store.updateFilter('score_presence', '');
+    await this.store.updateFilter('score_presence', '');
+    afterNextRender(() => this.modeSelect()?.focus(), { injector: this.injector });
   }
 }
