@@ -1234,6 +1234,60 @@ describe('ManagePersonsComponent', () => {
       toolbar.destroy();
     });
 
+    describe('Update faces placement', () => {
+      const control = (el: HTMLElement) => el.querySelector('app-face-update-control') as HTMLElement;
+
+      beforeEach(() => {
+        (TestBed.inject(ScanService) as unknown as { canLaunch: ReturnType<typeof signal<boolean>> }).canLaunch.set(true);
+      });
+
+      it('is the last item, far right, of the page-actions bar template', async () => {
+        withTab('named');
+        const fixture = await render();
+        const toolbar = TestBed.inject(HeaderSlotService).template()!.createEmbeddedView(null);
+        toolbar.detectChanges();
+        const elements = toolbar.rootNodes.filter((n: Node): n is HTMLElement => n instanceof HTMLElement);
+        const last = elements[elements.length - 1];
+        expect(last.tagName.toLowerCase()).toBe('app-face-update-control');
+        expect(last.className).toContain('ml-auto');
+        toolbar.destroy();
+        fixture.destroy();
+      });
+
+      it('adds no left margin of its own to the bar items, so the first control sits at 16px', async () => {
+        withTab('named');
+        const fixture = await render();
+        const toolbar = TestBed.inject(HeaderSlotService).template()!.createEmbeddedView(null);
+        toolbar.detectChanges();
+        const fields = toolbar.rootNodes.filter((n: Node): n is HTMLElement => n instanceof HTMLElement && n.matches('mat-form-field'));
+        expect(fields.length).toBeGreaterThan(0);
+        expect(fields.every(f => !f.classList.contains('ml-2'))).toBe(true);
+        toolbar.destroy();
+        fixture.destroy();
+      });
+
+      it('sits in the tab row, not in a row of its own above the tabs, and hides at lg+ while the bar shows it', async () => {
+        withTab('named');
+        const fixture = await render();
+        const inPage = control(fixture.nativeElement);
+        expect(inPage.parentElement!.querySelector('mat-tab-group')).not.toBeNull();
+        expect(inPage.className).toContain('absolute');
+        expect(inPage.className).toContain('lg:hidden');
+        fixture.destroy();
+      });
+
+      it('stays reachable in the page on the review tabs, where the bar is cleared', async () => {
+        withTab('matches');
+        Object.assign(mockAuth, { isEdition: signal(true), status: signal({ user_id: 'test' }), token: 'fixture' });
+        const fixture = await render();
+        expect(TestBed.inject(HeaderSlotService).template()).toBeNull();
+        const inPage = control(fixture.nativeElement);
+        expect(inPage).not.toBeNull();
+        expect(inPage.className).not.toContain('lg:hidden');
+        fixture.destroy();
+      });
+    });
+
     describe('restore-only cards', () => {
       const IGNORED = { id: 55, name: 'Staff', face_count: 2, face_thumbnail: true, is_hidden: true };
 

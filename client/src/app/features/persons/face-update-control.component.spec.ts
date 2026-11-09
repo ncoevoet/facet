@@ -17,7 +17,7 @@ const receipt = { job_id: 'a'.repeat(32), model: preview.model, mode: 'missing',
   created_at: '2026-11-01 20:00:00', started_at: '2026-11-01 20:00:01', finished_at: null, controlled_by_worker: false };
 
 describe('FaceUpdateControlComponent', () => {
-  async function render() {
+  async function render(mode: 'inline' | 'overlay' = 'inline') {
     const api: { get: Mock; post: Mock } = {
       get: vi.fn((url: string) => of(url.endsWith('/preview') ? preview : url.endsWith('/jobs') ? [] : receipt)),
       post: vi.fn((_url: string, body: { job_id: string }) => of({ ...receipt, job_id: body.job_id })),
@@ -31,6 +31,7 @@ describe('FaceUpdateControlComponent', () => {
     ] });
     await TestBed.inject(Router).navigateByUrl('/persons?tab=matches');
     const fixture = TestBed.createComponent(FaceUpdateControlComponent);
+    fixture.componentRef.setInput('panelMode', mode);
     fixture.detectChanges(); await fixture.whenStable(); fixture.detectChanges();
     const root = fixture.nativeElement as HTMLElement; document.body.appendChild(root);
     const settle = async () => { await fixture.whenStable(); fixture.detectChanges(); };
@@ -310,5 +311,57 @@ describe('FaceUpdateControlComponent', () => {
       expect(root.querySelector('[data-face-update-receipt]')?.textContent).toContain('"processed":12,"total":12');
       expect(poll).toBeNull();
     } finally { dispose(); timer.mockRestore(); }
+  });
+
+  describe('overlay panel (the control sits in the page-actions bar)', () => {
+    const panel = () => document.querySelector<HTMLElement>('.cdk-overlay-container #face-update-panel');
+
+    it('opens the same panel in an overlay anchored under the trigger, leaving the bar untouched', async () => {
+      const { root, open, dispose } = await render('overlay');
+      const trigger = root.querySelector<HTMLButtonElement>('[data-update-faces]')!;
+      expect(trigger.getAttribute('aria-expanded')).toBe('false');
+      expect(panel()).toBeNull();
+      await open();
+      expect(root.querySelector('section')).toBeNull();
+      expect(panel()).not.toBeNull();
+      expect(panel()!.className).toContain('w-[28rem]');
+      expect(panel()!.className).toContain('max-w-[calc(100vw-1rem)]');
+      expect(trigger.getAttribute('aria-expanded')).toBe('true');
+      expect(trigger.getAttribute('aria-controls')).toBe('face-update-panel');
+      dispose();
+    });
+
+    it('moves focus into the panel, and Escape closes it and returns focus to the trigger', async () => {
+      const { root, open, settle, dispose } = await render('overlay');
+      await open();
+      expect(document.activeElement).toBe(panel());
+      panel()!.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+      await settle();
+      expect(panel()).toBeNull();
+      expect(document.activeElement).toBe(root.querySelector('[data-update-faces]'));
+      dispose();
+    });
+
+    it('closes on an outside click, but a click on the trigger toggles rather than reopens', async () => {
+      const { root, open, settle, dispose } = await render('overlay');
+      await open();
+      document.body.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+      await settle();
+      expect(panel()).toBeNull();
+      await open();
+      expect(panel()).not.toBeNull();
+      await open();
+      expect(panel()).toBeNull();
+      expect(root.querySelector('[data-update-faces]')!.getAttribute('aria-expanded')).toBe('false');
+      dispose();
+    });
+
+    it('keeps the launch gate: nothing renders without scan.canLaunch()', async () => {
+      const { root, scan, settle, dispose } = await render('overlay');
+      scan.canLaunch.set(false);
+      await settle();
+      expect(root.querySelector('[data-update-faces]')).toBeNull();
+      dispose();
+    });
   });
 });

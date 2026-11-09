@@ -1,9 +1,10 @@
-import { afterNextRender, ChangeDetectionStrategy, Component, computed, DestroyRef, effect, ElementRef, inject, Injector, output, signal, untracked, viewChild } from '@angular/core';
+import { afterNextRender, ChangeDetectionStrategy, Component, computed, DestroyRef, effect, ElementRef, inject, Injector, input, output, signal, untracked, viewChild } from '@angular/core';
+import { CdkConnectedOverlay, CdkOverlayOrigin, ConnectedPosition } from '@angular/cdk/overlay';
 import { Router, RouterLink } from '@angular/router';
 import { trackPendingNavigation } from '../../shared/utils/navigation-settled';
 import { MatButtonModule } from '@angular/material/button';
 import { MatIconModule } from '@angular/material/icon';
-import { SlicePipe } from '@angular/common';
+import { NgTemplateOutlet, SlicePipe } from '@angular/common';
 import { HttpErrorResponse } from '@angular/common/http';
 import { firstValueFrom } from 'rxjs';
 import type { components } from '../../core/api/schema';
@@ -23,16 +24,29 @@ interface StartRequest { job_id: string; expected_model: string; mode: 'missing'
 
 @Component({
   selector: 'app-face-update-control',
-  imports: [MatButtonModule, MatIconModule, SlicePipe, TranslatePipe, ContextHelpComponent, RouterLink, FilenamePipe],
+  imports: [CdkConnectedOverlay, CdkOverlayOrigin, MatButtonModule, MatIconModule, NgTemplateOutlet, SlicePipe, TranslatePipe, ContextHelpComponent, RouterLink, FilenamePipe],
   changeDetection: ChangeDetectionStrategy.OnPush,
   host: { class: 'block min-w-0' },
   template: `
     @if (scan.canLaunch()) {
-      <div class="flex justify-end">
-        <button #trigger mat-stroked-button data-update-faces [disabled]="blocked()" [attr.aria-expanded]="expanded()" aria-controls="face-update-panel" (click)="open()"><mat-icon>person_search</mat-icon>{{ I18N.persons.face_update.title | translate }}</button>
+      <div [class]="overlay() ? 'flex h-full items-center' : 'flex justify-end'">
+        <button #trigger cdkOverlayOrigin #origin="cdkOverlayOrigin" mat-stroked-button data-update-faces [disabled]="blocked()" [attr.aria-label]="I18N.persons.face_update.title | translate" [attr.aria-expanded]="expanded()" aria-controls="face-update-panel" (click)="open()"><mat-icon [class.max-sm:!m-0]="overlay()">person_search</mat-icon><span [class.max-sm:hidden]="overlay()">{{ I18N.persons.face_update.title | translate }}</span></button>
       </div>
-      @if (expanded()) {
-        <section #panel id="face-update-panel" tabindex="-1" aria-labelledby="face-update-heading" class="mb-3 mt-2 flex flex-col gap-3 rounded-xl border border-[var(--mat-sys-outline-variant)] bg-[var(--mat-sys-surface-container)] p-4" (keydown.escape)="close($event)">
+      @if (overlay()) {
+        <!-- In the page-actions bar a 48 px row cannot grow: the panel floats under the trigger instead. -->
+        <ng-template cdkConnectedOverlay [cdkConnectedOverlayOrigin]="origin" [cdkConnectedOverlayOpen]="expanded()"
+                     [cdkConnectedOverlayPositions]="OVERLAY_POSITIONS" [cdkConnectedOverlayPush]="true" [cdkConnectedOverlayViewportMargin]="8"
+                     (overlayOutsideClick)="onOutsideClick($event)" (overlayKeydown)="onOverlayKeydown($event)">
+          <ng-container [ngTemplateOutlet]="panelTemplate" />
+        </ng-template>
+      } @else if (expanded()) {
+        <ng-container [ngTemplateOutlet]="panelTemplate" />
+      }
+    }
+    <ng-template #panelTemplate>
+        <section #panel id="face-update-panel" tabindex="-1" aria-labelledby="face-update-heading"
+                 class="flex flex-col gap-3 rounded-xl border border-[var(--mat-sys-outline-variant)] bg-[var(--mat-sys-surface-container)] p-4"
+                 [class]="overlay() ? 'max-h-[min(80dvh,40rem)] w-[28rem] max-w-[calc(100vw-1rem)] overflow-y-auto shadow-xl' : 'mb-3 mt-2'" (keydown.escape)="close($event)">
           <div class="flex items-center gap-2">
             <mat-icon class="shrink-0 text-[var(--mat-sys-primary)]" aria-hidden="true">person_search</mat-icon>
             <h3 id="face-update-heading" class="m-0 flex-1 text-base font-medium">{{ I18N.persons.face_update.title | translate }}</h3>
@@ -138,12 +152,18 @@ interface StartRequest { job_id: string; expected_model: string; mode: 'missing'
             </div>
           </details>
         </section>
-      }
-    }
+    </ng-template>
   `,
 })
 export class FaceUpdateControlComponent {
   protected readonly I18N = I18N;
+  /** `inline` grows the panel in the page's flow; `overlay` floats it under the trigger, for a control that lives in a fixed-height bar. */
+  readonly panelMode = input<'inline' | 'overlay'>('inline');
+  protected readonly overlay = computed(() => this.panelMode() === 'overlay');
+  protected readonly OVERLAY_POSITIONS: ConnectedPosition[] = [
+    { originX: 'end', originY: 'bottom', overlayX: 'end', overlayY: 'top', offsetY: 4 },
+    { originX: 'end', originY: 'top', overlayX: 'end', overlayY: 'bottom', offsetY: -4 },
+  ];
   protected readonly scan = inject(ScanService);
   private readonly api = inject(ApiService);
   private readonly auth = inject(AuthService);
@@ -249,6 +269,14 @@ export class FaceUpdateControlComponent {
     if (this.stopTarget() && !this.busy()) { this.cancelStop(event); return; }
     event?.preventDefault(); event?.stopPropagation(); this.reset(false);
     if (this.allowed()) this.trigger()?.nativeElement.focus();
+  }
+  /** A click elsewhere dismisses the floating panel; the trigger's own click toggles it, so it must not reopen it. */
+  protected onOutsideClick(event: MouseEvent): void {
+    if (this.trigger()?.nativeElement.contains(event.target as Node)) return;
+    this.reset(false);
+  }
+  protected onOverlayKeydown(event: KeyboardEvent): void {
+    if (event.key === 'Escape') this.close(event);
   }
   protected cancelStop(event?: Event): void {
     event?.preventDefault(); event?.stopPropagation(); this.stopTarget.set(null);

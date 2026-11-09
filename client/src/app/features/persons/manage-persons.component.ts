@@ -1,5 +1,6 @@
 import { FaceReviewQueueComponent } from './face-review-queue.component';
 import { FaceUpdateControlComponent } from './face-update-control.component';
+import { ScanService } from '../../core/services/scan.service';
 import { afterNextRender, Component, inject, Injector, signal, computed, OnInit, effect, untracked, DestroyRef, viewChild, TemplateRef, ChangeDetectionStrategy } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { FormsModule } from '@angular/forms';
@@ -282,7 +283,7 @@ export type NamingSort = 'faces' | 'recent';
     <h1 class="sr-only">{{ I18N.nav.persons | translate }}</h1>
     <ng-template #personsToolbar>
       @if (namingTabActive()) {
-        <mat-form-field class="!hidden lg:!inline-flex w-44 ml-2" subscriptSizing="dynamic">
+        <mat-form-field class="!hidden lg:!inline-flex w-44" subscriptSizing="dynamic">
           <mat-label>{{ I18N.gallery.sort | translate }}</mat-label>
           <mat-select data-naming-sort [value]="namingSort()" (selectionChange)="namingSort.set($event.value)">
             <mat-option value="faces">{{ I18N.persons.sort_faces | translate }}</mat-option>
@@ -300,7 +301,7 @@ export type NamingSort = 'faces' | 'recent';
           <mat-icon>{{ namingSortDirection() === 'desc' ? 'arrow_downward' : 'arrow_upward' }}</mat-icon>
         </button>
       } @else {
-        <mat-form-field class="!hidden lg:!inline-flex w-52 ml-2" subscriptSizing="dynamic">
+        <mat-form-field class="!hidden lg:!inline-flex w-52" subscriptSizing="dynamic">
           <mat-label>{{ I18N.persons.search_placeholder | translate }}</mat-label>
           <input matInput [value]="personsFilters.search()" (input)="personsFilters.search.set($any($event.target).value)" />
           <mat-icon matPrefix class="opacity-60">search</mat-icon>
@@ -348,6 +349,8 @@ export type NamingSort = 'faces' | 'recent';
           <mat-icon>{{ personsFilters.showHidden() ? 'visibility' : 'visibility_off' }}</mat-icon>
         </button>
       }
+      <!-- Far right of the page-actions bar; its panel floats under the trigger (panelMode overlay). -->
+      <app-face-update-control class="ml-auto shrink-0" panelMode="overlay" (reviewRequested)="reviewUpdatedFaces()" />
     </ng-template>
 
     <ng-template #namedPane>
@@ -433,9 +436,12 @@ export type NamingSort = 'faces' | 'recent';
     </ng-template>
 
     <div class="px-4 pt-4 pb-4">
-      <app-face-update-control (reviewRequested)="reviewUpdatedFaces()" />
       @if (auth.isEdition()) {
-        <mat-tab-group mat-stretch-tabs="false" mat-align-tabs="start" animationDuration="0ms"
+        <!-- Update faces: lg+ it lives in the page-actions bar (#personsToolbar). Below lg, and on the review tabs where
+             the bar is cleared, it sits at the right of the tab row; the tab header leaves room for it. -->
+        <div class="relative">
+        <app-face-update-control class="absolute right-0 top-0 z-20 h-12" [class]="faceUpdateInPageClass()" panelMode="overlay" (reviewRequested)="reviewUpdatedFaces()" />
+        <mat-tab-group mat-stretch-tabs="false" mat-align-tabs="start" animationDuration="0ms" [class]="tabHeaderReserveClass()"
                        [selectedIndex]="tabIndex()" (selectedIndexChange)="selectTabIndex($event)">
           <mat-tab>
             <ng-template mat-tab-label>
@@ -483,7 +489,9 @@ export type NamingSort = 'faces' | 'recent';
             @if (tab() === 'unassigned') { <app-face-review-queue mode="unassigned" /> }
           </mat-tab>
         </mat-tab-group>
+        </div>
       } @else {
+        <app-face-update-control class="lg:hidden" (reviewRequested)="reviewUpdatedFaces()" />
         <ng-container [ngTemplateOutlet]="namedPane" />
       }
     </div>
@@ -538,6 +546,18 @@ export class ManagePersonsComponent implements OnInit {
   private readonly hide = inject(PersonHideService);
   private readonly personsToolbar = viewChild<TemplateRef<unknown>>('personsToolbar');
   private readonly reviewQueue = viewChild(FaceReviewQueueComponent);
+  private readonly scan = inject(ScanService);
+  /** The review tabs carry their own page-level controls, so the edition user's bar is cleared there. */
+  private readonly toolbarInBar = computed(() => !(this.auth.isEdition() && (this.tab() === 'matches' || this.tab() === 'unassigned')));
+  /** Update faces in the tab row: hidden at lg+ only while the page-actions bar shows it. */
+  protected readonly faceUpdateInPageClass = computed(() => this.toolbarInBar() ? 'lg:hidden' : '');
+  /** Keeps the tab labels clear of the Update faces control (icon-only below sm, labelled from sm). */
+  protected readonly tabHeaderReserveClass = computed(() => {
+    if (!this.scan.canLaunch()) return '';
+    return this.toolbarInBar()
+      ? 'max-sm:[&_.mat-mdc-tab-header]:pr-12 sm:max-lg:[&_.mat-mdc-tab-header]:pr-44'
+      : 'max-sm:[&_.mat-mdc-tab-header]:pr-12 sm:[&_.mat-mdc-tab-header]:pr-44';
+  });
 
   protected reviewUpdatedFaces(): void {
     if (!this.auth.isEdition() || this.router.currentNavigation()) return;
@@ -624,7 +644,7 @@ export class ManagePersonsComponent implements OnInit {
     });
     effect(() => {
       const t = this.personsToolbar();
-      if (t) { if (this.auth.isEdition() && (this.tab() === 'matches' || this.tab() === 'unassigned')) this.headerSlot.clear(t); else this.headerSlot.set(t); }
+      if (t) { if (this.toolbarInBar()) this.headerSlot.set(t); else this.headerSlot.clear(t); }
     });
     effect(() => {
       this.personsFilters.sort();
