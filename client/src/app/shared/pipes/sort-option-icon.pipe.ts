@@ -24,7 +24,7 @@ export const SORT_ICONS: Readonly<Record<string, string>> = {
   exposure_score: 'exposure',
   mean_luminance: 'brightness_6',
   histogram_spread: 'bar_chart',
-  dynamic_range_stops: 'tonality',
+  dynamic_range_stops: 'hdr_strong',
   comp_score: 'grid_on',
   power_point_score: 'grid_3x3',
   leading_lines_score: 'timeline',

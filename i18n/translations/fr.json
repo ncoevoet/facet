@@ -1014,8 +1014,7 @@
     },
     "gear_metric_label": "Métrique du graphique",
     "profile_series": "Scores",
-    "profile_series_count": "{count} score",
-    "profile_series_count_plural": "{count} scores"
+    "profile_series_count": "{count} scores"
   },
   "login": {
     "title": "Connexion",

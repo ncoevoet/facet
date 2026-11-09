@@ -559,7 +559,7 @@ export class StatsComponent {
   /** "N scores" once the swatches no longer fit the trigger; null while they do. */
   protected readonly profileSeriesSummary = computed(() => {
     const count = this.selectedProfileDefs().length;
-    return count > 3 ? this.i18n.t(count === 1 ? I18N.stats.profile_series_count : I18N.stats.profile_series_count_plural, { count }) : null;
+    return count > 3 ? this.i18n.t(I18N.stats.profile_series_count, { count }) : null;
   });
 
   protected onProfileSeriesChange(keys: string[]): void {
@@ -926,7 +926,8 @@ export class StatsComponent {
         responsive: true,
         maintainAspectRatio: false,
         plugins: {
-          legend: { display: false },
+          // Passive colour key for the multi-select: series are chosen there, so a legend click does nothing.
+          legend: { display: true, position: 'top', onClick: () => undefined },
           tooltip: { callbacks: { label: (ctx) => `${ctx.dataset.label}: ${(ctx.parsed.x ?? 0).toFixed(2)}` } },
         },
         scales: {

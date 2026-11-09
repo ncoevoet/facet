@@ -1014,8 +1014,7 @@
     },
     "gear_metric_label": "Diagrammmetrik",
     "profile_series": "Bewertungen",
-    "profile_series_count": "{count} Bewertung",
-    "profile_series_count_plural": "{count} Bewertungen"
+    "profile_series_count": "{count} Bewertungen"
   },
   "login": {
     "title": "Anmelden",

@@ -1014,8 +1014,7 @@
     },
     "gear_metric_label": "图表指标",
     "profile_series": "评分",
-    "profile_series_count": "{count} 项评分",
-    "profile_series_count_plural": "{count} 项评分"
+    "profile_series_count": "{count} 项评分"
   },
   "login": {
     "title": "登录",

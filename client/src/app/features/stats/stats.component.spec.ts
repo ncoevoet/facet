@@ -444,10 +444,20 @@ describe('StatsComponent', () => {
       expect(c().profileSeries()).toEqual(['aesthetic']);
     });
 
+    it('keeps a passive colour key: legend shown at the top, clicking it does nothing', () => {
+      const ctx = { canvas: document.createElement('canvas') } as unknown as CanvasRenderingContext2D;
+      const ref = { nativeElement: { getContext: () => ctx } };
+      (c() as any).buildGroupedHorizontalBar('profile-test', ref, ['a'], [{ label: 'x', data: [1], color: '#ff0000' }]);
+      const legend = (c() as any).charts.get('profile-test').options.plugins.legend;
+      expect(legend.display).toBe(true);
+      expect(legend.position).toBe('top');
+      expect(legend.onClick()).toBeUndefined();
+    });
+
     it('summarises more than three selected series as a count, passing the count placeholder', () => {
       const i18n = TestBed.inject(I18nService);
       vi.spyOn(i18n, 't').mockImplementation((key: string, params?: Record<string, unknown>) => key + (params ? JSON.stringify(params) : ''));
-      expect(c().profileSeriesSummary()).toBe('stats.profile_series_count_plural{"count":8}');
+      expect(c().profileSeriesSummary()).toBe('stats.profile_series_count{"count":8}');
       c().onProfileSeriesChange(['aggregate', 'aesthetic']);
       expect(c().profileSeriesSummary()).toBeNull();
     });

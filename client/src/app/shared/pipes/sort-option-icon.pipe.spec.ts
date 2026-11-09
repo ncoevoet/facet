@@ -16,6 +16,10 @@ describe('SortOptionIconPipe', () => {
     expect(pipe.transform('aesthetic')).toEqual({ text: '✦', classes: new MarkTonePipe().transform('quality') });
   });
 
+  it('draws the dynamic range with the same hdr_strong icon the metric section uses', () => {
+    expect(pipe.transform('dynamic_range_stops')).toEqual({ text: 'hdr_strong', classes: '' });
+  });
+
   it('falls back to sort for unknown columns', () => {
     expect(pipe.transform('unknown')).toEqual({ text: 'sort', classes: '' });
   });

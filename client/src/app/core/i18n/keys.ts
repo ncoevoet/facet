@@ -1054,7 +1054,6 @@ export const I18N = {
     gear_metric_label: "stats.gear_metric_label",
     profile_series: "stats.profile_series",
     profile_series_count: "stats.profile_series_count",
-    profile_series_count_plural: "stats.profile_series_count_plural",
   },
   login: {
     title: "login.title",

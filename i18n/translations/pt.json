@@ -1014,8 +1014,7 @@
     },
     "gear_metric_label": "Métrica do gráfico",
     "profile_series": "Pontuações",
-    "profile_series_count": "{count} pontuação",
-    "profile_series_count_plural": "{count} pontuações"
+    "profile_series_count": "{count} pontuações"
   },
   "login": {
     "title": "Entrar",
