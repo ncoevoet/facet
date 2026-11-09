@@ -35,10 +35,11 @@ let nextInstance = 0;
         <button #trigger cdkOverlayOrigin #origin="cdkOverlayOrigin" mat-stroked-button data-update-faces [disabled]="blocked()" [attr.aria-label]="I18N.persons.face_update.title | translate" [attr.aria-expanded]="expanded()" [attr.aria-controls]="panelId" (click)="open()"><mat-icon [class.max-sm:!m-0]="overlay()">person_search</mat-icon><span [class.max-sm:hidden]="overlay()">{{ I18N.persons.face_update.title | translate }}</span></button>
       </div>
       @if (overlay()) {
-        <!-- In the page-actions bar a 48 px row cannot grow: the panel floats under the trigger instead. -->
+        <!-- In the page-actions bar a 48 px row cannot grow: the panel floats under the trigger instead.
+             expanded() alone opens and closes it, so the overlay never detaches on its own Escape. -->
         <ng-template cdkConnectedOverlay [cdkConnectedOverlayOrigin]="origin" [cdkConnectedOverlayOpen]="expanded()"
                      [cdkConnectedOverlayPositions]="OVERLAY_POSITIONS" [cdkConnectedOverlayPush]="true" [cdkConnectedOverlayViewportMargin]="8"
-                     (overlayOutsideClick)="onOutsideClick($event)" (overlayKeydown)="onOverlayKeydown($event)">
+                     [cdkConnectedOverlayDisableClose]="true" (overlayOutsideClick)="onOutsideClick($event)" (overlayKeydown)="onOverlayKeydown($event)">
           <ng-container [ngTemplateOutlet]="panelTemplate" />
         </ng-template>
       } @else if (expanded()) {

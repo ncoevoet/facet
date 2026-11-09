@@ -27,7 +27,9 @@ import { InfiniteScrollDirective } from '../../shared/directives/infinite-scroll
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     @for (group of groups(); track group.date) {
-      <section class="mb-4 rounded-xl bg-[var(--mat-sys-surface-container)] p-3 sm:p-4" [attr.data-timeline-date]="group.date" [attr.aria-label]="group.date | captureDate">
+      <!-- The feed only grows while scrolling, so off-screen days skip layout and paint, as the gallery's cards do. -->
+      <section class="mb-4 rounded-xl bg-[var(--mat-sys-surface-container)] p-3 sm:p-4" [attr.data-timeline-date]="group.date" [attr.aria-label]="group.date | captureDate"
+               [style.content-visibility]="'auto'" [style.contain-intrinsic-size]="'auto 22rem'">
         <header class="flex min-h-11 flex-wrap items-baseline justify-between gap-x-3 gap-y-1 py-0">
           <h2 class="m-0 text-base font-semibold tabular-nums">{{ group.date | captureDate }}</h2>
           <a mat-button routerLink="/" [queryParams]="group.date | timelineDayQuery:visibility()">

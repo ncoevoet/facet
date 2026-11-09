@@ -7,7 +7,6 @@ import { MatButtonModule } from '@angular/material/button';
 import { MatButtonToggleModule } from '@angular/material/button-toggle';
 import { MatIconModule } from '@angular/material/icon';
 import { MatTooltipModule } from '@angular/material/tooltip';
-import { ApiService } from '../../core/services/api.service';
 import { AuthService } from '../../core/services/auth.service';
 import { i18nKeys } from '../../core/i18n/keys';
 import { TranslatePipe } from '../../shared/pipes/translate.pipe';
@@ -18,7 +17,7 @@ import { TimelineFiltersService } from './timeline-filters.service';
 import { timelineDayQuery } from './timeline-day-query.pipe';
 import { densityBuckets, densityRange, type DensityBucket, type DensityResponse } from './timeline-density.util';
 import { TimelineLoadFailureComponent } from './timeline-load-failure.component';
-import { timelineReadContext } from './timeline-read-context';
+import { TimelineReads } from './timeline-reads.service';
 
 @Component({
   selector: 'app-timeline-density',
@@ -86,7 +85,7 @@ export class TimelineDensityComponent {
   private static nextId = 0;
   protected readonly helpId = `timeline-density-${TimelineDensityComponent.nextId++}`;
   protected readonly I18N = i18nKeys();
-  private readonly api = inject(ApiService);
+  private readonly reads = inject(TimelineReads);
   private readonly auth = inject(AuthService);
   private readonly store = inject(GalleryStore);
   private readonly filters = inject(TimelineFiltersService);
@@ -129,8 +128,11 @@ export class TimelineDensityComponent {
     const rows = this.buckets(); const key = this.focusKey();
     return rows.some(row => row.key === key) ? key : rows[0]?.key ?? '';
   });
-  protected readonly unitLabel = computed(() => this.unit() === 'week' && this.year() ? this.I18N.timeline.density_weeks
-    : this.month() ? this.I18N.timeline.density_days : this.year() ? this.I18N.timeline.density_months : this.I18N.timeline.density_years);
+  protected readonly unitLabel = computed(() => {
+    if (this.unit() === 'week' && this.year()) return this.I18N.timeline.density_weeks;
+    if (this.month()) return this.I18N.timeline.density_days;
+    return this.year() ? this.I18N.timeline.density_months : this.I18N.timeline.density_years;
+  });
   protected readonly rendered = computed(() => {
     const rows = this.buckets(); const log = this.logScale(); const range = this.range();
     const scale = (count: number) => log ? Math.log1p(count) : count;
@@ -155,7 +157,7 @@ export class TimelineDensityComponent {
         && year === this.year() && month === this.month() && unit === this.unit() && rows === this.membership.rows() && revision === this.membership.membershipRevision()
         && visibility === this.store.viewFilterParams() && from === this.filters.dateFrom() && to === this.filters.dateTo();
       this.currentRead = current;
-      const request = this.api.get<DensityResponse>(path, params, timelineReadContext()).subscribe({
+      const request = this.reads.get<DensityResponse>(path, params).subscribe({
         next: response => {
           if (!current()) return;
           const built = densityBuckets(response, year, month, { unit, from, to });

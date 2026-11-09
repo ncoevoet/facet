@@ -194,7 +194,7 @@ All notable changes to Facet are documented in this file.
 
 - **Review matches works on large libraries.** Once named people had more than 20,000 faces between them it refused to suggest anyone and showed the same list as Unassigned. Past that budget each person now contributes an evenly spread sample of their faces; only more than 1,000 named people still falls back to browsing without suggestions.
 - On an album page, Export with photos selected exports the selection instead of the whole album.
-- Smart albums no longer read "0 photos": the album list reports their count as unknown and the card shows "Smart".
+- Smart albums no longer read "0 photos": the album list, and creating, opening or editing one, report its count as unknown, and the card shows "Smart".
 - Organization history disables Restore on an entry a later change of the same kind superseded, and says so, instead of failing with an unexplained 409. Star- or favourite-only entries no longer print an unchanged review line, and an unset state reads "Not set".
 - The cull dialog titles a failed dry run "Could not preview" and no longer repeats it in a snackbar.
 - Applying a manual tag confirms how many photos changed, and Replace all is no longer styled as the primary action.

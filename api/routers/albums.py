@@ -504,7 +504,7 @@ def list_albums(
         albums = []
         for row in rows:
             album = _album_to_dict(row)
-            # A smart album's membership is a live filter, never stored rows: 0 would lie.
+            # Counted in one query for the page; _stored_photo_count says why a smart album has none.
             album['photo_count'] = None if album.get('is_smart') else count_map.get(row['id'], 0)
             album['first_photo_path'] = _get_first_photo_path(conn, row)
             albums.append(album)
@@ -517,6 +517,17 @@ def list_albums(
             'total_pages': total_pages,
             'has_more': page < total_pages,
         }
+
+
+def _stored_photo_count(conn, album: dict) -> Optional[int]:
+    """The album's stored member count. A smart album's membership is a live filter,
+    never stored rows, so it has none: 0 would claim it is empty."""
+    if album.get('is_smart'):
+        return None
+    row = conn.execute(
+        "SELECT COUNT(*) FROM album_photos WHERE album_id = ?", (album['id'],)
+    ).fetchone()
+    return row[0] if row else 0
 
 
 @router.post("/api/albums")
@@ -536,7 +547,7 @@ def create_album(
         conn.commit()
         album = conn.execute("SELECT * FROM albums WHERE id = ?", (cursor.lastrowid,)).fetchone()
         result = _album_to_dict(album)
-        result['photo_count'] = 0
+        result['photo_count'] = None if result.get('is_smart') else 0
         return result
 
 
@@ -550,10 +561,7 @@ def get_album(
         user_id = _get_user_id(user)
         album = _check_album_access(conn, album_id, user_id)
         result = _album_to_dict(album)
-        row = conn.execute(
-            "SELECT COUNT(*) FROM album_photos WHERE album_id = ?", (album_id,)
-        ).fetchone()
-        result['photo_count'] = row[0] if row else 0
+        result['photo_count'] = _stored_photo_count(conn, result)
         return result
 
 
@@ -594,10 +602,7 @@ def update_album(
 
         album = conn.execute("SELECT * FROM albums WHERE id = ?", (album_id,)).fetchone()
         result = _album_to_dict(album)
-        row = conn.execute(
-            "SELECT COUNT(*) FROM album_photos WHERE album_id = ?", (album_id,)
-        ).fetchone()
-        result['photo_count'] = row[0] if row else 0
+        result['photo_count'] = _stored_photo_count(conn, result)
         return result
 
 

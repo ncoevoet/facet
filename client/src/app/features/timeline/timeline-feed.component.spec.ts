@@ -61,6 +61,14 @@ describe('Timeline photo feed', () => {
     v.dispose();
   });
 
+  it('lets the browser skip off-screen days, since the feed only grows while scrolling', async () => {
+    const v = await setup();
+    const day = v.root.querySelector<HTMLElement>('section[data-timeline-date]')!;
+    expect(day.style.getPropertyValue('content-visibility')).toBe('auto');
+    expect(day.style.getPropertyValue('contain-intrinsic-size')).toBe('auto 22rem');
+    v.dispose();
+  });
+
   it('retains loaded dates on a failed next page and retries the same cursor', async () => {
     const v = await setup(); v.api.get.mockReturnValueOnce(throwError(() => new Error('offline')));
     await v.reach();

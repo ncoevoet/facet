@@ -3973,6 +3973,21 @@ describe('GalleryComponent', () => {
       expect(disclosure.open).toBe(false);
     });
 
+    it('keeps the Actions disclosure open under a menu it opens, and closes it once a menu command runs', () => {
+      const f = render();
+      const disclosure = bar(f)!.querySelector<HTMLDetailsElement>('[data-selection-more]')!;
+      disclosure.open = true;
+      const rate = labelled(f, I18N.gallery.selection.rate)!;
+      expect(rate.getAttribute('aria-haspopup')).toBe('menu');
+      rate.click();
+      expect(disclosure.open).toBe(true);
+      const menu = f.debugElement.queryAll(By.directive(MatMenuTrigger)).find(d => d.nativeElement === rate)!.injector.get(MatMenuTrigger);
+      menu.closeMenu();
+      expect(disclosure.open).toBe(true);
+      menu.menu!.close.emit('click');
+      expect(disclosure.open).toBe(false);
+    });
+
     it('uses an icon present in the shipped font for Cull to folder', () => {
       const f = render();
       expect(labelled(f, I18N.cull.action)!.querySelector('mat-icon')!.textContent).toBe('move_to_inbox');

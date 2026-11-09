@@ -43,7 +43,7 @@ import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
 import { MatBottomSheet, MatBottomSheetModule } from '@angular/material/bottom-sheet';
 import { HttpErrorResponse } from '@angular/common/http';
 import { MatDialog, MatDialogModule } from '@angular/material/dialog';
-import { MatMenuModule, MatMenuTrigger } from '@angular/material/menu';
+import { MatMenuModule, MatMenuTrigger, MenuCloseReason } from '@angular/material/menu';
 import { MatTooltip, MatTooltipModule } from '@angular/material/tooltip';
 import { ActivatedRoute, NavigationStart, Router, RouterOutlet } from '@angular/router';
 import { filter, firstValueFrom, takeUntil } from 'rxjs';
@@ -883,7 +883,7 @@ const SET_KIND_TOGGLE: Record<string, keyof HiddenFilterFlags> = {
               <button mat-button disabledInteractive (click)="selectionActions.batchFavorite()" [matTooltip]="I18N.gallery.selection.favorite | translate" [attr.aria-label]="I18N.gallery.selection.favorite | translate"><mat-icon>favorite</mat-icon><span>{{ I18N.gallery.selection.favorite | translate }}</span></button>
               <button mat-button disabledInteractive (click)="selectionActions.batchReview('undecided')" [matTooltip]="I18N.review.reset | translate" [attr.aria-label]="I18N.review.reset | translate"><mat-icon>restart_alt</mat-icon><span>{{ I18N.review.reset | translate }}</span></button>
               <button mat-button disabledInteractive [matMenuTriggerFor]="rateMenu" [matTooltip]="I18N.gallery.selection.rate | translate" [attr.aria-label]="I18N.gallery.selection.rate | translate"><mat-icon>star</mat-icon><span>{{ I18N.gallery.selection.rate | translate }}</span></button>
-              <mat-menu #rateMenu="matMenu">
+              <mat-menu #rateMenu="matMenu" (closed)="closeSelectionMoreAfterMenu($event)">
                 @for (star of [1, 2, 3, 4, 5]; track star) {
                   <button mat-menu-item (click)="selectionActions.batchRate(star)">
                     {{ '★'.repeat(star) }}
@@ -896,7 +896,7 @@ const SET_KIND_TOGGLE: Record<string, keyof HiddenFilterFlags> = {
             }
             @if (auth.isEdition() && store.config()?.features?.show_albums) {
               <button mat-button disabledInteractive [matMenuTriggerFor]="albumMenu" [matTooltip]="I18N.albums.add_photos | translate" [attr.aria-label]="I18N.albums.add_photos | translate"><mat-icon>photo_library</mat-icon><span>{{ I18N.albums.add_photos | translate }}</span></button>
-              <mat-menu #albumMenu="matMenu">
+              <mat-menu #albumMenu="matMenu" (closed)="closeSelectionMoreAfterMenu($event)">
                 @for (album of albumOptions(); track album.id) {
                   <button mat-menu-item (click)="selectionActions.addToAlbum(album.id)">{{ album.name }}</button>
                 }
@@ -911,7 +911,7 @@ const SET_KIND_TOGGLE: Record<string, keyof HiddenFilterFlags> = {
                  culling group at all. Here the frames are in front of the user. -->
             @if (auth.isEdition()) {
               <button mat-button disabledInteractive [matMenuTriggerFor]="sequenceMenu" [matTooltip]="I18N.gallery.selection.mark_sequence | translate" [attr.aria-label]="I18N.gallery.selection.mark_sequence | translate"><mat-icon>panorama_photosphere</mat-icon><span>{{ I18N.gallery.selection.mark_sequence | translate }}</span></button>
-              <mat-menu #sequenceMenu="matMenu">
+              <mat-menu #sequenceMenu="matMenu" (closed)="closeSelectionMoreAfterMenu($event)">
                 <button mat-menu-item (click)="selectionActions.markAsPanorama('panorama')">
                   <mat-icon>{{ 'panorama' | sequenceKindIcon }}</mat-icon>
                   {{ I18N.gallery.selection.mark_panorama | translate }}
@@ -946,7 +946,7 @@ const SET_KIND_TOGGLE: Record<string, keyof HiddenFilterFlags> = {
             }
             @if (auth.downloadProfiles().length) {
               <button mat-icon-button [matMenuTriggerFor]="dlMenu" [disabled]="selectionActions.downloading()" [matTooltip]="(selectionActions.downloading() ? I18N.photo_detail.downloading : I18N.gallery.selection.download) | translate" [attr.aria-label]="(selectionActions.downloading() ? I18N.photo_detail.downloading : I18N.gallery.selection.download) | translate">@if (selectionActions.downloading()) { <mat-spinner diameter="18" [attr.aria-label]="I18N.ui.labels.loading | translate"></mat-spinner> } @else { <mat-icon>download</mat-icon> }</button>
-              <mat-menu #dlMenu="matMenu">
+              <mat-menu #dlMenu="matMenu" (closed)="closeSelectionMoreAfterMenu($event)">
                 <button mat-menu-item (click)="selectionActions.downloadSelected()"><mat-icon>image</mat-icon> {{ I18N.download.type_original | translate }}</button>
                 @for (profile of auth.downloadProfiles(); track profile) {
                   <button mat-menu-item (click)="selectionActions.downloadSelected('darktable', profile)"><mat-icon>photo_filter</mat-icon> {{ profile }}</button>
@@ -3037,10 +3037,20 @@ export class GalleryComponent implements OnInit, OnDestroy {
   protected readonly closeDisclosure = closeDetailsOnEscape;
   private readonly selectionMoreRef = viewChild<ElementRef<HTMLDetailsElement>>('selectionMore');
 
-  /** The Actions disclosure is a menu: running one of its commands closes it. */
+  /** The Actions disclosure is a menu: running one of its commands closes it, opening one of its menus does not. */
   protected closeSelectionMoreOnCommand(event: Event): void {
+    const button = event.target instanceof Element ? event.target.closest('button') : null;
+    if (button && !button.hasAttribute('aria-haspopup')) this.closeSelectionMore();
+  }
+
+  /** A command chosen from one of the disclosure's menus runs it; Escape or Tab only leaves the menu. */
+  protected closeSelectionMoreAfterMenu(reason: MenuCloseReason): void {
+    if (reason === 'click') this.closeSelectionMore();
+  }
+
+  private closeSelectionMore(): void {
     const details = this.selectionMoreRef()?.nativeElement;
-    if (details && event.target instanceof Element && event.target.closest('button')) details.open = false;
+    if (details) details.open = false;
   }
 
   protected closeMobileSearch(event: Event): void {

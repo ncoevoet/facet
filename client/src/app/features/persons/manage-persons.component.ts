@@ -733,8 +733,11 @@ export class ManagePersonsComponent implements OnInit {
         }),
       );
       const page = res.persons ?? [];
-      this.ignored.update((list) => (append ? [...list, ...page.filter((p) => !list.some((q) => q.id === p.id))] : page));
-      this.ignoredTotal.set(res.total ?? page.length);
+      const added = append ? page.filter((p) => !this.ignored().some((q) => q.id === p.id)) : page;
+      this.ignored.update((list) => (append ? [...list, ...added] : page));
+      // Un-hides and deletes shift the server's pages under the loaded rows, so a page
+      // bringing nothing new ends the list instead of re-arming the scroll sentinel forever.
+      this.ignoredTotal.set(append && !added.length ? this.ignored().length : res.total ?? page.length);
     } catch {
       // A first page fails silently: the section just won't render.
       if (append) { this.ignoredPage--; this.ignoredError.set(true); }

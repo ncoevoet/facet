@@ -927,7 +927,7 @@ export class StatsComponent {
         maintainAspectRatio: false,
         plugins: {
           // Passive colour key for the multi-select: series are chosen there, so a legend click does nothing.
-          legend: { display: true, position: 'top', onClick: () => undefined },
+          legend: { display: true, position: 'top', onClick: () => undefined, labels: { color: text, boxWidth: 12 } },
           tooltip: { callbacks: { label: (ctx) => `${ctx.dataset.label}: ${(ctx.parsed.x ?? 0).toFixed(2)}` } },
         },
         scales: {

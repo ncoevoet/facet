@@ -527,6 +527,17 @@ describe('ManagePersonsComponent', () => {
       expect(component.ignoredTotal()).toBe(201);
     });
 
+    it('ends the Ignored section when a page brings no new person, so scrolling stops asking', async () => {
+      mockApi.get.mockReturnValue(of({ persons: [{ ...waiter, is_hidden: true }], total: 2 }));
+      await component.loadIgnored();
+      mockApi.get.mockReturnValue(of({ persons: [], total: 2 }));
+      await component.loadMoreIgnored();
+      expect(component.ignoredTotal()).toBe(1);
+      mockApi.get.mockClear();
+      await component.loadMoreIgnored();
+      expect(mockApi.get).not.toHaveBeenCalled();
+    });
+
     it('does not load the Ignored section for a read-only user', async () => {
       mockAuth.isEdition.mockReturnValue(false);
 

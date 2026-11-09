@@ -1393,3 +1393,21 @@ class TestListAlbumsSmartCount:
         assert by_id[manual_id]["photo_count"] == 2
         assert by_id[smart_id]["is_smart"]
         assert by_id[smart_id]["photo_count"] is None
+
+    def test_smart_album_reads_null_from_create_get_and_update(self, client):
+        """The list reports a smart album's count as null; its other routes must agree,
+        since the client replaces a list entry with what they return."""
+        created = client.post("/api/albums", json={
+            "name": "smart everywhere", "is_smart": True,
+            "smart_filter_json": '{"path_prefix": "' + self.PREFIX + '"}',
+        })
+        assert created.status_code == 200
+        album = created.json()
+        try:
+            assert album["is_smart"] and album["photo_count"] is None
+            assert client.get(f"/api/albums/{album['id']}").json()["photo_count"] is None
+            updated = client.put(f"/api/albums/{album['id']}", json={"name": "smart renamed"})
+            assert updated.status_code == 200
+            assert updated.json()["photo_count"] is None
+        finally:
+            client.delete(f"/api/albums/{album['id']}")

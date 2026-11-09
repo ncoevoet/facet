@@ -452,6 +452,8 @@ describe('StatsComponent', () => {
       expect(legend.display).toBe(true);
       expect(legend.position).toBe('top');
       expect(legend.onClick()).toBeUndefined();
+      expect(legend.labels.boxWidth).toBe(12);
+      expect(legend.labels.color).toBe((c() as any).charts.get('profile-test').options.scales.x.ticks.color);
     });
 
     it('summarises more than three selected series as a count, passing the count placeholder', () => {

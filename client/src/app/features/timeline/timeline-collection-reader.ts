@@ -1,14 +1,13 @@
 import { Directive, DestroyRef, ElementRef, Injector, afterNextRender, computed, effect, inject, signal } from '@angular/core';
 import { timelineRouteActivity } from './timeline-route-activity';
 import { Subscription } from 'rxjs';
-import { ApiService } from '../../core/services/api.service';
 import { AuthService } from '../../core/services/auth.service';
-import { timelineReadContext } from './timeline-read-context';
+import { TimelineReads } from './timeline-reads.service';
 
 /** Shared read lifecycle for the optional year/month/day calendar views. */
 @Directive()
 export abstract class TimelineCollectionReader {
-  private readonly api = inject(ApiService);
+  private readonly reads = inject(TimelineReads);
   private readonly auth = inject(AuthService);
   private readonly host = inject<ElementRef<HTMLElement>>(ElementRef, { optional: true });
   private readonly injector = inject(Injector);
@@ -50,7 +49,7 @@ export abstract class TimelineCollectionReader {
     const current = () => generation === this.generation && this.active()
       && scope.owner === this.auth.status() && scope.token === this.auth.token;
     this.loading.set(true);
-    this.request = this.api.get<T>(path, params, timelineReadContext()).subscribe({
+    this.request = this.reads.get<T>(path, params).subscribe({
       next: response => { if (current()) {
         const button = this.retryButton; this.retryButton = null;
         const restore = !!button && button.ownerDocument.activeElement === button;

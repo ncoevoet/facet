@@ -360,6 +360,25 @@ describe('FaceUpdateControlComponent', () => {
       dispose();
     });
 
+    it('keeps the panel and the trigger in step when Escape lands outside the panel', async () => {
+      const { root, api, open, settle, dispose } = await render('overlay');
+      const escape = () => document.body.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', keyCode: 27, bubbles: true, cancelable: true }));
+      const trigger = root.querySelector<HTMLButtonElement>('[data-update-faces]')!;
+      api.get.mockImplementation((url: string) => of(url.endsWith('/preview') ? preview : url.endsWith('/jobs') ? [receipt] : receipt));
+      await open(); panel()!.querySelector<HTMLDetailsElement>('details')!.open = true;
+      panel()!.querySelector<HTMLButtonElement>('details button')!.click(); await settle();
+      panel()!.querySelector<HTMLButtonElement>('[data-stop-faces]')!.click(); await settle();
+      escape(); await settle();
+      expect(panel()?.querySelector('[data-stop-faces-preview]')).toBeNull();
+      expect(panel()).not.toBeNull();
+      expect(trigger.getAttribute('aria-expanded')).toBe('true');
+      escape(); await settle();
+      expect(panel()).toBeNull();
+      expect(trigger.getAttribute('aria-expanded')).toBe('false');
+      expect(api.post).not.toHaveBeenCalled();
+      dispose();
+    });
+
     it('closes on an outside click, but a click on the trigger toggles rather than reopens', async () => {
       const { root, open, settle, dispose } = await render('overlay');
       await open();
