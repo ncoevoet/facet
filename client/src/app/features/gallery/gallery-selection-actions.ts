@@ -382,14 +382,14 @@ export class GallerySelectionActions {
   }
 
   openExportDialog(explicitPaths?: string[]): void {
-    // Explicit paths name what to export, so the album route below -- which
-    // exports the whole album whatever is selected -- must not claim them.
+    // Explicit paths and a live selection both name what to export, so the
+    // album route below -- the whole album -- only claims an empty selection.
     if (explicitPaths !== undefined) {
       this.dialog.open(ExportEditorDialogComponent, { width: '420px', data: { paths: [...explicitPaths] } });
       return;
     }
     const albumId = this.route.snapshot.paramMap.get('albumId');
-    if (albumId) {
+    if (albumId && !this.selectionCount()) {
       this.dialog.open(ExportEditorDialogComponent, { width: '420px', data: { albumId: +albumId } });
       return;
     }

@@ -5010,8 +5010,18 @@ describe('GalleryComponent', () => {
         expect((dialog.open as Mock).mock.calls[0][1].data).toEqual({ paths: ['/x.jpg'] });
       });
 
-      it('still exports the whole album on an album route when no paths are given', () => {
+      it('exports the live selection, not the whole album, on an album route when no paths are given', () => {
         routeMock.snapshot.paramMap.get = vi.fn(() => '42');
+
+        component.selectionActions.openExportDialog();
+
+        expect((dialog.open as Mock).mock.calls[0][1].data).toEqual({ paths: ['/a.jpg', '/b.jpg', '/c.jpg'] });
+      });
+
+      it('still exports the whole album on an album route when nothing is selected', () => {
+        routeMock.snapshot.paramMap.get = vi.fn(() => '42');
+        mockStore.selectedPaths.set(new Set());
+        mockStore.selectionCount.set(0);
 
         component.selectionActions.openExportDialog();
 
