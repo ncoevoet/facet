@@ -460,7 +460,7 @@ export class ComparisonWorkspaceComponent {
       zoomInDisabled: this.linked() ? this.panes().some(p => (this.paneZoom().get(p.path) ?? FIT_ZOOM).scale >= SyncedZoomComponent.MAX_SCALE) : zoom.scale >= SyncedZoomComponent.MAX_SCALE,
       previewFailed: this.readiness().get(photo.path) === 'failed',
       kindKey: this.I18N.gallery.compare.rendition[rendition?.kind ?? 'thumbnail'],
-      phaseKey: rendition?.fellBack || (this.readiness().get(photo.path) === 'failed' && rendition?.kind === 'thumbnail') ? this.I18N.gallery.compare.rendition.fallback : this.I18N.gallery.compare.rendition[rendition?.phase ?? 'loading'],
+      phaseKey: rendition?.fellBack ? this.I18N.gallery.compare.rendition.source_fallback : this.readiness().get(photo.path) === 'failed' && rendition?.kind === 'thumbnail' ? this.I18N.gallery.compare.rendition.fallback : this.I18N.gallery.compare.rendition[rendition?.phase ?? 'loading'],
       scaleLabel: `${Number(zoom.scale.toFixed(1))}×`,
     };
   }));

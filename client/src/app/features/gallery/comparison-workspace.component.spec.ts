@@ -541,7 +541,9 @@ describe('ComparisonWorkspaceComponent', () => {
     panes[1].componentInstance.renditionChange.emit({ kind: 'preview', phase: 'ready', width: 1440, height: 960, fellBack: true });
     fixture.detectChanges();
     const source = fixture.nativeElement.querySelectorAll('[data-pane-source]')[1] as HTMLElement;
-    expect(source.textContent).toContain('gallery.compare.rendition.fallback');
+    // The pane shows the preview, so it names what failed: the source, not the preview.
+    expect(source.textContent).toContain('gallery.compare.rendition.source_fallback');
+    expect(source.textContent).not.toContain('gallery.compare.rendition.fallback');
     expect(source.querySelector('[data-retry-pane]')).not.toBeNull();
   });
 

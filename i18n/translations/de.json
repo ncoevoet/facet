@@ -1572,7 +1572,8 @@
         "limit": "Der Vergleich verwendet Basisbilder ohne die Bildstile des Bearbeitungsbereichs. Ist eine Vorschau nicht verfügbar, kann die gespeicherte Miniatur angezeigt werden. Quellbilder werden möglicherweise für den Browser umgewandelt. Dies ist kein RAW-Editor und erlaubt keine Beurteilung des Sensor-Clippings.",
         "fit_short": "Einpassen",
         "sources": "Bildquellen und Vergrößerung",
-        "fallback": "Vorschau nicht verfügbar"
+        "fallback": "Vorschau nicht verfügbar",
+        "source_fallback": "Quellbild nicht verfügbar"
       },
       "inspection": {
         "title": "Prüfen",

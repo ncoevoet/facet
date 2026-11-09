@@ -1572,7 +1572,8 @@
         "limit": "A comparação usa imagens base, sem os estilos do espaço de edição. Se a pré-visualização não estiver disponível, pode ser apresentada a miniatura guardada. As imagens de origem podem ser convertidas para apresentação no navegador; isto não é um editor RAW nem uma avaliação do recorte dos valores do sensor.",
         "fit_short": "Ajustar",
         "sources": "Origem das imagens e ampliação",
-        "fallback": "Pré-visualização indisponível"
+        "fallback": "Pré-visualização indisponível",
+        "source_fallback": "Imagem de origem indisponível"
       },
       "inspection": {
         "title": "Inspecionar",

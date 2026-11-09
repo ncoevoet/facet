@@ -1572,7 +1572,8 @@
         "limit": "La comparaison utilise les images de base, sans les styles de l’espace de retouche. Si l’aperçu est indisponible, la miniature enregistrée peut être utilisée. Les images sources peuvent être converties pour le navigateur. Il ne s’agit ni d’un éditeur RAW ni d’une évaluation de l’écrêtage du capteur.",
         "fit_short": "Ajuster",
         "sources": "Sources des images et grossissement",
-        "fallback": "Aperçu indisponible"
+        "fallback": "Aperçu indisponible",
+        "source_fallback": "Image source indisponible"
       },
       "inspection": {
         "title": "Inspecter",

@@ -1572,7 +1572,8 @@
         "limit": "Il confronto usa le immagini di base, senza gli stili dell’area di modifica. Se l’anteprima non è disponibile, può essere usata la miniatura salvata. Le immagini sorgente possono essere convertite per il browser; questa funzione non è un editor RAW né una valutazione della saturazione del sensore.",
         "fit_short": "Adatta",
         "sources": "Sorgenti delle immagini e ingrandimento",
-        "fallback": "Anteprima non disponibile"
+        "fallback": "Anteprima non disponibile",
+        "source_fallback": "Immagine sorgente non disponibile"
       },
       "inspection": {
         "title": "Esamina",

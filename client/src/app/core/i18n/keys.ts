@@ -1613,6 +1613,7 @@ export const I18N = {
         fit_short: "gallery.compare.rendition.fit_short",
         sources: "gallery.compare.rendition.sources",
         fallback: "gallery.compare.rendition.fallback",
+        source_fallback: "gallery.compare.rendition.source_fallback",
       },
       inspection: {
         title: "gallery.compare.inspection.title",
