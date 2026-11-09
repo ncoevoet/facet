@@ -1351,4 +1351,34 @@ describe('App', () => {
       },
     );
   });
+  describe('copy version (user menu)', () => {
+    afterEach(() => Reflect.deleteProperty(navigator, 'clipboard'));
+
+    async function copy(config: Partial<ViewerConfig> | null) {
+      const open = vi.fn();
+      const { app, mockStore } = createApp('/', [{ provide: MatSnackBar, useValue: { open } }]);
+      (mockStore.config as unknown as { set(v: unknown): void }).set(config);
+      const write = vi.fn(() => Promise.resolve());
+      Object.defineProperty(navigator, 'clipboard', { value: { writeText: write }, configurable: true });
+      await (app as unknown as { copyVersion(): Promise<void> }).copyVersion();
+      return { write, open };
+    }
+
+    it('copies the version with the build and confirms', async () => {
+      const { write, open } = await copy({ version: '1.28.0', build: 'local/win-test@cf81f0b8' } as Partial<ViewerConfig>);
+      expect(write).toHaveBeenCalledWith(`${I18N.ui.version} (local/win-test@cf81f0b8)`);
+      expect(open).toHaveBeenCalledWith(I18N.notifications.copied, '', { duration: 2000 });
+    });
+
+    it('copies the version alone when the server sends no build', async () => {
+      const { write } = await copy({ version: '1.28.0' } as Partial<ViewerConfig>);
+      expect(write).toHaveBeenCalledWith(I18N.ui.version);
+    });
+
+    it('does nothing before the config has loaded', async () => {
+      const { write, open } = await copy(null);
+      expect(write).not.toHaveBeenCalled();
+      expect(open).not.toHaveBeenCalled();
+    });
+  });
 });
