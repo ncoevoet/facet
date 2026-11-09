@@ -7,6 +7,7 @@ import { MatDialog } from '@angular/material/dialog';
 import { MatSnackBar } from '@angular/material/snack-bar';
 import { By } from '@angular/platform-browser';
 import { PersonCardComponent } from '../../shared/components/person-card/person-card.component';
+import { InfiniteScrollDirective } from '../../shared/directives/infinite-scroll.directive';
 import { ApiService } from '../../core/services/api.service';
 import { HeaderSlotService } from '../../core/services/header-slot.service';
 import { ScanService } from '../../core/services/scan.service';
@@ -997,6 +998,34 @@ describe('ManagePersonsComponent', () => {
         if (params?.hidden_only) return of({ persons: [], total: 0 });
         return of(named);
       });
+    });
+
+    it('loads the next Ignored page on scroll, and stops on a failure until Retry', async () => {
+      const original = mockApi.get.getMockImplementation()!;
+      const hidden = (id: number) => ({ id, name: null, face_count: 2, face_thumbnail: true, is_hidden: true });
+      mockApi.get.mockImplementation((url: string, params?: { hidden_only?: boolean; page?: number }) =>
+        params?.hidden_only ? of({ persons: [hidden(100 + (params.page ?? 1))], total: 3 }) : original(url, params));
+      withTab(null);
+      const fixture = await render();
+      fixture.componentInstance.ignoredExpanded.set(true); fixture.detectChanges();
+      const root = fixture.nativeElement as HTMLElement;
+      const sentinel = () => root.querySelector('[data-ignored-more] [data-ignored-sentinel]');
+      const reach = () => fixture.debugElement.query(By.css('[data-ignored-sentinel]')).injector.get(InfiniteScrollDirective).scrollReached.emit();
+      expect(sentinel()).not.toBeNull();
+      expect(root.textContent).not.toContain('persons.load_more');
+      mockApi.get.mockImplementationOnce(() => throwError(() => ({ status: 500 })));
+      reach(); await fixture.whenStable(); fixture.detectChanges();
+      expect(sentinel()).toBeNull();
+      expect(root.querySelector('[data-ignored-more] [role="alert"]')?.textContent).toContain('persons.ignored_more_error');
+      root.querySelector<HTMLButtonElement>('[data-ignored-retry]')!.click();
+      await fixture.whenStable(); fixture.detectChanges();
+      expect(mockApi.get).toHaveBeenLastCalledWith('/persons', { hidden_only: true, page: 2, per_page: 200, sort: 'count_desc' });
+      expect(fixture.componentInstance.ignored().map((p) => p.id)).toEqual([101, 102]);
+      expect(root.querySelector('[data-ignored-more] [role="alert"]')).toBeNull();
+      expect(sentinel()).not.toBeNull();
+      reach(); await fixture.whenStable(); fixture.detectChanges();
+      expect(fixture.componentInstance.ignored().map((p) => p.id)).toEqual([101, 102, 103]);
+      expect(root.querySelector('[data-ignored-more]')).toBeNull();
     });
 
     it('opens on Named first, even with persons waiting for a name', async () => {

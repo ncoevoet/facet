@@ -424,9 +424,17 @@ export type NamingSort = 'faces' | 'recent';
               }
             </div>
             @if (ignored().length < ignoredTotal()) {
-              <div class="flex items-center justify-center gap-3 px-4 pb-4 text-sm">
+              <div data-ignored-more class="flex flex-col items-center gap-3 px-4 pb-4 text-sm">
                 <span class="text-[var(--mat-sys-on-surface-variant)]">{{ I18N.persons.ignored_shown_of | translate:{ shown: ignored().length, total: ignoredTotal() } }}</span>
-                <button mat-button [disabled]="ignoredLoading()" (click)="loadMoreIgnored()">{{ I18N.persons.load_more | translate }}</button>
+                <!-- The sentinel exists only between reads, so it re-fires once a page lands; a failure stops it until Retry. -->
+                @if (ignoredError()) {
+                  <p role="alert" class="m-0">{{ I18N.persons.ignored_more_error | translate }}</p>
+                  <button mat-button data-ignored-retry (click)="loadMoreIgnored()">{{ I18N.gallery.load_error.retry | translate }}</button>
+                } @else if (ignoredLoading()) {
+                  <mat-spinner diameter="36" [attr.aria-label]="I18N.ui.labels.loading | translate" />
+                } @else {
+                  <div appInfiniteScroll data-ignored-sentinel class="h-px w-full" (scrollReached)="loadMoreIgnored()"></div>
+                }
               </div>
             }
           }
@@ -603,6 +611,8 @@ export class ManagePersonsComponent implements OnInit {
   /** Every hidden person, from the response; the section loads them a page at a time. */
   readonly ignoredTotal = signal(0);
   readonly ignoredLoading = signal(false);
+  /** A next page of the Ignored section failed; scrolling stops loading until Retry. */
+  readonly ignoredError = signal(false);
   readonly ignoredExpanded = signal(false);
   private ignoredPage = 1;
   private readonly ignoredPerPage = 200;
@@ -715,7 +725,7 @@ export class ManagePersonsComponent implements OnInit {
   }
 
   private async fetchIgnored(append: boolean): Promise<void> {
-    this.ignoredLoading.set(true);
+    this.ignoredLoading.set(true); this.ignoredError.set(false);
     try {
       const res = await firstValueFrom(
         this.api.get<PersonsResponse>('/persons', {
@@ -726,8 +736,8 @@ export class ManagePersonsComponent implements OnInit {
       this.ignored.update((list) => (append ? [...list, ...page.filter((p) => !list.some((q) => q.id === p.id))] : page));
       this.ignoredTotal.set(res.total ?? page.length);
     } catch {
-      // silent: the section just won't render
-      if (append) this.ignoredPage--;
+      // A first page fails silently: the section just won't render.
+      if (append) { this.ignoredPage--; this.ignoredError.set(true); }
     } finally {
       this.ignoredLoading.set(false);
     }

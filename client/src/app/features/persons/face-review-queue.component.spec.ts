@@ -1,5 +1,6 @@
 import { ApplicationRef, Component, signal } from '@angular/core';
-import { TestBed } from '@angular/core/testing';
+import { TestBed, type ComponentFixture } from '@angular/core/testing';
+import { By } from '@angular/platform-browser';
 import { provideRouter, Router, NavigationStart, NavigationEnd, NavigationCancel, NavigationCancellationCode, type Event } from '@angular/router';
 import { MatDialog } from '@angular/material/dialog';
 import { of, Subject, throwError } from 'rxjs';
@@ -8,6 +9,7 @@ import { ApiService } from '../../core/services/api.service';
 import { AuthService } from '../../core/services/auth.service';
 import { I18nService } from '../../core/services/i18n.service';
 import { PersonFaceBoxesService } from '../../shared/components/photo-card/person-face-boxes.service';
+import { InfiniteScrollDirective } from '../../shared/directives/infinite-scroll.directive';
 import { FaceReviewQueueComponent } from './face-review-queue.component';
 
 @Component({ template: '' }) class OtherPage {}
@@ -54,6 +56,10 @@ describe('FaceReviewQueueComponent', () => {
   }
   /** Renders and runs afterNextRender hooks, which fixture.detectChanges() alone does not. */
   function flushRender(fixture: { detectChanges(): void }) { fixture.detectChanges(); TestBed.inject(ApplicationRef).tick(); }
+  const sentinel = (fixture: ComponentFixture<unknown>) =>
+    fixture.debugElement.query(By.directive(InfiniteScrollDirective))?.injector.get(InfiniteScrollDirective) ?? null;
+  /** Scrolls the end of the queue into view, as the IntersectionObserver would. */
+  function reach(fixture: ComponentFixture<unknown>) { sentinel(fixture)!.scrollReached.emit(); }
   const groupOrder = (root: HTMLElement) => [...root.querySelectorAll<HTMLElement>('[data-review-group]')].map(group => group.dataset['reviewGroup']);
 
   it('reload supersedes a pending next page and ignores its late completion', async () => {
@@ -123,7 +129,7 @@ describe('FaceReviewQueueComponent', () => {
     const queue = fixture.componentInstance as any;
     queue.nextAfter.set(2); fixture.detectChanges();
     api.get.mockReturnValueOnce(of({ ...response, faces: [{ ...response.faces[0], face_id: 3 }] }));
-    root.querySelector<HTMLButtonElement>('[data-queue-next]')!.click();
+    reach(fixture);
     await fixture.whenStable(); fixture.detectChanges();
     expect(root.querySelectorAll('[data-review-face]')).toHaveLength(3);
     api.get.mockClear();
@@ -145,12 +151,72 @@ describe('FaceReviewQueueComponent', () => {
     tile(root, 1).click();
     fixture.detectChanges();
     api.get.mockReturnValueOnce(of({ ...response, faces: [{ ...response.faces[0], face_id: 3 }], next_after_id: null }));
-    root.querySelector<HTMLButtonElement>('[data-queue-next]')!.click();
+    reach(fixture);
     await fixture.whenStable(); fixture.detectChanges();
     expect(root.querySelectorAll('[data-review-face]')).toHaveLength(3);
     expect(tile(root, 1).getAttribute('aria-pressed')).toBe('true');
     preview(root); fixture.detectChanges();
     expect(root.querySelector('[data-assignment-preview]')?.textContent).toContain('Zoe');
+    fixture.destroy(); root.remove();
+  });
+
+  it('reads the next page only while nothing else is in progress, and shows its spinner at the end', async () => {
+    const { fixture, root, api } = await render();
+    const queue = fixture.componentInstance as any;
+    queue.nextAfter.set(2); fixture.detectChanges();
+    expect(root.querySelector('[data-queue-more] [data-queue-sentinel]')).not.toBeNull();
+    expect(root.querySelector('[data-queue-next]')).toBeNull();
+    select(root); fixture.detectChanges(); preview(root); fixture.detectChanges();
+    expect(sentinel(fixture)).toBeNull();
+    queue.cancel(new Event('click')); fixture.detectChanges();
+    expect(sentinel(fixture)).not.toBeNull();
+    queue.choosing.set(true); fixture.detectChanges();
+    expect(sentinel(fixture)).toBeNull();
+    queue.choosing.set(false); fixture.detectChanges();
+    const page = new Subject<object>();
+    api.get.mockReturnValueOnce(page);
+    reach(fixture); fixture.detectChanges();
+    expect(api.get).toHaveBeenLastCalledWith('/faces/review', { after_id: 2, limit: 48, suggest: true });
+    expect(sentinel(fixture)).toBeNull();
+    expect(root.querySelector('[data-queue-more] mat-spinner')).not.toBeNull();
+    expect(root.textContent).not.toContain('ui.labels.loading');
+    page.next({ ...response, faces: [{ ...response.faces[0], face_id: 3 }], next_after_id: 3 }); page.complete();
+    await fixture.whenStable(); fixture.detectChanges();
+    expect(root.querySelector('[data-queue-more] mat-spinner')).toBeNull();
+    expect(sentinel(fixture)).not.toBeNull();
+    api.get.mockReturnValueOnce(of({ ...response, faces: [], next_after_id: null }));
+    reach(fixture); await fixture.whenStable(); fixture.detectChanges();
+    expect(root.querySelector('[data-queue-more]')).toBeNull();
+    fixture.destroy(); root.remove();
+  });
+
+  it('stops reading after a failed next page, and Retry resumes there without dropping the selection', async () => {
+    const { fixture, root, api } = await render();
+    const queue = fixture.componentInstance as any;
+    queue.nextAfter.set(2); fixture.detectChanges();
+    tile(root, 1).click(); fixture.detectChanges();
+    api.get.mockReturnValueOnce(throwError(() => ({ status: 500 })));
+    reach(fixture); await fixture.whenStable(); fixture.detectChanges();
+    expect(root.querySelector('[role="alert"]')).not.toBeNull();
+    expect(sentinel(fixture)).toBeNull();
+    api.get.mockReturnValueOnce(of({ ...response, faces: [{ ...response.faces[0], face_id: 3 }], next_after_id: null }));
+    root.querySelector<HTMLButtonElement>('[data-queue-retry]')!.click();
+    await fixture.whenStable(); fixture.detectChanges();
+    expect(api.get).toHaveBeenLastCalledWith('/faces/review', { after_id: 2, limit: 48, suggest: true });
+    expect(root.querySelectorAll('[data-review-face]')).toHaveLength(3);
+    expect(tile(root, 1).getAttribute('aria-pressed')).toBe('true');
+    expect(root.querySelector('[role="alert"]')).toBeNull();
+    fixture.destroy(); root.remove();
+  });
+
+  it('restarts from the first page when Retry follows a failed first page', async () => {
+    const { fixture, root, api } = await render();
+    api.get.mockReturnValueOnce(throwError(() => ({ status: 500 })));
+    (fixture.componentInstance as any).reload(); await fixture.whenStable(); fixture.detectChanges();
+    root.querySelector<HTMLButtonElement>('[data-queue-retry]')!.click();
+    await fixture.whenStable(); fixture.detectChanges();
+    expect(api.get).toHaveBeenLastCalledWith('/faces/review', { after_id: 0, limit: 48, suggest: true });
+    expect(root.querySelectorAll('[data-review-face]')).toHaveLength(2);
     fixture.destroy(); root.remove();
   });
 

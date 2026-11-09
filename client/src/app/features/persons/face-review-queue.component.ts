@@ -5,6 +5,7 @@ import { MatButtonModule } from '@angular/material/button';
 import { MatDividerModule } from '@angular/material/divider';
 import { MatIconModule } from '@angular/material/icon';
 import { MatMenuModule } from '@angular/material/menu';
+import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { MatTooltipModule } from '@angular/material/tooltip';
 import { MatDialog, MatDialogRef } from '@angular/material/dialog';
 import { firstValueFrom } from 'rxjs';
@@ -18,6 +19,7 @@ import { FixedPipe } from '../../shared/pipes/fixed.pipe';
 import { PluralKeyPipe } from '../../shared/pipes/plural-key.pipe';
 import { FaceThumbnailUrlPipe, PersonThumbnailUrlPipe } from '../../shared/pipes/thumbnail-url.pipe';
 import { ContextHelpComponent } from '../../shared/components/context-help/context-help.component';
+import { InfiniteScrollDirective } from '../../shared/directives/infinite-scroll.directive';
 import { PersonFaceBoxesService } from '../../shared/components/photo-card/person-face-boxes.service';
 
 type Face = components['schemas']['FaceReviewItem'];
@@ -33,7 +35,7 @@ interface FocusTarget { focus(): void }
 
 @Component({
   selector: 'app-face-review-queue',
-  imports: [MatButtonModule, MatDividerModule, MatIconModule, MatMenuModule, MatTooltipModule, RouterLink, TranslatePipe, FixedPipe, PluralKeyPipe, FaceThumbnailUrlPipe, PersonThumbnailUrlPipe, ContextHelpComponent],
+  imports: [MatButtonModule, MatDividerModule, MatIconModule, MatMenuModule, MatProgressSpinnerModule, MatTooltipModule, RouterLink, TranslatePipe, FixedPipe, PluralKeyPipe, FaceThumbnailUrlPipe, PersonThumbnailUrlPipe, ContextHelpComponent, InfiniteScrollDirective],
   changeDetection: ChangeDetectionStrategy.OnPush,
   host: { class: 'block min-w-0', tabindex: '-1', '[class.pb-24]': 'selected().size > 0 || !!pending()' },
   template: `
@@ -56,12 +58,12 @@ interface FocusTarget { focus(): void }
     @if (error()) {
       <div #queueAlert role="alert" tabindex="-1" class="mb-3 rounded border border-[var(--mat-sys-outline)] p-3 text-sm">
         {{ (uncertain() ? I18N.persons.review_queue.uncertain : changed() ? I18N.persons.review_queue.changed : I18N.persons.review_queue.read_error) | translate }}
-        @if (!busy()) { <button mat-stroked-button (click)="load(0)"><mat-icon>refresh</mat-icon>{{ I18N.gallery.load_error.retry | translate }}</button> }
+        @if (!busy()) { <button mat-stroked-button data-queue-retry (click)="retry()"><mat-icon>refresh</mat-icon>{{ I18N.gallery.load_error.retry | translate }}</button> }
         @if (mode() === 'matches') { <button mat-stroked-button data-browse-without-matches (click)="withoutSuggestions.set(true); load(0)">{{ I18N.persons.review_queue.without_matches | translate }}</button> }
       </div>
     }
     @if (suggestionsSkipped() && !error()) { <p role="status" data-suggestions-skipped class="mb-3 text-sm text-[var(--mat-sys-on-surface-variant)]">{{ I18N.persons.review_queue.suggestions_skipped | translate }}</p> }
-    @if (loading()) { <p role="status">{{ I18N.ui.labels.loading | translate }}</p> }
+    @if (loading() && !faces().length) { <p role="status">{{ I18N.ui.labels.loading | translate }}</p> }
     @for (group of groups(); track group.id) {
       @let headingId = 'review-group-' + mode() + '-' + group.id;
       @let faceCount = group.faces.length | pluralKey:I18N.persons.review_queue.group_count:I18N.persons.review_queue.group_count_plural | translate:{ count: group.faces.length };
@@ -139,7 +141,13 @@ interface FocusTarget { focus(): void }
       </ng-template>
     </mat-menu>
     @if (!loading() && !error() && !groups().length) { <p class="py-6 text-center text-sm text-[var(--mat-sys-on-surface-variant)]">{{ I18N.persons.review_queue.empty | translate }}</p> }
-    @if (nextAfter() !== null) { <button mat-stroked-button data-queue-next [disabled]="loading() || busy() || !!pending()" (click)="load(nextAfter()!)">{{ I18N.ui.buttons.load_more | translate }}</button> }
+    <!-- Next page: the sentinel exists only while a read may start, so it re-fires on its own once a page lands or a lock lifts. -->
+    @if (nextAfter() !== null && !error()) {
+      <div data-queue-more class="flex flex-col items-center py-8">
+        @if (canLoadMore()) { <div appInfiniteScroll data-queue-sentinel class="h-px w-full" (scrollReached)="loadNext()"></div> }
+        @if (loading()) { <mat-spinner diameter="36" [attr.aria-label]="I18N.ui.labels.loading | translate" /> }
+      </div>
+    }
     <app-context-help [label]="I18N.persons.review_queue.about" [keys]="[I18N.persons.review_queue.help]" />
     @if (selected().size || pending()) {
       <div data-review-bar class="fixed inset-x-0 bottom-0 z-50 max-h-[70dvh] overflow-y-auto border-t border-[var(--mat-sys-outline-variant)] bg-[var(--mat-sys-surface-container)] px-4 py-2 shadow-lg max-lg:bottom-[calc(3rem+1px+env(safe-area-inset-bottom))]">
@@ -212,6 +220,9 @@ export class FaceReviewQueueComponent {
   protected readonly suggestionsSkipped = signal(false);
   protected readonly pending = signal<readonly CapturedFace[] | null>(null);
   protected readonly interactionLocked = computed(() => this.busy() || !!this.pending() || this.uncertain() || this.changed() || this.choosing());
+  protected readonly canLoadMore = computed(() => this.nextAfter() !== null && !this.loading() && !this.error() && !this.interactionLocked());
+  /** The cursor of a next page that failed to read, so Retry resumes there instead of dropping the loaded faces. */
+  private retryAfter = 0;
   protected readonly receipt = signal<{ assigned: number; skipped: number; reasons: ReceiptReason[] } | null>(null);
   protected readonly feedbackReceipt = signal<FeedbackReceipt | null>(null);
   /** People in face order, then the faces with no person chosen yet. */
@@ -276,10 +287,17 @@ export class FaceReviewQueueComponent {
     this.receipt.set(null); this.loading.set(false); this.busy.set(false); this.nextAfter.set(null);
     this.suggestionsSkipped.set(false);
   }
+  protected loadNext(): void {
+    const after = this.nextAfter();
+    if (after !== null && this.canLoadMore()) void this.load(after);
+  }
+  protected retry(): void {
+    void this.load(this.retryAfter && !this.uncertain() && !this.changed() ? this.retryAfter : 0);
+  }
   protected async load(after: number, afterRefusal = false): Promise<void> {
     if (!this.allowed() || this.busy() || (after > 0 && (this.loading() || this.pending() || this.uncertain() || this.changed() || this.choosing()))) return;
     if (after === 0) { this.reset(); if (!afterRefusal) this.refusedSuggestions.set(false); }
-    this.loading.set(true); this.error.set(false);
+    this.loading.set(true); this.error.set(false); this.retryAfter = 0;
     const guard = this.capture(), generation = this.generation;
     let retryWithoutSuggestions = false;
     try {
@@ -298,7 +316,7 @@ export class FaceReviewQueueComponent {
       if (!guard.current()) return;
       // 412: too many reference faces to rank suggestions. Browsing without them still works.
       if ((failure as { status?: number }).status === 412 && this.wantsSuggestions()) retryWithoutSuggestions = true;
-      else this.error.set(true);
+      else { this.error.set(true); this.retryAfter = after; }
     }
     finally { if (this.generation === generation) { this.loading.set(false); if (!guard.current()) this.error.set(true); } guard.dispose(); }
     if (!retryWithoutSuggestions) return;
