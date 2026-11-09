@@ -10,7 +10,7 @@ import { MatTooltip, MatTooltipModule } from '@angular/material/tooltip';
 import { I18N, i18nKeys } from '../../core/i18n/keys';
 import { TranslatePipe } from '../../shared/pipes/translate.pipe';
 import { SortOptionIconPipe } from '../../shared/pipes/sort-option-icon.pipe';
-import { SortGroupKeyPipe } from '../../shared/pipes/sort-group-key.pipe';
+import { SortGroupIconPipe, SortGroupKeyPipe } from '../../shared/pipes/sort-group-key.pipe';
 import { useDesktopSignal, useHoverCapableSignal, DETAILS_RAIL_MIN_WIDTH_PX } from '../../shared/utils/media-query';
 import { GalleryFilters, GalleryStore } from './gallery.store';
 import { TILE_FITS, GalleryMode, PanelActivation, TooltipMode } from './gallery-filters.util';
@@ -25,7 +25,7 @@ const sortOptionLabelKey = (column: string): string => `sort_options.${column}`;
 @Component({
   selector: 'app-gallery-view-controls',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [NgTemplateOutlet, MatBadgeModule, MatButtonModule, MatRippleModule, MatIconModule, MatMenuModule, MatTooltipModule, TranslatePipe, SortOptionIconPipe, SortGroupKeyPipe],
+  imports: [NgTemplateOutlet, MatBadgeModule, MatButtonModule, MatRippleModule, MatIconModule, MatMenuModule, MatTooltipModule, TranslatePipe, SortOptionIconPipe, SortGroupKeyPipe, SortGroupIconPipe],
   host: { class: 'flex flex-wrap items-center gap-1' },
   template: `
     <ng-template #displayControls>
@@ -167,24 +167,43 @@ const sortOptionLabelKey = (column: string): string => `sort_options.${column}`;
     <ng-template #sidebarLayoutControls><ng-container [ngTemplateOutlet]="layoutControls" [ngTemplateOutletContext]="{ $implicit: layouts }" /></ng-template>
 <mat-menu #sortMenu="matMenu">
     @for (section of sortMenuSections(); track section.header ?? section.options[0].column) {
-      @let headerId = 'sort-menu-group-' + $index;
-      <div [attr.role]="section.header ? 'group' : 'none'" [attr.aria-labelledby]="section.header ? headerId : null">
-        @if (section.header) {
-          <div [id]="headerId" class="px-4 pt-2 pb-1 text-xs font-medium uppercase text-[var(--mat-sys-on-surface-variant)]">{{ ('sort_groups.' + (section.header | sortGroupKey)) | translate }}</div>
-        }
+      @if (section.header) {
+        <button mat-menu-item data-sort-group [matMenuTriggerFor]="groupMenu"
+                [class.!bg-[var(--mat-sys-primary-container)]]="section.active" [class.!text-[var(--mat-sys-on-primary-container)]]="section.active">
+          <mat-icon aria-hidden="true" class="!w-8 text-center" [class.!text-[var(--mat-sys-on-primary-container)]]="section.active">{{ section.header | sortGroupIcon }}</mat-icon>
+          <span class="flex items-center gap-4">
+            <span class="grow">{{ ('sort_groups.' + (section.header | sortGroupKey)) | translate }}</span>
+            @if (section.active) { <span class="text-xs font-medium">{{ currentSortLabelKey() | translate }}</span> }
+          </span>
+        </button>
+        <mat-menu #groupMenu="matMenu">
+          @for (opt of section.options; track opt.column) {
+            @let optionIcon = opt.column | sortOptionIcon;
+            @let current = store.filters().sort === opt.column;
+            <button mat-menu-item role="menuitemradio" [attr.aria-checked]="current" (click)="onSortChange(opt.column)"
+                    [class.!bg-[var(--mat-sys-primary-container)]]="current" [class.!text-[var(--mat-sys-on-primary-container)]]="current">
+              <mat-icon aria-hidden="true" class="!w-8 text-center" [class]="optionIcon.classes">{{ optionIcon.text }}</mat-icon>
+              <span class="flex items-center gap-4">
+                <span class="grow">{{ opt.labelKey | translate }}</span>
+                @if (current) { <span class="flex"><mat-icon aria-hidden="true" class="!text-[var(--mat-sys-on-primary-container)]">check</mat-icon></span> }
+              </span>
+            </button>
+          }
+        </mat-menu>
+      } @else {
         @for (opt of section.options; track opt.column) {
           @let optionIcon = opt.column | sortOptionIcon;
-          <button mat-menu-item role="menuitemradio" [attr.aria-checked]="store.filters().sort === opt.column" (click)="onSortChange(opt.column)">
+          @let current = store.filters().sort === opt.column;
+          <button mat-menu-item role="menuitemradio" [attr.aria-checked]="current" (click)="onSortChange(opt.column)"
+                  [class.!bg-[var(--mat-sys-primary-container)]]="current" [class.!text-[var(--mat-sys-on-primary-container)]]="current">
             <mat-icon aria-hidden="true" class="!w-8 text-center" [class]="optionIcon.classes">{{ optionIcon.text }}</mat-icon>
             <span class="flex items-center gap-4">
               <span class="grow">{{ opt.labelKey | translate }}</span>
-              @if (store.filters().sort === opt.column) {
-                <span class="flex"><mat-icon aria-hidden="true">check</mat-icon></span>
-              }
+              @if (current) { <span class="flex"><mat-icon aria-hidden="true" class="!text-[var(--mat-sys-on-primary-container)]">check</mat-icon></span> }
             </span>
           </button>
         }
-      </div>
+      }
     }
   </mat-menu>`,
 })
@@ -296,19 +315,19 @@ export class GalleryViewControlsComponent {
 
   protected readonly sortMenuSections = computed(() => {
     const filters = this.store.filters();
-    const sections: { header: string | null; options: { column: string; labelKey: string }[] }[] = [];
-    if (filters.semanticQuery) sections.push({ header: null, options: [{ column: 'relevance', labelKey: I18N.gallery.sort_relevance }] });
-    if (this.store.config()?.features?.show_my_taste) sections.push({ header: null, options: [{ column: 'learned_score', labelKey: I18N.gallery.sort_my_taste }] });
+    const sections: { header: string | null; active: boolean; options: { column: string; labelKey: string }[] }[] = [];
+    if (filters.semanticQuery) sections.push({ header: null, active: false, options: [{ column: 'relevance', labelKey: I18N.gallery.sort_relevance }] });
+    if (this.store.config()?.features?.show_my_taste) sections.push({ header: null, active: false, options: [{ column: 'learned_score', labelKey: I18N.gallery.sort_my_taste }] });
     const groups = this.sortGroups();
     if (groups) {
       for (const [name, options] of groups) {
         sections.push({
-          header: name,
+          header: name, active: options.some(opt => opt.column === filters.sort),
           options: options.map(opt => ({ column: opt.column, labelKey: sortOptionLabelKey(opt.column) })),
         });
       }
     } else {
-      sections.push({ header: null, options: [
+      sections.push({ header: null, active: false, options: [
         { column: 'aggregate', labelKey: I18N.gallery.sort_aggregate },
         { column: 'aesthetic', labelKey: I18N.gallery.sort_aesthetic },
         { column: 'date_taken', labelKey: I18N.gallery.sort_date },

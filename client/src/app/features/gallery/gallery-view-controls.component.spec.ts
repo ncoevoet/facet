@@ -305,7 +305,7 @@ describe('GalleryViewControlsComponent', () => {
       expect(store.setUserSort).not.toHaveBeenCalled();
     });
 
-    it('lists configured groups under non-interactive headers, with conditional sorts and model labels', async () => {
+    it('lists configured groups as submenus below the conditional sorts, with model labels', async () => {
       const { fixture, root, store } = render({
         features: { show_my_taste: true },
         sort_options_grouped: {
@@ -320,16 +320,40 @@ describe('GalleryViewControlsComponent', () => {
       store.filters.update(filters => ({ ...filters, semanticQuery: 'sunset' }));
       fixture.detectChanges();
       await openMenu(fixture, sortButtons(root)[0]);
-      const items = menuItems();
-      expect(items.map(item => iconOf(item))).toEqual(['search', 'psychology', 'event', 'IAA', 'Q-R', 'sort']);
-      const panel = items[0].closest('.mat-mdc-menu-panel')!;
-      const groups = Array.from(panel.querySelectorAll('[role="group"]'));
-      const headers = groups.map(group => document.getElementById(group.getAttribute('aria-labelledby')!)?.textContent?.trim());
-      expect(headers).toEqual(['sort_groups.general', 'sort_groups.face_metrics']);
-      expect(groups.map(group => group.querySelectorAll('[role="menuitemradio"]').length)).toEqual([3, 1]);
-      for (const item of items) expect(item.querySelector('mat-icon')?.getAttribute('aria-hidden')).toBe('true');
-      items[3].click();
+      const top = menuItems();
+      expect(top.map(item => iconOf(item))).toEqual(['search', 'psychology']);
+      const groups = Array.from(document.querySelectorAll<HTMLButtonElement>('.mat-mdc-menu-panel [data-sort-group]'));
+      expect(groups.map(group => group.textContent?.trim())).toEqual(['leaderboardsort_groups.general', 'portraitsort_groups.face_metrics']);
+      expect(groups.map(group => group.getAttribute('aria-haspopup'))).toEqual(['menu', 'menu']);
+      await openMenu(fixture, groups[0]);
+      const panels = document.querySelectorAll('.mat-mdc-menu-panel');
+      const items = Array.from(panels[panels.length - 1].querySelectorAll<HTMLElement>('[role="menuitemradio"]'));
+      expect(items.map(item => iconOf(item))).toEqual(['event', 'IAA', 'Q-R']);
+      for (const item of [...top, ...items]) expect(item.querySelector('mat-icon')?.getAttribute('aria-hidden')).toBe('true');
+      items[1].click();
       expect(store.setUserSort).toHaveBeenLastCalledWith('aesthetic_iaa');
+    });
+
+    it('marks the group holding the current sort with the accent and names that sort', async () => {
+      const { fixture, root, store } = render({
+        sort_options_grouped: {
+          General: [{ column: 'date_taken', label: 'Date Taken' }],
+          'Face Metrics': [{ column: 'face_quality', label: 'Face quality' }],
+        },
+      });
+      store.filters.update(filters => ({ ...filters, sort: 'face_quality' }));
+      fixture.detectChanges();
+      await openMenu(fixture, sortButtons(root)[0]);
+      const groups = Array.from(document.querySelectorAll<HTMLButtonElement>('.mat-mdc-menu-panel [data-sort-group]'));
+      const accent = (el: Element) => el.classList.contains('!bg-[var(--mat-sys-primary-container)]');
+      expect(groups.map(accent)).toEqual([false, true]);
+      expect(groups[1].textContent).toContain('sort_options.face_quality');
+      expect(groups[0].textContent).not.toContain('sort_options.');
+      await openMenu(fixture, groups[1]);
+      const panels = document.querySelectorAll('.mat-mdc-menu-panel');
+      const item = panels[panels.length - 1].querySelector<HTMLElement>('[role="menuitemradio"]')!;
+      expect(item.getAttribute('aria-checked')).toBe('true');
+      expect(accent(item)).toBe(true);
     });
 
     it('offers the tooltip modes as one shared radio menu with the current mode checked', async () => {
