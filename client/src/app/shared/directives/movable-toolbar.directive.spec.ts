@@ -212,4 +212,26 @@ describe('MovableToolbarDirective', () => {
     expect(localStorage.getItem('facet_selection_bar:alice')).toBeNull();
   });
 
+
+  it('applies and saves the offset only at 768 px and wider', () => {
+    localStorage.setItem('facet_selection_bar:alice', JSON.stringify({ x: 1, up: 1 }));
+    const original = window.innerWidth;
+    try {
+      Object.defineProperty(window, 'innerWidth', { value: 500, configurable: true, writable: true });
+      const { bar, handle, key, pointer } = setup();
+      expect(bar.style.transform).toBe('translate3d(0px, 0px, 0)');
+      localStorage.removeItem('facet_selection_bar:alice');
+      key('ArrowRight'); flush();
+      pointer(handle, 'pointerdown', 0, 0);
+      pointer(bar, 'pointermove', 100, -100);
+      pointer(bar, 'pointerup', 100, -100); flush();
+      expect(bar.style.transform).toBe('translate3d(0px, 0px, 0)');
+      expect(localStorage.getItem('facet_selection_bar:alice')).toBeNull();
+      Object.defineProperty(window, 'innerWidth', { value: 1024, configurable: true, writable: true });
+      window.dispatchEvent(new Event('resize')); flush();
+      expect(bar.style.transform).toBe('translate3d(492px, -492px, 0)');
+    } finally {
+      Object.defineProperty(window, 'innerWidth', { value: original, configurable: true, writable: true });
+    }
+  });
 });

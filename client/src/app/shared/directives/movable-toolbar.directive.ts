@@ -1,6 +1,8 @@
 import { DestroyRef, Directive, ElementRef, effect, inject, input } from '@angular/core';
 
 export const TOOLBAR_POSITION_EVENT = 'toolbarpositionchange';
+/** Below this width the bar is a full-width mobile strip: no offset is applied or saved. */
+const MIN_MOVABLE_WIDTH = 768;
 const STORAGE_PREFIX = 'facet_selection_bar:';
 interface Position { x: number; up: number }
 interface Drag { id: number; owner: string; x: number; y: number; offset: Position; before: Position }
@@ -11,7 +13,7 @@ interface Drag { id: number; owner: string; x: number; y: number; offset: Positi
   host: {
     '(pointerdown)': 'start($event)', '(pointermove)': 'move($event)',
     '(pointerup)': 'end($event)', '(pointercancel)': 'cancel($event)',
-    '(lostpointercapture)': 'cancel($event)', '(keydown)': 'key($event)',
+    '(lostpointercapture)': 'cancel($event)', '(keydown)': 'key($event)', '(window:resize)': 'schedule()',
   },
 })
 export class MovableToolbarDirective {
@@ -71,12 +73,16 @@ export class MovableToolbarDirective {
     };
   }
 
-  private schedule(): void {
+  private movable(): boolean {
+    return window.innerWidth >= MIN_MOVABLE_WIDTH;
+  }
+
+  schedule(): void {
     if (this.frame !== null) return;
     this.frame = requestAnimationFrame(() => {
       this.frame = null;
       const limits = this.limits();
-      this.offset = { x: this.position.x * limits.x, up: this.position.up * limits.up };
+      this.offset = this.movable() ? { x: this.position.x * limits.x, up: this.position.up * limits.up } : { x: 0, up: 0 };
       this.element.style.transform = `translate3d(${this.offset.x}px, ${-this.offset.up}px, 0)`;
       this.placePanels();
       this.element.dispatchEvent(new Event(TOOLBAR_POSITION_EVENT));
@@ -112,7 +118,7 @@ export class MovableToolbarDirective {
 
   start(event: PointerEvent): void {
     const handle = this.handle(event);
-    if (!handle || this.drag || event.button !== 0 || !event.isPrimary) return;
+    if (!handle || !this.movable() || this.drag || event.button !== 0 || !event.isPrimary) return;
     handle.focus({ preventScroll: true });
     event.preventDefault(); event.stopPropagation();
     const limits = this.limits();
@@ -149,7 +155,7 @@ export class MovableToolbarDirective {
   }
 
   key(event: KeyboardEvent): void {
-    if (!this.handle(event)) return;
+    if (!this.handle(event) || !this.movable()) return;
     if (event.key === 'Escape' && this.drag) {
       event.preventDefault(); event.stopPropagation(); this.finish(false); return;
     }
