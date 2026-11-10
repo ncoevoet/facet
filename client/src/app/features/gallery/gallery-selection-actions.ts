@@ -7,7 +7,7 @@ import { AlbumService, Album } from '../../core/services/album.service';
 import { ApiService } from '../../core/services/api.service';
 import { AuthService } from '../../core/services/auth.service';
 import { I18nService } from '../../core/services/i18n.service';
-import { PhotoActionsService } from '../../core/services/photo-actions.service';
+import { MAX_REFRESH_PATHS, PhotoActionsService } from '../../core/services/photo-actions.service';
 import { SequenceOverrideService, SequenceKind } from '../../core/services/sequence-override.service';
 import { StalenessGuardFactory } from '../../core/services/staleness-guard.service';
 import { UndoService } from '../../core/services/undo.service';
@@ -24,6 +24,12 @@ import { ExportEditorDialogComponent } from './export-editor-dialog.component';
 import { GalleryStore, BatchResult } from './gallery.store';
 import { observeManualTags } from './manual-tag-observation.util';
 import type { ManualTagsDialogData, ManualTagsDialogResult } from './manual-tags-dialog.component';
+
+/** Why the selection cannot be refreshed, as an i18n key; empty when it can. */
+export function refreshBlockedReason(viewScoped: boolean, count: number): string {
+  if (viewScoped) return I18N.gallery.selection.explicit_required;
+  return count > MAX_REFRESH_PATHS ? I18N.photo_refresh.limit : '';
+}
 
 /** The view owns parking, focus restoration and its album menu. */
 export interface GallerySelectionHost {

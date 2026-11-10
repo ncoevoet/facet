@@ -118,7 +118,8 @@ describe('stack representative repairs through rendered gallery and HTTP', () =>
     const scrollTo = vi.fn(); Object.defineProperty(scroll, 'scrollTo', { value: scrollTo, configurable: true });
     const sort = store.filters().sort;
     store.restoreSelection(rows.map(photo => photo.path)); routed.detectChanges();
-    node.querySelector<HTMLButtonElement>('[data-create-stack]')!.click();
+    node.querySelector<HTMLButtonElement>('[data-selection-more]')!.click(); routed.detectChanges();
+    document.querySelector<HTMLButtonElement>('.cdk-overlay-container [data-create-stack]')!.click();
     await vi.waitFor(() => expect(router.url).toBe('/stacks/edit')); routed.detectChanges();
     http.expectOne('/api/stacks/regroup/preview').flush({ selected_paths: rows.map(photo => photo.path), mode: 'combine', paths: rows.map(photo => photo.path), cover_path: rows[0].path, source_stacks: [], unstacked_paths: rows.map(photo => photo.path), affected_paths: rows.map(photo => photo.path), expected_state: 'a'.repeat(64) });
     await routed.fixture.whenStable(); routed.detectChanges();
@@ -152,6 +153,15 @@ describe('stack representative repairs through rendered gallery and HTTP', () =>
       return event;
     };
     const select = () => { store.toggleSelection(rows[0]); store.toggleSelection(rows[1]); fixture.detectChanges(); };
+    // Stack photos sits in the selection bar's desktop Actions menu, rendered in the CDK overlay.
+    const createStackItem = () => {
+      fixture.nativeElement.querySelector('[data-selection-more]').click(); fixture.detectChanges();
+      return document.querySelector<HTMLButtonElement>('.cdk-overlay-container [data-create-stack]')!;
+    };
+    const createStackDebug = () => {
+      const item = createStackItem();
+      return fixture.debugElement.queryAllNodes(node => node.nativeNode === item)[0];
+    };
     const chord = (modifier: 'ctrl' | 'meta' = 'ctrl', init: KeyboardEventInit = {}) =>
       key({ key: 'S', shiftKey: true, ctrlKey: modifier === 'ctrl', metaKey: modifier === 'meta', ...init });
     // The gallery imports MatSnackBarModule, so its toasts go through its own injector, not the root mock.
@@ -341,7 +351,7 @@ describe('stack representative repairs through rendered gallery and HTTP', () =>
     it('routes the toolbar maximum of 1000 explicitly selected photos without a dialog', async () => {
       const paths = Array.from({ length: 1000 }, (_, index) => `/selected/${index}.jpg`);
       store.selectedPaths.set(new Set(paths)); fixture.detectChanges();
-      fixture.nativeElement.querySelector('[data-create-stack]').click();
+      createStackItem().click();
       await vi.waitFor(() => expect(TestBed.inject(Router).url).toBe('/stacks/edit')); routed.detectChanges();
       const request = http.expectOne('/api/stacks/regroup/preview'); expect(request.request.body.selected_paths).toEqual(paths);
       expect(TestBed.inject(MatDialog).openDialogs).toHaveLength(0);
@@ -399,7 +409,7 @@ describe('stack representative repairs through rendered gallery and HTTP', () =>
       expect(document.querySelectorAll('app-stack-dialog')).toHaveLength(1);
       http.expectNone('/api/stacks/regroup/preview');
       ref.close(); await fixture.whenStable();
-      const button = fixture.nativeElement.querySelector('[data-create-stack]')!;
+      const button = createStackItem();
       expect(key({ key: 'Enter' }, button).defaultPrevented).toBe(false);
       expect(key({ key: ' ' }, button).defaultPrevented).toBe(false);
       noEditor();
@@ -413,7 +423,9 @@ describe('stack representative repairs through rendered gallery and HTTP', () =>
       expect(key().defaultPrevented).toBe(true);
       expect(store.filterDrawerOpen()).toBe(true);
       await fixture.whenStable(); noEditor();
-      const button = fixture.debugElement.queryAllNodes(node => node.nativeNode?.hasAttribute?.('data-create-stack'))[0];
+      // The open over-drawer hides the selection bar; close it to reach the Actions menu.
+      store.filterDrawerOpen.set(false); fixture.detectChanges();
+      const button = createStackDebug();
       expect(button.injector.get(MatTooltip).message).toBe('stacks.create {"key":""}');
     });
 
@@ -437,7 +449,7 @@ describe('stack representative repairs through rendered gallery and HTTP', () =>
       fixture.detectChanges();
       expect(key().defaultPrevented).toBe(false);
       await fixture.whenStable(); noEditor();
-      const button = fixture.debugElement.queryAllNodes(node => node.nativeNode?.hasAttribute?.('data-create-stack'))[0];
+      const button = createStackDebug();
       expect(button).toBeDefined();
       // The real translated tooltip includes the currently mapped binding.
       expect(button.injector.get(MatTooltip).message).toContain('G');
@@ -645,8 +657,10 @@ describe('stack representative repairs through rendered gallery and HTTP', () =>
     const deletion = vi.spyOn(fixture.componentInstance.selectionActions, 'deleteSelected');
     const refresh = vi.spyOn(store, 'refreshPaths');
     const started = requested('/api/photo/delete');
-    const deleteButton = [...(fixture.nativeElement as HTMLElement).querySelectorAll<HTMLButtonElement>('[data-selection-bar] button')]
-      .find(button => button.getAttribute('aria-label')?.startsWith('cull.delete_action'))!;
+    (fixture.nativeElement as HTMLElement).querySelector<HTMLButtonElement>('[data-selection-bar] [data-selection-more]')!.click();
+    fixture.detectChanges();
+    const deleteButton = [...document.querySelectorAll<HTMLButtonElement>('.cdk-overlay-container .mat-mdc-menu-item')]
+      .find(button => button.textContent?.includes('cull.delete_action'))!;
     expect(deleteButton).toBeDefined(); expect(deleteButton.disabled).toBe(false); deleteButton.click();
     await started;
     expect(deletion).toHaveBeenCalled();

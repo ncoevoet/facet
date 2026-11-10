@@ -97,7 +97,7 @@ All notable changes to Facet are documented in this file.
 
 - Card metadata follows the selected light or dark theme.
 
-- The gallery owns its collection title, counts, Grid/Mosaic controls and exact text search at every width. The selection bar keeps Clear, Compare and review decisions visible, with labeled secondary commands in Actions. Small screens retain a navigation menu and Actions sheet; filter tabs show their names.
+- The gallery owns its collection title, counts, Grid/Mosaic controls and exact text search at every width. The selection bar keeps Clear, Compare and review decisions visible; its desktop Actions menu groups the other commands into Review, Add to Album, Mark as a set, Edit metadata and Download submenus, and keeps commands a whole-view selection cannot drive listed but disabled, with the reason in their tooltip. Small screens retain a navigation menu and an Actions sheet laid out in the same order, one labelled section per submenu; filter tabs show their names.
 
 - The details rail and photo tooltips take their background, borders and text from the accent theme's surfaces, so they carry the same grey as the rest of the workspace (warm with orange, cool with blue) instead of a fixed neutral grey.
 

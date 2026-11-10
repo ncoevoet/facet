@@ -29,7 +29,7 @@ import { LiveAnnouncer } from '@angular/cdk/a11y';
 import { GalleryStore, GalleryFilters, DEFAULT_FILTERS } from './gallery.store';
 import { buildApiParams, buildSyncParams, DISPLAY_OPTIONS_KEY } from './gallery-filters.util';
 import { ApiService } from '../../core/services/api.service';
-import { PhotoActionsService } from '../../core/services/photo-actions.service';
+import { MAX_REFRESH_PATHS, PhotoActionsService } from '../../core/services/photo-actions.service';
 import { GalleryReviewNavigationService } from './gallery-review-navigation.service';
 import { AuthService } from '../../core/services/auth.service';
 import { I18nService } from '../../core/services/i18n.service';
@@ -53,6 +53,34 @@ import { makePhoto } from '../../../testing/photo.fixture';
 
 @Component({ template: 'Photo route' })
 class MenuPhotoRoute {}
+
+// The selection bar's desktop Actions menu lives in a CDK overlay, so its items are
+// reached through the overlay container rather than through the bar.
+const openMenuPanels = () => [...document.querySelectorAll<HTMLElement>('.cdk-overlay-container .mat-mdc-menu-panel')];
+const menuItemLabel = (item: Element) => item.querySelector('.mat-mdc-menu-item-text')?.textContent?.trim() ?? '';
+/** A panel's own entries in order: each item's label, and '─' for a divider. */
+const menuEntries = (panel: HTMLElement) => [...panel.querySelectorAll('.mat-mdc-menu-item, mat-divider')]
+  .map(entry => entry.tagName === 'MAT-DIVIDER' ? '─' : menuItemLabel(entry));
+const menuItem = (panel: HTMLElement, label: string) =>
+  [...panel.querySelectorAll<HTMLButtonElement>('.mat-mdc-menu-item')].find(item => menuItemLabel(item) === label) ?? null;
+function openSelectionActions(f: ComponentFixture<unknown>): HTMLElement {
+  (f.nativeElement as HTMLElement).querySelector<HTMLButtonElement>('[data-selection-bar] [data-selection-more]')!.click();
+  f.detectChanges();
+  return openMenuPanels().at(-1)!;
+}
+function openSelectionSubmenu(f: ComponentFixture<unknown>, panel: HTMLElement, label: string): HTMLElement {
+  menuItem(panel, label)!.click();
+  f.detectChanges();
+  return openMenuPanels().at(-1)!;
+}
+/** A closed mat-menu detaches its overlay on a timer, even with animations off. */
+const settle = () => new Promise<void>(resolve => setTimeout(resolve));
+const keydown = (target: Element, key: string, keyCode: number) => {
+  const event = new KeyboardEvent('keydown', { key, bubbles: true, cancelable: true });
+  Object.defineProperty(event, 'keyCode', { get: () => keyCode });
+  target.dispatchEvent(event);
+  return event;
+};
 
 describe('GalleryComponent', () => {
   let component: GalleryComponent;
@@ -3800,14 +3828,17 @@ describe('GalleryComponent', () => {
     }
 
     function tagsButton(f: ComponentFixture<GalleryComponent>): HTMLButtonElement | null {
-      return f.nativeElement.querySelector(`[data-selection-bar] button[aria-label="${I18N.gallery.selection.edit_tags}"]`);
+      const actions = openSelectionActions(f);
+      if (!menuItem(actions, I18N.gallery.selection.edit_metadata)) return null;
+      return menuItem(openSelectionSubmenu(f, actions, I18N.gallery.selection.edit_metadata), I18N.gallery.selection.edit_tags);
     }
 
-    it('is a desktop-only button for an edition user', () => {
-      const button = tagsButton(render(true));
+    it('is a desktop Actions > Edit metadata entry for an edition user', () => {
+      const f = render(true);
+      const button = tagsButton(f);
 
       expect(button).not.toBeNull();
-      expect(button!.closest('.max-md\\:hidden')).not.toBeNull();
+      expect(f.nativeElement.querySelector('[data-selection-more]').closest('.max-md\\:hidden')).not.toBeNull();
     });
 
     it('is absent without edition', () => {
@@ -4073,7 +4104,7 @@ describe('GalleryComponent', () => {
     }
 
     function deleteButton(f: ComponentFixture<GalleryComponent>): HTMLButtonElement | null {
-      return f.nativeElement.querySelector('[data-selection-bar] button[aria-label="cull.delete_action"]');
+      return menuItem(openSelectionActions(f), I18N.cull.delete_action);
     }
 
     it('is absent when trash_available is false, even with allow_trash true', () => {
@@ -4086,6 +4117,7 @@ describe('GalleryComponent', () => {
       const button = deleteButton(f);
       expect(button).not.toBeNull();
       expect(button!.disabled).toBe(false);
+      expect(button!.getAttribute('aria-disabled')).toBeNull();
     });
 
     it('is disabled under a view-scoped ("select all in view") selection, with a tooltip explaining why', () => {
@@ -4094,6 +4126,7 @@ describe('GalleryComponent', () => {
       expect(button).not.toBeNull();
       // disabledInteractive: aria-disabled instead of the native attribute, so the tooltip still shows.
       expect(button!.getAttribute('aria-disabled')).toBe('true');
+      expect(button!.disabled).toBe(false);
       const tooltipDebug = f.debugElement.queryAll(By.directive(MatTooltip))
         .find(de => de.nativeElement === button);
       expect(tooltipDebug?.injector.get(MatTooltip).message).toBe(I18N.cull.delete_disabled_view_scope_tooltip);
@@ -4112,8 +4145,8 @@ describe('GalleryComponent', () => {
       vi.unstubAllGlobals();
     });
 
-    function render(opts: { edition?: boolean; desktop?: boolean; viewScoped?: boolean; profiles?: string[] } = {}): ComponentFixture<GalleryComponent> {
-      const { edition = true, desktop = true, viewScoped = false, profiles = [] } = opts;
+    function render(opts: { edition?: boolean; desktop?: boolean; viewScoped?: boolean; profiles?: string[]; albums?: boolean; trash?: boolean } = {}): ComponentFixture<GalleryComponent> {
+      const { edition = true, desktop = true, viewScoped = false, profiles = [], albums = true, trash = true } = opts;
       vi.stubGlobal('matchMedia', (media: string) => ({
         matches: desktop && media.includes('min-width: 768px'), media, addEventListener() {}, removeEventListener() {},
       }));
@@ -4122,7 +4155,7 @@ describe('GalleryComponent', () => {
       mockAuth['isMultiUser'] = vi.fn(() => false);
       mockAuth['isSuperadmin'] = vi.fn(() => false);
       mockAuth['downloadProfiles'] = vi.fn(() => profiles);
-      mockStore.config.set({ cull: { allow_trash: true, trash_available: true }, features: { show_albums: true } });
+      mockStore.config.set({ cull: { allow_trash: true, trash_available: trash }, features: { show_albums: albums } });
       mockStore.selectionCount.set(2);
       mockStore.viewScopeSelected.set(viewScoped);
       fixture = TestBed.createComponent(GalleryComponent);
@@ -4156,46 +4189,194 @@ describe('GalleryComponent', () => {
       expect(root.querySelector('#selection-bar-move-help')?.textContent).toContain(I18N.gallery.selection.move_bar_help);
     });
 
-    it('preserves every edition action with matching tooltip and accessible name', () => {
+    const S = I18N.gallery.selection;
+    const tooltipOf = (f: ComponentFixture<GalleryComponent>, el: Element) =>
+      f.debugElement.queryAll(By.directive(MatTooltip)).find(d => d.nativeElement === el)?.injector.get(MatTooltip).message;
+    const EDITION_ACTIONS = [
+      S.select_all, S.invert, '─',
+      I18N.gallery.sidebar.tabs.review, I18N.albums.add_photos, S.mark_sequence, S.edit_metadata, S.download, '─',
+      I18N.stacks.create, S.copy_filenames, I18N.export.action, I18N.cull.action, I18N.photo_refresh.title, '─',
+      I18N.photo_detail.remove_catalog.action, I18N.cull.delete_action,
+    ];
+    const SUBMENUS: string[] = [I18N.gallery.sidebar.tabs.review, I18N.albums.add_photos, S.mark_sequence, S.edit_metadata];
+
+    it('keeps Clear, the review decisions and Actions on the bar with matching tooltip and accessible name', () => {
       const f = render();
-      const keys = [
-        I18N.gallery.selection.clear, I18N.gallery.selection.select_all, I18N.gallery.selection.invert,
-        I18N.gallery.selection.favorite, I18N.gallery.selection.reject, I18N.gallery.selection.rate,
-        I18N.albums.add_photos, I18N.gallery.selection.mark_sequence, I18N.gallery.selection.copy_filenames,
-        I18N.gallery.selection.edit_tags, I18N.export.action, I18N.cull.action, I18N.cull.delete_action,
-        I18N.gallery.selection.download, I18N.gallery.selection.actions,
-      ];
-      for (const key of keys) {
+      for (const key of [S.clear, I18N.review.keep, S.reject, S.actions]) {
         const button = labelled(f, key);
         expect(button, key).not.toBeNull();
         expect(button!.querySelector('mat-icon'), key).not.toBeNull();
-        const tooltip = f.debugElement.queryAll(By.directive(MatTooltip)).find(d => d.nativeElement === button);
-        expect(tooltip?.injector.get(MatTooltip).message, key).toBe(key);
+        expect(tooltipOf(f, button!), key).toBe(key);
+      }
+      for (const label of [I18N.review.keep, S.reject]) expect(labelled(f, label)!.textContent).toContain(label);
+    });
+
+    it('opens every secondary command from one Actions menu, grouped and divided as approved', () => {
+      const f = render();
+      const trigger = bar(f)!.querySelector<HTMLButtonElement>('[data-selection-more]')!;
+      expect(trigger.textContent).toContain(S.actions);
+      expect(trigger.querySelector('mat-icon')!.textContent).toBe('more_horiz');
+      expect(trigger.getAttribute('aria-haspopup')).toBe('menu');
+      expect(trigger.getAttribute('aria-expanded')).toBe('false');
+      for (const label of [S.favorite, S.edit_tags, S.copy_filenames, I18N.cull.delete_action]) {
+        expect(labelled(f, label), label).toBeNull();
+        expect(bar(f)!.textContent, label).not.toContain(label);
+      }
+      const actions = openSelectionActions(f);
+      expect(trigger.getAttribute('aria-expanded')).toBe('true');
+      expect(menuEntries(actions)).toEqual(EDITION_ACTIONS);
+      for (const item of actions.querySelectorAll('.mat-mdc-menu-item')) {
+        const label = menuItemLabel(item);
+        expect(item.querySelector('mat-icon'), label).not.toBeNull();
+        expect(item.getAttribute('aria-haspopup'), label).toBe(SUBMENUS.includes(label) ? 'menu' : null);
       }
     });
 
-    it('keeps review commands visible and secondary commands inside a closed Actions disclosure', () => {
+    it('gives a viewer without edition only selection, download and copy', () => {
+      expect(menuEntries(openSelectionActions(render({ edition: false }))))
+        .toEqual([S.select_all, S.invert, '─', S.download, '─', S.copy_filenames]);
+    });
+
+    it('drops Select all once every loaded photo is selected', () => {
+      mockStore.photos.set([makePhoto({ path: '/a.jpg' }), makePhoto({ path: '/b.jpg' })]);
+      mockStore.selectedPaths.set(new Set(['/a.jpg', '/b.jpg']));
+      expect(menuEntries(openSelectionActions(render())).slice(0, 2)).toEqual([S.invert, '─']);
+    });
+
+    it('nests favorite, reset decision and the 1-5 star ratings under Review, each named for assistive technology', async () => {
       const f = render();
-      const disclosure = bar(f)!.querySelector<HTMLDetailsElement>('[data-selection-more]')!;
-      expect(disclosure.open).toBe(false);
-      expect(disclosure.querySelector('summary')!.textContent).toContain(I18N.gallery.selection.actions);
-      for (const label of [I18N.gallery.selection.clear, I18N.review.keep, I18N.gallery.selection.reject]) {
-        const button = labelled(f, label)!;
-        expect(button.textContent).toContain(label);
-        expect(button.closest('details')).toBeNull();
+      const rate = vi.spyOn(f.componentInstance.selectionActions, 'batchRate').mockResolvedValue(undefined);
+      const review = openSelectionSubmenu(f, openSelectionActions(f), I18N.gallery.sidebar.tabs.review);
+      expect(openMenuPanels()).toHaveLength(2);
+      expect(menuEntries(review)).toEqual([S.favorite, I18N.review.reset, '─', '★', '★★', '★★★', '★★★★', '★★★★★', S.clear_rating]);
+      const stars = [...review.querySelectorAll('.mat-mdc-menu-item')].slice(2, 7);
+      expect(stars.map(item => item.getAttribute('aria-label'))).toEqual([1, 2, 3, 4, 5].map(star => `${S.rate} ${star}`));
+      expect([...review.querySelectorAll('.mat-mdc-menu-item')].every(item => !item.hasAttribute('aria-haspopup'))).toBe(true);
+      menuItem(review, '★★★')!.click();
+      f.detectChanges();
+      expect(rate).toHaveBeenCalledWith(3);
+      await settle();
+      expect(openMenuPanels()).toHaveLength(0);
+    });
+
+    it('lists the albums and New album under Add to album, and leaves the entry out when albums are off', async () => {
+      (TestBed.inject(AlbumService).list as Mock).mockReturnValue(of({ albums: [{ id: 7, name: 'Trip' }] }));
+      const f = render();
+      await f.whenStable();
+      const add = vi.spyOn(f.componentInstance.selectionActions, 'addToAlbum').mockResolvedValue(undefined);
+      const albums = openSelectionSubmenu(f, openSelectionActions(f), I18N.albums.add_photos);
+      expect(menuEntries(albums)).toEqual(['Trip', I18N.albums.create]);
+      menuItem(albums, 'Trip')!.click();
+      expect(add).toHaveBeenCalledWith(7);
+      f.destroy();
+      expect(menuEntries(openSelectionActions(render({ albums: false })))).toEqual(EDITION_ACTIONS.filter(entry => entry !== I18N.albums.add_photos));
+    });
+
+    it('nests the three set kinds under Mark as a set', () => {
+      const f = render();
+      const mark = vi.spyOn(f.componentInstance.selectionActions, 'markAsPanorama').mockResolvedValue(undefined);
+      const sets = openSelectionSubmenu(f, openSelectionActions(f), S.mark_sequence);
+      expect(menuEntries(sets)).toEqual([S.mark_panorama, S.mark_hdr_panorama, S.mark_bracket]);
+      menuItem(sets, S.mark_bracket)!.click();
+      expect(mark).toHaveBeenCalledWith('bracket');
+    });
+
+    it('nests capture date, location and tags under Edit metadata', () => {
+      const f = render();
+      const inst = f.componentInstance.selectionActions;
+      const date = vi.spyOn(inst, 'openCaptureDateDialog').mockResolvedValue(undefined);
+      const gps = vi.spyOn(inst, 'openBatchGpsDialog').mockResolvedValue(undefined);
+      const tags = vi.spyOn(inst, 'openManualTagsDialog').mockResolvedValue(undefined);
+      const metadata = openSelectionSubmenu(f, openSelectionActions(f), S.edit_metadata);
+      expect(menuEntries(metadata)).toEqual([I18N.capture_date.title, I18N.photo_detail.gps.batch_title, S.edit_tags]);
+      menuItem(metadata, I18N.photo_detail.gps.batch_title)!.click();
+      expect(gps).toHaveBeenCalledTimes(1);
+      expect(date).not.toHaveBeenCalled();
+      expect(tags).not.toHaveBeenCalled();
+    });
+
+    it('offers the download types in a submenu only when darktable profiles exist', () => {
+      const plain = render();
+      const original = vi.spyOn(plain.componentInstance.selectionActions, 'downloadSelected').mockResolvedValue(undefined);
+      const item = menuItem(openSelectionActions(plain), S.download)!;
+      expect(item.getAttribute('aria-haspopup')).toBeNull();
+      item.click();
+      expect(original).toHaveBeenCalledWith();
+      plain.destroy();
+      const f = render({ profiles: ['web'] });
+      const typed = vi.spyOn(f.componentInstance.selectionActions, 'downloadSelected').mockResolvedValue(undefined);
+      const types = openSelectionSubmenu(f, openSelectionActions(f), S.download);
+      expect(menuEntries(types)).toEqual([I18N.download.type_original, 'web', I18N.download.type_raw]);
+      menuItem(types, 'web')!.click();
+      expect(typed).toHaveBeenCalledWith('darktable', 'web');
+    });
+
+    it('leaves Delete out without a trash, keeping Remove from catalog after its divider', () => {
+      expect(menuEntries(openSelectionActions(render({ trash: false }))).slice(-3))
+        .toEqual([I18N.photo_refresh.title, '─', I18N.photo_detail.remove_catalog.action]);
+    });
+
+    it('keeps the commands a whole-view selection cannot drive focusable but inert, each stating why', () => {
+      const f = render({ viewScoped: true });
+      const actions = openSelectionActions(f);
+      const photoActions = TestBed.inject(PhotoActionsService);
+      const refresh = vi.spyOn(photoActions, 'refreshPhotos');
+      const remove = vi.spyOn(photoActions, 'removeFromCatalog');
+      const reasons: [string, string][] = [
+        [I18N.stacks.create, I18N.stacks.explicit_only],
+        [I18N.photo_refresh.title, S.explicit_required],
+        [I18N.photo_detail.remove_catalog.action, S.explicit_required],
+        [I18N.cull.delete_action, I18N.cull.delete_disabled_view_scope_tooltip],
+      ];
+      for (const [label, why] of reasons) {
+        const item = menuItem(actions, label)!;
+        expect(item.disabled, label).toBe(false);
+        expect(item.getAttribute('aria-disabled'), label).toBe('true');
+        expect(tooltipOf(f, item), label).toBe(why);
+        item.click();
+        f.detectChanges();
       }
-      for (const label of [I18N.gallery.selection.edit_tags, I18N.gallery.selection.rate, I18N.gallery.selection.favorite]) {
-        const button = labelled(f, label)!;
-        expect(button.closest('details')).toBe(disclosure);
-        expect(button.textContent).toContain(label);
+      expect(refresh).not.toHaveBeenCalled();
+      expect(remove).not.toHaveBeenCalled();
+      expect(TestBed.inject(MatDialog).open).not.toHaveBeenCalled();
+      expect(openMenuPanels()).toHaveLength(1);
+    });
+
+    it('states the refresh limit when the selection is too large to refresh', () => {
+      const f = render();
+      mockStore.selectionCount.set(MAX_REFRESH_PATHS + 1);
+      f.detectChanges();
+      const actions = openSelectionActions(f);
+      const refresh = menuItem(actions, I18N.photo_refresh.title)!;
+      expect(refresh.getAttribute('aria-disabled')).toBe('true');
+      expect(tooltipOf(f, refresh)).toBe(I18N.photo_refresh.limit);
+      for (const label of [I18N.stacks.create, I18N.photo_detail.remove_catalog.action, I18N.cull.delete_action]) {
+        expect(menuItem(actions, label)!.getAttribute('aria-disabled'), label).toBeNull();
       }
-      disclosure.querySelector('summary')!.click();
-      expect(disclosure.open).toBe(true);
-      const escape = new KeyboardEvent('keydown', { key: 'Escape', bubbles: true, cancelable: true });
-      disclosure.querySelector('summary')!.dispatchEvent(escape);
-      expect(disclosure.open).toBe(false);
+      expect(tooltipOf(f, menuItem(actions, I18N.cull.delete_action)!)).toBeFalsy();
+    });
+
+    it('walks into a submenu and back out with the keyboard, keeping the selection', async () => {
+      const f = render();
+      const trigger = bar(f)!.querySelector<HTMLButtonElement>('[data-selection-more]')!;
+      const actions = openSelectionActions(f);
+      const review = menuItem(actions, I18N.gallery.sidebar.tabs.review)!;
+      review.focus();
+      keydown(review, 'ArrowRight', 39);
+      f.detectChanges();
+      expect(openMenuPanels()).toHaveLength(2);
+      const escape = keydown(openMenuPanels()[1], 'Escape', 27);
+      f.detectChanges();
       expect(escape.defaultPrevented).toBe(true);
-      expect(mockStore.selectionCount()).toBe(2);
+      expect(document.activeElement).toBe(review);
+      await settle();
+      expect(openMenuPanels()).toHaveLength(1);
+      keydown(actions, 'Escape', 27);
+      f.detectChanges();
+      await settle();
+      expect(openMenuPanels()).toHaveLength(0);
+      expect(document.activeElement).toBe(trigger);
+      expect(mockStore.clearSelection).not.toHaveBeenCalled();
     });
 
     it('keeps the Compare requirement out of the flow and on the Compare tooltip', () => {
@@ -4224,41 +4405,38 @@ describe('GalleryComponent', () => {
       expect(navigate).not.toHaveBeenCalled();
     });
 
-    it('closes the Actions disclosure after one of its commands runs and when the filters change', () => {
+    it('closes the whole menu once a command runs, and with the bar when the selection goes', async () => {
       const f = render();
-      const disclosure = bar(f)!.querySelector<HTMLDetailsElement>('[data-selection-more]')!;
-      disclosure.open = true;
-      disclosure.querySelector<HTMLButtonElement>('[data-toolbar-panel] button:not([disabled])')!.click();
-      expect(disclosure.open).toBe(false);
-      disclosure.open = true;
-      mockStore.filters.set({ ...mockStore.filters(), camera: 'Gamma' });
+      const copy = vi.spyOn(f.componentInstance.selectionActions, 'copyPaths').mockResolvedValue(undefined);
+      menuItem(openSelectionActions(f), S.copy_filenames)!.click();
       f.detectChanges();
-      expect(disclosure.open).toBe(false);
+      expect(copy).toHaveBeenCalledTimes(1);
+      await settle();
+      expect(openMenuPanels()).toHaveLength(0);
+      openSelectionActions(f);
+      expect(openMenuPanels()).toHaveLength(1);
+      mockStore.selectionCount.set(0);
+      f.detectChanges();
+      expect(bar(f)).toBeNull();
+      expect(openMenuPanels()).toHaveLength(0);
     });
 
-    it('keeps the Actions disclosure open under a menu it opens, and closes it once a menu command runs', () => {
-      const f = render();
-      const disclosure = bar(f)!.querySelector<HTMLDetailsElement>('[data-selection-more]')!;
-      disclosure.open = true;
-      const rate = labelled(f, I18N.gallery.selection.rate)!;
-      expect(rate.getAttribute('aria-haspopup')).toBe('menu');
-      rate.click();
-      expect(disclosure.open).toBe(true);
-      const menu = f.debugElement.queryAll(By.directive(MatMenuTrigger)).find(d => d.nativeElement === rate)!.injector.get(MatMenuTrigger);
-      menu.closeMenu();
-      expect(disclosure.open).toBe(true);
-      menu.menu!.close.emit('click');
-      expect(disclosure.open).toBe(false);
+    it('closes the Targets disclosure when the Actions menu opens', () => {
+      const f = render({ viewScoped: true });
+      const targets = bar(f)!.querySelector<HTMLDetailsElement>('[data-selection-targets]')!;
+      targets.open = true;
+      openSelectionActions(f);
+      expect(targets.open).toBe(false);
     });
 
     it('uses an icon present in the shipped font for Cull to folder', () => {
       const f = render();
-      expect(labelled(f, I18N.cull.action)!.querySelector('mat-icon')!.textContent).toBe('move_to_inbox');
+      expect(menuItem(openSelectionActions(f), I18N.cull.action)!.querySelector('mat-icon')!.textContent).toBe('move_to_inbox');
     });
 
-    it('keeps the tooltip on the disabled delete button (disabledInteractive)', () => {
+    it('keeps the tooltip on the disabled delete entry (disabledInteractive)', () => {
       const f = render({ viewScoped: true });
-      const del = labelled(f, I18N.cull.delete_action)!;
+      const del = menuItem(openSelectionActions(f), I18N.cull.delete_action)!;
       expect(del.getAttribute('aria-disabled')).toBe('true');
       expect(del.disabled).toBe(false);
     });
@@ -4270,30 +4448,23 @@ describe('GalleryComponent', () => {
         const f = render({ profiles });
         f.componentInstance.selectionActions.downloading.set(true);
         f.detectChanges();
-        expect(labelled(f, I18N.photo_detail.downloading)!.disabled).toBe(true);
+        const download = menuItem(openSelectionActions(f), I18N.photo_detail.downloading)!;
+        expect(download.disabled).toBe(true);
+        expect(download.querySelector('mat-spinner')).not.toBeNull();
         expect(labelled(f, I18N.gallery.selection.actions)!.disabled).toBe(true);
+        f.destroy();
       }
     });
 
     it('uses the view-scope text as the delete tooltip when the selection is the whole view', () => {
       const f = render({ viewScoped: true });
-      const del = labelled(f, I18N.cull.delete_action)!;
-      const tooltip = f.debugElement.queryAll(By.directive(MatTooltip)).find(d => d.nativeElement === del);
-      expect(tooltip?.injector.get(MatTooltip).message).toBe(I18N.cull.delete_disabled_view_scope_tooltip);
+      const del = menuItem(openSelectionActions(f), I18N.cull.delete_action)!;
+      expect(tooltipOf(f, del)).toBe(I18N.cull.delete_disabled_view_scope_tooltip);
     });
 
-    it('omits the edit and file actions without edition', () => {
-      const f = render({ edition: false });
-      expect(labelled(f, I18N.gallery.selection.favorite)).toBeNull();
-      expect(labelled(f, I18N.gallery.selection.edit_tags)).toBeNull();
-      expect(labelled(f, I18N.cull.delete_action)).toBeNull();
-      expect(labelled(f, I18N.gallery.selection.copy_filenames)).not.toBeNull();
-    });
-
-    it('hides the desktop group below md and keeps one Actions button', () => {
+    it('hides the desktop Actions trigger below md and keeps one phone Actions button', () => {
       const f = render();
-      const fav = labelled(f, I18N.gallery.selection.favorite)!;
-      expect(fav.closest('.max-md\\:hidden')).not.toBeNull();
+      expect(bar(f)!.querySelector('[data-selection-more]')!.classList.contains('max-md:hidden')).toBe(true);
       expect(labelled(f, I18N.gallery.selection.actions)!.classList.contains('md:!hidden')).toBe(true);
     });
 
@@ -4304,15 +4475,17 @@ describe('GalleryComponent', () => {
       expect(open).toHaveBeenCalledTimes(1);
     });
 
-    it('calls the same handlers as before for favorite, reject and copy', () => {
+    it('calls the same handlers as before for favorite, reject and copy', async () => {
       const f = render();
       const inst = f.componentInstance.selectionActions;
       const fav = vi.spyOn(inst, 'batchFavorite').mockResolvedValue(undefined);
       const rej = vi.spyOn(inst, 'batchReject').mockResolvedValue(undefined);
       const copy = vi.spyOn(inst, 'copyPaths').mockResolvedValue(undefined);
-      labelled(f, I18N.gallery.selection.favorite)!.click();
       labelled(f, I18N.gallery.selection.reject)!.click();
-      labelled(f, I18N.gallery.selection.copy_filenames)!.click();
+      menuItem(openSelectionSubmenu(f, openSelectionActions(f), I18N.gallery.sidebar.tabs.review), S.favorite)!.click();
+      f.detectChanges();
+      await settle();
+      menuItem(openSelectionActions(f), S.copy_filenames)!.click();
       expect(fav).toHaveBeenCalled();
       expect(rej).toHaveBeenCalled();
       expect(copy).toHaveBeenCalled();
@@ -4398,6 +4571,22 @@ describe('GalleryComponent', () => {
 
       const data = (bottomSheet.open as Mock).mock.calls[0][1].data;
       expect(data.trashAvailable).toBe(true);
+    });
+
+    it('tells the sheet whether Select all applies and dispatches its Select all and Remove from catalog', async () => {
+      (mockAuth as { isEdition: unknown }).isEdition = vi.fn(() => true);
+      const bottomSheet = TestBed.inject(MatBottomSheet);
+      (bottomSheet.open as Mock)
+        .mockReturnValueOnce({ afterDismissed: () => of({ kind: 'select-all' }) })
+        .mockReturnValueOnce({ afterDismissed: () => of({ kind: 'remove-catalog' }) });
+      const remove = vi.spyOn(component.selectionActions, 'removeSelectedFromCatalog').mockResolvedValue();
+      const open = () => (component as unknown as { openActionsSheet(): Promise<void> }).openActionsSheet();
+
+      await open();
+      expect((bottomSheet.open as Mock).mock.calls[0][1].data.canSelectAll).toBe(true);
+      expect(mockStore.selectAll).toHaveBeenCalledTimes(1);
+      await open();
+      expect(remove).toHaveBeenCalledTimes(1);
     });
 
     it('dispatches to deleteSelected() when the sheet resolves { kind: "delete" }', async () => {

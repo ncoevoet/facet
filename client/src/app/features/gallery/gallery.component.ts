@@ -1,6 +1,6 @@
 import { ControlPopoverComponent } from '../../shared/components/control-popover/control-popover.component';
 import { closeDetailsOnEscape, closeOverlayDirectives } from '../../shared/utils/overlays';
-import { GallerySelectionActions } from './gallery-selection-actions';
+import { GallerySelectionActions, refreshBlockedReason } from './gallery-selection-actions';
 import { GalleryVisitPositions, GalleryHistoryPosition } from './gallery-visit-positions.service';
 import { TagNavigation } from '../../shared/models/tag-navigation';
 import { refineTagQuery } from './tag-query.util';
@@ -44,7 +44,8 @@ import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
 import { MatBottomSheet, MatBottomSheetModule } from '@angular/material/bottom-sheet';
 import { HttpErrorResponse } from '@angular/common/http';
 import { MatDialog, MatDialogModule } from '@angular/material/dialog';
-import { MatMenuModule, MatMenuTrigger, MenuCloseReason } from '@angular/material/menu';
+import { MatMenuModule, MatMenuTrigger } from '@angular/material/menu';
+import { MatDividerModule } from '@angular/material/divider';
 import { MatTooltip, MatTooltipModule } from '@angular/material/tooltip';
 import { ActivatedRoute, NavigationStart, Router, RouterOutlet } from '@angular/router';
 import { filter, firstValueFrom, takeUntil } from 'rxjs';
@@ -71,7 +72,7 @@ import { STACK_MAX_MEMBERS, STACK_MIN_MEMBERS } from './stack-limits';
 import { PhotoStackService } from '../../core/services/photo-stack.service';
 import { PhotoTooltipComponent } from './photo-tooltip.component';
 import { ConfirmDialogComponent } from '../../shared/components/confirm-dialog/confirm-dialog.component';
-import { MAX_REFRESH_PATHS, PhotoActionsService } from '../../core/services/photo-actions.service';
+import { PhotoActionsService } from '../../core/services/photo-actions.service';
 import { CardActionsService } from './card-actions.service';
 import { SlideshowComponent } from './slideshow.component';
 import { GalleryFilterSidebarComponent } from './gallery-filter-sidebar.component';
@@ -125,6 +126,7 @@ const SET_KIND_TOGGLE: Record<string, keyof HiddenFilterFlags> = {
     MatSliderModule,
     MatDialogModule,
     MatMenuModule,
+    MatDividerModule,
     MatTooltipModule,
     MatBottomSheetModule,
     PluralKeyPipe,
@@ -837,7 +839,7 @@ const SET_KIND_TOGGLE: Record<string, keyof HiddenFilterFlags> = {
           <span id="selection-bar-move-help" class="sr-only">{{ I18N.gallery.selection.move_bar_help | translate }}</span>
           <span data-selection-status tabindex="-1" class="text-sm font-medium shrink-0 px-1">{{ selectionStatus().key | translate:selectionStatus().params }}</span>
           @if (viewScoped() || selectionGroupTargets().total) {
-            <details #selectionTargets #selectionDisclosure name="gallery-selection-disclosures" data-selection-targets
+            <details #selectionTargets #selectionDisclosure data-selection-targets
               (keydown.escape)="closeDisclosure($event, selectionTargets, targetsSummary)">
               <summary #targetsSummary class="flex min-h-11 cursor-pointer list-none items-center gap-1 rounded-md px-2 text-sm focus-visible:outline-2 focus-visible:outline-[var(--mat-sys-primary)]"><mat-icon aria-hidden="true">ads_click</mat-icon>{{ I18N.gallery.selection.targets.title | translate }}</summary>
               <div data-toolbar-panel class="absolute bottom-full left-0 mb-3 group-data-[toolbar-down=true]/selection:bottom-auto group-data-[toolbar-down=true]/selection:top-full group-data-[toolbar-down=true]/selection:mb-0 group-data-[toolbar-down=true]/selection:mt-3 max-h-[60vh] w-full max-w-160 overflow-y-auto rounded-lg border border-[var(--mat-sys-outline-variant)] bg-[var(--mat-sys-surface-container)] p-3 shadow-lg text-sm">
@@ -878,105 +880,100 @@ const SET_KIND_TOGGLE: Record<string, keyof HiddenFilterFlags> = {
           <button mat-icon-button class="md:!hidden !h-11 !w-11 !min-w-11 !p-2.5" (click)="openActionsSheet()" [disabled]="selectionActions.downloading()" [matTooltip]="I18N.gallery.selection.actions | translate" [attr.aria-label]="I18N.gallery.selection.actions | translate">
             @if (selectionActions.downloading()) { <mat-spinner diameter="18" [attr.aria-label]="I18N.ui.labels.loading | translate"></mat-spinner> } @else { <mat-icon>more_horiz</mat-icon> }
           </button>
-          <details #selectionMore #selectionDisclosure name="gallery-selection-disclosures" data-selection-more class="max-md:hidden" (keydown.escape)="closeDisclosure($event, selectionMore, selectionMoreSummary)">
-            <summary #selectionMoreSummary class="flex min-h-11 cursor-pointer list-none items-center gap-1 rounded-md px-2 text-sm font-medium hover:bg-[var(--mat-sys-surface-container-high)] focus-visible:outline-2 focus-visible:outline-[var(--mat-sys-primary)]"><mat-icon aria-hidden="true">more_horiz</mat-icon>{{ I18N.gallery.selection.actions | translate }}</summary>
-            <div data-toolbar-panel role="presentation" (click)="closeSelectionMoreOnCommand($event)" class="absolute bottom-full left-0 mb-3 group-data-[toolbar-down=true]/selection:bottom-auto group-data-[toolbar-down=true]/selection:top-full group-data-[toolbar-down=true]/selection:mb-0 group-data-[toolbar-down=true]/selection:mt-3 flex max-h-[60vh] w-full max-w-160 flex-wrap items-center gap-2 overflow-y-auto rounded-lg border border-[var(--mat-sys-outline-variant)] bg-[var(--mat-sys-surface-container)] p-3 shadow-lg">
-          @if (!allLoadedSelected()) {
-            <button mat-button disabledInteractive (click)="selectAll()" [matTooltip]="I18N.gallery.selection.select_all | translate" [attr.aria-label]="I18N.gallery.selection.select_all | translate"><mat-icon>select_all</mat-icon><span>{{ I18N.gallery.selection.select_all | translate }}</span></button>
-          }
-          <button mat-button disabledInteractive (click)="invertSelection()" [matTooltip]="I18N.gallery.selection.invert | translate" [attr.aria-label]="I18N.gallery.selection.invert | translate"><mat-icon>flip</mat-icon><span>{{ I18N.gallery.selection.invert | translate }}</span></button>
-          @if (auth.isEdition()) {
-            <button mat-icon-button [disabled]="viewScoped() || selectionCount() > MAX_REFRESH_PATHS" (click)="refreshSelectedPhotos()"
-              [matTooltip]="I18N.photo_refresh.title | translate" [attr.aria-label]="I18N.photo_refresh.title | translate"><mat-icon>refresh</mat-icon></button>
-          }
-          <!-- Mobile: single Actions trigger opening a touch-friendly bottom sheet -->
-          @if (auth.isEdition()) {
-            <button mat-button data-create-stack (click)="createStack()" [disabled]="!canCreateStack()"
-              [matTooltip]="(canCreateStack() ? (stackShortcut() ? I18N.shortcuts.stack_hint : I18N.stacks.create) : I18N.stacks.explicit_only) | translate:{ key: stackShortcut() }"
-              [attr.aria-label]="I18N.stacks.create | translate"><mat-icon>photo_library</mat-icon><span>{{ I18N.stacks.create | translate }}</span></button>
-          }
-
-
-            @if (auth.isEdition()) {
-              <span aria-hidden="true" class="w-px h-6 mx-1 bg-[var(--mat-sys-outline-variant)]"></span>
-              <button mat-button disabledInteractive (click)="selectionActions.batchFavorite()" [matTooltip]="I18N.gallery.selection.favorite | translate" [attr.aria-label]="I18N.gallery.selection.favorite | translate"><mat-icon>favorite</mat-icon><span>{{ I18N.gallery.selection.favorite | translate }}</span></button>
-              <button mat-button disabledInteractive (click)="selectionActions.batchReview('undecided')" [matTooltip]="I18N.review.reset | translate" [attr.aria-label]="I18N.review.reset | translate"><mat-icon>restart_alt</mat-icon><span>{{ I18N.review.reset | translate }}</span></button>
-              <button mat-button disabledInteractive [matMenuTriggerFor]="rateMenu" [matTooltip]="I18N.gallery.selection.rate | translate" [attr.aria-label]="I18N.gallery.selection.rate | translate"><mat-icon>star</mat-icon><span>{{ I18N.gallery.selection.rate | translate }}</span></button>
-              <mat-menu #rateMenu="matMenu" (closed)="closeSelectionMoreAfterMenu($event)">
-                @for (star of [1, 2, 3, 4, 5]; track star) {
-                  <button mat-menu-item (click)="selectionActions.batchRate(star)">
-                    {{ '★'.repeat(star) }}
-                  </button>
+          <button type="button" data-selection-more [matMenuTriggerFor]="selectionActionsMenu" (menuOpened)="closeSelectionDisclosures()"
+                  class="max-md:hidden flex min-h-11 cursor-pointer items-center gap-1 rounded-md px-2 text-sm font-medium hover:bg-[var(--mat-sys-surface-container-high)] focus-visible:outline-2 focus-visible:outline-[var(--mat-sys-primary)]"><mat-icon aria-hidden="true">more_horiz</mat-icon>{{ I18N.gallery.selection.actions | translate }}</button>
+          <!-- Desktop Actions: one menu, two levels at most. Commands a whole-view selection cannot
+               drive stay focusable (disabledInteractive) so their tooltip can say why; downloads are
+               natively disabled while one runs, as a second click would start a second download. -->
+          <mat-menu #selectionActionsMenu="matMenu">
+            <ng-template matMenuContent>
+              <!-- Submenus are declared unconditionally: a template reference does not escape an
+                   @if block, and an unopened mat-menu renders nothing. -->
+              <mat-menu #selectionReviewMenu="matMenu">
+                <button mat-menu-item (click)="selectionActions.batchFavorite()"><mat-icon>favorite</mat-icon><span>{{ I18N.gallery.selection.favorite | translate }}</span></button>
+                <button mat-menu-item (click)="selectionActions.batchReview('undecided')"><mat-icon>restart_alt</mat-icon><span>{{ I18N.review.reset | translate }}</span></button>
+                <mat-divider />
+                @for (rating of ratings; track rating.value) {
+                  <button mat-menu-item [attr.aria-label]="(I18N.gallery.selection.rate | translate) + ' ' + rating.value" (click)="selectionActions.batchRate(rating.value)"><span>{{ rating.label }}</span></button>
                 }
-                <button mat-menu-item (click)="selectionActions.batchRate(0)">
-                  {{ I18N.gallery.selection.clear | translate }}
-                </button>
+                <button mat-menu-item (click)="selectionActions.batchRate(0)"><span>{{ I18N.gallery.selection.clear_rating | translate }}</span></button>
               </mat-menu>
-            }
-            @if (auth.isEdition() && store.config()?.features?.show_albums) {
-              <button mat-button disabledInteractive [matMenuTriggerFor]="albumMenu" [matTooltip]="I18N.albums.add_photos | translate" [attr.aria-label]="I18N.albums.add_photos | translate"><mat-icon>photo_library</mat-icon><span>{{ I18N.albums.add_photos | translate }}</span></button>
-              <mat-menu #albumMenu="matMenu" (closed)="closeSelectionMoreAfterMenu($event)">
+              <mat-menu #selectionAlbumMenu="matMenu">
                 @for (album of albumOptions(); track album.id) {
-                  <button mat-menu-item (click)="selectionActions.addToAlbum(album.id)">{{ album.name }}</button>
+                  <button mat-menu-item (click)="selectionActions.addToAlbum(album.id)"><span>{{ album.name }}</span></button>
                 }
-                <button mat-menu-item (click)="selectionActions.createAlbumAndAdd()">
-                  <mat-icon>add</mat-icon>
-                  {{ I18N.albums.create | translate }}
-                </button>
+                <button mat-menu-item (click)="selectionActions.createAlbumAndAdd()"><mat-icon>add</mat-icon><span>{{ I18N.albums.create | translate }}</span></button>
               </mat-menu>
-            }
-            <!-- The other half of the panorama correction: culling can only fix a
-                 set the detector found, and an undetected sweep appears in no
-                 culling group at all. Here the frames are in front of the user. -->
-            @if (auth.isEdition()) {
-              <button mat-button disabledInteractive [matMenuTriggerFor]="sequenceMenu" [matTooltip]="I18N.gallery.selection.mark_sequence | translate" [attr.aria-label]="I18N.gallery.selection.mark_sequence | translate"><mat-icon>panorama_photosphere</mat-icon><span>{{ I18N.gallery.selection.mark_sequence | translate }}</span></button>
-              <mat-menu #sequenceMenu="matMenu" (closed)="closeSelectionMoreAfterMenu($event)">
-                <button mat-menu-item (click)="selectionActions.markAsPanorama('panorama')">
-                  <mat-icon>{{ 'panorama' | sequenceKindIcon }}</mat-icon>
-                  {{ I18N.gallery.selection.mark_panorama | translate }}
-                </button>
-                <button mat-menu-item (click)="selectionActions.markAsPanorama('hdr_panorama')">
-                  <mat-icon>{{ 'hdr_panorama' | sequenceKindIcon }}</mat-icon>
-                  {{ I18N.gallery.selection.mark_hdr_panorama | translate }}
-                </button>
-                <button mat-menu-item (click)="selectionActions.markAsPanorama('bracket')">
-                  <mat-icon>{{ 'bracket' | sequenceKindIcon }}</mat-icon>
-                  {{ I18N.gallery.selection.mark_bracket | translate }}
-                </button>
+              <!-- The other half of the panorama correction: culling can only fix a
+                   set the detector found, and an undetected sweep appears in no
+                   culling group at all. Here the frames are in front of the user. -->
+              <mat-menu #selectionSetMenu="matMenu">
+                <button mat-menu-item (click)="selectionActions.markAsPanorama('panorama')"><mat-icon>{{ 'panorama' | sequenceKindIcon }}</mat-icon><span>{{ I18N.gallery.selection.mark_panorama | translate }}</span></button>
+                <button mat-menu-item (click)="selectionActions.markAsPanorama('hdr_panorama')"><mat-icon>{{ 'hdr_panorama' | sequenceKindIcon }}</mat-icon><span>{{ I18N.gallery.selection.mark_hdr_panorama | translate }}</span></button>
+                <button mat-menu-item (click)="selectionActions.markAsPanorama('bracket')"><mat-icon>{{ 'bracket' | sequenceKindIcon }}</mat-icon><span>{{ I18N.gallery.selection.mark_bracket | translate }}</span></button>
               </mat-menu>
-            }
-            <span aria-hidden="true" class="w-px h-6 mx-1 bg-[var(--mat-sys-outline-variant)]"></span>
-            <button mat-button disabledInteractive (click)="selectionActions.copyPaths()" [matTooltip]="I18N.gallery.selection.copy_filenames | translate" [attr.aria-label]="I18N.gallery.selection.copy_filenames | translate"><mat-icon>content_copy</mat-icon><span>{{ I18N.gallery.selection.copy_filenames | translate }}</span></button>
-            @if (auth.isEdition()) {
-              <button mat-button (click)="selectionActions.openCaptureDateDialog()" [matTooltip]="I18N.capture_date.title | translate" [attr.aria-label]="I18N.capture_date.title | translate"><mat-icon>edit_calendar</mat-icon><span>{{ I18N.capture_date.title | translate }}</span></button>
-              <button mat-button disabledInteractive (click)="selectionActions.openBatchGpsDialog()" [matTooltip]="I18N.photo_detail.gps.batch_title | translate" [attr.aria-label]="I18N.photo_detail.gps.batch_title | translate"><mat-icon>location_on</mat-icon><span>{{ I18N.photo_detail.gps.batch_title | translate }}</span></button>
-              <button mat-button disabledInteractive (click)="selectionActions.openManualTagsDialog()" [matTooltip]="I18N.gallery.selection.edit_tags | translate" [attr.aria-label]="I18N.gallery.selection.edit_tags | translate"><mat-icon>sell</mat-icon><span>{{ I18N.gallery.selection.edit_tags | translate }}</span></button>
-              <button mat-button disabledInteractive (click)="selectionActions.openExportDialog()" [matTooltip]="I18N.export.action | translate" [attr.aria-label]="I18N.export.action | translate"><mat-icon>drive_file_move</mat-icon><span>{{ I18N.export.action | translate }}</span></button>
-              <button mat-button disabledInteractive (click)="selectionActions.openCullDialog()" [matTooltip]="I18N.cull.action | translate" [attr.aria-label]="I18N.cull.action | translate"><mat-icon>move_to_inbox</mat-icon><span>{{ I18N.cull.action | translate }}</span></button>
-              <button mat-button (click)="selectionActions.removeSelectedFromCatalog()" [disabled]="viewScoped()"><mat-icon>hide_image</mat-icon><span>{{ I18N.photo_detail.remove_catalog.action | translate }}</span></button>
-              @if (store.config()?.cull?.trash_available) {
-                <button mat-icon-button disabledInteractive (click)="selectionActions.deleteSelected()"
-                        [disabled]="viewScoped()"
-                        [matTooltip]="(viewScoped() ? I18N.cull.delete_disabled_view_scope_tooltip : I18N.cull.delete_action) | translate"
-                        [attr.aria-label]="I18N.cull.delete_action | translate">
-                  <mat-icon>delete</mat-icon>
+              <mat-menu #selectionMetadataMenu="matMenu">
+                <button mat-menu-item (click)="selectionActions.openCaptureDateDialog()"><mat-icon>edit_calendar</mat-icon><span>{{ I18N.capture_date.title | translate }}</span></button>
+                <button mat-menu-item (click)="selectionActions.openBatchGpsDialog()"><mat-icon>location_on</mat-icon><span>{{ I18N.photo_detail.gps.batch_title | translate }}</span></button>
+                <button mat-menu-item (click)="selectionActions.openManualTagsDialog()"><mat-icon>sell</mat-icon><span>{{ I18N.gallery.selection.edit_tags | translate }}</span></button>
+              </mat-menu>
+              <mat-menu #selectionDownloadMenu="matMenu">
+                <button mat-menu-item (click)="selectionActions.downloadSelected()"><mat-icon>image</mat-icon><span>{{ I18N.download.type_original | translate }}</span></button>
+                @for (profile of auth.downloadProfiles(); track profile) {
+                  <button mat-menu-item (click)="selectionActions.downloadSelected('darktable', profile)"><mat-icon>photo_filter</mat-icon><span>{{ profile }}</span></button>
+                }
+                <button mat-menu-item (click)="selectionActions.downloadSelected('raw')"><mat-icon>raw_on</mat-icon><span>{{ I18N.download.type_raw | translate }}</span></button>
+              </mat-menu>
+
+              @if (!allLoadedSelected()) {
+                <button mat-menu-item (click)="selectAll()"><mat-icon>select_all</mat-icon><span>{{ I18N.gallery.selection.select_all | translate }}</span></button>
+              }
+              <button mat-menu-item (click)="invertSelection()"><mat-icon>flip</mat-icon><span>{{ I18N.gallery.selection.invert | translate }}</span></button>
+              <mat-divider />
+              @if (auth.isEdition()) {
+                <button mat-menu-item [matMenuTriggerFor]="selectionReviewMenu"><mat-icon>rate_review</mat-icon><span>{{ I18N.gallery.sidebar.tabs.review | translate }}</span></button>
+                @if (store.config()?.features?.show_albums) {
+                  <button mat-menu-item [matMenuTriggerFor]="selectionAlbumMenu"><mat-icon>photo_library</mat-icon><span>{{ I18N.albums.add_photos | translate }}</span></button>
+                }
+                <button mat-menu-item [matMenuTriggerFor]="selectionSetMenu"><mat-icon>panorama_photosphere</mat-icon><span>{{ I18N.gallery.selection.mark_sequence | translate }}</span></button>
+                <button mat-menu-item [matMenuTriggerFor]="selectionMetadataMenu"><mat-icon>edit_note</mat-icon><span>{{ I18N.gallery.selection.edit_metadata | translate }}</span></button>
+              }
+              @if (auth.downloadProfiles().length) {
+                <button mat-menu-item [matMenuTriggerFor]="selectionDownloadMenu" [disabled]="selectionActions.downloading()">
+                  @if (selectionActions.downloading()) { <mat-spinner matMenuItemIcon class="mr-4" diameter="24" [attr.aria-label]="I18N.ui.labels.loading | translate"></mat-spinner> } @else { <mat-icon>download</mat-icon> }
+                  <span>{{ (selectionActions.downloading() ? I18N.photo_detail.downloading : I18N.gallery.selection.download) | translate }}</span>
+                </button>
+              } @else {
+                <button mat-menu-item (click)="selectionActions.downloadSelected()" [disabled]="selectionActions.downloading()">
+                  @if (selectionActions.downloading()) { <mat-spinner matMenuItemIcon class="mr-4" diameter="24" [attr.aria-label]="I18N.ui.labels.loading | translate"></mat-spinner> } @else { <mat-icon>download</mat-icon> }
+                  <span>{{ (selectionActions.downloading() ? I18N.photo_detail.downloading : I18N.gallery.selection.download) | translate }}</span>
                 </button>
               }
-            }
-            @if (auth.downloadProfiles().length) {
-              <button mat-icon-button [matMenuTriggerFor]="dlMenu" [disabled]="selectionActions.downloading()" [matTooltip]="(selectionActions.downloading() ? I18N.photo_detail.downloading : I18N.gallery.selection.download) | translate" [attr.aria-label]="(selectionActions.downloading() ? I18N.photo_detail.downloading : I18N.gallery.selection.download) | translate">@if (selectionActions.downloading()) { <mat-spinner diameter="18" [attr.aria-label]="I18N.ui.labels.loading | translate"></mat-spinner> } @else { <mat-icon>download</mat-icon> }</button>
-              <mat-menu #dlMenu="matMenu" (closed)="closeSelectionMoreAfterMenu($event)">
-                <button mat-menu-item (click)="selectionActions.downloadSelected()"><mat-icon>image</mat-icon> {{ I18N.download.type_original | translate }}</button>
-                @for (profile of auth.downloadProfiles(); track profile) {
-                  <button mat-menu-item (click)="selectionActions.downloadSelected('darktable', profile)"><mat-icon>photo_filter</mat-icon> {{ profile }}</button>
+              <mat-divider />
+              @if (auth.isEdition()) {
+                <button mat-menu-item data-create-stack disabledInteractive [disabled]="!canCreateStack()" (click)="createStack()"
+                        [matTooltip]="(canCreateStack() ? (stackShortcut() ? I18N.shortcuts.stack_hint : I18N.stacks.create) : I18N.stacks.explicit_only) | translate:{ key: stackShortcut() }"
+                        matTooltipPosition="right"><mat-icon>photo_library</mat-icon><span>{{ I18N.stacks.create | translate }}</span></button>
+              }
+              <button mat-menu-item (click)="selectionActions.copyPaths()"><mat-icon>content_copy</mat-icon><span>{{ I18N.gallery.selection.copy_filenames | translate }}</span></button>
+              @if (auth.isEdition()) {
+                <button mat-menu-item (click)="selectionActions.openExportDialog()"><mat-icon>drive_file_move</mat-icon><span>{{ I18N.export.action | translate }}</span></button>
+                <button mat-menu-item (click)="selectionActions.openCullDialog()"><mat-icon>move_to_inbox</mat-icon><span>{{ I18N.cull.action | translate }}</span></button>
+                <button mat-menu-item disabledInteractive [disabled]="!!refreshBlocked()" (click)="refreshSelectedPhotos()"
+                        [matTooltip]="refreshBlocked() ? (refreshBlocked() | translate) : ''"
+                        matTooltipPosition="right"><mat-icon>refresh</mat-icon><span>{{ I18N.photo_refresh.title | translate }}</span></button>
+                <mat-divider />
+                <button mat-menu-item disabledInteractive [disabled]="viewScoped()" (click)="selectionActions.removeSelectedFromCatalog()"
+                        [matTooltip]="viewScoped() ? (I18N.gallery.selection.explicit_required | translate) : ''"
+                        matTooltipPosition="right"><mat-icon>hide_image</mat-icon><span>{{ I18N.photo_detail.remove_catalog.action | translate }}</span></button>
+                @if (store.config()?.cull?.trash_available) {
+                  <button mat-menu-item disabledInteractive [disabled]="viewScoped()" (click)="selectionActions.deleteSelected()"
+                          [matTooltip]="viewScoped() ? (I18N.cull.delete_disabled_view_scope_tooltip | translate) : ''"
+                          matTooltipPosition="right"><mat-icon>delete</mat-icon><span>{{ I18N.cull.delete_action | translate }}</span></button>
                 }
-                <button mat-menu-item (click)="selectionActions.downloadSelected('raw')"><mat-icon>raw_on</mat-icon> {{ I18N.download.type_raw | translate }}</button>
-              </mat-menu>
-            } @else {
-              <button mat-icon-button (click)="selectionActions.downloadSelected()" [disabled]="selectionActions.downloading()" [matTooltip]="(selectionActions.downloading() ? I18N.photo_detail.downloading : I18N.gallery.selection.download) | translate" [attr.aria-label]="(selectionActions.downloading() ? I18N.photo_detail.downloading : I18N.gallery.selection.download) | translate">@if (selectionActions.downloading()) { <mat-spinner diameter="18" [attr.aria-label]="I18N.ui.labels.loading | translate"></mat-spinner> } @else { <mat-icon>download</mat-icon> }</button>
-            }
-            </div>
-          </details>
+              }
+            </ng-template>
+          </mat-menu>
         </div>
       }
     </div>
@@ -1079,7 +1076,8 @@ const SET_KIND_TOGGLE: Record<string, keyof HiddenFilterFlags> = {
 })
 export class GalleryComponent implements OnInit, OnDestroy {
   protected readonly I18N = i18nKeys();
-  protected readonly MAX_REFRESH_PATHS = MAX_REFRESH_PATHS;
+  /** The Review submenu's star entries, labelled once rather than per change detection. */
+  protected readonly ratings = [1, 2, 3, 4, 5].map(value => ({ value, label: '★'.repeat(value) }));
   protected readonly store = inject(GalleryStore);
   protected readonly auth = inject(AuthService);
   // A parked gallery can retain old rows across a credential change. Preserve
@@ -1249,6 +1247,7 @@ export class GalleryComponent implements OnInit, OnDestroy {
   });
   /** True while the selection means "the whole filtered view", not a path list. */
   protected readonly viewScoped = this.store.viewScopeSelected;
+  protected readonly refreshBlocked = computed(() => refreshBlockedReason(this.viewScoped(), this.selectionCount()));
   /** How the bar names its target: explicit photos, the whole view, or the whole view minus exclusions. */
   protected readonly selectedStackTiles = computed(() => this.selectionDetails().stackTiles);
   protected readonly selectionStatus = computed(() => {
@@ -2017,7 +2016,7 @@ export class GalleryComponent implements OnInit, OnDestroy {
     this.router.events.pipe(filter(e => e instanceof NavigationStart), takeUntilDestroyed()).subscribe(event => {
       // A filter change only rewrites the query string: keep the popover that made it open.
       if (event.url.split(/[?#]/)[0] !== this.router.url.split(/[?#]/)[0]) this.closeCollectionPopovers();
-      for (const disclosure of this.selectionDisclosures()) disclosure.nativeElement.open = false;
+      this.closeSelectionDisclosures();
       if (!this.router.currentNavigation?.()?.extras?.state?.[REVIEW_RESUME_NAVIGATION]) this.resumeNavigation++;
       if (this.parked) return;
       this.returnTo = this.captureReturnTarget();
@@ -2131,13 +2130,6 @@ export class GalleryComponent implements OnInit, OnDestroy {
     effect(() => {
       this.store.viewChangeClears();
       untracked(() => this.selectionAffordance.set(false));
-    });
-    effect(() => {
-      this.store.filters();
-      untracked(() => {
-        const details = this.selectionMoreRef()?.nativeElement;
-        if (details) details.open = false;
-      });
     });
     effect(() => {
       this.tooltipMode(); // track dependency
@@ -2774,6 +2766,8 @@ export class GalleryComponent implements OnInit, OnDestroy {
       case 'capture-date':
       case 'tags':
       case 'gps':
+      case 'select-all':
+      case 'remove-catalog':
         break;
       default: return assertNever(action);
     }
@@ -2872,6 +2866,7 @@ export class GalleryComponent implements OnInit, OnDestroy {
         downloadProfiles: this.auth.downloadProfiles(),
         canCompare: this.canCompareSelection(),
         canStack: this.canCreateStack(),
+        canSelectAll: !this.allLoadedSelected(),
         viewScoped: this.viewScoped(),
         trashAvailable: this.store.config()?.cull?.trash_available ?? false,
       },
@@ -2897,6 +2892,7 @@ export class GalleryComponent implements OnInit, OnDestroy {
       case 'rate': await this.selectionActions.batchRate(action.rating); break;
       case 'album': await this.selectionActions.addToAlbum(action.albumId); break;
       case 'create-album': await this.selectionActions.createAlbumAndAdd(); break;
+      case 'select-all': this.selectAll(); break;
       case 'invert': this.invertSelection(); break;
       case 'compare': await this.compareSelection(); break;
       case 'export': this.selectionActions.openExportDialog(); break;
@@ -2905,6 +2901,7 @@ export class GalleryComponent implements OnInit, OnDestroy {
       case 'tags': await this.selectionActions.openManualTagsDialog(); break;
       case 'gps': await this.selectionActions.openBatchGpsDialog(); break;
       case 'delete': await this.selectionActions.deleteSelected(); break;
+      case 'remove-catalog': await this.selectionActions.removeSelectedFromCatalog(); break;
       case 'copy': await this.selectionActions.copyPaths(); break;
       case 'mark-panorama': await this.selectionActions.markAsPanorama(action.sequenceKind); break;
       case 'download': await this.selectionActions.downloadSelected(action.type, action.profile); break;
@@ -3140,22 +3137,10 @@ export class GalleryComponent implements OnInit, OnDestroy {
   }
 
   protected readonly closeDisclosure = closeDetailsOnEscape;
-  private readonly selectionMoreRef = viewChild<ElementRef<HTMLDetailsElement>>('selectionMore');
 
-  /** The Actions disclosure is a menu: running one of its commands closes it, opening one of its menus does not. */
-  protected closeSelectionMoreOnCommand(event: Event): void {
-    const button = event.target instanceof Element ? event.target.closest('button') : null;
-    if (button && !button.hasAttribute('aria-haspopup')) this.closeSelectionMore();
-  }
-
-  /** A command chosen from one of the disclosure's menus runs it; Escape or Tab only leaves the menu. */
-  protected closeSelectionMoreAfterMenu(reason: MenuCloseReason): void {
-    if (reason === 'click') this.closeSelectionMore();
-  }
-
-  private closeSelectionMore(): void {
-    const details = this.selectionMoreRef()?.nativeElement;
-    if (details) details.open = false;
+  /** The Targets panel and the Actions menu would stack over the same corner: opening one closes the other. */
+  protected closeSelectionDisclosures(): void {
+    for (const disclosure of this.selectionDisclosures()) disclosure.nativeElement.open = false;
   }
 
   protected closeMobileSearch(event: Event): void {

@@ -95,7 +95,8 @@ describe('manual activity from rendered gallery menus and stacks', () => {
     const selected = [...rows, makePhoto({ path: '/trip/c.jpg' })];
     store.restoreSelection(selected.map(photo => photo.path)); fixture.detectChanges();
     const start = requested('/api/stacks/regroup/preview');
-    (fixture.nativeElement as HTMLElement).querySelector<HTMLButtonElement>('[data-create-stack]')!.click();
+    (fixture.nativeElement as HTMLElement).querySelector<HTMLButtonElement>('[data-selection-more]')!.click(); fixture.detectChanges();
+    document.querySelector<HTMLButtonElement>('.cdk-overlay-container [data-create-stack]')!.click();
     await vi.waitFor(() => expect(router.url).toBe('/stacks/edit')); routed.detectChanges();
     await start;
     http.expectOne('/api/stacks/regroup/preview').flush({ selected_paths: selected.map(p => p.path), mode: 'combine', paths: selected.map(p => p.path), cover_path: rows[0].path, source_stacks: [], unstacked_paths: selected.map(p => p.path), affected_paths: selected.map(p => p.path), expected_state: 'a'.repeat(64) });
@@ -162,8 +163,11 @@ describe('manual activity from rendered gallery menus and stacks', () => {
 
   it('disables stack creation for whole-view selection and discloses folded members', async () => {
     store.selectWholeView(); fixture.detectChanges();
-    const button = (fixture.nativeElement as HTMLElement).querySelector<HTMLButtonElement>('[data-create-stack]')!;
-    expect(button.disabled).toBe(true);
+    (fixture.nativeElement as HTMLElement).querySelector<HTMLButtonElement>('[data-selection-more]')!.click(); fixture.detectChanges();
+    const button = document.querySelector<HTMLButtonElement>('.cdk-overlay-container [data-create-stack]')!;
+    // disabledInteractive: inert and announced as disabled, yet focusable so its reason stays reachable.
+    expect(button.getAttribute('aria-disabled')).toBe('true');
+    expect(button.disabled).toBe(false);
     expect(fixture.nativeElement.textContent).toContain('stacks.folded_scope');
     button.click(); http.expectNone('/api/stacks');
   });

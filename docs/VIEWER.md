@@ -342,7 +342,7 @@ Photo-detail sets show and count every file, including both files of a grouped R
 
 ### Multi-Select & Bulk Actions
 
-Select photos using the selection controls or Space; Shift+Click selects a range on desktop. On a phone, tap Select before tapping photos, and Cancel to leave selection mode. The contextual bar names its targets and offers Clear and Compare; editing access adds Keep/Reject and other write actions. Actions opens labeled secondary commands on desktop and the action sheet on phones. Read-only commands retain their ordinary access controls.
+Select photos using the selection controls or Space; Shift+Click selects a range on desktop. On a phone, tap Select before tapping photos, and Cancel to leave selection mode. The contextual bar names its targets and offers Clear and Compare; editing access adds Keep/Reject and other write actions. On desktop, **Actions** opens a menu at most two levels deep: Select all and Invert; then **Review** (favorite, reset decision, 1–5 stars, Clear rating), **Add to Album**, **Mark as a set**, **Edit metadata** (capture date, location, tags) and **Download**, a submenu of download types when darktable profiles exist; then Stack photos, Copy filenames, Export to editor, Cull to folder and refresh; last, Remove from Facet and Delete. Without editing access it holds only selection, download and Copy filenames. A command the selection cannot drive, such as Delete on a whole-view selection, stays listed but disabled, and its tooltip says why. On phones, Actions opens the action sheet. Read-only commands retain their ordinary access controls.
 
 The comparison thumbnail strip identifies the reference and lets you choose a candidate directly. The active pane is highlighted independently. Remove from comparison changes this view only, never Keep/Reject or the gallery selection; Restore returns removed photos. One remaining photo stays inspectable. Grid cards with details fit the entire photo into a uniform 4:3 frame; Mosaic keeps justified aspect-ratio rows.
 
@@ -506,7 +506,7 @@ Manual tags are tags you type yourself, kept next to the AI tags. They are store
 
 - **Where they show.** Photo detail distinguishes manual tags from AI tags. Gallery cards with details and photo tooltips include both kinds in their tag navigation, without duplicate labels.
 - **Who can edit.** Edition users. On an install without `viewer.edition_password` they are read-only. AI tags cannot be removed.
-- **Bulk editing.** Select photos and use **Edit tags** (selection bar, mobile Actions sheet, or context menu). Add/Remove changes one tag; Replace takes one tag per line; Clear removes every manual tag. Preview shows the captured targets and known mixed values before Apply, including whole-view selections. Add skips photos already holding 50 manual tags; an invalid Replace is refused before that request writes anything. The API's `count` reports changed tag rows, not photos. AI tags are preserved. Each request is atomic, but a multi-request batch is not; an uncertain Replace/Clear result requires inspection before another attempt.
+- **Bulk editing.** Select photos and use **Edit tags** (**Actions → Edit metadata** on the selection bar, the mobile Actions sheet, or the context menu). Add/Remove changes one tag; Replace takes one tag per line; Clear removes every manual tag. Preview shows the captured targets and known mixed values before Apply, including whole-view selections. Add skips photos already holding 50 manual tags; an invalid Replace is refused before that request writes anything. The API's `count` reports changed tag rows, not photos. AI tags are preserved. Each request is atomic, but a multi-request batch is not; an uncertain Replace/Clear result requires inspection before another attempt.
 - **Format.** Tags are trimmed, lowercased and whitespace-collapsed (NFC). Max 64 characters, max 50 per photo. Empty tags, commas and control characters are rejected. A tag equal to one of the photo's AI tags is not stored.
 - **Search and filters see them.** The tag filter, text search, semantic search (`/api/search`, except the caption-only text scope), the tag dropdown, statistics and sidecar/embed/Lightroom exports all use AI + manual tags. Text search matches a manual tag as a whole phrase.
 - **Exceptions.** Capsules count AI tags only. Manual tags never affect scores, categories or narrative moments.
@@ -527,12 +527,12 @@ A panorama's frames are meant to be stitched and a bracket's to be merged; they 
 **Correcting a set.** Detection gets about 4% of sets wrong. Corrections are sticky: they survive every later detection run. Both need edition mode, at least two frames, and can be undone from the snackbar.
 
 - **False positive** (not a panorama, or plain vs HDR): use the correction menu on the group's action bar in culling.
-- **Missed panorama**: select its frames in the gallery and choose *Mark as a set* → *Mark as one panorama*.
+- **Missed panorama**: select its frames in the gallery and choose *Actions* → *Mark as a set* → *Mark as one panorama*.
 
 **Marking a missed bracket.** For an exposure ladder detected as an ordinary burst:
 
 - In the darkroom, a plain burst group (no frame already in a bracket or panorama) offers *Mark as bracket*.
-- In the gallery selection bar, use *Mark as a set* → *Mark as one bracket*.
+- In the gallery selection bar, open *Actions* → *Mark as a set* → *Mark as one bracket*.
 - The frames must form a real ladder: at least 2 frames, each with exposure data (f-stop, shutter speed, ISO) and a capture date, and no two at the same exposure value. Otherwise the mark is refused with a message and nothing is saved.
 - Marking frames that overlap an existing marked bracket extends it. The combined set must still be a valid ladder.
 - The darkroom feed hides rejected frames, so a darkroom mark never includes a rejected rung.
@@ -1282,7 +1282,7 @@ Production builds can be installed to the home screen. The app shell loads offli
 
 The phone header always shows the menu button, and the title names the current page. Page bottom bars share the same 56 px row (height, inset and spacing); the Culling and Junk Sweep bars wrap onto more rows when their controls do not fit. On Albums and Persons the bar buttons carry labels from 768 px wide. On **Persons**, **Update faces** sits above the tabs on phones.
 
-On small screens the floating selection bar shows touch-sized buttons for clear, compare (once two or more photos are selected) and, in edition mode, Keep and Reject, plus an **Actions** button. **Actions** opens a bottom sheet with the other bulk operations (refresh, stack, favorite, reset decision, rate, albums, capture date, tags, location, export, cull to folder, mark as panorama, HDR panorama or bracket, invert, copy filenames, download). When the selection does not fit the compare workspace, the compare button stays disabled and a note states the limits.
+On small screens the floating selection bar shows touch-sized buttons for clear, compare (once two or more photos are selected) and, in edition mode, Keep and Reject, plus an **Actions** button. **Actions** opens a bottom sheet listing the desktop Actions menu in the same order, each submenu as a labelled section: compare, select all and invert; **Review** (Keep, Reject, favorite, reset decision, 1–5 stars, clear rating); **Add to Album**; **Mark as a set**; **Edit metadata**; **Download** (a section only when darktable profiles exist); then stack, copy filenames, export, cull to folder, refresh, remove from Facet and delete. A command the selection cannot use is disabled, with the reason beneath it. When the selection does not fit the compare workspace, the compare button stays disabled and a note states the limits.
 
 ## Photo Frame / Kiosk Endpoint
 
