@@ -1,7 +1,9 @@
-import { Component, inject, signal, input, effect, output, ChangeDetectionStrategy } from '@angular/core';
+import { Component, inject, signal, input, effect, output, DestroyRef, ChangeDetectionStrategy } from '@angular/core';
 import { MatIconModule } from '@angular/material/icon';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
-import { firstValueFrom } from 'rxjs';
+import { firstValueFrom, Subject, takeUntil } from 'rxjs';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
+import { MatButtonModule } from '@angular/material/button';
 import { ApiService } from '../../core/services/api.service';
 import { ThumbnailUrlPipe } from '../../shared/pipes/thumbnail-url.pipe';
 import { TranslatePipe } from '../../shared/pipes/translate.pipe';
@@ -26,7 +28,7 @@ interface CalendarCell {
 @Component({
   selector: 'app-timeline-days',
   standalone: true,
-  imports: [MatIconModule, MatProgressSpinnerModule, ThumbnailUrlPipe, TranslatePipe],
+  imports: [MatButtonModule, MatIconModule, MatProgressSpinnerModule, ThumbnailUrlPipe, TranslatePipe],
   changeDetection: ChangeDetectionStrategy.Eager,
   template: `
     @if (loading()) {
@@ -82,6 +84,9 @@ interface CalendarCell {
 })
 export class TimelineDaysComponent {
   private readonly api = inject(ApiService);
+  private readonly destroyRef = inject(DestroyRef);
+  private readonly cancelLoad = new Subject<void>();
+  private requestId = 0;
   private readonly filters = inject(TimelineFiltersService);
   private readonly store = inject(GalleryStore);
 
@@ -111,9 +116,21 @@ export class TimelineDaysComponent {
     });
   }
 
+  private get selectionKey(): string {
+    return JSON.stringify([
+      this.year(), this.month(), this.filters.dateFrom(), this.filters.dateTo(), this.store.viewFilterParams(),
+    ]);
+  }
+
   private async load(
     year: number, month: number, dateFrom: string, dateTo: string, viewParams: ViewFilterParams,
   ): Promise<void> {
+    const requestId = ++this.requestId;
+    this.cancelLoad.next();
+    const selectionKey = this.selectionKey;
+    const isCurrent = () => !this.destroyRef.destroyed && requestId === this.requestId
+      && selectionKey === this.selectionKey;
+    this.calendarCells.set([]);
     this.loadError.set(false);
     this.loading.set(true);
     try {
@@ -121,8 +138,12 @@ export class TimelineDaysComponent {
       if (dateFrom) params['date_from'] = dateFrom;
       if (dateTo) params['date_to'] = dateTo;
       const res = await firstValueFrom(
-        this.api.get<{ dates: DateEntry[] }>('/timeline/dates', params),
+        this.api.get<{ dates: DateEntry[] }>('/timeline/dates', params).pipe(
+          takeUntil(this.cancelLoad), takeUntilDestroyed(this.destroyRef),
+        ),
       );
+
+      if (!isCurrent()) return;
 
       // Build date lookup
       const dateMap = new Map<string, DateEntry>();
@@ -159,9 +180,9 @@ export class TimelineDaysComponent {
     } catch {
       // A failed load must not render as an empty calendar or keep the
       // previous period's cells: the grid is hidden and the error offers a retry.
-      this.loadError.set(true);
+      if (isCurrent()) this.loadError.set(true);
     } finally {
-      this.loading.set(false);
+      if (isCurrent()) this.loading.set(false);
     }
   }
 }

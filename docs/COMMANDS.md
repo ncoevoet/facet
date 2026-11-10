@@ -119,6 +119,7 @@ On a CUDA GPU, once a chunk is decoded the same decode worker starts on the firs
 - Originals are never modified unless you add `--embed-originals` (JPEG/HEIC/TIFF/PNG/DNG only; RAW is never touched).
 - Keywords are the AI tags plus your [manual tags](VIEWER.md#manual-tags). They are only added, unless `--reconcile-keywords` removes ones Facet wrote before; foreign keywords are kept. See [Manual tags and XMP keywords](INTEROP.md#manual-tags-and-xmp-keywords).
 - Embedding and keyword merging need **exiftool**. Without it, Facet writes a plain XML sidecar.
+- The summary counts written, embedded, missing and failed files. Any write error exits 1, including a partially successful export; completed files remain written. Missing originals are skipped and counted, and do not alone make the command fail. An empty selection exits 0.
 
 **Sidecar import.**
 
@@ -487,6 +488,8 @@ The tagging step at the end of a scan is skipped when `tagging.enabled` is `fals
 
 Checks: score ranges, face metrics, BLOB corruption, embedding sizes, orphaned faces, statistical outliers.
 
+Both interactive repairs and `--auto-fix` take the library lock and check the issues again before writing. Interactive mode waits for your initial confirmation before taking the lock. A busy library exits 75; an unusable lock exits 1. `--report-only` and declining repairs do not need the repair lock.
+
 ## Database Maintenance
 
 | Command | Description |
@@ -517,6 +520,10 @@ Checks: score ranges, face metrics, BLOB corruption, embedding sizes, orphaned f
 | `python database.py --migrate-user-preferences --user alice` | Copy ratings from photos to user_preferences |
 
 **`python database.py`** also builds missing gallery indexes (see [VIEWER.md](VIEWER.md#gallery-indexes-and-the-count-cache)). On a large library, run it once before starting the viewer; it can take about a minute. Otherwise the viewer builds them in the background and refuses saves meanwhile.
+
+**`--backup`** publishes a completed snapshot under a unique timestamped name before rotating old snapshots. Runs in the same second keep separate snapshots; a failed copy leaves earlier backups intact. The destination filesystem must support hard links.
+
+**`--export-viewer-db`** keeps destination edits and private places during incremental sync. Full exports omit source saved/recent places. See [export completion and retry](DEPLOYMENT.md#export-lightweight-database) for publication, schema upgrades and recovery after an error.
 
 **`--migrate-tags`** is needed once. After that, scans, `--recompute-tags`, `--recompute-tags-vlm` and `tag_existing.py` keep the table current. Until it is populated, tag filters use a slower `LIKE` search.
 

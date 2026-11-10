@@ -1,7 +1,7 @@
 import type { Mock } from 'vitest';
 import { TestBed } from '@angular/core/testing';
 import { signal } from '@angular/core';
-import { of, throwError } from 'rxjs';
+import { of, Subject, throwError } from 'rxjs';
 import { I18nService } from '../../core/services/i18n.service';
 import { ApiService } from '../../core/services/api.service';
 import { TimelineFiltersService } from './timeline-filters.service';
@@ -31,6 +31,8 @@ describe('TimelineDaysComponent', () => {
     });
     TestBed.runInInjectionContext(() => {
       component = new TimelineDaysComponent();
+      component.year = signal('2024');
+      component.month = signal('6');
     });
   });
 
@@ -59,6 +61,88 @@ describe('TimelineDaysComponent', () => {
       mockApi.get.mockReturnValue(throwError(() => new Error('fail')));
       try { await (component as any).load(2024, 6, '', '', { ...noneHidden }); } catch { /* expected */ }
       expect(component.loading()).toBe(false);
+    });
+  });
+
+  describe('request ownership', () => {
+    const response = (date: string, count = 3) => ({
+      dates: [{ date, count, hero_photo_path: '/photos/hero.jpg' }],
+    });
+
+    it.each(['success', 'failure'])('ignores a queued obsolete month %s', async outcome => {
+      mockApi.get.mockReturnValueOnce(of(response('2024-05-15')));
+      await component.load(2024, 5, '', '', noneHidden);
+      expect(component.calendarCells().find((cell: any) => cell.date === '2024-05-15').count).toBe(3);
+      const old = new Subject<ReturnType<typeof response>>();
+      const latest = new Subject<ReturnType<typeof response>>();
+      mockApi.get.mockReturnValueOnce(old).mockReturnValueOnce(latest);
+      const oldDone = component.load(2024, 6, '', '', noneHidden);
+      if (outcome === 'success') old.next(response('2024-06-15'));
+      else old.error(new Error('obsolete month'));
+      const latestDone = component.load(2024, 7, '', '', noneHidden);
+      await oldDone;
+      expect(component.loading()).toBe(true);
+      expect(component.loadError()).toBe(false);
+      expect(component.calendarCells()).toEqual([]);
+      latest.next(response('2024-07-15', 7));
+      latest.complete();
+      await latestDone;
+      expect(component.loading()).toBe(false);
+      expect(component.calendarCells().find((cell: any) => cell.date === '2024-07-15').count).toBe(7);
+      expect(component.calendarCells().some((cell: any) => cell.date?.startsWith('2024-06'))).toBe(false);
+    });
+
+    it('rejects a queued response immediately after an input or filter changes, before the effect runs', async () => {
+      TestBed.resetTestingModule();
+      TestBed.configureTestingModule({
+        providers: [
+          { provide: ApiService, useValue: mockApi },
+          { provide: I18nService, useValue: { t: (key: string) => key, translations: signal({}) } },
+          TimelineFiltersService,
+          { provide: GalleryStore, useValue: mockStore },
+        ],
+      });
+      const fixture = TestBed.createComponent(TimelineDaysComponent);
+      component = fixture.componentInstance;
+      fixture.componentRef.setInput('year', '2024');
+      fixture.componentRef.setInput('month', '5');
+      mockApi.get.mockReturnValueOnce(of(response('2024-05-15')));
+      fixture.detectChanges();
+      await fixture.whenStable();
+      expect(component.calendarCells().find((cell: any) => cell.date === '2024-05-15').count).toBe(3);
+      const old = new Subject<ReturnType<typeof response>>();
+      const latest = new Subject<ReturnType<typeof response>>();
+      mockApi.get.mockReturnValueOnce(old).mockReturnValueOnce(latest);
+      fixture.componentRef.setInput('month', '6');
+      fixture.detectChanges();
+      old.next(response('2024-06-15'));
+      fixture.componentRef.setInput('month', '7');
+      mockStore.viewFilterParams.set({ ...noneHidden, hide_duplicates: '1' });
+      // No detectChanges/tick yet: the response must reject the changed selection itself.
+      await Promise.resolve();
+      expect(component.calendarCells()).toEqual([]);
+      expect(component.loading()).toBe(true);
+      fixture.detectChanges();
+      expect(mockApi.get).toHaveBeenLastCalledWith('/timeline/dates', {
+        year: 2024, month: 7, ...noneHidden, hide_duplicates: '1',
+      });
+      latest.next(response('2024-07-15', 8));
+      latest.complete();
+      await fixture.whenStable();
+      fixture.detectChanges();
+      expect(component.calendarCells().find((cell: any) => cell.date === '2024-07-15').count).toBe(8);
+      expect(component.loading()).toBe(false);
+    });
+
+    it('cancels the pending calendar request on destroy', async () => {
+      const pending = new Subject<ReturnType<typeof response>>();
+      mockApi.get.mockReturnValueOnce(pending);
+      const done = component.load(2024, 6, '', '', noneHidden);
+      expect(pending.observed).toBe(true);
+      TestBed.resetTestingModule();
+      expect(pending.observed).toBe(false);
+      await done;
+      expect(component.calendarCells()).toEqual([]);
     });
   });
 

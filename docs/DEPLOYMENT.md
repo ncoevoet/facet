@@ -197,6 +197,7 @@ This creates `photo_scores_viewer.db`, which:
 - drops CLIP, caption and face embeddings;
 - keeps the per-photo histogram (~2 KB each) for the RGB histogram widget;
 - shrinks thumbnails from 640px to 320px;
+- starts with empty saved-place and recent-location lists; the scoring machine's private places are not copied;
 - typically turns a 14GB database into ~4-5GB.
 
 Exports are incremental: only new and changed photos are synced. For a full rebuild:
@@ -205,8 +206,16 @@ Exports are incremental: only new and changed photos are synced. For a full rebu
 python database.py --export-viewer-db --force-export
 ```
 
-> **Warning:** `--force-export` discards ratings, locations and manual tags set in the
+> **Warning:** `--force-export` discards ratings, locations, manual tags and private saved/recent places set in the
 > viewer on the NAS. Only an incremental export keeps them.
+
+**Completion and retry.** A full export is prepared in an owner-only temporary file beside the destination, stripped of private source state, compacted and checked for SQLite and foreign-key consistency before publication. A new output appears only when ready. Replacing an existing output uses SQLite's backup transaction, preserving its inode for open readers and WAL connections; failure keeps the previous database. New outputs and backup snapshots require a filesystem that supports hard links. If it does not, the command fails without publishing a partial file; choose a compatible output directory.
+
+An incremental export first upgrades the destination schema, then synchronizes one source snapshot in one destination transaction. A failed or interrupted data sync rolls back photo, face, tag, vector and review-receipt changes together; the schema upgrade may remain. Fix the reported cause and rerun the same command. A corrupt new-photo thumbnail is an error, so repairing it in the source and retrying also generates its thumbnail. Existing thumbnails stay unchanged. Destination review edits, manual tags and saved/recent places remain local and are preserved by incremental sync.
+
+Exports reserve free space for staging or rollback journals and fail before copying if the estimate does not fit. Exceptions and normal interrupts remove the temporary copy; a forcibly killed process can leave a hidden owner-only `.*.export-*` file beside the output. Once the exporter has stopped, remove that temporary file and retry. The old published database remains the recovery point. SQLite locking still applies: retry lock errors when the destination writer is idle.
+
+If the output's main file is missing but a `-wal`, `-shm` or `-journal` companion remains, export stops without deleting it. Close users of that database and recover it before retrying; a surviving WAL may contain data that belongs to the previous database.
 
 "Find Similar" does not work on the exported database (no embeddings). Use the scoring
 machine for that.

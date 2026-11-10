@@ -4094,7 +4094,7 @@ def main():
             "Sidecar export: %d written, %d embedded, %d missing, %d errors",
             stats['written'], stats['embedded'], stats['missing'], stats['errors'],
         )
-        exit()
+        sys.exit(1 if stats['errors'] else 0)
 
     # Headless auto-cull of photos already in the DB (no GPU needed). With
     # positional photo paths it is scan-then-cull instead, dispatched below.

@@ -10,8 +10,12 @@ import logging
 import os
 import shutil
 import sqlite3
+import tempfile
+import time
+from contextlib import closing, contextmanager
 from datetime import datetime
 from io import BytesIO
+from pathlib import Path
 
 from int_affinity import storable_int
 from db.connection import apply_pragmas
@@ -178,6 +182,124 @@ def check_disk_space(target_path, needed_bytes, margin=1.2):
     return free >= required, free, required
 
 
+@contextmanager
+def _private_database_path(target_path, purpose):
+    """Reserve a private sibling file; remove it and SQLite sidecars on every exit."""
+    target = Path(target_path).absolute()
+    fd, path = tempfile.mkstemp(prefix=f'.{target.name}.{purpose}-', dir=target.parent)
+    os.close(fd)
+    try:
+        yield path
+    finally:
+        for suffix in ('', '-wal', '-shm', '-journal'):
+            try:
+                os.remove(path + suffix)
+            except FileNotFoundError:
+                pass
+
+
+def _sqlite_backup(source, destination):
+    """Copy in one SQLite destination transaction, with bounded lock contention.
+
+    sqlite3.backup otherwise retries BUSY/LOCKED indefinitely. Reset the deadline
+    on progress so a large, actively copying database has no arbitrary timeout.
+    An exception from progress aborts and rolls back SQLite's backup transaction.
+    """
+    busy_since = None
+
+    def progress(status, remaining, total):
+        nonlocal busy_since
+        if status in (sqlite3.SQLITE_BUSY, sqlite3.SQLITE_LOCKED):
+            now = time.monotonic()
+            if busy_since is None:
+                busy_since = now
+            elif now - busy_since >= 5:
+                raise sqlite3.OperationalError('Database remained locked during backup; retry when idle')
+        else:
+            busy_since = None
+
+    source.backup(destination, pages=256, progress=progress, sleep=0.1)
+
+
+def _database_disk_size(path):
+    """Include uncheckpointed pages when estimating space for a live database."""
+    size = os.path.getsize(path)
+    try:
+        size += os.path.getsize(str(path) + '-wal')
+    except FileNotFoundError:
+        pass  # The final WAL connection may checkpoint/remove it concurrently.
+    return size
+
+
+def _check_new_database_companions(output_path):
+    # A surviving WAL can override a newly published main file with old data.
+    # Never delete these files: an unlinked database may still have live users.
+    for suffix in ('-wal', '-shm', '-journal'):
+        companion = str(output_path) + suffix
+        if os.path.lexists(companion):
+            raise FileExistsError(
+                f'Cannot publish database at {output_path}: SQLite companion '
+                f'{companion} exists without its main database; close its users '
+                'and recover the database before retrying')
+
+
+def _publish_new_database(staging_path, output_path):
+    """Publish without replacing any existing file; fail closed on unsupported FS."""
+    _check_new_database_companions(output_path)
+    try:
+        os.link(staging_path, output_path)
+    except FileExistsError:
+        raise
+    except OSError as ex:
+        raise OSError(
+            f'Cannot publish database atomically at {output_path}: the destination '
+            'filesystem must support hard links; use a local filesystem and retry') from ex
+
+
+def _check_export_space(output_path, needed_bytes):
+    ok, free, required = check_disk_space(output_path, needed_bytes)
+    if not ok:
+        raise RuntimeError(
+            f'Not enough free space for viewer export: need ~{required / 1e9:.1f} GB, '
+            f'only {free / 1e9:.1f} GB free (including staging/journal space)')
+
+
+def _check_export_paths(source_db, output_path):
+    def database_paths(path):
+        return {
+            Path(base + suffix).resolve()
+            for base in {str(path), str(Path(path).resolve())}
+            for suffix in ('', '-wal', '-shm', '-journal')
+        }
+
+    # Compare both families: a source called viewer.db-wal is destroyed when
+    # SQLite first opens viewer.db, even if viewer.db does not exist yet.
+    source_paths = database_paths(source_db)
+    output_paths = database_paths(output_path)
+    collision = bool(source_paths & output_paths)
+    if not collision:
+        for source in source_paths:
+            for output in output_paths:
+                try:
+                    if source.samefile(output):
+                        collision = True
+                except FileNotFoundError:
+                    pass  # An idle SQLite connection can remove a WAL/SHM file.
+    if collision:
+        raise ValueError('Source and output cannot use the same database or SQLite companion paths')
+
+
+def _validate_viewer_copy(conn):
+    from db.connection import load_sqlite_vec
+    load_sqlite_vec(conn)
+    result = conn.execute('PRAGMA main.quick_check').fetchall()
+    if result != [('ok',)]:
+        raise sqlite3.DatabaseError(f'Viewer export validation failed: {result[:3]}')
+    violations = conn.execute('PRAGMA main.foreign_key_check').fetchmany(3)
+    if violations:
+        raise sqlite3.IntegrityError(f'Viewer export foreign key validation failed: {violations}')
+
+
 def _rotate_backups(db_path, base_dir, keep):
     """Delete the oldest backup snapshots, keeping the newest `keep`.
 
@@ -185,12 +307,16 @@ def _rotate_backups(db_path, base_dir, keep):
     (dot) naming, sorted by mtime so the two timestamp schemes still prune by
     age rather than by lexical order of their differing separators.
     """
-    db_name = os.path.basename(db_path)
-    patterns = (f"{db_name}.backup-*", f"{db_name}.backup.*")
-    backups = sorted(
-        (path for pat in patterns for path in glob.glob(os.path.join(base_dir, pat))),
-        key=os.path.getmtime,
-    )
+    prefix = glob.escape(os.path.join(base_dir, os.path.basename(db_path)))
+    patterns = (f"{prefix}.backup-*", f"{prefix}.backup.*")
+    snapshots = []
+    for pat in patterns:
+        for path in glob.glob(pat):
+            try:
+                snapshots.append((os.path.getmtime(path), path))
+            except FileNotFoundError:
+                pass  # Another completed backup may be rotating concurrently.
+    backups = [path for _, path in sorted(snapshots)]
     excess = backups[:-keep] if keep > 0 else backups
     for old in excess:
         try:
@@ -225,7 +351,7 @@ def backup_database(db_path='photo_scores_pro.db', keep=3, dest_dir=None, verbos
             "would rotate away the snapshot this call just wrote"
         )
 
-    source_size = os.path.getsize(db_path)
+    source_size = _database_disk_size(db_path)
     base_dir = dest_dir or os.path.dirname(os.path.abspath(db_path))
     os.makedirs(base_dir, exist_ok=True)
 
@@ -238,22 +364,17 @@ def backup_database(db_path='photo_scores_pro.db', keep=3, dest_dir=None, verbos
 
     db_name = os.path.basename(db_path)
     timestamp = datetime.now().strftime('%Y%m%d-%H%M%S')
-    backup_path = os.path.join(base_dir, f"{db_name}.backup-{timestamp}")
+    backup_base = os.path.join(base_dir, f"{db_name}.backup-{timestamp}")
 
     src = sqlite3.connect(f"file:{db_path}?mode=ro", uri=True)
     try:
-        dst = sqlite3.connect(backup_path)
-        try:
-            src.backup(dst)
-        except BaseException:
-            # A partial backup looks like a valid snapshot to a user restoring
-            # one — remove it so a failed copy never leaves a misleading file.
-            dst.close()
-            if os.path.exists(backup_path):
-                os.remove(backup_path)
-            raise
-        finally:
-            dst.close()
+        with _private_database_path(backup_base, 'pending') as staging_path:
+            with closing(sqlite3.connect(staging_path)) as dst:
+                _sqlite_backup(src, dst)
+            # The reserved random suffix prevents same-second collisions; link
+            # publishes without ever overwriting an existing completed backup.
+            backup_path = backup_base + '-' + staging_path.rsplit('-', 1)[-1]
+            _publish_new_database(staging_path, backup_path)
     finally:
         src.close()
 
@@ -572,7 +693,6 @@ def _reinsert_faces(dest_conn, face_insert_cols, face_resync_paths, batch_size):
             f"SELECT {face_select_exprs} FROM src.faces sf WHERE {source_auto}sf.photo_path IN ({placeholders})",
             batch
         )
-    dest_conn.commit()
 
 
 def _downsize_face_thumbnails(dest_conn, face_resync_paths, thumbnail_size, batch_size):
@@ -597,13 +717,12 @@ def _downsize_face_thumbnails(dest_conn, face_resync_paths, thumbnail_size, batc
                     img.save(buf, format='JPEG', quality=80)
                     updates.append((buf.getvalue(), face_id))
                     face_resized += 1
-            except Exception:
-                pass
+            except (OSError, ValueError):
+                logger.warning('Skipping corrupt face thumbnail %s', face_id)
         if updates:
             dest_conn.executemany(
                 "UPDATE main.faces SET face_thumbnail = ? WHERE id = ?", updates
             )
-            dest_conn.commit()
     return face_resized
 
 
@@ -632,34 +751,59 @@ def _normalize_review_decisions(conn: sqlite3.Connection) -> None:
 
 
 def _incremental_update_viewer_db(source_db, output_path, thumbnail_size, verbose):
-    """Incrementally sync changes from source_db into the existing viewer database.
+    """Sync one source snapshot in one destination transaction.
 
-    Processes only new/deleted photos; preserves existing thumbnails.
-
-    Returns:
-        Tuple of (source_size, output_size) in bytes
+    The canonical schema upgrade commits first and is safe to retry. All later
+    data changes, including viewer edit receipts, either commit together or roll
+    back. The existing inode stays in place for live SQLite/WAL connections.
     """
-    from PIL import Image
-    from db.metadata_edits import viewer_review_preserved, viewer_review_sync
+    from db.connection import load_sqlite_vec
+    from db.schema import init_database
 
+    _check_export_paths(source_db, output_path)
     source_size = os.path.getsize(source_db)
+    _check_export_space(output_path, _database_disk_size(source_db) + _database_disk_size(output_path))
     if verbose:
         logger.info("  Output exists — running incremental update...")
         logger.info("  Source: %.1f MB", source_size / 1024 / 1024)
 
-    # Upgrade the viewer database before SQL relies on newly introduced manual
-    # provenance. Reuse the canonical migration, without building photo indexes.
-    from db.schema import init_database
+    # Schema migrations have their own transactions. If data sync fails, leave
+    # the upgraded schema in place and retry the same incremental export.
     init_database(output_path, build_photo_indexes=False)
+    destination_uri = Path(output_path).resolve().as_uri()
+    with closing(sqlite3.connect(destination_uri, uri=True)) as dest_conn:
+        dest_conn.execute("PRAGMA foreign_keys = ON")
+        load_sqlite_vec(dest_conn)
+        source_uri = Path(source_db).resolve().as_uri() + '?mode=ro'
+        dest_conn.execute("ATTACH DATABASE ? AS src", (source_uri,))
+        try:
+            # Reserve the destination writer before reading source or viewer
+            # authority. The attached source is read-only and shares this
+            # transaction's snapshot throughout every phase below.
+            dest_conn.execute("BEGIN IMMEDIATE")
+            _sync_viewer_db(dest_conn, thumbnail_size, verbose)
+            if verbose:
+                logger.info("  Running ANALYZE...")
+            dest_conn.execute("ANALYZE main")
+            _validate_viewer_copy(dest_conn)
+            dest_conn.commit()
+        except BaseException:
+            dest_conn.rollback()
+            raise
 
-    src_escaped = source_db.replace("'", "''")
-    dest_conn = sqlite3.connect(output_path)
-    dest_conn.execute("PRAGMA foreign_keys = ON")
-    dest_conn.execute(f"ATTACH DATABASE '{src_escaped}' AS src")
+    output_size = os.path.getsize(output_path)
+    if verbose:
+        logger.info("  Output: %s (%.1f MB)", output_path, output_size / 1024 / 1024)
+    return source_size, output_size
+
+
+def _sync_viewer_db(dest_conn, thumbnail_size, verbose):
+    """Apply data changes inside the caller's transaction; never commit here."""
+    from PIL import Image
+    from db.metadata_edits import viewer_review_preserved, viewer_review_sync
 
     from db.manual_face_export import prepare_person_sync, merge_manual_faces
     source_face_columns = prepare_person_sync(dest_conn)
-    dest_conn.commit()
 
     # --- Delta detection ---
     new_paths = [r[0] for r in dest_conn.execute(
@@ -678,7 +822,6 @@ def _incremental_update_viewer_db(source_db, output_path, thumbnail_size, verbos
         dest_conn.executemany(
             "DELETE FROM main.photos WHERE path = ?", [(p,) for p in deleted_paths]
         )
-        dest_conn.commit()
         if verbose:
             logger.info("  Removed %d deleted photos", len(deleted_paths))
 
@@ -731,7 +874,6 @@ def _incremental_update_viewer_db(source_db, output_path, thumbnail_size, verbos
         set_clause = ', '.join(_photo_set_expr(c) for c in update_cols)
         with viewer_review_sync(dest_conn, 'photos'):
             dest_conn.execute(f"UPDATE main.photos SET {set_clause}")
-        dest_conn.commit()
         if verbose:
             logger.info("  Updated metadata for existing photos")
 
@@ -755,7 +897,6 @@ def _incremental_update_viewer_db(source_db, output_path, thumbnail_size, verbos
                     f"SELECT {select_exprs} FROM src.photos WHERE path IN ({placeholders})",
                     batch
                 )
-        dest_conn.commit()
         if verbose:
             logger.info("  Inserted %d new photos", len(new_paths))
 
@@ -783,13 +924,15 @@ def _incremental_update_viewer_db(source_db, output_path, thumbnail_size, verbos
                     else:
                         updates.append((thumb_bytes, path))
                     processed += 1
-                except Exception:
-                    pass
+                except (OSError, ValueError) as ex:
+                    # Publishing a new photo with NULL here would make the next
+                    # incremental run skip it forever. Roll back, then retry
+                    # after repairing the source thumbnail instead.
+                    raise ValueError(f'Cannot export thumbnail for {path}; repair the source and retry') from ex
             if updates:
                 dest_conn.executemany(
                     "UPDATE main.photos SET thumbnail = ? WHERE path = ?", updates
                 )
-                dest_conn.commit()
         if verbose:
             logger.info("    Processed %d thumbnails", processed)
 
@@ -839,19 +982,16 @@ def _incremental_update_viewer_db(source_db, output_path, thumbnail_size, verbos
                 for c in face_sync_cols
             )
             dest_conn.execute(f"UPDATE main.faces SET {face_set_clause} WHERE is_manual=0")
-            dest_conn.commit()
             if verbose:
                 logger.info("  Updated person assignments and face signals for existing faces")
 
     # Stable person identities were reconciled before face synchronization.
     merge_manual_faces(dest_conn, source_face_columns)
-    dest_conn.commit()
 
     # --- Sync photo_tags (full replace — fast, no BLOBs) ---
     if 'photo_tags' in dest_tables and 'photo_tags' in src_tables:
         dest_conn.execute("DELETE FROM main.photo_tags")
         dest_conn.execute("INSERT INTO main.photo_tags SELECT * FROM src.photo_tags")
-        dest_conn.commit()
         if verbose:
             count = dest_conn.execute("SELECT COUNT(*) FROM main.photo_tags").fetchone()[0]
             logger.info("  Synced %d photo_tags", count)
@@ -895,13 +1035,11 @@ def _incremental_update_viewer_db(source_db, output_path, thumbnail_size, verbos
                     f"INSERT OR IGNORE INTO main.user_preferences ({col_list}) "
                     f"SELECT {col_list} FROM src.user_preferences"
                 )
-        dest_conn.commit()
         if verbose:
             count = dest_conn.execute("SELECT COUNT(*) FROM main.user_preferences").fetchone()[0]
             logger.info("  Synced user preferences (%d rows)", count)
 
     _normalize_review_decisions(dest_conn)
-    dest_conn.commit()
 
     # --- Merge photo_manual_tags (user-authored tags; additive only) ---
     # Never replaced wholesale: a tag added on the viewer deployment survives a
@@ -920,7 +1058,6 @@ def _incremental_update_viewer_db(source_db, output_path, thumbnail_size, verbos
                 f"SELECT {col_list} FROM src.photo_manual_tags "
                 f"WHERE photo_path IN (SELECT path FROM main.photos)"
             )
-            dest_conn.commit()
             if verbose:
                 count = dest_conn.execute("SELECT COUNT(*) FROM main.photo_manual_tags").fetchone()[0]
                 logger.info("  Merged manual tags (%d rows)", count)
@@ -944,7 +1081,6 @@ def _incremental_update_viewer_db(source_db, output_path, thumbnail_size, verbos
                 f"WHERE o.photo_path IN (SELECT path FROM main.photos) "
                 f"AND NOT EXISTS (SELECT 1 FROM main.photo_objects d WHERE {same})"
             )
-            dest_conn.commit()
             if verbose:
                 count = dest_conn.execute("SELECT COUNT(*) FROM main.photo_objects").fetchone()[0]
                 logger.info("  Merged marked objects (%d rows)", count)
@@ -964,7 +1100,6 @@ def _incremental_update_viewer_db(source_db, output_path, thumbnail_size, verbos
                 f"SELECT {col_list} FROM src.photo_ai_edits "
                 f"WHERE source_path IN (SELECT path FROM main.photos)"
             )
-            dest_conn.commit()
             if verbose:
                 count = dest_conn.execute("SELECT COUNT(*) FROM main.photo_ai_edits").fetchone()[0]
                 logger.info("  Merged AI edit links (%d rows)", count)
@@ -1001,43 +1136,26 @@ def _incremental_update_viewer_db(source_db, output_path, thumbnail_size, verbos
                     dest_conn.executemany(
                         "INSERT INTO main.photos_vec (path, embedding) VALUES (?, ?)",
                         records)
-            dest_conn.commit()
             if verbose and (new_paths or deleted_paths):
                 logger.info("  Synced photos_vec (+%d, -%d)", len(new_paths), len(deleted_paths))
         except sqlite3.Error as ex:
-            logger.warning(
-                "Could not sync photos_vec in viewer export "
-                "(rebuild with --populate-vec): %s", ex)
+            raise sqlite3.DatabaseError('Could not sync photos_vec; viewer export rolled back') from ex
 
     # --- Clear stats_cache (viewer regenerates on demand) ---
     if 'stats_cache' in dest_tables:
         dest_conn.execute("DELETE FROM main.stats_cache")
         invalidate_metric_ranges(dest_conn)
-        dest_conn.commit()
 
-    # --- Finalize ---
-    dest_conn.execute("DETACH DATABASE src")
-    if verbose:
-        logger.info("  Running ANALYZE...")
-    dest_conn.execute("ANALYZE")
-    dest_conn.close()
-
-    output_size = os.path.getsize(output_path)
-    saved = source_size - output_size
-    if verbose:
-        logger.info("Result:")
-        logger.info("  Source:  %.1f MB", source_size / 1024 / 1024)
-        logger.info("  Output:  %s (%.1f MB)", output_path, output_size / 1024 / 1024)
-        if saved > 0:
-            logger.info("  Saved:   %.1f MB (%.1f%%)", saved / 1024 / 1024, saved / source_size * 100)
-
-    return source_size, output_size
 
 
 # Tables a viewer database export must not carry (the DROP list of the full export).
 VIEWER_EXPORT_EXCLUDED_TABLES = ('mcp_tokens', 'rating_provenance', 'organization_history',
                                  'photo_stack_members', 'photo_stacks', 'stack_suggestion_dismissals',
                                  'immich_stack_links', 'immich_stack_receipts', 'immich_stack_send_claims')
+
+
+# Private state whose schema remains usable immediately on the destination.
+VIEWER_EXPORT_CLEARED_TABLES = ('photo_metadata_edits', 'saved_places', 'recent_places')
 
 
 def _omit_private_stack_albums(conn) -> int:
@@ -1081,54 +1199,70 @@ def _omit_private_stack_albums(conn) -> int:
 
 
 def export_viewer_db(source_db='photo_scores_pro.db', output_path=None, thumbnail_size=320, verbose=True, force=False):
-    """Export a lightweight database for viewer-only deployment.
+    """Export a lightweight, validated snapshot for viewer-only deployment.
 
-    Creates a stripped-down copy suitable for low-memory NAS devices by:
-    - Removing unused BLOB columns (clip_embedding, caption_embedding, face embeddings)
-    - Downsizing photo thumbnails from 640px to the specified size
-    - Running VACUUM + ANALYZE on the result
-
-    Args:
-        source_db: Path to the source database
-        output_path: Output path (default: photo_scores_viewer.db)
-        thumbnail_size: Max thumbnail dimension in pixels (default: 320)
-        verbose: If True, print progress
-        force: If True, always do a full rebuild even if output exists
+    Full exports are built privately, sanitized and compacted before publication.
+    New outputs appear atomically; forced replacements use SQLite's transactional
+    backup to retain the destination inode and respect its WAL/readers. Existing
+    outputs otherwise receive a transactional incremental sync preserving edits.
 
     Returns:
-        Tuple of (source_size, output_size) in bytes
+        Tuple of (source_size, output_size) in bytes.
     """
-    from PIL import Image
-
     if output_path is None:
         output_path = 'photo_scores_viewer.db'
-
     if not os.path.exists(source_db):
         raise FileNotFoundError(f"Source database not found: {source_db}")
-
-    if os.path.abspath(source_db) == os.path.abspath(output_path):
-        raise ValueError("Output path cannot be the same as source database")
-
+    _check_export_paths(source_db, output_path)
     source_size = os.path.getsize(source_db)
     if verbose:
         logger.info("Exporting viewer database from %s", source_db)
         logger.info("  Source: %.1f MB", source_size / 1024 / 1024)
 
-    # Incremental update if output already exists and force is not set
     if os.path.exists(output_path) and not force:
         return _incremental_update_viewer_db(source_db, output_path, thumbnail_size, verbose)
 
-    # Full export: remove existing output file then do a clean backup
-    if os.path.exists(output_path):
-        os.remove(output_path)
+    if not os.path.exists(output_path):
+        _check_new_database_companions(output_path)
 
-    # Use sqlite3.backup() for atomic, WAL-safe copy
+    # Budget the snapshot, VACUUM scratch space, and final destination journal.
+    source_disk_size = _database_disk_size(source_db)
+    output_disk_size = _database_disk_size(output_path) if os.path.exists(output_path) else 0
+    _check_export_space(output_path, 3 * source_disk_size + output_disk_size)
+    with _private_database_path(output_path, 'export') as staging_path:
+        with closing(sqlite3.connect(Path(source_db).resolve().as_uri() + '?mode=ro', uri=True)) as src_conn:
+            with closing(sqlite3.connect(staging_path)) as dst_conn:
+                if verbose:
+                    logger.info("  Copying database...")
+                _sqlite_backup(src_conn, dst_conn)
+                _prepare_full_viewer_copy(dst_conn, thumbnail_size, verbose)
+
+        # Check again before publishing: never open an alias of the source for writing.
+        _check_export_paths(source_db, output_path)
+        if os.path.exists(output_path):
+            if not force:
+                raise FileExistsError(f'Output appeared during export: {output_path}; retry to update it')
+            # Replacing an open SQLite inode with rename can strand its readers
+            # and leave a WAL belonging to the previous database. Backup instead
+            # publishes in one SQLite transaction, rolling back on interruption.
+            with closing(sqlite3.connect(staging_path)) as prepared:
+                with closing(sqlite3.connect(output_path)) as destination:
+                    _sqlite_backup(prepared, destination)
+        else:
+            # Same-volume no-overwrite publication of the completed private file.
+            # A competing writer creating this path makes link fail safely.
+            _publish_new_database(staging_path, output_path)
+
+    output_size = os.path.getsize(output_path)
     if verbose:
-        logger.info("  Copying database...")
-    src_conn = sqlite3.connect(source_db)
-    dst_conn = sqlite3.connect(output_path)
-    src_conn.backup(dst_conn)
-    src_conn.close()
+        logger.info("  Output: %s (%.1f MB)", output_path, output_size / 1024 / 1024)
+    return source_size, output_size
+
+
+def _prepare_full_viewer_copy(dst_conn, thumbnail_size, verbose):
+    """Sanitize only the private copy; the public destination is untouched here."""
+    from PIL import Image
+
     _normalize_review_decisions(dst_conn)
     dst_conn.commit()
 
@@ -1178,9 +1312,10 @@ def export_viewer_db(source_db='photo_scores_pro.db', output_path=None, thumbnai
 
     # Receipt authority and private source paths belong to this database only.
     # Keep its schema/triggers usable, but start a fresh viewer with no records.
-    if table_exists(dst_conn, 'photo_metadata_edits'):
-        dst_conn.execute('DELETE FROM photo_metadata_edits')
-        dst_conn.commit()
+    for table in VIEWER_EXPORT_CLEARED_TABLES:
+        if table_exists(dst_conn, table):
+            dst_conn.execute(f'DELETE FROM {table}')
+    dst_conn.commit()
 
     # faces: embedding (NOT NULL constraint — use empty blob), landmark_2d_106
     dst_conn.execute("UPDATE faces SET embedding = zeroblob(0), landmark_2d_106 = NULL")
@@ -1222,8 +1357,8 @@ def export_viewer_db(source_db='photo_scores_pro.db', output_path=None, thumbnai
                     img.save(buf, format='JPEG', quality=80)
                     updates.append((buf.getvalue(), path))
                     resized += 1
-            except Exception:
-                pass  # Skip corrupt thumbnails
+            except (OSError, ValueError):
+                logger.warning('Skipping corrupt thumbnail for %s', path)
 
         if updates:
             dst_conn.executemany("UPDATE photos SET thumbnail = ? WHERE path = ?", updates)
@@ -1266,8 +1401,8 @@ def export_viewer_db(source_db='photo_scores_pro.db', output_path=None, thumbnai
                     img.save(buf, format='JPEG', quality=80)
                     updates.append((buf.getvalue(), face_id))
                     face_resized += 1
-            except Exception:
-                pass
+            except (OSError, ValueError):
+                logger.warning('Skipping corrupt face thumbnail %s', face_id)
 
         if updates:
             dst_conn.executemany("UPDATE faces SET face_thumbnail = ? WHERE id = ?", updates)
@@ -1285,17 +1420,8 @@ def export_viewer_db(source_db='photo_scores_pro.db', output_path=None, thumbnai
     if verbose:
         logger.info("  Running ANALYZE...")
     dst_conn.execute("ANALYZE")
-    dst_conn.close()
-
-    output_size = os.path.getsize(output_path)
-    saved = source_size - output_size
-    if verbose:
-        logger.info("Result:")
-        logger.info("  Source:  %.1f MB", source_size / 1024 / 1024)
-        logger.info("  Output:  %s (%.1f MB)", output_path, output_size / 1024 / 1024)
-        logger.info("  Saved:   %.1f MB (%.1f%%)", saved / 1024 / 1024, saved / source_size * 100)
-
-    return source_size, output_size
+    dst_conn.commit()
+    _validate_viewer_copy(dst_conn)
 
 
 # Rows are claimed by the current blob format, not by "the column is NULL":

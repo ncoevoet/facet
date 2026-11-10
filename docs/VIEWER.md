@@ -1100,6 +1100,8 @@ The Stats page (`/stats`) has 5 tabs. The **category** and **date range** select
 | **Categories** | Category analytics, weight management, and score correlations |
 | **Correlations** | Custom X/Y metric correlation charts with grouping |
 
+In **Correlations**, changing a query option clears the previous result; press **Load** to fetch the new selection before exporting CSV. The chart and CSV describe the same loaded selection. Changing the chart style or theme keeps that selection.
+
 ### Categories Tab
 
 Four sub-tabs:

@@ -4,7 +4,8 @@ import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { MatButtonModule } from '@angular/material/button';
 import { MatIconModule } from '@angular/material/icon';
 import { MatTooltipModule } from '@angular/material/tooltip';
-import { firstValueFrom } from 'rxjs';
+import { firstValueFrom, Subject, takeUntil } from 'rxjs';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { Chart } from 'chart.js';
 import { ApiService } from '../../core/services/api.service';
 import { I18nService } from '../../core/services/i18n.service';
@@ -68,6 +69,11 @@ interface TimelineEntry {
         <mat-card-content class="!pt-4">
           @if (timelineLoading()) {
             <div class="flex justify-center py-4"><mat-spinner diameter="32" [attr.aria-label]="I18N.ui.labels.loading | translate" /></div>
+          } @else if (timelineError()) {
+            <div role="alert" class="flex items-center justify-center gap-3 py-4 text-sm">
+              <span>{{ I18N.errors.server_error | translate }}</span>
+              <button mat-stroked-button (click)="loadTimeline()">{{ I18N.gallery.load_error.retry | translate }}</button>
+            </div>
           } @else {
             <div class="h-64 md:h-80 lg:h-96">
               <canvas #timelineCanvas></canvas>
@@ -165,6 +171,8 @@ export class StatsTimelineTabComponent {
   private statsFilters = inject(StatsFiltersService);
   private themeService = inject(ThemeService);
   private charts = new Map<string, Chart>();
+  private readonly cancelLoad = new Subject<void>();
+  private requestId = 0;
 
   readonly timelineCanvas = viewChild<ElementRef<HTMLCanvasElement>>('timelineCanvas');
   readonly yearlyCanvas = viewChild<ElementRef<HTMLCanvasElement>>('yearlyCanvas');
@@ -174,6 +182,7 @@ export class StatsTimelineTabComponent {
   readonly hours = Array.from({ length: 24 }, (_, i) => i);
 
   timelineLoading = signal(false);
+  timelineError = signal(false);
   timeline = signal<TimelineEntry[]>([]);
   yearlyData = signal<{ year: string; count: number }[]>([]);
   dayOfWeekData = signal<{ label: string; count: number }[]>([]);
@@ -231,12 +240,22 @@ export class StatsTimelineTabComponent {
   }
 
   async loadTimeline(): Promise<void> {
+    const requestId = ++this.requestId;
+    this.cancelLoad.next();
+    const params = this.filterParams;
+    const isCurrent = () => !this.destroyRef.destroyed && requestId === this.requestId
+      && JSON.stringify(params) === JSON.stringify(this.filterParams);
+    this.clearTimeline();
+    this.timelineError.set(false);
     this.timelineLoading.set(true);
     try {
       const data = await firstValueFrom(this.api.get<{
         monthly: { month: string; count: number; avg_score: number }[];
         heatmap?: { day: number; hour: number; count: number }[];
-      }>('/stats/timeline', this.filterParams));
+      }>('/stats/timeline', params).pipe(
+        takeUntil(this.cancelLoad), takeUntilDestroyed(this.destroyRef),
+      ));
+      if (!isCurrent()) return;
 
       const monthly = data.monthly ?? [];
       this.timeline.set(monthly.map(m => ({ period: m.month, count: m.count, avg_score: m.avg_score ?? 0 })));
@@ -271,18 +290,31 @@ export class StatsTimelineTabComponent {
         this.heatmapGrid.set(grid);
         this.heatmapMax.set(maxVal);
       }
-    } catch { /* empty */ }
-    finally { this.timelineLoading.set(false); }
+    } catch {
+      if (isCurrent()) this.timelineError.set(true);
+    } finally {
+      if (isCurrent()) this.timelineLoading.set(false);
+    }
+  }
+
+  private clearTimeline(): void {
+    this.timeline.set([]);
+    this.yearlyData.set([]);
+    this.dayOfWeekData.set([]);
+    this.hourOfDayData.set([]);
+    this.heatmapGrid.set([]);
+    this.heatmapMax.set(1);
   }
 
   /** Export the monthly photo timeline as CSV. */
   exportCsv(): void {
+    if (this.timelineLoading() || this.timelineError() || this.timeline().length === 0) return;
     downloadCsv('facet-timeline', this.timeline());
   }
 
   private buildAreaLine(id: string, ref: ElementRef<HTMLCanvasElement> | undefined, labels: string[], data: number[], color: string): void {
-    if (!ref || data.length === 0) return;
     this.destroyChart(id);
+    if (!ref || data.length === 0) return;
     const ctx = ref.nativeElement.getContext('2d');
     if (!ctx) return;
     this.charts.set(id, new Chart(ctx, {
@@ -316,8 +348,8 @@ export class StatsTimelineTabComponent {
   }
 
   private buildVerticalBar(id: string, ref: ElementRef<HTMLCanvasElement> | undefined, labels: string[], data: number[], color: string): void {
-    if (!ref || data.length === 0) return;
     this.destroyChart(id);
+    if (!ref || data.length === 0) return;
     const ctx = ref.nativeElement.getContext('2d');
     if (!ctx) return;
     this.charts.set(id, new Chart(ctx, {

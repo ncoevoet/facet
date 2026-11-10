@@ -14,6 +14,10 @@ All notable changes to Facet are documented in this file.
 
 ### Fixed
 
+- **Viewer database exports publish completed snapshots and keep retries recoverable.** Full exports are prepared and checked privately, leave an existing database intact on failure, and omit saved and recent places. Incremental data changes commit together while preserving destination review edits and private places. Backups use unique names, so two runs in one second cannot overwrite the previous snapshot.
+- **Installer upgrades rebuild the gallery from the current lockfile.** Node 24.15+ within the 24.x line is checked before dependency installation, and failed frontend builds retain the previous served client. `--skip-client` explicitly keeps it.
+- **Interactive database repairs take the library lock and recheck after confirmation.** Sidecar exports now exit non-zero when any file fails to write, including partial successes.
+- **Albums and timeline views ignore superseded requests.** Failed album pages can be retried without skipping a page, empty timeline results clear earlier charts, and correlation charts and CSV exports use the same loaded query; changing query controls requires loading again.
 - **`--dry-run` is no longer silently ignored by mutating commands.** Thirteen flags that write to the database (`--repair-int-columns`, `--recompute-average`, `--backfill-clipping`, `--backfill-focal-35mm`, `--generate-captions`, `--cluster-faces-force`, `--upgrade-db` and others) accepted `--dry-run` and wrote anyway; the CLI now refuses the combination up front (exit code 2), as it already did for `--repair-neutral-iqa`.
 - **An interrupted scan exits non-zero.** `Ctrl-C` during a scan returned exit 0, so wrapper scripts and `--watch` read it as success; it now exits 130.
 - **`--optimize-weights` and `--apply-recommendations` hold the library lock.** Both wrote to the database and config without the lock their siblings hold, risking `database is locked` failures mid-write during a concurrent scan.
