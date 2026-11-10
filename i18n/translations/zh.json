@@ -3862,7 +3862,7 @@
     "reference": "参考照片：",
     "exact_label_set": "拍摄日期和时间",
     "invalid_set": "请输入有效的日期和时间；最多选择 1000 张照片。",
-    "summary_set": "设为 {amount}"
+    "summary_set": "将无拍摄日期的照片设为 {amount}；已有日期的照片保持不变"
   },
   "organization_history": {
     "title": "整理历史",

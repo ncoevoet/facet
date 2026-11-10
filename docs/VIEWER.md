@@ -1541,7 +1541,7 @@ Find photos whose saved face rectangles need checking. On the gallery toolbar’
 Fix a wrong camera clock. In edition mode, choose **Correct capture date** from the calendar icon by the photo's date, or from the gallery selection bar. Up to 1000 visible photos, "Select all in view" included.
 
 - **Shift by** (default): choose **Earlier** or **Later** and enter Days, Hours, Minutes and Seconds. Default: 1 hour later. Quick buttons −1 h, +1 h, −1 d and +1 d add to the shift.
-- **Set exact time**: enter the correct date and time. With a reference photo (the open photo, or the first dated photo of the selection; not for "Select all in view"), the shift is derived from it and applied to every selected photo. Without one (an undated photo, "Select all in view", or a selection with no dated photo), every selected photo gets the date and time you enter, undated ones included. A single undated photo opens in this mode.
+- **Set exact time**: enter the correct date and time. With a reference photo (the open photo, or the first dated photo of the selection; not for "Select all in view"), the shift is derived from it and applied to every selected photo. Without one (an undated photo, "Select all in view", or a selection with no dated photo), the date and time you enter go only to the photos without a usable capture date; dated photos keep theirs. A single undated photo opens in this mode.
 - The shift must be nonzero and at most ±366 days.
 - A summary states the shift ("1 h 30 min later") or the time being set, and the preview shows changed/skipped counts and the first 20 old/new timestamps.
 - **Apply correction (N)** applies it. If something changed meanwhile, an error offers **Preview** to refresh.
@@ -1549,7 +1549,7 @@ Fix a wrong camera clock. In edition mode, choose **Correct capture date** from 
 **What changes.**
 
 - Camera time is shifted as-is: no timezone or daylight-saving logic.
-- Only complete `YYYY:MM:DD HH:MM:SS` or `YYYY-MM-DD[T or space]HH:MM:SS` dates are supported. A shift skips unknown, date-only, timezone/subsecond and invalid dates; an exact time set without a reference replaces them. A photo already at that time is skipped.
+- Only complete `YYYY:MM:DD HH:MM:SS` or `YYYY-MM-DD[T or space]HH:MM:SS` dates are supported. A shift skips unknown, date-only, timezone/subsecond and invalid dates; an exact time set without a reference fills in only those and skips every dated photo.
 - Corrected dates survive rescans and incremental viewer database exports.
 - **Use file date** removes the correction and rereads the file. No file date means an unknown capture date.
 - Applying a correction never writes the original or changes its file time. XMP export writes `exif:DateTimeOriginal`; **Write metadata to file** also updates EXIF `DateTimeOriginal` in supported formats.

@@ -21,7 +21,8 @@ export interface CaptureDateDialogData {
   manuallySet?: boolean;
   /** One target photo and its stored `date_taken` (`YYYY:MM:DD HH:MM:SS`), shown as the
    *  before/after example. With a dated reference, "set exact time" shifts every photo by
-   *  the offset that gives it the typed time; without one it writes the typed time itself. */
+   *  the offset that gives it the typed time; without one it writes the typed time on the
+   *  photos that have no usable date, and every dated photo keeps its own. */
   reference?: { path: string; date: string } | null;
 }
 type Preview = components['schemas']['CaptureDatePreview'];

@@ -3862,7 +3862,7 @@
     "reference": "Foto de referencia:",
     "exact_label_set": "Fecha y hora de captura",
     "invalid_set": "Introduzca una fecha y hora válidas; seleccione como máximo 1000 fotos.",
-    "summary_set": "Establecer en {amount}"
+    "summary_set": "Establecer en {amount} las fotos sin fecha de captura; las fotos con fecha conservan la suya"
   },
   "organization_history": {
     "title": "Historial de organización",

@@ -3862,7 +3862,7 @@
     "reference": "Referenzfoto:",
     "exact_label_set": "Aufnahmedatum und -uhrzeit",
     "invalid_set": "Geben Sie ein gültiges Datum und eine gültige Uhrzeit ein; wählen Sie höchstens 1000 Fotos aus.",
-    "summary_set": "Auf {amount} setzen"
+    "summary_set": "Fotos ohne Aufnahmedatum auf {amount} setzen; datierte Fotos behalten ihres"
   },
   "organization_history": {
     "title": "Änderungsverlauf",

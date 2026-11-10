@@ -3862,7 +3862,7 @@
     "reference": "Photo de référence :",
     "exact_label_set": "Date et heure de prise de vue",
     "invalid_set": "Saisissez une date et une heure valides ; sélectionnez au plus 1000 photos.",
-    "summary_set": "Définir à {amount}"
+    "summary_set": "Définir à {amount} les photos sans date de prise de vue ; les photos datées gardent la leur"
   },
   "organization_history": {
     "title": "Historique des modifications",

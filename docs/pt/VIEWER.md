@@ -1538,7 +1538,7 @@ Encontre fotos cujos retângulos de rosto salvos precisam de verificação. Na a
 Corrija um relógio de câmera errado. No modo de edição, escolha **Corrigir data de captura** no ícone de calendário junto à data da foto, ou na barra de seleção da galeria. Até 1000 fotos visíveis, "Selecionar toda a visualização" incluído.
 
 - **Deslocar em** (padrão): escolha **Mais cedo** ou **Mais tarde** e informe Dias, Horas, Minutos e Segundos. Padrão: 1 hora mais tarde. Os botões rápidos −1 h, +1 h, −1 d e +1 d somam ao deslocamento.
-- **Definir hora exata**: informe a data e hora corretas. Com uma foto de referência (a foto aberta, ou a primeira foto com data da seleção; não para "Selecionar toda a visualização") o deslocamento é derivado dela e aplicado a cada foto selecionada. Sem referência (uma foto sem data, "Selecionar toda a visualização", ou uma seleção sem fotos com data) cada foto selecionada recebe a data e hora informadas, incluindo as sem data. Uma única foto sem data abre neste modo.
+- **Definir hora exata**: informe a data e hora corretas. Com uma foto de referência (a foto aberta, ou a primeira foto com data da seleção; não para "Selecionar toda a visualização") o deslocamento é derivado dela e aplicado a cada foto selecionada. Sem referência (uma foto sem data, "Selecionar toda a visualização", ou uma seleção sem fotos com data) a data e hora informadas vão apenas para as fotos sem uma data de captura utilizável; as fotos com data mantêm a sua. Uma única foto sem data abre neste modo.
 - O deslocamento deve ser diferente de zero e de no máximo ±366 dias.
 - Um resumo indica o deslocamento ("1 h 30 min mais tarde") ou a hora definida, e a prévia mostra as contagens de alteradas/ignoradas e os primeiros 20 carimbos de data antigos/novos.
 - **Aplicar correção (N)** a aplica. Se algo mudou nesse meio-tempo, um erro oferece **Pré-visualizar** para atualizar.
@@ -1546,7 +1546,7 @@ Corrija um relógio de câmera errado. No modo de edição, escolha **Corrigir d
 **O que muda.**
 
 - A hora da câmera é deslocada como está: sem lógica de fuso horário nem de horário de verão.
-- Só são suportadas datas completas `YYYY:MM:DD HH:MM:SS` ou `YYYY-MM-DD[T ou espaço]HH:MM:SS`. Um deslocamento ignora datas desconhecidas, só com a data, com fuso/subsegundos e inválidas; uma hora exata definida sem referência as substitui. Uma foto que já tem essa hora é ignorada.
+- Só são suportadas datas completas `YYYY:MM:DD HH:MM:SS` ou `YYYY-MM-DD[T ou espaço]HH:MM:SS`. Um deslocamento ignora datas desconhecidas, só com a data, com fuso/subsegundos e inválidas; uma hora exata definida sem referência preenche apenas essas e ignora toda foto com data.
 - As datas corrigidas sobrevivem a novas varreduras e a exportações incrementais do banco de dados do visualizador.
 - **Usar a data do arquivo** remove a correção e relê o arquivo. Sem data no arquivo, a data de captura fica desconhecida.
 - Aplicar uma correção nunca grava o original nem altera o horário do arquivo. A exportação XMP grava `exif:DateTimeOriginal`; **Gravar metadados no arquivo** também atualiza o EXIF `DateTimeOriginal` nos formatos suportados.

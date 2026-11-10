@@ -3862,7 +3862,7 @@
     "reference": "Foto di riferimento:",
     "exact_label_set": "Data e ora di scatto",
     "invalid_set": "Inserisci una data e un'ora valide; seleziona al massimo 1000 foto.",
-    "summary_set": "Imposta su {amount}"
+    "summary_set": "Imposta su {amount} le foto senza data di scatto; le foto datate mantengono la loro"
   },
   "organization_history": {
     "title": "Cronologia delle modifiche",

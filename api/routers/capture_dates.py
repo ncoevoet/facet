@@ -35,14 +35,17 @@ def _preview(conn: sqlite3.Connection, body: CaptureDateRequest, user: CurrentUs
     if len(rows) > 1000:
         raise HTTPException(422, 'Select at most 1000 photos')
     changes = []
-    absolute = format_capture_date(parse_capture_date(body.set_date)) if body.set_date is not None else None
+    set_date = parse_capture_date(body.set_date) if body.set_date is not None else None
+    absolute = format_capture_date(set_date) if set_date is not None else None
     for row in rows:
+        date = parse_capture_date(row['date_taken'])
         if absolute is not None:
-            if row['date_taken'] != absolute:
+            # A set date fills in a missing or unusable date and never overwrites a real
+            # one: a batch would otherwise collapse every dated photo onto one instant.
+            if date is None:
                 changes.append(dict(path=row['path'], old_date=row['date_taken'], new_date=absolute))
             continue
-        date = parse_capture_date(row['date_taken'])
-        if date is None:
+        if date is None or body.offset_seconds is None:
             continue
         try:
             shifted = date + timedelta(seconds=body.offset_seconds)

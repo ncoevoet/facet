@@ -1541,7 +1541,7 @@ Finden Sie Fotos, deren gespeicherte Gesichtsrechtecke eine Prüfung brauchen. A
 Beheben Sie eine falsch gehende Kamerauhr. Wählen Sie im Bearbeitungsmodus **Aufnahmedatum korrigieren** über das Kalendersymbol neben dem Datum des Fotos oder über die Auswahlleiste der Galerie. Bis zu 1000 sichtbare Fotos, „Alle in der Ansicht auswählen“ eingeschlossen.
 
 - **Verschieben um** (Standard): Wählen Sie **Früher** oder **Später** und geben Sie Tage, Stunden, Minuten und Sekunden ein. Standard: 1 Stunde später. Die Schnellschaltflächen −1 h, +1 h, −1 d und +1 d addieren sich zur Verschiebung.
-- **Genaue Zeit festlegen**: Geben Sie das richtige Datum und die richtige Uhrzeit ein. Mit einem Referenzfoto (das geöffnete Foto oder das erste datierte Foto der Auswahl; nicht bei „Alle in der Ansicht auswählen“) wird die Verschiebung daraus abgeleitet und auf jedes ausgewählte Foto angewendet. Ohne Referenz (ein Foto ohne Datum, „Alle in der Ansicht auswählen“ oder eine Auswahl ohne datiertes Foto) erhält jedes ausgewählte Foto das eingegebene Datum und die Uhrzeit, auch Fotos ohne Datum. Ein einzelnes Foto ohne Datum öffnet in diesem Modus.
+- **Genaue Zeit festlegen**: Geben Sie das richtige Datum und die richtige Uhrzeit ein. Mit einem Referenzfoto (das geöffnete Foto oder das erste datierte Foto der Auswahl; nicht bei „Alle in der Ansicht auswählen“) wird die Verschiebung daraus abgeleitet und auf jedes ausgewählte Foto angewendet. Ohne Referenz (ein Foto ohne Datum, „Alle in der Ansicht auswählen“ oder eine Auswahl ohne datiertes Foto) erhalten nur die Fotos ohne verwendbares Aufnahmedatum das eingegebene Datum und die Uhrzeit; datierte Fotos behalten ihres. Ein einzelnes Foto ohne Datum öffnet in diesem Modus.
 - Die Verschiebung muss ungleich null und höchstens ±366 Tage sein.
 - Eine Zusammenfassung nennt die Verschiebung („1 h 30 min später“) oder die festgelegte Zeit, und die Vorschau zeigt die Zähler für geändert/übersprungen und die ersten 20 alten/neuen Zeitstempel.
 - **Korrektur anwenden (N)** wendet sie an. Hat sich zwischenzeitlich etwas geändert, bietet ein Fehler **Vorschau** zum Aktualisieren an.
@@ -1549,7 +1549,7 @@ Beheben Sie eine falsch gehende Kamerauhr. Wählen Sie im Bearbeitungsmodus **Au
 **Was sich ändert.**
 
 - Die Kamerazeit wird unverändert verschoben: keine Zeitzonen- oder Sommerzeitlogik.
-- Nur vollständige Daten der Form `YYYY:MM:DD HH:MM:SS` oder `YYYY-MM-DD[T oder Leerzeichen]HH:MM:SS` werden unterstützt. Eine Verschiebung überspringt unbekannte, reine Datums-, Zeitzonen-/Subsekunden- und ungültige Daten; eine genaue Zeit ohne Referenz ersetzt sie. Ein Foto, das bereits diese Zeit hat, wird übersprungen.
+- Nur vollständige Daten der Form `YYYY:MM:DD HH:MM:SS` oder `YYYY-MM-DD[T oder Leerzeichen]HH:MM:SS` werden unterstützt. Eine Verschiebung überspringt unbekannte, reine Datums-, Zeitzonen-/Subsekunden- und ungültige Daten; eine genaue Zeit ohne Referenz füllt nur diese aus und überspringt jedes datierte Foto.
 - Korrigierte Daten überstehen erneute Scans und inkrementelle Exporte der Viewer-Datenbank.
 - **Dateidatum verwenden** entfernt die Korrektur und liest die Datei neu ein. Kein Dateidatum bedeutet ein unbekanntes Aufnahmedatum.
 - Das Anwenden einer Korrektur schreibt nie das Original und ändert nicht dessen Dateizeit. Der XMP-Export schreibt `exif:DateTimeOriginal`; **Metadaten in Datei schreiben** aktualisiert in unterstützten Formaten auch EXIF `DateTimeOriginal`.
