@@ -2585,6 +2585,11 @@ def main():
     parser = cli_args.build_parser()
     args = parser.parse_args()
     cli_args.validate_face_labels(parser, args)
+    if args.dry_run:
+        for flag in MUTATING_NO_DRY_RUN_FLAGS:
+            value = getattr(args, flag.lstrip('-').replace('-', '_'))
+            if value is not None and value is not False:
+                parser.error(f"{flag} has no dry-run; drop --dry-run")
     if args.update_faces_job:
         if len(args.update_faces_job) != 32 or any(c not in '0123456789abcdef' for c in args.update_faces_job):
             parser.error('--update-faces-job requires a valid job identity')
@@ -2604,11 +2609,6 @@ def main():
         if any(value != defaults[name] for name, value in vars(args).items() if name not in allowed):
             parser.error('--retry-plan cannot be combined with other commands or scan modifiers')
     cli_args.validate_evaluate_models_positionals(parser, args)
-    if args.dry_run:
-        for flag in MUTATING_NO_DRY_RUN_FLAGS:
-            value = getattr(args, flag.lstrip('-').replace('-', '_'))
-            if value is not None and value is not False:
-                parser.error(f"{flag} has no dry-run; drop --dry-run")
     if args.stack_plan_out and not args.immich_stacks_plan:
         parser.error('--stack-plan-out requires --immich-stacks-plan')
     if args.ack_stack_plan and not args.immich_stacks_apply:

@@ -175,7 +175,8 @@ describe('album dialogs and cancelled navigation', () => {
     await deleting;
     const currentList = http.expectOne(req => req.url === '/api/albums' && req.method === 'GET' && req.params.get('search') === 'Family');
     currentList.flush({ albums: [{ id: 2, name: 'Family' }], total: 1 });
-    staleList.flush({ albums: [{ id: 1, name: 'Trip' }], total: 2 });
+    // The reload after the delete cancels the list request the filter change started.
+    expect(staleList.cancelled).toBe(true);
     await vi.waitFor(() => expect(albums.albums().map((a: { id: number }) => a.id)).toEqual([2]));
     expect(albums.total()).toBe(1);
   });

@@ -8,6 +8,7 @@ import type { components } from '../../core/api/schema';
 import { AuthService, AuthStatus } from '../../core/services/auth.service';
 import { I18nService } from '../../core/services/i18n.service';
 import { GalleryStore } from '../gallery/gallery.store';
+import { thumbnailUrl } from '../../shared/pipes/thumbnail-url.pipe';
 import { OrganizationHistoryDialogComponent } from './organization-history-dialog.component';
 
 type Entry = components['schemas']['OrganizationEntry'];
@@ -176,7 +177,7 @@ describe('Organization history rendered controls and HTTP', () => {
     expect(links[0].rel).toBe('noopener');
     expect(links[0].getAttribute('aria-label')).toBe('Open p0.jpg in a new tab');
     expect(links[0].title).toBe('/h/p0.jpg');
-    expect(links[0].querySelector('img')?.getAttribute('src')).toBe('/thumbnail?path=%2Fh%2Fp0.jpg&size=96');
+    expect(links[0].querySelector('img')?.getAttribute('src')).toBe(thumbnailUrl('/h/p0.jpg', 96));
     expect(sections()[0].querySelector('[data-history-photos]')?.textContent?.replace(/\s+/g, ' ')).toContain('+2 · Photos: 8');
     const single = sections()[1].querySelector('[data-history-photos]')!;
     expect(single.querySelectorAll('[data-history-photo]')).toHaveLength(1);
