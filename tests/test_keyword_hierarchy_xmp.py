@@ -101,6 +101,31 @@ def test_import_roundtrip_uses_only_explicit_paths_and_respects_removed_assignme
         assert image.read_bytes() == b'original fixture bytes'
 
 
+def test_legacy_facet_packet_without_hierarchy_state_skips_generated_category_and_people(tmp_path):
+    """Facet <= 1.28 wrote Category|/People| paths with a KeywordState but no HierarchyState."""
+    from db.schema import init_database
+    legacy, foreign = tmp_path / 'legacy.jpg', tmp_path / 'foreign.jpg'
+    root = ET.fromstring(build_xmp(XmpRating(hierarchy_paths=['Places|Coast'],
+                                             category='portrait', person_names=['Alice'])))
+    root.find(f'.//{{{NS_RDF}}}Description').attrib.pop(f'{{{NS_FACET}}}HierarchyState')
+    Path(str(legacy) + '.xmp').write_bytes(ET.tostring(root))
+    root.find(f'.//{{{NS_RDF}}}Description').attrib.pop(f'{{{NS_FACET}}}KeywordState')
+    Path(str(foreign) + '.xmp').write_bytes(ET.tostring(root))
+    db = tmp_path / 'catalog.db'
+    init_database(str(db))
+    with sqlite3.connect(db) as conn:
+        conn.row_factory = sqlite3.Row
+        for image in (legacy, foreign):
+            image.write_bytes(b'fixture')
+            conn.execute('INSERT INTO photos(path,category) VALUES(?,?)', (str(image), 'portrait'))
+        conn.commit()
+        import_sidecars(conn, fields=['keywords'])
+        assert [item['exported_path'] for item in photo_hierarchies(conn, str(legacy))] == ['Places|Coast']
+        # Another editor's packet carries no Facet marker: its Category| path is the user's.
+        assert [item['exported_path'] for item in photo_hierarchies(conn, str(foreign))] == [
+            'Category|portrait', 'People|Alice', 'Places|Coast']
+
+
 def test_released_schema_dry_run_plans_hierarchy_without_migration(tmp_path):
     image = tmp_path / 'old.jpg'
     image.write_bytes(b'original')

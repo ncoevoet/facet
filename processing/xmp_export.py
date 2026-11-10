@@ -1170,9 +1170,7 @@ def preview_metadata_write(image_path: str, rating: XmpRating, *, overwrite: boo
     target = sidecar_path(image_path, overwrite=overwrite)
     if os.path.islink(target) or os.path.lexists(target + '.tmp'):
         raise MetadataPreconditionError('Metadata target needs inspection before writing')
-    before = _preview_packet_identity(target)
-    if before != _preview_packet_identity(target):
-        raise MetadataPreconditionError('Metadata changed during preview')
+    _preview_packet_identity(target)  # Refuses a non-regular or oversized target.
     return {'sidecar': target, 'writer': 'xml', 'face_regions': False}
 
 

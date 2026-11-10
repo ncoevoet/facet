@@ -68,6 +68,8 @@ from db.manual_tags import (
 from db.keyword_hierarchy import HierarchyError, assign_path, parse_imported_path, plan_path_import
 from processing.rating_writer import upsert_rating_state
 from processing.xmp_export import (
+    HIER_CATEGORY,
+    HIER_PEOPLE,
     LABEL_FAVORITE,
     LABEL_REJECTED,
     NS_DC,
@@ -566,6 +568,12 @@ def _import_sidecars(conn, root, *, user_id, overwrite_manual_gps, dry_run, fiel
             hierarchy_marker = parsed['hierarchy_state'] or {}
             explicit = {key for path in hierarchy_marker.get('manual', []) if (key := _hierarchy_key(path)) is not None}
             generated = {key for path in hierarchy_marker.get('ai', []) if (key := _hierarchy_key(path)) is not None} - explicit
+            if parsed['keyword_state'] is not None and parsed['hierarchy_state'] is None:
+                # Facet <= 1.28 wrote its generated Category|/People| paths with
+                # no HierarchyState; such a packet's own marker is KeywordState.
+                legacy_roots = {HIER_CATEGORY.casefold(), HIER_PEOPLE.casefold()}
+                generated |= {key for path in parsed['hierarchy_paths']
+                              if (key := _hierarchy_key(path)) is not None and key[0] in legacy_roots}
             if parsed['hierarchy_state_invalid']:
                 diagnostics.append({'field': 'hierarchy', 'reason': 'invalid_hierarchy_ownership'})
             else:

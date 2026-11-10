@@ -44,7 +44,6 @@ class ScanRun:
         self._pending_failures = []
         self._processed = 0
         self._last_flush = 0.0
-        self._bookkeeping_failed = False
 
     @classmethod
     def start(cls, db_path, mode, args_dict, total_files, job_id=None):
@@ -108,17 +107,19 @@ class ScanRun:
                 )
                 conn.commit()
         except Exception as e:
-            # The drained failure buffer may have been lost. A later successful
-            # flush must not make a captured retry erase its source receipts.
+            # Re-queue the drained failures ahead of newer ones so a later flush
+            # retries them; a lost heartbeat is simply overwritten by the next.
             with self._lock:
-                self._bookkeeping_failed = True
+                self._pending_failures[:0] = failures
             logger.warning("Scan bookkeeping flush failed: %s", e)
 
     def finish(self, status='completed'):
         """Close the run, returning whether all bookkeeping was persisted."""
         self._maybe_flush(force=True)
+        # Failure records still pending after the final flush are lost, and a
+        # captured retry must not then erase its source receipts.
         with self._lock:
-            persisted = not self._bookkeeping_failed
+            persisted = not self._pending_failures
         if status == 'completed' and not persisted:
             status = 'failed'
         try:
@@ -174,7 +175,7 @@ class ScanJobLifecycle:
     def __init__(self):
         self.run = None
         self.phase = 'scoring'
-        self.recording_failed = False
+        self.phase_recorded = True
 
     def attach(self, run):
         self.run = run
@@ -182,15 +183,16 @@ class ScanJobLifecycle:
     def progress(self, phase):
         if phase != self.phase and self.run is not None:
             self.phase = phase
-            if not self.run.job_phase(phase):
-                self.recording_failed = True
+            self.phase_recorded = self.run.job_phase(phase)
 
     def finish(self, status):
         if self.run is None:
             return True  # No scoring run was created; do not invent a receipt.
-        if status == 'completed' and self.recording_failed:
-            status = 'failed'
-        return self.run.finish_job(status) and not self.recording_failed
+        # A missed transition is superseded by the next one; retry the phase the
+        # job ends on, but only the terminal outcome write decides the result.
+        if not self.phase_recorded:
+            self.phase_recorded = self.run.job_phase(self.phase)
+        return self.run.finish_job(status)
 
 
 def get_last_resumable_run(db_path, stale_seconds=120):

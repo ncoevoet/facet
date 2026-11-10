@@ -65,17 +65,25 @@ def ignore_detection(conn, face, source):
     return ignore_id
 
 
+def _restore_blocker(conn, ignored):
+    """Why a face created since the correction forbids restoring it, or None."""
+    if conn.execute('SELECT 1 FROM faces WHERE photo_path=? AND face_index=?',
+                    (ignored['photo_path'], ignored['face_index'])).fetchone():
+        return 'Faces changed; reload the photo before restoring'
+    box = tuple(ignored[key] for key in _BOX)
+    if any(None not in tuple(row) and box_iou(box, tuple(row)) >= 0.5 for row in conn.execute(
+            'SELECT bbox_x1,bbox_y1,bbox_x2,bbox_y2 FROM faces WHERE photo_path=?', (ignored['photo_path'],))):
+        return 'Another face now covers this detection; reload the photo'
+    return None
+
+
 def restore_detection(conn, ignored):
     """Restore without replacing a face created since the correction."""
     if not ignored['active']:
         return
-    if conn.execute('SELECT 1 FROM faces WHERE photo_path=? AND face_index=?',
-                    (ignored['photo_path'], ignored['face_index'])).fetchone():
-        raise ValueError('Faces changed; reload the photo before restoring')
-    box = tuple(ignored[key] for key in _BOX)
-    if any(None not in tuple(row) and box_iou(box, tuple(row)) >= 0.5 for row in conn.execute(
-            'SELECT bbox_x1,bbox_y1,bbox_x2,bbox_y2 FROM faces WHERE photo_path=?', (ignored['photo_path'],))):
-        raise ValueError('Another face now covers this detection; reload the photo')
+    blocker = _restore_blocker(conn, ignored)
+    if blocker:
+        raise ValueError(blocker)
     values = dict(ignored)
     person = conn.execute('SELECT id FROM persons WHERE person_key=?', (values['person_key'],)).fetchone()
     values['person_id'] = person[0] if person else None
@@ -173,8 +181,9 @@ def merge_viewer_corrections(conn, path_mapping):
         for item in [dict(zip(names, row)) for row in cursor]:
             if not source_is_current(mapped_disk_path(item['photo_path'], path_mapping), item['source']):
                 continue
-            if not conn.execute('SELECT 1 FROM faces WHERE photo_path=? AND face_index=?',
-                                (item['photo_path'], item['face_index'])).fetchone():
+            # A face that now holds the index or covers the box keeps its place;
+            # the Undo marker stays recorded and the export goes on.
+            if _restore_blocker(conn, item) is None:
                 restore_detection(conn, {**item, 'active': 1})
     touched = set()
     for (path,) in conn.execute('SELECT DISTINCT photo_path FROM main.ignored_face_detections WHERE active=1').fetchall():
