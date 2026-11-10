@@ -49,17 +49,18 @@ Developers: `cd client && npm run gen:api` regenerates the client types in `clie
 |----------|-------------|
 | `POST /api/auth/login` | Authenticate and receive token. `503` when the server's configuration cannot be read |
 | `POST /api/auth/edition/login` | Unlock edition mode. `503` when the server's configuration cannot be read (not reported as a wrong password) |
-| `POST /api/auth/edition/logout` | Lock edition mode (drop privileges, stay authenticated) |
+| `POST /api/auth/edition/logout` | Lock edition mode (drop privileges, stay authenticated). `400` in multi-user mode, where edition applies only to single-user auth |
+| `POST /api/auth/cookie` | Re-establish the image cookie from the caller's Bearer token. `204`; `401` without a valid Bearer; human sessions only |
 | `GET /api/auth/status` | Check authentication status |
 
 ## Thumbnails and Images
 
 | Endpoint | Description |
 |----------|-------------|
-| `GET /thumbnail` | Photo thumbnail. A `size` above 640 renders from the original at up to 1920 px (never upscaled). Falls back to the stored thumbnail with a 60-second `max-age` when the original is unavailable, the render does not start within 5 s, or the decode is all black |
-| `GET /face_thumbnail/{id}` | Face crop thumbnail |
-| `GET /person_thumbnail/{id}` | Person representative thumbnail |
-| `GET /image` | Full-resolution image. Native JPEG, PNG, GIF, WebP, BMP and AVIF are sent as original bytes. JPEG XL is sent as `.jxl` only if the Accept header lists `image/jxl`, else as JPEG (`Vary: Accept`) |
+| `GET /thumbnail` | Photo thumbnail. A `size` above 640 renders from the original at up to 1920 px (never upscaled). Falls back to the stored thumbnail when the original is unavailable, the render does not start within 5 s, or the decode is all black. Sent `Cache-Control: private, no-cache, must-revalidate` with `Vary: Authorization, Cookie` and an ETag (revalidated, `304`) |
+| `GET /face_thumbnail/{id}` | Face crop thumbnail. Same private, revalidated cache contract as `/thumbnail` |
+| `GET /person_thumbnail/{id}` | Person representative thumbnail. Same private, revalidated cache contract as `/thumbnail` |
+| `GET /image` | Full-resolution image. Native JPEG, PNG, GIF, WebP, BMP and AVIF are sent as original bytes. JPEG XL is sent as `.jxl` only if the Accept header lists `image/jxl`, else as JPEG. Same private, revalidated cache contract as `/thumbnail`; a JPEG XL source also varies on `Accept` |
 
 ## Filter Options
 

@@ -88,3 +88,30 @@ def test_load_sqlite_vec_makes_vec0_usable_on_a_healthy_build():
         assert c.execute("SELECT COUNT(*) FROM t").fetchone()[0] == 1
     finally:
         c.close()
+
+
+@pytest.mark.parametrize("filename", [
+    "library #%-相册.db",
+    pytest.param("library?.db", marks=pytest.mark.skipif(
+        sys.platform == "win32", reason="Windows filenames cannot contain a question mark")),
+])
+def test_read_only_connection_preserves_literal_path_and_rejects_writes(tmp_path, filename):
+    path = tmp_path / filename
+    with sqlite3.connect(path) as db:
+        db.execute('CREATE TABLE marker (value TEXT)')
+        db.execute("INSERT INTO marker VALUES ('original')")
+    before = path.read_bytes()
+    with conn.get_connection(path, read_only=True) as db:
+        assert db.execute('SELECT value FROM marker').fetchone()['value'] == 'original'
+        with pytest.raises(sqlite3.OperationalError, match='readonly'):
+            db.execute("UPDATE marker SET value='changed'")
+    assert path.read_bytes() == before
+    assert {p.name for p in tmp_path.iterdir()} == {path.name}
+
+
+def test_read_only_connection_never_creates_a_missing_database(tmp_path):
+    path = tmp_path / 'missing.db'
+    with pytest.raises(sqlite3.OperationalError):
+        with conn.get_connection(path, read_only=True):
+            pass
+    assert not path.exists()

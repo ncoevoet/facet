@@ -144,7 +144,7 @@ Pasa el cursor sobre cualquier foto para ver el desglose de la puntuación y los
 
 - **Modo oscuro y claro** con 10 temas de color de acento; respeta la preferencia del sistema
 - **Adaptable** — se adapta del móvil al escritorio, con una hoja de acciones masivas táctil en pantallas pequeñas
-- **PWA instalable** — manifiesto de aplicación web + service worker: instálala en la pantalla de inicio, shell de la aplicación sin conexión, miniaturas en caché
+- **PWA instalable** — manifiesto de aplicación web + service worker: instálala en la pantalla de inicio, shell de la aplicación sin conexión
 - **Galería virtualizada** — renderiza un puñado de nodos del DOM independientemente del tamaño de la biblioteca, de modo que el desplazamiento sigue siendo rápido con más de 100.000 fotos
 - **Escaneos reanudables** — los escaneos interrumpidos se reanudan (`--resume`), los archivos fallidos se registran y se pueden reintentar (`--retry-failed`), y el progreso se transmite a la interfaz web
 - **7 idiomas en la interfaz** — la interfaz está disponible en inglés, francés, alemán, español, italiano, portugués brasileño y chino simplificado (简体中文); la documentación está disponible en los siete idiomas

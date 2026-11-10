@@ -76,6 +76,8 @@ Redémarrez la visionneuse après avoir défini `viewer.edition_password` : la 
 
 La connexion place aussi le jeton de session dans un cookie `HttpOnly` `SameSite=Lax`, afin que les miniatures et le flux de progression du scan se chargent sur les installations protégées par mot de passe. Le cookie n'est accepté que pour les requêtes en lecture seule (GET/HEAD) ; les modifications exigent toujours le jeton Bearer. La déconnexion (`POST /api/auth/logout`) l'efface.
 
+Les miniatures de la bibliothèque, les images pleine taille et les vignettes de visages/personnes sont servies avec des en-têtes de cache HTTP privés qui exigent une revalidation. Elles contournent le service worker, qui n'enregistre plus de cache hors ligne des miniatures. Les URL d'images portent un paramètre de requête `session`, qui n'est pas un identifiant d'authentification et change lorsque le compte connecté change ; le visualiseur ne réutilise donc pas les images décodées d'un compte précédent. Les instantanés d'historique de photos privées ne sont utilisables que dans leur session d'origine ; Précédent après une déconnexion/reconnexion, ou un rechargement de page, revérifie l'accès avant d'afficher les métadonnées. Cela n'efface pas les octets d'image ni l'historique déjà livrés au navigateur. Les partages d'albums publics et les cadres photo ont leurs propres règles d'accès. Si le serveur refuse explicitement **Verrouiller l'édition**, les privilèges actuels restent visibles et une erreur s'affiche ; une réponse interrompue doit d'abord réconcilier son cookie, comme décrit plus bas.
+
 ### Mode multi-utilisateurs
 
 Pour un NAS familial où chaque membre a ses dossiers de photos privés. Ajoutez une section `users` à `scoring_config.json` :
@@ -112,6 +114,10 @@ python database.py --add-user alice --role superadmin --display-name "Alice"
 ```
 
 Voir [Configuration](CONFIGURATION.md#utilisateurs) pour la référence complète.
+
+La modification du hachage de mot de passe ou du rôle d'un compte, ou sa suppression, invalide ses sessions existantes dès que le serveur charge la nouvelle configuration. Cela inclut les cookies d'image, les jetons du flux de scan et l'assistant intégré à la page. Reconnectez-vous après toute modification de compte ; les sessions multi-utilisateurs existantes exigent aussi une nouvelle connexion après cette mise à niveau. Supprimer tous les utilisateurs ne conserve pas un ancien jeton d'administrateur. Faire tourner `viewer.password` invalide toujours toutes les sessions ; faire tourner `viewer.edition_password` retire les droits d'édition en mode mono-utilisateur. La connexion/déconnexion d'édition ne s'applique qu'au mode mono-utilisateur ; les comptes à rôles se déconnectent ou changent de rôle à la place. La déconnexion ordinaire efface les identifiants de ce navigateur sans révoquer un jeton copié.
+
+La connexion, les changements d'édition et la déconnexion s'exécutent dans l'ordre au sein d'un onglet, afin que leurs cookies d'image et leurs identifiants Bearer ne se doublent pas ; une requête d'authentification bloquée est abandonnée après 15 secondes. Les navigateurs dotés de Web Locks coordonnent aussi ces opérations entre les onglets (HTTPS et localhost). Sur les origines HTTP sans Web Locks, des connexions simultanées dans plusieurs onglets suivent l'ordre d'achèvement ; la dernière connexion terminée devient le compte partagé du navigateur. Si une réponse échoue après avoir mis à jour son cookie d'image, Facet réconcilie ce cookie avec la session Bearer confirmée avant de ré-afficher le compte. Si la réconciliation et le nettoyage échouent tous deux, le compte reste non confirmé après rechargement jusqu'à ce qu'une nouvelle tentative réussisse.
 
 ### Rôles
 
@@ -1113,6 +1119,8 @@ La page Stats (`/stats`) a 5 onglets. Les sélecteurs de **catégorie** et de **
 | **Catégories** | Analyses par catégorie, gestion des poids et corrélations de scores |
 | **Corrélations** | Graphiques de corrélation X/Y personnalisés avec regroupement |
 
+Dans **Corrélations**, modifier une option de requête efface le résultat précédent ; appuyez sur **Charger les corrélations** pour récupérer la nouvelle sélection avant d'exporter le CSV. Le graphique et le CSV décrivent la même sélection chargée. Changer le style ou le thème du graphique conserve cette sélection.
+
 ### Onglet Catégories
 
 Quatre sous-onglets :
@@ -1181,9 +1189,9 @@ Pour des changements plus anciens, voir l'[Historique des modifications](#histor
 
 ## Application web progressive
 
-Les builds de production peuvent être installées sur l'écran d'accueil. La coque de l'application se charge hors ligne, et jusqu'à 1000 miniatures sont mises en cache pendant 7 jours (les tailles plus grandes, comme les rendus 1920 px de la chambre noire, reposent sur le cache du navigateur). Les réponses de l'API ne sont jamais mises en cache, sauf les paquets de traduction. Une barre de notification propose un rechargement quand une nouvelle version est déployée.
+Les builds de production peuvent être installées sur l'écran d'accueil. La coque de l'application se charge hors ligne ; les miniatures et les autres images de la bibliothèque ne sont pas mises en cache hors ligne. Avant de réutiliser une copie stockée, le navigateur la revalide auprès du serveur, si bien qu'une session révoquée ne peut pas la recharger ; une image déjà affichée dans un onglet ouvert peut y rester visible jusqu'au rechargement de l'onglet. Les réponses de l'API ne sont jamais mises en cache, sauf les paquets de traduction. Une barre de notification propose un rechargement quand une nouvelle version est déployée.
 
-> **Avertissement :** la déconnexion vide le cache de miniatures de l'application mais pas le cache HTTP du navigateur, qui peut conserver les images consultées (miniatures, rendus, images pleine résolution) jusqu'à un an. Les comptes qui ne doivent pas voir les photos les uns des autres ne devraient pas partager un profil de navigateur.
+> **Remarque :** le navigateur revalide chaque image auprès du serveur avant de la réutiliser ; après une déconnexion ou une session révoquée, une copie stockée n'est donc plus affichée. Les octets déjà livrés ne sont pas effacés : les comptes qui ne doivent pas voir les photos les uns des autres ne devraient toujours pas partager un profil de navigateur.
 
 ## Mobile
 

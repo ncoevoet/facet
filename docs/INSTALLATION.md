@@ -136,8 +136,9 @@ git clone https://github.com/ncoevoet/facet.git && cd facet
 bash install.sh
 ```
 
-`install.sh` detects your graphics card, installs the matching packages and builds the
-web gallery. Then, each time:
+`install.sh` requires Node.js **24.15.0 or newer within 24.x** and npm for the gallery build;
+it checks these before installing packages. It detects your graphics card, installs the
+matching packages and builds the web gallery. Then, each time:
 
 ```bash
 source venv/bin/activate
@@ -181,7 +182,7 @@ A per-user installer (MSI) sets Facet up without administrator rights:
 **Getting the installer.** No release ships one yet. Build it from a clone with
 `installer\build-msi.ps1` (it needs WiX 3.14, `uv` and a built client, and says where to get
 WiX), or download the `facet-msi` artifact of a *Windows install (MSI)* workflow run. Building
-needs Node.js 22.22.3 or newer for the client (22.14 fails `npm run build`).
+needs Node.js 24.15.0 or newer within 24.x for the client.
 
 **First start.** The installer starts the Python environment setup as soon as it finishes. The environment is about 6 GB, and uv's download cache
 (`%LOCALAPPDATA%\uv\cache`) takes about as much again. The *Facet* Start-menu entry runs setup
@@ -429,7 +430,7 @@ mode and, in commercial mode, the components a scan would load (YuNet, SFace, Q-
 
 ## Install by hand, without install.sh
 
-Requires Python 3.12 (3.10+ works) and Node.js 20+ for the gallery build.
+Requires Python 3.12 (3.10+ works) and Node.js 24.15.0 or newer within 24.x for the gallery build.
 
 ```bash
 # 1. Create and activate a virtual environment
@@ -458,7 +459,7 @@ pip uninstall -y opencv-python opencv-python-headless
 pip install --no-deps "opencv-python-headless==$CV_VER"
 
 # 6. Build the web gallery
-cd client && npm install && npx ng build && cd ..
+cd client && npm ci && npm run build && cd ..
 
 # 7. Run it
 python facet.py /path/to/photos
@@ -481,18 +482,20 @@ Errors? See [Troubleshooting dependency conflicts](#troubleshooting-dependency-c
 
 `install.sh`:
 
-1. finds a Python 3.10+ and creates the `venv`;
+1. checks Node.js 24.15.0+ (24.x) and npm unless `--skip-client` is set, then finds a Python 3.10+ and creates the `venv`;
 2. detects the OS and GPU (Apple Silicon → Metal, otherwise `nvidia-smi` → matching CUDA build);
 3. installs PyTorch, `requirements.txt`, `transformers` and `accelerate`;
 4. swaps in the right [ONNX Runtime](#onnx-runtime-for-face-detection) and the
    [headless OpenCV build](#opencv-headless-build);
 5. checks for `exiftool`, builds the Angular client and verifies every import (exit status 1 if one fails).
 
+Updating the code and rerunning `install.sh` rebuilds the gallery even when `client/dist` already exists. The build uses the committed lockfile (`npm ci`) and a temporary directory before replacing the served client. A dependency or compilation failure leaves the previous frontend in place and exits non-zero. If publishing fails, the installer restores the previous frontend; if restoration also fails, it prints the retained backup directory for recovery.
+
 | Flag | Effect |
 |------|--------|
 | `--cpu` | Force CPU-only PyTorch (no CUDA) |
 | `--cuda VERSION` | Override the detected CUDA version (e.g. `--cuda 12.8`) |
-| `--skip-client` | Skip the Angular frontend build |
+| `--skip-client` | Skip Node/npm checks and the Angular frontend build; keep the current frontend |
 | `--no-uv` | Use pip instead of uv |
 | `--commercial` | Commercial-safe install: skips insightface, pyiqa and ONNX Runtime, installs mediapipe with `--no-deps`; set `licensing.mode` to `commercial` yourself |
 
@@ -878,11 +881,11 @@ python facet.py --doctor --simulate-gpu "RTX 5070 Ti" --simulate-vram 16
 ## Angular client
 
 Only needed for development or custom builds; `install.sh` and the Docker image already
-build it.
+build it. Use Node.js 24.15.0 or newer within 24.x.
 
 ```bash
 cd client
-npm install
+npm ci
 npm run build    # Production build → client/dist/
 npm start        # Dev server on http://localhost:4200 (proxies API to :5000)
 ```

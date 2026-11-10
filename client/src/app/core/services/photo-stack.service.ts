@@ -5,6 +5,7 @@ import { components } from '../api/schema';
 import { ApiService } from './api.service';
 import { AuthService } from './auth.service';
 import { Photo } from '../../shared/models/photo.model';
+import { privateImageSessionKey } from '../../shared/utils/private-image-session';
 
 export type PhotoStack = components['schemas']['PhotoStack'];
 export type StackMutation = components['schemas']['StackMutation'];
@@ -30,9 +31,10 @@ export class PhotoStackService {
   /** Root-owned epoch survives dialog destruction and detects leaving and returning before Undo. */
   context(): () => boolean {
     const owner = this.auth.identity();
+    const session = privateImageSessionKey();
     const navigation = this.navigation;
     const url = this.router.url;
-    return () => owner === this.auth.identity() && navigation === this.navigation && url === this.router.url;
+    return () => owner === this.auth.identity() && session === privateImageSessionKey() && navigation === this.navigation && url === this.router.url;
   }
 
   /** A write's epoch and account are still the ones that started it, and the account may still edit. */
@@ -46,7 +48,8 @@ export class PhotoStackService {
   /** Recheck a live exact-list boundary after asynchronous guards and resolvers too. */
   async navigateMember(path: string, photo: Photo, allowed: () => boolean, replaceUrl: boolean): Promise<boolean> {
     const owner = this.auth.identity();
-    const valid = () => owner === this.auth.identity() && allowed();
+    const photoSession = privateImageSessionKey();
+    const valid = () => owner === this.auth.identity() && photoSession === privateImageSessionKey() && allowed();
     if (!valid()) return false;
     const source = this.router.url;
     let navigationId: number | null = null;
@@ -63,7 +66,7 @@ export class PhotoStackService {
       }
     });
     try {
-      return await this.router.navigate(['/photo'], { queryParams: { path }, state: { photo }, replaceUrl });
+      return await this.router.navigate(['/photo'], { queryParams: { path }, state: { photo, photoSession }, replaceUrl });
     } finally { subscription.unsubscribe(); }
   }
 

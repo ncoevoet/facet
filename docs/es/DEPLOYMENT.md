@@ -153,10 +153,10 @@ El servidor sirve la SPA precompilada desde `client/dist/client/browser/`. Comp�
 desplegar:
 
 ```bash
-cd client && npm install && npx ng build && cd ..
+cd client && npm ci && npm run build && cd ..
 ```
 
-Esto requiere Node.js 20+ únicamente en tiempo de compilación, no en el servidor.
+Esto requiere Node.js 24.15.0 o posterior (serie 24.x) únicamente en tiempo de compilación, no en el servidor.
 
 ## NAS Synology (DS420j / serie J)
 
@@ -197,6 +197,7 @@ Esto crea `photo_scores_viewer.db`, que:
 - elimina los embeddings de CLIP, de leyendas y faciales;
 - conserva el histograma por foto (~2 KB cada uno) para el widget de histograma RGB;
 - reduce las miniaturas de 640px a 320px;
+- empieza con listas vacías de lugares guardados y ubicaciones recientes; los lugares privados de la máquina de puntuación no se copian;
 - normalmente reduce una base de datos de 14 GB a ~4-5 GB.
 
 Las exportaciones son incrementales: solo se sincronizan las fotos nuevas y modificadas. Para una reconstrucción completa:
@@ -205,8 +206,18 @@ Las exportaciones son incrementales: solo se sincronizan las fotos nuevas y modi
 python database.py --export-viewer-db --force-export
 ```
 
-> **Advertencia:** `--force-export` descarta las valoraciones, ubicaciones y tags manuales establecidos en el
+> **Advertencia:** `--force-export` descarta las valoraciones, ubicaciones, tags manuales y lugares privados guardados o recientes establecidos en el
 > visor del NAS. Solo una exportación incremental los conserva.
+
+**Finalización y reintento.** Una exportación completa se prepara en un directorio temporal accesible solo al propietario junto al destino, se despoja del estado privado del origen, se compacta y se comprueba su coherencia en SQLite y en claves foráneas antes de publicarse. Una salida nueva solo aparece cuando está lista. Reemplazar una salida existente usa la transacción de copia de SQLite, que conserva su inodo para los lectores abiertos y las conexiones WAL; si falla, se mantiene la base anterior. Una salida existente que SQLite no puede abrir, porque no es una base de datos o está dañada, se reemplaza como archivo. Las salidas nuevas y las instantáneas de copia requieren un sistema de archivos que admita enlaces duros. Si no, el comando falla sin publicar un archivo parcial; elige un directorio de salida compatible.
+
+Una exportación incremental primero actualiza el esquema del destino y luego sincroniza una instantánea del origen en una sola transacción del destino. Las miniaturas de las fotos nuevas se reducen y se comprueba la integridad del destino antes de que empiece esa transacción, de modo que las escrituras del visor solo esperan mientras se aplican los cambios. Una sincronización de datos fallida o interrumpida revierte juntos los cambios de fotos, caras, tags, vectores y recibos de revisión; la actualización del esquema puede permanecer. Corrige la causa indicada y vuelve a ejecutar el mismo comando. Una miniatura corrupta de una foto nueva es un error, así que repararla en el origen y reintentar también genera su miniatura. Las miniaturas existentes no cambian. Las ediciones de revisión, los tags manuales y los lugares guardados/recientes del destino siguen siendo locales y la sincronización incremental los conserva.
+
+Las rutas de salida son nombres de archivo literales, incluidos los que empiezan por `file:` en los sistemas de archivos que los admiten; no se aceptan parámetros URI de SQLite.
+
+Las exportaciones reservan espacio libre para el área de preparación o los diarios de reversión y fallan antes de copiar si la estimación no cabe. Las excepciones y las interrupciones normales eliminan la copia temporal; un proceso terminado a la fuerza puede dejar junto a la salida un directorio oculto `.*.export-*` accesible solo al propietario. Cuando el exportador se haya detenido, elimina ese directorio temporal y reintenta. La base publicada anterior sigue siendo el punto de recuperación. El bloqueo de SQLite sigue aplicándose: reintenta los errores de bloqueo cuando el escritor del destino esté inactivo.
+
+Si falta el archivo principal de la salida pero queda un archivo acompañante `-wal`, `-shm` o `-journal`, la exportación se detiene sin eliminarlo. Cierra a los usuarios de esa base de datos y recupérala antes de reintentar; un WAL superviviente puede contener datos que pertenecen a la base anterior.
 
 La función «Buscar similares» no funciona en la base de datos exportada (sin embeddings). Usa la máquina
 de puntuación para ello.

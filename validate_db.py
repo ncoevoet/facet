@@ -55,32 +55,46 @@ def main():
         logger.info("FIXABLE ISSUES: %d", len(fixable_results))
         logger.info("=" * 60)
 
-        if args.auto_fix:
-            from facet import LIBRARY_JOB_REPAIR, hold_library_lock_or_exit
-            hold_library_lock_or_exit(args.db, LIBRARY_JOB_REPAIR)
-            logger.info("Auto-fixing all issues...")
-            with get_connection(args.db, row_factory=False) as conn:
-                for result in fixable_results:
-                    logger.info("Fixing: %s", result.description)
-                    try:
-                        if result.fix_query:
-                            cursor = conn.cursor()
-                            cursor.execute(result.fix_query)
-                            logger.info("  Fixed %d records", cursor.rowcount)
-                        elif result.fix_function:
-                            result.fix_function(conn)
-                            logger.info("  Fix applied")
-                    except Exception as e:
-                        logger.error("  Error: %s", e)
-                conn.commit()
-            logger.info("All auto-fixes applied. Re-run validation to verify.")
-        else:
+        if not args.auto_fix:
             proceed = input("\nWould you like to review and fix issues? [y/N]: ").strip().lower()
-            if proceed == 'y':
+            if proceed != 'y':
+                return
+
+        from facet import LIBRARY_JOB_REPAIR, hold_library_lock_or_exit
+        lock = hold_library_lock_or_exit(args.db, LIBRARY_JOB_REPAIR)
+        try:
+            # The report (and an interactive confirmation) may predate another
+            # library job. Only offer repairs from a fresh check under the lock.
+            validator = DatabaseValidator(args.db)
+            results = validator.run_all_checks()
+            fixable_results = [r for r in results if r.has_issues and r.fixable]
+            if not fixable_results:
+                logger.info("No fixable issues remain.")
+                return
+            if args.auto_fix:
+                logger.info("Auto-fixing all issues...")
+                with get_connection(args.db, row_factory=False) as conn:
+                    for result in fixable_results:
+                        logger.info("Fixing: %s", result.description)
+                        try:
+                            if result.fix_query:
+                                cursor = conn.cursor()
+                                cursor.execute(result.fix_query)
+                                logger.info("  Fixed %d records", cursor.rowcount)
+                            elif result.fix_function:
+                                result.fix_function(conn)
+                                logger.info("  Fix applied")
+                        except Exception as e:
+                            logger.error("  Error: %s", e)
+                    conn.commit()
+                logger.info("All auto-fixes applied. Re-run validation to verify.")
+            else:
                 with get_connection(args.db, row_factory=False) as conn:
                     for result in fixable_results:
                         validator.interactive_fix(result, conn)
                 logger.info("Fixes applied. Re-run validation to verify.")
+        finally:
+            lock.release()
     else:
         # Exclude informational checks from unfixable issues
         unfixable = [r for r in results if r.has_issues and not r.fixable and not r.informational]

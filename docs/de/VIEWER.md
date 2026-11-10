@@ -76,6 +76,8 @@ Starten Sie den Viewer nach dem Setzen von `viewer.edition_password` neu: Die Ko
 
 Die Anmeldung setzt das Sitzungstoken zusätzlich in einem `HttpOnly`-`SameSite=Lax`-Cookie, damit Vorschaubilder und der Scan-Fortschrittsstrom auf passwortgeschützten Installationen laden. Das Cookie gilt nur für lesende Anfragen (GET/HEAD); Bearbeitungen brauchen weiterhin das Bearer-Token. Die Abmeldung (`POST /api/auth/logout`) löscht es.
 
+Vorschaubilder der Bibliothek, Vollbilder und Gesichts-/Personenausschnitte werden mit privaten HTTP-Cache-Headern ausgeliefert, die eine Revalidierung verlangen. Sie umgehen den Service Worker, der keinen Offline-Cache für Vorschaubilder mehr anlegt. Bild-URLs tragen einen Query-Parameter `session`, der keine Zugangsdaten sind und sich ändert, wenn das angemeldete Konto wechselt; der Viewer verwendet daher keine dekodierten Bilder eines früheren Kontos wieder. Verlaufs-Schnappschüsse privater Fotos sind nur in ihrer ursprünglichen Sitzung nutzbar; Zurück nach Abmeldung/Anmeldung oder ein Neuladen der Seite prüft den Zugriff erneut, bevor Metadaten angezeigt werden. Das löscht weder bereits an den Browser gelieferte Bildbytes noch den Verlauf. Öffentliche Album-Freigaben und Bilderrahmen-Kioske folgen ihren eigenen Zugriffsregeln. Lehnt der Server **Bearbeitung sperren** ausdrücklich ab, bleiben die aktuellen Rechte sichtbar und es erscheint ein Fehler; eine unterbrochene Antwort muss zuerst ihr Cookie abgleichen, wie unten beschrieben.
+
 ### Mehrbenutzermodus
 
 Für ein Familien-NAS, auf dem jedes Mitglied eigene private Fotoverzeichnisse hat. Fügen Sie der `scoring_config.json` einen `users`-Abschnitt hinzu:
@@ -112,6 +114,10 @@ python database.py --add-user alice --role superadmin --display-name "Alice"
 ```
 
 Siehe [Konfiguration](CONFIGURATION.md#users) für die vollständige Referenz.
+
+Wer den gespeicherten Passwort-Hash oder die Rolle eines Kontos ändert oder das Konto löscht, macht dessen bestehende Sitzungen ungültig, sobald der Server die neue Konfiguration lädt. Das betrifft Bild-Cookies, Scan-Stream-Tokens und den Assistenten auf der Seite. Melden Sie sich nach einer Kontoänderung neu an; bestehende Mehrbenutzer-Sitzungen brauchen nach diesem Upgrade ebenfalls eine frische Anmeldung. Wird jeder Benutzer entfernt, bleibt kein alter Administrator-Token erhalten. Das Ändern von `viewer.password` macht weiterhin alle Sitzungen ungültig; das Ändern von `viewer.edition_password` entzieht im Einzelbenutzermodus die Bearbeitungsrechte. Bearbeitungs-An-/Abmeldung gilt nur im Einzelbenutzermodus; rollenbasierte Konten melden sich ab oder bekommen eine andere Rolle. Die normale Abmeldung löscht die Zugangsdaten dieses Browsers, widerruft aber keinen kopierten Token.
+
+Anmeldung, Bearbeitungswechsel und Abmeldung laufen innerhalb eines Tabs der Reihe nach ab, damit ihre Bild-Cookies und Bearer-Zugangsdaten einander nicht überholen; eine hängende Authentifizierungsanfrage wird nach 15 Sekunden abgebrochen. Browser mit Web Locks koordinieren diese Vorgänge auch tabübergreifend (HTTPS und localhost). Bei HTTP-Origins ohne Web Locks gilt bei gleichzeitigen Anmeldungen in mehreren Tabs die Abschlussreihenfolge; die zuletzt abgeschlossene Anmeldung wird zum gemeinsamen Browser-Konto. Schlägt eine Antwort fehl, nachdem sie ihr Bild-Cookie aktualisiert hat, gleicht Facet dieses Cookie mit der bestätigten Bearer-Sitzung ab, bevor das Konto wieder angezeigt wird. Scheitern Abgleich und Aufräumen beide, bleibt das Konto über Neuladevorgänge hinweg unbestätigt, bis ein späterer Versuch gelingt.
 
 ### Rollen
 
@@ -1113,6 +1119,8 @@ Die Statistikseite (`/stats`) hat 5 Tabs. Die Auswahl für **Kategorie** und **D
 | **Kategorien** | Kategorieanalysen, Gewichtsverwaltung und Wertungskorrelationen |
 | **Korrelationen** | Eigene X/Y-Metrikkorrelationsdiagramme mit Gruppierung |
 
+Wenn Sie in **Korrelationen** eine Abfrageoption ändern, wird das vorherige Ergebnis gelöscht; drücken Sie **Korrelationen laden**, um die neue Auswahl abzurufen, bevor Sie CSV exportieren. Diagramm und CSV beschreiben dieselbe geladene Auswahl. Ein Wechsel von Diagrammstil oder Theme behält diese Auswahl.
+
 ### Tab „Kategorien“
 
 Vier Untertabs:
@@ -1181,9 +1189,9 @@ Für ältere Änderungen siehe [Änderungsverlauf](#änderungsverlauf).
 
 ## Progressive Web App
 
-Produktions-Builds lassen sich auf dem Startbildschirm installieren. Die App-Hülle lädt offline, und bis zu 1000 Vorschaubilder werden 7 Tage lang zwischengespeichert (größere Größen, etwa die 1920px-Renderings der Dunkelkammer, verlassen sich auf den Browser-Cache). API-Antworten werden nie zwischengespeichert, außer Übersetzungspaketen. Eine Snackbar bietet ein Neuladen an, wenn eine neue Version bereitgestellt wird.
+Produktions-Builds lassen sich auf dem Startbildschirm installieren. Die App-Shell lädt offline; Vorschaubilder und andere Bibliotheksbilder werden nicht offline zwischengespeichert. Bevor der Browser eine gespeicherte Kopie wiederverwendet, revalidiert er sie beim Server, sodass eine widerrufene Sitzung sie nicht erneut laden kann; ein bereits in einem offenen Tab angezeigtes Bild kann dort sichtbar bleiben, bis der Tab neu geladen wird. API-Antworten werden nie zwischengespeichert, außer den Übersetzungspaketen. Eine Snackbar bietet ein Neuladen an, wenn eine neue Version bereitgestellt wurde.
 
-> **Warnung:** Die Abmeldung leert den Vorschaubild-Cache der App, nicht aber den HTTP-Cache des Browsers, der angesehene Bilder (Vorschaubilder, Renderings, Bilder in voller Auflösung) bis zu einem Jahr behalten kann. Konten, die die Fotos der anderen nicht sehen dürfen, sollten kein Browserprofil teilen.
+> **Hinweis:** Der Browser revalidiert jedes Bild beim Server, bevor er es wiederverwendet; nach einer Abmeldung oder einer widerrufenen Sitzung wird eine gespeicherte Kopie daher nicht mehr angezeigt. Bereits gelieferte Bytes werden nicht gelöscht: Konten, die die Fotos der anderen nicht sehen dürfen, sollten weiterhin kein Browserprofil teilen.
 
 ## Mobil
 
