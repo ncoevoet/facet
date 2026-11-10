@@ -147,6 +147,8 @@ class TestBackupDatabase:
                                                ('library*.db', 'library2.db'),
                                                ('library?.db', 'library3.db')])
     def test_rotation_uses_literal_database_names(self, tmp_path, name, other):
+        if os.name == 'nt' and any(char in name for char in '*?'):
+            pytest.skip('Windows filenames cannot contain * or ?')
         from db.maintenance import _rotate_backups
         own = tmp_path / (name + '.backup-old')
         latest = tmp_path / (name + '.backup-new')
