@@ -15,8 +15,8 @@ export interface ShortcutAction {
 }
 
 /** The one table of remappable keyboard actions. The keymap dialog, the
- *  saved-keymap loader, the `?` reference rows and the button hints all read
- *  from it, so adding an action here is the whole change for those surfaces. */
+ *  saved-keymap loader and the `?` reference rows all read from it, so adding
+ *  an action here is the whole change for those surfaces. */
 export const SHORTCUT_REGISTRY = [
   { id: 'favourite', defaultKey: 'f', scopes: ['gallery', 'photo'], labelKey: I18N.shortcuts.favorite },
   { id: 'reject', defaultKey: 'x', scopes: ['gallery', 'photo'], labelKey: I18N.shortcuts.reject },

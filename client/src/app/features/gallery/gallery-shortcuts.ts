@@ -53,6 +53,7 @@ export function photoShortcutSection(map: KeymapConfig): ShortcutSection {
       { keys: ['1', '–', '5'], labelKey: I18N.shortcuts.rate },
       remappable(map, 'reject', ['0']),
       remappable(map, 'favourite'),
+      UNDO_SHORTCUT_ROW,
       { keys: ['Esc'], labelKey: I18N.shortcuts.close },
     ],
   };

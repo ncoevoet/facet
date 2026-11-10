@@ -4358,6 +4358,8 @@ describe('BurstCullingComponent modals (rendered)', () => {
 
     const darkroom = fixture.debugElement.query(By.css('[role="dialog"][aria-modal="true"]'));
     expect(darkroom.nativeElement.getAttribute('aria-label')).toBe('culling.darkroom');
+    // Ctrl/Cmd+Z presses the snackbar's Undo in the darkroom (UndoService).
+    expect(darkroom.nativeElement.hasAttribute('data-undo-surface')).toBe(true);
     expect(fixture.debugElement.queryAll(By.directive(CdkTrapFocus))
       .some(el => el.nativeElement === darkroom.nativeElement)).toBe(true);
   });

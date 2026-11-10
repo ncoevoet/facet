@@ -1244,13 +1244,14 @@ Les raccourcis à touche unique sont inactifs quand le focus est dans un champ d
 | `/` | Place le focus dans la recherche de la collection ; l’affiche d’abord sur un écran étroit |
 | `S` | Ouvre l'éditeur de piles pour la sélection explicite (mode édition ; réassignable, peut rester non assignée) |
 | `Ctrl+Maj+S` / `Cmd+Maj+S` | Empile aussitôt la sélection explicite non empilée dans l’ordre de sélection, la première photo servant de couverture (mode édition ; les membres de piles existantes ouvrent l’éditeur) |
+| `Ctrl+Z` / `Cmd+Z` | Annule la dernière modification tant que sa barre de notification [Annuler](#annuler) est affichée (toutes les pages ; pas dans les champs de texte ni les dialogues) |
 | `B` | Affiche / masque la barre latérale de filtres |
 | `V` | Parcourt les dispositions grille, mosaïque et liste |
 | `?` | Affiche la référence des raccourcis clavier (sur chaque page ; aussi dans menu utilisateur → Aide) |
 
 **Avancer après enregistrement**, dans les options d’affichage, est désactivé par défaut. Activez-le pour passer à la photo suivante après l’enregistrement réussi d’une note ou d’un raccourci de conservation ou de rejet. Ce choix vaut pour la session en cours ; changer de photo, de collection ou de compte pendant l’enregistrement empêche l’avancement automatique.
 
-**Réassigner les touches.** `K`, `F`, `X`, `/`, `B`, `V` et `S` sont les valeurs par défaut. Menu utilisateur → **Personnaliser les raccourcis** vous permet de cliquer sur une action et d'appuyer sur une nouvelle touche (`Esc` ou `Tab` annule). Les chiffres, `Space` et `?` sont réservés, et une touche déjà utilisée est refusée. **Tout réinitialiser** restaure les valeurs par défaut. L'association est enregistrée par navigateur (`localStorage`). La page de photo utilise les mêmes touches, et la référence `?` montre toujours les touches en vigueur.
+**Réassigner les touches.** `K`, `F`, `X`, `/`, `B`, `V` et `S` sont les valeurs par défaut. Menu utilisateur → **Personnaliser les raccourcis** vous permet de cliquer sur une action et d'appuyer sur une nouvelle touche (`Esc` ou `Tab` annule). Les chiffres, `Space` et `?` sont réservés, et une touche déjà utilisée par une autre action de la même page est refusée. **Tout réinitialiser** restaure les valeurs par défaut. L'association est enregistrée par navigateur (`localStorage`). La page de photo utilise les mêmes touches, et la référence `?` montre toujours les touches en vigueur.
 
 **Photo courante.** La photo sur laquelle agissent les touches de note, de favori et de rejet a un contour de 4 px ; les autres cartes conservent leur luminosité normale. Rien n'est marqué tant que vous ne vous placez pas sur une photo. Cliquer sur une photo y déplace le repère. Revenir d'une photo laisse le repère sur la dernière consultée. L'indication de carte ciblée n'apparaît qu'en mode édition avec `viewer.features.show_rating_controls` activé.
 

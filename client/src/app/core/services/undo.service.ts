@@ -2,7 +2,7 @@ import { DestroyRef, Injectable, inject } from '@angular/core';
 import { MatSnackBar, MatSnackBarRef, TextOnlySnackBar } from '@angular/material/snack-bar';
 import { I18nService } from './i18n.service';
 import { I18N } from '../i18n/keys';
-import { isImeOrRepeat, isShortcutContextBlocked, isUndoChord } from '../../shared/utils/keyboard';
+import { isImeOrRepeat, isUndoChord, isUndoContextBlocked } from '../../shared/utils/keyboard';
 
 export interface UndoableCommand {
   /** i18n key for the snackbar message. */
@@ -51,9 +51,10 @@ export class UndoService {
   }
 
   /** Ctrl/Cmd+Z presses the snackbar's Undo while one is showing. A text field
-   *  keeps its own undo, and an open dialog or bottom sheet keeps the key. */
+   *  keeps its own undo, and an open dialog or bottom sheet keeps the key; the
+   *  darkroom, a modal marked `data-undo-surface`, does not. */
   private onUndoKey(event: KeyboardEvent): void {
-    if (!isUndoChord(event) || isImeOrRepeat(event) || isShortcutContextBlocked(event)) return;
+    if (!isUndoChord(event) || isImeOrRepeat(event) || isUndoContextBlocked(event)) return;
     if (this.undoShowing()) event.preventDefault();
   }
 
@@ -82,6 +83,8 @@ export class UndoService {
     let undone = false;
     ref.onAction().subscribe(() => {
       undone = true;
+      // The bar stays on screen through its exit animation: a second Ctrl+Z must not undo again.
+      if (this.showing === ref) this.showing = null;
       if (this.pendingCommit === cmd.commit) this.pendingCommit = null;
       cmd.undo()
         .then(() => this.snackBar.open(this.i18n.t(I18N.undo.restored), '', { duration: 2000 }))

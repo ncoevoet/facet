@@ -1244,13 +1244,14 @@ Le scorciatoie a tasto singolo sono inattive mentre il fuoco è in un campo di t
 | `/` | Porta il focus sulla ricerca della raccolta; la mostra prima sugli schermi stretti |
 | `S` | Apre l'editor delle pile per la selezione esplicita (modalità di modifica; rimappabile, può restare non assegnato) |
 | `Ctrl+Maiusc+S` / `Cmd+Maiusc+S` | Impila subito la selezione esplicita non impilata nell’ordine di selezione, con la prima foto come copertina (modalità di modifica; i membri di pile esistenti aprono l’editor) |
+| `Ctrl+Z` / `Cmd+Z` | Annulla l'ultima modifica finché la sua snackbar [Annulla](#annulla) è visibile (ogni pagina; non nei campi di testo o nelle finestre di dialogo) |
 | `B` | Mostra / nasconde la barra laterale dei filtri |
 | `V` | Alterna i layout a griglia, mosaico ed elenco |
 | `?` | Mostra il riferimento delle scorciatoie da tastiera (ogni pagina; anche nel menu utente → Aiuto) |
 
 **Avanza dopo il salvataggio**, nei controlli della vista, è disattivato per impostazione predefinita. Attivalo per passare alla foto successiva dopo il salvataggio riuscito di una valutazione o dei comandi da tastiera per conservare o rifiutare. Vale per la sessione corrente; cambiare foto, raccolta o account durante il salvataggio impedisce l’avanzamento automatico.
 
-**Rimappare i tasti.** `K`, `F`, `X`, `/`, `B`, `V` e `S` sono valori predefiniti. Menu utente → **Personalizza le scorciatoie** permette di cliccare un'azione e premere un nuovo tasto (`Esc` o `Tab` annulla). Cifre, `Space` e `?` sono riservati, e un tasto già in uso viene rifiutato. **Ripristina tutto** ripristina i valori predefiniti. La mappatura è memorizzata per browser (`localStorage`). La pagina della foto usa gli stessi tasti, e il riferimento `?` mostra sempre i tasti in vigore.
+**Rimappare i tasti.** `K`, `F`, `X`, `/`, `B`, `V` e `S` sono valori predefiniti. Menu utente → **Personalizza le scorciatoie** permette di cliccare un'azione e premere un nuovo tasto (`Esc` o `Tab` annulla). Cifre, `Space` e `?` sono riservati, e un tasto già usato da un'altra azione nella stessa pagina viene rifiutato. **Ripristina tutto** ripristina i valori predefiniti. La mappatura è memorizzata per browser (`localStorage`). La pagina della foto usa gli stessi tasti, e il riferimento `?` mostra sempre i tasti in vigore.
 
 **Foto corrente.** La foto su cui agiscono i tasti di valutazione, preferito e rifiuto ha un contorno di 4px; le altre schede mantengono la luminosità normale. Nulla è segnato finché non ti sposti su una foto. Cliccare una foto sposta il segnaposto su di essa. Tornando da una foto, il segnaposto resta sull'ultima visualizzata. Il suggerimento della scheda a fuoco compare solo in modalità di modifica con `viewer.features.show_rating_controls` attivo.
 

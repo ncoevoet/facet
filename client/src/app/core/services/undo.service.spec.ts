@@ -22,7 +22,9 @@ describe('UndoService', () => {
       return {
         onAction: () => ref.onAction.asObservable(),
         afterDismissed: () => ref.afterDismissed.asObservable(),
-        dismissWithAction: () => { ref.onAction.next(); ref.afterDismissed.next(); },
+        // MatSnackBar emits afterDismissed only once its exit animation ends, so a
+        // second Ctrl+Z can land while the bar is still on screen; tests fire it by hand.
+        dismissWithAction: () => ref.onAction.next(),
       };
     });
     TestBed.configureTestingModule({
@@ -138,6 +140,7 @@ describe('UndoService', () => {
       ['Ctrl+Cmd+Z', { ctrlKey: true, metaKey: true }],
       ['a bare Z (darkroom zoom)', {}],
       ['auto-repeat', { ctrlKey: true, repeat: true }],
+      ['an IME composition', { ctrlKey: true, isComposing: true }],
     ])('ignores %s', async (_name, init) => {
       const undo = vi.fn(() => Promise.resolve());
       service.register({ labelKey: 'x', undo });
@@ -156,6 +159,37 @@ describe('UndoService', () => {
       await Promise.resolve();
       expect(undo).not.toHaveBeenCalled();
       expect(event.defaultPrevented).toBe(false);
+    });
+
+    it.each(['mat-dialog-container', 'mat-bottom-sheet-container'])('leaves Ctrl+Z to an open %s', async tag => {
+      const undo = vi.fn(() => Promise.resolve());
+      service.register({ labelKey: 'x', undo });
+      const host = document.body.appendChild(document.createElement(tag));
+      const event = press({ ctrlKey: true });
+      host.remove();
+      await Promise.resolve();
+      expect(undo).not.toHaveBeenCalled();
+      expect(event.defaultPrevented).toBe(false);
+    });
+
+    it('presses Undo while the culling darkroom is open, but not under a dialog opened over it', async () => {
+      const undo = vi.fn(() => Promise.resolve());
+      service.register({ labelKey: 'x', undo });
+      const darkroom = document.body.appendChild(document.createElement('div'));
+      darkroom.setAttribute('role', 'dialog');
+      darkroom.setAttribute('aria-modal', 'true');
+      darkroom.setAttribute('data-undo-surface', '');
+      const dialog = darkroom.appendChild(document.createElement('div'));
+      dialog.setAttribute('role', 'dialog');
+      dialog.setAttribute('aria-modal', 'true');
+      press({ ctrlKey: true }, dialog);
+      await Promise.resolve();
+      expect(undo).not.toHaveBeenCalled();
+      dialog.remove();
+      press({ ctrlKey: true }, darkroom);
+      darkroom.remove();
+      await Promise.resolve();
+      expect(undo).toHaveBeenCalledTimes(1);
     });
 
     it('reaches the service even when the page stops the key from bubbling', async () => {

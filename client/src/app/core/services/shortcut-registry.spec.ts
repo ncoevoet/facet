@@ -46,6 +46,8 @@ describe('SHORTCUT_REGISTRY', () => {
 
   it('lists Ctrl/Cmd+Z on every page that offers a snackbar Undo', () => {
     expect(galleryShortcutSection(DEFAULT_KEYMAP).rows).toContain(UNDO_SHORTCUT_ROW);
+    // The photo page's face menu offers Undo for "Ignore detection".
+    expect(photoShortcutSection(DEFAULT_KEYMAP).rows).toContain(UNDO_SHORTCUT_ROW);
     expect(CULLING_SHORTCUT_SECTIONS[0].rows).toContain(UNDO_SHORTCUT_ROW);
     expect(STACK_SHORTCUT_SECTIONS[0].rows).toContain(UNDO_SHORTCUT_ROW);
   });
