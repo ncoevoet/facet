@@ -111,6 +111,21 @@ def test_rejected_photos_cannot_pick_the_embedding_width(conn):
     assert set(pair['paths']) == {a, b}
 
 
+def test_a_rejection_that_flips_the_embedding_width_does_not_reuse_the_other_width_search(conn):
+    # Same rows, same fingerprint inputs: the stored neighbour lists index the 3-d matrix, so after
+    # the kept majority flips to 2-d they must not be read against the 2-d photos.
+    for k in range(3):
+        add(conn, f'a{k}.jpg', vector(1, 0.01 * k, 0), phash=SAME_HASH)
+    b0 = add(conn, 'b0.jpg', vector(1, 0), phash=SAME_HASH)
+    b1 = add(conn, 'b1.jpg', vector(1, 0.01), phash=SAME_HASH)
+    [first] = pairs(conn)
+    assert all(p.rsplit('/', 1)[1].startswith('a') for p in first['paths'])
+    conn.execute("UPDATE photos SET is_rejected = 1 WHERE filename IN ('a0.jpg', 'a1.jpg')")
+    conn.commit()
+    [second] = pairs(conn)
+    assert set(second['paths']) == {b0, b1}
+
+
 def test_a_pair_both_of_whose_photos_are_already_decided_is_settled(conn):
     add(conn, 'a.jpg', vector(1, 0, 0), similarity_reviewed=1)
     add(conn, 'b.jpg', vector(1, 0.01, 0), burst_reviewed=1)

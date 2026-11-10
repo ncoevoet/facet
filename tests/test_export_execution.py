@@ -191,7 +191,7 @@ def test_execution_reuses_credential_derivations_but_stops_on_rotation(
     paths, target = library
     users = config._FULL_CONFIG.get('users', {})
     monkeypatch.setitem(config._FULL_CONFIG, 'users', {
-        **users, 'test': {**users.get('test', {}), 'password': 'actor fixture',
+        **users, 'test': {**users.get('test', {}), 'password_hash': 'pbkdf2:actor-fixture',
                           'directories': [str(paths[0].parent)]}})
     monkeypatch.setitem(config.VIEWER_CONFIG, 'password', 'viewer fixture')
     monkeypatch.setitem(config.VIEWER_CONFIG, 'edition_password', 'edition fixture')
@@ -210,7 +210,8 @@ def test_execution_reuses_credential_derivations_but_stops_on_rotation(
     def deliver_and_rotate(item, operation):
         deliver(item, operation)
         if rotation == 'actor':
-            monkeypatch.setitem(config._FULL_CONFIG['users']['test'], 'password', 'changed actor')
+            # Accounts store only a hash: a reset rewrites password_hash and must stop the job.
+            monkeypatch.setitem(config._FULL_CONFIG['users']['test'], 'password_hash', 'pbkdf2:changed-actor')
         elif rotation == 'secret':
             monkeypatch.setattr(config, 'JWT_SECRET', 'changed signing secret')
         elif rotation:

@@ -6,12 +6,10 @@ one read snapshot before reading any photo bytes. Binding the native path in
 the signature prevents a replaced/reused SQLite rowid from inheriting a grant.
 """
 
-import hashlib
 import hmac
-import json
 import re
 
-from api import config
+from api import signed_tokens
 
 MAX_ASSET_REFERENCE_LENGTH = 85  # signed int64 rowid + dot + SHA-256 hex digest
 
@@ -26,9 +24,9 @@ def public_photo_fields(photo: dict) -> dict:
 def shared_asset_reference(album_id: int, token: str, row_id: int, path: str) -> str:
     if not -(2 ** 63) <= row_id < 2 ** 63:
         raise ValueError('Invalid asset row identity')
-    payload = json.dumps(['album-asset-v1', album_id, token, row_id, path],
-                         ensure_ascii=False, separators=(',', ':')).encode('utf-8')
-    signature = hmac.new(config.JWT_SECRET.encode('utf-8'), payload, hashlib.sha256).hexdigest()
+    # The purpose tag leads the signed list instead of a domain prefix; sorting keys changes no list.
+    payload = signed_tokens.canonical_json(['album-asset-v1', album_id, token, row_id, path], ensure_ascii=False)
+    signature = signed_tokens.sign(b'', payload)
     return f'{row_id}.{signature}'
 
 

@@ -4,15 +4,13 @@ A slash is literal data. This module never invents parent tags or modifies AI
 labels, photos, files, imported sidecars or another account's hidden assignments.
 """
 
-import base64
 import hashlib
 import hmac
-import json
 import time
 
 from fastapi import HTTPException
 
-from api import config
+from api import signed_tokens
 from api.db_helpers import get_visibility_clause
 from db.manual_tags import ManualTagError, escape_like, is_ai_tag, normalize_manual_tag
 
@@ -22,7 +20,7 @@ _MAX_BYTES = 8 * 1024 * 1024
 
 
 def _json(value):
-    return json.dumps(value, sort_keys=True, ensure_ascii=True, separators=(',', ':')).encode()
+    return signed_tokens.canonical_json(value)
 
 
 def _normalized(value):
@@ -74,11 +72,6 @@ def _snapshot(conn, owner, body):
     return snapshot, hashlib.sha256(encoded).hexdigest()
 
 
-def _signature(payload):
-    secret = config.JWT_SECRET.encode() if isinstance(config.JWT_SECRET, str) else config.JWT_SECRET
-    return hmac.new(secret, _DOMAIN + payload, hashlib.sha256).hexdigest()
-
-
 def keyword_preview(conn, owner, body):
     snapshot, digest = _snapshot(conn, owner, body)
     expires = int(time.time()) + 600
@@ -91,17 +84,13 @@ def keyword_preview(conn, owner, body):
             'paths': [row['photo_path'] for row in snapshot['rows']],
             'renamed': len(snapshot['rows']) - merged - ai_matches if target else 0,
             'merged': merged, 'ai_matches': ai_matches, 'removed': len(snapshot['rows']) if target is None else 0,
-            'preview_token': base64.urlsafe_b64encode(payload).decode().rstrip('=') + '.' + _signature(payload),
+            'preview_token': signed_tokens.issue(_DOMAIN, payload),
             'expires_at': expires}
 
 
 def apply_keyword_change(conn, owner, body, *, created_by):
     try:
-        encoded, signature = body.preview_token.split('.')
-        payload = base64.urlsafe_b64decode(encoded + '=' * (-len(encoded) % 4))
-        if not hmac.compare_digest(signature, _signature(payload)):
-            raise ValueError('invalid signature')
-        claims = json.loads(payload)
+        claims = signed_tokens.verify(_DOMAIN, body.preview_token)
         if claims['owner'] != owner or claims['expires'] <= time.time():
             raise ValueError('changed or expired preview')
     except (ValueError, KeyError, TypeError) as exc:

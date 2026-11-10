@@ -204,8 +204,9 @@ def compute_lookalike_pairs(conn, user_id, *, album_id=None, date_from=None, dat
     embeddings, indices = [e for e in embeddings if e.shape[0] == width], [i for e, i in zip(embeddings, indices) if e.shape[0] == width]
     photos = [rows[i] for i in indices]
 
+    # The width picks which rows form the matrix the stored lists index, so it keys them too.
     fingerprint = _candidate_fingerprint(
-        rows, [CANDIDATE_COSINE, _STORED_NEIGHBOURS, max_photos, vis_sql, vis_params,
+        rows, [CANDIDATE_COSINE, _STORED_NEIGHBOURS, width, max_photos, vis_sql, vis_params,
                album_sql, album_params, window_clauses, window_params, logical is not None])
     lists = _cached_neighbour_lists(
         conn, f"lookalike_neighbours_{user_id}_{album_id}_{date_from}_{date_to}", fingerprint, np.stack(embeddings))

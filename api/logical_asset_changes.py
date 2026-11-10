@@ -1,8 +1,6 @@
 """Stateless, owner-bound review of logical-photo catalog mutations."""
-import base64
 import hashlib
 import hmac
-import json
 import os
 from pathlib import Path
 import stat
@@ -11,7 +9,7 @@ import unicodedata
 
 from fastapi import HTTPException
 
-from api import config
+from api import config, signed_tokens
 from api.db_helpers import get_photos_from_clause, get_preference_columns, get_visibility_clause
 from api.models.logical_assets import LogicalAssetChange
 from api.path_validation import resolve_photo_disk_path
@@ -23,27 +21,17 @@ _REVIEW_FIELDS = ('star_rating', 'is_kept', 'is_rejected', 'is_favorite')
 
 
 def _json(value):
-    return json.dumps(value, sort_keys=True, separators=(',', ':'), ensure_ascii=False).encode('utf-8')
+    return signed_tokens.canonical_json(value, ensure_ascii=False)
 
 
 def _digest(value):
     return hashlib.sha256(_json(value)).hexdigest()
 
 
-def _signature(payload):
-    secret = config.JWT_SECRET
-    if isinstance(secret, str):
-        secret = secret.encode('utf-8')
-    return hmac.new(secret, _DOMAIN + payload, hashlib.sha256).hexdigest()
-
-
 def _private_review_digest(value):
     # Review values have a tiny guessable domain. A plain hash would permit
     # offline enumeration through the decoded preview snapshot fingerprint.
-    secret = config.JWT_SECRET
-    if isinstance(secret, str):
-        secret = secret.encode('utf-8')
-    return hmac.new(secret, b'facet-logical-review-private-v1\0' + _json(value), hashlib.sha256).hexdigest()
+    return signed_tokens.sign(b'facet-logical-review-private-v1\0', _json(value))
 
 
 def _indexed_aliases(conn, disk, roots):
@@ -145,7 +133,7 @@ def preview(conn, change, user_id):
     expires = int(time.time()) + 600
     payload = _json({'v': 1, 'owner': _digest(user_id), 'request': _digest(change.model_dump()),
                      'snapshot': _digest(current), 'expires': expires})
-    token = base64.urlsafe_b64encode(payload).rstrip(b'=').decode('ascii') + '.' + _signature(payload)
+    token = signed_tokens.issue(_DOMAIN, payload)
     return {'preview_token': token, 'expires_at': expires, 'operation': change.operation,
             'primary_path': change.primary_path, 'members': current['members'],
             'review_conflicts': current['review_conflicts'], 'preserves_file_metadata': True}
@@ -153,11 +141,7 @@ def preview(conn, change, user_id):
 
 def apply(conn, body, user_id):
     try:
-        encoded, signature = body.preview_token.split('.')
-        payload = base64.b64decode(encoded + '=' * (-len(encoded) % 4), altchars=b'-_', validate=True)
-        if not hmac.compare_digest(signature, _signature(payload)):
-            raise ValueError('signature')
-        claims = json.loads(payload)
+        claims = signed_tokens.verify(_DOMAIN, body.preview_token, strict_base64=True)
         if (claims['v'] != 1 or claims['owner'] != _digest(user_id)
                 or claims['request'] != _digest(body.change.model_dump()) or claims['expires'] < time.time()):
             raise ValueError('scope')
