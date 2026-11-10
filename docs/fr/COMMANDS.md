@@ -35,7 +35,7 @@
 
 ### Suivi des analyses
 
-Facet enregistre chaque analyse (statut, mode, répertoires, compteurs) et chaque erreur par fichier. Ctrl+C marque l'exécution `interrupted`, ce qui permet à `--resume` de la poursuivre. Les fichiers en échec sont listés et ne sont retentés qu'avec `--retry-failed`. La visionneuse affiche la progression de l'analyse à partir des lignes `@FACET_PROGRESS` de la CLI. Une analyse qui n'a enregistré aucune photo se termine avec le code 4 (tous les fichiers ont échoué, par exemple parce qu'un modèle requis ne s'est pas chargé) ; une analyse sans rien à faire se termine avec 0, et `--watch` continue de surveiller après un code 4. Une analyse ignorée parce qu'un autre travail détient le verrou de la bibliothèque se termine avec le code 75 ; `--watch` ne la compte pas comme un échec et relance le lot après la période de calme suivante. Après 3 analyses échouées consécutives, analyse initiale comprise, `--watch` s'arrête et se termine avec le code 1.
+Facet enregistre chaque analyse (statut, mode, répertoires, compteurs) et chaque erreur par fichier. Ctrl+C marque l'exécution `interrupted`, ce qui permet à `--resume` de la poursuivre. Une analyse interrompue se termine avec le code 130. Les fichiers en échec sont listés et ne sont retentés qu'avec `--retry-failed`. La visionneuse affiche la progression de l'analyse à partir des lignes `@FACET_PROGRESS` de la CLI. Une analyse qui n'a enregistré aucune photo se termine avec le code 4 (tous les fichiers ont échoué, par exemple parce qu'un modèle requis ne s'est pas chargé) ; une analyse sans rien à faire se termine avec 0, et `--watch` continue de surveiller après un code 4. Une analyse ignorée parce qu'un autre travail détient le verrou de la bibliothèque se termine avec le code 75 ; `--watch` ne la compte pas comme un échec et relance le lot après la période de calme suivante. Après 3 analyses échouées consécutives, analyse initiale comprise, `--watch` s'arrête et se termine avec le code 1.
 
 ### Modes de traitement
 
@@ -119,6 +119,7 @@ Sur un GPU CUDA, dès qu'un chunk est décodé, le même worker de décodage com
 - Les originaux ne sont jamais modifiés, sauf avec `--embed-originals` (JPEG/HEIC/TIFF/PNG/DNG uniquement ; le RAW n'est jamais touché).
 - Les mots-clés sont les tags IA plus vos [tags manuels](VIEWER.md#tags-manuels). Ils sont seulement ajoutés, sauf si `--reconcile-keywords` retire ceux que Facet avait écrits auparavant ; les mots-clés étrangers sont conservés. Voir [Tags manuels et mots-clés XMP](INTEROP.md#tags-manuels-et-mots-clés-xmp).
 - L'intégration et la fusion des mots-clés nécessitent **exiftool**. Sans lui, Facet écrit un sidecar XML simple.
+- Le résumé compte les fichiers écrits, intégrés, manquants et en échec. Toute erreur d'écriture renvoie le code 1, y compris un export partiellement réussi ; les fichiers terminés restent écrits. Les originaux manquants sont ignorés et comptés, et ne font pas échouer la commande à eux seuls. Une sélection vide renvoie 0.
 
 **Import des sidecars.**
 
@@ -206,6 +207,8 @@ Ces commandes mettent à jour des métriques ou dérivent de nouvelles données 
 | `python facet.py --compute-recommendations --verbose` | Affiche des statistiques détaillées |
 | `python facet.py --compute-recommendations --apply-recommendations` | Applique automatiquement les correctifs de notation |
 | `python facet.py --compute-recommendations --simulate` | Prévisualise les changements projetés |
+
+**`--dry-run`** n'a pas d'aperçu pour ces commandes qui réécrivent la base ; chacune le refuse avec le code de sortie 2 au lieu d'écrire quand même : `--backfill-clipping`, `--backfill-focal-35mm`, `--cluster-faces-force`, `--generate-captions`, `--recompute-average`, `--recompute-colors`, `--recompute-distortions`, `--recompute-form`, `--recompute-skin-tone`, `--recompute-tags`, `--recompute-text`, `--repair-int-columns`, `--repair-neutral-iqa`, `--upgrade-db`.
 
 **`--recompute-average`** ne garde aucun instantané : pour revenir en arrière, restaurez un instantané de poids et recalculez. Après une mise à jour depuis la 1.20 ou une version antérieure, lancez d'abord `--recompute-silhouette`, puis `--recompute-average` deux fois. La première passe enregistre de nouveaux percentiles, si bien que la seconde modifie encore certaines lignes.
 
@@ -485,6 +488,8 @@ L'étape d'étiquetage en fin d'analyse est ignorée quand `tagging.enabled` vau
 
 Vérifications : plages de scores, métriques de visages, corruption de BLOB, tailles d'embeddings, visages orphelins, valeurs statistiques aberrantes.
 
+Les réparations interactives comme `--auto-fix` prennent le verrou de la bibliothèque et revérifient les problèmes avant d'écrire. Le mode interactif attend votre confirmation initiale avant de prendre le verrou. Une bibliothèque occupée renvoie 75 ; un verrou inutilisable renvoie 1. `--report-only` et le refus des réparations n'ont pas besoin du verrou de réparation.
+
 ## Maintenance de la base de données
 
 | Commande | Description |
@@ -515,6 +520,10 @@ Vérifications : plages de scores, métriques de visages, corruption de BLOB, t
 | `python database.py --migrate-user-preferences --user alice` | Copie les notes des photos vers user_preferences |
 
 **`python database.py`** construit aussi les index manquants de la galerie (voir [VIEWER.md](VIEWER.md#index-de-la-galerie-et-cache-des-comptages)). Sur une grande bibliothèque, lancez-le une fois avant de démarrer la visionneuse ; cela peut prendre environ une minute. Sinon la visionneuse les construit en arrière-plan et refuse les enregistrements entre-temps.
+
+**`--backup`** publie un instantané terminé sous un nom horodaté unique avant de faire tourner les anciens instantanés. Deux exécutions dans la même seconde gardent des instantanés distincts ; une copie en échec laisse intactes les sauvegardes précédentes. Le système de fichiers de destination doit prendre en charge les liens physiques.
+
+**`--export-viewer-db`** conserve les modifications de la destination et les lieux privés lors d'une synchronisation incrémentale. Les exports complets omettent les lieux enregistrés/récents de la source. Voir [achèvement de l'export et nouvelle tentative](DEPLOYMENT.md#exporter-une-base-de-données-allégée) pour la publication, les mises à niveau de schéma et la reprise après une erreur.
 
 **`--migrate-tags`** n'est nécessaire qu'une fois. Ensuite, les analyses, `--recompute-tags`, `--recompute-tags-vlm` et `tag_existing.py` tiennent la table à jour. Tant qu'elle n'est pas peuplée, les filtres d'étiquettes utilisent une recherche `LIKE` plus lente.
 

@@ -433,15 +433,13 @@ class TestScanStreamToken:
 
         assert resp.status_code == 403
 
-    def test_superadmin_gets_short_lived_purpose_token(self):
-        viewer_cfg = _viewer_config_with_scan()
-        with (
-            mock.patch(f"{_AUTH_MODULE}.VIEWER_CONFIG", viewer_cfg),
-            mock.patch(f"{_AUTH_MODULE}.is_multi_user_enabled", return_value=True),
-            mock.patch(f"{_ROUTER_MODULE}.VIEWER_CONFIG", viewer_cfg),
-        ):
-            app, client, _ = _make_superadmin_app(viewer_cfg)
-            resp = client.get("/api/scan/stream_token")
+    def test_superadmin_gets_short_lived_purpose_token(self, agent_app):
+        from api import config
+
+        env = agent_app("multi")
+        config._FULL_CONFIG["users"]["root"]["role"] = "superadmin"
+        config.VIEWER_CONFIG["features"]["show_scan_button"] = True
+        resp = env.client.get("/api/scan/stream_token", headers=env.login("root"))
 
         assert resp.status_code == 200
         from api.auth import decode_access_token
@@ -511,8 +509,12 @@ class TestScanStreamAuth:
             resp = client.get("/api/scan/stream", params={"token": token})
         assert resp.status_code == 403
 
-    def test_minted_stream_token_accepted(self):
-        viewer_cfg = _viewer_config_with_scan()
+    def test_minted_stream_token_accepted(self, agent_app):
+        from api import config
+
+        env = agent_app("multi")
+        config._FULL_CONFIG["users"]["root"]["role"] = "superadmin"
+        config.VIEWER_CONFIG["features"]["show_scan_button"] = True
         mock_state = {
             'running': False,
             'process': None,
@@ -522,15 +524,9 @@ class TestScanStreamAuth:
             'exit_code': None,
             'progress': None,
         }
-        with (
-            mock.patch(f"{_AUTH_MODULE}.VIEWER_CONFIG", viewer_cfg),
-            mock.patch(f"{_AUTH_MODULE}.is_multi_user_enabled", return_value=True),
-            mock.patch(f"{_ROUTER_MODULE}.VIEWER_CONFIG", viewer_cfg),
-            mock.patch(f"{_ROUTER_MODULE}._scan_state", mock_state),
-        ):
-            app, client, _ = _make_superadmin_app(viewer_cfg)
-            token = client.get("/api/scan/stream_token").json()["token"]
-            resp = client.get("/api/scan/stream", params={"token": token})
+        with mock.patch(f"{_ROUTER_MODULE}._scan_state", mock_state):
+            token = env.client.get("/api/scan/stream_token", headers=env.login("root")).json()["token"]
+            resp = env.client.get("/api/scan/stream", params={"token": token})
         assert resp.status_code == 200
 
     def test_expired_minted_token_rejected(self):
@@ -1930,6 +1926,7 @@ class TestScanHoldsTheLibraryLock:
 
         def fake_run_scan(args, resumed_run):
             seen['holder'] = facet.library_job_holder(db_path)
+            return True
 
         monkeypatch.setattr(facet, "_run_scan", fake_run_scan)
         monkeypatch.setattr(sys, "argv", ["facet.py", str(photos_dir), "--db", db_path])
@@ -1953,6 +1950,7 @@ class TestScanHoldsTheLibraryLock:
 
         def fake_run_scan(args, resumed_run):
             seen['holder'] = facet.library_job_holder(db_path)
+            return True
 
         monkeypatch.setattr(facet, "_run_scan", fake_run_scan)
         monkeypatch.setattr(sys, "argv",
@@ -1974,6 +1972,7 @@ class TestScanHoldsTheLibraryLock:
 
         def fake_run_scan(args, resumed_run):
             seen['result'] = _run_facet("--recompute-average", "--db", db_path)
+            return True
 
         monkeypatch.setattr(facet, "_run_scan", fake_run_scan)
         monkeypatch.setattr(sys, "argv", ["facet.py", str(photos_dir), "--db", db_path])

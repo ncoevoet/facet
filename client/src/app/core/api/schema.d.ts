@@ -277,6 +277,30 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/auth/cookie": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Reconcile Cookie
+         * @description Reconcile the image cookie with an explicit, valid human Bearer session.
+         *
+         *     A lost login response can already have set its HttpOnly cookie before its
+         *     JSON body fails. Reuse the caller's confirmed token without minting or
+         *     extending it; cookie-only, purpose and agent credentials cannot do this.
+         */
+        post: operations["reconcile_cookie_api_auth_cookie_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/auth/edition/login": {
         parameters: {
             query?: never;
@@ -310,10 +334,12 @@ export interface paths {
          * Edition Logout
          * @description Return a non-edition token for the client to replace its own with.
          *
-         *     Nothing is revoked server-side: the edition token the caller already holds
+         *     The edition token the caller already holds
          *     stays valid until it expires or ``viewer.edition_password`` is rotated, so
          *     this only drops the privileges of a client that honours the swap. Rotating
          *     the edition password is what actually revokes edition rights everywhere.
+         *     Multi-user sessions cannot use this route: their permissions follow their
+         *     configured role rather than the single-user edition flag.
          */
         post: operations["edition_logout_api_auth_edition_logout_post"];
         delete?: never;
@@ -360,8 +386,8 @@ export interface paths {
          *
          *     Logout is a client-side token drop, not a revocation — a JWT already handed
          *     out cannot be invalidated individually without server-side session state.
-         *     A leaked token is killed by rotating ``viewer.password``, which ages every
-         *     token minted under the old value out at once.
+         *     Rotate ``viewer.password`` to invalidate all sessions, or change a
+         *     multi-user account's password/role (or delete it) to invalidate its sessions.
          */
         post: operations["logout_api_auth_logout_post"];
         delete?: never;
@@ -5254,8 +5280,9 @@ export interface paths {
          * @description Get photo thumbnail.
          *
          *     A ``size`` above 640 is rendered from the original at up to 1920 px. If that
-         *     fails, or the render has no signal, the stored thumbnail is served with a
-         *     short ``max-age``.
+         *     fails, or the render has no signal, the stored thumbnail is served. Every
+         *     image response carries the private ``no-cache`` headers (see
+         *     ``_private_image_headers``) with an ETag, so a client revalidates each time.
          */
         get: operations["get_thumbnail_thumbnail_get"];
         put?: never;
@@ -10464,6 +10491,24 @@ export interface operations {
                 content: {
                     "application/json": components["schemas"]["HTTPValidationError"];
                 };
+            };
+        };
+    };
+    reconcile_cookie_api_auth_cookie_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
         };
     };

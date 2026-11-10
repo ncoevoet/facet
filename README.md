@@ -144,7 +144,7 @@ Hover over any photo to see its score breakdown and EXIF data in the gallery's s
 
 - **Dark & light mode** with 10 accent color themes; respects system preference
 - **Responsive** — adapts from mobile to desktop, with a touch-friendly bulk-actions sheet on small screens
-- **Installable PWA** — web app manifest + service worker: install to home screen, offline app shell, cached thumbnails
+- **Installable PWA** — web app manifest + service worker: install to home screen, offline app shell
 - **Virtualized gallery** — renders a handful of DOM nodes regardless of library size, so scrolling stays fast at 100k+ photos
 - **Resumable scans** — interrupted scans resume (`--resume`), failed files are tracked and retryable (`--retry-failed`), progress streams to the web UI
 - **7 UI languages** — the viewer ships in English, French, German, Spanish, Italian, Brazilian Portuguese, and Simplified Chinese (简体中文); documentation is available in all seven

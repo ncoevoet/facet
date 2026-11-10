@@ -19,6 +19,7 @@ import { AuthService } from '../../core/services/auth.service';
 import { I18nService } from '../../core/services/i18n.service';
 import { KeyboardMappingService, KEYMAP_STORAGE_KEY } from '../../core/services/keyboard-mapping.service';
 import { AssistantChangesService, AssistantChangeBatch } from '../../core/agent/assistant-changes.service';
+import { privateImageSessionKey, resetPrivateImageSession } from '../../shared/utils/private-image-session';
 
 // Mock Leaflet via vi.doMock + dynamic import: the component pulls in shared/leaflet
 // (which runs L.Icon.Default.mergeOptions at module load). Without this mock, importing
@@ -606,8 +607,8 @@ describe('PhotoDetailComponent', () => {
       history.replaceState(null, '', location.href);
     });
 
-    it('should load photo from history state when available', async () => {
-      history.replaceState({ photo: samplePhoto }, '', location.href);
+    it('loads the current session photo snapshot without refetching it', async () => {
+      history.replaceState({ photo: samplePhoto, photoSession: privateImageSessionKey() }, '', location.href);
 
       createComponent();
       await component.ngOnInit();
@@ -615,6 +616,35 @@ describe('PhotoDetailComponent', () => {
       expect(component.photo()).toEqual(samplePhoto);
       // The photo is not refetched; the only read is the library distributions.
       expect(mockApi.get.mock.calls.map(call => call[0])).toEqual(['/filter_options/metric_ranges']);
+    });
+
+    it.each(['missing', 'previous-session', 'wrong-path'] as const)('reauthorizes a %s history snapshot before exposing its metadata', async reason => {
+      const oldSession = privateImageSessionKey();
+      if (reason === 'previous-session') resetPrivateImageSession();
+      const snapshot = { ...samplePhoto, filename: 'private-old-account.jpg', path: reason === 'wrong-path' ? '/other.jpg' : samplePhoto.path };
+      history.replaceState({ photo: snapshot, ...(reason === 'missing' ? {} : { photoSession: oldSession }) }, '', location.href);
+      const response = new Subject<typeof samplePhoto>();
+      mockApi.get.mockImplementation((url: string) => url === '/photo' ? response : of({ ranges: {} }));
+      createComponent();
+      const loading = component.ngOnInit();
+
+      expect(component.photo()).toBeNull();
+      expect(mockApi.get).toHaveBeenCalledWith('/photo', { path: samplePhoto.path });
+      response.next(samplePhoto);
+      await loading;
+      expect(component.photo()).toEqual(samplePhoto);
+    });
+
+    it('does not accept a pending initial API read after the same account starts a new credential session', async () => {
+      history.replaceState({}, '', location.href);
+      const response = new Subject<typeof samplePhoto>();
+      mockApi.get.mockImplementation((url: string) => url === '/photo' ? response : of({ ranges: {} }));
+      createComponent();
+      const loading = component.ngOnInit();
+      resetPrivateImageSession();
+      response.next(samplePhoto);
+      await loading;
+      expect(component.photo()).toBeNull();
     });
 
     it('should load photo from API when no history state', async () => {
@@ -713,7 +743,7 @@ describe('PhotoDetailComponent', () => {
     });
 
     async function openedFromGallery() {
-      history.replaceState({ photo: samplePhoto }, '', location.href);
+      history.replaceState({ photo: samplePhoto, photoSession: privateImageSessionKey() }, '', location.href);
       createComponent();
       await component.ngOnInit();
     }
@@ -761,6 +791,28 @@ describe('PhotoDetailComponent', () => {
       response.next(earlier);
       await flush();
 
+      expect(component.photo().path).toBe(samplePhoto.path);
+    });
+
+    it('drops a reused-route read after credentials rotate and the same identity returns', async () => {
+      await openedFromGallery();
+      const response = new Subject<typeof earlier>();
+      mockApi.get.mockReturnValue(response);
+      mockRoute.snapshot.queryParamMap.get.mockReturnValue(earlier.path);
+      const pending = component.showPhotoAt(earlier.path);
+      resetPrivateImageSession();
+      response.next(earlier);
+      await pending;
+      expect(component.photo().path).toBe(samplePhoto.path);
+    });
+
+    it('does not start a reused-route read from a component owned by an older credential session', async () => {
+      await openedFromGallery();
+      mockApi.get.mockClear();
+      resetPrivateImageSession();
+      mockRoute.snapshot.queryParamMap.get.mockReturnValue(earlier.path);
+      await component.showPhotoAt(earlier.path);
+      expect(mockApi.get).not.toHaveBeenCalledWith('/photo', expect.anything());
       expect(component.photo().path).toBe(samplePhoto.path);
     });
 
@@ -2401,6 +2453,28 @@ describe('PhotoDetailComponent', () => {
   });
 
   describe('openSetMember', () => {
+    it('does not relabel a pending old-session photo as belonging to the new credentials', async () => {
+      createComponent();
+      component.photo.set(samplePhoto);
+      const response = new Subject<typeof samplePhoto>();
+      mockApi.get.mockReturnValue(response);
+      const pending = component.openSetMember('/photos/sibling.jpg');
+      resetPrivateImageSession();
+      response.next({ ...samplePhoto, path: '/photos/sibling.jpg' });
+      await pending;
+      expect(mockRouter.navigate).not.toHaveBeenCalled();
+      expect(component.photo()).toBe(samplePhoto);
+    });
+
+    it('does not open a member from a component owned by an older credential session', async () => {
+      createComponent();
+      component.photo.set(samplePhoto);
+      resetPrivateImageSession();
+      await component.openSetMember('/photos/sibling.jpg');
+      expect(mockApi.get).not.toHaveBeenCalledWith('/photo', expect.anything());
+      expect(mockRouter.navigate).not.toHaveBeenCalled();
+    });
+
     it('does nothing when clicking the currently open photo', async () => {
       createComponent();
       component.photo.set(samplePhoto);
@@ -2424,7 +2498,7 @@ describe('PhotoDetailComponent', () => {
 
       expect(mockRouter.navigate).toHaveBeenCalledWith(['/photo'], {
         queryParams: { path: '/photos/sibling.jpg' },
-        state: { photo: expect.objectContaining({ path: '/photos/sibling.jpg' }) },
+        state: { photo: expect.objectContaining({ path: '/photos/sibling.jpg' }), photoSession: privateImageSessionKey() },
         replaceUrl: true,
       });
       // Navigation, not openSetMember, swaps the photo: the route's activation reloads it,

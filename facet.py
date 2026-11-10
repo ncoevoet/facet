@@ -580,7 +580,7 @@ def run_moment_detection(db_path, config, model_manager=None, only_missing=True,
     if only_missing:
         where += " AND narrative_moment IS NULL"
     limit_sql = f" LIMIT {int(limit)}" if limit else ""
-    with get_connection(db_path) as conn:
+    with get_connection(db_path, read_only=dry_run) as conn:
         rows = conn.execute(
             f"SELECT path, clip_embedding, caption, caption_embedding, face_count, "
             f"face_ratio, is_group_portrait, tags, date_taken FROM photos "
@@ -743,7 +743,7 @@ def run_junk_detection(db_path, config, model_manager=None, only_missing=True,
     if only_missing:
         where += " AND junk_kind IS NULL"
     limit_sql = f" LIMIT {int(limit)}" if limit else ""
-    with get_connection(db_path) as conn:
+    with get_connection(db_path, read_only=dry_run) as conn:
         rows = conn.execute(
             f"SELECT path, clip_embedding FROM photos WHERE {where}{limit_sql}"
         ).fetchall()
@@ -824,6 +824,7 @@ UNKNOWN_LIBRARY_JOB = {'pid': None, 'kind': 'library job', 'origin': 'unknown'}
 DEFAULT_SCAN_STALE_SECONDS = 120
 
 LIBRARY_JOB_ARGS = (
+    'apply_recommendations',
     'backfill_clipping',
     'backfill_focal_35mm',
     'cluster_faces_force',
@@ -842,6 +843,7 @@ LIBRARY_JOB_ARGS = (
     'generate_captions',
     'import_lightroom',
     'import_sidecars',
+    'optimize_weights',
     'recompute_average',
     'recompute_blinks',
     'recompute_burst',
@@ -876,6 +878,26 @@ LIBRARY_JOB_ARGS = (
     'train_ranker',
     'translate_captions',
 )
+
+# Native previews explicitly keep database/config writes out of their handlers.
+# Any other library job must refuse --dry-run before dispatch, locking, schema
+# upgrades or model loading. Include file/config writers that are not DB jobs.
+_LIBRARY_PREVIEW_ARGS = frozenset({
+    'detect_junk', 'detect_moments', 'import_sidecars',
+    'recompute_junk', 'recompute_moments', 'recompute_silhouette',
+})
+MUTATING_NO_DRY_RUN_FLAGS = tuple(sorted(
+    {'--' + name.replace('_', '-') for name in LIBRARY_JOB_ARGS
+     if name not in _LIBRARY_PREVIEW_ARGS}
+    | {
+        '--auto-tune-categories', '--check-raw-rendering', '--comparison-stats',
+        '--compute-recommendations', '--discover-moments', '--eval-iqa-srcc',
+        '--evaluate-models', '--export-csv', '--export-json', '--export-manifest',
+        '--export-sidecars', '--immich-stacks-plan', '--mine-insights',
+        '--report-unreviewed-bursts', '--suggest-person-merges',
+        '--sweep-dedup-thresholds', '--upgrade-db', '--watch',
+    }
+))
 
 
 def detect_all_sequences(db_path, config_path, incremental=False, contain_failure=True):
@@ -2485,6 +2507,11 @@ def main():
     args = parser.parse_args()
     cli_args.validate_face_labels(parser, args)
     cli_args.validate_evaluate_models_positionals(parser, args)
+    if args.dry_run:
+        for flag in MUTATING_NO_DRY_RUN_FLAGS:
+            value = getattr(args, flag.lstrip('-').replace('-', '_'))
+            if value is not None and value is not False:
+                parser.error(f"{flag} has no dry-run; drop --dry-run")
     if args.stack_plan_out and not args.immich_stacks_plan:
         parser.error('--stack-plan-out requires --immich-stacks-plan')
     if args.ack_stack_plan and not args.immich_stacks_apply:
@@ -2529,9 +2556,6 @@ def main():
 
     if args.dry_run_count != cli_args.DEFAULT_DRY_RUN_COUNT and not args.dry_run:
         parser.error("--dry-run-count requires --dry-run")
-    if args.repair_neutral_iqa and args.dry_run:
-        parser.error("--repair-neutral-iqa writes to the database and has no dry-run; "
-                     "drop --dry-run")
 
     if (args.refresh_thumbnails_workers != cli_args.DEFAULT_REFRESH_THUMBNAIL_WORKERS
             and not args.refresh_thumbnails):
@@ -2846,7 +2870,8 @@ def main():
     # (no source image decode; honours --dry-run)
     if args.recompute_silhouette:
         from processing.silhouette_backfill import recompute_silhouette
-        init_database(args.db)
+        if not args.dry_run:
+            init_database(args.db)
         recompute_silhouette(args.db, dry_run=args.dry_run)
         exit()
 
@@ -2927,7 +2952,7 @@ def main():
         if not is_port_in_use(port):
             logger.info("Starting web viewer...")
             viewer_process = subprocess.Popen(
-                [sys.executable, 'viewer.py'],
+                [sys.executable, str(Path(__file__).resolve().parent / 'viewer.py')],
                 stdout=subprocess.DEVNULL,
                 stderr=subprocess.DEVNULL,
             )
@@ -3898,8 +3923,9 @@ def main():
         exit()
 
     if args.detect_moments or args.recompute_moments:
-        init_database(args.db)  # ensure narrative_moment columns exist
-        config = ScoringConfig(args.config)
+        if not args.dry_run:
+            init_database(args.db)  # ensure narrative_moment columns exist
+        config = ScoringConfig(args.config, validate=not args.dry_run)
         if not config.get_narrative_moments_config().get('enabled', False):
             logger.error("narrative_moments is disabled in scoring_config.json; nothing to do.")
             exit(0)
@@ -3927,8 +3953,9 @@ def main():
         exit()
 
     if args.detect_junk or args.recompute_junk:
-        init_database(args.db)  # ensure junk_kind column exists
-        config = ScoringConfig(args.config)
+        if not args.dry_run:
+            init_database(args.db)  # ensure junk_kind column exists
+        config = ScoringConfig(args.config, validate=not args.dry_run)
         if not config.get_junk_sweep_config().get('enabled', False):
             logger.error("junk_sweep is disabled in scoring_config.json; nothing to do.")
             exit(0)
@@ -4071,7 +4098,7 @@ def main():
             "Sidecar export: %d written, %d embedded, %d missing, %d errors",
             stats['written'], stats['embedded'], stats['missing'], stats['errors'],
         )
-        exit()
+        sys.exit(1 if stats['errors'] else 0)
 
     # Headless auto-cull of photos already in the DB (no GPU needed). With
     # positional photo paths it is scan-then-cull instead, dispatched below.
@@ -4286,10 +4313,14 @@ def main():
     lock = _acquire_library_lock(args, LIBRARY_JOB_SCAN) if _scan_writes_to_library(args) else None
     try:
         ok = _run_scan(args, resumed_run)
-        if ok and args.auto_cull:
+        if not ok:
+            # An interrupted scan must not exit 0: wrapper scripts and --watch
+            # read the exit status.
+            if args.auto_cull:
+                logger.warning("Scan did not complete; cull skipped.")
+            exit(INTERRUPTED_EXIT_CODE)
+        if args.auto_cull:
             _run_auto_cull_cli(args, args.photo_paths, lock_held=True)
-        elif args.auto_cull:
-            logger.warning("Scan did not complete; cull skipped.")
     finally:
         if lock is not None:
             lock.release()
@@ -4303,14 +4334,8 @@ _CSV_COLUMNS = (
 
 def _refuse_db_alias(output_file, db_path):
     """True when output_file is the source database or its -wal/-shm/-journal."""
-    protected = {
-        base + suffix
-        for base in (str(db_path), os.path.realpath(db_path))
-        for suffix in ('', '-wal', '-shm', '-journal')
-    }
-    return any(os.path.realpath(output_file) == os.path.realpath(path)
-               or (os.path.exists(output_file) and os.path.exists(path)
-                   and os.path.samefile(output_file, path)) for path in protected)
+    from db.maintenance import paths_overlap, sqlite_file_family
+    return paths_overlap({Path(output_file).resolve()}, sqlite_file_family(db_path))
 
 
 def _json_safe(value):

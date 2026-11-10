@@ -590,9 +590,13 @@ class TestScanThenCull:
         assert calls == [('cull', [str(tmp_path)], True), 'release']
 
     def test_an_interrupted_scan_does_not_cull_and_says_so(self, monkeypatch, tmp_path, caplog):
+        """An interrupted scan exits INTERRUPTED_EXIT_CODE: wrapper scripts must be
+        able to tell an interrupted run from a success."""
         facet, calls = self._run_main(monkeypatch, tmp_path, lambda args, resumed: False)
         with caplog.at_level('INFO', logger='facet'):
-            facet.main()
+            with pytest.raises(SystemExit) as exc_info:
+                facet.main()
+        assert exc_info.value.code == facet.INTERRUPTED_EXIT_CODE
         assert calls == ['release']
         assert sum('cull skipped' in r.getMessage() for r in caplog.records) == 1
 

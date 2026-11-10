@@ -12,6 +12,7 @@ import { ThemeService } from '../../core/services/theme.service';
 import { TranslatePipe } from '../../shared/pipes/translate.pipe';
 import { StatsFiltersService } from './stats-filters.service';
 import { downloadCsv } from '../../shared/utils/csv';
+import { LatestRequest } from '../../shared/utils/latest-request';
 import { i18nKeys } from '../../core/i18n/keys';
 
 /** Pipe to compute heatmap circle color from count:max. */
@@ -68,6 +69,11 @@ interface TimelineEntry {
         <mat-card-content class="!pt-4">
           @if (timelineLoading()) {
             <div class="flex justify-center py-4"><mat-spinner diameter="32" [attr.aria-label]="I18N.ui.labels.loading | translate" /></div>
+          } @else if (timelineError()) {
+            <div role="alert" class="flex items-center justify-center gap-3 py-4 text-sm">
+              <span>{{ I18N.errors.server_error | translate }}</span>
+              <button mat-stroked-button (click)="loadTimeline()">{{ I18N.gallery.load_error.retry | translate }}</button>
+            </div>
           } @else {
             <div class="h-64 md:h-80 lg:h-96">
               <canvas #timelineCanvas></canvas>
@@ -165,6 +171,7 @@ export class StatsTimelineTabComponent {
   private statsFilters = inject(StatsFiltersService);
   private themeService = inject(ThemeService);
   private charts = new Map<string, Chart>();
+  private readonly latestLoad = new LatestRequest(this.destroyRef);
 
   readonly timelineCanvas = viewChild<ElementRef<HTMLCanvasElement>>('timelineCanvas');
   readonly yearlyCanvas = viewChild<ElementRef<HTMLCanvasElement>>('yearlyCanvas');
@@ -174,6 +181,7 @@ export class StatsTimelineTabComponent {
   readonly hours = Array.from({ length: 24 }, (_, i) => i);
 
   timelineLoading = signal(false);
+  timelineError = signal(false);
   timeline = signal<TimelineEntry[]>([]);
   yearlyData = signal<{ year: string; count: number }[]>([]);
   dayOfWeekData = signal<{ label: string; count: number }[]>([]);
@@ -231,12 +239,19 @@ export class StatsTimelineTabComponent {
   }
 
   async loadTimeline(): Promise<void> {
+    const req = this.latestLoad.begin();
+    const params = this.filterParams;
+    const isCurrent = () => req.isCurrent()
+      && JSON.stringify(params) === JSON.stringify(this.filterParams);
+    this.clearTimeline();
+    this.timelineError.set(false);
     this.timelineLoading.set(true);
     try {
-      const data = await firstValueFrom(this.api.get<{
+      const data = await firstValueFrom(req.bind(this.api.get<{
         monthly: { month: string; count: number; avg_score: number }[];
         heatmap?: { day: number; hour: number; count: number }[];
-      }>('/stats/timeline', this.filterParams));
+      }>('/stats/timeline', params)));
+      if (!isCurrent()) return;
 
       const monthly = data.monthly ?? [];
       this.timeline.set(monthly.map(m => ({ period: m.month, count: m.count, avg_score: m.avg_score ?? 0 })));
@@ -271,18 +286,31 @@ export class StatsTimelineTabComponent {
         this.heatmapGrid.set(grid);
         this.heatmapMax.set(maxVal);
       }
-    } catch { /* empty */ }
-    finally { this.timelineLoading.set(false); }
+    } catch {
+      if (isCurrent()) this.timelineError.set(true);
+    } finally {
+      if (isCurrent()) this.timelineLoading.set(false);
+    }
+  }
+
+  private clearTimeline(): void {
+    this.timeline.set([]);
+    this.yearlyData.set([]);
+    this.dayOfWeekData.set([]);
+    this.hourOfDayData.set([]);
+    this.heatmapGrid.set([]);
+    this.heatmapMax.set(1);
   }
 
   /** Export the monthly photo timeline as CSV. */
   exportCsv(): void {
+    if (this.timelineLoading() || this.timelineError() || this.timeline().length === 0) return;
     downloadCsv('facet-timeline', this.timeline());
   }
 
   private buildAreaLine(id: string, ref: ElementRef<HTMLCanvasElement> | undefined, labels: string[], data: number[], color: string): void {
-    if (!ref || data.length === 0) return;
     this.destroyChart(id);
+    if (!ref || data.length === 0) return;
     const ctx = ref.nativeElement.getContext('2d');
     if (!ctx) return;
     this.charts.set(id, new Chart(ctx, {
@@ -316,8 +344,8 @@ export class StatsTimelineTabComponent {
   }
 
   private buildVerticalBar(id: string, ref: ElementRef<HTMLCanvasElement> | undefined, labels: string[], data: number[], color: string): void {
-    if (!ref || data.length === 0) return;
     this.destroyChart(id);
+    if (!ref || data.length === 0) return;
     const ctx = ref.nativeElement.getContext('2d');
     if (!ctx) return;
     this.charts.set(id, new Chart(ctx, {

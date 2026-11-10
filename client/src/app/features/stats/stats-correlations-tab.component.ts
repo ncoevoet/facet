@@ -1,4 +1,4 @@
-import { Component, inject, signal, computed, viewChild, ElementRef, effect, DestroyRef, ChangeDetectionStrategy } from '@angular/core';
+import { Component, inject, signal, computed, viewChild, ElementRef, effect, untracked, DestroyRef, ChangeDetectionStrategy } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { MatCardModule } from '@angular/material/card';
 import { MatButtonModule } from '@angular/material/button';
@@ -15,7 +15,14 @@ import { TranslatePipe } from '../../shared/pipes/translate.pipe';
 import { StatsFiltersService } from './stats-filters.service';
 import { downloadCsv } from '../../shared/utils/csv';
 import { CorrelationApiResponse, buildCorrelationCsvRecords } from './stats-correlations-csv';
+import { LatestRequest } from '../../shared/utils/latest-request';
 import { i18nKeys } from '../../core/i18n/keys';
+
+interface LoadedCorrelation {
+  data: CorrelationApiResponse;
+  metrics: string[];
+  queryKey: string;
+}
 
 const COLORS = ['#22c55e', '#3b82f6', '#a855f7', '#f59e0b', '#ef4444', '#06b6d4', '#ec4899', '#84cc16'];
 
@@ -96,6 +103,8 @@ const COLORS = ['#22c55e', '#3b82f6', '#a855f7', '#f59e0b', '#ef4444', '#06b6d4'
           }
           @if (correlationLoading()) {
             <div class="flex justify-center py-4"><mat-spinner diameter="32" [attr.aria-label]="I18N.ui.labels.loading | translate" /></div>
+          } @else if (correlationError()) {
+            <div role="alert" class="py-4 text-sm">{{ I18N.errors.server_error | translate }}</div>
           } @else if (corrData()) {
             <div class="h-72 md:h-96 lg:h-[28rem]">
               <canvas #correlationsCanvas></canvas>
@@ -116,6 +125,8 @@ export class StatsCorrelationsTabComponent {
   private statsFilters = inject(StatsFiltersService);
   private themeService = inject(ThemeService);
   private charts = new Map<string, Chart>();
+  private readonly latestLoad = new LatestRequest(this.destroyRef);
+  private activeQueryKey: string | null = null;
 
   readonly correlationsCanvas = viewChild<ElementRef<HTMLCanvasElement>>('correlationsCanvas');
 
@@ -124,9 +135,26 @@ export class StatsCorrelationsTabComponent {
   readonly corrGroupBy = signal('');
   readonly corrChartType = signal('line');
   readonly corrMinSamples = 3;
-  readonly corrData = signal<CorrelationApiResponse | null>(null);
+  private readonly loadedCorrelation = signal<LoadedCorrelation | null>(null);
+  private readonly queryParams = computed(() => {
+    const params: Record<string, string> = {
+      x: this.corrXAxis(),
+      y: this.corrYMetrics().join(','),
+      min_samples: String(this.corrMinSamples),
+      ...this.filterParams,
+    };
+    if (this.corrGroupBy()) params['group_by'] = this.corrGroupBy();
+    return params;
+  });
+  private readonly queryKey = computed(() => JSON.stringify(this.queryParams()));
+  private readonly currentCorrelation = computed(() => {
+    const loaded = this.loadedCorrelation();
+    return loaded?.queryKey === this.queryKey() ? loaded : null;
+  });
+  readonly corrData = computed(() => this.currentCorrelation()?.data ?? null);
   readonly corrBucketCount = computed(() => this.corrData()?.labels?.length ?? 0);
   readonly correlationLoading = signal(false);
+  readonly correlationError = signal(false);
 
   readonly corrDimensions = [
     { key: 'iso' }, { key: 'f_stop' }, { key: 'focal_length' },
@@ -158,8 +186,17 @@ export class StatsCorrelationsTabComponent {
 
   constructor() {
     effect(() => {
-      const data = this.corrData();
-      if (data) this.buildCorrelationChart(data);
+      const key = this.queryKey();
+      untracked(() => {
+        if (this.activeQueryKey !== null && this.activeQueryKey !== key) {
+          this.invalidateCorrelation();
+        }
+      });
+    });
+    effect(() => {
+      const loaded = this.currentCorrelation();
+      if (loaded) this.buildCorrelationChart(loaded.data, loaded.metrics);
+      else this.destroyChart();
     });
 
     this.destroyRef.onDestroy(() => {
@@ -176,37 +213,53 @@ export class StatsCorrelationsTabComponent {
     return params;
   }
 
+  private invalidateCorrelation(): void {
+    this.latestLoad.cancel();
+    this.activeQueryKey = null;
+    this.loadedCorrelation.set(null);
+    this.correlationLoading.set(false);
+    this.correlationError.set(false);
+  }
+
   async loadCorrelation(): Promise<void> {
-    if (this.corrYMetrics().length === 0) return;
+    this.invalidateCorrelation();
+    const metrics = [...this.corrYMetrics()];
+    if (metrics.length === 0) return;
+    const req = this.latestLoad.begin();
+    const params = this.queryParams();
+    const queryKey = this.queryKey();
+    this.activeQueryKey = queryKey;
+    const isCurrent = () => req.isCurrent()
+      && queryKey === this.queryKey();
     this.correlationLoading.set(true);
     try {
-      const params: Record<string, string> = {
-        x: this.corrXAxis(),
-        y: this.corrYMetrics().join(','),
-        min_samples: String(this.corrMinSamples),
-        ...this.filterParams,
-      };
-      if (this.corrGroupBy()) params['group_by'] = this.corrGroupBy();
       const data = await firstValueFrom(
-        this.api.get<CorrelationApiResponse>('/stats/correlations', params),
+        req.bind(this.api.get<CorrelationApiResponse>('/stats/correlations', params)),
       );
-      this.corrData.set(data);
-    } catch { /* empty */ }
-    finally { this.correlationLoading.set(false); }
+      if (isCurrent()) this.loadedCorrelation.set({ data, metrics, queryKey });
+    } catch {
+      if (isCurrent()) this.correlationError.set(true);
+    } finally {
+      if (isCurrent()) this.correlationLoading.set(false);
+    }
   }
 
-  /** Export the loaded correlation buckets as CSV (one row per bucket, or per bucket+group). */
+  /** Export only the result and metrics from the same successfully loaded query. */
   exportCsv(): void {
-    const data = this.corrData();
-    if (!data || !data.labels?.length) return;
-    downloadCsv('facet-correlations', buildCorrelationCsvRecords(data, this.corrYMetrics()));
+    const loaded = this.currentCorrelation();
+    if (!loaded?.data.labels?.length || this.correlationLoading()) return;
+    downloadCsv('facet-correlations', buildCorrelationCsvRecords(loaded.data, loaded.metrics));
   }
 
-  private buildCorrelationChart(apiData: CorrelationApiResponse): void {
-    const ref = this.correlationsCanvas();
-    if (!ref || !apiData.labels?.length) return;
+  private destroyChart(): void {
     const existing = this.charts.get('correlations');
     if (existing) { existing.destroy(); this.charts.delete('correlations'); }
+  }
+
+  private buildCorrelationChart(apiData: CorrelationApiResponse, metrics: string[]): void {
+    const ref = this.correlationsCanvas();
+    this.destroyChart();
+    if (!ref || !apiData.labels?.length) return;
     const ctx = ref.nativeElement.getContext('2d');
     if (!ctx) return;
 
@@ -235,7 +288,7 @@ export class StatsCorrelationsTabComponent {
       for (let gi = 0; gi < groupNames.length; gi++) {
         const grp = groupNames[gi];
         const color = themedColors[gi % themedColors.length];
-        const yMetric = this.corrYMetrics()[0] ?? 'aggregate';
+        const yMetric = metrics[0] ?? 'aggregate';
         const data = labels.map(lbl => apiData.groups![grp]?.[lbl]?.[yMetric] ?? null);
         datasets.push({
           label: grp, data,

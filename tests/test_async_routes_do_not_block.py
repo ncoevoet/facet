@@ -32,7 +32,7 @@ from fastapi.testclient import TestClient
 
 from api import create_app
 from api.auth import (
-    CurrentUser, get_optional_user, require_auth, require_authenticated, require_edition,
+    CurrentUser, create_access_token, get_optional_user, require_auth, require_authenticated, require_edition,
     require_scan_access, require_superadmin,
 )
 from tests._sidecar_helpers import settle_sidecar_job
@@ -232,9 +232,19 @@ def _drive(requests, statuses=None):
                 'selected_paths': body['selected_paths'], 'mode': body['mode']})
             assert preview.status_code == 200, preview.text
             body = {**body, 'expected_state': preview.json()['expected_state']}
+        headers = {}
+        if path == '/api/auth/cookie':
+            # This handler requires the actual Bearer JWT in addition to the
+            # test user's dependency override; exercise reconciliation itself.
+            token = create_access_token({'sub': user.user_id, 'role': user.role,
+                                         'edition': user.edition_authenticated})
+            headers['Authorization'] = f'Bearer {token}'
         _cold_caches()
         with loop_guard() as hits:
-            resp = client.request(method, path, params=params, json=body)
+            resp = client.request(method, path, params=params, json=body, headers=headers)
+        if path == '/api/auth/cookie':
+            assert resp.status_code == 204, resp.text
+            assert resp.cookies['facet_auth'] == token
         # Successful admission returns before media work. Settle that real worker
         # before the next mutation, rather than testing an accidental lock refusal.
         if method == 'POST' and path.startswith('/api/export/sidecar_jobs') and resp.status_code == 202:

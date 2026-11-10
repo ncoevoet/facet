@@ -6,6 +6,7 @@ Handles login, logout, edition auth, and auth status.
 
 from typing import Optional
 from fastapi import APIRouter, Depends, HTTPException, Request, Response
+from fastapi.security import HTTPAuthorizationCredentials
 
 from api.auth import (
     create_access_token, verify_password, verify_legacy_password,
@@ -14,6 +15,7 @@ from api.auth import (
     CurrentUser, get_optional_user, require_authenticated,
     is_edition_enabled, is_edition_authenticated,
     set_auth_cookie, clear_auth_cookie,
+    _bearer_scheme, decode_access_token, require_human_session,
 )
 from api.config import (
     VIEWER_CONFIG, is_multi_user_enabled, get_user_config, mcp_settings
@@ -165,11 +167,15 @@ def edition_login(body: EditionLoginRequest, request: Request, response: Respons
 def edition_logout(response: Response, user: CurrentUser = Depends(require_authenticated)):
     """Return a non-edition token for the client to replace its own with.
 
-    Nothing is revoked server-side: the edition token the caller already holds
+    The edition token the caller already holds
     stays valid until it expires or ``viewer.edition_password`` is rotated, so
     this only drops the privileges of a client that honours the swap. Rotating
     the edition password is what actually revokes edition rights everywhere.
+    Multi-user sessions cannot use this route: their permissions follow their
+    configured role rather than the single-user edition flag.
     """
+    if is_multi_user_enabled():
+        raise HTTPException(status_code=400, detail="Edition mode applies only to single-user auth")
     token = create_access_token({
         'sub': user.user_id or '_legacy',
         'role': user.role,
@@ -185,11 +191,29 @@ def logout(response: Response):
 
     Logout is a client-side token drop, not a revocation — a JWT already handed
     out cannot be invalidated individually without server-side session state.
-    A leaked token is killed by rotating ``viewer.password``, which ages every
-    token minted under the old value out at once.
+    Rotate ``viewer.password`` to invalidate all sessions, or change a
+    multi-user account's password/role (or delete it) to invalidate its sessions.
     """
     clear_auth_cookie(response)
     return {"ok": True}
+
+
+@router.post("/cookie", status_code=204)
+def reconcile_cookie(
+    response: Response,
+    credentials: Optional[HTTPAuthorizationCredentials] = Depends(_bearer_scheme),
+    user: CurrentUser = Depends(require_human_session),
+):
+    """Reconcile the image cookie with an explicit, valid human Bearer session.
+
+    A lost login response can already have set its HttpOnly cookie before its
+    JSON body fails. Reuse the caller's confirmed token without minting or
+    extending it; cookie-only, purpose and agent credentials cannot do this.
+    """
+    if credentials is None or decode_access_token(credentials.credentials) is None:
+        raise HTTPException(status_code=401, detail="A valid Bearer session is required")
+    set_auth_cookie(response, credentials.credentials)
+    response.headers["Cache-Control"] = "no-store"
 
 
 @router.get("/status", response_model=AuthStatusResponse)

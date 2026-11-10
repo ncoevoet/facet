@@ -35,7 +35,7 @@
 
 ### Registrazione delle scansioni
 
-Facet registra ogni scansione (stato, modalità, directory, contatori) e ogni errore per singolo file. Ctrl+C contrassegna l'esecuzione come `interrupted`, così `--resume` può riprenderla. I file falliti vengono elencati e ritentati solo con `--retry-failed`. Il visualizzatore mostra l'avanzamento della scansione dalle righe `@FACET_PROGRESS` della CLI. Una scansione che non ha salvato nessuna foto termina con il codice 4 (tutti i file sono falliti, per esempio perché un modello richiesto non si è caricato); una scansione senza nulla da fare termina con 0, e `--watch` continua a osservare dopo un codice 4. Una scansione saltata perché un altro lavoro tiene il blocco della libreria termina con il codice 75; `--watch` non la conta come errore e riprova il lotto dopo il successivo periodo di quiete. Dopo 3 scansioni fallite consecutive, inclusa quella iniziale, `--watch` si ferma e termina con il codice 1.
+Facet registra ogni scansione (stato, modalità, directory, contatori) e ogni errore per singolo file. Ctrl+C contrassegna l'esecuzione come `interrupted`, così `--resume` può riprenderla. Una scansione interrotta termina con codice di uscita 130. I file falliti vengono elencati e ritentati solo con `--retry-failed`. Il visualizzatore mostra l'avanzamento della scansione dalle righe `@FACET_PROGRESS` della CLI. Una scansione che non ha salvato nessuna foto termina con il codice 4 (tutti i file sono falliti, per esempio perché un modello richiesto non si è caricato); una scansione senza nulla da fare termina con 0, e `--watch` continua a osservare dopo un codice 4. Una scansione saltata perché un altro lavoro tiene il blocco della libreria termina con il codice 75; `--watch` non la conta come errore e riprova il lotto dopo il successivo periodo di quiete. Dopo 3 scansioni fallite consecutive, inclusa quella iniziale, `--watch` si ferma e termina con il codice 1.
 
 ### Modalità di elaborazione
 
@@ -119,6 +119,7 @@ Su una GPU CUDA, appena un chunk è decodificato, lo stesso worker di decodifica
 - Gli originali non vengono mai modificati, a meno che tu non aggiunga `--embed-originals` (solo JPEG/HEIC/TIFF/PNG/DNG; i RAW non vengono mai toccati).
 - Le parole chiave sono i tag IA più i tuoi [tag manuali](VIEWER.md#tag-manuali). Vengono solo aggiunte, a meno che `--reconcile-keywords` rimuova quelle scritte in precedenza da Facet; le parole chiave esterne vengono conservate. Vedi [Tag manuali e parole chiave XMP](INTEROP.md#tag-manuali-e-parole-chiave-xmp).
 - L'incorporamento e l'unione delle parole chiave richiedono **exiftool**. Senza, Facet scrive un sidecar XML semplice.
+- Il riepilogo conta i file scritti, incorporati, mancanti e falliti. Qualsiasi errore di scrittura termina con codice 1, anche un'esportazione riuscita solo in parte; i file completati restano scritti. Gli originali mancanti vengono saltati e contati e da soli non fanno fallire il comando. Una selezione vuota termina con 0.
 
 **Importazione dei sidecar.**
 
@@ -206,6 +207,8 @@ Questi comandi aggiornano metriche o derivano nuovi dati senza rieseguire l'inte
 | `python facet.py --compute-recommendations --verbose` | Mostra statistiche dettagliate |
 | `python facet.py --compute-recommendations --apply-recommendations` | Applica automaticamente le correzioni dei punteggi |
 | `python facet.py --compute-recommendations --simulate` | Visualizza in anteprima le modifiche previste |
+
+**`--dry-run`** non ha un'anteprima per questi comandi che riscrivono il database: ognuno lo rifiuta con codice di uscita 2 invece di scrivere comunque: `--backfill-clipping`, `--backfill-focal-35mm`, `--cluster-faces-force`, `--generate-captions`, `--recompute-average`, `--recompute-colors`, `--recompute-distortions`, `--recompute-form`, `--recompute-skin-tone`, `--recompute-tags`, `--recompute-text`, `--repair-int-columns`, `--repair-neutral-iqa`, `--upgrade-db`.
 
 **`--recompute-average`** non conserva alcuno snapshot: per annullare, ripristina uno snapshot dei pesi e ricalcola. Dopo l'aggiornamento dalla 1.20 o da una versione precedente, esegui prima `--recompute-silhouette`, poi `--recompute-average` due volte. La prima passata memorizza i nuovi percentili, quindi la seconda cambia ancora alcune righe.
 
@@ -485,6 +488,8 @@ Il passaggio di tagging al termine di una scansione viene saltato quando `taggin
 
 Controlli: intervalli dei punteggi, metriche dei volti, corruzione dei BLOB, dimensioni degli embedding, volti orfani, valori statistici anomali.
 
+Sia le riparazioni interattive sia `--auto-fix` prendono il blocco della libreria e ricontrollano i problemi prima di scrivere. La modalità interattiva attende la tua conferma iniziale prima di prendere il blocco. Una libreria occupata termina con 75; un blocco inutilizzabile con 1. `--report-only` e il rifiuto delle riparazioni non richiedono il blocco di riparazione.
+
 ## Manutenzione del database
 
 | Comando | Descrizione |
@@ -515,6 +520,10 @@ Controlli: intervalli dei punteggi, metriche dei volti, corruzione dei BLOB, dim
 | `python database.py --migrate-user-preferences --user alice` | Copia le valutazioni da photos a user_preferences |
 
 **`python database.py`** costruisce anche gli indici mancanti della galleria (vedi [VIEWER.md](VIEWER.md#indici-della-galleria-e-cache-dei-conteggi)). Su una libreria grande, eseguilo una volta prima di avviare il visualizzatore; può richiedere circa un minuto. Altrimenti il visualizzatore li costruisce in background e nel frattempo rifiuta i salvataggi.
+
+**`--backup`** pubblica uno snapshot completato con un nome univoco con data e ora prima di ruotare i vecchi snapshot. Le esecuzioni nello stesso secondo mantengono snapshot separati; una copia fallita lascia intatti i backup precedenti. Il filesystem di destinazione deve supportare gli hard link.
+
+**`--export-viewer-db`** mantiene le modifiche della destinazione e i luoghi privati durante la sincronizzazione incrementale. Le esportazioni complete omettono i luoghi salvati/recenti della sorgente. Vedi [completamento e nuovo tentativo dell'esportazione](DEPLOYMENT.md#esporta-il-database-leggero) per pubblicazione, aggiornamenti dello schema e ripristino dopo un errore.
 
 **`--migrate-tags`** serve una sola volta. Dopo, scansioni, `--recompute-tags`, `--recompute-tags-vlm` e `tag_existing.py` mantengono la tabella aggiornata. Finché non è popolata, i filtri sui tag usano una ricerca `LIKE` più lenta.
 
