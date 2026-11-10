@@ -26,9 +26,10 @@ import { InfiniteScrollDirective } from '../../shared/directives/infinite-scroll
   host: { class: 'block min-w-0' },
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
+    <div data-timeline-days class="grid grid-cols-1 gap-4 xl:grid-cols-2 2xl:grid-cols-3">
     @for (group of groups(); track group.date) {
       <!-- The feed only grows while scrolling, so off-screen days skip layout and paint, as the gallery's cards do. -->
-      <section class="mb-4 rounded-xl bg-[var(--mat-sys-surface-container)] p-3 sm:p-4" [attr.data-timeline-date]="group.date" [attr.aria-label]="group.date | captureDate"
+      <section class="rounded-xl bg-[var(--mat-sys-surface-container)] p-3 sm:p-4" [class.col-span-full]="group.photos.length > 4" [attr.data-timeline-date]="group.date" [attr.aria-label]="group.date | captureDate"
                [style.content-visibility]="'auto'" [style.contain-intrinsic-size]="'auto 22rem'">
         <header class="flex min-h-11 flex-wrap items-baseline justify-between gap-x-3 gap-y-1 py-0">
           <h2 class="m-0 text-base font-semibold tabular-nums">{{ group.date | captureDate }}</h2>
@@ -37,7 +38,7 @@ import { InfiniteScrollDirective } from '../../shared/directives/infinite-scroll
             <mat-icon iconPositionEnd>chevron_right</mat-icon>
           </a>
         </header>
-        <div class="grid grid-cols-3 gap-1 sm:grid-cols-4 xl:grid-cols-6">
+        <div data-timeline-photos class="grid grid-cols-3 gap-1 sm:grid-cols-4" [class]="group.photos.length > 4 ? 'xl:grid-cols-6' : ''">
           @for (photo of group.photos; track photo.path) {
             <a [href]="photo.path | timelinePhotoLink" (click)="openPhoto($event, photo)"
               class="relative block aspect-square min-w-0 overflow-hidden rounded bg-[var(--mat-sys-surface-container-high)] focus-visible:z-10 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--mat-sys-primary)]"
@@ -53,6 +54,7 @@ import { InfiniteScrollDirective } from '../../shared/directives/infinite-scroll
         }
       </section>
     }
+    </div>
     <div class="flex min-h-16 flex-wrap items-center justify-center gap-2 pb-4" aria-live="polite">
       @if (error()) { <p role="alert">{{ I18N.timeline.load_failed | translate }}</p> }
       @if (loading() && !manualLoading()) { <span role="status">{{ I18N.ui.labels.loading | translate }}</span> }
@@ -183,7 +185,7 @@ export class TimelineFeedComponent {
             const doc = this.host.nativeElement.ownerDocument;
             if (this.current(context, generation) && (doc.activeElement === doc.body || doc.activeElement === button)) {
               const firstAdded = [...this.host.nativeElement.querySelectorAll<HTMLElement>('[data-timeline-date]')]
-                .find(section => section.dataset['timelineDate'] === firstAddedDate)?.querySelector<HTMLElement>('.grid a[href]');
+                .find(section => section.dataset['timelineDate'] === firstAddedDate)?.querySelector<HTMLElement>('[data-timeline-photos] a[href]');
               (firstAdded ?? this.host.nativeElement.querySelector<HTMLElement>('section:last-of-type header a[href]'))?.focus();
             }
           }, { injector: this.injector });

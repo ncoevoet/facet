@@ -85,11 +85,25 @@ describe('Timeline date density', () => {
     expect(bar.textContent?.trim()).toBe('2020');
     expect(bar.querySelector('.max-w-12')).toBeNull();
     expect(bar.className).toContain('min-w-11');
-    const tip = v.fixture.debugElement.queryAll(By.directive(MatTooltip))[0].injector.get(MatTooltip);
+    expect(bar.className).toContain('max-sm:min-w-6');
+    const tip = v.fixture.debugElement.queryAll(By.directive(MatTooltip)).find(debug => debug.nativeElement === bar)!.injector.get(MatTooltip);
     expect(tip.message).toContain('"count":"12,345"');
     expect(bar.getAttribute('aria-label')).toContain('"count":12345');
     expect(v.root.querySelector('[role=group]')!.getAttribute('aria-label')).toBe('timeline.density_years');
     expect(v.root.textContent).not.toContain('timeline.density_years');
+    v.fixture.destroy();
+  });
+
+  it('stacks the controls above the chart below lg so the chart keeps the full row', async () => {
+    const v = await render();
+    const wrapper = v.root.querySelector<HTMLElement>('[data-timeline-density-row]')!;
+    expect(wrapper.className).toContain('flex-col');
+    expect(wrapper.className).toContain('lg:flex-row');
+    expect(wrapper.className).toContain('lg:items-start');
+    const controls = v.root.querySelector<HTMLElement>('[data-timeline-density-controls]')!;
+    expect(controls.className).toContain('flex-wrap');
+    expect(controls.className).toContain('justify-end');
+    expect(wrapper.firstElementChild).toBe(controls);
     v.fixture.destroy();
   });
 

@@ -55,9 +55,24 @@ describe('Timeline photo feed', () => {
     expect(v.root.querySelector('img')?.getAttribute('src')).toContain('preview=v1');
     const day = v.root.querySelector<HTMLAnchorElement>('section header a')!;
     expect(day.href).toContain('sort_direction=DESC'); expect(day.href).toContain('date_from=2026-11-01'); expect(day.href).toContain('hide_bursts=true');
-    expect(v.root.querySelector<HTMLAnchorElement>('section .grid a')?.href).toContain('/photo?path=%2Ffirst.jpg');
+    expect(v.root.querySelector<HTMLAnchorElement>('section [data-timeline-photos] a')?.href).toContain('/photo?path=%2Ffirst.jpg');
     expect(v.api.get).toHaveBeenCalledExactlyOnceWith('/timeline', expect.objectContaining({ photos_per_group: 8, limit: 8, sort_by: 'date_taken', hide_bursts: '1' }), expect.anything());
     expect(v.api.get.mock.calls[0][2].get(HANDLE_SERVER_ERROR_LOCALLY)).toBe(true);
+    v.dispose();
+  });
+
+  it('lays days out in a responsive grid and spans a day with more previews than a narrow card shows well', async () => {
+    const v = await setup();
+    const many = Array.from({ length: 5 }, (_, index) => ({ path: `/m${index}.jpg`, filename: `m${index}.jpg` }));
+    v.api.get.mockReturnValueOnce(of({ groups: [{ date: '2026-10-31', count: 5, photos: many }, { date: '2026-10-30', count: 4, photos: many.slice(0, 4) }], next_cursor: null, has_more: false }));
+    v.filters.sortDirection.set('newer'); await v.settle();
+    const grid = v.root.querySelector<HTMLElement>('[data-timeline-days]')!;
+    expect(grid.className).toContain('grid-cols-1');
+    expect(grid.className).toContain('xl:grid-cols-2');
+    expect(grid.className).toContain('2xl:grid-cols-3');
+    const sections = [...v.root.querySelectorAll<HTMLElement>('section[data-timeline-date]')];
+    expect(sections.map(section => section.className.includes('col-span-full'))).toEqual([true, false]);
+    expect(sections[0].className).not.toContain('mb-4');
     v.dispose();
   });
 
@@ -199,7 +214,7 @@ describe('Timeline photo feed', () => {
     v.api.get.mockReturnValueOnce(of({ ...first, groups: [{ ...first.groups[0], photos }] }));
     v.visibility.set({ hide_bursts: '0', hide_duplicates: '0' }); await v.settle();
     const navigate = vi.spyOn(v.router, 'navigate');
-    v.root.querySelector<HTMLAnchorElement>('section .grid a')!.click(); await v.settle();
+    v.root.querySelector<HTMLAnchorElement>('section [data-timeline-photos] a')!.click(); await v.settle();
     expect(v.router.url).toBe('/photo?path=%2Ffirst.jpg');
     expect(TestBed.inject(TimelineFeedCache).adjacent('/first.jpg', 1)).toBe('/second.jpg');
     expect(navigate).toHaveBeenCalledWith(['/photo'], expect.objectContaining({ state: expect.objectContaining({ photoOrigin: 'timeline' }) })); v.dispose();
@@ -209,7 +224,7 @@ describe('Timeline photo feed', () => {
     'leaves modified thumbnail clicks to the browser: %j', async modifiers => {
       const v = await setup(); const navigate = vi.spyOn(v.router, 'navigate');
       const event = new MouseEvent('click', { bubbles: true, cancelable: true, ...modifiers });
-      v.root.querySelector<HTMLAnchorElement>('section .grid a')!.dispatchEvent(event);
+      v.root.querySelector<HTMLAnchorElement>('section [data-timeline-photos] a')!.dispatchEvent(event);
       expect(event.defaultPrevented).toBe(false); expect(navigate).not.toHaveBeenCalled();
       expect(TestBed.inject(TimelineFeedCache).adjacent('/first.jpg', 1)).toBeNull(); v.dispose();
     });

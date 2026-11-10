@@ -32,7 +32,21 @@ import { TimelineReads } from './timeline-reads.service';
   },
   template: `
     @if (visible()) {
-      <div class="flex items-start gap-2 border-b border-[var(--mat-sys-outline-variant)] pb-1">
+      <div data-timeline-density-row class="flex flex-col gap-2 border-b border-[var(--mat-sys-outline-variant)] pb-1 lg:flex-row lg:items-start">
+        <div data-timeline-density-controls class="flex flex-wrap items-center justify-end gap-1 lg:order-last lg:shrink-0 lg:flex-nowrap">
+          @if (year()) {
+            <mat-button-toggle-group hideSingleSelectionIndicator class="[--mat-button-toggle-height:32px]" [value]="unit()"
+              [attr.aria-label]="I18N.timeline.density_unit | translate" (change)="unit.set($event.value)">
+              <mat-button-toggle value="auto">{{ (month() ? I18N.timeline.density_days : I18N.timeline.density_months) | translate }}</mat-button-toggle>
+              <mat-button-toggle value="week">{{ I18N.timeline.density_weeks | translate }}</mat-button-toggle>
+            </mat-button-toggle-group>
+          }
+          <button mat-icon-button type="button" [attr.aria-pressed]="logScale()" [class]="logScale() ? '!bg-[var(--mat-sys-secondary-container)]' : ''"
+            [matTooltip]="I18N.timeline.log_scale | translate" [attr.aria-label]="I18N.timeline.log_scale | translate"
+            (click)="logScale.set(!logScale())">
+            <mat-icon>show_chart</mat-icon>
+          </button>
+        </div>
         <div class="min-w-0 flex-1">
           @if (loading()) {
             <div class="h-23" aria-busy="true"><span class="sr-only">{{ I18N.ui.labels.loading | translate }}</span></div>
@@ -44,7 +58,7 @@ import { TimelineReads } from './timeline-reads.service';
               @for (bucket of rendered(); track bucket.key) {
                 @let period = unit() === 'week' ? (bucket.from | captureDate) + ' – ' + (bucket.to | captureDate) : bucket.key;
                 <button type="button" [attr.data-density-key]="bucket.key" [tabindex]="bucket.key === tabKey() ? 0 : -1"
-                  class="flex h-23 min-w-11 flex-1 flex-col justify-end gap-1 rounded px-0.5 py-1 hover:bg-[var(--mat-sys-surface-container)] focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-[var(--mat-sys-primary)]"
+                  class="flex h-23 min-w-11 max-sm:min-w-6 flex-1 flex-col justify-end gap-1 rounded px-0.5 py-1 hover:bg-[var(--mat-sys-surface-container)] focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-[var(--mat-sys-primary)]"
                   [class]="bucket.selected ? '!bg-[var(--mat-sys-secondary-container)]' : ''"
                   [matTooltip]="I18N.timeline.period_count | translate: { period: period, count: (bucket.count | number) ?? '' }"
                   [attr.aria-label]="I18N.timeline.period_count | translate: { period: period, count: bucket.count }"
@@ -62,20 +76,6 @@ import { TimelineReads } from './timeline-reads.service';
           <p role="status" class="sr-only">
             @if (range(); as draft) { {{ I18N.timeline.range_draft | translate: { from: draft.from | captureDate, to: draft.to | captureDate } }} }
           </p>
-        </div>
-        <div class="flex shrink-0 items-center gap-1">
-          @if (year()) {
-            <mat-button-toggle-group hideSingleSelectionIndicator class="[--mat-button-toggle-height:32px]" [value]="unit()"
-              [attr.aria-label]="I18N.timeline.density_unit | translate" (change)="unit.set($event.value)">
-              <mat-button-toggle value="auto">{{ (month() ? I18N.timeline.density_days : I18N.timeline.density_months) | translate }}</mat-button-toggle>
-              <mat-button-toggle value="week">{{ I18N.timeline.density_weeks | translate }}</mat-button-toggle>
-            </mat-button-toggle-group>
-          }
-          <button mat-icon-button type="button" [attr.aria-pressed]="logScale()" [class]="logScale() ? '!bg-[var(--mat-sys-secondary-container)]' : ''"
-            [matTooltip]="I18N.timeline.log_scale | translate" [attr.aria-label]="I18N.timeline.log_scale | translate"
-            (click)="logScale.set(!logScale())">
-            <mat-icon>show_chart</mat-icon>
-          </button>
         </div>
       </div>
     }

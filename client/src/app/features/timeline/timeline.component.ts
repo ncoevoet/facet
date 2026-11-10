@@ -27,6 +27,7 @@ import { ControlPopoverComponent } from '../../shared/components/control-popover
 import { PageHelpService } from '../../core/services/page-help.service';
 import { DateRangeFilterComponent } from '../../shared/components/date-range-filter/date-range-filter.component';
 import { GalleryStore, anyHideToggleActive } from '../gallery/gallery.store';
+import { MOBILE_BAR_ROW } from '../../shared/utils/mobile-bar';
 
 const DENSITY_HIDDEN_KEY = 'facet_timeline_density_hidden';
 
@@ -101,7 +102,7 @@ function readDensityVisible(): boolean {
         </button>
         <button mat-button [class]="showOverview() ? '!bg-[var(--mat-sys-secondary-container)]' : ''" [attr.aria-pressed]="showOverview()"
           [matTooltip]="I18N.timeline.calendar | translate" [attr.aria-label]="I18N.timeline.calendar | translate" (click)="setCalendarView(true)">
-          <mat-icon>calendar_month</mat-icon><span class="hidden xl:inline">{{ I18N.timeline.calendar | translate }}</span>
+          <mat-icon>calendar_view_month</mat-icon><span class="hidden xl:inline">{{ I18N.timeline.calendar | translate }}</span>
         </button>
       </div>
     </ng-template>
@@ -116,9 +117,9 @@ function readDensityVisible(): boolean {
     </ng-template>
     <ng-template #densityToggle>
       @let densityLabel = (densityVisible() ? I18N.timeline.density_hide : I18N.timeline.density_show) | translate;
-      <button mat-icon-button class="!w-10 !h-10 shrink-0" [class]="densityVisible() ? '!bg-[var(--mat-sys-secondary-container)]' : ''"
+      <button mat-button class="shrink-0" [class]="densityVisible() ? '!bg-[var(--mat-sys-secondary-container)]' : ''"
         [attr.aria-pressed]="densityVisible()" [matTooltip]="densityLabel" [attr.aria-label]="densityLabel" (click)="toggleDensity()">
-        <mat-icon>bar_chart</mat-icon>
+        <mat-icon>bar_chart</mat-icon><span class="hidden xl:inline">{{ densityLabel }}</span>
       </button>
     </ng-template>
     <ng-template #datesPanel>
@@ -160,18 +161,18 @@ function readDensityVisible(): boolean {
     </ng-template>
     <ng-template #hiddenFilters>
       @if (anyHiddenByFilters()) {
-        <button mat-icon-button class="!w-10 !h-10 shrink-0"
+        <button mat-button class="shrink-0"
                 [matTooltip]="I18N.gallery.hidden_banner.some_hidden | translate"
                 [attr.aria-label]="I18N.gallery.hidden_banner.show_all | translate"
                 (click)="store.showAllHidden()">
-          <mat-icon>visibility_off</mat-icon>
+          <mat-icon>visibility_off</mat-icon><span class="hidden xl:inline">{{ I18N.gallery.hidden_banner.some_hidden | translate }}</span>
         </button>
       } @else if (store.hiddenFiltersStash()) {
-        <button mat-icon-button class="!w-10 !h-10 shrink-0"
+        <button mat-button class="shrink-0"
                 [matTooltip]="I18N.gallery.hidden_banner.showing_all | translate"
                 [attr.aria-label]="I18N.gallery.hidden_banner.restore | translate"
                 (click)="store.restoreHidden()">
-          <mat-icon>visibility</mat-icon>
+          <mat-icon>visibility</mat-icon><span class="hidden xl:inline">{{ I18N.gallery.hidden_banner.showing_all | translate }}</span>
         </button>
       }
     </ng-template>
@@ -192,7 +193,7 @@ function readDensityVisible(): boolean {
       <ng-container [ngTemplateOutlet]="breadcrumb" />
       <ng-container [ngTemplateOutlet]="rangeChip" />
     </div>
-    <div data-timeline-mobile-bar class="lg:hidden fixed bottom-0 left-0 right-0 z-50 flex items-center justify-around gap-1 px-2 py-1 [&_.mat-mdc-button-base]:!h-11 [&_.mat-mdc-button]:!min-w-11 [&_.mat-mdc-button]:!px-2.5 [&_.mat-mdc-button]:!rounded-full [&_app-control-popover_button]:!rounded-full [&_.mat-mdc-icon-button]:!w-11 bg-[var(--mat-sys-surface-container)] border-t border-[var(--mat-sys-outline-variant)] safe-area-pb">
+    <div data-timeline-mobile-bar class="lg:hidden fixed bottom-0 left-0 right-0 z-50 justify-around ${MOBILE_BAR_ROW} [&_.mat-mdc-button-base]:!h-11 [&_.mat-mdc-button]:!min-w-11 [&_.mat-mdc-button]:!px-2.5 [&_.mat-mdc-button]:!rounded-full [&_app-control-popover_button]:!rounded-full [&_.mat-mdc-icon-button]:!w-11 bg-[var(--mat-sys-surface-container)] border-t border-[var(--mat-sys-outline-variant)] safe-area-pb">
       <ng-container [ngTemplateOutlet]="feedControls" [ngTemplateOutletContext]="{ compact: true }" />
       <span class="relative inline-flex">
         <ng-container [ngTemplateOutlet]="datesControl" />

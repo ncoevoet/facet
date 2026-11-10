@@ -17,6 +17,7 @@ import { TimelineYearsComponent } from './timeline-years.component';
 import { TimelineMonthsComponent } from './timeline-months.component';
 import { TimelineDaysComponent } from './timeline-days.component';
 import { TimelineMonthJumpComponent } from './timeline-month-jump.component';
+import { MOBILE_BAR_ROW } from '../../shared/utils/mobile-bar';
 import { DateRangeFilterComponent } from '../../shared/components/date-range-filter/date-range-filter.component';
 
 
@@ -469,6 +470,28 @@ describe('Timeline page-actions bar (rendered)', () => {
     const labels = [...bar.querySelectorAll('button')].map(button => button.getAttribute('aria-label'));
     expect(labels).toEqual(expect.arrayContaining(['timeline.newest_first', 'timeline.density_hide', 'timeline.photo_feed', 'timeline.calendar', 'gallery.hidden_banner.show_all']));
     expect(bar.querySelector('app-control-popover')).not.toBeNull();
+  });
+
+  it('shares the 56 px bottom-bar row token and tells the Dates and Calendar icons apart', () => {
+    const fixture = setup({ year: '2026', month: '2' }, false);
+    const bar = (fixture.nativeElement as HTMLElement).querySelector('[data-timeline-mobile-bar]')!;
+    for (const utility of MOBILE_BAR_ROW.split(' ')) expect(bar.classList).toContain(utility);
+    expect(bar.className.split(/\s+/).filter(utility => utility === 'px-2' || utility === 'gap-1' || utility === 'py-1')).toHaveLength(3);
+    const icon = (label: string) => bar.querySelector(`button[aria-label="${label}"] mat-icon`)!.textContent;
+    expect(bar.querySelector('app-control-popover mat-icon')!.textContent).toBe('date_range');
+    expect(icon('timeline.calendar')).toBe('calendar_view_month');
+  });
+
+  it('labels the density and Show all toggles from xl like the view and sort toggles', () => {
+    setup();
+    store.viewFilterParams.set({ ...noneHiddenParams, hide_bursts: '1' });
+    const bar = renderBar();
+    for (const label of ['timeline.density_hide', 'gallery.hidden_banner.show_all']) {
+      const button = bar.querySelector(`button[aria-label="${label}"]`)!;
+      expect(button.querySelector('span.hidden')!.className).toContain('xl:inline');
+    }
+    expect(bar.querySelector('button[aria-label="timeline.density_hide"] span.hidden')!.textContent).toContain('timeline.density_hide');
+    expect(bar.querySelector('button[aria-label="gallery.hidden_banner.show_all"] span.hidden')!.textContent).toContain('gallery.hidden_banner.some_hidden');
   });
 
   it('marks the bottom-bar Dates trigger with a dot only while a range is set', () => {
