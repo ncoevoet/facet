@@ -11,6 +11,7 @@ All notable changes to Facet are documented in this file.
 ### Changed
 
 - **The remappable keyboard actions live in one registry** (`SHORTCUT_REGISTRY`: id, default key, page scope, label). The Customize shortcuts dialog, the saved-keymap loader and the `?` reference read from it, so a new action is one row. A key is now refused only when another action on the same page holds it; all seven current actions are live on the gallery, so nothing a user can do changes yet.
+- **`X` (or `0`) on a card inside a selection rejects the whole selection.** It rejected only the focused card, so rejecting ten selected photos meant ten trips; it now does what the selection bar's Reject does, with **Undo** when every selected photo is loaded and there are at most 500. Pressing `X` again while the batch saves does nothing, so a second batch cannot overwrite the first one's Undo. The rule is the context menu's: the focused card must be selected and the selection must hold two or more photos; otherwise `X` toggles the focused photo and advances as before. A whole-view selection asks for confirmation first, as the bar does.
 
 ## [1.29.0] "Pamir" — 2026-11-10
 

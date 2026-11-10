@@ -10,6 +10,16 @@ import { Pipe, PipeTransform } from '@angular/core';
  * this recomputes only when one of the two Sets is replaced, which is how the
  * store mutates them.
  */
+/** The membership rule itself, for code that is not a template: a view-scoped selection is "all but excluded". */
+export function isPathSelected(
+  path: string,
+  viewScoped: boolean,
+  selected: ReadonlySet<string>,
+  excluded: ReadonlySet<string>,
+): boolean {
+  return viewScoped ? !excluded.has(path) : selected.has(path);
+}
+
 @Pipe({ name: 'isSelected', standalone: true, pure: true })
 export class IsSelectedPipe implements PipeTransform {
   transform(
@@ -18,6 +28,6 @@ export class IsSelectedPipe implements PipeTransform {
     selected: ReadonlySet<string>,
     excluded: ReadonlySet<string>,
   ): boolean {
-    return viewScoped ? !excluded.has(path) : selected.has(path);
+    return isPathSelected(path, viewScoped, selected, excluded);
   }
 }

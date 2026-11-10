@@ -1238,7 +1238,7 @@ Os atalhos de uma tecla ficam inativos enquanto o foco está em um campo de text
 | `1`–`5` | Avalia a foto em foco com 1–5 estrelas (modo de edição) |
 | `K` | Mantém a foto em foco (modo de edição) |
 | `F` | Favorita / desfavorita a foto em foco (modo de edição) |
-| `X` ou `0` | Rejeita / desfaz a rejeição da foto em foco (modo de edição) |
+| `X` ou `0` | Rejeita / desfaz a rejeição da foto em foco (modo de edição). Num cartão dentro de uma seleção de duas ou mais fotos, rejeita antes a seleção inteira, com [Desfazer](#desfazer) quando todas as fotos estão carregadas e não passam de 500 |
 | `/` | Foca a busca da coleção; primeiro a exibe em telas estreitas |
 | `S` | Abre o editor de pilhas para a seleção explícita (modo de edição; remapeável, pode ficar sem atribuição) |
 | `Ctrl+Shift+S` / `Cmd+Shift+S` | Empilha de imediato a seleção explícita sem pilha pela ordem de seleção, com a primeira foto como capa (modo de edição; membros de pilhas existentes abrem o editor) |
