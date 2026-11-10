@@ -61,6 +61,9 @@ describe('rendered review progress with real store and HTTP', () => {
     http = TestBed.inject(HttpTestingController);
     store = TestBed.inject(GalleryStore);
     fixture = TestBed.createComponent(GalleryComponent);
+    Object.defineProperty(fixture.componentInstance, 'isDesktop', { value: signal(true), configurable: true });
+    // A wide screen: below lg the notices start folded into one bar, which gallery.component.spec covers.
+    Object.defineProperty(fixture.componentInstance['lgDesktop'], 'isDesktop', { value: signal(true), configurable: true });
     fixture.detectChanges();
     const photosStarted = requested('/api/photos');
     http.expectOne('/api/config').flush(config);
@@ -231,29 +234,21 @@ describe('rendered review progress with real store and HTTP', () => {
     return JSON.stringify(store.filters());
   }
 
-  it('invalidates smart-album counts and a queued response when edition changes the effective criterion', async () => {
+  it('keeps explicit temporary smart-album criteria and matching counts when edition is locked', async () => {
     const filters = await loadExplicitSmartQueue();
     const owner = auth.identity();
-    const oldRead = store.loadReviewProgress();
-    const oldRequest = http.expectOne(request => request.url === '/api/photos/review_progress');
-    expect(oldRequest.request.params.get('scope_review_status')).toBe('undecided');
-    oldRequest.flush({ total: 99, undecided: 99, kept: 0, rejected: 0 });
-    auth.status.update(status => status ? { ...status, edition_authenticated: false } : status);
-    expect(auth.identity()).toBe(owner);
-    expect(JSON.stringify(store.filters())).toBe(filters);
-    expect(store.reviewProgress()).toBeNull();
-    fixture.detectChanges();
-    expect(banner()).toBeNull();
-    await oldRead;
-    expect(store.reviewProgress()).toBeNull();
-    const fresh = store.loadReviewProgress();
+    const pending = store.loadReviewProgress();
     const request = http.expectOne(request => request.url === '/api/photos/review_progress');
-    expect(request.request.params.get('scope_review_status')).toBe('kept');
-    request.flush({ total: 3, undecided: 0, kept: 3, rejected: 0 });
-    await fresh;
-    fixture.detectChanges();
-    expect(store.reviewProgress()).toEqual({ total: 3, undecided: 0, kept: 3, rejected: 0 });
-    expect(store.reviewPercent()).toBe(100);
+    expect(request.request.params.get('scope_review_status')).toBe('undecided');
+    auth.status.update(status => status ? { ...status, edition_authenticated: false } : status);
+    expect(auth.identity()).toBe(owner); expect(JSON.stringify(store.filters())).toBe(filters);
+    request.flush({ total: 99, undecided: 99, kept: 0, rejected: 0 }); await pending;
+    expect(store.reviewProgress()).toEqual({ total: 99, undecided: 99, kept: 0, rejected: 0 });
+    const fresh = store.loadReviewProgress();
+    const next = http.expectOne(request => request.url === '/api/photos/review_progress');
+    expect(next.request.params.get('scope_review_status')).toBe('undecided');
+    next.flush({ total: 3, undecided: 2, kept: 1, rejected: 0 }); await fresh; fixture.detectChanges();
+    expect(store.reviewProgress()?.total).toBe(3); expect(store.reviewPercent()).toBe(33);
   });
 
   it('invalidates smart-album counts when starting a temporary queue changes only its effective criterion', async () => {

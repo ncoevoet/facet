@@ -1,10 +1,12 @@
 import type { Mock } from 'vitest';
+import { signal } from '@angular/core';
 import { TestBed, ComponentFixture } from '@angular/core/testing';
 import { MatDialog } from '@angular/material/dialog';
 import { MatSnackBar } from '@angular/material/snack-bar';
 import { Router } from '@angular/router';
 import { Subject, of, throwError } from 'rxjs';
 import { ApiService } from '../../core/services/api.service';
+import { AuthService } from '../../core/services/auth.service';
 import { I18nService } from '../../core/services/i18n.service';
 import { GalleryStore } from '../gallery/gallery.store';
 import { UserActivityJournal } from '../../core/agent/user-activity-journal.service';
@@ -19,6 +21,7 @@ describe('PersonFaceMenuComponent', () => {
   let mockRouter: { navigate: Mock; url: string };
   /** The Undo action of the last snackbar opened. */
   let snackAction: Subject<void>;
+  const identity = signal('owner');
 
   async function openOn(target: PersonFaceMenuTarget, canEdit = true): Promise<string[]> {
     fixture = TestBed.createComponent(PersonFaceMenuComponent);
@@ -35,6 +38,7 @@ describe('PersonFaceMenuComponent', () => {
 
   beforeEach(() => {
     mockApi = { post: vi.fn(() => of({})) };
+    identity.set('owner');
     mockStore = {
       reloadPersonOptions: vi.fn(async () => undefined),
       resetFilters: vi.fn(async () => undefined),
@@ -47,6 +51,7 @@ describe('PersonFaceMenuComponent', () => {
       imports: [PersonFaceMenuComponent],
       providers: [
         { provide: ApiService, useValue: mockApi },
+        { provide: AuthService, useValue: { identity, isEdition: () => true } },
         { provide: MatDialog, useValue: { open: vi.fn() } },
         { provide: GalleryStore, useValue: mockStore },
         { provide: MatSnackBar, useValue: mockSnackBar },
@@ -59,15 +64,71 @@ describe('PersonFaceMenuComponent', () => {
 
   afterEach(() => fixture?.destroy());
 
-  it('with a face: every item, and no Ignore', async () => {
+  it('with a face: offers detection Ignore separately from person-group Ignore', async () => {
     const items = await openOn({ person: { id: 5, name: 'Valerie' }, face: { id: 1 } });
     expect(items).toEqual([
       'photo_library photo_faces.view_photos',
       'manage_accounts photo_faces.change_person',
+      'visibility_off photo_faces.ignore_detection',
       'account_circle photo_faces.use_picture',
       'person_search photo_faces.find_more',
       'person_remove photo_faces.not_person',
     ]);
+  });
+
+  it('an unknown detection offers naming and Ignore; read-only and manual marks cannot Ignore', async () => {
+    const items = await openOn({ person: null, face: { id: 1 } });
+    expect(items).toEqual(['manage_accounts photo_faces.name_face', 'visibility_off photo_faces.ignore_detection']);
+    fixture.componentRef.setInput('canEdit', false);
+    fixture.detectChanges();
+    expect(document.querySelector('.mat-mdc-menu-panel')!.textContent).not.toContain('photo_faces.ignore_detection');
+    fixture.componentRef.setInput('canEdit', true);
+    menu.target.set({ person: null, face: { id: 1, automatic: false } });
+    fixture.detectChanges();
+    expect(document.querySelector('.mat-mdc-menu-panel')!.textContent).not.toContain('photo_faces.ignore_detection');
+  });
+
+  it('ignores exactly this photo detection and Undo restores the captured target after navigation', async () => {
+    await openOn({ person: null, face: { id: 1 } });
+    mockApi.post.mockReturnValueOnce(of({ ignore_id: 'correction' }));
+    const changed = vi.fn();
+    menu.changed.subscribe(changed);
+    await menu.ignoreDetection();
+    expect(mockApi.post).toHaveBeenCalledWith('/face/1/ignore', { photo_path: '/p/a.jpg' });
+    expect(changed).toHaveBeenCalledTimes(1);
+    expect(mockSnackBar.open).toHaveBeenLastCalledWith('photo_faces.detection_ignored', 'undo.action', { duration: 10_000 });
+    fixture.componentRef.setInput('path', '/p/b.jpg');
+    menu.target.set({ person: null, face: { id: 2 } });
+    snackAction.next();
+    await vi.waitFor(() => expect(mockApi.post).toHaveBeenCalledWith('/ignored-face/correction/restore', { photo_path: '/p/a.jpg' }));
+    expect(changed).toHaveBeenCalledTimes(1); // Never refresh B from A's completion.
+  });
+
+  it('failed Ignore leaves the face present and reports the failure', async () => {
+    await openOn({ person: null, face: { id: 1 } });
+    mockApi.post.mockReturnValueOnce(throwError(() => new Error('offline')));
+    const changed = vi.fn();
+    menu.changed.subscribe(changed);
+    await menu.ignoreDetection();
+    expect(changed).not.toHaveBeenCalled();
+    expect(mockSnackBar.open).toHaveBeenLastCalledWith('errors.action_failed', '', { duration: 3000 });
+  });
+
+  it('late Ignore completion never refreshes another photo or registers Undo for another identity', async () => {
+    await openOn({ person: null, face: { id: 1 } });
+    const pending = new Subject<{ ignore_id: string }>();
+    mockApi.post.mockReturnValueOnce(pending);
+    const changed = vi.fn();
+    menu.changed.subscribe(changed);
+    const request = menu.ignoreDetection();
+    fixture.componentRef.setInput('path', '/p/b.jpg');
+    identity.set('another-owner');
+    pending.next({ ignore_id: 'correction' });
+    pending.complete();
+    await request;
+    expect(changed).not.toHaveBeenCalled();
+    expect(mockStore.reloadPersonOptions).not.toHaveBeenCalled();
+    expect(mockSnackBar.open).not.toHaveBeenCalled();
   });
 
   it('unnamed person with a face: the group wording', async () => {

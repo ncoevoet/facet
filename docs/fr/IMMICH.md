@@ -289,7 +289,7 @@ Analysez ces photos (`python facet.py /mnt/photos`) et elles quittent la liste �
 
 ## Diagnostic dans le visualiseur
 
-Dans le menu utilisateur, ouvrez **Diagnostic Immich**. En multi-utilisateur, il faut un accès superadministrateur ; en mono-utilisateur, un accès édition (ou une édition locale approuvée).
+Dans le sous-menu **Tâches et diagnostics** du menu utilisateur, ouvrez **Diagnostic Immich**. En multi-utilisateur, il faut un accès superadministrateur ; en mono-utilisateur, un accès édition (ou une édition locale approuvée).
 
 - Rien n'est lu depuis Immich avant que vous ne cliquiez sur **Tester la connexion**. Le test lit la version du serveur et l'accès au compte, et n'écrit rien.
 - La couverture des chemins vérifie au plus 200 photos indexées. Elle ne confirme pas que chacune correspond à une ressource Immich.

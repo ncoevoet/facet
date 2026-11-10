@@ -302,3 +302,57 @@ def test_colors_cache_is_written_on_an_open_install(
         assert json.loads(cached['color_temps'][0]) == [['warm', 1]]
     finally:
         _clear_color_cache()
+
+
+def test_type_counts_do_not_reuse_open_counts_after_install_is_locked(
+    monkeypatch, anonymous_client, seed_photos_prefix
+):
+    """Real SQL and endpoint: a warm open-install cache must not answer anon after lock."""
+    import api.db_helpers as helpers
+    import api.types as types
+
+    seed_photos_prefix('/type-count-scope/', [
+        {'path': '/type-count-scope/private.jpg', 'filename': 'private.jpg'},
+    ])
+    monkeypatch.setattr(types, '_photo_types_cache', {'data': {}, 'expires': 0})
+    monkeypatch.setattr(helpers, 'is_access_controlled_install', lambda: False)
+    response = anonymous_client.get('/api/type_counts', params={
+        'hide_blinks': '0', 'hide_bursts': '0', 'hide_duplicates': '0',
+        'hide_brackets': '0', 'hide_panoramas': '0',
+    })
+    assert response.status_code == 200
+    assert any(t['id'] == '' and t['count'] >= 1 for t in response.json()['types'])
+
+    monkeypatch.setattr(helpers, 'is_access_controlled_install', lambda: True)
+    locked = anonymous_client.get('/api/type_counts', params={
+        'hide_blinks': '0', 'hide_bursts': '0', 'hide_duplicates': '0',
+        'hide_brackets': '0', 'hide_panoramas': '0',
+    })
+    assert locked.status_code == 200
+    assert locked.json()['types'] == []
+
+    monkeypatch.setattr(helpers, 'is_access_controlled_install', lambda: False)
+    assert types.get_photo_types() == response.json()['types']
+
+
+def test_type_counts_reauthorize_changed_roots_for_the_same_user(
+    monkeypatch, seed_photos_prefix
+):
+    import api.db_helpers as helpers
+    import api.types as types
+
+    seed_photos_prefix('/type-count-roots/', [
+        {'path': '/type-count-roots/a.jpg', 'filename': 'a.jpg'},
+        {'path': '/type-count-roots/b.jpg', 'filename': 'b.jpg'},
+    ])
+    monkeypatch.setattr(types, '_photo_types_cache', {'data': {}, 'expires': 0})
+    allowed = ['/type-count-roots/a.jpg', '/type-count-roots/b.jpg']
+    monkeypatch.setattr(helpers, 'get_visibility_clause',
+                        lambda user_id: ('photos.path IN (' + ','.join('?' for _ in allowed) + ')', list(allowed)))
+    first = types.get_photo_types(user_id='alice')
+    assert next(t['count'] for t in first if t['id'] == '') == 2
+    allowed[:] = ['/type-count-roots/a.jpg']
+    narrowed = types.get_photo_types(user_id='alice')
+    assert next(t['count'] for t in narrowed if t['id'] == '') == 1
+    allowed[:] = ['/type-count-roots/not-authorized.jpg']
+    assert types.get_photo_types(user_id='alice') == []

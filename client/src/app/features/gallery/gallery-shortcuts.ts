@@ -48,7 +48,8 @@ export function photoShortcutSection(map: KeymapConfig): ShortcutSection {
     titleKey: I18N.shortcuts.section_detail,
     rows: [
       remappable(map, 'keep'),
-      { keys: ['←', '→'], labelKey: I18N.shortcuts.navigate },
+      { keys: ['↑', '↓'], labelKey: I18N.shortcuts.navigate },
+      { keys: ['←', '→'], labelKey: I18N.shortcuts.navigate_set },
       { keys: ['1', '–', '5'], labelKey: I18N.shortcuts.rate },
       remappable(map, 'reject', ['0']),
       remappable(map, 'favourite'),

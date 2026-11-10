@@ -5,7 +5,7 @@ Persons API router -- person management.
 
 import logging
 import sqlite3
-from typing import List, Optional
+from typing import Annotated, List, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel, Field, model_validator
@@ -15,11 +15,12 @@ from api.config import VIEWER_CONFIG, invalidate_stats_cache
 from api.database import get_async_db, get_db
 from api.db_helpers import (
     assert_faces_visible, get_visibility_clause, reassign_faces_to_person, person_visibility_exists,
-    person_unnamed_clause, select_in_chunks,
+    person_unnamed_clause, select_in_chunks, is_locked_error, retry_on_locked,
 )
 from db import person_not_hidden_clause
 from db.embedding_space import ARCFACE_MODEL, active_embedding_model, tag_matches
 from db.person_centroids import recompute_person_centroid
+from db.face_identity import face_identity_token
 from api.models.culling import PersonsListResponse, PersonsNeedsNamingResponse, RenamePersonResponse
 
 logger = logging.getLogger(__name__)
@@ -81,11 +82,19 @@ class AssignFacesRequest(BaseModel):
     # whole call, ``only_unassigned`` leaves faces another person already owns alone.
     only_unassigned: bool = False
     tolerant: bool = False
+    expected_face_tokens: dict[int, Annotated[str, Field(pattern=r'^[0-9a-f]{64}$')]] | None = Field(default=None, max_length=500)
+    expected_person_name: str | None = Field(default=None, max_length=1000)
 
     @model_validator(mode='after')
     def _only_unassigned_needs_tolerant(self):
         if self.only_unassigned and not self.tolerant:
             raise ValueError("only_unassigned requires tolerant=true: the strict path moves every listed face")
+        if self.expected_face_tokens is not None and (
+            not self.only_unassigned or set(self.expected_face_tokens) != set(self.face_ids)
+        ):
+            raise ValueError('expected_face_tokens must cover the captured only_unassigned face_ids')
+        if self.expected_person_name is not None and not self.only_unassigned:
+            raise ValueError('expected_person_name requires only_unassigned=true')
         return self
 
 
@@ -144,6 +153,7 @@ def _assert_person_assignable(conn, user_id, person_id):
 async def list_persons(
     page: int = Query(1, ge=1),
     per_page: int = Query(48, ge=1, le=200),
+    offset: Optional[int] = Query(None, ge=0),
     search: str = Query(""),
     sort: str = Query("count_desc", pattern="^(count_asc|count_desc|quality_asc|quality_desc|name_asc|name_desc|assignment)$"),
     include_hidden: bool = Query(False),
@@ -167,6 +177,9 @@ async def list_persons(
     ``hidden_only=true`` returns the hidden ones alone (the persons page's Ignored
     section). It is ignored under ``sort=assignment``: the assignment rule wins,
     so hidden persons never become assignment candidates.
+    ``offset`` starts the page at that row instead of at ``page``: a list the
+    viewer patches in place (an un-hide, a delete) asks for the row after its
+    last one, which page numbers would skip once the rows before it moved.
     """
     recent = []
     if recent_ids:
@@ -230,7 +243,8 @@ async def list_persons(
         await cur.close()
         total = row[0] if row else 0
 
-        offset = (page - 1) * per_page
+        if offset is None:
+            offset = (page - 1) * per_page
         cur = await conn.execute(f"""
             {prefix}SELECT p.id, p.name, p.representative_face_id, {count_column} AS face_count,
                    COALESCE(p.is_hidden, 0) as is_hidden,
@@ -637,7 +651,8 @@ def _assign_tolerant(conn, user_id, person_id, body):
     found = {
         row[0]: row for row in select_in_chunks(
             conn,
-            "SELECT f.id, f.person_id, f.embedding_model, pe.is_hidden FROM faces f "
+            "SELECT f.id, f.person_id, f.embedding_model, pe.is_hidden, f.photo_path, f.face_index, "
+            "f.bbox_x1, f.bbox_y1, f.bbox_x2, f.bbox_y2, f.embedding FROM faces f "
             "JOIN photos ph ON ph.path = f.photo_path LEFT JOIN persons pe ON pe.id = f.person_id "
             f"WHERE f.id IN ({{placeholders}}) AND {vis_sql}", face_ids, after=vis_params)
     }
@@ -645,6 +660,8 @@ def _assign_tolerant(conn, user_id, person_id, body):
         "SELECT centroid, centroid_model FROM persons WHERE id = ?", (person_id,)).fetchone()
     model = (target[1] or ARCFACE_MODEL) if target and target[0] else active_embedding_model()
     report = {"missing": [], "already": [], "skipped_model": [], "skipped_hidden": [], "skipped_assigned": []}
+    if body.expected_face_tokens is not None:
+        report['skipped_changed'] = []
     eligible = []
     for face_id in face_ids:
         row = found.get(face_id)
@@ -658,6 +675,10 @@ def _assign_tolerant(conn, user_id, person_id, body):
             report["skipped_hidden"].append(face_id)
         elif row[1] is not None and body.only_unassigned:
             report["skipped_assigned"].append(face_id)
+        elif body.expected_face_tokens is not None and body.expected_face_tokens[face_id] != face_identity_token(
+            row[0], row[4], row[5], row[6:10], row[2], row[10]
+        ):
+            report['skipped_changed'].append(face_id)
         else:
             eligible.append(face_id)
     if eligible:
@@ -670,6 +691,7 @@ def _assign_tolerant(conn, user_id, person_id, body):
 
 
 @router.post("/api/persons/{person_id}/assign_faces")
+@retry_on_locked()
 def api_assign_faces_batch(
     person_id: int,
     body: AssignFacesRequest,
@@ -678,13 +700,23 @@ def api_assign_faces_batch(
     """Bulk-assign a set of faces to a person. Empties old persons are auto-deleted."""
     with get_db() as conn:
         try:
+            # The additive review path must not overwrite an assignment made
+            # between its eligibility read and its first write.
+            if body.only_unassigned:
+                conn.execute('BEGIN IMMEDIATE')
             target = conn.execute(
-                "SELECT id FROM persons WHERE id = ?", (person_id,)
+                "SELECT id, name FROM persons WHERE id = ?", (person_id,)
             ).fetchone()
             if not target:
                 raise HTTPException(status_code=404, detail="Target person not found")
 
             _assert_person_assignable(conn, user.user_id if user else None, person_id)
+            if body.expected_person_name is not None:
+                # An assignable empty person is not necessarily visible. A
+                # captured-name comparison must not become a name oracle.
+                _assert_person_visible(conn, user.user_id if user else None, person_id)
+                if (target[1] or '').strip() != body.expected_person_name.strip():
+                    raise HTTPException(status_code=409, detail='Target person changed; reload the review')
             if body.tolerant:
                 report = _assign_tolerant(conn, user.user_id if user else None, person_id, body)
                 conn.commit()
@@ -709,7 +741,9 @@ def api_assign_faces_batch(
             raise HTTPException(status_code=404, detail=str(e))
         except HTTPException:
             raise
-        except sqlite3.Error:
+        except sqlite3.Error as ex:
+            if is_locked_error(ex):
+                raise
             logger.exception("Database error assigning faces to person %d", person_id)
             conn.rollback()
             raise HTTPException(status_code=500, detail='Internal server error')

@@ -366,6 +366,19 @@ class WeightOptimizer:
         user_id: Optional[str] = None,
         mask_missing: bool = False,
     ):
+        from comparison.training_scope import read_snapshot
+        with read_snapshot(conn):
+            return self._read_comparison_data(conn, category, include_ties, sources, user_id, mask_missing)
+
+    def _read_comparison_data(
+        self,
+        conn,
+        category: Optional[str] = None,
+        include_ties: bool = True,
+        sources: Optional[List[str]] = None,
+        user_id: Optional[str] = None,
+        mask_missing: bool = False,
+    ):
         """Fetch comparisons and build both photos' production metric vectors.
 
         Single source of truth for the optimizer's training data (direct,
@@ -389,7 +402,9 @@ class WeightOptimizer:
             - winners: 1 for 'a', -1 for 'b', 0 for tie
             - row_weights: per-row likelihood weight from SOURCE_WEIGHTS
         """
+        from comparison.training_scope import distinct_photo_sql
         where_clauses = [
+            distinct_photo_sql(conn, 'c.photo_a_path', 'c.photo_b_path'),
             "winner IN ('a', 'b', 'tie')" if include_ties else "winner IN ('a', 'b')"
         ]
         params: List = []

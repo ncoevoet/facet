@@ -4,6 +4,7 @@ import { from, of, throwError } from 'rxjs';
 import { MatDialog } from '@angular/material/dialog';
 import { MatSnackBar } from '@angular/material/snack-bar';
 import { signal } from '@angular/core';
+import { provideRouter } from '@angular/router';
 import { AuthService } from '../../core/services/auth.service';
 import { ApiService } from '../../core/services/api.service';
 import { I18nService } from '../../core/services/i18n.service';
@@ -363,5 +364,41 @@ describe('MergeSuggestionsComponent', () => {
       expect(mockApi.get).toHaveBeenLastCalledWith('/merge_suggestions', { threshold: 0.7 });
       expect(component.threshold()).toBe(0.7);
     });
+  });
+});
+
+describe('MergeSuggestionsComponent layout', () => {
+  function render() {
+    TestBed.configureTestingModule({
+      providers: [
+        provideRouter([]),
+        { provide: AuthService, useValue: { isEdition: signal(true) } },
+        { provide: ApiService, useValue: { get: vi.fn(() => of({ suggestions: [], threshold: 0.6 })), post: vi.fn(() => of({})) } },
+        { provide: I18nService, useValue: { t: vi.fn((key: string) => key), translations: () => ({}) } },
+        { provide: MatDialog, useValue: { open: vi.fn() } },
+        { provide: MatSnackBar, useValue: { open: vi.fn() } },
+        { provide: UserActivityJournal, useValue: { record: vi.fn() } },
+        { provide: GalleryStore, useValue: { config: signal(null) } },
+      ],
+    });
+    const fixture = TestBed.createComponent(MergeSuggestionsComponent);
+    fixture.detectChanges();
+    return fixture.nativeElement as HTMLElement;
+  }
+
+  it('insets its content 16px (px-4) like the other pages, not centred in a padded column', () => {
+    const content = render().querySelector('div.w-full') as HTMLElement;
+    expect(content.className).toContain('px-4');
+    expect(content.className).toContain('pt-4');
+    expect(content.className).toContain('pb-20');
+    expect(content.className).not.toContain('md:p-6');
+    expect(content.className).not.toContain('mx-auto');
+    expect(content.className).not.toContain('max-w-');
+  });
+
+  it('docks its toolbar on the shared 56px row below lg, without a padding or gap of its own', () => {
+    const bar = render().querySelector('.max-lg\\:fixed') as HTMLElement;
+    for (const cls of ['max-lg:min-h-14', 'max-lg:items-center', 'max-lg:gap-1', 'max-lg:px-2', 'max-lg:py-1']) expect(bar.classList.contains(cls)).toBe(true);
+    for (const cls of ['max-lg:px-4', 'max-lg:py-2', 'gap-3']) expect(bar.classList.contains(cls)).toBe(false);
   });
 });

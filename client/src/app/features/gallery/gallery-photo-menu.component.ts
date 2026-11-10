@@ -253,7 +253,7 @@ const RATINGS = [1, 2, 3, 4, 5].map(value => ({ value, label: '★'.repeat(value
             <span>{{ I18N.export.action | translate }}</span>
           </button>
           <button mat-menu-item (click)="emit({ kind: 'cull' }, photo, bulk)">
-            <mat-icon>folder_move</mat-icon>
+            <mat-icon>move_to_inbox</mat-icon>
             <span>{{ I18N.cull.action | translate }}</span>
           </button>
           <!-- A bulk delete is paths-only, so it is hidden rather than disabled

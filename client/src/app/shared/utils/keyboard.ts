@@ -32,7 +32,7 @@ export function isUndoChord(event: KeyboardEvent): boolean {
 
 /** True when focus is in a typing context or a dialog / bottom sheet is open, whatever modifiers are held. */
 export function isShortcutContextBlocked(event: KeyboardEvent): boolean {
-  return isTypingContext(event) || !!document.querySelector('mat-dialog-container, mat-bottom-sheet-container');
+  return isTypingContext(event) || !!document.querySelector('mat-dialog-container, mat-bottom-sheet-container, [role="dialog"][aria-modal="true"]');
 }
 
 /**

@@ -4,6 +4,18 @@
 
 La galleria è un'app web FastAPI + Angular per sfogliare, filtrare, selezionare e gestire le tue foto.
 
+Su desktop (da 1024 px), le destinazioni abilitate compaiono direttamente nella barra superiore finché c’è spazio. **Altro** appare solo quando alcune destinazioni non entrano e contiene quelle rimanenti. Il calcolo considera il ridimensionamento, le etichette tradotte e i controlli dell’account. Le azioni contestuali della pagina sono nella riga sottostante. La galleria ha una propria intestazione della raccolta con origine, ricerca, conteggio, ordinamento e filtri attivi rimovibili. Sugli schermi più stretti, il pulsante del menu offre le stesse destinazioni disponibili. Sul telefono l’intestazione lo mostra sempre, e il titolo indica la pagina corrente.
+
+L’intestazione della raccolta resta visibile durante lo scorrimento, con ricerca, selezione e ordinamento. Da 1024 px di larghezza la riga dei criteri attivi resta con essa; sugli schermi più stretti quella riga scorre via insieme alle foto. **Filtri** apre Trova, Origine, Qualità, Tecnica e Soggetto; il badge numerico conta i filtri attivi e lo sfondo indica il pannello aperto. **Revisione** contiene decisioni, visibilità, stelle e preferiti. **Visualizzazione** contiene layout, dimensione miniature, informazioni e presentazione. Ogni impostazione ha un solo accesso. Nelle raccolte strette l’ordinamento passa in Visualizzazione. Gli aiuti si aprono in finestre ancorate senza spostare la galleria.
+
+**Comandi dell’intestazione.** La ricerca contiene solo la query di testo. Il tipo di foto si trova in **Filtri**. **Revisione** contiene le pile suggerite e la selezione della percentuale migliore; **Visualizzazione** permette di espandere o comprimere le pile. In modalità selezione, il pulsante mostra il numero di foto selezionate e un’icona di chiusura. Sugli smartphone stretti, due righe compatte mantengono leggibili il nome della raccolta e le etichette dei comandi.
+
+**Ripristina la vista.** Apri Visualizzazione e scegli Ripristina la vista per tornare al layout, alla dimensione delle miniature e alla modalità di ispezione configurati. Query, ordinamento, album, selezione e pagina caricata restano invariati.
+
+**Criteri della raccolta.** I criteri dei metadati e della ricerca visiva restano sotto la query quando il pannello viene chiuso. Ogni rimozione ha un nome accessibile; cancellare un intervallo rimuove entrambi i limiti insieme. La ricerca visiva spiega la combinazione di somiglianza, filtri e ordinamento. Preferiti conserva gli altri criteri. I filtri di decisione escono dalla ricerca visiva; Da decidere ordina per data di scatto, dalla più vecchia, come spiegato prima della scelta. Le regole di visibilità mostrano le impostazioni effettive di esclusione e raggruppamento, inclusi il miglior rappresentante di una raffica e i rappresentanti di bracket e panorami; quelle annullate da un filtro Solo non risultano attive. Gli elenchi fissi richiedono di tornare alla vista abituale prima di cambiare i criteri.
+
+Esc torna tramite cronologia da una foto aperta nella galleria, mantenendo il contesto. Una foto aperta direttamente torna alla query salvata invece di uscire dall’app. Un dialogo o editor aperto gestisce Esc per primo.
+
 ## Contenuti
 
 - [Avvio della galleria](#avvio-della-galleria) · [Autenticazione](#autenticazione) · [Opzioni di filtraggio](#opzioni-di-filtraggio) · [Ordinamento](#ordinamento) · [Decisioni di revisione](#decisioni-di-revisione) · [Funzionalità della galleria](#funzionalità-della-galleria)
@@ -66,7 +78,7 @@ Proteggi la galleria con una password facoltativa:
 Due password controllano l'accesso:
 
 - **`viewer.password`** decide chi può *sfogliare*. Vuota, chiunque può sfogliare l'intera libreria. Impostata, gli utenti devono prima accedere.
-- **`viewer.edition_password`** è richiesta per ogni modifica: valutazioni, preferiti e scarti, selezione, album, gestione di persone e volti, modalità di confronto, modifiche a pesi e priorità, ed esportazioni. Vuota (il valore predefinito fornito), l'installazione è **in sola lettura**: le modifiche vengono rifiutate con `403` ("Set viewer.edition_password to enable editing").
+- **`viewer.edition_password`** è richiesta per ogni modifica: valutazioni, preferiti e scarti, selezione delle foto da conservare, album, gestione di persone e volti, confronti a coppie per l’addestramento, modifiche a pesi e priorità ed esportazioni. Vuota (il valore predefinito fornito), l’installazione è **in sola lettura**: le modifiche vengono rifiutate con `403` ("Set viewer.edition_password to enable editing"). Lo spazio di confronto delle foto selezionate è in sola lettura e non richiede accesso alla modifica.
 
 Anche la generazione IA su richiesta (didascalie, critiche VLM) richiede la password di modifica. Senza, ottieni solo ciò che è già in cache (`source: "none"` o `vlm_available: false`). Senza password di modifica, la galleria nasconde anche i badge esistenti di stelle, preferiti e scarti, come fa per i visualizzatori senza modifica su un'installazione protetta da password.
 
@@ -147,25 +159,23 @@ La ricerca testuale della galleria conserva le parole Unicode e tratta la punteg
 
 ### Schede della barra laterale
 
-La barra laterale dei filtri raggruppa le sue sezioni in cinque schede, mostrate come icone (passa il mouse per vedere il nome). Un piccolo badge su un'icona conta i filtri attivi della scheda, e la scheda mantiene il suo nome per gli screen reader («Sfoglia, 2 attivi»). L'ultima scheda usata viene ricordata in questo browser (`facet_sidebar_tab`). Sfoglia, Qualità e Soggetto hanno pannelli comprimibili, ciascuno dei quali ricorda se è aperto; Revisione e Visualizzazione non ne hanno.
+Il pannello filtri ha cinque schede: Trova, Origine, Qualità, Tecnica e Soggetto. Revisione e Visualizzazione sono finestre separate della barra. L’ultima scheda viene ricordata (`facet_sidebar_tab`); una vecchia scelta Revisione, Visualizzazione o Sfoglia apre Trova. Ogni sezione ricorda se è espansa. La disponibilità delle misure sta sotto le metriche Qualità, con icona, freccia e conteggio delle regole attive.
 
 | Scheda | Sezioni |
 |--------|---------|
-| **Sfoglia** | Ricerca semantica, Persone, Intervallo date, Contenuto, Album, Posizione, Cartella, Attrezzatura |
-| **Revisione** | Una riga con menu ciascuna per la decisione, poi per raffiche, duplicati, occhi chiusi, bracketing, panorami e scartate, una valutazione a stelle, gli interruttori Preferiti e Monocromo e, per gli editor, *Volti manuali da verificare* e *Correzioni panorama* |
-| **Qualità** | Qualità, Colore e qualità, Qualità estesa, Tecnica, Esposizione & Gamma (quanto è buona l'immagine) |
-| **Soggetto** | Metriche volti, Composizione, Salienza del soggetto, Momenti (cosa c'è nell'inquadratura) |
-| **Visualizzazione** | Vista (dimensione delle schede, layout, scorrimento rapido, azioni delle schede) |
+| **Trova** | Ricerca semantica, Contenuto, Regole dei tag, Persone, Momenti (cosa cercare) |
+| **Origine** | Intervallo date, Posizione, Cartella, Album, Attrezzatura (dove, quando e con cosa) |
+| **Qualità** | Qualità, Qualità estesa, Disponibilità delle misure (quanto è buona l'immagine) |
+| **Tecnica** | Tecnica, Esposizione & Gamma, Colore e qualità (nitidezza, esposizione, colore e rumore) |
+| **Soggetto** | Metriche volti, Composizione (punteggi e schema compositivo), Salienza del soggetto (cosa c'è nell'inquadratura) |
 
-L'intestazione, **Cerca un filtro**, l'avviso dell'album intelligente e la ricerca per nome file restano sopra le schede in ogni scheda, quindi `/` funziona da tutte. Digitare in **Cerca un filtro** nasconde le schede ed elenca i cursori corrispondenti di tutte.
+L'intestazione, **Cerca un filtro**, l'avviso dell'album intelligente e la ricerca per nome file restano sopra le schede in ogni scheda, quindi `/` funziona da tutte. Digitare in **Cerca un filtro** nasconde le schede ed elenca i cursori corrispondenti di tutte. L'icona **Filtri attivi**, accanto, mostra solo le sezioni con un filtro attivo, da tutte le schede, espanse e nell'ordine delle schede; il badge conta questi filtri, e scegliere una scheda esce da questa vista. Una sezione di cui cancelli il filtro resta finché non esci dalla vista. Senza filtri mostra *Nessun filtro applicato*; se gli unici filtri in uso sono fuori dalle schede, ad esempio in Revisione, indica che nessun filtro di queste schede è in uso.
 
-Il numero accanto a **Filtri** è il totale di tutti i filtri attivi. Un intervallo min/max conta una volta, come il filtro di posizione. La ricerca per nome file e *Simile a* non hanno una sezione e sono contati solo in questo totale, come un filtro su una metrica che questa installazione nasconde, così che **Ripristina filtri** possa comunque cancellarlo. **Ripristina filtri** (con descrizione al passaggio) compare accanto al numero finché almeno un filtro è attivo; la semplice **X** all'estrema destra chiude soltanto la barra laterale sugli schermi stretti.
+**Regole dei tag** ha una riga di chip per *Uno qualsiasi di questi*, *Tutti questi* e *Nessuno di questi*; le righe si combinano con AND, fino a 50 nomi. Digita un tag e premi Invio, oppure scegli uno dei tag della libreria dai suggerimenti; una virgola fa parte del nome. Il selettore **Tag** in Contenuto sceglie ancora un singolo tag. Ricerca semantica, Regole dei tag, i controlli fissati e i conteggi hanno ciascuno un'icona ? sulla riga d'intestazione che apre la relativa guida in un popover.
 
-Nella scheda Revisione, la decisione e ogni gruppo (ad esempio Duplicati) è una riga che mostra il valore attuale (come Nascoste, Mostrate o Solo queste) e apre un menu di scelte, ciascuna con una spiegazione di una riga. Una riga lasciata sul valore predefinito non conta nel badge della scheda né dell'intestazione. *Solo* e *Nascoste* si escludono a vicenda. Finché è scelta una decisione, Scartate è bloccata e la sua descrizione ne spiega il motivo. Il pulsante a stella imposta una valutazione minima: ogni clic la aumenta di uno, e il clic dopo 5, o dopo un massimo arrivato da un link, la cancella. Condivide una riga con gli interruttori Preferiti e Monocromo, solo icona e con descrizioni al passaggio. Nelle schede Qualità e Soggetto, passare sul nome di un'impostazione spiega cosa viene valutato e da quale modello, e anche i controlli di Revisione hanno descrizioni al passaggio.
+Il numero accanto a **Filtri** comprende tutti i criteri attivi, anche metriche non disponibili. Un intervallo conta una volta. **Reimposta filtri** appare accanto ai criteri della raccolta già con un solo criterio; il pannello non lo duplica. **X** chiude il pannello.
 
-<details><summary>Barra laterale dei filtri completa — tutte le sezioni espanse (clicca per vedere)</summary>
-<p align="center"><img src="../screenshots/filter-sidebar-full.jpg" alt="Le cinque schede della barra laterale dei filtri affiancate: Sfoglia, Revisione, Qualità, Soggetto e Visualizzazione" width="900"></p>
-</details>
+Nella scheda Revisione, la decisione e ogni gruppo (ad esempio Duplicati) è una riga che mostra il valore attuale (come Nascoste, Mostrate o Solo queste) e apre un menu di scelte, ciascuna con una spiegazione di una riga. Una riga lasciata sul valore predefinito non conta nel badge della scheda né dell'intestazione. *Solo* e *Nascoste* si escludono a vicenda. Finché è scelta una decisione, Scartate è bloccata e la sua descrizione ne spiega il motivo. Una riga **Valutazione a stelle** apre un menu (Tutte, da 1★ e oltre a 5★ e oltre, 0 stelle). Sotto, le caselle con etichetta **Solo preferite** e **Solo monocromatiche** hanno descrizioni al passaggio. Nelle schede Qualità, Tecnica e Soggetto, passare sul nome di un'impostazione spiega cosa viene valutato e da quale modello, e anche i controlli di Revisione hanno descrizioni al passaggio.
 
 ### Filtri primari
 
@@ -262,17 +272,25 @@ Usa **Stato revisione → Da esaminare** nella galleria per smaltire le foto non
 - I gruppi temporanei di raffica/serie non vengono salvati come segnalibro, perché una nuova scansione può rinumerarli.
 - Il logout cancella ogni segnalibro delle code di revisione su questo browser.
 
-**Avvisi fluttuanti.** L'avanzamento della revisione, **Continua revisione**, l'avviso delle foto nascoste, l'avviso dei filtri attivi (con **Reimposta tutti i filtri**) e l'avviso di migrazione delle miniature si impilano in basso a destra.
+**Avvisi fluttuanti.** L'avanzamento della revisione, **Continua revisione**, l'avviso delle foto nascoste e l'avviso di migrazione delle miniature si impilano in basso a destra. Sotto i 1024 px di larghezza si riuniscono in un'unica barra compatta in basso a destra, larga quanto il suo testo, con il conteggio degli avvisi e **Chiudi tutti**: tocca il conteggio per espanderli e il pulsante di riduzione per richiuderli. La barra non si ripiega mai da sola e resta come l'hai lasciata finché non scompare ogni avviso.
 
-- La × di ogni scheda la nasconde per la scheda corrente del browser. Ritorna in una nuova scheda, o quando l'avviso cambia (altro ambito, conteggio di nascoste cambiato, filtro aggiunto o rimosso).
-- Per nascondere per sempre l'avanzamento della revisione, usa **Nascondi avanzamento revisione** / **Mostra avanzamento revisione** nel menu utente. È memorizzato per browser e nasconde anche il pulsante **Rivedi le indecise**.
-- Dopo qualche secondo di inattività la pila si ripiega in una piccola pillola con il conteggio. Passaci sopra o cliccala per aprirla.
+- La × di ogni scheda la nasconde per la scheda corrente del browser. Ritorna in una nuova scheda, o quando l'avviso cambia (altro ambito o conteggio di nascoste cambiato).
+- Per nascondere per sempre l'avanzamento della revisione, deseleziona **Mostra l’avanzamento della revisione** nel popover **Revisione** della galleria. È memorizzato per browser e nasconde anche il pulsante **Rivedi le indecise**. Riselezionandola torna anche un banner chiuso con la sua ×.
+- Da 1024 px di larghezza, dopo qualche secondo di inattività la pila si ripiega in una piccola pillola con il conteggio. Passaci sopra o cliccala per aprirla.
+
+**Chiudi tutti** nasconde gli avvisi attuali per questa scheda senza cambiare filtri, decisioni o coda salvata. La breve animazione è disattivata quando è richiesto il movimento ridotto. Una casella quadrata e un bordo indicano la selezione; una sottile linea verde sul bordo inferiore indica le foto da tenere. **Da tenere** resta nel suggerimento e per gli screen reader.
 
 ## Funzionalità della galleria
 
 ### Pile di foto manuali
 
 Seleziona **2–1000 foto esplicite**, poi **Impila foto** nella barra di selezione o premi **S** per aprire l’editor a pagina intera in `/stacks/edit`. La selezione dell’intera vista non crea pile. S apre un’anteprima, senza salvare direttamente. Menu utente → **Personalizza le scorciatoie** cambia il tasto della galleria; il suggerimento, Aiuto e il riferimento `?` mostrano quello attuale. Se una configurazione precedente usa già S, viene mantenuta e Impila rimane **Non assegnato** finché non scegli un tasto libero. Servono permessi di modifica. Una foto appartiene a una sola pila per proprietario. La pagina centra un’anteprima con zoom sopra una striscia di miniature permanente. Fai clic su una miniatura o usa `←`/`→` per selezionare una foto, poi i suoi comandi di copertina, ordine o rimozione dalla pila. Pulsante zoom, rotellina o doppio clic mostrano i dettagli.
+
+Nell’editor delle pile, aiuto e dettagli della fonte sono inizialmente chiusi; Riprova ripristina il focus. La selezione usa lettere distinte sui pannelli stretti. In Junk Sweep, una decisione fallita ripristina la scheda nella sua posizione.
+
+L’editor usa un solo scorrimento; errori e Riprova sono accanto alle azioni inferiori. Rifiuta riporta il focus a una foto rimasta.
+
+Nell’editor a pagina intera, Tab raggiunge l’immagine: +/− cambia l’ingrandimento, le frecce spostano l’immagine ingrandita e Inizio o F ripristina l’adattamento. La striscia di miniature ha un solo punto di Tab; Sinistra/Destra e Inizio/Fine spostano il focus e aprono l’immagine raggiunta. Lo stato dell’immagine offre Riprova se il caricamento fallisce, senza salvare o cambiare la pila. Se Rifiuta rimuove la miniatura attiva, il focus passa a un membro rimasto.
 
 Usa **Cmd+Maiusc+S** o **Ctrl+Maiusc+S** per impilare subito le foto esplicite non impilate nell’ordine di selezione, con la prima come copertina. I membri di pile esistenti aprono l’editor. Il successo cancella la selezione salvata e Annulla la ripristina; annullamento o errore la conserva. Escape nell’editor torna alla galleria originale senza salvare.
 
@@ -282,7 +300,7 @@ Se le foto selezionate appartengono già a pile, **Unisci pile** è l’opzione 
 
 Controlla l’anteprima aggiornata dal server e scegli **Impila foto** per salvare. La pagina rimane aperta per esaminare il risultato; la notifica offre **Annulla** finché è disponibile e le revisioni corrispondono. **Continua a modificare** carica una nuova anteprima prima di salvare di nuovo. **Torna alla galleria** ritorna alla galleria o all’album di origine con l’URL esatto e fa scadere l’Annulla precedente. Uscire senza salvare scarta il raggruppamento; un rifiuto esplicito persiste. Ricaricare il browser ripristina la selezione solo per lo stesso account, dopo una nuova autorizzazione; aprire l’URL senza una selezione valida offre un modo per tornare indietro.
 
-Il badge o una foto impilata apre il visualizzatore con miniature, pulsanti precedente/successiva e contatore nell’ordine memorizzato. Le frecce restano nella pila. **Gestisci pila** apre una finestra di dialogo secondaria: fai clic su una miniatura o usa Sinistra/Destra per l’anteprima grande, scegli **Copertina**, riordina con i pulsanti freccia o rimuovi membri. Aprirlo da solo mantiene la normale modifica: i membri rimossi diventano indipendenti, togliere la copertina sceglie il primo membro rimasto e meno di due membri o **Separa la pila** scioglie la pila. **Aggiungi foto selezionate** da un’altra pila attiva esplicitamente l’anteprima di raggruppamento e le due modalità. Le modifiche di raggruppamento conservano file e valori di revisione; Rifiuta esplicito cambia subito i valori di revisione.
+Il badge o una foto impilata apre il visualizzatore con miniature, pulsanti precedente/successiva e contatore nell’ordine memorizzato. `←`/`→` proseguono nella raccolta alle estremità della pila, mentre `↑`/`↓` si muovono direttamente nella raccolta. **Gestisci pila** apre una finestra di dialogo secondaria: fai clic su una miniatura o usa Sinistra/Destra per l’anteprima grande, scegli **Copertina**, riordina con i pulsanti freccia o rimuovi membri. Aprirlo da solo mantiene la normale modifica: i membri rimossi diventano indipendenti, togliere la copertina sceglie il primo membro rimasto e meno di due membri o **Separa la pila** scioglie la pila. **Aggiungi foto selezionate** da un’altra pila attiva esplicitamente l’anteprima di raggruppamento e le due modalità. Le modifiche di raggruppamento conservano file e valori di revisione; Rifiuta esplicito cambia subito i valori di revisione.
 
 - Le azioni di valutazione, Conserva/Rifiuta, metadati, download, album ed eliminazione non espandono mai una pila implicitamente.
 
@@ -315,26 +333,34 @@ Il badge o una foto impilata apre il visualizzatore con miniature, pulsanti prec
 - Badge della categoria
 - Il clic destro (o Maiusc+F10) apre il [menu contestuale](#selezione-multipla-e-azioni-di-gruppo)
 
-Nel dettaglio della foto, le metriche stanno in schede con icona: dati EXIF (se presenti), Qualità, Composizione (con salienza del soggetto), Tecnica e Istogramma. L'ultima scheda aperta viene ricordata. Ogni punteggio si trova accanto alla sua distribuzione nella libreria, con la barra della foto evidenziata; passa sopra una barra per vedere la posizione della foto e l'intervallo della libreria. La collocazione è calcolata sull'intera libreria, non sui filtri correnti, sulla più vicina di 20 barre.
+Le metriche del dettaglio foto usano schede EXIF, Qualità, Composizione, Tecnica e Istogramma; l’ultima resta memorizzata. Il pulsante grafico accanto a ogni valore finito carica la distribuzione su richiesta, indica la foto attuale e passa dalla libreria visibile alla categoria attuale. I filtri della galleria non si applicano e le foto non accessibili sono escluse. Gli errori offrono Riprova. Gli album condivisi non espongono distribuzioni della libreria.
+
+**Pannello della raccolta.** Sugli schermi larghi (da 1280 px), una foto presente nella raccolta caricata della galleria (fuori dalla navigazione della Cronologia) mostra alla sua sinistra quelle foto, con gli stessi filtri e lo stesso ordinamento. Fai clic su una miniatura per aprirla; quando una miniatura ha il focus, `↑`/`↓` aprono la foto precedente o successiva (una foto per tasto, in una o due colonne) e Inizio/Fine aprono la prima/ultima foto della sezione visibile. `←`/`→` qui si comportano come nel resto della pagina. **Carica altre** recupera la pagina successiva. Trascina il divisore, oppure dagli il focus e usa Sinistra/Destra, Inizio e Fine, per ridimensionarlo: una foto per riga se stretto, due se largo. La freccia lo comprime. Il pannello non cambia mai i filtri, la selezione o la destinazione di Indietro. Per raccolte caricate grandi, usa i pulsanti delle foto precedenti e successive per spostarti tra le sezioni.
+
+I set nel dettaglio foto mostrano e contano ogni file, inclusi entrambi i file di una coppia RAW/JPEG raggruppata. La galleria conta la coppia come una sola foto.
 
 ### Selezione multipla e azioni di gruppo
 
-Clicca le foto per selezionarle; Maiusc+clic seleziona un intervallo. In basso a sinistra compare una barra delle azioni con pulsanti a icona (passaci sopra per le etichette). Le azioni di gruppo richiedono la modalità di modifica.
+Seleziona le foto con i comandi di selezione o con Spazio; sul desktop, Maiusc+clic seleziona un intervallo. Sul telefono, tocca Seleziona prima di toccare le foto e Annulla per uscire dalla modalità di selezione. La barra contestuale indica le foto interessate e offre Cancella e Confronta; l’accesso alla modifica aggiunge Conserva/Rifiuta e le altre azioni di scrittura. Sul desktop, **Azioni** apre un menu di due livelli al massimo: Seleziona tutto e Inverti; poi **Revisione** (preferito, reimposta decisione, da 1 a 5 stelle, Cancella valutazione), **Aggiungi all'album**, **Segna come serie**, **Modifica metadati** (data di scatto, posizione, tag) e **Scarica**, un sottomenu dei tipi di download quando esistono profili darktable; poi Impila foto, Copia nomi file, Esporta nell'editor, Scarta in cartella e l’aggiornamento; infine Rimuovi da Facet ed Elimina. Senza accesso alla modifica contiene solo selezione, download e Copia nomi file. Un comando che la selezione non può eseguire, come Elimina su una selezione dell’intera vista, resta elencato ma disattivato, e il suo tooltip spiega perché. Sul telefono, Azioni apre il pannello delle azioni. I comandi in sola lettura mantengono i rispettivi controlli di accesso.
+
+La striscia di miniature identifica il riferimento e permette di scegliere una candidata. Il riquadro attivo è evidenziato separatamente. Rimuovere dal confronto cambia solo la vista, mai Mantieni/Scarta o la selezione della galleria; Ripristina riporta le foto rimosse. Una sola foto rimasta resta ispezionabile. La griglia con dettagli mostra tutta la foto in un riquadro uniforme 4:3; Mosaico mantiene righe giustificate.
+
+La barra conta le foto selezionate fuori dalle miniature caricate; le azioni riguardano l’intera selezione esplicita. La riga di stato indica le esclusioni dell’intera vista: «Tutte le foto corrispondenti, tranne N». Confronta richiede 2–100 foto selezionate esplicitamente e tutte caricate, senza aprire solo una parte della selezione.
 
 - **Preferito** — segna tutte come preferite (cancella lo scarto)
 - **Rifiuta** — segna tutte come scartate (cancella preferito e valutazione)
 - **Valuta** — imposta o cancella una valutazione da 1 a 5 stelle
 - **Aggiungi all'album** — aggiungi a un album esistente o nuovo
-- **Modifica tag** — aggiungi o rimuovi un [tag manuale](#tag-manuali) su ogni foto selezionata
+- **Modifica tag** — visualizza l’anteprima di Aggiungi/Rimuovi per un [tag manuale](#tag-manuali), Sostituisci con un tag per riga oppure Cancella tutti i tag manuali. I tag IA vengono conservati.
 - **Seleziona tutto** — con una selezione vuota, seleziona ogni foto che i filtri trovano, non solo le pagine caricate. Con foto già selezionate, aggiunge quelle caricate e propone di estendere all'intera vista. Le azioni sull'intera vista confermano prima il numero esatto di foto.
 - **Inverti** — sostituisce la selezione con il suo complemento. Da una selezione vuota è l'intera vista. Da una selezione non vuota resta tra le foto caricate: scegli le foto da conservare, inverti, rifiuta.
-- **Confronta** — apri 2–4 foto affiancate con pan e zoom sincronizzati (scorri per fare zoom, trascina per spostare, doppio clic per reimpostare). I riquadri passano alla piena risoluzione quando ingranditi.
+- **Confronta** — apre 2–100 foto selezionate esplicitamente e già caricate, con al massimo quattro riquadri visibili nello spazio dedicato `/photo-compare`. Fai clic su un riquadro, poi su una miniatura nella striscia, per mostrarvi quella foto; l’indicazione sotto i riquadri nomina il riquadro sostituito. La puntina promuove una candidata e sposta il riferimento precedente nel riquadro candidato. Due viste mantiene il riferimento mentre Precedente/Successiva scorre le candidate; disattivandolo tornano tutti i riquadri rimasti. Rimuovi cambia solo questa vista; Ripristina riporta i riquadri rimossi. L’ispezione inizia con i riquadri collegati. Scollegali per inquadrare le foto separatamente; ricollegarli conserva i ritagli e applica i successivi zoom e spostamenti relativi all’intero insieme. Ripristina adatta tutte le foto. Ingrandisci con la rotella, il doppio clic o la tastiera e, sugli schermi touch, con il pizzico, il trascinamento o i pulsanti −/Adatta/+ di ogni riquadro; con un mouse questi pulsanti sono nascosti e la riga di stato del riquadro mostra il livello di zoom; Z attiva o disattiva la lente sui pixel visualizzati. Esamina apre i ritagli salvati di volti/soggetti e i dettagli della valutazione. Il movimento collegato non allinea i soggetti. Indietro o Escape torna alla query e alla selezione acquisite della raccolta; Escape chiude prima Esamina. I membri del confronto restano solo nella memoria di questa scheda: ricaricare o aprire direttamente l’URL senza una sessione valida riporta alla galleria. Questo spazio non modifica mai valutazioni, Conserva/Rifiuta o appartenenza alla galleria.
 - **Copia nomi file** — copia i nomi file negli appunti. Una copia dell'intera vista chiede prima conferma; oltre 10 000 foto viene rifiutata.
 - **Esporta** — scrive sidecar XMP accanto ai file (vedi [Esportazione per editor](#esportazione-per-editor))
 - **Scarta in cartella** — copia le foto conservate, o sposta/cestina quelle scartate, in una cartella (vedi [Scarta in cartella](#scarta-in-cartella))
 - **Elimina** — invia le foto al cestino del sistema (vedi [Elimina](#elimina)). Mostrato solo quando `viewer.cull.allow_trash` è attivo. Disattivato per una selezione "seleziona tutta la vista": seleziona le foto esplicitamente.
 - **Scarica** — scarica le foto selezionate
-- Cancella la selezione con Esc o il pulsante Cancella.
+- Cancella la selezione con Esc o il pulsante Cancella. Anche cambiare filtri, ricerca o album la cancella, con un avviso, così nessuna selezione nascosta resta il bersaglio di un’azione. Cambiare solo l’ordinamento la mantiene.
 
 Doppio clic su una foto per aprirla.
 
@@ -344,6 +370,30 @@ Doppio clic su una foto per aprirla.
 - Su qualsiasi altra foto, agisce solo su quella foto e aggiunge Apri foto, Trova simili, Perché questo punteggio?, Scrivi metadati nel file e Assegna volto a persona (quando la foto ha volti non assegnati), secondo le rispettive condizioni.
 - Selezionare una foto dal menu la rimuove soltanto dalla selezione.
 - Non disponibile sui dispositivi touch-first (`hover: none` e `pointer: coarse`); usa invece il pannello Azioni.
+
+Il confronto delle foto selezionate mostra pannelli e indicazione di sostituzione anche sul telefono. I nomi lunghi conservano un suffisso distintivo. La striscia ha un arresto Tab; sinistra/destra, Home e Fine spostano il focus e Invio assegna la foto. Ispeziona ha titolo e pulsante Chiudi; il focus entra nel pannello e torna al comando chiudendolo. I bersagli sono almeno 44 pixel su schermi stretti o con puntatori grossolani. Pronto resta per gli screen reader, mentre origine ed errori restano visibili. Lo spostamento è limitato a ogni immagine adattata, anche nei pannelli collegati o ridimensionati. Adatta, il cambio foto o la perdita della cattura del puntatore termina il trascinamento. Questi limiti preservano il flusso di selezione. Rimuovi e Ripristina cambiano solo questo spazio di sola lettura, non valutazioni, decisioni, raccolta o destinazione Indietro. I riquadri collegati si fermano ai propri bordi e possono perdere l’allineamento relativo. Adatta li centra e li riallinea. Nei riquadri stretti, origine e recupero hanno una riga dedicata, così Riprova non si sovrappone ai controlli dello zoom. Il riferimento resta sostituibile dalla striscia di miniature quando il pulsante per fissarlo non entra nella didascalia del riquadro.
+
+### Modifiche acquisite e ispezione
+
+Le anteprime di gruppo fissano i percorsi delle foto prima di Applica, inclusi i membri compressi o fuori schermo corrispondenti ai filtri ed escluse le foto deselezionate in una selezione dell’intera vista. Distinguono le osservazioni caricate dai valori sconosciuti; un ambito troppo grande viene rifiutato anziché troncato. Una selezione successiva non può cambiare la destinazione di una modifica accettata. Le richieste vengono confermate in lotti di dimensioni limitate, non in un’unica transazione per l’intera selezione.
+
+La valutazione offre Imposta o Cancella. I tag manuali offrono Aggiungi, Rimuovi, Sostituisci e Cancella; gli altri campi e i tag IA restano invariati. Sostituisci/Cancella non può essere ripetuto alla cieca dopo una risposta incerta: ricarica ed esamina prima il risultato. I cambiamenti di accesso o account fermano i nuovi lotti. Anche l’avvio della navigazione interrompe i nuovi lotti di tag manuali. Una richiesta già inviata può comunque completarsi.
+
+L’ispezione riguarda la foto visualizzata, indipendentemente dal gruppo selezionato. Le valutazioni IA, le stelle personali, Conserva/Rifiuta e la foto migliore suggerita dal gruppo sono distinti. Le misurazioni mancanti riportano Non disponibile; zero è una misurazione valida. Le etichette delle versioni indicano l’immagine decodificata e le sue dimensioni, con stati di caricamento, errore e Riprova. Ingrandimento e lente esaminano i pixel visualizzati, non i dati RAW del sensore. La provenienza dell’istogramma distingue le immagini elaborate salvate dalle stime delle miniature. I ritagli salvati di volti/soggetti possono aiutare l’ispezione manuale; quando una corrispondenza manca o è ambigua resta disponibile l’inquadratura manuale. Collegare i movimenti non allinea i soggetti.
+
+Nella pagina della foto aperta, il pannello di ispezione inizia con i controlli di revisione, senza titolo né linea sopra: Conserva/Indeciso/Scarta, poi le stelle di valutazione con il pulsante preferito sulla stessa riga. I tre segmenti di decisione hanno etichette visibili e indicano lo stato attuale. Sotto l’immagine sono disponibili **−**, **Adatta** e **+**; Adatta termina anche un trascinamento attivo. Precedente/Successiva scorre la raccolta corrente della galleria e carica un’altra pagina quando serve, anche dalla copertina di una pila. Sul telefono il nome del file può andare a capo e le impostazioni dei riquadri dei volti sono in **Altro**.
+
+Le frecce e la posizione nella raccolta restano disponibili per ogni membro della pila, usando la posizione della copertina caricata. `←`/`→` scorrono la pila e proseguono nella raccolta alle sue estremità. Quando la galleria mostra un solo fotogramma di una raffica, di un bracket, di un panorama o di un gruppo di duplicati, gli stessi tasti scorrono i fotogrammi del gruppo nell’ordine della sua striscia, poi proseguono nella raccolta; un fotogramma nascosto dalla galleria mantiene la posizione nella raccolta di quello che la galleria mostra. Quando la galleria elenca più fotogrammi del gruppo, o la foto è in una pila, si usa invece l’ordine della raccolta. Sugli schermi larghi (da 1024 px), `↑`/`↓` saltano il gruppo e passano alla foto precedente o successiva della raccolta o della Cronologia. Il pannello Dettagli della foto è organizzato come quello della galleria: i controlli di revisione, la riga della data e i campi descrittivi, poi le schede EXIF, Qualità, Composizione, Tecnico e Istogramma; lo stato Pronto resta disponibile ai lettori di schermo senza testo visivo aggiuntivo.
+
+Quando si ingrandisce un’immagine nel confronto, una miniatura mostra tutta la foto con un riquadro rosso sulla regione visibile. Il riquadro segue spostamento e zoom, anche nei riquadri collegati, e scompare con Adatta.
+
+L’indicatore di posizione sull’immagine identifica la raccolta. Le sezioni espandibili mostrano frecce che ruotano all’apertura. I controlli di revisione restano per primi e, sugli schermi ampi, restano fissi in alto mentre il pannello scorre. Data di scatto e categoria condividono una riga; la riga successiva mostra sempre le impostazioni di scatto: fotocamera, lunghezza focale, diaframma, tempo di posa e ISO. Seguono Didascalia, Tag, Posizione e Persone, poi le schede delle metriche e il gruppo, la cui striscia mostra cinque miniature per riga alla larghezza del pannello. In modalità modifica, una didascalia, un tag o una posizione mancanti diventano un’azione compatta **Didascalia**, **Tag** o **Posizione** anziché un campo vuoto; **Tag** apre il campo di inserimento, che Esc richiude. Le viste in sola lettura omettono i campi vuoti. **Origini dei metadati** e **File associati** chiudono il pannello come una fisarmonica che apre una sezione alla volta. Origini dei metadati mostra Campo, Valore e Origine in una tabella; un’origine comune a tutti i campi è indicata una sola volta sotto di essa. File associati include direttamente il raggruppamento Foto RAW/JPEG, senza una sezione annidata. L’aiuto è un’icona ? accanto a ciò che spiega: sorgenti delle immagini e ingrandimento accanto alla barra sotto l’immagine, l’aiuto su metadati e file associati accanto al loro contenuto e l’aiuto sulle misure nella riga del punteggio IA. I controlli di modifica e dei tag hanno bersagli di almeno 44 pixel su schermi stretti e con puntatori grossolani, restando compatti sul desktop.
+
+Sul telefono il nome ha una riga a larghezza piena, con al massimo due righe di testo. I nomi molto lunghi conservano inizio e suffisso distintivo. Le letture strette mantengono visibile il tipo di immagine; le dimensioni che non entrano restano disponibili agli screen reader. Caricamento ed errori restano visibili. Preferiti, zoom e icone dell’intestazione hanno bersagli di almeno 44 pixel con puntatori grossolani.
+
+Metti a fuoco l’immagine: +/− regola lo zoom, le frecce spostano l’immagine ingrandita e Home la adatta. Quando è adattata, le frecce riprendono la navigazione; Tab esce dall’immagine. Viene annunciato un solo nome durante i cambi di resa. Le miniature della pila evidenziano il membro attivo e usano nomi di file anziché percorsi del server. La raccolta ha un solo arresto Tab; `↑`/`↓`, Home e Fine aprono la foto raggiunta. Sul telefono restano visibili l’inizio e il suffisso distintivo dei nomi lunghi. I controlli di revisione vengono per primi; data di scatto e categoria li seguono, con un’etichetta esplicita per la data mancante. **Analisi** nell’intestazione e **Perché questo punteggio?** sulla riga del punteggio IA aprono entrambi la spiegazione del punteggio. I tag lunghi vanno a capo nel pannello. Le letture compatte mantengono il tipo di immagine; le dimensioni nascoste restano disponibili agli screen reader.
+
+Nell’ispezione ingrandita i trascinamenti tattili spostano l’immagine; Adatta ripristina lo scorrimento della pagina. I limiti seguono l’immagine adattata in ogni direzione per raggiungere tutti i bordi ad alto ingrandimento e rispettare i limiti riducendo lo zoom. Didascalie e nomi lunghi vanno a capo nel pannello.
 
 ### Tieni il top N%
 
@@ -379,6 +429,7 @@ Quando un assistente collegato tramite [Assistenti IA (MCP)](AGENTS.md) ti mostr
 - L’anteprima elenca i file interessati, 24 per pagina, con miniature e nomi. Fai clic su un’immagine per ingrandirla. I file XMP e le immagini non disponibili restano elencati. Annulla per modificare le decisioni sulle foto; cambiare un’opzione richiede una nuova anteprima. La conferma del cestino indica il numero di file, inclusi i file associati abilitati.
 - **Il server sceglie i file dallo stato di ogni foto.** La copia agisce solo sulle conservate, sposta/cestina solo sulle scartate. Tutto il resto è riportato come `excluded_by_state`. Il client non può passare un elenco di file da eliminare.
 - **I file collegati sono opzionali.** Rifiutare un JPEG non porta con sé il suo RAW, a meno che tu spunti **Includi RAW compagno / XMP** (`include_companions`).
+- **La protezione dei file collegati vale anche per Elimina.** Con questa opzione attiva, anteprima ed esecuzione rifiutano l’intera richiesta prima di qualsiasi modifica se un file collegato appartiene a una foto indicizzata non visibile o se l’inventario non è disponibile, contiene collegamenti o è ambiguo. Controlla i file o disattiva i file collegati per agire solo sulle foto selezionate.
 - Su macOS e Windows, i file RAW collegati mantengono i nomi su disco, comprese le estensioni maiuscole; su Windows, anche i sidecar `.xmp`.
 
 **Disponibilità di «Cestina gli scartati».** L'opzione "Cestina gli scartati" compare solo quando `viewer.cull.allow_trash` è attivo *e* il pacchetto `send2trash` è installato (`/api/config` riporta `cull.trash_available: true`). Altrimenti la finestra ne spiega il motivo: "the `send2trash` package is not installed" o "an administrator disabled trashing".
@@ -412,16 +463,17 @@ Campi della risposta e codici di stato: [API.md](../API.md).
 
 ### Opzioni di visualizzazione
 
-- **Modalità layout** — **Griglia** (schede uniformi) o **Mosaico** (righe giustificate che mantengono le proporzioni), a ogni larghezza dello schermo.
+- **Modalità layout** — **Griglia** (schede uniformi), **Mosaico** (righe che mantengono le proporzioni) o **Elenco** (righe di metadati), a ogni larghezza dello schermo.
 - **Dimensione miniatura** — cursore dell'altezza di scheda/riga (120–400px, salvato in localStorage)
 - **Nascondi dettagli** — nasconde i metadati sulle schede (solo modalità griglia)
-- **Presentazione delle miniature** — ritaglio quadrato (predefinito) o proporzioni originali della foto per le miniature senza dettagli; disabilitata finché il modo mosaico è attivo, che già conserva le proporzioni, o finché i dettagli sono visibili.
-- **Tooltip** — due righe. **Mostra in**: **Popup** o **Pannello laterale** (predefinito). **Mostra con**: **Disattivato**, **Hover**, **Clic** o **Hover o clic** (predefinito; solo pannello laterale). Il menu resta aperto tra una scelta e l'altra, e **Disattivato** conserva la posizione per quando i dettagli tornano. Sotto i 768px, **Hover** è disabilitato se non è già selezionato; il ridimensionamento conserva il comportamento salvato. Sui dispositivi touch è disabilitato comunque, perché un tocco non può posare il puntatore. Dove il pannello non può agganciarsi, la posizione **Pannello laterale** mostra i dettagli nel fumetto flottante, ed **Esc** lo chiude.
-  - Il pannello laterale mostra i dettagli completi nel cassetto di destra, organizzato come il dettaglio della foto. Con **Hover o clic** segue passaggio e clic, quindi funziona sugli schermi touch. Mantiene l'ultima foto quando il cursore lascia la griglia.
-  - Cliccare una foto tiene il pannello su di essa finché non premi **Deseleziona** (che deseleziona anche la foto). **Esc** fa lo stesso e cancella la selezione.
-  - Una voce **Perché questo punteggio?** fissata in fondo al pannello apre la spiegazione del punteggio (la finestra di critica) per la foto che il pannello tiene.
-  - Il pannello condivide il cassetto con i filtri; aprire i filtri lo nasconde. Richiede una finestra larga almeno 1280px.
-  - Il **Popup** mostra un breve fumetto: categoria, aggregato e posizione, estetica, composizione, nitidezza, esposizione e una riga EXIF.
+- **Forma delle miniature** — ritaglio quadrato (predefinito) o proporzioni originali della foto per le miniature senza dettagli; disabilitata finché il modo mosaico è attivo, che già conserva le proporzioni, o finché i dettagli sono visibili.
+- **Tooltip** — come appaiono i dettagli della foto: **Pannello laterale** (predefinito), **Al passaggio**, **Al clic** o **Disattivato**.
+  - Il pannello laterale mostra i dettagli completi nel cassetto di destra, organizzato come il dettaglio della foto. In **Attivazione pannello**, scegli **Hover**, **Clic** o **Hover o clic** (predefinito). Scegli un’opzione con clic per gli schermi touch. Il pannello si apre sulla prima foto su cui passi, clicchi o porti il cursore da tastiera, quindi fino ad allora la griglia mantiene tutta la larghezza. Mantiene l'ultima foto quando il cursore lascia la griglia.
+  - Cliccare una foto tiene il pannello su di essa finché non premi **Deseleziona** (che deseleziona anche la foto e chiude il pannello). **Esc** fa lo stesso e cancella la selezione. Quando la sua foto esce dai risultati (un nuovo ordinamento o un filtro), il pannello resta aperto, vuoto fino alla foto successiva.
+  - Un pulsante a icona **Perché questo punteggio?** alla fine della riga del punteggio IA del pannello apre la spiegazione del punteggio (la finestra di critica) per la foto che il pannello tiene.
+  - Il pannello condivide il cassetto con i filtri; aprire i filtri lo nasconde. Richiede una finestra larga almeno 1280px. Dove il pannello non può agganciarsi, un'impostazione **Pannello laterale** salvata mostra i dettagli nel fumetto flottante, ed **Esc** lo chiude.
+  - **Al passaggio** e **Al clic** mostrano un breve fumetto: categoria, aggregato e posizione, estetica, composizione, nitidezza, esposizione e una riga EXIF.
+  - Sotto i 768px, **Al passaggio** è disabilitato se non è già selezionato; il ridimensionamento conserva il comportamento salvato. Sui dispositivi touch è disabilitato comunque, come **Hover** in **Attivazione pannello**, perché un tocco non può posare il puntatore.
 - **Personalizza i pulsanti della scheda** — riordina e mostra/nascondi i pulsanti nella riga al passaggio di una scheda. Sono disponibili nove azioni: trova simili, perché-questo-punteggio, scrivi metadati, assegna un volto, apri il gruppo di duplicati, la raffica, la serie bracket/panorama o la pila di foto, e apri la pagina della foto. I pulsanti di gruppo compaiono solo sulle foto che appartengono a un tale gruppo. I pulsanti del gruppo di duplicati e della pila di foto sono attivi per impostazione predefinita; gli altri sono facoltativi. Salvato per browser.
 - **Nascondi occhi chiusi** — nasconde le foto con occhi chiusi rilevati
 - **Solo occhi chiusi / Solo duplicati** — mostra solo le foto con occhi chiusi, o ogni membro di ciascun gruppo di duplicati. Gli interruttori di nascondimento sono sospesi per quella vista.
@@ -430,7 +482,7 @@ Campi della risposta e codici di stato: [API.md](../API.md).
 - **Migliore del bracketing** — mostra solo l'esposizione di base di ogni bracket. **Attivo per impostazione predefinita.** Indipendente da Migliore della raffica, perché il capofila di raffica di un bracket non è sempre la sua esposizione di base.
 - **Migliore del panorama** — mostra solo il fotogramma centrale di ogni serie panorama o panorama HDR. **Attivo per impostazione predefinita.**
 - **Scorrimento infinito** — le foto si caricano mentre scorri
-- **Scorrimento rapido (virtualizzato)** — disegna solo le righe vicine all'area visibile, così lo scorrimento in profondità resta veloce. Attivo per impostazione predefinita. Disattivalo nella scheda Visualizzazione della barra laterale se incontri problemi di layout. La modalità griglia con dettagli mostrati si disegna sempre per intero. Salvato in localStorage (`facet_virtual_scroll`).
+- **Scorrimento rapido (virtualizzato)** — disegna solo le righe vicine all'area visibile, così lo scorrimento in profondità resta veloce. Attivo per impostazione predefinita. Disattivalo nella finestra **Visualizzazione** se incontri problemi di layout. La modalità griglia con dettagli mostrati si disegna sempre per intero. Salvato in localStorage (`facet_virtual_scroll`).
 
 ### Foto simili
 
@@ -450,9 +502,9 @@ I filtri attivi compaiono come chip rimovibili con i conteggi in cima alla galle
 
 I tag manuali sono tag che digiti tu, conservati accanto ai tag IA. Sono memorizzati a parte (`photo_manual_tags`, non nella colonna `tags` della foto), quindi nuove scansioni e nuove assegnazioni di tag non li cancellano mai.
 
-- **Dove compaiono.** Solo nel **dettaglio** della foto, come chip contrassegnati in modo diverso dai tag IA. Schede e tooltip mostrano i tag IA.
+- **Dove compaiono.** Il dettaglio della foto distingue i tag manuali dai tag IA. Le schede con dettagli e i tooltip includono entrambi nella navigazione per tag, senza etichette duplicate.
 - **Chi può modificarli.** Gli utenti con modifica. Su un'installazione senza `viewer.edition_password` sono in sola lettura. I tag IA non si possono rimuovere.
-- **Modifica di gruppo.** Seleziona le foto e usa **Modifica tag** (barra di selezione, pannello Azioni mobile o menu contestuale) per aggiungere o rimuovere un tag. Funzionano anche le selezioni dell'intera vista. Le foto che hanno già 50 tag manuali vengono saltate; `count` riporta le foto effettivamente modificate.
+- **Modifica di gruppo.** Seleziona le foto e usa **Modifica tag** (**Azioni → Modifica metadati** nella barra di selezione, pannello Azioni mobile o menu contestuale). Aggiungi/Rimuovi cambia un solo tag; Sostituisci accetta un tag per riga; Cancella rimuove tutti i tag manuali. L’anteprima mostra le destinazioni acquisite e i valori misti noti prima di Applica, anche per le selezioni dell’intera vista. Aggiungi salta le foto che hanno già 50 tag manuali; una sostituzione non valida viene rifiutata prima che quella richiesta scriva alcunché. `count` riporta il numero di righe di tag effettivamente modificate, non il numero di foto. I tag IA vengono conservati. Ogni richiesta è atomica, ma un gruppo di più richieste non lo è; un esito incerto di Sostituisci/Cancella richiede un’ispezione prima di un nuovo tentativo.
 - **Formato.** I tag vengono ripuliti agli estremi, messi in minuscolo e con gli spazi compattati (NFC). Massimo 64 caratteri, massimo 50 per foto. Tag vuoti, virgole e caratteri di controllo vengono rifiutati. Un tag uguale a uno dei tag IA della foto non viene memorizzato.
 - **Ricerca e filtri li raggiungono.** Il filtro dei tag, la ricerca testuale, la ricerca semantica (`/api/search`, tranne l'ambito testuale solo didascalie), il menu dei tag, le statistiche e le esportazioni sidecar/incorporate/Lightroom usano tutti tag IA + manuali. La ricerca testuale trova un tag manuale come frase intera.
 - **Eccezioni.** Le capsule contano solo i tag IA. I tag manuali non influenzano mai punteggi, categorie o momenti narrativi.
@@ -473,12 +525,12 @@ I fotogrammi di un panorama sono pensati per essere uniti in un'unica immagine e
 **Correggere una serie.** Il rilevamento sbaglia circa il 4% delle serie. Le correzioni sono persistenti: sopravvivono a ogni successiva esecuzione del rilevamento. Entrambe richiedono la modalità di modifica, almeno due fotogrammi, e si possono annullare dalla snackbar.
 
 - **Falso positivo** (non è un panorama, o semplice vs HDR): usa il menu di correzione nella barra delle azioni del gruppo in Selezione.
-- **Panorama non rilevato**: seleziona i suoi fotogrammi nella galleria e scegli *Segna come serie* → *Segna come un unico panorama*.
+- **Panorama non rilevato**: seleziona i suoi fotogrammi nella galleria e scegli *Azioni* → *Segna come serie* → *Segna come un unico panorama*.
 
 **Segnare un bracket non rilevato.** Per una scala di esposizioni rilevata come raffica ordinaria:
 
 - Nella camera oscura, un gruppo di raffica semplice (nessun fotogramma già in un bracket o panorama) offre *Segna come bracket*.
-- Nella barra di selezione della galleria, usa *Segna come serie* → *Segna come un unico bracket*.
+- Nella barra di selezione della galleria, apri *Azioni* → *Segna come serie* → *Segna come un unico bracket*.
 - I fotogrammi devono formare una vera scala: almeno 2 fotogrammi, ciascuno con dati di esposizione (f-stop, tempo di posa, ISO) e una data di scatto, e due mai alla stessa esposizione. Altrimenti la marcatura viene rifiutata con un messaggio e non si salva nulla.
 - Segnare fotogrammi che si sovrappongono a un bracket già segnato lo estende. La serie combinata deve comunque essere una scala valida.
 - Il feed della camera oscura nasconde i fotogrammi scartati, quindi una marcatura dalla camera oscura non include mai uno scalino scartato.
@@ -502,26 +554,32 @@ Il menu a tendina elenca le persone con le miniature dei volti. Cliccane una per
 
 Clicca il nome di una persona per vedere tutte le sue foto su `/person/<id>`. Nella pagina Gestisci persone, un doppio clic su una scheda (con nome, senza nome in «Da nominare» o ignorata) apre la galleria sulle foto di quella persona; i doppi clic su campo nome, casella e pulsanti restano a loro.
 
-**Nominare dalla galleria.** Quando la galleria è filtrata su una persona (`?person_id=95`), la sua etichetta nella riga dei filtri attivi mostra il suo volto e il suo nome, o **Senza nome**, contornato come promemoria; la sua × (**Rimuovi dal filtro**) toglie la persona dal filtro. Per gli utenti in modalità modifica, prima della × ci sono due pulsanti. **Rinomina** (la matita) rinomina la persona sul posto: il campo nome mostra «Chi è? Scrivi o scegli un nome» per una persona senza nome e «Rinomina o unisci a…» per una con nome, i suoi suggerimenti mostrano volto, nome e numero di foto di ogni persona, e **Salva** o **Annulla** lo chiude (anche Esc annulla). Il nome viene sempre salvato per primo (`POST /api/persons/{id}/rename`); se altri gruppi lo portano già (maiuscole e spazi ignorati, che siano o no tra i suggerimenti), l'etichetta propone poi la stessa unione della pagina Gestisci persone (vedi **Rinomina** più sotto), e dopo un'unione la galleria passa alla persona mantenuta. **Altro** (⋮) apre il menu della persona: **Vedi tutte le foto di {name}**, **Trova altri volti di {name}** e **Ignora** (**Ripristina** per una persona ignorata). Quando le opzioni di nascondimento della galleria tengono fuori vista alcune foto della persona, gli avvisi della galleria ne indicano il numero, suddiviso tra foto di raffica, di occhi chiusi, duplicate, di bracketing e di panorama, così da mostrarle prima di nominare.
+**Nominare dalla galleria.** Quando la galleria è filtrata su una persona (`?person_id=95`), la sua etichetta nella riga dei filtri attivi mostra il suo volto e il suo nome, o **Senza nome**, contornato come promemoria (sui telefoni solo il volto, con il nome come tooltip); la sua × (**Rimuovi dal filtro**) toglie la persona dal filtro. Per gli utenti in modalità modifica, prima della × ci sono due pulsanti. **Rinomina** (la matita) rinomina la persona sul posto: il campo nome mostra «Chi è? Scrivi o scegli un nome» per una persona senza nome e «Rinomina o unisci a…» per una con nome, i suoi suggerimenti mostrano volto, nome e numero di foto di ogni persona, e **Salva** o **Annulla** lo chiude (anche Esc annulla). Il nome viene sempre salvato per primo (`POST /api/persons/{id}/rename`); se altri gruppi lo portano già (maiuscole e spazi ignorati, che siano o no tra i suggerimenti), l'etichetta propone poi la stessa unione della pagina Gestisci persone (vedi **Rinomina** più sotto), e dopo un'unione la galleria passa alla persona mantenuta. **Altro** (⋮) apre il menu della persona: **Vedi tutte le foto di {name}**, **Trova altri volti di {name}** e **Ignora** (**Ripristina** per una persona ignorata). Quando le opzioni di nascondimento della galleria tengono fuori vista alcune foto della persona, gli avvisi della galleria ne indicano il numero, suddiviso tra foto di raffica, di occhi chiusi, duplicate, di bracketing e di panorama, così da mostrarle prima di nominare.
 
 ### Pagina Gestisci persone
 
-In modalità modifica la pagina ha due schede, **Con nome (N)** e **Da nominare (N)**, e si apre sempre su **Con nome**. **Da nominare** elenca i cluster senza nome, ciascuno con un campo nome; **Con nome** raccoglie le persone con un nome, con quelle ignorate in una sezione richiudibile **Ignorate** in fondo. Gli utenti in sola lettura vedono solo la griglia delle persone con nome. I suggerimenti di nome, qui come nell'etichetta persona della galleria e nel menu dei volti della foto, mostrano volto, nome e numero di foto di ogni persona. Su **Da nominare** il menu di ordinamento offre **Numero di volti** e **Più recenti**. Quando non resta nessuno da nominare, la scheda mostra «Tutti hanno un nome. I nuovi volti da nominare compariranno qui.»
+In modalità modifica la pagina ha quattro schede: **Con nome (N)**, **Da nominare (N)**, **Esamina corrispondenze** e **Non assegnati**. Si apre su **Con nome**, salvo che il collegamento indichi un’altra scheda. **Da nominare** elenca i cluster senza nome, ciascuno con un campo nome; **Con nome** raccoglie le persone con un nome, con quelle ignorate in una sezione richiudibile **Ignorate** in fondo. Gli utenti in sola lettura vedono solo la griglia delle persone con nome. I suggerimenti di nome, qui come nell'etichetta persona della galleria e nel menu dei volti della foto, mostrano volto, nome e numero di foto di ogni persona. Su **Da nominare** il menu di ordinamento offre **Numero di volti** e **Più recenti**. Quando non resta nessuno da nominare, la scheda mostra «Tutti hanno un nome. I nuovi volti da nominare compariranno qui.»
+
+**Esamina corrispondenze** e **Non assegnati** mostrano ogni volto come una miniatura quadrata. I volti sono raggruppati in un pannello per persona suggerita, con in testa la foto, il nome e il numero di volti di quella persona; in **Esamina corrispondenze** i volti senza suggerimento (**Nessuna persona suggerita**) vengono per ultimi. Fai clic su una miniatura per selezionarla; una miniatura senza persona apre invece la scelta della persona. Una miniatura mostra la somiglianza con la persona suggerita, e un'icona di avviso quando il suo volto non può essere confrontato. Il menu ⋮ di ogni miniatura contiene **Apri foto in una nuova scheda**, le altre persone suggerite quando ce ne sono diverse, **Scegli persona**, **Non è** *nome* e **Salta per ora**. **Seleziona tutto** nell'intestazione di un gruppo seleziona tutti i volti di quel gruppo. Finché ci sono volti selezionati, una barra in fondo allo schermo mostra il loro numero, **Cancella** ed **Esamina N assegnazioni**, che apre la conferma. Scorrendo fino in fondo all'elenco si carica la pagina successiva; dopo un errore di lettura, **Riprova** riprende da quella pagina.
 
 Aprila dal pulsante nell'intestazione o da `/persons`:
 
 | Azione | Come |
 |--------|--------|
 | **Unisci** | Seleziona la persona di origine, clicca quella di destinazione, conferma |
-| **Elimina** | Clicca il pulsante elimina sulla scheda della persona |
-| **Rinomina** | Clicca il nome della persona per modificarlo in linea. Se altri gruppi portano già quel nome (maiuscole e spazi attorno ignorati), una conferma mostra un riquadro per persona (volto, nome, numero di volti), tutti selezionati, con la persona che verrà mantenuta evidenziata: la più grande fra le selezionate, che ne conserva la grafia. Deseleziona un omonimo, o annulla, per tenerlo separato. Un'unione non può essere annullata |
-| **Dividi** | Apri i volti di una persona, seleziona un sottoinsieme, dividilo in una nuova persona |
-| **Trova altri volti** | Il pulsante di ricerca sulla scheda di una persona, o **Trova altri volti di {name}** in un menu persona, elenca i volti che le somigliano, i più simili per primi, confrontati con il centroide della persona (`GET /api/person/{id}/possible_faces`). In **Quali volti includere**, tre chip mostrano ciascuno il proprio conteggio: **Senza gruppo** e **Gruppi senza nome**, attivi per impostazione predefinita, e **Persone con nome**, disattivato. Un volto che appartiene a una persona con nome porta un'etichetta **da {name}**, e spuntarne uno mostra un avviso: aggiungerlo lo sposta su questa persona. Sopra i volti, **Gruppi simili** elenca altri cluster il cui centroide somiglia a quello della persona (quelli senza nome, più quelli con nome mentre **Persone con nome** è attivo); ognuno mostra la sua foto, il nome o **Gruppo senza nome**, il numero di volti e **{percent}% simile**, con **Unisci tutto** per incorporare l'intero gruppo in questa persona. Unire un gruppo con nome chiede conferma, e un'unione non si può annullare. Ogni volto porta **Forte** (somiglianza del 50 % o più) o **Possibile**, con la percentuale, e **Quanto simile** fissa la soglia: un pulsante a barre di segnale che mostra `≥NN%` e apre il menu dei livelli, con cinque livelli, **Molto rigoroso** 60 %, **Rigoroso** 50 %, **Normale** 35 % (predefinito), **Ampio** 25 % e **Molto ampio** 20 %. Se nessun volto supera la soglia, la finestra mostra «Nessun volto somiglia a {name} (il più vicino: N%).» e propone **Prova Ampio** o **Includi le persone con nome**. Se una ricerca dovesse confrontare troppi volti, cerca solo tra i volti senza gruppo; se sono ancora troppi, chiede un **Anno** in cui cercare. **Seleziona i forti**, Maiusc+clic per un intervallo e Spazio sul volto attivo velocizzano la selezione, e il pulsante Aggiungi mostra quanti sono spuntati. L'aggiunta ricalcola il centroide, quindi il giro successivo è ordinato in base a ciò che hai appena confermato; i volti lasciati deselezionati non vengono riproposti finché la finestra resta aperta |
-| **Ignora** | Ignorare un cluster (personale, sconosciuti): il pulsante ⊘ di una scheda, anche sulle schede «Da nominare». Le persone ignorate escono da elenco, «Da nominare», filtri, suggerimenti di unione e ricerca volti, e compaiono nella sezione richiudibile **Ignorate** in fondo alla scheda **Con nome**, con **Ripristina** (`GET /api/persons?hidden_only=true`). Usa lo stesso flag `is_hidden` di prima. Ignorare ha effetto subito e mostra per 10 secondi una notifica con **Annulla**, qui e in ogni menu persona. |
+| **Elimina** | **Elimina** nel menu ⋮ della scheda della persona |
+| **Rinomina** | **Rinomina** nel menu ⋮ della scheda della persona modifica il nome in linea. Se altri gruppi portano già quel nome (maiuscole e spazi attorno ignorati), una conferma mostra un riquadro per persona (volto, nome, numero di volti), tutti selezionati, con la persona che verrà mantenuta evidenziata: la più grande fra le selezionate, che ne conserva la grafia. Deseleziona un omonimo, o annulla, per tenerlo separato. Un'unione non può essere annullata |
+| **Dividi** | **Dividi** nel menu ⋮ della scheda della persona: seleziona un sottoinsieme dei volti della persona e dividilo in una nuova persona |
+| **Trova altri volti** | **Trova altri volti** nel menu ⋮ della scheda di una persona, o **Trova altri volti di {name}** in un menu persona, elenca i volti che le somigliano, i più simili per primi, confrontati con il centroide della persona (`GET /api/person/{id}/possible_faces`). In **Quali volti includere**, tre chip mostrano ciascuno il proprio conteggio: **Senza gruppo** e **Gruppi senza nome**, attivi per impostazione predefinita, e **Persone con nome**, disattivato. Un volto che appartiene a una persona con nome porta un'etichetta **da {name}**, e spuntarne uno mostra un avviso: aggiungerlo lo sposta su questa persona. Sopra i volti, **Gruppi simili** elenca altri cluster il cui centroide somiglia a quello della persona (quelli senza nome, più quelli con nome mentre **Persone con nome** è attivo); ognuno mostra la sua foto, il nome o **Gruppo senza nome**, il numero di volti e **{percent}% simile**, con **Unisci tutto** per incorporare l'intero gruppo in questa persona. Unire un gruppo con nome chiede conferma, e un'unione non si può annullare. Ogni volto porta **Forte** (somiglianza del 50 % o più) o **Possibile**, con la percentuale, e **Quanto simile** fissa la soglia: un pulsante a barre di segnale che mostra `≥NN%` e apre il menu dei livelli, con cinque livelli, **Molto rigoroso** 60 %, **Rigoroso** 50 %, **Normale** 35 % (predefinito), **Ampio** 25 % e **Molto ampio** 20 %. Se nessun volto supera la soglia, la finestra mostra «Nessun volto somiglia a {name} (il più vicino: N%).» e propone **Prova Ampio** o **Includi le persone con nome**. Se una ricerca dovesse confrontare troppi volti, cerca solo tra i volti senza gruppo; se sono ancora troppi, chiede un **Anno** in cui cercare. **Seleziona i forti**, Maiusc+clic per un intervallo e Spazio sul volto attivo velocizzano la selezione, e il pulsante Aggiungi mostra quanti sono spuntati. L'aggiunta ricalcola il centroide, quindi il giro successivo è ordinato in base a ciò che hai appena confermato; i volti lasciati deselezionati non vengono riproposti finché la finestra resta aperta |
+| **Ignora** | Ignorare un cluster (personale, sconosciuti): **Ignora** nel menu ⋮ di una scheda, anche sulle schede «Da nominare». Le persone ignorate escono da elenco, «Da nominare», filtri, suggerimenti di unione e ricerca volti, e compaiono nella sezione richiudibile **Ignorate** in fondo alla scheda **Con nome**, con **Ripristina** (`GET /api/persons?hidden_only=true`). Usa lo stesso flag `is_hidden` di prima. Ignorare ha effetto subito e mostra per 10 secondi una notifica con **Annulla**, qui e in ogni menu persona. |
 
 ### Volti sulla foto
 
-Nella vista foto compare un riquadro attorno a ogni volto rilevato mentre il puntatore è sulla foto, e passando su un volto se ne vede il nome (riquadro rosso: non ancora nominato). I riquadri seguono zoom e spostamento, e trascinare o fare doppio clic su un volto continua a spostare la vista o a reimpostare lo zoom. Il riquadro di un volto senza nome è anche tratteggiato, per non affidarsi al solo colore, e ogni riquadro ha un contorno scuro per restare visibile su qualsiasi sfondo. A meno che i riquadri siano su **Disattivato**, da tastiera Tab passa da un volto all'altro, ognuno annunciato con il suo nome (o come volto sconosciuto), e Invio o Spazio ne apre il menu. Su uno schermo touch, un tocco apre il menu di un volto solo mentre i riquadri sono mostrati (i riquadri sono su **Sempre**, oppure, tranne che su **Disattivato**, il volto è della persona su cui è filtrata la galleria); altrimenti toccare la foto non fa nulla al volto. In modalità modifica, un clic su un volto apre un menu: **Cambia persona…** (o **Dai un nome a questo volto…**) per scegliere una persona esistente o scrivere un nuovo nome, **Trova altri volti di …** per quella persona e **Non è …** per staccare solo quel volto da quella persona (`POST /api/face/{id}/unassign`); gli altri suoi volti nella foto restano suoi. I volti le cui dimensioni salvate non sono affidabili non vengono disegnati. I riquadri vengono da `GET /api/photo/faces`, che restituisce il `box` di ogni volto normalizzato all'inquadratura. Ogni volto che appartiene a una persona, con o senza nome, offre anche **Vedi tutte le foto di …** (o **Vedi tutte le foto di questo gruppo**), che apre la galleria filtrata su quella persona; funziona anche in sola lettura. Un pulsante della barra fa passare i riquadri fra tre stati, ricordati per browser: **Disattivato** (nessun riquadro, e i volti non si possono cliccare né raggiungere da tastiera), **Al passaggio** (il predefinito, come descritto sopra) e **Sempre** (tutti i riquadri e i nomi restano visibili). Se la galleria è filtrata su una persona, i suoi volti restano incorniciati con un tratto più spesso, a meno che i riquadri siano su **Disattivato**. **Usa come foto di …** rende il volto cliccato la foto della scheda; una persona che riceve volti senza avere una foto prende automaticamente il più affidabile. Nella galleria filtrata su una persona, ogni miniatura evidenzia il suo volto in rosso, per vedere a quale volto si riferisce un cluster prima di nominarlo. Nell'elenco **Persone** del pannello destro, un clic sull'avatar di una persona apre lo stesso menu di un clic sul riquadro di quel volto, anche con i riquadri su **Disattivato**; **Vedi tutte le foto di …** in quel menu apre la galleria.
+Nella vista foto compare un riquadro attorno a ogni volto rilevato mentre il puntatore è sulla foto, e passando su un volto se ne vede il nome (riquadro rosso: non ancora nominato). I riquadri seguono zoom e spostamento, e trascinare o fare doppio clic su un volto continua a spostare la vista o a reimpostare lo zoom. Il riquadro di un volto senza nome è anche tratteggiato, per non affidarsi al solo colore, e ogni riquadro ha un contorno scuro per restare visibile su qualsiasi sfondo. A meno che i riquadri siano su **Disattivato**, da tastiera Tab passa da un volto all'altro, ognuno annunciato con il suo nome (o come volto sconosciuto), e Invio o Spazio ne apre il menu. Su uno schermo touch, un tocco apre il menu di un volto solo mentre i riquadri sono mostrati (i riquadri sono su **Sempre**, oppure, tranne che su **Disattivato**, il volto è della persona su cui è filtrata la galleria); altrimenti toccare la foto non fa nulla al volto. In modalità modifica, un clic su un volto apre un menu: **Cambia persona…** (o **Dai un nome a questo volto…**) per scegliere una persona esistente o scrivere un nuovo nome, **Trova altri volti di …** per quella persona e **Non è …** per staccare solo quel volto da quella persona (`POST /api/face/{id}/unassign`); gli altri suoi volti nella foto restano suoi. I volti le cui dimensioni salvate non sono affidabili non vengono disegnati. I riquadri vengono da `GET /api/photo/faces`, che restituisce il `box` di ogni volto normalizzato all'inquadratura. Ogni volto che appartiene a una persona, con o senza nome, offre anche **Vedi tutte le foto di …** (o **Vedi tutte le foto di questo gruppo**), che apre la galleria filtrata su quella persona; funziona anche in sola lettura. Un pulsante della barra fa passare i riquadri fra tre stati, ricordati per browser: **Disattivato** (nessun riquadro, e i volti non si possono cliccare né raggiungere da tastiera), **Al passaggio** (il predefinito, come descritto sopra) e **Sempre** (tutti i riquadri e i nomi restano visibili). Se la galleria è filtrata su una persona, i suoi volti restano incorniciati con un tratto più spesso, a meno che i riquadri siano su **Disattivato**. **Usa come foto di …** rende il volto cliccato la foto della scheda; una persona che riceve volti senza avere una foto prende automaticamente il più affidabile. Nella galleria ogni persona selezionata ha un bordo colorato nel chip e contorni dei volti corrispondenti sulle miniature. **Visualizzazione → Mostra contorni dei volti** nasconde o ripristina i contorni senza cambiare i filtri; la scelta resta memorizzata nel browser. Nell'elenco **Persone** del pannello destro, un clic sull'avatar di una persona apre lo stesso menu di un clic sul riquadro di quel volto, anche con i riquadri su **Disattivato**; **Vedi tutte le foto di …** in quel menu apre la galleria.
+
+Per una pubblicità o un rilevamento errato, apri il menu del riquadro del volto e scegli **Ignora questo rilevamento**. Solo quel rilevamento viene rimosso dai riquadri, dalle persone e dal riconoscimento; la foto e i punteggi non cambiano. **Annulla** è disponibile per 10 secondi. La correzione persiste durante l’estrazione se corrispondono immagine originale e modello di riconoscimento. Un’immagine sostituita o un percorso ricollegato senza verifica non vengono esclusi. Ignorare un gruppo di persone resta un’azione separata.
+
+Per aggiornare un database del visualizzatore con correzioni attive, le foto originali devono essere disponibili; vengono rispettate le mappature dei percorsi configurate. Se gli originali sono offline, l’aggiornamento viene rifiutato prima di modificare il database di destinazione.
 
 ### Segnare un volto non rilevato
 
@@ -553,7 +611,7 @@ Avvia una scansione dal browser. Il pulsante Scansione compare quando **entrambe
 
 Su un'installazione aperta a utente singolo (`viewer.edition_password` vuota, il valore predefinito), nessuno può avviare scansioni dal browser. Eccezione: con `viewer.trusted_local_editing`, una sessione del browser locale fidata, o un assistente locale con un token di modifica completa, può avviare una scansione senza `show_scan_button` né password di modifica.
 
-Il pulsante si trova nella galleria vuota (**Scansiona le foto per iniziare**) e in fondo all'intestazione (**Scansiona nuove foto**; barra inferiore sugli schermi piccoli). Entrambi aprono l'avvio scansione:
+La galleria vuota offre **Scansiona le foto per iniziare**. **Scansiona nuove foto** è disponibile anche nell’area di navigazione globale a ogni larghezza. Entrambi aprono l’avvio scansione:
 
 - Scegli una directory dall'elenco e avvia la scansione.
 - Avanzamento in tempo reale e righe di output scorrono nella finestra. La galleria si aggiorna al termine della scansione.
@@ -585,6 +643,8 @@ I risultati riportano `similarity` (il punteggio combinato) e `embedding_similar
 
 Organizza le foto in album con nome su `/albums`. Controllato da `viewer.features.show_albums` (predefinito: `true`).
 
+Se il caricamento degli album o della selezione cliente fallisce, appaiono un errore e Riprova; una lista vuota e un filtro senza risultati sono distinti. Gli errori di creazione, modifica o eliminazione sono segnalati senza eliminare i dati inseriti.
+
 ### Album manuali
 
 Crea album e aggiungi foto dalla galleria con la selezione multipla. Gli album supportano:
@@ -596,6 +656,8 @@ Crea album e aggiungi foto dalla galleria con la selezione multipla. Gli album s
 ### Album intelligenti
 
 Salva una combinazione di filtri (fotocamera, tag, persona, date, soglie di punteggio…) come album intelligente. Si aggiorna man mano che nuove foto corrispondono. I filtri sono memorizzati come JSON in `smart_filter_json`.
+
+Filtrare un album aperto cambia solo la vista di lavoro. La sezione delle regole distingue i membri scelti manualmente, i criteri intelligenti salvati e i perfezionamenti temporanei. Anteprima e Salva aggiornano esplicitamente le regole intelligenti supportate; Reimposta ripristina le regole salvate senza cambiare l’appartenenza. I criteri non supportati vengono rifiutati anziché omessi senza avviso. Salva controlla prima le regole attuali sul server, ma non esegue un confronto e aggiornamento atomico sul server. I visualizzatori in sola lettura possono filtrare e reimpostare la vista senza salvare le regole.
 
 ### Contesto di punteggio
 
@@ -672,7 +734,7 @@ La finestra distingue anche una foto *non ancora valutata* da una il cui *punteg
 Usa il VLM configurato (Qwen3.5-2B o Qwen3.5-4B) per una critica sensibile al contesto. Richiede il profilo 12gb, 16gb o 24gb, `viewer.features.show_vlm_critique` impostato su `true` (il valore predefinito) e una sessione di modifica per generarla. Senza modifica, viene mostrata solo una critica in cache e `vlm_available` è `false`. La finestra genera tramite `POST /api/critique/vlm` (solo modifica; le richieste simultanee per una stessa foto condividono una sola generazione); `GET /api/critique` legge soltanto la cache e non genera, non traduce e non scrive mai.
 
 - Il prompt (`critique.vlm`) include la scomposizione del punteggio, i punteggi salvati e ricalcolati, le condizioni rilevate e l'EXIF.
-- La risposta si legge come **Osservazione / Valutazione / Suggerimenti**. Viene messa in cache per foto (`photos.vlm_critique`), tradotta quando una sessione di modifica la apre nella lingua di destinazione (poi salvata e servita così com'è), e **Rigenera** la ricalcola. Senza una sessione di modifica vedi il testo non tradotto, a meno che non esista già una traduzione salvata.
+- La risposta si legge come **Osservazione / Valutazione / Suggerimenti**. Viene messa in cache per foto (`photos.vlm_critique`). Aprire la spiegazione legge soltanto il testo in cache; una sessione di modifica lo genera con **Genera commento IA**, traduce una critica salvata nella lingua di destinazione con **Traduci commento IA salvato** (poi salvata e servita così com'è), e **Rigenera** la ricalcola. Senza una sessione di modifica vedi il testo non tradotto, a meno che non esista già una traduzione salvata.
 - Funziona sulla miniatura memorizzata, quindi i file RAW vanno bene.
 
 **Overlay visivo "perché questo punteggio".** Con `viewer.features.show_saliency_overlay` attivo (predefinito `true`), la finestra della critica ha **Mostra overlay**. Disegna la mappa di salienza BiRefNet come mappa di calore (`GET /api/saliency_overlay`), più i riquadri dei volti e i segnalini degli occhi dai punti di riferimento memorizzati (`GET /api/photo/face_markers`). I riquadri sono verdi per occhi aperti, ambra per occhi chiusi. La mappa di calore ha la risoluzione della miniatura, quindi è approssimativa. L'interruttore si nasconde sui profili che non possono produrre una maschera di salienza.
@@ -707,9 +769,15 @@ Controllato da `viewer.features.show_memories` (predefinito: `true`).
 
 ## Vista cronologia
 
-Sfoglia in ordine cronologico: gli anni scendono ai mesi, poi a un calendario dei giorni. Ogni tessera mostra il numero di foto e una foto di copertina. Clicca un giorno per aprire la galleria filtrata su quella data; ordina lì.
+Sfoglia in ordine cronologico: gli anni scendono ai mesi, poi a un calendario dei giorni che occupa la larghezza e l’altezza disponibili sotto la barra degli strumenti. Ogni tessera mostra il numero di foto e una foto di copertina. Clicca un giorno per aprire la galleria filtrata su quella data; ordina lì.
 
 I cinque interruttori di nascondimento della galleria (`hide_blinks`, `hide_bursts`, `hide_duplicates`, `hide_brackets`, `hide_panoramas`) si applicano, con `viewer.defaults` come valori iniziali, quindi i conteggi delle tessere corrispondono a ciò che mostra la galleria. Quando qualcosa è nascosto, nella barra degli strumenti compare un pulsante `visibility_off` ("Some photos are hidden by your filters"); cliccalo per cancellarli tutti e cinque.
+
+**Barra degli strumenti.** La barra sotto la navigazione contiene, da sinistra: il percorso di navigazione e il conteggio delle foto dell’ambito corrente, l’interruttore **Foto** / **Calendario**, **Vai al mese** e il verso dell’ordinamento (vista Foto), **Date** per un intervallo di date di scatto, l’interruttore della densità per data e, quando è impostato un intervallo, il suo chip. Sugli schermi piccoli la riga in alto mantiene il percorso, il conteggio e il chip dell’intervallo; gli altri controlli passano in una barra in fondo allo schermo: Vai al mese, la direzione di ordinamento, **Date** (segnato da un punto finché è impostato un intervallo), la densità delle date e il selettore **Foto** / **Calendario**. La scelta tra **Foto** e **Calendario** viene ricordata per browser.
+
+**Densità per data.** Una striscia di barre sopra le foto le conta per anno, mese o giorno dell’ambito corrente. Fai clic su una barra per esplorarla. Per filtrare le date di scatto su un intervallo, trascina su più barre, oppure fai Maiusc+clic prima sulla prima barra e poi sull’ultima; con la tastiera le frecce sinistra e destra si spostano tra le barre, Maiusc più una freccia estende un intervallo, Invio lo applica ed Esc lo annulla. All’interno di un anno o di un mese, **Periodo** alterna i mesi (i giorni, dentro un mese) e le settimane ISO; il pulsante `show_chart` passa a una scala logaritmica. Il pulsante `bar_chart` nella barra degli strumenti nasconde la striscia, ricordato per browser. Sotto i 1024 px di larghezza i controlli della striscia stanno sopra le barre, e le barre si dividono la larghezza invece di scorrere, con un’etichetta ogni poche barre. Su uno schermo touch, scorri il dito lungo le barre per leggere ogni conteggio sopra di esse e sollevalo per esplorare la barra sotto il dito, oppure sollevalo fuori dalle barre per annullare; tieni premuto, poi scorri, per selezionare un intervallo, applicato quando sollevi il dito.
+
+**Giorni.** Ogni giorno è una scheda con al massimo otto anteprime. Da 1280 px di larghezza i giorni stanno due affiancati, tre da 1536 px; un giorno con più di quattro anteprime occupa tutta la larghezza.
 
 Apri `/timeline`. Controllato da `viewer.features.show_timeline` (predefinito: `true`).
 
@@ -839,10 +907,12 @@ Trova gruppi di persone che potrebbero essere la stessa persona. Apri `/merge-su
 
 Scrivi valutazioni, preferiti e scarti nei sidecar XMP così darktable, Lightroom e altri editor li recepiscono. Richiede la modalità di modifica.
 
-- **Dalla galleria** — seleziona le foto, poi **Azioni → Esporta** scrive un sidecar accanto a ogni file.
+- **Dalla galleria** — seleziona le foto, poi apri **Azioni → Esporta**.
 - **Da un album** — esporta l'intero album come sidecar, oppure copia/collega simbolicamente i suoi file in una cartella (stesso elenco consentito di [Scarta in cartella](#scarta-in-cartella)). Gli album usano la loro appartenenza memorizzata, album intelligenti compresi.
 - **Scrivi metadati nel file** — nel dettaglio foto, incorpora valutazione e parole chiave nell'originale (JPEG/HEIC/TIFF/PNG/DNG tramite exiftool) oltre a scrivere il sidecar. I file RAW proprietari non vengono mai modificati. Controllato da `viewer.features.show_embed_metadata` (predefinito: `true`).
 - **Lightroom** (modalità di modifica) — **Download Lightroom manifest** salva `facet_manifest.json` per la selezione della finestra, per il passo **Facet: Apply ratings and flags...** di `facet.lrplugin`. **Import Lightroom state…** legge `facet_lightroom_state.json` dal menu **Facet: Export Lightroom State to Facet...** del plug-in (vince Lightroom per valutazione e pick/scarto) e riporta i conteggi di corrispondenti/non corrispondenti/modificati. Non serve eseguire `--import-lightroom`. Vedi [Lightroom Classic](INTEROP.md#lightroom-classic).
+
+**Anteprima prima della scrittura.** Scegli le opzioni e poi **Anteprima esportazione**. Espandi le voci dei file per controllare destinazioni e metadati, poi scegli **Conferma esportazione** per avviare il lavoro. L’anteprima non scrive alcun file. Se la risposta di conferma va persa, controlla la ricevuta nella finestra prima di avviare un’altra esportazione.
 
 **Limiti e avanzamento.**
 
@@ -850,7 +920,7 @@ Scrivi valutazioni, preferiti e scarti nei sidecar XMP così darktable, Lightroo
 - Le esportazioni girano in background, con avanzamento e conteggi di scritti/saltati/errori. **Ferma dopo il file corrente** annulla tra un file e l'altro; i sidecar completati restano.
 - Solo un lavoro sulla libreria alla volta. Mentre un'esportazione è in corso, scansioni, ricalcoli e riaddestramento automatico attendono o vengono rifiutati, e un'esportazione viene rifiutata mentre uno di essi è in corso.
 - Chiudere la finestra smette di seguire l'avanzamento, non l'esportazione.
-- Riapri Esporta per l'editor per vedere le tue 20 esportazioni più recenti. **Riprova i file incompleti** avvia un nuovo lavoro per i file falliti, saltati e non elaborati. Un file interrotto a metà scrittura può essere riscritto.
+- Riapri Esporta per l'editor per vedere le tue 20 esportazioni più recenti. **Anteprima dei file incompleti** mostra un’anteprima dei file falliti, saltati e non elaborati. Controllala e scegli **Conferma esportazione** per avviare un nuovo lavoro. Un file interrotto a metà scrittura può essere riscritto.
 
 ## Download
 
@@ -860,11 +930,21 @@ Scarica le foto dal dettaglio foto o dalla barra di selezione. Il menu di downlo
 - **darktable** (`darktable`) — il RAW collegato convertito con un profilo darktable con nome. Ripiega sull'originale se non c'è un RAW collegato.
 - **RAW** (`raw`) — il file RAW collegato così com'è. Non disponibile negli album condivisi.
 
+Un nuovo file RAW associato può impiegare fino a cinque minuti per comparire in questo menu.
+
 **Ritaglio social basato sulla salienza.** Con `viewer.features.show_social_export` attivo (predefinito `true`) e la modifica sbloccata, la barra di download del dettaglio foto ha un menu **Ritaglio social**. Elenca `social_export.presets` (quadrato 1:1, verticale 4:5, storia 9:16 per impostazione predefinita). Sceglierne uno scarica un JPEG a piena risoluzione ritagliato a quella proporzione e centrato sul soggetto. Il soggetto proviene dal riquadro del soggetto BiRefNet (`photos.subject_bbox`, da `--recompute-saliency`), altrimenti dai volti rilevati, altrimenti dal centro. Il tooltip del menu mostra quale è stato usato (`saliency` / `faces` / `center`).
 
 Endpoint: [API.md — Download](../API.md#download).
 
 ## Selezione
+
+La camera oscura mostra il file attivo e offre Conserva, Rifiuta e Conferma nella vista singola. Conserva e Rifiuta cambiano la bozza del gruppo; Conferma mantiene la conferma differita e Annulla. Frecce e scorciatoie zoom funzionano dopo il focus su un pulsante, senza intercettare campi o tasti modificati. I controlli su schermi stretti e con puntatori grossolani hanno bersagli di 44 pixel. Sul telefono, Schermo intero è in Ispeziona.
+
+Annulla nel conto alla rovescia ha un bersaglio tattile e ripristina il focus. L’ingrandimento della lente è indicato.
+
+Una bozza senza foto conservate disabilita Conferma sia nella griglia sia nella camera oscura; le scorciatoie spiegano cosa manca. Riaprire un gruppo in attesa mostra il conto alla rovescia e Annulla. Dopo l’ultima conferma, il focus torna al conto alla rovescia. Le viste strette a quattro riquadri usano intestazioni compatte e la regolazione della lente ha una riga propria sul telefono.
+
+Durante il conto alla rovescia di conferma non si può modificare la selezione acquisita; Annulla riattiva la modifica. Senza foto conservate, Conferma è disabilitato e ne spiega il motivo. Rifiutare tutto il gruppo resta una conferma separata.
 
 La pagina di selezione (`/culling`, modalità di modifica) raggruppa scatti quasi identici così conservi il migliore di ciascuno e rifiuti il resto. Scegli la/le foto da conservare in ogni gruppo; confermare rifiuta le altre. Le conferme sono differite e si possono annullare (vedi [Annulla](#annulla)).
 
@@ -872,7 +952,8 @@ La **granularità** (il primo controllo della barra degli strumenti) sceglie com
 
 - **Tutto** (predefinito) — raffiche e gruppi di simili uniti.
 - **Raffiche** — foto scattate ravvicinate nel tempo.
-- **Simili** — foto che si assomigliano a prescindere dal tempo, per somiglianza CLIP/SigLIP. Un cursore imposta il rigore.
+- **Simili** — foto che si assomigliano a prescindere dal tempo, per somiglianza CLIP/SigLIP. Un cursore imposta il rigore (più basso trova somiglianze più ampie). Una scena più grande di `similarity_groups.max_group_size` viene divisa con una soglia più rigida invece di essere scartata, e una scheda che mostra meno foto di quante ne contiene il suo gruppo indica «N di M foto mostrate».
+- **Quasi uguali** — un secondo sguardo ai quasi duplicati che le altre viste lasciano fuori. Facet valuta *coppie* di foto con tre segnali: quanto si somigliano (gli embedding d'immagine salvati), contenuto quasi identico (l'hash percettivo, che riconosce risalvataggi e ridimensionamenti) e quanto sono vicine nel tempo (con la stessa fotocamera). Legge anche le foto già riviste o dentro una raffica, così uno scatto nuovo simile a uno tenuto in precedenza lo incontra finalmente: quello tenuto prima parte come tenuto e la scheda dice «una tenuta in precedenza». Ogni scheda elenca le sue prove («96% simili · 10 s di distanza · stessa fotocamera»). Uno scatto di una serie di esposizioni o di un panorama non viene mai accoppiato (queste serie restano intere), e le coppie che condividono una raffica o con entrambe le foto già decise sono escluse; ogni foto compare in una sola coppia, prima la corrispondenza più forte. Niente è automatico: qui non ci sono selezione automatica, ordinamento o soglia, e confermare una coppia funziona come confermare un gruppo di simili.
 - **Scene** — sequenze cronologiche per ora di scatto, ciascuna con l'intervallo di tempo e il momento narrativo principale in testa. Richiede `viewer.features.show_scenes`.
 - **Bracketing di esposizione** — serie trovate da [`--detect-sequences`](COMMANDS.md), esposizione di base per prima, ogni fotogramma con il badge della sua compensazione (`-2 EV` … `+2 EV`).
 - **Panorami** — panoramiche trovate da [`--detect-panoramas`](COMMANDS.md), in ordine di scatto, fotogramma centrale segnato.
@@ -884,7 +965,9 @@ Un gruppo che resta con meno di 2 fotogrammi dopo la rimozione delle foto già s
 
 **Ordinamento.** La **modalità di ordinamento** (più facili prima, più ridondanti, migliori, più recenti, richiedono confronti, **più vecchie prima**) sta accanto alla granularità, con un pulsante freccia che la inverte. Più vecchie prima ordina per ora di scatto anche le foto *dentro* ogni gruppo, utile per bracket e panoramiche.
 
-Granularità, ordinamento e categoria persistono in `localStorage`. I controlli che non si applicano sono nascosti (nessun ordinamento o soglia in modalità scene; nessun pulsante di ambito senza album manuali). Sugli schermi piccoli la barra degli strumenti diventa una barra inferiore scorrevole.
+Granularità, ordinamento e categoria persistono in `localStorage`. I controlli che non si applicano sono nascosti (nessun ordinamento o soglia in modalità scene; nessun pulsante di ambito senza album manuali). Sotto i 1024 px di larghezza la barra degli strumenti diventa una barra inferiore i cui controlli vanno a capo su altre righe, con **Conferma tutto** sull'ultima.
+
+**Dimensione dei fotogrammi.** I fotogrammi si adattano alla larghezza disponibile. Un gruppo fino a quattro sta su una riga; un gruppo più grande si dispone in una griglia di fotogrammi larghi almeno 224 px. Sui telefoni i fotogrammi si impilano, uno per riga. Ogni fotogramma mostra l'intera foto, senza ritaglio.
 
 **Cestina tutte le foto scartate (nel cestino del sistema).** Questo pulsante della barra degli strumenti mostra l'anteprima di ogni foto scartata visibile a te in tutta la libreria, fotogrammi nascosti compresi. Ignora album, data e filtri della galleria. **Applica** invia i file al cestino del sistema della macchina di Facet. A differenza di **Elimina**, righe della libreria e decisioni restano, per I miei gusti.
 
@@ -911,6 +994,8 @@ Granularità, ordinamento e categoria persistono in `localStorage`. I controlli 
 **Profili per genere.** Il selettore **Profilo** applica un preset di genere che imposta in un colpo solo rigore, budget di foto conservate, soglia di somiglianza e le soglie dei volti per occhi chiusi / espressione scarsa. Lo sport conserva solo la più nitida di una raffica, i matrimoni conservano più varianti con occhi aperti, concerti e fauna selvatica allentano le soglie sui volti. La scelta e il cursore del rigore persistono in `localStorage`. Cambiare a mano una manopola mostra "Custom". I preset stanno in [`cull_profiles`](CONFIGURATION.md#profili-di-scarto-per-genere) (`GET /api/culling/profiles`).
 
 ### Selezione automatica
+
+Valutazioni, preferiti e decisioni di conservare o rifiutare esistenti sono preservati per impostazione predefinita. I client API e MCP possono impostare `decision_policy` su `replace` per rivalutarli.
 
 **Selezione automatica** nella barra degli strumenti seleziona un intero ambito in un solo passaggio.
 
@@ -997,8 +1082,8 @@ Nel lightbox di selezione, ogni volto porta i propri badge: occhi aperti/chiusi,
 Una vista in **sola lettura** della libreria come scene cronologiche, in ordine di racconto con intestazioni di data/momento e una lente al passaggio. Aperta a **tutti gli utenti autenticati**.
 
 - Una nuova scena inizia quando passano più di `scenes.gap_minutes` tra gli scatti (ampliato sugli shooting rarefatti). Le sequenze molto lunghe vengono divise.
-- Aprila dall'azione **Mostra le scene di questo album** di un album nella griglia Album; un selettore cambia album. Non c'è una voce Scene nella navigazione principale.
-- Ogni scena ha un pulsante **Seleziona questa scena** solo per la modifica che apre [Selezione](#selezione) su quella scena (`/culling?group_by=scene&album=&from=&to=`).
+- Apri **Scene** nella navigazione principale per l'intera libreria, o l'azione **Mostra le scene di questo album** di un album nella griglia Album; un selettore cambia album. La voce di navigazione segue `viewer.features.show_scenes`.
+- Ogni scena ha un pulsante **Seleziona questa scena** solo per la modifica che apre [Selezione](#selezione) su quella scena (`/culling?group_by=scene&album=&from=&to=`). Confermati tutti i gruppi della scena, la Selezione passa alla scena successiva di questo elenco e la indica; dopo l'ultima torna qui. Una conferma non riuscita resta sulla scena.
 - Con i momenti narrativi calcolati, ogni scena ha come titolo il suo momento principale, e `scenes.split_on_moment_change` può dividere una sequenza dove il momento cambia.
 - Le scene più piccole di `scenes.min_size` vengono omesse; si caricano al massimo `scenes.max_photos` foto.
 
@@ -1018,16 +1103,21 @@ Facet etichetta ogni foto con l'attività che mostra. Il vocabolario **general**
 
 ## Pulizia degli scarti
 
-Una coda di revisione rapida per screenshot, documenti scansionati, ricevute, meme e diapositive. Esegui `python facet.py --detect-junk` (viene eseguito anche dopo ogni scansione) per riempire `junk_kind`. Vedi [Configurazione — Pulizia degli scarti](CONFIGURATION.md#junk-sweep).
+Una coda di revisione rapida per screenshot, documenti scansionati, ricevute, meme e diapositive. Esegui `python facet.py --detect-junk` (viene eseguito anche dopo ogni scansione) per riempire `junk_kind`. Quando non c'è nulla da rivedere, la pagina dice che cosa raccoglie la coda e indica questo comando per controllare subito l'intera libreria. Vedi [Configurazione — Pulizia degli scarti](CONFIGURATION.md#junk-sweep).
 
 Apri **Pulizia** nella navigazione (`/junk`, solo modifica):
 
-- **Chip di filtro per tipo** — "Tutti i tipi" più un chip per tipo con il suo conteggio (`GET /api/filter_options/junk_kinds`).
+- **Menu del tipo** — «Tutti i tipi» e i candidati rimasti per tipo (`GET /api/filter_options/junk_kinds`), escluse le foto rifiutate da questo utente.
+
+Titolo, Rifiuta tutto e ingrandimento della lente sono visibili. Un errore indica che la decisione non è stata salvata; il focus torna alla coda dopo la decisione o Riprova.
+
 - **Conteggio candidati** — scende man mano che decidi.
 - **Conserva** — toglie la foto dalla coda **per sempre** (`not_junk`); le successive esecuzioni di `--detect-junk` la saltano.
 - **Rifiuta** — segna la foto come scartata (non viene eliminato nulla).
 - **Rifiuta tutto** — rifiuta ogni candidato caricato, dopo conferma.
 - **Lente** — premi **`Z`** (o l'interruttore nella barra degli strumenti) per ingrandire il testo fine.
+
+Conserva e Rifiuta restano visibili, con controlli nominati adatti al tocco. Un errore di lettura mostra Riprova invece di una coda vuota. Carica altre ripete la pagina fallita e considera i candidati già decisi. Durante il rifiuto di tutti quelli mostrati, le decisioni incompatibili sono disabilitate. Cambiare account o lasciare la pagina ferma i blocchi successivi; non annulla un blocco già accettato dal server.
 
 Le foto scarto restano visibili nella galleria normale. Filtrale con `?junk_kind=<kind>` o `?junk_kind=any` (esclude `not_junk`).
 
@@ -1094,7 +1184,7 @@ Il lightbox della foto ha le stesse azioni sotto **Imposta categoria di punteggi
 
 ## Statistiche EXIF
 
-La pagina Statistiche (`/stats`) ha 5 schede. I selettori di **categoria** e **intervallo di date** filtrano ogni grafico. In modalità multiutente ogni utente vede le statistiche delle proprie foto visibili.
+La pagina Statistiche (`/stats`) ha 5 schede. Il riepilogo mostra i conteggi di foto, persone e volti e il punteggio medio; i filtri sono disponibili anche su dispositivi mobili. I selettori di **categoria** e **intervallo di date** filtrano ogni grafico. In modalità multiutente ogni utente vede le statistiche delle proprie foto visibili.
 
 ### Schede
 
@@ -1104,7 +1194,7 @@ La pagina Statistiche (`/stats`) ha 5 schede. I selettori di **categoria** e **i
 | **Impostazioni di scatto** | Distribuzioni di ISO, diaframma, lunghezza focale, tempo di posa |
 | **Cronologia** | Foto nel tempo |
 | **Categorie** | Analisi delle categorie, gestione dei pesi e correlazioni dei punteggi |
-| **Correlazioni** | Grafici di correlazione personalizzati X/Y tra metriche con raggruppamento |
+| **Correlazioni** | Grafici di correlazione personalizzati X/Y tra metriche con raggruppamento. La scheda si apre sui punteggi per anno, e i grafici suggeriti (rumore per ISO e fotocamera, punteggio per categoria, punteggio per lunghezza focale) compilano il modulo e disegnano il grafico con un clic. Finché non modifichi il modulo, un cambio di filtro ridisegna il grafico; dopo una modifica lo fa il pulsante di aggiornamento **Carica correlazioni** |
 
 In **Correlazioni**, cambiare un'opzione della query cancella il risultato precedente; premi **Carica correlazioni** per recuperare la nuova selezione prima di esportare il CSV. Il grafico e il CSV descrivono la stessa selezione caricata. Cambiare lo stile o il tema del grafico mantiene quella selezione.
 
@@ -1147,29 +1237,35 @@ Le scorciatoie a tasto singolo sono inattive mentre il fuoco è in un campo di t
 | `Shift+Click` | Seleziona un intervallo di foto tra l'ultima selezionata e quella cliccata |
 | `Double-click` | Apre la foto |
 | `Shift+F10` / `Menu` | Apre il menu contestuale della scheda foto a fuoco (il clic destro fa lo stesso) |
-| `1`–`5` | Valuta la foto a fuoco da 1 a 5 stelle (modalità di modifica; passa automaticamente alla foto successiva) |
+| `1`–`5` | Valuta la foto a fuoco da 1 a 5 stelle (modalità di modifica) |
 | `K` | Conserva la foto a fuoco (modalità di modifica) |
 | `F` | Aggiunge / toglie dai preferiti la foto a fuoco (modalità di modifica) |
-| `X` o `0` | Rifiuta / annulla il rifiuto della foto a fuoco (modalità di modifica; avanza automaticamente) |
-| `/` | Mette a fuoco la ricerca della barra degli strumenti (mostrata da 1360 px di larghezza); più stretta, apre la ricerca della barra laterale dei filtri |
+| `X` o `0` | Rifiuta / annulla il rifiuto della foto a fuoco (modalità di modifica) |
+| `/` | Porta il focus sulla ricerca della raccolta; la mostra prima sugli schermi stretti |
 | `S` | Apre l'editor delle pile per la selezione esplicita (modalità di modifica; rimappabile, può restare non assegnato) |
 | `Ctrl+Maiusc+S` / `Cmd+Maiusc+S` | Impila subito la selezione esplicita non impilata nell’ordine di selezione, con la prima foto come copertina (modalità di modifica; i membri di pile esistenti aprono l’editor) |
 | `B` | Mostra / nasconde la barra laterale dei filtri |
-| `V` | Passa tra layout a griglia e a mosaico |
+| `V` | Alterna i layout a griglia, mosaico ed elenco |
 | `?` | Mostra il riferimento delle scorciatoie da tastiera (ogni pagina; anche nel menu utente → Aiuto) |
+
+**Avanza dopo il salvataggio**, nei controlli della vista, è disattivato per impostazione predefinita. Attivalo per passare alla foto successiva dopo il salvataggio riuscito di una valutazione o dei comandi da tastiera per conservare o rifiutare. Vale per la sessione corrente; cambiare foto, raccolta o account durante il salvataggio impedisce l’avanzamento automatico.
 
 **Rimappare i tasti.** `K`, `F`, `X`, `/`, `B`, `V` e `S` sono valori predefiniti. Menu utente → **Personalizza le scorciatoie** permette di cliccare un'azione e premere un nuovo tasto (`Esc` o `Tab` annulla). Cifre, `Space` e `?` sono riservati, e un tasto già in uso viene rifiutato. **Ripristina tutto** ripristina i valori predefiniti. La mappatura è memorizzata per browser (`localStorage`). La pagina della foto usa gli stessi tasti, e il riferimento `?` mostra sempre i tasti in vigore.
 
-**Foto corrente.** La foto su cui agiscono i tasti di valutazione, preferito e rifiuto ha un contorno di 4px; le altre schede si attenuano al 50%. Nulla è segnato finché non ti sposti su una foto. Cliccare una foto sposta il segnaposto su di essa. Tornando da una foto, il segnaposto resta sull'ultima visualizzata. Il suggerimento della scheda a fuoco compare solo in modalità di modifica con `viewer.features.show_rating_controls` attivo.
+**Foto corrente.** La foto su cui agiscono i tasti di valutazione, preferito e rifiuto ha un contorno di 4px; le altre schede mantengono la luminosità normale. Nulla è segnato finché non ti sposti su una foto. Cliccare una foto sposta il segnaposto su di essa. Tornando da una foto, il segnaposto resta sull'ultima visualizzata. Il suggerimento della scheda a fuoco compare solo in modalità di modifica con `viewer.features.show_rating_controls` attivo.
 
-**Nella pagina della foto**, `1`–`5`, il tasto preferito e il tasto rifiuta (`F` e `X` per impostazione predefinita; anche `0` rifiuta) agiscono sulla foto aperta, in modalità di modifica con `viewer.features.show_rating_controls` attivo. Non avanzano; usa `←` `→`. Il riferimento `?` li elenca sotto *Photo view*.
+**Nella pagina della foto**, `1`–`5`, il tasto preferito e il tasto rifiuta (`F` e `X` per impostazione predefinita; anche `0` rifiuta) agiscono sulla foto aperta, in modalità di modifica con `viewer.features.show_rating_controls` attivo. Valutazioni e preferiti mantengono la foto attuale. Conserva/Rifiuta in una coda di revisione della galleria aggiorna la coda e apre la prossima foto disponibile, oppure torna alla galleria se non ne restano. Le foto della cronologia non avanzano in questo modo. Usa `←` `→` per navigare manualmente (fuori dalla Cronologia scorrono prima il gruppo o la pila della foto aperta), oppure `↑` `↓` sugli schermi larghi. Il riferimento `?` li elenca sotto *Photo view*.
+
+Usa **Copia immagine** per copiare una versione PNG da incollare in un’altra app. Vengono copiati i pixel, non il file originale o i suoi metadati; usa Scarica per l’originale. Gli appunti richiedono un browser compatibile e una connessione sicura.
 
 ## Annulla
 
-Le modifiche di gruppo a preferito/rifiuto/valutazione e le conferme di selezione mostrano una snackbar con **Annulla** per ~7 secondi. `Ctrl+Z` / `Cmd+Z` la preme finché è visibile; in un campo di testo il tasto mantiene la sua funzione abituale.
+Le modifiche di gruppo a preferito/rifiuto/valutazione e le conferme differite di selezione mostrano una snackbar con **Annulla** per circa 7 secondi. `Ctrl+Z` / `Cmd+Z` la preme finché è visibile; in un campo di testo il tasto mantiene la sua funzione abituale.
 
 - Le modifiche di gruppo ai flag si applicano subito e si annullano invertendole (fino a 500 foto).
+- Annullare una valutazione ripristina solo le stelle, conservando gli altri flag. Richiede un’istantanea osservata completa di al massimo 500 foto e controlla le modifiche successive note localmente; non è il ripristino della cronologia che verifica i conflitti sul server.
 - Le conferme di selezione sono differite: il gruppo sparisce subito, ma nulla viene salvato finché la finestra di annullamento non termina.
+- Annullare quella conferma differita ne impedisce la scrittura; non è un annullamento dopo che la scrittura è stata confermata.
 - Le modifiche ai [tag manuali](#tag-manuali) non sono annullabili.
 
 Per modifiche più vecchie, vedi [Cronologia delle modifiche](#cronologia-delle-modifiche).
@@ -1182,7 +1278,9 @@ Le build di produzione possono essere installate nella schermata iniziale. La sh
 
 ## Mobile
 
-Sugli schermi piccoli la scheda di selezione fluttuante mantiene il conteggio e i pulsanti cancella, seleziona tutto e inverti, più un pulsante **Azioni**. Apre un pannello inferiore con ogni operazione di gruppo (preferito, rifiuto, valutazione, album, copia, download). Compare un pulsante di confronto quando la selezione si adatta alla vista di confronto.
+Sul telefono l'intestazione mostra sempre il pulsante del menu e il titolo indica la pagina corrente. Le barre inferiori delle pagine condividono la stessa riga da 56 px (altezza, margine interno e spaziatura); quelle di Selezione e Pulizia vanno su più righe quando i controlli non entrano. In Album e Persone i loro pulsanti hanno etichette da 768 px di larghezza. In **Persone**, **Aggiorna volti** sta sopra le schede sul telefono.
+
+Sugli schermi piccoli la barra di selezione fluttuante mostra pulsanti touch per cancellare la selezione, confrontare (con due o più foto selezionate) e, in modalità di modifica, Conserva e Rifiuta, più un pulsante **Azioni**. **Azioni** apre un pannello inferiore che riprende il menu Azioni del desktop nello stesso ordine, ogni sottomenu come una sezione con titolo: confronta, seleziona tutto e inverti; **Revisione** (Conserva, Rifiuta, preferito, reimposta decisione, da 1 a 5 stelle, cancella valutazione); **Aggiungi all'album**; **Segna come serie**; **Modifica metadati**; **Scarica** (una sezione solo quando esistono profili darktable); poi impila, copia nomi file, esporta, scarta in cartella, aggiorna, rimuovi da Facet ed elimina. Un comando che la selezione non può usare è disattivato, con il motivo sotto. Se la selezione non rientra nell'area di confronto, il pulsante di confronto resta disattivato e una nota indica i limiti.
 
 ## Cornice digitale / Chiosco
 
@@ -1460,15 +1558,15 @@ Trova le foto i cui rettangoli di volto salvati vanno controllati. Nella scheda 
 Correggi l'orologio sbagliato di una fotocamera. In modalità di modifica, scegli **Correggi data di scatto** dall'icona del calendario accanto alla data della foto, o dalla barra di selezione della galleria. Fino a 1000 foto visibili, "Seleziona tutta la vista" incluso.
 
 - **Sposta di** (predefinito): scegli **Prima** o **Dopo** e inserisci Giorni, Ore, Minuti e Secondi. Predefinito: 1 ora dopo. I pulsanti rapidi −1 h, +1 h, −1 d e +1 d si sommano allo spostamento.
-- **Imposta ora esatta**: inserisci la data e l'ora corrette di una foto di riferimento (la foto aperta, o la prima foto datata della selezione; non per "Seleziona tutta la vista"). Lo spostamento ne viene derivato.
+- **Imposta ora esatta**: inserisci la data e l'ora corrette. Con una foto di riferimento (la foto aperta, o la prima foto datata della selezione; non per "Seleziona tutta la vista") lo spostamento ne viene derivato e applicato a ogni foto selezionata. Senza riferimento (una foto senza data, "Seleziona tutta la vista", o una selezione senza foto datate) la data e l'ora inserite vanno solo alle foto senza una data di scatto utilizzabile; le foto datate mantengono la loro. Una singola foto senza data si apre in questa modalità.
 - Lo spostamento deve essere diverso da zero e al massimo ±366 giorni.
-- Un riepilogo indica lo spostamento ("1 h 30 min later"), e l'anteprima mostra i conteggi di modificate/saltate e le prime 20 marche temporali vecchie/nuove.
+- Un riepilogo indica lo spostamento ("1 h 30 min later") o l'ora impostata, e l'anteprima mostra i conteggi di modificate/saltate e le prime 20 marche temporali vecchie/nuove.
 - **Applica correzione (N)** la applica. Se nel frattempo è cambiato qualcosa, un errore offre **Anteprima** per aggiornare.
 
 **Che cosa cambia.**
 
 - L'ora della fotocamera viene spostata così com'è: nessuna logica di fuso orario o ora legale.
-- Sono supportate solo date complete `YYYY:MM:DD HH:MM:SS` o `YYYY-MM-DD[T o spazio]HH:MM:SS`. Le date sconosciute, solo data, con fuso orario/sottosecondi e non valide vengono saltate.
+- Sono supportate solo date complete `YYYY:MM:DD HH:MM:SS` o `YYYY-MM-DD[T o spazio]HH:MM:SS`. Uno spostamento salta le date sconosciute, solo data, con fuso orario/sottosecondi e non valide; un'ora esatta impostata senza riferimento completa solo quelle e salta ogni foto datata.
 - Le date corrette sopravvivono a nuove scansioni ed esportazioni incrementali del database della galleria.
 - **Usa data del file** rimuove la correzione e rilegge il file. Nessuna data nel file significa data di scatto sconosciuta.
 - Applicare una correzione non scrive mai l'originale né cambia l'ora del file. L'esportazione XMP scrive `exif:DateTimeOriginal`; **Scrivi metadati nel file** aggiorna anche l'EXIF `DateTimeOriginal` nei formati supportati.
@@ -1478,9 +1576,9 @@ Endpoint: `POST /api/photos/capture_date/preview`, `POST /api/photos/capture_dat
 
 ## Cronologia delle modifiche
 
-Rivedi e annulla le tue modifiche recenti in tutta la libreria. In modalità di modifica, apri **Cronologia delle modifiche** dall'icona dell'orologio nella navigazione principale (dopo In questo giorno). Espandi una voce per vedere i valori esatti prima/dopo, poi **Ripristina questa voce**.
+Esamina e ripristina le modifiche recenti in tutta la libreria. In modalità di modifica, apri **Cronologia delle modifiche** dalla navigazione. Ogni voce indica cosa è cambiato e mostra fino a sei delle sue foto, che si aprono in una nuova scheda; espandila per vedere i campi modificati foto per foto. Scegli **Ripristina…**, poi **Ripristina** o **Annulla**. Un conflitto viene indicato su quella voce e non scrive nulla; un errore di caricamento offre Ricarica anziché fingere che la cronologia sia vuota.
 
-- **Che cosa viene registrato:** GPS, date di scatto, decisioni di revisione, stelle, preferiti e pile manuali. Non file né riconoscimento dei volti.
+- **Che cosa viene registrato:** GPS, date di scatto, decisioni di revisione, stelle, preferiti e pile manuali. Non tag manuali, file né riconoscimento dei volti.
 - GPS e date di scatto sono valori condivisi della libreria. Decisioni di revisione, stelle e preferiti sono tuoi.
 - Il breve Annulla e l'elenco di attività dell'assistente sono separati.
 - **Limiti.** Le ultime **50 voci per account**, ciascuna fino a **1000 foto e 1 MiB** di valori. Le azioni di revisione filtrate più grandi vengono divise in parti; il ripristino ripristina una parte. Una sostituzione di pila può coprire fino a 2000 foto in una voce.
@@ -1488,6 +1586,10 @@ Rivedi e annulla le tue modifiche recenti in tutta la libreria. In modalità di 
 - **Il ripristino è tutto o niente.** Viene rifiutato se il valore di una qualsiasi foto è cambiato da allora, anche se è stato rimesso com'era. La modifica privata di revisione di un altro account non blocca la tua. Anche nuove scansioni, importazioni e Annulla possono invalidare voci più vecchie.
 - Una voce è nascosta quando una delle sue foto viene eliminata o non è più visibile a te.
 - Un ripristino aggiunge una propria voce e segna l'originale come ripristinato.
+
+### Elaborazione e ricevute
+
+Apri **Ricevute di elaborazione ed esportazione** dal sottomenu **Attività e diagnostica** del menu utente per esaminare le operazioni in background supportate, gli ID delle ricevute, lo stato effettivo e i conteggi degli elementi. Le attività completate con elementi incompiuti mantengono questa precisazione; non viene inventata una posizione in coda. L’annullamento ha effetto tra un file e l’altro. Riprova ripete l’operazione supportata per gli elementi non riusciti, non un’azione diversa. Un errore nella lettura dello stato offre un modo per recuperare. Le esportazioni di file mantengono le proprie anteprime e verifiche della destinazione e della titolarità; le ricevute descrivono scritture già tentate, non garantiscono che scritture di file separate siano globalmente atomiche.
 
 ## Volti senza nome
 

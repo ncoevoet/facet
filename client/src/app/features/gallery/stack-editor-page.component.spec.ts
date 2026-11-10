@@ -1,5 +1,6 @@
 import { ApplicationRef, Component, signal } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
+import { By } from '@angular/platform-browser';
 import { provideHttpClient, withXhr } from '@angular/common/http';
 import { provideHttpClientTesting, HttpTestingController } from '@angular/common/http/testing';
 import { provideRouter, Router } from '@angular/router';
@@ -17,6 +18,7 @@ import { GalleryStore } from './gallery.store';
 import { StackEditorPageComponent } from './stack-editor-page.component';
 import { STACK_EDITOR_HISTORY } from './stack-editor-history';
 import { PersonHideService } from '../persons/person-hide.service';
+import { SyncedZoomComponent } from './synced-zoom.component';
 
 @Component({ template: 'Gallery' })
 class GalleryOrigin {}
@@ -220,6 +222,17 @@ describe('manual stack workspace with Router, HTTP and Material', () => {
     await open(); http.expectOne('/api/stacks/regroup/preview').flush({}, { status: 403, statusText: 'Forbidden' }); await render();
     expect(root().querySelector('img')).toBeNull(); expect(root().textContent).not.toContain('private');
   });
+  it('returns focus to the selected mode after a failed preview is retried successfully', async () => {
+    const source = { id: 's1', members: paths.map(path => ({ path })), cover_path: paths[0], moved: 1, total: 2, remaining: 1, outcome: 'regroup_left_unstacked' };
+    await open();
+    http.expectOne('/api/stacks/regroup/preview').flush({ ...preview, source_stacks: [source] }); await render();
+    button('[data-stack-mode="selected"]').click();
+    http.expectOne('/api/stacks/regroup/preview').flush({}, { status: 500, statusText: 'Unavailable' }); await render();
+    const retry = button('[data-stack-retry]'); retry.focus(); retry.click();
+    http.expectOne('/api/stacks/regroup/preview').flush({ ...preview, mode: 'selected', source_stacks: [source] }); await render(); await render();
+    expect(root().querySelector('[data-stack-retry]')).toBeNull();
+    expect(document.activeElement).toBe(button('[data-stack-mode="selected"]'));
+  });
   it('keeps Save on the same URL, journals once, and actual snackbar Undo fetches a fresh editable preview', async () => {
     await ready(); button('[data-stack-save]').click();
     http.expectOne('/api/stacks/regroup/apply').flush({ changed: true, affected_paths: paths, undo: { entry_id: 81 } }); await render();
@@ -360,6 +373,155 @@ describe('manual stack workspace with Router, HTTP and Material', () => {
     TestBed.inject(PageHelpService).note.set({ key: 'old-note' }); await ready();
     expect(TestBed.inject(PageHelpService).descriptionKey()).toBe('stacks.manual_help');
     expect(TestBed.inject(PageHelpService).note()).toBeNull();
+  });
+
+  it('keeps one filmstrip Tab stop and moves actual focus with arrows, Home and End', async () => {
+    const many = Array.from({ length: 24 }, (_, index) => `/private/frame-${index}.jpg`);
+    await open(input({ paths: many, activePath: many[0] }));
+    http.expectOne('/api/stacks/regroup/preview').flush({ ...preview, selected_paths: many, paths: many,
+      cover_path: many[0], unstacked_paths: many, affected_paths: many }); await render();
+    const thumbnails = () => [...root().querySelectorAll<HTMLButtonElement>('[data-stack-focus]')];
+    const first = thumbnails()[0];
+    first.focus();
+    expect(thumbnails().filter(item => item.tabIndex === 0)).toHaveLength(1);
+    expect(root().querySelectorAll('[data-stack-filename][tabindex]')).toHaveLength(0);
+    expect([...root().querySelectorAll<HTMLImageElement>('[data-stack-focus] img')].every(img => img.alt === '')).toBe(true);
+    for (const [key, index] of [['ArrowRight', 1], ['End', 23], ['Home', 0]] as const) {
+      document.activeElement!.dispatchEvent(new KeyboardEvent('keydown', { key, bubbles: true, cancelable: true }));
+      await render();
+      expect(document.activeElement).toBe(thumbnails()[index]);
+      expect(thumbnails()[index].getAttribute('aria-pressed')).toBe('true');
+      expect(thumbnails().filter(item => item.tabIndex === 0)).toEqual([thumbnails()[index]]);
+    }
+    http.expectNone('/api/stacks/regroup/apply');
+  });
+
+  it('pans the focused zoom canvas within actual image bounds without switching members, then fits', async () => {
+    await ready();
+    const canvas = root().querySelector<HTMLElement>('app-synced-zoom')!;
+    const image = canvas.querySelector<HTMLImageElement>('img')!;
+    canvas.getBoundingClientRect = () => ({ x: 0, y: 0, width: 400, height: 300, top: 0, left: 0,
+      right: 400, bottom: 300, toJSON: () => ({}) }) as DOMRect;
+    Object.defineProperties(image, {
+      complete: { configurable: true, value: true }, naturalWidth: { configurable: true, value: 1600 },
+      naturalHeight: { configurable: true, value: 1200 },
+      currentSrc: { configurable: true, get: () => new URL(image.src, document.baseURI).href },
+    });
+    image.dispatchEvent(new Event('load')); await render();
+    canvas.focus(); expect(document.activeElement).toBe(canvas); expect(canvas.tabIndex).toBe(0);
+    canvas.dispatchEvent(new KeyboardEvent('keydown', { key: '+', bubbles: true, cancelable: true })); await render();
+    expect(image.style.transform).toContain('scale(1.5)');
+    for (let index = 0; index < 6; index++) {
+      canvas.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowRight', bubbles: true, cancelable: true })); await render();
+    }
+    expect(image.style.transform).toBe('translate(-100px, 0px) scale(1.5)');
+    expect(button('[data-stack-focus="/private/b.jpg"]').getAttribute('aria-pressed')).toBe('true');
+    expect(button('[data-stack-focus="/private/a.jpg"]').getAttribute('aria-pressed')).toBe('false');
+    canvas.dispatchEvent(new KeyboardEvent('keydown', { key: 'Home', bubbles: true, cancelable: true })); await render();
+    expect(image.style.transform).toBe('translate(0px, 0px) scale(1)');
+    for (const key of ['+', '-', '+', 'f']) {
+      canvas.dispatchEvent(new KeyboardEvent('keydown', { key, bubbles: true, cancelable: true })); await render();
+    }
+    expect(image.style.transform).toBe('translate(0px, 0px) scale(1)');
+    expect(document.activeElement).toBe(canvas);
+    http.expectNone('/api/stacks/regroup/apply');
+  });
+
+  it('restores DOM focus to a surviving thumbnail after keyboard Reject writes and excludes its target', async () => {
+    await ready();
+    const focused = button('[data-stack-focus="/private/b.jpg"]'); focused.focus();
+    focused.dispatchEvent(new KeyboardEvent('keydown', { key: 'r', bubbles: true, cancelable: true }));
+    http.expectOne(request => request.url === '/api/photo').flush({ path: paths[1], is_kept: true }); await render();
+    const write = http.expectOne('/api/photos/batch_review');
+    expect(write.request.body).toEqual({ photo_paths: [paths[1]], decision: 'rejected' });
+    write.flush({ success: true, count: 1, undo_entry_id: 93 }); await render();
+    expect(root().querySelector('[data-stack-focus="/private/b.jpg"]')).toBeNull();
+    expect(document.activeElement).toBe(button('[data-stack-focus="/private/a.jpg"]'));
+    expect(button('[data-stack-focus="/private/a.jpg"]').tabIndex).toBe(0);
+    expect(button('[data-stack-save]').disabled).toBe(true);
+    http.expectNone('/api/stacks/regroup/apply');
+  });
+
+  it('keeps the member and returns eligible focus when Reject fails', async () => {
+    await ready();
+    const focused = button('[data-stack-focus="/private/b.jpg"]'); focused.focus();
+    focused.dispatchEvent(new KeyboardEvent('keydown', { key: 'r', bubbles: true, cancelable: true }));
+    http.expectOne(request => request.url === '/api/photo').flush({}, { status: 500, statusText: 'Unavailable' }); await render();
+    expect(button('[data-stack-focus="/private/b.jpg"]')).toBe(focused);
+    expect(focused.disabled).toBe(false); expect(document.activeElement).toBe(focused);
+    expect(root().querySelector('[role="alert"]')).not.toBeNull();
+    http.expectNone('/api/photos/batch_review'); http.expectNone('/api/stacks/regroup/apply');
+  });
+
+  it.each(['success', 'failure'])('restores focus after toolbar Reject %s', async result => {
+    await ready();
+    const reject = button('[data-stack-reject]'); reject.focus(); reject.click();
+    const read = http.expectOne(request => request.url === '/api/photo');
+    if (result === 'failure') {
+      read.flush({}, { status: 500, statusText: 'Unavailable' });
+    } else {
+      read.flush({ path: paths[1], is_kept: true }); await render();
+      http.expectOne('/api/photos/batch_review').flush({ success: true, count: 1, undo_entry_id: 93 });
+    }
+    await render();
+    expect(document.activeElement).toBe(button(`[data-stack-focus="${result === 'success' ? paths[0] : paths[1]}"]`));
+    http.expectNone('/api/stacks/regroup/apply');
+  });
+
+  it('does not steal focus when the user moves away before Reject completes', async () => {
+    await ready();
+    const focused = button('[data-stack-focus="/private/b.jpg"]'); focused.focus();
+    focused.dispatchEvent(new KeyboardEvent('keydown', { key: 'r', bubbles: true, cancelable: true }));
+    const input = document.createElement('input'); root().append(input); input.focus();
+    http.expectOne(request => request.url === '/api/photo').flush({ path: paths[1], is_rejected: true }); await render();
+    expect(document.activeElement).toBe(input);
+    expect(root().querySelector('[data-stack-focus="/private/b.jpg"]')).toBeNull();
+    input.remove(); http.expectNone('/api/photos/batch_review');
+  });
+
+  it('reports an actual source-image error, retries that frame and ignores its late error after navigation', async () => {
+    await ready(); button('[data-stack-zoom]').click(); await render();
+    const image = root().querySelector<HTMLImageElement>('app-synced-zoom img')!;
+    let painted = image.src;
+    Object.defineProperties(image, {
+      complete: { configurable: true, value: true }, naturalWidth: { configurable: true, value: 1600 },
+      naturalHeight: { configurable: true, value: 1200 }, currentSrc: { configurable: true, get: () => painted },
+    });
+    image.dispatchEvent(new Event('error')); await render();
+    expect(root().querySelector('[data-rendition-readout]')?.textContent).toContain('gallery.compare.rendition.failed');
+    button('[data-rendition-retry]').click(); await render();
+    const retryUrl = new URL(image.src);
+    expect(retryUrl.pathname).toBe('/image'); expect(retryUrl.searchParams.get('path')).toBe(paths[1]);
+    expect(retryUrl.searchParams.get('facet_retry')).toBeTruthy();
+    expect(retryUrl.searchParams.get('ngsw-bypass')).toBe('1');
+    painted = image.src; image.dispatchEvent(new Event('load')); await render();
+    expect(root().querySelector('[data-rendition-readout]')?.textContent).toContain('gallery.compare.rendition.ready');
+    expect(root().querySelector('[data-rendition-retry]')).toBeNull();
+    button('[data-stack-focus="/private/a.jpg"]').click(); await render();
+    image.dispatchEvent(new Event('error')); await render();
+    expect(root().querySelector('[data-rendition-retry]')).toBeNull();
+    expect(root().querySelector('[data-stack-focused-name]')?.textContent).toContain('a.jpg');
+    expect(image.src).toContain('path=%2Fprivate%2Fa.jpg');
+    http.expectNone('/api/stacks/regroup/apply');
+  });
+
+  it('does not report a background preview failure over a successfully displayed original', async () => {
+    await ready(); button('[data-stack-zoom]').click(); await render();
+    const image = root().querySelector<HTMLImageElement>('app-synced-zoom img')!;
+    Object.defineProperties(image, {
+      complete: { configurable: true, value: true }, naturalWidth: { configurable: true, value: 1600 },
+      naturalHeight: { configurable: true, value: 1200 }, currentSrc: { configurable: true, get: () => image.src },
+    });
+    image.dispatchEvent(new Event('load')); await render();
+    const pane = harness.routeDebugElement!.query(By.directive(SyncedZoomComponent)).componentInstance as SyncedZoomComponent;
+    pane.sharpFailed.emit(pane.src()); await render();
+    const readout = root().querySelector('[data-rendition-readout]')!;
+    expect(readout.textContent).toContain('gallery.compare.rendition.source');
+    expect(readout.textContent).not.toContain('photo_detail.rendition.attempt_failed');
+    expect(root().querySelector('[data-rendition-retry]')).toBeNull();
+    image.dispatchEvent(new Event('error')); await render();
+    expect(root().querySelector('[data-rendition-retry]')).not.toBeNull();
+    http.expectNone('/api/stacks/regroup/apply');
   });
 
   it('loads only the focused original on explicit zoom and resets fit when changing members', async () => {

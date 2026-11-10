@@ -5,6 +5,7 @@ import { MatSnackBar } from '@angular/material/snack-bar';
 import { ApiService } from '../../core/services/api.service';
 import { AuthService } from '../../core/services/auth.service';
 import { I18nService } from '../../core/services/i18n.service';
+import { HeaderSlotService } from '../../core/services/header-slot.service';
 import { CapsulesComponent } from './capsules.component';
 import { I18N } from '../../core/i18n/keys';
 
@@ -134,6 +135,30 @@ describe('CapsulesComponent', () => {
       // the failure must still be visible, as a toast.
       expect(mockSnackBar.open).toHaveBeenCalledWith(
         I18N.capsules.load_error, '', { duration: 3000 });
+    });
+  });
+
+  describe('page-actions template', () => {
+    it('adds no margin of its own: the shell wrapper and the bar already inset the first control to 16px', async () => {
+      TestBed.resetTestingModule();
+      TestBed.configureTestingModule({
+        providers: [
+          { provide: ApiService, useValue: mockApi },
+          { provide: AuthService, useValue: mockAuth },
+          { provide: I18nService, useValue: { t: (key: string) => key, translations: () => ({}) } },
+          { provide: MatSnackBar, useValue: mockSnackBar },
+        ],
+      });
+      const fixture = TestBed.createComponent(CapsulesComponent);
+      fixture.detectChanges();
+      await fixture.whenStable();
+      const template = TestBed.inject(HeaderSlotService).template()!;
+      const view = template.createEmbeddedView({});
+      view.detectChanges();
+      const fields = view.rootNodes.flatMap((n: Node) => n instanceof Element ? Array.from(n.querySelectorAll('mat-form-field')).concat(n.matches('mat-form-field') ? [n] : []) : []);
+      expect(fields.length).toBeGreaterThan(0);
+      expect(fields.every(f => !f.classList.contains('ml-2'))).toBe(true);
+      view.destroy();
     });
   });
 });

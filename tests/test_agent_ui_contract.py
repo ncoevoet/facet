@@ -307,3 +307,35 @@ def test_rejected_only_and_favorites_patch_is_refused_atomically():
     from api.agent.ui_tools import UiSetGalleryFilters
     with pytest.raises(ValueError, match="cannot be combined"):
         UiSetGalleryFilters.model_validate({"patch": {"show_rejected": True, "favorites_only": True}})
+
+
+def test_gallery_filter_proposal_forwards_interpretation_without_turning_it_into_a_filter():
+    from api.agent.ui_tools import UiSetGalleryFilters
+    value = {'patch': {'date_from': '2024-03-01', 'tag': 'Birds'},
+             'proposal': {'source_query': 'birds last spring except videos', 'unrepresented': ['except videos']}}
+    assert UiSetGalleryFilters.model_validate(value).forward() == {**value, 'replace': False}
+    assert UiSetGalleryFilters(patch={'tag': 'Birds'}).forward() == {'patch': {'tag': 'Birds'}, 'replace': False}
+
+
+def test_nullable_constrained_patch_fields_keep_bounds_in_the_flat_client_schema():
+    from api.agent.ui_tools import input_schema
+    patch = input_schema(next(tool for tool in UI_TOOLS if tool.name == 'ui_set_gallery_filters'))['properties']['patch']['properties']
+    for name in ('keyword_branch', 'tag_groups', 'score_presence'):
+        assert patch[name]['type'] == ['string', 'null']
+        assert patch[name]['maxLength'] > 0
+        assert 'anyOf' not in patch[name]
+    assert patch['keyword_branch']['maxLength'] == 36
+
+
+@pytest.mark.parametrize('proposal', [
+    {'source_query': 'birds'},
+    {'source_query': '', 'unrepresented': []},
+    {'source_query': 'x' * 4001, 'unrepresented': []},
+    {'source_query': 'birds', 'unrepresented': ['']},
+    {'source_query': 'birds', 'unrepresented': ['unsupported'] * 21},
+    {'source_query': 'birds', 'unrepresented': [], 'apply': True},
+])
+def test_gallery_filter_proposal_requires_bounded_explicit_unrepresented_clauses(proposal):
+    from api.agent.ui_tools import UiSetGalleryFilters
+    with pytest.raises(ValueError):
+        UiSetGalleryFilters(patch={'tag': 'Birds'}, proposal=proposal)

@@ -27,19 +27,19 @@ import { I18N, i18nKeys } from '../../core/i18n/keys';
     <div class="flex items-center justify-center min-h-full p-4">
       <mat-card class="w-full max-w-sm">
         <mat-card-header>
-          <mat-card-title class="!flex items-center gap-2">
-            <mat-icon>diamond</mat-icon>
+          <h1 mat-card-title class="!flex items-center gap-2">
+            <mat-icon aria-hidden="true">diamond</mat-icon>
             Facet
-          </mat-card-title>
+          </h1>
         </mat-card-header>
         <mat-card-content class="mt-4">
           @if (auth.isMultiUser()) {
-            <mat-form-field class="w-full">
+            <mat-form-field appearance="outline" class="w-full">
               <mat-label>{{ I18N.auth.username | translate }}</mat-label>
               <input matInput [(ngModel)]="username" (keyup.enter)="login()" />
             </mat-form-field>
           }
-          <mat-form-field class="w-full">
+          <mat-form-field appearance="outline" class="w-full">
             <mat-label>{{ I18N.auth.password | translate }}</mat-label>
             <input matInput type="password" [(ngModel)]="password" (keyup.enter)="login()" />
           </mat-form-field>

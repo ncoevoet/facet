@@ -41,7 +41,7 @@ import { PanoramaSettingsService, PanoramaSettings } from './panorama-settings.s
         <button mat-stroked-button (click)="reload()">{{ I18N.gallery.load_error.retry | translate }}</button>
       </div>
     } @else if (settings(); as s) {
-      <p class="text-sm opacity-70 mb-4 max-w-3xl">
+      <p class="text-sm text-[var(--mat-sys-on-surface-variant)] mb-4 max-w-3xl">
         {{ I18N.panorama.settings.intro | translate }}
       </p>
 

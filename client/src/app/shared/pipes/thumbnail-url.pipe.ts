@@ -1,5 +1,6 @@
 import { Pipe, PipeTransform } from '@angular/core';
 import { privateImageCacheKey } from '../utils/private-image-session';
+import { SharedAlbumMediaScope, sharedAlbumMediaUrl } from '../utils/shared-album-media';
 
 /** Largest `size` served from the stored thumbnail. Mirrors the server's render
  *  THRESHOLD (`_STORED_THUMBNAIL_SIZE` in api/routers/thumbnails.py), not the
@@ -46,7 +47,8 @@ class UrlMemo<A extends unknown[]> {
   }
 }
 
-export function thumbnailUrl(path: string, size?: number, revision?: string | null): string {
+export function thumbnailUrl(path: string, size?: number, revision?: string | null, scope?: SharedAlbumMediaScope | null): string {
+  if (scope) return sharedAlbumMediaUrl(scope, 'thumbnail', path, size, revision);
   const params = new URLSearchParams({ path });
   if (size) params.set('size', String(size));
   if (revision) params.set('preview', revision);
@@ -57,12 +59,13 @@ export function thumbnailUrl(path: string, size?: number, revision?: string | nu
 export class ThumbnailUrlPipe implements PipeTransform {
   private readonly memo = new UrlMemo(thumbnailUrl);
 
-  transform(path: string, size?: number, revision?: string | null): string {
-    return this.memo.get(path, size, revision);
+  transform(path: string, size?: number, revision?: string | null, scope?: SharedAlbumMediaScope | null): string {
+    return this.memo.get(path, size, revision, scope);
   }
 }
 
-export function imageUrl(path: string, fallbackThumbnail = false, revision?: string | null): string {
+export function imageUrl(path: string, fallbackThumbnail = false, revision?: string | null, scope?: SharedAlbumMediaScope | null): string {
+  if (scope) return sharedAlbumMediaUrl(scope, 'image', path, undefined, revision);
   const params = new URLSearchParams({ path });
   if (fallbackThumbnail) params.set('fallback', 'thumbnail');
   if (revision) params.set('preview', revision);
@@ -73,8 +76,8 @@ export function imageUrl(path: string, fallbackThumbnail = false, revision?: str
 export class ImageUrlPipe implements PipeTransform {
   private readonly memo = new UrlMemo(imageUrl);
 
-  transform(path: string, fallbackThumbnail = false, revision?: string | null): string {
-    return this.memo.get(path, fallbackThumbnail, revision);
+  transform(path: string, fallbackThumbnail = false, revision?: string | null, scope?: SharedAlbumMediaScope | null): string {
+    return this.memo.get(path, fallbackThumbnail, revision, scope);
   }
 }
 

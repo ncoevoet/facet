@@ -17,7 +17,7 @@ const PAGE_SIZE = 24;
   template: `
     <section class="mt-4" [attr.aria-label]="I18N.cull.file_preview.title | translate">
       <h3 class="text-sm font-medium mb-2">{{ I18N.cull.file_preview.title | translate }}</h3>
-      <p class="text-xs opacity-70 mb-3">{{ I18N.cull.file_preview.help | translate }}</p>
+      <p class="text-xs text-[var(--mat-sys-on-surface-variant)] mb-3">{{ I18N.cull.file_preview.help | translate }}</p>
       @if (selected(); as file) {
         <button #previewBack mat-button type="button" (click)="closePreview()">
           <mat-icon aria-hidden="true">arrow_back</mat-icon>
@@ -53,7 +53,7 @@ const PAGE_SIZE = 24;
                 }
                 <span class="block text-xs p-2 break-all">{{ file.path | filename }}</span>
               </button>
-              <p class="text-[10px] opacity-60 mt-1 truncate" [title]="file.path">{{ file.path }}</p>
+              <p class="text-[10px] text-[var(--mat-sys-on-surface-variant)] mt-1 truncate" [title]="file.path">{{ file.path }}</p>
             </li>
           }
         </ul>

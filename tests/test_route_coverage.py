@@ -47,12 +47,14 @@ PUBLIC_ROUTES = [
 # user; a few (e.g. /api/plugins, the comparison reads) are edition-only since an
 # install without viewer.edition_password became read-only.
 AUTH_ROUTES = [
+    '/api/manual_tags/hierarchy',
     '/api/export/sidecar_jobs',
     '/api/organization_history',
     '/api/photos',
     '/api/photos/review_progress',
     '/api/type_counts',
     '/api/folders',
+    '/api/faces/review',
     '/api/filter_options/cameras',
     '/api/filter_options/lenses',
     '/api/filter_options/tags',
@@ -64,6 +66,7 @@ AUTH_ROUTES = [
     '/api/filter_options/patterns',
     '/api/stats/overview',
     '/api/stats/score_distribution',
+    '/api/stats/metric_distribution',
     '/api/stats/top_cameras',
     '/api/stats/categories',
     '/api/stats/gear',
@@ -96,6 +99,12 @@ AUTH_ROUTES = [
 # Routes that require auth AND take a query/path parameter. We pass a known
 # value or a deliberately bogus one — the assertion is just "no 5xx".
 PARAMETERISED_ROUTES = [
+    ('/api/shared/album/1/photo', {'asset_id': '1.' + '0' * 64, 'token': 'invalid'}),
+    ('/api/shared/album/1/media/thumbnail', {'asset_id': '1.' + '0' * 64, 'token': 'invalid'}),
+    ('/api/shared/album/1/media/image', {'asset_id': '1.' + '0' * 64, 'token': 'invalid'}),
+    ('/api/shared/album/1/media/download', {'asset_id': '1.' + '0' * 64, 'token': 'invalid'}),
+    ('/api/logical_assets/review', {'asset_id': 'a' * 32}),
+    ('/api/logical_assets/by-photo', {'path': '/nonexistent.jpg'}),
     ('/api/stacks/by-photo', {'path': '/nonexistent.jpg'}),
     ('/api/stacks/nonexistent', {}),
     ('/api/export/sidecar_jobs/not-a-job', {}),
@@ -126,8 +135,19 @@ PARAMETERISED_ROUTES = [
 # POST routes with a minimal valid-shaped body naming a photo that does not exist:
 # the handler runs (validation passes) and ends in a 4xx or an empty success.
 POST_ROUTES = [
+    ('/api/scan/faces/start', {'job_id': '0' * 32, 'confirm': True, 'expected_model': 'unavailable-fixture-model'}),
+    ('/api/scan/faces/jobs/' + '0' * 32 + '/cancel', {'confirm': True, 'job_id': '0' * 32}),
+    ('/api/faces/review/feedback', {'face_id': 987654321, 'person_id': 987654321,
+                                    'identity_token': '0' * 64, 'expected_person_name': 'Absent'}),
+    ('/api/faces/review/feedback/undo', {'face_id': 987654321, 'person_id': 987654321,
+                                         'identity_token': '0' * 64, 'expected_person_name': 'Absent', 'receipt_id': '0' * 32}),
+    ('/api/scan/retry/preview', {'run_id': 1}),
+    ('/api/scan/retry/apply', {'plan_id': '0' * 32, 'confirm': True}),
     ('/api/auth/cookie', {}),
     ('/api/stacks', {'paths': ['/none/a.jpg', '/none/b.jpg'], 'cover_path': '/none/a.jpg'}),
+    ('/api/logical_assets/review', {'asset_id': 'a' * 32, 'group_revision': 1, 'revision': 0, 'input_token': 'b' * 64, 'patch': {'star_rating': 3}}),
+    ('/api/logical_assets/preview', {'operation': 'create', 'paths': ['/none/a.jpg', '/none/a.CR2'], 'primary_path': '/none/a.jpg'}),
+    ('/api/logical_assets/apply', {'change': {'operation': 'create', 'paths': ['/none/a.jpg', '/none/a.CR2'], 'primary_path': '/none/a.jpg'}, 'preview_token': 'invalid'}),
     ('/api/stacks/regroup/preview', {'selected_paths': ['/none/a.jpg', '/none/b.jpg']}),
     ('/api/stacks/regroup/apply', {'selected_paths': ['/none/a.jpg', '/none/b.jpg'],
                                 'paths': ['/none/a.jpg', '/none/b.jpg'], 'cover_path': '/none/a.jpg',
@@ -149,6 +169,8 @@ POST_ROUTES = [
     ('/api/photos/key_subjects', {'paths': []}),
     ('/api/person/1/face_boxes', {'paths': ['/nonexistent.jpg']}),
     ('/api/face/987654321/unassign', {}),
+    ('/api/face/987654321/ignore', {'photo_path': '/nonexistent.jpg'}),
+    ('/api/ignored-face/00000000-0000-0000-0000-000000000000/restore', {'photo_path': '/nonexistent.jpg'}),
     ('/api/photos/batch_favorite', {'photo_paths': ['/nonexistent.jpg']}),
     ('/api/photos/batch_rating', {'photo_paths': ['/nonexistent.jpg'], 'rating': 3}),
     ('/api/lightroom/manifest', {'paths': ['/nonexistent.jpg']}),
@@ -157,9 +179,16 @@ POST_ROUTES = [
 
 # Routes that require superadmin (scan).
 SUPERADMIN_ROUTES = [
+    '/api/scan/faces/preview',
+    '/api/scan/faces/jobs',
+    '/api/scan/faces/jobs/' + '0' * 32,
+    '/api/scan/faces/jobs/' + '0' * 32 + '/items',
     '/api/immich/diagnostics',
     '/api/scan/status',
     '/api/scan/directories',
+    '/api/scan/runs',
+    '/api/scan/jobs/' + '0' * 32,
+    '/api/scan/retry/' + '0' * 32,
 ]
 
 

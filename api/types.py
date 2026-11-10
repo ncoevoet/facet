@@ -279,8 +279,11 @@ def get_photo_types(hide_blinks=False, hide_bursts=False, hide_duplicates=False,
     """Build type list dynamically from database, showing only non-empty categories with counts."""
     from api.db_helpers import get_db_connection, get_existing_columns, get_visibility_clause
 
+    # Resolve even for anonymous callers before looking in the cache: a viewer
+    # can become locked while the open-install counts are still warm.
+    vis_sql, vis_params = get_visibility_clause(user_id)
     cache_key = (hide_blinks, hide_bursts, hide_duplicates,
-                 hide_brackets, hide_panoramas, user_id or '')
+                 hide_brackets, hide_panoramas, user_id or '', vis_sql, tuple(vis_params))
     with _photo_types_lock:
         if time.time() < _photo_types_cache['expires'] and cache_key in _photo_types_cache['data']:
             return _photo_types_cache['data'][cache_key]
@@ -296,12 +299,8 @@ def get_photo_types(hide_blinks=False, hide_bursts=False, hide_duplicates=False,
             '1' if hide_brackets else '0',
             '1' if hide_panoramas else '0',
         )
-        sql_params = []
-
-        if user_id:
-            vis_sql, vis_params = get_visibility_clause(user_id)
-            base_filters.append(vis_sql)
-            sql_params.extend(vis_params)
+        sql_params = list(vis_params)
+        base_filters.append(vis_sql)
 
         base_where = " AND ".join(base_filters) if base_filters else ""
 

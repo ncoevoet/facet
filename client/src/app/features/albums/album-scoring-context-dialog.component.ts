@@ -64,7 +64,7 @@ const DEFAULT_CONTEXT = 'default';
           <mat-spinner diameter="28" [attr.aria-label]="'ui.labels.loading' | translate" />
         </div>
       } @else {
-        <p class="text-sm opacity-70 mb-3">{{ 'albums.scoring_context.description' | translate }}</p>
+        <p class="text-sm text-[var(--mat-sys-on-surface-variant)] mb-3">{{ 'albums.scoring_context.description' | translate }}</p>
 
         <mat-form-field class="w-full">
           <mat-label>{{ 'albums.scoring_context.label' | translate }}</mat-label>
@@ -78,11 +78,11 @@ const DEFAULT_CONTEXT = 'default';
 
         @if (suggestion(); as s) {
           @if (s.suggested && s.moment && s.suggested !== selectedContext()) {
-            <div class="flex items-center gap-2 text-xs opacity-70 -mt-2 mb-3">
+            <div class="flex items-center gap-2 text-xs text-[var(--mat-sys-on-surface-variant)] -mt-2 mb-3">
               <span>
                 {{ 'albums.scoring_context.suggested_hint' | translate:{ context: suggestedLabel(), percent: '' + suggestedPercent(), moment: s.moment } }}
               </span>
-              <button mat-button class="!min-w-0 !px-2" (click)="selectedContext.set(s.suggested!)">
+              <button mat-button class="!min-w-0 !px-2 max-sm:!min-h-11" (click)="selectedContext.set(s.suggested!)">
                 {{ 'albums.scoring_context.apply_suggestion' | translate }}
               </button>
             </div>
@@ -107,7 +107,7 @@ const DEFAULT_CONTEXT = 'default';
             <p class="opacity-70 mb-2">
               {{ (cleared() ? 'albums.scoring_context.cleared_success' : 'albums.scoring_context.saved_success') | translate:{ count: '' + updatedCount() } }}
             </p>
-            <p class="opacity-60 text-xs mb-2">{{ 'albums.scoring_context.membership_note' | translate }}</p>
+            <p class="text-[var(--mat-sys-on-surface-variant)] text-xs mb-2">{{ 'albums.scoring_context.membership_note' | translate }}</p>
 
             @if (phase() === 'saved') {
               <p class="mb-2">{{ 'albums.scoring_context.recompute_prompt' | translate }}</p>
@@ -117,8 +117,8 @@ const DEFAULT_CONTEXT = 'default';
                 </p>
               }
               <div class="flex gap-2 justify-end">
-                <button mat-button (click)="close()">{{ 'albums.scoring_context.recompute_skip' | translate }}</button>
-                <button mat-flat-button (click)="recompute()">{{ 'albums.scoring_context.recompute_button' | translate }}</button>
+                <button mat-button class="max-sm:!min-h-11" (click)="close()">{{ 'albums.scoring_context.recompute_skip' | translate }}</button>
+                <button mat-flat-button class="max-sm:!min-h-11" (click)="recompute()">{{ 'albums.scoring_context.recompute_button' | translate }}</button>
               </div>
             }
 
@@ -141,17 +141,17 @@ const DEFAULT_CONTEXT = 'default';
     </mat-dialog-content>
     <mat-dialog-actions align="end">
       @if (phase() === 'select' || phase() === 'saving') {
-        <button mat-button (click)="cancel()">{{ 'ui.buttons.cancel' | translate }}</button>
+        <button mat-button class="max-sm:!min-h-11" (click)="cancel()">{{ 'ui.buttons.cancel' | translate }}</button>
         @if (data.currentContext) {
           <button mat-button [disabled]="loading() || phase() === 'saving'" (click)="clear()">
             {{ 'albums.scoring_context.clear_button' | translate }}
           </button>
         }
-        <button mat-flat-button [disabled]="loading() || phase() === 'saving'" (click)="save()">
+        <button mat-flat-button class="max-sm:!min-h-11" [disabled]="loading() || phase() === 'saving'" (click)="save()">
           {{ phase() === 'saving' ? ('ui.buttons.saving' | translate) : ('ui.buttons.save' | translate) }}
         </button>
       } @else {
-        <button mat-button (click)="close()">{{ 'albums.scoring_context.close' | translate }}</button>
+        <button mat-button class="max-sm:!min-h-11" (click)="close()">{{ 'albums.scoring_context.close' | translate }}</button>
       }
     </mat-dialog-actions>
   `,

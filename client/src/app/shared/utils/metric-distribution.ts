@@ -19,11 +19,16 @@ export function normalizeBars(buckets: number[]): number[] {
   return buckets.map(b => Math.round((b / max) * 100));
 }
 
+function relativePosition(range: MetricDistribution, value: number): number {
+  const scale = Math.max(Math.abs(range.min), Math.abs(range.max), 1);
+  return (value / scale - range.min / scale) / (range.max / scale - range.min / scale);
+}
+
 /** The bucket a value falls in, by the same formula the server buckets with (`_metric_buckets`). */
 export function bucketIndexOf(range: MetricDistribution, value: number): number {
   const bins = range.buckets.length;
   if (bins <= 1 || range.max <= range.min) return 0;
-  const raw = Math.trunc(((value - range.min) * bins) / (range.max - range.min));
+  const raw = Math.trunc(relativePosition(range, value) * bins);
   return Math.max(0, Math.min(bins - 1, raw));
 }
 
@@ -37,9 +42,8 @@ export function percentileOf(range: MetricDistribution, value: number | null | u
   const bins = range.buckets.length;
   const total = range.buckets.reduce((sum, b) => sum + b, 0);
   if (bins <= 1 || total === 0 || range.max <= range.min) return null;
-  const width = (range.max - range.min) / bins;
   const index = bucketIndexOf(range, value);
-  const within = Math.max(0, Math.min(1, (value - (range.min + index * width)) / width));
+  const within = Math.max(0, Math.min(1, relativePosition(range, value) * bins - index));
   const below = range.buckets.slice(0, index).reduce((sum, b) => sum + b, 0) + within * range.buckets[index];
   return Math.round((below / total) * 100);
 }

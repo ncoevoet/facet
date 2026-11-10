@@ -399,11 +399,12 @@ def test_the_import_scan_follows_the_scan_access_rule(monkeypatch, multi, user, 
     monkeypatch.setattr(scan_router, '_is_open_install', lambda key: open_install)
     monkeypatch.setattr(scan_router, '_library_job_conflict_detail', lambda: None)
     monkeypatch.setattr(scan_router, '_spawn_scan',
-                        lambda targets, reported, flags=(): spawned.append((targets, flags)))
+                        lambda cmd, reported: spawned.append((cmd, reported)))
     monkeypatch.setitem(scan_router._scan_state, 'running', False)
     assert scan_router.start_file_scan(user, ['/p/x_agy_1.jpg']) == refused
     # Only the new file, with --ai-edit: no library-wide passes for one imported edit.
-    assert spawned == ([] if refused else [(['/p/x_agy_1.jpg'], ('--ai-edit',))])
+    command = [scan_router.sys.executable, scan_router.FACET_SCRIPT, '--ai-edit', '--', '/p/x_agy_1.jpg']
+    assert spawned == ([] if refused else [(command, ['/p/x_agy_1.jpg'])])
 
 
 def test_the_link_reads_from_both_sides_once_the_edit_is_scanned(edition_client, library, seed_photos_prefix):
@@ -538,3 +539,37 @@ def test_an_original_on_its_own_starts_a_burst_with_its_edit(edition_client, lib
             conn.execute('SELECT burst_group_id, is_burst_lead, tags FROM photos WHERE path = ?', (target,)).fetchone())
     assert og is not None and og == eg and (ol, el) == (1, 0)
     assert tags == 'own'
+
+def test_import_retains_file_and_link_when_scan_observer_cannot_start(edition_client, library, monkeypatch):
+    from types import SimpleNamespace
+    from unittest.mock import Mock
+    app = edition_client.app
+    from api.auth import CurrentUser, require_edition
+
+    monkeypatch.setitem(app.dependency_overrides, require_edition,
+                        lambda: CurrentUser(user_id='test', edition_authenticated=True, trusted_local_editing=True))
+
+    def unavailable():
+        raise RuntimeError('cannot start observer thread')
+
+    monkeypatch.setattr(ai_edits_router, 'start_file_scan', scan_router.start_file_scan)
+    monkeypatch.setattr(scan_router, 'scan_feature_refusal', lambda user: None)
+    monkeypatch.setattr(scan_router, 'is_multi_user_enabled', lambda: False)
+    monkeypatch.setattr(scan_router, '_is_open_install', lambda key: False)
+    monkeypatch.setattr(scan_router, '_library_job_conflict_detail', lambda: None)
+    monkeypatch.setitem(scan_router._scan_state, 'running', False)
+    monkeypatch.setattr(scan_router, 'threading', SimpleNamespace(Event=threading.Event, Thread=lambda **kwargs: SimpleNamespace(start=unavailable)))
+    spawn = Mock()
+    monkeypatch.setattr(scan_router.subprocess, 'Popen', spawn)
+    source = _jpeg(library['work'] / 'observer-failure.jpg')
+    response = _import(edition_client, library, source)
+    assert response.status_code == 200, response.text
+    result = response.json()
+    assert result['scan'] == {'started': False, 'detail': 'Scan failed to start'}
+    with open(source, 'rb') as original, open(result['edit_path'], 'rb') as imported:
+        assert imported.read() == original.read()
+    with sqlite3.connect(_TEST_DB_FILE.name) as conn:
+        assert conn.execute('SELECT source_path FROM photo_ai_edits WHERE edit_path=?',
+                            (result['edit_path'],)).fetchone() == (library['original'],)
+    spawn.assert_not_called()
+    assert scan_router._scan_state['running'] is False

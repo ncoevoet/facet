@@ -71,6 +71,29 @@ describe('AuthService', () => {
     mockRouter.navigate.mockClear();
   });
 
+  it('logout clears retained thumbnail entries without delaying navigation or deleting namespaces', async () => {
+    const request = new Request('http://localhost/thumbnail?path=private');
+    const bytes = new Map([[request, 'private bytes']]);
+    const open = vi.fn(async () => ({
+      keys: async () => [...bytes.keys()],
+      delete: async (key: Request) => bytes.delete(key),
+    }));
+    const deleteNamespace = vi.fn();
+    vi.stubGlobal('caches', { keys: async () => ['ngsw:thumbnails:cache', 'unrelated'], open, delete: deleteNamespace });
+    try {
+      const done = service.logout();
+      expect(mockRouter.navigate).toHaveBeenCalledWith(['/login']);
+      httpTesting.expectOne('/api/auth/logout').flush({ ok: true });
+      await done;
+      await vi.waitFor(() => expect(bytes.size).toBe(0));
+      // Logout invalidates the session before and again after the cookie is cleared, so
+      // the purge may run more than once; it must only ever open the thumbnail cache.
+      expect(open).toHaveBeenCalledWith('ngsw:thumbnails:cache');
+      expect(open.mock.calls).toEqual(open.mock.calls.map(() => ['ngsw:thumbnails:cache']));
+      expect(deleteNamespace).not.toHaveBeenCalled();
+    } finally { vi.unstubAllGlobals(); }
+  });
+
   describe('initial state', () => {
     it('should have null status initially', () => {
       expect(service.status()).toBeNull();
@@ -225,6 +248,86 @@ describe('AuthService', () => {
     });
   });
 
+  describe('session', () => {
+    async function confirm(status: AuthStatus): Promise<void> {
+      const pending = service.revalidate();
+      httpTesting.expectOne('/api/auth/status').flush(status);
+      await pending;
+    }
+
+    it('is null until a status is confirmed', async () => {
+      expect(service.session()).toBeNull();
+      trackTokenStorage(makeJwt(3600, { sub: 'alice' }));
+      await confirm({ ...mockStatus, user_id: 'alice' });
+      expect(service.session()).not.toBeNull();
+    });
+
+    it('holds through a same-session revalidation that replaces the status object', async () => {
+      trackTokenStorage(makeJwt(3600, { sub: 'alice' }));
+      await confirm({ ...mockStatus, user_id: 'alice' });
+      const status = service.status(); const session = service.session();
+      await confirm({ ...mockStatus, user_id: 'alice', display_name: 'Alice' });
+      expect(service.status()).not.toBe(status);
+      expect(service.session()).toBe(session);
+    });
+
+    it('holds through the transient null of a rejected edition password', async () => {
+      trackTokenStorage(makeJwt(3600, { sub: 'alice' }));
+      await confirm({ ...mockStatus, user_id: 'alice' });
+      const session = service.session();
+      const login = service.editionLogin('wrong');
+      expect(service.status()).toBeNull();
+      expect(service.session()).toBe(session);
+      httpTesting.expectOne('/api/auth/edition/login').flush('Forbidden', { status: 403, statusText: 'Forbidden' });
+      expect(await login).toBe('invalid');
+      expect(service.session()).toBe(session);
+    });
+
+    it("holds while another tab's auth attempt leaves the shared cookie uncertain", async () => {
+      trackTokenStorage(makeJwt(3600, { sub: 'alice' }));
+      await confirm({ ...mockStatus, user_id: 'alice' });
+      const session = service.session();
+      window.dispatchEvent(new StorageEvent('storage', { key: 'facet_auth_cookie_uncertain', newValue: '1' }));
+      expect(service.status()).toBeNull();
+      expect(service.session()).toBe(session);
+      window.dispatchEvent(new StorageEvent('storage', { key: 'facet_auth_cookie_uncertain', newValue: null }));
+      httpTesting.expectOne('/api/auth/status').flush({ ...mockStatus, user_id: 'alice' });
+      await nextTurn();
+      expect(service.session()).toBe(session);
+    });
+
+    it('drops when another tab rotates the token and names the new account once confirmed', async () => {
+      trackTokenStorage(makeJwt(3600, { sub: 'alice' }));
+      await confirm({ ...mockStatus, user_id: 'alice' });
+      const session = service.session();
+      localStorage.setItem('facet_token', makeJwt(3600, { sub: 'bob' }));
+      window.dispatchEvent(new StorageEvent('storage', { key: 'facet_token' }));
+      expect(service.session()).toBeNull();
+      httpTesting.expectOne('/api/auth/status').flush({ ...mockStatus, user_id: 'bob' });
+      await nextTurn();
+      expect(service.session()).not.toBeNull();
+      expect(service.session()).not.toBe(session);
+    });
+
+    it('changes with the edition right and drops on logout', async () => {
+      trackTokenStorage(null);
+      await confirm({ ...mockStatus, multi_user: false, user_id: null });
+      const session = service.session();
+      const unlock = service.editionLogin('edition-pass');
+      httpTesting.expectOne('/api/auth/edition/login').flush({ access_token: makeJwt(3600, { edition: true }) });
+      await nextTurn();
+      httpTesting.expectOne('/api/auth/status').flush({ ...mockStatus, multi_user: false, user_id: '_legacy', edition_authenticated: true });
+      expect(await unlock).toBe('ok');
+      expect(service.session()).not.toBeNull();
+      expect(service.session()).not.toBe(session);
+      void service.logout();
+      expect(service.session()).toBeNull();
+      httpTesting.expectOne('/api/auth/logout').flush(null);
+      await nextTurn();
+      expect(service.session()).toBeNull();
+    });
+  });
+
   describe('cross-tab token rotation', () => {
     it('discards an old account response and clears its identity while the new account loads', async () => {
       const aliceToken = makeJwt(3600, { sub: 'alice' });
@@ -311,6 +414,32 @@ describe('AuthService', () => {
       httpTesting.expectOne('/api/auth/status').flush({ ...mockStatus, authenticated: false });
       await nextTurn();
       expect(service.isAuthenticated()).toBe(false);
+    });
+
+    it('refuses new edit commands while a rotated credential is being checked', async () => {
+      trackTokenStorage(makeJwt(3600));
+      const initial = service.revalidate();
+      httpTesting.expectOne('/api/auth/status').flush({ ...mockStatus, edition_authenticated: true });
+      await initial;
+      expect(service.isEdition()).toBe(true);
+
+      localStorage.setItem('facet_token', makeJwt(7200));
+      window.dispatchEvent(new StorageEvent('storage', { key: 'facet_token', newValue: 'rotated' }));
+      const blockedWhileChecking = !service.isEdition();
+      httpTesting.expectOne('/api/auth/status').flush(mockStatus);
+      await Promise.resolve();
+      expect(blockedWhileChecking).toBe(true);
+    });
+
+    it('does not resurrect status after logout during a pending status read', async () => {
+      const pending = service.revalidate();
+      const request = httpTesting.expectOne('/api/auth/status');
+      service.logout();
+      httpTesting.expectOne('/api/auth/logout').flush({ ok: true });
+      request.flush(mockStatus);
+      await pending;
+      expect(service.status()).toBeNull();
+      expect(service.isEdition()).toBe(false);
     });
 
     it('should refetch status when another tab rewrites the token', async () => {
@@ -1152,6 +1281,22 @@ describe('AuthService', () => {
       await nextTurn();
       expect(service.token).toBe(readToken);
       expect(service.status()).toEqual(locked);
+    });
+
+    it('locks immediately and keeps the accepted reduced-rights token usable', async () => {
+      trackTokenStorage(makeJwt(3600));
+      const initial = service.checkStatus();
+      httpTesting.expectOne('/api/auth/status').flush({ ...mockStatus, edition_authenticated: true });
+      await initial;
+
+      const lock = service.dropEdition();
+      expect(service.isEdition()).toBe(false);
+      const reducedToken = makeJwt(7200);
+      httpTesting.expectOne('/api/auth/edition/logout').flush({ access_token: reducedToken });
+      await lock;
+      expect(service.token).toBe(reducedToken);
+      expect((await service.loadStatus()).user_id).toBe(mockStatus.user_id);
+      httpTesting.expectNone('/api/auth/status');
     });
   });
 

@@ -235,12 +235,15 @@ class FaceProcessor:
         """Write a batch of results to the database."""
         embedding_model = active_embedding_model()
         with get_connection(self.db_path, row_factory=False) as conn:
+            # A correction committed after filtering must not be overwritten by
+            # this queued extraction. Serialize the correction read and insert.
+            conn.execute('BEGIN IMMEDIATE')
             for result in results:
                 if result['type'] == 'extract':
-                    from db.manual_faces import without_manual_overlaps
+                    from db.ignored_faces import filter_detected_faces
                     records = [face_upsert_row(result['photo_path'], face, embedding_model)
                                for face in result['face_details'] if face.get('embedding')]
-                    records = without_manual_overlaps(conn, result['photo_path'], records)
+                    records = filter_detected_faces(conn, result['photo_path'], records)
                     conn.executemany(FACES_UPSERT_SQL, records)
                 elif result['type'] == 'refill':
                     conn.execute("""

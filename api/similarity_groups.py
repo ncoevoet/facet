@@ -1,5 +1,6 @@
 """Similarity group computation using CLIP/SigLIP embeddings."""
 
+import hashlib
 import logging
 import sqlite3
 import time
@@ -31,6 +32,64 @@ def _get_similarity_config():
         return {'default_threshold': 0.85, 'min_group_size': 2, 'max_photos': 10000, 'max_group_size': 50}
 
 
+def _candidate_fingerprint(rows, settings, *, logical=False):
+    """Bind cached groups to the actual authorized inputs, including restored DBs."""
+    digest = hashlib.sha256()
+
+    def add(value):
+        digest.update(len(value).to_bytes(8, 'big'))
+        digest.update(value)
+
+    add(json.dumps(settings, ensure_ascii=True).encode('utf-8'))
+    for row in rows:
+        add(json.dumps([row['path'], row['aggregate'], row['_logical_asset_id'] if logical else None], ensure_ascii=True).encode('utf-8'))
+        add(row['clip_embedding'])
+    return digest.hexdigest()
+
+
+_THRESHOLD_STEP = 0.02
+
+
+def _components(matrix, members, threshold):
+    """Connected components of ``members`` whose cosine similarity reaches ``threshold``."""
+    sub = matrix[members]
+    uf = UnionFind(len(members))
+    chunk_size = 500  # chunked so the n x n similarity matrix never has to exist
+    for i in range(0, len(members), chunk_size):
+        sims = sub[i:i + chunk_size] @ sub.T
+        for ci in range(len(sims)):
+            gi = i + ci
+            for j in np.where(sims[ci, gi + 1:] >= threshold)[0] + gi + 1:
+                uf.union(gi, int(j))
+    grouped = defaultdict(list)
+    for k, idx in enumerate(members):
+        grouped[uf.find(k)].append(idx)
+    return list(grouped.values())
+
+
+def _split_oversized(matrix, members, threshold, max_size):
+    """``(members, threshold)`` pieces within ``max_size``, each with the threshold it formed at.
+
+    Single linkage chains: a long run of look-alike shots joins into one
+    component even though its ends are not similar. Dropping that component hid
+    every photo in it from the feed, so it is tightened until it breaks apart.
+    A piece cut at a stricter threshold reports that threshold, not the caller's.
+    """
+    pieces = []
+    for comp in _components(matrix, members, threshold):
+        if len(comp) <= max_size:
+            pieces.append((comp, threshold))
+        elif threshold + _THRESHOLD_STEP < 1.0:
+            pieces.extend(_split_oversized(matrix, comp, threshold + _THRESHOLD_STEP, max_size))
+        else:
+            # A chain too dense for any threshold to cut: members are in capture
+            # order, so contiguous chunks keep neighbouring frames together.
+            count = -(-len(comp) // max_size)
+            size = -(-len(comp) // count)
+            pieces.extend((comp[i:i + size], threshold) for i in range(0, len(comp), size))
+    return pieces
+
+
 def compute_similarity_groups(conn=None, threshold=None, min_size=None, user_id=None,
                               album_id=None, date_from=None, date_to=None, *,
                               use_cache=True, path_scope=None):
@@ -38,7 +97,7 @@ def compute_similarity_groups(conn=None, threshold=None, min_size=None, user_id=
     Compute groups of visually similar photos using stored CLIP/SigLIP embeddings.
 
     Uses cosine similarity on embeddings, then connected components to form groups.
-    Results cached in stats_cache table with TTL.
+    Results cached in stats_cache with TTL and current candidate validation.
 
     Args:
         conn: SQLite connection (creates one if None)
@@ -56,7 +115,9 @@ def compute_similarity_groups(conn=None, threshold=None, min_size=None, user_id=
                    the ``max_photos`` cap applies inside the scope.
 
     Returns:
-        List of groups, each: { paths: [...], best_path: str, count: int }
+        List of groups, each: { paths: [...], best_path: str, count: int, threshold: float },
+        ``threshold`` being the one the group formed at (stricter than the argument
+        when an oversized component was re-split).
     """
     from api.db_helpers import (
         get_visibility_clause, album_filter_clause, time_window_clauses, HIDE_BURSTS_SQL,
@@ -77,21 +138,20 @@ def compute_similarity_groups(conn=None, threshold=None, min_size=None, user_id=
         close_conn = True
 
     try:
+        from api.logical_collection import album_predicate
+        from api.logical_culling import standalone_source
         vis_sql, vis_params = get_visibility_clause(user_id)
-        album_sql, album_params = album_filter_clause(album_id)
         window_clauses, window_params = time_window_clauses(date_from, date_to)
-
-        cache_key = f"similarity_groups_{threshold}_{min_size}_{user_id}_{album_id}_{date_from}_{date_to}_10k"
+        # One row per logical photo: a RAW+JPEG capture is not "similar" to itself.
+        logical = standalone_source(conn, user_id, extra=('clip_embedding', 'date_taken', 'is_burst_lead', 'is_sequence_lead'))
+        album_sql, album_params = (album_filter_clause if logical is None else album_predicate)(album_id)
+        cache_key = f"similarity_groups_{threshold}_{min_size}_{user_id}_{album_id}_{date_from}_{date_to}_split_threshold"
+        cached = None
         if use_cache:
             cached = conn.execute(
                 "SELECT value, updated_at FROM stats_cache WHERE key = ?",
                 (cache_key,)
             ).fetchone()
-            if cached and (time.time() - cached['updated_at']) < 3600:  # 1 hour TTL
-                try:
-                    return json.loads(cached['value'])
-                except (json.JSONDecodeError, TypeError):
-                    pass  # Cache corrupted, recompute
 
         # Load embeddings — cap for performance (O(n²) computation)
         # Exclude burst non-leads to avoid overlap with burst culling. The
@@ -106,16 +166,37 @@ def compute_similarity_groups(conn=None, threshold=None, min_size=None, user_id=
             album_sql,
             scope_fragment,
         ] + window_clauses
+        from_sql, from_params = ('photos', []) if logical is None else (logical.sql, logical.params)
         rows = conn.execute(
-            f"""SELECT path, clip_embedding, aggregate FROM photos
+            f"""SELECT path, clip_embedding, aggregate, {('NULL' if logical is None else '_logical_asset_id')} AS _logical_asset_id FROM {from_sql}
                WHERE {' AND '.join(where)}
                ORDER BY date_taken DESC
                LIMIT ?""",
-            vis_params + album_params + scope_params + window_params + [max_photos]
+            from_params + vis_params + album_params + scope_params + window_params + [max_photos]
         ).fetchall()
 
         if len(rows) < 2:
             return []
+
+        # Visibility can change without deleting persistent stats, and a restored
+        # catalog can carry old stats with it. Validate the exact current inputs
+        # before returning any cached paths, best_path or count. Reading/hashing
+        # the capped candidates is linear; the quadratic grouping remains cached.
+        fingerprint = None
+        if use_cache:
+            fingerprint = _candidate_fingerprint(
+                rows, [threshold, min_size, max_photos, max_group_size,
+                       vis_sql, vis_params, album_sql, album_params,
+                       window_clauses, window_params], logical=logical is not None)
+            if cached and (time.time() - cached['updated_at']) < 3600:
+                try:
+                    payload = json.loads(cached['value'])
+                    if (isinstance(payload, dict)
+                            and payload.get('fingerprint') == fingerprint
+                            and isinstance(payload.get('groups'), list)):
+                        return payload['groups']
+                except (json.JSONDecodeError, TypeError):
+                    pass  # Cache corrupted, recompute.
 
         paths = [r['path'] for r in rows]
         aggregates = {r['path']: r['aggregate'] or 0 for r in rows}
@@ -141,43 +222,27 @@ def compute_similarity_groups(conn=None, threshold=None, min_size=None, user_id=
         # Compute cosine similarity matrix (chunked to avoid OOM for large datasets)
         n = len(emb_matrix)
 
-        # Union-Find for connected components
-        uf = UnionFind(n)
-
-        # Compute similarities in chunks (vectorized pair extraction)
-        chunk_size = 500
-        for i in range(0, n, chunk_size):
-            chunk = emb_matrix[i:i+chunk_size]
-            sims = chunk @ emb_matrix.T  # (chunk_size, n)
-            for ci in range(len(chunk)):
-                global_i = i + ci
-                # Upper triangle only: compare with indices > global_i
-                row = sims[ci, global_i + 1:]
-                js = np.where(row >= threshold)[0] + global_i + 1
-                for j in js:
-                    uf.union(global_i, int(j))
-
-        # Build groups
-        groups_map = defaultdict(list)
-        for idx in range(n):
-            groups_map[uf.find(idx)].append(valid_paths[idx])
-
         groups = []
-        for group_paths in groups_map.values():
-            if min_size <= len(group_paths) <= max_group_size:
-                best_path = max(group_paths, key=lambda p: aggregates.get(p, 0))
-                groups.append({
-                    'paths': group_paths,
-                    'best_path': best_path,
-                    'count': len(group_paths),
-                })
+        for members, group_threshold in _split_oversized(emb_matrix, list(range(n)), threshold, max_group_size):
+            if len(members) < min_size:
+                continue
+            group_paths = [valid_paths[i] for i in members]
+            best_path = max(group_paths, key=lambda p: aggregates.get(p, 0))
+            groups.append({
+                'paths': group_paths,
+                'best_path': best_path,
+                'count': len(group_paths),
+                'threshold': group_threshold,
+            })
 
         groups.sort(key=lambda g: g['count'], reverse=True)
 
         if not use_cache:
             return groups
         try:
-            cache_stats_best_effort(conn, [(cache_key, json.dumps(groups))])
+            cache_stats_best_effort(conn, [(cache_key, json.dumps({
+                'fingerprint': fingerprint, 'groups': groups,
+            }))])
         except sqlite3.Error as e:
             logger.debug("Failed to cache similarity groups: %s", e)
 

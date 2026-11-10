@@ -157,6 +157,7 @@ def test_a_fresh_database_has_exactly_the_specified_indexes_and_table(tmp_path):
     assert NARROW not in names, "the narrow viewer index is superseded by idx_date_asc_cover"
     assert "idx_faces_cluster" not in names
     assert set(POST_SCAN) <= names
+    assert _key_columns(db_path, 'idx_ignored_face_photo') == ['photo_path', 'active']
 
     with sqlite3.connect(db_path) as conn:
         cols = [r[1] for r in conn.execute("PRAGMA table_info(panorama_run_cache)")]
@@ -432,3 +433,15 @@ def test_the_thumbnail_length_expression_is_covered(analyzed_library):
     assert _covered_by(plan, "idx_date_asc_cover"), plan
     without = _plan(analyzed_library, sql.replace("length(thumbnail)", "length(filename)"))
     assert not _covered_by(without, "idx_date_asc_cover"), without
+
+
+@pytest.mark.skipif(
+    sqlite3.sqlite_version_info < MIN_COVERING_SQLITE,
+    reason=f"SQLite {sqlite3.sqlite_version} is older than {MIN_COVERING_SQLITE}")
+def test_the_lookalike_pair_reads_seek_indexes_instead_of_the_thumbnail_row(analyzed_library):
+    # These columns sit after the thumbnail BLOB: read through the table they walk the overflow pages.
+    from api.lookalike_pairs import _REVIEWED_SQL, pair_columns_sql
+    plan = _plan(analyzed_library, pair_columns_sql(3).replace('?', 'NULL'))
+    assert any("SEARCH photos USING COVERING INDEX idx_date_asc_cover" in line for line in plan), plan
+    for sql, index in zip(_REVIEWED_SQL, ("idx_similarity_reviewed", "idx_burst_reviewed")):
+        assert _covered_by(_plan(analyzed_library, sql), index), sql

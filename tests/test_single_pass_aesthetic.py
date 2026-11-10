@@ -151,9 +151,11 @@ class TestRunScanWiring:
                 raise _Stop()
 
         monkeypatch.setattr(processing.scorer, 'Facet', _RecordingFacet)
-        args = SimpleNamespace(config=str(config_path), db=str(tmp_path / 'unused.db'),
-                               single_pass=single_pass, single_pass_name=single_pass_name,
-                               dry_run=dry_run)
+        from cli_args import build_parser
+        args = build_parser().parse_args(['--config', str(config_path), '--db', str(tmp_path / 'unused.db')])
+        args.single_pass = single_pass
+        args.single_pass_name = single_pass_name
+        args.dry_run = dry_run
         with caplog.at_level(logging.WARNING, logger='facet'):
             with pytest.raises(_Stop):
                 facet._run_scan(args, None)

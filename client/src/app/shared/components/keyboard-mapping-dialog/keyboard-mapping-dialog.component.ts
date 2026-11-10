@@ -25,7 +25,7 @@ import { SHORTCUT_REGISTRY, ShortcutActionId } from '../../../core/services/shor
       </span>
       <span class="flex flex-col">
         <span class="!text-base !font-semibold">{{ I18N.shortcuts.keymap_title | translate }}</span>
-        <span class="!text-xs !font-normal opacity-60 mt-0.5">{{ I18N.shortcuts.keymap_hint | translate }}</span>
+        <span class="!text-xs !font-normal text-[var(--mat-sys-on-surface-variant)] mt-0.5">{{ I18N.shortcuts.keymap_hint | translate }}</span>
       </span>
     </h2>
     <mat-dialog-content class="!px-6 !pb-1 !overflow-hidden">

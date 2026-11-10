@@ -1,28 +1,25 @@
 import { TestBed } from '@angular/core/testing';
 import { signal } from '@angular/core';
-import { of, Subject, throwError } from 'rxjs';
+import { Observable, of, Subject, throwError } from 'rxjs';
 import type { Mock } from 'vitest';
 import { ApiService } from '../../core/services/api.service';
+import { AuthService } from '../../core/services/auth.service';
 import { I18nService } from '../../core/services/i18n.service';
 import { StatsFiltersService } from './stats-filters.service';
-import { StatsTimelineTabComponent, HeatmapColorPipe, HeatmapSizePipe } from './stats-timeline-tab.component';
+import { StatsTimelineTabComponent, HeatmapColorPipe, HeatmapSizePipe, formatStatsMonth } from './stats-timeline-tab.component';
 
 describe('StatsTimelineTabComponent', () => {
   let component: StatsTimelineTabComponent;
-  let api: { get: Mock };
-  const populated = {
-    monthly: [{ month: '2024-06', count: 12, avg_score: 7 }],
-    heatmap: [{ day: 2, hour: 8, count: 12 }],
-  };
-  const filters = () => TestBed.inject(StatsFiltersService);
+  let owner: ReturnType<typeof signal<string>>;
 
   beforeEach(() => {
-    api = { get: vi.fn(() => of({ monthly: [], heatmap: [] })) };
+    owner = signal('owner-a');
     TestBed.configureTestingModule({
       providers: [
         StatsTimelineTabComponent,
-        { provide: ApiService, useValue: api },
-        { provide: I18nService, useValue: { t: vi.fn((k: string) => k), currentLang: vi.fn(() => 'en') } },
+        { provide: ApiService, useValue: { get: vi.fn(() => of({})) } },
+        { provide: AuthService, useValue: { status: signal({ authenticated: true }), identity: owner, isAuthenticated: signal(true), token: 'token-a' } },
+        { provide: I18nService, useValue: { t: vi.fn((k: string) => k), locale: signal('en'), currentLang: vi.fn(() => 'en') } },
         { provide: StatsFiltersService, useValue: { filterCategory: signal(''), dateFrom: signal(''), dateTo: signal('') } },
       ],
     });
@@ -33,73 +30,249 @@ describe('StatsTimelineTabComponent', () => {
     expect(component).toBeTruthy();
   });
 
-  describe('loaded timeline ownership', () => {
-    beforeEach(async () => {
-      TestBed.tick();
-      await Promise.resolve();
-      api.get.mockReturnValueOnce(of(populated));
-      await component.loadTimeline();
-    });
+  it('clears previous values and shows a failure when the next request fails', async () => {
+    TestBed.tick();
+    component.timeline.set([{ period: '2025-01', count: 8, avg_score: 5 }]);
+    component.heatmapGrid.set([[4]]);
+    vi.mocked(TestBed.inject(ApiService).get).mockReturnValueOnce(throwError(() => new Error('offline')));
+    await component.loadTimeline();
+    expect(component.timelineFailed()).toBe(true);
+    expect(component.timeline()).toEqual([]);
+    expect(component.heatmapGrid()).toEqual([]);
+  });
 
-    it('clears every derived chart after a populated query becomes empty', async () => {
-      expect(component.dayOfWeekData()[2].count).toBe(12);
-      expect(component.hourOfDayData()[8].count).toBe(12);
-      expect(component.heatmapMax()).toBe(12);
-      expect(component.yearlyData()).toEqual([{ year: '2024', count: 12 }]);
-      await component.loadTimeline();
-      expect(component.timeline()).toEqual([]);
-      expect(component.yearlyData()).toEqual([]);
-      expect(component.dayOfWeekData()).toEqual([]);
-      expect(component.hourOfDayData()).toEqual([]);
-      expect(component.heatmapRows()).toEqual([]);
-      expect(component.heatmapMax()).toBe(1);
-    });
+  it('ignores a response for an earlier filter', async () => {
+    TestBed.tick();
+    const pending = new Subject<any>();
+    vi.mocked(TestBed.inject(ApiService).get).mockReturnValueOnce(pending);
+    const request = component.loadTimeline();
+    TestBed.inject(StatsFiltersService).filterCategory.set('portrait');
+    pending.next({ monthly: [{ month: '2025-01', count: 8 }] });
+    pending.complete();
+    await request;
+    expect(component.timeline()).toEqual([]);
+  });
 
-    it.each(['success', 'failure'])('ignores a queued obsolete %s while the new filter is loading', async outcome => {
-      const old = new Subject<typeof populated>();
-      const latest = new Subject<typeof populated>();
-      api.get.mockReturnValueOnce(old).mockReturnValueOnce(latest);
-      filters().filterCategory.set('portrait');
-      TestBed.tick();
-      if (outcome === 'success') old.next(populated);
-      else old.error(new Error('obsolete failure'));
-      filters().dateFrom.set('2025-01-01');
-      TestBed.tick();
-      await Promise.resolve();
-      expect(component.timelineLoading()).toBe(true);
-      expect(component.timeline()).toEqual([]);
-      expect(component.heatmapRows()).toEqual([]);
-      latest.next({ monthly: [{ month: '2025-01', count: 2, avg_score: 4 }], heatmap: [] });
-      latest.complete();
-      await Promise.resolve();
-      expect(component.timeline()).toEqual([{ period: '2025-01', count: 2, avg_score: 4 }]);
-      expect(component.timelineLoading()).toBe(false);
-      expect((component as any).timelineError()).toBe(false);
-    });
+  it('ignores a late response from the previous owner and loads the new owner', async () => {
+    TestBed.tick();
+    const pending = new Subject<any>();
+    const api = vi.mocked(TestBed.inject(ApiService).get);
+    api.mockReturnValueOnce(pending);
+    const request = component.loadTimeline();
+    owner.set('owner-b');
+    pending.next({ monthly: [{ month: '2025-01', count: 8 }] });
+    pending.complete();
+    await request;
+    expect(component.timeline()).toEqual([]);
+    api.mockReturnValueOnce(of({ monthly: [{ month: '2026-01', count: 3 }] }));
+    TestBed.tick();
+    await Promise.resolve();
+    expect(component.timeline().map(row => row.count)).toEqual([3]);
+  });
 
-    it('clears stale data on failure and recovers on retry', async () => {
-      api.get.mockReturnValueOnce(throwError(() => new Error('failed')));
-      await component.loadTimeline();
-      expect((component as any).timelineError()).toBe(true);
-      expect(component.timelineLoading()).toBe(false);
-      expect(component.timeline()).toEqual([]);
-      expect(component.heatmapRows()).toEqual([]);
-      api.get.mockReturnValueOnce(of(populated));
-      await component.loadTimeline();
-      expect((component as any).timelineError()).toBe(false);
-      expect(component.heatmapGrid()[2][8]).toBe(12);
-    });
+  it('ignores a response after destruction', async () => {
+    TestBed.tick();
+    const pending = new Subject<any>();
+    vi.mocked(TestBed.inject(ApiService).get).mockReturnValueOnce(pending);
+    const request = component.loadTimeline();
+    TestBed.resetTestingModule();
+    pending.next({ monthly: [{ month: '2025-01', count: 8 }] });
+    pending.complete();
+    await request;
+    expect(component.timeline()).toEqual([]);
+  });
 
-    it('unsubscribes on destroy and does not publish queued results', async () => {
-      const pending = new Subject<typeof populated>();
-      api.get.mockReturnValueOnce(pending);
-      const done = component.loadTimeline();
-      expect(pending.observed).toBe(true);
-      TestBed.resetTestingModule();
-      expect(pending.observed).toBe(false);
-      await done;
-      expect(component.timeline()).toEqual([]);
+  it('does not load while signed out and clears previous data', async () => {
+    TestBed.tick();
+    component.timeline.set([{ period: '2025-01', count: 8, avg_score: 5 }]);
+    (TestBed.inject(AuthService).isAuthenticated as ReturnType<typeof signal<boolean>>).set(false);
+    const api = vi.mocked(TestBed.inject(ApiService).get);
+    api.mockClear();
+    await component.loadTimeline();
+    expect(api).not.toHaveBeenCalled();
+    expect(component.timeline()).toEqual([]);
+  });
+
+  it('ignores a late response after the credential changes', async () => {
+    TestBed.tick();
+    const pending = new Subject<any>();
+    vi.mocked(TestBed.inject(ApiService).get).mockReturnValueOnce(pending);
+    const request = component.loadTimeline();
+    Object.defineProperty(TestBed.inject(AuthService), 'token', { value: 'token-b', configurable: true });
+    pending.next({ monthly: [{ month: '2025-01', count: 8 }] });
+    pending.complete();
+    await request;
+    expect(component.timeline()).toEqual([]);
+  });
+
+  it('clears and reloads the timeline on a same-owner credential rotation', async () => {
+    TestBed.tick();
+    vi.mocked(TestBed.inject(ApiService).get).mockReturnValueOnce(of({ monthly: [{ month: '2025-01', count: 8 }] }));
+    await component.loadTimeline();
+    expect(component.timeline().map(row => row.count)).toEqual([8]);
+    const auth = TestBed.inject(AuthService);
+    Object.defineProperty(auth, 'token', { value: 'token-b', configurable: true });
+    vi.mocked(TestBed.inject(ApiService).get).mockReturnValueOnce(of({ monthly: [{ month: '2026-01', count: 3 }] }));
+    (auth.status as ReturnType<typeof signal<any>>).set({ authenticated: true });
+    TestBed.tick();
+    await Promise.resolve();
+    expect(component.timeline().map(row => row.count)).toEqual([3]);
+  });
+});
+
+describe('Timeline loaded ownership', () => {
+  let component: StatsTimelineTabComponent;
+  let api: { get: Mock };
+  const populated = {
+    monthly: [{ month: '2024-06', count: 12, avg_score: 7 }],
+    heatmap: [{ day: 2, hour: 8, count: 12 }],
+  };
+  const filters = () => TestBed.inject(StatsFiltersService);
+
+  beforeEach(async () => {
+    api = { get: vi.fn(() => of({ monthly: [], heatmap: [] })) };
+    TestBed.configureTestingModule({
+      providers: [
+        StatsTimelineTabComponent,
+        { provide: ApiService, useValue: api },
+        { provide: AuthService, useValue: { status: signal({ authenticated: true }), identity: signal('owner'), isAuthenticated: signal(true), token: 'token' } },
+        { provide: I18nService, useValue: { t: vi.fn((k: string) => k), locale: signal('en'), currentLang: vi.fn(() => 'en') } },
+        { provide: StatsFiltersService, useValue: { filterCategory: signal(''), dateFrom: signal(''), dateTo: signal('') } },
+      ],
     });
+    component = TestBed.inject(StatsTimelineTabComponent);
+    TestBed.tick();
+    await Promise.resolve();
+    api.get.mockReturnValueOnce(of(populated));
+    await component.loadTimeline();
+  });
+
+  it('clears every derived chart after a populated query becomes empty', async () => {
+    expect(component.dayOfWeekData()[2].count).toBe(12);
+    expect(component.hourOfDayData()[8].count).toBe(12);
+    expect(component.heatmapMax()).toBe(12);
+    expect(component.yearlyData()).toEqual([{ year: '2024', count: 12 }]);
+    await component.loadTimeline();
+    expect(component.timeline()).toEqual([]);
+    expect(component.yearlyData()).toEqual([]);
+    expect(component.dayOfWeekData()).toEqual([]);
+    expect(component.hourOfDayData()).toEqual([]);
+    expect(component.heatmapRows()).toEqual([]);
+    expect(component.heatmapMax()).toBe(1);
+  });
+
+  it.each(['success', 'failure'])('ignores a queued obsolete %s while the new filter is loading', async outcome => {
+    const old = new Subject<typeof populated>();
+    const latest = new Subject<typeof populated>();
+    api.get.mockReturnValueOnce(old).mockReturnValueOnce(latest);
+    filters().filterCategory.set('portrait');
+    TestBed.tick();
+    if (outcome === 'success') old.next(populated);
+    else old.error(new Error('obsolete failure'));
+    filters().dateFrom.set('2025-01-01');
+    TestBed.tick();
+    await Promise.resolve();
+    expect(component.timelineLoading()).toBe(true);
+    expect(component.timeline()).toEqual([]);
+    expect(component.heatmapRows()).toEqual([]);
+    latest.next({ monthly: [{ month: '2025-01', count: 2, avg_score: 4 }], heatmap: [] });
+    latest.complete();
+    await Promise.resolve();
+    expect(component.timeline()).toEqual([{ period: '2025-01', count: 2, avg_score: 4 }]);
+    expect(component.timelineLoading()).toBe(false);
+    expect(component.timelineFailed()).toBe(false);
+  });
+
+  it('clears stale data on failure and recovers on retry', async () => {
+    api.get.mockReturnValueOnce(throwError(() => new Error('failed')));
+    await component.loadTimeline();
+    expect(component.timelineFailed()).toBe(true);
+    expect(component.timelineLoading()).toBe(false);
+    expect(component.timeline()).toEqual([]);
+    expect(component.heatmapRows()).toEqual([]);
+    api.get.mockReturnValueOnce(of(populated));
+    await component.loadTimeline();
+    expect(component.timelineFailed()).toBe(false);
+    expect(component.heatmapGrid()[2][8]).toBe(12);
+  });
+
+  it('unsubscribes on destroy and does not publish queued results', async () => {
+    const pending = new Subject<typeof populated>();
+    api.get.mockReturnValueOnce(pending);
+    const done = component.loadTimeline();
+    expect(pending.observed).toBe(true);
+    TestBed.resetTestingModule();
+    expect(pending.observed).toBe(false);
+    await done;
+    expect(component.timeline()).toEqual([]);
+  });
+});
+
+describe('Timeline retry focus', () => {
+  it('keeps Retry focused on failure and moves focus to the heading only after success', async () => {
+    const pending = new Subject<any>();
+    const api = { get: vi.fn((): Observable<any> => throwError(() => new Error('offline'))) };
+    TestBed.configureTestingModule({
+      imports: [StatsTimelineTabComponent],
+      providers: [
+        { provide: ApiService, useValue: api },
+        { provide: AuthService, useValue: { status: signal({ authenticated: true }), identity: signal('owner'), isAuthenticated: signal(true), token: 'token' } },
+        { provide: I18nService, useValue: { t: (key: string) => key, translations: signal({}), locale: signal('en') } },
+        { provide: StatsFiltersService, useValue: { filterCategory: signal(''), dateFrom: signal(''), dateTo: signal('') } },
+      ],
+    });
+    const fixture = TestBed.createComponent(StatsTimelineTabComponent);
+    document.body.appendChild(fixture.nativeElement);
+    fixture.detectChanges();
+    await fixture.componentInstance.loadTimeline();
+    await fixture.whenStable();
+    fixture.detectChanges();
+    const retry = fixture.nativeElement.querySelector('[role="alert"] button') as HTMLButtonElement;
+    expect(retry).toBeTruthy();
+    retry.focus();
+    api.get.mockReturnValueOnce(pending);
+    retry.click();
+    fixture.detectChanges();
+    expect(document.activeElement).toBe(retry);
+    expect(retry.getAttribute('aria-disabled')).toBe('true');
+    pending.error(new Error('offline'));
+    await fixture.whenStable();
+    fixture.detectChanges();
+    expect(document.activeElement).toBe(retry);
+    expect(retry.getAttribute('aria-disabled')).not.toBe('true');
+    const next = new Subject<any>();
+    api.get.mockReturnValueOnce(next);
+    retry.click();
+    fixture.detectChanges();
+    const elsewhere = document.createElement('button');
+    document.body.appendChild(elsewhere);
+    elsewhere.focus();
+    next.next({ monthly: [] });
+    next.complete();
+    await fixture.whenStable();
+    fixture.detectChanges();
+    expect(document.activeElement).toBe(elsewhere);
+    elsewhere.remove();
+    await fixture.componentInstance.loadTimeline();
+    fixture.detectChanges();
+    const retryAgain = fixture.nativeElement.querySelector('[role="alert"] button') as HTMLButtonElement;
+    retryAgain.focus();
+    api.get.mockReturnValueOnce(of({ monthly: [] }));
+    retryAgain.click();
+    await fixture.whenStable();
+    fixture.detectChanges();
+    await fixture.whenStable();
+    expect(document.activeElement?.textContent).toContain('stats.photos_over_time');
+    fixture.destroy();
+    fixture.nativeElement.remove();
+  });
+});
+
+describe('formatStatsMonth', () => {
+  it('formats valid months with the viewer locale and leaves unknown periods alone', () => {
+    expect(formatStatsMonth('2026-10', 'de')).toBe(new Intl.DateTimeFormat('de', { month: 'short', year: 'numeric' }).format(new Date(2026, 9, 15)));
+    expect(formatStatsMonth('2026-13', 'de')).toBe('2026-13');
+    expect(formatStatsMonth('unknown', 'de')).toBe('unknown');
   });
 });
 

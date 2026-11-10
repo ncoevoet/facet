@@ -1,9 +1,10 @@
 import { TestBed } from '@angular/core/testing';
 import type { Mock } from 'vitest';
-import { of, throwError } from 'rxjs';
+import { of, throwError, Subject } from 'rxjs';
 import { ApiService } from '../../core/services/api.service';
 import { I18nService } from '../../core/services/i18n.service';
 import { PageContextService } from '../../core/agent/page-context.service';
+import { MapFiltersService } from './map-filters.service';
 
 // Mock Leaflet before importing the component. vi.doMock + dynamic import is
 // used instead of vi.mock because the unit-test builder wraps spec modules,
@@ -104,14 +105,87 @@ describe('MapComponent', () => {
       const tileUrl = new URL(tileTemplate.replace('{z}/{x}/{y}', '5/17/11'));
       expect(tileUrl.searchParams.get('ngsw-bypass')).toBe('1');
       expect(tileUrl.origin).toBe('https://tile.openstreetmap.org');
-      expect(mockMap.setView).toHaveBeenCalledWith([48.8566, 2.3522], 5);
+      expect(mockMap.setView).toHaveBeenCalledWith([0, 0], 2);
       expect(mockMap.on).toHaveBeenCalledWith('moveend', expect.any(Function));
     });
 
-    it('should trigger loadMarkers on init', () => {
+    it('fits all authorized photo coordinates, including a single-location zoom cap', async () => {
+      mockApi.get.mockImplementation((url: string) => url === '/photos/map/count'
+        ? of({ count: 4, bounds: [37.5, 66.8, 43.2, 76.9] }) : of({ photos: [], clusters: [] }));
+      component.initMap(); await Promise.resolve();
+      expect(mockMap.fitBounds).toHaveBeenCalledWith([[37.5, 66.8], [43.2, 76.9]], { padding: [32, 32], maxZoom: 12, animate: false });
+    });
+
+    it('caps initial zoom for one photo location', async () => {
+      mockApi.get.mockImplementation((url: string) => url === '/photos/map/count'
+        ? of({ count: 1, bounds: [40, 70, 40, 70] }) : of({ photos: [], clusters: [] }));
+      component.initMap(); await Promise.resolve();
+      expect(mockMap.fitBounds).toHaveBeenCalledWith([[40, 70], [40, 70]], { padding: [32, 32], maxZoom: 12, animate: false });
+    });
+
+    it.each([
+      { count: 1, bounds: [40, 70, 40, 70], capped: true },
+      { count: 4, bounds: [37.5, 66.8, 43.2, 76.9], capped: false },
+    ])('fits the initial extent with real Leaflet zoom behavior: $count locations', async ({ count, bounds, capped }) => {
+      const leaflet = await vi.importActual<typeof import('leaflet')>('leaflet');
+      const container = document.createElement('div');
+      Object.defineProperties(container, { clientWidth: { value: 800 }, clientHeight: { value: 600 } });
+      document.body.append(container);
+      const realMap = leaflet.map(container, { zoomAnimation: false, fadeAnimation: false }).setView([0, 0], 2);
+      mockMap.fitBounds.mockImplementation((extent: import('leaflet').LatLngBoundsExpression, options: import('leaflet').FitBoundsOptions) => {
+        realMap.fitBounds(extent, options);
+        return mockMap;
+      });
+      mockApi.get.mockImplementation((url: string) => url === '/photos/map/count'
+        ? of({ count, bounds }) : of({ photos: [], clusters: [] }));
+      try {
+        component.initMap();
+        await Promise.resolve();
+        expect(realMap.getZoom()).toBe(capped ? 12 : realMap.getBoundsZoom([[bounds[0], bounds[1]], [bounds[2], bounds[3]]], false, leaflet.point(64, 64)));
+        expect(realMap.getBounds().contains([bounds[0], bounds[1]])).toBe(true);
+        expect(realMap.getBounds().contains([bounds[2], bounds[3]])).toBe(true);
+        if (!capped) expect(realMap.getZoom()).toBeLessThan(12);
+      } finally {
+        mockMap.fitBounds.mockReset().mockReturnValue(mockMap);
+        realMap.remove();
+        container.remove();
+      }
+    });
+
+    it.each([
+      { count: 1, bounds: [40, 70, Number.NaN, 70] },
+      { count: 0, bounds: null },
+    ])('uses the default viewport when bounds are unavailable or invalid', async data => {
+      mockApi.get.mockImplementation((url: string) => url === '/photos/map/count' ? of(data) : of({ photos: [], clusters: [] }));
+      component.initMap(); await Promise.resolve();
+      expect(mockMap.fitBounds).not.toHaveBeenCalled();
+      expect(mockApi.get.mock.calls.filter(([url]) => url === '/photos/map')).toHaveLength(1);
+    });
+
+    it('preserves a user pan made before the initial extent arrives', async () => {
+      const pending = new Subject<{ count: number; bounds: number[] }>();
+      mockApi.get.mockImplementation((url: string) => url === '/photos/map/count' ? pending : of({ photos: [], clusters: [] }));
+      component.initMap(); component.moveEndHandler(); mockMap.fitBounds.mockClear();
+      pending.next({ count: 1, bounds: [40, 70, 40, 70] }); pending.complete(); await Promise.resolve();
+      expect(mockMap.fitBounds).not.toHaveBeenCalled();
+    });
+
+    it('discards a late initial extent after the map is destroyed', async () => {
+      const pending = new Subject<{ count: number; bounds: number[] }>();
+      mockApi.get.mockImplementation((url: string) => url === '/photos/map/count' ? pending : of({ photos: [], clusters: [] }));
+      component.initMap(); component.ngOnDestroy(); mockMap.fitBounds.mockClear();
+      pending.next({ count: 1, bounds: [40, 70, 40, 70] }); pending.complete(); await Promise.resolve();
+      expect(mockMap.fitBounds).not.toHaveBeenCalled();
+    });
+
+    it('loads markers only after the initial extent has been resolved', async () => {
+      const pending = new Subject<{ count: number; bounds: number[] }>();
+      mockApi.get.mockImplementation((url: string) => url === '/photos/map/count' ? pending : of({ photos: [], clusters: [] }));
       const spy = vi.spyOn(component, 'loadMarkers');
       component.initMap();
-      expect(spy).toHaveBeenCalled();
+      expect(spy).not.toHaveBeenCalled();
+      pending.next({ count: 1, bounds: [40, 70, 40, 70] }); pending.complete(); await Promise.resolve();
+      expect(spy).toHaveBeenCalledOnce();
     });
   });
 
@@ -310,6 +384,84 @@ describe('MapComponent', () => {
     it('should do nothing when map is null', () => {
       component.map = null;
       expect(() => component.ngOnDestroy()).not.toThrow();
+    });
+  });
+});
+
+describe('MapComponent dates control', () => {
+  let MapComponent: typeof import('./map.component').MapComponent;
+  beforeAll(async () => {
+    ({ MapComponent } = await import('./map.component'));
+  }, 20000);
+  beforeEach(() => {
+    resetLeafletMock();
+    TestBed.configureTestingModule({
+      providers: [
+        { provide: ApiService, useValue: { get: vi.fn(() => of({ clusters: [], photos: [] })), thumbnailUrl: vi.fn(() => '') } },
+        { provide: I18nService, useValue: { t: (k: string) => k, translations: () => ({}), locale: () => 'en' } },
+      ],
+    });
+  });
+
+  it('opens the dates in a control popover above the Leaflet panes, not a details element', async () => {
+    const fixture = TestBed.createComponent(MapComponent);
+    fixture.detectChanges();
+    const root = fixture.nativeElement as HTMLElement;
+    expect(root.querySelector('details')).toBeNull();
+    const wrapper = root.querySelector<HTMLElement>('[data-map-dates]')!;
+    expect(wrapper.classList.contains('z-[1001]')).toBe(true);
+    expect(getComputedStyle(wrapper).position === 'absolute' || wrapper.classList.contains('absolute')).toBe(true);
+    const trigger = wrapper.querySelector<HTMLButtonElement>('app-control-popover button')!;
+    expect(trigger.querySelector('mat-icon')!.textContent!.trim()).toBe('date_range');
+    trigger.click(); fixture.detectChanges();
+    expect(document.querySelector('app-date-range-filter mat-form-field')).not.toBeNull();
+    fixture.destroy();
+  });
+
+  it('marks the trigger when a date is set', () => {
+    const fixture = TestBed.createComponent(MapComponent);
+    fixture.detectChanges();
+    const root = fixture.nativeElement as HTMLElement;
+    expect(root.querySelector('[data-map-dates-dot]')).toBeNull();
+    TestBed.inject(MapFiltersService).dateFrom.set('2024-01-01'); fixture.detectChanges();
+    expect(root.querySelector('[data-map-dates-dot]')).not.toBeNull();
+    fixture.destroy();
+  });
+
+  describe('date inputs', () => {
+    const setInput = (fixture: { detectChanges(): void }, which: 'from' | 'to', value: string) => {
+      const inputs = document.querySelectorAll<HTMLInputElement>('app-date-range-filter input[type="date"]');
+      const input = inputs[which === 'from' ? 0 : 1];
+      input.value = value;
+      input.dispatchEvent(new Event('change'));
+      fixture.detectChanges();
+    };
+
+    it('requests markers with date_from, shows the dot for date-to alone, and hides it once both are cleared', async () => {
+      const api = TestBed.inject(ApiService) as unknown as { get: Mock };
+      const fixture = TestBed.createComponent(MapComponent);
+      fixture.detectChanges();
+      (fixture.componentInstance as any).map = mockMap;
+      const root = fixture.nativeElement as HTMLElement;
+      const filters = TestBed.inject(MapFiltersService);
+      root.querySelector<HTMLButtonElement>('[data-map-dates] app-control-popover button')!.click();
+      fixture.detectChanges();
+      api.get.mockClear();
+      setInput(fixture, 'from', '2024-03-01');
+      expect(filters.dateFrom()).toBe('2024-03-01');
+      await fixture.whenStable();
+      expect(api.get).toHaveBeenCalledWith('/photos/map', expect.objectContaining({ date_from: '2024-03-01' }));
+      expect(root.querySelector('[data-map-dates-dot]')).not.toBeNull();
+      setInput(fixture, 'from', '');
+      expect(filters.dateFrom()).toBe('');
+      expect(root.querySelector('[data-map-dates-dot]')).toBeNull();
+      setInput(fixture, 'to', '2024-04-01');
+      expect(filters.dateTo()).toBe('2024-04-01');
+      expect(root.querySelector('[data-map-dates-dot]')).not.toBeNull();
+      setInput(fixture, 'to', '');
+      expect(filters.dateTo()).toBe('');
+      expect(root.querySelector('[data-map-dates-dot]')).toBeNull();
+      fixture.destroy();
     });
   });
 });

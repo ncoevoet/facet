@@ -405,9 +405,18 @@ class TestSetScopeRejectedSummary:
         _photo("/other.jpg", "2024:06:15 13:00:00", is_rejected=1),
     ]
 
-    def _fetch(self, tmp_path, query):
+    def _fetch(self, tmp_path, query, *, logical_pair=False):
         db_path = str(tmp_path / "test.db")
-        _make_db(db_path, self._PHOTOS)
+        photos = list(self._PHOTOS)
+        if logical_pair:
+            photos.append(_photo("/rej.CR2", "2024:06:15 12:00:02", burst_group_id=1, is_rejected=0))
+        _make_db(db_path, photos)
+        if logical_pair:
+            from db import logical_assets, logical_review
+            with sqlite3.connect(db_path) as conn:
+                conn.execute('BEGIN')
+                asset_id = logical_assets.create(conn, ['/rej.jpg', '/rej.CR2'], '/rej.CR2', visibility_sql='1=1')
+                logical_review.seed(conn, asset_id, '/rej.jpg', 1, visibility_sql='1=1')
         app = _create_app_no_auth()
         with (
             mock.patch("api.routers.gallery.get_db", _conn_factory(db_path)),
@@ -440,6 +449,15 @@ class TestSetScopeRejectedSummary:
     def test_outside_a_set_scope_rejected_is_not_counted(self, tmp_path):
         data = self._fetch(tmp_path, "hide_rejected=1&hide_blinks=1")
         assert data["hidden_summary"]["rejected"] == 0
+
+
+    def test_rejected_logical_pair_counts_once_with_shared_decision(self, tmp_path):
+        query = "burst_group_id=1&hide_rejected=1&hide_blinks=1&hide_bursts=0"
+        data = self._fetch(tmp_path, query, logical_pair=True)
+        assert {p["path"] for p in data["photos"]} == {"/lead.jpg"}
+        assert data["hidden_summary"]["rejected"] == 1
+        assert data["hidden_summary"]["total"] == 1
+        assert data["photo_total"] == 1
 
 
 class TestGalleryHideBrackets:

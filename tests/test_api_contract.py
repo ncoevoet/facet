@@ -524,7 +524,13 @@ class TestAlbumContract:
             assert shared.status_code == 200
             shared_photos = shared.json()['photos']
             assert shared_photos, "shared album has no photos"
-            assert_satisfies(shared_photos[0], 'Photo', 'GET /api/shared/album/{id}')
+            # The shared adapter replaces Photo's presentation identity slot
+            # with the public handle; all metadata keeps the Photo wire types.
+            public = shared_photos[0]
+            assert 'path' not in public
+            from api.shared_assets import shared_asset_row_id
+            assert shared_asset_row_id(public['asset_id']) is not None
+            assert_satisfies({**public, 'path': public['asset_id']}, 'Photo', 'shared asset presentation adapter')
         finally:
             edition_client.delete(f'/api/albums/{album_id}')
 
@@ -807,11 +813,6 @@ _CLIENT_ONLY_FIELDS: dict[tuple[str, str], str] = {
     # Patched onto a row in gallery.store.ts from the separate
     # POST /api/photos/keeper_hints call, never sent with the photo row.
     ('Photo', 'keeper_hint'): 'client-derived, from POST /api/photos/keeper_hints',
-    # `GET /api/albums` declares no `response_model`, so its rows are not
-    # filtered and carry these two. The server's `Album` model backs only the
-    # album metadata embedded in `SharedAlbumResponse`, which has neither.
-    ('Album', 'first_photo_path'): 'served unfiltered by GET /api/albums, which has no response_model',
-    ('Album', 'photo_count'): 'served unfiltered by GET /api/albums, which has no response_model',
 }
 
 # Fields the client attaches itself, which no server response carries.

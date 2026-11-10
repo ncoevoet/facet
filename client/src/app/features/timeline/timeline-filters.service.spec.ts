@@ -5,10 +5,20 @@ describe('TimelineFiltersService', () => {
   let service: TimelineFiltersService;
 
   beforeEach(() => {
+    localStorage.removeItem('facet_timeline_calendar_view');
     TestBed.configureTestingModule({
       providers: [TimelineFiltersService],
     });
     service = TestBed.inject(TimelineFiltersService);
+  });
+
+  it('opens on the photo feed, or on the calendar when that choice was saved', () => {
+    expect(service.showOverview()).toBe(false);
+    localStorage.setItem('facet_timeline_calendar_view', '1');
+    TestBed.resetTestingModule();
+    TestBed.configureTestingModule({ providers: [TimelineFiltersService] });
+    expect(TestBed.inject(TimelineFiltersService).showOverview()).toBe(true);
+    localStorage.removeItem('facet_timeline_calendar_view');
   });
 
   it('should have empty dateFrom by default', () => {

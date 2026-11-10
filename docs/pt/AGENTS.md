@@ -278,7 +278,7 @@ As ferramentas de escrita estão na mesma lista `/mcp` que as de leitura. Cada u
 | `unstack_photos` | `edition` | Dissolver uma pilha; os originais ficam intactos |  |
 | `undo_photo_stack` | `edition` | Desfazer apenas uma entrada de pilha disponível; alterações posteriores são recusadas |  |
 | `import_ai_edit` | `edition` | Trazer para a biblioteca uma edição por IA de uma foto, ao lado dela (enviada como bytes: `image_data` (base64) ou `source_file` (um ficheiro em `ai_edits.drop_dir`, lido e deixado no lugar); o Facet escreve a sua própria cópia e nunca apaga um ficheiro; `tool` tem de estar configurada); não idempotente, cada chamada acrescenta uma revisão; `note` (o que mudou) é acrescentado à legenda do original como `AI: <note>` e torna-se a legenda da edição; a chamada espera até 3 minutos pela análise da edição e responde `ready` com a legenda e a página | 1 file |
-| `create_album` | `edition` | Cria um álbum (não idempotente: duas vezes cria dois álbuns): vazio, ou a partir de `filters` / `target: "view"` como álbum inteligente que segue esses filtros, ou a partir de `paths` / `target: "selection"` como álbum fixo preenchido na mesma chamada (`added`, `skipped`). Um álbum inteligente usa os interruptores de ocultação do visualizador e em `list_albums` mostra 0 fotos. Uns `filters` sem nenhum filtro efetivo (`{}`, ou apenas interruptores de visualização desligados) são recusados como `invalid_input`: omita `filters` para um álbum vazio | |
+| `create_album` | `edition` | Cria um álbum (não idempotente: duas vezes cria dois álbuns): vazio, ou a partir de `filters` / `target: "view"` como álbum inteligente que segue esses filtros, ou a partir de `paths` / `target: "selection"` como álbum fixo preenchido na mesma chamada (`added`, `skipped`). Um álbum inteligente usa os interruptores de ocultação do visualizador e em `list_albums` tem uma contagem de fotos `null` (os seus membros são um filtro dinâmico, nunca guardados). Uns `filters` sem nenhum filtro efetivo (`{}`, ou apenas interruptores de visualização desligados) são recusados como `invalid_input`: omita `filters` para um álbum vazio | |
 | `album_add_photos` | `edition` | Adiciona fotos a um álbum (as já presentes são ignoradas) | 1000 caminhos |
 | `album_remove_photos` | `edition` | Remove fotos de um álbum; as fotos não são tocadas | 1000 caminhos |
 | `assign_faces` | `edition` | Move rostos para uma pessoa; os de outra pessoa ficam como estão salvo `allow_reassign`, e o resultado lista o que foi ignorado | 50 ids de rosto |
@@ -399,7 +399,7 @@ As ferramentas da câmara escura espelham a página `/culling`. Todas exigem o n
 
 | Ferramenta | O que faz |
 |------|--------------|
-| `list_culling_groups` | Lista os grupos (`burst`, `similar`, `scene`, `bracket`, `panorama`, `hdr_panorama`) com as suas fotos e pontuações, ordenáveis e delimitáveis por álbum ou intervalo de datas |
+| `list_culling_groups` | Lista os grupos (`burst`, `similar`, `lookalike`, `scene`, `bracket`, `panorama`, `hdr_panorama`) com as suas fotos e pontuações, ordenáveis e delimitáveis por álbum ou intervalo de datas |
 | `culling_profiles` | Os perfis de triagem prontos e o padrão |
 | `suggest_culling_profile` | Indica o perfil adequado a um álbum ou intervalo de captura |
 | `keeper_hints` | Dicas por foto «existe uma foto melhor nesta rajada» para até 100 caminhos (vazias se não houver cabeça de classificação treinada) |

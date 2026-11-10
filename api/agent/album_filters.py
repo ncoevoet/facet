@@ -19,6 +19,9 @@ from api.agent.ui_tools import (
 )
 from api.models.gallery import query_value
 from api.types import TYPE_FILTERS
+from tag_query import tag_query_groups, serialized_tag_query
+from score_presence import validated_score_presence
+from db.keyword_hierarchy import keyword_node_id
 
 # Flags the client store holds as booleans (``GalleryFilters``); every other value is a string.
 BOOLEAN_KEYS = frozenset({"favorites_only", "is_monochrome", "manual_faces_need_review", "faces_need_names", "show_rejected"})
@@ -66,6 +69,32 @@ def to_stored(filters: dict) -> tuple[Optional[dict], dict]:
                 return err("invalid_input", f"`{key}` {value!r} is not a configured category or photo type; "
                            "see the facet://categories resource"), {}
             stored[name] = str(value)
+        elif name == 'keyword_branch':
+            try:
+                branch = keyword_node_id(value)
+            except ValueError:
+                return err('invalid_input', 'Invalid keyword branch identity'), {}
+            if branch:
+                stored[name] = branch
+        elif name == 'score_presence':
+            try:
+                policy = validated_score_presence(value)
+            except (ValueError, TypeError):
+                return err('invalid_input', 'Invalid measurement policies'), {}
+            if policy:
+                stored[name] = policy
+        elif name == "tag_groups":
+            try:
+                groups = serialized_tag_query(tag_query_groups(value))
+            except (ValueError, TypeError):
+                return err("invalid_input", "Invalid tag groups"), {}
+            if groups:
+                stored[name] = groups
+        elif name == "person_match":
+            if value not in ("all", "any"):
+                return err("invalid_input", "person_match must be all or any"), {}
+            if value == "any" and (given.get("person") or given.get("person_id")):
+                stored[name] = "any"
         elif str(value) != "":
             stored[name] = query_value(value)
     return None, stored
