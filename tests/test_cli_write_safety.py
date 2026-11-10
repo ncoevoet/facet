@@ -1,5 +1,6 @@
 """Real CLI effects: previews and invalid combinations must leave data alone."""
 import os
+from contextlib import closing
 from pathlib import Path
 import sqlite3
 import shutil
@@ -24,7 +25,7 @@ def library(tmp_path):
                       encoding='utf-8')
     photo = tmp_path / 'photo.jpg'
     Image.new('RGB', (8, 8), (80, 120, 160)).save(photo)
-    with sqlite3.connect(db) as conn:
+    with closing(sqlite3.connect(db)) as conn, conn:
         conn.execute('INSERT INTO photos(path,filename,tags,star_rating,face_count,is_silhouette) '
                      'VALUES (?,?,?,3,0,1)', (str(photo), photo.name, 'safety-check'))
         conn.commit()
@@ -69,7 +70,7 @@ def test_combined_database_commands_cannot_bypass_library_lock(library):
         assert normal.returncode == 75, normal.stdout + normal.stderr
     proc = run_cli(library, 'database.py', '--migrate-tags')
     assert proc.returncode == 0, proc.stdout + proc.stderr
-    with sqlite3.connect(db) as conn:
+    with closing(sqlite3.connect(db)) as conn, conn:
         assert conn.execute('SELECT tag FROM photo_tags').fetchall() == [('safety-check',)]
 
 
@@ -85,7 +86,7 @@ def test_supported_previews_preserve_database_and_config_bytes(library, flag):
     if flag == '--recompute-silhouette':
         proc = run_cli(library, 'facet.py', flag)
         assert proc.returncode == 0, proc.stdout + proc.stderr
-        with sqlite3.connect(library[0]) as conn:
+        with closing(sqlite3.connect(library[0])) as conn, conn:
             assert conn.execute('SELECT is_silhouette FROM photos').fetchone() == (0,)
 
 
@@ -105,7 +106,7 @@ def test_database_orphan_modifiers_and_conflicting_operations_do_not_initialize(
 def test_cleanup_preview_stays_read_only_and_normal_cleanup_removes_missing_rows(library):
     db, _, _ = library
     missing = db.parent / 'missing.jpg'
-    with sqlite3.connect(db) as conn:
+    with closing(sqlite3.connect(db)) as conn, conn:
         conn.execute('INSERT INTO photos(path,filename) VALUES (?,?)', (str(missing), missing.name))
     before = snapshot(library)
     proc = run_cli(library, 'database.py', '--cleanup-missing-photos', '--dry-run')
@@ -113,14 +114,14 @@ def test_cleanup_preview_stays_read_only_and_normal_cleanup_removes_missing_rows
     assert snapshot(library) == before
     proc = run_cli(library, 'database.py', '--cleanup-missing-photos')
     assert proc.returncode == 0, proc.stdout + proc.stderr
-    with sqlite3.connect(db) as conn:
+    with closing(sqlite3.connect(db)) as conn, conn:
         assert conn.execute('SELECT COUNT(*) FROM photos WHERE path=?', (str(missing),)).fetchone() == (0,)
 
 
 def test_duplicate_refusal_preserves_rows_and_normal_command_groups_them(library):
     db, _, photo = library
     other = photo.with_name('second.jpg')
-    with sqlite3.connect(db) as conn:
+    with closing(sqlite3.connect(db)) as conn, conn:
         conn.execute('UPDATE photos SET phash=?,aggregate=8', ('1234567890abcdef',))
         conn.execute('INSERT INTO photos(path,filename,phash,aggregate) VALUES (?,?,?,6)',
                      (str(other), other.name, '1234567890abcdef'))
@@ -130,7 +131,7 @@ def test_duplicate_refusal_preserves_rows_and_normal_command_groups_them(library
     assert snapshot(library) == before
     proc = run_cli(library, 'facet.py', '--detect-duplicates')
     assert proc.returncode == 0, proc.stdout + proc.stderr
-    with sqlite3.connect(db) as conn:
+    with closing(sqlite3.connect(db)) as conn, conn:
         rows = conn.execute('SELECT duplicate_group_id,is_duplicate_lead FROM photos ORDER BY aggregate DESC').fetchall()
     assert rows[0][0] is not None and rows[0][0] == rows[1][0]
     assert [row[1] for row in rows] == [1, 0]
@@ -153,7 +154,7 @@ def test_native_previews_leave_released_schema_unchanged(library, flag):
     db, _, photo = library
     db.unlink()
     released = ROOT / 'tests/fixtures/photo_stacks_v1_23_1_schema.sql'
-    with sqlite3.connect(db) as conn:
+    with closing(sqlite3.connect(db)) as conn, conn:
         conn.executescript(released.read_text(encoding='utf-8'))
         conn.execute('INSERT INTO photos(path,filename,face_count,is_silhouette) VALUES (?,?,0,1)',
                      (str(photo), photo.name))
@@ -171,7 +172,7 @@ def test_gps_refusal_preserves_coordinates_and_normal_command_updates(library, f
                            '-GPSLatitudeRef=N', '-GPSLongitude=20', '-GPSLongitudeRef=E',
                            str(photo)], capture_output=True, text=True, encoding='utf-8', timeout=30)
     assert exif.returncode == 0, exif.stdout + exif.stderr
-    with sqlite3.connect(db) as conn:
+    with closing(sqlite3.connect(db)) as conn, conn:
         conn.execute('UPDATE photos SET gps_latitude=?,gps_longitude=?,gps_manually_set=0',
                      (initial, initial))
     before = snapshot(library)
@@ -180,6 +181,6 @@ def test_gps_refusal_preserves_coordinates_and_normal_command_updates(library, f
     assert snapshot(library) == before
     proc = run_cli(library, 'facet.py', flag)
     assert proc.returncode == 0, proc.stdout + proc.stderr
-    with sqlite3.connect(db) as conn:
+    with closing(sqlite3.connect(db)) as conn, conn:
         assert conn.execute('SELECT gps_latitude,gps_longitude FROM photos').fetchone() == (10.0, 20.0)
     assert photo.read_bytes() == before[photo.name]
