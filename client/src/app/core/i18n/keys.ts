@@ -1781,6 +1781,16 @@ export const I18N = {
     review_controls_hint: "gallery.review_controls_hint",
     display_controls_hint: "gallery.display_controls_hint",
     sort_direction: "gallery.sort_direction",
+    display_tips: {
+      thumbnail_size: "gallery.display_tips.thumbnail_size",
+      face_outlines: "gallery.display_tips.face_outlines",
+      hide_details: "gallery.display_tips.hide_details",
+      fast_scrolling: "gallery.display_tips.fast_scrolling",
+      card_buttons: "gallery.display_tips.card_buttons",
+      tooltip_mode: "gallery.display_tips.tooltip_mode",
+      tile_fit: "gallery.display_tips.tile_fit",
+      reset_display: "gallery.display_tips.reset_display",
+    },
   },
   composition_patterns: {
     none: "composition_patterns.none",

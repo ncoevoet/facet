@@ -1741,7 +1741,17 @@
     },
     "review_controls_hint": "审阅决定、评分、建议堆叠和保留排名靠前的百分比",
     "display_controls_hint": "布局、照片信息和展开堆叠",
-    "sort_direction": "排序方向"
+    "sort_direction": "排序方向",
+    "display_tips": {
+      "thumbnail_size": "拖动以放大或缩小图库中的缩略图",
+      "face_outlines": "在每张缩略图上框出你筛选的人物的面孔",
+      "hide_details": "只显示照片，不显示每张照片下方的信息",
+      "fast_scrolling": "只绘制屏幕附近的行，让大型图库滚动流畅。若布局出现异常，请关闭此项。",
+      "card_buttons": "选择照片卡片在悬停时显示哪些按钮及其顺序",
+      "tooltip_mode": "照片详情的打开方式：悬停、点击、在侧边面板中，或不显示",
+      "tile_fit": "将缩略图裁切为正方形，或按原有比例显示每张照片",
+      "reset_display": "恢复默认的布局、缩略图大小和照片详情。筛选、排序和选择保持不变。"
+    }
   },
   "composition_patterns": {
     "none": "无",

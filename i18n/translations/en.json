@@ -1766,7 +1766,17 @@
     },
     "review_controls_hint": "Review decisions, ratings, suggested stacks and Keep top %",
     "display_controls_hint": "Layout, photo information and stack expansion",
-    "sort_direction": "Sort direction"
+    "sort_direction": "Sort direction",
+    "display_tips": {
+      "thumbnail_size": "Drag to make the gallery's thumbnails larger or smaller",
+      "face_outlines": "Outline the faces of the people you filter by on each thumbnail",
+      "hide_details": "Show the photos alone, without the information under each photo",
+      "fast_scrolling": "Draw only the rows near the screen, so long galleries scroll smoothly. Turn it off if the layout misbehaves.",
+      "card_buttons": "Choose which buttons a photo card shows on hover, and in what order",
+      "tooltip_mode": "How a photo's details open: on hover, on click, in the side panel, or not at all",
+      "tile_fit": "Crop thumbnails to squares, or show each photo in its original aspect ratio",
+      "reset_display": "Restore the default layout, thumbnail size and photo details. Filters, sort and selection stay as they are."
+    }
   },
   "composition_patterns": {
     "none": "None",

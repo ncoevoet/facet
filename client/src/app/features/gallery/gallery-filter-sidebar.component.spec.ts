@@ -971,6 +971,20 @@ describe('GalleryFilterSidebarComponent', () => {
         expect((fixture.nativeElement as HTMLElement).querySelector('[data-section="view"]')).toBeTruthy();
       });
 
+      it('explains every Display control in a tooltip', () => {
+        store['config'].set({ features: {}, display: { thumbnail_slider: { min_px: 120, max_px: 400, step_px: 10 } } });
+        fixture.componentInstance.selectTab('display');
+        settle();
+        const T = I18N.gallery.display_tips;
+        const tip = (selector: string) => fixture.debugElement.query(By.css(selector)).injector.get(MatTooltip).message;
+        const view = fixture.debugElement.query(By.css('[data-section="view"]'));
+        const checkboxTips = view.queryAll(By.css('mat-checkbox')).map(box => box.injector.get(MatTooltip).message);
+        expect(checkboxTips).toEqual([T.face_outlines, T.hide_details, T.fast_scrolling]);
+        expect(tip('[data-card-actions]')).toBe(T.card_buttons);
+        const sizeLabel = fixture.debugElement.query(By.css('[data-section="view-layout"] mat-slider')).parent!.children[0];
+        expect(sizeLabel.injector.get(MatTooltip).message).toBe(T.thumbnail_size);
+      });
+
       it('keeps the filename search reachable with / from every tab', () => {
         for (const id of TAB_IDS) {
           fixture.componentInstance.selectTab(id);

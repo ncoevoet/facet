@@ -41,7 +41,7 @@ let nextPopover = 0;
         <header class="flex shrink-0 items-center gap-2 border-b border-[var(--mat-sys-outline-variant)] px-3 py-1">
           <span class="min-w-0 flex-1 text-sm font-medium">{{ label() }}</span>
           <button type="button" cdkFocusInitial class="flex h-11 w-11 shrink-0 cursor-pointer items-center justify-center rounded hover:bg-[var(--mat-sys-surface-container-high)]"
-                  [attr.aria-label]="I18N.dialog.close | translate" (click)="open.set(false)"><mat-icon aria-hidden="true">close</mat-icon></button>
+                  [matTooltip]="I18N.dialog.close | translate" [attr.aria-label]="I18N.dialog.close | translate" (click)="open.set(false)"><mat-icon aria-hidden="true">close</mat-icon></button>
         </header>
         <div class="min-h-0 overflow-y-auto p-3"><ng-container [ngTemplateOutlet]="content()" /></div>
       </section>

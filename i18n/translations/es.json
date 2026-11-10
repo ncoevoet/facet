@@ -1741,7 +1741,17 @@
     },
     "review_controls_hint": "Decisiones de revisión, valoraciones, pilas sugeridas y mejor porcentaje",
     "display_controls_hint": "Diseño, información de fotos y expansión de pilas",
-    "sort_direction": "Dirección de orden"
+    "sort_direction": "Dirección de orden",
+    "display_tips": {
+      "thumbnail_size": "Arrastra para agrandar o reducir las miniaturas de la galería",
+      "face_outlines": "Enmarca, en cada miniatura, los rostros de las personas por las que filtras",
+      "hide_details": "Muestra solo las fotos, sin la información bajo cada foto",
+      "fast_scrolling": "Dibuja solo las filas cercanas a la pantalla para que las galerías largas se desplacen con fluidez. Desactívalo si el diseño falla.",
+      "card_buttons": "Elige qué botones muestra una tarjeta al pasar el ratón, y en qué orden",
+      "tooltip_mode": "Cómo se abren los detalles de una foto: al pasar el ratón, al hacer clic, en el panel lateral o nunca",
+      "tile_fit": "Recorta las miniaturas en cuadrado o muestra cada foto en su proporción original",
+      "reset_display": "Restablece el diseño, el tamaño de las miniaturas y los detalles de las fotos predeterminados. Los filtros, el orden y la selección no cambian."
+    }
   },
   "composition_patterns": {
     "none": "Ninguno",

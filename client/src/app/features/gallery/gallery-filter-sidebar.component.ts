@@ -1009,7 +1009,7 @@ type RatingOption = 'any' | '1' | '2' | '3' | '4' | '5' | 'zero';
           </div>
           @if (sliderConfig(); as sc) {
             <div class="flex items-center gap-2">
-              <span class="text-sm text-[var(--mat-sys-on-surface-variant)] shrink-0">{{ I18N.gallery.thumbnail_size | translate }}</span>
+              <span class="text-sm text-[var(--mat-sys-on-surface-variant)] shrink-0" [matTooltip]="I18N.gallery.display_tips.thumbnail_size | translate">{{ I18N.gallery.thumbnail_size | translate }}</span>
               <mat-slider [min]="thumbnailSliderMin()" [max]="sc.max_px" [step]="sc.step_px" class="flex-1">
                 <input matSliderThumb [value]="store.cardWidth()" (valueChange)="store.setCardWidth($event)" [attr.aria-label]="I18N.gallery.thumbnail_size | translate" />
               </mat-slider>
@@ -1021,18 +1021,22 @@ type RatingOption = 'any' | '1' | '2' | '3' | '4' | '5' | 'zero';
 <ng-template #displaySettings>
       <!-- View (display preferences, not filters): the tab's only section, so no panel around it -->
         <div data-section="view" class="flex flex-col gap-2 px-1 pt-1 pb-2">
-          <mat-checkbox data-face-outline-toggle [checked]="faceOutlines.enabled()" (change)="faceOutlines.setEnabled($event.checked)">{{ I18N.gallery.face_outlines | translate }}</mat-checkbox>
+          <mat-checkbox data-face-outline-toggle [checked]="faceOutlines.enabled()" (change)="faceOutlines.setEnabled($event.checked)"
+            [matTooltip]="I18N.gallery.display_tips.face_outlines | translate">{{ I18N.gallery.face_outlines | translate }}</mat-checkbox>
           @if (store.galleryMode() !== 'mosaic') {
             <mat-checkbox
               [checked]="store.filters().hide_details"
               (change)="store.updateFilter('hide_details', $event.checked)"
+              [matTooltip]="I18N.gallery.display_tips.hide_details | translate"
             >{{ I18N.gallery.hide_details | translate }}</mat-checkbox>
           }
           <mat-checkbox
             [checked]="store.virtualScroll()"
             (change)="store.setVirtualScroll($event.checked)"
+            [matTooltip]="I18N.gallery.display_tips.fast_scrolling | translate"
           >{{ I18N.gallery.sidebar.virtual_scroll | translate }}</mat-checkbox>
-          <button mat-button data-card-actions class="!min-h-11 !w-full !justify-start" (click)="openCardActionsDialog()">
+          <button mat-button data-card-actions class="!min-h-11 !w-full !justify-start" (click)="openCardActionsDialog()"
+                  [matTooltip]="I18N.gallery.display_tips.card_buttons | translate">
             <mat-icon>tune</mat-icon>{{ I18N.gallery.card_actions.open | translate }}
           </button>
         </div>

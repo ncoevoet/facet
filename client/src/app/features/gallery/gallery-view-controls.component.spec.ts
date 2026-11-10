@@ -4,6 +4,7 @@ import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { Component, signal, TemplateRef } from '@angular/core';
 import { NgTemplateOutlet } from '@angular/common';
 import { By } from '@angular/platform-browser';
+import { MatTooltip } from '@angular/material/tooltip';
 import { MatMenuTrigger } from '@angular/material/menu';
 import { Event, NavigationCancel, NavigationCancellationCode, NavigationEnd, NavigationError, NavigationSkipped, NavigationStart, Router } from '@angular/router';
 import { Subject } from 'rxjs';
@@ -136,6 +137,21 @@ describe('GalleryViewControlsComponent', () => {
       checkbox.click();
       expect(TestBed.inject(GalleryReviewNavigationService).enabled()).toBe(true);
       expect(checkbox.checked).toBe(true);
+    });
+
+    it('explains each Display choice row and the reset in a tooltip', () => {
+      const { fixture, store } = render();
+      fixture.componentRef.setInput('portDisplay', true);
+      store.filters.update(filters => ({ ...filters, hide_details: true }));
+      store.galleryMode.set('grid');
+      fixture.detectChanges();
+      const host = TestBed.createComponent(RehostedControls);
+      host.componentInstance.template = fixture.componentInstance.displayControls()!;
+      host.detectChanges();
+      const tip = (selector: string) => host.debugElement.query(By.css(selector)).injector.get(MatTooltip).message;
+      expect(tip('[data-choice="tooltip-mode"]')).toBe(I18N.gallery.display_tips.tooltip_mode);
+      expect(tip('[data-choice="tile-fit"]')).toBe(I18N.gallery.display_tips.tile_fit);
+      expect(tip('[data-reset-display]')).toBe(I18N.gallery.display_tips.reset_display);
     });
 
     it('offers the display reset in pinned lists and blocks captured commands while parked', () => {

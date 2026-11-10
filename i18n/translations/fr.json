@@ -1741,7 +1741,17 @@
     },
     "review_controls_hint": "Décisions de tri, notes, piles suggérées et meilleurs pourcentages",
     "display_controls_hint": "Disposition, informations des photos et développement des piles",
-    "sort_direction": "Sens du tri"
+    "sort_direction": "Sens du tri",
+    "display_tips": {
+      "thumbnail_size": "Faites glisser pour agrandir ou réduire les vignettes de la galerie",
+      "face_outlines": "Encadre, sur chaque vignette, les visages des personnes que vous filtrez",
+      "hide_details": "Affiche les photos seules, sans les informations sous chaque photo",
+      "fast_scrolling": "N’affiche que les lignes proches de l’écran, pour un défilement fluide des grandes galeries. Désactivez-le si la mise en page se dérègle.",
+      "card_buttons": "Choisissez les boutons qu’une vignette affiche au survol, et leur ordre",
+      "tooltip_mode": "Comment s’ouvrent les détails d’une photo : au survol, au clic, dans le panneau latéral, ou jamais",
+      "tile_fit": "Recadre les vignettes en carré, ou montre chaque photo dans son ratio d’origine",
+      "reset_display": "Rétablit la disposition, la taille des vignettes et les détails des photos par défaut. Les filtres, le tri et la sélection restent inchangés."
+    }
   },
   "composition_patterns": {
     "none": "Aucun",

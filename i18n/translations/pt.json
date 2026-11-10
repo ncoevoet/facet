@@ -1741,7 +1741,17 @@
     },
     "review_controls_hint": "Decisões de revisão, avaliações, pilhas sugeridas e melhor porcentagem",
     "display_controls_hint": "Layout, informações das fotos e expansão de pilhas",
-    "sort_direction": "Direção de ordenação"
+    "sort_direction": "Direção de ordenação",
+    "display_tips": {
+      "thumbnail_size": "Arraste para aumentar ou reduzir as miniaturas da galeria",
+      "face_outlines": "Destaca, em cada miniatura, os rostos das pessoas pelas quais filtra",
+      "hide_details": "Mostra só as fotos, sem as informações por baixo de cada foto",
+      "fast_scrolling": "Desenha só as linhas perto do ecrã, para que galerias longas rolem com fluidez. Desative se o layout falhar.",
+      "card_buttons": "Escolha que botões um cartão mostra ao passar o rato, e por que ordem",
+      "tooltip_mode": "Como abrem os detalhes de uma foto: ao passar o rato, ao clicar, no painel lateral ou nunca",
+      "tile_fit": "Recorta as miniaturas em quadrado ou mostra cada foto na proporção original",
+      "reset_display": "Repõe o layout, o tamanho das miniaturas e os detalhes das fotos predefinidos. Os filtros, a ordenação e a seleção mantêm-se."
+    }
   },
   "composition_patterns": {
     "none": "Nenhum",

@@ -1,4 +1,5 @@
 import { OverlayContainer } from '@angular/cdk/overlay';
+import { getDebugNode } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
 import { By } from '@angular/platform-browser';
 import { MatTooltip } from '@angular/material/tooltip';
@@ -88,6 +89,14 @@ describe('ControlPopoverComponent', () => {
     const { fixture, rail, pane, panel } = await open(true, false, true);
     expect(pane.style.width).toBe('');
     expect(panel.className).toContain('w-80');
+    fixture.destroy();
+    rail.remove();
+  });
+
+  it('names its close button in a tooltip', async () => {
+    const { fixture, rail, panel } = await open(false, true);
+    const close = panel.querySelector('header button')!;
+    expect(getDebugNode(close)!.injector.get(MatTooltip).message).toBe('dialog.close');
     fixture.destroy();
     rail.remove();
   });

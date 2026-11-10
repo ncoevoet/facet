@@ -38,9 +38,9 @@ const sortOptionLabelKey = (column: string): string => `sort_options.${column}`;
     }
     @if (!portDisplay()) { <ng-container [ngTemplateOutlet]="layoutControls" [ngTemplateOutletContext]="{ $implicit: secondaryLayouts }" /> }
     @if (portDisplay()) {
-      <ng-container [ngTemplateOutlet]="choiceRow" [ngTemplateOutletContext]="{ id: 'tooltip-mode', icon: tooltipIcon(), label: I18N.gallery.tooltip_mode.label, value: tooltipModeLabel(), menu: tooltipModeMenu }" />
+      <ng-container [ngTemplateOutlet]="choiceRow" [ngTemplateOutletContext]="{ id: 'tooltip-mode', icon: tooltipIcon(), label: I18N.gallery.tooltip_mode.label, value: tooltipModeLabel(), menu: tooltipModeMenu, tip: I18N.gallery.display_tips.tooltip_mode }" />
       @if (store.galleryMode() === 'grid' && store.filters().hide_details) {
-        <ng-container [ngTemplateOutlet]="choiceRow" [ngTemplateOutletContext]="{ id: 'tile-fit', icon: 'aspect_ratio', label: I18N.gallery.tile_fit.label, value: tileFitLabel(), menu: tileFitMenu }" />
+        <ng-container [ngTemplateOutlet]="choiceRow" [ngTemplateOutletContext]="{ id: 'tile-fit', icon: 'aspect_ratio', label: I18N.gallery.tile_fit.label, value: tileFitLabel(), menu: tileFitMenu, tip: I18N.gallery.display_tips.tile_fit }" />
       }
     } @else {
       <button mat-button class="!min-h-11 !min-w-11 !w-11 !px-2 @[1120px]:!w-auto @[1120px]:!px-4"
@@ -58,8 +58,8 @@ const sortOptionLabelKey = (column: string): string => `sort_options.${column}`;
         </button>
       }
     }
-    <ng-template #choiceRow let-id="id" let-icon="icon" let-label="label" let-value="value" let-menu="menu">
-      <button type="button" matRipple [attr.data-choice]="id" aria-haspopup="menu" [matMenuTriggerFor]="menu"
+    <ng-template #choiceRow let-id="id" let-icon="icon" let-label="label" let-value="value" let-menu="menu" let-tip="tip">
+      <button type="button" matRipple [attr.data-choice]="id" aria-haspopup="menu" [matMenuTriggerFor]="menu" [matTooltip]="tip | translate"
               class="flex w-full min-h-10 items-center gap-3 rounded-md px-2 py-1 text-left hover:bg-[var(--mat-sys-surface-container-high)] focus-visible:outline-2 focus-visible:outline-[var(--mat-sys-primary)]"
               [attr.aria-label]="I18N.gallery.sidebar.review.value_aria | translate:{ label: (label | translate), value: (value | translate) }">
         <mat-icon class="!text-xl !w-5 !h-5 !leading-5 shrink-0 opacity-80">{{ icon }}</mat-icon>
@@ -83,7 +83,7 @@ const sortOptionLabelKey = (column: string): string => `sort_options.${column}`;
     </button>
     @if (portDisplay()) {
       <button mat-button data-reset-display class="!min-h-11 !w-full !justify-start" (click)="resetDisplay()"
-              [attr.aria-label]="I18N.gallery.reset_display | translate">
+              [matTooltip]="I18N.gallery.display_tips.reset_display | translate" [attr.aria-label]="I18N.gallery.reset_display | translate">
         <mat-icon>restart_alt</mat-icon><span>{{ I18N.gallery.reset_display | translate }}</span>
       </button>
     }

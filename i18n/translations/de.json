@@ -1741,7 +1741,17 @@
     },
     "review_controls_hint": "Sichtungsentscheidungen, Bewertungen, vorgeschlagene Stapel und beste Prozente",
     "display_controls_hint": "Layout, Fotoinformationen und Aufklappen von Stapeln",
-    "sort_direction": "Sortierrichtung"
+    "sort_direction": "Sortierrichtung",
+    "display_tips": {
+      "thumbnail_size": "Ziehen, um die Miniaturbilder der Galerie zu vergrößern oder zu verkleinern",
+      "face_outlines": "Rahmt auf jedem Miniaturbild die Gesichter der Personen ein, nach denen Sie filtern",
+      "hide_details": "Zeigt nur die Fotos, ohne die Angaben unter jedem Foto",
+      "fast_scrolling": "Zeichnet nur die Zeilen nahe dem Bildschirm, damit große Galerien flüssig scrollen. Schalten Sie es aus, wenn das Layout Fehler zeigt.",
+      "card_buttons": "Wählen Sie, welche Knöpfe eine Fotokarte beim Überfahren zeigt und in welcher Reihenfolge",
+      "tooltip_mode": "Wie sich die Details eines Fotos öffnen: beim Überfahren, per Klick, in der Seitenleiste oder gar nicht",
+      "tile_fit": "Schneidet Miniaturbilder quadratisch zu oder zeigt jedes Foto im Originalformat",
+      "reset_display": "Stellt Standardlayout, Miniaturbildgröße und Fotodetails wieder her. Filter, Sortierung und Auswahl bleiben erhalten."
+    }
   },
   "composition_patterns": {
     "none": "Keines",
