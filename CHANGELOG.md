@@ -7,6 +7,7 @@ All notable changes to Facet are documented in this file.
 ### Added
 
 - **`Ctrl+Z` / `Cmd+Z` presses the snackbar's Undo while it is showing**, on every page that offers one (gallery batch changes, culling and stack confirms, person hides), including inside the darkroom. A text field keeps its own undo, an open dialog keeps the key, and with no snackbar on screen the key does nothing. The `?` reference lists it on the gallery, culling and stack-suggestion pages.
+- **Clicking the version in the user menu copies it**, with the build line when there is one (`Facet 1.28.0 (main@abc1234)`), so a bug report or test note can quote exactly what is running.
 
 ### Changed
 

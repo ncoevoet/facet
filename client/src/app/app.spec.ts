@@ -5,7 +5,7 @@ import { NEVER, Subject, of } from 'rxjs';
 import { App } from './app';
 import { I18nTitleStrategy } from './core/i18n-title.strategy';
 import { HeaderSlotService } from './core/services/header-slot.service';
-import { GalleryStore, GalleryFilters, DEFAULT_FILTERS } from './features/gallery/gallery.store';
+import { GalleryStore, GalleryFilters, DEFAULT_FILTERS, ViewerConfig } from './features/gallery/gallery.store';
 import { AuthService, AuthStatus } from './core/services/auth.service';
 import { ApiService } from './core/services/api.service';
 import { I18nService } from './core/services/i18n.service';
@@ -975,5 +975,47 @@ describe('App', () => {
       expect(items.at(-1)!.textContent).toContain(I18N.auth.logout);
     });
 
+  });
+  describe('copy version (user menu)', () => {
+    afterEach(() => {
+      Reflect.deleteProperty(navigator, 'clipboard');
+      Reflect.deleteProperty(document, 'execCommand');
+    });
+
+    async function copy(config: Partial<ViewerConfig> | null, writeText = vi.fn(() => Promise.resolve())) {
+      const open = vi.fn();
+      const { app, mockStore } = createApp('/', [{ provide: MatSnackBar, useValue: { open } }]);
+      // Interpolate like the real bundle ("Facet {version}"), so the copied text proves the version is in it.
+      vi.mocked(TestBed.inject(I18nService).t).mockImplementation(
+        (key: string, params?: Record<string, string | number>) => (params?.['version'] ? `Facet ${params['version']}` : key));
+      (mockStore.config as unknown as { set(v: unknown): void }).set(config);
+      Object.defineProperty(navigator, 'clipboard', { value: { writeText }, configurable: true });
+      await (app as unknown as { copyVersion(): Promise<void> }).copyVersion();
+      return { write: writeText, open };
+    }
+
+    it('copies the version with the build and confirms', async () => {
+      const { write, open } = await copy({ version: '1.28.0', build: 'local/win-test@cf81f0b8' });
+      expect(write).toHaveBeenCalledWith('Facet 1.28.0 (local/win-test@cf81f0b8)');
+      expect(open).toHaveBeenCalledWith(I18N.notifications.copied, '', { duration: 2000 });
+    });
+
+    it('copies the version alone when the server sends no build', async () => {
+      const { write } = await copy({ version: '1.28.0' });
+      expect(write).toHaveBeenCalledWith('Facet 1.28.0');
+    });
+
+    it('confirms nothing when neither the clipboard nor the fallback copy works', async () => {
+      Object.defineProperty(document, 'execCommand', { value: vi.fn(() => false), configurable: true });
+      const { open } = await copy({ version: '1.28.0' }, vi.fn(() => Promise.reject(new Error('denied'))));
+      expect(document.execCommand).toHaveBeenCalledWith('copy');
+      expect(open).not.toHaveBeenCalled();
+    });
+
+    it('does nothing before the config has loaded', async () => {
+      const { write, open } = await copy(null);
+      expect(write).not.toHaveBeenCalled();
+      expect(open).not.toHaveBeenCalled();
+    });
   });
 });

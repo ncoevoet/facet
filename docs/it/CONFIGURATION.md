@@ -979,7 +979,7 @@ Raggruppa foto simili scattate in rapida successione.
 
 Avvisa gli utenti di edizione quando esiste una versione più recente di Facet. È distinto dal messaggio del browser «È disponibile una nuova versione — Ricarica».
 
-- La versione in esecuzione è mostrata in fondo al menu utente per chiunque possa aprire il viewer.
+- La versione in esecuzione è mostrata in fondo al menu utente per chiunque possa aprire il viewer. Un clic copia la versione e la riga di build, ad esempio per una segnalazione di bug.
 - Un'immagine costruita con `--build-arg FACET_BUILD=<branch>@<commit>` mostra anche quella riga di build, così come un'installazione Windows tramite MSI, con il `<branch>@<commit>` da cui è stato costruito. `/api/config` restituisce entrambe come `version` e `build`, solo a chi può leggere la libreria.
 - Il server interroga GitHub al massimo una volta per `interval_days`, senza token né dati della libreria. Un controllo fallito appare come «nessun aggiornamento noto».
 - Solo gli utenti di edizione vedono l'avviso, al massimo una volta a settimana per browser.
