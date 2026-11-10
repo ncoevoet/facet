@@ -126,6 +126,13 @@ bench/results/*.json
 # MSI build output (installer/build-msi.ps1)
 installer/out/
 
+# Local design and browser verification artifacts
+/.hallmark/
+/.playwright-mcp/
+playwright-report/
+blob-report/
+test-results/
+
 # Browser flows (client/e2e): seeded workspace and Playwright output
 client/e2e/.work/
 client/test-results/

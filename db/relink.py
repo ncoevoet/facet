@@ -25,22 +25,44 @@ MAX_FILE_BYTES = 512 * 1024 * 1024
 MAX_TOTAL_BYTES = 2 * 1024 * 1024 * 1024
 MAX_PLAN_BYTES = 2 * 1024 * 1024
 _PLAIN_REFS = {
+    ('logical_assets', 'primary_path'), ('logical_asset_members', 'photo_path'),
     ('albums', 'cover_photo_path'), ('album_photos', 'photo_path'),
     ('album_client_picks', 'photo_path'), ('rating_provenance', 'photo_path'),
     ('face_reextract_snapshot', 'photo_path'),
     ('photo_stacks', 'cover_path'), ('photo_stack_members', 'photo_path'),
     ('stack_suggestion_dismissals', 'photo_path'),
+    ('photo_keyword_nodes', 'photo_path'),
+    ('keyword_assignment_deletions', 'photo_path'),
     # An AI edit's own path: no foreign key, since the link is recorded before the edit is scanned.
     ('photo_ai_edits', 'edit_path'),
 }
 _NON_ASSET_PATHS = {
+    # The conditional seed trigger follows only current members, never an old
+    # path later reused by an unrelated photo. Retired seeds are private history.
+    ('logical_review_seeds', 'photo_path'),
     ('photos', 'path'), ('photos_fts', 'path'), ('scan_failures', 'path'),
+    ('photo_keyword_nodes', 'imported_path'),
+    ('keyword_assignment_deletions', 'path_key'),
 }
 
 # Organization history owns these tables outside db.schema's column catalog.
 # Historical payload JSON and the global revision clock are not asset links.
 # Keep the exact column inventory so future additions still require review.
 _AUXILIARY_COLUMNS = {
+    'logical_review_seeds': {'asset_id', 'photo_path'},
+    'logical_review_fields': {'asset_id', 'owner', 'field', 'value', 'origin'},
+    'logical_review_versions': {'asset_id', 'owner', 'revision'},
+    'logical_review_field_versions': {'asset_id', 'owner', 'field', 'revision'},
+    'logical_review_imports': {'asset_id', 'owner', 'field', 'signature', 'local_revision'},
+    'logical_assets': {'id', 'primary_path', 'revision'},
+    'logical_asset_members': {'asset_id', 'photo_path', 'position'},
+    'logical_asset_imports': {'asset_id', 'signature', 'members_json'},
+    'face_review_feedback': {'owner', 'face_id', 'person_id', 'identity_token', 'receipt_id'},
+    'keyword_nodes': {'id', 'parent_id', 'name', 'name_key'},
+    'photo_keyword_nodes': {'photo_path', 'node_id', 'source', 'origin_source', 'created_by', 'created_at', 'imported_path', 'imported_signature'},
+    'keyword_assignment_deletions': {'photo_path', 'path_key', 'node_id', 'created_at'},
+    'keyword_node_edits': {'node_id', 'action', 'changed_at'},
+    'keyword_node_baselines': {'node_id', 'signature'},
     'photo_stacks': {'id', 'owner', 'cover_path', 'revision'},
     'immich_stack_links': {'scope', 'local_stack_id', 'remote_stack_id', 'local_fingerprint', 'remote_fingerprint'},
     'immich_stack_send_claims': {'admission_scope', 'asset_id', 'operation_id'},
@@ -434,6 +456,15 @@ def _flag_manual_faces(conn, path):
         except (ValueError, TypeError):
             pass
         conn.execute('UPDATE faces SET manual_source=?,manual_review_required=1 WHERE id=?', (source, face_id))
+    for ignore_id, source in conn.execute(
+            'SELECT ignore_id,source FROM ignored_face_detections WHERE photo_path=?', (path,)).fetchall():
+        try:
+            stored = json.loads(source)
+            if isinstance(stored, dict) and stored.get('kind') == 'face-detection-v1':
+                conn.execute('UPDATE ignored_face_detections SET source=? WHERE ignore_id=?',
+                             (_json({**stored, 'relink_unverified': True}), ignore_id))
+        except (ValueError, TypeError):
+            pass
 
 
 def apply_relinks(db_path, plan, config, *, acknowledge_plan, acknowledge_unverified_identity=False, user=None):

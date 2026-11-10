@@ -1,5 +1,6 @@
 """Manual tags on the read side (C2) and hidden from share links (C-SH1)."""
 
+from tests.shared_asset_helpers import shared_photo_paths
 import json
 import sqlite3
 import uuid
@@ -223,7 +224,7 @@ class TestShareLinksHideManualTags:
 
     def test_shared_album_list_hides_manual_tags(self, edition_client, shared_albums):
         resp = self._shared(edition_client)
-        photos = {p["path"]: p for p in resp.json()["photos"]}
+        photos = dict(zip(shared_photo_paths(resp.json()["photos"]), resp.json()["photos"], strict=True))
         assert photos[MANUAL_ONLY]["manual_tags"] == []
         assert photos[PLAIN]["manual_tags"] == []
         assert "other note" not in resp.text
@@ -248,14 +249,14 @@ class TestShareLinksHideManualTags:
     ):
         monkeypatch.setattr("api.db_helpers.is_photo_tags_available", lambda conn: photo_tags_available)
         resp = self._shared(edition_client, tag=TAG)
-        paths = {p["path"] for p in resp.json()["photos"]}
+        paths = set(shared_photo_paths(resp.json()["photos"]))
         assert MANUAL_ONLY not in paths
         assert paths <= {BOTH}  # BOTH only if the AI column carries the tag (it does)
         assert paths == {BOTH}
 
     def test_shared_smart_album_keeps_owner_saved_manual_filter(self, edition_client, shared_albums):
         resp = self._shared(edition_client, album_id=ALBUM_ID + 1)
-        photos = {p["path"]: p for p in resp.json()["photos"]}
+        photos = dict(zip(shared_photo_paths(resp.json()["photos"]), resp.json()["photos"], strict=True))
         assert {MANUAL_ONLY, BOTH} <= set(photos)
         assert photos[MANUAL_ONLY]["manual_tags"] == []
 

@@ -19,8 +19,10 @@ export interface CaptureDateDialogData {
   filters?: Record<string, unknown> | null;
   exclude?: string[];
   manuallySet?: boolean;
-  /** One target photo and its stored `date_taken` (`YYYY:MM:DD HH:MM:SS`): shown as the
-   *  before/after example and enabling the "set exact time" mode. */
+  /** One target photo and its stored `date_taken` (`YYYY:MM:DD HH:MM:SS`), shown as the
+   *  before/after example. With a dated reference, "set exact time" shifts every photo by
+   *  the offset that gives it the typed time; without one it writes the typed time on the
+   *  photos that have no usable date, and every dated photo keeps its own. */
   reference?: { path: string; date: string } | null;
 }
 type Preview = components['schemas']['CaptureDatePreview'];
@@ -75,14 +77,12 @@ function splitOffset(abs: number): OffsetParts {
     <mat-dialog-content>
       <p class="text-sm mb-3">{{ I18N.capture_date.hint | translate }}</p>
       <p class="text-sm mb-3">{{ I18N.gallery.selection.count | translate:{ count: data.count } }}</p>
-      @if (reference) {
-        <div class="inline-flex mb-3 rounded-full border border-[var(--mat-sys-outline-variant)] overflow-hidden" role="group" [attr.aria-label]="I18N.capture_date.mode | translate">
-          <button mat-button type="button" data-mode="shift" class="!rounded-none" [class]="mode() === 'shift' ? SEGMENT_ON : ''"
-            [attr.aria-pressed]="mode() === 'shift'" [disabled]="busy()" (click)="setMode('shift')">{{ I18N.capture_date.mode_shift | translate }}</button>
-          <button mat-button type="button" data-mode="exact" class="!rounded-none" [class]="mode() === 'exact' ? SEGMENT_ON : ''"
-            [attr.aria-pressed]="mode() === 'exact'" [disabled]="busy()" (click)="setMode('exact')">{{ I18N.capture_date.mode_exact | translate }}</button>
-        </div>
-      }
+      <div class="inline-flex mb-3 rounded-full border border-[var(--mat-sys-outline-variant)] overflow-hidden" role="group" [attr.aria-label]="I18N.capture_date.mode | translate">
+        <button mat-button type="button" data-mode="shift" class="!rounded-none" [class]="mode() === 'shift' ? SEGMENT_ON : ''"
+          [attr.aria-pressed]="mode() === 'shift'" [disabled]="busy()" (click)="setMode('shift')">{{ I18N.capture_date.mode_shift | translate }}</button>
+        <button mat-button type="button" data-mode="exact" class="!rounded-none" [class]="mode() === 'exact' ? SEGMENT_ON : ''"
+          [attr.aria-pressed]="mode() === 'exact'" [disabled]="busy()" (click)="setMode('exact')">{{ I18N.capture_date.mode_exact | translate }}</button>
+      </div>
       @if (mode() === 'shift') {
         <div class="flex flex-wrap items-end gap-3 mb-3">
           <div class="inline-flex rounded-full border border-[var(--mat-sys-outline-variant)] overflow-hidden" role="group" [attr.aria-label]="I18N.capture_date.direction | translate">
@@ -108,14 +108,14 @@ function splitOffset(abs: number): OffsetParts {
           }
         </div>
       } @else {
-        <label class="block mb-3 text-sm">{{ I18N.capture_date.exact_label | translate }}
+        <label class="block mb-3 text-sm">{{ (absolute() ? I18N.capture_date.exact_label_set : I18N.capture_date.exact_label) | translate }}
           <input class="block w-full mt-1 border rounded p-2 bg-transparent" type="datetime-local" step="1" data-exact
             [ngModel]="exactValue()" (ngModelChange)="setExact($event)" [disabled]="busy()"
             [attr.aria-invalid]="!valid()" [attr.aria-describedby]="valid() ? null : 'capture-date-offset-error'">
         </label>
       }
       @if (!valid()) {
-        <p id="capture-date-offset-error" role="alert" class="text-sm mb-3">{{ I18N.capture_date.invalid | translate }}</p>
+        <p id="capture-date-offset-error" role="alert" class="text-sm mb-3">{{ (absolute() ? I18N.capture_date.invalid_set : I18N.capture_date.invalid) | translate }}</p>
       } @else {
         <p class="text-sm font-medium mb-1" data-summary>{{ summaryKey() | translate:{ amount: amount() } }}</p>
       }
@@ -131,7 +131,7 @@ function splitOffset(abs: number): OffsetParts {
         <div class="overflow-x-auto"><table class="w-full text-sm">
           <thead><tr><th scope="col" class="text-left p-1">{{ I18N.capture_date.photo | translate }}</th><th scope="col" class="text-left p-1">{{ I18N.capture_date.before | translate }}</th><th scope="col" class="text-left p-1">{{ I18N.capture_date.after | translate }}</th></tr></thead>
           <tbody>@for (sample of preview.samples; track sample.path) {
-            <tr><td class="p-1 max-w-48 truncate" [title]="sample.path">{{ sample.path }}</td><td class="p-1 whitespace-nowrap">{{ sample.old_date }}</td><td class="p-1 whitespace-nowrap">{{ sample.new_date }}</td></tr>
+            <tr><td class="p-1 max-w-48 truncate" [title]="sample.path">{{ sample.path }}</td><td class="p-1 whitespace-nowrap">{{ sample.old_date ?? (I18N.gallery.no_capture_date | translate) }}</td><td class="p-1 whitespace-nowrap">{{ sample.new_date }}</td></tr>
           }</tbody>
         </table></div>
       }
@@ -175,7 +175,7 @@ export class CaptureDateDialogComponent {
     : { photo_paths: [...this.data.paths], exclude: [...(this.data.exclude ?? [])] };
   private readonly referenceSeconds = this.data.reference ? captureDateSeconds(this.data.reference.date) : null;
   protected readonly reference = this.referenceSeconds === null ? null : this.data.reference;
-  readonly mode = signal<Mode>('shift');
+  readonly mode = signal<Mode>(!this.reference && this.data.paths.length === 1 && !this.data.filters ? 'exact' : 'shift');
   readonly direction = signal<1 | -1>(1);
   readonly parts = signal<OffsetParts>({ days: 0, hours: 1, minutes: 0, seconds: 0 });
   readonly exactValue = signal(this.referenceSeconds === null ? '' : localInput(this.referenceSeconds));
@@ -191,12 +191,25 @@ export class CaptureDateDialogComponent {
   readonly busy = signal(false);
   readonly failed = signal(false);
   readonly result = signal<Preview | null>(null);
+  /** Exact mode without a dated reference: the typed walltime is sent as-is (`set_date`), not as an offset. */
+  readonly absolute = computed(() => this.mode() === 'exact' && this.referenceSeconds === null);
+  private readonly absoluteSeconds = computed(() => this.absolute() ? wallSeconds(LOCAL_DATE.exec(this.exactValue() ?? '')?.slice(1) ?? null) : null);
+  /** The request's mode and value; two requests with the same key preview the same change. */
+  private readonly change = computed<{ offset_seconds: number | null } | { set_date: string }>(() => {
+    const seconds = this.absoluteSeconds();
+    return this.absolute() ? { set_date: seconds === null ? '' : localInput(seconds) } : { offset_seconds: this.offset() };
+  });
   readonly valid = computed(() => {
+    if (this.absolute()) return this.data.count <= 1000 && this.absoluteSeconds() !== null;
     const offset = this.offset();
     return this.data.count <= 1000 && offset !== null && offset !== 0 && Math.abs(offset) <= MAX_OFFSET_SECONDS;
   });
-  protected readonly summaryKey = computed(() => this.offset()! < 0 ? this.I18N.capture_date.summary_earlier : this.I18N.capture_date.summary_later);
+  protected readonly summaryKey = computed(() => {
+    if (this.absolute()) return this.I18N.capture_date.summary_set;
+    return this.offset()! < 0 ? this.I18N.capture_date.summary_earlier : this.I18N.capture_date.summary_later;
+  });
   protected readonly amount = computed(() => {
+    if (this.absolute()) return this.absoluteSeconds() === null ? '' : formatExif(this.absoluteSeconds()!);
     const parts = splitOffset(Math.abs(this.offset() ?? 0));
     const units = { days: this.I18N.capture_date.unit_d, hours: this.I18N.capture_date.unit_h, minutes: this.I18N.capture_date.unit_min, seconds: this.I18N.capture_date.unit_s };
     return UNITS.filter(unit => parts[unit]).map(unit => `${parts[unit]} ${this.i18n.t(units[unit])}`).join(' ');
@@ -264,11 +277,10 @@ export class CaptureDateDialogComponent {
   setDirection(direction: 1 | -1): void { this.direction.set(direction); this.schedulePreview(); }
 
   setMode(mode: Mode): void {
-    if (mode === 'exact' && !this.reference) return;
     if (mode === 'exact' && this.valid() && this.referenceSeconds !== null) {
       this.exactValue.set(localInput(this.referenceSeconds + this.offset()!));
     }
-    if (mode === 'shift' && this.valid()) this.showOffset(this.offset()!);
+    if (mode === 'shift' && this.offset() !== null && this.valid()) this.showOffset(this.offset()!);
     this.mode.set(mode);
     this.schedulePreview();
   }
@@ -277,16 +289,17 @@ export class CaptureDateDialogComponent {
 
   async preview(): Promise<void> {
     if (!this.current() || this.busy() || !this.valid()) return;
-    const offset = this.offset();
+    const change = JSON.stringify(this.change());
+    const body = this.change();
     this.cancelPreview();
     this.failed.set(false); this.result.set(null);
     // Settles on the reply, or on cancellation when a newer offset supersedes this request.
     await new Promise<void>(settled => {
-      this.previewRequest = this.api.post<Preview>('/photos/capture_date/preview', { ...this.target, offset_seconds: offset })
+      this.previewRequest = this.api.post<Preview>('/photos/capture_date/preview', { ...this.target, ...body })
         .pipe(take(1), finalize(settled))
         .subscribe({
-          next: result => { if (this.current() && this.offset() === offset) this.result.set(result); },
-          error: () => { if (this.current() && this.offset() === offset) this.failed.set(true); },
+          next: result => { if (this.current() && JSON.stringify(this.change()) === change) this.result.set(result); },
+          error: () => { if (this.current() && JSON.stringify(this.change()) === change) this.failed.set(true); },
         });
     });
   }
@@ -296,7 +309,7 @@ export class CaptureDateDialogComponent {
     if (!this.current() || this.busy() || !preview?.changed || !this.valid()) return;
     this.busy.set(true); this.failed.set(false); this.dialog.disableClose = true;
     try {
-      await firstValueFrom(this.api.post<Preview>('/photos/capture_date/apply', { ...this.target, offset_seconds: this.offset(), preview_token: preview.preview_token }));
+      await firstValueFrom(this.api.post<Preview>('/photos/capture_date/apply', { ...this.target, ...this.change(), preview_token: preview.preview_token }));
       if (!this.current()) return;
       const sample = this.data.paths.length === 1 && !this.data.filters ? preview.samples.find(p => p.path === this.data.paths[0]) : undefined;
       const result = sample ? { date_taken: sample.new_date, date_manually_set: 1 } : undefined;

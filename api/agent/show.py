@@ -108,11 +108,11 @@ def tab_route(registry: TabRegistry, resolved: ResolvedGrant, tab_id: Optional[s
 
 
 def comparison_open(registry: TabRegistry, resolved: ResolvedGrant, tab_id: Optional[str]) -> bool:
-    """Whether the tab a show would drive is on /compare.
+    """Whether a show would interrupt either comparison workspace.
 
     A show there would navigate away from a pair the user is judging, so it is skipped.
     """
-    return tab_route(registry, resolved, tab_id) == "/compare"
+    return tab_route(registry, resolved, tab_id) in {"/compare", "/photo-compare"}
 
 
 async def _show(registry: TabRegistry, resolved: ResolvedGrant, settings: dict, tab_id: Optional[str],

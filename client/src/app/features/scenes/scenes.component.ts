@@ -3,6 +3,7 @@ import { ActivatedRoute, Router } from '@angular/router';
 import { NgClass } from '@angular/common';
 import { MatIconModule } from '@angular/material/icon';
 import { MatButtonModule } from '@angular/material/button';
+import { MatCardModule } from '@angular/material/card';
 import { MatMenuModule } from '@angular/material/menu';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { MatSliderModule } from '@angular/material/slider';
@@ -20,6 +21,7 @@ import { ThumbnailUrlPipe, ImageUrlPipe } from '../../shared/pipes/thumbnail-url
 import { LoupeDirective } from '../../shared/directives/loupe.directive';
 import { createLoupeState } from '../../shared/utils/loupe-state';
 import { SceneDatePipe, MomentLabelPipe, MomentUncertainPipe } from './scenes.pipes';
+import { sceneCullParams } from './scene-cull-link';
 import { I18N, i18nKeys } from '../../core/i18n/keys';
 import { MarkTonePipe } from '../../shared/pipes/mark-tone.pipe';
 
@@ -58,6 +60,7 @@ interface ScenesResponse {
     NgClass,
     MatIconModule,
     MatButtonModule,
+    MatCardModule,
     MatMenuModule,
     MatProgressSpinnerModule,
     MatSliderModule,
@@ -72,10 +75,10 @@ interface ScenesResponse {
   ],
   changeDetection: ChangeDetectionStrategy.Eager,
   template: `
-    <div class="px-4 pt-3 md:px-8 mx-auto w-full max-w-[96%]">
-      <div class="flex items-center gap-3 mb-1">
-        <h2 class="text-lg font-semibold">{{ I18N.scenes.title | translate }}</h2>
-        <div class="flex items-center gap-2 ml-auto">
+    <div class="px-4 pt-3 w-full">
+      <div class="flex flex-wrap items-center gap-3 mb-1">
+        <h1 class="sr-only">{{ I18N.scenes.title | translate }}</h1>
+        <div class="flex flex-wrap items-center gap-2 ml-auto">
           <button mat-stroked-button [matMenuTriggerFor]="albumMenu"
                   [matTooltip]="I18N.scenes.album | translate">
             <mat-icon>photo_library</mat-icon>
@@ -101,21 +104,22 @@ interface ScenesResponse {
           }
         </div>
       </div>
-      <p class="text-sm text-white/50 mb-4">{{ I18N.scenes.subtitle | translate }}</p>
+      <p class="text-sm text-[var(--mat-sys-on-surface-variant)] mb-4">{{ I18N.scenes.subtitle | translate }}</p>
 
       @if (loading() && scenes().length === 0) {
         <div class="flex justify-center py-10"><mat-spinner diameter="32" [attr.aria-label]="I18N.ui.labels.loading | translate" /></div>
       } @else if (scenes().length === 0) {
-        <div class="text-white/50 py-10 text-center">{{ I18N.scenes.empty | translate }}</div>
+        <div class="text-[var(--mat-sys-on-surface-variant)] py-10 text-center">{{ I18N.scenes.empty | translate }}</div>
       } @else {
+        <div data-scene-grid class="grid grid-cols-1 xl:grid-cols-2 gap-4 mb-6">
         @for (scene of scenes(); track scene.scene_id) {
-          <div class="mb-6 rounded-lg border border-white/10 p-3">
+          <mat-card class="!p-3">
             <div class="flex items-center gap-2 mb-2">
-              <mat-icon class="!text-base text-white/60">schedule</mat-icon>
-              <span class="text-sm text-white/80">{{ scene.start | sceneDate }}</span>
-              <span class="text-xs text-white/40">· {{ scene.count }} {{ I18N.scenes.photos | translate }}</span>
+              <mat-icon aria-hidden="true" class="!text-base text-[var(--mat-sys-on-surface-variant)]">schedule</mat-icon>
+              <span class="text-sm text-[var(--mat-sys-on-surface)]">{{ scene.start | sceneDate }}</span>
+              <span class="text-xs text-[var(--mat-sys-on-surface-variant)]">· {{ scene.count }} {{ I18N.scenes.photos | translate }}</span>
               @if (scene.moment | momentLabel; as momentLabel) {
-                <span class="inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded-full bg-[var(--mat-sys-primary)]/20 text-[var(--mat-sys-primary)]"
+                <span class="inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded-full bg-[var(--mat-sys-primary)]/12 text-[var(--mat-sys-primary)]"
                       [class.!opacity-50]="scene.moment_confidence | momentUncertain:momentConfidenceMin()">
                   <mat-icon class="!text-sm !w-4 !h-4 !leading-4" [class]="'moment' | markTone">✦</mat-icon>{{ momentLabel }}@if (scene.moment_confidence | momentUncertain:momentConfidenceMin()) { <span class="opacity-80">({{ I18N.moments.uncertain | translate }})</span> }
                 </span>
@@ -128,10 +132,10 @@ interface ScenesResponse {
                 </button>
               }
             </div>
-            <div class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4">
+            <div class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-3 gap-4">
               @for (photo of scene.photos; track photo.path) {
                 <div class="group relative w-full aspect-[4/3] rounded-xl overflow-hidden border-2"
-                     [ngClass]="photo.path === scene.best_path ? 'border-green-500' : 'border-white/20'">
+                     [ngClass]="photo.path === scene.best_path ? 'border-green-500' : 'border-[var(--mat-sys-outline-variant)]'">
                   <img [src]="photo.path | thumbnailUrl:320:photo.preview_revision"
                        [appLoupe]="photo.path | imageUrl:true:photo.preview_revision"
                        [loupeActive]="loupeActive()"
@@ -139,13 +143,14 @@ interface ScenesResponse {
                        class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
                        [alt]="photo.filename" loading="lazy" />
                   @if (photo.path === scene.best_path) {
-                    <span class="absolute top-1 left-1 bg-green-600/90 text-white text-[10px] px-1 rounded">{{ I18N.scenes.best | translate }}</span>
+                    <span class="absolute top-1 left-1 bg-green-700 text-white text-[11px] px-1 rounded">{{ I18N.scenes.best | translate }}</span>
                   }
                 </div>
               }
             </div>
-          </div>
+          </mat-card>
         }
+        </div>
         @if (hasMore()) {
           <div class="flex justify-center py-4">
             <button mat-stroked-button (click)="loadMore()" [disabled]="loading()">{{ I18N.scenes.load_more | translate }}</button>
@@ -165,7 +170,6 @@ export class ScenesComponent implements OnInit {
   private readonly albumService = inject(AlbumService);
   protected readonly auth = inject(AuthService);
   private readonly store = inject(GalleryStore);
-  private readonly sceneDate = new SceneDatePipe();
 
   protected readonly scenes = signal<Scene[]>([]);
   protected readonly loading = signal(true);
@@ -260,14 +264,6 @@ export class ScenesComponent implements OnInit {
   /** Open the rich culling darkroom scoped to just this scene's capture window
    *  (edition only — the button is gated on auth.isEdition()). */
   protected cullScene(scene: Scene): void {
-    void this.router.navigate(['/culling'], {
-      queryParams: {
-        group_by: 'scene',
-        album: this.albumId() ?? undefined,
-        from: scene.start ?? undefined,
-        to: scene.end ?? undefined,
-        scene: this.sceneDate.transform(scene.start),
-      },
-    });
+    void this.router.navigate(['/culling'], { queryParams: sceneCullParams(scene, this.albumId()) });
   }
 }

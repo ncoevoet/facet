@@ -1,7 +1,7 @@
 import { Component, DestroyRef, effect, inject, signal, ChangeDetectionStrategy } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { MatButtonModule } from '@angular/material/button';
-import { MatDialogModule, MatDialogRef } from '@angular/material/dialog';
+import { MatDialogModule, MatDialogRef, MAT_DIALOG_DATA } from '@angular/material/dialog';
 import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatInputModule } from '@angular/material/input';
 import { MatIconModule } from '@angular/material/icon';
@@ -67,6 +67,7 @@ import type { components } from '../../core/api/schema';
 
         <p id="person-assignment-ordering-hint" class="text-xs text-neutral-500">{{ I18N.person_selector.ordering_hint | translate }}</p>
         <div class="flex flex-col gap-1 max-h-[360px] overflow-y-auto">
+          @if (allowCreate) {
           <button
             class="flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-[var(--mat-sys-surface-container-high)] transition-colors text-left w-full border border-dashed border-neutral-600 cursor-pointer"
             (click)="startCreate()"
@@ -83,6 +84,7 @@ import type { components } from '../../core/api/schema';
             </div>
           </button>
 
+          }
           @if (loading()) {
             <p role="status">{{ I18N.ui.labels.loading | translate }}</p>
           }
@@ -127,6 +129,7 @@ import type { components } from '../../core/api/schema';
 })
 export class PersonSelectorDialogComponent {
   protected readonly I18N = i18nKeys();
+  protected readonly allowCreate = inject<{ allowCreate?: boolean } | null>(MAT_DIALOG_DATA, { optional: true })?.allowCreate !== false;
   private readonly api = inject(ApiService);
   private readonly auth = inject(AuthService);
   private readonly owner = this.auth.identity();
@@ -222,6 +225,7 @@ export class PersonSelectorDialogComponent {
   }
 
   startCreate(): void {
+    if (!this.allowCreate) return;
     this.newName = this.searchQuery.trim();
     this.creating.set(true);
   }
@@ -232,6 +236,7 @@ export class PersonSelectorDialogComponent {
   }
 
   confirmCreate(): void {
+    if (!this.allowCreate) return;
     const name = this.newName.trim();
     if (!name) return;
     this.dialogRef.close({ kind: 'create', name });

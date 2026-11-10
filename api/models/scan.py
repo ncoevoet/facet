@@ -1,8 +1,8 @@
 """Pydantic models for scan, export, updates, i18n, folders and ranker endpoints."""
 
-from typing import Optional
+from typing import Literal, Optional
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, ConfigDict
 
 
 class ScanStartResponse(BaseModel):
@@ -12,6 +12,101 @@ class ScanStartResponse(BaseModel):
     message: str
     directories: list[str]
     pid: int
+    job_id: str
+
+
+class ScanCancelRequest(BaseModel):
+    model_config = ConfigDict(extra='forbid')
+
+    job_id: str = Field(pattern=r'^[0-9a-f]{32}$')
+    confirm: bool
+
+
+class ScanCancelResponse(BaseModel):
+    job_id: str
+    stop_requested: bool
+
+
+class FaceUpdateStartRequest(BaseModel):
+    model_config = ConfigDict(extra='forbid')
+    job_id: str = Field(pattern=r'^[0-9a-f]{32}$')
+    confirm: bool = Field(strict=True)
+    expected_model: str = Field(min_length=1, max_length=64)
+    mode: Literal['missing', 'redetect', 'repair'] = 'missing'
+
+
+class FaceUpdateRecord(BaseModel):
+    job_id: str
+    model: str
+    mode: Literal['missing', 'redetect', 'repair']
+    state: Literal['queued', 'running', 'completed', 'partial', 'cancelled', 'failed']
+    stop_requested: bool
+    total: int
+    processed: int
+    added_faces: int
+    refreshed_faces: int
+    removed_faces: int
+    refused: int
+    repaired_people: int
+    empty: int
+    skipped: int
+    failed: int
+    error_code: Optional[str] = None
+    created_at: str
+    started_at: Optional[str] = None
+    finished_at: Optional[str] = None
+    controlled_by_worker: bool
+
+
+class FaceUpdatePreview(BaseModel):
+    eligible_photos: int
+    model: str
+    mode: Literal['missing', 'redetect', 'repair']
+    automatic_faces: int
+    assigned_faces: int
+    manual_faces: int
+    pending_person_matches: int
+
+
+class FaceUpdateItem(BaseModel):
+    path: str
+    state: str
+    error_code: Optional[str] = None
+
+
+class FaceUpdateItemsResponse(BaseModel):
+    items: list[FaceUpdateItem]
+    total: int
+    next_after: Optional[str] = None
+
+
+class ScanRetryPreviewRequest(BaseModel):
+    model_config = ConfigDict(extra='forbid')
+    run_id: int = Field(gt=0, strict=True)
+
+
+class ScanRetryApplyRequest(BaseModel):
+    model_config = ConfigDict(extra='forbid')
+    plan_id: str = Field(pattern=r'^[0-9a-f]{32}$')
+    confirm: bool = Field(strict=True)
+
+
+class ScanRetryOmission(BaseModel):
+    reason: Literal['missing', 'not_file', 'unsupported', 'duplicate', 'raw_paired']
+    count: int
+
+
+class ScanRetryPreviewResponse(BaseModel):
+    plan_id: str
+    run_id: int
+    expires_in_seconds: int
+    files: list[str]
+    omissions: list[ScanRetryOmission]
+
+
+class ScanRetryReceiptResponse(BaseModel):
+    state: Literal['preview', 'submitting', 'spawned', 'refused']
+    job_id: Optional[str] = None
 
 
 class ScanStatusResponse(BaseModel):
@@ -28,12 +123,49 @@ class ScanStatusResponse(BaseModel):
     elapsed_seconds: Optional[float] = None
     exit_code: Optional[int] = None
     progress: Optional[dict] = None
+    job_id: Optional[str] = None
+    kind: Optional[str] = None
+    cancel_requested: bool = False
 
 
 class ScanStreamTokenResponse(BaseModel):
     """``GET /api/scan/stream_token`` success payload."""
 
     token: str
+
+
+class ScanFailureStage(BaseModel):
+    stage: str
+    count: int
+
+
+class RecordedScanRun(BaseModel):
+    id: int
+    started_at: Optional[str] = None
+    finished_at: Optional[str] = None
+    heartbeat_at: Optional[str] = None
+    status: str
+    mode: Optional[str] = None
+    total_files: Optional[int] = None
+    processed_files: Optional[int] = None
+    failed_files: Optional[int] = None
+    retained_failure_records: int
+    failure_stages: list[ScanFailureStage]
+    viewer_job_id: Optional[str] = None
+    job_status: Optional[str] = None
+    job_phase: Optional[str] = None
+    job_finished_at: Optional[str] = None
+
+
+class ScanRunHistoryResponse(BaseModel):
+    runs: list[RecordedScanRun]
+    next_before: Optional[int] = None
+
+
+class ScanJobRecordResponse(BaseModel):
+    job_id: str
+    recorded: RecordedScanRun
+    liveness: Literal['not_checked']
 
 
 class ScanDirectoryEntry(BaseModel):
@@ -138,6 +270,7 @@ class PhotoDeleteResponse(BaseModel):
     # anyway (`remove_missing`), so the caller can tell a reconciled row from
     # a trashed one. Empty unless the flag was set.
     removed_missing: list[str]
+    removed_catalog: list[str] = Field(default_factory=list)
     trashed: int
     errors: dict[str, str]
 

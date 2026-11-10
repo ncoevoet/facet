@@ -95,7 +95,8 @@ describe('manual activity from rendered gallery menus and stacks', () => {
     const selected = [...rows, makePhoto({ path: '/trip/c.jpg' })];
     store.restoreSelection(selected.map(photo => photo.path)); fixture.detectChanges();
     const start = requested('/api/stacks/regroup/preview');
-    (fixture.nativeElement as HTMLElement).querySelector<HTMLButtonElement>('[data-create-stack]')!.click();
+    (fixture.nativeElement as HTMLElement).querySelector<HTMLButtonElement>('[data-selection-more]')!.click(); fixture.detectChanges();
+    document.querySelector<HTMLButtonElement>('.cdk-overlay-container [data-create-stack]')!.click();
     await vi.waitFor(() => expect(router.url).toBe('/stacks/edit')); routed.detectChanges();
     await start;
     http.expectOne('/api/stacks/regroup/preview').flush({ selected_paths: selected.map(p => p.path), mode: 'combine', paths: selected.map(p => p.path), cover_path: rows[0].path, source_stacks: [], unstacked_paths: selected.map(p => p.path), affected_paths: selected.map(p => p.path), expected_state: 'a'.repeat(64) });
@@ -131,7 +132,8 @@ describe('manual activity from rendered gallery menus and stacks', () => {
     await refresh.mock.results[0].value;
     await routed.fixture.whenStable(); routed.detectChanges();
     expect(journal.since(cursor).items.filter(item => item.kind === 'stack')).toEqual([expect.objectContaining({ kind: 'stack', paths: selected.map(photo => photo.path), value: 'create' })]);
-    expect(routed.routeNativeElement!.textContent).toContain('stacks.totals');
+    expect(routed.routeNativeElement!.textContent).toContain('gallery.collection_totals_compact {"photos":4,"items":2}');
+    expect(store.photoTotal()).toBe(4); expect(store.total()).toBe(2);
     expect(store.selectedPaths().size).toBe(0);
     expect(routed.routeNativeElement!.textContent).not.toContain('gallery.selection.view_scope_offer');
     const cards = [...(routed.routeNativeElement as HTMLElement).querySelectorAll('app-photo-card [role=button]')];
@@ -161,10 +163,31 @@ describe('manual activity from rendered gallery menus and stacks', () => {
 
   it('disables stack creation for whole-view selection and discloses folded members', async () => {
     store.selectWholeView(); fixture.detectChanges();
-    const button = (fixture.nativeElement as HTMLElement).querySelector<HTMLButtonElement>('[data-create-stack]')!;
-    expect(button.disabled).toBe(true);
+    (fixture.nativeElement as HTMLElement).querySelector<HTMLButtonElement>('[data-selection-more]')!.click(); fixture.detectChanges();
+    const button = document.querySelector<HTMLButtonElement>('.cdk-overlay-container [data-create-stack]')!;
+    // disabledInteractive: inert and announced as disabled, yet focusable so its reason stays reachable.
+    expect(button.getAttribute('aria-disabled')).toBe('true');
+    expect(button.disabled).toBe(false);
     expect(fixture.nativeElement.textContent).toContain('stacks.folded_scope');
     button.click(); http.expectNone('/api/stacks');
+  });
+
+  it('offers a handle that moves the selection bar out of the way', () => {
+    store.restoreSelection([rows[0].path]); fixture.detectChanges();
+    const handle = (fixture.nativeElement as HTMLElement).querySelector('[data-selection-bar] [data-toolbar-drag-handle]');
+    expect(handle?.getAttribute('aria-label')).toContain('gallery.selection.move_bar');
+  });
+
+  it('tells an explicit selection of a folded stack tile that it acts on the cover only', () => {
+    store.photos.set([{ ...rows[0], stack_id: 's1', stack_count: 3, stack_total_count: 3 }, rows[1]]);
+    const note = () => (fixture.nativeElement as HTMLElement).querySelector('[data-selection-cover-only]');
+    store.restoreSelection([rows[1].path]); fixture.detectChanges();
+    expect(note()).toBeNull();
+    store.restoreSelection([rows[0].path]); fixture.detectChanges();
+    expect(note()?.textContent).toContain('gallery.selection.cover_only');
+    store.selectWholeView(); fixture.detectChanges();
+    expect(note()).toBeNull();
+    expect(fixture.nativeElement.textContent).toContain('stacks.folded_scope');
   });
 
   it.each([

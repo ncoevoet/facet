@@ -289,7 +289,7 @@ Scansiona quelle foto (`python facet.py /mnt/photos`) e usciranno dall'elenco al
 
 ## Diagnostica nel visualizzatore
 
-Apri **Diagnostica Immich** dal menu utente. In modalità multiutente serve l'accesso da superamministratore; in modalità singolo utente serve l'accesso in modalità edizione (o la modifica locale fidata).
+Apri **Diagnostica Immich** dal sottomenu **Attività e diagnostica** del menu utente. In modalità multiutente serve l'accesso da superamministratore; in modalità singolo utente serve l'accesso in modalità edizione (o la modifica locale fidata).
 
 - Nulla viene letto da Immich finché non fai clic su **Verifica connessione**. Il test legge la versione del server e l'accesso al conto e non scrive nulla.
 - La copertura dei percorsi controlla al massimo 200 foto indicizzate. Non conferma che ciascuna corrisponda a un asset Immich.

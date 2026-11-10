@@ -3,7 +3,6 @@ import {
   ElementRef,
   OnDestroy,
   WritableSignal,
-  inject,
   input,
   output,
   signal,
@@ -19,8 +18,8 @@ import { MatIconModule } from '@angular/material/icon';
 import { MatButtonModule } from '@angular/material/button';
 import { MatSliderModule } from '@angular/material/slider';
 import { MatTooltipModule } from '@angular/material/tooltip';
-import { GalleryStore } from './gallery.store';
 import { registerOverlayForLifetime } from '../../core/agent/page-context.service';
+import { SharedAlbumMediaScope } from '../../shared/utils/shared-album-media';
 import { Photo } from '../../shared/models/photo.model';
 import { ImageUrlPipe, imageUrl, thumbnailUrl } from '../../shared/pipes/thumbnail-url.pipe';
 import { TranslatePipe } from '../../shared/pipes/translate.pipe';
@@ -104,7 +103,7 @@ interface Slide {
             @for (photo of slide.photos; track photo.path; let i = $index) {
               <div class="flex-1 min-w-0 h-full overflow-hidden">
                 <img
-                  [src]="photo.path | imageUrl:false:photo.preview_revision"
+                  [src]="photo.path | imageUrl:false:photo.preview_revision:sharedAlbum()"
                   [alt]="photo.filename"
                   class="w-full h-full object-cover"
                   [style.transform]="layerAImgTransforms()[i]"
@@ -129,7 +128,7 @@ interface Slide {
             @for (photo of slide.photos; track photo.path; let i = $index) {
               <div class="flex-1 min-w-0 h-full overflow-hidden">
                 <img
-                  [src]="photo.path | imageUrl:false:photo.preview_revision"
+                  [src]="photo.path | imageUrl:false:photo.preview_revision:sharedAlbum()"
                   [alt]="photo.filename"
                   class="w-full h-full object-cover"
                   [style.transform]="layerBImgTransforms()[i]"
@@ -216,7 +215,8 @@ interface Slide {
 })
 export class SlideshowComponent implements OnDestroy {
   protected readonly I18N = i18nKeys();
-  private store = inject(GalleryStore);
+  readonly sharedAlbum = input<SharedAlbumMediaScope | null>(null);
+  readonly loadMore = output<void>();
 
   readonly photos = input<Photo[]>([]);
   readonly hasMore = input<boolean>(false);
@@ -531,7 +531,6 @@ export class SlideshowComponent implements OnDestroy {
       this.previouslyFocusedElement.focus();
     }
     this.destroyed = true;
-    this.store.slideshowActive.set(false);
   }
 
   private updateViewportDimensions(): void {
@@ -575,7 +574,6 @@ export class SlideshowComponent implements OnDestroy {
 
   close(): void {
     this.closed.emit();
-    this.store.slideshowActive.set(false);
   }
 
   toggleFullscreen(): void {
@@ -603,7 +601,7 @@ export class SlideshowComponent implements OnDestroy {
     const slides = this.slides();
     let idx = this.currentSlideIndex() + 1;
     if (idx >= slides.length - 5 && this.hasMore() && !this.loading()) {
-      this.store.nextPage();
+      this.loadMore.emit();
     }
     if (idx >= slides.length) {
       if (this.hasMore()) return -1;
@@ -620,6 +618,7 @@ export class SlideshowComponent implements OnDestroy {
       return;
     }
 
+    const scope = this.sharedAlbum();
     // Preload all images in the slide (waits for full image to be browser-cached)
     const preloadPromises = slide.photos.map(
       (photo) =>
@@ -627,18 +626,19 @@ export class SlideshowComponent implements OnDestroy {
           const img = new Image();
           img.onload = () => resolve();
           img.onerror = () => {
+            if (this.destroyed || this.sharedAlbum() !== scope) { resolve(); return; }
             // Full image failed — preload thumbnail as fallback
             const thumb = new Image();
             thumb.onload = () => resolve();
             thumb.onerror = () => resolve();
-            thumb.src = thumbnailUrl(photo.path, undefined, photo.preview_revision);
+            thumb.src = thumbnailUrl(photo.path, undefined, photo.preview_revision, scope);
           };
-          img.src = imageUrl(photo.path, false, photo.preview_revision);
+          img.src = imageUrl(photo.path, false, photo.preview_revision, scope);
         }),
     );
 
     Promise.all(preloadPromises).then(() => {
-      if (this.destroyed) return;
+      if (this.destroyed || this.sharedAlbum() !== scope) return;
       this.currentSlideIndex.set(slideIndex);
       this.slideIndexChanged.emit(slideIndex);
       this.crossfadeTo(slide).then(() => {
@@ -821,7 +821,7 @@ export class SlideshowComponent implements OnDestroy {
     this.clearTimerInterval();
     // Ensure next page is requested (covers edge case where nextSlideIndex() skipped it)
     if (this.hasMore() && !this.loading()) {
-      this.store.nextPage();
+      this.loadMore.emit();
     }
     this.intervalId = setInterval(() => {
       const slides = this.slides();
@@ -837,7 +837,7 @@ export class SlideshowComponent implements OnDestroy {
         this.preloadAndAdvance(0);
       } else if (!this.loading()) {
         // Retry if previous request failed or was not triggered
-        this.store.nextPage();
+        this.loadMore.emit();
       }
     }, 200);
   }
@@ -864,8 +864,9 @@ export class SlideshowComponent implements OnDestroy {
   /** Fallback to thumbnail when full image fails to load (e.g. RAW without rawpy). */
   onImageError(event: Event, path: string, revision?: string | null): void {
     const img = event.target as HTMLImageElement;
-    const thumbUrl = thumbnailUrl(path, undefined, revision);
-    if (!img.src.includes('/thumbnail?')) {
+    if (this.destroyed) return;
+    const thumbUrl = thumbnailUrl(path, undefined, revision, this.sharedAlbum());
+    if (img.src !== new URL(thumbUrl, document.baseURI).href) {
       img.src = thumbUrl;
     }
   }

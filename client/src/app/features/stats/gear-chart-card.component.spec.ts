@@ -1,6 +1,7 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { NoopAnimationsModule } from '@angular/platform-browser/animations';
-import { Pipe, PipeTransform } from '@angular/core';
+import { Pipe, PipeTransform, signal } from '@angular/core';
+import { I18nService } from '../../core/services/i18n.service';
 import { GearChartCardComponent, GearItem, truncateLegendLabel } from './gear-chart-card.component';
 import { TranslatePipe } from '../../shared/pipes/translate.pipe';
 
@@ -58,6 +59,7 @@ describe('GearChartCardComponent', () => {
   beforeEach(async () => {
     await TestBed.configureTestingModule({
       imports: [GearChartCardComponent, NoopAnimationsModule],
+      providers: [{ provide: I18nService, useValue: { locale: signal('en') } }],
     })
     .overrideComponent(GearChartCardComponent, {
       remove: { imports: [TranslatePipe] },
@@ -86,6 +88,32 @@ describe('GearChartCardComponent', () => {
     fixture.detectChanges();
     expect(component).toBeTruthy();
     expect((component as any).selectedMetric()).toBe('avg_score');
+  });
+
+  it('provides the plotted gear values in a readable data table', () => {
+    fixture.detectChanges();
+    const table = fixture.nativeElement.querySelector('details table') as HTMLTableElement;
+    expect(table.textContent).toContain('Lens A');
+    expect(table.textContent).toContain('5.5');
+    expect(table.textContent).toContain('Lens B');
+    expect(table.textContent).toContain('8.5');
+  });
+
+  it('names the data table and its columns, and rounds averages like the other tables', () => {
+    (component as any).selectedMetric.set('avg_score');
+    fixture.componentRef.setInput('items', [{ ...mockItems[0], avg_score: 7.123457 }]);
+    fixture.detectChanges();
+    const table = fixture.nativeElement.querySelector('details table') as HTMLTableElement;
+    expect(table.querySelector('caption')?.textContent).toContain('trans_');
+    expect(Array.from(table.querySelectorAll('thead th')).map(th => th.textContent)).toEqual(['trans_stats.model', 'trans_stats.gear_metrics.avg_score']);
+    expect(table.querySelector('tbody td')?.textContent?.trim()).toBe('7.1');
+  });
+
+  it('shows an empty state rather than an empty chart', () => {
+    fixture.componentRef.setInput('items', []);
+    fixture.detectChanges();
+    expect(fixture.nativeElement.textContent).toContain('trans_stats.no_data');
+    expect(fixture.nativeElement.querySelector('canvas')).toBeNull();
   });
 
   it('should sort items correctly by count (default)', () => {
@@ -119,6 +147,29 @@ describe('GearChartCardComponent', () => {
     const select = (fixture.nativeElement as HTMLElement).querySelector('mat-select') as HTMLElement;
     expect(select.getAttribute('aria-label')).toBe('trans_stats.gear_metric_label');
     expect((fixture.nativeElement as HTMLElement).querySelector('mat-label')).toBeNull();
+  });
+
+  it('shows the gallery sort icon of the selected metric in the select trigger', async () => {
+    fixture.detectChanges();
+    await fixture.whenStable();
+    fixture.detectChanges();
+    const icon = () => (fixture.nativeElement as HTMLElement).querySelector('.mat-mdc-select-value mat-icon') as HTMLElement;
+    expect(icon().textContent!.trim()).toBe('leaderboard');
+    (component as any).selectedMetric.set('avg_aesthetic');
+    fixture.detectChanges();
+    await fixture.whenStable();
+    fixture.detectChanges();
+    expect(icon().textContent!.trim()).toBe('✦');
+  });
+
+  it('gives every option its icon', async () => {
+    fixture.detectChanges();
+    await fixture.whenStable();
+    ((fixture.nativeElement as HTMLElement).querySelector('.mat-mdc-select-trigger') as HTMLElement).click();
+    fixture.detectChanges();
+    await fixture.whenStable();
+    const icons = Array.from(document.querySelectorAll('mat-option mat-icon')).map(el => el.textContent!.trim());
+    expect(icons).toEqual(['numbers', 'leaderboard', '✦', 'deblur', 'iso', 'camera', 'zoom_in', 'show_chart']);
   });
 });
 

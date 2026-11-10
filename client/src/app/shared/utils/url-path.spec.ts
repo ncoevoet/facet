@@ -1,4 +1,4 @@
-import { pathOf } from './url-path';
+import { isGalleryCollectionUrl, pathOf } from './url-path';
 
 describe('pathOf', () => {
   it('returns a plain path unchanged', () => {
@@ -23,5 +23,15 @@ describe('pathOf', () => {
 
   it('returns an empty string when the url starts with a query', () => {
     expect(pathOf('?x=1')).toBe('');
+  });
+});
+
+
+describe('isGalleryCollectionUrl', () => {
+  it.each(['/', '/?sort=aggregate', '/#top', '/album/12', '/album/12?search=trip#top'])('accepts local collection %s', url => {
+    expect(isGalleryCollectionUrl(url)).toBe(true);
+  });
+  it.each(['', '//example.com', 'https://example.com/', '/albums', '/album/x', '/album/12/photo', '/photo?path=a'])('refuses non-collection %s', url => {
+    expect(isGalleryCollectionUrl(url)).toBe(false);
   });
 });

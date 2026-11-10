@@ -670,6 +670,37 @@ class TestPostWriteValidation:
         assert stats == {"written": 1, "embedded": 0, "missing": 0, "errors": 1}
         assert sorted(seen) == sorted(paths)
 
+    def test_bulk_face_error_isolated_to_its_photo(self, monkeypatch, tmp_path, request):
+        import sqlite3
+        from db.schema import init_database
+
+        db = str(tmp_path / 'catalog.db')
+        init_database(db)
+        conn = sqlite3.connect(db)
+        request.addfinalizer(conn.close)
+        conn.row_factory = sqlite3.Row
+        paths = [str(tmp_path / 'bad.jpg'), str(tmp_path / 'good.jpg')]
+        for path in paths:
+            Path(path).write_bytes(b'original')
+            conn.execute('INSERT INTO photos(path, filename, image_width, image_height) VALUES (?, ?, 100, 100)',
+                         (path, Path(path).name))
+        conn.execute("INSERT INTO persons(id, name) VALUES (1, 'Alice')")
+        for path, x1 in zip(paths, ('not-a-number', 10)):
+            conn.execute('INSERT INTO faces(photo_path, face_index, embedding, person_id, bbox_x1, bbox_y1, bbox_x2, bbox_y2) '
+                         "VALUES (?, 0, x'00', 1, ?, 10, 20, 20)", (path, x1))
+        written = []
+
+        def write(path, rating, **kwargs):
+            written.append((path, rating.person_names))
+            Path(path + '.xmp').write_text('saved', encoding='utf-8')
+            return {'embedded': False}
+
+        monkeypatch.setattr(xe, 'write_metadata', write)
+        assert xe.export_sidecars(conn) == {'written': 1, 'embedded': 0, 'missing': 0, 'errors': 1}
+        assert written == [(paths[1], ['Alice'])]
+        assert not Path(paths[0] + '.xmp').exists()
+        assert Path(paths[0]).read_bytes() == b'original'
+
     def test_row_without_ai_tags_marks_no_manual_tag_as_ai(self):
         rating = XmpRating.from_row({"tags": "dog, manual", "manual_tags": ["manual"]})
         assert rating.ai_tags == []

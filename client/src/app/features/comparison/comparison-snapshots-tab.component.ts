@@ -61,10 +61,12 @@ interface Snapshot {
             <mat-label>{{ I18N.comparison.snapshot_name | translate }}</mat-label>
             <input matInput [ngModel]="snapshotName()" (ngModelChange)="snapshotName.set($event)" (keyup.enter)="saveSnapshot()" />
           </mat-form-field>
-          <button mat-flat-button [disabled]="!snapshotName().trim() || !auth.isEdition()" (click)="saveSnapshot()">
-            <mat-icon>save</mat-icon>
-            {{ I18N.comparison.save | translate }}
-          </button>
+          <div class="flex max-lg:justify-end">
+            <button mat-flat-button data-snapshot-save class="pointer-coarse:!min-h-11" [disabled]="!snapshotName().trim() || !auth.isEdition()" (click)="saveSnapshot()">
+              <mat-icon>save</mat-icon>
+              {{ I18N.comparison.save | translate }}
+            </button>
+          </div>
         </mat-card-content>
       </mat-card>
 

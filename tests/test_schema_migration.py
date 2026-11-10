@@ -158,3 +158,13 @@ def test_a_start_killed_during_the_fts_rebuild_never_commits_an_empty_index(
 
     init_database(db)  # the next start
     assert _fts_matches(db, 'zebra') == 300
+def test_face_review_feedback_indexes_are_created_on_existing_databases(tmp_path):
+    db = str(tmp_path / 'feedback-indexes.db')
+    init_database(db)
+    with sqlite3.connect(db) as conn:
+        conn.execute('DROP INDEX idx_face_review_feedback_face')
+        conn.execute('DROP INDEX idx_face_review_feedback_person')
+    init_database(db)
+    with sqlite3.connect(db) as conn:
+        names = {row[1] for row in conn.execute('PRAGMA index_list(face_review_feedback)')}
+        assert {'idx_face_review_feedback_face', 'idx_face_review_feedback_person'} <= names

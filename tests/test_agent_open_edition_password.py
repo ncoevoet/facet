@@ -10,6 +10,7 @@ Tests marked REGRESSION GUARD pass before and after the change; they pin a refus
 
 import importlib
 import subprocess
+import threading
 from collections import deque
 from dataclasses import replace
 from types import SimpleNamespace
@@ -58,14 +59,22 @@ def spawned(monkeypatch):
     monkeypatch.setattr(scan, "subprocess", SimpleNamespace(
         Popen=lambda cmd, **kw: (calls.append(cmd), FakeProc())[1],
         SubprocessError=subprocess.SubprocessError, PIPE=-1, STDOUT=-2))
-    monkeypatch.setattr(scan, "_read_scan_output", lambda proc: None)
+    observed = threading.Event()
+
+    def read_output(proc, cleanup=None, on_exit=None):
+        observed.set()
+
+    monkeypatch.setattr(scan, "_read_scan_output", read_output)
     monkeypatch.setattr(scan, "get_all_scan_directories", lambda: list(CONFIGURED))
     monkeypatch.setattr(scan, "_library_job_conflict_detail", lambda: None)
     for key, value in (("running", False), ("kind", None), ("process", None), ("started_at", None),
                        ("directories", []), ("exit_code", None), ("progress", None),
+                       ("scope", None), ("job_id", None), ("cancel_requested", False),
                        ("output_lines", deque(maxlen=500))):
         monkeypatch.setitem(scan._scan_state, key, value)
-    return calls
+    yield calls
+    if calls:
+        assert observed.wait(5), "scan observer did not start"
 
 
 def peer(env, base_url, address):

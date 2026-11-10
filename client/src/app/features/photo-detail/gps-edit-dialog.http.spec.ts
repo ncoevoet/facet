@@ -100,7 +100,7 @@ describe('GPS dialog rendered controls and HTTP ownership', () => {
 
   function button(key: string): HTMLButtonElement {
     const found = (Array.from(fixture.nativeElement.querySelectorAll('button')) as HTMLButtonElement[])
-      .find(element => element.textContent?.trim() === key);
+      .find(element => element.textContent?.trim().endsWith(key));
     expect(found, key).toBeDefined();
     return found!;
   }

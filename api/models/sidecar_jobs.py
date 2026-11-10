@@ -10,18 +10,23 @@ class SidecarJobStatus(BaseModel):
     id: str
     state: Literal['running', 'completed', 'cancelled', 'failed', 'interrupted']
     started_at: float
-    total: int = Field(ge=0, le=10000)
-    processed: int = Field(ge=0, le=10000)
-    written: int = Field(ge=0, le=10000)
-    skipped: int = Field(ge=0, le=10000)
-    errors: int = Field(ge=0, le=10000)
+    operation: Literal['sidecars', 'copy', 'symlink'] = 'sidecars'
+    phase: Literal['validating', 'writing', 'finished'] = 'writing'
+    confirmed: bool = False
+    total: int = Field(ge=0, le=40000)
+    processed: int = Field(ge=0, le=40000)
+    written: int = Field(ge=0, le=40000)
+    skipped: int = Field(ge=0, le=40000)
+    errors: int = Field(ge=0, le=40000)
     first_error: str | None = None
-    first_error_code: Literal['metadata_repair', 'write_failed', 'exiftool_upgrade', 'stopped'] | None = None
+    first_error_code: Literal['metadata_repair', 'write_failed', 'exiftool_upgrade', 'stopped', 'preview_changed'] | None = None
     cancel_requested: bool = False
 
 
     @model_validator(mode='after')
     def consistent_counts(self):
+        if self.operation == 'sidecars' and self.total > 10000:
+            raise ValueError('Sidecar exports are capped at 10000 photos')
         if self.processed > self.total or self.written + self.skipped + self.errors != self.processed:
             raise ValueError('Export progress counts are inconsistent')
         return self
@@ -32,7 +37,7 @@ class SidecarJobRecord(SidecarJobStatus):
     model_config = ConfigDict(strict=True)
 
     owner: str | None
-    retry: list[int] = Field(max_length=10000)
+    retry: list[int] = Field(max_length=40000)
 
     @model_validator(mode='after')
     def valid_private_record(self):
@@ -50,5 +55,15 @@ class SidecarJobPlan(BaseModel):
     model_config = ConfigDict(strict=True)
 
     owner: str | None
-    paths: list[str] = Field(max_length=10000)
+    paths: list[str] = Field(max_length=40000)
     overwrite: bool
+    confirmation_digest: str | None = None
+    operation: Literal['sidecars', 'copy', 'symlink'] = 'sidecars'
+    confirmation: dict | None = None
+    request: dict | None = None
+
+    @model_validator(mode='after')
+    def bounded_operation(self):
+        if self.operation == 'sidecars' and len(self.paths) > 10000:
+            raise ValueError('Sidecar exports are capped at 10000 photos')
+        return self

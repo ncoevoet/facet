@@ -51,13 +51,16 @@ export class I18nService {
       const data = await firstValueFrom(this.http.get<Record<string, unknown>>(`/api/i18n/${lang}`));
       if (this.locale() !== lang) return;
       this._translations.set(data ?? {});
+      document.documentElement.lang = lang;
     } catch {
+      if (this.locale() !== lang) return;
       // Fallback to English
       if (lang === 'en' || this.locale() !== lang) return;
       try {
         const data = await firstValueFrom(this.http.get<Record<string, unknown>>('/api/i18n/en'));
         if (this.locale() !== lang) return;
         this._translations.set(data ?? {});
+        document.documentElement.lang = 'en';
       } catch {
         // Both failed — use empty translations, keys will show as-is
       }

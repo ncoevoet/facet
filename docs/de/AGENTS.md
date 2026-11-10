@@ -278,7 +278,7 @@ Schreibwerkzeuge stehen in derselben `/mcp`-Liste wie die Lesewerkzeuge. Jedes l
 | `unstack_photos` | `edition` | Stapel auflösen, Originale bleiben erhalten |  |
 | `undo_photo_stack` | `edition` | Nur verfügbaren Stapeleintrag rückgängig machen; spätere Änderungen verweigert |  |
 | `import_ai_edit` | `edition` | Eine KI-Bearbeitung eines Fotos neben ihm in die Bibliothek bringen (als Bytes gesendet: `image_data` (base64) oder `source_file` (eine Datei in `ai_edits.drop_dir`, gelesen und liegen gelassen); Facet schreibt eine eigene Kopie und löscht nie eine Datei; `tool` muss konfiguriert sein); nicht idempotent, jeder Aufruf fügt eine Revision hinzu; `note` (was sich geändert hat) wird als `AI: <note>` an die Bildunterschrift des Originals angehängt und so zur Bildunterschrift der Bearbeitung; der Aufruf wartet bis zu 3 Minuten auf den Scan der Bearbeitung und meldet `ready` mit Bildunterschrift und Seite | 1 file |
-| `create_album` | `edition` | Legt ein Album an (nicht idempotent: zweimal ergibt zwei Alben): leer, oder aus `filters` / `target: "view"` als Smart-Album, das diesen Filtern folgt, oder aus `paths` / `target: "selection"` als festes Album, im selben Aufruf befüllt (`added`, `skipped`). Smart-Alben nutzen die Ausblend-Schalter des Viewers und zeigen in `list_albums` 0 Fotos. `filters` ohne wirksamen Filter (`{}` oder nur ausgeschaltete Anzeige-Schalter) werden als `invalid_input` abgewiesen: lassen Sie `filters` für ein leeres Album weg | |
+| `create_album` | `edition` | Legt ein Album an (nicht idempotent: zweimal ergibt zwei Alben): leer, oder aus `filters` / `target: "view"` als Smart-Album, das diesen Filtern folgt, oder aus `paths` / `target: "selection"` als festes Album, im selben Aufruf befüllt (`added`, `skipped`). Smart-Alben nutzen die Ausblend-Schalter des Viewers und haben in `list_albums` die Fotoanzahl `null` (ihre Mitglieder sind ein Live-Filter und werden nie gespeichert). `filters` ohne wirksamen Filter (`{}` oder nur ausgeschaltete Anzeige-Schalter) werden als `invalid_input` abgewiesen: lassen Sie `filters` für ein leeres Album weg | |
 | `album_add_photos` | `edition` | Fügt einem Album Fotos hinzu (bereits enthaltene werden ignoriert) | 1000 Pfade |
 | `album_remove_photos` | `edition` | Entfernt Fotos aus einem Album; die Fotos selbst bleiben unberührt | 1000 Pfade |
 | `assign_faces` | `edition` | Verschiebt Gesichter zu einer Person; Gesichter einer anderen Person bleiben unberührt, außer `allow_reassign` ist gesetzt, und das Ergebnis listet das Übersprungene | 50 Gesichts-IDs |
@@ -399,7 +399,7 @@ Die Dunkelkammer-Werkzeuge spiegeln die Seite `/culling`. Alle brauchen die Stuf
 
 | Werkzeug | Was es tut |
 |----------|------------|
-| `list_culling_groups` | Listet Gruppen (`burst`, `similar`, `scene`, `bracket`, `panorama`, `hdr_panorama`) mit ihren Fotos und Scores, sortierbar und nach Album oder Zeitraum eingrenzbar |
+| `list_culling_groups` | Listet Gruppen (`burst`, `similar`, `lookalike`, `scene`, `bracket`, `panorama`, `hdr_panorama`) mit ihren Fotos und Scores, sortierbar und nach Album oder Zeitraum eingrenzbar |
 | `culling_profiles` | Die genrebezogenen Auswahl-Voreinstellungen und die Standardvoreinstellung |
 | `suggest_culling_profile` | Nennt die zu einem Album oder Aufnahmezeitraum passende Voreinstellung |
 | `keeper_hints` | Hinweise pro Foto „in dieser Serie gibt es ein besseres Bild“ für bis zu 100 Pfade (leer, wenn kein Keeper-Kopf trainiert ist) |

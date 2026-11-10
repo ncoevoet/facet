@@ -537,7 +537,7 @@ describe('GpsEditDialogComponent', () => {
     input.value = 'work';
     input.dispatchEvent(new Event('input'));
     fixture.detectChanges();
-    const button = Array.from(fixture.nativeElement.querySelectorAll('button') as NodeListOf<HTMLButtonElement>).find(b => b.textContent?.trim() === 'Work')!;
+    const button = Array.from(fixture.nativeElement.querySelectorAll('button') as NodeListOf<HTMLButtonElement>).find(b => b.textContent?.trim().endsWith('Work'))!;
     button.click();
     fixture.detectChanges();
     expect(component.selectedLat()).toBe(12);

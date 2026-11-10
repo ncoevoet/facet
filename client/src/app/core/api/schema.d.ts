@@ -1344,7 +1344,8 @@ export interface paths {
          * @description Return a list of culling groups for one granularity.
          *
          *     `group_by` selects the grouping: `all` (today's merged burst+similar feed),
-         *     `burst`, `similar`, or `scene`. Burst/similar groups are enriched + globally
+         *     `burst`, `similar`, `lookalike` (scored two-photo pairs, including photos the other feeds skip),
+         *     or `scene`. Burst/similar groups are enriched + globally
          *     ordered by `sort` (easiest | redundant | best | recent | needs_comparisons |
          *     chronological) and memoized; `scene` groups come from `compute_scenes`, stay
          *     chronological (`sort` is ignored), and bypass the memo (compute_scenes has
@@ -1589,6 +1590,7 @@ export interface paths {
          *     - ``original`` — serve the file as-is (JPG/HEIF) or rawpy-converted (RAW).
          *     - ``darktable`` — convert companion RAW with a named darktable profile.
          *     - ``raw`` — serve the companion RAW file as-is.
+         *     - If no companion RAW exists, ``raw`` and ``darktable`` return the original.
          */
         get: operations["api_download_single_api_download_get"];
         put?: never;
@@ -1613,6 +1615,46 @@ export interface paths {
         get: operations["api_download_options_api_download_options_get"];
         put?: never;
         post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/export/apply": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Api Apply Export
+         * @description Admit the exact confirmation; read its receipt for validation/write results.
+         */
+        post: operations["api_apply_export_api_export_apply_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/export/preview": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Api Export Preview
+         * @description Inspect exact export membership, filenames and effective metadata without target writes.
+         */
+        post: operations["api_export_preview_api_export_preview_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -1683,6 +1725,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/export/sidecar_jobs/{job_id}/preview": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Api Preview Export Retry
+         * @description Fresh read-only preview of this receipt's exact unfinished file units.
+         */
+        post: operations["api_preview_export_retry_api_export_sidecar_jobs__job_id__preview_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/export/sidecar_jobs/{job_id}/retry": {
         parameters: {
             query?: never;
@@ -1743,6 +1805,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/face/{face_id}/ignore": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Api Ignore Face
+         * @description Ignore one automatic detection, retaining a durable correction for Undo.
+         */
+        post: operations["api_ignore_face_api_face__face_id__ignore_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/face/{face_id}/unassign": {
         parameters: {
             query?: never;
@@ -1763,6 +1845,74 @@ export interface paths {
          *     response still names it in ``person_id``.
          */
         post: operations["api_unassign_face_api_face__face_id__unassign_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/faces/review": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Review Unassigned Faces
+         * @description Global review of truly unassigned faces; no clustering or assignment writes.
+         *
+         *     Suggestions use centroids derived only from this caller's visible faces in
+         *     one read snapshot. Stored library-wide centroids, hidden people and foreign
+         *     model vectors do not influence them. Past MAX_REVIEW_REFERENCE_FACES each
+         *     person contributes an evenly spread sample of their faces, so no one is
+         *     omitted; past MAX_REVIEW_PEOPLE the scan refuses, and unassigned browsing
+         *     remains available without suggestions. Keyset pagination is a live view,
+         *     not a frozen batch.
+         */
+        get: operations["review_unassigned_faces_api_faces_review_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/faces/review/feedback": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Reject Face Suggestion
+         * @description Reject a suggestion only for this account; never change assignments.
+         */
+        post: operations["reject_face_suggestion_api_faces_review_feedback_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/faces/review/feedback/undo": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Undo Face Suggestion Feedback
+         * @description Undo exactly one receipt, refusing a newer rejection in another tab.
+         */
+        post: operations["undo_face_suggestion_feedback_api_faces_review_feedback_undo_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -1888,7 +2038,7 @@ export interface paths {
         };
         /**
          * Junk Kinds
-         * @description Lazy-load junk-kind options with counts (excludes the 'not_junk' sentinel).
+         * @description Count remaining Junk Sweep candidates using this reader's review state.
          */
         get: operations["junk_kinds_api_filter_options_junk_kinds_get"];
         put?: never;
@@ -2191,6 +2341,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/ignored-face/{ignore_id}/restore": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Api Restore Ignored Face
+         * @description Restore a correction only while its original image is still current.
+         */
+        post: operations["api_restore_ignored_face_api_ignored_face__ignore_id__restore_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/immich/diagnostics": {
         parameters: {
             query?: never;
@@ -2302,6 +2472,189 @@ export interface paths {
          *     accept back.
          */
         post: operations["api_lightroom_manifest_api_lightroom_manifest_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/logical_assets/apply": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Apply Change */
+        post: operations["apply_change_api_logical_assets_apply_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/logical_assets/by-photo": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Photo Context */
+        get: operations["photo_context_api_logical_assets_by_photo_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/logical_assets/preview": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Preview Change */
+        post: operations["preview_change_api_logical_assets_preview_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/logical_assets/review": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Review State */
+        get: operations["review_state_api_logical_assets_review_get"];
+        put?: never;
+        /** Change Review */
+        post: operations["change_review_api_logical_assets_review_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/manual_tags/catalog": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Api Keyword Catalog
+         * @description Search all visible manual keyword identities; counts never include hidden photos.
+         */
+        get: operations["api_keyword_catalog_api_manual_tags_catalog_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/manual_tags/hierarchy": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Api Keyword Tree
+         * @description Visible assigned concepts and ancestors, with distinct photo counts.
+         */
+        get: operations["api_keyword_tree_api_manual_tags_hierarchy_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/manual_tags/hierarchy/apply": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Api Hierarchy Apply */
+        post: operations["api_hierarchy_apply_api_manual_tags_hierarchy_apply_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/manual_tags/hierarchy/preview": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Api Hierarchy Preview */
+        post: operations["api_hierarchy_preview_api_manual_tags_hierarchy_preview_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/manual_tags/manage/apply": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Api Keyword Change Apply
+         * @description Revalidate all assignment preconditions inside the one write transaction.
+         */
+        post: operations["api_keyword_change_apply_api_manual_tags_manage_apply_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/manual_tags/manage/preview": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Api Keyword Change Preview
+         * @description Inspect an explicit rename/merge or removal of currently visible assignments.
+         */
+        post: operations["api_keyword_change_preview_api_manual_tags_manage_preview_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -2611,6 +2964,9 @@ export interface paths {
          *     ``hidden_only=true`` returns the hidden ones alone (the persons page's Ignored
          *     section). It is ignored under ``sort=assignment``: the assignment rule wins,
          *     so hidden persons never become assignment candidates.
+         *     ``offset`` starts the page at that row instead of at ``page``: a list the
+         *     viewer patches in place (an un-hide, a delete) asks for the row after its
+         *     last one, which page numbers would skip once the rows before it moved.
          */
         get: operations["list_persons_api_persons_get"];
         put?: never;
@@ -3090,11 +3446,9 @@ export interface paths {
          *     on a corrupted database), not a silent inconsistency.
          *
          *     A trashed companion (``include_companions``'s RAW/``.xmp``) that is ITSELF
-         *     a separate ``photos`` row is folded into ``deleted`` too, not a distinct
-         *     field: its file is gone the moment ``send2trash`` succeeds regardless of
-         *     whether the caller ever named or could see that row, so it is exactly as
-         *     deleted as any path the caller requested directly -- `deleted` already
-         *     means "row removed," not "row the caller named."
+         *     a separate authorized ``photos`` row is folded into ``deleted`` too.
+         *     Companion visibility and inventory are checked before any file write;
+         *     hidden, linked, unavailable or ambiguous companions refuse the request.
          *
          *     ``skipped`` carries a path that was visible, in ``photos``, and never
          *     refused as a bracket lead, but whose file ``_resolve_cull_files`` could
@@ -3413,6 +3767,49 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/photo/provenance": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Api Photo Provenance
+         * @description Current own review receipts and shared manual-tag origin, not history.
+         *
+         *     A synchronous route keeps SQLite work off the async request loop. Never
+         *     expose sidecar paths, tag creator IDs, or provenance through share tokens.
+         */
+        get: operations["api_photo_provenance_api_photo_provenance_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/photo/related_files": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Api Photo Related Files
+         * @description Inspect authorized physical candidates without exposing paths or writing files.
+         */
+        get: operations["api_photo_related_files_api_photo_related_files_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/photo/set": {
         parameters: {
             query?: never;
@@ -3644,12 +4041,16 @@ export interface paths {
         put?: never;
         /**
          * Api Batch Manual Tags
-         * @description Add or remove one manual tag across named paths or a gallery view.
+         * @description Edit manual tags across named paths or a gallery view in one transaction.
          *
-         *     ``count`` is the rows actually written or removed: unwritable paths are
-         *     dropped, an at-cap photo and a photo whose AI tags already hold the tag are
-         *     skipped inside the INSERT, and a photo that already has the tag is not
-         *     counted.
+         *     On add, unwritable paths are dropped; at-cap photos and existing AI/manual
+         *     tags are skipped. The gallery captures explicit paths before preview;
+         *     other callers may still supply filters, resolved once within this request.
+         *
+         *     Replace preserves retained tag provenance and leaves AI tags unchanged.
+         *     Its matching target is resolved once before removing tags. Clear is a
+         *     separate explicit action. ``count`` always counts changed tag rows, not
+         *     affected photos; these operations do not create organization history.
          */
         post: operations["api_batch_manual_tags_api_photos_batch_manual_tags_post"];
         delete?: never;
@@ -3885,7 +4286,7 @@ export interface paths {
         };
         /**
          * Api Photos Map Count
-         * @description Return count of photos with GPS data, for nav badge visibility.
+         * @description Return the authorized geotagged count and full extent, independent of viewport.
          */
         get: operations["api_photos_map_count_api_photos_map_count_get"];
         put?: never;
@@ -4165,6 +4566,29 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/scan/cancel": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Cancel Scan
+         * @description Request stop of this worker's matching owned scan only.
+         *
+         *     This acknowledges a signal, not completion or rollback. Keep the process
+         *     running until its own reader observes exit; never infer a PID from history.
+         */
+        post: operations["cancel_scan_api_scan_cancel_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/scan/detect_panoramas": {
         parameters: {
             query?: never;
@@ -4209,6 +4633,132 @@ export interface paths {
          * @description List all configured directories available for scanning.
          */
         get: operations["scan_directories_api_scan_directories_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/scan/faces/jobs": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Face Update Jobs */
+        get: operations["face_update_jobs_api_scan_faces_jobs_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/scan/faces/jobs/{job_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Face Update Status */
+        get: operations["face_update_status_api_scan_faces_jobs__job_id__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/scan/faces/jobs/{job_id}/cancel": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Cancel Face Update */
+        post: operations["cancel_face_update_api_scan_faces_jobs__job_id__cancel_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/scan/faces/jobs/{job_id}/items": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Face Update Items */
+        get: operations["face_update_items_api_scan_faces_jobs__job_id__items_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/scan/faces/preview": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Preview Face Update */
+        get: operations["preview_face_update_api_scan_faces_preview_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/scan/faces/start": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Start Face Update */
+        post: operations["start_face_update_api_scan_faces_start_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/scan/jobs/{job_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Recorded Scan Job
+         * @description Exact durable pipeline record. It is not process liveness or stop authority.
+         *
+         *     Startup can fail before ScanRun is created. Absence therefore means the
+         *     outcome is unknown, not that no process was started. Duplicate correlation
+         *     IDs refuse instead of choosing the newest run.
+         */
+        get: operations["recorded_scan_job_api_scan_jobs__job_id__get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -4289,6 +4839,81 @@ export interface paths {
          *     served by ``/status`` and ``/stream`` is not widened to edition users.
          */
         get: operations["recompute_status_api_scan_recompute_status_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/scan/retry/apply": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Apply Failed Retry */
+        post: operations["apply_failed_retry_api_scan_retry_apply_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/scan/retry/preview": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Preview Failed Retry */
+        post: operations["preview_failed_retry_api_scan_retry_preview_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/scan/retry/{plan_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Failed Retry Receipt */
+        get: operations["failed_retry_receipt_api_scan_retry__plan_id__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/scan/runs": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Recorded Scan Runs
+         * @description Bounded scanner bookkeeping, not a claim that a process is still live.
+         *
+         *     Never return args_json, failure paths or free-form error text. These may
+         *     contain private filenames or command arguments unrelated to this overview.
+         *     Reads never migrate, reconcile or change a recorded status.
+         */
+        get: operations["recorded_scan_runs_api_scan_runs_get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -4459,6 +5084,74 @@ export interface paths {
          * @description Public endpoint to view a shared album via token (async).
          */
         get: operations["get_shared_album_api_shared_album__album_id__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/shared/album/{album_id}/media/download": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Shared Download */
+        get: operations["shared_download_api_shared_album__album_id__media_download_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/shared/album/{album_id}/media/image": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Shared Image */
+        get: operations["shared_image_api_shared_album__album_id__media_image_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/shared/album/{album_id}/media/thumbnail": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Shared Thumbnail */
+        get: operations["shared_thumbnail_api_shared_album__album_id__media_thumbnail_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/shared/album/{album_id}/photo": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Shared Photo */
+        get: operations["shared_photo_api_shared_album__album_id__photo_get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -4891,6 +5584,30 @@ export interface paths {
         };
         /** Api Stats Gear */
         get: operations["api_stats_gear_api_stats_gear_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/stats/metric_distribution": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Metric Distribution
+         * @description One metric in the caller's visible library, optionally within a category.
+         *
+         *     Cached in the stats cache per metric, category and visibility scope: the form
+         *     metrics have no index, so an uncached read walks every photo's overflow pages.
+         *     Identifiers come exclusively from the registry.
+         */
+        get: operations["metric_distribution_api_stats_metric_distribution_get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -5379,34 +6096,6 @@ export interface components {
             /** Edits */
             edits: components["schemas"]["AiEdit"][];
         };
-        /**
-         * Album
-         * @description An album's own metadata, as embedded in the shared-album view.
-         */
-        Album: {
-            /** Cover Photo Path */
-            cover_photo_path?: string | null;
-            /** Created At */
-            created_at?: string | null;
-            /** Description */
-            description?: string | null;
-            /** Id */
-            id: number;
-            /** Is Shared */
-            is_shared: boolean;
-            /** Is Smart */
-            is_smart: boolean;
-            /** Name */
-            name: string;
-            /** Preview Revision */
-            preview_revision?: string | null;
-            /** Scoring Context */
-            scoring_context?: string | null;
-            /** Smart Filter Json */
-            smart_filter_json?: string | null;
-            /** Updated At */
-            updated_at?: string | null;
-        };
         /** AlbumExportRequest */
         AlbumExportRequest: {
             /**
@@ -5523,6 +6212,12 @@ export interface components {
         };
         /** AssignFacesRequest */
         AssignFacesRequest: {
+            /** Expected Face Tokens */
+            expected_face_tokens?: {
+                [key: string]: string;
+            } | null;
+            /** Expected Person Name */
+            expected_person_name?: string | null;
             /** Face Ids */
             face_ids: number[];
             /**
@@ -5589,12 +6284,20 @@ export interface components {
             /** Date To */
             date_to?: string | null;
             /**
+             * Decision Policy
+             * @default preserve
+             * @enum {string}
+             */
+            decision_policy?: "preserve" | "replace";
+            /**
              * Dry Run
              * @default true
              */
             dry_run?: boolean;
             /** Expected Digest */
             expected_digest?: string | null;
+            /** Expected State Digest */
+            expected_state_digest?: string | null;
             /**
              * Group By
              * @default all
@@ -5639,6 +6342,24 @@ export interface components {
             /** Remove */
             remove: number;
         };
+        /** AutoCullExistingLabels */
+        AutoCullExistingLabels: {
+            /** Is Favorite */
+            is_favorite: boolean;
+            /** Is Kept */
+            is_kept: boolean;
+            /** Is Rejected */
+            is_rejected: boolean;
+            /** Path */
+            path: string;
+            /**
+             * Proposed
+             * @enum {string}
+             */
+            proposed: "keep" | "reject" | "unchanged";
+            /** Star Rating */
+            star_rating: number;
+        };
         /**
          * AutoCullGroupReason
          * @description A group's reason as a translatable key plus its params.
@@ -5658,6 +6379,11 @@ export interface components {
         AutoCullPreviewItem: {
             /** Best Path */
             best_path: string;
+            /**
+             * Existing Labels Count
+             * @default 0
+             */
+            existing_labels_count?: number;
             /** Group Id */
             group_id: number;
             group_reason?: components["schemas"]["AutoCullGroupReason"] | null;
@@ -5684,10 +6410,27 @@ export interface components {
          * @description ``POST /api/culling/auto``.
          */
         AutoCullResponse: {
+            /** Decision State Digest */
+            decision_state_digest: string;
             /** Dry Run */
             dry_run: boolean;
             /** @description Present when keep/remove overrides were sent: how many marks moved a photo away from its planned side (a mark restating the plan is not counted). */
             effective_overrides?: components["schemas"]["AutoCullEffectiveOverrides"] | null;
+            /**
+             * Existing Labels
+             * @default []
+             */
+            existing_labels?: components["schemas"]["AutoCullExistingLabels"][];
+            /**
+             * Existing Labels Count
+             * @default 0
+             */
+            existing_labels_count?: number;
+            /**
+             * Existing Labels Truncated
+             * @default false
+             */
+            existing_labels_truncated?: boolean;
             /** Groups Processed */
             groups_processed: number;
             /** Highlights Added */
@@ -5703,6 +6446,11 @@ export interface components {
             next_cursor?: number | null;
             /** Plan Digest */
             plan_digest: string;
+            /**
+             * Preserved Labels Count
+             * @default 0
+             */
+            preserved_labels_count?: number;
             /** Preview */
             preview: components["schemas"]["AutoCullPreviewItem"][];
             /** Rejected */
@@ -5783,14 +6531,14 @@ export interface components {
         };
         /**
          * BatchManualTagRequest
-         * @description Add or remove one tag across a path list or a whole gallery view.
+         * @description Add/delete one tag, replace the manual set, or explicitly clear it.
          */
         BatchManualTagRequest: {
             /**
              * Action
              * @enum {string}
              */
-            action: "add" | "delete";
+            action: "add" | "delete" | "replace" | "clear";
             /**
              * Exclude
              * @description Paths to drop from whichever target is sent: subtracted from `photo_paths`, or bound out of the `filters` scope. Only ever narrows.
@@ -5803,7 +6551,9 @@ export interface components {
             /** Photo Paths */
             photo_paths?: string[] | null;
             /** Tag */
-            tag: string;
+            tag?: string | null;
+            /** Tags */
+            tags?: string[] | null;
         };
         /** BatchManualTagResponse */
         BatchManualTagResponse: {
@@ -5877,6 +6627,13 @@ export interface components {
         BatchReviewResponse: {
             /** Count */
             count: number;
+            /** Logical Asset Ids */
+            logical_asset_ids?: string[] | null;
+            /**
+             * Logical Member Paths
+             * @description Fully authorized logical member paths already covered by this request; later chunks may omit them.
+             */
+            logical_member_paths?: string[] | null;
             /** Success */
             success: boolean;
             /**
@@ -6052,11 +6809,13 @@ export interface components {
                 [key: string]: unknown;
             } | null;
             /** Offset Seconds */
-            offset_seconds: number;
+            offset_seconds?: number | null;
             /** Photo Paths */
             photo_paths?: string[] | null;
             /** Preview Token */
             preview_token: string;
+            /** Set Date */
+            set_date?: string | null;
         };
         /** CaptureDatePreview */
         CaptureDatePreview: {
@@ -6081,9 +6840,11 @@ export interface components {
                 [key: string]: unknown;
             } | null;
             /** Offset Seconds */
-            offset_seconds: number;
+            offset_seconds?: number | null;
             /** Photo Paths */
             photo_paths?: string[] | null;
+            /** Set Date */
+            set_date?: string | null;
         };
         /** CaptureDateReset */
         CaptureDateReset: {
@@ -6100,7 +6861,7 @@ export interface components {
             /** New Date */
             new_date: string;
             /** Old Date */
-            old_date: string;
+            old_date: string | null;
             /** Path */
             path: string;
         };
@@ -6495,7 +7256,7 @@ export interface components {
              * Type
              * @enum {string}
              */
-            type: "burst" | "similar" | "scene" | "bracket" | "panorama" | "hdr_panorama";
+            type: "burst" | "similar" | "lookalike" | "scene" | "bracket" | "panorama" | "hdr_panorama";
         };
         /** CullingFacesBody */
         CullingFacesBody: {
@@ -6544,6 +7305,12 @@ export interface components {
             date_from?: string | null;
             /** Date To */
             date_to?: string | null;
+            /**
+             * Decision Policy
+             * @default preserve
+             * @enum {string}
+             */
+            decision_policy?: "preserve" | "replace";
             /** Expected Digest */
             expected_digest?: string | null;
             /**
@@ -6643,6 +7410,207 @@ export interface components {
             /** Path */
             path: string;
         };
+        /** ExportApplyRequest */
+        ExportApplyRequest: {
+            /** Album Id */
+            album_id?: number | null;
+            /** Exclude */
+            exclude?: string[];
+            /** Filters */
+            filters?: {
+                [key: string]: unknown;
+            } | null;
+            /**
+             * Include Companions
+             * @default false
+             */
+            include_companions?: boolean;
+            /**
+             * Mode
+             * @default sidecars
+             * @enum {string}
+             */
+            mode?: "sidecars" | "copy" | "symlink";
+            /**
+             * Overwrite
+             * @default false
+             */
+            overwrite?: boolean;
+            /** Paths */
+            paths?: string[] | null;
+            /** Preview Token */
+            preview_token: string;
+            /** Selected Paths */
+            selected_paths: string[];
+            /** Source Job */
+            source_job?: string | null;
+            /** Target Dir */
+            target_dir?: string | null;
+        };
+        /** ExportFaceRegion */
+        ExportFaceRegion: {
+            /** H */
+            h: number;
+            /** Image Height */
+            image_height: number;
+            /** Image Width */
+            image_width: number;
+            /** Name */
+            name: string;
+            /** W */
+            w: number;
+            /** X */
+            x: number;
+            /** Y */
+            y: number;
+        };
+        /** ExportMetadata */
+        ExportMetadata: {
+            /** Aggregate */
+            aggregate: number | null;
+            /** Ai Tags */
+            ai_tags: string[];
+            /** Caption */
+            caption: string;
+            /** Category */
+            category: string;
+            /** Date Manually Set */
+            date_manually_set: boolean;
+            /** Date Taken */
+            date_taken: string | null;
+            /** Face Regions Supported */
+            face_regions_supported: boolean;
+            /** Gps Latitude */
+            gps_latitude: number | null;
+            /** Gps Longitude */
+            gps_longitude: number | null;
+            /** Gps Manually Set */
+            gps_manually_set: boolean;
+            /** Gps State */
+            gps_state: ("set" | "cleared") | null;
+            /** Hierarchy Paths */
+            hierarchy_paths?: string[];
+            /** Is Favorite */
+            is_favorite: boolean;
+            /** Is Kept */
+            is_kept: boolean;
+            /** Is Rejected */
+            is_rejected: boolean;
+            /** Keywords */
+            keywords: string[];
+            /** Manual Date */
+            manual_date: string | null;
+            /** Manual Tags */
+            manual_tags: string[];
+            /** Person Names */
+            person_names: string[];
+            provenance: components["schemas"]["PhotoProvenance"];
+            /** Regions */
+            regions: components["schemas"]["ExportFaceRegion"][];
+            /**
+             * Review Authority
+             * @default file
+             * @enum {string}
+             */
+            review_authority?: "file" | "logical";
+            /**
+             * Review Decision
+             * @enum {string}
+             */
+            review_decision: "kept" | "rejected" | "undecided";
+            /**
+             * Review Scope
+             * @enum {string}
+             */
+            review_scope: "personal" | "catalog";
+            /** Star Rating */
+            star_rating: number;
+            /** Tags */
+            tags: string[];
+            /** Xmp Label */
+            xmp_label: string;
+            /** Xmp Rating */
+            xmp_rating: number;
+        };
+        /** ExportPreviewItem */
+        ExportPreviewItem: {
+            /** Companion */
+            companion: boolean;
+            metadata?: components["schemas"]["ExportMetadata"] | null;
+            /** Photo Path */
+            photo_path: string;
+            /** Source Name */
+            source_name: string;
+            /**
+             * State
+             * @enum {string}
+             */
+            state: "ready" | "missing";
+            /** Target Exists */
+            target_exists: boolean;
+            /** Target Name */
+            target_name: string | null;
+        };
+        /** ExportPreviewRequest */
+        ExportPreviewRequest: {
+            /** Album Id */
+            album_id?: number | null;
+            /** Exclude */
+            exclude?: string[];
+            /** Filters */
+            filters?: {
+                [key: string]: unknown;
+            } | null;
+            /**
+             * Include Companions
+             * @default false
+             */
+            include_companions?: boolean;
+            /**
+             * Mode
+             * @default sidecars
+             * @enum {string}
+             */
+            mode?: "sidecars" | "copy" | "symlink";
+            /**
+             * Overwrite
+             * @default false
+             */
+            overwrite?: boolean;
+            /** Paths */
+            paths?: string[] | null;
+            /** Source Job */
+            source_job?: string | null;
+            /** Target Dir */
+            target_dir?: string | null;
+        };
+        /** ExportPreviewResponse */
+        ExportPreviewResponse: {
+            /** Expires At */
+            expires_at: number;
+            /** Items */
+            items: components["schemas"]["ExportPreviewItem"][];
+            /** Missing */
+            missing: number;
+            /**
+             * Mode
+             * @enum {string}
+             */
+            mode: "sidecars" | "copy" | "symlink";
+            /** Preview Token */
+            preview_token: string;
+            /** Ready */
+            ready: number;
+            /** Receipt Id */
+            receipt_id: string;
+            request: components["schemas"]["ExportPreviewRequest"];
+            /** Selected Paths */
+            selected_paths: string[];
+            /** Target Dir */
+            target_dir: string | null;
+            /** Writer */
+            writer: ("exiftool" | "xml") | null;
+        };
         /** ExportSidecarsRequest */
         ExportSidecarsRequest: {
             /**
@@ -6671,6 +7639,193 @@ export interface components {
             overwrite?: boolean;
             /** Path */
             path: string;
+        };
+        /** FaceCorrectionRequest */
+        FaceCorrectionRequest: {
+            /** Photo Path */
+            photo_path: string;
+        };
+        /** FaceReviewFeedbackRequest */
+        FaceReviewFeedbackRequest: {
+            /** Expected Person Name */
+            expected_person_name: string;
+            /** Face Id */
+            face_id: number;
+            /** Identity Token */
+            identity_token: string;
+            /** Person Id */
+            person_id: number;
+        };
+        /** FaceReviewFeedbackResponse */
+        FaceReviewFeedbackResponse: {
+            /** Receipt Id */
+            receipt_id: string;
+            /** Rejected */
+            rejected: boolean;
+        };
+        /** FaceReviewItem */
+        FaceReviewItem: {
+            /**
+             * Embedding State
+             * @enum {string}
+             */
+            embedding_state: "ready" | "unavailable" | "incompatible";
+            /** Face Id */
+            face_id: number;
+            /**
+             * Identity Token
+             * @description Opaque face geometry/embedding precondition for captured assignment.
+             */
+            identity_token: string;
+            /** Photo Path */
+            photo_path: string;
+            /** Suggestions */
+            suggestions: components["schemas"]["FaceReviewSuggestion"][];
+        };
+        /** FaceReviewResponse */
+        FaceReviewResponse: {
+            /** Compared People */
+            compared_people: number;
+            /** Faces */
+            faces: components["schemas"]["FaceReviewItem"][];
+            /** Model */
+            model: string;
+            /** Next After Id */
+            next_after_id: number | null;
+            /** Suggestions Requested */
+            suggestions_requested: boolean;
+            /**
+             * Total Unassigned
+             * @description All visible faces without any person assignment, not unnamed clusters.
+             */
+            total_unassigned: number;
+        };
+        /** FaceReviewSuggestion */
+        FaceReviewSuggestion: {
+            /** Name */
+            name: string;
+            /** Person Id */
+            person_id: number;
+            /**
+             * Similarity
+             * @description Cosine similarity, not an identity probability.
+             */
+            similarity: number;
+        };
+        /** FaceReviewUndoRequest */
+        FaceReviewUndoRequest: {
+            /** Expected Person Name */
+            expected_person_name: string;
+            /** Face Id */
+            face_id: number;
+            /** Identity Token */
+            identity_token: string;
+            /** Person Id */
+            person_id: number;
+            /** Receipt Id */
+            receipt_id: string;
+        };
+        /** FaceUpdateItem */
+        FaceUpdateItem: {
+            /** Error Code */
+            error_code?: string | null;
+            /** Path */
+            path: string;
+            /** State */
+            state: string;
+        };
+        /** FaceUpdateItemsResponse */
+        FaceUpdateItemsResponse: {
+            /** Items */
+            items: components["schemas"]["FaceUpdateItem"][];
+            /** Next After */
+            next_after?: string | null;
+            /** Total */
+            total: number;
+        };
+        /** FaceUpdatePreview */
+        FaceUpdatePreview: {
+            /** Assigned Faces */
+            assigned_faces: number;
+            /** Automatic Faces */
+            automatic_faces: number;
+            /** Eligible Photos */
+            eligible_photos: number;
+            /** Manual Faces */
+            manual_faces: number;
+            /**
+             * Mode
+             * @enum {string}
+             */
+            mode: "missing" | "redetect" | "repair";
+            /** Model */
+            model: string;
+            /** Pending Person Matches */
+            pending_person_matches: number;
+        };
+        /** FaceUpdateRecord */
+        FaceUpdateRecord: {
+            /** Added Faces */
+            added_faces: number;
+            /** Controlled By Worker */
+            controlled_by_worker: boolean;
+            /** Created At */
+            created_at: string;
+            /** Empty */
+            empty: number;
+            /** Error Code */
+            error_code?: string | null;
+            /** Failed */
+            failed: number;
+            /** Finished At */
+            finished_at?: string | null;
+            /** Job Id */
+            job_id: string;
+            /**
+             * Mode
+             * @enum {string}
+             */
+            mode: "missing" | "redetect" | "repair";
+            /** Model */
+            model: string;
+            /** Processed */
+            processed: number;
+            /** Refreshed Faces */
+            refreshed_faces: number;
+            /** Refused */
+            refused: number;
+            /** Removed Faces */
+            removed_faces: number;
+            /** Repaired People */
+            repaired_people: number;
+            /** Skipped */
+            skipped: number;
+            /** Started At */
+            started_at?: string | null;
+            /**
+             * State
+             * @enum {string}
+             */
+            state: "queued" | "running" | "completed" | "partial" | "cancelled" | "failed";
+            /** Stop Requested */
+            stop_requested: boolean;
+            /** Total */
+            total: number;
+        };
+        /** FaceUpdateStartRequest */
+        FaceUpdateStartRequest: {
+            /** Confirm */
+            confirm: boolean;
+            /** Expected Model */
+            expected_model: string;
+            /** Job Id */
+            job_id: string;
+            /**
+             * Mode
+             * @default missing
+             * @enum {string}
+             */
+            mode?: "missing" | "redetect" | "repair";
         };
         /** FolderEntry */
         FolderEntry: {
@@ -6772,6 +7927,87 @@ export interface components {
             /** Total */
             total: number;
         };
+        /** HierarchyChangeApply */
+        HierarchyChangeApply: {
+            /**
+             * Action
+             * @enum {string}
+             */
+            action: "assign" | "remove" | "create_assign" | "rename" | "move" | "delete_branch";
+            /** Name */
+            name?: string | null;
+            /** Node Id */
+            node_id?: string | null;
+            /** Parent Id */
+            parent_id?: string | null;
+            /** Paths */
+            paths?: string[] | null;
+            /** Preview Token */
+            preview_token: string;
+            /** Segments */
+            segments?: string[] | null;
+        };
+        /** HierarchyChangePreview */
+        HierarchyChangePreview: {
+            /** After Path */
+            after_path: string[] | null;
+            /** Before Path */
+            before_path: string[] | null;
+            /** Definition Change */
+            definition_change: boolean | null;
+            /** Expires At */
+            expires_at: number;
+            /** New Assignments */
+            new_assignments: number;
+            /** Paths */
+            paths: string[];
+            /** Preview Token */
+            preview_token: string;
+            /** Removed Assignments */
+            removed_assignments: number;
+            request: components["schemas"]["HierarchyChangeRequest"];
+            /** Updated Assignments */
+            updated_assignments: number;
+        };
+        /** HierarchyChangeRequest */
+        HierarchyChangeRequest: {
+            /**
+             * Action
+             * @enum {string}
+             */
+            action: "assign" | "remove" | "create_assign" | "rename" | "move" | "delete_branch";
+            /** Name */
+            name?: string | null;
+            /** Node Id */
+            node_id?: string | null;
+            /** Parent Id */
+            parent_id?: string | null;
+            /** Paths */
+            paths?: string[] | null;
+            /** Segments */
+            segments?: string[] | null;
+        };
+        /** HierarchyChangeResult */
+        HierarchyChangeResult: {
+            /** Affected Photos */
+            affected_photos: number;
+            /** Changed Assignments */
+            changed_assignments: number;
+            /** Node Id */
+            node_id: string | null;
+            /** Success */
+            success: boolean;
+            /** Target Photos */
+            target_photos: number;
+        };
+        /** IgnoreFaceResponse */
+        IgnoreFaceResponse: {
+            /**
+             * Ignore Id
+             * Format: uuid
+             */
+            ignore_id: string;
+        };
         /** ImmichDiagnosticsResponse */
         ImmichDiagnosticsResponse: {
             /** Configured */
@@ -6817,6 +8053,94 @@ export interface components {
         KeySubjectsBody: {
             /** Paths */
             paths: string[];
+        };
+        /** KeywordCatalogItem */
+        KeywordCatalogItem: {
+            /** Count */
+            count: number;
+            /** Imported */
+            imported: number;
+            /** Tag */
+            tag: string;
+            /** Typed */
+            typed: number;
+            /** Unrecorded */
+            unrecorded: number;
+        };
+        /** KeywordCatalogResponse */
+        KeywordCatalogResponse: {
+            /** Items */
+            items: components["schemas"]["KeywordCatalogItem"][];
+            /** Next After */
+            next_after: string | null;
+            /** Total */
+            total: number;
+        };
+        /** KeywordChangeApply */
+        KeywordChangeApply: {
+            /** Preview Token */
+            preview_token: string;
+            /** Source */
+            source: string;
+            /** Target */
+            target?: string | null;
+        };
+        /** KeywordChangePreview */
+        KeywordChangePreview: {
+            /** Ai Matches */
+            ai_matches: number;
+            /** Expires At */
+            expires_at: number;
+            /** Merged */
+            merged: number;
+            /** Paths */
+            paths: string[];
+            /** Preview Token */
+            preview_token: string;
+            /** Removed */
+            removed: number;
+            /** Renamed */
+            renamed: number;
+            /** Source */
+            source: string;
+            /** Target */
+            target: string | null;
+        };
+        /** KeywordChangeRequest */
+        KeywordChangeRequest: {
+            /** Source */
+            source: string;
+            /** Target */
+            target?: string | null;
+        };
+        /** KeywordChangeResult */
+        KeywordChangeResult: {
+            /** Changed */
+            changed: number;
+            /** Source */
+            source: string;
+            /** Target */
+            target: string | null;
+        };
+        /** KeywordTreeNode */
+        KeywordTreeNode: {
+            /** Branch Count */
+            branch_count: number;
+            /** Direct Count */
+            direct_count: number;
+            /** Id */
+            id: string;
+            /** Name */
+            name: string;
+            /** Parent Id */
+            parent_id: string | null;
+            /** Segments */
+            segments: string[];
+        };
+        /** KeywordTreeResponse */
+        KeywordTreeResponse: {
+            /** Nodes */
+            nodes: components["schemas"]["KeywordTreeNode"][];
         };
         /** LanguageEntry */
         LanguageEntry: {
@@ -6959,6 +8283,150 @@ export interface components {
             /** Paths */
             paths?: string[] | null;
         };
+        /** LogicalAssetApply */
+        LogicalAssetApply: {
+            /**
+             * Acknowledge Review Conflicts
+             * @default false
+             */
+            acknowledge_review_conflicts?: boolean;
+            change: components["schemas"]["LogicalAssetChange"];
+            /** Preview Token */
+            preview_token: string;
+        };
+        /** LogicalAssetCandidate */
+        LogicalAssetCandidate: {
+            /**
+             * Kind
+             * @enum {string}
+             */
+            kind: "raw" | "jpeg";
+            /** Name */
+            name: string;
+            /** Path */
+            path: string;
+        };
+        /** LogicalAssetChange */
+        LogicalAssetChange: {
+            /** Asset Id */
+            asset_id?: string | null;
+            /**
+             * Operation
+             * @enum {string}
+             */
+            operation: "create" | "primary" | "dissolve";
+            /** Paths */
+            paths?: string[];
+            /** Primary Path */
+            primary_path?: string | null;
+            /** Revision */
+            revision?: number | null;
+        };
+        /** LogicalAssetContext */
+        LogicalAssetContext: {
+            asset: components["schemas"]["LogicalAssetInfo"] | null;
+            /** Can Group */
+            can_group: boolean;
+            /** Candidates */
+            candidates: components["schemas"]["LogicalAssetCandidate"][];
+        };
+        /** LogicalAssetInfo */
+        LogicalAssetInfo: {
+            /** Asset Id */
+            asset_id: string;
+            /** Members */
+            members: components["schemas"]["LogicalAssetMember"][];
+            /** Primary Path */
+            primary_path: string | null;
+            /** Revision */
+            revision: number;
+        };
+        /** LogicalAssetMember */
+        LogicalAssetMember: {
+            /** Is Favorite */
+            is_favorite: boolean;
+            /** Is Kept */
+            is_kept: boolean;
+            /** Is Rejected */
+            is_rejected: boolean;
+            /** Name */
+            name: string;
+            /** Path */
+            path: string;
+            /** Star Rating */
+            star_rating: number | null;
+        };
+        /** LogicalAssetPreview */
+        LogicalAssetPreview: {
+            /** Expires At */
+            expires_at: number;
+            /** Members */
+            members: components["schemas"]["LogicalAssetMember"][];
+            /**
+             * Operation
+             * @enum {string}
+             */
+            operation: "create" | "primary" | "dissolve";
+            /**
+             * Preserves File Metadata
+             * @default true
+             * @constant
+             */
+            preserves_file_metadata?: true;
+            /** Preview Token */
+            preview_token: string;
+            /** Primary Path */
+            primary_path: string | null;
+            /** Review Conflicts */
+            review_conflicts: ("star_rating" | "is_kept" | "is_rejected" | "is_favorite")[];
+        };
+        /** LogicalAssetResult */
+        LogicalAssetResult: {
+            /** Asset Id */
+            asset_id: string;
+            /** Dissolved */
+            dissolved: boolean;
+            /** Revision */
+            revision: number | null;
+        };
+        /** LogicalReviewChange */
+        LogicalReviewChange: {
+            /** Asset Id */
+            asset_id: string;
+            /** Group Revision */
+            group_revision: number;
+            /** Input Token */
+            input_token: string;
+            /** Patch */
+            patch?: {
+                [key: string]: number | null;
+            };
+            /** Reset */
+            reset?: ("star_rating" | "is_favorite" | "is_kept" | "is_rejected")[];
+            /** Revision */
+            revision: number;
+        };
+        /** LogicalReviewState */
+        LogicalReviewState: {
+            /** Asset Id */
+            asset_id: string;
+            /** Group Revision */
+            group_revision: number;
+            /** Input Token */
+            input_token: string;
+            /** Origins */
+            origins: {
+                [key: string]: "file" | "unknown" | "user" | "agent";
+            };
+            /** Revision */
+            revision: number;
+            /** Source Path */
+            source_path: string | null;
+            /** Values */
+            values: {
+                [key: string]: number | null;
+            };
+        };
         /** LoginRequest */
         LoginRequest: {
             /** Password */
@@ -7090,6 +8558,16 @@ export interface components {
             skipped_existing?: boolean;
             /** Success */
             success: boolean;
+            /** Tag */
+            tag: string;
+        };
+        /** ManualTagSource */
+        ManualTagSource: {
+            /**
+             * Source
+             * @enum {string}
+             */
+            source: "user" | "xmp" | "unrecorded";
             /** Tag */
             tag: string;
         };
@@ -7619,6 +9097,23 @@ export interface components {
             /** Truncated */
             truncated: boolean;
         };
+        /** MetricDistribution */
+        MetricDistribution: {
+            /** Buckets */
+            buckets: number[];
+            /** Column */
+            column: string;
+            /** Max */
+            max: number;
+            /** Min */
+            min: number;
+        };
+        /** MetricDistributionResponse */
+        MetricDistributionResponse: {
+            /** Count */
+            count: number;
+            distribution: components["schemas"]["MetricDistribution"] | null;
+        };
         /**
          * NextPairResponse
          * @description A pair of photos to compare, or ``error`` when none is available.
@@ -7658,13 +9153,15 @@ export interface components {
              * Kind
              * @enum {string}
              */
-            kind: "gps" | "date" | "review" | "stack";
+            kind: "gps" | "date" | "review" | "stack" | "logical_review";
             /** Part */
             part: number;
             /** Parts */
             parts: number;
             /** Reverted */
             reverted: boolean;
+            /** Superseded */
+            superseded: boolean;
         };
         /** OrganizationHistory */
         OrganizationHistory: {
@@ -7853,35 +9350,7 @@ export interface components {
         };
         /**
          * Photo
-         * @description A photo row exactly as the gallery endpoints put it on the wire.
-         *
-         *     Every column-backed field carries the SQLite affinity of its column in
-         *     ``db/schema.py``, never the type its name suggests. ``shutter_speed`` is a
-         *     TEXT column that reads back as the string ``'0.0125'``, and the flags are
-         *     0/1 integers because SQLite has no boolean. Declaring either as what it
-         *     means rather than what it is makes Pydantic coerce the value and silently
-         *     change the wire.
-         *
-         *     One deliberate exception: affinity is not a constraint, so an
-         *     INTEGER-affinity column can still hand back a REAL or TEXT storage class
-         *     (issue #142). The 20 fields declared ``CoercedInt`` below keep the
-         *     declared *wire* type -- an int, same as always -- by coercing whatever
-         *     SQLite actually stored, rather than changing what the field means.
-         *
-         *     The field set is a SUPERSET of everything ``build_photo_select_columns``
-         *     can emit, because ``response_model`` filters: a column absent here is a
-         *     column dropped from the response. ``tests/test_response_models.py`` pins
-         *     that against ``PHOTO_BASE_COLS`` and ``PHOTO_OPTIONAL_COLS``.
-         *
-         *     The trailing fields are computed by the handlers rather than selected.
-         *     ``top_picks_score``, ``learned_score``, ``similarity`` and
-         *     ``embedding_similarity`` are conditional -- only the request that sorts
-         *     or filters by them carries them -- so they must stay optional or the
-         *     requests that do not trigger them would 500. ``embedding_similarity`` is
-         *     the raw cosine that `/api/search` gated the result on; it is present only
-         *     when an embedding score was actually computed for that photo (an
-         *     FTS-only or ``scope=text`` hit omits it), and is distinct from
-         *     ``similarity``, which stays the blended embedding/FTS value.
+         * @description Authenticated catalog photo identity and metadata.
          */
         Photo: {
             /** Aesthetic */
@@ -7894,6 +9363,7 @@ export interface components {
             aggregate?: number | null;
             /** Ai Edit Of */
             ai_edit_of?: string | null;
+            assessment_states?: components["schemas"]["PhotoAssessmentStates"] | null;
             /** Bg Separation */
             bg_separation?: number | null;
             /** Burst Group Id */
@@ -8018,6 +9488,7 @@ export interface components {
             lens_model?: string | null;
             /** Liqe Score */
             liqe_score?: number | null;
+            logical_review?: components["schemas"]["LogicalReviewState"] | null;
             /**
              * Manual Tags
              * @default []
@@ -8099,6 +9570,14 @@ export interface components {
             unassigned_faces?: number | null;
         };
         /**
+         * PhotoAssessmentStates
+         * @description Explicit reasons backed by receipts for the current stored scan.
+         */
+        PhotoAssessmentStates: {
+            /** Face Quality Iqa */
+            face_quality_iqa?: "not_applicable" | null;
+        };
+        /**
          * PhotoCountResponse
          * @description How many rows the current gallery view holds, ignoring pagination.
          *
@@ -8113,6 +9592,11 @@ export interface components {
         };
         /** PhotoDeleteRequest */
         PhotoDeleteRequest: {
+            /**
+             * Catalog Only
+             * @default false
+             */
+            catalog_only?: boolean;
             /**
              * Dry Run
              * @default true
@@ -8178,6 +9662,8 @@ export interface components {
             not_visible: string[];
             /** Refused Bracket Lead */
             refused_bracket_lead: string[];
+            /** Removed Catalog */
+            removed_catalog?: string[];
             /** Removed Missing */
             removed_missing: string[];
             /** Sequence Siblings */
@@ -8223,6 +9709,13 @@ export interface components {
         };
         /** PhotoMapCountResponse */
         PhotoMapCountResponse: {
+            /** Bounds */
+            bounds?: [
+                number,
+                number,
+                number,
+                number
+            ] | null;
             /** Count */
             count: number;
         };
@@ -8301,6 +9794,24 @@ export interface components {
             id: number;
             /** Name */
             name: string;
+        };
+        /** PhotoProvenance */
+        PhotoProvenance: {
+            /** Capture Date Override */
+            capture_date_override: boolean;
+            /** Gps Override */
+            gps_override: boolean;
+            /** Manual Tags */
+            manual_tags: components["schemas"]["ManualTagSource"][];
+            /** Manual Tags Truncated */
+            manual_tags_truncated: boolean;
+            /** Review */
+            review: components["schemas"]["ReviewFieldSource"][];
+            /**
+             * Review Scope
+             * @enum {string}
+             */
+            review_scope: "personal" | "catalog";
         };
         /** PhotoRefreshFailure */
         PhotoRefreshFailure: {
@@ -8480,10 +9991,10 @@ export interface components {
         };
         /** PickRequest */
         PickRequest: {
+            /** Asset Id */
+            asset_id: string;
             /** Comment */
             comment?: string | null;
-            /** Path */
-            path: string;
             /**
              * Picked
              * @default true
@@ -8689,12 +10200,83 @@ export interface components {
             /** Started At */
             started_at?: number | null;
         };
+        /** RecordedScanRun */
+        RecordedScanRun: {
+            /** Failed Files */
+            failed_files?: number | null;
+            /** Failure Stages */
+            failure_stages: components["schemas"]["ScanFailureStage"][];
+            /** Finished At */
+            finished_at?: string | null;
+            /** Heartbeat At */
+            heartbeat_at?: string | null;
+            /** Id */
+            id: number;
+            /** Job Finished At */
+            job_finished_at?: string | null;
+            /** Job Phase */
+            job_phase?: string | null;
+            /** Job Status */
+            job_status?: string | null;
+            /** Mode */
+            mode?: string | null;
+            /** Processed Files */
+            processed_files?: number | null;
+            /** Retained Failure Records */
+            retained_failure_records: number;
+            /** Started At */
+            started_at?: string | null;
+            /** Status */
+            status: string;
+            /** Total Files */
+            total_files?: number | null;
+            /** Viewer Job Id */
+            viewer_job_id?: string | null;
+        };
         /** RejectMergeRequest */
         RejectMergeRequest: {
             /** Person1 Id */
             person1_id: number;
             /** Person2 Id */
             person2_id: number;
+        };
+        /** RelatedFile */
+        RelatedFile: {
+            /** Indexed */
+            indexed: boolean;
+            /**
+             * Kind
+             * @enum {string}
+             */
+            kind: "photo" | "raw" | "jpeg" | "xmp_full" | "xmp_basename" | "xmp_fallback";
+            /** Name */
+            name: string;
+            /**
+             * Raw Download
+             * @default false
+             */
+            raw_download?: boolean;
+            /**
+             * State
+             * @enum {string}
+             */
+            state: "available" | "missing" | "unavailable" | "link";
+        };
+        /** RelatedFilesResponse */
+        RelatedFilesResponse: {
+            /** Basename Sidecar Unverified */
+            basename_sidecar_unverified: boolean;
+            /** Files */
+            files: components["schemas"]["RelatedFile"][];
+            /** Indexed Images Only */
+            indexed_images_only: boolean;
+            /**
+             * Inventory State
+             * @enum {string}
+             */
+            inventory_state: "checked" | "unavailable";
+            /** Multiple Raw Candidates */
+            multiple_raw_candidates: boolean;
         };
         /** RenamePersonRequest */
         RenamePersonRequest: {
@@ -8729,6 +10311,11 @@ export interface components {
             /** Pending */
             pending: number;
         };
+        /** RestoreFaceResponse */
+        RestoreFaceResponse: {
+            /** Success */
+            success: boolean;
+        };
         /** RestoreWeightsBody */
         RestoreWeightsBody: {
             /** Snapshot Id */
@@ -8747,6 +10334,25 @@ export interface components {
             };
             /** Success */
             success: boolean;
+        };
+        /** ReviewFieldSource */
+        ReviewFieldSource: {
+            /** Changed At */
+            changed_at: string | null;
+            /**
+             * Field
+             * @enum {string}
+             */
+            field: "star_rating" | "is_favorite" | "is_rejected" | "is_kept";
+            /**
+             * Source
+             * @enum {string}
+             */
+            source: "local" | "xmp" | "unrecorded";
+            /** Source At */
+            source_at: string | null;
+            /** Value */
+            value: number | null;
         };
         /**
          * ReviewProgressResponse
@@ -8810,6 +10416,20 @@ export interface components {
             /** Use Count */
             use_count: number;
         };
+        /** ScanCancelRequest */
+        ScanCancelRequest: {
+            /** Confirm */
+            confirm: boolean;
+            /** Job Id */
+            job_id: string;
+        };
+        /** ScanCancelResponse */
+        ScanCancelResponse: {
+            /** Job Id */
+            job_id: string;
+            /** Stop Requested */
+            stop_requested: boolean;
+        };
         /**
          * ScanDirectoriesResponse
          * @description ``GET /api/scan/directories`` success payload.
@@ -8824,6 +10444,76 @@ export interface components {
             owner: string;
             /** Path */
             path: string;
+        };
+        /** ScanFailureStage */
+        ScanFailureStage: {
+            /** Count */
+            count: number;
+            /** Stage */
+            stage: string;
+        };
+        /** ScanJobRecordResponse */
+        ScanJobRecordResponse: {
+            /** Job Id */
+            job_id: string;
+            /**
+             * Liveness
+             * @constant
+             */
+            liveness: "not_checked";
+            recorded: components["schemas"]["RecordedScanRun"];
+        };
+        /** ScanRetryApplyRequest */
+        ScanRetryApplyRequest: {
+            /** Confirm */
+            confirm: boolean;
+            /** Plan Id */
+            plan_id: string;
+        };
+        /** ScanRetryOmission */
+        ScanRetryOmission: {
+            /** Count */
+            count: number;
+            /**
+             * Reason
+             * @enum {string}
+             */
+            reason: "missing" | "not_file" | "unsupported" | "duplicate" | "raw_paired";
+        };
+        /** ScanRetryPreviewRequest */
+        ScanRetryPreviewRequest: {
+            /** Run Id */
+            run_id: number;
+        };
+        /** ScanRetryPreviewResponse */
+        ScanRetryPreviewResponse: {
+            /** Expires In Seconds */
+            expires_in_seconds: number;
+            /** Files */
+            files: string[];
+            /** Omissions */
+            omissions: components["schemas"]["ScanRetryOmission"][];
+            /** Plan Id */
+            plan_id: string;
+            /** Run Id */
+            run_id: number;
+        };
+        /** ScanRetryReceiptResponse */
+        ScanRetryReceiptResponse: {
+            /** Job Id */
+            job_id?: string | null;
+            /**
+             * State
+             * @enum {string}
+             */
+            state: "preview" | "submitting" | "spawned" | "refused";
+        };
+        /** ScanRunHistoryResponse */
+        ScanRunHistoryResponse: {
+            /** Next Before */
+            next_before?: number | null;
+            /** Runs */
+            runs: components["schemas"]["RecordedScanRun"][];
         };
         /** ScanStartRequest */
         ScanStartRequest: {
@@ -8840,6 +10530,8 @@ export interface components {
         ScanStartResponse: {
             /** Directories */
             directories: string[];
+            /** Job Id */
+            job_id: string;
             /** Message */
             message: string;
             /** Pid */
@@ -8856,12 +10548,21 @@ export interface components {
          *     phase, so it stays an untyped passthrough rather than a nested model.
          */
         ScanStatusResponse: {
+            /**
+             * Cancel Requested
+             * @default false
+             */
+            cancel_requested?: boolean;
             /** Directories */
             directories: string[];
             /** Elapsed Seconds */
             elapsed_seconds?: number | null;
             /** Exit Code */
             exit_code?: number | null;
+            /** Job Id */
+            job_id?: string | null;
+            /** Kind */
+            kind?: string | null;
             /** Output */
             output: string[];
             /** Progress */
@@ -9019,6 +10720,64 @@ export interface components {
             token: string;
         };
         /**
+         * SharedAlbum
+         * @description Recipient album projection never includes native cover paths or saved rules.
+         */
+        SharedAlbum: {
+            /** Cover Asset Id */
+            cover_asset_id?: string | null;
+            /** Created At */
+            created_at?: string | null;
+            /** Description */
+            description?: string | null;
+            /** Id */
+            id: number;
+            /** Is Shared */
+            is_shared: boolean;
+            /** Is Smart */
+            is_smart: boolean;
+            /** Name */
+            name: string;
+            /** Preview Revision */
+            preview_revision?: string | null;
+            /** Scoring Context */
+            scoring_context?: string | null;
+            /** Updated At */
+            updated_at?: string | null;
+        };
+        /**
+         * SharedAlbumPolicy
+         * @description Capabilities of this public link, not account edition rights or a frozen delivery.
+         */
+        SharedAlbumPolicy: {
+            /**
+             * Downloads
+             * @constant
+             */
+            downloads: "album_member_original";
+            /** Expires At */
+            expires_at?: string | null;
+            /** Manual Tags */
+            manual_tags: boolean;
+            /**
+             * Membership
+             * @enum {string}
+             */
+            membership: "manual" | "smart";
+            /** Membership Can Change */
+            membership_can_change: boolean;
+            /** Native Paths */
+            native_paths: boolean;
+            /** Password Protected */
+            password_protected: boolean;
+            /** Photo Metadata */
+            photo_metadata: boolean;
+            /** Proofing */
+            proofing: boolean;
+            /** Saved Rules */
+            saved_rules: boolean;
+        };
+        /**
          * SharedAlbumResponse
          * @description The anonymous share-token view of an album.
          *
@@ -9030,7 +10789,7 @@ export interface components {
          *     off the wire on every other request rather than sending them as null.
          */
         SharedAlbumResponse: {
-            album: components["schemas"]["Album"];
+            album: components["schemas"]["SharedAlbum"];
             /** Effective Sort */
             effective_sort: string;
             /** Effective Sort Direction */
@@ -9043,9 +10802,10 @@ export interface components {
             /** Per Page */
             per_page: number;
             /** Photos */
-            photos: components["schemas"]["Photo"][];
+            photos: components["schemas"]["SharedPhoto"][];
             /** Proofing Enabled */
             proofing_enabled: boolean;
+            sharing_policy: components["schemas"]["SharedAlbumPolicy"];
             /** Sort Options Grouped */
             sort_options_grouped?: {
                 [key: string]: unknown;
@@ -9054,6 +10814,225 @@ export interface components {
             total: number;
             /** Total Pages */
             total_pages: number;
+        };
+        /**
+         * SharedPhoto
+         * @description Public album asset metadata, with no native filesystem path.
+         */
+        SharedPhoto: {
+            /** Aesthetic */
+            aesthetic?: number | null;
+            /** Aesthetic Iaa */
+            aesthetic_iaa?: number | null;
+            /** Aesthetic V25 */
+            aesthetic_v25?: number | null;
+            /** Aggregate */
+            aggregate?: number | null;
+            /** Ai Edit Of */
+            ai_edit_of?: string | null;
+            /** Asset Id */
+            asset_id: string;
+            /** Bg Separation */
+            bg_separation?: number | null;
+            /** Burst Group Id */
+            burst_group_id?: number | null;
+            /** Camera Model */
+            camera_model?: string | null;
+            /** Caption */
+            caption?: string | null;
+            /** Caption Translated */
+            caption_translated?: string | null;
+            /** Category */
+            category?: string | null;
+            /** Category Override */
+            category_override?: string | null;
+            /** Channel Clip Highlight Pct */
+            channel_clip_highlight_pct?: number | null;
+            /** Channel Clip Shadow Pct */
+            channel_clip_shadow_pct?: number | null;
+            /** Color Harmony */
+            color_harmony?: number | null;
+            /** Color Score */
+            color_score?: number | null;
+            /** Color Temp */
+            color_temp?: string | null;
+            /** Comp Score */
+            comp_score?: number | null;
+            /** Composition Pattern */
+            composition_pattern?: string | null;
+            /** Contrast Score */
+            contrast_score?: number | null;
+            /** Date Formatted */
+            date_formatted?: string | null;
+            /** Date Manually Set */
+            date_manually_set?: number | null;
+            /** Date Taken */
+            date_taken?: string | null;
+            /** Deqa Score */
+            deqa_score?: number | null;
+            /** Dominant Hue */
+            dominant_hue?: number | null;
+            /** Duplicate Group Id */
+            duplicate_group_id?: number | null;
+            /** Dynamic Range Stops */
+            dynamic_range_stops?: number | null;
+            /** Embedding Similarity */
+            embedding_similarity?: number | null;
+            /** Exposure Score */
+            exposure_score?: number | null;
+            /** Eye Sharpness */
+            eye_sharpness?: number | null;
+            /** F Stop */
+            f_stop?: number | null;
+            /** Face Confidence */
+            face_confidence?: number | null;
+            /** Face Count */
+            face_count?: number | null;
+            /** Face Quality */
+            face_quality?: number | null;
+            /** Face Quality Iqa */
+            face_quality_iqa?: number | null;
+            /** Face Ratio */
+            face_ratio?: number | null;
+            /** Face Sharpness */
+            face_sharpness?: number | null;
+            /** Filename */
+            filename?: string | null;
+            /** Focal Length */
+            focal_length?: number | null;
+            /** Form Balance */
+            form_balance?: number | null;
+            /** Form Edge Entropy */
+            form_edge_entropy?: number | null;
+            /** Form Fractal */
+            form_fractal?: number | null;
+            /** Form Symmetry */
+            form_symmetry?: number | null;
+            /** Gps Latitude */
+            gps_latitude?: number | null;
+            /** Gps Longitude */
+            gps_longitude?: number | null;
+            /** Gps Manually Set */
+            gps_manually_set?: number | null;
+            /** Highlight Clipped */
+            highlight_clipped?: number | null;
+            /** Histogram Spread */
+            histogram_spread?: number | null;
+            /** Image Aspect */
+            image_aspect?: number | null;
+            /** Image Height */
+            image_height?: number | null;
+            /** Image Width */
+            image_width?: number | null;
+            /** Is Blink */
+            is_blink?: number | null;
+            /** Is Burst Lead */
+            is_burst_lead?: number | null;
+            /** Is Duplicate Lead */
+            is_duplicate_lead?: number | null;
+            /** Is Favorite */
+            is_favorite?: number | null;
+            /** Is Group Portrait */
+            is_group_portrait?: number | null;
+            /** Is Kept */
+            is_kept?: number | null;
+            /** Is Monochrome */
+            is_monochrome?: number | null;
+            /** Is Rejected */
+            is_rejected?: number | null;
+            /** Is Silhouette */
+            is_silhouette?: number | null;
+            /** Iso */
+            iso?: number | null;
+            /** Isolation Bonus */
+            isolation_bonus?: number | null;
+            /** Junk Kind */
+            junk_kind?: string | null;
+            /** Leading Lines Score */
+            leading_lines_score?: number | null;
+            /** Learned Score */
+            learned_score?: number | null;
+            /** Lens Model */
+            lens_model?: string | null;
+            /** Liqe Score */
+            liqe_score?: number | null;
+            /**
+             * Manual Tags
+             * @default []
+             */
+            manual_tags?: string[];
+            /** Mean Luminance */
+            mean_luminance?: number | null;
+            /** Mean Saturation */
+            mean_saturation?: number | null;
+            /** Narrative Moment */
+            narrative_moment?: string | null;
+            /** Narrative Moment Confidence */
+            narrative_moment_confidence?: number | null;
+            /** Noise Sigma */
+            noise_sigma?: number | null;
+            /**
+             * Persons
+             * @default []
+             */
+            persons?: components["schemas"]["PhotoPerson"][];
+            /** Phash */
+            phash?: string | null;
+            /** Power Point Score */
+            power_point_score?: number | null;
+            /** Preview Revision */
+            preview_revision?: string | null;
+            /** Qrealign Score */
+            qrealign_score?: number | null;
+            /** Quality Score */
+            quality_score?: number | null;
+            /** Sequence Ev Offset */
+            sequence_ev_offset?: number | null;
+            /** Sequence Group Id */
+            sequence_group_id?: number | null;
+            /** Sequence Kind */
+            sequence_kind?: string | null;
+            /** Sequence Override */
+            sequence_override?: string | null;
+            /** Sequence Override Pending */
+            sequence_override_pending?: number | null;
+            /** Shadow Clipped */
+            shadow_clipped?: number | null;
+            /** Shutter Speed */
+            shutter_speed?: string | null;
+            /** Similarity */
+            similarity?: number | null;
+            /** Stack Count */
+            stack_count?: number | null;
+            /** Stack Id */
+            stack_id?: string | null;
+            /** Stack Revision */
+            stack_revision?: number | null;
+            /** Stack Total Count */
+            stack_total_count?: number | null;
+            /** Star Rating */
+            star_rating?: number | null;
+            /** Subject Placement */
+            subject_placement?: number | null;
+            /** Subject Prominence */
+            subject_prominence?: number | null;
+            /** Subject Sharpness */
+            subject_sharpness?: number | null;
+            /** Tags */
+            tags?: string | null;
+            /**
+             * Tags List
+             * @default []
+             */
+            tags_list?: string[];
+            /** Tech Sharpness */
+            tech_sharpness?: number | null;
+            /** Top Picks Score */
+            top_picks_score?: number | null;
+            /** Topiq Score */
+            topiq_score?: number | null;
+            /** Unassigned Faces */
+            unassigned_faces?: number | null;
         };
         /**
          * ShootTypeEvidence
@@ -9096,14 +11075,31 @@ export interface components {
              * @default false
              */
             cancel_requested?: boolean;
+            /**
+             * Confirmed
+             * @default false
+             */
+            confirmed?: boolean;
             /** Errors */
             errors: number;
             /** First Error */
             first_error?: string | null;
             /** First Error Code */
-            first_error_code?: ("metadata_repair" | "write_failed" | "exiftool_upgrade" | "stopped") | null;
+            first_error_code?: ("metadata_repair" | "write_failed" | "exiftool_upgrade" | "stopped" | "preview_changed") | null;
             /** Id */
             id: string;
+            /**
+             * Operation
+             * @default sidecars
+             * @enum {string}
+             */
+            operation?: "sidecars" | "copy" | "symlink";
+            /**
+             * Phase
+             * @default writing
+             * @enum {string}
+             */
+            phase?: "validating" | "writing" | "finished";
             /** Processed */
             processed: number;
             /** Skipped */
@@ -12341,6 +14337,72 @@ export interface operations {
             };
         };
     };
+    api_apply_export_api_export_apply_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ExportApplyRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SidecarJobStatus"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    api_export_preview_api_export_preview_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ExportPreviewRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ExportPreviewResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     api_recent_sidecar_jobs_api_export_sidecar_jobs_get: {
         parameters: {
             query?: never;
@@ -12456,6 +14518,37 @@ export interface operations {
             };
         };
     };
+    api_preview_export_retry_api_export_sidecar_jobs__job_id__preview_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                job_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ExportPreviewResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     api_retry_sidecar_job_api_export_sidecar_jobs__job_id__retry_post: {
         parameters: {
             query?: never;
@@ -12555,6 +14648,41 @@ export interface operations {
             };
         };
     };
+    api_ignore_face_api_face__face_id__ignore_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                face_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["FaceCorrectionRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["IgnoreFaceResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     api_unassign_face_api_face__face_id__unassign_post: {
         parameters: {
             query?: never;
@@ -12573,6 +14701,108 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["UnassignFaceResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    review_unassigned_faces_api_faces_review_get: {
+        parameters: {
+            query?: {
+                after_id?: number;
+                limit?: number;
+                suggest?: boolean;
+                min_similarity?: number;
+                target_person_id?: number | null;
+                face_id?: number | null;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["FaceReviewResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    reject_face_suggestion_api_faces_review_feedback_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["FaceReviewFeedbackRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["FaceReviewFeedbackResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    undo_face_suggestion_feedback_api_faces_review_feedback_undo_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["FaceReviewUndoRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["FaceReviewFeedbackResponse"];
                 };
             };
             /** @description Validation Error */
@@ -13097,6 +15327,41 @@ export interface operations {
             };
         };
     };
+    api_restore_ignored_face_api_ignored_face__ignore_id__restore_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                ignore_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["FaceCorrectionRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RestoreFaceResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     immich_diagnostics_api_immich_diagnostics_get: {
         parameters: {
             query?: {
@@ -13217,6 +15482,352 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["LightroomManifest"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    apply_change_api_logical_assets_apply_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["LogicalAssetApply"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LogicalAssetResult"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    photo_context_api_logical_assets_by_photo_get: {
+        parameters: {
+            query: {
+                path: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LogicalAssetContext"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    preview_change_api_logical_assets_preview_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["LogicalAssetChange"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LogicalAssetPreview"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    review_state_api_logical_assets_review_get: {
+        parameters: {
+            query: {
+                asset_id: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LogicalReviewState"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    change_review_api_logical_assets_review_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["LogicalReviewChange"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LogicalReviewState"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    api_keyword_catalog_api_manual_tags_catalog_get: {
+        parameters: {
+            query?: {
+                search?: string;
+                after?: string;
+                limit?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["KeywordCatalogResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    api_keyword_tree_api_manual_tags_hierarchy_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["KeywordTreeResponse"];
+                };
+            };
+        };
+    };
+    api_hierarchy_apply_api_manual_tags_hierarchy_apply_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["HierarchyChangeApply"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HierarchyChangeResult"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    api_hierarchy_preview_api_manual_tags_hierarchy_preview_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["HierarchyChangeRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HierarchyChangePreview"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    api_keyword_change_apply_api_manual_tags_manage_apply_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["KeywordChangeApply"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["KeywordChangeResult"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    api_keyword_change_preview_api_manual_tags_manage_preview_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["KeywordChangeRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["KeywordChangePreview"];
                 };
             };
             /** @description Validation Error */
@@ -13809,6 +16420,7 @@ export interface operations {
             query?: {
                 page?: number;
                 per_page?: number;
+                offset?: number | null;
                 search?: string;
                 sort?: string;
                 include_hidden?: boolean;
@@ -15106,6 +17718,70 @@ export interface operations {
             };
         };
     };
+    api_photo_provenance_api_photo_provenance_get: {
+        parameters: {
+            query: {
+                path: string;
+                token?: string | null;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PhotoProvenance"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    api_photo_related_files_api_photo_related_files_get: {
+        parameters: {
+            query: {
+                path: string;
+                token?: string | null;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RelatedFilesResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     api_photo_set_api_photo_set_get: {
         parameters: {
             query: {
@@ -16203,6 +18879,39 @@ export interface operations {
             };
         };
     };
+    cancel_scan_api_scan_cancel_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ScanCancelRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ScanCancelResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     start_detect_panoramas_api_scan_detect_panoramas_post: {
         parameters: {
             query?: never;
@@ -16256,6 +18965,222 @@ export interface operations {
             };
         };
     };
+    face_update_jobs_api_scan_faces_jobs_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["FaceUpdateRecord"][];
+                };
+            };
+        };
+    };
+    face_update_status_api_scan_faces_jobs__job_id__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                job_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["FaceUpdateRecord"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    cancel_face_update_api_scan_faces_jobs__job_id__cancel_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                job_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ScanCancelRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["FaceUpdateRecord"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    face_update_items_api_scan_faces_jobs__job_id__items_get: {
+        parameters: {
+            query?: {
+                state?: "problems" | "refused" | "failed";
+                after?: string | null;
+                limit?: number;
+            };
+            header?: never;
+            path: {
+                job_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["FaceUpdateItemsResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    preview_face_update_api_scan_faces_preview_get: {
+        parameters: {
+            query?: {
+                mode?: "missing" | "redetect" | "repair";
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["FaceUpdatePreview"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    start_face_update_api_scan_faces_start_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["FaceUpdateStartRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["FaceUpdateRecord"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    recorded_scan_job_api_scan_jobs__job_id__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                job_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ScanJobRecordResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     start_recompute_api_scan_recompute_post: {
         parameters: {
             query?: never;
@@ -16305,6 +19230,135 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["RecomputeStatusResponse"];
+                };
+            };
+        };
+    };
+    apply_failed_retry_api_scan_retry_apply_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ScanRetryApplyRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ScanStartResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    preview_failed_retry_api_scan_retry_preview_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ScanRetryPreviewRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ScanRetryPreviewResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    failed_retry_receipt_api_scan_retry__plan_id__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                plan_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ScanRetryReceiptResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    recorded_scan_runs_api_scan_runs_get: {
+        parameters: {
+            query?: {
+                limit?: number;
+                before?: number | null;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ScanRunHistoryResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
                 };
             };
         };
@@ -16516,6 +19570,145 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["SharedAlbumResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    shared_download_api_shared_album__album_id__media_download_get: {
+        parameters: {
+            query: {
+                asset_id: string;
+                token: string;
+                type?: "original";
+            };
+            header?: never;
+            path: {
+                album_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    shared_image_api_shared_album__album_id__media_image_get: {
+        parameters: {
+            query: {
+                asset_id: string;
+                token: string;
+                fallback?: string;
+            };
+            header?: never;
+            path: {
+                album_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    shared_thumbnail_api_shared_album__album_id__media_thumbnail_get: {
+        parameters: {
+            query: {
+                asset_id: string;
+                token: string;
+                size?: number | null;
+            };
+            header?: never;
+            path: {
+                album_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    shared_photo_api_shared_album__album_id__photo_get: {
+        parameters: {
+            query: {
+                asset_id: string;
+                token: string;
+            };
+            header?: never;
+            path: {
+                album_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SharedPhoto"];
                 };
             };
             /** @description Validation Error */
@@ -17292,6 +20485,38 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["StatsGearResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    metric_distribution_api_stats_metric_distribution_get: {
+        parameters: {
+            query?: {
+                column?: string;
+                category?: string | null;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MetricDistributionResponse"];
                 };
             };
             /** @description Validation Error */

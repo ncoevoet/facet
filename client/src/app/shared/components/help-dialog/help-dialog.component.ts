@@ -39,16 +39,16 @@ interface HelpDialogData { key?: string | null; note?: PageHelpNote | null; shor
           }
         </ul>
       } @else {
-        <p class="text-sm leading-relaxed m-0 opacity-70">{{ I18N.gallery.help_none | translate }}</p>
+        <p class="text-sm leading-relaxed m-0 text-[var(--mat-sys-on-surface-variant)]">{{ I18N.gallery.help_none | translate }}</p>
       }
       @if (note; as n) {
-        <p class="text-xs opacity-70 mt-3 mb-0">{{ n.key | translate:(n.params ?? {}) }}</p>
+        <p class="text-xs text-[var(--mat-sys-on-surface-variant)] mt-3 mb-0">{{ n.key | translate:(n.params ?? {}) }}</p>
       }
       @if (shortcutSections.length) {
         <div class="mt-4 pt-3 border-t border-[var(--mat-sys-outline-variant)] flex flex-wrap gap-x-10 gap-y-3">
           @for (section of shortcutSections; track section.titleKey) {
             <div>
-              <div class="text-xs font-semibold uppercase opacity-50 mb-1.5">{{ section.titleKey | translate }}</div>
+              <div class="text-xs font-semibold uppercase text-[var(--mat-sys-on-surface-variant)] mb-1.5">{{ section.titleKey | translate }}</div>
               <div class="space-y-1">
                 @for (row of section.rows; track row.labelKey) {
                   <div class="flex items-center gap-2 text-xs">

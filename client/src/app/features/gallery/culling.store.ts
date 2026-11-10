@@ -1,5 +1,9 @@
+import { updateMapSignal, deleteMapKey } from '../../shared/utils/map-signal';
+import { AuthService } from '../../core/services/auth.service';
+import { StalenessGuardFactory, StalenessGuard } from '../../core/services/staleness-guard.service';
+import { HttpErrorResponse } from '@angular/common/http';
 import { SEQUENCE_KINDS_KEPT_WHOLE } from '../../shared/pipes/sequence-kind.pipe';
-import { DestroyRef, Injectable, Injector, inject, signal, computed, WritableSignal } from '@angular/core';
+import { DestroyRef, Injectable, Injector, inject, signal, computed, WritableSignal, effect, untracked } from '@angular/core';
 import { Subject, firstValueFrom } from 'rxjs';
 import { PhotoStackService } from '../../core/services/photo-stack.service';
 import { UndoService } from '../../core/services/undo.service';
@@ -114,34 +118,13 @@ export function readStoredSortDirection(): '' | 'asc' | 'desc' {
   return v === 'asc' || v === 'desc' ? v : '';
 }
 
-/** Replace one key of a Map held in a signal (clones, so the signal notifies). */
-export function updateMapSignal<K, V>(sig: WritableSignal<Map<K, V>>, key: K, value: V): void {
-  sig.update(m => { const next = new Map(m); next.set(key, value); return next; });
-}
-
-/** Drop one key of a Map held in a signal (clones, so the signal notifies). */
-export function deleteMapKey<K, V>(sig: WritableSignal<Map<K, V>>, key: K): void {
-  sig.update(m => { if (!m.has(key)) return m; const next = new Map(m); next.delete(key); return next; });
-}
-
 /** Add a value to a Set held in a signal (clones, so the signal notifies). */
 export function addToSetSignal<V>(sig: WritableSignal<Set<V>>, value: V): void {
   sig.update(s => { const next = new Set(s); next.add(value); return next; });
 }
 
 /** Response of POST /api/culling/auto (dry-run preview and apply share the shape). */
-export interface AutoCullResponse {
-  groups_processed: number;
-  kept: number;
-  rejected: number;
-  highlights_added: number;
-  dry_run: boolean;
-  /** One page of whole groups; `number` is the 1-based position in the full plan. */
-  preview: { number: number; group_id: number; type: string; keep_paths: string[]; reject_paths: string[]; best_path: string }[];
-  /** Cursor of the next page, null when the preview is complete. */
-  next_cursor: number | null;
-  plan_digest: string;
-}
+export type AutoCullResponse = components['schemas']['AutoCullResponse'];
 
 /** Request body of POST /culling/auto. The dry run's body is kept verbatim so
  *  the apply re-sends the very parameters the displayed counts came from. */
@@ -151,6 +134,10 @@ export interface AutoCullRequest {
   dry_run: boolean;
   highlights_album: string;
   trim_brackets: boolean;
+  decision_policy: 'preserve' | 'replace';
+  expected_digest?: string;
+  expected_state_digest?: string;
+  cursor?: number;
   profile?: string;
   album_id?: number;
   date_from?: string;
@@ -220,6 +207,16 @@ const ACCEPT_DOUBLE_CLICK_MS = 500;
 @Injectable({ providedIn: 'root' })
 export class CullingStore {
   private readonly api = inject(ApiService);
+  private readonly auth = inject(AuthService);
+  private readonly destroyRef = inject(DestroyRef);
+  private readonly staleness = inject(StalenessGuardFactory);
+  private readonly autoCullSession = signal<StalenessGuard | null>(null);
+  private readonly autoCullOwnership = effect(() => {
+    const session = this.autoCullSession();
+    if (!session) return;
+    this.auth.status(); this.auth.isEdition();
+    untracked(() => { if (!session.current()) this.closeAutoCull(); });
+  });
   private readonly i18n = inject(I18nService);
   private readonly plan = inject(AssistantCullPlanService);
 
@@ -592,6 +589,14 @@ export class CullingStore {
   readonly replanning = this.replanningState.asReadonly();
   /** Confirm commits (and "confirm all" runs) on their way to the server; a re-plan waits for them so the new plan already leaves those groups out. */
   private readonly inFlightCommits = new Set<Promise<void>>();
+  private readonly inFlightCount = signal(0);
+  /** No confirm commit or "confirm all" run is still waiting on the server. */
+  readonly commitsSettled = computed(() => this.inFlightCount() === 0);
+  /**
+   * Confirms the server accepted for the loaded feed. A scene the user just culled and a scene that
+   * arrived with nothing left to review both end with every group closed; only this tells them apart.
+   */
+  readonly committedConfirms = signal(0);
 
   /**
    * An assistant write the loaded feed cannot absorb (a filter-scoped write, a cull move) landed while
@@ -711,7 +716,7 @@ export class CullingStore {
     () => new Set([...this.pendingCorrectionKeys(), ...this.droppedApplied()]).size);
 
   /** Active timers for passing groups (for cleanup) */
-  private readonly passTimers = new Map<string, { timeoutId: ReturnType<typeof setTimeout>; intervalId: ReturnType<typeof setInterval>; onElapsed: () => Promise<void> | void; commit: boolean }>();
+  private readonly passTimers = new Map<string, { timeoutId: ReturnType<typeof setTimeout>; intervalId: ReturnType<typeof setInterval>; onElapsed: () => Promise<void> | void; commit: boolean; onCancel?: () => void }>();
 
   /** Active preset id ('' = custom / none). Persisted; re-applied on open. */
   readonly selectedProfile = signal<string>(localStorage.getItem(CULL_PROFILE_KEY) ?? '');
@@ -760,6 +765,8 @@ export class CullingStore {
   readonly autoCullBusy = computed(() => this.autoCullLoading() || this.autoCullApplying());
   /** Whether the apply also fills the Highlights album (dialog checkbox, opt-in). */
   readonly autoCullHighlights = signal(false);
+  readonly autoCullDecisionPolicy = signal<'preserve' | 'replace'>('preserve');
+  readonly autoCullIssue = signal<'changed' | 'uncertain' | null>(null);
   /** Whether auto-cull also proposes trimming redundant, non-clipping bracket
    *  exposures (dialog checkbox); toggling re-runs the dry run since it
    *  changes the preview's group/keep/reject counts. */
@@ -811,6 +818,7 @@ export class CullingStore {
   /** Drop the loaded feed and its per-feed decisions, invalidating any load in flight. */
   resetFeed(): void {
     this.loadGenerationId++;
+    this.flagAutoCullStale();
     if (this.mode() === 'stacks') {
       // A reset supersedes the request, not the visit: its Undo commands remain valid.
       this.stackBatchPending = null;
@@ -822,6 +830,7 @@ export class CullingStore {
     this.currentPage.set(1);
     this.groups.set([]);
     this.confirmedGroups.set(new Set());
+    this.committedConfirms.set(0);
     this.selectionsMap.set(new Map());
     this.touchedGroups.set(new Set());
   }
@@ -1155,6 +1164,7 @@ export class CullingStore {
     // them and `replanning` kept new ones from starting -- but a stale generation must still never hide or
     // journal a group of the new plan that reuses its key (similar-group ids are positional).
     this.loadGenerationId++;
+    this.flagAutoCullStale();
     this.confirmedGroups.set(new Set());
     this.hiddenGroups.set(new Set());
     this.touchedGroups.set(new Set());
@@ -1287,7 +1297,7 @@ export class CullingStore {
     if (!this.cullWritesAllowed()) return;
     // The plan's keepers are the assistant's decision, not a strictness derivation.
     if (this.planActive()) return;
-    const confirmed = this.confirmedGroups();
+    const confirmed = this.closedGroupKeys();
     const map = new Map<string, Set<string>>();
     for (const group of this.groups()) {
       const key = this.groupKey(group);
@@ -1305,8 +1315,9 @@ export class CullingStore {
   /** The one write behind every darkroom decision: the ↑ / ↓ keys, a swipe, and
    *  the per-pane buttons a compare grid needs. */
   setPhotoKept(group: CullingGroup, path: string, keep: boolean): void {
-    if (!this.cullWritesAllowed()) return;
+    if (!this.cullWritesAllowed() || this.confirming()) return;
     const key = this.groupKey(group);
+    if (this.closedGroupKeys().has(key)) return;
     addToSetSignal(this.touchedGroups, key);
     const map = new Map(this.selectionsMap());
     const kept = new Set(map.get(key) ?? []);
@@ -1349,8 +1360,9 @@ export class CullingStore {
 
   /** Put a group's keepers back to an earlier set (a swipe's Undo); not a new decision, so `touchedGroups` is left alone. */
   restoreSelection(group: CullingGroup, kept: Set<string>): void {
-    if (!this.cullWritesAllowed()) return;
+    if (!this.cullWritesAllowed() || this.confirming()) return;
     const key = this.groupKey(group);
+    if (this.closedGroupKeys().has(key)) return;
     updateMapSignal(this.selectionsMap, key, kept);
     this.reportSelection(key, kept);
   }
@@ -1366,9 +1378,10 @@ export class CullingStore {
    * the hidden auto-cull button -- already protects that.
    */
   selectExclusive(path: string, group: CullingGroup): void {
-    if (!this.cullWritesAllowed()) return;
+    if (!this.cullWritesAllowed() || this.confirming()) return;
     if (group.sequence_kind && SEQUENCE_KINDS_KEPT_WHOLE.includes(group.sequence_kind)) return;
     const key = this.groupKey(group);
+    if (this.closedGroupKeys().has(key)) return;
     addToSetSignal(this.touchedGroups, key);
     updateMapSignal(this.selectionsMap, key, new Set([path]));
     this.reportSelection(key, [path]);
@@ -1384,19 +1397,46 @@ export class CullingStore {
     };
   }
 
-  /**
-   * Grey the group and start the cancellable cooldown; the commit only happens
-   * when it elapses, so cancelling within the window fully reverts it. Returns
-   * false when the group has nothing kept (nothing to confirm).
-   */
+  /** Reject every frame after the cooldown; cancellation or refusal restores the captured draft. */
+  rejectEntireGroup(group: CullingGroup): boolean {
+    if (!this.cullWritesAllowed() || this.replanning() || !group.photos.length
+      || this.confirming() || this.closedGroupKeys().has(this.groupKey(group))) return false;
+    const key = this.groupKey(group);
+    const previous = this.selectionsMap().get(key);
+    const saved = previous === undefined ? undefined : new Set(previous);
+    const wasTouched = this.touchedGroups().has(key);
+    const generation = this.loadGenerationId;
+    const rejected = new Set<string>();
+    const restoreDraft = () => {
+      // An obsolete completion must not replace a newer visit or manual decision.
+      if (!this.cullLoadCurrent(generation) || this.selectionsMap().get(key) !== rejected) return;
+      const restored = new Map(this.selectionsMap());
+      if (saved === undefined) restored.delete(key); else restored.set(key, saved);
+      this.selectionsMap.set(restored);
+      if (!wasTouched) this.touchedGroups.update(keys => { const next = new Set(keys); next.delete(key); return next; });
+      this.reportSelection(key, saved ?? []);
+    };
+    this.selectionsMap.set(new Map(this.selectionsMap()).set(key, rejected));
+    if (!this.scheduleGroupConfirmation(group, [], restoreDraft)) {
+      restoreDraft();
+      return false;
+    }
+    this.reportSelection(key, rejected);
+    return true;
+  }
+
   confirmGroup(group: CullingGroup): boolean {
+    const kept = this.selectionsMap().get(this.groupKey(group));
+    if (!kept?.size) return false;
+    return this.scheduleGroupConfirmation(group, [...kept]);
+  }
+
+  private scheduleGroupConfirmation(group: CullingGroup, keepPaths: string[], restoreDraft?: () => void): boolean {
     if (!this.cullWritesAllowed()) return false;
     // Paused while a re-plan is in flight: the plan it would land on is about to be replaced.
     if (this.replanning()) return false;
     const key = this.groupKey(group);
-    const kept = this.selectionsMap().get(key);
-    if (!kept || kept.size === 0) return false;
-    const keepPaths = [...kept];
+    if (this.confirmedGroups().has(key)) return false;
     // A commit that lands after the feed was reset (Exit, a scope change) belongs to a feed that is gone:
     // it still reaches the server, but must not hide a same-keyed group of the new feed or journal a confirm.
     const gen = this.loadGenerationId;
@@ -1408,18 +1448,19 @@ export class CullingStore {
           if (gen !== this.loadGenerationId) return;
           if (this.planActive()) this.plan.recordConfirm(key, keepPaths);
           addToSetSignal(this.hiddenGroups, key);
+          this.committedConfirms.update(count => count + 1);
           void this.refreshComparisonStats();
           void this.refreshRankerStatus();
         })
         .catch(() => {
           if (!this.cullLoadCurrent(gen)) return;
           this.unconfirmGroup(key);
+          restoreDraft?.();
           this.notice$.next({ key: I18N.culling.error_confirming, duration: 2000 });
         });
-      this.inFlightCommits.add(commit);
-      void commit.finally(() => this.inFlightCommits.delete(commit));
+      void this.trackCommit(commit);
       return commit;
-    }, true);
+    }, true, restoreDraft);
     return true;
   }
 
@@ -1436,13 +1477,16 @@ export class CullingStore {
     if (!this.cullWritesAllowed()) return;
     if (this.replanning()) return;
     // Tracked like a single confirm's commit, so a re-plan started meanwhile waits for every batch.
-    const run = this.runConfirmAll(visible);
-    this.inFlightCommits.add(run);
-    try {
-      await run;
-    } finally {
-      this.inFlightCommits.delete(run);
-    }
+    await this.trackCommit(this.runConfirmAll(visible));
+  }
+
+  private trackCommit(commit: Promise<void>): Promise<void> {
+    this.inFlightCommits.add(commit);
+    this.inFlightCount.update(count => count + 1);
+    return commit.finally(() => {
+      this.inFlightCommits.delete(commit);
+      this.inFlightCount.update(count => count - 1);
+    });
   }
 
   private async runConfirmAll(visible: CullingGroup[]): Promise<void> {
@@ -1474,6 +1518,7 @@ export class CullingStore {
           for (const g of batch) next.add(this.groupKey(g));
           return next;
         });
+        this.committedConfirms.update(count => count + batch.length);
       }
       const skipped = remaining.filter(g => !toConfirm.includes(g));
       this.confirmedGroups.update(s => {
@@ -1504,8 +1549,10 @@ export class CullingStore {
 
   cancelPass(group: CullingGroup): void {
     const key = this.groupKey(group);
+    const onCancel = this.passTimers.get(key)?.onCancel;
     this.clearPassTimer(key);
     this.unconfirmGroup(key);
+    onCancel?.();
   }
 
   /**
@@ -1513,7 +1560,7 @@ export class CullingStore {
    * timer that runs onElapsed (hide for skip; commit + hide for confirm). Cancel
    * via cancelPass before it fires fully reverts the action.
    */
-  private startCountdown(key: string, onElapsed: () => Promise<void> | void, commit = false): void {
+  private startCountdown(key: string, onElapsed: () => Promise<void> | void, commit = false, onCancel?: () => void): void {
     this.clearPassTimer(key);
     updateMapSignal(this.passingGroups, key, this.passCountdownSeconds);
     const intervalId = setInterval(() => {
@@ -1529,7 +1576,7 @@ export class CullingStore {
       this.clearPassTimer(key);
       void onElapsed();
     }, this.passCountdownSeconds * 1000);
-    this.passTimers.set(key, { timeoutId, intervalId, onElapsed, commit });
+    this.passTimers.set(key, { timeoutId, intervalId, onElapsed, commit, onCancel });
   }
 
   private clearPassTimer(key: string): void {
@@ -1875,6 +1922,7 @@ export class CullingStore {
       dry_run: dryRun,
       highlights_album: highlightsAlbum,
       trim_brackets: this.trimBrackets(),
+      decision_policy: this.autoCullDecisionPolicy(),
     };
     const profile = this.selectedProfile();
     if (profile) body.profile = profile;
@@ -1904,7 +1952,50 @@ export class CullingStore {
    */
   reconcileTrimBrackets(): void {
     const applied = this.autoCullRequest();
-    if (applied) this.trimBrackets.set(applied.trim_brackets);
+    if (applied) {
+      this.trimBrackets.set(applied.trim_brackets);
+      this.autoCullDecisionPolicy.set(applied.decision_policy);
+      this.autoCullHighlights.set(!!applied.highlights_album);
+    }
+  }
+
+  async onAutoCullPolicyChange(policy: 'preserve' | 'replace'): Promise<void> {
+    if (!this.auth.isEdition() || !this.cullWritesAllowed() || this.autoCullBusy()) return;
+    this.autoCullDecisionPolicy.set(policy);
+    await this.openAutoCull();
+  }
+
+  async onAutoCullHighlightsChange(enabled: boolean): Promise<void> {
+    if (!this.auth.isEdition() || !this.cullWritesAllowed() || this.autoCullBusy()) return;
+    this.autoCullHighlights.set(enabled);
+    await this.openAutoCull();
+  }
+
+  async loadAutoCullPage(): Promise<void> {
+    const preview = this.autoCullPreview();
+    const request = this.autoCullRequest();
+    const session = this.autoCullSession();
+    if (!preview || !request || !session?.current() || this.autoCullBusy()
+      || this.autoCullIssue() || preview.next_cursor == null) return;
+    const run = this.autoCullRun.next();
+    this.autoCullLoading.set(true);
+    try {
+      const next = await firstValueFrom(this.api.post<AutoCullResponse>('/culling/auto', {
+        ...structuredClone(request), cursor: preview.next_cursor,
+        expected_digest: preview.plan_digest, expected_state_digest: preview.decision_state_digest,
+      }));
+      if (!session.current() || !this.autoCullRun.isCurrent(run) || this.autoCullPreview() !== preview) return;
+      this.autoCullPreview.set({ ...next, preview: [...preview.preview, ...next.preview] });
+    } catch (error) {
+      if (!session.current() || !this.autoCullRun.isCurrent(run) || this.autoCullPreview() !== preview) return;
+      if (error instanceof HttpErrorResponse && error.status === 412) this.autoCullIssue.set('changed');
+      else this.notice$.next({ key: I18N.culling.auto_cull.error, duration: 2000 });
+    } finally {
+      if (this.autoCullRun.isCurrent(run)) {
+        if (!session.current() && this.autoCullPreview() === preview) this.closeAutoCull();
+        else this.autoCullLoading.set(false);
+      }
+    }
   }
 
   /**
@@ -1921,29 +2012,43 @@ export class CullingStore {
    * a snapshot the newer run is about to replace.
    */
   async openAutoCull(): Promise<AutoCullRunOutcome> {
-    if (!this.cullWritesAllowed()) return 'superseded';
-    if (this.autoCullApplying()) return 'superseded';
-    // Only a fresh open clears the notices: the re-runs that raise them come back
-    // through here, and clearing unconditionally would erase them on the way in —
-    // including the re-run of a dry run whose preview has not landed yet.
+    if (!this.auth.isEdition() || !this.cullWritesAllowed() || this.autoCullApplying()) return 'superseded';
+    // A preset can reset the feed before starting its replacement preview.
+    // Release that obsolete session before its queued ownership effect runs.
+    if (this.autoCullSession() && !this.autoCullSession()!.current()) this.closeAutoCull();
     if (!this.autoCullPreview() && !this.dryRunInFlight) this.clearAutoCullNotices();
     const run = this.autoCullRun.next();
+    const gen = this.loadGenerationId;
+    const token = this.auth.token;
+    const owner = this.auth.identity();
+    const scope = JSON.stringify(this.numericScopeParams());
+    const session = this.staleness.create(this.destroyRef, { track: 'status',
+      valid: () => owner === this.auth.identity() && token === this.auth.token && this.cullLoadCurrent(gen) && scope === JSON.stringify(this.numericScopeParams()),
+      onNavigate: () => this.closeAutoCull(),
+    });
+    let retained = false;
     this.dryRunInFlight = true;
     void this.applySuggestedProfile();
-    const body = this.autoCullBody(true, this.highlightsAlbumName());
+    const body = this.autoCullBody(true, this.autoCullHighlights() ? this.highlightsAlbumName() : '');
     this.autoCullLoading.set(true);
     try {
       const preview = await firstValueFrom(this.api.post<AutoCullResponse>('/culling/auto', body));
-      if (!this.ownsAutoCullDialog(run)) return 'superseded';
+      if (!session.current() || !this.ownsAutoCullDialog(run)) return 'superseded';
+      if (!preview.plan_digest || !preview.decision_state_digest) throw new Error('Incomplete culling preview');
+      this.autoCullSession()?.dispose();
+      this.autoCullSession.set(session);
+      retained = true;
       this.autoCullPreview.set(preview);
-      this.autoCullRequest.set(body);
+      this.autoCullRequest.set(structuredClone(body));
+      this.autoCullIssue.set(null);
       return 'landed';
     } catch {
-      if (!this.ownsAutoCullDialog(run)) return 'superseded';
+      if (!session.current() || !this.ownsAutoCullDialog(run)) return 'superseded';
       this.reconcileTrimBrackets();
       this.notice$.next({ key: I18N.culling.auto_cull.error, duration: 2000 });
       return 'failed';
     } finally {
+      if (!retained) session.dispose();
       if (this.autoCullRun.isCurrent(run)) {
         this.dryRunInFlight = false;
         this.autoCullLoading.set(false);
@@ -1968,10 +2073,21 @@ export class CullingStore {
    *  preview this apply just made obsolete. */
   closeAutoCull(): void {
     this.autoCullRun.cancel();
+    this.autoCullSession()?.dispose();
+    this.autoCullSession.set(null);
+    this.autoCullIssue.set(null);
     this.dryRunInFlight = false;
     this.autoCullPreview.set(null);
     this.autoCullRequest.set(null);
     this.autoCullLoading.set(false);
+  }
+
+  /** A feed reset makes the open preview describe a feed that is gone: its session no longer
+   *  passes `current()`, so Apply and Load more would return without a word. Saying so keeps
+   *  them disabled behind the dialog's own alert, until Refresh preview replaces it. An apply
+   *  in flight keeps its own `uncertain` verdict. */
+  private flagAutoCullStale(): void {
+    if (this.autoCullPreview() && !this.autoCullApplying() && !this.autoCullIssue()) this.autoCullIssue.set('changed');
   }
 
   clearAutoCullNotices(): void {
@@ -2029,35 +2145,36 @@ export class CullingStore {
    * resets its own view state and reloads the feed there.
    */
   async confirmAutoCull(onApplied: () => void): Promise<void> {
-    if (!this.cullWritesAllowed()) return;
     const previewed = this.autoCullRequest();
-    if (!previewed || this.autoCullApplying()) return;
-    const gen = this.loadGenerationId;
+    const preview = this.autoCullPreview();
+    const session = this.autoCullSession();
+    if (!this.cullWritesAllowed() || !session?.current() || !previewed || !preview
+      || this.autoCullBusy() || this.autoCullIssue()) return;
+    const previewIdentity = preview;
     this.autoCullApplying.set(true);
     this.autoCullLoading.set(true);
+    this.autoCullIssue.set('uncertain');
     try {
       const body: AutoCullRequest = {
-        ...previewed,
-        dry_run: false,
-        highlights_album: this.autoCullHighlights() ? previewed.highlights_album : '',
+        ...structuredClone(previewed), dry_run: false,
+        expected_digest: preview.plan_digest, expected_state_digest: preview.decision_state_digest,
       };
       const result = await firstValueFrom(this.api.post<AutoCullResponse>('/culling/auto', body));
-      if (!this.cullLoadCurrent(gen)) return;
+      if (!session.current() || this.autoCullPreview() !== previewIdentity) return;
       this.closeAutoCull();
       this.clearAutoCullNotices();
-      this.notice$.next({
-        key: I18N.culling.auto_cull.applied,
-        params: { kept: result.kept, rejected: result.rejected },
-        duration: 3000,
-      });
+      this.notice$.next({ key: I18N.culling.auto_cull.applied,
+        params: { kept: result.kept, rejected: result.rejected }, duration: 3000 });
       onApplied();
       void this.refreshComparisonStats();
       void this.refreshRankerStatus();
-    } catch {
+    } catch (error) {
+      if (!session.current() || this.autoCullPreview() !== previewIdentity) return;
+      this.autoCullIssue.set(error instanceof HttpErrorResponse && error.status === 412 ? 'changed' : 'uncertain');
       this.notice$.next({ key: I18N.culling.auto_cull.error, duration: 2000 });
     } finally {
       this.autoCullApplying.set(false);
-      this.autoCullLoading.set(false);
+      if (this.autoCullPreview() === previewIdentity) this.autoCullLoading.set(false);
     }
   }
 }

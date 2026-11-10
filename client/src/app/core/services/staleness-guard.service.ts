@@ -4,6 +4,8 @@ import { NavigationStart, Router } from '@angular/router';
 import { AuthService } from './auth.service';
 
 export interface StalenessOptions {
+  /** Read-only commands still need account/navigation guards, without edition access. */
+  requireEdition?: boolean;
   /** What identifies the owner: the user id (default) or the whole auth status object, which also
    *  changes when the same session is revalidated. */
   track?: 'identity' | 'status';
@@ -14,7 +16,7 @@ export interface StalenessOptions {
 }
 
 export interface StalenessGuard {
-  /** Same owner, edition access, page and extra condition as at creation, and no navigation since. */
+  /** Same owner, required edit access, page and extra condition, and no navigation since. */
   session: () => boolean;
   /** `session()` and the owning injector is still alive. */
   current: () => boolean;
@@ -37,7 +39,7 @@ export class StalenessGuardFactory {
     const navigation = this.router.events.pipe(takeUntilDestroyed(destroyRef)).subscribe(event => {
       if (event instanceof NavigationStart) { navigated = true; options.onNavigate?.(); }
     });
-    const session = () => !navigated && read() === owner && this.auth.isEdition() && this.router.url === url && (options.valid?.() ?? true);
+    const session = () => !navigated && read() === owner && (options.requireEdition === false || this.auth.isEdition()) && this.router.url === url && (options.valid?.() ?? true);
     return { session, current: () => !destroyRef.destroyed && session(), dispose: () => navigation.unsubscribe() };
   }
 }

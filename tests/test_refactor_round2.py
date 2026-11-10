@@ -178,6 +178,8 @@ class TestGalleryConnScope:
         """Common patches for async /api/photos tests against a real test DB."""
         return [
             mock.patch("api.routers.gallery.get_async_db", _async_conn_factory(db_path)),
+            mock.patch("api.logical_collection.enabled_async", new=mock.AsyncMock(return_value=False)),
+            mock.patch("api.logical_reviews.attach_async", new=mock.AsyncMock()),
             mock.patch("api.routers.gallery.get_cached_count_async",
                        _get_cached_count_async_passthrough),
             mock.patch("api.routers.gallery.VIEWER_CONFIG", _VIEWER_CONFIG),

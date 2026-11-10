@@ -94,6 +94,15 @@ describe('HistogramComponent', () => {
     localStorage.removeItem(HISTOGRAM_MODE_KEYS.tooltip);
   });
 
+  it('reports the actual histogram source when a channel requires a thumbnail estimate', () => {
+    render({ path: '/p.jpg', src: '/thumbnail', defaultMode: 'luma', showModeToggle: true });
+    expect(fixture.nativeElement.querySelector('[data-histogram-source] summary').textContent).toContain('histogram.provenance.stored');
+    fixture.componentRef.setInput('defaultMode', 'rgb'); fixture.detectChanges();
+    loadedImages.at(-1)?.onload?.(); fixture.detectChanges();
+    expect(fixture.nativeElement.querySelector('[data-histogram-source] summary').textContent).toContain('histogram.provenance.thumbnail');
+    expect(fixture.nativeElement.querySelector('[data-histogram-source]').textContent).toContain('histogram.provenance.note');
+  });
+
   it('draws the stored bins without sampling the thumbnail', () => {
     mockApi.get.mockReturnValue(of({
       bins: 4, luma: [1, 0.5, 0, 0], r: [0.25, 0, 0, 0], g: [0, 1, 0, 0], b: [0, 0, 0.5, 0],

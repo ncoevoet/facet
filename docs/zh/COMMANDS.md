@@ -555,6 +555,7 @@ python /opt/facet/viewer.py      # 仍然读取 /opt/facet/scoring_config.json�
 | `--copy-keepers DIR` | 把范围内每张未被淘汰的照片，连同同名 RAW / `.xmp`，复制到 `DIR` |
 | `--cull-strictness N` | 保留配额 0–100，越高每组保留得越少（默认：`auto_cull.default_strictness`） |
 | `--cull-min-keep N` | 每组至少保留的照片数（默认 `1`） |
+| `--cull-reconsider-existing` | 重新评估已有评分、收藏、保留或淘汰决定的照片（默认保留原决定）。 |
 | `--cull-group-by {all,burst,similar,scene}` | 对哪些分组选片（默认 `all`） |
 | `--cull-min-score X` | 同时淘汰综合评分低于 `X` 的独立照片 |
 | `--cull-trim-brackets` | 同时淘汰多余的包围曝光帧（即查看器的 `trim_brackets`） |
@@ -565,7 +566,7 @@ python /opt/facet/viewer.py      # 仍然读取 /opt/facet/scoring_config.json�
 - **规则。** 与[查看器的自动选片](VIEWER.md#自动选片)相同：每组保留最佳照片，外加严格程度容差范围内的所有照片，至少 `--cull-min-keep` 张。包围曝光、全景和 HDR 全景整组保留。`--apply` 会把保留的照片标记为**已保留**，并像 `POST /api/culling/auto` 一样记录比较对；不会填充精选相册。
 - **配置。** [`auto_cull`](CONFIGURATION.md#自动选片)、`burst_scoring` 和 `similarity_groups` 设置来自**服务器**配置（`FACET_CONFIG` 或默认路径），而不是 `--config`。如果两者在多用户模式上不一致，命令会以退出码 1 退出。
 - **范围**按本地真实路径匹配，因此在设置 `path_mapping` 之前存储的行无法按文件夹限定范围：请使用 `all` 或重新扫描。部分位于范围之外的连拍、包围曝光或全景会整组跳过（`spanning_skipped`）。相似和场景分组在范围之内计算。
-- **`--cull-min-score`**（仅限命令行）绝不淘汰包围曝光或全景帧、未评分照片、收藏、已评星级或**已保留**的照片，也不会淘汰先前选片已判定过的照片，因此第二次运行不会再淘汰新的照片。它始终放过连拍成员。当分组找到相似分组的成员时，它会放过这些成员（它读取范围内最新的 `similarity_groups.max_photos` 张照片，默认 `10000`，并丢弃超过 `similarity_groups.max_group_size` 的分组，默认 `50`）。只有在 `--cull-group-by scene` 下才会放过场景分组的成员。
+- **`--cull-min-score`**（仅限命令行）绝不淘汰包围曝光或全景帧、未评分照片、收藏、已评星级或**已保留**的照片，也不会淘汰先前选片已判定过的照片，因此第二次运行不会再淘汰新的照片。它始终放过连拍成员。当分组找到相似分组的成员时，它会放过这些成员（它读取范围内最新的 `similarity_groups.max_photos` 张照片，默认 `10000`，并把超过 `similarity_groups.max_group_size`（默认 `50`）的分组以更严格的阈值拆成若干部分，每部分作为独立分组选片，因此长场景不再逃过选片）。只有在 `--cull-group-by scene` 下才会放过场景分组的成员。
 - **复制。** 被淘汰的照片及其配套文件绝不会被复制。来自不同文件夹的同名文件会加 `_1` 后缀；重新运行会跳过相同的文件（`already_present`）。`DIR` 不能是、不能包含，也不能位于范围、照片库或 Facet 扫描过的任何文件夹之内（退出码 1，试运行中同样检查）。文件必须位于扫描目录白名单之内（`users.*.directories` / `viewer.scan_directories`）；如果因此跳过了所有照片，命令以退出码 3 退出。
 - **用户。** 在多用户安装上必须指定 `--user`（缺少它或用户未知则退出码 1）。在单用户安装上 `--user` 会被忽略并给出警告，即使设置了查看器密码，命令也能看到所有照片。`--apply` 会获取照片库锁；试运行不会。
 - **用法错误（退出码 2）。** 没有 `--auto-cull` 而使用 `--apply`、`--copy-keepers` 或任何 `--cull-*`；`--auto-cull` 与 `--dry-run`、`--resume`、`--retry-failed` 或 `--watch` 同用；`--auto-cull PATH` 同时带有位置参数文件夹；严格程度超出 0–100；`--cull-min-keep` 小于 1。`--apply` 必须完整输入（它不再缩写 `--apply-recommendations`）。

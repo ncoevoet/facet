@@ -79,7 +79,7 @@ INSTRUCTIONS = (
     "photos the user selected in the tab, instead of paths (junk_reject only while the tab is on the gallery). "
     "create_album alone also takes target=\"view\" (the tab's open gallery view) or "
     "`filters`, to save a smart album that follows those filters instead of a fixed list; a smart album is "
-    "shown with the viewer's own hide toggles, and list_albums reports its photo count as 0. "
+    "shown with the viewer's own hide toggles, and list_albums reports its photo count as null: its members are a live filter, never stored. "
     "explain_score reads why a photo scored what it did; category_weights and preview_weights read and dry-run the scoring weights (an approximate preview: nothing changes). "
     "apply_weights, restore_weight_snapshot and override_categories change things only after the user agreed to the "
     "previewed result and you pass back its single-use digest; a weight change re-scores nothing until recompute_scores, "

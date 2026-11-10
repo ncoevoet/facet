@@ -486,3 +486,222 @@ def test_cull_keeps_a_sidecars_on_disk_filename_case(edition_client, seed_photos
     assert applied.status_code == 200, applied.text
     assert applied.json()['moved'] == 2
     assert sorted(path.name for path in target.iterdir()) == ['shot.XMP', 'shot.jpg']
+
+
+@pytest.mark.parametrize('multi_user', [False, True])
+@pytest.mark.parametrize('mapped', [False, True])
+def test_download_refuses_an_invisible_indexed_raw_companion(
+    regular_client, seed_photos_prefix, tmp_path, monkeypatch, multi_user, mapped
+):
+    from api import config
+    from api.routers import comparison
+    from api import related_files
+
+    photo, raw = tmp_path / 'shot.jpg', tmp_path / 'shot.CR2'
+    photo.write_bytes(b'public JPEG fixture')
+    raw.write_bytes(b'private RAW fixture')
+    monkeypatch.setitem(config.VIEWER_CONFIG, 'scan_directories', [str(tmp_path)])
+    raw_catalog = '/private-raw-alias/shot.CR2' if mapped else str(raw)
+    if mapped:
+        monkeypatch.setitem(config.VIEWER_CONFIG, 'path_mapping', {'/private-raw-alias': str(tmp_path)})
+    seed_photos_prefix(str(tmp_path), [{'path': str(photo), 'filename': photo.name}])
+    seed_photos_prefix('/private-raw-alias/' if mapped else str(tmp_path),
+                       [{'path': raw_catalog, 'filename': raw.name}])
+
+    def visibility(user_id):
+        return 'photos.path != ?', [raw_catalog]
+    monkeypatch.setattr(comparison, 'get_visibility_clause', visibility)
+    monkeypatch.setattr(related_files, 'get_visibility_clause', visibility)
+    monkeypatch.setattr(related_files, 'is_multi_user_enabled', lambda: multi_user)
+    monkeypatch.setattr(related_files, 'get_user_directories', lambda user_id: [str(tmp_path)])
+    monkeypatch.setattr(raw_processing, 'get_darktable_profiles', lambda: ['standard'])
+    for kind in ('raw', 'darktable'):
+        response = regular_client.get('/api/download', params={'path': str(photo), 'type': kind, 'profile': 'standard'})
+        assert response.status_code == 404
+        assert b'private RAW fixture' not in response.content
+        assert str(tmp_path) not in response.text
+    options = regular_client.get('/api/download/options', params={'path': str(photo)})
+    assert options.status_code == 200
+    assert options.json()['options'] == [{'type': 'original', 'label': 'original'}]
+    original = regular_client.get('/api/download', params={'path': str(photo)})
+    assert original.status_code == 200
+    assert original.content == b'public JPEG fixture'
+    assert raw.read_bytes() == b'private RAW fixture'
+
+
+@pytest.mark.parametrize('kind', ['raw', 'darktable'])
+def test_download_without_raw_falls_back_to_original(regular_client, seed_photos_prefix, tmp_path, monkeypatch, kind):
+    from api import config
+
+    photo = tmp_path / 'shot.jpg'
+    photo.write_bytes(b'original JPEG fixture')
+    monkeypatch.setitem(config.VIEWER_CONFIG, 'scan_directories', [str(tmp_path)])
+    seed_photos_prefix(str(tmp_path), [{'path': str(photo), 'filename': photo.name}])
+    response = regular_client.get('/api/download', params={'path': str(photo), 'type': kind, 'profile': 'standard'})
+    assert response.status_code == 200
+    assert response.content == b'original JPEG fixture'
+
+
+def test_visible_indexed_companion_download_and_development_remain_available(
+    regular_client, seed_photos_prefix, tmp_path, monkeypatch
+):
+    from api import config, related_files
+
+    photo, raw = tmp_path / 'shot.jpg', tmp_path / 'shot.CR2'
+    photo.write_bytes(b'JPEG fixture')
+    raw.write_bytes(b'permitted RAW fixture')
+    monkeypatch.setitem(config.VIEWER_CONFIG, 'scan_directories', [str(tmp_path)])
+    seed_photos_prefix(str(tmp_path), [
+        {'path': str(path), 'filename': path.name} for path in (photo, raw)
+    ])
+    monkeypatch.setattr(related_files, 'is_multi_user_enabled', lambda: True)
+    monkeypatch.setattr(related_files, 'get_user_directories', lambda user_id: [str(tmp_path)])
+    monkeypatch.setattr(raw_processing, 'get_darktable_profiles', lambda: ['standard'])
+    converted = []
+
+    async def develop(path, profile, quality):
+        converted.append((path, profile))
+        return b'developed JPEG fixture'
+
+    monkeypatch.setattr(raw_processing, 'convert_raw_darktable_async', develop)
+    options = regular_client.get('/api/download/options', params={'path': str(photo)})
+    assert options.status_code == 200
+    assert {option['type'] for option in options.json()['options']} == {'original', 'raw', 'darktable'}
+    response = regular_client.get('/api/download', params={'path': str(photo), 'type': 'raw'})
+    assert response.status_code == 200 and response.content == b'permitted RAW fixture'
+    response = regular_client.get('/api/download', params={'path': str(photo), 'type': 'darktable', 'profile': 'standard'})
+    assert response.status_code == 200 and response.content == b'developed JPEG fixture'
+    assert converted == [(str(raw), 'standard')]
+
+
+def test_linked_raw_companion_is_never_downloaded_through_a_visible_jpeg(
+    regular_client, seed_photos_prefix, tmp_path, monkeypatch
+):
+    from api import config
+
+    folder = tmp_path / 'library'
+    folder.mkdir()
+    photo, raw = folder / 'shot.jpg', folder / 'shot.CR2'
+    secret = tmp_path / 'private.bin'
+    photo.write_bytes(b'JPEG fixture')
+    secret.write_bytes(b'private linked RAW fixture')
+    symlink_or_skip(raw, secret)
+    monkeypatch.setitem(config.VIEWER_CONFIG, 'scan_directories', [str(folder)])
+    seed_photos_prefix(str(folder), [{'path': str(photo), 'filename': photo.name}])
+    response = regular_client.get('/api/download', params={'path': str(photo), 'type': 'raw'})
+    assert response.status_code == 404
+    assert secret.read_bytes() == b'private linked RAW fixture'
+    assert regular_client.get('/api/download/options', params={'path': str(photo)}).json()['options'] == [
+        {'type': 'original', 'label': 'original'}]
+
+
+def test_jpeg_only_download_options_reuse_absence_without_caching_download_authority(
+        regular_client, seed_photos_prefix, tmp_path, monkeypatch):
+    from api import config, related_files
+    from utils.image_loading import RAW_EXTENSIONS
+
+    photo = tmp_path / 'shot.jpg'
+    photo.write_bytes(b'original JPEG fixture')
+    monkeypatch.setitem(config.VIEWER_CONFIG, 'scan_directories', [str(tmp_path)])
+    seed_photos_prefix(str(tmp_path), [{'path': str(photo), 'filename': photo.name}])
+    probes, inventories = [], []
+    library_parents = {tmp_path, tmp_path.resolve()}
+    is_file = Path.is_file
+    inspect = related_files.related_files
+
+    def probe(path, *args, **kwargs):
+        if path.parent in library_parents and path.suffix.lower() in RAW_EXTENSIONS:
+            probes.append(path)
+        return is_file(path, *args, **kwargs)
+
+    def inventory(*args, **kwargs):
+        inventories.append(1)
+        return inspect(*args, **kwargs)
+
+    monkeypatch.setattr(Path, 'is_file', probe)
+    monkeypatch.setattr(related_files, 'related_files', inventory)
+    for _ in range(2):
+        response = regular_client.get('/api/download/options', params={'path': str(photo)})
+        assert response.status_code == 200
+        assert response.json()['options'] == [{'type': 'original', 'label': 'original'}]
+    assert len(probes) == 2 * len(RAW_EXTENSIONS)
+    assert inventories == [1]
+    # The download endpoint does not take the options shortcut, even when its
+    # absence hint is warm. The current inventory and fallback still run.
+    downloaded = regular_client.get('/api/download', params={'path': str(photo), 'type': 'raw'})
+    assert downloaded.status_code == 200 and downloaded.content == b'original JPEG fixture'
+    assert inventories == [1, 1]
+
+
+def test_options_do_not_follow_a_raw_leaf_link_before_authorization(
+        regular_client, seed_photos_prefix, tmp_path, monkeypatch):
+    from api import config
+    from utils.image_loading import RAW_EXTENSIONS
+
+    library = tmp_path / 'library'
+    library.mkdir()
+    photo, raw = library / 'shot.jpg', library / 'shot.CR2'
+    secret = tmp_path / 'outside-library.bin'
+    photo.write_bytes(b'JPEG fixture')
+    secret.write_bytes(b'private RAW target')
+    symlink_or_skip(raw, secret)
+    monkeypatch.setitem(config.VIEWER_CONFIG, 'scan_directories', [str(library)])
+    seed_photos_prefix(str(library), [{'path': str(photo), 'filename': photo.name}])
+    original_stat = Path.stat
+    library_parents = {library, library.resolve()}
+
+    def no_raw_follow(path, *args, **kwargs):
+        if path.parent in library_parents and path.suffix.lower() in RAW_EXTENSIONS and kwargs.get('follow_symlinks', True):
+            pytest.fail('download options followed a RAW candidate before the no-follow inventory')
+        return original_stat(path, *args, **kwargs)
+
+    monkeypatch.setattr(Path, 'stat', no_raw_follow)
+    options = regular_client.get('/api/download/options', params={'path': str(photo)})
+    assert options.status_code == 200, options.text
+    assert options.json()['options'] == [{'type': 'original', 'label': 'original'}]
+    assert secret.read_bytes() == b'private RAW target'
+
+
+def test_positive_raw_hint_is_reauthorized_after_visibility_changes(
+        regular_client, seed_photos_prefix, tmp_path, monkeypatch):
+    from api import config, related_files
+    from api.routers import comparison
+
+    photo, raw = tmp_path / 'shot.jpg', tmp_path / 'shot.CR2'
+    photo.write_bytes(b'JPEG fixture')
+    raw.write_bytes(b'private RAW fixture')
+    monkeypatch.setitem(config.VIEWER_CONFIG, 'scan_directories', [str(tmp_path)])
+    seed_photos_prefix(str(tmp_path), [{'path': str(path), 'filename': path.name} for path in (photo, raw)])
+    permitted = regular_client.get('/api/download/options', params={'path': str(photo)})
+    assert permitted.status_code == 200
+    assert any(option['type'] == 'raw' for option in permitted.json()['options'])
+    monkeypatch.setattr(comparison, 'get_visibility_clause', lambda user: ('photos.path != ?', [str(raw)]))
+    monkeypatch.setattr(related_files, 'get_visibility_clause', lambda user: ('photos.path != ?', [str(raw)]))
+    refused = regular_client.get('/api/download/options', params={'path': str(photo)})
+    assert refused.status_code == 200
+    assert refused.json()['options'] == [{'type': 'original', 'label': 'original'}]
+    assert regular_client.get('/api/download', params={'path': str(photo), 'type': 'raw'}).status_code == 404
+
+
+def test_absence_hint_expires_before_a_new_raw_is_advertised(
+        regular_client, seed_photos_prefix, tmp_path, monkeypatch):
+    import time
+    from api import config
+
+    photo, raw = tmp_path / 'shot.jpg', tmp_path / 'shot.CR2'
+    photo.write_bytes(b'JPEG fixture')
+    monkeypatch.setitem(config.VIEWER_CONFIG, 'scan_directories', [str(tmp_path)])
+    seed_photos_prefix(str(tmp_path), [{'path': str(photo), 'filename': photo.name}])
+    assert regular_client.get('/api/download/options', params={'path': str(photo)}).json()['options'] == [
+        {'type': 'original', 'label': 'original'}]
+    raw.write_bytes(b'new RAW fixture')
+    seed_photos_prefix(str(tmp_path), [{'path': str(raw), 'filename': raw.name}])
+    assert regular_client.get('/api/download/options', params={'path': str(photo)}).json()['options'] == [
+        {'type': 'original', 'label': 'original'}]
+    raw_processing._companion_raw_cache[(photo.stem, str(photo.resolve().parent))] = (
+        time.monotonic() - raw_processing._COMPANION_RAW_TTL - 1, None)
+    fresh = regular_client.get('/api/download/options', params={'path': str(photo)})
+    assert fresh.status_code == 200
+    assert any(option['type'] == 'raw' for option in fresh.json()['options'])
+    downloaded = regular_client.get('/api/download', params={'path': str(photo), 'type': 'raw'})
+    assert downloaded.status_code == 200 and downloaded.content == b'new RAW fixture'

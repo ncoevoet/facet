@@ -44,6 +44,7 @@ export const leafletMockTileLayer = {
 
 export const leafletMockMap = {
   setView: vi.fn().mockReturnThis(),
+  fitBounds: vi.fn().mockReturnThis(),
   getBounds: vi.fn(() => ({
     getSouthWest: () => ({ lat: 40, lng: -5 }),
     getNorthEast: () => ({ lat: 55, lng: 15 }),

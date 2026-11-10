@@ -155,9 +155,12 @@ class TestPluginManagerEmitPayload:
     def test_emit_calls_handler_with_data(self, tmp_path):
         plugin_file = tmp_path / "capture.py"
         plugin_file.write_text(
+            "from threading import Event\n"
             "captured = []\n"
+            "delivered = Event()\n"
             "def on_score_complete(data):\n"
             "    captured.append(data)\n"
+            "    delivered.set()\n"
         )
         mgr = PluginManager(
             config={"plugins": {"enabled": True}},
@@ -173,8 +176,9 @@ class TestPluginManagerEmitPayload:
             "tags": "person, outdoor",
         }
         mgr.emit("on_score_complete", payload)
+        assert mgr._plugins["capture"].delivered.wait(timeout=5)
         mgr.shutdown()
-        # Handler runs in thread pool — shutdown() waits for completion
+        # Shutdown may cancel queued work; observe delivery before shutting down.
         captured = mgr._plugins["capture"].captured
         assert len(captured) == 1
         assert captured[0]["path"] == "/test.jpg"
