@@ -49,14 +49,16 @@ html {
   --facet-accent-dim: #7c2d12;
   --facet-accent-text: #ff983f;
   --facet-accent-badge: color-mix(in srgb, var(--facet-accent-dim) 50%, transparent);
-  // Tooltip colors (dark theme defaults)
-  --facet-tooltip-bg: rgb(23 23 23 / 0.97);
-  --facet-tooltip-border: #404040;
-  --facet-tooltip-text: #d4d4d4;
-  --facet-tooltip-text-secondary: #a3a3a3;
-  --facet-tooltip-text-muted: #737373;
-  --facet-tooltip-text-title: #e5e5e5;
-  --facet-tooltip-divider: #404040;
+  // Tooltip and details-rail colors: the accent theme's own surface roles, so they carry
+  // the same grey as the workspace (warm with orange, cool with blue). Declared on html,
+  // where every theme class re-declares the --mat-sys-* roles they resolve against.
+  --facet-tooltip-bg: color-mix(in srgb, var(--mat-sys-surface-container-low) 97%, transparent);
+  --facet-tooltip-border: var(--mat-sys-outline-variant);
+  --facet-tooltip-text: var(--mat-sys-on-surface);
+  --facet-tooltip-text-secondary: var(--mat-sys-on-surface-variant);
+  --facet-tooltip-text-muted: var(--mat-sys-outline);
+  --facet-tooltip-text-title: var(--mat-sys-on-surface);
+  --facet-tooltip-divider: var(--mat-sys-outline-variant);
 }
 
 // Theme variants (color only — typography and density inherited from base)
@@ -154,14 +156,8 @@ html.light-mode {
   --facet-accent-dim: #fed7aa;
   --facet-accent-text: #a8380a;
   --facet-accent-badge: color-mix(in srgb, var(--facet-accent-dim) 50%, transparent);
-  // Tooltip colors (light theme)
-  --facet-tooltip-bg: rgb(255 255 255 / 0.97);
-  --facet-tooltip-border: #d4d4d4;
-  --facet-tooltip-text: #404040;
-  --facet-tooltip-text-secondary: #525252;
-  --facet-tooltip-text-muted: #737373;
-  --facet-tooltip-text-title: #171717;
-  --facet-tooltip-divider: #e5e5e5;
+  // Light tooltips sit on the lightest surface; the other tooltip roles are inherited from html.
+  --facet-tooltip-bg: color-mix(in srgb, var(--mat-sys-surface-container-lowest) 97%, transparent);
 }
 
 // Light mode + color theme overrides
@@ -200,49 +196,6 @@ html.light-mode.theme-magenta {
 html.light-mode.theme-azure {
   @include mat.theme((color: (theme-type: light, primary: mat.$azure-palette, tertiary: mat.$orange-palette)));
   --facet-accent: #0284c7; --facet-accent-dim: #bae6fd; --facet-accent-text: #0369a1;
-}
-
-// Photo inspection uses neutral surroundings across every accent palette.
-// Keep primary/secondary action colors from the chosen theme. :root gives the
-// light override the same specificity as the light + accent combinations above.
-html:root:not(.light-mode) {
-  @include mat.theme-overrides((
-    surface: #17191c,
-    surface-dim: #131519,
-    surface-bright: #3b4047,
-    surface-container-lowest: #111316,
-    surface-container-low: #1b1e22,
-    surface-container: #212428,
-    surface-container-high: #292d33,
-    surface-container-highest: #343941,
-    surface-variant: #32373e,
-    on-surface: #e5e7eb,
-    on-surface-variant: #b5bac3,
-    outline: #89919d,
-    outline-variant: #424852,
-    background: #17191c,
-    on-background: #e5e7eb,
-  ));
-}
-
-html:root.light-mode {
-  @include mat.theme-overrides((
-    surface: oklch(97.5% 0.003 250),
-    surface-dim: #d9dfe7,
-    surface-bright: #ffffff,
-    surface-container-lowest: oklch(99.5% 0.002 250),
-    surface-container-low: oklch(97.5% 0.003 250),
-    surface-container: oklch(95.5% 0.004 250),
-    surface-container-high: oklch(93% 0.005 250),
-    surface-container-highest: oklch(90% 0.006 250),
-    surface-variant: #dce1e8,
-    on-surface: #1d232d,
-    on-surface-variant: #465161,
-    outline: #6c7787,
-    outline-variant: #c4cbd5,
-    background: #f8f9fb,
-    on-background: #1d232d,
-  ));
 }
 
 body {

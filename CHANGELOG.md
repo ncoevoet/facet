@@ -98,7 +98,7 @@ All notable changes to Facet are documented in this file.
 
 - The gallery owns its collection title, counts, Grid/Mosaic controls and exact text search at every width. The selection bar keeps Clear, Compare and review decisions visible, with labeled secondary commands in Actions. Small screens retain a navigation menu and Actions sheet; filter tabs show their names.
 
-- Light and dark workspace surfaces use neutral colors across the accent themes, keeping color emphasis on active controls and the photos.
+- The details rail and photo tooltips take their background, borders and text from the accent theme's surfaces, so they carry the same grey as the rest of the workspace (warm with orange, cool with blue) instead of a fixed neutral grey.
 
 - The gallery details panel names its owning photo. Its Deselect releases that photo alone and leaves the rest of the batch selection; the panel itself is switched off with the gallery's Tooltip choice (Side panel, Hover, Click, Off).
 
