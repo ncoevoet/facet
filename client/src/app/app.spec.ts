@@ -1,8 +1,10 @@
 import { TestBed } from '@angular/core/testing';
-import { DefaultUrlSerializer, Router, provideRouter } from '@angular/router';
-import { Component, Provider, signal } from '@angular/core';
+import { DefaultUrlSerializer, Router, TitleStrategy, provideRouter } from '@angular/router';
+import { Component, Provider, TemplateRef, signal, viewChild } from '@angular/core';
 import { NEVER, Subject, of } from 'rxjs';
 import { App } from './app';
+import { I18nTitleStrategy } from './core/i18n-title.strategy';
+import { HeaderSlotService } from './core/services/header-slot.service';
 import { GalleryStore, GalleryFilters, DEFAULT_FILTERS } from './features/gallery/gallery.store';
 import { AuthService } from './core/services/auth.service';
 import { ApiService } from './core/services/api.service';
@@ -23,8 +25,16 @@ import { MatTooltip } from '@angular/material/tooltip';
 import { KeyboardMappingService, KEYMAP_STORAGE_KEY } from './core/services/keyboard-mapping.service';
 import { FEATURE_MARK } from './shared/pipes/mark-tone.pipe';
 
+/** Lifts a snackbar above the 56 px bottom bars (and a notch) below lg. */
+const SNACKBAR_LIFT = 'max-lg:!mb-[calc(4rem+env(safe-area-inset-bottom))]';
+
 @Component({ selector: 'app-navigation-fixture-page', template: '' })
 class NavigationFixturePage {}
+
+@Component({ selector: 'app-header-slot-host', template: '<ng-template #slot><span>slot</span></ng-template>' })
+class HeaderSlotHost {
+  readonly slot = viewChild.required<TemplateRef<unknown>>('slot');
+}
 
 function createApp(routerUrl = '/', extraProviders: Provider[] = []) {
   const filtersSignal = signal<GalleryFilters>({ ...DEFAULT_FILTERS });
@@ -213,7 +223,7 @@ describe('App', () => {
       const { app, versionUpdates, open, onAction } = withSw(true);
       (app as any).setupUpdateNotifications();
       versionUpdates.next({ type: 'VERSION_READY' });
-      expect(open).toHaveBeenCalledWith(I18N.pwa.update_available, I18N.pwa.reload);
+      expect(open).toHaveBeenCalledWith(I18N.pwa.update_available, I18N.pwa.reload, { panelClass: [SNACKBAR_LIFT] });
       expect(onAction).toHaveBeenCalled();
     });
 
@@ -286,7 +296,7 @@ describe('App', () => {
       expect(open).toHaveBeenCalledWith(
         `${I18N.updates.available}:${AVAILABLE.latest}`,
         I18N.updates.view,
-        { duration: 15000 },
+        { duration: 15000, panelClass: [SNACKBAR_LIFT] },
       );
     });
 
@@ -502,10 +512,11 @@ describe('App', () => {
       TestBed.configureTestingModule({
         providers: [
           provideRouter([]),
+          { provide: TitleStrategy, useExisting: I18nTitleStrategy },
           { provide: GalleryStore, useValue: { filters: signal({ ...DEFAULT_FILTERS }), galleryMode: signal('grid'), persons: signal([]), selectionCount: signal(0), config: signal(null), types: signal([]), total: signal(0), photoTotal: signal(0), loadTypeCounts: vi.fn(() => Promise.resolve()), loadConfig: vi.fn(), viewFilterParams: signal({}), activeFilterCount: signal(0), filterDrawerOpen: signal(false), hiddenFiltersStash: signal(null), collapseStacks: signal(true), toggleStackCollapse: vi.fn(), slideshowActive: signal(false), pinnedPaths: signal<string[] | null>(null), setFilterDrawerOpen: vi.fn(), updateFilter: vi.fn(), resetFilters: vi.fn(), restoreHidden: vi.fn(), showAllHidden: vi.fn(), reviewProgressVisible: signal(true), setReviewProgressVisible: vi.fn(), notifyOrganizationRestored: vi.fn() } },
           { provide: ScanService, useValue: { canLaunch: signal(false), openLauncher: vi.fn() } },
           { provide: AuthService, useValue: { identity: () => '0|', isAuthenticated: signal(true), isReadOnlyInstall: signal(false), features: signal({}), user: signal(null), logout: vi.fn(), isEdition: signal(edition), status: signal(null), editionPasswordRequired: signal(false), isMultiUser: signal(multiUser), isSuperadmin: signal(superadmin), isInstallAdmin: signal(multiUser ? superadmin : edition), loginPasswordRequired: signal(false), checkStatus: vi.fn(() => Promise.resolve()) } },
-          { provide: I18nService, useValue: { load: vi.fn(() => Promise.resolve()), loadLanguages: vi.fn(() => Promise.resolve()), languages: signal([]), t: vi.fn((k: string) => k), translations: signal({}) } },
+          { provide: I18nService, useValue: { isLoaded: () => true, load: vi.fn(() => Promise.resolve()), loadLanguages: vi.fn(() => Promise.resolve()), languages: signal([]), t: vi.fn((k: string) => k), translations: signal({}) } },
           { provide: StatsFiltersService, useValue: { filterCategory: signal(''), dateFrom: signal(''), dateTo: signal('') } },
           { provide: CompareFiltersService, useValue: { selectedCategory: signal('') } },
           { provide: MatDialog, useValue: { open: vi.fn(() => historyRef(false)) } },
@@ -660,11 +671,19 @@ describe('App', () => {
       expect(root.querySelector('[data-mobile-navigation]')).not.toBeNull();
     });
 
-    it('shows the Facet mark on the gallery and the current page icon and label elsewhere in the phone header', async () => {
+    it('names the current page in the phone header behind a constant menu icon, with no Facet mark', async () => {
       const { fixture, root } = render(true);
       const router = TestBed.inject(Router);
-      router.resetConfig([{ path: '', component: NavigationFixturePage }, { path: 'stats', component: NavigationFixturePage }, { path: 'album/:id', component: NavigationFixturePage }]);
-      (TestBed.inject(GalleryStore).config as unknown as ReturnType<typeof signal>).set({ features: { show_albums: true } });
+      router.resetConfig([
+        { path: '', component: NavigationFixturePage, title: I18N.nav.gallery },
+        { path: 'stats', component: NavigationFixturePage, title: I18N.stats.title },
+        { path: 'album/:id', component: NavigationFixturePage },
+        { path: 'merge-suggestions', component: NavigationFixturePage, title: I18N.merge_suggestions.title },
+        { path: 'scenes', component: NavigationFixturePage, title: I18N.scenes.title },
+        { path: '**', component: NavigationFixturePage },
+      ]);
+      const config = TestBed.inject(GalleryStore).config as unknown as ReturnType<typeof signal>;
+      config.set({ features: { show_albums: true } });
       const header = async (url: string) => {
         await router.navigateByUrl(url); fixture.detectChanges(); await fixture.whenStable(); fixture.detectChanges();
         return {
@@ -673,10 +692,101 @@ describe('App', () => {
           title: root.querySelector('[data-mobile-page-title]')?.textContent?.trim() ?? null,
         };
       };
-      expect(await header('/')).toEqual({ icon: 'menu', brand: true, title: null });
-      expect(await header('/stats')).toEqual({ icon: 'bar_chart', brand: false, title: I18N.nav.stats });
-      expect(await header('/album/17')).toEqual({ icon: 'photo_album', brand: false, title: I18N.nav.albums });
+      expect(await header('/')).toEqual({ icon: 'menu', brand: false, title: I18N.nav.gallery });
+      expect(await header('/stats')).toEqual({ icon: 'menu', brand: false, title: I18N.nav.stats });
+      expect(await header('/album/17')).toEqual({ icon: 'menu', brand: false, title: I18N.nav.albums });
+      expect(await header('/merge-suggestions')).toEqual({ icon: 'menu', brand: false, title: I18N.merge_suggestions.title });
+      expect(await header('/scenes')).toEqual({ icon: 'menu', brand: false, title: I18N.scenes.title });
+      config.set({ features: { show_albums: true, show_scenes: true } });
+      expect(await header('/scenes')).toEqual({ icon: 'menu', brand: false, title: I18N.nav.scenes });
+      expect(await header('/nowhere')).toEqual({ icon: 'menu', brand: false, title: 'Facet' });
       expect(root.querySelector('[data-mobile-navigation]')!.getAttribute('aria-label')).toBe(I18N.nav.navigation);
+    });
+
+    it('keeps the filter reset on a double-click of the phone gallery title', () => {
+      const { root } = render(true);
+      root.querySelector('[data-mobile-page-title]')!.dispatchEvent(new MouseEvent('dblclick', { bubbles: true }));
+      expect(TestBed.inject(GalleryStore).resetFilters).toHaveBeenCalled();
+    });
+
+    it('lists Scenes right after Culling, as a tool, only while show_scenes is on', () => {
+      const { fixture, root } = render(true);
+      const store = TestBed.inject(GalleryStore).config as unknown as ReturnType<typeof signal>;
+      const hrefs = () => Array.from(root.querySelectorAll<HTMLAnchorElement>('[data-destination-tabs] a')).map(a => a.getAttribute('href'));
+      store.set({ features: { show_junk_sweep: true } });
+      fixture.detectChanges();
+      expect(hrefs()).not.toContain('/scenes');
+      store.set({ features: { show_junk_sweep: true, show_scenes: true } });
+      fixture.detectChanges();
+      expect(hrefs().indexOf('/scenes')).toBe(hrefs().indexOf('/culling') + 1);
+      const link = root.querySelector<HTMLAnchorElement>('[data-destination-tabs] a[href="/scenes"]')!;
+      expect(link.classList.contains('!font-normal')).toBe(true);
+      expect(link.querySelector('mat-icon')!.textContent!.trim()).toBe('movie_filter');
+      expect(link.textContent).toContain(I18N.nav.scenes);
+      expect(fixture.debugElement.query(By.css('[data-destination-tabs] a[href="/scenes"]')).injector.get(MatTooltip).message).toBe(I18N.nav.tooltips.scenes);
+    });
+
+    it('insets the page-actions bar and its first control 16px, with no extra margin on the control', async () => {
+      const { fixture, root } = render(true);
+      const router = TestBed.inject(Router);
+      router.resetConfig([{ path: 'compare', component: NavigationFixturePage }]);
+      await router.navigateByUrl('/compare'); fixture.detectChanges(); await fixture.whenStable(); fixture.detectChanges();
+      const bar = root.querySelector<HTMLElement>('[data-page-actions]')!;
+      expect(bar.classList.contains('!px-4')).toBe(true);
+      expect(bar.classList.contains('!px-2')).toBe(false);
+      expect(bar.querySelector('mat-form-field')!.classList.contains('ml-2')).toBe(false);
+      const host = TestBed.createComponent(HeaderSlotHost);
+      host.detectChanges();
+      TestBed.inject(HeaderSlotService).set(host.componentInstance.slot());
+      fixture.detectChanges();
+      const wrapper = bar.querySelector<HTMLElement>('.overflow-x-clip')!;
+      expect(wrapper.classList.contains('ml-2')).toBe(false);
+    });
+
+    describe('mobile bottom bars', () => {
+      const open = async (url: string, edition = true) => {
+        const view = render(edition);
+        const router = TestBed.inject(Router);
+        router.resetConfig([{ path: '**', component: NavigationFixturePage }]);
+        await router.navigateByUrl(url); view.fixture.detectChanges(); await view.fixture.whenStable(); view.fixture.detectChanges();
+        return view;
+      };
+      const button = (root: HTMLElement, key: string) => root.querySelector<HTMLElement>(`[aria-label="${key}"]`)!;
+      const label = (root: HTMLElement, key: string) => button(root, key).querySelector('span.max-sm\\:hidden')?.textContent?.trim() ?? null;
+
+      it.each([['/albums', I18N.albums.filter_type], ['/persons', I18N.gallery.sort], ['/capsules', I18N.capsules.regenerate]])(
+        'puts the %s bar on the shared 56px row', async (url, key) => {
+          const { root } = await open(url);
+          const row = button(root, key).parentElement!;
+          for (const cls of ['flex', 'min-h-14', 'items-center', 'gap-1', 'px-2', 'py-1']) expect(row.classList.contains(cls)).toBe(true);
+          expect(row.classList.contains('gap-0')).toBe(false);
+          expect(root.querySelector('main')!.classList.contains('pb-15')).toBe(true);
+          expect(root.querySelector('main')!.classList.contains('pb-14')).toBe(false);
+        });
+
+      it('labels the albums bar buttons from sm and tells the filter and sort icons apart', async () => {
+        const { root } = await open('/albums');
+        expect(label(root, I18N.albums.filter_type)).toBe(I18N.albums.filter_type);
+        expect(label(root, I18N.albums.sort_by)).toBe(I18N.albums.sort_by);
+        expect(label(root, I18N.ui.filters.search)).toBe(I18N.ui.filters.search);
+        expect(label(root, I18N.albums.create)).toBe(I18N.albums.create);
+        const icon = (key: string) => button(root, key).querySelector('mat-icon')!.textContent!.trim();
+        expect(icon(I18N.albums.filter_type)).not.toBe(icon(I18N.albums.sort_by));
+      });
+
+      it('labels the persons bar buttons from sm, but not the two whose text is longer than 14 characters', async () => {
+        const { root } = await open('/persons');
+        expect(label(root, I18N.gallery.sort)).toBe(I18N.gallery.sort);
+        expect(label(root, I18N.ui.filters.search)).toBe(I18N.ui.filters.search);
+        expect(label(root, I18N.persons.show_hidden)).toBe(I18N.persons.show_hidden);
+        expect(label(root, I18N.manage_persons.new_person)).toBe(I18N.manage_persons.new_person);
+        expect(label(root, I18N.persons.merge_suggestions)).toBeNull();
+      });
+
+      it('keeps the capsules refresh button icon-only', async () => {
+        const { root } = await open('/capsules');
+        expect(label(root, I18N.capsules.regenerate)).toBeNull();
+      });
     });
 
     it('removes authenticated navigation after logout', () => {

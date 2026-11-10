@@ -45,10 +45,15 @@ import { SlideshowComponent } from './features/gallery/slideshow.component';
 import { Photo, normalisePhotoFlagsAll } from './shared/models/photo.model';
 import { DateRangeFilterComponent } from './shared/components/date-range-filter/date-range-filter.component';
 import { I18N, i18nKeys } from './core/i18n/keys';
+import { I18nTitleStrategy } from './core/i18n-title.strategy';
+import { MOBILE_BAR_ROW } from './shared/utils/mobile-bar';
 
 /** When the "a newer Facet is out" notice was last shown, so it stays weekly. */
 const RELEASE_NOTICE_KEY = 'facet_release_notice_shown';
 const RELEASE_NOTICE_INTERVAL_MS = 7 * 24 * 60 * 60 * 1000;
+
+/** Lifts a snackbar above the 56 px bottom bars, and a notch, below lg. */
+const SNACKBAR_LIFT_CLASS = 'max-lg:!mb-[calc(4rem+env(safe-area-inset-bottom))]';
 
 /** Response of GET /api/updates/check. */
 interface ReleaseCheck {
@@ -204,7 +209,7 @@ export class App implements OnInit {
   protected readonly navigationDestinations = computed(() => {
     const features = this.store.config()?.features;
     const path = pathOf(this.url());
-    const tools = new Set(['/culling', '/junk', '/stats', '/compare']);
+    const tools = new Set(['/culling', '/scenes', '/junk', '/stats', '/compare']);
     return [
       { path: '/', icon: 'diamond', label: I18N.nav.gallery, tooltipKey: I18N.nav.gallery_tooltip, visible: true },
       { path: '/albums', icon: 'photo_album', label: I18N.nav.albums, tooltipKey: I18N.nav.tooltips.albums, visible: features?.show_albums },
@@ -214,6 +219,7 @@ export class App implements OnInit {
       { path: '/persons', icon: 'people', label: I18N.nav.persons, tooltipKey: I18N.nav.tooltips.persons, visible: true },
       { path: '/map', icon: 'map', label: I18N.nav.map, tooltipKey: I18N.nav.tooltips.map, visible: features?.show_map && this.hasGeoPhotos() },
       { path: '/culling', icon: 'burst_mode', label: I18N.nav.culling, tooltipKey: I18N.nav.tooltips.culling, visible: this.auth.isEdition() },
+      { path: '/scenes', icon: 'movie_filter', label: I18N.nav.scenes, tooltipKey: I18N.nav.tooltips.scenes, visible: features?.show_scenes },
       { path: '/junk', icon: 'delete_sweep', label: I18N.nav.junk_sweep, tooltipKey: I18N.nav.tooltips.junk_sweep, visible: this.auth.isEdition() && features?.show_junk_sweep },
       { path: '/stats', icon: 'bar_chart', label: I18N.nav.stats, tooltipKey: I18N.nav.tooltips.stats, visible: true },
       { path: '/compare', icon: 'compare', label: I18N.nav.compare, tooltipKey: I18N.nav.tooltips.compare, visible: this.auth.isEdition() },
@@ -227,8 +233,10 @@ export class App implements OnInit {
   private readonly navigationSpace = viewChild<ElementRef<HTMLElement>>('navigationSpace');
   private readonly navigationMeasurements = viewChild<ElementRef<HTMLElement>>('navigationMeasurements');
   protected readonly desktopTabCount = signal(Number.MAX_SAFE_INTEGER);
-  /** The destination the phone header names in place of the Facet mark; the gallery keeps the mark. */
-  protected readonly currentDestination = computed(() => this.navigationDestinations().find(destination => destination.active && destination.path !== '/') ?? null);
+  private readonly titleStrategy = inject(I18nTitleStrategy);
+  protected readonly MOBILE_BAR_ROW = MOBILE_BAR_ROW;
+  /** The phone header's title key: the current destination's label, else the route's own title, else none (the brand text shows). */
+  protected readonly phoneTitleKey = computed(() => this.navigationDestinations().find(destination => destination.active)?.label ?? this.titleStrategy.titleKey() ?? null);
   protected readonly desktopDestinations = computed(() => this.navigationDestinations().slice(0, this.desktopTabCount()));
   protected readonly overflowDestinations = computed(() => this.navigationDestinations().slice(this.desktopTabCount()));
   protected readonly memoriesNavigationAvailable = computed(() => !!this.store.config()?.features?.show_memories && this.hasMemories());
@@ -334,6 +342,7 @@ export class App implements OnInit {
       .subscribe(() => {
         const ref = this.snackBar.open(
           this.i18n.t(I18N.pwa.update_available), this.i18n.t(I18N.pwa.reload),
+          { panelClass: [SNACKBAR_LIFT_CLASS] },
         );
         ref.onAction().subscribe(() => location.reload());
       });
@@ -362,7 +371,7 @@ export class App implements OnInit {
       const ref = this.snackBar.open(
         this.i18n.t(I18N.updates.available, { version: res.latest }),
         res.release_url ? this.i18n.t(I18N.updates.view) : '',
-        { duration: 15000 },
+        { duration: 15000, panelClass: [SNACKBAR_LIFT_CLASS] },
       );
       if (res.release_url) {
         ref.onAction().subscribe(() => window.open(res.release_url, '_blank', 'noopener'));

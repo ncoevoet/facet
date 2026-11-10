@@ -9,6 +9,8 @@ export class I18nTitleStrategy extends TitleStrategy {
   private readonly title = inject(Title);
   private readonly i18n = inject(I18nService);
   private readonly key = signal<string | undefined>(undefined);
+  /** The current route's title key, `undefined` for a route without one; the phone header reads it. */
+  readonly titleKey = this.key.asReadonly();
 
   constructor() {
     super();

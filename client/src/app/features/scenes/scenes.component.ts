@@ -3,6 +3,7 @@ import { ActivatedRoute, Router } from '@angular/router';
 import { NgClass } from '@angular/common';
 import { MatIconModule } from '@angular/material/icon';
 import { MatButtonModule } from '@angular/material/button';
+import { MatCardModule } from '@angular/material/card';
 import { MatMenuModule } from '@angular/material/menu';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { MatSliderModule } from '@angular/material/slider';
@@ -58,6 +59,7 @@ interface ScenesResponse {
     NgClass,
     MatIconModule,
     MatButtonModule,
+    MatCardModule,
     MatMenuModule,
     MatProgressSpinnerModule,
     MatSliderModule,
@@ -72,10 +74,10 @@ interface ScenesResponse {
   ],
   changeDetection: ChangeDetectionStrategy.Eager,
   template: `
-    <div class="px-4 pt-3 md:px-8 mx-auto w-full max-w-[96%]">
-      <div class="flex items-center gap-3 mb-1">
-        <h1 class="m-0 text-lg font-semibold">{{ I18N.scenes.title | translate }}</h1>
-        <div class="flex items-center gap-2 ml-auto">
+    <div class="px-4 pt-3 w-full">
+      <div class="flex flex-wrap items-center gap-3 mb-1">
+        <h1 class="sr-only">{{ I18N.scenes.title | translate }}</h1>
+        <div class="flex flex-wrap items-center gap-2 ml-auto">
           <button mat-stroked-button [matMenuTriggerFor]="albumMenu"
                   [matTooltip]="I18N.scenes.album | translate">
             <mat-icon>photo_library</mat-icon>
@@ -108,8 +110,9 @@ interface ScenesResponse {
       } @else if (scenes().length === 0) {
         <div class="text-[var(--mat-sys-on-surface-variant)] py-10 text-center">{{ I18N.scenes.empty | translate }}</div>
       } @else {
+        <div data-scene-grid class="grid grid-cols-1 xl:grid-cols-2 gap-4 mb-6">
         @for (scene of scenes(); track scene.scene_id) {
-          <div class="mb-6 rounded-lg border border-[var(--mat-sys-outline-variant)] p-3">
+          <mat-card class="!p-3">
             <div class="flex items-center gap-2 mb-2">
               <mat-icon aria-hidden="true" class="!text-base text-[var(--mat-sys-on-surface-variant)]">schedule</mat-icon>
               <span class="text-sm text-[var(--mat-sys-on-surface)]">{{ scene.start | sceneDate }}</span>
@@ -128,7 +131,7 @@ interface ScenesResponse {
                 </button>
               }
             </div>
-            <div class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4">
+            <div class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-3 gap-4">
               @for (photo of scene.photos; track photo.path) {
                 <div class="group relative w-full aspect-[4/3] rounded-xl overflow-hidden border-2"
                      [ngClass]="photo.path === scene.best_path ? 'border-green-500' : 'border-[var(--mat-sys-outline-variant)]'">
@@ -144,8 +147,9 @@ interface ScenesResponse {
                 </div>
               }
             </div>
-          </div>
+          </mat-card>
         }
+        </div>
         @if (hasMore()) {
           <div class="flex justify-center py-4">
             <button mat-stroked-button (click)="loadMore()" [disabled]="loading()">{{ I18N.scenes.load_more | translate }}</button>

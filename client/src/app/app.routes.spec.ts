@@ -87,6 +87,16 @@ describe('I18nTitleStrategy', () => {
     expect(title.getTitle()).toBe('Facet');
   });
 
+  it('exposes the route title key, undefined for a route without one, for the phone header', () => {
+    const { apply } = strategy();
+    const instance = TestBed.inject(I18nTitleStrategy);
+    expect(instance.titleKey()).toBeUndefined();
+    apply('merge_suggestions.title');
+    expect(instance.titleKey()).toBe('merge_suggestions.title');
+    apply(undefined);
+    expect(instance.titleKey()).toBeUndefined();
+  });
+
   it('is the app\'s TitleStrategy', () => {
     expect(appConfig.providers).toContainEqual({ provide: TitleStrategy, useExisting: I18nTitleStrategy });
   });
