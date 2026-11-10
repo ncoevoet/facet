@@ -5,7 +5,8 @@ import { MatDialogModule } from '@angular/material/dialog';
 import { MatIconModule } from '@angular/material/icon';
 import { TranslatePipe } from '../../../shared/pipes/translate.pipe';
 import { i18nKeys, I18N } from '../../../core/i18n/keys';
-import { KEYMAP_ACTIONS, KeymapConfig, KeyboardMappingService } from '../../../core/services/keyboard-mapping.service';
+import { KeymapConfig, KeyboardMappingService } from '../../../core/services/keyboard-mapping.service';
+import { SHORTCUT_REGISTRY, ShortcutActionId } from '../../../core/services/shortcut-registry';
 
 /** Lets the user reassign the primary key of each gallery and photo-page
  *  action. Click a row to enter capture mode, press the new key; Esc or Tab
@@ -29,7 +30,7 @@ import { KEYMAP_ACTIONS, KeymapConfig, KeyboardMappingService } from '../../../c
     </h2>
     <mat-dialog-content class="!px-6 !pb-1 !overflow-hidden">
       <div class="flex flex-col gap-0.5">
-        @for (action of KEYMAP_ACTIONS; track action.id) {
+        @for (action of SHORTCUT_REGISTRY; track action.id) {
           <button type="button" data-keymap-row
                   class="w-full flex items-center gap-3 px-2.5 py-1.5 rounded-lg text-left transition-colors hover:bg-[var(--mat-sys-surface-container)]"
                   [class.!bg-[var(--mat-sys-surface-container)]]="capturing() === action.id"
@@ -66,15 +67,15 @@ import { KEYMAP_ACTIONS, KeymapConfig, KeyboardMappingService } from '../../../c
 })
 export class KeyboardMappingDialogComponent {
   protected readonly I18N = i18nKeys();
-  protected readonly KEYMAP_ACTIONS = KEYMAP_ACTIONS;
+  protected readonly SHORTCUT_REGISTRY = SHORTCUT_REGISTRY;
   private readonly mapping = inject(KeyboardMappingService);
-  private readonly capturingAction = signal<keyof KeymapConfig | null>(null);
+  private readonly capturingAction = signal<ShortcutActionId | null>(null);
   private readonly errorMessage = signal('');
   protected readonly capturing = this.capturingAction.asReadonly();
   protected readonly error = this.errorMessage.asReadonly();
   protected readonly keyLabels = computed(() => {
     const map = this.mapping.keymap();
-    return Object.fromEntries(KEYMAP_ACTIONS.map(a => [a.id, map[a.id].toUpperCase()])) as Record<keyof KeymapConfig, string>;
+    return Object.fromEntries(SHORTCUT_REGISTRY.map(a => [a.id, map[a.id].toUpperCase()])) as KeymapConfig;
   });
 
   constructor() {
@@ -87,7 +88,7 @@ export class KeyboardMappingDialogComponent {
     inject(DestroyRef).onDestroy(() => document.removeEventListener('keydown', listener, true));
   }
 
-  protected startCapture(action: keyof KeymapConfig, event: MouseEvent): void {
+  protected startCapture(action: ShortcutActionId, event: MouseEvent): void {
     event.stopPropagation();
     this.errorMessage.set('');
     this.capturingAction.set(action);

@@ -6,7 +6,13 @@ All notable changes to Facet are documented in this file.
 
 ### Added
 
+- **`Ctrl+Z` / `Cmd+Z` presses the snackbar's Undo while it is showing**, on every page that offers one (gallery batch changes, culling and stack confirms, person hides), including inside the darkroom. A text field keeps its own undo, an open dialog keeps the key, and with no snackbar on screen the key does nothing. The `?` reference lists it on the gallery, culling and stack-suggestion pages.
 - **Google Maps in the location dialog.** For one photo and for **Set location** on a selection or a whole view, **Pick on Google Maps** opens Google Maps in a new tab at the pin (else the selection's first geotagged photo, else the map centre), and a **Google Maps link or coordinates** field moves the pin to a pasted point: the pair Google copies on right-click, degrees/minutes/seconds, or a Google Maps URL (the dropped pin `!3d…!4d…` first, then `q=`/`query=`/`ll=`/`center=`, then `@lat,lon`). Short links (`maps.app.goo.gl`, `goo.gl/maps`) are followed by the new edition-only `POST /api/geo/resolve_maps_link`, which requests only five Google hosts over HTTPS at public addresses, at most 5 redirects within 5 seconds, and never reads a page body. Nothing is saved until Save, as before. No Google API, key or map tiles are used; the dialog map stays OpenStreetMap.
+
+### Changed
+
+- **The remappable keyboard actions live in one registry** (`SHORTCUT_REGISTRY`: id, default key, page scope, label). The Customize shortcuts dialog, the saved-keymap loader and the `?` reference read from it, so a new action is one row. A key is now refused only when another action on the same page holds it; all seven current actions are live on the gallery, so nothing a user can do changes yet.
+- **`X` (or `0`) on a card inside a selection rejects the whole selection.** It rejected only the focused card, so rejecting ten selected photos meant ten trips; it now does what the selection bar's Reject does, with **Undo** when every selected photo is loaded and there are at most 500. Pressing `X` again while the batch saves does nothing, so a second batch cannot overwrite the first one's Undo. The rule is the context menu's: the focused card must be selected and the selection must hold two or more photos; otherwise `X` toggles the focused photo and advances as before. A whole-view selection asks for confirmation first, as the bar does.
 
 ## [1.29.0] "Pamir" — 2026-11-10
 

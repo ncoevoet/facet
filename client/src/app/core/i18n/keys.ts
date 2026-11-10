@@ -3686,6 +3686,7 @@ export const I18N = {
     key_reserved: "shortcuts.key_reserved",
     stack: "shortcuts.stack",
     quick_stack: "shortcuts.quick_stack",
+    undo: "shortcuts.undo",
     unassigned: "shortcuts.unassigned",
     stack_hint: "shortcuts.stack_hint",
     keymap_title: "shortcuts.keymap_title",
