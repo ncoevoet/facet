@@ -1,3 +1,4 @@
+import { COMPACT_PAGE_TABS } from '../../shared/components/tab-label/tab-label.component';
 import type { Mock } from 'vitest';
 import { TestBed } from '@angular/core/testing';
 import { CUSTOM_ELEMENTS_SCHEMA, signal } from '@angular/core';
@@ -184,11 +185,15 @@ describe('ComparisonComponent', () => {
       const host = render().nativeElement as HTMLElement;
       const group = host.querySelector('mat-tab-group') as HTMLElement;
       expect(group.classList).toContain('page-tabs');
-      const icons = [...host.querySelectorAll('.mat-mdc-tab mat-icon')];
-      expect(icons.length).toBeGreaterThan(0);
-      for (const icon of icons) {
-        expect(icon.classList).toContain('sm:!inline-block');
+      for (const cls of COMPACT_PAGE_TABS.split(' ')) expect(group.classList).toContain(cls);
+      const tabs = [...host.querySelectorAll('.mat-mdc-tab')];
+      expect(tabs.length).toBe(6);
+      for (const tab of tabs) {
+        // The icon shows at every width; below sm the name is visually hidden and becomes the tooltip.
+        const icon = tab.querySelector('app-tab-label mat-icon')!;
+        expect(icon.classList).not.toContain('!hidden');
         expect(icon.getAttribute('aria-hidden')).toBe('true');
+        expect(tab.querySelector('[data-tab-name]')?.classList).toContain('max-sm:sr-only');
       }
     });
 

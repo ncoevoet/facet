@@ -1,3 +1,4 @@
+import { COMPACT_PAGE_TABS } from '../../shared/components/tab-label/tab-label.component';
 import type { Mock } from 'vitest';
 import { TestBed } from '@angular/core/testing';
 import { signal } from '@angular/core';
@@ -507,6 +508,16 @@ describe('StatsComponent', () => {
       expect(el.querySelector('h1#stats-heading')!.className).toContain('sr-only');
       expect(el.querySelector('details')!.className).toContain('lg:hidden');
       expect(el.querySelector('details')!.className).not.toContain('sm:hidden');
+    });
+
+    it('labels each tab with the shared icon label, icon-only with a tooltip below sm, as Weights does', async () => {
+      const fixture = await render();
+      const group = (fixture.nativeElement as HTMLElement).querySelector('mat-tab-group')!;
+      for (const cls of COMPACT_PAGE_TABS.split(' ')) expect(group.classList).toContain(cls);
+      const labels = [...group.querySelectorAll('.mat-mdc-tab app-tab-label')];
+      expect(labels.map(label => label.querySelector('mat-icon')?.textContent)).toEqual(['camera_alt', 'category', 'timeline', 'insights']);
+      expect(labels.map(label => label.querySelector('[data-tab-name]')?.textContent?.trim()))
+        .toEqual(['stats.gear', 'stats.categories.tab', 'stats.timeline', 'stats.tabs.correlations']);
     });
   });
 

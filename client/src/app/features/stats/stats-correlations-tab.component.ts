@@ -96,20 +96,23 @@ export function allocateSeriesSlots(keys: string[], previous: Record<string, num
         </mat-card-header>
         <mat-card-content class="!pt-4">
           <div role="group" aria-labelledby="correlation-presets-label" class="mb-4 flex flex-wrap items-center gap-2">
-            <span id="correlation-presets-label" class="text-sm text-[var(--mat-sys-on-surface-variant)]">{{ I18N.stats.correlations.presets.label | translate }}</span>
+            <span id="correlation-presets-label" class="text-sm text-[var(--mat-sys-on-surface-variant)] max-sm:basis-full">{{ I18N.stats.correlations.presets.label | translate }}</span>
+            <!-- One scrolling row on phones, so the presets do not push the chart below the fold. -->
+            <div data-correlation-presets class="flex min-w-0 flex-1 gap-2 max-sm:overflow-x-auto max-sm:pb-1 sm:flex-wrap">
             @for (preset of presets; track preset.id) {
               @let presetIcon = preset.x | sortOptionIcon;
-              <button type="button" mat-stroked-button data-correlation-preset class="pointer-coarse:!min-h-11"
+              <button type="button" mat-stroked-button data-correlation-preset class="shrink-0 pointer-coarse:!min-h-11"
                 [class.!bg-[var(--mat-sys-secondary-container)]]="activePreset() === preset.id"
                 [attr.aria-pressed]="activePreset() === preset.id" (click)="applyPreset(preset)">
                 <mat-icon aria-hidden="true" [class]="presetIcon.classes">{{ presetIcon.text }}</mat-icon>
                 {{ 'stats.correlations.presets.' + preset.id | translate }}
               </button>
             }
+            </div>
           </div>
-          <!-- Controls: row 1 — X Axis + Group By -->
-          <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-3">
-            <mat-form-field subscriptSizing="dynamic">
+          <!-- Controls: row 1 — X Axis + Group By, side by side at every width -->
+          <div data-correlation-axes class="grid grid-cols-2 gap-3 mb-3">
+            <mat-form-field class="min-w-0" subscriptSizing="dynamic">
               <mat-label>{{ I18N.stats.correlations.x_axis | translate }}</mat-label>
               <mat-select [ngModel]="corrXAxis()" (ngModelChange)="edit(corrXAxis, $event)">
                 <mat-select-trigger>
@@ -128,7 +131,7 @@ export function allocateSeriesSlots(keys: string[], previous: Record<string, num
                 }
               </mat-select>
             </mat-form-field>
-            <mat-form-field subscriptSizing="dynamic">
+            <mat-form-field class="min-w-0" subscriptSizing="dynamic">
               <mat-label>{{ I18N.stats.correlations.group_by | translate }}</mat-label>
               <mat-select [ngModel]="corrGroupBy()" (ngModelChange)="edit(corrGroupBy, $event)">
                 <mat-select-trigger>

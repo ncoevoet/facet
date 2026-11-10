@@ -1,3 +1,4 @@
+import { COMPACT_PAGE_TABS, TabLabelComponent } from '../../shared/components/tab-label/tab-label.component';
 import { Component, computed, DestroyRef, effect, inject, signal, untracked, viewChild, TemplateRef, ChangeDetectionStrategy } from '@angular/core';
 import { NgTemplateOutlet } from '@angular/common';
 import { MatIconModule } from '@angular/material/icon';
@@ -33,6 +34,7 @@ const COMPARE_TAB_NAMES: string[] = [...Object.keys(COMPARE_TAB_INDEX), 'context
   selector: 'app-comparison',
   imports: [
     NgTemplateOutlet,
+    TabLabelComponent,
     MatIconModule,
     MatButtonModule,
     MatTabsModule,
@@ -126,12 +128,11 @@ const COMPARE_TAB_NAMES: string[] = [...Object.keys(COMPARE_TAB_INDEX), 'context
       }
 
       @if (compareFilters.selectedCategory()) {
-        <mat-tab-group class="page-tabs mb-6" mat-stretch-tabs="false" mat-align-tabs="start" [selectedIndex]="compareFilters.activeTab()" (selectedIndexChange)="onTabChange($event)">
+        <mat-tab-group class="page-tabs mb-6" [class]="compactTabs" mat-stretch-tabs="false" mat-align-tabs="start" [selectedIndex]="compareFilters.activeTab()" (selectedIndexChange)="onTabChange($event)">
           <!-- Snapshots tab -->
           <mat-tab>
             <ng-template mat-tab-label>
-              <mat-icon class="!hidden sm:!inline-block sm:mr-2" aria-hidden="true">bookmark</mat-icon>
-              <span class="whitespace-nowrap text-[11px] sm:text-sm">{{ I18N.comparison.snapshots | translate }}</span>
+              <app-tab-label icon="bookmark" [label]="I18N.comparison.snapshots | translate" />
             </ng-template>
             <app-comparison-snapshots-tab #snapshotsTabEl (restored)="onSnapshotRestored()" />
           </mat-tab>
@@ -139,8 +140,7 @@ const COMPARE_TAB_NAMES: string[] = [...Object.keys(COMPARE_TAB_INDEX), 'context
           <!-- A/B Compare tab -->
           <mat-tab>
             <ng-template mat-tab-label>
-              <mat-icon class="!hidden sm:!inline-block sm:mr-2" aria-hidden="true">compare</mat-icon>
-              <span class="whitespace-nowrap text-[11px] sm:text-sm">{{ I18N.comparison.compare_tab | translate }}</span>
+              <app-tab-label icon="compare" [label]="I18N.comparison.compare_tab | translate" />
             </ng-template>
             <app-comparison-ab-tab #abTabEl (weightsApplied)="onWeightsApplied($event)" />
           </mat-tab>
@@ -148,11 +148,8 @@ const COMPARE_TAB_NAMES: string[] = [...Object.keys(COMPARE_TAB_INDEX), 'context
           <!-- Weight Suggestions tab (enabled once enough comparisons exist) -->
           <mat-tab [disabled]="weightsLocked()">
             <ng-template mat-tab-label>
-              <span [matTooltip]="weightsLocked() ? ((I18N.comparison.suggestions_locked_tooltip | translate:{ count: weightsRemaining() })) : ''"
-                    class="inline-flex items-center">
-                <mat-icon class="!hidden sm:!inline-block sm:mr-2" aria-hidden="true">auto_fix_high</mat-icon>
-                <span class="whitespace-nowrap text-[11px] sm:text-sm">{{ I18N.comparison.suggestions_tab | translate }}</span>
-              </span>
+              <app-tab-label icon="auto_fix_high" [label]="I18N.comparison.suggestions_tab | translate"
+                             [hint]="weightsLocked() ? (I18N.comparison.suggestions_locked_tooltip | translate:{ count: weightsRemaining() }) : ''" />
             </ng-template>
             <app-comparison-suggestions-tab #suggestionsTabEl (weightsApplied)="onWeightsApplied($event)" />
           </mat-tab>
@@ -160,8 +157,7 @@ const COMPARE_TAB_NAMES: string[] = [...Object.keys(COMPARE_TAB_INDEX), 'context
           <!-- Weights tab -->
           <mat-tab>
             <ng-template mat-tab-label>
-              <mat-icon class="!hidden sm:!inline-block sm:mr-2" aria-hidden="true">tune</mat-icon>
-              <span class="whitespace-nowrap text-[11px] sm:text-sm">{{ I18N.comparison.weights | translate }}</span>
+              <app-tab-label icon="tune" [label]="I18N.comparison.weights | translate" />
             </ng-template>
             <app-comparison-weights-tab #weightsTabEl />
           </mat-tab>
@@ -169,8 +165,7 @@ const COMPARE_TAB_NAMES: string[] = [...Object.keys(COMPARE_TAB_INDEX), 'context
           <!-- Scoring context tab -->
           <mat-tab>
             <ng-template mat-tab-label>
-              <mat-icon class="!hidden sm:!inline-block sm:mr-2" aria-hidden="true">low_priority</mat-icon>
-              <span class="whitespace-nowrap text-[11px] sm:text-sm">{{ I18N.comparison.context.tab_label | translate }}</span>
+              <app-tab-label icon="low_priority" [label]="I18N.comparison.context.tab_label | translate" />
             </ng-template>
             <app-comparison-priority-tab #priorityTabEl />
           </mat-tab>
@@ -178,8 +173,7 @@ const COMPARE_TAB_NAMES: string[] = [...Object.keys(COMPARE_TAB_INDEX), 'context
           <!-- Panorama detection tab -->
           <mat-tab>
             <ng-template mat-tab-label>
-              <mat-icon class="!hidden sm:!inline-block sm:mr-2" aria-hidden="true">panorama_photosphere</mat-icon>
-              <span class="whitespace-nowrap text-[11px] sm:text-sm">{{ I18N.panorama.settings.tab_label | translate }}</span>
+              <app-tab-label icon="panorama_photosphere" [label]="I18N.panorama.settings.tab_label | translate" />
             </ng-template>
             <app-panorama-settings-tab />
           </mat-tab>
@@ -190,6 +184,7 @@ const COMPARE_TAB_NAMES: string[] = [...Object.keys(COMPARE_TAB_INDEX), 'context
 })
 export class ComparisonComponent {
   protected readonly I18N = i18nKeys();
+  protected readonly compactTabs = COMPACT_PAGE_TABS;
   protected readonly auth = inject(AuthService);
   private readonly api = inject(ApiService);
   private readonly store = inject(GalleryStore);

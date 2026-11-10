@@ -1,3 +1,4 @@
+import { COMPACT_PAGE_TABS, TabLabelComponent } from '../../shared/components/tab-label/tab-label.component';
 import { Component, inject, signal, computed, viewChild, ElementRef, effect, DestroyRef, Injector, afterNextRender, untracked, ChangeDetectionStrategy, TemplateRef } from '@angular/core';
 import { DOCUMENT, NgTemplateOutlet } from '@angular/common';
 import { FormsModule } from '@angular/forms';
@@ -78,6 +79,7 @@ interface ScoreBin {
   selector: 'app-stats',
   imports: [
     NgTemplateOutlet,
+    TabLabelComponent,
     StatsNumberPipe,
     FormsModule,
     MatCardModule,
@@ -213,12 +215,11 @@ interface ScoreBin {
         <mat-spinner diameter="48" [attr.aria-label]="I18N.ui.labels.loading | translate" />
       </div>
     } @else if (!loadFailed()) {
-      <mat-tab-group class="page-tabs max-sm:[&_.mat-mdc-tab]:!min-w-0 max-sm:[&_.mat-mdc-tab]:!px-0 max-sm:[&_.mat-mdc-tab]:!flex-[1_1_auto] max-sm:[&_.mat-mdc-tab-labels]:!flex-[1_1_0%]" mat-stretch-tabs="false" mat-align-tabs="start" [selectedIndex]="selectedTab()" (selectedIndexChange)="selectedTab.set($event)">
+      <mat-tab-group class="page-tabs" [class]="compactTabs" mat-stretch-tabs="false" mat-align-tabs="start" [selectedIndex]="selectedTab()" (selectedIndexChange)="selectedTab.set($event)">
           <!-- Gear tab -->
           <mat-tab>
             <ng-template mat-tab-label>
-              <mat-icon class="!hidden sm:!inline-block sm:mr-2" aria-hidden="true">camera_alt</mat-icon>
-              <span class="block whitespace-nowrap text-center text-[11px] sm:text-sm">{{ I18N.stats.gear | translate }}</span>
+              <app-tab-label icon="camera_alt" [label]="I18N.stats.gear | translate" />
             </ng-template>
             @if (gearFailed()) {
               <ng-container *ngTemplateOutlet="sectionError; context: { $implicit: 'gear' }" />
@@ -240,8 +241,7 @@ interface ScoreBin {
           <!-- Categories tab -->
           <mat-tab>
             <ng-template mat-tab-label>
-              <mat-icon class="!hidden sm:!inline-block sm:mr-2" aria-hidden="true">category</mat-icon>
-              <span class="block whitespace-nowrap text-center text-[11px] sm:text-sm">{{ I18N.stats.categories.tab | translate }}</span>
+              <app-tab-label icon="category" [label]="I18N.stats.categories.tab | translate" />
             </ng-template>
             @if (categoriesFailed()) {
               <ng-container *ngTemplateOutlet="sectionError; context: { $implicit: 'categories' }" />
@@ -446,8 +446,7 @@ interface ScoreBin {
           <!-- Timeline tab -->
           <mat-tab>
             <ng-template mat-tab-label>
-              <mat-icon class="!hidden sm:!inline-block sm:mr-2" aria-hidden="true">timeline</mat-icon>
-              <span class="block whitespace-nowrap text-center text-[11px] sm:text-sm">{{ I18N.stats.timeline | translate }}</span>
+              <app-tab-label icon="timeline" [label]="I18N.stats.timeline | translate" />
             </ng-template>
             <app-stats-timeline-tab />
           </mat-tab>
@@ -455,8 +454,7 @@ interface ScoreBin {
           <!-- Correlations tab -->
           <mat-tab>
             <ng-template mat-tab-label>
-              <mat-icon class="!hidden sm:!inline-block sm:mr-2" aria-hidden="true">insights</mat-icon>
-              <span class="block whitespace-nowrap text-center text-[11px] sm:text-sm">{{ I18N.stats.tabs.correlations | translate }}</span>
+              <app-tab-label icon="insights" [label]="I18N.stats.tabs.correlations | translate" />
             </ng-template>
             <app-stats-correlations-tab [active]="selectedTab() === correlationsTab" />
           </mat-tab>
@@ -466,6 +464,7 @@ interface ScoreBin {
 })
 export class StatsComponent {
   protected readonly I18N = i18nKeys();
+  protected readonly compactTabs = COMPACT_PAGE_TABS;
   private api = inject(ApiService);
   private readonly auth = inject(AuthService);
   private readonly authScope = statsAuthScope(this.auth);
