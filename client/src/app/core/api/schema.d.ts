@@ -1838,9 +1838,11 @@ export interface paths {
          *
          *     Suggestions use centroids derived only from this caller's visible faces in
          *     one read snapshot. Stored library-wide centroids, hidden people and foreign
-         *     model vectors do not influence them. The bounded reference scan refuses
-         *     instead of silently omitting people; unassigned browsing remains available
-         *     without suggestions. Keyset pagination is a live view, not a frozen batch.
+         *     model vectors do not influence them. Past MAX_REVIEW_REFERENCE_FACES each
+         *     person contributes an evenly spread sample of their faces, so no one is
+         *     omitted; past MAX_REVIEW_PEOPLE the scan refuses, and unassigned browsing
+         *     remains available without suggestions. Keyset pagination is a live view,
+         *     not a frozen batch.
          */
         get: operations["review_unassigned_faces_api_faces_review_get"];
         put?: never;
@@ -2916,6 +2918,9 @@ export interface paths {
          *     ``hidden_only=true`` returns the hidden ones alone (the persons page's Ignored
          *     section). It is ignored under ``sort=assignment``: the assignment rule wins,
          *     so hidden persons never become assignment candidates.
+         *     ``offset`` starts the page at that row instead of at ``page``: a list the
+         *     viewer patches in place (an un-hide, a delete) asks for the row after its
+         *     last one, which page numbers would skip once the rows before it moved.
          */
         get: operations["list_persons_api_persons_get"];
         put?: never;
@@ -16305,6 +16310,7 @@ export interface operations {
             query?: {
                 page?: number;
                 per_page?: number;
+                offset?: number | null;
                 search?: string;
                 sort?: string;
                 include_hidden?: boolean;

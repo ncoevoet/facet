@@ -439,6 +439,25 @@ class TestListPersonsHiddenOnly:
         assert hidden["total"] == 2
         assert [p["id"] for p in default["persons"]] == [1, 4]
 
+    def test_offset_reads_from_a_row_and_overrides_page(self, client, tmp_path):
+        """A list patched in place (un-hide, delete) asks for the row after its last one."""
+        db = str(tmp_path / "persons_hidden_offset.db")
+        _make_persons_db(db, persons=[
+            {"id": i, "name": None, "face_count": 10 - i, "is_hidden": 1} for i in range(1, 6)
+        ])
+        params = {"hidden_only": True, "per_page": 2, "sort": "count_desc"}
+        with mock.patch("api.routers.persons.get_async_db", _async_conn_factory(db)):
+            from_row = client.get("/api/persons", params={**params, "offset": 1}).json()
+            with_page = client.get("/api/persons", params={**params, "offset": 1, "page": 3}).json()
+            past_end = client.get("/api/persons", params={**params, "offset": 5}).json()
+            negative = client.get("/api/persons", params={**params, "offset": -1})
+
+        assert [p["id"] for p in from_row["persons"]] == [2, 3]
+        assert from_row["total"] == 5
+        assert [p["id"] for p in with_page["persons"]] == [2, 3]
+        assert past_end["persons"] == []
+        assert negative.status_code == 422
+
 
 class TestNeedsNaming:
     """Tests for GET /api/persons/needs_naming (async, real temp DB)."""

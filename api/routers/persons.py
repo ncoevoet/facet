@@ -153,6 +153,7 @@ def _assert_person_assignable(conn, user_id, person_id):
 async def list_persons(
     page: int = Query(1, ge=1),
     per_page: int = Query(48, ge=1, le=200),
+    offset: Optional[int] = Query(None, ge=0),
     search: str = Query(""),
     sort: str = Query("count_desc", pattern="^(count_asc|count_desc|quality_asc|quality_desc|name_asc|name_desc|assignment)$"),
     include_hidden: bool = Query(False),
@@ -176,6 +177,9 @@ async def list_persons(
     ``hidden_only=true`` returns the hidden ones alone (the persons page's Ignored
     section). It is ignored under ``sort=assignment``: the assignment rule wins,
     so hidden persons never become assignment candidates.
+    ``offset`` starts the page at that row instead of at ``page``: a list the
+    viewer patches in place (an un-hide, a delete) asks for the row after its
+    last one, which page numbers would skip once the rows before it moved.
     """
     recent = []
     if recent_ids:
@@ -239,7 +243,8 @@ async def list_persons(
         await cur.close()
         total = row[0] if row else 0
 
-        offset = (page - 1) * per_page
+        if offset is None:
+            offset = (page - 1) * per_page
         cur = await conn.execute(f"""
             {prefix}SELECT p.id, p.name, p.representative_face_id, {count_column} AS face_count,
                    COALESCE(p.is_hidden, 0) as is_hidden,

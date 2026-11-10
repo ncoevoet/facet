@@ -614,7 +614,6 @@ export class ManagePersonsComponent implements OnInit {
   /** A next page of the Ignored section failed; scrolling stops loading until Retry. */
   readonly ignoredError = signal(false);
   readonly ignoredExpanded = signal(false);
-  private ignoredPage = 1;
   private readonly ignoredPerPage = 200;
 
   private page = 1;
@@ -714,33 +713,33 @@ export class ManagePersonsComponent implements OnInit {
   /** The Ignored section's first page; read-only users never see the section, so it is not asked for. */
   async loadIgnored(): Promise<void> {
     if (!this.auth.isEdition()) return;
-    this.ignoredPage = 1;
     await this.fetchIgnored(false);
   }
 
   async loadMoreIgnored(): Promise<void> {
     if (this.ignoredLoading() || this.ignored().length >= this.ignoredTotal()) return;
-    this.ignoredPage++;
     await this.fetchIgnored(true);
   }
 
   private async fetchIgnored(append: boolean): Promise<void> {
     this.ignoredLoading.set(true); this.ignoredError.set(false);
     try {
+      // Read from the row after the loaded ones rather than by page number: un-hides,
+      // deletes and ignores patch the loaded rows in place, which shifts the pages.
       const res = await firstValueFrom(
         this.api.get<PersonsResponse>('/persons', {
-          hidden_only: true, page: this.ignoredPage, per_page: this.ignoredPerPage, sort: 'count_desc',
+          hidden_only: true, offset: append ? this.ignored().length : 0, per_page: this.ignoredPerPage, sort: 'count_desc',
         }),
       );
       const page = res.persons ?? [];
       const added = append ? page.filter((p) => !this.ignored().some((q) => q.id === p.id)) : page;
       this.ignored.update((list) => (append ? [...list, ...added] : page));
-      // Un-hides and deletes shift the server's pages under the loaded rows, so a page
-      // bringing nothing new ends the list instead of re-arming the scroll sentinel forever.
+      // A change made elsewhere can still shift the rows, so a page bringing nothing new
+      // ends the list instead of re-arming the scroll sentinel forever.
       this.ignoredTotal.set(append && !added.length ? this.ignored().length : res.total ?? page.length);
     } catch {
       // A first page fails silently: the section just won't render.
-      if (append) { this.ignoredPage--; this.ignoredError.set(true); }
+      if (append) this.ignoredError.set(true);
     } finally {
       this.ignoredLoading.set(false);
     }
@@ -1087,13 +1086,14 @@ export class ManagePersonsComponent implements OnInit {
 
   /**
    * Put a newly ignored person into the loaded Ignored rows at its ``count_desc``
-   * place. When it sorts past the last loaded row while more remain, only the total
-   * grows: the next page will bring it.
+   * place, ties broken by id as the server orders them, so the loaded rows stay the
+   * server's first rows. When it sorts past the last loaded row while more remain,
+   * only the total grows: the next page will bring it.
    */
   private addIgnored(person: Person): void {
     if (this.ignored().some((p) => p.id === person.id)) return;
     const list = this.ignored();
-    const at = list.findIndex((p) => p.face_count < person.face_count);
+    const at = list.findIndex((p) => p.face_count < person.face_count || (p.face_count === person.face_count && p.id > person.id));
     const complete = list.length >= this.ignoredTotal();
     this.ignoredTotal.update((t) => t + 1);
     if (at === -1 && !complete) return;

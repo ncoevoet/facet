@@ -510,7 +510,7 @@ describe('ManagePersonsComponent', () => {
 
       await component.loadIgnored();
 
-      expect(mockApi.get).toHaveBeenCalledWith('/persons', { hidden_only: true, page: 1, per_page: 200, sort: 'count_desc' });
+      expect(mockApi.get).toHaveBeenCalledWith('/persons', { hidden_only: true, offset: 0, per_page: 200, sort: 'count_desc' });
       expect(component.ignored().map((p) => p.id)).toEqual([7]);
       expect(component.ignoredTotal()).toBe(1);
     });
@@ -522,7 +522,7 @@ describe('ManagePersonsComponent', () => {
 
       await component.loadMoreIgnored();
 
-      expect(mockApi.get).toHaveBeenLastCalledWith('/persons', { hidden_only: true, page: 2, per_page: 200, sort: 'count_desc' });
+      expect(mockApi.get).toHaveBeenLastCalledWith('/persons', { hidden_only: true, offset: 1, per_page: 200, sort: 'count_desc' });
       expect(component.ignored().map((p) => p.id)).toEqual([7, 8]);
       expect(component.ignoredTotal()).toBe(201);
     });
@@ -536,6 +536,38 @@ describe('ManagePersonsComponent', () => {
       mockApi.get.mockClear();
       await component.loadMoreIgnored();
       expect(mockApi.get).not.toHaveBeenCalled();
+    });
+
+    it('restoring from a full first page asks for the row after the loaded ones, so nobody is skipped', async () => {
+      let server = Array.from({ length: 250 }, (_, i) => ({ id: i + 1, name: null, face_count: 1000 - i, face_thumbnail: true, is_hidden: true }));
+      mockApi.get.mockImplementation((_url: string, params?: { hidden_only?: boolean; page?: number; offset?: number; per_page?: number }) => {
+        if (!params?.hidden_only) return of({ persons: [], total: 0 });
+        const perPage = params.per_page ?? 48;
+        const start = params.offset ?? ((params.page ?? 1) - 1) * perPage;
+        return of({ persons: server.slice(start, start + perPage), total: server.length });
+      });
+      vi.spyOn(component, 'loadNeedsNaming').mockResolvedValue();
+      await component.loadIgnored();
+
+      await component.setHidden(5, false);
+      server = server.filter((p) => p.id !== 5);
+      await component.loadMoreIgnored();
+
+      expect(component.ignored().map((p) => p.id)).toEqual(server.map((p) => p.id));
+      expect(component.ignoredTotal()).toBe(249);
+    });
+
+    it('places a newly ignored person among equal face counts by id, as the server orders them', async () => {
+      const hidden = (id: number) => ({ id, name: null, face_count: 5, face_thumbnail: true, is_hidden: true });
+      component.ignored.set([hidden(1), hidden(9)]);
+      component.ignoredTotal.set(10);
+      component.needsNaming.set([{ ...waiter, id: 5, face_count: 5 }]);
+      vi.spyOn(component, 'loadNeedsNaming').mockResolvedValue();
+
+      await component.setHidden(5, true);
+
+      expect(component.ignored().map((p) => p.id)).toEqual([1, 5, 9]);
+      expect(component.ignoredTotal()).toBe(11);
     });
 
     it('does not load the Ignored section for a read-only user', async () => {
@@ -1014,8 +1046,8 @@ describe('ManagePersonsComponent', () => {
     it('loads the next Ignored page on scroll, and stops on a failure until Retry', async () => {
       const original = mockApi.get.getMockImplementation()!;
       const hidden = (id: number) => ({ id, name: null, face_count: 2, face_thumbnail: true, is_hidden: true });
-      mockApi.get.mockImplementation((url: string, params?: { hidden_only?: boolean; page?: number }) =>
-        params?.hidden_only ? of({ persons: [hidden(100 + (params.page ?? 1))], total: 3 }) : original(url, params));
+      mockApi.get.mockImplementation((url: string, params?: { hidden_only?: boolean; offset?: number }) =>
+        params?.hidden_only ? of({ persons: [hidden(101 + (params.offset ?? 0))], total: 3 }) : original(url, params));
       withTab(null);
       const fixture = await render();
       fixture.componentInstance.ignoredExpanded.set(true); fixture.detectChanges();
@@ -1030,7 +1062,7 @@ describe('ManagePersonsComponent', () => {
       expect(root.querySelector('[data-ignored-more] [role="alert"]')?.textContent).toContain('persons.ignored_more_error');
       root.querySelector<HTMLButtonElement>('[data-ignored-retry]')!.click();
       await fixture.whenStable(); fixture.detectChanges();
-      expect(mockApi.get).toHaveBeenLastCalledWith('/persons', { hidden_only: true, page: 2, per_page: 200, sort: 'count_desc' });
+      expect(mockApi.get).toHaveBeenLastCalledWith('/persons', { hidden_only: true, offset: 1, per_page: 200, sort: 'count_desc' });
       expect(fixture.componentInstance.ignored().map((p) => p.id)).toEqual([101, 102]);
       expect(root.querySelector('[data-ignored-more] [role="alert"]')).toBeNull();
       expect(sentinel()).not.toBeNull();
