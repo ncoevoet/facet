@@ -69,7 +69,7 @@ def floor_set(level):
 def session_of(env, headers):
     jwt = headers["Authorization"].split(" ", 1)[1]
     claims = decode_access_token(jwt)
-    return tokens.session_grant(CurrentUser.from_payload(claims), claims)
+    return tokens.session_grant(CurrentUser.from_payload(claims), claims) if claims else None
 
 
 class TestSessionGrant:
@@ -103,13 +103,13 @@ class TestSessionGrant:
         grant = session_of(env, env.login("root"))
         assert grant.resolve().level == "edition"
         api_config._FULL_CONFIG["users"]["root"]["role"] = "user"
-        assert grant.resolve().level == "user"
+        assert grant.resolve() is None, "a changed role revokes the session"
 
     def test_session_level_never_exceeds_jwt(self, agent_app):
         env = agent_app("multi")
         grant = session_of(env, env.login("alice"))
         api_config._FULL_CONFIG["users"]["alice"]["role"] = "admin"
-        assert grant.resolve().level == "user", "a promotion cannot raise a session past its own JWT"
+        assert grant.resolve() is None, "a promotion also requires a fresh login"
 
     def test_unknown_user_and_unreadable_config_resolve_none(self, agent_app, monkeypatch):
         env = agent_app("multi")
@@ -198,6 +198,8 @@ class TestExposure:
         headers = env.login("root")
         assert "override_sequence" in names(env, headers)
         api_config._FULL_CONFIG["users"]["root"]["role"] = "user"
+        assert env.client.get("/api/mcp/inpage_tools", headers=headers).status_code == 401
+        headers = env.login("root")
         assert "override_sequence" not in names(env, headers) and "set_rating" in names(env, headers)
 
     def test_image_tools_and_ui_tools_absent_and_refused(self, agent_app):

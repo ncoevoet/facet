@@ -9,6 +9,7 @@ import { MatDialogModule, MatDialog } from '@angular/material/dialog';
 import { MatTooltipModule } from '@angular/material/tooltip';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { firstValueFrom } from 'rxjs';
+import { LatestRequest } from '../../shared/utils/latest-request';
 import { AlbumService, Album } from '../../core/services/album.service';
 import { AuthService } from '../../core/services/auth.service';
 import { I18nService } from '../../core/services/i18n.service';
@@ -202,6 +203,8 @@ import { MarkTonePipe } from '../../shared/pipes/mark-tone.pipe';
 })
 export class AlbumsComponent {
   private readonly albumService = inject(AlbumService);
+  private readonly destroyRef = inject(DestroyRef);
+  private readonly latestLoad = new LatestRequest(this.destroyRef);
   private readonly journal = inject(UserActivityJournal);
   private readonly dialog = inject(MatDialog);
   private readonly i18n = inject(I18nService);
@@ -217,7 +220,7 @@ export class AlbumsComponent {
   /** A failed load: the empty state must not read as "you have no albums". */
   protected readonly loadError = signal(false);
   protected readonly loading = signal(false);
-  private page = 1;
+  private page = 0;
   private readonly perPage = 48;
 
   protected readonly hasMore = computed(() => this.albums().length < this.total());
@@ -243,7 +246,7 @@ export class AlbumsComponent {
       const t = this.albumsToolbar();
       if (t) this.headerSlot.set(t);
     });
-    inject(DestroyRef).onDestroy(() => {
+    this.destroyRef.onDestroy(() => {
       this.pageHelp.setDescription(null);
       const t = this.albumsToolbar();
       if (t) this.headerSlot.clear(t);
@@ -265,46 +268,47 @@ export class AlbumsComponent {
   }
 
   private async loadAlbums(reset: boolean): Promise<void> {
+    const req = this.latestLoad.begin();
+    const requestedPage = reset ? 1 : this.page + 1;
+    const params = {
+      page: requestedPage,
+      per_page: this.perPage,
+      type: this.albumsFilters.typeFilter(),
+      sort: this.albumsFilters.sort(),
+      search: this.albumsFilters.search(),
+    };
+    const isCurrent = () => req.isCurrent()
+      && params.type === this.albumsFilters.typeFilter()
+      && params.sort === this.albumsFilters.sort()
+      && params.search === this.albumsFilters.search();
     if (reset) {
-      this.page = 1;
+      this.page = 0;
       this.albums.set([]);
+      this.total.set(0);
     }
+    this.loadError.set(false);
     this.loading.set(true);
     try {
-      const params: Record<string, string | number> = {
-        page: this.page,
-        per_page: this.perPage,
-        type: this.albumsFilters.typeFilter(),
-        sort: this.albumsFilters.sort(),
-        search: this.albumsFilters.search(),
-      };
-      const res = await firstValueFrom(this.albumService.list(params));
-      this.loadError.set(false);
+      const res = await firstValueFrom(req.bind(this.albumService.list(params)));
+      if (!isCurrent()) return;
       if (reset) {
         this.albums.set(res.albums);
       } else {
         this.albums.update(prev => [...prev, ...res.albums]);
       }
+      // Only successful responses advance the page; a failed append retries it.
+      this.page = requestedPage;
       this.total.set(res.total);
     } catch {
-      if (reset) {
-        this.albums.set([]);
-        this.total.set(0);
-      } else {
-        // Give the page back: onScrollReached already incremented it, and a
-        // failed append must be refetched, not skipped.
-        this.page--;
-      }
-      this.loadError.set(true);
+      if (isCurrent()) this.loadError.set(true);
     } finally {
-      this.loading.set(false);
+      if (isCurrent()) this.loading.set(false);
     }
   }
 
   protected onScrollReached(): void {
     if (this.hasMore() && !this.loading()) {
-      this.page++;
-      this.loadAlbums(false);
+      void this.loadAlbums(false);
     }
   }
 

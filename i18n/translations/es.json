@@ -1021,6 +1021,7 @@
     "unlock_description": "Introduce la contraseña de edición para habilitar las funciones de edición.",
     "unlock_button": "Desbloquear",
     "lock_title": "Modo edición activo - haz clic para bloquear",
+    "lock_failed": "No se pudo confirmar el bloqueo. El modo de edición puede seguir activo; inténtalo de nuevo.",
     "password_placeholder": "Contraseña de edición",
     "invalid_password": "Contraseña incorrecta",
     "read_only_hint": "Solo lectura: defina viewer.edition_password en scoring_config.json para activar la valoración, la selección y la edición, y reinicie el visor."

@@ -126,6 +126,7 @@ PARAMETERISED_ROUTES = [
 # POST routes with a minimal valid-shaped body naming a photo that does not exist:
 # the handler runs (validation passes) and ends in a 4xx or an empty success.
 POST_ROUTES = [
+    ('/api/auth/cookie', {}),
     ('/api/stacks', {'paths': ['/none/a.jpg', '/none/b.jpg'], 'cover_path': '/none/a.jpg'}),
     ('/api/stacks/regroup/preview', {'selected_paths': ['/none/a.jpg', '/none/b.jpg']}),
     ('/api/stacks/regroup/apply', {'selected_paths': ['/none/a.jpg', '/none/b.jpg'],

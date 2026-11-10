@@ -119,6 +119,7 @@ Facet 会记录每次扫描（状态、模式、目录、计数器）以及每�
 - 除非你加上 `--embed-originals`（仅限 JPEG/HEIC/TIFF/PNG/DNG；RAW 绝不会被改动），否则原始文件永远不会被修改。
 - 关键字是 AI 标签加上你的[手动标签](VIEWER.md#手动标签)。它们只会被添加，除非 `--reconcile-keywords` 移除 Facet 之前写入的关键字；外部关键字会保留。参见[手动标签与 XMP 关键字](INTEROP.md#手动标签与-xmp-关键字)。
 - 嵌入和关键字合并需要 **exiftool**。没有它时，Facet 会写入纯 XML 附属文件。
+- 摘要会统计已写入、已嵌入、缺失和失败的文件。任何写入错误都会以退出码 1 结束，包括部分成功的导出；已完成的文件仍保持写入。缺失的原始文件会被跳过并计数，单凭这一点不会使命令失败。选择为空时以 0 退出。
 
 **附属文件导入。**
 
@@ -487,6 +488,8 @@ python /opt/facet/viewer.py      # 仍然读取 /opt/facet/scoring_config.json�
 
 检查项：评分范围、人脸指标、BLOB 损坏、特征向量长度、孤立人脸、统计离群值。
 
+交互式修复和 `--auto-fix` 都会获取照片库锁，并在写入前重新检查问题。交互模式会先等待你的初次确认，再获取锁。照片库被占用时以 75 退出；锁无法使用时以 1 退出。`--report-only` 和拒绝修复不需要修复锁。
+
 ## 数据库维护
 
 | 命令 | 说明 |
@@ -517,6 +520,10 @@ python /opt/facet/viewer.py      # 仍然读取 /opt/facet/scoring_config.json�
 | `python database.py --migrate-user-preferences --user alice` | 把评分从 photos 复制到 user_preferences |
 
 **`python database.py`** 还会构建缺失的图库索引（参见 [VIEWER.md](VIEWER.md#图库索引与计数缓存)）。在大型照片库上，请在启动查看器之前运行一次；可能需要约一分钟。否则查看器会在后台构建它们，并在此期间拒绝保存。
+
+**`--backup`** 会先以唯一的带时间戳名称发布一份完整的快照，再轮换旧快照。同一秒内的多次运行各自保留独立快照；复制失败不会影响之前的备份。目标文件系统必须支持硬链接。
+
+**`--export-viewer-db`** 在增量同步时保留目标端的编辑和私有地点。完整导出会省略源端已保存/最近使用的地点。有关发布、架构升级以及出错后的恢复，请参见[导出完成与重试](DEPLOYMENT.md#导出轻量数据库)。
 
 **`--migrate-tags`** 只需运行一次。此后，扫描、`--recompute-tags`、`--recompute-tags-vlm` 和 `tag_existing.py` 会使该表保持最新。在它被填充之前，标签筛选使用较慢的 `LIKE` 搜索。
 

@@ -54,6 +54,20 @@ echo -e "${BLUE}║        Facet — Installer         ║${NC}"
 echo -e "${BLUE}╚══════════════════════════════════╝${NC}"
 echo ""
 
+# Check the frontend toolchain before modifying the Python environment. Angular
+# 22 needs Node 24.15+, and this checkout supports the Node 24 LTS line.
+if [[ "$SKIP_CLIENT" -eq 0 && -f "client/package.json" ]]; then
+    node_version="$(node --version 2>/dev/null || true)"
+    if ! command -v npm &>/dev/null ||
+       [[ ! "$node_version" =~ ^v24\.([0-9]+)\.([0-9]+)$ ]] ||
+       [[ "${BASH_REMATCH[1]:-0}" -lt 15 ]]; then
+        err "Node.js 24.15.0+ (24.x) and npm are required to build the frontend."
+        err "Install Node 24 LTS, or pass --skip-client to keep the existing build."
+        exit 1
+    fi
+    ok "Node: $node_version"
+fi
+
 # --- Step 1: Find Python ---
 PYTHON=""
 for cmd in python3.12 python3.13 python3.11 python3.10 python3 python; do
@@ -321,19 +335,47 @@ else
 fi
 
 # --- Step 11: Build Angular client ---
-if [[ "$SKIP_CLIENT" -eq 0 ]]; then
-    if [[ -f "client/package.json" && ! -d "client/dist" ]]; then
-        if command -v node &>/dev/null && command -v npm &>/dev/null; then
-            node_version=$(node --version)
-            info "Building Angular frontend (Node $node_version)..."
-            (cd client && npm install --no-audit --no-fund && npx ng build)
-            ok "Angular client built"
+# Build away from the served tree so a failed dependency install or compilation
+# cannot destroy the working frontend. Keep the previous tree until publication
+# succeeds; if restoration itself fails, leave its path available for recovery.
+build_angular_client() (
+    client_root="$(cd client && pwd -P)"
+    build_dir="$(mktemp -d "$client_root/.facet-build.XXXXXX")"
+    published=0
+    cleanup_client_build() {
+        if [[ "$published" -eq 1 || ! -e "$build_dir/previous" && ! -L "$build_dir/previous" ]]; then
+            rm -rf -- "$build_dir"
         else
-            warn "Node.js not found — skipping Angular build"
-            echo "     Install Node 18+ to build the frontend, or use --skip-client"
+            warn "Previous frontend retained at $build_dir/previous; restore it to $client_root/dist/client"
         fi
-    elif [[ -d "client/dist" ]]; then
-        ok "Angular client: already built"
+    }
+    trap cleanup_client_build EXIT
+    cd "$client_root"
+    npm ci --no-audit --no-fund
+    npm run build -- --output-path "$build_dir/client"
+    if [[ ! -f "$build_dir/client/browser/index.html" ]]; then
+        err "Angular build did not produce browser/index.html"
+        exit 1
+    fi
+    mkdir -p "$client_root/dist"
+    if [[ -e "$client_root/dist/client" || -L "$client_root/dist/client" ]]; then
+        mv -- "$client_root/dist/client" "$build_dir/previous"
+    fi
+    if ! mv -- "$build_dir/client" "$client_root/dist/client"; then
+        if [[ -e "$build_dir/previous" || -L "$build_dir/previous" ]]; then
+            mv -- "$build_dir/previous" "$client_root/dist/client"
+        fi
+        err "Could not publish the frontend build"
+        exit 1
+    fi
+    published=1
+)
+
+if [[ "$SKIP_CLIENT" -eq 0 ]]; then
+    if [[ -f "client/package.json" ]]; then
+        info "Building Angular frontend (Node $node_version)..."
+        build_angular_client
+        ok "Angular client built"
     fi
 else
     info "Skipping Angular build (--skip-client)"
