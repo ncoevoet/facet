@@ -22,6 +22,7 @@ const EMPTY_DRAFTS: Record<TagQueryGroup, string> = { any: '', all: '', none: ''
   host: { class: 'block' }, template: `
     <div data-tag-groups class="flex flex-col gap-2 pb-2">
       <p id="tag-rule-hint" class="sr-only">{{ I18N.gallery.tag_groups.hint | translate }}</p>
+      <p id="tag-rule-enter" class="m-0 text-xs text-[var(--mat-sys-on-surface-variant)]">{{ I18N.gallery.tag_groups.enter_hint | translate }}</p>
       @if (groups()) {
         @for (row of rows(); track row.id) {
           <mat-form-field subscriptSizing="dynamic" class="w-full" [attr.data-tag-rule-row]="row.id">
@@ -36,7 +37,7 @@ const EMPTY_DRAFTS: Record<TagQueryGroup, string> = { any: '', all: '', none: ''
               <input #ruleInput #trigger="matAutocompleteTrigger" data-tag-rule-input autocomplete="off" [maxLength]="nameLimit * 2"
                      [placeholder]="I18N.gallery.tag_groups.name | translate"
                      [matChipInputFor]="grid" [matChipInputSeparatorKeyCodes]="noSeparators" [matAutocomplete]="auto"
-                     [attr.aria-describedby]="error() === row.id ? 'tag-rule-hint tag-rule-error' : 'tag-rule-hint'"
+                     [attr.aria-describedby]="error() === row.id ? 'tag-rule-hint tag-rule-enter tag-rule-error' : 'tag-rule-hint tag-rule-enter'"
                      [value]="drafts()[row.id]" (input)="setDraft(row.id, $any($event.target).value)"
                      (keydown.enter)="add(row.id, $event, trigger)" />
             </mat-chip-grid>

@@ -1684,6 +1684,7 @@
     "tag_groups": {
       "title": "Règles d’étiquettes",
       "hint": "Les groupes se combinent par ET. Les noms correspondent aux étiquettes complètes ; ajouter une règle ne crée pas d’étiquette.",
+      "enter_hint": "Appuyez sur Entrée pour ajouter une étiquette.",
       "name": "Nom d’étiquette",
       "any": "Au moins une de celles-ci",
       "all": "Toutes celles-ci",

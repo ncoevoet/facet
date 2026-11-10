@@ -705,49 +705,36 @@ const LG_BREAKPOINT_PX = 1024;
           @if (scrollTopShown()) {
             <ng-container *ngTemplateOutlet="scrollTopFab; context: { $implicit: 'pointer-events-auto self-end' }" />
           }
-          @if (shownNoticeCount() > 1 || noticesCollapsed()) {
-            @if (lgDesktop.isDesktop()) {
+          @if (lgDesktop.isDesktop()) {
+            @if (shownNoticeCount() > 1 || noticesCollapsed()) {
               <div class="flex flex-wrap items-center justify-end gap-2">
                 @if (shownNoticeCount() > 1) {
-                  <button type="button" data-notice-dismiss-all
-                          class="pointer-events-auto self-end min-h-11 rounded-full border border-[var(--mat-sys-outline-variant)] bg-[var(--mat-sys-surface-container-high)] px-3 text-xs font-medium shadow-sm hover:bg-[var(--mat-sys-surface-container-highest)] focus-visible:outline-2 focus-visible:outline-[var(--mat-sys-primary)]"
-                          (click)="dismissAllNotices()">{{ I18N.gallery.notices.dismiss_all | translate }}</button>
+                  <ng-container *ngTemplateOutlet="noticesDismissAll; context: { $implicit: 'pointer-events-auto self-end rounded-full border border-[var(--mat-sys-outline-variant)] bg-[var(--mat-sys-surface-container-high)] shadow-sm' }" />
                 }
                 @if (noticesCollapsed()) {
-                  <button type="button" data-gallery-notices-pill animate.enter="motion-safe:animate-notice-in" animate.leave="motion-safe:animate-notice-out pointer-events-none [&_*]:!pointer-events-none"
-                          class="pointer-events-auto self-end min-h-11 px-3 py-1.5 rounded-full bg-[var(--mat-sys-surface-container-high)] border border-[var(--mat-sys-outline-variant)] shadow-lg flex items-center gap-1.5 text-xs"
-                          (click)="expandNotices($event)">
-                    <mat-icon class="!text-base !w-4 !h-4 !leading-4">notifications</mat-icon>
-                    <span>{{ shownNoticeCount() | pluralKey:I18N.gallery.notices.collapsed:I18N.gallery.notices.collapsed_plural | translate:{ count: shownNoticeCount() } }}</span>
-                  </button>
-                }
-              </div>
-            } @else {
-              <!-- Below lg the stack is one bar, collapsed or not: the label toggles it and Dismiss all
-                   is a sibling button (never nested), so the two never float apart over the grid. -->
-              <div data-notice-bar class="pointer-events-auto flex min-h-11 w-full items-stretch overflow-hidden rounded-full border border-[var(--mat-sys-outline-variant)] bg-[var(--mat-sys-surface-container-high)] shadow-lg">
-                @if (noticesCollapsed()) {
-                  <button type="button" data-gallery-notices-pill animate.enter="motion-safe:animate-notice-in" animate.leave="motion-safe:animate-notice-out pointer-events-none [&_*]:!pointer-events-none"
-                          class="flex min-h-11 min-w-0 flex-1 items-center gap-1.5 px-3 text-left text-xs"
-                          (click)="expandNotices($event)">
-                    <mat-icon class="!text-base !w-4 !h-4 !leading-4 shrink-0">notifications</mat-icon>
-                    <span class="truncate">{{ shownNoticeCount() | pluralKey:I18N.gallery.notices.collapsed:I18N.gallery.notices.collapsed_plural | translate:{ count: shownNoticeCount() } }}</span>
-                  </button>
-                } @else {
-                  <button type="button" data-notices-collapse
-                          class="flex min-h-11 min-w-0 flex-1 items-center gap-1.5 px-3 text-left text-xs"
-                          (click)="collapseNotices($event)">
-                    <mat-icon class="!text-base !w-4 !h-4 !leading-4 shrink-0">expand_more</mat-icon>
-                    <span class="truncate">{{ I18N.gallery.notices.collapse | translate }}</span>
-                  </button>
-                }
-                @if (shownNoticeCount() > 1) {
-                  <button type="button" data-notice-dismiss-all
-                          class="min-h-11 shrink-0 border-l border-[var(--mat-sys-outline-variant)] px-3 text-xs font-medium hover:bg-[var(--mat-sys-surface-container-highest)] focus-visible:outline-2 focus-visible:outline-[var(--mat-sys-primary)]"
-                          (click)="dismissAllNotices()">{{ I18N.gallery.notices.dismiss_all | translate }}</button>
+                  <ng-container *ngTemplateOutlet="noticesPill; context: { $implicit: 'pointer-events-auto self-end py-1.5 rounded-full bg-[var(--mat-sys-surface-container-high)] border border-[var(--mat-sys-outline-variant)] shadow-lg' }" />
                 }
               </div>
             }
+          } @else {
+            <!-- Below lg the stack is one bar whenever it shows, collapsed or not: the label toggles
+                 it and Dismiss all is a sibling button (never nested), so the two never float apart
+                 over the grid, and a single expanded notice can always be folded back. -->
+            <div data-notice-bar class="pointer-events-auto flex min-h-11 w-full items-stretch overflow-hidden rounded-full border border-[var(--mat-sys-outline-variant)] bg-[var(--mat-sys-surface-container-high)] shadow-lg">
+              @if (noticesCollapsed()) {
+                <ng-container *ngTemplateOutlet="noticesPill; context: { $implicit: 'min-w-0 flex-1 text-left' }" />
+              } @else {
+                <button type="button" data-notices-collapse
+                        class="flex min-h-11 min-w-0 flex-1 items-center gap-1.5 px-3 text-left text-xs"
+                        (click)="collapseNotices($event)">
+                  <mat-icon class="!text-base !w-4 !h-4 !leading-4 shrink-0">expand_more</mat-icon>
+                  <span class="truncate">{{ I18N.gallery.notices.collapse | translate }}</span>
+                </button>
+              }
+              @if (shownNoticeCount() > 1) {
+                <ng-container *ngTemplateOutlet="noticesDismissAll; context: { $implicit: 'shrink-0 border-l border-[var(--mat-sys-outline-variant)]' }" />
+              }
+            </div>
           }
           @if (!noticesCollapsed()) {
             @if (reviewProgressShown()) {
@@ -1007,6 +994,20 @@ const LG_BREAKPOINT_PX = 1024;
       >
         <mat-icon>arrow_upward</mat-icon>
       </button>
+    </ng-template>
+    <!-- The stack's folded pill and its Dismiss all: one markup each for the lg+ row and the bar below lg. -->
+    <ng-template #noticesPill let-pillClass>
+      <button type="button" data-gallery-notices-pill animate.enter="motion-safe:animate-notice-in" animate.leave="motion-safe:animate-notice-out pointer-events-none [&_*]:!pointer-events-none"
+              class="flex min-h-11 items-center gap-1.5 px-3 text-xs" [class]="pillClass"
+              (click)="expandNotices($event)">
+        <mat-icon class="!text-base !w-4 !h-4 !leading-4 shrink-0">notifications</mat-icon>
+        <span class="truncate">{{ shownNoticeCount() | pluralKey:I18N.gallery.notices.collapsed:I18N.gallery.notices.collapsed_plural | translate:{ count: shownNoticeCount() } }}</span>
+      </button>
+    </ng-template>
+    <ng-template #noticesDismissAll let-dismissClass>
+      <button type="button" data-notice-dismiss-all
+              class="min-h-11 px-3 text-xs font-medium hover:bg-[var(--mat-sys-surface-container-highest)] focus-visible:outline-2 focus-visible:outline-[var(--mat-sys-primary)]" [class]="dismissClass"
+              (click)="dismissAllNotices()">{{ I18N.gallery.notices.dismiss_all | translate }}</button>
     </ng-template>
     <ng-template #noticeClose let-kind let-alignTop="alignTop">
       <button mat-icon-button data-notice-close class="!w-7 !h-7 !min-w-0 !p-0 !inline-flex !items-center !justify-center -mr-1 shrink-0" [class.self-start]="alignTop" (click)="dismissNotice(kind)"
@@ -1403,7 +1404,10 @@ export class GalleryComponent implements OnInit, OnDestroy {
    * closed until a photo first enters it (a hover or a click in panel mode) and then
    * stays until the user dismisses it or the view it belongs to is reset. The latch,
    * not the held photo, drives the drawer: a hover that crosses the gap between two
-   * cards, or leaves the grid, never opens or closes anything.
+   * cards, or leaves the grid, never opens or closes anything. Nor does a reload of the
+   * results (a re-sort, a filter, the next page): when it drops the held photo the rail
+   * shows its empty state, because closing would widen the grid under a still pointer
+   * and the card landing under it would reopen the rail on a photo nobody chose.
    */
   private readonly railOpen = signal(false);
 
@@ -1798,7 +1802,7 @@ export class GalleryComponent implements OnInit, OnDestroy {
       }
       this.noticeSignatureSeen = signature;
       if (wide) {
-        if (signature !== previous || becameNarrow) {
+        if (signature !== previous) {
           this.noticesCollapsed.set(false);
           this.armNoticeCollapse();
         } else if ((drawerWasOpen || becameWide) && !this.noticesCollapsed()) {
@@ -2108,7 +2112,7 @@ export class GalleryComponent implements OnInit, OnDestroy {
         const current = this.tooltipPhoto();
         const updated = this.panelMode() && current ? photos.find(photo => photo.path === current.path) : null;
         if (updated) this.tooltipPhoto.set(updated);
-        else if (current) this.dropHeldPhoto();
+        else if (current) this.tooltipPhoto.set(null);
       });
       // Re-measure the virtual window once the new rows are in the DOM
       requestAnimationFrame(() => this.updateWindowPosition());
@@ -3345,13 +3349,26 @@ export class GalleryComponent implements OnInit, OnDestroy {
   }
 
   protected deselectFromRail(): void {
-    const index = this.activeIndex();
+    const index = this.railPhotoIndex();
     this.releasePanel();
     this.railOpen.set(false);
+    this.focusAfterRail(index);
+  }
+
+  /** Where in the results the photo the rail holds sits: the cursor's, else the hovered one's; -1 when it left them. */
+  private railPhotoIndex(): number {
+    if (this.hasActivePhoto()) return this.activeIndex();
+    const held = this.tooltipPhoto();
+    return held ? this.indexOfPath(held.path) : -1;
+  }
+
+  /** The rail is closing with focus inside it: hand focus to the card of the photo it held, or, when that
+   *  card is not in the DOM, to the photo collection itself, so it never drops to the page body. */
+  private focusAfterRail(index: number): void {
     this.focusCard(index, false, false);
-    if (!document.activeElement?.closest('app-photo-card')) {
-      (this.noticeHost()?.nativeElement.querySelector('[data-details-rail]') as HTMLElement | null)?.focus();
-    }
+    if (document.activeElement?.closest('app-photo-card')) return;
+    (this.noticeHost()?.nativeElement.querySelector('[role="grid"], [data-photo-collection]') as HTMLElement | null)
+      ?.focus({ preventScroll: true });
   }
 
   /** Escape: with the docked rail, first what Deselect does -- the held photo,
@@ -3366,14 +3383,14 @@ export class GalleryComponent implements OnInit, OnDestroy {
   /** Escape from inside the rail. The drawer is kept open by `disableClose` while the
    *  rail occupies it (it would otherwise close and be reopened by the open/close
    *  effect, a flicker and a focus jump); propagation is left alone so an open
-   *  tooltip's overlay handler still closes. The Deselect button is removed by the
-   *  release, so focus is parked on the rail rather than dropping to the body. */
+   *  tooltip's overlay handler still closes. The rail goes with the release, so focus
+   *  moves back to the gallery rather than dropping to the body. */
   protected onRailEscape(event: Event): void {
     event.preventDefault();
-    const index = this.activeIndex();
+    const index = this.railPhotoIndex();
     this.escapeSelection();
     this.railOpen.set(false);
-    this.focusCard(index, false, false);
+    this.focusAfterRail(index);
   }
 
   /** Columns per row in grid mode (mirrors the CSS auto-fill column math). */

@@ -74,10 +74,10 @@ interface QueueView {
     <ng-template #junkToolbar>
       <div data-junk-bar [class]="barRow"
            class="flex lg:items-center lg:gap-3
-                  max-lg:fixed max-lg:bottom-0 max-lg:left-0 max-lg:right-0 max-lg:z-40
+                  max-lg:fixed max-lg:bottom-0 max-lg:left-0 max-lg:right-0 max-lg:z-50
                   max-lg:flex-wrap
                   max-lg:bg-[var(--mat-sys-surface-container)] max-lg:border-t max-lg:border-[var(--mat-sys-outline-variant)]
-                  max-lg:shadow-lg">
+                  max-lg:shadow-lg safe-area-pb">
         <button mat-stroked-button data-junk-kind-menu class="!h-11 !min-w-0 shrink-0" [matMenuTriggerFor]="kindMenu" [disabled]="bulkBusy() || loading() || (total() === 0 && activeKind() === ANY_KIND)"
                 [class.!text-[var(--mat-sys-primary)]]="activeKind() !== ANY_KIND"
                 [matTooltip]="activeKind() === ANY_KIND ? (I18N.junk.all_kinds | translate) : (activeKind() | junkKindLabel)"

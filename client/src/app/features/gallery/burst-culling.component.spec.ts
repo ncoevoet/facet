@@ -370,6 +370,27 @@ describe('BurstCullingComponent', () => {
     });
   });
 
+  describe('tile box reservation', () => {
+    const render = async (photoPatch: object) => {
+      const fixture = TestBed.createComponent(BurstCullingComponent);
+      fixture.detectChanges();
+      await fixture.whenStable();
+      const group = mockCullingGroupsResponse.groups[0];
+      fixture.debugElement.injector.get(CullingStore).groups.set([{ ...group, photos: group.photos.map(p => ({ ...p, ...photoPatch })) }] as never);
+      fixture.detectChanges();
+      return fixture.nativeElement.querySelector('[data-culling-image-tile]') as HTMLElement;
+    };
+
+    it('holds a 3:2 box for the image until it loads, then leaves the photo its own ratio', async () => {
+      // The feed carries no pixel size: `auto 3/2` is the 3:2 box before the thumbnail arrives and the
+      // thumbnail's natural ratio after it, so a portrait frame is not shrunk into a landscape box.
+      const img = (await render({})).querySelector('img') as HTMLImageElement;
+      expect(img.classList).toContain('aspect-[auto_3/2]');
+      expect(img.classList).not.toContain('min-h-32');
+      expect(img.closest('[data-pidx]')!.className).not.toMatch(/(^|\s)aspect-/);
+    });
+  });
+
   describe('group footer', () => {
     const render = async (groups: object[]) => {
       const fixture = TestBed.createComponent(BurstCullingComponent);
@@ -3508,6 +3529,18 @@ describe('BurstCullingComponent', () => {
         expect(tile.classList).toContain('sm:basis-0');
       });
 
+      it('keeps exactly four frames in the flex row', async () => {
+        const fixture = await mountGroup(4);
+        expect(row(fixture).classList).toContain('flex');
+        expect(row(fixture).classList).not.toContain('grid');
+      });
+
+      it('switches to the grid at exactly five frames', async () => {
+        const fixture = await mountGroup(5);
+        expect(row(fixture).classList).toContain('grid');
+        expect(row(fixture).classList).not.toContain('flex');
+      });
+
       it('lays a group of more than four frames in a wrapping auto-fill grid', async () => {
         const fixture = await mountGroup(5);
         expect(row(fixture).classList).toContain('grid');
@@ -3550,17 +3583,20 @@ describe('BurstCullingComponent', () => {
       });
 
       it('binds the content bottom padding to the measured bar height', async () => {
-        let notify: ResizeObserverCallback = () => undefined;
+        const observers: { cb: ResizeObserverCallback; targets: Element[] }[] = [];
         vi.stubGlobal('ResizeObserver', class {
-          constructor(cb: ResizeObserverCallback) { notify = cb; }
-          observe() {}
+          private readonly entry: { cb: ResizeObserverCallback; targets: Element[] };
+          constructor(cb: ResizeObserverCallback) { this.entry = { cb, targets: [] }; observers.push(this.entry); }
+          observe(el: Element) { this.entry.targets.push(el); }
           unobserve() {}
           disconnect() {}
         });
         try {
           const fixture = await mountGroup(2);
           const target = bar(fixture);
-          notify([{ target, borderBoxSize: [{ blockSize: 131, inlineSize: 390 }] } as unknown as ResizeObserverEntry], {} as ResizeObserver);
+          const barObserver = observers.find(o => o.targets.includes(target))!;
+          expect(barObserver).toBeDefined();
+          barObserver.cb([{ target, borderBoxSize: [{ blockSize: 131, inlineSize: 390 }] } as unknown as ResizeObserverEntry], {} as ResizeObserver);
           fixture.detectChanges();
           const scroll = fixture.nativeElement.querySelector('[data-culling-scroll]') as HTMLElement;
           expect(scroll.style.getPropertyValue('--cull-bar-h')).toBe('131px');

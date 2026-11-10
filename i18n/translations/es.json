@@ -1684,6 +1684,7 @@
     "tag_groups": {
       "title": "Reglas de etiquetas",
       "hint": "Los grupos se combinan con AND. Los nombres coinciden con etiquetas completas; añadir una regla no crea una etiqueta.",
+      "enter_hint": "Pulsa Intro para añadir una etiqueta.",
       "name": "Nombre de etiqueta",
       "any": "Cualquiera de estas",
       "all": "Todas estas",

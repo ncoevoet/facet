@@ -231,7 +231,7 @@ interface SceneSummary {
         } @else {
         <div #cullBar data-culling-bar [class]="barRow"
              class="flex lg:items-center lg:gap-4 min-w-0 max-lg:flex-wrap
-                    max-lg:fixed max-lg:bottom-0 max-lg:left-0 max-lg:right-0 max-lg:z-40
+                    max-lg:fixed max-lg:bottom-0 max-lg:left-0 max-lg:right-0 max-lg:z-50
                     max-lg:bg-[var(--mat-sys-surface-container)] max-lg:border-t max-lg:border-[var(--mat-sys-outline-variant)]
                     max-lg:shadow-lg safe-area-pb">
           <!-- Secondary controls scroll; the actions after this row stay pinned, so no
@@ -652,11 +652,14 @@ interface SceneSummary {
                   </span>
                 </div>
               }
-              <!-- Photos. w-fit + max-w-full + mx-auto: a two-photo group
-                   centres instead of squatting in the left quarter, while a
-                   wide group still caps at the row and scrolls — auto margins
-                   never clip the leading tile the way justify-center does
-                   with overflow. -->
+              <!-- Photos. Frames are sized by width, not by a fitted row: up to
+                   four sit in one flex row of equal-width tiles (stacked
+                   below sm), and a larger group switches to a wrapping
+                   auto-fill grid of 14rem+ columns. Neither layout scrolls
+                   horizontally; each image keeps its aspect ratio inside its
+                   tile and is capped in height. aspect-ratio auto 3/2 holds a
+                   3:2 box until the thumbnail loads (the feed carries no pixel
+                   size), so the row does not jump when it arrives. -->
               <div class="px-2 py-3 transition-opacity duration-300"
                    [class]="group.photos.length > 4 ? 'grid max-sm:grid-cols-1 sm:grid-cols-[repeat(auto-fill,minmax(14rem,1fr))] gap-2 md:gap-3' : 'flex max-sm:flex-col gap-2 md:gap-3'"
                    [class.pointer-events-none]="(group | isConfirmed:cull.confirmedGroups())"
@@ -689,7 +692,7 @@ interface SceneSummary {
                          [loupeActive]="loupeActive()"
                          [loupeZoom]="loupeZoom()"
                          loupeFit="contain"
-                         class="block w-full h-auto min-h-32 object-contain max-sm:max-h-[60dvh] sm:max-h-[min(24rem,calc(100dvh-20rem))]" [alt]="photo.filename" loading="lazy" />
+                         class="block w-full h-auto aspect-[auto_3/2] object-contain max-sm:max-h-[60dvh] sm:max-h-[min(24rem,calc(100dvh-20rem))]" [alt]="photo.filename" loading="lazy" />
                     @if (!stacksMode()) {
                       @if (photo.path === group.best_path) {
                         <div class="absolute top-2 left-2 px-2 py-0.5 rounded bg-green-700 text-white text-xs font-bold">

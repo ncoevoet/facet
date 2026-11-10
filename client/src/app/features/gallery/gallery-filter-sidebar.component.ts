@@ -228,6 +228,7 @@ export function loadActiveTab(): SidebarTabId {
 }
 
 type RatingOption = 'any' | '1' | '2' | '3' | '4' | '5' | 'zero';
+import { SectionOpenPipe } from '../../shared/pipes/section-open.pipe';
 
 @Component({
   selector: 'app-gallery-filter-sidebar',
@@ -236,6 +237,7 @@ type RatingOption = 'any' | '1' | '2' | '3' | '4' | '5' | 'zero';
   imports: [
     ContextHelpComponent,
     MarkTonePipe,
+    SectionOpenPipe,
     DecimalPipe,
     MetricSparklineComponent,
     NgTemplateOutlet,
@@ -398,10 +400,11 @@ type RatingOption = 'any' | '1' | '2' | '3' | '4' | '5' | 'zero';
         <div class="relative">
         <!-- The help sits on the header row as a sibling: a button inside the header would toggle the panel. -->
         <app-context-help data-section-help="semantic" class="absolute right-10 top-1.5 z-10 pointer-coarse:top-0" [iconOnly]="true" [label]="I18N.gallery.semantic_search_help" [keys]="semanticHelp" />
-        <mat-expansion-panel class="!mb-1" [expanded]="activeView() || sectionStates()['semantic'] === true"
+        @let openSemantic = sectionStates() | sectionOpen:'semantic':false:activeView();
+        <mat-expansion-panel class="!mb-1" [expanded]="openSemantic"
                              (opened)="onSectionToggle('semantic', true)"
                              (closed)="onSectionToggle('semantic', false)"
-                             [style.background-color]="activeView() || sectionStates()['semantic'] === true ? 'var(--mat-sys-surface-container)' : null">
+                             [style.background-color]="openSemantic ? 'var(--mat-sys-surface-container)' : null">
           <mat-expansion-panel-header class="!px-2 [&_.mat-content]:pe-9">
             <mat-panel-title class="flex items-center gap-2">
               <mat-icon class="!text-xl !w-5 !h-5 !leading-none opacity-80">image_search</mat-icon>
@@ -427,7 +430,7 @@ type RatingOption = 'any' | '1' | '2' | '3' | '4' | '5' | 'zero';
             <div class="flex min-w-0 items-center gap-2">
               <span class="shrink-0 text-xs text-[var(--mat-sys-on-surface-variant)]">{{ I18N.gallery.semantic_search_threshold | translate }}</span>
               <mat-slider [min]="0" [max]="SEARCH_THRESHOLD_MAX" [step]="1" [displayWith]="formatThresholdPercent" class="!mx-1 min-w-0 flex-1">
-                <input matSliderThumb [value]="searchThresholdValue()" (valueChange)="onSearchThresholdChange($event)"
+                <input matSliderThumb aria-describedby="display-tip-thumbnail-size" [value]="searchThresholdValue()" (valueChange)="onSearchThresholdChange($event)"
                   [attr.aria-label]="I18N.gallery.semantic_search_threshold | translate" aria-describedby="semantic-search-threshold-hint" />
               </mat-slider>
               <span class="w-8 shrink-0 text-right text-xs tabular-nums">{{ searchThresholdValue() }}%</span>
@@ -440,10 +443,11 @@ type RatingOption = 'any' | '1' | '2' | '3' | '4' | '5' | 'zero';
           }
           @case ('persons') {
       <!-- Persons -->
-        <mat-expansion-panel class="!mb-1 mt-1" [expanded]="activeView() || sectionStates()['persons'] !== false"
+        @let openPersons = sectionStates() | sectionOpen:'persons':true:activeView();
+        <mat-expansion-panel class="!mb-1 mt-1" [expanded]="openPersons"
                              (opened)="onSectionToggle('persons', true)"
                              (closed)="onSectionToggle('persons', false)"
-                             [style.background-color]="activeView() || sectionStates()['persons'] !== false ? 'var(--mat-sys-surface-container)' : null">
+                             [style.background-color]="openPersons ? 'var(--mat-sys-surface-container)' : null">
           <mat-expansion-panel-header class="!px-2">
             <mat-panel-title class="flex items-center gap-2">
               <mat-icon class="!text-xl !w-5 !h-5 !leading-none opacity-80">people</mat-icon>
@@ -511,10 +515,11 @@ type RatingOption = 'any' | '1' | '2' | '3' | '4' | '5' | 'zero';
           }
           @case ('date') {
       <!-- Date Range -->
-      <mat-expansion-panel class="!mb-1" [expanded]="activeView() || sectionStates()['date'] !== false"
+      @let openDate = sectionStates() | sectionOpen:'date':true:activeView();
+      <mat-expansion-panel class="!mb-1" [expanded]="openDate"
                            (opened)="onSectionToggle('date', true)"
                            (closed)="onSectionToggle('date', false)"
-                           [style.background-color]="activeView() || sectionStates()['date'] !== false ? 'var(--mat-sys-surface-container)' : null">
+                           [style.background-color]="openDate ? 'var(--mat-sys-surface-container)' : null">
         <mat-expansion-panel-header class="!px-2">
           <mat-panel-title class="flex items-center gap-2">
             <mat-icon class="!text-xl !w-5 !h-5 !leading-none opacity-80">calendar_today</mat-icon>
@@ -546,10 +551,11 @@ type RatingOption = 'any' | '1' | '2' | '3' | '4' | '5' | 'zero';
           }
           @case ('content') {
       <!-- Content -->
-        <mat-expansion-panel class="!mb-1" [expanded]="activeView() || sectionStates()['content'] !== false"
+        @let openContent = sectionStates() | sectionOpen:'content':true:activeView();
+        <mat-expansion-panel class="!mb-1" [expanded]="openContent"
                              (opened)="onSectionToggle('content', true)"
                              (closed)="onSectionToggle('content', false)"
-                             [style.background-color]="activeView() || sectionStates()['content'] !== false ? 'var(--mat-sys-surface-container)' : null">
+                             [style.background-color]="openContent ? 'var(--mat-sys-surface-container)' : null">
           <mat-expansion-panel-header class="!px-2">
             <mat-panel-title class="flex items-center gap-2">
               <mat-icon class="!text-xl !w-5 !h-5 !leading-none opacity-80">label</mat-icon>
@@ -591,10 +597,11 @@ type RatingOption = 'any' | '1' | '2' | '3' | '4' | '5' | 'zero';
       <!-- Tag rules -->
         <div class="relative">
         <app-context-help data-section-help="tag_rules" class="absolute right-10 top-1.5 z-10 pointer-coarse:top-0" [iconOnly]="true" [label]="I18N.gallery.tag_groups.help" [keys]="tagRulesHelp" />
-        <mat-expansion-panel class="!mb-1" [expanded]="activeView() || tagRulesOpen()"
+        @let tagRulesPanelOpen = activeView() || tagRulesOpen();
+        <mat-expansion-panel class="!mb-1" [expanded]="tagRulesPanelOpen"
                              (opened)="onTagRulesToggle(true)"
                              (closed)="onTagRulesToggle(false)"
-                             [style.background-color]="activeView() || tagRulesOpen() ? 'var(--mat-sys-surface-container)' : null">
+                             [style.background-color]="tagRulesPanelOpen ? 'var(--mat-sys-surface-container)' : null">
           <mat-expansion-panel-header class="!px-2 [&_.mat-content]:pe-9">
             <mat-panel-title class="flex items-center gap-2">
               <mat-icon class="!text-xl !w-5 !h-5 !leading-none opacity-80">sell</mat-icon>
@@ -611,10 +618,11 @@ type RatingOption = 'any' | '1' | '2' | '3' | '4' | '5' | 'zero';
           @case ('albums') {
       <!-- Albums -->
       @if (store.config()?.features?.show_albums && albums().length) {
-        <mat-expansion-panel class="!mb-1" [expanded]="activeView() || sectionStates()['albums'] === true"
+        @let openAlbums = sectionStates() | sectionOpen:'albums':false:activeView();
+        <mat-expansion-panel class="!mb-1" [expanded]="openAlbums"
                              (opened)="onSectionToggle('albums', true)"
                              (closed)="onSectionToggle('albums', false)"
-                             [style.background-color]="activeView() || sectionStates()['albums'] === true ? 'var(--mat-sys-surface-container)' : null">
+                             [style.background-color]="openAlbums ? 'var(--mat-sys-surface-container)' : null">
           <mat-expansion-panel-header class="!px-2">
             <mat-panel-title class="flex items-center gap-2">
               <mat-icon class="!text-xl !w-5 !h-5 !leading-none opacity-80">photo_album</mat-icon>
@@ -637,10 +645,11 @@ type RatingOption = 'any' | '1' | '2' | '3' | '4' | '5' | 'zero';
           }
           @case ('location') {
       <!-- Location filter -->
-      <mat-expansion-panel class="!mb-1" [expanded]="activeView() || sectionStates()['location'] === true"
+      @let openLocation = sectionStates() | sectionOpen:'location':false:activeView();
+      <mat-expansion-panel class="!mb-1" [expanded]="openLocation"
                            (opened)="onSectionToggle('location', true)"
                            (closed)="onSectionToggle('location', false)"
-                           [style.background-color]="activeView() || sectionStates()['location'] === true ? 'var(--mat-sys-surface-container)' : null">
+                           [style.background-color]="openLocation ? 'var(--mat-sys-surface-container)' : null">
         <mat-expansion-panel-header class="!px-2">
           <mat-panel-title class="flex items-center gap-2">
             <mat-icon class="!text-xl !w-5 !h-5 !leading-none opacity-80">place</mat-icon>
@@ -680,10 +689,11 @@ type RatingOption = 'any' | '1' | '2' | '3' | '4' | '5' | 'zero';
           @case ('folder') {
       <!-- Folder filter -->
       @if (store.config()?.features?.show_folders || store.filters().path_prefix) {
-        <mat-expansion-panel class="!mb-1" [expanded]="activeView() || sectionStates()['folder'] === true"
+        @let openFolder = sectionStates() | sectionOpen:'folder':false:activeView();
+        <mat-expansion-panel class="!mb-1" [expanded]="openFolder"
                              (opened)="onSectionToggle('folder', true)"
                              (closed)="onSectionToggle('folder', false)"
-                             [style.background-color]="activeView() || sectionStates()['folder'] === true ? 'var(--mat-sys-surface-container)' : null">
+                             [style.background-color]="openFolder ? 'var(--mat-sys-surface-container)' : null">
           <mat-expansion-panel-header class="!px-2">
             <mat-panel-title class="flex items-center gap-2">
               <mat-icon class="!text-xl !w-5 !h-5 !leading-none opacity-80">folder</mat-icon>
@@ -719,10 +729,11 @@ type RatingOption = 'any' | '1' | '2' | '3' | '4' | '5' | 'zero';
           @case ('equipment') {
       <!-- Equipment -->
       @if (store.cameras().length || store.lenses().length) {
-        <mat-expansion-panel class="!mb-1" [expanded]="activeView() || sectionStates()['equipment'] !== false"
+        @let openEquipment = sectionStates() | sectionOpen:'equipment':true:activeView();
+        <mat-expansion-panel class="!mb-1" [expanded]="openEquipment"
                              (opened)="onSectionToggle('equipment', true)"
                              (closed)="onSectionToggle('equipment', false)"
-                             [style.background-color]="activeView() || sectionStates()['equipment'] !== false ? 'var(--mat-sys-surface-container)' : null">
+                             [style.background-color]="openEquipment ? 'var(--mat-sys-surface-container)' : null">
           <mat-expansion-panel-header class="!px-2">
             <mat-panel-title class="flex items-center gap-2">
               <mat-icon class="!text-xl !w-5 !h-5 !leading-none opacity-80">photo_camera</mat-icon>
@@ -765,10 +776,11 @@ type RatingOption = 'any' | '1' | '2' | '3' | '4' | '5' | 'zero';
           @case ('color_quality') {
       <!-- Color & Quality tier -->
       @if (store.colorTemps().length || store.hueBuckets().length || qualityTiers.length) {
-        <mat-expansion-panel class="!mb-1" [expanded]="activeView() || sectionStates()['color_quality'] === true"
+        @let openColorQuality = sectionStates() | sectionOpen:'color_quality':false:activeView();
+        <mat-expansion-panel class="!mb-1" [expanded]="openColorQuality"
                              (opened)="onSectionToggle('color_quality', true)"
                              (closed)="onSectionToggle('color_quality', false)"
-                             [style.background-color]="activeView() || sectionStates()['color_quality'] === true ? 'var(--mat-sys-surface-container)' : null">
+                             [style.background-color]="openColorQuality ? 'var(--mat-sys-surface-container)' : null">
           <mat-expansion-panel-header class="!px-2">
             <mat-panel-title class="flex items-center gap-2">
               <mat-icon class="!text-xl !w-5 !h-5 !leading-none opacity-80">palette</mat-icon>
@@ -827,10 +839,11 @@ type RatingOption = 'any' | '1' | '2' | '3' | '4' | '5' | 'zero';
       }
           }
           @case ('score_presence') {
-      <mat-expansion-panel class="!mb-1" data-section="score_presence" [expanded]="activeView() || sectionStates()['score_presence'] === true"
+      @let openScorePresence = sectionStates() | sectionOpen:'score_presence':false:activeView();
+      <mat-expansion-panel class="!mb-1" data-section="score_presence" [expanded]="openScorePresence"
                            (opened)="onSectionToggle('score_presence', true)"
                            (closed)="onSectionToggle('score_presence', false)"
-                           [style.background-color]="activeView() || sectionStates()['score_presence'] === true ? 'var(--mat-sys-surface-container)' : null">
+                           [style.background-color]="openScorePresence ? 'var(--mat-sys-surface-container)' : null">
         <mat-expansion-panel-header class="!px-2">
           <mat-panel-title class="flex items-center gap-2">
             <mat-icon class="!text-xl !w-5 !h-5 !leading-none opacity-80">fact_check</mat-icon>
@@ -854,10 +867,11 @@ type RatingOption = 'any' | '1' | '2' | '3' | '4' | '5' | 'zero';
       }
 
       <ng-template #metricPanel let-group>
-        <mat-expansion-panel class="!mb-1" [expanded]="activeView() || sectionStates()[group.sectionKey] === true"
+        @let openGroup = sectionStates() | sectionOpen:group.sectionKey:false:activeView();
+        <mat-expansion-panel class="!mb-1" [expanded]="openGroup"
                              (opened)="onSectionToggle(group.sectionKey, true)"
                              (closed)="onSectionToggle(group.sectionKey, false)"
-                             [style.background-color]="activeView() || sectionStates()[group.sectionKey] === true ? 'var(--mat-sys-surface-container)' : null">
+                             [style.background-color]="openGroup ? 'var(--mat-sys-surface-container)' : null">
           <mat-expansion-panel-header class="!px-2">
             <mat-panel-title class="flex items-center gap-2">
               <mat-icon class="!text-xl !w-5 !h-5 !leading-none opacity-80" [class]="group.sectionKey | markTone">{{ sectionIcons[group.sectionKey] || 'tune' }}</mat-icon>
@@ -1039,8 +1053,9 @@ type RatingOption = 'any' | '1' | '2' | '3' | '4' | '5' | 'zero';
           @if (sliderConfig(); as sc) {
             <div class="flex items-center gap-2">
               <span class="text-sm text-[var(--mat-sys-on-surface-variant)] shrink-0" [matTooltip]="I18N.gallery.display_tips.thumbnail_size | translate">{{ I18N.gallery.thumbnail_size | translate }}</span>
+              <span id="display-tip-thumbnail-size" class="sr-only">{{ I18N.gallery.display_tips.thumbnail_size | translate }}</span>
               <mat-slider [min]="thumbnailSliderMin()" [max]="sc.max_px" [step]="sc.step_px" class="flex-1">
-                <input matSliderThumb [value]="store.cardWidth()" (valueChange)="store.setCardWidth($event)" [attr.aria-label]="I18N.gallery.thumbnail_size | translate" />
+                <input matSliderThumb aria-describedby="display-tip-thumbnail-size" [value]="store.cardWidth()" (valueChange)="store.setCardWidth($event)" [attr.aria-label]="I18N.gallery.thumbnail_size | translate" />
               </mat-slider>
               <span class="text-xs text-[var(--mat-sys-on-surface-variant)] w-10 text-right">{{ store.cardWidth() }}px</span>
             </div>
@@ -1051,7 +1066,8 @@ type RatingOption = 'any' | '1' | '2' | '3' | '4' | '5' | 'zero';
       <!-- View (display preferences, not filters): the tab's only section, so no panel around it -->
         <div data-section="view" class="flex flex-col gap-2 px-1 pt-1 pb-2">
           <mat-checkbox data-face-outline-toggle [checked]="faceOutlines.enabled()" (change)="faceOutlines.setEnabled($event.checked)"
-            [matTooltip]="I18N.gallery.display_tips.face_outlines | translate">{{ I18N.gallery.face_outlines | translate }}</mat-checkbox>
+            aria-describedby="display-tip-face-outlines" [matTooltip]="I18N.gallery.display_tips.face_outlines | translate">{{ I18N.gallery.face_outlines | translate }}</mat-checkbox>
+          <span id="display-tip-face-outlines" class="sr-only">{{ I18N.gallery.display_tips.face_outlines | translate }}</span>
           @if (store.galleryMode() !== 'mosaic') {
             <mat-checkbox
               [checked]="store.filters().hide_details"
@@ -1158,7 +1174,7 @@ export class GalleryFilterSidebarComponent {
    *  after the thumb is released -- the slider looked dead while in use. */
   private readonly thresholdDraft = signal<number | null>(null);
 
-  /** Numeric mirror of the string filter for the `<input matSliderThumb [value]>`
+  /** Numeric mirror of the string filter for the `<input matSliderThumb aria-describedby="display-tip-thumbnail-size" [value]>`
    *  binding, and for the percent readout next to it -- a computed, never a
    *  template method call (per project rule).
    *

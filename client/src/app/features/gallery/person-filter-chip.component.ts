@@ -48,7 +48,8 @@ const CHIP_BUTTON = 'inline-flex items-center justify-center w-6 h-6 shrink-0 ro
          class="inline-flex items-center gap-1 pl-0.5 pr-1 py-0.5 min-h-9 rounded-md border-2 bg-[var(--mat-sys-secondary-container)] text-[var(--mat-sys-on-secondary-container)] text-xs font-medium"
          [class]="unnamed() ? 'border-dashed border-[var(--mat-sys-primary)]' : 'border-solid border-transparent'"
          [attr.data-person-id]="personId()" [style.border-color]="outlineColor()">
-      <img data-person-chip-avatar [src]="personId() | personThumbnailUrl" class="w-8 h-8 rounded-full object-cover shrink-0" [alt]="label()" />
+      <!-- Below sm the name is hidden, so the face carries it as a tooltip (hover or long-press). -->
+      <img data-person-chip-avatar [src]="personId() | personThumbnailUrl" class="w-8 h-8 rounded-full object-cover shrink-0" [alt]="label()" [matTooltip]="label()" />
       @if (editing()) {
         <input #nameInput
           data-person-name-input

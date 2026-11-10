@@ -1723,6 +1723,7 @@ export const I18N = {
     tag_groups: {
       title: "gallery.tag_groups.title",
       hint: "gallery.tag_groups.hint",
+      enter_hint: "gallery.tag_groups.enter_hint",
       name: "gallery.tag_groups.name",
       any: "gallery.tag_groups.any",
       all: "gallery.tag_groups.all",

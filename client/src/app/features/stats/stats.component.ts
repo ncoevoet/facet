@@ -74,10 +74,12 @@ interface ScoreBin {
   count: number;
   percentage: number;
 }
+import { SelectTriggerLabelComponent } from '../../shared/components/select-trigger-label/select-trigger-label.component';
 
 @Component({
   selector: 'app-stats',
   imports: [
+    SelectTriggerLabelComponent,
     NgTemplateOutlet,
     TabLabelComponent,
     StatsNumberPipe,
@@ -257,10 +259,7 @@ interface ScoreBin {
                         <mat-select [ngModel]="categoryMetric()" (ngModelChange)="categoryMetric.set($event)">
                           <mat-select-trigger>
                             @let metricIcon = categoryMetric() | sortOptionIcon;
-                            <span class="inline-flex max-w-full items-center align-top">
-                              <mat-icon aria-hidden="true" class="!w-8 shrink-0 text-center" [class]="metricIcon.classes">{{ metricIcon.text }}</mat-icon>
-                              <span class="truncate">{{ 'stats.category_metrics.' + categoryMetric() | translate }}</span>
-                            </span>
+                            <app-select-trigger-label [icon]="metricIcon">{{ 'stats.category_metrics.' + categoryMetric() | translate }}</app-select-trigger-label>
                           </mat-select-trigger>
                           @for (opt of categoryMetricOptions; track opt.key) {
                             @let optionIcon = opt.key | sortOptionIcon;

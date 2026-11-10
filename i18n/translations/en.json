@@ -1709,6 +1709,7 @@
     "tag_groups": {
       "title": "Tag rules",
       "hint": "Groups combine with AND. Names match full tags; adding a rule does not create a tag.",
+      "enter_hint": "Press Enter to add a tag.",
       "name": "Tag name",
       "any": "Any of these",
       "all": "All of these",

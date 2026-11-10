@@ -59,12 +59,14 @@ const GEAR_METRIC_OPTIONS = [
   { key: 'avg_focal_length' },
   { key: 'usage_timeline' },
 ];
+import { SelectTriggerLabelComponent } from '../../shared/components/select-trigger-label/select-trigger-label.component';
 
 @Component({
   selector: 'app-gear-chart-card',
   standalone: true,
   host: { class: 'block' },
   imports: [
+    SelectTriggerLabelComponent,
     FormsModule,
     MatCardModule,
     MatFormFieldModule,
@@ -91,10 +93,7 @@ const GEAR_METRIC_OPTIONS = [
                       [aria-label]="'stats.gear_metric_label' | translate">
             <mat-select-trigger>
               @let selectedIcon = selectedMetric() | sortOptionIcon;
-              <span class="inline-flex max-w-full items-center align-top">
-                <mat-icon aria-hidden="true" class="!w-8 shrink-0 text-center" [class]="selectedIcon.classes">{{ selectedIcon.text }}</mat-icon>
-                <span class="truncate">{{ 'stats.gear_metrics.' + selectedMetric() | translate }}</span>
-              </span>
+              <app-select-trigger-label [icon]="selectedIcon">{{ 'stats.gear_metrics.' + selectedMetric() | translate }}</app-select-trigger-label>
             </mat-select-trigger>
             @for (opt of metricOptions; track opt.key) {
               @let optionIcon = opt.key | sortOptionIcon;

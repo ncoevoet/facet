@@ -80,6 +80,15 @@ describe('rendered literal tag rule editor', () => {
     expect(root.querySelector('#tag-rule-hint')!.textContent).toContain('gallery.tag_groups.hint');
   });
 
+  it('shows a visible Enter hint that every rule input is described by', () => {
+    const hint = root.querySelector<HTMLElement>('#tag-rule-enter')!;
+    expect(hint.textContent).toContain('gallery.tag_groups.enter_hint');
+    expect(hint.classList.contains('sr-only')).toBe(false);
+    for (const id of ['any', 'all', 'none']) {
+      expect(row(id).querySelector('[data-tag-rule-input]')!.getAttribute('aria-describedby')!.split(' ')).toContain('tag-rule-enter');
+    }
+  });
+
   it('trims surrounding whitespace from a new tag rule', () => {
     add('  coast  ');
     expect(update).toHaveBeenCalledExactlyOnceWith('tag_groups', '{"any":["coast"]}');

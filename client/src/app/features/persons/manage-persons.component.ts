@@ -448,7 +448,7 @@ export type NamingSort = 'faces' | 'recent';
         <!-- Update faces: lg+ it lives in the page-actions bar (#personsToolbar). Below lg, and on the review tabs where
              the bar is cleared, it is a right-aligned row above the tabs, so a long translated label never covers a tab. -->
         <div class="relative">
-        <app-face-update-control class="ml-auto mb-2 block w-fit" [class]="faceUpdateInPageClass()" panelMode="overlay" (reviewRequested)="reviewUpdatedFaces()" />
+        <app-face-update-control class="ml-auto mb-2 block w-fit empty:hidden" [class]="faceUpdateInPageClass()" panelMode="overlay" (reviewRequested)="reviewUpdatedFaces()" />
         <mat-tab-group mat-stretch-tabs="false" mat-align-tabs="start" animationDuration="0ms"
                        [selectedIndex]="tabIndex()" (selectedIndexChange)="selectTabIndex($event)">
           <mat-tab>

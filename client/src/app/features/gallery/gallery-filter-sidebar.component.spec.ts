@@ -1121,6 +1121,17 @@ describe('GalleryFilterSidebarComponent', () => {
         expect(sizeLabel.injector.get(MatTooltip).message).toBe(T.thumbnail_size);
       });
 
+      it('describes the focusable thumbnail slider and face-outline checkbox with the display tips', () => {
+        store['config'].set({ features: {}, display: { thumbnail_slider: { min_px: 120, max_px: 400, step_px: 10 } } });
+        fixture.componentInstance.selectTab('display');
+        settle();
+        const el = fixture.nativeElement as HTMLElement;
+        const described = (control: Element | null) => (control!.getAttribute('aria-describedby') ?? '').split(' ').filter(Boolean)
+          .map(id => el.ownerDocument.getElementById(id)?.textContent?.trim()).join(' ');
+        expect(described(el.querySelector('input[matSliderThumb]'))).toBe(I18N.gallery.display_tips.thumbnail_size);
+        expect(described(el.querySelector('[data-face-outline-toggle] input'))).toBe(I18N.gallery.display_tips.face_outlines);
+      });
+
       it('keeps the filename search reachable with / from every tab', () => {
         for (const id of TAB_IDS) {
           fixture.componentInstance.selectTab(id);

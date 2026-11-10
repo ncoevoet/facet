@@ -62,6 +62,8 @@ describe('rendered review progress with real store and HTTP', () => {
     store = TestBed.inject(GalleryStore);
     fixture = TestBed.createComponent(GalleryComponent);
     Object.defineProperty(fixture.componentInstance, 'isDesktop', { value: signal(true), configurable: true });
+    // A wide screen: below lg the notices start folded into one bar, which gallery.component.spec covers.
+    Object.defineProperty(fixture.componentInstance['lgDesktop'], 'isDesktop', { value: signal(true), configurable: true });
     fixture.detectChanges();
     const photosStarted = requested('/api/photos');
     http.expectOne('/api/config').flush(config);

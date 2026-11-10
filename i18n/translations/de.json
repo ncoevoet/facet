@@ -1684,6 +1684,7 @@
     "tag_groups": {
       "title": "Schlagwortregeln",
       "hint": "Gruppen werden mit UND verknüpft. Namen entsprechen vollständigen Schlagwörtern; eine Regel erzeugt kein Schlagwort.",
+      "enter_hint": "Zum Hinzufügen eines Schlagworts die Eingabetaste drücken.",
       "name": "Schlagwortname",
       "any": "Mindestens eines davon",
       "all": "Alle davon",

@@ -67,11 +67,13 @@ export function allocateSeriesSlots(keys: string[], previous: Record<string, num
   }
   return slots;
 }
+import { SelectTriggerLabelComponent } from '../../shared/components/select-trigger-label/select-trigger-label.component';
 
 @Component({
   selector: 'app-stats-correlations-tab',
   standalone: true,
   imports: [
+    SelectTriggerLabelComponent,
     FormsModule,
     MatCardModule,
     MatButtonModule,
@@ -119,10 +121,7 @@ export function allocateSeriesSlots(keys: string[], previous: Record<string, num
               <mat-select [ngModel]="corrXAxis()" (ngModelChange)="edit(corrXAxis, $event)">
                 <mat-select-trigger>
                   @let xAxisIcon = corrXAxis() | sortOptionIcon;
-                  <span class="inline-flex max-w-full items-center align-top">
-                    <mat-icon aria-hidden="true" class="!w-8 shrink-0 text-center" [class]="xAxisIcon.classes">{{ xAxisIcon.text }}</mat-icon>
-                    <span class="truncate">{{ 'stats.correlations.dimensions.' + corrXAxis() | translate }}</span>
-                  </span>
+                  <app-select-trigger-label [icon]="xAxisIcon">{{ 'stats.correlations.dimensions.' + corrXAxis() | translate }}</app-select-trigger-label>
                 </mat-select-trigger>
                 @for (dim of corrDimensions; track dim.key) {
                   @let xOptionIcon = dim.key | sortOptionIcon;
@@ -139,10 +138,7 @@ export function allocateSeriesSlots(keys: string[], previous: Record<string, num
                 <mat-select-trigger>
                   @if (corrGroupBy()) {
                     @let groupIcon = corrGroupBy() | sortOptionIcon;
-                    <span class="inline-flex max-w-full items-center align-top">
-                      <mat-icon aria-hidden="true" class="!w-8 shrink-0 text-center" [class]="groupIcon.classes">{{ groupIcon.text }}</mat-icon>
-                      <span class="truncate">{{ 'stats.correlations.dimensions.' + corrGroupBy() | translate }}</span>
-                    </span>
+                    <app-select-trigger-label [icon]="groupIcon">{{ 'stats.correlations.dimensions.' + corrGroupBy() | translate }}</app-select-trigger-label>
                   } @else {
                     {{ I18N.stats.correlations.none | translate }}
                   }
@@ -177,10 +173,7 @@ export function allocateSeriesSlots(keys: string[], previous: Record<string, num
               <mat-select [ngModel]="corrChartType()" (ngModelChange)="setChartType($event)">
                 <mat-select-trigger>
                   @let chartTypeIcon = corrChartType() | sortOptionIcon;
-                  <span class="inline-flex max-w-full items-center align-top">
-                    <mat-icon aria-hidden="true" class="!w-8 shrink-0 text-center" [class]="chartTypeIcon.classes">{{ chartTypeIcon.text }}</mat-icon>
-                    <span class="truncate">{{ 'stats.correlations.chart_types.' + corrChartType() | translate }}</span>
-                  </span>
+                  <app-select-trigger-label [icon]="chartTypeIcon">{{ 'stats.correlations.chart_types.' + corrChartType() | translate }}</app-select-trigger-label>
                 </mat-select-trigger>
                 @for (ct of corrChartTypes; track ct.key) {
                   @let chartOptionIcon = ct.key | sortOptionIcon;

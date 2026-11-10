@@ -1373,11 +1373,22 @@ describe('ManagePersonsComponent', () => {
         fixture.destroy();
       });
 
-      it('leaves the tab header its full width, whatever the length of the translated label', async () => {
+      it('collapses its in-page host (no mb-2 gap above the tabs) when launching is not allowed', async () => {
+        (TestBed.inject(ScanService) as unknown as { canLaunch: ReturnType<typeof signal<boolean>> }).canLaunch.set(false);
         withTab('named');
         const fixture = await render();
-        const group = fixture.nativeElement.querySelector('mat-tab-group') as HTMLElement;
-        expect(group.className).not.toContain('mat-mdc-tab-header]:pr-');
+        const inPage = control(fixture.nativeElement);
+        expect(Array.from(inPage.childNodes).filter(n => n.nodeType !== Node.COMMENT_NODE)).toHaveLength(0);
+        expect(inPage.classList).toContain('empty:hidden');
+        fixture.destroy();
+      });
+
+      it('keeps its in-page host unchanged when launching is allowed', async () => {
+        withTab('named');
+        const fixture = await render();
+        const inPage = control(fixture.nativeElement);
+        expect(inPage.querySelector('[data-update-faces]')).not.toBeNull();
+        expect(Array.from(inPage.classList)).toEqual(expect.arrayContaining(['ml-auto', 'mb-2', 'block', 'w-fit']));
         fixture.destroy();
       });
 

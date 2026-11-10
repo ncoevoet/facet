@@ -38,12 +38,14 @@ import { I18N, i18nKeys } from '../../core/i18n/keys';
 import { StalenessGuardFactory } from '../../core/services/staleness-guard.service';
 import { AlbumDialogContext } from './album-dialog-context';
 import { HANDLE_SERVER_ERROR_LOCALLY } from '../../core/utils/http-error-context';
+import { SelectTriggerLabelComponent } from '../../shared/components/select-trigger-label/select-trigger-label.component';
 
 @Component({
   selector: 'app-albums',
   standalone: true,
   host: { class: 'block px-4 pt-4 pb-4' },
   imports: [
+    SelectTriggerLabelComponent,
     RouterLink, MatButtonModule, MatIconModule, MatFormFieldModule, MatInputModule,
     MatSelectModule, MatDialogModule, MatTooltipModule,
     MatProgressSpinnerModule, MatMenuModule, MarkTonePipe, AlbumTypeIconPipe,
@@ -62,10 +64,7 @@ import { HANDLE_SERVER_ERROR_LOCALLY } from '../../core/utils/http-error-context
         <mat-select [value]="albumsFilters.typeFilter()" (selectionChange)="albumsFilters.typeFilter.set($event.value)">
           <mat-select-trigger>
             @let currentType = albumsFilters.typeFilter() | albumTypeIcon;
-            <span class="inline-flex max-w-full items-center align-top">
-              <mat-icon aria-hidden="true" class="!mr-2 shrink-0" [class]="currentType.classes">{{ currentType.text }}</mat-icon>
-              <span class="truncate">{{ typeLabels[albumsFilters.typeFilter()] | translate }}</span>
-            </span>
+            <app-select-trigger-label [icon]="currentType" iconClass="!mr-2 shrink-0">{{ typeLabels[albumsFilters.typeFilter()] | translate }}</app-select-trigger-label>
           </mat-select-trigger>
           @let allIcon = '' | albumTypeIcon;
           @let manualIcon = 'manual' | albumTypeIcon;

@@ -491,7 +491,18 @@ describe('Timeline page-actions bar (rendered)', () => {
       expect(button.querySelector('span.hidden')!.className).toContain('xl:inline');
     }
     expect(bar.querySelector('button[aria-label="timeline.density_hide"] span.hidden')!.textContent).toContain('timeline.density_hide');
-    expect(bar.querySelector('button[aria-label="gallery.hidden_banner.show_all"] span.hidden')!.textContent).toContain('gallery.hidden_banner.some_hidden');
+    expect(bar.querySelector('button[aria-label="gallery.hidden_banner.show_all"] span.hidden')!.textContent).toContain('gallery.hidden_banner.show_all');
+  });
+
+  it('names the Show all / Restore buttons by the text they show (label in name)', () => {
+    setup();
+    store.viewFilterParams.set({ ...noneHiddenParams, hide_bursts: '1' });
+    const showAll = renderBar().querySelector('button[aria-label="gallery.hidden_banner.show_all"]')!;
+    expect(showAll.querySelector('span.hidden')!.textContent!.trim()).toBe('gallery.hidden_banner.show_all');
+    store.viewFilterParams.set({ ...noneHiddenParams });
+    store.hiddenFiltersStash.set({} as never);
+    const restore = renderBar().querySelector('button[aria-label="gallery.hidden_banner.restore"]')!;
+    expect(restore.querySelector('span.hidden')!.textContent!.trim()).toBe('gallery.hidden_banner.restore');
   });
 
   it('marks the bottom-bar Dates trigger with a dot only while a range is set', () => {

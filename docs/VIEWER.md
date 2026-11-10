@@ -4,7 +4,7 @@
 
 The viewer is a FastAPI + Angular web app for browsing, filtering, culling and managing your photos.
 
-On desktop (1024 px and wider), enabled destinations appear directly in the top bar as space allows. **More** appears only when destinations do not fit and contains the overflow. Resizing, translated labels and account controls are included in the fit calculation. Contextual page actions appear in a row below the destinations. The gallery owns its collection header, which shows the source, query, count, sort and removable active-filter chips. On narrower screens, the menu button opens the same available destinations. Outside the gallery it shows the current page's icon, and the page's name replaces the Facet name beside it.
+On desktop (1024 px and wider), enabled destinations appear directly in the top bar as space allows. **More** appears only when destinations do not fit and contains the overflow. Resizing, translated labels and account controls are included in the fit calculation. Contextual page actions appear in a row below the destinations. The gallery owns its collection header, which shows the source, query, count, sort and removable active-filter chips. On narrower screens, the menu button opens the same available destinations. On phones the header always shows it, and the title names the current page.
 
 The sticky collection header keeps search, selection and sorting available while scrolling. From 1024 px wide the active criteria row stays with it; on narrower screens that row scrolls away with the photos. **Filters** opens Find, Source, Quality, Technical and Subject; its numeric badge counts active filters and its background shows whether the drawer is open. **Review** opens decision, visibility, rating and favorite controls. **Display** opens layout, thumbnail size, photo-information behavior and slideshow. Each setting has one entry point. On narrow collections, sorting moves into Display. Help opens in anchored popovers without shifting the gallery.
 
@@ -463,8 +463,8 @@ Response fields and status codes: [API.md](API.md).
 - **Hide Details** — hide metadata on cards (grid mode only)
 - **Thumbnail shape** — square crop (the default) or the photo's original ratio for the detail-less tiles; greyed while Mosaic is active, which already keeps the ratio, or while details are shown.
 - **Tooltip** — how photo details appear: **Side panel** (default), **Hover**, **Click** or **Off**.
-  - The side panel shows full details in the right-hand drawer, laid out like photo detail. Under **Panel activation**, choose **Hover**, **Click**, or **Hover or click** (default). Choose a click-enabled option for touch screens. The panel opens on the first photo you hover or click, so until then the grid keeps the full width. It keeps the last photo when the cursor leaves the grid.
-  - Clicking a photo holds the panel on it until you press **Deselect** (which also deselects the photo and closes the panel). **Escape** does the same and clears the selection. The panel also closes when its photo leaves the collection.
+  - The side panel shows full details in the right-hand drawer, laid out like photo detail. Under **Panel activation**, choose **Hover**, **Click**, or **Hover or click** (default). Choose a click-enabled option for touch screens. The panel opens on the first photo you hover, click or move the keyboard cursor to, so until then the grid keeps the full width. It keeps the last photo when the cursor leaves the grid.
+  - Clicking a photo holds the panel on it until you press **Deselect** (which also deselects the photo and closes the panel). **Escape** does the same and clears the selection. When its photo leaves the results (a re-sort or a filter), the panel stays open, empty until the next photo enters it.
   - A **Why this score?** icon button at the end of the panel's AI score line opens the score explainer (the critique dialog) for the photo the panel holds.
   - The panel shares the drawer with the filters; opening the filters hides it. It needs a viewport at least 1280px wide. Where the panel cannot dock, a saved **Side panel** setting shows its details in the floating bubble instead, and **Escape** closes it.
   - **Hover** and **Click** show a short bubble: category, aggregate and rank, aesthetic, composition, sharpness, exposure, and one EXIF line.
@@ -1271,7 +1271,7 @@ Production builds can be installed to the home screen. The app shell loads offli
 
 ## Mobile
 
-The phone header always shows the menu button, and the title names the current page. Every page bottom bar is one 56 px row. On Albums and Persons its buttons carry labels from 768 px wide. On **Persons**, **Update faces** sits above the tabs on phones.
+The phone header always shows the menu button, and the title names the current page. Page bottom bars share the same 56 px row (height, inset and spacing); the Culling and Junk Sweep bars wrap onto more rows when their controls do not fit. On Albums and Persons the bar buttons carry labels from 768 px wide. On **Persons**, **Update faces** sits above the tabs on phones.
 
 On small screens the floating selection bar shows touch-sized buttons for clear, compare (once two or more photos are selected) and, in edition mode, Keep and Reject, plus an **Actions** button. **Actions** opens a bottom sheet with the other bulk operations (refresh, stack, favorite, reset decision, rate, albums, capture date, tags, location, export, cull to folder, mark as panorama, HDR panorama or bracket, invert, copy filenames, download). When the selection does not fit the compare workspace, the compare button stays disabled and a note states the limits.
 

@@ -453,6 +453,14 @@ describe('JunkSweepComponent', () => {
       expect(bar.className).not.toContain('max-lg:px-3');
       expect(bar.className).not.toContain('max-lg:py-2');
     });
+
+    it('clears the home indicator and stacks with the other bottom bars', async () => {
+      const { host } = await render();
+      const bar = host.querySelector('[data-junk-bar]') as HTMLElement;
+      expect(bar.classList.contains('safe-area-pb')).toBe(true);
+      expect(bar.classList.contains('max-lg:z-50')).toBe(true);
+      expect(bar.classList.contains('max-lg:z-40')).toBe(false);
+    });
   });
 });
 

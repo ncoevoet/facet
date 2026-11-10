@@ -1684,6 +1684,7 @@
     "tag_groups": {
       "title": "Regole dei tag",
       "hint": "I gruppi si combinano con AND. I nomi corrispondono a tag completi; aggiungere una regola non crea un tag.",
+      "enter_hint": "Premi Invio per aggiungere un tag.",
       "name": "Nome del tag",
       "any": "Uno qualsiasi di questi",
       "all": "Tutti questi",

@@ -46,14 +46,11 @@ import { Photo, normalisePhotoFlagsAll } from './shared/models/photo.model';
 import { DateRangeFilterComponent } from './shared/components/date-range-filter/date-range-filter.component';
 import { I18N, i18nKeys } from './core/i18n/keys';
 import { I18nTitleStrategy } from './core/i18n-title.strategy';
-import { MOBILE_BAR_ROW } from './shared/utils/mobile-bar';
+import { MOBILE_BAR_BUTTON, MOBILE_BAR_ROW } from './shared/utils/mobile-bar';
 
 /** When the "a newer Facet is out" notice was last shown, so it stays weekly. */
 const RELEASE_NOTICE_KEY = 'facet_release_notice_shown';
 const RELEASE_NOTICE_INTERVAL_MS = 7 * 24 * 60 * 60 * 1000;
-
-/** Lifts a snackbar above the 56 px bottom bars, and a notch, below lg. */
-const SNACKBAR_LIFT_CLASS = 'max-lg:!mb-[calc(4rem+env(safe-area-inset-bottom))]';
 
 /** Response of GET /api/updates/check. */
 interface ReleaseCheck {
@@ -235,6 +232,7 @@ export class App implements OnInit {
   protected readonly desktopTabCount = signal(Number.MAX_SAFE_INTEGER);
   private readonly titleStrategy = inject(I18nTitleStrategy);
   protected readonly MOBILE_BAR_ROW = MOBILE_BAR_ROW;
+  protected readonly MOBILE_BAR_BUTTON = MOBILE_BAR_BUTTON;
   /** The phone header's title key: the current destination's label, else the route's own title, else none (the brand text shows). */
   protected readonly phoneTitleKey = computed(() => this.navigationDestinations().find(destination => destination.active)?.label ?? this.titleStrategy.titleKey() ?? null);
   protected readonly desktopDestinations = computed(() => this.navigationDestinations().slice(0, this.desktopTabCount()));
@@ -342,7 +340,6 @@ export class App implements OnInit {
       .subscribe(() => {
         const ref = this.snackBar.open(
           this.i18n.t(I18N.pwa.update_available), this.i18n.t(I18N.pwa.reload),
-          { panelClass: [SNACKBAR_LIFT_CLASS] },
         );
         ref.onAction().subscribe(() => location.reload());
       });
@@ -371,7 +368,7 @@ export class App implements OnInit {
       const ref = this.snackBar.open(
         this.i18n.t(I18N.updates.available, { version: res.latest }),
         res.release_url ? this.i18n.t(I18N.updates.view) : '',
-        { duration: 15000, panelClass: [SNACKBAR_LIFT_CLASS] },
+        { duration: 15000 },
       );
       if (res.release_url) {
         ref.onAction().subscribe(() => window.open(res.release_url, '_blank', 'noopener'));

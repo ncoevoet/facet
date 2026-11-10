@@ -165,14 +165,14 @@ function readDensityVisible(): boolean {
                 [matTooltip]="I18N.gallery.hidden_banner.some_hidden | translate"
                 [attr.aria-label]="I18N.gallery.hidden_banner.show_all | translate"
                 (click)="store.showAllHidden()">
-          <mat-icon>visibility_off</mat-icon><span class="hidden xl:inline">{{ I18N.gallery.hidden_banner.some_hidden | translate }}</span>
+          <mat-icon>visibility_off</mat-icon><span class="hidden xl:inline">{{ I18N.gallery.hidden_banner.show_all | translate }}</span>
         </button>
       } @else if (store.hiddenFiltersStash()) {
         <button mat-button class="shrink-0"
                 [matTooltip]="I18N.gallery.hidden_banner.showing_all | translate"
                 [attr.aria-label]="I18N.gallery.hidden_banner.restore | translate"
                 (click)="store.restoreHidden()">
-          <mat-icon>visibility</mat-icon><span class="hidden xl:inline">{{ I18N.gallery.hidden_banner.showing_all | translate }}</span>
+          <mat-icon>visibility</mat-icon><span class="hidden xl:inline">{{ I18N.gallery.hidden_banner.restore | translate }}</span>
         </button>
       }
     </ng-template>

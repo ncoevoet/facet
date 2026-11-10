@@ -427,4 +427,41 @@ describe('MapComponent dates control', () => {
     expect(root.querySelector('[data-map-dates-dot]')).not.toBeNull();
     fixture.destroy();
   });
+
+  describe('date inputs', () => {
+    const setInput = (fixture: { detectChanges(): void }, which: 'from' | 'to', value: string) => {
+      const inputs = document.querySelectorAll<HTMLInputElement>('app-date-range-filter input[type="date"]');
+      const input = inputs[which === 'from' ? 0 : 1];
+      input.value = value;
+      input.dispatchEvent(new Event('change'));
+      fixture.detectChanges();
+    };
+
+    it('requests markers with date_from, shows the dot for date-to alone, and hides it once both are cleared', async () => {
+      const api = TestBed.inject(ApiService) as unknown as { get: Mock };
+      const fixture = TestBed.createComponent(MapComponent);
+      fixture.detectChanges();
+      (fixture.componentInstance as any).map = mockMap;
+      const root = fixture.nativeElement as HTMLElement;
+      const filters = TestBed.inject(MapFiltersService);
+      root.querySelector<HTMLButtonElement>('[data-map-dates] app-control-popover button')!.click();
+      fixture.detectChanges();
+      api.get.mockClear();
+      setInput(fixture, 'from', '2024-03-01');
+      expect(filters.dateFrom()).toBe('2024-03-01');
+      await fixture.whenStable();
+      expect(api.get).toHaveBeenCalledWith('/photos/map', expect.objectContaining({ date_from: '2024-03-01' }));
+      expect(root.querySelector('[data-map-dates-dot]')).not.toBeNull();
+      setInput(fixture, 'from', '');
+      expect(filters.dateFrom()).toBe('');
+      expect(root.querySelector('[data-map-dates-dot]')).toBeNull();
+      setInput(fixture, 'to', '2024-04-01');
+      expect(filters.dateTo()).toBe('2024-04-01');
+      expect(root.querySelector('[data-map-dates-dot]')).not.toBeNull();
+      setInput(fixture, 'to', '');
+      expect(filters.dateTo()).toBe('');
+      expect(root.querySelector('[data-map-dates-dot]')).toBeNull();
+      fixture.destroy();
+    });
+  });
 });

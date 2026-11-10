@@ -25,9 +25,6 @@ import { MatTooltip } from '@angular/material/tooltip';
 import { KeyboardMappingService, KEYMAP_STORAGE_KEY } from './core/services/keyboard-mapping.service';
 import { FEATURE_MARK } from './shared/pipes/mark-tone.pipe';
 
-/** Lifts a snackbar above the 56 px bottom bars (and a notch) below lg. */
-const SNACKBAR_LIFT = 'max-lg:!mb-[calc(4rem+env(safe-area-inset-bottom))]';
-
 @Component({ selector: 'app-navigation-fixture-page', template: '' })
 class NavigationFixturePage {}
 
@@ -223,7 +220,7 @@ describe('App', () => {
       const { app, versionUpdates, open, onAction } = withSw(true);
       (app as any).setupUpdateNotifications();
       versionUpdates.next({ type: 'VERSION_READY' });
-      expect(open).toHaveBeenCalledWith(I18N.pwa.update_available, I18N.pwa.reload, { panelClass: [SNACKBAR_LIFT] });
+      expect(open).toHaveBeenCalledWith(I18N.pwa.update_available, I18N.pwa.reload);
       expect(onAction).toHaveBeenCalled();
     });
 
@@ -296,7 +293,7 @@ describe('App', () => {
       expect(open).toHaveBeenCalledWith(
         `${I18N.updates.available}:${AVAILABLE.latest}`,
         I18N.updates.view,
-        { duration: 15000, panelClass: [SNACKBAR_LIFT] },
+        { duration: 15000 },
       );
     });
 
@@ -707,6 +704,18 @@ describe('App', () => {
       const { root } = render(true);
       root.querySelector('[data-mobile-page-title]')!.dispatchEvent(new MouseEvent('dblclick', { bubbles: true }));
       expect(TestBed.inject(GalleryStore).resetFilters).toHaveBeenCalled();
+    });
+
+    it('leaves the filters alone on a double-click of the phone title outside the gallery', async () => {
+      const { fixture, root } = render(true);
+      const router = TestBed.inject(Router);
+      router.resetConfig([
+        { path: '', component: NavigationFixturePage },
+        { path: 'stats', component: NavigationFixturePage, title: I18N.stats.title },
+      ]);
+      await router.navigateByUrl('/stats'); fixture.detectChanges(); await fixture.whenStable(); fixture.detectChanges();
+      root.querySelector('[data-mobile-page-title]')!.dispatchEvent(new MouseEvent('dblclick', { bubbles: true }));
+      expect(TestBed.inject(GalleryStore).resetFilters).not.toHaveBeenCalled();
     });
 
     it('lists Scenes right after Culling, as a tool, only while show_scenes is on', () => {
