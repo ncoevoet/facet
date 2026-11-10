@@ -97,10 +97,10 @@ def parse_url(url: str) -> tuple[float, float] | None:
         return None
     queries = [parts.query]
     # A wrapped URL (consent.google.com?continue=...) carries the real query inside.
-    for _, value in parse_qsl(parts.query, keep_blank_values=True):
-        if value.startswith(('http://', 'https://')):
+    for _, wrapped in parse_qsl(parts.query, keep_blank_values=True):
+        if wrapped.startswith(('http://', 'https://')):
             try:
-                queries.append(urlsplit(value).query)
+                queries.append(urlsplit(wrapped).query)
             except ValueError:
                 # A malformed wrapped URL (an unclosed IPv6 bracket) carries no point.
                 continue
