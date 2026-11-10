@@ -284,7 +284,7 @@ _NON_INIT_ARGS = (
     'populate_vec', 'optimize', 'vacuum', 'analyze', 'backup',
     'cleanup_orphaned_persons', 'cleanup_missing_photos', 'export_viewer_db',
     'add_user', 'rotate_secret', 'migrate_user_preferences', 'migrate_storage_fs',
-    'migrate_storage_db',
+    'migrate_storage_db', 'compact_config',
 )
 
 
@@ -303,7 +303,7 @@ def _hold_library_lock(args):
     worse for a DDL step that auto-commits, leaves a half-applied schema.
     A ``--dry-run`` inspection writes nothing and stays unguarded.
     """
-    if args.dry_run:
+    if args.dry_run and getattr(args, 'cleanup_missing_photos', False):
         return None
     rewrites = (_is_default_init(args)
                 or any(getattr(args, name, False) for name in LIBRARY_REWRITING_ARGS))
@@ -325,60 +325,62 @@ def main():
     logging.basicConfig(level=logging.INFO, format="%(message)s")
 
     parser = argparse.ArgumentParser(
-        description='Initialize Facet database schema'
+        description='Initialize Facet database schema, or run one maintenance command',
+        allow_abbrev=False
     )
+    commands = parser.add_mutually_exclusive_group()
     parser.add_argument(
         '--db',
         default=DEFAULT_DB_PATH,
         help=f'Database path (default: {DEFAULT_DB_PATH})'
     )
-    parser.add_argument(
+    commands.add_argument(
         '--info',
         action='store_true',
         help='Display schema information'
     )
-    parser.add_argument(
+    commands.add_argument(
         '--migrate-tags',
         action='store_true',
         help='Populate photo_tags lookup table from tags column for fast queries'
     )
-    parser.add_argument(
+    commands.add_argument(
         '--refresh-stats',
         action='store_true',
         help='Refresh statistics cache for improved viewer performance'
     )
-    parser.add_argument(
+    commands.add_argument(
         '--stats-info',
         action='store_true',
         help='Show statistics cache info (age, freshness)'
     )
-    parser.add_argument(
+    commands.add_argument(
         '--compact-config',
         action='store_true',
         help='Rewrite scoring_config.json as the override it is, dropping every '
              'value equal to the shipped default'
     )
-    parser.add_argument(
+    commands.add_argument(
         '--vacuum',
         action='store_true',
         help='Reclaim space and defragment the database'
     )
-    parser.add_argument(
+    commands.add_argument(
         '--analyze',
         action='store_true',
         help='Update query planner statistics for better performance'
     )
-    parser.add_argument(
+    commands.add_argument(
         '--optimize',
         action='store_true',
         help='Run VACUUM + ANALYZE for full database optimization'
     )
-    parser.add_argument(
+    commands.add_argument(
         '--cleanup-orphaned-persons',
         action='store_true',
         help='Delete persons with no assigned faces'
     )
-    parser.add_argument(
+    commands.add_argument(
         '--cleanup-missing-photos',
         action='store_true',
         help='Remove deleted files from the database'
@@ -393,7 +395,7 @@ def main():
         action='store_true',
         help='Delete even if every photo appears missing (use with --cleanup-missing-photos)'
     )
-    parser.add_argument(
+    commands.add_argument(
         '--export-viewer-db',
         nargs='?',
         const='photo_scores_viewer.db',
@@ -405,7 +407,7 @@ def main():
         action='store_true',
         help='Force full re-export even if viewer DB already exists (use with --export-viewer-db)'
     )
-    parser.add_argument(
+    commands.add_argument(
         '--add-user',
         metavar='USERNAME',
         help='Add a user to scoring_config.json (prompts for password)'
@@ -413,7 +415,6 @@ def main():
     parser.add_argument(
         '--role',
         choices=['user', 'admin', 'superadmin'],
-        default='user',
         help='Role for --add-user (default: user)'
     )
     parser.add_argument(
@@ -421,12 +422,12 @@ def main():
         metavar='NAME',
         help='Display name for --add-user'
     )
-    parser.add_argument(
+    commands.add_argument(
         '--rotate-secret',
         action='store_true',
         help='Generate a new session/frame signing secret (logs everyone out)'
     )
-    parser.add_argument(
+    commands.add_argument(
         '--migrate-user-preferences',
         action='store_true',
         help='Copy ratings from photos table to user_preferences for a user'
@@ -436,27 +437,27 @@ def main():
         metavar='USERNAME',
         help='Username for --migrate-user-preferences'
     )
-    parser.add_argument(
+    commands.add_argument(
         '--rebuild-fts',
         action='store_true',
         help='Rebuild FTS5 full-text search index from existing captions and tags'
     )
-    parser.add_argument(
+    commands.add_argument(
         '--populate-vec',
         action='store_true',
         help='Populate photos_vec vector search table from existing CLIP/SigLIP embeddings'
     )
-    parser.add_argument(
+    commands.add_argument(
         '--migrate-storage-fs',
         action='store_true',
         help='Migrate thumbnails and embeddings from database BLOBs to filesystem'
     )
-    parser.add_argument(
+    commands.add_argument(
         '--migrate-storage-db',
         action='store_true',
         help='Migrate thumbnails and embeddings from filesystem back to database'
     )
-    parser.add_argument(
+    commands.add_argument(
         '--backup',
         action='store_true',
         help='Write a timestamped, WAL-safe snapshot of the database (rotates to --keep copies)'
@@ -464,18 +465,33 @@ def main():
     parser.add_argument(
         '--keep',
         type=int,
-        default=3,
         metavar='N',
         help='Number of database backups to retain with --backup (default: 3)'
     )
 
-    parser.add_argument('--relink-photos', action='store_true',
+    commands.add_argument('--relink-photos', action='store_true',
                         help='Preview/apply explicitly moved photo paths; use --relink-photos --help for the bounded workflow')
 
     args = parser.parse_args()
+    for flag in ('--add-user', '--export-viewer-db'):
+        if getattr(args, flag[2:].replace('-', '_')) == '':
+            parser.error(f"{flag} requires a non-empty value")
 
     if args.dry_run and not args.cleanup_missing_photos:
         parser.error("--dry-run can only be used with --cleanup-missing-photos")
+
+    for flag, supplied, command in (
+        ('--force', args.force, '--cleanup-missing-photos'),
+        ('--force-export', args.force_export, '--export-viewer-db'),
+        ('--role', args.role is not None, '--add-user'),
+        ('--display-name', args.display_name is not None, '--add-user'),
+        ('--user', args.user is not None, '--migrate-user-preferences'),
+        ('--keep', args.keep is not None, '--backup'),
+    ):
+        if supplied and not getattr(args, command[2:].replace('-', '_')):
+            parser.error(f"{flag} requires {command}")
+    args.role = args.role if args.role is not None else 'user'
+    args.keep = args.keep if args.keep is not None else 3
 
     _hold_library_lock(args)
 

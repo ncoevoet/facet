@@ -88,6 +88,8 @@ Restart the viewer after setting `viewer.edition_password`: the config is not ho
 
 Login also sets the session token in an `HttpOnly` `SameSite=Lax` cookie, so thumbnails and the scan progress stream load on password-protected installs. The cookie is honored for read-only requests (GET/HEAD) only; edits still need the Bearer token. Logging out (`POST /api/auth/logout`) clears it.
 
+Library thumbnails, full images and face/person crops use private HTTP cache headers that require revalidation. They bypass the service worker, which no longer saves an offline thumbnail cache. Image URLs carry a `session` query parameter, which is not a credential and changes when the signed-in account changes, so the viewer does not reuse an earlier account's decoded images. Private photo history snapshots are usable only in their original session; Back after logout/login or a page reload rechecks access before displaying metadata. This does not erase image bytes or history already delivered to the browser. Public album shares and frame kiosks keep their separate access policies. An explicit server refusal of **Lock editing** leaves the current privileges visible and shows an error; an interrupted response must first reconcile its cookie, as described below.
+
 ### Multi-User Mode
 
 For a family NAS where each member has private photo folders. Add a `users` section to `scoring_config.json`:
@@ -124,6 +126,11 @@ python database.py --add-user alice --role superadmin --display-name "Alice"
 ```
 
 See [Configuration](CONFIGURATION.md#users) for the full reference.
+
+Changing an account's stored password hash or role, or deleting the account, invalidates its existing sessions once the server loads the new configuration. This includes image cookies, scan-stream tokens and the in-page assistant. Log in again after an account change; existing multi-user sessions also need one fresh login after this upgrade. Removing every user does not preserve an old administrator token. Rotating `viewer.password` still invalidates all sessions; rotating `viewer.edition_password` drops edition rights in single-user mode. Edition login/logout applies only to single-user mode; role-based accounts log out or have their role changed instead. Ordinary logout clears this browser's credentials rather than revoking an individual copied token.
+
+Login, edition changes and logout run in order within a tab so their image cookies and Bearer credentials cannot overtake one another; a stalled authentication request is aborted after 15 seconds. Browsers with Web Locks also coordinate these operations across tabs (HTTPS and localhost). On HTTP origins without Web Locks, simultaneous logins in different tabs follow completion order; the last completed login becomes the shared browser account. If a response fails after updating its image cookie, Facet reconciles that cookie with the confirmed Bearer session before showing the account again. If reconciliation and cleanup both fail, the account stays unconfirmed across reloads until a later retry succeeds.
+
 
 ### Roles
 
@@ -1191,6 +1198,8 @@ The Stats page (`/stats`) has 5 tabs. Its overview shows photo, person and face 
 | **Categories** | Category analytics, weight management, and score correlations |
 | **Correlations** | Custom X/Y metric correlation charts with grouping. Opens on scores by year, and suggested charts (noise vs ISO by camera, score by category, score by focal length) fill in the form and draw in one click. Until you edit the form, a filter change redraws the chart; after an edit, the **Load Correlations** refresh button does |
 
+In **Correlations**, changing a query option clears the previous result; press **Load** to fetch the new selection before exporting CSV. The chart and CSV describe the same loaded selection. Changing the chart style or theme keeps that selection.
+
 ### Categories Tab
 
 Four sub-tabs:
@@ -1265,9 +1274,9 @@ For older changes, see [Organization history](#organization-history).
 
 ## Progressive Web App
 
-Production builds can be installed to the home screen. The app shell loads offline, and up to 1000 thumbnails are cached for 7 days (larger sizes, such as the darkroom's 1920 px renders, rely on the browser cache). API responses are never cached, except translation bundles. A snackbar offers a reload when a new version is deployed.
+Production builds can be installed to the home screen. The app shell loads offline; thumbnails and other library images are not cached offline. Before reusing a stored copy, the browser revalidates it with the server, so a revoked session cannot load it again; an image already shown in an open tab can stay visible there until the tab reloads. API responses are never cached, except translation bundles. A snackbar offers a reload when a new version is deployed.
 
-> **Warning:** logout attempts to remove existing service-worker thumbnail entries. Requests already in flight can cache images again. This does not clear the browser’s HTTP cache, which can keep viewed images (thumbnails, renders, full-resolution images) for up to a year. Accounts that must not see each other’s photos should not share a browser profile.
+> **Note:** the browser revalidates each image with the server before reusing it, so after logout or a revoked session a stored copy is not shown again. Bytes already delivered are not erased: accounts that must not see each other's photos should still not share a browser profile.
 
 ## Mobile
 

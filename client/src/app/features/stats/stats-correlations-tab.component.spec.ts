@@ -1,12 +1,16 @@
 import { TestBed } from '@angular/core/testing';
 import { signal } from '@angular/core';
 import { Observable, of, Subject, throwError } from 'rxjs';
+import type { Mock } from 'vitest';
+import { Chart } from 'chart.js';
 import { ApiService } from '../../core/services/api.service';
 import { AuthService } from '../../core/services/auth.service';
+import { ThemeService } from '../../core/services/theme.service';
 import { I18nService } from '../../core/services/i18n.service';
 import { StatsFiltersService } from './stats-filters.service';
 import { allocateSeriesSlots, CORRELATION_PRESETS, correlationSeries, StatsCorrelationsTabComponent } from './stats-correlations-tab.component';
 import { buildCorrelationCsvRecords } from './stats-correlations-csv';
+import { chartSeriesColors } from './chart-theme';
 
 describe('StatsCorrelationsTabComponent', () => {
   let component: StatsCorrelationsTabComponent;
@@ -454,6 +458,181 @@ describe('Correlation error recovery', () => {
     expect(document.activeElement?.textContent).toContain('stats.metric_correlations');
     fixture.destroy();
     fixture.nativeElement.remove();
+  });
+});
+
+describe('Correlation request ownership', () => {
+  let component: StatsCorrelationsTabComponent;
+  let api: { get: Mock };
+  let csvTexts: string[];
+  let originalBlob: typeof Blob;
+  let originalCreateUrl: typeof URL.createObjectURL;
+  let originalRevokeUrl: typeof URL.revokeObjectURL;
+  const filters = () => TestBed.inject(StatsFiltersService);
+  const response = {
+    labels: ['2024'],
+    groups: { canon: { '2024': { aggregate: 7.5, aesthetic: 6.5 } } },
+    x_axis: 'date_year', group_by: 'camera_model',
+  };
+
+  beforeEach(() => {
+    api = { get: vi.fn(() => of(response)) };
+    csvTexts = [];
+    originalBlob = globalThis.Blob;
+    originalCreateUrl = URL.createObjectURL;
+    originalRevokeUrl = URL.revokeObjectURL;
+    globalThis.Blob = function (parts: BlobPart[], options?: BlobPropertyBag) {
+      csvTexts.push(String(parts[0]).replace(/^\uFEFF/, ''));
+      return new originalBlob(parts, options);
+    } as unknown as typeof Blob;
+    URL.createObjectURL = vi.fn(() => 'blob:correlation-test');
+    URL.revokeObjectURL = vi.fn();
+    vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(() => {});
+    TestBed.configureTestingModule({
+      providers: [
+        StatsCorrelationsTabComponent,
+        { provide: ApiService, useValue: api },
+        { provide: AuthService, useValue: { status: signal({ authenticated: true }), identity: signal('owner'), isAuthenticated: signal(true), token: 'token' } },
+        { provide: I18nService, useValue: { t: vi.fn((k: string) => k), locale: signal('en'), currentLang: vi.fn(() => 'en'), translations: signal({}) } },
+        { provide: StatsFiltersService, useValue: { filterCategory: signal(''), dateFrom: signal(''), dateTo: signal('') } },
+      ],
+    });
+    component = TestBed.inject(StatsCorrelationsTabComponent);
+  });
+
+  afterEach(() => {
+    globalThis.Blob = originalBlob;
+    URL.createObjectURL = originalCreateUrl;
+    URL.revokeObjectURL = originalRevokeUrl;
+    vi.restoreAllMocks();
+  });
+
+  it.each(['metric', 'x axis', 'group', 'category', 'date from', 'date to'])(
+    'invalidates the loaded chart and CSV when the draft %s changes', async control => {
+      component.corrGroupBy.set('camera_model');
+      component.corrYMetrics.set(['aggregate']);
+      await component.loadCorrelation();
+      expect(component.currentData()).toEqual(response);
+      component.exportCsv();
+      expect(csvTexts).toEqual(['date_year,group,aggregate\r\n2024,canon,7.5']);
+      csvTexts.length = 0;
+      if (control === 'metric') component.corrYMetrics.set(['aesthetic']);
+      if (control === 'x axis') component.corrXAxis.set('iso');
+      if (control === 'group') component.corrGroupBy.set('lens_model');
+      if (control === 'category') filters().filterCategory.set('portrait');
+      if (control === 'date from') filters().dateFrom.set('2025-01-01');
+      if (control === 'date to') filters().dateTo.set('2025-12-31');
+      // Even before Angular runs effects, an export cannot relabel the previous response.
+      component.exportCsv();
+      expect(csvTexts).toEqual([]);
+      expect(component.currentData()).toBeNull();
+      TestBed.tick();
+      await component.loadCorrelation();
+      expect(component.currentData()).toEqual(response);
+      component.exportCsv();
+      expect(csvTexts).toHaveLength(1);
+    },
+  );
+
+  it.each(['success', 'failure'])('ignores a queued obsolete %s after loading a new query', async outcome => {
+    await component.loadCorrelation();
+    const old = new Subject<typeof response>();
+    const latest = new Subject<typeof response>();
+    api.get.mockReturnValueOnce(old).mockReturnValueOnce(latest);
+    component.corrYMetrics.set(['aggregate']);
+    const oldDone = component.loadCorrelation();
+    if (outcome === 'success') old.next(response);
+    else old.error(new Error('obsolete query'));
+    component.corrYMetrics.set(['aesthetic']);
+    const latestDone = component.loadCorrelation();
+    await oldDone;
+    expect(component.correlationLoading()).toBe(true);
+    expect(component.currentData()).toBeNull();
+    latest.next(response);
+    latest.complete();
+    await latestDone;
+    expect(component.correlationLoading()).toBe(false);
+    expect(component.correlationFailed()).toBe(false);
+    component.exportCsv();
+    expect(csvTexts).toEqual(['date_year,group,aesthetic\r\n2024,canon,6.5']);
+  });
+
+  it('cancels a pending request when a form edit changes the query', async () => {
+    const pending = new Subject<typeof response>();
+    api.get.mockReturnValueOnce(pending);
+    const done = component.loadCorrelation();
+    expect(pending.observed).toBe(true);
+    component.edit(component.corrXAxis, 'iso');
+    TestBed.tick();
+    expect(pending.observed).toBe(false);
+    await done;
+    expect(component.correlationLoading()).toBe(false);
+    expect(component.currentData()).toBeNull();
+  });
+
+  it('reports failures without stale data and succeeds on retry', async () => {
+    await component.loadCorrelation();
+    api.get.mockReturnValueOnce(throwError(() => new Error('failure')));
+    await component.loadCorrelation();
+    expect(component.currentData()).toBeNull();
+    expect(component.correlationFailed()).toBe(true);
+    await component.loadCorrelation();
+    expect(component.correlationFailed()).toBe(false);
+    expect(component.currentData()).toEqual(response);
+  });
+
+  it('cancels the pending request on destroy', async () => {
+    const pending = new Subject<typeof response>();
+    api.get.mockReturnValueOnce(pending);
+    const done = component.loadCorrelation();
+    expect(pending.observed).toBe(true);
+    TestBed.resetTestingModule();
+    expect(pending.observed).toBe(false);
+    await done;
+    expect(component.currentData()).toBeNull();
+  });
+
+  it('renders loaded group metrics, rebuilds presentation changes, and removes a stale chart', async () => {
+    // Keep the real Chart constructor, config and destruction lifecycle. jsdom
+    // has no canvas renderer/layout: isolate those steps without mocking the
+    // module (Angular bundles shared imports differently in the full suite).
+    vi.spyOn(Chart.prototype as any, '_initialize').mockImplementation(function (this: Chart) { return this; });
+    vi.spyOn(Chart.prototype, 'update').mockImplementation(() => {});
+    vi.spyOn(HTMLCanvasElement.prototype, 'getContext').mockImplementation(function (this: HTMLCanvasElement) {
+      return { canvas: this, save() {}, resetTransform() {}, clearRect() {}, restore() {} } as unknown as CanvasRenderingContext2D;
+    });
+    const fixture = TestBed.createComponent(StatsCorrelationsTabComponent);
+    component = fixture.componentInstance;
+    component.corrGroupBy.set('camera_model');
+    component.corrYMetrics.set(['aggregate']);
+    fixture.detectChanges();
+    await component.loadCorrelation();
+    fixture.detectChanges();
+    const chart = () => Chart.getChart(fixture.nativeElement.querySelector('canvas') as HTMLCanvasElement)!;
+    const chartConfig = () => chart().config as any;
+    expect(chart()).toBeInstanceOf(Chart);
+    expect(chart().ctx).not.toBeNull();
+    expect(chartConfig().data.datasets[0].data).toEqual([7.5]);
+    component.corrChartType.set('bar');
+    const theme = TestBed.inject(ThemeService);
+    theme.setTheme('theme-green');
+    fixture.detectChanges();
+    expect(chartConfig().type).toBe('bar');
+    expect(chartConfig().data.datasets[0].borderColor).toBe(chartSeriesColors(theme.darkMode())[0]);
+    expect(chartConfig().data.datasets[0].data).toEqual([7.5]);
+    const previousChart = chart();
+    const previousCanvas = previousChart.canvas;
+    component.edit(component.corrYMetrics, ['aesthetic']);
+    fixture.detectChanges();
+    expect(previousChart.ctx).toBeNull();
+    expect(Chart.getChart(previousCanvas)).toBeUndefined();
+    expect(fixture.nativeElement.querySelector('canvas')).toBeNull();
+    expect(fixture.nativeElement.querySelector('button[mat-icon-button]').disabled).toBe(true);
+    await component.loadCorrelation();
+    fixture.detectChanges();
+    expect(chartConfig().data.datasets[0].data).toEqual([6.5]);
+    expect(fixture.nativeElement.querySelector('button[mat-icon-button]').disabled).toBe(false);
+    fixture.destroy();
   });
 });
 

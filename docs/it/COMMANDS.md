@@ -119,6 +119,7 @@ Su una GPU CUDA, appena un chunk è decodificato, lo stesso worker di decodifica
 - Gli originali non vengono mai modificati, a meno che tu non aggiunga `--embed-originals` (solo JPEG/HEIC/TIFF/PNG/DNG; i RAW non vengono mai toccati).
 - Le parole chiave sono i tag IA più i tuoi [tag manuali](VIEWER.md#tag-manuali). Vengono solo aggiunte, a meno che `--reconcile-keywords` rimuova quelle scritte in precedenza da Facet; le parole chiave esterne vengono conservate. Vedi [Tag manuali e parole chiave XMP](INTEROP.md#tag-manuali-e-parole-chiave-xmp).
 - L'incorporamento e l'unione delle parole chiave richiedono **exiftool**. Senza, Facet scrive un sidecar XML semplice.
+- Il riepilogo conta i file scritti, incorporati, mancanti e falliti. Qualsiasi errore di scrittura termina con codice 1, anche un'esportazione riuscita solo in parte; i file completati restano scritti. Gli originali mancanti vengono saltati e contati e da soli non fanno fallire il comando. Una selezione vuota termina con 0.
 
 **Importazione dei sidecar.**
 
@@ -487,6 +488,8 @@ Il passaggio di tagging al termine di una scansione viene saltato quando `taggin
 
 Controlli: intervalli dei punteggi, metriche dei volti, corruzione dei BLOB, dimensioni degli embedding, volti orfani, valori statistici anomali.
 
+Sia le riparazioni interattive sia `--auto-fix` prendono il blocco della libreria e ricontrollano i problemi prima di scrivere. La modalità interattiva attende la tua conferma iniziale prima di prendere il blocco. Una libreria occupata termina con 75; un blocco inutilizzabile con 1. `--report-only` e il rifiuto delle riparazioni non richiedono il blocco di riparazione.
+
 ## Manutenzione del database
 
 | Comando | Descrizione |
@@ -517,6 +520,10 @@ Controlli: intervalli dei punteggi, metriche dei volti, corruzione dei BLOB, dim
 | `python database.py --migrate-user-preferences --user alice` | Copia le valutazioni da photos a user_preferences |
 
 **`python database.py`** costruisce anche gli indici mancanti della galleria (vedi [VIEWER.md](VIEWER.md#indici-della-galleria-e-cache-dei-conteggi)). Su una libreria grande, eseguilo una volta prima di avviare il visualizzatore; può richiedere circa un minuto. Altrimenti il visualizzatore li costruisce in background e nel frattempo rifiuta i salvataggi.
+
+**`--backup`** pubblica uno snapshot completato con un nome univoco con data e ora prima di ruotare i vecchi snapshot. Le esecuzioni nello stesso secondo mantengono snapshot separati; una copia fallita lascia intatti i backup precedenti. Il filesystem di destinazione deve supportare gli hard link.
+
+**`--export-viewer-db`** mantiene le modifiche della destinazione e i luoghi privati durante la sincronizzazione incrementale. Le esportazioni complete omettono i luoghi salvati/recenti della sorgente. Vedi [completamento e nuovo tentativo dell'esportazione](DEPLOYMENT.md#esporta-il-database-leggero) per pubblicazione, aggiornamenti dello schema e ripristino dopo un errore.
 
 **`--migrate-tags`** serve una sola volta. Dopo, scansioni, `--recompute-tags`, `--recompute-tags-vlm` e `tag_existing.py` mantengono la tabella aggiornata. Finché non è popolata, i filtri sui tag usano una ricerca `LIKE` più lenta.
 

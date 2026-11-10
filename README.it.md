@@ -144,7 +144,7 @@ Passa il puntatore su una foto per vedere il dettaglio del punteggio e i dati EX
 
 - **Modalità scura e chiara** con 10 temi di colore d'accento; rispetta la preferenza di sistema
 - **Reattiva** — si adatta da mobile a desktop, con un pannello di azioni in blocco ottimizzato per il tocco sugli schermi piccoli
-- **PWA installabile** — manifest dell'app web + service worker: installa nella schermata principale, shell dell'app offline, miniature memorizzate nella cache
+- **PWA installabile** — manifest dell'app web + service worker: installa nella schermata principale, shell dell'app offline
 - **Galleria virtualizzata** — renderizza solo una manciata di nodi DOM indipendentemente dalle dimensioni della libreria, così lo scorrimento resta veloce con oltre 100k foto
 - **Scansioni riprendibili** — le scansioni interrotte riprendono (`--resume`), i file falliti vengono tracciati e ritentabili (`--retry-failed`), il progresso viene trasmesso all'interfaccia web
 - **7 lingue nell'interfaccia** — l'interfaccia è disponibile in inglese, francese, tedesco, spagnolo, italiano, portoghese brasiliano e cinese semplificato (简体中文); la documentazione è disponibile in tutte le sette lingue

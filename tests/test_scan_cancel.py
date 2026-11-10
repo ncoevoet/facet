@@ -12,10 +12,15 @@ from starlette.requests import Request
 import pytest
 
 from api import create_app
-from api.auth import CurrentUser, require_authenticated, require_scan_access
+from api.auth import CurrentUser, create_access_token, decode_access_token, require_authenticated, require_scan_access
 from api.routers import scan
 
 JOB = '1' * 32
+
+
+def _edition_stream_payload() -> dict:
+    """A live single-user edition stream token: one the per-tick revocation recheck keeps open."""
+    return decode_access_token(create_access_token({'purpose': scan.SCAN_STREAM_PURPOSE, 'edition': True}))
 
 
 @pytest.fixture
@@ -104,7 +109,8 @@ def test_obsolete_reader_cannot_change_a_newer_process_state(owned_scan):
 
 @pytest.mark.asyncio
 async def test_sse_snapshot_does_not_block_event_loop_while_start_lock_is_held(owned_scan, monkeypatch):
-    monkeypatch.setattr(scan, '_verify_scan_stream_token', lambda token: {})
+    payload = _edition_stream_payload()
+    monkeypatch.setattr(scan, '_verify_scan_stream_token', lambda token: payload)
     entered = threading.Event()
     release = threading.Event()
     released = threading.Event()
@@ -135,7 +141,8 @@ async def test_sse_snapshot_does_not_block_event_loop_while_start_lock_is_held(o
 @pytest.mark.asyncio
 async def test_sse_emits_a_stop_request_before_exit_even_without_new_output(owned_scan, monkeypatch):
     _, state, _ = owned_scan
-    monkeypatch.setattr(scan, '_verify_scan_stream_token', lambda token: {})
+    payload = _edition_stream_payload()
+    monkeypatch.setattr(scan, '_verify_scan_stream_token', lambda token: payload)
     original_sleep = asyncio.sleep
     calls = 0
 

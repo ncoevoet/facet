@@ -119,6 +119,7 @@ Auf einer CUDA-GPU beginnt der Decode-Worker, sobald ein Chunk dekodiert ist, mi
 - Originale werden nie verändert, außer Sie fügen `--embed-originals` hinzu (nur JPEG/HEIC/TIFF/PNG/DNG; RAW wird nie angetastet).
 - Stichwörter sind die KI-Tags plus Ihre [manuellen Tags](VIEWER.md#manuelle-tags). Sie werden nur ergänzt, außer `--reconcile-keywords` entfernt solche, die Facet früher geschrieben hat; fremde Stichwörter bleiben erhalten. Siehe [Manuelle Tags und XMP-Stichwörter](INTEROP.md#manuelle-tags-und-xmp-stichwörter).
 - Einbetten und Zusammenführen von Stichwörtern erfordern **exiftool**. Ohne es schreibt Facet eine reine XML-Sidecar.
+- Die Zusammenfassung zählt geschriebene, eingebettete, fehlende und fehlgeschlagene Dateien. Jeder Schreibfehler beendet mit Exit-Code 1, auch ein teilweise erfolgreicher Export; fertige Dateien bleiben geschrieben. Fehlende Originale werden übersprungen und gezählt und lassen den Befehl allein nicht fehlschlagen. Eine leere Auswahl beendet mit 0.
 
 **Sidecar-Import.**
 
@@ -487,6 +488,8 @@ Der Verschlagwortungsschritt am Ende eines Scans wird übersprungen, wenn `taggi
 
 Prüft: Score-Bereiche, Gesichtsmetriken, BLOB-Beschädigung, Embedding-Größen, verwaiste Gesichter, statistische Ausreißer.
 
+Sowohl interaktive Reparaturen als auch `--auto-fix` nehmen die Bibliothekssperre und prüfen die Probleme vor dem Schreiben erneut. Der interaktive Modus wartet auf Ihre erste Bestätigung, bevor er die Sperre nimmt. Eine belegte Bibliothek beendet mit 75; eine unbrauchbare Sperre mit 1. `--report-only` und das Ablehnen von Reparaturen brauchen die Reparatursperre nicht.
+
 ## Datenbankpflege
 
 | Befehl | Beschreibung |
@@ -517,6 +520,10 @@ Prüft: Score-Bereiche, Gesichtsmetriken, BLOB-Beschädigung, Embedding-Größen
 | `python database.py --migrate-user-preferences --user alice` | Bewertungen von photos in user_preferences kopieren |
 
 **`python database.py`** baut außerdem fehlende Galerie-Indizes (siehe [VIEWER.md](VIEWER.md#galerie-indizes-und-zähler-cache)). Führen Sie es bei einer großen Bibliothek einmal vor dem Start des Viewers aus; es kann etwa eine Minute dauern. Sonst baut der Viewer sie im Hintergrund und lehnt währenddessen Speichern ab.
+
+**`--backup`** veröffentlicht einen fertigen Snapshot unter einem eindeutigen Zeitstempelnamen, bevor alte Snapshots rotiert werden. Läufe in derselben Sekunde behalten getrennte Snapshots; eine fehlgeschlagene Kopie lässt frühere Backups unberührt. Das Zieldateisystem muss Hardlinks unterstützen.
+
+**`--export-viewer-db`** behält Änderungen und private Orte im Ziel bei der inkrementellen Synchronisierung. Vollständige Exporte lassen die gespeicherten/zuletzt verwendeten Orte der Quelle weg. Siehe [Exportabschluss und Wiederholung](DEPLOYMENT.md#leichtgewichtige-datenbank-exportieren) für Veröffentlichung, Schema-Upgrades und Wiederherstellung nach einem Fehler.
 
 **`--migrate-tags`** ist nur einmal nötig. Danach halten Scans, `--recompute-tags`, `--recompute-tags-vlm` und `tag_existing.py` die Tabelle aktuell. Solange sie nicht gefüllt ist, nutzen Tag-Filter eine langsamere `LIKE`-Suche.
 

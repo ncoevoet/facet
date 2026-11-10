@@ -157,7 +157,7 @@ class TestThumbnailRenderedFromOriginal:
         assert resp.status_code == 200
         assert resp.headers["content-type"] == "image/jpeg"
         assert _image_size(resp.content) == (1920, 1280)
-        assert resp.headers["cache-control"] == "public, max-age=31536000"
+        assert resp.headers["cache-control"] == "private, no-cache, must-revalidate"
 
     def test_every_size_above_640_shares_one_1920_render(self, client, photo):
         path = photo(original=_make_jpeg_bytes((3000, 2000)))
@@ -202,7 +202,7 @@ class TestThumbnailRenderedFromOriginal:
 
         assert resp.status_code == 200
         assert _image_size(resp.content) == self.STORED
-        assert resp.headers["cache-control"] == "public, max-age=60"
+        assert resp.headers["cache-control"] == "private, no-cache, must-revalidate"
 
     def test_an_undecodable_original_serves_the_stored_thumbnail_briefly(self, client, photo):
         path = photo(original=b"not an image")
@@ -211,7 +211,7 @@ class TestThumbnailRenderedFromOriginal:
 
         assert resp.status_code == 200
         assert _image_size(resp.content) == self.STORED
-        assert resp.headers["cache-control"] == "public, max-age=60"
+        assert resp.headers["cache-control"] == "private, no-cache, must-revalidate"
 
     @pytest.mark.parametrize("error", [OSError, ValueError, RuntimeError])
     def test_a_failing_render_serves_the_stored_thumbnail(self, client, photo, error):
@@ -314,7 +314,7 @@ class TestThumbnailRenderedFromOriginal:
 
         load.assert_not_called()
         assert _image_size(result["resp"].content) == self.STORED
-        assert result["resp"].headers["cache-control"] == "public, max-age=60"
+        assert result["resp"].headers["cache-control"] == "private, no-cache, must-revalidate"
 
     def _two_identical_requests(self, client, path, decode, first_decode):
         """Hold one decode, join a second request to it, release, return both responses.
@@ -596,7 +596,7 @@ class TestThumbnailRenderedFromOriginal:
     def _assert_stand_in(self, resp):
         assert resp.status_code == 200
         assert _image_size(resp.content) == self.STORED
-        assert resp.headers["cache-control"] == "public, max-age=60"
+        assert resp.headers["cache-control"] == "private, no-cache, must-revalidate"
         from PIL import Image
         assert Image.open(BytesIO(resp.content)).convert("L").getextrema()[1] > 0
 
@@ -717,7 +717,7 @@ class TestImage:
         assert resp.status_code == 200
         assert resp.headers["content-type"] == "image/jpeg"
         assert resp.content == jpeg_bytes
-        assert resp.headers["cache-control"] == "public, max-age=60"
+        assert resp.headers["cache-control"] == "private, no-cache, must-revalidate"
 
     def test_image_raw_decode_failure_without_fallback_returns_500(self, client, tmp_path):
         """Without fallback=thumbnail, a RAW decode failure still surfaces as a 500."""

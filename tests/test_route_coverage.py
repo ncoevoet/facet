@@ -143,6 +143,7 @@ POST_ROUTES = [
                                          'identity_token': '0' * 64, 'expected_person_name': 'Absent', 'receipt_id': '0' * 32}),
     ('/api/scan/retry/preview', {'run_id': 1}),
     ('/api/scan/retry/apply', {'plan_id': '0' * 32, 'confirm': True}),
+    ('/api/auth/cookie', {}),
     ('/api/stacks', {'paths': ['/none/a.jpg', '/none/b.jpg'], 'cover_path': '/none/a.jpg'}),
     ('/api/logical_assets/review', {'asset_id': 'a' * 32, 'group_revision': 1, 'revision': 0, 'input_token': 'b' * 64, 'patch': {'star_rating': 3}}),
     ('/api/logical_assets/preview', {'operation': 'create', 'paths': ['/none/a.jpg', '/none/a.CR2'], 'primary_path': '/none/a.jpg'}),

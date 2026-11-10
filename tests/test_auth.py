@@ -754,6 +754,7 @@ class TestMultiUserMode:
             mock.patch(f"{_AUTH_MODULE}.is_multi_user_enabled", return_value=True),
             mock.patch("api.auth.is_multi_user_enabled", return_value=True),
             mock.patch(f"{_AUTH_MODULE}.get_user_config", side_effect=_get_user),
+            mock.patch("api.auth.get_user_config", side_effect=_get_user),
             mock.patch(f"{_AUTH_MODULE}._login_limiter", _fresh_limiter()),
         ):
             yield

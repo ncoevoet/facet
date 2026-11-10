@@ -24,7 +24,11 @@ describe('CullFilePreviewComponent', () => {
     const paths = Array.from({ length: 49 }, (_, n) => `/photos/${n}.jpg`);
     const { fixture, root, button } = build(paths);
     expect(root.querySelectorAll('li')).toHaveLength(24);
-    expect(root.querySelector('img')?.getAttribute('src')).toBe('/thumbnail?path=%2Fphotos%2F0.jpg&size=320');
+    const url = new URL(root.querySelector('img')!.getAttribute('src')!, 'http://facet.test');
+    expect(url.pathname).toBe('/thumbnail');
+    expect(Object.fromEntries(url.searchParams)).toEqual({
+      path: '/photos/0.jpg', size: '320', v: '3', 'ngsw-bypass': '1', session: expect.stringMatching(/^[a-f0-9]{32}$/),
+    });
     expect(button('previous').disabled).toBe(true);
     button('next').click(); fixture.detectChanges();
     expect(root.querySelector('img')?.alt).toBe('24.jpg');
@@ -57,7 +61,11 @@ describe('CullFilePreviewComponent', () => {
     const { fixture, root } = build(['/disk/mapped.jpg']);
     fixture.componentRef.setInput('thumbnailPaths', { '/disk/mapped.jpg': '/remote/mapped.jpg' });
     fixture.detectChanges();
-    expect(root.querySelector('li img')?.getAttribute('src')).toBe('/thumbnail?path=%2Fremote%2Fmapped.jpg&size=320');
+    const url = new URL(root.querySelector('li img')!.getAttribute('src')!, 'http://facet.test');
+    expect(url.pathname).toBe('/thumbnail');
+    expect(Object.fromEntries(url.searchParams)).toEqual({
+      path: '/remote/mapped.jpg', size: '320', v: '3', 'ngsw-bypass': '1', session: expect.stringMatching(/^[a-f0-9]{32}$/),
+    });
     expect(root.querySelector('li p')?.textContent).toBe('/disk/mapped.jpg');
     (root.querySelector('li button') as HTMLButtonElement).click(); fixture.detectChanges();
     expect(root.querySelector('figure img')?.getAttribute('src')).toContain('path=%2Fremote%2Fmapped.jpg');

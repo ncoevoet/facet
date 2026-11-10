@@ -88,6 +88,8 @@ Riavvia la galleria dopo aver impostato `viewer.edition_password`: la configuraz
 
 Il login imposta anche il token di sessione in un cookie `HttpOnly` `SameSite=Lax`, così miniature e flusso di avanzamento della scansione si caricano sulle installazioni protette da password. Il cookie vale solo per le richieste in sola lettura (GET/HEAD); le modifiche richiedono ancora il token Bearer. Il logout (`POST /api/auth/logout`) lo cancella.
 
+Le miniature della libreria, le immagini a dimensione piena e i ritagli di volti/persone vengono servite con intestazioni di cache HTTP private che richiedono la rivalidazione. Aggirano il service worker, che non salva più una cache offline delle miniature. Gli URL delle immagini hanno un parametro di query `session`, che non è una credenziale e cambia quando cambia l'account connesso; il visualizzatore non riutilizza quindi le immagini decodificate di un account precedente. Le istantanee della cronologia delle foto private sono utilizzabili solo nella sessione originale; Indietro dopo logout/login, o un ricaricamento della pagina, ricontrolla l'accesso prima di mostrare i metadati. Questo non cancella i byte delle immagini né la cronologia già consegnati al browser. Le condivisioni pubbliche di album e i chioschi per cornici seguono regole di accesso proprie. Se il server rifiuta esplicitamente **Blocca modifica**, i privilegi attuali restano visibili e compare un errore; una risposta interrotta deve prima riconciliare il proprio cookie, come descritto sotto.
+
 ### Modalità multiutente
 
 Per un NAS di famiglia in cui ogni membro ha cartelle di foto private. Aggiungi una sezione `users` a `scoring_config.json`:
@@ -124,6 +126,10 @@ python database.py --add-user alice --role superadmin --display-name "Alice"
 ```
 
 Vedi [Configurazione](CONFIGURATION.md#users) per il riferimento completo.
+
+Cambiare l'hash della password o il ruolo di un account, o eliminarlo, invalida le sue sessioni esistenti non appena il server carica la nuova configurazione. Questo include i cookie delle immagini, i token del flusso di scansione e l'assistente nella pagina. Dopo una modifica all'account accedi di nuovo; anche le sessioni multiutente esistenti richiedono un nuovo accesso dopo questo aggiornamento. Rimuovere tutti gli utenti non conserva un vecchio token di amministratore. Cambiare `viewer.password` continua a invalidare tutte le sessioni; cambiare `viewer.edition_password` revoca i diritti di modifica in modalità utente singolo. Il login/logout della modifica vale solo in modalità utente singolo; gli account con ruoli si disconnettono o cambiano ruolo. Il logout ordinario cancella le credenziali di questo browser senza revocare un token copiato.
+
+Login, cambi della modifica e logout vengono eseguiti in ordine all'interno di una scheda, così i loro cookie delle immagini e le credenziali Bearer non si sorpassano; una richiesta di autenticazione bloccata viene interrotta dopo 15 secondi. I browser con Web Locks coordinano queste operazioni anche tra le schede (HTTPS e localhost). Sulle origini HTTP senza Web Locks, login simultanei in schede diverse seguono l'ordine di completamento; l'ultimo login completato diventa l'account condiviso del browser. Se una risposta fallisce dopo aver aggiornato il cookie delle immagini, Facet riconcilia quel cookie con la sessione Bearer confermata prima di mostrare di nuovo l'account. Se riconciliazione e pulizia falliscono entrambe, l'account resta non confermato dopo i ricaricamenti finché un tentativo successivo non riesce.
 
 ### Ruoli
 
@@ -1190,6 +1196,8 @@ La pagina Statistiche (`/stats`) ha 5 schede. Il riepilogo mostra i conteggi di 
 | **Categorie** | Analisi delle categorie, gestione dei pesi e correlazioni dei punteggi |
 | **Correlazioni** | Grafici di correlazione personalizzati X/Y tra metriche con raggruppamento. La scheda si apre sui punteggi per anno, e i grafici suggeriti (rumore per ISO e fotocamera, punteggio per categoria, punteggio per lunghezza focale) compilano il modulo e disegnano il grafico con un clic. Finché non modifichi il modulo, un cambio di filtro ridisegna il grafico; dopo una modifica lo fa il pulsante di aggiornamento **Carica correlazioni** |
 
+In **Correlazioni**, cambiare un'opzione della query cancella il risultato precedente; premi **Carica correlazioni** per recuperare la nuova selezione prima di esportare il CSV. Il grafico e il CSV descrivono la stessa selezione caricata. Cambiare lo stile o il tema del grafico mantiene quella selezione.
+
 ### Scheda Categorie
 
 Quattro sotto-schede:
@@ -1264,9 +1272,9 @@ Per modifiche più vecchie, vedi [Cronologia delle modifiche](#cronologia-delle-
 
 ## Progressive Web App
 
-Le build di produzione possono essere installate nella schermata iniziale. La shell dell'app si carica offline, e fino a 1000 miniature sono messe in cache per 7 giorni (le dimensioni più grandi, come i rendering da 1920 px della camera oscura, si affidano alla cache del browser). Le risposte API non vengono mai messe in cache, tranne i pacchetti di traduzione. Una snackbar propone un ricaricamento quando viene distribuita una nuova versione.
+Le build di produzione possono essere installate nella schermata iniziale. La shell dell'app si carica offline; le miniature e le altre immagini della libreria non sono memorizzate nella cache offline. Prima di riutilizzare una copia memorizzata, il browser la rivalida con il server, quindi una sessione revocata non può caricarla di nuovo; un'immagine già mostrata in una scheda aperta può restarvi visibile finché la scheda non viene ricaricata. Le risposte dell'API non vengono mai memorizzate nella cache, tranne i pacchetti di traduzione. Uno snackbar propone un ricaricamento quando viene distribuita una nuova versione.
 
-> **Avviso:** al logout, l’app tenta di rimuovere le miniature presenti nella cache del service worker. Le richieste già in corso possono memorizzare nuovamente le immagini. Questo non cancella la cache HTTP del browser, che può conservare le immagini viste (miniature, rendering, immagini a piena risoluzione) fino a un anno. Gli account che non devono vedere le foto l’uno dell’altro non dovrebbero condividere un profilo del browser.
+> **Nota:** il browser rivalida ogni immagine con il server prima di riutilizzarla; dopo un logout o una sessione revocata una copia memorizzata non viene quindi più mostrata. I byte già consegnati non vengono cancellati: gli account che non devono vedere le foto degli altri non dovrebbero comunque condividere un profilo del browser.
 
 ## Mobile
 

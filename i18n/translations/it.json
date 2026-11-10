@@ -1038,6 +1038,7 @@
     "unlock_description": "Inserisci la password di modifica per abilitare le funzionalita di editing.",
     "unlock_button": "Sblocca",
     "lock_title": "Modalita di modifica attiva - clicca per bloccare",
+    "lock_failed": "Impossibile confermare il blocco. La modalità modifica potrebbe essere ancora attiva; riprova.",
     "password_placeholder": "Password di modifica",
     "invalid_password": "Password non valida",
     "read_only_hint": "Sola lettura: imposta viewer.edition_password in scoring_config.json per abilitare valutazione, selezione e modifica, poi riavvia il viewer."

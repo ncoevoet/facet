@@ -330,3 +330,38 @@ def test_a_lan_replay_of_a_local_stream_token_is_refused(build, monkeypatch):
     token = local.client.get("/api/scan/stream_token").json()["token"]
     assert local.client.get("/api/scan/stream", params={"token": token, "lines": 1}).status_code == 200
     assert remote.client.get("/api/scan/stream", params={"token": token, "lines": 1}).status_code == 403
+
+
+def test_a_lan_replay_of_a_local_stream_token_is_refused_with_the_scan_button_on(build, monkeypatch):
+    for key, value in (("running", False), ("directories", ["/local-only-dir"]), ("exit_code", None),
+                       ("progress", None), ("started_at", None), ("output_lines", deque(["local-only line"], maxlen=500))):
+        monkeypatch.setitem(scan._scan_state, key, value)
+    local, remote = build()
+    token = local.client.get("/api/scan/stream_token").json()["token"]
+    api_config.VIEWER_CONFIG["features"]["show_scan_button"] = True
+    replay = remote.client.get("/api/scan/stream", params={"token": token, "lines": 1})
+    assert replay.status_code == 403
+    assert "local-only line" not in replay.text
+    assert local.client.get("/api/scan/stream", params={"token": token, "lines": 1}).status_code == 200
+
+
+def test_setting_a_password_closes_an_open_trusted_local_stream(build, monkeypatch):
+    import json
+
+    import httpx
+    from api.auth import hash_password
+    from tests.conftest import serve_app
+
+    for key, value in (("running", True), ("directories", ["/local-only-dir"]), ("exit_code", None),
+                       ("progress", None), ("started_at", None), ("output_lines", deque(["local-only line"], maxlen=500))):
+        monkeypatch.setitem(scan._scan_state, key, value)
+    local, _ = build()
+    token = local.client.get("/api/scan/stream_token").json()["token"]
+    with serve_app(local.client.app, access_log=False) as port:
+        with httpx.stream("GET", f"http://127.0.0.1:{port}/api/scan/stream", params={"token": token}, timeout=5) as response:
+            assert response.status_code == 200
+            lines = response.iter_lines()
+            assert json.loads(next(lines).removeprefix("data: "))["output"] == ["local-only line"]
+            assert next(lines) == ""
+            api_config.VIEWER_CONFIG["edition_password"] = hash_password("now-protected")
+            assert list(lines) == [], "a password ends the trusted-local boundary, so the stream must close"

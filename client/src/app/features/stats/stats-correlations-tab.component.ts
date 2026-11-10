@@ -24,6 +24,7 @@ import { i18nKeys } from '../../core/i18n/keys';
 import { statsAuthScope } from './stats-auth-scope';
 import { chartSeriesColors, chartTheme } from './chart-theme';
 import { HANDLE_SERVER_ERROR_LOCALLY } from '../../core/utils/http-error-context';
+import { LatestRequest } from '../../shared/utils/latest-request';
 
 /** Preserve every requested metric for each group, including missing buckets. */
 export function correlationSeries(data: CorrelationApiResponse, metrics: string[], metricLabel: (key: string) => string): { label: string; values: (number | null)[]; groupIndex: number; metricIndex: number }[] {
@@ -253,6 +254,7 @@ export class StatsCorrelationsTabComponent {
   protected readonly I18N = i18nKeys();
   private api = inject(ApiService);
   private destroyRef = inject(DestroyRef);
+  private readonly latestLoad = new LatestRequest(this.destroyRef);
   private statsFilters = inject(StatsFiltersService);
   private themeService = inject(ThemeService);
   private auth = inject(AuthService);
@@ -368,6 +370,7 @@ export class StatsCorrelationsTabComponent {
       this.statsFilters.filterCategory(); this.statsFilters.dateFrom(); this.statsFilters.dateTo();
       this.authScope();
       this.generation++;
+      this.latestLoad.cancel();
       this.corrData.set(null);
       this.seriesVisibility.set({});
       this.barColorSlots.set({});
@@ -385,6 +388,7 @@ export class StatsCorrelationsTabComponent {
       const data = this.currentData();
       this.themeService.darkMode(); this.themeService.theme(); this.corrChartType(); this.i18n.locale();
       if (data) this.buildCorrelationChart(data);
+      else this.destroyChart();
     });
 
     this.destroyRef.onDestroy(() => {
@@ -460,6 +464,7 @@ export class StatsCorrelationsTabComponent {
   async loadCorrelation(retry = false): Promise<void> {
     if (!this.auth.isAuthenticated() || this.corrYMetrics().length === 0) return;
     const generation = ++this.generation;
+    const req = this.latestLoad.begin();
     const key = this.requestKey();
     const button = retry ? this.correlationRetry()?.nativeElement : undefined;
     const doc = button?.ownerDocument;
@@ -477,7 +482,7 @@ export class StatsCorrelationsTabComponent {
       };
       if (this.corrGroupBy()) params['group_by'] = this.corrGroupBy();
       const data = await firstValueFrom(
-        this.api.get<CorrelationApiResponse>('/stats/correlations', params, new HttpContext().set(HANDLE_SERVER_ERROR_LOCALLY, true)),
+        req.bind(this.api.get<CorrelationApiResponse>('/stats/correlations', params, new HttpContext().set(HANDLE_SERVER_ERROR_LOCALLY, true))),
       );
       if (generation === this.generation && key === this.requestKey()) {
         if (this.isBarChart()) {
@@ -507,11 +512,15 @@ export class StatsCorrelationsTabComponent {
       this.statsFilters.filterCategory(), this.statsFilters.dateFrom(), this.statsFilters.dateTo()]);
   }
 
-  private buildCorrelationChart(apiData: CorrelationApiResponse): void {
-    const ref = this.correlationsCanvas();
-    if (!ref || !apiData.labels?.length) return;
+  private destroyChart(): void {
     const existing = this.charts.get('correlations');
     if (existing) { existing.destroy(); this.charts.delete('correlations'); }
+  }
+
+  private buildCorrelationChart(apiData: CorrelationApiResponse): void {
+    const ref = this.correlationsCanvas();
+    this.destroyChart();
+    if (!ref || !apiData.labels?.length) return;
     const ctx = ref.nativeElement.getContext('2d');
     if (!ctx) return;
     const palette = chartTheme();

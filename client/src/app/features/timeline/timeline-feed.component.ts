@@ -18,6 +18,7 @@ import type { Photo } from '../../shared/models/photo.model';
 import { timelineWindow } from './timeline-density.util';
 import { timelineReadContext } from './timeline-read-context';
 import { InfiniteScrollDirective } from '../../shared/directives/infinite-scroll.directive';
+import { privateImageSessionKey } from '../../shared/utils/private-image-session';
 
 @Component({
   selector: 'app-timeline-feed',
@@ -151,7 +152,7 @@ export class TimelineFeedComponent {
     event.preventDefault();
     if (!this.context || !this.current(this.context, this.generation)) return;
     this.remember(); this.cache.capturePhotos(this.groups());
-    void this.router.navigate(['/photo'], { queryParams: { path: photo.path }, state: { photo, photoOrigin: 'timeline' } });
+    void this.router.navigate(['/photo'], { queryParams: { path: photo.path }, state: { photo, photoSession: privateImageSessionKey(), photoOrigin: 'timeline' } });
   }
 
   private readonly remember = (): void => {

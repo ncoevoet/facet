@@ -23,7 +23,7 @@ from fastapi import APIRouter, Depends, HTTPException, Path as ApiPath, Query, R
 from pydantic import BaseModel
 from starlette.responses import StreamingResponse
 
-from api.auth import EDITION_PASSWORD_KEY, CurrentUser, _is_open_install, _trusted_local_editing_enabled, create_access_token, decode_access_token, require_edition, require_scan_access, scan_access_refusal, scan_feature_enabled, trusted_local_for
+from api.auth import EDITION_PASSWORD_KEY, CurrentUser, _is_open_install, _match_password_generations, _trusted_local_editing_enabled, create_access_token, decode_access_token, require_edition, require_scan_access, scan_access_refusal, scan_feature_enabled, trusted_local_for
 from api.config import VIEWER_CONFIG, FACET_SCRIPT, _CONFIG_PATH, get_all_scan_directories, get_user_directories, invalidate_stats_cache, is_multi_user_enabled, server_scoring_config, _photo_types_cache
 from api.models.scan import (
     ScanRunHistoryResponse,
@@ -722,7 +722,11 @@ def scan_stream_token(
         raise HTTPException(status_code=403, detail=refusal)
     token = create_access_token(
         {'sub': user.user_id or '_legacy', 'purpose': SCAN_STREAM_PURPOSE,
-         SCAN_STREAM_LOCAL_CLAIM: bool(user.trusted_local_editing)},
+         SCAN_STREAM_LOCAL_CLAIM: bool(user.trusted_local_editing),
+         # Single-user scan access is edition-gated: the claim is stripped on decode
+         # once the edition password rotates, which then refuses the stream. Only a
+         # password-backed edition counts; a trusted-local caller relies on the local claim.
+         'edition': bool(user.edition_authenticated) and not _is_open_install(EDITION_PASSWORD_KEY)},
         expires_delta=timedelta(seconds=SCAN_STREAM_TOKEN_TTL_SECONDS),
     )
     return {'token': token}
@@ -735,6 +739,17 @@ def _verify_scan_stream_token(token: Optional[str]) -> dict:
     if not payload or payload.get('purpose') != SCAN_STREAM_PURPOSE:
         raise HTTPException(status_code=403, detail="Invalid or expired scan stream token")
     return payload
+
+
+def _stream_scan_access_held(payload: dict, local: bool) -> bool:
+    """Whether a (freshly decoded) stream token still grants scan access.
+
+    Multi-user tokens are bound to their account generation, which decoding already
+    checks. Single-user scan access needs edition (or the trusted-local boundary),
+    and a rotated edition password strips the token's ``edition`` claim. The
+    trusted-local boundary is rechecked too: setting any password ends it.
+    """
+    return is_multi_user_enabled() or (local and _trusted_local_editing_enabled()) or payload.get('edition') is True
 
 
 def _build_scan_snapshot(lines: int) -> dict:
@@ -770,6 +785,8 @@ async def scan_stream(
         and trusted_local_for(request)
     if not scan_feature_enabled(local, VIEWER_CONFIG):
         raise HTTPException(status_code=403, detail="Scan feature not enabled")
+    if not _stream_scan_access_held(payload, local):
+        raise HTTPException(status_code=403, detail="Invalid or expired scan stream token")
 
     async def event_generator():
         import time as _time
@@ -784,6 +801,11 @@ async def scan_stream(
         HEARTBEAT_SECONDS = 15
         last_heartbeat = _time.monotonic()
         while True:
+            # Expiry limits when the short-lived token can open a connection;
+            # account/password revocation must also close an already open one.
+            current = _match_password_generations(payload.copy())
+            if current is None or not _stream_scan_access_held(current, local):
+                break
             snapshot = await asyncio.to_thread(_build_scan_snapshot, lines)
             # One captured state, including stop requests/job changes and ring
             # buffer rotation. Elapsed time alone does not generate an event.

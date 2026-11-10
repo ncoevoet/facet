@@ -2,7 +2,7 @@ import { Injectable, inject } from '@angular/core';
 import { HttpClient, HttpContext, HttpParams } from '@angular/common/http';
 import { Observable } from 'rxjs';
 import type { McpTokenCreate, McpTokenCreated, McpTokenList, McpTokenRevoked } from '../api/types';
-import { thumbnailUrl, faceThumbnailUrl, personThumbnailUrl } from '../../shared/pipes/thumbnail-url.pipe';
+import { thumbnailUrl, imageUrl, faceThumbnailUrl, personThumbnailUrl } from '../../shared/pipes/thumbnail-url.pipe';
 
 @Injectable({ providedIn: 'root' })
 export class ApiService {
@@ -73,7 +73,7 @@ export class ApiService {
 
   /** Build full image URL */
   imageUrl(path: string, revision?: string | null): string {
-    return `/image?path=${encodeURIComponent(path)}` + (revision ? `&preview=${encodeURIComponent(revision)}` : '');
+    return imageUrl(path, false, revision);
   }
 
   /** Build a download URL with an optional rendition profile. */

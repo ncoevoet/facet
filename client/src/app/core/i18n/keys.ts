@@ -1077,6 +1077,7 @@ export const I18N = {
     unlock_description: "edition.unlock_description",
     unlock_button: "edition.unlock_button",
     lock_title: "edition.lock_title",
+    lock_failed: "edition.lock_failed",
     password_placeholder: "edition.password_placeholder",
     invalid_password: "edition.invalid_password",
     read_only_hint: "edition.read_only_hint",

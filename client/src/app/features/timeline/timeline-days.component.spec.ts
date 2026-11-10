@@ -3,7 +3,7 @@ import { TestBed } from '@angular/core/testing';
 import { provideRouter, Router } from '@angular/router';
 import { AuthService } from '../../core/services/auth.service';
 import { signal } from '@angular/core';
-import { of, throwError } from 'rxjs';
+import { of, Subject, throwError } from 'rxjs';
 import { I18nService } from '../../core/services/i18n.service';
 import { ApiService } from '../../core/services/api.service';
 import { TimelineFiltersService } from './timeline-filters.service';
@@ -39,6 +39,8 @@ describe('TimelineDaysComponent', () => {
     vi.spyOn(TestBed.inject(Router), 'url', 'get').mockReturnValue('/timeline');
     TestBed.runInInjectionContext(() => {
       component = new TimelineDaysComponent();
+      component.year = signal('2024');
+      component.month = signal('6');
     });
   });
 
@@ -67,6 +69,19 @@ describe('TimelineDaysComponent', () => {
       mockApi.get.mockReturnValue(throwError(() => new Error('fail')));
       try { await (component as any).load(2024, 6, '', '', { ...noneHidden }); } catch { /* expected */ }
       expect(component.loading()).toBe(false);
+    });
+  });
+
+  describe('request ownership', () => {
+    it('cancels the pending calendar request on destroy', async () => {
+      const pending = new Subject<{ dates: unknown[] }>();
+      mockApi.get.mockReturnValueOnce(pending);
+      const done = component.load(2024, 6, '', '', noneHidden);
+      expect(pending.observed).toBe(true);
+      TestBed.resetTestingModule();
+      expect(pending.observed).toBe(false);
+      await done;
+      expect(component.calendarCells()).toEqual([]);
     });
   });
 

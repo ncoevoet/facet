@@ -422,6 +422,93 @@ describe('AlbumsComponent', () => {
     });
   });
 
+  describe('request ownership', () => {
+    const filters = () => TestBed.inject(AlbumsFiltersService);
+    const response = (name: string, total = 5) => ({
+      albums: [{ id: 9, name, is_smart: false, is_shared: false }], total,
+    });
+
+    beforeEach(async () => {
+      TestBed.tick();
+      await Promise.resolve();
+      mockAlbumService.list.mockClear();
+    });
+
+    it('keeps the newest filter result when a previous response resolves later', async () => {
+      const old = new Subject<ReturnType<typeof response>>();
+      const latest = new Subject<ReturnType<typeof response>>();
+      mockAlbumService.list.mockReturnValueOnce(old).mockReturnValueOnce(latest);
+      filters().search.set('a');
+      TestBed.tick();
+      // Queue the old Promise continuation, then start the new request before it runs.
+      old.next(response('a-old', 20));
+      filters().search.set('ab');
+      TestBed.tick();
+      await Promise.resolve();
+      expect(internals().loading()).toBe(true);
+      expect(internals().albums()).toEqual([]);
+      latest.next(response('ab-new', 1));
+      latest.complete();
+      old.complete();
+      await Promise.resolve();
+      expect(internals().albums().map((album: { name: string }) => album.name)).toEqual(['ab-new']);
+      expect(internals().total()).toBe(1);
+      expect(internals().loading()).toBe(false);
+    });
+
+    it.each(['success', 'failure'])('ignores an obsolete append %s without corrupting the new page', async outcome => {
+      const old = new Subject<ReturnType<typeof response>>();
+      mockAlbumService.list.mockReturnValueOnce(old);
+      internals().onScrollReached();
+      expect(mockAlbumService.list.mock.calls.at(-1)![0].page).toBe(2);
+      filters().sort.set('name');
+      TestBed.tick();
+      await Promise.resolve();
+      expect(internals().albums()).toEqual(mockAlbumsResponse.albums);
+      if (outcome === 'success') {
+        old.next(response('old appended page'));
+        old.complete();
+      } else {
+        old.error(new Error('obsolete append failed'));
+      }
+      await Promise.resolve();
+      expect(internals().albums()).toEqual(mockAlbumsResponse.albums);
+      expect(internals().loadFailed()).toBe(false);
+      internals().onScrollReached();
+      expect(mockAlbumService.list.mock.calls.at(-1)![0]).toMatchObject({ page: 2, sort: 'name' });
+      await Promise.resolve();
+    });
+
+    it('does not let an obsolete failure hide the loading state of the new query', async () => {
+      const old = new Subject<ReturnType<typeof response>>();
+      const latest = new Subject<ReturnType<typeof response>>();
+      mockAlbumService.list.mockReturnValueOnce(old).mockReturnValueOnce(latest);
+      filters().typeFilter.set('smart');
+      TestBed.tick();
+      old.error(new Error('old request failed'));
+      filters().typeFilter.set('');
+      TestBed.tick();
+      await Promise.resolve();
+      expect(internals().loading()).toBe(true);
+      expect(internals().loadFailed()).toBe(false);
+      latest.next(response('current'));
+      latest.complete();
+      await Promise.resolve();
+      expect(internals().albums().map((album: { name: string }) => album.name)).toEqual(['current']);
+    });
+
+    it('cancels the pending request when the component is destroyed', async () => {
+      const pending = new Subject<ReturnType<typeof response>>();
+      mockAlbumService.list.mockReturnValueOnce(pending);
+      const done = internals().loadAlbums(true);
+      expect(pending.observed).toBe(true);
+      TestBed.resetTestingModule();
+      expect(pending.observed).toBe(false);
+      await done;
+      expect(internals().albums()).toEqual([]);
+    });
+  });
+
   describe('load failures', () => {
     const lastPage = () => (mockAlbumService.list.mock.calls.at(-1)![0] as { page: number }).page;
     const settle = () => vi.waitFor(() => expect(internals().loading()).toBe(false));

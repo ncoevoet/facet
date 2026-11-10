@@ -48,6 +48,7 @@ import { UndoService } from '../../core/services/undo.service';
 import { SequenceKind } from '../../core/services/sequence-override.service';
 import { HeaderSlotService } from '../../core/services/header-slot.service';
 import { PageHelpService } from '../../core/services/page-help.service';
+import { privateImageSessionKey, resetPrivateImageSession } from '../../shared/utils/private-image-session';
 import { makePhoto } from '../../../testing/photo.fixture';
 
 @Component({ template: 'Photo route' })
@@ -733,6 +734,29 @@ describe('GalleryComponent', () => {
     expect(mockStore.clearSelection).not.toHaveBeenCalled();
     expect([...mockStore.selectedPaths()]).toEqual(['/later.jpg']);
     fixture.destroy();
+  });
+
+  it('opens a same-session gallery snapshot with its owner nonce', () => {
+    const photo = makePhoto({ path: '/alice/portrait.jpg' });
+    mockStore.photos.set([photo]);
+    const navigate = vi.spyOn(TestBed.inject(Router), 'navigate').mockResolvedValue(true);
+    component['downloadPhoto'](photo);
+    expect(navigate).toHaveBeenCalledWith(['/photo'], {
+      queryParams: { path: photo.path }, state: { photo, photoSession: privateImageSessionKey() },
+    });
+  });
+
+  it('keeps the original owner on a cached gallery row after credentials change', () => {
+    const owner = privateImageSessionKey();
+    const photo = makePhoto({ path: '/alice/portrait.jpg', filename: 'Alice private portrait.jpg' });
+    mockStore.photos.set([photo]);
+    resetPrivateImageSession();
+    const navigate = vi.spyOn(TestBed.inject(Router), 'navigate').mockResolvedValue(true);
+    component['downloadPhoto'](mockStore.photos()[0]);
+    expect(owner).not.toBe(privateImageSessionKey());
+    expect(navigate).toHaveBeenCalledWith(['/photo'], {
+      queryParams: { path: photo.path }, state: { photo, photoSession: owner },
+    });
   });
 
   it('renders the translated reason a similar search cannot run instead of a silent empty gallery', () => {
@@ -1633,6 +1657,58 @@ describe('GalleryComponent', () => {
   });
 
   describe('ngOnInit()', () => {
+    it.each([
+      { changedSession: false, setScope: false },
+      { changedSession: true, setScope: false },
+      { changedSession: true, setScope: true },
+    ])('destroy/recreate validates the source session before restoring rows: $changedSession, scoped: $setScope', async ({ changedSession, setScope }) => {
+      const alice = makePhoto({ path: '/alice/private.jpg', filename: 'Alice private portrait.jpg' });
+      const bob = makePhoto({ path: '/bob/visible.jpg', filename: 'Bob visible portrait.jpg' });
+      mockStore.loadPhotos.mockImplementation(async () => { mockStore.photos.set([alice]); });
+      const first = TestBed.createComponent(GalleryComponent);
+      first.detectChanges();
+      await first.whenStable();
+      first.detectChanges();
+      expect(first.debugElement.queryAll(By.directive(PhotoCardComponent))).toHaveLength(1);
+      first.destroy();
+      expect(mockStore.viewSnapshot()).toBeTruthy();
+      mockStore.loadConfig.mockClear();
+      mockStore.loadPhotos.mockClear();
+      let releaseConfig!: () => void;
+      if (changedSession) {
+        resetPrivateImageSession();
+        (mockAuth['status'] as WritableSignal<{ user_id: string }>).set({ user_id: 'bob' });
+        mockStore.loadConfig.mockImplementation(() => new Promise<boolean>(resolve => { releaseConfig = () => resolve(true); }));
+        mockStore.loadPhotos.mockImplementation(async () => { mockStore.photos.set([bob]); });
+      }
+      if (setScope) history.replaceState({ setScope: { sequence_group_id: '4', sequence_kind: 'bracket' } }, '', location.href);
+      const second = TestBed.createComponent(GalleryComponent);
+      try {
+        second.detectChanges();
+        if (changedSession) {
+          // A slow configuration load must not leave the previous account's rows clickable.
+          expect(mockStore.photos()).toEqual([]);
+          expect(second.debugElement.queryAll(By.directive(PhotoCardComponent))).toHaveLength(0);
+          expect(mockStore.loadConfig).toHaveBeenCalledOnce();
+          releaseConfig();
+        }
+        await second.whenStable();
+        second.detectChanges();
+        const cards = second.debugElement.queryAll(By.directive(PhotoCardComponent));
+        expect(cards).toHaveLength(1);
+        expect((cards[0].componentInstance as PhotoCardComponent).photo().path).toBe(changedSession ? bob.path : alice.path);
+        if (changedSession) expect(mockStore.loadPhotos).toHaveBeenCalledOnce();
+        else {
+          expect(mockStore.loadConfig).not.toHaveBeenCalled();
+          expect(mockStore.loadPhotos).not.toHaveBeenCalled();
+        }
+      } finally {
+        releaseConfig?.();
+        second.destroy();
+        history.replaceState(null, '', location.href);
+      }
+    });
+
     it('should call store.loadConfig, loadFilterOptions, loadTypeCounts, and loadPhotos', async () => {
       await component.ngOnInit();
 
@@ -1702,7 +1778,7 @@ describe('GalleryComponent', () => {
 
     it('reloads instead of restoring when the URL carries different query params (issue #70)', async () => {
       mockStore.photos.set([{ path: '/a.jpg' }]);
-      mockStore.viewSnapshot.set({ scrollTop: 0, albumId: null, filterKey: mockStore.filterKey() });
+      mockStore.viewSnapshot.set({ scrollTop: 0, albumId: null, filterKey: mockStore.filterKey(), photoSession: privateImageSessionKey() });
       routeMock.snapshot.queryParams = {
         date_from: '2026-01-01', date_to: '2026-01-01', sort: 'date_taken', sort_direction: 'DESC',
       };
@@ -1733,7 +1809,7 @@ describe('GalleryComponent', () => {
 
     it('restores the previous view when the URL matches the snapshot', async () => {
       mockStore.photos.set([{ path: '/a.jpg' }]);
-      mockStore.viewSnapshot.set({ scrollTop: 0, albumId: null, filterKey: mockStore.filterKey() });
+      mockStore.viewSnapshot.set({ scrollTop: 0, albumId: null, filterKey: mockStore.filterKey(), photoSession: privateImageSessionKey() });
 
       await component.ngOnInit();
 
@@ -1840,7 +1916,7 @@ describe('GalleryComponent', () => {
         // snapshot' above, which normally skips loadConfig/loadPhotos entirely
         // -- a scoped "open this set" request must still get a fresh load.
         mockStore.photos.set([{ path: '/a.jpg' }]);
-        mockStore.viewSnapshot.set({ scrollTop: 0, albumId: null, filterKey: mockStore.filterKey() });
+        mockStore.viewSnapshot.set({ scrollTop: 0, albumId: null, filterKey: mockStore.filterKey(), photoSession: privateImageSessionKey() });
         history.replaceState({
           setScope: {
             sequence_group_id: '5', sequence_kind: 'panorama', burst_group_id: '', duplicate_group_id: '',
@@ -2080,7 +2156,7 @@ describe('GalleryComponent', () => {
     it('keeps the pin when the gallery is restored from a /photo round trip', async () => {
       mockStore.pinnedPaths.set(['/a.jpg']);
       mockStore.photos.set([{ path: '/a.jpg' }]);
-      mockStore.viewSnapshot.set({ scrollTop: 0, albumId: null, filterKey: mockStore.filterKey() });
+      mockStore.viewSnapshot.set({ scrollTop: 0, albumId: null, filterKey: mockStore.filterKey(), photoSession: privateImageSessionKey() });
 
       await component.ngOnInit();
 

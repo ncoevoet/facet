@@ -144,7 +144,7 @@ Passe o cursor sobre qualquer foto para ver o detalhamento da pontuação e os d
 
 - **Modo escuro e claro** com 10 temas de cor de destaque; respeita a preferência do sistema
 - **Responsivo** — adapta-se do celular ao desktop, com uma folha de ações em massa amigável ao toque em telas pequenas
-- **PWA instalável** — manifesto de web app + service worker: instale na tela inicial, shell de app offline e miniaturas em cache
+- **PWA instalável** — manifesto de web app + service worker: instale na tela inicial, shell de app offline
 - **Galeria virtualizada** — renderiza um punhado de nós DOM independentemente do tamanho da biblioteca, mantendo a rolagem rápida com mais de 100 mil fotos
 - **Escaneamentos retomáveis** — escaneamentos interrompidos são retomados (`--resume`), os arquivos com falha são rastreados e podem ser reprocessados (`--retry-failed`), e o progresso é transmitido para a interface web
 - **7 idiomas na interface** — a interface está disponível em inglês, francês, alemão, espanhol, italiano, português do Brasil e chinês simplificado (简体中文); a documentação está disponível em todos os sete idiomas

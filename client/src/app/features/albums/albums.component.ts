@@ -13,6 +13,7 @@ import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { MatMenuModule } from '@angular/material/menu';
 import { MatSnackBar } from '@angular/material/snack-bar';
 import { firstValueFrom } from 'rxjs';
+import { LatestRequest } from '../../shared/utils/latest-request';
 import { AlbumService, Album } from '../../core/services/album.service';
 import { AuthService } from '../../core/services/auth.service';
 import { I18nService } from '../../core/services/i18n.service';
@@ -232,6 +233,8 @@ export class AlbumsComponent {
   protected readonly I18N = i18nKeys();
   protected readonly typeLabels: Record<AlbumTypeFilter, string> = { '': this.I18N.albums.type_all, manual: this.I18N.albums.type_manual, smart: this.I18N.albums.type_smart };
   private readonly albumService = inject(AlbumService);
+  private readonly destroyRef = inject(DestroyRef);
+  private readonly latestLoad = new LatestRequest(this.destroyRef);
   private readonly journal = inject(UserActivityJournal);
   private readonly dialog = inject(MatDialog);
   private readonly i18n = inject(I18nService);
@@ -241,7 +244,6 @@ export class AlbumsComponent {
   private readonly pageHelp = inject(PageHelpService);
   private readonly headerSlot = inject(HeaderSlotService);
   private readonly albumsToolbar = viewChild<TemplateRef<unknown>>('albumsToolbar');
-  private readonly destroyRef = inject(DestroyRef);
   private readonly staleness = inject(StalenessGuardFactory);
   private readonly snack = inject(MatSnackBar);
   private readonly injector = inject(Injector);
@@ -254,7 +256,7 @@ export class AlbumsComponent {
   protected readonly retrying = signal(false);
   private failedReset = true;
   private generation = 0;
-  private page = 1;
+  private page = 0;
   private readonly perPage = 48;
 
   protected readonly hasMore = computed(() => this.albums().length < this.total());
@@ -304,36 +306,42 @@ export class AlbumsComponent {
 
   private async loadAlbums(reset: boolean, restoreFocus = false): Promise<void> {
     const generation = ++this.generation;
+    const req = this.latestLoad.begin();
+    const requestedPage = reset ? 1 : this.page + 1;
+    const params = {
+      page: requestedPage,
+      per_page: this.perPage,
+      type: this.albumsFilters.typeFilter(),
+      sort: this.albumsFilters.sort(),
+      search: this.albumsFilters.search(),
+    };
     const retryButton = restoreFocus ? this.document.querySelector<HTMLButtonElement>('[data-albums-retry]') : null;
     this.retrying.set(restoreFocus);
     const guard = this.staleness.create(this.destroyRef, { requireEdition: false, onNavigate: () => {
       if (generation === this.generation) { this.failedReset = reset; this.loading.set(false); this.loadFailed.set(true); this.retrying.set(false); }
     } });
+    const isCurrent = () => generation === this.generation && req.isCurrent() && guard.current()
+      && params.type === this.albumsFilters.typeFilter()
+      && params.sort === this.albumsFilters.sort()
+      && params.search === this.albumsFilters.search();
     if (reset) {
-      this.page = 1;
+      this.page = 0;
       this.albums.set([]);
       this.total.set(0);
     }
-    const requestedPage = reset ? 1 : this.page + 1;
     this.loading.set(true);
     this.loadFailed.set(false);
     try {
-      const params: Record<string, string | number> = {
-        page: requestedPage,
-        per_page: this.perPage,
-        type: this.albumsFilters.typeFilter(),
-        sort: this.albumsFilters.sort(),
-        search: this.albumsFilters.search(),
-      };
-      const res = await firstValueFrom(this.albumService.list(params, new HttpContext().set(HANDLE_SERVER_ERROR_LOCALLY, true)));
-      if (generation !== this.generation || !guard.current()) return;
+      const res = await firstValueFrom(req.bind(this.albumService.list(params, new HttpContext().set(HANDLE_SERVER_ERROR_LOCALLY, true))));
+      if (!isCurrent()) return;
       if (reset) {
         this.albums.set(res.albums);
       } else {
         this.albums.update(prev => [...prev, ...res.albums]);
       }
-      this.total.set(res.total);
+      // Only successful responses advance the page; a failed append retries it.
       this.page = requestedPage;
+      this.total.set(res.total);
       if (restoreFocus && this.document.activeElement === retryButton) {
         const target = res.albums[0]?.id;
         afterNextRender(() => {
@@ -342,12 +350,11 @@ export class AlbumsComponent {
         }, { injector: this.injector });
       }
     } catch {
-      if (generation !== this.generation || !guard.current()) return;
+      if (!isCurrent()) return;
       this.failedReset = reset;
       this.loadFailed.set(true);
-
     } finally {
-      if (generation === this.generation && guard.current()) { this.loading.set(false); this.retrying.set(false); }
+      if (isCurrent()) { this.loading.set(false); this.retrying.set(false); }
       guard.dispose();
     }
   }
@@ -356,7 +363,7 @@ export class AlbumsComponent {
 
   protected onScrollReached(): void {
     if (this.hasMore() && !this.loading() && !this.loadFailed()) {
-      this.loadAlbums(false);
+      void this.loadAlbums(false);
     }
   }
 

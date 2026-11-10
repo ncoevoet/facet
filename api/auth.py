@@ -27,6 +27,7 @@ from api.config import (
     VIEWER_CONFIG,
     _CONFIG_PATH,
     config_load_failed,
+    get_user_config,
     is_burned_password,
     is_multi_user_enabled
 )
@@ -41,6 +42,7 @@ OPEN_INSTALL_EDIT_DETAIL = 'Set viewer.edition_password to enable editing'
 
 VIEWER_GENERATION_CLAIM = 'pv'
 EDITION_GENERATION_CLAIM = 'ev'
+ACCOUNT_GENERATION_CLAIM = 'uv'
 GENERATION_DIGEST_LENGTH = 12
 
 
@@ -56,10 +58,20 @@ def password_generation(password_key: str) -> str:
     upgraded, never the plaintext the user typed — so it changes exactly when
     the password changes and discloses nothing about it. Tokens carry it, which
     is what lets a password change age out tokens minted under the previous one:
-    nothing else invalidates a JWT server-side.
+    multi-user credentials and roles have their own generation below.
     """
     stored = VIEWER_CONFIG.get(password_key, '') or ''
     return hashlib.sha256(stored.encode('utf-8')).hexdigest()[:GENERATION_DIGEST_LENGTH]
+
+
+def account_generation(user: dict) -> str:
+    """Bind a session to the configured credentials and role, not its claimed role.
+
+    Internal MCP JWTs may intentionally carry a lower role than their owner.
+    Never replace that ceiling with the current account's role during validation.
+    """
+    stored = str(user.get('password_hash', '')) + '\0' + str(user.get('role', 'user'))
+    return hashlib.sha256(stored.encode('utf-8')).hexdigest()
 
 
 def create_access_token(data: dict, expires_delta: Optional[timedelta] = None) -> str:
@@ -76,6 +88,10 @@ def create_access_token(data: dict, expires_delta: Optional[timedelta] = None) -
     to_encode['iat'] = datetime.now(timezone.utc)
     to_encode[VIEWER_GENERATION_CLAIM] = password_generation(VIEWER_PASSWORD_KEY)
     to_encode[EDITION_GENERATION_CLAIM] = password_generation(EDITION_PASSWORD_KEY)
+    if is_multi_user_enabled() and data.get('role') != SHARE_CLIENT_ROLE:
+        user = get_user_config(data.get('sub', ''))
+        # Unknown accounts cannot produce a usable token, including purpose JWTs.
+        to_encode[ACCOUNT_GENERATION_CLAIM] = account_generation(user) if user else None
     return jwt.encode(to_encode, config.JWT_SECRET, algorithm=JWT_ALGORITHM)
 
 
@@ -104,6 +120,16 @@ def _match_password_generations(payload: dict) -> Optional[dict]:
         return None
     if edition_generation != password_generation(EDITION_PASSWORD_KEY):
         payload['edition'] = False
+    if payload.get('role') != SHARE_CLIENT_ROLE:
+        account_gen = payload.get(ACCOUNT_GENERATION_CLAIM)
+        if is_multi_user_enabled():
+            user = get_user_config(payload.get('sub', ''))
+            if user is None or account_gen != account_generation(user):
+                return None
+        elif ACCOUNT_GENERATION_CLAIM in payload:
+            # Removing the final account must not revive its privileged session
+            # as a legacy/open-install token.
+            return None
     return payload
 
 
@@ -111,8 +137,7 @@ def decode_access_token(token: str) -> Optional[dict]:
     """Decode a JWT access token. Returns None if invalid or stale.
 
     Staleness is decided by :func:`_match_password_generations`: signature and
-    expiry alone cannot express "this password has since changed", and no token
-    is revocable server-side otherwise.
+    expiry alone cannot express a changed password, role, or deleted account.
     """
     from api import config  # fresh read — see create_access_token
 

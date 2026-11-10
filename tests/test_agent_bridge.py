@@ -189,6 +189,21 @@ class TestHandshake:
         api_config.VIEWER_CONFIG["password"] = "rotated-pw"
         assert tab.wait_closed() == 4401
 
+    @pytest.mark.parametrize("change", ["password", "role", "delete"])
+    def test_changed_account_closes_existing_socket(self, agent_app, fake_tab, change):
+        from api import config as api_config
+        from api.auth import hash_password
+
+        env = agent_app("multi")
+        tab = fake_tab(env, jwt_of(env.login("root")))
+        assert tab.ready["type"] == "ready"
+        if change == "delete":
+            del api_config._FULL_CONFIG["users"]["root"]
+        else:
+            field = "password_hash" if change == "password" else "role"
+            api_config._FULL_CONFIG["users"]["root"][field] = hash_password("changed") if change == "password" else "user"
+        assert tab.wait_closed() == bridge.CLOSE_UNAUTHORIZED
+
     def test_silent_tab_is_dropped(self, agent_app, fake_tab, monkeypatch):
         monkeypatch.setattr(bridge, "SILENCE_DROP_S", 0.3)
         env = agent_app("open")

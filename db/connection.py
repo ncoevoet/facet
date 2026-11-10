@@ -7,6 +7,7 @@ Provides connection creation, PRAGMA configuration, and context manager.
 import logging
 import os
 import sqlite3
+from pathlib import Path
 from contextlib import contextmanager
 
 from config_resolve import default_config_path, load_resolved
@@ -150,19 +151,25 @@ def apply_pragmas(conn, mmap_size_mb=None, cache_size_mb=None):
 
 
 @contextmanager
-def get_connection(db_path=DEFAULT_DB_PATH, row_factory=True):
+def get_connection(db_path=DEFAULT_DB_PATH, row_factory=True, *, read_only=False):
     """
-    Context manager for database connections with WAL mode.
+    Context manager for writable WAL connections or read-only preview connections.
 
     Args:
         db_path: Path to the SQLite database file
         row_factory: If True, set row_factory to sqlite3.Row for dict-like access
+        read_only: Open an existing database without creating it or changing journal mode
 
     Yields:
-        sqlite3.Connection configured with WAL mode and busy timeout
+        sqlite3.Connection with a busy timeout and optional sqlite-vec support
     """
-    conn = sqlite3.connect(db_path)
-    apply_pragmas(conn)
+    if read_only:
+        conn = sqlite3.connect(Path(db_path).resolve().as_uri() + '?mode=ro', uri=True)
+        conn.execute("PRAGMA busy_timeout = 5000")
+        load_sqlite_vec(conn)
+    else:
+        conn = sqlite3.connect(db_path)
+        apply_pragmas(conn)
     if row_factory:
         conn.row_factory = sqlite3.Row
     try:
