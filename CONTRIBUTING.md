@@ -125,4 +125,5 @@ to run while `core.hooksPath` is set.
 - Add a `CHANGELOG.md` entry under `## [Unreleased]`, in the matching section (`### Added`, `### Fixed`, ...).
 - **Don't edit the translated docs** (`docs/<lang>/`, `README.<lang>.md`). The maintainer updates the translations.
 - Leave **Allow edits by maintainers** on. The maintainer may push fixes to your branch, so pull before pushing again, and never force-push.
-- CI on a fork waits for maintainer approval before it runs. A PR is merged once every required check is green on its latest commit.
+- CI on a fork waits for maintainer approval before it runs. A PR is merged once it has an approving review and every required check is green on its latest commit.
+- Collaborators with Write access: [.github/COLLABORATORS.md](.github/COLLABORATORS.md) covers what that access allows and how reviews and merges work.
