@@ -1464,7 +1464,8 @@
         "hint": "Bis zu {max} Steuerelemente. Anheften speichert niemals einen Filterwert.",
         "add": "Steuerelement {name} anheften",
         "remove": "Steuerelement {name} lösen",
-        "limit": "Sie können bis zu {max} Steuerelemente anheften. Lösen Sie eines, um ein anderes hinzuzufügen."
+        "limit": "Sie können bis zu {max} Steuerelemente anheften. Lösen Sie eines, um ein anderes hinzuzufügen.",
+        "help": "Über angeheftete Steuerelemente"
       },
       "active_view": {
         "label": "Aktive Filter",
@@ -1680,9 +1681,7 @@
     "tag_groups": {
       "title": "Schlagwortregeln",
       "hint": "Gruppen werden mit UND verknüpft. Namen entsprechen vollständigen Schlagwörtern; eine Regel erzeugt kein Schlagwort.",
-      "add_to": "Zur Gruppe hinzufügen",
       "name": "Schlagwortname",
-      "add": "Regel hinzufügen",
       "any": "Mindestens eines davon",
       "all": "Alle davon",
       "none": "Keines davon",
@@ -1690,7 +1689,8 @@
       "invalid_name": "Verwenden Sie nicht leeren Text mit höchstens {max} Zeichen und ohne Steuerzeichen.",
       "invalid": "Diese Schlagwortregeln sind ungültig. Löschen Sie sie, um die Ansicht wiederherzustellen.",
       "remove": "Regel für {name} entfernen",
-      "clear": "Schlagwortregeln löschen"
+      "clear": "Schlagwortregeln löschen",
+      "help": "So funktionieren Schlagwortregeln"
     },
     "no_capture_date": "Kein Aufnahmedatum",
     "measurements": {

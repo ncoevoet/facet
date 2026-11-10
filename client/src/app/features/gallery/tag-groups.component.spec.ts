@@ -1,6 +1,8 @@
 import { Component, signal } from '@angular/core';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { provideRouter, Router, UrlTree } from '@angular/router';
+import { OverlayContainer } from '@angular/cdk/overlay';
+import { MATERIAL_ANIMATIONS } from '@angular/material/core';
 import { TagGroupsComponent } from './tag-groups.component';
 import { GalleryStore } from './gallery.store';
 import { DEFAULT_FILTERS, GalleryFilters } from './gallery-filters.util';
@@ -30,6 +32,7 @@ describe('rendered literal tag rule editor', () => {
       return Promise.resolve();
     });
     TestBed.configureTestingModule({ providers: [
+      { provide: MATERIAL_ANIMATIONS, useValue: { animationsDisabled: true } },
       provideRouter([
         { path: '', component: EmptyPage },
         { path: 'photo', component: EmptyPage, canActivate: [() => new Promise<boolean | UrlTree>(resolve => { resolveNavigation = resolve; })] },
@@ -43,29 +46,38 @@ describe('rendered literal tag rule editor', () => {
     fixture = TestBed.createComponent(TagGroupsComponent);
     fixture.detectChanges();
     root = fixture.nativeElement;
-    root.querySelector('details')!.open = true;
   });
 
-  function input(value: string): HTMLInputElement {
-    const element = root.querySelector<HTMLInputElement>('[data-tag-rule-input]')!;
+  const row = (id: string) => root.querySelector<HTMLElement>(`[data-tag-rule-row="${id}"]`)!;
+  const overlay = () => TestBed.inject(OverlayContainer).getContainerElement();
+
+  function input(value: string, id = 'any'): HTMLInputElement {
+    const element = row(id).querySelector<HTMLInputElement>('[data-tag-rule-input]')!;
+    element.focus();
     element.value = value; element.dispatchEvent(new Event('input', { bubbles: true })); fixture.detectChanges();
     return element;
   }
 
-  function add(value: string): void {
-    input(value);
-    root.querySelector<HTMLButtonElement>('[data-tag-rule-add]')!.click(); fixture.detectChanges();
+  function key(element: HTMLElement, name: string, keyCode: number, init: KeyboardEventInit = {}): void {
+    const event = new KeyboardEvent('keydown', { key: name, bubbles: true, cancelable: true, ...init });
+    Object.defineProperty(event, 'keyCode', { get: () => keyCode });
+    element.dispatchEvent(event); fixture.detectChanges();
   }
 
-  it('uses three labeled native groups and preserves a comma name literally in read-only browsing', () => {
-    const radios = root.querySelectorAll<HTMLInputElement>('input[type=radio]');
-    expect([...radios].map(radio => radio.value)).toEqual(['any', 'all', 'none']);
-    expect(radios[0].closest('fieldset')!.querySelector('legend')!.textContent).toContain('gallery.tag_groups.add_to');
+  function add(value: string, id = 'any'): void {
+    key(input(value, id), 'Enter', 13);
+  }
+
+  it('gives each group its own labelled chip row and preserves a comma name literally in read-only browsing', () => {
+    expect([...root.querySelectorAll<HTMLElement>('[data-tag-rule-row]')].map(element => element.dataset['tagRuleRow'])).toEqual(['any', 'all', 'none']);
+    expect(row('all').querySelector('mat-label')!.textContent).toContain('gallery.tag_groups.all');
+    expect(root.querySelector('input[type=radio], datalist, [data-tag-rule-add]')).toBeNull();
     add('coast,ridge');
     expect(update).toHaveBeenCalledExactlyOnceWith('tag_groups', '{"any":["coast,ridge"]}');
-    expect(root.querySelector('bdi')!.textContent).toBe('coast,ridge');
-    expect(root.querySelector('datalist option')!.getAttribute('value')).toBe('coast,ridge');
-    expect(root.querySelector('label[for="tag-rule-input"]')).toBeTruthy();
+    expect(row('any').querySelector('mat-chip-row bdi')!.textContent).toBe('coast,ridge');
+    expect(row('any').querySelector<HTMLInputElement>('[data-tag-rule-input]')!.value).toBe('');
+    expect(row('any').querySelector('[data-tag-rule-input]')!.getAttribute('aria-describedby')).toContain('tag-rule-hint');
+    expect(root.querySelector('#tag-rule-hint')!.textContent).toContain('gallery.tag_groups.hint');
   });
 
   it('trims surrounding whitespace from a new tag rule', () => {
@@ -73,49 +85,70 @@ describe('rendered literal tag rule editor', () => {
     expect(update).toHaveBeenCalledExactlyOnceWith('tag_groups', '{"any":["coast"]}');
   });
 
-  it('combines groups, removes one literal rule and returns focus before its button disappears', () => {
+  it('combines groups and removes one literal rule with its chip remove button, keeping focus in that row', async () => {
     add('coast,ridge');
-    root.querySelector<HTMLInputElement>('input[value=all]')!.click(); add('夜景');
-    root.querySelector<HTMLInputElement>('input[value=none]')!.click(); add('"OR"');
+    add('夜景', 'all');
+    add('"OR"', 'none');
     expect(JSON.parse(filters().tag_groups)).toEqual({ any: ['coast,ridge'], all: ['夜景'], none: ['"OR"'] });
-    root.querySelector<HTMLButtonElement>('li button')!.click(); fixture.detectChanges();
+    const remove = row('any').querySelector<HTMLButtonElement>('mat-chip-row button[matChipRemove]')!;
+    expect(remove.getAttribute('aria-label')).toBe('gallery.tag_groups.remove');
+    remove.focus(); remove.click(); fixture.detectChanges();
+    await fixture.whenStable(); fixture.detectChanges();
     expect(JSON.parse(filters().tag_groups)).toEqual({ all: ['夜景'], none: ['"OR"'] });
-    expect(document.activeElement).toBe(root.querySelector('[data-tag-rule-input]'));
+    expect(document.activeElement).toBe(row('any').querySelector('[data-tag-rule-input]'));
   });
 
-  it('moves focus to the summary when removing the last rule closes the editor', () => {
+  it('suggests known tags for a row and adds a picked one to that row only', () => {
+    const element = input('coa', 'all');
+    const option = overlay().querySelector<HTMLElement>('mat-option')!;
+    expect(option.textContent).toContain('coast,ridge');
+    option.click(); fixture.detectChanges();
+    expect(update).toHaveBeenCalledExactlyOnceWith('tag_groups', '{"all":["coast,ridge"]}');
+    expect(element.value).toBe('');
+  });
+
+  it('adds only the highlighted suggestion, not the typed text, when Enter picks it', () => {
+    const element = input('coa');
+    key(element, 'ArrowDown', 40);
+    key(element, 'Enter', 13);
+    expect(update).toHaveBeenCalledExactlyOnceWith('tag_groups', '{"any":["coast,ridge"]}');
+  });
+
+  it('clears every rule and returns focus to the first row', async () => {
     add('coast');
-    root.querySelector<HTMLButtonElement>('li button')!.click(); fixture.detectChanges();
+    root.querySelector<HTMLButtonElement>('[data-tag-rule-clear]')!.click(); fixture.detectChanges();
+    await fixture.whenStable();
     expect(filters().tag_groups).toBe('');
-    expect(document.activeElement).toBe(root.querySelector('[data-tag-groups] summary'));
-    expect(root.querySelector<HTMLDetailsElement>('[data-tag-groups]')!.open).toBe(false);
+    expect(document.activeElement).toBe(row('any').querySelector('[data-tag-rule-input]'));
   });
 
-  it('announces invalid names and recovers invalid saved rules with a single clear', () => {
+  it('announces invalid names and recovers invalid saved rules with a single clear', async () => {
     add('x'.repeat(201));
     expect(update).not.toHaveBeenCalled();
-    expect(root.querySelector('[data-tag-rule-input]')!.getAttribute('aria-describedby')).toBe('tag-rule-error');
+    expect(row('any').querySelector('[data-tag-rule-input]')!.getAttribute('aria-describedby')).toContain('tag-rule-error');
+    expect(row('all').querySelector('[data-tag-rule-input]')!.getAttribute('aria-describedby')).not.toContain('tag-rule-error');
     expect(root.querySelector('#tag-rule-error')!.getAttribute('role')).toBe('alert');
     filters.update(current => ({ ...current, tag_groups: '{"any":true}' })); fixture.detectChanges();
     expect(root.querySelector('[data-tag-rule-input]')).toBeNull();
     root.querySelector<HTMLButtonElement>('[data-tag-rule-clear]')!.click(); fixture.detectChanges();
+    await fixture.whenStable();
     expect(update).toHaveBeenCalledExactlyOnceWith('tag_groups', '');
-    expect(document.activeElement).toBe(root.querySelector('summary'));
+    expect(document.activeElement).toBe(row('any').querySelector('[data-tag-rule-input]'));
   });
 
   it('does not add while Enter is repeating or composing a tag name', () => {
     const element = input('夜景');
-    element.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', isComposing: true, bubbles: true }));
-    element.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', repeat: true, bubbles: true }));
+    key(element, 'Enter', 229, { isComposing: true });
+    key(element, 'Enter', 13, { repeat: true });
     expect(update).not.toHaveBeenCalled();
-    element.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true })); fixture.detectChanges();
+    key(element, 'Enter', 13);
     expect(update).toHaveBeenCalledExactlyOnceWith('tag_groups', '{"any":["夜景"]}');
   });
 
   it('refuses a pending navigation and permits a fresh command after the real router cancels it', async () => {
     const navigation = router.navigateByUrl('/photo');
     await vi.waitFor(() => expect(resolveNavigation).toBeTypeOf('function'));
-    input('during navigation').dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
+    key(input('during navigation'), 'Enter', 13);
     expect(update).not.toHaveBeenCalled();
     resolveNavigation(false); await navigation; fixture.detectChanges();
     add('after cancellation');
@@ -123,8 +156,8 @@ describe('rendered literal tag rule editor', () => {
   });
 
   it('refuses a command under a rotated token until fresh status establishes the session', () => {
-    input('old draft'); token = 'rotated';
-    root.querySelector<HTMLButtonElement>('[data-tag-rule-add]')!.click();
+    const draft = input('old draft'); token = 'rotated';
+    key(draft, 'Enter', 13);
     expect(update).not.toHaveBeenCalled();
     status.set({ user_id: 'alice' }); fixture.detectChanges();
     expect(root.querySelector<HTMLInputElement>('[data-tag-rule-input]')!.value).toBe('');

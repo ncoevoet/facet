@@ -1464,7 +1464,8 @@
         "hint": "Até {max} controlos. Fixar nunca guarda um valor de filtro.",
         "add": "Fixar controlo {name}",
         "remove": "Desafixar controlo {name}",
-        "limit": "Pode fixar até {max} controlos. Desafixe um para adicionar outro."
+        "limit": "Pode fixar até {max} controlos. Desafixe um para adicionar outro.",
+        "help": "Sobre os controlos fixados"
       },
       "active_view": {
         "label": "Filtros ativos",
@@ -1680,9 +1681,7 @@
     "tag_groups": {
       "title": "Regras de etiquetas",
       "hint": "Os grupos combinam-se com E. Os nomes correspondem a etiquetas completas; adicionar uma regra não cria uma etiqueta.",
-      "add_to": "Adicionar ao grupo",
       "name": "Nome da etiqueta",
-      "add": "Adicionar regra",
       "any": "Qualquer destas",
       "all": "Todas estas",
       "none": "Nenhuma destas",
@@ -1690,7 +1689,8 @@
       "invalid_name": "Use texto não vazio, até {max} caracteres, sem caracteres de controlo.",
       "invalid": "Estas regras de etiquetas são inválidas. Limpe-as para recuperar.",
       "remove": "Remover regra de {name}",
-      "clear": "Limpar regras de etiquetas"
+      "clear": "Limpar regras de etiquetas",
+      "help": "Como funcionam as regras de etiquetas"
     },
     "no_capture_date": "Sem data de captura",
     "measurements": {

@@ -157,13 +157,15 @@ El panel de filtros tiene cinco pestañas: Buscar, Origen, Calidad, Técnica y S
 
 | Pestaña | Secciones |
 |---------|-----------|
-| **Buscar** | Búsqueda semántica, Contenido, Personas, Momentos (qué buscar) |
+| **Buscar** | Búsqueda semántica, Contenido, Reglas de etiquetas, Personas, Momentos (qué buscar) |
 | **Origen** | Rango de fechas, Ubicación, Carpeta, Álbumes, Equipo (dónde, cuándo y con qué) |
 | **Calidad** | Calidad, Calidad extendida, Disponibilidad de mediciones (qué tan buena es la imagen) |
 | **Técnica** | Técnica, Exposición & Rango, Color y calidad (nitidez, exposición, color y ruido) |
-| **Sujeto** | Métricas faciales, Composición, Saliencia del sujeto (qué hay en el encuadre) |
+| **Sujeto** | Métricas faciales, Composición (puntuaciones y patrón de composición), Saliencia del sujeto (qué hay en el encuadre) |
 
 La cabecera, **Buscar un filtro**, el aviso de álbum inteligente y la búsqueda por nombre de archivo permanecen sobre las pestañas en todas ellas, así que `/` funciona desde cualquiera. Escribir en **Buscar un filtro** oculta las pestañas y lista los controles coincidentes de todas. El icono **Filtros activos**, a su lado, muestra solo las secciones con un filtro activo, de todas las pestañas, desplegadas y en el orden de las pestañas; su insignia cuenta esos filtros, y elegir una pestaña sale de esa vista. Una sección cuyo filtro borras ahí se mantiene hasta que sales de la vista. Sin filtros indica *Ningún filtro aplicado*; si los únicos filtros en uso están fuera de las pestañas, por ejemplo en Revisión, indica que ningún filtro de estas pestañas está en uso.
+
+**Reglas de etiquetas** tiene una fila de chips para *Cualquiera de estas*, *Todas estas* y *Ninguna de estas*; las filas se combinan con Y, hasta 50 nombres. Escribe una etiqueta y pulsa Intro, o elige una de las etiquetas de la biblioteca entre las sugerencias; una coma forma parte del nombre. El selector **Etiqueta** de Contenido sigue eligiendo una sola etiqueta. Búsqueda semántica, Reglas de etiquetas, los controles fijados y los recuentos tienen cada uno un icono ? en su fila de encabezado que abre su ayuda en una ventana emergente.
 
 El número junto a **Filtros** incluye todos los criterios activos, incluso métricas no disponibles. Un intervalo cuenta una vez. **Restablecer filtros** aparece junto a los criterios de colección desde el primer criterio activo; el panel no lo duplica. **X** cierra el panel.
 

@@ -1,11 +1,12 @@
-import { ChangeDetectionStrategy, Component, computed, ElementRef, inject, input, output, signal, TemplateRef, viewChild } from '@angular/core';
+import { ChangeDetectionStrategy, Component, computed, ElementRef, inject, input, output, signal, TemplateRef, viewChild, viewChildren } from '@angular/core';
 import { NavigationStart, Router } from '@angular/router';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { NgTemplateOutlet } from '@angular/common';
 import { CdkConnectedOverlay, CdkOverlayOrigin, ConnectedPosition } from '@angular/cdk/overlay';
 import { CdkTrapFocus } from '@angular/cdk/a11y';
 import { MatIconModule } from '@angular/material/icon';
-import { MatTooltipModule } from '@angular/material/tooltip';
+import { MatTooltip, MatTooltipModule } from '@angular/material/tooltip';
+import { closeOverlayDirectives } from '../../utils/overlays';
 import { I18N } from '../../../core/i18n/keys';
 import { TranslatePipe } from '../../pipes/translate.pipe';
 
@@ -70,6 +71,11 @@ export class ControlPopoverComponent {
     this.closed.emit();
   }
   private readonly trigger = viewChild.required<ElementRef<HTMLElement>>('trigger');
+  private readonly tooltips = viewChildren(MatTooltip);
+  /** Take this popover's tooltips off the page at once, for a host that hides behind another page. */
+  hideTooltips(): void {
+    closeOverlayDirectives(this.tooltips());
+  }
   protected readonly overlayWidth = signal<number | undefined>(undefined);
   private readonly fillOffsetX = signal<number | null>(null);
   protected toggle(): void {

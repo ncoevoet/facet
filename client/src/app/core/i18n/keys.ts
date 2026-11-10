@@ -1505,6 +1505,7 @@ export const I18N = {
         add: "gallery.sidebar.pins.add",
         remove: "gallery.sidebar.pins.remove",
         limit: "gallery.sidebar.pins.limit",
+        help: "gallery.sidebar.pins.help",
       },
       active_view: {
         label: "gallery.sidebar.active_view.label",
@@ -1719,9 +1720,7 @@ export const I18N = {
     tag_groups: {
       title: "gallery.tag_groups.title",
       hint: "gallery.tag_groups.hint",
-      add_to: "gallery.tag_groups.add_to",
       name: "gallery.tag_groups.name",
-      add: "gallery.tag_groups.add",
       any: "gallery.tag_groups.any",
       all: "gallery.tag_groups.all",
       none: "gallery.tag_groups.none",
@@ -1730,6 +1729,7 @@ export const I18N = {
       invalid: "gallery.tag_groups.invalid",
       remove: "gallery.tag_groups.remove",
       clear: "gallery.tag_groups.clear",
+      help: "gallery.tag_groups.help",
     },
     no_capture_date: "gallery.no_capture_date",
     measurements: {

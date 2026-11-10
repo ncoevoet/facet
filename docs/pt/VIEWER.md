@@ -157,13 +157,15 @@ O painel de filtros tem cinco abas: Procurar, Origem, Qualidade, Técnico e Assu
 
 | Aba | Seções |
 |-----|--------|
-| **Procurar** | Busca semântica, Conteúdo, Pessoas, Momentos (o que procurar) |
+| **Procurar** | Busca semântica, Conteúdo, Regras de etiquetas, Pessoas, Momentos (o que procurar) |
 | **Origem** | Período, Localização, Pasta, Álbuns, Equipamento (onde, quando e com quê) |
 | **Qualidade** | Qualidade, Qualidade estendida, Disponibilidade das medições (quão boa é a imagem) |
 | **Técnico** | Técnico, Exposição e amplitude, Cor e qualidade (nitidez, exposição, cor e ruído) |
-| **Assunto** | Métricas de rosto, Composição, Saliência do sujeito (o que está no enquadramento) |
+| **Assunto** | Métricas de rosto, Composição (pontuações e padrão de composição), Saliência do sujeito (o que está no enquadramento) |
 
 O cabeçalho, **Encontrar um filtro**, o aviso de álbum inteligente e a busca por nome de arquivo ficam acima das abas em todas elas, por isso `/` funciona a partir de qualquer uma. Digitar em **Encontrar um filtro** oculta as abas e lista os controles correspondentes de todas. O ícone **Filtros ativos**, ao lado, mostra só as seções com um filtro ativo, de todas as abas, expandidas e na ordem das abas; o emblema conta esses filtros, e escolher uma aba sai dessa vista. Uma seção cujo filtro você limpa ali permanece até sair da vista. Sem filtros indica *Nenhum filtro aplicado*; se os únicos filtros em uso estiverem fora das abas, por exemplo em Revisão, indica que nenhum filtro destas abas está em uso.
+
+**Regras de etiquetas** tem uma linha de chips para *Qualquer destas*, *Todas estas* e *Nenhuma destas*; as linhas combinam-se com E, até 50 nomes. Escreva uma etiqueta e prima Enter, ou escolha uma das etiquetas da biblioteca nas sugestões; uma vírgula faz parte do nome. O seletor **Tag** em Conteúdo continua a escolher uma única etiqueta. Busca semântica, Regras de etiquetas, os controlos fixados e as contagens têm cada um um ícone ? na linha do cabeçalho, que abre a respetiva ajuda numa janela pop-up.
 
 O número junto a **Filtros** inclui todos os critérios ativos, até métricas indisponíveis. Um intervalo conta uma vez. **Redefinir filtros** aparece junto aos critérios da coleção desde o primeiro critério ativo; o painel não o duplica. **X** fecha o painel.
 

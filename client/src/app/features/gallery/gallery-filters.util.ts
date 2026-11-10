@@ -604,7 +604,6 @@ export function activeFilterKeys(f: GalleryFilters): (keyof GalleryFilters)[] {
  */
 export function filterUnit(key: string): string {
   if (key === 'person_match') return 'person_id';
-  if (key === 'tag_groups') return 'tag';
   if (key.startsWith('min_') || key.startsWith('max_')) return key.slice(4);
   if (key === 'no_gps' || key.startsWith('gps_')) return 'gps';
   return key;

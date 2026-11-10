@@ -157,13 +157,15 @@ Die Filterleiste hat fünf Tabs: Suchen, Quelle, Qualität, Technik und Motiv. S
 
 | Tab | Abschnitte |
 |-----|-----------|
-| **Suchen** | Semantische Suche, Inhalt, Personen, Momente (wonach gesucht wird) |
+| **Suchen** | Semantische Suche, Inhalt, Schlagwortregeln, Personen, Momente (wonach gesucht wird) |
 | **Quelle** | Zeitraum, Standort, Ordner, Alben, Ausrüstung (wo, wann und womit) |
 | **Qualität** | Qualität, Erweiterte Qualität, Messwertverfügbarkeit (wie gut das Bild ist) |
 | **Technik** | Technik, Belichtung & Bereich, Farbe & Qualität (Schärfe, Belichtung, Farbe und Rauschen) |
-| **Motiv** | Gesichtsmetriken, Komposition, Motiverkennung (was im Bild zu sehen ist) |
+| **Motiv** | Gesichtsmetriken, Komposition (Bewertungen und Kompositionsmuster), Motiverkennung (was im Bild zu sehen ist) |
 
 Kopfzeile, **Filter suchen**, der Hinweis für Smart-Alben und die Dateinamensuche bleiben auf jedem Tab über den Tabs, daher funktioniert `/` von jedem aus. Eine Eingabe in **Filter suchen** blendet die Tabs aus und listet die passenden Regler aus allen Tabs. Das Symbol **Aktive Filter** daneben zeigt nur die Abschnitte mit einem aktiven Filter aus allen Tabs, aufgeklappt und in Tab-Reihenfolge; das Abzeichen zählt diese Filter, und die Wahl eines Tabs verlässt diese Ansicht. Ein Abschnitt, dessen Filter Sie dort löschen, bleibt bis zum Verlassen der Ansicht. Ohne Filter steht dort *Keine Filter angewendet*; sind nur Filter außerhalb der Tabs gesetzt, etwa unter Prüfen, heißt es, dass keine Filter aus diesen Tabs verwendet werden.
+
+**Schlagwortregeln** hat je eine Chip-Zeile für *Mindestens eines davon*, *Alle davon* und *Keines davon*; die Zeilen werden mit UND verknüpft, bis zu 50 Namen. Geben Sie ein Schlagwort ein und drücken Sie die Eingabetaste, oder wählen Sie eines der Schlagwörter der Bibliothek aus den Vorschlägen; ein Komma gehört zum Namen. Die Auswahl **Tag** unter Inhalt wählt weiterhin ein einzelnes Schlagwort. Semantische Suche, Schlagwortregeln, die angehefteten Steuerelemente und die Anzahlen haben jeweils ein ?-Symbol in ihrer Kopfzeile, das ihre Hilfe in einem Popover öffnet.
 
 Die Zahl neben **Filter** zählt alle aktiven Kriterien einschließlich nicht verfügbarer Metriken. Ein Wertebereich zählt einmal. **Filter zurücksetzen** steht bei den Sammlungskriterien bereits ab einem aktiven Kriterium; die Seitenleiste dupliziert es nicht. **X** schließt die Leiste.
 

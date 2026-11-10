@@ -157,13 +157,15 @@ Le panneau de filtres a cinq onglets : Recherche, Source, Qualité, Technique et
 
 | Onglet | Sections |
 |--------|----------|
-| **Recherche** | Recherche sémantique, Contenu, Personnes, Moments (ce que l'on cherche) |
+| **Recherche** | Recherche sémantique, Contenu, Règles d’étiquettes, Personnes, Moments (ce que l'on cherche) |
 | **Source** | Plage de dates, Localisation, Dossier, Albums, Équipement (où, quand et avec quoi) |
 | **Qualité** | Qualité, Qualité étendue, Disponibilité des mesures (la qualité de l'image) |
 | **Technique** | Technique, Exposition & Plage, Couleur et qualité (netteté, exposition, couleur et bruit) |
-| **Sujet** | Métriques visage, Composition, Saillance du sujet (ce qui est dans le cadre) |
+| **Sujet** | Métriques visage, Composition (scores et motif de composition), Saillance du sujet (ce qui est dans le cadre) |
 
 L'en-tête, **Rechercher un filtre**, l'avis d'album intelligent et la recherche par nom de fichier restent au-dessus des onglets sur chacun d'eux, donc `/` fonctionne depuis n'importe lequel. Saisir dans **Rechercher un filtre** masque les onglets et liste les curseurs correspondants de tous les onglets. L'icône **Filtres actifs**, à côté, n'affiche que les sections ayant un filtre actif, de tous les onglets, dépliées et dans l'ordre des onglets ; son badge compte ces filtres, et choisir un onglet quitte cette vue. Une section dont vous effacez le filtre y reste jusqu'à ce que vous quittiez la vue. Sans filtre, il indique *Aucun filtre appliqué* ; si les seuls filtres utilisés sont hors des onglets, par exemple dans Tri, il indique qu'aucun filtre de ces onglets n'est utilisé.
+
+**Règles d’étiquettes** propose une ligne de puces pour *Au moins une de celles-ci*, *Toutes celles-ci* et *Aucune de celles-ci* ; les lignes se combinent par ET, jusqu’à 50 noms. Saisissez une étiquette puis appuyez sur Entrée, ou choisissez l’une des étiquettes de la bibliothèque parmi les suggestions ; une virgule fait partie du nom. Le sélecteur **Tag** de Contenu choisit toujours une seule étiquette. Recherche sémantique, Règles d’étiquettes, les commandes épinglées et les nombres ont chacun une icône ? sur leur ligne d’en-tête, qui ouvre leur aide dans une fenêtre contextuelle.
 
 Le nombre à côté de **Filtres** inclut tous les critères actifs, même les métriques indisponibles. Une plage compte une fois. **Réinitialiser les filtres** apparaît près des critères de collection dès le premier critère actif ; le panneau ne le duplique pas. **X** ferme le panneau.
 

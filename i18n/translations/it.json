@@ -1464,7 +1464,8 @@
         "hint": "Fino a {max} controlli. Fissarli non salva mai un valore di filtro.",
         "add": "Fissa controllo {name}",
         "remove": "Sgancia controllo {name}",
-        "limit": "Puoi fissare fino a {max} controlli. Sganciane uno per aggiungerne un altro."
+        "limit": "Puoi fissare fino a {max} controlli. Sganciane uno per aggiungerne un altro.",
+        "help": "Informazioni sui controlli fissati"
       },
       "active_view": {
         "label": "Filtri attivi",
@@ -1680,9 +1681,7 @@
     "tag_groups": {
       "title": "Regole dei tag",
       "hint": "I gruppi si combinano con AND. I nomi corrispondono a tag completi; aggiungere una regola non crea un tag.",
-      "add_to": "Aggiungi al gruppo",
       "name": "Nome del tag",
-      "add": "Aggiungi regola",
       "any": "Uno qualsiasi di questi",
       "all": "Tutti questi",
       "none": "Nessuno di questi",
@@ -1690,7 +1689,8 @@
       "invalid_name": "Usa testo non vuoto, al massimo {max} caratteri e nessun carattere di controllo.",
       "invalid": "Queste regole dei tag non sono valide. Cancellale per ripristinare la vista.",
       "remove": "Rimuovi regola per {name}",
-      "clear": "Cancella regole dei tag"
+      "clear": "Cancella regole dei tag",
+      "help": "Come funzionano le regole dei tag"
     },
     "no_capture_date": "Nessuna data di scatto",
     "measurements": {

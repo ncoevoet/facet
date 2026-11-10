@@ -1464,7 +1464,8 @@
         "hint": "Jusqu’à {max} commandes. Épingler n’enregistre jamais une valeur de filtre.",
         "add": "Épingler la commande {name}",
         "remove": "Détacher la commande {name}",
-        "limit": "Vous pouvez épingler jusqu’à {max} commandes. Détachez-en une pour en ajouter une autre."
+        "limit": "Vous pouvez épingler jusqu’à {max} commandes. Détachez-en une pour en ajouter une autre.",
+        "help": "À propos des commandes épinglées"
       },
       "active_view": {
         "label": "Filtres actifs",
@@ -1680,9 +1681,7 @@
     "tag_groups": {
       "title": "Règles d’étiquettes",
       "hint": "Les groupes se combinent par ET. Les noms correspondent aux étiquettes complètes ; ajouter une règle ne crée pas d’étiquette.",
-      "add_to": "Ajouter au groupe",
       "name": "Nom d’étiquette",
-      "add": "Ajouter une règle",
       "any": "Au moins une de celles-ci",
       "all": "Toutes celles-ci",
       "none": "Aucune de celles-ci",
@@ -1690,7 +1689,8 @@
       "invalid_name": "Saisissez un texte non vide d’au plus {max} caractères, sans caractères de contrôle.",
       "invalid": "Ces règles d’étiquettes sont invalides. Effacez-les pour rétablir la vue.",
       "remove": "Retirer la règle pour {name}",
-      "clear": "Effacer les règles d’étiquettes"
+      "clear": "Effacer les règles d’étiquettes",
+      "help": "Fonctionnement des règles d’étiquettes"
     },
     "no_capture_date": "Sans date de prise de vue",
     "measurements": {

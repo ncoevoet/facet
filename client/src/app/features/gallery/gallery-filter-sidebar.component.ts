@@ -1,6 +1,6 @@
-import { ControlPopoverComponent } from '../../shared/components/control-popover/control-popover.component';
+import { ContextHelpComponent } from '../../shared/components/context-help/context-help.component';
 import { FaceOutlinePreferences } from '../../core/services/face-outline-preferences.service';
-import { closeDetailsOnEscape, closeOverlayDirectives } from '../../shared/utils/overlays';
+import { closeOverlayDirectives } from '../../shared/utils/overlays';
 import { FEATURE_MARK, MarkTonePipe } from '../../shared/pipes/mark-tone.pipe';
 import { Component, computed, DestroyRef, effect, ElementRef, inject, signal, viewChild, viewChildren, ChangeDetectionStrategy, afterNextRender, Injector, input, TemplateRef } from '@angular/core';
 import { DecimalPipe, NgTemplateOutlet } from '@angular/common';
@@ -95,7 +95,7 @@ export type SidebarTabId = 'find' | 'source' | 'review' | 'quality' | 'technical
 
 /** Which panels each tab holds, in render order. Every panel is in exactly one tab. */
 export const TAB_SECTIONS: Record<SidebarTabId, readonly string[]> = {
-  find: ['semantic', 'content', 'persons', 'gallery.sidebar.moments'],
+  find: ['semantic', 'content', 'tag_rules', 'persons', 'gallery.sidebar.moments'],
   source: ['date', 'location', 'folder', 'albums', 'equipment'],
   review: ['refine', 'gallery.sidebar.ratings'],
   quality: ['gallery.sidebar.quality', 'gallery.sidebar.extended_quality', 'score_presence'],
@@ -170,7 +170,8 @@ export const UNIT_PANEL: Record<string, string> = {
   score_presence: 'score_presence',
   person_id: 'persons', faces_need_names: 'persons',
   date_from: 'date', date_to: 'date', no_capture_date: 'date',
-  type: 'content', tag: 'content', keyword_branch: 'content', composition_pattern: 'content',
+  type: 'content', tag: 'content', keyword_branch: 'content', tag_groups: 'tag_rules',
+  composition_pattern: 'gallery.sidebar.composition',
   camera: 'equipment', lens: 'equipment',
   review_status: 'refine', favorites_only: 'refine', is_monochrome: 'refine', show_rejected: 'refine',
   blinks_only: 'refine', duplicates_only: 'refine', sequence_override: 'refine', manual_faces_need_review: 'refine',
@@ -180,6 +181,14 @@ export const UNIT_PANEL: Record<string, string> = {
   semanticQuery: 'semantic',
   ...Object.fromEntries(ADDITIONAL_FILTERS.map(d => [filterUnit(d.minKey), d.sectionKey])),
 };
+
+/** Units of the metric rows; only these drop from a panel's count when the licensing policy hides them. */
+const METRIC_UNITS = new Set(ADDITIONAL_FILTERS.map(def => filterUnit(def.minKey)));
+const COMPOSITION_SECTION = 'gallery.sidebar.composition';
+const COUNT_SCOPE_HELP = [I18N.gallery.sidebar.count_scope_options, I18N.gallery.sidebar.count_scope_types, I18N.gallery.sidebar.count_scope_badges];
+const SEMANTIC_HELP = [I18N.gallery.semantic_search_info, I18N.gallery.semantic_search_threshold_hint];
+const TAG_RULES_HELP = [I18N.gallery.tag_groups.hint];
+const PINS_HELP = [I18N.gallery.sidebar.pins.hint];
 
 const SIDEBAR_SECTIONS_KEY = 'facet_sidebar_sections';
 const SIDEBAR_TAB_KEY = 'facet_sidebar_tab';
@@ -224,7 +233,7 @@ type RatingOption = 'any' | '1' | '2' | '3' | '4' | '5' | 'zero';
   standalone: true,
   host: { class: 'contents' },
   imports: [
-    ControlPopoverComponent,
+    ContextHelpComponent,
     MarkTonePipe,
     DecimalPipe,
     MetricSparklineComponent,
@@ -264,19 +273,7 @@ type RatingOption = 'any' | '1' | '2' | '3' | '4' | '5' | 'zero';
           <span data-test="active-count" class="text-xs rounded min-w-5 h-5 px-1.5 flex items-center justify-center bg-[var(--mat-sys-surface-container-high)] text-[var(--mat-sys-on-surface)] tabular-nums leading-none">{{ totalActiveCount() }}</span>
         }
         <span class="flex-1"></span>
-        <details #countHelp data-count-help class="shrink-0">
-          <summary #countSummary (keydown.escape)="closeCountHelp($event, countHelp, countSummary)" class="flex h-9 w-9 cursor-pointer list-none items-center justify-center rounded-full pointer-coarse:h-11 pointer-coarse:w-11 hover:bg-[var(--mat-sys-surface-container-high)] focus-visible:outline-2 focus-visible:outline-[var(--mat-sys-primary)] [&::-webkit-details-marker]:hidden"
-            [attr.aria-label]="I18N.gallery.sidebar.count_scope | translate"
-            [title]="I18N.gallery.sidebar.count_scope | translate">
-            <mat-icon class="!text-xl !w-5 !h-5 !leading-5" aria-hidden="true">info_outline</mat-icon>
-          </summary>
-          <div class="absolute right-0 top-full z-30 w-64 max-w-[calc(100vw-2rem)] rounded-lg border border-[var(--mat-sys-outline-variant)] bg-[var(--mat-sys-surface-container)] p-3 text-xs leading-5 text-[var(--mat-sys-on-surface)] shadow-lg">
-            <p class="m-0 font-medium">{{ I18N.gallery.sidebar.count_scope | translate }}</p>
-            <p class="mb-0 mt-1">{{ I18N.gallery.sidebar.count_scope_options | translate }}</p>
-            <p class="mb-0 mt-1">{{ I18N.gallery.sidebar.count_scope_types | translate }}</p>
-            <p class="mb-0 mt-1">{{ I18N.gallery.sidebar.count_scope_badges | translate }}</p>
-          </div>
-        </details>
+        <app-context-help data-count-help [iconOnly]="true" [label]="I18N.gallery.sidebar.count_scope" [keys]="countScopeHelp" />
         <button mat-icon-button data-test="close" class="shrink-0 pointer-coarse:!h-11 pointer-coarse:!w-11"
           [matTooltip]="I18N.dialog.close | translate"
           [attr.aria-label]="I18N.dialog.close | translate"
@@ -363,13 +360,10 @@ type RatingOption = 'any' | '1' | '2' | '3' | '4' | '5' | 'zero';
 
       @if (!filterQuery().trim() && pinnedFilters().length) {
         <section data-pinned-filters class="mb-3 border-b border-[var(--mat-sys-outline-variant)] pb-2" [attr.aria-label]="I18N.gallery.sidebar.pins.title | translate">
-          <details class="mb-1" data-pins-help>
-            <summary class="flex min-h-8 cursor-pointer list-none items-center gap-2 rounded px-1 text-xs font-semibold focus-visible:outline-2">
-              <span>{{ I18N.gallery.sidebar.pins.title | translate }}</span>
-              <mat-icon aria-hidden="true" class="!h-4 !w-4 !text-base text-[var(--mat-sys-on-surface-variant)]">info_outline</mat-icon>
-            </summary>
-            <p class="m-0 px-1 pb-1 text-xs text-[var(--mat-sys-on-surface-variant)]">{{ I18N.gallery.sidebar.pins.hint | translate:{ max: pinLimit } }}</p>
-          </details>
+          <div class="mb-1 flex items-center gap-1 px-1">
+            <span class="text-xs font-semibold">{{ I18N.gallery.sidebar.pins.title | translate }}</span>
+            <app-context-help data-pins-help [iconOnly]="true" [label]="I18N.gallery.sidebar.pins.help" [keys]="pinsHelp" [params]="pinsHelpParams" />
+          </div>
           @for (def of pinnedFilters(); track def.id) {
             <ng-container [ngTemplateOutlet]="metricRow" [ngTemplateOutletContext]="{ $implicit: def }" />
           }
@@ -400,11 +394,14 @@ type RatingOption = 'any' | '1' | '2' | '3' | '4' | '5' | 'zero';
           @case ('semantic') {
       <!-- Semantic Search (top of sidebar) -->
       @if (store.config()?.features?.show_semantic_search) {
+        <div class="relative">
+        <!-- The help sits on the header row as a sibling: a button inside the header would toggle the panel. -->
+        <app-context-help data-section-help="semantic" class="absolute right-10 top-1.5 z-10 pointer-coarse:top-0" [iconOnly]="true" [label]="I18N.gallery.semantic_search_help" [keys]="semanticHelp" />
         <mat-expansion-panel class="!mb-1" [expanded]="activeView() || sectionStates()['semantic'] === true"
                              (opened)="onSectionToggle('semantic', true)"
                              (closed)="onSectionToggle('semantic', false)"
                              [style.background-color]="activeView() || sectionStates()['semantic'] === true ? 'var(--mat-sys-surface-container)' : null">
-          <mat-expansion-panel-header class="!px-2">
+          <mat-expansion-panel-header class="!px-2 [&_.mat-content]:pe-9">
             <mat-panel-title class="flex items-center gap-2">
               <mat-icon class="!text-xl !w-5 !h-5 !leading-none opacity-80">image_search</mat-icon>
               {{ I18N.gallery.sidebar.semantic_search | translate }}
@@ -425,13 +422,6 @@ type RatingOption = 'any' | '1' | '2' | '3' | '4' | '5' | 'zero';
                   </button>
                 }
               </div>
-              <app-control-popover data-semantic-help [compact]="true" icon="info_outline" [label]="I18N.gallery.semantic_search_help | translate" [content]="semanticExplanation" />
-              <ng-template #semanticExplanation>
-                <div id="semantic-search-help" class="space-y-2 text-xs">
-                  <p class="m-0">{{ I18N.gallery.semantic_search_info | translate }}</p>
-                  <p class="m-0">{{ I18N.gallery.semantic_search_threshold_hint | translate }}</p>
-                </div>
-              </ng-template>
             </div>
             <div class="flex min-w-0 items-center gap-2">
               <span class="shrink-0 text-xs text-[var(--mat-sys-on-surface-variant)]">{{ I18N.gallery.semantic_search_threshold | translate }}</span>
@@ -444,6 +434,7 @@ type RatingOption = 'any' | '1' | '2' | '3' | '4' | '5' | 'zero';
             <p id="semantic-search-threshold-hint" class="sr-only">{{ I18N.gallery.semantic_search_threshold_hint | translate }}</p>
           </div>
         </mat-expansion-panel>
+        </div>
       }
           }
           @case ('persons') {
@@ -590,22 +581,31 @@ type RatingOption = 'any' | '1' | '2' | '3' | '4' | '5' | 'zero';
                 </mat-select>
               </mat-form-field>
             }
-            <app-tag-groups />
             <app-keyword-catalog />
             <app-keyword-tree />
-            @if (store.patterns().length) {
-              <mat-form-field subscriptSizing="dynamic" class="w-full">
-                <mat-label>{{ I18N.gallery.composition_pattern | translate }}</mat-label>
-                <mat-select [value]="store.filters().composition_pattern" (selectionChange)="store.updateFilter('composition_pattern', $event.value)">
-                  <mat-option value="">{{ I18N.gallery.all | translate }}</mat-option>
-                  @for (p of store.patterns(); track p.value) {
-                    <mat-option [value]="p.value">{{ ('composition_patterns.' + p.value) | translate }} ({{ p.count }})</mat-option>
-                  }
-                </mat-select>
-              </mat-form-field>
-            }
           </div>
         </mat-expansion-panel>
+          }
+          @case ('tag_rules') {
+      <!-- Tag rules -->
+        <div class="relative">
+        <app-context-help data-section-help="tag_rules" class="absolute right-10 top-1.5 z-10 pointer-coarse:top-0" [iconOnly]="true" [label]="I18N.gallery.tag_groups.help" [keys]="tagRulesHelp" />
+        <mat-expansion-panel class="!mb-1" [expanded]="activeView() || sectionStates()['tag_rules'] === true"
+                             (opened)="onSectionToggle('tag_rules', true)"
+                             (closed)="onSectionToggle('tag_rules', false)"
+                             [style.background-color]="activeView() || sectionStates()['tag_rules'] === true ? 'var(--mat-sys-surface-container)' : null">
+          <mat-expansion-panel-header class="!px-2 [&_.mat-content]:pe-9">
+            <mat-panel-title class="flex items-center gap-2">
+              <mat-icon class="!text-xl !w-5 !h-5 !leading-none opacity-80">sell</mat-icon>
+              {{ I18N.gallery.tag_groups.title | translate }}
+              @if (sectionActiveCounts()['tag_rules']) {
+                <span class="text-xs rounded-full min-w-[1.25rem] h-5 px-1.5 flex items-center justify-center bg-[var(--mat-sys-primary)] text-[var(--mat-sys-on-primary)] leading-none">{{ sectionActiveCounts()['tag_rules'] }}</span>
+              }
+            </mat-panel-title>
+          </mat-expansion-panel-header>
+          <app-tag-groups />
+        </mat-expansion-panel>
+        </div>
           }
           @case ('albums') {
       <!-- Albums -->
@@ -844,7 +844,7 @@ type RatingOption = 'any' | '1' | '2' | '3' | '4' | '5' | 'zero';
           }
           @case ('view') { <ng-container [ngTemplateOutlet]="displayLayoutSettings" /><ng-container [ngTemplateOutlet]="displaySettings" /> }
           @default {
-            @if (metricGroupsByKey()[panel]; as group) {
+            @if (panel === compositionSection ? compositionPanel() : metricGroupsByKey()[panel]; as group) {
               <ng-container [ngTemplateOutlet]="metricPanel" [ngTemplateOutletContext]="{ $implicit: group }" />
             }
           }
@@ -867,6 +867,17 @@ type RatingOption = 'any' | '1' | '2' | '3' | '4' | '5' | 'zero';
             </mat-panel-title>
           </mat-expansion-panel-header>
           <div class="flex flex-col gap-1 pb-1">
+            @if (group.sectionKey === compositionSection && store.patterns().length) {
+              <mat-form-field subscriptSizing="dynamic" class="w-full">
+                <mat-label>{{ I18N.gallery.composition_pattern | translate }}</mat-label>
+                <mat-select [value]="store.filters().composition_pattern" (selectionChange)="store.updateFilter('composition_pattern', $event.value)">
+                  <mat-option value="">{{ I18N.gallery.all | translate }}</mat-option>
+                  @for (p of store.patterns(); track p.value) {
+                    <mat-option [value]="p.value">{{ ('composition_patterns.' + p.value) | translate }} ({{ p.count }})</mat-option>
+                  }
+                </mat-select>
+              </mat-form-field>
+            }
             @for (def of group.filters; track def.id) {
               <ng-container [ngTemplateOutlet]="metricRow" [ngTemplateOutletContext]="{ $implicit: def }" />
             }
@@ -1089,6 +1100,7 @@ export class GalleryFilterSidebarComponent {
   private readonly metricPins = viewChildren<unknown, ElementRef<HTMLButtonElement>>('metricPin', { read: ElementRef });
   private readonly reviewRating = viewChild<unknown, ElementRef<HTMLButtonElement>>('reviewRating', { read: ElementRef });
   protected readonly pinLimit = FILTER_PIN_LIMIT;
+  protected readonly pinsHelpParams = { max: FILTER_PIN_LIMIT };
   private readonly pinnableIds = computed(() => Object.values(this.filtersBySection()).flat().map(def => def.id));
   readonly pinnedIds = computed(() => new Set(this.filterPins.ids(this.pinnableIds())));
   readonly pinLimitReached = computed(() => this.pinnedIds().size >= FILTER_PIN_LIMIT);
@@ -1307,6 +1319,10 @@ export class GalleryFilterSidebarComponent {
 
   readonly metricGroupsByKey = computed((): Record<string, FilterGroup> =>
     Object.fromEntries(this.metricFilterGroups().map(group => [group.sectionKey, group])));
+  protected readonly compositionSection = COMPOSITION_SECTION;
+  /** Composition also holds the pattern select, so it stays when every composition score is hidden. */
+  readonly compositionPanel = computed((): FilterGroup | null =>
+    this.metricGroupsByKey()[COMPOSITION_SECTION] ?? (this.store.patterns().length ? { sectionKey: COMPOSITION_SECTION, filters: [] } : null));
   readonly zeroStars = computed(() => hasZeroStarFilter(this.store.filters()));
   protected readonly ratingOptions: { id: RatingOption; key: string; vars: Record<string, number> }[] = [
     { id: 'any', key: I18N.gallery.sidebar.review.rating_any, vars: {} },
@@ -1432,7 +1448,7 @@ export class GalleryFilterSidebarComponent {
     for (const unit of activeFilterUnits(this.store.filters())) {
       const panel = UNIT_PANEL[unit];
       if (!panel) continue;
-      if (bySection[panel] && !bySection[panel].some(d => filterUnit(d.minKey) === unit)) continue;
+      if (bySection[panel] && METRIC_UNITS.has(unit) && !bySection[panel].some(d => filterUnit(d.minKey) === unit)) continue;
       counts[panel]++;
     }
     return counts;
@@ -1527,7 +1543,10 @@ export class GalleryFilterSidebarComponent {
       : { no_capture_date: '' });
   }
 
-  protected readonly closeCountHelp = closeDetailsOnEscape;
+  protected readonly countScopeHelp = COUNT_SCOPE_HELP;
+  protected readonly semanticHelp = SEMANTIC_HELP;
+  protected readonly tagRulesHelp = TAG_RULES_HELP;
+  protected readonly pinsHelp = PINS_HELP;
 
   private readonly semanticSearchInput = viewChild<ElementRef<HTMLInputElement>>('semanticSearchInput');
   private searchTimeout: ReturnType<typeof setTimeout> | null = null;
@@ -1560,13 +1579,14 @@ export class GalleryFilterSidebarComponent {
   /** Hide every tooltip the sidebar owns, for a gallery parking behind a photo page. */
   hideTooltips(): void {
     closeOverlayDirectives(this.tooltips());
+    for (const help of this.helps()) help.hideTooltips();
   }
 
   /** Close overlays before the gallery parks behind a photo. */
-  private readonly popovers = viewChildren(ControlPopoverComponent);
+  private readonly helps = viewChildren(ContextHelpComponent);
 
   closeOverlays(): void {
-    for (const popover of this.popovers()) popover.open.set(false);
+    for (const help of this.helps()) help.close();
     closeOverlayDirectives(this.tooltips(), this.menuTriggers(), this.selects());
   }
 

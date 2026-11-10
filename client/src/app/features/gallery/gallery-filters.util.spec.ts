@@ -86,9 +86,12 @@ describe('countActiveFilters', () => {
   });
   it.each([
     ['min_score', 'score'], ['max_score', 'score'], ['gps_lat', 'gps'], ['gps_lng', 'gps'], ['gps_radius_km', 'gps'],
-    ['no_gps', 'gps'], ['camera', 'camera'], ['semanticQuery', 'semanticQuery'],
+    ['no_gps', 'gps'], ['camera', 'camera'], ['semanticQuery', 'semanticQuery'], ['tag', 'tag'], ['tag_groups', 'tag_groups'],
   ])('maps the filter key %s to the control %s', (key, unit) => {
     expect(filterUnit(key)).toBe(unit);
+  });
+  it('counts a single tag and tag rules as two controls, as the chips show them', () => {
+    expect(countActiveFilters(filters({ tag: 'sea', tag_groups: '{"any":["sky"]}' }))).toBe(2);
   });
   it('returns 0 for defaults', () => {
     expect(countActiveFilters(DEFAULT_FILTERS)).toBe(0);

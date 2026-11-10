@@ -157,13 +157,15 @@ The filter drawer has five tabs: Find, Source, Quality, Technical and Subject. R
 
 | Tab | Sections |
 |-----|----------|
-| **Find** | Semantic Search, Content, Persons, Moments (what to look for) |
+| **Find** | Semantic Search, Content, Tag Rules, Persons, Moments (what to look for) |
 | **Source** | Date Range, Location, Folder, Albums, Equipment (where, when and with what) |
 | **Quality** | Quality, Extended Quality, Measurement Availability (how good the image is) |
 | **Technical** | Technical, Exposure & Range, Color & Quality (sharpness, exposure, color and noise) |
-| **Subject** | Face Metrics, Composition, Subject Saliency (what is in the frame) |
+| **Subject** | Face Metrics, Composition (scores and the composition pattern), Subject Saliency (what is in the frame) |
 
 The header, **Find a filter**, the smart-album notice and the filename search stay above the tabs on every tab, so `/` works from any of them. Typing in **Find a filter** hides the tabs and lists the matching sliders from all of them. The **Active filters** icon beside it shows only the sections with an active filter, from every tab, expanded and in tab order; its badge counts those filters, and choosing a tab leaves that view. A section whose filter you clear there stays until you leave the view. With no filter set it reads *No filters applied*; when the only filters in use are outside the tabs, such as in Review, it says that none from these tabs are in use.
+
+**Tag Rules** has one chip row each for *Any of these*, *All of these* and *None of these*; the rows combine with AND, up to 50 names. Type a tag and press Enter, or pick one of the library's tags from the suggestions; a comma is part of the name. The **Tag** select in Content still picks a single tag. Semantic Search, Tag Rules, the pinned controls and the counts each have a ? icon on their header row that opens their help in a popover.
 
 The numeric count beside **Filters** includes every active criterion, including unavailable metrics. A range counts once. **Reset filters** appears beside the collection chips even for a single active criterion; the drawer does not duplicate it. **X** closes the drawer.
 

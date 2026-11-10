@@ -157,13 +157,15 @@ Il pannello filtri ha cinque schede: Trova, Origine, Qualità, Tecnica e Soggett
 
 | Scheda | Sezioni |
 |--------|---------|
-| **Trova** | Ricerca semantica, Contenuto, Persone, Momenti (cosa cercare) |
+| **Trova** | Ricerca semantica, Contenuto, Regole dei tag, Persone, Momenti (cosa cercare) |
 | **Origine** | Intervallo date, Posizione, Cartella, Album, Attrezzatura (dove, quando e con cosa) |
 | **Qualità** | Qualità, Qualità estesa, Disponibilità delle misure (quanto è buona l'immagine) |
 | **Tecnica** | Tecnica, Esposizione & Gamma, Colore e qualità (nitidezza, esposizione, colore e rumore) |
-| **Soggetto** | Metriche volti, Composizione, Salienza del soggetto (cosa c'è nell'inquadratura) |
+| **Soggetto** | Metriche volti, Composizione (punteggi e schema compositivo), Salienza del soggetto (cosa c'è nell'inquadratura) |
 
 L'intestazione, **Cerca un filtro**, l'avviso dell'album intelligente e la ricerca per nome file restano sopra le schede in ogni scheda, quindi `/` funziona da tutte. Digitare in **Cerca un filtro** nasconde le schede ed elenca i cursori corrispondenti di tutte. L'icona **Filtri attivi**, accanto, mostra solo le sezioni con un filtro attivo, da tutte le schede, espanse e nell'ordine delle schede; il badge conta questi filtri, e scegliere una scheda esce da questa vista. Una sezione di cui cancelli il filtro resta finché non esci dalla vista. Senza filtri mostra *Nessun filtro applicato*; se gli unici filtri in uso sono fuori dalle schede, ad esempio in Revisione, indica che nessun filtro di queste schede è in uso.
+
+**Regole dei tag** ha una riga di chip per *Uno qualsiasi di questi*, *Tutti questi* e *Nessuno di questi*; le righe si combinano con AND, fino a 50 nomi. Digita un tag e premi Invio, oppure scegli uno dei tag della libreria dai suggerimenti; una virgola fa parte del nome. Il selettore **Tag** in Contenuto sceglie ancora un singolo tag. Ricerca semantica, Regole dei tag, i controlli fissati e i conteggi hanno ciascuno un'icona ? sulla riga d'intestazione che apre la relativa guida in un popover.
 
 Il numero accanto a **Filtri** comprende tutti i criteri attivi, anche metriche non disponibili. Un intervallo conta una volta. **Reimposta filtri** appare accanto ai criteri della raccolta già con un solo criterio; il pannello non lo duplica. **X** chiude il pannello.
 

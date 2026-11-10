@@ -261,14 +261,19 @@ describe('GalleryFilterSidebarComponent', () => {
       expect(component.sectionActiveCounts()['date']).toBe(2);
     });
 
-    it('counts flat tags, hierarchy branches and composition for Content', () => {
+    it('counts flat tags and hierarchy branches for Content, tag rules on their own and the pattern under Composition', () => {
       const mockStore = (component as any).store;
       mockStore.filters.set({ ...mockStore.filters(), tag: 'landscape' });
       expect(component.sectionActiveCounts()['content']).toBe(1);
+      mockStore.filters.set({ ...mockStore.filters(), keyword_branch: '11111111-1111-4111-8111-111111111111' });
+      expect(component.sectionActiveCounts()['content']).toBe(2);
+      mockStore.filters.set({ ...mockStore.filters(), tag_groups: '{"any":["sea"]}' });
+      expect(component.sectionActiveCounts()['content']).toBe(2);
+      expect(component.sectionActiveCounts()['tag_rules']).toBe(1);
       mockStore.filters.set({ ...mockStore.filters(), composition_pattern: 'rule_of_thirds' });
       expect(component.sectionActiveCounts()['content']).toBe(2);
-      mockStore.filters.set({ ...mockStore.filters(), keyword_branch: '11111111-1111-4111-8111-111111111111' });
-      expect(component.sectionActiveCounts()['content']).toBe(3);
+      expect(component.sectionActiveCounts()['gallery.sidebar.composition']).toBe(1);
+      expect(component.totalActiveCount()).toBe(4);
     });
 
     it('counts camera and lens for equipment section', () => {
@@ -491,14 +496,14 @@ describe('GalleryFilterSidebarComponent', () => {
     it('covers every metric section and every hand-written panel', () => {
       const panels = allPanels();
       for (const key of SECTION_ORDER) expect(panels, key).toContain(key);
-      const handWritten = ['semantic', 'persons', 'date', 'content', 'albums', 'location', 'folder', 'equipment', 'refine', 'color_quality', 'view', 'score_presence'];
+      const handWritten = ['semantic', 'persons', 'date', 'content', 'tag_rules', 'albums', 'location', 'folder', 'equipment', 'refine', 'color_quality', 'view', 'score_presence'];
       expect(panels).toEqual(expect.arrayContaining(handWritten));
       expect(panels).toHaveLength(SECTION_ORDER.length + handWritten.length);
     });
 
     it('splits the panels into Find, Source, Quality, Technical and Subject, each listed in render order', () => {
       expect(TAB_IDS).toEqual(['find', 'source', 'review', 'quality', 'technical', 'subject', 'display']);
-      expect(TAB_SECTIONS.find).toEqual(['semantic', 'content', 'persons', 'gallery.sidebar.moments']);
+      expect(TAB_SECTIONS.find).toEqual(['semantic', 'content', 'tag_rules', 'persons', 'gallery.sidebar.moments']);
       expect(TAB_SECTIONS.source).toEqual(['date', 'location', 'folder', 'albums', 'equipment']);
       expect(TAB_SECTIONS.quality).toEqual(['gallery.sidebar.quality', 'gallery.sidebar.extended_quality', 'score_presence']);
       expect(TAB_SECTIONS.technical).toEqual(['gallery.sidebar.technical', 'gallery.sidebar.exposure_range', 'color_quality']);
@@ -691,23 +696,21 @@ describe('GalleryFilterSidebarComponent', () => {
       settle();
     };
 
-    it('keeps count scope help compact until opened and restores focus on Escape', () => {
-      const help = fixture.nativeElement.querySelector('[data-count-help]') as HTMLDetailsElement;
-      const summary = help.querySelector('summary')!;
-      expect(help.open).toBe(false);
-      expect(summary.getAttribute('aria-label')).toBe('gallery.sidebar.count_scope');
-      const bubbled = vi.fn(); fixture.nativeElement.addEventListener('keydown', bubbled);
-      summary.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
-      expect(bubbled).toHaveBeenCalledOnce();
-      summary.click(); settle();
-      expect(help.open).toBe(true);
-      expect(help.textContent).toContain('gallery.sidebar.count_scope_options');
-      expect(help.textContent).toContain('gallery.sidebar.count_scope_types');
-      expect(help.textContent).toContain('gallery.sidebar.count_scope_badges');
-      summary.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true })); settle();
-      expect(bubbled).toHaveBeenCalledOnce();
-      expect(help.open).toBe(false);
-      expect(summary.ownerDocument.activeElement).toBe(summary);
+    it('explains the counts from a help icon button on the header row, in a popover', () => {
+      const help = fixture.nativeElement.querySelector('app-context-help[data-count-help]') as HTMLElement;
+      expect(help).toBeTruthy();
+      expect(help.parentElement!.querySelector('[data-test="close"]')).toBeTruthy();
+      const button = help.querySelector('button')!;
+      expect(button.getAttribute('aria-label')).toBe('gallery.sidebar.count_scope');
+      expect(button.querySelector('mat-icon')!.textContent!.trim()).toBe('help_outline');
+      expect(button.getAttribute('aria-expanded')).toBe('false');
+      button.click(); settle();
+      expect(button.getAttribute('aria-expanded')).toBe('true');
+      const overlay = TestBed.inject(OverlayContainer).getContainerElement();
+      const text = overlay.querySelector('[data-context-help]')!.textContent!;
+      expect(text).toContain('gallery.sidebar.count_scope_options');
+      expect(text).toContain('gallery.sidebar.count_scope_types');
+      expect(text).toContain('gallery.sidebar.count_scope_badges');
       expect(store['updateFilter']).not.toHaveBeenCalled();
       expect(store['updateFilters']).not.toHaveBeenCalled();
     });
@@ -727,10 +730,12 @@ describe('GalleryFilterSidebarComponent', () => {
       expect(fixture.nativeElement.querySelectorAll('[data-metric="score_range"]')).toHaveLength(1);
       expect(fixture.nativeElement.querySelectorAll('#metric-help-score_range')).toHaveLength(1);
       expect(fixture.nativeElement.querySelector('[data-pinned-filters] [data-metric="score_range"]')).not.toBeNull();
-      const help = fixture.nativeElement.querySelector('[data-pins-help]') as HTMLDetailsElement;
-      expect(help.open).toBe(false);
-      help.querySelector('summary')!.click();
-      expect(help.open).toBe(true);
+      const pinsHelp = fixture.nativeElement.querySelector('[data-pinned-filters] app-context-help[data-pins-help]') as HTMLElement;
+      expect(pinsHelp.parentElement!.textContent).toContain('gallery.sidebar.pins.title');
+      expect(pinsHelp.querySelector('button')!.getAttribute('aria-label')).toBe('gallery.sidebar.pins.help');
+      pinsHelp.querySelector('button')!.click(); settle();
+      expect(TestBed.inject(OverlayContainer).getContainerElement().querySelector('[data-context-help]')!.textContent).toContain('gallery.sidebar.pins.hint');
+      TestBed.inject(OverlayContainer).getContainerElement().querySelector<HTMLButtonElement>('header button')!.click(); settle();
       component.selectTab('find'); settle();
       expect(fixture.nativeElement.querySelectorAll('[data-metric="score_range"]')).toHaveLength(1);
       store['filters'].update((f: object) => ({ ...f, min_score: '6' })); settle();
@@ -778,7 +783,10 @@ describe('GalleryFilterSidebarComponent', () => {
       store['filters'].update((f: object) => ({ ...f, person_id: '1,2', person_match: 'all' }));
       component.selectTab('find'); component.onSectionToggle('persons', true); settle();
       const root = fixture.nativeElement as HTMLElement;
-      const personInput = root.querySelector<HTMLInputElement>('input[role="combobox"]')!;
+      // Scoped to the persons panel: the tag rule rows above it are comboboxes too.
+      const personsPanel = [...root.querySelectorAll('mat-expansion-panel')]
+        .find(panel => panel.querySelector('mat-panel-title')?.textContent?.includes('gallery.sidebar.persons'))!;
+      const personInput = personsPanel.querySelector<HTMLInputElement>('input[role="combobox"]')!;
       const personLabel = root.querySelector<HTMLLabelElement>(`label[for="${personInput.id}"]`);
       expect(personLabel?.textContent).toContain('gallery.person');
       const all = root.querySelector<HTMLInputElement>('[data-person-match="all"]')!;
@@ -1058,6 +1066,47 @@ describe('GalleryFilterSidebarComponent', () => {
         expect((fixture.nativeElement as HTMLElement).querySelector('[data-section="view"]')).toBeTruthy();
       });
 
+      const panelByTitle = (key: string) => Array.from((fixture.nativeElement as HTMLElement).querySelectorAll('mat-expansion-panel'))
+        .find(panel => panel.querySelector('mat-panel-title')!.textContent!.includes(key)) as HTMLElement | undefined;
+
+      it('gives tag rules their own Find section, after Content, with a help button on its header row', () => {
+        store['tags'].set([{ value: 'sea', count: 3 }]);
+        settle();
+        const order = titles().map(title => title.replace(/^\S+\s*/, ''));
+        expect(order.indexOf('gallery.tag_groups.title')).toBe(order.indexOf('gallery.sidebar.content') + 1);
+        const rules = panelByTitle('gallery.tag_groups.title')!;
+        expect(rules.querySelector('app-tag-groups')).toBeTruthy();
+        expect(panelByTitle('gallery.sidebar.content')!.querySelector('app-tag-groups')).toBeNull();
+        const help = rules.previousElementSibling as HTMLElement;
+        expect(help.matches('app-context-help[data-section-help="tag_rules"]')).toBe(true);
+        expect(help.querySelector('button')!.getAttribute('aria-label')).toBe('gallery.tag_groups.help');
+        help.querySelector('button')!.click(); settle();
+        expect(TestBed.inject(OverlayContainer).getContainerElement().querySelector('[data-context-help]')!.textContent).toContain('gallery.tag_groups.hint');
+      });
+
+      it('lists the composition pattern in Subject, at the top of Composition, and no longer in Content', () => {
+        store['patterns'].set([{ value: 'rule_of_thirds', count: 4 }]);
+        settle();
+        expect(panelByTitle('gallery.sidebar.content')!.textContent).not.toContain('gallery.composition_pattern');
+        fixture.componentInstance.selectTab('subject');
+        settle();
+        const composition = panelByTitle('gallery.sidebar.composition')!;
+        const select = composition.querySelector('mat-select')!;
+        expect(select.closest('mat-form-field')!.querySelector('mat-label')!.textContent).toContain('gallery.composition_pattern');
+        const firstMetric = composition.querySelector('[data-metric]')!;
+        expect(select.compareDocumentPosition(firstMetric) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+      });
+
+      it('keeps the pattern select in Composition when every composition metric is unavailable', () => {
+        store['patterns'].set([{ value: 'rule_of_thirds', count: 4 }]);
+        store['config'].set({ features: {}, unavailable_metrics: ADDITIONAL_FILTERS.filter(d => d.sectionKey === 'gallery.sidebar.composition').map(d => d.minKey.replace(/^min_/, '')) });
+        fixture.componentInstance.selectTab('subject');
+        settle();
+        const composition = panelByTitle('gallery.sidebar.composition')!;
+        expect(composition.querySelector('[data-metric]')).toBeNull();
+        expect(composition.querySelector('mat-select')).toBeTruthy();
+      });
+
       it('explains every Display control in a tooltip', () => {
         store['config'].set({ features: {}, display: { thumbnail_slider: { min_px: 120, max_px: 400, step_px: 10 } } });
         fixture.componentInstance.selectTab('display');
@@ -1174,6 +1223,7 @@ describe('GalleryFilterSidebarComponent', () => {
       showTab('find');
       const editor = (fixture.nativeElement as HTMLElement).querySelector('app-tag-groups');
       expect(editor).toBeTruthy();
+      expect(editor!.closest('mat-expansion-panel')!.querySelector('mat-panel-title')!.textContent).toContain('gallery.tag_groups.title');
       expect(editor!.querySelector('[role=alert]')!.textContent).toContain('gallery.tag_groups.invalid');
       editor!.querySelector<HTMLButtonElement>('[data-tag-rule-clear]')!.click();
       expect(mockStore['updateFilter']).toHaveBeenCalledWith('tag_groups', '');
@@ -1472,6 +1522,16 @@ describe('GalleryFilterSidebarComponent', () => {
       expect(select.panelOpen).toBe(false);
     });
 
+    it('closes an open help popover when the gallery parks', () => {
+      const trigger = fixture.nativeElement.querySelector('app-context-help[data-count-help] button') as HTMLButtonElement;
+      trigger.click();
+      fixture.detectChanges();
+      expect(trigger.getAttribute('aria-expanded')).toBe('true');
+      fixture.componentInstance.closeOverlays();
+      fixture.detectChanges();
+      expect(trigger.getAttribute('aria-expanded')).toBe('false');
+    });
+
 
     it('offers missing capture date in the date panel and applies one atomic query change', () => {
       showTab('source');
@@ -1507,22 +1567,27 @@ describe('GalleryFilterSidebarComponent', () => {
       expect(document.activeElement).toBe(finder);
     });
 
-    it('uses one visible semantic heading and reveals explanatory copy only on request', () => {
+    it('uses one visible semantic heading and reveals explanatory copy only on request, from the section header row', () => {
       const panel = fixture.nativeElement.querySelector('[data-semantic-search]') as HTMLElement;
       expect(panel.querySelector('mat-form-field')).toBeNull();
       const input = panel.querySelector<HTMLInputElement>('#semantic-search-input')!;
       expect(input.labels?.[0]?.classList.contains('sr-only')).toBe(true);
-      const help = panel.querySelector<HTMLButtonElement>('[data-semantic-help] button')!;
+      expect(panel.querySelector('app-context-help, app-control-popover')).toBeNull();
+      const host = fixture.nativeElement.querySelector('app-context-help[data-section-help="semantic"]') as HTMLElement;
+      expect(host.closest('mat-expansion-panel-header')).toBeNull();
+      expect(host.nextElementSibling!.tagName).toBe('MAT-EXPANSION-PANEL');
+      expect(host.nextElementSibling!.contains(panel)).toBe(true);
+      const help = host.querySelector<HTMLButtonElement>('button')!;
+      expect(help.getAttribute('aria-label')).toBe('gallery.semantic_search_help');
       expect(help.getAttribute('aria-expanded')).toBe('false');
-      expect(panel.querySelector('#semantic-search-help')).toBeNull();
       help.click(); fixture.detectChanges();
       expect(help.getAttribute('aria-expanded')).toBe('true');
       const overlay = TestBed.inject(OverlayContainer).getContainerElement();
-      expect(panel.querySelector('#semantic-search-help')).toBeNull();
-      expect(overlay.querySelector('#semantic-search-help')?.textContent).toContain('gallery.semantic_search_info');
+      const text = overlay.querySelector('[data-context-help]')?.textContent;
+      expect(text).toContain('gallery.semantic_search_info');
+      expect(text).toContain('gallery.semantic_search_threshold_hint');
       overlay.querySelector('header button')!.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true })); fixture.detectChanges();
-      expect(overlay.querySelector('#semantic-search-help')).toBeNull();
-      expect(panel.querySelector('#semantic-search-help')).toBeNull();
+      expect(overlay.querySelector('[data-context-help]')).toBeNull();
     });
 
     it('renders the thumb seeded from the config default, announced with its unit', () => {
