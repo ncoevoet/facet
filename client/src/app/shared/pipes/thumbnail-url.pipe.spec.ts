@@ -1,6 +1,6 @@
 import { ChangeDetectionStrategy, Component } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
-import { privateImageSessionKey, resetPrivateImageSession } from '../utils/private-image-session';
+import { privateImageCacheKey, resetPrivateImageSession } from '../utils/private-image-session';
 import { ThumbnailUrlPipe, ImageUrlPipe, FaceThumbnailUrlPipe, PersonThumbnailUrlPipe,
   thumbnailUrl, imageUrl, faceThumbnailUrl, personThumbnailUrl } from './thumbnail-url.pipe';
 
@@ -23,18 +23,18 @@ describe('private image sessions', () => {
     const urls = () => [thumbnailUrl('/photos/shared.jpg', 160), imageUrl('/photos/shared.jpg'),
       faceThumbnailUrl(42), personThumbnailUrl(7)];
     const before = urls();
-    const firstKey = privateImageSessionKey();
+    const firstKey = privateImageCacheKey();
     expect(firstKey).toMatch(/^[a-f0-9]{32}$/);
     expect(urls()).toEqual(before);
     for (const url of before) {
       expect(new URL(url, 'http://facet.test').searchParams.get('session')).toBe(firstKey);
     }
     resetPrivateImageSession();
-    expect(privateImageSessionKey()).not.toBe(firstKey);
-    expect(privateImageSessionKey()).toMatch(/^[a-f0-9]{32}$/);
+    expect(privateImageCacheKey()).not.toBe(firstKey);
+    expect(privateImageCacheKey()).toMatch(/^[a-f0-9]{32}$/);
     for (const [index, url] of urls().entries()) {
       expect(url).not.toBe(before[index]);
-      expect(new URL(url, 'http://facet.test').searchParams.get('session')).toBe(privateImageSessionKey());
+      expect(new URL(url, 'http://facet.test').searchParams.get('session')).toBe(privateImageCacheKey());
     }
     const after = urls();
     expect(urls()).toEqual(after);
@@ -54,7 +54,7 @@ describe('private image sessions', () => {
     for (const [index, image] of images.entries()) {
       expect(image.getAttribute('src')).not.toBe(before[index]);
       const url = new URL(image.src);
-      expect(url.searchParams.get('session')).toBe(privateImageSessionKey());
+      expect(url.searchParams.get('session')).toBe(privateImageCacheKey());
       expect(url.searchParams.get('ngsw-bypass')).toBe('1');
     }
   });
@@ -65,13 +65,13 @@ describe('private image sessions', () => {
     try {
       localStorage.setItem('facet_token', credential);
       resetPrivateImageSession();
-      const first = privateImageSessionKey();
+      const first = privateImageCacheKey();
       resetPrivateImageSession();
-      expect(privateImageSessionKey()).not.toBe(first);
-      expect(privateImageSessionKey()).toMatch(/^[a-f0-9]{32}$/);
+      expect(privateImageCacheKey()).not.toBe(first);
+      expect(privateImageCacheKey()).toMatch(/^[a-f0-9]{32}$/);
       for (const url of [thumbnailUrl('/p.jpg'), imageUrl('/p.jpg'), faceThumbnailUrl(42), personThumbnailUrl(7)]) {
         expect(url).not.toContain(credential);
-        expect(new URL(url, 'http://facet.test').searchParams.get('session')).toBe(privateImageSessionKey());
+        expect(new URL(url, 'http://facet.test').searchParams.get('session')).toBe(privateImageCacheKey());
       }
     } finally {
       if (previous === null) localStorage.removeItem('facet_token');

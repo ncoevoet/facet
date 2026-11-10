@@ -4,7 +4,9 @@ import { Router } from '@angular/router';
 import { firstValueFrom, timeout, TimeoutError } from 'rxjs';
 import { clearReviewQueues, REVIEW_QUEUE_STORAGE_KEY } from './review-queue.storage';
 import { clearPersonAssignmentHistory } from './person-assignment-history.storage';
-import { resetPrivateImageSession } from '../../shared/utils/private-image-session';
+import {
+  confirmPrivateImageOwner, PRIVATE_IMAGE_SESSION_STORAGE_KEY, resetPrivateImageSession, syncPrivateImageSession,
+} from '../../shared/utils/private-image-session';
 
 export interface AuthStatus {
   authenticated: boolean;
@@ -51,6 +53,13 @@ const CLOCK_SKEW_GRACE_MS = 5 * 60 * 1000;
 const AUTH_REQUEST_TIMEOUT_MS = 15_000;
 const AUTH_LOCK_TIMEOUT_MS = 60_000;
 
+/** Who a status signs in, ignoring its other fields. A single-user install has
+ *  one account: an edition token reports the `_legacy` subject where no token
+ *  reports none, and neither changes what the viewer may see. */
+function authIdentity(status: AuthStatus | null): string {
+  return `${status?.authenticated ? 1 : 0}|${status?.multi_user ? status.user_id ?? '' : ''}`;
+}
+
 /** True once the JWT's own `exp` has passed, plus the clock-skew grace. Verifying
  *  the signature is the server's business; this only stops the client presenting
  *  a token it already knows is dead, which some deployments treat as worse than
@@ -75,6 +84,7 @@ export class AuthService {
 
   private readonly TOKEN_KEY = 'facet_token';
   private readonly COOKIE_UNCERTAINTY_KEY = 'facet_auth_cookie_uncertain';
+  private readonly MULTI_USER_MODE_KEY = 'facet_multi_user_mode';
   private pendingRevalidation: Promise<AuthStatus | null> | null = null;
   private pendingLoad: Promise<AuthStatus> | null = null;
   private authEpoch = 0;
@@ -86,15 +96,12 @@ export class AuthService {
   private cookieUncertain = false;
   // Public installation mode keeps the retry form usable even when an unknown
   // HttpOnly cookie prevents restoring any identity, including after a reload.
-  private readonly multiUserMode = signal(localStorage.getItem('facet_multi_user_mode') === '1');
+  private readonly multiUserMode = signal(localStorage.getItem(this.MULTI_USER_MODE_KEY) === '1');
 
   /** Reactive auth state */
   readonly status = signal<AuthStatus | null>(null);
   /** Who is signed in, not the session's other status fields; changes exactly when the identity does. */
-  readonly identity = computed(() => {
-    const status = this.status();
-    return `${status?.authenticated ? 1 : 0}|${status?.user_id ?? ''}`;
-  });
+  readonly identity = computed(() => authIdentity(this.status()));
   readonly isAuthenticated = computed(() => this.status()?.authenticated ?? false);
   readonly isEdition = computed(() => this.status()?.edition_authenticated ?? false);
   readonly editionPasswordRequired = computed(() => this.status()?.edition_password_required ?? false);
@@ -125,9 +132,11 @@ export class AuthService {
         if (!this.cookieUncertain) void this.revalidate();
       } else if (event.key === this.TOKEN_KEY || event.key === null) {
         if (event.newValue === null) clearReviewQueues();
+        if (event.key === null) syncPrivateImageSession();
         this.invalidateSession();
         void this.revalidate();
-      } else if (event.key === REVIEW_QUEUE_STORAGE_KEY && event.newValue === null) clearReviewQueues();
+      } else if (event.key === PRIVATE_IMAGE_SESSION_STORAGE_KEY) syncPrivateImageSession();
+      else if (event.key === REVIEW_QUEUE_STORAGE_KEY && event.newValue === null) clearReviewQueues();
     };
     window.addEventListener('storage', onStorage);
     inject(DestroyRef).onDestroy(() => window.removeEventListener('storage', onStorage));
@@ -172,8 +181,9 @@ export class AuthService {
     }
     this.appliedStatusRequest = request;
     this.multiUserMode.set(status.multi_user);
-    localStorage.setItem('facet_multi_user_mode', status.multi_user ? '1' : '0');
+    localStorage.setItem(this.MULTI_USER_MODE_KEY, status.multi_user ? '1' : '0');
     this.confirmedStatus = status;
+    confirmPrivateImageOwner(authIdentity(status));
     if (!this.pendingCookieMutations) this.status.set(status);
     return status;
   }
@@ -187,7 +197,6 @@ export class AuthService {
    * CacheStorage cleanup does not clear the browser's HTTP cache. */
   private invalidateSession(): void {
     this.authEpoch++;
-    resetPrivateImageSession();
     this.pendingLoad = null;
     this.pendingRevalidation = null;
     this.status.set(null);
@@ -228,14 +237,17 @@ export class AuthService {
 
   /**
    * Store a minted token and refresh status. Shared by both login flows so
-   * they cannot drift on what "success" writes.
+   * they cannot drift on what "success" writes. An account login starts a new
+   * image key; an edition unlock keeps it, since edition changes no image's
+   * visibility.
    */
-  private async acceptToken(res: LoginResponse | undefined): Promise<LoginOutcome> {
+  private async acceptToken(res: LoginResponse | undefined, account: boolean): Promise<LoginOutcome> {
     if (!res?.access_token) {
       await this.reconcileCookie();
       return 'unavailable';
     }
     localStorage.setItem(this.TOKEN_KEY, res.access_token);
+    if (account) resetPrivateImageSession();
     this.markCookieUncertain(false);
     this.invalidateSession();
     await this.refreshStatus();
@@ -251,7 +263,7 @@ export class AuthService {
       this.confirmedStatus = this.status();
       if (this.confirmedStatus) {
         this.multiUserMode.set(this.confirmedStatus.multi_user);
-        localStorage.setItem('facet_multi_user_mode', this.confirmedStatus.multi_user ? '1' : '0');
+        localStorage.setItem(this.MULTI_USER_MODE_KEY, this.confirmedStatus.multi_user ? '1' : '0');
       }
     }
     this.pendingCookieMutations++;
@@ -347,6 +359,7 @@ export class AuthService {
       } catch { break; /* Invalid or unconfirmed Bearer: clear the complete session. */ }
     }
     localStorage.removeItem(this.TOKEN_KEY);
+    resetPrivateImageSession();
     clearPersonAssignmentHistory();
     clearReviewQueues();
     this.invalidateSession();
@@ -358,6 +371,8 @@ export class AuthService {
       await firstValueFrom(this.http.post('/api/auth/logout', {}).pipe(timeout(AUTH_REQUEST_TIMEOUT_MS)));
       this.markCookieUncertain(false);
     } catch { /* An explicit successful login can reconcile a later retry. */ }
+    // Images loaded until the cookie was cleared used the old account's cookie.
+    resetPrivateImageSession();
   }
 
   /**
@@ -392,6 +407,7 @@ export class AuthService {
 
       return await this.mutateCookie(async () => this.acceptToken(
         await this.postAuth<LoginResponse>('/api/auth/login', body),
+        true,
       ));
     } catch (err) {
       return this.classifyLoginError(err);
@@ -403,6 +419,7 @@ export class AuthService {
     try {
       return await this.mutateCookie(async () => this.acceptToken(
         await this.postAuth<LoginResponse>('/api/auth/edition/login', { password }),
+        false,
       ));
     } catch (err) {
       return this.classifyLoginError(err);
@@ -419,10 +436,13 @@ export class AuthService {
         this.markCookieUncertain(false);
       } finally {
         localStorage.removeItem(this.TOKEN_KEY);
+        // Images loaded until the cookie was cleared used the old account's cookie.
+        resetPrivateImageSession();
         this.invalidateSession();
       }
     }).catch(() => undefined);
     localStorage.removeItem(this.TOKEN_KEY);
+    resetPrivateImageSession();
     clearPersonAssignmentHistory();
     clearReviewQueues();
     this.invalidateSession();

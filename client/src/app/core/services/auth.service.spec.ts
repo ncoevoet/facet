@@ -7,6 +7,7 @@ import { PersonAssignmentHistoryService } from './person-assignment-history.serv
 import { AuthService, AuthStatus } from './auth.service';
 import { makeJwt } from '../../../testing/jwt';
 import { authInterceptor } from '../interceptors/auth.interceptor';
+import { PRIVATE_IMAGE_SESSION_STORAGE_KEY, privateImageCacheKey, privateImageSessionKey } from '../../shared/utils/private-image-session';
 
 describe('AuthService', () => {
   let service: AuthService;
@@ -325,6 +326,137 @@ describe('AuthService', () => {
     it('should ignore changes to unrelated storage keys', () => {
       window.dispatchEvent(new StorageEvent('storage', { key: 'facet_language' }));
 
+      httpTesting.expectNone('/api/auth/status');
+    });
+  });
+
+  describe('private image key', () => {
+    const singleUser: AuthStatus = {
+      ...mockStatus, multi_user: false, edition_authenticated: false, edition_password_required: true,
+      user_id: null, user_role: null,
+    };
+
+    async function confirm(status: AuthStatus): Promise<void> {
+      const pending = service.revalidate();
+      httpTesting.expectOne('/api/auth/status').flush(status);
+      await pending;
+    }
+
+    it('rotates when another tab signs in a different account', async () => {
+      trackTokenStorage(makeJwt(3600, { sub: 'alice' }));
+      await confirm({ ...mockStatus, user_id: 'alice' });
+      const aliceKey = privateImageSessionKey();
+      const bobToken = makeJwt(3600, { sub: 'bob' });
+      localStorage.setItem('facet_token', bobToken);
+      window.dispatchEvent(new StorageEvent('storage', { key: 'facet_token', newValue: bobToken }));
+      httpTesting.expectOne('/api/auth/status').flush({ ...mockStatus, user_id: 'bob' });
+      await nextTurn();
+      expect(service.identity()).toBe('1|bob');
+      expect(privateImageSessionKey()).not.toBe(aliceKey);
+    });
+
+    it('rotates on an account login, even when the same account signs in again', async () => {
+      trackTokenStorage(makeJwt(3600, { sub: 'alice' }));
+      await confirm({ ...mockStatus, user_id: 'alice' });
+      const before = privateImageSessionKey();
+      const login = service.login('secret', 'alice');
+      httpTesting.expectOne('/api/auth/login').flush({ access_token: makeJwt(3600, { sub: 'alice' }) });
+      await nextTurn();
+      httpTesting.expectOne('/api/auth/status').flush({ ...mockStatus, user_id: 'alice' });
+      expect(await login).toBe('ok');
+      expect(privateImageSessionKey()).not.toBe(before);
+    });
+
+    it('rotates on logout, and again once the cookie is cleared', async () => {
+      trackTokenStorage(makeJwt(3600, { sub: 'alice' }));
+      await confirm({ ...mockStatus, user_id: 'alice' });
+      const before = privateImageCacheKey();
+      const done = service.logout();
+      const hidden = privateImageCacheKey();
+      httpTesting.expectOne('/api/auth/logout').flush({});
+      await done;
+      expect(hidden).not.toBe(before);
+      expect(privateImageCacheKey()).not.toBe(hidden);
+    });
+
+    it('rotates when a failed cookie reconciliation clears the session', async () => {
+      trackTokenStorage(makeJwt(3600, { sub: 'bob' }));
+      service.status.set({ ...mockStatus, user_id: 'bob' });
+      const before = privateImageCacheKey();
+      const login = service.login('alice-password', 'alice');
+      httpTesting.expectOne('/api/auth/login').error(new ProgressEvent('error'));
+      await nextTurn();
+      httpTesting.expectOne('/api/auth/cookie').flush('revoked', { status: 401, statusText: 'Unauthorized' });
+      await nextTurn();
+      const cleared = privateImageCacheKey();
+      httpTesting.expectOne('/api/auth/logout').flush({});
+      expect(await login).toBe('unavailable');
+      expect(cleared).not.toBe(before);
+      expect(privateImageCacheKey()).not.toBe(cleared);
+    });
+
+    it('does not take back a key this document dropped', async () => {
+      trackTokenStorage(makeJwt(3600, { sub: 'alice' }));
+      await confirm({ ...mockStatus, user_id: 'alice' });
+      const aliceKey = privateImageCacheKey();
+      const done = service.logout();
+      httpTesting.expectOne('/api/auth/logout').flush({});
+      await done;
+      // A tab that read storage before the logout writes Alice's key back.
+      localStorage.setItem(PRIVATE_IMAGE_SESSION_STORAGE_KEY, JSON.stringify({ owner: null, key: aliceKey }));
+      window.dispatchEvent(new StorageEvent('storage', { key: PRIVATE_IMAGE_SESSION_STORAGE_KEY }));
+      expect(privateImageCacheKey()).not.toBe(aliceKey);
+      expect(JSON.parse(localStorage.getItem(PRIVATE_IMAGE_SESSION_STORAGE_KEY)!).key).toBe(privateImageCacheKey());
+      await confirm({ ...mockStatus, user_id: 'bob' });
+      expect(privateImageCacheKey()).not.toBe(aliceKey);
+    });
+
+    it('starts a new key when another tab clears storage', () => {
+      trackTokenStorage(null);
+      const before = privateImageCacheKey();
+      localStorage.removeItem(PRIVATE_IMAGE_SESSION_STORAGE_KEY);
+      window.dispatchEvent(new StorageEvent('storage', { key: null }));
+      httpTesting.expectOne('/api/auth/status').flush(mockStatus);
+      expect(privateImageCacheKey()).not.toBe(before);
+    });
+
+    it('keeps the key while the same account is confirmed again', async () => {
+      trackTokenStorage(makeJwt(3600, { sub: 'alice' }));
+      await confirm({ ...mockStatus, user_id: 'alice' });
+      const key = privateImageSessionKey();
+      await confirm({ ...mockStatus, user_id: 'alice', display_name: 'Alice' });
+      expect(privateImageSessionKey()).toBe(key);
+    });
+
+    it('keeps the key across an edition unlock and lock, which change no image visibility', async () => {
+      trackTokenStorage(makeJwt(3600, {}));
+      await confirm(singleUser);
+      const identity = service.identity();
+      const key = privateImageSessionKey();
+      const cacheKey = privateImageCacheKey();
+      const unlock = service.editionLogin('edition-pass');
+      httpTesting.expectOne('/api/auth/edition/login').flush({ access_token: makeJwt(3600, { edition: true }) });
+      await nextTurn();
+      // As the server reports it: the edition token's subject, where no token reported none.
+      httpTesting.expectOne('/api/auth/status').flush({ ...singleUser, edition_authenticated: true, user_id: '_legacy' });
+      expect(await unlock).toBe('ok');
+      expect(service.identity()).toBe(identity);
+      expect(privateImageSessionKey()).toBe(key);
+      const lock = service.dropEdition();
+      httpTesting.expectOne('/api/auth/edition/logout').flush({ access_token: makeJwt(3600, { edition: false }) });
+      expect(await lock).toBe(true);
+      expect(privateImageSessionKey()).toBe(key);
+      expect(privateImageCacheKey()).toBe(cacheKey);
+    });
+
+    it('adopts the key another tab wrote', () => {
+      trackTokenStorage(null);
+      const key = 'ab'.repeat(16);
+      const session = privateImageSessionKey();
+      localStorage.setItem(PRIVATE_IMAGE_SESSION_STORAGE_KEY, JSON.stringify({ owner: null, key }));
+      window.dispatchEvent(new StorageEvent('storage', { key: PRIVATE_IMAGE_SESSION_STORAGE_KEY }));
+      expect(privateImageCacheKey()).toBe(key);
+      expect(privateImageSessionKey()).not.toBe(session);
       httpTesting.expectNone('/api/auth/status');
     });
   });

@@ -17,6 +17,7 @@ import { AssistantChangesService, AssistantChangeBatch } from '../../core/agent/
 import { PhotoStackService } from '../../core/services/photo-stack.service';
 import { GalleryStore } from '../gallery/gallery.store';
 import { makePhoto } from '../../../testing/photo.fixture';
+import { makeJwt } from '../../../testing/jwt';
 import { leafletMock } from '../../../testing/leaflet-mock';
 import { privateImageSessionKey, resetPrivateImageSession } from '../../shared/utils/private-image-session';
 
@@ -457,6 +458,22 @@ describe('manual stack browsing through rendered viewer, Router and HTTP', () =>
     await render();
     expect(router.url).not.toContain(encodeURIComponent(paths[2]));
     if (reason === 'account') expect(root().querySelector('[data-stack-navigator]')).toBeNull();
+  });
+
+  it('keeps browsing the stack after edition is unlocked on the open photo', async () => {
+    const readOnly = { ...auth.status()!, multi_user: false, user_id: null, user_role: null,
+      edition_authenticated: false, edition_password_required: true };
+    auth.status.set(readOnly);
+    await open();
+    const unlocking = auth.editionLogin('secret');
+    http.expectOne('/api/auth/edition/login').flush({ access_token: makeJwt(3600, { edition: true }) });
+    await new Promise<void>(resolve => setTimeout(resolve, 0));
+    // As the server reports it: the edition token's subject, where no token reported none.
+    http.expectOne('/api/auth/status').flush({ ...readOnly, edition_authenticated: true, user_id: '_legacy' });
+    expect(await unlocking).toBe('ok');
+    await membership();
+    await clickMember('[data-stack-next]', paths[2]);
+    expect(router.url).toContain(encodeURIComponent(paths[2]));
   });
 
   it('cancels in-flight membership reads on route and account changes, including returning to the same path', async () => {
