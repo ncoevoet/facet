@@ -76,7 +76,7 @@ Restart the viewer after setting `viewer.edition_password`: the config is not ho
 
 Login also sets the session token in an `HttpOnly` `SameSite=Lax` cookie, so thumbnails and the scan progress stream load on password-protected installs. The cookie is honored for read-only requests (GET/HEAD) only; edits still need the Bearer token. Logging out (`POST /api/auth/logout`) clears it.
 
-Library thumbnails, full images and face/person crops use private HTTP cache headers that require revalidation. They bypass the service worker, which no longer saves an offline thumbnail cache. Image URLs also receive a new random key when the credential session changes, preventing the viewer from reusing an earlier session's decoded images. Private photo history snapshots are usable only in their original session; Back after logout/login or a page reload rechecks access before displaying metadata. This does not erase image bytes or history already delivered to the browser. Public album shares and frame kiosks keep their separate access policies. An explicit server refusal of **Lock editing** leaves the current privileges visible and shows an error; an interrupted response must first reconcile its cookie, as described below.
+Library thumbnails, full images and face/person crops use private HTTP cache headers that require revalidation. They bypass the service worker, which no longer saves an offline thumbnail cache. Image URLs carry a `session` query parameter, which is not a credential and changes when the signed-in account changes, so the viewer does not reuse an earlier account's decoded images. Private photo history snapshots are usable only in their original session; Back after logout/login or a page reload rechecks access before displaying metadata. This does not erase image bytes or history already delivered to the browser. Public album shares and frame kiosks keep their separate access policies. An explicit server refusal of **Lock editing** leaves the current privileges visible and shows an error; an interrupted response must first reconcile its cookie, as described below.
 
 ### Multi-User Mode
 
@@ -1175,9 +1175,9 @@ For older changes, see [Organization history](#organization-history).
 
 ## Progressive Web App
 
-Production builds can be installed to the home screen. The app shell loads offline, and up to 1000 thumbnails are cached for 7 days (larger sizes, such as the darkroom's 1920 px renders, rely on the browser cache). API responses are never cached, except translation bundles. A snackbar offers a reload when a new version is deployed.
+Production builds can be installed to the home screen. The app shell loads offline; thumbnails and other library images are not cached offline. Before reusing a stored copy, the browser revalidates it with the server, so a revoked session cannot load it again; an image already shown in an open tab can stay visible there until the tab reloads. API responses are never cached, except translation bundles. A snackbar offers a reload when a new version is deployed.
 
-> **Warning:** logout clears the app's thumbnail cache but not the browser's HTTP cache, which can keep viewed images (thumbnails, renders, full-resolution images) for up to a year. Accounts that must not see each other's photos should not share a browser profile.
+> **Note:** the browser revalidates each image with the server before reusing it, so after logout or a revoked session a stored copy is not shown again. Bytes already delivered are not erased: accounts that must not see each other's photos should still not share a browser profile.
 
 ## Mobile
 

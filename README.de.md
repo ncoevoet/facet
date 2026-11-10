@@ -144,7 +144,7 @@ Bewegen Sie den Mauszeiger über ein beliebiges Foto, um die Wertungsaufschlüss
 
 - **Dunkel- & Hellmodus** mit 10 Akzentfarbschemata; berücksichtigt die Systemeinstellung
 - **Responsiv** — passt sich von Mobilgeräten bis zum Desktop an, mit einem touch-freundlichen Bereich für Stapelaktionen auf kleinen Bildschirmen
-- **Installierbare PWA** — Web-App-Manifest + Service Worker: Installation auf dem Startbildschirm, Offline-App-Shell, zwischengespeicherte Vorschaubilder
+- **Installierbare PWA** — Web-App-Manifest + Service Worker: Installation auf dem Startbildschirm, Offline-App-Shell
 - **Virtualisierte Galerie** — rendert unabhängig von der Bibliotheksgröße nur eine Handvoll DOM-Knoten, sodass das Scrollen auch bei mehr als 100.000 Fotos schnell bleibt
 - **Fortsetzbare Scans** — unterbrochene Scans werden fortgesetzt (`--resume`), fehlgeschlagene Dateien werden erfasst und können erneut versucht werden (`--retry-failed`), der Fortschritt wird live an die Web-Oberfläche gestreamt
 - **7 UI-Sprachen** — die Oberfläche ist auf Englisch, Französisch, Deutsch, Spanisch, Italienisch, brasilianischem Portugiesisch und vereinfachtem Chinesisch (简体中文) verfügbar; die Dokumentation gibt es in allen sieben Sprachen

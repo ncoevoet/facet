@@ -76,6 +76,8 @@ Reinicie o visualizador depois de definir `viewer.edition_password`: a configura
 
 O login também grava o token de sessão em um cookie `HttpOnly` `SameSite=Lax`, de modo que miniaturas e o fluxo de progresso da varredura carregam em instalações protegidas por senha. O cookie é aceito apenas em requisições somente leitura (GET/HEAD); as edições continuam exigindo o token Bearer. Encerrar a sessão (`POST /api/auth/logout`) o apaga.
 
+As miniaturas da biblioteca, as imagens completas e os recortes de rostos/pessoas são servidos com cabeçalhos de cache HTTP privados que exigem revalidação. Eles contornam o service worker, que não guarda mais um cache offline de miniaturas. As URLs de imagem levam um parâmetro de consulta `session`, que não é uma credencial e muda quando a conta conectada muda; assim o visualizador não reutiliza imagens decodificadas de uma conta anterior. Os instantâneos do histórico de fotos privadas só podem ser usados na sessão original; Voltar após logout/login, ou ao recarregar a página, verifica o acesso novamente antes de exibir metadados. Isso não apaga os bytes de imagem nem o histórico já entregues ao navegador. Álbuns compartilhados publicamente e quiosques de porta-retratos mantêm suas próprias políticas de acesso. Se o servidor recusar explicitamente **Bloquear edição**, os privilégios atuais continuam visíveis e um erro é exibido; uma resposta interrompida precisa antes reconciliar seu cookie, como descrito abaixo.
+
 ### Modo Multiusuário
 
 Para um NAS familiar em que cada membro tem pastas de fotos privadas. Adicione uma seção `users` ao `scoring_config.json`:
@@ -112,6 +114,10 @@ python database.py --add-user alice --role superadmin --display-name "Alice"
 ```
 
 Veja [Configuração](CONFIGURATION.md#users) para a referência completa.
+
+Alterar o hash de senha armazenado ou o papel de uma conta, ou excluí-la, invalida as sessões existentes dela assim que o servidor carrega a nova configuração. Isso inclui cookies de imagem, tokens do fluxo de varredura e o assistente na página. Faça login novamente após uma alteração de conta; as sessões multiusuário existentes também precisam de um novo login após esta atualização. Remover todos os usuários não preserva um token de administrador antigo. Girar `viewer.password` continua invalidando todas as sessões; girar `viewer.edition_password` retira os direitos de edição no modo de usuário único. O login/logout de edição vale apenas para o modo de usuário único; contas com papéis encerram a sessão ou têm o papel alterado. O logout comum limpa as credenciais deste navegador sem revogar um token copiado.
+
+Login, mudanças de edição e logout são executados em ordem dentro de uma aba, para que seus cookies de imagem e credenciais Bearer não se ultrapassem; uma requisição de autenticação travada é abortada após 15 segundos. Navegadores com Web Locks também coordenam essas operações entre abas (HTTPS e localhost). Em origens HTTP sem Web Locks, logins simultâneos em abas diferentes seguem a ordem de conclusão; o último login concluído passa a ser a conta compartilhada do navegador. Se uma resposta falhar depois de atualizar seu cookie de imagem, o Facet reconcilia esse cookie com a sessão Bearer confirmada antes de exibir a conta novamente. Se a reconciliação e a limpeza falharem, a conta permanece não confirmada após recarregamentos até que uma nova tentativa tenha êxito.
 
 ### Papéis
 
@@ -1166,9 +1172,9 @@ Para alterações mais antigas, veja o [Histórico de organização](#histórico
 
 ## Progressive Web App
 
-Os builds de produção podem ser instalados na tela inicial. O shell do aplicativo carrega offline, e até 1000 miniaturas ficam em cache por 7 dias (tamanhos maiores, como as renderizações de 1920 px da câmara escura, dependem do cache do navegador). As respostas da API nunca ficam em cache, exceto os pacotes de tradução. Uma barra de aviso oferece recarregar quando uma nova versão é implantada.
+As builds de produção podem ser instaladas na tela inicial. O shell do app carrega offline; as miniaturas e demais imagens da biblioteca não ficam em cache offline. Antes de reutilizar uma cópia armazenada, o navegador a revalida com o servidor, de modo que uma sessão revogada não pode carregá-la novamente; uma imagem já exibida em uma aba aberta pode continuar visível nela até a aba ser recarregada. As respostas da API nunca são colocadas em cache, exceto os pacotes de tradução. Uma snackbar oferece recarregar quando uma nova versão é implantada.
 
-> **Aviso:** encerrar a sessão limpa o cache de miniaturas do aplicativo, mas não o cache HTTP do navegador, que pode manter imagens vistas (miniaturas, renderizações, imagens em resolução total) por até um ano. Contas que não devem ver as fotos umas das outras não devem compartilhar um perfil de navegador.
+> **Observação:** o navegador revalida cada imagem com o servidor antes de reutilizá-la; após um logout ou uma sessão revogada, uma cópia armazenada não é mais exibida. Os bytes já entregues não são apagados: contas que não devem ver as fotos umas das outras continuam sem dever compartilhar um perfil de navegador.
 
 ## Mobile
 
