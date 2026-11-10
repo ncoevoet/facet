@@ -14,7 +14,7 @@ All notable changes to Facet are documented in this file.
 
 ### Fixed
 
-- **Viewer database exports publish completed snapshots and keep retries recoverable.** Full exports are prepared and checked privately, leave an existing database intact on failure, and omit saved and recent places. Incremental data changes commit together while preserving destination review edits and private places. Backups use unique names, so two runs in one second cannot overwrite the previous snapshot.
+- **Viewer database exports publish completed snapshots and keep retries recoverable.** Full exports are prepared and checked privately, leave an existing database intact on failure, and omit saved and recent places. Incremental data changes commit together while preserving destination review edits and private places. Output filenames beginning with `file:` remain literal filenames across SQLite builds. Backups use unique names, so two runs in one second cannot overwrite the previous snapshot.
 - **Installer upgrades rebuild the gallery from the current lockfile.** Node 24.15+ within the 24.x line is checked before dependency installation, and failed frontend builds retain the previous served client. `--skip-client` explicitly keeps it.
 - **Interactive database repairs take the library lock and recheck after confirmation.** Sidecar exports now exit non-zero when any file fails to write, including partial successes.
 - **Albums and timeline views ignore superseded requests.** Failed album pages can be retried without skipping a page, empty timeline results clear earlier charts, and correlation charts and CSV exports use the same loaded query; changing query controls requires loading again.

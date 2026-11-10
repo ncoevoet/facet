@@ -1211,6 +1211,9 @@ def export_viewer_db(source_db='photo_scores_pro.db', output_path=None, thumbnai
     """
     if output_path is None:
         output_path = 'photo_scores_viewer.db'
+    # Some SQLite builds parse relative file: names as URIs by default. Every
+    # destination open must use the same literal path as the filesystem checks.
+    output_path = str(Path(output_path).absolute())
     if not os.path.exists(source_db):
         raise FileNotFoundError(f"Source database not found: {source_db}")
     _check_export_paths(source_db, output_path)

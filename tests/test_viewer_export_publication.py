@@ -148,15 +148,26 @@ def test_export_refuses_source_named_as_output_companion(tmp_path, existing, suf
 
 @pytest.mark.skipif(os.name == 'nt', reason='colon is not a valid Windows filename')
 @pytest.mark.parametrize('name', ['file:viewer.db?token=test', 'file:viewer.db#fragment'])
-def test_incremental_treats_uri_looking_output_as_a_literal_filename(tmp_path, monkeypatch, name):
+@pytest.mark.parametrize('force', [False, True])
+def test_export_treats_uri_looking_output_as_a_literal_filename(tmp_path, monkeypatch, name, force):
+    # Some SQLite builds enable URI parsing even without connect(uri=True).
+    # Exercise that behavior with real SQLite connections on any local build.
+    connect = sqlite3.connect
+
+    def connect_with_uri_default(*args, **kwargs):
+        return connect(*args, **(kwargs | {'uri': True}))
+
+    monkeypatch.setattr(sqlite3, 'connect', connect_with_uri_default)
     monkeypatch.chdir(tmp_path)
     source = tmp_path / 'source.db'
     output = tmp_path / name
     _library(source, 'before')
     maintenance.export_viewer_db(str(source), name, verbose=False)
+    assert _caption(output) == 'before'
+    assert not (tmp_path / 'viewer.db').exists()
     with closing(sqlite3.connect(source)) as conn, conn:
         conn.execute("UPDATE photos SET caption='after'")
-    maintenance.export_viewer_db(str(source), name, verbose=False)
+    maintenance.export_viewer_db(str(source), name, force=force, verbose=False)
     assert _caption(output) == 'after'
     assert not (tmp_path / 'viewer.db').exists()
 

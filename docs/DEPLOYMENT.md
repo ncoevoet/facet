@@ -213,6 +213,8 @@ python database.py --export-viewer-db --force-export
 
 An incremental export first upgrades the destination schema, then synchronizes one source snapshot in one destination transaction. A failed or interrupted data sync rolls back photo, face, tag, vector and review-receipt changes together; the schema upgrade may remain. Fix the reported cause and rerun the same command. A corrupt new-photo thumbnail is an error, so repairing it in the source and retrying also generates its thumbnail. Existing thumbnails stay unchanged. Destination review edits, manual tags and saved/recent places remain local and are preserved by incremental sync.
 
+Output paths are literal filenames, including names beginning with `file:` on filesystems that support them; SQLite URI parameters are not accepted.
+
 Exports reserve free space for staging or rollback journals and fail before copying if the estimate does not fit. Exceptions and normal interrupts remove the temporary copy; a forcibly killed process can leave a hidden owner-only `.*.export-*` file beside the output. Once the exporter has stopped, remove that temporary file and retry. The old published database remains the recovery point. SQLite locking still applies: retry lock errors when the destination writer is idle.
 
 If the output's main file is missing but a `-wal`, `-shm` or `-journal` companion remains, export stops without deleting it. Close users of that database and recover it before retrying; a surviving WAL may contain data that belongs to the previous database.
