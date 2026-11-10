@@ -34,7 +34,7 @@ describe('TimelineMonthsComponent', () => {
     TestBed.configureTestingModule({
       providers: [
         provideRouter([]),
-        { provide: AuthService, useValue: { status: signal({ user_id: 'alice' }), token: 'a' } },
+        { provide: AuthService, useValue: { status: signal({ user_id: 'alice' }), session: signal('alice|a'), token: 'a' } },
         { provide: ApiService, useValue: mockApi },
         { provide: I18nService, useValue: { t: (key: string) => `T(${key})`, translations: () => ({}) } },
         TimelineFiltersService,

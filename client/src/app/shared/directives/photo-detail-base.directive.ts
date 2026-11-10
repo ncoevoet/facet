@@ -127,10 +127,8 @@ export abstract class PhotoDetailBase {
   }
 
   protected onThumbnailState(event: Event, failed = false): void {
-    const p = this.photo();
-    if (!p) return;
     const img = this.currentImage(event, this.thumbnailImageUrl());
-    if (!img || !failed && (!img.complete || !img.naturalWidth || !img.naturalHeight)) return;
+    if (!img || (!failed && (!img.complete || !img.naturalWidth || !img.naturalHeight))) return;
     this.thumbnailRendition.set(failed ? { kind: 'thumbnail', phase: 'failed' } : { kind: 'thumbnail', phase: 'ready', width: img.naturalWidth, height: img.naturalHeight });
   }
 

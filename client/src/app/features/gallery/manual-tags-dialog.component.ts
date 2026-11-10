@@ -4,7 +4,7 @@ import { MatButtonModule } from '@angular/material/button';
 import { MatIconModule } from '@angular/material/icon';
 import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatInputModule } from '@angular/material/input';
-import { HttpErrorResponse } from '@angular/common/http';
+import { isDefinitiveRejection } from '../../shared/utils/write-rejection';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { firstValueFrom } from 'rxjs';
 import { ApiService } from '../../core/services/api.service';
@@ -241,7 +241,7 @@ export class ManualTagsDialogComponent {
       complete = true;
     } catch (error) {
       this.failed.set(true);
-      if (!(error instanceof HttpErrorResponse && error.status >= 400 && error.status < 500)) this.uncertain.set(true);
+      if (!isDefinitiveRejection(error)) this.uncertain.set(true);
     } finally {
       const settlement = this.receipt(!complete);
       this.lastSettlement = settlement;

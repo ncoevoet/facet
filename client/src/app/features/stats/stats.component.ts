@@ -36,6 +36,7 @@ import { StatsNumberPipe } from './stats-locale-number.pipe';
 import { statsAuthScope } from './stats-auth-scope';
 import { downloadCsv } from '../../shared/utils/csv';
 import { I18N, i18nKeys } from '../../core/i18n/keys';
+import { SelectTriggerLabelComponent } from '../../shared/components/select-trigger-label/select-trigger-label.component';
 
 Chart.register(...registerables);
 
@@ -74,7 +75,6 @@ interface ScoreBin {
   count: number;
   percentage: number;
 }
-import { SelectTriggerLabelComponent } from '../../shared/components/select-trigger-label/select-trigger-label.component';
 
 @Component({
   selector: 'app-stats',

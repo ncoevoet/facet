@@ -208,7 +208,8 @@ export class TimelineDensityComponent {
       onCleanup(() => observer.disconnect());
     });
     effect(onCleanup => {
-      const active = this.active(); const owner = this.auth.status(); const token = this.auth.token;
+      // The confirmed session, not the status object a same-session revalidation replaces or briefly nulls.
+      const active = this.active(); const owner = this.auth.session(); const token = this.auth.token;
       const year = this.year(); const month = this.month(); const unit = this.unit(); const visibility = this.store.viewFilterParams();
       const from = this.filters.dateFrom(); const to = this.filters.dateTo();
       const rows = this.membership.rows(); const revision = this.membership.membershipRevision(); this.retry();
@@ -218,7 +219,7 @@ export class TimelineDensityComponent {
       const params = { ...visibility, ...(year ? { year: +year } : {}), ...(month ? { month: +month } : {}), date_from: from, date_to: to };
       this.loading.set(true);
       let valid = true;
-      const current = () => valid && token === this.auth.token && owner === this.auth.status() && this.active()
+      const current = () => valid && token === this.auth.token && owner === this.auth.session() && this.active()
         && year === this.year() && month === this.month() && unit === this.unit() && rows === this.membership.rows() && revision === this.membership.membershipRevision()
         && visibility === this.store.viewFilterParams() && from === this.filters.dateFrom() && to === this.filters.dateTo();
       this.currentRead = current;

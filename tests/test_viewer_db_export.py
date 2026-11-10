@@ -140,6 +140,37 @@ def test_ignored_detections_export_without_vectors_and_local_undo_survives_old_s
     assert Path(out).read_bytes() == before
 
 
+def test_local_undo_covered_by_another_face_keeps_the_undo_and_does_not_fail_the_export(tmp_path):
+    from db.ignored_faces import detection_source, ignore_detection, restore_detection
+    from utils.manual_face_frame import read_frame
+    src, out = str(tmp_path / 'source.db'), str(tmp_path / 'viewer.db')
+    init_database(src)
+    image = str(tmp_path / 'advert.jpg')
+    Image.new('RGB', (100, 80), 'red').save(image)
+    with sqlite3.connect(src) as conn:
+        conn.row_factory = sqlite3.Row
+        conn.execute('INSERT INTO photos(path,filename,thumbnail,image_width,image_height) VALUES (?, ?, ?,100,80)',
+                     (image, 'advert.jpg', _thumb_bytes()))
+        conn.execute('INSERT INTO faces(photo_path,face_index,embedding,bbox_x1,bbox_y1,bbox_x2,bbox_y2) '
+                     "VALUES (?,0,X'',10,10,60,60)", (image,))
+        key = ignore_detection(conn, conn.execute('SELECT * FROM faces').fetchone(), detection_source(read_frame(image)))
+    export_viewer_db(src, out, verbose=False)
+    with sqlite3.connect(out) as conn:
+        conn.row_factory = sqlite3.Row
+        restore_detection(conn, conn.execute('SELECT * FROM ignored_face_detections WHERE ignore_id=?', (key,)).fetchone())
+    # The source now holds another face at a different index over the same box,
+    # and the changed face count makes the export resync the photo's faces.
+    with sqlite3.connect(src) as conn:
+        conn.executemany('INSERT INTO faces(photo_path,face_index,embedding,bbox_x1,bbox_y1,bbox_x2,bbox_y2) '
+                         "VALUES (?,?,X'',?,?,?,?)", [(image, 1, 12, 12, 60, 60), (image, 2, 70, 10, 95, 40)])
+    for _ in range(2):
+        export_viewer_db(src, out, verbose=False)
+        with sqlite3.connect(out) as conn:
+            assert conn.execute('SELECT active FROM ignored_face_detections WHERE ignore_id=?', (key,)).fetchone() == (0,)
+            assert conn.execute('SELECT face_index FROM faces WHERE photo_path=? ORDER BY face_index',
+                                (image,)).fetchall() == [(1,), (2,)]
+
+
 def test_mapped_original_keeps_viewer_local_ignore_and_offline_refresh_refuses_before_writing(tmp_path):
     from db.ignored_faces import detection_source, ignore_detection
     from utils.manual_face_frame import read_frame

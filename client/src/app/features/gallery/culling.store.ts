@@ -818,6 +818,7 @@ export class CullingStore {
   /** Drop the loaded feed and its per-feed decisions, invalidating any load in flight. */
   resetFeed(): void {
     this.loadGenerationId++;
+    this.flagAutoCullStale();
     if (this.mode() === 'stacks') {
       // A reset supersedes the request, not the visit: its Undo commands remain valid.
       this.stackBatchPending = null;
@@ -1163,6 +1164,7 @@ export class CullingStore {
     // them and `replanning` kept new ones from starting -- but a stale generation must still never hide or
     // journal a group of the new plan that reuses its key (similar-group ids are positional).
     this.loadGenerationId++;
+    this.flagAutoCullStale();
     this.confirmedGroups.set(new Set());
     this.hiddenGroups.set(new Set());
     this.touchedGroups.set(new Set());
@@ -2078,6 +2080,14 @@ export class CullingStore {
     this.autoCullPreview.set(null);
     this.autoCullRequest.set(null);
     this.autoCullLoading.set(false);
+  }
+
+  /** A feed reset makes the open preview describe a feed that is gone: its session no longer
+   *  passes `current()`, so Apply and Load more would return without a word. Saying so keeps
+   *  them disabled behind the dialog's own alert, until Refresh preview replaces it. An apply
+   *  in flight keeps its own `uncertain` verdict. */
+  private flagAutoCullStale(): void {
+    if (this.autoCullPreview() && !this.autoCullApplying() && !this.autoCullIssue()) this.autoCullIssue.set('changed');
   }
 
   clearAutoCullNotices(): void {

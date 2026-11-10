@@ -1,5 +1,5 @@
 import { ChangeDetectionStrategy, Component, DestroyRef, ElementRef, computed, effect, inject, input, output, signal, untracked, viewChild } from '@angular/core';
-import { HttpErrorResponse } from '@angular/common/http';
+import { isDefinitiveRejection } from '../../shared/utils/write-rejection';
 import { firstValueFrom, Subject, takeUntil } from 'rxjs';
 import type { components } from '../../core/api/schema';
 import { ApiService } from '../../core/services/api.service';
@@ -208,7 +208,7 @@ export class KeywordHierarchyEditorComponent {
       result = await firstValueFrom(this.api.post<Result>('/manual_tags/hierarchy/apply', { ...plan.request, preview_token: plan.preview_token }));
       repair = true;
     } catch (error) {
-      const uncertain = !(error instanceof HttpErrorResponse && error.status >= 400 && error.status < 500);
+      const uncertain = !isDefinitiveRejection(error);
       repair = uncertain;
       if (this.current()) { this.error.set(I18N.keyword_hierarchy.edit.error); this.uncertain.set(uncertain); if (!uncertain) this.plan.set(null); }
     } finally {

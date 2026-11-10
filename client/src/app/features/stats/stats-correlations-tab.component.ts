@@ -25,6 +25,7 @@ import { statsAuthScope } from './stats-auth-scope';
 import { chartSeriesColors, chartTheme } from './chart-theme';
 import { HANDLE_SERVER_ERROR_LOCALLY } from '../../core/utils/http-error-context';
 import { LatestRequest } from '../../shared/utils/latest-request';
+import { SelectTriggerLabelComponent } from '../../shared/components/select-trigger-label/select-trigger-label.component';
 
 /** Preserve every requested metric for each group, including missing buckets. */
 export function correlationSeries(data: CorrelationApiResponse, metrics: string[], metricLabel: (key: string) => string): { label: string; values: (number | null)[]; groupIndex: number; metricIndex: number }[] {
@@ -68,7 +69,6 @@ export function allocateSeriesSlots(keys: string[], previous: Record<string, num
   }
   return slots;
 }
-import { SelectTriggerLabelComponent } from '../../shared/components/select-trigger-label/select-trigger-label.component';
 
 @Component({
   selector: 'app-stats-correlations-tab',

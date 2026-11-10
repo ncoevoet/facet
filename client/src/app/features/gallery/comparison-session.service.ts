@@ -10,27 +10,27 @@ export interface ComparisonSessionData { photos: Photo[]; returnUrl: string; rev
 @Injectable({ providedIn: 'root' })
 export class ComparisonSessionService {
   private readonly auth = inject(AuthService);
-  private session: { data: ComparisonSessionData; owner: string; status: unknown; token: string | null } | null = null;
+  /** Keyed on `AuthService.session()`: a same-session revalidation replaces the status object and may null it briefly. */
+  private session: { data: ComparisonSessionData; owner: string | null; token: string | null } | null = null;
   private revision = 0;
 
   constructor() {
     effect(() => {
-      const status = this.auth.status();
-      const owner = this.auth.identity();
-      if (this.session && (this.session.owner !== owner || this.session.status !== status || this.session.token !== this.auth.token)) this.clear();
+      const owner = this.auth.session();
+      if (this.session && (this.session.owner !== owner || this.session.token !== this.auth.token)) this.clear();
     });
   }
 
   start(photos: Photo[], returnUrl: string): boolean {
     if (photos.length < 2 || photos.length > MAX_COMPARE_QUEUE || new Set(photos.map(photo => photo.path)).size !== photos.length) return false;
     if (!isGalleryCollectionUrl(returnUrl)) return false;
-    this.session = { data: { photos: structuredClone(photos), returnUrl, revision: ++this.revision }, owner: this.auth.identity(), status: this.auth.status(), token: this.auth.token };
+    this.session = { data: { photos: structuredClone(photos), returnUrl, revision: ++this.revision }, owner: this.auth.session(), token: this.auth.token };
     return true;
   }
 
   snapshot(): ComparisonSessionData {
     const session = this.session;
-    return session && session.owner === this.auth.identity() && session.status === this.auth.status() && session.token === this.auth.token
+    return session && session.owner === this.auth.session() && session.token === this.auth.token
       ? structuredClone(session.data) : { photos: [], returnUrl: '/', revision: 0 };
   }
 

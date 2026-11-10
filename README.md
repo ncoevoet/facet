@@ -72,7 +72,7 @@ Hover over any photo to see its score breakdown and EXIF data in the gallery's s
 </tr></table>
 
 <details><summary>Full filter sidebar — every section expanded (click to view)</summary>
-<p align="center"><img src="docs/screenshots/filter-sidebar-full.jpg" alt="The three filter sidebar tabs side by side: Browse, Quality and Subject" width="900"></p>
+<p align="center"><img src="docs/screenshots/filter-sidebar-full.jpg" alt="The gallery filter sidebar, with its filters grouped under tabs" width="900"></p>
 </details>
 
 **Workflow tips:**

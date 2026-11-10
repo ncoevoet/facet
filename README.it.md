@@ -72,7 +72,7 @@ Passa il puntatore su una foto per vedere il dettaglio del punteggio e i dati EX
 </tr></table>
 
 <details><summary>Barra laterale dei filtri — tutte le sezioni espanse (clicca per visualizzare)</summary>
-<p align="center"><img src="docs/screenshots/filter-sidebar-full.jpg" alt="Le tre schede della barra laterale dei filtri affiancate: Sfoglia, Qualità e Soggetto" width="900"></p>
+<p align="center"><img src="docs/screenshots/filter-sidebar-full.jpg" alt="La barra laterale dei filtri della galleria, con i filtri raggruppati in schede" width="900"></p>
 </details>
 
 **Suggerimenti per il flusso di lavoro:**

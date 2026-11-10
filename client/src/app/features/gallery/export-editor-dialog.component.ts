@@ -24,6 +24,7 @@ import { ApiService } from '../../core/services/api.service';
 import { I18nService } from '../../core/services/i18n.service';
 import { extractErrorDetail } from '../../core/utils/http-error.util';
 import { downloadBlob } from '../../shared/utils/download';
+import { isDefinitiveRejection } from '../../shared/utils/write-rejection';
 import { TranslatePipe } from '../../shared/pipes/translate.pipe';
 import { I18N, i18nKeys } from '../../core/i18n/keys';
 import type { LightroomImportResponse, LightroomManifest } from '../../core/api/types';
@@ -528,7 +529,6 @@ export class ExportEditorDialogComponent {
   private async submitPreview(preview: ExportPreview, retryConfirmation: boolean): Promise<void> {
     const seq = this.stopReads();
     this.submitting.set(true); this.errorDetail.set(null); this.readError.set(false);
-    this.uncertainReceipt.set(preview.receipt_id);
     const retry = this.retryRequest() !== null;
     try {
       const status = await firstValueFrom(this.exportService.applyExport(preview));
@@ -539,9 +539,9 @@ export class ExportEditorDialogComponent {
     } catch (error) {
       if (!this.current(seq)) return;
       this.errorDetail.set(extractErrorDetail(error) ?? null);
-      if (!retryConfirmation && error instanceof HttpErrorResponse && error.status >= 400 && error.status < 500) {
+      if (!retryConfirmation && isDefinitiveRejection(error)) {
         this.uncertainReceipt.set(null); this.discardPreview();
-      }
+      } else this.uncertainReceipt.set(preview.receipt_id);
     } finally { if (this.current(seq)) this.submitting.set(false); }
   }
 

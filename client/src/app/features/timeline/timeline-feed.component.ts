@@ -5,7 +5,7 @@ import { Subscription } from 'rxjs';
 import { MatButtonModule } from '@angular/material/button';
 import { MatIconModule } from '@angular/material/icon';
 import { ApiService } from '../../core/services/api.service';
-import { AuthService, type AuthStatus } from '../../core/services/auth.service';
+import { AuthService } from '../../core/services/auth.service';
 import { i18nKeys } from '../../core/i18n/keys';
 import { TranslatePipe } from '../../shared/pipes/translate.pipe';
 import { ThumbnailUrlPipe } from '../../shared/pipes/thumbnail-url.pipe';
@@ -92,7 +92,8 @@ export class TimelineFeedComponent {
   private readonly nextCursor = signal<string | null>(null);
   private request: Subscription | null = null;
   private generation = 0;
-  private context: { scope: string; params: Record<string, string | number>; owner: AuthStatus; token: string | null; rows: Photo[]; membershipRevision: number } | null = null;
+  /** Owned by the confirmed session, not the status object a revalidation replaces without changing it. */
+  private context: { scope: string; params: Record<string, string | number>; session: string; token: string | null; rows: Photo[]; membershipRevision: number } | null = null;
   private scrollOwner: HTMLElement | null = null;
   private restoreScroll: number | null = null;
 
@@ -104,15 +105,15 @@ export class TimelineFeedComponent {
 
   constructor() {
     effect(() => {
-      const params = this.params(); const owner = this.auth.status(); const active = this.active(); const rows = this.cache.rows(); const membershipRevision = this.cache.membershipRevision();
+      const params = this.params(); const session = this.auth.session(); const active = this.active(); const rows = this.cache.rows(); const membershipRevision = this.cache.membershipRevision();
       untracked(() => {
       const scope = JSON.stringify(params); const running = this.context;
       // An identical scope already in flight: cancelling and re-requesting would only restart the same read.
-      if (active && owner && running && this.loading() && running.scope === scope && running.owner === owner
+      if (active && session && running && this.loading() && running.scope === scope && running.session === session
         && running.token === this.auth.token && running.rows === rows && running.membershipRevision === membershipRevision) return;
       this.cancel(); this.context = null; this.groups.set([]); this.hasMore.set(false); this.error.set(false);
-      if (!owner || !active) return;
-      this.context = { params, owner, rows, membershipRevision, token: this.auth.token, scope };
+      if (!session || !active) return;
+      this.context = { params, session, rows, membershipRevision, token: this.auth.token, scope };
       const cached = this.cache.read(this.context.scope);
       this.groups.set(cached?.groups ?? []); this.hasMore.set(cached?.has_more ?? false);
       this.nextCursor.set(cached?.next_cursor ?? null); this.restoreScroll = cached?.scrollTop ?? 0;
@@ -143,7 +144,7 @@ export class TimelineFeedComponent {
 
   private current(context: NonNullable<TimelineFeedComponent['context']>, generation: number): boolean {
     return generation === this.generation && this.active() && context === this.context
-      && context.owner === this.auth.status() && context.token === this.auth.token && context.rows === this.cache.rows()
+      && context.session === this.auth.session() && context.token === this.auth.token && context.rows === this.cache.rows()
       && context.membershipRevision === this.cache.membershipRevision();
   }
 
@@ -156,9 +157,9 @@ export class TimelineFeedComponent {
   }
 
   private readonly remember = (): void => {
-    const context = this.context;
-    if (!context || this.error() || this.loading() || !this.current(context, this.generation)) return;
-    this.cache.save({ ...context, groups: this.groups(), next_cursor: this.nextCursor(), has_more: this.hasMore(),
+    const context = this.context; const owner = this.auth.status();
+    if (!context || !owner || this.error() || this.loading() || !this.current(context, this.generation)) return;
+    this.cache.save({ ...context, owner, groups: this.groups(), next_cursor: this.nextCursor(), has_more: this.hasMore(),
       scrollTop: this.scrollOwner?.scrollTop ?? 0 });
   };
 

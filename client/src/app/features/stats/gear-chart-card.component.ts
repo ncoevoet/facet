@@ -17,6 +17,7 @@ import { ChartHeightPipe } from './chart-height.pipe';
 import { downloadCsv } from '../../shared/utils/csv';
 import { chartSeriesColor, chartSeriesColors, chartTheme } from './chart-theme';
 import { StatsNumberPipe } from './stats-locale-number.pipe';
+import { SelectTriggerLabelComponent } from '../../shared/components/select-trigger-label/select-trigger-label.component';
 
 export const GEAR_LEGEND_MAX_CHARS = 24;
 
@@ -59,7 +60,6 @@ const GEAR_METRIC_OPTIONS = [
   { key: 'avg_focal_length' },
   { key: 'usage_timeline' },
 ];
-import { SelectTriggerLabelComponent } from '../../shared/components/select-trigger-label/select-trigger-label.component';
 
 @Component({
   selector: 'app-gear-chart-card',

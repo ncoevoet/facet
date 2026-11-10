@@ -28,6 +28,7 @@ import { GalleryStore } from './gallery.store';
 import { TranslatePipe } from '../../shared/pipes/translate.pipe';
 import { FilterDisplayPipe } from '../../shared/pipes/filter-display.pipe';
 import { PersonThumbnailUrlPipe } from '../../shared/pipes/thumbnail-url.pipe';
+import { SectionOpenPipe } from '../../shared/pipes/section-open.pipe';
 import { AdditionalFilterDef } from '../../shared/models/filter-def.model';
 import { computeRangeFilterUpdate } from '../../shared/utils/range-filter';
 import { useCoarsePointerSignal } from '../../shared/utils/media-query';
@@ -228,7 +229,6 @@ export function loadActiveTab(): SidebarTabId {
 }
 
 type RatingOption = 'any' | '1' | '2' | '3' | '4' | '5' | 'zero';
-import { SectionOpenPipe } from '../../shared/pipes/section-open.pipe';
 
 @Component({
   selector: 'app-gallery-filter-sidebar',
@@ -430,7 +430,7 @@ import { SectionOpenPipe } from '../../shared/pipes/section-open.pipe';
             <div class="flex min-w-0 items-center gap-2">
               <span class="shrink-0 text-xs text-[var(--mat-sys-on-surface-variant)]">{{ I18N.gallery.semantic_search_threshold | translate }}</span>
               <mat-slider [min]="0" [max]="SEARCH_THRESHOLD_MAX" [step]="1" [displayWith]="formatThresholdPercent" class="!mx-1 min-w-0 flex-1">
-                <input matSliderThumb aria-describedby="display-tip-thumbnail-size" [value]="searchThresholdValue()" (valueChange)="onSearchThresholdChange($event)"
+                <input matSliderThumb [value]="searchThresholdValue()" (valueChange)="onSearchThresholdChange($event)"
                   [attr.aria-label]="I18N.gallery.semantic_search_threshold | translate" aria-describedby="semantic-search-threshold-hint" />
               </mat-slider>
               <span class="w-8 shrink-0 text-right text-xs tabular-nums">{{ searchThresholdValue() }}%</span>
@@ -1174,7 +1174,7 @@ export class GalleryFilterSidebarComponent {
    *  after the thumb is released -- the slider looked dead while in use. */
   private readonly thresholdDraft = signal<number | null>(null);
 
-  /** Numeric mirror of the string filter for the `<input matSliderThumb aria-describedby="display-tip-thumbnail-size" [value]>`
+  /** Numeric mirror of the string filter for the `<input matSliderThumb [value]>`
    *  binding, and for the percent readout next to it -- a computed, never a
    *  template method call (per project rule).
    *
@@ -1599,6 +1599,8 @@ export class GalleryFilterSidebarComponent {
   private readonly tooltips = viewChildren(MatTooltip);
   private readonly selects = viewChildren(MatSelect);
   private readonly menuTriggers = viewChildren(MatMenuTrigger);
+  private readonly helps = viewChildren(ContextHelpComponent);
+  private readonly tagGroups = viewChild(TagGroupsComponent);
 
   /** Hide every tooltip the sidebar owns, for a gallery parking behind a photo page. */
   hideTooltips(): void {
@@ -1607,10 +1609,6 @@ export class GalleryFilterSidebarComponent {
   }
 
   /** Close overlays before the gallery parks behind a photo. */
-  private readonly helps = viewChildren(ContextHelpComponent);
-
-  private readonly tagGroups = viewChild(TagGroupsComponent);
-
   closeOverlays(): void {
     for (const help of this.helps()) {
       help.close();

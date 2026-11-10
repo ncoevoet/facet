@@ -248,6 +248,86 @@ describe('AuthService', () => {
     });
   });
 
+  describe('session', () => {
+    async function confirm(status: AuthStatus): Promise<void> {
+      const pending = service.revalidate();
+      httpTesting.expectOne('/api/auth/status').flush(status);
+      await pending;
+    }
+
+    it('is null until a status is confirmed', async () => {
+      expect(service.session()).toBeNull();
+      trackTokenStorage(makeJwt(3600, { sub: 'alice' }));
+      await confirm({ ...mockStatus, user_id: 'alice' });
+      expect(service.session()).not.toBeNull();
+    });
+
+    it('holds through a same-session revalidation that replaces the status object', async () => {
+      trackTokenStorage(makeJwt(3600, { sub: 'alice' }));
+      await confirm({ ...mockStatus, user_id: 'alice' });
+      const status = service.status(); const session = service.session();
+      await confirm({ ...mockStatus, user_id: 'alice', display_name: 'Alice' });
+      expect(service.status()).not.toBe(status);
+      expect(service.session()).toBe(session);
+    });
+
+    it('holds through the transient null of a rejected edition password', async () => {
+      trackTokenStorage(makeJwt(3600, { sub: 'alice' }));
+      await confirm({ ...mockStatus, user_id: 'alice' });
+      const session = service.session();
+      const login = service.editionLogin('wrong');
+      expect(service.status()).toBeNull();
+      expect(service.session()).toBe(session);
+      httpTesting.expectOne('/api/auth/edition/login').flush('Forbidden', { status: 403, statusText: 'Forbidden' });
+      expect(await login).toBe('invalid');
+      expect(service.session()).toBe(session);
+    });
+
+    it("holds while another tab's auth attempt leaves the shared cookie uncertain", async () => {
+      trackTokenStorage(makeJwt(3600, { sub: 'alice' }));
+      await confirm({ ...mockStatus, user_id: 'alice' });
+      const session = service.session();
+      window.dispatchEvent(new StorageEvent('storage', { key: 'facet_auth_cookie_uncertain', newValue: '1' }));
+      expect(service.status()).toBeNull();
+      expect(service.session()).toBe(session);
+      window.dispatchEvent(new StorageEvent('storage', { key: 'facet_auth_cookie_uncertain', newValue: null }));
+      httpTesting.expectOne('/api/auth/status').flush({ ...mockStatus, user_id: 'alice' });
+      await nextTurn();
+      expect(service.session()).toBe(session);
+    });
+
+    it('drops when another tab rotates the token and names the new account once confirmed', async () => {
+      trackTokenStorage(makeJwt(3600, { sub: 'alice' }));
+      await confirm({ ...mockStatus, user_id: 'alice' });
+      const session = service.session();
+      localStorage.setItem('facet_token', makeJwt(3600, { sub: 'bob' }));
+      window.dispatchEvent(new StorageEvent('storage', { key: 'facet_token' }));
+      expect(service.session()).toBeNull();
+      httpTesting.expectOne('/api/auth/status').flush({ ...mockStatus, user_id: 'bob' });
+      await nextTurn();
+      expect(service.session()).not.toBeNull();
+      expect(service.session()).not.toBe(session);
+    });
+
+    it('changes with the edition right and drops on logout', async () => {
+      trackTokenStorage(null);
+      await confirm({ ...mockStatus, multi_user: false, user_id: null });
+      const session = service.session();
+      const unlock = service.editionLogin('edition-pass');
+      httpTesting.expectOne('/api/auth/edition/login').flush({ access_token: makeJwt(3600, { edition: true }) });
+      await nextTurn();
+      httpTesting.expectOne('/api/auth/status').flush({ ...mockStatus, multi_user: false, user_id: '_legacy', edition_authenticated: true });
+      expect(await unlock).toBe('ok');
+      expect(service.session()).not.toBeNull();
+      expect(service.session()).not.toBe(session);
+      void service.logout();
+      expect(service.session()).toBeNull();
+      httpTesting.expectOne('/api/auth/logout').flush(null);
+      await nextTurn();
+      expect(service.session()).toBeNull();
+    });
+  });
+
   describe('cross-tab token rotation', () => {
     it('discards an old account response and clears its identity while the new account loads', async () => {
       const aliceToken = makeJwt(3600, { sub: 'alice' });

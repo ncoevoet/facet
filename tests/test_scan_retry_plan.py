@@ -267,7 +267,7 @@ def test_interrupted_captured_retry_preserves_source_failures(failed_run, scanne
 
 @pytest.mark.parametrize('captured', [True, False])
 def test_failed_bookkeeping_cannot_erase_last_failure_receipt(failed_run, scanner_spies, monkeypatch, captured):
-    """A swallowed transient failure-record write must not look like success."""
+    """A failure record that never reaches the database must not look like success."""
     from processing import scan_state
 
     db, first, _ = failed_run
@@ -279,12 +279,17 @@ def test_failed_bookkeeping_cannot_erase_last_failure_receipt(failed_run, scanne
             self.metrics = {'photos_saved': 0}
 
         def process_directory(self, paths):
+            refusals = iter(range(2))
+
             @contextmanager
             def refuse_write(*args, **kwargs):
-                # Fail the failure flush, then permit finish's real transaction.
-                monkeypatch.setattr(scan_state, 'get_connection', real_connection)
+                # Fail the failure flush and finish's retry of it, then permit
+                # finish's real transaction.
+                if next(refusals, None) is None:
+                    with real_connection(*args, **kwargs) as conn:
+                        yield conn
+                    return
                 raise sqlite3.OperationalError('temporary write refusal')
-                yield  # pragma: no cover
 
             monkeypatch.setattr(scan_state, 'get_connection', refuse_write)
             self.on_error(paths[0], 'load', 'still unreadable')

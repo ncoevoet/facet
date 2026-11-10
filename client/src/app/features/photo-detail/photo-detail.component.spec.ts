@@ -11,7 +11,7 @@ import { Location } from '@angular/common';
 import { MatDialog } from '@angular/material/dialog';
 import { BehaviorSubject, finalize, Observable, of, Subject, throwError } from 'rxjs';
 import { UserActivityJournal } from '../../core/agent/user-activity-journal.service';
-import { ApplicationRef, Component, signal } from '@angular/core';
+import { ApplicationRef, Component, computed, signal } from '@angular/core';
 import { By } from '@angular/platform-browser';
 import { MatTooltip } from '@angular/material/tooltip';
 import { MatMenuModule, MatMenuTrigger } from '@angular/material/menu';
@@ -52,7 +52,7 @@ describe('PhotoDetailComponent', () => {
   let mockRouter: { url: string; navigate: Mock; currentNavigation: () => Navigation | null; events: Observable<unknown> };
   let mockLocation: { back: Mock; path: Mock; getState: Mock; replaceState: Mock };
   let mockRoute: { snapshot: { queryParamMap: { get: Mock } }; queryParamMap: BehaviorSubject<ParamMap> };
-  let mockAuth: { status: ReturnType<typeof signal>; identity: () => string; isEdition: ReturnType<typeof signal>; downloadProfiles: ReturnType<typeof signal> };
+  let mockAuth: { status: ReturnType<typeof signal>; identity: () => string; session: () => string | null; isEdition: ReturnType<typeof signal>; downloadProfiles: ReturnType<typeof signal> };
   let mockDialog: { open: Mock; openDialogs: unknown[] };
 
   const samplePhoto = {
@@ -163,7 +163,7 @@ describe('PhotoDetailComponent', () => {
       queryParamMap: new BehaviorSubject(convertToParamMap({ path: '/photos/test.jpg' })),
     };
     const status = signal({ user_id: 'test' });
-    mockAuth = { status, identity: () => status().user_id, isEdition: signal(true), downloadProfiles: signal([]) };
+    mockAuth = { status, identity: () => status().user_id, session: computed(() => status()?.user_id ?? null), isEdition: signal(true), downloadProfiles: signal([]) };
     mockDialog = { open: vi.fn(() => ({ afterClosed: () => of(undefined) })), openDialogs: [] };
   });
 
@@ -428,6 +428,45 @@ describe('PhotoDetailComponent', () => {
     expect(view.componentInstance.photo()).toMatchObject({ is_kept: !kept, is_rejected: false });
     expect(keep.getAttribute('aria-pressed')).toBe(String(!kept));
     expect(keep.querySelector('mat-icon')!.textContent!.trim()).not.toBe(icon);
+  });
+
+  describe('Keep and Undecided for a non-edition multi-user account', () => {
+    beforeEach(() => {
+      mockAuth.isEdition.set(false);
+      mockAuth.status.set({ multi_user: true, authenticated: true });
+    });
+
+    it('hides Keep and Undecided but keeps the rating, favourite and reject controls on an ordinary photo', () => {
+      const view = renderDetail();
+      view.componentInstance.photo.set(makePhoto());
+      view.detectChanges();
+      const root = view.nativeElement as HTMLElement;
+      expect(root.querySelector('[data-photo-keep]')).toBeNull();
+      expect(root.querySelector('[data-photo-undecided]')).toBeNull();
+      expect(root.querySelector('[data-photo-reject]')).not.toBeNull();
+    });
+
+    it('shows Keep and Undecided for a logical-review photo, which saves through the account endpoint', () => {
+      const view = renderDetail();
+      const state = { asset_id: 'asset', group_revision: 1, revision: 0, input_token: 'old', source_path: samplePhoto.path,
+        values: { star_rating: 3, is_favorite: 0, is_kept: 0, is_rejected: 0 },
+        origins: { star_rating: 'file', is_favorite: 'file', is_kept: 'file', is_rejected: 'file' } };
+      view.componentInstance.photo.set(makePhoto({ logical_review: state } as any));
+      view.detectChanges();
+      const root = view.nativeElement as HTMLElement;
+      expect(root.querySelector('[data-photo-keep]')).not.toBeNull();
+      expect(root.querySelector('[data-photo-undecided]')).not.toBeNull();
+    });
+
+    it('ignores the keep shortcut on an ordinary photo', () => {
+      createComponent();
+      component.photo.set({ ...samplePhoto });
+      const reviewPhoto = vi.spyOn(component, 'reviewPhoto').mockResolvedValue(undefined);
+      const event = new KeyboardEvent('keydown', { cancelable: true, key: 'k' });
+      component.onReviewKey(event);
+      expect(event.defaultPrevented).toBe(false);
+      expect(reviewPhoto).not.toHaveBeenCalled();
+    });
   });
 
   it('shows catalog removal only for rejected, non-kept photos and guards direct invocation', async () => {
@@ -2162,18 +2201,35 @@ describe('PhotoDetailComponent', () => {
       expect(notice).toHaveBeenCalledWith(I18N.photo_detail.copy_image_done, '', { duration: 3000 });
     });
 
-    it('does not copy the previous photo after navigation', async () => {
+    it.each(['photo', 'owner', 'token'] as const)('does not copy the image after the %s changes mid-fetch', async change => {
+      Object.assign(mockAuth, { token: 'original-token' });
       createComponent();
       component.photo.set({ ...samplePhoto });
       const pending = new Subject<Blob>();
       mockApi.getRaw.mockReturnValue(pending);
+      const close = vi.fn();
+      const decode = vi.fn(async () => ({ width: 4, height: 3, close }));
+      vi.stubGlobal('createImageBitmap', decode);
+      const draw = vi.fn();
+      vi.spyOn(HTMLCanvasElement.prototype, 'getContext').mockReturnValue({ drawImage: draw } as never);
+      vi.spyOn(HTMLCanvasElement.prototype, 'toBlob').mockImplementation(callback => callback(new Blob(['png'], { type: 'image/png' })));
       vi.stubGlobal('ClipboardItem', class { constructor(public values: Record<string, Promise<Blob>>) {} });
-      const write = vi.fn(async (items: { values: Record<string, Promise<Blob>> }[]) => { await items[0].values['image/png']; });
+      let outcome = 'unread';
+      const write = vi.fn(async (items: { values: Record<string, Promise<Blob>> }[]) => {
+        try { await items[0].values['image/png']; outcome = 'resolved'; } catch { outcome = 'rejected'; throw new Error('rejected'); }
+      });
       Object.defineProperty(navigator, 'clipboard', { configurable: true, value: { write } });
+      const notice = vi.spyOn(component.snackBar, 'open').mockReturnValue({} as never);
       const copying = component.copyPhoto(samplePhoto.path);
-      component.photo.set({ ...samplePhoto, path: '/other.jpg' });
+      if (change === 'photo') component.photo.set({ ...samplePhoto, path: '/other.jpg' });
+      else if (change === 'owner') mockAuth.status.set({ user_id: 'someone-else' });
+      else Object.assign(mockAuth, { token: 'rotated-token' });
       pending.next(new Blob(['jpeg'], { type: 'image/jpeg' }));
       await copying;
+      expect(outcome).toBe('rejected');
+      expect(decode).not.toHaveBeenCalled();
+      expect(draw).not.toHaveBeenCalled();
+      expect(notice).not.toHaveBeenCalled();
       expect(component.copyingPhoto()).toBe(false);
     });
 

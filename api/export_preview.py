@@ -4,7 +4,6 @@ The token is a domain-separated HMAC, never a viewer authentication token.
 No plan credentials or filesystem paths are carried in the signed payload.
 """
 
-import base64
 from dataclasses import asdict
 import hashlib
 import hmac
@@ -18,7 +17,7 @@ from uuid import uuid4
 
 from fastapi import HTTPException
 
-from api import config
+from api import config, signed_tokens
 from api.models.export_preview import ExportPreviewRequest
 from api.path_validation import PhotoFileMissing, resolve_photo_disk_path
 from api.related_files import related_files
@@ -34,7 +33,7 @@ _MAX_COLLISION_PROBES = 20000
 
 def _json(value):
     try:
-        return json.dumps(value, sort_keys=True, ensure_ascii=True, separators=(',', ':'), allow_nan=False).encode()
+        return signed_tokens.canonical_json(value, allow_nan=False)
     except (ValueError, TypeError) as exc:
         raise HTTPException(422, 'Export metadata cannot be represented') from exc
 
@@ -52,7 +51,7 @@ def _credential_generation(value, secret):
 
 def _policy(user_id, *, credential_generation=None):
     credential_generation = credential_generation or _credential_generation
-    secret = config.JWT_SECRET.encode() if isinstance(config.JWT_SECRET, str) else config.JWT_SECRET
+    secret = signed_tokens.secret()
     actor = (config._FULL_CONFIG.get('users', {}).get(user_id) or {}) if user_id else {}
     return {'multi_user': config.is_multi_user_enabled(),
             'user_directories': config.get_user_directories(user_id) if user_id else [],
@@ -61,7 +60,7 @@ def _policy(user_id, *, credential_generation=None):
             'export': config.VIEWER_CONFIG.get('export', {}),
             'xmp': config.get_xmp_export_config(),
             'actor_role': actor.get('role'),
-            'actor_generation': credential_generation(actor.get('password'), secret),
+            'actor_generation': credential_generation(actor.get('password_hash'), secret),
             'viewer_generation': credential_generation(config.VIEWER_CONFIG.get('password'), secret),
             'edition_generation': credential_generation(config.VIEWER_CONFIG.get('edition_password'), secret),
             'trusted_local_editing': config.VIEWER_CONFIG.get('trusted_local_editing', False)}
@@ -416,8 +415,7 @@ def build_export_snapshot(conn, body: ExportPreviewRequest, user_id, *, stop_req
 
 
 def _signature(payload):
-    secret = config.JWT_SECRET.encode() if isinstance(config.JWT_SECRET, str) else config.JWT_SECRET
-    return hmac.new(secret, _DOMAIN + payload, hashlib.sha256).hexdigest()
+    return signed_tokens.sign(_DOMAIN, payload)
 
 
 def export_preview(conn, body, user_id):
@@ -428,8 +426,7 @@ def export_preview(conn, body, user_id):
                      'snapshot': _digest(snapshot), 'expires': expires, 'receipt': receipt_id,
                      'total': len(snapshot['files']) + len(snapshot['missing']),
                      'paths': _digest(snapshot['paths'])})
-    encoded = base64.urlsafe_b64encode(payload).decode().rstrip('=')
-    token = encoded + '.' + _signature(payload)
+    token = signed_tokens.issue(_DOMAIN, payload)
     items = [{'photo_path': item['photo_path'], 'source_name': Path(item['source']).name,
               'target_name': Path(item['target']).name, 'state': 'ready', 'companion': item['companion'],
               'target_exists': item['target_identity'] is not None, 'metadata': item['metadata']}
@@ -445,11 +442,7 @@ def verify_export_preview(token, body, user_id):
     try:
         if len(token) > 4096:
             raise ValueError('oversized token')
-        encoded, signature = token.split('.')
-        payload = base64.urlsafe_b64decode(encoded + '=' * (-len(encoded) % 4))
-        if not hmac.compare_digest(signature, _signature(payload)):
-            raise ValueError('bad signature')
-        data = json.loads(payload)
+        data = signed_tokens.verify(_DOMAIN, token)
         if (data['owner'] != user_id or data['request'] != _digest(body.model_dump())
                 or data['expires'] <= time.time()):
             raise ValueError('changed or expired preview')

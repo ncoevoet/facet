@@ -1,6 +1,6 @@
 import { createGalleryFilterContext } from './gallery-filter-context';
 import { ChangeDetectionStrategy, Component, DestroyRef, ElementRef, computed, effect, inject, signal, untracked, viewChild } from '@angular/core';
-import { HttpErrorResponse } from '@angular/common/http';
+import { isDefinitiveRejection } from '../../shared/utils/write-rejection';
 import { firstValueFrom, Subject, takeUntil } from 'rxjs';
 import type { components } from '../../core/api/schema';
 import { ApiService } from '../../core/services/api.service';
@@ -192,7 +192,7 @@ export class KeywordCatalogComponent {
         this.result.set(result); this.plan.set(null); this.source.set(''); this.searchInput()?.nativeElement.focus();
       }
     } catch (error) {
-      const uncertain = !(error instanceof HttpErrorResponse && error.status >= 400 && error.status < 500);
+      const uncertain = !isDefinitiveRejection(error);
       refresh = uncertain;
       if (guard.current()) { this.error.set(true); this.uncertain.set(uncertain); if (!uncertain) this.plan.set(null); }
     } finally {

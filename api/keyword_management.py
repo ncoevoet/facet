@@ -1,14 +1,11 @@
 """Captured, atomic hierarchy changes. File metadata is never written here."""
 
-import base64
-import hashlib
 import hmac
-import json
 import time
 
 from fastapi import HTTPException
 
-from api import config
+from api import config, signed_tokens
 from api.db_helpers import get_visibility_clause
 from api.routers.faces import _writable_photo_paths
 from db.keyword_hierarchy import (
@@ -22,12 +19,11 @@ _MAX_BYTES = 8 * 1024 * 1024
 
 
 def _json(value):
-    return json.dumps(value, sort_keys=True, ensure_ascii=True, separators=(',', ':')).encode()
+    return signed_tokens.canonical_json(value)
 
 
 def _sign(kind, value):
-    secret = config.JWT_SECRET.encode() if isinstance(config.JWT_SECRET, str) else config.JWT_SECRET
-    return hmac.new(secret, _DOMAIN + kind + value, hashlib.sha256).hexdigest()
+    return signed_tokens.sign(_DOMAIN + kind, value)
 
 
 def _visible_node(conn, owner, node):
@@ -189,17 +185,13 @@ def hierarchy_preview(conn, user, body):
     public, digest = _snapshot(conn, user, body)
     expires = int(time.time()) + 600
     payload = _json({'owner': user.user_id, 'digest': digest, 'expires': expires})
-    return {**public, 'preview_token': base64.urlsafe_b64encode(payload).decode().rstrip('=') + '.' + _sign(b'token\0', payload),
+    return {**public, 'preview_token': signed_tokens.issue(_DOMAIN + b'token\0', payload),
             'expires_at': expires}
 
 
 def hierarchy_apply(conn, user, body, *, created_by):
     try:
-        encoded, signature = body.preview_token.split('.')
-        payload = base64.urlsafe_b64decode(encoded + '=' * (-len(encoded) % 4))
-        if not hmac.compare_digest(signature, _sign(b'token\0', payload)):
-            raise ValueError()
-        claims = json.loads(payload)
+        claims = signed_tokens.verify(_DOMAIN + b'token\0', body.preview_token)
         if (claims['owner'] != user.user_id or type(claims['expires']) is not int or claims['expires'] <= time.time()
                 or not isinstance(claims['digest'], str)):
             raise ValueError()

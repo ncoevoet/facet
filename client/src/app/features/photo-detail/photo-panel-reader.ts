@@ -1,4 +1,4 @@
-import { Directive, DestroyRef, effect, inject, input, signal } from '@angular/core';
+import { Directive, DestroyRef, computed, effect, inject, input, signal, untracked } from '@angular/core';
 import { Subscription } from 'rxjs';
 import { ApiService } from '../../core/services/api.service';
 import { AuthService } from '../../core/services/auth.service';
@@ -17,13 +17,17 @@ export abstract class PhotoPanelReader<T> {
   protected readonly loading = signal(false);
   protected readonly failed = signal(false);
   protected readonly data = signal<T | null>(null);
+  private readonly path = computed(() => this.photo().path);
   protected request?: Subscription;
   protected revision = 0;
   private readonly navigationPending = trackPendingNavigation({ started: () => this.reset() });
   protected get navigating(): boolean { return this.navigationPending(); }
 
   constructor() {
-    effect(() => { this.photo(); this.auth.status(); this.reset(); });
+    // Keyed on the confirmed session, not the status object a same-session revalidation replaces or briefly nulls.
+    effect(() => { this.path(); this.auth.session(); this.reset(); });
+    // The same photo as a new object is a confirmed edit of it: read again in place rather than collapse the panel.
+    effect(() => { this.photo(); untracked(() => { if (this.expanded()) this.load(); }); });
     this.destroyRef.onDestroy(() => this.reset());
   }
 
@@ -31,7 +35,7 @@ export abstract class PhotoPanelReader<T> {
   protected setExpanded(open: boolean, panel?: { close(): void }): void {
     if (open === this.expanded()) return;
     if (!open) { this.reset(); return; }
-    if (this.navigating || !this.auth.status()) { panel?.close(); return; }
+    if (this.navigating || !this.auth.session()) { panel?.close(); return; }
     this.expanded.set(true); this.load();
   }
 
@@ -40,7 +44,7 @@ export abstract class PhotoPanelReader<T> {
   }
 
   protected load(): void {
-    if (!this.expanded() || this.navigating || !this.auth.status()) return;
+    if (!this.expanded() || this.navigating || !this.auth.session()) return;
     this.request?.unsubscribe();
     const revision = ++this.revision;
     const photo = this.photo();
@@ -59,9 +63,9 @@ export abstract class PhotoPanelReader<T> {
   }
 
   protected scope(): () => boolean {
-    const revision = this.revision, photo = this.photo(), owner = this.auth.status(), token = this.auth.token;
+    const revision = this.revision, path = this.path(), owner = this.auth.session(), token = this.auth.token;
     return () => !this.destroyRef.destroyed && revision === this.revision && this.expanded()
-      && !this.navigating && this.photo() === photo && this.auth.status() === owner && this.auth.token === token;
+      && !this.navigating && this.path() === path && this.auth.session() === owner && this.auth.token === token;
   }
 
   protected reset(): void {

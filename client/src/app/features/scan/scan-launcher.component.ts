@@ -9,12 +9,6 @@ import { TranslatePipe } from '../../shared/pipes/translate.pipe';
 import { I18N, i18nKeys } from '../../core/i18n/keys';
 import { ScanHistoryComponent } from './scan-history.component';
 
-/**
- * Superadmin-only dialog to pick a configured directory and launch + watch a
- * scoring scan in-app. Binds the live ScanService status (SSE with polling
- * fallback) to a progress bar and an output tail, and closes with `true` once
- * the scan finishes cleanly so the gallery can refresh.
- */
 /** Statuses that prove the server refused this start (a 409 may still mean another scan runs). */
 const DEFINITE_REFUSALS = new Set([400, 403, 409, 422, 429]);
 
@@ -22,6 +16,12 @@ const DEFINITE_REFUSALS = new Set([400, 403, 409, 422, 429]);
 const isRefusal = (err: HttpErrorResponse): boolean =>
   DEFINITE_REFUSALS.has(err.status) || (err.status === 503 && err.error?.detail === 'library_busy');
 
+/**
+ * Superadmin-only dialog to pick a configured directory and launch + watch a
+ * scoring scan in-app. Binds the live ScanService status (SSE with polling
+ * fallback) to a progress bar and an output tail, and closes with `true` once
+ * the scan finishes cleanly so the gallery can refresh.
+ */
 @Component({
   selector: 'app-scan-launcher',
   changeDetection: ChangeDetectionStrategy.OnPush,

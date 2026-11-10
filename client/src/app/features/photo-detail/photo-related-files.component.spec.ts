@@ -1,5 +1,5 @@
 import { OverlayContainer } from '@angular/cdk/overlay';
-import { signal } from '@angular/core';
+import { computed, signal } from '@angular/core';
 import { By } from '@angular/platform-browser';
 import { PhotoLogicalAssetComponent } from './photo-logical-asset.component';
 import { TestBed } from '@angular/core/testing';
@@ -22,11 +22,12 @@ describe('PhotoRelatedFilesComponent', () => {
       { name: 'shot.xmp', kind: 'xmp_basename', state: 'available', indexed: false, raw_download: false },
     ],
   };
-  let auth: { status: ReturnType<typeof signal<object | null>>; token: string };
+  let auth: { status: ReturnType<typeof signal<object | null>>; session: () => string | null; token: string };
   let events: Subject<NavigationStart | NavigationCancel>;
   let http: HttpTestingController;
   beforeEach(() => {
-    auth = { status: signal<object | null>({ user_id: 'alice' }), token: 'one' };
+    const status = signal<object | null>({ user_id: 'alice' });
+    auth = { status, session: computed(() => (status() as { user_id?: string } | null)?.user_id ?? null), token: 'one' };
     events = new Subject();
     TestBed.configureTestingModule({
       imports: [PhotoRelatedFilesComponent],

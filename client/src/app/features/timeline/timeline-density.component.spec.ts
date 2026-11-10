@@ -41,7 +41,7 @@ describe('Timeline date density', () => {
     // A plain function, as in test-setup: a vi.fn would lose its implementation to another spec's restoreAllMocks.
     window.matchMedia = (query: string) => ({ ...matchMedia(query), matches: wide });
     const api = { get: vi.fn().mockReturnValue(of(years)) };
-    const auth = { status: signal({ user_id: 'alice' }), token: 'a' };
+    const auth = { status: signal<{ user_id: string } | null>({ user_id: 'alice' }), session: signal<string | null>('alice|a'), token: 'a' };
     const photos = signal([makePhoto({ path: '/photo.jpg', date_taken: '2020-01-01' })]);
     const timelineMembershipRevision = signal(0);
     const loading = signal(false);
@@ -374,7 +374,38 @@ describe('Timeline date density', () => {
     v.timelineMembershipRevision.update(value => value + 1); await v.settle();
     expect(pending.observed).toBe(true); await v.router.navigateByUrl('/elsewhere'); await v.settle();
     expect(pending.observed).toBe(false); pending.next(years); expect(v.bars()).toHaveLength(0);
-    v.auth.status.set({ user_id: 'bob' }); v.auth.token = 'b'; await v.settle(); expect(v.bars()).toHaveLength(0); v.fixture.destroy();
+    v.auth.status.set({ user_id: 'bob' }); v.auth.token = 'b'; v.auth.session.set('bob|b'); await v.settle(); expect(v.bars()).toHaveLength(0); v.fixture.destroy();
+  });
+
+  it('keeps the strip, its draft and an in-flight read through a same-session revalidation and its transient null', async () => {
+    const v = await render(); const bars = v.bars(); const calls = v.api.get.mock.calls.length;
+    bars[0].focus(); v.key(bars[0], 'ArrowRight', { shiftKey: true }); await v.settle();
+    v.auth.status.set({ user_id: 'alice' }); await v.settle();
+    v.auth.status.set(null); await v.settle();
+    v.auth.status.set({ user_id: 'alice' }); await v.settle();
+    expect(v.bars()).toHaveLength(3); expect(v.api.get).toHaveBeenCalledTimes(calls);
+    expect(v.bars().slice(0, 2).every(row => row.getAttribute('aria-pressed') === 'true')).toBe(true);
+    v.key(v.bars()[1], 'Enter'); await v.settle(); expect(v.filters.dateFrom()).toBe('2019-01-01');
+    const pending = new Subject<DensityResponse>(); v.api.get.mockReturnValueOnce(pending);
+    v.timelineMembershipRevision.update(value => value + 1); await v.settle();
+    v.auth.status.set(null); await v.settle(); v.auth.status.set({ user_id: 'alice' }); await v.settle();
+    expect(pending.observed).toBe(true); pending.next(years); await v.settle(); expect(v.bars()).toHaveLength(3);
+    v.auth.status.set(null); v.auth.session.set(null); await v.settle(); expect(v.bars()).toHaveLength(0); v.fixture.destroy();
+  });
+
+  it('keeps a loaded Calendar and its in-flight read through a same-session revalidation and its transient null', async () => {
+    const v = await render(); v.fixture.destroy();
+    const calendar = TestBed.createComponent(TimelineYearsComponent); calendar.detectChanges(); await calendar.whenStable(); calendar.detectChanges();
+    const settle = async () => { calendar.detectChanges(); await calendar.whenStable(); calendar.detectChanges(); };
+    const shown = () => calendar.nativeElement.querySelectorAll('[data-timeline-result]').length; const loaded = shown(); const calls = v.api.get.mock.calls.length;
+    expect(loaded).toBeGreaterThan(0);
+    v.auth.status.set({ user_id: 'alice' }); await settle(); v.auth.status.set(null); await settle();
+    v.auth.status.set({ user_id: 'alice' }); await settle();
+    expect(shown()).toBe(loaded); expect(v.api.get).toHaveBeenCalledTimes(calls);
+    const pending = new Subject<DensityResponse>(); v.api.get.mockReturnValueOnce(pending); v.filters.dateFrom.set('2019-01-01'); await settle();
+    v.auth.status.set(null); await settle(); v.auth.status.set({ user_id: 'alice' }); await settle();
+    expect(pending.observed).toBe(true); expect(v.api.get).toHaveBeenCalledTimes(calls + 1);
+    v.auth.status.set(null); v.auth.session.set(null); await settle(); expect(pending.observed).toBe(false); calendar.destroy();
   });
 
   it('reports a failed count read and retries without presenting an empty library', async () => {
@@ -397,7 +428,7 @@ describe('Timeline date density', () => {
     const calendar = TestBed.createComponent(TimelineYearsComponent); calendar.detectChanges(); await calendar.whenStable();
     expect(pending.observed).toBe(true);
     v.api.get.mockReturnValueOnce(of({ years: [{ year: '2026', count: 3, hero_photo_path: '/bob.jpg' }] }));
-    v.auth.status.set({ user_id: 'bob' }); v.auth.token = 'b'; calendar.detectChanges(); await calendar.whenStable(); calendar.detectChanges();
+    v.auth.status.set({ user_id: 'bob' }); v.auth.token = 'b'; v.auth.session.set('bob|b'); calendar.detectChanges(); await calendar.whenStable(); calendar.detectChanges();
     expect(pending.observed).toBe(false); pending.next(years);
     expect(calendar.nativeElement.querySelector('img')?.getAttribute('alt')).toBe('2026');
     v.api.get.mockReturnValueOnce(throwError(() => new Error('offline'))); v.filters.dateFrom.set('2026-01-01');

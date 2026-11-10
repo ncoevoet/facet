@@ -43,6 +43,19 @@ describe('On-demand metric distributions', () => {
     fixture.destroy();
   });
 
+  it('shows the localized category name on the scope button and in the rank label, never the raw id', () => {
+    const {fixture, overlay, open} = setup();
+    TestBed.inject(I18nService).t = (key: string, vars?: Record<string, unknown>) => key === 'category_names.portrait' ? 'Portrait FR'
+      : vars?.['scope'] ? `${key}|${vars['scope']}` : key;
+    open();
+    const scopeButtons = overlay.querySelectorAll<HTMLButtonElement>('[role="group"] button');
+    expect(scopeButtons[1].textContent).toContain('Portrait FR');
+    scopeButtons[1].click(); fixture.detectChanges();
+    reads[reads.length - 1].response.next(result()); fixture.detectChanges();
+    expect(overlay.querySelector('app-metric-rank [role="img"]')?.getAttribute('aria-label')).toContain('|Portrait FR');
+    fixture.destroy();
+  });
+
   it('cancels previous category/account requests and ignores their completions', () => {
     const {fixture, overlay, open} = setup(); open();
     (overlay.querySelectorAll('[role="group"] button')[1] as HTMLButtonElement).click(); fixture.detectChanges();

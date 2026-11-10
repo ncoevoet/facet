@@ -16,8 +16,9 @@ export abstract class TimelineCollectionReader {
   protected readonly loading = signal(false);
   protected readonly failed = signal(false);
   protected readonly retry = signal(0);
+  /** The confirmed session, not the status object a same-session revalidation replaces or briefly nulls. */
   protected readonly readScope = computed(() => {
-    const owner = this.auth.status();
+    const owner = this.auth.session();
     return owner && this.active() ? { owner, token: this.auth.token } : null;
   });
   private request: Subscription | null = null;
@@ -47,7 +48,7 @@ export abstract class TimelineCollectionReader {
     if (!scope) return;
     const generation = this.generation;
     const current = () => generation === this.generation && this.active()
-      && scope.owner === this.auth.status() && scope.token === this.auth.token;
+      && scope.owner === this.auth.session() && scope.token === this.auth.token;
     this.loading.set(true);
     this.request = this.reads.get<T>(path, params).subscribe({
       next: response => { if (current()) {

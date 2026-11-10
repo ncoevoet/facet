@@ -2284,6 +2284,13 @@ export class GalleryStore {
     return () => identity === this.auth.identity() && key === this.reviewViewKey();
   }
 
+  /** True while the principal a write started for (identity and token) is still the one signed in. */
+  private captureOwner(): () => boolean {
+    const identity = this.auth.identity();
+    const token = this.auth.token;
+    return () => identity === this.auth.identity() && token === this.auth.token;
+  }
+
   private reviewViewKey(): string {
     return this.filterKey({ ...this.filters(), page: 1 });
   }
@@ -2310,9 +2317,7 @@ export class GalleryStore {
     if (this.toggleInFlight.has(photoPath)) return false;
     this.toggleInFlight.add(photoPath);
     const isOrigin = this.captureReviewView();
-    const owner = this.auth.identity();
-    const token = this.auth.token;
-    const sameOwner = () => owner === this.auth.identity() && token === this.auth.token;
+    const sameOwner = this.captureOwner();
     const snap = this.snapshotFlags([photoPath]);
     this.patchPhoto(photoPath, { star_rating: rating || null });
     try {
@@ -2358,9 +2363,7 @@ export class GalleryStore {
       return;
     }
     const isOrigin = this.captureReviewView();
-    const identity = this.auth.identity();
-    const token = this.auth.token;
-    const sameOwner = () => identity === this.auth.identity() && token === this.auth.token;
+    const sameOwner = this.captureOwner();
     if (this.toggleInFlight.has(photoPath)) return;
     this.toggleInFlight.add(photoPath);
     try {
@@ -2406,9 +2409,7 @@ export class GalleryStore {
       return this.saveLogicalReview(photoPath, logical, 'reject');
     }
     const isOrigin = this.captureReviewView();
-    const identity = this.auth.identity();
-    const token = this.auth.token;
-    const sameOwner = () => identity === this.auth.identity() && token === this.auth.token;
+    const sameOwner = this.captureOwner();
     if (this.toggleInFlight.has(photoPath)) return false;
     this.toggleInFlight.add(photoPath);
     try {

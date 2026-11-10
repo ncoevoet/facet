@@ -18,6 +18,8 @@ export interface TimelinePage {
 export interface TimelineSnapshot extends TimelinePage {
   scope: string;
   owner: AuthStatus;
+  /** The key, not `owner`: a same-session revalidation replaces the status object and may null it briefly. */
+  session: string;
   token: string | null;
   scrollTop: number;
   rows: Photo[];
@@ -54,38 +56,38 @@ export class TimelineFeedCache {
   }, { equal: sameMembership });
   readonly membershipRevision = this.store.timelineMembershipRevision.asReadonly();
   private snapshot: TimelineSnapshot | null = null;
-  private photoSession: { owner: AuthStatus; token: string | null; paths: string[] } | null = null;
+  private photoSession: { session: string; token: string | null; paths: string[] } | null = null;
 
   constructor() {
     effect(() => {
-      const owner = this.auth.status();
+      const session = this.auth.session();
       const rows = this.rows(); const revision = this.membershipRevision();
-      if (this.snapshot?.owner !== owner || this.snapshot?.token !== this.auth.token || rows !== this.snapshot.rows
+      if (this.snapshot?.session !== session || this.snapshot?.token !== this.auth.token || rows !== this.snapshot.rows
         || revision !== this.snapshot.membershipRevision) this.snapshot = null;
-      if (this.photoSession?.owner !== owner || this.photoSession?.token !== this.auth.token) this.photoSession = null;
+      if (this.photoSession?.session !== session || this.photoSession?.token !== this.auth.token) this.photoSession = null;
     });
   }
 
   read(scope: string): TimelineSnapshot | null {
     const value = this.snapshot;
-    return value?.scope === scope && value.owner === this.auth.status() && value.token === this.auth.token && value.rows === this.rows()
+    return value?.scope === scope && value.session === this.auth.session() && value.token === this.auth.token && value.rows === this.rows()
       && value.membershipRevision === this.membershipRevision()
       ? value : null;
   }
 
   save(value: TimelineSnapshot): void {
-    if (value.owner === this.auth.status() && value.token === this.auth.token && value.rows === this.rows()
+    if (value.session === this.auth.session() && value.token === this.auth.token && value.rows === this.rows()
       && value.membershipRevision === this.membershipRevision()) this.snapshot = value;
   }
 
   capturePhotos(photos: TimelineGroup[]): void {
-    const owner = this.auth.status();
-    if (owner) this.photoSession = { owner, token: this.auth.token, paths: photos.flatMap(group => group.photos.map(photo => photo.path)) };
+    const session = this.auth.session();
+    if (session) this.photoSession = { session, token: this.auth.token, paths: photos.flatMap(group => group.photos.map(photo => photo.path)) };
   }
 
   adjacent(path: string, delta: number): string | null {
     const session = this.photoSession;
-    if (!session || session.owner !== this.auth.status() || session.token !== this.auth.token) return null;
+    if (!session || session.session !== this.auth.session() || session.token !== this.auth.token) return null;
     const index = session.paths.indexOf(path);
     return index < 0 ? null : session.paths[index + delta] ?? null;
   }

@@ -33,3 +33,9 @@ export const MOBILE_BAR_BUTTON = '!h-11 !min-w-11 shrink-0 max-md:!px-0 max-md:[
  * otherwise sit its glyph 6 px left of the button's centre.
  */
 export const XL_LABEL_BUTTON = 'max-xl:[&>mat-icon]:!m-0';
+
+/** An icon button on a page's toolbar: a 44 px square below `sm` and on a coarse pointer, where Material's 40 px misses the touch target. */
+export const TOUCH_ICON_BUTTON = 'max-sm:!w-11 max-sm:!h-11 pointer-coarse:!w-11 pointer-coarse:!h-11';
+
+/** A text button on a page's toolbar: at least 44 px tall below `sm` and on a coarse pointer. */
+export const TOUCH_TEXT_BUTTON = 'max-sm:!min-h-11 pointer-coarse:!min-h-11';

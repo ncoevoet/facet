@@ -106,6 +106,27 @@ describe('FaceReviewQueueComponent', () => {
     fixture.destroy(); root.remove();
   });
 
+  it('splits one person\'s assignment into requests of at most 500 faces, the server cap', async () => {
+    const faces = Array.from({ length: 501 }, (_, index) => ({
+      face_id: index + 1, photo_path: `/p${index + 1}.jpg`, identity_token: 'c'.repeat(64), embedding_state: 'ready',
+      suggestions: [{ person_id: 10, name: 'Alice', similarity: 0.9 }],
+    }));
+    const { fixture, root, api } = await render('matches', { ...response, faces, total_unassigned: 501 });
+    api.post.mockImplementation((_url: string, body: { face_ids: number[] }) => of({ ...assigned, assigned_count: body.face_ids.length }));
+    select(root); fixture.detectChanges(); preview(root); fixture.detectChanges();
+    root.querySelector<HTMLButtonElement>('[data-confirm-assignment]')!.click();
+    await fixture.whenStable(); fixture.detectChanges();
+    expect(api.post).toHaveBeenCalledTimes(2);
+    const [first, second] = api.post.mock.calls.map(call => call[1] as { face_ids: number[]; expected_face_tokens: Record<string, string> });
+    expect(first.face_ids).toHaveLength(500);
+    expect(second.face_ids).toEqual([501]);
+    expect(Object.keys(first.expected_face_tokens)).toHaveLength(500);
+    expect(Object.keys(second.expected_face_tokens)).toEqual(['501']);
+    expect(root.querySelector('[data-assignment-receipt]')?.textContent).toContain('"assigned":501,"skipped":0');
+    expect(root.textContent).not.toContain('persons.review_queue.uncertain');
+    fixture.destroy(); root.remove();
+  });
+
   it('keeps newer navigation blocked through an older completion and resumes once after cancellation', async () => {
     const { fixture, root, api } = await render();
     const router = TestBed.inject(Router); const events = router.events as Subject<Event>;

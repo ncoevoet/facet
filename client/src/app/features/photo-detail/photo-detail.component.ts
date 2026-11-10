@@ -407,14 +407,16 @@ function inDetectedSet(photo: Photo): boolean {
                 </button>
               </div>
               <div data-photo-decisions role="group" [attr.aria-label]="I18N.gallery.sidebar.review.decision | translate" class="flex items-stretch divide-x divide-[var(--mat-sys-outline-variant)] overflow-hidden rounded border border-[var(--mat-sys-outline-variant)]">
-                <button type="button" data-photo-keep class="inline-flex min-h-11 min-w-0 flex-1 cursor-pointer focus-visible:!outline-2 focus-visible:!-outline-offset-4 focus-visible:!outline-current items-center justify-center gap-1 px-1 text-xs hover:bg-[var(--mat-sys-surface-container-high)]" [class.!bg-[var(--facet-review-kept)]]="p.is_kept" [class.!text-[var(--facet-review-on-kept)]]="p.is_kept"
-                  (click)="reviewPhoto(p.is_kept ? 'undecided' : 'kept')" [attr.aria-pressed]="!!p.is_kept">
-                  <mat-icon aria-hidden="true" class="!w-5 !h-5 !text-xl">{{ p.is_kept ? 'flag' : 'outlined_flag' }}</mat-icon>{{ I18N.review.keep | translate }}
-                </button>
-                <button type="button" data-photo-undecided class="inline-flex min-h-11 min-w-0 flex-1 cursor-pointer focus-visible:!outline-2 focus-visible:!-outline-offset-4 focus-visible:!outline-current items-center justify-center px-1 text-xs hover:bg-[var(--mat-sys-surface-container-high)]" [class.!bg-[var(--mat-sys-secondary-container)]]="!p.is_kept && !p.is_rejected" [class.!text-[var(--mat-sys-on-secondary-container)]]="!p.is_kept && !p.is_rejected"
-                  (click)="reviewPhoto('undecided')" [attr.aria-pressed]="!p.is_kept && !p.is_rejected">
-                  <span class="min-w-0 break-words hyphens-auto">{{ I18N.gallery.metadata.undecided | translate }}</span>
-                </button>
+                @if (canDecide()) {
+                  <button type="button" data-photo-keep class="inline-flex min-h-11 min-w-0 flex-1 cursor-pointer focus-visible:!outline-2 focus-visible:!-outline-offset-4 focus-visible:!outline-current items-center justify-center gap-1 px-1 text-xs hover:bg-[var(--mat-sys-surface-container-high)]" [class.!bg-[var(--facet-review-kept)]]="p.is_kept" [class.!text-[var(--facet-review-on-kept)]]="p.is_kept"
+                    (click)="reviewPhoto(p.is_kept ? 'undecided' : 'kept')" [attr.aria-pressed]="!!p.is_kept">
+                    <mat-icon aria-hidden="true" class="!w-5 !h-5 !text-xl">{{ p.is_kept ? 'flag' : 'outlined_flag' }}</mat-icon>{{ I18N.review.keep | translate }}
+                  </button>
+                  <button type="button" data-photo-undecided class="inline-flex min-h-11 min-w-0 flex-1 cursor-pointer focus-visible:!outline-2 focus-visible:!-outline-offset-4 focus-visible:!outline-current items-center justify-center px-1 text-xs hover:bg-[var(--mat-sys-surface-container-high)]" [class.!bg-[var(--mat-sys-secondary-container)]]="!p.is_kept && !p.is_rejected" [class.!text-[var(--mat-sys-on-secondary-container)]]="!p.is_kept && !p.is_rejected"
+                    (click)="reviewPhoto('undecided')" [attr.aria-pressed]="!p.is_kept && !p.is_rejected">
+                    <span class="min-w-0 break-words hyphens-auto">{{ I18N.gallery.metadata.undecided | translate }}</span>
+                  </button>
+                }
                 <button type="button" data-photo-reject class="inline-flex min-h-11 min-w-0 flex-1 cursor-pointer focus-visible:!outline-2 focus-visible:!-outline-offset-4 focus-visible:!outline-current items-center justify-center gap-1 px-1 text-xs hover:bg-[var(--mat-sys-surface-container-high)]" [class.!bg-[var(--mat-sys-error-container)]]="p.is_rejected" [class.!text-[var(--mat-sys-on-error-container)]]="p.is_rejected"
                   (click)="toggleRejected(p.path)" [attr.aria-pressed]="!!p.is_rejected">
                   <mat-icon aria-hidden="true" class="!w-5 !h-5 !text-xl">{{ p.is_rejected ? 'thumb_down' : 'thumb_down_off_alt' }}</mat-icon>{{ I18N.gallery.selection.reject | translate }}
@@ -1269,7 +1271,6 @@ export class PhotoDetailComponent extends PhotoDetailBase implements OnInit {
       replaceUrl: true,
     });
     this.photo.set(next);
-
   }
 
   /**
@@ -1425,6 +1426,8 @@ export class PhotoDetailComponent extends PhotoDetailBase implements OnInit {
   }
 
   protected readonly canReview = computed(() => this.auth.isEdition() || !!(this.auth.status()?.multi_user && this.auth.status()?.authenticated));
+  /** Keep/Undecided on an ordinary photo go to an edition-only endpoint; a logical-review photo saves through the account endpoint. */
+  protected readonly canDecide = computed(() => this.auth.isEdition() || !!this.photo()?.logical_review);
   private readonly logicalReviews = inject(LogicalReviewService);
 
   private async saveLogicalReview(p: Photo, action: LogicalReviewAction): Promise<boolean> {
@@ -1482,7 +1485,7 @@ export class PhotoDetailComponent extends PhotoDetailBase implements OnInit {
   @HostListener('document:keydown', ['$event'])
   protected onReviewKey(event: KeyboardEvent): void {
     this.onRatingShortcut(event);
-    if (this.dialog.openDialogs.length || isPageShortcutBlocked(event) || !this.keymap.matches(event, 'keep') || !this.canReview()) return;
+    if (this.dialog.openDialogs.length || isPageShortcutBlocked(event) || !this.keymap.matches(event, 'keep') || !this.canReview() || !this.canDecide()) return;
     event.preventDefault();
     void this.reviewPhoto('kept');
   }
@@ -1530,7 +1533,6 @@ export class PhotoDetailComponent extends PhotoDetailBase implements OnInit {
       if (!target) { this.router.navigate(['/']); return; }
       this.router.navigate(['/photo'], { queryParams: { path: target.path }, state: this.photoNavigationState(target), replaceUrl: true });
       this.photo.set(target);
-
     } finally { navigation.unsubscribe(); }
   }
 
