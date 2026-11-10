@@ -1586,7 +1586,10 @@ export class GalleryFilterSidebarComponent {
   private readonly helps = viewChildren(ContextHelpComponent);
 
   closeOverlays(): void {
-    for (const help of this.helps()) help.close();
+    for (const help of this.helps()) {
+      help.close();
+      help.hideTooltips();
+    }
     closeOverlayDirectives(this.tooltips(), this.menuTriggers(), this.selects());
   }
 
