@@ -8,6 +8,7 @@ import { FormsModule } from '@angular/forms';
 import { MatSelectModule, MatSelect } from '@angular/material/select';
 import { MatSliderModule } from '@angular/material/slider';
 import { MatIconModule } from '@angular/material/icon';
+import { MatBadgeModule } from '@angular/material/badge';
 import { MatButtonModule } from '@angular/material/button';
 import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatCheckboxModule } from '@angular/material/checkbox';
@@ -232,6 +233,7 @@ type RatingOption = 'any' | '1' | '2' | '3' | '4' | '5' | 'zero';
     MatSelectModule,
     MatSliderModule,
     MatIconModule,
+    MatBadgeModule,
     MatButtonModule,
     MatFormFieldModule,
     MatCheckboxModule,
@@ -324,14 +326,12 @@ type RatingOption = 'any' | '1' | '2' | '3' | '4' | '5' | 'zero';
           </button>
         }
       </div>
-        <button type="button" mat-stroked-button data-active-view class="shrink-0 !min-h-11 !px-3"
+        <button type="button" mat-icon-button data-active-view class="shrink-0"
                 [class.!bg-[var(--mat-sys-secondary-container)]]="activeView()" [attr.aria-pressed]="activeView()"
+                [matBadge]="activeViewCount() || null" matBadgeColor="primary" matBadgeSize="medium"
+                [attr.aria-label]="activeViewCount() ? (I18N.gallery.sidebar.tabs.active_count | translate:{ label: (I18N.gallery.sidebar.active_view.label | translate), count: activeViewCount() }) : (I18N.gallery.sidebar.active_view.label | translate)"
                 [matTooltip]="I18N.gallery.sidebar.active_view.show | translate" (click)="toggleActiveView()">
           <mat-icon aria-hidden="true">filter_list</mat-icon>
-          <span>{{ I18N.gallery.sidebar.active_view.label | translate }}</span>
-          @if (activeViewCount()) {
-            <span data-active-view-count class="ml-1 inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-[var(--mat-sys-primary)] px-1.5 text-xs leading-none text-[var(--mat-sys-on-primary)]">{{ activeViewCount() }}</span>
-          }
         </button>
       </div>
 

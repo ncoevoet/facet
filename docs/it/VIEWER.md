@@ -163,7 +163,7 @@ Il pannello filtri ha cinque schede: Trova, Origine, Qualità, Tecnica e Soggett
 | **Tecnica** | Tecnica, Esposizione & Gamma, Colore e qualità (nitidezza, esposizione, colore e rumore) |
 | **Soggetto** | Metriche volti, Composizione, Salienza del soggetto (cosa c'è nell'inquadratura) |
 
-L'intestazione, **Cerca un filtro**, l'avviso dell'album intelligente e la ricerca per nome file restano sopra le schede in ogni scheda, quindi `/` funziona da tutte. Digitare in **Cerca un filtro** nasconde le schede ed elenca i cursori corrispondenti di tutte. **Filtri attivi**, accanto, mostra solo le sezioni con un filtro attivo, da tutte le schede, espanse e nell'ordine delle schede; il badge conta questi filtri, e scegliere una scheda esce da questa vista. Senza filtri mostra *Nessun filtro applicato*.
+L'intestazione, **Cerca un filtro**, l'avviso dell'album intelligente e la ricerca per nome file restano sopra le schede in ogni scheda, quindi `/` funziona da tutte. Digitare in **Cerca un filtro** nasconde le schede ed elenca i cursori corrispondenti di tutte. L'icona **Filtri attivi**, accanto, mostra solo le sezioni con un filtro attivo, da tutte le schede, espanse e nell'ordine delle schede; il badge conta questi filtri, e scegliere una scheda esce da questa vista. Senza filtri mostra *Nessun filtro applicato*.
 
 Il numero accanto a **Filtri** comprende tutti i criteri attivi, anche metriche non disponibili. Un intervallo conta una volta. **Reimposta filtri** appare accanto ai criteri della raccolta già con un solo criterio; il pannello non lo duplica. **X** chiude il pannello.
 

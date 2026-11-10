@@ -163,7 +163,7 @@ The filter drawer has five tabs: Find, Source, Quality, Technical and Subject. R
 | **Technical** | Technical, Exposure & Range, Color & Quality (sharpness, exposure, color and noise) |
 | **Subject** | Face Metrics, Composition, Subject Saliency (what is in the frame) |
 
-The header, **Find a filter**, the smart-album notice and the filename search stay above the tabs on every tab, so `/` works from any of them. Typing in **Find a filter** hides the tabs and lists the matching sliders from all of them. **Active filters**, beside it, shows only the sections with an active filter, from every tab, expanded and in tab order; its badge counts those filters, and choosing a tab leaves that view. With no filter set it reads *No filters applied*.
+The header, **Find a filter**, the smart-album notice and the filename search stay above the tabs on every tab, so `/` works from any of them. Typing in **Find a filter** hides the tabs and lists the matching sliders from all of them. The **Active filters** icon beside it shows only the sections with an active filter, from every tab, expanded and in tab order; its badge counts those filters, and choosing a tab leaves that view. With no filter set it reads *No filters applied*.
 
 The numeric count beside **Filters** includes every active criterion, including unavailable metrics. A range counts once. **Reset filters** appears beside the collection chips even for a single active criterion; the drawer does not duplicate it. **X** closes the drawer.
 

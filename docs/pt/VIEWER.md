@@ -163,7 +163,7 @@ O painel de filtros tem cinco abas: Procurar, Origem, Qualidade, Técnico e Assu
 | **Técnico** | Técnico, Exposição e amplitude, Cor e qualidade (nitidez, exposição, cor e ruído) |
 | **Assunto** | Métricas de rosto, Composição, Saliência do sujeito (o que está no enquadramento) |
 
-O cabeçalho, **Encontrar um filtro**, o aviso de álbum inteligente e a busca por nome de arquivo ficam acima das abas em todas elas, por isso `/` funciona a partir de qualquer uma. Digitar em **Encontrar um filtro** oculta as abas e lista os controles correspondentes de todas. **Filtros ativos**, ao lado, mostra só as seções com um filtro ativo, de todas as abas, expandidas e na ordem das abas; o emblema conta esses filtros, e escolher uma aba sai dessa vista. Sem filtros indica *Nenhum filtro aplicado*.
+O cabeçalho, **Encontrar um filtro**, o aviso de álbum inteligente e a busca por nome de arquivo ficam acima das abas em todas elas, por isso `/` funciona a partir de qualquer uma. Digitar em **Encontrar um filtro** oculta as abas e lista os controles correspondentes de todas. O ícone **Filtros ativos**, ao lado, mostra só as seções com um filtro ativo, de todas as abas, expandidas e na ordem das abas; o emblema conta esses filtros, e escolher uma aba sai dessa vista. Sem filtros indica *Nenhum filtro aplicado*.
 
 O número junto a **Filtros** inclui todos os critérios ativos, até métricas indisponíveis. Um intervalo conta uma vez. **Redefinir filtros** aparece junto aos critérios da coleção desde o primeiro critério ativo; o painel não o duplica. **X** fecha o painel.
 

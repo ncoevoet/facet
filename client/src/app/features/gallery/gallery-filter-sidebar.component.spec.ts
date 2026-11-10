@@ -925,12 +925,19 @@ describe('GalleryFilterSidebarComponent', () => {
         .map(t => Array.from(t.childNodes).filter(node => node.nodeType === Node.TEXT_NODE)
           .map(node => node.textContent).join('').trim());
 
-      it('counts the active filters of the visible tabs on its toggle, beside Find a filter', () => {
+      it('counts the active filters of the visible tabs on its icon toggle, beside Find a filter', () => {
+        const badge = () => toggle().querySelector('.mat-badge-content')?.textContent?.trim() ?? '';
+        expect(toggle().hasAttribute('mat-icon-button')).toBe(true);
+        expect(toggle().textContent!.trim()).toBe('filter_list');
+        expect(fixture.debugElement.query(By.css('button[data-active-view]')).injector.get(MatTooltip).message)
+          .toBe('gallery.sidebar.active_view.show');
         expect(toggle().getAttribute('aria-pressed')).toBe('false');
-        expect(toggle().querySelector('[data-active-view-count]')).toBeNull();
+        expect(toggle().getAttribute('aria-label')).toBe('gallery.sidebar.active_view.label');
+        expect(badge()).toBe('');
         expect(toggle().parentElement!.querySelector('#filter-finder-input')).not.toBeNull();
         setFilters({ date_from: '2024-01-01', min_score: '5', min_face_quality: '4' });
-        expect(toggle().querySelector('[data-active-view-count]')!.textContent!.trim()).toBe('3');
+        expect(badge()).toBe('3');
+        expect(toggle().getAttribute('aria-label')).toBe('gallery.sidebar.active_view.label, 3 active');
         fixture.componentRef.setInput('portSettings', true);
         setFilters({ favorites_only: true });
         expect(fixture.componentInstance.activeViewCount()).toBe(3);

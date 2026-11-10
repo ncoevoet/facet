@@ -163,7 +163,7 @@ Die Filterleiste hat fünf Tabs: Suchen, Quelle, Qualität, Technik und Motiv. S
 | **Technik** | Technik, Belichtung & Bereich, Farbe & Qualität (Schärfe, Belichtung, Farbe und Rauschen) |
 | **Motiv** | Gesichtsmetriken, Komposition, Motiverkennung (was im Bild zu sehen ist) |
 
-Kopfzeile, **Filter suchen**, der Hinweis für Smart-Alben und die Dateinamensuche bleiben auf jedem Tab über den Tabs, daher funktioniert `/` von jedem aus. Eine Eingabe in **Filter suchen** blendet die Tabs aus und listet die passenden Regler aus allen Tabs. **Aktive Filter** daneben zeigt nur die Abschnitte mit einem aktiven Filter aus allen Tabs, aufgeklappt und in Tab-Reihenfolge; das Abzeichen zählt diese Filter, und die Wahl eines Tabs verlässt diese Ansicht. Ohne Filter steht dort *Keine Filter angewendet*.
+Kopfzeile, **Filter suchen**, der Hinweis für Smart-Alben und die Dateinamensuche bleiben auf jedem Tab über den Tabs, daher funktioniert `/` von jedem aus. Eine Eingabe in **Filter suchen** blendet die Tabs aus und listet die passenden Regler aus allen Tabs. Das Symbol **Aktive Filter** daneben zeigt nur die Abschnitte mit einem aktiven Filter aus allen Tabs, aufgeklappt und in Tab-Reihenfolge; das Abzeichen zählt diese Filter, und die Wahl eines Tabs verlässt diese Ansicht. Ohne Filter steht dort *Keine Filter angewendet*.
 
 Die Zahl neben **Filter** zählt alle aktiven Kriterien einschließlich nicht verfügbarer Metriken. Ein Wertebereich zählt einmal. **Filter zurücksetzen** steht bei den Sammlungskriterien bereits ab einem aktiven Kriterium; die Seitenleiste dupliziert es nicht. **X** schließt die Leiste.
 
