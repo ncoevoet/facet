@@ -972,7 +972,7 @@ Agrupa fotos similares tiradas em sucessão rápida.
 
 Avisa os usuários em modo edição de que existe uma versão mais recente do Facet. Isso é independente do aviso «Está disponível uma nova versão — Recarregar» do navegador.
 
-- A versão em execução aparece no fim do menu do usuário, para todos que podem abrir o visualizador.
+- A versão em execução aparece no fim do menu do usuário, para todos que podem abrir o visualizador. Um clique copia a versão e a linha de build, por exemplo para um relatório de erro.
 - Uma imagem construída com `--build-arg FACET_BUILD=<branch>@<commit>` mostra também essa linha de build, tal como uma instalação Windows por MSI, com o `<branch>@<commit>` a partir do qual foi construído. `/api/config` devolve ambos como `version` e `build`, apenas a quem pode ler a biblioteca.
 - O servidor consulta o GitHub no máximo uma vez por `interval_days`, sem token nem dados da fototeca. Uma verificação que falha aparece como «nenhuma atualização conhecida».
 - Só os usuários em modo edição veem o aviso, no máximo uma vez por semana por navegador.

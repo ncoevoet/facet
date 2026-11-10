@@ -33,6 +33,7 @@ import { PersonsFiltersService } from './features/persons/persons-filters.servic
 import { CompareFiltersService } from './features/comparison/compare-filters.service';
 import { CapsuleFiltersService } from './features/capsules/capsule-filters.service';
 import { TranslatePipe } from './shared/pipes/translate.pipe';
+import { copyText } from './shared/utils/clipboard';
 import { AlbumTypeIconPipe } from './features/albums/album-type-icon.pipe';
 import { HelpDialogComponent } from './shared/components/help-dialog/help-dialog.component';
 import { CULLING_SHORTCUT_SECTIONS, STACK_SHORTCUT_SECTIONS, MANUAL_STACK_SHORTCUT_SECTIONS } from './features/gallery/culling-shortcuts';
@@ -187,6 +188,14 @@ export class App implements OnInit {
       width: '32rem', autoFocus: false,
       data: { key: this.pageHelp.descriptionKey(), note: this.pageHelp.note(), shortcutSections: shortcuts },
     });
+  }
+  /** Copy "Facet <version> (<build>)" from the user menu; the build is left out when the server sends none. */
+  protected async copyVersion(): Promise<void> {
+    const config = this.store.config();
+    if (!config?.version) return;
+    const label = this.i18n.t(I18N.ui.version, { version: config.version });
+    const text = config.build ? `${label} (${config.build})` : label;
+    if (await copyText(text)) this.snackBar.open(this.i18n.t(I18N.notifications.copied), '', { duration: 2000 });
   }
   private helpSections(): ShortcutSection[] {
     const url = this.url();

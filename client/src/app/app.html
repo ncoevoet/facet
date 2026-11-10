@@ -385,12 +385,17 @@
           }
           @if (store.config()?.version; as version) {
             <mat-divider />
-            <div class="px-4 py-2 text-xs opacity-60">
-              {{ I18N.ui.version | translate: { version: version } }}
-              @if (store.config()?.build; as build) {
-                <div class="font-mono break-all">{{ build }}</div>
-              }
-            </div>
+            <!-- Click copies the version and build, for a bug report or a test note. -->
+            <button mat-menu-item data-copy-version (click)="copyVersion()"
+              [matTooltip]="I18N.ui.buttons.copy | translate" matTooltipPosition="left">
+              <mat-icon>content_copy</mat-icon>
+              <span class="text-xs opacity-60">
+                {{ I18N.ui.version | translate: { version: version } }}
+                @if (store.config()?.build; as build) {
+                  <span class="block font-mono break-all">{{ build }}</span>
+                }
+              </span>
+            </button>
           }
         </mat-menu>
         <mat-menu #displayMenu="matMenu">
