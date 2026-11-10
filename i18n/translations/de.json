@@ -2808,6 +2808,8 @@
     },
     "exit_scene": "Szene verlassen",
     "scene_complete": "Szene gesichtet – nichts mehr zu prüfen",
+    "next_scene": "Szene gesichtet – weiter mit {scene}",
+    "last_scene": "Letzte Szene gesichtet",
     "scope": "Bereich",
     "scope_whole_library": "Gesamte Bibliothek",
     "scope_whole_album": "Gesamtes Album",

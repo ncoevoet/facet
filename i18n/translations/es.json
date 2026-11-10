@@ -2808,6 +2808,8 @@
     },
     "exit_scene": "Salir de la escena",
     "scene_complete": "Escena depurada: nada más que revisar",
+    "next_scene": "Escena depurada: sigue la del {scene}",
+    "last_scene": "Última escena depurada",
     "scope": "Alcance",
     "scope_whole_library": "Toda la biblioteca",
     "scope_whole_album": "Todo el álbum",

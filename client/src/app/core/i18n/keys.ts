@@ -2847,6 +2847,8 @@ export const I18N = {
     },
     exit_scene: "culling.exit_scene",
     scene_complete: "culling.scene_complete",
+    next_scene: "culling.next_scene",
+    last_scene: "culling.last_scene",
     scope: "culling.scope",
     scope_whole_library: "culling.scope_whole_library",
     scope_whole_album: "culling.scope_whole_album",

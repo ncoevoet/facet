@@ -1077,7 +1077,7 @@ Une vue en **lecture seule** de la bibliothèque sous forme de scènes chronolog
 
 - Une nouvelle scène commence quand plus de `scenes.gap_minutes` s'écoulent entre deux prises (élargi sur les prises clairsemées). Les séquences très longues sont scindées.
 - Ouvrez **Scènes** dans la navigation principale pour toute la bibliothèque, ou l'action **Afficher les scènes de cet album** d'un album dans la grille des Albums ; un sélecteur change d'album. L'entrée de navigation suit `viewer.features.show_scenes`.
-- Chaque scène a un bouton **Trier cette scène** réservé à l'édition, qui ouvre le [Tri sélectif](#tri-sélectif) sur cette scène (`/culling?group_by=scene&album=&from=&to=`).
+- Chaque scène a un bouton **Trier cette scène** réservé à l'édition, qui ouvre le [Tri sélectif](#tri-sélectif) sur cette scène (`/culling?group_by=scene&album=&from=&to=`). Une fois tous les groupes de la scène confirmés, le Tri sélectif passe à la scène suivante de cette liste et l'indique ; après la dernière, il revient ici. Une confirmation qui échoue reste sur la scène.
 - Quand les moments narratifs sont calculés, chaque scène est titrée d'après son moment principal, et `scenes.split_on_moment_change` peut scinder une séquence là où le moment change.
 - Les scènes plus petites que `scenes.min_size` sont omises ; au plus `scenes.max_photos` photos se chargent.
 

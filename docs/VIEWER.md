@@ -1078,7 +1078,7 @@ A **read-only** view of the library as chronological scenes, in story order with
 
 - A new scene starts when more than `scenes.gap_minutes` pass between shots (widened on sparse shoots). Very long runs are split.
 - Open **Scenes** in the main nav for the whole library, or an album's **Display scenes of this album** action in the Albums grid; a picker switches albums. The nav item follows `viewer.features.show_scenes`.
-- Each scene has an edition-only **Cull this scene** button that opens [Culling](#culling) on that scene (`/culling?group_by=scene&album=&from=&to=`).
+- Each scene has an edition-only **Cull this scene** button that opens [Culling](#culling) on that scene (`/culling?group_by=scene&album=&from=&to=`). Once every group of the scene is confirmed, Culling moves on to the next scene in this list and names it; after the last one it returns here. A failed confirm stays on the scene.
 - With narrative moments computed, each scene is titled by its main moment, and `scenes.split_on_moment_change` can split a run where the moment changes.
 - Scenes smaller than `scenes.min_size` are omitted; at most `scenes.max_photos` photos load.
 

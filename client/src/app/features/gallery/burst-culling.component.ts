@@ -3,7 +3,7 @@ import { DarkroomRenditions } from './darkroom-renditions';
 import { FilenamePipe } from '../../shared/pipes/filename.pipe';
 import { SEQUENCE_KINDS_KEPT_WHOLE, SEQUENCE_KIND_LABELS } from '../../shared/pipes/sequence-kind.pipe';
 import { Component, DestroyRef, inject, signal, linkedSignal, computed, effect, untracked, viewChild, ElementRef, OnDestroy, HostListener, TemplateRef, ChangeDetectionStrategy } from '@angular/core';
-import { NavigationStart, NavigationEnd, NavigationCancel, NavigationCancellationCode, NavigationError, NavigationSkipped, Router, ActivatedRoute } from '@angular/router';
+import { NavigationStart, NavigationEnd, NavigationCancel, NavigationCancellationCode, NavigationError, NavigationSkipped, NavigationExtras, Router, ActivatedRoute } from '@angular/router';
 import { ViewActionRegistry } from '../../core/agent/view-action-registry.service';
 import { UiToolError } from '../../core/agent/ui-tool.types';
 import { HttpErrorResponse } from '@angular/common/http';
@@ -23,6 +23,7 @@ import { AuthService } from '../../core/services/auth.service';
 import { AlbumService, Album } from '../../core/services/album.service';
 import { GalleryStore } from './gallery.store';
 import { SceneDatePipe, MomentLabelPipe, MomentUncertainPipe } from '../scenes/scenes.pipes';
+import { sceneCullParams } from '../scenes/scene-cull-link';
 import { TranslatePipe } from '../../shared/pipes/translate.pipe';
 import { AssessmentValuePipe } from '../../shared/pipes/assessment-value.pipe';
 import { PhotoAssessmentComponent } from '../../shared/components/photo-assessment/photo-assessment.component';
@@ -36,7 +37,7 @@ import { HeaderSlotService } from '../../core/services/header-slot.service';
 import { InfiniteScrollDirective } from '../../shared/directives/infinite-scroll.directive';
 import { isControlActivation, isTypingContext } from '../../shared/utils/keyboard';
 import { toIsoDateString } from '../../shared/utils/date-format';
-import { MOBILE_DOCKED_BAR_ROW } from '../../shared/utils/mobile-bar';
+import { MOBILE_DOCKED_BAR_ROW, XL_LABEL_BUTTON } from '../../shared/utils/mobile-bar';
 import { CULL_DATE_PRESETS, presetRange, type CullDatePresetId } from './culling-date-range';
 import { isBracketLadderRejection } from '../../shared/utils/sequence-ladder';
 import { createLoupeState } from '../../shared/utils/loupe-state';
@@ -240,8 +241,9 @@ interface SceneSummary {
                py-1.5 / pr-1.5 leave room for the icon buttons' 48px touch targets: they
                overhang the 36px buttons, and in a scrolling row that overhang alone
                produced a scrollbar on a header with plenty of free width.
-               Below lg the controls wrap inside the fixed bar instead of scrolling. -->
-          <div class="flex flex-wrap lg:flex-nowrap items-center max-lg:gap-1 lg:gap-4 min-w-0 flex-1 max-lg:min-w-11 lg:overflow-x-auto lg:py-1.5 lg:pr-1.5">
+               Below lg this group dissolves into the bar, so the filters and the pinned
+               actions wrap as one row of controls, each line centred on its own. -->
+          <div class="flex flex-wrap lg:flex-nowrap items-center max-lg:contents lg:gap-4 min-w-0 flex-1 lg:overflow-x-auto lg:py-1.5 lg:pr-1.5">
             @if (scoped()) {
               <button class="max-sm:!w-11 max-sm:!h-11 pointer-coarse:!w-11 pointer-coarse:!h-11" mat-icon-button (click)="exitScope()"
                       [matTooltip]="I18N.culling.exit_scene | translate"
@@ -290,7 +292,7 @@ interface SceneSummary {
             <!-- Not behind the albums check: a date window needs no album. The range input is an invisible
                  anchor for the custom picker's popup; it never takes focus or pointer events. -->
             <div class="relative inline-flex shrink-0">
-              <button mat-button class="max-sm:!min-h-11 pointer-coarse:!min-h-11 !min-w-0 !px-3 shrink-0" data-testid="cull-date-range" [matMenuTriggerFor]="dateRangeMenu"
+              <button mat-button class="max-sm:!min-h-11 pointer-coarse:!min-h-11 !min-w-0 !px-3 shrink-0 ${XL_LABEL_BUTTON}" data-testid="cull-date-range" [matMenuTriggerFor]="dateRangeMenu"
                       [class.!text-[var(--mat-sys-primary)]]="cull.dateRangeActive()"
                       [matTooltip]="cull.dateRangeActive() ? (cull.scopeFrom() | cullDateRange: cull.scopeTo()) : (I18N.culling.date_range.label | translate)"
                       [attr.aria-label]="(I18N.culling.date_range.label | translate) + (cull.dateRangeActive() ? ': ' + (cull.scopeFrom() | cullDateRange: cull.scopeTo()) : '')">
@@ -370,7 +372,7 @@ interface SceneSummary {
               </button>
             </mat-menu>
             @if (cull.groupBy() !== 'scene' && cull.groupBy() !== 'lookalike') {
-              <button mat-button class="max-sm:!min-h-11 pointer-coarse:!min-h-11 !min-w-0 !px-3 shrink-0" [matMenuTriggerFor]="cullSortMenu" [disabled]="cull.planActive()"
+              <button mat-button class="max-sm:!min-h-11 pointer-coarse:!min-h-11 !min-w-0 !px-3 shrink-0 ${XL_LABEL_BUTTON}" [matMenuTriggerFor]="cullSortMenu" [disabled]="cull.planActive()"
                       [class.!text-[var(--mat-sys-primary)]]="cull.sortMode() !== 'easiest'"
                       [matTooltip]="'culling.sort.' + cull.sortMode() | translate"
                       [attr.aria-label]="'culling.sort.' + cull.sortMode() | translate">
@@ -465,7 +467,7 @@ interface SceneSummary {
           <!-- Exclude-rejected and the loupe act on the photos rather than
                selecting which ones the feed serves, so they are pinned with the
                other actions instead of scrolling away with the filters. -->
-          <button mat-icon-button class="max-sm:!w-11 max-sm:!h-11 pointer-coarse:!w-11 pointer-coarse:!h-11 shrink-0" (click)="onExcludeRejectedChange(!cull.excludeRejected())"
+          <button mat-icon-button class="max-sm:!w-11 max-sm:!h-11 pointer-coarse:!w-11 pointer-coarse:!h-11 shrink-0 max-lg:ml-auto" (click)="onExcludeRejectedChange(!cull.excludeRejected())"
                   [class.!text-[var(--mat-sys-primary)]]="cull.excludeRejected()"
                   [attr.aria-pressed]="cull.excludeRejected()"
                   [matTooltip]="I18N.culling.exclude_rejected | translate"
@@ -558,24 +560,11 @@ interface SceneSummary {
            [style.--cull-bar-h]="barHeight() + 'px'">
       <!-- Content -->
       @if (cull.loading()) {
-        <!-- Skeleton groups instead of a bare spinner: the first load of a
-             10k+ library takes seconds, and a shape the result will resemble
-             reads as "working" rather than "stuck". -->
-        <div class="space-y-3 pb-4" role="status">
+        <!-- The page-load spinner the albums, persons, timeline, folders and stats pages show;
+             the status text announces it, so the spinner itself stays out of the reading order. -->
+        <div data-culling-loading class="flex justify-center py-16" role="status">
           <span class="sr-only">{{ I18N.ui.labels.loading | translate }}</span>
-          @for (h of [340, 380, 300, 340]; track $index) {
-            <div class="rounded-xl border-2 border-[var(--mat-sys-surface-container-high)] overflow-hidden bg-[var(--mat-sys-surface-container)]">
-              <div class="flex gap-2 p-2" [style.height.px]="h * 0.55">
-                <div class="flex-1 rounded-md animate-pulse bg-[var(--mat-sys-surface-container-high)]"></div>
-                <div class="flex-1 rounded-md animate-pulse bg-[var(--mat-sys-surface-container-high)] [animation-delay:150ms]"></div>
-                <div class="hidden xl:block w-1/4 rounded-md animate-pulse bg-[var(--mat-sys-surface-container-high)] [animation-delay:300ms]"></div>
-              </div>
-              <div class="h-9 border-t border-[var(--mat-sys-surface-container-high)] flex items-center px-3 gap-2">
-                <div class="h-3 w-16 rounded animate-pulse bg-[var(--mat-sys-surface-container-high)]"></div>
-                <div class="h-3 w-10 rounded animate-pulse bg-[var(--mat-sys-surface-container-high)] [animation-delay:150ms]"></div>
-              </div>
-            </div>
-          }
+          <mat-spinner diameter="48" aria-hidden="true" />
         </div>
       } @else if (visibleGroups().length === 0) {
         <p class="text-center py-20 text-[var(--mat-sys-on-surface-variant)]">{{ emptyKey() | translate }}</p>
@@ -1719,6 +1708,19 @@ export class BurstCullingComponent implements OnDestroy {
     if (dated && loadedNone && !this.cull.scopeScene()) return this.I18N.culling.date_range.empty;
     return this.scoped() ? this.I18N.culling.scene_complete : this.I18N.culling.no_bursts;
   });
+  /**
+   * A cull opened from /scenes ("Cull this scene") whose every group is decided and accepted by the
+   * server: the cue to open the next scene. A scene that arrived with nothing left to review has
+   * written no confirm here, so landing on one never skips onwards by itself.
+   */
+  protected readonly sceneCulled = computed(() => {
+    const cull = this.cull;
+    if (this.stacksMode() || cull.planActive() || cull.groupBy() !== 'scene' || !cull.scopeScene() || !cull.scopeTo()) return false;
+    if (cull.loading() || cull.hasMore() || cull.confirming() || !cull.commitsSettled() || cull.passingGroups().size > 0
+      || cull.committedConfirms() === 0) return false;
+    const closed = cull.closedGroupKeys();
+    return cull.groups().every(group => closed.has(cull.groupKey(group)));
+  });
   protected readonly expandedAlbumId = signal<number | null>(null);
   protected readonly expandedScenes = signal<SceneSummary[]>([]);
   protected readonly loadingScenes = signal(false);
@@ -2366,6 +2368,9 @@ export class BurstCullingComponent implements OnDestroy {
       const scene = this.cull.scopeScene();
       if (!this.stacksMode() && !this.pageNavigating) untracked(() => this.mirrorScopeToUrl(album, from, to, scene));
     });
+    effect(() => {
+      if (this.sceneCulled()) untracked(() => { void this.advanceToNextScene(); });
+    });
     const gb = qp.get('group_by');
     // Validated against the shared list, not a repeated literal union: the
     // hand-written one silently dropped every granularity added after it.
@@ -2525,17 +2530,70 @@ export class BurstCullingComponent implements OnDestroy {
   }
 
   private applyScope(album: string | null, from: string | null, to: string | null, scene: string | null): void {
+    this.enterScope(album, from, to, scene, {
+      queryParams: { album: album ?? null, from: from ?? null, to: to ?? null, scene: scene ?? null },
+      queryParamsHandling: 'merge',
+    });
+  }
+
+  /** Every scope change is a push navigation; the feed, its decisions and its cooldowns start over. */
+  private enterScope(album: string | null, from: string | null, to: string | null, scene: string | null, navigation: NavigationExtras): void {
     this.cull.resetProfileSuggestion();
     this.cull.scopeAlbum.set(album);
     this.cull.scopeFrom.set(from);
     this.cull.scopeTo.set(to);
     this.cull.scopeScene.set(scene);
-    void this.router.navigate(['/culling'], {
-      queryParams: { album: album ?? null, from: from ?? null, to: to ?? null, scene: scene ?? null },
-      queryParamsHandling: 'merge',
-    });
+    void this.router.navigate(['/culling'], navigation);
     this.selectedGroupIndex.set(0);
     this.cull.resetForReload();
+  }
+
+  private advancingScene = false;
+
+  /** Open the next scene in /scenes order with the URL /scenes builds, or return to /scenes after the last one. */
+  private async advanceToNextScene(): Promise<void> {
+    const album = this.cull.scopeAlbum();
+    const to = this.cull.scopeTo();
+    if (this.advancingScene || to === null || !this.canEditPage()) return;
+    this.advancingScene = true;
+    const epoch = this.pageEpoch;
+    const scope = () => [this.cull.scopeAlbum(), this.cull.scopeFrom(), this.cull.scopeTo(), this.cull.scopeScene()].join('\n');
+    const culledScope = scope();
+    const unchanged = () => epoch === this.pageEpoch && this.canEditPage() && scope() === culledScope && this.sceneCulled();
+    try {
+      const next = await this.nextSceneAfter(album, to);
+      if (!unchanged()) return;
+      if (next === null) {
+        this.snackBar.open(this.i18n.t(I18N.culling.last_scene), '', { duration: 3000 });
+        void this.router.navigate(['/scenes'], { queryParams: { album } });
+        return;
+      }
+      const params = sceneCullParams(next, album);
+      if (this.lightboxGroupId() !== null) this.closeLightbox();
+      this.enterScope(album, next.start, next.end, params.scene, { queryParams: params });
+      this.snackBar.open(this.i18n.t(I18N.culling.next_scene, { scene: params.scene }), '', { duration: 3000 });
+    } catch {
+      if (unchanged()) this.snackBar.open(this.i18n.t(I18N.scenes.load_error), '', { duration: 3000 });
+    } finally {
+      this.advancingScene = false;
+    }
+  }
+
+  /**
+   * The first scene of /scenes (same album, same story order) ending after the culled window.
+   * Not "starting after": /scenes leaves rejected photos out and re-cuts its scenes once they are
+   * gone, so what remains of the culled scene can merge into the next, and that scene must not be skipped.
+   */
+  private async nextSceneAfter(album: string | null, to: string): Promise<SceneSummary | null> {
+    for (let page = 1, pages = 1; page <= pages; page++) {
+      const data = await firstValueFrom(this.api.get<{ scenes: SceneSummary[]; total_pages: number }>(
+        '/scenes', { page, per_page: 100, summary: true, ...(album ? { album_id: album } : {}) },
+      ));
+      const next = data.scenes.find(scene => scene.end !== null && scene.end > to);
+      if (next) return next;
+      pages = data.total_pages;
+    }
+    return null;
   }
 
   /** Write the scope into the query string unless it already says so (applyScope's own navigation lands first). */

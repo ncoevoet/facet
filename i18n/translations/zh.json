@@ -2808,6 +2808,8 @@
     },
     "exit_scene": "退出场景",
     "scene_complete": "此场景已完成选片，没有待复核照片",
+    "next_scene": "此场景已完成选片，下一个场景：{scene}",
+    "last_scene": "最后一个场景已完成选片",
     "scope": "范围",
     "scope_whole_library": "整个照片库",
     "scope_whole_album": "整个相册",

@@ -1077,7 +1077,7 @@ Una vista in **sola lettura** della libreria come scene cronologiche, in ordine 
 
 - Una nuova scena inizia quando passano più di `scenes.gap_minutes` tra gli scatti (ampliato sugli shooting rarefatti). Le sequenze molto lunghe vengono divise.
 - Apri **Scene** nella navigazione principale per l'intera libreria, o l'azione **Mostra le scene di questo album** di un album nella griglia Album; un selettore cambia album. La voce di navigazione segue `viewer.features.show_scenes`.
-- Ogni scena ha un pulsante **Seleziona questa scena** solo per la modifica che apre [Selezione](#selezione) su quella scena (`/culling?group_by=scene&album=&from=&to=`).
+- Ogni scena ha un pulsante **Seleziona questa scena** solo per la modifica che apre [Selezione](#selezione) su quella scena (`/culling?group_by=scene&album=&from=&to=`). Confermati tutti i gruppi della scena, la Selezione passa alla scena successiva di questo elenco e la indica; dopo l'ultima torna qui. Una conferma non riuscita resta sulla scena.
 - Con i momenti narrativi calcolati, ogni scena ha come titolo il suo momento principale, e `scenes.split_on_moment_change` può dividere una sequenza dove il momento cambia.
 - Le scene più piccole di `scenes.min_size` vengono omesse; si caricano al massimo `scenes.max_photos` foto.
 

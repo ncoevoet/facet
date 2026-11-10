@@ -589,6 +589,14 @@ export class CullingStore {
   readonly replanning = this.replanningState.asReadonly();
   /** Confirm commits (and "confirm all" runs) on their way to the server; a re-plan waits for them so the new plan already leaves those groups out. */
   private readonly inFlightCommits = new Set<Promise<void>>();
+  private readonly inFlightCount = signal(0);
+  /** No confirm commit or "confirm all" run is still waiting on the server. */
+  readonly commitsSettled = computed(() => this.inFlightCount() === 0);
+  /**
+   * Confirms the server accepted for the loaded feed. A scene the user just culled and a scene that
+   * arrived with nothing left to review both end with every group closed; only this tells them apart.
+   */
+  readonly committedConfirms = signal(0);
 
   /**
    * An assistant write the loaded feed cannot absorb (a filter-scoped write, a cull move) landed while
@@ -821,6 +829,7 @@ export class CullingStore {
     this.currentPage.set(1);
     this.groups.set([]);
     this.confirmedGroups.set(new Set());
+    this.committedConfirms.set(0);
     this.selectionsMap.set(new Map());
     this.touchedGroups.set(new Set());
   }
@@ -1437,6 +1446,7 @@ export class CullingStore {
           if (gen !== this.loadGenerationId) return;
           if (this.planActive()) this.plan.recordConfirm(key, keepPaths);
           addToSetSignal(this.hiddenGroups, key);
+          this.committedConfirms.update(count => count + 1);
           void this.refreshComparisonStats();
           void this.refreshRankerStatus();
         })
@@ -1446,8 +1456,7 @@ export class CullingStore {
           restoreDraft?.();
           this.notice$.next({ key: I18N.culling.error_confirming, duration: 2000 });
         });
-      this.inFlightCommits.add(commit);
-      void commit.finally(() => this.inFlightCommits.delete(commit));
+      void this.trackCommit(commit);
       return commit;
     }, true, restoreDraft);
     return true;
@@ -1466,13 +1475,16 @@ export class CullingStore {
     if (!this.cullWritesAllowed()) return;
     if (this.replanning()) return;
     // Tracked like a single confirm's commit, so a re-plan started meanwhile waits for every batch.
-    const run = this.runConfirmAll(visible);
-    this.inFlightCommits.add(run);
-    try {
-      await run;
-    } finally {
-      this.inFlightCommits.delete(run);
-    }
+    await this.trackCommit(this.runConfirmAll(visible));
+  }
+
+  private trackCommit(commit: Promise<void>): Promise<void> {
+    this.inFlightCommits.add(commit);
+    this.inFlightCount.update(count => count + 1);
+    return commit.finally(() => {
+      this.inFlightCommits.delete(commit);
+      this.inFlightCount.update(count => count - 1);
+    });
   }
 
   private async runConfirmAll(visible: CullingGroup[]): Promise<void> {
@@ -1504,6 +1516,7 @@ export class CullingStore {
           for (const g of batch) next.add(this.groupKey(g));
           return next;
         });
+        this.committedConfirms.update(count => count + batch.length);
       }
       const skipped = remaining.filter(g => !toConfirm.includes(g));
       this.confirmedGroups.update(s => {

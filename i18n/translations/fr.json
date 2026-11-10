@@ -2808,6 +2808,8 @@
     },
     "exit_scene": "Quitter la scène",
     "scene_complete": "Scène triée — plus rien à examiner",
+    "next_scene": "Scène triée — scène suivante : {scene}",
+    "last_scene": "Dernière scène triée",
     "scope": "Portée",
     "scope_whole_library": "Toute la bibliothèque",
     "scope_whole_album": "Tout l'album",

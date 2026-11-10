@@ -1078,7 +1078,7 @@ Eine **schreibgeschützte** Ansicht der Bibliothek als chronologische Szenen, in
 
 - Eine neue Szene beginnt, wenn mehr als `scenes.gap_minutes` zwischen Aufnahmen liegen (bei spärlichen Shootings erweitert). Sehr lange Abschnitte werden geteilt.
 - Öffnen Sie **Szenen** in der Hauptnavigation für die ganze Bibliothek oder die Aktion **Szenen dieses Albums anzeigen** im Albumraster; eine Auswahl wechselt zwischen Alben. Der Navigationseintrag folgt `viewer.features.show_scenes`.
-- Jede Szene hat eine nur für Edition verfügbare Schaltfläche **Diese Szene aussortieren**, die [Auswahl](#auswahl) für diese Szene öffnet (`/culling?group_by=scene&album=&from=&to=`).
+- Jede Szene hat eine nur für Edition verfügbare Schaltfläche **Diese Szene aussortieren**, die [Auswahl](#auswahl) für diese Szene öffnet (`/culling?group_by=scene&album=&from=&to=`). Sind alle Gruppen der Szene bestätigt, wechselt die Auswahl zur nächsten Szene dieser Liste und nennt sie; nach der letzten kehrt sie hierher zurück. Schlägt eine Bestätigung fehl, bleibt sie auf der Szene.
 - Sind narrative Momente berechnet, trägt jede Szene den Titel ihres wichtigsten Moments, und `scenes.split_on_moment_change` kann einen Abschnitt teilen, wo der Moment wechselt.
 - Szenen kleiner als `scenes.min_size` werden ausgelassen; es werden höchstens `scenes.max_photos` Fotos geladen.
 

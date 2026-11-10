@@ -2808,6 +2808,8 @@
     },
     "exit_scene": "Sair da cena",
     "scene_complete": "Cena selecionada — nada mais para revisar",
+    "next_scene": "Cena selecionada — a seguir: {scene}",
+    "last_scene": "Última cena selecionada",
     "scope": "Escopo",
     "scope_whole_library": "Toda a biblioteca",
     "scope_whole_album": "Todo o álbum",

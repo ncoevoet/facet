@@ -1078,7 +1078,7 @@ Una vista de **solo lectura** de la biblioteca como escenas cronológicas, en or
 
 - Una escena nueva empieza cuando pasan más de `scenes.gap_minutes` entre tomas (ampliado en sesiones espaciadas). Los tramos muy largos se dividen.
 - Abre **Escenas** en la navegación principal para toda la biblioteca, o la acción **Mostrar escenas de este álbum** de la cuadrícula de Álbumes; un selector cambia de álbum. El elemento de navegación depende de `viewer.features.show_scenes`.
-- Cada escena tiene un botón **Descartar esta escena**, solo de edición, que abre el [Descarte](#descarte) en esa escena (`/culling?group_by=scene&album=&from=&to=`).
+- Cada escena tiene un botón **Descartar esta escena**, solo de edición, que abre el [Descarte](#descarte) en esa escena (`/culling?group_by=scene&album=&from=&to=`). Cuando se confirman todos los grupos de la escena, el Descarte pasa a la siguiente escena de esta lista y la indica; tras la última, vuelve aquí. Una confirmación fallida se queda en la escena.
 - Con los momentos narrativos calculados, cada escena se titula con su momento principal, y `scenes.split_on_moment_change` puede dividir un tramo donde cambia el momento.
 - Las escenas menores que `scenes.min_size` se omiten; se cargan como máximo `scenes.max_photos` fotos.
 

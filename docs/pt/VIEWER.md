@@ -1075,7 +1075,7 @@ Uma visão **somente leitura** da biblioteca como cenas cronológicas, na ordem 
 
 - Uma nova cena começa quando passam mais de `scenes.gap_minutes` entre as tomadas (ampliado em sessões esparsas). Sequências muito longas são divididas.
 - Abra **Cenas** na navegação principal para a biblioteca inteira, ou a ação **Exibir cenas deste álbum** do álbum na grade de Álbuns; um seletor troca de álbum. O item de navegação segue `viewer.features.show_scenes`.
-- Cada cena tem um botão **Fazer a triagem desta cena**, só para edição, que abre a [Triagem](#triagem) nessa cena (`/culling?group_by=scene&album=&from=&to=`).
+- Cada cena tem um botão **Fazer a triagem desta cena**, só para edição, que abre a [Triagem](#triagem) nessa cena (`/culling?group_by=scene&album=&from=&to=`). Depois de confirmados todos os grupos da cena, a Triagem passa à cena seguinte desta lista e indica-a; após a última, regressa aqui. Uma confirmação que falha fica na cena.
 - Com os momentos narrativos calculados, cada cena recebe o título do seu momento principal, e `scenes.split_on_moment_change` pode dividir uma sequência onde o momento muda.
 - Cenas menores que `scenes.min_size` são omitidas; no máximo `scenes.max_photos` fotos são carregadas.
 

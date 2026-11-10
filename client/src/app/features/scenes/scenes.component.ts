@@ -21,6 +21,7 @@ import { ThumbnailUrlPipe, ImageUrlPipe } from '../../shared/pipes/thumbnail-url
 import { LoupeDirective } from '../../shared/directives/loupe.directive';
 import { createLoupeState } from '../../shared/utils/loupe-state';
 import { SceneDatePipe, MomentLabelPipe, MomentUncertainPipe } from './scenes.pipes';
+import { sceneCullParams } from './scene-cull-link';
 import { I18N, i18nKeys } from '../../core/i18n/keys';
 import { MarkTonePipe } from '../../shared/pipes/mark-tone.pipe';
 
@@ -169,7 +170,6 @@ export class ScenesComponent implements OnInit {
   private readonly albumService = inject(AlbumService);
   protected readonly auth = inject(AuthService);
   private readonly store = inject(GalleryStore);
-  private readonly sceneDate = new SceneDatePipe();
 
   protected readonly scenes = signal<Scene[]>([]);
   protected readonly loading = signal(true);
@@ -264,14 +264,6 @@ export class ScenesComponent implements OnInit {
   /** Open the rich culling darkroom scoped to just this scene's capture window
    *  (edition only — the button is gated on auth.isEdition()). */
   protected cullScene(scene: Scene): void {
-    void this.router.navigate(['/culling'], {
-      queryParams: {
-        group_by: 'scene',
-        album: this.albumId() ?? undefined,
-        from: scene.start ?? undefined,
-        to: scene.end ?? undefined,
-        scene: this.sceneDate.transform(scene.start),
-      },
-    });
+    void this.router.navigate(['/culling'], { queryParams: sceneCullParams(scene, this.albumId()) });
   }
 }

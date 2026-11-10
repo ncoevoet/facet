@@ -2833,6 +2833,8 @@
     },
     "exit_scene": "Exit scene",
     "scene_complete": "Scene culled — nothing left to review",
+    "next_scene": "Scene culled — next up: {scene}",
+    "last_scene": "Last scene culled",
     "scope": "Scope",
     "scope_whole_library": "Whole library",
     "scope_whole_album": "Whole album",

@@ -611,6 +611,120 @@ describe('BurstCullingComponent', () => {
     });
   });
 
+  describe('a scene opened from /scenes moves on once it is culled', () => {
+    const culled = { scene_id: 4, start: '2002:11:30 14:08:43', end: '2002:11:30 14:27:27', count: 2 };
+    const earlier = { scene_id: 3, start: '2002:11:30 11:00:00', end: '2002:11:30 11:20:00', count: 5 };
+    const following = { scene_id: 5, start: '2002:11:30 15:02:10', end: '2002:11:30 15:20:00', count: 9 };
+    const sceneFeed = {
+      groups: [{
+        group_id: 0, type: 'scene', reason: '2 photos', best_path: '/s1.jpg', count: 2,
+        photos: [
+          { path: '/s1.jpg', filename: 's1.jpg', aggregate: 8, aesthetic: 7, tech_sharpness: 6, is_blink: 0, is_burst_lead: 1, date_taken: culled.start, burst_score: 9 },
+          { path: '/s2.jpg', filename: 's2.jpg', aggregate: 6, aesthetic: 5, tech_sharpness: 5, is_blink: 0, is_burst_lead: 0, date_taken: culled.end, burst_score: 5 },
+        ],
+      }],
+      total_groups: 1, page: 1, per_page: 20, total_pages: 1,
+    };
+    let navigate: Mock;
+    /** GET /scenes answers `pages` in order, one page per request. */
+    const serveScenes = (...pages: object[][]) => {
+      mockApi.get.mockImplementation((url: string, params?: { page?: number }) => url === '/scenes'
+        ? of({ scenes: pages[(params?.page ?? 1) - 1] ?? [], total: pages.flat().length, page: params?.page ?? 1, per_page: 100, total_pages: pages.length })
+        : of(sceneFeed));
+    };
+    const settle = async () => {
+      for (let i = 0; i < 5; i++) {
+        TestBed.tick();
+        await vi.advanceTimersByTimeAsync(0);
+      }
+    };
+    const scenesRequests = () => mockApi.get.mock.calls.filter(([url]) => url === '/scenes');
+
+    beforeEach(async () => {
+      vi.useFakeTimers();
+      navigate = vi.spyOn(TestBed.inject(Router), 'navigate').mockResolvedValue(true) as unknown as Mock;
+      serveScenes([earlier, culled, following]);
+      store.groupBy.set('scene');
+      store.scopeFrom.set(culled.start);
+      store.scopeTo.set(culled.end);
+      store.scopeScene.set('30/11/2002 14:08');
+      await store.loadGroups();
+      await settle();
+      mockApi.post.mockReturnValue(of({}));
+    });
+
+    afterEach(() => {
+      vi.useRealTimers();
+    });
+
+    it('opens the next scene with the URL /scenes builds, on a clean feed, once the confirm is accepted', async () => {
+      serveScenes([earlier, culled], [following]);
+      store.confirmGroup(store.groups()[0]);
+      await vi.advanceTimersByTimeAsync(7000);
+      await settle();
+
+      expect(scenesRequests().map(([, params]) => params)).toEqual([
+        { page: 1, per_page: 100, summary: true },
+        { page: 2, per_page: 100, summary: true },
+      ]);
+      expect(navigate).toHaveBeenCalledWith(['/culling'], { queryParams: {
+        group_by: 'scene', album: undefined, from: following.start, to: following.end, scene: '30/11/2002 15:02',
+      } });
+      expect([store.scopeFrom(), store.scopeTo(), store.scopeScene()]).toEqual([following.start, following.end, '30/11/2002 15:02']);
+      expect(store.committedConfirms()).toBe(0);
+      expect(store.confirmedGroups().size).toBe(0);
+      expect(store.hiddenGroups().size).toBe(0);
+      expect(store.passingGroups().size).toBe(0);
+      expect(component['visibleGroups']()).toHaveLength(1);
+      expect(mockSnackBar.open).toHaveBeenCalledWith('culling.next_scene', '', { duration: 3000 });
+    });
+
+    it('moves on after "Confirm all" too, keeping the album the scene was culled in', async () => {
+      store.scopeAlbum.set('7');
+      await component['confirmAllRemaining']();
+      await settle();
+
+      expect(scenesRequests()[0][1]).toEqual({ page: 1, per_page: 100, summary: true, album_id: '7' });
+      expect(navigate).toHaveBeenCalledWith(['/culling'], { queryParams: expect.objectContaining({ album: '7', from: following.start }) });
+    });
+
+    it('returns to /scenes with a notice after the last scene', async () => {
+      serveScenes([earlier, culled]);
+      store.confirmGroup(store.groups()[0]);
+      await vi.advanceTimersByTimeAsync(7000);
+      await settle();
+
+      expect(navigate).toHaveBeenCalledWith(['/scenes'], { queryParams: { album: null } });
+      expect(navigate).not.toHaveBeenCalledWith(['/culling'], expect.anything());
+      expect(mockSnackBar.open).toHaveBeenCalledWith('culling.last_scene', '', { duration: 3000 });
+    });
+
+    it('stays on the scene, with its error, when the confirm fails', async () => {
+      mockApi.post.mockReturnValue(throwError(() => new Error('boom')));
+      store.confirmGroup(store.groups()[0]);
+      await vi.advanceTimersByTimeAsync(7000);
+      await settle();
+
+      expect(scenesRequests()).toHaveLength(0);
+      expect(navigate).not.toHaveBeenCalledWith(['/culling'], expect.anything());
+      expect(navigate).not.toHaveBeenCalledWith(['/scenes'], expect.anything());
+      expect(store.scopeFrom()).toBe(culled.start);
+      expect(component['visibleGroups']()).toHaveLength(1);
+      expect(mockSnackBar.open).toHaveBeenCalledWith('culling.error_confirming', '', expect.objectContaining({ duration: 2000 }));
+    });
+
+    it('does not skip onwards from a scene that arrived with nothing left to review', async () => {
+      mockApi.get.mockImplementation((url: string) => of(url === '/scenes'
+        ? { scenes: [following], total: 1, page: 1, per_page: 100, total_pages: 1 }
+        : { groups: [], total_groups: 0, page: 1, per_page: 20, total_pages: 1 }));
+      await store.loadGroups();
+      await settle();
+
+      expect(scenesRequests()).toHaveLength(0);
+      expect(navigate).not.toHaveBeenCalledWith(['/culling'], expect.anything());
+    });
+  });
+
   describe('onSpace (darkroom confirm + auto-advance)', () => {
     beforeEach(async () => {
       await store.loadGroups();
@@ -2717,13 +2831,22 @@ describe('BurstCullingComponent', () => {
       };
     };
 
-    it('announces the loading skeleton with text content, not only an aria-label', async () => {
+    it('shows the page-load spinner the other pages use while loading, announced with text content', async () => {
       const { fixture, teardown } = await renderList([]);
       fixture.componentInstance['cull'].loading.set(true);
       fixture.detectChanges();
-      const skeleton = [...(fixture.nativeElement as HTMLElement).querySelectorAll('[role="status"]')]
-        .find(el => el.querySelector('.animate-pulse'));
-      expect(skeleton?.textContent?.trim()).toBe('ui.labels.loading');
+      const root = fixture.nativeElement as HTMLElement;
+      expect(root.querySelector('.animate-pulse')).toBeNull();
+      const loading = root.querySelector('[data-culling-loading]')!;
+      expect(loading.getAttribute('role')).toBe('status');
+      for (const cls of ['flex', 'justify-center', 'py-16']) expect(loading.classList).toContain(cls);
+      const spinner = loading.querySelector('mat-spinner')!;
+      expect(spinner.getAttribute('diameter')).toBe('48');
+      expect(spinner.getAttribute('aria-hidden')).toBe('true');
+      expect(loading.textContent?.trim()).toBe('ui.labels.loading');
+      fixture.componentInstance['cull'].loading.set(false);
+      fixture.detectChanges();
+      expect(root.querySelector('[data-culling-loading]')).toBeNull();
       teardown();
     });
 
@@ -3580,6 +3703,23 @@ describe('BurstCullingComponent', () => {
         expect(controls.classList).toContain('lg:flex-nowrap');
         expect(controls.classList).not.toContain('overflow-x-auto');
         expect(controls.className).not.toContain('mask-image');
+      });
+
+      it('centres the glyph of every bar button whose label shows only from xl', async () => {
+        const fixture = await mountGroup(2);
+        const xlLabelled = [...bar(fixture).querySelectorAll('button')].filter(button => button.querySelector('span.hidden')?.className.includes('xl:inline'));
+        expect(xlLabelled.length).toBe(2);
+        for (const button of xlLabelled) expect(button.className).toContain('max-xl:[&>mat-icon]:!m-0');
+        for (const utility of ['max-lg:[&_.mat-mdc-icon-button]:!p-0', 'max-lg:[&_.mat-mdc-icon-button]:!size-11']) expect(bar(fixture).classList).toContain(utility);
+      });
+
+      it('wraps the filters and the pinned actions as one row of controls below lg, so no action floats between two lines', async () => {
+        const fixture = await mountGroup(2);
+        const filters = bar(fixture).firstElementChild as HTMLElement;
+        expect(filters.classList).toContain('max-lg:contents');
+        const exclude = bar(fixture).querySelector('button[aria-label="culling.exclude_rejected"]')!;
+        expect(exclude.parentElement).toBe(bar(fixture));
+        expect(exclude.classList).toContain('max-lg:ml-auto');
       });
 
       it('binds the content bottom padding to the measured bar height', async () => {
