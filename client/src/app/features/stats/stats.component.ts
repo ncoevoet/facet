@@ -247,7 +247,7 @@ interface ScoreBin {
               <ng-container *ngTemplateOutlet="sectionError; context: { $implicit: 'categories' }" />
             }
             <div class="mt-4 flex flex-col gap-4">
-              <div class="grid grid-cols-1 lg:grid-cols-2 2xl:grid-cols-3 gap-4">
+              <div class="grid grid-cols-1 lg:grid-cols-2 2xl:grid-cols-3 items-start gap-4">
                 @if (categoryMetricData().length > 0) {
                   <mat-card>
                     <mat-card-header class="!flex !flex-wrap !items-center !justify-between !gap-x-4 !gap-y-2">
@@ -293,7 +293,7 @@ interface ScoreBin {
                 }
 
                 @if (categoryScoreProfile().length > 0) {
-                  <mat-card>
+                  <mat-card class="lg:col-span-2 2xl:col-span-3">
                     <mat-card-header class="!flex !flex-wrap !items-center !justify-between !gap-3">
                       <h2 mat-card-title class="shrink-0">{{ I18N.stats.categories_score_profile | translate }}</h2>
                       <mat-form-field class="flex-1 min-w-[10rem] !-mt-2 max-sm:order-last max-sm:basis-full" subscriptSizing="dynamic">
@@ -328,8 +328,10 @@ interface ScoreBin {
                       @if (categoriesLoading()) {
                         <div class="flex justify-center py-4"><mat-spinner diameter="32" [attr.aria-label]="I18N.ui.labels.loading | translate" /></div>
                       } @else {
-                        <div [style.height.px]="categoryScoreProfile() | chartHeight:80">
-                          <canvas #categoryScoreProfileCanvas role="img" [attr.aria-label]="I18N.stats.categories_score_profile | translate"></canvas>
+                        <div class="max-h-[70vh] overflow-y-auto">
+                          <div [style.height.px]="categoryScoreProfile() | chartHeight:80">
+                            <canvas #categoryScoreProfileCanvas role="img" [attr.aria-label]="I18N.stats.categories_score_profile | translate"></canvas>
+                          </div>
                         </div>
                         <details class="mt-2 text-sm">
                           <summary class="min-h-11 cursor-pointer content-center text-[var(--mat-sys-primary)]">{{ I18N.stats.show_chart_data | translate }}</summary>

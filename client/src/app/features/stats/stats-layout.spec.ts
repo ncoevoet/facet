@@ -155,4 +155,27 @@ describe('statistics page states', () => {
     expect(gearTable?.textContent).toContain('2,8');
     vi.restoreAllMocks();
   });
+
+  it('aligns the category cards to the top and gives a tall Score Profile its own full-width scroll wrapper', async () => {
+    vi.spyOn(HTMLCanvasElement.prototype, 'getContext').mockReturnValue(null);
+    const fixture = TestBed.createComponent(StatsComponent);
+    fixture.detectChanges(); await fixture.whenStable(); fixture.detectChanges();
+    const page = fixture.componentInstance as any;
+    page.selectedTab.set(1);
+    page.categoryStats.set([{ category: 'portrait', count: 1, avg_score: 6.5, avg_f_stop: 2.8, avg_iso: 1400,
+      avg_focal_length: 50, avg_aesthetic: 6, avg_composition: 7, avg_sharpness: 8,
+      avg_color: 6, avg_exposure: 7, avg_face_quality: 8, avg_contrast: 6 }]);
+    fixture.detectChanges(); await fixture.whenStable(); fixture.detectChanges();
+    const host: HTMLElement = fixture.nativeElement;
+    const profile = Array.from(host.querySelectorAll('h2')).find(h => h.textContent?.includes('stats.categories_score_profile'))?.closest('mat-card') as HTMLElement;
+    expect(profile).toBeTruthy();
+    expect(profile.parentElement?.classList.contains('items-start')).toBe(true);
+    expect(profile.classList.contains('lg:col-span-2')).toBe(true);
+    expect(profile.classList.contains('2xl:col-span-3')).toBe(true);
+    const canvas = profile.querySelector('canvas') as HTMLElement;
+    const wrapper = canvas.parentElement?.parentElement as HTMLElement;
+    expect(wrapper.classList.contains('max-h-[70vh]')).toBe(true);
+    expect(wrapper.classList.contains('overflow-y-auto')).toBe(true);
+    vi.restoreAllMocks();
+  });
 });

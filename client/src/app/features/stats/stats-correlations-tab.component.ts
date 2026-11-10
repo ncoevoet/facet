@@ -3,6 +3,7 @@ import { FormsModule } from '@angular/forms';
 import { MatCardModule } from '@angular/material/card';
 import { MatButtonModule } from '@angular/material/button';
 import { MatFormFieldModule } from '@angular/material/form-field';
+import { MatCheckboxModule } from '@angular/material/checkbox';
 import { MatSelectModule } from '@angular/material/select';
 import { MatIconModule } from '@angular/material/icon';
 import { MatTooltipModule } from '@angular/material/tooltip';
@@ -76,6 +77,7 @@ export function allocateSeriesSlots(keys: string[], previous: Record<string, num
     MatButtonModule,
     MatFormFieldModule,
     MatSelectModule,
+    MatCheckboxModule,
     MatIconModule,
     MatTooltipModule,
     MatProgressSpinnerModule,
@@ -220,11 +222,12 @@ export function allocateSeriesSlots(keys: string[], previous: Record<string, num
                 <button type="button" mat-button class="!min-h-10 !px-2" (click)="resetSeriesSelection()">{{ I18N.stats.reset_series | translate }}</button>
                 <div class="grid max-h-32 grid-cols-1 gap-x-4 overflow-auto sm:grid-cols-2">
                   @for (series of chartSeriesRows(); track series.key) {
-                    <label class="flex min-h-10 min-w-0 cursor-pointer items-center gap-2 text-sm" [class.opacity-60]="series.atLimit">
-                      <input type="checkbox" class="h-4 w-4 shrink-0 accent-[var(--mat-sys-primary)]" [checked]="series.visible" [disabled]="series.atLimit" (change)="setSeriesVisible(series.key, $any($event.target).checked)" />
-                      <svg aria-hidden="true" width="32" height="12" class="shrink-0" [class.opacity-30]="!series.visible"><line x1="1" y1="6" x2="31" y2="6" [attr.stroke]="series.color" stroke-width="3" [attr.stroke-dasharray]="series.dashPattern" /></svg>
-                      <span class="min-w-0 break-words">{{ series.label }}</span>
-                    </label>
+                    <mat-checkbox class="min-w-0" [checked]="series.visible" [disabled]="series.atLimit" (change)="setSeriesVisible(series.key, $event.checked)">
+                      <span class="flex min-w-0 items-center gap-2 text-sm" [class.opacity-60]="series.atLimit">
+                        <svg aria-hidden="true" width="32" height="12" class="shrink-0" [class.opacity-30]="!series.visible"><line x1="1" y1="6" x2="31" y2="6" [attr.stroke]="series.color" stroke-width="3" [attr.stroke-dasharray]="series.dashPattern" /></svg>
+                        <span class="min-w-0 break-words">{{ series.label }}</span>
+                      </span>
+                    </mat-checkbox>
                   }
                 </div>
               </fieldset>

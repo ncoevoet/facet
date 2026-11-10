@@ -409,7 +409,8 @@ describe('Correlation error recovery', () => {
     fixture.detectChanges();
     const inputs = fixture.nativeElement.querySelectorAll('fieldset input[type="checkbox"]') as NodeListOf<HTMLInputElement>;
     expect(inputs).toHaveLength(2);
-    for (const input of inputs) { input.checked = false; input.dispatchEvent(new Event('change')); fixture.detectChanges(); }
+    expect(fixture.nativeElement.querySelectorAll('fieldset mat-checkbox')).toHaveLength(2);
+    for (const input of inputs) { input.click(); fixture.detectChanges(); }
     expect(fixture.nativeElement.querySelector('[role="status"]')?.textContent).toContain('stats.no_series_selected');
     expect(fixture.nativeElement.querySelector('canvas')).toBeNull();
     expect(fixture.nativeElement.querySelector('details table')?.textContent).toContain('7');
