@@ -1225,9 +1225,17 @@ def _migrate_comparisons_user_id(conn):
     row an older, FK-off write may have orphaned.
     """
     if conn.execute("SELECT 1 FROM sqlite_master WHERE type='table' AND name='comparisons_new'").fetchone():
-        raise RuntimeError(
-            "Found comparisons_new from an interrupted migration; preserve both tables "
-            "and recover their comparison rows before retrying initialization")
+        has_comparisons = conn.execute(
+            "SELECT 1 FROM sqlite_master WHERE type='table' AND name='comparisons'").fetchone()
+        if has_comparisons and not conn.execute("SELECT 1 FROM comparisons_new LIMIT 1").fetchone():
+            # Older code committed CREATE TABLE before its INSERT, so a crash there
+            # leaves an empty comparisons_new holding nothing to recover.
+            logger.warning("Dropping empty comparisons_new left by an interrupted migration")
+            conn.execute("DROP TABLE comparisons_new")
+        else:
+            raise RuntimeError(
+                "Found comparisons_new from an interrupted migration; preserve both tables "
+                "and recover their comparison rows before retrying initialization")
     if _comparisons_unique_has_user_id(conn):
         return
     logger.info("Migrating comparisons UNIQUE constraint to include user_id...")

@@ -100,6 +100,21 @@ class TestComparisonsUserIdMigration:
             assert conn.execute("SELECT count(*) FROM comparisons_new").fetchone()[0] == 3
             assert conn.execute("SELECT count(*) FROM comparisons").fetchone()[0] == 0
 
+    def test_empty_leftover_recovery_table_is_dropped(self, tmp_path):
+        # Master's older code committed CREATE TABLE comparisons_new before the
+        # INSERT; a crash there leaves an empty leftover that must not block startup.
+        db_path = _seed_old_comparisons_db(tmp_path)
+        with sqlite3.connect(db_path) as conn:
+            before = conn.execute("SELECT * FROM comparisons ORDER BY id").fetchall()
+            conn.execute(_build_create_table_sql(
+                "comparisons_new", COMPARISONS_COLUMNS,
+                constraints=["UNIQUE(photo_a_path, photo_b_path, user_id)"]))
+        init_database(db_path)
+        with sqlite3.connect(db_path) as conn:
+            assert not conn.execute("SELECT 1 FROM sqlite_master WHERE name='comparisons_new'").fetchone()
+            assert conn.execute("SELECT * FROM comparisons ORDER BY id").fetchall() == before
+            assert "user_id" in _comparisons_create_sql(db_path).lower().split("unique", 1)[1].split(")", 1)[0]
+
     def test_cancellation_after_drop_restores_old_table(self, tmp_path):
         from db.schema import _migrate_comparisons_user_id
 
