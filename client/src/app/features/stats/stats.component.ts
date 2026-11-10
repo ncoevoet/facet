@@ -875,7 +875,7 @@ export class StatsComponent {
         maintainAspectRatio: false,
         plugins: {
           legend: { display: false },
-          tooltip: { callbacks: { label: (ctx) => (ctx.parsed.x ?? 0).toLocaleString() } },
+          tooltip: { callbacks: { label: (ctx) => (ctx.parsed.x ?? 0).toLocaleString(this.i18n.locale()) } },
         },
         scales: {
           x: { grid: { color: grid }, ticks: { color: text } },

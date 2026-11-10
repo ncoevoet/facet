@@ -114,6 +114,16 @@ describe('ScanLauncherComponent', () => {
       expect(el.querySelector('[data-scan-start]')).not.toBeNull();
     });
 
+    it.each([[422, undefined], [429, undefined], [503, 'library_busy']])('treats a %s answer as a refusal', async (status, detail) => {
+      const el = await startRefused(new HttpErrorResponse({ status, error: detail ? { detail } : undefined }));
+      expect(el.querySelector('[data-scan-start]')).not.toBeNull();
+    });
+
+    it('keeps a bare 503 as an uncertain start', async () => {
+      const el = await startRefused(new HttpErrorResponse({ status: 503 }));
+      expect(el.querySelector('[data-scan-start]')).toBeNull();
+    });
+
     it('keeps the uncertain-start message and no Start button for a lost response', async () => {
       const el = await startRefused(new HttpErrorResponse({ status: 0 }));
       expect(el.querySelector('[role="alert"]')?.textContent?.trim()).toBe('T(scan.start_unconfirmed)');

@@ -4,7 +4,7 @@ import { signal } from '@angular/core';
 import { HeaderSlotService } from '../../core/services/header-slot.service';
 import { I18nService } from '../../core/services/i18n.service';
 import { ActivatedRoute, Router } from '@angular/router';
-import { Observable, of } from 'rxjs';
+import { Observable, Subject, of } from 'rxjs';
 import { ApiService } from '../../core/services/api.service';
 import { GalleryStore } from '../gallery/gallery.store';
 import { FoldersComponent, KEEP_CHAIN_STATE } from './folders.component';
@@ -280,6 +280,23 @@ describe('FoldersComponent', () => {
       await Promise.resolve();
       await Promise.resolve();
       expect(cmp.loading()).toBe(false);
+    });
+
+    it('ignores a late answer once a newer load has started', async () => {
+      const fixture = await render();
+      const cmp = fixture.componentInstance as any;
+      const late = new Subject<unknown>();
+      mockApi.get.mockReturnValueOnce(late);
+      cmp.currentPrefix.set('Holidays/');
+      const stale = cmp.loadFolders();
+      mockApi.get.mockReturnValueOnce(of(foldersResponse));
+      await cmp.loadFolders();
+      mockRouter.navigate.mockClear();
+      late.next({ folders: [], has_direct_photos: true });
+      late.complete();
+      await stale;
+      expect(mockRouter.navigate).not.toHaveBeenCalled();
+      expect(cmp.folders()).toEqual(foldersResponse.folders);
     });
   });
 });

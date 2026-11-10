@@ -16,7 +16,11 @@ import { ScanHistoryComponent } from './scan-history.component';
  * the scan finishes cleanly so the gallery can refresh.
  */
 /** Statuses that prove the server refused this start (a 409 may still mean another scan runs). */
-const DEFINITE_REFUSALS = new Set([400, 403, 409]);
+const DEFINITE_REFUSALS = new Set([400, 403, 409, 422, 429]);
+
+/** A busy library answers 503 before it spawns anything; any other 503 may be a proxy that lost the start. */
+const isRefusal = (err: HttpErrorResponse): boolean =>
+  DEFINITE_REFUSALS.has(err.status) || (err.status === 503 && err.error?.detail === 'library_busy');
 
 @Component({
   selector: 'app-scan-launcher',
@@ -204,7 +208,7 @@ export class ScanLauncherComponent implements OnInit {
     try {
       await this.scan.startScan([dir]);
     } catch (err) {
-      if (err instanceof HttpErrorResponse && DEFINITE_REFUSALS.has(err.status)) {
+      if (err instanceof HttpErrorResponse && isRefusal(err)) {
         // The server answered and refused (a library job holds the lock, the
         // directory is not configured): this start did not happen, so give the
         // button back, and re-read status so a scan started elsewhere shows.

@@ -161,7 +161,10 @@ export class FoldersComponent implements OnInit, OnDestroy {
     });
   }
 
+  private loadSeq = 0;
+
   private async loadFolders(): Promise<void> {
+    const seq = ++this.loadSeq;
     this.loading.set(true);
     // A redirect branch leaves loading true: the navigation re-runs this load for the next
     // prefix, and clearing it here would flash the empty state between hops.
@@ -173,6 +176,8 @@ export class FoldersComponent implements OnInit, OnDestroy {
           ...this.store.viewFilterParams(),
         }),
       );
+      // A newer load owns the spinner and the list; a late answer must not redirect or overwrite it.
+      if (seq !== this.loadSeq) { redirected = true; return; }
       // Auto-redirect to gallery if no subfolders (leaf directory)
       // replaceUrl avoids a back-button loop (back → leaf folder → redirect → gallery → …)
       if (res.folders.length === 0 && this.currentPrefix()) {
