@@ -3,6 +3,8 @@ import { Component, signal } from '@angular/core';
 import { TestBed, ComponentFixture } from '@angular/core/testing';
 import { MatDialog } from '@angular/material/dialog';
 import { MatSnackBar } from '@angular/material/snack-bar';
+import { MatTooltip } from '@angular/material/tooltip';
+import { By } from '@angular/platform-browser';
 import { of, throwError } from 'rxjs';
 import { ApiService } from '../../core/services/api.service';
 import { I18nService } from '../../core/services/i18n.service';
@@ -116,6 +118,16 @@ describe('PersonFilterChipComponent', () => {
     expect(chip(95).textContent).toContain('persons.unnamed');
     expect(chip(163).classList).toContain('border-solid');
     expect(chip(163).textContent).toContain('Jirjet Salem');
+  });
+
+  it('shows the name from sm up, truncated, with the full name as its tooltip', async () => {
+    await render([163]);
+    const name = inChip('[data-person-chip-name]', 163)!;
+    expect(name.textContent?.trim()).toBe('Jirjet Salem');
+    expect(name.classList).not.toContain('xl:inline');
+    for (const cls of ['hidden', 'sm:inline', 'max-w-24', 'md:max-w-40', 'truncate']) expect(name.classList).toContain(cls);
+    const tooltip = fixture.debugElement.queryAll(By.directive(MatTooltip)).find((d) => d.nativeElement === name)!;
+    expect(tooltip.injector.get(MatTooltip).message).toBe('Jirjet Salem');
   });
 
   it('the pencil and ⋮ are labelled, focusable buttons before the ×, and remove nothing', async () => {

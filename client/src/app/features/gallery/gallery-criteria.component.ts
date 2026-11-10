@@ -6,6 +6,7 @@ import { NgTemplateOutlet } from '@angular/common';
 import { ChangeDetectionStrategy, Component, computed, ElementRef, inject, input, signal, TemplateRef, viewChild, viewChildren } from '@angular/core';
 import { NavigationEnd, Router } from '@angular/router';
 import { trackPendingNavigation } from '../../shared/utils/navigation-settled';
+import { MatButtonModule } from '@angular/material/button';
 import { MatIconModule } from '@angular/material/icon';
 import { MatSliderModule } from '@angular/material/slider';
 import { MatTooltip, MatTooltipModule } from '@angular/material/tooltip';
@@ -32,7 +33,7 @@ import { GALLERY_REVISIT } from '../../core/gallery-reuse.strategy';
 const SORT_ARROWS:Record<string,string>={ASC:' ↑',DESC:' ↓'};
 
 @Component({selector:'app-gallery-criteria', changeDetection:ChangeDetectionStrategy.Eager,
- imports:[NgTemplateOutlet, MatIconModule, MatSliderModule, MatTooltipModule, PersonFilterChipComponent, TranslatePipe, ThumbnailUrlPipe, GalleryAlbumRulesComponent, KeywordBranchLabelPipe, GalleryQueryProposalComponent, ContextHelpComponent],
+ imports:[NgTemplateOutlet, MatButtonModule, MatIconModule, MatSliderModule, MatTooltipModule, PersonFilterChipComponent, TranslatePipe, ThumbnailUrlPipe, GalleryAlbumRulesComponent, KeywordBranchLabelPipe, GalleryQueryProposalComponent, ContextHelpComponent],
  host:{class:'block'}, template:`
  @let currentKeywordBranchLabel = store.filters().keyword_branch | keywordBranchLabel;
  @if (store.currentAlbum()) { <app-gallery-album-rules [active]="canAct()" /> }
@@ -195,7 +196,7 @@ const SORT_ARROWS:Record<string,string>={ASC:' ↑',DESC:' ↓'};
         }
       }
       @if (visibleFilterChips().length > 0) {
-        <button class="text-xs text-[var(--mat-sys-on-surface-variant)] hover:text-[var(--mat-sys-on-surface)] transition-colors ml-auto shrink-0" (click)="resetFilters()">
+        <button mat-button data-reset-filters class="!min-w-0 !text-xs ml-auto shrink-0 pointer-coarse:!min-h-11" (click)="resetFilters()">
           {{ I18N.gallery.reset_filters | translate }}
         </button>
       }

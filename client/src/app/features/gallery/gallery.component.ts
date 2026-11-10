@@ -35,6 +35,7 @@ import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { LiveAnnouncer } from '@angular/cdk/a11y';
 import { MatSidenav, MatSidenavContainer, MatSidenavModule, MatSidenavContent } from '@angular/material/sidenav';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
+import { MatCheckboxModule } from '@angular/material/checkbox';
 import { MatIconModule } from '@angular/material/icon';
 import { MatButtonModule } from '@angular/material/button';
 import { MatInputModule } from '@angular/material/input';
@@ -109,6 +110,9 @@ const SET_KIND_TOGGLE: Record<string, keyof HiddenFilterFlags> = {
   burst: 'hide_bursts', duplicate: 'hide_duplicates', bracket: 'hide_brackets', panorama: 'hide_panoramas',
 };
 
+/** Tailwind's `lg`: where the notice stack floats as cards and the criteria row sticks under the header. */
+const LG_BREAKPOINT_PX = 1024;
+
 @Component({
   selector: 'app-gallery',
   imports: [ControlPopoverComponent,
@@ -118,6 +122,7 @@ const SET_KIND_TOGGLE: Record<string, keyof HiddenFilterFlags> = {
     MatProgressSpinnerModule,
     MatIconModule,
     MatButtonModule,
+    MatCheckboxModule,
     MatInputModule,
     MatSliderModule,
     MatDialogModule,
@@ -319,11 +324,8 @@ const SET_KIND_TOGGLE: Record<string, keyof HiddenFilterFlags> = {
             <ng-template #reviewSettings>
               <ng-container [ngTemplateOutlet]="collectionReviewCommands" />
               <ng-container [ngTemplateOutlet]="collectionSettings.reviewSettings()" />
-              <label class="flex min-h-11 cursor-pointer items-center gap-2 px-3 text-sm">
-                <input type="checkbox" data-review-progress-toggle class="size-4 accent-[var(--mat-sys-primary)]"
-                       [checked]="reviewProgressToggleOn()" (change)="onReviewProgressToggle($any($event.target).checked)" />
-                {{ I18N.gallery.review_progress.show_toggle | translate }}
-              </label>
+              <mat-checkbox data-review-progress-toggle [checked]="reviewProgressToggleOn()"
+                            (change)="onReviewProgressToggle($event.checked)">{{ I18N.gallery.review_progress.show_toggle | translate }}</mat-checkbox>
             </ng-template>
             <app-control-popover data-collection-options [keepOnQueryChange]="true" icon="tune" [disclosure]="true" [hint]="pinned() ? '' : (I18N.gallery.display_controls_hint | translate)"
                 [label]="I18N.gallery.sidebar.tabs.display | translate" [content]="displaySettings" />
@@ -341,8 +343,13 @@ const SET_KIND_TOGGLE: Record<string, keyof HiddenFilterFlags> = {
             </ng-template>
           </div>
           </div>
-          <app-gallery-criteria #collectionCriteria [portShortcuts]="true" [consolidatedSettings]="true" [searchPresented]="true" class="-mx-2 block min-w-0 border-[var(--mat-sys-outline-variant)] px-2 md:-mx-4 md:px-4 has-[>:not(:empty)]:border-t has-[>:not(:empty)]:pb-1" />
         </header>
+        <!-- The criteria row is the header's second half but not its sticky one: it can grow to several
+             wrapped rows, which below lg would bury the grid under the pinned chrome. It carries the
+             marker too, so the focus guards that treat the header as part of the gallery see it. -->
+        <app-gallery-criteria #collectionCriteria data-collection-header [portShortcuts]="true" [consolidatedSettings]="true" [searchPresented]="true"
+            [style.top.px]="collectionBarHeight()"
+            class="block min-w-0 border-[var(--mat-sys-outline-variant)] bg-[var(--mat-sys-surface-container-lowest)] px-2 md:px-4 lg:sticky lg:z-40 has-[>:not(:empty)]:border-b has-[>:not(:empty)]:pb-1" />
 
         <!-- Set-scope chip: the photo-detail "open this set in the gallery" action.
              Never reflected in the URL (sequence_group_id is renumbered on every
@@ -699,21 +706,48 @@ const SET_KIND_TOGGLE: Record<string, keyof HiddenFilterFlags> = {
             <ng-container *ngTemplateOutlet="scrollTopFab; context: { $implicit: 'pointer-events-auto self-end' }" />
           }
           @if (shownNoticeCount() > 1 || noticesCollapsed()) {
-            <div class="flex flex-wrap items-center justify-end gap-2">
-              @if (shownNoticeCount() > 1) {
-                <button type="button" data-notice-dismiss-all
-                        class="pointer-events-auto self-end min-h-11 rounded-full border border-[var(--mat-sys-outline-variant)] bg-[var(--mat-sys-surface-container-high)] px-3 text-xs font-medium shadow-sm hover:bg-[var(--mat-sys-surface-container-highest)] focus-visible:outline-2 focus-visible:outline-[var(--mat-sys-primary)]"
-                        (click)="dismissAllNotices()">{{ I18N.gallery.notices.dismiss_all | translate }}</button>
-              }
-              @if (noticesCollapsed()) {
-                <button type="button" data-gallery-notices-pill animate.enter="motion-safe:animate-notice-in" animate.leave="motion-safe:animate-notice-out pointer-events-none [&_*]:!pointer-events-none"
-                        class="pointer-events-auto self-end min-h-11 px-3 py-1.5 rounded-full bg-[var(--mat-sys-surface-container-high)] border border-[var(--mat-sys-outline-variant)] shadow-lg flex items-center gap-1.5 text-xs"
-                        (click)="expandNotices($event)">
-                  <mat-icon class="!text-base !w-4 !h-4 !leading-4">notifications</mat-icon>
-                  <span>{{ shownNoticeCount() | pluralKey:I18N.gallery.notices.collapsed:I18N.gallery.notices.collapsed_plural | translate:{ count: shownNoticeCount() } }}</span>
-                </button>
-              }
-            </div>
+            @if (lgDesktop.isDesktop()) {
+              <div class="flex flex-wrap items-center justify-end gap-2">
+                @if (shownNoticeCount() > 1) {
+                  <button type="button" data-notice-dismiss-all
+                          class="pointer-events-auto self-end min-h-11 rounded-full border border-[var(--mat-sys-outline-variant)] bg-[var(--mat-sys-surface-container-high)] px-3 text-xs font-medium shadow-sm hover:bg-[var(--mat-sys-surface-container-highest)] focus-visible:outline-2 focus-visible:outline-[var(--mat-sys-primary)]"
+                          (click)="dismissAllNotices()">{{ I18N.gallery.notices.dismiss_all | translate }}</button>
+                }
+                @if (noticesCollapsed()) {
+                  <button type="button" data-gallery-notices-pill animate.enter="motion-safe:animate-notice-in" animate.leave="motion-safe:animate-notice-out pointer-events-none [&_*]:!pointer-events-none"
+                          class="pointer-events-auto self-end min-h-11 px-3 py-1.5 rounded-full bg-[var(--mat-sys-surface-container-high)] border border-[var(--mat-sys-outline-variant)] shadow-lg flex items-center gap-1.5 text-xs"
+                          (click)="expandNotices($event)">
+                    <mat-icon class="!text-base !w-4 !h-4 !leading-4">notifications</mat-icon>
+                    <span>{{ shownNoticeCount() | pluralKey:I18N.gallery.notices.collapsed:I18N.gallery.notices.collapsed_plural | translate:{ count: shownNoticeCount() } }}</span>
+                  </button>
+                }
+              </div>
+            } @else {
+              <!-- Below lg the stack is one bar, collapsed or not: the label toggles it and Dismiss all
+                   is a sibling button (never nested), so the two never float apart over the grid. -->
+              <div data-notice-bar class="pointer-events-auto flex min-h-11 w-full items-stretch overflow-hidden rounded-full border border-[var(--mat-sys-outline-variant)] bg-[var(--mat-sys-surface-container-high)] shadow-lg">
+                @if (noticesCollapsed()) {
+                  <button type="button" data-gallery-notices-pill animate.enter="motion-safe:animate-notice-in" animate.leave="motion-safe:animate-notice-out pointer-events-none [&_*]:!pointer-events-none"
+                          class="flex min-h-11 min-w-0 flex-1 items-center gap-1.5 px-3 text-left text-xs"
+                          (click)="expandNotices($event)">
+                    <mat-icon class="!text-base !w-4 !h-4 !leading-4 shrink-0">notifications</mat-icon>
+                    <span class="truncate">{{ shownNoticeCount() | pluralKey:I18N.gallery.notices.collapsed:I18N.gallery.notices.collapsed_plural | translate:{ count: shownNoticeCount() } }}</span>
+                  </button>
+                } @else {
+                  <button type="button" data-notices-collapse
+                          class="flex min-h-11 min-w-0 flex-1 items-center gap-1.5 px-3 text-left text-xs"
+                          (click)="collapseNotices($event)">
+                    <mat-icon class="!text-base !w-4 !h-4 !leading-4 shrink-0">expand_more</mat-icon>
+                    <span class="truncate">{{ I18N.gallery.notices.collapse | translate }}</span>
+                  </button>
+                }
+                @if (shownNoticeCount() > 1) {
+                  <button type="button" data-notice-dismiss-all
+                          class="min-h-11 shrink-0 border-l border-[var(--mat-sys-outline-variant)] px-3 text-xs font-medium hover:bg-[var(--mat-sys-surface-container-highest)] focus-visible:outline-2 focus-visible:outline-[var(--mat-sys-primary)]"
+                          (click)="dismissAllNotices()">{{ I18N.gallery.notices.dismiss_all | translate }}</button>
+                }
+              </div>
+            }
           }
           @if (!noticesCollapsed()) {
             @if (reviewProgressShown()) {
@@ -771,7 +805,7 @@ const SET_KIND_TOGGLE: Record<string, keyof HiddenFilterFlags> = {
                 <mat-icon class="opacity-70 !text-base !w-5 !h-5">auto_fix_high</mat-icon>
                 <span id="notice-text-render_migration" class="flex-1">
                   {{ I18N.gallery.render_migration.message | translate:{ n: renderMigrationPending() } }}
-                  {{ I18N.gallery.render_migration.command_hint | translate:{ command: REFRESH_THUMBNAILS_COMMAND } }}
+                  <span data-render-migration-command class="mt-1 block text-xs text-[var(--mat-sys-on-surface-variant)]">{{ I18N.gallery.render_migration.command_hint | translate:{ command: REFRESH_THUMBNAILS_COMMAND } }}</span>
                 </span>
                 <ng-container *ngTemplateOutlet="noticeClose; context: { $implicit: 'render_migration' }" />
               </div>
@@ -1138,7 +1172,14 @@ export class GalleryComponent implements OnInit, OnDestroy {
 
   private resizeObserver: ResizeObserver | null = null;
   private readonly collectionHeader = viewChild<ElementRef<HTMLElement>>('collectionHeader');
-  protected readonly collectionHeaderHeight = signal(0);
+  private readonly collectionCriteria = viewChild('collectionCriteria', { read: ElementRef<HTMLElement> });
+  private criteriaObserver: ResizeObserver | null = null;
+  /** The sticky bar row alone: also where the criteria row pins itself below. */
+  protected readonly collectionBarHeight = signal(0);
+  protected readonly collectionCriteriaHeight = signal(0);
+  /** What sticks over the top of the scrolling content, and so the scroll padding: the bar below lg, bar and criteria from lg. */
+  protected readonly collectionHeaderHeight = computed(() =>
+    this.collectionBarHeight() + (this.lgDesktop.isDesktop() ? this.collectionCriteriaHeight() : 0));
   private readonly scrollDirective = viewChild(InfiniteScrollDirective);
   private readonly filterSidebar = viewChild(GalleryFilterSidebarComponent);
   private readonly filterDrawer = viewChild<MatSidenav>('filterDrawer');
@@ -1286,7 +1327,7 @@ export class GalleryComponent implements OnInit, OnDestroy {
 
   /** Whether the viewport is md+ (768px) — drives the side/over drawer, container padding and hover tooltips */
   private readonly desktop = useDesktopSignal({
-    onChange: matches => { if (!matches) this.tooltipPhoto.set(null); },
+    onChange: matches => { if (!matches) this.dropHeldPhoto(); },
   });
   protected readonly isDesktop = this.desktop.isDesktop;
 
@@ -1298,6 +1339,10 @@ export class GalleryComponent implements OnInit, OnDestroy {
    * narrow to browse, so it wants its own, higher bar.
    */
   private readonly railWide = useDesktopSignal({ breakpointPx: DETAILS_RAIL_MIN_WIDTH_PX });
+
+  /** Whether the viewport is lg+ (1024px): the notice stack floats as cards above it and is one bar below it,
+   *  and the criteria row only sticks under the header from there up. */
+  protected readonly lgDesktop = useDesktopSignal({ breakpointPx: LG_BREAKPOINT_PX });
 
   /** Effective gallery mode: grid until the container has been measured, then the user's choice at every width */
   readonly effectiveGalleryMode = computed(() =>
@@ -1350,8 +1395,28 @@ export class GalleryComponent implements OnInit, OnDestroy {
    * and the rail is a standing preference to come back to once they are closed.
    */
   readonly detailsRailVisible = computed(
-    () => this.panelMode() && (!this.store.filterDrawerOpen() || this.pinned()),
+    () => this.panelMode() && this.railOpen() && (!this.store.filterDrawerOpen() || this.pinned()),
   );
+
+  /**
+   * Whether the rail has been opened. The strip is 320px of the grid, so it stays
+   * closed until a photo first enters it (a hover or a click in panel mode) and then
+   * stays until the user dismisses it or the view it belongs to is reset. The latch,
+   * not the held photo, drives the drawer: a hover that crosses the gap between two
+   * cards, or leaves the grid, never opens or closes anything.
+   */
+  private readonly railOpen = signal(false);
+
+  /** A photo enters the rail: hovered, clicked, or under the keyboard cursor. */
+  private openRail(): void {
+    if (this.panelMode()) this.railOpen.set(true);
+  }
+
+  /** A view or collection reset drops the hovered photo; the rail closes with it unless the keyboard cursor still holds one. */
+  private dropHeldPhoto(): void {
+    this.tooltipPhoto.set(null);
+    if (!this.hasActivePhoto()) this.railOpen.set(false);
+  }
 
   /** Set kinds whose sets are currently collapsed behind one frame.
    *
@@ -1650,7 +1715,8 @@ export class GalleryComponent implements OnInit, OnDestroy {
    *  whenStable, and the fold therefore runs its own change detection. */
   protected armNoticeCollapse(): void {
     this.disarmNoticeCollapse();
-    if (this.noticePointerInside || !this.noticeStackVisible()) return;
+    // Below lg the bar never folds on its own: only a tap (or the stack emptying) changes it.
+    if (this.noticePointerInside || !this.noticeStackVisible() || !this.lgDesktop.isDesktop()) return;
     this.noticeCollapseTimer = this.ngZone.runOutsideAngular(() => setTimeout(() => {
       this.noticeCollapseTimer = null;
       // Keyboard focus on a card holds the stack open; leaving it re-arms (noticeFocusLeft).
@@ -1691,6 +1757,16 @@ export class GalleryComponent implements OnInit, OnDestroy {
     }, { injector: this.injector });
   }
 
+  /** The bar's collapse: the pill's counterpart, tapped rather than timed. Focus follows to the pill. */
+  protected collapseNotices(event: Event): void {
+    const hadFocus = document.activeElement === event.currentTarget;
+    this.disarmNoticeCollapse();
+    this.noticesCollapsed.set(true);
+    if (hadFocus) afterNextRender(() => {
+      this.noticeHost()?.nativeElement.querySelector<HTMLElement>('[data-gallery-notices-pill]')?.focus({ preventScroll: true });
+    }, { injector: this.injector });
+  }
+
   private noticeLayoutWide: boolean | undefined;
   /** Fold/unfold the stack as its card set changes: the first cards arm the
    *  countdown, a new or dismissed card re-expands with a fresh window, an
@@ -1701,8 +1777,9 @@ export class GalleryComponent implements OnInit, OnDestroy {
   private readonly noticeCollapseLifecycle = effect(() => {
     const signature = this.noticesSignature();
     const drawerOpen = this.overDrawerOpen();
-    const wide = this.isDesktop();
+    const wide = this.lgDesktop.isDesktop();
     const becameNarrow = !wide && this.noticeLayoutWide !== false;
+    const becameWide = wide && this.noticeLayoutWide === false;
     this.noticeLayoutWide = wide;
     untracked(() => {
       const previous = this.noticeSignatureSeen;
@@ -1720,11 +1797,18 @@ export class GalleryComponent implements OnInit, OnDestroy {
         return;
       }
       this.noticeSignatureSeen = signature;
-      if (signature !== previous || becameNarrow) {
-        this.noticesCollapsed.set(!wide);
-        if (wide) this.armNoticeCollapse(); else this.disarmNoticeCollapse();
-      } else if (drawerWasOpen && !this.noticesCollapsed()) {
-        this.armNoticeCollapse();
+      if (wide) {
+        if (signature !== previous || becameNarrow) {
+          this.noticesCollapsed.set(false);
+          this.armNoticeCollapse();
+        } else if ((drawerWasOpen || becameWide) && !this.noticesCollapsed()) {
+          this.armNoticeCollapse();
+        }
+      } else if (!previous || becameNarrow) {
+        // Below lg the bar starts collapsed and then stays as the user left it, through any
+        // change of the card set, until the stack empties.
+        this.noticesCollapsed.set(true);
+        this.disarmNoticeCollapse();
       }
     });
   });
@@ -1919,6 +2003,7 @@ export class GalleryComponent implements OnInit, OnDestroy {
       this.touchOnly.set(window.matchMedia('(hover: none) and (pointer: coarse)').matches);
       this.desktop.setup();
       this.railWide.setup();
+      this.lgDesktop.setup();
       this.setupResizeObserver();
       this.setupScrollTracking();
     });
@@ -1969,7 +2054,7 @@ export class GalleryComponent implements OnInit, OnDestroy {
       // looking again, so the stack earns a fresh window before folding.
       if (!this.noticesCollapsed()) this.armNoticeCollapse();
       this.setGalleryChrome(true);
-      this.tooltipPhoto.set(null);
+      this.dropHeldPhoto();
       // A resize while parked measured the detached drawer as 0 and zeroed the content margin.
       this.sidenavContainer()?.updateContentMargins();
       const back = this.returnTo;
@@ -2022,7 +2107,8 @@ export class GalleryComponent implements OnInit, OnDestroy {
       untracked(() => {
         const current = this.tooltipPhoto();
         const updated = this.panelMode() && current ? photos.find(photo => photo.path === current.path) : null;
-        this.tooltipPhoto.set(updated ?? null);
+        if (updated) this.tooltipPhoto.set(updated);
+        else if (current) this.dropHeldPhoto();
       });
       // Re-measure the virtual window once the new rows are in the DOM
       requestAnimationFrame(() => this.updateWindowPosition());
@@ -2051,7 +2137,7 @@ export class GalleryComponent implements OnInit, OnDestroy {
     effect(() => {
       this.tooltipMode(); // track dependency
       this.panelMode(); // the rail breakpoint flips panel mode without a mode change
-      untracked(() => this.tooltipPhoto.set(null));
+      untracked(() => this.dropHeldPhoto());
     });
   }
 
@@ -2288,8 +2374,10 @@ export class GalleryComponent implements OnInit, OnDestroy {
     this.setGalleryChrome(false);
     this.saveViewSnapshot();
     this.resizeObserver?.disconnect();
+    this.criteriaObserver?.disconnect();
     this.desktop.cleanup();
     this.railWide.cleanup();
+    this.lgDesktop.cleanup();
   }
 
   private captureReturnTarget(geometry = true): ReturnTarget {
@@ -2448,6 +2536,7 @@ export class GalleryComponent implements OnInit, OnDestroy {
     const selected = this.viewScoped() ? !this.excludedPaths().has(photo.path) : this.selectedPaths().has(photo.path);
     if (this.panelMode() && !selected) {
       this.tooltipPhoto.set(photo);
+      this.openRail();
       this.setCursor(-1);
     } else this.setCursor(index);
     this.focusCard(index);
@@ -2851,6 +2940,7 @@ export class GalleryComponent implements OnInit, OnDestroy {
     // tooltip to render at a stale coordinate in the middle of the page.
     if (mode === 'panel' && this.panelMode()) {
       this.tooltipPhoto.set(photo);
+      this.openRail();
       return;
     }
     // Hover mode is meaningless on touch (mouseenter fires once on tap and
@@ -3081,6 +3171,12 @@ export class GalleryComponent implements OnInit, OnDestroy {
       if (Number.isFinite(rem) && rem > 0) this.rootFontSize.set(rem);
     };
     measureListRow();
+    // Created first: a second observer would otherwise be the last constructed, and tests (and any
+    // reader) take the last callback for the one that measures the content width.
+    this.criteriaObserver = new ResizeObserver(entries => {
+      if (this.parked) return;
+      for (const entry of entries) this.collectionCriteriaHeight.set(entry.target.getBoundingClientRect().height);
+    });
     this.resizeObserver = new ResizeObserver(entries => {
       // A parked gallery measures 0; keep its layout for the return.
       if (this.parked) return;
@@ -3088,7 +3184,7 @@ export class GalleryComponent implements OnInit, OnDestroy {
       const header = this.collectionHeader()?.nativeElement;
       for (const entry of entries) {
         if (header && entry.target === header) {
-          this.collectionHeaderHeight.set(entry.target.getBoundingClientRect().height);
+          this.collectionBarHeight.set(entry.target.getBoundingClientRect().height);
         } else this.containerWidth.set(Math.floor(entry.contentRect.width));
       }
       this.updateWindowPosition();
@@ -3105,8 +3201,13 @@ export class GalleryComponent implements OnInit, OnDestroy {
     }
     const header = this.collectionHeader()?.nativeElement;
     if (header) {
-      this.collectionHeaderHeight.set(header.getBoundingClientRect().height);
+      this.collectionBarHeight.set(header.getBoundingClientRect().height);
       this.resizeObserver.observe(header);
+    }
+    const criteria = this.collectionCriteria()?.nativeElement;
+    if (criteria) {
+      this.collectionCriteriaHeight.set(criteria.getBoundingClientRect().height);
+      this.criteriaObserver.observe(criteria);
     }
   }
 
@@ -3137,8 +3238,10 @@ export class GalleryComponent implements OnInit, OnDestroy {
     this.activeIndex.set(index);
     this.activePath.set(path);
     // The mirror outlives a blur: a drop with the window unfocused (the user went to the agent) keeps it.
-    if (path !== null) this.store.focusedPath.set(path);
-    else if (document.hasFocus()) this.store.focusedPath.set(null);
+    if (path !== null) {
+      this.store.focusedPath.set(path);
+      this.openRail();
+    } else if (document.hasFocus()) this.store.focusedPath.set(null);
   }
 
   /** Re-find the marked photo whenever the result set changes, so the cursor
@@ -3175,8 +3278,8 @@ export class GalleryComponent implements OnInit, OnDestroy {
         const changed = pin !== previous;
         previous = pin;
         if (first || !changed) return;
-        this.tooltipPhoto.set(null);
         this.setCursor(-1);
+        this.dropHeldPhoto();
       });
     });
   })();
@@ -3244,6 +3347,7 @@ export class GalleryComponent implements OnInit, OnDestroy {
   protected deselectFromRail(): void {
     const index = this.activeIndex();
     this.releasePanel();
+    this.railOpen.set(false);
     this.focusCard(index, false, false);
     if (!document.activeElement?.closest('app-photo-card')) {
       (this.noticeHost()?.nativeElement.querySelector('[data-details-rail]') as HTMLElement | null)?.focus();
@@ -3266,8 +3370,10 @@ export class GalleryComponent implements OnInit, OnDestroy {
    *  release, so focus is parked on the rail rather than dropping to the body. */
   protected onRailEscape(event: Event): void {
     event.preventDefault();
+    const index = this.activeIndex();
     this.escapeSelection();
-    (event.currentTarget as HTMLElement | null)?.focus();
+    this.railOpen.set(false);
+    this.focusCard(index, false, false);
   }
 
   /** Columns per row in grid mode (mirrors the CSS auto-fill column math). */

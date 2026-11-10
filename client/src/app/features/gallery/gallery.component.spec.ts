@@ -372,6 +372,50 @@ describe('GalleryComponent', () => {
     fixture.destroy();
   });
 
+  describe('collection header stickiness', () => {
+    function render() {
+      const fixture = TestBed.createComponent(GalleryComponent);
+      fixture.detectChanges();
+      const markers = Array.from(fixture.nativeElement.querySelectorAll('[data-collection-header]')) as HTMLElement[];
+      return { fixture, bar: markers[0], criteria: markers[1], markers };
+    }
+
+    it('pins the bar row at every width and the criteria row only from lg, below the measured bar', () => {
+      const { fixture, bar, criteria, markers } = render();
+      expect(markers).toHaveLength(2);
+      expect(bar.tagName).toBe('HEADER');
+      expect(bar.classList).toContain('sticky');
+      expect(bar.classList).toContain('top-0');
+      expect(criteria.tagName).toBe('APP-GALLERY-CRITERIA');
+      expect(bar.contains(criteria)).toBe(false);
+      expect(bar.nextElementSibling).toBe(criteria);
+      expect(criteria.classList).toContain('lg:sticky');
+      expect(criteria.classList).not.toContain('sticky');
+      expect(criteria.classList).toContain('lg:z-40');
+      expect(criteria.className).toContain('bg-[var(--mat-sys-surface-container-lowest)]');
+      const instance = fixture.componentInstance as unknown as { collectionBarHeight: WritableSignal<number> };
+      instance.collectionBarHeight.set(61);
+      fixture.detectChanges();
+      expect(criteria.style.top).toBe('61px');
+      fixture.destroy();
+    });
+
+    it('pads the scroll by the bar below lg and by bar plus criteria from lg', () => {
+      const { fixture } = render();
+      const instance = fixture.componentInstance as unknown as {
+        collectionBarHeight: WritableSignal<number>; collectionCriteriaHeight: WritableSignal<number>;
+        collectionHeaderHeight(): number; lgDesktop: { setMatches(v: boolean): void };
+      };
+      instance.collectionBarHeight.set(61);
+      instance.collectionCriteriaHeight.set(48);
+      instance.lgDesktop.setMatches(false);
+      expect(instance.collectionHeaderHeight()).toBe(61);
+      instance.lgDesktop.setMatches(true);
+      expect(instance.collectionHeaderHeight()).toBe(109);
+      fixture.destroy();
+    });
+  });
+
   it('keeps stack expansion available locally to read-only users without filtering an exact pinned list', () => {
     mockAuth['isEdition'] = vi.fn(() => false);
     const fixture = TestBed.createComponent(GalleryComponent);
@@ -2224,6 +2268,7 @@ describe('GalleryComponent', () => {
     function render(): HTMLElement {
       const fixture = TestBed.createComponent(GalleryComponent);
       Object.defineProperty(fixture.componentInstance, 'isDesktop', { value: signal(true), configurable: true });
+      Object.defineProperty(fixture.componentInstance['lgDesktop'], 'isDesktop', { value: signal(true), configurable: true });
       fixture.detectChanges();
       return fixture.nativeElement as HTMLElement;
     }
@@ -2334,6 +2379,7 @@ describe('GalleryComponent', () => {
       mockStore.config.set({ render_migration: { pending: 12 } });
       const fixture = TestBed.createComponent(GalleryComponent);
       Object.defineProperty(fixture.componentInstance, 'isDesktop', { value: signal(true), configurable: true });
+      Object.defineProperty(fixture.componentInstance['lgDesktop'], 'isDesktop', { value: signal(true), configurable: true });
       fixture.detectChanges();
       const html = fixture.nativeElement as HTMLElement;
       const cards = Array.from(stack(html)!.querySelectorAll('[role="status"]'));
@@ -2347,9 +2393,21 @@ describe('GalleryComponent', () => {
       expect(left[0].textContent).toContain(I18N.gallery.hidden_banner.message);
     });
 
+    it('shows the migration command as its own muted line, the whole translated sentence', () => {
+      mockStore.config.set({ render_migration: { pending: 12 } });
+      mockI18n.t.mockImplementation((key: string, vars?: Record<string, unknown>) => (vars ? `${key} ${JSON.stringify(vars)}` : key));
+      const html = render();
+      const line = html.querySelector<HTMLElement>('[data-notice-kind="render_migration"] [data-render-migration-command]')!;
+      expect(line.textContent?.trim()).toBe(`${I18N.gallery.render_migration.command_hint} ${JSON.stringify({ command: 'python facet.py --refresh-thumbnails' })}`);
+      expect(line.className).toContain('text-xs');
+      expect(line.className).toContain('block');
+      expect(line.parentElement!.textContent).toContain(`${I18N.gallery.render_migration.message} ${JSON.stringify({ n: 12 })}`);
+    });
+
     it('closes the hidden-photos notice without touching the filters, and reopens it when the hidden count changes', () => {
       const fixture = TestBed.createComponent(GalleryComponent);
       Object.defineProperty(fixture.componentInstance, 'isDesktop', { value: signal(true), configurable: true });
+      Object.defineProperty(fixture.componentInstance['lgDesktop'], 'isDesktop', { value: signal(true), configurable: true });
       fixture.detectChanges();
       const html = fixture.nativeElement as HTMLElement;
       const before = mockStore.filters();
@@ -2367,6 +2425,7 @@ describe('GalleryComponent', () => {
     it('keeps each scope\'s closed notice closed on return, and ignores re-sorting', () => {
       const fixture = TestBed.createComponent(GalleryComponent);
       Object.defineProperty(fixture.componentInstance, 'isDesktop', { value: signal(true), configurable: true });
+      Object.defineProperty(fixture.componentInstance['lgDesktop'], 'isDesktop', { value: signal(true), configurable: true });
       fixture.detectChanges();
       const html = fixture.nativeElement as HTMLElement;
       closeFor(html, I18N.gallery.hidden_banner.message).click();
@@ -2392,6 +2451,7 @@ describe('GalleryComponent', () => {
       mockStore.reviewBookmark.set({ path: '/p1.jpg', filters: { tag: 'a' } });
       const fixture = TestBed.createComponent(GalleryComponent);
       Object.defineProperty(fixture.componentInstance, 'isDesktop', { value: signal(true), configurable: true });
+      Object.defineProperty(fixture.componentInstance['lgDesktop'], 'isDesktop', { value: signal(true), configurable: true });
       fixture.detectChanges();
       const html = fixture.nativeElement as HTMLElement;
       closeFor(html, I18N.gallery.review_progress.browser).click();
@@ -2415,6 +2475,7 @@ describe('GalleryComponent', () => {
       mockStore.filters.set({ ...DEFAULT_FILTERS, hide_blinks: false, hide_bursts: false, hide_duplicates: false, hide_brackets: false, hide_panoramas: false });
       const fixture = TestBed.createComponent(GalleryComponent);
       Object.defineProperty(fixture.componentInstance, 'isDesktop', { value: signal(true), configurable: true });
+      Object.defineProperty(fixture.componentInstance['lgDesktop'], 'isDesktop', { value: signal(true), configurable: true });
       fixture.detectChanges();
       const html = fixture.nativeElement as HTMLElement;
       const before = mockStore.filters();
@@ -2446,6 +2507,7 @@ describe('GalleryComponent', () => {
       try {
         const fixture = TestBed.createComponent(GalleryComponent);
         Object.defineProperty(fixture.componentInstance, 'isDesktop', { value: signal(true), configurable: true });
+        Object.defineProperty(fixture.componentInstance['lgDesktop'], 'isDesktop', { value: signal(true), configurable: true });
         mockStore.filterDrawerOpen.set(true);
         fixture.detectChanges();
         const notices = stack(fixture.nativeElement as HTMLElement)!;
@@ -2736,14 +2798,52 @@ describe('GalleryComponent', () => {
         mockStore.selectionCount.set(0);
       });
 
-      it('keeps the inspector rail open with an empty state before a photo is chosen', () => {
+      it('keeps the grid at full width until a photo is chosen, then opens the rail once and keeps it', () => {
+        const photo = makePhoto({ path: '/a.jpg', filename: 'a.jpg' });
+        mockStore.photos.set([photo]);
+        Object.assign(mockApi, { get: vi.fn(() => of({})) });
         const fixture = TestBed.createComponent(GalleryComponent);
         (fixture.componentInstance as unknown as { railWide: { setup(): void } }).railWide.setup();
         fixture.detectChanges();
+        const drawer = fixture.debugElement.query(By.directive(MatSidenav)).componentInstance as MatSidenav;
         expect(fixture.componentInstance.panelMode()).toBe(true);
+        expect(fixture.componentInstance.detailsRailVisible()).toBe(false);
+        expect(fixture.nativeElement.querySelector('[data-details-rail]')).toBeNull();
+        expect(drawer.opened).toBe(false);
+        const open = vi.spyOn(drawer, 'open');
+        const close = vi.spyOn(drawer, 'close');
+        fixture.componentInstance.showTooltip(hoverEvent, photo);
+        fixture.detectChanges();
         expect(fixture.componentInstance.detailsRailVisible()).toBe(true);
         expect(fixture.nativeElement.querySelector('[data-details-rail]')).not.toBeNull();
-        expect(fixture.nativeElement.textContent).toContain('gallery.tooltip_mode.panel_empty');
+        const opened = open.mock.calls.length;
+        // Hovering off the grid and across the next card never closes or reopens the strip.
+        fixture.componentInstance.hideTooltip();
+        fixture.detectChanges();
+        fixture.componentInstance.showTooltip(hoverEvent, makePhoto({ path: '/b.jpg' }));
+        fixture.componentInstance.hideTooltip();
+        fixture.detectChanges();
+        expect(fixture.componentInstance.detailsRailVisible()).toBe(true);
+        expect(open.mock.calls.length).toBe(opened);
+        expect(close).not.toHaveBeenCalled();
+        fixture.destroy();
+      });
+
+      it('a reset of the view closes the rail, while a hover leaving the grid does not', () => {
+        const photo = makePhoto({ path: '/a.jpg', filename: 'a.jpg' });
+        mockStore.photos.set([photo]);
+        Object.assign(mockApi, { get: vi.fn(() => of({})) });
+        const fixture = TestBed.createComponent(GalleryComponent);
+        (fixture.componentInstance as unknown as { railWide: { setup(): void } }).railWide.setup();
+        fixture.detectChanges();
+        fixture.componentInstance.showTooltip(hoverEvent, photo);
+        fixture.detectChanges();
+        fixture.componentInstance.hideTooltip();
+        expect(fixture.componentInstance.detailsRailVisible()).toBe(true);
+        // The hovered photo leaves the collection (a filter change): nothing is left to inspect.
+        mockStore.photos.set([makePhoto({ path: '/z.jpg' })]);
+        fixture.detectChanges();
+        expect(fixture.componentInstance.detailsRailVisible()).toBe(false);
         fixture.destroy();
       });
 
@@ -2802,15 +2902,20 @@ describe('GalleryComponent', () => {
           expect(rail.querySelector('[data-close-inspector]')).toBeNull();
         });
 
-        it('Escape releases the photo and the drawer is not closed (rendered)', () => {
-          // MatDrawer closes itself on an Escape from inside it unless disableClose is set;
-          // the open/close effect would then reopen it, so the rail would flicker.
+        it('Escape releases the photo and closes the rail through the latch, not through MatDrawer (rendered)', () => {
+          // MatDrawer closes itself on an Escape from inside it unless disableClose is set; the
+          // rail's own latch is what closes the strip now, so the drawer closes once, on purpose,
+          // and the sync effect has nothing left to reopen.
           const drawer = fixture.debugElement.query(By.directive(MatSidenav)).componentInstance as MatSidenav;
+          const open = vi.spyOn(drawer, 'open');
           const close = vi.spyOn(drawer, 'close');
           escape(rail);
           fixture.detectChanges();
           expect(instance.hasActivePhoto()).toBe(false);
-          expect(close).not.toHaveBeenCalled();
+          expect(fixture.componentInstance.detailsRailVisible()).toBe(false);
+          expect(fixture.nativeElement.querySelector('[data-details-rail]')).toBeNull();
+          expect(close).toHaveBeenCalled();
+          expect(open).not.toHaveBeenCalled();
         });
 
         it('focus leaving the rail for the outside releases the hold', () => {
@@ -2827,13 +2932,23 @@ describe('GalleryComponent', () => {
           expect(instance.hasActivePhoto()).toBe(true);
         });
 
-        it('Escape on the focused Deselect button leaves focus on the rail', () => {
+        it('Escape on the focused Deselect button closes the rail and never leaves focus inside it', () => {
           document.body.appendChild(fixture.nativeElement);
           const button = rail.querySelector('button') as HTMLElement;
           button.focus();
           escape(button);
           fixture.detectChanges();
-          expect(document.activeElement).toBe(rail);
+          expect(fixture.nativeElement.querySelector('[data-details-rail]')).toBeNull();
+          expect(rail.contains(document.activeElement)).toBe(false);
+        });
+
+        it('Deselect closes the rail, and the next photo to enter it opens it again', () => {
+          (rail.querySelector('button') as HTMLButtonElement).click();
+          fixture.detectChanges();
+          expect(fixture.componentInstance.detailsRailVisible()).toBe(false);
+          fixture.componentInstance.showTooltip(hoverEvent, mockStore.photos()[0]);
+          fixture.detectChanges();
+          expect(fixture.componentInstance.detailsRailVisible()).toBe(true);
         });
 
         it('the score-explainer entry opens the critique for the held photo', () => {
@@ -6199,6 +6314,7 @@ describe('GalleryComponent', () => {
       mockI18n.t.mockImplementation((key: string, vars?: Record<string, unknown>) => (vars ? `${key} ${JSON.stringify(vars)}` : key));
       fixture = TestBed.createComponent(GalleryComponent);
       Object.defineProperty(fixture.componentInstance, 'isDesktop', { value: signal(wide), configurable: true });
+      Object.defineProperty(fixture.componentInstance['lgDesktop'], 'isDesktop', { value: signal(wide), configurable: true });
       fixture.detectChanges();
       return fixture.nativeElement as HTMLElement;
     }
@@ -6240,7 +6356,8 @@ describe('GalleryComponent', () => {
       host.querySelector<HTMLButtonElement>('[data-collection-review] button')!.click();
       fixture.detectChanges(); await fixture.whenStable();
       const overlay = TestBed.inject(OverlayContainer).getContainerElement();
-      const toggle = overlay.querySelector<HTMLInputElement>('[data-review-progress-toggle]')!;
+      expect(overlay.querySelector('label[data-review-progress-toggle], input[data-review-progress-toggle]')).toBeNull();
+      const toggle = overlay.querySelector<HTMLInputElement>('mat-checkbox[data-review-progress-toggle] input')!;
       expect(toggle.checked).toBe(false);
       toggle.click();
       fixture.detectChanges();
@@ -6301,10 +6418,12 @@ describe('GalleryComponent', () => {
   describe('notice stack auto-collapse (rendered)', () => {
     let fixture: ComponentFixture<GalleryComponent>;
 
-    function render(wide = true): HTMLElement {
+    /** `wide` is the md signal; `lg` defaults to it, and false puts the viewport below lg where the stack is one bar. */
+    function render(wide = true, lg = wide): HTMLElement {
       mockI18n.t.mockImplementation((key: string, vars?: Record<string, unknown>) => (vars ? `${key} ${JSON.stringify(vars)}` : key));
       fixture = TestBed.createComponent(GalleryComponent);
       Object.defineProperty(fixture.componentInstance, 'isDesktop', { value: signal(wide), configurable: true });
+      Object.defineProperty(fixture.componentInstance['lgDesktop'], 'isDesktop', { value: signal(lg), configurable: true });
       fixture.detectChanges();
       return fixture.nativeElement as HTMLElement;
     }
@@ -6445,27 +6564,91 @@ describe('GalleryComponent', () => {
       expect(pill(host)).not.toBeNull();
     });
 
-    it('waits while the mobile drawer covers the stack and starts afresh when it closes', () => {
+    describe('below lg: one bar', () => {
+      const bar = (host: HTMLElement): HTMLElement | null => host.querySelector('[data-notice-bar]');
+      const dismissAll = (host: HTMLElement): HTMLElement | null => host.querySelector('[data-notice-dismiss-all]');
+      const collapse = (host: HTMLElement): HTMLElement | null => host.querySelector('[data-notices-collapse]');
+      const twoNotices = () => mockStore.reviewBookmark.set({ path: '/p1.jpg', filters: { tag: 'a' } });
+
+      it('starts collapsed as ONE bar holding the count and a sibling Dismiss all, never auto-folding', () => {
+        twoNotices();
+        const host = render(true, false);
+        expect(bar(host)).not.toBeNull();
+        expect(card(host)).toBeNull();
+        expect(pill(host)!.parentElement).toBe(bar(host));
+        expect(dismissAll(host)!.parentElement).toBe(bar(host));
+        expect(pill(host)!.contains(dismissAll(host))).toBe(false);
+        expect(pill(host)!.textContent).toContain('"count":2');
+        pill(host)!.click(); fixture.detectChanges();
+        expect(card(host)).not.toBeNull();
+        vi.advanceTimersByTime(60000);
+        fixture.detectChanges();
+        expect(card(host)).not.toBeNull();
+        expect(pill(host)).toBeNull();
+      });
+
+      it('the expanded bar carries a collapse button next to Dismiss all, and a tap folds it', () => {
+        twoNotices();
+        const host = render(true, false);
+        pill(host)!.click(); fixture.detectChanges();
+        expect(collapse(host)!.textContent).toContain(I18N.gallery.notices.collapse);
+        expect(collapse(host)!.querySelector('mat-icon')!.textContent).toBe('expand_more');
+        expect(dismissAll(host)!.parentElement).toBe(collapse(host)!.parentElement);
+        collapse(host)!.click(); fixture.detectChanges();
+        expect(card(host)).toBeNull();
+        expect(pill(host)).not.toBeNull();
+      });
+
+      it('stays as the user left it when the set of notices changes, and resets only when it empties', () => {
+        twoNotices();
+        const host = render(true, false);
+        pill(host)!.click(); fixture.detectChanges();
+        mockStore.reviewBookmark.set(null);
+        fixture.detectChanges();
+        expect(card(host)).not.toBeNull();
+        twoNotices();
+        fixture.detectChanges();
+        expect(card(host)).not.toBeNull();
+        collapse(host)!.click(); fixture.detectChanges();
+        mockStore.reviewBookmark.set(null);
+        fixture.detectChanges();
+        expect(pill(host)).not.toBeNull();
+        mockStore.reviewProgress.set(null);
+        fixture.detectChanges();
+        expect(stack(host)).toBeNull();
+        mockStore.reviewProgress.set({ total: 10, undecided: 6, kept: 3, rejected: 1 });
+        fixture.detectChanges();
+        expect(card(host)).toBeNull();
+        expect(pill(host)).not.toBeNull();
+      });
+
+      it('lg and wider keep the floating cards, the timer fold and no bar', () => {
+        const host = render(true, true);
+        expect(bar(host)).toBeNull();
+        expect(card(host)).not.toBeNull();
+        collapseAfterFullWindow();
+        expect(pill(host)).not.toBeNull();
+        expect(collapse(host)).toBeNull();
+      });
+    });
+
+    it('below lg the bar waits out the mobile drawer and comes back as the user left it, never folding on a timer', () => {
       const host = render(false);
       pill(host)!.click(); fixture.detectChanges();
       vi.advanceTimersByTime(3000);
       mockStore.filterDrawerOpen.set(true);
       fixture.detectChanges();
       expect(stack(host)).toBeNull();
-      // Returning from a photo behind the open drawer must not start the countdown either.
       outletMock.detachEvents.next(fixture.componentInstance);
       outletMock.attachEvents.next(fixture.componentInstance);
       vi.advanceTimersByTime(60000);
-
       mockStore.filterDrawerOpen.set(false);
       fixture.detectChanges();
       expect(card(host)).not.toBeNull();
-      vi.advanceTimersByTime(5900);
+      vi.advanceTimersByTime(60000);
       fixture.detectChanges();
       expect(card(host)).not.toBeNull();
-      vi.advanceTimersByTime(100);
-      fixture.detectChanges();
-      expect(pill(host)).not.toBeNull();
+      expect(pill(host)).toBeNull();
     });
 
     it('re-expands for a card that joined while the drawer covered the folded stack', () => {

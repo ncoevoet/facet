@@ -651,7 +651,11 @@ describe('collection-owned reset', () => {
   const {fixture,filtersSignal,mockStore}=createCriteria();
   filtersSignal.update(filters=>({...filters,camera:'Canon'}));fixture.detectChanges();
   const reset=[...fixture.nativeElement.querySelectorAll('button')].find((button:any)=>button.textContent.includes('gallery.reset_filters')) as HTMLButtonElement;
-  expect(reset).toBeDefined(); reset.click();expect(mockStore.resetFilters).toHaveBeenCalledOnce();
+  expect(reset).toBeDefined();
+  expect(reset.classList).toContain('mat-mdc-button');
+  expect(reset.hasAttribute('data-reset-filters')).toBe(true);
+  expect(reset.className).toContain('pointer-coarse:!min-h-11');
+  reset.click();expect(mockStore.resetFilters).toHaveBeenCalledOnce();
   filtersSignal.set({...DEFAULT_FILTERS});fixture.detectChanges();
   expect(fixture.nativeElement.textContent).not.toContain('gallery.reset_filters');
  });

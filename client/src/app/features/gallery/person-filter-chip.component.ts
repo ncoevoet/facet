@@ -74,7 +74,7 @@ const CHIP_BUTTON = 'inline-flex items-center justify-center w-6 h-6 shrink-0 ro
           <mat-icon class="!text-base !w-4 !h-4 !leading-4">close</mat-icon>
         </button>
       } @else {
-        <span class="hidden xl:inline mx-0.5">{{ label() }}</span>
+        <span data-person-chip-name class="hidden sm:inline mx-0.5 max-w-24 md:max-w-40 truncate" [matTooltip]="label()">{{ label() }}</span>
         @if (canEdit()) {
           <button type="button" data-person-name-edit [class]="CHIP_BUTTON"
                   (click)="$event.stopPropagation(); startEdit()"
