@@ -3871,7 +3871,7 @@
     "date": "Data de captura",
     "review": "Revisão",
     "revert": "Restaurar",
-    "reverted": "Restaurado",
+    "reverted": "Restaurada",
     "empty": "Nenhuma entrada disponível.",
     "part": "Parte {part} de {parts}: esta entrada restaura apenas as suas {count} fotos. As partes antigas podem ter expirado.",
     "success": "Fotos restauradas: {count}",
@@ -3901,6 +3901,7 @@
     "superseded": "Substituída por uma alteração posterior",
     "restore_preview_plural": "Repõe os valores anteriores destas {count} fotos. Se alguma tiver mudado desde então, nada é restaurado.",
     "photo_changes": "Alterações por foto",
+    "open_photo": "Abrir {name} num novo separador",
     "various": "vários valores",
     "unchanged": "Sem alterações",
     "decision": "Decisão"

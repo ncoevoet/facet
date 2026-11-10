@@ -3871,7 +3871,7 @@
     "date": "Data di scatto",
     "review": "Revisione",
     "revert": "Ripristina",
-    "reverted": "Ripristinato",
+    "reverted": "Ripristinata",
     "empty": "Nessuna voce disponibile.",
     "part": "Parte {part} di {parts}: questa voce ripristina solo le sue {count} foto. Le parti precedenti potrebbero essere scadute.",
     "success": "Foto ripristinate: {count}",
@@ -3901,6 +3901,7 @@
     "superseded": "Sostituita da una modifica successiva",
     "restore_preview_plural": "Riporta queste {count} foto ai valori precedenti. Se una di esse è cambiata nel frattempo, non viene ripristinato nulla.",
     "photo_changes": "Modifiche per foto",
+    "open_photo": "Apri {name} in una nuova scheda",
     "various": "più valori",
     "unchanged": "Nessuna modifica",
     "decision": "Decisione"

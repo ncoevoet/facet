@@ -1558,7 +1558,7 @@ Points d'accès : `POST /api/photos/capture_date/preview`, `POST /api/photos/ca
 
 ## Historique des modifications
 
-Passez en revue et rétablissez vos modifications récentes dans toute la bibliothèque. En mode édition, ouvrez **Historique des modifications** depuis la navigation. Chaque entrée indique ce qui a changé et montre jusqu’à six de ses photos, qui s’ouvrent dans un nouvel onglet ; développez-la pour voir les champs modifiés photo par photo. Choisissez **Restaurer…**, puis **Restaurer** ou **Annuler**. Un conflit est signalé sur l’entrée concernée sans aucune écriture ; un échec de chargement propose Recharger au lieu de présenter un historique faussement vide.
+Passez en revue et restaurez vos modifications récentes dans toute la bibliothèque. En mode édition, ouvrez **Historique des modifications** depuis la navigation. Chaque entrée indique ce qui a changé et montre jusqu’à six de ses photos, qui s’ouvrent dans un nouvel onglet ; développez-la pour voir les champs modifiés photo par photo. Choisissez **Restaurer…**, puis **Restaurer** ou **Annuler**. Un conflit est signalé sur l’entrée concernée sans aucune écriture ; un échec de chargement propose Recharger au lieu de présenter un historique faussement vide.
 
 - **Ce qui est enregistré :** GPS, dates de prise de vue, décisions de tri, étoiles, favoris et piles manuelles. Pas les tags manuels, les fichiers ni la reconnaissance de visages.
 - Le GPS et les dates de prise de vue sont des valeurs partagées de la bibliothèque. Les décisions de tri, étoiles et favoris sont les vôtres.

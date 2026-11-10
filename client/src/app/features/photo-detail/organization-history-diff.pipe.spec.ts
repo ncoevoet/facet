@@ -60,10 +60,23 @@ describe('HistoryDiffPipe', () => {
     expect(diff.summary).toEqual([{ label: H.gps, before: key(H.unknown), after: text('50.85034, 4.35171') }]);
   });
 
-  it('names a stack cover by its file name and keeps a photo whose values did not change', () => {
-    const diff = pipe.transform(entry('stack', [[[1, '/a/cover.jpg', 0], [1, '/a/cover.jpg', 0]], [[null, null, null], [2, '/b/new.jpg', 1]]]));
-    expect(diff.photos[0]).toEqual({ path: '/p/0.jpg', changes: [] });
-    expect(diff.photos[1].changes).toEqual([
+  it('reports a capture-date shift of under a minute, showing the seconds that changed', () => {
+    const diff = pipe.transform(entry('date', [[['2024:01:01 10:00:10', 1], ['2024:01:01 10:00:40', 1]]]));
+    expect(diff.summary).toEqual([{ label: H.capture_date, before: text('01/01/2024 10:00:10'), after: text('01/01/2024 10:00:40') }]);
+    const minutes = pipe.transform(entry('date', [[['2024:01:01 10:00:10', 1], ['2024:01:01 10:05:10', 1]]]));
+    expect(minutes.summary).toEqual([{ label: H.capture_date, before: text('01/01/2024 10:00'), after: text('01/01/2024 10:05') }]);
+  });
+
+  it('reports a location move smaller than the rounding, at full precision', () => {
+    const diff = pipe.transform(entry('gps', [[[50.850331, 4.35171, 1], [50.850334, 4.35171, 1]]]));
+    expect(diff.summary).toEqual([{ label: H.gps, before: text('50.850331, 4.35171'), after: text('50.850334, 4.35171') }]);
+  });
+
+  it('names a stack cover by its file name and lists the photos that changed first', () => {
+    const diff = pipe.transform(entry('stack', [[[1, '/a/cover.jpg', 0], [1, '/a/cover.jpg', 0]], [[], [2, '/b/new.jpg', 1]]]));
+    expect(diff.photos.map(photo => photo.path)).toEqual(['/p/1.jpg', '/p/0.jpg']);
+    expect(diff.photos[1]).toEqual({ path: '/p/0.jpg', changes: [] });
+    expect(diff.photos[0].changes).toEqual([
       { label: I18N.stacks.stack_id, before: key(H.unknown), after: text('2') },
       { label: I18N.stacks.cover, before: key(H.unknown), after: text('new.jpg') },
       { label: I18N.stacks.position, before: key(H.unknown), after: text('1') },

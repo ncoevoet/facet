@@ -3940,6 +3940,7 @@ export const I18N = {
     superseded: "organization_history.superseded",
     restore_preview_plural: "organization_history.restore_preview_plural",
     photo_changes: "organization_history.photo_changes",
+    open_photo: "organization_history.open_photo",
     various: "organization_history.various",
     unchanged: "organization_history.unchanged",
     decision: "organization_history.decision",

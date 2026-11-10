@@ -3901,6 +3901,7 @@
     "superseded": "Durch eine spätere Änderung ersetzt",
     "restore_preview_plural": "Setzt diese {count} Fotos auf ihre früheren Werte zurück. Wurde eines davon seitdem geändert, wird nichts wiederhergestellt.",
     "photo_changes": "Änderungen pro Foto",
+    "open_photo": "{name} in einem neuen Tab öffnen",
     "various": "mehrere Werte",
     "unchanged": "Keine Änderung",
     "decision": "Entscheidung"

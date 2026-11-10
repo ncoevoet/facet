@@ -49,7 +49,7 @@ const REVERT_ERROR_BY_STATUS: Record<number, 'conflict' | 'unavailable'> = { 409
           @if (entry.parts > 1) { <p class="text-sm mt-1">{{ I18N.organization_history.part | translate:{ part: entry.part, parts: entry.parts, count: entry.changes.length } }}</p> }
           <div data-history-photos class="flex flex-wrap items-center gap-2 my-2">
             @for (photo of diff.photos | slice:0:previews; track photo.path) {
-              <a data-history-photo routerLink="/photo" [queryParams]="{ path: photo.path }" target="_blank" rel="noopener" [title]="photo.path" [attr.aria-label]="photo.path | filename"
+              <a data-history-photo routerLink="/photo" [queryParams]="{ path: photo.path }" target="_blank" rel="noopener" [title]="photo.path" [attr.aria-label]="I18N.organization_history.open_photo | translate:{ name: (photo.path | filename) }"
                 class="block size-10 pointer-coarse:size-11 shrink-0 overflow-hidden rounded focus-visible:outline-2">
                 <img [src]="photo.path | thumbnailUrl:96" alt="" loading="lazy" decoding="async" class="size-full object-cover" />
               </a>

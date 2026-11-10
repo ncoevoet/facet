@@ -3926,6 +3926,7 @@
     "superseded": "Superseded by a later change",
     "restore_preview_plural": "Puts these {count} photos back to their earlier values. If any of them changed since, nothing is restored.",
     "photo_changes": "Changes per photo",
+    "open_photo": "Open {name} in a new tab",
     "various": "several values",
     "unchanged": "No change",
     "decision": "Decision"

@@ -12,10 +12,10 @@ import { OrganizationHistoryDialogComponent } from './organization-history-dialo
 
 type Entry = components['schemas']['OrganizationEntry'];
 const messages = {
-  preview_action: 'Review restore…', limits_title: 'What history can restore', limits: 'Up to 50 recent entries.', reload: 'Reload history', restore_preview: 'Restore {count} photo', restore_preview_plural: 'Restore {count} photos', superseded: 'Superseded by a later change',
-  photo_changes: 'Changes per photo', various: 'several values', unchanged: 'No change', decision: 'Decision',
+  preview_action: 'Restore…', limits_title: 'What history can restore', limits: 'Up to 50 recent entries.', reload: 'Reload history', restore_preview: 'Restore {count} photo', restore_preview_plural: 'Restore {count} photos', superseded: 'Superseded by a later change',
+  photo_changes: 'Changes per photo', open_photo: 'Open {name} in a new tab', various: 'several values', unchanged: 'No change', decision: 'Decision',
   title: 'Organization history', hint: 'History belongs to this account.', gps: 'Location', date: 'Capture date',
-  review: 'Review', logical_review: 'Grouped photo review', revert: 'Revert this entry', reverted: 'Already reverted', empty: 'No available history entries.',
+  review: 'Review', logical_review: 'Grouped photo review', revert: 'Restore', reverted: 'Restored', empty: 'No available history entries.',
   success: 'Photos restored: {count}', error: 'Could not load or restore history.',
   conflict: 'Photos changed since this action. Nothing was restored.',
   unavailable: 'This entry is no longer available. Nothing was restored.',
@@ -119,8 +119,8 @@ describe('Organization history rendered controls and HTTP', () => {
   it('gives same-kind and same-minute entries distinct accessible action names', async () => {
     await create([entry(), entry({ id: 902 })]);
     const names = sections().map(section => section.querySelector('button')!.getAttribute('aria-label'));
-    expect(names[0]).toBe('Review restore… · Location · 24/10/2026 10:11 · #901');
-    expect(names[1]).toBe('Review restore… · Location · 24/10/2026 10:11 · #902');
+    expect(names[0]).toBe('Restore… · Location · 24/10/2026 10:11 · #901');
+    expect(names[1]).toBe('Restore… · Location · 24/10/2026 10:11 · #902');
     expect(new Set(names).size).toBe(2);
     expect(sections().map(section => section.querySelector('h3')?.textContent?.trim()))
       .toEqual(['Location · 24/10/2026 10:11', 'Location · 24/10/2026 10:11']);
@@ -174,7 +174,7 @@ describe('Organization history rendered controls and HTTP', () => {
     expect(links[0].getAttribute('href')).toBe('/photo?path=%2Fh%2Fp0.jpg');
     expect(links[0].target).toBe('_blank');
     expect(links[0].rel).toBe('noopener');
-    expect(links[0].getAttribute('aria-label')).toBe('p0.jpg');
+    expect(links[0].getAttribute('aria-label')).toBe('Open p0.jpg in a new tab');
     expect(links[0].title).toBe('/h/p0.jpg');
     expect(links[0].querySelector('img')?.getAttribute('src')).toBe('/thumbnail?path=%2Fh%2Fp0.jpg&size=96');
     expect(sections()[0].querySelector('[data-history-photos]')?.textContent?.replace(/\s+/g, ' ')).toContain('+2 · Photos: 8');
@@ -206,7 +206,7 @@ describe('Organization history rendered controls and HTTP', () => {
   it('disables only already-reverted entries and never posts their clicks', async () => {
     await create([entry({ reverted: true }), entry({ id: 902 })]);
     expect(revert().disabled).toBe(true);
-    expect(revert().textContent).toContain('Already reverted');
+    expect(revert().textContent).toContain('Restored');
     expect(revert(1).disabled).toBe(false);
     revert().click();
     http.expectNone(request => request.method === 'POST');
@@ -289,7 +289,7 @@ describe('Organization history rendered controls and HTTP', () => {
     expect(fixture.componentInstance.wasRestored()).toBe(true);
     expect(revert().disabled).toBe(false);
     expect(revert(1).disabled).toBe(true);
-    expect(revert(1).textContent).toContain('Already reverted');
+    expect(revert(1).textContent).toContain('Restored');
     expect(dialog.close).not.toHaveBeenCalled();
   });
 });
