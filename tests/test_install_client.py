@@ -106,11 +106,22 @@ def test_upgrade_rebuilds_existing_frontend_with_the_lockfile(installer, node):
     assert not list(client.glob('.facet-build.*'))
 
 
-@pytest.mark.parametrize('failure', [{'ci_rc': 7}, {'build_rc': 8}, {'fail_publish': True}])
-def test_failed_upgrade_preserves_previous_build(installer, failure):
+@pytest.mark.parametrize(('failure', 'last_command', 'message'), [
+    ({'ci_rc': 7}, 'npm ci --no-audit --no-fund', None),
+    ({'build_rc': 8}, 'npm run build -- --output-path ', None),
+    ({'fail_publish': True}, 'npm run build -- --output-path ', 'Could not publish the frontend build'),
+])
+def test_failed_upgrade_preserves_previous_build(installer, failure, last_command, message):
     run, client, old_index = installer
-    result, _ = run(**failure)
+    result, log = run(**failure)
+    output = result.stdout + result.stderr
     assert result.returncode != 0
+    # Each case must fail at its own step, not at an earlier, unrelated one.
+    assert log.splitlines()[-1].startswith(last_command), log
+    if message:
+        assert message in output
+    else:
+        assert 'Could not publish' not in output
     assert old_index.read_text(encoding='utf-8') == 'OLD'
     assert not list(client.glob('.facet-build.*'))
 
