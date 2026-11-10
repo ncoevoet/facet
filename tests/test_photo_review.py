@@ -248,7 +248,7 @@ def test_auto_cull_guard_preserves_new_keep(tmp_path, monkeypatch, per_user):
     """A Keep made after preview is as authoritative as a changed star rating."""
     from types import SimpleNamespace
     from api import config
-    from api.db_helpers import set_photos_kept
+    from api.db_helpers import set_photos_kept, read_labels
     from api.routers import burst_culling
     from db.schema import init_database
     database = str(tmp_path / "keeper-guard.db")
@@ -264,7 +264,7 @@ def test_auto_cull_guard_preserves_new_keep(tmp_path, monkeypatch, per_user):
     with sqlite3.connect(database) as conn:
         conn.row_factory = sqlite3.Row
         conn.execute("INSERT INTO photos(path, filename) VALUES(?, 'a.jpg')", [path])
-        burst_culling._remember_plan(conn, 'alice', 'test-digest', plan, (), result)
+        burst_culling._remember_plan('alice', 'test-digest', plan, (), result, read_labels(conn, 'alice', [path]))
         set_photos_kept(conn, [path], 'alice')
         changed, skipped = burst_culling._reconcile_plan(conn, 'alice', plan, result, 'test-digest', (), True)
         assert changed == skipped == {path}

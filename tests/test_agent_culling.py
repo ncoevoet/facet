@@ -965,23 +965,35 @@ class TestAutoCullStateGuardThroughTheTool:
     def auto_calls(self, rig):
         return [kw["json"] for tool, kw in rig.state["upstream"] if tool == "culling.auto"]
 
-    def test_a_rating_after_the_preview_is_skipped_and_listed(self, rig):
+    def test_a_rating_after_the_preview_requires_fresh_confirmation_without_writing(self, rig):
         preview = rig.env.call(rig.token, "auto_cull", self.args())
         assert {p for r in preview["data"]["rows"] for p in r["reject_paths"]} == {BURST_PATHS[2]}
         _rate(BURST_PATHS[2], star_rating=5)
         result = self.apply(rig, preview)
-        assert result["ok"], result
+        assert result["error"] == "confirmation_required", result
         assert _rejected() == set()
-        assert result["data"]["skipped_user_changed"] == [BURST_PATHS[2]]
-        assert result["data"]["skipped_user_changed_count"] == 1
+        with sqlite3.connect(_TEST_DB_FILE.name) as conn:
+            assert conn.execute("SELECT star_rating FROM photos WHERE path=?", (BURST_PATHS[2],)).fetchone()[0] == 5
 
-    def test_a_manual_reject_after_the_preview_is_listed(self, rig):
+    def test_a_manual_reject_after_the_preview_requires_fresh_confirmation(self, rig):
         preview = rig.env.call(rig.token, "auto_cull", self.args())
         _rate(BURST_PATHS[2], is_rejected=1)
         result = self.apply(rig, preview)
-        assert result["ok"], result
+        assert result["error"] == "confirmation_required", result
         assert _rejected() == {BURST_PATHS[2]}
-        assert result["data"]["skipped_user_changed"] == [BURST_PATHS[2]]
+
+    def test_confirmation_is_bound_to_original_state_even_when_reconsider_keeps_the_plan_equal(self, rig):
+        args = self.args(decision_policy='replace')
+        first = rig.env.call(rig.token, 'auto_cull', args)
+        _rate(BURST_PATHS[2], star_rating=5)
+        fresh = rig.env.call(rig.token, 'auto_cull', args)
+        assert first['data']['plan_digest'] == fresh['data']['plan_digest']
+        assert first['data']['decision_state_digest'] != fresh['data']['decision_state_digest']
+        assert first['confirm'] != fresh['confirm']
+        assert self.apply(rig, first, decision_policy='replace')['error'] == 'confirmation_required'
+        assert _rejected() == set()
+        assert self.apply(rig, fresh, decision_policy='replace')['ok']
+        assert _rejected() == {BURST_PATHS[2]}
 
     def test_the_apply_does_not_re_run_a_dry_run_that_would_overwrite_the_snapshot(self, rig):
         preview = rig.env.call(rig.token, "auto_cull", self.args())
@@ -990,6 +1002,7 @@ class TestAutoCullStateGuardThroughTheTool:
         sent = self.auto_calls(rig)
         assert [c["dry_run"] for c in sent] == [True, False]
         assert sent[1]["expected_digest"] == preview["data"]["plan_digest"]
+        assert sent[1]["expected_state_digest"] == preview["data"]["decision_state_digest"]
 
     def test_the_apply_sends_only_the_plan_request_and_its_guards(self, rig):
         from api.routers.burst_culling import AutoCullBody
@@ -998,15 +1011,32 @@ class TestAutoCullStateGuardThroughTheTool:
         for sent in self.auto_calls(rig):
             assert set(sent) <= set(AutoCullBody.model_fields)
 
-    def test_without_memory_of_the_confirm_the_apply_keeps_todays_path(self, rig):
+    def test_without_the_original_preview_memory_no_read_or_write_is_attempted(self, rig):
         preview = rig.env.call(rig.token, "auto_cull", self.args())
         tools_culling.reset_preview_memory()
         result = self.apply(rig, preview)
-        assert result["ok"], result
-        assert [c["dry_run"] for c in self.auto_calls(rig)] == [True, True, False]
+        assert result["error"] == "confirmation_required", result
+        assert [c["dry_run"] for c in self.auto_calls(rig)] == [True]
+        assert _rejected() == set()
+        fresh = rig.env.call(rig.token, "auto_cull", self.args())
+        assert self.apply(rig, fresh)["ok"]
         assert _rejected() == {BURST_PATHS[2]}
 
     def test_a_confirm_is_single_use(self, rig):
         preview = rig.env.call(rig.token, "auto_cull", self.args())
         assert self.apply(rig, preview)["ok"]
         assert self.apply(rig, preview)["error"] == "confirmation_required"
+
+
+def test_the_tool_enums_match_the_routes_they_call():
+    # A view added to the darkroom stayed unreachable from the assistant when these drifted.
+    from typing import get_args
+
+    from api.agent.tools_culling import GroupBy, GroupType
+    from api.agent.ui_tools import CullingGroupType
+    from api.routers.burst_culling import _CULLING_GROUP_BY, CullingConfirmBody
+
+    assert set(get_args(GroupBy)) == set(_CULLING_GROUP_BY)
+    assert set(get_args(GroupType)) == set(get_args(CullingConfirmBody.model_fields['type'].annotation))
+    # list_culling_groups points at ui_show_culling_group, which must accept every type it lists.
+    assert set(get_args(CullingGroupType)) == set(get_args(GroupType))

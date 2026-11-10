@@ -1,7 +1,12 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
-import { SyncedZoomComponent, ZoomState, FIT_ZOOM, LoadedSources, SHARP_PRELOAD_DEBOUNCE_MS } from './synced-zoom.component';
+import { SyncedZoomComponent, ZoomState, DisplayedRendition, FIT_ZOOM, LoadedSources, SHARP_PRELOAD_DEBOUNCE_MS } from './synced-zoom.component';
+import { signal } from '@angular/core';
+import { I18nService } from '../../core/services/i18n.service';
 
 describe('SyncedZoomComponent', () => {
+  beforeEach(() => TestBed.configureTestingModule({ providers: [
+    { provide: I18nService, useValue: { translations: signal({}), t: (key: string) => key } },
+  ] }));
   function make(zoom: ZoomState = FIT_ZOOM): ComponentFixture<SyncedZoomComponent> {
     const fixture = TestBed.createComponent(SyncedZoomComponent);
     fixture.componentRef.setInput('src', '/thumb.jpg');
@@ -53,14 +58,218 @@ describe('SyncedZoomComponent', () => {
     fixture.detectChanges();
   }
 
+  it('constructs and retries on HTTP LAN without randomUUID', () => {
+    vi.stubGlobal('crypto', { getRandomValues: crypto.getRandomValues.bind(crypto) });
+    try {
+      const fixture = make();
+      fixture.componentInstance.retry(); fixture.detectChanges();
+      expect(new URL(api(fixture).effectiveSrc()).searchParams.get('facet_retry')).toMatch(/^[0-9a-f-]{36}-1$/);
+    } finally { vi.unstubAllGlobals(); }
+  });
+
+  it('shows the visible image region while zooming and panning, and hides it at Fit', () => {
+    const f = make(); measure(f); f.componentInstance.measurePane(); f.detectChanges();
+    const root = f.nativeElement as HTMLElement;
+    const region = () => root.querySelector<HTMLElement>('[data-zoom-viewport]');
+    expect(root.querySelector('[data-zoom-overview]')).toBeNull();
+    apply(f, { scale: 2, tx: 0, ty: 0 });
+    expect(region()!.style.left).toBe('25%'); expect(region()!.style.top).toBe('25%');
+    expect(region()!.style.width).toBe('50%'); expect(region()!.style.height).toBe('50%');
+    apply(f, { scale: 2, tx: 200, ty: -150 });
+    expect(region()!.style.left).toBe('12.5%'); expect(region()!.style.top).toBe('37.5%');
+    apply(f, FIT_ZOOM);
+    expect(root.querySelector('[data-zoom-overview]')).toBeNull();
+  });
+
+  it.each([
+    [{ width: 4000, height: 2000 }, ['25%', '12.5%', '50%', '75%']],
+    [{ width: 2000, height: 4000 }, ['0%', '25%', '100%', '50%']],
+  ])('accounts for contained-image letterboxing in its overview (%o)', (natural, expected) => {
+    const f = make({ scale: 2, tx: 0, ty: 0 }); measure(f, natural);
+    f.componentInstance.measurePane(); f.detectChanges();
+    const region = (f.nativeElement as HTMLElement).querySelector<HTMLElement>('[data-zoom-viewport]')!;
+    expect([region.style.left, region.style.top, region.style.width, region.style.height]).toEqual(expected);
+    apply(f, { scale: 2, tx: 2000, ty: 0 });
+    expect(region.style.width).toBe('0%');
+  });
+
   it('builds a translate+scale transform from the shared zoom', () => {
     const f = make({ scale: 2, tx: 10, ty: -5 });
     expect(api(f).transform()).toBe('translate(10px, -5px) scale(2)');
   });
 
+  it('frames a valid normalized crop within scale bounds and refuses mismatched source geometry', () => {
+    const f = make(); measure(f); f.componentInstance.measurePane();
+    const box = [0.5, 0.25, 0.75, 0.5];
+    const frame = f.componentInstance.zoomForRegion(box, 4 / 3)!;
+    expect(frame.scale).toBeCloseTo(8 / 3);
+    expect(frame.tx + frame.scale * 100).toBeCloseTo(0);
+    expect(frame.ty - frame.scale * 75).toBeCloseTo(0);
+    expect(f.componentInstance.zoomForRegion(box, 1)).toBeNull();
+    expect(f.componentInstance.zoomForRegion([0.8, 0.2, 0.1, 0.5])).toBeNull();
+    expect(f.componentInstance.zoomForRegion([0, 0, Number.NaN, 1])).toBeNull();
+    expect(f.componentInstance.zoomForRegion([0.1, 0.1, 0.11, 0.11])?.scale).toBe(8);
+  });
+
+  it('opts into keyboard pan/zoom and delegates Fit without stealing other surfaces’ shortcuts', () => {
+    const f = make({ scale: 2, tx: 0, ty: 0 });
+    const host = f.nativeElement as HTMLElement;
+    const zooms: ZoomState[] = []; let fits = 0;
+    f.componentInstance.zoomChange.subscribe(z => zooms.push(z));
+    f.componentInstance.fitRequested.subscribe(() => fits++);
+    host.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowRight', bubbles: true }));
+    expect(zooms).toEqual([]);
+    f.componentRef.setInput('keyboardInspection', true); f.detectChanges();
+    host.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowRight', shiftKey: true, bubbles: true }));
+    expect(zooms.at(-1)).toEqual({ scale: 2, tx: -64, ty: 0 });
+    host.dispatchEvent(new KeyboardEvent('keydown', { key: 'Home', bubbles: true }));
+    expect(fits).toBe(1);
+    expect(host.tabIndex).toBe(0);
+    expect(host.classList.contains('touch-none')).toBe(true);
+  });
+
+  it('centres a panned image when keyboard or wheel zoom returns to fit', () => {
+    const f = make({ scale: 1.1, tx: 80, ty: -40 });
+    f.componentRef.setInput('keyboardInspection', true); f.detectChanges();
+    const zooms: ZoomState[] = [];
+    f.componentInstance.zoomChange.subscribe(z => zooms.push(z));
+    const host = f.nativeElement as HTMLElement;
+    host.dispatchEvent(new KeyboardEvent('keydown', { key: '-', bubbles: true, cancelable: true }));
+    expect(zooms.at(-1)).toEqual(FIT_ZOOM);
+    host.dispatchEvent(new WheelEvent('wheel', { deltaY: 1, bubbles: true, cancelable: true }));
+    expect(zooms.at(-1)).toEqual(FIT_ZOOM);
+  });
+
+  it('bounds comparison framing to fitted image pixels without changing culling framing', () => {
+    const f = make(); measure(f); f.componentInstance.measurePane();
+    const state = { scale: 1.5, tx: -1464, ty: 1000 };
+    expect(f.componentInstance.boundInspectionZoom(state)).toEqual(state);
+    f.componentRef.setInput('keyboardInspection', true); f.detectChanges();
+    expect(f.componentInstance.boundInspectionZoom(state)).toEqual({ scale: 1.5, tx: -200, ty: 150 });
+    measure(f, { width: 3000, height: 4000 }); f.componentInstance.measurePane();
+    expect(f.componentInstance.boundInspectionZoom(state)).toEqual({ scale: 1.5, tx: 0, ty: 150 });
+    expect(f.componentInstance.boundInspectionZoom({ ...state, scale: 1 })).toEqual(FIT_ZOOM);
+  });
+
+  it('ends a captured drag at Fit, lost capture, and frame replacement', () => {
+    const f = make({ scale: 2, tx: 0, ty: 0 });
+    const host = f.nativeElement as HTMLElement;
+    const updates: ZoomState[] = []; f.componentInstance.zoomChange.subscribe(state => updates.push(state));
+    const start = () => host.dispatchEvent(new PointerEvent('pointerdown', { button: 0, pointerId: 1, clientX: 0, clientY: 0 }));
+    const move = () => host.dispatchEvent(new PointerEvent('pointermove', { pointerId: 1, clientX: 20, clientY: 10 }));
+    start(); move(); expect(updates).toHaveLength(1);
+    apply(f, FIT_ZOOM); move(); expect(updates).toHaveLength(1);
+    apply(f, { scale: 2, tx: 0, ty: 0 }); start();
+    host.dispatchEvent(new Event('lostpointercapture')); move(); expect(updates).toHaveLength(1);
+    start(); f.componentRef.setInput('frameKey', 'next'); f.detectChanges(); move(); expect(updates).toHaveLength(1);
+  });
+
+  describe('a source that fails to load', () => {
+    function makeFallback(zoom: ZoomState): ComponentFixture<SyncedZoomComponent> {
+      const fixture = make(zoom);
+      fixture.componentRef.setInput('previewFallback', true); fixture.detectChanges();
+      return fixture;
+    }
+
+    function failSource(fixture: ComponentFixture<SyncedZoomComponent>): HTMLImageElement {
+      const img = (fixture.nativeElement as HTMLElement).querySelector('img')!;
+      Object.defineProperty(img, 'currentSrc', { configurable: true, get: () => new URL('/full.jpg', document.baseURI).href });
+      img.dispatchEvent(new Event('error'));
+      fixture.detectChanges();
+      return img;
+    }
+
+    it('falls back to the preview, flags it, and does not report the pane failed', () => {
+      const fixture = makeFallback({ scale: 2, tx: 0, ty: 0 });
+      const states: DisplayedRendition[] = [];
+      fixture.componentInstance.renditionChange.subscribe(state => states.push(state));
+      expect(api(fixture).effectiveSrc()).toBe('/full.jpg');
+      failSource(fixture);
+      expect(api(fixture).effectiveSrc()).toBe('/thumb.jpg');
+      expect(states.some(state => state.phase === 'failed')).toBe(false);
+      expect(states.at(-1)).toMatchObject({ kind: 'preview', fellBack: true });
+    });
+
+    it('tries the source again on retry', () => {
+      const fixture = makeFallback({ scale: 2, tx: 0, ty: 0 });
+      failSource(fixture);
+      fixture.componentInstance.retry(); fixture.detectChanges();
+      expect(api(fixture).effectiveSrc()).toContain('/full.jpg');
+    });
+
+    it('forgets the failure when the preview source changes', () => {
+      const fixture = makeFallback({ scale: 2, tx: 0, ty: 0 });
+      failSource(fixture);
+      expect(api(fixture).effectiveSrc()).toBe('/thumb.jpg');
+      fixture.componentRef.setInput('src', '/thumb-2.jpg'); fixture.detectChanges();
+      expect(api(fixture).effectiveSrc()).toBe('/full.jpg');
+    });
+
+    it('reports the pane failed instead when the host has not opted into the fallback', () => {
+      const fixture = make({ scale: 2, tx: 0, ty: 0 });
+      const states: DisplayedRendition[] = [];
+      fixture.componentInstance.renditionChange.subscribe(state => states.push(state));
+      failSource(fixture);
+      expect(api(fixture).effectiveSrc()).toContain('/full.jpg');
+      expect(states.at(-1)).toEqual({ kind: 'source', phase: 'failed' });
+    });
+  });
+
   it('uses the thumbnail at fit scale and the full-res past it', () => {
     expect(api(make(FIT_ZOOM)).effectiveSrc()).toBe('/thumb.jpg');
     expect(api(make({ scale: 1.5, tx: 0, ty: 0 })).effectiveSrc()).toBe('/full.jpg');
+  });
+
+  it('tracks displayed source settlement and ignores a stale preview load while zoomed', () => {
+    const fixture = make();
+    const states: DisplayedRendition[] = [];
+    fixture.componentInstance.renditionChange.subscribe(state => states.push(state));
+    const img = (fixture.nativeElement as HTMLElement).querySelector('img')!;
+    let current = new URL('/thumb.jpg', document.baseURI).href;
+    Object.defineProperties(img, {
+      complete: { configurable: true, value: true },
+      currentSrc: { configurable: true, get: () => current },
+      naturalWidth: { configurable: true, value: 4000 },
+      naturalHeight: { configurable: true, value: 3000 },
+    });
+    apply(fixture, { scale: 2, tx: 10, ty: 20 });
+    expect(states.at(-1)).toEqual({ kind: 'source', phase: 'loading' });
+    img.dispatchEvent(new Event('load'));
+    expect(states.at(-1)?.phase).toBe('loading');
+    current = new URL('/full.jpg', document.baseURI).href;
+    img.dispatchEvent(new Event('load'));
+    expect(states.at(-1)).toEqual({ kind: 'source', phase: 'ready', width: 4000, height: 3000 });
+    img.dispatchEvent(new Event('error'));
+    expect(states.at(-1)).toEqual({ kind: 'source', phase: 'failed' });
+    fixture.componentInstance.retry(); fixture.detectChanges();
+    expect(new URL(api(fixture).effectiveSrc()).searchParams.get('facet_retry')).toMatch(/-1$/);
+    expect(fixture.componentInstance.zoom()).toEqual({ scale: 2, tx: 10, ty: 20 });
+    expect(states.at(-1)).toEqual({ kind: 'source', phase: 'loading' });
+    img.dispatchEvent(new Event('load'));
+    expect(states.at(-1)?.phase).toBe('loading');
+  });
+
+  it('scopes retry cache bypass to the captured frame and preview source', () => {
+    const fixture = make();
+    fixture.componentRef.setInput('frameKey', 'a');
+    fixture.detectChanges();
+    fixture.componentInstance.retry();
+    fixture.detectChanges();
+    const retried = api(fixture).effectiveSrc();
+    expect(new URL(retried).searchParams.has('ngsw-bypass')).toBe(true);
+
+    fixture.componentRef.setInput('frameKey', 'b');
+    fixture.detectChanges();
+    expect(api(fixture).effectiveSrc()).toBe('/thumb.jpg');
+    fixture.componentRef.setInput('frameKey', 'a');
+    fixture.detectChanges();
+    expect(api(fixture).effectiveSrc()).toBe(retried);
+    fixture.componentRef.setInput('src', '/new-preview.jpg');
+    fixture.detectChanges();
+    expect(api(fixture).effectiveSrc()).toBe('/new-preview.jpg');
+    fixture.componentInstance.retry();
+    fixture.detectChanges();
+    expect(new URL(api(fixture).effectiveSrc()).searchParams.get('facet_retry')).toMatch(/-2$/);
   });
 
   it('zooms in on wheel up and clamps to the max', () => {
@@ -87,14 +296,14 @@ describe('SyncedZoomComponent', () => {
     let fired = false;
     fitted.componentInstance.zoomChange.subscribe(() => (fired = true));
     const a = api(fitted);
-    a.onPointerDown({ clientX: 0, clientY: 0, pointerId: 1, target: document.createElement('div') });
-    a.onPointerMove({ clientX: 20, clientY: 20 });
+    a.onPointerDown({ button: 0, clientX: 0, clientY: 0, pointerId: 1, target: document.createElement('div') });
+    a.onPointerMove({ pointerId: 1, clientX: 20, clientY: 20 });
     expect(fired).toBe(false);
 
     const zoomed = make({ scale: 2, tx: 0, ty: 0 });
     const b = api(zoomed);
-    b.onPointerDown({ clientX: 0, clientY: 0, pointerId: 1, target: document.createElement('div') });
-    const z = emitted(zoomed, () => b.onPointerMove({ clientX: 15, clientY: -10 }));
+    b.onPointerDown({ button: 0, clientX: 0, clientY: 0, pointerId: 1, target: document.createElement('div') });
+    const z = emitted(zoomed, () => b.onPointerMove({ pointerId: 1, clientX: 15, clientY: -10 }));
     expect(z).toEqual({ scale: 2, tx: 15, ty: -10 });
   });
 
@@ -165,8 +374,8 @@ describe('SyncedZoomComponent', () => {
     it('stops re-framing once the user has panned the frame', () => {
       const f = focused({ scale: 2, tx: 0, ty: 0 });
       const a = api(f);
-      a.onPointerDown({ clientX: 0, clientY: 0, pointerId: 1, target: document.createElement('div') });
-      a.onPointerMove({ clientX: 40, clientY: 0 });
+      a.onPointerDown({ button: 0, clientX: 0, clientY: 0, pointerId: 1, target: document.createElement('div') });
+      a.onPointerMove({ pointerId: 1, clientX: 40, clientY: 0 });
 
       apply(f, FIT_ZOOM);
 
@@ -185,8 +394,8 @@ describe('SyncedZoomComponent', () => {
     it('releases the latch when the pane moves to another frame', () => {
       const f = focused({ scale: 2, tx: 0, ty: 0 });
       const a = api(f);
-      a.onPointerDown({ clientX: 0, clientY: 0, pointerId: 1, target: document.createElement('div') });
-      a.onPointerMove({ clientX: 40, clientY: 0 });
+      a.onPointerDown({ button: 0, clientX: 0, clientY: 0, pointerId: 1, target: document.createElement('div') });
+      a.onPointerMove({ pointerId: 1, clientX: 40, clientY: 0 });
 
       f.componentRef.setInput('src', '/next.jpg');
       apply(f, FIT_ZOOM);
@@ -303,6 +512,8 @@ describe('SyncedZoomComponent', () => {
     function browserLoaded(f: ComponentFixture<SyncedZoomComponent>, url: string): void {
       const img = imgEl(f);
       Object.defineProperty(img, 'complete', { value: true, configurable: true });
+      Object.defineProperty(img, 'naturalWidth', { value: 640, configurable: true });
+      Object.defineProperty(img, 'naturalHeight', { value: 480, configurable: true });
       Object.defineProperty(img, 'currentSrc', { value: new URL(url, document.baseURI).href, configurable: true });
       img.dispatchEvent(new Event('load'));
       f.detectChanges();

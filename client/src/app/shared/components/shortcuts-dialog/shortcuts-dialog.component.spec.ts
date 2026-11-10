@@ -65,6 +65,12 @@ describe('ShortcutsDialogComponent', () => {
     ]));
   });
 
+  it('lists the photo page\'s Up/Down collection keys apart from Left/Right, which walk the group or stack first', () => {
+    const rows = rowsBySection()['shortcuts.section_detail'];
+    expect(rows).toEqual(expect.arrayContaining(['shortcuts.navigate=↑ ↓', 'shortcuts.navigate_set=← →']));
+    expect(rows).not.toContain('shortcuts.navigate=← →');
+  });
+
   it('shows a remapped Stack key only in the gallery reference', () => {
     localStorage.setItem(KEYMAP_STORAGE_KEY, JSON.stringify({ ...DEFAULT_KEYMAP, stack: 'g' }));
     try { expect(rowsBySection()['shortcuts.section_gallery']).toContain('shortcuts.stack=G'); }

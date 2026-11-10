@@ -219,7 +219,7 @@ COPY plugins/ plugins/
 COPY storage/ storage/
 COPY sync/ sync/
 COPY validation/ validation/
-COPY facet.py cli_args.py config_resolve.py int_affinity.py licensing.py metric_columns.py database.py viewer.py tag_existing.py validate_db.py calibrate.py diagnostics.py ./
+COPY facet.py cli_args.py config_resolve.py int_affinity.py licensing.py metric_columns.py tag_query.py score_presence.py database.py viewer.py tag_existing.py validate_db.py calibrate.py diagnostics.py ./
 # No scoring_config.json is baked. The sanitized defaults ride along inside the
 # `config` PYTHON PACKAGE that COPY config/ config/ above already brings, and an
 # absent config file that nobody NAMED resolves to exactly those — so `docker run`

@@ -4,6 +4,18 @@
 
 The viewer is a FastAPI + Angular web app for browsing, filtering, culling and managing your photos.
 
+On desktop (1024 px and wider), enabled destinations appear directly in the top bar as space allows. **More** appears only when destinations do not fit and contains the overflow. Resizing, translated labels and account controls are included in the fit calculation. Contextual page actions appear in a row below the destinations. The gallery owns its collection header, which shows the source, query, count, sort and removable active-filter chips. On narrower screens, the menu button opens the same available destinations. On phones the header always shows it, and the title names the current page.
+
+The sticky collection header keeps search, selection and sorting available while scrolling. From 1024 px wide the active criteria row stays with it; on narrower screens that row scrolls away with the photos. **Filters** opens Find, Source, Quality, Technical and Subject; its numeric badge counts active filters and its background shows whether the drawer is open. **Review** opens decision, visibility, rating and favorite controls. **Display** opens layout, thumbnail size, photo-information behavior and slideshow. Each setting has one entry point. On narrow collections, sorting moves into Display. Help opens in anchored popovers without shifting the gallery.
+
+**Header controls.** Search contains only the text query. Photo type is in **Filters**. **Review** contains Suggested stacks and Keep top %; **Display** contains Expand/Collapse stacks. In selection mode, the Select button shows the selected count and a close icon. Narrow phones use two compact rows to keep the collection name and control labels readable.
+
+**Reset display.** Open Display and choose Reset display to restore the configured layout, thumbnail size and inspection mode. The query, sort, album, selection and loaded page stay as they are.
+
+**Collection criteria.** Metadata and visual-search criteria now stay below the collection query when the filter panel closes. Each chip has a named Remove action; clearing a range removes both bounds together. Visual search states how similarity candidates combine with metadata filters and the chosen sort. Favorites retains the other criteria. Decision filters leave visual search; Undecided uses capture-date order, oldest first, as explained before choosing. Visibility rules disclose the effective hiding/grouping settings, including best-of-burst and bracket/panorama representatives; rules suppressed by an Only filter are not shown as active. Fixed photo lists explain that you must return to the usual view before changing criteria.
+
+Escape returns from a gallery-opened photo using history, preserving the collection context. A directly opened photo returns to the saved gallery query instead of leaving the app. An open dialog or editor handles Escape first.
+
 ## Contents
 
 - [Starting the Viewer](#starting-the-viewer) · [Authentication](#authentication) · [Filtering Options](#filtering-options) · [Sorting](#sorting) · [Review decisions](#review-decisions) · [Gallery Features](#gallery-features)
@@ -66,7 +78,7 @@ Protect the viewer with an optional password:
 Two passwords control access:
 
 - **`viewer.password`** decides who may *browse*. Empty means anyone can browse the whole library. Set, users must log in first.
-- **`viewer.edition_password`** is required for every edit: ratings, favorites and rejects, culling, albums, person and face management, comparison mode, weight and priority changes, and exports. Empty (the shipped default) makes the install **read-only**: edits are refused with `403` ("Set viewer.edition_password to enable editing").
+- **`viewer.edition_password`** is required for every edit: ratings, favorites and rejects, culling, albums, person and face management, pairwise training comparisons, weight and priority changes, and exports. Empty (the shipped default) makes the install **read-only**: edits are refused with `403` ("Set viewer.edition_password to enable editing"). The selected-photo comparison workspace is read-only and does not require editing access.
 
 On-demand AI generation (captions, VLM critiques) also needs the edition password. Without it you get only what is already cached (`source: "none"` or `vlm_available: false`). With no edition password, the gallery also hides existing star, favourite and reject badges, as it does for non-edition viewers on a password-protected install.
 
@@ -148,25 +160,23 @@ Gallery text search keeps Unicode words and treats filename punctuation as word 
 
 ### Sidebar Tabs
 
-The filter sidebar groups its sections into five tabs, shown as icons (hover for the name). A small badge on an icon counts the active filters inside that tab, and the tab keeps its name for screen readers ("Browse, 2 active"). The last tab you used is remembered in this browser (`facet_sidebar_tab`). Browse, Quality and Subject keep collapsible panels, each remembering whether it is open; Review and Display have none.
+The filter drawer has five tabs: Find, Source, Quality, Technical and Subject. Review and Display are separate toolbar popovers. The drawer remembers its last tab (`facet_sidebar_tab`); a previously stored Review, Display or Browse tab opens Find. Each filter section remembers whether it is expanded. Measurement availability sits below the Quality metrics, with an icon, chevron and active-policy count.
 
 | Tab | Sections |
 |-----|----------|
-| **Browse** | Semantic Search, Persons, Date Range, Content, Albums, Location, Folder, Equipment |
-| **Review** | One menu row each for the decision, then bursts, duplicates, blinks, brackets, panoramas and rejected, a star rating, Favorites and Monochrome toggles and, for editors, *Manual faces need review* and *Panorama corrections* |
-| **Quality** | Quality, Color & Quality, Extended Quality, Technical, Exposure & Range (how good the image is) |
-| **Subject** | Face Metrics, Composition, Subject Saliency, Moments (what is in the frame) |
-| **Display** | View (card size, layout, fast scrolling, card actions) |
+| **Find** | Semantic Search, Content, Tag Rules, Persons, Moments (what to look for) |
+| **Source** | Date Range, Location, Folder, Albums, Equipment (where, when and with what) |
+| **Quality** | Quality, Extended Quality, Measurement Availability (how good the image is) |
+| **Technical** | Technical, Exposure & Range, Color & Quality (sharpness, exposure, color and noise) |
+| **Subject** | Face Metrics, Composition (scores and the composition pattern), Subject Saliency (what is in the frame) |
 
-The header, **Find a filter**, the smart-album notice and the filename search stay above the tabs on every tab, so `/` works from any of them. Typing in **Find a filter** hides the tabs and lists the matching sliders from all of them.
+The header, **Find a filter**, the smart-album notice and the filename search stay above the tabs on every tab, so `/` works from any of them. Typing in **Find a filter** hides the tabs and lists the matching sliders from all of them. The **Active filters** icon beside it shows only the sections with an active filter, from every tab, expanded and in tab order; its badge counts those filters, and choosing a tab leaves that view. A section whose filter you clear there stays until you leave the view. With no filter set it reads *No filters applied*; when the only filters in use are outside the tabs, such as in Review, it says that none from these tabs are in use.
 
-The count next to **Filters** is the total of all active filters. A min/max range counts once, and so does the location filter. The filename search and *Similar to* have no section, so they are counted in this total only, and so is a filter on a metric this install hides, so that **Reset Filters** can still clear it. **Reset Filters** (with a tooltip) appears next to the count while at least one filter is active; the plain **X** at the far right only closes the sidebar on narrow screens.
+**Tag Rules** has one chip row each for *Any of these*, *All of these* and *None of these*; the rows combine with AND, up to 50 names. Type a tag and press Enter, or pick one of the library's tags from the suggestions; a comma is part of the name. The **Tag** select in Content still picks a single tag. Semantic Search, Tag Rules, the pinned controls and the counts each have a ? icon on their header row that opens their help in a popover.
 
-On the Review tab, the decision and each set (for example Duplicates) is one row showing its current value (such as Hidden, Shown or Only these) that opens a menu of choices, each with a one-line explanation. A row left on its default value does not count toward the tab or header badge. *Only* and *Hidden* exclude each other. While a decision is chosen, Rejected is locked, and its tooltip says why. The star button sets a minimum rating: each click raises it by one, and the click after 5, or after a maximum that came in from a link, clears it. It shares a row with the icon-only Favorites and Monochrome toggles, which have tooltips. On the Quality and Subject tabs, hovering a setting's name explains what is scored and by which model, and the Review controls have tooltips too.
+The numeric count beside **Filters** includes every active criterion, including unavailable metrics. A range counts once. **Reset filters** appears beside the collection chips even for a single active criterion; the drawer does not duplicate it. **X** closes the drawer.
 
-<details><summary>Full filter sidebar — every section expanded (click to view)</summary>
-<p align="center"><img src="screenshots/filter-sidebar-full.jpg" alt="The five filter sidebar tabs side by side: Browse, Review, Quality, Subject and Display" width="900"></p>
-</details>
+In the Review popover, the decision and each set (for example Duplicates) is one row showing its current value (such as Hidden, Shown or Only these) that opens a menu of choices, each with a one-line explanation. A row left on its default value does not count toward the tab or header badge. *Only* and *Hidden* exclude each other. While a decision is chosen, Rejected is locked, and its tooltip says why. A **Star Rating** row opens a menu (Any, 1★ and up through 5★ and up, 0 stars). Below it, the labelled **Favorites Only** and **Monochrome Only** checkboxes have tooltips. On the Quality, Technical and Subject tabs, hovering a setting's name explains what is scored and by which model, and the Review controls have tooltips too.
 
 ### Primary Filters
 
@@ -263,17 +273,25 @@ Use **Review status → Needs review** in the gallery to work through undecided 
 - Temporary burst/sequence groups are not bookmarked, because a rescan can renumber them.
 - Logging out clears every review-queue bookmark on this browser.
 
-**Floating notices.** Review progress, **Continue reviewing**, the hidden-photos notice, the active-filters notice (with **Reset all filters**) and the thumbnail-migration notice stack at the bottom right.
+**Floating notices.** Review progress, **Continue reviewing**, the hidden-photos notice and the thumbnail-migration notice stack at the bottom right. Below 1024 px wide they collapse into one compact bar at the bottom right, as wide as its text, with the notice count and **Dismiss all**: tap the count to expand them, and the collapse button to fold them back. The bar never folds by itself, and stays as you left it until every notice is gone.
 
-- Each card's × hides it for the current browser tab. It returns in a new tab, or when the notice changes (another scope, a changed hidden count, a filter added or removed).
-- To hide review progress for good, use the user menu's **Hide review progress** / **Show review progress**. This is stored per browser and also hides the **Review undecided** button.
-- After a few seconds idle the stack folds into a small count pill. Hover or click it to unfold.
+- Each card's × hides it for the current browser tab. It returns in a new tab, or when the notice changes (another scope or a changed hidden count).
+- To hide review progress for good, untick **Show review progress** in the gallery's **Review** popover. This is stored per browser and also hides the **Review undecided** button. Ticking it again also brings back a banner you closed with its ×.
+- From 1024 px wide, after a few seconds idle the stack folds into a small count pill. Hover or click it to unfold.
+
+**Dismiss all** closes every current notice for this tab without changing filters, review decisions or the saved queue. Cards open and close with a short animation, disabled when reduced motion is requested. A square checkbox and outline identify selected photos; a thin green line along the bottom edge identifies kept photos. Hover it for **Kept**; the same label is available to screen readers.
 
 ## Gallery Features
 
 ### Manual photo stacks
 
 Select **2–1000 explicit photos**, then choose **Stack photos** on the selection bar or press **S** to open the full-page editor at `/stacks/edit`. A whole-view selection cannot create a stack. S opens a preview; it never saves directly. User menu → **Customize shortcuts** changes the gallery binding, and the toolbar tooltip, Help and `?` reference show the current key. If an older saved mapping already uses S, that binding is preserved and Stack starts **Unassigned** until you choose a free key. Editing access is required. A photo belongs to one manual stack per owner. The page centers a zoomable preview above a persistent thumbnail strip. Click a thumbnail or use `←`/`→` to focus a photo, then choose its cover, order or remove controls. Use the zoom button, wheel or double-click to inspect details.
+
+Stack Editor keeps help and source details collapsed initially, and Retry restores focus. Culling uses distinct pane letters on narrow screens. In Junk Sweep, a failed decision restores the card in place.
+
+The editor uses one page scroll, with review errors and Retry beside the footer actions. Reject returns keyboard focus to a remaining photo.
+
+In the full-page editor, Tab reaches the image canvas: +/− changes magnification, arrows pan while zoomed, and Home or F restores Fit. The thumbnail strip has one Tab stop; Left/Right and Home/End move focus and open the reached image. The image readout offers Retry for a failed rendition without saving or changing the stack. After Reject removes a focused thumbnail, focus moves to a surviving member.
 
 Use **Cmd+Shift+S** or **Ctrl+Shift+S** to stack explicit unstacked photos immediately in selection order, with the first selected photo as cover. Existing stack members open the editor for review. Success clears the committed selection, and Undo restores it; cancellation or failure retains it. Escape in the editor returns to the originating gallery without saving.
 
@@ -283,7 +301,7 @@ When selected photos already belong to stacks, **Combine stacks** is the default
 
 Review the server-refreshed preview, then choose **Stack photos** to save. The page stays open to inspect the result; the notification offers **Undo** while it remains available and revisions still match. **Continue editing** fetches a fresh preview before another save. **Back to gallery** returns to the originating gallery or album with its exact URL and expires the previous Undo. Leaving without saving discards grouping changes; an explicit Reject persists. A browser reload restores the selection only for the same account, after fresh authorization; opening the URL without valid selection state offers a way back.
 
-Open the count badge or a stacked photo to browse permitted members in the photo viewer. The thumbnail strip, previous/next buttons and position counter follow stored stack order; arrow keys stay within the stack. **Manage stack** opens a secondary dialog: click a thumbnail or use Left/Right to inspect its large preview, choose **Cover**, reorder with the arrow buttons, or remove members. Opening that editor alone retains ordinary membership editing: removing a member un-stacks it, removing the cover selects the first surviving member, and fewer than two members or **Unstack** dissolves the stack. Explicitly **Add selected photos** from another stack switches to the regroup preview and its two policies. Organization edits preserve files and review values; the separate explicit Reject action changes review values immediately.
+Open the count badge or a stacked photo to browse permitted members in the photo viewer. The thumbnail strip, previous/next buttons and position counter follow stored stack order; `←`/`→` continue through the collection at the stack boundaries, while `↑`/`↓` move along the collection directly. **Manage stack** opens a secondary dialog: click a thumbnail or use Left/Right to inspect its large preview, choose **Cover**, reorder with the arrow buttons, or remove members. Opening that editor alone retains ordinary membership editing: removing a member un-stacks it, removing the cover selects the first surviving member, and fewer than two members or **Unstack** dissolves the stack. Explicitly **Add selected photos** from another stack switches to the regroup preview and its two policies. Organization edits preserve files and review values; the separate explicit Reject action changes review values immediately.
 
 - Rating, Keep/Reject, metadata, download, album and delete actions never expand a stack implicitly.
 
@@ -316,26 +334,35 @@ Open the count badge or a stacked photo to browse permitted members in the photo
 - Category badge
 - Right-click (or Shift+F10) opens the [context menu](#multi-select--bulk-actions)
 
-In photo detail, metrics sit in icon tabs: EXIF data (when present), Quality, Composition (with subject saliency), Technical and Histogram. The last tab you opened is remembered. Each score sits beside its library distribution, with the photo's bar highlighted; hover a bar for the photo's rank and the library range. Placement is computed over the whole library, not the current filters, to the nearest of 20 bars.
+Photo-detail metrics use EXIF, Quality, Composition, Technical and Histogram tabs. The last tab is remembered. A chart button beside each finite score opens its distribution on demand, marks the current photo, and switches between your visible library and the current category. These scopes ignore gallery filters and exclude photos you cannot access. Failed reads offer Retry. Shared-album viewers do not expose library distribution controls.
+
+**Collection sidebar.** On wide screens (1280 px and up), a photo that is in the gallery's loaded collection (outside Timeline navigation) shows those photos in a sidebar on its left, in the same filters and sort. Click a thumbnail to open it; with a thumbnail focused, `↑`/`↓` open the previous or next photo (one photo per key, in one or two columns), and Home/End open the first/last photo in the visible section. `←`/`→` there behave as on the rest of the page. **Load more** fetches the next page. Drag the divider, or focus it and use Left/Right, Home and End, to resize it: one photo per row when narrow, two when wide. The chevron collapses it. The sidebar never changes the gallery's filters, selection or the Back destination. For large loaded collections, use Previous loaded photos and Next loaded photos to move between sections.
+
+Photo-detail sets show and count every file, including both files of a grouped RAW/JPEG pair. The gallery counts that pair as one photo.
 
 ### Multi-Select & Bulk Actions
 
-Click photos to select; Shift+Click selects a range. An action bar appears at the bottom-left with icon buttons (hover for labels). Bulk actions need edition mode.
+Select photos using the selection controls or Space; Shift+Click selects a range on desktop. On a phone, tap Select before tapping photos, and Cancel to leave selection mode. The contextual bar names its targets and offers Clear and Compare; editing access adds Keep/Reject and other write actions. On desktop, **Actions** opens a menu at most two levels deep: Select all and Invert; then **Review** (favorite, reset decision, 1–5 stars, Clear rating), **Add to Album**, **Mark as a set**, **Edit metadata** (capture date, location, tags) and **Download**, a submenu of download types when darktable profiles exist; then Stack photos, Copy filenames, Export to editor, Cull to folder and refresh; last, Remove from Facet and Delete. Without editing access it holds only selection, download and Copy filenames. A command the selection cannot drive, such as Delete on a whole-view selection, stays listed but disabled, and its tooltip says why. On phones, Actions opens the action sheet. Read-only commands retain their ordinary access controls.
+
+The comparison thumbnail strip identifies the reference and lets you choose a candidate directly. The active pane is highlighted independently. Remove from comparison changes this view only, never Keep/Reject or the gallery selection; Restore returns removed photos. One remaining photo stays inspectable. Grid cards with details fit the entire photo into a uniform 4:3 frame; Mosaic keeps justified aspect-ratio rows.
 
 - **Favorite** — mark all as favorite (clears rejected)
 - **Reject** — mark all as rejected (clears favorite and rating)
 - **Rate** — set or clear a 1–5 star rating
 - **Add to album** — add to an existing or new album
-- **Edit tags** — add or remove a [manual tag](#manual-tags) on every selected photo
+- **Edit tags** — preview Add/Remove of one [manual tag](#manual-tags), Replace with one tag per line, or Clear all manual tags. AI tags are preserved.
 - **Select all** — with an empty selection, selects every photo the filters match, not just loaded pages. With photos already selected, it adds the loaded photos and offers to widen to the whole view. Whole-view actions confirm the exact photo count first.
 - **Invert** — swap the selection for its complement. From an empty selection that is the whole view. From a non-empty selection it stays within loaded photos: pick keepers, invert, reject.
-- **Compare** — open 2–4 photos side by side with synced pan and zoom (scroll to zoom, drag to pan, double-click to reset). Panes switch to full resolution when zoomed.
+
+The selection bar counts selected photos outside the loaded tiles; batch actions still target the entire explicit selection. The status line names whole-view exclusions: “All matching photos, except N”. Compare needs 2–100 explicitly selected, loaded photos and never silently opens only part of a selection.
+
+- **Compare** — open 2–100 explicitly selected, loaded photos, with at most four visible panes in the dedicated `/photo-compare` workspace. Click a pane, then a filmstrip thumbnail, to show that photo in it; the hint under the panes names the pane being replaced. Pin promotes a candidate and swaps the former reference into the candidate slot. Two-up keeps that reference while Previous/Next steps through candidates; turning it off restores all remaining panes. Remove changes this view only; Restore brings removed panes back. Inspection starts linked. Unlink to frame photos independently; relinking preserves those crops and applies subsequent relative zoom/pan to the whole set. Reset fits all photos. Zoom with the wheel, double-click or keyboard, and on touch screens with pinch, drag or each pane's −/Fit/+ buttons; with a mouse those buttons are hidden and the pane's status line shows the zoom level; Z toggles the displayed-pixel loupe. Inspect opens stored face/subject crop choices and assessment details. Linked movement does not align subjects. Back or Escape returns to the captured collection query and selection; Escape closes Inspect first. Membership is kept only in this tab's memory, so a reload or direct URL without a valid session returns to the gallery. This workspace never changes ratings, Keep/Reject or gallery membership.
 - **Copy filenames** — copy filenames to the clipboard. A whole-view copy confirms first; over 10 000 photos is refused.
 - **Export** — write XMP sidecars next to the files (see [Editor Export](#editor-export))
 - **Cull to folder** — copy keeps, or move/trash rejects, to a folder (see [Cull to folder](#cull-to-folder))
 - **Delete** — send photos to the OS trash (see [Delete](#delete)). Shown only when `viewer.cull.allow_trash` is on. Disabled for a "select all in view" selection: select photos explicitly.
 - **Download** — download the selected photos
-- Clear the selection with Escape or the Clear button.
+- Clear the selection with Escape or the Clear button. Changing the filters, search or album also clears it, with a notice, so no hidden selection stays the target of an action. Changing only the sort keeps it.
 
 Double-click a photo to open it.
 
@@ -345,6 +372,30 @@ Double-click a photo to open it.
 - On any other photo, it acts on that photo only and adds Open photo, Find Similar, Why This Score?, Write metadata to file and Assign face to person (when the photo has unassigned faces), subject to their gates.
 - Culling one photo from the menu removes only that photo from the selection.
 - Not offered on touch-first devices (`hover: none` and `pointer: coarse`); use the Actions sheet there.
+
+The selected-photo comparison workspace keeps pane identity and the replacement hint visible on phones. Long names retain a distinguishing suffix; the filmstrip has one Tab stop, with Left/Right, Home and End moving focus before Enter assigns a photo. Inspect has its own heading and Close control, moves focus into the panel, and returns it to Inspect when closed. Narrow and coarse-pointer controls have at least 44-pixel targets; steady-state Ready is screen-reader text while image source and failures stay visible. Comparison pan is bounded by each fitted image, including linked panes and resized layouts; Fit, a changed frame or lost pointer capture ends the previous drag. These bounds apply to comparison inspection and preserve the culling shared-frame workflow. Comparison remains read-only: Remove and Restore change this workspace, not ratings, Keep/Reject, gallery membership or the captured Back destination. Linked panes stop at their own image edges and can lose relative alignment. Fit centres and realigns them. On narrow panes, image source and recovery have their own row so Retry cannot overlap the zoom controls. Reference replacement remains available in the filmstrip when the pane caption is too narrow for a pin button.
+
+### Captured edits and inspection
+
+Batch previews freeze the target paths before Apply, including matching folded/offscreen members and excluding deselected photos in a whole-view selection. They distinguish loaded observations from unknown values; an oversized scope is refused rather than truncated. A later selection cannot retarget an accepted edit. Requests commit in bounded chunks, not as one transaction across the entire selection.
+
+Rating offers Set or Clear. Manual tags offer Add, Remove, Replace and Clear; unrelated fields and AI tags remain untouched. Replace/Clear cannot be blindly retried after an uncertain response: reload and inspect the result first. Access or account changes stop new chunks. Starting navigation also stops new manual-tag chunks. A request already sent can still finish.
+
+Inspection belongs to the displayed photo, independently of the selected batch. AI assessments, personal stars, Keep/Reject and a group's suggested best are separate. Missing measurements say Unavailable; zero is a valid measurement. Rendition labels report the decoded image and dimensions, with loading, failure and Retry states. Magnification and the loupe inspect displayed pixels, not RAW sensor data. Histogram provenance distinguishes stored renders from thumbnail estimates. Stored face/subject crops can help manual inspection; unavailable or ambiguous correspondence leaves manual framing available. Linking movement is not subject alignment.
+
+On the opened-photo page, the inspector starts with the review controls, without a title or a rule above them: Keep/Undecided/Reject, then the rating stars with the favorite button on the same row. The three decision segments have visible labels and indicate the current state. The image readout offers **−**, **Fit** and **+** controls; Fit also ends an active pan. Previous/Next buttons step through the current gallery collection and load another page when needed, including when the current collection entry is a stack cover. The stack strip browses within a stack; `←`/`→` continue into the collection at its boundaries. On phones, the filename can wrap and face-box settings are in **More**.
+
+Collection arrows and the position indicator remain available on every stack member, using the loaded stack cover’s collection position. `←`/`→` browse the stack, then continue through the collection at the first or last member. When the gallery shows one frame of a burst, bracket, panorama or duplicate group, the same keys step through the group's frames in the order of its strip, then continue through the collection; a frame the gallery hides keeps the collection position of the frame it shows. When the gallery lists several frames of the group, or the photo is in a stack, the collection order is used instead. On wide screens (1024 px and up), `↑`/`↓` skip the set and move to the previous or next photo of the collection or Timeline. The Photo details panel is laid out like the gallery's details panel: the review controls, the date line and the description fields, then the EXIF, Quality, Composition, Technical and Histogram tabs; Ready remains available to screen readers without adding visual text.
+
+The image position pill explicitly labels the collection. Inspector disclosures show chevrons that turn when expanded. The review controls stay first and, on wide screens, stay pinned at the top while the panel scrolls. Capture date and category share one line; the line under it always shows the capture settings: camera, focal length, aperture, shutter speed and ISO. Caption, Tags, Location and People follow, then the metric tabs and the set, whose strip shows five thumbnails per row at the panel's width. In edition mode, a missing caption, tag or location is a compact **Caption**, **Tag** or **Location** action rather than an empty field; **Tag** opens the tag field, which Escape closes. Read-only views omit empty fields. **Metadata sources** and **Related files** close the panel as an accordion that opens one section at a time. Metadata sources lists Field, Value and Source in a table; a source shared by every field is stated once below it. Related files includes the RAW/JPEG photo grouping directly, without a nested disclosure. Help is a ? icon beside what it explains: image sources and magnification beside the bar under the image, the metadata and related-file help beside their content, and the measurement help on the AI score line. Editing and tag controls have at least 44-pixel touch targets on narrow screens and coarse pointers, while desktop controls remain compact.
+
+On phones, the photo filename has its own full-width row, up to two lines. Very long names retain their beginning and distinguishing suffix. Narrow image readouts keep the source label visible; dimensions remain available to screen readers when they cannot fit. Loading and error text stays visible. Favorite, zoom and header icon controls use at least 44-pixel targets with a coarse pointer.
+
+When a comparison image is zoomed in, a small overview shows the whole photo with a red box marking the visible region. The box follows panning and zooming, including linked panes, and disappears at Fit.
+
+Focus the photo canvas to inspect it with the keyboard: +/− zoom, arrow keys pan while enlarged, and Home fits the image. At Fit, arrows resume photo navigation; Tab leaves the canvas. A single image name is announced while renditions change. Stack thumbnails show the active member and use filenames rather than server paths. The collection thumbnail list has one Tab stop; `↑`/`↓`, Home and End open the photo they reach. On phones the title preserves the start and distinguishing suffix of long filenames. The review controls come first; capture date and category follow them, with an explicit missing-date label. **Analysis** in the header and **Why this score?** on the AI score line both open the score explainer. Long tags wrap within the inspector. Small rendition readouts retain the source label and expose dimensions to screen readers when those dimensions cannot fit visibly.
+
+Enlarged inspection reserves touch drags for panning; Fit restores normal page scrolling. Pan bounds follow the fitted image in each direction, so every edge is reachable at high magnification and zooming out keeps the image within bounds. Long captions and person names wrap within the inspector.
 
 ### Keep Top N%
 
@@ -380,6 +431,7 @@ When an assistant connected through [AI Agents (MCP)](AGENTS.md) shows you an ex
 - The preview lists the exact affected files, 24 per page, with thumbnails and filenames. Click an image to enlarge it. XMP sidecars and unavailable images remain listed. Cancel to change photo decisions; changing an option requires a new preview. The trash confirmation states the number of files, including enabled companions.
 - **The server picks the files from each photo's own state.** Copy acts only on keeps, move/trash only on rejects. Anything else is reported as `excluded_by_state`. The client cannot hand over a list of files to delete.
 - **Companions are opt-in.** Rejecting a JPEG does not take its RAW unless you tick **Include companion RAW / XMP** (`include_companions`).
+- **Companion safety also applies to Delete.** With companions enabled, preview and apply refuse the whole request before any changes if a companion belongs to a hidden indexed photo or the file inventory is unavailable, linked or ambiguous. Inspect the files or disable companions to act only on the selected photos.
 - On macOS and Windows, companion RAW files keep their on-disk names, including uppercase extensions; on Windows, `.xmp` sidecars do too.
 
 **Trash rejects availability.** The "Trash rejects" option appears only when `viewer.cull.allow_trash` is on *and* the `send2trash` package is installed (`/api/config` reports `cull.trash_available: true`). Otherwise the dialog says why: "the `send2trash` package is not installed" or "an administrator disabled trashing".
@@ -413,16 +465,17 @@ Response fields and status codes: [API.md](API.md).
 
 ### Display Options
 
-- **Layout Mode** — **Grid** (uniform cards) or **Mosaic** (justified rows keeping aspect ratios), at every screen width.
+- **Layout Mode** — **Grid** (uniform cards), **Mosaic** (justified aspect-ratio rows), or **List** (metadata rows), at every screen width.
 - **Thumbnail Size** — card/row height slider (120–400px, saved in localStorage)
 - **Hide Details** — hide metadata on cards (grid mode only)
-- **Tile presentation** — square crop (the default) or the photo's original ratio for the detail-less tiles; greyed while Mosaic is active, which already keeps the ratio, or while details are shown.
-- **Tooltip** — two rows. **Show in**: **Popup** or **Side panel** (default). **Show on**: **Off**, **Hover**, **Click** or **Hover or click** (default; side panel only). The menu stays open between picks, and **Off** keeps the place for when details come back on. Below 768px, **Hover** is disabled unless already selected; resizing preserves the saved trigger. On touch devices it is disabled as well, since a tap cannot hover. Where the rail cannot dock, the **Side panel** place shows its details in the floating bubble instead, and **Escape** closes it.
-  - The side panel shows full details in the right-hand drawer, laid out like photo detail. With **Hover or click** it follows both, so it works on touch screens. It keeps the last photo when the cursor leaves the grid.
-  - Clicking a photo holds the panel on it until you press **Deselect** (which also deselects the photo). **Escape** does the same and clears the selection.
-  - A **Why This Score?** entry pinned at the bottom of the panel opens the score explainer (the critique dialog) for the photo the panel holds.
-  - The panel shares the drawer with the filters; opening the filters hides it. It needs a viewport at least 1280px wide.
-  - The **Popup** shows a short bubble: category, aggregate and rank, aesthetic, composition, sharpness, exposure, and one EXIF line.
+- **Thumbnail shape** — square crop (the default) or the photo's original ratio for the detail-less tiles; greyed while Mosaic is active, which already keeps the ratio, or while details are shown.
+- **Tooltip** — how photo details appear: **Side panel** (default), **Hover**, **Click** or **Off**.
+  - The side panel shows full details in the right-hand drawer, laid out like photo detail. Under **Panel activation**, choose **Hover**, **Click**, or **Hover or click** (default). Choose a click-enabled option for touch screens. The panel opens on the first photo you hover, click or move the keyboard cursor to, so until then the grid keeps the full width. It keeps the last photo when the cursor leaves the grid.
+  - Clicking a photo holds the panel on it until you press **Deselect** (which also deselects the photo and closes the panel). **Escape** does the same and clears the selection. When its photo leaves the results (a re-sort or a filter), the panel stays open, empty until the next photo enters it.
+  - A **Why this score?** icon button at the end of the panel's AI score line opens the score explainer (the critique dialog) for the photo the panel holds.
+  - The panel shares the drawer with the filters; opening the filters hides it. It needs a viewport at least 1280px wide. Where the panel cannot dock, a saved **Side panel** setting shows its details in the floating bubble instead, and **Escape** closes it.
+  - **Hover** and **Click** show a short bubble: category, aggregate and rank, aesthetic, composition, sharpness, exposure, and one EXIF line.
+  - Below 768px, **Hover** is disabled unless already selected; resizing preserves the saved trigger. **Hover** is disabled on touch devices as well, here and under **Panel activation**, since a tap cannot hover.
 - **Customize card buttons** — reorder and show/hide the buttons on a card's hover row. Nine actions are available: find similar, why-this-score, write metadata, assign a face, open the duplicate group, burst group, bracket/panorama set or photo stack, and open the photo page. Group buttons appear only on photos in such a group. Duplicate-group and photo-stack buttons are on by default; the others are opt-in. Saved per browser.
 - **Hide Blinks** — hide photos with detected blinks
 - **Blinks Only / Duplicates Only** — show only blinked photos, or every member of each duplicate group. The hide toggles are suspended for that view.
@@ -431,7 +484,7 @@ Response fields and status codes: [API.md](API.md).
 - **Best of bracket** — show only each bracket's base exposure. **On by default.** Independent of Best of Burst, because a bracket's burst lead is not always its base exposure.
 - **Best of panorama** — show only the middle frame of each panorama or HDR-panorama set. **On by default.**
 - **Infinite Scroll** — photos load as you scroll
-- **Fast Scrolling (virtualized)** — renders only rows near the viewport, so deep scrolling stays fast. On by default. Turn it off in the sidebar's Display tab if you hit layout issues. Grid mode with details shown always renders fully. Saved in localStorage (`facet_virtual_scroll`).
+- **Fast Scrolling (virtualized)** — renders only rows near the viewport, so deep scrolling stays fast. On by default. Turn it off in the **Display** popover if you hit layout issues. Grid mode with details shown always renders fully. Saved in localStorage (`facet_virtual_scroll`).
 
 ### Similar Photos
 
@@ -451,9 +504,9 @@ Active filters appear as removable chips with counts at the top of the gallery.
 
 Manual tags are tags you type yourself, kept next to the AI tags. They are stored apart (`photo_manual_tags`, not the photo's `tags` column), so rescans and retags never wipe them.
 
-- **Where they show.** In photo **detail** only, as chips marked differently from AI tags. Cards and tooltips show AI tags.
+- **Where they show.** Photo detail distinguishes manual tags from AI tags. Gallery cards with details and photo tooltips include both kinds in their tag navigation, without duplicate labels.
 - **Who can edit.** Edition users. On an install without `viewer.edition_password` they are read-only. AI tags cannot be removed.
-- **Bulk editing.** Select photos and use **Edit tags** (selection bar, mobile Actions sheet, or context menu) to add or remove one tag. Whole-view selections work. Photos already holding 50 manual tags are skipped; `count` reports photos actually changed.
+- **Bulk editing.** Select photos and use **Edit tags** (**Actions → Edit metadata** on the selection bar, the mobile Actions sheet, or the context menu). Add/Remove changes one tag; Replace takes one tag per line; Clear removes every manual tag. Preview shows the captured targets and known mixed values before Apply, including whole-view selections. Add skips photos already holding 50 manual tags; an invalid Replace is refused before that request writes anything. The API's `count` reports changed tag rows, not photos. AI tags are preserved. Each request is atomic, but a multi-request batch is not; an uncertain Replace/Clear result requires inspection before another attempt.
 - **Format.** Tags are trimmed, lowercased and whitespace-collapsed (NFC). Max 64 characters, max 50 per photo. Empty tags, commas and control characters are rejected. A tag equal to one of the photo's AI tags is not stored.
 - **Search and filters see them.** The tag filter, text search, semantic search (`/api/search`, except the caption-only text scope), the tag dropdown, statistics and sidecar/embed/Lightroom exports all use AI + manual tags. Text search matches a manual tag as a whole phrase.
 - **Exceptions.** Capsules count AI tags only. Manual tags never affect scores, categories or narrative moments.
@@ -474,12 +527,12 @@ A panorama's frames are meant to be stitched and a bracket's to be merged; they 
 **Correcting a set.** Detection gets about 4% of sets wrong. Corrections are sticky: they survive every later detection run. Both need edition mode, at least two frames, and can be undone from the snackbar.
 
 - **False positive** (not a panorama, or plain vs HDR): use the correction menu on the group's action bar in culling.
-- **Missed panorama**: select its frames in the gallery and choose *Mark as a set* → *Mark as one panorama*.
+- **Missed panorama**: select its frames in the gallery and choose *Actions* → *Mark as a set* → *Mark as one panorama*.
 
 **Marking a missed bracket.** For an exposure ladder detected as an ordinary burst:
 
 - In the darkroom, a plain burst group (no frame already in a bracket or panorama) offers *Mark as bracket*.
-- In the gallery selection bar, use *Mark as a set* → *Mark as one bracket*.
+- In the gallery selection bar, open *Actions* → *Mark as a set* → *Mark as one bracket*.
 - The frames must form a real ladder: at least 2 frames, each with exposure data (f-stop, shutter speed, ISO) and a capture date, and no two at the same exposure value. Otherwise the mark is refused with a message and nothing is saved.
 - Marking frames that overlap an existing marked bracket extends it. The combined set must still be a valid ladder.
 - The darkroom feed hides rejected frames, so a darkroom mark never includes a rejected rung.
@@ -487,7 +540,7 @@ A panorama's frames are meant to be stitched and a bracket's to be merged; they 
 - If a marked frame disappears or loses its exposure or date data, the whole set waits until every member qualifies again.
 - **Marking wins over panorama detection**: a detected panorama containing marked frames is dropped on the next run.
 
-**Corrections apply on the next detection run.** A correction is saved at once and shown as pending: a clock badge on the gallery tile, a *Correction pending* chip in culling. The culling page shows a banner with a **Re-run detection** button. The sidebar's *Panorama corrections* filter (edition only, on the Review tab) lists pending corrections library-wide. *Drop the correction* removes one later.
+**Corrections apply on the next detection run.** A correction is saved at once and shown as pending: a clock badge on the gallery tile, a *Correction pending* chip in culling. The culling page shows a banner with a **Re-run detection** button. The toolbar's *Panorama corrections* filter (edition only, in Review) lists pending corrections library-wide. *Drop the correction* removes one later.
 
 **Tuning it.** The Panoramas tab under Compare holds the calibrated thresholds: minimum frames, minimum sweep, longest gap and HDR exposure spread. Saving them changes nothing until you re-run detection (the button is beside Save). See [CONFIGURATION.md](CONFIGURATION.md#panorama-detection).
 
@@ -503,26 +556,32 @@ The dropdown lists persons with face thumbnails. Click one to filter the gallery
 
 Click a person's name to see all their photos at `/person/<id>`. On the Manage Persons page, double-clicking a person card (named, unnamed in Needs naming, or ignored) opens the gallery on that person's photos; double-clicks on the name field, checkbox and buttons are left to them.
 
-**Naming from the gallery.** When the gallery is filtered by a person (`?person_id=95`), that person's chip in the active-filter row shows their face and name, or **Unnamed**, outlined as a nudge; its × (**Remove from filter**) takes the person out of the filter. For edition users, two buttons sit before the ×. **Rename** (the pencil) renames the person in place: the name field reads "Who is this? Type or pick a name" for an unnamed person and "Rename or merge into…" for a named one, its suggestions show each person's face, name and photo count, and **Save** or **Cancel** closes it (Escape cancels too). The name is always saved first (`POST /api/persons/{id}/rename`); when other groups already carry it (case and spaces ignored, whether or not they are among the suggestions), the chip then offers the same merge as the Manage Persons page (see **Rename** below), and after a merge the gallery switches to the person kept. **More** (⋮) opens the person menu: **See all photos of {name}**, **Find more faces of {name}** and **Ignore** (**Restore** for an ignored person). When the gallery's hide toggles keep some of the person's photos out of view, the gallery notices give the hidden count, broken down into burst, blink, duplicate, bracket and panorama photos, so you know to show them before naming.
+**Naming from the gallery.** When the gallery is filtered by a person (`?person_id=95`), that person's chip in the active-filter row shows their face and name, or **Unnamed**, outlined as a nudge (on phones the face alone, with the name as its tooltip); its × (**Remove from filter**) takes the person out of the filter. For edition users, two buttons sit before the ×. **Rename** (the pencil) renames the person in place: the name field reads "Who is this? Type or pick a name" for an unnamed person and "Rename or merge into…" for a named one, its suggestions show each person's face, name and photo count, and **Save** or **Cancel** closes it (Escape cancels too). The name is always saved first (`POST /api/persons/{id}/rename`); when other groups already carry it (case and spaces ignored, whether or not they are among the suggestions), the chip then offers the same merge as the Manage Persons page (see **Rename** below), and after a merge the gallery switches to the person kept. **More** (⋮) opens the person menu: **See all photos of {name}**, **Find more faces of {name}** and **Ignore** (**Restore** for an ignored person). When the gallery's hide toggles keep some of the person's photos out of view, the gallery notices give the hidden count, broken down into burst, blink, duplicate, bracket and panorama photos, so you know to show them before naming.
 
 ### Manage Persons Page
 
-In edition mode the page has two tabs, **Named (N)** and **Needs naming (N)**, and always opens on **Named**. **Needs naming** lists the unnamed clusters, each with a name field; **Named** holds the named persons, with ignored ones in a collapsible **Ignored** section at its bottom. Read-only users see only the named grid. Name suggestions, here as on the gallery's person chip and the photo's face menu, show each person's face, name and photo count. On **Needs naming** the sort menu offers **Face count** and **Newest**. When nobody is left to name, the tab reads "Everyone is named. New faces that need a name will appear here."
+In edition mode the page has four tabs: **Named (N)**, **Needs naming (N)**, **Review matches** and **Unassigned**. It opens on **Named** unless the link specifies another tab. **Needs naming** lists the unnamed clusters, each with a name field; **Named** holds the named persons, with ignored ones in a collapsible **Ignored** section at its bottom. Read-only users see only the named grid. Name suggestions, here as on the gallery's person chip and the photo's face menu, show each person's face, name and photo count. On **Needs naming** the sort menu offers **Face count** and **Newest**. When nobody is left to name, the tab reads "Everyone is named. New faces that need a name will appear here."
+
+**Review matches** and **Unassigned** show each face as a square tile. Faces are grouped in one panel per suggested person, headed with that person's photo, name and face count; on **Review matches** the faces with **No suggested person** come last. Click a tile to select it; a tile with no person yet opens the person chooser instead. A tile shows its similarity to the suggested person, and a warning icon when its face cannot be compared. Each tile's ⋮ menu holds **Open photo in new tab**, the other suggested people when there are several, **Choose person**, **Not** *name* and **Skip for now**. **Select all** in a group's header selects every face in that group. While faces are selected, a bar at the bottom of the screen shows the count, **Clear** and **Review N assignments**, which opens the confirmation. Scrolling to the end of the list loads the next page; after a failed read, **Retry** resumes from that page.
 
 Open it from the header button or `/persons`:
 
 | Action | How To |
 |--------|--------|
 | **Merge** | Select source person, click target, confirm |
-| **Delete** | Click delete button on person card |
-| **Rename** | Click person name to edit inline. When other groups already carry the name (case and surrounding spaces ignored), a confirm shows a tile per person (face, name, face count), all selected, with the person that will be kept marked: the largest of the selected, which keeps its spelling. Deselect a namesake, or cancel, to keep it apart. A merge cannot be undone |
-| **Split** | Open a person's faces, select a subset, split them into a new person |
-| **Find more faces** | The person-search button on a person card, or **Find more faces of {name}** in a person menu, lists faces that look like that person, best match first, scored against the person's centroid (`GET /api/person/{id}/possible_faces`). Under **Whose faces to include**, three chips each show their count: **Ungrouped** and **Unnamed groups**, on by default, and **Named people**, off. A face that belongs to a named person carries a **from {name}** badge, and ticking one shows a warning that adding moves it to this person. Above the faces, **Groups that look alike** lists other clusters whose centroid looks like this person's (the unnamed ones, plus the named ones while **Named people** is on); each shows its picture, its name or **Unnamed group**, its face count and **{percent}% alike**, with **Merge all** to fold the whole group into this person. Merging a named group asks first, and a merge cannot be undone. Each face is badged **Strong** (50 % alike or more) or **Possible**, with its percentage, and **How close a match** sets the threshold: a signal-bars button showing `≥NN%` that opens the level menu, with five levels, **Very strict** 60 %, **Strict** 50 %, **Normal** 35 % (the default), **Loose** 25 % and **Very loose** 20 %. When no face qualifies, the dialog reads "No faces look like {name} (closest: N%)." and offers **Try Loose** or **Include named people**. When a search would compare too many faces, it searches ungrouped faces only; if that is still too many, it asks for a **Year** to search in. **Select all strong**, Shift-click for a range and Space on a focused face speed up ticking, and the Add button shows how many are ticked. Adding recomputes the centroid, so the next round is ranked against what you just confirmed; faces you leave unticked are not offered again while the dialog is open |
-| **Ignore** | Ignore a cluster (staff, strangers): the ⊘ button on a card, also on Needs naming cards. Ignored persons leave the persons list, Needs naming, filters, merge suggestions and Find more, and are listed in the collapsible **Ignored** section at the bottom of the **Named** tab, with **Restore** (`GET /api/persons?hidden_only=true`). It uses the same `is_hidden` flag as before. Ignoring applies at once and shows a notification with **Undo** for 10 seconds, here and in every person menu. |
+| **Delete** | **Delete** in the person card's ⋮ menu |
+| **Rename** | **Rename** in the person card's ⋮ menu edits the name in place. When other groups already carry the name (case and surrounding spaces ignored), a confirm shows a tile per person (face, name, face count), all selected, with the person that will be kept marked: the largest of the selected, which keeps its spelling. Deselect a namesake, or cancel, to keep it apart. A merge cannot be undone |
+| **Split** | **Split** in the person card's ⋮ menu: select a subset of the person's faces and split them into a new person |
+| **Find more faces** | **Find more faces** in a person card's ⋮ menu, or **Find more faces of {name}** in a person menu, lists faces that look like that person, best match first, scored against the person's centroid (`GET /api/person/{id}/possible_faces`). Under **Whose faces to include**, three chips each show their count: **Ungrouped** and **Unnamed groups**, on by default, and **Named people**, off. A face that belongs to a named person carries a **from {name}** badge, and ticking one shows a warning that adding moves it to this person. Above the faces, **Groups that look alike** lists other clusters whose centroid looks like this person's (the unnamed ones, plus the named ones while **Named people** is on); each shows its picture, its name or **Unnamed group**, its face count and **{percent}% alike**, with **Merge all** to fold the whole group into this person. Merging a named group asks first, and a merge cannot be undone. Each face is badged **Strong** (50 % alike or more) or **Possible**, with its percentage, and **How close a match** sets the threshold: a signal-bars button showing `≥NN%` that opens the level menu, with five levels, **Very strict** 60 %, **Strict** 50 %, **Normal** 35 % (the default), **Loose** 25 % and **Very loose** 20 %. When no face qualifies, the dialog reads "No faces look like {name} (closest: N%)." and offers **Try Loose** or **Include named people**. When a search would compare too many faces, it searches ungrouped faces only; if that is still too many, it asks for a **Year** to search in. **Select all strong**, Shift-click for a range and Space on a focused face speed up ticking, and the Add button shows how many are ticked. Adding recomputes the centroid, so the next round is ranked against what you just confirmed; faces you leave unticked are not offered again while the dialog is open |
+| **Ignore** | Ignore a cluster (staff, strangers): **Ignore** in a card's ⋮ menu, also on Needs naming cards. Ignored persons leave the persons list, Needs naming, filters, merge suggestions and Find more, and are listed in the collapsible **Ignored** section at the bottom of the **Named** tab, with **Restore** (`GET /api/persons?hidden_only=true`). It uses the same `is_hidden` flag as before. Ignoring applies at once and shows a notification with **Undo** for 10 seconds, here and in every person menu. |
 
 ### Faces on the photo
 
-In the photo view, a box shows around each detected face while the pointer is over the photo, and hovering a face shows its name (red box: not named yet). Boxes follow zoom and pan, and dragging or double-clicking on a face still pans or resets the zoom. An unnamed face's box is also dashed, so it does not rely on colour, and every box has a dark outline to stay visible on any background. Unless the boxes are **Off**, Tab moves between faces from the keyboard, each announced by its name (or as an unknown face), and Enter or Space opens its menu. On a touch screen a tap opens a face's menu only while the boxes are shown (the boxes are set to **Always**, or, unless they are **Off**, the face belongs to the person the gallery is filtered to); otherwise a tap on the photo does nothing to the face. In edition mode, clicking a face opens a menu: **Change person…** (or **Name this face…**) to pick an existing person or type a new name, **Find more faces of …** for that person (see Find more faces above), and **Not …** to take that one face off that person (`POST /api/face/{id}/unassign`); the person's other faces in the photo stay theirs. Faces whose stored dimensions cannot be trusted are not drawn. The boxes come from `GET /api/photo/faces`, which returns each face's `box` normalised to the frame. Any face that belongs to a person, named or not, also offers **See all photos of …** (or **See all photos of this group**), which opens the gallery filtered to that person; this one works in read-only mode too. A toolbar button cycles the face boxes through three states, remembered per browser: **Off** (no boxes, and faces cannot be clicked or focused), **On hover** (the default, as described above) and **Always** (every box and name stays shown). When the gallery is filtered to a person, that person's faces stay boxed with a thicker line, unless the boxes are **Off**. **Use as …'s picture** makes the clicked face the person's card picture; a person that gains faces without having a picture gets its most confident one automatically. In the gallery, when it is filtered to one person, each thumbnail outlines that person's face in red, so a cluster's photos show which face it is about before you name it. In the right panel's **Persons** list, clicking a person's avatar opens the same menu as clicking that face's box, even when the boxes are **Off**; **See all photos of …** in that menu opens the gallery.
+In the photo view, a box shows around each detected face while the pointer is over the photo, and hovering a face shows its name (red box: not named yet). Boxes follow zoom and pan, and dragging or double-clicking on a face still pans or resets the zoom. An unnamed face's box is also dashed, so it does not rely on colour, and every box has a dark outline to stay visible on any background. Unless the boxes are **Off**, Tab moves between faces from the keyboard, each announced by its name (or as an unknown face), and Enter or Space opens its menu. On a touch screen a tap opens a face's menu only while the boxes are shown (the boxes are set to **Always**, or, unless they are **Off**, the face belongs to the person the gallery is filtered to); otherwise a tap on the photo does nothing to the face. In edition mode, clicking a face opens a menu: **Change person…** (or **Name this face…**) to pick an existing person or type a new name, **Find more faces of …** for that person (see Find more faces above), and **Not …** to take that one face off that person (`POST /api/face/{id}/unassign`); the person's other faces in the photo stay theirs. Faces whose stored dimensions cannot be trusted are not drawn. The boxes come from `GET /api/photo/faces`, which returns each face's `box` normalised to the frame. Any face that belongs to a person, named or not, also offers **See all photos of …** (or **See all photos of this group**), which opens the gallery filtered to that person; this one works in read-only mode too. A toolbar button cycles the face boxes through three states, remembered per browser: **Off** (no boxes, and faces cannot be clicked or focused), **On hover** (the default, as described above) and **Always** (every box and name stays shown). When the gallery is filtered to a person, that person's faces stay boxed with a thicker line, unless the boxes are **Off**. **Use as …'s picture** makes the clicked face the person's card picture; a person that gains faces without having a picture gets its most confident one automatically. In the gallery, each selected person has a colored chip border and matching face outlines on thumbnails. **Display → Show person face outlines** hides or restores these outlines without changing filters; the preference is remembered in this browser. In the right panel's **Persons** list, clicking a person's avatar opens the same menu as clicking that face's box, even when the boxes are **Off**; **See all photos of …** in that menu opens the gallery.
+
+For an advertisement or a false detection, open the face box menu and choose **Ignore this detection**. Only that detection is removed from face overlays, people and recognition matching; the photo and its quality scores are unchanged. **Undo** is available for 10 seconds. The correction survives extraction while the original image and recognition model match. A replacement image or an unverified relink is not suppressed. Ignoring a person group remains a separate action.
+
+Refreshing a viewer database that contains active detection corrections requires the original photos to be mounted; configured path mappings are respected. If originals are offline, refresh is refused before changing the destination database.
 
 ### Mark a missed face
 
@@ -554,7 +613,7 @@ Start a scan from the browser. The Scan button appears when **both** hold:
 
 On an open single-user install (empty `viewer.edition_password`, the default), nobody can scan from the browser. Exception: under `viewer.trusted_local_editing`, a trusted-local browser session, or a local assistant with a Full-editing token, can scan without `show_scan_button` or an edition password.
 
-The button sits on the empty gallery (**Scan photos to get started**) and at the end of the header (**Scan for new photos**; bottom bar on small screens). Both open the scan launcher:
+The empty gallery offers **Scan photos to get started**. **Scan for new photos** is also available in the global navigation area at every width. Both open the scan launcher:
 
 - Pick a directory from the list and start the scan.
 - Live progress and output lines stream into the dialog. The gallery refreshes when the scan ends.
@@ -586,6 +645,8 @@ Results report `similarity` (the blended score) and `embedding_similarity` (the 
 
 Organize photos into named albums at `/albums`. Controlled by `viewer.features.show_albums` (default: `true`).
 
+A failed album list or client-picks read shows an error and Retry; an empty result and a filter with no matches are shown separately. Create, edit and delete failures are reported without discarding your input.
+
 ### Manual Albums
 
 Create albums and add photos from the gallery with multi-select. Albums support:
@@ -597,6 +658,8 @@ Create albums and add photos from the gallery with multi-select. Albums support:
 ### Smart Albums
 
 Save a filter combination (camera, tag, person, dates, score thresholds…) as a smart album. It updates as new photos match. The filters are stored as JSON in `smart_filter_json`.
+
+Filtering an open album changes the working view only. Its rules disclosure distinguishes manual membership, saved smart criteria and temporary refinements. Preview and Save explicitly update supported smart rules; Reset restores saved rules without changing membership. Unsupported criteria are refused rather than silently omitted. Save checks the current server rules first, but is not a server-side compare-and-swap. Read-only viewers can refine and reset the view without saving rules.
 
 ### Scoring Context
 
@@ -673,7 +736,7 @@ The dialog also tells a photo that is *not scored yet* from one whose *stored sc
 Uses the configured VLM (Qwen3.5-2B or Qwen3.5-4B) for a context-aware critique. Needs the 12gb, 16gb or 24gb profile, `viewer.features.show_vlm_critique` set to `true` (the default) and an edition session to generate. Without edition, only a cached critique is shown and `vlm_available` is `false`. The dialog generates through `POST /api/critique/vlm` (edition only; concurrent requests for one photo share a single generation); `GET /api/critique` only reads what is cached and never generates, translates or writes.
 
 - The prompt (`critique.vlm`) includes the score breakdown, stored and recalculated scores, detected conditions and EXIF.
-- The reply reads **Observation / Assessment / Suggestions**. It is cached per photo (`photos.vlm_critique`), translated when an edition session opens it in the target language (stored then, and served as stored thereafter), and **Regenerate** recomputes it. Without an edition session you see the untranslated text unless a stored translation already exists.
+- The reply reads **Observation / Assessment / Suggestions**. It is cached per photo (`photos.vlm_critique`). Opening the explainer only reads the cached text; an edition session generates it with **Generate AI commentary**, translates a stored critique into the target language with **Translate stored AI commentary** (stored then, and served as stored thereafter), and **Regenerate** recomputes it. Without an edition session you see the untranslated text unless a stored translation already exists.
 - It runs on the stored thumbnail, so RAW files work.
 
 **Visual "why this score" overlay.** With `viewer.features.show_saliency_overlay` on (default `true`), the critique dialog has **Show overlay**. It draws the BiRefNet saliency map as a heatmap (`GET /api/saliency_overlay`), plus face boxes and eye markers from stored landmarks (`GET /api/photo/face_markers`). Boxes are green for open eyes, amber for a blink. The heatmap is thumbnail-resolution, so it is approximate. The toggle hides on profiles that cannot produce a saliency mask.
@@ -708,9 +771,15 @@ Controlled by `viewer.features.show_memories` (default: `true`).
 
 ## Timeline View
 
-Browse chronologically: years drill down to months, then to a calendar of days. Each tile shows a photo count and a cover photo. Click a day to open the gallery filtered to that date; sort there.
+Browse chronologically: years drill down to months, then to a calendar of days that fills the width and height left under the toolbar. Each tile shows a photo count and a cover photo. Click a day to open the gallery filtered to that date; sort there.
 
 The five gallery hide toggles (`hide_blinks`, `hide_bursts`, `hide_duplicates`, `hide_brackets`, `hide_panoramas`) apply, defaulting to `viewer.defaults`, so tile counts match what the gallery shows. When something is hidden, a `visibility_off` button appears in the toolbar ("Some photos are hidden by your filters"); click it to clear all five.
+
+**Toolbar.** The bar under the navigation holds, from the left: the breadcrumb and the photo count of the current scope, the **Photos** / **Calendar** toggle, **Jump to month** and the sort direction (Photos view), **Dates** for a capture-date range, the date-density toggle and, when a range is set, its chip. On small screens the top row keeps the breadcrumb, the count and the range chip, and the other controls move to a bar at the bottom of the screen: Jump to month, the sort direction, **Dates** (marked with a dot while a range is set), the date-density toggle and the **Photos** / **Calendar** toggle. The **Photos** / **Calendar** choice is remembered per browser.
+
+**Date density.** A strip of bars above the photos counts them per year, month or day of the current scope. Click a bar to drill into it. To filter the capture dates to a range, drag across bars, or Shift+click the first and then the last bar; with the keyboard, the left and right arrows move between bars, Shift plus an arrow extends a range, Enter applies it and Escape cancels. Inside a year or a month, **Period** switches between months (days, inside a month) and ISO weeks; the `show_chart` button switches to a log scale. The `bar_chart` button in the toolbar hides the strip, remembered per browser. Below 1024 px wide the strip's controls sit above the bars, and the bars share the width instead of scrolling, with a label every few bars. On a touch screen, slide a finger along the bars to read each count above them and lift it to drill into the bar under it, or lift it off the bars to cancel; hold, then slide, to select a range, applied when you lift.
+
+**Days.** Each day is a card of up to eight previews. From 1280 px wide days sit two side by side, three from 1536 px; a day with more than four previews takes the full width.
 
 Open `/timeline`. Controlled by `viewer.features.show_timeline` (default: `true`).
 
@@ -840,10 +909,12 @@ Find person clusters that may be the same person. Open `/merge-suggestions` or g
 
 Write ratings, favorites and rejects to XMP sidecars so darktable, Lightroom and other editors pick them up. Requires edition mode.
 
-- **From the gallery** — select photos, then **Actions → Export** writes a sidecar next to each file.
+- **From the gallery** — select photos, then open **Actions → Export**.
 - **From an album** — export the whole album as sidecars, or copy/symlink its files to a folder (same allow-list as [Cull to folder](#cull-to-folder)). Albums use their stored membership, smart albums included.
 - **Write metadata to file** — in photo detail, embeds rating and keywords into the original (JPEG/HEIC/TIFF/PNG/DNG via exiftool) as well as writing the sidecar. Proprietary RAW files are never modified. Controlled by `viewer.features.show_embed_metadata` (default: `true`).
 - **Lightroom** (edition mode) — **Download Lightroom manifest** saves `facet_manifest.json` for the dialog's selection, for the `facet.lrplugin` **Facet: Apply ratings and flags...** step. **Import Lightroom state…** reads the `facet_lightroom_state.json` from the plug-in's **Facet: Export Lightroom State to Facet...** menu (Lightroom wins for rating and pick/reject) and reports matched/unmatched/changed counts. No `--import-lightroom` run is needed. See [Lightroom Classic](INTEROP.md#lightroom-classic).
+
+**Preview before writing.** Choose the export options, then **Preview export**. Expand the file entries to check destinations and metadata, then choose **Confirm export** to start the job. The preview itself writes no files. If the confirmation response is lost, check its receipt in the dialog before starting another export.
 
 **Limits and progress.**
 
@@ -851,7 +922,7 @@ Write ratings, favorites and rejects to XMP sidecars so darktable, Lightroom and
 - Exports run in the background, with progress and written/skipped/error counts. **Stop after current file** cancels between files; completed sidecars stay.
 - Only one library job runs at a time. While an export runs, scans, recomputes and automatic retraining wait or are refused, and an export is refused while one of them runs.
 - Closing the dialog stops watching progress, not the export.
-- Reopen Export to editor to see your 20 most recent exports. **Retry unfinished files** starts a new job for failed, skipped and unprocessed files. A file interrupted mid-write may be written again.
+- Reopen Export to editor to see your 20 most recent exports. **Preview unfinished files** previews failed, skipped and unprocessed files. Review that preview and choose **Confirm export** to start a new job. A file interrupted mid-write may be written again.
 
 ## Download
 
@@ -861,11 +932,21 @@ Download photos from photo detail or the selection bar. The per-photo download m
 - **darktable** (`darktable`) — the companion RAW converted with a named darktable profile. Falls back to the original if there is no companion RAW.
 - **RAW** (`raw`) — the companion RAW file as-is. Not available in shared albums.
 
+A newly added RAW companion can take up to five minutes to appear in this menu.
+
 **Saliency-aware social crop.** With `viewer.features.show_social_export` on (default `true`) and edition unlocked, the photo detail download bar has a **Social crop** menu. It lists `social_export.presets` (square 1:1, portrait 4:5, story 9:16 by default). Choosing one downloads a full-resolution JPEG cropped to that aspect and centered on the subject. The subject comes from the BiRefNet subject box (`photos.subject_bbox`, from `--recompute-saliency`), else the detected faces, else the center. The menu tooltip shows which was used (`saliency` / `faces` / `center`).
 
 Endpoints: [API.md — Download](API.md#download).
 
 ## Culling
+
+The darkroom shows the focused filename and offers Keep, Reject and Confirm actions in single view. Keep and Reject update the group draft; Confirm uses the existing deferred confirmation and Undo. Arrow keys and zoom shortcuts remain available after a toolbar button takes focus, while inputs and modified keys retain their native behavior. Narrow and coarse-pointer controls have 44-pixel targets. On phones, Fullscreen is in Inspect.
+
+The countdown Cancel has a touch-sized target and restores focus. Loupe magnification is labeled.
+
+An empty keeper draft disables Confirm in both the contact sheet and darkroom; confirmation shortcuts explain what is missing. Reopening a pending group shows its countdown and Cancel action. After the last darkroom confirmation, focus returns to that countdown. Narrow four-up views use compact headers, and the phone loupe adjustment has its own toolbar row.
+
+During a confirmation countdown, the captured keeper set cannot be edited; Undo restores editing. With no keepers, ordinary Confirm is disabled and explains why. Reject entire group remains a separate confirmation flow.
 
 The culling page (`/culling`, edition mode) groups near-identical shots so you keep the best of each and reject the rest. Pick the keeper(s) in each group; confirming rejects the others. Confirms are deferred and can be undone (see [Undo](#undo)).
 
@@ -873,7 +954,8 @@ The culling page (`/culling`, edition mode) groups near-identical shots so you k
 
 - **All** (default) — bursts and similar groups merged.
 - **Bursts** — photos shot close together in time.
-- **Similar** — photos that look alike whatever their time, by CLIP/SigLIP similarity. A slider sets how strict.
+- **Similar** — photos that look alike whatever their time, by CLIP/SigLIP similarity. A slider sets how strict (lower finds looser look-alikes). A scene larger than `similarity_groups.max_group_size` is split at a stricter threshold instead of dropped, and a card that shows fewer photos than its group holds says "N of M photos shown".
+- **Look-alikes** — a second look at near-duplicates the other views leave out. Facet scores *pairs* of photos from three signals: how alike they look (the stored image embeddings), near-identical content (the perceptual hash, which catches re-saves and resizes) and how close in time they were taken (on the same camera). It also reads photos that were already reviewed or sit inside a burst, so a new shot that resembles an earlier keeper finally meets it: the earlier keeper starts out kept and the card says "one kept earlier". Each card lists its evidence ("96% alike · 10 s apart · same camera"). A frame of a bracket or panorama set is never paired (those sets are kept whole), and pairs that share a burst or whose photos are both already decided are left out; each photo appears in one pair, strongest match first. Nothing here is automatic: there is no auto-cull, sort or threshold, and confirming a pair works like confirming a similar group.
 - **Scenes** — chronological capture-time runs, each headed by its time span and main narrative moment. Needs `viewer.features.show_scenes`.
 - **Exposure brackets** — sets found by [`--detect-sequences`](COMMANDS.md), base exposure first, each frame badged with its compensation (`-2 EV` … `+2 EV`).
 - **Panoramas** — sweeps found by [`--detect-panoramas`](COMMANDS.md), in capture order, middle frame marked.
@@ -885,7 +967,9 @@ A group left with fewer than 2 frames after already-rejected photos are removed 
 
 **Sorting.** The **sort mode** (easiest first, most redundant, best, most recent, needs comparisons, **oldest first**) sits beside the granularity, with an arrow button that reverses it. Oldest first also orders photos *inside* each group by capture time, which suits brackets and pans.
 
-Granularity, sort and category persist in `localStorage`. Controls that don't apply are hidden (no sort or threshold in scene mode; no scope button without manual albums). On small screens the toolbar becomes a scrollable bottom bar.
+Granularity, sort and category persist in `localStorage`. Controls that don't apply are hidden (no sort or threshold in scene mode; no scope button without manual albums). Below 1024 px wide the toolbar becomes a bottom bar whose controls wrap onto further rows, with **Confirm all** on the last one.
+
+**Frame size.** Frames are sized to the width available. A group of up to four sits in one row; a larger group flows into a grid of frames at least 224 px wide. On phones the frames stack, one per row. Every frame shows the whole photo, uncropped.
 
 **Trash all rejects (to OS trash).** This toolbar button previews every rejected photo visible to you across the library, hidden frames included. It ignores album, date and gallery filters. **Apply** sends the files to the OS trash on the Facet machine. Unlike **Delete**, library rows and decisions stay, for My Taste.
 
@@ -912,6 +996,8 @@ Granularity, sort and category persist in `localStorage`. Controls that don't ap
 **Genre profiles.** The **Profile** selector applies a genre preset that sets strictness, keeper budget, similarity threshold and the eyes-closed / poor-expression face cutoffs at once. Sports keeps only the sharpest of a burst, weddings keep more eyes-open variants, concerts and wildlife relax the face gates. The choice and the strictness slider persist in `localStorage`. Changing a knob by hand shows "Custom". Presets live in [`cull_profiles`](CONFIGURATION.md#genre-aware-culling-profiles) (`GET /api/culling/profiles`).
 
 ### Auto-cull
+
+Existing ratings, favorites, keep and reject decisions are preserved by default. API and MCP callers can set `decision_policy` to `replace` to reconsider them.
 
 **Auto-cull** in the toolbar culls a whole scope in one pass.
 
@@ -998,8 +1084,8 @@ In the culling lightbox, each face carries its own badges: eyes open/closed, poo
 A **read-only** view of the library as chronological scenes, in story order with date/moment headers and a hover loupe. Open to **all authenticated users**.
 
 - A new scene starts when more than `scenes.gap_minutes` pass between shots (widened on sparse shoots). Very long runs are split.
-- Open it from an album's **Display scenes of this album** action in the Albums grid; a picker switches albums. There is no Scenes item in the main nav.
-- Each scene has an edition-only **Cull this scene** button that opens [Culling](#culling) on that scene (`/culling?group_by=scene&album=&from=&to=`).
+- Open **Scenes** in the main nav for the whole library, or an album's **Display scenes of this album** action in the Albums grid; a picker switches albums. The nav item follows `viewer.features.show_scenes`.
+- Each scene has an edition-only **Cull this scene** button that opens [Culling](#culling) on that scene (`/culling?group_by=scene&album=&from=&to=`). Once every group of the scene is confirmed, Culling moves on to the next scene in this list and names it; after the last one it returns here. A failed confirm stays on the scene.
 - With narrative moments computed, each scene is titled by its main moment, and `scenes.split_on_moment_change` can split a run where the moment changes.
 - Scenes smaller than `scenes.min_size` are omitted; at most `scenes.max_photos` photos load.
 
@@ -1019,16 +1105,21 @@ Facet labels each photo with the activity it shows. The default **general** voca
 
 ## Junk Sweep
 
-A quick review queue for screenshots, scanned documents, receipts, memes and slides. Run `python facet.py --detect-junk` (it also runs after each scan) to fill `junk_kind`. See [Configuration — Junk Sweep](CONFIGURATION.md#junk-sweep).
+A quick review queue for screenshots, scanned documents, receipts, memes and slides. Run `python facet.py --detect-junk` (it also runs after each scan) to fill `junk_kind`. With nothing to review, the page says what the queue collects and gives that command for checking the whole library now. See [Configuration — Junk Sweep](CONFIGURATION.md#junk-sweep).
 
 Open **Junk Sweep** in the nav (`/junk`, edition only):
 
-- **Kind filter chips** — "All kinds" plus one chip per kind with its count (`GET /api/filter_options/junk_kinds`).
+- **Kind menu** — “All kinds” plus each kind’s remaining candidate count (`GET /api/filter_options/junk_kinds`), excluding this reader’s rejected photos.
+
+The page title, Reject all button and loupe magnification are visible. A failed decision reports that it was not saved; focus returns to the queue after a decision or Retry.
+
 - **Candidate count** — counts down as you decide.
 - **Keep** — removes the photo from the queue **for good** (`not_junk`); later `--detect-junk` runs skip it.
 - **Reject** — marks the photo rejected (nothing is deleted).
 - **Reject all shown** — rejects every loaded candidate, after confirmation.
 - **Loupe** — press **`Z`** (or the toolbar toggle) to magnify fine text.
+
+Keep and Reject stay visible with named, touch-sized controls. A failed read shows Retry rather than an empty queue; Load more retries the failed page and accounts for candidates removed by your decisions. While rejecting all shown candidates, conflicting decisions are disabled. Changing the account or leaving the page stops later write batches; a batch already accepted by the server is not undone.
 
 Junk photos stay visible in the normal gallery. Filter for them with `?junk_kind=<kind>` or `?junk_kind=any` (excludes `not_junk`).
 
@@ -1095,7 +1186,7 @@ The photo lightbox has the same actions under **Set scoring category…** / **Cl
 
 ## EXIF Statistics
 
-The Stats page (`/stats`) has 5 tabs. The **category** and **date range** selectors filter every chart. In multi-user mode each user sees statistics for their own visible photos.
+The Stats page (`/stats`) has 5 tabs. Its overview shows photo, person and face counts and the average score; the filters are available on mobile as well as desktop. The **category** and **date range** selectors filter every chart. In multi-user mode each user sees statistics for their own visible photos.
 
 ### Tabs
 
@@ -1105,7 +1196,7 @@ The Stats page (`/stats`) has 5 tabs. The **category** and **date range** select
 | **Shooting Settings** | ISO, aperture, focal length, shutter speed distributions |
 | **Timeline** | Photos over time |
 | **Categories** | Category analytics, weight management, and score correlations |
-| **Correlations** | Custom X/Y metric correlation charts with grouping |
+| **Correlations** | Custom X/Y metric correlation charts with grouping. Opens on scores by year, and suggested charts (noise vs ISO by camera, score by category, score by focal length) fill in the form and draw in one click. Until you edit the form, a filter change redraws the chart; after an edit, the **Load Correlations** refresh button does |
 
 In **Correlations**, changing a query option clears the previous result; press **Load** to fetch the new selection before exporting CSV. The chart and CSV describe the same loaded selection. Changing the chart style or theme keeps that selection.
 
@@ -1148,29 +1239,35 @@ Single-key shortcuts are inactive while focus is in a text field, menu or list.
 | `Shift+Click` | Range-select photos between last selected and clicked |
 | `Double-click` | Open photo |
 | `Shift+F10` / `Menu` | Open the context menu of the focused photo card (right-click does the same) |
-| `1`–`5` | Rate the focused photo 1–5 stars (edition mode; auto-advances to the next photo) |
+| `1`–`5` | Rate the focused photo 1–5 stars (edition mode) |
 | `K` | Keep the focused photo (edition mode) |
 | `F` | Favourite / unfavourite the focused photo (edition mode) |
-| `X` or `0` | Reject / un-reject the focused photo (edition mode; auto-advances) |
-| `/` | Focus the toolbar search (shown from 1360 px wide); narrower, opens the filter sidebar's search |
+| `X` or `0` | Reject / un-reject the focused photo (edition mode) |
+| `/` | Focus collection search; reveal it first on a narrow screen |
 | `S` | Open the stack editor for the explicit selection (edition mode; remappable, can be left Unassigned) |
 | `Ctrl+Shift+S` / `Cmd+Shift+S` | Stack the explicit unstacked selection at once in selection order, the first photo as cover (edition mode; existing stack members open the editor) |
 | `B` | Show / hide the filter sidebar |
-| `V` | Switch between grid and mosaic layout |
+| `V` | Cycle through grid, mosaic and list layouts |
 | `?` | Show the keyboard shortcuts reference (every page; also in user menu → Help) |
+
+**Advance after saving** in the view controls is off by default. Turn it on to move to the next photo after a successful rating, Keep or Reject shortcut. It applies to the current session; changing the photo, collection or account while saving prevents automatic advancement.
 
 **Remap keys.** `K`, `F`, `X`, `/`, `B`, `V` and `S` are defaults. User menu → **Customize shortcuts** lets you click an action and press a new key (`Esc` or `Tab` cancels). Digits, `Space` and `?` are reserved, and a key already in use is refused. **Reset all** restores the defaults. The mapping is stored per browser (`localStorage`). The photo page uses the same keys, and the `?` reference always shows the keys in effect.
 
-**Current photo.** The photo that rating, favorite and reject keys act on has a 4px outline; other cards dim to 50%. Nothing is marked until you move onto a photo. Clicking a photo moves the marker to it. Returning from a photo leaves the marker on the last one you viewed. The focused-card hint appears only in edition mode with `viewer.features.show_rating_controls` on.
+**Current photo.** The photo that rating, favorite and reject keys act on has a 4px outline; other cards retain their normal brightness. Nothing is marked until you move onto a photo. Clicking a photo moves the marker to it. Returning from a photo leaves the marker on the last one you viewed. The focused-card hint appears only in edition mode with `viewer.features.show_rating_controls` on.
 
-**On the photo page**, `1`–`5`, the favourite key and the reject key (`F` and `X` by default; `0` also rejects) act on the open photo, in edition mode with `viewer.features.show_rating_controls` on. They do not advance; use `←` `→`. The `?` reference lists them under *Photo view*.
+**On the photo page**, `1`–`5`, the favourite key and the reject key (`F` and `X` by default; `0` also rejects) act on the open photo, in edition mode with `viewer.features.show_rating_controls` on. Ratings and favorites stay on the current photo. Keep/Reject in a gallery review queue refreshes that queue and opens the next available photo, or returns to the gallery when none remain. Timeline photos do not advance this way. Use `←` `→` for manual navigation (outside Timeline they step through the open photo's group or stack first), or `↑` `↓` on wide screens. The `?` reference lists them under *Photo view*.
+
+Use **Copy image** to copy a PNG rendition of the photo for pasting into another app. This copies image pixels, not the original file or its metadata; use Download for the original. Clipboard access requires a supported browser and a secure connection.
 
 ## Undo
 
-Batch favorite/reject/rating changes and culling confirms show a snackbar with **Undo** for ~7 seconds.
+Batch favorite/reject/rating changes and deferred culling confirms show a snackbar with **Undo** for ~7 seconds.
 
 - Batch flag changes apply at once and are undone by reversing them (up to 500 photos).
+- Rating Undo restores only stars, preserving other flags. It requires a complete observed snapshot of at most 500 photos and checks locally known later changes; it is not the server-conflict-aware history operation.
 - Culling confirms are deferred: the group disappears at once, but nothing is saved until the undo window ends.
+- Cancelling that deferred confirm prevents its write; it is not an Undo after the write has committed.
 - [Manual tag](#manual-tags) edits are not undoable.
 
 For older changes, see [Organization history](#organization-history).
@@ -1183,7 +1280,9 @@ Production builds can be installed to the home screen. The app shell loads offli
 
 ## Mobile
 
-On small screens the floating selection card keeps the count and the clear, select-all and invert buttons, plus an **Actions** button. It opens a bottom sheet with every bulk operation (favorite, reject, rate, albums, copy, download). A compare button appears when the selection fits the compare view.
+The phone header always shows the menu button, and the title names the current page. Page bottom bars share the same 56 px row (height, inset and spacing); the Culling and Junk Sweep bars wrap onto more rows when their controls do not fit. On Albums and Persons the bar buttons carry labels from 768 px wide. On **Persons**, **Update faces** sits above the tabs on phones.
+
+On small screens the floating selection bar shows touch-sized buttons for clear, compare (once two or more photos are selected) and, in edition mode, Keep and Reject, plus an **Actions** button. **Actions** opens a bottom sheet listing the desktop Actions menu in the same order, each submenu as a labelled section: compare, select all and invert; **Review** (Keep, Reject, favorite, reset decision, 1–5 stars, clear rating); **Add to Album**; **Mark as a set**; **Edit metadata**; **Download** (a section only when darktable profiles exist); then stack, copy filenames, export, cull to folder, refresh, remove from Facet and delete. A command the selection cannot use is disabled, with the reason beneath it. When the selection does not fit the compare workspace, the compare button stays disabled and a note states the limits.
 
 ## Photo Frame / Kiosk Endpoint
 
@@ -1449,7 +1548,7 @@ Facet scans JPEG XL (`.jxl`) with the core `imagecodecs` dependency, included in
 
 ### Review saved manual faces
 
-Find photos whose saved face rectangles need checking. On the gallery sidebar's Review tab, enable **Manual faces need review** (editors). Open a photo's face editor and adjust and save, or delete, each flagged rectangle. The photo then leaves the list. The filter works in smart albums and whole-view selections, and shows as a removable chip.
+Find photos whose saved face rectangles need checking. On the gallery toolbar’s Review popover, enable **Manual faces need review** (editors). Open a photo's face editor and adjust and save, or delete, each flagged rectangle. The photo then leaves the list. The filter works in smart albums and whole-view selections, and shows as a removable chip.
 
 - The list reflects the last scan or editor check, not live file watching. Scans check photos with manual marks even with face detection off.
 - Opening the editor rechecks the original and is authoritative.
@@ -1461,15 +1560,15 @@ Find photos whose saved face rectangles need checking. On the gallery sidebar's 
 Fix a wrong camera clock. In edition mode, choose **Correct capture date** from the calendar icon by the photo's date, or from the gallery selection bar. Up to 1000 visible photos, "Select all in view" included.
 
 - **Shift by** (default): choose **Earlier** or **Later** and enter Days, Hours, Minutes and Seconds. Default: 1 hour later. Quick buttons −1 h, +1 h, −1 d and +1 d add to the shift.
-- **Set exact time**: enter the correct date and time of a reference photo (the open photo, or the first dated photo of the selection; not for "Select all in view"). The shift is derived from it.
+- **Set exact time**: enter the correct date and time. With a reference photo (the open photo, or the first dated photo of the selection; not for "Select all in view"), the shift is derived from it and applied to every selected photo. Without one (an undated photo, "Select all in view", or a selection with no dated photo), the date and time you enter go only to the photos without a usable capture date; dated photos keep theirs. A single undated photo opens in this mode.
 - The shift must be nonzero and at most ±366 days.
-- A summary states the shift ("1 h 30 min later"), and the preview shows changed/skipped counts and the first 20 old/new timestamps.
+- A summary states the shift ("1 h 30 min later") or the time being set, and the preview shows changed/skipped counts and the first 20 old/new timestamps.
 - **Apply correction (N)** applies it. If something changed meanwhile, an error offers **Preview** to refresh.
 
 **What changes.**
 
 - Camera time is shifted as-is: no timezone or daylight-saving logic.
-- Only complete `YYYY:MM:DD HH:MM:SS` or `YYYY-MM-DD[T or space]HH:MM:SS` dates are supported. Unknown, date-only, timezone/subsecond and invalid dates are skipped.
+- Only complete `YYYY:MM:DD HH:MM:SS` or `YYYY-MM-DD[T or space]HH:MM:SS` dates are supported. A shift skips unknown, date-only, timezone/subsecond and invalid dates; an exact time set without a reference fills in only those and skips every dated photo.
 - Corrected dates survive rescans and incremental viewer database exports.
 - **Use file date** removes the correction and rereads the file. No file date means an unknown capture date.
 - Applying a correction never writes the original or changes its file time. XMP export writes `exif:DateTimeOriginal`; **Write metadata to file** also updates EXIF `DateTimeOriginal` in supported formats.
@@ -1479,16 +1578,20 @@ Endpoints: `POST /api/photos/capture_date/preview`, `POST /api/photos/capture_da
 
 ## Organization history
 
-Review and revert your recent edits across the library. In edition mode, open **Organization history** from the clock icon in the main navigation (after On This Day). Expand an entry to see exact before/after values, then **Revert this entry**.
+Review recent edits across the library and restore earlier values. In edition mode, open **Organization history** from navigation. Each entry says what changed and shows up to six of its photos, which open in a new tab; expand it to list the changed fields photo by photo. Choose **Restore…**, then **Restore** or **Cancel**. A conflict is shown on that entry and writes nothing; a failed load offers Reload rather than pretending history is empty.
 
-- **What is recorded:** GPS, capture dates, review decisions, stars, favorites and manual stacks. Not files or face recognition.
+- **What is recorded:** GPS, capture dates, review decisions, stars, favorites and manual stacks. Not manual tags, files or face recognition.
 - GPS and capture dates are shared library values. Review decisions, stars and favorites are your own.
 - The short Undo and assistant activity list are separate.
-- **Limits.** The latest **50 entries per account**, each up to **1000 photos and 1 MiB** of values. Larger filtered review actions are split into parts; revert restores one part. A stack replacement can cover up to 2000 photos in one entry.
+- **Limits.** The latest **50 entries per account**, each up to **1000 photos and 1 MiB** of values. Larger filtered review actions are split into parts; a restore covers one part. A stack replacement can cover up to 2000 photos in one entry.
 - History survives restarts and incremental viewer database updates. A fresh/full viewer export starts empty. It does not sync to another database.
-- **Revert is all or nothing.** It is refused if any photo's value changed since, even if changed back. Another account's private review edit does not block yours. Rescans, imports and Undo can also invalidate older entries.
+- **Restore is all or nothing.** It is refused if any photo's value changed since, even if changed back. Another account's private review edit does not block yours. Rescans, imports and Undo can also invalidate older entries.
 - An entry is hidden when one of its photos is deleted or no longer visible to you.
-- A revert adds its own entry and marks the original as reverted.
+- A restore adds its own entry and marks the original as restored.
+
+### Processing and receipts
+
+Open **Processing and export receipts** from the user menu's **Jobs & diagnostics** submenu to inspect supported background operations, their receipt IDs, actual state and item counts. Completed jobs with unfinished items remain qualified; no queue position is invented. Cancel takes effect between files. Retry repeats the supported operation for its failed items, not an unrelated action. A failed status read offers recovery. File exports retain their own preview, destination and ownership checks; receipts describe writes already attempted, not a promise that separate file writes are globally atomic.
 
 ## Faces without names
 

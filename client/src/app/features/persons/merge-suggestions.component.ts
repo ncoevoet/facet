@@ -23,6 +23,7 @@ import { I18N, i18nKeys } from '../../core/i18n/keys';
 import { UserActivityJournal } from '../../core/agent/user-activity-journal.service';
 import { GalleryStore } from '../gallery/gallery.store';
 import { PersonFaceBoxesService } from '../../shared/components/photo-card/person-face-boxes.service';
+import { MOBILE_DOCKED_BAR_ROW } from '../../shared/utils/mobile-bar';
 import type { MergeSuggestionsResponse } from '../../core/api/types';
 
 type MergeSuggestion = MergeSuggestionsResponse['suggestions'][number];
@@ -48,21 +49,22 @@ type SuggestionPerson = MergeSuggestion['person1'];
   ],
   changeDetection: ChangeDetectionStrategy.Eager,
   template: `
-    <div class="p-4 md:p-6 pb-20 w-full lg:max-w-[96%] mx-auto">
+    <div class="px-4 pt-4 pb-20 w-full">
+      <h1 class="sr-only">{{ I18N.merge_suggestions.title | translate }}</h1>
       <!-- Toolbar projects into the global header on lg+ (HeaderSlotService); on small
            screens it renders as a fixed bottom bar (same #mergeToolbar template). -->
       <div class="lg:hidden">
         <ng-container [ngTemplateOutlet]="mergeToolbar" />
       </div>
       <ng-template #mergeToolbar>
-        <div class="flex items-center gap-3 lg:flex-wrap
+        <div [class]="MOBILE_DOCKED_BAR_ROW" class="flex items-center lg:gap-3 lg:flex-wrap
                     max-lg:fixed max-lg:bottom-0 max-lg:left-0 max-lg:right-0 max-lg:z-50
-                    max-lg:px-4 max-lg:py-2 max-lg:bg-[var(--mat-sys-surface-container)]
+                    max-lg:bg-[var(--mat-sys-surface-container)]
                     max-lg:border-t max-lg:border-[var(--mat-sys-outline-variant)] safe-area-pb">
           <a mat-icon-button routerLink="/persons" [matTooltip]="I18N.photo_detail.back | translate" [attr.aria-label]="I18N.photo_detail.back | translate">
             <mat-icon>arrow_back</mat-icon>
           </a>
-          <span class="text-sm opacity-70 shrink-0">{{ I18N.persons.similarity_threshold | translate }}</span>
+          <span class="text-sm text-[var(--mat-sys-on-surface-variant)] shrink-0">{{ I18N.persons.similarity_threshold | translate }}</span>
           @if (sliderValue(); as value) {
             <mat-slider [min]="0.3" [max]="0.9" [step]="0.05" [discrete]="true" class="w-40">
               <input
@@ -115,7 +117,7 @@ type SuggestionPerson = MergeSuggestion['person1'];
                   <p class="font-medium text-sm text-center truncate w-full">
                     {{ suggestion.person1.name || (I18N.persons.unnamed | translate) }}
                   </p>
-                  <p class="text-xs opacity-60">
+                  <p class="text-xs text-[var(--mat-sys-on-surface-variant)]">
                     {{ I18N.persons.face_count | translate:{ count: suggestion.person1.face_count } }}
                   </p>
                 </button>
@@ -149,7 +151,7 @@ type SuggestionPerson = MergeSuggestion['person1'];
                   <p class="font-medium text-sm text-center truncate w-full">
                     {{ suggestion.person2.name || (I18N.persons.unnamed | translate) }}
                   </p>
-                  <p class="text-xs opacity-60">
+                  <p class="text-xs text-[var(--mat-sys-on-surface-variant)]">
                     {{ I18N.persons.face_count | translate:{ count: suggestion.person2.face_count } }}
                   </p>
                 </button>
@@ -174,7 +176,7 @@ type SuggestionPerson = MergeSuggestion['person1'];
 
       <!-- Empty state -->
       @if (!loading() && suggestions().length === 0) {
-        <div class="text-center py-16 opacity-50">
+        <div class="text-center py-16 text-[var(--mat-sys-on-surface-variant)]">
           <mat-icon class="!text-5xl !w-12 !h-12 mb-4">check_circle</mat-icon>
           <p>{{ I18N.persons.no_suggestions | translate }}</p>
         </div>
@@ -184,6 +186,7 @@ type SuggestionPerson = MergeSuggestion['person1'];
 })
 export class MergeSuggestionsComponent implements OnInit, OnDestroy {
   protected readonly I18N = i18nKeys();
+  protected readonly MOBILE_DOCKED_BAR_ROW = MOBILE_DOCKED_BAR_ROW;
   private readonly api = inject(ApiService);
   private readonly journal = inject(UserActivityJournal);
   /** Merge, reject and accept-all call edition-only routes. */

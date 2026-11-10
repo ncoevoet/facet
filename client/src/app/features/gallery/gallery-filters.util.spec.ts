@@ -34,6 +34,25 @@ function filters(overrides: Partial<GalleryFilters> = {}): GalleryFilters {
   return { ...DEFAULT_FILTERS, ...overrides };
 }
 
+describe('explicit keyword branch scope', () => {
+  it.each([false, null, 0, [], {}, 'not-a-node'])('refuses malformed saved branch rules instead of broadening the collection: %j', value => {
+    expect(() => applySavedAlbumFilters(DEFAULT_FILTERS, JSON.stringify({ keyword_branch: value }), '7')).toThrow('Invalid keyword branch identity');
+  });
+  it('round trips branch identity across API, URL and saved rules, including a cleared album override', () => {
+    const id = '11111111-1111-4111-8111-111111111111';
+    const active = filters({ keyword_branch: id, album_id: '7' });
+    expect(buildApiParams(active, false, undefined)['keyword_branch']).toBe(id);
+    expect(buildByPathsFilters(active, false, undefined)['keyword_branch']).toBe(id);
+    const opened = applySavedAlbumFilters(DEFAULT_FILTERS, smartAlbumFilterJson(active), '7');
+    expect(opened.keyword_branch).toBe(id); expect(countActiveFilters(active)).toBe(1);
+    const cleared = { ...opened, keyword_branch: '' };
+    const url = buildSyncParams(cleared, undefined);
+    expect(url['keyword_branch']).toBe('');
+    expect(applyQueryParams(opened, url).keyword_branch).toBe('');
+    expect(applySavedAlbumFilters(active, '{}', '8').keyword_branch).toBe('');
+  });
+});
+
 describe('activeFilterKeys', () => {
   it('is empty for defaults', () => {
     expect(activeFilterKeys(DEFAULT_FILTERS)).toEqual([]);
@@ -67,9 +86,12 @@ describe('countActiveFilters', () => {
   });
   it.each([
     ['min_score', 'score'], ['max_score', 'score'], ['gps_lat', 'gps'], ['gps_lng', 'gps'], ['gps_radius_km', 'gps'],
-    ['no_gps', 'gps'], ['camera', 'camera'], ['semanticQuery', 'semanticQuery'],
+    ['no_gps', 'gps'], ['camera', 'camera'], ['semanticQuery', 'semanticQuery'], ['tag', 'tag'], ['tag_groups', 'tag_groups'],
   ])('maps the filter key %s to the control %s', (key, unit) => {
     expect(filterUnit(key)).toBe(unit);
+  });
+  it('counts a single tag and tag rules as two controls, as the chips show them', () => {
+    expect(countActiveFilters(filters({ tag: 'sea', tag_groups: '{"any":["sky"]}' }))).toBe(2);
   });
   it('returns 0 for defaults', () => {
     expect(countActiveFilters(DEFAULT_FILTERS)).toBe(0);
@@ -144,8 +166,31 @@ describe('buildApiParams semantic search', () => {
 });
 
 describe('buildSyncParams', () => {
-  it('carries only the sort when filters equal defaults', () => {
-    expect(buildSyncParams(DEFAULT_FILTERS, undefined)).toEqual({ sort: 'aggregate' });
+  it('round-trips cleared saved criteria, false flags and default sort direction', () => {
+    const saved = JSON.stringify({ camera: 'Canon', tag: 'birds', min_score: '7', no_gps: '1',
+      show_rejected: true, blinks_only: true, duplicates_only: true,
+      manual_faces_need_review: true, faces_need_names: true, sort_direction: 'ASC' });
+    const base = applySavedAlbumFilters({ ...DEFAULT_FILTERS }, saved, '7');
+    const current = { ...DEFAULT_FILTERS, album_id: '7' };
+    const query = buildSyncParams(current, undefined, undefined, saved);
+    expect(applyQueryParams(base, query)).toEqual(current);
+    expect(query).not.toHaveProperty('max_aperture');
+  });
+
+  it('ignores malformed, unknown and excluded saved keys in URL overrides', () => {
+    const current = { ...DEFAULT_FILTERS, album_id: '7' };
+    const ordinary = buildSyncParams(current, undefined);
+    for (const saved of ['{', 'null', '[]', '{"unknown":"x","page":42,"semanticQuery":"dog","sequence_group_id":"9"}']) {
+      expect(buildSyncParams(current, undefined, undefined, saved)).toEqual(ordinary);
+    }
+    expect(buildSyncParams(DEFAULT_FILTERS, undefined, undefined, '{"camera":"Canon"}'))
+      .toEqual(buildSyncParams(DEFAULT_FILTERS, undefined));
+  });
+
+  it('captures semantic visibility even when it matches this browser defaults', () => {
+    expect(buildSyncParams(DEFAULT_FILTERS, undefined)).toEqual({ sort: 'aggregate', type: '',
+      hide_blinks: 'true', hide_bursts: 'true', hide_duplicates: 'true', hide_brackets: 'true', hide_panoramas: 'true',
+      hide_rejected: 'true', favorites_only: 'false', is_monochrome: 'false' });
   });
   it('writes the sort even when it equals the viewer default, so a remembered sort cannot override a link', () => {
     expect(buildSyncParams(filters({ sort: 'date_taken' }), undefined)['sort']).toBe('date_taken');
@@ -270,7 +315,7 @@ describe('smartAlbumFilterJson', () => {
     const saved = JSON.parse(smartAlbumFilterJson(filters({
       semanticQuery: 'sunset', sort: RELEVANCE_SORT, sort_direction: 'DESC', camera: 'X100V',
     })));
-    expect(saved).toEqual({ camera: 'X100V' });
+    expect(saved).toEqual({ camera: 'X100V', type: '' });
   });
 
   it.each([true, false])('saves and reopens rejected-only=%s as a boolean without broadening the view', showRejected => {
@@ -493,35 +538,54 @@ const SERVER_FILTER_KEYS: ReadonlySet<string> = new Set<string>(serverFilterKeys
 
 describe('buildByPathsFilters', () => {
   it('carries the view filters but no paging or sort', () => {
-    const p = buildByPathsFilters(filters({ hide_rejected: true, camera: 'Canon', album_id: '4', min_score: '7' }), false, '', undefined);
+    const p = buildByPathsFilters(filters({ hide_rejected: true, camera: 'Canon', album_id: '4', min_score: '7' }), false, undefined);
     expect(p).toMatchObject({ hide_rejected: true, camera: 'Canon', album_id: '4', min_score: '7' });
     for (const key of ['page', 'per_page', 'sort', 'sort_direction']) expect(p).not.toHaveProperty(key);
   });
   it('strips both semantic keys, which by_paths would 422', () => {
-    const p = buildByPathsFilters(filters({ semanticQuery: 'sunset', search_threshold: '12', camera: 'Canon' }), false, '', 0.05);
+    const p = buildByPathsFilters(filters({ semanticQuery: 'sunset', search_threshold: '12', camera: 'Canon' }), false, 0.05);
     expect(p).toMatchObject({ camera: 'Canon' });
     expect(p).not.toHaveProperty('semantic_q');
     expect(p).not.toHaveProperty('semantic_threshold');
   });
-  it('sends the viewer default type explicitly when the filter has none', () => {
-    expect(buildByPathsFilters(filters(), false, 'top_picks', undefined)['type']).toBe('top_picks');
-    expect(buildByPathsFilters(filters({ type: 'portrait' }), false, 'top_picks', undefined)['type']).toBe('portrait');
+  it('sends the already-resolved type without overwriting explicit All photos', () => {
+    expect(buildByPathsFilters(filters({ type: 'top_picks' }), false, undefined)['type']).toBe('top_picks');
+    expect(buildByPathsFilters(filters(), false, undefined)['type']).toBe('');
+    expect(buildByPathsFilters(filters({ type: 'portrait' }), false, undefined)['type']).toBe('portrait');
   });
   it('sends an empty type for a person view, as GET /photos resolves it', () => {
-    expect(buildByPathsFilters(filters({ person_id: '3' }), false, 'top_picks', undefined)['type']).toBe('');
+    expect(buildByPathsFilters(filters({ person_id: '3' }), false, undefined)['type']).toBe('');
   });
   it('drops album_id for a smart album', () => {
-    expect(buildByPathsFilters(filters({ album_id: '4' }), true, '', undefined)).not.toHaveProperty('album_id');
+    expect(buildByPathsFilters(filters({ album_id: '4' }), true, undefined)).not.toHaveProperty('album_id');
   });
   it('emits only keys the server accepts, so none can 422', () => {
     const every: Record<string, unknown> = {};
     for (const [key, value] of Object.entries(DEFAULT_FILTERS)) every[key] = typeof value === 'boolean' ? true : 'x';
-    const emitted = Object.keys(buildByPathsFilters(filters(every as Partial<GalleryFilters>), false, 'x', undefined));
+    const emitted = Object.keys(buildByPathsFilters(filters(every as Partial<GalleryFilters>), false, undefined));
     expect(emitted.length).toBeGreaterThan(20);
     expect(emitted.filter(key => !SERVER_FILTER_KEYS.has(key))).toEqual([]);
   });
   it('chunks at the server cap', () => {
     expect(BY_PATHS_MAX).toBe(500);
+  });
+});
+
+describe('explicit All photos round trip', () => {
+  it('clears seeded type and personal visibility defaults through URL, sync and both photo reads', () => {
+    const base = filters({ type: 'top_picks', hide_rejected: true, favorites_only: true, is_monochrome: true, review_status: 'undecided' });
+    const query = { type: '', hide_rejected: 'false', favorites_only: 'false', is_monochrome: 'false', review_status: '' };
+    const selected = applyQueryParams(base, query);
+    expect(selected).toMatchObject({ type: '', hide_rejected: false, favorites_only: false, is_monochrome: false, review_status: '' });
+    const sync = buildSyncParams(selected, { type: 'top_picks', hide_rejected: true });
+    expect(sync).toHaveProperty('type', '');
+    expect(applyQueryParams(base, sync).type).toBe('');
+    expect(applyQueryParams(base, sync)).toMatchObject({ hide_rejected: false, favorites_only: false, is_monochrome: false });
+    expect(buildApiParams(selected, false, undefined)).toHaveProperty('type', '');
+    expect(buildByPathsFilters(selected, false, undefined)).toHaveProperty('type', '');
+    const saved = smartAlbumFilterJson(selected);
+    expect(JSON.parse(saved)).toHaveProperty('type', '');
+    expect(applySavedAlbumFilters(base, saved, '4').type).toBe('');
   });
 });
 
@@ -593,7 +657,7 @@ describe('manual face review filter', () => {
     const f = filters({ manual_faces_need_review: true });
     expect(countActiveFilters(f)).toBe(1);
     expect(buildApiParams(f, false, undefined)['manual_faces_need_review']).toBe('1');
-    expect(buildByPathsFilters(f, false, '', undefined)['manual_faces_need_review']).toBe('1');
+    expect(buildByPathsFilters(f, false, undefined)['manual_faces_need_review']).toBe('1');
     const url = buildSyncParams(f, undefined);
     expect(url['manual_faces_need_review']).toBe('true');
     expect(applyQueryParams(filters(), url as Record<string, string>).manual_faces_need_review).toBe(true);
@@ -608,7 +672,7 @@ describe('faces without names filter', () => {
     const f = filters({ faces_need_names: true });
     expect(countActiveFilters(f)).toBe(1);
     expect(buildApiParams(f, false, undefined)['faces_need_names']).toBe('1');
-    expect(buildByPathsFilters(f, false, '', undefined)['faces_need_names']).toBe('1');
+    expect(buildByPathsFilters(f, false, undefined)['faces_need_names']).toBe('1');
     const url = buildSyncParams(f, undefined);
     expect(url['faces_need_names']).toBe('true');
     expect(applyQueryParams(filters(), url as Record<string, string>).faces_need_names).toBe(true);
@@ -624,5 +688,75 @@ describe('review and location URL coexistence', () => {
     expect(f).toMatchObject({ review_status: 'kept', no_gps: '1', semanticQuery: '', similar_to: '', gps_lat: '', gps_lng: '', gps_radius_km: '' });
     expect(applyQueryParams(DEFAULT_FILTERS, buildSyncParams(f, undefined))).toMatchObject({ review_status: 'kept', no_gps: '1' });
     expect(buildApiParams(f, false, undefined)).toMatchObject({ review_status: 'kept', no_gps: '1' });
+  });
+});
+
+
+describe('person match groups', () => {
+  it('keeps ANY through URL, API, by-path and smart rules without counting a second filter', () => {
+    const f = filters({ person_id: '1,2', person_match: 'any' });
+    const url = buildSyncParams(f, undefined);
+    expect(url['person_match']).toBe('any');
+    const restored = applyQueryParams(DEFAULT_FILTERS, url);
+    expect(restored.person_match).toBe('any');
+    expect(buildApiParams(restored, false, undefined)).toMatchObject({ person_id: '1,2', person_match: 'any' });
+    expect(buildByPathsFilters(restored, false, undefined)).toMatchObject({ person_id: '1,2', person_match: 'any' });
+    expect(JSON.parse(smartAlbumFilterJson(f))).toMatchObject({ person_id: '1,2', person_match: 'any' });
+    expect(activeFilterUnits(f)).toEqual(['person_id']);
+    expect(countActiveFilters(f)).toBe(1);
+    expect(applySavedAlbumFilters(f, '{"person_id":"2,3"}', '7').person_match).toBe('all');
+    expect(applySavedAlbumFilters(DEFAULT_FILTERS, smartAlbumFilterJson(f), '7').person_match).toBe('any');
+  });
+
+  it('omits inactive/default modes and never treats an invalid URL mode as ANY', () => {
+    const empty = filters({ person_match: 'any' });
+    expect(buildSyncParams(empty, undefined)).not.toHaveProperty('person_match');
+    expect(buildApiParams(empty, false, undefined)).not.toHaveProperty('person_match');
+    expect(JSON.parse(smartAlbumFilterJson(empty))).not.toHaveProperty('person_match');
+    expect(countActiveFilters(empty)).toBe(0);
+    expect(buildApiParams(filters({ person_id: '1,2' }), false, undefined)).not.toHaveProperty('person_match');
+    expect(applyQueryParams(DEFAULT_FILTERS, { person_id: '1,2', person_match: 'bad' }).person_match).toBe('all');
+    expect(() => applySavedAlbumFilters(DEFAULT_FILTERS, '{"person_id":"1,2","person_match":"bad"}', '1')).toThrow();
+  });
+});
+
+
+describe('person group smart-album working override', () => {
+  it('keeps explicit ALL and a cleared group across a saved-ANY album reload', () => {
+    const saved = '{"person_id":"1,2","person_match":"any"}';
+    const base = applySavedAlbumFilters(DEFAULT_FILTERS, saved, '7');
+    const all = { ...base, person_match: 'all' as const };
+    const restoredAll = applyQueryParams(base, buildSyncParams(all, undefined));
+    expect(restoredAll.person_match).toBe('all');
+    expect(restoredAll.person_id).toBe('1,2');
+    expect(buildApiParams(restoredAll, true, undefined)).not.toHaveProperty('person_match');
+    const cleared = { ...all, person_id: '' };
+    const restoredCleared = applyQueryParams(base, buildSyncParams(cleared, undefined));
+    expect(restoredCleared.person_id).toBe('');
+    expect(restoredCleared.person_match).toBe('all');
+    expect(buildApiParams(restoredCleared, true, undefined)).not.toHaveProperty('person_id');
+  });
+});
+
+
+describe('missing capture date scope', () => {
+  it('round trips missing-only through URL API and saved rules, with an explicit album clear', () => {
+    const missing = filters({ no_capture_date: '1', album_id: 'album' });
+    expect(buildApiParams(missing, false, undefined)['no_capture_date']).toBe('1');
+    expect(buildByPathsFilters(missing, false, undefined)['no_capture_date']).toBe('1');
+    const saved = smartAlbumFilterJson(missing);
+    expect(JSON.parse(saved).no_capture_date).toBe('1');
+    const opened = applySavedAlbumFilters(DEFAULT_FILTERS, saved, 'album');
+    const cleared = { ...opened, no_capture_date: '' };
+    const url = buildSyncParams(cleared, undefined);
+    expect(url['no_capture_date']).toBe('');
+    expect(applyQueryParams(opened, url).no_capture_date).toBe('');
+    expect(applyQueryParams(DEFAULT_FILTERS, { no_capture_date: 'false' }).no_capture_date).toBe('');
+    expect(countActiveFilters(missing)).toBe(1);
+    const datedAlbum = applySavedAlbumFilters(DEFAULT_FILTERS, JSON.stringify({ date_from: '2026-01-01', date_to: '2026-12-31' }), 'album');
+    const missingInstead = { ...datedAlbum, no_capture_date: '1', date_from: '', date_to: '' };
+    const restored = applyQueryParams(datedAlbum, buildSyncParams(missingInstead, undefined));
+    expect(restored).toMatchObject({ no_capture_date: '1', date_from: '', date_to: '' });
+    expect(buildApiParams(restored, true, undefined)).not.toHaveProperty('date_from');
   });
 });

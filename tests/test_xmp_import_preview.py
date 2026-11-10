@@ -62,9 +62,9 @@ def test_preview_changes_diagnostics_and_source_without_any_database_write(tmp_p
         assert result['dry_run'] is True
         plan = result['entries'][0]
         assert plan['changes']['star_rating'] == {'before': 1, 'after': 5}
-        assert plan['changes']['keywords'] == {'added': ['new']}
+        assert plan['changes']['keywords'] == {'added': ['new', 'a|hierarchy']}
         assert plan['changes']['gps']['after'] == [1, 2, 1]
-        assert {d['reason'] for d in plan['diagnostics']} >= {'hierarchy_unsupported', 'invalid_keyword', 'untracked_legacy_edit'}
+        assert {d['reason'] for d in plan['diagnostics']} >= {'invalid_keyword', 'untracked_legacy_edit'}
         assert plan['source']['metadata_date'] == '2021-01-01T00:00:00+00:00'
         assert conn.total_changes == writes
         assert db.read_bytes() == before
@@ -638,7 +638,7 @@ def test_readonly_preview_of_release_schema_without_keep_columns(tmp_path, monke
         packet.write(packet_path, encoding='utf-8')
         if per_user:
             conn.execute('INSERT INTO user_preferences(user_id,photo_path,star_rating) VALUES (?,?,0)', ('alice', str(path)))
-        for (trigger,) in conn.execute("SELECT name FROM sqlite_master WHERE type='trigger' AND (name GLOB 'metadata_review_*' OR name GLOB 'organization_*')").fetchall():
+        for (trigger,) in conn.execute("SELECT name FROM sqlite_master WHERE type='trigger' AND (name GLOB 'metadata_review_*' OR name GLOB 'organization_*' OR name GLOB 'logical_*')").fetchall():
             conn.execute('DROP TRIGGER "' + trigger.replace('"', '""') + '"')
         conn.execute('DROP TABLE photo_metadata_edits')
         for table in ('photos', 'user_preferences'):
@@ -670,7 +670,7 @@ def test_preview_detail_and_diagnostic_limits_report_omissions(tmp_path):
         conn.executemany('INSERT INTO photos(path,scanned_at) VALUES (?,?)',
                          [(str(tmp_path / f'extra-{index}.jpg'), '2020-01-01') for index in range(1000)])
         conn.commit()
-        _write_sidecar(path, rating=0, tags=[f'group|keyword-{index}' for index in range(105)])
+        _write_sidecar(path, rating=0, tags=[f'bad,keyword-{index}' for index in range(105)])
         result = import_sidecars(conn, dry_run=True)
         assert len(result['entries']) == 1000
         assert result['details_truncated'] == 1
@@ -842,16 +842,16 @@ def test_preview_and_apply_share_keyword_provenance_without_overriding_review_cl
         writes = conn.total_changes
         preview = import_sidecars(conn, str(path), user_id=user, fields=fields, dry_run=True)
         entry = preview['entries'][0]
-        assert entry['changes'] == {'keywords': {'added': ['restored', 'shared']}}
+        assert entry['changes'] == {'keywords': {'added': ['restored', 'shared', 'a|hierarchy']}}
         reasons = {d['reason'] for d in entry['diagnostics']}
-        assert 'hierarchy_unsupported' in reasons
+        assert 'hierarchy_unsupported' not in reasons
         assert ('newer_local_edit' in reasons) == ('review' in fields)
         assert ('manual_gps_protected' in reasons) == ('gps' in fields)
         assert conn.total_changes == writes and db.read_bytes() == before
         applied = import_sidecars(conn, str(path), user_id=user, fields=fields)
         assert applied['entries'] == preview['entries']
-        assert applied['tags_added'] == 2
-        assert load_manual_tags(conn, str(path)) == ['restored', 'shared']
+        assert applied['tags_added'] == 3
+        assert load_manual_tags(conn, str(path)) == ['a|hierarchy', 'restored', 'shared']
         assert review_edit_state(conn, str(path), user or '') == clock
         assert conn.execute('SELECT gps_latitude,gps_longitude FROM photos').fetchone()[:] == (10, 20)
         assert import_sidecars(conn, str(path), user_id=user, fields=fields)['tags_added'] == 0
@@ -865,7 +865,7 @@ def test_bounded_naming_notices_retain_per_photo_preview_diagnostics(tmp_path, c
             conn.execute('INSERT INTO photos(path,scanned_at) VALUES (?,?)', (str(path), '2020-01-01'))
         conn.commit()
         for path in paths:
-            packet = _write_sidecar(path, tags=[f'group|keyword-{index}' for index in range(105)])
+            packet = _write_sidecar(path, tags=[f'bad,keyword-{index}' for index in range(105)])
             path.with_suffix('.xmp').write_bytes(packet.read_bytes())
         before, writes = db.read_bytes(), conn.total_changes
         result = import_sidecars(conn, dry_run=True, sidecar_naming=policy)
@@ -873,7 +873,8 @@ def test_bounded_naming_notices_retain_per_photo_preview_diagnostics(tmp_path, c
         assert result['basename_ignored'] == (3 if policy == 'full' else 0)
         assert len(result['entries']) == 3
         assert result['ambiguous'] == result['skipped'] == (3 if policy == 'auto' else 0)
-        notices = [record for record in caplog.records if record.name == 'processing.xmp_import']
+        notices = [record for record in caplog.records if record.name == 'processing.xmp_import'
+                   and 'further notices of this kind are suppressed' in record.getMessage()]
         assert len(notices) == 1
         for entry in result['entries']:
             if policy == 'auto':

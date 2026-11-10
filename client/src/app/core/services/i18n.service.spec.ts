@@ -13,6 +13,7 @@ import { I18nService } from './i18n.service';
 describe('I18nService', () => {
   let service: I18nService;
   let httpTesting: HttpTestingController;
+  let originalDocumentLanguage: string;
 
   const mockTranslations: Record<string, unknown> = {
     common: {
@@ -28,6 +29,7 @@ describe('I18nService', () => {
   };
 
   beforeEach(() => {
+    originalDocumentLanguage = document.documentElement.lang;
     // Clear facet_lang cookie
     document.cookie = 'facet_lang=;max-age=0;path=/';
 
@@ -40,6 +42,7 @@ describe('I18nService', () => {
 
   afterEach(() => {
     httpTesting.verify();
+    document.documentElement.lang = originalDocumentLanguage;
     // Restore cookie state
     document.cookie = 'facet_lang=;max-age=0;path=/';
   });
@@ -147,6 +150,19 @@ describe('I18nService', () => {
 
       await loadPromise;
       expect(service.isLoaded()).toBe(true);
+      expect(document.documentElement.lang).toBe('en');
+    });
+
+    it('keeps the rendered content and document language on the newest switch', async () => {
+      const french = service.setLocale('fr');
+      const frRequest = httpTesting.expectOne('/api/i18n/fr');
+      const german = service.setLocale('de');
+      httpTesting.expectOne('/api/i18n/de').flush({ message: 'Deutsch' });
+      await german;
+      frRequest.flush({ message: 'Français' });
+      await french;
+      expect(service.t('message')).toBe('Deutsch');
+      expect(document.documentElement.lang).toBe('de');
     });
 
     it('should not fall back when locale is already en', async () => {

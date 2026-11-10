@@ -1,9 +1,7 @@
 """Explicit before/after capture shared by organization writers."""
-import functools
-import inspect
 import json
 import sqlite3
-from collections.abc import Callable, Iterator
+from collections.abc import Iterator
 from contextlib import contextmanager
 from typing import Any
 
@@ -52,6 +50,20 @@ def finish(conn: sqlite3.Connection, user_id: str | None, kind: str,
         raise HTTPException(422, 'Organization history cannot represent this edit') from exc
 
 
+def defer_logical(conn, user_id, scope, before):
+    """Join logical review captures to the current culling sweep, if any."""
+    state = _open_actions.get(id(conn))
+    if state is None or state['kind'] != 'review' or state['user_id'] != user_id:
+        return False
+    if (state['before'] or state['logical_before']) and state['scope'] != scope:
+        from fastapi import HTTPException
+        raise HTTPException(409, 'Review scope changed')
+    state['scope'] = scope
+    for key, captured in before.items():
+        state['logical_before'].setdefault(key, captured)
+    return True
+
+
 @contextmanager
 def action(conn: sqlite3.Connection, user_id: str | None, kind: str = 'review') -> Iterator[None]:
     """Fold every ``begin``/``finish`` pair inside the block into ONE history entry.
@@ -63,26 +75,35 @@ def action(conn: sqlite3.Connection, user_id: str | None, kind: str = 'review') 
     if key in _open_actions:
         yield
         return
-    state: dict[str, Any] = dict(kind=kind, user_id=user_id, scope='', before={})
+    state: dict[str, Any] = dict(kind=kind, user_id=user_id, scope='', before={}, logical_before={})
     _open_actions[key] = state
     try:
         yield
         in_transaction = conn.in_transaction
-        if state['before']:
+        if state['logical_before']:
+            from api import logical_reviews
+            from db import logical_history
+            from db.logical_assets import AssetConflict
+            from fastapi import HTTPException
+            if not conn.in_transaction:
+                conn.execute('BEGIN IMMEDIATE')
+            try:
+                after = {}
+                for asset in state['logical_before']:
+                    _, owner, labels, _, _ = logical_reviews.snapshot(conn, asset, user_id)
+                    if owner != state['scope']:
+                        raise AssetConflict('Review scope changed')
+                    after[asset] = logical_history.capture(conn, asset, owner, labels)
+                logical_history.record(conn, user_id or '', state['scope'], state['logical_before'], after,
+                                       physical_before=state['before'])
+            except AssetConflict as exc:
+                conn.rollback()
+                raise HTTPException(409, str(exc)) from exc
+            if not in_transaction:
+                conn.commit()
+        elif state['before']:
             finish(conn, user_id, kind, (state['scope'], state['before']))
             if not in_transaction:
                 conn.commit()
     finally:
         del _open_actions[key]
-
-
-def grouped(func: Callable[..., Any]) -> Callable[..., Any]:
-    """Run ``func(conn, ..., user_id, ...)`` inside one :func:`action`."""
-    signature = inspect.signature(func)
-
-    @functools.wraps(func)
-    def wrapper(*args: Any, **kwargs: Any) -> Any:
-        arguments = signature.bind(*args, **kwargs).arguments
-        with action(arguments['conn'], arguments.get('user_id')):
-            return func(*args, **kwargs)
-    return wrapper

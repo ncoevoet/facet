@@ -1,18 +1,23 @@
+import { PhotoListExtraComponent } from './photo-list-extra.component';
 import { i18nKeys } from '../../../core/i18n/keys';
+import { sortLabelKey } from '../../utils/sort-label';
 import { Component, computed, effect, inject, input, output, signal, untracked, viewChildren, ChangeDetectionStrategy } from '@angular/core';
 import { MatIconModule } from '@angular/material/icon';
 import { MatButtonModule } from '@angular/material/button';
 import { MatTooltip, MatTooltipModule } from '@angular/material/tooltip';
 import { MatMenuModule, MatMenuTrigger } from '@angular/material/menu';
+import { TagNavigation } from '../../models/tag-navigation';
 import { Photo } from '../../models/photo.model';
 import { TranslatePipe } from '../../pipes/translate.pipe';
 import { ThumbnailUrlPipe, PersonThumbnailUrlPipe, STORED_THUMBNAIL_EDGE } from '../../pipes/thumbnail-url.pipe';
+import { SharedAlbumMediaScope } from '../../utils/shared-album-media';
 import { SequenceOverrideBadgeKeyPipe } from '../../pipes/sequence-kind.pipe';
 import { PhotoSetKindIconPipe, PhotoSetKindBestLabelPipe } from '../../pipes/photo-set-kind.pipe';
 import { CARD_ACTION_META, CardActionId, CardActionsConfig, CardSetKind, DEFAULT_CARD_ACTIONS } from './card-actions';
 import { FixedPipe } from '../../pipes/fixed.pipe';
+import { CaptureDatePipe } from '../../pipes/capture-date.pipe';
 import { ShutterSpeedPipe } from '../../pipes/shutter-speed.pipe';
-import { ScoreClassPipe, SortScorePipe, sortScoreColumn } from '../../pipes/score.pipes';
+import { SortScorePipe, sortScoreColumn } from '../../pipes/score.pipes';
 import { SortPersonsPipe } from '../../pipes/sort-persons.pipe';
 import { closeOverlayDirectives } from '../../utils/overlays';
 import { MetricDistribution, topPercentOf } from '../../utils/metric-distribution';
@@ -67,8 +72,7 @@ const DEFAULT_CLIPPING_BADGE_PERCENT = 5;
   selector: 'app-photo-card',
   standalone: true,
   host: {
-    role: 'gridcell',
-    style: 'content-visibility: auto; contain-intrinsic-size: auto 300px',
+    '[attr.role]': "listMode() ? 'listitem' : 'gridcell'",
     // Room for the scrollIntoView the grid's keyboard cursor performs on the
     // card it lands on. That call asks for `block: 'nearest'`, which is the
     // least scrolling that brings an edge of the card to an edge of the
@@ -87,13 +91,10 @@ const DEFAULT_CLIPPING_BADGE_PERCENT = 5;
     // detection that would have to apply a conditional class. The top asks for
     // nothing but that same outline kept off the scrollport's edge, since
     // nothing in the shell is fixed or sticky above the grid.
-    class: 'scroll-mt-2 scroll-mb-48 reduce-transparency:opacity-100',
-    // The current-photo marker, and the dimming of every card that is not it.
-    // Both sit on the host rather than on the tile below, because the host's
-    // own `content-visibility: auto` brings paint containment with it, and that
-    // clips whatever a descendant draws outside the card's box -- the tile's
-    // focus-visible outline included. The host's own outline is the one that
-    // still reaches the 8px gutter, and the gutter is the only place a frame is
+    class: 'min-w-0 scroll-mt-2 scroll-mb-48',
+    // The current-photo marker stays separate from batch selection.
+    // Both sit on the host rather than on the overflow-hidden tile below. The
+    // host's outline reaches the 8px gutter, the only place a frame is
     // not competing with the photograph for contrast: a line on the tile's edge
     // loses to skin tones and blurred background, which is what the 2px
     // selection ring already demonstrates. offset-2 plus 4px lands it entirely
@@ -101,18 +102,14 @@ const DEFAULT_CLIPPING_BADGE_PERCENT = 5;
     '[class.outline-4]': 'isActive()',
     '[class.outline-[var(--mat-sys-tertiary)]]': 'isActive()',
     '[class.outline-offset-2]': 'isActive()',
-    // Matches the tile's own rounding so the offset outline is concentric with
-    // it rather than cutting square corners past it.
+    // Rounds the corners of the offset outline, which follows the host's radius
+    // rather than the tile's, so it does not cut square corners past the tile.
     '[class.rounded-lg]': 'isActive()',
     // The hosts are flex/grid items, so this applies without positioning them.
     // Well under the action bar (z-50) and the scroll-to-top button (z-40).
     '[class.z-10]': 'isActive()',
-    // Users who set "reduce transparency" get the outline and aria-current
-    // above without this large-area translucency: the static
-    // reduce-transparency:opacity-100 class cancels it back to full opacity.
-    '[class.opacity-50]': 'isDimmed()',
   },
-  imports: [
+  imports: [PhotoListExtraComponent,
     FaceFocusOverlayComponent,
     MatIconModule,
     MatButtonModule,
@@ -125,8 +122,8 @@ const DEFAULT_CLIPPING_BADGE_PERCENT = 5;
     PhotoSetKindBestLabelPipe,
     PersonThumbnailUrlPipe,
     FixedPipe,
+    CaptureDatePipe,
     ShutterSpeedPipe,
-    ScoreClassPipe,
     SortScorePipe,
     SortPersonsPipe,
   ],
@@ -134,15 +131,18 @@ const DEFAULT_CLIPPING_BADGE_PERCENT = 5;
   template: `
     <div
       role="button"
-      tabindex="0"
-      class="relative rounded-lg overflow-hidden cursor-pointer bg-[var(--mat-sys-surface-container)] transition-all h-full focus-visible:outline-2 focus-visible:outline-[var(--mat-sys-primary)] focus-visible:outline-offset-2"
-      [class.aspect-square]="fillTile() && hideDetails() && !mosaicMode()"
+      [attr.tabindex]="tabStop() ? 0 : -1"
+      class="relative rounded-sm overflow-hidden cursor-pointer bg-[var(--mat-sys-surface-container-lowest)] h-full focus-visible:outline-2 focus-visible:outline-[var(--mat-sys-primary)] focus-visible:outline-offset-2"
+      [class]="listMode() ? '@container' : ''"
+      [class.aspect-square]="!listMode() && hideDetails() && !mosaicMode() && !naturalFit()"
+      [style.aspect-ratio]="naturalFit() ? ((photo().image_width || 1) + ' / ' + (photo().image_height || 1)) : null"
       [class.ring-2]="isSelected()"
       [class.ring-[var(--mat-sys-primary)]]="isSelected()"
       [class.md:hover:ring-2]="!isSelected()"
       [class.md:hover:ring-[var(--mat-sys-outline-variant)]]="!isSelected()"
       [attr.aria-label]="photo().keeper_hint?.has_better ? photo().filename + ', ' + ('culling.reason.better_shot' | translate) : photo().filename"
       [attr.aria-pressed]="isSelected()"
+      [attr.aria-describedby]="listMode() ? listMetadataId : null"
       [attr.aria-current]="isActive() ? 'true' : null"
       (click)="onSelect($event)"
       (keydown.enter)="onKeyOpen($event)"
@@ -151,17 +151,106 @@ const DEFAULT_CLIPPING_BADGE_PERCENT = 5;
       (mouseenter)="onMouseEnter($event)"
       (mouseleave)="onMouseLeave()"
     >
+      @if (listMode()) {
+        <div data-metadata-row [id]="listMetadataId" class="grid h-full min-w-0 grid-cols-[4.5rem_minmax(0,1fr)_auto] items-center gap-3 border-b border-[var(--mat-sys-outline-variant)] p-2 @[36rem]:grid-cols-[4.5rem_minmax(0,2fr)_9rem_auto] @[60rem]:grid-cols-[4.5rem_minmax(0,2fr)_9rem_minmax(0,1fr)_minmax(0,1fr)_auto] @[80rem]:grid-cols-[4.5rem_minmax(0,2fr)_9rem_minmax(0,1fr)_minmax(0,1fr)_minmax(0,1.4fr)_auto] @[100rem]:grid-cols-[4.5rem_minmax(0,2fr)_9rem_minmax(0,1fr)_minmax(0,1fr)_minmax(0,1.4fr)_minmax(0,1.6fr)_auto]">
+          <div class="relative h-[4.5rem] w-[4.5rem]">
+            <img [src]="photo().path | thumbnailUrl:160:photo().preview_revision:sharedAlbum()" alt="" loading="lazy" decoding="async" class="h-full w-full object-contain bg-[var(--mat-sys-surface-container)]" />
+            @if (isSelected()) { <mat-icon aria-hidden="true" class="absolute -left-1 -top-1 !text-[var(--mat-sys-primary)]">check_box</mat-icon> }
+          </div>
+          <div class="min-w-0 text-sm leading-5">
+            <div class="truncate font-medium" [title]="photo().filename">{{ photo().filename }}</div>
+            @if (currentSort() !== 'date_taken') {
+              <div data-list-capture-date class="line-clamp-2 text-xs text-[var(--mat-sys-on-surface-variant)]" [title]="listCaptureDate() | captureDate">
+                <span class="@[24rem]:hidden">{{ listCaptureDate() ? (listCaptureDay() | captureDate) : (I18N.gallery.no_capture_date | translate) }}</span>
+                <span class="hidden @[24rem]:inline">{{ listCaptureDate() ? (listCaptureDate() | captureDate) : (I18N.gallery.no_capture_date | translate) }}</span>
+              </div>
+            }
+            <div class="flex min-w-0 items-center gap-1 overflow-hidden text-xs text-[var(--mat-sys-on-surface-variant)]">
+              @if (photo().stack_id) { <span class="inline-flex items-center gap-1" [attr.aria-label]="I18N.photoCard.stack_set | translate"><mat-icon class="!h-4 !w-4 !text-base">layers</mat-icon>{{ photo().stack_count }}</span> }
+              @if (collapsedSetKind()) { <span class="min-w-0 truncate" [attr.aria-label]="listGroupLabel() | translate">{{ listGroupLabel() | translate }}</span> }
+              @if (photo().is_favorite) { <mat-icon class="!h-4 !w-4 !text-base" [attr.aria-label]="I18N.rating.favorite | translate">favorite</mat-icon> }
+            </div>
+          </div>
+          <div data-list-sort class="min-w-0 whitespace-nowrap text-right text-xs tabular-nums">
+            <div class="truncate text-[var(--mat-sys-on-surface-variant)]">{{ listSortLabel() | translate }}</div>
+            <div class="font-semibold">
+              @if (currentSort() === 'date_taken') {
+                <span class="block text-xs">{{ photo().date_taken ? (photo().date_taken | captureDate) : (I18N.gallery.no_capture_date | translate) }}</span>
+              } @else if (currentSort() === 'shutter_speed') {
+                <span class="block truncate">{{ (photo().shutter_speed | shutterSpeed) || '—' }}</span>
+              } @else if (listSortText(); as text) { <span class="block truncate" [title]="text">{{ text }}</span> }
+              @else { <span class="text-base">{{ listSortNumber() === null ? '—' : (listSortNumber() | fixed:1) }}</span> }
+            </div>
+          </div>
+          <dl class="m-0 hidden min-w-0 text-xs leading-5 @[60rem]:block">
+            <dt class="sr-only">{{ I18N.gallery.camera | translate }}</dt>
+            <dd class="m-0 truncate" [title]="photo().camera_model || ''">{{ photo().camera_model || (I18N.gallery.metadata.not_recorded | translate) }}</dd>
+            <dt class="sr-only">{{ I18N.gallery.metadata.lens | translate }}</dt>
+            <dd class="m-0 truncate text-[var(--mat-sys-on-surface-variant)]" [title]="photo().lens_model || ''">{{ photo().lens_model || (I18N.gallery.metadata.not_recorded | translate) }}</dd>
+          </dl>
+          <div class="hidden min-w-0 text-xs leading-5 @[60rem]:block" [attr.aria-label]="I18N.gallery.exposure_range | translate">
+            @if (listHasExposure()) {
+              <div>@if (photo().f_stop) { f/{{ photo().f_stop }} } @if (photo().shutter_speed) { {{ photo().shutter_speed | shutterSpeed }} }</div>
+              <div class="text-[var(--mat-sys-on-surface-variant)]">@if (photo().iso) { ISO {{ photo().iso }} } @if (photo().focal_length) { {{ photo().focal_length }}mm }</div>
+            } @else { {{ I18N.gallery.metadata.not_recorded | translate }} }
+          </div>
+          <app-photo-list-extra [photo]="photo()" />
+          <div class="col-span-3 flex items-center justify-between gap-1 @[36rem]:col-span-1" (click)="$event.stopPropagation()" (dblclick)="$event.stopPropagation()" (keydown)="$event.stopPropagation()" tabindex="-1" role="group" [attr.aria-label]="I18N.gallery.metadata.photo_actions | translate">
+            <div class="min-w-0 text-right text-xs leading-5">
+              <span class="flex min-w-0 items-center justify-end gap-1"><mat-icon aria-hidden="true" class="shrink-0 !h-4 !w-4 !text-base">{{ photo().is_rejected ? 'block' : photo().is_kept ? 'flag' : 'radio_button_unchecked' }}</mat-icon><span class="line-clamp-2 min-w-0 break-words">{{ listDecision() | translate }}</span></span>
+              <span class="flex items-center justify-end gap-1 text-[var(--mat-sys-on-surface-variant)]">@if (photo().star_rating) { <mat-icon aria-hidden="true" class="!h-4 !w-4 !text-base">star</mat-icon>{{ photo().star_rating }} } @else { {{ I18N.gallery.metadata.unrated | translate }} }</span>
+            </div>
+            <button mat-icon-button class="shrink-0 !h-11 !w-11" [matMenuTriggerFor]="listMenu" [attr.aria-label]="I18N.gallery.metadata.photo_actions | translate"><mat-icon>more_horiz</mat-icon></button>
+          </div>
+          <mat-menu #listMenu="matMenu">
+            <ng-template matMenuContent>
+            <button mat-menu-item (click)="openDetailClicked.emit(photo())"><mat-icon>open_in_full</mat-icon>{{ I18N.photoCard.open_detail | translate }}</button>
+            @if (isEditionMode()) {
+              <button mat-menu-item (click)="favoriteToggled.emit(photo().path)"><mat-icon>favorite</mat-icon>{{ (photo().is_favorite ? I18N.rating.remove_favorite : I18N.rating.add_favorite) | translate }}</button>
+              <button mat-menu-item (click)="rejectedToggled.emit(photo().path)"><mat-icon>block</mat-icon>{{ (photo().is_rejected ? I18N.rating.unmark_rejected : I18N.rating.mark_rejected) | translate }}</button>
+              @if (config()?.features?.show_rating_controls) {
+                <button mat-menu-item [matMenuTriggerFor]="listRatingMenu"><mat-icon>star</mat-icon>{{ I18N.rating.set_rating | translate }}</button>
+              }
+            }
+            @for (id of visibleActions(); track id) {
+              @if (id === 'similar') {
+                <button mat-menu-item [matMenuTriggerFor]="listSimilarMenu"><mat-icon>image_search</mat-icon>{{ CARD_ACTION_META[id].labelKey | translate }}</button>
+              } @else if (id !== 'open_detail') {
+                <button mat-menu-item (click)="dispatchAction(id)"><mat-icon>{{ CARD_ACTION_META[id].icon }}</mat-icon>{{ CARD_ACTION_META[id].labelKey | translate }}</button>
+              }
+            }
+            </ng-template>
+          </mat-menu>
+          <mat-menu #listRatingMenu="matMenu">
+            <ng-template matMenuContent>
+            @for (star of listRatings; track star) {
+              <button mat-menu-item role="menuitemradio" [attr.aria-checked]="(photo().star_rating ?? 0) === star" (click)="starClicked.emit({ photo: photo(), star })">
+                @if (star) { {{ I18N.rating.stars_out_of_five | translate: { stars: star } }} } @else { {{ I18N.gallery.rating_preview.clear | translate }} }
+              </button>
+            }
+            </ng-template>
+          </mat-menu>
+          <mat-menu #listSimilarMenu="matMenu">
+            <ng-template matMenuContent>
+            <button mat-menu-item (click)="openSimilarClicked.emit({photo: photo(), mode: 'visual'})">{{ 'similar.mode_visual' | translate }}</button>
+            <button mat-menu-item (click)="openSimilarClicked.emit({photo: photo(), mode: 'color'})">{{ 'similar.mode_color' | translate }}</button>
+            <button mat-menu-item (click)="openSimilarClicked.emit({photo: photo(), mode: 'person'})">{{ 'similar.mode_person' | translate }}</button>
+            </ng-template>
+          </mat-menu>
+        </div>
+      } @else {
       <!-- Image wrapper with hover overlay scoped to image only -->
-      <div class="group/img relative"
-           [class.h-full]="mosaicMode() || (fillTile() && hideDetails())">
+      <div class="group/img relative @container/photo"
+           [class.h-full]="mosaicMode() || hideDetails()"
+           [class.aspect-[4/3]]="!mosaicMode() && !hideDetails()">
         <img
-          [src]="photo().path | thumbnailUrl:thumbSize():photo().preview_revision"
+          [src]="photo().path | thumbnailUrl:thumbSize():photo().preview_revision:sharedAlbum()"
           [alt]="photo().caption || photo().filename"
           loading="lazy"
           decoding="async"
-          class="w-full bg-[var(--mat-sys-surface-container)] transition-opacity duration-500"
-          [class.h-full]="mosaicMode() || (fillTile() && hideDetails())"
-          [class.object-cover]="mosaicMode() || (fillTile() && hideDetails())"
+          class="w-full h-full bg-[var(--mat-sys-surface-container)]"
+          [class.object-contain]="naturalFit() || (!mosaicMode() && !hideDetails())"
+          [class.object-cover]="!naturalFit() && (mosaicMode() || hideDetails())"
           [class.grayscale]="isEditionMode() && photo().is_rejected"
           [class.opacity-60]="isEditionMode() && photo().is_rejected"
           [style.opacity]="imageLoaded() ? (isEditionMode() && photo().is_rejected ? '0.6' : '1') : '0'"
@@ -215,7 +304,7 @@ const DEFAULT_CLIPPING_BADGE_PERCENT = 5;
              and in edition mode it also steps clear on hover, since that is
              when the bar's own heart/reject buttons occupy those slots. -->
         @if (badges().sequence_kind && collapsedSetKind(); as kind) {
-          <div [class]="'absolute w-7 h-7 z-30 inline-flex items-center justify-center bottom-1 ' + setKindBadgePosition()"
+          <div [class]="'absolute w-7 h-7 z-30 inline-flex items-center justify-center bottom-1 rounded-full bg-black/60 ' + setKindBadgePosition()"
                [matTooltip]="kind | photoSetKindBestLabel | translate"
                [attr.aria-label]="kind | photoSetKindBestLabel | translate">
             <mat-icon class="!text-base !w-4 !h-4 !leading-4 !text-white drop-shadow-md"
@@ -232,8 +321,8 @@ const DEFAULT_CLIPPING_BADGE_PERCENT = 5;
           @let stackCount = photo().stack_count ?? 0;
           @let stackTotal = photo().stack_total_count ?? stackCount;
           @let stackLabel = (stackCount !== stackTotal ? I18N.stacks.badge_filtered : I18N.stacks.badge) | translate:{ count: stackCount, total: stackTotal };
-          <button type="button" data-stack-badge
-            class="absolute left-9 w-7 h-7 z-30 inline-flex items-center justify-center bottom-1 rounded-full hover:bg-black/60 text-white cursor-pointer"
+          <button type="button" data-stack-badge [attr.tabindex]="innerTabIndex()"
+            class="absolute left-9 w-7 h-7 z-30 inline-flex items-center justify-center bottom-1 rounded-full bg-black/60 hover:bg-black/80 text-white cursor-pointer"
             (click)="openStackClicked.emit(photo()); $event.stopPropagation()"
             (keydown)="$event.stopPropagation()"
             [matTooltip]="stackLabel"
@@ -258,10 +347,8 @@ const DEFAULT_CLIPPING_BADGE_PERCENT = 5;
         }
 
         @if (isEditionMode() && photo().is_kept && !photo().is_rejected) {
-          <span class="absolute top-2 left-2 flex items-center justify-center rounded-full bg-green-700 text-white w-6 h-6 z-10"
-                [attr.aria-label]="I18N.review.kept | translate" [matTooltip]="I18N.review.kept | translate">
-            <mat-icon class="!text-base !w-4 !h-4 !leading-4">check</mat-icon>
-          </span>
+          <span data-photo-kept role="img" class="absolute inset-x-0 bottom-0 z-30 h-[3px] bg-emerald-500 shadow-[0_-1px_0_rgba(0,0,0,0.5)]"
+                [attr.aria-label]="I18N.review.kept | translate" [matTooltip]="I18N.review.kept | translate"></span>
         }
 
         <!-- Persistent rejected badge (shape + desaturation, not color alone).
@@ -317,6 +404,7 @@ const DEFAULT_CLIPPING_BADGE_PERCENT = 5;
               @switch (id) {
                 @case ('similar') {
                   <button
+                    [attr.tabindex]="innerTabIndex()"
                     class="w-7 h-7 rounded-full bg-black/50 inline-flex items-center justify-center hover:bg-black/80 transition-colors text-white cursor-pointer"
                     [matMenuTriggerFor]="similarMenu"
                     [matTooltip]="'similar.find_similar' | translate"
@@ -341,6 +429,7 @@ const DEFAULT_CLIPPING_BADGE_PERCENT = 5;
                 }
                 @default {
                   <button
+                    [attr.tabindex]="innerTabIndex()"
                     class="w-7 h-7 rounded-full bg-black/50 inline-flex items-center justify-center hover:bg-black/80 transition-colors text-white cursor-pointer"
                     [matTooltip]="CARD_ACTION_META[id].labelKey | translate"
                     [attr.aria-label]="CARD_ACTION_META[id].labelKey | translate"
@@ -358,6 +447,7 @@ const DEFAULT_CLIPPING_BADGE_PERCENT = 5;
               <!-- Left: compact star rating -->
               @if (config()?.features?.show_rating_controls) {
                 <button
+                  [attr.tabindex]="innerTabIndex()"
                   class="relative w-7 h-7 rounded-full inline-flex items-center justify-center hover:bg-white/20 transition-colors text-yellow-400 cursor-pointer"
                   [matTooltip]="'rating.set_rating' | translate"
                   [attr.aria-label]="'rating.set_rating' | translate"
@@ -373,6 +463,7 @@ const DEFAULT_CLIPPING_BADGE_PERCENT = 5;
               <div class="flex items-center gap-0.5 ml-auto">
                 @if (!photo().star_rating) {
                   <button
+                    [attr.tabindex]="innerTabIndex()"
                     class="w-7 h-7 rounded-full inline-flex items-center justify-center hover:bg-white/20 transition-colors cursor-pointer"
                     [class.text-red-400]="photo().is_rejected"
                     [class.text-white]="!photo().is_rejected"
@@ -385,6 +476,7 @@ const DEFAULT_CLIPPING_BADGE_PERCENT = 5;
                   </button>
                 }
                 <button
+                  [attr.tabindex]="innerTabIndex()"
                   class="w-7 h-7 rounded-full inline-flex items-center justify-center hover:bg-white/20 transition-colors cursor-pointer"
                   [class.text-red-400]="photo().is_favorite"
                   [class.text-white]="!photo().is_favorite"
@@ -401,9 +493,14 @@ const DEFAULT_CLIPPING_BADGE_PERCENT = 5;
         </div>
 
         <!-- Selection checkmark -->
+        @if (showSelectionIndicators() && !isSelected()) {
+          <span data-selection-affordance class="@max-[95px]/photo:top-0.5 @max-[95px]/photo:left-0.5 @max-[95px]/photo:h-5 @max-[95px]/photo:w-5 pointer-events-none absolute top-1.5 left-1.5 z-20 flex h-7 w-7 items-center justify-center rounded bg-[var(--facet-image-canvas)] text-[var(--facet-image-ink)]" aria-hidden="true">
+            <mat-icon class="!text-xl !w-5 !h-5">check_box_outline_blank</mat-icon>
+          </span>
+        }
         @if (isSelected()) {
-          <div class="absolute top-1.5 left-1.5 w-6 h-6 rounded-full bg-[var(--mat-sys-primary)] flex items-center justify-center z-20" aria-hidden="true">
-            <mat-icon class="!text-base !w-4 !h-4 !leading-4 text-white">check</mat-icon>
+          <div data-photo-selected class="@max-[95px]/photo:top-0.5 @max-[95px]/photo:left-0.5 @max-[95px]/photo:h-5 @max-[95px]/photo:w-5 absolute top-1.5 left-1.5 w-7 h-7 rounded bg-[var(--mat-sys-primary)] flex items-center justify-center z-20 shadow-sm" aria-hidden="true">
+            <mat-icon class="!text-base !w-4 !h-4 !leading-4 !text-[var(--mat-sys-on-primary)]">check</mat-icon>
           </div>
         }
 
@@ -412,9 +509,9 @@ const DEFAULT_CLIPPING_BADGE_PERCENT = 5;
              easy to never open. Rendered for keyboard-adjacent discovery on
              the single non-dimmed card, never per-hover across the grid. -->
         @if (isActive() && isEditionMode() && config()?.features?.show_rating_controls && gridHasActiveCard() && !mosaicMode()) {
-          <div class="absolute bottom-1.5 left-1.5 z-20 px-1.5 py-0.5 rounded-md
+          <div class="absolute bottom-10 left-1.5 z-20 px-1.5 py-0.5 rounded-md
                       bg-black/60 text-white/90 text-[10px] leading-4 pointer-events-none
-                      hidden md:block whitespace-nowrap" aria-hidden="true">
+                      hidden md:@[200px]/photo:block max-w-[calc(100%-0.75rem)] whitespace-normal break-words" aria-hidden="true">
             {{ 'photoCard.key_hint' | translate: keyHintVars() }}
           </div>
         }
@@ -422,9 +519,9 @@ const DEFAULT_CLIPPING_BADGE_PERCENT = 5;
 
       <!-- Details below photo -->
       @if (!hideDetails()) {
-        <div class="pt-1 text-xs text-neutral-300 leading-snug">
+        <div class="px-2 py-2 text-xs text-[var(--mat-sys-on-surface-variant)] leading-snug">
           <div class="flex items-center gap-1">
-            <span class="font-medium text-neutral-200 truncate">{{ photo().filename }}</span>
+            <span class="font-medium text-[var(--mat-sys-on-surface)] truncate">{{ photo().filename }}</span>
             <span class="ml-auto flex items-center gap-1 shrink-0">
               @if (showsBestBadge()) {
                 <span class="px-1 py-0.5 rounded text-[10px] font-bold bg-[var(--facet-accent-dim)] text-white">{{ 'ui.badges.best' | translate }}</span>
@@ -433,36 +530,38 @@ const DEFAULT_CLIPPING_BADGE_PERCENT = 5;
                 <span class="text-neutral-400 font-medium" [matTooltip]="'gallery.aggregate_score' | translate">{{ photo().aggregate | fixed:1 }}</span>
               }
               <span
-                class="px-1 py-0.5 rounded text-xs font-bold"
-                [class]="(photo() | sortScore:currentSort()) | scoreClass:config()"
+                class="px-1.5 py-0.5 rounded-sm text-xs font-medium tabular-nums !bg-[var(--mat-sys-surface-container-high)] !text-[var(--mat-sys-on-surface)]"
                 [matTooltip]="(currentSort() === 'aggregate' ? ('gallery.aggregate_score' | translate) : ('gallery.sort_score' | translate) + ' (' + currentSort() + ')')
                   + (badgeTopPercent() === null ? '' : ' · ' + ('photo_detail.distribution.top' | translate:{ pct: badgeTopPercent()! }))"
               >{{ (photo() | sortScore:currentSort()) | fixed:1 }}</span>
             </span>
           </div>
           @if (photo().date_taken) {
-            <div class="text-neutral-500">{{ photo().date_taken }}</div>
+            <div class="text-[var(--mat-sys-on-surface-variant)]">{{ photo().date_taken | captureDate }}</div>
+          } @else {
+            <div class="text-[var(--mat-sys-on-surface-variant)]">{{ I18N.gallery.no_capture_date | translate }}</div>
           }
-          <div class="text-neutral-500">
+          <div class="text-[var(--mat-sys-on-surface-variant)]">
             @if (photo().focal_length) { {{ photo().focal_length }}mm }
             @if (photo().f_stop) { f/{{ photo().f_stop }} }
             @if (photo().shutter_speed) { {{ photo().shutter_speed | shutterSpeed }} }
             @if (photo().iso) { ISO {{ photo().iso }} }
           </div>
-          @if (photo().tags_list.length) {
+          @if (navigationTags().length) {
             <div class="flex gap-0.5 flex-wrap mt-0.5">
-              @for (tag of photo().tags_list; track tag) {
+              @for (tag of navigationTags(); track tag) {
                 @if (filterLinks()) {
-                  <span class="px-1.5 py-0.5 bg-[var(--facet-accent-badge)] text-[var(--facet-accent-text)] rounded text-[11px] cursor-pointer hover:bg-[var(--facet-accent-dim)] transition-colors"
+                  <button type="button" data-tag-chip class="px-1.5 py-0.5 bg-[var(--facet-accent-badge)] text-[var(--facet-accent-text)] rounded text-[11px] cursor-pointer hover:bg-[var(--facet-accent-dim)] transition-colors"
                         role="button"
-                        tabindex="0"
-                        (click)="tagClicked.emit(tag); $event.stopPropagation()"
-                        (keydown.enter)="tagClicked.emit(tag); $event.stopPropagation()"
-                        (keydown.space)="tagClicked.emit(tag); $event.preventDefault(); $event.stopPropagation()">
+                        [attr.tabindex]="tabStop() ? 0 : -1"
+                        [matMenuTriggerFor]="tagMenu" [matMenuTriggerData]="{ tag: tag }"
+                        (click)="$event.stopPropagation()"
+                        (keydown.enter)="$event.stopPropagation()"
+                        (keydown.space)="$event.stopPropagation()">
                     {{ tag }}
-                  </span>
+                  </button>
                 } @else {
-                  <span class="px-1.5 py-0.5 bg-[var(--facet-accent-badge)] text-[var(--facet-accent-text)] rounded text-[11px]">
+                  <span data-tag-chip class="px-1.5 py-0.5 bg-[var(--facet-accent-badge)] text-[var(--facet-accent-text)] rounded text-[11px]">
                     {{ tag }}
                   </span>
                 }
@@ -475,6 +574,7 @@ const DEFAULT_CLIPPING_BADGE_PERCENT = 5;
               @for (person of photo().persons | sortPersons:personFilterId(); track person.id) {
                 @if (isEditionMode() && personFilterId() === '' + person.id) {
                   <button
+                    [attr.tabindex]="innerTabIndex()"
                     class="w-8 h-8 rounded-full bg-red-900/60 inline-flex items-center justify-center hover:bg-red-800 transition-colors cursor-pointer"
                     [matTooltip]="('ui.buttons.remove' | translate) + ': ' + person.name"
                     [attr.aria-label]="('ui.buttons.remove' | translate) + ': ' + person.name"
@@ -487,7 +587,7 @@ const DEFAULT_CLIPPING_BADGE_PERCENT = 5;
                        [alt]="person.name"
                        [matTooltip]="person.name"
                        role="button"
-                       tabindex="0"
+                       [attr.tabindex]="tabStop() ? 0 : -1"
                        (click)="personFilterClicked.emit(person.id); $event.stopPropagation()"
                        (keydown.enter)="personFilterClicked.emit(person.id); $event.stopPropagation()"
                        (keydown.space)="personFilterClicked.emit(person.id); $event.preventDefault(); $event.stopPropagation()" />
@@ -497,7 +597,16 @@ const DEFAULT_CLIPPING_BADGE_PERCENT = 5;
           }
         </div>
       }
+      }
     </div>
+    <mat-menu #tagMenu="matMenu">
+      <ng-template matMenuContent let-tag="tag">
+        @if (tagCollectionAvailable()) {
+          <button mat-menu-item (click)="tagClicked.emit({ tag: tag, scope: 'collection' })"><mat-icon>filter_alt</mat-icon>{{ I18N.photo_detail.tag_refine_collection | translate }}</button>
+        }
+        <button mat-menu-item (click)="tagClicked.emit({ tag: tag, scope: 'library' })"><mat-icon>search</mat-icon>{{ I18N.photo_detail.tag_search_library | translate }}</button>
+      </ng-template>
+    </mat-menu>
   `,
 })
 export class PhotoCardComponent {
@@ -510,6 +619,7 @@ export class PhotoCardComponent {
   }));
   // Data
   readonly photo = input.required<Photo>();
+  readonly sharedAlbum = input<SharedAlbumMediaScope | null>(null);
   readonly config = input<AppConfig | null>(null);
 
   /** Which badges this install draws, with every unset key left at its default. */
@@ -633,25 +743,43 @@ export class PhotoCardComponent {
 
   // Display state
   readonly isSelected = input(false);
+  readonly showSelectionIndicators = input(false);
+  /** Only one card of a grid sits in the tab order (arrow keys move between cards); the rest stay out of it. */
+  readonly tabStop = input(true);
+  /** Controls inside the card follow the card: natural order on the tab stop, skipped on every other card. */
+  protected readonly innerTabIndex = computed(() => this.tabStop() ? null : -1);
   /** Whether this card is the one the grid's keyboard cursor is standing on.
    *
    *  Independent of `isSelected`: a card can be both, and the two say different
    *  things -- selection is a set the batch actions operate on, current is the
    *  single photo the next rating keystroke lands on. */
   readonly isActive = input(false);
-  /** Whether the grid this card sits in has a current photo at all.
-   *
-   *  Stated as a fact about the grid rather than passed as "dim yourself": a
-   *  card cannot see whether some *other* card is the current one. It stays
-   *  false until the grid's cursor first lands somewhere, which is what keeps
-   *  a gallery nobody has navigated yet from rendering every tile faded. */
+  /** Enables keyboard-rating hints after the grid cursor first lands on a photo. */
   readonly gridHasActiveCard = input(false);
   /** False hides every control that replaces the list with a new filter: tag chips render as plain text and Find similar is not offered. */
   readonly filterLinks = input(true);
   readonly hideDetails = input(false);
+  readonly naturalFit = input(false);
   readonly mosaicMode = input(false);
-  /** The parent sizes the tile (gallery grid): fill it as a square when details are hidden. */
-  readonly fillTile = input(false);
+  readonly listMode = input(false);
+  private static nextListId = 0;
+  protected readonly listSortLabel = computed(() => sortLabelKey(this.currentSort()));
+  private readonly listSortValue = computed(() => (this.photo() as unknown as Record<string, unknown>)[this.currentSort()]);
+  protected readonly listSortNumber = computed(() => {
+    const value = this.listSortValue();
+    return typeof value === 'number' && Number.isFinite(value) ? value : null;
+  });
+  protected readonly listSortText = computed(() => {
+    const value = this.listSortValue();
+    return typeof value === 'string' ? value : null;
+  });
+  protected readonly listMetadataId = `photo-list-metadata-${PhotoCardComponent.nextListId++}`;
+  protected readonly listCaptureDate = computed(() => this.photo().date_taken?.trim() ?? '');
+  protected readonly listCaptureDay = computed(() => this.listCaptureDate().slice(0, 10));
+  protected readonly listHasExposure = computed(() => !!(this.photo().f_stop || this.photo().shutter_speed || this.photo().iso || this.photo().focal_length));
+  protected readonly listDecision = computed(() => this.photo().is_rejected ? this.I18N.review.rejected : this.photo().is_kept ? this.I18N.review.kept : this.I18N.gallery.metadata.undecided);
+  protected readonly listGroupLabel = computed(() => this.collapsedSetKind() === 'burst' ? this.I18N.photoCard.burst_set : this.collapsedSetKind() === 'duplicate' ? this.I18N.photoCard.duplicate_set : this.I18N.photoCard.sequence_set);
+  protected readonly listRatings = [0, 1, 2, 3, 4, 5];
   readonly currentSort = input('aggregate');
   /** Library distributions keyed by photo column; empty where none were loaded (a shared view). */
   readonly metricRanges = input<Record<string, MetricDistribution>>({});
@@ -665,14 +793,6 @@ export class PhotoCardComponent {
     const range = this.metricRanges()[column];
     return range ? topPercentOf(range, (photo as unknown as Record<string, number | null>)[column]) : null;
   });
-
-  /** Every card except the current one, and only once there is a current one.
-   *
-   *  Fading the rest is the half of the marker that a photograph cannot defeat:
-   *  a line drawn at the tile's own edge competes with whatever the photo puts
-   *  there, whereas a grid where one tile alone is at full strength reads from
-   *  across the room. */
-  protected readonly isDimmed = computed(() => this.gridHasActiveCard() && !this.isActive());
 
   // Edition mode
   readonly isEditionMode = input(false);
@@ -768,7 +888,11 @@ export class PhotoCardComponent {
   }
   readonly tooltipShow = output<{ photo: Photo; event: MouseEvent }>();
   readonly tooltipHide = output<void>();
-  readonly tagClicked = output<string>();
+  readonly tagClicked = output<TagNavigation>();
+  readonly tagCollectionAvailable = input(true);
+  protected readonly navigationTags = computed(() => [...new Set([
+    ...(this.photo().tags_list ?? []), ...(this.photo().manual_tags ?? []),
+  ])]);
   readonly personFilterClicked = output<number>();
   readonly personRemoveClicked = output<{ photo: Photo; personId: number }>();
   readonly openSimilarClicked = output<{ photo: Photo; mode: 'visual' | 'color' | 'person' }>();

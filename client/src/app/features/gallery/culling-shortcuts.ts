@@ -22,8 +22,7 @@ export const CULLING_SHORTCUT_SECTIONS: { titleKey: string; rows: CullingShortcu
     rows: [
       { keys: ['↑', '↓'], labelKey: 'culling.shortcuts.select' },
       { keys: ['←', '→'], labelKey: 'culling.shortcuts.navigate' },
-      { keys: ['Space'], labelKey: 'culling.shortcuts.toggle' },
-      { keys: ['Shift+Space'], labelKey: 'culling.shortcuts.confirm_next' },
+      { keys: ['Space', 'Shift+Space'], labelKey: 'culling.shortcuts.confirm_next' },
       { keys: ['Enter'], labelKey: 'culling.shortcuts.open' },
     ],
   },

@@ -75,7 +75,7 @@ interface CullResponse {
         <p class="text-sm mb-3">{{ I18N.cull.all_rejects_scope | translate }}</p>
       }
       @if (count) {
-        <p class="text-sm opacity-70 mb-3">{{ count }} {{ I18N.cull.selected | translate }}</p>
+        <p class="text-sm text-[var(--mat-sys-on-surface-variant)] mb-3">{{ count }} {{ I18N.cull.selected | translate }}</p>
       }
 
       <div class="flex flex-col gap-1 mb-3">
@@ -89,13 +89,13 @@ interface CullResponse {
       </div>
 
       @if (!data.trashAvailable) {
-        <p class="text-xs opacity-60 mb-3">
+        <p class="text-xs text-[var(--mat-sys-on-surface-variant)] mb-3">
           {{ (data.allowTrash ? I18N.cull.trash_missing_pkg : I18N.cull.trash_disabled) | translate }}
         </p>
       }
 
       @if (needsTarget()) {
-        <label for="cullTargetDir" class="block text-xs opacity-60 mb-1">{{ I18N.cull.target_dir | translate }}</label>
+        <label for="cullTargetDir" class="block text-xs text-[var(--mat-sys-on-surface-variant)] mb-1">{{ I18N.cull.target_dir | translate }}</label>
         <input id="cullTargetDir" type="text" [value]="targetDir()" (input)="onTargetInput($event)"
                class="w-full text-sm font-mono rounded border border-[var(--mat-sys-outline-variant)] bg-transparent px-2 py-1.5 mb-3"
                placeholder="/path/to/folder" />
@@ -119,13 +119,13 @@ interface CullResponse {
             <p>{{ p.affected.length }} {{ I18N.cull.would_affect | translate }}</p>
           }
           @if (p.siblings) {
-            <p class="opacity-60">{{ p.siblings }} {{ I18N.cull.sequence_siblings | translate }}</p>
+            <p class="text-[var(--mat-sys-on-surface-variant)]">{{ p.siblings }} {{ I18N.cull.sequence_siblings | translate }}</p>
           }
           @if (p.excluded) {
-            <p class="opacity-60">{{ p.excluded }} {{ I18N.cull.excluded_by_state | translate }}</p>
+            <p class="text-[var(--mat-sys-on-surface-variant)]">{{ p.excluded }} {{ I18N.cull.excluded_by_state | translate }}</p>
           }
           @if (p.skipped.length) {
-            <p class="opacity-60">{{ p.skipped.length }} {{ I18N.cull.skipped | translate }}</p>
+            <p class="text-[var(--mat-sys-on-surface-variant)]">{{ p.skipped.length }} {{ I18N.cull.skipped | translate }}</p>
           }
         </div>
         @if (p.affected.length) {
@@ -137,7 +137,7 @@ interface CullResponse {
         <p class="mt-3 text-sm text-[var(--mat-sys-error)]" role="alert">{{ I18N.cull.partial_error | translate }}</p>
       }
       @if (errorDetail(); as detail) {
-        <p class="mt-3 text-sm text-[var(--mat-sys-error)]">{{ I18N.cull.error | translate }}</p>
+        <p class="mt-3 text-sm text-[var(--mat-sys-error)]">{{ errorTitleKey() | translate }}</p>
         <p class="mt-1 text-xs text-[var(--mat-sys-error)] opacity-80">{{ I18N.errors.server_detail | translate }} {{ detail }}</p>
       }
     </mat-dialog-content>
@@ -200,6 +200,8 @@ export class CullDialogComponent {
   protected readonly busy = signal(false);
   protected readonly applying = signal(false);
   protected readonly errorDetail = signal<string | null>(null);
+  /** A failed dry run is titled for what it was: nothing has been moved yet. */
+  protected readonly errorTitleKey = signal<string>(I18N.cull.error);
   protected readonly partialFailure = signal(false);
 
   protected readonly needsTarget = computed(() => this.action() !== 'trash_rejects');
@@ -269,6 +271,7 @@ export class CullDialogComponent {
     this.partialFailure.set(false);
     this.busy.set(true);
     this.errorDetail.set(null);
+    this.errorTitleKey.set(I18N.cull.preview_error);
     const requested = this.body(true);
     try {
       const res = await firstValueFrom(this.api.post<CullResponse>('/cull/apply', requested));
@@ -286,7 +289,8 @@ export class CullDialogComponent {
       this.errorDetail.set(this.data.allRejects && error instanceof HttpErrorResponse && error.status === 412
         ? this.i18n.t(I18N.cull.all_rejects_limit)
         : extractErrorDetail(error) ?? null);
-      this.snackBar.open(this.i18n.t(I18N.cull.error), '', { duration: 3000 });
+      // The inline error already says it; the toast is for a failure with no detail to show.
+      if (!this.errorDetail()) this.snackBar.open(this.i18n.t(I18N.cull.preview_error), '', { duration: 3000 });
     } finally {
       this.busy.set(false);
     }
@@ -295,6 +299,7 @@ export class CullDialogComponent {
   async apply(): Promise<void> {
     if (!this.current() || this.busy() || !this.preview() || (this.data.action && !this.preview()?.digest)) return;
     this.partialFailure.set(false);
+    this.errorTitleKey.set(I18N.cull.error);
     this.busy.set(true);
     this.applying.set(true);
     const disableClose = this.dialogRef.disableClose;

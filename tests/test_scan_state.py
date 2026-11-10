@@ -7,7 +7,9 @@ import pytest
 
 from db.schema import init_database
 from processing.progress import PROGRESS_PREFIX, emit_progress, parse_progress_line
+from processing import scan_state
 from processing.scan_state import (
+    ScanJobLifecycle,
     ScanRun,
     filter_paths_scanned_before,
     filter_paths_scanned_since,
@@ -78,6 +80,64 @@ class TestScanRunLifecycle:
         assert stage == 'load'
         assert 'first' in error
         assert 'second' in error
+
+
+class TestTransientBookkeepingFailures:
+    """A locked bookkeeping write is retried; only a failure record that never
+    reaches the database may fail the scan (the retry plan reads them)."""
+
+    @staticmethod
+    def _lock_calls(monkeypatch, failing):
+        real, calls = scan_state.get_connection, {'n': 0}
+        def flaky(*args, **kwargs):
+            calls['n'] += 1
+            if calls['n'] in failing:
+                raise sqlite3.OperationalError('database is locked')
+            return real(*args, **kwargs)
+        monkeypatch.setattr(scan_state, 'get_connection', flaky)
+
+    @staticmethod
+    def _row(scan_db, run_id):
+        with sqlite3.connect(scan_db) as conn:
+            return (conn.execute('SELECT status, processed_files, failed_files FROM scan_runs WHERE id = ?',
+                                 (run_id,)).fetchone(),
+                    conn.execute('SELECT path, stage, error FROM scan_failures WHERE scan_run_id = ?',
+                                 (run_id,)).fetchall())
+
+    def test_locked_heartbeat_does_not_fail_the_scan(self, scan_db, monkeypatch):
+        run = ScanRun.start(scan_db, 'multi-pass', {}, 10)
+        self._lock_calls(monkeypatch, {1})
+        run.update_progress(5)
+        assert run.finish('completed') is True
+        assert self._row(scan_db, run.run_id) == (('completed', 5, 0), [])
+
+    def test_locked_failure_flush_is_retried_by_a_later_flush(self, scan_db, monkeypatch):
+        run = ScanRun.start(scan_db, 'multi-pass', {}, 10)
+        self._lock_calls(monkeypatch, {1})
+        run.record_failure('/p/bad.jpg', 'load', 'corrupt file')
+        run.update_progress(10)
+        assert run.finish('completed') is True
+        assert self._row(scan_db, run.run_id) == (('completed', 10, 1), [('/p/bad.jpg', 'load', 'corrupt file')])
+
+    def test_failure_records_that_never_persist_still_fail_the_scan(self, scan_db, monkeypatch):
+        run = ScanRun.start(scan_db, 'multi-pass', {}, 10)
+        self._lock_calls(monkeypatch, {1, 2})  # the record's flush and finish's final flush
+        run.record_failure('/p/bad.jpg', 'load', 'corrupt file')
+        assert run.finish('completed') is False
+        assert self._row(scan_db, run.run_id) == (('failed', 0, 0), [])
+
+    def test_locked_phase_write_is_retried_and_does_not_fail_the_job(self, scan_db, monkeypatch):
+        run = ScanRun.start(scan_db, 'multi-pass', {}, 1)
+        assert run.finish('completed') is True
+        lifecycle = ScanJobLifecycle()
+        lifecycle.attach(run)
+        self._lock_calls(monkeypatch, {1, 2})  # 'bursts' and 'done'; finish retries the phase it ends on
+        lifecycle.progress('bursts')
+        lifecycle.progress('done')
+        assert lifecycle.finish('completed') is True
+        with sqlite3.connect(scan_db) as conn:
+            assert conn.execute('SELECT status, job_status, job_phase FROM scan_runs').fetchone() == (
+                'completed', 'completed', 'done')
 
 
 class TestFailureCounting:

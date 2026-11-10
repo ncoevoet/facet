@@ -258,6 +258,20 @@ def test_date_revert_restores_pair_without_original_write(edition_client, seed_p
     assert photo.read_bytes() == b'original untouched'
 
 
+def test_date_revert_returns_a_set_date_to_undated(edition_client, seed_photos_prefix):
+    path = '/history-undated/a.jpg'
+    seed_photos_prefix('/history-undated/', [dict(path=path,filename='a.jpg',date_taken=None,date_manually_set=0)])
+    body = dict(photo_paths=[path],set_date='2024-05-06T07:08:09')
+    preview = edition_client.post('/api/photos/capture_date/preview',json=body).json()
+    assert edition_client.post('/api/photos/capture_date/apply',json={**body,'preview_token':preview['preview_token']}).status_code == 200
+    with get_db() as conn:
+        assert tuple(conn.execute('SELECT date_taken,date_manually_set FROM photos WHERE path=?',(path,)).fetchone()) == ('2024:05:06 07:08:09',1)
+    entry = edition_client.get('/api/organization_history').json()['entries'][0]
+    assert edition_client.post(f"/api/organization_history/{entry['id']}/revert").status_code == 200
+    with get_db() as conn:
+        assert tuple(conn.execute('SELECT date_taken,date_manually_set FROM photos WHERE path=?',(path,)).fetchone()) == (None,0)
+
+
 def test_revert_failure_rolls_back_all_members(edition_client, seed_photos_prefix):
     paths = ['/history-atomic/a.jpg','/history-atomic/b.jpg']
     seed_photos_prefix('/history-atomic/', [dict(path=p,filename='a.jpg') for p in paths])
@@ -356,3 +370,34 @@ def test_failed_finish_maps_to_422_and_rolls_back(edition_client, seed_photos_pr
     with get_db() as conn:
         assert conn.execute("SELECT is_kept FROM photos WHERE path='/history-finish/a.jpg'").fetchone()[0] in (None, 0)
 
+
+
+def _entries(client):
+    return client.get('/api/organization_history').json()['entries']
+
+
+def test_newer_same_kind_entry_on_overlapping_path_supersedes_older(edition_client, seed_photos_prefix):
+    seed_photos_prefix('/history-sup/', [dict(path=f'/history-sup/{p}.jpg', filename=f'{p}.jpg') for p in ('a', 'b')])
+    assert edition_client.post('/api/photos/batch_review', json=dict(photo_paths=['/history-sup/a.jpg', '/history-sup/b.jpg'], decision='kept')).status_code == 200
+    assert edition_client.post('/api/photos/batch_review', json=dict(photo_paths=['/history-sup/b.jpg'], decision='rejected')).status_code == 200
+    newest, older = _entries(edition_client)
+    assert (newest['kind'], older['kind']) == ('review', 'review')
+    assert newest['superseded'] is False
+    assert older['superseded'] is True
+
+
+def test_newer_entry_of_another_kind_does_not_supersede(edition_client, seed_photos_prefix):
+    seed_photos_prefix('/history-sup/', [dict(path='/history-sup/a.jpg', filename='a.jpg', gps_latitude=1, gps_longitude=2, gps_manually_set=0)])
+    assert edition_client.put('/api/photo/gps', json=dict(path='/history-sup/a.jpg', gps_latitude=3, gps_longitude=4)).status_code == 200
+    assert edition_client.post('/api/photos/batch_review', json=dict(photo_paths=['/history-sup/a.jpg'], decision='kept')).status_code == 200
+    newest, older = _entries(edition_client)
+    assert (newest['kind'], older['kind']) == ('review', 'gps')
+    assert newest['superseded'] is False
+    assert older['superseded'] is False
+
+
+def test_newer_same_kind_entry_on_disjoint_paths_does_not_supersede(edition_client, seed_photos_prefix):
+    seed_photos_prefix('/history-sup/', [dict(path=f'/history-sup/{p}.jpg', filename=f'{p}.jpg') for p in ('a', 'b')])
+    assert edition_client.post('/api/photos/batch_review', json=dict(photo_paths=['/history-sup/a.jpg'], decision='kept')).status_code == 200
+    assert edition_client.post('/api/photos/batch_review', json=dict(photo_paths=['/history-sup/b.jpg'], decision='kept')).status_code == 200
+    assert [entry['superseded'] for entry in _entries(edition_client)] == [False, False]

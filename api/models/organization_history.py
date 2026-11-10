@@ -11,11 +11,12 @@ class OrganizationChange(BaseModel):
 
 class OrganizationEntry(BaseModel):
     id: int
-    kind: Literal['gps', 'date', 'review', 'stack']
+    kind: Literal['gps', 'date', 'review', 'stack', 'logical_review']
     created_at: str
     part: int
     parts: int
     reverted: bool
+    superseded: bool
     changes: list[OrganizationChange]
 
 

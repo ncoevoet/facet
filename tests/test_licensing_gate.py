@@ -440,7 +440,7 @@ SWALLOW_SITES = [
     ('processing/scorer.py', 'score_photo_from_pil'),
     ('processing/scorer.py', 'process_single_photo'),
     ('faces/processor.py', '_worker_thread_extract'),
-    ('facet.py', '_run_scan'),
+    ('facet.py', '_run_scan_pipeline'),
 ]
 
 
@@ -448,7 +448,7 @@ SWALLOW_SITES = [
 # only the try blocks that mention one of these names are checked.
 SWALLOW_MARKERS = {
     ('processing/scorer.py', '__init__'): ('SAMPNetScorer', 'create_composition_analyzer'),
-    ('facet.py', '_run_scan'): ('process_single_photo',),
+    ('facet.py', '_run_scan_pipeline'): ('process_single_photo',),
 }
 
 
@@ -468,8 +468,15 @@ def _is_reraise_call(stmt):
 
 
 def _handler_is_guarded(handler):
-    """A broad handler is guarded iff its FIRST statement is the shared re-raise helper."""
-    return bool(handler.body) and _is_reraise_call(handler.body[0])
+    """Require the guard before recovery, or unconditional cleanup and re-raise."""
+    if not handler.body:
+        return False
+    if _is_reraise_call(handler.body[0]):
+        return True
+    last = handler.body[-1]
+    return (isinstance(last, ast.Raise) and last.exc is None
+            and not any(isinstance(node, (ast.Return, ast.Break, ast.Continue))
+                        for stmt in handler.body for node in ast.walk(stmt)))
 
 
 def _broad_handlers(try_node):
@@ -607,6 +614,15 @@ class TestSwallowers:
         monkeypatch.setitem(globals(), 'ROOT', tmp_path)
         bad, seen = _tree_unprotected()
         assert seen == 1 and bad == [('models/new.py', 6)]
+
+    @pytest.mark.parametrize('cleanup,guarded', [
+        ('record_failure()\n        raise', True),
+        ('if recover():\n            return None\n        raise', False),
+        ('record_failure()\n        raise RuntimeError()', False),
+    ])
+    def test_cleanup_must_unconditionally_reraise(self, cleanup, guarded):
+        tree = ast.parse('try:\n    load_model()\nexcept BaseException:\n        ' + cleanup)
+        assert _handler_is_guarded(tree.body[0].handlers[0]) is guarded
 
     def test_tree_scan_covers_api_vlm_loader(self, tmp_path, monkeypatch):
         (tmp_path / 'api').mkdir()
@@ -899,6 +915,19 @@ class TestSpawnedChildPolicy:
                 checked += 1
                 env = next((k.value for k in node.keywords if k.arg == 'env'), None)
                 assert env is not None, f"{path.name}:{node.lineno} spawns facet.py without env="
+                if isinstance(env, ast.Name):
+                    # Captured scans add a job id to the policy environment
+                    # before Popen; follow its local assignment, not just the
+                    # spelling of the env= expression.
+                    owner = next(func for func in ast.walk(tree)
+                                 if isinstance(func, (ast.FunctionDef, ast.AsyncFunctionDef))
+                                 and node in ast.walk(func))
+                    assignments = [stmt for stmt in ast.walk(owner)
+                                   if isinstance(stmt, ast.Assign) and stmt.lineno < node.lineno
+                                   and any(isinstance(target, ast.Name) and target.id == env.id
+                                           for target in stmt.targets)]
+                    if assignments:
+                        env = max(assignments, key=lambda stmt: stmt.lineno).value
                 assert any(w in ast.unparse(env)
                            for w in ('child_process_env', '_cross_process_job_env')), \
                     f"{path.name}:{node.lineno} env does not carry the licensing policy"
@@ -1033,7 +1062,7 @@ class TestStartupFailsFast:
     def test_dry_run_preflights_before_the_sample_loop(self):
         tree = ast.parse((ROOT / 'facet.py').read_text(encoding='utf-8'))
         run_scan = next(n for n in ast.walk(tree)
-                        if isinstance(n, ast.FunctionDef) and n.name == '_run_scan')
+                        if isinstance(n, ast.FunctionDef) and n.name == '_run_scan_pipeline')
         calls = sorted(
             (n.lineno, getattr(n.func, 'attr', None) or getattr(n.func, 'id', None))
             for n in ast.walk(run_scan) if isinstance(n, ast.Call))
@@ -1206,7 +1235,7 @@ class TestRefusedPassExit:
     def test_a_pass_that_processed_nothing_exits_nonzero(self):
         tree = ast.parse((ROOT / 'facet.py').read_text(encoding='utf-8'))
         run_scan = next(n for n in ast.walk(tree)
-                        if isinstance(n, ast.FunctionDef) and n.name == '_run_scan')
+                        if isinstance(n, ast.FunctionDef) and n.name == '_run_scan_pipeline')
         guards = [n for n in ast.walk(run_scan)
                   if isinstance(n, ast.If) and ast.unparse(n.test) == 'processed == 0']
         assert guards, "no `processed == 0` guard after run_single_pass"

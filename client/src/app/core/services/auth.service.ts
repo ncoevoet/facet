@@ -4,6 +4,7 @@ import { Router } from '@angular/router';
 import { firstValueFrom, timeout, TimeoutError } from 'rxjs';
 import { clearReviewQueues, REVIEW_QUEUE_STORAGE_KEY } from './review-queue.storage';
 import { clearPersonAssignmentHistory } from './person-assignment-history.storage';
+import { clearThumbnailCaches } from './thumbnail-cache';
 import {
   confirmPrivateImageOwner, PRIVATE_IMAGE_SESSION_STORAGE_KEY, resetPrivateImageSession, syncPrivateImageSession,
 } from '../../shared/utils/private-image-session';
@@ -60,6 +61,11 @@ function authIdentity(status: AuthStatus | null): string {
   return `${status?.authenticated ? 1 : 0}|${status?.multi_user ? status.user_id ?? '' : ''}`;
 }
 
+/** Who a confirmed status signs in, with which edition right and which token. */
+function sessionScope(status: AuthStatus, token: string | null): string {
+  return `${authIdentity(status)}|${status.edition_authenticated ? 1 : 0}|${token ?? ''}`;
+}
+
 /** True once the JWT's own `exp` has passed, plus the clock-skew grace. Verifying
  *  the signature is the server's business; this only stops the client presenting
  *  a token it already knows is dead, which some deployments treat as worse than
@@ -93,6 +99,8 @@ export class AuthService {
   private cookieQueue: Promise<void> | null = null;
   private pendingCookieMutations = 0;
   private confirmedStatus: AuthStatus | null = null;
+  private readonly confirmedScope = signal<string | null>(null);
+  private confirmedScopeToken: string | null = null;
   private cookieUncertain = false;
   // Public installation mode keeps the retry form usable even when an unknown
   // HttpOnly cookie prevents restoring any identity, including after a reload.
@@ -102,6 +110,14 @@ export class AuthService {
   readonly status = signal<AuthStatus | null>(null);
   /** Who is signed in, not the session's other status fields; changes exactly when the identity does. */
   readonly identity = computed(() => authIdentity(this.status()));
+  /** The confirmed session: identity, edition right and token. `status` is replaced on every refresh and is
+   *  null while an auth attempt, a cookie reconciliation or another tab's sign-in is pending, even when
+   *  nothing changes; this holds through both and changes only when a confirmed status names a different
+   *  session or the credential is dropped. Null until a status is confirmed and after sign-out. */
+  readonly session = computed(() => {
+    const status = this.status();
+    return status ? sessionScope(status, this.token) : this.confirmedScope();
+  });
   readonly isAuthenticated = computed(() => this.status()?.authenticated ?? false);
   readonly isEdition = computed(() => this.status()?.edition_authenticated ?? false);
   readonly editionPasswordRequired = computed(() => this.status()?.edition_password_required ?? false);
@@ -184,8 +200,15 @@ export class AuthService {
     localStorage.setItem(this.MULTI_USER_MODE_KEY, status.multi_user ? '1' : '0');
     this.confirmedStatus = status;
     confirmPrivateImageOwner(authIdentity(status));
-    if (!this.pendingCookieMutations) this.status.set(status);
+    if (!this.pendingCookieMutations) this.publish(status);
     return status;
+  }
+
+  /** Expose a confirmed status, or its absence, and the session it names. */
+  private publish(status: AuthStatus | null): void {
+    this.confirmedScopeToken = this.token;
+    this.confirmedScope.set(status ? sessionScope(status, this.confirmedScopeToken) : null);
+    this.status.set(status);
   }
 
   private isCurrentSession(epoch: number, token: string | null): boolean {
@@ -194,14 +217,16 @@ export class AuthService {
 
   /** Drop state and in-flight ownership whenever the shared credential changes.
    * A late request may still finish, but cannot restore the previous account.
-   * CacheStorage cleanup does not clear the browser's HTTP cache. */
-  private invalidateSession(): void {
+   * CacheStorage cleanup does not clear the browser's HTTP cache. The confirmed session survives
+   * only a recheck of the same credential: a sign-out or a different token drops it. */
+  private invalidateSession(signOut = false): void {
     this.authEpoch++;
     this.pendingLoad = null;
     this.pendingRevalidation = null;
+    if (signOut || this.token !== this.confirmedScopeToken) this.confirmedScope.set(null);
     this.status.set(null);
     this.confirmedStatus = null;
-    this.clearThumbnailCaches();
+    void clearThumbnailCaches();
   }
 
   /** The cached status, or the one server load every caller shares while it is
@@ -303,7 +328,7 @@ export class AuthService {
     const pending = this.cookieQueue ? this.cookieQueue.then(run) : run();
     const settled = pending.finally(() => {
       this.pendingCookieMutations--;
-      if (!this.pendingCookieMutations) this.status.set(this.confirmedStatus);
+      if (!this.pendingCookieMutations) this.publish(this.confirmedStatus);
       if (this.cookieQueue === tail) this.cookieQueue = null;
     });
     const tail = settled.then(() => undefined, () => undefined);
@@ -362,7 +387,7 @@ export class AuthService {
     resetPrivateImageSession();
     clearPersonAssignmentHistory();
     clearReviewQueues();
-    this.invalidateSession();
+    this.invalidateSession(true);
     this.router.navigate(['/login']);
     try {
       // Stay inside the current mutation's lock. Do not recurse through
@@ -438,27 +463,16 @@ export class AuthService {
         localStorage.removeItem(this.TOKEN_KEY);
         // Images loaded until the cookie was cleared used the old account's cookie.
         resetPrivateImageSession();
-        this.invalidateSession();
+        this.invalidateSession(true);
       }
     }).catch(() => undefined);
     localStorage.removeItem(this.TOKEN_KEY);
     resetPrivateImageSession();
     clearPersonAssignmentHistory();
     clearReviewQueues();
-    this.invalidateSession();
+    this.invalidateSession(true);
     this.router.navigate(['/login']);
     return clearingCookie;
-  }
-
-  /** Drop service-worker thumbnail caches so they can't leak across users
-   * sharing a browser (multi-user deployments). */
-  private clearThumbnailCaches(): void {
-    if (!('caches' in window)) return;
-    caches.keys()
-      .then(keys => Promise.allSettled(
-        keys.filter(k => k.includes(':thumbnails:')).map(k => caches.delete(k)),
-      ))
-      .catch(() => { /* cache API unavailable - nothing to clear */ });
   }
 
   /** Drop edition privileges without navigating away */

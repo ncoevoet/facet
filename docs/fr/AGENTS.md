@@ -278,7 +278,7 @@ Les outils d'écriture figurent dans la même liste `/mcp` que les outils de lec
 | `unstack_photos` | `edition` | Dissoudre une pile sans changer les originaux |  |
 | `undo_photo_stack` | `edition` | Annuler seulement une entrée de pile disponible ; refuse les changements ultérieurs |  |
 | `import_ai_edit` | `edition` | Ajouter à la bibliothèque une retouche IA d'une photo, à côté d'elle (envoyée en octets : `image_data` (base64) ou `source_file` (un fichier de `ai_edits.drop_dir`, lu et laissé en place) ; Facet écrit sa propre copie et ne supprime jamais de fichier ; `tool` doit être configuré) ; non idempotent, chaque appel ajoute une révision ; `note` (ce qui a changé) est ajouté à la légende de l'original sous la forme `AI: <note>` et devient la légende de la retouche ; l'appel attend jusqu'à 3 minutes l'analyse de la retouche et répond `ready` avec sa légende et sa page | 1 file |
-| `create_album` | `edition` | Crée un album (non idempotent : deux appels, deux albums) : vide, ou depuis `filters` / `target: "view"` comme album intelligent qui suit ces filtres, ou depuis `paths` / `target: "selection"` comme album fixe rempli dans le même appel (`added`, `skipped`). Un album intelligent applique les bascules de masquage du visualiseur et affiche 0 photo dans `list_albums`. Des `filters` sans aucun filtre effectif (`{}`, ou seulement des bascules d'affichage désactivées) sont refusés en `invalid_input` : omettez `filters` pour un album vide | |
+| `create_album` | `edition` | Crée un album (non idempotent : deux appels, deux albums) : vide, ou depuis `filters` / `target: "view"` comme album intelligent qui suit ces filtres, ou depuis `paths` / `target: "selection"` comme album fixe rempli dans le même appel (`added`, `skipped`). Un album intelligent applique les bascules de masquage du visualiseur et a un nombre de photos `null` dans `list_albums` (ses membres sont un filtre dynamique, jamais enregistrés). Des `filters` sans aucun filtre effectif (`{}`, ou seulement des bascules d'affichage désactivées) sont refusés en `invalid_input` : omettez `filters` pour un album vide | |
 | `album_add_photos` | `edition` | Ajoute des photos à un album (celles déjà présentes sont ignorées) | 1000 chemins |
 | `album_remove_photos` | `edition` | Retire des photos d'un album ; les photos ne sont pas touchées | 1000 chemins |
 | `assign_faces` | `edition` | Déplace des visages vers une personne ; ceux qu'une autre personne possède sont laissés tels quels sauf `allow_reassign`, et le résultat liste ce qui a été ignoré | 50 ids de visage |
@@ -399,7 +399,7 @@ Les outils de la chambre noire reprennent la page `/culling`. Tous exigent le ni
 
 | Outil | Ce qu'il fait |
 |-------|---------------|
-| `list_culling_groups` | Liste les groupes (`burst`, `similar`, `scene`, `bracket`, `panorama`, `hdr_panorama`) avec leurs photos et scores, triables et limités par album ou plage de dates |
+| `list_culling_groups` | Liste les groupes (`burst`, `similar`, `lookalike`, `scene`, `bracket`, `panorama`, `hdr_panorama`) avec leurs photos et scores, triables et limités par album ou plage de dates |
 | `culling_profiles` | Les préréglages de tri adaptés au genre et celui par défaut |
 | `suggest_culling_profile` | Nomme le préréglage adapté à un album ou à une plage de prise de vue |
 | `keeper_hints` | Indications par photo « un meilleur cliché existe dans cette rafale » pour jusqu'à 100 chemins (vides si aucune tête de classement n'est entraînée) |

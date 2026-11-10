@@ -118,8 +118,15 @@ Configuration:
     scan_group.add_argument('--resume', action='store_true',
                         help='Resume the last interrupted/failed scan run (reuses its directories; '
                              'with --force, skips files already re-scored since that run started)')
-    scan_group.add_argument('--retry-failed', nargs='?', const='last', metavar='last|all',
-                        help='Re-process only files that failed during the last scan run (or all runs)')
+    from processing.scan_retry import retry_scope
+    scan_group.add_argument('--retry-failed', nargs='?', const='last', type=retry_scope, metavar='last|all|RUN_ID',
+                        help='Re-process failed files from the last run, all runs, or an exact run ID; '
+                             'then run the normal library-wide finalization')
+    scan_group.add_argument('--retry-plan', type=str, metavar='PATH',
+                        help='Process a captured failed-file manifest without library-wide finalization; '
+                             'requires --retry-plan-sha256 and cannot combine with other commands')
+    scan_group.add_argument('--retry-plan-sha256', type=str, metavar='SHA256',
+                        help='Expected SHA-256 of the private captured retry manifest')
     scan_group.add_argument('--force-since', type=str, metavar='YYYY-MM-DD',
                         help='Like --force, but only re-process photos last scanned before this date')
     scan_group.add_argument('--watch', action='store_true',
@@ -269,6 +276,8 @@ Configuration:
 
     # Face recognition
     face_group = parser.add_argument_group('Face recognition')
+    face_group.add_argument('--update-faces-job', metavar='JOB_ID',
+                        help='Run a captured viewer face-update job with existing assignments protected; no clustering')
     face_group.add_argument('--extract-faces-gpu-incremental', action='store_true',
                         help='Extract faces only for photos not yet processed (requires GPU)')
     face_group.add_argument('--extract-faces-gpu-force', action='store_true',
@@ -473,6 +482,10 @@ Configuration:
                              'favourited or star-rated) whose aggregate score is below X')
     cull_group.add_argument('--cull-trim-brackets', action='store_true',
                         help='With --auto-cull: also trim exposure brackets whose base frame clips nothing')
+    cull_group.add_argument('--cull-reconsider-existing', action='store_true',
+                        help='With --auto-cull: include existing Keep/Reject, rated and favourite photos '
+                             'in the group decision plan. Stars and favourites are retained. '
+                             'Default: preserve those photos unchanged')
 
     # AI features
     ai_group = parser.add_argument_group('AI features')

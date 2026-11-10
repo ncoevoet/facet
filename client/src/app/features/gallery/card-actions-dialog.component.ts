@@ -1,4 +1,4 @@
-import { ChangeDetectionStrategy, Component, inject, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
 import { MatButtonModule } from '@angular/material/button';
 import { MatCheckboxModule } from '@angular/material/checkbox';
 import { MatIconModule } from '@angular/material/icon';
@@ -6,7 +6,8 @@ import { MatDialogModule, MatDialogRef } from '@angular/material/dialog';
 import { MatTooltipModule } from '@angular/material/tooltip';
 import { TranslatePipe } from '../../shared/pipes/translate.pipe';
 import { I18N } from '../../core/i18n/keys';
-import { CARD_ACTION_META, CardActionId, CardActionsConfig, DEFAULT_CARD_ACTIONS } from '../../shared/components/photo-card/card-actions';
+import { CARD_ACTION_META, CardActionId, CardActionsConfig, DEFAULT_CARD_ACTIONS, EDITION_CARD_ACTIONS } from '../../shared/components/photo-card/card-actions';
+import { AuthService } from '../../core/services/auth.service';
 import { CardActionsService } from './card-actions.service';
 
 /** Reorder and show/hide the photo card's hover buttons. Arrows rather than a
@@ -24,12 +25,12 @@ import { CardActionsService } from './card-actions.service';
       </span>
       <span class="flex flex-col">
         <span class="!text-base !font-semibold">{{ I18N.gallery.card_actions.title | translate }}</span>
-        <span class="!text-xs !font-normal opacity-60 mt-0.5">{{ I18N.gallery.card_actions.hint | translate }}</span>
+        <span class="!text-xs !font-normal text-[var(--mat-sys-on-surface-variant)] mt-0.5">{{ I18N.gallery.card_actions.hint | translate }}</span>
       </span>
     </h2>
     <mat-dialog-content class="!px-6 !pb-1">
       <div class="flex flex-col gap-1">
-        @for (id of order(); track id; let i = $index) {
+        @for (id of visibleOrder(); track id; let i = $index) {
           <div class="flex items-center gap-2 px-2 py-1 rounded hover:bg-[var(--mat-sys-surface-container-high)]">
             <mat-checkbox [checked]="!hidden().has(id)" (change)="toggle(id, $event.checked)">
               <span class="flex items-center gap-2">
@@ -44,7 +45,7 @@ import { CardActionsService } from './card-actions.service';
                       (click)="move(i, -1)">
                 <mat-icon class="!text-base !w-4 !h-4 !leading-4">arrow_upward</mat-icon>
               </button>
-              <button mat-icon-button class="!w-8 !h-8" [disabled]="i === order().length - 1"
+              <button mat-icon-button class="!w-8 !h-8" [disabled]="i === visibleOrder().length - 1"
                       [matTooltip]="I18N.gallery.card_actions.move_down | translate"
                       [attr.aria-label]="I18N.gallery.card_actions.move_down | translate"
                       (click)="move(i, 1)">
@@ -71,6 +72,10 @@ export class CardActionsDialogComponent {
   private readonly initial = this.service.config();
   protected readonly order = signal<CardActionId[]>([...this.initial.order]);
   protected readonly hidden = signal<Set<CardActionId>>(new Set(this.initial.hidden));
+  private readonly auth = inject(AuthService);
+  /** Edition-only actions stay in the saved order but are not offered without edition rights. */
+  protected readonly visibleOrder = computed(() =>
+    this.auth.isEdition() ? this.order() : this.order().filter(id => !EDITION_CARD_ACTIONS.includes(id)));
 
   protected toggle(id: CardActionId, visible: boolean): void {
     this.hidden.update(current => {
@@ -80,13 +85,11 @@ export class CardActionsDialogComponent {
     });
   }
 
+  /** Swaps the row with its visible neighbour; a hidden edition-only action keeps its own slot. */
   protected move(index: number, delta: -1 | 1): void {
-    this.order.update(order => {
-      const next = [...order];
-      const target = index + delta;
-      [next[index], next[target]] = [next[target], next[index]];
-      return next;
-    });
+    const visible = this.visibleOrder();
+    const [from, to] = [visible[index], visible[index + delta]];
+    this.order.update(order => order.map(id => id === from ? to : id === to ? from : id));
   }
 
   protected reset(): void {

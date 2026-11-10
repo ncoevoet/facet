@@ -195,41 +195,81 @@ describe('PersonCardComponent', () => {
     btn!.click();
   }
 
-  it('emits split output when the split button is clicked', () => {
+  // Open the card's overflow menu and click the item with `label` (its i18n key,
+  // which the mock translates to itself). Items render lazily, only once open.
+  function clickMenuItem(label: string): void {
+    clickActionButton('more_vert');
+    fixture.detectChanges();
+    const items = Array.from(document.querySelectorAll('.mat-mdc-menu-panel button[mat-menu-item]')) as HTMLButtonElement[];
+    const item = items.find(i => i.textContent!.includes(label));
+    expect(item, `menu item ${label}`).toBeTruthy();
+    item!.click();
+  }
+
+  function menuLabels(): string[] {
+    clickActionButton('more_vert');
+    fixture.detectChanges();
+    return Array.from(document.querySelectorAll('.mat-mdc-menu-panel button[mat-menu-item]'))
+      .map(i => `${i.querySelector('mat-icon')!.textContent!.trim()} ${i.querySelector('span')!.textContent!.trim()}`);
+  }
+
+  it('emits split output when the split menu item is clicked', () => {
     host.canEdit.set(true);
     fixture.detectChanges();
-
-    const card = getCard();
     const split: number[] = [];
-    card.split.subscribe(v => split.push(v));
-
-    clickActionButton('call_split');
+    getCard().split.subscribe(v => split.push(v));
+    clickMenuItem('persons.split');
     expect(split).toEqual([1]);
   });
 
-  it('emits hidden output when the hide button is clicked', () => {
+  it('emits rename and find more from the menu', () => {
     host.canEdit.set(true);
     fixture.detectChanges();
+    const edit: number[] = [];
+    const more: number[] = [];
+    getCard().editStart.subscribe(v => edit.push(v));
+    getCard().findMore.subscribe(v => more.push(v));
+    clickMenuItem('persons.rename');
+    expect(edit).toEqual([1]);
+    clickMenuItem('persons.find_more');
+    expect(more).toEqual([1]);
+  });
 
-    const card = getCard();
+  it('emits hidden output when the ignore menu item is clicked', () => {
+    host.canEdit.set(true);
+    fixture.detectChanges();
     const hidden: number[] = [];
-    card.hidden.subscribe(v => hidden.push(v));
-
-    clickActionButton('visibility_off');
+    getCard().hidden.subscribe(v => hidden.push(v));
+    clickMenuItem('persons.hide');
     expect(hidden).toEqual([1]);
   });
 
-  it('emits unhidden output when the unhide button is clicked for a hidden person', () => {
+  it('emits deleted output when the delete menu item is clicked', () => {
+    host.canEdit.set(true);
+    fixture.detectChanges();
+    const deleted: number[] = [];
+    getCard().deleted.subscribe(v => deleted.push(v));
+    clickMenuItem('persons.delete');
+    expect(deleted).toEqual([1]);
+  });
+
+  it('emits unhidden output when the restore menu item is clicked for a hidden person', () => {
     host.canEdit.set(true);
     host.person.set({ id: 7, name: 'Bob', face_count: 2, face_thumbnail: false, is_hidden: true });
     fixture.detectChanges();
-
-    const card = getCard();
     const unhidden: number[] = [];
-    card.unhidden.subscribe(v => unhidden.push(v));
-
-    clickActionButton('visibility');
+    getCard().unhidden.subscribe(v => unhidden.push(v));
+    clickMenuItem('persons.unhide');
     expect(unhidden).toEqual([7]);
+  });
+
+  it('a click on the menu trigger does not select the card', () => {
+    host.canEdit.set(true);
+    fixture.detectChanges();
+    const selected: number[] = [];
+    getCard().selected.subscribe(v => selected.push(v));
+    clickActionButton('more_vert');
+    expect(selected).toEqual([]);
   });
 
   it('renders the hidden indicator icon when the person is hidden', () => {
@@ -242,22 +282,40 @@ describe('PersonCardComponent', () => {
     expect(fixture.nativeElement.textContent).toContain('visibility_off');
   });
 
-  it('restoreOnly keeps view photos, restore and delete, and drops rename, split and find more', () => {
+  it('restoreOnly keeps the same row and offers only restore and delete in the menu', () => {
     host.canEdit.set(true);
     host.person.set({ id: 7, name: 'Bob', face_count: 2, face_thumbnail: false, is_hidden: true });
     host.restoreOnly.set(true);
     fixture.detectChanges();
     const icons = [...fixture.nativeElement.querySelectorAll('mat-card-content button mat-icon')]
       .map((i) => (i as HTMLElement).textContent!.trim());
-    expect(icons).toEqual(['photo_library', 'visibility', 'delete']);
+    expect(icons).toEqual(['photo_library', 'more_vert']);
+    expect(menuLabels()).toEqual(['visibility persons.unhide', 'delete persons.delete']);
   });
 
-  it('shows every action by default', () => {
+  it('shows at most three controls in the row and every other action in the menu', () => {
     host.canEdit.set(true);
     fixture.detectChanges();
     const icons = [...fixture.nativeElement.querySelectorAll('mat-card-content button mat-icon')]
       .map((i) => (i as HTMLElement).textContent!.trim());
-    expect(icons).toEqual(['edit', 'photo_library', 'call_split', 'person_search', 'visibility_off', 'delete']);
+    expect(icons).toEqual(['photo_library', 'more_vert']);
+    expect(fixture.nativeElement.querySelectorAll('mat-card-content mat-checkbox').length).toBe(1);
+    expect(menuLabels()).toEqual([
+      'edit persons.rename',
+      'person_search persons.find_more',
+      'call_split persons.split',
+      'visibility_off persons.hide',
+      'delete persons.delete',
+    ]);
+  });
+
+  it('the menu trigger is labelled and the card no longer clips its content', () => {
+    host.canEdit.set(true);
+    fixture.detectChanges();
+    const trigger = Array.from(fixture.nativeElement.querySelectorAll('button')).find(
+      (b) => (b as HTMLElement).querySelector('mat-icon')?.textContent?.trim() === 'more_vert') as HTMLElement;
+    expect(trigger.getAttribute('aria-label')).toBe('nav.more');
+    expect(fixture.nativeElement.querySelector('mat-card').className).not.toContain('overflow-hidden');
   });
 
   it('keystrokes in the avatar action row do not reach the card', () => {

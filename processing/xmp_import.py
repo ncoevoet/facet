@@ -25,8 +25,10 @@ so a rescan never hides a sidecar edited after the last Facet review edit. Keywo
 never touch ``photos.tags`` (the tagger owns that column and rewrites it on every
 retag): the foreign ones are stored in ``photo_manual_tags`` with
 ``source='xmp'`` and are never lost to a retag. A keyword is foreign unless it
-already is one of the photo's AI tags, a person name of the photo, or a
-hierarchical ``a|b`` path.
+already is one of the photo's AI tags or a person name of the photo. Explicit
+Lightroom hierarchy paths import separately with stable catalog identities;
+flat pipe/slash names never imply a hierarchy. Generated paths carry separate
+provenance, while user assignments and removal intent stay protected.
 
 Review edits after schema upgrade have per-field clocks in photo_metadata_edits,
 covering direct global/per-user SQL writes and explicit resets. An older packet
@@ -63,13 +65,17 @@ from db.manual_tags import (
     load_manual_tags,
     normalize_manual_tag,
 )
+from db.keyword_hierarchy import HierarchyError, assign_path, parse_imported_path, plan_path_import
 from processing.rating_writer import upsert_rating_state
 from processing.xmp_export import (
+    HIER_CATEGORY,
+    HIER_PEOPLE,
     LABEL_FAVORITE,
     LABEL_REJECTED,
     NS_DC,
     NS_EXIF,
     NS_FACET,
+    NS_LR,
     NS_RDF,
     NS_XMP,
     sidecar_scope,
@@ -210,8 +216,14 @@ def parse_sidecar(path: str):
     decision = _find_scalar(root, f"{{{NS_FACET}}}ReviewDecision")
     if decision not in {"kept", "rejected", "undecided"}:
         decision = None
+    raw_hierarchy_state = _find_scalar(root, f"{{{NS_FACET}}}HierarchyState")
+    hierarchy_state = parse_keyword_state(raw_hierarchy_state)
     return {
         "keyword_state": parse_keyword_state(_find_scalar(root, f"{{{NS_FACET}}}KeywordState")),
+        "hierarchy_state": hierarchy_state,
+        "hierarchy_state_invalid": raw_hierarchy_state is not None and hierarchy_state is None,
+        "hierarchy_paths": [li.text for subject in root.iter(f"{{{NS_LR}}}hierarchicalSubject")
+                            for li in subject.iter(f"{{{NS_RDF}}}li") if li.text is not None],
         "review_decision": decision,
         "gps": _gps_override(root),
         "star_rating": star_rating,
@@ -240,15 +252,10 @@ def _person_names(conn, path: str) -> set[str]:
 
 
 def _foreign_keywords(conn, path: str, ai_tags, keywords: list[str], diagnostics=None) -> list[str]:
-    """Normalized, de-duplicated keywords that are neither AI tags, person names
-    nor hierarchical paths. Unstorable keywords are dropped with a warning."""
+    """Normalized literal flat keywords, excluding AI tags and person names."""
     people: set[str] | None = None
     foreign: list[str] = []
     for keyword in keywords:
-        if "|" in keyword:
-            if diagnostics is not None:
-                diagnostics.append({"field": "keywords", "value": keyword, "reason": "hierarchy_unsupported"})
-            continue
         try:
             tag = normalize_manual_tag(keyword)
         except ManualTagError as ex:
@@ -267,6 +274,14 @@ def _foreign_keywords(conn, path: str, ai_tags, keywords: list[str], diagnostics
         elif diagnostics is not None:
             diagnostics.append({"field": "keywords", "value": keyword, "reason": "person_name"})
     return foreign
+
+
+def _hierarchy_key(value: str) -> tuple[str, ...] | None:
+    """Use node identity for provenance; keep the original spelling for export."""
+    try:
+        return tuple(name.casefold() for name in parse_imported_path(value))
+    except HierarchyError:
+        return None
 
 
 def _image_key(path: str) -> str:
@@ -421,10 +436,11 @@ def import_sidecars(conn, root: str | None = None, *, user_id: str | None = None
         conn.commit()
         return result
     except BaseException:
-        conn.execute('ROLLBACK TO sidecar_import')
-        conn.execute('RELEASE sidecar_import')
-        if owns_transaction:
-            conn.rollback()
+        if conn.in_transaction:
+            conn.execute('ROLLBACK TO sidecar_import')
+            conn.execute('RELEASE sidecar_import')
+            if owns_transaction:
+                conn.rollback()
         raise
 
 
@@ -495,6 +511,8 @@ def _import_sidecars(conn, root, *, user_id, overwrite_manual_gps, dry_run, fiel
     from db.metadata_edits import REVIEW_FIELDS, record_sidecar_receipt, review_edit_state
 
     updated = unchanged = missing = skipped = tags_added = conflicts = legacy_review_warnings = ambiguous = naming_mismatch = full_ignored = basename_ignored = 0
+    hierarchy_updated = 0
+    projected_prefixes: set[tuple[str, ...]] = set()
     entries: list[dict] = []
     shared_stems = _shared_indexed_stems(conn) if sidecar_naming != "full" else set()
     directory_images: dict[str, dict[str, set[str]]] = {}
@@ -540,7 +558,29 @@ def _import_sidecars(conn, root, *, user_id, overwrite_manual_gps, dry_run, fiel
         # may have re-added them without updating our private packet state.
         # AI provenance remains independent of deletion/re-addition.
         excluded = {keyword_key(tag) for tag in marker.get("ai", []) if keyword_key(tag) not in manual}
-        keywords = [tag for tag in parsed["tags"] if keyword_key(tag) not in excluded]
+        # A literal flat pipe/slash remains a flat tag. Only an explicitly
+        # returned LR path identifies its duplicate flat compatibility spelling.
+        hierarchy_keys = {key for path in parsed['hierarchy_paths'] if (key := _hierarchy_key(path)) is not None}
+        keywords = [tag for tag in parsed["tags"] if keyword_key(tag) not in excluded
+                    and _hierarchy_key(tag) not in hierarchy_keys]
+        hierarchy_plan = []
+        if 'keywords' in fields:
+            hierarchy_marker = parsed['hierarchy_state'] or {}
+            explicit = {key for path in hierarchy_marker.get('manual', []) if (key := _hierarchy_key(path)) is not None}
+            generated = {key for path in hierarchy_marker.get('ai', []) if (key := _hierarchy_key(path)) is not None} - explicit
+            if parsed['keyword_state'] is not None and parsed['hierarchy_state'] is None:
+                # Facet <= 1.28 wrote its generated Category|/People| paths with
+                # no HierarchyState; such a packet's own marker is KeywordState.
+                legacy_roots = {HIER_CATEGORY.casefold(), HIER_PEOPLE.casefold()}
+                generated |= {key for path in parsed['hierarchy_paths']
+                              if (key := _hierarchy_key(path)) is not None and key[0] in legacy_roots}
+            if parsed['hierarchy_state_invalid']:
+                diagnostics.append({'field': 'hierarchy', 'reason': 'invalid_hierarchy_ownership'})
+            else:
+                hierarchy_plan, hierarchy_diagnostics = plan_path_import(conn, row['path'], [
+                    path for path in parsed['hierarchy_paths'] if _hierarchy_key(path) not in generated],
+                    pending_prefixes=projected_prefixes if dry_run else None)
+                diagnostics.extend(hierarchy_diagnostics)
         new_keywords = [
             tag for tag in _foreign_keywords(conn, row["path"], row["tags"], keywords, diagnostics)
             if tag not in existing
@@ -630,6 +670,8 @@ def _import_sidecars(conn, root, *, user_id, overwrite_manual_gps, dry_run, fiel
                               "after": [*gps, 1]}
         if new_keywords:
             changes['keywords'] = {"added": new_keywords}
+        if hierarchy_plan:
+            changes['hierarchy'] = {'assigned': [raw for _, raw in hierarchy_plan]}
         source_at = datetime.fromtimestamp(sidecar_epoch, timezone.utc).isoformat()
         _plan_entry(entries, row['path'], sidecar, changes, diagnostics[:100],
                     diagnostics_omitted=max(0, len(diagnostics) - 100),
@@ -642,7 +684,14 @@ def _import_sidecars(conn, root, *, user_id, overwrite_manual_gps, dry_run, fiel
             continue
         if dry_run:
             tags_added += len(new_keywords)
+            hierarchy_updated += len(hierarchy_plan)
         else:
+            if hierarchy_plan and not conn.execute("SELECT 1 FROM sqlite_master WHERE type='table' AND name='photo_keyword_nodes'").fetchone():
+                raise HierarchyError('Initialize the database schema before importing keyword hierarchies')
+            for segments, raw in hierarchy_plan:
+                _, changed = assign_path(conn, row['path'], segments, source='xmp',
+                                         created_by=created_by, imported_path=raw)
+                hierarchy_updated += int(changed)
             for tag in new_keywords:
                 if insert_manual_tag(conn, row['path'], tag, SOURCE_XMP, created_by, created_at):
                     tags_added += 1
@@ -656,7 +705,8 @@ def _import_sidecars(conn, root, *, user_id, overwrite_manual_gps, dry_run, fiel
         updated += 1
 
     return {"updated": updated, "unchanged": unchanged, "missing": missing, "skipped": skipped,
-            "tags_added": tags_added, "ambiguous": ambiguous, "naming_mismatch": naming_mismatch, "full_ignored": full_ignored,
+            "tags_added": tags_added, "hierarchy_updated": hierarchy_updated,
+            "ambiguous": ambiguous, "naming_mismatch": naming_mismatch, "full_ignored": full_ignored,
             "basename_ignored": basename_ignored, "conflicts": conflicts, "legacy_review_warnings": legacy_review_warnings,
             "dry_run": dry_run, "entries": entries,
             "details_truncated": max(0, len(rows) - len(entries))}

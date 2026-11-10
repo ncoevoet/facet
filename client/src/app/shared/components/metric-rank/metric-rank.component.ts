@@ -1,4 +1,5 @@
 import { ChangeDetectionStrategy, Component, computed, inject, input } from '@angular/core';
+import { MatIconModule } from '@angular/material/icon';
 import { MatTooltipModule } from '@angular/material/tooltip';
 import { I18nService } from '../../../core/services/i18n.service';
 import { MetricDistribution, topPercentOf } from '../../utils/metric-distribution';
@@ -10,14 +11,15 @@ import { MetricSparklineComponent } from '../metric-sparkline/metric-sparkline.c
  */
 @Component({
   selector: 'app-metric-rank',
-  imports: [MatTooltipModule, MetricSparklineComponent],
+  imports: [MatIconModule, MatTooltipModule, MetricSparklineComponent],
   changeDetection: ChangeDetectionStrategy.OnPush,
   host: { class: 'block' },
   template: `
     <span tabindex="0" role="img"
           class="block rounded-sm outline-none focus-visible:ring-1 focus-visible:ring-[var(--mat-sys-primary)]"
           [attr.aria-label]="summary()" [matTooltip]="summary()">
-      <app-metric-sparkline class="!h-5 [&>div]:!px-0" [range]="range()" [value]="value()" />
+      @if (compact()) { <mat-icon aria-hidden="true" class="!h-4 !w-4 !text-base !leading-none">info_outline</mat-icon> }
+      @else { <app-metric-sparkline class="!h-5 [&>div]:!px-0" [range]="range()" [value]="value()" /> }
     </span>
   `,
 })
@@ -26,6 +28,8 @@ export class MetricRankComponent {
   readonly value = input<number | null | undefined>(undefined);
   /** The metric is a 0-1 fraction its row shows as a percentage; the range is shown the same way. */
   readonly percent = input(false);
+  readonly compact = input(false);
+  readonly scopeLabel = input<string | null>(null);
 
   private readonly i18n = inject(I18nService);
 
@@ -35,6 +39,10 @@ export class MetricRankComponent {
     const { min, max } = this.range();
     const bound = (v: number) => this.percent() ? `${Math.round(v * 100)}%` : formatBound(v);
     const bounds = { min: bound(min), max: bound(max) };
+    const scope = this.scopeLabel();
+    if (scope) return top === null
+      ? this.i18n.t('photo_detail.distribution.scoped_range', { scope, ...bounds })
+      : this.i18n.t('photo_detail.distribution.scoped_top_in_range', { scope, pct: top, ...bounds });
     return top === null
       ? this.i18n.t('photo_detail.distribution.range', bounds)
       : this.i18n.t('photo_detail.distribution.top_in_range', { pct: top, ...bounds });

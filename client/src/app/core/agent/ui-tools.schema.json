@@ -695,7 +695,7 @@
         "readOnlyHint": false,
         "untrustedContentHint": true
       },
-      "description": "Change the gallery filters and sort in the user's open tab. `patch` merges into the current filters (null removes one); `replace: true` starts from none. Refused with `invalid_input` when `show_rejected` and `favorites_only` are both true; the tab cannot represent that intersection. Explicit `review_status` takes precedence over `show_rejected` and `hide_rejected`. Refused with `unsaved_decisions` when it would leave /culling while the user holds unconfirmed decisions; `navigation_refused` when the tab declines. Refused with `modal_open` while a dialog, bottom sheet or slideshow is open in the tab; read-only tools are not affected.",
+      "description": "Change the gallery filters and sort in the user's open tab. `patch` merges into the current filters (null removes one); `replace: true` starts from none. When interpreting natural language, include `proposal` with the original request and all known unrepresented clauses: the active gallery shows editable criteria and waits for the user's Apply. A proposal does not change filters, selection or saved albums and does not navigate. Refused with `invalid_input` when `show_rejected` and `favorites_only` are both true; the tab cannot represent that intersection. Explicit `review_status` takes precedence over `show_rejected` and `hide_rejected`. Refused with `unsaved_decisions` when it would leave /culling while the user holds unconfirmed decisions; `navigation_refused` when the tab declines. Refused with `modal_open` while a dialog, bottom sheet or slideshow is open in the tab; read-only tools are not affected.",
       "inputSchema": {
         "additionalProperties": false,
         "properties": {
@@ -909,6 +909,14 @@
                   "integer",
                   "number",
                   "boolean",
+                  "null"
+                ]
+              },
+              "keyword_branch": {
+                "description": "Explicit hierarchy node UUID including descendant assignments; null clears.",
+                "maxLength": 36,
+                "type": [
+                  "string",
                   "null"
                 ]
               },
@@ -1519,6 +1527,16 @@
                   "null"
                 ]
               },
+              "no_capture_date": {
+                "description": "Gallery filter `no_capture_date`.",
+                "type": [
+                  "string",
+                  "integer",
+                  "number",
+                  "boolean",
+                  "null"
+                ]
+              },
               "no_gps": {
                 "description": "Gallery filter `no_gps`.",
                 "type": [
@@ -1549,6 +1567,18 @@
                   "null"
                 ]
               },
+              "person_match": {
+                "description": "Match all selected people (default) or any selected person. Null resets to all.",
+                "enum": [
+                  "all",
+                  "any",
+                  null
+                ],
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
               "quality_tier": {
                 "description": "Gallery filter `quality_tier`.",
                 "type": [
@@ -1568,6 +1598,14 @@
                   "rejected",
                   null
                 ],
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "score_presence": {
+                "description": "JSON map from min_metric keys to include_missing, missing_only or measured_only; null clears.",
+                "maxLength": 5000,
                 "type": [
                   "string",
                   "null"
@@ -1674,6 +1712,14 @@
                   "null"
                 ]
               },
+              "tag_groups": {
+                "description": "JSON string with any/all/none arrays of literal tags, at most 50 total; null clears.",
+                "maxLength": 20000,
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
               "type": {
                 "description": "Gallery filter `type`.",
                 "type": [
@@ -1685,6 +1731,32 @@
                 ]
               }
             },
+            "type": "object"
+          },
+          "proposal": {
+            "additionalProperties": false,
+            "properties": {
+              "source_query": {
+                "description": "The user's original request, shown verbatim as untrusted text.",
+                "maxLength": 4000,
+                "minLength": 1,
+                "type": "string"
+              },
+              "unrepresented": {
+                "description": "Clauses this patch cannot represent; explicitly give [] when none are known. Never silently drop unsupported media, negation, date or rating clauses.",
+                "items": {
+                  "maxLength": 300,
+                  "minLength": 1,
+                  "type": "string"
+                },
+                "maxItems": 20,
+                "type": "array"
+              }
+            },
+            "required": [
+              "source_query",
+              "unrepresented"
+            ],
             "type": "object"
           },
           "replace": {
@@ -1928,6 +2000,7 @@
             "enum": [
               "burst",
               "similar",
+              "lookalike",
               "scene",
               "bracket",
               "panorama",
@@ -1976,6 +2049,14 @@
                 "type": "string"
               },
               "date_to": {
+                "type": "string"
+              },
+              "decision_policy": {
+                "default": "preserve",
+                "enum": [
+                  "preserve",
+                  "replace"
+                ],
                 "type": "string"
               },
               "group_by": {
@@ -2160,5 +2241,5 @@
       "name": "ui_show_comparison"
     }
   ],
-  "version": "d0e51b88771cacca"
+  "version": "e7d6bbe8ae66aa9b"
 }

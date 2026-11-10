@@ -26,6 +26,7 @@ import { ThumbnailUrlPipe } from '../../shared/pipes/thumbnail-url.pipe';
 import { GalleryStore } from '../gallery/gallery.store';
 import { isUnavailableKey, unavailableSet } from '../../shared/utils/unavailable-metrics';
 import { CompareFiltersService } from './compare-filters.service';
+import { MOBILE_BAR_ROW } from '../../shared/utils/mobile-bar';
 import { CategoryRecomputeService } from './category-recompute.service';
 import {
   WeightIconPipe, WeightLabelKeyPipe, FilterValueFormatPipe, ModifierValueFormatPipe,
@@ -171,17 +172,17 @@ class SignalErrorMatcher {
           } @else {
             <div class="flex flex-col gap-4">
               @for (key of weightKeys(); track key) {
-                <div class="flex items-center gap-3" [class.opacity-50]="unavailableWeights()[key]"
+                <div class="flex flex-wrap items-center gap-x-3 gap-y-1 sm:flex-nowrap" [class.opacity-50]="unavailableWeights()[key]"
                   [matTooltip]="unavailableWeights()[key] ? (I18N.comparison.unavailable_commercial | translate) : ''"
                   [matTooltipDisabled]="!unavailableWeights()[key]">
                   <mat-icon class="text-gray-400 shrink-0" [class]="key | markTone">{{ key | weightIcon }}</mat-icon>
-                  <span class="w-40 shrink-0 text-sm">
+                  <span class="min-w-0 flex-1 text-sm sm:w-40 sm:flex-none">
                     {{ key | weightLabelKey | translate }}
                   </span>
-                  <mat-slider class="grow" [disabled]="!!unavailableWeights()[key]" [min]="0" [max]="100" [step]="1" [discrete]="true" [showTickMarks]="false">
+                  <mat-slider class="grow basis-full order-last !min-w-0 sm:order-none sm:basis-auto" [disabled]="!!unavailableWeights()[key]" [min]="0" [max]="100" [step]="1" [discrete]="true" [showTickMarks]="false">
                     <input matSliderThumb [value]="weights()[key]" (valueChange)="setWeight(key, $event)" [attr.aria-label]="key | weightLabelKey | translate" />
                   </mat-slider>
-                  <span class="w-12 text-right text-sm font-mono tabular-nums">{{ weights()[key] }}%</span>
+                  <span class="w-12 shrink-0 text-right text-sm font-mono tabular-nums">{{ weights()[key] }}%</span>
                 </div>
               }
             </div>
@@ -250,35 +251,35 @@ class SignalErrorMatcher {
         <mat-card-content class="!pt-4">
           <div class="flex flex-col gap-4">
             <div>
-              <div class="flex items-center gap-3">
+              <div class="flex flex-wrap items-center gap-x-3 gap-y-1 sm:flex-nowrap">
                 <mat-icon class="text-gray-400 shrink-0">add_circle</mat-icon>
-                <span class="w-40 shrink-0 text-sm">{{ I18N.comparison.modifier.bonus | translate }}</span>
-                <mat-slider class="grow" [min]="-5" [max]="5" [step]="0.1" [discrete]="true" [displayWith]="displayBonus">
+                <span class="min-w-0 flex-1 text-sm sm:w-40 sm:flex-none">{{ I18N.comparison.modifier.bonus | translate }}</span>
+                <mat-slider class="grow basis-full order-last !min-w-0 sm:order-none sm:basis-auto" [min]="-5" [max]="5" [step]="0.1" [discrete]="true" [displayWith]="displayBonus">
                   <input matSliderThumb [value]="(modifiers() | recordValue:'bonus') ?? 0" (valueChange)="setModifierNum('bonus', $event)" [attr.aria-label]="I18N.comparison.modifier.bonus | translate" />
                 </mat-slider>
-                <span class="w-16 text-right text-sm font-mono tabular-nums">{{ (modifiers() | recordValue:'bonus') | modifierValueFormat:'bonus' }}</span>
+                <span class="w-16 shrink-0 text-right text-sm font-mono tabular-nums">{{ (modifiers() | recordValue:'bonus') | modifierValueFormat:'bonus' }}</span>
               </div>
               <p class="text-xs text-gray-500 ml-11 mt-0.5">{{ I18N.comparison.modifier.bonus_hint | translate }}</p>
             </div>
             <div>
-              <div class="flex items-center gap-3">
+              <div class="flex flex-wrap items-center gap-x-3 gap-y-1 sm:flex-nowrap">
                 <mat-icon class="text-gray-400 shrink-0">grain</mat-icon>
-                <span class="w-40 shrink-0 text-sm">{{ I18N.comparison.modifier.noise_tolerance | translate }}</span>
-                <mat-slider class="grow" [min]="0" [max]="200" [step]="5" [discrete]="true" [displayWith]="displayPercent">
+                <span class="min-w-0 flex-1 text-sm sm:w-40 sm:flex-none">{{ I18N.comparison.modifier.noise_tolerance | translate }}</span>
+                <mat-slider class="grow basis-full order-last !min-w-0 sm:order-none sm:basis-auto" [min]="0" [max]="200" [step]="5" [discrete]="true" [displayWith]="displayPercent">
                   <input matSliderThumb [value]="((modifiers() | recordValue:'noise_tolerance_multiplier') ?? 1) * 100" (valueChange)="setModifierNum('noise_tolerance_multiplier', $event / 100)" [attr.aria-label]="I18N.comparison.modifier.noise_tolerance | translate" />
                 </mat-slider>
-                <span class="w-16 text-right text-sm font-mono tabular-nums">{{ (modifiers() | recordValue:'noise_tolerance_multiplier') | modifierValueFormat:'noise_tolerance_multiplier' }}</span>
+                <span class="w-16 shrink-0 text-right text-sm font-mono tabular-nums">{{ (modifiers() | recordValue:'noise_tolerance_multiplier') | modifierValueFormat:'noise_tolerance_multiplier' }}</span>
               </div>
               <p class="text-xs text-gray-500 ml-11 mt-0.5">{{ I18N.comparison.modifier.noise_tolerance_hint | translate }}</p>
             </div>
             <div>
-              <div class="flex items-center gap-3">
+              <div class="flex flex-wrap items-center gap-x-3 gap-y-1 sm:flex-nowrap">
                 <mat-icon class="text-gray-400 shrink-0">highlight</mat-icon>
-                <span class="w-40 shrink-0 text-sm">{{ I18N.comparison.modifier.clipping_multiplier | translate }}</span>
-                <mat-slider class="grow" [min]="0" [max]="500" [step]="10" [discrete]="true" [displayWith]="displayPercent">
+                <span class="min-w-0 flex-1 text-sm sm:w-40 sm:flex-none">{{ I18N.comparison.modifier.clipping_multiplier | translate }}</span>
+                <mat-slider class="grow basis-full order-last !min-w-0 sm:order-none sm:basis-auto" [min]="0" [max]="500" [step]="10" [discrete]="true" [displayWith]="displayPercent">
                   <input matSliderThumb [value]="((modifiers() | recordValue:'_clipping_multiplier') ?? 1) * 100" (valueChange)="setModifierNum('_clipping_multiplier', $event / 100)" [attr.aria-label]="I18N.comparison.modifier.clipping_multiplier | translate" />
                 </mat-slider>
-                <span class="w-16 text-right text-sm font-mono tabular-nums">{{ (modifiers() | recordValue:'_clipping_multiplier') | modifierValueFormat:'_clipping_multiplier' }}</span>
+                <span class="w-16 shrink-0 text-right text-sm font-mono tabular-nums">{{ (modifiers() | recordValue:'_clipping_multiplier') | modifierValueFormat:'_clipping_multiplier' }}</span>
               </div>
               <p class="text-xs text-gray-500 ml-11 mt-0.5">{{ I18N.comparison.modifier.clipping_multiplier_hint | translate }}</p>
             </div>
@@ -379,7 +380,7 @@ class SignalErrorMatcher {
       </mat-card>
     </div>
 
-    <div class="lg:hidden fixed bottom-0 left-0 right-0 z-50 flex items-center gap-1 px-2 py-1 bg-[var(--mat-sys-surface-container)] border-t border-[var(--mat-sys-outline-variant)] safe-area-pb">
+    <div [class]="barRow" class="lg:hidden fixed bottom-0 left-0 right-0 z-50 bg-[var(--mat-sys-surface-container)] border-t border-[var(--mat-sys-outline-variant)] safe-area-pb">
       <ng-container *ngTemplateOutlet="weightsActions" />
     </div>
   `,
@@ -408,6 +409,7 @@ export class ComparisonWeightsTabComponent {
   savedModifiers = signal<Record<string, number | boolean | string>>({});
   filters = signal<Record<string, unknown>>({});
   savedFilters = signal<Record<string, unknown>>({});
+  protected readonly barRow = MOBILE_BAR_ROW;
   loading = signal(false);
   saving = signal(false);
   recalculating = signal(false);

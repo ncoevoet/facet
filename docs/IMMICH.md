@@ -289,7 +289,7 @@ Scan those photos (`python facet.py /mnt/photos`) and they leave the list on the
 
 ## Diagnostics in the viewer
 
-Open **Immich diagnostics** from the user menu. It needs superadmin access in multi-user mode, and edition access (or trusted local editing) in single-user mode.
+Open **Immich diagnostics** from the user menu's **Jobs & diagnostics** submenu. It needs superadmin access in multi-user mode, and edition access (or trusted local editing) in single-user mode.
 
 - Nothing is read from Immich until you click **Test connection**. The test reads the server version and account access and writes nothing.
 - Path coverage checks at most 200 indexed photos. It does not confirm that each one matches an Immich asset.

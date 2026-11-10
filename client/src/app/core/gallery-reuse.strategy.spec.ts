@@ -1,18 +1,21 @@
-import { Component, OnDestroy } from '@angular/core';
+import { Component, inject, OnDestroy } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
 import { Location } from '@angular/common';
 import { provideLocationMocks } from '@angular/common/testing';
-import { NavigationEnd, provideRouter, RouteReuseStrategy, Router } from '@angular/router';
+import { ActivatedRoute, NavigationEnd, provideRouter, RouteReuseStrategy, Router } from '@angular/router';
 import { filter, firstValueFrom } from 'rxjs';
 import { RouterTestingHarness } from '@angular/router/testing';
 import { authGuard } from './guards/auth.guard';
 import { AuthService } from './services/auth.service';
-import { GalleryReuseStrategy } from './gallery-reuse.strategy';
+import { GALLERY_REVISIT, GalleryReuseStrategy } from './gallery-reuse.strategy';
 
 let destroyed = 0;
 
 @Component({ template: 'gallery' })
 class GalleryStub implements OnDestroy {
+  readonly initialTag = inject(ActivatedRoute).snapshot.queryParams['tag'];
+  readonly initialAsset = inject(ActivatedRoute).snapshot.queryParams['asset_id'];
+  page = 1;
   ngOnDestroy(): void {
     destroyed++;
   }
@@ -32,7 +35,10 @@ describe('GalleryReuseStrategy', () => {
         provideRouter([
           { path: '', component: GalleryStub },
           { path: 'album/:albumId', component: GalleryStub },
+          { path: 'shared/album/:albumId', component: GalleryStub },
+          { path: 'shared/album/:albumId/photo', component: GalleryStub },
           { path: 'photo', component: OtherStub },
+          { path: 'photo-compare', component: OtherStub },
           { path: 'stacks/edit', component: OtherStub },
           { path: 'login', component: OtherStub },
           { path: 'protected', component: OtherStub, canActivate: [authGuard] },
@@ -55,6 +61,7 @@ describe('GalleryReuseStrategy', () => {
     const done = firstValueFrom(TestBed.inject(Router).events.pipe(filter(e => e instanceof NavigationEnd)));
     TestBed.inject(Location).back();
     await done;
+    await harness.fixture.whenStable(); harness.detectChanges();
   };
 
   it('destroys the kept gallery when the application injector is destroyed', () => {
@@ -68,6 +75,35 @@ describe('GalleryReuseStrategy', () => {
     expect(destroyed).toBe(0);
   });
 
+  it('starts a fresh gallery for an explicit recent collection without changing ordinary photo Back reuse', async () => {
+    await back();
+    gallery.page = 4;
+    const router = TestBed.inject(Router);
+    await router.navigateByUrl('/?tag=previous&sort=date_taken', {info:GALLERY_REVISIT,onSameUrlNavigation:'reload'});
+    const fresh = harness.routeDebugElement?.componentInstance as GalleryStub;
+    expect(fresh).not.toBe(gallery);
+    expect(fresh.initialTag).toBe('previous');
+    expect(fresh.page).toBe(1);
+    expect(destroyed).toBe(1);
+    expect(TestBed.inject(Location).getState()).not.toHaveProperty('info');
+    await harness.navigateByUrl('/photo?path=previous.jpg');
+    await back();
+    expect(harness.routeDebugElement?.componentInstance).toBe(fresh);
+    expect(destroyed).toBe(1);
+  });
+
+  it('reinitializes the original query on popstate between gallery visits', async () => {
+    const router = TestBed.inject(Router);
+    await router.navigateByUrl('/?tag=original', { info: GALLERY_REVISIT });
+    await router.navigateByUrl('/?tag=library', { info: GALLERY_REVISIT });
+    const fresh = harness.routeDebugElement!.componentInstance;
+    await back();
+    const restored = harness.routeDebugElement!.componentInstance as GalleryStub;
+    expect(router.url).toBe('/?tag=original');
+    expect(restored).not.toBe(fresh);
+    expect(restored.initialTag).toBe('original');
+  });
+
   it('preserves the gallery instance and DOM through the stack editor Back route', async () => {
     const album = await harness.navigateByUrl('/album/42?sort=date', GalleryStub);
     const node = harness.routeNativeElement;
@@ -78,6 +114,21 @@ describe('GalleryReuseStrategy', () => {
     expect(harness.routeDebugElement?.componentInstance).toBe(album);
     expect(harness.routeNativeElement).toBe(node);
     expect(destroyed).toBe(before);
+  });
+
+  it('preserves collection DOM and query through comparison Close and browser Back', async () => {
+    const album = await harness.navigateByUrl('/album/42?search=coast&sort=date', GalleryStub);
+    const node = harness.routeNativeElement;
+    const count = destroyed;
+    await harness.navigateByUrl('/photo-compare');
+    expect(destroyed).toBe(count);
+    await harness.navigateByUrl('/album/42?search=coast&sort=date');
+    expect(harness.routeDebugElement?.componentInstance).toBe(album);
+    expect(harness.routeNativeElement).toBe(node);
+    await harness.navigateByUrl('/photo-compare');
+    await back();
+    expect(harness.routeDebugElement?.componentInstance).toBe(album);
+    expect(destroyed).toBe(count);
   });
 
   it('reattaches the parked gallery on a history back from the stack editor', async () => {
@@ -138,6 +189,19 @@ describe('GalleryReuseStrategy', () => {
     expect(five).not.toBe(three);
     expect(destroyed).toBe(count + 1);
     expect(await harness.navigateByUrl('/album/5?sort=date', GalleryStub)).toBe(five);
+  });
+
+  it('recreates a shared capability when album, token or photo changes', async () => {
+    const first = await harness.navigateByUrl('/shared/album/1?token=one', GalleryStub);
+    const second = await harness.navigateByUrl('/shared/album/1?token=two', GalleryStub);
+    expect(second).not.toBe(first);
+    const third = await harness.navigateByUrl('/shared/album/2?token=two', GalleryStub);
+    expect(third).not.toBe(second);
+    const photo = await harness.navigateByUrl('/shared/album/2/photo?token=two&asset_id=a', GalleryStub);
+    const nextPhoto = await harness.navigateByUrl('/shared/album/2/photo?token=two&asset_id=b', GalleryStub);
+    expect(nextPhoto).not.toBe(photo);
+    expect(nextPhoto.initialAsset).toBe('b');
+    expect(await harness.navigateByUrl('/shared/album/2/photo?token=two&asset_id=b', GalleryStub)).toBe(nextPhoto);
   });
 
   it('does not reattach a gallery with different query parameters', async () => {

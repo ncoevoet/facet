@@ -16,6 +16,7 @@ import { CategoryRecomputeService } from './category-recompute.service';
 import { GalleryStore } from '../gallery/gallery.store';
 import { WeightLabelKeyPipe } from './comparison.pipes';
 import { I18N, i18nKeys } from '../../core/i18n/keys';
+import { MOBILE_BAR_ROW } from '../../shared/utils/mobile-bar';
 
 interface LearnedWeightsResponse {
   available: boolean;
@@ -103,7 +104,7 @@ interface TopPhoto {
 
       <!-- Column 2: current top 10 (before) -->
       <div class="rounded-lg bg-[var(--mat-sys-surface-container)] p-4">
-        <div class="text-xs font-semibold uppercase opacity-60 mb-3">{{ I18N.comparison.top_before | translate }}</div>
+        <div class="text-xs font-semibold uppercase text-[var(--mat-sys-on-surface-variant)] mb-3">{{ I18N.comparison.top_before | translate }}</div>
         @for (p of topBefore(); track p.path; let i = $index) {
           <div class="relative mb-3">
             <img [src]="p.path | thumbnailUrl:512:p.preview_revision" class="w-full rounded object-cover" [alt]="p.filename" loading="lazy" />
@@ -115,7 +116,7 @@ interface TopPhoto {
 
       <!-- Column 3: top 10 after recompute -->
       <div class="rounded-lg bg-[var(--mat-sys-surface-container)] p-4">
-        <div class="text-xs font-semibold uppercase opacity-60 mb-3">{{ I18N.comparison.top_after | translate }}</div>
+        <div class="text-xs font-semibold uppercase text-[var(--mat-sys-on-surface-variant)] mb-3">{{ I18N.comparison.top_after | translate }}</div>
         @if (recomputed()) {
           @for (p of topAfter(); track p.path; let i = $index) {
             <div class="relative mb-3">
@@ -130,7 +131,7 @@ interface TopPhoto {
       </div>
     </div>
 
-    <div class="lg:hidden fixed bottom-0 left-0 right-0 z-50 flex items-center gap-2 px-3 py-2 bg-[var(--mat-sys-surface-container)] border-t border-[var(--mat-sys-outline-variant)] safe-area-pb">
+    <div [class]="barRow" class="lg:hidden fixed bottom-0 left-0 right-0 z-50 bg-[var(--mat-sys-surface-container)] border-t border-[var(--mat-sys-outline-variant)] safe-area-pb">
       <mat-form-field class="flex-1" subscriptSizing="dynamic">
         <mat-label>{{ I18N.ui.filters.type | translate }}</mat-label>
         <mat-select [value]="compareFilters.selectedCategory()" (selectionChange)="compareFilters.selectedCategory.set($event.value)">
@@ -143,6 +144,7 @@ interface TopPhoto {
   `,
 })
 export class ComparisonSuggestionsTabComponent {
+  protected readonly barRow = MOBILE_BAR_ROW;
   protected readonly I18N = i18nKeys();
   private readonly api = inject(ApiService);
   private readonly i18n = inject(I18nService);

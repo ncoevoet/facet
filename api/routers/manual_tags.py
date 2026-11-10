@@ -9,16 +9,23 @@ dropdown (both cache layers).
 
 import logging
 import sqlite3
+from typing import Optional
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query, Response
 
-from api.auth import CurrentUser, require_edition
+from api.auth import CurrentUser, get_optional_user, require_edition
 from api.config import is_multi_user_enabled
 from api.database import get_db
 from api.db_helpers import after_commit, is_locked_error, retry_on_locked
 from api.models.manual_tags import (
     BatchManualTagRequest, BatchManualTagResponse, ManualTagDeleteResponse,
     ManualTagRequest, ManualTagResponse,
+)
+from api.models.keyword_catalog import (
+    KeywordCatalogResponse, KeywordChangeApply, KeywordChangePreview,
+    KeywordChangeRequest, KeywordChangeResult,
+    KeywordTreeResponse,
+    HierarchyChangeApply, HierarchyChangePreview, HierarchyChangeRequest, HierarchyChangeResult,
 )
 from api.routers.faces import _batch_scope_sql, _require_writable_photo, _writable_photo_paths
 from db.manual_tags import (
@@ -46,6 +53,115 @@ def _created_by(user):
 def _drop_tag_caches(conn):
     """Clear the DB-persisted tag dropdown row, then the in-process stats cache."""
     conn.execute("DELETE FROM stats_cache WHERE key = 'tags'")
+
+
+@router.get('/api/manual_tags/hierarchy', response_model=KeywordTreeResponse)
+def api_keyword_tree(response: Response, user: Optional[CurrentUser] = Depends(get_optional_user)):
+    """Visible assigned concepts and ancestors, with distinct photo counts."""
+    from api.keyword_tree import keyword_tree
+    from db.keyword_hierarchy import HierarchyError
+    response.headers['Cache-Control'] = 'no-store'
+    try:
+        with get_db() as conn:
+            conn.execute('PRAGMA query_only=ON')
+            conn.execute('BEGIN')
+            return keyword_tree(conn, user.user_id if user else None)
+    except (sqlite3.Error, HierarchyError) as exc:
+        logger.exception('Keyword hierarchy read failed')
+        raise HTTPException(503, 'Keyword hierarchy could not be read', headers={'Cache-Control': 'no-store'}) from exc
+
+
+@router.post('/api/manual_tags/hierarchy/preview', response_model=HierarchyChangePreview)
+def api_hierarchy_preview(body: HierarchyChangeRequest, response: Response, user: CurrentUser = Depends(require_edition)):
+    from api.keyword_management import hierarchy_preview
+    from db.keyword_hierarchy import HierarchyError
+    response.headers['Cache-Control'] = 'no-store'
+    try:
+        with get_db() as conn:
+            conn.execute('PRAGMA query_only=ON')
+            conn.execute('BEGIN')
+            return hierarchy_preview(conn, user, body)
+    except HierarchyError as exc:
+        raise HTTPException(422, str(exc), headers={'Cache-Control': 'no-store'}) from exc
+    except sqlite3.Error as exc:
+        logger.exception('Hierarchy preview failed')
+        raise HTTPException(503, 'Hierarchy changes could not be prepared', headers={'Cache-Control': 'no-store'}) from exc
+
+
+@router.post('/api/manual_tags/hierarchy/apply', response_model=HierarchyChangeResult)
+@retry_on_locked()
+def api_hierarchy_apply(body: HierarchyChangeApply, response: Response, user: CurrentUser = Depends(require_edition)):
+    from api.keyword_management import hierarchy_apply
+    from db.keyword_hierarchy import HierarchyError
+    response.headers['Cache-Control'] = 'no-store'
+    try:
+        with get_db() as conn:
+            conn.execute('BEGIN IMMEDIATE')
+            result = hierarchy_apply(conn, user, body, created_by=_created_by(user))
+            _drop_tag_caches(conn)
+            conn.commit()
+    except HierarchyError as exc:
+        raise HTTPException(422, str(exc), headers={'Cache-Control': 'no-store'}) from exc
+    except sqlite3.Error as exc:
+        if is_locked_error(exc):
+            raise
+        logger.exception('Hierarchy update failed')
+        raise HTTPException(503, 'Hierarchy changes could not be confirmed', headers={'Cache-Control': 'no-store'}) from exc
+    after_commit()
+    return result
+
+
+@router.get('/api/manual_tags/catalog', response_model=KeywordCatalogResponse)
+def api_keyword_catalog(response: Response, search: str = Query(default='', max_length=64),
+                        after: str = Query(default='', max_length=64), limit: int = Query(default=50, ge=1, le=100),
+                        user: Optional[CurrentUser] = Depends(get_optional_user)):
+    """Search all visible manual keyword identities; counts never include hidden photos."""
+    from api.keyword_catalog import keyword_catalog
+    response.headers['Cache-Control'] = 'no-store'
+    try:
+        with get_db() as conn:
+            conn.execute('PRAGMA query_only=ON')
+            conn.execute('BEGIN')
+            return keyword_catalog(conn, user.user_id if user else None, search, after, limit)
+    except sqlite3.Error as exc:
+        logger.exception('Keyword catalog read failed')
+        raise HTTPException(503, 'Keywords could not be read', headers={'Cache-Control': 'no-store'}) from exc
+
+
+@router.post('/api/manual_tags/manage/preview', response_model=KeywordChangePreview)
+def api_keyword_change_preview(body: KeywordChangeRequest, response: Response, user: CurrentUser = Depends(require_edition)):
+    """Inspect an explicit rename/merge or removal of currently visible assignments."""
+    from api.keyword_catalog import keyword_preview
+    response.headers['Cache-Control'] = 'no-store'
+    try:
+        with get_db() as conn:
+            conn.execute('PRAGMA query_only=ON')
+            conn.execute('BEGIN')
+            return keyword_preview(conn, user.user_id, body)
+    except sqlite3.Error as exc:
+        logger.exception('Keyword management preview failed')
+        raise HTTPException(503, 'Keyword assignments could not be read', headers={'Cache-Control': 'no-store'}) from exc
+
+
+@router.post('/api/manual_tags/manage/apply', response_model=KeywordChangeResult)
+@retry_on_locked()
+def api_keyword_change_apply(body: KeywordChangeApply, response: Response, user: CurrentUser = Depends(require_edition)):
+    """Revalidate all assignment preconditions inside the one write transaction."""
+    from api.keyword_catalog import apply_keyword_change
+    response.headers['Cache-Control'] = 'no-store'
+    try:
+        with get_db() as conn:
+            conn.execute('BEGIN IMMEDIATE')
+            result = apply_keyword_change(conn, user.user_id, body, created_by=_created_by(user))
+            _drop_tag_caches(conn)
+            conn.commit()
+    except sqlite3.Error as exc:
+        if is_locked_error(exc):
+            raise
+        logger.exception('Keyword management apply failed')
+        raise HTTPException(503, 'Keyword assignments could not be updated', headers={'Cache-Control': 'no-store'}) from exc
+    after_commit()
+    return result
 
 
 @router.put("/api/photo/manual_tags", response_model=ManualTagResponse)
@@ -124,18 +240,24 @@ def api_batch_manual_tags(
     body: BatchManualTagRequest,
     user: CurrentUser = Depends(require_edition),
 ):
-    """Add or remove one manual tag across named paths or a gallery view.
+    """Edit manual tags across named paths or a gallery view in one transaction.
 
-    ``count`` is the rows actually written or removed: unwritable paths are
-    dropped, an at-cap photo and a photo whose AI tags already hold the tag are
-    skipped inside the INSERT, and a photo that already has the tag is not
-    counted.
+    On add, unwritable paths are dropped; at-cap photos and existing AI/manual
+    tags are skipped. The gallery captures explicit paths before preview;
+    other callers may still supply filters, resolved once within this request.
+
+    Replace preserves retained tag provenance and leaves AI tags unchanged.
+    Its matching target is resolved once before removing tags. Clear is a
+    separate explicit action. ``count`` always counts changed tag rows, not
+    affected photos; these operations do not create organization history.
     """
-    tag = _normalized(body.tag)
+    tag = _normalized(body.tag) if body.action in ('add', 'delete') else None
+    tags = list(dict.fromkeys(_normalized(value) for value in body.tags or ()))
     if body.filters is None and not body.photo_paths:
         return {"success": True, "count": 0}
     with get_db() as conn:
         try:
+            conn.execute('BEGIN IMMEDIATE')
             if body.filters is not None:
                 from_clause, where_str, scope_params = _batch_scope_sql(conn, body, user)
                 scope = f"{from_clause}{where_str}"
@@ -148,6 +270,33 @@ def api_batch_manual_tags(
                     return {"success": True, "count": 0}
                 scope = f"photos WHERE photos.path IN ({','.join('?' * len(paths))})"
                 scope_params = paths
+            if body.action in ('replace', 'clear'):
+                # Resolve the authorized matching set once. Replacing a tag must
+                # not make its own tag/search predicate lose rows before INSERT.
+                conn.execute('CREATE TEMP TABLE facet_manual_tag_targets AS '
+                             f'SELECT DISTINCT photos.path, photos.tags FROM {scope}', scope_params)
+                try:
+                    keep_sql = f" AND tag NOT IN ({','.join('?' * len(tags))})" if tags else ''
+                    count = conn.execute(
+                        'DELETE FROM photo_manual_tags WHERE photo_path IN '
+                        '(SELECT path FROM facet_manual_tag_targets)' + keep_sql,
+                        tags,
+                    ).rowcount
+                    for value in tags:
+                        absent_sql, absent_params = ai_tag_absent_sql(value)
+                        count += conn.execute(
+                            'INSERT OR IGNORE INTO photo_manual_tags '
+                            '(photo_path, tag, source, created_by, created_at) '
+                            'SELECT photos.path, ?, ?, ?, datetime(\'now\') '
+                            f'FROM facet_manual_tag_targets AS photos WHERE {absent_sql}',
+                            [value, SOURCE_USER, _created_by(user), *absent_params],
+                        ).rowcount
+                finally:
+                    conn.execute('DROP TABLE IF EXISTS facet_manual_tag_targets')
+                _drop_tag_caches(conn)
+                conn.commit()
+                after_commit()
+                return {"success": True, "count": count}
             if body.action == 'add':
                 absent_sql, absent_params = ai_tag_absent_sql(tag)
                 cursor = conn.execute(
@@ -170,6 +319,7 @@ def api_batch_manual_tags(
             _drop_tag_caches(conn)
             conn.commit()
         except HTTPException:
+            conn.rollback()
             raise
         except sqlite3.Error as ex:
             conn.rollback()

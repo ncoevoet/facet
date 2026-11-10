@@ -8,6 +8,7 @@ reach already-exported photos).
 import sqlite3
 from contextlib import contextmanager
 from io import BytesIO
+from pathlib import Path
 
 import pytest
 import numpy as np
@@ -49,12 +50,182 @@ def _spike_histogram(index):
     return pack_histogram(counts, counts, counts, counts)
 
 
+def test_full_export_omits_scanner_job_history_and_incremental_preserves_viewer_local_runs(tmp_path, monkeypatch):
+    from db import maintenance
+    src, out = str(tmp_path / 'source.db'), str(tmp_path / 'viewer.db')
+    _make_source_db(src)
+    with sqlite3.connect(src) as conn:
+        conn.execute("INSERT INTO scan_runs(id,status,args_json,viewer_job_id,job_status) VALUES (1,'completed',?,?,'completed')",
+                     ('{"directories":["/private/source-library"]}', 'a' * 32))
+        conn.execute("INSERT INTO scan_failures(scan_run_id,path,error) VALUES (1,'/private/source.jpg','private diagnostic')")
+    # Reproduce the exact previous exclusion policy against the real exporter,
+    # then verify the changed policy below. Both artifacts are temporary DBs.
+    legacy = str(tmp_path / 'previous-policy.db')
+    with monkeypatch.context() as old_policy:
+        old_policy.setattr(maintenance, 'VIEWER_EXPORT_EXCLUDED_TABLES', tuple(
+            table for table in maintenance.VIEWER_EXPORT_EXCLUDED_TABLES if table not in ('scan_runs', 'scan_failures')))
+        export_viewer_db(src, legacy, verbose=False)
+        with sqlite3.connect(legacy) as conn:
+            assert conn.execute('SELECT path FROM scan_failures').fetchall() == [('/private/source.jpg',)]
+    export_viewer_db(src, out, verbose=False)
+    assert b'/private/source' not in Path(out).read_bytes()
+    init_database(out)
+    with sqlite3.connect(out) as conn:
+        assert conn.execute('SELECT COUNT(*) FROM scan_runs').fetchone() == (0,)
+        assert conn.execute('SELECT COUNT(*) FROM scan_failures').fetchone() == (0,)
+        conn.execute("INSERT INTO scan_runs(id,status,args_json,viewer_job_id,job_status) VALUES (2,'failed','{}',?,'failed')", ('b' * 32,))
+        conn.execute("INSERT INTO scan_failures(scan_run_id,path,error) VALUES (2,?,'viewer failure')", (_A,))
+    export_viewer_db(src, out, verbose=False)
+    with sqlite3.connect(out) as conn:
+        assert conn.execute('SELECT id,viewer_job_id,job_status FROM scan_runs').fetchall() == [(2, 'b' * 32, 'failed')]
+        assert conn.execute('SELECT scan_run_id,path FROM scan_failures').fetchall() == [(2, _A)]
+    with sqlite3.connect(src) as conn:
+        assert conn.execute('SELECT id,viewer_job_id FROM scan_runs').fetchall() == [(1, 'a' * 32)]
+
+
 def _manual_face(conn, path, person_id, key):
     return conn.execute(
         "INSERT INTO faces(photo_path,face_index,embedding,person_id,is_manual,manual_key,"
         "bbox_x1,bbox_y1,bbox_x2,bbox_y2,manual_width,manual_height,manual_source,face_thumbnail) "
         "VALUES (?,-1,X'',?,1,?,10,10,30,30,100,100,'source',?)",
         (path, person_id, key, _thumb_bytes('blue'))).lastrowid
+
+
+def test_ignored_detections_export_without_vectors_and_local_undo_survives_old_source(tmp_path):
+    from db.ignored_faces import detection_source, ignore_detection, restore_detection
+    from utils.manual_face_frame import read_frame
+    src, out = str(tmp_path / 'source.db'), str(tmp_path / 'viewer.db')
+    init_database(src)
+    image = str(tmp_path / 'advert.jpg')
+    Image.new('RGB', (100, 80), 'red').save(image)
+    with sqlite3.connect(src) as conn:
+        conn.row_factory = sqlite3.Row
+        conn.execute('INSERT INTO photos(path,filename,thumbnail,image_width,image_height) VALUES (?, ?, ?,100,80)',
+                     (image, 'advert.jpg', _thumb_bytes()))
+        conn.execute('INSERT INTO faces(photo_path,face_index,embedding,landmark_2d_106,bbox_x1,bbox_y1,bbox_x2,bbox_y2) '
+                     'VALUES (?,0,?,?,10,10,60,60)', (image, b'private-recognition-vector', b'private-landmarks'))
+        key = ignore_detection(conn, conn.execute('SELECT * FROM faces').fetchone(), detection_source(read_frame(image)))
+    export_viewer_db(src, out, verbose=False)
+    with sqlite3.connect(out) as conn:
+        conn.row_factory = sqlite3.Row
+        archived = conn.execute('SELECT * FROM ignored_face_detections WHERE ignore_id=?', (key,)).fetchone()
+        assert archived['embedding'] == b'' and archived['landmark_2d_106'] is None
+        restore_detection(conn, archived)
+        assert conn.execute('SELECT COUNT(*) FROM faces').fetchone()[0] == 1
+    conn.close()
+    # The source clock may be ahead of the viewer's. Restore is a monotonic
+    # marker for this UUID, so wall-clock ordering must not erase the Undo.
+    with sqlite3.connect(src) as conn:
+        conn.execute('UPDATE ignored_face_detections SET updated_at=? WHERE ignore_id=?', (2**63 - 1, key))
+    pixels = Path(image).read_bytes()
+    Path(image).unlink()
+    before = Path(out).read_bytes()
+    with pytest.raises(ValueError, match='Mount the original photos'):
+        export_viewer_db(src, out, verbose=False)
+    assert Path(out).read_bytes() == before
+    Path(image).write_bytes(pixels)
+    export_viewer_db(src, out, verbose=False)
+    with sqlite3.connect(out) as conn:
+        assert conn.execute('SELECT COUNT(*) FROM faces').fetchone()[0] == 1
+        assert conn.execute('SELECT active FROM ignored_face_detections WHERE ignore_id=?', (key,)).fetchone() == (0,)
+    conn.close()
+    with sqlite3.connect(src) as conn:
+        assert conn.execute('SELECT COUNT(*) FROM faces').fetchone()[0] == 0
+        assert conn.execute('SELECT embedding FROM ignored_face_detections WHERE ignore_id=?', (key,)).fetchone() == (b'private-recognition-vector',)
+        conn.execute("INSERT INTO photos(path,filename) VALUES ('/another/advert.jpg','advert.jpg')")
+        conn.execute("UPDATE ignored_face_detections SET photo_path='/another/advert.jpg' WHERE ignore_id=?", (key,))
+    before = Path(out).read_bytes()
+    with pytest.raises(ValueError, match='different photos'):
+        export_viewer_db(src, out, verbose=False)
+    assert Path(out).read_bytes() == before
+
+
+def test_local_undo_covered_by_another_face_keeps_the_undo_and_does_not_fail_the_export(tmp_path):
+    from db.ignored_faces import detection_source, ignore_detection, restore_detection
+    from utils.manual_face_frame import read_frame
+    src, out = str(tmp_path / 'source.db'), str(tmp_path / 'viewer.db')
+    init_database(src)
+    image = str(tmp_path / 'advert.jpg')
+    Image.new('RGB', (100, 80), 'red').save(image)
+    with sqlite3.connect(src) as conn:
+        conn.row_factory = sqlite3.Row
+        conn.execute('INSERT INTO photos(path,filename,thumbnail,image_width,image_height) VALUES (?, ?, ?,100,80)',
+                     (image, 'advert.jpg', _thumb_bytes()))
+        conn.execute('INSERT INTO faces(photo_path,face_index,embedding,bbox_x1,bbox_y1,bbox_x2,bbox_y2) '
+                     "VALUES (?,0,X'',10,10,60,60)", (image,))
+        key = ignore_detection(conn, conn.execute('SELECT * FROM faces').fetchone(), detection_source(read_frame(image)))
+    export_viewer_db(src, out, verbose=False)
+    with sqlite3.connect(out) as conn:
+        conn.row_factory = sqlite3.Row
+        restore_detection(conn, conn.execute('SELECT * FROM ignored_face_detections WHERE ignore_id=?', (key,)).fetchone())
+    # The source now holds another face at a different index over the same box,
+    # and the changed face count makes the export resync the photo's faces.
+    with sqlite3.connect(src) as conn:
+        conn.executemany('INSERT INTO faces(photo_path,face_index,embedding,bbox_x1,bbox_y1,bbox_x2,bbox_y2) '
+                         "VALUES (?,?,X'',?,?,?,?)", [(image, 1, 12, 12, 60, 60), (image, 2, 70, 10, 95, 40)])
+    for _ in range(2):
+        export_viewer_db(src, out, verbose=False)
+        with sqlite3.connect(out) as conn:
+            assert conn.execute('SELECT active FROM ignored_face_detections WHERE ignore_id=?', (key,)).fetchone() == (0,)
+            assert conn.execute('SELECT face_index FROM faces WHERE photo_path=? ORDER BY face_index',
+                                (image,)).fetchall() == [(1,), (2,)]
+
+
+def test_mapped_original_keeps_viewer_local_ignore_and_offline_refresh_refuses_before_writing(tmp_path):
+    from db.ignored_faces import detection_source, ignore_detection
+    from utils.manual_face_frame import read_frame
+    src, out = str(tmp_path / 'source.db'), str(tmp_path / 'viewer.db')
+    init_database(src)
+    physical = tmp_path / 'photos'
+    physical.mkdir()
+    image = physical / 'advert.jpg'
+    Image.new('RGB', (100, 80), 'red').save(image)
+    path = '/offhost-library/advert.jpg'
+    mapping = {'/offhost-library': str(physical)}
+    with sqlite3.connect(src) as conn:
+        conn.execute('INSERT INTO photos(path,filename,thumbnail,image_width,image_height) VALUES (?, ?, ?,100,80)',
+                     (path, 'advert.jpg', _thumb_bytes()))
+        conn.execute('INSERT INTO faces(photo_path,face_index,embedding,bbox_x1,bbox_y1,bbox_x2,bbox_y2) '
+                     'VALUES (?,0,X\'\',10,10,60,60)', (path,))
+    export_viewer_db(src, out, verbose=False)
+    with sqlite3.connect(out) as conn:
+        conn.row_factory = sqlite3.Row
+        key = ignore_detection(conn, conn.execute('SELECT * FROM faces').fetchone(), detection_source(read_frame(image)))
+    export_viewer_db(src, out, verbose=False, path_mapping=mapping)
+    with sqlite3.connect(out) as conn:
+        assert conn.execute('SELECT COUNT(*) FROM faces').fetchone()[0] == 0
+        assert conn.execute('SELECT active FROM ignored_face_detections WHERE ignore_id=?', (key,)).fetchone() == (1,)
+    image.unlink()
+    before = Path(out).read_bytes()
+    with pytest.raises(ValueError, match='Mount the original photos'):
+        export_viewer_db(src, out, verbose=False, path_mapping=mapping)
+    assert Path(out).read_bytes() == before
+
+
+def test_incremental_export_ignores_the_viewer_hosts_configured_path_mapping(tmp_path, monkeypatch):
+    """viewer.path_mapping describes the NAS; the scoring host must check its own paths."""
+    import config_resolve
+    from db.ignored_faces import detection_source, ignore_detection
+    from utils.manual_face_frame import read_frame
+    src, out = str(tmp_path / 'source.db'), str(tmp_path / 'viewer.db')
+    init_database(src)
+    image = tmp_path / 'advert.jpg'
+    Image.new('RGB', (100, 80), 'red').save(image)
+    with sqlite3.connect(src) as conn:
+        conn.execute('INSERT INTO photos(path,filename,thumbnail,image_width,image_height) VALUES (?, ?, ?,100,80)',
+                     (str(image), 'advert.jpg', _thumb_bytes()))
+        conn.execute('INSERT INTO faces(photo_path,face_index,embedding,bbox_x1,bbox_y1,bbox_x2,bbox_y2) '
+                     'VALUES (?,0,X\'\',10,10,60,60)', (str(image),))
+    export_viewer_db(src, out, verbose=False)
+    with sqlite3.connect(out) as conn:
+        conn.row_factory = sqlite3.Row
+        key = ignore_detection(conn, conn.execute('SELECT * FROM faces').fetchone(), detection_source(read_frame(image)))
+    nas_only = {'viewer': {'path_mapping': {str(tmp_path): '/volume1/not-on-this-host'}}}
+    monkeypatch.setattr(config_resolve, 'load_resolved', lambda *a, **k: nas_only)
+    export_viewer_db(src, out, verbose=False)
+    with sqlite3.connect(out) as conn:
+        assert conn.execute('SELECT active FROM ignored_face_detections WHERE ignore_id=?', (key,)).fetchone() == (1,)
+        assert conn.execute('SELECT COUNT(*) FROM faces').fetchone()[0] == 0
 
 
 def test_incremental_manual_faces_preserve_independent_colliding_people(tmp_path):
@@ -628,3 +799,240 @@ def test_manual_review_cache_survives_viewer_copy_and_local_correction(tmp_path,
     export_viewer_db(src, out, verbose=False)
     with sqlite3.connect(out) as conn:
         assert conn.execute("SELECT manual_review_required,manual_source FROM faces WHERE manual_key='review-cache'").fetchone() == (0, 'viewer-corrected')
+
+
+def test_full_export_omits_face_feedback_and_incremental_preserves_local_feedback(tmp_path):
+    src, out = str(tmp_path / 'source.db'), str(tmp_path / 'viewer.db')
+    _make_source_db(src)
+    with sqlite3.connect(src) as conn:
+        person = conn.execute("INSERT INTO persons(name) VALUES ('Alice')").lastrowid
+        face = conn.execute("INSERT INTO faces(photo_path,face_index,embedding,person_id) VALUES (?,0,X'',NULL)", (_A,)).lastrowid
+        conn.execute('INSERT INTO face_review_feedback VALUES (?,?,?,?,?)',
+                     ('private-source-feedback-owner', face, person, 'a'*64, 'b'*32))
+    export_viewer_db(src, out, verbose=False)
+    assert b'private-source-feedback-owner' not in Path(out).read_bytes()
+    init_database(out)
+    with sqlite3.connect(out) as conn:
+        assert conn.execute('SELECT COUNT(*) FROM face_review_feedback').fetchone()[0] == 0
+        face = conn.execute('SELECT id FROM faces WHERE photo_path=?', (_A,)).fetchone()[0]
+        person = conn.execute('SELECT id FROM persons').fetchone()[0]
+        conn.execute('INSERT INTO face_review_feedback VALUES (?,?,?,?,?)',
+                     ('viewer-local-owner', face, person, 'c'*64, 'd'*32))
+    export_viewer_db(src, out, verbose=False)
+    with sqlite3.connect(out) as conn:
+        assert conn.execute('SELECT owner,identity_token,receipt_id FROM face_review_feedback').fetchall() == [('viewer-local-owner', 'c'*64, 'd'*32)]
+
+
+def test_incremental_feedback_person_counts_and_source_deletion(tmp_path):
+    src, out = str(tmp_path / 'source.db'), str(tmp_path / 'viewer.db')
+    _make_source_db(src)
+    with sqlite3.connect(src) as conn:
+        person = conn.execute("INSERT INTO persons(name,face_count) VALUES ('Alice',99)").lastrowid
+        conn.execute("INSERT INTO faces(photo_path,face_index,embedding,person_id) VALUES (?,0,X'',NULL)", (_A,))
+    export_viewer_db(src, out, verbose=False)
+    init_database(out)
+    with sqlite3.connect(out) as conn:
+        face = conn.execute('SELECT id FROM faces WHERE photo_path=?', (_A,)).fetchone()[0]
+        conn.execute('INSERT INTO face_review_feedback VALUES (?,?,?,?,?)', ('viewer', face, person, 'c'*64, 'd'*32))
+    export_viewer_db(src, out, verbose=False)
+    with sqlite3.connect(out) as conn:
+        assert conn.execute('SELECT face_count FROM persons WHERE id=?', (person,)).fetchone() == (0,)
+        assert conn.execute('SELECT COUNT(*) FROM face_review_feedback').fetchone() == (1,)
+    with sqlite3.connect(src) as conn:
+        conn.execute('DELETE FROM persons WHERE id=?', (person,))
+    export_viewer_db(src, out, verbose=False)
+    with sqlite3.connect(out) as conn:
+        assert conn.execute('SELECT COUNT(*) FROM persons WHERE id=?', (person,)).fetchone() == (0,)
+        assert conn.execute('SELECT COUNT(*) FROM face_review_feedback').fetchone() == (0,)
+
+
+def test_face_update_jobs_are_private_and_incremental_keeps_viewer_receipts(tmp_path):
+    src,out=str(tmp_path/'source.db'),str(tmp_path/'viewer.db')
+    _make_source_db(src)
+    with sqlite3.connect(src) as conn:
+        conn.execute("INSERT INTO face_update_jobs(job_id,owner,model,total) VALUES (?,?,?,1)",('a'*32,'private-face-update-owner','sface'))
+        conn.execute('INSERT INTO face_update_items(job_id,path) VALUES (?,?)',('a'*32,_A))
+        person = conn.execute("INSERT INTO persons(name) VALUES ('Alice')").lastrowid
+        conn.execute('INSERT INTO person_centroid_dirty(person_id) VALUES (?)', (person,))
+    export_viewer_db(src,out,verbose=False)
+    assert b'private-face-update-owner' not in Path(out).read_bytes()
+    with sqlite3.connect(out) as conn:
+        assert conn.execute("SELECT name FROM sqlite_master WHERE name='person_centroid_dirty'").fetchone() is None
+    init_database(out)
+    with sqlite3.connect(out) as conn:
+        assert conn.execute('SELECT COUNT(*) FROM face_update_jobs').fetchone()==(0,)
+        assert conn.execute('SELECT COUNT(*) FROM face_update_items').fetchone()==(0,)
+        conn.execute("INSERT INTO face_update_jobs(job_id,owner,model,total,state) VALUES (?,?,?,1,'completed')",('b'*32,'viewer-local-owner','sface'))
+        conn.execute("INSERT INTO face_update_items(job_id,path,state) VALUES (?,?,'empty')",('b'*32,_A))
+    export_viewer_db(src,out,verbose=False)
+    with sqlite3.connect(out) as conn:
+        assert conn.execute('SELECT job_id,owner,state FROM face_update_jobs').fetchall()==[('b'*32,'viewer-local-owner','completed')]
+        assert conn.execute('SELECT job_id,path,state FROM face_update_items').fetchall()==[('b'*32,_A,'empty')]
+
+
+def test_retry_submission_receipts_are_private_and_viewer_local_receipts_survive_incremental(tmp_path):
+    src, out = str(tmp_path / 'source.db'), str(tmp_path / 'viewer.db')
+    _make_source_db(src)
+    from db.schema import SCAN_RETRY_RECEIPTS_COLUMNS, _build_create_table_sql
+    ddl = _build_create_table_sql('scan_retry_receipts', SCAN_RETRY_RECEIPTS_COLUMNS)
+    with sqlite3.connect(src) as conn:
+        conn.execute(ddl)
+        conn.execute("INSERT INTO scan_retry_receipts VALUES ('source-plan','private-actor','spawned','private-receipt',9999999999)")
+    export_viewer_db(src, out, verbose=False)
+    with sqlite3.connect(out) as conn:
+        assert not conn.execute("SELECT 1 FROM sqlite_master WHERE name='scan_retry_receipts'").fetchone()
+        conn.execute(ddl)
+        conn.execute("INSERT INTO scan_retry_receipts VALUES ('viewer-plan','viewer-actor','spawned','viewer-receipt',9999999999)")
+    export_viewer_db(src, out, verbose=False)
+    with sqlite3.connect(out) as conn:
+        assert conn.execute('SELECT plan_id,actor,receipt FROM scan_retry_receipts').fetchall() == [('viewer-plan','viewer-actor','viewer-receipt')]
+
+
+def test_logical_assets_full_and_repeated_export_preserve_viewer_authority(tmp_path):
+    from db import logical_assets as assets
+
+    src, out = str(tmp_path / 'logical-source.db'), str(tmp_path / 'logical-viewer.db')
+    _make_source_db(src)
+    raw = '/photos/a.CR2'
+    with sqlite3.connect(src) as conn:
+        conn.execute('INSERT INTO photos(path,filename,thumbnail) VALUES (?,?,?)',
+                     (raw, 'a.CR2', _thumb_bytes()))
+        key = assets.create(conn, [_A, raw], _A, visibility_sql='1=1')
+        conn.execute('INSERT INTO logical_asset_imports VALUES (?,?,?)', (key, 'private-source-receipt', '["private-source-history"]'))
+    export_viewer_db(src, out, verbose=False)
+    with sqlite3.connect(out) as conn:
+        assert conn.execute('SELECT primary_path,revision FROM logical_assets WHERE id=?', (key,)).fetchone() == (_A, 1)
+        assert conn.execute('SELECT signature FROM logical_asset_imports').fetchone()[0] != 'private-source-receipt'
+    for revision, selected in [(1, raw), (2, _A)]:
+        with sqlite3.connect(src) as conn:
+            conn.execute('BEGIN')
+            assets.set_primary(conn, key, selected, revision, visibility_sql='1=1')
+        export_viewer_db(src, out, verbose=False)
+        with sqlite3.connect(out) as conn:
+            assert conn.execute('SELECT primary_path,revision FROM logical_assets WHERE id=?', (key,)).fetchone() == (selected, revision + 1)
+    with sqlite3.connect(out) as conn:
+        conn.execute('BEGIN')
+        assets.set_primary(conn, key, raw, 3, visibility_sql='1=1')
+    with sqlite3.connect(src) as conn:
+        conn.execute('BEGIN')
+        assets.set_primary(conn, key, _A, 3, visibility_sql='1=1')
+    export_viewer_db(src, out, verbose=False)
+    with sqlite3.connect(out) as conn:
+        assert conn.execute('SELECT primary_path,revision FROM logical_assets WHERE id=?', (key,)).fetchone() == (raw, 4)
+        conn.execute('BEGIN')
+        assets.dissolve(conn, key, 4, visibility_sql='1=1')
+    export_viewer_db(src, out, verbose=False)
+    export_viewer_db(src, out, verbose=False)
+    with sqlite3.connect(out) as conn:
+        assert conn.execute('SELECT * FROM logical_assets').fetchall() == []
+        assert conn.execute('SELECT path FROM photos WHERE path IN (?,?) ORDER BY path', (_A, raw)).fetchall() == [(raw,), (_A,)]
+
+
+def test_logical_review_export_preserves_viewer_edits_and_omits_retired_history(tmp_path):
+    from db import logical_assets as assets, logical_review as review
+
+    src, out = str(tmp_path / 'review-source.db'), str(tmp_path / 'review-viewer.db')
+    _make_source_db(src)
+    raw, other_raw = '/photos/a.CR2', '/photos/b.CR2'
+
+    def labels(conn, paths):
+        return {path: dict(zip(('star_rating', 'is_kept', 'is_rejected', 'is_favorite'), row))
+                for path in paths for row in conn.execute(
+                    'SELECT star_rating,is_kept,is_rejected,is_favorite FROM photos WHERE path=?', (path,))}
+
+    def edit(database, key, paths, patch, owner=''):
+        with sqlite3.connect(database) as conn:
+            conn.execute('BEGIN')
+            data = labels(conn, paths)
+            state = review.read(conn, key, owner, data)
+            revision = conn.execute('SELECT revision FROM logical_assets WHERE id=?', (key,)).fetchone()[0]
+            review.set_fields(conn, key, owner, revision, state['revision'], patch, origin='user',
+                              visibility_sql='1=1', file_labels=data, input_token=state['input_token'])
+
+    with sqlite3.connect(src) as conn:
+        conn.executemany('INSERT INTO photos(path,filename,thumbnail,star_rating) VALUES (?,?,?,?)',
+                         [(raw, 'a.CR2', _thumb_bytes(), 2), (other_raw, 'b.CR2', _thumb_bytes(), 1)])
+        conn.execute('UPDATE photos SET star_rating=5 WHERE path=?', (_A,))
+        key = assets.create(conn, [_A, raw], _A, visibility_sql='1=1')
+        review.seed(conn, key, _A, 1, visibility_sql='1=1')
+        retired = assets.create(conn, [_B, other_raw], _B, visibility_sql='1=1')
+        review.seed(conn, retired, _B, 1, visibility_sql='1=1')
+    edit(src, key, [_A, raw], {'star_rating': 3})
+    edit(src, retired, [_B, other_raw], {'star_rating': 4}, 'private-retired-review-owner')
+    with sqlite3.connect(src) as conn:
+        conn.execute('BEGIN')
+        assets.dissolve(conn, retired, 1, visibility_sql='1=1')
+        conn.execute('INSERT INTO logical_review_imports VALUES (?,?,?,?,?)',
+                     (key, '', 'star_rating', 'private-source-import-receipt', 999))
+    export_viewer_db(src, out, verbose=False)
+    with sqlite3.connect(out) as conn:
+        assert conn.execute('SELECT owner,value FROM logical_review_fields').fetchall() == [('', 3)]
+        assert conn.execute('SELECT signature FROM logical_review_imports').fetchone()[0] != 'private-source-import-receipt'
+    assert b'private-retired-review-owner' not in Path(out).read_bytes()
+    assert b'private-source-import-receipt' not in Path(out).read_bytes()
+
+    for rating in (4, 1):
+        edit(src, key, [_A, raw], {'star_rating': rating})
+        export_viewer_db(src, out, verbose=False)
+        with sqlite3.connect(out) as conn:
+            conn.execute('BEGIN')
+            assert review.read(conn, key, '', labels(conn, [_A, raw]))['values']['star_rating'] == rating
+    edit(out, key, [_A, raw], {'star_rating': 4})
+    with sqlite3.connect(src) as conn:
+        conn.execute('BEGIN')
+        assets.set_primary(conn, key, raw, 1, visibility_sql='1=1')
+    edit(src, key, [_A, raw], {'star_rating': 2, 'is_favorite': 1})
+    export_viewer_db(src, out, verbose=False)
+    with sqlite3.connect(out) as conn:
+        conn.execute('BEGIN')
+        current = review.read(conn, key, '', labels(conn, [_A, raw]))
+        assert current['values']['star_rating'] == 4
+        assert current['values']['is_favorite'] == 1
+        assert current['source_path'] == _A
+        assert conn.execute('SELECT primary_path FROM logical_assets WHERE id=?', (key,)).fetchone()[0] == raw
+        assert labels(conn, [_A, raw])[_A]['star_rating'] == 5
+        assert labels(conn, [_A, raw])[raw]['star_rating'] == 2
+        review.reset_fields(conn, key, '', 2, current['revision'], ['star_rating'], visibility_sql='1=1',
+                            file_labels=labels(conn, [_A, raw]), input_token=current['input_token'])
+    export_viewer_db(src, out, verbose=False)
+    export_viewer_db(src, out, verbose=False)
+    with sqlite3.connect(out) as conn:
+        conn.execute('BEGIN')
+        current = review.read(conn, key, '', labels(conn, [_A, raw]))
+        assert current['values']['star_rating'] == 5
+        assert current['origins']['star_rating'] == 'file'
+        assert current['values']['is_favorite'] == 1
+
+
+def test_logical_history_receipts_stay_private_and_viewer_history_survives_reexport(tmp_path):
+    from db import logical_assets as assets, logical_review as review, logical_history as history
+
+    src, out = str(tmp_path / 'logical-history-source.db'), str(tmp_path / 'logical-history-viewer.db')
+    _make_source_db(src)
+    raw = '/photos/a.CR2'
+    with sqlite3.connect(src) as conn:
+        conn.execute('INSERT INTO photos(path,filename,star_rating) VALUES (?,?,?)', (raw, 'a.CR2', 2))
+        key = assets.create(conn, [_A, raw], _A, visibility_sql='1=1')
+        review.seed(conn, key, _A, 1, visibility_sql='1=1')
+
+    def edit(filename, actor, rating):
+        with sqlite3.connect(filename) as conn:
+            conn.execute('BEGIN IMMEDIATE')
+            labels = {row[0]: dict(zip(history.FIELDS, row[1:])) for row in conn.execute(
+                'SELECT path,star_rating,is_favorite,is_rejected,is_kept FROM photos')}
+            before = history.capture(conn, key, '', labels)
+            review.set_fields(conn, key, '', before['group_revision'], before['revision'], {'star_rating': rating}, origin='user',
+                              visibility_sql='1=1', file_labels=labels, input_token=before['input_token'])
+            after = history.capture(conn, key, '', labels)
+            history.record(conn, actor, '', {key: before}, {key: after})
+
+    edit(src, 'private-logical-source-history-actor', 4)
+    export_viewer_db(src, out, verbose=False)
+    assert b'private-logical-source-history-actor' not in Path(out).read_bytes()
+    assert b'override_before' not in Path(out).read_bytes()
+    init_database(out)
+    edit(out, 'private-viewer-logical-history-actor', 3)
+    export_viewer_db(src, out, verbose=False)
+    with sqlite3.connect(out) as conn:
+        assert conn.execute("SELECT owner,kind FROM organization_history").fetchall() == [('private-viewer-logical-history-actor', 'logical_review')]
+    assert b'private-logical-source-history-actor' not in Path(out).read_bytes()

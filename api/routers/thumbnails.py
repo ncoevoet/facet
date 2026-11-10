@@ -164,6 +164,19 @@ def _do_resize(thumbnail_bytes: bytes, size: int) -> bytes:
 _resize_cache: dict[tuple[str, int, bytes], bytes] = {}
 
 
+def clear_photo_image_caches(paths: set[str]) -> None:
+    """Evict removed catalog images from this worker's derived image caches."""
+    for key in list(_resize_cache):
+        if key[0] in paths:
+            _resize_cache.pop(key, None)
+    # functools caches have no per-key eviction API. These are small derived
+    # caches, so drop the whole cache rather than retain a removed private image.
+    _convert_raw_cached.cache_clear()
+    _convert_nonraw_cached.cache_clear()
+    _convert_jpegxl_cached.cache_clear()
+    _render_from_original_cached.cache_clear()
+
+
 def _get_or_resize(photo_path: str, thumbnail_bytes: bytes, size: int) -> bytes:
     """Resize a thumbnail with (path, size, content) caching. Caller provides bytes to avoid double-fetch."""
     key = (photo_path, size, hashlib.sha256(thumbnail_bytes).digest())
@@ -176,7 +189,7 @@ def _get_or_resize(photo_path: str, thumbnail_bytes: bytes, size: int) -> bytes:
         # Remove first ~10% of entries
         evict_count = max(1, _thumbnail_cache_size // 10)
         for old_key in list(_resize_cache.keys())[:evict_count]:
-            del _resize_cache[old_key]
+            _resize_cache.pop(old_key, None)
     _resize_cache[key] = resized
     return resized
 
@@ -314,6 +327,10 @@ def get_thumbnail(
             [path, *vis_params],
         ).fetchone()
 
+    return _thumbnail_response(request, path, size, row)
+
+
+def _thumbnail_response(request: Request, path: str, size: Optional[int], row):
     if not (row and row['thumbnail']):
         return Response(content="Thumbnail not found", status_code=404)
     if size and 0 < size < _STORED_THUMBNAIL_SIZE:
@@ -509,6 +526,10 @@ def image(
             f"SELECT path, sequence_kind, preview_revision FROM photos WHERE path = ? AND {vis_sql}",
             [path, *vis_params],
         ).fetchone()
+    return _image_response(request, path, fallback, row)
+
+
+def _image_response(request: Request, path: str, fallback: str, row):
     if not row:
         return Response(content="Not found", status_code=404)
 

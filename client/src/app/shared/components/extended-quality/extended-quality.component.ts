@@ -1,3 +1,4 @@
+import { MetricDistributionComponent } from '../metric-distribution/metric-distribution.component';
 import { Component, computed, input } from '@angular/core';
 import { I18N } from '../../../core/i18n/keys';
 import { Photo } from '../../models/photo.model';
@@ -27,7 +28,7 @@ const METRIC_KEYS = Object.keys(METRIC_LABELS) as (keyof typeof METRIC_LABELS)[]
  */
 @Component({
   selector: 'app-extended-quality',
-  imports: [FixedPipe, TranslatePipe],
+  imports: [FixedPipe, TranslatePipe, MetricDistributionComponent],
   host: { class: 'block' },
   template: `
     @for (metric of metrics(); track metric.key) {
@@ -38,6 +39,7 @@ const METRIC_KEYS = Object.keys(METRIC_LABELS) as (keyof typeof METRIC_LABELS)[]
         } @else {
           {{ I18N.tooltip.not_computed | translate }}
         }</span>
+        @if (distributions() && metric.value !== null) { <app-metric-distribution [column]="metric.key" [label]="metric.label | translate" [value]="metric.value" [category]="category()" /> }
       </div>
     }
   `,
@@ -46,6 +48,8 @@ export class ExtendedQualityComponent {
   protected readonly I18N = I18N;
   photo = input.required<ExtendedQuality>();
   tooltip = input(false);
+  readonly distributions = input(false);
+  readonly category = input<string | null>(null);
   /** Score columns whose model has run on this library (`/api/config` `populated_scores`). */
   populated = input<readonly string[] | undefined>(undefined);
   metrics = computed(() => {

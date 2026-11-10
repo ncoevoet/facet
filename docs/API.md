@@ -87,15 +87,15 @@ All endpoints here use the [batch target contract](#conventions).
 | `POST /api/photos/batch_reject` | Mark photos as rejected (clears favorite and rating) |
 | `POST /api/photos/batch_review` | Set a review decision: `decision: kept \| undecided \| rejected`. Kept clears rejection (keeps stars/favorites); rejected clears Keep, stars and favorites; undecided clears both. Returns `{success, count}` plus `undo_entry_id` when one explicitly named photo changes to rejected. The receipt uses the existing revision-protected organization-history revert; no-op, bulk and filter-scoped writes omit it. The gallery filters on `review_status=undecided\|kept\|rejected`; omit it for the normal library |
 | `POST /api/photos/batch_rating` | Set star rating; required `rating` (0–5) |
-| `POST /api/photos/batch_manual_tags` | Add or remove one [manual tag](VIEWER.md#manual-tags) (edition-gated). Required `tag` and `action` (`add` or `delete`). On `add`, photos at the 50-tag cap or whose AI tags contain the tag are skipped (not counted) |
-| `POST /api/photos/capture_date/preview` | `[Edition]` Preview a capture-date shift; writes nothing. Body: `photo_paths` or `filters`, optional `exclude`. Required nonzero integer `offset_seconds` within ±31622400. Returns `{changed, skipped, samples, preview_token}` (`samples`: first 20 old/new dates). Limits: more than 1000 photos is `422` |
-| `POST /api/photos/capture_date/apply` | `[Edition]` Apply the shift. Same body as `preview` plus its `preview_token`; same response. Marks dates as manually set and records an [Organization history](VIEWER.md#organization-history) entry. `409` if the photos changed since the preview |
+| `POST /api/photos/batch_manual_tags` | Edit [manual tags](VIEWER.md#manual-tags) (edition-gated): `add`/`delete` requires one `tag`; `replace` requires a non-empty `tags` list of at most 50; `clear` accepts neither. The whole request validates before writing and commits atomically over its authorized captured scope. Replace retains provenance of unchanged manual tags; AI tags are untouched. On `add`, at-cap photos or an existing AI/manual tag are skipped. `count` is changed tag rows, not photos. No Organization history entry is created. |
+| `POST /api/photos/capture_date/preview` | `[Edition]` Preview a capture-date shift or exact date; writes nothing. Body: `photo_paths` or `filters`, optional `exclude`, and exactly one of `offset_seconds` (nonzero integer within ±31622400; photos without a parseable date are skipped) or `set_date` (`YYYY:MM:DD HH:MM:SS` or `YYYY-MM-DD[T or space]HH:MM:SS`, set only on target photos without a parseable date; every dated photo is skipped). Neither, both or an unparseable `set_date` is `422`. Returns `{changed, skipped, samples, preview_token}` (`samples`: first 20 old/new dates; `old_date` is null for an undated photo). Limits: more than 1000 photos is `422` |
+| `POST /api/photos/capture_date/apply` | `[Edition]` Apply the shift or date. Same body as `preview` plus its `preview_token`, which is bound to the mode and value; same response. Marks dates as manually set and records an [Organization history](VIEWER.md#organization-history) entry. `409` if the photos changed since the preview, or the token came from another mode or value |
 
 ## Persons
 
 | Endpoint | Description |
 |----------|-------------|
-| `GET /api/persons` | List all persons. Search also matches ASCII decimal IDs; non-ASCII digits such as `١` or `１２` match names literally. `named_only=true` leaves out unnamed persons (the persons page does this while Needs naming is shown); `hidden_only=true` lists only the ignored (hidden) ones, except under `sort=assignment`, where it is ignored: hidden persons are never assignment candidates |
+| `GET /api/persons` | List all persons. Search also matches ASCII decimal IDs; non-ASCII digits such as `١` or `１２` match names literally. `named_only=true` leaves out unnamed persons (the persons page does this while Needs naming is shown); `hidden_only=true` lists only the ignored (hidden) ones, except under `sort=assignment`, where it is ignored: hidden persons are never assignment candidates. `offset` (≥ 0) starts the page at that row instead of at `page`, for a list patched in place that asks for the row after its last one |
 | `POST /api/persons` | Create a person, optionally attaching faces (edition-gated). Body `{name, face_ids}` |
 | `GET /api/persons/needs_naming?min_faces=N` | Unnamed (no or blank name), non-hidden persons with `face_count >= N`, from clustering or a split (default `viewer.persons.needs_naming_min_faces`), largest first and unpaginated |
 | `POST /api/persons/{id}/rename` | Rename a person (edition-gated). Body `{name}`; an empty name clears it. Response `{success, name, face_count, same_name_persons}`, where `face_count` is the renamed person's own stored count (the same measure as each namesake's, so the largest merge target is picked like with like) and `same_name_persons` lists `{id, name, face_count}` for the other visible, non-hidden persons with the same name ignoring case and surrounding spaces, largest first, so the viewer can offer a merge. Nothing is merged |
@@ -133,6 +133,21 @@ All endpoints here use the [batch target contract](#conventions).
 | `GET /api/shared/album/{id}/picks` | Client reads their own picks (proofing session) |
 | `GET /api/albums/{id}/picks` | `[Edition]` Owner reads all client picks for the album |
 
+**Shared-album client migration.** Shared photo responses and client picks use opaque
+`asset_id` values instead of filesystem `path` values. Fetch the current shared album
+and send its `asset_id` in `PUT /api/shared/album/{id}/picks`; do not construct an ID
+from a filename or reuse a path-based request. The client picks response also returns
+`asset_id`. Owner-only album APIs retain their existing path-based contracts.
+Album covers use `cover_asset_id`. Fetch photo metadata at
+`GET /api/shared/album/{id}/photo` and image bytes at
+`GET /api/shared/album/{id}/media/{thumbnail,image,download}`, passing `token` and
+`asset_id` as query parameters.
+
+Proofing sessions issued before this change must be exchanged again through
+`POST /api/shared/album/{id}/session`, using the current share token and PIN if required.
+Sessions are bound to the share-token generation; rotating or revoking the share
+invalidates them. Reload the shared album after rotation to obtain current asset IDs.
+
 ## Memories, Timeline, Map & Captions
 
 | Endpoint | Description |
@@ -157,6 +172,8 @@ All endpoints here use the [batch target contract](#conventions).
 | `PUT /api/places/{id}` | `[Edition]` Update an owned pin; photos keep their coordinates |
 | `DELETE /api/places/{id}` | `[Edition]` Delete an owned pin; photos keep their coordinates |
 
+Timeline routes return 503 when the query fails. Week keys use ISO 8601 week years (`YYYY-Www`), so keys and cursors from the previous week format are not comparable. Date bounds cover complete calendar days at every granularity; with `sort_by=date_taken`, photos within each group follow the requested direction.
+
 ## Capsules
 
 | Endpoint | Description |
@@ -171,6 +188,7 @@ All endpoints here use the [batch target contract](#conventions).
 |----------|-------------|
 | `GET /api/stats/overview` | Overall scoring statistics summary |
 | `GET /api/stats/score_distribution` | Score distribution histogram data |
+| `GET /api/stats/metric_distribution?column=aesthetic&category=portrait` | Authenticated reader’s visible-library histogram for one registered metric; optional category scope, finite values only, current read snapshot, cached for the stats-cache TTL (5 min) per metric, category and visibility scope; returns `{distribution, count}`. `distribution` is `{column, min, max, buckets}` (32 buckets across min–max, or a single bucket when every value is equal) and is `null` with `count: 0` when no photo in scope has a value. `422` for an unknown metric, including `star_rating` (ratings are per account and not a computed metric) |
 | `GET /api/stats/top_cameras` | Top cameras by photo count |
 | `GET /api/stats/categories` | Category counts and averages |
 | `GET /api/stats/gear` | Camera/lens/combo counts |
@@ -214,10 +232,10 @@ All endpoints here use the [batch target contract](#conventions).
 | `POST /api/burst-groups/select` | Select keepers from a burst group |
 | `GET /api/similar-groups?threshold=&page=&per_page=` | Groups of visually similar photos |
 | `POST /api/similar-groups/select` | Select keepers from a similar group |
-| `GET /api/culling-groups?group_by=all\|burst\|similar\|scene\|bracket\|panorama\|hdr_panorama&exclude_rejected=true&similarity_threshold=&page=&per_page=&date_from=&date_to=` | Groups for culling. `group_by` (default `all` = burst+similar merged): `burst`, `similar`, `scene` (chronological; adds `type`/`start`/`end`/`moment`/`moment_confidence`, ignores `sort`), or one sequence kind (`bracket`, `panorama`, `hdr_panorama`, never merged into `all`). `exclude_rejected` (default `true`) hides `is_rejected=1`; groups left with fewer than 2 photos are dropped. With a trained keeper-ranking head, photos carry `keeper_prob` and groups `keeper_best_path`. A date-only `date_to` covers the whole day |
-| `POST /api/culling-groups/confirm` | Confirm culling selections. Body `{group_id, type, paths, keep_paths}`; `type` is `burst \| similar \| scene \| bracket \| panorama \| hdr_panorama`. `type:'scene'` records scene-cull comparison rows; sequence kinds record no comparison pairs. For `burst`, only members listed in `paths` are rejected or marked reviewed |
-| `POST /api/culling/auto` | `[Edition]` One-button auto-cull for a scope. Body `{group_by, album_id?, date_from?, date_to?, strictness?, min_keep_per_group, highlights_album, dry_run, profile?, trim_brackets, cursor?, keep_paths?, remove_paths?, expected_digest?}`. Details below |
-| `POST /api/culling/plan` | `[Edition]` The assistant's auto-cull plan as culling groups, for `/culling` plan mode; writes nothing. Body: the `POST /api/culling/auto` plan inputs (`group_by, album_id?, date_from?, date_to?, strictness?, min_keep_per_group, highlights_album, profile?, trim_brackets, keep_paths?, remove_paths?`) plus optional `expected_digest` (`412` if the plan's digest differs). Returns `{groups, total_groups, plan_digest, truncated, oversize_groups}`; each group adds `plan: {number, keep_paths, group_reason}`, keepers first. `truncated`: list hit the group/photo cap; `oversize_groups`: groups over the confirm route's per-group cap |
+| `GET /api/culling-groups?group_by=all\|burst\|similar\|lookalike\|scene\|bracket\|panorama\|hdr_panorama&exclude_rejected=true&similarity_threshold=&page=&per_page=&date_from=&date_to=` | Groups for culling. `group_by` (default `all` = burst+similar merged): `burst`, `similar`, `lookalike` (two-photo pairs ranked by match strength, adds `lookalike` evidence, ignores `sort`, `seed`, `similarity_threshold` and `exclude_rejected`; rejected photos are never paired), `scene` (chronological; adds `type`/`start`/`end`/`moment`/`moment_confidence`, ignores `sort`), or one sequence kind (`bracket`, `panorama`, `hdr_panorama`, never merged into `all`). `exclude_rejected` (default `true`) hides `is_rejected=1`; groups left with fewer than 2 photos are dropped. With a trained keeper-ranking head, photos carry `keeper_prob` and groups `keeper_best_path`. A date-only `date_to` covers the whole day |
+| `POST /api/culling-groups/confirm` | Confirm culling selections. Body `{group_id, type, paths, keep_paths}`; `type` is `burst \| similar \| lookalike \| scene \| bracket \| panorama \| hdr_panorama`. `type:'scene'` records scene-cull comparison rows; sequence kinds record no comparison pairs. For `burst`, only members listed in `paths` are rejected or marked reviewed |
+| `POST /api/culling/auto` | `[Edition]` One-button auto-cull for a scope. Body `{group_by, album_id?, date_from?, date_to?, strictness?, min_keep_per_group, highlights_album, dry_run, profile?, trim_brackets, decision_policy?, cursor?, keep_paths?, remove_paths?, expected_digest?, expected_state_digest?}`. Details below |
+| `POST /api/culling/plan` | `[Edition]` The assistant's auto-cull plan as culling groups, for `/culling` plan mode; writes nothing. Body: the `POST /api/culling/auto` plan inputs (`group_by, album_id?, date_from?, date_to?, strictness?, min_keep_per_group, highlights_album, profile?, trim_brackets, decision_policy?, keep_paths?, remove_paths?`) plus optional `expected_digest` (`412` if the plan's digest differs). Returns `{groups, total_groups, plan_digest, truncated, oversize_groups}`; each group adds `plan: {number, keep_paths, group_reason}`, keepers first. `truncated`: list hit the group/photo cap; `oversize_groups`: groups over the confirm route's per-group cap |
 | `GET /api/culling/suggest_profile?album_id=&date_from=&date_to=` | Name the `cull_profiles` preset that fits the scope's dominant shoot type, with confidence and evidence counts; cached per scope. `profile` is `null` below the dominance floor or when the preset isn't configured |
 | `POST /api/culling-groups/override_sequence` | `[Edition]` Record a sticky correction of what a set of frames is. Body `{paths, kind?}`; `kind` is `panorama \| hdr_panorama \| bracket`, or omitted for "none of these". A `bracket` needs ≥2 frames, all with usable exposure metadata, no two at the same exposure value (else `400`). Stored in `photo_sequence_overrides` (survives the detector rewriting `photos.sequence_*`); applies on the next `POST /api/scan/detect_panoramas` |
 | `POST /api/culling-groups/clear_sequence_override` | `[Edition]` Drop a manual sequence correction, handing the frames back to the detector. Body `{paths}` |
@@ -228,7 +246,7 @@ All endpoints here use the [batch target contract](#conventions).
 | `POST /api/photos/keeper_hints` | Per-photo "a better shot exists in this group" hints, grouped by `burst_group_id`. Body `{paths}`; returns `{path: {has_better, best_path, keeper_prob}}`, or `{}` when no keeper-ranking head is trained |
 | `GET /api/photo/cull_preview?path=&style=` | `[Edition]` Render the original through a configured darktable style (`--style`, bounded to `preview_max_edge`); disk-cached. Errors: `400` unknown style; `503` darktable-cli unavailable; `502` render failure/timeout |
 | `GET /api/scenes` | Chronological scenes of burst-lead photos (read-only) |
-| `GET /api/filter_options/junk_kinds` | Detected junk kinds with counts (excludes `not_junk`) for the Junk Sweep chips |
+| `GET /api/filter_options/junk_kinds` | Remaining Junk Sweep candidates per detected kind for the Junk Sweep chips: `{junk_kinds: [[kind, count], …], cached}`, most frequent first. Excludes `not_junk`, photos the reader has rejected and kinds with no remaining candidate; bursts, duplicates and stacks are not collapsed. Counted for the requesting reader on every call, so `cached` is always `false` and a decision shows in the next read |
 | `POST /api/photo/clear_junk` | `[Edition]` Keep a junk candidate: sets its `junk_kind` to `not_junk` so it leaves the queue. Body `{photo_path}` |
 
 **`POST /api/culling/auto` details:**
@@ -240,6 +258,9 @@ All endpoints here use the [batch target contract](#conventions).
 - Paging: the whole scope is planned on every call and returned in pages of whole groups (`cursor` in, `next_cursor` out, `null` when complete; 200 photos per page, a larger single group gets its own page), with totals and a `plan_digest`.
 - `keep_paths` / `remove_paths` (up to 1000 each) override single frames; stale paths return as `ignored_overrides`. Removing a frame the plan keeps in a bracket, panorama or HDR panorama set is `400`; restating a planned removal is a no-op.
 - `expected_digest` on an apply: `412` before any write when the plan changed.
+- `decision_policy` defaults to `preserve`: existing ratings, favorites, Keep and Reject decisions constrain the plan. Set `replace` to reconsider those decisions explicitly. The CLI uses `preserve` unless `--cull-reconsider-existing` is supplied.
+- The preview returns `decision_state_digest` alongside `plan_digest`. Send it as `expected_state_digest` on apply to refuse changed review decisions with `412` before writing, even when the planned keep/reject sets have not changed. Both digests belong to the captured scope and policy; preview again after changing either.
+- MCP `auto_cull` exposes the same `decision_policy`. Its confirmation binds both digests and sends both apply guards automatically; a stale preview requires a new confirmation.
 
 ## Scan
 
@@ -266,6 +287,8 @@ All endpoints here use the [batch target contract](#conventions).
 | `POST /api/face/{id}/assign` | Assign a face to a person |
 | `POST /api/face/{id}/unassign` | Detach that one face from its person (edition-gated); other faces of the person in the same photo are kept. The person's face count and picture are repaired, and a person left with no face is deleted, as `unassign_person` does. Response `{success, face_id, person_id}`, `person_id` being the former owner (even when deleted) or `null`. `404` for an unknown or invisible face |
 | `POST /api/photo/assign_all_faces` | Assign all faces in a photo to a person |
+| `POST /api/face/{id}/ignore` | Ignore one automatic detection, for example an advertisement or a false face (edition-gated). Body `{photo_path}`; the face must belong to that photo. Response `{ignore_id}`, the handle for Undo; the correction is stored apart from the detector's own face rows. Repeating the request for a face already ignored returns the same `ignore_id`. `404` for an unknown or invisible face or photo; `409` when the original image is unavailable or changed since it was shown, the face changed meanwhile, or the photo already has 100 active ignored detections |
+| `POST /api/ignored-face/{id}/restore` | Undo an ignore using the `ignore_id` it returned (edition-gated). Body `{photo_path}`. Response `{success: true}`. `404` for an unknown or invisible correction; `409` when the original image is unavailable or changed, or the correction changed meanwhile |
 | `POST /api/photo/unassign_person` | Unassign a person from every face in a photo; a person left with no face is deleted |
 
 ## Photo Actions
@@ -286,7 +309,7 @@ All endpoints here use the [batch target contract](#conventions).
 | `POST /api/stacks` | `[Edition]` Create from 2–1000 explicit paths and `cover_path`; returns the stack and `undo.entry_id` |
 | `PUT /api/stacks/{stack_id}` | `[Edition]` Replace paths/order and optional `cover_path`, with `expected_revision`; 0 or 1 members dissolves the stack |
 | `DELETE /api/stacks/{stack_id}` | `[Edition]` Dissolve, with `expected_revision` query; stale or partially visible stacks are refused |
-| `GET /api/organization_history` | `[Edition]` The caller's latest 50 [Organization history](VIEWER.md#organization-history) entries, newest first: `{entries: [{id, kind (gps, date or review, stack), created_at, part, parts, reverted, changes: [{path, before, after, revision}]}]}`. Entries naming deleted or invisible photos are omitted. Never cached |
+| `GET /api/organization_history` | `[Edition]` The caller's latest 50 [Organization history](VIEWER.md#organization-history) entries, newest first: `{entries: [{id, kind (gps, date, review, stack or logical_review), created_at, part, parts, reverted, superseded, changes: [{path, before, after, revision}]}]}`. `superseded` is true when a newer entry of the same kind and scope touched one of the entry's photos; the viewer disables Restore for it. The contents of `before` and `after` depend on the kind. Logical-review entries project a currently visible member path and omit internal identities and tokens. Entries naming deleted or invisible photos are omitted. Never cached |
 | `POST /api/organization_history/{entry_id}/revert` | `[Edition]` Restore an entry's recorded values; returns `{changed}`. Errors: `404` unknown or invisible entry; `409` already reverted, or a photo changed since |
 
 With `include_photos: true`, each suggestion's `photos` follows its `paths` order, without re-sorting by `burst_score`. Each row declares exactly these 16 fields: `path`, `filename`, `aggregate`, `aesthetic`, `tech_sharpness`, `is_blink`, `is_burst_lead`, `date_taken`, `burst_score`, `eyes_open_score`, `expression_score`, `is_rejected`, `is_kept`, `is_favorite`, `star_rating`, `preview_revision`. Rows use current caller visibility and per-user marks; no shared private-row cache is used. `group_id` identifies the existing detector group; `key` identifies the membership-specific suggestion/dismissal. This read API remains available without edition access; the full-page stack-review UI requires edition access.
@@ -323,7 +346,7 @@ Regrouping bounds both the result and the complete affected preview to 1000 phot
 | Endpoint | Description |
 |----------|-------------|
 | `GET /api/download/options` | Download types available for a photo (`path`, optional `is_shared`), including companion RAW and configured darktable profiles |
-| `GET /api/download` | Download a photo (`path`, `type=original\|darktable\|raw`, optional `profile`) |
+| `GET /api/download` | Download a photo (`path`, `type=original\|darktable\|raw`, optional `profile`). RAW and darktable requests return the original when no RAW companion exists; inaccessible companions return 404. |
 | `GET /api/photo/social_crop` | `[Edition]` Full-resolution JPEG cropped to a social aspect preset (`path`, `preset`) |
 | `GET /api/photo/social_crop/preview` | `[Edition]` Only the normalized crop rectangle and framing source for a preset (`path`, `preset`); no original decode |
 
@@ -368,7 +391,7 @@ Shared by `POST /api/export/sidecars`, `POST /api/lightroom/manifest` and `POST 
 
 - With a `filters` body, `filters.hide_brackets` / `filters.hide_panoramas` decide the scope, not `viewer.defaults`.
 - `action`: `copy_keeps \| trash_rejects \| move_rejects`.
-- `include_companions` (default `false`): add each file's same-stem companion RAW and `.xmp`.
+- `include_companions` (default `false`): add each file's same-stem companion RAW and `.xmp`. Before preview or apply, all companion bundles must be accessible to the account and have a checked, unambiguous inventory; hidden indexed aliases return `403`, and linked/unavailable/ambiguous inventories return `409`, before any file or catalog changes.
 - `include_sequence_siblings` (default `false`): add every other frame sharing a matched photo's `(sequence_kind, sequence_group_id)` **whose own reject state matches the action**. Excluded paths are never re-added as siblings.
 - `dry_run` (default `true`) returns `preview_digest`, a 64-character digest of the resolved files and settings. Send it with Apply: `409` before any write if the preview changed.
 - Response adds `matched` and `sequence_siblings` (count, reported even when the flag is off) to `skipped` / `excluded_by_state` / `not_visible`.
@@ -377,7 +400,7 @@ Shared by `POST /api/export/sidecars`, `POST /api/lightroom/manifest` and `POST 
 
 - Needs `viewer.cull.allow_trash` (same flag as `/api/cull/apply`): `403` when off; `400` when `send2trash` is not installed.
 - `paths` only (max 10000); no `filters`/`exclude`, so select-all-in-view cannot use it. Default scope is the named file only.
-- `include_companions` (default `false`): add the same-stem RAW and `.xmp`; a companion with its own `photos` row is removed once it trashes.
+- `include_companions` (default `false`): add the same-stem RAW and `.xmp`; a companion with its own `photos` row is removed once it trashes. Before preview or apply, all companion bundles must be accessible to the account and have a checked, unambiguous inventory; hidden indexed aliases return `403`, and linked/unavailable/ambiguous inventories return `409`, before any file or catalog changes.
 - `include_sequence_siblings` (default `false`): widen to every frame sharing `(sequence_kind, sequence_group_id)`, as on `/api/cull/apply`.
 - A bracket's base exposure (`sequence_ev_offset = 0`) is refused (`refused_bracket_lead`) unless `include_sequence_siblings` deletes the whole bracket. A panorama lead deleted alone hands the lead to a surviving sibling. A burst left without a lead gets one again: the best remaining frame by the burst pass's rule (`pick_lead`), so the burst stays visible under Hide bursts.
 - A trashed file's row is deleted at once (no `--cleanup-missing-photos` needed).

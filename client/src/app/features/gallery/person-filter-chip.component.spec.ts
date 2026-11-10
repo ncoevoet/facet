@@ -3,6 +3,8 @@ import { Component, signal } from '@angular/core';
 import { TestBed, ComponentFixture } from '@angular/core/testing';
 import { MatDialog } from '@angular/material/dialog';
 import { MatSnackBar } from '@angular/material/snack-bar';
+import { MatTooltip } from '@angular/material/tooltip';
+import { By } from '@angular/platform-browser';
 import { of, throwError } from 'rxjs';
 import { ApiService } from '../../core/services/api.service';
 import { I18nService } from '../../core/services/i18n.service';
@@ -111,11 +113,29 @@ describe('PersonFilterChipComponent', () => {
 
   it('keeps the 32 px avatar, and nudges an unnamed person with a dashed outline', async () => {
     await render([95, 163]);
-    expect(inChip('[data-person-chip-avatar]')!.className).toBe('w-8 h-8 rounded-full object-cover shrink-0');
+    // The face is a tooltip trigger too (Material adds its own class), so check the size classes, not the whole list.
+    for (const cls of ['w-8', 'h-8', 'rounded-full', 'object-cover', 'shrink-0']) expect(inChip('[data-person-chip-avatar]')!.classList).toContain(cls);
     expect(chip(95).classList).toContain('border-dashed');
     expect(chip(95).textContent).toContain('persons.unnamed');
     expect(chip(163).classList).toContain('border-solid');
     expect(chip(163).textContent).toContain('Jirjet Salem');
+  });
+
+  it('shows the name from sm up, truncated, with the full name as its tooltip', async () => {
+    await render([163]);
+    const name = inChip('[data-person-chip-name]', 163)!;
+    expect(name.textContent?.trim()).toBe('Jirjet Salem');
+    expect(name.classList).not.toContain('xl:inline');
+    for (const cls of ['hidden', 'sm:inline', 'max-w-24', 'md:max-w-40', 'truncate']) expect(name.classList).toContain(cls);
+    const tooltip = fixture.debugElement.queryAll(By.directive(MatTooltip)).find((d) => d.nativeElement === name)!;
+    expect(tooltip.injector.get(MatTooltip).message).toBe('Jirjet Salem');
+  });
+
+  it('gives the face the name as its tooltip, for phones where the name is hidden', async () => {
+    await render([163]);
+    const avatar = inChip('[data-person-chip-avatar]', 163)!;
+    const tooltip = fixture.debugElement.queryAll(By.directive(MatTooltip)).find((d) => d.nativeElement === avatar);
+    expect(tooltip?.injector.get(MatTooltip).message).toBe('Jirjet Salem');
   });
 
   it('the pencil and ⋮ are labelled, focusable buttons before the ×, and remove nothing', async () => {

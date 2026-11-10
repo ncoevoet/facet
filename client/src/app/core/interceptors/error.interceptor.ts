@@ -5,6 +5,7 @@ import { catchError, throwError } from 'rxjs';
 import { AuthService } from '../services/auth.service';
 import { I18nService } from '../services/i18n.service';
 import { I18N } from '../i18n/keys';
+import { HANDLE_SERVER_ERROR_LOCALLY } from '../utils/http-error-context';
 import { extractErrorDetail, isLibraryBusyError } from '../utils/http-error.util';
 
 import { HANDLE_PLACE_SEARCH_ERRORS_LOCALLY, isExpectedPlaceSearchError } from '../utils/place-search-error.util';
@@ -87,7 +88,9 @@ export const errorInterceptor: HttpInterceptorFn = (req, next) => {
           setTimeout(() => snackBar.open(i18n.t(I18N.errors.library_busy), '', { duration: 6000 }));
         }
       } else if (error.status >= 500) {
-        snackBar.open(i18n.t(I18N.errors.server_error), '', { duration: 3000 });
+        if (!req.context.get(HANDLE_SERVER_ERROR_LOCALLY)) {
+          snackBar.open(i18n.t(I18N.errors.server_error), '', { duration: 3000 });
+        }
         if (!isCrashReportUrl(req.url)) {
           let msg = `${req.method} ${req.url} -> ${error.status}`;
           const detail = extractErrorDetail(error);

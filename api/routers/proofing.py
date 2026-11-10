@@ -16,6 +16,7 @@ photo set.
 """
 
 import hmac
+import hashlib
 import logging
 from typing import Optional
 
@@ -28,6 +29,8 @@ from api.auth import (
 )
 from api.config import VIEWER_CONFIG
 from api.database import get_db
+from api.db_helpers import get_visibility_clause
+from api.shared_assets import MAX_ASSET_REFERENCE_LENGTH, shared_asset_matches, shared_asset_reference, shared_asset_row_id
 from api.models.albums import AlbumPicksResponse
 from api.routers.albums import _check_album_access, _get_user_id
 
@@ -46,7 +49,7 @@ def _load_album_share_token(conn, album_id):
     check the picks routes re-run on every request.
     """
     album = conn.execute(
-        "SELECT id, is_smart, share_token FROM albums WHERE id = ?", (album_id,)
+        "SELECT id, user_id, is_smart, share_token FROM albums WHERE id = ?", (album_id,)
     ).fetchone()
     if not album:
         return None, None
@@ -62,7 +65,7 @@ class ShareSessionRequest(BaseModel):
 
 
 class PickRequest(BaseModel):
-    path: str
+    asset_id: str = Field(max_length=MAX_ASSET_REFERENCE_LENGTH)
     picked: bool = True
     comment: Optional[str] = Field(None, max_length=2000)
 
@@ -97,6 +100,13 @@ def _picks_response(rows):
         for row in rows
     ]
     return {'picks': picks, 'count': sum(1 for p in picks if p['picked'])}
+
+
+def _check_session_generation(session: dict, stored_token: str | None) -> None:
+    epoch = session.get('share_epoch')
+    expected = hashlib.sha256(stored_token.encode('utf-8')).hexdigest() if stored_token else ''
+    if not isinstance(epoch, str) or not epoch.isascii() or not hmac.compare_digest(epoch, expected):
+        raise HTTPException(403, 'Share session revoked')
 
 
 # --- Client endpoints (share-token / share-session auth) ---
@@ -135,7 +145,7 @@ def create_share_session(album_id: int, body: ShareSessionRequest, request: Requ
             raise HTTPException(status_code=403, detail="pin_invalid")
     client_name = body.client_name.strip()
     return {
-        'session_token': create_share_client_token(album_id, client_name),
+        'session_token': create_share_client_token(album_id, stored_token, client_name),
         'client_name': client_name,
     }
 
@@ -152,20 +162,27 @@ def upsert_pick(
     don't wipe comments); an explicit empty string clears it.
     """
     with get_db() as conn:
+        conn.execute('BEGIN IMMEDIATE')
         album, stored_token = _load_album_share_token(conn, album_id)
         if not album:
             raise HTTPException(status_code=404, detail="Album not found")
         if not _proofing_enabled() or not stored_token:
             raise HTTPException(status_code=403, detail="Share session revoked")
+        _check_session_generation(session, stored_token)
         if album['is_smart']:
             raise HTTPException(
                 status_code=400,
                 detail="Proofing picks are not supported on smart albums",
             )
+        row_id = shared_asset_row_id(body.asset_id)
+        visibility, visibility_params = get_visibility_clause(album['user_id'])
         member = conn.execute(
-            "SELECT 1 FROM album_photos WHERE album_id = ? AND photo_path = ?",
-            (album_id, body.path)
+            "SELECT photos.rowid, photos.path FROM photos JOIN album_photos "
+            "ON album_photos.photo_path=photos.path WHERE album_photos.album_id=? AND photos.rowid=? AND " + visibility,
+            (album_id, row_id, *visibility_params),
         ).fetchone()
+        if member and not shared_asset_matches(body.asset_id, album_id, stored_token, member[0], member[1]):
+            member = None
         if not member:
             raise HTTPException(status_code=400, detail="Photo is not part of this album")
         conn.execute(
@@ -177,11 +194,11 @@ def upsert_pick(
                    comment = COALESCE(excluded.comment, album_client_picks.comment),
                    client_name = excluded.client_name,
                    updated_at = datetime('now')""",
-            (album_id, body.path, 1 if body.picked else 0, body.comment,
+            (album_id, member[1], 1 if body.picked else 0, body.comment,
              session.get('client_name', '')),
         )
         conn.commit()
-        return {'ok': True, 'path': body.path, 'picked': body.picked}
+        return {'ok': True, 'asset_id': body.asset_id, 'picked': body.picked}
 
 
 @router.get("/api/shared/album/{album_id}/picks")
@@ -191,11 +208,22 @@ def get_share_picks(
 ):
     """Current picks for the shared album, for client-side re-hydration."""
     with get_db() as conn:
+        conn.execute('BEGIN')
         album, stored_token = _load_album_share_token(conn, album_id)
         if not album or not _proofing_enabled() or not stored_token:
             raise HTTPException(status_code=403, detail="Share session revoked")
-        rows = _pick_rows(conn, album_id)
-    return _picks_response(rows)
+        _check_session_generation(session, stored_token)
+        visibility, visibility_params = get_visibility_clause(album['user_id'])
+        rows = conn.execute(
+            "SELECT photos.rowid AS asset_rowid, picks.* FROM album_client_picks picks "
+            "JOIN photos ON photos.path=picks.photo_path JOIN album_photos "
+            "ON album_photos.photo_path=photos.path AND album_photos.album_id=picks.album_id "
+            "WHERE picks.album_id=? AND " + visibility, (album_id, *visibility_params),
+        ).fetchall()
+        picks = [{'asset_id': shared_asset_reference(album_id, stored_token, row['asset_rowid'], row['photo_path']),
+                  'picked': bool(row['picked']), 'comment': row['comment'],
+                  'client_name': row['client_name'], 'updated_at': row['updated_at']} for row in rows]
+        return {'picks': picks, 'count': sum(1 for pick in picks if pick['picked'])}
 
 
 # --- Owner endpoint (edition auth) ---

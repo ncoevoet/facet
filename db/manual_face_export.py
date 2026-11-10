@@ -16,8 +16,12 @@ def prepare_person_sync(conn):
     identity; viewer manual links keep their local numeric person/face IDs.
     """
     source = _rows(conn, 'SELECT * FROM src.persons')
-    local = _rows(conn, 'SELECT DISTINCT p.* FROM main.persons p JOIN main.faces f '
-                  'ON f.person_id=p.id WHERE f.is_manual=1')
+    has_feedback = conn.execute("SELECT 1 FROM main.sqlite_master WHERE type='table' AND name='face_review_feedback'").fetchone()
+    feedback_ids = ' UNION SELECT person_id FROM main.face_review_feedback' if has_feedback else ''
+    preserved_ids = '(SELECT person_id FROM main.faces WHERE is_manual=1 AND person_id IS NOT NULL' + feedback_ids + ')'
+    # Feedback belongs to this viewer. Keep its stable person identities while
+    # reconciling source IDs; deleting/reinserting a person would cascade it away.
+    local = _rows(conn, 'SELECT p.* FROM main.persons p WHERE p.id IN ' + preserved_ids)
     by_key = {p['person_key']: p for p in local}
     detached = []
     for person in source:
@@ -42,11 +46,21 @@ def prepare_person_sync(conn):
     conn.execute('CREATE TEMP TABLE manual_person_refresh(person_id INTEGER PRIMARY KEY)')
     conn.execute('INSERT INTO manual_person_refresh SELECT DISTINCT person_id FROM main.faces '
                  'WHERE is_manual=1 AND person_id IS NOT NULL')
+    if has_feedback:
+        # Feedback alone keeps a row only while the same source identity exists.
+        # Manual annotations remain independently owned by the viewer.
+        source_keys = {person['person_key'] for person in source}
+        retained_feedback = [person['id'] for person in local
+                             if person['person_key'] in source_keys and person['id'] not in detached]
+        conn.execute('CREATE TEMP TABLE feedback_person_refresh(person_id INTEGER PRIMARY KEY)')
+        conn.executemany('INSERT INTO feedback_person_refresh VALUES (?)', [(pid,) for pid in retained_feedback])
+        conn.execute('INSERT OR IGNORE INTO manual_person_refresh SELECT person_id FROM feedback_person_refresh')
+        preserved_ids = ('(SELECT person_id FROM main.faces WHERE is_manual=1 AND person_id IS NOT NULL '
+                         'UNION SELECT person_id FROM feedback_person_refresh)')
     if conn.execute("SELECT 1 FROM src.sqlite_master WHERE type='table' AND name='manual_face_deletions'").fetchone():
         conn.execute('INSERT OR IGNORE INTO main.manual_face_deletions(manual_key) '
                      'SELECT manual_key FROM src.manual_face_deletions')
-    conn.execute('DELETE FROM main.persons WHERE id NOT IN '
-                 '(SELECT person_id FROM main.faces WHERE is_manual=1 AND person_id IS NOT NULL)')
+    conn.execute('DELETE FROM main.persons WHERE id NOT IN ' + preserved_ids)
     dest_columns = {r[1] for r in conn.execute('PRAGMA main.table_info(persons)')}
     for person in source:
         old = by_key.get(person['person_key'])

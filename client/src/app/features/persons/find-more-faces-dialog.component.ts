@@ -144,7 +144,7 @@ const OWNER_LABELS: Record<FaceOwner, string> = {
         <div class="flex flex-col min-w-0">
           <span class="font-medium truncate">
             {{ displayName() }}
-            @if (!data.personName) { <span class="text-xs font-normal opacity-70">#{{ data.personId }}</span> }
+            @if (!data.personName) { <span class="text-xs font-normal text-[var(--mat-sys-on-surface-variant)]">#{{ data.personId }}</span> }
           </span>
           <p class="text-sm text-gray-400">
             {{ I18N.persons.find_more_desc | translate:{ name: displayName() } }}
@@ -183,7 +183,7 @@ const OWNER_LABELS: Record<FaceOwner, string> = {
               <ng-container *ngTemplateOutlet="bars; context: { $implicit: STRICTNESS_BARS[level] }" />
               <span class="flex flex-col py-1 leading-tight">
                 <span [class.font-semibold]="level === strictness()">{{ STRICTNESS_LABELS[level] | translate }} · ≥{{ STRICTNESS_PERCENT[level] }}%</span>
-                <span class="text-xs opacity-70">{{ STRICTNESS_HELP[level] | translate }}</span>
+                <span class="text-xs text-[var(--mat-sys-on-surface-variant)]">{{ STRICTNESS_HELP[level] | translate }}</span>
               </span>
               </span>
             </button>
@@ -227,7 +227,7 @@ const OWNER_LABELS: Record<FaceOwner, string> = {
       }
       @if (groups().length > 0) {
         <div class="flex flex-col gap-1" data-similar-groups>
-          <div class="text-xs uppercase tracking-wider opacity-70">{{ I18N.persons.find_more_similar_groups | translate }}</div>
+          <div class="text-xs uppercase tracking-wider text-[var(--mat-sys-on-surface-variant)]">{{ I18N.persons.find_more_similar_groups | translate }}</div>
           @for (g of groups(); track g.person_id) {
             <div class="flex items-center gap-3 rounded-lg px-2 py-1 bg-[var(--mat-sys-surface-container)]" [attr.data-group]="g.person_id">
               <img [src]="g.person_id | personThumbnailUrl" alt="" class="w-12 h-12 rounded-full object-cover shrink-0" />
@@ -255,7 +255,7 @@ const OWNER_LABELS: Record<FaceOwner, string> = {
       } @else if (rows().length === 0) {
         @if (fallback() !== 'year' || year()) {
           <div data-empty class="flex flex-col items-center gap-2 py-6 text-sm">
-            <p class="opacity-70 text-center">
+            <p class="text-[var(--mat-sys-on-surface-variant)] text-center">
               @if (closest(); as c) {
                 {{ I18N.persons.find_more_none_closest | translate:{ name: displayName(), percent: c.percent } }}
               } @else {

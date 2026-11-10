@@ -53,6 +53,17 @@ describe('StalenessGuardFactory', () => {
     expect(guard.current()).toBe(false);
   });
 
+  it('permits read-only commands while retaining identity and navigation guards', () => {
+    edition.set(false);
+    const guard = factory.create(destroyRef, { requireEdition: false });
+    expect(guard.current()).toBe(true);
+    status.set({ user_id: 'bob' });
+    expect(guard.current()).toBe(false);
+    const next = factory.create(destroyRef, { requireEdition: false });
+    events.next(new NavigationStart(1, '/b'));
+    expect(next.current()).toBe(false);
+  });
+
   it('is stale after a url change', () => {
     const guard = factory.create(destroyRef);
     router.url = '/b';

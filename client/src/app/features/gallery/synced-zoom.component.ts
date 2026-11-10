@@ -1,5 +1,10 @@
+import { imageRetryUrl } from '../../shared/utils/image-retry-url';
+import { randomUuid } from '../../shared/utils/random-uuid';
 import { ChangeDetectionStrategy, Component, afterRenderEffect, DestroyRef, ElementRef, computed, effect, inject, input, output, signal, untracked, viewChild } from '@angular/core';
 import { LoupeDirective } from '../../shared/directives/loupe.directive';
+import { normalizedInspectionBox } from './comparison-inspection.util';
+import { TranslatePipe } from '../../shared/pipes/translate.pipe';
+import { I18N } from '../../core/i18n/keys';
 
 export interface ZoomState {
   scale: number;
@@ -7,12 +12,32 @@ export interface ZoomState {
   ty: number;
 }
 
+export interface DisplayedRendition {
+  kind: 'thumbnail' | 'preview' | 'source';
+  phase: 'loading' | 'ready' | 'failed';
+  /** The source image failed to load and the preview stands in for it. */
+  fellBack?: true;
+  width?: number;
+  height?: number;
+}
+
 export const FIT_ZOOM: ZoomState = { scale: 1, tx: 0, ty: 0 };
 
-/** Largest side-by-side grid the panes stay readable in. Lives here rather than
- *  in the compare dialog so a caller can enforce the bound without eagerly
- *  importing that lazily-loaded dialog. */
-export const MAX_COMPARE_PANES = 4;
+/** Apply one relative gesture to the linked set, preserving independently framed crops.
+ * Stop at the first pane's scale limit; frames outside this set retain their state. */
+export function linkedZoomFrames(frames: ReadonlyMap<string, ZoomState>, paths: readonly string[],
+  sourcePath: string, state: ZoomState): Map<string, ZoomState> {
+  const source = frames.get(sourcePath) ?? FIT_ZOOM;
+  const members = paths.map(path => ({ path, frame: frames.get(path) ?? FIT_ZOOM }));
+  const minimum = Math.max(...members.map(({ frame }) => SyncedZoomComponent.MIN_SCALE / frame.scale));
+  const maximum = Math.min(...members.map(({ frame }) => SyncedZoomComponent.MAX_SCALE / frame.scale));
+  const ratio = Math.max(minimum, Math.min(maximum, state.scale / source.scale));
+  return new Map([...frames, ...members.map<[string, ZoomState]>(({ path, frame }) => [path, {
+    scale: frame.scale * ratio,
+    tx: frame.tx * ratio + state.tx - source.tx * ratio,
+    ty: frame.ty * ratio + state.ty - source.ty * ratio,
+  }])]);
+}
 
 /** How long a frame must stay current before its sharp render is requested, so
  *  a held arrow key does not queue one render per frame it passes. */
@@ -68,14 +93,20 @@ export class LoadedSources {
 @Component({
   selector: 'app-synced-zoom',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [LoupeDirective],
+  imports: [LoupeDirective, TranslatePipe],
   host: {
-    class: 'block relative overflow-hidden bg-black',
+    class: 'block relative overflow-hidden bg-black focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-white',
+    '[class.touch-none]': 'keyboardInspection()',
+    '[attr.tabindex]': 'keyboardInspection() ? 0 : null',
+    role: 'group',
+    '[attr.aria-label]': 'alt()',
+    '(keydown)': 'onKeydown($event)',
     '(wheel)': 'onWheel($event)',
     '(pointerdown)': 'onPointerDown($event)',
     '(pointermove)': 'onPointerMove($event)',
     '(pointerup)': 'onPointerUp()',
     '(pointercancel)': 'onPointerUp()',
+    '(lostpointercapture)': 'onPointerUp()',
     '(dblclick)': 'onDoubleClick()',
     '[style.--fit-inset-x.px]': 'fitInsetX()',
     '[style.--fit-inset-y.px]': 'fitInsetY()',
@@ -87,9 +118,20 @@ export class LoadedSources {
          [style.transform]="transform()" draggable="false" (load)="onFrameLoad()" (error)="onFrameError()"
          [appLoupe]="loupeSrc() ?? effectiveSrc()" [loupeActive]="loupeActive()"
          [loupeZoom]="loupeZoom()" loupeFit="contain" />
+    @if (overview(); as area) {
+      <div data-zoom-overview role="img" [attr.aria-label]="I18N.gallery.compare.zoom_overview | translate"
+           class="pointer-events-none absolute bottom-3 right-3 overflow-hidden rounded border border-white/70 bg-black/70 shadow-lg"
+           [style.width.px]="area.width" [style.height.px]="area.height">
+        <img [src]="effectiveSrc()" alt="" class="h-full w-full object-fill" draggable="false" />
+        <div data-zoom-viewport class="absolute border-2 border-red-500 bg-red-500/10 ring-1 ring-black/60"
+             [style.left.%]="area.left" [style.top.%]="area.top"
+             [style.width.%]="area.visibleWidth" [style.height.%]="area.visibleHeight"></div>
+      </div>
+    }
   `,
 })
 export class SyncedZoomComponent {
+  protected readonly I18N = I18N;
   readonly src = input.required<string>();
   readonly fullResSrc = input<string | null>(null);
   readonly zoom = input.required<ZoomState>();
@@ -98,6 +140,12 @@ export class SyncedZoomComponent {
    *  in past fit; null keeps the frame's own centre. */
   readonly focusPoint = input<[number, number] | null>(null);
   readonly zoomChange = output<ZoomState>();
+  readonly keyboardInspection = input(false);
+  /** A failed source shows the preview again, flagged `fellBack`, instead of a failed pane.
+   *  Opt-in: hosts that offer their own Retry on a failed pane keep reporting the failure. */
+  readonly previewFallback = input(false);
+  readonly fitRequested = output<void>();
+  readonly geometryChange = output<void>();
 
   /** Shown until `src` has been fetched by a preloader; null disables the
    *  progressive load entirely (no `Image` is ever constructed). */
@@ -114,6 +162,8 @@ export class SyncedZoomComponent {
   readonly sharpPending = output<string>();
   /** The render failed; the pane keeps its stored thumbnail. */
   readonly sharpFailed = output<string>();
+  /** Actual displayed image state, independent of the background preview preload. */
+  readonly renditionChange = output<DisplayedRendition>();
 
   /** Hover loupe over this pane. `loupeSrc` defaults to the pane's own
    *  effective source (so a caller need not track full-res separately);
@@ -135,6 +185,7 @@ export class SyncedZoomComponent {
   private readonly destroyRef = inject(DestroyRef);
 
   private dragging = false;
+  private panPointerId: number | null = null;
   private lastX = 0;
   private lastY = 0;
 
@@ -144,9 +195,33 @@ export class SyncedZoomComponent {
   private readonly paneSize = signal<{ w: number; h: number }>({ w: 0, h: 0 });
   private readonly naturalSize = signal<{ w: number; h: number }>({ w: 0, h: 0 });
 
+  protected readonly overview = computed(() => {
+    const z = this.zoom();
+    const { w, h } = this.paneSize();
+    const { w: iw, h: ih } = this.naturalSize();
+    if (this.hidden() || z.scale <= 1 || !w || !h || !iw || !ih || ![z.scale, z.tx, z.ty].every(Number.isFinite)) return null;
+    const fit = this.containFitScale(w, h, iw, ih);
+    const width = iw * fit * z.scale;
+    const height = ih * fit * z.scale;
+    const x = (w - width) / 2 + z.tx;
+    const y = (h - height) / 2 + z.ty;
+    const percent = (value: number) => Math.max(0, Math.min(100, value * 100));
+    const left = percent(-x / width);
+    const top = percent(-y / height);
+    const miniature = Math.min(112 / iw, 80 / ih, w / 4 / iw, h / 4 / ih);
+    return { width: iw * miniature, height: ih * miniature, left, top,
+      visibleWidth: percent((w - x) / width) - left,
+      visibleHeight: percent((h - y) / height) - top };
+  });
+
   /** The `src` whose preload has finished; the pane shows the placeholder until
    *  it equals the current `src`. */
   private readonly readySrc = signal<string | null>(null);
+  private readonly retryState = signal<{ frameKey: string | null; src: string; attempt: number } | null>(null);
+  private readonly retrySession = randomUuid();
+  /** The full-res source URL that errored while displayed; skipped until retry or a new `src`. */
+  private readonly failedSource = signal<string | null>(null);
+  private readonly requestedPreview = computed(() => this.retryUrl(this.src()));
   /** The frame whose own image last finished loading in this pane. */
   private readonly paintedKey = signal<string | null>(null);
 
@@ -157,7 +232,7 @@ export class SyncedZoomComponent {
 
   constructor() {
     effect(onCleanup => {
-      const src = this.src();
+      const src = this.requestedPreview();
       // Read for its dependency only: re-run the preload on a frame change even when src is unchanged.
       this.frameKey();
       if (!this.placeholderSrc()) return;
@@ -173,14 +248,14 @@ export class SyncedZoomComponent {
           let settled = false;
           // A cache hint skips the debounce, never the browser's load check.
           preloader.onload = () => {
-            if (!active || settled || this.src() !== src) return;
+            if (!active || settled || this.requestedPreview() !== src) return;
             settled = true;
             loaded?.add(src);
             this.readySrc.set(src);
             this.sharpLoaded.emit(src);
           };
           preloader.onerror = () => {
-            if (!active || settled || this.src() !== src) return;
+            if (!active || settled || this.requestedPreview() !== src) return;
             settled = true;
             this.sharpFailed.emit(src);
           };
@@ -200,6 +275,17 @@ export class SyncedZoomComponent {
         });
       });
     });
+    effect(() => {
+      this.src();
+      untracked(() => this.failedSource.set(null));
+    });
+    effect(() => {
+      this.effectiveSrc();
+      this.frameKey();
+      this.renditionChange.emit({ kind: this.displayedKind(), ...this.fellBackFlag(), phase: 'loading' });
+    });
+    effect(() => { this.frameKey(); untracked(() => this.onPointerUp()); });
+    effect(() => { if (this.zoom().scale === SyncedZoomComponent.MIN_SCALE) this.onPointerUp(); });
     // A step onto an image the browser already holds (memory cache) has it
     // complete as soon as the new `src` is applied, but its `load` event only
     // fires later, which would keep the pane `opacity-0` for a frame or two.
@@ -215,6 +301,7 @@ export class SyncedZoomComponent {
       untracked(() => {
         if (img.complete && img.naturalWidth > 0 && img.currentSrc === new URL(src, document.baseURI).href) {
           this.paintedKey.set(key);
+          this.renditionChange.emit({ kind: this.displayedKind(), ...this.fellBackFlag(), phase: 'ready', width: img.naturalWidth, height: img.naturalHeight });
         }
       });
     });
@@ -233,9 +320,26 @@ export class SyncedZoomComponent {
    *  observer never fires for — can trigger it directly. */
   measurePane(): void {
     const { width, height } = this.host.nativeElement.getBoundingClientRect();
+    const previous = this.paneSize();
     this.paneSize.set({ w: width, h: height });
     const img = this.frame()?.nativeElement;
     if (img) this.naturalSize.set({ w: img.naturalWidth, h: img.naturalHeight });
+    if (width !== previous.w || height !== previous.h) this.geometryChange.emit();
+  }
+
+  /** Comparison owns framing; culling retains its existing shared-frame contract. */
+  boundInspectionZoom(state: ZoomState): ZoomState {
+    if (!this.keyboardInspection()) return state;
+    if (state.scale === SyncedZoomComponent.MIN_SCALE) return { ...FIT_ZOOM };
+    const { w, h } = this.paneSize();
+    const { w: iw, h: ih } = this.naturalSize();
+    if (!w || !h || !iw || !ih) return state;
+    const fit = this.containFitScale(w, h, iw, ih);
+    const limitX = Math.max(0, (iw * fit * state.scale - w) / 2);
+    const limitY = Math.max(0, (ih * fit * state.scale - h) / 2);
+    return { scale: state.scale,
+      tx: limitX ? Math.max(-limitX, Math.min(limitX, state.tx)) : 0,
+      ty: limitY ? Math.max(-limitY, Math.min(limitY, state.ty)) : 0 };
   }
 
   protected onFrameLoad(): void {
@@ -243,15 +347,23 @@ export class SyncedZoomComponent {
     const img = this.frame()?.nativeElement;
     // A `load` for a URL the pane has already moved on from must not mark the
     // new frame painted.
-    if (img?.complete && img.currentSrc === new URL(this.effectiveSrc(), document.baseURI).href) {
+    if (img?.complete && img.naturalWidth > 0 && img.currentSrc === new URL(this.effectiveSrc(), document.baseURI).href) {
       this.paintedKey.set(this.frameKey());
+      this.renditionChange.emit({ kind: this.displayedKind(), ...this.fellBackFlag(), phase: 'ready', width: img.naturalWidth, height: img.naturalHeight });
     }
   }
 
   /** A broken image of the right frame is shown as such rather than leaving the
    *  pane hidden forever. */
   protected onFrameError(): void {
+    const img = this.frame()?.nativeElement;
+    if (!img || (img.currentSrc || img.src) !== new URL(this.effectiveSrc(), document.baseURI).href) return;
+    if (this.displayedKind() === 'source' && this.previewFallback()) {
+      this.failedSource.set(this.fullResSrc());
+      return;
+    }
     this.paintedKey.set(this.frameKey());
+    this.renditionChange.emit({ kind: this.displayedKind(), ...this.fellBackFlag(), phase: 'failed' });
   }
 
   /** The `object-contain` fit scale: how much `content` (natural image size)
@@ -298,14 +410,76 @@ export class SyncedZoomComponent {
     return `translate(${z.tx}px, ${z.ty}px) scale(${z.scale})`;
   });
 
-  protected readonly effectiveSrc = computed(() => {
+  private readonly selectedRendition = computed<{ src: string; kind: DisplayedRendition['kind'] }>(() => {
     const full = this.fullResSrc();
     // Past the fit scale the render is too soft to judge sharpness; swap to
-    // the full-res source for the actual pixel peek.
-    if (this.zoom().scale > SyncedZoomComponent.MIN_SCALE && full) return full;
+    // the full-res source for the actual pixel peek, unless that URL has failed.
+    if (this.zoom().scale > SyncedZoomComponent.MIN_SCALE && full && this.failedSource() !== full) return { src: this.retryUrl(full), kind: 'source' };
     const placeholder = this.placeholderSrc();
-    return placeholder && this.readySrc() !== this.src() ? placeholder : this.src();
+    if (placeholder && this.readySrc() !== this.requestedPreview()) return { src: this.retryUrl(placeholder), kind: 'thumbnail' };
+    return { src: this.requestedPreview(), kind: 'preview' };
   });
+
+  protected readonly effectiveSrc = computed(() => this.selectedRendition().src);
+  private readonly displayedKind = computed(() => this.selectedRendition().kind);
+  /** Zoomed past fit, but the source failed, so the preview is on screen instead. */
+  private readonly fellBack = computed(() => {
+    const full = this.fullResSrc();
+    return !!full && this.failedSource() === full && this.zoom().scale > SyncedZoomComponent.MIN_SCALE;
+  });
+  private fellBackFlag(): { fellBack?: true } {
+    return this.fellBack() ? { fellBack: true } : {};
+  }
+
+  private retryUrl(src: string): string {
+    const retry = this.retryState();
+    if (!retry || retry.frameKey !== this.frameKey() || retry.src !== this.src()) return src;
+    return imageRetryUrl(src, `${this.retrySession}-${retry.attempt}`);
+  }
+
+  /** Repeat this pane's reads only; framing and the selected photo stay intact. */
+  retry(): void {
+    this.failedSource.set(null);
+    this.retryState.update(previous => ({
+      frameKey: this.frameKey(), src: this.src(), attempt: (previous?.attempt ?? 0) + 1,
+    }));
+  }
+
+  /** Compute every pane's proposed crop before the parent commits any of them. */
+  zoomForRegion(value: unknown, expectedAspect?: number): ZoomState | null {
+    const box = normalizedInspectionBox(value);
+    if (!box) return null;
+    this.measurePane();
+    const { w, h } = this.paneSize();
+    const { w: iw, h: ih } = this.naturalSize();
+    if (!w || !h || !iw || !ih || expectedAspect !== undefined && (!Number.isFinite(expectedAspect) || expectedAspect <= 0 || Math.abs(iw / ih / expectedAspect - 1) > 0.03)) return null;
+    const fit = this.containFitScale(w, h, iw, ih);
+    const [x1, y1, x2, y2] = box;
+    const scale = this.clampScale(Math.min(w / ((x2 - x1) * iw * fit * 1.5), h / ((y2 - y1) * ih * fit * 1.5)));
+    if (scale === SyncedZoomComponent.MIN_SCALE) return { ...FIT_ZOOM };
+    return { scale, tx: -scale * ((x1 + x2) / 2 - 0.5) * iw * fit, ty: -scale * ((y1 + y2) / 2 - 0.5) * ih * fit };
+  }
+
+  protected onKeydown(event: KeyboardEvent): void {
+    if (!this.keyboardInspection() || event.ctrlKey || event.metaKey || event.altKey || event.isComposing) return;
+    if (event.key === 'Home' || event.key.toLowerCase() === 'f') {
+      event.preventDefault(); event.stopPropagation(); this.fitRequested.emit(); return;
+    }
+    const z = this.zoom();
+    let next: ZoomState | null = null;
+    const step = event.shiftKey ? 64 : 24;
+    if (event.key === '+' || event.key === '=') next = { ...z, scale: this.clampScale(z.scale * 1.5) };
+    else if (event.key === '-') next = { ...z, scale: this.clampScale(z.scale / 1.5) };
+    else if (z.scale > 1) {
+      const delta: Record<string, [number, number]> = { ArrowLeft: [step, 0], ArrowRight: [-step, 0], ArrowUp: [0, step], ArrowDown: [0, -step] };
+      const pan = delta[event.key];
+      if (pan) next = { scale: z.scale, tx: z.tx + pan[0], ty: z.ty + pan[1] };
+    }
+    if (!next) return;
+    event.preventDefault(); event.stopPropagation();
+    this.markManuallyFramed();
+    this.zoomChange.emit(next.scale === SyncedZoomComponent.MIN_SCALE ? { ...FIT_ZOOM } : next);
+  }
 
   private clampScale(scale: number): number {
     return Math.max(SyncedZoomComponent.MIN_SCALE, Math.min(SyncedZoomComponent.MAX_SCALE, scale));
@@ -367,15 +541,17 @@ export class SyncedZoomComponent {
   }
 
   protected onPointerDown(event: PointerEvent): void {
-    if (this.zoom().scale <= SyncedZoomComponent.MIN_SCALE) return;
+    if (event.button !== 0 || event.pointerType === 'touch' && !event.isPrimary
+      || this.zoom().scale <= SyncedZoomComponent.MIN_SCALE) return;
     this.dragging = true;
+    this.panPointerId = event.pointerId;
     this.lastX = event.clientX;
     this.lastY = event.clientY;
     (event.target as Element).setPointerCapture?.(event.pointerId);
   }
 
   protected onPointerMove(event: PointerEvent): void {
-    if (!this.dragging) return;
+    if (!this.dragging || event.pointerId !== this.panPointerId) return;
     this.markManuallyFramed();
     const z = this.zoom();
     this.zoomChange.emit({ scale: z.scale, tx: z.tx + (event.clientX - this.lastX), ty: z.ty + (event.clientY - this.lastY) });
@@ -385,6 +561,7 @@ export class SyncedZoomComponent {
 
   protected onPointerUp(): void {
     this.dragging = false;
+    this.panPointerId = null;
   }
 
   /** Toggle fit <-> TOGGLE_SCALE, zooming in on the focus point. Public so the
@@ -397,6 +574,7 @@ export class SyncedZoomComponent {
   }
 
   protected onDoubleClick(): void {
-    this.toggleZoom();
+    if (this.keyboardInspection() && this.zoom().scale > 1) this.fitRequested.emit();
+    else this.toggleZoom();
   }
 }

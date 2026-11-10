@@ -105,6 +105,7 @@ def _make_with_profile(tagging_model, available_vram):
             scorer=scorer, model_manager=_ProfileModelManager(profile), config=_config()
         )
     proc.available_vram = available_vram
+    proc.accelerator = 'cuda'  # These cases exercise a dedicated VRAM budget.
     return proc
 
 

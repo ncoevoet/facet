@@ -86,12 +86,14 @@ class StackProjection:
         sql = (self.cte + f" SELECT {', '.join(select_cols)}, "
                '_stack_id AS stack_id, _stack_matches AS stack_count, _stack_revision AS stack_revision '
                f'FROM {from_clause} LEFT JOIN stack_ranked ON photos.path=_stack_path{where_str}' +
-               (' AND (_stack_id IS NULL OR _stack_rank=1)' if self.collapse else '') +
+               ((' AND ' if where_str else ' WHERE ') + '(_stack_id IS NULL OR _stack_rank=1)' if self.collapse else '') +
                f' ORDER BY {order_by} LIMIT ? OFFSET ?')
         return sql, [*self.params, *params, per_page, offset]
 
 
-def projection(from_clause, where_str, params, owner, collapse=True):
+def projection(from_clause, where_str, params, owner, collapse=True, *, logical=False):
+    if logical:
+        return _logical_projection(from_clause, where_str, params, owner, collapse)
     # Only actual stack members enter the window functions. Singletons retain
     # the gallery's ordinary indexed sort and never fill a library-sized window.
     cte = f"""WITH owned_stack_members AS (
@@ -114,7 +116,7 @@ def projection(from_clause, where_str, params, owner, collapse=True):
     return StackProjection(cte, [owner, *params], collapse)
 
 
-async def enrich_counts(photos, conn, owner, user_id):
+async def enrich_counts(photos, conn, owner, user_id, *, logical_source=None):
     ids = sorted({p['stack_id'] for p in photos if p.get('stack_id')})
     if not ids:
         # Avoid publishing a fake one-photo stack for every singleton.
@@ -122,17 +124,65 @@ async def enrich_counts(photos, conn, owner, user_id):
             for key in ('stack_id', 'stack_count', 'stack_revision'):
                 photo.pop(key, None)
         return
-    vis, values = get_visibility_clause(user_id)
-    marks = ','.join('?' for _ in ids)
-    async with conn.execute(
-            'SELECT m.stack_id, COUNT(*) AS n FROM photo_stack_members m '
-            'JOIN photos ON photos.path=m.photo_path '
-            f'WHERE m.owner=? AND m.stack_id IN ({marks}) AND {vis} GROUP BY m.stack_id',
-            [owner, *ids, *values]) as cur:
-        counts = {r['stack_id']: r['n'] for r in await cur.fetchall()}
+    if logical_source is not None:
+        display = projection(logical_source.sql, '', logical_source.params, owner, collapse=False, logical=True)
+        marks = ','.join('?' for _ in ids)
+        async with conn.execute(
+                display.cte + f' SELECT _stack_id,COUNT(*) FROM stack_ranked WHERE _stack_id IN ({marks}) GROUP BY _stack_id',
+                [*display.params, *ids]) as cur:
+            counts = {row[0]: row[1] for row in await cur.fetchall()}
+    else:
+        vis, values = get_visibility_clause(user_id)
+        marks = ','.join('?' for _ in ids)
+        async with conn.execute(
+                'SELECT m.stack_id, COUNT(*) AS n FROM photo_stack_members m '
+                'JOIN photos ON photos.path=m.photo_path '
+                f'WHERE m.owner=? AND m.stack_id IN ({marks}) AND {vis} GROUP BY m.stack_id',
+                [owner, *ids, *values]) as cur:
+            counts = {r['stack_id']: r['n'] for r in await cur.fetchall()}
     for photo in photos:
         if photo.get('stack_id'):
             photo['stack_total_count'] = counts.get(photo['stack_id'], 0)
         else:
             for key in ('stack_id', 'stack_count', 'stack_revision'):
                 photo.pop(key, None)
+
+
+def _logical_projection(from_clause, where_str, params, owner, collapse):
+    """Deduplicate representations; leave conflicting personal memberships uncollapsed.
+
+    A logical photo whose files belong to different stacks has no implicit
+    winning stack. It remains one standalone tile until that account resolves
+    membership. Stored stacks, covers and other accounts are never rewritten.
+    """
+    from api.logical_collection import mapped_paths
+
+    mapping = mapped_paths("SELECT photo_path FROM owned_stack_members")
+    cte = f"""WITH owned_stack_members AS (
+        SELECT m.photo_path,m.stack_id,m.position,s.cover_path,s.revision
+        FROM photo_stack_members m JOIN photo_stacks s ON s.id=m.stack_id AND s.owner=m.owner
+        WHERE m.owner=?
+    ), mapped_stack_paths AS ({mapping}), stack_member_candidates AS (
+        SELECT photos.path AS _stack_path,m.stack_id AS _stack_id,
+               m.revision AS _stack_revision,m.position AS _stack_position,
+               (m.photo_path=m.cover_path) AS _stack_is_cover
+        FROM mapped_stack_paths mapped
+        JOIN owned_stack_members m ON m.photo_path=mapped.photo_path
+        JOIN {from_clause} ON photos.path=mapped.collection_path
+             AND COALESCE(photos._logical_asset_id,'')=mapped.asset_id{where_str}
+    ), stack_candidates AS (
+        SELECT candidate._stack_path,candidate._stack_id,
+               MAX(candidate._stack_revision) AS _stack_revision,
+               MIN(candidate._stack_position) AS _stack_position,
+               MAX(candidate._stack_is_cover) AS _stack_is_cover
+        FROM stack_member_candidates candidate
+        WHERE NOT EXISTS(SELECT 1 FROM stack_member_candidates other
+                         WHERE other._stack_path=candidate._stack_path AND other._stack_id<>candidate._stack_id)
+        GROUP BY candidate._stack_path,candidate._stack_id
+    ), stack_ranked AS (
+        SELECT *,ROW_NUMBER() OVER (
+            PARTITION BY _stack_id ORDER BY _stack_is_cover DESC,_stack_position,_stack_path) AS _stack_rank,
+            COUNT(*) OVER (PARTITION BY _stack_id) AS _stack_matches
+        FROM stack_candidates
+    )"""
+    return StackProjection(cte, [owner, *params], collapse)

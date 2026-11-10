@@ -13,7 +13,7 @@ describe('ComparisonWeightsTabComponent', () => {
   let component: ComparisonWeightsTabComponent;
   let mockApi: { get: Mock; post: Mock };
   let mockSnackBar: { open: Mock };
-  let mockI18n: { t: Mock };
+  let mockI18n: { t: Mock; translations: Mock };
   let galleryConfig: ReturnType<typeof signal<{ unavailable_metrics?: string[] } | null>>;
   let compareFilters: { selectedCategory: ReturnType<typeof signal<string>> };
 
@@ -23,7 +23,7 @@ describe('ComparisonWeightsTabComponent', () => {
       post: vi.fn(() => of({})),
     };
     mockSnackBar = { open: vi.fn() };
-    mockI18n = { t: vi.fn((key: string) => key) };
+    mockI18n = { t: vi.fn((key: string) => key), translations: vi.fn(() => ({})) };
     compareFilters = { selectedCategory: signal('') };
     galleryConfig = signal<{ unavailable_metrics?: string[] } | null>(null);
 
@@ -786,6 +786,44 @@ describe('ComparisonWeightsTabComponent', () => {
       component.filters.set({ has_face: true });
       component.setFilter('tag_match_mode', 'any');
       expect(component.filters()['has_face']).toBe(true);
+    });
+  });
+
+  describe('narrow layout', () => {
+    function render() {
+      const fixture = TestBed.createComponent(ComparisonWeightsTabComponent);
+      fixture.componentInstance.loading.set(false);
+      fixture.componentInstance.weights.set({ aesthetic_percent: 30 });
+      fixture.detectChanges();
+      return fixture.nativeElement as HTMLElement;
+    }
+    const has = (el: Element, ...classes: string[]) => classes.forEach(c => expect(el.classList, c).toContain(c));
+
+    it('wraps a weight row below sm: label fills, value fixed, slider on its own last line', () => {
+      const slider = render().querySelector('mat-slider')!;
+      const row = slider.parentElement!;
+      has(row, 'flex-wrap', 'sm:flex-nowrap');
+      has(slider, 'basis-full', 'order-last', '!min-w-0', 'sm:basis-auto', 'sm:order-none');
+      const label = slider.previousElementSibling!;
+      has(label, 'min-w-0', 'flex-1', 'sm:w-40', 'sm:flex-none');
+      has(slider.nextElementSibling!, 'w-12', 'shrink-0');
+    });
+
+    it('wraps every modifier row the same way', () => {
+      const sliders = [...render().querySelectorAll('mat-slider')].slice(1);
+      expect(sliders.length).toBe(3);
+      for (const slider of sliders) {
+        has(slider.parentElement!, 'flex-wrap', 'sm:flex-nowrap');
+        has(slider, 'basis-full', 'order-last', '!min-w-0');
+        has(slider.previousElementSibling!, 'min-w-0', 'flex-1', 'sm:w-40');
+        has(slider.nextElementSibling!, 'w-16', 'shrink-0');
+      }
+    });
+
+    it('docks the mobile action bar with the shared 56px row, not its own utilities', () => {
+      const bar = [...render().querySelectorAll('div')].find(d => d.classList.contains('fixed'))!;
+      has(bar, 'lg:hidden', 'min-h-14', 'items-center', 'gap-1', 'px-2', 'py-1');
+      expect(bar.classList).not.toContain('px-3');
     });
   });
 });

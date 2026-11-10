@@ -283,3 +283,20 @@ def test_the_startup_threads_wait_for_the_index_build(monkeypatch):
         release.set()
         from api.routers.capsules import _capsule_cache
         _capsule_cache.clear()
+
+
+def test_the_capsule_precompute_is_skipped_on_a_protected_install(monkeypatch):
+    """The anonymous startup pass sees nothing there, so it would be a full scan for an empty list."""
+    from unittest import mock
+    from api import config as api_config, create_app
+    from fastapi.testclient import TestClient
+
+    calls = []
+    monkeypatch.setattr("api.db_helpers.is_access_controlled_install", lambda: True)
+    monkeypatch.setattr("analyzers.capsule_generator.generate_all_capsules",
+                        lambda *a, **k: calls.append("capsules") or [])
+    config = {"performance": {"wal_checkpoint_minutes": 0},
+              "viewer": {"features": {"show_capsules": True}}}
+    with mock.patch.object(api_config, "_FULL_CONFIG", config), TestClient(create_app()):
+        time.sleep(1.0)
+    assert calls == []
