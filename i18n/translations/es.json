@@ -1570,6 +1570,7 @@
       "preview_ready": "Vista detallada lista",
       "preview_failed": "Vista detallada no disponible; se muestra la miniatura",
       "two_up": "Dos vistas",
+      "two_up_help": "Mostrar la referencia junto a una candidata y recorrer las demás",
       "previous_candidate": "Candidata anterior",
       "next_candidate": "Candidata siguiente",
       "candidate_position": "Candidata {current} de {total}",
@@ -1607,15 +1608,15 @@
         "choose_face": "Elegir rostro…",
         "manual_fallback": "No se pudo encuadrar este recorte de forma fiable. Espera a que cargue la imagen o usa el zoom y el desplazamiento manuales.",
         "review_link": "Encuadre independiente aplicado. Comprueba la alineación y activa Vinculadas. Ajustar restaura el encuadre completo.",
-        "keyboard": "Teclas del panel: +/− amplían o reducen; las flechas desplazan; Mayús aumenta el desplazamiento; F/Inicio ajusta. Z alterna la lupa con la imagen ajustada. En pantallas táctiles, usa los botones de zoom y arrastra. Escape cierra la comparación."
+        "keyboard": "Teclas del panel: +/− amplían o reducen; las flechas desplazan; Mayús aumenta el desplazamiento; F/Inicio ajusta. Z alterna la lupa con la imagen ajustada. En pantallas táctiles, usa los botones de zoom y arrastra. Escape cierra la comparación.",
+        "toggle_help": "Lupa, encuadre de rostros y detalle de puntuaciones de cada panel"
       },
-      "assign_target": "Elegir qué lado sustituir",
       "assign_hint": "Elige una miniatura para usarla como {target}.",
       "assign_photo": "Usar {name} como {target}",
       "queue_total": "{count} fotos en esta comparación",
       "pane_c": "Panel C",
       "pane_d": "Panel D",
-      "assign_pane_hint": "Elige un panel y después una miniatura. Asignando: {target}.",
+      "assign_pane_hint": "Haz clic en un panel y después en una miniatura para mostrar esa foto en él. Reemplazando: {target}.",
       "zoom_overview": "Vista general del zoom: el área resaltada es la parte visible de la foto"
     },
     "clipping": {

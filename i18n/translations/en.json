@@ -1596,6 +1596,7 @@
       "preview_ready": "Sharp preview ready",
       "preview_failed": "Sharp preview unavailable; thumbnail shown",
       "two_up": "Two-up",
+      "two_up_help": "Show the reference beside one candidate and step through the others",
       "previous_candidate": "Previous candidate",
       "next_candidate": "Next candidate",
       "candidate_position": "Candidate {current} of {total}",
@@ -1633,15 +1634,15 @@
         "choose_face": "Choose face…",
         "manual_fallback": "This crop could not be framed reliably. Wait for the image or use manual zoom and pan.",
         "review_link": "Independent framing applied. Check alignment, then Link. Fit restores the whole frame.",
-        "keyboard": "Pane keys: +/− zoom, arrows pan, Shift moves farther, F/Home fits. Z toggles the loupe at Fit. On touch, use zoom buttons and drag. Escape closes comparison."
+        "keyboard": "Pane keys: +/− zoom, arrows pan, Shift moves farther, F/Home fits. Z toggles the loupe at Fit. On touch, use zoom buttons and drag. Escape closes comparison.",
+        "toggle_help": "Loupe, face framing and score details for each pane"
       },
-      "assign_target": "Choose which side to replace",
       "assign_hint": "Choose a thumbnail to use as {target}.",
       "assign_photo": "Use {name} as {target}",
       "queue_total": "{count} photos in this comparison",
       "pane_c": "Pane C",
       "pane_d": "Pane D",
-      "assign_pane_hint": "Choose a pane, then a thumbnail. Assigning: {target}.",
+      "assign_pane_hint": "Click a pane, then a thumbnail to show that photo in it. Replacing: {target}.",
       "zoom_overview": "Zoom overview: the highlighted area is the visible part of the photo"
     },
     "clipping": {

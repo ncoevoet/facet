@@ -1570,6 +1570,7 @@
       "preview_ready": "Pré-visualização detalhada pronta",
       "preview_failed": "Pré-visualização detalhada indisponível; miniatura apresentada",
       "two_up": "Duas vistas",
+      "two_up_help": "Mostrar a referência ao lado de uma candidata e percorrer as restantes",
       "previous_candidate": "Candidata anterior",
       "next_candidate": "Candidata seguinte",
       "candidate_position": "Candidata {current} de {total}",
@@ -1607,15 +1608,15 @@
         "choose_face": "Escolher rosto…",
         "manual_fallback": "Não foi possível enquadrar este recorte de forma fiável. Aguarde pela imagem ou use o zoom e o deslocamento manuais.",
         "review_link": "Enquadramento independente aplicado. Verifique o alinhamento e ative Ligadas. Ajustar restaura o enquadramento completo.",
-        "keyboard": "Teclas do painel: +/− ampliam ou reduzem; as setas deslocam; Shift aumenta o deslocamento; F/Home ajusta. Z alterna a lupa com a imagem ajustada. Num ecrã tátil, use os botões de zoom e arraste. Escape fecha a comparação."
+        "keyboard": "Teclas do painel: +/− ampliam ou reduzem; as setas deslocam; Shift aumenta o deslocamento; F/Home ajusta. Z alterna a lupa com a imagem ajustada. Num ecrã tátil, use os botões de zoom e arraste. Escape fecha a comparação.",
+        "toggle_help": "Lupa, enquadramento de rostos e detalhes das pontuações de cada painel"
       },
-      "assign_target": "Escolher o lado a substituir",
       "assign_hint": "Escolha uma miniatura para usar como {target}.",
       "assign_photo": "Usar {name} como {target}",
       "queue_total": "{count} fotos nesta comparação",
       "pane_c": "Painel C",
       "pane_d": "Painel D",
-      "assign_pane_hint": "Escolha um painel e depois uma miniatura. A atribuir: {target}.",
+      "assign_pane_hint": "Clique num painel e depois numa miniatura para mostrar essa foto nele. A substituir: {target}.",
       "zoom_overview": "Visão geral do zoom: a área destacada é a parte visível da foto"
     },
     "clipping": {

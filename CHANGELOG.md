@@ -99,6 +99,8 @@ All notable changes to Facet are documented in this file.
 
 - The gallery owns its collection title, counts, Grid/Mosaic controls and exact text search at every width. The selection bar keeps Clear, Compare and review decisions visible; its desktop Actions menu groups the other commands into Review, Add to Album, Mark as a set, Edit metadata and Download submenus, and keeps commands a whole-view selection cannot drive listed but disabled, with the reason in their tooltip. Small screens retain a navigation menu and an Actions sheet laid out in the same order, one labelled section per submenu; filter tabs show their names.
 
+- Comparison panes are album-style cards: slot, role, filename, Pin and Remove sit in a caption under the photo with the image status, and the thumbnail strip uses the same cards with a pin on the reference. Clicking a pane picks the one the next thumbnail replaces, explained by a visible hint, instead of separate Reference/Candidate/Pane C/Pane D buttons. Per-pane −/Fit/+ buttons appear on touch screens only; with a mouse, the wheel, double-click and keyboard zoom, and the status line shows the zoom level. Inspect and Two-up have descriptive tooltips, and header icons whose label is hidden on phones are centred.
+
 - The details rail and photo tooltips take their background, borders and text from the accent theme's surfaces, so they carry the same grey as the rest of the workspace (warm with orange, cool with blue) instead of a fixed neutral grey.
 
 - The gallery details panel names its owning photo. Its Deselect releases that photo alone and leaves the rest of the batch selection; the panel itself is switched off with the gallery's Tooltip choice (Side panel, Hover, Click, Off).

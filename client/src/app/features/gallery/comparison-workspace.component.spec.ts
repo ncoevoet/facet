@@ -4,6 +4,7 @@ import { RouterTestingHarness } from '@angular/router/testing';
 import { TestBed } from '@angular/core/testing';
 import { ComparisonSessionService } from './comparison-session.service';
 import { By } from '@angular/platform-browser';
+import { MatTooltip } from '@angular/material/tooltip';
 import { vi } from 'vitest';
 import { ComparisonWorkspaceComponent } from './comparison-workspace.component';
 import { FIT_ZOOM, SyncedZoomComponent } from './synced-zoom.component';
@@ -164,10 +165,10 @@ describe('ComparisonWorkspaceComponent', () => {
     const root = fixture.nativeElement as HTMLElement;
     const paths = () => fixture.debugElement.queryAll(By.directive(SyncedZoomComponent)).map(p => p.componentInstance.frameKey());
     root.querySelector<HTMLButtonElement>('[data-two-up]')!.click(); fixture.detectChanges();
-    root.querySelector<HTMLButtonElement>('[data-compare-target="reference"]')!.click();
+    root.querySelectorAll<HTMLElement>('[data-active-pane]')[0].dispatchEvent(new Event('pointerdown'));
     root.querySelectorAll<HTMLButtonElement>('[data-candidate-thumbnail]')[11].click(); fixture.detectChanges();
     expect(paths()).toEqual(['/q11.jpg', '/q1.jpg', '/q2.jpg', '/q3.jpg']);
-    root.querySelector<HTMLButtonElement>('[data-compare-target="candidate"]')!.click();
+    root.querySelectorAll<HTMLElement>('[data-active-pane]')[1].dispatchEvent(new Event('pointerdown'));
     root.querySelectorAll<HTMLButtonElement>('[data-candidate-thumbnail]')[10].click(); fixture.detectChanges();
     expect(paths()).toEqual(['/q11.jpg', '/q10.jpg', '/q2.jpg', '/q3.jpg']);
   });
@@ -673,25 +674,90 @@ describe('ComparisonWorkspaceComponent', () => {
     previous.click(); fixture.detectChanges();
     expect(paths()).toEqual(['/a.jpg', '/b.jpg']);
   });
-  it('assigns any thumbnail to reference or candidate explicitly without review writes', () => {
+  it('assigns any thumbnail to the pane clicked last, reference or candidate, without review writes', () => {
     const { fixture, api } = build(['/a.jpg', '/b.jpg', '/c.jpg', '/d.jpg']);
     const root = fixture.nativeElement as HTMLElement;
     const thumbs = () => root.querySelectorAll<HTMLButtonElement>('[data-candidate-thumbnail]');
     root.querySelector<HTMLButtonElement>('[data-two-up]')!.click(); fixture.detectChanges();
     const frames = () => fixture.debugElement.queryAll(By.directive(SyncedZoomComponent)).map(p => p.componentInstance.frameKey());
-    root.querySelector<HTMLButtonElement>('[data-compare-target="reference"]')!.click(); fixture.detectChanges();
+    root.querySelectorAll<HTMLElement>('[data-active-pane]')[0].dispatchEvent(new Event('pointerdown')); fixture.detectChanges();
     thumbs()[2].click(); fixture.detectChanges();
     expect(frames()).toEqual(['/c.jpg', '/b.jpg']);
-    root.querySelector<HTMLButtonElement>('[data-compare-target="candidate"]')!.click(); fixture.detectChanges();
+    root.querySelectorAll<HTMLElement>('[data-active-pane]')[1].dispatchEvent(new Event('pointerdown')); fixture.detectChanges();
     thumbs()[3].click(); fixture.detectChanges();
     expect(frames()).toEqual(['/c.jpg', '/d.jpg']);
-    root.querySelector<HTMLButtonElement>('[data-compare-target="reference"]')!.click(); fixture.detectChanges();
+    root.querySelectorAll<HTMLElement>('[data-active-pane]')[0].dispatchEvent(new Event('pointerdown')); fixture.detectChanges();
     thumbs()[3].click(); fixture.detectChanges();
     expect(frames()).toEqual(['/d.jpg', '/c.jpg']);
-    root.querySelector<HTMLButtonElement>('[data-compare-target="candidate"]')!.click(); fixture.detectChanges();
+    root.querySelectorAll<HTMLElement>('[data-active-pane]')[1].dispatchEvent(new Event('pointerdown')); fixture.detectChanges();
     thumbs()[3].click(); fixture.detectChanges();
     expect(frames()).toEqual(['/c.jpg', '/d.jpg']);
     expect(api.post).not.toHaveBeenCalled();
+  });
+
+  it('picks the pane to replace by clicking it, and says so in a visible hint instead of target buttons', () => {
+    const { fixture } = build(['/a.jpg', '/b.jpg', '/c.jpg']);
+    const root = fixture.nativeElement as HTMLElement;
+    expect(root.querySelector('[data-compare-target]')).toBeNull();
+    const hint = root.querySelector<HTMLElement>('[data-comparison-assignment]')!;
+    expect(hint.classList).not.toContain('sr-only');
+    expect(hint.textContent?.trim()).toBe('gallery.compare.assign_pane_hint');
+    const translate = vi.spyOn(TestBed.inject(I18nService), 't');
+    root.querySelectorAll<HTMLElement>('[data-active-pane]')[0].dispatchEvent(new Event('pointerdown')); fixture.detectChanges();
+    expect(translate.mock.calls.filter(([key]) => key === 'gallery.compare.assign_pane_hint').at(-1)?.[1]).toEqual({ target: 'gallery.compare.reference' });
+  });
+
+  it('describes Inspect and Two-up in tooltips, and centres header icons whose label is hidden', () => {
+    const { fixture } = build(['/a.jpg', '/b.jpg', '/c.jpg']);
+    const tooltip = (selector: string) => fixture.debugElement.query(By.css(selector)).injector.get(MatTooltip).message;
+    expect(tooltip('[data-inspection-toggle]')).toBe('gallery.compare.inspection.toggle_help');
+    expect(tooltip('[data-two-up]')).toBe('gallery.compare.two_up_help');
+    for (const selector of ['[data-inspection-toggle]', '[data-two-up]', '[data-link-inspection]']) {
+      expect(fixture.nativeElement.querySelector(selector).className).toContain('max-sm:[&>mat-icon]:!m-0');
+    }
+  });
+
+  it('renders each pane as an album-style card with its caption below the photo', () => {
+    const { fixture } = build(['/a.jpg', '/b.jpg']);
+    const root = fixture.nativeElement as HTMLElement;
+    const panes = [...root.querySelectorAll<HTMLElement>('[data-active-pane]')];
+    for (const pane of panes) {
+      expect(pane.tagName).toBe('ARTICLE');
+      expect(pane.classList).toContain('rounded-xl');
+      expect(pane.classList).toContain('bg-[var(--mat-sys-surface-container)]');
+      expect(pane.classList).not.toContain('border');
+      const image = pane.querySelector('app-synced-zoom')!;
+      const caption = pane.querySelector<HTMLElement>('[data-pane-caption]')!;
+      expect(image.compareDocumentPosition(caption) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+      expect(image.nextElementSibling).toBe(caption);
+      for (const part of ['[data-pane-filename]', '[data-remove-pane]', '[data-preview-status]', '[data-pane-zoom]']) expect(caption.querySelector(part)).not.toBeNull();
+    }
+    expect(panes[0].querySelector('h2')!.textContent).toContain('A');
+    expect(panes[0].querySelector('h2')!.textContent).toContain('gallery.compare.reference');
+    expect(panes[0].querySelector('[data-pane-caption] [data-reference-marker]')).not.toBeNull();
+    expect(panes[1].querySelector('[data-pane-caption] [data-promote-reference]')).not.toBeNull();
+    expect(panes.map(pane => pane.classList.contains('ring-2'))).toEqual([false, true]);
+    const marker = panes[0].querySelector<HTMLElement>('[data-reference-marker]')!;
+    for (const size of ['h-9', 'w-9', 'pointer-coarse:h-11', 'pointer-coarse:w-11']) expect(marker.classList).toContain(size);
+    const thumbnails = [...root.querySelectorAll<HTMLElement>('[data-candidate-thumbnail]')];
+    expect(thumbnails[0].classList).toContain('rounded-xl');
+    expect(thumbnails[0].querySelector('img')!.classList).toContain('object-cover');
+    expect(thumbnails.map(thumbnail => !!thumbnail.querySelector('[data-strip-reference-marker]'))).toEqual([true, false]);
+    expect(thumbnails[0].querySelector('[data-strip-reference-marker]')!.parentElement!.querySelector('img')).not.toBeNull();
+  });
+
+  it('keeps per-pane zoom buttons for touch only and shows the zoom level in the status line with a mouse', () => {
+    const { fixture } = build(['/a.jpg', '/b.jpg']);
+    const root = fixture.nativeElement as HTMLElement;
+    const zoomGroup = root.querySelector<HTMLElement>('[data-pane-zoom]')!;
+    expect(zoomGroup.classList).toContain('pointer-fine:hidden');
+    expect(zoomGroup.contains(root.querySelector('[data-zoom-in]'))).toBe(true);
+    expect(root.querySelector('[data-pane-scale]')).toBeNull();
+    root.querySelector<HTMLButtonElement>('[data-zoom-in]')!.click(); fixture.detectChanges();
+    const scale = root.querySelector<HTMLElement>('[data-pane-scale]')!;
+    expect(scale.textContent?.trim()).toBe('1.5×');
+    expect(scale.classList).toContain('pointer-coarse:hidden');
+    expect(scale.closest('[role="status"]')).toBeNull();
   });
 
   it('shows a thumbnail queue and opens a chosen candidate without promoting it', () => {

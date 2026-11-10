@@ -1570,6 +1570,7 @@
       "preview_ready": "Detailvorschau bereit",
       "preview_failed": "Detailvorschau nicht verfügbar; Miniatur wird angezeigt",
       "two_up": "Zwei Ansichten",
+      "two_up_help": "Referenz neben einem Kandidaten zeigen und die übrigen durchblättern",
       "previous_candidate": "Vorheriger Kandidat",
       "next_candidate": "Nächster Kandidat",
       "candidate_position": "Kandidat {current} von {total}",
@@ -1607,15 +1608,15 @@
         "choose_face": "Gesicht wählen…",
         "manual_fallback": "Dieser Ausschnitt konnte nicht zuverlässig ausgerichtet werden. Warten Sie auf das Bild oder zoomen und verschieben Sie manuell.",
         "review_link": "Unabhängige Ausrichtung angewendet. Prüfen Sie die Ausrichtung und koppeln Sie anschließend die Ansichten. Einpassen zeigt wieder das ganze Bild.",
-        "keyboard": "Tasten in Teilansichten: +/− zoomt, Pfeile verschieben, Umschalt vergrößert den Schritt, F/Pos1 passt ein. Z schaltet die Lupe in der eingepassten Ansicht um. Auf Touchscreens Zoomtasten und Ziehen verwenden. Escape schließt den Vergleich."
+        "keyboard": "Tasten in Teilansichten: +/− zoomt, Pfeile verschieben, Umschalt vergrößert den Schritt, F/Pos1 passt ein. Z schaltet die Lupe in der eingepassten Ansicht um. Auf Touchscreens Zoomtasten und Ziehen verwenden. Escape schließt den Vergleich.",
+        "toggle_help": "Lupe, Gesichtsausschnitt und Bewertungsdetails für jeden Bereich"
       },
-      "assign_target": "Zu ersetzende Seite wählen",
       "assign_hint": "Wählen Sie eine Miniatur für {target}.",
       "assign_photo": "{name} als {target} verwenden",
       "queue_total": "{count} Fotos in diesem Vergleich",
       "pane_c": "Bereich C",
       "pane_d": "Bereich D",
-      "assign_pane_hint": "Wählen Sie einen Bereich und dann ein Vorschaubild. Zuweisung: {target}.",
+      "assign_pane_hint": "Klicken Sie auf einen Bereich und dann auf ein Vorschaubild, um dieses Foto dort anzuzeigen. Ersetzt wird: {target}.",
       "zoom_overview": "Zoomübersicht: Der markierte Bereich ist der sichtbare Teil des Fotos"
     },
     "clipping": {

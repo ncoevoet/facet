@@ -1570,6 +1570,7 @@
       "preview_ready": "清晰预览已就绪",
       "preview_failed": "清晰预览不可用；显示缩略图",
       "two_up": "双图",
+      "two_up_help": "将参考照片与一张候选照片并排显示，并逐张浏览其他照片",
       "previous_candidate": "上一个候选",
       "next_candidate": "下一个候选",
       "candidate_position": "候选 {current}/{total}",
@@ -1607,15 +1608,15 @@
         "choose_face": "选择人脸…",
         "manual_fallback": "无法可靠地定位此裁切范围。请等待图像加载，或手动缩放和平移。",
         "review_link": "已应用独立取景。检查对齐后再启用联动。适应窗格会恢复完整画面。",
-        "keyboard": "窗格快捷键：+/− 缩放，方向键平移，Shift 加大移动距离，F/Home 适应窗格。适应窗格时按 Z 切换放大镜。触屏上可使用缩放按钮并拖动。Escape 关闭比较。"
+        "keyboard": "窗格快捷键：+/− 缩放，方向键平移，Shift 加大移动距离，F/Home 适应窗格。适应窗格时按 Z 切换放大镜。触屏上可使用缩放按钮并拖动。Escape 关闭比较。",
+        "toggle_help": "每个面板的放大镜、人脸取景和评分详情"
       },
-      "assign_target": "选择要替换的一侧",
       "assign_hint": "选择一个缩略图作为{target}。",
       "assign_photo": "将 {name} 用作{target}",
       "queue_total": "本次比较包含 {count} 张照片",
       "pane_c": "面板 C",
       "pane_d": "面板 D",
-      "assign_pane_hint": "先选择面板，再选择缩略图。正在分配：{target}。",
+      "assign_pane_hint": "先点击一个面板，再点击缩略图，即可在其中显示该照片。正在替换：{target}。",
       "zoom_overview": "缩放概览：高亮区域为照片当前可见的部分"
     },
     "clipping": {

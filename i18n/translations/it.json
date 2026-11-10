@@ -1570,6 +1570,7 @@
       "preview_ready": "Anteprima dettagliata pronta",
       "preview_failed": "Anteprima dettagliata non disponibile; miniatura visualizzata",
       "two_up": "Due viste",
+      "two_up_help": "Mostra il riferimento accanto a una candidata e scorri le altre",
       "previous_candidate": "Candidata precedente",
       "next_candidate": "Candidata successiva",
       "candidate_position": "Candidata {current} di {total}",
@@ -1607,15 +1608,15 @@
         "choose_face": "Scegli volto…",
         "manual_fallback": "Impossibile inquadrare questo ritaglio in modo affidabile. Attendi l’immagine oppure usa zoom e spostamento manuali.",
         "review_link": "Inquadrature indipendenti applicate. Controlla l’allineamento, poi collega i riquadri. Adatta ripristina l’intera inquadratura.",
-        "keyboard": "Tasti del riquadro: +/− per lo zoom, frecce per spostare, Shift per spostamenti maggiori, F/Home per adattare. Z attiva o disattiva la lente nella vista Adatta. Su schermi tattili usa i pulsanti dello zoom e trascina. Escape chiude il confronto."
+        "keyboard": "Tasti del riquadro: +/− per lo zoom, frecce per spostare, Shift per spostamenti maggiori, F/Home per adattare. Z attiva o disattiva la lente nella vista Adatta. Su schermi tattili usa i pulsanti dello zoom e trascina. Escape chiude il confronto.",
+        "toggle_help": "Lente, inquadratura dei volti e dettagli dei punteggi per ogni riquadro"
       },
-      "assign_target": "Scegli quale lato sostituire",
       "assign_hint": "Scegli una miniatura da usare come {target}.",
       "assign_photo": "Usa {name} come {target}",
       "queue_total": "{count} foto in questo confronto",
       "pane_c": "Riquadro C",
       "pane_d": "Riquadro D",
-      "assign_pane_hint": "Scegli un riquadro, poi una miniatura. Assegnazione: {target}.",
+      "assign_pane_hint": "Fai clic su un riquadro, poi su una miniatura per mostrarvi quella foto. Sostituzione: {target}.",
       "zoom_overview": "Panoramica dello zoom: l’area evidenziata è la parte visibile della foto"
     },
     "clipping": {

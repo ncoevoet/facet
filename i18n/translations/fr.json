@@ -1570,6 +1570,7 @@
       "preview_ready": "Aperçu détaillé prêt",
       "preview_failed": "Aperçu détaillé indisponible ; miniature affichée",
       "two_up": "Deux vues",
+      "two_up_help": "Afficher la référence à côté d'une candidate et parcourir les autres",
       "previous_candidate": "Candidate précédente",
       "next_candidate": "Candidate suivante",
       "candidate_position": "Candidate {current} sur {total}",
@@ -1607,15 +1608,15 @@
         "choose_face": "Choisir un visage…",
         "manual_fallback": "Ce cadrage n’a pas pu être appliqué de façon fiable. Attendez l’image ou ajustez manuellement le zoom et le déplacement.",
         "review_link": "Cadrages indépendants appliqués. Vérifiez l’alignement, puis liez les vues. Ajuster rétablit l’image entière.",
-        "keyboard": "Touches des vues : +/− pour zoomer, flèches pour déplacer, Maj pour un déplacement plus grand, F/Début pour ajuster au cadre. Z active ou désactive la loupe dans la vue ajustée. Sur écran tactile, utilisez les boutons de zoom et faites glisser. Échap ferme la comparaison."
+        "keyboard": "Touches des vues : +/− pour zoomer, flèches pour déplacer, Maj pour un déplacement plus grand, F/Début pour ajuster au cadre. Z active ou désactive la loupe dans la vue ajustée. Sur écran tactile, utilisez les boutons de zoom et faites glisser. Échap ferme la comparaison.",
+        "toggle_help": "Loupe, cadrage des visages et détail des scores pour chaque volet"
       },
-      "assign_target": "Choisir le côté à remplacer",
       "assign_hint": "Choisissez une miniature pour {target}.",
       "assign_photo": "Utiliser {name} comme {target}",
       "queue_total": "{count} photos dans cette comparaison",
       "pane_c": "Volet C",
       "pane_d": "Volet D",
-      "assign_pane_hint": "Choisissez un volet, puis une vignette. Affectation : {target}.",
+      "assign_pane_hint": "Cliquez sur un volet, puis sur une vignette pour y afficher cette photo. Remplacement : {target}.",
       "zoom_overview": "Vue d’ensemble du zoom : la zone encadrée correspond à la partie visible de la photo"
     },
     "clipping": {
