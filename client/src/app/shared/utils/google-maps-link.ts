@@ -62,8 +62,11 @@ export function parseCoordinatePair(text: string): LatLng | null {
   return lat === null || lng === null ? null : valid(lat, lng);
 }
 
+/** Per escape run, as `urllib.parse.unquote` does: one stray `%` must not keep the rest encoded. */
 function safeDecode(value: string): string {
-  try { return decodeURIComponent(value); } catch { return value; }
+  return value.replace(/(?:%[0-9A-Fa-f]{2})+/g, run => {
+    try { return decodeURIComponent(run); } catch { return run; }
+  });
 }
 
 function queryValues(query: string): Map<string, string> {
@@ -73,7 +76,7 @@ function queryValues(query: string): Map<string, string> {
     const eq = part.indexOf('=');
     const key = safeDecode((eq < 0 ? part : part.slice(0, eq)).replace(/\+/g, ' '));
     // A repeated key keeps its last value, as `dict(parse_qsl(...))` does server-side.
-    values.set(key,safeDecode((eq < 0 ? '' : part.slice(eq + 1)).replace(/\+/g, ' ')));
+    values.set(key, safeDecode((eq < 0 ? '' : part.slice(eq + 1)).replace(/\+/g, ' ')));
   }
   return values;
 }

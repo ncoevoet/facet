@@ -46,6 +46,10 @@ describe('parseGoogleMapsInput', () => {
       ['https://www.google.com/maps/search/32.6064,+-116.3239', 32.6064, -116.3239],
       [`https://www.google.com/maps/place/32%C2%B036'23.0%22N+116%C2%B019'26.0%22W/`, DMS_LAT, DMS_LNG],
       ['https://consent.google.com/m?continue=https://www.google.com/maps/%4032.6064,-116.3239,15z', 32.6064, -116.3239],
+      ['https://www.google.com/maps/%4032.6064,-116.3239,15z?x=100%', 32.6064, -116.3239],
+      ['https://www.google.com/maps/place/X/data=!3d1.5!4d2.5!3d3.5!4d4.5', 3.5, 4.5],
+      ['https://www.google.com/maps/dir/?api=1&destination=32.6,-116.3', 32.6, -116.3],
+      ['https://www.google.com/maps/search/?api=1&q=1,2&q=3,4', 3, 4],
     ])('reads %s', (url, lat, lng) => expectPoint(url, lat, lng));
 
     it('prefers the dropped pin over the @ viewport centre', () => {

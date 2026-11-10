@@ -388,8 +388,14 @@ export class GpsEditDialogComponent {
     }
   }
 
+  /** Any pin the user places by another route wins over a short-link answer still in flight. */
+  private cancelMapsResolve(): void {
+    this.mapsSequence++;
+    this.mapsBusy.set(false);
+  }
+
   private applyMapsPoint(point: LatLng): void {
-    this.selectRecent({ latitude: point.lat, longitude: point.lng });
+    this.movePin({ latitude: point.lat, longitude: point.lng });
     this.mapsPoint.set(point);
   }
 
@@ -431,6 +437,7 @@ export class GpsEditDialogComponent {
     this.map.on('click', (e: L.LeafletMouseEvent) => {
       const wrapped = e.latlng.wrap();
       if (this.destroyed) return;
+      this.cancelMapsResolve();
       this.invalidateOnline();
       this.selectedPlaceId.set(null);
       this.selectedLat.set(wrapped.lat);
@@ -446,6 +453,7 @@ export class GpsEditDialogComponent {
   }
 
   clearLocation(): void {
+    this.cancelMapsResolve();
     this.invalidateOnline();
     this.selectedPlaceId.set(null);
     this.selectedLat.set(null);
@@ -473,6 +481,11 @@ export class GpsEditDialogComponent {
   }
 
   selectRecent(point: Pick<RecentPlace, 'latitude' | 'longitude'>): void {
+    this.cancelMapsResolve();
+    this.movePin(point);
+  }
+
+  private movePin(point: Pick<RecentPlace, 'latitude' | 'longitude'>): void {
     this.invalidateOnline();
     this.selectedPlaceId.set(null);
     this.selectedLat.set(point.latitude);
@@ -482,6 +495,7 @@ export class GpsEditDialogComponent {
   }
 
   setLatitude(value: number | null): void {
+    this.cancelMapsResolve();
     this.invalidateOnline();
     if (value !== this.selectedLat()) this.selectedPlaceId.set(null);
     this.selectedLat.set(value);
@@ -489,6 +503,7 @@ export class GpsEditDialogComponent {
   }
 
   setLongitude(value: number | null): void {
+    this.cancelMapsResolve();
     this.invalidateOnline();
     if (value !== this.selectedLng()) this.selectedPlaceId.set(null);
     this.selectedLng.set(value);

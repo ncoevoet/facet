@@ -17,13 +17,14 @@ viewer does it, under SSRF rules tighter than the webhook ones:
 Nothing about the link is logged.
 """
 import http.client
-import ipaddress
+import re
 import socket
 import ssl
+import threading
 import time
-from urllib.parse import urljoin, urlsplit
+from urllib.parse import urljoin, urlsplit, urlunsplit
 
-from plugins import _embedded_ipv4_unwrapped
+from plugins import _first_public_address
 from utils import google_maps_link
 
 ALLOWED_HOSTS = frozenset({'maps.app.goo.gl', 'goo.gl', 'maps.google.com', 'www.google.com', 'google.com'})
@@ -32,6 +33,10 @@ TIMEOUT_SECONDS = 5.0
 _MAX_LOCATION = 4096
 _REDIRECTS = {301, 302, 303, 307, 308}
 _USER_AGENT = 'Mozilla/5.0 (compatible; Facet place link resolver)'
+# urlsplit silently drops tab/CR/LF, so the parsed host can differ from the raw
+# string's: a link carrying one is refused outright rather than parsed.
+_CONTROL = re.compile(r'[\x00-\x1f\x7f]')
+_UNSAFE = re.compile(r'[\x00-\x20\x7f]')
 
 
 class LinkError(Exception):
@@ -43,7 +48,9 @@ class LinkError(Exception):
 
 
 def is_resolvable(url: str) -> bool:
-    """An http(s) URL on an allowed host, without credentials or a port."""
+    """An http(s) URL on an allowed host, without credentials, a port, whitespace or controls."""
+    if _UNSAFE.search(url):
+        return False
     try:
         parts = urlsplit(url)
         port = parts.port
@@ -53,53 +60,111 @@ def is_resolvable(url: str) -> bool:
             and parts.username is None and parts.password is None and port in (None, 443))
 
 
-def public_address(host: str) -> str:
-    """The first resolved address of *host*, refusing it if ANY address is not public."""
+def public_address(host: str, timeout: float = TIMEOUT_SECONDS) -> str:
+    """The first resolved address of *host*, refusing it if ANY address is not public.
+
+    Native DNS cannot be interrupted, so the lookup runs on a daemon thread that is
+    abandoned at *timeout*; it ends when the system resolver gives up.
+    """
+    result: dict = {}
+
+    def lookup() -> None:
+        try:
+            result['infos'] = socket.getaddrinfo(host, 443, type=socket.SOCK_STREAM)
+        except OSError:
+            pass
+    worker = threading.Thread(target=lookup, name='facet-maps-link-dns', daemon=True)
+    worker.start()
+    worker.join(timeout)
+    if 'infos' not in result:
+        raise LinkError('unreachable')
     try:
-        infos = socket.getaddrinfo(host, 443, type=socket.SOCK_STREAM)
-    except socket.gaierror as exc:
-        raise LinkError('unreachable') from exc
-    chosen = None
-    for info in infos:
-        addr = ipaddress.ip_address(info[4][0])
-        effective = _embedded_ipv4_unwrapped(addr)
-        if not effective.is_global or effective.is_multicast:
-            raise LinkError('unsupported_host')
-        chosen = chosen or str(addr)
+        chosen = _first_public_address(result['infos'])
+    except ValueError as exc:
+        raise LinkError('unsupported_host') from exc
     if chosen is None:
         raise LinkError('unreachable')
     return chosen
 
 
 class _PinnedHTTPSConnection(http.client.HTTPSConnection):
-    """Connect to the address that passed ``public_address``; verify TLS for the hostname."""
+    """Connect to the address that passed ``public_address``; verify TLS for the hostname.
+
+    A socket timeout restarts on every byte, so a server trickling header lines
+    could hold a request open indefinitely; ``expire`` (run by a watchdog at the
+    deadline) shuts the active socket down instead.
+    """
 
     def __init__(self, host: str, address: str, timeout: float):
         super().__init__(host, 443, timeout=timeout, context=ssl.create_default_context())
         self._address = address
+        self._socket_lock = threading.Lock()
+        self._active: socket.socket | None = None
+        self.expired = False
+
+    def expire(self) -> None:
+        with self._socket_lock:
+            self.expired = True
+            active = self._active
+        if active is not None:
+            # close() alone need not wake a thread blocked in recv; shutdown() does.
+            try:
+                active.shutdown(socket.SHUT_RDWR)
+            except OSError:
+                pass
+            active.close()
+
+    def _track(self, sock: socket.socket) -> None:
+        with self._socket_lock:
+            if self.expired:
+                raise TimeoutError
+            self._active = sock
 
     def connect(self) -> None:
         raw = socket.create_connection((self._address, 443), timeout=self.timeout)
         try:
+            self._track(raw)
             self.sock = self._context.wrap_socket(raw, server_hostname=self.host)
+            self._track(self.sock)
         except BaseException:
             raw.close()
             raise
 
+    def finish(self) -> None:
+        self.close()
+        with self._socket_lock:
+            active, self._active = self._active, None
+        if active is not None:
+            active.close()
+
 
 def fetch_location(url: str, timeout: float) -> tuple[int, str | None]:
-    """One GET of an allowed URL: ``(status, Location header)``; the body is never read."""
+    """One GET of an allowed URL within *timeout*: ``(status, Location header)``; the body is never read."""
+    deadline = time.monotonic() + timeout
     parts = urlsplit(url)
     host = parts.hostname or ''
-    address = public_address(host)
-    conn = _PinnedHTTPSConnection(host, address, timeout)
+    address = public_address(host, timeout)
+    remaining = deadline - time.monotonic()
+    if remaining <= 0:
+        raise TimeoutError
+    conn = _PinnedHTTPSConnection(host, address, remaining)
+    watchdog = threading.Timer(remaining, conn.expire)
+    watchdog.name = 'facet-maps-link-deadline'
+    watchdog.daemon = True
+    watchdog.start()
     try:
         target = (parts.path or '/') + (f'?{parts.query}' if parts.query else '')
         conn.request('GET', target, headers={'User-Agent': _USER_AGENT, 'Accept': 'text/html'})
         response = conn.getresponse()
-        return response.status, response.getheader('Location')
+        status, location = response.status, response.getheader('Location')
+        # A shut-down socket reads as end of headers, not as an error.
+        if conn.expired:
+            raise TimeoutError
+        return status, location
     finally:
-        conn.close()
+        watchdog.cancel()
+        conn.finish()
+        watchdog.join()
 
 
 def resolve(url: str) -> tuple[float, float]:
@@ -112,17 +177,19 @@ def resolve(url: str) -> tuple[float, float]:
         pair = google_maps_link.parse_url(current)
         if pair:
             return pair
+        if _CONTROL.search(current):
+            raise LinkError('invalid_link')
         if not is_resolvable(current):
             raise LinkError('unsupported_host')
-        # Every allowed host serves https; a pasted http:// link is never fetched in clear.
-        target = 'https://' + current.split('://', 1)[1]
+        # Rebuilt from the parsed parts the allowlist judged, never from the raw
+        # string. Every allowed host serves https; an http:// link is never fetched in clear.
+        parts = urlsplit(current)
+        target = urlunsplit(('https', parts.hostname, parts.path, parts.query, ''))
         remaining = deadline - time.monotonic()
         if remaining <= 0:
             raise LinkError('unreachable')
         try:
             status, location = fetch_location(target, remaining)
-        except LinkError:
-            raise
         except (OSError, http.client.HTTPException, ValueError) as exc:
             raise LinkError('unreachable') from exc
         if status not in _REDIRECTS or not location or len(location) > _MAX_LOCATION:
