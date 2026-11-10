@@ -1,42 +1,21 @@
 import { Injectable, signal } from '@angular/core';
-import { I18N } from '../i18n/keys';
+import { SHORTCUT_REGISTRY, ShortcutActionId, shareScope, shortcutAction } from './shortcut-registry';
 
-/** The user-customisable keyboard actions. Each entry maps an action id to
- *  the (lowercased) primary key that triggers it on the gallery and photo
- *  pages. Modifiers (Ctrl/Cmd/Alt) are not remappable. */
-export interface KeymapConfig {
-  favourite: string;
-  reject: string;
-  keep: string;
-  focusSearch: string;
-  toggleSidebar: string;
-  swapLayout: string;
-  /** Empty when a saved binding already owns the new default. */
-  stack: string;
+/** The user's key for each remappable action (see `SHORTCUT_REGISTRY`): the
+ *  lowercased primary key, or '' when unassigned. Modifiers (Ctrl/Cmd/Alt)
+ *  are not remappable. */
+export type KeymapConfig = Record<ShortcutActionId, string>;
+
+export const DEFAULT_KEYMAP: KeymapConfig = Object.fromEntries(
+  SHORTCUT_REGISTRY.map(a => [a.id, a.defaultKey]),
+) as KeymapConfig;
+
+const ACTION_IDS: ShortcutActionId[] = SHORTCUT_REGISTRY.map(a => a.id);
+
+/** Whether `key` is held by an action other than `action` that shares a page with it. */
+function heldInScope(map: KeymapConfig, action: ShortcutActionId, key: string): boolean {
+  return ACTION_IDS.some(other => other !== action && map[other] === key && shareScope(shortcutAction(action), shortcutAction(other)));
 }
-
-export const DEFAULT_KEYMAP: KeymapConfig = {
-  favourite: 'f',
-  reject: 'x',
-  keep: 'k',
-  focusSearch: '/',
-  toggleSidebar: 'b',
-  swapLayout: 'v',
-  stack: 's',
-};
-
-/** The remappable actions, labelled with the same strings the keyboard
- *  reference tables use, so the settings dialog and the reference can never
- *  name an action differently. */
-export const KEYMAP_ACTIONS: { id: keyof KeymapConfig; labelKey: string }[] = [
-  { id: 'favourite', labelKey: I18N.shortcuts.favorite },
-  { id: 'reject', labelKey: I18N.shortcuts.reject },
-  { id: 'keep', labelKey: I18N.review.shortcut },
-  { id: 'focusSearch', labelKey: I18N.shortcuts.focus_search },
-  { id: 'toggleSidebar', labelKey: I18N.shortcuts.toggle_filters },
-  { id: 'swapLayout', labelKey: I18N.shortcuts.toggle_layout },
-  { id: 'stack', labelKey: I18N.shortcuts.stack },
-];
 
 export const KEYMAP_STORAGE_KEY = 'facet_keymap';
 
@@ -53,7 +32,7 @@ export function assignableKey(key: string): string | null {
   return k.length === 1 && !RESERVED_KEYS.has(k) ? k : null;
 }
 
-/** A saved key that is reserved or that two actions share (a hand edit, or an
+/** A saved key that is reserved or that two actions on the same page share (a hand edit, or an
  *  older save meeting a newer rule) falls back to that action's default, so
  *  one keystroke never fires two actions. If that default is itself already
  *  taken by another saved key, restore the full defaults. A newly introduced
@@ -62,24 +41,22 @@ function load(): KeymapConfig {
   try {
     const raw = localStorage.getItem(KEYMAP_STORAGE_KEY);
     if (!raw) return { ...DEFAULT_KEYMAP };
-    const saved = JSON.parse(raw) as Partial<Record<keyof KeymapConfig, unknown>>;
-    const actions = KEYMAP_ACTIONS.map(a => a.id);
-    const keys = actions.map(action => {
+    const saved = JSON.parse(raw) as Partial<Record<ShortcutActionId, unknown>>;
+    const keys = Object.fromEntries(ACTION_IDS.map(action => {
       const v = saved[action];
-      return typeof v === 'string' ? assignableKey(v) : null;
-    });
+      return [action, typeof v === 'string' ? assignableKey(v) ?? '' : ''];
+    })) as KeymapConfig;
     const out = { ...DEFAULT_KEYMAP };
-    actions.forEach((action, i) => {
-      const k = keys[i];
-      if (k && keys.indexOf(k) === keys.lastIndexOf(k)) out[action] = k;
-    });
+    for (const action of ACTION_IDS) {
+      const k = keys[action];
+      if (k && !heldInScope(keys, action, k)) out[action] = k;
+    }
     // Adding a default must not reset an older valid map that already uses S.
     // Keep an explicitly unassigned action unassigned on subsequent saves too.
-    if (saved.stack === '' || (saved.stack === undefined && actions.some(action => action !== 'stack' && out[action] === out.stack))) {
+    if (saved.stack === '' || (saved.stack === undefined && heldInScope(out, 'stack', out.stack))) {
       out.stack = '';
     }
-    const assigned = Object.values(out).filter(Boolean);
-    return new Set(assigned).size === assigned.length ? out : { ...DEFAULT_KEYMAP };
+    return ACTION_IDS.some(action => out[action] && heldInScope(out, action, out[action])) ? { ...DEFAULT_KEYMAP } : out;
   } catch {
     return { ...DEFAULT_KEYMAP };
   }
@@ -93,12 +70,13 @@ export class KeyboardMappingService {
   readonly keymap = signal<KeymapConfig>(load());
 
   /** Assigns `key` to `action`. Refuses a key no action may take
-   *  (`'reserved'`) or one another action holds (`'in_use'`). */
-  setKey(action: keyof KeymapConfig, key: string): 'reserved' | 'in_use' | null {
+   *  (`'reserved'`) or one held by another action on a page this one is
+   *  live on (`'in_use'`). */
+  setKey(action: ShortcutActionId, key: string): 'reserved' | 'in_use' | null {
     const k = assignableKey(key);
     if (!k) return 'reserved';
     const map = this.keymap();
-    if (KEYMAP_ACTIONS.some(a => a.id !== action && map[a.id] === k)) return 'in_use';
+    if (heldInScope(map, action, k)) return 'in_use';
     this.save({ ...map, [action]: k });
     return null;
   }
@@ -113,7 +91,7 @@ export class KeyboardMappingService {
   }
 
   /** Whether `event` is the key currently mapped to `action`. */
-  matches(event: KeyboardEvent, action: keyof KeymapConfig): boolean {
+  matches(event: KeyboardEvent, action: ShortcutActionId): boolean {
     const key = this.keymap()[action];
     return !!key && event.key.toLowerCase() === key;
   }

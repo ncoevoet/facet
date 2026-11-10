@@ -957,6 +957,7 @@ interface SceneSummary {
            role="dialog"
            [attr.aria-label]="I18N.culling.darkroom | translate"
            aria-modal="true"
+           data-undo-surface
            tabindex="-1"
            cdkTrapFocus
            (click)="closeLightbox()"

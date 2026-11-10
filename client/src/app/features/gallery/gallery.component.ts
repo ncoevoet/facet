@@ -57,7 +57,7 @@ import { isImeOrRepeat, isPageShortcutBlocked, isShortcutContextBlocked, isTypin
 import { KeyboardMappingService } from '../../core/services/keyboard-mapping.service';
 import { GALLERY_REVISIT, PHOTO_PATH } from '../../core/gallery-reuse.strategy';
 import { SequenceKindIconPipe } from '../../shared/pipes/sequence-kind.pipe';
-import { IsSelectedPipe } from '../../shared/pipes/selection.pipe';
+import { IsSelectedPipe, isPathSelected } from '../../shared/pipes/selection.pipe';
 import { PhotoSetKindIconPipe, PhotoSetKindLabelPipe } from '../../shared/pipes/photo-set-kind.pipe';
 import { AuthService } from '../../core/services/auth.service';
 import { StalenessGuardFactory } from '../../core/services/staleness-guard.service';
@@ -3471,6 +3471,17 @@ export class GalleryComponent implements OnInit, OnDestroy {
     } else if (this.keymap.matches(event, 'keep')) {
       write = () => this.selectionActions.reviewSingle(photo.path, 'kept');
     } else if (event.key === '0' || this.keymap.matches(event, 'reject')) {
+      // On a card inside a multi-photo selection, reject the whole selection
+      // (with Undo), the same rule the context menu uses to offer its bulk items.
+      if (this.inMultiSelection(photo.path)) {
+        event.preventDefault();
+        // One batch at a time: a second press while the first saves would snapshot
+        // the already-rejected state, and its Undo would then restore nothing.
+        if (this.keyboardDecisionPending) return;
+        this.keyboardDecisionPending = true;
+        void this.selectionActions.batchReject().finally(() => { this.keyboardDecisionPending = false; });
+        return;
+      }
       write = () => this.store.toggleRejected(photo.path);
     } else if (this.keymap.matches(event, 'favourite')) {
       event.preventDefault();
@@ -3508,6 +3519,11 @@ export class GalleryComponent implements OnInit, OnDestroy {
         guard.dispose();
       }
     })();
+  }
+
+  /** True when `path` is selected and the selection holds more than one photo. */
+  private inMultiSelection(path: string): boolean {
+    return this.selectionCount() >= 2 && isPathSelected(path, this.viewScoped(), this.selectedPaths(), this.excludedPaths());
   }
 
   private focusAfterDecision(photos: Photo[], index: number): void {

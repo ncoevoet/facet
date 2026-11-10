@@ -25,9 +25,26 @@ export function isImeOrRepeat(event: KeyboardEvent): boolean {
   return event.repeat || event.isComposing || event.keyCode === 229;
 }
 
+/** True for Ctrl+Z or Cmd+Z (one of the two, never both), without Shift or Alt. */
+export function isUndoChord(event: KeyboardEvent): boolean {
+  return event.key.toLowerCase() === 'z' && event.ctrlKey !== event.metaKey && !event.shiftKey && !event.altKey;
+}
+
+const DIALOG_HOSTS = 'mat-dialog-container, mat-bottom-sheet-container';
+
 /** True when focus is in a typing context or a dialog / bottom sheet is open, whatever modifiers are held. */
 export function isShortcutContextBlocked(event: KeyboardEvent): boolean {
-  return isTypingContext(event) || !!document.querySelector('mat-dialog-container, mat-bottom-sheet-container, [role="dialog"][aria-modal="true"]');
+  return isTypingContext(event) || !!document.querySelector(`${DIALOG_HOSTS}, [role="dialog"][aria-modal="true"]`);
+}
+
+/**
+ * Like {@link isShortcutContextBlocked}, except that a modal workspace marked `data-undo-surface`
+ * (the culling darkroom, which offers its own Undo snackbars) lets Ctrl/Cmd+Z through.
+ * A dialog opened over it still blocks the key.
+ */
+export function isUndoContextBlocked(event: KeyboardEvent): boolean {
+  return isTypingContext(event)
+    || !!document.querySelector(`${DIALOG_HOSTS}, [role="dialog"][aria-modal="true"]:not([data-undo-surface])`);
 }
 
 /**

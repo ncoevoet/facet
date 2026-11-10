@@ -3639,6 +3639,7 @@
     "key_reserved": "Cette touche est réservée",
     "stack": "Empiler les photos sélectionnées (édition uniquement)",
     "quick_stack": "Empiler rapidement la sélection (les piles existantes ouvrent l’éditeur)",
+    "undo": "Annuler (tant que la barre Annuler est affichée)",
     "unassigned": "Non attribué",
     "stack_hint": "Empiler les photos ({key})",
     "keymap_title": "Personnaliser les raccourcis"

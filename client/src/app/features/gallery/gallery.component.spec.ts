@@ -992,6 +992,68 @@ describe('GalleryComponent', () => {
       expect(mockStore.setRating).not.toHaveBeenCalled();
     });
 
+    describe('X on a card inside a selection', () => {
+      function select(paths: string[]) {
+        mockStore.selectedPaths.set(new Set(paths));
+        mockStore.selectionCount.set(paths.length);
+      }
+
+      it('rejects every selected photo, not just the focused one', async () => {
+        select(['/a.jpg', '/c.jpg']);
+        fire(keyEvent('x'));
+        await Promise.resolve();
+        expect(mockStore.batchReject).toHaveBeenCalledWith(['/a.jpg', '/c.jpg']);
+        expect(mockStore.toggleRejected).not.toHaveBeenCalled();
+        expect(activeIndex()).toBe(0);
+      });
+
+      it('rejects only the focused photo when it is outside the selection', () => {
+        select(['/b.jpg', '/c.jpg']);
+        fire(keyEvent('x'));
+        expect(mockStore.batchReject).not.toHaveBeenCalled();
+        expect(mockStore.toggleRejected).toHaveBeenCalledWith('/a.jpg');
+      });
+
+      it('keeps the single-photo toggle when the selection is just the focused photo', () => {
+        select(['/a.jpg']);
+        fire(keyEvent('x'));
+        expect(mockStore.batchReject).not.toHaveBeenCalled();
+        expect(mockStore.toggleRejected).toHaveBeenCalledWith('/a.jpg');
+      });
+
+      function spyBatchReject() {
+        const actions = (component as unknown as { selectionActions: { batchReject(): Promise<void> } }).selectionActions;
+        return vi.spyOn(actions, 'batchReject');
+      }
+
+      it('starts one batch at a time while the first is still saving', async () => {
+        let finish!: () => void;
+        const batch = spyBatchReject().mockReturnValue(new Promise<void>(resolve => { finish = resolve; }));
+        select(['/a.jpg', '/c.jpg']);
+        fire(keyEvent('x'));
+        fire(keyEvent('x'));
+        expect(batch).toHaveBeenCalledTimes(1);
+        finish();
+        await Promise.resolve(); await Promise.resolve();
+        fire(keyEvent('x'));
+        expect(batch).toHaveBeenCalledTimes(2);
+      });
+
+      it('follows a whole-view selection: a card left in it rejects the batch, an excluded card only itself', async () => {
+        const batch = spyBatchReject().mockResolvedValue();
+        mockStore.viewScopeSelected.set(true);
+        mockStore.selectionCount.set(5);
+        fire(keyEvent('x'));
+        expect(batch).toHaveBeenCalledTimes(1);
+        expect(mockStore.toggleRejected).not.toHaveBeenCalled();
+        await Promise.resolve(); await Promise.resolve(); // let the first batch release the guard
+        mockStore.excludedPaths.set(new Set(['/a.jpg']));
+        fire(keyEvent('x'));
+        expect(batch).toHaveBeenCalledTimes(1);
+        expect(mockStore.toggleRejected).toHaveBeenCalledWith('/a.jpg');
+      });
+    });
+
     it('toggles favorite WITHOUT advancing on F', () => {
       fire(keyEvent('f'));
       expect(mockStore.toggleFavorite).toHaveBeenCalledWith('/a.jpg');

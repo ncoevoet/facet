@@ -1242,17 +1242,18 @@ Single-key shortcuts are inactive while focus is in a text field, menu or list.
 | `1`–`5` | Rate the focused photo 1–5 stars (edition mode) |
 | `K` | Keep the focused photo (edition mode) |
 | `F` | Favourite / unfavourite the focused photo (edition mode) |
-| `X` or `0` | Reject / un-reject the focused photo (edition mode) |
+| `X` or `0` | Reject / un-reject the focused photo (edition mode). On a card inside a selection of two or more, rejects the whole selection instead, with [Undo](#undo) when every photo is loaded and there are at most 500 |
 | `/` | Focus collection search; reveal it first on a narrow screen |
 | `S` | Open the stack editor for the explicit selection (edition mode; remappable, can be left Unassigned) |
 | `Ctrl+Shift+S` / `Cmd+Shift+S` | Stack the explicit unstacked selection at once in selection order, the first photo as cover (edition mode; existing stack members open the editor) |
+| `Ctrl+Z` / `Cmd+Z` | Undo the last change while its [Undo](#undo) snackbar is showing (every page; not in text fields or dialogs) |
 | `B` | Show / hide the filter sidebar |
 | `V` | Cycle through grid, mosaic and list layouts |
 | `?` | Show the keyboard shortcuts reference (every page; also in user menu → Help) |
 
 **Advance after saving** in the view controls is off by default. Turn it on to move to the next photo after a successful rating, Keep or Reject shortcut. It applies to the current session; changing the photo, collection or account while saving prevents automatic advancement.
 
-**Remap keys.** `K`, `F`, `X`, `/`, `B`, `V` and `S` are defaults. User menu → **Customize shortcuts** lets you click an action and press a new key (`Esc` or `Tab` cancels). Digits, `Space` and `?` are reserved, and a key already in use is refused. **Reset all** restores the defaults. The mapping is stored per browser (`localStorage`). The photo page uses the same keys, and the `?` reference always shows the keys in effect.
+**Remap keys.** `K`, `F`, `X`, `/`, `B`, `V` and `S` are defaults. User menu → **Customize shortcuts** lets you click an action and press a new key (`Esc` or `Tab` cancels). Digits, `Space` and `?` are reserved, and a key already in use by another action on the same page is refused. **Reset all** restores the defaults. The mapping is stored per browser (`localStorage`). The photo page uses the same keys, and the `?` reference always shows the keys in effect.
 
 **Current photo.** The photo that rating, favorite and reject keys act on has a 4px outline; other cards retain their normal brightness. Nothing is marked until you move onto a photo. Clicking a photo moves the marker to it. Returning from a photo leaves the marker on the last one you viewed. The focused-card hint appears only in edition mode with `viewer.features.show_rating_controls` on.
 
@@ -1262,7 +1263,7 @@ Use **Copy image** to copy a PNG rendition of the photo for pasting into another
 
 ## Undo
 
-Batch favorite/reject/rating changes and deferred culling confirms show a snackbar with **Undo** for ~7 seconds.
+Batch favorite/reject/rating changes and deferred culling confirms show a snackbar with **Undo** for ~7 seconds. `Ctrl+Z` / `Cmd+Z` presses it while it is showing; in a text field the key keeps its usual meaning.
 
 - Batch flag changes apply at once and are undone by reversing them (up to 500 photos).
 - Rating Undo restores only stars, preserving other flags. It requires a complete observed snapshot of at most 500 photos and checks locally known later changes; it is not the server-conflict-aware history operation.

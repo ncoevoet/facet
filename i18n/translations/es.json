@@ -3639,6 +3639,7 @@
     "key_reserved": "Esa tecla está reservada",
     "stack": "Apilar fotos seleccionadas (solo edición)",
     "quick_stack": "Apilar rápidamente la selección (las pilas existentes abren el editor)",
+    "undo": "Deshacer (mientras se muestra la barra Deshacer)",
     "unassigned": "Sin asignar",
     "stack_hint": "Apilar fotos ({key})",
     "keymap_title": "Personalizar atajos"

@@ -1238,17 +1238,18 @@ Os atalhos de uma tecla ficam inativos enquanto o foco está em um campo de text
 | `1`–`5` | Avalia a foto em foco com 1–5 estrelas (modo de edição) |
 | `K` | Mantém a foto em foco (modo de edição) |
 | `F` | Favorita / desfavorita a foto em foco (modo de edição) |
-| `X` ou `0` | Rejeita / desfaz a rejeição da foto em foco (modo de edição) |
+| `X` ou `0` | Rejeita / desfaz a rejeição da foto em foco (modo de edição). Num cartão dentro de uma seleção de duas ou mais fotos, rejeita antes a seleção inteira, com [Desfazer](#desfazer) quando todas as fotos estão carregadas e não passam de 500 |
 | `/` | Foca a busca da coleção; primeiro a exibe em telas estreitas |
 | `S` | Abre o editor de pilhas para a seleção explícita (modo de edição; remapeável, pode ficar sem atribuição) |
 | `Ctrl+Shift+S` / `Cmd+Shift+S` | Empilha de imediato a seleção explícita sem pilha pela ordem de seleção, com a primeira foto como capa (modo de edição; membros de pilhas existentes abrem o editor) |
+| `Ctrl+Z` / `Cmd+Z` | Desfaz a última alteração enquanto sua barra de aviso [Desfazer](#desfazer) estiver visível (todas as páginas; não em campos de texto nem diálogos) |
 | `B` | Mostra / oculta a barra lateral de filtros |
 | `V` | Alterna entre grade, mosaico e lista |
 | `?` | Mostra a referência de atalhos de teclado (em todas as páginas; também no menu do usuário → Ajuda) |
 
 **Avançar após guardar**, nos controles de visualização, vem desativado. Ative-o para passar à próxima foto após salvar uma avaliação ou usar com sucesso os atalhos de manter ou rejeitar. A escolha vale para a sessão atual; mudar de foto, coleção ou conta durante o salvamento impede o avanço automático.
 
-**Remapear teclas.** `K`, `F`, `X`, `/`, `B`, `V` e `S` são padrões. Menu do usuário → **Personalizar atalhos** permite clicar em uma ação e pressionar uma nova tecla (`Esc` ou `Tab` cancela). Dígitos, `Space` e `?` são reservados, e uma tecla já em uso é recusada. **Restaurar tudo** restaura os padrões. O mapeamento é salvo por navegador (`localStorage`). A página da foto usa as mesmas teclas, e a referência `?` sempre mostra as teclas em vigor.
+**Remapear teclas.** `K`, `F`, `X`, `/`, `B`, `V` e `S` são padrões. Menu do usuário → **Personalizar atalhos** permite clicar em uma ação e pressionar uma nova tecla (`Esc` ou `Tab` cancela). Dígitos, `Space` e `?` são reservados, e uma tecla já usada por outra ação na mesma página é recusada. **Restaurar tudo** restaura os padrões. O mapeamento é salvo por navegador (`localStorage`). A página da foto usa as mesmas teclas, e a referência `?` sempre mostra as teclas em vigor.
 
 **Foto atual.** A foto sobre a qual agem as teclas de avaliação, favorito e rejeição tem um contorno de 4px; os outros cartões mantêm o brilho normal. Nada é marcado até você passar para uma foto. Clicar em uma foto leva o marcador até ela. Voltar de uma foto deixa o marcador na última que você viu. A dica do cartão em foco aparece apenas no modo de edição com `viewer.features.show_rating_controls` ligado.
 
@@ -1258,7 +1259,7 @@ Use **Copiar imagem** para copiar uma versão PNG e colá-la em outro aplicativo
 
 ## Desfazer
 
-As alterações em lote de favorito/rejeição/avaliação e as confirmações adiadas de triagem mostram uma barra de aviso com **Desfazer** durante ~7 segundos.
+As alterações em lote de favorito/rejeição/avaliação e as confirmações adiadas de triagem mostram uma barra de aviso com **Desfazer** durante ~7 segundos. `Ctrl+Z` / `Cmd+Z` aciona-a enquanto está visível; num campo de texto, a tecla mantém a função habitual.
 
 - As alterações de marcadores em lote aplicam-se de imediato e são desfeitas revertendo-as (até 500 fotos).
 - Desfazer uma avaliação restaura apenas as estrelas, preservando os outros marcadores. Exige uma captura observada completa de, no máximo, 500 fotos e verifica as alterações posteriores conhecidas localmente; não é a operação do histórico que verifica conflitos no servidor.
