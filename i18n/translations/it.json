@@ -1069,7 +1069,7 @@
       "persons": "Persone e revisione dei volti",
       "map": "Foto su una mappa",
       "culling": "Scegli le foto migliori tra raffiche e scatti simili",
-      "scenes": "Seleziona il tuo servizio in ordine narrativo",
+      "scenes": "Il tuo servizio diviso in scene, in ordine narrativo",
       "junk_sweep": "Trova screenshot, foto sfocate e scarti",
       "stats": "Statistiche e grafici della libreria",
       "compare": "Regola i pesi di punteggio confrontando le foto"
@@ -1646,6 +1646,7 @@
     "notices": {
       "collapsed": "{count} avviso",
       "collapsed_plural": "{count} avvisi",
+      "collapse": "Comprimi gli avvisi",
       "dismiss_all": "Chiudi tutti"
     },
     "person_chip": {

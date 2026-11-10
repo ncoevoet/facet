@@ -1094,7 +1094,7 @@
       "persons": "People and face review",
       "map": "Photos on a map",
       "culling": "Pick the keepers from bursts and similar shots",
-      "scenes": "Cull your shoot in story order",
+      "scenes": "Your shoot grouped into scenes, in story order",
       "junk_sweep": "Find screenshots, blurred and junk photos",
       "stats": "Library statistics and charts",
       "compare": "Tune scoring weights by comparing photos"
@@ -1672,6 +1672,7 @@
     "notices": {
       "collapsed": "{count} notice",
       "collapsed_plural": "{count} notices",
+      "collapse": "Collapse notices",
       "dismiss_all": "Dismiss all"
     },
     "person_chip": {

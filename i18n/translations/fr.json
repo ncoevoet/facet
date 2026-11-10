@@ -1069,7 +1069,7 @@
       "persons": "Personnes et revue des visages",
       "map": "Photos sur une carte",
       "culling": "Choisir les meilleures photos parmi les rafales et les images similaires",
-      "scenes": "Triez votre séance dans l'ordre du récit",
+      "scenes": "Votre séance regroupée en scènes, dans l'ordre du récit",
       "junk_sweep": "Trouver les captures d’écran, photos floues et inutiles",
       "stats": "Statistiques et graphiques de la photothèque",
       "compare": "Ajuster les pondérations en comparant des photos"
@@ -1646,6 +1646,7 @@
     "notices": {
       "collapsed": "{count} notice",
       "collapsed_plural": "{count} notices",
+      "collapse": "Réduire les avis",
       "dismiss_all": "Tout fermer"
     },
     "person_chip": {

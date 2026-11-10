@@ -1069,7 +1069,7 @@
       "persons": "人物与人脸审阅",
       "map": "地图上的照片",
       "culling": "从连拍和相似照片中挑选保留项",
-      "scenes": "按故事顺序完成本次拍摄的选片",
+      "scenes": "按故事顺序将本次拍摄分组为场景",
       "junk_sweep": "查找截图、模糊和无用照片",
       "stats": "图库统计与图表",
       "compare": "通过比较照片调整评分权重"
@@ -1646,6 +1646,7 @@
     "notices": {
       "collapsed": "{count} 条通知",
       "collapsed_plural": "{count} 条通知",
+      "collapse": "收起通知",
       "dismiss_all": "全部关闭"
     },
     "person_chip": {

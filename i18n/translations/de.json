@@ -1069,7 +1069,7 @@
       "persons": "Personen und Gesichtsprüfung",
       "map": "Fotos auf einer Karte",
       "culling": "Die besten Aufnahmen aus Serien und ähnlichen Fotos auswählen",
-      "scenes": "Sichten Sie Ihr Shooting in Erzählreihenfolge",
+      "scenes": "Ihr Shooting in Szenen gruppiert, in Erzählreihenfolge",
       "junk_sweep": "Screenshots, unscharfe und unbrauchbare Fotos finden",
       "stats": "Statistiken und Diagramme der Bibliothek",
       "compare": "Bewertungsgewichte durch Fotovergleiche abstimmen"
@@ -1646,6 +1646,7 @@
     "notices": {
       "collapsed": "{count} Hinweis",
       "collapsed_plural": "{count} Hinweise",
+      "collapse": "Hinweise einklappen",
       "dismiss_all": "Alle schließen"
     },
     "person_chip": {

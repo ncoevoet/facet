@@ -1686,6 +1686,7 @@ export const I18N = {
     notices: {
       collapsed: "gallery.notices.collapsed",
       collapsed_plural: "gallery.notices.collapsed_plural",
+      collapse: "gallery.notices.collapse",
       dismiss_all: "gallery.notices.dismiss_all",
     },
     person_chip: {

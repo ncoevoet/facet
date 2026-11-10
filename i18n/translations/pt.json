@@ -1069,7 +1069,7 @@
       "persons": "Pessoas e revisão de rostos",
       "map": "Fotos num mapa",
       "culling": "Escolha as melhores fotos entre rajadas e fotos semelhantes",
-      "scenes": "Faça a seleção do seu ensaio em ordem narrativa",
+      "scenes": "O seu ensaio agrupado em cenas, em ordem narrativa",
       "junk_sweep": "Encontrar capturas de ecrã, fotos desfocadas e lixo",
       "stats": "Estatísticas e gráficos da biblioteca",
       "compare": "Ajuste os pesos de pontuação comparando fotos"
@@ -1646,6 +1646,7 @@
     "notices": {
       "collapsed": "{count} aviso",
       "collapsed_plural": "{count} avisos",
+      "collapse": "Recolher avisos",
       "dismiss_all": "Dispensar todos"
     },
     "person_chip": {
