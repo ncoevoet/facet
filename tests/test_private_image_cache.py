@@ -9,8 +9,15 @@ from api import config
 from api.auth import hash_password
 
 
+def _change_password(): config._FULL_CONFIG["users"]["root"]["password_hash"] = hash_password("rotated")
+def _demote(): config._FULL_CONFIG["users"]["root"]["role"] = "user"
+def _delete(): del config._FULL_CONFIG["users"]["root"]
+
+
+@pytest.mark.parametrize("change", [_change_password, _demote, _delete], ids=["password", "demote", "delete"])
 @pytest.mark.parametrize("route,extra", [("/thumbnail", {}), ("/thumbnail", {"size": 1920}), ("/image", {})])
-def test_private_image_revalidation_checks_live_session(agent_app, seed_photos_prefix, tmp_path, route, extra):
+def test_private_image_revalidation_checks_live_session(
+        agent_app, seed_photos_prefix, tmp_path, route, extra, change):
     env = agent_app("multi")
     config._FULL_CONFIG["users"]["root"]["directories"] = [str(tmp_path)]
     path = tmp_path / "private.jpg"
@@ -29,8 +36,13 @@ def test_private_image_revalidation_checks_live_session(agent_app, seed_photos_p
     assert cached.status_code == 304
     for header in ("cache-control", "vary", "etag"):
         assert cached.headers[header] == first.headers[header]
-    config._FULL_CONFIG["users"]["root"]["password_hash"] = hash_password("rotated")
+    change()
     refused = env.client.get(route, params=params, headers=conditional)
-    assert refused.status_code not in (200, 206, 304)
+    # A stale session degrades to an anonymous caller, who sees no rows: 404,
+    # never a 304 that would confirm the bytes to a revoked account.
+    assert refused.status_code == 404
+    assert "etag" not in refused.headers
     env.client.cookies.set("facet_auth", headers["Authorization"].split(" ", 1)[1])
-    assert env.client.get(route, params=params, headers={"If-None-Match": first.headers["etag"]}).status_code not in (200, 206, 304)
+    by_cookie = env.client.get(route, params=params, headers={"If-None-Match": first.headers["etag"]})
+    assert by_cookie.status_code == 404
+    assert "etag" not in by_cookie.headers
