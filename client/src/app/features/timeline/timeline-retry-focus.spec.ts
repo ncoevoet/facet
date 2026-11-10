@@ -18,7 +18,7 @@ describe('Timeline calendar retry focus', () => {
     TestBed.configureTestingModule({ providers: [
       provideRouter([]), TimelineFiltersService,
       { provide: ApiService, useValue: api },
-      { provide: AuthService, useValue: { status: signal({ user_id: 'alice' }), token: 'a' } },
+      { provide: AuthService, useValue: { status: signal({ user_id: 'alice' }), session: signal('alice|a'), token: 'a' } },
       { provide: GalleryStore, useValue: { viewFilterParams: signal({}) } },
       { provide: I18nService, useValue: { locale: signal('en'), translations: () => ({}), t: (key: string) => key } },
     ] });

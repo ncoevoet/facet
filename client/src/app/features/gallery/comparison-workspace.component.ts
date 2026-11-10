@@ -175,7 +175,7 @@ const RENDERED_EDGE = RENDERED_THUMBNAIL_EDGE;
               <div class="flex min-w-0 flex-wrap items-center gap-2 border-t border-[var(--mat-sys-outline-variant)] pt-3">
                 <h3 class="m-0 w-full text-xs font-semibold" [title]="pane.photo.filename">{{ pane.slotLabel }} · {{ pane.roleKey | translate }} · {{ pane.photo.filename | filename:54 }}</h3>
                 <app-photo-assessment class="w-full" [photo]="pane.photo" />
-                <button mat-button class="max-sm:!min-w-11 max-sm:!h-11 pointer-coarse:!min-w-11 pointer-coarse:!h-11 !text-xs" data-frame-suggestion [disabled]="!pane.suggestion" (click)="frameSuggestion(pane.photo.path)">{{ (pane.suggestion?.kind === 'person' ? I18N.gallery.compare.inspection.suggested_face : pane.suggestion?.kind === 'subject' ? I18N.gallery.compare.inspection.suggested_subject : inspectionState() === 'loading' ? I18N.ui.labels.loading : I18N.gallery.compare.inspection.no_crop) | translate }}</button>
+                <button mat-button class="max-sm:!min-w-11 max-sm:!h-11 pointer-coarse:!min-w-11 pointer-coarse:!h-11 !text-xs" data-frame-suggestion [disabled]="!pane.suggestion" (click)="frameSuggestion(pane.photo.path)">{{ pane.suggestionKey | translate }}</button>
                 <select data-frame-face [disabled]="!pane.faces.length" [attr.aria-label]="(I18N.gallery.compare.inspection.choose_face | translate) + ': ' + pane.photo.filename" class="max-sm:min-h-11 pointer-coarse:min-h-11 min-w-0 max-w-full rounded border bg-[var(--mat-sys-surface-container)] px-1 py-1" (change)="frameFace(pane.photo.path, $event)">
                   <option value="">{{ I18N.gallery.compare.inspection.choose_face | translate }}</option>
                   @for (face of pane.faces; track face.id) { <option [value]="face.id">{{ face.person_name || (I18N.photo_faces.unassigned_face | translate) }} · {{ face.face_index + 1 }}</option> }
@@ -256,7 +256,9 @@ export class ComparisonWorkspaceComponent {
   private closing = false;
   private readonly token = this.auth.token;
   private readonly owner = this.auth.identity();
-  private readonly status = this.auth.status();
+  // The confirmed session, not the status object: an auth attempt or a revalidation replaces the status
+  // (and nulls it meanwhile) without changing whose comparison this is.
+  private readonly authSession = this.auth.session();
   private readonly guards = inject(StalenessGuardFactory);
   private readonly initialUrl = this.router.url;
   private readonly navigating = trackPendingNavigation({
@@ -271,8 +273,8 @@ export class ComparisonWorkspaceComponent {
 
   private createContext() {
     return this.guards.create(this.destroyRef, {
-      requireEdition: false, track: 'status', valid: () => !this.closing && !this.navigating()
-        && this.token === this.auth.token && this.owner === this.auth.identity() && this.status === this.auth.status(),
+      requireEdition: false, valid: () => !this.closing && !this.navigating()
+        && this.token === this.auth.token && this.owner === this.auth.identity() && this.authSession === this.auth.session(),
     });
   }
   private readonly imagePanes = viewChildren(SyncedZoomComponent);
@@ -314,8 +316,8 @@ export class ComparisonWorkspaceComponent {
     afterNextRender(() => this.host.nativeElement.focus({ preventScroll: true }));
     this.destroyRef.onDestroy(() => { this.closing = true; this.cancelled.next(); this.context.dispose(); });
     effect(() => {
-      const current = this.context.current();
-      if (!this.closing && !this.navigating() && !current) {
+      const session = this.auth.session();
+      if (!this.closing && !this.navigating() && session !== this.authSession) {
         this.session.clear(); this.closing = true; this.cancelled.next();
         void this.router.navigateByUrl('/', { replaceUrl: true });
       }
@@ -372,7 +374,12 @@ export class ComparisonWorkspaceComponent {
         } catch { failed = true; }
       }),
     ]);
-    if (!context.current() || version !== this.inspectionVersion || membership !== JSON.stringify([...this.assignedPaths()].sort())) return;
+    if (version !== this.inspectionVersion || membership !== JSON.stringify([...this.assignedPaths()].sort())) return;
+    if (!context.current()) {
+      // Settled during an auth recheck of the same session: offer a retry rather than stay loading.
+      if (context === this.context && !this.navigating()) this.inspectionState.set('partial');
+      return;
+    }
     this.faceRows.set(faces); this.suggestions.set(suggestions); this.subjectReads = subjectReads;
     this.inspectionState.set(failed ? 'partial' : 'ready');
   }
@@ -453,6 +460,7 @@ export class ComparisonWorkspaceComponent {
     return {
       photo, slotLabel: String.fromCharCode(65 + this.panes().findIndex(item => item.path === photo.path)), roleKey: this.I18N.gallery.compare[TARGET_LABELS[COMPARISON_TARGETS[this.panes().findIndex(item => item.path === photo.path)]]], zoom, rendition, fitted: zoom.scale === SyncedZoomComponent.MIN_SCALE && zoom.tx === 0 && zoom.ty === 0,
       faces: (this.faceRows().get(photo.path) ?? []).filter(face => normalizedInspectionBox(face.box) && Number.isInteger(face.id) && Number.isInteger(face.face_index)), suggestion: this.suggestions().get(photo.path),
+      suggestionKey: this.suggestionKey(this.suggestions().get(photo.path)),
       zoomOutDisabled: this.linked() ? this.panes().some(p => (this.paneZoom().get(p.path) ?? FIT_ZOOM).scale <= SyncedZoomComponent.MIN_SCALE) : zoom.scale <= SyncedZoomComponent.MIN_SCALE,
       zoomInDisabled: this.linked() ? this.panes().some(p => (this.paneZoom().get(p.path) ?? FIT_ZOOM).scale >= SyncedZoomComponent.MAX_SCALE) : zoom.scale >= SyncedZoomComponent.MAX_SCALE,
       previewFailed: this.readiness().get(photo.path) === 'failed',
@@ -461,6 +469,13 @@ export class ComparisonWorkspaceComponent {
       scaleLabel: `${Number(zoom.scale.toFixed(1))}×`,
     };
   }));
+
+  /** The suggested crop's kind, or why there is none yet. */
+  private suggestionKey(suggestion: KeySubject | undefined): string {
+    if (suggestion?.kind === 'person') return this.I18N.gallery.compare.inspection.suggested_face;
+    if (suggestion?.kind === 'subject') return this.I18N.gallery.compare.inspection.suggested_subject;
+    return this.inspectionState() === 'loading' ? this.I18N.ui.labels.loading : this.I18N.gallery.compare.inspection.no_crop;
+  }
 
   /** A source that fell back says so; a failed preview left on its thumbnail says that; otherwise the load phase. */
   private phaseKey(rendition: DisplayedRendition | undefined, previewFailed: boolean): string {

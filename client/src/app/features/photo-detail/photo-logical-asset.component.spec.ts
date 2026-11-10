@@ -1,4 +1,4 @@
-import { signal } from '@angular/core';
+import { computed, signal } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
 import { provideHttpClient } from '@angular/common/http';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
@@ -20,10 +20,11 @@ describe('PhotoLogicalAssetComponent', () => {
   const plan = { preview_token: 'signed-plan', expires_at: 9999999999, operation: 'create', primary_path: '/shot.jpg',
     members, review_conflicts: ['star_rating'], preserves_file_metadata: true };
   let http: HttpTestingController;
-  let auth: { status: ReturnType<typeof signal<object | null>>; token: string; isEdition: ReturnType<typeof signal<boolean>> };
+  let auth: { status: ReturnType<typeof signal<object | null>>; session: () => string | null; token: string; isEdition: ReturnType<typeof signal<boolean>> };
   let events: Subject<NavigationStart | NavigationCancel>;
   beforeEach(() => {
-    auth = { status: signal<object | null>({ user_id: 'alice' }), token: 'alice-token', isEdition: signal(true) };
+    const status = signal<object | null>({ user_id: 'alice' });
+    auth = { status, session: computed(() => (status() as { user_id?: string } | null)?.user_id ?? null), token: 'alice-token', isEdition: signal(true) };
     events = new Subject();
     TestBed.configureTestingModule({ imports: [PhotoLogicalAssetComponent], providers: [
       provideHttpClient(), provideHttpClientTesting(),

@@ -574,6 +574,20 @@ describe('CullingStore', () => {
       expect(store.autoCullPreview()?.plan_digest).toBe('fresh');
     });
 
+    it('flags the open preview as changed when a feed reset invalidates it, instead of leaving a silent Apply', async () => {
+      api.get.mockReturnValue(of(PHOTO_GROUP_FEED));
+      await store.openAutoCull();
+      expect(store.autoCullPreview()).toEqual(PREVIEW);
+      TestBed.tick();
+      await store.applyExternalChanges(null);
+      TestBed.tick();
+      expect(store.autoCullIssue()).toBe('changed');
+      const applied = vi.fn();
+      await store.confirmAutoCull(applied);
+      expect(autoCalls()).toHaveLength(1);
+      expect(applied).not.toHaveBeenCalled();
+    });
+
     it('drops a superseded dry run so the newer preview wins', async () => {
       const first = new Subject<typeof PREVIEW>();
       api.post.mockReturnValueOnce(first);

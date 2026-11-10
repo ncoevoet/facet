@@ -77,6 +77,46 @@ describe('ExportEditorDialogComponent', () => {
     expect(dialogClose).toHaveBeenCalled();
   });
 
+  describe('lost-response alert', () => {
+    const LOST = 'export.preview.uncertain';
+
+    async function renderPreview() {
+      build();
+      const fixture = TestBed.createComponent(ExportEditorDialogComponent);
+      const instance = fixture.componentInstance;
+      instance.mode.set('copy'); instance.targetDir.set('/dest');
+      await instance.previewExport();
+      fixture.detectChanges();
+      return { fixture, instance, el: fixture.nativeElement as HTMLElement };
+    }
+
+    it('is not rendered while the confirm request is in flight', async () => {
+      const { fixture, instance, el } = await renderPreview();
+      const pending = new Subject<never>();
+      applyExport.mockReturnValueOnce(pending);
+      const confirming = instance.confirmPreview();
+      fixture.detectChanges();
+      expect(applyExport).toHaveBeenCalledTimes(1);
+      expect(instance.submitting()).toBe(true);
+      expect(el.textContent).not.toContain(LOST);
+      expect(el.querySelector('[role="alert"]')).toBeNull();
+      pending.error(new Error('connection lost'));
+      await confirming;
+      fixture.detectChanges();
+      expect(el.textContent).toContain(LOST);
+      expect(el.querySelector('[role="alert"]')).not.toBeNull();
+    });
+
+    it('is rendered after a 5xx failure', async () => {
+      const { fixture, el } = await renderPreview();
+      applyExport.mockReturnValueOnce(throwError(() => new HttpErrorResponse({ status: 502 })));
+      await fixture.componentInstance.confirmPreview();
+      fixture.detectChanges();
+      expect(fixture.componentInstance.uncertainReceipt()).toBe('job');
+      expect(el.textContent).toContain(LOST);
+    });
+  });
+
   it('discards a definitely rejected confirmation and displays its reason', async () => {
     build(); component.mode.set('copy'); component.targetDir.set('/dest');
     await component.previewExport();

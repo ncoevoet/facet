@@ -4,7 +4,7 @@ import { HttpTestingController, provideHttpClientTesting } from '@angular/common
 import { MAX_POLL_FAILURES, ScanService, ScanStatus } from './scan.service';
 import { AuthService, AuthStatus } from './auth.service';
 import { MatDialog } from '@angular/material/dialog';
-import { of } from 'rxjs';
+import { of, Subject } from 'rxjs';
 import { makeJwt } from '../../../testing/jwt';
 
 class MockEventSource {
@@ -37,6 +37,11 @@ function authorizedStatus(): AuthStatus {
   return { authenticated: true, multi_user: false, edition_enabled: true, edition_authenticated: true,
     edition_password_required: false, login_password_required: false, user_id: 'alice', user_role: 'admin',
     display_name: 'Alice', features: { show_scan_button: true }, download_profiles: [] };
+}
+
+/** A single-user install has one account whatever `user_id` it reports, so another account needs multi-user mode. */
+function otherAccount(user_id: string): AuthStatus {
+  return { ...authorizedStatus(), multi_user: true, user_role: 'superadmin', user_id };
 }
 
 describe('ScanService', () => {
@@ -128,7 +133,7 @@ describe('ScanService', () => {
     it('does not connect a prior-session accepted retry to the new account', async () => {
       const apply = service.applyRetry(id);
       const write = httpTesting.expectOne('/api/scan/retry/apply');
-      TestBed.inject(AuthService).status.set({ ...authorizedStatus(), user_id: 'other' });
+      TestBed.inject(AuthService).status.set(otherAccount('other'));
       write.flush({ success: true, job_id: 'b'.repeat(32), pid: 123, directories: [], message: 'Spawned' });
       await apply;
       httpTesting.expectNone('/api/scan/stream_token');
@@ -165,7 +170,7 @@ describe('ScanService', () => {
       request.flush({ job_id: job, stop_requested: true }); await stop;
       expect(service.status().job_id).toBe(newer);
       expect(service.status().cancel_requested).toBe(false);
-      TestBed.inject(AuthService).status.set({ ...authorizedStatus(), user_id: 'other' });
+      TestBed.inject(AuthService).status.set(otherAccount('other'));
       // Before Angular has run the auth cleanup effect, the old observation is already invalid.
       await expect(service.cancelScan(newer)).rejects.toThrow('context changed');
       httpTesting.expectNone('/api/scan/cancel');
@@ -283,7 +288,7 @@ describe('ScanService', () => {
     const first = service.connect(); flushMint(); await first;
     MockEventSource.instances[0].simulateMessage(mockStatus);
     const reconnect = service.connect();
-    TestBed.inject(AuthService).status.set({ ...authorizedStatus(), user_id: 'bob' });
+    TestBed.inject(AuthService).status.set(otherAccount('bob'));
     flushMint(); await reconnect;
     expect(MockEventSource.instances).toHaveLength(1);
     expect(service.status().output).toEqual([]);
@@ -294,7 +299,7 @@ describe('ScanService', () => {
   it('rejects stale directory results and does not attach an accepted start to another account', async () => {
     const dirs = service.loadDirectories();
     const pendingDirs = httpTesting.expectOne('/api/scan/directories');
-    TestBed.inject(AuthService).status.set({ ...authorizedStatus(), user_id: 'bob' });
+    TestBed.inject(AuthService).status.set(otherAccount('bob'));
     pendingDirs.flush({ directories: [{ path: '/alice/private', owner: 'alice' }] });
     await expect(dirs).rejects.toThrow('Scan session changed');
     const paths = ['/bob'];
@@ -514,7 +519,7 @@ describe('ScanService', () => {
     expect(request.request.method).toBe('GET');
     expect(request.request.params.get('limit')).toBe('20');
     expect(request.request.params.get('before')).toBe('42');
-    TestBed.inject(AuthService).status.set({ ...authorizedStatus(), user_id: 'other' });
+    TestBed.inject(AuthService).status.set(otherAccount('other'));
     request.flush({ runs: [], next_before: null });
     await expect(history).rejects.toThrow('Scan session changed');
     httpTesting.expectNone('/api/scan/start');
@@ -628,6 +633,30 @@ describe('ScanService', () => {
     it('returns false when the launcher is dismissed', async () => {
       withDialog(undefined);
       expect(await TestBed.inject(ScanService).openLauncher()).toBe(false);
+    });
+
+    it('keeps the launcher and the scan stream through a same-session revalidation and a rejected edition password', async () => {
+      const token = makeJwt(3600);
+      vi.spyOn(Storage.prototype, 'getItem').mockImplementation(key => key === 'facet_token' ? token : null);
+      const closed = new Subject<unknown>(); const close = vi.fn();
+      TestBed.resetTestingModule();
+      TestBed.configureTestingModule({ providers: [ScanService, AuthService, provideHttpClient(withXhr()), provideHttpClientTesting(),
+        { provide: MatDialog, useValue: { open: vi.fn(() => ({ afterClosed: () => closed, close })) } }] });
+      const auth = TestBed.inject(AuthService); const http = TestBed.inject(HttpTestingController); const scan = TestBed.inject(ScanService);
+      const confirmed = auth.revalidate(); http.expectOne('/api/auth/status').flush(authorizedStatus()); await confirmed;
+      const connect = scan.connect(); http.expectOne('/api/scan/stream_token').flush({ token: 'minted' }); await connect;
+      const launcher = scan.openLauncher(); await vi.waitFor(() => expect(TestBed.inject(MatDialog).open).toHaveBeenCalled());
+      auth.status.set(authorizedStatus()); TestBed.tick();
+      expect(close).not.toHaveBeenCalled(); expect(MockEventSource.instances.at(-1)!.closed).toBe(false);
+      const login = auth.editionLogin('wrong'); TestBed.tick();
+      expect(auth.status()).toBeNull(); expect(close).not.toHaveBeenCalled(); expect(MockEventSource.instances.at(-1)!.closed).toBe(false);
+      http.expectOne('/api/auth/edition/login').flush('Forbidden', { status: 403, statusText: 'Forbidden' });
+      expect(await login).toBe('invalid'); TestBed.tick();
+      expect(close).not.toHaveBeenCalled(); expect(MockEventSource.instances.at(-1)!.closed).toBe(false);
+      auth.status.set(otherAccount('bob')); TestBed.tick();
+      expect(close).toHaveBeenCalledWith(false); expect(MockEventSource.instances.at(-1)!.closed).toBe(true);
+      closed.next(false); closed.complete(); expect(await launcher).toBe(false);
+      scan.ngOnDestroy(); http.verify();
     });
   });
 

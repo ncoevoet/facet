@@ -117,13 +117,13 @@ export class PhotoLogicalAssetComponent extends PhotoPanelReader<Context> {
     super();
     // Shown inline in the open Related files panel, so it reads whenever it can: on render and after each reset.
     effect(() => {
-      if (this.expanded() || this.navigating || !this.auth.status()) return;
+      if (this.expanded() || this.navigating || !this.auth.session()) return;
       untracked(() => { this.expanded.set(true); this.load(); });
     });
   }
 
   protected override load(message = ''): void {
-    if (!this.expanded() || this.navigating || !this.auth.status()) return;
+    if (!this.expanded() || this.navigating || !this.auth.session()) return;
     this.request?.unsubscribe(); this.revision++;
     const current = this.scope();
     this.loadedScope = current; this.context.set(null); this.clearPreview(); this.busy.set(true); this.error.set(message);

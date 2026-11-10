@@ -65,7 +65,6 @@ import { ScanService } from '../../core/services/scan.service';
 import { useDesktopSignal, DETAILS_RAIL_MIN_WIDTH_PX, LG_BREAKPOINT_PX } from '../../shared/utils/media-query';
 import { privateImageSessionKey } from '../../shared/utils/private-image-session';
 import { I18nService } from '../../core/services/i18n.service';
-import { ApiService } from '../../core/services/api.service';
 import { PluralKeyPipe } from '../../shared/pipes/plural-key.pipe';
 import { TranslatePipe } from '../../shared/pipes/translate.pipe';
 import { STACK_MAX_MEMBERS, STACK_MIN_MEMBERS } from './stack-limits';
@@ -1120,7 +1119,6 @@ export class GalleryComponent implements OnInit, OnDestroy {
   private resumeNavigation = 0;
   // Detaching loses the DOM scroll position and focus.
   private returnTo: ReturnTarget | null = null;
-  private readonly api = inject(ApiService);
   private readonly pageHelp = inject(PageHelpService);
   private readonly viewControls = viewChild(GalleryViewControlsComponent);
   private readonly collectionPopovers = viewChildren(ControlPopoverComponent);
@@ -1248,8 +1246,8 @@ export class GalleryComponent implements OnInit, OnDestroy {
   /** True while the selection means "the whole filtered view", not a path list. */
   protected readonly viewScoped = this.store.viewScopeSelected;
   protected readonly refreshBlocked = computed(() => refreshBlockedReason(this.viewScoped(), this.selectionCount()));
-  /** How the bar names its target: explicit photos, the whole view, or the whole view minus exclusions. */
   protected readonly selectedStackTiles = computed(() => this.selectionDetails().stackTiles);
+  /** How the bar names its target: explicit photos, the whole view, or the whole view minus exclusions. */
   protected readonly selectionStatus = computed(() => {
     const count = this.selectionCount(), excluded = this.excludedPaths().size;
     const params: Record<string, number> = { count };

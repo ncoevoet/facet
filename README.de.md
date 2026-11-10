@@ -72,7 +72,7 @@ Bewegen Sie den Mauszeiger über ein beliebiges Foto, um die Wertungsaufschlüss
 </tr></table>
 
 <details><summary>Vollständige Filter-Seitenleiste — alle Abschnitte aufgeklappt (zum Anzeigen klicken)</summary>
-<p align="center"><img src="docs/screenshots/filter-sidebar-full.jpg" alt="Die drei Tabs der Filter-Seitenleiste nebeneinander: Durchsuchen, Qualität und Motiv" width="900"></p>
+<p align="center"><img src="docs/screenshots/filter-sidebar-full.jpg" alt="Die Filter-Seitenleiste der Galerie, deren Filter in Tabs gruppiert sind" width="900"></p>
 </details>
 
 **Workflow-Tipps:**

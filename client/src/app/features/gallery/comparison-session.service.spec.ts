@@ -12,13 +12,14 @@ class PageStub {}
 const photos = ['/a.jpg', '/b.jpg'].map(path => ({ path, filename: path } as Photo));
 
 describe('ComparisonSessionService', () => {
-  const status = signal({ user_id: 'alice', authenticated: true });
+  const status = signal<{ user_id: string; authenticated: boolean } | null>({ user_id: 'alice', authenticated: true });
+  const session = signal<string | null>('alice|first');
   let token: string | null;
   beforeEach(() => {
-    token = 'first'; status.set({ user_id: 'alice', authenticated: true });
+    token = 'first'; status.set({ user_id: 'alice', authenticated: true }); session.set('alice|first');
     const comparison = routes.find(route => route.path === 'photo-compare')!;
     TestBed.configureTestingModule({ providers: [
-      { provide: AuthService, useValue: { status, identity: () => status().user_id, isEdition: () => false, get token() { return token; } } },
+      { provide: AuthService, useValue: { status, session, identity: () => status()?.user_id ?? '', isEdition: () => false, get token() { return token; } } },
       provideRouter([{ path: '', component: PageStub }, { ...comparison, loadComponent: undefined, component: PageStub }]),
     ] });
   });
@@ -60,9 +61,22 @@ describe('ComparisonSessionService', () => {
     const service = TestBed.inject(ComparisonSessionService);
     expect(service.start(photos, '/')).toBe(true);
     token = 'rotated'; expect(service.snapshot().photos).toEqual([]);
-    token = 'first'; status.set({ user_id: 'bob', authenticated: true });
+    token = 'first'; status.set({ user_id: 'bob', authenticated: true }); session.set('bob|first');
     expect(service.snapshot().photos).toEqual([]);
-    TestBed.tick(); status.set({ user_id: 'alice', authenticated: true });
+    TestBed.tick(); status.set({ user_id: 'alice', authenticated: true }); session.set('alice|first');
+    expect(service.snapshot().photos).toEqual([]);
+  });
+  it('keeps the comparison through a same-session revalidation and its transient null, never through sign-out', () => {
+    const service = TestBed.inject(ComparisonSessionService);
+    expect(service.start(photos, '/album/42')).toBe(true);
+    status.set({ user_id: 'alice', authenticated: true }); TestBed.tick();
+    expect(service.snapshot().photos).toEqual(photos);
+    status.set(null); TestBed.tick();
+    expect(service.snapshot().photos).toEqual(photos);
+    status.set({ user_id: 'alice', authenticated: true }); TestBed.tick();
+    expect(service.snapshot()).toMatchObject({ photos, returnUrl: '/album/42' });
+    status.set(null); session.set(null); TestBed.tick();
+    status.set({ user_id: 'alice', authenticated: true }); session.set('alice|first');
     expect(service.snapshot().photos).toEqual([]);
   });
   it('admits captured read-only comparison and redirects direct or expired entries', async () => {

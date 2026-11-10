@@ -6,11 +6,12 @@ import { AuthService } from '../../../core/services/auth.service';
 import { I18N } from '../../../core/i18n/keys';
 import { TranslatePipe } from '../../pipes/translate.pipe';
 import { PluralKeyPipe } from '../../pipes/plural-key.pipe';
+import { CategoryNamePipe } from '../../pipes/category-name.pipe';
 import { MetricDistribution } from '../../utils/metric-distribution';
 
 @Component({
   selector: 'app-metric-distribution',
-  imports: [ControlPopoverComponent, MetricRankComponent, TranslatePipe, PluralKeyPipe],
+  imports: [ControlPopoverComponent, MetricRankComponent, TranslatePipe, PluralKeyPipe, CategoryNamePipe],
   changeDetection: ChangeDetectionStrategy.OnPush,
   host: { class: 'block shrink-0' },
   template: `
@@ -22,14 +23,14 @@ import { MetricDistribution } from '../../utils/metric-distribution';
                 (click)="scope.set('library')">{{ I18N.photo_detail.distribution.library | translate }}</button>
         <button type="button" class="min-h-11 flex-1 rounded border border-[var(--mat-sys-outline-variant)] px-2 text-xs disabled:opacity-50"
                 [disabled]="!category()" [class.bg-[var(--mat-sys-secondary-container)]]="effectiveScope() === 'category'"
-                [attr.aria-pressed]="effectiveScope() === 'category'" (click)="scope.set('category')">{{ category() || (I18N.photo_detail.distribution.category | translate) }}</button>
+                [attr.aria-pressed]="effectiveScope() === 'category'" (click)="scope.set('category')">{{ category() ? (category() | categoryName) : (I18N.photo_detail.distribution.category | translate) }}</button>
       </div>
       @if (loading()) { <p role="status" class="text-xs">{{ I18N.ui.labels.loading | translate }}</p> }
       @else if (failed()) {
         <p role="alert" class="text-xs">{{ I18N.errors.action_failed | translate }}</p>
         <button type="button" class="min-h-11 underline text-xs" (click)="retry.set(retry() + 1)">{{ I18N.gallery.load_error.retry | translate }}</button>
       } @else if (range(); as range) {
-        <app-metric-rank class="block [&_app-metric-sparkline]:!h-16" [range]="range" [value]="value()" [percent]="percent()" [scopeLabel]="effectiveScope() === 'category' && category() ? category() : (I18N.photo_detail.distribution.library | translate)" />
+        <app-metric-rank class="block [&_app-metric-sparkline]:!h-16" [range]="range" [value]="value()" [percent]="percent()" [scopeLabel]="effectiveScope() === 'category' && category() ? (category() | categoryName) : (I18N.photo_detail.distribution.library | translate)" />
         <p class="mb-0 text-xs text-[var(--mat-sys-on-surface-variant)]">{{ count() | pluralKey:I18N.gallery.photo_count_one:I18N.gallery.photo_count | translate:{count: count()} }}</p>
       } @else { <p class="text-xs">{{ I18N.photo_detail.assessment.unavailable | translate }}</p> }
     </ng-template>

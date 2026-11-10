@@ -125,6 +125,16 @@ describe('PhotoCardComponent', () => {
     expect(value().textContent).toContain('—'); expect(value().textContent).not.toContain('9.0');
   });
 
+  it('formats a shutter-speed sort value the way the exposure column does', () => {
+    fixture.componentInstance.listMode.set(true);
+    fixture.componentInstance.photo.set(makePhoto({ shutter_speed: '0.0125', f_stop: null, iso: null, focal_length: null }));
+    fixture.componentInstance.currentSort.set('shutter_speed'); fixture.detectChanges();
+    const cell = fixture.nativeElement.querySelector('[data-list-sort]') as HTMLElement;
+    expect(cell.textContent).toContain('1/80'); expect(cell.textContent).not.toContain('0.0125');
+    fixture.componentInstance.photo.set(makePhoto({ shutter_speed: null })); fixture.detectChanges();
+    expect(cell.textContent).toContain('—');
+  });
+
   it('keeps metadata list menu key presses separate from row selection and gates edit actions', async () => {
     fixture.componentInstance.listMode.set(true); fixture.componentInstance.photo.set(makePhoto({ path: '/row.jpg', is_rejected: true, star_rating: 0 }));
     fixture.detectChanges();

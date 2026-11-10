@@ -24,6 +24,9 @@ import { PersonFaceBoxesService } from '../../shared/components/photo-card/perso
 
 type Face = components['schemas']['FaceReviewItem'];
 type Response = components['schemas']['FaceReviewResponse'];
+/** `AssignFacesRequest` refuses more than 500 face ids (and tokens) in one call. */
+const ASSIGN_FACES_MAX = 500;
+
 interface Choice { personId: number; name: string }
 interface CapturedFace extends Choice { faceId: number; token: string }
 interface FeedbackReceipt { face: Face; choice: Choice; receiptId: string }
@@ -488,22 +491,25 @@ export class FaceReviewQueueComponent {
     try {
       for (const group of this.planGroups()) {
         if (!guard.current()) return;
-        const faces = plan.filter(face => face.personId === group.personId);
-        const report = await firstValueFrom(this.api.post<AssignmentReport>(`/persons/${group.personId}/assign_faces`, {
-          face_ids: faces.map(face => face.faceId), only_unassigned: true, tolerant: true,
-          expected_face_tokens: Object.fromEntries(faces.map(face => [face.faceId, face.token])), expected_person_name: group.name,
-        }));
-        if (!guard.current()) return;
-        const reasons = [
-          [report.already, I18N.persons.review_queue.already], [report.missing, I18N.persons.review_queue.missing],
-          [report.skipped_model, I18N.persons.review_queue.model_mismatch], [report.skipped_hidden, I18N.persons.review_queue.already_assigned],
-          [report.skipped_assigned, I18N.persons.review_queue.already_assigned], [report.skipped_changed, I18N.persons.review_queue.face_changed],
-        ] as const;
-        this.receipt.update(value => ({ assigned: (value?.assigned ?? 0) + report.assigned_count, skipped: (value?.skipped ?? 0) + faces.length - report.assigned_count,
-          reasons: [...(value?.reasons ?? []), ...reasons.filter(([ids]) => ids.length).map(([ids, label]) => ({ name: group.name, label, count: ids.length }))] }));
-        this.boxes.clear();
-        const settled = new Set(faces.map(face => face.faceId));
-        this.faces.update(value => value.filter(face => !settled.has(face.face_id)));
+        const groupFaces = plan.filter(face => face.personId === group.personId);
+        for (let start = 0; start < groupFaces.length; start += ASSIGN_FACES_MAX) {
+          const faces = groupFaces.slice(start, start + ASSIGN_FACES_MAX);
+          const report = await firstValueFrom(this.api.post<AssignmentReport>(`/persons/${group.personId}/assign_faces`, {
+            face_ids: faces.map(face => face.faceId), only_unassigned: true, tolerant: true,
+            expected_face_tokens: Object.fromEntries(faces.map(face => [face.faceId, face.token])), expected_person_name: group.name,
+          }));
+          if (!guard.current()) return;
+          const reasons = [
+            [report.already, I18N.persons.review_queue.already], [report.missing, I18N.persons.review_queue.missing],
+            [report.skipped_model, I18N.persons.review_queue.model_mismatch], [report.skipped_hidden, I18N.persons.review_queue.already_assigned],
+            [report.skipped_assigned, I18N.persons.review_queue.already_assigned], [report.skipped_changed, I18N.persons.review_queue.face_changed],
+          ] as const;
+          this.receipt.update(value => ({ assigned: (value?.assigned ?? 0) + report.assigned_count, skipped: (value?.skipped ?? 0) + faces.length - report.assigned_count,
+            reasons: [...(value?.reasons ?? []), ...reasons.filter(([ids]) => ids.length).map(([ids, label]) => ({ name: group.name, label, count: ids.length }))] }));
+          this.boxes.clear();
+          const settled = new Set(faces.map(face => face.faceId));
+          this.faces.update(value => value.filter(face => !settled.has(face.face_id)));
+        }
       }
       if (guard.current()) { this.pending.set(null); this.selected.set(new Set()); if ((this.receipt()?.skipped ?? 0) > 0) { this.changed.set(true); this.error.set(true); } }
     } catch {

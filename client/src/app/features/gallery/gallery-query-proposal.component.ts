@@ -37,6 +37,13 @@ interface Calculation {
   conflictText: string;
 }
 
+/** The input a proposed filter value is edited through. */
+function fieldKind(key: string, value: unknown): 'boolean' | 'number' | 'date' | 'text' {
+  if (typeof value === 'boolean') return 'boolean';
+  if (typeof value === 'number') return 'number';
+  return key === 'date_from' || key === 'date_to' ? 'date' : 'text';
+}
+
 @Component({
   selector: 'app-gallery-query-proposal', imports: [TranslatePipe],
   changeDetection: ChangeDetectionStrategy.OnPush, host: { class: 'block min-w-0' },
@@ -131,7 +138,7 @@ export class GalleryQueryProposalComponent {
   private trigger: HTMLElement | null = null;
   readonly rows = computed(() => Object.entries(this.proposal()?.patch ?? {}).map(([key, value]) => ({
     key, value, label: this.fieldLabel(key), fraction: key === 'semantic_threshold' || key === 'min_similarity' || ADDITIONAL_FILTERS.some(row => (row.minKey === key || row.maxKey === key) && row.sliderMax === 1),
-    kind: typeof value === 'boolean' ? 'boolean' : typeof value === 'number' ? 'number' : ['date_from', 'date_to'].includes(key) ? 'date' : 'text',
+    kind: fieldKind(key, value),
   })));
   readonly calculation = computed<Calculation | null>(() => {
     const accepted = this.accepted();

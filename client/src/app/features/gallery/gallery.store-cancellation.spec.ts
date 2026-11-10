@@ -56,7 +56,7 @@ describe('GalleryStore read cancellation with HttpClient', () => {
     outlet = { attachEvents: new Subject(), detachEvents: new Subject() };
     TestBed.configureTestingModule({ providers: [
       ApiService, provideHttpClient(withXhr()), provideHttpClientTesting(),
-      { provide: AuthService, useValue: { status: signal({ user_id: 'alice', edition_authenticated: true }), identity, isEdition: vi.fn(() => false) } },
+      { provide: AuthService, useValue: { status: signal({ user_id: 'alice', edition_authenticated: true }), identity, session: signal('alice'), isEdition: vi.fn(() => false) } },
       { provide: Router, useValue: { url: '/', events, navigate: vi.fn(), currentNavigation: () => null } },
       { provide: ActivatedRoute, useValue: { snapshot: { queryParams: {}, paramMap: { get: () => null } } } },
       { provide: RouterOutlet, useValue: outlet },

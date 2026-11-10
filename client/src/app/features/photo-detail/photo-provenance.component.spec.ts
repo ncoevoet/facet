@@ -1,5 +1,5 @@
 import { OverlayContainer } from '@angular/cdk/overlay';
-import { signal } from '@angular/core';
+import { computed, signal } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
 import { provideHttpClient } from '@angular/common/http';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
@@ -18,12 +18,13 @@ describe('PhotoProvenanceComponent', () => {
     manual_tags: [{ tag: 'from xmp', source: 'xmp' }], manual_tags_truncated: false,
     capture_date_override: true, gps_override: false,
   };
-  let auth: { status: ReturnType<typeof signal<object | null>>; token: string };
+  let auth: { status: ReturnType<typeof signal<object | null>>; session: () => string | null; token: string };
   let events: Subject<RouterEvent>;
   let http: HttpTestingController;
 
   beforeEach(() => {
-    auth = { status: signal<object | null>({ user_id: 'alice' }), token: 'original-token' };
+    const status = signal<object | null>({ user_id: 'alice' });
+    auth = { status, session: computed(() => (status() as { user_id?: string } | null)?.user_id ?? null), token: 'original-token' };
     events = new Subject();
     TestBed.configureTestingModule({
       imports: [PhotoProvenanceComponent],

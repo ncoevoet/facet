@@ -259,6 +259,7 @@ describe('GalleryComponent', () => {
     mockAuth = {
       status: authStatus,
       identity: vi.fn(() => authStatus().user_id),
+      session: computed(() => authStatus()?.user_id ?? null),
       isEdition: vi.fn(() => false),
       downloadProfiles: vi.fn(() => []),
       hasFeature: vi.fn(() => false),

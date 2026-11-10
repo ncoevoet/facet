@@ -329,8 +329,3 @@ app-gallery-view-controls .mat-mdc-button:not(:disabled) {
     flex-shrink: 0;
   }
 }
-
-@keyframes facet-calendar-enter {
-  from { opacity: 0; transform: translateY(-6px); }
-  to { opacity: 1; transform: translateY(0); }
-}

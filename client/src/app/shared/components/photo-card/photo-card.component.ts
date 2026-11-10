@@ -73,9 +73,6 @@ const DEFAULT_CLIPPING_BADGE_PERCENT = 5;
   standalone: true,
   host: {
     '[attr.role]': "listMode() ? 'listitem' : 'gridcell'",
-    // Detailed flow cards must retain their real layout height off-screen.
-    // An estimated intrinsic placeholder makes browser scroll anchoring move
-    // the gallery as cards become visible. Fixed-size modes use row windowing.
     // Room for the scrollIntoView the grid's keyboard cursor performs on the
     // card it lands on. That call asks for `block: 'nearest'`, which is the
     // least scrolling that brings an edge of the card to an edge of the
@@ -105,14 +102,12 @@ const DEFAULT_CLIPPING_BADGE_PERCENT = 5;
     '[class.outline-4]': 'isActive()',
     '[class.outline-[var(--mat-sys-tertiary)]]': 'isActive()',
     '[class.outline-offset-2]': 'isActive()',
-    // Matches the tile's own rounding so the offset outline is concentric with
-    // it rather than cutting square corners past it.
+    // Rounds the corners of the offset outline, which follows the host's radius
+    // rather than the tile's, so it does not cut square corners past the tile.
     '[class.rounded-lg]': 'isActive()',
     // The hosts are flex/grid items, so this applies without positioning them.
     // Well under the action bar (z-50) and the scroll-to-top button (z-40).
     '[class.z-10]': 'isActive()',
-    // Keep every photo at its true display strength while moving focus.
-    // Selection/current markers carry state without simulating exposure changes.
   },
   imports: [PhotoListExtraComponent,
     FaceFocusOverlayComponent,
@@ -181,6 +176,8 @@ const DEFAULT_CLIPPING_BADGE_PERCENT = 5;
             <div class="font-semibold">
               @if (currentSort() === 'date_taken') {
                 <span class="block text-xs">{{ photo().date_taken ? (photo().date_taken | captureDate) : (I18N.gallery.no_capture_date | translate) }}</span>
+              } @else if (currentSort() === 'shutter_speed') {
+                <span class="block truncate">{{ (photo().shutter_speed | shutterSpeed) || '—' }}</span>
               } @else if (listSortText(); as text) { <span class="block truncate" [title]="text">{{ text }}</span> }
               @else { <span class="text-base">{{ listSortNumber() === null ? '—' : (listSortNumber() | fixed:1) }}</span> }
             </div>
@@ -747,15 +744,15 @@ export class PhotoCardComponent {
   // Display state
   readonly isSelected = input(false);
   readonly showSelectionIndicators = input(false);
+  /** Only one card of a grid sits in the tab order (arrow keys move between cards); the rest stay out of it. */
+  readonly tabStop = input(true);
+  /** Controls inside the card follow the card: natural order on the tab stop, skipped on every other card. */
+  protected readonly innerTabIndex = computed(() => this.tabStop() ? null : -1);
   /** Whether this card is the one the grid's keyboard cursor is standing on.
    *
    *  Independent of `isSelected`: a card can be both, and the two say different
    *  things -- selection is a set the batch actions operate on, current is the
    *  single photo the next rating keystroke lands on. */
-  /** Only one card of a grid sits in the tab order (arrow keys move between cards); the rest stay out of it. */
-  readonly tabStop = input(true);
-  /** Controls inside the card follow the card: natural order on the tab stop, skipped on every other card. */
-  protected readonly innerTabIndex = computed(() => this.tabStop() ? null : -1);
   readonly isActive = input(false);
   /** Enables keyboard-rating hints after the grid cursor first lands on a photo. */
   readonly gridHasActiveCard = input(false);

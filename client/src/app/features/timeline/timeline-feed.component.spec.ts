@@ -22,7 +22,7 @@ const first = { groups: [{ date: '2026-11-01', count: 12, photos: [
 describe('Timeline photo feed', () => {
   async function setup() {
     const api = { get: vi.fn().mockReturnValue(of(first)) };
-    const auth = { status: signal({ user_id: 'alice', authenticated: true }), token: 'a' };
+    const auth = { status: signal<{ user_id: string; authenticated: boolean } | null>({ user_id: 'alice', authenticated: true }), session: signal<string | null>('alice|a'), token: 'a' };
     const visibility = signal({ hide_bursts: '1', hide_duplicates: '0' });
     const photos = signal<Photo[]>([]);
     const timelineMembershipRevision = signal(0);
@@ -144,8 +144,23 @@ describe('Timeline photo feed', () => {
     expect(pending.observed).toBe(true);
     await v.router.navigateByUrl('/photo?path=%2Ffirst.jpg'); await v.settle(); expect(pending.observed).toBe(false);
     pending.next(first); expect(v.root.querySelectorAll('h2')).toHaveLength(0);
-    v.auth.status.set({ user_id: 'bob', authenticated: true }); v.auth.token = 'b'; await v.settle();
+    v.auth.status.set({ user_id: 'bob', authenticated: true }); v.auth.token = 'b'; v.auth.session.set('bob|b'); await v.settle();
     expect(v.root.querySelector('img')).toBeNull(); v.dispose();
+  });
+
+  it('keeps loaded pages and the return position through a revalidation of the same session', async () => {
+    const v = await setup();
+    v.api.get.mockReturnValueOnce(of({ groups: [{ date: '2026-10-31', count: 1, photos: [{ path: '/second.jpg', filename: 'second.jpg' }] }], next_cursor: null, has_more: false }));
+    await v.reach();
+    expect(v.root.querySelectorAll('h2')).toHaveLength(2); const calls = v.api.get.mock.calls.length;
+    v.auth.status.set(null); await v.settle();
+    v.auth.status.set({ user_id: 'alice', authenticated: true }); await v.settle();
+    expect(v.root.querySelectorAll('h2')).toHaveLength(2); expect(v.api.get).toHaveBeenCalledTimes(calls);
+    v.wrapper.scrollTop = 120; v.wrapper.dispatchEvent(new Event('scroll'));
+    await v.router.navigateByUrl('/photo?path=%2Ffirst.jpg'); v.dispose();
+    await v.router.navigateByUrl('/timeline'); const back = v.create(); await back.settle();
+    expect(back.root.querySelectorAll('h2')).toHaveLength(2); expect(back.wrapper.scrollTop).toBe(120);
+    expect(v.api.get).toHaveBeenCalledTimes(calls); back.dispose();
   });
 
   it('keeps an in-flight read when the scope is re-emitted unchanged, but restarts on a real change', async () => {

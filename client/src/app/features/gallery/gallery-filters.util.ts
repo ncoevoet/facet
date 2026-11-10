@@ -19,8 +19,10 @@ export function parseGalleryMode(value: string | null | undefined): GalleryMode 
   return value === 'mosaic' || value === 'list' ? value : 'grid';
 }
 
+const NEXT_GALLERY_MODE: Record<GalleryMode, GalleryMode> = { grid: 'mosaic', mosaic: 'list', list: 'grid' };
+
 export function nextGalleryMode(value: GalleryMode): GalleryMode {
-  return value === 'grid' ? 'mosaic' : value === 'mosaic' ? 'list' : 'grid';
+  return NEXT_GALLERY_MODE[value];
 }
 export type TooltipMode = 'hover' | 'click' | 'off' | 'panel';
 

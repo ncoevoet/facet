@@ -4427,6 +4427,17 @@ describe('BurstCullingComponent modals (rendered)', () => {
     expect(document.activeElement).toBe(summary);
   });
 
+  it('stacks the open group when S is pressed on the darkroom dialog itself', () => {
+    openDarkroom();
+    fixture.detectChanges();
+    const stack = vi.spyOn(component, 'stackGroup').mockResolvedValue(undefined);
+    const dialog = fixture.nativeElement.querySelector('[role="dialog"][aria-modal="true"]') as HTMLElement;
+    const event = new KeyboardEvent('keydown', { key: 's', bubbles: true, cancelable: true });
+    dialog.dispatchEvent(event);
+    expect(stack).toHaveBeenCalledWith(component['lightboxGroup']());
+    expect(event.defaultPrevented).toBe(true);
+  });
+
   it('leaves native Inspect activation keys alone in stack mode instead of stacking', () => {
     openDarkroom();
     store.mode.set('stacks');

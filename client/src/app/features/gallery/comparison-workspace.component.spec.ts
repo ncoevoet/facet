@@ -25,7 +25,8 @@ const photo = (path: string): Photo => ({ path, filename: path.slice(1) } as Pho
 function build(paths: string[]) {
   const data = { photos: paths.map(photo), returnUrl: '/?search=captured', revision: 1 };
   const session = { snapshot: () => data, clear: vi.fn() };
-  const authStatus = signal({ user_id: 'alice' });
+  const authStatus = signal<{ user_id: string } | null>({ user_id: 'alice' });
+  const authSession = signal<string | null>('alice');
   const api = { get: vi.fn(), post: vi.fn() };
   api.get.mockReturnValue(of({ faces: [] }));
   api.post.mockReturnValue(of({ key_subjects_by_path: {} }));
@@ -34,7 +35,7 @@ function build(paths: string[]) {
     providers: [
       provideRouter([]),
       { provide: ApiService, useValue: api },
-      { provide: AuthService, useValue: { status: authStatus, identity: () => authStatus().user_id, isEdition: () => false, token: null } },
+      { provide: AuthService, useValue: { status: authStatus, session: authSession, identity: () => authStatus()?.user_id ?? '', isEdition: () => false, token: null } },
       { provide: ComparisonSessionService, useValue: session },
       { provide: I18nService, useValue: { t: (k: string) => k, translations: () => ({}) } },
     ],
@@ -43,7 +44,8 @@ function build(paths: string[]) {
   vi.spyOn(router, 'navigateByUrl').mockResolvedValue(true);
   const fixture = TestBed.createComponent(ComparisonWorkspaceComponent);
   fixture.detectChanges();
-  return { fixture, router, api, authStatus, data, session };
+  const switchAccount = (user: string) => { authStatus.set({ user_id: user }); authSession.set(user); };
+  return { fixture, router, api, authStatus, switchAccount, data, session };
 }
 
 describe('ComparisonWorkspaceComponent', () => {
@@ -261,7 +263,7 @@ describe('ComparisonWorkspaceComponent', () => {
   });
 
   it('recovers from cancelled navigation without adopting a different account', () => {
-    const { fixture, router, authStatus } = build(['/a.jpg', '/b.jpg']);
+    const { fixture, router, switchAccount } = build(['/a.jpg', '/b.jpg']);
     const events = router.events as Subject<unknown>;
     events.next(new NavigationStart(2, '/albums'));
     events.next(new NavigationCancel(2, '/albums', 'cancelled', NavigationCancellationCode.GuardRejected));
@@ -269,7 +271,7 @@ describe('ComparisonWorkspaceComponent', () => {
     fixture.nativeElement.querySelector('[data-link-inspection]').click(); fixture.detectChanges();
     expect(fixture.nativeElement.querySelector('[data-link-inspection]').getAttribute('aria-pressed')).toBe('false');
     events.next(new NavigationStart(3, '/albums'));
-    authStatus.set({ user_id: 'bob' });
+    switchAccount('bob');
     events.next(new NavigationCancel(3, '/albums', 'cancelled', NavigationCancellationCode.GuardRejected));
     fixture.detectChanges();
     expect(router.navigateByUrl).toHaveBeenCalledExactlyOnceWith('/', { replaceUrl: true });
@@ -357,9 +359,33 @@ describe('ComparisonWorkspaceComponent', () => {
   });
 
   it('closes a read-only comparison when its account context changes', () => {
-    const { fixture, authStatus, router } = build(['/a.jpg', '/b.jpg']);
-    authStatus.set({ user_id: 'bob' }); fixture.detectChanges();
+    const { fixture, switchAccount, router } = build(['/a.jpg', '/b.jpg']);
+    switchAccount('bob'); fixture.detectChanges();
     expect(router.navigateByUrl).toHaveBeenCalledOnce();
+  });
+
+  it('keeps the comparison through an auth attempt or revalidation of the same session', async () => {
+    const { fixture, authStatus, router, session, api } = build(['/a.jpg', '/b.jpg']);
+    authStatus.set(null); fixture.detectChanges();
+    authStatus.set({ user_id: 'alice' }); fixture.detectChanges();
+    expect(router.navigateByUrl).not.toHaveBeenCalled();
+    expect(session.clear).not.toHaveBeenCalled();
+    fixture.nativeElement.querySelector('[data-inspection-toggle]').click();
+    await fixture.whenStable(); fixture.detectChanges();
+    expect(api.get).toHaveBeenCalledTimes(2);
+    expect((fixture.componentInstance as unknown as { inspectionState(): string }).inspectionState()).toBe('ready');
+  });
+
+  it('lets an inspection read that settles during a transient auth recheck be retried', async () => {
+    const { fixture, authStatus, api } = build(['/a.jpg', '/b.jpg']);
+    const faces = new Subject<{ faces: [] }>();
+    api.get.mockReturnValue(faces);
+    fixture.nativeElement.querySelector('[data-inspection-toggle]').click(); fixture.detectChanges();
+    authStatus.set(null);
+    faces.next({ faces: [] }); faces.complete();
+    await fixture.whenStable(); fixture.detectChanges();
+    authStatus.set({ user_id: 'alice' }); fixture.detectChanges();
+    expect(fixture.nativeElement.querySelector('[data-inspection-retry]')).not.toBeNull();
   });
 
   it('frames one unambiguous saved person in each visible pane, independently and atomically', async () => {
@@ -818,7 +844,7 @@ describe('comparison history return', () => {
       provideRouter([{ path: '', component: CollectionPage }, { path: 'photo-compare', component: ComparisonWorkspaceComponent, canDeactivate: [canLeave] }]),
       provideLocationMocks(),
       { provide: ComparisonSessionService, useValue: session },
-      { provide: AuthService, useValue: { status: signal({ user_id: 'alice' }), identity: () => 'alice', isEdition: () => false, token: null } },
+      { provide: AuthService, useValue: { status: signal({ user_id: 'alice' }), session: signal('alice'), identity: () => 'alice', isEdition: () => false, token: null } },
       { provide: ApiService, useValue: { get: vi.fn(() => of({ faces: [] })), post: vi.fn(() => of({ key_subjects_by_path: {} })) } },
       { provide: I18nService, useValue: { t: (key: string) => key, translations: () => ({}) } },
     ] });

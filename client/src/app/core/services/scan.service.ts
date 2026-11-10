@@ -2,7 +2,7 @@ import { Injectable, inject, signal, computed, OnDestroy, effect } from '@angula
 import { MatDialog, MatDialogRef } from '@angular/material/dialog';
 import { firstValueFrom, type Observable } from 'rxjs';
 import { ApiService } from './api.service';
-import { AuthService, AuthStatus } from './auth.service';
+import { AuthService } from './auth.service';
 import type { components } from '../api/schema';
 
 export type ScanRunHistory = components['schemas']['ScanRunHistoryResponse'];
@@ -37,8 +37,8 @@ export interface ScanDirectory {
 
 interface ScanSession {
   generation: number;
-  owner: string;
-  status: AuthStatus | null;
+  /** `AuthService.session()`: a same-session revalidation replaces the status object and may null it briefly. */
+  owner: string | null;
   token: string | null;
 }
 
@@ -104,7 +104,7 @@ export class ScanService implements OnDestroy {
 
   constructor() {
     effect(() => {
-      this.auth.identity(); this.auth.status(); this.canLaunch();
+      this.auth.session(); this.auth.status(); this.canLaunch();
       if (this.session && !this.authCurrent(this.session)) this.disconnect();
       if (this.launcher && !this.authCurrent(this.launcher.session)) {
         this.launcher.ref.close(false);
@@ -114,12 +114,13 @@ export class ScanService implements OnDestroy {
   }
 
   private capture(): ScanSession {
-    return { generation: this.generation, owner: this.auth.identity(), status: this.auth.status(), token: this.auth.token };
+    return { generation: this.generation, owner: this.auth.session(), token: this.auth.token };
   }
 
+  /** The rights `canLaunch` reads are unknown while the status is briefly null; the held session still carries them. */
   private authCurrent(session: ScanSession): boolean {
-    return !this.destroyed && session.owner === this.auth.identity() && session.status === this.auth.status()
-      && session.token === this.auth.token && this.canLaunch();
+    return !this.destroyed && !!session.owner && session.owner === this.auth.session()
+      && session.token === this.auth.token && (!this.auth.status() || this.canLaunch());
   }
 
   private current(session: ScanSession): boolean {
