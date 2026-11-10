@@ -306,7 +306,11 @@ def scan_stream_token(
         raise HTTPException(status_code=403, detail=refusal)
     token = create_access_token(
         {'sub': user.user_id or '_legacy', 'purpose': SCAN_STREAM_PURPOSE,
-         SCAN_STREAM_LOCAL_CLAIM: bool(user.trusted_local_editing)},
+         SCAN_STREAM_LOCAL_CLAIM: bool(user.trusted_local_editing),
+         # Single-user scan access is edition-gated: the claim is stripped on decode
+         # once the edition password rotates, which then refuses the stream. Only a
+         # password-backed edition counts; a trusted-local caller relies on the local claim.
+         'edition': bool(user.edition_authenticated) and not _is_open_install(EDITION_PASSWORD_KEY)},
         expires_delta=timedelta(seconds=SCAN_STREAM_TOKEN_TTL_SECONDS),
     )
     return {'token': token}
@@ -319,6 +323,17 @@ def _verify_scan_stream_token(token: Optional[str]) -> dict:
     if not payload or payload.get('purpose') != SCAN_STREAM_PURPOSE:
         raise HTTPException(status_code=403, detail="Invalid or expired scan stream token")
     return payload
+
+
+def _stream_scan_access_held(payload: dict, local: bool) -> bool:
+    """Whether a (freshly decoded) stream token still grants scan access.
+
+    Multi-user tokens are bound to their account generation, which decoding already
+    checks. Single-user scan access needs edition (or the trusted-local boundary),
+    and a rotated edition password strips the token's ``edition`` claim. The
+    trusted-local boundary is rechecked too: setting any password ends it.
+    """
+    return is_multi_user_enabled() or (local and _trusted_local_editing_enabled()) or payload.get('edition') is True
 
 
 def _build_scan_snapshot(lines: int) -> dict:
@@ -350,6 +365,8 @@ async def scan_stream(
         and trusted_local_for(request)
     if not scan_feature_enabled(local, VIEWER_CONFIG):
         raise HTTPException(status_code=403, detail="Scan feature not enabled")
+    if not _stream_scan_access_held(payload, local):
+        raise HTTPException(status_code=403, detail="Invalid or expired scan stream token")
 
     async def event_generator():
         import time as _time
@@ -367,7 +384,8 @@ async def scan_stream(
         while True:
             # Expiry limits when the short-lived token can open a connection;
             # account/password revocation must also close an already open one.
-            if _match_password_generations(payload.copy()) is None:
+            current = _match_password_generations(payload.copy())
+            if current is None or not _stream_scan_access_held(current, local):
                 break
             snapshot = _build_scan_snapshot(lines)
             current_output_len = len(_scan_state['output_lines'])

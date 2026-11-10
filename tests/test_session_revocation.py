@@ -10,7 +10,7 @@ import pytest
 
 from api import config
 from api.agent.tokens import session_grant
-from api.auth import CurrentUser, create_access_token, decode_access_token, hash_password
+from api.auth import ACCOUNT_GENERATION_CLAIM, CurrentUser, create_access_token, decode_access_token, hash_password
 from api.routers.scan import SCAN_STREAM_PURPOSE
 
 
@@ -65,9 +65,21 @@ def test_account_change_revokes_bearer_cookie_refresh_and_held_grant(agent_app, 
             assert closed_after(ws) == 4401
     else:
         # An open install may issue a new anonymous session, never preserve admin.
-        assert refresh.status_code in (200, 401)
-        if refresh.status_code == 200:
-            assert decode_access_token(refresh.json()["access_token"])["role"] == "user"
+        assert refresh.status_code == 200
+        renewed = decode_access_token(refresh.json()["access_token"])
+        assert renewed["role"] == "user" and ACCOUNT_GENERATION_CLAIM not in renewed
+        assert env.client.get("/api/scan/directories", headers=headers).status_code == 403
+        assert env.client.get("/api/scan/stream", params={"token": stream}).status_code == 403
+        status = env.client.get("/api/auth/status", headers=headers).json()
+        assert status["user_id"] is None and status["user_role"] == "user"
+        assert status["edition_authenticated"] is False
+        env.client.cookies.set("facet_auth", token)
+        cookie_status = env.client.get("/api/auth/status").json()
+        assert cookie_status["user_id"] is None and cookie_status["edition_authenticated"] is False
+        from tests.test_agent_bridge import auth_frame, closed_after, connect
+        with connect(env) as ws:
+            ws.send_json(auth_frame(token))
+            assert closed_after(ws) == 4401
 
 
 def test_changed_account_can_log_in_again_and_public_share_proof_remains_valid(agent_app):
@@ -188,3 +200,54 @@ def test_account_revocation_closes_an_existing_scan_stream(agent_app, monkeypatc
             assert next(lines) == ""
             del config._FULL_CONFIG["users"]["root"]
             assert list(lines) == [], "the authorized connection must close before emitting any further snapshots"
+
+
+def _single_user_scan_stream(agent_app, monkeypatch, running):
+    from collections import deque
+
+    from api.routers import scan
+    from tests.conftest import AGENT_EDITION_PASSWORD
+
+    env = agent_app("legacy")
+    config.VIEWER_CONFIG["features"]["show_scan_button"] = True
+    login = env.client.post("/api/auth/edition/login", json={"password": AGENT_EDITION_PASSWORD})
+    assert login.status_code == 200, login.text
+    headers = {"Authorization": "Bearer " + login.json()["access_token"]}
+    token = env.client.get("/api/scan/stream_token", headers=headers).json()["token"]
+    monkeypatch.setattr(scan, "_scan_state", {
+        "running": running, "kind": scan.JOB_KIND_SCAN, "process": None,
+        "output_lines": deque(["edition-only scan log line"], maxlen=500),
+        "started_at": None, "directories": ["/edition-only-dir"],
+        "exit_code": None if running else 0, "progress": None, "scope": None,
+    })
+    return env, token
+
+
+def test_unrotated_single_user_stream_token_still_opens(agent_app, monkeypatch):
+    env, token = _single_user_scan_stream(agent_app, monkeypatch, running=False)
+    opened = env.client.get("/api/scan/stream", params={"token": token})
+    assert opened.status_code == 200
+    assert "edition-only scan log line" in opened.text
+
+
+def test_edition_password_rotation_refuses_a_held_stream_token(agent_app, monkeypatch):
+    env, token = _single_user_scan_stream(agent_app, monkeypatch, running=False)
+    config.VIEWER_CONFIG["edition_password"] = hash_password("rotated-edition")
+    refused = env.client.get("/api/scan/stream", params={"token": token})
+    assert refused.status_code == 403
+    assert "edition-only scan log line" not in refused.text
+
+
+def test_edition_password_rotation_closes_an_open_single_user_stream(agent_app, monkeypatch):
+    import httpx
+    from tests.conftest import serve_app
+
+    env, token = _single_user_scan_stream(agent_app, monkeypatch, running=True)
+    with serve_app(env.app, access_log=False) as port:
+        with httpx.stream("GET", f"http://127.0.0.1:{port}/api/scan/stream", params={"token": token}, timeout=5) as response:
+            assert response.status_code == 200
+            lines = response.iter_lines()
+            assert json.loads(next(lines).removeprefix("data: "))["output"] == ["edition-only scan log line"]
+            assert next(lines) == ""
+            config.VIEWER_CONFIG["edition_password"] = hash_password("rotated-edition")
+            assert list(lines) == [], "rotation must close the stream before any further snapshot"
