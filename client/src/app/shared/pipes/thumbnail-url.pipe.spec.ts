@@ -1,4 +1,84 @@
-import { ThumbnailUrlPipe, ImageUrlPipe, FaceThumbnailUrlPipe, PersonThumbnailUrlPipe } from './thumbnail-url.pipe';
+import { ChangeDetectionStrategy, Component } from '@angular/core';
+import { TestBed } from '@angular/core/testing';
+import { privateImageCacheKey, resetPrivateImageSession } from '../utils/private-image-session';
+import { ThumbnailUrlPipe, ImageUrlPipe, FaceThumbnailUrlPipe, PersonThumbnailUrlPipe,
+  thumbnailUrl, imageUrl, faceThumbnailUrl, personThumbnailUrl } from './thumbnail-url.pipe';
+
+@Component({
+  imports: [ThumbnailUrlPipe, ImageUrlPipe, FaceThumbnailUrlPipe, PersonThumbnailUrlPipe],
+  changeDetection: ChangeDetectionStrategy.OnPush,
+  template: `
+    <img alt="Thumbnail" [src]="path | thumbnailUrl:160" />
+    <img alt="Original" [src]="path | imageUrl" />
+    <img alt="Face" [src]="42 | faceThumbnailUrl" />
+    <img alt="Person" [src]="7 | personThumbnailUrl" />
+  `,
+})
+class PrivateImagesHost {
+  readonly path = '/photos/shared.jpg';
+}
+
+describe('private image sessions', () => {
+  it('keeps all helper URLs stable until the opaque session nonce rotates', () => {
+    const urls = () => [thumbnailUrl('/photos/shared.jpg', 160), imageUrl('/photos/shared.jpg'),
+      faceThumbnailUrl(42), personThumbnailUrl(7)];
+    const before = urls();
+    const firstKey = privateImageCacheKey();
+    expect(firstKey).toMatch(/^[a-f0-9]{32}$/);
+    expect(urls()).toEqual(before);
+    for (const url of before) {
+      expect(new URL(url, 'http://facet.test').searchParams.get('session')).toBe(firstKey);
+    }
+    resetPrivateImageSession();
+    expect(privateImageCacheKey()).not.toBe(firstKey);
+    expect(privateImageCacheKey()).toMatch(/^[a-f0-9]{32}$/);
+    for (const [index, url] of urls().entries()) {
+      expect(url).not.toBe(before[index]);
+      expect(new URL(url, 'http://facet.test').searchParams.get('session')).toBe(privateImageCacheKey());
+    }
+    const after = urls();
+    expect(urls()).toEqual(after);
+  });
+
+  it('updates already-mounted OnPush images when only the session changes', async () => {
+    const fixture = TestBed.createComponent(PrivateImagesHost);
+    fixture.autoDetectChanges();
+    await fixture.whenStable();
+    const images = Array.from((fixture.nativeElement as HTMLElement).querySelectorAll('img'));
+    const before = images.map(image => image.getAttribute('src'));
+    expect(images).toHaveLength(4);
+    expect(before.every(src => src !== null)).toBe(true);
+    resetPrivateImageSession();
+    // No new path input, manual detectChanges, or component reconstruction.
+    await fixture.whenStable();
+    for (const [index, image] of images.entries()) {
+      expect(image.getAttribute('src')).not.toBe(before[index]);
+      const url = new URL(image.src);
+      expect(url.searchParams.get('session')).toBe(privateImageCacheKey());
+      expect(url.searchParams.get('ngsw-bypass')).toBe('1');
+    }
+  });
+
+  it('generates fresh opaque keys without putting the stored credential in URLs', () => {
+    const previous = localStorage.getItem('facet_token');
+    const credential = 'private-account-secret-token';
+    try {
+      localStorage.setItem('facet_token', credential);
+      resetPrivateImageSession();
+      const first = privateImageCacheKey();
+      resetPrivateImageSession();
+      expect(privateImageCacheKey()).not.toBe(first);
+      expect(privateImageCacheKey()).toMatch(/^[a-f0-9]{32}$/);
+      for (const url of [thumbnailUrl('/p.jpg'), imageUrl('/p.jpg'), faceThumbnailUrl(42), personThumbnailUrl(7)]) {
+        expect(url).not.toContain(credential);
+        expect(new URL(url, 'http://facet.test').searchParams.get('session')).toBe(privateImageCacheKey());
+      }
+    } finally {
+      if (previous === null) localStorage.removeItem('facet_token');
+      else localStorage.setItem('facet_token', previous);
+    }
+  });
+});
 
 describe('ThumbnailUrlPipe', () => {
   let pipe: ThumbnailUrlPipe;
@@ -18,14 +98,12 @@ describe('ThumbnailUrlPipe', () => {
     expect(url).toContain('size=640');
   });
 
-  it('versions URLs the server renders from the original and keeps them off the service worker', () => {
-    for (const size of [641, 1920]) {
+  it('versions all private image URLs and bypasses existing service-worker caches', () => {
+    for (const size of [undefined, 48, 160, 640, 641, 1920]) {
       const params = new URL(pipe.transform('/photos/test.jpg', size), 'http://x').searchParams;
-      expect(params.get('v')).toBe('2');
+      expect(params.get('v')).toBe('3');
       expect(params.has('ngsw-bypass')).toBe(true);
     }
-    expect(pipe.transform('/photos/test.jpg', 640)).not.toMatch(/v=|ngsw-bypass/);
-    expect(pipe.transform('/photos/test.jpg')).not.toMatch(/v=|ngsw-bypass/);
   });
 
   it('omits size param when not provided', () => {
@@ -41,19 +119,19 @@ describe('ThumbnailUrlPipe', () => {
 });
 
 describe('explicit thumbnail preview revisions', () => {
-  it('encodes revisions while retaining stored-thumbnail offline caching and sharp-render bypass', () => {
+  it('encodes revisions while keeping every representation behind authorization', () => {
     const pipe = new ThumbnailUrlPipe();
     const path = '/photos/a b.jpg';
     const revised = new URL(pipe.transform(path, 160, 'load+1&2'), 'http://facet.test');
     expect(revised.searchParams.get('path')).toBe(path);
     expect(revised.searchParams.get('preview')).toBe('load+1&2');
-    expect(revised.searchParams.get('ngsw-bypass')).toBeNull();
+    expect(revised.searchParams.get('ngsw-bypass')).toBe('1');
     const sharp = new URL(pipe.transform(path, 1920, 'load+1&2'), 'http://facet.test');
     expect(sharp.searchParams.get('preview')).toBe('load+1&2');
-    expect(sharp.searchParams.get('v')).toBe('2');
+    expect(sharp.searchParams.get('v')).toBe('3');
     expect(sharp.searchParams.get('ngsw-bypass')).toBe('1');
     expect(pipe.transform(path, 160, null)).toBe(pipe.transform(path, 160));
-    expect(pipe.transform(path, 160)).not.toContain('ngsw-bypass');
+    expect(pipe.transform(path, 160)).toContain('ngsw-bypass');
   });
 });
 
@@ -68,6 +146,9 @@ describe('ImageUrlPipe', () => {
     const url = pipe.transform('/photos/test.jpg');
     expect(url.startsWith('/image?')).toBe(true);
     expect(url).toContain('path=%2Fphotos%2Ftest.jpg');
+    const params = new URL(url, 'http://facet.test').searchParams;
+    expect(params.get('v')).toBe('3');
+    expect(params.get('ngsw-bypass')).toBe('1');
   });
 
   it('does not include a size param', () => {
@@ -84,11 +165,14 @@ describe('FaceThumbnailUrlPipe', () => {
   });
 
   it('returns face thumbnail URL with face id', () => {
-    expect(pipe.transform(42)).toBe('/face_thumbnail/42?v=2&ngsw-bypass=1');
+    const url = new URL(pipe.transform(42), 'http://facet.test');
+    expect(url.pathname).toBe('/face_thumbnail/42');
+    expect(url.searchParams.get('v')).toBe('2');
+    expect(url.searchParams.get('ngsw-bypass')).toBe('1');
   });
 
   it('handles id 0', () => {
-    expect(pipe.transform(0)).toBe('/face_thumbnail/0?v=2&ngsw-bypass=1');
+    expect(new URL(pipe.transform(0), 'http://facet.test').pathname).toBe('/face_thumbnail/0');
   });
 });
 
@@ -100,23 +184,26 @@ describe('PersonThumbnailUrlPipe', () => {
   });
 
   it('returns person thumbnail URL with person id', () => {
-    expect(pipe.transform(7)).toBe('/person_thumbnail/7?v=2&ngsw-bypass=1');
+    const url = new URL(pipe.transform(7), 'http://facet.test');
+    expect(url.pathname).toBe('/person_thumbnail/7');
+    expect(url.searchParams.get('v')).toBe('2');
+    expect(url.searchParams.get('ngsw-bypass')).toBe('1');
   });
 
   it('handles large ids', () => {
-    expect(pipe.transform(9999)).toBe('/person_thumbnail/9999?v=2&ngsw-bypass=1');
+    expect(new URL(pipe.transform(9999), 'http://facet.test').pathname).toBe('/person_thumbnail/9999');
   });
 });
 
 
 describe('per-photo preview revisions', () => {
-  it('keeps stored thumbnails cacheable under distinct revision URLs', () => {
+  it('keeps stored thumbnail revisions distinct without service-worker caching', () => {
     const pipe = new ThumbnailUrlPipe();
     const first = pipe.transform('/photo a.jpg', 160, 'one&value');
     const second = pipe.transform('/photo a.jpg', 160, 'second');
     expect(first).not.toEqual(second);
     expect(new URL(first, 'http://localhost').searchParams.get('preview')).toBe('one&value');
-    expect(first).not.toContain('ngsw-bypass');
+    expect(first).toContain('ngsw-bypass');
     expect(pipe.transform('/a.jpg', 1920, 'second')).toContain('ngsw-bypass=1');
   });
 

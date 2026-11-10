@@ -44,8 +44,6 @@ _render_slots = threading.BoundedSemaphore(_RENDER_SLOTS)
 # Keep one slot available to JPEGs while slower formats decode.
 _nonjpeg_render_slots = threading.BoundedSemaphore(_RENDER_SLOTS - 1)
 _RENDER_WAIT_SECONDS = 5
-# Short, so the sharp render shows up once the original is back.
-_FALLBACK_MAX_AGE = 60
 
 # Native browser images need stable types even without an OS MIME registry.
 _BROWSER_IMAGE_MEDIA_TYPES = {
@@ -74,27 +72,16 @@ def _accepts_jpegxl(accept: str) -> bool:
     return False
 
 
-def _cached_image_response(image_bytes: bytes, request: Request,
-                           max_age: int = 31536000) -> Response:
-    """Build a cached JPEG response with ETag and conditional 304."""
-    etag = hashlib.md5(image_bytes).hexdigest()
-    if request.headers.get('if-none-match') == etag:
-        return Response(status_code=304)
-    return Response(
-        content=image_bytes,
-        media_type='image/jpeg',
-        headers={
-            'Cache-Control': f'public, max-age={max_age}',
-            'ETag': etag,
-        }
-    )
+def _private_image_headers(*, vary_accept: bool = False) -> dict[str, str]:
+    """User-library bytes may be reused only after a live authorization check."""
+    return {'Cache-Control': 'private, no-cache, must-revalidate',
+            'Vary': 'Authorization, Cookie, Accept' if vary_accept else 'Authorization, Cookie'}
 
 
-def _private_crop_response(image_bytes: bytes, request: Request) -> Response:
-    """Revalidate mutable private crops only after the caller's visibility check."""
+def _cached_image_response(image_bytes: bytes, request: Request, *, vary_accept: bool = False) -> Response:
+    """Revalidate a private JPEG only after the caller's visibility check."""
     etag = hashlib.md5(image_bytes).hexdigest()
-    headers = {'Cache-Control': 'private, no-cache, must-revalidate',
-               'Vary': 'Authorization, Cookie', 'ETag': etag}
+    headers = {**_private_image_headers(vary_accept=vary_accept), 'ETag': etag}
     if request.headers.get('if-none-match') == etag:
         return Response(status_code=304, headers=headers)
     return Response(content=image_bytes, media_type='image/jpeg', headers=headers)
@@ -316,8 +303,9 @@ def get_thumbnail(
     """Get photo thumbnail.
 
     A ``size`` above 640 is rendered from the original at up to 1920 px. If that
-    fails, or the render has no signal, the stored thumbnail is served with a
-    short ``max-age``.
+    fails, or the render has no signal, the stored thumbnail is served. Every
+    image response carries the private ``no-cache`` headers (see
+    ``_private_image_headers``) with an ETag, so a client revalidates each time.
     """
     vis_sql, vis_params = get_visibility_clause(user.user_id if user else None)
     with get_db() as conn:
@@ -329,16 +317,13 @@ def get_thumbnail(
     if not (row and row['thumbnail']):
         return Response(content="Thumbnail not found", status_code=404)
     if size and 0 < size < _STORED_THUMBNAIL_SIZE:
-        resized = _get_or_resize(path, row['thumbnail'], size)
-        return _cached_image_response(resized, request)
+        return _cached_image_response(_get_or_resize(path, row['thumbnail'], size), request)
     if size and size > _STORED_THUMBNAIL_SIZE:
+        # The bytes depend on (mtime, sequence_kind); a render that fails or has
+        # no signal falls through to the stored thumbnail.
         rendered = _render_from_original(path, row['sequence_kind'], row['preview_revision'])
         if rendered is not None:
-            # Kept at the one-year default like /image and the stored thumbnail:
-            # the bytes depend on (mtime, sequence_kind) and the client's `v=`
-            # query is the invalidation lever. A bad render never gets here.
             return _cached_image_response(rendered, request)
-        return _cached_image_response(row['thumbnail'], request, max_age=_FALLBACK_MAX_AGE)
     return _cached_image_response(row['thumbnail'], request)
 
 
@@ -443,7 +428,7 @@ def face_thumbnail(
     face_bytes = _get_face_thumbnail_data(face_id, user)
     if face_bytes is None:
         return Response(content="Face not found", status_code=404)
-    return _private_crop_response(face_bytes, request)
+    return _cached_image_response(face_bytes, request)
 
 
 @router.get("/person_thumbnail/{person_id}")
@@ -473,7 +458,7 @@ def person_thumbnail(
     if face:
         face_bytes = _get_face_thumbnail_data(face['id'], user)
         if face_bytes:
-            return _private_crop_response(face_bytes, request)
+            return _cached_image_response(face_bytes, request)
     return Response(content="Person thumbnail not found", status_code=404)
 
 
@@ -482,12 +467,22 @@ def _stored_thumbnail_response(path, request, vary_accept=False):
     with get_db() as conn:
         row = conn.execute("SELECT thumbnail FROM photos WHERE path = ?", (path,)).fetchone()
     if row and row['thumbnail']:
-        response = _cached_image_response(row['thumbnail'], request, max_age=_FALLBACK_MAX_AGE)
-    else:
-        response = Response(content="Not found", status_code=404)
-    if vary_accept:
-        response.headers['Vary'] = 'Accept'
-    return response
+        return _cached_image_response(row['thumbnail'], request, vary_accept=vary_accept)
+    return Response(content="Not found", status_code=404, headers=_private_image_headers(vary_accept=vary_accept))
+
+
+def _native_file_response(request, disk, media_type, preview_revision, *, vary_accept=False):
+    """Serve an original file as-is with private headers, or 304 on a matching ETag.
+
+    Raises OSError when the file cannot be stat'ed.
+    """
+    headers = _private_image_headers(vary_accept=vary_accept)
+    original = FileResponse(disk, media_type=media_type, headers=headers, stat_result=os.stat(disk))
+    if preview_revision:
+        _bind_preview_etag(original, preview_revision)
+    if request.headers.get('if-none-match') == original.headers['etag']:
+        return Response(status_code=304, headers={**headers, 'ETag': original.headers['etag']})
+    return original
 
 
 @router.get("/image")
@@ -558,18 +553,11 @@ def image(
         # Native viewing preserves the lossless original, colour profile and
         # progressive bitstream. Both representations vary on Accept.
         try:
-            original = FileResponse(real_disk, media_type='image/jxl',
-                                    headers={'Vary': 'Accept'}, stat_result=os.stat(real_disk))
+            return _native_file_response(request, real_disk, 'image/jxl', row['preview_revision'], vary_accept=True)
         except OSError:
             if want_fallback:
                 return _stored_thumbnail_response(path, request, vary_accept=True)
-            return Response(content="Not found", status_code=404, headers={'Vary': 'Accept'})
-        if row['preview_revision']:
-            _bind_preview_etag(original, row['preview_revision'])
-        if request.headers.get('if-none-match') == original.headers['etag']:
-            return Response(status_code=304,
-                            headers={'ETag': original.headers['etag'], 'Vary': 'Accept'})
-        return original
+            return Response(content="Not found", status_code=404, headers=_private_image_headers(vary_accept=True))
 
     # Convert TIFF and JPEG XL to JPEG. Native browser formats below keep their original
     # bytes and receive a known media type independent of the OS MIME registry.
@@ -579,10 +567,7 @@ def image(
             quality = _get_image_jpeg_quality()
             jpeg_bytes = (_coalesced_jpegxl_conversion(real_disk, mtime, quality, row['preview_revision'])
                           if is_jxl else _convert_nonraw_cached(real_disk, mtime, quality, row['preview_revision']))
-            response = _cached_image_response(jpeg_bytes, request)
-            if is_jxl:
-                response.headers['Vary'] = 'Accept'
-            return response
+            return _cached_image_response(jpeg_bytes, request, vary_accept=is_jxl)
         except Exception:
             logger.exception("Failed to convert TIFF/JPEG XL file: %s", real_disk)
             if want_fallback:
@@ -590,10 +575,8 @@ def image(
             return Response(content="Failed to convert TIFF/JPEG XL file", status_code=500)
 
     try:
-        original = FileResponse(real_disk, media_type=_BROWSER_IMAGE_MEDIA_TYPES.get(Path(real_disk).suffix.lower()),
-                                stat_result=os.stat(real_disk))
+        return _native_file_response(request, real_disk,
+                                     _BROWSER_IMAGE_MEDIA_TYPES.get(Path(real_disk).suffix.lower()),
+                                     row['preview_revision'])
     except OSError:
         return _stored_thumbnail_response(path, request) if want_fallback else Response(status_code=404)
-    if row['preview_revision']:
-        _bind_preview_etag(original, row['preview_revision'])
-    return original

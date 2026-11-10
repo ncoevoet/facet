@@ -1224,6 +1224,18 @@ def _migrate_comparisons_user_id(conn):
     preserve them verbatim rather than newly enforcing the photos FK against a
     row an older, FK-off write may have orphaned.
     """
+    if conn.execute("SELECT 1 FROM sqlite_master WHERE type='table' AND name='comparisons_new'").fetchone():
+        has_comparisons = conn.execute(
+            "SELECT 1 FROM sqlite_master WHERE type='table' AND name='comparisons'").fetchone()
+        if has_comparisons and not conn.execute("SELECT 1 FROM comparisons_new LIMIT 1").fetchone():
+            # Older code committed CREATE TABLE before its INSERT, so a crash there
+            # leaves an empty comparisons_new holding nothing to recover.
+            logger.warning("Dropping empty comparisons_new left by an interrupted migration")
+            conn.execute("DROP TABLE comparisons_new")
+        else:
+            raise RuntimeError(
+                "Found comparisons_new from an interrupted migration; preserve both tables "
+                "and recover their comparison rows before retrying initialization")
     if _comparisons_unique_has_user_id(conn):
         return
     logger.info("Migrating comparisons UNIQUE constraint to include user_id...")
@@ -1236,17 +1248,24 @@ def _migrate_comparisons_user_id(conn):
         conn.commit()  # PRAGMA foreign_keys is a no-op inside a transaction
         conn.execute("PRAGMA foreign_keys=OFF")
     try:
-        conn.execute("DROP TABLE IF EXISTS comparisons_new")
-        conn.execute(_build_create_table_sql(
-            'comparisons_new', COMPARISONS_COLUMNS,
-            constraints=['UNIQUE(photo_a_path, photo_b_path, user_id)']))
-        conn.execute(
-            f"INSERT INTO comparisons_new ({col_list}) SELECT {col_list} FROM comparisons")
-        conn.execute("DROP TABLE comparisons")
-        conn.execute("ALTER TABLE comparisons_new RENAME TO comparisons")
+        # Explicitly include DDL in the transaction. sqlite3's implicit BEGIN
+        # starts at INSERT, which would leave CREATE/DROP committed on failure.
+        conn.execute("SAVEPOINT migrate_comparisons")
+        try:
+            conn.execute(_build_create_table_sql(
+                'comparisons_new', COMPARISONS_COLUMNS,
+                constraints=['UNIQUE(photo_a_path, photo_b_path, user_id)']))
+            conn.execute(
+                f"INSERT INTO comparisons_new ({col_list}) SELECT {col_list} FROM comparisons")
+            conn.execute("DROP TABLE comparisons")
+            conn.execute("ALTER TABLE comparisons_new RENAME TO comparisons")
+            conn.execute("RELEASE SAVEPOINT migrate_comparisons")
+        except BaseException:
+            conn.execute("ROLLBACK TO SAVEPOINT migrate_comparisons")
+            conn.execute("RELEASE SAVEPOINT migrate_comparisons")
+            raise
     finally:
         if fk_on:
-            conn.commit()
             conn.execute("PRAGMA foreign_keys=ON")
     logger.info("comparisons table rebuilt with user-scoped UNIQUE (rows preserved)")
 

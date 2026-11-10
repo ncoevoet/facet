@@ -20,15 +20,6 @@
   ],
   "dataGroups": [
     {
-      "name": "thumbnails",
-      "urls": ["/thumbnail**"],
-      "cacheConfig": {
-        "strategy": "performance",
-        "maxSize": 1000,
-        "maxAge": "7d"
-      }
-    },
-    {
       "name": "i18n-config",
       "urls": ["/api/i18n/**"],
       "cacheConfig": {

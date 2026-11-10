@@ -157,10 +157,10 @@ Der Server stellt die vorab erstellte SPA aus `client/dist/client/browser/` bere
 der Bereitstellung:
 
 ```bash
-cd client && npm install && npx ng build && cd ..
+cd client && npm ci && npm run build && cd ..
 ```
 
-Dies erfordert Node.js 20+ nur zur Build-Zeit, nicht auf dem Server.
+Dies erfordert Node.js 24.15.0 oder neuer (innerhalb von 24.x) nur zur Build-Zeit, nicht auf dem Server.
 
 ## Synology NAS (DS420j / J-Serie)
 
@@ -201,6 +201,7 @@ Dies erstellt `photo_scores_viewer.db`, die:
 - CLIP-, Bildunterschrift- und Gesichts-Embeddings entfernt;
 - das Histogramm pro Foto (~2 KB) für das RGB-Histogramm-Widget behält;
 - Vorschaubilder von 640px auf 320px verkleinert;
+- startet mit leeren Listen gespeicherter und zuletzt verwendeter Orte; die privaten Orte des Bewertungsrechners werden nicht kopiert;
 - eine 14-GB-Datenbank typischerweise auf ~4-5 GB reduziert.
 
 Exporte erfolgen inkrementell: Es werden nur neue und geänderte Fotos synchronisiert. Für eine vollständige Neuerstellung:
@@ -209,8 +210,18 @@ Exporte erfolgen inkrementell: Es werden nur neue und geänderte Fotos synchroni
 python database.py --export-viewer-db --force-export
 ```
 
-> **Warnung:** `--force-export` verwirft im Viewer auf dem NAS gesetzte Bewertungen, Standorte und
-> manuelle Tags. Nur ein inkrementeller Export behält sie.
+> **Warnung:** `--force-export` verwirft im Viewer auf dem NAS gesetzte Bewertungen, Standorte,
+> manuelle Tags und private gespeicherte oder zuletzt verwendete Orte. Nur ein inkrementeller Export behält sie.
+
+**Abschluss und Wiederholung.** Ein vollständiger Export wird in einem nur für den Eigentümer lesbaren temporären Verzeichnis neben dem Ziel vorbereitet, vom privaten Quellzustand befreit, verdichtet und vor der Veröffentlichung auf SQLite- und Fremdschlüssel-Konsistenz geprüft. Eine neue Ausgabe erscheint erst, wenn sie fertig ist. Das Ersetzen einer vorhandenen Ausgabe nutzt die Backup-Transaktion von SQLite und erhält ihren Inode für offene Leser und WAL-Verbindungen; bei einem Fehler bleibt die vorherige Datenbank erhalten. Eine vorhandene Ausgabe, die SQLite nicht öffnen kann, weil sie keine Datenbank oder beschädigt ist, wird als Datei ersetzt. Neue Ausgaben und Backup-Snapshots erfordern ein Dateisystem mit Hardlink-Unterstützung. Ohne diese schlägt der Befehl fehl, ohne eine unvollständige Datei zu veröffentlichen; wählen Sie dann ein kompatibles Ausgabeverzeichnis.
+
+Ein inkrementeller Export aktualisiert zuerst das Zielschema und synchronisiert dann einen Quell-Snapshot in einer einzigen Zieltransaktion. Vorschaubilder neuer Fotos werden verkleinert und das Ziel wird auf Integrität geprüft, bevor diese Transaktion beginnt; Viewer-Schreibvorgänge warten daher nur, während die Änderungen angewendet werden. Eine fehlgeschlagene oder unterbrochene Datensynchronisierung macht Änderungen an Fotos, Gesichtern, Tags, Vektoren und Review-Quittungen gemeinsam rückgängig; das Schema-Upgrade kann bestehen bleiben. Beheben Sie die gemeldete Ursache und führen Sie denselben Befehl erneut aus. Ein beschädigtes Vorschaubild eines neuen Fotos ist ein Fehler; es in der Quelle zu reparieren und es erneut zu versuchen erzeugt auch sein Vorschaubild. Vorhandene Vorschaubilder bleiben unverändert. Review-Änderungen, manuelle Tags und gespeicherte/zuletzt verwendete Orte im Ziel bleiben lokal und werden von der inkrementellen Synchronisierung beibehalten.
+
+Ausgabepfade sind wörtliche Dateinamen, auch Namen, die mit `file:` beginnen, auf Dateisystemen, die sie zulassen; SQLite-URI-Parameter werden nicht akzeptiert.
+
+Exporte reservieren freien Speicher für Staging oder Rollback-Journale und schlagen vor dem Kopieren fehl, wenn die Schätzung nicht passt. Ausnahmen und normale Unterbrechungen entfernen die temporäre Kopie; ein hart beendeter Prozess kann neben der Ausgabe ein verstecktes, nur für den Eigentümer lesbares Verzeichnis `.*.export-*` hinterlassen. Entfernen Sie dieses temporäre Verzeichnis, sobald der Exporter beendet ist, und versuchen Sie es erneut. Die alte veröffentlichte Datenbank bleibt der Wiederherstellungspunkt. Die SQLite-Sperren gelten weiterhin: Wiederholen Sie bei Sperrfehlern, wenn der Schreiber im Ziel untätig ist.
+
+Fehlt die Hauptdatei der Ausgabe, ist aber noch eine `-wal`-, `-shm`- oder `-journal`-Begleitdatei vorhanden, bricht der Export ab, ohne sie zu löschen. Schließen Sie alle Nutzer dieser Datenbank und stellen Sie sie wieder her, bevor Sie es erneut versuchen; ein verbliebenes WAL kann Daten der vorherigen Datenbank enthalten.
 
 „Ähnliche finden“ funktioniert auf der exportierten Datenbank nicht (keine Embeddings). Verwenden Sie
 dafür die Bewertungsmaschine.

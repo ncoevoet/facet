@@ -140,26 +140,39 @@ describe('ApiService', () => {
 
   describe('faceThumbnailUrl()', () => {
     it('should return the correct face thumbnail URL', () => {
-      expect(service.faceThumbnailUrl(42)).toBe('/face_thumbnail/42?v=2&ngsw-bypass=1');
+      const url = new URL(service.faceThumbnailUrl(42), 'http://facet.test');
+      expect(url.pathname).toBe('/face_thumbnail/42');
+      expect(Object.fromEntries(url.searchParams)).toEqual({
+        v: '2', 'ngsw-bypass': '1', session: expect.stringMatching(/^[a-f0-9]{32}$/),
+      });
     });
   });
 
   describe('personThumbnailUrl()', () => {
     it('should return the correct person thumbnail URL', () => {
-      expect(service.personThumbnailUrl(7)).toBe('/person_thumbnail/7?v=2&ngsw-bypass=1');
+      const url = new URL(service.personThumbnailUrl(7), 'http://facet.test');
+      expect(url.pathname).toBe('/person_thumbnail/7');
+      expect(Object.fromEntries(url.searchParams)).toEqual({
+        v: '2', 'ngsw-bypass': '1', session: expect.stringMatching(/^[a-f0-9]{32}$/),
+      });
     });
   });
 
   describe('imageUrl()', () => {
     it('should return URL with encoded path', () => {
-      expect(service.imageUrl('/photos/my image.jpg')).toBe(
-        '/image?path=%2Fphotos%2Fmy%20image.jpg',
-      );
+      const url = new URL(service.imageUrl('/photos/my image.jpg'), 'http://facet.test');
+      expect(url.pathname).toBe('/image');
+      expect(Object.fromEntries(url.searchParams)).toEqual({
+        path: '/photos/my image.jpg', v: '3', 'ngsw-bypass': '1', session: expect.stringMatching(/^[a-f0-9]{32}$/),
+      });
     });
 
     it('should encode special characters in path', () => {
-      const url = service.imageUrl('/photos/file#1&2.jpg');
-      expect(url).toBe('/image?path=%2Fphotos%2Ffile%231%262.jpg');
+      const url = new URL(service.imageUrl('/photos/file#1&2.jpg'), 'http://facet.test');
+      expect(url.pathname).toBe('/image');
+      expect(Object.fromEntries(url.searchParams)).toEqual({
+        path: '/photos/file#1&2.jpg', v: '3', 'ngsw-bypass': '1', session: expect.stringMatching(/^[a-f0-9]{32}$/),
+      });
     });
   });
 });

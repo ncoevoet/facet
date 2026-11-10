@@ -135,7 +135,7 @@ git clone https://github.com/ncoevoet/facet.git && cd facet
 bash install.sh
 ```
 
-`install.sh` 会检测你的显卡，安装与之匹配的软件包，并构建网页照片库。之后每次使用时：
+`install.sh` 构建图库需要 Node.js **24.15.0 或更高版本（限 24.x 系列）**和 npm；它会在安装软件包之前检查这些。它会检测你的显卡，安装与之匹配的软件包，并构建网页照片库。之后每次使用时：
 
 ```bash
 source venv/bin/activate
@@ -179,7 +179,7 @@ python viewer.py                       # 启动照片库
 **获取安装程序。** 目前还没有发布版本附带它。可以在克隆的仓库中用 `installer\build-msi.ps1`
 构建（需要 WiX 3.14、`uv` 和已构建的前端，脚本会说明从哪里获取 WiX），或从
 *Windows install (MSI)* 工作流的一次运行中下载 `facet-msi` 产物。
-构建时，前端需要 Node.js 22.22.3 或更新版本（22.14 会使 `npm run build` 失败）。
+构建时，前端需要 Node.js 24.15.0 或更高版本（限 24.x 系列）。
 
 **首次启动。** 安装程序一结束就会开始建立 Python 环境。
 环境约 6 GB，uv 的下载缓存（`%LOCALAPPDATA%\uv\cache`）还要再占用差不多同样的空间。
@@ -414,7 +414,7 @@ FACET_VRAM_PROFILE=8gb python facet.py /path/to/photos
 
 ## 手动安装，不使用 install.sh
 
-需要 Python 3.12（3.10+ 亦可），以及用于构建照片库的 Node.js 20+。
+需要 Python 3.12（3.10+ 亦可），以及用于构建照片库的 Node.js 24.15.0 或更高版本（限 24.x 系列）。
 
 ```bash
 # 1. 创建并激活虚拟环境
@@ -443,7 +443,7 @@ pip uninstall -y opencv-python opencv-python-headless
 pip install --no-deps "opencv-python-headless==$CV_VER"
 
 # 6. 构建网页照片库
-cd client && npm install && npx ng build && cd ..
+cd client && npm ci && npm run build && cd ..
 
 # 7. 运行
 python facet.py /path/to/photos
@@ -466,18 +466,20 @@ python -c "import torch, cv2, fastapi, insightface, open_clip, pyiqa, numpy, sci
 
 `install.sh`：
 
-1. 找到一个 Python 3.10+ 并创建 `venv`；
+1. 除非设置了 `--skip-client`，先检查 Node.js 24.15.0+（24.x）和 npm，然后找到一个 Python 3.10+ 并创建 `venv`；
 2. 检测操作系统和 GPU（Apple Silicon → Metal，否则用 `nvidia-smi` → 匹配的 CUDA 构建）；
 3. 安装 PyTorch、`requirements.txt`、`transformers` 和 `accelerate`；
 4. 换上对应的 [ONNX Runtime](#用于人脸检测的-onnx-runtime) 和
    [headless 版 OpenCV](#opencv-headless-版本)；
 5. 检查 `exiftool`，构建 Angular 客户端，并验证每一处导入（任何一处失败时以状态码 1 退出）。
 
+更新代码后重新运行 `install.sh` 会重建图库，即使 `client/dist` 已存在。构建使用已提交的锁文件（`npm ci`）和一个临时目录，然后才替换正在提供服务的客户端。依赖或编译失败会保留之前的前端并以非零状态退出。如果发布失败，安装程序会恢复之前的前端；如果恢复也失败，它会打印保留的备份目录以便恢复。
+
 | 参数 | 作用 |
 |------|--------|
 | `--cpu` | 强制使用纯 CPU 的 PyTorch（不带 CUDA） |
 | `--cuda VERSION` | 覆盖检测到的 CUDA 版本（例如 `--cuda 12.8`） |
-| `--skip-client` | 跳过 Angular 前端构建 |
+| `--skip-client` | 跳过 Node/npm 检查和 Angular 前端构建；保留当前前端 |
 | `--no-uv` | 使用 pip 而不是 uv |
 | `--commercial` | 可用于商业用途的安装：跳过 insightface、pyiqa 和 ONNX Runtime，以 `--no-deps` 安装 mediapipe；需自行将 `licensing.mode` 设为 `commercial` |
 
@@ -854,11 +856,11 @@ python facet.py --doctor --simulate-gpu "RTX 5070 Ti" --simulate-vram 16
 
 ## Angular 客户端
 
-只有开发或自定义构建时才需要；`install.sh` 和 Docker 镜像已经帮你构建好了。
+只有开发或自定义构建时才需要；`install.sh` 和 Docker 镜像已经帮你构建好了。请使用 Node.js 24.15.0 或更高版本（限 24.x 系列）。
 
 ```bash
 cd client
-npm install
+npm ci
 npm run build    # 生产构建 → client/dist/
 npm start        # 开发服务器，运行在 http://localhost:4200（把 API 代理到 :5000）
 ```

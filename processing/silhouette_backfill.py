@@ -294,7 +294,7 @@ def recompute_silhouette(db_path='photo_scores_pro.db', dry_run=False, batch_siz
     stats = _new_stats()
     last_rowid = 0
     while True:
-        with get_connection(db_path) as conn:
+        with get_connection(db_path, read_only=dry_run) as conn:
             rows = conn.execute(
                 "SELECT rowid AS rid, path, image_width, image_height, face_ratio, face_count, "
                 "is_silhouette, CASE WHEN face_count > 0 THEN thumbnail END AS thumbnail "
