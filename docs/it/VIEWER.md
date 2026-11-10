@@ -1558,7 +1558,7 @@ Endpoint: `POST /api/photos/capture_date/preview`, `POST /api/photos/capture_dat
 
 ## Cronologia delle modifiche
 
-Esamina e ripristina le modifiche recenti in tutta la libreria. In modalità di modifica, apri **Cronologia delle modifiche** dalla navigazione. Espandi una voce per vedere i valori prima/dopo, scegli Anteprima, poi Applica o Annulla. Un conflitto viene indicato su quella voce e non scrive nulla; un errore di caricamento offre Ricarica anziché fingere che la cronologia sia vuota.
+Esamina e ripristina le modifiche recenti in tutta la libreria. In modalità di modifica, apri **Cronologia delle modifiche** dalla navigazione. Ogni voce indica cosa è cambiato e mostra fino a sei delle sue foto, che si aprono in una nuova scheda; espandila per vedere i campi modificati foto per foto. Scegli **Ripristina…**, poi **Ripristina** o **Annulla**. Un conflitto viene indicato su quella voce e non scrive nulla; un errore di caricamento offre Ricarica anziché fingere che la cronologia sia vuota.
 
 - **Che cosa viene registrato:** GPS, date di scatto, decisioni di revisione, stelle, preferiti e pile manuali. Non tag manuali, file né riconoscimento dei volti.
 - GPS e date di scatto sono valori condivisi della libreria. Decisioni di revisione, stelle e preferiti sono tuoi.

@@ -12,14 +12,15 @@ import { OrganizationHistoryDialogComponent } from './organization-history-dialo
 
 type Entry = components['schemas']['OrganizationEntry'];
 const messages = {
-  preview_action: 'Review restore…', limits_title: 'What history can restore', limits: 'Up to 50 recent entries.', reload: 'Reload history', restore_preview: 'Restore {count} photo', restore_preview_plural: 'Restore {count} photos', superseded: 'Superseded by a later change', restore_boundary: 'Conflicts restore nothing.',
+  preview_action: 'Review restore…', limits_title: 'What history can restore', limits: 'Up to 50 recent entries.', reload: 'Reload history', restore_preview: 'Restore {count} photo', restore_preview_plural: 'Restore {count} photos', superseded: 'Superseded by a later change',
+  photo_changes: 'Changes per photo', various: 'several values', unchanged: 'No change', decision: 'Decision',
   title: 'Organization history', hint: 'History belongs to this account.', gps: 'Location', date: 'Capture date',
   review: 'Review', logical_review: 'Grouped photo review', revert: 'Revert this entry', reverted: 'Already reverted', empty: 'No available history entries.',
   success: 'Photos restored: {count}', error: 'Could not load or restore history.',
   conflict: 'Photos changed since this action. Nothing was restored.',
   unavailable: 'This entry is no longer available. Nothing was restored.',
   photo_count: 'Photos: {count}', part: 'Part {part} of {parts}: {count} photos.',
-  latitude: 'Latitude', longitude: 'Longitude', manual_gps: 'Manual location', capture_date: 'Capture date',
+  manual_gps: 'Manual location', capture_date: 'Capture date',
   manual_date: 'Manual date', stars: 'Stars', favorite: 'Favorite', rejected: 'Rejected', kept: 'Kept',
   yes: 'Yes', no: 'No', unknown: 'Unknown', field: 'Field',
   entry_action: '{action} · {kind} · {date} · #{id}',
@@ -71,6 +72,9 @@ describe('Organization history rendered controls and HTTP', () => {
   }
   function sections(): HTMLElement[] { return [...root.querySelectorAll<HTMLElement>('mat-dialog-content > section')]; }
   function revert(index = 0): HTMLButtonElement { return sections()[index].querySelector('button[aria-label]')!; }
+  function changeLines(element: Element): string[] {
+    return [...element.querySelectorAll('[data-history-change]')].map(change => change.textContent!.replace(/\s+/g, ' ').trim());
+  }
   async function applyRestore() {
     revert().click(); await settle();
     (root.querySelector('[data-history-apply]') as HTMLButtonElement).click();
@@ -89,7 +93,7 @@ describe('Organization history rendered controls and HTTP', () => {
     const details = sections()[0].querySelector('details')!;
     details.open = true; details.dispatchEvent(new Event('toggle')); await settle();
     expect(root.textContent).toContain('Stars');
-    expect(root.textContent).toContain('/history/a.CR2');
+    expect(root.querySelector('[data-history-photo-changes] [title="/history/a.CR2"]')?.textContent?.trim()).toBe('a.CR2');
     revert().click(); await settle();
     http.expectNone('/api/organization_history/901/revert');
     expect(root.querySelector('[data-history-preview]')).not.toBeNull();
@@ -123,33 +127,61 @@ describe('Organization history rendered controls and HTTP', () => {
     http.expectNone(request => request.method === 'POST');
   });
 
-  for (const [kind, before, after, labels, values] of [
-    ['gps', [null, 2, 0], [3, 4, 1], ['Latitude', 'Longitude', 'Manual location'], ['Unknown', '3', '2', '4', 'No', 'Yes']],
-    ['date', ['2024:01:01 00:00:00', 0], ['2024:01:01 00:01:00', 1], ['Capture date', 'Manual date'], ['2024:01:01 00:00:00', '2024:01:01 00:01:00', 'No', 'Yes']],
-    ['review', [4, 0, 0, 1], [0, 0, 1, 0], ['Stars', 'Favorite', 'Rejected', 'Kept'], ['4', '0', 'No', 'No', 'No', 'Yes', 'Yes', 'No']],
+  for (const [kind, before, after, lines] of [
+    ['gps', [null, 2, 0], [3, 4, 1], ['Location: Unknown → 3, 4', 'Manual location: No → Yes']],
+    ['date', ['2024:01:01 00:00:00', 0], ['2024:01:01 00:01:00', 1], ['Capture date: 01/01/2024 00:00 → 01/01/2024 00:01', 'Manual date: No → Yes']],
+    ['review', [4, 0, 0, 1], [0, 0, 1, 0], ['Stars: 4 → Unknown', 'Decision: Kept → Rejected']],
   ] as const) {
-    it(`renders ${kind} values under named column and row headers after expansion`, async () => {
+    it(`lists only the changed ${kind} fields of each photo after expansion`, async () => {
       await create([entry({ kind, changes: [{ path: '/history/a.jpg', before: [...before], after: [...after], revision: 5 }] })]);
-      expect(root.querySelector('table')).toBeNull();
+      expect(root.querySelector('[data-history-photo-changes]')).toBeNull();
       const details = sections()[0].querySelector('details')!;
-      expect(details.querySelector('summary')?.textContent?.trim()).toBe('Before → After');
+      expect(details.querySelector('summary')?.textContent?.trim()).toBe('Changes per photo');
       details.open = true;
       details.dispatchEvent(new Event('toggle'));
       await settle();
-      const headers = [...root.querySelectorAll('thead th')];
-      expect(headers.map(header => header.textContent?.trim())).toEqual(['Field', 'Before', 'After']);
-      expect(headers.map(header => header.getAttribute('scope'))).toEqual(['col', 'col', 'col']);
-      const rows = [...root.querySelectorAll('tbody th')];
-      expect(rows.map(header => header.textContent?.trim())).toEqual(labels);
-      expect(rows.every(header => header.getAttribute('scope') === 'row')).toBe(true);
-      expect([...root.querySelectorAll('tbody td')].map(cell => cell.textContent?.trim())).toEqual(values);
+      const rows = [...root.querySelectorAll<HTMLElement>('[data-history-photo-changes]')];
+      expect(rows).toHaveLength(1);
+      expect(rows[0].querySelector('[title]')?.getAttribute('title')).toBe('/history/a.jpg');
+      expect(changeLines(rows[0])).toEqual(lines);
+      expect(rows[0].textContent).not.toContain('Favorite');
       details.open = false;
       details.dispatchEvent(new Event('toggle'));
       await settle();
-      expect(root.querySelector('table')).toBeNull();
+      expect(root.querySelector('[data-history-photo-changes]')).toBeNull();
       http.expectNone(request => request.method === 'POST');
     });
   }
+
+  it('says what changed before any expansion', async () => {
+    await create([
+      entry({ id: 920, kind: 'review', changes: [{ path: '/h/a.jpg', before: [0, 1, 0, 0], after: [0, 0, 0, 0], revision: 5 }] }),
+      entry({ id: 921, kind: 'date', changes: [
+        { path: '/h/b.jpg', before: ['2024:01:01 10:00:00', 1], after: ['2024:01:01 11:00:00', 1], revision: 5 },
+        { path: '/h/c.jpg', before: ['2024:01:02 10:00:00', 1], after: ['2024:01:02 11:00:00', 1], revision: 5 },
+      ] }),
+    ]);
+    expect(sections().map(section => changeLines(section.querySelector('[data-history-summary]')!)))
+      .toEqual([['Favorite: Yes → No'], ['Capture date: several values']]);
+    expect(root.querySelector('[data-history-photo-changes]')).toBeNull();
+  });
+
+  it('shows up to six thumbnails that open their photo in a new tab, named by file', async () => {
+    const changes = Array.from({ length: 8 }, (_, index) => ({ path: `/h/p${index}.jpg`, before: [0, 1, 0, 0], after: [0, 0, 0, 0], revision: 5 }));
+    await create([entry({ id: 930, kind: 'review', changes }), entry({ id: 931, kind: 'review', changes: changes.slice(0, 1) })]);
+    const links = [...sections()[0].querySelectorAll<HTMLAnchorElement>('[data-history-photo]')];
+    expect(links).toHaveLength(6);
+    expect(links[0].getAttribute('href')).toBe('/photo?path=%2Fh%2Fp0.jpg');
+    expect(links[0].target).toBe('_blank');
+    expect(links[0].rel).toBe('noopener');
+    expect(links[0].getAttribute('aria-label')).toBe('p0.jpg');
+    expect(links[0].title).toBe('/h/p0.jpg');
+    expect(links[0].querySelector('img')?.getAttribute('src')).toBe('/thumbnail?path=%2Fh%2Fp0.jpg&size=96');
+    expect(sections()[0].querySelector('[data-history-photos]')?.textContent?.replace(/\s+/g, ' ')).toContain('+2 · Photos: 8');
+    const single = sections()[1].querySelector('[data-history-photos]')!;
+    expect(single.querySelectorAll('[data-history-photo]')).toHaveLength(1);
+    expect(single.textContent?.trim()).toBe('p0.jpg');
+  });
 
   it('renders a list failure without writing and loads again when reopened', async () => {
     await create([], true);
@@ -211,16 +243,14 @@ describe('Organization history rendered controls and HTTP', () => {
     expect(root.querySelector('[data-history-preview]')?.textContent).not.toContain('Restore 1 photos');
   });
 
-  it('shows the review decision only when it changed', async () => {
+  it('lists per photo only what changed, the decision included only when it changed', async () => {
     const same = { path: '/same.jpg', before: [0, 0, 0, 0], after: [4, 1, 0, 0], revision: 5 };
     const flipped = { path: '/flip.jpg', before: [0, 0, 0, 0], after: [0, 0, 1, 0], revision: 5 };
     await create([entry({ id: 910, kind: 'review', changes: [same, flipped] })]);
-    const details = root.querySelectorAll('details')[1] as HTMLDetailsElement;
+    const details = sections()[0].querySelector('details')!;
     details.open = true; details.dispatchEvent(new Event('toggle')); await settle();
-    const lines = [...root.querySelectorAll('p')].filter(p => p.textContent?.includes('Review:'));
-    expect(lines).toHaveLength(1);
-    expect(lines[0].previousElementSibling?.textContent).toBe('/flip.jpg');
-    expect(lines[0].textContent).toMatch(/Undecided\s*→\s*Rejected/);
+    const rows = [...root.querySelectorAll<HTMLElement>('[data-history-photo-changes]')];
+    expect(rows.map(changeLines)).toEqual([['Stars: Unknown → 4', 'Favorite: No → Yes'], ['Decision: Undecided → Rejected']]);
   });
 
   for (const [status, message] of [[404, messages.unavailable], [409, messages.conflict], [500, messages.error]] as const) {

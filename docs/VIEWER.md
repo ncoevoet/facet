@@ -1559,16 +1559,16 @@ Endpoints: `POST /api/photos/capture_date/preview`, `POST /api/photos/capture_da
 
 ## Organization history
 
-Review and revert recent edits across the library. In edition mode, open **Organization history** from navigation. Expand an entry to see its before/after values, choose Preview, then Apply or Cancel. A conflict is shown on that entry and writes nothing; a failed load offers Reload rather than pretending history is empty.
+Review recent edits across the library and restore earlier values. In edition mode, open **Organization history** from navigation. Each entry says what changed and shows up to six of its photos, which open in a new tab; expand it to list the changed fields photo by photo. Choose **Restore…**, then **Restore** or **Cancel**. A conflict is shown on that entry and writes nothing; a failed load offers Reload rather than pretending history is empty.
 
 - **What is recorded:** GPS, capture dates, review decisions, stars, favorites and manual stacks. Not manual tags, files or face recognition.
 - GPS and capture dates are shared library values. Review decisions, stars and favorites are your own.
 - The short Undo and assistant activity list are separate.
-- **Limits.** The latest **50 entries per account**, each up to **1000 photos and 1 MiB** of values. Larger filtered review actions are split into parts; revert restores one part. A stack replacement can cover up to 2000 photos in one entry.
+- **Limits.** The latest **50 entries per account**, each up to **1000 photos and 1 MiB** of values. Larger filtered review actions are split into parts; a restore covers one part. A stack replacement can cover up to 2000 photos in one entry.
 - History survives restarts and incremental viewer database updates. A fresh/full viewer export starts empty. It does not sync to another database.
-- **Revert is all or nothing.** It is refused if any photo's value changed since, even if changed back. Another account's private review edit does not block yours. Rescans, imports and Undo can also invalidate older entries.
+- **Restore is all or nothing.** It is refused if any photo's value changed since, even if changed back. Another account's private review edit does not block yours. Rescans, imports and Undo can also invalidate older entries.
 - An entry is hidden when one of its photos is deleted or no longer visible to you.
-- A revert adds its own entry and marks the original as reverted.
+- A restore adds its own entry and marks the original as restored.
 
 ### Processing and receipts
 

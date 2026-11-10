@@ -1558,16 +1558,16 @@ Points d'accès : `POST /api/photos/capture_date/preview`, `POST /api/photos/ca
 
 ## Historique des modifications
 
-Passez en revue et rétablissez vos modifications récentes dans toute la bibliothèque. En mode édition, ouvrez **Historique des modifications** depuis la navigation. Développez une entrée pour voir ses valeurs avant/après, choisissez l’aperçu, puis Appliquer ou Annuler. Un conflit est signalé sur l’entrée concernée sans aucune écriture ; un échec de chargement propose Recharger au lieu de présenter un historique faussement vide.
+Passez en revue et rétablissez vos modifications récentes dans toute la bibliothèque. En mode édition, ouvrez **Historique des modifications** depuis la navigation. Chaque entrée indique ce qui a changé et montre jusqu’à six de ses photos, qui s’ouvrent dans un nouvel onglet ; développez-la pour voir les champs modifiés photo par photo. Choisissez **Restaurer…**, puis **Restaurer** ou **Annuler**. Un conflit est signalé sur l’entrée concernée sans aucune écriture ; un échec de chargement propose Recharger au lieu de présenter un historique faussement vide.
 
 - **Ce qui est enregistré :** GPS, dates de prise de vue, décisions de tri, étoiles, favoris et piles manuelles. Pas les tags manuels, les fichiers ni la reconnaissance de visages.
 - Le GPS et les dates de prise de vue sont des valeurs partagées de la bibliothèque. Les décisions de tri, étoiles et favoris sont les vôtres.
 - Le court Annuler et la liste d'activité de l'assistant sont distincts.
-- **Limites.** Les **50 dernières entrées par compte**, chacune jusqu'à **1000 photos et 1 Mio** de valeurs. Les actions de revue filtrées plus grandes sont scindées en parties ; l'annulation en restaure une. Un remplacement de pile peut couvrir jusqu'à 2000 photos en une entrée.
+- **Limites.** Les **50 dernières entrées par compte**, chacune jusqu'à **1000 photos et 1 Mio** de valeurs. Les actions de revue filtrées plus grandes sont scindées en parties ; une restauration en couvre une. Un remplacement de pile peut couvrir jusqu'à 2000 photos en une entrée.
 - L'historique survit aux redémarrages et aux mises à jour incrémentales de la base de données de la visionneuse. Un export de visionneuse neuf/complet repart vide. Il ne se synchronise pas vers une autre base de données.
-- **L'annulation est tout ou rien.** Elle est refusée si la valeur d'une photo a changé depuis, même si elle est revenue en arrière. La modification de revue privée d'un autre compte ne bloque pas la vôtre. Les rescans, imports et Annuler peuvent aussi invalider des entrées plus anciennes.
+- **La restauration est tout ou rien.** Elle est refusée si la valeur d'une photo a changé depuis, même si elle est revenue en arrière. La modification de revue privée d'un autre compte ne bloque pas la vôtre. Les rescans, imports et Annuler peuvent aussi invalider des entrées plus anciennes.
 - Une entrée est masquée quand l'une de ses photos est supprimée ou n'est plus visible pour vous.
-- Une annulation ajoute sa propre entrée et marque l'originale comme annulée.
+- Une restauration ajoute sa propre entrée et marque l'originale comme restaurée.
 
 ### Traitement et reçus
 

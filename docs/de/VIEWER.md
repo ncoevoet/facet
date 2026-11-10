@@ -1559,16 +1559,16 @@ Endpunkte: `POST /api/photos/capture_date/preview`, `POST /api/photos/capture_da
 
 ## Änderungsverlauf
 
-Prüfen Sie die letzten Änderungen in der gesamten Bibliothek und stellen Sie frühere Werte wieder her. Öffnen Sie im Bearbeitungsmodus **Änderungsverlauf** über die Navigation. Klappen Sie einen Eintrag auf, um seine Vorher-/Nachher-Werte zu sehen, wählen Sie die Vorschau und dann Anwenden oder Abbrechen. Ein Konflikt wird am betreffenden Eintrag angezeigt und schreibt nichts; bei einem Ladefehler wird Neu laden angeboten, statt einen leeren Verlauf vorzutäuschen.
+Prüfen Sie die letzten Änderungen in der gesamten Bibliothek und stellen Sie frühere Werte wieder her. Öffnen Sie im Bearbeitungsmodus **Änderungsverlauf** über die Navigation. Jeder Eintrag nennt, was sich geändert hat, und zeigt bis zu sechs seiner Fotos, die sich in einem neuen Tab öffnen; klappen Sie ihn auf, um die geänderten Felder Foto für Foto zu sehen. Wählen Sie **Wiederherstellen…** und dann **Wiederherstellen** oder **Abbrechen**. Ein Konflikt wird am betreffenden Eintrag angezeigt und schreibt nichts; bei einem Ladefehler wird Neu laden angeboten, statt einen leeren Verlauf vorzutäuschen.
 
 - **Was erfasst wird:** GPS, Aufnahmedaten, Sichtungsentscheidungen, Sterne, Favoriten und manuelle Stapel. Nicht manuelle Tags, Dateien oder Gesichtserkennung.
 - GPS und Aufnahmedaten sind geteilte Bibliothekswerte. Sichtungsentscheidungen, Sterne und Favoriten gehören Ihnen.
 - Das kurze Rückgängig und die Assistenten-Aktivitätsliste sind davon getrennt.
-- **Grenzen.** Die letzten **50 Einträge pro Konto**, jeder mit bis zu **1000 Fotos und 1 MiB** an Werten. Größere gefilterte Sichtungsaktionen werden in Teile aufgeteilt; das Zurücksetzen stellt einen Teil wieder her. Ein Ersatz eines Stapels kann in einem Eintrag bis zu 2000 Fotos umfassen.
+- **Grenzen.** Die letzten **50 Einträge pro Konto**, jeder mit bis zu **1000 Fotos und 1 MiB** an Werten. Größere gefilterte Sichtungsaktionen werden in Teile aufgeteilt; ein Wiederherstellen umfasst einen Teil. Ein Ersatz eines Stapels kann in einem Eintrag bis zu 2000 Fotos umfassen.
 - Der Verlauf übersteht Neustarts und inkrementelle Aktualisierungen der Viewer-Datenbank. Ein frischer/vollständiger Viewer-Export beginnt leer. Er wird nicht mit einer anderen Datenbank synchronisiert.
-- **Das Zurücksetzen gilt ganz oder gar nicht.** Es wird abgelehnt, wenn sich der Wert irgendeines Fotos seither geändert hat, auch wenn er zurückgeändert wurde. Die private Sichtungsänderung eines anderen Kontos blockiert Ihre nicht. Erneute Scans, Importe und Rückgängig können ältere Einträge ebenfalls ungültig machen.
+- **Das Wiederherstellen gilt ganz oder gar nicht.** Es wird abgelehnt, wenn sich der Wert irgendeines Fotos seither geändert hat, auch wenn er zurückgeändert wurde. Die private Sichtungsänderung eines anderen Kontos blockiert Ihre nicht. Erneute Scans, Importe und Rückgängig können ältere Einträge ebenfalls ungültig machen.
 - Ein Eintrag wird ausgeblendet, wenn eines seiner Fotos gelöscht wurde oder für Sie nicht mehr sichtbar ist.
-- Ein Zurücksetzen fügt einen eigenen Eintrag hinzu und markiert das Original als zurückgesetzt.
+- Ein Wiederherstellen fügt einen eigenen Eintrag hinzu und markiert das Original als wiederhergestellt.
 
 ### Verarbeitung und Belege
 

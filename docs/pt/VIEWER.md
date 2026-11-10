@@ -1556,16 +1556,16 @@ Endpoints: `POST /api/photos/capture_date/preview`, `POST /api/photos/capture_da
 
 ## Histórico de organização
 
-Reveja e reverta as edições recentes em toda a biblioteca. No modo de edição, abra **Histórico de organização** na navegação. Expanda uma entrada para ver os valores de antes/depois, escolha Rever e depois Aplicar ou Cancelar. Um conflito aparece nessa entrada e não escreve nada; uma falha de carregamento oferece Recarregar em vez de aparentar um histórico vazio.
+Reveja as edições recentes em toda a biblioteca e restaure os valores anteriores. No modo de edição, abra **Histórico de organização** na navegação. Cada entrada indica o que mudou e mostra até seis das suas fotos, que abrem num novo separador; expanda-a para ver os campos alterados foto a foto. Escolha **Restaurar…** e depois **Restaurar** ou **Cancelar**. Um conflito aparece nessa entrada e não escreve nada; uma falha de carregamento oferece Recarregar em vez de aparentar um histórico vazio.
 
 - **O que é registado:** GPS, datas de captura, decisões de revisão, estrelas, favoritos e pilhas manuais. Não etiquetas manuais, ficheiros nem reconhecimento facial.
 - GPS e datas de captura são valores compartilhados da biblioteca. Decisões de revisão, estrelas e favoritos são seus.
 - A lista curta de Desfazer e a de atividade do assistente são separadas.
-- **Limites.** As últimas **50 entradas por conta**, cada uma com até **1000 fotos e 1 MiB** de valores. Ações de revisão filtradas maiores são divididas em partes; reverter restaura uma parte. A substituição de uma pilha pode cobrir até 2000 fotos em uma entrada.
+- **Limites.** As últimas **50 entradas por conta**, cada uma com até **1000 fotos e 1 MiB** de valores. Ações de revisão filtradas maiores são divididas em partes; um restauro cobre uma parte. A substituição de uma pilha pode cobrir até 2000 fotos em uma entrada.
 - O histórico sobrevive a reinicializações e a atualizações incrementais do banco de dados do visualizador. Uma exportação nova/completa do visualizador começa vazia. Não é sincronizado com outro banco de dados.
-- **Reverter é tudo ou nada.** É recusado se o valor de qualquer foto mudou desde então, mesmo que tenha voltado ao que era. A edição de revisão privada de outra conta não bloqueia a sua. Novas varreduras, importações e Desfazer também podem invalidar entradas mais antigas.
+- **Restaurar é tudo ou nada.** É recusado se o valor de qualquer foto mudou desde então, mesmo que tenha voltado ao que era. A edição de revisão privada de outra conta não bloqueia a sua. Novas varreduras, importações e Desfazer também podem invalidar entradas mais antigas.
 - Uma entrada fica oculta quando uma das suas fotos é excluída ou deixa de ser visível para você.
-- Uma reversão adiciona a sua própria entrada e marca a original como revertida.
+- Um restauro adiciona a sua própria entrada e marca a original como restaurada.
 
 ### Processamento e comprovativos
 

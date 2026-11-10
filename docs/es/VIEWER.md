@@ -1559,16 +1559,16 @@ Endpoints: `POST /api/photos/capture_date/preview`, `POST /api/photos/capture_da
 
 ## Historial de organización
 
-Revisa y revierte las ediciones recientes en toda la biblioteca. En modo de edición, abre **Historial de organización** desde la navegación. Expande una entrada para ver los valores de antes/después, elige Revisar y después Aplicar o Cancelar. Un conflicto se muestra en esa entrada y no escribe nada; si falla la carga, se ofrece Recargar en lugar de aparentar que el historial está vacío.
+Revisa las ediciones recientes en toda la biblioteca y restaura los valores anteriores. En modo de edición, abre **Historial de organización** desde la navegación. Cada entrada indica qué cambió y muestra hasta seis de sus fotos, que se abren en una pestaña nueva; despliégala para ver los campos cambiados foto por foto. Elige **Restaurar…** y después **Restaurar** o **Cancelar**. Un conflicto se muestra en esa entrada y no escribe nada; si falla la carga, se ofrece Recargar en lugar de aparentar que el historial está vacío.
 
 - **Qué se registra:** GPS, fechas de captura, decisiones de revisión, estrellas, favoritos y pilas manuales. No las etiquetas manuales, los archivos ni el reconocimiento facial.
 - El GPS y las fechas de captura son valores compartidos de la biblioteca. Las decisiones de revisión, estrellas y favoritos son tuyos.
 - La lista corta de Deshacer y la de actividad del asistente son independientes.
-- **Límites.** Las últimas **50 entradas por cuenta**, cada una con hasta **1000 fotos y 1 MiB** de valores. Las acciones de revisión filtradas más grandes se dividen en partes; revertir restaura una parte. Un reemplazo de pilas puede cubrir hasta 2000 fotos en una entrada.
+- **Límites.** Las últimas **50 entradas por cuenta**, cada una con hasta **1000 fotos y 1 MiB** de valores. Las acciones de revisión filtradas más grandes se dividen en partes; una restauración cubre una parte. Un reemplazo de pilas puede cubrir hasta 2000 fotos en una entrada.
 - El historial sobrevive a los reinicios y a las actualizaciones incrementales de la base de datos del visor. Una exportación del visor nueva/completa empieza vacía. No se sincroniza con otra base de datos.
-- **Revertir es todo o nada.** Se rechaza si el valor de alguna foto ha cambiado desde entonces, aunque se haya vuelto a cambiar. La edición de revisión privada de otra cuenta no bloquea la tuya. Los reescaneos, las importaciones y Deshacer también pueden invalidar entradas más antiguas.
+- **Restaurar es todo o nada.** Se rechaza si el valor de alguna foto ha cambiado desde entonces, aunque se haya vuelto a cambiar. La edición de revisión privada de otra cuenta no bloquea la tuya. Los reescaneos, las importaciones y Deshacer también pueden invalidar entradas más antiguas.
 - Una entrada se oculta cuando una de sus fotos se elimina o deja de ser visible para ti.
-- Una reversión añade su propia entrada y marca la original como revertida.
+- Una restauración añade su propia entrada y marca la original como restaurada.
 
 ### Procesamiento y comprobantes
 
