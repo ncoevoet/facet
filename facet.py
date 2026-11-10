@@ -4330,14 +4330,8 @@ _CSV_COLUMNS = (
 
 def _refuse_db_alias(output_file, db_path):
     """True when output_file is the source database or its -wal/-shm/-journal."""
-    protected = {
-        base + suffix
-        for base in (str(db_path), os.path.realpath(db_path))
-        for suffix in ('', '-wal', '-shm', '-journal')
-    }
-    return any(os.path.realpath(output_file) == os.path.realpath(path)
-               or (os.path.exists(output_file) and os.path.exists(path)
-                   and os.path.samefile(output_file, path)) for path in protected)
+    from db.maintenance import paths_overlap, sqlite_file_family
+    return paths_overlap({Path(output_file).resolve()}, sqlite_file_family(db_path))
 
 
 def _json_safe(value):

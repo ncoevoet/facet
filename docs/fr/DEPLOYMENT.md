@@ -153,10 +153,10 @@ Le serveur sert la SPA pré-compilée depuis `client/dist/client/browser/`. Comp
 le déploiement :
 
 ```bash
-cd client && npm install && npx ng build && cd ..
+cd client && npm ci && npm run build && cd ..
 ```
 
-Cela nécessite Node.js 20+ uniquement au moment de la compilation, pas sur le serveur.
+Cela nécessite Node.js 24.15.0 ou plus récent (série 24.x) uniquement au moment de la compilation, pas sur le serveur.
 
 ## NAS Synology (DS420j / série J)
 
@@ -197,6 +197,7 @@ Cela crée `photo_scores_viewer.db`, qui :
 - supprime les embeddings CLIP, de légende et de visage ;
 - conserve l'histogramme par photo (~2 Ko chacun) pour le widget d'histogramme RVB ;
 - réduit les miniatures de 640 px à 320 px ;
+- démarre avec des listes de lieux enregistrés et de positions récentes vides ; les lieux privés de la machine de scoring ne sont pas copiés ;
 - fait généralement passer une base de 14 Go à environ 4-5 Go.
 
 Les exports sont incrémentaux : seules les photos nouvelles et modifiées sont synchronisées. Pour une reconstruction complète :
@@ -205,8 +206,18 @@ Les exports sont incrémentaux : seules les photos nouvelles et modifiées sont
 python database.py --export-viewer-db --force-export
 ```
 
-> **Avertissement :** `--force-export` supprime les notes, les positions et les tags manuels
+> **Avertissement :** `--force-export` supprime les notes, les positions, les tags manuels et les lieux privés enregistrés ou récents
 > définis dans la galerie sur le NAS. Seul un export incrémental les conserve.
+
+**Achèvement et nouvelle tentative.** Un export complet est préparé dans un répertoire temporaire réservé au propriétaire à côté de la destination, débarrassé de l'état privé de la source, compacté et vérifié pour la cohérence SQLite et des clés étrangères avant publication. Une nouvelle sortie n'apparaît que lorsqu'elle est prête. Le remplacement d'une sortie existante utilise la transaction de sauvegarde de SQLite, en préservant son inode pour les lecteurs ouverts et les connexions WAL ; en cas d'échec, la base précédente est conservée. Une sortie existante qui n'est pas une base SQLite est remplacée comme un fichier. Les nouvelles sorties et les instantanés de sauvegarde exigent un système de fichiers qui prend en charge les liens physiques. Sinon, la commande échoue sans publier de fichier partiel ; choisissez un répertoire de sortie compatible.
+
+Un export incrémental met d'abord à niveau le schéma de la destination, puis synchronise un instantané de la source dans une seule transaction de la destination. Les vignettes des nouvelles photos sont réduites et l'intégrité de la destination est vérifiée avant le début de cette transaction, si bien que les écritures de la visionneuse n'attendent que pendant l'application des changements. Une synchronisation de données en échec ou interrompue annule ensemble les changements de photos, visages, tags, vecteurs et reçus de révision ; la mise à niveau du schéma peut subsister. Corrigez la cause signalée et relancez la même commande. Une vignette corrompue sur une nouvelle photo est une erreur : la réparer dans la source puis réessayer génère aussi sa vignette. Les vignettes existantes restent inchangées. Les modifications de révision, les tags manuels et les lieux enregistrés/récents de la destination restent locaux et sont conservés par la synchronisation incrémentale.
+
+Les chemins de sortie sont des noms de fichier littéraux, y compris les noms commençant par `file:` sur les systèmes de fichiers qui les acceptent ; les paramètres d'URI SQLite ne sont pas acceptés.
+
+Les exports réservent de l'espace libre pour la préparation ou les journaux de retour arrière et échouent avant la copie si l'estimation ne tient pas. Les exceptions et les interruptions normales suppriment la copie temporaire ; un processus tué de force peut laisser à côté de la sortie un répertoire caché `.*.export-*` réservé au propriétaire. Une fois l'exportateur arrêté, supprimez ce répertoire temporaire et réessayez. L'ancienne base publiée reste le point de reprise. Le verrouillage SQLite s'applique toujours : réessayez en cas d'erreur de verrou quand l'écrivain de la destination est inactif.
+
+Si le fichier principal de la sortie est absent mais qu'un fichier annexe `-wal`, `-shm` ou `-journal` subsiste, l'export s'arrête sans le supprimer. Fermez les utilisateurs de cette base et récupérez-la avant de réessayer ; un WAL survivant peut contenir des données appartenant à la base précédente.
 
 La fonctionnalité « Photos similaires » ne fonctionne pas sur la base exportée (pas d'embeddings). Utilisez la machine
 de scoring pour cela.

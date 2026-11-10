@@ -3,14 +3,18 @@
 import glob
 import os
 import sqlite3
+import threading
+import time
 from concurrent.futures import ThreadPoolExecutor
+from contextlib import closing, contextmanager
 from pathlib import Path
 from threading import Barrier
 from unittest import mock
 
 import pytest
 
-from db.maintenance import backup_database, check_disk_space
+from db.maintenance import backup_database, check_disk_space, export_viewer_db
+from db.schema import init_database
 
 
 def _make_db(path, rows):
@@ -195,3 +199,51 @@ class TestCheckDiskSpace:
             ok, free, required = check_disk_space(str(tmp_path), 100)
         assert ok is False
         assert free == 5
+
+
+@contextmanager
+def _committing_writer(path):
+    """Commit to ``path`` from another connection, as a scan or the viewer would."""
+    stop = threading.Event()
+    commits = []
+
+    def write():
+        with closing(sqlite3.connect(path, timeout=5)) as conn:
+            while not stop.is_set():
+                conn.execute('UPDATE live SET n = n + 1')
+                conn.commit()
+                commits.append(time.monotonic())
+                time.sleep(0.005)
+
+    writer = threading.Thread(target=write, daemon=True)
+    writer.start()
+    try:
+        yield commits
+    finally:
+        stop.set()
+        writer.join(10)
+
+
+@pytest.mark.parametrize('operation', ['backup', 'export'])
+def test_live_library_copy_finishes_while_another_connection_commits(tmp_path, operation):
+    db = tmp_path / 'library.db'
+    init_database(str(db), build_photo_indexes=False)
+    with closing(sqlite3.connect(db)) as conn, conn:
+        conn.execute('PRAGMA journal_mode=WAL')
+        conn.execute('CREATE TABLE live(n INTEGER)')
+        conn.execute('INSERT INTO live VALUES(0)')
+        conn.execute('CREATE TABLE bulk(blob BLOB)')
+        # Enough pages that a copy in 256-page steps spans many writer commits.
+        conn.executemany('INSERT INTO bulk VALUES(randomblob(8192))', [()] * 6144)
+    copy = {
+        'backup': lambda: backup_database(str(db), keep=3, verbose=False),
+        'export': lambda: export_viewer_db(str(db), str(tmp_path / 'viewer.db'), verbose=False),
+    }[operation]
+    # The writer stops first on exit, so a copy that never finishes fails the
+    # timeout below instead of hanging the executor's shutdown.
+    with ThreadPoolExecutor(max_workers=1) as executor, _committing_writer(db) as commits:
+        deadline = time.monotonic() + 10
+        while not commits and time.monotonic() < deadline:
+            time.sleep(0.01)
+        assert commits, 'the writer must be committing before the copy starts'
+        executor.submit(copy).result(timeout=10)

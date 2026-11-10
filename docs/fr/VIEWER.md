@@ -1100,6 +1100,8 @@ La page Stats (`/stats`) a 5 onglets. Les sélecteurs de **catégorie** et de **
 | **Catégories** | Analyses par catégorie, gestion des poids et corrélations de scores |
 | **Corrélations** | Graphiques de corrélation X/Y personnalisés avec regroupement |
 
+Dans **Corrélations**, modifier une option de requête efface le résultat précédent ; appuyez sur **Charger les corrélations** pour récupérer la nouvelle sélection avant d'exporter le CSV. Le graphique et le CSV décrivent la même sélection chargée. Changer le style ou le thème du graphique conserve cette sélection.
+
 ### Onglet Catégories
 
 Quatre sous-onglets :

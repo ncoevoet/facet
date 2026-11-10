@@ -1102,6 +1102,8 @@ La página Estadísticas (`/stats`) tiene 5 pestañas. Los selectores de **categ
 | **Categorías** | Análisis de categorías, gestión de pesos y correlaciones de puntuación |
 | **Correlaciones** | Gráficos de correlación X/Y personalizados entre métricas, con agrupación |
 
+En **Correlaciones**, cambiar una opción de la consulta borra el resultado anterior; pulsa **Cargar correlaciones** para obtener la nueva selección antes de exportar el CSV. El gráfico y el CSV describen la misma selección cargada. Cambiar el estilo o el tema del gráfico conserva esa selección.
+
 ### Pestaña Categorías
 
 Cuatro subpestañas:

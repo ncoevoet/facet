@@ -153,10 +153,10 @@ Il server serve la SPA precompilata da `client/dist/client/browser/`. Compilala 
 distribuire:
 
 ```bash
-cd client && npm install && npx ng build && cd ..
+cd client && npm ci && npm run build && cd ..
 ```
 
-Richiede Node.js 20+ solo al momento della compilazione, non sul server.
+Richiede Node.js 24.15.0 o successivo (serie 24.x) solo al momento della compilazione, non sul server.
 
 ## NAS Synology (DS420j / serie J)
 
@@ -197,6 +197,7 @@ Questo crea `photo_scores_viewer.db`, che:
 - elimina gli embedding CLIP, delle didascalie e dei volti;
 - conserva l'istogramma per foto (~2 KB ciascuno) per il widget dell'istogramma RGB;
 - riduce le miniature da 640px a 320px;
+- parte con elenchi vuoti di luoghi salvati e posizioni recenti; i luoghi privati della macchina di scoring non vengono copiati;
 - di solito trasforma un database da 14GB in uno da ~4-5GB.
 
 Le esportazioni sono incrementali: vengono sincronizzate solo le foto nuove e modificate. Per una ricostruzione completa:
@@ -205,8 +206,18 @@ Le esportazioni sono incrementali: vengono sincronizzate solo le foto nuove e mo
 python database.py --export-viewer-db --force-export
 ```
 
-> **Attenzione:** `--force-export` scarta valutazioni, posizioni e tag manuali impostati nel
+> **Attenzione:** `--force-export` scarta valutazioni, posizioni, tag manuali e luoghi privati salvati o recenti impostati nel
 > viewer sul NAS. Solo un'esportazione incrementale li conserva.
+
+**Completamento e nuovo tentativo.** Un'esportazione completa viene preparata in un directory temporanea riservata al proprietario accanto alla destinazione, ripulita dallo stato privato della sorgente, compattata e controllata per la coerenza di SQLite e delle chiavi esterne prima della pubblicazione. Un nuovo output compare solo quando è pronto. La sostituzione di un output esistente usa la transazione di backup di SQLite, preservandone l'inode per i lettori aperti e le connessioni WAL; in caso di errore resta il database precedente. Un output esistente che non è un database SQLite viene sostituito come file. I nuovi output e gli snapshot di backup richiedono un filesystem che supporti gli hard link. In caso contrario il comando fallisce senza pubblicare un file parziale; scegli una directory di output compatibile.
+
+Un'esportazione incrementale aggiorna prima lo schema della destinazione, poi sincronizza un unico snapshot della sorgente in un'unica transazione della destinazione. Le miniature delle nuove foto vengono ridimensionate e l'integrità della destinazione viene controllata prima che la transazione inizi, così le scritture del visualizzatore attendono solo mentre le modifiche vengono applicate. Una sincronizzazione dei dati fallita o interrotta annulla insieme le modifiche a foto, volti, tag, vettori e ricevute di revisione; l'aggiornamento dello schema può rimanere. Correggi la causa segnalata ed esegui di nuovo lo stesso comando. Una miniatura danneggiata di una nuova foto è un errore: ripararla nella sorgente e riprovare genera anche la sua miniatura. Le miniature esistenti restano invariate. Le modifiche di revisione, i tag manuali e i luoghi salvati/recenti della destinazione restano locali e vengono conservati dalla sincronizzazione incrementale.
+
+I percorsi di output sono nomi di file letterali, inclusi i nomi che iniziano con `file:` sui filesystem che li supportano; i parametri URI di SQLite non sono accettati.
+
+Le esportazioni riservano spazio libero per lo staging o i journal di rollback e falliscono prima della copia se la stima non rientra. Eccezioni e interruzioni normali rimuovono la copia temporanea; un processo terminato forzatamente può lasciare accanto all'output una directory nascosta `.*.export-*` riservata al proprietario. Quando l'esportatore si è fermato, rimuovi quella directory temporanea e riprova. Il vecchio database pubblicato resta il punto di ripristino. Il blocco di SQLite continua ad applicarsi: riprova in caso di errori di blocco quando lo scrittore della destinazione è inattivo.
+
+Se il file principale dell'output manca ma resta un file accessorio `-wal`, `-shm` o `-journal`, l'esportazione si ferma senza eliminarlo. Chiudi chi usa quel database e ripristinalo prima di riprovare; un WAL superstite può contenere dati appartenenti al database precedente.
 
 "Trova simili" non funziona sul database esportato (niente embedding). Usa la macchina di
 scoring per questo.

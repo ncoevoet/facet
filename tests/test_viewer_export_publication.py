@@ -2,10 +2,12 @@
 
 import os
 import sqlite3
+import stat
 import struct
 from contextlib import closing
 from io import BytesIO
 from pathlib import Path
+from types import SimpleNamespace
 
 import pytest
 from PIL import Image
@@ -23,6 +25,29 @@ def _library(path, caption='source'):
 def _caption(path):
     with closing(sqlite3.connect(path)) as conn:
         return conn.execute('SELECT caption FROM photos').fetchone()[0]
+
+
+def _jpeg(color, size=(640, 480)):
+    buffer = BytesIO()
+    Image.new('RGB', size, color).save(buffer, 'JPEG')
+    return buffer.getvalue()
+
+
+def _add_photo(path, photo, thumbnail):
+    with closing(sqlite3.connect(path)) as conn, conn:
+        conn.execute("INSERT INTO photos(path,filename,thumbnail) VALUES(?,?,?)",
+                     (photo, photo.lstrip('/'), thumbnail))
+
+
+def _exported_thumbnail(path, photo):
+    with closing(sqlite3.connect(path)) as conn:
+        blob = conn.execute('SELECT thumbnail FROM photos WHERE path=?', (photo,)).fetchone()[0]
+    return Image.open(BytesIO(blob)).convert('RGB')
+
+
+def _photo_paths(path):
+    with closing(sqlite3.connect(path)) as conn:
+        return {row[0] for row in conn.execute('SELECT path FROM photos')}
 
 
 def _private_places(path, owner):
@@ -373,3 +398,153 @@ def test_invalid_full_export_fails_foreign_key_validation_before_publication(tmp
     assert output.read_bytes() == before
     assert _caption(output) == 'old viewer'
     assert not list(tmp_path.glob('.viewer.db.export-*'))
+
+
+@pytest.mark.skipif(os.name == 'nt', reason='POSIX permission bits')
+def test_published_databases_take_the_umask_mode_of_any_new_file(tmp_path):
+    source, output, replaced = tmp_path / 'source.db', tmp_path / 'viewer.db', tmp_path / 'replaced.db'
+    _library(source)
+    replaced.write_bytes(b'not a database')
+    previous = os.umask(0o022)
+    try:
+        maintenance.export_viewer_db(str(source), str(output), verbose=False)
+        maintenance.export_viewer_db(str(source), str(replaced), force=True, verbose=False)
+        backup = maintenance.backup_database(str(source), keep=3, verbose=False)
+    finally:
+        os.umask(previous)
+    for published in (output, replaced, Path(backup)):
+        assert stat.S_IMODE(published.stat().st_mode) == 0o644, published
+
+
+def test_force_export_replaces_a_file_that_is_not_a_database(tmp_path):
+    source, output = tmp_path / 'source.db', tmp_path / 'viewer.db'
+    _library(source)
+    output.write_bytes(b'not a database' * 100)
+    maintenance.export_viewer_db(str(source), str(output), force=True, verbose=False)
+    assert _caption(output) == 'source'
+    assert not list(tmp_path.glob('.viewer.db.export-*'))
+
+
+def test_incremental_downsizes_new_thumbnails_before_reserving_the_viewer_writer(tmp_path, monkeypatch):
+    source, output = tmp_path / 'source.db', tmp_path / 'viewer.db'
+    _library(source)
+    maintenance.export_viewer_db(str(source), str(output), verbose=False)
+    _add_photo(source, '/new.jpg', _jpeg('blue'))
+    resize = Image.Image.thumbnail
+    viewer_writes = []
+
+    def resize_while_the_viewer_writes(image, *args, **kwargs):
+        with closing(sqlite3.connect(output, timeout=0)) as viewer, viewer:
+            viewer.execute("UPDATE photos SET star_rating=4 WHERE path='/photo.jpg'")
+        viewer_writes.append('committed')
+        return resize(image, *args, **kwargs)
+
+    monkeypatch.setattr(Image.Image, 'thumbnail', resize_while_the_viewer_writes)
+    maintenance.export_viewer_db(str(source), str(output), verbose=False)
+    assert viewer_writes == ['committed']
+    assert _exported_thumbnail(output, '/new.jpg').size == (320, 240)
+
+
+def test_incremental_ignores_prepared_thumbnails_the_source_no_longer_holds(tmp_path, monkeypatch):
+    source, output = tmp_path / 'source.db', tmp_path / 'viewer.db'
+    _library(source)
+    maintenance.export_viewer_db(str(source), str(output), verbose=False)
+    _add_photo(source, '/changed.jpg', _jpeg('blue'))
+    check = maintenance._check_viewer_integrity
+
+    def change_source_after_preparation(conn):
+        with closing(sqlite3.connect(source)) as writer, writer:
+            writer.execute("UPDATE photos SET thumbnail=? WHERE path='/changed.jpg'", (_jpeg('red'),))
+        _add_photo(source, '/later.jpg', _jpeg('green'))
+        return check(conn)
+
+    monkeypatch.setattr(maintenance, '_check_viewer_integrity', change_source_after_preparation)
+    maintenance.export_viewer_db(str(source), str(output), verbose=False)
+    red, green, blue = _exported_thumbnail(output, '/changed.jpg').getpixel((160, 120))
+    assert red > 200 and blue < 60
+    assert _exported_thumbnail(output, '/later.jpg').size == (320, 240)
+
+
+def test_incremental_space_budget_counts_the_viewer_database_not_the_source(tmp_path, monkeypatch):
+    source, output = tmp_path / 'source.db', tmp_path / 'viewer.db'
+    _library(source)
+    maintenance.export_viewer_db(str(source), str(output), verbose=False)
+    with closing(sqlite3.connect(source)) as conn, conn:
+        conn.execute('CREATE TABLE scan_only(blob BLOB)')
+        conn.executemany('INSERT INTO scan_only VALUES(randomblob(65536))', [()] * 64)
+    room = 2 * output.stat().st_size
+    assert room < source.stat().st_size
+    monkeypatch.setattr(maintenance.shutil, 'disk_usage', lambda path: SimpleNamespace(free=room))
+    _add_photo(source, '/new.jpg', None)
+    maintenance.export_viewer_db(str(source), str(output), verbose=False)
+    assert '/new.jpg' in _photo_paths(output)
+    monkeypatch.setattr(maintenance.shutil, 'disk_usage', lambda path: SimpleNamespace(free=0))
+    _add_photo(source, '/refused.jpg', None)
+    with pytest.raises(RuntimeError, match='free space'):
+        maintenance.export_viewer_db(str(source), str(output), verbose=False)
+    assert '/refused.jpg' not in _photo_paths(output)
+
+
+def test_full_export_refuses_an_output_created_while_it_was_built(tmp_path, monkeypatch):
+    source, output = tmp_path / 'source.db', tmp_path / 'viewer.db'
+    _library(source)
+    prepare = maintenance._prepare_full_viewer_copy
+
+    def competitor_creates_output(*args):
+        _library(output, 'competitor')
+        return prepare(*args)
+
+    monkeypatch.setattr(maintenance, '_prepare_full_viewer_copy', competitor_creates_output)
+    with pytest.raises(FileExistsError, match='Output appeared during export'):
+        maintenance.export_viewer_db(str(source), str(output), verbose=False)
+    assert _caption(output) == 'competitor'
+    assert not list(tmp_path.glob('.viewer.db.export-*'))
+
+
+def test_full_export_never_links_over_an_output_created_at_publication(tmp_path, monkeypatch):
+    source, output = tmp_path / 'source.db', tmp_path / 'viewer.db'
+    _library(source)
+    link = os.link
+
+    def competitor_wins_the_race(staging, destination):
+        _library(output, 'competitor')
+        return link(staging, destination)
+
+    monkeypatch.setattr(maintenance.os, 'link', competitor_wins_the_race)
+    with pytest.raises(FileExistsError):
+        maintenance.export_viewer_db(str(source), str(output), verbose=False)
+    assert _caption(output) == 'competitor'
+    assert not list(tmp_path.glob('.viewer.db.export-*'))
+
+
+def test_incremental_refuses_a_viewer_database_that_fails_its_integrity_check(tmp_path, monkeypatch):
+    source, output = tmp_path / 'source.db', tmp_path / 'viewer.db'
+    _library(source)
+    maintenance.export_viewer_db(str(source), str(output), verbose=False)
+    _add_photo(source, '/new.jpg', None)
+    connect = sqlite3.connect
+
+    class CorruptViewer(sqlite3.Connection):
+        def execute(self, sql, *args):
+            if sql == 'PRAGMA main.quick_check':
+                sql = "SELECT 'row 7 missing from index'"
+            return super().execute(sql, *args)
+
+    monkeypatch.setattr(maintenance.sqlite3, 'connect',
+                        lambda *a, **kw: connect(*a, **(kw | {'factory': CorruptViewer})))
+    with pytest.raises(sqlite3.DatabaseError, match='Viewer export validation failed'):
+        maintenance.export_viewer_db(str(source), str(output), verbose=False)
+    monkeypatch.undo()
+    assert _photo_paths(output) == {'/photo.jpg'}
+
+
+def test_incremental_foreign_key_violation_rolls_back_the_sync(tmp_path):
+    source, output = tmp_path / 'source.db', tmp_path / 'viewer.db'
+    _library(source)
+    maintenance.export_viewer_db(str(source), str(output), verbose=False)
+    with closing(sqlite3.connect(output)) as conn, conn:
+        conn.execute("INSERT INTO faces(photo_path,face_index,embedding) VALUES('/missing.jpg',0,?)", (b'',))
+    _add_photo(source, '/new.jpg', None)
+    with pytest.raises(sqlite3.IntegrityError, match='foreign key validation'):
+        maintenance.export_viewer_db(str(source), str(output), verbose=False)
+    assert _photo_paths(output) == {'/photo.jpg'}

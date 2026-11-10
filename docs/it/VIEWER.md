@@ -1100,6 +1100,8 @@ La pagina Statistiche (`/stats`) ha 5 schede. I selettori di **categoria** e **i
 | **Categorie** | Analisi delle categorie, gestione dei pesi e correlazioni dei punteggi |
 | **Correlazioni** | Grafici di correlazione personalizzati X/Y tra metriche con raggruppamento |
 
+In **Correlazioni**, cambiare un'opzione della query cancella il risultato precedente; premi **Carica correlazioni** per recuperare la nuova selezione prima di esportare il CSV. Il grafico e il CSV descrivono la stessa selezione caricata. Cambiare lo stile o il tema del grafico mantiene quella selezione.
+
 ### Scheda Categorie
 
 Quattro sotto-schede:

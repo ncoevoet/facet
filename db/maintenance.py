@@ -5,6 +5,7 @@ VACUUM, ANALYZE, optimization, and viewer database export.
 """
 
 import glob
+import hashlib
 import json
 import logging
 import os
@@ -28,6 +29,9 @@ _PATH_DELETED = 'deleted'
 _PATH_INACCESSIBLE = 'inaccessible'
 
 _MIN_BACKUPS_TO_KEEP = 1
+
+# Rows per statement for the viewer export's IN (...) batches.
+_EXPORT_BATCH_SIZE = 200
 
 # stats_cache rows that are library STATE rather than an aggregate derived from
 # the photo rows, so a photo delete keeps them while it invalidates the rest.
@@ -182,24 +186,40 @@ def check_disk_space(target_path, needed_bytes, margin=1.2):
     return free >= required, free, required
 
 
+_SQLITE_COMPANION_SUFFIXES = ('-wal', '-shm', '-journal')
+_SQLITE_HEADER = b'SQLite format 3\x00'
+
+
 @contextmanager
 def _private_database_path(target_path, purpose):
-    """Reserve a private sibling file; remove it and SQLite sidecars on every exit."""
+    """Yield a not-yet-created database path inside a private sibling directory.
+
+    The 0700 directory keeps the copy and its journals unreadable while they are
+    built; the database file itself is created by SQLite with the umask's mode,
+    so once linked into place it is as readable as any other new database.
+    Everything is removed on every exit.
+    """
     target = Path(target_path).absolute()
-    fd, path = tempfile.mkstemp(prefix=f'.{target.name}.{purpose}-', dir=target.parent)
-    os.close(fd)
+    directory = tempfile.mkdtemp(prefix=f'.{target.name}.{purpose}-', dir=target.parent)
+    path = os.path.join(directory, target.name)
     try:
         yield path
     finally:
-        for suffix in ('', '-wal', '-shm', '-journal'):
+        for suffix in ('', *_SQLITE_COMPANION_SUFFIXES):
             try:
                 os.remove(path + suffix)
             except FileNotFoundError:
                 pass
+        os.rmdir(directory)
 
 
-def _sqlite_backup(source, destination):
+def _sqlite_backup(source, destination, pages):
     """Copy in one SQLite destination transaction, with bounded lock contention.
+
+    A live source must be copied with pages=-1: SQLite restarts a stepped copy
+    whenever another connection writes the source between two steps, so a busy
+    library could keep a stepped copy from ever finishing. One step reads one
+    snapshot instead. Step only a private source that nobody else writes.
 
     sqlite3.backup otherwise retries BUSY/LOCKED indefinitely. Reset the deadline
     on progress so a large, actively copying database has no arbitrary timeout.
@@ -218,7 +238,7 @@ def _sqlite_backup(source, destination):
         else:
             busy_since = None
 
-    source.backup(destination, pages=256, progress=progress, sleep=0.1)
+    source.backup(destination, pages=pages, progress=progress, sleep=0.1)
 
 
 def _database_disk_size(path):
@@ -234,7 +254,7 @@ def _database_disk_size(path):
 def _check_new_database_companions(output_path):
     # A surviving WAL can override a newly published main file with old data.
     # Never delete these files: an unlinked database may still have live users.
-    for suffix in ('-wal', '-shm', '-journal'):
+    for suffix in _SQLITE_COMPANION_SUFFIXES:
         companion = str(output_path) + suffix
         if os.path.lexists(companion):
             raise FileExistsError(
@@ -264,40 +284,53 @@ def _check_export_space(output_path, needed_bytes):
             f'only {free / 1e9:.1f} GB free (including staging/journal space)')
 
 
-def _check_export_paths(source_db, output_path):
-    def database_paths(path):
-        return {
-            Path(base + suffix).resolve()
-            for base in {str(path), str(Path(path).resolve())}
-            for suffix in ('', '-wal', '-shm', '-journal')
-        }
+def sqlite_file_family(path):
+    """The literal and resolved paths of a database and of its SQLite companions."""
+    return {
+        Path(base + suffix).resolve()
+        for base in {str(path), str(Path(path).resolve())}
+        for suffix in ('', *_SQLITE_COMPANION_SUFFIXES)
+    }
 
+
+def paths_overlap(first, second):
+    """True when a path of one set names, or is a hard link of, a path of the other."""
+    if first & second:
+        return True
+    for one in first:
+        for other in second:
+            try:
+                if one.samefile(other):
+                    return True
+            except FileNotFoundError:
+                pass  # An idle SQLite connection can remove a WAL/SHM file.
+    return False
+
+
+def _check_export_paths(source_db, output_path):
     # Compare both families: a source called viewer.db-wal is destroyed when
     # SQLite first opens viewer.db, even if viewer.db does not exist yet.
-    source_paths = database_paths(source_db)
-    output_paths = database_paths(output_path)
-    collision = bool(source_paths & output_paths)
-    if not collision:
-        for source in source_paths:
-            for output in output_paths:
-                try:
-                    if source.samefile(output):
-                        collision = True
-                except FileNotFoundError:
-                    pass  # An idle SQLite connection can remove a WAL/SHM file.
-    if collision:
+    if paths_overlap(sqlite_file_family(source_db), sqlite_file_family(output_path)):
         raise ValueError('Source and output cannot use the same database or SQLite companion paths')
 
 
-def _validate_viewer_copy(conn):
+def _check_viewer_integrity(conn):
     from db.connection import load_sqlite_vec
     load_sqlite_vec(conn)
     result = conn.execute('PRAGMA main.quick_check').fetchall()
     if result != [('ok',)]:
         raise sqlite3.DatabaseError(f'Viewer export validation failed: {result[:3]}')
+
+
+def _check_viewer_foreign_keys(conn):
     violations = conn.execute('PRAGMA main.foreign_key_check').fetchmany(3)
     if violations:
         raise sqlite3.IntegrityError(f'Viewer export foreign key validation failed: {violations}')
+
+
+def _validate_viewer_copy(conn):
+    _check_viewer_integrity(conn)
+    _check_viewer_foreign_keys(conn)
 
 
 def _rotate_backups(db_path, base_dir, keep):
@@ -370,10 +403,10 @@ def backup_database(db_path='photo_scores_pro.db', keep=3, dest_dir=None, verbos
     try:
         with _private_database_path(backup_base, 'pending') as staging_path:
             with closing(sqlite3.connect(staging_path)) as dst:
-                _sqlite_backup(src, dst)
+                _sqlite_backup(src, dst, pages=-1)
             # The reserved random suffix prevents same-second collisions; link
             # publishes without ever overwriting an existing completed backup.
-            backup_path = backup_base + '-' + staging_path.rsplit('-', 1)[-1]
+            backup_path = backup_base + '-' + Path(staging_path).parent.name.rsplit('-', 1)[-1]
             _publish_new_database(staging_path, backup_path)
     finally:
         src.close()
@@ -762,7 +795,6 @@ def _incremental_update_viewer_db(source_db, output_path, thumbnail_size, verbos
 
     _check_export_paths(source_db, output_path)
     source_size = os.path.getsize(source_db)
-    _check_export_space(output_path, _database_disk_size(source_db) + _database_disk_size(output_path))
     if verbose:
         logger.info("  Output exists — running incremental update...")
         logger.info("  Source: %.1f MB", source_size / 1024 / 1024)
@@ -776,16 +808,24 @@ def _incremental_update_viewer_db(source_db, output_path, thumbnail_size, verbos
         load_sqlite_vec(dest_conn)
         source_uri = Path(source_db).resolve().as_uri() + '?mode=ro'
         dest_conn.execute("ATTACH DATABASE ? AS src", (source_uri,))
+        # Viewer writes wait at most busy_timeout for the writer reserved
+        # below, so the slow read-only work runs before it is taken.
+        prepared_bytes = _prepare_new_thumbnails(dest_conn, thumbnail_size, verbose)
+        # The source is read in place. The destination journal can hold a
+        # rewritten copy of the viewer pages plus the new thumbnails.
+        _check_export_space(output_path, _database_disk_size(output_path) + 2 * prepared_bytes)
+        _check_viewer_integrity(dest_conn)
         try:
             # Reserve the destination writer before reading source or viewer
             # authority. The attached source is read-only and shares this
-            # transaction's snapshot throughout every phase below.
+            # transaction's snapshot throughout every phase below; prepared
+            # thumbnails are used only where they match that snapshot.
             dest_conn.execute("BEGIN IMMEDIATE")
             _sync_viewer_db(dest_conn, thumbnail_size, verbose)
             if verbose:
                 logger.info("  Running ANALYZE...")
             dest_conn.execute("ANALYZE main")
-            _validate_viewer_copy(dest_conn)
+            _check_viewer_foreign_keys(dest_conn)
             dest_conn.commit()
         except BaseException:
             dest_conn.rollback()
@@ -797,9 +837,62 @@ def _incremental_update_viewer_db(source_db, output_path, thumbnail_size, verbos
     return source_size, output_size
 
 
+def _thumbnail_digest(blob):
+    return hashlib.blake2b(blob, digest_size=16).digest()
+
+
+def _downsized_thumbnail(path, thumb_bytes, thumbnail_size):
+    from PIL import Image
+    try:
+        img = Image.open(BytesIO(thumb_bytes))
+        if max(img.size) <= thumbnail_size:
+            return thumb_bytes
+        img.thumbnail((thumbnail_size, thumbnail_size), Image.Resampling.LANCZOS)
+        buf = BytesIO()
+        img.save(buf, format='JPEG', quality=80)
+        return buf.getvalue()
+    except (OSError, ValueError) as ex:
+        # Publishing a new photo with NULL here would make the next
+        # incremental run skip it forever. Roll back, then retry
+        # after repairing the source thumbnail instead.
+        raise ValueError(f'Cannot export thumbnail for {path}; repair the source and retry') from ex
+
+
+def _prepare_new_thumbnails(dest_conn, thumbnail_size, verbose):
+    """Downsize the new photos' thumbnails before the destination writer is taken.
+
+    Each result lands in a connection-private TEMP table with a digest of the
+    source bytes it came from, so _sync_viewer_db uses it only when its own
+    snapshot still holds those bytes. Returns the prepared size in bytes.
+    """
+    dest_conn.execute(
+        "CREATE TEMP TABLE viewer_export_thumbnails("
+        "path TEXT PRIMARY KEY, source_digest BLOB NOT NULL, thumbnail BLOB NOT NULL)")
+    new_paths = [r[0] for r in dest_conn.execute(
+        "SELECT path FROM src.photos EXCEPT SELECT path FROM main.photos"
+    ).fetchall()]
+    if verbose and new_paths:
+        logger.info("  Downsizing thumbnails for %d new photos to %dpx...", len(new_paths), thumbnail_size)
+    prepared_bytes = 0
+    for i in range(0, len(new_paths), _EXPORT_BATCH_SIZE):
+        batch = new_paths[i:i + _EXPORT_BATCH_SIZE]
+        placeholders = ','.join('?' * len(batch))
+        rows = dest_conn.execute(
+            f"SELECT path, thumbnail FROM src.photos "
+            f"WHERE path IN ({placeholders}) AND thumbnail IS NOT NULL",
+            batch
+        ).fetchall()
+        prepared = [(path, _thumbnail_digest(thumb), _downsized_thumbnail(path, thumb, thumbnail_size))
+                    for path, thumb in rows]
+        dest_conn.executemany("INSERT INTO temp.viewer_export_thumbnails VALUES (?, ?, ?)", prepared)
+        # Release the read snapshots; nothing outside TEMP has been written.
+        dest_conn.commit()
+        prepared_bytes += sum(len(thumbnail) for _, _, thumbnail in prepared)
+    return prepared_bytes
+
+
 def _sync_viewer_db(dest_conn, thumbnail_size, verbose):
     """Apply data changes inside the caller's transaction; never commit here."""
-    from PIL import Image
     from db.metadata_edits import viewer_review_preserved, viewer_review_sync
 
     from db.manual_face_export import prepare_person_sync, merge_manual_faces
@@ -878,7 +971,7 @@ def _sync_viewer_db(dest_conn, thumbnail_size, verbose):
             logger.info("  Updated metadata for existing photos")
 
     # --- Insert new photos with stripped BLOBs and NULL thumbnail ---
-    batch_size = 200
+    batch_size = _EXPORT_BATCH_SIZE
     if new_paths:
         common_photo_cols = [c for c in src_photo_cols if c in dest_photo_col_set]
         _BLOB_STRIP = {'clip_embedding', 'raw_sharpness_variance', 'caption_embedding', 'thumbnail'}
@@ -900,35 +993,24 @@ def _sync_viewer_db(dest_conn, thumbnail_size, verbose):
         if verbose:
             logger.info("  Inserted %d new photos", len(new_paths))
 
-        # Fetch and downsize thumbnails for new photos from source
-        if verbose:
-            logger.info("  Downsizing thumbnails for new photos to %dpx...", thumbnail_size)
+        # Thumbnails of new photos, prepared before the writer was reserved
         processed = 0
         for i in range(0, len(new_paths), batch_size):
             batch = new_paths[i:i + batch_size]
             placeholders = ','.join('?' * len(batch))
             rows = dest_conn.execute(
-                f"SELECT path, thumbnail FROM src.photos "
-                f"WHERE path IN ({placeholders}) AND thumbnail IS NOT NULL",
+                f"SELECT s.path, s.thumbnail, t.source_digest, t.thumbnail FROM src.photos s "
+                f"LEFT JOIN temp.viewer_export_thumbnails t ON t.path = s.path "
+                f"WHERE s.path IN ({placeholders}) AND s.thumbnail IS NOT NULL",
                 batch
             ).fetchall()
             updates = []
-            for path, thumb_bytes in rows:
-                try:
-                    img = Image.open(BytesIO(thumb_bytes))
-                    if max(img.size) > thumbnail_size:
-                        img.thumbnail((thumbnail_size, thumbnail_size), Image.Resampling.LANCZOS)
-                        buf = BytesIO()
-                        img.save(buf, format='JPEG', quality=80)
-                        updates.append((buf.getvalue(), path))
-                    else:
-                        updates.append((thumb_bytes, path))
-                    processed += 1
-                except (OSError, ValueError) as ex:
-                    # Publishing a new photo with NULL here would make the next
-                    # incremental run skip it forever. Roll back, then retry
-                    # after repairing the source thumbnail instead.
-                    raise ValueError(f'Cannot export thumbnail for {path}; repair the source and retry') from ex
+            for path, thumb_bytes, digest, prepared in rows:
+                if prepared is None or digest != _thumbnail_digest(thumb_bytes):
+                    # New, or changed, since the thumbnails were prepared.
+                    prepared = _downsized_thumbnail(path, thumb_bytes, thumbnail_size)
+                updates.append((prepared, path))
+            processed += len(updates)
             if updates:
                 dest_conn.executemany(
                     "UPDATE main.photos SET thumbnail = ? WHERE path = ?", updates
@@ -1237,7 +1319,7 @@ def export_viewer_db(source_db='photo_scores_pro.db', output_path=None, thumbnai
             with closing(sqlite3.connect(staging_path)) as dst_conn:
                 if verbose:
                     logger.info("  Copying database...")
-                _sqlite_backup(src_conn, dst_conn)
+                _sqlite_backup(src_conn, dst_conn, pages=-1)
                 _prepare_full_viewer_copy(dst_conn, thumbnail_size, verbose)
 
         # Check again before publishing: never open an alias of the source for writing.
@@ -1245,12 +1327,20 @@ def export_viewer_db(source_db='photo_scores_pro.db', output_path=None, thumbnai
         if os.path.exists(output_path):
             if not force:
                 raise FileExistsError(f'Output appeared during export: {output_path}; retry to update it')
-            # Replacing an open SQLite inode with rename can strand its readers
-            # and leave a WAL belonging to the previous database. Backup instead
-            # publishes in one SQLite transaction, rolling back on interruption.
-            with closing(sqlite3.connect(staging_path)) as prepared:
-                with closing(sqlite3.connect(output_path)) as destination:
-                    _sqlite_backup(prepared, destination)
+            with open(output_path, 'rb') as existing:
+                header = existing.read(len(_SQLITE_HEADER))
+            if header and header != _SQLITE_HEADER:
+                # Nothing can have this open as a database, and SQLite cannot
+                # back up into it, so replace the file itself.
+                _check_new_database_companions(output_path)
+                os.replace(staging_path, output_path)
+            else:
+                # Replacing an open SQLite inode with rename can strand its readers
+                # and leave a WAL belonging to the previous database. Backup instead
+                # publishes in one SQLite transaction, rolling back on interruption.
+                with closing(sqlite3.connect(staging_path)) as prepared:
+                    with closing(sqlite3.connect(output_path)) as destination:
+                        _sqlite_backup(prepared, destination, pages=256)
         else:
             # Same-volume no-overwrite publication of the completed private file.
             # A competing writer creating this path makes link fail safely.

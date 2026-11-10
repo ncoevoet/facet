@@ -1100,6 +1100,8 @@ Die Statistikseite (`/stats`) hat 5 Tabs. Die Auswahl für **Kategorie** und **D
 | **Kategorien** | Kategorieanalysen, Gewichtsverwaltung und Wertungskorrelationen |
 | **Korrelationen** | Eigene X/Y-Metrikkorrelationsdiagramme mit Gruppierung |
 
+Wenn Sie in **Korrelationen** eine Abfrageoption ändern, wird das vorherige Ergebnis gelöscht; drücken Sie **Korrelationen laden**, um die neue Auswahl abzurufen, bevor Sie CSV exportieren. Diagramm und CSV beschreiben dieselbe geladene Auswahl. Ein Wechsel von Diagrammstil oder Theme behält diese Auswahl.
+
 ### Tab „Kategorien“
 
 Vier Untertabs:
