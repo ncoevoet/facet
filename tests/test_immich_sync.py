@@ -1103,3 +1103,26 @@ class TestAssetIdentity:
         assert summary['identity_conflicts'] == 0
         assert summary['unmatched'] == summary['updated'] == 1
         assert fake.asset_updates() == [{'ids': ['x'], 'rating': 5, 'isFavorite': False}]
+
+
+def test_preview_preserves_delete_journal_and_pending_state(tmp_path, transport):
+    from pathlib import Path
+
+    db_path = make_db(tmp_path, [('/p/a.jpg', 5, 0, 0)])
+    transport.assets_by_path = {'/p/a.jpg': 'id-a'}
+    record_pending_path(db_path, '/p/a.jpg')
+    with sqlite3.connect(db_path) as conn:
+        conn.execute('UPDATE photos SET aggregate=8')
+        conn.commit()
+        conn.execute('PRAGMA journal_mode=DELETE')
+    before = Path(db_path).read_bytes()
+
+    summary = sync_to_immich(db_path, make_config(), dry_run=True)
+    assert summary['updated'] == 1 and summary['webhook_pending'] == 0
+    assert transport.writes() == []
+    assert Path(db_path).read_bytes() == before
+
+    summary = sync_to_immich(db_path, make_config())
+    assert summary['updated'] == 1
+    assert transport.asset_updates() == [{'ids': ['id-a'], 'isFavorite': False, 'rating': 5}]
+    assert load_pending_paths(db_path) == []

@@ -580,7 +580,7 @@ def run_moment_detection(db_path, config, model_manager=None, only_missing=True,
     if only_missing:
         where += " AND narrative_moment IS NULL"
     limit_sql = f" LIMIT {int(limit)}" if limit else ""
-    with get_connection(db_path) as conn:
+    with get_connection(db_path, read_only=dry_run) as conn:
         rows = conn.execute(
             f"SELECT path, clip_embedding, caption, caption_embedding, face_count, "
             f"face_ratio, is_group_portrait, tags, date_taken FROM photos "
@@ -743,7 +743,7 @@ def run_junk_detection(db_path, config, model_manager=None, only_missing=True,
     if only_missing:
         where += " AND junk_kind IS NULL"
     limit_sql = f" LIMIT {int(limit)}" if limit else ""
-    with get_connection(db_path) as conn:
+    with get_connection(db_path, read_only=dry_run) as conn:
         rows = conn.execute(
             f"SELECT path, clip_embedding FROM photos WHERE {where}{limit_sql}"
         ).fetchall()
@@ -879,25 +879,25 @@ LIBRARY_JOB_ARGS = (
     'translate_captions',
 )
 
-# Mutating flags whose handlers write unconditionally: combined with --dry-run
-# they are refused up front, instead of silently writing when the caller asked
-# for a preview.
-MUTATING_NO_DRY_RUN_FLAGS = (
-    '--backfill-clipping',
-    '--backfill-focal-35mm',
-    '--cluster-faces-force',
-    '--generate-captions',
-    '--recompute-average',
-    '--recompute-colors',
-    '--recompute-distortions',
-    '--recompute-form',
-    '--recompute-skin-tone',
-    '--recompute-tags',
-    '--recompute-text',
-    '--repair-int-columns',
-    '--repair-neutral-iqa',
-    '--upgrade-db',
-)
+# Native previews explicitly keep database/config writes out of their handlers.
+# Any other library job must refuse --dry-run before dispatch, locking, schema
+# upgrades or model loading. Include file/config writers that are not DB jobs.
+_LIBRARY_PREVIEW_ARGS = frozenset({
+    'detect_junk', 'detect_moments', 'import_sidecars',
+    'recompute_junk', 'recompute_moments', 'recompute_silhouette',
+})
+MUTATING_NO_DRY_RUN_FLAGS = tuple(sorted(
+    {'--' + name.replace('_', '-') for name in LIBRARY_JOB_ARGS
+     if name not in _LIBRARY_PREVIEW_ARGS}
+    | {
+        '--auto-tune-categories', '--check-raw-rendering', '--comparison-stats',
+        '--compute-recommendations', '--discover-moments', '--eval-iqa-srcc',
+        '--evaluate-models', '--export-csv', '--export-json', '--export-manifest',
+        '--export-sidecars', '--immich-stacks-plan', '--mine-insights',
+        '--report-unreviewed-bursts', '--suggest-person-merges',
+        '--sweep-dedup-thresholds', '--upgrade-db', '--watch',
+    }
+))
 
 
 def detect_all_sequences(db_path, config_path, incremental=False, contain_failure=True):
@@ -2507,6 +2507,11 @@ def main():
     args = parser.parse_args()
     cli_args.validate_face_labels(parser, args)
     cli_args.validate_evaluate_models_positionals(parser, args)
+    if args.dry_run:
+        for flag in MUTATING_NO_DRY_RUN_FLAGS:
+            value = getattr(args, flag.lstrip('-').replace('-', '_'))
+            if value is not None and value is not False:
+                parser.error(f"{flag} has no dry-run; drop --dry-run")
     if args.stack_plan_out and not args.immich_stacks_plan:
         parser.error('--stack-plan-out requires --immich-stacks-plan')
     if args.ack_stack_plan and not args.immich_stacks_apply:
@@ -2551,10 +2556,6 @@ def main():
 
     if args.dry_run_count != cli_args.DEFAULT_DRY_RUN_COUNT and not args.dry_run:
         parser.error("--dry-run-count requires --dry-run")
-    if args.dry_run:
-        for flag in MUTATING_NO_DRY_RUN_FLAGS:
-            if getattr(args, flag.lstrip('-').replace('-', '_')):
-                parser.error(f"{flag} writes to the database and has no dry-run; drop --dry-run")
 
     if (args.refresh_thumbnails_workers != cli_args.DEFAULT_REFRESH_THUMBNAIL_WORKERS
             and not args.refresh_thumbnails):
@@ -2869,7 +2870,8 @@ def main():
     # (no source image decode; honours --dry-run)
     if args.recompute_silhouette:
         from processing.silhouette_backfill import recompute_silhouette
-        init_database(args.db)
+        if not args.dry_run:
+            init_database(args.db)
         recompute_silhouette(args.db, dry_run=args.dry_run)
         exit()
 
@@ -3921,8 +3923,9 @@ def main():
         exit()
 
     if args.detect_moments or args.recompute_moments:
-        init_database(args.db)  # ensure narrative_moment columns exist
-        config = ScoringConfig(args.config)
+        if not args.dry_run:
+            init_database(args.db)  # ensure narrative_moment columns exist
+        config = ScoringConfig(args.config, validate=not args.dry_run)
         if not config.get_narrative_moments_config().get('enabled', False):
             logger.error("narrative_moments is disabled in scoring_config.json; nothing to do.")
             exit(0)
@@ -3950,8 +3953,9 @@ def main():
         exit()
 
     if args.detect_junk or args.recompute_junk:
-        init_database(args.db)  # ensure junk_kind column exists
-        config = ScoringConfig(args.config)
+        if not args.dry_run:
+            init_database(args.db)  # ensure junk_kind column exists
+        config = ScoringConfig(args.config, validate=not args.dry_run)
         if not config.get_junk_sweep_config().get('enabled', False):
             logger.error("junk_sweep is disabled in scoring_config.json; nothing to do.")
             exit(0)

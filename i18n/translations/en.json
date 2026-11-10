@@ -1021,6 +1021,7 @@
     "unlock_description": "Enter the edition password to enable editing features.",
     "unlock_button": "Unlock",
     "lock_title": "Edition mode active - click to lock",
+    "lock_failed": "Could not confirm the lock. Edition may still be active; try again.",
     "password_placeholder": "Edition password",
     "invalid_password": "Invalid password",
     "read_only_hint": "Read-only: set viewer.edition_password in scoring_config.json to enable rating, culling and editing, then restart the viewer."

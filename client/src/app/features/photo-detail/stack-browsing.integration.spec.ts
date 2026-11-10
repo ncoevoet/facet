@@ -17,7 +17,9 @@ import { AssistantChangesService, AssistantChangeBatch } from '../../core/agent/
 import { PhotoStackService } from '../../core/services/photo-stack.service';
 import { GalleryStore } from '../gallery/gallery.store';
 import { makePhoto } from '../../../testing/photo.fixture';
+import { makeJwt } from '../../../testing/jwt';
 import { leafletMock } from '../../../testing/leaflet-mock';
+import { privateImageSessionKey, resetPrivateImageSession } from '../../shared/utils/private-image-session';
 
 vi.doMock('leaflet', () => leafletMock);
 let PhotoDetailComponent: typeof import('./photo-detail.component').PhotoDetailComponent;
@@ -65,7 +67,7 @@ describe('manual stack browsing through rendered viewer, Router and HTTP', () =>
   };
   const arrived = () => firstValueFrom(router.events.pipe(filter(event => event instanceof NavigationEnd), take(1)));
   const open = async (path = paths[1]) => {
-    await router.navigate(['/photo'], { queryParams: { path }, state: { photo: makePhoto({ path }) } });
+    await router.navigate(['/photo'], { queryParams: { path }, state: { photo: makePhoto({ path }), photoSession: privateImageSessionKey() } });
     await membership();
   };
   const clickMember = async (selector: string, path: string) => {
@@ -211,7 +213,7 @@ describe('manual stack browsing through rendered viewer, Router and HTTP', () =>
     if (target === paths[2]) store.pinnedPaths.set([paths[1]]);
     await open();
     const host = measuredNavigator();
-    await router.navigate(['/photo'], { queryParams: { path: target }, state: { photo: makePhoto({ path: target }) } });
+    await router.navigate(['/photo'], { queryParams: { path: target }, state: { photo: makePhoto({ path: target }), photoSession: privateImageSessionKey() } });
     await initialPhoto();
     const reads = http.match(request => request.url === '/api/stacks/by-photo').filter(request => !request.cancelled);
     expect(reads).toHaveLength(1);
@@ -273,7 +275,7 @@ describe('manual stack browsing through rendered viewer, Router and HTTP', () =>
     await guardEntered;
     harness.detectChanges();
     expect(host.style.minHeight).toBe('105px');
-    await router.navigate(['/photo'], { queryParams: { path: paths[0] }, state: { photo: makePhoto({ path: paths[0] }) } });
+    await router.navigate(['/photo'], { queryParams: { path: paths[0] }, state: { photo: makePhoto({ path: paths[0] }), photoSession: privateImageSessionKey() } });
     await initialPhoto();
     expect(host.style.minHeight).toBe('');
     const reads = http.match(request => request.url === '/api/stacks/by-photo').filter(request => !request.cancelled);
@@ -305,7 +307,7 @@ describe('manual stack browsing through rendered viewer, Router and HTTP', () =>
 
   it.each([true, false])('read-only=%s and partial stacks expose only returned members and no manage control', async readOnly => {
     if (readOnly) auth.status.update(status => ({ ...status!, edition_authenticated: false, user_role: 'viewer' }));
-    await router.navigate(['/photo'], { queryParams: { path: paths[1] }, state: { photo: makePhoto({ path: paths[1] }) } });
+    await router.navigate(['/photo'], { queryParams: { path: paths[1] }, state: { photo: makePhoto({ path: paths[1] }), photoSession: privateImageSessionKey() } });
     await membership({ ...stack, editable: false, members: stack.members.slice(1) });
     expect(root().querySelectorAll('[data-stack-thumbnail]')).toHaveLength(2);
     expect(root().querySelector('[data-stack-manage]')).toBeNull();
@@ -384,7 +386,7 @@ describe('manual stack browsing through rendered viewer, Router and HTTP', () =>
   });
 
   it.each([['not in any stack', 'none'], ['a failed lookup', 'error']])('leaves the arrows to the gallery for a photo with %s', async (_label, mode) => {
-    await router.navigate(['/photo'], { queryParams: { path: paths[1] }, state: { photo: makePhoto({ path: paths[1] }) } });
+    await router.navigate(['/photo'], { queryParams: { path: paths[1] }, state: { photo: makePhoto({ path: paths[1] }), photoSession: privateImageSessionKey() } });
     await initialPhoto();
     const reads = http.match(request => request.url === '/api/stacks/by-photo');
     reads.forEach(request => mode === 'error' ? request.flush('x', { status: 500, statusText: 'err' }) : request.flush(null));
@@ -397,7 +399,7 @@ describe('manual stack browsing through rendered viewer, Router and HTTP', () =>
 
   it.each([['an unstacked photo', undefined, true], ['a stacked photo', 'stack-1', false]])(
     'while the stack lookup is pending, leaves the arrows to the gallery only for %s', async (_label, stackId, leaves) => {
-      await router.navigate(['/photo'], { queryParams: { path: paths[1] }, state: { photo: makePhoto({ path: paths[1], stack_id: stackId }) } });
+      await router.navigate(['/photo'], { queryParams: { path: paths[1] }, state: { photo: makePhoto({ path: paths[1], stack_id: stackId }), photoSession: privateImageSessionKey() } });
       harness.detectChanges();
       http.match(request => request.url === '/api/photo').forEach(request => request.flush(makePhoto({ path: paths[1], stack_id: stackId })));
       await render();
@@ -430,7 +432,7 @@ describe('manual stack browsing through rendered viewer, Router and HTTP', () =>
   });
 
   it('stack read failure is visible and reload retries the authorized by-photo endpoint', async () => {
-    await router.navigate(['/photo'], { queryParams: { path: paths[1] }, state: { photo: makePhoto({ path: paths[1] }) } });
+    await router.navigate(['/photo'], { queryParams: { path: paths[1] }, state: { photo: makePhoto({ path: paths[1] }), photoSession: privateImageSessionKey() } });
     await initialPhoto();
     http.expectOne(request => request.url === '/api/stacks/by-photo').flush({}, { status: 503, statusText: 'Busy' });
     await render();
@@ -440,11 +442,17 @@ describe('manual stack browsing through rendered viewer, Router and HTTP', () =>
     expect(root().querySelectorAll('[data-stack-thumbnail]')).toHaveLength(3);
   });
 
-  it.each(['account', 'route'] as const)('does not navigate on stale member completion after %s changes', async reason => {
+  it.each(['account', 'route', 'credentials'] as const)('does not navigate on stale member completion after %s changes', async reason => {
     await open();
     button('[data-stack-next]').click();
     const request = http.expectOne(request => request.url === '/api/photo');
     if (reason === 'account') auth.status.update(status => ({ ...status!, user_id: 'bob' }));
+    else if (reason === 'credentials') {
+      const sameAccount = auth.status();
+      auth.status.set(null);
+      resetPrivateImageSession();
+      auth.status.set(sameAccount);
+    }
     else await router.navigateByUrl('/away');
     request.flush(makePhoto({ path: paths[2] }));
     await render();
@@ -452,8 +460,24 @@ describe('manual stack browsing through rendered viewer, Router and HTTP', () =>
     if (reason === 'account') expect(root().querySelector('[data-stack-navigator]')).toBeNull();
   });
 
+  it('keeps browsing the stack after edition is unlocked on the open photo', async () => {
+    const readOnly = { ...auth.status()!, multi_user: false, user_id: null, user_role: null,
+      edition_authenticated: false, edition_password_required: true };
+    auth.status.set(readOnly);
+    await open();
+    const unlocking = auth.editionLogin('secret');
+    http.expectOne('/api/auth/edition/login').flush({ access_token: makeJwt(3600, { edition: true }) });
+    await new Promise<void>(resolve => setTimeout(resolve, 0));
+    // As the server reports it: the edition token's subject, where no token reported none.
+    http.expectOne('/api/auth/status').flush({ ...readOnly, edition_authenticated: true, user_id: '_legacy' });
+    expect(await unlocking).toBe('ok');
+    await membership();
+    await clickMember('[data-stack-next]', paths[2]);
+    expect(router.url).toContain(encodeURIComponent(paths[2]));
+  });
+
   it('cancels in-flight membership reads on route and account changes, including returning to the same path', async () => {
-    await router.navigate(['/photo'], { queryParams: { path: paths[1] }, state: { photo: makePhoto({ path: paths[1] }) } });
+    await router.navigate(['/photo'], { queryParams: { path: paths[1] }, state: { photo: makePhoto({ path: paths[1] }), photoSession: privateImageSessionKey() } });
     await initialPhoto();
     const read = http.expectOne(request => request.url === '/api/stacks/by-photo');
     await router.navigateByUrl('/away');

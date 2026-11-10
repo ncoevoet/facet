@@ -180,6 +180,40 @@ def test_native_jxl_requires_explicit_browser_support(tmp_path, jxl_client, seed
     assert other.headers["etag"] != response.headers["etag"]
 
 
+_PRIVATE_CACHE_CONTROL = "private, no-cache, must-revalidate"
+
+
+def _vary(response):
+    return {v.strip() for v in response.headers["vary"].split(",")}
+
+
+@pytest.mark.parametrize("suffix,accept,revalidate,status,varies_accept", [
+    (".jxl", "image/jxl", False, 200, True),
+    (".jxl", "image/jxl", True, 304, True),
+    (".jxl", "image/jpeg", False, 200, True),
+    (".jxl", "image/jpeg", True, 304, True),
+    (".tif", "image/jpeg", False, 200, False),
+    (".tif", "image/jpeg", True, 304, False),
+])
+def test_image_branches_carry_private_cache_headers(
+        tmp_path, jxl_client, seed_photos_prefix, suffix, accept, revalidate, status, varies_accept):
+    path = tmp_path / f"private{suffix}"
+    if suffix == ".jxl":
+        _jpegxl(path)
+    else:
+        Image.new("RGB", (8, 8)).save(path, format="TIFF")
+    seed_photos_prefix(str(tmp_path) + os.sep, [{"path": str(path), "filename": path.name}])
+    headers = {"Accept": accept}
+    if revalidate:
+        first = jxl_client.get("/image", params={"path": str(path)}, headers=headers)
+        headers["If-None-Match"] = first.headers["etag"]
+    response = jxl_client.get("/image", params={"path": str(path)}, headers=headers)
+    assert response.status_code == status
+    assert response.headers["cache-control"] == _PRIVATE_CACHE_CONTROL
+    assert {"Authorization", "Cookie"} <= _vary(response)
+    assert ("Accept" in _vary(response)) is varies_accept
+
+
 def test_native_request_still_requires_visible_library_row(tmp_path, jxl_client):
     path = tmp_path / "unindexed.jxl"
     _jpegxl(path)

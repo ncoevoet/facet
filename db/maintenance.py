@@ -400,7 +400,7 @@ def backup_database(db_path='photo_scores_pro.db', keep=3, dest_dir=None, verbos
     timestamp = datetime.now().strftime('%Y%m%d-%H%M%S')
     backup_base = os.path.join(base_dir, f"{db_name}.backup-{timestamp}")
 
-    src = sqlite3.connect(f"file:{db_path}?mode=ro", uri=True)
+    src = sqlite3.connect(Path(db_path).resolve().as_uri() + "?mode=ro", uri=True)
     try:
         with _private_database_path(backup_base, 'pending') as staging_path:
             with closing(sqlite3.connect(staging_path)) as dst:
