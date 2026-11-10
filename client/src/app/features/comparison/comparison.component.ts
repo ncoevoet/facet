@@ -133,7 +133,7 @@ const COMPARE_TAB_NAMES: string[] = [...Object.keys(COMPARE_TAB_INDEX), 'context
 
       <!-- Type select for the category tabs below lg, where the shell toolbar select is hidden. Suggestions keeps its own in its bottom bar. -->
       @if (showCategorySelect()) {
-        <mat-form-field data-compare-category class="lg:hidden w-full sm:w-52 mb-2" subscriptSizing="dynamic">
+        <mat-form-field data-compare-category class="lg:!hidden w-full sm:w-52 mb-2" subscriptSizing="dynamic">
           <mat-label>{{ I18N.ui.filters.type | translate }}</mat-label>
           <mat-select [value]="compareFilters.selectedCategory()" (selectionChange)="compareFilters.selectedCategory.set($event.value)">
             @for (t of store.types(); track t.id) {

@@ -1362,24 +1362,22 @@ describe('ManagePersonsComponent', () => {
         fixture.destroy();
       });
 
-      it('is a right-aligned row above the tabs below sm, an overlay on the tab row from sm, hidden at lg+ while the bar shows it', async () => {
+      it('is a right-aligned row above the tabs at every in-page width, hidden at lg+ while the bar shows it', async () => {
         withTab('named');
         const fixture = await render();
         const inPage = control(fixture.nativeElement);
         const classes = inPage.className.split(/\s+/);
-        expect(inPage.parentElement!.querySelector('mat-tab-group')).not.toBeNull();
-        expect(classes).not.toContain('absolute');
-        expect(classes).toEqual(expect.arrayContaining(['max-sm:ml-auto', 'sm:absolute', 'lg:hidden']));
+        expect(classes).toEqual(expect.arrayContaining(['ml-auto', 'block', 'w-fit', 'lg:hidden']));
+        expect(classes.some(c => c.endsWith('absolute'))).toBe(false);
         expect(inPage.nextElementSibling!.tagName.toLowerCase()).toBe('mat-tab-group');
         fixture.destroy();
       });
 
-      it('leaves the tab header no right reserve below sm', async () => {
+      it('leaves the tab header its full width, whatever the length of the translated label', async () => {
         withTab('named');
         const fixture = await render();
         const group = fixture.nativeElement.querySelector('mat-tab-group') as HTMLElement;
-        expect(group.className).not.toContain('max-sm:');
-        expect(group.className).toContain('sm:max-lg:[&_.mat-mdc-tab-header]:pr-44');
+        expect(group.className).not.toContain('mat-mdc-tab-header]:pr-');
         fixture.destroy();
       });
 

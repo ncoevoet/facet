@@ -189,8 +189,8 @@
         </div>
       }
       <div [class]="MOBILE_BAR_ROW" class="border-t border-[var(--mat-sys-outline-variant)]">
-        <button mat-button class="!h-11 !min-w-11 shrink-0 max-sm:!px-0 max-sm:[&>mat-icon]:!m-0" [matMenuTriggerFor]="mobileAlbumTypeMenu" [matTooltip]="I18N.albums.filter_type | translate" [attr.aria-label]="I18N.albums.filter_type | translate">
-          <mat-icon>category</mat-icon><span class="max-sm:hidden">{{ I18N.albums.filter_type | translate }}</span>
+        <button mat-button class="!h-11 !min-w-11 shrink-0 max-md:!px-0 max-md:[&>mat-icon]:!m-0" [matMenuTriggerFor]="mobileAlbumTypeMenu" [matTooltip]="I18N.albums.filter_type | translate" [attr.aria-label]="I18N.albums.filter_type | translate">
+          <mat-icon>category</mat-icon><span class="max-md:hidden">{{ I18N.albums.filter_type | translate }}</span>
         </button>
         <mat-menu #mobileAlbumTypeMenu="matMenu">
           @let allTypeIcon = '' | albumTypeIcon;
@@ -209,8 +209,8 @@
             <span [class.font-bold]="albumsFilters.typeFilter() === 'smart'">{{ I18N.albums.type_smart | translate }}</span>
           </button>
         </mat-menu>
-        <button mat-button class="!h-11 !min-w-11 shrink-0 max-sm:!px-0 max-sm:[&>mat-icon]:!m-0" [matMenuTriggerFor]="mobileAlbumSortMenu" [matTooltip]="I18N.albums.sort_by | translate" [attr.aria-label]="I18N.albums.sort_by | translate">
-          <mat-icon>sort</mat-icon><span class="max-sm:hidden">{{ I18N.albums.sort_by | translate }}</span>
+        <button mat-button class="!h-11 !min-w-11 shrink-0 max-md:!px-0 max-md:[&>mat-icon]:!m-0" [matMenuTriggerFor]="mobileAlbumSortMenu" [matTooltip]="I18N.albums.sort_by | translate" [attr.aria-label]="I18N.albums.sort_by | translate">
+          <mat-icon>sort</mat-icon><span class="max-md:hidden">{{ I18N.albums.sort_by | translate }}</span>
         </button>
         <mat-menu #mobileAlbumSortMenu="matMenu">
           <button mat-menu-item (click)="albumsFilters.sort.set('updated_at')">
@@ -223,12 +223,12 @@
             <span [class.font-bold]="albumsFilters.sort() === 'photo_count'">{{ I18N.albums.sort_photos | translate }}</span>
           </button>
         </mat-menu>
-        <button #mobileAlbumsSearchTrigger mat-button class="!h-11 !min-w-11 shrink-0 max-sm:!px-0 max-sm:[&>mat-icon]:!m-0" (click)="mobileAlbumsSearchOpen.set(!mobileAlbumsSearchOpen())" [matTooltip]="I18N.ui.filters.search | translate" [matTooltipDisabled]="mobileAlbumsSearchOpen()" [attr.aria-label]="I18N.ui.filters.search | translate">
-          <mat-icon>search</mat-icon><span class="max-sm:hidden">{{ I18N.ui.filters.search | translate }}</span>
+        <button #mobileAlbumsSearchTrigger mat-button class="!h-11 !min-w-11 shrink-0 max-md:!px-0 max-md:[&>mat-icon]:!m-0" (click)="mobileAlbumsSearchOpen.set(!mobileAlbumsSearchOpen())" [matTooltip]="I18N.ui.filters.search | translate" [matTooltipDisabled]="mobileAlbumsSearchOpen()" [attr.aria-label]="I18N.ui.filters.search | translate">
+          <mat-icon>search</mat-icon><span class="max-md:hidden">{{ I18N.ui.filters.search | translate }}</span>
         </button>
         @if (auth.isEdition()) {
-          <button mat-button class="!h-11 !min-w-11 shrink-0 max-sm:!px-0 max-sm:[&>mat-icon]:!m-0 ml-auto" [matTooltip]="I18N.albums.create | translate" [attr.aria-label]="I18N.albums.create | translate" (click)="albumsFilters.createRequested.set(albumsFilters.createRequested() + 1)">
-            <mat-icon>add</mat-icon><span class="max-sm:hidden">{{ I18N.albums.create | translate }}</span>
+          <button mat-button class="!h-11 !min-w-11 shrink-0 max-md:!px-0 max-md:[&>mat-icon]:!m-0 ml-auto" [matTooltip]="I18N.albums.create | translate" [attr.aria-label]="I18N.albums.create | translate" (click)="albumsFilters.createRequested.set(albumsFilters.createRequested() + 1)">
+            <mat-icon>add</mat-icon><span class="max-md:hidden">{{ I18N.albums.create | translate }}</span>
           </button>
         }
       </div>
@@ -250,8 +250,8 @@
         </div>
       }
       <div [class]="MOBILE_BAR_ROW" class="border-t border-[var(--mat-sys-outline-variant)]">
-        <button mat-button class="!h-11 !min-w-11 shrink-0 max-sm:!px-0 max-sm:[&>mat-icon]:!m-0" [matMenuTriggerFor]="mobilePersonsSortMenu" [matTooltip]="I18N.gallery.sort | translate" [attr.aria-label]="I18N.gallery.sort | translate">
-          <mat-icon>sort</mat-icon><span class="max-sm:hidden">{{ I18N.gallery.sort | translate }}</span>
+        <button mat-button class="!h-11 !min-w-11 shrink-0 max-md:!px-0 max-md:[&>mat-icon]:!m-0" [matMenuTriggerFor]="mobilePersonsSortMenu" [matTooltip]="I18N.gallery.sort | translate" [attr.aria-label]="I18N.gallery.sort | translate">
+          <mat-icon>sort</mat-icon><span class="max-md:hidden">{{ I18N.gallery.sort | translate }}</span>
         </button>
         <mat-menu #mobilePersonsSortMenu="matMenu">
           <button mat-menu-item (click)="onPersonsSortChange('count')">
@@ -266,24 +266,24 @@
             {{ personsFilters.sortDirection() === 'desc' ? (I18N.gallery.sort_desc | translate) : (I18N.gallery.sort_asc | translate) }}
           </button>
         </mat-menu>
-        <button mat-button class="!h-11 !min-w-11 shrink-0 max-sm:!px-0 max-sm:[&>mat-icon]:!m-0" (click)="mobilePersonsSearchOpen.set(!mobilePersonsSearchOpen())" [matTooltip]="I18N.ui.filters.search | translate" [attr.aria-label]="I18N.ui.filters.search | translate">
-          <mat-icon>search</mat-icon><span class="max-sm:hidden">{{ I18N.ui.filters.search | translate }}</span>
+        <button mat-button class="!h-11 !min-w-11 shrink-0 max-md:!px-0 max-md:[&>mat-icon]:!m-0" (click)="mobilePersonsSearchOpen.set(!mobilePersonsSearchOpen())" [matTooltip]="I18N.ui.filters.search | translate" [attr.aria-label]="I18N.ui.filters.search | translate">
+          <mat-icon>search</mat-icon><span class="max-md:hidden">{{ I18N.ui.filters.search | translate }}</span>
         </button>
         @if (auth.isEdition()) {
           <button
-            mat-button class="!h-11 !min-w-11 shrink-0 max-sm:!px-0 max-sm:[&>mat-icon]:!m-0"
+            mat-button class="!h-11 !min-w-11 shrink-0 max-md:!px-0 max-md:[&>mat-icon]:!m-0"
             [class.!text-[var(--mat-sys-primary)]]="personsFilters.showHidden()"
             [attr.aria-pressed]="personsFilters.showHidden()"
             [matTooltip]="I18N.persons.show_hidden | translate"
             [attr.aria-label]="I18N.persons.show_hidden | translate"
             (click)="personsFilters.showHidden.set(!personsFilters.showHidden())">
-            <mat-icon>{{ personsFilters.showHidden() ? 'visibility' : 'visibility_off' }}</mat-icon><span class="max-sm:hidden">{{ I18N.persons.show_hidden | translate }}</span>
+            <mat-icon>{{ personsFilters.showHidden() ? 'visibility' : 'visibility_off' }}</mat-icon><span class="max-md:hidden">{{ I18N.persons.show_hidden | translate }}</span>
           </button>
-          <button mat-button class="!h-11 !min-w-11 shrink-0 max-sm:!px-0 max-sm:[&>mat-icon]:!m-0 ml-auto"
+          <button mat-button class="!h-11 !min-w-11 shrink-0 max-md:!px-0 max-md:[&>mat-icon]:!m-0 ml-auto"
             [matTooltip]="I18N.manage_persons.new_person | translate"
             [attr.aria-label]="I18N.manage_persons.new_person | translate"
             (click)="personsFilters.createRequested.set(personsFilters.createRequested() + 1)">
-            <mat-icon>person_add</mat-icon><span class="max-sm:hidden">{{ I18N.manage_persons.new_person | translate }}</span>
+            <mat-icon>person_add</mat-icon><span class="max-md:hidden">{{ I18N.manage_persons.new_person | translate }}</span>
           </button>
           <a mat-icon-button class="!w-11 !h-11 shrink-0" routerLink="/merge-suggestions"
             [matTooltip]="I18N.persons.merge_suggestions | translate"

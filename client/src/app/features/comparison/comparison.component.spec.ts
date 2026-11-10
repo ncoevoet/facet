@@ -206,7 +206,7 @@ describe('ComparisonComponent', () => {
         const field = select(host)!;
         expect(field).not.toBeNull();
         expect(field.tagName.toLowerCase()).toBe('mat-form-field');
-        expect(field.className).toContain('lg:hidden');
+        expect(field.className).toContain('lg:!hidden');
         expect(field.className).toContain('w-full');
         expect(field.className).toContain('sm:w-52');
         expect(field.compareDocumentPosition(host.querySelector('mat-tab-group')!) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();

@@ -752,7 +752,7 @@ describe('App', () => {
         return view;
       };
       const button = (root: HTMLElement, key: string) => root.querySelector<HTMLElement>(`[aria-label="${key}"]`)!;
-      const label = (root: HTMLElement, key: string) => button(root, key).querySelector('span.max-sm\\:hidden')?.textContent?.trim() ?? null;
+      const label = (root: HTMLElement, key: string) => button(root, key).querySelector('span.max-md\\:hidden')?.textContent?.trim() ?? null;
 
       it.each([['/albums', I18N.albums.filter_type], ['/persons', I18N.gallery.sort], ['/capsules', I18N.capsules.regenerate]])(
         'puts the %s bar on the shared 56px row', async (url, key) => {
@@ -764,7 +764,7 @@ describe('App', () => {
           expect(root.querySelector('main')!.classList.contains('pb-14')).toBe(false);
         });
 
-      it('labels the albums bar buttons from sm and tells the filter and sort icons apart', async () => {
+      it('labels the albums bar buttons from md and tells the filter and sort icons apart', async () => {
         const { root } = await open('/albums');
         expect(label(root, I18N.albums.filter_type)).toBe(I18N.albums.filter_type);
         expect(label(root, I18N.albums.sort_by)).toBe(I18N.albums.sort_by);
@@ -774,7 +774,7 @@ describe('App', () => {
         expect(icon(I18N.albums.filter_type)).not.toBe(icon(I18N.albums.sort_by));
       });
 
-      it('labels the persons bar buttons from sm, but not the two whose text is longer than 14 characters', async () => {
+      it('labels the persons bar buttons from md, but not the two whose text is longer than 14 characters', async () => {
         const { root } = await open('/persons');
         expect(label(root, I18N.gallery.sort)).toBe(I18N.gallery.sort);
         expect(label(root, I18N.ui.filters.search)).toBe(I18N.ui.filters.search);

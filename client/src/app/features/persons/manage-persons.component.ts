@@ -1,6 +1,5 @@
 import { FaceReviewQueueComponent } from './face-review-queue.component';
 import { FaceUpdateControlComponent } from './face-update-control.component';
-import { ScanService } from '../../core/services/scan.service';
 import { afterNextRender, Component, inject, Injector, signal, computed, OnInit, effect, untracked, DestroyRef, viewChild, TemplateRef, ChangeDetectionStrategy } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { FormsModule } from '@angular/forms';
@@ -446,11 +445,11 @@ export type NamingSort = 'faces' | 'recent';
 
     <div class="px-4 pt-4 pb-4">
       @if (auth.isEdition()) {
-        <!-- Update faces: lg+ it lives in the page-actions bar (#personsToolbar). Below sm it is a right-aligned row above
-             the tabs; sm..lg, and on the review tabs where the bar is cleared, it overlays the right of the tab row. -->
+        <!-- Update faces: lg+ it lives in the page-actions bar (#personsToolbar). Below lg, and on the review tabs where
+             the bar is cleared, it is a right-aligned row above the tabs, so a long translated label never covers a tab. -->
         <div class="relative">
-        <app-face-update-control class="max-sm:ml-auto max-sm:mb-2 max-sm:block max-sm:w-fit sm:absolute sm:right-0 sm:top-0 sm:z-20 sm:h-12" [class]="faceUpdateInPageClass()" panelMode="overlay" (reviewRequested)="reviewUpdatedFaces()" />
-        <mat-tab-group mat-stretch-tabs="false" mat-align-tabs="start" animationDuration="0ms" [class]="tabHeaderReserveClass()"
+        <app-face-update-control class="ml-auto mb-2 block w-fit" [class]="faceUpdateInPageClass()" panelMode="overlay" (reviewRequested)="reviewUpdatedFaces()" />
+        <mat-tab-group mat-stretch-tabs="false" mat-align-tabs="start" animationDuration="0ms"
                        [selectedIndex]="tabIndex()" (selectedIndexChange)="selectTabIndex($event)">
           <mat-tab>
             <ng-template mat-tab-label>
@@ -555,18 +554,10 @@ export class ManagePersonsComponent implements OnInit {
   private readonly hide = inject(PersonHideService);
   private readonly personsToolbar = viewChild<TemplateRef<unknown>>('personsToolbar');
   private readonly reviewQueue = viewChild(FaceReviewQueueComponent);
-  private readonly scan = inject(ScanService);
   /** The review tabs carry their own page-level controls, so the edition user's bar is cleared there. */
   private readonly toolbarInBar = computed(() => !(this.auth.isEdition() && (this.tab() === 'matches' || this.tab() === 'unassigned')));
   /** Update faces in the tab row: hidden at lg+ only while the page-actions bar shows it. */
   protected readonly faceUpdateInPageClass = computed(() => this.toolbarInBar() ? 'lg:hidden' : '');
-  /** Keeps the tab labels clear of the Update faces control from sm, where it overlays the tab row (below sm it has its own row). */
-  protected readonly tabHeaderReserveClass = computed(() => {
-    if (!this.scan.canLaunch()) return '';
-    return this.toolbarInBar()
-      ? 'sm:max-lg:[&_.mat-mdc-tab-header]:pr-44'
-      : 'sm:[&_.mat-mdc-tab-header]:pr-44';
-  });
 
   protected reviewUpdatedFaces(): void {
     if (!this.auth.isEdition() || this.router.currentNavigation()) return;
