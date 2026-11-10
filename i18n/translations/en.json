@@ -1075,6 +1075,7 @@
     "compare": "Weight Tuning",
     "albums": "Albums",
     "culling": "Culling",
+    "scenes": "Scenes",
     "memories": "Memories",
     "timeline": "Timeline",
     "folders": "Folders",
@@ -1093,6 +1094,7 @@
       "persons": "People and face review",
       "map": "Photos on a map",
       "culling": "Pick the keepers from bursts and similar shots",
+      "scenes": "Cull your shoot in story order",
       "junk_sweep": "Find screenshots, blurred and junk photos",
       "stats": "Library statistics and charts",
       "compare": "Tune scoring weights by comparing photos"
@@ -1169,8 +1171,8 @@
       "reason_rejected": "{n} rejected"
     },
     "render_migration": {
-      "message": "{n} RAW photos still show a thumbnail from the previous rendering.",
-      "command_hint": "Run {command} to refresh them all at once."
+      "message": "{n} RAW photos still show a grid thumbnail made by an earlier version. Their scores and the detail view are not affected.",
+      "command_hint": "To refresh these thumbnails, run {command}."
     },
     "set_scope": {
       "message": "Showing one photo set: {kind}",
@@ -3680,7 +3682,8 @@
   },
   "junk": {
     "help": "Review non-photo files found in your library — screenshots, documents, receipts, memes and slides. Keep the ones you want; reject the rest.",
-    "empty": "No junk detected. Run \"python facet.py --detect-junk\" to scan your library.",
+    "empty": "Nothing to review. Screenshots, documents, receipts, memes and slides found in your library appear here after each scan.",
+    "empty_command_hint": "To check the whole library now, run {command}.",
     "all_kinds": "All kinds",
     "keep": "Keep",
     "keep_hint": "Keep this photo (removes it from the queue)",

@@ -1050,6 +1050,7 @@
     "compare": "Ajuste de Pesos",
     "albums": "Álbuns",
     "culling": "Seleção",
+    "scenes": "Cenas",
     "memories": "Memórias",
     "timeline": "Linha do Tempo",
     "folders": "Pastas",
@@ -1068,6 +1069,7 @@
       "persons": "Pessoas e revisão de rostos",
       "map": "Fotos num mapa",
       "culling": "Escolha as melhores fotos entre rajadas e fotos semelhantes",
+      "scenes": "Faça a seleção do seu ensaio em ordem narrativa",
       "junk_sweep": "Encontrar capturas de ecrã, fotos desfocadas e lixo",
       "stats": "Estatísticas e gráficos da biblioteca",
       "compare": "Ajuste os pesos de pontuação comparando fotos"
@@ -1144,8 +1146,8 @@
       "reason_rejected": "{n} rejeitada(s)"
     },
     "render_migration": {
-      "message": "{n} fotos RAW ainda mostram uma miniatura da renderização anterior.",
-      "command_hint": "Execute {command} para atualizar todas de uma vez."
+      "message": "{n} fotos RAW ainda mostram na grelha uma miniatura criada por uma versão anterior. As pontuações e a vista de detalhe não são afetadas.",
+      "command_hint": "Para atualizar estas miniaturas, execute {command}."
     },
     "set_scope": {
       "message": "A mostrar um grupo de fotos: {kind}",
@@ -3655,7 +3657,8 @@
   },
   "junk": {
     "help": "Reveja os ficheiros que não são fotos detetados na sua biblioteca — capturas de ecrã, documentos, recibos, memes e diapositivos. Mantenha os que quiser e rejeite o resto.",
-    "empty": "Nenhum lixo detetado. Execute «python facet.py --detect-junk» para analisar a sua biblioteca.",
+    "empty": "Nada para rever. Capturas de ecrã, documentos, recibos, memes e diapositivos encontrados na sua biblioteca aparecem aqui após cada análise.",
+    "empty_command_hint": "Para verificar já toda a biblioteca, execute {command}.",
     "all_kinds": "Todos os tipos",
     "keep": "Manter",
     "keep_hint": "Manter esta foto (remove-a da fila)",

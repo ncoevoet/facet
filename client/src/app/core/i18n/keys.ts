@@ -1089,6 +1089,7 @@ export const I18N = {
     compare: "nav.compare",
     albums: "nav.albums",
     culling: "nav.culling",
+    scenes: "nav.scenes",
     memories: "nav.memories",
     timeline: "nav.timeline",
     folders: "nav.folders",
@@ -1107,6 +1108,7 @@ export const I18N = {
       persons: "nav.tooltips.persons",
       map: "nav.tooltips.map",
       culling: "nav.tooltips.culling",
+      scenes: "nav.tooltips.scenes",
       junk_sweep: "nav.tooltips.junk_sweep",
       stats: "nav.tooltips.stats",
       compare: "nav.tooltips.compare",
@@ -3695,6 +3697,7 @@ export const I18N = {
   junk: {
     help: "junk.help",
     empty: "junk.empty",
+    empty_command_hint: "junk.empty_command_hint",
     all_kinds: "junk.all_kinds",
     keep: "junk.keep",
     keep_hint: "junk.keep_hint",

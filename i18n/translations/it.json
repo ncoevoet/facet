@@ -1050,6 +1050,7 @@
     "compare": "Regolazione pesi",
     "albums": "Album",
     "culling": "Selezione",
+    "scenes": "Scene",
     "memories": "Ricordi",
     "timeline": "Cronologia",
     "folders": "Cartelle",
@@ -1068,6 +1069,7 @@
       "persons": "Persone e revisione dei volti",
       "map": "Foto su una mappa",
       "culling": "Scegli le foto migliori tra raffiche e scatti simili",
+      "scenes": "Seleziona il tuo servizio in ordine narrativo",
       "junk_sweep": "Trova screenshot, foto sfocate e scarti",
       "stats": "Statistiche e grafici della libreria",
       "compare": "Regola i pesi di punteggio confrontando le foto"
@@ -1144,8 +1146,8 @@
       "reason_rejected": "{n} scartata/e"
     },
     "render_migration": {
-      "message": "{n} foto RAW mostrano ancora una miniatura del rendering precedente.",
-      "command_hint": "Esegui {command} per aggiornarle tutte in una volta."
+      "message": "{n} foto RAW mostrano ancora nella griglia una miniatura creata da una versione precedente. I punteggi e la vista dettagliata non cambiano.",
+      "command_hint": "Per aggiornare queste miniature, esegui {command}."
     },
     "set_scope": {
       "message": "Viene mostrato un gruppo di foto: {kind}",
@@ -3655,7 +3657,8 @@
   },
   "junk": {
     "help": "Esamina i file non fotografici rilevati nella tua libreria: screenshot, documenti, ricevute, meme e diapositive. Conserva quelli che vuoi, rifiuta gli altri.",
-    "empty": "Nessuno scarto rilevato. Esegui «python facet.py --detect-junk» per analizzare la libreria.",
+    "empty": "Niente da esaminare. Screenshot, documenti, ricevute, meme e slide trovati nella libreria compaiono qui dopo ogni analisi.",
+    "empty_command_hint": "Per controllare subito tutta la libreria, esegui {command}.",
     "all_kinds": "Tutti i tipi",
     "keep": "Conserva",
     "keep_hint": "Conserva questa foto (la rimuove dalla coda)",

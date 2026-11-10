@@ -1050,6 +1050,7 @@
     "compare": "Réglage des poids",
     "albums": "Albums",
     "culling": "Tri",
+    "scenes": "Scènes",
     "memories": "Souvenirs",
     "timeline": "Chronologie",
     "folders": "Dossiers",
@@ -1068,6 +1069,7 @@
       "persons": "Personnes et revue des visages",
       "map": "Photos sur une carte",
       "culling": "Choisir les meilleures photos parmi les rafales et les images similaires",
+      "scenes": "Triez votre séance dans l'ordre du récit",
       "junk_sweep": "Trouver les captures d’écran, photos floues et inutiles",
       "stats": "Statistiques et graphiques de la photothèque",
       "compare": "Ajuster les pondérations en comparant des photos"
@@ -1144,8 +1146,8 @@
       "reason_rejected": "{n} rejetée(s)"
     },
     "render_migration": {
-      "message": "{n} photos RAW affichent encore une miniature issue du rendu précédent.",
-      "command_hint": "Lancez {command} pour toutes les rafraîchir d'un coup."
+      "message": "{n} photos RAW affichent encore dans la grille une miniature créée par une version antérieure. Leurs scores et la vue détaillée ne sont pas concernés.",
+      "command_hint": "Pour rafraîchir ces miniatures, lancez {command}."
     },
     "set_scope": {
       "message": "Un groupe de photos est affiché : {kind}",
@@ -3655,7 +3657,8 @@
   },
   "junk": {
     "help": "Passez en revue les fichiers non photographiques détectés dans votre bibliothèque — captures d'écran, documents, reçus, mèmes et diapositives. Conservez ceux que vous voulez, rejetez les autres.",
-    "empty": "Aucun indésirable détecté. Lancez « python facet.py --detect-junk » pour analyser votre bibliothèque.",
+    "empty": "Rien à examiner. Les captures d’écran, documents, reçus, mèmes et diapositives trouvés dans votre bibliothèque apparaissent ici après chaque analyse.",
+    "empty_command_hint": "Pour vérifier toute la bibliothèque maintenant, lancez {command}.",
     "all_kinds": "Tous les types",
     "keep": "Conserver",
     "keep_hint": "Conserver cette photo (la retire de la file)",

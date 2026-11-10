@@ -1050,6 +1050,7 @@
     "compare": "Gewichtungsoptimierung",
     "albums": "Alben",
     "culling": "Auswahl",
+    "scenes": "Szenen",
     "memories": "Erinnerungen",
     "timeline": "Zeitleiste",
     "folders": "Ordner",
@@ -1068,6 +1069,7 @@
       "persons": "Personen und Gesichtsprüfung",
       "map": "Fotos auf einer Karte",
       "culling": "Die besten Aufnahmen aus Serien und ähnlichen Fotos auswählen",
+      "scenes": "Sichten Sie Ihr Shooting in Erzählreihenfolge",
       "junk_sweep": "Screenshots, unscharfe und unbrauchbare Fotos finden",
       "stats": "Statistiken und Diagramme der Bibliothek",
       "compare": "Bewertungsgewichte durch Fotovergleiche abstimmen"
@@ -1144,8 +1146,8 @@
       "reason_rejected": "{n} abgelehnt"
     },
     "render_migration": {
-      "message": "{n} RAW-Fotos zeigen noch eine Miniatur aus der vorherigen Darstellung.",
-      "command_hint": "Führen Sie {command} aus, um alle auf einmal aufzufrischen."
+      "message": "{n} RAW-Fotos zeigen im Raster noch eine Miniatur aus einer früheren Version. Ihre Bewertungen und die Detailansicht sind nicht betroffen.",
+      "command_hint": "Um diese Miniaturen aufzufrischen, führen Sie {command} aus."
     },
     "set_scope": {
       "message": "Eine Fotogruppe wird angezeigt: {kind}",
@@ -3655,7 +3657,8 @@
   },
   "junk": {
     "help": "Überprüfen Sie Nicht-Foto-Dateien in Ihrer Bibliothek — Screenshots, Dokumente, Belege, Memes und Folien. Behalten Sie, was Sie möchten, und verwerfen Sie den Rest.",
-    "empty": "Kein Müll erkannt. Führen Sie „python facet.py --detect-junk“ aus, um Ihre Bibliothek zu scannen.",
+    "empty": "Nichts zu prüfen. Screenshots, Dokumente, Belege, Memes und Folien aus Ihrer Bibliothek erscheinen hier nach jedem Scan.",
+    "empty_command_hint": "Um jetzt die ganze Bibliothek zu prüfen, führen Sie {command} aus.",
     "all_kinds": "Alle Arten",
     "keep": "Behalten",
     "keep_hint": "Dieses Foto behalten (entfernt es aus der Warteschlange)",

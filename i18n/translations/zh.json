@@ -1050,6 +1050,7 @@
     "compare": "权重调整",
     "albums": "相册",
     "culling": "选片",
+    "scenes": "场景",
     "memories": "回忆",
     "timeline": "时间线",
     "folders": "文件夹",
@@ -1068,6 +1069,7 @@
       "persons": "人物与人脸审阅",
       "map": "地图上的照片",
       "culling": "从连拍和相似照片中挑选保留项",
+      "scenes": "按故事顺序完成本次拍摄的选片",
       "junk_sweep": "查找截图、模糊和无用照片",
       "stats": "图库统计与图表",
       "compare": "通过比较照片调整评分权重"
@@ -1144,8 +1146,8 @@
       "reason_rejected": "{n} 张已拒绝"
     },
     "render_migration": {
-      "message": "仍有 {n} 张 RAW 照片显示上一次渲染的缩略图。",
-      "command_hint": "运行 {command} 可一次性刷新全部缩略图。"
+      "message": "仍有 {n} 张 RAW 照片在网格中显示由旧版本生成的缩略图。评分和详情视图不受影响。",
+      "command_hint": "如需刷新这些缩略图，请运行 {command}。"
     },
     "set_scope": {
       "message": "正在显示一组照片：{kind}",
@@ -3655,7 +3657,8 @@
   },
   "junk": {
     "help": "复核照片库中发现的非摄影图片，包括截图、文档、收据、表情包和幻灯片。保留需要的，淘汰其余内容。",
-    "empty": "未检测到杂图。运行“python facet.py --detect-junk”扫描照片库。",
+    "empty": "暂无需要查看的内容。照片库中的截图、文档、收据、表情包和幻灯片会在每次扫描后显示在这里。",
+    "empty_command_hint": "如需立即检查整个照片库，请运行 {command}。",
     "all_kinds": "所有类型",
     "keep": "保留",
     "keep_hint": "保留此照片（从待处理列表移除）",
