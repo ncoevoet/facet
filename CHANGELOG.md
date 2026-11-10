@@ -14,6 +14,7 @@ All notable changes to Facet are documented in this file.
 - **The interactive API docs are off unless explicitly enabled.** `/api/docs` and `/api/openapi.json` handed the complete route inventory to anyone who could reach the server; they are served only with `FACET_ENABLE_API_DOCS=1` (or `true`, `yes`, `on`). `npm run gen:api` is unaffected.
 - **Rate-limited login and proofing answers carry `Retry-After`**, so a locked-out client knows when its window resets.
 - **Immich webhook deliveries stop walking the payload at the delivery cap** instead of visiting every entry of an oversized body.
+- **Dependency bump closing the open Dependabot alert, not reachable in a running install.** `minimatch` 11.0.5 under `typescript-eslint`'s parser (GHSA-g3hv-75wg-m249, a DoS through amplified glob patterns), forced through `overrides` because every `@typescript-eslint/typescript-estree` release up to 8.72.2 asks for `^10.2.2`. It is lint tooling only and ships in no install or image.
 
 ### Fixed
 
