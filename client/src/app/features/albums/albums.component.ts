@@ -84,8 +84,9 @@ import { HANDLE_SERVER_ERROR_LOCALLY } from '../../core/utils/http-error-context
         </mat-select>
       </mat-form-field>
       @if (auth.isEdition()) {
-        <button mat-icon-button class="!hidden lg:!inline-flex" [matTooltip]="'albums.create' | translate" [attr.aria-label]="'albums.create' | translate" (click)="albumsFilters.createRequested.set(albumsFilters.createRequested() + 1)">
+        <button mat-flat-button class="!hidden lg:!inline-flex ml-auto" (click)="albumsFilters.createRequested.set(albumsFilters.createRequested() + 1)">
           <mat-icon>add</mat-icon>
+          {{ 'albums.create' | translate }}
         </button>
       }
     </ng-template>

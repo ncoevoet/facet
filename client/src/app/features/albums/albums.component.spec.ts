@@ -12,6 +12,7 @@ import { I18nService } from '../../core/services/i18n.service';
 import { UserActivityJournal } from '../../core/agent/user-activity-journal.service';
 import { AlbumsComponent } from './albums.component';
 import { PageContextService } from '../../core/agent/page-context.service';
+import { HeaderSlotService } from '../../core/services/header-slot.service';
 import { AlbumsFiltersService } from './albums-filters.service';
 
 @Component({ imports: [MatDialogModule], template: '<button mat-dialog-close data-cancel-dialog>Cancel</button>' })
@@ -398,6 +399,27 @@ describe('AlbumsComponent', () => {
     await fixture.whenStable();
     expect(dialogOpen).toHaveBeenCalled();
     expect(overlay.querySelector('[role="menu"]')).toBeNull();
+  });
+
+  describe('create action in the page-actions bar', () => {
+    it('is a labelled flat button pushed to the right edge, with no tooltip', async () => {
+      const fixture = TestBed.createComponent(AlbumsComponent);
+      fixture.detectChanges();
+      const toolbar = TestBed.inject(HeaderSlotService).template()!.createEmbeddedView(null);
+      toolbar.detectChanges();
+      const button = toolbar.rootNodes
+        .filter((n: Node): n is HTMLElement => n instanceof HTMLElement)
+        .find(e => e.tagName === 'BUTTON')!;
+      expect(button.className).toContain('mat-mdc-unelevated-button');
+      expect(button.className).toContain('ml-auto');
+      expect(button.querySelector('mat-icon')!.textContent!.trim()).toBe('add');
+      expect(button.textContent).toContain('albums.create');
+      expect(button.getAttribute('aria-describedby')).toBeNull();
+      button.click();
+      expect(TestBed.inject(AlbumsFiltersService).createRequested()).toBe(1);
+      toolbar.destroy();
+      fixture.destroy();
+    });
   });
 
   describe('load failures', () => {

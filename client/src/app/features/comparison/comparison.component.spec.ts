@@ -197,6 +197,51 @@ describe('ComparisonComponent', () => {
       }
     });
 
+    describe('in-page Type select (below lg)', () => {
+      const select = (host: HTMLElement) => host.querySelector('[data-compare-category]') as HTMLElement | null;
+
+      it('renders above the tab group, hidden at lg+, full width on phones', () => {
+        mockStore.types.set([{ id: 'portrait', count: 10 }, { id: 'landscape', count: 5 }]);
+        const host = render().nativeElement as HTMLElement;
+        const field = select(host)!;
+        expect(field).not.toBeNull();
+        expect(field.tagName.toLowerCase()).toBe('mat-form-field');
+        expect(field.className).toContain('lg:hidden');
+        expect(field.className).toContain('w-full');
+        expect(field.className).toContain('sm:w-52');
+        expect(field.compareDocumentPosition(host.querySelector('mat-tab-group')!) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+        expect(field.textContent).toContain('ui.filters.type');
+      });
+
+      it('shows the chosen category and writes a pick back to the filters service', async () => {
+        mockStore.types.set([{ id: 'portrait', count: 10 }, { id: 'landscape', count: 5 }]);
+        const fixture = render();
+        await fixture.whenStable();
+        fixture.detectChanges();
+        const host = fixture.nativeElement as HTMLElement;
+        expect(select(host)!.querySelector('.mat-mdc-select-value')!.textContent).toContain('category_names.portrait (10)');
+        (select(host)!.querySelector('.mat-mdc-select-trigger') as HTMLElement).click();
+        fixture.detectChanges();
+        const option = [...document.querySelectorAll('mat-option')].find(o => o.textContent!.includes('category_names.landscape')) as HTMLElement;
+        option.click();
+        fixture.detectChanges();
+        expect(compareFilters.selectedCategory()).toBe('landscape');
+      });
+
+      it('follows the category tabs and hides on Scoring context and Panorama', () => {
+        mockStore.types.set([{ id: 'portrait', count: 10 }]);
+        const fixture = render();
+        const host = fixture.nativeElement as HTMLElement;
+        const shown: Record<number, boolean> = {};
+        for (const index of [0, 1, 2, 3, 4, 5]) {
+          compareFilters.activeTab.set(index);
+          fixture.detectChanges();
+          shown[index] = select(host) !== null;
+        }
+        expect(shown).toEqual({ 0: true, 1: true, 2: false, 3: true, 4: false, 5: false });
+      });
+    });
+
     it('left-aligns its tabs instead of stretching them', () => {
       const group = (render().nativeElement as HTMLElement).querySelector('mat-tab-group') as HTMLElement;
       expect(group.getAttribute('mat-stretch-tabs')).toBe('false');

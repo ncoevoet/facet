@@ -37,7 +37,7 @@ describe('ComparisonSuggestionsTabComponent', () => {
         ComparisonSuggestionsTabComponent,
         { provide: ApiService, useValue: mockApi },
         { provide: MatSnackBar, useValue: { open: vi.fn() } },
-        { provide: I18nService, useValue: { t: (key: string) => key } },
+        { provide: I18nService, useValue: { t: (key: string) => key, translations: () => ({}) } },
         { provide: AuthService, useValue: { isEdition: () => true } },
         { provide: CompareFiltersService, useValue: { selectedCategory } },
         { provide: GalleryStore, useValue: { types: signal([]) } },
@@ -100,5 +100,14 @@ describe('ComparisonSuggestionsTabComponent', () => {
     expect(rows.map(r => r.key)).toEqual(['a_percent', 'b_percent']);
     expect(rows[0]).toEqual({ key: 'a_percent', current: 30, suggested: 40, changed: true });
     expect(rows[1]).toEqual({ key: 'b_percent', current: 10, suggested: 10, changed: false });
+  });
+
+  it('docks its Type select in a bar that uses the shared 56px row, not its own padding', () => {
+    const fixture = TestBed.createComponent(ComparisonSuggestionsTabComponent);
+    fixture.detectChanges();
+    const bar = (fixture.nativeElement as HTMLElement).querySelector('.fixed.bottom-0') as HTMLElement;
+    expect(bar.querySelector('mat-form-field')).not.toBeNull();
+    for (const c of ['lg:hidden', 'min-h-14', 'items-center', 'gap-1', 'px-2', 'py-1']) expect(bar.classList, c).toContain(c);
+    for (const c of ['gap-2', 'px-3', 'py-2']) expect(bar.classList, c).not.toContain(c);
   });
 });

@@ -4,6 +4,8 @@ import { NgTemplateOutlet } from '@angular/common';
 import { MatIconModule } from '@angular/material/icon';
 import { MatButtonModule } from '@angular/material/button';
 import { MatTabsModule } from '@angular/material/tabs';
+import { MatFormFieldModule } from '@angular/material/form-field';
+import { MatSelectModule } from '@angular/material/select';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { MatTooltipModule } from '@angular/material/tooltip';
 import { firstValueFrom } from 'rxjs';
@@ -38,6 +40,8 @@ const COMPARE_TAB_NAMES: string[] = [...Object.keys(COMPARE_TAB_INDEX), 'context
     MatIconModule,
     MatButtonModule,
     MatTabsModule,
+    MatFormFieldModule,
+    MatSelectModule,
     MatProgressSpinnerModule,
     MatTooltipModule,
     TranslatePipe,
@@ -127,6 +131,18 @@ const COMPARE_TAB_NAMES: string[] = [...Object.keys(COMPARE_TAB_INDEX), 'context
         </div>
       }
 
+      <!-- Type select for the category tabs below lg, where the shell toolbar select is hidden. Suggestions keeps its own in its bottom bar. -->
+      @if (showCategorySelect()) {
+        <mat-form-field data-compare-category class="lg:hidden w-full sm:w-52 mb-2" subscriptSizing="dynamic">
+          <mat-label>{{ I18N.ui.filters.type | translate }}</mat-label>
+          <mat-select [value]="compareFilters.selectedCategory()" (selectionChange)="compareFilters.selectedCategory.set($event.value)">
+            @for (t of store.types(); track t.id) {
+              <mat-option [value]="t.id">{{ (t.id === 'top_picks' ? 'photo_types.top_picks' : 'category_names.' + t.id) | translate }} ({{ t.count }})</mat-option>
+            }
+          </mat-select>
+        </mat-form-field>
+      }
+
       @if (compareFilters.selectedCategory()) {
         <mat-tab-group class="page-tabs mb-6" [class]="compactTabs" mat-stretch-tabs="false" mat-align-tabs="start" [selectedIndex]="compareFilters.activeTab()" (selectedIndexChange)="onTabChange($event)">
           <!-- Snapshots tab -->
@@ -187,7 +203,7 @@ export class ComparisonComponent {
   protected readonly compactTabs = COMPACT_PAGE_TABS;
   protected readonly auth = inject(AuthService);
   private readonly api = inject(ApiService);
-  private readonly store = inject(GalleryStore);
+  protected readonly store = inject(GalleryStore);
   private readonly themeService = inject(ThemeService);
   protected readonly compareFilters = inject(CompareFiltersService);
   private readonly pageHelp = inject(PageHelpService);
@@ -208,6 +224,12 @@ export class ComparisonComponent {
   private readonly threshold = computed(() => this.comparisonStats()?.min_comparisons_for_optimization ?? 50);
   protected readonly weightsRemaining = computed(() => Math.max(0, this.threshold() - (this.comparisonStats()?.total_comparisons ?? 0)));
   protected readonly weightsLocked = computed(() => (this.comparisonStats()?.total_comparisons ?? 0) < this.threshold());
+
+  /** The tabs that work on one category and need the in-page Type select below lg (the suggestions tab carries its own). */
+  protected readonly showCategorySelect = computed(() => {
+    const tab = this.compareFilters.activeTab();
+    return tab === COMPARE_TAB_INDEX.snapshots || tab === COMPARE_TAB_INDEX.ab || tab === COMPARE_TAB_INDEX.weights;
+  });
 
   /** Whether the contextual top bar has any action to show for the active tab. */
   protected readonly showTopActions = computed(() => {

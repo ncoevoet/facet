@@ -329,8 +329,9 @@ export type NamingSort = 'faces' | 'recent';
         </button>
       }
       @if (auth.isEdition()) {
-        <button mat-icon-button class="!hidden lg:!inline-flex" [matTooltip]="I18N.manage_persons.new_person | translate" [attr.aria-label]="I18N.manage_persons.new_person | translate" (click)="personsFilters.createRequested.set(personsFilters.createRequested() + 1)">
+        <button mat-flat-button class="!hidden lg:!inline-flex ml-auto" (click)="personsFilters.createRequested.set(personsFilters.createRequested() + 1)">
           <mat-icon>person_add</mat-icon>
+          {{ I18N.manage_persons.new_person | translate }}
         </button>
         @if (store.config()?.features?.show_merge_suggestions) {
           <a mat-icon-button class="!hidden lg:!inline-flex" routerLink="/merge-suggestions" [matTooltip]="I18N.persons.merge_suggestions | translate" [attr.aria-label]="I18N.persons.merge_suggestions | translate">
@@ -350,7 +351,7 @@ export type NamingSort = 'faces' | 'recent';
         </button>
       }
       <!-- Far right of the page-actions bar; its panel floats under the trigger (panelMode overlay). -->
-      <app-face-update-control class="ml-auto shrink-0" panelMode="overlay" (reviewRequested)="reviewUpdatedFaces()" />
+      <app-face-update-control class="shrink-0" panelMode="overlay" (reviewRequested)="reviewUpdatedFaces()" />
     </ng-template>
 
     <ng-template #namedPane>
@@ -445,10 +446,10 @@ export type NamingSort = 'faces' | 'recent';
 
     <div class="px-4 pt-4 pb-4">
       @if (auth.isEdition()) {
-        <!-- Update faces: lg+ it lives in the page-actions bar (#personsToolbar). Below lg, and on the review tabs where
-             the bar is cleared, it sits at the right of the tab row; the tab header leaves room for it. -->
+        <!-- Update faces: lg+ it lives in the page-actions bar (#personsToolbar). Below sm it is a right-aligned row above
+             the tabs; sm..lg, and on the review tabs where the bar is cleared, it overlays the right of the tab row. -->
         <div class="relative">
-        <app-face-update-control class="absolute right-0 top-0 z-20 h-12" [class]="faceUpdateInPageClass()" panelMode="overlay" (reviewRequested)="reviewUpdatedFaces()" />
+        <app-face-update-control class="max-sm:ml-auto max-sm:mb-2 max-sm:block max-sm:w-fit sm:absolute sm:right-0 sm:top-0 sm:z-20 sm:h-12" [class]="faceUpdateInPageClass()" panelMode="overlay" (reviewRequested)="reviewUpdatedFaces()" />
         <mat-tab-group mat-stretch-tabs="false" mat-align-tabs="start" animationDuration="0ms" [class]="tabHeaderReserveClass()"
                        [selectedIndex]="tabIndex()" (selectedIndexChange)="selectTabIndex($event)">
           <mat-tab>
@@ -559,12 +560,12 @@ export class ManagePersonsComponent implements OnInit {
   private readonly toolbarInBar = computed(() => !(this.auth.isEdition() && (this.tab() === 'matches' || this.tab() === 'unassigned')));
   /** Update faces in the tab row: hidden at lg+ only while the page-actions bar shows it. */
   protected readonly faceUpdateInPageClass = computed(() => this.toolbarInBar() ? 'lg:hidden' : '');
-  /** Keeps the tab labels clear of the Update faces control (icon-only below sm, labelled from sm). */
+  /** Keeps the tab labels clear of the Update faces control from sm, where it overlays the tab row (below sm it has its own row). */
   protected readonly tabHeaderReserveClass = computed(() => {
     if (!this.scan.canLaunch()) return '';
     return this.toolbarInBar()
-      ? 'max-sm:[&_.mat-mdc-tab-header]:pr-12 sm:max-lg:[&_.mat-mdc-tab-header]:pr-44'
-      : 'max-sm:[&_.mat-mdc-tab-header]:pr-12 sm:[&_.mat-mdc-tab-header]:pr-44';
+      ? 'sm:max-lg:[&_.mat-mdc-tab-header]:pr-44'
+      : 'sm:[&_.mat-mdc-tab-header]:pr-44';
   });
 
   protected reviewUpdatedFaces(): void {

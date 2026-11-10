@@ -1331,7 +1331,7 @@ describe('ManagePersonsComponent', () => {
         (TestBed.inject(ScanService) as unknown as { canLaunch: ReturnType<typeof signal<boolean>> }).canLaunch.set(true);
       });
 
-      it('is the last item, far right, of the page-actions bar template', async () => {
+      it('is the last item of the page-actions bar template, after the labelled create button that carries ml-auto', async () => {
         withTab('named');
         const fixture = await render();
         const toolbar = TestBed.inject(HeaderSlotService).template()!.createEmbeddedView(null);
@@ -1339,7 +1339,13 @@ describe('ManagePersonsComponent', () => {
         const elements = toolbar.rootNodes.filter((n: Node): n is HTMLElement => n instanceof HTMLElement);
         const last = elements[elements.length - 1];
         expect(last.tagName.toLowerCase()).toBe('app-face-update-control');
-        expect(last.className).toContain('ml-auto');
+        expect(last.className).not.toContain('ml-auto');
+        const create = elements.find(e => e.tagName === 'BUTTON' && e.textContent!.includes('manage_persons.new_person'))!;
+        expect(create.className).toContain('ml-auto');
+        expect(create.className).toContain('mat-mdc-unelevated-button');
+        expect(create.querySelector('mat-icon')!.textContent!.trim()).toBe('person_add');
+        expect(create.getAttribute('aria-label')).toBeNull();
+        expect(elements.indexOf(create)).toBeLessThan(elements.indexOf(last));
         toolbar.destroy();
         fixture.destroy();
       });
@@ -1356,13 +1362,24 @@ describe('ManagePersonsComponent', () => {
         fixture.destroy();
       });
 
-      it('sits in the tab row, not in a row of its own above the tabs, and hides at lg+ while the bar shows it', async () => {
+      it('is a right-aligned row above the tabs below sm, an overlay on the tab row from sm, hidden at lg+ while the bar shows it', async () => {
         withTab('named');
         const fixture = await render();
         const inPage = control(fixture.nativeElement);
+        const classes = inPage.className.split(/\s+/);
         expect(inPage.parentElement!.querySelector('mat-tab-group')).not.toBeNull();
-        expect(inPage.className).toContain('absolute');
-        expect(inPage.className).toContain('lg:hidden');
+        expect(classes).not.toContain('absolute');
+        expect(classes).toEqual(expect.arrayContaining(['max-sm:ml-auto', 'sm:absolute', 'lg:hidden']));
+        expect(inPage.nextElementSibling!.tagName.toLowerCase()).toBe('mat-tab-group');
+        fixture.destroy();
+      });
+
+      it('leaves the tab header no right reserve below sm', async () => {
+        withTab('named');
+        const fixture = await render();
+        const group = fixture.nativeElement.querySelector('mat-tab-group') as HTMLElement;
+        expect(group.className).not.toContain('max-sm:');
+        expect(group.className).toContain('sm:max-lg:[&_.mat-mdc-tab-header]:pr-44');
         fixture.destroy();
       });
 
@@ -1399,17 +1416,23 @@ describe('ManagePersonsComponent', () => {
               .map((b) => b.getAttribute('aria-label')),
           }));
 
-      it('Ignored cards are restore-only: Restore stays, Rename, Split and Find more go', async () => {
+      // The card's actions live in a lazily rendered ⋮ menu: open it and read the item labels.
+      const menuItems = (fixture: ComponentFixture<ManagePersonsComponent>, id: number): string[] => {
+        const card = fixture.debugElement.queryAll(By.directive(PersonCardComponent))
+          .find((d) => (d.componentInstance as PersonCardComponent).person().id === id)!;
+        (card.nativeElement as HTMLElement).querySelector<HTMLButtonElement>('button[aria-label="nav.more"]')!.click();
+        fixture.detectChanges();
+        return [...document.querySelectorAll('.mat-mdc-menu-panel button[mat-menu-item] .mat-mdc-menu-item-text > span')].map((e) => e.textContent!.trim());
+      };
+
+      it('Ignored cards are restore-only: Restore and Delete are all the menu offers', async () => {
         withTab(null);
         const fixture = await render();
         fixture.componentInstance.ignoredExpanded.set(true);
         fixture.detectChanges();
         const ignored = cards(fixture).find((c) => c.id === 55)!;
         expect(ignored.restoreOnly).toBe(true);
-        expect(ignored.labels).toContain('persons.unhide');
-        for (const gone of ['persons.rename', 'persons.split', 'persons.find_more']) {
-          expect(ignored.labels).not.toContain(gone);
-        }
+        expect(menuItems(fixture, 55)).toEqual(['persons.unhide', 'persons.delete']);
       });
 
       it('Named cards are not restore-only', async () => {
@@ -1419,7 +1442,8 @@ describe('ManagePersonsComponent', () => {
         fixture.detectChanges();
         const alice = cards(fixture).find((c) => c.id === 1)!;
         expect(alice.restoreOnly).toBe(false);
-        expect(alice.labels).toEqual(expect.arrayContaining(['persons.rename', 'persons.split', 'persons.find_more']));
+        expect(alice.labels).toEqual(['persons.view_photos', 'nav.more']);
+        expect(menuItems(fixture, 1)).toEqual(expect.arrayContaining(['persons.rename', 'persons.split', 'persons.find_more']));
       });
 
       it('Needs naming cards are not restore-only', async () => {

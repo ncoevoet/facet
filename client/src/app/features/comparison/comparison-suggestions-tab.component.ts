@@ -16,6 +16,7 @@ import { CategoryRecomputeService } from './category-recompute.service';
 import { GalleryStore } from '../gallery/gallery.store';
 import { WeightLabelKeyPipe } from './comparison.pipes';
 import { I18N, i18nKeys } from '../../core/i18n/keys';
+import { MOBILE_BAR_ROW } from '../../shared/utils/mobile-bar';
 
 interface LearnedWeightsResponse {
   available: boolean;
@@ -130,7 +131,7 @@ interface TopPhoto {
       </div>
     </div>
 
-    <div class="lg:hidden fixed bottom-0 left-0 right-0 z-50 flex items-center gap-2 px-3 py-2 bg-[var(--mat-sys-surface-container)] border-t border-[var(--mat-sys-outline-variant)] safe-area-pb">
+    <div [class]="barRow" class="lg:hidden fixed bottom-0 left-0 right-0 z-50 bg-[var(--mat-sys-surface-container)] border-t border-[var(--mat-sys-outline-variant)] safe-area-pb">
       <mat-form-field class="flex-1" subscriptSizing="dynamic">
         <mat-label>{{ I18N.ui.filters.type | translate }}</mat-label>
         <mat-select [value]="compareFilters.selectedCategory()" (selectionChange)="compareFilters.selectedCategory.set($event.value)">
@@ -143,6 +144,7 @@ interface TopPhoto {
   `,
 })
 export class ComparisonSuggestionsTabComponent {
+  protected readonly barRow = MOBILE_BAR_ROW;
   protected readonly I18N = i18nKeys();
   private readonly api = inject(ApiService);
   private readonly i18n = inject(I18nService);
