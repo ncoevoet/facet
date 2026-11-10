@@ -189,11 +189,11 @@ describe('ComparisonComponent', () => {
       const tabs = [...host.querySelectorAll('.mat-mdc-tab')];
       expect(tabs.length).toBe(6);
       for (const tab of tabs) {
-        // The icon shows at every width; below sm the name is visually hidden and becomes the tooltip.
+        // The icon shows at every width; below md the name is visually hidden and becomes the tooltip.
         const icon = tab.querySelector('app-tab-label mat-icon')!;
         expect(icon.classList).not.toContain('!hidden');
         expect(icon.getAttribute('aria-hidden')).toBe('true');
-        expect(tab.querySelector('[data-tab-name]')?.classList).toContain('max-sm:sr-only');
+        expect(tab.querySelector('[data-tab-name]')?.classList).toContain('max-md:sr-only');
       }
     });
 

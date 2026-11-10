@@ -510,7 +510,7 @@ describe('StatsComponent', () => {
       expect(el.querySelector('details')!.className).not.toContain('sm:hidden');
     });
 
-    it('labels each tab with the shared icon label, icon-only with a tooltip below sm, as Weights does', async () => {
+    it('labels each tab with the shared icon label, icon-only with a tooltip below md, as Weights does', async () => {
       const fixture = await render();
       const group = (fixture.nativeElement as HTMLElement).querySelector('mat-tab-group')!;
       for (const cls of COMPACT_PAGE_TABS.split(' ')) expect(group.classList).toContain(cls);

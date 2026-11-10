@@ -1033,14 +1033,14 @@ describe('ManagePersonsComponent', () => {
         selected: t.getAttribute('aria-selected') === 'true',
       }));
 
-    it('gives every tab an icon that stands alone below sm, sharing one row like the other page tabs', async () => {
+    it('gives every tab an icon that stands alone below md, sharing one row like the other page tabs', async () => {
       withTab(null);
       const fixture = await render();
       const group = (fixture.nativeElement as HTMLElement).querySelector('mat-tab-group')!;
       for (const cls of COMPACT_PAGE_TABS.split(' ')) expect(group.classList).toContain(cls);
       const tabs = [...group.querySelectorAll('[role="tab"]')] as HTMLElement[];
       expect(tabs.map(tab => tab.querySelector('app-tab-label mat-icon')?.textContent)).toEqual(['group', 'badge', 'how_to_reg', 'person_off']);
-      for (const tab of tabs) expect(tab.querySelector('[data-tab-name]')!.classList).toContain('max-sm:sr-only');
+      for (const tab of tabs) expect(tab.querySelector('[data-tab-name]')!.classList).toContain('max-md:sr-only');
       fixture.destroy();
     });
 
