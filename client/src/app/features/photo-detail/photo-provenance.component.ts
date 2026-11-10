@@ -19,7 +19,7 @@ function sharedSource(rows: readonly { sourceLabel: string }[]): string | null {
   template: `
     <mat-expansion-panel #panel data-photo-provenance class="!rounded-none !bg-transparent !shadow-none [&_.mat-expansion-panel-body]:!px-0 [&_.mat-expansion-panel-body]:!pb-2"
                          [expanded]="expanded()" (expandedChange)="setExpanded($event, panel)" (keydown.escape)="expanded() && close($event, header)">
-      <mat-expansion-panel-header #header class="!h-11 !px-0 !text-xs !font-medium">
+      <mat-expansion-panel-header #header class="!h-11 !ps-0 !pe-2 !text-xs !font-medium">
         <mat-panel-title class="!m-0 items-center gap-2"><mat-icon aria-hidden="true" class="!h-5 !w-5 shrink-0 !text-xl">history</mat-icon>{{ I18N.metadata_sources.title | translate }}</mat-panel-title>
       </mat-expansion-panel-header>
       @if (expanded()) {
